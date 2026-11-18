@@ -236,8 +236,7 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the arch operations total. -/
   tot : P0.ArchTotal arI
   /-- [J]/[P] XTopJointDelR's `JDelParts`: the deletion's named steps (its
-  own fields tagged there; `live` (`LiveJ` [J]), `recvRep`
-  (`RecvReplyLinksHyp` [J]) are also used by the IO port
+  own fields tagged there; `live` (`LiveJ` [J]) is also used by the IO port
   and Thread decodes). -/
   delParts : JDelParts (L := L) arI AR th
   /-- [P] one domain. -/
@@ -279,7 +278,7 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   portIn : PortInVal arI
   /-- [J] ScSignalJ's `SignalRestJHyp` (a notification's bound thread
   `RunningVM`: FL4's remote stall, VT-x, outside the spec model), at every
-  `P1.Heap` and set of cores as `JDelParts.recvRep`: the notification cap's
+  `P1.Heap` and set of cores: the notification cap's
   `send_signal` (`notifLeafJ`). -/
   sigRest : ∀ (H : P1.Heap) (Cs : Set U64), SignalRestJHyp (L := L) arI AR H Cs
 
@@ -626,7 +625,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun s1 σ1' h1 h2 => hN s1 σ1' h1 h2 hsd) hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs) (hG.delParts.recvRep H Cs)
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs)
         hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
@@ -656,7 +655,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.delParts.recvRep hG.pp.minBudget hG.restartNE hidS hWR hR).toP arI hPre
+      hG.pp.minBudget hG.restartNE hidS hWR hR).toP arI hPre
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64

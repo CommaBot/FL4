@@ -150,6 +150,15 @@ theorem ArFr.of_fin {ac : ArchCap} {b : Bool} {σ σ' : State Unit} {x : Cap × 
 
 variable {σ σ' : State Unit}
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`): only arch
+objects change. -/
+theorem ArFr.khrb (h : ArFr σ σ') : KhRB σ σ' := by
+  intro p o' hp
+  rcases h.kh p with e | ⟨a, a', h1, h2, -⟩
+  · exact ⟨o', by rw [← e]; exact hp, ObjRB.refl o'⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
+
 /-- A lookup of an object other than an arch object is the same after. -/
 theorem ArFr.look (h : ArFr σ σ') {p : ObjRef} {ko : KernelObject} (hk : ∀ a, ko ≠ .archObj a) :
     σ'.kheap p = some ko ↔ σ.kheap p = some ko := by

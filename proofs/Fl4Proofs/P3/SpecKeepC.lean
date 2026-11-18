@@ -79,6 +79,17 @@ theorem SzKeep.of_keepCT {σ σ' : State Unit} (h : KeepCT σ σ') : Sched.SzKee
 
 variable {σ σ' : State Unit}
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`): CNodes and
+TCBs' caps change. -/
+theorem HStep.khrb (h : HStep σ σ') : KhRB σ σ' := by
+  intro p o' hp
+  rcases h.kc p with e | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, hc⟩
+  · exact ⟨o', by rw [← e]; exact hp, ObjRB.refl o'⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.tcb (Or.inl hc.1)⟩
+
 /-- A lookup of an object other than a CNode or a TCB is the same after. -/
 theorem HStep.look (h : HStep σ σ') {p : ObjRef} {ko : KernelObject} (hko : ∀ r cs, ko ≠ .cnode r cs)
     (hkt : ∀ x, ko ≠ .tcb x) : σ'.kheap p = some ko ↔ σ.kheap p = some ko := by

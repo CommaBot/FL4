@@ -483,6 +483,17 @@ theorem KFr.rib {σ σ1 : State Unit} {t : ObjRef} {x : Tcb} (F : KFr t σ σ1) 
     (hkt : σ.kheap t = some (.tcb x)) (hc : inClass x.tcbState) : RelIfBound σ1 t :=
   Ipc.RelIfBound.of_keep (hI.rd t x hkt hc) F.skeep
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem KFr.khrb {t : ObjRef} {σ σ' : State Unit} (h : KFr t σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, st, fl, rfl, rfl, -, -, hs⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, ob, rfl, rfl, -⟩
+    · refine ObjRB.tcb ?_
+      rcases hs with rfl | e
+      · exact Or.inr rfl
+      · exact Or.inl e
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+
 end Spec
 
 end

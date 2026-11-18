@@ -195,6 +195,7 @@ theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hK : Sched.ScTKw P σ σ')
     (hX : XTopAt (L := L) AR Z s' a' σ')
     (hcall : Sched.CallRel (L.mem s') Z.R Z.C σ' Lst') (hrf : Sched.RFree (L.mem s') Z.R Z.C σ' Lst')
+    (hrr : Sched.RRecv (L.mem s') Z.R σ')
     (hyl : Sched.YieldRel Z.T Z.C (L.mem s') σ') (hmcp : Sched.McpRel Z.T (L.mem s') σ')
     (hbuf : BufWordRel Z.T (L.mem s') σ')
     (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
@@ -213,7 +214,7 @@ theorem JAtZ.sc_frameS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hsl : Sched.ScLinkHyp σ' := scLink_rebuild hX J.tcbs_eq.1 (J.obj.tkw hK) hblk J.hset.2.1 hjpl J.c0
   have hsv : Sched.SchedValid σ' := schedValid_rebuild hX J.tcbs_eq.1 J.tcbs_eq.2 (J.obj.tkw hK) hblk J.hset.1
     J.hset.2.1 hcall hyl J.c0 hinv hsl
-  refine ⟨hX, hcall, hrf, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
+  refine ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, by rw [hks]; exact J.ks, J.thT, J.thk, J.ip, hrp, hap,
     fun n hn => by rw [hks]; exact J.nk n hn,
     fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, J.cover.tkw hK, J.obj.tkw hK, J.zH, ?_, J.hset, J.hscC, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
@@ -525,9 +526,10 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   obtain ⟨y, m, hk, -⟩ := hs.scs p hpC
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hpS : p ∈ P1.Heap.scs H := ⟨_, (hJ.sc p y m hp0 hk).2⟩
-  refine WP.spec_mono (WP.spec_and (unbind_reply_refines s σ hS hR J.nsc J.inv J.call J.rp hpC hp0 hk J.rfree)
-    (P1.schedcontext.unbind_reply.blk s p p J.blk (fun _ => hpS) hpS)) ?_
-  rintro s' ⟨⟨σ', Lst', he, hS', hR', hN', hI', hCR', hRP', hAI, hRF', hw⟩, hblk, hfoot, -, -⟩
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (unbind_reply_refines s σ hS hR J.nsc J.inv J.call J.rp hpC hp0 hk J.rfree)
+    (P1.schedcontext.unbind_reply.blk s p p J.blk (fun _ => hpS) hpS))
+    (unbind_reply_rwords s σ hS J.call J.rp hpC hp0 hk)) ?_
+  rintro s' ⟨⟨⟨σ', Lst', he, hS', hR', hN', hI', hCR', hRP', hAI, hRF', hw⟩, hblk, hfoot, -, -⟩, hrw⟩
   -- the spec frame
   have hF : RFr σ σ' := by
     obtain ⟨⟨y1, n1, hk1, hyL⟩, hLR, -, -⟩ := J.call.stack p hpC
@@ -544,6 +546,11 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       exact ⟨x, hx⟩
   have hK : ScTKw (fun _ => False) σ σ' :=
     nkt_schedContextUnbindReply p.bv σ ((), σ') (by rw [he]; exact Set.mem_singleton _)
+  -- a receiver's reply: unlinked before, its words kept or nulled
+  have hRR' : RRecv (L.mem s') Z.R σ' := fun d hd hrd => by
+    obtain ⟨h1, h2⟩ := J.rrecv d hd ((KhRB.of_sctkw hK).recvB hrd)
+    obtain ⟨e1, e2⟩ := hrw d hd
+    exact ⟨e1.elim (fun e => e.trans h1) id, e2.trans h2⟩
   -- FL4's writes
   have hks : L.ksb s' = L.ksb s := hw.1
   have hWC : P1.WritesIn st s s' (fun b => TFoot st Z.T Z.N Z.C Z.c s σ b ∨ CallW' Z.R Z.C b) :=
@@ -624,7 +631,7 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     J.deadP_stepG hX' hK (fun _ _ h _ => h.elim) hF.lk hF.fk hact'.1 hrep hout (fun h => h) (J.jcov.dead q hq)
   -- the rest
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
-  exact ⟨σ', he, Z.vs, Ac, Lst', D, J.sc_frameS hks hSS hK hX' hCR' hRF' hY' hM' hbuf hRP'
+  exact ⟨σ', he, Z.vs, Ac, Lst', D, J.sc_frameS hks hSS hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
     (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2))
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'

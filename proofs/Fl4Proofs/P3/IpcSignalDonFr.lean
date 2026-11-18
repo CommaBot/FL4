@@ -685,6 +685,17 @@ theorem donate_dfr {σ σ' : State Unit} (h : Inv σ) {r t n : ObjRef} {xt : Tcb
         exact ⟨DWFr.of_donSt hks hkt hpt h0 hpc' hkn hsc rfl ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
           (fun u hu => Or.inr hu), rfl, rfl, fun d q hq => hq, hBd⟩
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem DWFr.khrb {r t : ObjRef} {σ σ' : State Unit} (h : DWFr r t σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, st, bn, fl, ar, sc, rfl, rfl, hc⟩ | ⟨y, n, rf, nt, tc, rfl, rfl, -⟩ |
+      ⟨x, y, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, rfl, rfl, -⟩
+    · exact ObjRB.tcb hc.rb
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.reply (Or.inr rfl)
+
 end Spec
 
 end

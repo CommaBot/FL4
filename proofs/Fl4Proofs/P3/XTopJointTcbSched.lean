@@ -54,6 +54,16 @@ section
 variable {σ σ' : State Unit} (h : QKM σ σ')
 include h
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem QKM.khrb : KhRB σ σ' := by
+  intro p o' hp
+  rcases h.kh p with e | ⟨x, y, h1, h2, e⟩ | ⟨z, w, n, h1, h2, -⟩
+  · exact ⟨o', by rw [← e]; exact hp, ObjRB.refl o'⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.tcb (Or.inl (by rw [e]))⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
+
 theorem QKM.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, -, -⟩
@@ -504,6 +514,7 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have ck := hA.callKeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
@@ -527,7 +538,7 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
       · subst e; simp [hσ', updK] at hq
       · exact ⟨y, by simpa [hσ', updK, e] using hq, rfl⟩
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.set hT ht hk hv, hBW, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.set hT ht hk hv, hBW, hRP',
       J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle), hkern,
       J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl, hA.cur J.cur,
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩

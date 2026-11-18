@@ -13,8 +13,9 @@ two words, the replies' `TCB` words) and the spec frame `CFr`
 * `JAtZ.deadP_cfr`: the dead stay dead (`deadP_nfr` for `CFr`: the changed
   TCB is `t`, not dead (it was blocked receiving); an endpoint holding `t` is
   not idle; a reply naming `t` names a thread).
-* `RecvReplyHyp` [J]: a reply naming a thread blocked receiving is on no call
-  stack and has null links (`RFree` after the unlink frees it).
+* `RecvReplyHyp`: a reply naming a thread blocked receiving is on no call
+  stack and has null links (`RFree` after the unlink frees it); proved from
+  `JAtZ.rrecv` (`recvReplyHyp_holds`).
 * `JAtZ.wake_postB`: `JAtZ.wake_post` (ScSignalJ) for `CnW` and `CFr`:
   `CallRel` carried by the call stacks, `reply_sc` and the reply links
   (`CFr.callKeep`), `RFree` by `RecvReplyHyp` for the freed reply.
@@ -366,59 +367,20 @@ theorem NoDon.cfr {C : Set U64} {r t u m : Fl4Spec.ObjRef} {σ1 σ2 : Fl4Spec.St
 
 variable (arI) in
 /-- **A reply naming a thread blocked receiving is detached and unlinked**
-[J] (module docstring): on no call stack and with null `prev`/`next` words.
-l4v: a receiver's reply is bound by `receive_ipc` from a free reply
-(`reply_tcb_reply_at`, `valid_replies`: a reply with `reply_tcb` a receiver
-has `reply_sc = None` and is in no `sc_replies` list). P1's `ReplyInv0`
-gives the back-link (`recv`, `back`) but not the links; P3's `CallRel.det`
-allows linked detached replies. -/
+(module docstring): on no call stack and with null `prev`/`next` words, at
+every `JAtZ` (`recvReplyHyp_holds`, from `JAtZ.rrecv`). -/
 def RecvReplyHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
   ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ d ∈ Z.R, ∀ xr t xt, σ.kheap d.bv = some (.reply xr) →
       xr.replyTcb = some t → σ.kheap t = some (.tcb xt) → Fl4Spec.receiveBlocked xt.tcbState = true →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64
 
-/-- **A reply with a null `NEXT` word is on no call stack**: a stack's
-newest reply's `NEXT` word is its SC tagged with bit 0, an older one's the
-next newer reply (`StackW`), never null (`RPlaced.align`). -/
-theorem detached_of_next0 {m : U64 → U64} {R C : Set U64} {σ : Fl4Spec.State Unit} {Lst : U64 → List U64}
-    (hC : CallRel m R C σ Lst) (hR0 : ∀ r ∈ R, r ≠ 0#u64) {d : U64} (hn : m (rNextA d) = 0#u64) :
-    Detached C Lst d := by
-  intro sc hsc hd
-  obtain ⟨-, hLR, -, hW⟩ := hC.stack sc hsc
-  obtain ⟨i, hi, e⟩ := List.getElem_of_mem hd
-  have hw := (hW.2 i hi).2
-  rw [e, hn] at hw
-  cases i with
-  | zero => exact odd_ne_even (q := sc) (r := 0#u64) (by first | decide | rfl | simp) hw.symm
-  | succ j =>
-    have hj : j < (Lst sc).length := by omega
-    have hw' : (Lst sc).getD j 0#u64 = 0#u64 := hw.symm
-    first
-      | simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some] at hw'
-      | rw [List.getD_eq_getElem _ _ hj] at hw'
-    exact hR0 _ (hLR _ (List.getElem_mem hj)) hw'
-
-variable (arI) in
-/-- **[J] A reply bound to a thread blocked receiving has null `PREV`/`NEXT`
-words** (the narrowed content of `RecvReplyHyp`; `recvReplyHyp_of`).
-l4v: `receive_ipc` binds a reply that `reply_remove` / `cancel_ipc` left
-unlinked, or a free one (`RFree`); C `receiveIPC`/`reply_remove` clear both
-links. Not derivable from `JAtZ`: `RFree` covers only free replies, P1's
-`ReplyInv0` relates the reply and TCB words (`recv`, `back`) but not the
-links, and `CallRel.det` allows linked detached replies. The rest of
-`RecvReplyHyp` (on no call stack) follows from it. -/
-def RecvReplyLinksHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
-  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ d ∈ Z.R, ∀ xr t xt, σ.kheap d.bv = some (.reply xr) →
-      xr.replyTcb = some t → σ.kheap t = some (.tcb xt) → Fl4Spec.receiveBlocked xt.tcbState = true →
-      L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64
-
-/-- **`RecvReplyHyp` from its link part**: the reply is on no call stack
-since its `NEXT` word is null (`detached_of_next0`). -/
-theorem recvReplyHyp_of (h : RecvReplyLinksHyp (L := L) arI AR H Cs) : RecvReplyHyp (L := L) arI AR H Cs := by
+/-- **`RecvReplyHyp` holds** (formerly the [J] premise `RecvReplyLinksHyp`):
+`JAtZ.rrecv` (ScRecvLinks) gives the null links, `detached_of_next0` the
+rest. -/
+theorem recvReplyHyp_holds : RecvReplyHyp (L := L) arI AR H Cs := by
   intro Z Ac Lst D s a σ J d hd xr t xt hx ht hxt hrb
-  obtain ⟨hn, hp⟩ := h Z Ac Lst D s a σ J d hd xr t xt hx ht hxt hrb
+  obtain ⟨hn, hp⟩ := J.rrecv d hd ⟨xr, t, xt, hx, ht, hxt, hrb⟩
   exact ⟨detached_of_next0 J.call (fun r hr => (J.rp.align r hr).2.1) hn, hn, hp⟩
 
 set_option maxHeartbeats 8000000 in
@@ -466,8 +428,9 @@ theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
+  have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
@@ -480,8 +443,7 @@ set_option maxHeartbeats 8000000 in
 receiving, without SC donation, keeps `JAtZ`** (module docstring): FL4's side
 `send_signal_bound_irel`, the spec's `cancelIpc_recv_cfr`, `cancel_recv_inv`,
 `wake_specB`, then `wake_postB`. -/
-theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification}
+theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification}
     (hk : σ.kheap n.bv = some (.notification x)) (hidle : x.ntfnObj = .idleNtfn) {t : U64} {tcb : Fl4Spec.Tcb}
     (hb : x.ntfnBoundTcb = some t.bv) (hkt : σ.kheap t.bv = some (.tcb tcb))
     (hrb : Fl4Spec.receiveBlocked tcb.tcbState = true) (hND : NoDon Z.C σ t.bv n.bv) (badge : U64) :
@@ -556,7 +518,7 @@ theorem JAtZ.signal_boundJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (L
       fun b h => h.elim id Or.inl
   have hRR : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb = some t.bv →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64 :=
-    fun d hd xr hx' hxt => recvReplyHyp_of hRRH Z Ac Lst D s _ σ J d hd xr t.bv tcb hx' hxt hkt hrb
+    fun d hd xr hx' hxt => recvReplyHyp_holds Z Ac Lst D s _ σ J d hd xr t.bv tcb hx' hxt hkt hrb
   have htD : ∀ q ∈ D, q.bv ≠ t.bv := by
     intro q hq eq
     have hqt : q = t := P1.eq_of_bv eq

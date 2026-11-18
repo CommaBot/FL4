@@ -7,7 +7,7 @@ against the spec's, from `JAtZ` at the invocation to `JAt` after.
 * `notifLeafJ`: the caller's restart at `J` (`JAtZ.restartJ`), the cap's
   notification one of `N` (`JAtZ.slotN`), then ScSignalJ's `SignalJHyp`
   (`signalJHyp_of`: from `SignalRestJHyp` [J], the bound thread
-  `RunningVM`, VT-x; `RecvReplyLinksHyp` [J]; the platform's `MIN_BUDGET`
+  `RunningVM`, VT-x; the platform's `MIN_BUDGET`
   [P]).
 * `replyLeafJ`: the restart, then `replyXferJ`: `do_reply_transfer` at `J`
   where nothing happens (no thread on the reply, or one not blocked on it)
@@ -42,7 +42,6 @@ theorem restart_out_eq {σ σ1 σ2 : Fl4Spec.State Unit}
 set_option maxHeartbeats 4000000 in
 /-- **The notification cap's leaf at `J`** (module docstring). -/
 theorem notifLeafJ (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR H Cs)
-    (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
@@ -60,7 +59,7 @@ theorem notifLeafJ (hAT : P0.ArchTotal arI) (hW : SignalRestJHyp (L := L) arI AR
   obtain rfl := restart_out_eq hst1 hst
   rw [hs1]
   simp only [bind_ok]
-  refine WP.spec_bind (signalJHyp_of hAT hW hRR hmb Z Ac1 Lst1 D1 s1 ar σ1' p b J1 hpN) ?_
+  refine WP.spec_bind (signalJHyp_of hAT hW hmb Z Ac1 Lst1 D1 s1 ar σ1' p b J1 hpN) ?_
   rintro ⟨s2, a1⟩ ⟨σ', V', Ac', Lst', D', hsp, -, J'⟩
   apply (WP.spec_ok _).2
   refine ⟨rfl, ((), σ'), by rw [hsp]; exact Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J'⟩

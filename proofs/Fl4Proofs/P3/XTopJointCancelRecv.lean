@@ -10,8 +10,7 @@ the endpoint dequeue, the reply unlink, `Inactive`; footprint `CnW`) and P1's
 the frame `CFr` (IpcSignalBoundSpec's `cancelIpc_recv_cfr`,
 `cancel_recv_inv`); `JAtZ` after by ScSignalBoundJ's `JAtZ.wake_postB` (used
 here without a wake: its post state is any `CFr` step), the unlinked reply's
-links by `RecvReplyHyp` [J] (l4v `valid_replies`, carried as
-XTopJointDelR's `JDelParts.recvRep`).
+links by `recvReplyHyp_holds` (l4v `valid_replies`, from `JAtZ.rrecv`).
 -/
 import Fl4Proofs.P3.XTopJointSuspend
 import Fl4Proofs.P3.XTopJointFinReply
@@ -30,8 +29,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 16000000 in
 /-- **`cancel_ipc` of a thread blocked receiving, at `J`** (module
 docstring). -/
-theorem JAtZ.cancelRecvJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb}
+theorem JAtZ.cancelRecvJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb}
     (hkt : σ.kheap t.bv = some (.tcb xt)) {ep : Fl4Spec.ObjRef} {ro : Option Fl4Spec.ObjRef}
     {d : Fl4Spec.ReceiverPayload} (hst : xt.tcbState = .blockedOnReceive ep ro d) :
     ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
@@ -85,7 +83,7 @@ theorem JAtZ.cancelRecvJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
     unfold sched.TS_INACTIVE at h3
     simp [tsCode] at h3
   obtain ⟨V', J'⟩ := J.wake_postB hI1 hF hw hblk hfoot F I3 B3 hAI3 hcur3 hrun3
-    (fun d hd xr' hx hxt => recvReplyHyp_of hRR Z Ac Lst D s _ σ J d hd xr' t.bv xt hx hxt hkt hrb) ht'
+    (fun d hd xr' hx hxt => recvReplyHyp_holds Z Ac Lst D s _ σ J d hd xr' t.bv xt hx hxt hkt hrb) ht'
   exact ⟨V', Ac, Lst, J'⟩
 
 end
@@ -94,12 +92,12 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- **`JCancelAt` for a thread blocked receiving** (module docstring), from
-`RecvReplyHyp` [J] at every heap. -/
+`RecvReplyHyp` (`recvReplyHyp_holds`) at every heap. -/
 theorem jCancel_recv {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs) :
+    :
     JCancelAt (L := L) arI AR th fun ts => ∃ e r d, ts = .blockedOnReceive e r d := by
   intro Z H Cs Ac Lst D s a σ _ J t ht x hk ⟨e, r, d, hst⟩
-  exact J.cancelRecvJ (hRR H Cs) ht hk hst
+  exact J.cancelRecvJ ht hk hst
 
 end
 

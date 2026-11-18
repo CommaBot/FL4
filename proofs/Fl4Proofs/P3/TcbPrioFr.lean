@@ -509,6 +509,14 @@ theorem setPriority_invC {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tc
     rw [show σ' = updK σ t (.tcb { x with tcbPriority := pr }) from (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2]
     exact ⟨h.prioUpd hk pr, (IK.updTcb (t := t) (y := { x with tcbPriority := pr }) hk rfl rfl).1⟩
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem PFr.khrb {t : ObjRef} {σ σ' : State Unit} (h : PFr t σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, pr, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩
+    · exact ObjRB.tcb (Or.inl rfl)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+
 end Spec
 
 end

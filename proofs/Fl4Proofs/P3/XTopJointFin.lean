@@ -40,6 +40,18 @@ theorem Sched.NFr.ntfnF (h : NFr q r σ σ') {p : ObjRef} {x : Notification} (hp
     rcases hc with ⟨_, _, _, _, e1, -⟩ | ⟨_, _, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hpr, -, -, hs, hw, hb⟩ <;> cases e1
     exact ⟨y, h2, fun hne => absurd hpr hne, hw, hb, hs⟩
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`): a thread's
+state changes only from blocked on the notification to running/restart. -/
+theorem Sched.NFr.khrb (h : NFr q r σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, st, bn, ar, rfl, rfl, ht, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩
+    · refine ObjRB.tcb ?_
+      rcases ht with ⟨e, -⟩ | ⟨-, -, e⟩
+      · exact Or.inl e
+      · right; rcases e with rfl | rfl <;> rfl
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+
 /-- `KBack` (the kinds back) across the frame. -/
 theorem Sched.NFr.kback (h : NFr q r σ σ') : KBack σ σ' := by
   intro o ko' ho
@@ -234,6 +246,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 F.khrb
   have hDbg := J.kw_dbg hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3 := hI3.2.2.1
   -- the scheduler fields
@@ -263,7 +276,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩

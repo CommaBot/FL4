@@ -10,7 +10,7 @@ P3 (DESIGN.md §9), IPC: **`JAtZ` across a final reply cap's finalisation**
   `cancel_ipc_recvF`, footprint `CnW`; P1's `cancel_ipc.kw` for `KW`), in the
   spec frame `CFr` (IpcSignalBoundSpec's `cancelIpc_recv_cfr`,
   `cancel_recv_inv`), `JAtZ` after by ScSignalBoundJ's `JAtZ.wake_postB`
-  (the freed reply by `RecvReplyHyp` [J]);
+  (the freed reply by `RecvReplyHyp` (`recvReplyHyp_holds`));
 * blocked on the reply: `reply_remove`, given by the caller (`hRm`; the
   [J] premise `JReplyRemoveHyp` of XTopJointDelR).
 -/
@@ -41,8 +41,7 @@ def FinRPost (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : S
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final reply cap's finalisation** (module docstring),
 `reply_remove`'s case given (`hRm`). -/
-theorem JAtZ.finReplyJ (hT : P0.ArchTotal arI) (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.finReplyJ (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hRm : ∀ (r t : U64) (x : Fl4Spec.Tcb), r ∈ Z.R → t ∈ Z.T → σ.kheap t.bv = some (.tcb x) →
       x.tcbState = .blockedOnReply r.bv → ipc.reply_remove st arI s a r t ⦃ res => res.2 = a ∧ ∃ σ' V' Ac' Lst' D',
         Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
@@ -159,7 +158,7 @@ theorem JAtZ.finReplyJ (hT : P0.ArchTotal arI) (hRR : RecvReplyLinksHyp (L := L)
     unfold sched.TS_INACTIVE at h3
     simp [tsCode] at h3
   obtain ⟨V', J'⟩ := J.wake_postB hI1 hF hw hblk hfoot F I3 B3 hAI3 hcur3 hrun3
-    (fun d hd xr' hx hxt => recvReplyHyp_of hRR Z Ac Lst D s _ σ J d hd xr' t.bv xt hx hxt hkt hrb) ht'
+    (fun d hd xr' hx hxt => recvReplyHyp_holds Z Ac Lst D s _ σ J d hd xr' t.bv xt hx hxt hkt hrb) ht'
   refine ⟨σ1, V', Ac, Lst, D, ?_, J', hF.1, hF.2⟩
   refine finReply_mem_some hkr htp hkt ?_
   rw [hst]; exact hm1

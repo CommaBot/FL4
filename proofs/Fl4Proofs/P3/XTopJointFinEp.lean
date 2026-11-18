@@ -18,7 +18,7 @@ the VSpace sets fresh).
   (`EFr.kback`), `JCs`, and `JRest`: the FL4 frame words from `CnW`
   (ScSignalBoundJ's `cnW_keeps`, `cnW_irq`, `cnW_utc`), `CallRel` from the
   call stacks, `reply_sc` and the reply links, `RFree` for a freed reply by
-  `RecvReplyHyp` [J] (ScSignalBoundJ: a reply naming a thread blocked
+  `RecvReplyHyp` (`recvReplyHyp_holds`) (ScSignalBoundJ: a reply naming a thread blocked
   receiving is detached and unlinked, l4v `valid_replies`), core 0's debug
   word (P1's `KW`), P1's `BlkOK` (`fin_cap_ep.slots`).
 -/
@@ -101,8 +101,8 @@ theorem JAtZ.deadP_efr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {e : Fl
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ` across a final endpoint cap's finalisation** (module
 docstring): at `Z.mv Z.G V'`, the dead set and P1's sets kept. From
-`RecvReplyHyp` [J]. -/
-theorem JAtZ.finEpJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+`RecvReplyHyp` (`recvReplyHyp_holds`). -/
+theorem JAtZ.finEpJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {e b : U64} {x1 x2 x3 x4 : Bool} (he : e ∈ Z.E) :
     objects.finalise_cap st arI s a (.Endpoint e b x1 x2 x3 x4) true false ⦃ res =>
       res.1 = (capability.Cap.Null, capability.Cap.Null) ∧ res.2.2 = a ∧ ∃ σ' V',
@@ -165,7 +165,7 @@ theorem JAtZ.finEpJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs) (J : JAtZ (L 
     rcases hc with e' | ⟨⟨t, hxt, xt, hkt, hrb⟩, -⟩
     · obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨x, hx, e' ▸ hyt⟩
       exact ⟨h1, by rw [r2]; exact h2, by rw [r1]; exact h3⟩
-    · obtain ⟨h1, h2, h3⟩ := recvReplyHyp_of hRR Z Ac Lst D s a σ J d hd x t xt hx hxt hkt hrb
+    · obtain ⟨h1, h2, h3⟩ := recvReplyHyp_holds Z Ac Lst D s a σ J d hd x t xt hx hxt hkt hrb
       exact ⟨h1, by rw [r2]; exact h2, by rw [r1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3 := hI3.2.2.1
@@ -192,8 +192,9 @@ theorem JAtZ.finEpJ (hRR : RecvReplyLinksHyp (L := L) arI AR H Cs) (J : JAtZ (L 
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e)) hDbg
     (D' := D)
+  have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩

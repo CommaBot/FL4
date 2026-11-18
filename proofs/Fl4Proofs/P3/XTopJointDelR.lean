@@ -68,16 +68,15 @@ some of them proved here.
   `JAtZ.intL`.
 * A final endpoint cap's finalisation (`jFinAt_ep`): XTopJointFinEp's
   `JAtZ.finEpJ` (`cancel_all_ipc`, `JAtZ` after), the endpoint dead after
-  (P1's `fin_cap_ep.dead`, `JAtZ.ep_ready`); from `RecvReplyHyp` [J]
-  (ScSignalBoundJ, l4v `valid_replies`: the replies it frees, of threads
-  blocked receiving, are detached and unlinked), carried by `JDelParts` at
-  every `P1.Heap` and set of cores.
+  (P1's `fin_cap_ep.dead`, `JAtZ.ep_ready`); the replies it frees, of
+  threads blocked receiving, are detached and unlinked by ScSignalBoundJ's
+  `recvReplyHyp_holds` (`JAtZ.rrecv`, l4v `valid_replies`).
 * A final reply cap's finalisation (`jFinAt_reply`): XTopJointFinReply's
   `JAtZ.finReplyJ` (none, or the receiver's `cancel_ipc`, proved; the
   `reply_remove` of a thread blocked on the reply, `jReplyRemoveHyp`:
   XTopJointRemove's `JAtZ.replyRemoveJ`),
   the reply dead after (P1's `fin_cap_reply.dead`, `JAtZ.reply_ready`); with
-  `RecvReplyHyp` [J] and `P0.ArchTotal` [P].
+  `P0.ArchTotal` [P].
 * A final native VSpace cap's finalisation (`jFinAt_vs`: page table, page
   directory, PDPT, PML4, ASID pool caps): XTopJointFinVs's `JAtZ.finVsJ`
   (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
@@ -93,7 +92,7 @@ some of them proved here.
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
   `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`,
   `complete_yield_to`, `suspend` (its `cancel_ipc`: send, notification and
-  reply proved, receive from `RecvReplyHyp` [J]), and
+  reply proved, receive by `recvReplyHyp_holds`), and
   debug-list removal proved; the narrow facts from `JThreadFinHyps` [J]/[P]), the slots by P1's
   `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
   `JAtZ.tcb_ready`).
@@ -457,11 +456,6 @@ structure JThreadFinHypsU (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : P
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
     ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
-  /-- ScSignalBoundJ's `RecvReplyLinksHyp` [J] (l4v `valid_replies`; gives `RecvReplyHyp` by
-  `recvReplyHyp_of`), at every
-  `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
-  replies of the threads blocked receiving on it. -/
-  recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs
   /-- The x86 backend's obligations (VsArch's `ArchRefines` [P]), for a final
   native VSpace cap's finalisation. -/
   archRef : ArchRefines arI AR
@@ -749,8 +743,8 @@ theorem JAtZ.ep_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 set_option maxHeartbeats 4000000 in
 /-- **A final endpoint cap's finalisation at `J`** (XTopJointFinEp's
 `JAtZ.finEpJ`, the endpoint dead after by P1's `fin_cap_ep.dead`), from
-`RecvReplyHyp` [J]. -/
-theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs) :
+`RecvReplyHyp` (`recvReplyHyp_holds`). -/
+theorem jFinAt_ep :
     JFinAtF (L := L) arI AR th EpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨e, b, x1, x2, x3, x4, hce⟩ hfin
   subst hce hth
@@ -760,7 +754,7 @@ theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L 
   have hHe : H e = some .ep := (hJ.typed _ hA.isSlot).1 e b x1 x2 x3 x4 hcv
   have heE : e ∈ (Z.mv G V).E := J.hset.1 e hHe
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (J.finEpJ (hRR H Cs) heE)
+  refine WP.spec_mono (WP.spec_and (J.finEpJ heE)
     (P1.fin_cap_ep.dead (ar := arI) s a e b x1 x2 x3 x4 false J.blk hHe)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, hmem1, J1, -, hSS1, hks1⟩, d1⟩
   simp only at e1 e2 hmem1 J1 hSS1 hks1 d1
@@ -808,9 +802,8 @@ theorem JAtZ.reply_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 set_option maxHeartbeats 4000000 in
 /-- **A final reply cap's finalisation at `J`** (XTopJointFinReply's
 `JAtZ.finReplyJ`, the reply dead after by P1's `fin_cap_reply.dead`), from
-`RecvReplyHyp` [J] and `JReplyRemoveHyp` [J]. -/
+`RecvReplyHyp` (`recvReplyHyp_holds`) and `JReplyRemoveHyp` [J]. -/
 theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hRm : JReplyRemoveHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th RpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, g, hce⟩ hfin
   subst hce hth
@@ -820,7 +813,7 @@ theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
   have hHp : H p = some .reply := (hJ.typed _ hA.isSlot).2.2 p g hcv
   have hpR : p ∈ (Z.mv G V).R := J.hset.2.2 p hHp
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (J.finReplyJ hT (hRR H Cs) (hRm (Z.mv G V) H Cs Ac Lst D s a σ rfl J) hpR)
+  refine WP.spec_mono (WP.spec_and (J.finReplyJ hT (hRm (Z.mv G V) H Cs Ac Lst D s a σ rfl J) hpR)
     (P1.fin_cap_reply.dead (ar := arI) hT s a p g false J.blk hHp)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, d1⟩
   simp only at e1 e2 hmem1 J1 hSS1 hks1 d1
@@ -1006,7 +999,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) :
 base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
 `fin_cap_thread.dead` (`JAtZ.tcb_ready`). -/
 theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThreadFinHyps (L := L) arI AR th)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs) :
+    :
     JFinAtF (L := L) arI AR th TcbK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, hce⟩ hfin
   subst hce hth
@@ -1027,7 +1020,7 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThread
     rw [JAtZ.idleThread_eq arI J, e]; simp [absCap, Fl4Spec.objRefs]
   have hna : L.actionW s ≠ p := J.action_ne_of_noSwitch hpT hns
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hK hF hRR J hpT hv0 hna hidle)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hK hF J hpT hv0 hna hidle)
     (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
     (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5⟩, e, -, f, hW1⟩
@@ -1114,15 +1107,15 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   · by_cases hq : IrqK c
     · exact jFinAt_irq arI h.live (jIrqSlotHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
     by_cases he : EpK c
-    · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
+    · exact jFinAt_ep arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
-    · exact jFinAt_reply arI hT h.recvRep (jReplyRemoveHyp arI hT) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
+    · exact jFinAt_reply arI hT (jReplyRemoveHyp arI hT) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps (jVsApartHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
     · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread)) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
-    · exact jFinAt_thread arI hT h.arKeep h.thread h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
+    · exact jFinAt_thread arI hT h.arKeep h.thread Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     by_cases hvt : EptK c ∨ VcpuK c
     · exact jFinAt_vt arI h.archRef h.arKeep h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvt hfin
     by_cases hrt : EptRootK c

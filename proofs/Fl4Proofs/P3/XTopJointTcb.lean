@@ -12,8 +12,7 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   at the start); the labels proved here, each with its decode errors at the
   start's `JAtZ`:
   - Suspend (`tcb_suspendJ`: `JAtZ.restartJ`, then `JAtZ.suspendJ` with the
-    four cancel steps; `RecvReplyLinksHyp` [J] for `jCancel_recv`, already
-    `JDelParts.recvRep`);
+    four cancel steps);
   - WriteRegisters (`tcb_write_regsJ`: the caller's restart, then
     XTopJointWriteRegs' `JAtZ.writeRegsJ`: the register loops at `J`, the
     restart PC, `post_modify_registers`, the optional `JAtZ.restartTcbJ`;
@@ -196,6 +195,7 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have ck := hA.callKeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
@@ -208,7 +208,7 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
     (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
       J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
@@ -448,10 +448,9 @@ set_option maxHeartbeats 8000000 in
 /-- **The Suspend label at `JAt`** (as `tcb_suspendX`): the caller's restart
 (`JAtZ.restartJ`), then `JAtZ.suspendJ` with the four cancel steps
 (`jCancel_send`, `jCancel_ntfn`, `jCancel_reply`; `jCancel_recv` from
-`RecvReplyLinksHyp` [J], l4v `valid_replies`, already `JDelParts.recvRep`). -/
+`recvReplyHyp_holds`). -/
 theorem tcb_suspendJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (p : U64) (hpT : p ∈ Z.T) (hpI : p ≠ L.idleW s) (slbl : Fl4Spec.Data)
+    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (hpI : p ≠ L.idleW s) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSuspend)
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar)) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (c : tcb.Ctx) (blk call don : Bool)
@@ -471,7 +470,7 @@ theorem tcb_suspendJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := 
   unfold TcbOKX
   rw [decode_suspend_eq arI s ar p c hstall, hrc1]
   simp only [bind_ok]
-  refine WP.spec_bind (J1.suspendJ (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI (hRR))
+  refine WP.spec_bind (J1.suspendJ (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
     (jCancel_reply arI) hpT (fun u h => (hns u h).elim) (by rw [hid1]; exact hid0)) ?_
   rintro ⟨s2, a2⟩ ⟨-, σ', hsus, V, Ac', Lst', D', J2⟩
   refine (WP.spec_ok _).2 ?_
@@ -491,8 +490,7 @@ platform's `MIN_BUDGET` [P] (as IpcCapJ). -/
 theorem tcb_resumeJ (hAT : P0.ArchTotal arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (p : U64) (hpT : p ∈ Z.T) (x0 : U64) (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread p))
+    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (x0 : U64) (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread p))
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbResume)
     (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar)) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (c : tcb.Ctx) (blk call don : Bool)
@@ -529,7 +527,7 @@ theorem tcb_resumeJ (hAT : P0.ArchTotal arI)
   unfold TcbOKX
   rw [decode_resume_eq arI s ar p c hstall, hrc1]
   simp only [bind_ok]
-  refine WP.spec_bind (J1.restartTcbJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR)
+  refine WP.spec_bind (J1.restartTcbJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
     (jCancel_reply arI) (hmb ar) hpT hxS hcap1 hC1' (fun u h => hns u h) hcr1) ?_
   rintro ⟨s2, a2⟩ ⟨-, σ', hres, V, Ac', Lst', D', J2⟩
   refine (WP.spec_ok _).2 ?_
@@ -552,7 +550,7 @@ the platform's `MIN_BUDGET` [P]. -/
 theorem tcb_write_regsJ (hAT : P0.ArchTotal arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
+    (hni : Entered σ)
     (p : U64) (hpT : p ∈ Z.T) (x0 : U64) (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread p))
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbWriteRegisters)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -689,7 +687,7 @@ theorem tcb_write_regsJ (hAT : P0.ArchTotal arI)
     rw [getElem!_pos V j hjV]
     simp only [hV, List.getElem_take, List.getElem_map, List.getElem_drop]
     congr 2; omega
-  refine WP.spec_bind (J1.writeRegsJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR)
+  refine WP.spec_bind (J1.writeRegsJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
     (jCancel_reply arI) (hmb ar) hpT hpc hcur1 hctT hxS hcap1 hC1' (fun u h => hns u h) hcr1 hbm
     ((y0 &&& 1#u64) != 0#u64) y1 hVn hargsV) ?_
   rintro ⟨s2, a2⟩ ⟨-, σ', hsp, V', Ac', Lst', D', J2⟩
@@ -714,7 +712,7 @@ source not idle (`hidS`), `RestartNEHyp` [J], the platform's `MIN_BUDGET`
 theorem tcb_copy_regsJ (hAT : P0.ArchTotal arI) (hRN : RestartNEHyp st arI AR)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
+    (hni : Entered σ)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
       q ≠ L.idleW s)
     (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbCopyRegisters)
@@ -832,7 +830,7 @@ theorem tcb_copy_regsJ (hAT : P0.ArchTotal arI) (hRN : RestartNEHyp st arI AR)
     obtain ⟨hres1, -, -, -, -⟩ := restart_mid hcur hk (hcur ▸ hcs) hni.2 hC J.off J.act J.inv
     have hEn1 : Entered σ1 := ⟨by rw [hct1, hid1]; exact hni.1, by rw [he1]; exact hres1⟩
     refine WP.spec_mono ((J1.undead hAs.isSlot hcap1 hpT).copyRegsJ hAT (jCancel_send arI) (jCancel_ntfn arI)
-      (jCancel_recv arI hRR) (jCancel_reply arI) hRN (hmb ar) hEn1 hsrcT hpT hsI (fun h => h.2 rfl) y0) ?_
+      (jCancel_recv arI) (jCancel_reply arI) hRN (hmb ar) hEn1 hsrcT hpT hsI (fun h => h.2 rfl) y0) ?_
     rintro ⟨r2, s2, a2⟩ ⟨hr2, -, σ', hsp, V', Ac', Lst', D', J2⟩
     simp only at hr2; subst hr2
     have hz : ((.ok [], σ') : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
@@ -2067,8 +2065,7 @@ set_option maxHeartbeats 8000000 in
 decode, the caller's restart (`JAtZ.restartJ`), then XTopJointReadRegs'
 `JAtZ.readRegsJ` (the source's suspend, the copy loops, the reply tail). -/
 theorem tcb_read_regsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
+    (hni : Entered σ) (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
     (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
     (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
@@ -2161,7 +2158,7 @@ theorem tcb_read_regsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
         rw [run_bind_ok hrc, run_bind_ok (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit =>
           s.curThread) rfl), whenE_neg (by show ¬ p.bv = σ.curThread; rw [hcur, bv_eq_iff']; exact hpc), retOk_bind]
         rfl
-      refine WP.spec_bind (J1.readRegsJ (blk := blk) (don := don) hRR hOK hBC hBPl hns
+      refine WP.spec_bind (J1.readRegsJ (blk := blk) (don := don) hOK hBC hBPl hns
         (by rw [hid1]; exact J.ne_idle hpI) (by rw [hcu1]; exact hcur) hkc1 rfl hpc hpT y0 y1) ?_
       rintro ⟨s2, a2⟩ ⟨hne, rr, σy, hm, z, hz, hRz, hXz⟩
       exact (WP.spec_ok _).2 (Or.inr ⟨rfl, hne, _, DecOut.of_eq hdec, σ1, hst1, rr, σy, hm, z, hz, hRz, hXz⟩)
@@ -2512,7 +2509,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
       FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hRN : RestartNEHyp st arI AR)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
@@ -2553,16 +2549,16 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     {
       readRegisters := fun h => by
         subst h
-        exact tcb_read_regsJ arI s ar σ J hni hRR hOK hBC hBPl p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf])
+        exact tcb_read_regsJ arI s ar σ J hni hOK hBC hBPl p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf])
           length buf ct hct argsU hlen hargs (hstall' p) call (cslotAddr sl) extra blk don ci sl excaps buffer,
       writeRegisters := fun h => by
         subst h
-        exact tcb_write_regsJ arI hT hmb s ar σ J hni hRR p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl
+        exact tcb_write_regsJ arI hT hmb s ar σ J hni p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl
           (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs (hWR rfl).1 (hWR rfl).2 (hstall' p) call
           (cslotAddr sl) extra blk don ci sl excaps buffer,
       copyRegisters := fun h => by
         subst h
-        exact tcb_copy_regsJ arI hT hRN hmb s ar σ J hni hRR hidS p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf
+        exact tcb_copy_regsJ arI hT hRN hmb s ar σ J hni hidS p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf
           ct hct argsU hlen hargs hstall' call sl hAs hsc extra x0 x1 x2 hx0 excaps hXc blk don ci buffer,
       configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       setPriority := fun h => by
@@ -2579,11 +2575,11 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       suspend := fun h => by
         subst h
-        exact tcb_suspendJ arI s ar σ J hni hRR p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _
+        exact tcb_suspendJ arI s ar σ J hni p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _
           blk call don _ ci sl excaps buffer,
       resume := fun h => by
         subst h
-        exact tcb_resumeJ arI hT hmb s ar σ J hni hRR p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl
+        exact tcb_resumeJ arI hT hmb s ar σ J hni p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl
           (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _ blk call don _ ci sl excaps buffer,
       bindNotification := fun h => by
         subst h

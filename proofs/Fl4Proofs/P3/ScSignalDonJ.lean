@@ -205,8 +205,9 @@ theorem JAtZ.wake_postD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
+  have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own htT J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
@@ -299,8 +300,7 @@ theorem JAtZ.signal_waitDJ (hAT : P0.ArchTotal arI)
 set_option maxHeartbeats 8000000 in
 /-- **The idle notification's bound receiver woken, donating or not, keeps
 `JAtZ`** (module docstring; `JAtZ.signal_boundJ` with `wake_specG`). -/
-theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (L := L) arI AR H Cs)
-    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) {x : Fl4Spec.Notification}
     (hk : σ.kheap n.bv = some (.notification x)) (hidle : x.ntfnObj = .idleNtfn) {t : U64} {tcb : Fl4Spec.Tcb}
     (hb : x.ntfnBoundTcb = some t.bv) (hkt : σ.kheap t.bv = some (.tcb tcb))
@@ -375,7 +375,7 @@ theorem JAtZ.signal_boundDJ (hAT : P0.ArchTotal arI) (hRRH : RecvReplyLinksHyp (
       fun b h => h.elim id Or.inl
   have hRR : ∀ q ∈ Z.R, ∀ xr, σ.kheap q.bv = some (.reply xr) → xr.replyTcb = some t.bv →
       Detached Z.C Lst q ∧ L.mem s (rNextA q) = 0#u64 ∧ L.mem s (rPrevA q) = 0#u64 :=
-    fun q hq xr hx' hxt => recvReplyHyp_of hRRH Z Ac Lst D s _ σ J q hq xr t.bv tcb hx' hxt hkt hrb
+    fun q hq xr hx' hxt => recvReplyHyp_holds Z Ac Lst D s _ σ J q hq xr t.bv tcb hx' hxt hkt hrb
   have htD := J.not_dead_of_st htT hkt (by rw [hst]; simp [tsCode])
   obtain ⟨V', J'⟩ := J.wake_postD hIR (hF1.trans hF2) hw hbk hfoot FF I' B' AI' cur' run' hRR htD ⟨t, htT, rfl⟩
   exact ⟨σ', V', Ac, Lst, D, hsend, FF.sk.dt, J'⟩

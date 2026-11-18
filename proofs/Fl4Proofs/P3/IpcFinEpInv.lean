@@ -768,6 +768,18 @@ theorem EFr.ksub (h : EFr e P σ σ') : KSub σ σ' := by
 
 end
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem EFr.khrb {e : ObjRef} {P : ObjRef → Prop} {σ σ' : State Unit} (h : EFr e P σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, st, rfl, rfl, hc⟩ | ⟨y, n, rf, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, t, rfl, rfl, -, -⟩
+    · refine ObjRB.tcb ?_
+      rcases hc with e | ⟨-, e⟩
+      · exact Or.inl e
+      · right; rcases e with rfl | rfl <;> rfl
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.reply (Or.inr rfl)
+
 end Spec
 
 end

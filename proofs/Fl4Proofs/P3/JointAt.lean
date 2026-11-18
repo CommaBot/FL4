@@ -35,6 +35,7 @@ import Fl4Proofs.P3.IpcSendDon
 import Fl4Proofs.P3.ScXProd
 import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.ScIpcSorted
+import Fl4Proofs.P3.ScRecvLinks
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -125,6 +126,9 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   xtop : XTopAt (L := L) AR Z s a σ
   call : Sched.CallRel (L.mem s) Z.R Z.C σ Lst
   rfree : Sched.RFree (L.mem s) Z.R Z.C σ Lst
+  /-- A reply bound to a thread blocked receiving has null links (ScRecvLinks;
+  l4v `valid_replies`). -/
+  rrecv : Sched.RRecv (L.mem s) Z.R σ
   yld : Sched.YieldRel Z.T Z.C (L.mem s) σ
   mcp : Sched.McpRel Z.T (L.mem s) σ
   buf : BufWordRel Z.T (L.mem s) σ

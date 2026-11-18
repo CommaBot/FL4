@@ -548,6 +548,29 @@ theorem CFr.callKeep (h : CFr r t σ σ') :
 
 end
 
+/-- A `TCX` state change sets no receive-blocked state anew. -/
+theorem TCX.rb {r t p : ObjRef} {x : Tcb} {st : ThreadState} {bn : Option ObjRef} {fl : Option Fault}
+    {ar : ArchTcb} (h : TCX r t p x st bn fl ar) : st = x.tcbState ∨ receiveBlocked st = false := by
+  rcases h with ⟨⟨e, -⟩ | ⟨-, -, e⟩, -, -⟩ | ⟨-, -, -, e⟩
+  · exact Or.inl e
+  · right; rcases e with rfl | rfl <;> rfl
+  · rcases e with rfl | rfl | e
+    · right; rfl
+    · right; rfl
+    · exact Or.inl e
+
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem CFr.khrb {r t : ObjRef} {σ σ' : State Unit} (h : CFr r t σ σ') : KhRB σ σ' :=
+  KhRB.of_kh h.kh fun p o o' hc => by
+    rcases hc with ⟨x, st, bn, fl, ar, rfl, rfl, hc⟩ | ⟨hn, hnt⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, rfl, rfl, -⟩
+    · exact ObjRB.tcb hc.rb
+    · rcases hn with ⟨x, -, -, -, rfl, -⟩ | ⟨y, n, rf, nt, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩
+      · exact absurd rfl (hnt x)
+      · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+      · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)
+    · exact ObjRB.reply (Or.inr rfl)
+
 end Spec
 
 end

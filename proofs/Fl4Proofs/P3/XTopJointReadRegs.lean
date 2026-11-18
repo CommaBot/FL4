@@ -342,14 +342,13 @@ theorem JAtZ.rrTailJ {σy : Fl4Spec.State Unit} {ct : U64} {x : Fl4Spec.Tcb} {ms
 set_option maxHeartbeats 64000000 in
 /-- **ReadRegisters' leaf at `J`** (IpcReadRegsJ's `readRegsXHypJ` with
 `JAtZ` carried): after the caller's restart, the source's suspend
-(`JAtZ.suspendJ` with the four cancel steps, `RecvReplyLinksHyp` [J] for
+(`JAtZ.suspendJ` with the four cancel steps, `recvReplyHyp_holds` for
 `jCancel_recv`), then, called, the badge (`JAtZ.regWrJ`), the copy loops
 (`rrJ_loop0`, `rrJ_loop1`, `rrJ_loopGB`; the buffer words by
 `JAtZ.bufWord`) and the message info and `Running` (`JAtZ.rrTailJ`); not
 called, `Running` (`JAtZ.runJ`, `XTop`'s facts by `nodata_tail_core`). -/
 theorem JAtZ.readRegsJ {s1 : S} {σ1 : Fl4Spec.State Unit} {ct p : U64} {blk call don : Bool}
     (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a σ1)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
     (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
     (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
@@ -380,7 +379,7 @@ theorem JAtZ.readRegsJ {s1 : S} {σ1 : Fl4Spec.State Unit} {ct p : U64} {blk cal
     · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
       exact ⟨trivial, σ1, rfl, StK.OSK.refl _, Z.vs, Ac, Lst, D, J1⟩
     · simp only [↓reduceIte]
-      refine WP.spec_mono (J1.suspendJ (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR)
+      refine WP.spec_mono (J1.suspendJ (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
         (jCancel_reply arI) hpT (fun u h => (hns u h).elim) hidp) ?_
       rintro ⟨s2, a2⟩ ⟨h1, σy, h2, V, Ac', Lst', D', J2⟩
       refine ⟨h1, σy, by simpa [Fl4Spec.NonDet.when] using h2, StK.st_suspend σ1 ((), σy) ?_, V, Ac', Lst', D', J2⟩

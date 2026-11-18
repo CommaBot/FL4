@@ -74,6 +74,16 @@ section
 variable {σ σ' : State Unit} (h : BKY σ σ')
 include h
 
+/-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
+theorem BKY.khrb : KhRB σ σ' := by
+  intro p o' hp
+  rcases h.kh p with e | ⟨x, y, h1, h2, e⟩ | ⟨z, w, h1, h2, -⟩
+  · exact ⟨o', by rw [← e]; exact hp, ObjRB.refl o'⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.tcb (Or.inl (by rw [e]))⟩
+  · obtain rfl := Option.some.inj (hp.symm.trans h2)
+    exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
+
 theorem BKY.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbBoundNotification := y.tcbBoundNotification } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨a, b, ha, -, -⟩
@@ -309,6 +319,7 @@ theorem JAtZ.reg_frameFp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
   have ck := hA.callKeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
@@ -321,7 +332,7 @@ theorem JAtZ.reg_frameFp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
     (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
       J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
@@ -508,6 +519,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
   have ck := F.callKeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 F.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 := hX2.2.2.1
   have hAI3 : ActIdle σ' := F.actIdle J.act
@@ -557,7 +569,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
     (by rw [F.arch])
     (fun q ao h => (F.oth (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D')
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D' (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, hjc, hkern,
       J.finW_utc hw hF.1 F.cdt F.orig F.arch hDbg, F.nsc J.nsc, I3, F.cur J.cur, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted, F.curRunM J.curRun, hblk0⟩

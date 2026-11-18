@@ -24,7 +24,7 @@ XTopFinThread's `xFinThread_of`:
   `JAtZ`;
 * `suspend` (`JAtZ.suspendJ`, XTopJointSuspend: the fault clear or, for a
   blocked thread, its `cancel_ipc`: receive by XTopJointCancelRecv's
-  `jCancel_recv` (from `RecvReplyHyp` [J], `finThreadJ`'s `hRR`), reply by
+  `jCancel_recv` (by `recvReplyHyp_holds`), reply by
   XTopJointCancelReply's `jCancel_reply`, send and notification by
   XTopJointCancel's `jCancel_send`, `jCancel_ntfn`; the restart PC; the scheduler
   tail as one SC step), the thread neither the switch target nor idle
@@ -219,6 +219,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 F.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := F.actIdle J.act
@@ -234,7 +235,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle), hkern,
       J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted, hrun3, hblk⟩
@@ -534,11 +535,12 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 F.khrb
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hks hirq⟩
   have hkern := J.kern_dbg hks hw.2.1 hS' hhead
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ :=
-    ⟨hCR', hRF', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
+    ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' rfl), hkern,
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
   exact J.cs_frame (G' := Z.G) hks hX' F.kback (JCs.same J hSS F.ksz) R
@@ -721,7 +723,6 @@ set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),
 the steps of `JThreadFinHyps` given, the FPU release's arch step by `ARKeep` [P]. -/
 theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThreadFinHyps (L := L) arI AR Z.th)
-    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p) :
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
@@ -784,7 +785,7 @@ theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThr
       · exact hsa u (by rw [← e]; exact hu)
       · rw [e] at hu; cases hu
     have hid5 : p.bv ≠ σ5.idleThread := by rw [hi5]; exact hid
-    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI hRR) (jCancel_reply arI) J5 hp hsa5 hid5) ?_
+    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI) (jCancel_reply arI) J5 hp hsa5 hid5) ?_
     rintro ⟨s6, a6⟩ ⟨ha6, σ6, he6, V6, Ac6, Lst6, D6, J6⟩
     simp only at ha6
     subst ha6
