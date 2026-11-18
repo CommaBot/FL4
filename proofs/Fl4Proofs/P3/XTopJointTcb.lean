@@ -21,8 +21,8 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - CopyRegisters (`tcb_copy_regsJ`: the caller's restart, the target out
     of the dead set by its cap (`JAtZ.undead`), then XTopJointCopyRegs'
     `JAtZ.copyRegsJ`: the source's suspend (`JAtZ.suspendJD`), the target's
-    restart (`JAtZ.restartTcbJD`, or `RestartNEHyp` [J] when the source was
-    the current thread), the copy loops and the tail; the source not idle
+    restart (`JAtZ.restartTcbJD`, also when the source was the current
+    thread and a reschedule is pending), the copy loops and the tail; the source not idle
     (`hidS`, from `SpecGlob.idle` at the entry), the platform's `MIN_BUDGET` [P]);
   - Resume (`tcb_resumeJ`: the restart, then XTopJointRestart's
     `JAtZ.restartTcbJ` with the four cancel steps, the target's cap the
@@ -505,7 +505,7 @@ theorem tcb_resumeJ (hAT : P0.ArchTotal arI)
     apply run_liftME_ok
     unfold Fl4Spec.decodeTcbInvocation
     rw [hlbl]; rfl
-  obtain ⟨s1, σ1, x, hrc1, hst, hk, hcur, he1, hns, -, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x, hrc1, hst, hk, hcur, -, hns, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   obtain ⟨-, x', hk', hrun⟩ := J.curRunnable hni hct
   rw [hk] at hk'; cases hk'
   -- the slots kept by the caller's restart
@@ -514,21 +514,11 @@ theorem tcb_resumeJ (hAT : P0.ArchTotal arI)
     rw [hs1, WP.spec_ok] at h; exact h.2.1
   have hcap1 : capAt (L.mem s1) x0 = ok (.Thread p) := by
     rw [capAt_capV, hSS.capV hxS, ← capAt_capV]; exact hcap
-  -- the current thread's facts after the restart
-  have hC := J.curInv (by rw [hni.2]; simp)
-  have hcs : Fl4Spec.schedulable σ.curThread σ = true := ct_schedulable hC J.act J.inv (hcur ▸ hk) hrun
-  obtain ⟨-, hC1, -, -, -⟩ := restart_mid hcur hk (hcur ▸ hcs) hni.2 hC J.off J.act J.inv
-  have hC1' : Sched.CurInv σ1 := by rw [he1]; exact hC1
-  have hcr1 : CurRun σ1 := by
-    intro y hy
-    rw [hct1, hcur, he1, stsAct_kheap] at hy
-    simp [Notif.updK] at hy
-    rw [← hy]; rfl
   unfold TcbOKX
   rw [decode_resume_eq arI s ar p c hstall, hrc1]
   simp only [bind_ok]
   refine WP.spec_bind (J1.restartTcbJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
-    (jCancel_reply arI) (hmb ar) hpT hxS hcap1 hC1' (fun u h => hns u h) hcr1) ?_
+    (jCancel_reply arI) (hmb ar) hpT hxS hcap1 (fun u h => hns u h)) ?_
   rintro ⟨s2, a2⟩ ⟨-, σ', hres, V, Ac', Lst', D', J2⟩
   refine (WP.spec_ok _).2 ?_
   have hz : ((.ok [], σ') : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
@@ -652,7 +642,7 @@ theorem tcb_write_regsJ (hAT : P0.ArchTotal arI)
       retOk_bind, hun]
     rfl
   -- the caller's restart
-  obtain ⟨s1, σ1, x, hrc1, hst, hk, -, he1, hns, -, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x, hrc1, hst, hk, -, -, hns, -, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   obtain ⟨-, x', hk', hrun⟩ := J.curRunnable hni hct
   rw [hk] at hk'; cases hk'
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s1) := by
@@ -660,15 +650,6 @@ theorem tcb_write_regsJ (hAT : P0.ArchTotal arI)
     rw [hs1, WP.spec_ok] at h; exact h.2.1
   have hcap1 : capAt (L.mem s1) x0 = ok (.Thread p) := by
     rw [capAt_capV, hSS.capV hxS, ← capAt_capV]; exact hcap
-  have hC := J.curInv (by rw [hni.2]; simp)
-  have hcs : Fl4Spec.schedulable σ.curThread σ = true := ct_schedulable hC J.act J.inv (hcur ▸ hk) hrun
-  obtain ⟨-, hC1, -, -, -⟩ := restart_mid hcur hk (hcur ▸ hcs) hni.2 hC J.off J.act J.inv
-  have hC1' : Sched.CurInv σ1 := by rw [he1]; exact hC1
-  have hcr1 : CurRun σ1 := by
-    intro y hy
-    rw [hct1, hcur, he1, stsAct_kheap] at hy
-    simp [Notif.updK] at hy
-    rw [← hy]; rfl
   have hcur1 : σ1.curThread = ct.bv := hct1.trans hcur
   rw [hrc1]; simp only [bind_ok, lift]
   -- the arguments after the restart
@@ -688,7 +669,7 @@ theorem tcb_write_regsJ (hAT : P0.ArchTotal arI)
     simp only [hV, List.getElem_take, List.getElem_map, List.getElem_drop]
     congr 2; omega
   refine WP.spec_bind (J1.writeRegsJ hAT (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
-    (jCancel_reply arI) (hmb ar) hpT hpc hcur1 hctT hxS hcap1 hC1' (fun u h => hns u h) hcr1 hbm
+    (jCancel_reply arI) (hmb ar) hpT hpc hcur1 hctT hxS hcap1 (fun u h => hns u h) hbm
     ((y0 &&& 1#u64) != 0#u64) y1 hVn hargsV) ?_
   rintro ⟨s2, a2⟩ ⟨-, σ', hsp, V', Ac', Lst', D', J2⟩
   refine (WP.spec_ok _).2 ?_
@@ -707,9 +688,8 @@ decode with the source the first extra cap's thread, the caller's restart
 (`JAtZ.restartJ`, `Entered` after by `restart_mid`), the target out of the
 dead set by its cap in the invoked slot (`JAtZ.undead`, the slots kept by
 the restart), then XTopJointCopyRegs' `JAtZ.copyRegsJ`. Named: the
-source not idle (`hidS`), `RestartNEHyp` [J], the platform's `MIN_BUDGET`
-[P]. -/
-theorem tcb_copy_regsJ (hAT : P0.ArchTotal arI) (hRN : RestartNEHyp st arI AR)
+source not idle (`hidS`), the platform's `MIN_BUDGET` [P]. -/
+theorem tcb_copy_regsJ (hAT : P0.ArchTotal arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ)
@@ -830,7 +810,7 @@ theorem tcb_copy_regsJ (hAT : P0.ArchTotal arI) (hRN : RestartNEHyp st arI AR)
     obtain ⟨hres1, -, -, -, -⟩ := restart_mid hcur hk (hcur ▸ hcs) hni.2 hC J.off J.act J.inv
     have hEn1 : Entered σ1 := ⟨by rw [hct1, hid1]; exact hni.1, by rw [he1]; exact hres1⟩
     refine WP.spec_mono ((J1.undead hAs.isSlot hcap1 hpT).copyRegsJ hAT (jCancel_send arI) (jCancel_ntfn arI)
-      (jCancel_recv arI) (jCancel_reply arI) hRN (hmb ar) hEn1 hsrcT hpT hsI (fun h => h.2 rfl) y0) ?_
+      (jCancel_recv arI) (jCancel_reply arI) (hmb ar) hEn1 hsrcT hpT hsI (fun h => h.2 rfl) y0) ?_
     rintro ⟨r2, s2, a2⟩ ⟨hr2, -, σ', hsp, V', Ac', Lst', D', J2⟩
     simp only at hr2; subst hr2
     have hz : ((.ok [], σ') : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
@@ -2510,7 +2490,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
       FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hRN : RestartNEHyp st arI AR)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
       q ≠ L.idleW s)
     (hWR : lbl = fl4_abi.label.TCBWriteRegisters → (buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp) ∧
@@ -2558,7 +2537,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
           (cslotAddr sl) extra blk don ci sl excaps buffer,
       copyRegisters := fun h => by
         subst h
-        exact tcb_copy_regsJ arI hT hRN hmb s ar σ J hni hidS p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf
+        exact tcb_copy_regsJ arI hT hmb s ar σ J hni hidS p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf
           ct hct argsU hlen hargs hstall' call sl hAs hsc extra x0 x1 x2 hx0 excaps hXc blk don ci buffer,
       configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       setPriority := fun h => by

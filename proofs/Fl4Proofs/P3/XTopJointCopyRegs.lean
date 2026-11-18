@@ -11,10 +11,10 @@ XTopJointTcb's `tcb_copy_regsJ`).
   current thread at `J` (as `cr_tailA`).
 * `JAtZ.copyRegsJ`: `tcb::copy_registers` at `J`: the source's suspend by
   `JAtZ.suspendJD` (the dead set kept, so the target, out of it, stays out),
-  the target's restart by `JAtZ.restartTcbJD` when the state is `Entered`
-  after the suspend (`CurInv`, `CurRun`, no switch from `JAtZ`), else by the
-  named premise `RestartNEHyp` [J] (the source the current thread, suspended:
-  a reschedule pending), the copies and the tail.
+  the target's restart by `JAtZ.restartTcbJD` (no switch pending; when the
+  source was the current thread, a reschedule is pending and the target may
+  be the current thread itself: `restartTail_specCn`), the copies and the
+  tail.
 -/
 import Fl4Proofs.P3.XTopJointWriteRegs
 open Aeneas Aeneas.Std Result
@@ -202,30 +202,6 @@ theorem JAtZ.crTailJ {a : A} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {
 end
 
 section
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
-
-variable (st) in
-/-- **The target's restart at `J` off `Entered`** [J] (CopyRegisters'
-target restart after the source's suspend, when the source was the current
-thread: the current thread `Inactive`, a reschedule pending, so
-`JAtZ.restartTcbJD`'s `CurInv`/`CurRun` fail): `sched::restart` of a thread
-out of the dead set keeps `JAtZ`, no switch pending, the state not
-`Entered`. l4v: `restart_invs`/`restart_valid_sched` hold for any
-scheduler action; the J-level proof needs `restartTcbJD`'s tail
-(`restartTail_specJ`: `MidKn`, `ActIdle` through `possible_switch_to`)
-redone with `CurOwnW`/`OffOK` in place of `CurInv` for a pending
-reschedule. -/
-def RestartNEHyp (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ t ∈ Z.T, t ∉ D → ¬ Entered σ →
-    (∀ u, σ.schedulerAction ≠ .switchThread u) →
-    sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄ →
-    sched.restart st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
-      JAtV (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄
-
-end
-
-section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
@@ -233,14 +209,14 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 32000000 in
 /-- **`copy_registers` at `J`** (module docstring): `Entered` at the start
 (the caller's restart's); the source not idle (`hsI`); the target out of
-the dead set (`hdD`, its cap in a slot by `JAtZ.undead`); `RestartNEHyp`
-[J]; the platform's `MIN_BUDGET` [P]. -/
+the dead set (`hdD`, its cap in a slot by `JAtZ.undead`); the platform's
+`MIN_BUDGET` [P]. -/
 theorem JAtZ.copyRegsJ (hAT : P0.ArchTotal arI)
     (hSd : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e d, ts = .blockedOnSend e d)
     (hNt : JCancelAt (L := L) arI AR Z.th fun ts => ∃ n, ts = .blockedOnNotification n)
     (hRv : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e r d, ts = .blockedOnReceive e r d)
     (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r)
-    (hRN : RestartNEHyp st arI AR) {a : A}
+    {a : A}
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {s : S} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hEn : Entered σ)
     {src dest : U64} (hsT : src ∈ Z.T) (hdT : dest ∈ Z.T) (hsI : src.bv ≠ σ.idleThread) (hdD : dest ∉ D)
@@ -283,11 +259,8 @@ theorem JAtZ.copyRegsJ (hAT : P0.ArchTotal arI)
       exact ⟨trivial, σ1, rfl, V1, Ac1, Lst1, D, J1⟩
     · simp only [↓reduceIte]
       have hrs : sched.restart st arI s1 a dest ⦃ r => r.2 = a ∧ ∃ σ',
-          Fl4Spec.restart (Z := Unit) dest.bv σ1 = ({((), σ')}, False) ∧ JAtV (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄ := by
-        by_cases hE : Entered σ1
-        · exact J1.restartTcbJD (Z := Z.mv Z.G V1) hAT hSd hNt hRv hRp hmb hdT hdD
-            (J1.curInv (by rw [hE.2]; simp)) (fun u e => by rw [hE.2] at e; cases e) (J1.curRun.run hE)
-        · exact hRN (Z.mv Z.G V1) H Cs Ac1 Lst1 D s1 a σ1 J1 dest hdT hdD hE hns1 hmb
+          Fl4Spec.restart (Z := Unit) dest.bv σ1 = ({((), σ')}, False) ∧ JAtV (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄ :=
+        J1.restartTcbJD (Z := Z.mv Z.G V1) hAT hSd hNt hRv hRp hmb hdT hdD hns1
       refine WP.spec_mono hrs ?_
       rintro r ⟨h1, σ2, h2, hJ⟩
       exact ⟨h1, σ2, by simpa [Fl4Spec.NonDet.when] using h2, hJ⟩

@@ -2,23 +2,34 @@
 P3 (DESIGN.md §9), TCB: **`sched::restart` at `J`** (`JAtZ.restartTcbJ`,
 for Resume, WriteRegisters and CopyRegisters at `JAt`).
 
-* `restartTail_specJ`: the spec side of `restart`'s tail after `cancel_ipc`
+* `restartTail_frame`: the frame of `restart`'s tail after `cancel_ipc`
   (`Restart`, the sporadic unblock check, the SC's resume, the switch) from
-  an `Inactive` thread neither current nor idle, no switch pending, `CurInv`:
-  the SC step's frame (`ScTKw` at the thread, `LK` cutting no link, `FK`,
-  `SOK`, `BK`), `MidKn` (so `MidKn.mid3`) and `ActIdle` after.
+  an `Inactive` thread: `ScTKw` at the thread, `LK` cutting no link, `FK`,
+  `SOK`, `BK`.
+* `restartTail_specJ`: the thread neither current nor idle, no switch
+  pending, `CurInv`: `MidKn` (so `MidKn.mid3`) and `ActIdle` after.
+* `RCn`, `restartTail_specCn`: a reschedule pending (CopyRegisters'
+  target restart after the source, the current thread, suspended itself;
+  the target may be the current thread): the reschedule stays pending and
+  `CurOwnW`, `OffOK`, `ActIdle` are kept (`RCn.close`). The SC's resume
+  postpones its thread only when the SC's head is not ready or not
+  sufficient; `OffOK` rules that out for the current SC while time is
+  consumed (`resume_keepR`), so `CurOwnW`'s owner is not postponed then.
+  l4v: `restart_invs`, `restart_valid_sched` under any scheduler action.
 * `JAtZ.undead`: a thread whose cap is in a slot leaves the dead set
   (`cover_cap` at the same state).
 * `JAtZ.restartTailJ`: the tail as one SC step (`JAtZ.sc_frame`), FL4's side
   RestartTail's `restart_tail_kfoot`; the dead stay dead
-  (`deadP_sc_stepQ`: the thread, set to `Restart`, is not among them).
+  (`deadP_sc_stepQ`: the thread, set to `Restart`, is not among them); the
+  current thread's facts by `restartTail_specCn` with a reschedule pending,
+  else by `restartTail_specJ` (`CurInv` and the thread not current from
+  `JAtZ.cur`/`JAtZ.curRun`).
 * `JAtZ.restartTcbJ`: `sched::restart` at `J`. A running thread: nothing. A
   stopped one: first out of the dead set by its cap (`undead`), `cancel_ipc`
   by the four `JCancelAt` steps (the dead set kept), then the tail; P1's
   `BlkOK` and the node-0 debug word over the whole restart
-  (`sched.restart.allK`). Premises at the start: `CurInv`, no switch
-  pending, the current thread runnable (`CurRun`), the platform's
-  `MIN_BUDGET` [P].
+  (`sched.restart.allK`). Premises at the start: no switch pending, the
+  platform's `MIN_BUDGET` [P].
 -/
 import Fl4Proofs.P3.RestartTail
 import Fl4Proofs.P3.ScDeadStep
@@ -52,6 +63,326 @@ theorem nsc_of_lk {N C : Set U64} {P : ObjRef → Prop} {σ σ' : State Unit} (h
   rcases hsc with e | e
   · exact h n hn x p hko (e ▸ hp)
   · rw [e] at hp; cases hp
+
+set_option maxHeartbeats 4000000 in
+/-- **The frame of `restart`'s tail** (any current thread, any action):
+`ScTKw` at the thread, `LK` cutting no link, `FK`, `SOK`, `BK`. -/
+theorem restartTail_frame {σ σb σc σd σ' : State Unit} {t : ObjRef} {x : Tcb}
+    (hk : σ.kheap t = some (.tcb x)) (hin : x.tcbState = .inactive)
+    (hb : setThreadState (Z := Unit) t .restart σ = ({((), σb)}, False))
+    (hc : ifSporadicCurScTestRefillUnblockCheck (Z := Unit) x.tcbSchedContext σb = ({((), σc)}, False))
+    (hd : NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext σc = ({((), σd)}, False))
+    (he : testPossibleSwitchTo (Z := Unit) t σd = ({((), σ')}, False)) :
+    ScTKw (fun p => p = t) σ σ' ∧ LK (fun _ => False) σ σ' ∧ FK σ σ' ∧ SOK (true, true) σ σ' ∧ BK σ σ' := by
+  have mb : ((), σb) ∈ (setThreadState (Z := Unit) t .restart σ).1 := by rw [hb]; exact Set.mem_singleton _
+  have mc : ((), σc) ∈ (ifCondRefillUnblockCheck (Z := Unit) x.tcbSchedContext (some false) (some false) σb).1 := by
+    show ((), σc) ∈ (ifSporadicCurScTestRefillUnblockCheck (Z := Unit) x.tcbSchedContext σb).1
+    rw [hc]; exact Set.mem_singleton _
+  have md : ((), σd) ∈ (NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext σc).1 := by
+    rw [hd]; exact Set.mem_singleton _
+  have me : ((), σ') ∈ (testPossibleSwitchTo (Z := Unit) t σd).1 := by rw [he]; exact Set.mem_singleton _
+  have hσb : σb.kheap = (updK σ t (.tcb { x with tcbState := .restart })).kheap := by
+    have e := the_result (Notif.setThreadState_eq (Z := Unit) .restart hk) hb
+    rw [e, stsAct_kheap]
+  have hf0 : IpcFree x.tcbState := by rw [hin]; exact ⟨rfl, rfl, fun _ e => by cases e⟩
+  have nc : NKT (ifCondRefillUnblockCheck (Z := Unit) x.tcbSchedContext (some false) (some false)) :=
+    nkt_ifCondRefillUnblockCheck _ _ _
+  have nd : NKT (NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext) :=
+    nkt_maybeM nkt_schedContextResume _
+  have ne : NKT (testPossibleSwitchTo (Z := Unit) t) := by
+    unfold testPossibleSwitchTo; exact nkt_bind (nkt_gets _) fun _ => nkt_when _ (nkt_possibleSwitchTo _)
+  have hK : ScTKw (fun p => p = t) σ σ' :=
+    (tk_setThreadState hk hf0 ipcFree_restart _ mb).trans
+      (((nc σb _ mc).trans (nd σc _ md)).trans (ne σd _ me)).ofFalse
+  have le : LKM (fun _ => False) (testPossibleSwitchTo (Z := Unit) t) := by
+    unfold testPossibleSwitchTo; exact lkm_bind (lkm_gets _) fun _ => lkm_when _ (lkm_possibleSwitchTo _)
+  have hL : LK (fun _ => False) σ σ' :=
+    (((lkm_setThreadState t .restart σ _ mb).trans (lkm_ifCondRefillUnblockCheck _ _ _ σb _ mc)).trans
+      (lkm_maybeM (fun p => lkm_schedContextResume p) _ σc _ md)).trans (le σd _ me)
+  have fc : FKA (ifCondRefillUnblockCheck (Z := Unit) x.tcbSchedContext (some false) (some false)) := by
+    fk_auto
+  have fd : FKA (NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext) :=
+    fk_maybeM (fun p => by fk_auto) _
+  have fe : FKA (testPossibleSwitchTo (Z := Unit) t) := by
+    unfold testPossibleSwitchTo; exact fk_bind (fk_gets _) fun _ => fk_when _ (by fk_auto)
+  have hF : FK σ σ' :=
+    ((((fk_setThreadState t .restart) σ _ mb).trans (fc σb _ mc)).trans (fd σc _ md)).trans (fe σd _ me)
+  have pe : Pres (true, true) (testPossibleSwitchTo (Z := Unit) t) := by
+    unfold testPossibleSwitchTo
+    exact pres_bind (pres_gets (f := (true, true)) _) fun _ => pres_when (f := (true, true)) _
+      (pres_possibleSwitchTo (f := (true, true)) _)
+  have hsok : SOK (true, true) σ σ' :=
+    ((((pres_setThreadState (f := (true, true)) t .restart) σ _ mb).trans
+      ((pres_ifCondRefillUnblockCheck (f := (true, true)) _ _ _) σb _ mc)).trans
+      ((pres_maybeM (f := (true, true)) (fun p => pres_schedContextResume (f := (true, true)) p) _) σc _ md)).trans
+      (pe σd _ me)
+  have hBb : BK σ σb := by
+    refine ⟨fun u y hu hq => ?_, fun p y n hp ha => ?_⟩
+    · rw [hσb] at hu
+      by_cases e : u = t
+      · subst e
+        simp only [updK, Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hu
+        subst hu; simp [ipcQueuedThreadState] at hq
+      · exact ⟨y, by simpa [updK, e] using hu, hq⟩
+    · rw [hσb] at hp ⊢
+      have hpt : p ≠ t := by rintro rfl; simp [updK] at hp
+      exact ⟨y, by simpa [updK, hpt] using hp, ha, fun _ e => Or.inl e⟩
+  have bc : BKM (ifCondRefillUnblockCheck (Z := Unit) x.tcbSchedContext (some false) (some false)) :=
+    bkm_of nc (MaxK.mk_ifCondRefillUnblockCheck' _ _ _)
+  have bd : BKM (NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext) :=
+    bkm_of nd (MaxK.mk_maybeM (fun p => by unf_ref; mk_auto) _)
+  have be : BKM (testPossibleSwitchTo (Z := Unit) t) := by
+    refine bkm_of ne ?_
+    unfold testPossibleSwitchTo
+    exact MaxK.mk_bind (MaxK.mk_gets _) fun _ => MaxK.mk_when _ (MaxK.mk_possibleSwitchTo' _)
+  exact ⟨hK, hL, hF, hsok, hBb.trans (((bc σb _ mc).trans (bd σc _ md)).trans (be σd _ me))⟩
+
+/-- **What `restart`'s tail keeps with a reschedule pending** (the thread
+`t`, restarted, may be the current thread): the current SC, time, consumed
+time and idle thread kept, the reschedule pending, every TCB's SC kept (and
+all of a TCB other than `t`), the current SC's object kept (backwards), and
+the release queue grown by `t` only, and then not as the current SC's
+thread while time is consumed. -/
+structure RCn (t : ObjRef) (x : Tcb) (σ σ' : State Unit) : Prop where
+  csc : σ'.curSc = σ.curSc
+  tm : σ'.curTime = σ.curTime
+  cons : σ'.consumedTime = σ.consumedTime
+  idle : σ'.idleThread = σ.idleThread
+  act : σ'.schedulerAction = .chooseNewThread
+  tcb : ∀ q xq, σ.kheap q = some (.tcb xq) → ∃ y, σ'.kheap q = some (.tcb y) ∧
+    y.tcbSchedContext = xq.tcbSchedContext ∧ (q ≠ t → y = xq)
+  sc : ∀ y n, σ'.kheap σ.curSc = some (.schedContext y n) → σ.kheap σ.curSc = some (.schedContext y n)
+  rq : ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue ∨
+    (u = t ∧ (0 < σ.consumedTime → x.tcbSchedContext ≠ some σ.curSc))
+
+/-- `set_thread_state` of `t` with a reschedule pending. -/
+theorem RCn.init {t : ObjRef} {x : Tcb} {σ : State Unit} (hk : σ.kheap t = some (.tcb x))
+    (hcn : σ.schedulerAction = .chooseNewThread) (ts : ThreadState) :
+    RCn t x σ (updK σ t (.tcb { x with tcbState := ts })) := by
+  refine ⟨rfl, rfl, rfl, rfl, hcn, fun q xq hq => ?_, fun y n hy => ?_, fun u hu => Or.inl hu⟩
+  · by_cases e : q = t
+    · subst e; rw [hk] at hq; cases hq
+      exact ⟨{ x with tcbState := ts }, by simp [updK], rfl, fun h => (h rfl).elim⟩
+    · exact ⟨xq, by simp [updK, e, hq], rfl, fun _ => rfl⟩
+  · by_cases e : σ.curSc = t
+    · rw [e] at hy ⊢; simp [updK] at hy
+    · simpa [updK, e] using hy
+
+/-- A further step: the heap changed only at SCs other than the current
+one. -/
+theorem RCn.next {t : ObjRef} {x : Tcb} {σ σ1 σ2 : State Unit} (h : RCn t x σ σ1)
+    (hk : ∀ q, σ2.kheap q ≠ σ1.kheap q → (∃ y n, σ1.kheap q = some (.schedContext y n)) ∧ q ≠ σ1.curSc)
+    (h1 : σ2.curSc = σ1.curSc) (h2 : σ2.curTime = σ1.curTime) (h3 : σ2.consumedTime = σ1.consumedTime)
+    (h4 : σ2.idleThread = σ1.idleThread) (h5 : σ2.schedulerAction = .chooseNewThread)
+    (hrq : ∀ u ∈ σ2.releaseQueue, u ∈ σ1.releaseQueue ∨
+      (u = t ∧ (0 < σ.consumedTime → x.tcbSchedContext ≠ some σ.curSc))) :
+    RCn t x σ σ2 := by
+  refine ⟨h1.trans h.csc, h2.trans h.tm, h3.trans h.cons, h4.trans h.idle, h5, fun q xq hq => ?_,
+    fun y n hy => ?_, fun u hu => ?_⟩
+  · obtain ⟨y, hy, f1, f2⟩ := h.tcb q xq hq
+    refine ⟨y, ?_, f1, f2⟩
+    by_cases e : σ2.kheap q = σ1.kheap q
+    · rw [e]; exact hy
+    · obtain ⟨⟨y', n', hy'⟩, -⟩ := hk q e
+      rw [hy] at hy'; cases hy'
+  · by_cases e : σ2.kheap σ.curSc = σ1.kheap σ.curSc
+    · rw [e] at hy; exact h.sc y n hy
+    · exact absurd h.csc.symm (hk _ e).2
+  · rcases hrq u hu with h' | h'
+    · exact h.rq u h'
+    · exact Or.inr h'
+
+/-- **`CurOwnW`, `OffOK`, `ActIdle` after an `RCn` step.** -/
+theorem RCn.close {T C : Set U64} {t : ObjRef} {x : Tcb} {σ σ' : State Unit} (R : RCn t x σ σ')
+    (hk : σ.kheap t = some (.tcb x)) (hti : t ≠ σ.idleThread)
+    (hO : OffOK σ) (hOw : CurOwnW T C σ) (hA : ActIdle σ) :
+    CurOwnW T C σ' ∧ OffOK σ' ∧ ActIdle σ' := by
+  refine ⟨?_, ?_, ?_⟩
+  · rcases hOw with ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
+    · obtain ⟨y, hy, e1, -⟩ := R.tcb _ xt hkt
+      refine Or.inl ⟨u, hu, y, hy, by rw [e1, R.csc]; exact hxs, fun z n hz => ?_, fun h0 hm => ?_⟩
+      · rw [R.csc] at hz; exact hown z n (R.sc z n hz)
+      · rw [R.cons] at h0
+        rcases R.rq _ hm with h | ⟨e, h⟩
+        · exact hnr h0 h
+        · rw [e, hk] at hkt; cases hkt
+          exact h h0 hxs
+    · exact Or.inr ⟨by rw [R.csc]; exact hcs, fun z n hz => by rw [R.csc] at hz; exact hun z n (R.sc z n hz)⟩
+  · intro h0 y n hy ha
+    rw [R.cons] at h0 ⊢; rw [R.tm]
+    rw [R.csc] at hy ha
+    exact hO h0 y n (R.sc y n hy) ha
+  unfold ActIdle
+  refine ⟨fun u hu => ?_, ?_⟩
+  · rw [R.act] at hu; cases hu
+  · obtain ⟨xi, h1, h2, h3, h4⟩ := hA.2
+    obtain ⟨y, hy, -, e2⟩ := R.tcb _ xi h1
+    have e := e2 (Ne.symm hti)
+    subst e
+    refine ⟨y, by rw [R.idle]; exact hy, h2, h3, fun hm => ?_⟩
+    rw [R.idle] at hm
+    rcases R.rq _ hm with h | ⟨e, -⟩
+    · exact h4 h
+    · exact hti e.symm
+
+/-- The sporadic unblock check of `restart`, the SC not the current one when
+it runs (as `unblockTest_cases`). -/
+theorem unblockTest_casesC {σ σ' : State Unit} {p : ObjRef} {y : SchedContext} {n : Nat}
+    (hk : σ.kheap p = some (.schedContext y n)) {r : Unit}
+    (hm : (r, σ') ∈ (ifSporadicCurScTestRefillUnblockCheck (Z := Unit) (some p) σ).1) :
+    σ' = σ ∨ (y.scSporadic = true ∧ p ≠ σ.curSc ∧ (r, σ') ∈ (refillUnblockCheck (Z := Unit) p σ).1) := by
+  change (r, σ') ∈ (ifCondRefillUnblockCheck (Z := Unit) (some p) (some false) (some false) σ).1 at hm
+  unfold ifCondRefillUnblockCheck NonDet.maybeM at hm
+  dsimp only at hm
+  rw [nd_bind_one (getSchedContext_eq hk), Notif.nd_gets_bind, Notif.nd_pure_bind'] at hm
+  unfold NonDet.when at hm
+  split at hm
+  · rename_i hc
+    split at hm
+    · exact Or.inr ⟨by simpa using hc.1, by simpa using hc.2, hm⟩
+    · left; exact congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
+  · left; exact congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
+
+/-- `resume_keep` with the reason a thread is postponed: its SC active and
+not released. -/
+theorem resume_keepR {σ σ' : State Unit} {t p : ObjRef} (h : InvBut σ t) {x : Tcb} {y : SchedContext} {n : Nat}
+    (kp : σ.kheap p = some (.schedContext y n)) (hyt : y.scTcb = some t) (kt : σ.kheap t = some (.tcb x))
+    (hxp : x.tcbSchedContext = some p) (hnq : NotQueued σ t)
+    (he : schedContextResume (Z := Unit) p σ = ({((), σ')}, False)) :
+    Calm σ σ' ∧ σ'.schedulerAction = σ.schedulerAction ∧ ∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue ∨
+      (u = t ∧ scActive y = true ∧
+        ¬ (refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true)) := by
+  have hne : scActive y = true → y.scRefills ≠ [] := h.ne p y n kp
+  rw [resume_spec_eq kp hyt kt hne
+    (fun hs => by
+      obtain ⟨x', scp, y', m, h1, h2, h3, h4, h5, -⟩ := schedulable_inv hs
+      rw [kt] at h1; cases h1; rw [hxp] at h2; cases h2; rw [kp] at h4; cases h4; exact ⟨h3, h5⟩)
+    (fun _ => hnq.1 _ _)] at he
+  split_ifs at he with hc
+  · have hact : scActive y = true := by
+      obtain ⟨x', scp, y', m, h1, h2, -, h4, h5, -⟩ := schedulable_inv hc.1
+      rw [kt] at h1; cases h1; rw [hxp] at h2; cases h2; rw [kp] at h4; cases h4; exact h5
+    obtain ⟨b, hp⟩ := postpone_eq kp hyt kt (specRt σ) (fun u hu => by
+      rcases hu with rfl | hu
+      · exact ⟨x, p, y, n, kt, hxp, kp, hne hact, specRt_eq kt hxp kp (hne hact)⟩
+      · obtain ⟨xu, scp, yu, nu, h1, h2, -, h4, h5⟩ := h.rel u hu
+        exact ⟨xu, scp, yu, nu, h1, h2, h4, h.ne _ _ _ h4 h5, specRt_eq h1 h2 h4 (h.ne _ _ _ h4 h5)⟩)
+    rw [hp] at he
+    rw [pair_eq he]
+    refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, fun u hu => ?_⟩
+    rcases mem_specInsT.1 hu with e | hu'
+    · exact Or.inr ⟨e, hact, hc.2⟩
+    · exact Or.inl hu'
+  · rw [pair_eq he]
+    exact ⟨Calm.refl σ, rfl, fun u hu => Or.inl hu⟩
+
+/-- A sufficient head refill for some usage is sufficient for none. -/
+theorem restart_suff0 {c : Time} {r : Refill} (h : refillSufficient c r = true) : refillSufficient 0 r = true := by
+  apply suff0_of
+  unfold refillSufficient refillCapacity at h
+  simp only [decide_eq_true_eq] at h
+  have hp := min_budget_pos
+  split_ifs at h with hlt
+  · bv_omega
+  · bv_omega
+
+set_option maxHeartbeats 8000000 in
+/-- **The spec side of `restart`'s tail with a reschedule pending** (the
+thread may be the current one, suspended by CopyRegisters): the reschedule
+stays pending, `CurOwnW`, `OffOK`, `ActIdle` kept. A thread postponed by
+the SC's resume while time is consumed is not the current SC's: `OffOK`
+gives that SC a ready and sufficient head. -/
+theorem restartTail_specCn {T C : Set U64} {σ σb σc σd σ' : State Unit} {t : ObjRef} {x : Tcb}
+    (hk : σ.kheap t = some (.tcb x)) (hin : x.tcbState = .inactive) (hti : t ≠ σ.idleThread)
+    (hcn : σ.schedulerAction = .chooseNewThread) (hI : Inv σ) (hA : ActIdle σ) (hO : OffOK σ)
+    (hOw : CurOwnW T C σ)
+    (hsp : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scSporadic = true → scActive y = true)
+    (hb : setThreadState (Z := Unit) t .restart σ = ({((), σb)}, False))
+    (hc : ifSporadicCurScTestRefillUnblockCheck (Z := Unit) x.tcbSchedContext σb = ({((), σc)}, False))
+    (hd : NonDet.maybeM (schedContextResume (Z := Unit)) x.tcbSchedContext σc = ({((), σd)}, False))
+    (he : testPossibleSwitchTo (Z := Unit) t σd = ({((), σ')}, False)) (hId : Inv σd) :
+    σ'.schedulerAction = .chooseNewThread ∧ CurOwnW T C σ' ∧ OffOK σ' ∧ ActIdle σ' := by
+  have hnq : NotQueued σ t := by
+    refine ⟨fun d p hm => ?_, fun hm => ?_⟩
+    · obtain ⟨x', -, -, -, h1, -, h3, -⟩ := hI.rq d p t hm; rw [hk] at h1; cases h1; rw [hin] at h3; cases h3
+    · obtain ⟨x', -, -, -, h1, -, h3, -⟩ := hI.rel t hm; rw [hk] at h1; cases h1; rw [hin] at h3; cases h3
+  have hσb : σb = updK σ t (.tcb { x with tcbState := .restart }) := by
+    have e := the_result (Notif.setThreadState_eq (Z := Unit) .restart hk) hb
+    rw [e]
+    refine stsAct_eq_self fun h => ?_
+    have h2 : σ.schedulerAction = .resumeCurThread := h.2.1
+    rw [hcn] at h2; cases h2
+  have R0 : RCn t x σ σb := by rw [hσb]; exact RCn.init hk hcn .restart
+  obtain ⟨hIb, hnqb⟩ := (hI.toBut t).ik hnq ((ikm_setThreadState (t := t) .restart).of_eq hb)
+  have hkb : σb.kheap t = some (.tcb { x with tcbState := .restart }) := by rw [hσb]; simp [updK]
+  -- up to the switch
+  have Rd : RCn t x σ σd := by
+    cases hxs : x.tcbSchedContext with
+    | none =>
+      rw [hxs] at hc hd
+      have hm : ((), σc) ∈ (ifCondRefillUnblockCheck (Z := Unit) none (some false) (some false) σb).1 := by
+        show ((), σc) ∈ (ifSporadicCurScTestRefillUnblockCheck (Z := Unit) none σb).1
+        rw [hc]; exact Set.mem_singleton _
+      unfold ifCondRefillUnblockCheck NonDet.maybeM at hm
+      have ec : σc = σb := congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
+      unfold NonDet.maybeM at hd
+      have ed : σc = σd := congrArg Prod.snd (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hd))
+      rw [← ed, ec]; exact R0
+    | some p =>
+      rw [hxs] at hc hd
+      obtain ⟨y, n, hky, hyt⟩ := hIb.back t _ p hkb hxs
+      have hpt : p ≠ t := fun e => by rw [e, hkb] at hky; cases hky
+      have hmc : ((), σc) ∈ (ifSporadicCurScTestRefillUnblockCheck (Z := Unit) (some p) σb).1 := by
+        rw [hc]; exact Set.mem_singleton _
+      have hcC : InvBut σc t ∧ NotQueued σc t ∧ σc.kheap t = σb.kheap t ∧ RCn t x σ σc := by
+        rcases unblockTest_casesC hky hmc with e | ⟨hsy, hpc, hm'⟩
+        · rw [e]; exact ⟨hIb, hnqb, rfl, R0⟩
+        have hkbp : σb.kheap p = σ.kheap p := by rw [hσb]; simp [updK, hpt]
+        have hne : y.scRefills ≠ [] := hIb.ne p y n hky (hsp p y n (by rw [← hkbp]; exact hky) hsy)
+        refine ⟨hIb.unblock hky hne (fun _ _ u hu xu hku hsu => ?_) hm', ?_⟩
+        · obtain ⟨y', n', hky', hyu⟩ := hIb.back u xu p hku hsu
+          rw [hky] at hky'; cases hky'
+          rw [hyt] at hyu; cases hyu
+          exact hnqb.2 hu
+        rcases unblock_result hky hne hm' with ⟨e, -⟩ | ⟨z, e, -⟩
+        · rw [e]; exact ⟨hnqb, rfl, R0⟩
+        · rw [e]
+          refine ⟨⟨fun d q => hnqb.1 d q, hnqb.2⟩, by simp [updK, Ne.symm hpt],
+            R0.next (fun q hq => ?_) rfl rfl rfl rfl R0.act (fun u hu => Or.inl hu)⟩
+          by_cases eq : q = p
+          · subst eq; exact ⟨⟨y, n, hky⟩, hpc⟩
+          · exact absurd (by simp [updK, eq]) hq
+      obtain ⟨hIc, hnqc, hktc, Rc⟩ := hcC
+      have hkc : σc.kheap t = some (.tcb { x with tcbState := .restart }) := by rw [hktc]; exact hkb
+      obtain ⟨yc, nc, hkyc, hytc⟩ := hIc.back t _ p hkc hxs
+      have hd' : schedContextResume (Z := Unit) p σc = ({((), σd)}, False) := hd
+      obtain ⟨hcal, hact, hrq⟩ := resume_keepR hIc hkyc hytc hkc hxs hnqc hd'
+      refine Rc.next (fun q hq => absurd (by rw [hcal.1]) hq) hcal.2.2.1 hcal.2.2.2.1 hcal.2.2.2.2.1
+        hcal.2.2.2.2.2.1 (by rw [hact]; exact Rc.act) (fun u hu => ?_)
+      rcases hrq u hu with h | ⟨e, hac, hnr⟩
+      · exact Or.inl h
+      refine Or.inr ⟨e, fun h0 hcur => ?_⟩
+      rw [hxs] at hcur
+      have hpc : p = σ.curSc := Option.some.inj hcur
+      have hy0 : σ.kheap σ.curSc = some (.schedContext yc nc) := Rc.sc yc nc (by rw [← hpc]; exact hkyc)
+      obtain ⟨g1, -, g3⟩ := hO h0 yc nc hy0 (fun _ => hac)
+      exact hnr ⟨by rw [Rc.tm]; exact g3, restart_suff0 g1⟩
+  -- the switch
+  have R' : RCn t x σ σ' := by
+    unfold testPossibleSwitchTo at he
+    rw [nd_gets_bind] at he
+    by_cases hs : schedulable t σd = true
+    · rw [hs] at he
+      have he' : possibleSwitchTo (Z := Unit) t σd = ({((), σ')}, False) := he
+      have hcal := possibleSwitchTo_calm hId hs he'
+      have hq := possibleSwitchTo_qchange hId hs he'
+      exact Rd.next (fun q hq' => absurd (by rw [hcal.1]) hq') hcal.2.2.1 hcal.2.2.2.1 hcal.2.2.2.2.1
+        hcal.2.2.2.2.2.1 (possibleSwitchTo_cn hId hs he' Rd.act) (fun u hu => Or.inl (by rw [← hq.2.1]; exact hu))
+    · rw [show schedulable t σd = false by simpa using hs] at he
+      have e : σ' = σd :=
+        the_result (show NonDet.when (false = true) (possibleSwitchTo (Z := Unit) t) σd = ({((), σd)}, False) from rfl) he
+      subst e; exact Rd
+  exact ⟨R'.act, R'.close hk hti hO hOw hA⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The spec side of `restart`'s tail** (module docstring). -/
@@ -228,8 +559,7 @@ set_option maxHeartbeats 16000000 in
 theorem JAtZ.restartTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
-    (hin : x.tcbState = .inactive) (htc : t.bv ≠ σ.curThread) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u)
-    (hC : CurInv σ)
+    (hin : x.tcbState = .inactive) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u)
     (hRS : ∀ σb σc, Fl4Spec.setThreadState (Z := Unit) t.bv .restart σ = ({((), σb)}, False) →
       Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit) x.tcbSchedContext σb = ({((), σc)}, False) →
       RelOK σc ∧ (∀ xc p, σc.kheap t.bv = some (.tcb xc) → xc.tcbSchedContext = some p →
@@ -261,37 +591,58 @@ theorem JAtZ.restartTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   subst a'
   refine ⟨rfl, fun Ac' hblk hDbg => ⟨σ', specRestartTail_eq hb hc hd he, ?_⟩⟩
   have hId : Inv σd := (hRS σb σc hb hc).2.2 σd hd
-  obtain ⟨hK, hL, hF, hsok, hBK, hMK, hAI⟩ := restartTail_specJ hk hin hti htc hns J.inv J.act hC hb hc hd he hId
+  obtain ⟨hK, hL, hF, hsok, hBK⟩ := restartTail_frame hk hin hb hc hd he
   have hwT := WritesIn.tfoot_of_kfoot hw
   have hX' : XTopAt (L := L) AR Z s' a σ' := xtop_sc_step hX J.ip J.nk hwT hK hS' hR' id
   have hN' : NSC Z.N Z.C σ' := nsc_of_lk J.nsc hK hL
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hsok⟩
-  obtain ⟨hC', hOw', hO'⟩ := hMK.mid3 hC J.off J.inv ⟨L.curW s, J.thT _ J.kern.curT, J.kern.cur.symm⟩
+  -- the current thread's facts: a reschedule pending (`restartTail_specCn`), or resumed (`MidKn.mid3`)
+  have hcase : σ.schedulerAction = .chooseNewThread ∨ (t.bv ≠ σ.curThread ∧ CurInv σ) := by
+    cases e : σ.schedulerAction with
+    | chooseNewThread => exact Or.inl rfl
+    | switchThread u => exact (hns u e).elim
+    | resumeCurThread =>
+      right
+      have hC : CurInv σ := J.cur.resolve_left (by rw [e]; intro h; cases h)
+      refine ⟨fun htc => ?_, hC⟩
+      rcases J.curRun.resolve_left (fun h => h e) with hrun | hidl
+      · have h1 := hrun x (htc ▸ hk); rw [hin] at h1; cases h1
+      · exact hti (htc.trans hidl)
+  have hsch : (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW Z.T Z.C σ' ∧ OffOK σ' ∧
+      ActIdle σ' ∧ CurRunM σ' := by
+    rcases hcase with hcn | ⟨htc, hC⟩
+    · obtain ⟨h1, h2, h3, h4⟩ :=
+        restartTail_specCn hk hin hti hcn J.inv J.act J.off J.own J.sv.scSpor hb hc hd he hId
+      exact ⟨Or.inl h1, h2, h3, h4, Or.inl (by rw [h1]; intro h; cases h)⟩
+    obtain ⟨-, -, -, -, -, hMK, hAI⟩ := restartTail_specJ hk hin hti htc hns J.inv J.act hC hb hc hd he hId
+    obtain ⟨hC', hOw', hO'⟩ := hMK.mid3 hC J.off J.inv ⟨L.curW s, J.thT _ J.kern.curT, J.kern.cur.symm⟩
+    have hcr : CurRunM σ' := by
+      by_cases hr : σ'.schedulerAction = .resumeCurThread
+      · have h0 : σ.schedulerAction = .resumeCurThread := by
+          cases e : σ.schedulerAction with
+          | resumeCurThread => rfl
+          | switchThread u => exact (hns u e).elim
+          | chooseNewThread => rw [hMK.cn e] at hr; cases hr
+        right
+        rcases J.curRun.resolve_left (fun h => h h0) with hrun | hidl
+        · left
+          intro y hy
+          obtain ⟨xt, hkt, -, -⟩ := hC.tcb
+          obtain ⟨y', hy', -, e⟩ := hMK.ctT xt hkt
+          rw [hMK.ct, hy'] at hy; cases hy
+          rw [e]; exact hrun xt hkt
+        · right; rw [hMK.ct, hMK.idle]; exact hidl
+      · exact Or.inl hr
+    exact ⟨hC', Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI')), hO', hAI, hcr⟩
+  obtain ⟨hC', hOw', hO', hAI, hcr⟩ := hsch
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_sc_stepQ hX' hwT hK (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hL hF hAI.1 (fun h => h) (J.jcov.dead q hq)
-  have hcr : CurRunM σ' := by
-    by_cases hr : σ'.schedulerAction = .resumeCurThread
-    · have h0 : σ.schedulerAction = .resumeCurThread := by
-        cases e : σ.schedulerAction with
-        | resumeCurThread => rfl
-        | switchThread u => exact (hns u e).elim
-        | chooseNewThread => rw [hMK.cn e] at hr; cases hr
-      right
-      rcases J.curRun.resolve_left (fun h => h h0) with hrun | hidl
-      · left
-        intro y hy
-        obtain ⟨xt, hkt, -, -⟩ := hC.tcb
-        obtain ⟨y', hy', -, e⟩ := hMK.ctT xt hkt
-        rw [hMK.ct, hy'] at hy; cases hy
-        rw [e]; exact hrun xt hkt
-      · right; rw [hMK.ct, hMK.idle]; exact hidl
-    · exact Or.inl hr
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2))
     (J.sc_kern hwT hK hF hX' hDbg fun _ h => h) (J.sc_utc hwT hK hDbg) hN' hI' hC'
-    (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI (J.bsa.bk hBK hsok) hcr hblk⟩
+    hOw' hO' hAI (J.bsa.bk hBK hsok) hcr hblk⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`sched::restart` at `J`** (module docstring), the target not dead
@@ -303,7 +654,7 @@ theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
     (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) (htD : t ∉ D)
-    (hC : CurInv σ) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) (hcr : CurRun σ) :
+    (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) :
     sched.restart st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
@@ -363,8 +714,6 @@ theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
     rw [decide_eq_true hc]
     simp only [↓reduceIte]
     have hnr : Fl4Spec.runnable x.tcbState = false := by simpa using hc.1
-    have htc0 : t.bv ≠ σ.curThread := fun e => by
-      have := hcr x (e ▸ hk); rw [hnr] at this; cases this
     -- `cancel_ipc`, the dead set kept (without `t`)
     have hcan : ipc.cancel_ipc st arI s a t ⦃ r => r.2 = a ∧ ∃ σa,
         Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σa)}, False) ∧ ∃ xa, σa.kheap t.bv = some (.tcb xa) ∧
@@ -407,27 +756,8 @@ theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
     have hKa := TscK.sk_cancelIpc t.bv σ ((), σa) hma
     have hxsa : xa.tcbSchedContext = x.tcbSchedContext := by
       obtain ⟨y0, hy0, e⟩ := hKa.1 _ _ hka; rw [hk] at hy0; cases hy0; exact e
-    have hIK : IK t.bv σ σa := ikm_cancelIpc.of_eq hca
-    have hFa : σa.curSc = σ.curSc :=
-      ((PPS.tk_cancelIpc' (E := fun _ => False) (c := σ.curSc) t.bv) σ rfl ((), σa) hma).csc
-    have hCa : CurInv σa := by
-      obtain ⟨xt, hkt, hxs, hnb⟩ := hC.tcb
-      obtain ⟨ya, hya, e1, e2⟩ := hIK.tcbF hkt
-      refine ⟨⟨ya, by rw [hKa.2.2]; exact hya, by rw [e1, hFa]; exact hxs, by rw [e2 (Ne.symm htc0)]; exact hnb⟩,
-        ?_, ?_, ?_⟩
-      · obtain ⟨y0, n0, hy0⟩ := hC.sc
-        obtain ⟨y', hy', -⟩ := hIK.scF hy0
-        exact ⟨y', n0, by rw [hFa]; exact hy'⟩
-      · intro hne y n hy
-        rw [hFa] at hne hy
-        obtain ⟨y0, hy0, hk0⟩ := hIK.scB hy
-        have := hC.active hne y0 n hy0
-        show Fl4Spec.activeSc y.scRefillMax = true
-        rw [hk0.2.1]; exact this
-      · rw [hKa.2.2, hIK.2.2.1]; exact hC.notRel
     have hnsa : ∀ u, σa.schedulerAction ≠ .switchThread u :=
       (Vs.ak_cancelIpc' t.bv).noSwitch (x := ((), σa)) hma hns
-    have htca : t.bv ≠ σa.curThread := by rw [hKa.2.2]; exact htc0
     have hRS0 : RestartSpecOK t.bv σ := Sched.restartSpecOK_of J.inv J.sv.scSpor
     have hRS : ∀ σb σc, Fl4Spec.setThreadState (Z := Unit) t.bv .restart σa = ({((), σb)}, False) →
         Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit) xa.tcbSchedContext σb = ({((), σc)}, False) →
@@ -439,7 +769,7 @@ theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
       rw [hxsa] at hc' ⊢
       exact hRS0 x σa σb σc hk hnr hca hb hc'
     show restartTailF st arI s1 a t ⦃ _ ⦄
-    refine WP.spec_mono (J1.restartTailJ hmb ht htD hka hina htca hnsa hCa hRS) ?_
+    refine WP.spec_mono (J1.restartTailJ hmb ht htD hka hina hnsa hRS) ?_
     rintro r ⟨hr2, hr⟩ Ac' hblk hd6
     have hn1 := P1.nodeAt_of_ksb hks1
     obtain ⟨σ', he', Lst', J'⟩ := hr Ac' hblk (by rw [hn1, hd6, hd1])
@@ -461,11 +791,11 @@ theorem JAtZ.restartTcbJ (hAT : P0.ArchTotal arI)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) {x0 : U64}
     (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s) x0 = ok (.Thread t))
-    (hC : CurInv σ) (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) (hcr : CurRun σ) :
+    (hns : ∀ u, σ.schedulerAction ≠ .switchThread u) :
     sched.restart st arI s a t ⦃ r => r.2 = a ∧ ∃ σ', Fl4Spec.restart (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ :=
-  (J.undead hxS hcap ht).restartTcbJD hAT hSd hNt hRv hRp hmb ht (fun h => h.2 rfl) hC hns hcr
+  (J.undead hxS hcap ht).restartTcbJD hAT hSd hNt hRv hRp hmb ht (fun h => h.2 rfl) hns
 
 end
 

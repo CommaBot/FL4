@@ -253,9 +253,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [W] XTopJoint's `CsGlobal` (the IPC, scheduler, VSpace and CSpace
   steps of the Thread cap and the IRQ/IO-port controls at `XTop`). -/
   csG : CsGlobal (L := L) arI AR th
-  /-- [J] XTopJointCopyRegs' `RestartNEHyp` (CopyRegisters: the target's
-  restart after the current thread's own suspend). -/
-  restartNE : RestartNEHyp st arI AR
   /-- [J] the Thread decode's `hA` (`ActReady` at every `WX` state). -/
   actReady : ∀ s a σ G, WX (L := L) AR th s a σ G → Notif.ActReady σ
   /-- [J] the Thread decode's `hBT` (IPC-buffer words). -/
@@ -696,7 +693,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.pp.minBudget hG.restartNE hidS hWR hR).toP arI hPre
+      hG.pp.minBudget hidS hWR hR).toP arI hPre
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64

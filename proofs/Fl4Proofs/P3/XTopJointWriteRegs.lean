@@ -15,8 +15,7 @@ XTopJointTcb's `tcb_write_regsJ`).
   the caller: the loops, the restart PC and `post_modify_registers`
   (`JAtZ.regWrJ`), then, resumed, XTopJointRestart's `JAtZ.restartTcbJ`
   (the target's cap in a slot kept across the register words by
-  `IRel.iframe_of`; `CurInv`, `CurRun` and no switch kept: the caller's TCB
-  untouched), its spec outcome `specWr`.
+  `IRel.iframe_of`; no switch kept), its spec outcome `specWr`.
 -/
 import Fl4Proofs.P3.XTopJointRestart
 open Aeneas Aeneas.Std Result
@@ -261,7 +260,7 @@ theorem wrJ_loop1 {SR : S → Fl4Spec.State Unit → Prop} (hH : EpHyps st Z.T Z
 set_option maxHeartbeats 32000000 in
 /-- **`write_registers` at `J`** (module docstring): the target `p` not the
 caller `ct`; its cap in a slot (`hxS`, `hcap`, for `JAtZ.restartTcbJ`);
-`CurInv`, `CurRun` and no switch at the start (the caller's restart's);
+no switch at the start (the caller's restart's);
 the caller's buffer mapped and the syscall arguments read at the start
 (`wrRead_of`); the platform's `MIN_BUDGET` [P]. -/
 theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
@@ -273,7 +272,7 @@ theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
     {s1 : S} {σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a σ1)
     {p ct buf : U64} (hpT : p ∈ Z.T) (hpc : p ≠ ct) (hcur : σ1.curThread = ct.bv) (hctT : ct ∈ Z.T)
     {x0 : U64} (hxS : IsSlot Z.th x0) (hcap : capAt (L.mem s1) x0 = ok (.Thread p))
-    (hC : CurInv σ1) (hns : ∀ u, σ1.schedulerAction ≠ .switchThread u) (hcr : CurRun σ1)
+    (hns : ∀ u, σ1.schedulerAction ≠ .switchThread u)
     {sp : Fl4Spec.Word} (hbm : buf ≠ 0#u64 → BufMap Z.B buf sp)
     (resume : Bool) (n : U64) {V : List Fl4Spec.Word} (hVn : V.length = n.val)
     (hargs : ∀ (j : Nat) (i2 : U64), i2.val = j + 2 → j < n.val →
@@ -286,7 +285,6 @@ theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
   have hI := J.xtop.irelK J.ks J.buf
   have hS := hI.2.2.1
   have hta := hP0.e.tcb p hpT
-  have hne : p.bv ≠ ct.bv := fun e => hpc (P1.eq_of_bv e)
   obtain ⟨x, hk, -⟩ := hI.1.tcb p hpT
   unfold tcb.write_registers
   refine WP.spec_bind (cur_thread_bv hS) ?_
@@ -366,15 +364,6 @@ theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
     rfl
   -- the restart's premises at the state after the register words
   have hX5 := J5.xtop.irelK J5.ks J5.buf
-  have hkc : ∀ q, q ≠ p.bv → (updK σ1 p.bv (.tcb x4)).kheap q = σ1.kheap q := fun q hq => by simp [updK, hq]
-  have hctp : σ1.curThread ≠ p.bv := by rw [hcur]; exact Ne.symm hne
-  have hcr4 : CurRun (updK σ1 p.bv (.tcb x4)) := fun y hy => hcr y ((hkc _ hctp).symm.trans hy)
-  have hC4 : CurInv (updK σ1 p.bv (.tcb x4)) := by
-    obtain ⟨xt, hkt, h1, h2⟩ := hC.tcb
-    obtain ⟨y0, n0, hy0⟩ := hC.sc
-    have hscp : σ1.curSc ≠ p.bv := fun e => by rw [e, hk] at hy0; cases hy0
-    exact ⟨⟨xt, (hkc _ hctp).trans hkt, h1, h2⟩, ⟨y0, n0, (hkc _ hscp).trans hy0⟩,
-      fun hn y n hy => hC.active hn y n ((hkc _ hscp).symm.trans hy), hC.notRel⟩
   have hw5 := wr_regW hta .errorRegister 0#u64 (wr_regW hta .nextIP pc hw3)
   have hIF := IRel.iframe_of hI hw5 fun _ ⟨r, hb⟩ => by
     have := regIdx_lt r
@@ -396,7 +385,7 @@ theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
       exact ⟨trivial, _, rfl, hcur, V5, Ac, Lst, D, J5⟩
     · simp only [↓reduceIte]
       refine WP.spec_mono (WP.spec_and (J5.restartTcbJ (Z := Z.mv Z.G V5) hAT hSd hNt hRv hRp hmb hpT hxS hcap5
-        hC4 hns hcr4)
+        hns)
         (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) _ a _ hX5 hpT J5.sv J5.obj J5.inv
           (fun x' hk' => removeTcbOK_fault hP0 hX5 hpT hk' J5.removeTcbOK)
           (Sched.restartSpecOK_of J5.inv J5.sv.scSpor) hmb)) ?_
