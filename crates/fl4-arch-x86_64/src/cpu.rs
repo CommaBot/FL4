@@ -61,6 +61,26 @@ pub fn rdmsr(msr: u32) -> u64 {
 /// CR4.FSGSBASE is set: user code may change its FS and GS bases itself.
 static FSGSBASE: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
+/// The processor's physical-address width (MAXPHYADDR) from the largest
+/// extended CPUID leaf (`max_ext`, CPUID 80000000H:EAX) and, if leaf
+/// 80000008H exists, its EAX: bits 7:0, held to 36..=52 (SDM Vol. 3
+/// §4.1.4; a CPU without the leaf has 36). Paging entries with address
+/// bits at or above it are reserved.
+pub fn phys_addr_bits(max_ext: u32, leaf_8000_0008_eax: u32) -> u64 {
+    if max_ext >= 0x8000_0008 {
+        ((leaf_8000_0008_eax & 0xff) as u64).clamp(36, 52)
+    } else {
+        36
+    }
+}
+
+/// The first physical address past MAXPHYADDR.
+pub fn max_paddr() -> u64 {
+    let max_ext = cpuid(0x8000_0000, 0).eax;
+    let eax = if max_ext >= 0x8000_0008 { cpuid(0x8000_0008, 0).eax } else { 0 };
+    1 << phys_addr_bits(max_ext, eax)
+}
+
 pub fn has_fsgsbase() -> bool {
     cpuid(7, 0).ebx & 1 != 0
 }
@@ -273,6 +293,16 @@ pub fn init_pat() {
 #[cfg(all(test, target_arch = "x86_64"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn physical_address_width_comes_from_leaf_8000_0008() {
+        assert_eq!(phys_addr_bits(0x8000_0004, 0x3027), 36);
+        assert_eq!(phys_addr_bits(0x8000_0008, 0x3027), 39);
+        assert_eq!(phys_addr_bits(0x8000_0020, 0x3030), 48);
+        assert_eq!(phys_addr_bits(0x8000_0008, 0x3020), 36);
+        assert_eq!(phys_addr_bits(0x8000_0008, 0x00ff), 52);
+        assert_eq!(phys_addr_bits(0x8000_0008, 0), 36);
+    }
 
     #[test]
     fn iret_to_self_preserves_stack_and_flags() {

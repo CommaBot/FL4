@@ -76,6 +76,11 @@ impl Ranges {
     }
 }
 
+/// The lowest of `limits`: where boot memory stops.
+pub fn top(limits: &[u64]) -> u64 {
+    limits.iter().copied().min().unwrap_or(0)
+}
+
 /// The RAM the kernel may use: the whole pages of each available (type 1)
 /// memory map entry `(base, len, type)` from `low` on and below `top`. An
 /// entry that starts below `low` (one that covers low memory and more)
