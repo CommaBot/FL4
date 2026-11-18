@@ -291,7 +291,8 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     {ct : U64} (hct : sched.cur_thread st s = ok ct) (hcs : Fl4Spec.schedulable ct.bv σ = true)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
-    (length slot buf : U64) (blk call don fp : Bool)
+    (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef)
     (hslot : capAt (L.mem s) slot = ok (.SchedContext sc sb)) (hslotS : IsSlot Z.th slot) (hsb : sb.val < 64)
     (hssz : ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → n + Fl4Spec.minSchedContextBits = sb.val)
     (hx0S : x0 ≠ 0#u64 → IsSlot Z.th x0)
@@ -305,12 +306,21 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         ScStepP1 (L := L) Z H Cs s r.2.1 ⦄) :
     syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       ⦃ r => (∃ (σ' : Fl4Spec.State Unit) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∨
-        (r.1 = .Ok () ∧ ∃ inv σ0 data σ1,
+          JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ' ∧
+          ((∃ e, r.1 = .Err e ∧ σ' = σ ∧ r.2.1 = s ∧ r.2.2 = a ∧ ∃ e',
+              (specDec fp slbl args ci sl (.SchedContext sc sb) excaps buffer).run σ = ({(.error e', σ)}, False) ∧
+              ErrRel e e') ∨
+            (r.1 = .Ok () ∧ fp = false ∧ ∃ inv σ0,
+              (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ =
+                ({(.ok inv, σ)}, False) ∧
+              Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
+              Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ')}, False)))) ∨
+        (r.1 = .Ok () ∧ L.mem r.2.1 (stA ct) ≠ sched.TS_RESTART ∧ fp = false ∧ ∃ inv σ0 data σ1,
           (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ =
             ({(.ok inv, σ)}, False) ∧
           Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
-          Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False)) ⦄ := by
+          Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) ∧
+          ∃ σ2, ((), σ2) ∈ (Fl4Proofs.P3.specTail call ct.bv data σ1).1) ⦄ := by
   have hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T := by
     intro hx p hc
     rcases hex with ⟨h0, -⟩ | ⟨-, -, c, a', rest, hc', -, hv, -⟩
@@ -352,12 +362,23 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   refine WP.spec_mono (WP.spec_and hArch (WP.spec_and key hRest)) ?_
   rintro ⟨r0, s', a'⟩ ⟨hA2, hq, hRst⟩
   rcases hq with ⟨rfl, he⟩ | ⟨rfl, hq⟩
-  · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J⟩
-  rcases hq with ⟨e, e', he, -, -⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, hall, hfine⟩
-  · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J⟩
-  rcases hcase with ⟨hd, hσ⟩ | -
+  · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J, Or.inl ⟨_, rfl, rfl, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩⟩
+  rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, hall, hfine⟩
+  · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J, Or.inl ⟨e, rfl, rfl, rfl, rfl, e', run_liftME_err hrun, herr⟩⟩
+  rcases hcase with ⟨hd, hσ⟩ | ⟨⟨xr, hkr, hrs⟩, hdo⟩
   swap
-  · exact Or.inr ⟨hr1, inv, σ0, data, σ1, hrun, he0, he1⟩
+  · -- FL4 has replied: the current thread `Running` (the TCB relation after)
+    obtain ⟨y2, hky2, hrun2⟩ := running_after hkr hdo
+    obtain ⟨x2, hkx2, hrel2⟩ := hall.1.2.1.tcb ct hctT
+    rw [hky2] at hkx2; cases hkx2
+    have hne : L.mem s' (stA ct) ≠ sched.TS_RESTART := by
+      intro e
+      have h1 := hrel2.st
+      rw [hrun2] at h1
+      rw [show tStA ct = stA ct by rw [tStA_eq, stA_eq], e, tsVals.2.1] at h1
+      simp [tsCode] at h1
+    exact Or.inr ⟨hr1, hne, rfl, inv, σ0, data, σ1, hrun, he0, he1, σ2,
+      by rw [specTail_of_restart hkr hrs, hdo]; exact Set.mem_singleton _⟩
   left
   subst hd; subst hσ
   have hm0 : ((), σ0) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by rw [he0]; exact Set.mem_singleton _
@@ -579,8 +600,96 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     hcovW q hq (by_contra fun h => hn ⟨hq, h⟩)
   exact ⟨σ2, Ac', Lst', _, J.sc_frame hW hKt hX' hCR' hRF' hY' hM' (J.sc_buf hW hKt) hRP' (J.sc_apart hW hKt)
     (J.sc_jpl hW hKt) (J.sc_jcov hW hDead hCov (J.idleW_keep hX'.fin.1.1.1 hF.2)) (J.sc_kern hW hKt hF hX' hDbg fun _ h => h.1)
-    (J.sc_utc hW hKt hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk'⟩
+    (J.sc_utc hW hKt hDbg) hN' hI' hC' (Or.inl (hC'.elim hOw' (curOwn_of_curInv hX'.fin.1.1.1 hI'))) hO' hAI' hB' (Or.inr (Or.inl hCR'')) hBlk',
+    Or.inr ⟨hr1, rfl, inv, σ0, hrun, he0, he1⟩⟩
 
+
+/-- **The `set_consumed` reply at `J`** (ScXProd's `ScReplyLeaf` at `JAt`,
+on the SchedContext decode's run) [W]: when FL4's decode has replied (the
+caller `Running`: an at-once YieldTo's `set_consumed` to the caller, then
+`set_thread_state Running`), the spec's outcome after the restart, the
+invocation (`return_consumed`) and the reply tail (`reply_from_kernel` when
+a call, `Running`) is at `JAt`. l4v: `invoke_sched_context`'s
+`sched_context_yield_to` with the target not switched to, and
+`handle_invocation`'s reply, keep `invs`. -/
+def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)
+    (sc sb : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct : U64) : Prop :=
+  syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
+    ⦃ r => r.1 = .Ok () → L.mem r.2.1 (stA ct) ≠ sched.TS_RESTART → ∀ inv σ0 data σ1 σ2,
+      (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ =
+        ({(.ok inv, σ)}, False) →
+      Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) →
+      Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) →
+      ((), σ2) ∈ (Fl4Proofs.P3.specTail call ct.bv data σ1).1 →
+      JAt (L := L) arI AR r.2.1 r.2.2 σ2 ⦄
+
+set_option maxHeartbeats 2000000 in
+/-- **The SchedContext cap, `XCap` at `JAt`**, for Bind, UnbindObject and a
+YieldTo from an SC yielded to by none: `sched_contextJ_step`'s outcome (the
+spec's decode failing with the state unchanged, or the decode, restart and
+invocation with no data and `JAtZ` after), else FL4 has replied and the
+outcome is `ScReplyJ`'s. Premises as `sched_contextJ_step`'s and
+`ScReplyJ` [W]. -/
+theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
+    (htm : TimeAgree arI) (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) (hmsg : MsgOK st Z.N Z.T Z.C Z.c)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
+    {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ Fl4Spec.idleScPtr)
+    (hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
+      (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
+    (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
+      L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧
+      (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)
+    (hbn : ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → ∀ m : U64, y.scNtfn = some m.bv → m ∈ Z.N)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct) (hcs : Fl4Spec.schedulable ct.bv σ = true)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst))
+    (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef)
+    (hslot : capAt (L.mem s) slot = ok (.SchedContext sc sb)) (hslotS : IsSlot Z.th slot) (hsb : sb.val < 64)
+    (hssz : ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → n + Fl4Spec.minSchedContextBits = sb.val)
+    (hx0S : x0 ≠ 0#u64 → IsSlot Z.th x0)
+    (hArch : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
+      ⦃ r => ∀ c, AR a c → AR r.2.2 c ⦄)
+    (hRest : syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra
+      ⦃ r => r.1 = .Ok () → ∀ σ1, (∃ inv σ0,
+        (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ = ({(.ok inv, σ)}, False) ∧
+        Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
+        Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
+        ScStepP1 (L := L) Z H Cs s r.2.1 ⦄)
+    (hRep : ScReplyJ (L := L) (arI := arI) AR s a σ lbl length slot sc sb blk call don fp buf extra slbl excaps ct) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
+      slbl args ci sl excaps buffer ct := by
+  have hJ := sched_contextJ_step s a σ J hres htm hmb hmax htu hmsg lbl slbl hlbl sb hsc hpi hl hback hbn hct hcs extra
+    x0 hx0 excaps hex length slot buf blk call don fp args ci sl buffer hslot hslotS hsb hssz hx0S hArch hRest
+  obtain ⟨r, hr, hp, hR⟩ := spec_exists (WP.spec_and hJ hRep)
+  have tr : ∀ P : core.result.Result Unit error.Exc × S × A → Prop, P r →
+      syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra ⦃ P ⦄ :=
+    fun P hP => by rw [hr]; exact (WP.spec_ok _).2 hP
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  rcases hp with ⟨σ', Ac', Lst', D', J', ⟨e, h1, rfl, h2, h3, e', h4, h5⟩ | ⟨h1, rfl, inv, σ0, h2, h3, h4⟩⟩ |
+    ⟨h1, hne, rfl, inv, σ0, data, σ1, h2, h3, h4, σ2, h5⟩
+  · left
+    refine tr _ (Or.inl ⟨e, h1, h2, ⟨e', h4, h5⟩, ?_⟩)
+    exact ⟨_, _, _, _, _, _, J'⟩
+  · left
+    obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J'.xtop.rel
+    refine tr _ (Or.inr ⟨.invokeSchedContext inv, DecOut.of_eq (run_liftME_ok h2), σ0, by rw [hcur]; exact h3, (.ok [], σ'),
+      mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := ([], σ'))
+        (by rw [h4]; exact Set.mem_singleton _),
+      ⟨Z.th, Z.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩)
+  · right
+    have hX := hR h1 hne inv σ0 data σ1 σ2 h2 h3 h4 h5
+    obtain ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩ := hX
+    obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J2.xtop.rel
+    exact tr _ (Or.inr ⟨h1, hne, .invokeSchedContext inv, DecOut.of_eq (run_liftME_ok h2), σ0, by rw [hcur]; exact h3, data, σ1,
+      mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := (data, σ1))
+        (by rw [h4]; exact Set.mem_singleton _),
+      ((), σ2), h5, ⟨Z2.th, Z2.G, hPl, hCR, hFI, hD, hMO⟩, ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩⟩)
 
 set_option maxHeartbeats 2000000 in
 /-- **The SchedControl cap, `XCap` at `JAt`**: `decode_invocation_sched_controlJAt`'s

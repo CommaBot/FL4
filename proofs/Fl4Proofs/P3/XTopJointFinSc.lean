@@ -191,6 +191,51 @@ theorem JAtZ.scCtlExtra {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   subst e
   exact ⟨huT, xt, hkt, hxt⟩
 
+/-- **The invoked SC cap, as the SchedContext decode reads it** (l4v
+`valid_cap`, `sym_refs`, `valid_global_refs`), from `JAtZ`
+(`JAtZ.scCtlExtra`; a slot of the typed heap): the SC one of `Z.C`, not the
+idle SC, the cap's size the SC's; its `TCB` word, when set, a thread of
+`Z.T` whose SC word is the SC (P1's `XInv`: `yt`, `tsc`) and not the idle
+thread (the idle thread holds the idle SC, `ActIdle`); its notification one
+of `Z.N` (`SchedValid`'s link, `ObjCover`). -/
+theorem JAtZ.scCtxCap {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x p sb : U64} (hx : IsSlot Z.th x)
+    (hc : capAt (L.mem s) x = ok (.SchedContext p sb)) :
+    p ∈ Z.C ∧ p.bv ≠ Fl4Spec.idleScPtr ∧ sb.val < 64 ∧
+      (∀ y n, σ.kheap p.bv = some (.schedContext y n) → n + Fl4Spec.minSchedContextBits = sb.val) ∧
+      (L.mem s (scW p 24#u64) ≠ 0#u64 →
+        L.mem s (scW p 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW p 24#u64))) = p ∧
+        (L.mem s (scW p 24#u64)).bv ≠ σ.idleThread) ∧
+      (∀ y n, σ.kheap p.bv = some (.schedContext y n) → ∀ m : U64, y.scNtfn = some m.bv → m ∈ Z.N) := by
+  obtain ⟨hsb, ⟨hpC, hp0, -⟩, hpi⟩ := J.scCtlExtra arI hx hc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hO := hJ.cobj _ hx
+  rw [capV_of_capAt hc] at hO
+  have hH := hO.1
+  have hpS : p ∈ P1.Heap.scs H := ⟨_, hH⟩
+  refine ⟨hpC, hpi, hsb, fun y n hk => ?_, fun h0 => ?_, fun y n hk m hm => ?_⟩
+  · have hH' := (hJ.sc p y n hp0 hk).2
+    rw [hH] at hH'
+    exact (HKind.sc.inj (Option.some.inj hH')).symm
+  · have hX := J.blk.2.2.1
+    have h0' : L.mem s (P1.scTcbA p) ≠ 0#u64 := by rw [scTcbA_eq]; exact h0
+    have huT : L.mem s (P1.scTcbA p) ∈ Z.T := by
+      rw [J.tcbs_eq.1]; exact hX.2.2.yt.1 p hpS h0'
+    have htsc : L.mem s (P1.scA (L.mem s (P1.scTcbA p))) = p := hX.2.2.tsc p hpS hp0 h0'
+    rw [scTcbA_eq] at huT htsc
+    refine ⟨huT, htsc, fun e => ?_⟩
+    obtain ⟨Q, R, hc', hs⟩ := J.xtop.fin.1.1.1.lists
+    obtain ⟨xu, hku, -, -, hsu, -⟩ := hs.tcb _ huT
+    obtain ⟨xi, hki, hsi, -⟩ := J.act.2
+    rw [e, hki] at hku
+    cases hku
+    rw [hsu, htsc, Notif.optRef_ne hp0] at hsi
+    exact hpi (Option.some.inj hsi)
+  · obtain ⟨xn, hxn⟩ := J.sv.scNtfn _ y n _ hk hm
+    obtain ⟨m', hm', hmm⟩ := J.obj.ntfn _ xn hxn
+    rw [← P1.eq_of_bv hmm]; exact hm'
+
 /-- **A final SC cap's finalisation at `J`** (module docstring; the SC may
 be the current one): the statement `jFinAt_sc` reads, proved by
 `jScFin_of` from the SC steps. -/
