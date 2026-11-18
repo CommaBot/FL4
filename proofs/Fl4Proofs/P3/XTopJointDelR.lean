@@ -39,6 +39,11 @@ some of them proved here.
   (ScSignalBoundJ, l4v `valid_replies`: the replies it frees, of threads
   blocked receiving, are detached and unlinked), carried by `JDelParts` at
   every `P1.Heap` and set of cores.
+* A final reply cap's finalisation (`jFinAt_reply`): XTopJointFinReply's
+  `JAtZ.finReplyJ` (none, or the receiver's `cancel_ipc`, proved; the
+  `reply_remove` of a thread blocked on the reply from `JReplyRemoveHyp`
+  [J]), the reply dead after (P1's `fin_cap_reply.dead`,
+  `JAtZ.reply_ready`); with `RecvReplyHyp` [J] and `P0.ArchTotal` [P].
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
   slot by `emptyJRT` (a step changing the TCB's caps only, `KeepCT`), both
   with `JEmptyUtHyp`.
@@ -50,6 +55,7 @@ some of them proved here.
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointFinEp
+import Fl4Proofs.P3.XTopJointFinReply
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -215,14 +221,39 @@ def JIrqSlotHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 /-- An endpoint cap. -/
 def EpK (c : capability.Cap) : Prop := ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4
 
+/-- A reply cap. -/
+def RpK (c : capability.Cap) : Prop := ∃ p g, c = .Reply p g
+
+/-- **Hypothesis: `reply_remove` at `J`** [J] (the reply cap's finalisation
+of a thread blocked on the reply; the receiver's case is proved,
+XTopJointFinReply): from `JAtZ`, FL4's `reply_remove` against the spec's
+(deterministic), `JAtZ` after at fresh VSpace sets, the slots and the
+kernel-state base kept. The `IRel` side is proved (IpcFinReply's
+`remove_topF`, ScCallRemove's `reply_remove_refines`: `CallRel` at the new
+call stacks, the reply isolated, `Inv`); the `JAtZ` lift is not: the call
+stacks' restructuring (`RFree`, the `CallW'` footprint beyond `CnW`) and the
+spec's `sched_context_donate` of the reply's SC to the caller (its frame:
+the SC's thread, the threads' SCs, the queues; `CurOwnW`, `OffOK`, `CurInv`,
+`BlockedScActive` after). -/
+def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    ∀ (r t : U64) (x : Fl4Spec.Tcb), r ∈ Z.R → t ∈ Z.T → σ.kheap t.bv = some (.tcb x) →
+      x.tcbState = .blockedOnReply r.bv → ipc.reply_remove st arI s a r t ⦃ res => res.2 = a ∧
+        ∃ σ' V' Ac' Lst' D', Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
+          JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.1 res.2 σ' ∧
+          SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ⦄
+
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c)
+  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c)
   irq : JIrqSlotHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
   replies of the threads blocked receiving on it. -/
   recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs
+  /-- `reply_remove` at `J`, for a final reply cap's finalisation. -/
+  replyRm : JReplyRemoveHyp (L := L) arI AR th
   finFrIo : JFinAt (L := L) arI AR th FrIoK
   triv : JRdTrivHyp (L := L) arI AR th
   zomb : JZombieHyp (L := L) arI AR th
@@ -508,6 +539,70 @@ theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L)
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨V1, Ac, Lst, D, J1, hks1.trans hkb⟩, JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp⟩
 
+/-- **A reply cap's slot is ready once the reply is dead** (as
+`JAtZ.ep_ready`). -/
+theorem JAtZ.reply_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x) {p : U64} {g : Bool}
+    (hcv : capV (L.mem s) x = .Reply p g) (hd : DeadP (L := L) H s p) :
+    EmptyReady (L := L) H Z.G s x := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHp : H p = some .reply := (hJ.typed _ hx).2.2 p g hcv
+  have hpfit : p.val + 2 ^ 5 ≤ 2 ^ 64 := J.kern.heap.fits p _ hHp
+  obtain ⟨e1, e2⟩ := range_reply p g hpfit
+  unfold EmptyReady
+  rw [hcv, e1, e2]
+  intro _ _
+  have hout : ∀ q k, H q = some k → q ≠ p → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 2 ^ 5 ≤ q.val := by
+    intro q k hq hne
+    have := J.kern.heap.disj q k p .reply hq hHp hne
+    simpa only [show (P1.HKind.reply).bits = 5 from rfl] using this
+  refine ⟨fun lo hi hlh h1 h2 => ?_, fun z hz h1 h2 => ?_⟩
+  · right
+    intro q hq
+    by_cases e : q = p
+    · subst e; exact hd
+    · cases hk : H q with
+      | none => exact deadP_none hk
+      | some k =>
+        exfalso
+        have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
+        rcases hout q k hk e with h | h <;> omega
+  · exfalso
+    have hne : L.cscW s ≠ p := fun e => by rw [e, hHp] at hz; cases hz
+    have : 1 ≤ 2 ^ (P1.HKind.sc z).bits := Nat.one_le_two_pow
+    rcases hout _ _ hz hne with h | h <;> omega
+
+set_option maxHeartbeats 4000000 in
+/-- **A final reply cap's finalisation at `J`** (XTopJointFinReply's
+`JAtZ.finReplyJ`, the reply dead after by P1's `fin_cap_reply.dead`), from
+`RecvReplyHyp` [J] and `JReplyRemoveHyp` [J]. -/
+theorem jFinAt_reply (hT : P0.ArchTotal arI)
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
+    (hRm : JReplyRemoveHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th RpK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, g, hce⟩ hfin
+  subst hce hth
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hcv := capV_of_capAt hc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHp : H p = some .reply := (hJ.typed _ hA.isSlot).2.2 p g hcv
+  have hpR : p ∈ (Z.mv G V).R := J.hset.2.2 p hHp
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (WP.spec_and (J.finReplyJ hT (hRR H Cs) (hRm (Z.mv G V) H Cs Ac Lst D s a σ rfl J) hpR)
+    (P1.fin_cap_reply.dead (ar := arI) hT s a p g false J.blk hHp)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, d1⟩
+  simp only at e1 e2 hmem1 J1 hSS1 hks1 d1
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
+  subst e2
+  have hdp : DeadP (L := L) H s1 p :=
+    ⟨fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h),
+      fun h => (by rw [hHp] at h; cases h), fun _ => d1, fun z h => (by rw [hHp] at h; cases h)⟩
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Reply p g := by
+    rw [hSS1.capV hA.isSlot, hcv]
+  exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb⟩, JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp⟩
+
 theorem okey_of_finObj {c : capability.Cap} (hk : FinObjKind c) : okey c ≠ none := by
   cases c <;> simp_all [FinObjKind, okey]
 
@@ -562,7 +657,8 @@ theorem jFin_nonfinal [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs
 (`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps'
 (`JDelParts.fin`) and the frame and IO port caps' (`JDelParts.finFrIo`). -/
 theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s)) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
+    (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (kb : U64) (hth : Z.th = th) :
     FinObjHypWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s a σ G sl c hDS hW hA hc hk _
@@ -575,7 +671,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_irq arI h.empUt h.irq hLayI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
     by_cases he : EpK c
     · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he⟩ hfin
+    by_cases hr : RpK c
+    · exact jFinAt_reply arI hT h.recvRep h.replyRm Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
@@ -668,14 +766,15 @@ theorem rdTrivJ (hRT : JRdTrivHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) 
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJ`, `RdJ`). -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s)) :
+    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
+    (hT : P0.ArchTotal arI) :
     JDelHyp (L := L) arI AR th := by
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdJ (L := L) (A := A) H) th :=
-    ⟨finJ arI h hLayI Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, hpost Z H Cs kb hth,
+    ⟨finJ arI h hLayI hT Z H Cs kb hth, rdTrivJ arI h.triv Z H Cs kb hth, hpp Z H Cs kb hth, hpost Z H Cs kb hth,
       h.zomb Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm

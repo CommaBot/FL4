@@ -293,7 +293,7 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
   have hJD := JDelHyp.of_parts arI hJDP hJP (jPostDelHyp_of arI hARI.toMask hLay hmask hfree)
-    (fun Z' s' a' σ' h hX' => (hLay Z' s' a' σ' h hX').1)
+    (fun Z' s' a' σ' h hX' => (hLay Z' s' a' σ' h hX').1) hT
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct
