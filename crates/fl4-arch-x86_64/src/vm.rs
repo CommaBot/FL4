@@ -391,6 +391,20 @@ fn control_msr(field: u32, true_controls: bool) -> u32 {
     }
 }
 
+/// Whether this processor's VMCS has `field` (SDM Vol. 3 App. B): two
+/// fields exist only with the 1-setting of an optional control, and a
+/// VMREAD or VMWRITE of a field that does not exist fails with VM-instruction
+/// error 12, which would replace a failed entry's own error number and make
+/// the VMCS cache record a write that did not happen. X86VCPUReadVMCS answers
+/// 0 for both (fl4-core `vcpu`); `cap` is `capability`.
+fn vmcs_field_exists(field: u64, cap: impl Fn(u64) -> u64) -> bool {
+    match field {
+        GUEST_PERF_GLOBAL_CTRL => cap(0x484) >> 32 & (1 << 13) != 0,
+        GUEST_PREEMPTION_TIMER_VALUE => cap(0x481) >> 32 & (1 << 6) != 0,
+        _ => true,
+    }
+}
+
 fn has_perf_global_ctrl(max_leaf: u32, pmu_eax: u32) -> bool {
     // Version 1 is insufficient under KVM: it emulates GLOBAL_CTRL only
     // for architectural PMU version 2 or later. Nested VMX control MSRs
@@ -723,7 +737,9 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
             local().vmx.loaded = true;
         }
         for field in vcpu::WRITE_FIELDS {
-            vmwrite(field, vcpu::read_vmcs(s, v, field));
+            if vmcs_field_exists(field, capability) {
+                vmwrite(field, vcpu::read_vmcs(s, v, field));
+            }
         }
         vmwrite(CONTROL_PAGE_FAULT_MASK, 0);
         vmwrite(CONTROL_PAGE_FAULT_MATCH, 0);
@@ -870,7 +886,7 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
         for field in vcpu::READ_FIELDS {
             // Undefined exit fields must not expose another VCPU's last
             // exit from this core's reusable VMCS.
-            let value = if field & 0xc00 == 0x400 {
+            let value = if field & 0xc00 == 0x400 || !vmcs_field_exists(field, capability) {
                 0
             } else {
                 vmread(field)
@@ -1221,6 +1237,33 @@ mod tests {
             }
         }
         assert_eq!(pmu_controls(0x482, u64::MAX, false), Some(u64::MAX));
+    }
+    #[test]
+    fn vmx_entries_skip_vmcs_fields_of_absent_controls() {
+        // Neither the PMU load control nor the preemption timer: VM entry
+        // and exit must not VMREAD/VMWRITE their fields (VM-instruction
+        // error 12 would replace a failed entry's error number).
+        let none = |f: u64| match f {
+            0x481 => vcpu::PIN_ALLOWED << 32,
+            0x484 => 1 << (32 + 9),
+            _ => u64::MAX,
+        };
+        let all = |f: u64| none(f) | match f {
+            0x481 => 1 << (32 + 6),
+            0x484 => 1 << (32 + 13),
+            _ => 0,
+        };
+        for (cap, expect) in [(&none as &dyn Fn(u64) -> u64, false), (&all, true)] {
+            for list in [&vcpu::WRITE_FIELDS[..], &vcpu::READ_FIELDS[..]] {
+                for &field in list {
+                    let optional = matches!(field, GUEST_PERF_GLOBAL_CTRL | GUEST_PREEMPTION_TIMER_VALUE);
+                    assert_eq!(vmcs_field_exists(field, cap), !optional || expect, "{field:#x}");
+                }
+            }
+        }
+        // The fields run() touches for every VCPU are always present.
+        assert!(vmcs_field_exists(GUEST_RIP, none));
+        assert!(vmcs_field_exists(CONTROL_ENTRY_CONTROLS, none));
     }
     #[test]
     fn vmx_true_control_msr_addresses() {

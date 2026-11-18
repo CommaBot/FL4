@@ -135,8 +135,16 @@ pub fn pins(i: u64) -> u64 {
 /// Whatever routed this pin before loses it, so masking or unmasking the
 /// old IRQ no longer reaches the pin; and the pin the IRQ came from before,
 /// if another, is masked, so it no longer raises this vector.
+///
+/// A compatibility-format entry has an 8-bit destination (bits 56..63):
+/// an x2APIC ID above 255 cannot be named there, and its low byte would
+/// name some other core, or none. Such a request changes nothing and
+/// returns false; only a remappable entry can reach that core.
 #[allow(clippy::too_many_arguments)]
-pub fn map(ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, dest: u32, high: u32, lo_extra: u32) {
+pub fn map(ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, dest: u32, high: u32, lo_extra: u32) -> bool {
+    if high == 0 && dest > 0xff {
+        return false;
+    }
     let i = ioapic as usize;
     let lo = MASKED | ((level as u32) << 15) | ((polarity as u32) << 13) | lo_extra | vector as u32;
     let irq = vector.wrapping_sub(0x20) as usize;
@@ -160,6 +168,7 @@ pub fn map(ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, dest: 
     if irq < 256 {
         ROUTE[irq].store(VALID | (ioapic << 32) | (pin << 40) | lo as u64, Ordering::Relaxed);
     }
+    true
 }
 
 /// Mask or unmask whatever pin `irq` is routed from.
@@ -262,6 +271,20 @@ mod tests {
             r & VALID != 0 && route_pin(r) == (0, 4)
         });
         assert_eq!(named.count(), 1);
+
+        // An x2APIC ID above 255 does not fit a compatibility entry's
+        // destination: the request leaves the pin and its route alone
+        // instead of sending the IRQ to the core named by the low byte.
+        assert!(map(0, 5, 0, 0, 0x33, 0x12, 0, 0));
+        assert_eq!(read(0, lo_reg(5) + 1), 0x12 << 24);
+        assert!(!map(0, 5, 0, 0, 0x34, 0x101, 0, 0));
+        assert_eq!(read(0, lo_reg(5) + 1), 0x12 << 24, "destination truncated to its low byte");
+        assert_eq!(lo(0, 5), 0x33 | MASKED);
+        assert_ne!(ROUTE[0x13].load(Ordering::Relaxed) & VALID, 0);
+        assert_eq!(ROUTE[0x14].load(Ordering::Relaxed), 0);
+        // A remappable entry carries its own destination word.
+        assert!(map(0, 5, 0, 0, 0x34, 0x101, (7 << 17) | (1 << 16), 0));
+        assert_eq!(read(0, lo_reg(5) + 1), (7 << 17) | (1 << 16));
         assert!(!LOCK.load(Ordering::Relaxed));
     }
 }

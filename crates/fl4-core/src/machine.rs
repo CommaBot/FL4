@@ -73,7 +73,8 @@ pub trait Arch {
     fn invalidate_page_structures(&mut self, asid: u64);
 
     /// Program an IOAPIC pin to deliver `vector`. Returns false when the
-    /// IOAPIC or pin does not exist.
+    /// IOAPIC or pin does not exist, or the entry cannot name the core it
+    /// delivers to (nothing then changes).
     fn ioapic_map(&mut self, ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64) -> bool;
     /// l4h 0025: remappable-format IOAPIC entry with the caller's handle.
     fn ioapic_map_remapped(&mut self, ioapic: u64, pin: u64, level: u64, polarity: u64, vector: u64, handle: u64) -> bool;

@@ -161,34 +161,26 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
         }
         Some(b)
     } else if magic == MB2_MAGIC {
-        let total = rd32(info) as u64;
-        let mut t = info + 8;
-        while t + 8 <= info + total {
-            let ty = rd32(t);
-            let size = rd32(t + 4) as u64;
-            match ty {
-                0 => break,
-                1 => b.cmdline = t + 8,
-                8 => b.fb = Some(Framebuffer { addr: rd64(t + 8), pitch: rd32(t + 16), width: rd32(t + 20), height: rd32(t + 24), bpp: rd8(t + 28), ty: rd8(t + 29) }),
-                3 => b.add_module(Module { start: rd32(t + 8) as u64, end: rd32(t + 12) as u64, name: t + 16 }),
-                6 => {
-                    let esz = rd32(t + 8) as u64;
-                    let mut e = t + 16;
-                    while e + esz <= t + size && b.n_mmap < MAX_MMAP && esz >= 20 {
-                        b.mmap[b.n_mmap] = MemRegion { base: rd64(e), len: rd64(e + 8), ty: rd32(e + 16) };
-                        b.n_mmap += 1;
-                        e += esz;
-                    }
+        crate::mb2::tags(info, rd32, |t, ty, size| match ty {
+            1 => b.cmdline = t + 8,
+            8 => b.fb = Some(Framebuffer { addr: rd64(t + 8), pitch: rd32(t + 16), width: rd32(t + 20), height: rd32(t + 24), bpp: rd8(t + 28), ty: rd8(t + 29) }),
+            3 => b.add_module(Module { start: rd32(t + 8) as u64, end: rd32(t + 12) as u64, name: t + 16 }),
+            6 => {
+                let esz = rd32(t + 8) as u64;
+                let mut e = t + 16;
+                while e + esz <= t + size && b.n_mmap < MAX_MMAP && esz >= 20 {
+                    b.mmap[b.n_mmap] = MemRegion { base: rd64(e), len: rd64(e + 8), ty: rd32(e + 16) };
+                    b.n_mmap += 1;
+                    e += esz;
                 }
-                14 | 15 => {
-                    if b.rsdp.is_none() || ty == 15 {
-                        b.rsdp = Some(t + 8);
-                    }
-                }
-                _ => {}
             }
-            t += (size + 7) & !7;
-        }
+            14 | 15 => {
+                if b.rsdp.is_none() || ty == 15 {
+                    b.rsdp = Some(t + 8);
+                }
+            }
+            _ => {}
+        });
         if b.n_mmap == 0 {
             return None;
         }
