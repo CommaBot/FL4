@@ -59,8 +59,8 @@ some of them proved here.
   `JVsApartHyp` [J] (the VSpace frames and the ASID table apart from `H`'s
   objects, the nodes and the untyped free parts), `JDelParts` fields.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
-  `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the SC steps
-  `JScFinSteps` [J-step] and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
+  `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
+  steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
   (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the current SC kept (P1's
   `fin_sc.curR`); with `JScCapHyp` [J] and `JScCurHyp` [J] (not an l4v
   invariant: `JKern`'s current SC must stay covered).
@@ -332,10 +332,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   vsApart : JVsApartHyp (L := L) arI AR th
   frVt : JFrVtHyp (L := L) arI AR th
   frApart : JFrameApartHyp (L := L) arI AR th
-  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: the SC steps
-  `JScFinSteps`, `jScFin_of` with `JThreadFinHyps.yieldToH` (proved from `ticks` [P]); `JScCapHyp`;
+  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `jScFin_of`
+  with `JThreadFinHyps.yieldToH` (proved from `ticks` [P]); `JScCapHyp`;
   `JScCurHyp`, not an l4v invariant). -/
-  scSteps : JScFinSteps (L := L) arI AR th
   scCap : JScCapHyp (L := L) arI AR th
   scCur : JScCurHyp (L := L) arI AR th
   /-- The steps of a final thread cap's finalisation at `J` not proved
@@ -889,7 +888,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
-    · exact jFinAt_sc arI hT (jScFin_of arI hT h.scSteps (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
+    · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
     · exact jFinAt_thread arI hT h.thread Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht⟩ hfin

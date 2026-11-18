@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9), CSpace: **`unbind_ntfn` of an SC at `J`** (a step of a
-final SC cap's finalisation, XTopJointFinSc's `JScFinSteps.unbindNtfn`):
+final SC cap's finalisation, XTopJointFinSc's `JAtZ.finScJ`):
 `JAtZ.unbindNtfnJ`.
 
 The spec's `sched_context_unbind_ntfn` clears the notification's `SC` link
@@ -63,7 +63,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 set_option maxHeartbeats 8000000 in
 /-- **`unbind_ntfn` of an SC at `J`** (module docstring): XTopJointFinSc's
-`JScFinSteps.unbindNtfn`, proved (for any SC of the SCs, non-null). -/
+a step of XTopJointFinSc's `JAtZ.finScJ`, proved (for any SC of the SCs, non-null). -/
 theorem JAtZ.unbindNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64) :
