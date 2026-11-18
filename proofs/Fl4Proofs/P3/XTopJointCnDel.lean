@@ -22,11 +22,12 @@ supply).
 * `JAtZ.ppr0_start`: `PPR0` at the invocation's start, from `Entered` and
   the current SC's head ready at a zero consumed time (`hRd0` [J]).
 * `decode_invocation_cnodeJ_steps` (moved here from XTopJointStep): the
-  CNode cap with `JAt` after (`JAtPre` if preempted); the per-op premise
-  `JPostHyp` [W] only at CancelBadgedSends and the invalid labels.
+  CNode cap with `JAt` after (`JAtPre` if preempted), every label proved
+  (CancelBadgedSends and the invalid labels by XTopJointCbs).
 -/
 import Fl4Proofs.P3.XTopJointPP
 import Fl4Proofs.P3.XTopJointPost
+import Fl4Proofs.P3.XTopJointCbs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -277,10 +278,11 @@ loop's named steps `JDelParts` [J], `JDelHyp.of_parts`; the preemption point by
 `jPreemptHyp_of` from the platform's `PPPlat` [P], with `PPR0` carried by the loop from the
 start (`JAtZ.ppr0_start`: `hRd0` [J], the current SC's head ready at a zero consumed time) and
 kept by the finalisations (`JDelParts.finPP` [J]); the cleanups by `jPostDelHyp_of`:
-the kernel-state layout and the arch IRQ operations [P]), the per-op premise (`JPostHyp` [W]) only at the other labels
-(CancelBadgedSends, the invalid ones). -/
+the kernel-state layout and the arch IRQ operations [P]), CancelBadgedSends by
+XTopJointCbs's `decode_invocation_cnode_cancelJ` (the caller's restart by `JStepHyps`, then
+`JAtZ.cancelBadgedJ`), the invalid labels by `decode_invocation_cnode_illegalJ`. -/
 theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hJDP : JDelParts (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
@@ -298,16 +300,10 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
-    (hrun : ∀ xt, σ.kheap ct.bv = some (.tcb xt) → tsCode xt.tcbState < 3)
-    (hZ : ∀ Z' : XSets, XTopAt (L := L) AR Z' s ar σ → KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s) ∧
-      BufWordRel Z'.T (L.mem s) σ ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B)
     (hQ : ∀ e, Sched.EpQPre σ e)
     (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
       capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
-    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
-    (hR : ¬ (25 ≤ lbl.val ∧ lbl.val ≤ 26) → ¬ (28 ≤ lbl.val ∧ lbl.val ≤ 32) →
-      JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.CNode p r gs g) blk call don fp buf extra slbl
-        (args.map UScalar.bv) ci sl excaps buffer ct) :
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   have hX := J.xtop
@@ -336,9 +332,17 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       subst e
       exact decode_invocation_cnode_deleteJ arI s ar σ J hni hJ hJD hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
-  · exact (decode_invocation_cnodeJ_step arI s ar σ J hni hG hARI hT lbl slbl hlbl length buf ct hct args hlen hargs
-      sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hrun hZ hQ hE blk call don fp ci buffer (hR hrd hcp)).toP arI
-      fun _ _ _ h => Or.inl h
+  by_cases hlo : lbl.val < 25 ∨ 32 < lbl.val
+  · exact (decode_invocation_cnode_illegalJ arI s ar σ J lbl hlo slbl hlbl length buf ct hct _ p r gs g extra excaps
+      (cslotAddr sl) blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
+  have h27 : lbl.val = 27 := by omega
+  have e : lbl = fl4_abi.label.CNodeCancelBadgedSends := UScalar.eq_of_val_eq (by rw [h27, lbl_cancel_val])
+  subst e
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  exact (decode_invocation_cnode_cancelJ arI hARI.toMask hJ s ar σ J (J.curRun.run hni) slbl
+    (by rw [hlbl]; simp [cnodeLabelOf]) length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps J.kern.act hcur
+    hQ (fun u hu => by rw [hni.2] at hu; cases hu) (fun e b sl' hsl hcV => hE Z e b sl' hX hsl hcV) (cslotAddr sl)
+    blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
 
 end
 
