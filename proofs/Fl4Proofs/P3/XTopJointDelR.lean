@@ -24,8 +24,9 @@ some of them proved here.
   handler, endpoint, frame and IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
   nothing, the slot ready by another cap alike it),
   `JZombieTcbHyp` (a TCB zombie's TCB dead: `JRdTrivHyp`, `RdJ` at a
-  zombie, from it, `jRdTrivHyp_of`), `JSwapHyp` (a zombie swapped with its first
-  slot), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
+  zombie, from it, `jRdTrivHyp_of`), `JSwapUtHyp` (a TCB zombie's TCB in no
+  childless untyped region: `JSwapHyp`, a zombie swapped with its first
+  slot, from it, `jSwapHyp_of`), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
   `valid_untyped` gap, as `DelUtHyp`).
 * The frame and IO port caps' finalisation, final or not (`jFinAt_frio`,
   XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
@@ -83,7 +84,9 @@ some of them proved here.
   `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
   `JAtZ.tcb_ready`).
 * A zombie written over a cap alike it (`jZombieHyp`, XTopJointZombie's
-  `JAtZ.zombieJCore`); a zombie's slot ready (`jRdTrivHyp_of`,
+  `JAtZ.zombieJCore`); a zombie swapped with its first slot (`jSwapHyp_of`,
+  `JAtZ.swapJCore`, a TCB zombie's TCB apart from the childless untyped
+  regions by `JSwapUtHyp`); a zombie's slot ready (`jRdTrivHyp_of`,
   `JAtZ.zombie_ready`: a CNode zombie's CNode dead for `DeadP`, a TCB
   zombie's TCB by `JZombieTcbHyp`).
 * The empty of a ready slot (`emptyHypJ`): a CNode slot by `emptyJR`, a TCB
@@ -270,15 +273,31 @@ def JZombieTcbHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
       ∀ x, IsSlot th x → ∀ p zt n, capV (L.mem s) x = .Zombie p zt n → zt.val = 65 → DeadP (L := L) H s p
 
-/-- **Hypothesis: a zombie swapped with its first slot keeps `WJ`** [J]
-(`SwapHypW` at `WJ`). Missing for a proof by `jowes_cn` (two slots
-written, the caps and the CDT renamed): the first slot's container is the
-zombie's own CNode or TCB, whose cap is the zombie, so `DestLive` fails
-(as for `JZombieHyp`); and `JPlaced.slot` asks every TCB's slot 3 kept,
-which needs the zombie's slot not to be one (not known at `WJ`). -/
+/-- **A zombie swapped with its first slot keeps `WJ`** (`SwapHypW` at
+`WJ`). Proved from `JSwapUtHyp` (`jSwapHyp_of`, XTopJointZombie's
+`JAtZ.swapJCore`, by `jowes_slotD`: no `DestLive` is read; the TCBs' slot 3
+holds no zombie, `JPlaced.fh`, and is no object's first slot). -/
 def JSwapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     SwapHypW (L := L) (A := A) (WJ (L := L) arI AR Z H Cs kb) th
+
+/-- **Hypothesis: a TCB zombie's TCB is in no childless untyped region** [J]
+(with a non-zero free index): at `WJ`, for a zombie of type 65 over the TCB
+`p` and an untyped cap without children in the CDT whose free index is not
+`0`, `p` is outside the cap's region. The swap links the zombie's first
+slot (inside `p`), and `UtCapP3`'s `ns`/`rst` ask the linked slots and
+the original caps of a childless untyped cap to miss its region. A CNode
+zombie's CNode does by `UtCapP3` itself (`rst`: no CNode in the region;
+`free` when the free index is `0`); `UtCapP3` says nothing of TCBs. l4v
+`valid_untyped` (`descendants_range_in`): the zombie, which refers to `p`,
+would be a descendant of the untyped cap; the known gap of `DelUtHyp`,
+`JEmptyUtHyp`. -/
+def JSwapUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
+      ∀ x, IsSlot th x → ∀ p zt n, capV (L.mem s) x = .Zombie p zt n → zt.val = 65 →
+      ∀ u up usb ufi udev, AbsSlot th u → capV (L.mem s) (cslotAddr u) = .Untyped up usb ufi udev →
+        (¬ ∃ y, σ.cdt y = some u) → ufi.val ≠ 0 → p.val < up.val ∨ up.val + 2 ^ usb.val ≤ p.val
 
 /-- **Hypothesis: a cleanup cap's `post_cap_deletion` keeps `WJ`** [J]
 (`PostDelHypW` at `WJ`). -/
@@ -386,7 +405,9 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   /-- A TCB zombie's TCB dead (`JZombieTcbHyp` [J]; `JRdTrivHyp` from it,
   `jRdTrivHyp_of`). -/
   zTcb : JZombieTcbHyp (L := L) arI AR th
-  swap : JSwapHyp (L := L) arI AR th
+  /-- A TCB zombie's TCB in no childless untyped region (`JSwapUtHyp` [J];
+  `JSwapHyp` from it, `jSwapHyp_of`). -/
+  swapUt : JSwapUtHyp (L := L) arI AR th
   empUt : JEmptyUtHyp (L := L) arI AR th
 
 /-! ## The proved steps -/
@@ -1100,6 +1121,21 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
     (SlotFrame2.writesIn hF) hnk
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 
+/-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
+`XTopAt` after, `JAtZ.swapJCore` with `JSwapUtHyp`, `cs_frameV`). -/
+theorem jSwapHyp_of (hU : JSwapUtHyp (L := L) arI AR th) : JSwapHyp (L := L) arI AR th := by
+  intro Z H Cs kb hth s s' a σ σ' G G' sl p zt n hW hD1 hD2 hF hsw hA hz hpx hG' hcap hmS
+  have hW' := hW
+  subst hth hG'
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hnk := capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw)
+  obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G _
+    ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
+  obtain ⟨hks, hkb2, hC, Ac', Lst', D', R⟩ := J.swapJCore hA hz hpx
+    (fun h65 => hU Z H Cs kb rfl s a σ G hW' _ hA.isSlot p zt n hz h65) hsw hD2 hcap hX2
+    (SlotFrame2.writesIn hF) hnk
+  exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
+
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJ`, `RdJ`). -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
@@ -1112,7 +1148,7 @@ theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) ar
   have hH : DelHypsWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdJ (L := L) (A := A) H) th :=
     ⟨finJ arI h hLayI hT Z H Cs kb hth, rdTrivJ arI (jRdTrivHyp_of arI h.zTcb) Z H Cs kb hth, hpp Z H Cs kb hth,
-      hpost Z H Cs kb hth, jZombieHyp arI Z H Cs kb hth, h.swap Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
+      hpost Z H Cs kb hth, jZombieHyp arI Z H Cs kb hth, jSwapHyp_of arI h.swapUt Z H Cs kb hth, emptyHypJ arI h.empUt Z H Cs kb hth⟩
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
