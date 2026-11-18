@@ -20,7 +20,7 @@ use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
 use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, sev, spec, timer, tlb};
 use bootmem::Ranges;
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
-use fl4_core::layout::{ks, pptr, PADDR_TOP};
+use fl4_core::layout::{ks, pptr};
 use fl4_core::machine::Store;
 use fl4_core::obj::ks_set;
 use fl4_core::sched;
@@ -312,13 +312,16 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
 
     // Memory: RAM above 1 MiB minus the kernel, modules and image is free;
     // everything that is not RAM goes to user space as device memory.
-    // Both stop at the kernel window's end (PADDR_TOP): an untyped's
-    // pointer is its physical address in the window, which past that
-    // would run into the kernel image's mapping and then wrap to the lower
-    // half (P3's `UtWin`: every untyped at or above PPTR_BASE). Nothing
-    // goes past what the CPU can address either (MAXPHYADDR): a mapping
-    // of it would set reserved bits in a paging, EPT or NPT entry.
-    let device_top = bootmem::top(&[PADDR_TOP, PADDR_USER_DEVICE_TOP, gpa_top]);
+    // RAM stops at the kernel window's mapped top: the kernel reaches it
+    // through the window. Device memory goes on to PADDR_USER_DEVICE_TOP,
+    // as in seL4 (firmware places 64-bit BARs far above the 510 GiB
+    // window): the kernel never touches it, and a device untyped's
+    // pointer is only its physical address plus PPTR_BASE, wrapping to
+    // the lower half from 512 GiB on (and, for [510 GiB, 512 GiB), has
+    // the values of the kernel image's addresses, which means nothing).
+    // Nothing goes past what the CPU can address either (MAXPHYADDR): a
+    // mapping of it would set reserved bits in a paging, EPT or NPT entry.
+    let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
     let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
 
     // The root task: the first module, loaded into RAM above everything
