@@ -442,3 +442,4 @@ import Fl4Proofs.P3.TcbPrioFr
 import Fl4Proofs.P3.XTopJointTcbPrio
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.IdleCovered
+import Fl4Proofs.P3.XTopJointEntry
