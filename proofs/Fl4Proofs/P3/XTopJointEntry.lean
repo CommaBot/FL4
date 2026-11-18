@@ -34,6 +34,7 @@ import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointUt
 import Fl4Proofs.P3.ScJointUnbind
+import Fl4Proofs.P3.ScJointConsumed
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -422,8 +423,9 @@ structure JSchedCtxPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (a
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
         ScStepP1 (L := L) Z H Cs s r.2.1 ⦄
-  /-- [W] an at-once YieldTo's reply at `JAt` (ScJointStep's `ScReplyJ`). -/
-  rep : ScReplyJ (L := L) (arI := arI) AR s ar σ lbl length (cslotAddr sl) sc sb blk call don fp buf extra slbl excaps ct
+  /-- [W] an at-once YieldTo's reply at `JAt` (ScJointStep's `ScReplyJ`; Consumed's is
+  ScJointConsumed's `sc_consumedReplyJ`). -/
+  rep : lbl ≠ fl4_abi.label.SchedContextConsumed → ScReplyJ (L := L) (arI := arI) AR s ar σ lbl length (cslotAddr sl) sc sb blk call don fp buf extra slbl excaps ct
 
 /-- The CNode path [W] (the front end's label and extra slots). -/
 structure JCnodePath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -617,7 +619,7 @@ on the cap:
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
-| SchedContext (Consumed, Bind, UnbindObject, a YieldTo from an SC yielded to by none) | `decode_invocation_sched_contextJ` | `JSchedCtxPath` (incl. `ScReplyJ` [W]) |
+| SchedContext (Consumed, Bind, UnbindObject, a YieldTo from an SC yielded to by none) | `decode_invocation_sched_contextJ` | `JSchedCtxPath` (incl. `ScReplyJ` [W] for an at-once YieldTo; Consumed's by `sc_consumedReplyJ`) |
 | SchedContext Unbind | `decode_invocation_sched_context_unbindJ` (ScJointUnbind) | the label [W]; a YieldTo from an SC yielded to whole [W] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame, ASID control | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool,frame,asid_control}J` (XTopJointVsCap) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path` (labels, extra [W]; `JPostHyp` [W]) |
@@ -756,7 +758,11 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     rw [hcur] at hcs
     exact (decode_invocation_sched_contextJ s ar σ J hni.2 hN.tm hN.mb hN.max hN.tu hN.msg lbl slbl hN.hlbl sb hpC
       hpi hl hback hbn hct hcs extra x0 hx0 excaps hex length (cslotAddr sl) buf blk call don fp _ ci sl buffer hc
-      hAs.isSlot hsb hssz hxS hN.arch (hN.rest H Cs Ac Lst D J) hN.rep).toP arI hPre
+      hAs.isSlot hsb hssz hxS hN.arch (hN.rest H Cs Ac Lst D J) (by
+        by_cases l44 : lbl = fl4_abi.label.SchedContextConsumed
+        · exact sc_consumedReplyJ s ar σ J hni hG.tot hN.max hN.tu lbl slbl hN.hlbl l44 sb hpC hback hct extra
+            excaps length (cslotAddr sl) buf blk call don fp
+        · exact hN.rep l44)).toP arI hPre
   case SchedControl cpu =>
     have hN : JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl excaps ct := hN
     obtain ⟨x0, hx0, hex⟩ := hN.hx

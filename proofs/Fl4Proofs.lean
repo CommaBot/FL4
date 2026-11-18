@@ -173,6 +173,7 @@ import Fl4Proofs.P3.ScFieldKeep
 import Fl4Proofs.P3.ScJointRest
 import Fl4Proofs.P3.ScJointStep
 import Fl4Proofs.P3.ScJointUnbind
+import Fl4Proofs.P3.ScJointConsumed
 import Fl4Proofs.P3.ScJointSched
 import Fl4Proofs.P3.ScLinkKeep
 import Fl4Proofs.P3.ScDeadStep

@@ -643,7 +643,8 @@ outcome after the restart, the invocation (`return_consumed`) and the reply
 tail (`reply_from_kernel` when a call, `Running`) is at `JAt`. l4v:
 `invoke_sched_context`'s `return_consumed`, its `sched_context_yield_to`
 with the target not switched to, and `handle_invocation`'s reply, keep
-`invs`. -/
+`invs`. Consumed's case is proved (ScJointConsumed's `sc_consumedReplyJ`);
+XTopJointEntry asks it only for an at-once YieldTo. -/
 def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)
     (sc sb : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct : U64) : Prop :=
