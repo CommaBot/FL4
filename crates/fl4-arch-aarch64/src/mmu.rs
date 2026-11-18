@@ -28,14 +28,34 @@ fn in_window(start: u64, len: u64) -> bool {
     })
 }
 
+/// Whole-address-space invalidations so far (`invalidate_asid`).
+///
+/// ASIDs are the hardware ASIDs, so an ASID deleted while another core
+/// still runs its old address space can be refilled there with the old
+/// translations after the broadcast invalidation; once the ASID names a
+/// new address space, that core would use them. So a core that switches
+/// address space after any such invalidation first flushes its own TLB.
+/// An invalidation counts itself before it broadcasts; a switch that
+/// installs an ASID's new root follows the reassignment under the serial
+/// gate, so it sees the count of the invalidation that retired the ASID.
+static ASID_GEN: AtomicU64 = AtomicU64::new(0);
+
 /// Run on the address space `root` (kernel virtual) with `asid`.
 pub fn switch(root: u64, asid: u64) {
     let v = layout::paddr(root) | (asid << 48);
     let pc = percpu::get();
+    let g = ASID_GEN.load(Ordering::SeqCst);
     if pc.ttbr0 != v {
         crate::msr!("ttbr0_el1", v);
         cpu::isb();
         pc.ttbr0 = v;
+    }
+    // Also when the value is unchanged: a root freed and made again at
+    // the same address can take back the same ASID.
+    if pc.asid_gen != g {
+        // After the switch, so the old tables cannot refill it.
+        unsafe { core::arch::asm!("tlbi vmalle1", "dsb nsh", "isb", options(nostack)) };
+        pc.asid_gen = g;
     }
 }
 
@@ -54,6 +74,7 @@ pub fn invalidate_page(asid: u64, vaddr: u64) {
 }
 
 pub fn invalidate_asid(asid: u64) {
+    ASID_GEN.fetch_add(1, Ordering::SeqCst);
     let arg = asid << 48;
     unsafe {
         core::arch::asm!("dsb ishst", "tlbi aside1is, {}", "dsb ish", "isb", in(reg) arg, options(nostack));

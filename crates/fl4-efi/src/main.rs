@@ -539,17 +539,33 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
         }
     }
     // No boot services from here on.
+    // Adjacent entries of the same kind are merged. Every entry must fit:
+    // the kernel hands out what the map leaves out as device memory.
     let mut n = 0;
     let mut off = 0;
-    while off + dsize <= size && n < fl4_bootinfo::MAX_MMAP {
+    while off + dsize <= size {
         let d = unsafe { core::slice::from_raw_parts((buf + off as u64) as *const u8, dsize) };
         let ty = rd32(d, 0) as u32;
         let base = rd64(d, 8);
         let pages = rd64(d, 24);
         let attr = rd64(d, 32);
-        bi.mmap[n] = MemRegion { base, len: pages * PAGE, kind: mem_kind(ty), cacheable: (attr & 8 != 0) as u32 };
-        n += 1;
+        let e = MemRegion { base, len: pages * PAGE, kind: mem_kind(ty), cacheable: (attr & 8 != 0) as u32 };
         off += dsize;
+        if n > 0 {
+            let p = &mut bi.mmap[n - 1];
+            if p.kind == e.kind && p.cacheable == e.cacheable && p.base + p.len == e.base {
+                p.len += e.len;
+                continue;
+            }
+        }
+        if n == fl4_bootinfo::MAX_MMAP {
+            // Boot services are gone: no console to say why.
+            loop {
+                unsafe { asm!("wfi") };
+            }
+        }
+        bi.mmap[n] = e;
+        n += 1;
     }
     bi.n_mmap = n as u64;
     clean(region, region_len);

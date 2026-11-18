@@ -5,6 +5,7 @@ use core::cell::UnsafeCell;
 /// Cores the backend has room for (and that have banked interrupt state,
 /// `fl4_core::layout::irq::BANKED_CORES`).
 pub const MAX_CPUS: usize = 16;
+const _: () = assert!(MAX_CPUS as u64 == fl4_core::layout::irq::BANKED_CORES);
 pub const KSTACK_SIZE: usize = 64 * 1024;
 pub const NO_IRQ: u64 = u64::MAX;
 
@@ -22,6 +23,8 @@ pub struct PerCpu {
     pub fp_enabled: bool,
     /// The user address space this core runs (TTBR0_EL1 value).
     pub ttbr0: u64,
+    /// `mmu::ASID_GEN` when this core last flushed its TLB for it.
+    pub asid_gen: u64,
     /// MPIDR_EL1 affinity of this core.
     pub mpidr: u64,
     /// GICv3: this core's redistributor (kernel virtual address). GICv2:
@@ -55,6 +58,7 @@ impl PerCpu {
             fpu_owner: 0,
             fp_enabled: true,
             ttbr0: 0,
+            asid_gen: 0,
             mpidr: 0,
             gicr: 0,
             gic_cpu: 0,

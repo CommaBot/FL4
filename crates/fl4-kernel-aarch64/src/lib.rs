@@ -316,6 +316,10 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     for i in 0..dev_used.n {
         dev.remove(dev_used.r[i].start, dev_used.r[i].end);
     }
+    // The kernel's own memory and the root task's image are never device
+    // memory, whatever the memory map said about them.
+    dev.remove(bi.region_paddr, bi.region_paddr + bi.region_len);
+    dev.remove(root.p_start, root.p_end);
     // The other boot modules (l4h 0021): handed over as device untypeds,
     // which retype without clearing.
     let mut extra_mods = 0;
@@ -332,10 +336,16 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     // The extra BootInfo, in memory taken from the free RAM.
     let dtb_len = if bi.dtb != 0 { hw::dtb_size(bi.dtb) } else { 0 };
     let extra_size = EXTRA_FIXED + ((dtb_len + 16 + PAGE) & !(PAGE - 1));
-    let extra_pa = match free.take(extra_size) {
+    // Not over the device tree it copies (which may be in free memory).
+    let mut pool = free;
+    if dtb_len != 0 {
+        pool.remove(bi.dtb & !(PAGE - 1), (bi.dtb + dtb_len + PAGE - 1) & !(PAGE - 1));
+    }
+    let extra_pa = match pool.take(extra_size) {
         Some(p) => p,
         None => fail("no memory for the extra BootInfo"),
     };
+    free.remove(extra_pa, extra_pa + extra_size);
     let extra = unsafe { core::slice::from_raw_parts_mut(pptr(extra_pa) as *mut u8, extra_size as usize) };
     let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, bi, &mods[..extra_mods]);
     if has_option(bi, b"fb_console") {

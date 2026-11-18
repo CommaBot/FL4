@@ -2,11 +2,12 @@
 //!
 //! Inside a transaction (DESIGN.md §7) the operations fall in three groups,
 //! as on x86_64: reads with no lasting effect run at once (time, pending
-//! interrupts, cache maintenance, which is repeatable); operations other
+//! interrupts, cache cleaning, which is repeatable); operations other
 //! cores or the hardware would observe are queued (`Effect`) and run after
 //! commit; and operations that can be neither repeated nor deferred (remote
 //! stalls, FP/SIMD state on another core, TLB invalidation after unmapping,
-//! interrupt configuration) send the entry to the serial gate.
+//! interrupt configuration, cache invalidation) send the entry to the
+//! serial gate.
 use crate::{gic, percpu, serial, smp, timer};
 use fl4_core::layout::irq;
 use fl4_core::machine::Arch;
@@ -230,7 +231,7 @@ impl Arch for PhysArch {
             }
             return;
         }
-        crate::fpu::forget(tcb)
+        crate::fpu::release(tcb)
     }
 
     fn remote_stall(&mut self, cpu: u64) {
@@ -246,6 +247,11 @@ impl Arch for PhysArch {
     }
 
     fn cache_op(&mut self, op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64) {
+        // Discarding data cannot be repeated or undone: a transaction
+        // that later fails must not have done it.
+        if op == fl4_core::vspace::CACHE_INVALIDATE && in_tx() {
+            return serial_needed();
+        }
         crate::mmu::cache_op(op, root, asid, vaddr, len, paddr)
     }
     fn hw_access_flag(&self) -> bool {

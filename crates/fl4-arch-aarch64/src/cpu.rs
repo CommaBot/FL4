@@ -79,9 +79,19 @@ pub fn clean_inval_dcache_poc(start: u64, len: u64) {
     dsb_sy();
 }
 
-/// Invalidate [start, start + len) to the point of coherency.
+/// Invalidate [start, start + len) to the point of coherency. A line only
+/// partly in the range is cleaned too, so the bytes around the range keep
+/// their data (seL4 `invalidateCacheRange_RAM`).
 pub fn inval_dcache_poc(start: u64, len: u64) {
-    by_line(start, len, dcache_line(), |a| unsafe { asm!("dc ivac, {}", in(reg) a, options(nostack)) });
+    let line = dcache_line();
+    let end = start + len;
+    by_line(start, len, line, |a| {
+        if a < start || a + line > end {
+            unsafe { asm!("dc civac, {}", in(reg) a, options(nostack)) }
+        } else {
+            unsafe { asm!("dc ivac, {}", in(reg) a, options(nostack)) }
+        }
+    });
     dsb_sy();
 }
 

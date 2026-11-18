@@ -60,6 +60,14 @@ pub fn init_core_regs() {
         unsafe { core::arch::asm!(".arch_extension pan", "msr pan, #1") };
     }
     fl4_arch_aarch64::msr!("sctlr_el1", sctlr);
+    // No debug events and no EL0 PMU access: both reset to UNKNOWN values
+    // the firmware may have left set, and the kernel has no hardware
+    // debug API on AArch64 to manage them.
+    fl4_arch_aarch64::msr!("mdscr_el1", 0);
+    let pmuver = (fl4_arch_aarch64::mrs!("id_aa64dfr0_el1") >> 8) & 0xf;
+    if pmuver != 0 && pmuver != 0xf {
+        fl4_arch_aarch64::msr!("pmuserenr_el0", 0);
+    }
     cpu::isb();
 }
 

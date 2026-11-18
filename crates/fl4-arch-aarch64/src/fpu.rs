@@ -160,6 +160,15 @@ pub fn forget_local(t: u64) {
     }
 }
 
+/// Save `t`'s state to its TCB and forget it, if it is live on this core.
+pub fn release_local(t: u64) {
+    let pc = percpu::get();
+    if pc.fpu_owner == t {
+        save(t);
+        pc.fpu_owner = 0;
+    }
+}
+
 fn owner_core(t: u64) -> Option<usize> {
     (0..percpu::MAX_CPUS).find(|&c| unsafe { core::ptr::read_volatile(&percpu::get_for(c).fpu_owner) } == t)
 }
@@ -183,6 +192,18 @@ pub fn forget(t: u64) {
     match owner_core(t) {
         Some(c) if c == percpu::cpu_index() => forget_local(t),
         Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_DROP, t, 0, 1 << c),
+        None => {}
+    }
+}
+
+/// `t` is being deleted, moved away or loses FP/SIMD: save its live
+/// state, wherever it is, to its TCB and forget it there (seL4
+/// `fpuRelease`). The caller holds the serial gate when another core may
+/// hold the state.
+pub fn release(t: u64) {
+    match owner_core(t) {
+        Some(c) if c == percpu::cpu_index() => release_local(t),
+        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_RELEASE, t, 0, 1 << c),
         None => {}
     }
 }
