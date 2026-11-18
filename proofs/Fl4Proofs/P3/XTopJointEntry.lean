@@ -455,12 +455,6 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hGb : GetBpHyp (st := st) s ct p
   /-- [W] XTopTcbRest's `TcbXIpc` (the IPC steps of the Thread cap). -/
   hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don
-  /-- [W] WriteRegisters at `JAt` (XTopJointTcb's `tcb_write_regsJ`): the
-  caller's buffer mapped and the syscall arguments after the caller's
-  restart (IpcWriteRegsJ's `writeRegsXHypJ`'s `hbuf`, `hargs`). -/
-  hWR : lbl = fl4_abi.label.TCBWriteRegisters → (buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp) ∧
-    ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s1 ct buf i = ok x
   /-- [W] XTopTcbFpu's `FpuFrameXHyp` (the FPU frame). -/
   hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
     capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
@@ -631,6 +625,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     (lbl length : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (hlen : length.val = argsU.length)
     (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf) (hl : argsU.length ≤ 120)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length))
     (c : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
@@ -678,7 +673,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
-    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hWR, hFr, hR⟩ := hN hn
+    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hFr, hR⟩ := hN hn
     have hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
         q ≠ L.idleW s := by
       -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
@@ -693,7 +688,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.pp.minBudget hidS hWR hR).toP arI hPre
+      hG.pp.minBudget hidS hbuf hl hR).toP arI hPre
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
@@ -913,8 +908,15 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (rep : Bool) (s 
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
     hH.extraLookup (argsU.map UScalar.bv) hmrs hH.lookupFault hH.reply ?_
   intro sl c e exs hsl hc hget h1 h2
+  have hl : argsU.length ≤ 120 := by
+    have hm := Endp.msg_info_spec (L := L) s ct
+    rw [hinfo, WP.spec_ok] at hm
+    have h120 := hm.2.2.2
+    have h4 : msg.N_MSG_REGISTERS.val = 4 := by simp [msg.N_MSG_REGISTERS]
+    rw [← hH.len]; unfold msgLen
+    split_ifs <;> omega
   exact decOK_J arI s ar σ J hH.glob hH.atE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
-    buf e mi.miLabel argsU hH.len hH.args (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
+    buf e mi.miLabel argsU hH.len hH.args hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
     (hH.path sl c e exs hsl hc hget h1 h2)
 
 end

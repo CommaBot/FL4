@@ -16,8 +16,10 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - WriteRegisters (`tcb_write_regsJ`: the caller's restart, then
     XTopJointWriteRegs' `JAtZ.writeRegsJ`: the register loops at `J`, the
     restart PC, `post_modify_registers`, the optional `JAtZ.restartTcbJ`;
-    the caller's buffer mapped and the arguments after the restart [W,
-    `hWR`, as `writeRegsXHypJ`'s], the platform's `MIN_BUDGET` [P]);
+    the caller's buffer mapped (from FL4's `lookup_ipc_buffer` and
+    `BufCover`) and the arguments after the restart (`JAtZ.argsRestart`:
+    the restart writes the state and action words only, apart from the
+    caller's registers and buffer words), the platform's `MIN_BUDGET` [P]);
   - CopyRegisters (`tcb_copy_regsJ`: the caller's restart, the target out
     of the dead set by its cap (`JAtZ.undead`), then XTopJointCopyRegs'
     `JAtZ.copyRegsJ`: the source's suspend (`JAtZ.suspendJD`), the target's
@@ -2445,6 +2447,100 @@ theorem tcb_set_prioJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
 end
 
 section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64}
+
+/-- **The syscall arguments read only the caller's message registers and
+buffer words** (`msg::syscall_arg`: the first four from registers, the rest
+from buffer word `i + 1`). -/
+theorem syscall_arg_keep {s s' : S} {ct buf i : U64}
+    (hr : ∀ g : Fl4Spec.Register, L.mem s' (regA ct (regIdx g)) = L.mem s (regA ct (regIdx g)))
+    (hb : buf ≠ 0#u64 → L.mem s' (fl4BufA buf (core.num.U64.wrapping_add i 1#u64)) =
+      L.mem s (fl4BufA buf (core.num.U64.wrapping_add i 1#u64))) :
+    msg.syscall_arg st s' ct buf i = msg.syscall_arg st s ct buf i := by
+  have hreg : ∀ g : Fl4Spec.Register, obj.Tcb.reg st ct s' (regIdx g) = obj.Tcb.reg st ct s (regIdx g) := by
+    intro g
+    unfold obj.Tcb.reg
+    simp only [lift, bind_ok, L.read_eq]
+    exact congrArg ok (hr g)
+  unfold msg.syscall_arg
+  split
+  · unfold msg.msg_register
+    split_ifs
+    · rw [show layout.reg.R10 = regIdx (mrIdx 0) by unfold layout.reg.R10; rfl]; simp only [bind_ok]; exact hreg _
+    · rw [show layout.reg.R8 = regIdx (mrIdx 1) by unfold layout.reg.R8; rfl]; simp only [bind_ok]; exact hreg _
+    · rw [show layout.reg.R9 = regIdx (mrIdx 2) by unfold layout.reg.R9; rfl]; simp only [bind_ok]; exact hreg _
+    · rw [show layout.reg.R15 = regIdx (mrIdx 3) by unfold layout.reg.R15; rfl]; simp only [bind_ok]; exact hreg _
+  · split
+    · rename_i hb0
+      unfold msg.buf_get
+      simp only [lift, bind_ok, L.read_eq]
+      exact congrArg ok (hb (by simpa using hb0))
+    · rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **The syscall arguments after the caller's restart** (WriteRegisters
+reads them after `set_thread_state ct Restart`): that step writes the
+caller's state word and maybe the current core's scheduler-action word
+(IntRel's `set_thread_state_cases`). The caller's message registers are
+other words of its TCB, outside the node (`JKern.hnd`); its mapped buffer
+words (`BufMap`, in `B`) lie apart from the TCBs (`EPlaced.bt`) and from the
+kernel-state block up to the end of the current core's node
+(`BufPlaced.far`). An index below 127 keeps the buffer word among the 128
+mapped ones. -/
+theorem JAtZ.argsRestart {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hBP : BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ)
+    {ct buf : U64} (hctT : ct ∈ Z.T) (hth : Z.th ct = some .tcb)
+    {sp : Fl4Spec.Word} (hbm : buf ≠ 0#u64 → BufMap Z.B buf sp) {i : U64} (hi : i.val < 127)
+    {s1 : S} (h1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
+    msg.syscall_arg st s1 ct buf i = msg.syscall_arg st s ct buf i := by
+  have hc := set_thread_state_cases (st := st) s ct sched.TS_RESTART
+  rw [h1, WP.spec_ok] at hc
+  have hta : P1.TcbAddr ct := J.ip.e.tcb ct hctT
+  have hal := hta.align
+  have hstv : (stA ct).val = ct.val + 3328 := stA_val J.xtop.rel.1 hth
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R0, hcq, -⟩ := hS.lists
+  have hcpu : L.cpu s = Z.c := hcq.cur
+  have ho : layout.node.SCHED_ACTION.val < 4288 := by simp [layout.node.SCHED_ACTION]
+  have ho8 : layout.node.SCHED_ACTION.val % 8 = 0 := by simp [layout.node.SCHED_ACTION]
+  have hav := Sched.nodeAt_val' (s := s) J.kern.nodeFit ho
+  have hkal := J.kern.ksbAl
+  have hal_st : P1.Aligned (stA ct) := by unfold P1.Aligned; rw [hstv]; omega
+  have hal_act : P1.Aligned (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION) := by
+    unfold P1.Aligned; rw [hav]; omega
+  have key : ∀ b : U64, P1.Aligned b → b.val ≠ (stA ct).val →
+      b.val ≠ (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val → L.mem s1 b = L.mem s b := by
+    intro b hb n1 n2
+    rcases hc with rfl | rfl
+    · exact L.mem_wr_ne hal_st hb (Ne.symm n1)
+    · rw [L.mem_wr_ne hal_act hb (Ne.symm n2)]; exact L.mem_wr_ne hal_st hb (Ne.symm n1)
+  have hnd := J.kern.hnd ct _ (J.zH.1 ct hctT) (L.cpu s) J.kern.cpuCs
+  simp only [P1.HKind.bits, P1.LawfulStore.nodeBase, Nat.reducePow] at hnd
+  apply syscall_arg_keep
+  · intro g
+    have hr := regA_val hta (regIdx_lt g)
+    have := regIdx_lt g
+    exact key _ (by unfold P1.Aligned; rw [hr]; omega) (by rw [hr, hstv]; omega) (by rw [hr, hav]; omega)
+  · intro hb0
+    have hi1 : (core.num.U64.wrapping_add i 1#u64).val = i.val + 1 := by
+      have := i.hBounds
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits] at this ⊢
+      omega
+    have hw := hbm hb0 (core.num.U64.wrapping_add i 1#u64) (by rw [hi1]; omega)
+    set j := core.num.U64.wrapping_add i 1#u64
+    have h8 : (fl4BufA buf j).val % 8 = 0 := (J.ip.e.balign _ hw).1
+    have hbt : (fl4BufA buf j).val < ct.val ∨ ct.val + 4096 ≤ (fl4BufA buf j).val := J.ip.e.bt _ hw ct hctT
+    have hfar : (fl4BufA buf j).val + 8 ≤ (L.ksb s).val ∨ L.nodeBase s Z.c + 4288 ≤ (fl4BufA buf j).val :=
+      hBP.far _ hw
+    simp only [P1.LawfulStore.nodeBase] at hfar
+    rw [← hcpu] at hfar
+    exact key (fl4BufA buf j) h8 (by rw [hstv]; omega) (by rw [hav]; omega)
+
+end
+
+section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
@@ -2492,9 +2588,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
       q ≠ L.idleW s)
-    (hWR : lbl = fl4_abi.label.TCBWriteRegisters → (buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp) ∧
-      ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-        ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s1 ct buf i = ok x)
+    (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf) (hl : argsU.length ≤ 120)
     (hR : TcbJOpen lbl → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf
       extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
@@ -2511,6 +2605,28 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
+  -- WriteRegisters: the caller's buffer mapped (`lookup_buf_full`, `BufCover`), the arguments after its restart
+  have hcur : σ.curThread = ct.bv := (J.curEq hct).1
+  have hctH : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
+  have hctT : ct ∈ Z.T := J.thT ct hctH
+  have hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp := by
+    intro hb0
+    obtain ⟨x, hk, hwx⟩ := J.buf ct hctT
+    have hL := lookup_buf_full s σ J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.1 hctH hk (hOK Z s ar σ rfl J.xtop) false
+    rw [hbuf, WP.spec_ok] at hL
+    cases hq : Endp.ipcBufOf false x with
+    | none => exact absurd (hL.1.2 hq) hb0
+    | some q => exact ⟨q, hBC Z s ar σ rfl J.xtop ct hctT x false q hk hq buf (hL.2 hwx q hq)⟩
+  have hWR : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s1 ct buf i = ok x := by
+    intro s1 h1 i x hx
+    obtain ⟨hi, -⟩ := List.getElem?_eq_some_iff.1 hx
+    obtain ⟨sp, hsp⟩ : ∃ sp, buf ≠ 0#u64 → BufMap Z.B buf sp := by
+      by_cases hb : buf = 0#u64
+      · exact ⟨0, fun h => absurd hb h⟩
+      · obtain ⟨sp, h⟩ := hbm hb; exact ⟨sp, fun _ => h⟩
+    rw [J.argsRestart (hBPl Z s ar σ rfl J.xtop) hctT hctH hsp (by omega) h1]
+    exact hargs i x hx
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
     intro hx q hc
@@ -2533,7 +2649,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       writeRegisters := fun h => by
         subst h
         exact tcb_write_regsJ arI hT hmb s ar σ J hni p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl
-          (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs (hWR rfl).1 (hWR rfl).2 (hstall' p) call
+          (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hbm hWR (hstall' p) call
           (cslotAddr sl) extra blk don ci sl excaps buffer,
       copyRegisters := fun h => by
         subst h
