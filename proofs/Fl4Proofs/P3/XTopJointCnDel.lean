@@ -44,12 +44,13 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- **The caller's restart keeps `EJ`** (`JStepHyps.restart`, `cs_frame`). -/
 theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hP0 : PPR0 σ) {K : Nat}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ) {K : Nat}
     (hDE : DelE (L := L) Z.th K s σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) :
     ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → SlotsSame Z.th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       EJ (L := L) arI AR Z H Cs (L.ksb s) K s1 ar σ1 Z.G := by
   intro s1 σ1 hs1 hS hst
+  have hsg1 : SpecGlob σ1 := SpecGlob.sts (mem_of_single hst) hsg
   have hDE1 := delE_restart hDE hS (ksub_of_eq (setThreadState_nks _ _) hst)
   obtain ⟨hcur, x, hk, hrun⟩ := J.curRunnable hni hct
   have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
@@ -74,7 +75,7 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
       | (have e2 : σ.schedulerAction = .switchThread u := e
          rw [hni.2] at e2; cases e2)
       | cases e
-  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1, hns1,
+  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1, hns1, hsg1,
     hP0.of_ppk (PPK.restart hk .restart)⟩
 
 /-- **`PPR0` at the invocation's start**: at a zero consumed time, the
@@ -192,7 +193,7 @@ set_option maxHeartbeats 4000000 in
 `cn_del_topJ`. -/
 theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hJD : JDelHyp (L := L) arI AR Z.th) (hJP : JPreemptHyp (L := L) arI AR Z.th) (hP0 : PPR0 σ)
+    (hJD : JDelHyp (L := L) arI AR Z.th) (hJP : JPreemptHyp (L := L) arI AR Z.th) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeRevoke)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -225,7 +226,7 @@ theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Uni
       psiD psiD_slotsSame (hJD Z H Cs (L.ksb s) K rfl hK hK6)
       (rppHyp_fullW arI (WJR (L := L) arI AR Z H Cs (L.ksb s)) (WJP (L := L) arI AR Z H Cs (L.ksb s)) Z.th K
         (hJP Z H Cs (L.ksb s) rfl))
-      (EJ.restart arI hJ J hni hP0 hDE hct)
+      (EJ.restart arI hJ J hni hsg hP0 hDE hct)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩) hfew)
       fun res h => cn_del_topJ arI J h
@@ -241,7 +242,7 @@ set_option maxHeartbeats 4000000 in
 `decode_invocation_cnode_revokeJ`, by `cnode_delete_refinesW` at `EJ`. -/
 theorem decode_invocation_cnode_deleteJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hJD : JDelHyp (L := L) arI AR Z.th) (hP0 : PPR0 σ)
+    (hJD : JDelHyp (L := L) arI AR Z.th) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeDelete)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -267,7 +268,7 @@ theorem decode_invocation_cnode_deleteJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     exact WP.spec_mono (cnode_delete_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
       args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI J.kern.act hcur htcb (EJ (L := L) arI AR Z H Cs (L.ksb s) K)
       (EJP (L := L) arI AR Z H Cs (L.ksb s) K)
-      psiD (hJD Z H Cs (L.ksb s) K rfl hK hK6) (EJ.restart arI hJ J hni hP0 hDE hct)
+      psiD (hJD Z H Cs (L.ksb s) K rfl hK hK6) (EJ.restart arI hJ J hni hsg hP0 hDE hct)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
       (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩))
       fun res h => cn_del_topJ arI J h
@@ -291,11 +292,17 @@ start (`JAtZ.ppr0_start`: `hRd0` [J], the current SC's head ready at a zero cons
 kept by the finalisations (`jFinPPHyp`, SpecPPR); the cleanups by `jPostDelHyp_of`:
 the kernel-state layout and the arch IRQ operations [P]), CancelBadgedSends by
 XTopJointCbs's `decode_invocation_cnode_cancelJ` (the caller's restart by `JStepHyps`, then
-`JAtZ.cancelBadgedJ`), the invalid labels by `decode_invocation_cnode_illegalJ`. -/
+`JAtZ.cancelBadgedJ`), the invalid labels by `decode_invocation_cnode_illegalJ`.
+`hsg`: the spec-only invariants the deletion loop carries (SpecGlob's
+`SpecGlob`: l4v `valid_irq_node` and `valid_global_refs` for the IRQ node),
+at the invocation's start: an invariant of the spec beside `JAtZ`, kept by
+the deletion's steps (`WJ`); to be folded into `JAtZ` as a field once every
+`JAtZ` step keeps it. -/
 theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
     (hJDP : JDelParts (L := L) arI AR Z.th)
+    (hsg : SpecGlob σ)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
@@ -337,11 +344,11 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   · rcases (show lbl.val = 25 ∨ lbl.val = 26 by omega) with h | h
     · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
       subst e
-      exact decode_invocation_cnode_revokeJ arI s ar σ J hni hJ hJD hJP hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      exact decode_invocation_cnode_revokeJ arI s ar σ J hni hJ hJD hJP hsg hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
     · have e : lbl = fl4_abi.label.CNodeDelete := UScalar.eq_of_val_eq (by rw [h, lbl_delete_val])
       subst e
-      exact decode_invocation_cnode_deleteJ arI s ar σ J hni hJ hJD hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      exact decode_invocation_cnode_deleteJ arI s ar σ J hni hJ hJD hsg hP0 slbl (by rw [hlbl]; simp [cnodeLabelOf])
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
   by_cases hlo : lbl.val < 25 ∨ 32 < lbl.val
   · exact (decode_invocation_cnode_illegalJ arI s ar σ J lbl hlo slbl hlbl length buf ct hct _ p r gs g extra excaps

@@ -8,7 +8,11 @@ some of them proved here.
 
 * `WJ Z H Cs kb`: `JAtZ` at the sets `Z.mv G V` (the MDB ghost the loop's,
   the VSpace sets, the active SCs, the call stacks and the dead set chosen),
-  P1's heap `H`, the cores `Cs` and the kernel-state base `kb` fixed;
+  P1's heap `H`, the cores `Cs` and the kernel-state base `kb` fixed, no
+  switch pending (`NoSwitch`) and the spec-only invariants `SpecGlob`
+  (SpecGlob: the IRQ node's slots null or notification caps, no cap but a
+  frame naming an IRQ node CNode; kept by each step of the loop:
+  `SpecGlob.fin`, `.empty`, `.setCap`, `.swap`, `.pp`, `.of_eq`);
   `EJ`: with `DelE`. `RdJ H`: `EmptyReady` (XTopJointEmpty).
 * `WJR`: `WJ` and ScPPR's `PPR0` (what the loop's preemption points need of
   a zero consumed time), the loop's invariant; `EJ`: `WJR` with `DelE`.
@@ -59,8 +63,8 @@ some of them proved here.
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
   the IRQ node slot's cap deleted, null or a notification cap by
   `delete_oneJ` (`jFinNtfnK`, every slot kept, then `emptyHypJ`); from
-  `JIrqSlotHyp` (the node's slots null or notification caps; from the
-  spec's, `JSpecIrqNodeHyp` [J], by `jIrqSlotHyp_of`), `LiveJ` and
+  `JIrqSlotHyp` (the node's slots null or notification caps; proved,
+  `jIrqSlotHyp`, from the spec's carried by `WJ`), `LiveJ` and
   `JAtZ.intL`.
 * A final endpoint cap's finalisation (`jFinAt_ep`): XTopJointFinEp's
   `JAtZ.finEpJ` (`cancel_all_ipc`, `JAtZ` after), the endpoint dead after
@@ -124,6 +128,7 @@ import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointLive
 import Fl4Proofs.P3.ScPPR
 import Fl4Proofs.P3.SpecPPR
+import Fl4Proofs.P3.SpecGlob
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -138,27 +143,27 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 def WJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
   ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb ∧ Vs.NoSwitch σ
+    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb ∧ Vs.NoSwitch σ ∧ SpecGlob σ
 
 /-- `WJ` and `PPR0` (the deletion loop's invariant at `J`, XTopJointPP). -/
 def WJR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
   ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb ∧ Vs.NoSwitch σ ∧ PPR0 σ
+    JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ ∧ L.ksb s = kb ∧ Vs.NoSwitch σ ∧ SpecGlob σ ∧ PPR0 σ
 
 theorem WJR.wj {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJR (L := L) arI AR Z H Cs kb s a σ G) :
     WJ (L := L) arI AR Z H Cs kb s a σ G :=
-  let ⟨V, Ac, Lst, D, J, hk, hn, _⟩ := h; ⟨V, Ac, Lst, D, J, hk, hn⟩
+  let ⟨V, Ac, Lst, D, J, hk, hn, hg, _⟩ := h; ⟨V, Ac, Lst, D, J, hk, hn, hg⟩
 
 theorem WJ.wjr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJ (L := L) arI AR Z H Cs kb s a σ G) (hp : PPR0 σ) :
     WJR (L := L) arI AR Z H Cs kb s a σ G :=
-  let ⟨V, Ac, Lst, D, J, hk, hn⟩ := h; ⟨V, Ac, Lst, D, J, hk, hn, hp⟩
+  let ⟨V, Ac, Lst, D, J, hk, hn, hg⟩ := h; ⟨V, Ac, Lst, D, J, hk, hn, hg, hp⟩
 
 theorem WJR.pp {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {kb : U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} {G : MdbGhost} (h : WJR (L := L) arI AR Z H Cs kb s a σ G) : PPR0 σ :=
-  let ⟨_, _, _, _, _, _, _, hp⟩ := h; hp
+  let ⟨_, _, _, _, _, _, _, _, hp⟩ := h; hp
 
 /-- `WJR` with `DelE` (the CSpace deletion's invariant and fuel bound). -/
 abbrev EJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)
@@ -373,30 +378,21 @@ theorem jZombieTcbHyp_of_live {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 def IrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
 
 /-- **The IRQ node's slots hold null or notification caps at `J`** (as
-XTopFinIrq's `IrqSlotOK` premise). Derived from `JSpecIrqNodeHyp` [J]:
-`jIrqSlotHyp_of`. -/
+XTopFinIrq's `IrqSlotOK` premise). Proved: `jIrqSlotHyp` (the spec's, carried
+by `WJ`: `SpecGlob`). -/
 def JIrqSlotHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
       ∀ i : U64, i.val < 128 → IrqSlotOK (L.mem s) (nodeA (L.ksb s) i)
 
-/-- **Hypothesis: the spec's IRQ node slots hold null or notification caps at
-`J`** [J] (IntInv's `SpecIrqNode` at every `JAtZ` state; a spec-only
-invariant: the slots are written only by `invoke_irq_handler`'s
-SetIRQHandler, a notification cap, and by deletions, since no cap names an
-IRQ node CNode, l4v `valid_global_refs` with the IRQ nodes in `global_refs`,
-`valid_irq_node`). -/
-def JSpecIrqNodeHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SpecIrqNode σ
-
-/-- **`JIrqSlotHyp` from the spec's** (`irqSlotOK_of_spec` at `JAtZ`'s
-interrupt layout `intL`, the CSpace relation and the IRQ relation). -/
-theorem jIrqSlotHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : JSpecIrqNodeHyp (L := L) arI AR th) :
-    JIrqSlotHyp (L := L) arI AR th := by
+/-- **`JIrqSlotHyp` holds**: `irqSlotOK_of_spec` at `JAtZ`'s interrupt
+layout `intL`, the CSpace relation and the IRQ relation, from the spec's
+IRQ node slots (`WJ`'s `SpecGlob`, `SpecGlob.irqNode`: l4v
+`valid_irq_node`, carried by the deletion loop, SpecGlob). -/
+theorem jIrqSlotHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JIrqSlotHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G hW i hi
-  obtain ⟨V, Ac, Lst, D, J, -, -⟩ := hW
-  exact irqSlotOK_of_spec J.intL J.xtop.rel.2.1.1 J.xtop.fin.1.1.2.2.2.1 (h (Z.mv G V) H Cs Ac Lst D s a σ hth J) hi
+  obtain ⟨V, Ac, Lst, D, J, -, -, hsg⟩ := hW
+  exact irqSlotOK_of_spec J.intL J.xtop.rel.2.1.1 J.xtop.fin.1.1.2.2.2.1 hsg.irqNode hi
 
 /-- An endpoint cap. -/
 def EpK (c : capability.Cap) : Prop := ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4
@@ -454,9 +450,6 @@ structure JThreadFinHypsU (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : P
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
     ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
-  /-- `JSpecIrqNodeHyp` [J] (the spec's IRQ node slots null or notification
-  caps; gives `JIrqSlotHyp` by `jIrqSlotHyp_of`). -/
-  irq : JSpecIrqNodeHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyLinksHyp` [J] (l4v `valid_replies`; gives `RecvReplyHyp` by
   `recvReplyHyp_of`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -510,7 +503,7 @@ theorem jFinNtfnK [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : S
         MdbStep (L.mem s) G (L.mem res.2.1) G' ∧ WJ (L := L) arI AR Z H Cs kb res.2.1 res.2.2 σ' G' ∧
         RdJ (L := L) (A := A) H res.2.1 res.2.2 σ' G' (cslotAddr sl) ⦄ := by
   subst hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hP := J.xtop.rel.1
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -531,7 +524,7 @@ theorem jFinNtfnK [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : S
       rw [hSS1.capV hA.isSlot, hcv]
     refine ⟨rfl, rfl, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩,
       fun y hy => hSS1.capV hy, (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-      ⟨V1, Ac, Lst, D, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns⟩, J1.ntfn_ready hA.isSlot hcv1 (Or.inl hdp)⟩
+      ⟨V1, Ac, Lst, D, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg⟩, J1.ntfn_ready hA.isSlot hcv1 (Or.inl hdp)⟩
   · rw [decide_eq_false hfin]
     obtain ⟨cl, he, hmem, -, -, hnio⟩ := fin_idle (st := st) (L := L) arI s a σ (.Notification p b w r) trivial
       false (fun hw => by have := finWork_ntfn hw; cases this)
@@ -539,7 +532,7 @@ theorem jFinNtfnK [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : S
     subst hcl0
     rw [he, WP.spec_ok]
     exact ⟨rfl, rfl, σ, G, hmem, hDS, fun y _ => rfl, MdbStep.refl hDS.1.2.2.1,
-      ⟨V, Ac, Lst, D, J, hkb, ak_finaliseCap_ns hmem hns⟩, J.ntfn_ready hA.isSlot hcv (Or.inr (other_ntfn hP hDS hA hcv hfin))⟩
+      ⟨V, Ac, Lst, D, J, hkb, ak_finaliseCap_ns hmem hns, SpecGlob.fin hmem hsg⟩, J.ntfn_ready hA.isSlot hcv (Or.inr (other_ntfn hP hDS hA hcv hfin))⟩
 
 /-- **A notification cap's finalisation at `J`** (module docstring). -/
 theorem jFinAt_ntfn [Fl4Proofs.P1.PlainStore st] : JFinAt (L := L) arI AR th NtfnK := by
@@ -559,7 +552,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   intro s s' a σ σ' G G' sl hW hRdL hD1 hD2 hF hes hA hxn hx0 hoth hmS
   obtain ⟨hRd, hRL⟩ := hRdL
   subst hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
@@ -577,7 +570,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_emptySlot' _ _).noSwitch hes hns⟩
+    (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`delete_one` of a notification cap at `J`** (as XTopDelOne's
@@ -754,7 +747,7 @@ theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L 
     JFinAtF (L := L) arI AR th EpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨e, b, x1, x2, x3, x4, hce⟩ hfin
   subst hce hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hHe : H e = some .ep := (hJ.typed _ hA.isSlot).1 e b x1 x2 x3 x4 hcv
@@ -773,7 +766,7 @@ theorem jFinAt_ep (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyLinksHyp (L 
     rw [hSS1.capV hA.isSlot, hcv]
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-    ⟨V1, Ac, Lst, D, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns⟩, JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp⟩
+    ⟨V1, Ac, Lst, D, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg⟩, JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp⟩
 
 /-- **A reply cap's slot is ready once the reply is dead** (as
 `JAtZ.ep_ready`). -/
@@ -814,7 +807,7 @@ theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
     (hRm : JReplyRemoveHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th RpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, g, hce⟩ hfin
   subst hce hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hHp : H p = some .reply := (hJ.typed _ hA.isSlot).2.2 p g hcv
@@ -833,7 +826,7 @@ theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
     rw [hSS1.capV hA.isSlot, hcv]
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns⟩, JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp⟩
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg⟩, JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A final native VSpace cap's finalisation at `J`** (XTopJointFinVs's
@@ -842,7 +835,7 @@ set_option maxHeartbeats 4000000 in
 theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th VsK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hv hfin
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth
@@ -857,7 +850,7 @@ theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC :
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns⟩, J.vs_ready hVC0 hxm hcv hv hcv1⟩
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg⟩, J.vs_ready hVC0 hxm hcv hv hcv1⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
@@ -866,7 +859,7 @@ set_option maxHeartbeats 4000000 in
 theorem jFrMap_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFrMapHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sz, r, d, asid, va, hce⟩
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth hce
@@ -879,7 +872,7 @@ theorem jFrMap_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC :
     rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns⟩, trivial⟩
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg⟩, trivial⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The VT-x work of a finalisation at `J`** (XTopJointFinVtJ's
@@ -889,7 +882,7 @@ set_option maxHeartbeats 4000000 in
 theorem jFrVt_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) :
     JFrVtHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hk
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   subst hth
   have hcv := capV_of_capAt hc
   refine WP.spec_mono (J.frVtJ hAR hK hV hDS hA hc hk _) ?_
@@ -898,7 +891,7 @@ theorem jFrVt_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : A
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac1, Lst1, D1, J1, hks.trans hkb, hns⟩, trivial⟩
+    ⟨V, Ac1, Lst1, D1, J1, hks.trans hkb, hns, hsg⟩, trivial⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A final mapped EPT root cap's finalisation at `J`** (XTopJointFinVs's
@@ -911,7 +904,7 @@ theorem jFinAt_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (
     JFinAtF (L := L) arI AR th EptRootK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hk hfin
   obtain ⟨p, asid, va, hce⟩ := hk
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth hce
@@ -926,7 +919,7 @@ theorem jFinAt_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Ept p 0#u64 true asid va := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns⟩, EmptyReady.of_apartO (by rw [hcv1]; exact hap0)⟩
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg⟩, EmptyReady.of_apartO (by rw [hcv1]; exact hap0)⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A final VT-x object cap's finalisation at `J`** (XTopJointFinVtJ's
@@ -936,7 +929,7 @@ cap), the slot ready after; from `ArchRefines` [P], `ARKeep` [P] and
 theorem jFinAt_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) :
     JFinAtF (L := L) arI AR th (fun c => EptK c ∨ VcpuK c) := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hk hfin
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   subst hth
   have hcv := capV_of_capAt hc
   rw [decide_eq_true hfin]
@@ -951,7 +944,7 @@ theorem jFinAt_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps 
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac1, Lst1, D1, J1, hks.trans hkb, hns⟩, hRd⟩
+    ⟨V, Ac1, Lst1, D1, J1, hks.trans hkb, hns, hsg⟩, hRd⟩
 
 /-- **The frame and IO port caps' finalisation at `J`**, final or not
 (XTopJointFinFrIo's `finFrIo_of`): an unmapped frame's and an unowned IO
@@ -981,7 +974,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) :
     JFinAtF (L := L) arI AR th ScK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sb, hce⟩ hfin
   subst hce hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hcv := capV_of_capAt hc
   have hC' := J.scCap arI hA hc
   obtain ⟨hHp, -, hp0, hna, hidle, -⟩ :=
@@ -1000,7 +993,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) :
     rw [hSS1.capV hA.isSlot, hcv]
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp⟩
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg⟩, JAtZ.sc_ready arI J1 hcv1 hHp hdp⟩
 /-- **A final thread cap's finalisation at `J`** (XTopJointFinThread's
 `JAtZ.finThreadJ`, from `JThreadFinHyps`), the slots kept and the kernel
 base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
@@ -1010,7 +1003,7 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThread
     JFinAtF (L := L) arI AR th TcbK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, hce⟩ hfin
   subst hce hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hcv := capV_of_capAt hc
   have hthp : Z.th p = some .tcb := hDS.1.2.1.abs hA hc
   have hpT : p ∈ Z.T := J.thT p hthp
@@ -1036,7 +1029,7 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThread
     rw [hSS1.capV hA.isSlot, hcv]
   refine ⟨rfl, trivial, trivial, σ1, G, ?_, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
-    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hm1 hns⟩, J1.tcb_ready hcv1 hpH hdp⟩
+    ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hm1 hns, SpecGlob.fin hm1 hsg⟩, J1.tcb_ready hcv1 hpH hdp⟩
   rw [absCap_zombieTcb]
   exact hm1
 
@@ -1104,7 +1097,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   · exact jFinAt_frio arI (jFrMap_of arI h.archRef h.vsCaps (jVsApartHyp arI)) (jFrVt_of arI h.archRef h.arKeep h.vt) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
-    · exact jFinAt_irq arI h.live (jIrqSlotHyp_of arI h.irq) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
+    · exact jFinAt_irq arI h.live (jIrqSlotHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
     by_cases he : EpK c
     · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
@@ -1215,33 +1208,85 @@ theorem jRdTrivHyp_of (hZT : JZombieTcbHyp (L := L) arI AR th) : JRdTrivHyp (L :
   exact J.zombie_ready hA.isSlot (capV_of_capAt hc)
     (hZT Z H Cs kb rfl s a σ G hW' _ hA.isSlot p zt n (capV_of_capAt hc))
 
+/-- A cap but a frame cap is no spec frame cap. -/
+theorem absCap_notPage {c : capability.Cap} (h : isFrame c = false) : ¬ IsPageCap (absCap c) := by
+  cases c <;> simp_all [isFrame, absCap, IsPageCap]
+
 /-- **A zombie written over a cap alike it keeps `WJ`** (`slotHypW_XZ` for
 `XTopAt` after, `JAtZ.zombieJCore`, `cs_frameV`). -/
 theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s s' a σ σ' G sl p zt n hW hD1 hD2 hF hsc hA hxn hz hal hoth hmS
   subst hth
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hnk := Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hC, Ac', Lst', D', R⟩ := J.zombieJCore hA hxn hal hsc hD2 hz hoth hX2
     (SlotFrame2.writesIn hF) hnk
+  -- `SpecGlob` after: the zombie names the objects of the cap it replaces
+  -- (`CapAlike.refs`); that cap is no notification cap, its object no
+  -- notification (the zombie's object a TCB or CNode, `ZOK`), so its slot is
+  -- no IRQ node slot.
+  have hsg2 : SpecGlob σ' := by
+    obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hD1.1.1.abs_cap hA
+    rw [hca0.abs] at hg0
+    have ha0 : capOpt (σ.kheap sl.1) sl.2 = some (absCap c0) :=
+      (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
+    have hcv0 := capV_of_capAt hc0
+    rw [hcv0] at hal hxn
+    have hfr : isFrame c0 = false := by rw [← hal.frame]; rfl
+    refine SpecGlob.setCap (mem_of_single hsc) hsg ha0 hal.refs (by simp [IsPageCap, absCap])
+      (absCap_notPage hfr) ?_
+    intro irq e
+    rw [e] at ha0
+    rcases hsg.irq irq _ ha0 with h0 | ⟨q, b, rs, h0⟩
+    · exact hxn (absCap_eq_null.1 h0)
+    · obtain ⟨q', b', w', r', rfl⟩ : ∃ q' b' w' r', c0 = .Notification q' b' w' r' := by
+        cases c0 <;> simp [absCap] at h0
+        exact ⟨_, _, _, _, rfl⟩
+      have hr := hal.refs
+      simp only [absCap, Fl4Spec.objRefs] at hr
+      have hpq : p = q' := P1.eq_of_bv (Set.singleton_eq_singleton_iff.1 hr)
+      subst hpq
+      obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+      have hHp : H p = some .ntfn := ((hJ.typed _ hA.isSlot).2.1 p b' w' r' hcv0).2
+      rcases hD2.2.1.zwf _ hA.isSlot p zt n hz with ⟨-, ht, -⟩ | ⟨-, hc, -⟩
+      · have := J.zH.1 p (J.thT p ht); rw [hHp] at this; cases this
+      · have := hJ.cnode p _ hc; rw [hHp] at this; cases this
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns⟩
+    (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 /-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
 `XTopAt` after, `JAtZ.swapJCore`, `cs_frameV`). -/
 theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s s' a σ σ' G G' sl p zt n hW hD1 hD2 hF hsw hA hz hpx hG' hcap hmS
   subst hth hG'
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
+  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
   have hnk := capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw)
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G _
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hC, Ac', Lst', D', R⟩ := J.swapJCore hA hz hpx hsw hD2 hcap hX2
     (SlotFrame2.writesIn hF) hnk
+  -- `SpecGlob` after: caps only move, both slots off the IRQ node (the
+  -- zombie's slot holds no null or notification cap, its first slot lies in
+  -- its object, no IRQ node CNode: `SpecGlob.ref`).
+  have hsg2 : SpecGlob σ' := by
+    obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hD1.1.1.abs_cap hA
+    rw [hca0.abs] at hg0
+    have hcv0 := capV_of_capAt hc0
+    rw [hz] at hcv0
+    subst hcv0
+    obtain ⟨c1, ac1, hc1, hca1, hg1⟩ := hD1.1.1.abs_cap (home_abs (J.del.zwf _ hA.isSlot p zt n hz))
+    rw [hca1.abs] at hg1
+    have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
+    refine SpecGlob.swap (mem_of_single hsw) hsg hg1 hg0 (fun irq e => ?_) (fun irq e => ?_)
+    · have e1 : p.bv = σ.interruptIrqNode irq := congrArg Prod.fst e
+      apply hsg.ref sl.1 sl.2 _ ha0 (by simp [IsPageCap, absCap]) irq
+      rw [← e1]; simp [absCap, Fl4Spec.objRefs]
+    · rw [e] at ha0
+      rcases hsg.irq irq _ ha0 with h | ⟨_, _, _, h⟩ <;> simp [absCap] at h
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns⟩
+    (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A non-final cap's finalisation at `J` with the loop's readiness**
@@ -1362,7 +1407,7 @@ theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) ar
     refine ⟨?_, ?_, hpp Z H Cs kb hth, hpost Z H Cs kb hth, ?_, ?_, ?_⟩
     · intro s a σ G sl c hDS hW hA hc hk hKd
       have hW' := hW.wj arI
-      obtain ⟨V, Ac, Lst, D, J, -, -, hp0⟩ := hW
+      obtain ⟨V, Ac, Lst, D, J, -, -, -, hp0⟩ := hW
       refine WP.spec_mono (hF s a σ G sl c hDS hW' hA hc hk hKd) ?_
       rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
       exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
