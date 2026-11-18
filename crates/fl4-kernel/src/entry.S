@@ -92,6 +92,19 @@ fl4_common_entry:
     pushq %r14
     pushq %r15
     cld
+    /* A wrong injection type can give an error-code vector a frame
+     * without an error code. Reject an invalid CS before the common path
+     * can mistake that malformed frame for a user entry and relocate it. */
+    cmpw $0x10, 18*8(%rsp)
+    je .Lframe_cs_ok
+    cmpw $0x33, 18*8(%rsp)
+    je .Lframe_cs_ok
+    andq $-16, %rsp
+    call fl4_bad_entry_frame
+    ud2
+.Lframe_cs_ok:
+    cmpb $0, FL4_SNP_POISONED(%rip)
+    jne .Lpoisoned
     movl FL4_SPEC_ENTRY(%rip), %r11d
     fl4_spec_barrier %r11d
     fl4_clear_guest_gprs
@@ -121,6 +134,17 @@ fl4_common_entry:
      * holding this stack is size-aligned; its third word is the top of
      * the core's kernel stack. A fault of an IRET to user mode belongs to
      * the user (bad_iret.S) and goes the same way. */
+    /* Validate the original hardware frame before bad-IRET fixup can
+     * replace its saved RSP, or Rust can enter a returning IRQ path. */
+    cmpq $0, FL4_SNP_CPUID_PAGE(%rip)
+    je .Lcheck_user
+    testb $3, 18*8(%rbp)
+    jnz .Lfrom_user
+    movq %rbp, %rdi
+    call fl4_snp_kernel_entry_stack
+    testq %rax, %rax
+    jnz .Lmove_frame
+.Lcheck_user:
     testb $3, 18*8(%rbp)
     jnz .Lfrom_user
     fl4_bad_iret .Lcommon_iret, .Lrestore_iret, .Lfrom_user
@@ -128,8 +152,9 @@ fl4_common_entry:
 .Lfrom_user:
     movq %rbp, %rax
     andq $-{skim_cpu_size}, %rax
-    movq 16(%rax), %rdi
-    subq $22*8, %rdi
+    movq 16(%rax), %rax
+.Lmove_frame:
+    leaq -22*8(%rax), %rdi
     xorl %ecx, %ecx
 .Lcopy_in:
     movq (%rbp,%rcx,8), %rdx
@@ -147,6 +172,14 @@ fl4_common_entry:
      * came from (the kernel stack copy is never mapped for user code). */
     cmpq %rsp, %rbp
     je .Lframe_back
+    /* SNP's full kernel mapping lets IRET use the kernel-stack copy.
+     * Returning from IST6 to userspace on IST6 would let a bad IRET
+     * overwrite its own frame when #GP or #SS also lands there. */
+    cmpq $0, FL4_SNP_CPUID_PAGE(%rip)
+    je .Lcopy_back
+    cmpq $0, FL4_KERNEL_CR3(%rip)
+    je .Lframe_back
+.Lcopy_back:
     xorl %ecx, %ecx
 .Lcopy_out:
     movq (%rsp,%rcx,8), %rdx
@@ -199,8 +232,17 @@ fl4_common_entry:
     movq $0, -128(%rsp)
     movq $0, -136(%rsp)
     fl4_clear_buffers
+    cmpb $0, FL4_SNP_POISONED(%rip)
+    jne .Lpoisoned
 .Lcommon_iret:
     iretq
+
+/* Once another SNP vCPU reports a fatal error, do not resume guests or
+ * enter the normal kernel path. This code and flag are mapped everywhere. */
+.Lpoisoned:
+    cli
+    hlt
+    jmp .Lpoisoned
 
 /* fl4_restore_user(regs: *const u64, stack_top: u64, cr3: u64) -> !
  * regs is a TCB's register array (fl4_core::layout::reg order); stack_top
@@ -255,6 +297,8 @@ fl4_restore_user:
     movq $0, (%rsp)
     addq $8, %rsp
     fl4_clear_buffers
+    cmpb $0, FL4_SNP_POISONED(%rip)
+    jne .Lpoisoned
 .Lrestore_iret:
     iretq
 
@@ -291,20 +335,28 @@ fl4_restore_user:
     addq $8, %rsp
     popq %rsp
     fl4_clear_buffers
+    cmpb $0, FL4_SNP_POISONED(%rip)
+    jne .Lpoisoned
     sysretq
 
 /* fl4_idle(stack_top: u64) -> !: the idle thread, on the kernel stack and
- * the kernel's tables. Interrupts arrive in kernel mode on this stack and
- * never return here. */
+ * the kernel's tables. SNP interrupts land on an IST and move here before
+ * running the handler. A timer acknowledged early can resume this loop. */
     .align 16
     .global fl4_idle
 fl4_idle:
     movq %rdi, %rsp
+    .global fl4_idle_loop
+fl4_idle_loop:
 1:
+    cmpb $0, FL4_SNP_POISONED(%rip)
+    jne .Lpoisoned
     fl4_clear_buffers
     sti
     hlt
     cli
     jmp 1b
+    .global fl4_idle_end
+fl4_idle_end:
 
     .text

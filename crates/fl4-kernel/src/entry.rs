@@ -28,6 +28,8 @@ core::arch::global_asm!(
 extern "C" {
     fn fl4_restore_user(regs: u64, stack_top: u64, cr3: u64) -> !;
     fn fl4_idle(stack_top: u64) -> !;
+    static fl4_idle_loop: u8;
+    static fl4_idle_end: u8;
     static fl4_vectors: u8;
     static fl4_common_entry: u8;
 }
@@ -136,7 +138,45 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
     }
 }
 
+/// An IST always lands at a fixed stack top. If it overwrote a live
+/// frame, the fresh frame is usable for termination only. An IRQ taken
+/// with IF clear is also invalid, including after a switch to another IST.
+#[no_mangle]
+extern "C" fn fl4_snp_kernel_entry_stack(f: &Frame) -> u64 {
+    let Some(stack) = crate::gdt::snp_ist(f as *const Frame as u64, f.vector as usize) else {
+        return 0;
+    };
+    if stack.contains(&f.rsp) || (f.vector >= 32 && f.rflags & RFLAGS_IF == 0) {
+        fl4_arch_x86_64::sev::snp::terminate(0);
+    }
+    // The idle loop has reset RSP to the kernel stack top and keeps
+    // nothing on that stack. Dispatch a waking IRQ there, leaving the
+    // small IST available for landing and for the IRET frame.
+    let idle_start = core::ptr::addr_of!(fl4_idle_loop) as u64;
+    let idle_end = core::ptr::addr_of!(fl4_idle_end) as u64;
+    let top = percpu::stack_top(percpu::cpu_index());
+    if f.vector >= 32 && f.rsp == top && (idle_start..idle_end).contains(&f.rip) {
+        top
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
+extern "C" fn fl4_bad_entry_frame() -> ! {
+    if fl4_arch_x86_64::sev::snp::active() {
+        fl4_arch_x86_64::sev::snp::terminate(0);
+    }
+    cpu::halt_forever()
+}
+
 fn kernel_fault(f: &Frame) -> ! {
+    if fl4_arch_x86_64::sev::snp::active() {
+        // Injected exceptions must not send private registers or RAM to
+        // a hypervisor-controlled console.
+        kprintln!("FL4: SNP kernel exception {:#x} error {:#x}", f.vector, f.error);
+        fl4_arch_x86_64::sev::snp::terminate(0);
+    }
     kprintln!(
         "rax {:#x} rbx {:#x} rcx {:#x} rdx {:#x} rsi {:#x} rdi {:#x} rbp {:#x}\nr8 {:#x} r9 {:#x} r10 {:#x} r11 {:#x} r12 {:#x} r13 {:#x} r14 {:#x} r15 {:#x}",
         f.rax, f.rbx, f.rcx, f.rdx, f.rsi, f.rdi, f.rbp, f.r8, f.r9, f.r10, f.r11, f.r12, f.r13, f.r14, f.r15
@@ -319,6 +359,24 @@ fn deferred_user_debug(f: &Frame) -> bool {
 #[no_mangle]
 extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     let v = f.vector;
+    if v == 29 && fl4_arch_x86_64::sev::snp::active() {
+        if f.cs & 3 == 0 {
+            crate::snp::vc(f);
+            return 0;
+        }
+        // A second core can otherwise remove a table while #VC walks
+        // the active user's mappings. Save the interrupted state first:
+        // a remote stall can cancel this entry and restart it later.
+        save_user(&mut store(), f);
+        if !lock() || percpu::get().vspace_stale.get() {
+            exit();
+        }
+        if crate::snp::user_vc(f) {
+            save_user(&mut store(), f);
+            exit();
+        }
+        unlock();
+    }
     let irq = (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v);
     if f.cs & 3 == 0 {
         let pc = percpu::get();
@@ -396,7 +454,7 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     }
     // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
     // caller's registers and the MSR: answered here, outside the core.
-    if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL {
+    if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL && !fl4_arch_x86_64::sev::snp::active() {
         let n = f.rdx as i64;
         if n == fl4_abi::syscall::SysX86DangerousRDMSR {
             f.r10 = cpu::rdmsr(f.rdi as u32);
@@ -508,6 +566,7 @@ fn dispatch_handler<S: fl4_core::machine::Store>(
 /// context no other core changes without stalling this one first.
 pub fn exit() -> ! {
     loop {
+        fl4_arch_x86_64::sev::snp::halt_if_poisoned();
         // Exit never runs in a transaction. Use the direct specialization
         // for guest entry/exit and scheduling, as syscall dispatch does.
         let s = &mut store().specialize::<false>();
@@ -629,7 +688,7 @@ const TRACE_N: usize = 8192;
 static TRACE: crate::trace::Trace<TRACE_N> = crate::trace::Trace::new();
 
 fn trace(f: &Frame) {
-    if !fl4_abi::config::DEBUG_BUILD {
+    if !fl4_abi::config::DEBUG_BUILD || fl4_arch_x86_64::sev::snp::active() {
         return;
     }
     let s = store();

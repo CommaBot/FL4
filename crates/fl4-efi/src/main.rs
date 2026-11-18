@@ -1,16 +1,15 @@
-//! FL4's UEFI loader for AArch64 (DESIGN.md §11). A UEFI application with
-//! the kernel image built in. It loads the root task (named in its load
-//! options as `rootserver=\path`, or built in too), any further boot
-//! modules (`module=\path`, l4h 0021), finds the ACPI and device tree
-//! configuration tables, sets up the kernel region (fl4-bootinfo), leaves
-//! boot services and enters the kernel with the MMU off. The other words
-//! of the load options are the kernel command line.
+//! FL4's UEFI loader. Both architectures embed a kernel and can load the
+//! root task and boot modules from the EFI volume. The AArch64 handoff uses
+//! fl4-bootinfo. The x86_64 handoff builds Multiboot 2 information and keeps
+//! long mode active for confidential guests.
 #![no_std]
 #![no_main]
 
 use core::arch::asm;
 use core::ffi::c_void;
+#[cfg(target_arch = "aarch64")]
 use fl4_bootinfo::elf::{self, Layout};
+#[cfg(target_arch = "aarch64")]
 use fl4_bootinfo::{mem, BootInfo, MemRegion, Module, RootTask, KERNEL_VBASE, LOAD_TOP, MAGIC, USER_END, VERSION};
 
 mod embedded {
@@ -28,6 +27,7 @@ struct Guid(u32, u16, u16, [u8; 8]);
 
 const ACPI_20: Guid = Guid(0x8868_e871, 0xe4f1, 0x11d3, [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81]);
 const ACPI_10: Guid = Guid(0xeb9d_2d30, 0x2d88, 0x11d3, [0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d]);
+#[cfg(target_arch = "aarch64")]
 const DTB: Guid = Guid(0xb1b6_21d5, 0xf19c, 0x41a5, [0x83, 0x0b, 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0]);
 const LOADED_IMAGE: Guid = Guid(0x5b1b_31a1, 0x9562, 0x11d2, [0x8e, 0x3f, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]);
 const SIMPLE_FS: Guid = Guid(0x964e_5b22, 0x6459, 0x11d2, [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]);
@@ -176,21 +176,29 @@ macro_rules! say {
     }};
 }
 
+#[cfg(target_arch = "x86_64")]
+mod x86;
+
 fn fail(msg: &str) -> ! {
     say!("fl4-efi: {}", msg);
     loop {
+        #[cfg(target_arch = "aarch64")]
         unsafe { asm!("wfi") };
+        #[cfg(target_arch = "x86_64")]
+        unsafe { asm!("hlt") };
     }
 }
 
 const PAGE: u64 = 4096;
+#[cfg(target_arch = "aarch64")]
 const MB2: u64 = 2 << 20;
 
-/// `n` pages of loader data below `LOAD_TOP` (AllocateMaxAddress): the
-/// kernel reaches its region, the root task and the modules through its
-/// window, which ends there.
+/// Allocate loader data within the architecture's boot address range.
 fn alloc_pages(n: u64) -> u64 {
+    #[cfg(target_arch = "aarch64")]
     let mut p = LOAD_TOP - 1;
+    #[cfg(target_arch = "x86_64")]
+    let mut p = (1u64 << 32) - 1;
     let r = (bs().allocate_pages)(1, 2, n as usize, &mut p);
     if r != SUCCESS {
         fail("out of memory");
@@ -199,6 +207,7 @@ fn alloc_pages(n: u64) -> u64 {
 }
 
 /// `len` bytes, 2 MiB aligned.
+#[cfg(target_arch = "aarch64")]
 fn alloc_aligned(len: u64) -> u64 {
     let pages = len / PAGE;
     let extra = MB2 / PAGE;
@@ -214,6 +223,11 @@ fn alloc_aligned(len: u64) -> u64 {
     a
 }
 
+#[cfg(target_arch = "x86_64")]
+fn rd16(b: &[u8], o: usize) -> u64 {
+    u16::from_le_bytes([b[o], b[o + 1]]) as u64
+}
+
 fn rd32(b: &[u8], o: usize) -> u64 {
     u32::from_le_bytes(b[o..o + 4].try_into().unwrap()) as u64
 }
@@ -224,11 +238,13 @@ fn rd64(b: &[u8], o: usize) -> u64 {
 
 /// Load the image `elf::check` accepted as `l` at `dest` (physical, the
 /// image's `l.size()` bytes).
+#[cfg(target_arch = "aarch64")]
 fn load_segments(elf: &[u8], l: &Layout, dest: u64) {
     let d = unsafe { core::slice::from_raw_parts_mut(dest as *mut u8, l.size() as usize) };
     elf::load(elf, l, d);
 }
 
+#[cfg(target_arch = "aarch64")]
 fn clean(start: u64, len: u64) {
     let line = 4u64 << ((unsafe {
         let v: u64;
@@ -325,11 +341,13 @@ fn config_table(g: Guid) -> u64 {
 /// Pages for the loader's page tables: two roots, and for each mapping a
 /// level 1 and a level 2 table per 512 GiB and 1 GiB it touches (the
 /// region is far smaller than 1 GiB, but may cross either boundary).
+#[cfg(target_arch = "aarch64")]
 const TABLE_PAGES: u64 = 10;
 
 /// The loader's page tables in the kernel region: the region mapped at
 /// its own address (TTBR0) and at KERNEL_VBASE (TTBR1), in 2 MiB blocks,
 /// normal memory (MAIR index 0), executable.
+#[cfg(target_arch = "aarch64")]
 fn build_tables(tables: u64, pa: u64, len: u64) -> (u64, u64) {
     unsafe { core::ptr::write_bytes(tables as *mut u8, 0, (TABLE_PAGES * PAGE) as usize) };
     let mut used = 2;
@@ -368,6 +386,7 @@ fn build_tables(tables: u64, pa: u64, len: u64) -> (u64, u64) {
 
 /// Leave the loader for the kernel: caches and MMU off at this exception
 /// level, then branch to `entry` (physical) with x0 = `arg`.
+#[cfg(target_arch = "aarch64")]
 unsafe fn enter(entry: u64, arg: u64) -> ! {
     asm!(
         "msr daifset, #0xf",
@@ -400,6 +419,7 @@ unsafe fn enter(entry: u64, arg: u64) -> ! {
     );
 }
 
+#[cfg(target_arch = "aarch64")]
 fn mem_kind(ty: u32) -> u32 {
     match ty {
         // Loader code/data, boot services code/data, conventional.
@@ -410,6 +430,7 @@ fn mem_kind(ty: u32) -> u32 {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
 #[no_mangle]
 extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
     unsafe { ST = system };
@@ -575,6 +596,9 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {
+        #[cfg(target_arch = "aarch64")]
         unsafe { asm!("wfi") };
+        #[cfg(target_arch = "x86_64")]
+        unsafe { asm!("hlt") };
     }
 }

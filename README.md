@@ -40,13 +40,23 @@ cargo xtask extract                              # Charon + Aeneas -> proofs/Fl4
 Host dependencies live in `$FL4_DEPS` (default `~/Projects/fl4-deps`):
 `venv/` with `sel4-deps`, and an `aeneas/` checkout with Charon built.
 
-## AMD SEV guests
+## AMD SEV and SEV-SNP guests
 
-The x86_64 image detects base AMD Secure Encrypted Virtualization (SEV) at
-boot. Kernel and userspace RAM, page tables, boot modules and firmware ACPI
-data start private. Device MMIO uses shared mappings. The serial banner shows
-the active C-bit. SEV-ES, SEV-SNP and nested virtualization inside an SEV
-guest are outside the supported configuration.
+FL4 supports base AMD Secure Encrypted Virtualization (SEV) and AMD SEV-SNP
+on x86_64. Kernel and userspace RAM, page tables, boot modules and firmware
+ACPI data start private. Device MMIO uses shared mappings. The serial banner
+shows the active technology and C-bit.
+
+SEV-SNP boots at VMPL0 through FL4's x86_64 UEFI loader with firmware-accepted
+RAM and standard interrupt delivery. The loader requires the base SNP
+feature set and rejects optional SEV_STATUS bits such as DebugSwap. It uses
+the firmware's SNP CPUID page, GHCB v2 for virtual device access, and
+guest-created VMSAs for secondary CPUs when the hypervisor advertises AP creation. Userspace MMIO
+emulates scalar 8-, 16-, 32- and 64-bit MOV accesses and byte and word
+MOVZX reads. Use ordinary scalar loads and stores in drivers. The SNP
+kernel forwards intercepted APIC and timer MSRs. Other intercepted MSRs
+fail closed, and the benchmark profile's raw MSR syscalls are disabled.
+Standalone SEV-ES, guest attestation and nested virtualization are outside the supported configuration. [AMD GHCB specification](https://docs.amd.com/api/khub/documents/oJly8EPzLO1Bt7ncrkCytw/content)
 
 The extra BootInfo record `SEL4_BOOTINFO_HEADER_SHARED_DMA` tells drivers
 that DMA requires shared RAM. Drivers allocate buffers with
@@ -63,19 +73,39 @@ into the device. [Userspace NVMe example](xtask/tests/sev_guest.c)
 Shared frames have device-frame restrictions, including exclusion from IPC
 buffers and subframe derivation. Stop DMA before revoking the source or
 deleting the last frame cap. Final deletion unmaps the frame, flushes the
-shared alias, and zeros the private memory before reuse. On native hardware
+shared alias, and zeros the private memory before reuse. SNP also changes
+the page state in the Reverse Map Table and validates the page before
+returning it to private use. On native hardware
 drivers use ordinary RAM and the invocation returns `seL4_IllegalOperation`.
 In an SEV guest a device untyped returns `seL4_InvalidCapability` and an
 unsupported frame size returns `seL4_InvalidArgument`. [AMD memory encryption](https://docs.kernel.org/arch/x86/amd-memory-encryption.html)
 
-`xtask/scripts/sev-smoke-image.sh` builds `build/sev-smoke/fl4-sev.tar.gz`
-with a GRUB EFI loader and a test root task. The script requires the sel4test
-build dependencies, GRUB's x86_64 EFI tools, sgdisk and mtools. Import the
-archive as a GCE image with `UEFI_COMPATIBLE,SEV_CAPABLE,GVNIC`. Boot it on
-an `n2d-standard-2` AMD Milan VM with `--confidential-compute-type=SEV`,
-`--maintenance-policy=TERMINATE` and an NVMe boot disk. The serial log should
-report both `NVMe Identify DMA passed` and `shared and private frame lifecycle
-passed`. [GCE confidential VM configuration](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/create-a-confidential-vm-instance)
+To build an SNP EFI executable with your own x86_64 root task, use:
+
+```sh
+cargo xtask kernel
+FL4_KERNEL_ELF="$PWD/build/kernel.elf" \
+FL4_ROOTSERVER_ELF="/absolute/path/to/rootserver.elf" \
+cargo build --release -p fl4-efi --target x86_64-unknown-uefi
+```
+
+Copy `target/x86_64-unknown-uefi/release/fl4-efi.efi` to
+`/EFI/BOOT/BOOTX64.EFI` on the EFI system partition.
+
+`xtask/scripts/sev-smoke-image.sh sev` builds `build/sev-smoke/fl4-sev.tar.gz`
+with GRUB. Use `xtask/scripts/sev-smoke-image.sh snp` to build
+`build/snp-smoke/fl4-snp.tar.gz` with FL4's UEFI loader. Both modes require
+the sel4test build dependencies, sgdisk and mtools. SEV also requires GRUB's
+x86_64 EFI tools.
+
+Import the SNP archive as a GCE image tagged
+`UEFI_COMPATIBLE,SEV_SNP_CAPABLE,GVNIC`. Boot it as an NVMe boot disk on an
+`n2d-standard-2` AMD Milan VM in an SNP zone such as `us-central1-a`, with
+`--confidential-compute-type=SEV_SNP --maintenance-policy=TERMINATE`. For base
+SEV, use the SEV archive, the `SEV_CAPABLE` image tag and
+`--confidential-compute-type=SEV`. The serial log reports the shared-frame
+allocation and reuse checks and the NVMe Identify DMA result.
+[GCE confidential VM configuration](https://docs.cloud.google.com/confidential-computing/confidential-vm/docs/create-a-confidential-vm-instance)
 
 ## AArch64
 
