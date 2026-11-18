@@ -23,7 +23,10 @@ XTopFinThread's `xFinThread_of`:
   then an SC step), the yield-from word read against the spec's at
   `JAtZ`;
 * `suspend` (`JAtZ.suspendJ`, XTopJointSuspend: the fault clear or, for a
-  blocked thread, `JThreadFinHyps.cancel`; the restart PC; the scheduler
+  blocked thread, its `cancel_ipc`: receive by XTopJointCancelRecv's
+  `jCancel_recv` (from `RecvReplyHyp` [J], `finThreadJ`'s `hRR`), reply by
+  XTopJointCancelReply's `jCancel_reply`, send and notification by
+  `JThreadFinHyps.cancel`; the restart PC; the scheduler
   tail as one SC step), the thread neither the switch target nor idle, and,
   if current, with no switch pending (`JThreadFinHyps.curSw`), carried in
   spec terms across the unbinds (`unbindTcb_shape`, `completeYieldTo_ca`);
@@ -45,8 +48,8 @@ thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 word zero, native threads; ScPlace's `JState`); [J] `utTcb` (no TCB in a
 childless untyped's region, l4v `valid_untyped`); [P] `fpu`; and the steps
 not proved here, each one FL4 call at a `JAtZ` state with its spec outcome
-and `JAtZ` after (undone work): `cancel` (the blocked threads' `cancel_ipc`,
-`JCancelHyps`); [J] `curSw` (`CurRunM` after `suspend` of the current
+and `JAtZ` after (undone work): `cancel` (the `cancel_ipc` of a thread blocked sending
+or on a notification, `JCancelHyps`); [J] `curSw` (`CurRunM` after `suspend` of the current
 thread); [P] `ticks`.
 -/
 import Fl4Proofs.P3.XTopFinThread
@@ -56,6 +59,8 @@ import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.XTopJointFinThreadSc
 import Fl4Proofs.P3.XTopJointYield
 import Fl4Proofs.P3.XTopJointSuspend
+import Fl4Proofs.P3.XTopJointCancelRecv
+import Fl4Proofs.P3.XTopJointCancelReply
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -88,8 +93,8 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
   `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
     ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [J-step] `cancel_ipc` at `J` of a thread blocked on an endpoint, a
-  notification or a reply (`suspend`'s first step; the rest of `suspend` is
+  /-- [J-step] `cancel_ipc` at `J` of a thread blocked sending on an
+  endpoint or on a notification (`suspend`'s first step; the rest of `suspend` is
   `JAtZ.suspendJ`, XTopJointSuspend). -/
   cancel : JCancelHyps (L := L) arI AR th
   /-- [J] A thread cap's thread, if current, has no switch pending: what
@@ -597,6 +602,7 @@ set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),
 the steps of `JThreadFinHyps` given. -/
 theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR Z.th)
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hp : p ∈ Z.T)
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) (hna : L.actionW s ≠ p) (hidle : L.idleW s ≠ p)
     (hcs : σ.curThread = p.bv → ∀ u, σ.schedulerAction ≠ .switchThread u) :
@@ -664,7 +670,7 @@ theorem JAtZ.finThreadJ (hAT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) a
       rcases ha5 with e | e
       · exact hcs (by rw [← hc5]; exact hc) u (by rw [← e]; exact hu)
       · rw [e] at hu; cases hu
-    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) hF.cancel J5 hp hsa5 hid5 hcs5) ?_
+    refine WP.spec_bind (JAtZ.suspendJ (Z := Z.mv Z.G V5) hF.cancel (jCancel_recv arI hRR) (jCancel_reply arI) J5 hp hsa5 hid5 hcs5) ?_
     rintro ⟨s6, a6⟩ ⟨ha6, σ6, he6, V6, Ac6, Lst6, D6, J6⟩
     simp only at ha6
     subst ha6

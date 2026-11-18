@@ -66,7 +66,8 @@ some of them proved here.
   invariant: `JKern`'s current SC must stay covered).
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
   `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`,
-  `complete_yield_to`, `suspend` but a blocked thread's `cancel_ipc`, and
+  `complete_yield_to`, `suspend` but the `cancel_ipc` of a thread blocked sending or on a
+  notification (receive from `RecvReplyHyp` [J], reply proved), and
   debug-list removal proved; the narrow facts from `JThreadFinHyps` [J]/[P]), the slots by P1's
   `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
   `JAtZ.tcb_ready`).
@@ -783,7 +784,8 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (h
 `JAtZ.finThreadJ`, from `JThreadFinHyps`), the slots kept and the kernel
 base by P1's `fin_cap_thread.slots`, the thread dead after by P1's
 `fin_cap_thread.dead` (`JAtZ.tcb_ready`). -/
-theorem jFinAt_thread (hT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR th) :
+theorem jFinAt_thread (hT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI AR th)
+    (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs) :
     JFinAtF (L := L) arI AR th TcbK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, hce⟩ hfin
   subst hce hth
@@ -795,7 +797,7 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hF : JThreadFinHyps (L := L) arI 
   obtain ⟨hna, hidle, hv0⟩ := hF.obj (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
   have hcs := hF.curSw (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ p hA.isSlot hcv
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hF J hpT hv0 hna hidle hcs)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hF hRR J hpT hv0 hna hidle hcs)
     (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
     (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5⟩, e, -, f, hW1⟩
@@ -891,7 +893,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hsc : ScK c
     · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
-    · exact jFinAt_thread arI hT h.thread Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
+    · exact jFinAt_thread arI hT h.thread h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 

@@ -463,15 +463,14 @@ def JCancelAt (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (P : Fl4Spec.Th
         JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
 
 /-- **The blocked threads' `cancel_ipc` at `J`** (the steps of `suspend` not
-proved here, one per blocking state; undone work): an endpoint's send or
-receive queue removal (receive: with the reply unlink, as `send_signal`'s
-wake-up, `cancel_ipc_recvF`), a notification's queue removal
-(`cancel_signal`), a reply's call-stack removal (`reply_remove_tcb`). -/
+proved here, one per blocking state; undone work): an endpoint's send queue
+removal, a notification's queue removal (`cancel_signal`). (The receive
+state's is XTopJointCancelRecv's `jCancel_recv`, the reply state's
+XTopJointCancelReply's `jCancel_reply`; `JAtZ.suspendJ` takes them as
+`hRv`, `hRp`.) -/
 structure JCancelHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   send : JCancelAt (L := L) arI AR th fun ts => ∃ e d, ts = .blockedOnSend e d
-  recv : JCancelAt (L := L) arI AR th fun ts => ∃ e r d, ts = .blockedOnReceive e r d
   ntfn : JCancelAt (L := L) arI AR th fun ts => ∃ n, ts = .blockedOnNotification n
-  reply : JCancelAt (L := L) arI AR th fun ts => ∃ r, ts = .blockedOnReply r
 
 variable {arI}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -479,7 +478,9 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 16000000 in
 /-- **`suspend` at `J`** (module docstring). -/
-theorem JAtZ.suspendJ (hC : JCancelHyps (L := L) arI AR Z.th) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.suspendJ (hC : JCancelHyps (L := L) arI AR Z.th)
+    (hRv : JCancelAt (L := L) arI AR Z.th fun ts => ∃ e r d, ts = .blockedOnReceive e r d)
+    (hRp : JCancelAt (L := L) arI AR Z.th fun ts => ∃ r, ts = .blockedOnReply r) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T)
     (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread)
     (hcs : σ.curThread = t.bv → ∀ u, σ.schedulerAction ≠ .switchThread u) :
@@ -524,9 +525,9 @@ theorem JAtZ.suspendJ (hC : JCancelHyps (L := L) arI AR Z.th) (J : JAtZ (L := L)
           JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
       rcases hcases with h | h | h | h
       · exact hC.send Z H Cs Ac Lst D s a σ rfl J t ht x hk h
-      · exact hC.recv Z H Cs Ac Lst D s a σ rfl J t ht x hk h
+      · exact hRv Z H Cs Ac Lst D s a σ rfl J t ht x hk h
       · exact hC.ntfn Z H Cs Ac Lst D s a σ rfl J t ht x hk h
-      · exact hC.reply Z H Cs Ac Lst D s a σ rfl J t ht x hk h
+      · exact hRp Z H Cs Ac Lst D s a σ rfl J t ht x hk h
     refine WP.spec_mono (WP.spec_and hP (cancel_ipc_irelP (ar := arI) hP0 (removeTcbHypP_ok hP0) s a σ hI ht hk
       J.sv J.obj J.inv (removeTcbOK_fault hP0 hI ht hk J.removeTcbOK))) ?_
     rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, D1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
