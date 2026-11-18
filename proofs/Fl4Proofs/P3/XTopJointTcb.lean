@@ -27,6 +27,10 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
     the FPU image by XTopJointTcbMisc's `JAtZ.copyFpuJ`);
   - SetTimer (`tcb_set_timerJ`: the restart, `timer::insert` by P1's
     `timer.insert.foot` and ScFireJ's `JAtZ.tmw_step`);
+  - SetMCPriority (`tcb_set_mcpJ`: the decode's authority MCP by `McpRel`,
+    the restart, the `MCP` word by XTopJointTcbSched's `JAtZ.mcpWrJ`);
+  - SetPriority (`tcb_set_prioJ`: the same decode, the restart, then
+    `set_priority` at `J` by XTopJointTcbPrio's `JAtZ.setPrioJ`);
   - GetBreakpoint (`tcb_get_bpJ`: the restart, then XTopJointData's data
     reply tail: the five words by `JAtZ.setmrJ`, `MR4` a buffer word by
     `JAtZ.userWrJ`, then `JAtZ.replyTailJ`; `XTop`'s facts by the same steps
@@ -42,6 +46,7 @@ import Fl4Proofs.P3.XTopJointReply
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.XTopJointReadRegs
 import Fl4Proofs.P3.XTopJointTcbMisc
+import Fl4Proofs.P3.XTopJointTcbPrio
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -53,10 +58,11 @@ noncomputable section
 taken): the TCB invocation labels (3..24) but Suspend (12),
 UnbindNotification (15), SetBreakpoint (16), GetBreakpoint (17),
 UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20),
-SetFlags (21), WriteFPU (23) and SetTimer (24). -/
+SetFlags (21), WriteFPU (23), SetTimer (24), SetPriority (6) and
+SetMCPriority (7). -/
 def TcbJOpen (lbl : U64) : Prop :=
   3 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
-    lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21 ∧ lbl.val ≠ 23 ∧ lbl.val ≠ 24
+    lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21 ∧ lbl.val ≠ 23 ∧ lbl.val ≠ 24 ∧ lbl.val ≠ 6 ∧ lbl.val ≠ 7
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -1577,6 +1583,291 @@ theorem tcb_read_regsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
       exact run_liftME_err (run_bind_error hrc _)
 
 
+set_option maxHeartbeats 8000000 in
+/-- **The SetMCPriority label at `JAt`** (as `tcb_set_mcpX`): the decode with
+the authority's MCP by `JAtZ`'s `McpRel` and the authority among the TCBs
+(`hcapT`, from the slots' caps), the caller's restart (`JAtZ.restartJ`), the
+target's `MCP` word and `tcb_mcpriority` (`JAtZ.mcpWrJ`). -/
+theorem tcb_set_mcpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetMCPriority)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBSetMCPriority p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
+  have hX := J.xtop
+  have hM := J.mcp
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+        (Fl4Spec.decodeSetMcpriority (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
+    unfold Fl4Spec.decodeTcbInvocation
+    rw [hlbl]
+  unfold TcbOKX
+  rw [decode_mcp_eq arI s ar p _ hstall, hdec0]
+  unfold tcb.decode_set_priority tcb.extra_with_length
+  rw [extra_eq _ 0#usize (by decide) hx0]
+  have hx0' : [x0, x1, x2][0]? = some x0 := rfl
+  by_cases h0 : x0 = 0#u64
+  · -- no extra cap: truncated
+    have hl : excaps.length ≤ 0 := ((hXc.2 0 x0 hx0').1).1 h0
+    simp only [h0, ↓reduceIte, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetMcpriority
+    rw [whenE_pos (Or.inr (by omega))]
+    exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
+      Fl4Spec.SEMonad Unit Unit)) rfl _
+  obtain ⟨e, he, hxe, he1, ps, hps, hps1⟩ := hXc.get hx0' h0
+  have hexl : excaps.length ≠ 0 := by
+    have := List.length_pos_of_ne_nil (List.ne_nil_of_mem (List.mem_of_getElem? he)); omega
+  by_cases h1 : length >= 1#u64
+  swap
+  · simp only [h0, ↓reduceIte, if_neg h1, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetMcpriority
+    rw [whenE_pos (Or.inl (show (args.map UScalar.bv).length = 0 by rw [List.length_map, ← hlen]; scalar_tac))]
+    exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
+      Fl4Spec.SEMonad Unit Unit)) rfl _
+  obtain ⟨y0, rest, rfl⟩ : ∃ y0 rest, args = y0 :: rest := by
+    match args with
+    | [] => exfalso; simp at hlen; scalar_tac
+    | y0 :: rest => exact ⟨y0, rest, rfl⟩
+  have harg := tcb_arg_eq s ⟨length, buf, call, cslotAddr ssl, extra⟩ hct (hargs 0#u64 y0 (by simp))
+  simp only [h0, ↓reduceIte, if_pos h1, bind_ok, core.result.Result.Insts.CoreOpsTry.branch, harg]
+  by_cases hth : ∃ q, capV (L.mem s) x0 = .Thread q
+  · obtain ⟨q, hq⟩ := hth
+    rw [thread_arg_thread s 1#u64 hq]
+    simp only [bind_ok, check_prio_eq]
+    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
+      apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
+      have := xq.tcbMcpriority.isLt; omega
+    have hspec1 : (Fl4Spec.decodeSetMcpriority (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
+        excaps).run σ = (Fl4Spec.NonDetE.whenE (y0.bv > (L.mem s (mcpA q)).bv)
+          (Fl4Spec.NonDetE.throwError (.rangeError 0 (L.mem s (mcpA q)).bv)) >>= fun _ =>
+          (Fl4Spec.NonDetE.returnOk (Fl4Spec.TcbInvocation.threadControlSched p.bv ssl none
+            (some (Fl4Spec.ucast 8 y0.bv, q.bv)) none none) : Fl4Spec.SEMonad Unit _)).run σ := by
+      have he1' : e.1 = .threadCap q.bv := by rw [he1, hq]; rfl
+      unfold Fl4Spec.decodeSetMcpriority
+      rw [whenE_neg (by simp [hexl]), retOk_bind, retOk_bind, he, the_some, he1']
+      show ((Fl4Spec.NonDetE.returnOk q.bv : Fl4Spec.SEMonad Unit _) >>= _).run σ = _
+      rw [retOk_bind]
+      have hcp : (Fl4Spec.checkPrio (Z := Unit) (Fl4Spec.the (List.map UScalar.bv (y0 :: rest))[0]?) q.bv).run σ =
+          (Fl4Spec.NonDetE.whenE (y0.bv > (L.mem s (mcpA q)).bv)
+            (Fl4Spec.NonDetE.throwError (.rangeError 0 (L.mem s (mcpA q)).bv)) : Fl4Spec.SEMonad Unit Unit).run σ := by
+        unfold Fl4Spec.checkPrio
+        rw [lE_bind (Notif.threadGet_eq _ hkq), hu]; rfl
+      rw [ExceptT.run_bind, nd_bind_congr hcp, ExceptT.run_bind]; rfl
+    by_cases hgt : y0 > L.mem s (mcpA q)
+    · rw [ite_eq_left hgt]
+      simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        core.convert.FromSame.from, bind_tc_ok]
+      refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩)
+      apply run_liftME_err
+      rw [hspec1, whenE_pos (by rw [GT.gt, ← u64_lt_bv]; exact hgt)]
+      exact run_bind_error (m := (Fl4Spec.NonDetE.throwError (Fl4Spec.SyscallError.rangeError 0 _) :
+        Fl4Spec.SEMonad Unit Unit)) rfl _
+    · rw [ite_eq_right hgt]
+      simp only [bind_ok]
+      obtain ⟨s1, σ1, x1, hrc, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+      rw [hrc]; simp only [bind_ok, tcs_mcp]
+      refine (WP.spec_ok _).2 ?_
+      have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+          (Fl4Spec.decodeSetMcpriority (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
+            excaps)).run σ = ({(.ok (.invokeTCB (Fl4Spec.TcbInvocation.threadControlSched p.bv ssl none
+              (some (Fl4Spec.ucast 8 y0.bv, q.bv)) none none)), σ)}, False) := by
+        apply run_liftME_ok
+        rw [hspec1, whenE_neg (by rw [GT.gt, ← u64_lt_bv]; exact hgt), retOk_bind]; rfl
+      have hlt : y0.val < 256 := by
+        have := xq.tcbMcpriority.isLt
+        have h2 : ¬ (L.mem s (mcpA q)).val < y0.val := hgt
+        omega
+      obtain ⟨x, hkx, -⟩ := J1.xtop.fin.1.1.2.1.tcb p hpT
+      obtain ⟨V2, J2⟩ := J1.mcpWrJ hpT hkx y0 (Fl4Spec.ucast 8 y0.bv)
+        (by rw [Ipc.ucast8_specPrio, Sched.specPrio_toNat hlt])
+      refine Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _), ?_, ⟨_, _, Or.inl ⟨rfl, rfl⟩, J2.xtop.rel.1,
+        J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩, ⟨_, H, Cs, Ac1, Lst1, D1, J2⟩⟩
+      rw [invoke_mcp_run hkx]; exact Set.mem_singleton _
+  · have hne : ∀ r, absCap (capV (L.mem s) x0) ≠ .threadCap r := fun r h => by
+      obtain ⟨q, hq, -⟩ := absCap_thread h; exact hth ⟨q, hq⟩
+    rw [thread_arg_other s 1#u64 (fun q h => hth ⟨q, h⟩)]
+    simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_, Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetMcpriority
+    rw [whenE_neg (by simp [hexl]), retOk_bind, retOk_bind, he, the_some, he1]
+    generalize absCap (capV (L.mem s) x0) = cc at hne ⊢
+    cases cc
+    all_goals first
+      | exact absurd rfl (hne _)
+      | exact run_bind_error (m := (Fl4Spec.NonDetE.throwError (Fl4Spec.SyscallError.invalidCapability 1) :
+          Fl4Spec.SEMonad Unit Fl4Spec.ObjRef)) rfl _
+
+
+set_option maxHeartbeats 8000000 in
+/-- **The SetPriority label at `JAt`** (as `tcb_set_prioX`): the decode with
+the authority's MCP by `JAtZ`'s `McpRel` and the authority among the TCBs
+(`hcapT`), the caller's restart (`JAtZ.restartJ`), then `set_priority` at
+`J` (XTopJointTcbPrio's `JAtZ.setPrioJ`, the current thread's facts by
+`JAtZ.prioCur` with `CurInv` carried across the restart, `CurInv.restart`). -/
+theorem tcb_set_prioJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetPriority)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (ssl : Fl4Spec.CslotPtr)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T)
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBSetPriority p
+      ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
+  have hX := J.xtop
+  have hM := J.mcp
+  have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
+  have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+        (Fl4Spec.decodeSetPriority (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) ssl excaps buffer = _
+    rw [fl4DecodeTcb_spec (by rw [hlbl]; decide) (by rw [hlbl]; decide)]
+    unfold Fl4Spec.decodeTcbInvocation
+    rw [hlbl]
+  unfold TcbOKX
+  rw [decode_prio_eq arI s ar p _ hstall, hdec0]
+  unfold tcb.decode_set_priority tcb.extra_with_length
+  rw [extra_eq _ 0#usize (by decide) hx0]
+  have hx0' : [x0, x1, x2][0]? = some x0 := rfl
+  by_cases h0 : x0 = 0#u64
+  · -- no extra cap: truncated
+    have hl : excaps.length ≤ 0 := ((hXc.2 0 x0 hx0').1).1 h0
+    simp only [h0, ↓reduceIte, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetPriority
+    rw [whenE_pos (Or.inr (by omega))]
+    exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
+      Fl4Spec.SEMonad Unit Unit)) rfl _
+  obtain ⟨e, he, hxe, he1, ps, hps, hps1⟩ := hXc.get hx0' h0
+  have hexl : excaps.length ≠ 0 := by
+    have := List.length_pos_of_ne_nil (List.ne_nil_of_mem (List.mem_of_getElem? he)); omega
+  by_cases h1 : length >= 1#u64
+  swap
+  · simp only [h0, ↓reduceIte, if_neg h1, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetPriority
+    rw [whenE_pos (Or.inl (show (args.map UScalar.bv).length = 0 by rw [List.length_map, ← hlen]; scalar_tac))]
+    exact run_bind_error (m := (Fl4Spec.NonDetE.throwError Fl4Spec.SyscallError.truncatedMessage :
+      Fl4Spec.SEMonad Unit Unit)) rfl _
+  obtain ⟨y0, rest, rfl⟩ : ∃ y0 rest, args = y0 :: rest := by
+    match args with
+    | [] => exfalso; simp at hlen; scalar_tac
+    | y0 :: rest => exact ⟨y0, rest, rfl⟩
+  have harg := tcb_arg_eq s ⟨length, buf, call, cslotAddr ssl, extra⟩ hct (hargs 0#u64 y0 (by simp))
+  simp only [h0, ↓reduceIte, if_pos h1, bind_ok, core.result.Result.Insts.CoreOpsTry.branch, harg]
+  by_cases hth : ∃ q, capV (L.mem s) x0 = .Thread q
+  · obtain ⟨q, hq⟩ := hth
+    rw [thread_arg_thread s 1#u64 hq]
+    simp only [bind_ok, check_prio_eq]
+    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
+      apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
+      have := xq.tcbMcpriority.isLt; omega
+    have hspec1 : (Fl4Spec.decodeSetPriority (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
+        excaps).run σ = (Fl4Spec.NonDetE.whenE (y0.bv > (L.mem s (mcpA q)).bv)
+          (Fl4Spec.NonDetE.throwError (.rangeError 0 (L.mem s (mcpA q)).bv)) >>= fun _ =>
+          (Fl4Spec.NonDetE.returnOk (Fl4Spec.TcbInvocation.threadControlSched p.bv ssl none none
+            (some (Fl4Spec.ucast 8 y0.bv, q.bv)) none) : Fl4Spec.SEMonad Unit _)).run σ := by
+      have he1' : e.1 = .threadCap q.bv := by rw [he1, hq]; rfl
+      unfold Fl4Spec.decodeSetPriority
+      rw [whenE_neg (by simp [hexl]), retOk_bind, retOk_bind, he, the_some, he1']
+      show ((Fl4Spec.NonDetE.returnOk q.bv : Fl4Spec.SEMonad Unit _) >>= _).run σ = _
+      rw [retOk_bind]
+      have hcp : (Fl4Spec.checkPrio (Z := Unit) (Fl4Spec.the (List.map UScalar.bv (y0 :: rest))[0]?) q.bv).run σ =
+          (Fl4Spec.NonDetE.whenE (y0.bv > (L.mem s (mcpA q)).bv)
+            (Fl4Spec.NonDetE.throwError (.rangeError 0 (L.mem s (mcpA q)).bv)) : Fl4Spec.SEMonad Unit Unit).run σ := by
+        unfold Fl4Spec.checkPrio
+        rw [lE_bind (Notif.threadGet_eq _ hkq), hu]; rfl
+      rw [ExceptT.run_bind, nd_bind_congr hcp, ExceptT.run_bind]; rfl
+    by_cases hgt : y0 > L.mem s (mcpA q)
+    · rw [ite_eq_left hgt]
+      simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+        core.convert.FromSame.from, bind_tc_ok]
+      refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩)
+      apply run_liftME_err
+      rw [hspec1, whenE_pos (by rw [GT.gt, ← u64_lt_bv]; exact hgt)]
+      exact run_bind_error (m := (Fl4Spec.NonDetE.throwError (Fl4Spec.SyscallError.rangeError 0 _) :
+        Fl4Spec.SEMonad Unit Unit)) rfl _
+    · rw [ite_eq_right hgt]
+      simp only [bind_ok]
+      obtain ⟨s1, σ1, x1, hrc, hst1, hk1, hcur1, e1, hsw1, hid1, hct1, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+      have hlt : y0.val < 256 := by
+        have := xq.tcbMcpriority.isLt
+        have h2 : ¬ (L.mem s (mcpA q)).val < y0.val := hgt
+        omega
+      have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
+          (Fl4Spec.decodeSetPriority (Z := Unit) ((y0 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
+            excaps)).run σ = ({(.ok (.invokeTCB (Fl4Spec.TcbInvocation.threadControlSched p.bv ssl none none
+              (some (Fl4Spec.ucast 8 y0.bv, q.bv)) none)), σ)}, False) := by
+        apply run_liftME_ok
+        rw [hspec1, whenE_neg (by rw [GT.gt, ← u64_lt_bv]; exact hgt), retOk_bind]; rfl
+      -- the current thread's invariants after the restart
+      have hC1 : Sched.CurInv σ1 := by
+        have hC0 := J.curInv (by rw [hni.2]; intro h; cases h)
+        have h := hC0.restart (xt := x1) (by rw [hcur1]; exact hk1)
+        rw [hcur1] at h
+        rw [e1]; exact h
+      have hne1 : σ1.curThread ≠ σ1.idleThread := by rw [hct1, hid1]; exact hni.1
+      obtain ⟨hc1, hp1⟩ := J1.prioCur hne1 hC1 hpT
+      rw [hrc]; simp only [bind_ok, tcs_prio]
+      refine WP.spec_bind (J1.setPrioJ (fun u h => hsw1 u h) hpT y0 hlt hc1 hp1) ?_
+      rintro s2 ⟨σ2, hm2, V2, J2⟩
+      refine (WP.spec_ok _).2 (Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], σ2), ?_, ⟨_, _, Or.inl ⟨rfl, rfl⟩,
+        J2.xtop.rel.1, J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩,
+        ⟨_, H, Cs, Ac1, Lst1, D1, J2⟩⟩)
+      refine invoke_prio_mem ssl _ q.bv blk call don (y := ((), σ2)) ?_
+      rw [hm2]; exact Set.mem_singleton _
+  · have hne : ∀ r, absCap (capV (L.mem s) x0) ≠ .threadCap r := fun r h => by
+      obtain ⟨q, hq, -⟩ := absCap_thread h; exact hth ⟨q, hq⟩
+    rw [thread_arg_other s 1#u64 (fun q h => hth ⟨q, h⟩)]
+    simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
+      core.convert.FromSame.from, bind_tc_ok]
+    refine (WP.spec_ok _).2 (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_, Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
+    apply run_liftME_err
+    unfold Fl4Spec.decodeSetPriority
+    rw [whenE_neg (by simp [hexl]), retOk_bind, retOk_bind, he, the_some, he1]
+    generalize absCap (capV (L.mem s) x0) = cc at hne ⊢
+    cases cc
+    all_goals first
+      | exact absurd rfl (hne _)
+      | exact run_bind_error (m := (Fl4Spec.NonDetE.throwError (Fl4Spec.SyscallError.invalidCapability 1) :
+          Fl4Spec.SEMonad Unit Fl4Spec.ObjRef)) rfl _
+
+
 end
 
 section
@@ -1634,11 +1925,25 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
       hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J (hR hop)
   have no : ∀ l : U64, 3 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
-      l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → l.val ≠ 23 → l.val ≠ 24 → lbl = l → False :=
-    fun l h1 h2 h3 h4 h5 h5' h6 h7 h8 h9 h123 h124 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h5', h6, h7, h8, h9, h123, h124⟩)
+      l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → l.val ≠ 23 → l.val ≠ 24 → l.val ≠ 6 → l.val ≠ 7 →
+      lbl = l → False :=
+    fun l h1 h2 h3 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h =>
+      hop (h ▸ ⟨h1, h2, h3, h4, h5, h5', h6, h7, h8, h9, h123, h124, h6', h7'⟩)
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
+  -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
+  have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
+    intro hx q hc
+    have h0 := hXc.2 0 x0 rfl
+    obtain ⟨e, he⟩ : ∃ e, excaps[0]? = some e := by
+      rcases excaps with _ | ⟨e, rest⟩
+      · exact absurd (h0.1.2 (by simp)) hx
+      · exact ⟨e, rfl⟩
+    obtain ⟨hxe, -, ps, hps, hpe⟩ := h0.2 e he
+    have hA0 : AbsSlot Z.th e.2 := ⟨ps, hpe, Or.inl hps⟩
+    exact J.thT q (show CapValid Z.th (.Thread q) from
+      J.xtop.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
   exact decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra ct hct slbl
     hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
@@ -1646,21 +1951,27 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_read_regsJ arI s ar σ J hni hRR hOK hBC hBPl p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf])
           length buf ct hct argsU hlen hargs (hstall' p) call (cslotAddr sl) extra blk don ci sl excaps buffer,
-      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setMCPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setPriority := fun h => by
+        subst h
+        exact tcb_set_prioJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen
+          hargs (hstall' p) call sl extra x0 x1 x2 hx0 excaps hXc hcapT blk don ci buffer,
+      setMCPriority := fun h => by
+        subst h
+        exact tcb_set_mcpJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen
+          hargs (hstall' p) call sl extra x0 x1 x2 hx0 excaps hXc hcapT blk don ci buffer,
+      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       suspend := fun h => by
         subst h
         exact tcb_suspendJ arI s ar σ J hni hRR p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _
           blk call don _ ci sl excaps buffer,
-      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       unbindNotification := fun h => by
         subst h
         exact tcb_unbind_ntfnJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct
@@ -1697,7 +2008,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_set_flagsJ arI s ar σ J hni hFl p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
           hlen hargs (hstall' p) hARI.toARKeep call (cslotAddr sl) extra blk don ci sl excaps buffer,
-      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       writeFPU := fun h => by
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .writeFpu by
