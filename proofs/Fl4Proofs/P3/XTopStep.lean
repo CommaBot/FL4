@@ -221,7 +221,7 @@ theorem XTopAt.slotStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S}
     have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
     refine hw.2.2 _ (by unfold P1.Aligned; rw [hv]; have := hP.vs.ksb_al; omega) fun h => ?_
     obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl h
-    exact hIA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) y hy ⟨g1, g2⟩
+    exact hIA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) y hy ⟨g1, g2⟩
 
 /-! ## Writes in the kernel-global block -/
 
@@ -374,7 +374,7 @@ theorem XTopAt.ksStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
   obtain ⟨Q, R0, hc, -⟩ := hSch.lists
   have hko : ∀ t ∈ Z.T, t.val + 4096 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ t.val := fun t ht => by
     rcases hc.ksOut t ht with h | h <;> omega
-  refine hX.frameStep hw (fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩))
+  refine hX.frameStep hw (fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩))
     (fun b hb hf => not_ksW ?_ hb) (fun b hb hf => not_ksW ?_ hb) (not_ksW (Or.inr (Or.inr (Or.inr ?_))))
     hO.kh hO.cdt hO.orig hO.ct hO.um hO.asidT hO.gpml4 ((hSch.ksW hw).ksStep hO) hIrq' hIo' hD' hAR'
   · rcases hf with ⟨e, he, h | h⟩ | ⟨r, hr, h⟩ | ⟨t, ht, ⟨h1, h2⟩ | h⟩ | ⟨wp, hwp, rfl⟩
@@ -476,7 +476,7 @@ theorem XTopAt.schedStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
       | exact tcb_oobj hy (hT y hy) (by decide) (by decide)
       | exact Or.inl ⟨h.1, h.2.1⟩
       | (have := domKW_val h
-         exact Or.inr (Or.inl ⟨by omega, by omega⟩))
+         exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩))
   · -- not read by the endpoint relation
     have hPe := hP.ep
     rcases schW_val hT hkf hb with ⟨y, hy, hyv⟩ | ⟨g1, g2⟩ | hv

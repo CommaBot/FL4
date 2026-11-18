@@ -183,11 +183,11 @@ theorem sagree_slotw {th : TypedHeap} (hP : Placed th) {s s' : S} {σ : Fl4Spec.
     obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
     have hv : (curDomA st s).val = (L.ksb s).val + 8 := by
       unfold curDomA; simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
+    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
   · refine hw.mem_eq (dtA_aligned hc.node) fun hsw => ?_
     obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
     have hv := dtA_val hc.node
-    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
+    exact hA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) x hx ⟨g1, g2⟩
   · obtain ⟨x, hx, g1, g2⟩ := slotWd_range hP hsw
     obtain ⟨y, n, hk, hy⟩ := hs.scs sc hsc
     exact hSA sc hsc y n hk a (hy.in_obj hin) x hx ⟨g1, g2⟩
@@ -256,7 +256,7 @@ theorem insert_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s 
   have hDS : DomSame (L.mem s) (L.mem s') (L.ksb s) :=
     Vs.domSame_low hA.kfit hA.kal fun b hb h1 h2 => hw.mem_eq hb fun hsw => by
       obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl hsw
-      exact hA.ks b h1 (by omega) y hy ⟨g1, g2⟩
+      exact hA.ks b h1 (by omega) (by omega) y hy ⟨g1, g2⟩
   refine ⟨σ', heq, hR.frame hP0 (fun b hb hf => hw.mem_eq hb fun hsw => ?_) hK.ikview,
     sre_slotw hPl hS hA hSA hw hK, ⟨hw, hK.keepCV hKC⟩, G', hPl, ⟨hSt', hV', hM', hC', hI'⟩, hFI', ?_, ?_, ?_,
     hSA.mono (fun p y n hp => ⟨y, hK.sc' hp⟩)⟩

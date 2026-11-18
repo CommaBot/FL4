@@ -40,11 +40,15 @@ noncomputable section
 section Defs
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 
-/-- The objects whose words the other subsystems' relations read. -/
+/-- The objects whose words the other subsystems' relations read. The
+kernel-state block's clause leaves out the IRQ node's CTEs
+(`[ksb + 1248, ksb + 5344)`): they are one-slot CNodes of the typed heap
+(`IntLayout.node`), hence `VObj` words. -/
 def OObj (N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word)) (c : U64) (s : S) (σ : Fl4Spec.State Unit)
     (a : U64) : Prop :=
   (L.nodeBase s c ≤ a.val ∧ a.val < L.nodeBase s c + 4288) ∨
-  ((L.ksb s).val ≤ a.val ∧ a.val < (L.ksb s).val + 13568) ∨
+  ((L.ksb s).val ≤ a.val ∧ a.val < (L.ksb s).val + 13568 ∧
+    (a.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ a.val)) ∨
   (∃ t ∈ T, t.val + 256 ≤ a.val ∧ a.val < t.val + 4096) ∨
   (∃ e ∈ E, e.val ≤ a.val ∧ a.val < e.val + 16) ∨
   (∃ r ∈ R, r.val ≤ a.val ∧ a.val < r.val + 32) ∨
@@ -125,7 +129,7 @@ theorem SchedRel.memFrame {s s' : S} {σ : Fl4Spec.State Unit} (hS : Sched.Sched
   have hN := hc.node
   have hnode : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → L.mem s' (L.nodeAt s c o) = L.mem s (L.nodeAt s c o) :=
     fun o ho h8 => hm _ (nodeAt_aligned hN ho h8) (Or.inl (by rw [nodeAt_val hN ho]; omega))
-  have hks : ∀ K : U64, 0 < K.val → K.val < 13568 → K.val % 8 = 0 →
+  have hks : ∀ K : U64, 0 < K.val → K.val < 1248 → K.val % 8 = 0 →
       L.mem s' (core.num.U64.wrapping_add (L.ksb s) K) = L.mem s (core.num.U64.wrapping_add (L.ksb s) K) := by
     intro K h0 h1 h8
     have hv : (core.num.U64.wrapping_add (L.ksb s) K).val = (L.ksb s).val + K.val := by

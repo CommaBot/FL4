@@ -343,8 +343,8 @@ theorem regw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
     rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
     exact hKr
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', hAr⟩, ?_⟩, hksb, hmV⟩
-  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka hmK rfl rfl
-  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka hmK rfl
+  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl rfl
+  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl
   · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_, hP.po, hP.ps,
       by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩
     · rw [hksb]
@@ -465,8 +465,8 @@ theorem sts_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (σ
     rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
     exact hKr
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb, hmV⟩
-  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka hmK hist hinode
-  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka hmK (by rw [harch])
+  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) hist hinode
+  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) (by rw [harch])
   · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_, hP.po, hP.ps,
       by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩
     · rw [hksb]
@@ -952,7 +952,7 @@ theorem tacHypX_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar : A
     refine Notif.rd_wr_ne hba hb' (fun e => ?_)
     subst e
     obtain ⟨q, hq, i, hi, rfl⟩ := hb
-    refine hX.1.2.disj _ (Or.inr (Or.inl ⟨by rw [hksb]; omega, by rw [hksb]; omega⟩))
+    refine hX.1.2.disj _ (Or.inr (Or.inl ⟨by rw [hksb]; omega, by rw [hksb]; omega, by rw [hksb]; omega⟩))
       (table_vobj hX.1.2.pt hq hi _)
   have hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s' ar σ :=
     ⟨hCR', hFI', by rw [hksb]; exact hMO', by rw [hksb]; exact hDom', hX⟩
@@ -1022,7 +1022,7 @@ theorem tacHypX_topT {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (ar : 
     refine Notif.rd_wr_ne hba hb' (fun e => ?_)
     subst e
     obtain ⟨q, hq, i, hi, rfl⟩ := hb
-    refine hX.1.2.disj _ (Or.inr (Or.inl ⟨by rw [hksb]; omega, by rw [hksb]; omega⟩))
+    refine hX.1.2.disj _ (Or.inr (Or.inl ⟨by rw [hksb]; omega, by rw [hksb]; omega, by rw [hksb]; omega⟩))
       (table_vobj hX.1.2.pt hq hi _)
   have hI : RInv (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s' ar σ :=
     ⟨hCR', hFI', by rw [hksb]; exact hMO', by rw [hksb]; exact hDom', hX⟩

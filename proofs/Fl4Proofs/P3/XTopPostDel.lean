@@ -71,7 +71,7 @@ theorem post_irqX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {Z : X
         (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨irq, hf⟩)))))))
   refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', ?_, hX'.rel.2.1, hw, by constructor <;> rfl, hX'⟩
   · obtain ⟨K, h1, h2, -, e⟩ := hb
-    exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+    exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)
   · exact setIrqState_mem' _ _ _
 
 set_option maxHeartbeats 4000000 in
@@ -113,7 +113,7 @@ theorem post_ioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
   refine ⟨hX.slotsSame_of hw (fun b hb => ?_), hw.1, σ', setIoportMask_mem _ _ _ _, hX'.rel.2.1, hw,
     by constructor <;> rfl, hX'⟩
   obtain ⟨K, h1, h2, -, e⟩ := hb
-  exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+  exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)
 
 /-- **`XPostDelHyp` holds** (the IRQ handler and IO port cleanups), from the
 kernel-state block's layout at the `XTopAt` states (`IntLayout`, `IoLayout` [P]), the arch IRQ mask

@@ -82,8 +82,8 @@ theorem IpcApart.of_topD {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {s : S} {σ 
     IpcApart th N T E R B (L.ksb s) c := by
   refine ⟨fun a ha x hx ⟨h1, h2⟩ => ?_, fun a h1 h2 x hx ⟨h3, h4⟩ =>
     hP.disj a (Or.inl ⟨h1, h2⟩) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4), hdom,
-    fun a h1 h2 x hx ⟨h3, h4⟩ =>
-    hP.disj a (Or.inr (Or.inl ⟨h1, h2⟩)) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4),
+    fun a h1 h2 h0 x hx ⟨h3, h4⟩ =>
+    hP.disj a (Or.inr (Or.inl ⟨h1, h2, h0⟩)) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4),
     by have := hP.vs.ksb_fit; omega, hP.vs.ksb_al⟩
   refine hP.disj a ?_ (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h1 h2)
   rcases ha with h | h | h | h | h

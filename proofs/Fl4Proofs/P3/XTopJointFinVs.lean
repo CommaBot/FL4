@@ -315,16 +315,17 @@ theorem JAtZ.vsNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     have : c.val * 4288 + 4288 ≤ 64 * 4288 := by omega
     right; omega
 
-/-- A VSpace word lies outside the kernel-state block. -/
+/-- A VSpace word misses the IRQ node: it lies outside the typed heap's
+objects (`TopPlaced.po`/`.vo`), and the IRQ node's CTEs are objects of it
+(`IntLayout.node`). -/
 theorem JAtZ.vsKsW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {b : U64} (hb : VsW Z (L.ksb s) b) : b.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val := by
+    {b : U64} (hb : VsW Z (L.ksb s) b) : b.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ b.val := by
   have hP := J.xtop.fin.1.2
-  have hv : VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b := by
-    rcases hb with ⟨q, hq, i, hi, rfl⟩ | h
-    · exact table_vobj hP.pt hq hi _
-    · exact vsWrite_vobj hP.vs h
-  by_contra hn
-  exact hP.disj b (Or.inr (Or.inl ⟨by omega, by omega⟩)) hv
+  have ho : OutsideObjects Z.th b := by
+    rcases hb with h | h
+    · exact hP.po b h
+    · exact hP.vo b h
+  exact J.intL.out_node ho.2
 
 theorem JAtZ.vsW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {b : U64} (hb : VsW Z (L.ksb s) b) : P1.Aligned b := by
@@ -440,7 +441,7 @@ theorem JAtZ.kern_keepA {s : S} {a : A} {σ : Fl4Spec.State Unit}
     by rw [ecw]; exact K.curT, by rw [hcpu, hna]; exact K.act, by rw [hna]; exact K.dwAl,
     by rw [hna]; exact K.dwObj, by rw [hna, hna, hcpu, ecw]; exact K.dwNe, ?_,
     by rw [F.gpml4]; exact F.hasPm K.gpm, by rw [F.gpml4]; exact K.ga, by rw [F.gpml4]; exact K.gf,
-    K.heap, K.h0, by rw [hks]; exact K.hks, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
+    K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
     K.csLt, K.cs0⟩
@@ -550,7 +551,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     have hdo : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
     exact hW.mem_eq J.kern.dwAl fun hb => by rcases J.vsNodeW hb J.kern.cs0 with e | e <;> omega
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s1) (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
-    irqNode_keep hW J.kern.ksbFit J.kern.ksbAl fun b hb => by rcases J.vsKsW hb with e | e <;> omega
+    irqNode_keep hW J.kern.ksbFit J.kern.ksbAl fun b hb => J.vsKsW hb
   -- the dead stay dead
   have hAI : ActIdle σ1 := J.act.ar F
   have hdead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>

@@ -242,7 +242,7 @@ theorem XTopAt.slotStepT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
     refine hw.2.2 _ (by unfold P1.Aligned; rw [hv]; have := hP.vs.ksb_al; omega) fun h => ?_
     obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl h
-    exact hIA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) y hy ⟨g1, g2⟩
+    exact hIA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) y hy ⟨g1, g2⟩
 
 end
 

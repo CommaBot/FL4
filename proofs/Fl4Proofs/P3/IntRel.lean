@@ -75,6 +75,29 @@ theorem nodeA_val {kb i : U64} (hf : kb.val + 13568 ≤ 2 ^ 64) (hi : i.val < 12
   simp [U64.size, U64.numBits]
   omega
 
+/-- **A word of the IRQ node lies in one of its CTEs**, a one-slot CNode of
+the typed heap (`IntLayout.node`). -/
+theorem IntLayout.in_node {th : TypedHeap} {kb b : U64} (hI : IntLayout th kb)
+    (h1 : kb.val + 1248 ≤ b.val) (h2 : b.val < kb.val + 5344) :
+    ∃ i : U64, i.val < 128 ∧ th (nodeA kb i) = some (.cnode 0) ∧
+      (nodeA kb i).val ≤ b.val ∧ b.val < (nodeA kb i).val + 32 := by
+  have hf := hI.fit
+  have hiv : (⟨BitVec.ofNat 64 ((b.val - kb.val - 1248) / 32)⟩ : U64).val = (b.val - kb.val - 1248) / 32 := by
+    show (BitVec.ofNat 64 _).toNat = _
+    simp; omega
+  have hi : (⟨BitVec.ofNat 64 ((b.val - kb.val - 1248) / 32)⟩ : U64).val < 128 := by rw [hiv]; omega
+  have hv := nodeA_val hf hi
+  exact ⟨_, hi, hI.node _ hi, by rw [hv, hiv]; omega, by rw [hv, hiv]; omega⟩
+
+/-- **A word outside the typed heap's objects misses the IRQ node**
+(`IntLayout.in_node`). -/
+theorem IntLayout.out_node {th : TypedHeap} {kb b : U64} (hI : IntLayout th kb)
+    (hb : ∀ p k, th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k)) :
+    b.val < kb.val + 1248 ∨ kb.val + 5344 ≤ b.val := by
+  by_contra hn
+  obtain ⟨i, -, hn', g1, g2⟩ := hI.in_node (b := b) (by omega) (by omega)
+  exact hb _ _ hn' ⟨g1, by simp only [objSize]; omega⟩
+
 theorem irqStA_inj {kb i j : U64} (hf : kb.val + 13568 ≤ 2 ^ 64) (hi : i.val < 128) (hj : j.val < 128)
     (h : irqStA kb i = irqStA kb j) : i = j := by
   have h1 := irqStA_val hf hi; have h2 := irqStA_val hf hj

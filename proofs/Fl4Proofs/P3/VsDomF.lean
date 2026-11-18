@@ -58,7 +58,7 @@ theorem dom_not_foot {s : S} {a : A} {σ : Fl4Spec.State Unit}
   obtain ⟨ho1, -⟩ := domOffs_lt' ho
   have hfit := hS.2.vs.ksb_fit
   have hb : (ksW (L.ksb s) o).val = (L.ksb s).val + o.val := ksW_val (by omega)
-  have hO : OObj st N T C E R B c s σ (ksW (L.ksb s) o) := Or.inr (Or.inl ⟨by omega, by omega⟩)
+  have hO : OObj st N T C E R B c s σ (ksW (L.ksb s) o) := Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)
   have hnv := hS.2.disj _ hO
   rintro (⟨x, hx, e | e⟩ | ⟨x, k, hx, hk, e⟩ | ⟨p, hp, i, hi, e⟩ | hv | ⟨t, ht, e⟩ | e)
   · apply hnv; rw [e, ← wordOf_zero x]; exact vobj_slot hS.2.pl P L4 L3 L2 L1 _ hx (by decide)

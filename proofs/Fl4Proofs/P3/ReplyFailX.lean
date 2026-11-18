@@ -100,8 +100,8 @@ theorem bufw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
     rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
     exact hKr
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hNt', ?_, ?_, hKr', hAr⟩, ?_⟩, hksb, hmV⟩
-  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka hmK rfl rfl
-  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka hmK rfl
+  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl rfl
+  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl
   · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_, hP.po, hP.ps,
       by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩
     · rw [hksb]

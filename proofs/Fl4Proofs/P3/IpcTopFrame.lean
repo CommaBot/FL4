@@ -179,8 +179,10 @@ structure IpcApart (th : TypedHeap) (N T E R : Set U64) (B : Set (U64 × Fl4Spec
   node : ∀ a : U64, kb.val + 13568 + c.val * 4288 ≤ a.val → a.val < kb.val + 13568 + c.val * 4288 + 4288 →
     ∀ x, IsSlot th x → ¬ (x.val ≤ a.val ∧ a.val < x.val + 32)
   dom : ∀ a, IWords N T E R B a → a.val < kb.val ∨ kb.val + 256 ≤ a.val
-  /-- The kernel-global block holds no slot. -/
-  ks : ∀ a : U64, kb.val ≤ a.val → a.val < kb.val + 13568 → ∀ x, IsSlot th x → ¬ (x.val ≤ a.val ∧ a.val < x.val + 32)
+  /-- The kernel-global block holds no slot, but in the IRQ node's CTEs
+  (`[kb + 1248, kb + 5344)`, one-slot CNodes of the typed heap). -/
+  ks : ∀ a : U64, kb.val ≤ a.val → a.val < kb.val + 13568 → (a.val < kb.val + 1248 ∨ kb.val + 5344 ≤ a.val) →
+    ∀ x, IsSlot th x → ¬ (x.val ≤ a.val ∧ a.val < x.val + 32)
   kfit : kb.val + 13568 ≤ 2 ^ 64
   kal : kb.val % 8 = 0
 
@@ -197,8 +199,8 @@ theorem IpcApart.of_top {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {s : S} {σ :
     IpcApart th N T E R B (L.ksb s) c := by
   refine ⟨fun a ha x hx ⟨h1, h2⟩ => ?_, fun a h1 h2 x hx ⟨h3, h4⟩ =>
     hP.disj a (Or.inl ⟨h1, h2⟩) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4), fun a ha => ?_,
-    fun a h1 h2 x hx ⟨h3, h4⟩ =>
-    hP.disj a (Or.inr (Or.inl ⟨h1, h2⟩)) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4),
+    fun a h1 h2 h0 x hx ⟨h3, h4⟩ =>
+    hP.disj a (Or.inr (Or.inl ⟨h1, h2, h0⟩)) (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h3 h4),
     by have := hP.vs.ksb_fit; omega, hP.vs.ksb_al⟩
   · refine hP.disj a ?_ (Vs.vobj_of_slot hP.pl P L4 L3 L2 L1 (L.ksb s) hx h1 h2)
     rcases ha with h | h | h | h | h
@@ -350,12 +352,13 @@ theorem slotWd_nobuf {th : TypedHeap} {kb : U64} (hIA : IpcApart th N T E R B kb
   exact hIA.slot _ (Or.inl ⟨t, ht, by omega, by omega⟩) y hy ⟨g1, g2⟩
 
 /-- An IPC write word is either one the other relations read (`OObj`) or a
-slot word, never in the kernel-global block. -/
+slot word, never in the kernel-global block but in the IRQ node's CTEs. -/
 theorem IpcVW.cases {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {P L4 L3 L2 L1 : Set U64}
     (h : VsP (L := L) th cr N T C E R B c s σ) (hIA : IpcApart th N T E R B (L.ksb s) c) (hPl : Placed th) {b : U64}
     (hb : IpcVW (L := L) th N T C E R B c s σ b) :
     (Vs.OObj st N T C E R B c s σ b ∨ ∃ y, IsSlot th y ∧ y.val ≤ b.val ∧ b.val < y.val + 32) ∧
-      (b.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val) := by
+      (b.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val ∨
+        ((L.ksb s).val + 1248 ≤ b.val ∧ b.val < (L.ksb s).val + 5344)) := by
   have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
   rcases hb with (⟨t, ht, h1, h2⟩ | ⟨e, he, h1, h2⟩ | ⟨r, hr, h1, h2⟩ | ⟨n, hn, h1, h2⟩ | ⟨wp, hw, h1, h2⟩) |
     ⟨h1, h2⟩ | ⟨sc, hsc, x, n, hk, hobj⟩ | hsw
@@ -372,7 +375,7 @@ theorem IpcVW.cases {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} {P L4 L3 
   · obtain ⟨y, hy, g1, g2⟩ := slotWd_range' hPl hsw
     refine ⟨Or.inr ⟨y, hy, g1, g2⟩, ?_⟩
     by_contra hc
-    exact hIA.ks b (by omega) (by omega) y hy ⟨g1, g2⟩
+    exact hIA.ks b (by omega) (by omega) (by omega) y hy ⟨g1, g2⟩
 
 /-- **`VsP` across an IPC step**: FL4 writes IPC words, node words, SC words
 and slot words (`IpcVW`), the spec keeps what `VsKeep` says, and the MDB
@@ -404,7 +407,8 @@ theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W :
     obtain ⟨q, hq, i, hi, rfl⟩ := hb
     exact Vs.table_vobj hP.pt hq hi _
   have hks : ∀ b : U64, Aligned b → (L.ksb s).val ≤ b.val → b.val < (L.ksb s).val + 13568 →
-      L.mem s' b = L.mem s b := fun b hb h1 h2 => hmem b hb fun hw => by
+      (b.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ b.val) →
+      L.mem s' b = L.mem s b := fun b hb h1 h2 h3 => hmem b hb fun hw => by
     have := (IpcVW.cases (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) h hIA hPl (hWI b hw)).2; omega
   have hsz' : ∀ (sc : U64) x n, σ'.kheap sc.bv = some (.schedContext x n) → ∃ x0, σ.kheap sc.bv = some (.schedContext x0 n) :=
     fun sc x n hx => hsz _ x n hx
@@ -453,7 +457,8 @@ theorem VsP.frame {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W :
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hks _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), har]
+    rw [hksb, hks _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)
+      (by rw [hkv]; omega), har]
     exact hkr
   · rw [hksb]; exact h.ksT
   · rw [hksb]; exact h.ksE

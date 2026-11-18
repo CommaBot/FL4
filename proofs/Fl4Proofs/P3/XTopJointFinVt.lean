@@ -197,7 +197,10 @@ theorem JAtZ.vtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) ar
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s1) (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
     irqNode_keep hW J.kern.ksbFit J.kern.ksbAl fun b hb => by
       by_contra hn
-      exact hb.oobj (Or.inr (Or.inl ⟨by omega, by omega⟩))
+      by_cases hI : (L.ksb s).val + 1248 ≤ b.val ∧ b.val < (L.ksb s).val + 5344
+      · obtain ⟨i, -, hn', g1, g2⟩ := J.intL.in_node hI.1 hI.2
+        exact hb.vobj (Or.inl ⟨_, 0, hn', g1, by simpa using g2⟩)
+      · exact hb.oobj (Or.inr (Or.inl ⟨by omega, by omega, by omega⟩))
   -- the dead stay dead
   have hAI : ActIdle σ := J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>

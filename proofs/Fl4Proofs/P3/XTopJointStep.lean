@@ -298,7 +298,7 @@ theorem schW_oobj {Z : XSets} {s : S} {σ : Fl4Spec.State Unit} (hT : P1.TcbPlac
   · exact sfootI_oobj hT (Or.inl h)
   · exact sfootI_oobj hT (Or.inr h)
   · have := domKW_val h
-    exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+    exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)
 
 set_option maxHeartbeats 4000000 in
 /-- **`JAtZ` is closed under the primitive steps** (module docstring). -/
@@ -334,7 +334,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
       (hio hX.fin.1.1.2.2.2.2.1) (hD.frame (fun o ho => hdk.2 o ho) hdl hds)
       (by rw [hO.cr3]; exact hAM _ _ _ hAR harch)
     have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
-      hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
+      hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega, by omega⟩)
     obtain ⟨Ac', Lst', D', R⟩ := hJ.ks s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D rfl J hX1
     exact ⟨Z.G, Z.vs, Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap hO.kh) (JCs.same J hSS (KSz.of_kheap hO.kh)) R⟩
   · -- an insertion

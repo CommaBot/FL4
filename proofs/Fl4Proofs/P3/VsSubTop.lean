@@ -72,23 +72,25 @@ theorem stsAct_updK_fields (σ : Fl4Spec.State Unit) (t : Fl4Spec.ObjRef) (o : F
 
 theorem IrqRel.ksFrame {m m' : U64 → U64} {kb : U64} {σ σ' : Fl4Spec.State Unit} (hR : IrqRel m kb σ)
     (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0)
-    (hm : ∀ b : U64, Aligned b → kb.val ≤ b.val → b.val < kb.val + 13568 → m' b = m b)
+    (hm : ∀ b : U64, Aligned b → kb.val ≤ b.val → b.val < kb.val + 13568 →
+      (b.val < kb.val + 1248 ∨ kb.val + 5344 ≤ b.val) → m' b = m b)
     (h1 : σ'.interruptStates = σ.interruptStates) (h2 : σ'.interruptIrqNode = σ.interruptIrqNode) :
     IrqRel m' kb σ' := by
   refine ⟨fun i hi => ?_, fun i hi => by rw [h2]; exact hR.node i hi⟩
   have hv := irqStA_val hkf hi
-  rw [h1, hm _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)]
+  rw [h1, hm _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)]
   exact hR.st i hi
 
 theorem IoRel.ksFrame {m m' : U64 → U64} {kb : U64} {σ σ' : Fl4Spec.State Unit} (hR : IoRel m kb σ)
     (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0)
-    (hm : ∀ b : U64, Aligned b → kb.val ≤ b.val → b.val < kb.val + 13568 → m' b = m b)
+    (hm : ∀ b : U64, Aligned b → kb.val ≤ b.val → b.val < kb.val + 13568 →
+      (b.val < kb.val + 1248 ∨ kb.val + 5344 ≤ b.val) → m' b = m b)
     (h1 : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts) : IoRel m' kb σ' := by
   intro p hp
   have hw : (wI p).val < 1024 := by rw [wI_val hp]; omega
   have hv := ioA_val hkf hw
   unfold bitOf
-  rw [h1, hm _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)]
+  rw [h1, hm _ (by unfold Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega)]
   exact hR p hp
 
 set_option maxHeartbeats 4000000 in
@@ -200,8 +202,8 @@ theorem restart_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A)
     rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega), harch]
     exact hKr
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hN', ?_, ?_, hKr', by rw [harch]; exact hAr⟩, ?_⟩, hksb, hmV⟩
-  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka hmK hist hinode
-  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka hmK (by rw [harch])
+  · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) hist hinode
+  · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) (by rw [harch])
   · refine ⟨hP.ep, by rw [hksb]; exact hP.vs, hP.pt, hP.pl, fun y hy => ?_, fun y h1 h2 => ?_, hP.po, hP.ps,
       by rw [hksb]; exact hP.pv, by rw [hksb]; exact hP.vo, by rw [hksb]; exact hP.sd, by rw [hksb]; exact hP.tko⟩
     · rw [hksb]
