@@ -38,6 +38,108 @@ theorem or1_and_not1 (x : U64) (h : x.val % 2 = 0) : (x ||| 1#u64) &&& ~~~1#u64 
 theorem getD1_cons {α : Type} (a : α) (l : List α) (d : α) : (a :: l).getD 1 d = l.headD d := by
   cases l <;> rfl
 
+/-- **`donate` of an SC bound to no thread** (`donate_refines`), with
+`donate_bound_refines`' facts: the SC's thread deleted while the caller
+waited on the reply. -/
+theorem donate_unbound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
+    {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64) {y : Fl4Spec.SchedContext} {n : Nat}
+    (hk : σ.kheap sc.bv = some (.schedContext y n)) (hyn : y.scTcb = none)
+    {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb}
+    (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
+    (hrel : inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y) :
+    schedcontext.donate st ar s a sc t ⦃ r => ∃ σ',
+      Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv σ = ({((), σ')}, False) ∧ r.2 = a ∧
+      SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
+      WritesIn st s r.1 (fun b => SFoot st T c s b ∨ b = scW sc 24#u64) ∧
+      σ'.kheap sc.bv = some (.schedContext { y with scTcb := some t.bv } n) ∧
+      (∀ q, q ≠ sc.bv → q ≠ t.bv → σ'.kheap q = σ.kheap q) ∧
+      σ'.kheap t.bv = some (.tcb { xt with tcbSchedContext := some sc.bv }) ∧
+      σ'.curThread = σ.curThread ∧ σ'.curTime = σ.curTime ∧ σ'.idleThread = σ.idleThread ⦄ := by
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have hP := hS.placed
+  obtain ⟨xs, ns, hks, hxs⟩ := hs.scs sc hsc
+  rw [hk] at hks
+  cases hks
+  have htw0 : L.mem s (scW sc 24#u64) = 0#u64 := by
+    have h := hxs.tcb
+    rw [hyn] at h
+    exact optRef_none h.symm
+  have ht0 : t ≠ 0#u64 := fun e => (hc.tcbs t ht).ne0 (by rw [e]; rfl)
+  have hst : sc.bv ≠ t.bv := by intro e; rw [e, hkt] at hk; cases hk
+  -- the invariant after
+  have hnqt : NotQueued σ t.bv := by
+    refine ⟨fun d q hm => ?_, fun hm => ?_⟩
+    · obtain ⟨x, _, _, _, h1, h2, -⟩ := hI.rq d q _ hm; rw [hkt] at h1; cases h1; rw [hxt0] at h2; cases h2
+    · obtain ⟨x, _, _, _, h1, h2, -⟩ := hI.rel _ hm; rw [hkt] at h1; cases h1; rw [hxt0] at h2; cases h2
+  have hnp : ∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some sc.bv := by
+    intro u x hx hu
+    obtain ⟨y', m', h1, h2⟩ := hI.back u x sc.bv hx hu
+    rw [hk] at h1; cases h1; rw [hyn] at h2; cases h2
+  set σ6 := donSt σ sc.bv t.bv y n xt with hσ6
+  have hkσ6 : σ6.kheap sc.bv = some (.schedContext { y with scTcb := some t.bv } n) := by
+    simp [σ6, donSt, updK, hst]
+  have hkt6 : σ6.kheap t.bv = some (.tcb { xt with tcbSchedContext := some sc.bv }) := by
+    simp [σ6, donSt, updK]
+  have hko6 : ∀ q, q ≠ sc.bv → q ≠ t.bv → σ6.kheap q = σ.kheap q := fun q h1 h2 => by
+    simp [σ6, donSt, updK, h1, h2]
+  have hID : InvBut σ6 t.bv := hI.donatedW hk hnp hkt hst hnqt
+  have hI6 : Inv σ6 := hID.inv fun x hx hcl => by
+    intro x' scp y' m' h1 h2 h3 h4 _
+    rw [hkt6] at hx; cases hx
+    rw [hkt6] at h1; cases h1; cases h2
+    rw [hkσ6] at h3
+    cases h3
+    exact hrel hcl h4
+  -- FL4's side
+  unfold schedcontext.donate
+  step as ⟨i, i_post⟩
+  rw [scTcbA_eq, htw0] at i_post
+  subst i_post
+  step as ⟨b, b_post⟩
+  simp only [b_post, decide_true, ↓reduceIte, bind_ok]
+  refine WP.spec_bind (obj.Sc.set_tcb.spec' s sc t) ?_
+  rintro s2 rfl
+  have hal24 : Aligned (scW sc 24#u64) := (hxs.hdr (K := 24#u64) (by simp) (by simp)).1
+  have w1 : WritesIn st s (L.wr s (scW sc 24#u64) t) (· = scW sc 24#u64) := writesIn_wr hal24
+  obtain ⟨hS1, hf1, hv1⟩ := hS.set_sc_tcb hsc hk t
+  rw [optRef_ne ht0] at hS1 hv1
+  have hR1 := hR.frame hP hf1 hv1
+  have hkt1 : (updSc σ sc.bv { y with scTcb := some t.bv } n).kheap t.bv = some (.tcb xt) := by
+    simp [updK, Ne.symm hst, hkt]
+  refine WP.spec_bind (obj.Tcb.set_sc.spec' _ t sc) ?_
+  rintro s3 rfl
+  have w2 := w1.trans (writesIn_tcb (K := 3464#u64) (c := c) hc.tcbs ht (by unfold SOff SOffL; decide) (by simp) sc)
+  obtain ⟨hS2, hf2, hv2⟩ := hS1.set_tcb_sc ht hkt1 (v := sc) (Or.inr hsc)
+  rw [optRef_ne hsc0] at hS2 hv2
+  have hR2 := hR1.frame hS1.placed hf2 hv2
+  have hw : WritesIn st s (L.wr (L.wr s (scW sc 24#u64) t) (scA t) sc)
+      (fun b => SFoot st T c s b ∨ b = scW sc 24#u64) :=
+    w2.mono fun b hb => hb.elim Or.inr fun h => Or.inl ((SFoot.ksb (by simp)).1 h)
+  step as ⟨cpu, cpu_post⟩
+  have hcpu : cpu = c := by rw [cpu_post, scCoreA_eq]; exact hS2.core sc hsc
+  subst hcpu
+  unfold smp.migrate_tcb
+  step as ⟨i, i_post⟩
+  obtain ⟨Q2, R2, hc2, hs2⟩ := hS2.lists
+  have hi : i = cpu := by rw [i_post]; exact hc2.aff t ht
+  subst hi
+  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
+  refine ⟨σ6, ?_, trivial, hS2, hR2, hN.updSc.updTcb, hI6, hw, hkσ6, hko6, hkt6, rfl, rfl, rfl⟩
+  -- the spec
+  have hg : Fl4Spec.getScObjRef (Z := Unit) Fl4Spec.SchedContext.scTcb sc.bv σ = ({(y.scTcb, σ)}, False) := by
+    unfold Fl4Spec.getScObjRef; rw [nd_bind_one (getSchedContext_eq hk)]; rfl
+  unfold Fl4Spec.schedContextDonate
+  rw [nd_bind_one hg, hyn]
+  simp only [Fl4Spec.NonDet.when, ne_eq, not_true_eq_false, ↓reduceIte]
+  rw [nd_bind_one (show Fl4Spec.NonDet.pure (σ := Fl4Spec.State Unit) () σ = ({((), σ)}, False) from rfl)]
+  show (Fl4Spec.updateSchedContext sc.bv _ >>= _) σ = _
+  rw [nd_bind_one (updateSchedContext_eq hk _)]
+  rw [show Fl4Spec.scTcbUpdate (fun _ => some t.bv) y = { y with scTcb := some t.bv } from rfl]
+  show Fl4Spec.threadSet _ t.bv _ = _
+  rw [threadSet_eq _ hkt1]
+  rfl
+
 /-- **`reply_pop` refines `reply_unlink_sc`, the donation back to `t`, and
 (by `hU`) `reply_unlink_tcb`.** -/
 theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
@@ -46,7 +148,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     {sc : U64} (hsc : sc ∈ C) (hsc0 : sc ≠ 0#u64) {y : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc.bv = some (.schedContext y n)) {r : U64} {rest : List U64} (hL : Lst sc = r :: rest)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
-    (hdon : xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t)
+    (hdon : xt.tcbSchedContext = none → (∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∨ y.scTcb = none)
     (hrel : xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
     (Q : S × A → Prop)
     (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
@@ -319,12 +421,6 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     · -- the donation back to `t`
       rw [if_pos hi0]
       have hxt0 : xt.tcbSchedContext = none := by rw [hti, hi0, optRef_zero]
-      obtain ⟨f, hf, hyf, hft⟩ := hdon hxt0
-      obtain ⟨xf, hkf, -⟩ := hs.tcb f hf
-      have hkfc : σc.kheap f.bv = some (.tcb xf) := by
-        rw [hkc _ (fun e => by rw [e, hkr] at hkf; cases hkf), hkb _ (fun e => by rw [e, hk] at hkf; cases hkf)
-          (fun d hh e => by obtain ⟨xd, hkd, -⟩ := hCR.reply d (hhR d hh); rw [← e, hkf] at hkd; cases hkd)]
-        exact hkf
       have hkcsc : σc.kheap sc.bv = some (.schedContext { y with scReplies := y.scReplies.tail } n) := by
         rw [hkc _ hpr]; exact hkbsc
       have hrelc : inClass xt.tcbState → Fl4Spec.scActive { y with scReplies := y.scReplies.tail } = true →
@@ -332,63 +428,122 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
         have := hrel hxt0 h1 h2
         unfold released at this ⊢
         rw [show σc.curTime = σ.curTime from htmb]; exact this
-      refine WP.spec_bind (donate_bound_refines _ a σc hS3 hR3 hN3 hI3 hsc hsc0 hkcsc hf hyf hkfc ht hktc hxt0 hft
-        hrelc) ?_
-      rintro ⟨s4, a4⟩ ⟨σ4, hdon4, ha4, hS4, hR4, hN4, hI4, hw4, hksc4, hko4, hkf4, hkt4, -, -, -⟩
-      simp only at ha4
-      subst ha4
-      obtain ⟨cw1, cw2⟩ := callWords_of_dfoot hS3 hRP3 hsc hw4
-      refine WP.spec_bind (obj.Reply.set_prev.val s4 r 0#u64) ?_
-      rintro s5 rfl
-      rw [zero_or_masked]
-      have hSz4 : SzKeep σc σ4 := by
-        intro q x' n' hq
-        by_cases e : q = sc.bv
-        · subst e; rw [hksc4] at hq; cases hq; exact ⟨_, hkcsc⟩
-        by_cases ef : q = f.bv
-        · subst ef; rw [hkf4] at hq; cases hq
-        by_cases et : q = t.bv
-        · subst et; rw [hkt4] at hq; cases hq
-        · rw [hko4 q e ef et] at hq; exact ⟨x', hq⟩
-      have hRP4 : RPlaced st N T C R c s4 σ4 := hRP3.frame hw4.1 hSz4
-      have hqft : ∀ q ∈ C, q.bv ≠ f.bv ∧ q.bv ≠ t.bv := fun q hq => by
-        obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
-        exact ⟨fun e => (by rw [e, hkf] at hkq; cases hkq), fun e => (by rw [e, hkt] at hkq; cases hkq)⟩
-      obtain ⟨hCR5, hiso5, hcs5⟩ := hcall s4 cw1 cw2 σ4
-        (fun q hq y0 n0 hy0 => by
-          by_cases e : q = sc
-          · subst e; rw [hkcsc] at hy0; cases hy0; exact ⟨_, hksc4, rfl⟩
-          · exact ⟨y0, by rw [hko4 _ (bv_ne e) (hqft q hq).1 (hqft q hq).2]; exact hy0, rfl⟩)
-        (fun d hd x hx => by
-          have hdsc : d.bv ≠ sc.bv := fun e => by rw [e, hkcsc] at hx; cases hx
-          have hdf : d.bv ≠ f.bv := fun e => by rw [e, hkfc] at hx; cases hx
-          have hdt : d.bv ≠ t.bv := fun e => by rw [e, hktc] at hx; cases hx
-          exact ⟨x, by rw [hko4 _ hdsc hdf hdt]; exact hx, rfl⟩)
-      have w4 : WritesIn st (L.wr s2 (rNextA r) 0#u64) s4 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
-        hw4.mono fun b hb => by
-          rcases hb with hb | rfl
-          · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb w3.1).1 hb))
-          · exact Or.inl (KFoot.of_sw (sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide)))
-      have w5 := tr (tr w3 w4) (cwr (s0 := s4) (v := 0#u64) hPr (Or.inl ⟨r, hrR, Or.inr rfl⟩))
-      refine WP.spec_bind (hU _ σ4 _ (hS4.wr_far hPr (hRP4.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
-        (hR4.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
-          (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
-        hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_ w5) ?_
-      · refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
-        · have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
-          have e2 : q ≠ f.bv := by rintro rfl; rw [hkfc] at hq; cases hq
-          have e3 : q ≠ t.bv := by rintro rfl; rw [hktc] at hq; cases hq
-          exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
-        · by_cases e2 : q = f.bv
-          · subst e2; rw [hkfc] at hq; cases hq; exact ⟨{ xf with tcbSchedContext := none }, hkf4, rfl⟩
-          by_cases e3 : q = t.bv
-          · subst e3; rw [hktc] at hq; cases hq; exact ⟨{ xt with tcbSchedContext := some sc.bv }, hkt4, rfl⟩
-          have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
-          exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
-      · rw [nd_bind_one hunl]
-        unfold Fl4Spec.NonDet.when
-        rw [if_pos hxt0]; exact hdon4
-      · intro s6 h6; rw [WP.spec_ok]; exact h6
+      rcases hdon hxt0 with ⟨f, hf, hyf, hft⟩ | hyn
+      · -- an SC bound to `f`
+        obtain ⟨xf, hkf, -⟩ := hs.tcb f hf
+        have hkfc : σc.kheap f.bv = some (.tcb xf) := by
+          rw [hkc _ (fun e => by rw [e, hkr] at hkf; cases hkf), hkb _ (fun e => by rw [e, hk] at hkf; cases hkf)
+            (fun d hh e => by obtain ⟨xd, hkd, -⟩ := hCR.reply d (hhR d hh); rw [← e, hkf] at hkd; cases hkd)]
+          exact hkf
+        refine WP.spec_bind (donate_bound_refines _ a σc hS3 hR3 hN3 hI3 hsc hsc0 hkcsc hf hyf hkfc ht hktc hxt0 hft
+          hrelc) ?_
+        rintro ⟨s4, a4⟩ ⟨σ4, hdon4, ha4, hS4, hR4, hN4, hI4, hw4, hksc4, hko4, hkf4, hkt4, -, -, -⟩
+        simp only at ha4
+        subst ha4
+        obtain ⟨cw1, cw2⟩ := callWords_of_dfoot hS3 hRP3 hsc hw4
+        refine WP.spec_bind (obj.Reply.set_prev.val s4 r 0#u64) ?_
+        rintro s5 rfl
+        rw [zero_or_masked]
+        have hSz4 : SzKeep σc σ4 := by
+          intro q x' n' hq
+          by_cases e : q = sc.bv
+          · subst e; rw [hksc4] at hq; cases hq; exact ⟨_, hkcsc⟩
+          by_cases ef : q = f.bv
+          · subst ef; rw [hkf4] at hq; cases hq
+          by_cases et : q = t.bv
+          · subst et; rw [hkt4] at hq; cases hq
+          · rw [hko4 q e ef et] at hq; exact ⟨x', hq⟩
+        have hRP4 : RPlaced st N T C R c s4 σ4 := hRP3.frame hw4.1 hSz4
+        have hqft : ∀ q ∈ C, q.bv ≠ f.bv ∧ q.bv ≠ t.bv := fun q hq => by
+          obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
+          exact ⟨fun e => (by rw [e, hkf] at hkq; cases hkq), fun e => (by rw [e, hkt] at hkq; cases hkq)⟩
+        obtain ⟨hCR5, hiso5, hcs5⟩ := hcall s4 cw1 cw2 σ4
+          (fun q hq y0 n0 hy0 => by
+            by_cases e : q = sc
+            · subst e; rw [hkcsc] at hy0; cases hy0; exact ⟨_, hksc4, rfl⟩
+            · exact ⟨y0, by rw [hko4 _ (bv_ne e) (hqft q hq).1 (hqft q hq).2]; exact hy0, rfl⟩)
+          (fun d hd x hx => by
+            have hdsc : d.bv ≠ sc.bv := fun e => by rw [e, hkcsc] at hx; cases hx
+            have hdf : d.bv ≠ f.bv := fun e => by rw [e, hkfc] at hx; cases hx
+            have hdt : d.bv ≠ t.bv := fun e => by rw [e, hktc] at hx; cases hx
+            exact ⟨x, by rw [hko4 _ hdsc hdf hdt]; exact hx, rfl⟩)
+        have w4 : WritesIn st (L.wr s2 (rNextA r) 0#u64) s4 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+          hw4.mono fun b hb => by
+            rcases hb with hb | rfl
+            · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb w3.1).1 hb))
+            · exact Or.inl (KFoot.of_sw (sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide)))
+        have w5 := tr (tr w3 w4) (cwr (s0 := s4) (v := 0#u64) hPr (Or.inl ⟨r, hrR, Or.inr rfl⟩))
+        refine WP.spec_bind (hU _ σ4 _ (hS4.wr_far hPr (hRP4.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
+          (hR4.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
+            (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
+          hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_ w5) ?_
+        · refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
+          · have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+            have e2 : q ≠ f.bv := by rintro rfl; rw [hkfc] at hq; cases hq
+            have e3 : q ≠ t.bv := by rintro rfl; rw [hktc] at hq; cases hq
+            exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
+          · by_cases e2 : q = f.bv
+            · subst e2; rw [hkfc] at hq; cases hq; exact ⟨{ xf with tcbSchedContext := none }, hkf4, rfl⟩
+            by_cases e3 : q = t.bv
+            · subst e3; rw [hktc] at hq; cases hq; exact ⟨{ xt with tcbSchedContext := some sc.bv }, hkt4, rfl⟩
+            have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+            exact ⟨x, by rw [hko4 q e1 e2 e3]; exact hq, rfl⟩
+        · rw [nd_bind_one hunl]
+          unfold Fl4Spec.NonDet.when
+          rw [if_pos hxt0]; exact hdon4
+        · intro s6 h6; rw [WP.spec_ok]; exact h6
+      · -- an SC bound to no thread
+        refine WP.spec_bind (donate_unbound_refines _ a σc hS3 hR3 hN3 hI3 hsc hsc0 hkcsc hyn ht hktc hxt0
+          hrelc) ?_
+        rintro ⟨s4, a4⟩ ⟨σ4, hdon4, ha4, hS4, hR4, hN4, hI4, hw4, hksc4, hko4, hkt4, -, -, -⟩
+        simp only at ha4
+        subst ha4
+        obtain ⟨cw1, cw2⟩ := callWords_of_dfoot hS3 hRP3 hsc hw4
+        refine WP.spec_bind (obj.Reply.set_prev.val s4 r 0#u64) ?_
+        rintro s5 rfl
+        rw [zero_or_masked]
+        have hSz4 : SzKeep σc σ4 := by
+          intro q x' n' hq
+          by_cases e : q = sc.bv
+          · subst e; rw [hksc4] at hq; cases hq; exact ⟨_, hkcsc⟩
+          by_cases et : q = t.bv
+          · subst et; rw [hkt4] at hq; cases hq
+          · rw [hko4 q e et] at hq; exact ⟨x', hq⟩
+        have hRP4 : RPlaced st N T C R c s4 σ4 := hRP3.frame hw4.1 hSz4
+        have hqt : ∀ q ∈ C, q.bv ≠ t.bv := fun q hq => by
+          obtain ⟨xq, nq, hkq, -⟩ := hs.scs q hq
+          exact fun e => (by rw [e, hkt] at hkq; cases hkq)
+        obtain ⟨hCR5, hiso5, hcs5⟩ := hcall s4 cw1 cw2 σ4
+          (fun q hq y0 n0 hy0 => by
+            by_cases e : q = sc
+            · subst e; rw [hkcsc] at hy0; cases hy0; exact ⟨_, hksc4, rfl⟩
+            · exact ⟨y0, by rw [hko4 _ (bv_ne e) (hqt q hq)]; exact hy0, rfl⟩)
+          (fun d hd x hx => by
+            have hdsc : d.bv ≠ sc.bv := fun e => by rw [e, hkcsc] at hx; cases hx
+            have hdt : d.bv ≠ t.bv := fun e => by rw [e, hktc] at hx; cases hx
+            exact ⟨x, by rw [hko4 _ hdsc hdt]; exact hx, rfl⟩)
+        have w4 : WritesIn st (L.wr s2 (rNextA r) 0#u64) s4 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) :=
+          hw4.mono fun b hb => by
+            rcases hb with hb | rfl
+            · exact Or.inl (KFoot.of_sfoot ((SFoot.ksb w3.1).1 hb))
+            · exact Or.inl (KFoot.of_sw (sw_hdr hS hsc (K := 24#u64) (by simp) (by simp) (by decide)))
+        have w5 := tr (tr w3 w4) (cwr (s0 := s4) (v := 0#u64) hPr (Or.inl ⟨r, hrR, Or.inr rfl⟩))
+        refine WP.spec_bind (hU _ σ4 _ (hS4.wr_far hPr (hRP4.far hrR (Or.inl (rPrevA_val hA))) 0#u64)
+          (hR4.frame hP (footEq_wr_far hP hPr (fun n hn => by have := hRP.ntfn r hrR n hn; rw [rPrevA_val hA]; omega)
+            (fun t ht => by have := hRP.tcb r hrR t ht; rw [rPrevA_val hA]; omega) _) (KView.refl _))
+          hN4 hI4 hCR5 (hRP4.frame (by simp) (SzKeep.of_kheap rfl)) hiso5 (huf.trans ?_) hcs5 ?_ w5) ?_
+        · refine ⟨fun q x hq => ?_, fun q x hq => ?_⟩
+          · have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+            have e3 : q ≠ t.bv := by rintro rfl; rw [hktc] at hq; cases hq
+            exact ⟨x, by rw [hko4 q e1 e3]; exact hq, rfl⟩
+          · by_cases e3 : q = t.bv
+            · subst e3; rw [hktc] at hq; cases hq; exact ⟨{ xt with tcbSchedContext := some sc.bv }, hkt4, rfl⟩
+            have e1 : q ≠ sc.bv := by rintro rfl; rw [hkcsc] at hq; cases hq
+            exact ⟨x, by rw [hko4 q e1 e3]; exact hq, rfl⟩
+        · rw [nd_bind_one hunl]
+          unfold Fl4Spec.NonDet.when
+          rw [if_pos hxt0]; exact hdon4
+        · intro s6 h6; rw [WP.spec_ok]; exact h6
     · -- no donation
       rw [if_neg hi0]
       have hxt1 : ¬ xt.tcbSchedContext = none := by rw [hti, optRef_ne hi0]; simp

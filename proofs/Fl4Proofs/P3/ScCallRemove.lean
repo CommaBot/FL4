@@ -255,15 +255,17 @@ theorem nd_when_congr {σ' : Type} {P P' : Prop} [Decidable P] [Decidable P'] (h
 popped (`reply_pop`, with the donation back), a reply further down is cut out
 with the older ones, and a detached one is spliced out of its chain.  `hU` is
 the final `reply_unlink` (`reply_unlink_tcb` on the spec side), given the
-relations, the reply isolated, and the spec's `replyRemoveSc`. -/
-theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+relations, the reply isolated, and the spec's `replyRemoveSc`.  `hdon`: the
+popped reply's SC goes back bound to another thread of `T`, or bound to none
+(its thread deleted while the caller waited). -/
+theorem reply_remove_refinesU {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
     {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst) (hRP : RPlaced st N T C R c s σ)
     (hC0 : ∀ q ∈ C, q ≠ 0#u64)
     (hSCs : ∀ p y n, σ.kheap p = some (.schedContext y n) → ∃ q ∈ C, q.bv = p)
     {r : U64} (hr : r ∈ R) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hdon : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-      xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t)
+      xt.tcbSchedContext = none → (∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∨ y.scTcb = none)
     (hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
       xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
     (Q : S × A → Prop)
@@ -494,6 +496,30 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
       rw [headBit_even (even_of_bit t1)]
       simp only [Bool.false_eq_true, ↓reduceIte]
       exact H
+
+/-- **`reply_remove`'s call-stack part against l4v**, the popped reply's SC
+going back bound to another thread (`reply_remove_refinesU`). -/
+theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
+    {Lst : U64 → List U64} (hCR : CallRel (L.mem s) R C σ Lst) (hRP : RPlaced st N T C R c s σ)
+    (hC0 : ∀ q ∈ C, q ≠ 0#u64)
+    (hSCs : ∀ p y n, σ.kheap p = some (.schedContext y n) → ∃ q ∈ C, q.bv = p)
+    {r : U64} (hr : r ∈ R) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    (hdon : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
+      xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t)
+    (hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
+      xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (Q : S × A → Prop)
+    (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
+      SchedRel st N T C c s5 σ5 → NtfnStateRel N T (L.mem s5) σ5 → NSC N C σ5 → Inv σ5 →
+      CallRel (L.mem s5) R C σ5 Lst5 → RPlaced st N T C R c s5 σ5 → Isolated (L.mem s5) R r → UFrame σ σ5 →
+      CallStep (L.mem s) (L.mem s5) R C Lst Lst5 r →
+      replyRemoveSc t.bv r.bv σ = ({((), σ5)}, False) →
+      WritesIn st s s5 (fun b => KFoot st T N C c s σ b ∨ CallW' R C b) →
+      ipc.reply_unlink st s5 r t ⦃ s6 => Q (s6, a) ⦄) :
+    ipc.reply_remove st ar s a r t ⦃ Q ⦄ :=
+  reply_remove_refinesU s a σ hS hR hN hI hCR hRP hC0 hSCs hr ht hkt
+    (fun sc hsc y n h1 h2 h3 => Or.inl (hdon sc hsc y n h1 h2 h3)) hrel Q hU
 
 end
 

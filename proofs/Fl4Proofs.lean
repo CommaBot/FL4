@@ -37,6 +37,7 @@ import Fl4Proofs.P1.QueueTcbInv
 import Fl4Proofs.P1.QueueBind
 import Fl4Proofs.P1.QueueReply
 import Fl4Proofs.P1.QueueReplyPop
+import Fl4Proofs.P1.QueueReplyKw
 import Fl4Proofs.P1.QueueEntry
 import Fl4Proofs.P1.QueueInvoke
 import Fl4Proofs.P1.QueueSlots
@@ -421,4 +422,6 @@ import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.IpcFinEpInv
 import Fl4Proofs.P3.XTopJointFinEp
 import Fl4Proofs.P3.XTopJointFinReply
+import Fl4Proofs.P3.IpcRemoveSpecJ
+import Fl4Proofs.P3.XTopJointRemove
 import Fl4Proofs.P3.XTopJointDelR
