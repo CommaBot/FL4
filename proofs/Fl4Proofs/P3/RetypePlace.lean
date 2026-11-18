@@ -11,7 +11,10 @@ P3: **`JPlaced` across retype** (ScPlace's joint placement), from
 * `JPlaced.retype`: the placement after. The spec's SCs after (`sc`) come
   from `SpecFree` before (`invokeUntyped_kheap`, `old_window`): an old SC
   misses the dropped region and the window, a new one is the window's
-  (`sc_of_default`).
+  (`sc_of_default`). A slot's SC cap (`CapObjH`) keeps its SC (covered by
+  the cap, so outside the dropped region); a new SC cap names the window's
+  new SC, inside the source RAM untyped's region and so not the idle SC
+  (`JCovD.idleOut`).
 -/
 import Fl4Proofs.P3.RetypeBridge
 import Fl4Proofs.P3.ScPlace
@@ -271,6 +274,18 @@ theorem capV_zero {m : U64 → U64} {a : U64} (h0 : m a = 0#u64) (h8 : m (wordOf
     capV m a = .Null := by
   unfold capV; rw [h0, h8]; rfl
 
+/-- A new cap that is an SC cap is FL4 type 5's, at the cap's base and size. -/
+theorem newCapOf_sc {n : Nat} {base us p sb : U64} {dev : Bool}
+    (h : newCapOf n base us dev = .SchedContext p sb) : n = 5 ∧ p = base ∧ sb = us := by
+  revert h
+  apply newCapOf_ind (fun c => c = .SchedContext p sb → n = 5 ∧ p = base ∧ sb = us) <;> intros <;> simp_all
+
+/-- A new SC of a retype is `H'`'s, of the user size. -/
+theorem hOut_newSc {H H' : Heap} {lo hi A k w j us : Nat} {uu q : U64}
+    (hO : HOut H H' lo hi A k w (newKind 5 us)) (huu : uu.val = us) (hj : j < w) (hv : q.val = A + j * k) :
+    H' q = some (.sc uu.val) := by
+  rw [hO, if_pos ⟨⟨j, hj, hv⟩, rfl⟩, huu]; try rfl
+
 set_option maxHeartbeats 1600000 in
 set_option maxRecDepth 8000 in
 /-- **`JPlaced` across a retype** (module docstring): from the placement
@@ -279,7 +294,8 @@ of the spec type, the kernel-global area placed, the current thread a TCB, the p
 write frame (`hPPW`, P1's `PPW`), the IRQ slots' caps null or in the MDB,
 `SpecFree` and well-formed spec CNodes (l4v `valid_objs`) before, and the
 source cap (FL4's, the spec's after `set_thread_state`, the window at or
-past its free index without a reset): the typed heap, spec state and window
+past its free index without a reset; for an SC retype a RAM untyped, as
+FL4's `decode_untyped` checks: `hdevS`): the typed heap, spec state and window
 after, such that over any P1 heap after in `HOut`'s shape (the dropped
 region `[lo, hi)`), with the new TCBs among `Tr'` and the spec's SCs in
 `C'`, the placement holds. -/
@@ -306,7 +322,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0)
     (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
-    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) :
+    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false) :
     ∃ (th' : TypedHeap) (σ' : Fl4Spec.State Unit) (A k w lo hi : Nat),
       A = rb.toNat ∧ k = 2 ^ bitsApi t us ∧ w = slots.length ∧ lo ≤ A ∧ A + w * k ≤ hi ∧
       ((lo = A ∧ hi = A + w * k) ∨ ∃ (ct : U64) (s0 sR : S) (a1 : A') (p sb fi : U64) (d : Bool),
@@ -741,6 +757,15 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
           | Frame p sz r d m' ep a' va =>
             rw [hc] at hC
             exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | SchedContext p sb =>
+            rw [hc] at hC
+            obtain ⟨hH, hpi⟩ := hC
+            have hfit := hJP.heap.fits p _ hH
+            have hlt := hJP.heap.lt64 p _ hH
+            simp only [HKind.bits] at hfit hlt
+            exact ⟨hkeepH p _ hH (covered_of_cap ha0 hc (ok_inj (phys_eq _).symm) rfl
+              (capRange (b := sb) (ok_inj (ptr_eq _).symm)
+                (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits])) hlt hfit)), hpi⟩
           | _ => trivial
         · obtain ⟨q, sz, f, d, e⟩ := isUt_iff.1 (hE.utk a ha0 hu)
           rw [e]; trivial
@@ -769,6 +794,28 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
             have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
             rw [Nat.add_mul, Nat.one_mul] at this
             rw [hb, ht]; omega
+        | SchedContext p sb =>
+          -- a new SC: `H'`'s at the window's slot, of the cap's size, in the
+          -- source (RAM) untyped's region, so not the idle SC (`IdleOut`)
+          have hsc := newCapOf_sc (by rw [hcjE] at hc; unfold cjOf at hc; exact hc)
+          obtain ⟨rfl, rfl, rfl⟩ := hsc
+          have hlt' : A + j * k < 2 ^ 64 := by
+            have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+            rw [Nat.add_mul, Nat.one_mul] at this; omega
+          have hv : (⟨BitVec.ofNat 64 (A + j * k)⟩ : U64).val = A + j * k := by
+            show (BitVec.ofNat 64 (A + j * k)).toNat = _; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt']
+          refine ⟨hOut_newSc hO huu hj hv, fun hi => ?_⟩
+          obtain ⟨hxG, p1, sb1, fi1', fi2, d1, e0, -, hpA, -, hAs, -, -⟩ := hE.usrc
+          have e0' : capV (L.mem s) (cslotAddr sl) = .Untyped p1 sb1 fi1' d1 := e0
+          rw [hcs0] at e0'
+          simp only [capability.Cap.Untyped.injEq] at e0'
+          obtain ⟨rfl, rfl, rfl, rfl⟩ := e0'
+          have hd : d0 = false := hdevS rfl
+          subst hd
+          have hI := (hJ.idleOut _ hxG _ _ _ hcs0 _ (Or.inr hi)).1
+          have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+          rw [Nat.add_mul, Nat.one_mul] at this
+          rw [hv] at hI; omega
         | _ => trivial
     · have hnull : capV (L.mem res.2.1) a = .Null := by
         by_contra hne

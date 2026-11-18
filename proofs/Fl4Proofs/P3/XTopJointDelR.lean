@@ -84,7 +84,8 @@ some of them proved here.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
   `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
   steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
-  (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`); with `JScCapHyp` [J]. The SC
+  (P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`); the cap's SC the spec's of its
+  size, not the idle SC, by `JAtZ.scCap` (`jScCapHyp_of`). The SC
   may be the current SC (XTopJointFinSc's docstring).
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
   `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`,
@@ -477,9 +478,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   placement, the EPT-mapped frames' ASIDs, the VT-x objects apart from
   `H`'s). -/
   vt : JVtHyps (L := L) arI AR th
-  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `jScFin_of`
-  with `JThreadFinHyps.yieldToH` (proved from `ticks` [P]); `JScCapHyp`). -/
-  scCap : JScCapHyp (L := L) arI AR th
   /-- The steps of a final thread cap's finalisation at `J` not proved
   (XTopJointFinThread's `JThreadFinHyps` but `utTcb`, which `LiveJ` gives:
   `JDelParts.thread`). -/
@@ -981,15 +979,15 @@ theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR
     | _ => cases hf
   · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
 /-- **A final SC cap's finalisation at `J`** (`JScFinHyp` [J], the SC dead
-after by P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), from `JScCapHyp` [J];
-the SC may be the current SC. -/
-theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th) :
+after by P1's `fin_cap_sc.dead`, `JAtZ.sc_ready`), the cap's SC by
+`JAtZ.scCap`; the SC may be the current SC. -/
+theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) :
     JFinAtF (L := L) arI AR th ScK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sb, hce⟩ hfin
   subst hce hth
   obtain ⟨V, Ac, Lst, D, J, hkb, hns⟩ := hW
   have hcv := capV_of_capAt hc
-  have hC' := hC (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc
+  have hC' := J.scCap arI hA hc
   obtain ⟨hHp, -, hp0, hna, hidle, -⟩ :=
     JAtZ.scCapFacts arI J hA hc ⟨hC'.1, hC'.2, fun _ _ _ _ _ u hu => (hns u hu).elim⟩
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
@@ -1118,7 +1116,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
-    · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread) h.scCap) h.scCap Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
+    · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread)) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
     · exact jFinAt_thread arI hT h.arKeep h.thread h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     by_cases hvt : EptK c ∨ VcpuK c

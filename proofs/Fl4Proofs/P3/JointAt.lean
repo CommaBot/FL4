@@ -151,6 +151,14 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   (the converse of `zH`; for the `SchedValid` rebuild). -/
   hset : (∀ e, H e = some .ep → e ∈ Z.E) ∧ (∀ n, H n = some .ntfn → n ∈ Z.N) ∧
     (∀ r, H r = some .reply → r ∈ Z.R)
+  /-- [carried] `H`'s SCs are `Z.C`'s (the converse of `JPlaced.sc` with
+  `ObjCover.sc`; l4v: an SC object of the heap is one the scheduler
+  relation covers). Kept by every step at `J` (each keeps `H` and `Z.C`;
+  a retype adds its new SCs to both). The idle SC, when the spec has one at
+  a non-null address, is in both (`JPlaced.sc`, `ObjCover.sc`); a cap never
+  names it (`CapObjH`). With `JPlaced.cobj` it gives an SC cap's spec SC
+  (`JAtZ.scCap`). -/
+  hscC : ∀ c z, H c = some (.sc z) → c ∈ Z.C
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
   kern : JKern (L := L) H Cs D Z.th s σ
   -- 1c: CSpace
@@ -219,6 +227,13 @@ theorem dstate (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : DState (L := 
 theorem delE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     ∃ K, (∀ p r, Z.th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧ DelE (L := L) Z.th K s σ :=
   J.bound.delE J.del J.xtop.rel.2.2.1.kt J.finM
+
+/-- **No SC of `H` lies outside `Z.C`** (`hscC`): any statement about
+`H`'s SCs outside `Z.C` holds vacuously (XTopJointFinVs's
+`JVsApartHyp.scOut`). -/
+theorem scOut (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {P : U64 → Nat → Prop} :
+    ∀ p z, H p = some (.sc z) → p ∉ Z.C → P p z :=
+  fun p z hp hpC => absurd (J.hscC p z hp) hpC
 
 /-- `ScLinkHyp`. -/
 theorem link (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : Sched.ScLinkHyp σ := J.sv.toLink

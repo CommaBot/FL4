@@ -40,11 +40,16 @@ def FrApartH (H : Heap) (c : capability.Cap) : Prop :=
 object of `H` inside its range (so a non-null table, `H` holding nothing at
 0); an EPT or frame cap's range meets no object of `H` but `other` ones (the frames
 are user memory; stated by range, not by an object at the frame's base,
-since a 4 KiB alias of a page of a large frame has no object of its own). -/
+since a 4 KiB alias of a page of a large frame has no object of its own).
+An SC cap names an SC of `H` of the cap's size (l4v `valid_cap`'s
+`obj_bits`), not the idle SC (l4v `valid_global_refs`: the boot's
+`create_idle_threads` gives the idle SC no cap, and a retype's new SCs lie in
+a RAM untyped's region, which misses the idle objects, `IdleOut`). -/
 def CapObjH (H : Heap) : capability.Cap → Prop
   | .Ept p lv m a va => (∃ n, H p = some (.other n) ∧ baseF (.Ept p lv m a va) ≤ p.val ∧
       p.val + 2 ^ n ≤ topF (.Ept p lv m a va) + 1) ∧ FrApartH H (.Ept p lv m a va)
   | .Frame p sz r d m ep a va => FrApartH H (.Frame p sz r d m ep a va)
+  | .SchedContext p sb => H p = some (.sc sb.val) ∧ p.bv ≠ Fl4Spec.idleScPtr
   | _ => True
 
 theorem capObjH_null {H : Heap} : CapObjH H .Null := trivial
@@ -64,6 +69,9 @@ theorem capObjH_of_shape {H : Heap} {c d : capability.Cap} (h : shape c = shape 
     cases d <;> simp only [shape, reduceCtorEq] at h
     intro q k hq hk
     rw [hb, ht]; exact hd q k hq hk
+  | SchedContext p sb =>
+    cases d <;> simp [shape] at h
+    obtain ⟨rfl, rfl⟩ := h; exact hd
   | _ => trivial
 
 /-- A cap naming no endpoint, notification, reply, frame or EPT table has

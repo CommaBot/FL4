@@ -54,9 +54,10 @@ theorem fullF_zombie {a c u : capability.Cap} (h : fullF a c = some u) {p zt n :
   cases a <;> cases c <;> simp [fullF] at h
 
 /-- The caps naming an endpoint, a notification or a reply (the objects
-`CapTyped` constrains), a frame or an EPT table (`CapObjH`). -/
+`CapTyped` constrains), a frame, an EPT table or an SC (`CapObjH`). -/
 def tyObj : capability.Cap → Bool
   | .Endpoint .. => true
+  | .SchedContext .. => true
   | .Notification .. => true
   | .Reply .. => true
   | .Frame .. => true
