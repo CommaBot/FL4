@@ -22,6 +22,8 @@ pub struct PerCpu {
     pub gs_base: Cell<u64>,
     /// Debug registers hold a thread's breakpoints.
     pub dr_loaded: Cell<bool>,
+    /// A deferred user #DB turned breakpoints off (DR7) during this entry.
+    pub dr_disarmed: Cell<bool>,
     /// The user address space this core runs (CR3 value). With
     /// the skim window the kernel runs on its own tables (entry.S loads
     /// them on every entry) and `exit_cr3` is what the exit to user code
@@ -59,6 +61,7 @@ impl PerCpu {
             fs_base: Cell::new(0),
             gs_base: Cell::new(0),
             dr_loaded: Cell::new(false),
+            dr_disarmed: Cell::new(false),
             cr3: Cell::new(0),
             exit_cr3: Cell::new(0),
             pcids: [const { Cell::new(crate::tlb::Slot::EMPTY) }; crate::tlb::SLOTS],

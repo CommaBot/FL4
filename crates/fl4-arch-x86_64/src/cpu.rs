@@ -219,6 +219,28 @@ pub fn write_dr(i: u64, v: u64) {
     }
 }
 
+/// IRET to the next instruction, at the same privilege level and stack:
+/// ends NMI blocking without taking an interrupt.
+#[inline]
+pub fn iret_to_self() {
+    unsafe {
+        asm!(
+            "mov {t:e}, ss",
+            "push {t}",
+            "lea {t}, [rsp + 8]",
+            "push {t}",
+            "pushfq",
+            "mov {t:e}, cs",
+            "push {t}",
+            "lea {t}, [rip + 2f]",
+            "push {t}",
+            "iretq",
+            "2:",
+            t = out(reg) _,
+        )
+    }
+}
+
 #[inline]
 pub fn enable_interrupts_briefly() {
     // Not `nomem`: interrupt handlers run here and touch kernel state.
@@ -245,5 +267,24 @@ pub mod msr {
 pub fn init_pat() {
     if cpuid(1, 0).edx & (1 << 16) != 0 {
         wrmsr(msr::PAT, (rdmsr(msr::PAT) & !0x0000_00ff_ffff_ffff) | 0x0000_0001_0007_0406);
+    }
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn iret_to_self_preserves_stack_and_flags() {
+        let (rsp_before, flags_before, rsp_after, flags_after): (u64, u64, u64, u64);
+        unsafe {
+            asm!("mov {}, rsp", "pushfq", "pop {}", out(reg) rsp_before, out(reg) flags_before);
+        }
+        iret_to_self();
+        unsafe {
+            asm!("mov {}, rsp", "pushfq", "pop {}", out(reg) rsp_after, out(reg) flags_after);
+        }
+        assert_eq!(rsp_before, rsp_after);
+        assert_eq!(flags_before & 0xcd5, flags_after & 0xcd5);
     }
 }

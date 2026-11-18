@@ -188,6 +188,9 @@ pub mod sc {
 
 pub const NUM_DOMAINS: u64 = config::NUM_DOMAINS;
 pub const NUM_DOMAIN_SCHEDULES: u64 = config::NUM_DOMAIN_SCHEDULES;
+// As in seL4 (KernelMaxNumNodes depends on KernelNumDomains = 1): the
+// domain schedule is global, and switching it does not reach other cores.
+const _: () = assert!(NUM_DOMAINS == 1 || config::MAX_NUM_NODES == 1);
 pub const NUM_PRIORITIES: u64 = 256;
 pub const L2_BITMAP_WORDS: u64 = NUM_PRIORITIES / 64;
 /// Upper bound on cores (DESIGN.md §3): the user setting, at most 64.

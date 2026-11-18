@@ -1,6 +1,7 @@
 //! Regressions for fl4-core audit findings: the per-core debug TCB lists
 //! across migration (finding 2), IRQ backend release on handler deletion
-//! (finding 3b), and the hardware debug exception path (finding 8.1).
+//! (finding 3b), the hardware debug exception path (finding 8.1), and
+//! DomainSetSet on a thread running on another core (audit F4).
 
 use fl4_abi::consts::object as ot;
 use fl4_core::capability::{Cap, FrameSize};
@@ -49,6 +50,8 @@ struct Machine {
     acked: Vec<u64>,
     freed: Vec<u64>,
     masked: Vec<(u64, bool)>,
+    /// When set, a remote stall runs the stalled core's side on this memory.
+    smp: Option<Shared>,
 }
 impl Arch for Machine {
     fn now(&mut self) -> u64 {
@@ -104,13 +107,36 @@ impl Arch for Machine {
     fn fpu_sanitise(&mut self, t: u64) { self.events.push(("sanitise", t)); }
     fn fpu_reload(&mut self, t: u64) { self.events.push(("reload", t)); }
     fn fpu_release(&mut self, t: u64) { self.events.push(("release", t)); }
-    fn remote_stall(&mut self, cpu: u64) { self.events.push(("stall", cpu)); }
+    fn remote_stall(&mut self, cpu: u64) {
+        self.events.push(("stall", cpu));
+        if let Some(m) = &self.smp {
+            let mut there = Shared { cpu, ..m.clone() };
+            fl4_core::smp::stall(&mut there, &mut Machine::default());
+        }
+    }
     fn send_reschedule(&mut self, _: u64) {}
     fn putc(&mut self, _: u64) {}
     fn get_char(&mut self) -> u64 {
         0
     }
     fn halt(&mut self) {}
+}
+
+/// One memory seen from several cores.
+#[derive(Clone, Default)]
+struct Shared {
+    words: std::rc::Rc<std::cell::RefCell<BTreeMap<u64, u64>>>,
+    cpu: u64,
+}
+impl Store for Shared {
+    fn read(&self, a: u64) -> u64 { *self.words.borrow().get(&a).unwrap_or(&0) }
+    fn write(&mut self, a: u64, v: u64) { self.words.borrow_mut().insert(a, v); }
+    fn zero(&mut self, a: u64, len: u64) {
+        for i in (0..len).step_by(8) { self.write(a + i, 0); }
+    }
+    fn clear_free(&mut self, a: u64, len: u64) { self.zero(a, len); }
+    fn ks_base(&self) -> u64 { 0x100000 }
+    fn cur_cpu(&self) -> u64 { self.cpu }
 }
 
 const DEBUG_TCBS: u64 = node::DEBUG_TCBS;
@@ -379,5 +405,53 @@ fn stalled_vm_exit_and_following_irq_do_not_access_retyped_sc() {
         syscall::handle_interrupt_entry(&mut s, &mut a, 8);
         assert_eq!(*a.acked.last().unwrap(), 8);
         assert_eq!(sched::cur_sc(&s).0, idle_sc.0);
+    }
+}
+
+/// Audit F4: DomainSetSet on a thread running on another core. Without a
+/// stall, set_domain queues the thread on its core while it runs there;
+/// once it blocks, that core's scheduler would pick it from the queue and
+/// run a blocked thread. With the stall, its core has switched to idle
+/// first, so the thread is queued and current nowhere.
+#[test]
+fn domain_set_set_stalls_a_thread_running_on_another_core() {
+    use fl4_abi::label;
+    use fl4_core::{domain, sched, sporadic};
+    for remote in [true, false] {
+        let mut s = Shared::default();
+        let mut a = Machine { smp: Some(s.clone()), ..Default::default() };
+        let caller = Tcb(0x20000);
+        let target = Tcb(0x30000);
+        let sc = Sc(0x40000);
+        caller.set_state(&mut s, sched::TS_RUNNING);
+        target.set_state(&mut s, sched::TS_RUNNING);
+        target.set_affinity(&mut s, 1);
+        target.set_sc(&mut s, sc.0);
+        sc.set_tcb(&mut s, target.0);
+        sporadic::refill_new(&mut s, sc, 2, 1000, 0);
+        for cpu in 0..2 {
+            let idle = Tcb(0x60000 + cpu * 0x1000);
+            let idle_sc = Sc(0x70000 + cpu * 0x1000);
+            idle.set_state(&mut s, sched::TS_IDLE);
+            idle.set_sc(&mut s, idle_sc.0);
+            sporadic::refill_new(&mut s, idle_sc, 2, 100000, 0);
+            node_set(&mut s, cpu, node::IDLE_THREAD, idle.0);
+            node_set(&mut s, cpu, node::IDLE_SC, idle_sc.0);
+        }
+        node_set(&mut s, 0, node::CUR_THREAD, caller.0);
+        if remote {
+            node_set(&mut s, 1, node::CUR_THREAD, target.0);
+            node_set(&mut s, 1, node::CUR_SC, sc.0);
+        } else {
+            let idle = node_get(&s, 1, node::IDLE_THREAD);
+            node_set(&mut s, 1, node::CUR_THREAD, idle);
+        }
+        let extra = [Slot(0x50000), Slot(0x50020), Slot(0x50040)];
+        extra[0].set_cap(&mut s, Cap::Thread { ptr: target.0 });
+        assert!(domain::decode(&mut s, &mut a, label::DomainSetSet, 1, 0, &extra).is_ok());
+        assert!(sched::queued(&s, target), "a runnable thread in the current domain is queued");
+        assert_ne!(node_get(&s, 1, node::CUR_THREAD), target.0, "the thread is queued while it runs on core 1");
+        assert_eq!(a.events, if remote { vec![("stall", 1)] } else { vec![] });
+        assert_eq!(node_get(&s, 0, node::IPI_PENDING) & 2, 2, "core 1 must reschedule");
     }
 }

@@ -402,15 +402,23 @@ pub fn zero(cpu: u64, addr: u64, len: u64) {
 ///
 /// The clear is safe even if the transaction later aborts: zeroing memory
 /// that holds no live object changes nothing anyone depends on. What must
-/// hold is that the region is free in the committed state when it is
-/// cleared, which the transaction decided from its reads. So the clear
-/// locks the region's table entries (in table order, like a commit),
-/// takes a version, checks the read set is still current, clears, and
-/// releases the entries at that version: a commit that would make the
-/// region live writes into it, so it waits for the entries and lands
-/// after the zeros. The transaction's snapshot is then current at the new
-/// version, so its read version moves up to it (TL2 timestamp extension)
-/// and later reads of the cleared lines stay valid.
+/// hold is that the region stays free in the committed state for as long
+/// as it is being cleared, which the transaction decided from its reads.
+/// A commit can make the region live without writing into it: memory
+/// below an untyped's free index of 0 is known to be zero, so a retype
+/// from such an untyped (or from a copy of it) only writes caps, and the
+/// frame it creates can be mapped and written by user code at once. So
+/// the clear acts as a commit of the read set: it locks the region's
+/// table entries together with the read set's, in table order like a
+/// commit, takes a version, checks the reads are still current, clears,
+/// and releases. Any commit that changes what the reads decided writes
+/// one of the read entries, so it either landed before (and this clear
+/// gives up) or waits for the entries and lands after the zeros. The
+/// cleared entries are released at the new version; read entries hold
+/// unchanged memory and get their old version back, so concurrent readers
+/// of them are not aborted needlessly. The transaction's snapshot is then
+/// current at the new version, so its read version moves up to it (TL2
+/// timestamp extension) and later reads of the cleared lines stay valid.
 pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
     let t = st(cpu);
     if t.doom != DOOM_NONE {
@@ -450,48 +458,77 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
         }
         t.zlist[..n].sort_unstable();
     }
-    for (slot, &e) in t.zlist[..n].iter().enumerate() {
-        let e = e as usize;
-        loop {
-            let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
-            if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
-                t.zsaved[slot] = v;
-                break;
+    // Lock the region's entries and the read set's, merged in table
+    // order (deadlock free against commits and other clears). A read entry
+    // outside the region keeps its saved version in `wsaved`, which only
+    // `commit` otherwise uses and refills when it locks.
+    let nr = t.nreads;
+    t.reads[..nr].sort_unstable();
+    let (mut i, mut j) = (0, 0);
+    while i < n || j < nr {
+        if j == nr || (i < n && t.zlist[i] <= t.reads[j]) {
+            t.zsaved[i] = lock(m, t.zlist[i] as usize);
+            i += 1;
+        } else {
+            let e = t.reads[j] as usize;
+            if t.zstamp[e] != t.zgen {
+                t.wsaved[e] = lock(m, e);
             }
-            m.relax();
+            j += 1;
         }
     }
     let wv = m.a_add(&CLOCK, 2, Ordering::AcqRel) + 2;
-    for i in 0..t.nreads {
-        let e = t.reads[i] as usize;
+    let mut ok = true;
+    for k in 0..nr {
+        let e = t.reads[k] as usize;
         let v = if t.zstamp[e] == t.zgen {
             // The stamp identifies an entry in the sorted, unique list.
             let slot = t.zlist[..n].binary_search(&(e as u16)).unwrap();
             t.zsaved[slot]
-        } else { m.a_load(&TABLE[e].0, Ordering::Acquire) };
+        } else { t.wsaved[e] };
         // (Mutation test: `mutant-clear-no-validate` clears without checking.)
-        if (v & 1 != 0 || v > t.rv) && !cfg!(feature = "mutant-clear-no-validate") {
+        if v > t.rv && !cfg!(feature = "mutant-clear-no-validate") {
             log_conflict(cpu, (1 << 63) | e as u64);
-            for (slot, &e) in t.zlist[..n].iter().enumerate() {
-                m.a_store(&TABLE[e as usize].0, t.zsaved[slot], Ordering::Release);
+            ok = false;
+            break;
+        }
+    }
+    if ok {
+        t.wv = wv;
+        m.clear(addr, len);
+        // Buffered writes into the region came before the clear.
+        for k in 0..t.nw {
+            let i = t.worder[k] as usize;
+            if t.wkey[i] >= addr && t.wkey[i] < addr + len {
+                t.wval[i] = 0;
             }
-            t.doom = DOOM_CONFLICT;
-            return;
         }
     }
-    t.wv = wv;
-    m.clear(addr, len);
-    // Buffered writes into the region came before the clear.
-    for k in 0..t.nw {
-        let i = t.worder[k] as usize;
-        if t.wkey[i] >= addr && t.wkey[i] < addr + len {
-            t.wval[i] = 0;
+    for (slot, &e) in t.zlist[..n].iter().enumerate() {
+        m.a_store(&TABLE[e as usize].0, if ok { wv } else { t.zsaved[slot] }, Ordering::Release);
+    }
+    for &e in t.reads[..nr].iter() {
+        let e = e as usize;
+        if t.zstamp[e] != t.zgen {
+            m.a_store(&TABLE[e].0, t.wsaved[e], Ordering::Release);
         }
     }
-    for &e in t.zlist[..n].iter() {
-        m.a_store(&TABLE[e as usize].0, wv, Ordering::Release);
+    if ok {
+        t.rv = wv;
+    } else {
+        t.doom = DOOM_CONFLICT;
     }
-    t.rv = wv;
+}
+
+/// Lock table entry `e`; returns the version it had.
+fn lock<M: Mem>(m: &M, e: usize) -> u64 {
+    loop {
+        let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
+        if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+            return v;
+        }
+        m.relax();
+    }
 }
 
 /// Commit the transaction on `cpu`. False if it was doomed or a read is
@@ -509,15 +546,7 @@ pub fn commit<M: Mem>(cpu: u64, m: &M) -> bool {
     ws.sort_unstable();
     // Lock the written lines' entries in table order (deadlock free).
     for &e in ws.iter() {
-        let e = e as usize;
-        loop {
-            let v = m.a_load(&TABLE[e].0, Ordering::Relaxed);
-            if v & 1 == 0 && m.a_cas(&TABLE[e].0, v, v | 1, Ordering::Acquire, Ordering::Relaxed).is_ok() {
-                t.wsaved[e] = v;
-                break;
-            }
-            m.relax();
-        }
+        t.wsaved[e as usize] = lock(m, e as usize);
     }
     let wv = m.a_add(&CLOCK, 2, Ordering::AcqRel) + 2;
     // Unless no other writer committed since we began, check the reads.
@@ -762,6 +791,74 @@ mod tests {
                 assert_eq!(TABLE[stripe(addr)].0.load(Ordering::Acquire), old);
                 assert_eq!(m.load(addr), if addr == marker { 99 } else { i as u64 + 1 });
             }
+        }
+    }
+
+    /// ASID_MakePool against a retype of the same untyped (audit F1). Core 0
+    /// reads the untyped's free index (0: its memory is already zero), marks
+    /// it used and clears the frame in place. In the middle of the clear,
+    /// core 1 retypes the same untyped into a frame: a free index of 0 needs
+    /// no clear, so its commit writes only caps, and user code may write the
+    /// frame as soon as it commits. Core 1 either does not commit until the
+    /// zeros are in place, or core 0 gives up; the frame keeps what user
+    /// code wrote. The second case has core 1 change only a word core 0
+    /// read without writing (the untyped's CDT link, as a copy of it does).
+    #[test]
+    fn clear_free_orders_commits_on_its_reads_after_the_zeros() {
+        let _test = TEST_LOCK.lock().unwrap();
+        struct Race {
+            m: SparseMem,
+            frame: u64,
+            touch: u64,
+            fired: core::cell::Cell<bool>,
+            committed: core::cell::Cell<bool>,
+        }
+        impl Race {
+            /// Core 1: a retype that needs no clear, then a user store.
+            fn retype(&self) -> bool {
+                begin(1, self);
+                let free_index = read(1, self, UT);
+                read(1, self, LINK);
+                if free_index == 0 { write(1, self.touch, 4096); }
+                let ok = !doomed(1) && free_index == 0 && commit(1, self);
+                end(1);
+                if ok {
+                    self.committed.set(true);
+                    self.m.store(self.frame + 0x800, 0xdead);
+                }
+                ok
+            }
+        }
+        impl Mem for Race {
+            fn load(&self, addr: u64) -> u64 { self.m.load(addr) }
+            fn store(&self, addr: u64, v: u64) {
+                self.m.store(addr, v);
+                if addr == self.frame && !self.fired.replace(true) {
+                    self.retype();
+                }
+            }
+        }
+        const UT: u64 = 0x1d0000;
+        const LINK: u64 = 0x1d0010;
+        let frame = 0x1c0000;
+        for w in [UT, LINK] {
+            assert!((frame..frame + 4096).step_by(16).all(|a| stripe(a) != stripe(w)));
+        }
+        for touch in [UT, LINK] {
+            let m = Race { m: SparseMem::default(), frame, touch, fired: Default::default(), committed: Default::default() };
+            begin(0, &m);
+            assert_eq!(read(0, &m, UT), 0);
+            read(0, &m, LINK);
+            write(0, UT, 4096);
+            clear_free(0, &m, frame, 4096);
+            assert!(m.fired.get() && !doomed(0));
+            // After the clear the retype goes through, and core 0's
+            // MakePool, whose reads it changed, must not commit.
+            if !m.committed.get() { assert!(m.retype()); }
+            assert!(!commit(0, &m));
+            end(0);
+            assert_eq!(m.load(frame + 0x800), 0xdead, "a live frame was cleared");
+            assert_eq!(m.load(touch), 4096);
         }
     }
 

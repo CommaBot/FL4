@@ -126,7 +126,7 @@ fn decode_invocation<S: Store, A: Arch>(
             if first_phase {
                 return Err(Exc::Sys(SysError::InvalidCapability { arg: 0 }));
             }
-            crate::domain::decode(s, lbl, length, buf, extra)
+            crate::domain::decode(s, a, lbl, length, buf, extra)
         }
         Cap::CNode { .. } => {
             if first_phase {

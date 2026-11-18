@@ -101,6 +101,19 @@ fn instruction_info(
     info & mask
 }
 
+/// A VM exit the kernel takes for the host (an external interrupt, or an
+/// NMI: `interrupt` is the exit-interruption information), not reported to
+/// the VMM.
+pub(super) fn host_exit(reason: u64, interrupt: u64) -> bool {
+    reason == 1 || (reason == 0 && interrupt & VALID != 0 && (interrupt >> 8) & 7 == 2)
+}
+
+/// Whether an IDT-vectoring event cut short by a host exit is reinjected:
+/// hardware events (external interrupt, NMI, hardware exception) only.
+pub(super) fn reinjected(vector: u64) -> bool {
+    vector & VALID != 0 && matches!((vector >> 8) & 7, 0 | 2 | 3)
+}
+
 pub(super) fn read(
     valid: bool,
     reason: u64,
@@ -219,6 +232,20 @@ mod tests {
                 _ => panic!("undefined field {field:x} for exit {reason}"),
             });
             assert_eq!(info.length, if expected { 3 } else { 0 });
+        }
+    }
+
+    /// Audit F3: an NMI exit is a host exit like an external interrupt, and
+    /// either one reinjects the hardware event it cut short, but no
+    /// software event (whose injection needs a length these exits lack).
+    #[test]
+    fn host_exits_reinject_hardware_events_only() {
+        let nmi = VALID | (2 << 8) | 2;
+        assert!(host_exit(1, 0) && host_exit(0, nmi));
+        assert!(!host_exit(0, VALID | (3 << 8) | 14) && !host_exit(0, nmi & !VALID) && !host_exit(48, 0));
+        for (ty, vec, want) in [(0, 0x30, true), (2, 2, true), (3, 14, true), (4, 0x80, false), (5, 1, false), (6, 3, false), (6, 4, false)] {
+            assert_eq!(reinjected(VALID | (ty << 8) | vec), want);
+            assert!(!reinjected((ty << 8) | vec));
         }
     }
 
