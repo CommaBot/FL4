@@ -455,10 +455,11 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hGb : GetBpHyp (st := st) s ct p
   /-- [W] XTopTcbRest's `TcbXIpc` (the IPC steps of the Thread cap). -/
   hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don
-  /-- [W] XTopTcbFpu's `FpuFrameXHyp` (the FPU frame). -/
-  hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
-    capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
-    FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset)
+  /-- [J] ReadFPU's destination frame (XTopJointReadFpu's `FpuFrameJHyp`: l4v
+  `valid_cap`, `pspace_distinct`, `valid_global_refs` for the first extra
+  cap's frame, at the start). -/
+  hFr : lbl = fl4_abi.label.TCBReadFPU → ∀ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 →
+    FpuFrameJHyp (L := L) Z s σ x0
   /-- [W] the labels still open at `JAt` (`TcbJOpen`): XTopJointStep's
   `JPostHyp` per label. -/
   hR : TcbJOpen lbl → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf
@@ -687,8 +688,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
-      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hR
+      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI
+      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hR
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64

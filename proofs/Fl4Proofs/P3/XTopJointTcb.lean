@@ -44,6 +44,12 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - WriteFPU (`tcb_write_fpuJ`: XTopTcbFpu's `fpu_refinesX` at `JAt`; the
     restart, the FPU operations by `JAtZ.archJ` [`ARKeep`], the copy into
     the FPU image by XTopJointTcbMisc's `JAtZ.copyFpuJ`);
+  - ReadFPU (`tcb_read_fpuJ`: the same checks, the restart, `fpu_flush`,
+    the copy of the FPU image into the frame by XTopJointReadFpu's
+    `JAtZ.copyFrameJ`, from `FpuFrameJHyp` [J] at the start: the frame lies
+    in a spec data page and misses the CNodes, FL4's tables and pools and
+    FL4's kernel-global data; the frame missing `H`'s other objects, the
+    TCBs among them, is `JPlaced.cobj`);
   - SetTimer (`tcb_set_timerJ`: the restart, `timer::insert` by P1's
     `timer.insert.foot` and ScFireJ's `JAtZ.tmw_step`);
   - SetMCPriority (`tcb_set_mcpJ`: the decode's authority MCP by `McpRel`,
@@ -76,6 +82,7 @@ import Fl4Proofs.P3.XTopJointTcbPrio
 import Fl4Proofs.P3.XTopJointRestart
 import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointTcbInstall
+import Fl4Proofs.P3.XTopJointReadFpu
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -88,11 +95,13 @@ taken): the TCB invocation labels (3..24) but Suspend (12), Resume (13),
 BindNotification (14), UnbindNotification (15), SetBreakpoint (16), GetBreakpoint (17),
 UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20),
 SetFlags (21), WriteFPU (23), SetTimer (24), SetPriority (6),
-SetMCPriority (7), WriteRegisters (3), CopyRegisters (4), SetTimeoutEndpoint (9), SetSpace (11), SetIPCBuffer (10) and Configure (5). -/
+SetMCPriority (7), WriteRegisters (3), CopyRegisters (4), SetTimeoutEndpoint (9), SetSpace (11), SetIPCBuffer (10),
+Configure (5) and ReadFPU (22). -/
 def TcbJOpen (lbl : U64) : Prop :=
   3 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 14 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
     lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21 ∧ lbl.val ≠ 23 ∧ lbl.val ≠ 24 ∧ lbl.val ≠ 6 ∧ lbl.val ≠ 7 ∧
-    lbl.val ≠ 13 ∧ lbl.val ≠ 3 ∧ lbl.val ≠ 4 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 11 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 5
+    lbl.val ≠ 13 ∧ lbl.val ≠ 3 ∧ lbl.val ≠ 4 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 11 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 5 ∧
+    lbl.val ≠ 22
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -1845,6 +1854,145 @@ theorem tcb_write_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   refine WP.spec_bind (hK.fpu_reload a2 p _ ha2) fun a3 ha3 => ?_
   exact (WP.spec_ok _).2 ⟨rfl, σ1', rfl, ⟨_, H, Cs, Ac1, Lst1, D1, J2.archJ ha3⟩⟩
 
+set_option maxHeartbeats 16000000 in
+/-- **The ReadFPU label at `JAt`** (as `tcb_fpuX` with `toFrame` true):
+XTopTcbFpu's `fpu_refinesX` at `X := JAt` (the checks, the decode errors at
+the start's `JAtZ`), the work at `J`: the caller's restart
+(`JAtZ.restartJ`), `fpu_flush` (`ARKeep` [P]; `JAtZ.archJ`), the copy of the
+target's FPU image into the frame (XTopJointReadFpu's `JAtZ.copyFrameJ`: the
+frame cap's range misses `H`'s non-`other` objects, `JPlaced.cobj`, hence the
+TCBs; the rest from `FpuFrameJHyp` [J] at the start, carried across the restart), the spec's
+machine state some `ms`. -/
+theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) (hK : ARKeep arI AR)
+    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
+    (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .readFpu)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar))
+    (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
+    (hFJ : FpuFrameJHyp (L := L) Z s σ x0)
+    (blk don : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
+    TcbOKX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBReadFPU p ⟨length, buf, call, slot, extra⟩
+      blk call don slbl (args.map UScalar.bv) ci sl excaps buffer := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  have htcb := (hX.curTcb hcur).1
+  have hDS : DState (L := L) Z.th s σ Z.G := ⟨hX.rel.2.1, J.del, hX.rel.2.2.1⟩
+  have hdec0 : specDec false slbl (args.map UScalar.bv) ci sl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+        (Fl4Spec.decodeFl4FpuTransfer (Z := Unit) true (args.map UScalar.bv) p.bv excaps) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl (args.map UScalar.bv) (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_ext hlbl hext]; rfl
+  unfold TcbOKX
+  rw [(decode_fpu_eq arI s ar p _ hstall).1, hdec0]
+  refine fpu_refinesX arI (JAt (L := L) arI AR) (fun _ _ _ ⟨Z', _, _, _, _, _, J'⟩ => ⟨Z', J'.xtop⟩) Z.th hX.rel.1
+    s ar σ Z.G hDS hX.rel.2.2.2.2.1 p true length buf ct hct args hlen hargs hcur htcb J.kern.act call slot extra
+    x0 x1 x2 hx0 excaps hXc ⟨Z, H, Cs, Ac, Lst, D, J⟩ blk don ?_
+  intro s1 σ1 x ptr offset r asid va m ep sz hs1 hst1 hx hxn hl ho hc hpass
+  have hxx : x = x0 := by
+    have h := hx.symm.trans hx0
+    exact Fl4Proofs.P3.ok_inj (h : (ok x : Result U64) = ok x0)
+  subst hxx
+  -- the frame cap's slot, alignment and placement
+  obtain ⟨sl0, hA0, hxe⟩ : ∃ sl0, AbsSlot Z.th sl0 ∧ x = cslotAddr sl0 := by
+    have h0 := hXc.2 0 x rfl
+    obtain ⟨e, he⟩ : ∃ e, excaps[0]? = some e := by
+      rcases excaps with _ | ⟨e, rest⟩
+      · exact absurd (h0.1.2 (by simp)) hxn
+      · exact ⟨e, rfl⟩
+    obtain ⟨hxe, -, ps, hps, hpe⟩ := h0.2 e he
+    exact ⟨e.2, ⟨ps, hpe, Or.inl hps⟩, hxe⟩
+  have hal : ptr.val % 2 ^ frameBitsN sz = 0 := (show CapValid Z.th (.Frame ptr sz r false m ep asid va) from
+    hX.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
+  obtain ⟨h4096, hp8, hpfit⟩ := frame_fit hal
+  obtain ⟨hbs, hts⟩ := frame_topF (sz := sz) r false m ep asid va hal
+  have hFA : Sched.FrApartH H (.Frame ptr sz r false m ep asid va) := by
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have := hJ.cobj x (by rw [hxe]; exact hA0.isSlot); rw [hc] at this; exact this
+  obtain ⟨⟨o, vms, hko, ho1, ho2⟩, hCN, hPT, hgl⟩ := hFJ ptr sz r m ep asid va hc
+  -- the frame misses the VSpace objects: the TCBs by `FrApartH`, the rest by `FpuFrameJHyp`
+  have hVO : ∀ w : U64, ptr.val ≤ w.val → w.val < ptr.val + 2 ^ frameBitsN sz →
+      ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) w := by
+    intro w g1 g2 hv
+    rcases hv with ⟨q, rr, hq, h1, h2⟩ | ⟨t, ht, h1, h2⟩ | ⟨q, hq, h1, h2⟩ | ⟨h1, h2⟩
+    · rcases hCN q rr hq with e | e <;> omega
+    · obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+      rcases hFA t .tcb ((hJ.tcb t).1 ht) (fun _ e => by cases e) with e | e
+      · rw [hbs] at e; simp only [P1.HKind.bits, Nat.reducePow] at e; omega
+      · rw [hts] at e; omega
+    · rcases hPT q hq with e | e <;> omega
+    · omega
+  -- the restart
+  obtain ⟨s1', σ1', xt, hrc1, hst1', hkt, -, e1σ, -, -, -, hs1', Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  have e1 : s1' = s1 := by
+    have := hs1'.symm.trans hs1
+    simpa using this
+  have e2 : σ1' = σ1 := by
+    rw [hcur] at hst1'
+    have h := (Prod.mk.inj (hst1'.symm.trans hst1)).1
+    exact congrArg Prod.snd (Set.singleton_eq_singleton_iff.1 h)
+  subst e1 e2
+  have hks1 : L.ksb s1' = L.ksb s := by
+    have h := set_thread_state_ksb (L := L) s ct sched.TS_RESTART
+    rw [hs1', WP.spec_ok] at h; exact h
+  have hko1 : σ1'.kheap o = some (.archObj (.dataPage false vms)) := by
+    have hne : o ≠ ct.bv := fun e => by rw [e, hkt] at hko; cases hko
+    rw [e1σ, stsAct_kheap, Notif.updK_kheap, Function.update_of_ne hne]; exact hko
+  have hAR1 := J1.xtop.fin.1.1.2.2.2.2.2.2
+  obtain ⟨hr1, hr3, hm, hlt, hrm⟩ := hpass
+  have hvk : capability.VM_KERNEL_ONLY = 1#u64 := by simp only [capability.VM_KERNEL_ONLY]
+  have hvrw : capability.VM_READ_WRITE = 3#u64 := by simp only [capability.VM_READ_WRITE]
+  obtain ⟨z, hzv, hzf⟩ := fshift_eq sz
+  have hge : (⟨length, buf, call, slot, extra⟩ : tcb.Ctx).length >= 1#u64 := by scalar_tac
+  have hsz : fl4_abi.consts.FPU_STATE_SIZE + 7#u64 = ok 2703#u64 := by
+    unfold fl4_abi.consts.FPU_STATE_SIZE
+    obtain ⟨v, hv, hvv⟩ := spec_exists (U64.add_spec (x := 2696#u64) (y := 7#u64) (by scalar_tac))
+    rw [hv]; congr 1; apply UScalar.eq_of_val_eq; rw [hvv]; rfl
+  have hwd : (2703#u64 : U64) / 8#u64 = ok 337#u64 := by
+    obtain ⟨v, hv, hvv⟩ := spec_exists (U64.div_spec (x := 2703#u64) (y := 8#u64) (by decide))
+    rw [hv]; congr 1; apply UScalar.eq_of_val_eq; rw [hvv]; rfl
+  unfold tcb.fpu_transfer
+  rw [extra_eq _ 0#usize (by decide) hx0]
+  simp only [hxn, ↓reduceIte, hge, bind_ok]
+  rw [ho]; simp only [bind_ok]; rw [slot_cap_eq, capAt_capV, hc]; simp only [bind_ok, hvk, hvrw, hzf]
+  simp only [Bool.false_eq_true, ↓reduceIte, hr1]
+  have hp' : offset.val % 64 = 0 ∧ offset.val < z.val ∧ 2696 ≤ z.val - offset.val := by
+    unfold FpuPass.fl4Spec_fpu Fl4Spec.fl4FpuStateSize at hrm
+    exact ⟨hm, hzv ▸ hlt, hzv ▸ hrm⟩
+  try simp only [↓reduceIte, hr3 rfl, bne_self_eq_false, Bool.false_eq_true]
+  rw [off_pass _ _ offset z hp']
+  rw [hrc1]; simp only [bind_ok]
+  refine WP.spec_bind (hK.fpu_flush ar p _ hAR1) fun a1 ha1 => ?_
+  simp only [hsz, hwd, bind_ok, lift, obj.Tcb.fpu_addr]
+  -- the frame's 2696 bytes at `f`
+  have hrm' : 2696 ≤ 2 ^ frameBitsN sz - offset.val := hrm
+  have hfv : (core.num.U64.wrapping_add ptr offset).val = ptr.val + offset.val := by
+    simp only [core.num.U64.wrapping_add_val_eq]
+    simp [U64.size, U64.numBits]
+    omega
+  refine WP.spec_bind ((J1.archJ ha1).copyFrameJ hBPl _ (core.num.U64.wrapping_add ptr offset)
+    (by rw [hfv]; omega) (by rw [hfv]; omega) (fun q k hq hk => ?_)
+    ⟨o, _, hko1, by rw [hfv]; omega, by rw [hfv]; show _ ≤ o.toNat + 2 ^ Fl4Spec.pageBitsForSize vms; omega⟩
+    (fun w h1 h2 => by rw [hks1]; exact hVO w (by rw [hfv] at h1; omega) (by rw [hfv] at h2; omega))
+    (by rw [hfv, hks1]; omega)) ?_
+  · rcases hFA q k hq hk with e | e
+    · right; rw [hbs] at e; rw [hfv]; omega
+    · left; rw [hts] at e; rw [hfv]; omega
+  rintro s2 ⟨ms, J2⟩
+  try simp only [↓reduceIte]
+  refine (WP.spec_ok _).2 ⟨rfl, { σ1' with machineState := ms }, ?_, ⟨Z, H, Cs, Ac1, Lst1, D1, J2⟩⟩
+  show _ ∈ ((Fl4Spec.NonDetE.liftE _).run σ1').1
+  refine mem_liftE (x := ([], { σ1' with machineState := ms })) ?_
+  refine mem_bind_nd (x := ((), { σ1' with machineState := ms })) ?_ (Set.mem_singleton_iff.2 rfl)
+  exact dmo_ex _ σ1' (mem_bind_nd (x := (ms, σ1'.machineState)) ⟨trivial, rfl⟩ rfl)
+
 set_option maxHeartbeats 32000000 in
 /-- **The GetBreakpoint label at `JAt`** (as `tcb_get_bpX`): the breakpoint
 number's check, the caller's restart (`JAtZ.restartJ`), the read (`GetBpHyp`
@@ -2511,6 +2659,113 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
+/-- **`TcbXOpen3` at a label other than ReadFPU** (XTopTcbFpu's
+`tcbXOpen3_of` without its `FpuFrameXHyp` [W]: only ReadFPU writes the user
+frame). -/
+theorem tcbXOpen3_noRead {AR : A → Fl4Spec.Cr3 → Prop} (hAK : ARKeep arI AR) {Z : XSets} (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
+    (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDI : DelInv Z.th (L.mem s)) (lbl length : U64) (p : U64)
+    (hp : Z.th p = some .tcb) (blk call don : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
+    (argsU : List U64) (hlen : length.val = argsU.length)
+    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
+    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
+    (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (h22 : lbl ≠ fl4_abi.label.TCBReadFPU)
+    (hO : TcbXOpen1 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
+      don slbl (argsU.map UScalar.bv) ci sl excaps buffer) :
+    TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
+      don slbl (argsU.map UScalar.bv) ci sl excaps buffer := by
+  refine ⟨fun e => absurd e h22, ?_, hO.setTimer⟩
+  rintro rfl
+  obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .writeFpu by
+    simp [tcbExtOf])
+  exact tcb_fpuX arI hAK s ar σ hX hC hDI p (hTh p hp) false slbl hg he length buf ct hct argsU hlen hargs hcur hact
+    (hstall' p) call _ extra x0 x1 x2 hx0 excaps hXc (fun h => absurd h (by decide)) blk don ci sl buffer
+
+set_option maxHeartbeats 4000000 in
+/-- **XTopJoint's `decode_invocation_threadJAt` at a label other than
+ReadFPU**, without its `FpuFrameXHyp` [W] (`tcbXOpen3_noRead`): for the
+labels of `TcbJOpen`, which no longer include ReadFPU. -/
+theorem decode_invocation_threadJAtNR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
+    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
+    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
+    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
+    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
+    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
+    (lbl length : U64) (p : U64)
+    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
+    (hct : sched.cur_thread st s = ok ct)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
+    (argsU : List U64) (hlen : length.val = argsU.length)
+    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl)
+    (hsc : capV (L.mem s) (cslotAddr sl) = .Thread p)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
+    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
+    (hNative : lbl ≠ fl4_abi.label.TCBSetEPTRoot)
+    (hcw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
+    (hpI : p ≠ L.idleW s)
+    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
+    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
+      NoChildrenRel (st := st) s σ x0 sl)
+    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
+    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
+    (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
+    (h22 : lbl ≠ fl4_abi.label.TCBReadFPU) :
+    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
+      (argsU.map UScalar.bv) ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  have hsl0 : x0 ≠ 0#u64 → ∃ sl0, AbsSlot Z.th sl0 ∧ x0 = cslotAddr sl0 := by
+    intro hx
+    have h0 := hXc.2 0 x0 rfl
+    obtain ⟨e, he⟩ : ∃ e, excaps[0]? = some e := by
+      rcases excaps with _ | ⟨e, rest⟩
+      · exact absurd (h0.1.2 (by simp)) hx
+      · exact ⟨e, rfl⟩
+    obtain ⟨hxe, -, ps, hps, hpe⟩ := h0.2 e he
+    exact ⟨e.2, ⟨ps, hpe, Or.inl hps⟩, hxe⟩
+  have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
+    intro hx q hc
+    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
+    exact J.thT q (show CapValid Z.th (.Thread q) from
+      hX.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
+  have hcapN : x0 ≠ 0#u64 → ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N := by
+    intro hx q b w r hc
+    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    exact J.hset.2.1 q ((hJ.typed x0 (hxe ▸ hA0.isSlot)).2.1 q b w r hc).2
+  have hp : Z.th p = some .tcb := (slot_cap_wf hX hAs hsc).2
+  have hpT := J.thT p hp
+  exact decode_invocation_threadXL arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
+    J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
+    excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC J.c0
+    hcapN (fun i hi => hA5 i (by omega)) hI
+    (tcbXOpen_of arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
+      extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
+      (fun i hi => hA5 i (by omega)) hGb hARI.toARKeep
+      (tcbXOpen4_of arI s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
+        (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5
+        (tcbXOpen3_noRead arI hARI.toARKeep s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct
+          hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act x0 x1 x2 hx0 hXc h22
+          (tcbXOpen1_of arI s ar σ hX J.ks (J.curRun.run hni) J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
+            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hni hct hpT)))))
+
+set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAt` after** (module docstring): the labels of
 `TcbJOpen` by `decode_invocation_threadJAt` and `XCap.jat` with the per-op
 premise (`JPostHyp` [W], only at those labels); the others proved. -/
@@ -2547,9 +2802,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
     (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (hFr : ∀ (x ptr offset r : U64) (sz : capability.FrameSize) (m ep : Bool) (asid va : U64),
-      capV (L.mem s) x = .Frame ptr sz r false m ep asid va → FpuPass true offset r sz →
-      FpuFrameXHyp (L := L) AR Z p (core.num.U64.wrapping_add ptr offset))
+    (hFJ : lbl = fl4_abi.label.TCBReadFPU → FpuFrameJHyp (L := L) Z s σ x0)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
       q ≠ L.idleW s)
@@ -2566,9 +2819,10 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   by_cases hop : TcbJOpen lbl
-  · exact (XCap.jat arI (decode_invocation_threadJAt arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p
+  · have h22 : lbl ≠ fl4_abi.label.TCBReadFPU := fun h => by subst h; simp [TcbJOpen] at hop
+    exact (XCap.jat arI (decode_invocation_threadJAtNR arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p
       blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
-      hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J (hR hop)).toP arI hXP
+      hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI h22) J (hR hop)).toP arI hXP
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
@@ -2624,9 +2878,11 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   have no : ∀ l : U64, 3 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 14 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
       l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → l.val ≠ 23 → l.val ≠ 24 → l.val ≠ 6 → l.val ≠ 7 →
-      l.val ≠ 13 → l.val ≠ 3 → l.val ≠ 4 → l.val ≠ 9 → l.val ≠ 11 → l.val ≠ 10 → l.val ≠ 5 → lbl = l → False :=
-    fun l h1 h2 h3 h14 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h13 h3' h4' h9' hx11 hx10 hx5 h =>
-      hop (h ▸ ⟨h1, h2, h3, h14, h4, h5, h5', h6, h7, h8, h9, h123, h124, h6', h7', h13, h3', h4', h9', hx11, hx10, hx5⟩)
+      l.val ≠ 13 → l.val ≠ 3 → l.val ≠ 4 → l.val ≠ 9 → l.val ≠ 11 → l.val ≠ 10 → l.val ≠ 5 → l.val ≠ 22 → lbl = l →
+      False :=
+    fun l h1 h2 h3 h14 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h13 h3' h4' h9' hx11 hx10 hx5 hx22 h =>
+      hop (h ▸ ⟨h1, h2, h3, h14, h4, h5, h5', h6, h7, h8, h9, h123, h124, h6', h7', h13, h3', h4', h9', hx11, hx10, hx5,
+        hx22⟩)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
     intro hx q hc
@@ -2664,7 +2920,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_set_mcpJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen
           hargs (hstall' p) call sl extra x0 x1 x2 hx0 excaps hXc hcapT blk don ci buffer,
-      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       setTimeoutEndpoint := fun h => absurd h h9,
       setIPCBuffer := fun h => absurd h h10,
       setSpace := fun h => absurd h h11,
@@ -2716,7 +2972,12 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_set_flagsJ arI s ar σ J hni hFl p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
           hlen hargs (hstall' p) hARI.toARKeep call (cslotAddr sl) extra blk don ci sl excaps buffer,
-      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readFPU := fun h => by
+        subst h
+        obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .readFpu by
+          simp [tcbExtOf])
+        exact tcb_read_fpuJ arI s ar σ J hni hARI.toARKeep hBPl p hpT slbl hg he length buf ct hct argsU hlen hargs
+          (hstall' p) call (cslotAddr sl) extra x0 x1 x2 hx0 excaps hXc (hFJ rfl) blk don ci sl buffer,
       writeFPU := fun h => by
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .writeFpu by
