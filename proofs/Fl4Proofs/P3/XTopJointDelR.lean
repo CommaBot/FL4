@@ -370,7 +370,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 /-- **A notification cap's finalisation at `J`, every slot kept** (module
 docstring): `jFinAt_ntfn`'s post with the cleanup null and every slot's cap
 as it was (for `delete_oneJ`). -/
-theorem jFinNtfnK (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th)
+theorem jFinNtfnK [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool)
     (hDS : DState (L := L) th s σ G) (hW : WJ (L := L) arI AR Z H Cs kb s a σ G) (hA : AbsSlot th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r)) :
@@ -415,7 +415,7 @@ theorem jFinNtfnK (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
       ⟨V, Ac, Lst, D, J, hkb⟩, J.ntfn_ready hA.isSlot hcv (Or.inr (other_ntfn hP hDS hA hcv hfin))⟩
 
 /-- **A notification cap's finalisation at `J`** (module docstring). -/
-theorem jFinAt_ntfn : JFinAt (L := L) arI AR th NtfnK := by
+theorem jFinAt_ntfn [Fl4Proofs.P1.PlainStore st] : JFinAt (L := L) arI AR th NtfnK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hn
   obtain ⟨p, b, w, r, rfl⟩ := hn
   refine WP.spec_mono (jFinNtfnK arI Z H Cs kb hth s a σ G sl p b w r hDS hW hA hc) ?_
@@ -425,7 +425,7 @@ theorem jFinAt_ntfn : JFinAt (L := L) arI AR th NtfnK := by
 
 /-- **Emptying a ready slot at `J`** (`EmptyHypWR` at `WJ`): a CNode slot by
 `emptyJR`, a TCB slot by `emptyJRT`, both with `JEmptyUtHyp`. -/
-theorem emptyHypJ (hUt : JEmptyUtHyp (L := L) arI AR th) (Z : XSets)
+theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI AR th) (Z : XSets)
     (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     EmptyHypWR (L := L) (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
@@ -447,7 +447,7 @@ set_option maxHeartbeats 4000000 in
 `delete_one_xtopK`): the notification's finalisation (`jFinNtfnK`), then the
 ready slot emptied (`emptyHypJ`, with `JEmptyUtHyp`); the slot emptied, the
 others kept, `WJ` after. -/
-theorem delete_oneJ (hUt : JEmptyUtHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
+theorem delete_oneJ [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
     (hth : Z.th = th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hW : WJ (L := L) arI AR Z H Cs kb s a σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) {p b : U64}
     {w r : Bool} (hk : capV (L.mem s) (cslotAddr sl) = .Notification p b w r) :
@@ -494,7 +494,7 @@ set_option maxHeartbeats 8000000 in
 (null, or a notification cap by `delete_oneJ`); the handler's slot is ready
 (an IRQ handler cap is not physical). From `JIrqSlotHyp` [J], `JEmptyUtHyp`
 [J] and the interrupt layout (`IntLayout` [P]). -/
-theorem jFinAt_irq (hUt : JEmptyUtHyp (L := L) arI AR th) (hOK : JIrqSlotHyp (L := L) arI AR th)
+theorem jFinAt_irq [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI AR th) (hOK : JIrqSlotHyp (L := L) arI AR th)
     (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s)) :
     JFinAtF (L := L) arI AR th IrqK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨i, hci⟩ hfin
@@ -680,7 +680,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A final reply cap's finalisation at `J`** (XTopJointFinReply's
 `JAtZ.finReplyJ`, the reply dead after by P1's `fin_cap_reply.dead`), from
 `RecvReplyHyp` [J] and `JReplyRemoveHyp` [J]. -/
-theorem jFinAt_reply (hT : P0.ArchTotal arI)
+theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
     (hRR : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs)
     (hRm : JReplyRemoveHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th RpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, g, hce⟩ hfin
@@ -710,7 +710,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A final native VSpace cap's finalisation at `J`** (XTopJointFinVs's
 `JAtZ.finVsJ`; the slot ready, `JAtZ.vs_ready`), from `ArchRefines` [P],
 `JVsCapsHyp` [J] and `JVsApartHyp` [J]. -/
-theorem jFinAt_vs (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
+theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th VsK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hv hfin
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
@@ -734,7 +734,7 @@ set_option maxHeartbeats 4000000 in
 /-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
 `JAtZ.finVsJb`, final or not), from `ArchRefines` [P], `JVsCapsHyp` [J] and
 `JVsApartHyp` [J]. -/
-theorem jFrMap_of (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
+theorem jFrMap_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFrMapHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sz, r, d, asid, va, hce⟩
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
@@ -757,7 +757,7 @@ set_option maxHeartbeats 4000000 in
 `JAtZ.frVtJ`: an EPT-mapped frame's `ept::unmap`, an owned IO port's
 `revoke_ports`, the spec state kept): `JFrVtHyp` from `ArchRefines` [P],
 `ARKeep` [P] and `JVtHyps` [J]. -/
-theorem jFrVt_of (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) :
+theorem jFrVt_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) :
     JFrVtHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hk
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
@@ -801,7 +801,7 @@ theorem jFinAt_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps 
 port cap's do nothing; a VSpace-mapped frame's from `JFrMapHyp` (`jFrMap_of`), the
 VT-x work from `JFrVtHyp` [J]; the slot ready after (an IO port cap is not
 physical; a frame's memory holds no object of `H`, `JFrameApartHyp` [J]). -/
-theorem jFinAt_frio (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
+theorem jFinAt_frio [Fl4Proofs.P1.PlainStore st] (hM : JFrMapHyp (L := L) arI AR th) (hV : JFrVtHyp (L := L) arI AR th)
     (hAp : JFrameApartHyp (L := L) arI AR th) : JFinAt (L := L) arI AR th FrIoK := by
   intro Z H Cs kb hth
   refine finFrIo_of arI (hM Z H Cs kb hth) (hV Z H Cs kb hth) ?_
@@ -1028,7 +1028,7 @@ theorem JAtZ.cnode_ready {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 /-- **The readiness at `J` of a cap finalised without effect** (`RdTrivHyp`
 at `WJ`): the trivial caps cover nothing, a CNode cap's CNode is dead for
 `DeadP` (`cnode_ready`); zombies by `JRdTrivHyp`. -/
-theorem rdTrivJ (hRT : JRdTrivHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
+theorem rdTrivJ [Fl4Proofs.P1.PlainStore st] (hRT : JRdTrivHyp (L := L) arI AR th) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
     (hth : Z.th = th) : RdTrivHyp (L := L) (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s a σ G sl c hDS hW hA hc hcn hnk
   rcases cap_cases c hcn with ht | hcn' | hz | ho

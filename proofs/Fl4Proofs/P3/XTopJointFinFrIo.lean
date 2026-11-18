@@ -85,7 +85,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **The frame and IO port caps' finalisation** (module docstring): the
 mapped frames' (`FrMapK`) and the VT-x work's (`FrVtK`) at `W` given, `Rd`
 after from `hRd`; the others do nothing (`fin_idle`). -/
-theorem finFrIo_of {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+theorem finFrIo_of [Fl4Proofs.P1.PlainStore st] {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} {th : TypedHeap}
     (hMap : FinObjHypWRK (L := L) arI W (fun _ _ _ _ _ => True) th FrMapK)
     (hVt : FinObjHypWRK (L := L) arI W (fun _ _ _ _ _ => True) th FrVtK)

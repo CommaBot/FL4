@@ -207,7 +207,7 @@ theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Uni
 set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAt` at the Delete label** (26), for any cap: as
 `decode_invocation_cnode_revokeJ`, by `cnode_delete_refinesW` at `EJ`. -/
-theorem decode_invocation_cnode_deleteJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem decode_invocation_cnode_deleteJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hJ : JStepHyps (L := L) arI AR Z.th)
     (hJD : JDelHyp (L := L) arI AR Z.th)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeDelete)

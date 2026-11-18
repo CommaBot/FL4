@@ -143,7 +143,7 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 set_option maxHeartbeats 4000000 in
 /-- **The VT-x work of a finalisation at `J`** (module docstring), final or
 not, from `ArchRefines` [P], `ARKeep` [P] and `JVtHyps` [J]. -/
-theorem JAtZ.frVtJ (hA : ArchRefines arI AR) (hK : ARKeep arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.frVtJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hK : ARKeep arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : JVtHyps (L := L) arI AR Z.th)
     {G : MdbGhost} {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ G)
     (hA' : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hk : FrVtK c) (b : Bool) :
@@ -159,7 +159,8 @@ theorem JAtZ.frVtJ (hA : ArchRefines arI AR) (hK : ARKeep arI AR) {s : S} {a : A
         (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Frame p sz r d true true asid va)) b σ).1 := by
       cases b <;> exact mem_bind_nd hun (Set.mem_singleton _)
     obtain ⟨i, hi⟩ : ∃ i, capability.FrameSize.bits sz = ok i := by cases sz <;> exact ⟨_, rfl⟩
-    simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte, hi]
+    simp only [objects.finalise_cap, objects.finalise_cap_object, P1.plain_retire, bind_ok, ↓reduceIte, hi,
+      ite_self]
     split
     · refine WP.spec_bind (ept_unmap_vt hA a har asid va p i false (X := VtOut (L := L) Z H Cs s σ)
         (fun x hx => hx.al) (hV.ept Z H Cs Ac Lst D s a σ rfl J asid)) ?_
@@ -168,6 +169,7 @@ theorem JAtZ.frVtJ (hA : ArchRefines arI AR) (hK : ARKeep arI AR) {s : S} {a : A
       try simp only [uncurry_apply_pair]
       exact (WP.spec_ok _).2 ⟨rfl, trivial, trivial, hm, ⟨Ac, Lst, D, J1⟩, hSS, hks⟩
     · obtain ⟨J1, hSS, hks⟩ := J.vtJ (P1.WritesIn.refl s _) har
+      try simp only [P1.plain_retire, ite_self, bind_ok, uncurry_apply_pair]
       exact (WP.spec_ok _).2 ⟨rfl, trivial, trivial, hm, ⟨Ac, Lst, D, J1⟩, hSS, hks⟩
   · -- an owned IO port cap: `revoke_ports`
     have P := hV.io Z H Cs Ac Lst D s a σ rfl J

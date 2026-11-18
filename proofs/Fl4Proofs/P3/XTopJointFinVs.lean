@@ -393,7 +393,7 @@ set_option maxHeartbeats 16000000 in
 docstring; `vs_fin`'s caps: a VSpace-mapped frame, final or not, or a final
 table or pool cap): at the same sets, the dead set and P1's sets kept. From
 `VsCapsIn` and `VsApart` [J] at the state and `ArchRefines` [P]. -/
-theorem JAtZ.finVsJb (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
@@ -547,7 +547,7 @@ theorem JAtZ.finVsJb (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.Sta
 
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
 at a table or pool cap). -/
-theorem JAtZ.finVsJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
