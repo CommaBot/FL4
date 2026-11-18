@@ -332,9 +332,10 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   vsApart : JVsApartHyp (L := L) arI AR th
   frVt : JFrVtHyp (L := L) arI AR th
   frApart : JFrameApartHyp (L := L) arI AR th
-  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: `JScFinHyp`,
-  undone work; `JScCapHyp`; `JScCurHyp`, not an l4v invariant). -/
-  scFin : JScFinHyp (L := L) arI AR th
+  /-- A final SC cap's finalisation at `J` (XTopJointFinSc: the SC steps
+  `JScFinSteps`, `jScFin_of` with the thread's `yieldTo`; `JScCapHyp`;
+  `JScCurHyp`, not an l4v invariant). -/
+  scSteps : JScFinSteps (L := L) arI AR th
   scCap : JScCapHyp (L := L) arI AR th
   scCur : JScCurHyp (L := L) arI AR th
   /-- The steps of a final thread cap's finalisation at `J` not proved
@@ -757,7 +758,7 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) (h
   subst hce hth
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
   have hcv := capV_of_capAt hc
-  obtain ⟨hHp, hna, hidle⟩ := hC (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc
+  obtain ⟨hHp, hna, hidle, -⟩ := hC (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc
   have hcur := hCur (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl p sb hA hc hfin
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
   have hp0 : p ≠ 0#u64 := fun e => by rw [e, J.kern.h0] at hHp; cases hHp
@@ -888,7 +889,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
-    · exact jFinAt_sc arI hT h.scFin h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
+    · exact jFinAt_sc arI hT (jScFin_of arI hT h.scSteps h.thread.yieldTo h.scCap) h.scCap h.scCur Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
     · exact jFinAt_thread arI hT h.thread Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht⟩ hfin
