@@ -377,6 +377,49 @@ def RecvReplyHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) 
       xr.replyTcb = some t → σ.kheap t = some (.tcb xt) → Fl4Spec.receiveBlocked xt.tcbState = true →
       Detached Z.C Lst d ∧ L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64
 
+/-- **A reply with a null `NEXT` word is on no call stack**: a stack's
+newest reply's `NEXT` word is its SC tagged with bit 0, an older one's the
+next newer reply (`StackW`), never null (`RPlaced.align`). -/
+theorem detached_of_next0 {m : U64 → U64} {R C : Set U64} {σ : Fl4Spec.State Unit} {Lst : U64 → List U64}
+    (hC : CallRel m R C σ Lst) (hR0 : ∀ r ∈ R, r ≠ 0#u64) {d : U64} (hn : m (rNextA d) = 0#u64) :
+    Detached C Lst d := by
+  intro sc hsc hd
+  obtain ⟨-, hLR, -, hW⟩ := hC.stack sc hsc
+  obtain ⟨i, hi, e⟩ := List.getElem_of_mem hd
+  have hw := (hW.2 i hi).2
+  rw [e, hn] at hw
+  cases i with
+  | zero => exact odd_ne_even (q := sc) (r := 0#u64) (by first | decide | rfl | simp) hw.symm
+  | succ j =>
+    have hj : j < (Lst sc).length := by omega
+    have hw' : (Lst sc).getD j 0#u64 = 0#u64 := hw.symm
+    first
+      | simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some] at hw'
+      | rw [List.getD_eq_getElem _ _ hj] at hw'
+    exact hR0 _ (hLR _ (List.getElem_mem hj)) hw'
+
+variable (arI) in
+/-- **[J] A reply bound to a thread blocked receiving has null `PREV`/`NEXT`
+words** (the narrowed content of `RecvReplyHyp`; `recvReplyHyp_of`).
+l4v: `receive_ipc` binds a reply that `reply_remove` / `cancel_ipc` left
+unlinked, or a free one (`RFree`); C `receiveIPC`/`reply_remove` clear both
+links. Not derivable from `JAtZ`: `RFree` covers only free replies, P1's
+`ReplyInv0` relates the reply and TCB words (`recv`, `back`) but not the
+links, and `CallRel.det` allows linked detached replies. The rest of
+`RecvReplyHyp` (on no call stack) follows from it. -/
+def RecvReplyLinksHyp (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
+  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∀ d ∈ Z.R, ∀ xr t xt, σ.kheap d.bv = some (.reply xr) →
+      xr.replyTcb = some t → σ.kheap t = some (.tcb xt) → Fl4Spec.receiveBlocked xt.tcbState = true →
+      L.mem s (rNextA d) = 0#u64 ∧ L.mem s (rPrevA d) = 0#u64
+
+/-- **`RecvReplyHyp` from its link part**: the reply is on no call stack
+since its `NEXT` word is null (`detached_of_next0`). -/
+theorem recvReplyHyp_of (h : RecvReplyLinksHyp (L := L) arI AR H Cs) : RecvReplyHyp (L := L) arI AR H Cs := by
+  intro Z Ac Lst D s a σ J d hd xr t xt hx ht hxt hrb
+  obtain ⟨hn, hp⟩ := h Z Ac Lst D s a σ J d hd xr t xt hx ht hxt hrb
+  exact ⟨detached_of_next0 J.call (fun r hr => (J.rp.align r hr).2.1) hn, hn, hp⟩
+
 set_option maxHeartbeats 8000000 in
 /-- **The bound-receiver wake keeps `JAtZ`** (module docstring). -/
 theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t : Fl4Spec.ObjRef}
