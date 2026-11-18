@@ -277,7 +277,7 @@ labels by their primitive steps (`decode_invocation_cnode_copyXS`,
 loop's named steps `JDelParts` [J], `JDelHyp.of_parts`; the preemption point by
 `jPreemptHyp_of` from the platform's `PPPlat` [P], with `PPR0` carried by the loop from the
 start (`JAtZ.ppr0_start`: `hRd0` [J], the current SC's head ready at a zero consumed time) and
-kept by the finalisations (`JDelParts.finPP` [J]); the cleanups by `jPostDelHyp_of`:
+kept by the finalisations (`jFinPPHyp`, SpecPPR); the cleanups by `jPostDelHyp_of`:
 the kernel-state layout and the arch IRQ operations [P]), CancelBadgedSends by
 XTopJointCbs's `decode_invocation_cnode_cancelJ` (the caller's restart by `JStepHyps`, then
 `JAtZ.cancelBadgedJ`), the invalid labels by `decode_invocation_cnode_illegalJ`. -/

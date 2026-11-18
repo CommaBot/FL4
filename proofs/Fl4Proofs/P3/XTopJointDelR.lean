@@ -102,8 +102,8 @@ some of them proved here.
   `JPostDelHyp` (`delHyp_fullWR` at `WJR`; `JPreemptHyp` from the platform,
   XTopJointPP's `jPreemptHyp_of`; `JPostDelHyp` from the kernel-state
   layout, XTopJointPost's `jPostDelHyp_of`); `PPR0` kept by the slot edits
-  (`PPK.of_cnK`) and by the finalisations (`JFinPPHyp` [J],
-  `JDelParts.finPP`: the spec's `finalise_cap` keeps it).
+  (`PPK.of_cnK`) and by the finalisations (`jFinPPHyp`: SpecPPR's
+  `ppr0_finaliseCap`, the spec's `finalise_cap` keeps it from `Inv`).
 -/
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -117,6 +117,7 @@ import Fl4Proofs.P3.XTopJointFinThread
 import Fl4Proofs.P3.XTopJointRemove
 import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.ScPPR
+import Fl4Proofs.P3.SpecPPR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -200,16 +201,16 @@ def JPreemptHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     PPHypDW (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th
 
-/-- **Hypothesis: a cap's finalisation keeps `PPR0`** [J]: from a `JAtZ`
-state, every outcome of the spec's `finalise_cap` of a cap in a slot keeps
-`PPR0` (ScPPR: at a zero consumed time, the current SC's head ready when
-active, its threads outside the release queue). l4v: `finalise_cap`
-preserves `cur_time`, `consumed_time` and `cur_sc` (crunch), changes the
-current SC's refills only by `sched_context_set_inactive` (the SC then
-inactive), never enqueues a thread for release, and binds a thread to the
-current SC only by `reply_remove`'s donation to a caller blocked on the
-reply, hence outside the release queue (`valid_release_q`: its members are
-runnable). A spec-side fact about `finalise_cap` alone, not proved here. -/
+/-- **A cap's finalisation keeps `PPR0`**: from a `JAtZ` state, every
+outcome of the spec's `finalise_cap` of a cap in a slot keeps `PPR0`
+(ScPPR: at a zero consumed time, the current SC's head ready when active,
+its threads outside the release queue). Proved (`jFinPPHyp`, SpecPPR's
+`ppr0_finaliseCap`, from `Inv`): `finalise_cap` keeps the time, the consumed
+time and the current SC, changes the current SC's refills only by
+`sched_context_set_inactive` (the SC then inactive), never enqueues a thread
+for release, and binds a thread to the current SC only by `reply_remove`'s
+donation to a caller blocked on the reply, hence outside the release queue
+(`Inv.rel`: its members are runnable). -/
 def JFinPPHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -217,6 +218,9 @@ def JFinPPHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
       FinObjKind c → ∀ (x : Fl4Spec.Cap × Fl4Spec.Cap) (σ' : Fl4Spec.State Unit),
       (x, σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 →
       PPR0 σ → PPR0 σ'
+
+theorem jFinPPHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JFinPPHyp (L := L) arI AR th :=
+  fun _ _ _ _ _ _ _ _ σ _ J _ _ _ _ _ x σ' hx hP => PPS.ppr0_finaliseCap (x := (x, σ')) J.inv hx hP
 
 /-! ## The named steps -/
 
@@ -450,9 +454,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   `jRdTrivHyp_of`). -/
   zTcb : JZombieTcbHyp (L := L) arI AR th
   empUt : JEmptyUtHyp (L := L) arI AR th
-  /-- A cap's finalisation keeps `PPR0` (`JFinPPHyp` [J], the spec's
-  `finalise_cap` alone): what the preemption points of the loop need. -/
-  finPP : JFinPPHyp (L := L) arI AR th
 
 /-! ## The proved steps -/
 
@@ -1202,7 +1203,7 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJR`, `RdJ`):
-the steps at `WJ`, with `PPR0` after a finalisation by `JFinPPHyp` and
+the steps at `WJ`, with `PPR0` after a finalisation by `jFinPPHyp` and
 after a slot edit by `PPK.of_cnK`. -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
@@ -1225,7 +1226,7 @@ theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) ar
       refine WP.spec_mono (hF s a σ G sl c hDS hW' hA hc hk hKd) ?_
       rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
       exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
-        h9.wjr arI (h.finPP (Z.mv G V) H Cs Ac Lst D s a σ hth J sl c hA hc hk _ σ' h4 hp0), h10⟩
+        h9.wjr arI (jFinPPHyp arI (Z.mv G V) H Cs Ac Lst D s a σ hth J sl c hA hc hk _ σ' h4 hp0), h10⟩
     · intro s a σ G sl c hDS hW hA hc hcn hnk
       exact rdTrivJ arI (jRdTrivHyp_of arI h.zTcb) Z H Cs kb hth s a σ G sl c hDS (hW.wj arI) hA hc hcn hnk
     · intro s s' a σ σ' G sl p zt n hW hD1 hD2 hFr hsc hA hxn hz hal hoth hmS
