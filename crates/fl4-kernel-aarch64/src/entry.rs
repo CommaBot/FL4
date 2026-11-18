@@ -37,7 +37,7 @@ pub fn set_ks_base(b: u64) {
 }
 
 pub fn store() -> PhysStore {
-    PhysStore { ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64, tx: false }
+    PhysStore { frame_masks: (0, 0), ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64, tx: false }
 }
 
 fn service_remote() -> bool {
@@ -84,7 +84,7 @@ impl fl4_sync::EntryEnv for KernelEnv {
         smp::multi()
     }
     fn store(&self, tx: bool) -> PhysStore {
-        PhysStore { ks_base: unsafe { KS_BASE }, cpu: self.cpu(), tx }
+        PhysStore { frame_masks: (0, 0), ks_base: unsafe { KS_BASE }, cpu: self.cpu(), tx }
     }
     fn arch(&self) -> PhysArch {
         PhysArch
