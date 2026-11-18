@@ -251,6 +251,9 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [W] XTopJoint's `CsGlobal` (the IPC, scheduler, VSpace and CSpace
   steps of the Thread cap and the IRQ/IO-port controls at `XTop`). -/
   csG : CsGlobal (L := L) arI AR th
+  /-- [J] XTopJointCopyRegs' `RestartNEHyp` (CopyRegisters: the target's
+  restart after the current thread's own suspend). -/
+  restartNE : RestartNEHyp st arI AR
   /-- [J] the Thread decode's `hA` (`ActReady` at every `WX` state). -/
   actReady : ∀ s a σ G, WX (L := L) AR th s a σ G → Notif.ActReady σ
   /-- [J] the Thread decode's `hBT` (IPC-buffer words). -/
@@ -639,19 +642,21 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
     obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hWR, hFr, hR⟩ := hN hn
-    have hpI : p ≠ L.idleW s := by
+    have hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
+        q ≠ L.idleW s := by
       -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
-      intro e
-      obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := J.dstate.1.1.abs_cap hAs
-      rw [capAt_capV, hsc] at hc0; cases eq_of_ok_eq hc0
+      intro sl' q hAs' hsc' e
+      obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := J.dstate.1.1.abs_cap hAs'
+      rw [capAt_capV, hsc'] at hc0; cases eq_of_ok_eq hc0
       rw [hca0.abs] at hg0
-      have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
-      apply hE.sg.idle sl.1 sl.2 _ ha0 (by simp [IsPageCap, absCap])
+      have ha0 := (getCap_set_iff σ sl'.1 sl'.2 _).1 (congrArg Prod.fst hg0)
+      apply hE.sg.idle sl'.1 sl'.2 _ ha0 (by simp [IsPageCap, absCap])
       rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
+    have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact (decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr
-      hG.delParts.recvRep hG.pp.minBudget hWR hR).toP arI hPre
+      hG.delParts.recvRep hG.pp.minBudget hG.restartNE hidS hWR hR).toP arI hPre
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
