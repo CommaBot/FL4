@@ -9,9 +9,6 @@ open fl4_core
 @[step] theorem fl4_abi.consts.MAX_PRIO.spec : fl4_abi.consts.MAX_PRIO ⦃ v => v = 255#u64 ⦄ := by
   unfold fl4_abi.consts.MAX_PRIO; simp only [fl4_abi.consts.NUM_PRIORITIES]; step*
 
-@[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
-  unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
-
 @[step] theorem boot.PADDR_USER_DEVICE_TOP.spec : boot.PADDR_USER_DEVICE_TOP ⦃ v => v = 140737488355328#u64 ⦄ := by
   unfold boot.PADDR_USER_DEVICE_TOP; step*
 
@@ -21,9 +18,6 @@ open fl4_core
 @[step] theorem obj.MDB_REVOCABLE.spec : obj.MDB_REVOCABLE ⦃ v => v = 281474976710656#u64 ⦄ := by
   unfold obj.MDB_REVOCABLE; step*
 
-@[step] theorem layout.ks.IOPORT_WORDS.spec : layout.ks.IOPORT_WORDS ⦃ v => v = 1024#u64 ⦄ := by
-  unfold layout.ks.IOPORT_WORDS; step*
-
 @[step] theorem layout.ks.DOM_SCHEDULE.spec : layout.ks.DOM_SCHEDULE ⦃ v => v = 192#u64 ⦄ := by
   unfold layout.ks.DOM_SCHEDULE; simp only [layout.WORD]; step*
 
@@ -32,6 +26,27 @@ open fl4_core
 
 @[step] theorem layout.irq.MAX.spec : layout.irq.MAX ⦃ v => v = 127#u64 ⦄ := by
   unfold layout.irq.MAX; step*
+
+@[step] theorem layout.irq.RESCHEDULE_IPI.spec : layout.irq.RESCHEDULE_IPI ⦃ v => v = 127#u64 ⦄ := by
+  unfold layout.irq.RESCHEDULE_IPI; step*
+
+@[step] theorem layout.irq.REMOTE_CALL_IPI.spec : layout.irq.REMOTE_CALL_IPI ⦃ v => v = 126#u64 ⦄ := by
+  unfold layout.irq.REMOTE_CALL_IPI; step*
+
+@[step] theorem layout.irq.TIMER.spec : layout.irq.TIMER ⦃ v => v = 125#u64 ⦄ := by
+  unfold layout.irq.TIMER; step*
+
+@[step] theorem debug.DR6_SINGLE_STEP.spec : debug.DR6_SINGLE_STEP ⦃ v => v = 16384#u64 ⦄ := by
+  unfold debug.DR6_SINGLE_STEP; step*
+
+@[step] theorem debug.EFLAGS_TF.spec : debug.EFLAGS_TF ⦃ v => v = 256#u64 ⦄ := by
+  unfold debug.EFLAGS_TF; step*
+
+@[step] theorem debug.EFLAGS_RF.spec : debug.EFLAGS_RF ⦃ v => v = 65536#u64 ⦄ := by
+  unfold debug.EFLAGS_RF; step*
+
+@[step] theorem layout.ks.IOPORT_WORDS.spec : layout.ks.IOPORT_WORDS ⦃ v => v = 1024#u64 ⦄ := by
+  unfold layout.ks.IOPORT_WORDS; step*
 
 @[step] theorem layout.irq.COUNT.spec : layout.irq.COUNT ⦃ v => v = 128#u64 ⦄ := by
   unfold layout.irq.COUNT; step*
@@ -60,29 +75,53 @@ open fl4_core
 @[step] theorem layout.node.SIZE.spec : layout.node.SIZE ⦃ v => v = 4288#u64 ⦄ := by
   unfold layout.node.SIZE; step*
 
+@[step] theorem layout.irq.USER_MAX.spec : layout.irq.USER_MAX ⦃ v => v = 123#u64 ⦄ := by
+  unfold layout.irq.USER_MAX; step*
+
+@[step] theorem layout.tcb.IN_QUEUES.spec : layout.tcb.IN_QUEUES ⦃ v => v = 3592#u64 ⦄ := by
+  unfold layout.tcb.IN_QUEUES; simp only [layout.tcb.F]; step*
+
 @[step] theorem layout.tcb.SC.spec : layout.tcb.SC ⦃ v => v = 3464#u64 ⦄ := by
   unfold layout.tcb.SC; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.NAME.spec : layout.tcb.NAME ⦃ v => v = 3600#u64 ⦄ := by
-  unfold layout.tcb.NAME; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.FPU_USE.spec : layout.tcb.FPU_USE ⦃ v => v = 3264#u64 ⦄ := by
+  unfold layout.tcb.FPU_USE; simp only [layout.tcb.FPU, layout.tcb.FPU_SIZE]; step*
 
-@[step] theorem layout.tcb.DEBUG_PREV.spec : layout.tcb.DEBUG_PREV ⦃ v => v = 3584#u64 ⦄ := by
-  unfold layout.tcb.DEBUG_PREV; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.BLOCK_OBJ.spec : layout.tcb.BLOCK_OBJ ⦃ v => v = 3336#u64 ⦄ := by
+  unfold layout.tcb.BLOCK_OBJ; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.DEBUG_NEXT.spec : layout.tcb.DEBUG_NEXT ⦃ v => v = 3576#u64 ⦄ := by
-  unfold layout.tcb.DEBUG_NEXT; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.BLOCK_BADGE.spec : layout.tcb.BLOCK_BADGE ⦃ v => v = 3344#u64 ⦄ := by
+  unfold layout.tcb.BLOCK_BADGE; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.AFFINITY.spec : layout.tcb.AFFINITY ⦃ v => v = 3520#u64 ⦄ := by
-  unfold layout.tcb.AFFINITY; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.BLOCK_FLAGS.spec : layout.tcb.BLOCK_FLAGS ⦃ v => v = 3352#u64 ⦄ := by
+  unfold layout.tcb.BLOCK_FLAGS; simp only [layout.tcb.F]; step*
 
-@[step] theorem regs.FLAGS_HIGH.spec : regs.FLAGS_HIGH ⦃ v => v = 2#u64 ⦄ := by
-  unfold regs.FLAGS_HIGH; step*
+@[step] theorem layout.tcb.REPLY_OBJ.spec : layout.tcb.REPLY_OBJ ⦃ v => v = 3360#u64 ⦄ := by
+  unfold layout.tcb.REPLY_OBJ; simp only [layout.tcb.F]; step*
 
-@[step] theorem regs.FLAGS_IF.spec : regs.FLAGS_IF ⦃ v => v = 512#u64 ⦄ := by
-  unfold regs.FLAGS_IF; step*
+@[step] theorem layout.tcb.BOUND_NTFN.spec : layout.tcb.BOUND_NTFN ⦃ v => v = 3368#u64 ⦄ := by
+  unfold layout.tcb.BOUND_NTFN; simp only [layout.tcb.F]; step*
 
-@[step] theorem regs.FLAGS_USER_DEFAULT.spec : regs.FLAGS_USER_DEFAULT ⦃ v => v = 514#u64 ⦄ := by
-  unfold regs.FLAGS_USER_DEFAULT; step*
+@[step] theorem layout.tcb.FAULT_TYPE.spec : layout.tcb.FAULT_TYPE ⦃ v => v = 3376#u64 ⦄ := by
+  unfold layout.tcb.FAULT_TYPE; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.FAULT_W0.spec : layout.tcb.FAULT_W0 ⦃ v => v = 3384#u64 ⦄ := by
+  unfold layout.tcb.FAULT_W0; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.FAULT_W1.spec : layout.tcb.FAULT_W1 ⦃ v => v = 3392#u64 ⦄ := by
+  unfold layout.tcb.FAULT_W1; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.FAULT_W2.spec : layout.tcb.FAULT_W2 ⦃ v => v = 3400#u64 ⦄ := by
+  unfold layout.tcb.FAULT_W2; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.LF_TYPE.spec : layout.tcb.LF_TYPE ⦃ v => v = 3408#u64 ⦄ := by
+  unfold layout.tcb.LF_TYPE; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.LF_W0.spec : layout.tcb.LF_W0 ⦃ v => v = 3416#u64 ⦄ := by
+  unfold layout.tcb.LF_W0; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.LF_W1.spec : layout.tcb.LF_W1 ⦃ v => v = 3424#u64 ⦄ := by
+  unfold layout.tcb.LF_W1; simp only [layout.tcb.F]; step*
 
 @[step] theorem layout.tcb.DOMAIN.spec : layout.tcb.DOMAIN ⦃ v => v = 3432#u64 ⦄ := by
   unfold layout.tcb.DOMAIN; simp only [layout.tcb.F]; step*
@@ -93,71 +132,14 @@ open fl4_core
 @[step] theorem layout.tcb.PRIO.spec : layout.tcb.PRIO ⦃ v => v = 3448#u64 ⦄ := by
   unfold layout.tcb.PRIO; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.IPC_BUFFER.spec : layout.tcb.IPC_BUFFER ⦃ v => v = 3512#u64 ⦄ := by
-  unfold layout.tcb.IPC_BUFFER; simp only [layout.tcb.F]; step*
-
 @[step] theorem layout.tcb.FLAGS.spec : layout.tcb.FLAGS ⦃ v => v = 3456#u64 ⦄ := by
   unfold layout.tcb.FLAGS; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 288000#u64 ⦄ := by
-  unfold layout.ks.ASID_TABLE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
-
-@[step] theorem layout.irq.RESCHEDULE_IPI.spec : layout.irq.RESCHEDULE_IPI ⦃ v => v = 127#u64 ⦄ := by
-  unfold layout.irq.RESCHEDULE_IPI; step*
-
-@[step] theorem layout.irq.REMOTE_CALL_IPI.spec : layout.irq.REMOTE_CALL_IPI ⦃ v => v = 126#u64 ⦄ := by
-  unfold layout.irq.REMOTE_CALL_IPI; step*
-
-@[step] theorem layout.irq.TIMER.spec : layout.irq.TIMER ⦃ v => v = 125#u64 ⦄ := by
-  unfold layout.irq.TIMER; step*
-
-@[step] theorem ept.CORES.spec : ept.CORES ⦃ v => v = 4080#u64 ⦄ := by
-  unfold ept.CORES; step*
-
-@[step] theorem vspace.P_PRESENT.spec : vspace.P_PRESENT ⦃ v => v = 1#u64 ⦄ := by
-  unfold vspace.P_PRESENT; step*
-
-@[step] theorem vspace.P_PS.spec : vspace.P_PS ⦃ v => v = 128#u64 ⦄ := by
-  unfold vspace.P_PS; step*
-
-@[step] theorem layout.tcb.VCPU.spec : layout.tcb.VCPU ⦃ v => v = 3664#u64 ⦄ := by
-  unfold layout.tcb.VCPU; simp only [layout.tcb.NAME_LEN]; step*
-
-@[step] theorem vcpu.svm.CR2.spec : vcpu.svm.CR2 ⦃ v => v = 1600#u64 ⦄ := by
-  unfold vcpu.svm.CR2; simp only [vcpu.svm.SAVE]; step*
-
-@[step] theorem vcpu.svm.RIP.spec : vcpu.svm.RIP ⦃ v => v = 1400#u64 ⦄ := by
-  unfold vcpu.svm.RIP; simp only [vcpu.svm.SAVE]; step*
-
-@[step] theorem vcpu.svm.RFLAGS.spec : vcpu.svm.RFLAGS ⦃ v => v = 1392#u64 ⦄ := by
-  unfold vcpu.svm.RFLAGS; simp only [vcpu.svm.SAVE]; step*
-
-@[step] theorem vcpu.svm.CR3.spec : vcpu.svm.CR3 ⦃ v => v = 1360#u64 ⦄ := by
-  unfold vcpu.svm.CR3; simp only [vcpu.svm.SAVE]; step*
-
-@[step] theorem layout.tcb.IN_QUEUES.spec : layout.tcb.IN_QUEUES ⦃ v => v = 3592#u64 ⦄ := by
-  unfold layout.tcb.IN_QUEUES; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.TIMER_RIGHT.spec : layout.tcb.TIMER_RIGHT ⦃ v => v = 3552#u64 ⦄ := by
-  unfold layout.tcb.TIMER_RIGHT; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.TIMER_LEFT.spec : layout.tcb.TIMER_LEFT ⦃ v => v = 3544#u64 ⦄ := by
-  unfold layout.tcb.TIMER_LEFT; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.TIMER_PARENT.spec : layout.tcb.TIMER_PARENT ⦃ v => v = 3560#u64 ⦄ := by
-  unfold layout.tcb.TIMER_PARENT; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.TIMER_HEIGHT.spec : layout.tcb.TIMER_HEIGHT ⦃ v => v = 3568#u64 ⦄ := by
-  unfold layout.tcb.TIMER_HEIGHT; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.TIMER_DEADLINE.spec : layout.tcb.TIMER_DEADLINE ⦃ v => v = 3528#u64 ⦄ := by
-  unfold layout.tcb.TIMER_DEADLINE; simp only [layout.tcb.F]; step*
 
 @[step] theorem layout.tcb.YIELD_TO.spec : layout.tcb.YIELD_TO ⦃ v => v = 3472#u64 ⦄ := by
   unfold layout.tcb.YIELD_TO; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.EP_PREV.spec : layout.tcb.EP_PREV ⦃ v => v = 3504#u64 ⦄ := by
-  unfold layout.tcb.EP_PREV; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.SCHED_NEXT.spec : layout.tcb.SCHED_NEXT ⦃ v => v = 3480#u64 ⦄ := by
+  unfold layout.tcb.SCHED_NEXT; simp only [layout.tcb.F]; step*
 
 @[step] theorem layout.tcb.SCHED_PREV.spec : layout.tcb.SCHED_PREV ⦃ v => v = 3488#u64 ⦄ := by
   unfold layout.tcb.SCHED_PREV; simp only [layout.tcb.F]; step*
@@ -165,110 +147,59 @@ open fl4_core
 @[step] theorem layout.tcb.EP_NEXT.spec : layout.tcb.EP_NEXT ⦃ v => v = 3496#u64 ⦄ := by
   unfold layout.tcb.EP_NEXT; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.SCHED_NEXT.spec : layout.tcb.SCHED_NEXT ⦃ v => v = 3480#u64 ⦄ := by
-  unfold layout.tcb.SCHED_NEXT; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.EP_PREV.spec : layout.tcb.EP_PREV ⦃ v => v = 3504#u64 ⦄ := by
+  unfold layout.tcb.EP_PREV; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.BLOCK_OBJ.spec : layout.tcb.BLOCK_OBJ ⦃ v => v = 3336#u64 ⦄ := by
-  unfold layout.tcb.BLOCK_OBJ; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.IPC_BUFFER.spec : layout.tcb.IPC_BUFFER ⦃ v => v = 3512#u64 ⦄ := by
+  unfold layout.tcb.IPC_BUFFER; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.REPLY_OBJ.spec : layout.tcb.REPLY_OBJ ⦃ v => v = 3360#u64 ⦄ := by
-  unfold layout.tcb.REPLY_OBJ; simp only [layout.tcb.F]; step*
+@[step] theorem layout.tcb.AFFINITY.spec : layout.tcb.AFFINITY ⦃ v => v = 3520#u64 ⦄ := by
+  unfold layout.tcb.AFFINITY; simp only [layout.tcb.F]; step*
 
-@[step] theorem layout.tcb.FAULT_TYPE.spec : layout.tcb.FAULT_TYPE ⦃ v => v = 3376#u64 ⦄ := by
-  unfold layout.tcb.FAULT_TYPE; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.BOUND_NTFN.spec : layout.tcb.BOUND_NTFN ⦃ v => v = 3368#u64 ⦄ := by
-  unfold layout.tcb.BOUND_NTFN; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.BLOCK_BADGE.spec : layout.tcb.BLOCK_BADGE ⦃ v => v = 3344#u64 ⦄ := by
-  unfold layout.tcb.BLOCK_BADGE; simp only [layout.tcb.F]; step*
-
-@[step] theorem debug.DR6_SINGLE_STEP.spec : debug.DR6_SINGLE_STEP ⦃ v => v = 16384#u64 ⦄ := by
-  unfold debug.DR6_SINGLE_STEP; step*
-
-@[step] theorem debug.EFLAGS_TF.spec : debug.EFLAGS_TF ⦃ v => v = 256#u64 ⦄ := by
-  unfold debug.EFLAGS_TF; step*
-
-@[step] theorem debug.EFLAGS_RF.spec : debug.EFLAGS_RF ⦃ v => v = 65536#u64 ⦄ := by
-  unfold debug.EFLAGS_RF; step*
-
-@[step] theorem domain.MAX_DURATION.spec : domain.MAX_DURATION ⦃ v => v = 72057594037927935#u64 ⦄ := by
-  unfold domain.MAX_DURATION; step*
-
-@[step] theorem layout.tcb.BLOCK_FLAGS.spec : layout.tcb.BLOCK_FLAGS ⦃ v => v = 3352#u64 ⦄ := by
-  unfold layout.tcb.BLOCK_FLAGS; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.FAULT_W2.spec : layout.tcb.FAULT_W2 ⦃ v => v = 3400#u64 ⦄ := by
-  unfold layout.tcb.FAULT_W2; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.FAULT_W1.spec : layout.tcb.FAULT_W1 ⦃ v => v = 3392#u64 ⦄ := by
-  unfold layout.tcb.FAULT_W1; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.FAULT_W0.spec : layout.tcb.FAULT_W0 ⦃ v => v = 3384#u64 ⦄ := by
-  unfold layout.tcb.FAULT_W0; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.LF_W1.spec : layout.tcb.LF_W1 ⦃ v => v = 3424#u64 ⦄ := by
-  unfold layout.tcb.LF_W1; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.LF_W0.spec : layout.tcb.LF_W0 ⦃ v => v = 3416#u64 ⦄ := by
-  unfold layout.tcb.LF_W0; simp only [layout.tcb.F]; step*
-
-@[step] theorem layout.tcb.LF_TYPE.spec : layout.tcb.LF_TYPE ⦃ v => v = 3408#u64 ⦄ := by
-  unfold layout.tcb.LF_TYPE; simp only [layout.tcb.F]; step*
-
-@[step] theorem msg.BUF_USER_DATA.spec : msg.BUF_USER_DATA ⦃ v => v = 121#u64 ⦄ := by
-  unfold msg.BUF_USER_DATA; simp only [msg.MSG_MAX_LENGTH]; step*
-
-@[step] theorem msg.BUF_CAPS.spec : msg.BUF_CAPS ⦃ v => v = 122#u64 ⦄ := by
-  unfold msg.BUF_CAPS; step*
-
-@[step] theorem msg.BUF_RECV_CNODE.spec : msg.BUF_RECV_CNODE ⦃ v => v = 125#u64 ⦄ := by
-  unfold msg.BUF_RECV_CNODE; simp only [msg.MSG_MAX_EXTRA_CAPS]; step*
-
-@[step] theorem msg.BUF_RECV_INDEX.spec : msg.BUF_RECV_INDEX ⦃ v => v = 126#u64 ⦄ := by
-  unfold msg.BUF_RECV_INDEX; step*
-
-@[step] theorem msg.BUF_RECV_DEPTH.spec : msg.BUF_RECV_DEPTH ⦃ v => v = 127#u64 ⦄ := by
-  unfold msg.BUF_RECV_DEPTH; step*
-
-@[step] theorem ept.LIMIT.spec : ept.LIMIT ⦃ v => v = 140737488355328#u64 ⦄ := by
-  unfold ept.LIMIT; step*
-
-@[step] theorem regs.FLAGS_MASK.spec : regs.FLAGS_MASK ⦃ v => v = 4095#u64 ⦄ := by
-  unfold regs.FLAGS_MASK; step*
-
-@[step] theorem regs.FLAGS_LOW.spec : regs.FLAGS_LOW ⦃ v => v = 40#u64 ⦄ := by
-  unfold regs.FLAGS_LOW; step*
-
-@[step] theorem regs.FLAGS_TF.spec : regs.FLAGS_TF ⦃ v => v = 256#u64 ⦄ := by
-  unfold regs.FLAGS_TF; step*
-
-@[step] theorem layout.irq.USER_MAX.spec : layout.irq.USER_MAX ⦃ v => v = 123#u64 ⦄ := by
-  unfold layout.irq.USER_MAX; step*
-
-@[step] theorem layout.PADDR_TOP.spec : layout.PADDR_TOP ⦃ v => v = 547608330240#u64 ⦄ := by
-  unfold layout.PADDR_TOP; simp only [layout.PPTR_BASE, layout.PPTR_TOP]; step*
-
-@[step] theorem layout.tcb.FPU_USE.spec : layout.tcb.FPU_USE ⦃ v => v = 3264#u64 ⦄ := by
-  unfold layout.tcb.FPU_USE; simp only [layout.tcb.FPU, layout.tcb.FPU_SIZE]; step*
+@[step] theorem layout.tcb.TIMER_DEADLINE.spec : layout.tcb.TIMER_DEADLINE ⦃ v => v = 3528#u64 ⦄ := by
+  unfold layout.tcb.TIMER_DEADLINE; simp only [layout.tcb.F]; step*
 
 @[step] theorem layout.tcb.TIMER_BADGE.spec : layout.tcb.TIMER_BADGE ⦃ v => v = 3536#u64 ⦄ := by
   unfold layout.tcb.TIMER_BADGE; simp only [layout.tcb.F]; step*
 
+@[step] theorem layout.tcb.TIMER_LEFT.spec : layout.tcb.TIMER_LEFT ⦃ v => v = 3544#u64 ⦄ := by
+  unfold layout.tcb.TIMER_LEFT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.TIMER_RIGHT.spec : layout.tcb.TIMER_RIGHT ⦃ v => v = 3552#u64 ⦄ := by
+  unfold layout.tcb.TIMER_RIGHT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.TIMER_PARENT.spec : layout.tcb.TIMER_PARENT ⦃ v => v = 3560#u64 ⦄ := by
+  unfold layout.tcb.TIMER_PARENT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.TIMER_HEIGHT.spec : layout.tcb.TIMER_HEIGHT ⦃ v => v = 3568#u64 ⦄ := by
+  unfold layout.tcb.TIMER_HEIGHT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.DEBUG_NEXT.spec : layout.tcb.DEBUG_NEXT ⦃ v => v = 3576#u64 ⦄ := by
+  unfold layout.tcb.DEBUG_NEXT; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.DEBUG_PREV.spec : layout.tcb.DEBUG_PREV ⦃ v => v = 3584#u64 ⦄ := by
+  unfold layout.tcb.DEBUG_PREV; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.NAME.spec : layout.tcb.NAME ⦃ v => v = 3600#u64 ⦄ := by
+  unfold layout.tcb.NAME; simp only [layout.tcb.F]; step*
+
+@[step] theorem layout.tcb.VCPU.spec : layout.tcb.VCPU ⦃ v => v = 3664#u64 ⦄ := by
+  unfold layout.tcb.VCPU; simp only [layout.tcb.NAME_LEN]; step*
+
 @[step] theorem layout.tcb.END.spec : layout.tcb.END ⦃ v => v = 3672#u64 ⦄ := by
   unfold layout.tcb.END; step*
-
-@[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
-  unfold layout.node.RELEASE_TAIL; simp only [layout.node.RELEASE_HEAD]; step*
-
-@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 304384#u64 ⦄ := by
-  unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
 
 @[step] theorem vcpu.svm.END.spec : vcpu.svm.END ⦃ v => v = 1768#u64 ⦄ := by
   unfold vcpu.svm.END; simp only [vcpu.svm.SAVE]; step*
 
 @[step] theorem vcpu.svm.G_PAT.spec : vcpu.svm.G_PAT ⦃ v => v = 1640#u64 ⦄ := by
   unfold vcpu.svm.G_PAT; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem vcpu.svm.RIP.spec : vcpu.svm.RIP ⦃ v => v = 1400#u64 ⦄ := by
+  unfold vcpu.svm.RIP; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem vcpu.svm.RFLAGS.spec : vcpu.svm.RFLAGS ⦃ v => v = 1392#u64 ⦄ := by
+  unfold vcpu.svm.RFLAGS; simp only [vcpu.svm.SAVE]; step*
 
 @[step] theorem vcpu.svm.DR6.spec : vcpu.svm.DR6 ⦃ v => v = 1384#u64 ⦄ := by
   unfold vcpu.svm.DR6; simp only [vcpu.svm.SAVE]; step*
@@ -303,32 +234,101 @@ open fl4_core
 @[step] theorem vcpu.CR4_ALLOWED.spec : vcpu.CR4_ALLOWED ⦃ v => v = 3608575#u64 ⦄ := by
   unfold vcpu.CR4_ALLOWED; step*
 
-@[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
-  unfold sporadic.min_budget_us; step*
+@[step] theorem regs.FLAGS_TF.spec : regs.FLAGS_TF ⦃ v => v = 256#u64 ⦄ := by
+  unfold regs.FLAGS_TF; step*
 
-@[step] theorem vspace.P_PCD.spec : vspace.P_PCD ⦃ v => v = 16#u64 ⦄ := by
-  unfold vspace.P_PCD; step*
+@[step] theorem regs.FLAGS_IF.spec : regs.FLAGS_IF ⦃ v => v = 512#u64 ⦄ := by
+  unfold regs.FLAGS_IF; step*
 
-@[step] theorem vspace.P_PWT.spec : vspace.P_PWT ⦃ v => v = 8#u64 ⦄ := by
-  unfold vspace.P_PWT; step*
+@[step] theorem regs.FLAGS_HIGH.spec : regs.FLAGS_HIGH ⦃ v => v = 2#u64 ⦄ := by
+  unfold regs.FLAGS_HIGH; step*
 
-@[step] theorem vspace.P_US.spec : vspace.P_US ⦃ v => v = 4#u64 ⦄ := by
-  unfold vspace.P_US; step*
+@[step] theorem regs.FLAGS_LOW.spec : regs.FLAGS_LOW ⦃ v => v = 40#u64 ⦄ := by
+  unfold regs.FLAGS_LOW; step*
+
+@[step] theorem regs.FLAGS_MASK.spec : regs.FLAGS_MASK ⦃ v => v = 4095#u64 ⦄ := by
+  unfold regs.FLAGS_MASK; step*
+
+@[step] theorem regs.FLAGS_USER_DEFAULT.spec : regs.FLAGS_USER_DEFAULT ⦃ v => v = 514#u64 ⦄ := by
+  unfold regs.FLAGS_USER_DEFAULT; step*
+
+@[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 288000#u64 ⦄ := by
+  unfold layout.ks.ASID_TABLE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
+
+@[step] theorem msg.BUF_USER_DATA.spec : msg.BUF_USER_DATA ⦃ v => v = 121#u64 ⦄ := by
+  unfold msg.BUF_USER_DATA; simp only [msg.MSG_MAX_LENGTH]; step*
+
+@[step] theorem msg.BUF_CAPS.spec : msg.BUF_CAPS ⦃ v => v = 122#u64 ⦄ := by
+  unfold msg.BUF_CAPS; step*
+
+@[step] theorem msg.BUF_RECV_CNODE.spec : msg.BUF_RECV_CNODE ⦃ v => v = 125#u64 ⦄ := by
+  unfold msg.BUF_RECV_CNODE; simp only [msg.MSG_MAX_EXTRA_CAPS]; step*
+
+@[step] theorem msg.BUF_RECV_INDEX.spec : msg.BUF_RECV_INDEX ⦃ v => v = 126#u64 ⦄ := by
+  unfold msg.BUF_RECV_INDEX; step*
+
+@[step] theorem msg.BUF_RECV_DEPTH.spec : msg.BUF_RECV_DEPTH ⦃ v => v = 127#u64 ⦄ := by
+  unfold msg.BUF_RECV_DEPTH; step*
+
+@[step] theorem vcpu.svm.CR2.spec : vcpu.svm.CR2 ⦃ v => v = 1600#u64 ⦄ := by
+  unfold vcpu.svm.CR2; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem vcpu.svm.CR3.spec : vcpu.svm.CR3 ⦃ v => v = 1360#u64 ⦄ := by
+  unfold vcpu.svm.CR3; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem vspace.P_PRESENT.spec : vspace.P_PRESENT ⦃ v => v = 1#u64 ⦄ := by
+  unfold vspace.P_PRESENT; step*
 
 @[step] theorem vspace.P_RW.spec : vspace.P_RW ⦃ v => v = 2#u64 ⦄ := by
   unfold vspace.P_RW; step*
 
+@[step] theorem vspace.P_US.spec : vspace.P_US ⦃ v => v = 4#u64 ⦄ := by
+  unfold vspace.P_US; step*
+
+@[step] theorem vspace.P_PWT.spec : vspace.P_PWT ⦃ v => v = 8#u64 ⦄ := by
+  unfold vspace.P_PWT; step*
+
+@[step] theorem vspace.P_PCD.spec : vspace.P_PCD ⦃ v => v = 16#u64 ⦄ := by
+  unfold vspace.P_PCD; step*
+
 @[step] theorem vspace.P_ACCESSED.spec : vspace.P_ACCESSED ⦃ v => v = 32#u64 ⦄ := by
   unfold vspace.P_ACCESSED; step*
 
-@[step] theorem vspace.P_PAT_LARGE.spec : vspace.P_PAT_LARGE ⦃ v => v = 4096#u64 ⦄ := by
-  unfold vspace.P_PAT_LARGE; step*
+@[step] theorem vspace.P_PS.spec : vspace.P_PS ⦃ v => v = 128#u64 ⦄ := by
+  unfold vspace.P_PS; step*
 
 @[step] theorem vspace.P_PAT_4K.spec : vspace.P_PAT_4K ⦃ v => v = 128#u64 ⦄ := by
   unfold vspace.P_PAT_4K; step*
 
+@[step] theorem vspace.P_PAT_LARGE.spec : vspace.P_PAT_LARGE ⦃ v => v = 4096#u64 ⦄ := by
+  unfold vspace.P_PAT_LARGE; step*
+
 @[step] theorem vspace.P_XD.spec : vspace.P_XD ⦃ v => v = 9223372036854775808#u64 ⦄ := by
   unfold vspace.P_XD; step*
+
+@[step] theorem ept.CORES.spec : ept.CORES ⦃ v => v = 4080#u64 ⦄ := by
+  unfold ept.CORES; step*
+
+@[step] theorem ept.LIMIT.spec : ept.LIMIT ⦃ v => v = 140737488355328#u64 ⦄ := by
+  unfold ept.LIMIT; step*
+
+@[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
+  unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
+
+@[step] theorem domain.MAX_DURATION.spec : domain.MAX_DURATION ⦃ v => v = 72057594037927935#u64 ⦄ := by
+  unfold domain.MAX_DURATION; step*
+
+@[step] theorem layout.PADDR_TOP.spec : layout.PADDR_TOP ⦃ v => v = 547608330240#u64 ⦄ := by
+  unfold layout.PADDR_TOP; simp only [layout.PPTR_BASE, layout.PPTR_TOP]; step*
+
+@[step] theorem layout.node.RELEASE_TAIL.spec : layout.node.RELEASE_TAIL ⦃ v => v = 72#u64 ⦄ := by
+  unfold layout.node.RELEASE_TAIL; simp only [layout.node.RELEASE_HEAD]; step*
+
+@[step] theorem layout.ks.SIZE.spec : layout.ks.SIZE ⦃ v => v = 304384#u64 ⦄ := by
+  unfold layout.ks.SIZE; simp only [layout.WORD, layout.ks.NUM_ASID_POOLS]; step*
+
+@[step] theorem sporadic.min_budget_us.spec : sporadic.min_budget_us ⦃ v => v = 20#u64 ⦄ := by
+  unfold sporadic.min_budget_us; step*
 
 @[step] theorem vcpu.svm.KERNEL_GS_BASE.spec : vcpu.svm.KERNEL_GS_BASE ⦃ v => v = 1568#u64 ⦄ := by
   unfold vcpu.svm.KERNEL_GS_BASE; simp only [vcpu.svm.SAVE]; step*
@@ -894,59 +894,11 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq : fl4_abi.config.ROOT_CNODE_SIZE_BITS.val = 13 := by
   unfold fl4_abi.config.ROOT_CNODE_SIZE_BITS; rfl
 
-@[simp, scalar_tac_simps] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 32 := by
-  unfold boot.MAX_REGIONS; rfl
+@[simp, scalar_tac_simps] theorem layout.PPTR_BASE.val_eq : layout.PPTR_BASE.val = 18446743523953737728 := by
+  unfold layout.PPTR_BASE; rfl
 
-@[simp, scalar_tac_simps] theorem boot.ROOT_CNODE_BITS.val_eq : boot.ROOT_CNODE_BITS.val = 13 := by
-  unfold boot.ROOT_CNODE_BITS; exact fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq
-
-@[simp, scalar_tac_simps] theorem boot.MAX_BOOTINFO_UNTYPEDS.val_eq : boot.MAX_BOOTINFO_UNTYPEDS.val = 230 := by
-  unfold boot.MAX_BOOTINFO_UNTYPEDS; rfl
-
-@[simp, scalar_tac_simps] theorem boot.IT_ASID.val_eq : boot.IT_ASID.val = 1 := by
-  unfold boot.IT_ASID; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.EXTRA_LEN.val_eq : boot.bi.EXTRA_LEN.val = 0 := by
-  unfold boot.bi.EXTRA_LEN; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.NODE_ID.val_eq : boot.bi.NODE_ID.val = 1 := by
-  unfold boot.bi.NODE_ID; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.NUM_NODES.val_eq : boot.bi.NUM_NODES.val = 2 := by
-  unfold boot.bi.NUM_NODES; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.NUM_IOPT_LEVELS.val_eq : boot.bi.NUM_IOPT_LEVELS.val = 3 := by
-  unfold boot.bi.NUM_IOPT_LEVELS; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.IPC_BUFFER.val_eq : boot.bi.IPC_BUFFER.val = 4 := by
-  unfold boot.bi.IPC_BUFFER; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.EMPTY.val_eq : boot.bi.EMPTY.val = 5 := by
-  unfold boot.bi.EMPTY; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.USER_IMAGE_FRAMES.val_eq : boot.bi.USER_IMAGE_FRAMES.val = 9 := by
-  unfold boot.bi.USER_IMAGE_FRAMES; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.USER_IMAGE_PAGING.val_eq : boot.bi.USER_IMAGE_PAGING.val = 11 := by
-  unfold boot.bi.USER_IMAGE_PAGING; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.EXTRA_BI_PAGES.val_eq : boot.bi.EXTRA_BI_PAGES.val = 15 := by
-  unfold boot.bi.EXTRA_BI_PAGES; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.CNODE_SIZE_BITS.val_eq : boot.bi.CNODE_SIZE_BITS.val = 17 := by
-  unfold boot.bi.CNODE_SIZE_BITS; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.DOMAIN.val_eq : boot.bi.DOMAIN.val = 18 := by
-  unfold boot.bi.DOMAIN; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.SCHED_CONTROL.val_eq : boot.bi.SCHED_CONTROL.val = 19 := by
-  unfold boot.bi.SCHED_CONTROL; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.UNTYPED.val_eq : boot.bi.UNTYPED.val = 21 := by
-  unfold boot.bi.UNTYPED; rfl
-
-@[simp, scalar_tac_simps] theorem boot.bi.UNTYPED_LIST.val_eq : boot.bi.UNTYPED_LIST.val = 23 := by
-  unfold boot.bi.UNTYPED_LIST; rfl
+@[simp, scalar_tac_simps] theorem layout.cte.SIZE.val_eq : layout.cte.SIZE.val = 32 := by
+  unfold layout.cte.SIZE; rfl
 
 @[simp, scalar_tac_simps] theorem layout.cte.NEXT.val_eq : layout.cte.NEXT.val = 24 := by
   unfold layout.cte.NEXT; rfl
@@ -954,173 +906,23 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem capability.PTR_MASK.val_eq : capability.PTR_MASK.val = 281474976710655 := by
   unfold capability.PTR_MASK; rfl
 
-@[simp, scalar_tac_simps] theorem layout.cte.SIZE.val_eq : layout.cte.SIZE.val = 32 := by
-  unfold layout.cte.SIZE; rfl
+@[simp, scalar_tac_simps] theorem boot.ROOT_CNODE_BITS.val_eq : boot.ROOT_CNODE_BITS.val = 13 := by
+  unfold boot.ROOT_CNODE_BITS; exact fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq
 
-@[simp, scalar_tac_simps] theorem layout.PPTR_BASE.val_eq : layout.PPTR_BASE.val = 18446743523953737728 := by
-  unfold layout.PPTR_BASE; rfl
+@[simp, scalar_tac_simps] theorem boot.bi.USER_IMAGE_PAGING.val_eq : boot.bi.USER_IMAGE_PAGING.val = 11 := by
+  unfold boot.bi.USER_IMAGE_PAGING; rfl
 
-@[simp, scalar_tac_simps] theorem capability.VM_READ_WRITE.val_eq : capability.VM_READ_WRITE.val = 3 := by
-  unfold capability.VM_READ_WRITE; rfl
+@[simp, scalar_tac_simps] theorem boot.IT_ASID.val_eq : boot.IT_ASID.val = 1 := by
+  unfold boot.IT_ASID; rfl
 
 @[simp, scalar_tac_simps] theorem layout.ks.KERNEL_ROOT.val_eq : layout.ks.KERNEL_ROOT.val = 48 := by
   unfold layout.ks.KERNEL_ROOT; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REFILL_MAX.val_eq : layout.sc.REFILL_MAX.val = 72 := by
-  unfold layout.sc.REFILL_MAX; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REFILL_SIZE.val_eq : layout.sc.REFILL_SIZE.val = 16 := by
-  unfold layout.sc.REFILL_SIZE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REFILLS.val_eq : layout.sc.REFILLS.val = 96 := by
-  unfold layout.sc.REFILLS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REFILL_TAIL.val_eq : layout.sc.REFILL_TAIL.val = 88 := by
-  unfold layout.sc.REFILL_TAIL; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.PERIOD.val_eq : layout.sc.PERIOD.val = 0 := by
-  unfold layout.sc.PERIOD; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REFILL_HEAD.val_eq : layout.sc.REFILL_HEAD.val = 80 := by
-  unfold layout.sc.REFILL_HEAD; rfl
 
 @[simp, scalar_tac_simps] theorem layout.WORD.val_eq : layout.WORD.val = 8 := by
   unfold layout.WORD; rfl
 
 @[simp, scalar_tac_simps] theorem layout.NUM_DOMAIN_SCHEDULES.val_eq : layout.NUM_DOMAIN_SCHEDULES.val = 2 := by
   unfold layout.NUM_DOMAIN_SCHEDULES; exact fl4_abi.config.NUM_DOMAIN_SCHEDULES.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.node.L1_BITMAP.val_eq : layout.node.L1_BITMAP.val = 128 := by
-  unfold layout.node.L1_BITMAP; rfl
-
-@[simp, scalar_tac_simps] theorem layout.NUM_DOMAINS.val_eq : layout.NUM_DOMAINS.val = 1 := by
-  unfold layout.NUM_DOMAINS; exact fl4_abi.config.NUM_DOMAINS.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.NUM_PRIORITIES.val_eq : layout.NUM_PRIORITIES.val = 256 := by
-  unfold layout.NUM_PRIORITIES; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CUR_TIME.val_eq : layout.node.CUR_TIME.val = 48 := by
-  unfold layout.node.CUR_TIME; rfl
-
-@[simp, scalar_tac_simps] theorem sporadic.MIN_REFILLS.val_eq : sporadic.MIN_REFILLS.val = 2 := by
-  unfold sporadic.MIN_REFILLS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.TCB.val_eq : layout.sc.TCB.val = 24 := by
-  unfold layout.sc.TCB; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.F.val_eq : layout.tcb.F.val = 3328 := by
-  unfold layout.tcb.F; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
-  unfold layout.node.DEBUG_TCBS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.DOMAIN_TIME.val_eq : layout.ks.DOMAIN_TIME.val = 16 := by
-  unfold layout.ks.DOMAIN_TIME; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
-  unfold layout.ks.CUR_DOMAIN; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.NUM_NODES.val_eq : layout.ks.NUM_NODES.val = 0 := by
-  unfold layout.ks.NUM_NODES; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.SCHED_ACTION.val_eq : layout.node.SCHED_ACTION.val = 16 := by
-  unfold layout.node.SCHED_ACTION; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.IDLE_THREAD.val_eq : layout.node.IDLE_THREAD.val = 8 := by
-  unfold layout.node.IDLE_THREAD; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_RUNNING.val_eq : sched.TS_RUNNING.val = 1 := by
-  unfold sched.TS_RUNNING; rfl
-
-@[simp, scalar_tac_simps] theorem regs.SEL_DS_3.val_eq : regs.SEL_DS_3.val = 43 := by
-  unfold regs.SEL_DS_3; rfl
-
-@[simp, scalar_tac_simps] theorem regs.SEL_CS_3.val_eq : regs.SEL_CS_3.val = 51 := by
-  unfold regs.SEL_CS_3; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.REGS.val_eq : layout.tcb.REGS.val = 256 := by
-  unfold layout.tcb.REGS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.COUNT.val_eq : layout.reg.COUNT.val = 24 := by
-  unfold layout.reg.COUNT; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.SS.val_eq : layout.reg.SS.val = 21 := by
-  unfold layout.reg.SS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.CS.val_eq : layout.reg.CS.val = 20 := by
-  unfold layout.reg.CS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.FLAGS.val_eq : layout.reg.FLAGS.val = 13 := by
-  unfold layout.reg.FLAGS; rfl
-
-@[simp, scalar_tac_simps] theorem obj.MDB_PTR_MASK.val_eq : obj.MDB_PTR_MASK.val = 281474976710655 := by
-  unfold obj.MDB_PTR_MASK; rfl
-
-@[simp, scalar_tac_simps] theorem capability.ZOMBIE_TCB.val_eq : capability.ZOMBIE_TCB.val = 65 := by
-  unfold capability.ZOMBIE_TCB; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.STATE.val_eq : layout.tcb.STATE.val = 3328 := by
-  unfold layout.tcb.STATE; exact layout.tcb.F.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.reg.RDI.val_eq : layout.reg.RDI.val = 0 := by
-  unfold layout.reg.RDI; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.CAP.val_eq : layout.reg.CAP.val = 0 := by
-  unfold layout.reg.CAP; exact layout.reg.RDI.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.reg.FAULT_IP.val_eq : layout.reg.FAULT_IP.val = 17 := by
-  unfold layout.reg.FAULT_IP; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.NEXT_IP.val_eq : layout.reg.NEXT_IP.val = 14 := by
-  unfold layout.reg.NEXT_IP; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_BUFFER.val_eq : layout.tcb.SLOT_BUFFER.val = 2 := by
-  unfold layout.tcb.SLOT_BUFFER; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_VTABLE.val_eq : layout.tcb.SLOT_VTABLE.val = 1 := by
-  unfold layout.tcb.SLOT_VTABLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_CTABLE.val_eq : layout.tcb.SLOT_CTABLE.val = 0 := by
-  unfold layout.tcb.SLOT_CTABLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.DEBUG.val_eq : layout.tcb.DEBUG.val = 448 := by
-  unfold layout.tcb.DEBUG; rfl
-
-@[simp, scalar_tac_simps] theorem debug.DR7.val_eq : debug.DR7.val = 5 := by
-  unfold debug.DR7; rfl
-
-@[simp, scalar_tac_simps] theorem debug.DR6.val_eq : debug.DR6.val = 4 := by
-  unfold debug.DR6; rfl
-
-@[simp, scalar_tac_simps] theorem layout.cte.PREV.val_eq : layout.cte.PREV.val = 16 := by
-  unfold layout.cte.PREV; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.FPU.val_eq : layout.tcb.FPU.val = 512 := by
-  unfold layout.tcb.FPU; rfl
-
-@[simp, scalar_tac_simps] theorem sched.ACTION_RESUME_CURRENT.val_eq : sched.ACTION_RESUME_CURRENT.val = 0 := by
-  unfold sched.ACTION_RESUME_CURRENT; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_IDLE.val_eq : sched.TS_IDLE.val = 7 := by
-  unfold sched.TS_IDLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
-  unfold layout.sc.CORE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.REPROGRAM.val_eq : layout.node.REPROGRAM.val = 56 := by
-  unfold layout.node.REPROGRAM; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.IDLE_SC.val_eq : layout.node.IDLE_SC.val = 32 := by
-  unfold layout.node.IDLE_SC; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CUR_SC.val_eq : layout.node.CUR_SC.val = 24 := by
-  unfold layout.node.CUR_SC; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CUR_THREAD.val_eq : layout.node.CUR_THREAD.val = 0 := by
-  unfold layout.node.CUR_THREAD; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.ASID_LOW_BITS.val_eq : vspace.ASID_LOW_BITS.val = 9 := by
-  unfold vspace.ASID_LOW_BITS; rfl
 
 @[simp, scalar_tac_simps] theorem interrupt.IRQ_IPI.val_eq : interrupt.IRQ_IPI.val = 3 := by
   unfold interrupt.IRQ_IPI; rfl
@@ -1131,236 +933,8 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem interrupt.IRQ_INACTIVE.val_eq : interrupt.IRQ_INACTIVE.val = 0 := by
   unfold interrupt.IRQ_INACTIVE; rfl
 
-@[simp, scalar_tac_simps] theorem capability.VM_KERNEL_ONLY.val_eq : capability.VM_KERNEL_ONLY.val = 1 := by
-  unfold capability.VM_KERNEL_ONLY; rfl
-
-@[simp, scalar_tac_simps] theorem capability.VM_READ_ONLY.val_eq : capability.VM_READ_ONLY.val = 2 := by
-  unfold capability.VM_READ_ONLY; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.CONSUMED.val_eq : layout.node.CONSUMED.val = 40 := by
-  unfold layout.node.CONSUMED; rfl
-
-@[simp, scalar_tac_simps] theorem sched.MAX_WORK_UNITS_PER_PREEMPTION.val_eq : sched.MAX_WORK_UNITS_PER_PREEMPTION.val = 100 := by
-  unfold sched.MAX_WORK_UNITS_PER_PREEMPTION; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.WORK_UNITS.val_eq : layout.ks.WORK_UNITS.val = 40 := by
-  unfold layout.ks.WORK_UNITS; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.N_ASID_POOLS.val_eq : vspace.N_ASID_POOLS.val = 2048 := by
-  unfold vspace.N_ASID_POOLS; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.ADDR_MASK.val_eq : vspace.ADDR_MASK.val = 4503599627366400 := by
-  unfold vspace.ADDR_MASK; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.PML4_INDEX_OFFSET.val_eq : vspace.PML4_INDEX_OFFSET.val = 39 := by
-  unfold vspace.PML4_INDEX_OFFSET; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.PDPT_INDEX_OFFSET.val_eq : vspace.PDPT_INDEX_OFFSET.val = 30 := by
-  unfold vspace.PDPT_INDEX_OFFSET; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.PD_INDEX_OFFSET.val_eq : vspace.PD_INDEX_OFFSET.val = 21 := by
-  unfold vspace.PD_INDEX_OFFSET; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.IO.val_eq : vcpu.IO.val = 24576 := by
-  unfold vcpu.IO; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.TCB.val_eq : vcpu.TCB.val = 20480 := by
-  unfold vcpu.TCB; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.IPI_PENDING.val_eq : layout.node.IPI_PENDING.val = 120 := by
-  unfold layout.node.IPI_PENDING; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.NEXT.val_eq : vcpu.NEXT.val = 20488 := by
-  unfold vcpu.NEXT; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.VCPU_HEAD.val_eq : layout.ks.VCPU_HEAD.val = 80 := by
-  unfold layout.ks.VCPU_HEAD; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.SHADOW.val_eq : vcpu.SHADOW.val = 4096 := by
-  unfold vcpu.SHADOW; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.NAME_LEN.val_eq : layout.tcb.NAME_LEN.val = 64 := by
-  unfold layout.tcb.NAME_LEN; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.SAVE.val_eq : vcpu.svm.SAVE.val = 1024 := by
-  unfold vcpu.svm.SAVE; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.EVENT_INJ.val_eq : vcpu.svm.EVENT_INJ.val = 168 := by
-  unfold vcpu.svm.EVENT_INJ; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.INT_STATE.val_eq : vcpu.svm.INT_STATE.val = 104 := by
-  unfold vcpu.svm.INT_STATE; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.INTERCEPT_EXC.val_eq : vcpu.svm.INTERCEPT_EXC.val = 8 := by
-  unfold vcpu.svm.INTERCEPT_EXC; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_RFLAGS.val_eq : vcpu.vmx.GUEST_RFLAGS.val = 26656 := by
-  unfold vcpu.vmx.GUEST_RFLAGS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_RIP.val_eq : vcpu.vmx.GUEST_RIP.val = 26654 := by
-  unfold vcpu.vmx.GUEST_RIP; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_INTERRUPTABILITY.val_eq : vcpu.vmx.GUEST_INTERRUPTABILITY.val = 18468 := by
-  unfold vcpu.vmx.GUEST_INTERRUPTABILITY; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO.val_eq : vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO.val = 16406 := by
-  unfold vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS.val_eq : vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS.val = 16386 := by
-  unfold vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
-  unfold vcpu.NUM_MRS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.EXIT.val_eq : vcpu.EXIT.val = 20992 := by
-  unfold vcpu.EXIT; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.REGS.val_eq : vcpu.REGS.val = 20736 := by
-  unfold vcpu.REGS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.VALID.val_eq : vcpu.VALID.val = 20528 := by
-  unfold vcpu.VALID; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.PENDING.val_eq : vcpu.PENDING.val = 20520 := by
-  unfold vcpu.PENDING; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.CR2.val_eq : vcpu.CR2.val = 20512 := by
-  unfold vcpu.CR2; rfl
-
-@[simp, scalar_tac_simps] theorem sched.Q_RELEASE.val_eq : sched.Q_RELEASE.val = 2 := by
-  unfold sched.Q_RELEASE; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_RUNNING_VM.val_eq : sched.TS_RUNNING_VM.val = 8 := by
-  unfold sched.TS_RUNNING_VM; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_RESTART.val_eq : sched.TS_RESTART.val = 2 := by
-  unfold sched.TS_RESTART; rfl
-
-@[simp, scalar_tac_simps] theorem sched.ACTION_CHOOSE_NEW.val_eq : sched.ACTION_CHOOSE_NEW.val = 1 := by
-  unfold sched.ACTION_CHOOSE_NEW; rfl
-
-@[simp, scalar_tac_simps] theorem msg.N_MSG_REGISTERS.val_eq : msg.N_MSG_REGISTERS.val = 4 := by
-  unfold msg.N_MSG_REGISTERS; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.R15.val_eq : layout.reg.R15.val = 12 := by
-  unfold layout.reg.R15; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.R9.val_eq : layout.reg.R9.val = 11 := by
-  unfold layout.reg.R9; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.R8.val_eq : layout.reg.R8.val = 10 := by
-  unfold layout.reg.R8; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.R10.val_eq : layout.reg.R10.val = 9 := by
-  unfold layout.reg.R10; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.RSI.val_eq : layout.reg.RSI.val = 1 := by
-  unfold layout.reg.RSI; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.MSG_INFO.val_eq : layout.reg.MSG_INFO.val = 1 := by
-  unfold layout.reg.MSG_INFO; exact layout.reg.RSI.val_eq
-
-@[simp, scalar_tac_simps] theorem layout.reg.BADGE.val_eq : layout.reg.BADGE.val = 0 := by
-  unfold layout.reg.BADGE; exact layout.reg.RDI.val_eq
-
-@[simp, scalar_tac_simps] theorem vcpu.PREV.val_eq : vcpu.PREV.val = 20496 := by
-  unfold vcpu.PREV; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.TIMER_ROOT.val_eq : layout.node.TIMER_ROOT.val = 104 := by
-  unfold layout.node.TIMER_ROOT; rfl
-
-@[simp, scalar_tac_simps] theorem timer.RED.val_eq : timer.RED.val = 1 := by
-  unfold timer.RED; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.TIMER_MIN.val_eq : layout.node.TIMER_MIN.val = 112 := by
-  unfold layout.node.TIMER_MIN; rfl
-
-@[simp, scalar_tac_simps] theorem layout.TREE_FUEL.val_eq : layout.TREE_FUEL.val = 128 := by
-  unfold layout.TREE_FUEL; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.YIELD_FROM.val_eq : layout.sc.YIELD_FROM.val = 56 := by
-  unfold layout.sc.YIELD_FROM; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.CONSUMED.val_eq : layout.sc.CONSUMED.val = 8 := by
-  unfold layout.sc.CONSUMED; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.REPLY.val_eq : layout.sc.REPLY.val = 32 := by
-  unfold layout.sc.REPLY; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reply.NEXT.val_eq : layout.reply.NEXT.val = 16 := by
-  unfold layout.reply.NEXT; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.NTFN.val_eq : layout.sc.NTFN.val = 40 := by
-  unfold layout.sc.NTFN; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
-  unfold layout.ntfn.SC; rfl
-
-@[simp, scalar_tac_simps] theorem sched.Q_QUEUED.val_eq : sched.Q_QUEUED.val = 1 := by
-  unfold sched.Q_QUEUED; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.RELEASE_HEAD.val_eq : layout.node.RELEASE_HEAD.val = 64 := by
-  unfold layout.node.RELEASE_HEAD; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_INACTIVE.val_eq : sched.TS_INACTIVE.val = 0 := by
-  unfold sched.TS_INACTIVE; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_NTFN.val_eq : sched.TS_BLOCKED_ON_NTFN.val = 6 := by
-  unfold sched.TS_BLOCKED_ON_NTFN; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_REPLY.val_eq : sched.TS_BLOCKED_ON_REPLY.val = 5 := by
-  unfold sched.TS_BLOCKED_ON_REPLY; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_SEND.val_eq : sched.TS_BLOCKED_ON_SEND.val = 4 := by
-  unfold sched.TS_BLOCKED_ON_SEND; rfl
-
-@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_RECV.val_eq : sched.TS_BLOCKED_ON_RECV.val = 3 := by
-  unfold sched.TS_BLOCKED_ON_RECV; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.TAIL_STATE.val_eq : layout.ntfn.TAIL_STATE.val = 8 := by
-  unfold layout.ntfn.TAIL_STATE; rfl
-
-@[simp, scalar_tac_simps] theorem obj.NTFN_IDLE.val_eq : obj.NTFN_IDLE.val = 0 := by
-  unfold obj.NTFN_IDLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.HEAD.val_eq : layout.ntfn.HEAD.val = 0 := by
-  unfold layout.ntfn.HEAD; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reply.PREV.val_eq : layout.reply.PREV.val = 8 := by
-  unfold layout.reply.PREV; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reply.TCB.val_eq : layout.reply.TCB.val = 0 := by
-  unfold layout.reply.TCB; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ep.TAIL_STATE.val_eq : layout.ep.TAIL_STATE.val = 8 := by
-  unfold layout.ep.TAIL_STATE; rfl
-
-@[simp, scalar_tac_simps] theorem obj.EP_IDLE.val_eq : obj.EP_IDLE.val = 0 := by
-  unfold obj.EP_IDLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ep.HEAD.val_eq : layout.ep.HEAD.val = 0 := by
-  unfold layout.ep.HEAD; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.SPORADIC.val_eq : layout.sc.SPORADIC.val = 64 := by
-  unfold layout.sc.SPORADIC; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.BOUND_TCB.val_eq : layout.ntfn.BOUND_TCB.val = 24 := by
-  unfold layout.ntfn.BOUND_TCB; rfl
-
-@[simp, scalar_tac_simps] theorem obj.NTFN_WAITING.val_eq : obj.NTFN_WAITING.val = 1 := by
-  unfold obj.NTFN_WAITING; rfl
-
-@[simp, scalar_tac_simps] theorem layout.tcb.NUM_SLOTS.val_eq : layout.tcb.NUM_SLOTS.val = 6 := by
-  unfold layout.tcb.NUM_SLOTS; rfl
-
-@[simp, scalar_tac_simps] theorem ept.ADDRESS.val_eq : ept.ADDRESS.val = 4503599627366400 := by
-  unfold ept.ADDRESS; rfl
-
-@[simp, scalar_tac_simps] theorem cspace.WORD_BITS.val_eq : cspace.WORD_BITS.val = 64 := by
-  unfold cspace.WORD_BITS; rfl
-
-@[simp, scalar_tac_simps] theorem obj.EP_SEND.val_eq : obj.EP_SEND.val = 1 := by
-  unfold obj.EP_SEND; rfl
+@[simp, scalar_tac_simps] theorem layout.tcb.FPU.val_eq : layout.tcb.FPU.val = 512 := by
+  unfold layout.tcb.FPU; rfl
 
 @[simp, scalar_tac_simps] theorem debug.DATA_BREAKPOINT.val_eq : debug.DATA_BREAKPOINT.val = 0 := by
   unfold debug.DATA_BREAKPOINT; rfl
@@ -1386,6 +960,12 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem debug.N_REGS.val_eq : debug.N_REGS.val = 4 := by
   unfold debug.N_REGS; rfl
 
+@[simp, scalar_tac_simps] theorem debug.DR6.val_eq : debug.DR6.val = 4 := by
+  unfold debug.DR6; rfl
+
+@[simp, scalar_tac_simps] theorem debug.DR7.val_eq : debug.DR7.val = 5 := by
+  unfold debug.DR7; rfl
+
 @[simp, scalar_tac_simps] theorem debug.SS_ENABLED.val_eq : debug.SS_ENABLED.val = 6 := by
   unfold debug.SS_ENABLED; rfl
 
@@ -1401,29 +981,38 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem debug.TYPE_DATA_READWRITE.val_eq : debug.TYPE_DATA_READWRITE.val = 3 := by
   unfold debug.TYPE_DATA_READWRITE; rfl
 
-@[simp, scalar_tac_simps] theorem layout.ks.DOM_SCHED_START.val_eq : layout.ks.DOM_SCHED_START.val = 32 := by
-  unfold layout.ks.DOM_SCHED_START; rfl
+@[simp, scalar_tac_simps] theorem layout.tcb.DEBUG.val_eq : layout.tcb.DEBUG.val = 448 := by
+  unfold layout.tcb.DEBUG; rfl
 
-@[simp, scalar_tac_simps] theorem layout.ks.DOM_SCHED_IDX.val_eq : layout.ks.DOM_SCHED_IDX.val = 24 := by
-  unfold layout.ks.DOM_SCHED_IDX; rfl
+@[simp, scalar_tac_simps] theorem layout.tcb.REGS.val_eq : layout.tcb.REGS.val = 256 := by
+  unfold layout.tcb.REGS; rfl
 
-@[simp, scalar_tac_simps] theorem endpoint.FLAG_GRANT.val_eq : endpoint.FLAG_GRANT.val = 1 := by
-  unfold endpoint.FLAG_GRANT; rfl
+@[simp, scalar_tac_simps] theorem layout.reg.FLAGS.val_eq : layout.reg.FLAGS.val = 13 := by
+  unfold layout.reg.FLAGS; rfl
 
-@[simp, scalar_tac_simps] theorem endpoint.FLAG_GRANT_REPLY.val_eq : endpoint.FLAG_GRANT_REPLY.val = 2 := by
-  unfold endpoint.FLAG_GRANT_REPLY; rfl
-
-@[simp, scalar_tac_simps] theorem endpoint.FLAG_CALL.val_eq : endpoint.FLAG_CALL.val = 4 := by
-  unfold endpoint.FLAG_CALL; rfl
-
-@[simp, scalar_tac_simps] theorem layout.reg.RSP.val_eq : layout.reg.RSP.val = 16 := by
-  unfold layout.reg.RSP; rfl
+@[simp, scalar_tac_simps] theorem layout.reg.FAULT_IP.val_eq : layout.reg.FAULT_IP.val = 17 := by
+  unfold layout.reg.FAULT_IP; rfl
 
 @[simp, scalar_tac_simps] theorem layout.reg.RCX.val_eq : layout.reg.RCX.val = 19 := by
   unfold layout.reg.RCX; rfl
 
 @[simp, scalar_tac_simps] theorem layout.reg.R11.val_eq : layout.reg.R11.val = 18 := by
   unfold layout.reg.R11; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.RSP.val_eq : layout.reg.RSP.val = 16 := by
+  unfold layout.reg.RSP; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.R15.val_eq : layout.reg.R15.val = 12 := by
+  unfold layout.reg.R15; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.R9.val_eq : layout.reg.R9.val = 11 := by
+  unfold layout.reg.R9; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.R8.val_eq : layout.reg.R8.val = 10 := by
+  unfold layout.reg.R8; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.R10.val_eq : layout.reg.R10.val = 9 := by
+  unfold layout.reg.R10; rfl
 
 @[simp, scalar_tac_simps] theorem layout.reg.RDX.val_eq : layout.reg.RDX.val = 8 := by
   unfold layout.reg.RDX; rfl
@@ -1446,20 +1035,11 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.reg.RAX.val_eq : layout.reg.RAX.val = 2 := by
   unfold layout.reg.RAX; rfl
 
-@[simp, scalar_tac_simps] theorem msg.MSG_MAX_LENGTH.val_eq : msg.MSG_MAX_LENGTH.val = 120 := by
-  unfold msg.MSG_MAX_LENGTH; rfl
+@[simp, scalar_tac_simps] theorem layout.reg.RSI.val_eq : layout.reg.RSI.val = 1 := by
+  unfold layout.reg.RSI; rfl
 
-@[simp, scalar_tac_simps] theorem msg.MSG_MAX_EXTRA_CAPS.val_eq : msg.MSG_MAX_EXTRA_CAPS.val = 3 := by
-  unfold msg.MSG_MAX_EXTRA_CAPS; rfl
-
-@[simp, scalar_tac_simps] theorem obj.NTFN_ACTIVE.val_eq : obj.NTFN_ACTIVE.val = 2 := by
-  unfold obj.NTFN_ACTIVE; rfl
-
-@[simp, scalar_tac_simps] theorem obj.EP_RECV.val_eq : obj.EP_RECV.val = 2 := by
-  unfold obj.EP_RECV; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.BADGE.val_eq : layout.ntfn.BADGE.val = 16 := by
-  unfold layout.ntfn.BADGE; rfl
+@[simp, scalar_tac_simps] theorem layout.reg.RDI.val_eq : layout.reg.RDI.val = 0 := by
+  unfold layout.reg.RDI; rfl
 
 @[simp, scalar_tac_simps] theorem layout.reg.FS_BASE.val_eq : layout.reg.FS_BASE.val = 22 := by
   unfold layout.reg.FS_BASE; rfl
@@ -1467,29 +1047,32 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.reg.TLS_BASE.val_eq : layout.reg.TLS_BASE.val = 22 := by
   unfold layout.reg.TLS_BASE; exact layout.reg.FS_BASE.val_eq
 
-@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_TIMEOUT_HANDLER.val_eq : layout.tcb.SLOT_TIMEOUT_HANDLER.val = 4 := by
-  unfold layout.tcb.SLOT_TIMEOUT_HANDLER; rfl
+@[simp, scalar_tac_simps] theorem layout.node.L1_BITMAP.val_eq : layout.node.L1_BITMAP.val = 128 := by
+  unfold layout.node.L1_BITMAP; rfl
 
-@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_FAULT_HANDLER.val_eq : layout.tcb.SLOT_FAULT_HANDLER.val = 3 := by
-  unfold layout.tcb.SLOT_FAULT_HANDLER; rfl
+@[simp, scalar_tac_simps] theorem layout.NUM_DOMAINS.val_eq : layout.NUM_DOMAINS.val = 1 := by
+  unfold layout.NUM_DOMAINS; exact fl4_abi.config.NUM_DOMAINS.val_eq
 
-@[simp, scalar_tac_simps] theorem layout.reg.GS_BASE.val_eq : layout.reg.GS_BASE.val = 23 := by
-  unfold layout.reg.GS_BASE; rfl
+@[simp, scalar_tac_simps] theorem layout.NUM_PRIORITIES.val_eq : layout.NUM_PRIORITIES.val = 256 := by
+  unfold layout.NUM_PRIORITIES; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CUR_THREAD.val_eq : layout.node.CUR_THREAD.val = 0 := by
+  unfold layout.node.CUR_THREAD; rfl
+
+@[simp, scalar_tac_simps] theorem msg.N_MSG_REGISTERS.val_eq : msg.N_MSG_REGISTERS.val = 4 := by
+  unfold msg.N_MSG_REGISTERS; rfl
 
 @[simp, scalar_tac_simps] theorem interrupt.IRQ_SIGNAL.val_eq : interrupt.IRQ_SIGNAL.val = 1 := by
   unfold interrupt.IRQ_SIGNAL; rfl
 
-@[simp, scalar_tac_simps] theorem interrupt.IRQ_RESERVED.val_eq : interrupt.IRQ_RESERVED.val = 4 := by
-  unfold interrupt.IRQ_RESERVED; rfl
+@[simp, scalar_tac_simps] theorem obj.MDB_PTR_MASK.val_eq : obj.MDB_PTR_MASK.val = 281474976710655 := by
+  unfold obj.MDB_PTR_MASK; rfl
 
-@[simp, scalar_tac_simps] theorem interrupt.PCI_BUS_MAX.val_eq : interrupt.PCI_BUS_MAX.val = 255 := by
-  unfold interrupt.PCI_BUS_MAX; rfl
+@[simp, scalar_tac_simps] theorem layout.cte.PREV.val_eq : layout.cte.PREV.val = 16 := by
+  unfold layout.cte.PREV; rfl
 
-@[simp, scalar_tac_simps] theorem interrupt.PCI_DEV_MAX.val_eq : interrupt.PCI_DEV_MAX.val = 31 := by
-  unfold interrupt.PCI_DEV_MAX; rfl
-
-@[simp, scalar_tac_simps] theorem interrupt.PCI_FUNC_MAX.val_eq : interrupt.PCI_FUNC_MAX.val = 7 := by
-  unfold interrupt.PCI_FUNC_MAX; rfl
+@[simp, scalar_tac_simps] theorem cspace.WORD_BITS.val_eq : cspace.WORD_BITS.val = 64 := by
+  unfold cspace.WORD_BITS; rfl
 
 @[simp, scalar_tac_simps] theorem layout.irq.USER_MIN.val_eq : layout.irq.USER_MIN.val = 16 := by
   unfold layout.irq.USER_MIN; rfl
@@ -1497,35 +1080,107 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.irq.INT_OFFSET.val_eq : layout.irq.INT_OFFSET.val = 32 := by
   unfold layout.irq.INT_OFFSET; rfl
 
+@[simp, scalar_tac_simps] theorem layout.sc.REFILL_MAX.val_eq : layout.sc.REFILL_MAX.val = 72 := by
+  unfold layout.sc.REFILL_MAX; rfl
+
+@[simp, scalar_tac_simps] theorem sched.Q_RELEASE.val_eq : sched.Q_RELEASE.val = 2 := by
+  unfold sched.Q_RELEASE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.tcb.F.val_eq : layout.tcb.F.val = 3328 := by
+  unfold layout.tcb.F; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_RUNNING_VM.val_eq : sched.TS_RUNNING_VM.val = 8 := by
+  unfold sched.TS_RUNNING_VM; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_RESTART.val_eq : sched.TS_RESTART.val = 2 := by
+  unfold sched.TS_RESTART; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_RUNNING.val_eq : sched.TS_RUNNING.val = 1 := by
+  unfold sched.TS_RUNNING; rfl
+
+@[simp, scalar_tac_simps] theorem layout.tcb.STATE.val_eq : layout.tcb.STATE.val = 3328 := by
+  unfold layout.tcb.STATE; exact layout.tcb.F.val_eq
+
+@[simp, scalar_tac_simps] theorem layout.node.SCHED_ACTION.val_eq : layout.node.SCHED_ACTION.val = 16 := by
+  unfold layout.node.SCHED_ACTION; rfl
+
+@[simp, scalar_tac_simps] theorem sched.ACTION_CHOOSE_NEW.val_eq : sched.ACTION_CHOOSE_NEW.val = 1 := by
+  unfold sched.ACTION_CHOOSE_NEW; rfl
+
+@[simp, scalar_tac_simps] theorem sched.ACTION_RESUME_CURRENT.val_eq : sched.ACTION_RESUME_CURRENT.val = 0 := by
+  unfold sched.ACTION_RESUME_CURRENT; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.PCI_FUNC_MAX.val_eq : interrupt.PCI_FUNC_MAX.val = 7 := by
+  unfold interrupt.PCI_FUNC_MAX; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.PCI_DEV_MAX.val_eq : interrupt.PCI_DEV_MAX.val = 31 := by
+  unfold interrupt.PCI_DEV_MAX; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.PCI_BUS_MAX.val_eq : interrupt.PCI_BUS_MAX.val = 255 := by
+  unfold interrupt.PCI_BUS_MAX; rfl
+
 @[simp, scalar_tac_simps] theorem layout.irq.ISA_MAX.val_eq : layout.irq.ISA_MAX.val = 15 := by
   unfold layout.irq.ISA_MAX; rfl
 
 @[simp, scalar_tac_simps] theorem layout.irq.ISA_MIN.val_eq : layout.irq.ISA_MIN.val = 0 := by
   unfold layout.irq.ISA_MIN; rfl
 
-@[simp, scalar_tac_simps] theorem layout.node.ARMED.val_eq : layout.node.ARMED.val = 80 := by
-  unfold layout.node.ARMED; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.BADGE.val_eq : layout.sc.BADGE.val = 48 := by
-  unfold layout.sc.BADGE; rfl
-
 @[simp, scalar_tac_simps] theorem layout.PPTR_TOP.val_eq : layout.PPTR_TOP.val = 18446744071562067968 := by
   unfold layout.PPTR_TOP; rfl
 
-@[simp, scalar_tac_simps] theorem layout.cte.CAP0.val_eq : layout.cte.CAP0.val = 0 := by
-  unfold layout.cte.CAP0; rfl
+@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_CTABLE.val_eq : layout.tcb.SLOT_CTABLE.val = 0 := by
+  unfold layout.tcb.SLOT_CTABLE; rfl
 
-@[simp, scalar_tac_simps] theorem layout.cte.CAP1.val_eq : layout.cte.CAP1.val = 8 := by
-  unfold layout.cte.CAP1; rfl
+@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_VTABLE.val_eq : layout.tcb.SLOT_VTABLE.val = 1 := by
+  unfold layout.tcb.SLOT_VTABLE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_BUFFER.val_eq : layout.tcb.SLOT_BUFFER.val = 2 := by
+  unfold layout.tcb.SLOT_BUFFER; rfl
+
+@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_FAULT_HANDLER.val_eq : layout.tcb.SLOT_FAULT_HANDLER.val = 3 := by
+  unfold layout.tcb.SLOT_FAULT_HANDLER; rfl
+
+@[simp, scalar_tac_simps] theorem layout.tcb.SLOT_TIMEOUT_HANDLER.val_eq : layout.tcb.SLOT_TIMEOUT_HANDLER.val = 4 := by
+  unfold layout.tcb.SLOT_TIMEOUT_HANDLER; rfl
 
 @[simp, scalar_tac_simps] theorem layout.tcb.SLOT_EPT.val_eq : layout.tcb.SLOT_EPT.val = 5 := by
   unfold layout.tcb.SLOT_EPT; rfl
 
+@[simp, scalar_tac_simps] theorem layout.tcb.NUM_SLOTS.val_eq : layout.tcb.NUM_SLOTS.val = 6 := by
+  unfold layout.tcb.NUM_SLOTS; rfl
+
 @[simp, scalar_tac_simps] theorem layout.tcb.FPU_SIZE.val_eq : layout.tcb.FPU_SIZE.val = 2752 := by
   unfold layout.tcb.FPU_SIZE; rfl
 
+@[simp, scalar_tac_simps] theorem layout.tcb.NAME_LEN.val_eq : layout.tcb.NAME_LEN.val = 64 := by
+  unfold layout.tcb.NAME_LEN; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.NEXT_IP.val_eq : layout.reg.NEXT_IP.val = 14 := by
+  unfold layout.reg.NEXT_IP; rfl
+
 @[simp, scalar_tac_simps] theorem layout.reg.ERROR.val_eq : layout.reg.ERROR.val = 15 := by
   unfold layout.reg.ERROR; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.CS.val_eq : layout.reg.CS.val = 20 := by
+  unfold layout.reg.CS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.SS.val_eq : layout.reg.SS.val = 21 := by
+  unfold layout.reg.SS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.GS_BASE.val_eq : layout.reg.GS_BASE.val = 23 := by
+  unfold layout.reg.GS_BASE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.COUNT.val_eq : layout.reg.COUNT.val = 24 := by
+  unfold layout.reg.COUNT; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reg.CAP.val_eq : layout.reg.CAP.val = 0 := by
+  unfold layout.reg.CAP; exact layout.reg.RDI.val_eq
+
+@[simp, scalar_tac_simps] theorem layout.reg.BADGE.val_eq : layout.reg.BADGE.val = 0 := by
+  unfold layout.reg.BADGE; exact layout.reg.RDI.val_eq
+
+@[simp, scalar_tac_simps] theorem layout.reg.MSG_INFO.val_eq : layout.reg.MSG_INFO.val = 1 := by
+  unfold layout.reg.MSG_INFO; exact layout.reg.RSI.val_eq
 
 @[simp, scalar_tac_simps] theorem layout.reg.REPLY.val_eq : layout.reg.REPLY.val = 5 := by
   unfold layout.reg.REPLY; exact layout.reg.R12.val_eq
@@ -1533,32 +1188,8 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.reg.NBSEND_RECV_DEST.val_eq : layout.reg.NBSEND_RECV_DEST.val = 6 := by
   unfold layout.reg.NBSEND_RECV_DEST; exact layout.reg.R13.val_eq
 
-@[simp, scalar_tac_simps] theorem layout.sc.R_TIME.val_eq : layout.sc.R_TIME.val = 0 := by
-  unfold layout.sc.R_TIME; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.R_AMOUNT.val_eq : layout.sc.R_AMOUNT.val = 8 := by
-  unfold layout.sc.R_AMOUNT; rfl
-
-@[simp, scalar_tac_simps] theorem layout.node.SCHED_CONTROL_USED.val_eq : layout.node.SCHED_CONTROL_USED.val = 96 := by
-  unfold layout.node.SCHED_CONTROL_USED; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.BOOT_TIME.val_eq : layout.ks.BOOT_TIME.val = 56 := by
-  unfold layout.ks.BOOT_TIME; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.BOOT_SCRATCH.val_eq : layout.ks.BOOT_SCRATCH.val = 64 := by
-  unfold layout.ks.BOOT_SCRATCH; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.FEATURES.val_eq : layout.ks.FEATURES.val = 72 := by
-  unfold layout.ks.FEATURES; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.FEATURE_NX.val_eq : layout.ks.FEATURE_NX.val = 1 := by
-  unfold layout.ks.FEATURE_NX; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 2048 := by
-  unfold layout.ks.NUM_ASID_POOLS; rfl
-
-@[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
-  unfold msg.BUF_MSG; rfl
+@[simp, scalar_tac_simps] theorem vcpu.svm.SAVE.val_eq : vcpu.svm.SAVE.val = 1024 := by
+  unfold vcpu.svm.SAVE; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.SVM_CPU.val_eq : vcpu.SVM_CPU.val = 20536 := by
   unfold vcpu.SVM_CPU; rfl
@@ -1571,6 +1202,12 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS.val_eq : vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS.val = 26658 := by
   unfold vcpu.vmx.GUEST_PENDING_DEBUG_EXCEPTIONS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_RFLAGS.val_eq : vcpu.vmx.GUEST_RFLAGS.val = 26656 := by
+  unfold vcpu.vmx.GUEST_RFLAGS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_RIP.val_eq : vcpu.vmx.GUEST_RIP.val = 26654 := by
+  unfold vcpu.vmx.GUEST_RIP; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_RSP.val_eq : vcpu.vmx.GUEST_RSP.val = 26652 := by
   unfold vcpu.vmx.GUEST_RSP; rfl
@@ -1641,6 +1278,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_ACTIVITY.val_eq : vcpu.vmx.GUEST_ACTIVITY.val = 18470 := by
   unfold vcpu.vmx.GUEST_ACTIVITY; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_INTERRUPTABILITY.val_eq : vcpu.vmx.GUEST_INTERRUPTABILITY.val = 18468 := by
+  unfold vcpu.vmx.GUEST_INTERRUPTABILITY; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.vmx.GUEST_TR_ACCESS_RIGHTS.val_eq : vcpu.vmx.GUEST_TR_ACCESS_RIGHTS.val = 18466 := by
   unfold vcpu.vmx.GUEST_TR_ACCESS_RIGHTS; rfl
 
@@ -1704,6 +1344,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_ENTRY_EXCEPTION_ERROR_CODE.val_eq : vcpu.vmx.CONTROL_ENTRY_EXCEPTION_ERROR_CODE.val = 16408 := by
   unfold vcpu.vmx.CONTROL_ENTRY_EXCEPTION_ERROR_CODE; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO.val_eq : vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO.val = 16406 := by
+  unfold vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_ENTRY_CONTROLS.val_eq : vcpu.vmx.CONTROL_ENTRY_CONTROLS.val = 16402 := by
   unfold vcpu.vmx.CONTROL_ENTRY_CONTROLS; rfl
 
@@ -1712,6 +1355,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_EXCEPTION_BITMAP.val_eq : vcpu.vmx.CONTROL_EXCEPTION_BITMAP.val = 16388 := by
   unfold vcpu.vmx.CONTROL_EXCEPTION_BITMAP; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS.val_eq : vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS.val = 16386 := by
+  unfold vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS.val_eq : vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS.val = 16384 := by
   unfold vcpu.vmx.CONTROL_PIN_EXECUTION_CONTROLS; rfl
@@ -1776,14 +1422,386 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.PRIMARY_ALLOWED.val_eq : vcpu.PRIMARY_ALLOWED.val = 4225343116 := by
   unfold vcpu.PRIMARY_ALLOWED; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.SHADOW.val_eq : vcpu.SHADOW.val = 4096 := by
+  unfold vcpu.SHADOW; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.svm.NESTED_CTL.val_eq : vcpu.svm.NESTED_CTL.val = 144 := by
   unfold vcpu.svm.NESTED_CTL; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.svm.INT_CTL.val_eq : vcpu.svm.INT_CTL.val = 96 := by
   unfold vcpu.svm.INT_CTL; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.IO.val_eq : vcpu.IO.val = 24576 := by
+  unfold vcpu.IO; rfl
+
 @[simp, scalar_tac_simps] theorem vcpu.XCR0.val_eq : vcpu.XCR0.val = 20504 := by
   unfold vcpu.XCR0; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.PREV.val_eq : vcpu.PREV.val = 20496 := by
+  unfold vcpu.PREV; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.NEXT.val_eq : vcpu.NEXT.val = 20488 := by
+  unfold vcpu.NEXT; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.VCPU_HEAD.val_eq : layout.ks.VCPU_HEAD.val = 80 := by
+  unfold layout.ks.VCPU_HEAD; rfl
+
+@[simp, scalar_tac_simps] theorem capability.VM_READ_WRITE.val_eq : capability.VM_READ_WRITE.val = 3 := by
+  unfold capability.VM_READ_WRITE; rfl
+
+@[simp, scalar_tac_simps] theorem regs.SEL_CS_3.val_eq : regs.SEL_CS_3.val = 51 := by
+  unfold regs.SEL_CS_3; rfl
+
+@[simp, scalar_tac_simps] theorem regs.SEL_DS_3.val_eq : regs.SEL_DS_3.val = 43 := by
+  unfold regs.SEL_DS_3; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.CUR_DOMAIN.val_eq : layout.ks.CUR_DOMAIN.val = 8 := by
+  unfold layout.ks.CUR_DOMAIN; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.IPI_PENDING.val_eq : layout.node.IPI_PENDING.val = 120 := by
+  unfold layout.node.IPI_PENDING; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.REPROGRAM.val_eq : layout.node.REPROGRAM.val = 56 := by
+  unfold layout.node.REPROGRAM; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.IDLE_THREAD.val_eq : layout.node.IDLE_THREAD.val = 8 := by
+  unfold layout.node.IDLE_THREAD; rfl
+
+@[simp, scalar_tac_simps] theorem sched.Q_QUEUED.val_eq : sched.Q_QUEUED.val = 1 := by
+  unfold sched.Q_QUEUED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.YIELD_FROM.val_eq : layout.sc.YIELD_FROM.val = 56 := by
+  unfold layout.sc.YIELD_FROM; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.CONSUMED.val_eq : layout.sc.CONSUMED.val = 8 := by
+  unfold layout.sc.CONSUMED; rfl
+
+@[simp, scalar_tac_simps] theorem capability.VM_READ_ONLY.val_eq : capability.VM_READ_ONLY.val = 2 := by
+  unfold capability.VM_READ_ONLY; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.REFILL_TAIL.val_eq : layout.sc.REFILL_TAIL.val = 88 := by
+  unfold layout.sc.REFILL_TAIL; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.REFILL_HEAD.val_eq : layout.sc.REFILL_HEAD.val = 80 := by
+  unfold layout.sc.REFILL_HEAD; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.REFILL_SIZE.val_eq : layout.sc.REFILL_SIZE.val = 16 := by
+  unfold layout.sc.REFILL_SIZE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.REFILLS.val_eq : layout.sc.REFILLS.val = 96 := by
+  unfold layout.sc.REFILLS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.PERIOD.val_eq : layout.sc.PERIOD.val = 0 := by
+  unfold layout.sc.PERIOD; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CUR_TIME.val_eq : layout.node.CUR_TIME.val = 48 := by
+  unfold layout.node.CUR_TIME; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.SPORADIC.val_eq : layout.sc.SPORADIC.val = 64 := by
+  unfold layout.sc.SPORADIC; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CUR_SC.val_eq : layout.node.CUR_SC.val = 24 := by
+  unfold layout.node.CUR_SC; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.CONSUMED.val_eq : layout.node.CONSUMED.val = 40 := by
+  unfold layout.node.CONSUMED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.IDLE_SC.val_eq : layout.node.IDLE_SC.val = 32 := by
+  unfold layout.node.IDLE_SC; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.N_ASID_POOLS.val_eq : vspace.N_ASID_POOLS.val = 2048 := by
+  unfold vspace.N_ASID_POOLS; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.ASID_LOW_BITS.val_eq : vspace.ASID_LOW_BITS.val = 9 := by
+  unfold vspace.ASID_LOW_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.WORK_UNITS.val_eq : layout.ks.WORK_UNITS.val = 40 := by
+  unfold layout.ks.WORK_UNITS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.DOM_SCHED_START.val_eq : layout.ks.DOM_SCHED_START.val = 32 := by
+  unfold layout.ks.DOM_SCHED_START; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.DOM_SCHED_IDX.val_eq : layout.ks.DOM_SCHED_IDX.val = 24 := by
+  unfold layout.ks.DOM_SCHED_IDX; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.DOMAIN_TIME.val_eq : layout.ks.DOMAIN_TIME.val = 16 := by
+  unfold layout.ks.DOMAIN_TIME; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.TIMER_ROOT.val_eq : layout.node.TIMER_ROOT.val = 104 := by
+  unfold layout.node.TIMER_ROOT; rfl
+
+@[simp, scalar_tac_simps] theorem timer.RED.val_eq : timer.RED.val = 1 := by
+  unfold timer.RED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.TIMER_MIN.val_eq : layout.node.TIMER_MIN.val = 112 := by
+  unfold layout.node.TIMER_MIN; rfl
+
+@[simp, scalar_tac_simps] theorem layout.TREE_FUEL.val_eq : layout.TREE_FUEL.val = 128 := by
+  unfold layout.TREE_FUEL; rfl
+
+@[simp, scalar_tac_simps] theorem timer.FIRE_BATCH.val_eq : timer.FIRE_BATCH.val = 32 := by
+  unfold timer.FIRE_BATCH; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_RECV.val_eq : sched.TS_BLOCKED_ON_RECV.val = 3 := by
+  unfold sched.TS_BLOCKED_ON_RECV; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.TAIL_STATE.val_eq : layout.ntfn.TAIL_STATE.val = 8 := by
+  unfold layout.ntfn.TAIL_STATE; rfl
+
+@[simp, scalar_tac_simps] theorem obj.NTFN_WAITING.val_eq : obj.NTFN_WAITING.val = 1 := by
+  unfold obj.NTFN_WAITING; rfl
+
+@[simp, scalar_tac_simps] theorem obj.NTFN_IDLE.val_eq : obj.NTFN_IDLE.val = 0 := by
+  unfold obj.NTFN_IDLE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.BADGE.val_eq : layout.ntfn.BADGE.val = 16 := by
+  unfold layout.ntfn.BADGE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.BOUND_TCB.val_eq : layout.ntfn.BOUND_TCB.val = 24 := by
+  unfold layout.ntfn.BOUND_TCB; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
+  unfold layout.node.DEBUG_TCBS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.RELEASE_HEAD.val_eq : layout.node.RELEASE_HEAD.val = 64 := by
+  unfold layout.node.RELEASE_HEAD; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.TCB.val_eq : layout.sc.TCB.val = 24 := by
+  unfold layout.sc.TCB; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
+  unfold layout.sc.CORE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
+  unfold layout.ntfn.SC; rfl
+
+@[simp, scalar_tac_simps] theorem obj.NTFN_ACTIVE.val_eq : obj.NTFN_ACTIVE.val = 2 := by
+  unfold obj.NTFN_ACTIVE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.HEAD.val_eq : layout.ntfn.HEAD.val = 0 := by
+  unfold layout.ntfn.HEAD; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_NTFN.val_eq : sched.TS_BLOCKED_ON_NTFN.val = 6 := by
+  unfold sched.TS_BLOCKED_ON_NTFN; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_REPLY.val_eq : sched.TS_BLOCKED_ON_REPLY.val = 5 := by
+  unfold sched.TS_BLOCKED_ON_REPLY; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_SEND.val_eq : sched.TS_BLOCKED_ON_SEND.val = 4 := by
+  unfold sched.TS_BLOCKED_ON_SEND; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_INACTIVE.val_eq : sched.TS_INACTIVE.val = 0 := by
+  unfold sched.TS_INACTIVE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.REPLY.val_eq : layout.sc.REPLY.val = 32 := by
+  unfold layout.sc.REPLY; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reply.NEXT.val_eq : layout.reply.NEXT.val = 16 := by
+  unfold layout.reply.NEXT; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reply.PREV.val_eq : layout.reply.PREV.val = 8 := by
+  unfold layout.reply.PREV; rfl
+
+@[simp, scalar_tac_simps] theorem layout.reply.TCB.val_eq : layout.reply.TCB.val = 0 := by
+  unfold layout.reply.TCB; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ep.TAIL_STATE.val_eq : layout.ep.TAIL_STATE.val = 8 := by
+  unfold layout.ep.TAIL_STATE; rfl
+
+@[simp, scalar_tac_simps] theorem obj.EP_IDLE.val_eq : obj.EP_IDLE.val = 0 := by
+  unfold obj.EP_IDLE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ep.HEAD.val_eq : layout.ep.HEAD.val = 0 := by
+  unfold layout.ep.HEAD; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.ARMED.val_eq : layout.node.ARMED.val = 80 := by
+  unfold layout.node.ARMED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.BADGE.val_eq : layout.sc.BADGE.val = 48 := by
+  unfold layout.sc.BADGE; rfl
+
+@[simp, scalar_tac_simps] theorem obj.EP_SEND.val_eq : obj.EP_SEND.val = 1 := by
+  unfold obj.EP_SEND; rfl
+
+@[simp, scalar_tac_simps] theorem msg.MSG_MAX_LENGTH.val_eq : msg.MSG_MAX_LENGTH.val = 120 := by
+  unfold msg.MSG_MAX_LENGTH; rfl
+
+@[simp, scalar_tac_simps] theorem capability.ZOMBIE_TCB.val_eq : capability.ZOMBIE_TCB.val = 65 := by
+  unfold capability.ZOMBIE_TCB; rfl
+
+@[simp, scalar_tac_simps] theorem msg.MSG_MAX_EXTRA_CAPS.val_eq : msg.MSG_MAX_EXTRA_CAPS.val = 3 := by
+  unfold msg.MSG_MAX_EXTRA_CAPS; rfl
+
+@[simp, scalar_tac_simps] theorem endpoint.FLAG_CALL.val_eq : endpoint.FLAG_CALL.val = 4 := by
+  unfold endpoint.FLAG_CALL; rfl
+
+@[simp, scalar_tac_simps] theorem endpoint.FLAG_GRANT_REPLY.val_eq : endpoint.FLAG_GRANT_REPLY.val = 2 := by
+  unfold endpoint.FLAG_GRANT_REPLY; rfl
+
+@[simp, scalar_tac_simps] theorem endpoint.FLAG_GRANT.val_eq : endpoint.FLAG_GRANT.val = 1 := by
+  unfold endpoint.FLAG_GRANT; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.svm.EVENT_INJ.val_eq : vcpu.svm.EVENT_INJ.val = 168 := by
+  unfold vcpu.svm.EVENT_INJ; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.svm.INT_STATE.val_eq : vcpu.svm.INT_STATE.val = 104 := by
+  unfold vcpu.svm.INT_STATE; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.svm.INTERCEPT_EXC.val_eq : vcpu.svm.INTERCEPT_EXC.val = 8 := by
+  unfold vcpu.svm.INTERCEPT_EXC; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
+  unfold vcpu.NUM_MRS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.EXIT.val_eq : vcpu.EXIT.val = 20992 := by
+  unfold vcpu.EXIT; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.REGS.val_eq : vcpu.REGS.val = 20736 := by
+  unfold vcpu.REGS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.VALID.val_eq : vcpu.VALID.val = 20528 := by
+  unfold vcpu.VALID; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.PENDING.val_eq : vcpu.PENDING.val = 20520 := by
+  unfold vcpu.PENDING; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.CR2.val_eq : vcpu.CR2.val = 20512 := by
+  unfold vcpu.CR2; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.SVM_EVENT.val_eq : vcpu.SVM_EVENT.val = 18446744071562072063 := by
+  unfold vcpu.SVM_EVENT; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_WRITABLE.val_eq : vcpu.SVM_I1_WRITABLE.val = 1673494512 := by
+  unfold vcpu.SVM_I1_WRITABLE; rfl
+
+@[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by
+  unfold tcb.N_FRAME; rfl
+
+@[simp, scalar_tac_simps] theorem tcb.N_GP.val_eq : tcb.N_GP.val = 2 := by
+  unfold tcb.N_GP; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.ADDR_MASK.val_eq : vspace.ADDR_MASK.val = 4503599627366400 := by
+  unfold vspace.ADDR_MASK; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.ASID_BITS.val_eq : vspace.ASID_BITS.val = 20 := by
+  unfold vspace.ASID_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.PML4_INDEX_OFFSET.val_eq : vspace.PML4_INDEX_OFFSET.val = 39 := by
+  unfold vspace.PML4_INDEX_OFFSET; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.PDPT_INDEX_OFFSET.val_eq : vspace.PDPT_INDEX_OFFSET.val = 30 := by
+  unfold vspace.PDPT_INDEX_OFFSET; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.PD_INDEX_OFFSET.val_eq : vspace.PD_INDEX_OFFSET.val = 21 := by
+  unfold vspace.PD_INDEX_OFFSET; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.FEATURE_NX.val_eq : layout.ks.FEATURE_NX.val = 1 := by
+  unfold layout.ks.FEATURE_NX; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.FEATURES.val_eq : layout.ks.FEATURES.val = 72 := by
+  unfold layout.ks.FEATURES; rfl
+
+@[simp, scalar_tac_simps] theorem capability.VM_KERNEL_ONLY.val_eq : capability.VM_KERNEL_ONLY.val = 1 := by
+  unfold capability.VM_KERNEL_ONLY; rfl
+
+@[simp, scalar_tac_simps] theorem ept.ADDRESS.val_eq : ept.ADDRESS.val = 4503599627366400 := by
+  unfold ept.ADDRESS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 32 := by
+  unfold boot.MAX_REGIONS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.MAX_BOOTINFO_UNTYPEDS.val_eq : boot.MAX_BOOTINFO_UNTYPEDS.val = 230 := by
+  unfold boot.MAX_BOOTINFO_UNTYPEDS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.EXTRA_LEN.val_eq : boot.bi.EXTRA_LEN.val = 0 := by
+  unfold boot.bi.EXTRA_LEN; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.NODE_ID.val_eq : boot.bi.NODE_ID.val = 1 := by
+  unfold boot.bi.NODE_ID; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.NUM_NODES.val_eq : boot.bi.NUM_NODES.val = 2 := by
+  unfold boot.bi.NUM_NODES; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.NUM_IOPT_LEVELS.val_eq : boot.bi.NUM_IOPT_LEVELS.val = 3 := by
+  unfold boot.bi.NUM_IOPT_LEVELS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.IPC_BUFFER.val_eq : boot.bi.IPC_BUFFER.val = 4 := by
+  unfold boot.bi.IPC_BUFFER; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.EMPTY.val_eq : boot.bi.EMPTY.val = 5 := by
+  unfold boot.bi.EMPTY; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.USER_IMAGE_FRAMES.val_eq : boot.bi.USER_IMAGE_FRAMES.val = 9 := by
+  unfold boot.bi.USER_IMAGE_FRAMES; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.EXTRA_BI_PAGES.val_eq : boot.bi.EXTRA_BI_PAGES.val = 15 := by
+  unfold boot.bi.EXTRA_BI_PAGES; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.CNODE_SIZE_BITS.val_eq : boot.bi.CNODE_SIZE_BITS.val = 17 := by
+  unfold boot.bi.CNODE_SIZE_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.DOMAIN.val_eq : boot.bi.DOMAIN.val = 18 := by
+  unfold boot.bi.DOMAIN; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.SCHED_CONTROL.val_eq : boot.bi.SCHED_CONTROL.val = 19 := by
+  unfold boot.bi.SCHED_CONTROL; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.UNTYPED.val_eq : boot.bi.UNTYPED.val = 21 := by
+  unfold boot.bi.UNTYPED; rfl
+
+@[simp, scalar_tac_simps] theorem boot.bi.UNTYPED_LIST.val_eq : boot.bi.UNTYPED_LIST.val = 23 := by
+  unfold boot.bi.UNTYPED_LIST; rfl
+
+@[simp, scalar_tac_simps] theorem sporadic.MIN_REFILLS.val_eq : sporadic.MIN_REFILLS.val = 2 := by
+  unfold sporadic.MIN_REFILLS; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.NUM_NODES.val_eq : layout.ks.NUM_NODES.val = 0 := by
+  unfold layout.ks.NUM_NODES; rfl
+
+@[simp, scalar_tac_simps] theorem sched.TS_IDLE.val_eq : sched.TS_IDLE.val = 7 := by
+  unfold sched.TS_IDLE; rfl
+
+@[simp, scalar_tac_simps] theorem sched.MAX_WORK_UNITS_PER_PREEMPTION.val_eq : sched.MAX_WORK_UNITS_PER_PREEMPTION.val = 100 := by
+  unfold sched.MAX_WORK_UNITS_PER_PREEMPTION; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.TCB.val_eq : vcpu.TCB.val = 20480 := by
+  unfold vcpu.TCB; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.NTFN.val_eq : layout.sc.NTFN.val = 40 := by
+  unfold layout.sc.NTFN; rfl
+
+@[simp, scalar_tac_simps] theorem obj.EP_RECV.val_eq : obj.EP_RECV.val = 2 := by
+  unfold obj.EP_RECV; rfl
+
+@[simp, scalar_tac_simps] theorem interrupt.IRQ_RESERVED.val_eq : interrupt.IRQ_RESERVED.val = 4 := by
+  unfold interrupt.IRQ_RESERVED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.cte.CAP0.val_eq : layout.cte.CAP0.val = 0 := by
+  unfold layout.cte.CAP0; rfl
+
+@[simp, scalar_tac_simps] theorem layout.cte.CAP1.val_eq : layout.cte.CAP1.val = 8 := by
+  unfold layout.cte.CAP1; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.R_TIME.val_eq : layout.sc.R_TIME.val = 0 := by
+  unfold layout.sc.R_TIME; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.R_AMOUNT.val_eq : layout.sc.R_AMOUNT.val = 8 := by
+  unfold layout.sc.R_AMOUNT; rfl
+
+@[simp, scalar_tac_simps] theorem layout.node.SCHED_CONTROL_USED.val_eq : layout.node.SCHED_CONTROL_USED.val = 96 := by
+  unfold layout.node.SCHED_CONTROL_USED; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.BOOT_TIME.val_eq : layout.ks.BOOT_TIME.val = 56 := by
+  unfold layout.ks.BOOT_TIME; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.BOOT_SCRATCH.val_eq : layout.ks.BOOT_SCRATCH.val = 64 := by
+  unfold layout.ks.BOOT_SCRATCH; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 2048 := by
+  unfold layout.ks.NUM_ASID_POOLS; rfl
+
+@[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
+  unfold msg.BUF_MSG; rfl
 
 @[simp, scalar_tac_simps] theorem objects.CHILD_PREFIX_LEN.val_eq : objects.CHILD_PREFIX_LEN.val = 11 := by
   unfold objects.CHILD_PREFIX_LEN; rfl
@@ -1796,9 +1814,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem objects.CHILD_NAME_MAX.val_eq : objects.CHILD_NAME_MAX.val = 51 := by
   unfold objects.CHILD_NAME_MAX; rfl
-
-@[simp, scalar_tac_simps] theorem timer.FIRE_BATCH.val_eq : timer.FIRE_BATCH.val = 32 := by
-  unfold timer.FIRE_BATCH; rfl
 
 @[simp, scalar_tac_simps] theorem syscall.DEBUG_MESSAGE_START.val_eq : syscall.DEBUG_MESSAGE_START.val = 6 := by
   unfold syscall.DEBUG_MESSAGE_START; rfl
@@ -1845,12 +1860,6 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.MSRS.val_eq : vcpu.MSRS.val = 20864 := by
   unfold vcpu.MSRS; rfl
 
-@[simp, scalar_tac_simps] theorem vcpu.SVM_EVENT.val_eq : vcpu.SVM_EVENT.val = 18446744071562072063 := by
-  unfold vcpu.SVM_EVENT; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_WRITABLE.val_eq : vcpu.SVM_I1_WRITABLE.val = 1673494512 := by
-  unfold vcpu.SVM_I1_WRITABLE; rfl
-
 @[simp, scalar_tac_simps] theorem untyped.RESET_CHUNK.val_eq : untyped.RESET_CHUNK.val = 65536 := by
   unfold untyped.RESET_CHUNK; rfl
 
@@ -1883,12 +1892,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem tcb.SCHED_UPDATE_SC.val_eq : tcb.SCHED_UPDATE_SC.val = 1 := by
   unfold tcb.SCHED_UPDATE_SC; rfl
-
-@[simp, scalar_tac_simps] theorem tcb.N_GP.val_eq : tcb.N_GP.val = 2 := by
-  unfold tcb.N_GP; rfl
-
-@[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by
-  unfold tcb.N_FRAME; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.vmx.CONTROL_VPID.val_eq : vcpu.vmx.CONTROL_VPID.val = 0 := by
   unfold vcpu.vmx.CONTROL_VPID; rfl
@@ -2117,8 +2120,5 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem vcpu.svm.VMSA.val_eq : vcpu.svm.VMSA.val = 264 := by
   unfold vcpu.svm.VMSA; rfl
-
-@[simp, scalar_tac_simps] theorem vspace.ASID_BITS.val_eq : vspace.ASID_BITS.val = 20 := by
-  unfold vspace.ASID_BITS; rfl
 
 end Fl4Proofs.P0.Consts

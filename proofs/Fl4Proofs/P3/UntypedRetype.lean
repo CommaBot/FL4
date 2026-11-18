@@ -76,7 +76,7 @@ theorem create_object_eq {A : Type} (arI : machine.Arch A) (s : S) (ar : A) (nt 
     objects.create_object st arI s ar nt base us dev = ok (newCapOf nt.val base us dev, s, ar) := by
   have h14 : nt ≠ 14#u64 := by rcases hn with h | ⟨h, h', h''⟩ <;> scalar_tac
   have h15 : ¬ nt ≥ 15#u64 := by rcases hn with h | ⟨h, h', h''⟩ <;> scalar_tac
-  unfold objects.create_object newCapOf
+  unfold objects.create_object objects.create_arch_object newCapOf
   simp only [fl4_abi.consts.object.X86Vcpu, fl4_abi.consts.object.X86EptPml4, h14, h15, ↓reduceIte]
   simp only [fl4_abi.consts.object.Tcb, fl4_abi.consts.object.Endpoint, fl4_abi.consts.object.Notification,
     fl4_abi.consts.object.CapTable, fl4_abi.consts.object.Untyped, fl4_abi.consts.object.SchedContext,

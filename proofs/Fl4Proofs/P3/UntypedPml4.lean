@@ -81,7 +81,7 @@ theorem create_object_pml4 {A' : Type} (arI : machine.Arch A') (s : S) (ar : A')
       ∀ w : U64, P1.Aligned w → ¬ (base.val ≤ w.val ∧ w.val < base.val + 4096) → L.mem res.2.1 w = L.mem s w ⦄ := by
   have hnt' : nt = 8#u64 := UScalar.eq_of_val_eq hnt
   subst hnt'
-  unfold objects.create_object
+  unfold objects.create_object objects.create_arch_object
   simp only [fl4_abi.consts.object.X86Vcpu, fl4_abi.consts.object.X86EptPml4,
     show ¬ (8#u64 : U64) = 14#u64 by decide, show ¬ (8#u64 : U64) ≥ 15#u64 by decide, ↓reduceIte]
   simp only [fl4_abi.consts.object.Tcb, fl4_abi.consts.object.Endpoint, fl4_abi.consts.object.Notification,
