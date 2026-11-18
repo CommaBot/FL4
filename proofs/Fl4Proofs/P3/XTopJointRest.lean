@@ -281,11 +281,11 @@ theorem cslot_tcb3 (t : U64) : cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3) = slotO
 /-- **`JPlaced` after a slot step** (CNodes' contents changed only, `KeepC`):
 the caps keep their objects (`TypedKept`, the IRQ node's slots among the
 slots, `IntLayout`), the TCBs' fault-handler slots kept. -/
-theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+theorem Sched.JPlaced.slotTF {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepCT σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
     (hT : TypedKept th (L.mem s) (L.mem s'))
-    (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
-      capV (L.mem s') (slotOf t 3) = .Null) :
+    (hfh : ∀ t, th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
+      ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
     have hA : AbsSlot th ((nodeA (L.ksb s) i).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node i hi)⟩
@@ -296,18 +296,26 @@ theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s
     · exact capTyped_of_tyObj hn
     · exact capTyped_of_shape hs (h.typed b hb)
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
-    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), fun t ht => ?_, fun a ha => ?_⟩
+    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, fun a ha => ?_⟩
   · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'
     · rw [h2] at hk'; cases hk'
     · rw [h2] at hk'; cases hk'
-  · rcases hT3 t ht with e | e
-    · rw [capAt_capV, capAt_capV] at e
-      rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
-    · left; rw [cslot_tcb3]; exact e
   · rcases hT a ha with hn | ⟨b, hb, hs⟩
     · exact capObjH_of_tyObj hn
     · exact capObjH_of_shape hs (h.cobj b hb)
+
+theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepCT σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
+    (hT : TypedKept th (L.mem s) (L.mem s'))
+    (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
+      capV (L.mem s') (slotOf t 3) = .Null) :
+    JPlaced (L := L) th H Tr C s' σ' := by
+  refine h.slotTF hkc hk hL hT fun t ht => ?_
+  rcases hT3 t ht with e | e
+  · rw [capAt_capV, capAt_capV] at e
+    rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
+  · left; rw [cslot_tcb3]; exact e
 
 theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepC σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
@@ -339,26 +347,32 @@ theorem covered_cnode {mem : U64 → U64} {G : MdbGhost} {y q r gs g : U64} (hy 
   omega
 
 set_option maxHeartbeats 4000000 in
-/-- **The untyped caps' facts after an insertion of a non-untyped cap**
-(the IRQ and IO-port inserts, `JStepHyps.slot`): the untyped caps are those
-before, their free parts miss every slot (`RegionFree`), and the new MDB slot
-misses every childless untyped region (its CNode live, `DestLive`, `ut_free`). -/
-theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+/-- **The untyped caps' facts after an insertion of a non-untyped cap into
+any slot `dsl`** (`ins_utc` for a CNode slot, XTopJointTcbInstall's TCB-slot
+insert): the untyped caps are those before, their free parts miss every slot
+(`RegionFree`), and the new MDB slot misses every childless untyped region,
+its object staying in the region's restriction (`hlv`, the destination's
+liveness). -/
+theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
-    {pd : U64} {rd : Nat} {idxd : List Bool} (hpd : Z.th pd = some (.cnode rd)) (hld : idxd.length = rd)
-    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
-    (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
-    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
-    (hw : P1.WritesIn st s s' (InSlot Z.th)) (hcdt : CdtKeepOff (· = (pd.bv, idxd)) σ σ')
-    (horig : ∀ sl, sl ≠ (pd.bv, idxd) → σ'.isOriginalCap sl = σ.isOriginalCap sl)
+    {dsl : Fl4Spec.CslotPtr} (hAd : AbsSlot Z.th dsl)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr dsl → capV (L.mem s') y = capV (L.mem s) y)
+    (hnull : capAt (L.mem s) (cslotAddr dsl) = ok .Null)
+    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr dsl) ≠ .Untyped p sb fi d)
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) (hcdt : CdtKeepOff (· = dsl) σ σ')
+    (horig : ∀ sl, sl ≠ dsl → σ'.isOriginalCap sl = σ.isOriginalCap sl)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
-    (hM' : MdbLinks Z.th (L.mem s') G') (hDL : DestLive Z.th (L.mem s) (L.ksb s) pd) :
+    (hM' : MdbLinks Z.th (L.mem s') G')
+    (hlv : ∀ sl p sb fi dev, AbsSlot Z.th sl → capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev →
+      dev = false → (¬ ∃ x, σ.cdt x = some sl) →
+      ((cslotAddr dsl).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr dsl).val) ∧
+        AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) dsl) :
     ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi := by
   intro sl p sb fi dev hsl hcap' hdF
   obtain ⟨hP, ⟨-, hV, hM, hC, hI⟩, -⟩ := J.xtop.rel
-  have hne : cslotAddr sl ≠ cslotAddr (pd.bv, idxd) := fun e => hnu p sb fi dev (by rw [← e]; exact capV_of_capAt hcap')
+  have hne : cslotAddr sl ≠ cslotAddr dsl := fun e => hnu p sb fi dev (by rw [← e]; exact capV_of_capAt hcap')
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hcap _ hsl.isSlot hne]; exact capV_of_capAt hcap'
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
@@ -375,63 +389,19 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     obtain ⟨k, hk, hs⟩ := hi.size
     have hv := hi.val hP
     rcases U.free q k hk with e | e <;> omega
-  -- the destination slot
-  obtain ⟨q0, i0, hi0, hq1, hq2⟩ := AbsSlot.at (th := Z.th) (sl := (pd.bv, idxd)) ⟨pd, rfl, Or.inl (by simpa [hld] using hpd)⟩
-  have hq0 : q0 = pd := P1.eq_of_bv hq1.symm
-  subst hq0
-  have hdv : (cslotAddr (q0.bv, idxd)).val = q0.val + 32 * i0 := by rw [hq2]; exact hi0.val hP
-  have hi0lt : 32 * (i0 + 1) ≤ 32 * 2 ^ rd := by
-    rcases hi0 with ⟨r, hr, hir⟩ | ⟨ht, -⟩
-    · rw [hpd] at hr; cases hr; omega
-    · rw [hpd] at ht; cases ht
-  -- a childless untyped region misses the destination's CNode
-  have hlive : (¬ ∃ x, σ.cdt x = some sl) → q0.val + 32 * 2 ^ rd ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q0.val := by
-    intro hnc
-    have hnd : ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl) := fun y hy => by
-      obtain ⟨z, hz⟩ := desc_tail_child hy
-      exact hnc ((hC.has_child_iff hP hsl).2 ⟨z, hz⟩)
-    rcases hDL with ⟨y, r, gs, g, hy, hyc⟩ | hks'
-    · have hya : capAt (L.mem s) y = ok (.CNode q0 r gs g) := by rw [capAt_capV, hyc]
-      have hym : y ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hy, _, hya, fun h => by cases h⟩
-      obtain ⟨sly, hsly, hsly'⟩ := IsSlot.abs hy
-      have hcvy : CapValid Z.th (.CNode q0 r gs g) := hV.abs hsly (by rw [hsly']; exact hya)
-      obtain ⟨hth, -⟩ := hcvy
-      rw [hpd] at hth; cases hth
-      have hfit := hP.fits q0 _ hpd
-      simp only [objSize] at hfit
-      have hq0n : q0.val ≠ 0 := by
-        intro e0
-        obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-        have := hJ.cnode q0 _ hpd
-        have e0' : q0 = 0#u64 := UScalar.eq_of_val_eq (by simpa using e0)
-        rw [e0', J.kern.h0] at this; cases this
-      have hr5 : r.val + 5 < 64 := by
-        by_contra hc
-        have : 2 ^ 64 ≤ 32 * 2 ^ r.val := by
-          calc 2 ^ 64 ≤ 2 ^ (r.val + 5) := Nat.pow_le_pow_right (by norm_num) (by omega)
-            _ = 32 * 2 ^ r.val := by rw [pow_add]; ring
-        omega
-      have hcov := covered_cnode hym hyc hr5 hfit
-      have h1 : 1 ≤ 2 ^ r.val := Nat.one_le_two_pow
-      exact ut_free J.ut hI hxm hcv hnd (by omega) hcov
-    · have hk := hks' _ hpd
-      simp only [objSize] at hk
-      have := (J.jcov.ks _ hxm p sb fi (by rw [hcv, hdF])).1
-      omega
   -- the debug word
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   -- the childless facts after are those before
-  have hdnm : cslotAddr (q0.bv, idxd) ∉ Z.G.chains.flatten := fun h => by
+  have hdnm : cslotAddr dsl ∉ Z.G.chains.flatten := fun h => by
     obtain ⟨-, c0, h0, hn⟩ := (hM.members _).1 h
     rw [hnull] at h0; exact hn (eq_of_ok_eq h0).symm
   have hnc' : (¬ ∃ x, σ'.cdt x = some sl) → ¬ ∃ x, σ.cdt x = some sl := by
     rintro h0 ⟨x, hx⟩
     apply h0
-    by_cases e : x = (q0.bv, idxd)
+    by_cases e : x = dsl
     · exfalso
       subst e
-      have hAd : AbsSlot Z.th (q0.bv, idxd) := ⟨q0, rfl, Or.inl (by simpa [hld] using hpd)⟩
       have h1 := hC.cdt _ hAd
       rw [hx] at h1
       exact hdnm (hM.tree.par_mem _ _ h1.symm).1
@@ -446,10 +416,9 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   · have := hobj y ((hM'.members y).1 hy).1
     omega
   · have hnc := hnc' h0
-    by_cases e : y = cslotAddr (q0.bv, idxd)
+    by_cases e : y = cslotAddr dsl
     · subst e
-      have := hlive hnc
-      omega
+      exact (hlv sl p sb fi dev hsl hcv hdF hnc).1
     · obtain ⟨hys, c0, h0', hn⟩ := (hM'.members y).1 hy
       have hc0 : capAt (L.mem s) y = ok c0 := by
         rw [capAt_capV, ← hcap y hys e, ← capAt_capV]; exact h0'
@@ -458,14 +427,9 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   · have hnc := hnc' h0
     obtain ⟨r1, r3⟩ := U.rst (B g) hnc hf0
     refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
-    by_cases e : sl' = (q0.bv, idxd)
+    by_cases e : sl' = dsl
     · subst e
-      have hl := hlive hnc
-      have h1 : 1 ≤ 2 ^ rd := Nat.one_le_two_pow
-      refine ⟨q0, rfl, Or.inl ?_⟩
-      simp only [restrictTh]
-      rw [if_neg (by omega)]
-      simpa [hld] using hpd
+      exact (hlv sl p sb fi dev hsl hcv hdF hnc).2
     · exact r1 sl' (by rw [← horig sl' e]; exact h)
 
 /-- **A live CNode misses a childless untyped region** (`DestLive`: named by
@@ -539,6 +503,66 @@ theorem JAtZ.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   simp only [restrictTh]
   rw [if_neg (by omega)]
   rw [hld]; exact hpd
+
+set_option maxHeartbeats 4000000 in
+/-- **The untyped caps' facts after an insertion of a non-untyped cap into
+a CNode slot** (the IRQ and IO-port inserts, `JStepHyps.slot`): `ins_utcG`,
+the destination's CNode live (`DestLive`, `live_slot`). -/
+theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
+    {pd : U64} {rd : Nat} {idxd : List Bool} (hpd : Z.th pd = some (.cnode rd)) (hld : idxd.length = rd)
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y)
+    (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
+    (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) (hcdt : CdtKeepOff (· = (pd.bv, idxd)) σ σ')
+    (horig : ∀ sl, sl ≠ (pd.bv, idxd) → σ'.isOriginalCap sl = σ.isOriginalCap sl)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hM' : MdbLinks Z.th (L.mem s') G') (hDL : DestLive Z.th (L.mem s) (L.ksb s) pd) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi :=
+  J.ins_utcG arI ⟨pd, rfl, Or.inl (by rw [hld]; exact hpd)⟩ hcap hnull hnu hw hcdt horig hgp hM'
+    fun _ _ _ _ _ hsl hcv hdv hnc => J.live_slot arI hsl hcv hdv hnc ⟨pd, rd, rfl, hpd, hld, hDL⟩
+
+/-- **A slot of a TCB named by a thread cap of a slot misses a childless
+untyped region**, and the TCB stays an object of the region's restriction
+(the thread cap in the MDB covers the TCB's 4 KiB, `ut_free`). -/
+theorem JAtZ.live_slotT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev)
+    (hnc : ¬ ∃ x, σ.cdt x = some sl) {t : U64} (ht : Z.th t = some .tcb) {n : Nat} (hn : n < tcbSlots)
+    (hlive : ∃ y, IsSlot Z.th y ∧ capV (L.mem s) y = .Thread t) :
+    ((cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)).val < p.val ∨
+        p.val + 2 ^ sb.val ≤ (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)).val) ∧
+      AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) (t.bv, Fl4Spec.tcbCnodeIndex n) := by
+  obtain ⟨hP, ⟨-, -, hM, hC, hI⟩, -⟩ := J.xtop.rel
+  have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
+  have hxm : cslotAddr sl ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
+  have hnd : ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl) := fun y hy => by
+    obtain ⟨z, hz⟩ := desc_tail_child hy
+    exact hnc ((hC.has_child_iff hP hsl).2 ⟨z, hz⟩)
+  obtain ⟨y, hy, hyc⟩ := hlive
+  have hya : capAt (L.mem s) y = ok (.Thread t) := by rw [capAt_capV, hyc]
+  have hym : y ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hy, _, hya, fun h => by cases h⟩
+  have hfit := hP.fits t _ ht
+  simp only [objSize] at hfit
+  have e12 : (2 : Nat) ^ 12 = 4096 := by norm_num
+  have hcov := covered_of_cap hym hyc (physF_thread t) rfl (range_thread t (by rw [e12]; omega))
+  have hl := ut_free J.ut hI hxm hcv hnd (by rw [e12]; omega) hcov
+  rw [e12] at hl
+  have hAt : AbsSlot Z.th (t.bv, Fl4Spec.tcbCnodeIndex n) := ⟨t, rfl, Or.inr ⟨ht, n, hn, rfl⟩⟩
+  obtain ⟨q0, i0, hi0, hq1', hq2⟩ := AbsSlot.at hAt
+  have hq0 : q0 = t := P1.eq_of_bv hq1'.symm
+  subst hq0
+  have hdv : (cslotAddr (q0.bv, Fl4Spec.tcbCnodeIndex n)).val = q0.val + 32 * i0 := by rw [hq2]; exact hi0.val hP
+  have hi0lt : 32 * (i0 + 1) ≤ 4096 := by
+    obtain ⟨k, hk, hs⟩ := hi0.size
+    rw [ht] at hk; cases hk; simpa [objSize] using hs
+  refine ⟨by omega, q0, rfl, Or.inr ⟨?_, n, hn, rfl⟩⟩
+  simp only [restrictTh]
+  rw [if_neg (by omega)]
+  exact ht
 
 set_option maxHeartbeats 4000000 in
 /-- **The untyped caps' facts after a CNode-only step** (a copy, mint,

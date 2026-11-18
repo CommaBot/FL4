@@ -2,8 +2,9 @@
 P3 (DESIGN.md §9), TCB: **the scheduler labels of the Thread cap at `J`**
 (toward XTopJointTcb's SetMCPriority, SetPriority and SetSchedParams).
 
-* `QKM`: XTopJointRegFrame's quiet step `QKY` with the TCBs' MCP also
-  changing; what it keeps (the `QKY` lemmas, but `mcpKeep`).
+* `QKM`: XTopJointRegFrame's quiet step `QKY` with the TCBs' MCP and IPC
+  buffer also changing; what it keeps (the `QKY` lemmas, but `mcpKeep` and
+  `bufKeep`).
 * `WideW`: the words of the TCBs of `T` (offsets 256..4096), core `c`'s node,
   the notifications of `N` and the SCs of `C` (XTopJointFinW's `finW_cases`
   as a write set); `JAtZ.wideW_scOut`, `wideW_irq`, `wideW_utc`: XTopJointFinW's
@@ -38,7 +39,7 @@ structure QKM (σ σ' : State Unit) : Prop where
   arch : σ'.archState = σ.archState
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨
     (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
-      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority }) ∨
+      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority, tcbIpcBuffer := y.tcbIpcBuffer }) ∨
     (∃ z w n, σ.kheap p = some (.schedContext z n) ∧ σ'.kheap p = some (.schedContext w n) ∧
       w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
 
@@ -49,6 +50,29 @@ theorem QKM.mcp {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some
   by_cases e1 : q = t
   · subst e1; exact Or.inr (Or.inl ⟨x, { x with tcbMcpriority := m }, hk, by simp [updK], rfl⟩)
   · exact Or.inl (by simp [updK, e1])
+
+/-- The IPC-buffer update of one TCB is a `QKM` step. -/
+theorem QKM.ipcBuf {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (b : VSpaceRef) :
+    QKM σ (updK σ t (.tcb { x with tcbIpcBuffer := b })) := by
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+  by_cases e1 : q = t
+  · subst e1; exact Or.inr (Or.inl ⟨x, { x with tcbIpcBuffer := b }, hk, by simp [updK], rfl⟩)
+  · exact Or.inl (by simp [updK, e1])
+
+/-- The MCP update of one TCB keeps the IPC buffers. -/
+theorem bufKeep_mcp {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (m : Priority) :
+    ∀ p x', σ.kheap p = some (.tcb x') → ∃ y, (updK σ t (.tcb { x with tcbMcpriority := m })).kheap p =
+      some (.tcb y) ∧ y.tcbIpcBuffer = x'.tcbIpcBuffer := fun p x' hp => by
+  by_cases e : p = t
+  · subst e; rw [hk] at hp; cases hp; exact ⟨{ x with tcbMcpriority := m }, by simp [updK], rfl⟩
+  · exact ⟨x', by simp [updK, e, hp], rfl⟩
+
+/-- The IPC-buffer update of one TCB keeps the MCPs. -/
+theorem mcpKeep_buf {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (b : VSpaceRef) :
+    McpKeep σ (updK σ t (.tcb { x with tcbIpcBuffer := b })) := fun p x' hp => by
+  by_cases e : p = t
+  · subst e; rw [hk] at hp; cases hp; exact ⟨{ x with tcbIpcBuffer := b }, by simp [updK], rfl⟩
+  · exact ⟨x', by simp [updK, e, hp], rfl⟩
 
 section
 variable {σ σ' : State Unit} (h : QKM σ σ')
@@ -65,14 +89,14 @@ theorem QKM.khrb : KhRB σ σ' := by
     exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
 
 theorem QKM.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
-    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority } := by
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority, tcbIpcBuffer := y.tcbIpcBuffer } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, -, -⟩
   · exact ⟨x, e.trans hk, rfl⟩
   · rw [hk] at ha; cases ha; exact ⟨b, hb, e⟩
   · rw [hk] at ha; cases ha
 
 theorem QKM.tcb_back {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
-    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority } := by
+    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags, tcbMcpriority := y.tcbMcpriority, tcbIpcBuffer := y.tcbIpcBuffer } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, -, hb, -⟩
   · exact ⟨y, by rw [← e]; exact hk, rfl⟩
   · rw [hk] at hb; cases hb; exact ⟨a, ha, e⟩
@@ -146,10 +170,6 @@ theorem QKM.ksz : KSz σ σ' := by
   · rw [ho] at hb; cases hb; exact ⟨_, ha, rfl⟩
 
 theorem QKM.szKeep : SzKeep σ σ' := fun p x n hp => let ⟨z, hz, _⟩ := h.sc_back hp; ⟨z, hz⟩
-
-theorem QKM.bufKeep : ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧
-    y.tcbIpcBuffer = x.tcbIpcBuffer := fun p x hp => by
-  obtain ⟨y, hy, e⟩ := h.tcb hp; exact ⟨y, hy, by rw [e]⟩
 
 theorem QKM.nsc {N C : Set U64} (hN : NSC N C σ) : NSC N C σ' :=
   fun n hn x p hx hp => hN n hn x p ((h.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).1 hx) hp
@@ -464,7 +484,7 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have keep : ∀ b, P1.Aligned b → b ≠ mcpA t → L.mem s' b = L.mem s b := fun b hb hne =>
     hw.mem_eq hb hne
   have hBW : BufWordRel Z.T (L.mem s') σ' := by
-    refine J.buf.frame (fun u hu => keep _ (tIpcBufA_aligned (hT u hu)) fun e => ?_) hA.bufKeep
+    refine J.buf.frame (fun u hu => keep _ (tIpcBufA_aligned (hT u hu)) fun e => ?_) (bufKeep_mcp hk m)
     have h1 := tIpcBufA_val (hT u hu)
     rw [e, hKt] at h1
     have a1 := (hT t ht).align; have a2 := (hT u hu).align

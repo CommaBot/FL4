@@ -1399,6 +1399,37 @@ theorem rdTrivJL [Fl4Proofs.P1.PlainStore st] (hLv : LiveJHyp (L := L) arI AR th
 /-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJR`, `RdJ`):
 the steps at `WJ`, with `PPR0` after a finalisation by `jFinPPHyp` and
 after a slot edit by `PPK.of_cnK`. -/
+theorem JDelParts.hypsWR [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
+    (hpp : JPreemptHyp (L := L) arI AR th) (hpost : JPostDelHyp (L := L) arI AR th)
+    (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
+    DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
+      (RdL (L := L) (A := A) th H) th := by
+  have hF := finJL (L := L) arI h hT Z H Cs kb hth
+  have hZ := jZombieHyp (L := L) (AR := AR) arI Z H Cs kb hth
+  have hS := jSwapHyp (L := L) (AR := AR) arI Z H Cs kb hth
+  have hEm := emptyHypJ (L := L) (AR := AR) arI Z H Cs kb hth
+  refine ⟨?_, ?_, hpp Z H Cs kb hth, hpost Z H Cs kb hth, ?_, ?_, ?_⟩
+  · intro s a σ G sl c hDS hW hA hc hk hKd
+    have hW' := hW.wj arI
+    obtain ⟨V, Ac, Lst, D, J, -, -, -, hp0⟩ := hW
+    refine WP.spec_mono (hF s a σ G sl c hDS hW' hA hc hk hKd) ?_
+    rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
+    exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
+      h9.wjr arI (jFinPPHyp arI (Z.mv G V) H Cs Ac Lst D s a σ hth J sl c hA hc hk _ σ' h4 hp0), h10⟩
+  · intro s a σ G sl c hDS hW hA hc hcn hnk hCN hZ
+    exact rdTrivJL arI h.live Z H Cs kb hth s a σ G sl c hDS (hW.wj arI) hA hc hcn hnk hCN hZ
+  · intro s s' a σ σ' G sl p zt n hW hD1 hD2 hFr hsc hA hxn hz hal hoth hmS
+    exact (hZ s s' a σ σ' G sl p zt n (hW.wj arI) hD1 hD2 hFr hsc hA hxn hz hal hoth hmS).wjr arI
+      (hW.pp arI |>.of_ppk (PPK.of_cnK (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc))))
+  · intro s s' a σ σ' G G' sl p zt n hW hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS
+    exact (hS s s' a σ σ' G G' sl p zt n (hW.wj arI) hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS).wjr arI
+      (hW.pp arI |>.of_ppk (PPK.of_cnK (capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw))))
+  · intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS
+    exact (hEm s s' a σ σ' G G' sl (hW.wj arI) hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS).wjr arI
+      (hW.pp arI |>.of_ppk (PPK.of_cnK (emptySlot_null_nkn _ σ ((), σ') hes)))
+
+/-- **`JDelHyp` from the named steps** (`delHyp_fullWR` at `WJR`, `RdJ`,
+by `JDelParts.hypsWR`). -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
     (hT : P0.ArchTotal arI) :
@@ -1406,31 +1437,7 @@ theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) ar
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
-  have hF := finJL (L := L) arI h hT Z H Cs kb hth
-  have hZ := jZombieHyp (L := L) (AR := AR) arI Z H Cs kb hth
-  have hS := jSwapHyp (L := L) (AR := AR) arI Z H Cs kb hth
-  have hEm := emptyHypJ (L := L) (AR := AR) arI Z H Cs kb hth
-  have hH : DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
-      (RdL (L := L) (A := A) th H) th := by
-    refine ⟨?_, ?_, hpp Z H Cs kb hth, hpost Z H Cs kb hth, ?_, ?_, ?_⟩
-    · intro s a σ G sl c hDS hW hA hc hk hKd
-      have hW' := hW.wj arI
-      obtain ⟨V, Ac, Lst, D, J, -, -, -, hp0⟩ := hW
-      refine WP.spec_mono (hF s a σ G sl c hDS hW' hA hc hk hKd) ?_
-      rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
-      exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
-        h9.wjr arI (jFinPPHyp arI (Z.mv G V) H Cs Ac Lst D s a σ hth J sl c hA hc hk _ σ' h4 hp0), h10⟩
-    · intro s a σ G sl c hDS hW hA hc hcn hnk hCN hZ
-      exact rdTrivJL arI h.live Z H Cs kb hth s a σ G sl c hDS (hW.wj arI) hA hc hcn hnk hCN hZ
-    · intro s s' a σ σ' G sl p zt n hW hD1 hD2 hFr hsc hA hxn hz hal hoth hmS
-      exact (hZ s s' a σ σ' G sl p zt n (hW.wj arI) hD1 hD2 hFr hsc hA hxn hz hal hoth hmS).wjr arI
-        (hW.pp arI |>.of_ppk (PPK.of_cnK (Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc))))
-    · intro s s' a σ σ' G G' sl p zt n hW hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS
-      exact (hS s s' a σ σ' G G' sl p zt n (hW.wj arI) hD1 hD2 hFr hsw hA hz hpx hG' hcap hmS).wjr arI
-        (hW.pp arI |>.of_ppk (PPK.of_cnK (capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw))))
-    · intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS
-      exact (hEm s s' a σ σ' G G' sl (hW.wj arI) hRd hD1 hD2 hFr hes hA hxn hx0 hoth hmS).wjr arI
-        (hW.pp arI |>.of_ppk (PPK.of_cnK (emptySlot_null_nkn _ σ ((), σ') hes)))
+  have hH := h.hypsWR arI hpp hpost hT Z H Cs kb hth
   subst hth
   exact delHyp_fullWR arI _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 

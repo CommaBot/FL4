@@ -66,15 +66,15 @@ theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
 set_option maxHeartbeats 4000000 in
 /-- **A CNode-only slot step's `JCs` and `JRest`** (`jowes_slotOf` with the
 dead set `D'` and its `JCovD`, and the untyped caps' facts after, given). -/
-theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem jowes_slotDF {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
     (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
     (hTK : TypedKept Z.th (L.mem s) (L.mem s'))
-    (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
-      capV (L.mem s') (slotOf t 3) = .Null)
+    (hfh : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
+      ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
     (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
     {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
@@ -99,7 +99,7 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slotT hkc hw.1 J.intL hTK hT3⟩
+    ⟨Tr, Cq, hJ.slotTF hkc hw.1 J.intL hTK hfh⟩
   obtain ⟨-, ⟨-, -, hM', -, -⟩, -⟩ := hX'.rel
   have hJC0 := J.jcs_slot hM' hMO hFI hUK hkz hDl
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
@@ -113,6 +113,30 @@ theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     hjc, hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
+
+set_option maxHeartbeats 4000000 in
+/-- `jowes_slotDF` with the TCBs' fault-handler slots kept or emptied. -/
+theorem jowes_slotD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    {G' : MdbGhost} {V' : XVs} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
+    {kb : U64} (hFI : FinInv Z.th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
+    (hTK : TypedKept Z.th (L.mem s) (L.mem s'))
+    (hT3 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
+      capV (L.mem s') (slotOf t 3) = .Null)
+    (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
+    {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi) :
+    JCs (L := L) (Z.mv G' V') s' σ' ∧ JRest (L := L) arI (Z.mv G' V') H Cs Ac Lst D' s' σ' := by
+  refine jowes_slotDF J hX' hcn hkc hw hFI hMO hkz hTK (fun t ht => ?_) hDl hUK hjc horig hutc
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  rcases hT3 t ht with e | e
+  · rw [capAt_capV, capAt_capV] at e
+    rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact hJ.fh t ht
+  · left; rw [cslot_tcb3]; exact e
 
 /-- **What a deletion cannot re-establish of an untyped cap** [J]: an untyped
 cap left childless by the deletion (the deleted cap its only child, itself
