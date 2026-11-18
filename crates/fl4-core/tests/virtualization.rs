@@ -655,3 +655,29 @@ fn suspending_a_vm_preserves_the_syscall_restart_context() {
     assert_eq!(t.reg(&s, reg::R10), 0x200);
     assert_eq!(vcpu::bound(&s, t), v);
 }
+
+/// FL4's host runs 4-level paging (VCPU capability 1 is 48), so a guest
+/// may not turn on CR4.LA57 (bit 12) on either backend.
+#[test]
+fn guests_cannot_enable_five_level_paging() {
+    use vcpu::vmx::*;
+    const LA57: u64 = 1 << 12;
+    assert_eq!(vcpu::CR4_ALLOWED & LA57, 0);
+    let intel = Machine {
+        backend: 1,
+        ..Default::default()
+    };
+    assert_eq!(vcpu::sanitize_vmcs(&intel, GUEST_CR4, u64::MAX).ok().unwrap() & LA57, 0);
+    assert_eq!(vcpu::sanitize_vmcs(&intel, GUEST_CR4, LA57).ok().unwrap() & LA57, 0);
+    // The guest's own MOV to CR4.LA57 exits to the VMM.
+    assert_eq!(vcpu::sanitize_vmcs(&intel, CONTROL_CR4_MASK, 0).ok().unwrap() & LA57, LA57);
+    let amd = Machine {
+        backend: 2,
+        ..Default::default()
+    };
+    // Guest CR4 writes always exit (the forced intercept bit 20 of word
+    // 0x000), so the VMCB's CR4 changes only through this check.
+    assert_eq!(vcpu::sanitize_vmcb(&amd, 0, 0, 0).ok().unwrap() & (1 << 20), 1 << 20);
+    assert_eq!(vcpu::sanitize_vmcb(&amd, 0x548, 0, u64::MAX).ok().unwrap() & LA57, 0);
+    assert_eq!(vcpu::sanitize_vmcb(&amd, 0x548, 0, LA57).ok().unwrap() & LA57, 0);
+}
