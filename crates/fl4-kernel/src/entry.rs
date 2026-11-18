@@ -72,7 +72,7 @@ pub struct Frame {
 }
 
 const VEC_SYSCALL: u64 = 0x100;
-const VEC_SPURIOUS: u64 = 0xff;
+const VEC_SPURIOUS: u64 = apic::SPURIOUS_VECTOR;
 const VEC_TRAP_MIN: u64 = 0xa0;
 const VEC_IRQ_MIN: u64 = irq::INT_OFFSET;
 const VEC_IRQ_MAX: u64 = irq::MAX + irq::INT_OFFSET;
@@ -283,6 +283,13 @@ fn run_entry(irq: bool, serial: bool, body: impl FnMut(&mut PhysStore, &mut Phys
 /// entry.S loads before it returns (with the skim window, the user's tables
 /// again; 0 for none).
 fn resume_user() -> u64 {
+    // A deferred #DB at this entry's first instruction turned the thread's
+    // loaded breakpoints off, expecting the exit to load them again.
+    let pc = percpu::get();
+    if fl4_abi::config::HARDWARE_DEBUG_API && pc.dr_disarmed.replace(false) && pc.dr_loaded.get() {
+        let s = store();
+        cpu::write_dr7(sched::cur_thread(&s).debug_reg(&s, 5));
+    }
     if tlb::skim() {
         tlb::take_exit_cr3()
     } else {
@@ -318,6 +325,8 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
                 // core holds the gate, so no remote call is meant for it.)
                 if v <= VEC_IRQ_MAX {
                     pc.polled_irq.set(v - VEC_IRQ_MIN);
+                } else {
+                    apic::ack_stray(v);
                 }
                 f.rflags &= !RFLAGS_IF;
                 return 0;
@@ -332,6 +341,7 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
                 if v == smp::REMOTE_CALL_VECTOR as u64 {
                     service_remote();
                 }
+                apic::ack_stray(v);
                 if irq {
                     run_entry(true, false, |s, a| syscall::handle_interrupt_entry(s, a, v - VEC_IRQ_MIN));
                 }
@@ -343,9 +353,11 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
         }
         if deferred_user_debug(f) {
             // Breakpoints come back on the way out to the thread
-            // (load_debug_state).
+            // (load_debug_state, or resume_user for an entry that goes
+            // straight back).
             cpu::write_dr7(0x400);
             cpu::write_dr6(0xffff_0ff0);
+            percpu::get().dr_disarmed.set(true);
             return 0;
         }
         kernel_fault(f);
@@ -354,6 +366,11 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     // (l4h 0012): acknowledge it and go back to the thread.
     if v == TIMER_VECTOR as u64 && timer::early() {
         apic::eoi();
+        return resume_user();
+    }
+    // An interrupt on a trap-range vector (a device's MSI can name one)
+    // is no `int n` from the thread: acknowledge it and go back.
+    if apic::ack_stray(v) {
         return resume_user();
     }
     // #NM on the lazy FPU path (fpu.rs): load the thread's FPU state and
@@ -487,7 +504,11 @@ pub fn exit() -> ! {
                     percpu::get().polled_irq.get()
                 } else if (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&vector) {
                     vector - VEC_IRQ_MIN
-                } else { syscall::NO_IRQ };
+                } else {
+                    // Acknowledged on exit, so in service until its EOI.
+                    apic::ack_stray(vector);
+                    syscall::NO_IRQ
+                };
                 // Results are already durable if this call stalls us.
                 let stalled = service_remote();
                 // Always acquire, even if the first call stalled us: an
@@ -534,6 +555,7 @@ pub fn exit() -> ! {
 fn load_debug_state<S: Store>(s: &mut S, t: Tcb) {
     let dr7 = t.debug_reg(s, 5);
     let pc = percpu::get();
+    pc.dr_disarmed.set(false);
     if dr7 & 0xff != 0 || pc.dr_loaded.get() {
         for i in 0..4 {
             cpu::write_dr(i, t.debug_reg(s, i));

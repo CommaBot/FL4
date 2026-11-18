@@ -4,7 +4,7 @@
 use crate::capability::Cap;
 use crate::error::{illegal, invalid_arg, range, truncated, KResult};
 use crate::layout::{ks, NUM_DOMAINS, NUM_DOMAIN_SCHEDULES};
-use crate::machine::Store;
+use crate::machine::{Arch, Store};
 use crate::msg;
 use crate::obj::{ks_get, ks_set, Slot, Tcb};
 use crate::sched;
@@ -13,7 +13,7 @@ use fl4_abi::label;
 /// Durations are timer ticks and must fit in 56 bits.
 const MAX_DURATION: u64 = (1 << 56) - 1;
 
-pub fn decode<S: Store>(s: &mut S, lbl: u64, length: u64, buf: u64, extra: &[Slot; 3]) -> KResult<()> {
+pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, buf: u64, extra: &[Slot; 3]) -> KResult<()> {
     let ct = sched::cur_thread(s);
     if lbl == label::DomainSetSet {
         if length == 0 {
@@ -30,6 +30,10 @@ pub fn decode<S: Store>(s: &mut S, lbl: u64, length: u64, buf: u64, extra: &[Slo
             Cap::Thread { ptr } => Tcb(ptr),
             _ => return invalid_arg(1),
         };
+        // A thread running on another core must stop there first, or
+        // set_domain would queue it while it runs. (seL4 has no stall here;
+        // its scheduler assumes the current thread is never queued.)
+        crate::smp::remote_tcb_stall(s, a, t);
         sched::set_thread_state(s, ct, sched::TS_RESTART);
         sched::set_domain(s, t, dom);
         Ok(())

@@ -909,7 +909,12 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
         if reason == 1 && capability(0x483) >> 32 & (1 << 15) != 0 {
             interrupt = vmread(DATA_EXIT_INTERRUPT_INFO) & 255;
         }
-        if reason == 1 && vector & (1 << 31) != 0 {
+        // Reinject events interrupted by exits invisible to userspace: an
+        // external interrupt or an NMI the host takes. Software events go
+        // unreinjected, as on SVM: the guest's RIP is still at the INT n,
+        // INT3, INTO or INT1, which runs again; injecting them would need a
+        // VM-entry instruction length these exits do not define.
+        if vmx_exit::host_exit(reason, exit[25]) && vmx_exit::reinjected(vector) {
             vcpu::write_vmcs(s, v, CONTROL_ENTRY_INTERRUPTION_INFO, vector & !(1 << 12));
             vcpu::write_vmcs(s, v, CONTROL_ENTRY_EXCEPTION_ERROR_CODE, exit[28]);
             if (vector >> 8) & 7 == 2 {
@@ -967,8 +972,14 @@ pub fn run<S: Store>(s: &mut S, v: u64, tcb: u64, root: u64) -> u64 {
     let host_exit = if amd {
         matches!(reason, 0x60..=0x63)
     } else {
-        reason == 1 || (reason == 0 && (exit[25] >> 8) & 7 == 2)
+        vmx_exit::host_exit(reason, exit[25])
     };
+    if !amd && reason == 0 && host_exit {
+        // An NMI exit leaves NMIs blocked until the next IRET, which VM
+        // entry with virtual NMIs does not replace: unblock them now. (The
+        // kernel's NMI handler ignores NMIs, so none is lost.)
+        cpu::iret_to_self();
+    }
     vcpu::set(s, v, vcpu::PENDING, if host_exit { 0 } else { 1 });
     // 0x100 means poll the local APIC; 0xff is spurious/no IRQ.
     if host_exit {
