@@ -37,7 +37,7 @@ theorem isVsFin_of_rest {c : capability.Cap} (hk : FinRestK c) (hf : FinObjKind 
   case SchedContext => exact h5 ⟨_, _, rfl⟩
   case IrqHandler => exact h6 ⟨_, rfl⟩
   case Vcpu => exact h7 (Or.inl ⟨_, rfl⟩)
-  case Ept => exact h7 (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))
+  case Ept => exact (h7 (Or.inr (Or.inl ⟨_, _, _, _, _, rfl⟩))).elim
   case IoPort => exact h8 ⟨_, _, _, rfl⟩
   case Frame p sz r d m ep a v =>
     cases ep

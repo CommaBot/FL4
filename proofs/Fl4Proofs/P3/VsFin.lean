@@ -468,12 +468,38 @@ theorem fin_asid_pool (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spe
   rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hF, hSt1, -, -, hC1⟩, hZ⟩
   exact (WP.spec_ok _).2 (fin_del_after hDS hA hX hc hF hSt1 hR1 hC1 hZ rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
+set_option maxHeartbeats 1000000 in
+/-- **A final mapped EPT root cap**: `delete_asid` of the root (FL4's
+`ept::finalise`; the spec's `arch_finalise_cap` of a mapped level-0
+`EPTCap`, whose pool entry is the root tagged guest, cleared by
+`deleteAsid`'s nested branch); no cap slot written. -/
+theorem fin_ept_root (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
+    (hX : VsFinCtx st th P L4 L3 L2 L1 SR s a σ G)
+    (p asid va : U64) (hp0 : p ≠ 0#u64) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Ept p 0#u64 true asid va)) :
+    objects.finalise_cap st ar s a (.Ept p 0#u64 true asid va) true false ⦃ r =>
+      FinOKX (L := L) th s σ G sl (.Ept p 0#u64 true asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
+        SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
+  simp only [objects.finalise_cap, objects.finalise_cap_object, ept.finalise, bind_ok, ↓reduceIte]
+  refine WP.spec_bind (delete_asid_rel (hH.fin (W := VsWrite P (L.ksb s)) (s0 := s) (σ0 := σ) hX.pp (fun _ h => h) hX.pv) s a σ hX.vp hX.x.2.1
+    ⟨⟨FinSR.init hX.x.1, hX.x.2.2.1⟩, hDS.1.1, hX.pl, hX.sd, hX.x.2.2.2.2⟩ asid p hp0) ?_
+  rintro ⟨s1, a1⟩ ⟨-, σ', hm, hR1, ⟨hF, hSt1, -, -, hC1⟩, hZ⟩
+  have hw : Fl4Spec.NonDet.when ((0#u64 : U64).val = 0) (Fl4Spec.deleteAsid (Z := Unit) asid.bv p.bv) =
+      Fl4Spec.deleteAsid (Z := Unit) asid.bv p.bv := by
+    have h0 : (0#u64 : U64).val = 0 := rfl
+    unfold Fl4Spec.NonDet.when; rw [if_pos h0]
+  exact (WP.spec_ok _).2 (fin_del_after hDS hA hX hc hF hSt1 hR1 hC1 hZ rfl
+    (mem_bind_nd (show ((), σ') ∈ (Fl4Spec.NonDet.when ((0#u64 : U64).val = 0)
+      (Fl4Spec.deleteAsid (Z := Unit) asid.bv p.bv) σ).1 by rw [hw]; exact hm) (Set.mem_singleton _)))
+
 /-! ## All VSpace finalisations -/
 
-/-- The VSpace caps whose finalisation may work. -/
+/-- The VSpace caps whose finalisation may work (a mapped EPT root cap's
+releases its ASID, `fin_ept_root`). -/
 def IsVsFin : capability.Cap → Prop
   | .Frame _ _ _ _ _ ep _ _ => ep = false
   | .PageTable .. | .PageDirectory .. | .Pdpt .. | .Pml4 .. | .AsidPool .. => True
+  | .Ept p lv m _ _ => lv = 0#u64 ∧ m = true ∧ p ≠ 0#u64
   | _ => False
 
 /-- The hypotheses of the VSpace finalisations. -/
@@ -485,8 +511,8 @@ structure VsFinHyps (st : machine.Store S) [L : LawfulStore st] (A : Type) (ar :
   pg : VsUnmapPageHyps st A ar L3 L2 L1 SR
   del : VsHyps st A ar P th SR
 
-/-- **The VSpace half of `FinWorkHyp`**: a final table, PML4 or ASID pool
-cap, or a mapped frame cap; no cap slot written (`SlotsSame`); `FinX`
+/-- **The VSpace half of `FinWorkHyp`**: a final table, PML4, ASID pool or
+mapped EPT root cap, or a mapped frame cap; no cap slot written (`SlotsSame`); `FinX`
 kept. -/
 theorem vs_fin [Fl4Proofs.P1.PlainStore st] (hH : VsFinHyps st A ar th P L4 L3 L2 L1 SR) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hA : AbsSlot th sl)
@@ -514,6 +540,9 @@ theorem vs_fin [Fl4Proofs.P1.PlainStore st] (hH : VsFinHyps st A ar th P L4 L3 L
   case Pdpt p mp asid va => rw [hb rfl]; exact fin_pdpt hH.pdpt s a σ G sl hDS hA hX p asid va mp hc
   case Pml4 p mp asid => rw [hb rfl]; exact fin_pml4 hH.del s a σ G sl hDS hA hX p asid mp hc
   case AsidPool p base => rw [hb rfl]; exact fin_asid_pool hH.del s a σ G sl hDS hA hX p base hc
+  case Ept p lv m asid va =>
+    obtain ⟨rfl, rfl, hp0⟩ := hv
+    rw [hb rfl]; exact fin_ept_root hH.del s a σ G sl hDS hA hX p asid va hp0 hc
 
 end Ops
 

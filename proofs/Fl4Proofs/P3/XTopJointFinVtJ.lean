@@ -17,6 +17,9 @@ EPT or a VCPU cap keeps the state; FL4's writes land in VT-x words.
     EPT of the ASID);
   - `eptObj`: an EPT cap's range holds no object of `H` but `other` ones
     (l4v `valid_cap` with `pspace_distinct`);
+  - `eptNz`: an EPT cap's table is non-null (l4v `valid_cap`, no object at
+    0; `delete_asid` of a mapped root matches the spec only for a non-null
+    root, VsDel's `delete_asid_relR`);
   - `vcpu` (`VtVcpuPlace`): a VCPU cap's VCPU is bound to no thread (its
     `TCB` word zero: l4v `sym_refs` of the VCPU–TCB binding, the threads
     being native, ScPlace's `JState.vcpu`), its list neighbours' link words
@@ -30,11 +33,11 @@ EPT or a VCPU cap keeps the state; FL4's writes land in VT-x words.
 * `JAtZ.finVcpuJ`: a final VCPU cap's `vcpu::finalise` (`VcpuK`: the
   unlink from the VCPU list, `vcpu_finalise_vt`; `JAtZ.vtHJ`), the slot
   ready after.
-* Not proved (it stays in `JDelParts.fin`): a final mapped EPT root cap.
-  FL4's `vspace::delete_asid` clears the guest-tagged ASID pool entry, the
-  spec's `arch_finalise_cap` of an `EPTCap` does nothing and keeps it, so the
-  pool relation `VsRel` (the spec pool holds `optRef` of every entry, tagged
-  or not) breaks: a spec gap, not a missing invariant.
+* A final mapped EPT root cap is the VSpace finalisations' (VsFin's
+  `fin_ept_root`, XTopJointFinVs's `JAtZ.finEptRootJ`): FL4's
+  `vspace::delete_asid` clears the guest-tagged ASID pool entry, as the
+  spec's `arch_finalise_cap` of a mapped level-0 `EPTCap` does by
+  `deleteAsid`.
 -/
 import Fl4Proofs.P3.XTopJointFinVtOps
 import Fl4Proofs.P3.XTopJointFinFrIo
@@ -107,6 +110,11 @@ structure JVtHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wher
     ∀ x p lv m asid va, IsSlot Z.th x → capV (L.mem s) x = .Ept p lv m asid va →
       ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
         q.val + 2 ^ k.bits ≤ baseF (.Ept p lv m asid va) ∨ topF (.Ept p lv m asid va) < q.val
+  /-- An EPT cap names a non-null table (l4v `valid_cap`: no object at 0);
+  what `delete_asid` of a mapped EPT root needs (`jFinAt_eptRoot`). -/
+  eptNz : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    ∀ x p lv m asid va, IsSlot Z.th x → capV (L.mem s) x = .Ept p lv m asid va → p ≠ 0#u64
   /-- A VCPU cap's VCPU (`VtVcpuPlace`). -/
   vcpu : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -197,7 +205,13 @@ theorem JAtZ.finEptJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.Sta
   have har := J.xtop.fin.1.1.2.2.2.2.2.2
   have hap := hV.eptObj Z H Cs Ac Lst D s a σ rfl J _ p lv m asid va hA'.isSlot hcv
   have hm : ((absCap .Null, absCap .Null), σ) ∈
-      (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Ept p lv m asid va)) true σ).1 := Set.mem_singleton _
+      (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Ept p lv m asid va)) true σ).1 := by
+    cases m
+    · exact Set.mem_singleton _
+    · have hlv : ¬ lv.val = 0 := fun e => hnr ⟨rfl, UScalar.eq_of_val_eq (by rw [e]; rfl)⟩
+      exact mem_bind_nd (x := ((), σ)) (show ((), σ) ∈ (Fl4Spec.NonDet.when (lv.val = 0)
+        (Fl4Spec.deleteAsid (Z := Unit) asid.bv p.bv) σ).1 by rw [nd_when_false hlv]; exact Set.mem_singleton _)
+        (Set.mem_singleton _)
   cases m
   · have he : objects.finalise_cap st arI s a (.Ept p lv false asid va) true false = ok ((.Null, .Null), s, a) := by
       simp [objects.finalise_cap, objects.finalise_cap_object, ept.finalise]

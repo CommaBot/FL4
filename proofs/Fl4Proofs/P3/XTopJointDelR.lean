@@ -45,9 +45,14 @@ some of them proved here.
   non-root table's entry), a VCPU cap (`VcpuK`: `vcpu::finalise`, its unlink
   from the VCPU list); the spec keeps its state, FL4 writes VT-x words and the
   list's head word (`JAtZ.vtHJ`); the slot ready after (the object apart from
-  `H`'s); from `ArchRefines` [P], `ARKeep` [P] and `JVtHyps` [J]. A final
-  mapped EPT root cap stays in `JDelParts.fin`: FL4's `delete_asid` clears its
-  guest-tagged ASID pool entry, the spec keeps it (a spec gap).
+  `H`'s); from `ArchRefines` [P], `ARKeep` [P] and `JVtHyps` [J].
+* A final mapped EPT root cap's finalisation (`jFinAt_eptRoot`, `EptRootK`):
+  FL4's `delete_asid` of the root clears its guest-tagged ASID pool entry,
+  as the spec's `arch_finalise_cap` of a mapped level-0 `EPTCap` does
+  (`deleteAsid`); XTopJointFinVs's `JAtZ.finVsJb` (VsFin's `fin_ept_root`),
+  the slot ready after (the EPT root apart from `H`'s objects, `JVtHyps`'
+  `eptObj`); from `ArchRefines` [P], `JVsCapsHyp` [J], `JVsApartHyp` [J]
+  and `JVtHyps` [J] (`eptNz`: the root non-null).
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
   the IRQ node slot's cap deleted, null or a notification cap by
   `delete_oneJ` (`jFinNtfnK`, every slot kept, then `emptyHypJ`); from
@@ -361,6 +366,8 @@ directory, PDPT, PML4 or ASID pool cap. -/
 def VsK (c : capability.Cap) : Prop :=
   (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
     (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b
+/-- A mapped EPT root cap (its finalisation releases its ASID). -/
+def EptRootK (c : capability.Cap) : Prop := ∃ p asid va, c = .Ept p 0#u64 true asid va
 /-- A scheduling-context cap. -/
 def ScK (c : capability.Cap) : Prop := ∃ p sb, c = .SchedContext p sb
 /-- A thread (TCB) cap. -/
@@ -388,7 +395,7 @@ theorem jReplyRemoveHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT :
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
-    ¬ (EptK c ∨ VcpuK c))
+    ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
   irq : JIrqSlotHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyHyp` [J] (l4v `valid_replies`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -834,6 +841,36 @@ theorem jFrVt_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : A
     ⟨V, Ac1, Lst1, D1, J1, hks.trans hkb⟩, trivial⟩
 
 set_option maxHeartbeats 4000000 in
+/-- **A final mapped EPT root cap's finalisation at `J`** (XTopJointFinVs's
+`JAtZ.finVsJb` with VsFin's `fin_ept_root`: FL4's `delete_asid` of the root,
+the spec's `deleteAsid`), the slot ready after (the root apart from `H`'s
+objects but `other` ones, `JVtHyps.eptObj`); from `ArchRefines` [P],
+`JVsCapsHyp` [J], `JVsApartHyp` [J] and `JVtHyps` [J]. -/
+theorem jFinAt_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
+    (hAp : JVsApartHyp (L := L) arI AR th) (hV : JVtHyps (L := L) arI AR th) :
+    JFinAtF (L := L) arI AR th EptRootK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hk hfin
+  obtain ⟨p, asid, va, hce⟩ := hk
+  obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
+  have hVC0 := hVC (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  have hap := hV.eptObj (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  have hnz := hV.eptNz (Z.mv G V) H Cs Ac Lst D s a σ hth J
+  subst hth hce
+  have hcv := capV_of_capAt hc
+  have hap0 := hap _ p 0#u64 true asid va hA.isSlot hcv
+  have hp0 := hnz _ p 0#u64 true asid va hA.isSlot hcv
+  rw [decide_eq_true hfin]
+  refine WP.spec_mono (J.finVsJb hAR hVC0 Ap hDS hA hc ⟨rfl, rfl, hp0⟩ ⟨_, rfl⟩ true
+    (Or.inl ⟨Or.inl rfl, rfl, fun f l e => by cases e⟩)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
+  simp only at h1 h2 h3 hm J1 hSS hks ⊢
+  have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Ept p 0#u64 true asid va := by rw [hSS.capV hA.isSlot, hcv]
+  exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
+    fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
+    ⟨V, Ac, Lst, D, J1, hks.trans hkb⟩, EmptyReady.of_apartO (by rw [hcv1]; exact hap0)⟩
+
+set_option maxHeartbeats 4000000 in
 /-- **A final VT-x object cap's finalisation at `J`** (XTopJointFinVtJ's
 `JAtZ.finEptJ`, an EPT cap but a mapped root's; `JAtZ.finVcpuJ`, a VCPU
 cap), the slot ready after; from `ArchRefines` [P], `ARKeep` [P] and
@@ -1018,7 +1055,9 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_thread arI hT h.arKeep h.thread h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     by_cases hvt : EptK c ∨ VcpuK c
     · exact jFinAt_vt arI h.archRef h.arKeep h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvt hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht, hvt⟩ hfin
+    by_cases hrt : EptRootK c
+    · exact jFinAt_eptRoot arI h.archRef h.vsCaps h.vsApart h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hrt hfin
+    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht, hvt, hrt⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/

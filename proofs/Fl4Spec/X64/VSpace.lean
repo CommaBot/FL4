@@ -406,7 +406,14 @@ variable {Z : Type} [StateExt Z]
 
 /-- l4v: ArchVSpace_A.X64_A.arch_finalise_cap: actions on finalisation of
 x64 caps. The IOSpace and IO page table cases are a `FIXME x64-vtd` in l4v
-(no IOMMU). -/
+(no IOMMU).
+
+FL4 (VT-x port, outside l4v's model, DESIGN §5): a final mapped EPT root cap
+(level 0) releases its ASID as FL4's `ept::finalise` does, by `delete_asid`
+of the EPT root (its pool entry is the root tagged with bit 0, which
+`deleteAsid` clears without touching the address space). The EPT tables and
+the guest mappings are not modelled, so the other EPT caps' finalisation
+(FL4's `ept::unmap` of a mapped non-root table) changes no spec state. -/
 def archFinaliseCap (c : ArchCap) (x : Bool) : SMonad Z (Cap × Cap) :=
   match c, x with
   | .asidPoolCap ptr b, true => do
@@ -428,6 +435,9 @@ def archFinaliseCap (c : ArchCap) (x : Bool) : SMonad Z (Cap × Cap) :=
       unmapPage s a v ptr
       return (.nullCap, .nullCap)
   | .ioPortCap f l, true => return (.nullCap, .archObjectCap (.ioPortCap f l))
+  | .eptCap ptr level (some (a, _)), true => do
+      NonDet.when (level = 0) (deleteAsid a ptr)
+      return (.nullCap, .nullCap)
   | _, _ => return (.nullCap, .nullCap)
 
 end
