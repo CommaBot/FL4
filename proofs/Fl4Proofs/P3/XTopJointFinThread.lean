@@ -36,7 +36,8 @@ XTopFinThread's `xFinThread_of`:
   `DbgWc`; `JAtZ.dbgw_step` (as `tmw_step`: `XTopAt.dbgStep`, the words
   apart from every other field, `kern_dbg` with core 0's new list head null
   or a TCB by P1's `TimerOK.dh`, `dbgw_utc` with the new head outside the
-  childless untyped regions by `JThreadFinHyps.utTcb`);
+  childless untyped regions: the old head by `UtCapP3.rst`, its successor by
+  `JThreadFinHyps.utTcb` and `ut_free`, `dbgRemove_head`);
 * the FPU release (`JThreadFinHyps.fpu` [P]).
 
 The finalised thread's slot is ready after (`JAtZ.tcb_ready`, as
@@ -46,8 +47,9 @@ P1's `fin_cap_thread.dead`).
 `JThreadFinHyps`: [J] `obj` (what P1's thread finalisation reads of the
 thread and `JAtZ` lacks: not the scheduler's switch target, l4v
 `valid_sched_action`; not the idle thread, l4v `valid_global_refs`; its VCPU
-word zero, native threads; ScPlace's `JState`); [J] `utTcb` (no TCB in a
-childless untyped's region, l4v `valid_untyped`); [P] `fpu`; [P] `ticks`.
+word zero, native threads; ScPlace's `JState`); [J] `utTcb` (core 0's
+debug-list successor of the head covered by a cap, l4v
+`if_live_then_nonz_cap` for FL4's debug list); [P] `fpu`; [P] `ticks`.
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -91,14 +93,21 @@ structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pr
   `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
     ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [J] No TCB lies in the region of a childless untyped cap with a
-  nonzero free index (l4v `valid_untyped`: an object in an untyped's region
-  descends from it); what `UtCapP3.rst` needs of the debug list's new head
-  after the debug-list removal (`JAtZ.dbgRemoveJ`). -/
+  /-- [J] The debug-list successor of core 0's list head is covered by a cap
+  (FL4's debug list holds the TCBs not yet finalised, and a thread's
+  finalisation unlinks it before its last cap goes: the debug-list analogue
+  of l4v `if_live_then_nonz_cap`). With `ut_free` it keeps the successor out
+  of every childless untyped region (`UtCapP3.rst`), which is what the new
+  list head needs after `debug_remove` of the head (`dbgRemove_head`); the
+  old head is already outside by `UtCapP3.rst`. Was: no TCB of `Z.T` in a
+  childless untyped region, false once a TCB retyped from an untyped has
+  lost its last cap (it stays in `Z.T` = `H`'s TCBs, dead). -/
   utTcb : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
     (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    ∀ y ∈ Z.T, ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 → ¬ (p.val ≤ y.val ∧ y.val < p.val + 2 ^ sb.val)
+    L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∈ Z.T →
+    L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ≠ 0#u64 →
+    Covered (L.mem s) Z.G (L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val
+      ((L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val + 1)
   /-- [P] The FPU release at `J` (XTop: `xFinThread_of`'s `hFpu`). -/
   fpu : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
     (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -527,15 +536,83 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
   exact J.cs_frame (G' := Z.G) hks hX' F.kback (JCs.same J hSS F.ksz) R
 
+/-- **A debug-list head after `debug_remove t`**: unchanged, or it was `t`
+and is now `t`'s old successor (the other writes are TCB debug links). -/
+theorem dbgRemove_head {T Cs : Set U64} (s : S) (t : U64) (hT : P1.TcbPlaced T)
+    (hN : ∀ c ∈ Cs, P1.NodePlaced st T s c) (hD : P1.DbgTz st T Cs s) (hcpu0 : L.mem s (P1.affA t) ∈ Cs)
+    (ht : t ∈ T) {c : U64} (hc : c ∈ Cs) :
+    objects.debug_remove st s t ⦃ s' => L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) =
+        L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ∨
+      (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) = t ∧
+        L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) = L.mem s (P1.dnA t)) ⦄ := by
+  have hb : P1.Aligned (L.nodeAt s c layout.node.DEBUG_TCBS) :=
+    P1.nodeAt_aligned (hN c hc) (by simp [P1.debug_val]) (by simp [P1.debug_val])
+  have hkeep : ∀ (s0 : S) (y K v : U64), y ∈ T → K.val < 4096 → K.val % 8 = 0 →
+      L.mem (L.wr s0 (core.num.U64.wrapping_add y K) v) (L.nodeAt s c layout.node.DEBUG_TCBS) =
+        L.mem s0 (L.nodeAt s c layout.node.DEBUG_TCBS) := by
+    intro s0 y K v hy hK hK8
+    rw [L.mem_wr _ _ _ _ (P1.field_aligned (hT y hy) hK hK8) hb,
+      if_neg (fun e => P1.node_ne_field (hN c hc) (by simp [P1.debug_val]) hy (hT y hy) hK e.symm)]
+  unfold objects.debug_remove
+  step with obj.Tcb.affinity.spec as ⟨cpu, ecpu⟩
+  step with obj.node_get.spec as ⟨hd, ehd⟩
+  step with obj.Tcb.debug_next.val as ⟨nx, enx⟩
+  step with obj.Tcb.debug_prev.val as ⟨pv, epv⟩
+  have hcpu : cpu ∈ Cs := by rw [ecpu]; exact hcpu0
+  have tpv : P1.Tz T pv := by rw [epv]; exact hD.dp t ht
+  have tnx : P1.Tz T nx := by rw [enx]; exact hD.dn t ht
+  refine WP.spec_bind (Pₘ := fun s1 => L.mem s1 (L.nodeAt s c layout.node.DEBUG_TCBS) =
+      L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ∨
+    (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) = t ∧ L.mem s1 (L.nodeAt s c layout.node.DEBUG_TCBS) = nx)) ?_ ?_
+  · split
+    · rename_i hht
+      refine WP.spec_mono (obj.node_set.spec s cpu _ nx) fun s1 e => ?_
+      subst e
+      rw [L.mem_wr _ _ _ _ (P1.nodeAt_aligned (hN cpu hcpu) (by simp [P1.debug_val]) (by simp [P1.debug_val])) hb]
+      by_cases he : L.nodeAt s cpu layout.node.DEBUG_TCBS = L.nodeAt s c layout.node.DEBUG_TCBS
+      · rw [if_pos he]; right; exact ⟨by rw [← he, ← ehd]; exact hht, rfl⟩
+      · rw [if_neg he]; left; rfl
+    · split
+      · rename_i _ hp
+        have hpT : pv ∈ T := tpv.ne0 (by simpa using hp)
+        exact WP.spec_mono (obj.Tcb.set_debug_next.wr s pv nx) fun s1 e => by
+          subst e; exact Or.inl (hkeep s pv 3576#u64 nx hpT (by simp) (by simp))
+      · exact (WP.spec_ok _).2 (Or.inl rfl)
+  intro s1 h1
+  refine WP.spec_bind (Pₘ := fun s2 => L.mem s2 (L.nodeAt s c layout.node.DEBUG_TCBS) =
+      L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) ∨
+    (L.mem s (L.nodeAt s c layout.node.DEBUG_TCBS) = t ∧ L.mem s2 (L.nodeAt s c layout.node.DEBUG_TCBS) = nx)) ?_ ?_
+  · split
+    · rename_i hn
+      have hnT : nx ∈ T := tnx.ne0 (by simpa using hn)
+      exact WP.spec_mono (obj.Tcb.set_debug_prev.wr s1 nx pv) fun s2 e => by
+        subst e; rw [show P1.dpA nx = core.num.U64.wrapping_add nx 3584#u64 from rfl,
+          hkeep s1 nx 3584#u64 pv hnT (by simp) (by simp)]; exact h1
+    · exact (WP.spec_ok _).2 h1
+  intro s2 h2
+  refine WP.spec_bind (obj.Tcb.set_debug_prev.wr s2 t 0#u64) fun s3 e3 => ?_
+  subst e3
+  refine WP.spec_mono (obj.Tcb.set_debug_next.wr _ t 0#u64) fun s4 e4 => ?_
+  subst e4
+  rw [show P1.dnA t = core.num.U64.wrapping_add t 3576#u64 from rfl,
+    hkeep _ t 3576#u64 0#u64 ht (by simp) (by simp),
+    show P1.dpA t = core.num.U64.wrapping_add t 3584#u64 from rfl,
+    hkeep _ t 3584#u64 0#u64 ht (by simp) (by simp)]
+  rw [enx] at h2
+  exact h2
+
 set_option maxHeartbeats 4000000 in
 /-- **`debug_remove` at `J`**: P1's `debug_remove.frame` at the current
 core alone (the thread's affinity, `SchedRel`), so the words written are
 `DbgWc`; `BlkOK` after (`debug_remove.blk`), core 0's new list head null or
-a TCB (P1's `TimerOK.dh`), outside every childless untyped cap's region
-(`hU`: a TCB is, l4v `valid_untyped`). -/
+a TCB (P1's `TimerOK.dh`), outside every childless untyped cap's region:
+the old head by `UtCapP3.rst`, or the removed head's successor
+(`dbgRemove_head`), covered by `hU`, by `ut_free`. -/
 theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hU : ∀ y ∈ Z.T, ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
-      (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 → ¬ (p.val ≤ y.val ∧ y.val < p.val + 2 ^ sb.val))
+    (hU : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∈ Z.T →
+      L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ≠ 0#u64 →
+      Covered (L.mem s) Z.G (L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val
+        ((L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val + 1))
     {t : U64} (ht : t ∈ Z.T) :
     objects.debug_remove st s t ⦃ s' => JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a σ ⦄ := by
   obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
@@ -550,9 +627,12 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hD : P1.DbgTz st (P1.Heap.tcbs H) {Z.c} s :=
     ⟨hTm.dn, hTm.dp, fun c hc' => by rw [Set.mem_singleton_iff.1 hc']; exact hTm.dh Z.c hcC⟩
   have haf : L.mem s (P1.affA t) ∈ ({Z.c} : Set U64) := by rw [hc.aff t ht]; exact Set.mem_singleton _
-  refine WP.spec_mono (WP.spec_and (P1.objects.debug_remove.frame s t hT hN hD haf htT)
-    (P1.objects.debug_remove.blk s t J.blk htT)) ?_
-  rintro s' ⟨⟨hw0, -⟩, hblk, -⟩
+  have hNa : ∀ c ∈ Cs, P1.NodePlaced st (P1.Heap.tcbs H) s c := fun c hc' => P1.TInv.nodes J.blk c hc'
+  have hDa : P1.DbgTz st (P1.Heap.tcbs H) Cs s := ⟨hTm.dn, hTm.dp, hTm.dh⟩
+  have hafa : L.mem s (P1.affA t) ∈ Cs := by rw [hc.aff t ht]; exact hcC
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (P1.objects.debug_remove.frame s t hT hN hD haf htT)
+    (P1.objects.debug_remove.blk s t J.blk htT)) (dbgRemove_head s t hT hNa hDa hafa htT J.kern.cs0)) ?_
+  rintro s' ⟨⟨⟨hw0, -⟩, hblk, -⟩, hhd0⟩
   have hw : P1.WritesIn st s s' (DbgWc (L := L) Z.T Z.c s) := hw0.mono fun b hb => by
     rcases hb with h | ⟨c, hc', e⟩
     · left; rw [hTe]; exact h
@@ -583,7 +663,27 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       rw [h0'] at h1
       rw [e64] at hh
       omega
-    · exact hU _ (by rw [hTe]; exact hv) sl p sb fi dev hsl hcap h0 hf0
+    · have U := J.utc sl p sb fi dev hsl hcap
+      rcases hhd0 with e | ⟨e1, e2⟩
+      · rw [e]; exact (U.rst h0 hf0).2.2
+      · rw [e2]
+        by_cases hz : L.mem s (P1.dnA t) = 0#u64
+        · rw [hz]
+          rintro ⟨h1, -⟩
+          have hh := U.high
+          have h0' : (0#u64 : U64).val = 0 := rfl
+          have e64 : (2 : Nat) ^ 64 - 2 ^ 47 = 18446603336221196288 := by norm_num
+          rw [h0'] at h1
+          rw [e64] at hh
+          omega
+        · have hcov := hU (by rw [e1]; exact ht) (by rw [e1]; exact hz)
+          rw [e1] at hcov
+          obtain ⟨hP, ⟨-, -, hM, hC, hI⟩, -⟩ := J.xtop.rel
+          have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := capV_of_capAt hcap
+          have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
+            (hM.members _).2 ⟨hsl.isSlot, _, hcap, fun h => by cases h⟩
+          have hfr := ut_free J.ut hI hxm hcv (nodesc_of_cdt hP hC hsl h0) (Nat.lt_succ_self _) hcov
+          omega
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),

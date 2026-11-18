@@ -26,8 +26,10 @@ some of them proved here.
   `JZombieTcbHyp` (a TCB zombie's TCB dead: `JRdTrivHyp`, `RdJ` at a
   zombie, from it, `jRdTrivHyp_of`), `JSwapUtHyp` (a TCB zombie's TCB in no
   childless untyped region: `JSwapHyp`, a zombie swapped with its first
-  slot, from it, `jSwapHyp_of`), `JEmptyUtHyp` (`DelUtFact` after emptying a ready slot: the known
-  `valid_untyped` gap, as `DelUtHyp`).
+  slot, from it, `jSwapHyp_of`), `JEmptyUtHyp` (liveness of the slots in use and the debug head
+  apart from the emptied slot, from which XTopJointEmptyUt's
+  `JAtZ.delUtFact_of` gives `DelUtFact` after; and `UtCapP3.rst`'s CNode
+  clause, which is not an invariant: see `JEmptyUtHyp`).
 * The frame and IO port caps' finalisation, final or not (`jFinAt_frio`,
   XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
   nothing; a VSpace-mapped frame's unmap by `jFrMap_of` (XTopJointFinVs's
@@ -98,7 +100,7 @@ some of them proved here.
   kernel-state layout, XTopJointPost's `jPostDelHyp_of`).
 -/
 import Fl4Proofs.P3.XTopJointStep
-import Fl4Proofs.P3.XTopJointEmpty
+import Fl4Proofs.P3.XTopJointEmptyUt
 import Fl4Proofs.P3.XTopJointFinEp
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.XTopJointFinVs
@@ -305,21 +307,37 @@ def JPostDelHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     PostDelHypW (L := L) arI (WJ (L := L) arI AR Z H Cs kb) th
 
-/-- **Hypothesis: the untyped caps a ready CNode slot's emptying leaves
-childless** [J] (`DelUtFact` after, the known `valid_untyped` gap, as
-`DelUtHyp`; the facts of `EmptyHypWR` at `WJ`). -/
+/-- **Hypothesis: liveness of what a childless untyped's region must miss,
+when a ready slot holding its only child is emptied** [J]
+(XTopJointEmptyUt; `JAtZ.delUtFact_of` derives `DelUtFact` after from it,
+by `ut_free`). Three parts, at the `WJ` state before:
+* every other slot holding a cap or an original bit is live apart from the
+  emptied one (`SlotLiveAt`: covered by another cap, or in the kernel block;
+  l4v `if_unsafe_then_cap`, with `cap_removeable`: a zombie goes once its
+  slots are empty);
+* core 0's debug-list head, when not null, covered by another cap (FL4's
+  debug list holds the unfinalised TCBs; l4v `if_live_then_nonz_cap`);
+* `UtCapP3.rst`'s CNode clause after (no CNode of `th` in the region when
+  the free index is not zero). **Not an invariant**: `th` keeps a CNode after
+  its last cap goes, so emptying the last cap of a CNode retyped from the
+  untyped falsifies it. The fix is upstream: `UtCapP3.rst` should ask only
+  what the reset needs (the retype's destination CNode off the region, which
+  holds since that CNode is live: covered, `ut_free`).
+Was: `DelUtFact` after, outright. -/
 def JEmptyUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
-    ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G G' : MdbGhost) (sl : Fl4Spec.CslotPtr),
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr),
       WJ (L := L) arI AR Z H Cs kb s a σ G → RdJ (L := L) (A := A) H s a σ G (cslotAddr sl) →
-      DState (L := L) th s σ G → DState (L := L) th s' σ' G' → Vs.SlotFrame2 (L := L) th s s' →
-      ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 → AbsSlot th sl →
-      capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Null →
-      (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) →
-      MdbStep (L.mem s) G (L.mem s') G' →
+      AbsSlot th sl → capV (L.mem s) (cslotAddr sl) ≠ .Null →
       ∀ u up usb ufi udev, AbsSlot th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) th s' σ' up usb ufi
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl →
+          (capV (L.mem s) y ≠ .Null ∨ ∃ x, cslotAddr x = y ∧ σ.isOriginalCap x = true) →
+          SlotLiveAt (L.mem s) G (L.ksb s) (cslotAddr sl) y) ∧
+        (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
+          OtherCov (L.mem s) G (cslotAddr sl) (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val
+            ((L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val + 1)) ∧
+        (ufi.val ≠ 0 → ∀ q r, th q = some (.cnode r) → ¬ (up.val ≤ q.val ∧ q.val < up.val + 2 ^ usb.val))
 
 /-- An IRQ handler cap. -/
 def IrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
@@ -476,7 +494,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI A
     (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     EmptyHypWR (L := L) (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
   intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
-  have hU := hUt Z H Cs kb hth s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
+  have hL := hUt Z H Cs kb hth s a σ G sl hW hRd hA hxn
   subst hth
   obtain ⟨V, Ac, Lst, D, J, hkb⟩ := hW
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
@@ -486,6 +504,14 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (hUt : JEmptyUtHyp (L := L) arI A
     by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
     · exact J.emptyJR hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
     · exact J.emptyJRT hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
+  have hcs := emptySlot_cdt_orig J.xtop.rel.2.1.1 hA hxn hes
+  have hw : P1.WritesIn st s s' (InSlot Z.th) :=
+    (SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb
+  have hU : ∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
+      σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
+      DelUtFact (L := L) Z.th s' σ' up usb ufi := fun u up usb ufi udev hu hcu hpar honly hleaf =>
+    let ⟨h1, h2, h3⟩ := hL u up usb ufi udev hu hcu hpar honly hleaf
+    J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2 h3
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
   exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb⟩
 
