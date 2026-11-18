@@ -27,8 +27,9 @@ open Fl4Spec Classical
 noncomputable section
 
 /-- **A quiet step** (module docstring): the scheduler's abstract fields
-kept; every object kept but TCBs changed in their saved context, yield-to
-and fault (`cancel_ipc`'s fault clear) and SCs changed in their consumed time
+kept; every object kept but TCBs changed in their saved context, yield-to,
+fault (`cancel_ipc`'s fault clear) and flags (SetFlags; no relation of `JAtZ`
+reads `tcb_flags`) and SCs changed in their consumed time
 and yield-from. -/
 structure QKY (σ σ' : State Unit) : Prop where
   ct : σ'.curThread = σ.curThread
@@ -43,7 +44,7 @@ structure QKY (σ σ' : State Unit) : Prop where
   arch : σ'.archState = σ.archState
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨
     (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
-      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault }) ∨
+      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags }) ∨
     (∃ z w n, σ.kheap p = some (.schedContext z n) ∧ σ'.kheap p = some (.schedContext w n) ∧
       w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
 
@@ -51,7 +52,7 @@ structure QKY (σ σ' : State Unit) : Prop where
 theorem QKY.upd2 {σ : State Unit} {p t : ObjRef} {z w : SchedContext} {n : Nat} {x x' : Tcb}
     (hkp : σ.kheap p = some (.schedContext z n)) (hkt : σ.kheap t = some (.tcb x))
     (hw : w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
-    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo, tcbFault := x'.tcbFault }) :
+    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo, tcbFault := x'.tcbFault, tcbFlags := x'.tcbFlags }) :
     QKY σ (updK (updSc σ p w n) t (.tcb x')) := by
   have hpt : p ≠ t := by rintro rfl; rw [hkp] at hkt; cases hkt
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
@@ -66,14 +67,14 @@ variable {σ σ' : State Unit} (h : QKY σ σ')
 include h
 
 theorem QKY.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
-    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, -, -⟩
   · exact ⟨x, e.trans hk, rfl⟩
   · rw [hk] at ha; cases ha; exact ⟨b, hb, e⟩
   · rw [hk] at ha; cases ha
 
 theorem QKY.tcb_back {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
-    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
+    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, -, hb, -⟩
   · exact ⟨y, by rw [← e]; exact hk, rfl⟩
   · rw [hk] at hb; cases hb; exact ⟨a, ha, e⟩
