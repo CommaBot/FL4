@@ -59,8 +59,9 @@ some of them proved here.
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
   the IRQ node slot's cap deleted, null or a notification cap by
   `delete_oneJ` (`jFinNtfnK`, every slot kept, then `emptyHypJ`); from
-  `JIrqSlotHyp` [J] (the node's slots null or notification caps, l4v
-  `valid_irq_node`), `LiveJ` and `IntLayout` [P].
+  `JIrqSlotHyp` (the node's slots null or notification caps; from the
+  spec's, `JSpecIrqNodeHyp` [J], by `jIrqSlotHyp_of`), `LiveJ` and
+  `JAtZ.intL`.
 * A final endpoint cap's finalisation (`jFinAt_ep`): XTopJointFinEp's
   `JAtZ.finEpJ` (`cancel_all_ipc`, `JAtZ` after), the endpoint dead after
   (P1's `fin_cap_ep.dead`, `JAtZ.ep_ready`); from `RecvReplyHyp` [J]
@@ -78,8 +79,8 @@ some of them proved here.
   (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
   (`JAtZ.vs_ready`: no object of `H` but `other` ones in the cap's frame);
   from `ArchRefines` [P], `JVsCapsHyp` [J] (l4v `valid_cap`) and
-  `JVsApartHyp` [J] (the ASID table apart from `H`'s SCs outside `Z.C` and
-  the untyped free parts, the VSpace frames from the nodes), `JDelParts` fields.
+  `JVsApartHyp` [J] (the ASID table apart from `H`'s SCs outside `Z.C`),
+  `JDelParts` fields.
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
   `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
   steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
@@ -118,6 +119,7 @@ import Fl4Proofs.P3.XTopJointFinVtJ
 import Fl4Proofs.P3.XTopJointFinSc
 import Fl4Proofs.P3.XTopJointFinThread
 import Fl4Proofs.P3.XTopJointRemove
+import Fl4Proofs.P3.IntInv
 import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointLive
 import Fl4Proofs.P3.ScPPR
@@ -370,14 +372,31 @@ theorem jZombieTcbHyp_of_live {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 /-- An IRQ handler cap. -/
 def IrqK (c : capability.Cap) : Prop := ∃ i, c = .IrqHandler i
 
-/-- **Hypothesis: the IRQ node's slots hold null or notification caps at
-`J`** [J] (l4v `valid_irq_node`, as XTopFinIrq's `IrqSlotOK` premise; from
-the spec's `SpecIrqNode` by IntInv's `irqSlotOK_of_spec`, which `JAtZ` does
-not carry). -/
+/-- **The IRQ node's slots hold null or notification caps at `J`** (as
+XTopFinIrq's `IrqSlotOK` premise). Derived from `JSpecIrqNodeHyp` [J]:
+`jIrqSlotHyp_of`. -/
 def JIrqSlotHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64), Z.th = th →
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), WJ (L := L) arI AR Z H Cs kb s a σ G →
       ∀ i : U64, i.val < 128 → IrqSlotOK (L.mem s) (nodeA (L.ksb s) i)
+
+/-- **Hypothesis: the spec's IRQ node slots hold null or notification caps at
+`J`** [J] (IntInv's `SpecIrqNode` at every `JAtZ` state; a spec-only
+invariant: the slots are written only by `invoke_irq_handler`'s
+SetIRQHandler, a notification cap, and by deletions, since no cap names an
+IRQ node CNode, l4v `valid_global_refs` with the IRQ nodes in `global_refs`,
+`valid_irq_node`). -/
+def JSpecIrqNodeHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → SpecIrqNode σ
+
+/-- **`JIrqSlotHyp` from the spec's** (`irqSlotOK_of_spec` at `JAtZ`'s
+interrupt layout `intL`, the CSpace relation and the IRQ relation). -/
+theorem jIrqSlotHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : JSpecIrqNodeHyp (L := L) arI AR th) :
+    JIrqSlotHyp (L := L) arI AR th := by
+  intro Z H Cs kb hth s a σ G hW i hi
+  obtain ⟨V, Ac, Lst, D, J, -, -⟩ := hW
+  exact irqSlotOK_of_spec J.intL J.xtop.rel.2.1.1 J.xtop.fin.1.1.2.2.2.1 (h (Z.mv G V) H Cs Ac Lst D s a σ hth J) hi
 
 /-- An endpoint cap. -/
 def EpK (c : capability.Cap) : Prop := ∃ e b x1 x2 x3 x4, c = .Endpoint e b x1 x2 x3 x4
@@ -435,7 +454,9 @@ structure JThreadFinHypsU (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : P
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
     ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
-  irq : JIrqSlotHyp (L := L) arI AR th
+  /-- `JSpecIrqNodeHyp` [J] (the spec's IRQ node slots null or notification
+  caps; gives `JIrqSlotHyp` by `jIrqSlotHyp_of`). -/
+  irq : JSpecIrqNodeHyp (L := L) arI AR th
   /-- ScSignalBoundJ's `RecvReplyLinksHyp` [J] (l4v `valid_replies`; gives `RecvReplyHyp` by
   `recvReplyHyp_of`), at every
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
@@ -447,8 +468,7 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   /-- XTopJointFinVs's `JVsCapsHyp` [J] (l4v `valid_cap` for the arch caps). -/
   vsCaps : JVsCapsHyp (L := L) arI AR th
   /-- XTopJointFinVs's `JVsApartHyp` [J] (the ASID table
-  apart from `H`'s SCs outside `Z.C` and the untyped free parts, the VSpace
-  frames from the nodes). -/
+  apart from `H`'s SCs outside `Z.C`). -/
   vsApart : JVsApartHyp (L := L) arI AR th
   /-- The x86 backend's VCPU barrier keeps the arch relation (`ARKeep` [P]),
   for the VT-x finalisations (`jFrVt_of`, `jFinAt_vt`). -/
@@ -617,16 +637,14 @@ set_option maxHeartbeats 8000000 in
 /-- **A final IRQ handler cap's finalisation at `J`** (as XTopFinIrq's
 `xFinIrq_of`): FL4's `deleting_irq_handler` deletes the IRQ node slot's cap
 (null, or a notification cap by `delete_oneJ`); the handler's slot is ready
-(an IRQ handler cap is not physical). From `JIrqSlotHyp` [J], `LiveJ`
-[J] and the interrupt layout (`IntLayout` [P]). -/
-theorem jFinAt_irq [Fl4Proofs.P1.PlainStore st] (hLv : LiveJHyp (L := L) arI AR th) (hOK : JIrqSlotHyp (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s)) :
+(an IRQ handler cap is not physical). From `JIrqSlotHyp`, `LiveJ` [J] and
+the interrupt layout (`JAtZ.intL`). -/
+theorem jFinAt_irq [Fl4Proofs.P1.PlainStore st] (hLv : LiveJHyp (L := L) arI AR th) (hOK : JIrqSlotHyp (L := L) arI AR th) :
     JFinAtF (L := L) arI AR th IrqK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨i, hci⟩ hfin
   subst hci
-  obtain ⟨V, hX⟩ : ∃ V, XTopAt (L := L) AR (Z.mv G V) s a σ := by
-    obtain ⟨V, Ac, Lst, D, J, -⟩ := hW; exact ⟨V, J.xtop⟩
-  have hL : IntLayout th (L.ksb s) := hLayI (Z.mv G V) s a σ hth hX
+  obtain ⟨V, hX, hL⟩ : ∃ V, XTopAt (L := L) AR (Z.mv G V) s a σ ∧ IntLayout th (L.ksb s) := by
+    obtain ⟨V, Ac, Lst, D, J, -⟩ := hW; exact ⟨V, J.xtop, hth ▸ J.intL⟩
   obtain ⟨c', ac, hc', hca, -⟩ := hDS.1.1.abs_cap hA
   rw [hc] at hc'; cases eq_of_ok_eq hc'
   have hcw : CapWf (.IrqHandler i) := hca.1
@@ -1082,7 +1100,6 @@ theorem jFin_nonfinal [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs
 (`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps'
 (`JDelParts.fin`) and the frame and IO port caps' (`jFinAt_frio`). -/
 theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
     (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (kb : U64) (hth : Z.th = th) :
     FinObjHypWR (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdJ (L := L) (A := A) H) th := by
@@ -1093,7 +1110,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   · exact jFinAt_frio arI (jFrMap_of arI h.archRef h.vsCaps h.vsApart) (jFrVt_of arI h.archRef h.arKeep h.vt) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
-    · exact jFinAt_irq arI h.live h.irq hLayI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
+    · exact jFinAt_irq arI h.live (jIrqSlotHyp_of arI h.irq) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
     by_cases he : EpK c
     · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
@@ -1283,14 +1300,13 @@ set_option maxHeartbeats 4000000 in
 no container (a final thread cap's remainder is a zombie still naming
 slots), a non-final one's has another cap alike, `jFin_nonfinalL`). -/
 theorem finJL [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
     (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (kb : U64) (hth : Z.th = th) :
     FinObjHypWRc (L := L) arI (WJ (L := L) arI AR Z H Cs kb) (RdL (L := L) (A := A) th H) th := by
   intro s a σ G sl c hDS hW hA hc hk _
   by_cases hnf : ¬ FrIoK c ∧ ¬ Fl4Spec.isFinalCap' (absCap c) σ
   · exact jFin_nonfinalL arI h.live Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hnf.1 hnf.2
-  refine WP.spec_mono (finJ arI h hLayI hT Z H Cs kb hth s a σ G sl c hDS hW hA hc hk trivial) ?_
+  refine WP.spec_mono (finJ arI h hT Z H Cs kb hth s a σ G sl c hDS hW hA hc hk trivial) ?_
   rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
   refine ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, fun hrm => ⟨h10, readyLive_wj_noRef arI h.live hth h9 ?_⟩⟩
   intro q hr
@@ -1338,13 +1354,12 @@ the steps at `WJ`, with `PPR0` after a finalisation by `jFinPPHyp` and
 after a slot edit by `PPK.of_cnK`. -/
 theorem JDelHyp.of_parts [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th) (hpp : JPreemptHyp (L := L) arI AR th)
     (hpost : JPostDelHyp (L := L) arI AR th)
-    (hLayI : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ → IntLayout th (L.ksb s))
     (hT : P0.ArchTotal arI) :
     JDelHyp (L := L) arI AR th := by
   intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨V, Ac, Lst, D, J, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
-  have hF := finJL (L := L) arI h hLayI hT Z H Cs kb hth
+  have hF := finJL (L := L) arI h hT Z H Cs kb hth
   have hZ := jZombieHyp (L := L) (AR := AR) arI Z H Cs kb hth
   have hS := jSwapHyp (L := L) (AR := AR) arI Z H Cs kb hth
   have hEm := emptyHypJ (L := L) (AR := AR) arI Z H Cs kb hth

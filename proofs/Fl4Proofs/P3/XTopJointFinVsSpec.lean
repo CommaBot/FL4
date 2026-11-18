@@ -330,6 +330,82 @@ theorem CurInvW.ar (hC : σ.schedulerAction = .chooseNewThread ∨ CurInv σ) (h
   · left; rw [h.act]; exact e
   · right; exact hI.ar h
 
+/-! ### The ASID table: an arch finalisation only clears entries -/
+
+/-- The ASID table. -/
+def tblF (σ : State Unit) : AsidHighIndex → Option ObjRef := σ.archState.x64AsidTable
+
+theorem ft_setObject (p : ObjRef) (o : KernelObject) : Vs.FK tblF (setObject (Z := Unit) p o) := by
+  unfold setObject; dk_auto0
+
+theorem ft_doMachineOp {α : Type} (mop : NonDet MachineState α) : Vs.FK tblF (doMachineOp (Z := Unit) mop) := by
+  unfold doMachineOp
+  refine Vs.dk_bind (Vs.dk_gets _) (fun _ => Vs.dk_bind (Vs.dk_selectF _) (fun x => ?_))
+  obtain ⟨r, ms⟩ := x
+  exact Vs.dk_bind (Vs.dk_modify (fun σ => rfl)) (fun _ => Vs.dk_pure _)
+
+/-- `FK tblF` of the spec's VSpace operations that do not write the table. -/
+macro "ft_auto" : tactic => `(tactic| repeat' (first | exact ft_setObject _ _ | exact fk_getCapG _ _ | exact ft_doMachineOp _ | dk_step0 | fk_unf | sched_unf | vs_unf))
+
+/-- **An empty ASID-table entry stays empty** across every outcome of `m`. -/
+def TN {α : Type} (m : NonDet (State Unit) α) : Prop :=
+  ∀ σ x, x ∈ (m σ).1 → ∀ i, σ.archState.x64AsidTable i = none → x.2.archState.x64AsidTable i = none
+
+theorem tn_of_fk {α : Type} {m : NonDet (State Unit) α} (h : Vs.FK tblF m) : TN m := by
+  intro σ x hx i hi
+  have e : tblF x.2 = tblF σ := h σ x hx
+  simp only [tblF] at e
+  rw [e]; exact hi
+
+theorem tn_bind {α β : Type} {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β} (hm : TN m)
+    (hg : ∀ a, TN (g a)) : TN (m >>= g) := by
+  intro σ x ⟨y, hy, hx⟩ i hi
+  exact hg y.1 y.2 x hx i (hm σ y hy i hi)
+
+set_option maxHeartbeats 8000000 in
+/-- `delete_asid_pool` clears one entry of the table (the one it read). -/
+theorem tn_deleteAsidPool (b : Asid) (ptr : ObjRef) : TN (deleteAsidPool (Z := Unit) b ptr) := by
+  intro σ x hx i hi
+  unfold deleteAsidPool at hx
+  obtain ⟨y1, hy1, hx⟩ := hx
+  obtain ⟨-, rfl⟩ := hy1
+  obtain ⟨y2, hy2, hx⟩ := hx
+  have e2 := Set.mem_singleton_iff.1 hy2
+  subst e2
+  dsimp only at hx
+  unfold NonDet.when at hx
+  split at hx
+  · obtain ⟨z1, hz1, hx⟩ := hx
+    have e1 : tblF z1.2 = tblF σ := (by ft_auto : Vs.FK tblF _) _ _ hz1
+    dsimp only at hx
+    obtain ⟨z2, hz2, hx⟩ := hx
+    have e2 : tblF z2.2 = tblF z1.2 := (by ft_auto : Vs.FK tblF _) _ _ hz2
+    dsimp only at hx
+    obtain ⟨z3, hz3, hx⟩ := hx
+    have e3 := Set.mem_singleton_iff.1 hz3
+    subst e3
+    dsimp only at hx
+    obtain ⟨z4, hz4, hx⟩ := hx
+    have e4 := Set.mem_singleton_iff.1 hz4
+    subst e4
+    dsimp only at hx
+    have e5 := (by ft_auto : Vs.FK tblF _) _ _ hx
+    simp only [tblF] at e1 e2 e5 ⊢
+    rw [e5, Function.update_apply]
+    split_ifs
+    · rfl
+    · exact hi
+  · rw [Set.mem_singleton_iff.1 hx]; exact hi
+
+set_option maxHeartbeats 8000000 in
+/-- **The spec's arch finalisation keeps an empty ASID-table entry empty**
+(only `delete_asid_pool` writes the table, clearing an entry). -/
+theorem tn_archFinaliseCap (c : ArchCap) (x : Bool) : TN (archFinaliseCap (Z := Unit) c x) := by
+  unfold archFinaliseCap
+  split
+  · exact tn_bind (tn_deleteAsidPool _ _) fun _ => tn_of_fk (Vs.dk_pure _)
+  all_goals exact tn_of_fk (by ft_auto)
+
 end Spec
 
 end

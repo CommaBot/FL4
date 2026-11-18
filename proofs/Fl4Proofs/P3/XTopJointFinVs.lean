@@ -11,9 +11,12 @@ toward `JDelParts`' `jFinAt_vs`, as XTopJointFinEp for endpoints).
 * The spec's side: XTopJointFinVsSpec's `ArFr` (only arch objects, of the
   same arch type, the ASID table, the CR3 and the machine state change).
 * `VsApart` [J] (`JVsApartHyp`): the ASID table lies apart from `H`'s SCs
-  outside `Z.C` and outside the untyped caps' free parts
-  (l4v `pspace_distinct` of the kernel's global data against the objects,
-  and the kernel's global data outside untyped memory, `valid_global_refs`).
+  outside `Z.C` (l4v `pspace_distinct` of the kernel's global data against
+  the objects; FL4's ASID table, `[ksb+288000, +16384)`, follows the 64 cores'
+  nodes and is not in `JKern.hks`' `[ksb, ksb+13568)`). The untyped caps' free
+  parts need no placement against the table: a table word there is zero
+  (`UtCapP3.zero`), so its entry is empty, and the spec's arch finalisation
+  only clears entries (`tn_archFinaliseCap`), so it stays zero (`vs_utc`).
   `H`'s other objects are derived apart (`JAtZ.vobj_apart`: the endpoints,
   notifications, replies and `Z.C`'s SCs by `TopPlaced.disj`; the TCBs by
   `TopPlaced.po`/`vo`; every SC from the VSpace frames by `JAtZ.vsFr_sc`,
@@ -133,9 +136,6 @@ structure VsApart (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) : Prop where
   from every SC of `H`: `JAtZ.vsFr_sc`). -/
   scOut : ∀ p z, H p = some (.sc z) → p ∉ Z.C →
     (L.ksb s).val + 288000 + 16384 ≤ p.val ∨ p.val + 2 ^ z ≤ (L.ksb s).val + 288000
-  /-- The ASID table lies outside the untyped caps' free parts. -/
-  utTbl : ∀ x ∈ Z.G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
-    (L.ksb s).val + 288000 + 16384 ≤ p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000
 
 end
 
@@ -326,13 +326,15 @@ theorem JAtZ.vsW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   unfold P1.Aligned
   rcases vsW_val hS.2.pt hS.2.vs hb with ⟨q, -, -, -, -, -, h⟩ | ⟨-, -, h⟩ <;> exact h
 
-/-- **The untyped caps' facts after a VSpace finalisation**: the free parts'
-words kept (a table or pool word lies in a spec object, `SpecFree`; the
-ASID table outside the free parts, `VsApart.utTbl`), the rest as
-`finW_utc`. -/
+/-- **The untyped caps' facts after a VSpace finalisation**: the free parts
+zero (a table or pool word lies in a spec object, `SpecFree`; an ASID-table
+word in a free part is zero, so its entry is empty and stays empty, `hTN`,
+and the word stays zero, `VsRel.table` after), the rest as `finW_utc`. -/
 theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (Ap : VsApart (L := L) Z H Cs s) {s' : S} {σ' : Fl4Spec.State Unit}
+    {s' : S} {σ' : Fl4Spec.State Unit}
     (hw : P1.WritesIn st s s' (VsW Z (L.ksb s)))
+    (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
+    (hTN : ∀ i, σ.archState.x64AsidTable i = none → σ'.archState.x64AsidTable i = none)
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
@@ -366,10 +368,12 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
     fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · intro g w hal h1 h2
-    rw [hw.mem_eq hal fun hb => ?_]
-    · exact U.zero (B g) w hal h1 h2
+    by_cases hb : VsW Z (L.ksb s) w
+    swap
+    · rw [hw.mem_eq hal hb]; exact U.zero (B g) w hal h1 h2
     rcases hb with ⟨q, hq, i, hi, rfl⟩ | ⟨⟨hi, hh, rfl⟩ | ⟨q, hq, lo, hl, rfl⟩⟩
-    · have hf := tbl_fit (J.xtop.fin.1.2.pt q hq)
+    · exfalso
+      have hf := tbl_fit (J.xtop.fin.1.2.pt q hq)
       have hv := peA_val hf hi
       have key : ∃ ko, σ.kheap q.bv = some ko ∧ Fl4Spec.objBits ko = 12 := by
         rcases hq with hq | hq | hq | hq
@@ -379,9 +383,16 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
         · obtain ⟨f, hk, -⟩ := hPt.l1 q hq; exact ⟨_, hk, rfl⟩
       obtain ⟨ko, hk, hb⟩ := key
       rcases spec4k q ko hk hb (peA q i) (by omega) (by omega) with e | e <;> omega
-    · have hv := atA_val J.xtop.fin.1.2.vs.ksb_fit hh
-      rcases Ap.utTbl _ hxm p sb fi dev hcv with e | e <;> omega
-    · obtain ⟨-, hf⟩ := J.xtop.fin.1.2.vs.pal q hq
+    · have h0 : L.mem s (atA (L.ksb s) hi) = 0#u64 := U.zero (B g) _ hal h1 h2
+      have t0 := hVR.table hi hh
+      rw [h0] at t0
+      have t0' : σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) = none := by rw [t0]; simp [optRef]
+      have t1 := hVR1.table hi hh
+      rw [hTN _ t0'] at t1
+      by_contra hne
+      simp [optRef, hne] at t1
+    · exfalso
+      obtain ⟨-, hf⟩ := J.xtop.fin.1.2.vs.pal q hq
       have hv := peA_val hf hl
       obtain ⟨f, hk, -⟩ := hVR.pool q hq
       rcases spec4k q _ hk rfl (peA q lo) (by omega) (by omega) with e | e <;> omega
@@ -456,6 +467,8 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
   simp only at h1 h2 h3 hm hDS1 hS1 hW hx1 hSS ⊢
   obtain ⟨ac, hacE⟩ := hac
   have F : ArFr σ σ1 := by rw [hacE] at hm; exact ArFr.of_fin hm
+  have hTN : ∀ i, σ.archState.x64AsidTable i = none → σ1.archState.x64AsidTable i = none := by
+    rw [hacE] at hm; exact tn_archFinaliseCap ac b σ _ hm
   have hkb : L.ksb s1 = L.ksb s := hW.1
   have hcpu : L.cpu s1 = L.cpu s := hW.2.1
   -- `XTopAt` after, at the same sets and ghost
@@ -475,6 +488,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     exact ⟨⟨hS1, hx1⟩, ⟨hPl, hCR1, hFI1, by rw [hkb]; exact hD.frame hdom.2 hdk.1 hdk.2,
       by rw [hkb]; exact MdbOKV.of_same hM hSS hMO, by rw [hkb]; exact hIA, ScApart.of_top hS1.2⟩,
       IpcRel.of hNt hEp (sched_sc hSch), J.xtop.esa.mono hkb F.szKeep⟩
+  have hVR1 : VsRel Z.P (L.mem s1) (L.ksb s) σ1 := by have := hX1.fin.2.1; rwa [hkb] at this
   -- the frame words
   obtain ⟨Q, R0, hcq, -⟩ := J.xtop.fin.1.1.1.lists
   have hT := hcq.tcbs
@@ -582,7 +596,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     ⟨hCR', hRF', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle), hkern,
-      J.vs_utc Ap hW hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
+      J.vs_utc hW hVR1 hTN hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact ⟨h1, h2, h3, σ1, hm, J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R, hSS, hkb⟩
 
