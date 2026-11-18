@@ -65,7 +65,15 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
   obtain ⟨Ac', Lst', D', R⟩ := hJ.restart s ar σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1,
+  have hns1 : Vs.NoSwitch (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
+    intro u e
+    unfold Notif.stsAct at e
+    split_ifs at e
+    all_goals first
+      | (have e2 : σ.schedulerAction = .switchThread u := e
+         rw [hni.2] at e2; cases e2)
+      | cases e
+  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R, hk1, hns1,
     hP0.of_ppk (PPK.restart hk .restart)⟩
 
 /-- **`PPR0` at the invocation's start**: at a zero consumed time, the

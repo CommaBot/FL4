@@ -24,12 +24,13 @@ Named premises:
 
 * `JScCapHyp` [J]: an SC cap in a slot names an SC of the spec of the
   cap's size (l4v `valid_cap`'s `obj_bits`), not the idle SC (l4v
-  `valid_global_refs`), whose bound thread, if any, is not the scheduler's
-  switch target (l4v `valid_sched_action`; P1's `fin_cap_sc` precondition,
-  as `JThreadFinHyps.obj` for a thread cap). The rest is derived
-  (`JAtZ.scCapFacts`): the SC is P1's heap's of the cap's size (`JPlaced.sc`,
-  the pointer non-null by `CapValid`), one of `Z.C` (`ObjCover`), its bound
-  thread not the idle thread (`scBack_of`, `IdleOK`).
+  `valid_global_refs`). The rest is derived (`JAtZ.scCapFacts`): the SC is
+  P1's heap's of the cap's size (`JPlaced.sc`, the pointer non-null by
+  `CapValid`), one of `Z.C` (`ObjCover`), its bound thread not the idle
+  thread (`scBack_of`, `IdleOK`) and not the scheduler's switch target (P1's
+  `fin_cap_sc` precondition): no switch is pending during a deletion
+  (SpecNoSwitch's `NoSwitch`, l4v `simple_sched_action`, carried by the
+  deletion loop's `WJ`; a premise of `JScFinHyp`).
 * `JScFinHyp`: from `JAtZ`, FL4's `finalise_cap` of a final SC cap
   against the spec's, `JAtZ` after: **proved** from the steps
   (`jScFin_of`, `JAtZ.finScJ`, as XTop's `xFinSc_of`), the SC's links
@@ -46,6 +47,7 @@ Named premises:
 import Fl4Proofs.P3.XTopJointEmpty
 import Fl4Proofs.P3.ScDeadStep
 import Fl4Proofs.P3.XTopJointFinScAll
+import Fl4Proofs.P3.SpecNoSwitch
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -58,18 +60,16 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **Hypothesis: an SC cap's object at `J`** [J] (module docstring): the
 spec's SC of the cap's size (l4v `valid_cap`'s `obj_bits`), not the idle SC
-(l4v `valid_global_refs`), whose bound thread is not the scheduler's switch
-target (l4v `valid_sched_action`, as `JThreadFinHyps.obj`). The rest of what
-the finalisation reads of the SC is `JAtZ.scCapFacts`. -/
+(l4v `valid_global_refs`). The rest of what the finalisation reads of the
+SC is `JAtZ.scCapFacts` (its bound thread not the switch target from
+`NoSwitch`). -/
 def JScCapHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
       (∃ y n, σ.kheap p.bv = some (.schedContext y n) ∧ n + Fl4Spec.minSchedContextBits = sb.val) ∧
-      p.bv ≠ Fl4Spec.idleScPtr ∧
-      ∀ y n t, σ.kheap p.bv = some (.schedContext y n) → y.scTcb = some t →
-        ∀ u, σ.schedulerAction = .switchThread u → u ≠ t
+      p.bv ≠ Fl4Spec.idleScPtr
 
 /-- **What the finalisation reads of an SC cap's SC, from `JAtZ` and
 `JScCapHyp`**: the SC is `H`'s of the cap's size (`JPlaced.sc`, the cap's
@@ -121,7 +121,7 @@ be the current one): the statement `jFinAt_sc` reads, proved by
 `jScFin_of` from the SC steps. -/
 def JScFinHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → Vs.NoSwitch σ →
     ∀ (sl : Fl4Spec.CslotPtr) (p sb : U64), AbsSlot Z.th sl →
       capAt (L.mem s) (cslotAddr sl) = ok (.SchedContext p sb) →
       Fl4Spec.isFinalCap' (absCap (.SchedContext p sb)) σ →
@@ -289,10 +289,11 @@ kernel-state base kept by P1's `fin_cap_sc.slots`. -/
 theorem jScFin_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
     (hY : JYieldToHyp (L := L) arI AR th) (hC : JScCapHyp (L := L) arI AR th) :
     JScFinHyp (L := L) arI AR th := by
-  intro Z H Cs Ac Lst D s a σ hth J sl p sb hA hc _
+  intro Z H Cs Ac Lst D s a σ hth J hns sl p sb hA hc _
   have hC' := hC Z H Cs Ac Lst D s a σ hth J sl p sb hA hc
   subst hth
-  obtain ⟨hHp, hpC, hp0, hna, hidle, -, hpi⟩ := JAtZ.scCapFacts arI J hA hc hC'
+  obtain ⟨hHp, hpC, hp0, hna, hidle, -, hpi⟩ :=
+    JAtZ.scCapFacts arI J hA hc ⟨hC'.1, hC'.2, fun _ _ _ _ _ u hu => (hns u hu).elim⟩
   have hpS : p ∈ P1.Heap.scs H := ⟨_, hHp⟩
   refine WP.spec_mono (WP.spec_and (JAtZ.finScJ arI hT hY J hpC hp0 hpi hpS hna hidle)
     (P1.fin_cap_sc.slots (ar := arI) hT s a p sb true false J.blk hpS hp0 hna hidle)) ?_

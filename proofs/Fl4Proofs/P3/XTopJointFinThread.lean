@@ -47,14 +47,16 @@ The finalised thread's slot is ready after (`JAtZ.tcb_ready`, as
 `JAtZ.ep_ready`: the TCB the only object of `H` in the cap's range, dead by
 P1's `fin_cap_thread.dead`).
 
-`JThreadFinHyps`: [J] `obj` (what P1's thread finalisation reads of the
-thread and `JAtZ` lacks: not the scheduler's switch target, l4v
-`valid_sched_action`; not the idle thread, l4v `valid_global_refs`; its VCPU
-word zero, native threads; ScPlace's `JState`); [J] `utTcb` (core 0's
+`JThreadFinHyps`: [J] `obj` (its VCPU word zero, native threads; ScPlace's
+`JState`); [J] `idle` (no slot holds a thread cap to the idle thread, l4v
+`valid_global_refs` for threads); [J] `utTcb` (core 0's
 debug-list successor of the head covered by a cap, l4v
 `if_live_then_nonz_cap` for FL4's debug list); [P] `ticks`. The FPU
 release needs `ARKeep` [P] (`finThreadJ`'s `hK`, the top level's
-`JDelParts.arKeep`).
+`JDelParts.arKeep`). That the thread is not the scheduler's switch target
+(P1's `fin_cap_thread` precondition) is no premise: no switch is pending
+during a deletion (SpecNoSwitch's `NoSwitch`, carried by the deletion loop's
+`WJ`; `JAtZ.action_ne_of_noSwitch`).
 -/
 import Fl4Proofs.P3.XTopFinThread
 import Fl4Proofs.P3.ScFireJ
@@ -67,6 +69,7 @@ import Fl4Proofs.P3.XTopJointCancelRecv
 import Fl4Proofs.P3.XTopJointCancelReply
 import Fl4Proofs.P3.XTopJointCancel
 import Fl4Proofs.P3.XTopJointFpu
+import Fl4Proofs.P3.SpecNoSwitch
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -88,13 +91,16 @@ abbrev JTP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set
 docstring), each at every `JAtZ` state of the typed heap `th`. -/
 structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   /-- [J] What P1's thread finalisation reads of a thread cap's thread that
-  `JAtZ` lacks (ScPlace's `JState`): not the scheduler's switch target
-  (l4v `valid_sched_action`), not the idle thread (l4v
-  `valid_global_refs`), its VCPU word zero (native threads). -/
+  `JAtZ` lacks (ScPlace's `JState`): its VCPU word zero (native threads). -/
   obj : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
     ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p →
-      L.actionW s ≠ p ∧ L.idleW s ≠ p ∧ L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
+      L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64
+  /-- [J] No slot holds a thread cap to the idle thread (l4v
+  `valid_global_refs` for threads). -/
+  idle : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    ∀ (x p : U64), IsSlot Z.th x → capV (L.mem s) x = .Thread p → L.idleW s ≠ p
   /-- [P] The platform's `ticks_to_us` and `getMaxTicksToUs` (the yielder's
   `complete_yield_to`, `JAtZ.completeYieldJ`; as XTopYield's `scYieldFinHyp_of`). -/
   ticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
@@ -685,6 +691,31 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
             (hM.members _).2 ⟨hsl.isSlot, _, hcap, fun h => by cases h⟩
           have hfr := ut_free J.ut hI hxm hcv (nodesc_of_cdt hP hC hsl h0) (Nat.lt_succ_self _) hcov
           omega
+
+/-- **No switch pending: the action word names no thread of the set**
+(`JAtZ.words_of_spec`'s first half, the switch case excluded by `NoSwitch`). -/
+theorem JAtZ.action_ne_of_noSwitch (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (hns : Vs.NoSwitch σ) : L.actionW s ≠ t := by
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R, hc, hs⟩ := hS.lists
+  have ea : L.actionW s = nodeW st s Z.c layout.node.SCHED_ACTION := by
+    unfold P1.LawfulStore.actionW nodeW; rw [hc.cur]
+  have ta := hc.tcbs t ht
+  intro e
+  have h := hS.act
+  rw [← ea, e] at h
+  cases ha : σ.schedulerAction with
+  | resumeCurThread =>
+    rw [ha] at h
+    have h0 : t = 0#u64 := h
+    exact ta.ne0 (by rw [h0]; rfl)
+  | chooseNewThread =>
+    rw [ha] at h
+    have h1 : t = 1#u64 := h
+    have hv : t.val = 1 := by rw [h1]; rfl
+    have := ta.align
+    rw [hv] at this; norm_num at this
+  | switchThread u => exact hns u ha
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation** (module docstring),

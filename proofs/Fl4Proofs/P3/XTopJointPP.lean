@@ -538,7 +538,7 @@ current core's time words only (P1's `preemption_point.pp`). -/
 theorem jPreemptHyp_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hP : PPPlat arI AR) (th : TypedHeap) :
     JPreemptHyp (L := L) arI AR th := by
-  intro Z H Cs kb hth s a σ G _ ⟨V, Ac, Lst, D, J, hkb, hp0⟩
+  intro Z H Cs kb hth s a σ G _ ⟨V, Ac, Lst, D, J, hkb, hns, hp0⟩
   obtain ⟨⟨r1, s', a'⟩, hr, ⟨σ', hcase, hX', hJ'⟩, -, hw⟩ :=
     spec_exists (WP.spec_and (J.ppJ arI hAK hA hnd hP hp0)
       (P1.sched.preemption_point.pp hA s a J.blk))
@@ -566,10 +566,10 @@ theorem jPreemptHyp_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
       rw [e, hc.cur]; omega
   have hks : L.ksb s' = L.ksb s := hw.1
   refine ⟨hth ▸ hSS, σ', hcase, hth ▸ hX'.rel.2.1, ?_⟩
-  rcases hcase with ⟨rfl, -⟩ | ⟨rfl, hm⟩
+  rcases hcase with ⟨rfl, hm0⟩ | ⟨rfl, hm⟩
   · obtain ⟨⟨Ac', Lst', D', J'⟩, hp'⟩ := hJ' rfl
-    exact ⟨V, Ac', Lst', D', J', by rw [hks]; exact hkb, hp'⟩
-  · exact ⟨s, a, σ, ⟨V, Ac, Lst, D, J, hkb⟩, hr, hm, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩
+    exact ⟨V, Ac', Lst', D', J', by rw [hks]; exact hkb, Vs.ake_preemptionPoint'.noSwitch hm0 hns, hp'⟩
+  · exact ⟨s, a, σ, ⟨V, Ac, Lst, D, J, hkb, hns⟩, hr, hm, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩
 
 
 end
