@@ -299,6 +299,209 @@ theorem XTopAt.addStep {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} 
     obtain ⟨y, hy, g1, g2⟩ := slotWd_range hPl h
     exact hIA.ks _ (by rw [hv]; omega) (by rw [hv]; omega) (by rw [hv]; omega) y hy ⟨g1, g2⟩
 
+/-! ## The sets enlarged by fresh endpoints -/
+
+/-- Two ranges overlapping in no word of the first one's that lies in the
+second are apart (`0 < k`). -/
+theorem range_apart {e x : U64} {k w : Nat} (hk : 0 < k) (hw : 0 < w) (Q : U64 → Prop)
+    (hx : ∀ b : U64, x.val ≤ b.val → b.val < x.val + k → Q b)
+    (he : ∀ b : U64, e.val ≤ b.val → b.val < e.val + w → ¬ Q b) :
+    x.val + k ≤ e.val ∨ e.val + w ≤ x.val := by
+  by_contra h
+  push_neg at h
+  by_cases hle : e.val ≤ x.val
+  · exact he x hle (by omega) (hx x le_rfl (by omega))
+  · exact he e le_rfl (by omega) (hx e (by omega) (by omega))
+
+/-- An `OObj` word of the sets with `E ∪ Wn` is one of the old sets' or in
+a new endpoint. -/
+theorem oobj_unionE {s : S} {Wn : Set U64} {b : U64} (h : OObj st N T C (E ∪ Wn) R B c s σ b) :
+    OObj st N T C E R B c s σ b ∨ ∃ e ∈ Wn, e.val ≤ b.val ∧ b.val < e.val + 16 := by
+  unfold OObj at h
+  rcases h with h | h | h | ⟨e, he, h1, h2⟩ | h
+  · exact Or.inl (Or.inl h)
+  · exact Or.inl (Or.inr (Or.inl h))
+  · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
+  · rcases he with he | he
+    · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨e, he, h1, h2⟩))))
+    · exact Or.inr ⟨e, he, h1, h2⟩
+  · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr h))))
+
+set_option maxHeartbeats 1000000 in
+/-- **`XTopAt` with fresh endpoints added to `E`** (the set enlargement of
+a retype's endpoints, handoff/utj.md "Round 2" 2.): the new endpoints idle
+in the spec, their state and head words zero, aligned, apart from the TCBs
+and the kernel-state block, and their words in no object of the relation
+(`OObj`) and none the VSpace and CSpace code write (`VObj`). -/
+theorem XTopAt.addE {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
+    (hX : XTopAt (L := L) AR Z s a σ) {Wn : Set U64}
+    (hke : ∀ e ∈ Wn, σ.kheap e.bv = some (.endpoint .idleEP))
+    (hme : ∀ e ∈ Wn, L.mem s (P1.epTSA e) = 0#u64 ∧ L.mem s (P1.epHeadA e) = 0#u64)
+    (hal : ∀ e ∈ Wn, e.val % 16 = 0 ∧ e.val ≠ 0 ∧ e.val + 16 ≤ 2 ^ 64)
+    (hT : ∀ e ∈ Wn, ∀ t ∈ Z.T, t.val + 4096 ≤ e.val ∨ e.val + 16 ≤ t.val)
+    (hks : ∀ e ∈ Wn, e.val + 16 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ e.val)
+    (hfr : ∀ e ∈ Wn, ∀ b : U64, e.val ≤ b.val → b.val < e.val + 16 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b) :
+    XTopAt (L := L) AR { Z with E := Z.E ∪ Wn } s a σ := by
+  obtain ⟨⟨⟨⟨hSch, hEp, hNt, hIrq, hIo, hKr, hAr⟩, hP⟩, hV, hPt, hPI, hCO⟩, ⟨hPl, hCR, hFI, hD, hMO, hIA, hSA⟩,
+    -, hE⟩ := hX
+  have hO : ∀ e ∈ Wn, ∀ b : U64, e.val ≤ b.val → b.val < e.val + 16 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := fun e he b h1 h2 => (hfr e he b h1 h2).1
+  have hEp' : Endp.EpStateRel Z.T (Z.E ∪ Wn) Z.R Z.B (L.mem s) σ := by
+    have h := Sched.EpStateRel.add (W := ∅) (Rn := ∅) hEp hke (fun r h => h.elim) (fun t h => h.elim) hme
+      (fun r h => h.elim) (fun t h => h.elim)
+    simpa only [Set.union_empty] using h
+  have hEP := hP.ep
+  have hEP' : Endp.EPlaced Z.T (Z.E ∪ Wn) Z.R Z.B := by
+    refine ⟨hEP.tcb, fun e he => ?_, hEP.rep, fun e he t ht => ?_, hEP.rt, fun e he r hr => ?_, hEP.balign, hEP.bt,
+      fun wp hw e he => ?_, hEP.br, hEP.binj⟩
+    · rcases he with he | he
+      · exact hEP.ep e he
+      · exact hal e he
+    · rcases he with he | he
+      · exact hEP.et e he t ht
+      · exact hT e he t ht
+    · rcases he with he | he
+      · exact hEP.er e he r hr
+      · exact range_apart (k := 32) (w := 16) (by omega) (by omega) (OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ)
+          (fun b h1 h2 => Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, h1, h2⟩))))) (hO e he)
+    · rcases he with he | he
+      · exact hEP.be wp hw e he
+      · have := range_apart (k := 8) (w := 16) (by omega) (by omega) (OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ)
+          (fun b h1 h2 => Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, h1, h2⟩)))))))
+          (hO e he)
+        omega
+  -- a new endpoint's word of `EFoot`/`EWrite` is in it
+  have hfoot : ∀ b : U64, Endp.EFoot Z.T (Z.E ∪ Wn) Z.R Z.B b →
+      Endp.EFoot Z.T Z.E Z.R Z.B b ∨ ∃ e ∈ Wn, e.val ≤ b.val ∧ b.val < e.val + 16 := by
+    rintro b (⟨e, he, h⟩ | h)
+    · rcases he with he | he
+      · exact Or.inl (Or.inl ⟨e, he, h⟩)
+      · refine Or.inr ⟨e, he, ?_, ?_⟩ <;> rcases h with h | h <;> omega
+    · exact Or.inl (Or.inr h)
+  have hwrite : ∀ b : U64, Endp.EWrite Z.T (Z.E ∪ Wn) Z.R Z.B b →
+      Endp.EWrite Z.T Z.E Z.R Z.B b ∨ ∃ e ∈ Wn, b.val = e.val ∨ b.val = e.val + 8 := by
+    rintro b (⟨e, he, h⟩ | h)
+    · rcases he with he | he
+      · exact Or.inl (Or.inl ⟨e, he, h⟩)
+      · exact Or.inr ⟨e, he, h⟩
+    · exact Or.inl (Or.inr h)
+  have hnodeE : ∀ b : U64, L.nodeBase s Z.c ≤ b.val → b.val < L.nodeBase s Z.c + 4288 →
+      ¬ Endp.EFoot Z.T (Z.E ∪ Wn) Z.R Z.B b := by
+    intro b h1 h2 hf
+    rcases hfoot b hf with hf | ⟨e, he, g1, g2⟩
+    · exact hP.nodeE b h1 h2 hf
+    · exact hO e he b g1 g2 (Or.inl ⟨h1, h2⟩)
+  have hP' : TopPlaced st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C (Z.E ∪ Wn) Z.R Z.B Z.c s σ := by
+    refine { hP with ep := hEP', disj := fun b hb => ?_, nodeE := hnodeE }
+    rcases oobj_unionE hb with hb | ⟨e, he, g1, g2⟩
+    · exact hP.disj b hb
+    · exact (hfr e he b g1 g2).2
+  have hIA' : IpcApart Z.th Z.N Z.T (Z.E ∪ Wn) Z.R Z.B (L.ksb s) Z.c := by
+    have hiw : ∀ b, IWords Z.N Z.T (Z.E ∪ Wn) Z.R Z.B b →
+        IWords Z.N Z.T Z.E Z.R Z.B b ∨ ∃ e ∈ Wn, e.val ≤ b.val ∧ b.val < e.val + 16 := by
+      rintro b (h | ⟨e, he, h1, h2⟩ | h)
+      · exact Or.inl (Or.inl h)
+      · rcases he with he | he
+        · exact Or.inl (Or.inr (Or.inl ⟨e, he, h1, h2⟩))
+        · exact Or.inr ⟨e, he, h1, h2⟩
+      · exact Or.inl (Or.inr (Or.inr h))
+    refine { hIA with slot := fun b hb x hx hin => ?_, dom := fun b hb => ?_ }
+    · rcases hiw b hb with hb | ⟨e, he, g1, g2⟩
+      · exact hIA.slot b hb x hx hin
+      · exact (hfr e he b g1 g2).2 (Vs.vobj_of_slot hPl _ _ _ _ _ _ hx hin.1 hin.2)
+    · rcases hiw b hb with hb | ⟨e, he, g1, g2⟩
+      · exact hIA.dom b hb
+      · have := hks e he; omega
+  obtain ⟨Q, R0, hc, -⟩ := hSch.lists
+  have hE' : EpSchedApart st Z.T Z.C (Z.E ∪ Wn) Z.R Z.B Z.c s σ := by
+    refine ⟨hnodeE, fun hw => ?_, fun hw => ?_, fun sc hsc x n hx b hb hw => ?_⟩
+    · rcases hwrite _ hw with hw | ⟨e, he, h⟩
+      · exact hE.dom hw
+      · rw [Sched.curDomA_val hc.node] at h; have := hks e he; omega
+    · rcases hwrite _ hw with hw | ⟨e, he, h⟩
+      · exact hE.dt hw
+      · rw [Sched.dtA_val hc.node] at h; have := hks e he; omega
+    · rcases hwrite _ hw with hw | ⟨e, he, h⟩
+      · exact hE.sc sc hsc x n hx b hb hw
+      · exact hO e he b (by omega) (by omega)
+          (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hx, hb⟩)))))))
+  exact ⟨⟨⟨⟨hSch, hEp', hNt, hIrq, hIo, hKr, hAr⟩, hP'⟩, hV, hPt, hPI, hCO⟩,
+    ⟨hPl, hCR, hFI, hD, hMO, hIA', hSA⟩, IpcRel.of hNt hEp' (sched_sc hSch), hE'⟩
+
+/-- An `OObj` word of the sets with `N ∪ Wn` is one of the old sets' or in
+a new notification. -/
+theorem oobj_unionN {s : S} {Wn : Set U64} {b : U64} (h : OObj st (N ∪ Wn) T C E R B c s σ b) :
+    OObj st N T C E R B c s σ b ∨ ∃ n ∈ Wn, n.val ≤ b.val ∧ b.val < n.val + 64 := by
+  unfold OObj at h
+  rcases h with h | h | h | h | h | ⟨n, hn, h1, h2⟩ | h
+  · exact Or.inl (Or.inl h)
+  · exact Or.inl (Or.inr (Or.inl h))
+  · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
+  · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl h))))
+  · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
+  · rcases hn with hn | hn
+    · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, h1, h2⟩))))))
+    · exact Or.inr ⟨n, hn, h1, h2⟩
+  · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))))
+
+set_option maxHeartbeats 1000000 in
+/-- **`XTopAt` with fresh notifications added to `N`** (as `XTopAt.addE`):
+the new notifications idle and unbound in the spec, their state, head,
+bound-TCB and SC words zero, placed (`NAddr`), apart from the TCBs, the
+core's node and the kernel-state block, and their words in no object of the
+relation (`OObj`) and none the VSpace and CSpace code write (`VObj`). -/
+theorem XTopAt.addN {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
+    (hX : XTopAt (L := L) AR Z s a σ) {Wn : Set U64}
+    (hkn : ∀ n ∈ Wn, σ.kheap n.bv = some (.notification Fl4Spec.defaultNotification))
+    (hmn : ∀ n ∈ Wn, L.mem s (P1.epTSA n) = 0#u64 ∧ L.mem s (P1.epHeadA n) = 0#u64 ∧
+      L.mem s (Notif.nBoundA n) = 0#u64 ∧ L.mem s (Notif.nScA n) = 0#u64)
+    (hal : ∀ n ∈ Wn, Notif.NAddr n)
+    (hT : ∀ n ∈ Wn, ∀ t ∈ Z.T, t.val + 4096 ≤ n.val ∨ n.val + 64 ≤ t.val)
+    (hnd : ∀ n ∈ Wn, n.val + 64 ≤ L.nodeBase s Z.c ∨ L.nodeBase s Z.c + 4288 ≤ n.val)
+    (hks : ∀ n ∈ Wn, n.val + 64 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
+    (hfr : ∀ n ∈ Wn, ∀ b : U64, n.val ≤ b.val → b.val < n.val + 64 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b) :
+    XTopAt (L := L) AR { Z with N := Z.N ∪ Wn } s a σ := by
+  obtain ⟨⟨⟨⟨hSch, hEp, hNt, hIrq, hIo, hKr, hAr⟩, hP⟩, hV, hPt, hPI, hCO⟩, ⟨hPl, hCR, hFI, hD, hMO, hIA, hSA⟩,
+    -, hE⟩ := hX
+  have hO : ∀ n ∈ Wn, ∀ b : U64, n.val ≤ b.val → b.val < n.val + 64 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := fun n hn b h1 h2 => (hfr n hn b h1 h2).1
+  have hNt' : Notif.NtfnStateRel (Z.N ∪ Wn) Z.T (L.mem s) σ := by
+    have h := Sched.NtfnStateRel.add (W := ∅) hNt hSch.placed (fun _ _ _ => rfl) (fun _ _ h => h) hkn
+      (fun t h => h.elim) hmn (fun t h => h.elim)
+    simpa only [Set.union_empty] using h
+  have hSch' : Sched.SchedRel st (Z.N ∪ Wn) Z.T Z.C Z.c s σ := by
+    refine Sched.SchedRel.add_ntfns hSch hal hT hnd hks fun sc hsc x n hx b hb m hm => ?_
+    by_contra hc
+    push_neg at hc
+    exact hO m hm b hc.1 hc.2 (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hx, hb⟩)))))))
+  have hP' : TopPlaced st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (Z.N ∪ Wn) Z.T Z.C Z.E Z.R Z.B Z.c s σ := by
+    refine { hP with disj := fun b hb => ?_ }
+    rcases oobj_unionN hb with hb | ⟨n, hn, g1, g2⟩
+    · exact hP.disj b hb
+    · exact (hfr n hn b g1 g2).2
+  have hIA' : IpcApart Z.th (Z.N ∪ Wn) Z.T Z.E Z.R Z.B (L.ksb s) Z.c := by
+    have hiw : ∀ b, IWords (Z.N ∪ Wn) Z.T Z.E Z.R Z.B b →
+        IWords Z.N Z.T Z.E Z.R Z.B b ∨ ∃ n ∈ Wn, n.val ≤ b.val ∧ b.val < n.val + 64 := by
+      rintro b (h | h | h | ⟨n, hn, h1, h2⟩ | h)
+      · exact Or.inl (Or.inl h)
+      · exact Or.inl (Or.inr (Or.inl h))
+      · exact Or.inl (Or.inr (Or.inr (Or.inl h)))
+      · rcases hn with hn | hn
+        · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, h1, h2⟩))))
+        · exact Or.inr ⟨n, hn, h1, by omega⟩
+      · exact Or.inl (Or.inr (Or.inr (Or.inr (Or.inr h))))
+    refine { hIA with slot := fun b hb x hx hin => ?_, dom := fun b hb => ?_ }
+    · rcases hiw b hb with hb | ⟨n, hn, g1, g2⟩
+      · exact hIA.slot b hb x hx hin
+      · exact (hfr n hn b g1 g2).2 (Vs.vobj_of_slot hPl _ _ _ _ _ _ hx hin.1 hin.2)
+    · rcases hiw b hb with hb | ⟨n, hn, g1, g2⟩
+      · exact hIA.dom b hb
+      · have := hks n hn; omega
+  exact ⟨⟨⟨⟨hSch', hEp, hNt', hIrq, hIo, hKr, hAr⟩, hP'⟩, hV, hPt, hPI, hCO⟩,
+    ⟨hPl, hCR, hFI, hD, hMO, hIA', hSA⟩, IpcRel.of hNt' hEp (sched_sc hSch'), hE⟩
+
 end Add
 
 end
