@@ -47,9 +47,10 @@ some of them proved here.
   every `P1.Heap` and set of cores.
 * A final reply cap's finalisation (`jFinAt_reply`): XTopJointFinReply's
   `JAtZ.finReplyJ` (none, or the receiver's `cancel_ipc`, proved; the
-  `reply_remove` of a thread blocked on the reply from `JReplyRemoveHyp`
-  [J]), the reply dead after (P1's `fin_cap_reply.dead`,
-  `JAtZ.reply_ready`); with `RecvReplyHyp` [J] and `P0.ArchTotal` [P].
+  `reply_remove` of a thread blocked on the reply, `jReplyRemoveHyp`:
+  XTopJointRemove's `JAtZ.replyRemoveJ`),
+  the reply dead after (P1's `fin_cap_reply.dead`, `JAtZ.reply_ready`); with
+  `RecvReplyHyp` [J] and `P0.ArchTotal` [P].
 * A final native VSpace cap's finalisation (`jFinAt_vs`: page table, page
   directory, PDPT, PML4, ASID pool caps): XTopJointFinVs's `JAtZ.finVsJ`
   (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
@@ -85,6 +86,7 @@ import Fl4Proofs.P3.XTopJointFinVs
 import Fl4Proofs.P3.XTopJointFinFrIo
 import Fl4Proofs.P3.XTopJointFinSc
 import Fl4Proofs.P3.XTopJointFinThread
+import Fl4Proofs.P3.XTopJointRemove
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -293,17 +295,11 @@ def ScK (c : capability.Cap) : Prop := ∃ p sb, c = .SchedContext p sb
 /-- A thread (TCB) cap. -/
 def TcbK (c : capability.Cap) : Prop := ∃ t, c = .Thread t
 
-/-- **Hypothesis: `reply_remove` at `J`** [J] (the reply cap's finalisation
-of a thread blocked on the reply; the receiver's case is proved,
-XTopJointFinReply): from `JAtZ`, FL4's `reply_remove` against the spec's
+/-- **`reply_remove` at `J`** (the reply cap's finalisation of a thread
+blocked on the reply): from `JAtZ`, FL4's `reply_remove` against the spec's
 (deterministic), `JAtZ` after at fresh VSpace sets, the slots and the
-kernel-state base kept. The `IRel` side is proved (IpcFinReply's
-`remove_topF`, ScCallRemove's `reply_remove_refines`: `CallRel` at the new
-call stacks, the reply isolated, `Inv`); the `JAtZ` lift is not: the call
-stacks' restructuring (`RFree`, the `CallW'` footprint beyond `CnW`) and the
-spec's `sched_context_donate` of the reply's SC to the caller (its frame:
-the SC's thread, the threads' SCs, the queues; `CurOwnW`, `OffOK`, `CurInv`,
-`BlockedScActive` after). -/
+kernel-state base kept. Proved: `jReplyRemoveHyp` (XTopJointRemove's
+`JAtZ.replyRemoveJ`). -/
 def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -313,6 +309,11 @@ def JReplyRemoveHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
           JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.1 res.2 σ' ∧
           SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ⦄
 
+/-- **`reply_remove` at `J`** (XTopJointRemove's `JAtZ.replyRemoveJ`). -/
+theorem jReplyRemoveHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI) :
+    JReplyRemoveHyp (L := L) arI AR th :=
+  fun _ _ _ _ _ _ _ _ _ _ J _ _ _ hr ht hk hst => J.replyRemoveJ hT hr ht hk hst
+
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c)
@@ -321,8 +322,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   `P1.Heap` and set of cores: a final endpoint cap's finalisation frees the
   replies of the threads blocked receiving on it. -/
   recvRep : ∀ (H : P1.Heap) (Cs : Set U64), RecvReplyHyp (L := L) arI AR H Cs
-  /-- `reply_remove` at `J`, for a final reply cap's finalisation. -/
-  replyRm : JReplyRemoveHyp (L := L) arI AR th
   /-- The x86 backend's obligations (VsArch's `ArchRefines` [P]), for a final
   native VSpace cap's finalisation. -/
   archRef : ArchRefines arI AR
@@ -886,7 +885,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases he : EpK c
     · exact jFinAt_ep arI h.recvRep Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
-    · exact jFinAt_reply arI hT h.recvRep h.replyRm Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
+    · exact jFinAt_reply arI hT h.recvRep (jReplyRemoveHyp arI hT) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
     by_cases hvs : VsK c
     · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
