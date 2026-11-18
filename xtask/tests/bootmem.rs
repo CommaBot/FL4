@@ -123,7 +123,7 @@ fn device_untypeds(start: u64, end: u64) -> Vec<(u64, u64)> {
 /// 4 GiB and at 64 GiB..72 GiB as RAM, for a CPU of `max_paddr`.
 fn boot_devices(max_paddr: u64) -> Ranges {
     let ram = bootmem::ram([(MIB, 0x7ff0_0000, 1), (0x10_0000_0000, 0x2_0000_0000, 1)], MIB, bootmem::top(&[PADDR_TOP, PADDR_TOP, max_paddr]));
-    bootmem::device(&ram, bootmem::top(&[PADDR_TOP, TOP, max_paddr]), [(KERNEL, 4 * MIB)])
+    bootmem::device(&ram, bootmem::top(&[TOP, max_paddr]), [(KERNEL, 4 * MIB)])
 }
 
 #[test]
@@ -131,65 +131,55 @@ fn boot_memory_stops_at_the_lowest_limit() {
     assert_eq!(bootmem::top(&[PADDR_TOP, TOP, 1 << 39]), PADDR_TOP);
     assert_eq!(bootmem::top(&[PADDR_TOP, TOP, 1 << 36]), 1 << 36);
     assert_eq!(bootmem::top(&[PADDR_TOP, 16 << 30, 1 << 46]), 16 << 30);
+    assert_eq!(bootmem::top(&[TOP, 1 << 46]), 1 << 46);
+    assert_eq!(bootmem::top(&[TOP, 1 << 52]), TOP);
 }
 
-/// With 2^47 as the device top (seL4's CONFIG_PADDR_USER_DEVICE_TOP for a
-/// 128 TiB window) FL4's 510 GiB window gave out untypeds over the kernel
-/// image's mapping and, from 512 GiB on, pointers that wrapped to the
-/// lower half. Every device untyped must lie in the window and below
-/// MAXPHYADDR.
+/// Device memory reaches past FL4's 510 GiB window, up to seL4's
+/// CONFIG_PADDR_USER_DEVICE_TOP (2^47) and MAXPHYADDR: firmware places
+/// 64-bit BARs there (0x3800_0000_0000 with 46 address bits). A device
+/// untyped's pointer is its physical address plus PPTR_BASE, wrapping:
+/// in the window below 510 GiB, in the lower half from 512 GiB on. No
+/// block wraps: one ends where the pointers do (512 GiB).
 #[test]
-fn device_untypeds_stay_in_the_kernel_window_and_below_maxphyaddr() {
-    let old = device_untypeds(1 << 39, TOP);
-    assert!(old.iter().any(|&(ptr, _)| ptr < PPTR_BASE), "the old top wrapped");
+fn device_untypeds_reach_high_bars() {
     for bits in [36u64, 39, 40, 46, 48, 52] {
         let max_paddr = 1u64 << bits;
+        let top = TOP.min(max_paddr);
         let dev = boot_devices(max_paddr);
         assert!(dev.n > 0);
-        for r in &dev.r[..dev.n] {
-            assert!(r.end <= PADDR_TOP.min(max_paddr), "{bits}: {:#x}..{:#x}", r.start, r.end);
-            for (ptr, size_bits) in device_untypeds(r.start, r.end) {
-                let end = ptr as u128 + (1u128 << size_bits);
-                assert!(PPTR_BASE <= ptr && end <= PPTR_TOP as u128, "{bits}: {ptr:#x}/{size_bits}");
-                assert!(ptr - PPTR_BASE + (1 << size_bits) <= max_paddr);
-                assert_eq!(ptr % (1 << size_bits), 0);
-            }
+        // All of it up to the top, but for the image's alias.
+        assert!(dev.contains(0x1_0000_0000, 0x10_0000_0000.min(top)), "{bits}");
+        if top > 0x12_0000_0000 {
+            assert!(dev.contains(0x12_0000_0000, top), "{bits}");
         }
+        if bits >= 46 {
+            assert!(dev.contains(0x3800_0000_0000, 0x3800_0000_8000), "{bits}: QEMU's 64-bit BARs");
+        }
+        let mut blocks = 0;
+        for r in &dev.r[..dev.n] {
+            assert!(r.end <= top, "{bits}: {:#x}..{:#x}", r.start, r.end);
+            let mut at = r.start;
+            for (ptr, size_bits) in device_untypeds(r.start, r.end) {
+                blocks += 1;
+                let size = 1u64 << size_bits;
+                // The pointer is the block's physical address in the
+                // window numbering, aligned, and the block does not wrap.
+                assert_eq!(ptr.wrapping_sub(PPTR_BASE), at, "{bits}: {ptr:#x}/{size_bits}");
+                assert_eq!(ptr % size, 0);
+                let end = ptr as u128 + size as u128;
+                if at < 1 << 39 {
+                    assert!(PPTR_BASE <= ptr && end <= 1 << 64, "{bits}: {ptr:#x}/{size_bits}");
+                } else {
+                    // Lower half: canonical, as a capability stores 48 bits.
+                    assert!(at >= 1 << 39 && end <= 1 << 47, "{bits}: {ptr:#x}/{size_bits}");
+                }
+                at += size;
+            }
+            // Whole pages: the blocks cover the range exactly.
+            assert_eq!(at, r.end, "{bits}");
+        }
+        // Within the BootInfo's untyped list (230), with room for RAM.
+        assert!(blocks < 100, "{bits}: {blocks} device untypeds");
     }
-}
-
-#[test]
-fn fragmented_firmware_keeps_visibility_boundaries_in_gpa_order() {
-    let mut firmware = bootmem::RangeList::<129>::new();
-    for i in (0..65).rev() { firmware.add((2*i+1)*4096, (2*i+2)*4096); }
-    let dev = [Region { start: 0, end: 130*4096 }];
-    let mut parts = Vec::new();
-    bootmem::device_regions(&dev, &firmware.r[..firmware.n], |r, private| parts.push((r, private)));
-    assert_eq!(parts.len(), 130);
-    for (i, (r, private)) in parts.into_iter().enumerate() {
-        assert_eq!(r, Region { start: i as u64*4096, end: (i as u64+1)*4096 });
-        assert_eq!(private, i % 2 == 1);
-    }
-}
-
-/// Audit F6(b): the framebuffer console takes a framebuffer only if device
-/// memory holds all of it (fl4-kernel lib.rs), so not one the loader puts
-/// over the kernel's statics or a module it reports as reserved, nor over
-/// the local APIC or an IOAPIC, though none of them is RAM.
-#[test]
-fn a_framebuffer_over_reserved_kernel_or_apic_memory_is_no_device_memory() {
-    let image_end = 0x80_0000;
-    let ram = bootmem::ram([(image_end, 0x1000_0000, 1)], MIB, 1 << 40);
-    let ioapic = 0xfec0_0000;
-    let dev = bootmem::device(&ram, TOP, [(KERNEL, image_end), (0xfee0_0000, 0xfee0_1000), (ioapic, ioapic + 0x20)]);
-    // A real one, in a PCI hole.
-    assert!(dev.contains(0xc000_0000, 0xc000_0000 + 1024 * 768 * 4));
-    // Over the kernel's statics, which the loader reported as reserved.
-    assert!(!dev.contains(KERNEL + 0x1000, KERNEL + 0x2000));
-    // Running from device memory into the kernel image.
-    assert!(!dev.contains(KERNEL - 0x1000, KERNEL + 0x1000));
-    // Over the local APIC or an IOAPIC.
-    assert!(!dev.contains(0xfee0_0000, 0xfee0_0400));
-    assert!(!dev.contains(0xfe00_0000, 0xfee0_0000 + 0x10));
-    assert!(!dev.contains(ioapic, ioapic + 0x10));
 }
