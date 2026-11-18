@@ -252,6 +252,10 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     cdt.empty_slot st arI s a (cslotAddr sl) .Null ⦃ res => res.2 = a ∧ ∃ σ' G' V',
       ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 ∧ XTopAt (L := L) AR (Z.mv G' V') res.1 res.2 σ' ∧
       L.ksb res.1 = L.ksb s ∧ KBack σ σ' ∧
+      DState (L := L) Z.th res.1 σ' G' ∧ capV (L.mem res.1) (cslotAddr sl) = .Null ∧
+      (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem res.1) y = capV (L.mem s) y) ∧
+      P1.WritesIn st s res.1 (InSlot Z.th) ∧ σ'.cdt = (emptySlotCdtState σ sl).cdt ∧
+      σ'.isOriginalCap = (emptySlotCdtState σ sl).isOriginalCap ∧
       ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
         σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
         DelUtFact (L := L) Z.th res.1 σ' up usb ufi) →
@@ -273,6 +277,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   simp only at hes hDS2 hnull2 hoth2 hX2 hwS hcn2 ha2 ⊢
   subst ha2
   have hw : P1.WritesIn st s s2 (InSlot Z.th) := hwS.mono fun b hb => slotWd_range hP hb
+  have hDS2c := hDS2
   -- the slot's CNode; the spec state after
   obtain ⟨q, hq1, hq2⟩ := hcnode
   obtain ⟨cs, hkq, hwf, -⟩ := hR.cnode q _ hq2
@@ -404,23 +409,12 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     by_cases e : sl' = (q.bv, idx)
     · subst e; simp [setCnodeSlot, emptySlotCdtState] at h
     · simpa [setCnodeSlot, emptySlotCdtState, Function.update_of_ne e] using h
-  refine ⟨rfl, _, G2, V2, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc, fun hUt => ?_⟩
+  refine ⟨rfl, _, G2, V2, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc, hDS2c, hnull2,
+    hoth2, hw, rfl, rfl, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := (q.bv, idx)) (fun y hy e => hoth2 y hy e) hnull2 hw rfl horig hgp hM2 hUt
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc
     (fun sl' h => Or.inl (horig sl' h)) hutc
   exact ⟨hJC, Ac, Lst, _, R⟩
-
-/-- **The untyped caps a notification cap's deletion leaves childless** [J]
-(`DelUtFact`, at the state after; module docstring). -/
-def DelUtHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-    AbsSlot th sl → capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
-    cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-      ∀ u up usb ufi udev, AbsSlot th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
-        σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) th s' σ' up usb ufi
 
 /-- A non-final notification cap has another cap to its notification in the
 MDB (`final_iff`, `FinM.key`: overlapping caps, no zombie, share their
@@ -474,117 +468,6 @@ theorem other_key {th : TypedHeap} (hP : Placed th) {s : S} {σ : Fl4Spec.State 
     · exact absurd hov.symm (hF.fm.zfin y hy _ hx hyx h)
   rw [← hcv]
   exact (hF.fm.key _ hx y hy (Ne.symm hyx) hov hzx hzy (by rw [hcv, hf]; simp)).symm
-
-set_option maxHeartbeats 16000000 in
-/-- **`JStepHyps.del` from `DelUtHyp`** (module docstring): the finalisation
-(`finNtfnJ` when final, nothing otherwise), then the slot emptied
-(`emptyNtfnJ`; the notification dead after a final cap's finalisation,
-P1's `fin_cap_ntfn.dead`, or covered by another cap, `other_ntfn`). -/
-theorem jowes_del [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hUt : DelUtHyp (L := L) (arI := arI) AR th) :
-    ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-      AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
-      capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
-      cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-      ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
-          XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
-          JCs (L := L) (Z.mv G' V') s' σ' ∧
-          ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-            JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ' := by
-  intro s s' a a' σ σ' sl p b w r hA hcnode hcv0 hrun hm Z H Cs Ac Lst D hth J
-  have hU0 := hUt s s' a a' σ σ' sl p b w r hA hcv0 hrun hm Z H Cs Ac Lst D hth J
-  subst hth
-  have hP := J.xtop.rel.1
-  have hDS : DState (L := L) Z.th s σ Z.G := ⟨J.xtop.rel.2.1, J.del, J.xtop.rel.2.2.1⟩
-  obtain ⟨c, ac, hc0, hca, hg⟩ := hDS.1.1.abs_cap hA
-  rw [hca.abs] at hg
-  have hcv := capV_of_capAt hc0
-  rw [hcv] at hcv0; subst hcv0
-  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have hHp : H p = some .ntfn := ((hJ.typed _ hA.isSlot).2.1 p b w r hcv).2
-  have hpN : p ∈ Z.N := J.hset.2.1 p hHp
-  have hcn : capability.Cap.Notification p b w r ≠ .Null := by simp
-  -- the spec's deletion from the finalisation's and the emptying's outcomes
-  have hspec : ∀ (σ1 σ2 : Fl4Spec.State Unit) (cl : capability.Cap),
-      ((absCap .Null, absCap cl), σ1) ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Notification p b w r))
-        (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) σ).1 →
-      ((), σ2) ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ1).1 →
-      ((), σ2) ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 := by
-    intro σ1 σ2 cl hmem hes
-    unfold Fl4Spec.capDeleteOne
-    refine mem_bind_nd (x := (absCap (.Notification p b w r), σ)) (by rw [hg]; rfl) ?_
-    simp only [absCap, Fl4Spec.NonDet.unless, reduceCtorEq, ↓reduceIte]
-    refine mem_bind_nd (x := (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ), σ)) rfl ?_
-    refine mem_bind_nd (x := ((), σ1)) (fastFinalise_of_finaliseCap hmem) ?_
-    exact hes
-  have key : cdt.delete_one st arI s a (cslotAddr sl) ⦃ res => ∃ σ2 G2 V2,
-      ((), σ2) ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ XTopAt (L := L) AR (Z.mv G2 V2) res.1 res.2 σ2 ∧
-      L.ksb res.1 = L.ksb s ∧ KBack σ σ2 ∧
-      ((∀ u up usb ufi udev, AbsSlot Z.th u → capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) →
-        σ.cdt sl = some u → (∀ x, σ.cdt x = some u → x = sl) → (∀ x, σ.cdt x ≠ some sl) →
-        DelUtFact (L := L) Z.th res.1 σ2 up usb ufi) →
-       JCs (L := L) (Z.mv G2 V2) res.1 σ2 ∧
-        ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' res.1 σ2) ⦄ := by
-    unfold cdt.delete_one
-    rw [slot_cap_eq, hc0]
-    simp only [bind_ok, cap_is_null_eq]
-    simp only [isNullB_false hcn, Bool.false_eq_true, ↓reduceIte]
-    obtain ⟨bf, hbf, hbf2, -⟩ := finalHyp_full Z.th hP s σ Z.G sl _ hDS hA hc0 hcn
-    have hNF : NeedsFin (.Notification p b w r) := Or.inl ⟨trivial, rfl⟩
-    rw [hbf2 hNF] at hbf
-    rw [is_final_with_cap_eq _ _ _ hc0, hbf]; simp only [bind_ok]
-    rw [← finalise_cap_ntfn arI s a p b w r _ false]
-    by_cases hfin : Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ
-    · have hdt : decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ) = true := decide_eq_true hfin
-      rw [hdt]
-      refine WP.spec_bind (WP.spec_and (J.finNtfnJ hpN) (P1.fin_cap_ntfn.dead (ar := arI) s a p b w r false J.blk hHp hHp)) ?_
-      rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, hmem1, J1, hkb1, hSS1, hks1⟩, d1, d2, d3⟩
-      simp only at e1 e2 hmem1 J1 hkb1 hSS1 hks1 d1 d2 d3
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
-      subst e2
-      simp only [uncurry_apply_pair]
-      have hdp : DeadP (L := L) H s1 p :=
-        ⟨fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h), fun _ => ⟨d1, d2, d3⟩,
-          fun h => (by rw [hHp] at h; cases h), fun z h => (by rw [hHp] at h; cases h)⟩
-      have hc1 : capAt (L.mem s1) (cslotAddr sl) = ok (.Notification p b w r) := by
-        rw [capAt_capV, hSS1.capV hA.isSlot, hcv]
-      have hcdt1 : σ1.cdt = σ.cdt := (finNtfn_nkc p.bv b.bv _ true σ _ hmem1).cdt
-      refine WP.spec_mono (J1.emptyNtfnJ hA hcnode hc1 (Or.inl hdp)) ?_
-      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hR2⟩
-      simp only at e3 hes hX2 hks2 hkb2 hR2 ⊢
-      subst e3
-      refine ⟨σ2, G2, V2, hspec σ1 σ2 .Null (by rw [hdt]; exact hmem1) hes, hX2, hks2.trans hks1,
-        hkb1.trans' hkb2, fun hU => hR2 fun u up usb ufi udev hu hcu h1 h2 h3 => ?_⟩
-      rw [hcdt1] at h1 h2 h3
-      exact hU u up usb ufi udev hu (by rw [capAt_capV, ← hSS1.capV hu.isSlot, ← capAt_capV]; exact hcu) h1 h2 h3
-    · have hdf : decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ) = false := decide_eq_false hfin
-      rw [hdf]
-      obtain ⟨cl, he, hmem, hcl, hrem, hnio⟩ := fin_idle (st := st) (L := L) arI s a σ (.Notification p b w r) trivial
-        false (fun hw => by have := finWork_ntfn hw; cases this)
-      have hcl0 : cl = .Null := hnio (fun f l e => by cases e)
-      subst hcl0
-      rw [he]; simp only [bind_ok]
-      simp only [uncurry_apply_pair]
-      refine WP.spec_mono (J.emptyNtfnJ hA hcnode hc0 (Or.inr (other_ntfn hP hDS hA hcv hfin))) ?_
-      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hR2⟩
-      simp only at e3 hes hX2 hks2 hkb2 hR2 ⊢
-      subst e3
-      exact ⟨σ2, G2, V2, hspec σ σ2 .Null (by rw [hdf]; exact hmem) hes, hX2, hks2, hkb2, hR2⟩
-  rw [hrun, WP.spec_ok] at key
-  obtain ⟨σ2, G2, V2, hm2, hX2, hks2, hkb2, hR2⟩ := key
-  have e := (Det.detAt_capDeleteOne_ntfn hg).eq hm2 hm
-  have e2 : σ2 = σ' := congrArg Prod.snd e
-  subst e2
-  obtain ⟨hC2, R2⟩ := hR2 hU0
-  exact ⟨G2, V2, hX2, hks2, hkb2, hC2, R2⟩
-
-/-- **`JStepHyps` from the untyped caps' deletion facts alone**
-(`JStepHyps.of_del` with `jowes_del`): the only named premise left of the
-primitive steps' closure is `DelUtHyp` [J]. -/
-theorem JStepHyps.of_ut [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hUt : DelUtHyp (L := L) (arI := arI) AR th) :
-    JStepHyps (L := L) arI AR th :=
-  JStepHyps.of_del arI (jowes_del hUt)
 
 end
 

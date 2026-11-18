@@ -25,6 +25,7 @@ import Fl4Proofs.P3.XTopJointPortIn
 import Fl4Proofs.P3.XTopJointSuspend
 import Fl4Proofs.P3.XTopJointRegFrame
 import Fl4Proofs.P3.XTopYield
+import Fl4Proofs.P3.XTopJointDelLive
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -397,10 +398,11 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 /-- **An IO port cap, `JAt` after, every label**, with no reply premise
-(XTopJointPortIn's `decode_invocation_ioportJ_steps` with `jReplyHyp`). -/
+(XTopJointPortIn's `decode_invocation_ioportJ_steps` with `jReplyHyp`, the
+primitive steps' closure from `DelUtHyp`, `JStepHyps.of_ut`). -/
 theorem decode_invocation_ioportJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hUt : DelUtHyp (L := L) arI AR Z.th)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : PortLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -412,7 +414,7 @@ theorem decode_invocation_ioportJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IoPort first last 0#u64) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct :=
-  decode_invocation_ioportJ_steps arI s ar σ J hni hARI hT hJ (jReplyHyp arI Z.th) lbl slbl hlbl length buf ct hct
+  decode_invocation_ioportJ_steps arI s ar σ J hni hARI hT (JStepHyps.of_ut arI hUt) (jReplyHyp arI Z.th) lbl slbl hlbl length buf ct hct
     args hlen hargs sl hAs first last hsc call hval blk don fp extra ci excaps buffer
 
 end
