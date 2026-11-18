@@ -36,10 +36,11 @@ noncomputable section
 
 /-- **The Thread cap's labels still open at `JAt`** (their `JPostHyp` [W]
 taken): the TCB invocation labels (2..24) but Suspend (12),
-UnbindNotification (15), SetBreakpoint (16), UnsetBreakpoint (18) and
-SetTLSBase (20). -/
+UnbindNotification (15), SetBreakpoint (16), UnsetBreakpoint (18),
+ConfigureSingleStepping (19) and SetTLSBase (20). -/
 def TcbJOpen (lbl : U64) : Prop :=
-  2 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 18 ∧ lbl.val ≠ 20
+  2 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 18 ∧ lbl.val ≠ 19 ∧
+    lbl.val ≠ 20
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -219,6 +220,123 @@ theorem JAtZ.dbgWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hI3 := hX'.irelK (by rw [hks]; exact J.ks) hBW
   exact J.reg_frameG hI3 (hw.mono fun b hb => Or.inr ⟨t, ht, by rw [hb, hKt, hKv]; omega,
     by rw [hb, hKt, hKv]; omega⟩) hA (YKeep.of_kheap rfl) J.inv hblk hfoot
+
+/-- Two register writes of a TCB to different registers commute (the spec
+side of FL4's reply-register order). -/
+theorem setReg_comm (x : Fl4Spec.Tcb) {a b : Fl4Spec.Register} (h : a ≠ b) (u v : Fl4Spec.Word) :
+    Notif.setReg (Notif.setReg x a u) b v = Notif.setReg (Notif.setReg x b v) a u := by
+  simp only [Notif.setReg, Notif.setRegUc, Fl4Spec.archTcbContextGet, Fl4Spec.archTcbContextSet]
+  rw [Function.update_comm h]
+
+set_option maxHeartbeats 8000000 in
+/-- **FL4's `configure_single_stepping` at `J`** (as `css_xtop`): the debug
+words `SS_ENABLED`, `SS_COUNT` (`JAtZ.dbgWrJ`); with no instruction count, the
+target's `FLAGS` register (`JAtZ.regWrJ`), against the spec's `cssState`. -/
+theorem JAtZ.cssJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpT : p ∈ Z.T)
+    {xp : Fl4Spec.Tcb} (hkp : σ.kheap p.bv = some (.tcb xp)) (bp n : U64) :
+    debug.configure_single_stepping st arI s a p bp n false ⦃ r => r.1 = false ∧ r.2.2 = a ∧
+      ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D r.2.1 a (cssState σ p.bv xp n.bv) ⦄ := by
+  have hpf := (J.ip.e.tcb p hpT).fits
+  unfold debug.configure_single_stepping
+  by_cases hn : n = 0#u64
+  · subst hn
+    simp only [↓reduceIte, set_debug_reg_wr, bind_ok]
+    obtain ⟨V2, J2⟩ := J.dbgWrJ hpT (dbgA p debug.SS_ENABLED) (448 + 48) (by omega)
+      (by rw [dbgA_val (by omega) (by unfold debug.SS_ENABLED; decide)]; unfold debug.SS_ENABLED; simp) 0#u64
+    simp only [Std.bind_assoc]
+    refine WP.spec_bind (Endp.obj.Tcb.reg.spec _ p layout.reg.FLAGS) ?_
+    rintro i rfl
+    rw [eflags_tf_eq]; simp only [bind_ok, lift]
+    refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec _ p layout.reg.FLAGS _) ?_
+    rintro s3 rfl
+    simp only [set_debug_reg_wr, bind_ok, WP.spec_ok]
+    set s2 := L.wr s (dbgA p debug.SS_ENABLED) 0#u64
+    obtain ⟨x2, hk2, hx2⟩ := J2.xtop.fin.1.1.2.1.tcb p hpT
+    rw [hkp] at hk2; cases hk2
+    have hXr := reg_wr_irel J2.ip (J2.xtop.irelK J2.ks J2.buf) hpT hkp Fl4Spec.Register.flags (by decide)
+      (L.mem s2 (regA p layout.reg.FLAGS) &&& ~~~256#u64)
+    obtain ⟨V3, J3⟩ := J2.regWrJ hpT hkp Fl4Spec.Register.flags
+      (L.mem s2 (regA p layout.reg.FLAGS) &&& ~~~256#u64) hXr
+    rw [regIdx_flags] at J3
+    obtain ⟨V4, J4⟩ := J3.dbgWrJ hpT (dbgA p debug.SS_COUNT) (448 + 56) (by omega)
+      (by rw [dbgA_val (by omega) (by unfold debug.SS_COUNT; decide)]; unfold debug.SS_COUNT; simp) 0#u64
+    have hflag : (L.mem s2 (regA p layout.reg.FLAGS) &&& ~~~256#u64).bv =
+        xp.tcbArch.tcbContext.userRegs .flags &&& tfMask := by
+      rw [UScalar.bv_and, ← regIdx_flags]
+      exact congrArg₂ (· &&& ·) (hx2.regs .flags) (by rfl)
+    have e : cssState σ p.bv xp (0#u64).bv =
+        Notif.updK σ p.bv (.tcb (Notif.setReg xp Fl4Spec.Register.flags
+          (L.mem s2 (regA p layout.reg.FLAGS) &&& ~~~256#u64).bv)) := by
+      unfold cssState; rw [if_pos (show U64.bv 0#u64 = (0 : Fl4Spec.Word) from rfl), hflag]
+    refine ⟨by first | rfl | trivial, by first | rfl | trivial, V4, ?_⟩
+    rw [e]; exact J4
+  · simp only [hn, ↓reduceIte, set_debug_reg_wr, bind_ok, WP.spec_ok]
+    obtain ⟨V2, J2⟩ := J.dbgWrJ hpT (dbgA p debug.SS_ENABLED) (448 + 48) (by omega)
+      (by rw [dbgA_val (by omega) (by unfold debug.SS_ENABLED; decide)]; unfold debug.SS_ENABLED; simp) 1#u64
+    obtain ⟨V3, J3⟩ := J2.dbgWrJ hpT (dbgA p debug.SS_COUNT) (448 + 56) (by omega)
+      (by rw [dbgA_val (by omega) (by unfold debug.SS_COUNT; decide)]; unfold debug.SS_COUNT; simp) n
+    have e : cssState σ p.bv xp n.bv = σ := by
+      unfold cssState; rw [if_neg (fun h => hn (UScalar.eq_of_val_eq (by
+        have := congrArg BitVec.toNat h; simpa using this)))]
+    refine ⟨by first | rfl | trivial, by first | rfl | trivial, V3, ?_⟩
+    rw [e]; exact J3
+
+set_option maxHeartbeats 8000000 in
+/-- **The single-word reply tail at `J`** (ConfigureSingleStepping's, called):
+FL4's `MR0`, then `reply_words` (badge, message info), then `Running`
+(`JAtZ.regWrJ` three times, `JAtZ.runJ`); the spec's `reply_from_kernel` in
+its own register order (`setReg_comm`), so the spec's success tail. -/
+theorem JAtZ.replyWords1J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : ct ∈ Z.T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart) (v : U64) :
+    (do
+      let s4 ← tcb.reply_words st (L.wr s (Endp.regA ct (Endp.regIdx (Endp.mrIdx 0))) v) ct 1#u64
+      let s5 ← sched.set_thread_state st s4 ct sched.TS_RUNNING
+      ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)) ⦃ res =>
+        ∀ z ∈ (specTail true ct.bv [v.bv] σ).1, JAt (L := L) arI AR res.2.1 res.2.2 z.2 ⦄ := by
+  set s1 := L.wr s (Endp.regA ct (Endp.regIdx (Endp.mrIdx 0))) v
+  have hRW : tcb.reply_words st s1 ct 1#u64 ⦃ s3 => ∃ w : U64,
+      s3 = L.wr (L.wr s1 (Endp.regA ct (Endp.regIdx Fl4Spec.badge_register)) 0#u64)
+        (Endp.regA ct (Endp.regIdx Fl4Spec.msg_info_register)) w ∧
+      w.bv = Fl4Spec.messageInfoToData ⟨Fl4Spec.natToLen 1, 0, 0, 0⟩ ⦄ := by
+    unfold tcb.reply_words
+    refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec s1 ct layout.reg.BADGE 0#u64) ?_
+    rintro s2 rfl
+    unfold msginfo.MessageInfo.new
+    simp only [bind_ok]
+    refine WP.spec_mono (Endp.set_msg_info_spec _ ct 0#u64 1#u64 (by decide)) ?_
+    rintro s3 ⟨w, rfl, hw⟩
+    refine ⟨w, ?_, by rw [hw]; exact msg_info_one_bv⟩
+    rw [Endp.regIdx_badge, Endp.regIdx_msgInfo]
+  refine WP.spec_bind hRW ?_
+  rintro s3 ⟨w, rfl, hw⟩
+  -- MR0
+  have hX1 := reg_wr_irel J.ip (J.xtop.irelK J.ks J.buf) hct hk (Endp.mrIdx 0) (by decide) v
+  obtain ⟨V1, J1⟩ := J.regWrJ hct hk (Endp.mrIdx 0) v hX1
+  set x1 := setReg x (Endp.mrIdx 0) v.bv with hx1
+  have hk1 : (updK σ ct.bv (.tcb x1)).kheap ct.bv = some (.tcb x1) := by simp [updK]
+  -- the badge
+  have hXb := badge_wr_irel J1.ip (J1.xtop.irelK J1.ks J1.buf) hct hk1 0#u64
+  rw [badgeRegA_eq_regA] at hXb
+  obtain ⟨V2, J2⟩ := J1.regWrJ hct hk1 Fl4Spec.badge_register 0#u64 hXb
+  set x2 := setReg x1 Fl4Spec.badge_register (0#u64 : U64).bv with hx2
+  have hk2 : (updK (updK σ ct.bv (.tcb x1)) ct.bv (.tcb x2)).kheap ct.bv = some (.tcb x2) := by simp [updK]
+  -- the message info
+  have hX3 := reg_wr_irel J2.ip (J2.xtop.irelK J2.ks J2.buf) hct hk2 Fl4Spec.msg_info_register (by decide) w
+  obtain ⟨V3, J3⟩ := J2.regWrJ hct hk2 Fl4Spec.msg_info_register w hX3
+  have hxC : setReg x2 Fl4Spec.msg_info_register w.bv = Endp.replyTcb x v.bv := by
+    rw [hw, hx2, hx1, setReg_comm x (show Endp.mrIdx 0 ≠ Fl4Spec.badge_register by decide)]
+    rfl
+  rw [updK_updK, updK_updK, hxC] at J3
+  have hkC : (updK σ ct.bv (.tcb (Endp.replyTcb x v.bv))).kheap ct.bv = some (.tcb (Endp.replyTcb x v.bv)) := by
+    simp [updK]
+  refine WP.spec_bind (J3.runJ hct hkC hrs) ?_
+  rintro s4 ⟨Lst', D', J4⟩
+  refine (WP.spec_ok _).2 fun z hz => ?_
+  rw [specTail_restart hk hrs true v.bv] at hz
+  simp only [↓reduceIte] at hz
+  rw [Notif.setThreadState_eq .running hkC] at hz
+  rw [Set.mem_singleton_iff.1 hz]
+  exact ⟨_, _, _, _, _, _, J4⟩
 
 end
 
@@ -649,6 +767,124 @@ theorem tcb_set_tlsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := 
     simp only [Fl4Spec.NonDet.when, if_neg this]
     exact Set.mem_singleton _
 
+set_option maxHeartbeats 8000000 in
+/-- **The ConfigureSingleStepping label at `JAt`** (as `tcb_single_stepX`):
+the arguments by `ArgRel` [J], the caller's restart (`JAtZ.restartJ`),
+`JAtZ.cssJ`, then the data tail of `[0]`: `XTop`'s facts by
+`nodata_tail_xtop`/`data_tail_xtop`, `JAt` by `JAtZ.runJ` /
+`JAtZ.replyWords1J` on the same program (the spec's tail a singleton). -/
+theorem tcb_single_stepJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
+    (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
+    (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .configureSingleStepping)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (hstall : smp.remote_tcb_stall st arI s ar p = ok (s, ar)) (buffer : Option Fl4Spec.ObjRef)
+    (hA : ArgRel (st := st) s σ ct buf buffer 2)
+    (call : Bool) (slot : obj.Slot) (extra : Aeneas.Std.Array obj.Slot 3#usize) (blk don : Bool)
+    (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
+    TcbOKRX (L := L) arI (JAt (L := L) arI AR) s ar σ fl4_abi.label.TCBConfigureSingleStepping p
+      ⟨length, buf, call, slot, extra⟩ blk call don slbl args ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨htcb, xc, hkc⟩ := hX.curTcb hcur
+  have hpT : p ∈ Z.T := J.thT p hp
+  have hctT : ct ∈ Z.T := J.thT ct htcb
+  have hdec0 : specDec false slbl args ci sl (.Thread p) excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+        (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv) := by
+    show Fl4Spec.fl4DecodeTcbInvocation (Z := Unit) slbl args (.threadCap p.bv) sl excaps buffer = _
+    rw [fl4DecodeTcb_ext hlbl hext]; rfl
+  unfold TcbOKRX
+  rw [decode_step_eq arI s ar p _ hstall, hdec0]
+  obtain ⟨bp, hbp, hbs⟩ := arg_rel hA hct hcur ⟨length, buf, call, slot, extra⟩ rfl 0#u64 (by decide)
+  obtain ⟨n, hn, hns⟩ := arg_rel hA hct hcur ⟨length, buf, call, slot, extra⟩ rfl 1#u64 (by decide)
+  unfold tcb.decode_configure_single_stepping
+  rw [hct]; simp only [bind_ok]; rw [hbp]; simp only [bind_ok]; rw [hn]; simp only [bind_ok]
+  obtain ⟨s1, σ1, x0, hrc1, hst1, hk0, -, hσ1, -, -, hcu1, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  rw [hkc] at hk0; cases hk0
+  have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by
+    rw [hσ1, Notif.stsAct_kheap]; simp [Notif.updK]
+  rw [hrc1]; simp only [bind_ok]
+  have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
+      (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv)).run σ =
+      ({(.ok (.invokeFl4TCB (.configureSingleStepping p.bv bp.bv n.bv)), σ)}, False) := by
+    apply run_liftME_ok
+    unfold Fl4Spec.decodeFl4ConfigureSingleStepping
+    rw [run_bind_ok (show (Fl4Spec.fl4Arg (Z := Unit) buffer 0).run σ = _ from hbs),
+      run_bind_ok (show (Fl4Spec.fl4Arg (Z := Unit) buffer 1).run σ = _ from hns)]
+    rfl
+  obtain ⟨xp, hkp, -⟩ := J1.xtop.fin.1.1.2.1.tcb p hpT
+  refine WP.spec_bind (J1.cssJ hpT hkp bp n) ?_
+  rintro ⟨consumed, s2, a2⟩ ⟨hcons, ha2, V2, J2⟩
+  simp only at hcons ha2 J2
+  subst hcons ha2
+  set Z2 : XSets := Z.mv Z.G V2 with hZ2
+  have hX2 := J2.xtop
+  obtain ⟨xy, hky, hrsy⟩ := css_tcb hkp hkc1 n.bv
+  have hcurY : ct.bv = (cssState σ1 p.bv xp n.bv).curThread := by
+    unfold cssState; split <;> (show ct.bv = σ1.curThread; rw [hcu1, hcur])
+  have htcb2 : Z2.th ct = some .tcb := htcb
+  have hact2 : OutsideObjects Z2.th (L.nodeAt s2 (L.cpu s2) layout.node.SCHED_ACTION) := J2.kern.act
+  have hy := css_mem (bp := bp.bv) hkp n.bv
+  have hy' : (.ok [0], cssState σ1 p.bv xp n.bv) ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
+      (.invokeFl4TCB (.configureSingleStepping p.bv bp.bv n.bv))).run σ1).1 := hy
+  cases call
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    have hJt : (do
+        let s5 ← sched.set_thread_state st s2 ct sched.TS_RUNNING
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a2)) ⦃ res =>
+          ∀ z ∈ (specTail false ct.bv [0] (cssState σ1 p.bv xp n.bv)).1, JAt (L := L) arI AR res.2.1 res.2.2 z.2 ⦄ := by
+      refine WP.spec_bind (J2.runJ hctT hky (by rw [hrsy])) ?_
+      rintro s5 ⟨Lst', D', J5⟩
+      refine (WP.spec_ok _).2 fun z hz => ?_
+      rw [specTail_restart hky (by rw [hrsy]) false 0] at hz
+      simp only [Bool.false_eq_true, ↓reduceIte] at hz
+      rw [Notif.setThreadState_eq .running hky] at hz
+      rw [Set.mem_singleton_iff.1 hz]
+      exact ⟨_, _, _, _, _, _, J5⟩
+    refine WP.spec_mono (WP.spec_and (nodata_tail_xtop hX2 hcurY hky (by rw [hrsy]) hact2 [0]) hJt) ?_
+    rintro res ⟨⟨hres, hne, z, hz, hRT, -⟩, hJ5⟩
+    exact Or.inr ⟨hres, hne, _, DecOut.of_eq hdec, σ1, hst1, [0], _, hy', z, hz, hRT, hJ5 z hz⟩
+  · simp only [↓reduceIte]
+    refine WP.spec_bind (Fl4Proofs.P0.msg.lookup_ipc_buffer.p0 st s2 true ct L.total) ?_
+    rintro bf -
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    have hI0 : Vs.RInv (L := L) Z2.th Z2.P Z2.L4 Z2.L3 Z2.L2 Z2.L1 Z2.N Z2.T Z2.C Z2.E Z2.R Z2.B Z2.c AR Z2.G s2 a2
+        (MrS (cssState σ1 p.bv xp n.bv) ct.bv xy (Endp.ipcBufOf true xy) []) := by
+      rw [MrS_nil hky]; exact hX2.toRInv
+    have tail : (do
+        let (len, s3) ← msg.set_mr st s2 ct bf 0#u64 0#u64
+        let s4 ← tcb.reply_words st s3 ct len
+        let s5 ← sched.set_thread_state st s4 ct sched.TS_RUNNING
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a2)) ⦃ res =>
+          TopPostRMX (L := L) (JAt (L := L) arI AR) σ blk true don (Fl4Spec.NonDetE.liftME
+            Fl4Spec.Fl4Invocation.invokeFl4TCB (Fl4Spec.decodeFl4ConfigureSingleStepping (Z := Unit) buffer p.bv))
+            ct s res ⦄ := by
+      have hset : msg.set_mr st s2 ct bf 0#u64 0#u64 ⦃ r =>
+          r = (1#u64, L.wr s2 (Endp.regA ct (Endp.regIdx (Endp.mrIdx 0))) 0#u64) ⦄ := by
+        unfold msg.set_mr
+        have h4 : (0#u64 : U64) < msg.N_MSG_REGISTERS := by unfold msg.N_MSG_REGISTERS; decide
+        simp only [h4, ↓reduceIte]
+        refine WP.spec_bind (Endp.msg_register_spec 0#u64 (by decide)) ?_
+        rintro r0 rfl
+        refine WP.spec_bind (Endp.obj.Tcb.set_reg.spec _ ct _ 0#u64) ?_
+        rintro s2' rfl
+        simp only [lift, bind_ok, WP.spec_ok]
+        rfl
+      refine WP.spec_bind (WP.spec_and (setmr_reg_inv _ ct htcb2 hcurY xy _ bf s2 a2 [] hI0 0#u64 rfl (by decide)
+        0#u64) hset) ?_
+      rintro ⟨len, s3⟩ ⟨⟨hlen, hI3, hk3, hc3⟩, he3⟩
+      simp only [Prod.mk.injEq] at hlen hI3 hk3 hc3 he3
+      obtain ⟨rfl, rfl⟩ := he3
+      refine WP.spec_mono (WP.spec_and (data_tail_xtop hX2 hcurY hky (by rw [hrsy]) hact2 hI3 hk3 hc3 (by decide)
+        (fun _ _ z hz => by simp [Endp.mrPairs] at hz) 1#u64
+        (by cases Endp.ipcBufOf true xy <;> simp [mrLen]) (by decide))
+        (J2.replyWords1J hctT hky (by rw [hrsy]) 0#u64)) ?_
+      rintro res ⟨⟨hres, hne, z, hz, hRT, -⟩, hJ5⟩
+      exact Or.inr ⟨hres, hne, _, DecOut.of_eq hdec, σ1, hst1, [0], _, hy', z, hz, hRT, hJ5 z hz⟩
+    split <;> first | exact tail | (split <;> exact tail)
+
 end
 
 section
@@ -706,30 +942,30 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
       hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI hFr) J (hR hop)
   have no : ∀ l : U64, 2 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 18 →
-      l.val ≠ 20 → lbl = l → False :=
-    fun l h1 h2 h3 h4 h5 h6 h7 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h6, h7⟩)
+      l.val ≠ 19 → l.val ≠ 20 → lbl = l → False :=
+    fun l h1 h2 h3 h4 h5 h6 h7 h8 h => hop (h ▸ ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩)
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
   exact decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra ct hct slbl
     hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
-      readRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setMCPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      writeRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      copyRegisters := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      configure := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setMCPriority := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setTimeoutEndpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setIPCBuffer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSpace := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       suspend := fun h => by
         subst h
         exact tcb_suspendJ arI s ar σ J hni hRR p hpT hpI slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct _
           blk call don _ ci sl excaps buffer,
-      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      resume := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      bindNotification := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       unbindNotification := fun h => by
         subst h
         exact tcb_unbind_ntfnJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) (hstall' p) ct hct
@@ -740,22 +976,27 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
           simp [tcbExtOf])
         exact tcb_set_bpJ arI s ar σ J hni p hpT slbl hg he length buf ct hct (hstall' p) buffer hA5 call
           (cslotAddr sl) extra blk don _ ci sl excaps,
-      getBreakpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      getBreakpoint := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
       unsetBreakpoint := fun h => by
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .unsetBreakpoint by
           simp [tcbExtOf])
         exact tcb_unset_bpJ arI s ar σ J hni p hpT slbl hg he length buf ct hct
           (hstall' p) buffer (fun i hi => hA5 i (by omega)) call (cslotAddr sl) extra blk don _ ci sl excaps,
-      configureSingleStepping := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      configureSingleStepping := fun h => by
+        subst h
+        obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf])
+          (show tcbExtOf _ = some .configureSingleStepping by simp [tcbExtOf])
+        exact tcb_single_stepJ arI s ar σ J hni p hp slbl hg he length buf ct hct (hstall' p) buffer
+          (fun i hi => hA5 i (by omega)) call (cslotAddr sl) extra blk don _ ci sl excaps,
       setTLSBase := fun h => by
         subst h
         exact tcb_set_tlsJ arI s ar σ J hni hA p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
           hlen hargs hcw (hstall' p) call (cslotAddr sl) extra blk don ci sl excaps buffer,
-      setFlags := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      writeFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
-      setTimer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim }
+      setFlags := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      readFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      writeFPU := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setTimer := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim }
 
 end
 
