@@ -38,7 +38,7 @@ some of them proved here.
   XTopJointFinFrIo): an unmapped frame's and an unowned IO port cap's do
   nothing; a VSpace-mapped frame's unmap by `jFrMap_of` (XTopJointFinVs's
   `JAtZ.finVsJb`, from `ArchRefines` [P], `JVsCapsHyp` [J] and
-  `JVsApartHyp` [J]), the VT-x work (EPT-mapped frames, owned IO ports) by
+  `jVsApartHyp`), the VT-x work (EPT-mapped frames, owned IO ports) by
   `jFrVt_of` (XTopJointFinVtJ's `JAtZ.frVtJ`, from `ARKeep` [P] and
   `JVtHyps` [J]); the slot ready after (a frame cap's memory holds no
   object of `H` but `other` ones: `JPlaced.cobj`, ScPlace's `CapObjH`; an
@@ -54,7 +54,7 @@ some of them proved here.
   as the spec's `arch_finalise_cap` of a mapped level-0 `EPTCap` does
   (`deleteAsid`); XTopJointFinVs's `JAtZ.finVsJb` (VsFin's `fin_ept_root`),
   the slot ready after (the EPT root apart from `H`'s objects,
-  `JAtZ.ept_obj`); from `ArchRefines` [P], `JVsCapsHyp` [J], `JVsApartHyp` [J]
+  `JAtZ.ept_obj`); from `ArchRefines` [P], `JVsCapsHyp` [J], `jVsApartHyp`
   and `JVtHyps` [J] (the root non-null: `JAtZ.ept_ne0`).
 * A final IRQ handler cap's finalisation (`jFinAt_irq`, as XTopFinIrq):
   the IRQ node slot's cap deleted, null or a notification cap by
@@ -78,9 +78,8 @@ some of them proved here.
   directory, PDPT, PML4, ASID pool caps): XTopJointFinVs's `JAtZ.finVsJ`
   (`JAtZ` after at the same sets, the spec's frame `ArFr`), the slot ready
   (`JAtZ.vs_ready`: no object of `H` but `other` ones in the cap's frame);
-  from `ArchRefines` [P], `JVsCapsHyp` [J] (l4v `valid_cap`) and
-  `JVsApartHyp` [J] (the ASID table apart from `H`'s SCs outside `Z.C`),
-  `JDelParts` fields.
+  from `ArchRefines` [P] and `JVsCapsHyp` [J] (l4v `valid_cap`),
+  `JDelParts` fields (`JVsApartHyp` by `jVsApartHyp`).
 * A final SC cap's finalisation (`jFinAt_sc`): XTopJointFinSc's
   `JScFinHyp` (the finalisation at `J`, by `jScFin_of` from the proved SC
   steps and `jYieldToHyp_of` from the thread's [P] `ticks`), the SC dead after
@@ -468,9 +467,6 @@ structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
   archRef : ArchRefines arI AR
   /-- XTopJointFinVs's `JVsCapsHyp` [J] (l4v `valid_cap` for the arch caps). -/
   vsCaps : JVsCapsHyp (L := L) arI AR th
-  /-- XTopJointFinVs's `JVsApartHyp` [J] (the ASID table
-  apart from `H`'s SCs outside `Z.C`). -/
-  vsApart : JVsApartHyp (L := L) arI AR th
   /-- The x86 backend's VCPU barrier keeps the arch relation (`ARKeep` [P]),
   for the VT-x finalisations (`jFrVt_of`, `jFinAt_vt`). -/
   arKeep : ARKeep arI AR
@@ -842,7 +838,7 @@ theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
 set_option maxHeartbeats 4000000 in
 /-- **A final native VSpace cap's finalisation at `J`** (XTopJointFinVs's
 `JAtZ.finVsJ`; the slot ready, `JAtZ.vs_ready`), from `ArchRefines` [P],
-`JVsCapsHyp` [J] and `JVsApartHyp` [J]. -/
+`JVsCapsHyp` [J] (`JVsApartHyp` holds: `jVsApartHyp`). -/
 theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th VsK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hv hfin
@@ -866,7 +862,7 @@ theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC :
 set_option maxHeartbeats 4000000 in
 /-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
 `JAtZ.finVsJb`, final or not), from `ArchRefines` [P], `JVsCapsHyp` [J] and
-`JVsApartHyp` [J]. -/
+`jVsApartHyp`. -/
 theorem jFrMap_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) : JFrMapHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨p, sz, r, d, asid, va, hce⟩
@@ -909,7 +905,7 @@ set_option maxHeartbeats 4000000 in
 `JAtZ.finVsJb` with VsFin's `fin_ept_root`: FL4's `delete_asid` of the root,
 the spec's `deleteAsid`), the slot ready after (the root apart from `H`'s
 objects but `other` ones, `JAtZ.ept_obj`); from `ArchRefines` [P],
-`JVsCapsHyp` [J], `JVsApartHyp` [J] and `JVtHyps` [J]. -/
+`JVsCapsHyp` [J], `jVsApartHyp` and `JVtHyps` [J]. -/
 theorem jFinAt_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hVC : JVsCapsHyp (L := L) arI AR th)
     (hAp : JVsApartHyp (L := L) arI AR th) (hV : JVtHyps (L := L) arI AR th) :
     JFinAtF (L := L) arI AR th EptRootK := by
@@ -1105,7 +1101,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
   by_cases hn : NtfnK c
   · exact jFinAt_ntfn arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn
   by_cases hfi : FrIoK c
-  · exact jFinAt_frio arI (jFrMap_of arI h.archRef h.vsCaps h.vsApart) (jFrVt_of arI h.archRef h.arKeep h.vt) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
+  · exact jFinAt_frio arI (jFrMap_of arI h.archRef h.vsCaps (jVsApartHyp arI)) (jFrVt_of arI h.archRef h.arKeep h.vt) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
   · by_cases hq : IrqK c
     · exact jFinAt_irq arI h.live (jIrqSlotHyp_of arI h.irq) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
@@ -1114,7 +1110,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hr : RpK c
     · exact jFinAt_reply arI hT h.recvRep (jReplyRemoveHyp arI hT) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
     by_cases hvs : VsK c
-    · exact jFinAt_vs arI h.archRef h.vsCaps h.vsApart Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
+    · exact jFinAt_vs arI h.archRef h.vsCaps (jVsApartHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
     · exact jFinAt_sc arI hT (jScFin_of arI hT (JThreadFinHyps.yieldToH arI hT h.thread)) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
@@ -1122,7 +1118,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     by_cases hvt : EptK c ∨ VcpuK c
     · exact jFinAt_vt arI h.archRef h.arKeep h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvt hfin
     by_cases hrt : EptRootK c
-    · exact jFinAt_eptRoot arI h.archRef h.vsCaps h.vsApart h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hrt hfin
+    · exact jFinAt_eptRoot arI h.archRef h.vsCaps (jVsApartHyp arI) h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hrt hfin
     · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht, hvt, hrt⟩ hfin
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 

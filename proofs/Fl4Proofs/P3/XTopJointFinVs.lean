@@ -10,7 +10,8 @@ toward `JDelParts`' `jFinAt_vs`, as XTopJointFinEp for endpoints).
   `SlotsSame`, as IpcSlotsSame's `irel_same`).
 * The spec's side: XTopJointFinVsSpec's `ArFr` (only arch objects, of the
   same arch type, the ASID table, the CR3 and the machine state change).
-* `VsApart` [J] (`JVsApartHyp`): the ASID table lies apart from `H`'s SCs
+* `VsApart` (`JVsApartHyp`, proved by `jVsApartHyp`: `JAtZ.hscC` puts
+  every SC of `H` in `Z.C`): the ASID table lies apart from `H`'s SCs
   outside `Z.C` (l4v `pspace_distinct` of the kernel's global data against
   the objects; FL4's ASID table, `[ksb+288000, +16384)`, follows the 64 cores'
   nodes and is not in `JKern.hks`' `[ksb, ksb+13568)`). The untyped caps' free
@@ -142,11 +143,16 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **Hypothesis: the VSpace frames apart at `J`** [J] (`VsApart` at every
-`JAtZ` state; module docstring). -/
+/-- **The VSpace frames apart at `J`** (`VsApart` at every `JAtZ` state;
+proved by `jVsApartHyp`). -/
 def JVsApartHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → VsApart (L := L) Z H Cs s
+
+/-- **`JVsApartHyp` holds** (no longer a premise): `JAtZ.hscC` puts every SC
+of `H` in `Z.C`, so `scOut` is vacuous (`JAtZ.scOut`). -/
+theorem jVsApartHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JVsApartHyp (L := L) arI AR th :=
+  fun _ _ _ _ _ _ _ _ _ _ J => ⟨J.scOut⟩
 
 /-- **Hypothesis: the VSpace cap invariant at `J`** [J] (XTopFinVs's
 `VsCapsIn` premise, l4v `valid_cap` for the arch caps, at every `JAtZ`
