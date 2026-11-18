@@ -161,10 +161,10 @@ theorem utRetypeP3_ofJ [Fl4Proofs.P1.PlainStore st] (arI : machine.Arch A) (hA :
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hRU : RegionUnrefJ (L := L) arI H Cs) (hDbg : UtDbgTcbP (L := L) arI H Cs (UtJOk (L := L) arI H Cs))
     (hVtx : UtVtxP (L := L) arI H Cs U (UtJOk (L := L) arI H Cs))
-    (hND : DevRetypeGap (UtJOk (L := L) arI H Cs)) :
+    (hDev : DevRetypeGap (L := L) arI H Cs U (UtJOk (L := L) arI H Cs)) :
     P1.UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtJOk (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_J hRU) hDbg hVtx hND
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_J hRU) hDbg hVtx hDev
 
 end
 

@@ -52,9 +52,7 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
       ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
-    (hks : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV (L.mem s') x = .Untyped p sb fi d →
-      (p.val + 2 ^ sb.val ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ p.val) ∧
-      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val)
+    (hks : UtKsApart (L := L) G' Cs s')
     (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
     Sched.JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
@@ -148,16 +146,14 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rcases hrd hp hu lo hi hlh h1 h2 with h | h
     · exact Or.inl (ocov _ _ h)
     · exact Or.inr fun q' hq' => J.deadP_slot hX2 hcn2 hkc hw (h q' hq')
-  have hks2 : ∀ x ∈ G2.chains.flatten, ∀ p' sb fi d, capV (L.mem s2) x = .Untyped p' sb fi d →
-      (p'.val + 2 ^ sb.val ≤ (L.ksb s2).val ∨ (L.ksb s2).val + 13568 ≤ p'.val) ∧
-      ∀ c ∈ Cs, p'.val + 2 ^ sb.val ≤ L.nodeBase s2 c ∨ L.nodeBase s2 c + 4288 ≤ p'.val := by
-    intro x hx p' sb fi d hcx
+  have hks2 : UtKsApart (L := L) G2 Cs s2 := by
+    intro x hx p' sb fi hcx
     obtain ⟨hxs, c1, hc1, hn1⟩ := (hM2.members x).1 hx
     have e : x ≠ cslotAddr sl := fun e => by rw [e, hnull2] at hcx; cases hcx
-    have hcx0 : capV (L.mem s) x = .Untyped p' sb fi d := by rw [← hoth2 x hxs e]; exact hcx
+    have hcx0 : capV (L.mem s) x = .Untyped p' sb fi false := by rw [← hoth2 x hxs e]; exact hcx
     have hxm : x ∈ Z.G.chains.flatten :=
       (J.xtop.rel.2.1.2.2.1.members x).2 ⟨hxs, _, capAt_capV _ _, by rw [hcx0]; nofun⟩
-    obtain ⟨k1, k2⟩ := J.jcov.ks x hxm p' sb fi d hcx0
+    obtain ⟨k1, k2⟩ := J.jcov.ks x hxm p' sb fi hcx0
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc⟩

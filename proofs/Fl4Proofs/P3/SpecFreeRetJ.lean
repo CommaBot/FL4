@@ -46,7 +46,7 @@ reset loses its objects (`hR`), an unused one has none. -/
 theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x : U64} {p sb fi : U64} {d : Bool}
     {A : Nat} {rs : Bool} {o : Fl4Spec.ObjRef} {ko : Fl4Spec.KernelObject}
     (hSF : Sched.SpecFree m G σ) (hU : UtInv m G) (hxG : x ∈ G.chains.flatten)
-    (hcs : capV m x = .Untyped p sb fi d) (h0 : σ.kheap o = some ko)
+    (hcs : capV m x = .Untyped p sb fi d) (hd : d = false) (h0 : σ.kheap o = some ko)
     (hR : o ∉ (if rs = true ∧ fi.val ≠ 0 then regionSet p.bv sb.val else ∅))
     (hbelow : rs = false → p.val + fi.val ≤ A) :
     (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
@@ -58,7 +58,7 @@ theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x
     exact (ut_range hsb hreg).2.2
   have hfiS : fi.val ≤ 2 ^ sb.val := hU.fib _ hxG p sb fi d hcs
   have hb1 := Nat.one_le_two_pow (n := Fl4Spec.objBits ko)
-  rcases hSF _ hxG p sb fi d hcs o ko h0 with e | ⟨l1, l2⟩
+  rcases hSF _ hxG p sb fi (by rw [hcs, hd]) o ko h0 with e | ⟨l1, l2⟩
   · exact Or.inl e
   · by_cases hc : rs = true ∧ fi.val ≠ 0
     · rw [if_pos hc] at hR
@@ -115,7 +115,7 @@ theorem SpecFree.retype {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
     {rs : Bool} {pb rb : Fl4Spec.ObjRef} {t : Fl4Spec.ApiObjectType} {us : Nat} {slots : List Fl4Spec.CslotPtr}
     {dev : Bool} {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {p sb fi : U64} {d : Bool}
     (hSF : Sched.SpecFree m G σ) (hU : UtInv m G) (hst : KSz σ σ1)
-    (hcs : capV m (cslotAddr sl) = .Untyped p sb fi d)
+    (hcs : capV m (cslotAddr sl) = .Untyped p sb fi d) (hd : d = false)
     (hg : Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d p.bv sb.val fi.val, σ1)}, False))
     (hbelow : rs = false → p.val + fi.val ≤ rb.toNat)
     {y : Except Unit Unit × Fl4Spec.State Unit}
@@ -127,7 +127,7 @@ theorem SpecFree.retype {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
       ∀ j, j < w → isUt (cj j) = true → t = .untyped)
     (hob : ∀ cd, Fl4Spec.objBits (Fl4Spec.defaultObject t dev us cd) ≤ bitsApi t us) :
     Sched.SpecFree m' G' σ' := by
-  intro x' hx' p' sb' fi' d' hcx' o ko' ho
+  intro x' hx' p' sb' fi' hcx' o ko' ho
   rw [← hK] at ho
   obtain ⟨hxG, p0, sb0, fi0, fi1, d0, e0, e1, hpA, hAf1, hAs, -, hoth⟩ := hE.usrc
   rw [hcs] at e0; cases e0
@@ -147,7 +147,7 @@ theorem SpecFree.retype {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
     -- against the source: outside its range, or below the window
     have hOW : (o.toNat + 2 ^ Fl4Spec.objBits ko0 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
         (p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko0 ≤ A) := by
-      rcases hSF _ hxG p sb fi d hcs o ko0 h0 with e | ⟨l1, l2⟩
+      rcases hSF _ hxG p sb fi (by rw [hcs, hd]) o ko0 h0 with e | ⟨l1, l2⟩
       · exact Or.inl e
       · by_cases hc : rs = true ∧ fi.val ≠ 0
         · rw [if_pos hc] at hR
@@ -172,7 +172,7 @@ theorem SpecFree.retype {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
         · exact Or.inl e
         · right; omega
       · rw [hoth x' hxG' hut hxs] at hcx'
-        exact hSF x' hxG' p' sb' fi' d' hcx' o ko0 h0
+        exact hSF x' hxG' p' sb' fi' hcx' o ko0 h0
     · -- a new cap: in the window
       have hc := hE.newc j hj
       rw [hcx'] at hc
@@ -225,8 +225,8 @@ theorem SpecFree.retype {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGho
     · unfold Disj at hdj
       rw [hdc, hcx', b1, t1, hdt, hdb] at hdj
       left; omega
-    · rcases hU'.drange x' hx' p' sb' fi' d' hcx' (dslot j) hdm hne (by rw [hdc]; exact hdp) hdj with h | h
-      · obtain ⟨-, i1, i2⟩ := hU'.inc x' hx' p' sb' fi' d' hcx' (dslot j) h
+    · rcases hU'.drange x' hx' p' sb' fi' false hcx' (dslot j) hdm hne (by rw [hdc]; exact hdp) hdj with h | h
+      · obtain ⟨-, i1, i2⟩ := hU'.inc x' hx' p' sb' fi' false hcx' (dslot j) h
         rw [hdc, hdb] at i1; rw [hdc, hdt] at i2
         right; omega
       · have := hI'.anc_ut h (by rw [hcx']; rfl)
@@ -270,7 +270,7 @@ theorem RetPostN.specFree {A' : Type} {th : TypedHeap} {G : MdbGhost} {σ : Fl4S
     {p sb fi : U64} {d : Bool}
     (hRP : RetPostN (L := L) th (L.mem s) G σ arI ar s bitsApi ks (.retype sl rs pb rb t us slots dev) res)
     (hSF : Sched.SpecFree (L.mem s) G σ) (hU : UtInv (L.mem s) G)
-    (hcs : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi d)
+    (hcs : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi d) (hd : d = false)
     (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d p.bv sb.val fi.val, σ1)}, False))
     (hbelow : rs = false → p.val + fi.val ≤ rb.toNat)
@@ -281,7 +281,7 @@ theorem RetPostN.specFree {A' : Type} {th : TypedHeap} {G : MdbGhost} {σ : Fl4S
   obtain ⟨y, hy, hy1, hK⟩ := hhas
   refine ⟨σ1, hst, hNS, e, σ', G', th', he, ⟨y, hy, hy1, hK⟩, h5, h6, h7, h8, h9, hI', hU', ?_, h11, h12, h13,
     A, k, w, dslot, cj, hE, hF⟩
-  refine SpecFree.retype hSF hU (ksz_of_eq (nkz_setThreadState _ _) hst) hcs (hg σ1 hst) hbelow hy hK.1 hU' hI' hE
+  refine SpecFree.retype hSF hU (ksz_of_eq (nkz_setThreadState _ _) hst) hcs hd (hg σ1 hst) hbelow hy hK.1 hU' hI' hE
     (fun hok => ?_) hob
   have hr : res.1 = .Ok () := by
     rcases he with ⟨h, -⟩ | ⟨-, h⟩

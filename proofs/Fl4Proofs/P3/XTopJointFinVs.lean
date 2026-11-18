@@ -345,9 +345,9 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-  intro sl p sb fi dev hsl hcap
+  intro sl p sb fi dev hsl hcap hdv
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -355,7 +355,7 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdv
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   have hfi := U.fiLe
@@ -365,7 +365,7 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have spec4k : ∀ (q : U64) (ko : Fl4Spec.KernelObject), σ.kheap q.bv = some ko → Fl4Spec.objBits ko = 12 →
       ∀ w : U64, q.val ≤ w.val → w.val < q.val + 4096 → w.val < p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ w.val := by
     intro q ko hk hb w h1 h2
-    have := J.sfree _ hxm p sb fi dev hcv q.bv ko hk
+    have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) q.bv ko hk
     simp only [hb, UScalar.bv_toNat] at this
     omega
   have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)

@@ -270,13 +270,13 @@ index no larger. -/
 theorem SpecFree.frame {m m' : U64 → U64} {G G' : MdbGhost} {σ σ' : State Unit}
     (h : Sched.SpecFree m G σ)
     (hu : ∀ x' ∈ G'.chains.flatten, ∀ p sb fi' d, capV m' x' = .Untyped p sb fi' d →
-      ∃ x ∈ G.chains.flatten, ∃ fi d0, capV m x = .Untyped p sb fi d0 ∧ fi.val ≤ fi'.val)
+      ∃ x ∈ G.chains.flatten, ∃ fi, capV m x = .Untyped p sb fi d ∧ fi.val ≤ fi'.val)
     (hk : KSz σ σ') : Sched.SpecFree m' G' σ' := by
-  intro x' hx' p sb fi' d hc o ko' ho
-  obtain ⟨x, hx, fi, d0, hc0, hfi⟩ := hu x' hx' p sb fi' d hc
+  intro x' hx' p sb fi' hc o ko' ho
+  obtain ⟨x, hx, fi, hc0, hfi⟩ := hu x' hx' p sb fi' false hc
   obtain ⟨ko, hko, hty⟩ := hk o ko' ho
   rw [← objBits_of_aType hty]
-  rcases h x hx p sb fi d0 hc0 o ko hko with e | e
+  rcases h x hx p sb fi hc0 o ko hko with e | e
   · exact Or.inl e
   · right; omega
 

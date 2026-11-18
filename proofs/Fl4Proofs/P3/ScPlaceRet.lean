@@ -110,6 +110,50 @@ theorem _root_.Fl4Proofs.P3.RetExp.cov_new {m m' : U64 → U64} (hE : RetExp th 
   have := hE.k1
   omega
 
+/-- **A RAM untyped region after lies in a RAM untyped region before** (a
+new cap's in the source's, the source a RAM untyped; an old cap's is its
+own, the source keeping its region and device flag). -/
+theorem ram_from (hE : RetExp th th' (L.mem s) m' G G' A k w dslot cj xs)
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) xs = .Untyped p0 sb0 fi0 false) {x : U64} (hx : x ∈ G'.chains.flatten)
+    {p sb fi : U64} (hcx : capV m' x = .Untyped p sb fi false) :
+    ∃ x0 ∈ G.chains.flatten, ∃ p0 sb0 fi0 : U64, capV (L.mem s) x0 = .Untyped p0 sb0 fi0 false ∧
+      p0.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ p0.val + 2 ^ sb0.val := by
+  obtain ⟨hxs, p1, sb1, fi1, fi2, d1, hcs, hcs', hpA, -, hAs, -, hoth⟩ := hE.usrc
+  by_cases hnew : ∃ j, j < w ∧ x = dslot j
+  · obtain ⟨j, hj, rfl⟩ := hnew
+    obtain ⟨p0, sb0, fi0, hc0⟩ := hdv
+    rw [hc0] at hcs
+    simp only [capability.Cap.Untyped.injEq] at hcs
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := hcs
+    have hc := hE.newc j hj
+    rw [hcx] at hc
+    have hb := hE.cbase j hj
+    have ht := hE.ctop j hj
+    rw [← hc] at hb ht
+    have := hE.k1
+    obtain ⟨b1, t1, -⟩ := ut_range (capV_ut_sb hcx) (by rw [hb, ht]; omega)
+    have h3 : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+    rw [Nat.add_mul, Nat.one_mul] at h3
+    have h4 := Nat.one_le_two_pow (n := sb.val)
+    exact ⟨xs, hxs, p0, sb0, fi0, hc0, by omega, by omega⟩
+  · have hxG : x ∈ G.chains.flatten := by
+      rcases hE.gmem x hx with h' | ⟨j, hj, e⟩
+      · exact h'
+      · exact absurd ⟨j, hj, e⟩ hnew
+    cases hu : isUt (capV (L.mem s) x)
+    · have := (hE.keep x hxG hu).2
+      rw [hcx] at this
+      rw [← this] at hu; cases hu
+    · by_cases ex : x = xs
+      · rw [ex, hcs'] at hcx
+        simp only [capability.Cap.Untyped.injEq] at hcx
+        obtain ⟨e1, e2, -, e4⟩ := hcx
+        rw [e1, e2, e4] at hcs
+        exact ⟨xs, hxs, p, sb, fi1, hcs, le_rfl, le_rfl⟩
+      · have e := hoth x hxG hu ex
+        rw [hcx] at e
+        exact ⟨x, hxG, p, sb, fi, e.symm, le_rfl, le_rfl⟩
+
 /-- **`JCovD` across retype** (module docstring): `H'` from P1's
 `RetypeP1Hyp`, the dead set losing the new objects' addresses. -/
 theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
@@ -121,7 +165,7 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
     JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A k w cj q} Cs s' := by
   have hkeep : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y := fun y hy _ hu => hE.keep y hy hu
-  refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi d hcx => ?_,
+  refine ⟨fun q kd hq => ?_, fun q kd hq => ?_, fun q ⟨hd, hn⟩ => ?_, fun x hx p sb fi hcx => ?_,
     fun x hx p sb fi hcx q hi => ?_⟩
   · rcases hE.th q kd hq with ⟨ho, h0⟩ | ⟨hn, hsz⟩
     · rcases h.th q kd ho with hc | hd | hi
@@ -144,8 +188,8 @@ theorem JCovD.retype (h : JCovD (L := L) th H G D Cs s)
       rcases hH' q kd hq with ⟨ho, -⟩ | ⟨hn', -⟩
       · exact hdead q hd hn (hq.trans ho.symm) (h.dead q hd)
       · exact absurd hn' hn
-  · obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2⟩ := hE.ut x hx p sb fi d hcx
-    obtain ⟨k1, k2⟩ := h.ks x0 hx0 p0 sb0 fi0 d0 hc0
+  · obtain ⟨x0, hx0, p0, sb0, fi0, hc0, h1, h2⟩ := ram_from hE hdv hx hcx
+    obtain ⟨k1, k2⟩ := h.ks x0 hx0 p0 sb0 fi0 hc0
     have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp [LawfulStore.nodeBase, hksb]
     refine ⟨by rw [hksb]; omega, fun c hc => ?_⟩
     rw [hnb]; have := k2 c hc; omega

@@ -55,9 +55,7 @@ structure JCovD (thp : TypedHeap) (H : Heap) (G : MdbGhost) (D : Set U64) (Cs : 
   th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ q ∈ D ∨ IdleAt (L := L) s q
   h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ q ∈ D ∨ IdleAt (L := L) s q
   dead : ∀ q ∈ D, DeadP (L := L) H s q
-  ks : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
-    (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
-    ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
+  ks : UtKsApart (L := L) G Cs s
   idleOut : IdleOut (L := L) thp H G s
 
 variable {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
@@ -74,13 +72,11 @@ def Uncov (th : TypedHeap) (H : Heap) (mem : U64 → U64) (G : MdbGhost) (I : U6
 
 /-- **`JCovD` across a step**: the dead set grows by the objects no longer
 covered (and not idle), which must then be dead, and the dead stay dead;
-the untyped caps after miss the kernel area and the idle objects. -/
+the RAM untyped caps after miss the kernel area and the idle objects. -/
 theorem JCovD.step (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
     (hunc : ∀ q, q ∈ Uncov th H (L.mem s') G' (IdleAt (L := L) s') → DeadP (L := L) H s' q)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
-    (hks : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV (L.mem s') x = .Untyped p sb fi d →
-      (p.val + 2 ^ sb.val ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ p.val) ∧
-      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val)
+    (hks : UtKsApart (L := L) G' Cs s')
     (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, hks, hio⟩
@@ -114,9 +110,7 @@ theorem JCovD.same (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
     (hk : ∀ y ∈ G.chains.flatten, physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
       y ∈ G'.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y)
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
-    (hks : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV (L.mem s') x = .Untyped p sb fi d →
-      (p.val + 2 ^ sb.val ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ p.val) ∧
-      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val)
+    (hks : UtKsApart (L := L) G' Cs s')
     (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' D Cs s' := by
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => hdead q hq (h.dead q hq), hks, hio⟩
@@ -139,9 +133,7 @@ theorem JCovD.delete (h : JCovD (L := L) th H G D Cs s) {s' : S} {G' : MdbGhost}
     (hx : ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
       Covered (L.mem s') G' lo hi ∨ (∀ q, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
-    (hks : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV (L.mem s') x = .Untyped p sb fi d →
-      (p.val + 2 ^ sb.val ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ p.val) ∧
-      ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ p.val)
+    (hks : UtKsApart (L := L) G' Cs s')
     (hidl : L.idleW s' = L.idleW s) (hio : IdleOut (L := L) th H G' s') :
     JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (IdleAt (L := L) s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →

@@ -145,9 +145,9 @@ theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
     (harch : σ'.archState = σ.archState)
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-  intro sl p sb fi dev hsl hcap
+  intro sl p sb fi dev hsl hcap hdv
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -158,7 +158,7 @@ theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdv
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -176,13 +176,13 @@ theorem JAtZ.finW_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
-    · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
+    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 Z.c hcC
       omega
     · obtain ⟨x, hx, -⟩ := hR.ntfn n hn
-      have := J.sfree _ hxm p sb fi dev hcv n.bv _ hx
+      have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) n.bv _ hx
       simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, UScalar.bv_toNat] at this
       omega
-    · have := J.sfree _ hxm p sb fi dev hcv sc.bv _ hk
+    · have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) sc.bv _ hk
       simp only [Fl4Spec.objBits, UScalar.bv_toNat] at this
       rw [Nat.add_comm Fl4Spec.minSchedContextBits n] at this
       omega

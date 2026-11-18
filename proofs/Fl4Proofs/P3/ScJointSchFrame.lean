@@ -32,7 +32,7 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hrp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s' σ') (hap : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s' σ')
     (hjpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s' σ') (hjc : Sched.JCovD (L := L) Z.th H Z.G D' Cs s')
     (hkern : JKern (L := L) H Cs D' Z.th s' σ')
-    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    (hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
     (hnsc : Sched.NSC Z.N Z.C σ') (hinv : Sched.Inv σ') (hcur : σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ')
     (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
@@ -63,7 +63,7 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, hcov, hobj, J.zH, ?_, J.hset, J.hscC, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
     J.c0, hbsa, hsv, hsrt, hsl, hcr, hblk, by rw [hks]; exact J.intL⟩
-  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', d, ?_, le_rfl⟩) hksz
+  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
     have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
@@ -123,9 +123,9 @@ theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.SchStep P σ σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-  intro sl p sb fi dev hsl hcap
+  intro sl p sb fi dev hsl hcap hdv
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -138,7 +138,7 @@ theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdv
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -156,13 +156,13 @@ theorem JAtZ.sch_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
-    · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
+    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 Z.c hcC
       omega
     · obtain ⟨x, hx, -⟩ := hR.ntfn n hn
-      have := J.sfree _ hxm p sb fi dev hcv n.bv _ hx
+      have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) n.bv _ hx
       simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, UScalar.bv_toNat] at this
       omega
-    · have := J.sfree _ hxm p sb fi dev hcv sc.bv _ hk
+    · have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) sc.bv _ hk
       simp only [Fl4Spec.objBits, UScalar.bv_toNat] at this
       rw [Nat.add_comm Fl4Spec.minSchedContextBits n] at this
       omega

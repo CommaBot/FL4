@@ -283,13 +283,9 @@ theorem JAtZ.jcov_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     JCovD (L := L) Z.th H Z.G D Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
-  have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   refine J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
-    (fun x hx p sb fi d hc => ?_) hidl
+    (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl
     (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩)
-  rw [hSS.capV (hsl x hx)] at hc
-  obtain ⟨h1, h2⟩ := J.jcov.ks x hx p sb fi d hc
-  exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
 
 theorem covered_keepC {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {lo hi : Nat}
     (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hc : Covered m G lo hi)
@@ -320,16 +316,11 @@ theorem JAtZ.jcov_cover {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hC : CoverKept Z.th (L.mem s) (L.mem s')) (hU : UtKept Z.th (L.mem s) (L.mem s'))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s' q) (hidl : L.idleW s' = L.idleW s) :
     JCovD (L := L) Z.th H G' D Cs s' := by
-  have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   refine ⟨fun q k hq => (J.jcov.th q k hq).imp (fun hc => covered_keepC hM hM' hc hC)
       (Or.imp_right (idleAt_of hidl).2),
     fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hM' hc hC) (Or.imp_right (idleAt_of hidl).2),
-    hdead, fun x hx p sb fi d hc => ?_, J.jcov.idleOut.keep hidl (J.utFrom hM' hU)⟩
-  obtain ⟨y, hy, fi', hc', -⟩ := hU x ((hM'.members x).1 hx).1 p sb fi d hc
-  have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
-  obtain ⟨h1, h2⟩ := J.jcov.ks y hym p sb fi' d hc'
-  exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
+    hdead, J.jcov.ks.keep hks (J.utFrom hM' hU), J.jcov.idleOut.keep hidl (J.utFrom hM' hU)⟩
 
 /-- **`SpecFree` across a step moving caps** (`UtKept`: each untyped region
 after an old one, its free index no lower or the new one full; the spec's
@@ -340,13 +331,13 @@ theorem JAtZ.sfree_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hM' : MdbLinks Z.th (L.mem s') G') (hU : UtKept Z.th (L.mem s) (L.mem s')) (hk : KSz σ σ') :
     Sched.SpecFree (L.mem s') G' σ' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
-  intro x hx p sb fi d hc o ko' ho
-  obtain ⟨y, hy, fi', hc', hle⟩ := hU x ((hM'.members x).1 hx).1 p sb fi d hc
+  intro x hx p sb fi hc o ko' ho
+  obtain ⟨y, hy, fi', hc', hle⟩ := hU x ((hM'.members x).1 hx).1 p sb fi false hc
   have hym : y ∈ Z.G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
   obtain ⟨ko, hko, hty⟩ := hk o ko' ho
   rw [← objBits_of_aType hty]
-  have hfib := J.ut.fib y hym p sb fi' d hc'
-  rcases J.sfree y hym p sb fi' d hc' o ko hko with e | e
+  have hfib := J.ut.fib y hym p sb fi' false hc'
+  rcases J.sfree y hym p sb fi' hc' o ko hko with e | e
   · exact Or.inl e
   · right; rcases hle with h | h <;> omega
 

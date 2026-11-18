@@ -179,7 +179,8 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       y ∈ Z.G.chains.flatten ∧ capV (L.mem s') y = capV (L.mem s) y :=
     fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩
   have JC := J.jcov
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead, fun x hx p sb fi d hc => ?_,
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead,
+    JC.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
     JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
   · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
@@ -193,10 +194,6 @@ theorem JAtZ.sc_jcov {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       · exact Or.inr (Or.inl h)
       · exact Or.inl ((hcov q hd h).2 k hq)
     · exact Or.inr (Or.inr ((Sched.idleAt_of hidl).2 hi))
-  · rw [hSS.capV (hsl x hx)] at hc
-    have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
-    obtain ⟨h1, h2⟩ := JC.ks x hx p sb fi d hc
-    exact ⟨by rw [hks]; exact h1, fun c hc' => by rw [hnb]; exact h2 c hc'⟩
 
 set_option maxHeartbeats 1000000 in
 /-- **The untyped caps' facts after an SC step**: the caps kept (slots
@@ -209,9 +206,9 @@ theorem JAtZ.sc_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {P : Fl4Spec.ObjRef → Prop}
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) (hK : Sched.ScTKw P σ σ')
     (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-  intro sl p sb fi dev hsl hcap
+  intro sl p sb fi dev hsl hcap hdv
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -224,7 +221,7 @@ theorem JAtZ.sc_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdv
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -242,13 +239,13 @@ theorem JAtZ.sc_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
-    · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
+    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 Z.c hcC
       omega
     · obtain ⟨x, hx, -⟩ := hR.ntfn n hn
-      have := J.sfree _ hxm p sb fi dev hcv n.bv _ hx
+      have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) n.bv _ hx
       simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, UScalar.bv_toNat] at this
       omega
-    · have := J.sfree _ hxm p sb fi dev hcv sc.bv _ hk
+    · have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) sc.bv _ hk
       simp only [Fl4Spec.objBits, UScalar.bv_toNat] at this
       rw [Nat.add_comm Fl4Spec.minSchedContextBits n] at this
       omega

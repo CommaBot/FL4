@@ -286,7 +286,7 @@ theorem hOut_newSc {H H' : Heap} {lo hi A k w j us : Nat} {uu q : U64}
     H' q = some (.sc uu.val) := by
   rw [hO, if_pos ⟨⟨j, hj, hv⟩, rfl⟩, huu]; try rfl
 
-set_option maxHeartbeats 1600000 in
+set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 8000 in
 /-- **`JPlaced` across a retype** (module docstring): from the placement
 before, `JCovD`, `RetPostN` with the retype done, the FL4 type number `n`
@@ -319,7 +319,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       capV (L.mem s) (nodeA (L.ksb s) i) = .Null ∨ nodeA (L.ksb s) i ∈ G.chains.flatten)
     (hSF : SpecFree (L.mem s) G σ)
     (hgc : ∀ o sz cs, σ.kheap o = some (.cnode sz cs) → Fl4Spec.wellFormedCnodeN sz cs)
-    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0)
+    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0) (hd0 : d0 = false)
     (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
     (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false) :
@@ -371,10 +371,14 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       ¬ (a.val ≤ v.val ∧ v.val < a.val + 32) := fun a ha v h1 h2 hin => by
     obtain ⟨q, kq, hq, e1, e2, -⟩ := hJP.slot_in ha
     exact hOb q kq hq v h1 h2 ⟨by omega, by omega⟩
-  have hUt : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
+  have hUt : ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi false →
       ∀ v : U64, (L.ksb s).val + 1248 ≤ v.val → v.val < (L.ksb s).val + 5344 →
-      ¬ (p.val ≤ v.val ∧ v.val < p.val + 2 ^ sb.val) := fun x hx p sb fi d hc v h1 h2 hin => by
-    rcases (hJ.ks x hx p sb fi d hc).1 with e | e <;> omega
+      ¬ (p.val ≤ v.val ∧ v.val < p.val + 2 ^ sb.val) := fun x hx p sb fi hc v h1 h2 hin => by
+    rcases (hJ.ks x hx p sb fi hc).1 with e | e <;> omega
+  -- the source is a RAM untyped
+  have hflag : ∀ {p sb fi : U64} {d : Bool}, capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi d → d = false :=
+    fun {p sb fi d} h => by
+      rw [hcs0] at h; injection h with _ _ _ e; rw [← e]; exact hd0
   have hNd : ∀ (s1 : S) (c off : U64), L.ksb s1 = L.ksb s → c.val ≤ (L.cpu s).val → off.val < 4288 →
       (L.ksb s).val + 13568 ≤ (L.nodeAt s1 c off).val := fun s1 c off hk hc ho => node_ge hnf hk hc ho
   have hct' := hcurT ct hct
@@ -419,7 +423,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       rw [hr] at hrr; cases eq_of_ok_eq hrr
       refine ⟨(hWR.2.2 v hv ?_).trans e1, hWR.1.trans hk0⟩
       rintro (hin | hin | hin)
-      · exact hUt _ hxG _ _ _ _ hcv v h1 h2 hin
+      · exact hUt _ hxG _ _ _ (by rw [hcv, hflag hcv]) v h1 h2 hin
       · exact hSl _ hxs v h1 h2 ⟨hin.1, by omega⟩
       · rcases hin with e | e | e
         · have : (core.num.U64.wrapping_add (L.ksb s0) layout.ks.WORK_UNITS).val = (L.ksb s).val + 40 := by
@@ -442,9 +446,9 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       intro v hv h1 h2
       obtain ⟨e1, hkR⟩ := hK1 v hv h1 h2
       refine (hW.2.2 v hv ?_).trans e1
-      obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, hp0, hw0, -⟩ := hE.src
+      obtain ⟨hx0, p0, sb0, fi0, fi1, d0, hc0, -, hp0, -, hw0, -, -⟩ := hE.usrc
       have hwin : ¬ (A ≤ v.val ∧ v.val < A + w * k) := fun ⟨a1, a2⟩ =>
-        hUt x0 hx0 _ _ _ _ hc0 v h1 h2 ⟨by omega, by omega⟩
+        hUt _ hx0 _ _ _ (by rw [hc0, hflag hc0]) v h1 h2 ⟨by omega, by omega⟩
       rintro ((⟨hT, hL⟩ | ⟨a, ha, a1, a2⟩) | ⟨-, a1, a2⟩)
       · rcases hL with ⟨a, ha, a1, a2⟩ | ⟨j, hj, hI⟩ | e | ⟨hne, he⟩
         · exact hSl a (hsl a ha) v h1 h2 ⟨a1, a2⟩
@@ -492,7 +496,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       swap; · exact absurd (hgc _ _ _ h0) hnw
       left
       refine ⟨y00, h0, ?_⟩
-      have hOW := old_window hSF hU hxG hcs0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
+      have hOW := old_window hSF hU hxG hcs0 hd0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
       simp only [Fl4Spec.objBits] at hOW
       have hcv : c.bv.toNat = c.val := rfl
       rw [hcv] at hOW
@@ -620,11 +624,11 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
   -- outside the kernel-global area
   · rw [hks']
     rcases hO.some hp with ⟨hn, hK⟩ | ⟨hH, -⟩
-    · obtain ⟨x0, hx0, p0, sb0, fi0, d0, hc0, h1, h2, -⟩ := hE.src
+    · obtain ⟨hx0, p0, sb0, fi0, fi1, d0, hc0, -, h1, -, h2, -, -⟩ := hE.usrc
       obtain ⟨j, hj, hv, ha1, ha2⟩ := newAt_val hn hk1
       have hb := hbits kd hK
       rw [← hRk] at hb
-      rcases (hJ.ks x0 hx0 p0 sb0 fi0 d0 hc0).1 with e | e
+      rcases (hJ.ks _ hx0 p0 sb0 fi0 (by rw [hc0, hflag hc0])).1 with e | e
       · left; omega
       · right; omega
     · exact hJP.ks p kd hH
@@ -726,7 +730,8 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         by_contra hne
         exact hm ((hM'.members _).2 ⟨⟨p3, i3, hi3, ha3⟩, _, capAt_capV _ _, hne⟩)
   -- the slots' EPT and frame caps' objects
-  · by_cases hm : a ∈ G'.chains.flatten
+  · clear hflag hUt hd0
+    by_cases hm : a ∈ G'.chains.flatten
     · rcases hE.gmem a hm with ha0 | ⟨j, hj, rfl⟩
       · cases hu : isUt (capV (L.mem s) a)
         · obtain ⟨-, e⟩ := hE.keep a ha0 hu

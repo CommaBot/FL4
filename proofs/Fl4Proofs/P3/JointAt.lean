@@ -168,9 +168,14 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   /-- [carried] `FinM` at every tree of the slots (`FinInv` gives it at
   `Z.G`; `DelE` reads every `G`). -/
   finM : ∀ G, MdbLinks Z.th (L.mem s) G → FinM (L.mem s) G
-  /-- [carried] The untyped caps' facts (`UtCapP3`: l4v `valid_untyped`,
-  `valid_cap`, the kernel's placement). -/
-  utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  /-- [carried] The RAM untyped caps' facts (`UtCapP3`: l4v `valid_untyped`,
+  `valid_cap`, the kernel's placement). Not asked of device untypeds: since
+  losfair/FL4#34 a device untyped's pointer `paddr + PPTR_BASE` may lie in
+  the kernel image, so its region may hold the kernel-state block with the
+  IRQ node's CNodes (`IntLayout.node`, objects of `Z.th` with MDB slots) and
+  the preemption point's word: `free`, `nostr`, `nsFree`, `ns` and `pp` are
+  false of such a cap at boot. -/
+  utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
     Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
   -- 1d: the scheduler
   nsc : Sched.NSC Z.N Z.C σ
@@ -347,7 +352,7 @@ theorem utJoint (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.sch
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hnode)⟩
   exact ⟨J.jcov, hSR, hV, hP, hM, hC, hI, J.ut, J.kern.orig, J.sfree, J.kern.cur, J.kern.curT, J.kern.act,
     hnode, hidx, hslot, hcap, hext,
-    fun p sb fi dev e => J.utc _ p sb fi dev hAs (by rw [← hslot, hcap, e]),
+    fun p sb fi dev e hd => J.utc _ p sb fi dev hAs (by rw [← hslot, hcap, e]) hd,
     J.kern.dwAl, J.kern.dwObj, J.kern.dwNe, J.kern.head, J.kern.gpm, J.kern.ga, J.kern.gf, J.kern.heap,
     J.kern.h0, J.kern.hks, J.kern.hnd, J.kern.ksbFit, J.kern.ksbAl, J.kern.nodeFit, J.kern.cpuCs,
     J.kern.curH, J.kern.cscH, J.cscLive.resolve_right hres, J.jpl⟩

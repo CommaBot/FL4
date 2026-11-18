@@ -188,14 +188,14 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn2.1; exact e
   have hDbg : L.mem s2 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
-  have hutc : ∀ u p' sb fi dev, AbsSlot Z.th u → capAt (L.mem s2) (cslotAddr u) = ok (.Untyped p' sb fi dev) →
+  have hutc : ∀ u p' sb fi dev, AbsSlot Z.th u → capAt (L.mem s2) (cslotAddr u) = ok (.Untyped p' sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s2 σ2 Z.G u p' sb fi := by
-    intro u p' sb fi dev hu hcap'
+    intro u p' sb fi dev hu hcap' hdv
     have hne : cslotAddr u ≠ cslotAddr sl := fun e => by
       have := capV_of_capAt hcap'; rw [e, hz2] at this; cases this
     have hcv : capV (L.mem s) (cslotAddr u) = .Untyped p' sb fi dev := by
       rw [← hoth2 _ hu.isSlot hne]; exact capV_of_capAt hcap'
-    have U := J.utc u p' sb fi dev hu (by rw [capAt_capV, hcv])
+    have U := J.utc u p' sb fi dev hu (by rw [capAt_capV, hcv]) hdv
     have hfi := U.fiLe
     have hobj : ∀ y, IsSlot Z.th y → y.val + 32 ≤ p'.val + fi.val ∨ p'.val + 2 ^ sb.val ≤ y.val := by
       intro y hy
@@ -336,9 +336,9 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn2.1; exact e
   have hDbg : L.mem s2 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
-  have hutc : ∀ u up sb fi dev, AbsSlot Z.th u → capAt (L.mem s2) (cslotAddr u) = ok (.Untyped up sb fi dev) →
+  have hutc : ∀ u up sb fi dev, AbsSlot Z.th u → capAt (L.mem s2) (cslotAddr u) = ok (.Untyped up sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s2 σ2 (renG Z.G (Equiv.swap p (cslotAddr sl))) u up sb fi := by
-    intro u up sb fi dev hu hcap2
+    intro u up sb fi dev hu hcap2 hdv
     have hcu := capV_of_capAt hcap2
     -- the slot the cap came from
     obtain ⟨u0, hu0, ha0⟩ : ∃ u0, AbsSlot Z.th u0 ∧ cslotAddr u0 = Equiv.swap p (cslotAddr sl) (cslotAddr u) := by
@@ -349,7 +349,7 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
         · exact ⟨u, hu, by rw [Equiv.swap_apply_of_ne_of_ne h2 h1]⟩
     have hc0 : capV (L.mem s) (cslotAddr u0) = .Untyped up sb fi dev := by
       rw [ha0, ← hcap' _ hu.isSlot]; exact hcu
-    have U := J.utc u0 up sb fi dev hu0 (by rw [capAt_capV, hc0])
+    have U := J.utc u0 up sb fi dev hu0 (by rw [capAt_capV, hc0]) hdv
     have hfi := U.fiLe
     have hobj : ∀ y, IsSlot Z.th y → y.val + 32 ≤ up.val + fi.val ∨ up.val + 2 ^ sb.val ≤ y.val := by
       intro y hy

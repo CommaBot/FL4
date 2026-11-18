@@ -352,15 +352,15 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (horig : ∀ sl, sl ≠ (pd.bv, idxd) → σ'.isOriginalCap sl = σ.isOriginalCap sl)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
     (hM' : MdbLinks Z.th (L.mem s') G') (hDL : DestLive Z.th (L.mem s) (L.ksb s) pd) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi := by
-  intro sl p sb fi dev hsl hcap'
+  intro sl p sb fi dev hsl hcap' hdF
   obtain ⟨hP, ⟨-, hV, hM, hC, hI⟩, -⟩ := J.xtop.rel
   have hne : cslotAddr sl ≠ cslotAddr (pd.bv, idxd) := fun e => hnu p sb fi dev (by rw [← e]; exact capV_of_capAt hcap')
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hcap _ hsl.isSlot hne]; exact capV_of_capAt hcap'
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdF
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
@@ -414,7 +414,7 @@ theorem JAtZ.ins_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
       exact ut_free J.ut hI hxm hcv hnd (by omega) hcov
     · have hk := hks' _ hpd
       simp only [objSize] at hk
-      have := (J.jcov.ks _ hxm p sb fi dev hcv).1
+      have := (J.jcov.ks _ hxm p sb fi (by rw [hcv, hdF])).1
       omega
   -- the debug word
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
@@ -472,7 +472,7 @@ block, which the joint cover puts outside every untyped region). -/
 theorem JAtZ.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
-    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev)
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
     (hnc : ¬ ∃ x, σ.cdt x = some sl) {q : U64} {rd : Nat} (hpd : Z.th q = some (.cnode rd))
     (hDL : DestLive Z.th (L.mem s) (L.ksb s) q) :
     q.val + 32 * 2 ^ rd ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val := by
@@ -508,7 +508,7 @@ theorem JAtZ.live_apart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     exact ut_free J.ut hI hxm hcv hnd (by omega) hcov
   · have hk := hks' _ hpd
     simp only [objSize] at hk
-    have := (J.jcov.ks _ hxm p sb fi dev hcv).1
+    have := (J.jcov.ks _ hxm p sb fi (by rw [hcv, hdv])).1
     omega
 
 /-- **A slot of a live CNode misses a childless untyped region**, and the
@@ -516,13 +516,13 @@ CNode stays an object of the region's restriction. -/
 theorem JAtZ.live_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} {p sb fi : U64} {dev : Bool}
-    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev)
+    (hsl : AbsSlot Z.th sl) (hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev) (hdv : dev = false)
     (hnc : ¬ ∃ x, σ.cdt x = some sl) {w : Fl4Spec.CslotPtr}
     (hw : ∃ q r, w.1 = q.bv ∧ Z.th q = some (.cnode r) ∧ w.2.length = r ∧ DestLive Z.th (L.mem s) (L.ksb s) q) :
     ((cslotAddr w).val < p.val ∨ p.val + 2 ^ sb.val ≤ (cslotAddr w).val) ∧
       AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) w := by
   obtain ⟨q, rd, hq1, hpd, hld, hDL⟩ := hw
-  have hl := J.live_apart arI hsl hcv hnc hpd hDL
+  have hl := J.live_apart arI hsl hcv hdv hnc hpd hDL
   have hP := J.xtop.rel.1
   obtain ⟨q0, i0, hi0, hq1', hq2⟩ := AbsSlot.at (th := Z.th) (sl := w) ⟨q, hq1, Or.inl (by rw [hld]; exact hpd)⟩
   have hq0 : q0 = q := P1.eq_of_bv (hq1'.symm.trans hq1)
@@ -556,13 +556,13 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (hw : P1.WritesIn st s s' (InSlot Z.th))
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
     (hM' : MdbLinks Z.th (L.mem s') G') :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' G' sl p sb fi := by
-  intro sl p sb fi dev hsl hcap'
+  intro sl p sb fi dev hsl hcap' hdv
   obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   obtain ⟨sl0, fi0, hs0, hc0, hcase⟩ := hUS sl p sb fi dev hsl (capV_of_capAt hcap')
   have hcap0 : capAt (L.mem s) (cslotAddr sl0) = ok (.Untyped p sb fi0 dev) := by rw [capAt_capV, hc0]
-  have U := J.utc sl0 p sb fi0 dev hs0 hcap0
+  have U := J.utc sl0 p sb fi0 dev hs0 hcap0 hdv
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -600,13 +600,13 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     · have hnc := hcd h0
       rcases hnew y hy with hym | ⟨w, hwW, rfl⟩
       · exact U.ns hnc y hym
-      · exact (J.live_slot arI hs0 hc0 hnc (hW w hwW)).1
+      · exact (J.live_slot arI hs0 hc0 hdv hnc (hW w hwW)).1
     · have hnc := hcd h0
       obtain ⟨r1, r3⟩ := U.rst (B g) hnc hf0
       refine ⟨fun sl' h => ?_, by rw [hna, hDbg]; exact r3⟩
       rcases hoW sl' h with h' | hwW
       · exact r1 sl' h'
-      · exact (J.live_slot arI hs0 hc0 hnc (hW sl' hwW)).2
+      · exact (J.live_slot arI hs0 hc0 hdv hnc (hW sl' hwW)).2
   · refine ⟨U.pal, U.pfit, by omega, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g),
       fun q k hk => by rcases U.nostr q k hk with h | h | h <;> omega,
       fun _ w _ h1 h2 => by omega, U.sb4, U.nostr, fun y _ => by omega, fun h0 => absurd hch h0,
@@ -620,7 +620,7 @@ facts. -/
 def SlotRest (Z : XSets) (s s' : S) (σ σ' : Fl4Spec.State Unit) : Prop :=
     CoverKept Z.th (L.mem s) (L.mem s') ∧ UtKept Z.th (L.mem s) (L.mem s') ∧
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl) ∧
-    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    (∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi)
 
 set_option maxHeartbeats 4000000 in
@@ -859,9 +859,9 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep hX' hC.toHStep k3 (fun q z hq K h8 hK => J.ksW_scKeep hw hq h8 hK) (J.act.cn hC).1 (J.jcov.dead q hq)
   -- the untyped caps' facts: the caps kept, the free parts outside the kernel-state block
-  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-    intro sl p sb fi dev hsl hcap
+    intro sl p sb fi dev hsl hcap hdv
     have hks : L.ksb s' = L.ksb s := hw.1
     have hcpu : L.cpu s' = L.cpu s := hw.2.1
     have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -869,18 +869,18 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
       rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
     have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-    have U := J.utc sl p sb fi dev hsl hcap0
+    have U := J.utc sl p sb fi dev hsl hcap0 hdv
     have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
       (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
     have hfi := U.fiLe
     have hk8 := J.kern.ksbAl
-    have hapart := (J.jcov.ks _ hxm p sb fi dev hcv).1
     have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hO.cdt] at h0; exact h0),
       fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [hO.gpml4]; exact U.gReg (B g)⟩
     · have hw8 : w.val % 8 = 0 := hal
+      have hapart := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).1
       rw [ksW_keep hw hal (by omega)]
       exact U.zero (B g) w hal h1 h2
     · rw [hO.cdt] at h0
@@ -1023,9 +1023,9 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
   -- free parts off the TCBs, the node and the kernel-state block
   have hSS0 : SlotsSame Z.th (L.mem s) (L.mem s') :=
     J.xtop.slotsSame_of hw fun b hb => schW_oobj J.xtop.fin.1.1.1.placed.tcb hb
-  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi := by
-    intro sl p sb fi dev hsl hcap
+    intro sl p sb fi dev hsl hcap hdv
     have hks : L.ksb s' = L.ksb s := hw.1
     have hcpu : L.cpu s' = L.cpu s := hw.2.1
     have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -1033,20 +1033,20 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
       rw [← hSS0.capV hsl.isSlot]; exact capV_of_capAt hcap
     have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-    have U := J.utc sl p sb fi dev hsl hcap0
+    have U := J.utc sl p sb fi dev hsl hcap0 hdv
     have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
       (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
     have hfi := U.fiLe
-    have hapart := J.jcov.ks _ hxm p sb fi dev hcv
     have hcZ : Z.c ∈ Cs := by rw [← hcq.cur]; exact J.kern.cpuCs
-    have hnd := hapart.2 Z.c hcZ
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
       fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
-    · rw [hw.mem_eq hal fun hb => ?_]
+    · have hapart := J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))
+      have hnd := hapart.2 Z.c hcZ
+      rw [hw.mem_eq hal fun hb => ?_]
       · exact U.zero (B g) w hal h1 h2
       rcases schW_val hcq.tcbs hkf hb with ⟨y, hy, e⟩ | ⟨g1, g2⟩ | ⟨g1, g2, -⟩
       · have hty : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)

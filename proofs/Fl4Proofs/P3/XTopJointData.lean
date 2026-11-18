@@ -162,15 +162,15 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       obtain ⟨g1, g2⟩ := hin
       rcases hAp p k hp hko with e | e <;> omega
   -- the untyped caps' facts
-  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s1) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s1) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s1 σ1 Z.G sl p sb fi := by
-    intro sl p sb fi dev hsl hcap
+    intro sl p sb fi dev hsl hcap hdv
     have hna : ∀ c o, L.nodeAt s1 c o = L.nodeAt s c o := P1.nodeAt_of_ksb hkb
     obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
     have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
       rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
     have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-    have U := J.utc sl p sb fi dev hsl hcap0
+    have U := J.utc sl p sb fi dev hsl hcap0 hdv
     have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
       (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
     have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
@@ -184,7 +184,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · exact U.zero (B g) w hal' h1 h2
       subst hb
       obtain ⟨o, ko, hko, g1, g2⟩ := hObj
-      have := J.sfree _ hxm p sb fi dev hcv o ko hko
+      have := J.sfree _ hxm p sb fi (by rw [hcv, hdv]) o ko hko
       omega
     · intro g h0 hf0
       rw [F.cdt] at h0

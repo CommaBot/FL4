@@ -89,10 +89,10 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s σ' :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) rfl (fun _ _ => rfl)⟩
   have hkern := J.kern_keepA rfl rfl hX.fin.1.1.1 F rfl
-  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  have hutc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s σ' Z.G sl p sb fi := by
-    intro sl p sb fi dev hsl hcap
-    have U := J.utc sl p sb fi dev hsl hcap
+    intro sl p sb fi dev hsl hcap hdv
+    have U := J.utc sl p sb fi dev hsl hcap hdv
     refine ⟨U.pal, U.pfit, U.fiLe, U.high, U.actZ, U.free, U.zero, U.sb4, U.nostr, U.nsFree,
       fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), U.pp, ?_, U.dwReg, fun g => by rw [F.gpml4]; exact U.gReg g⟩
     intro g h0 hf0

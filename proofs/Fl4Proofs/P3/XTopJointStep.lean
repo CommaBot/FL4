@@ -144,7 +144,7 @@ structure JRest (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List 
   jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
   kern : JKern (L := L) H Cs D Z.th s σ
-  utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+  utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
     Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
   nsc : Sched.NSC Z.N Z.C σ
   inv : Sched.Inv σ
@@ -197,7 +197,7 @@ theorem JCs.same {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
     have hsl' : ∀ x ∈ G.chains.flatten, IsSlot Z.th x := fun x h => ((hG0.members x).1 h).1
     exact (J.finM G hG0).of_capV fun x hx => hSS.capV (hsl' x hx)
-  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', d, ?_, le_rfl⟩) hk
+  · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hk
     rw [← hSS.capV (hsl x' hx')]; exact hc
 
 end

@@ -312,11 +312,14 @@ structure SpecCover (H : Heap) (σ : Fl4Spec.State Unit) : Prop where
   objects of at least a page ([W] producer: retype). -/
   arch : ∀ o ao, σ.kheap o = some (.archObj ao) → ∃ n, 12 ≤ n ∧ H ⟨o⟩ = some (.other n)
 
-/-- **No spec object in an untyped cap's free part** (l4v `valid_untyped`):
-every object of the spec's heap that meets the range of an untyped cap of
-the MDB lies in it, below its free index. -/
+/-- **No spec object in a RAM untyped cap's free part** (l4v `valid_untyped`):
+every object of the spec's heap that meets the range of a RAM untyped cap of
+the MDB lies in it, below its free index. Not asked of device untypeds:
+since losfair/FL4#34 a device untyped's pointer `paddr + PPTR_BASE` may lie
+in the kernel image, where the spec's IRQ-node CNodes are (the kernel-state
+block). -/
 def SpecFree (mem : U64 → U64) (G : MdbGhost) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV mem x = .Untyped p sb fi d →
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV mem x = .Untyped p sb fi false →
     ∀ o ko, σ.kheap o = some ko →
       (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
       (p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + fi.val)

@@ -202,6 +202,12 @@ theorem devF_of_notDev {m : U64 → U64} {x p sb fi : U64} {d : Bool} (h : capV 
   · rfl
   · exact absurd rfl g
 
+/-- An untyped cap `NotDev` is a RAM cap (its value with the device flag
+false). -/
+theorem ramCap_of_notDev {m : U64 → U64} {x p sb fi : U64} {d : Bool} (h : capV m x = .Untyped p sb fi d)
+    (g : NotDev m x p sb fi) : capV m x = .Untyped p sb fi false := by
+  rw [h, devF_of_notDev h g]
+
 /-- `NotDev` of a RAM untyped cap. -/
 theorem notDev_ram {m : U64 → U64} {x p sb fi : U64} (h : capV m x = .Untyped p sb fi false) : NotDev m x p sb fi := by
   unfold NotDev; rw [h]; simp
@@ -214,7 +220,12 @@ reset's conditions, the debug-list head and the global PML4 off it, and the
 preemption point's hypothesis over it. The placement facts (`high`,
 `actZ`, `zero`, `rst`, `dwReg`, `gReg`) are asked of a RAM untyped
 only (`NotDev`): a device untyped's pointer may wrap to the lower half or
-lie in the kernel image (losfair/FL4#34). -/
+lie in the kernel image (losfair/FL4#34). The other facts (`free`,
+`nostr`, `nsFree`, `ns`, `pp`) are false of a device untyped over the
+kernel image too (its region holds the kernel-state block, with the IRQ
+node's CNodes and slots and the preemption point's word), so `JAtZ.utc` and
+`UtJoint.utc` ask `UtCapP3` of RAM untypeds only, and the `NotDev` guards
+hold there trivially. -/
 structure UtCapP3 {A' : Type} (arI : machine.Arch A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (p sb fi : U64) : Prop where
   pal : p.val % 2 ^ sb.val = 0
@@ -277,7 +288,7 @@ structure UtJoint {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) 
   capEq : capAt (L.mem s) slot = ok cap
   /-- The extra caps' slots: slots of the typed heap, their caps related. -/
   extraRel : ∀ x ∈ extra.val, x ≠ 0#u64 → IsSlot th x ∧ ∃ c a, capAt (L.mem s) x = ok c ∧ CapRel c a ∧ CapValid th c
-  utc : ∀ p sb fi dev, cap = .Untyped p sb fi dev → UtCapP3 (L := L) arI th s σ G (pp.bv, idx) p sb fi
+  utc : ∀ p sb fi dev, cap = .Untyped p sb fi dev → dev = false → UtCapP3 (L := L) arI th s σ G (pp.bv, idx) p sb fi
   dwAl : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
   dwObj : ∀ a, IsSlot th a → ¬ (a.val ≤ (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val ∧
     (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS).val < a.val + 32)
@@ -342,7 +353,7 @@ theorem retype_postN {A' : Type} (arI : machine.Arch A') {H : Heap} {Cs : Set U6
   obtain ⟨fiv, hfiv⟩ : ∃ fiv : U64, fiv = if reset then 0#u64 else fi := ⟨_, rfl⟩
   obtain ⟨t, r, hctx, haleq⟩ := retCtx_of_args J.rel J.valid J.placed J.links J.cdt J.mdb hAs hcap hc hca hcv hxs hsz hdst
     hemp hrsE hal hmem hdev fiv hfiv
-  have U := J.utc p sb fi dev rfl
+  have U := J.utc p sb fi dev rfl hdv
   have hnd : NotDev (L.mem s0) (cslotAddr (pp.bv, idx)) p sb fi := notDev_ram (by rw [capV_of_capAt hcap, hdv])
   have hct : sched.cur_thread st s0 = ok (L.curW s0) := cur_thread_eq s0
   have hb : Fl4Spec.fl4ObjBitsApi t us.val = zOf nt.val us.val := (objTypeOf_fl4 hctx.ty us.val).2.1
@@ -624,13 +635,13 @@ theorem resetOK_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
       DbgTimerKept (L := L) H (RegionD H p.val (p.val + 2 ^ sb.val)) Cs s) :
     ResetOK st H Cs s slot p sb fi dev := by
   obtain ⟨hAs, hx, hcx⟩ := J.slot_mem (by simp)
-  have U := J.utc p sb fi dev rfl
+  have U := J.utc p sb fi dev rfl hdv
   have hnd : ∀ y, ¬ Mdb.Desc G.par y slot := by
     intro y
     refine Mdb.not_desc_of_no_child fun z hz => hnc ?_
     exact (J.cdt.has_child_iff J.placed hAs).2 ⟨z, by rw [← J.slotEq]; exact hz⟩
   have RD := region_deadP J.jcov J.ut J.mdb hx (by rw [← hdv]; exact hcx) (lo := p.val) (hi := p.val + 2 ^ sb.val) (Or.inr ⟨hnd, le_rfl⟩) le_rfl
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi dev hcx
+  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   refine ⟨hcapS, U.pal, U.pfit, dead_dropOK J RD hfr hks hcpu hcw hcs hact hrun (hKR fun q k hq hr => (RD q k hq hr).1)
     (hDT fun q k hq hr => (RD q k hq hr).1), ⟨fun c hc => ?_, ?_⟩,
     U.fiLe, U.sb4, capAt_untyped_inv J.capEq⟩
@@ -856,8 +867,8 @@ theorem createOK_noreset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Se
   rw [hcx] at hc0
   simp only [capability.Cap.Untyped.injEq] at hc0
   obtain ⟨rfl, rfl, rfl, rfl⟩ := hc0
-  have U := J.utc p sb fi dev rfl
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi dev hcx
+  have U := J.utc p sb fi dev rfl hdv
+  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   have hfitW : A + w * k ≤ 2 ^ 64 := le_trans hAs U.pfit
   have hpos : 0 < A := by
     have := U.high (notDev_ram (by rw [← J.slotEq, capV_of_capAt J.capEq, hdv])); omega
@@ -970,8 +981,8 @@ theorem createOK_reset {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set 
     CreateOK st (H.drop (RegionD H p.val (p.val + 2 ^ sb.val))) Cs sR s' := by
   obtain ⟨Tr, C, hJP⟩ := J.jpl
   obtain ⟨-, hx, hcx⟩ := J.slot_mem (by simp)
-  have U := J.utc p sb fi dev rfl
-  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi dev hcx
+  have U := J.utc p sb fi dev rfl hdv
+  obtain ⟨hk1, hk2⟩ := J.jcov.ks slot hx p sb fi (by rw [← hdv]; exact hcx)
   have hfitW : A + w * k ≤ 2 ^ 64 := le_trans hhi U.pfit
   have hpos : 0 < A := by
     have := U.high (notDev_ram (by rw [← J.slotEq, capV_of_capAt J.capEq, hdv])); omega
@@ -1003,14 +1014,14 @@ by `restrictTh`. -/
 theorem UtJoint.slots_unused {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64} {s : S}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slot : obj.Slot} {p sb : U64} {dev : Bool}
     {th : TypedHeap} {G : MdbGhost} {D : Set U64} {σ : Fl4Spec.State Unit} {pp : U64} {rs : Nat} {idx : List Bool}
-    (J : UtJoint (L := L) arI H Cs s slot (.Untyped p sb 0#u64 dev) extra th G D σ pp rs idx) :
+    (J : UtJoint (L := L) arI H Cs s slot (.Untyped p sb 0#u64 dev) extra th G D σ pp rs idx) (hdv : dev = false) :
     ∀ a, IsSlot th a → IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) a := by
   obtain ⟨-, hx, hcx⟩ := J.slot_mem (by simp)
   have hout : ∀ (q : U64) ko, σ.kheap q.bv = some ko → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val) := by
     intro q ko hk ⟨h1, h2⟩
     have e : q.bv.toNat = q.val := rfl
     have hb := Nat.one_le_two_pow (n := Fl4Spec.objBits ko)
-    have := J.sfree slot hx p sb 0#u64 dev hcx q.bv ko hk
+    have := J.sfree slot hx p sb 0#u64 (by rw [hcx, hdv]) q.bv ko hk
     rw [e] at this
     simp only [UScalar.val, show (0#u64 : U64).bv.toNat = 0 from rfl] at this ⊢
     rcases this with (h | h) | ⟨-, h⟩ <;> simp only [UScalar.val] at h1 h2 <;> omega
@@ -1164,20 +1175,36 @@ theorem utOkRU_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
   rintro s0 s slot cap extra ⟨th, G, D, σ, pp, rs, idx, J⟩ hrs
   exact ⟨th, G, D, σ, pp, rs, idx, J, hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs⟩
 
-/-- **[W] No device untyped is retyped** (at the decode's `P3Ok` states).
-**False for real device retypes until the retype stack is device-aware**:
-the theorems taking it say nothing of a retype from a device untyped. The
-device half of losfair/FL4#34 not yet done. Since #34 a device untyped's
-pointer `paddr + PPTR_BASE` may wrap to the lower half or lie in the kernel
-image, so `UtCapP3`'s placement facts (`high`, `actZ`, `zero`, `rst`,
-`dwReg`, `gReg`) are asked of RAM untypeds only (`NotDev`), while the retype
-stack (`retype_cont_allN`, `retype_cont_pml4N`, `CreateOK`'s
-`RegionOffNodes`) still takes them for every untyped. Missing: the device
-retype and reset (a device untyped makes only frames and untypeds,
-`reset_untyped` skips `clear_free` for it, `retype_full` takes `hzero` only
-for RAM). -/
-def DevRetypeGap (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
-  ∀ s slot p sb fi dev extra, P3Ok s slot (.Untyped p sb fi dev) extra → dev = false
+/-- **[W] The retype from a device untyped** (named, as `UtVtxP`): P1's
+`UtRetypeP3.run` conclusion at the decode's `P3Ok` states whose untyped cap
+is a device untyped (losfair/FL4#34). Was: "no device untyped is retyped",
+false for any real device retype. Not done here because the retype stack
+(`retype_cont_allN`, `retype_cont_pml4N`, `createOK_noreset`/`createOK_reset`
+with `CreateOK`'s `RegionOffNodes`) takes `UtCapP3`'s facts, which
+`JAtZ.utc` gives for RAM untypeds only: a device untyped's pointer
+`paddr + PPTR_BASE` may wrap to the lower half (`high` false) or lie in the
+kernel image, its region then holding the kernel-state block, the IRQ
+node's CNodes and slots and the per-core nodes (`free`, `nostr`, `nsFree`,
+`ns`, `pp`, `actZ`, `dwReg`, `gReg`, `JCovD.ks` false), and its memory is
+not zero (`zero` false). What FL4 does there (crates/fl4-core untyped.rs):
+`decode` refuses every type but frames and untypeds for a device cap;
+`reset_untyped` of a device cap only sets the free index to 0 (no
+`clear_free`, no preemption point); `retype` sets the free index and
+`create_new_objects` makes frame or untyped caps over device memory (no
+typed-heap object, no `H` object: P1's `newKind` is `none` for frames, and
+for untypeds). The missing proof: that run (a `CreateOK` with no new
+object) without the RAM placement facts. -/
+def DevRetypeGap {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs U : Set U64)
+    (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
+  ∀ (Ac : Set U64) (s0 s : S) (a : A') (extra : Aeneas.Std.Array obj.Slot 3#usize) (slot ptr sb fi : U64)
+    (reset : Bool) (aligned nt us dest off win : U64),
+    P3Ok s0 slot (.Untyped ptr sb fi true) extra →
+    sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
+    DecPre st H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U Ac s0 (.Untyped ptr sb fi true) extra →
+    CapSlotW H.tcbs H.omega H.frame slot →
+    UtArgs st s0 extra slot ptr sb fi true reset aligned nt us dest off win →
+    Cur0 st H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits Ac s0 s →
+    UtRunPost (L := L) arI H Cs s a slot ptr sb fi true reset aligned nt us dest off win
 
 set_option maxHeartbeats 4000000 in
 /-- **P1's `UtRetypeP3` with `UtP3Ok` as `P3Ok`**: the reset's facts
@@ -1194,14 +1221,16 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
     (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop)
     (hOk : UtOkRU (L := L) arI H Cs P3Ok) (hDbg : UtDbgTcbP (L := L) arI H Cs P3Ok)
     (hVtx : UtVtxP (L := L) arI H Cs U P3Ok)
-    (hND : DevRetypeGap P3Ok) :
+    (hDev : DevRetypeGap (L := L) arI H Cs U P3Ok) :
     UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U P3Ok := by
   refine ⟨?_, ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, hAdm, h0Cs, ?_⟩
   · intro Ac s a len slot buf ptr sb fi dev extra h
     simp at h
   intro Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0
+  cases dev
+  case true => exact hDev Ac s0 s a extra slot ptr sb fi reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0
   by_cases hnt : 13 < nt.val
-  · exact hVtx Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0 hnt
+  · exact hVtx Ac s0 s a extra slot ptr sb fi false reset aligned nt us dest off win hP3 hrs hDP hCSW hUA hC0 hnt
   have hP3' := hP3
   obtain ⟨th, G, D, σ, pp, rs, idx, J, hRUJ⟩ := hOk _ _ _ _ _ hP3 hrs
   obtain ⟨hfr, hks, hcpu, hcapS⟩ := J.restart hrs
@@ -1211,13 +1240,13 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
       (Heap.scBits H) Ac' s := ⟨hbx.1, hbx.2.1, hbx.2.2.1, hbx.2.2.2.2, hbx.2.2.2.1⟩
   have hTm : TimerOK st H.tcbs Cs s := hbx.2.2.1.2.2.tm
   obtain ⟨⟨r0, s', a'⟩, hv, t, r, fiv, hctx, haleq, hRP⟩ :=
-    spec_exists (retype_postN (ar := a) arI J (hND _ _ _ _ _ _ _ hP3') hrs hUA (by omega) hrcb hppS)
+    spec_exists (retype_postN (ar := a) arI J rfl hrs hUA (by omega) hrcb hppS)
   -- the reset's facts
-  have hcapS' : obj.Slot.cap st slot s = ok (.Untyped ptr sb fi dev) := by rw [slot_cap_eq]; exact hcapS
+  have hcapS' : obj.Slot.cap st slot s = ok (.Untyped ptr sb fi false) := by rw [slot_cap_eq]; exact hcapS
   have hnc : reset = true → ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := fun h => by
     have := hctx.resetEq; rw [h] at this; simpa using this.symm
-  have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi dev := fun h =>
-    resetOK_of J (hND _ _ _ _ _ _ _ hP3') hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
+  have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi false := fun h =>
+    resetOK_of J rfl hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
       (fun hd => (hRUJ _ _ hd).2)
   refine ⟨hROK, ?_⟩
   rw [hv, WP.spec_ok]
@@ -1255,15 +1284,11 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
     have hk : k = 2 ^ zOf nt.val us.val := by rw [ek, hfo.2.1]
     have hTn : t = .tcbObject ↔ nt.val = 1 := hfo.2.2.2.2.2.2
     have hZ : (newKind nt.val us.val).isSome → (∀ z, newKind nt.val us.val ≠ some (.other z)) →
-        dev = false ∧ t ≠ .archObject .pml4Obj := by
+        false = false ∧ t ≠ .archObject .pml4Obj := by
       intro hs ho
       have hc := newKind_core hs ho
       refine ⟨?_, ?_⟩
-      · cases hd : dev
-        · rfl
-        · rcases hctx.device hd with h | h
-          · have := hfo.2.2.1.1 h; omega
-          · have := hfo.2.2.2.1.1 h; omega
+      · rfl
       · intro ht; have := hctx.ty; rw [ht] at this
         rcases hc with h | h | h | h | h <;> rw [h] at this <;> simp [objTypeOf] at this
     have hn5 : nt.val = 5 → 7 ≤ us.val := fun h => by have := hctx.size.2.2.2.2; omega
@@ -1272,7 +1297,7 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
     have hwin : w = win.val := by rw [ew]; simp [windowSlots]
     have hDbgT : nt.val = 1 → DbgLinksOK st (utHeap H reset ptr sb) Cs s' A (A + w * k) A k w nt.val := by
       intro h1
-      obtain ⟨v', hv', hpost⟩ := spec_exists (hDbg s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win
+      obtain ⟨v', hv', hpost⟩ := spec_exists (hDbg s0 s a extra slot ptr sb fi false reset aligned nt us dest off win
         hP3' hrs hUA h1)
       rw [hv] at hv'; cases eq_of_ok_eq hv'
       have := hpost hr0
@@ -1284,7 +1309,7 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
       cases reset
       · refine ⟨s, Or.inl ⟨rfl, rfl⟩, ?_⟩
         rw [utHeap_false]
-        exact createOK_noreset J (hND _ _ _ _ _ _ _ hP3') hfr hks hcpu hcw hcs hact hrun hTm hE hW hWZ hk hAk hTn hZ hn5 hk12
+        exact createOK_noreset J rfl hfr hks hcpu hcw hcs hact hrun hTm hE hW hWZ hk hAk hTn hZ hn5 hk12
           (fun hd => (hRUJ _ _ hd).1) (fun hd => (hRUJ _ _ hd).2)
           (fun h => by have := hDbgT h; rw [utHeap_false] at this; exact this) h0Cs
       · obtain ⟨⟨p0, sb0, d0, hc0⟩, hres⟩ := hRB rfl
@@ -1297,13 +1322,13 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
         refine ⟨s, Or.inr ⟨rfl, a, hres'⟩, ?_⟩
         rw [utHeap_true]
         obtain ⟨Tr, C, hJP⟩ := J.jpl
-        have U := J.utc ptr sb 0#u64 dev rfl
+        have U := J.utc ptr sb 0#u64 false rfl rfl
         obtain ⟨-, p0, sb0, fi0, fi1, d0, hc0, -, hpA, -, hAs, -, -⟩ := hE.usrc
         rw [capV_of_capAt J.capEq] at hc0
         simp only [capability.Cap.Untyped.injEq] at hc0
         obtain ⟨rfl, rfl, -, -⟩ := hc0
-        refine createOK_reset J (hND _ _ _ _ _ _ _ hP3') hks ?_ ?_ hTm' J.placed (fun a h => h)
-          (fun a ha => slotIn_restrict hJP U.nostr a (J.slots_unused a ha)) hpA hAs hW hWZ hk hAk hTn hZ hn5 hk12
+        refine createOK_reset J rfl hks ?_ ?_ hTm' J.placed (fun a h => h)
+          (fun a ha => slotIn_restrict hJP U.nostr a (J.slots_unused rfl a ha)) hpA hAs hW hWZ hk hAk hTn hZ hn5 hk12
           (fun h => by have := hDbgT h; rw [utHeap_true] at this; exact this) h0Cs
         · rw [Heap.drop_of_not hROK'.2.2.2.1.cur, hcw, J.curH]; simp
         · rw [Heap.drop_of_not hROK'.2.2.2.1.csc, hcs]; exact J.cscH
@@ -1318,8 +1343,8 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
       refine ⟨sR, Or.inr ⟨rfl, a1, hres'⟩, ?_⟩
       rw [utHeap_true]
       obtain ⟨Tr, C, hJP⟩ := J.jpl
-      have U := J.utc ptr sb fi dev rfl
-      refine createOK_reset J (hND _ _ _ _ _ _ _ hP3') (hW.1.symm.trans hksv) ?_ ?_ hTm' J.placed.restrict hsl (slotIn_restrict hJP U.nostr)
+      have U := J.utc ptr sb fi false rfl rfl
+      refine createOK_reset J rfl (hW.1.symm.trans hksv) ?_ ?_ hTm' J.placed.restrict hsl (slotIn_restrict hJP U.nostr)
         hlo hhi hW hWZ hk hAk hTn hZ hn5 hk12
         (fun h => by have := hDbgT h; rw [utHeap_true] at this; exact this) h0Cs
       · rw [hRK.1, Heap.drop_of_not hROK'.2.2.2.1.cur, hcw, J.curH]; simp
@@ -1331,10 +1356,10 @@ theorem utRetypeP3_of [Fl4Proofs.P1.PlainStore st] {A' : Type} (arI : machine.Ar
     (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
-    (hVtx : UtVtx (L := L) arI H Cs U) (hND : DevRetypeGap (UtP3Ok (L := L) arI H Cs)) :
+    (hVtx : UtVtx (L := L) arI H Cs U) (hDev : DevRetypeGap (L := L) arI H Cs U (UtP3Ok (L := L) arI H Cs)) :
     UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtP3Ok (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_of hRU) hDbg hVtx hND
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_of hRU) hDbg hVtx hDev
 
 end
 

@@ -133,18 +133,19 @@ theorem JAtZ.delUtFact_of {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     have hy' : y ∈ G'.chains.flatten := (hM2.members y).2 ⟨hys, _, capAt_capV _ _, by
       rw [e]; intro h; rw [h, physF_null] at hp; cases hp⟩
     exact ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hut, by rw [e]; exact hb, by rw [e]; exact ht⟩
-  have hkb := (J.jcov.ks _ hum _ _ _ _ hcv).1
+  intro hd
+  have hkb := (J.jcov.ks _ hum _ _ _ (by rw [hcv, hd])).1
   have out : ∀ y : U64, SlotLiveAt (L.mem s) Z.G (L.ksb s) (cslotAddr sl) y →
       y.val < up.val ∨ up.val + 2 ^ usb.val ≤ y.val := by
     rintro y (h | ⟨h1, h2⟩)
     · have := ut_free hU2 hI2 hum2 hcv2 hnd (Nat.lt_succ_self _) (ocov _ _ h)
       omega
     · omega
-  have U := J.utc u up usb ufi udev hu hcu
+  have U := J.utc u up usb ufi udev hu hcu hd
   have hks : L.ksb s' = L.ksb s := hw.1
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
-  refine ⟨fun y hy hn => ?_, fun hd _ => ⟨fun x hx => ?_, ?_⟩⟩
+  refine ⟨fun y hy hn => ?_, fun _ => ⟨fun x hx => ?_, ?_⟩⟩
   · have hyx : y ≠ cslotAddr sl := fun e => hn (by rw [e]; exact hnull)
     exact out y (hlive y hy hyx (Or.inl (by rw [← hoth y hy hyx]; exact hn)))
   · rw [hor] at hx

@@ -38,11 +38,12 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- `UtApart` from `JCovD`'s untyped-caps-miss-the-kernel-area field, for a
-cap of the MDB. -/
+RAM cap of the MDB (a device untyped's region may hold the kernel-global
+block, losfair/FL4#34). -/
 theorem Sched.JCovD.utApart {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
-    (hJ : Sched.JCovD (L := L) th H G D Cs s) (hM : MdbLinks th (L.mem s) G) {x p sb fi : U64} {d : Bool}
-    (hx : IsSlot th x) (hc : capAt (L.mem s) x = ok (.Untyped p sb fi d)) : UtApart (L := L) s p sb :=
-  (hJ.ks x ((hM.members _).2 ⟨hx, _, hc, by simp⟩) p sb fi d (capV_of_capAt hc)).1
+    (hJ : Sched.JCovD (L := L) th H G D Cs s) (hM : MdbLinks th (L.mem s) G) {x p sb fi : U64}
+    (hx : IsSlot th x) (hc : capAt (L.mem s) x = ok (.Untyped p sb fi false)) : UtApart (L := L) s p sb :=
+  (hJ.ks x ((hM.members _).2 ⟨hx, _, hc, by simp⟩) p sb fi (capV_of_capAt hc)).1
 
 /-- A slot lies within an object of the typed heap. -/
 theorem IsSlot.obj {th : TypedHeap} (hP : Placed th) {a : U64} (h : IsSlot th a) :

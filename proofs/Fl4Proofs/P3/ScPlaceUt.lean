@@ -8,8 +8,9 @@ heaps, nor any word the other subsystems' relations read (for MakePool's
   physical, non-untyped cap of the MDB.
 * `JCov th H G Cs s`: every object of `th` and of P1's heap `H` is
   covered (l4v: objects are named by caps; the ghost heaps track the
-  objects with caps), and the untyped caps' ranges miss the kernel-state
-  block and the core nodes.
+  objects with caps), and the RAM untyped caps' ranges miss the
+  kernel-state block and the core nodes (`UtKsApart`; not device untypeds,
+  losfair/FL4#34).
 * `ut_free`: a covered range misses a childless untyped cap's range
   (`UtInv.drange`, `MdbInv.anc_ut`).
 * `restrictTh_childless`: so `restrictTh th p (p + 2 ^ sb) = th`
@@ -131,15 +132,33 @@ theorem IdleOut.keep {th : TypedHeap} {H : Heap} {G G' : MdbGhost} {s s' : S}
   obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc
   exact h y hy p sb fi' hc' q ((idleAt_of hidl).1 hq)
 
+/-- **The RAM untyped regions miss the kernel-state block and every core's
+node** (l4v `valid_global_refs` for untyped caps, as `IdleOut`). Not asked
+of device untypeds: since losfair/FL4#34 a device untyped's pointer
+`paddr + PPTR_BASE` may lie in the kernel image, where the kernel-state
+block and the nodes are (statics of the image). -/
+def UtKsApart (G : MdbGhost) (Cs : Set U64) (s : S) : Prop :=
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi false →
+    (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
+    ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
+
+/-- **`UtKsApart` across a step** keeping the kernel-state base and the
+untyped regions (each after an old one, same device flag). -/
+theorem UtKsApart.keep {G G' : MdbGhost} {Cs : Set U64} {s s' : S} (h : UtKsApart (L := L) G Cs s)
+    (hks : L.ksb s' = L.ksb s) (hut : UtFrom G G' (L.mem s) (L.mem s')) : UtKsApart (L := L) G' Cs s' := by
+  intro x hx p sb fi hc
+  obtain ⟨y, hy, fi', hc'⟩ := hut x hx p sb fi false hc
+  have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
+  obtain ⟨h1, h2⟩ := h y hy p sb fi' hc'
+  exact ⟨by rw [hks]; exact h1, fun c hc => by rw [hnb]; exact h2 c hc⟩
+
 /-- **Every object is covered by a cap, or is an idle object** (`IdleAt`),
-the idle objects outside the untyped regions, and the untyped caps miss the
-kernel-state block and the core nodes (module docstring). -/
+the idle objects outside the RAM untyped regions, and the RAM untyped caps
+miss the kernel-state block and the core nodes (module docstring). -/
 structure JCov (thp : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop where
   th : ∀ q k, thp q = some k → Covered (L.mem s) G q.val (q.val + max (objSize k) 1) ∨ IdleAt (L := L) s q
   h : ∀ q k, H q = some k → Covered (L.mem s) G q.val (q.val + 2 ^ k.bits) ∨ IdleAt (L := L) s q
-  ks : ∀ x ∈ G.chains.flatten, ∀ p sb fi d, capV (L.mem s) x = .Untyped p sb fi d →
-    (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
-    ∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val
+  ks : UtKsApart (L := L) G Cs s
   idleOut : IdleOut (L := L) thp H G s
 
 variable {th : TypedHeap} {H : Heap} {G : MdbGhost} {Cs : Set U64} {s : S}
@@ -187,7 +206,7 @@ theorem oobj_childless (hJ : JCov (L := L) th H G Cs s) {Tr C0 : Set U64} {σ : 
   intro a h1 h2 hO
   have nin : ∀ {lo hi : Nat}, Covered (L.mem s) G lo hi → lo ≤ a.val → a.val < hi → False :=
     fun hcv l1 l2 => by have := notin_childless hU hI hx hcx hnd hcv l1 l2; omega
-  have hks := hJ.ks x hx p sb fi false hcx
+  have hks := hJ.ks x hx p sb fi hcx
   have hobj : ∀ {q : U64} {k : HKind}, H q = some k → q.val ≤ a.val → a.val < q.val + 2 ^ k.bits → False :=
     fun {q k} hq l1 l2 => by
       rcases hJ.h q k hq with hcv | hi

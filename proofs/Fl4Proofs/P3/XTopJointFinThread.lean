@@ -392,9 +392,9 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
       NotDev (L.mem s) (cslotAddr sl) p sb fi → (¬ ∃ x, σ.cdt x = some sl) → fi.val ≠ 0 →
       ¬ (p.val ≤ (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
         (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val)) :
-    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) →
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
       Sched.UtCapP3 (L := L) arI Z.th s' σ Z.G sl p sb fi := by
-  intro sl p sb fi dev hsl hcap
+  intro sl p sb fi dev hsl hcap hdv
   have hks : L.ksb s' = L.ksb s := hw.1
   have hcpu : L.cpu s' = L.cpu s := hw.2.1
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
@@ -402,7 +402,7 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
   have hcv : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi dev := by
     rw [← hSS.capV hsl.isSlot]; exact capV_of_capAt hcap
   have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) := by rw [capAt_capV, hcv]
-  have U := J.utc sl p sb fi dev hsl hcap0
+  have U := J.utc sl p sb fi dev hsl hcap0 hdv
   have hxm : cslotAddr sl ∈ Z.G.chains.flatten :=
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
@@ -418,7 +418,7 @@ theorem JAtZ.dbgw_utc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     · have hth : Z.th y = some .tcb := (hJ.tcb y).2 (J.zH.1 y hy)
       have := U.free y .tcb hth
       simp only [objSize] at this; omega
-    · have := (J.jcov.ks _ hxm p sb fi dev hcv).2 Z.c hcC
+    · have := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).2 Z.c hcC
       omega
   · intro g h0 hf0
     obtain ⟨r1, -⟩ := U.rst (B g) h0 hf0
@@ -668,13 +668,13 @@ theorem JAtZ.dbgRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     rcases hdh with e | hv
     · rw [e]
       rintro ⟨h1, -⟩
-      have hh := (J.utc sl p sb fi dev hsl hcap).high g
+      have hh := (J.utc sl p sb fi dev hsl hcap (devF_of_notDev (capV_of_capAt hcap) g)).high g
       have h0' : (0#u64 : U64).val = 0 := rfl
       have e64 : (2 : Nat) ^ 64 - 2 ^ 47 = 18446603336221196288 := by norm_num
       rw [h0'] at h1
       rw [e64] at hh
       omega
-    · have U := J.utc sl p sb fi dev hsl hcap
+    · have U := J.utc sl p sb fi dev hsl hcap (devF_of_notDev (capV_of_capAt hcap) g)
       rcases hhd0 with e | ⟨e1, e2⟩
       · rw [e]; exact (U.rst g h0 hf0).2
       · rw [e2]
