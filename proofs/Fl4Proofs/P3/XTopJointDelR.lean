@@ -66,8 +66,8 @@ some of them proved here.
   invariant: `JKern`'s current SC must stay covered).
 * A final thread cap's finalisation (`jFinAt_thread`): XTopJointFinThread's
   `JAtZ.finThreadJ` (the notification unbind, timer removal, `unbind_tcb`,
-  `complete_yield_to`, `suspend` but the `cancel_ipc` of a thread blocked sending or on a
-  notification (receive from `RecvReplyHyp` [J], reply proved), and
+  `complete_yield_to`, `suspend` (its `cancel_ipc`: send, notification and
+  reply proved, receive from `RecvReplyHyp` [J]), and
   debug-list removal proved; the narrow facts from `JThreadFinHyps` [J]/[P]), the slots by P1's
   `fin_cap_thread.slots`, the thread dead after (P1's `fin_cap_thread.dead`,
   `JAtZ.tcb_ready`).

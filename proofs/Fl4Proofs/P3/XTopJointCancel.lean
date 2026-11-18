@@ -1,12 +1,14 @@
 /-
 P3 (DESIGN.md §9), IPC: **`cancel_ipc` at `J` of a thread blocked sending on
 an endpoint or waiting on a notification** (`JAtZ.cancelSendJ`,
-`JAtZ.cancelNtfnJ`: `JCancelHyps`' `send` and `ntfn` cases, XTopJointSuspend),
+`JAtZ.cancelNtfnJ`; `jCancel_send`, `jCancel_ntfn`: XTopJointSuspend's
+`JCancelAt` for the send and notification states, `JAtZ.suspendJ`'s `hSd`,
+`hNt`),
 from `JAtZ` before to `JAtZ` after, with no named premise.
 
 * FL4's side: `cancel_ipc_sendF` / `cancel_ipc_ntfnF` (IpcCancelF: the
   spec's outcome, `IRel` after, the footprint `CnW`), the slots kept by
-  `IRel.iframe_of` (`CnW.oobj`); P1's `BlkOK` after (`ipc.cancel_ipc.all`)
+  `IRel.iframe_of` (`CnW.oobj`); P1's `BlkOK` after (`ipc.cancel_ipc.blk`)
   and its footprint `KW` (`ipc.cancel_ipc.kw`).
 * The spec's side: the frame `KFr t` (IpcCancelFr: `cancelIpc_send_kfr`,
   `cancelIpc_ntfn_kfr`), `Inv` by `cancel_kb_inv` with `t`'s `RelIfBound`
@@ -21,30 +23,8 @@ from `JAtZ` before to `JAtZ` after, with no named premise.
 import Fl4Proofs.P3.ScSignalBoundJ
 import Fl4Proofs.P3.IpcCancelF
 import Fl4Proofs.P3.IpcCancelFr
+import Fl4Proofs.P3.XTopJointSuspend
 open Aeneas Aeneas.Std Result
-
-namespace Fl4Proofs.P1
-open fl4_core
-
-section
-variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt Ac : Set U64} {Z : U64 → Nat}
-
-/-- **`cancel_ipc` keeps `BlkOK`** (as XTopJointSuspend's `ipc.cancel_ipc.blk`). -/
-theorem ipc.cancel_ipc.blkK {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
-    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
-    ipc.cancel_ipc st ar s a t ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.1 ⦄ := by
-  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
-  refine WP.spec_mono (ipc.cancel_ipc.all s a t Q R h0 ht hB hX hSg.sub) fun r hr => ?_
-  obtain ⟨s1, a1⟩ := r
-  try simp only [WP.uncurry'_pair] at hr
-  obtain ⟨h1, hB1, hX1, -, -, -, k1, -⟩ := hr
-  exact ⟨⟨Q, R, h1⟩, hB1, hX1, hS.keepT hX k1, ⟨hSg.sub, fun b hb => by rw [k1.ksb]; exact hSg.ks b hb,
-    fun o h1' h2' => by rw [k1.ksb]; exact hSg.ksΩ o h1' h2'⟩⟩
-
-end
-
-end Fl4Proofs.P1
 
 namespace Fl4Proofs.P3
 open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched Fl4Proofs.P1
@@ -200,7 +180,7 @@ theorem JAtZ.cancelP1 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       (P1.Heap.scs H) s t := fun hs => by
     obtain ⟨h1, h2⟩ := hR.reply t htH hs
     exact ⟨h1, h2, hR.next _ h1, hR.prev _ h1⟩
-  refine WP.spec_mono (WP.spec_and (P1.ipc.cancel_ipc.blkK s a t J.blk htH)
+  refine WP.spec_mono (WP.spec_and (P1.ipc.cancel_ipc.blk s a t J.blk htH)
     (P1.ipc.cancel_ipc.kw s a t h0 htH hO hSg.sub hreply (fun h1 h2 => (hR.recv t htH h1 h2).1))) ?_
   rintro ⟨s1, a1⟩ ⟨h1, h2⟩
   try simp only [WP.uncurry'_pair] at h1 h2
@@ -266,6 +246,24 @@ theorem JAtZ.cancelNtfnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hW fun b hb => CnW.oobj hI.2.2.1 hb
   obtain ⟨V', J'⟩ := J.kfrStep hIR hF hW hbk hfoot F I3 hact htD
   exact ⟨rfl, σ', hc, V', Ac, Lst, D, J'⟩
+
+end
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- **`JCancelAt` for a thread blocked sending** (module docstring). -/
+theorem jCancel_send {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} :
+    JCancelAt (L := L) arI AR th fun ts => ∃ e d, ts = .blockedOnSend e d := by
+  intro Z H Cs Ac Lst D s a σ _ J t ht x hk h
+  exact J.cancelSendJ ht hk h
+
+/-- **`JCancelAt` for a thread blocked on a notification** (module
+docstring). -/
+theorem jCancel_ntfn {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} :
+    JCancelAt (L := L) arI AR th fun ts => ∃ n, ts = .blockedOnNotification n := by
+  intro Z H Cs Ac Lst D s a σ _ J t ht x hk h
+  exact J.cancelNtfnJ ht hk h
 
 end
 

@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), IPC: **the spec's frame of `cancel_ipc` of a thread `t`
 blocked sending on an endpoint or waiting on a notification** (spec side
-only), toward `JCancelHyps` (XTopJointSuspend; the J side is
+only), toward `JAtZ.suspendJ`'s `hSd`/`hNt` (XTopJointSuspend; the J side is
 XTopJointCancel).
 
 `cancel_ipc t` clears `t`'s fault, removes `t` from its endpoint's or

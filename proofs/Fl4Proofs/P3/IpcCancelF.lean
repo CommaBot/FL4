@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), IPC: **`cancel_ipc` of a thread blocked sending or on a
 notification, on `IRel`, with its footprint** `CnW` (IpcSignalBound), toward
-`JCancelHyps` (XTopJointSuspend; the J side is XTopJointCancel).
+`JAtZ.suspendJ`'s `hSd`/`hNt` (XTopJointSuspend; the J side is XTopJointCancel).
 
 * `cancel_ipc_sendF`: IpcCancelAll's `cancel_ipc_sendI` with the footprint
   (as `cancel_ipc_recvF` without the reply): the fault word, `ep_dequeue`'s
