@@ -1,7 +1,8 @@
 //! Regressions for fl4-core audit findings: the per-core debug TCB lists
 //! across migration (finding 2), IRQ backend release on handler deletion
 //! (finding 3b), the hardware debug exception path (finding 8.1), and
-//! DomainSetSet on a thread running on another core (audit F4).
+//! DomainSetSet on a thread running on another core (audit F4), and the
+//! paging-structure flush after a PDPT unmap.
 
 use fl4_abi::consts::object as ot;
 use fl4_core::capability::{Cap, FrameSize};
@@ -9,7 +10,7 @@ use fl4_core::interrupt;
 use fl4_core::layout::{cte, node, reg};
 use fl4_core::machine::{Arch, Store};
 use fl4_core::obj::{node_get, node_set, Sc, Slot, Tcb};
-use fl4_core::{cdt, debug, objects, schedcontext, syscall};
+use fl4_core::{cdt, debug, objects, schedcontext, syscall, vspace};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -86,7 +87,7 @@ impl Arch for Machine {
     fn set_vspace(&mut self, _: u64, _: u64) {}
     fn invalidate_page(&mut self, _: u64, _: u64) {}
     fn invalidate_asid(&mut self, asid: u64) { self.events.push(("invalidate_asid", asid)); }
-    fn invalidate_page_structures(&mut self, _: u64) {}
+    fn invalidate_page_structures(&mut self, asid: u64) { self.events.push(("invalidate_ps", asid)); }
     fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
         false
     }
@@ -454,4 +455,25 @@ fn domain_set_set_stalls_a_thread_running_on_another_core() {
         assert_eq!(a.events, if remote { vec![("stall", 1)] } else { vec![] });
         assert_eq!(node_get(&s, 0, node::IPI_PENDING) & 2, 2, "core 1 must reschedule");
     }
+}
+
+/// Unmapping a PDPT flushes the paging-structure caches after the PML4
+/// entry is cleared, as unmapping a page directory or table does: a core
+/// running the address space may have walked the entry again since the
+/// flush before it.
+#[test]
+fn pdpt_unmap_flushes_paging_structures_after_clearing_the_entry() {
+    use fl4_core::layout::{ks, pptr};
+    use fl4_core::obj::ks_set;
+    let mut s = Memory::default();
+    let mut a = Machine::default();
+    let (pool, root, pdpt) = (pptr(0x2000), pptr(0x3000), pptr(0x4000));
+    ks_set(&mut s, ks::ASID_TABLE, pool);
+    s.write(pool + 8, root);
+    let vaddr = 5u64 << 39;
+    let slot = root + 5 * 8;
+    s.write(slot, 0x4000 | 7);
+    vspace::unmap_pdpt(&mut s, &mut a, 1, vaddr, pdpt);
+    assert_eq!(s.read(slot), 0);
+    assert_eq!(a.events, [("invalidate_asid", 1), ("invalidate_ps", 1)]);
 }

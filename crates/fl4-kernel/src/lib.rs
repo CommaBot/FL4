@@ -3,6 +3,8 @@
 #![no_std]
 
 mod acpi;
+mod bootmem;
+mod elf;
 mod entry;
 mod gdt;
 mod mb2;
@@ -15,6 +17,7 @@ use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
 use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, spec, timer, tlb};
+use bootmem::Ranges;
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr, PADDR_TOP};
 use fl4_core::machine::Store;
@@ -52,6 +55,23 @@ extern "C" {
 const KERNEL_PHYS_START: u64 = 0x10_0000;
 const HIGHMEM_PADDR: u64 = 0x10_0000;
 const PAGE: u64 = 4096;
+/// An IOAPIC's registers: IOREGSEL and IOWIN.
+const IOAPIC_WINDOW: u64 = 0x20;
+/// The user address space the boot frames after the root task's image
+/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame and the
+/// extra BootInfo (at most `ExtraBi`'s 4 KiB).
+const IT_TAIL: u64 = 3 * PAGE;
+/// Memory map entries the BootInfo record holds (libsel4
+/// `SEL4_MULTIBOOT_MAX_MMAP_ENTRIES`).
+const BI_MMAP: usize = 50;
+
+/// Where the root task's image went.
+struct Image {
+    p_start: u64,
+    p_end: u64,
+    v_start: u64,
+    entry: u64,
+}
 
 #[repr(C, align(64))]
 struct KsArea([u8; ks::SIZE as usize]);
@@ -84,63 +104,6 @@ fn fail(msg: &str) -> ! {
     cpu::halt_forever()
 }
 
-/// A small sorted list of half-open physical ranges.
-struct Ranges {
-    r: [Region; 64],
-    n: usize,
-}
-
-impl Ranges {
-    const fn new() -> Ranges {
-        Ranges { r: [Region::EMPTY; 64], n: 0 }
-    }
-
-    fn add(&mut self, start: u64, end: u64) {
-        if start >= end || self.n == self.r.len() {
-            return;
-        }
-        let mut i = self.n;
-        while i > 0 && self.r[i - 1].start > start {
-            self.r[i] = self.r[i - 1];
-            i -= 1;
-        }
-        self.r[i] = Region { start, end };
-        self.n += 1;
-        // Merge overlapping or touching neighbours.
-        let mut out = 0;
-        for j in 0..self.n {
-            let cur = self.r[j];
-            if out > 0 && cur.start <= self.r[out - 1].end {
-                if cur.end > self.r[out - 1].end {
-                    self.r[out - 1].end = cur.end;
-                }
-            } else {
-                self.r[out] = cur;
-                out += 1;
-            }
-        }
-        self.n = out;
-    }
-
-    fn remove(&mut self, start: u64, end: u64) {
-        let mut res = Ranges::new();
-        for j in 0..self.n {
-            let c = self.r[j];
-            if c.end <= start || c.start >= end {
-                res.add(c.start, c.end);
-            } else {
-                if c.start < start {
-                    res.add(c.start, start);
-                }
-                if c.end > end {
-                    res.add(end, c.end);
-                }
-            }
-        }
-        *self = res;
-    }
-}
-
 fn put_bytes(buf: &mut [u8], off: &mut usize, b: &[u8]) {
     buf[*off..*off + b.len()].copy_from_slice(b);
     *off += b.len();
@@ -162,7 +125,7 @@ fn keep_modules(mb: &mboot::BootInfo, start: u64, ram: &Ranges, k: &mut KeptModu
         let m = mb.modules[i];
         let size = m.end - m.start;
         let end = dst + ((size + PAGE - 1) & !(PAGE - 1));
-        if !(0..ram.n).any(|j| ram.r[j].start <= dst && end <= ram.r[j].end) {
+        if !ram.contains(dst, end) {
             fail("no memory for the extra boot modules");
         }
         unsafe { core::ptr::copy_nonoverlapping(pptr(m.start) as *const u8, pptr(dst) as *mut u8, size as usize) };
@@ -195,12 +158,14 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
             put_bytes(buf, &mut off, &[f.bpp, f.ty]);
         }
     }
-    let mmap_size = 16 + 4 + 24 * mboot::MAX_MMAP;
+    // The record has libsel4's fixed size: the first `BI_MMAP` entries.
+    let n_mmap = mb.n_mmap.min(BI_MMAP);
+    let mmap_size = 16 + 4 + 24 * BI_MMAP;
     hdr(buf, &mut off, 2, mmap_size as u64);
-    put_bytes(buf, &mut off, &((mb.n_mmap * 24) as u32).to_le_bytes());
-    for i in 0..mboot::MAX_MMAP {
-        let e = if i < mb.n_mmap { mb.mmap[i] } else { mboot::MemRegion::default() };
-        put_bytes(buf, &mut off, &(if i < mb.n_mmap { 20u32 } else { 0 }).to_le_bytes());
+    put_bytes(buf, &mut off, &((n_mmap * 24) as u32).to_le_bytes());
+    for i in 0..BI_MMAP {
+        let e = if i < n_mmap { mb.mmap[i] } else { mboot::MemRegion::default() };
+        put_bytes(buf, &mut off, &(if i < n_mmap { 20u32 } else { 0 }).to_le_bytes());
         put_bytes(buf, &mut off, &e.base.to_le_bytes());
         put_bytes(buf, &mut off, &e.len.to_le_bytes());
         put_bytes(buf, &mut off, &e.ty.to_le_bytes());
@@ -288,14 +253,22 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
     percpu::set_apic_id(apic::id());
-    for i in 0..acpi.n_ioapics {
+    // Every IOAPIC's registers stay out of user space's device memory, so
+    // the kernel must know them all, even those past what it drives.
+    if acpi.ioapics_lost {
+        fail("more IOAPICs than the kernel can keep from user space");
+    }
+    if acpi.n_ioapics > ioapic::MAX_IOAPICS {
+        kprintln!("FL4: {} IOAPICs: only the first {} are used", acpi.n_ioapics, ioapic::MAX_IOAPICS);
+    }
+    for i in 0..acpi.n_ioapics.min(ioapic::MAX_IOAPICS) {
         ioapic::add(pptr(acpi.ioapics[i]));
     }
     timer::init(TIMER_VECTOR);
     kprintln!(
         "FL4: {} core(s), {} IOAPIC(s), {}, timer {} at {} MHz (from the {}), xcr0 {:#x} ({})",
         acpi.n_cpus,
-        acpi.n_ioapics,
+        ioapic::count(),
         if apic::is_x2apic() { "x2APIC" } else { "xAPIC" },
         if timer::deadline_mode() { "TSC-deadline" } else { "APIC one-shot" },
         timer::tsc_mhz(),
@@ -315,7 +288,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         kprintln!("FL4: {} cores running", ncpus);
     }
 
-    // The root task: the first module, loaded after everything else.
+    // Memory: RAM above 1 MiB minus the kernel, modules and image is free;
+    // everything that is not RAM goes to user space as device memory.
+    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, PADDR_TOP.min(window_top));
+
+    // The root task: the first module, loaded into RAM above everything
+    // else (seL4 `load_boot_module`).
     if mb.n_modules == 0 {
         fail("no boot module (root task)");
     }
@@ -324,32 +302,25 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     for i in 0..mb.n_modules {
         mods_end = mods_end.max(mb.modules[i].end);
     }
-    let load = (mods_end + PAGE - 1) & !(PAGE - 1);
-    let image = match mboot::load_elf(mb.modules[0].start, load) {
-        Some(i) => i,
-        None => fail("root task is not an x86_64 ELF image"),
+    let mods_end = (mods_end + PAGE - 1) & !(PAGE - 1);
+    let m0 = mb.modules[0];
+    let layout = match elf::check(m0.start, m0.end - m0.start, fl4_abi::consts::USER_TOP + 1 - IT_TAIL) {
+        Some(l) => l,
+        None => fail("root task is not a loadable x86_64 ELF image"),
     };
+    let load = match ram.find(mods_end, layout.size()) {
+        Some(p) => p,
+        None => fail("no memory for the root task"),
+    };
+    elf::load(m0.start, &layout, load);
+    let image = Image { p_start: load, p_end: load + layout.size(), v_start: layout.v_start, entry: layout.entry };
 
-    // Memory: RAM above 1 MiB minus the kernel, modules and image is free;
-    // everything that is not RAM goes to user space as device memory.
-    let mut ram = Ranges::new();
-    for i in 0..mb.n_mmap {
-        let e = mb.mmap[i];
-        if e.ty == 1 && e.base >= HIGHMEM_PADDR && e.len >= PAGE {
-            let start = (e.base + PAGE - 1) & !(PAGE - 1);
-            let end = (e.base + e.len) & !(PAGE - 1);
-            ram.add(start, end.min(PADDR_TOP).min(window_top));
-        }
-    }
-    let mut dev = Ranges::new();
-    dev.add(0, PADDR_USER_DEVICE_TOP);
-    for i in 0..ram.n {
-        dev.remove(ram.r[i].start, ram.r[i].end);
-    }
-    dev.remove(apic_base, apic_base + PAGE);
-    for i in 0..acpi.n_ioapics {
-        dev.remove(acpi.ioapics[i], acpi.ioapics[i] + PAGE);
-    }
+    // Device memory never covers the kernel's image and statics, the boot
+    // modules or the root task, whatever the memory map says about them
+    // (a loader may report its own allocations as reserved).
+    let reserved = [(KERNEL_PHYS_START, mods_end), (image.p_start, image.p_end), (apic_base, apic_base + PAGE)];
+    let ioapics = acpi.ioapics[..acpi.n_ioapics].iter().map(|&b| (b, b + IOAPIC_WINDOW));
+    let mut dev = bootmem::device(&ram, PADDR_USER_DEVICE_TOP, reserved.into_iter().chain(ioapics));
     // The other modules (l4h 0021): copied above the image, out of the way
     // of everything, and handed over as device untypeds, which retype
     // without clearing.
@@ -376,7 +347,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
         }
     }
     let mut free = ram;
-    free.remove(KERNEL_PHYS_START, mods);
+    free.remove(KERNEL_PHYS_START, mods_end);
+    free.remove(image.p_start, mods);
 
     let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods);
     let mut p = BootParams {

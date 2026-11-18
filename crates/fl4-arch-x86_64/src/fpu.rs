@@ -206,9 +206,12 @@ pub fn lazy() -> bool {
     LAZY.load(Ordering::Relaxed)
 }
 
-/// Saves write the compacted format.
-pub fn compacting() -> bool {
-    matches!(insn(), Insn::Xsavec | Insn::Xsaves)
+/// `flush` may rewrite a TCB's image even when its state is not live:
+/// saves write the compacted format, or skip components in their initial
+/// state (the init optimization of XSAVEOPT, XSAVEC and XSAVES), leaving
+/// older bytes in place that `flush` clears.
+pub fn flush_writes() -> bool {
+    matches!(insn(), Insn::Xsaveopt | Insn::Xsavec | Insn::Xsaves)
 }
 
 fn image(t: u64) -> *mut u8 {
@@ -266,6 +269,35 @@ fn to_standard(t: u64) {
         }
     }
     wr(p, HDR + 8, 0);
+}
+
+/// In the standard-format image `img`, give each enabled (`xcr0`) state
+/// component that XSTATE_BV marks as in its initial state its initial
+/// value: x87 (FCW 0x37f, every other field and register 0), XMM0..15 0,
+/// and the components from 2 on (`std(i)`: offset and size) 0. A save with
+/// the init optimization does not write such components, so the image
+/// would otherwise show values the thread had before. (MXCSR is not part
+/// of either component's initial state: saves always write it.)
+fn clear_init(img: &mut [u8], xcr0: u64, std: impl Fn(usize) -> (usize, usize)) {
+    let mut bv = [0u8; 8];
+    bv.copy_from_slice(&img[HDR as usize..HDR as usize + 8]);
+    let init = xcr0 & !u64::from_le_bytes(bv);
+    if init & 1 != 0 {
+        img[..24].fill(0);
+        img[..2].copy_from_slice(&0x037fu16.to_le_bytes());
+        img[32..160].fill(0);
+    }
+    if init & 2 != 0 {
+        img[160..416].fill(0);
+    }
+    for i in 2..63 {
+        if init & (1 << i) != 0 {
+            let (off, size) = std(i);
+            if let Some(c) = img.get_mut(off..off + size) {
+                c.fill(0);
+            }
+        }
+    }
 }
 
 /// Rewrite `t`'s standard image in the compacted format XRSTORS needs:
@@ -392,6 +424,20 @@ pub fn forget_local(t: u64) {
     }
 }
 
+/// Save `t`'s state to its TCB and forget it if it is live on this core
+/// (seL4 `switchLocalFpuOwner(NULL)`). CR0.TS ends up set: a thread that
+/// was running with the registers (one whose FPU was just disabled) traps
+/// on its next FPU instruction; any other thread on this core had them
+/// set already, as a thread that does not own the registers runs so.
+pub fn release_local(t: u64) {
+    if percpu::fpu_owner(percpu::cpu_index()) == t {
+        set_ts(false);
+        save(t);
+        percpu::set_fpu_owner(0);
+        set_ts(true);
+    }
+}
+
 /// The core whose registers hold `t`'s FPU state, if any.
 fn owner_core(t: u64) -> Option<usize> {
     (0..percpu::MAX_CPUS).find(|&c| percpu::fpu_owner(c) == t)
@@ -413,6 +459,12 @@ pub fn flush(t: u64) {
     }
     if XSAVE.load(Ordering::Relaxed) {
         to_standard(t);
+        if flush_writes() {
+            let img = unsafe { core::slice::from_raw_parts_mut(image(t), tcb::FPU_SIZE as usize) };
+            clear_init(img, XCR0.load(Ordering::Relaxed), |i| {
+                (STD_OFF[i].load(Ordering::Relaxed) as usize, SIZE[i].load(Ordering::Relaxed) as usize)
+            });
+        }
     }
 }
 
@@ -421,6 +473,17 @@ pub fn forget(t: u64) {
     match owner_core(t) {
         Some(c) if c == percpu::cpu_index() => forget_local(t),
         Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_DROP, t, 0, 1 << c),
+        None => {}
+    }
+}
+
+/// `t` is being deleted, moved away or loses the FPU: save its live state,
+/// wherever it is, to its TCB and forget it there (seL4 `fpuRelease`). The
+/// caller holds the serial gate when another core may hold the state.
+pub fn release(t: u64) {
+    match owner_core(t) {
+        Some(c) if c == percpu::cpu_index() => release_local(t),
+        Some(c) => crate::smp::remote_call(crate::smp::CALL_FPU_RELEASE, t, 0, 1 << c),
         None => {}
     }
 }
@@ -493,6 +556,50 @@ mod tests {
         assert_eq!(x, 0x3);
         // The last XCR0 written is the one returned.
         assert_eq!(last, 0x3);
+    }
+
+    /// A standard-format image whose every byte is stale (0xaa), with
+    /// XSTATE_BV `bv`; AVX (component 2) at 576, 256 bytes.
+    fn stale(bv: u64) -> [u8; 1024] {
+        let mut img = [0xaa; 1024];
+        img[HDR as usize..HDR as usize + 8].copy_from_slice(&bv.to_le_bytes());
+        img
+    }
+
+    fn std_off(i: usize) -> (usize, usize) {
+        assert_eq!(i, 2);
+        (576, 256)
+    }
+
+    /// XSAVEOPT, XSAVEC and XSAVES leave components in their initial state
+    /// unwritten: TCB_ReadFPU must not see the older bytes, for x87 and SSE
+    /// as for the others.
+    #[test]
+    fn init_components_read_as_initial_values() {
+        let mut img = stale(0);
+        clear_init(&mut img, 0x7, std_off);
+        assert_eq!(&img[..2], &[0x7f, 0x03]);
+        assert!(img[2..24].iter().all(|&b| b == 0));
+        // MXCSR and its mask are written by every save.
+        assert!(img[24..32].iter().all(|&b| b == 0xaa));
+        assert!(img[32..416].iter().all(|&b| b == 0));
+        assert!(img[416..512].iter().all(|&b| b == 0xaa));
+        assert!(img[576..832].iter().all(|&b| b == 0));
+        assert!(img[832..].iter().all(|&b| b == 0xaa));
+    }
+
+    #[test]
+    fn live_and_disabled_components_are_kept() {
+        // x87 and AVX in use: only SSE is cleared.
+        let mut img = stale(0x5);
+        clear_init(&mut img, 0x7, std_off);
+        assert!(img[..160].iter().all(|&b| b == 0xaa));
+        assert!(img[160..416].iter().all(|&b| b == 0));
+        assert!(img[576..832].iter().all(|&b| b == 0xaa));
+        // A component XCR0 leaves off is not touched (nor looked up).
+        let mut img = stale(0x3);
+        clear_init(&mut img, 0x3, |_| unreachable!());
+        assert!(img.iter().enumerate().all(|(i, &b)| b == 0xaa || (HDR as usize..HDR as usize + 8).contains(&i)));
     }
 
     #[test]

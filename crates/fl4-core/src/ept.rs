@@ -157,6 +157,11 @@ pub fn map_frame<S: Store, A: Arch>(
         matches!(size, FrameSize::Large),
     );
     sched::set_thread_state(s, ct, sched::TS_RESTART);
+    // Without read rights the entry stays empty (EPT has no kernel-only
+    // pages), and so does the cap: a cap marked mapped there would later
+    // unmap whatever another cap of the same frame maps at `gpa`, since the
+    // empty entry does not stop that map (DeleteFirst).
+    let (mapped, asid, vaddr) = if val != 0 { (true, asid, gpa) } else { (false, 0, 0) };
     dest.set_cap(
         s,
         Cap::Frame {
@@ -164,10 +169,10 @@ pub fn map_frame<S: Store, A: Arch>(
             size,
             rights,
             is_device: device,
-            mapped: true,
-            is_ept: true,
+            mapped,
+            is_ept: mapped,
             asid,
-            vaddr: gpa,
+            vaddr,
         },
     );
     s.write(e, val);

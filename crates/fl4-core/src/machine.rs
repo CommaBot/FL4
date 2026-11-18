@@ -92,7 +92,8 @@ pub trait Arch {
     fn fpu_sanitise(&mut self, tcb: u64);
     /// The FPU state of `tcb` was replaced; reload it if it is live.
     fn fpu_reload(&mut self, tcb: u64);
-    /// `tcb` is being deleted or moved away: forget any live FPU state.
+    /// `tcb` is being deleted, moved away or loses the FPU: save any live
+    /// FPU state to its TCB, then forget it (seL4 `fpuRelease`).
     fn fpu_release(&mut self, tcb: u64);
 
     /// Stop core `cpu` running its current thread: that core moves the
