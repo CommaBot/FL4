@@ -290,7 +290,16 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
 
     // Memory: RAM above 1 MiB minus the kernel, modules and image is free;
     // everything that is not RAM goes to user space as device memory.
-    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, PADDR_TOP.min(window_top));
+    // Both stop at the kernel window's end (PADDR_TOP): an untyped's
+    // pointer is its physical address in the window, which past that
+    // would run into the kernel image's mapping and then wrap to the lower
+    // half (P3's `UtWin`: every untyped at or above PPTR_BASE). Nothing
+    // goes past what the CPU can address either (MAXPHYADDR): a mapping
+    // of it would set reserved bits in a paging, EPT or NPT entry.
+    let max_paddr = cpu::max_paddr();
+    let ram_top = bootmem::top(&[PADDR_TOP, window_top, max_paddr]);
+    let device_top = bootmem::top(&[PADDR_TOP, PADDR_USER_DEVICE_TOP, max_paddr]);
+    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, ram_top);
 
     // The root task: the first module, loaded into RAM above everything
     // else (seL4 `load_boot_module`).
@@ -320,7 +329,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32) -> ! {
     // (a loader may report its own allocations as reserved).
     let reserved = [(KERNEL_PHYS_START, mods_end), (image.p_start, image.p_end), (apic_base, apic_base + PAGE)];
     let ioapics = acpi.ioapics[..acpi.n_ioapics].iter().map(|&b| (b, b + IOAPIC_WINDOW));
-    let mut dev = bootmem::device(&ram, PADDR_USER_DEVICE_TOP, reserved.into_iter().chain(ioapics));
+    let mut dev = bootmem::device(&ram, device_top, reserved.into_iter().chain(ioapics));
     // The other modules (l4h 0021): copied above the image, out of the way
     // of everything, and handed over as device untypeds, which retype
     // without clearing.
