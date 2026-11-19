@@ -308,7 +308,7 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
   apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
-    hfs1, hW1, hRd1, hRz1⟩
+    hfs1, hW1, hRd1, hRz1, hZF1⟩
   simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   have hmS1 := hmS.trans hfs1
@@ -346,9 +346,10 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
   have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
   have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq))
-    (fun n' hq hnn => by
+    (fun p' zt' n' hq => by
       have e := hzr (by rw [← hx1, hq]; rfl)
-      rw [← hx1, hq] at e; cases e; omega) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
+      rw [← hx1, hq] at e; cases e; exact ⟨rfl, rfl, Or.inl rfl⟩)
+    (fun h => by rw [hx1]; exact hZF1 (by rw [← hx1]; exact h) p zt n rfl) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hF2 hsc2 hA hxn1 hx2 hz.al hoth2 hrc2
   have hcz2 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s2) y :=
     fun y hy hyx => (hcz1 y hy hyx).trans (ChgZ.of_eq (hoth2 y hy hyx))
@@ -442,9 +443,12 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
     have hmS4 : MdbStep (L.mem s0) G0 (L.mem s4) G3 := hmS3'.trans hrc4
     have hFI4 := hFI3.set_zombie hM3 (ksub_of_eq (nks_setCap _ _) hsc4) hx4 hoth4 (hFI3.zombie_alone hM3 hxs hcv3)
     have hW4 : W s4 a3 σ4 G3 := hH.zomb s3 s4 a3 σ3 σ4 G3 sl p zt w hW3 (fun q hq => by rw [hcv3] at hq; cases hq)
-      (fun _ _ _ => by
+      (fun p' zt' n' hq => by
+        rw [hcv3] at hq; cases hq
+        refine ⟨rfl, rfl, Or.inr ⟨by omega, ?_⟩⟩
         rw [hwv]
-        exact zlast_null hP hD3 hxs hcv3 (by omega) (fun h => hrmv (Or.inr h)) hxend) ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
+        exact zlast_null hP hD3 hxs hcv3 (by omega) (fun h => hrmv (Or.inr h)) hxend)
+      (fun h => by rw [hcv3] at h; simp [isZb] at h) ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
       ⟨hCR4, hD4, hFI4⟩ hF4 hsc4 hA hxn3 hx4 (by rw [hcv3]; exact capAlike_zombie_zombie) hoth4 hrc4
     have hcz4 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s4) y :=
       fun y hy hyx => (hcz3 y hy hyx).trans (ChgZ.of_eq (hoth4 y hy hyx))

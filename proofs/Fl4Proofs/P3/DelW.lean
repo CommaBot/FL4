@@ -398,20 +398,41 @@ def FinObjHypWRcZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
         Rz r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄
 
 /-- **`ZombieHypW` given `Rz`** at the slot when it holds a thread cap, and
-given, when it counts a zombie down from `n + 1` to `n`, that the zombie's
-slot `n` (the one just deleted) is null. -/
+given, when it replaces a zombie, that it is the same zombie or the same
+counted down from `n + 1` to `n` with the zombie's slot `n` (the one just
+deleted) null, and, when it replaces a cap not a
+zombie, that it replaces a thread or CNode cap and its count covers every
+slot of its object. -/
 def ZombieHypWZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
   ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (p zt n : U64),
     W s a σ G → (∀ q, capV (L.mem s) (cslotAddr sl) = .Thread q → Rz s a σ G (cslotAddr sl)) →
-    (∀ n', capV (L.mem s) (cslotAddr sl) = .Zombie p zt n' → n'.val = n.val + 1 →
-      capV (L.mem s) (cslotAddr (zSlot p zt n.val)) = .Null) →
+    (∀ p' zt' n', capV (L.mem s) (cslotAddr sl) = .Zombie p' zt' n' → p' = p ∧ zt' = zt ∧
+      (n'.val = n.val ∨ (n'.val = n.val + 1 ∧ capV (L.mem s) (cslotAddr (zSlot p zt n.val)) = .Null))) →
+    (isZb (capV (L.mem s) (cslotAddr sl)) = false → (∀ i, IsSlotAt th p i → i < n.val) ∧
+      ((∃ q, capV (L.mem s) (cslotAddr sl) = .Thread q) ∨ ∃ q r gs g, capV (L.mem s) (cslotAddr sl) = .CNode q r gs g)) →
     DState (L := L) th s σ G → DState (L := L) th s' σ' G → Vs.SlotFrame2 (L := L) th s s' →
     Fl4Spec.setCap (Z := Unit) (absCap (.Zombie p zt n)) sl σ = ({((), σ')}, False) → AbsSlot th sl →
     capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Zombie p zt n →
     CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)) →
     (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem s') y = capV (L.mem s) y) →
     MdbStep (L.mem s) G (L.mem s') G → W s' a σ' G
+
+/-- **`SwapHypW` for a zombie not removable**: the loop swaps only a zombie
+of count at least `1` (a zombie of count `0` is removable anywhere). -/
+def SwapHypWZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) : Prop :=
+  ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G G' : MdbGhost) (sl : Fl4Spec.CslotPtr) (p zt n : U64),
+    W s a σ G → 1 ≤ n.val → DState (L := L) th s σ G → DState (L := L) th s' σ' G' → Vs.SlotFrame2 (L := L) th s s' →
+    Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ')}, False) → AbsSlot th sl →
+    capV (L.mem s) (cslotAddr sl) = .Zombie p zt n → p ≠ cslotAddr sl →
+    G' = renG G (Equiv.swap p (cslotAddr sl)) →
+    (∀ y, IsSlot th y → capV (L.mem s') y = if y = cslotAddr sl then capV (L.mem s) p
+      else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y) →
+    MdbStep (L.mem s) G (L.mem s') G' → W s' a σ' G'
+
+theorem SwapHypW.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
+    (h : SwapHypW (L := L) (A := A) W th) : SwapHypWZ (L := L) (A := A) W th :=
+  fun s s' a σ σ' G G' sl p zt n hW _ => h s s' a σ σ' G G' sl p zt n hW
 
 /-- The premises with `Rd` and `Rz` bundled. -/
 structure DelHypsWRZ (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
@@ -421,7 +442,7 @@ structure DelHypsWRZ (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Pro
   pp : PPHypDW (L := L) arI W Wp th
   post : PostDelHypW (L := L) arI W th
   zomb : ZombieHypWZ (L := L) (A := A) W Rz th
-  swap : SwapHypW (L := L) (A := A) W th
+  swap : SwapHypWZ (L := L) (A := A) W th
   empty : EmptyHypWR (L := L) W Rd th
 
 theorem FinObjHypWRc.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
@@ -434,13 +455,13 @@ theorem FinObjHypWRc.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop
 
 theorem ZombieHypW.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
     (h : ZombieHypW (L := L) (A := A) W th) : ZombieHypWZ (L := L) (A := A) W RzT th :=
-  fun s s' a σ σ' G sl p zt n hW _ _ => h s s' a σ σ' G sl p zt n hW
+  fun s s' a σ σ' G sl p zt n hW _ _ _ => h s s' a σ σ' G sl p zt n hW
 
 /-- **`DelHypsWR` is `DelHypsWRZ` at `Rz := True`.** -/
 theorem DelHypsWR.toZ {W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
     {Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop} {th : TypedHeap}
     (h : DelHypsWR (L := L) arI W Wp Rd th) : DelHypsWRZ (L := L) arI W Wp Rd RzT th :=
-  ⟨h.fin.z arI, h.triv, h.pp, h.post, h.zomb.z, h.swap, h.empty⟩
+  ⟨h.fin.z arI, h.triv, h.pp, h.post, h.zomb.z, h.swap.z, h.empty⟩
 
 end
 

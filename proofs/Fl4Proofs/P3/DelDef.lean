@@ -259,7 +259,7 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
-    hfs1, hW1, hRd1, hRz1⟩
+    hfs1, hW1, hRd1, hRz1, hZF1⟩
   simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   have hmS1 := hmS.trans hfs1
@@ -291,9 +291,10 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
   have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq))
-    (fun n' hq hnn => by
+    (fun p' zt' n' hq => by
       have e := hzr (by rw [← hx1, hq]; rfl)
-      rw [← hx1, hq] at e; cases e; omega) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
+      rw [← hx1, hq] at e; cases e; exact ⟨rfl, rfl, Or.inl rfl⟩)
+    (fun h => by rw [hx1]; exact hZF1 (by rw [← hx1]; exact h) p zt n rfl) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hF2 hsc2 hA hxn1 hx2 hz.al hoth2 hrc2
   have hsc2' : StrictChg th (L.mem s0) (L.mem s2) G0 G1 (cslotAddr sl) := by
     refine hsc1.trans (fun y hy hne hcnd => ?_) (le_trans hps1 hps) hps2
@@ -324,7 +325,7 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   have hmS3 := hmS2.trans hst3
   have hFI3 : FinInv th (L.mem s3) σ3 G3 := by
     subst hG3; exact hFI2.swap hM2 hM3 (ksub_of_eq (capSwapForDelete_nks _ _) hsw3) hpx hcap3
-  have hW3 : W s3 a1 σ3 G3 := hH.swap s2 s3 a1 σ2 σ3 G1 G3 sl p zt n hW2 ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩
+  have hW3 : W s3 a1 σ3 G3 := hH.swap s2 s3 a1 σ2 σ3 G1 G3 sl p zt n hW2 (by by_contra h; exact hrmv (Or.inl (by omega))) ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩
     ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩ hF3 hsw3 hA hx2 hpx hG3 hcap3 hst3
   have hsc3 : StrictChg th (L.mem s0) (L.mem s3) G0 G3 (cslotAddr sl) :=
     hsc2'.trans (StrictChg.of_lt hps3) (le_trans hps2 (le_trans hps1 hps)) hps3.le
