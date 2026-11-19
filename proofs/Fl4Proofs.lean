@@ -514,8 +514,6 @@ import Fl4Proofs.P3.UtTcbP1
 import Fl4Proofs.P3.UtTcbSets
 import Fl4Proofs.P3.UtTcbUtc
 import Fl4Proofs.P3.UtTcbRet
-import Fl4Proofs.P3.VsMakePoolB
-import Fl4Proofs.P3.VsDecFrameP
 import Fl4Proofs.P3.MpDirtyJ
 import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointSendBlockG

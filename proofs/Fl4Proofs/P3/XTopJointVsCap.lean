@@ -153,16 +153,32 @@ theorem JAtZ.mpEmpty {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   · by_contra hm; exact hm ((hD q (hdt q k hq hm).1).1 k hq)
   · by_contra hm; exact hm ((hD q (hdh q k hq hm).1).2 k hq)
 
-/-- **No `OObj` word in a clean region** (as ScPlaceUt's `oobj_childless`,
-with `H` empty there and the buffer words off it by `MpClean`). -/
-theorem JAtZ.mpOObj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- **The region `[p, p + 4096)` holds no object and no IPC-buffer word**
+(`JAtZ.mpEmpty` and `MpClean`'s word clause at one cap; also after the
+detype of the region, XTopJointMakePoolD): what the clean case's placement
+lemmas (`JAtZ.mpOObjAt`, `JAtZ.mpPlacedCAt`, `JAtZ.mpRegionCAt`,
+`JAtZ.mpAddOKAt`) need. -/
+def MpEmptyAt (Z : XSets) (H : P1.Heap) (p : U64) : Prop :=
+  (∀ q k, Z.th q = some k → q.val + max (objSize k) 1 ≤ p.val ∨ p.val + 4096 ≤ q.val) ∧
+  (∀ q k, H q = some k → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 4096 ≤ q.val) ∧
+  ∀ wp ∈ Z.B, (wp.1.val + 8 ≤ p.val ∨ p.val + 4096 ≤ wp.1.val) ∧
+    ∀ i ∈ Fl4Spec.intUpto 0 7, (wp.2 + (7 - BitVec.ofInt 64 i)).toNat < p.val ∨
+      p.val + 4096 ≤ (wp.2 + (7 - BitVec.ofInt 64 i)).toNat
+
+/-- `MpEmptyAt` of a clean region (`JAtZ.mpEmpty`, `MpClean`). -/
+theorem JAtZ.mpEmptyAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hcl : MpClean (L := L) Z H D s) {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64}
     (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false)
-    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) :
+    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) : MpEmptyAt Z H p :=
+  ⟨(J.mpEmpty arI hcl hx hcx hnd).1, (J.mpEmpty arI hcl hx hcx hnd).2, (hcl x hx p fi hcx hnd).2⟩
+
+/-- **No `OObj` word in an empty region** (`JAtZ.mpOObj` from `MpEmptyAt`). -/
+theorem JAtZ.mpOObjAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64} (hE : MpEmptyAt Z H p)
+    (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false) :
     ∀ b : U64, p.val ≤ b.val → b.val < p.val + 4096 → ¬ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := by
   intro b h1 h2 hO
-  obtain ⟨-, hHo⟩ := J.mpEmpty arI hcl hx hcx hnd
-  obtain ⟨-, hB⟩ := hcl x hx p fi hcx hnd
+  obtain ⟨-, hHo, hB⟩ := hE
   have hks := J.jcov.ks x hx p _ fi hcx
   rw [two_pow_asidPool] at hks
   obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
@@ -184,16 +200,31 @@ theorem JAtZ.mpOObj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       omega)
   · have := (hB wp hw).1; omega
 
+/-- **No `OObj` word in a clean region** (as ScPlaceUt's `oobj_childless`,
+with `H` empty there and the buffer words off it by `MpClean`). -/
+theorem JAtZ.mpOObj {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hcl : MpClean (L := L) Z H D s) {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false)
+    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) :
+    ∀ b : U64, p.val ≤ b.val → b.val < p.val + 4096 → ¬ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b :=
+  J.mpOObjAt arI hx (J.mpEmptyAt arI hcl hx hcx hnd) hcx
+
 set_option maxHeartbeats 1000000 in
 /-- **`MpPlacedHyp` from `JAtZ` when the regions are clean** (as VsTopX's
 `mpPlacedHyp_of`, from the dead-set cover `JCovD`: a clean region holds no
 object, `JAtZ.mpEmpty`, so `restrictTh` keeps `th`, and no `OObj` word,
 `JAtZ.mpOObj`). -/
-theorem JAtZ.mpPlacedC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hcl : MpClean (L := L) Z H D s) :
-    MpPlacedHyp st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s σ Z.G := by
-  intro p th' s' a' σ' hth hk hsc hRg ⟨x, fi, hx, hcx, hnd⟩
-  obtain ⟨hTh, -⟩ := J.mpEmpty arI hcl hx hcx hnd
+theorem JAtZ.mpPlacedCAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {p : U64} (hE : MpEmptyAt Z H p) {x fi : U64} (hx : x ∈ Z.G.chains.flatten)
+    (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false)
+    (th' : TypedHeap) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit)
+    (hth : th' = restrictTh Z.th p.val (p.val + 4096)) (hk : L.ksb s' = L.ksb s)
+    (hsc : ∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) → ∃ y0, σ.kheap q.bv = some (.schedContext y0 n))
+    (hRg : MpRegion Z.th Z.G Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) p) :
+    (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s' a' σ' →
+      TopSR st th' (insert p Z.P) Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s' a' σ') ∧
+    ∀ t : U64, Z.th t = some .tcb → th' t = some .tcb := by
+  have hTh := hE.1
   have hrt : restrictTh Z.th p.val (p.val + 4096) = Z.th := by
     funext q
     unfold restrictTh
@@ -210,7 +241,7 @@ theorem JAtZ.mpPlacedC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   obtain ⟨hpal, hpfit, hp0, -, -, -, hPo, hLo, hTo⟩ := hRg
   have hout := hTh
   have hoob : ∀ b : U64, p.val ≤ b.val → b.val < p.val + 4096 → ¬ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ' b :=
-    fun b h1 h2 hO' => J.mpOObj arI hcl hx hcx hnd b h1 h2 (Sched.OObj.mono hk hsc hO')
+    fun b h1 h2 hO' => J.mpOObjAt arI hx hE hcx b h1 h2 (Sched.OObj.mono hk hsc hO')
   have hpool : ∀ b, VsWrite (insert p Z.P) (L.ksb s') b → VsWrite Z.P (L.ksb s') b ∨
       (p.val ≤ b.val ∧ b.val < p.val + 4096 ∧ b.val % 8 = 0) := by
     rintro b (h | ⟨q, hq, lo, hl, rfl⟩)
@@ -264,6 +295,15 @@ theorem JAtZ.mpPlacedC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
           simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; rw [hv]; omega
         rw [this, hv] at h1 h2'; omega
 
+set_option maxHeartbeats 1000000 in
+/-- **`MpPlacedHyp` from `JAtZ` when the regions are clean** (`JAtZ.mpPlacedCAt`
+at each childless pool-sized untyped, `JAtZ.mpEmptyAt`). -/
+theorem JAtZ.mpPlacedC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hcl : MpClean (L := L) Z H D s) :
+    MpPlacedHyp st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR s σ Z.G := by
+  intro p th' s' a' σ' hth hk hsc hRg ⟨x, fi, hx, hcx, hnd⟩
+  exact J.mpPlacedCAt arI (J.mpEmptyAt arI hcl hx hcx hnd) hx hcx th' s' a' σ' hth hk hsc hRg
+
 /-- **The region facts of `MakePool`'s childless untyped from `JAtZ` when
 the regions are clean** (what the old `JMpExtra` asked [J]): `MpRegion`
 (alignment, fit and non-null pointer, no straddling object and no MDB slot
@@ -272,11 +312,11 @@ object of `th` or `H`, `JAtZ.mpEmpty`, and the spec's arch objects are `H`'s
 `other` objects of at least a page, `SpecCover.arch`; the ASID table off it,
 `UtKsApart`) and `RegOKTop` (`JAtZ.mpOObj`, the buffer bytes by
 `MpClean`). -/
-theorem JAtZ.mpRegionC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hcl : MpClean (L := L) Z H D s) {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs))
+theorem JAtZ.mpRegionCAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs))
     (hidx : idx.length = rs) {p fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p fl4_abi.consts.bits.ASID_POOL fi false))
-    (hnch : ¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) :
+    (hnch : ¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) (hE : MpEmptyAt Z H p) :
     MpRegion Z.th Z.G Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) p ∧ RegOKTop (L := L) Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ p := by
   obtain ⟨hPl, ⟨-, -, hM, hC, -⟩, -⟩ := J.xtop.rel
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
@@ -285,7 +325,8 @@ theorem JAtZ.mpRegionC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hM.members _).2 ⟨hAs.isSlot, _, hcap, fun h => by cases h⟩
   have hnd := nodesc_of_cdt hPl hC hAs hnch
   have U := J.utc _ p _ fi false hAs hcap rfl
-  obtain ⟨hTh, hHo⟩ := J.mpEmpty arI hcl hx hcx hnd
+  have hTh := hE.1
+  have hHo := hE.2.1
   have hks := J.jcov.ks _ hx p _ fi hcx
   rw [two_pow_asidPool] at hks
   have hpal : p.val % 4096 = 0 := by have := U.pal; rwa [two_pow_asidPool] at this
@@ -301,8 +342,8 @@ theorem JAtZ.mpRegionC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     omega
   have hR := J.xtop.fin.2.1
   have hPt := J.xtop.fin.2.2.1
-  refine ⟨⟨hpal, hpfit, ?_, ?_, ?_, ?_, ?_, ?_, hks.2.2⟩, hpal, hpfit, J.mpOObj arI hcl hx hcx hnd,
-    fun wp hw => ((hcl _ hx p fi hcx hnd).2 wp hw).2⟩
+  refine ⟨⟨hpal, hpfit, ?_, ?_, ?_, ?_, ?_, ?_, hks.2.2⟩, hpal, hpfit, J.mpOObjAt arI hx hE hcx,
+    fun wp hw => (hE.2.2 wp hw).2⟩
   · intro e
     have hh := U.high (Sched.notDev_ram hcx)
     rw [e] at hh
@@ -324,17 +365,30 @@ theorem JAtZ.mpRegionC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     · obtain ⟨f, hf, -⟩ := hPt.l2 q hq; exact hoff q ⟨_, hf⟩
     · obtain ⟨f, hf, -⟩ := hPt.l1 q hq; exact hoff q ⟨_, hf⟩
 
+/-- `JAtZ.mpRegionCAt` when the regions are clean (`JAtZ.mpEmptyAt`). -/
+theorem JAtZ.mpRegionC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hcl : MpClean (L := L) Z H D s) {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs))
+    (hidx : idx.length = rs) {p fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p fl4_abi.consts.bits.ASID_POOL fi false))
+    (hnch : ¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) :
+    MpRegion Z.th Z.G Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) p ∧ RegOKTop (L := L) Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ p := by
+  obtain ⟨hPl, ⟨-, -, hM, hC, -⟩, -⟩ := J.xtop.rel
+  have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
+  have hx : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten :=
+    (hM.members _).2 ⟨hAs.isSlot, _, hcap, fun h => by cases h⟩
+  exact J.mpRegionCAt arI hpp hidx hcap hnch (J.mpEmptyAt arI hcl hx (capV_of_capAt hcap) (nodesc_of_cdt hPl hC hAs hnch))
+
 /-- **The new pool's page joins `H` as an `other` object** (P1's
 `AddOKP`, for `BlkOK.addOther`): a clean region holds no object of `H`
 (`JAtZ.mpEmpty`), and RAM untyped regions miss the nodes and the
 kernel-state block (`UtKsApart`). -/
-theorem JAtZ.mpAddOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hcl : MpClean (L := L) Z H D s) {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64}
+theorem JAtZ.mpAddOKAt {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64} (hE : MpEmptyAt Z H p)
     (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false)
-    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) (hpal : p.val % 4096 = 0) (hpfit : p.val + 4096 ≤ 2 ^ 64)
+    (hpal : p.val % 4096 = 0) (hpfit : p.val + 4096 ≤ 2 ^ 64)
     (hp0 : p ≠ 0#u64) :
     P1.AddOKP st H (· = p) (.other 12) Cs s := by
-  obtain ⟨-, hHo⟩ := J.mpEmpty arI hcl hx hcx hnd
+  obtain ⟨-, hHo, -⟩ := hE
   have hks := J.jcov.ks x hx p _ fi hcx
   rw [two_pow_asidPool] at hks
   have h12 : (P1.HKind.other 12).bits = 12 := rfl
@@ -353,6 +407,15 @@ theorem JAtZ.mpAddOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   · subst hq; rw [h12, show (2:Nat) ^ 12 = 4096 from rfl]; have := hHo p' kp hp'; omega
   · subst hq; rw [h12]; exact hks.2.1 c hc
   · subst hq; rw [h12]; exact hks.1
+
+/-- `JAtZ.mpAddOKAt` when the regions are clean (`JAtZ.mpEmptyAt`). -/
+theorem JAtZ.mpAddOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hcl : MpClean (L := L) Z H D s) {x : U64} (hx : x ∈ Z.G.chains.flatten) {p fi : U64}
+    (hcx : capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false)
+    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) (hpal : p.val % 4096 = 0) (hpfit : p.val + 4096 ≤ 2 ^ 64)
+    (hp0 : p ≠ 0#u64) :
+    P1.AddOKP st H (· = p) (.other 12) Cs s :=
+  J.mpAddOKAt arI hx (J.mpEmptyAt arI hcl hx hcx hnd) hcx hpal hpfit hp0
 
 /-- **P1's `BlkOK` with the new pool's page in `H`** (`BlkOK.addOther`). -/
 theorem JAtZ.mpBlk {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

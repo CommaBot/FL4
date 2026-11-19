@@ -607,9 +607,45 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
 
 end Rg
 
-/-- **`JAtZ` across the drop** (item 2 of handoff/utj.md "Round 9"): at a
-childless RAM untyped cap with a used region (`fi ≠ 0`, the spec's
-`resetUntypedCap` detypes then), from the same FL4 state, the spec state
+/-- **The reset's facts of `UtCapP3.rst` for any free index**: at a
+childless RAM untyped cap, the original caps' slots off the region and
+core 0's debug-list head off it (`UtCapP3.rst` for a used region; for an
+unused one, `fi = 0`, the region is the cap's free part, which holds no
+object of the typed heap, `UtCapP3.free`). -/
+theorem JAtZ.rstAll (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} (hsl : AbsSlot Z.th sl)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
+    (hnc : ¬ ∃ y, σ.cdt y = some sl) :
+    (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) sl) ∧
+    ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
+      (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val) := by
+  have U := J.utc sl p sb fi false hsl hcap rfl
+  have hND : NotDev (L.mem s) (cslotAddr sl) p sb fi := by
+    unfold NotDev; rw [capV_of_capAt hcap]; simp
+  by_cases hfi0 : fi.val = 0
+  · have hfree := U.free
+    rw [hfi0, Nat.add_zero] at hfree
+    have hout : ∀ q k, Z.th q = some k → 0 < objSize k → ¬ (p.val ≤ q.val ∧ q.val < p.val + 2 ^ sb.val) := by
+      intro q k hq hk hin
+      rcases hfree q k hq with h | h <;> omega
+    refine ⟨fun sl' h => ?_, ?_⟩
+    · obtain ⟨q, h1, h2⟩ := J.kern.orig sl' h
+      refine ⟨q, h1, ?_⟩
+      rcases h2 with h2 | ⟨h2, h3⟩
+      · rw [restrictTh_out (hout q _ h2 (by simp only [objSize]; positivity))]; exact Or.inl h2
+      · rw [restrictTh_out (hout q _ h2 (by simp only [objSize]; omega))]; exact Or.inr ⟨h2, h3⟩
+    · rcases J.kern.head with h | ⟨h1, -⟩
+      · rw [h]
+        have := U.high hND
+        rintro ⟨g1, -⟩
+        have h0 : (0#u64 : U64).val = 0 := rfl
+        rw [h0] at g1
+        omega
+      · exact hout _ _ h1 (by simp only [objSize]; omega)
+  · exact U.rst hND hnc hfi0
+
+/-- **`JAtZ` across the drop** (item 2 of handoff/utj.md "Round 9"; any free
+index, `JAtZ.rstAll`, handoff/utj.md Round 15): at a
+childless RAM untyped cap, from the same FL4 state, the spec state
 `σ'` detyped at the region, the kept sets, the restricted typed heap and
 P1's heap without the region's objects. Premises beyond `JAtZ`: no
 reschedule pending, the spec detype's own facts (`SDrop` and the fields it
@@ -620,10 +656,10 @@ parts, as `utEpJ`), `ArchFitHyp` [J] (as `utEpJ`), and `VsReachMiss` [J]
 the VSpace cap field `vsc` holds at the pruned sets, `VsSlotsW.drop`; the
 callers take the roots `{q | ∃ y, IsSlot Z.th y ∧ VNeed (capV m y) k q}`,
 in the sets by `VsSlotsW.need`). -/
-theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hres : σ.schedulerAction ≠ .chooseNewThread) {sl : Fl4Spec.CslotPtr} (hsl : AbsSlot Z.th sl)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
-    (hnc : ¬ ∃ y, σ.cdt y = some sl) (hfi0 : fi.val ≠ 0)
+    (hnc : ¬ ∃ y, σ.cdt y = some sl)
     (hKR : KeptRefsP3 (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) s)
     (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s)
     (hAF : ArchFitHyp H σ)
@@ -651,7 +687,7 @@ theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hK := J.sKeep hsb hfit hRD hres hKR
   have hND : NotDev (L.mem s) (cslotAddr sl) p sb fi := by
     unfold NotDev; rw [hcx]; simp
-  obtain ⟨hrst, hhd⟩ := U.rst hND hnc hfi0
+  obtain ⟨hrst, hhd⟩ := J.rstAll hsl hcap hnc
   obtain ⟨hcur, hcsc⟩ := J.curLive hsb hfit hres hRD
   obtain ⟨hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hcov, hobj, hzH, hsf, hhs, hscC, hiL⟩ :=
     J.dropPlace hsb hfit hx hcx U.fiLe hAF U.nostr hD
@@ -675,6 +711,29 @@ theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
     hcr, hblk, hiL, hvc⟩
+
+/-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
+theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hres : σ.schedulerAction ≠ .chooseNewThread) {sl : Fl4Spec.CslotPtr} (hsl : AbsSlot Z.th sl)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
+    (hnc : ¬ ∃ y, σ.cdt y = some sl) (_hfi0 : fi.val ≠ 0)
+    (hKR : KeptRefsP3 (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) s)
+    (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s)
+    (hAF : ArchFitHyp H σ)
+    {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ')
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hrepr : σ'.reprogramTimer = σ.reprogramTimer) (hcdom : σ'.curDomain = σ.curDomain)
+    (hdtime : σ'.domainTime = σ.domainTime) (hist : σ'.interruptStates = σ.interruptStates)
+    (hinode : σ'.interruptIrqNode = σ.interruptIrqNode) (harch : σ'.archState = σ.archState)
+    (hdl : σ'.domainList = σ.domainList) (hdsi : σ'.domainStartIndex = σ.domainStartIndex)
+    (hum : ∀ x, ¬ RgOf p sb x → σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x)
+    {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
+    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1)
+    (hXc : ∀ y, IsSlot Z.th y → ∀ k q, Vs.VNeed (capV (L.mem s) y) k q → q ∈ Vs.lvlSet XP X4 X3 X2 X1 k) :
+    JAtZ (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
+      (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs Ac Lst D s a σ' :=
+  J.dropA hres hsl hcap hnc hKR hDT hAF hD hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi hum hXP hX4 hX3
+    hX2 hX1 hM hXc
 
 end
 
