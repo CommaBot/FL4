@@ -135,19 +135,34 @@ theorem JAtZ.ppJS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKee
       rw [e, hc.cur]; omega
   exact ⟨σ', hcase, hJ', hX', hSS, hw.1, hw.2.1, fun b hb h1 h2 => hw.mem_eq hb fun hb' => (hloc b hb').elim h1 h2⟩
 
+/-- A slot other than `x` keeps its cap across writes off `x`'s two words. -/
+theorem capAt_frame2 {th : TypedHeap} (hP : Placed th) {m m' : U64 → U64} {x y : U64} (hx : IsSlot th x)
+    (hy : IsSlot th y) (hne : y ≠ x)
+    (hm : ∀ w : U64, P1.Aligned w → w.val ≠ x.val → w.val ≠ x.val + 8 → m' w = m w) : capAt m' y = capAt m y := by
+  have ax := hx.align hP
+  have ay := hy.align hP
+  have fy := hy.fit hP
+  have hne' : y.val ≠ x.val := fun e => hne (UScalar.eq_of_val_eq e)
+  have h8 : (core.num.U64.wrapping_add y 8#u64).val = y.val + 8 := by
+    rw [core.num.U64.wrapping_add_val_eq]; simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
+  unfold capAt
+  rw [hm y (by unfold P1.Aligned; omega) hne' (by omega),
+    hm _ (by unfold P1.Aligned; rw [h8]; omega) (by rw [h8]; omega) (by rw [h8]; omega)]
+
 /-- **What the reset at `J` ends with** (module docstring): done, the cap's
 free index 0 and the region zero, `JAtZ` at the same sets and a spec `Ok`
 outcome of the reset from `σ0`; or preempted, `JAtPre` and a spec `error`
 outcome. -/
 def ResetJPost (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
-    (kb : U64) (σ0 : Fl4Spec.State Unit) (pp : U64) (idx : List Bool) (p sb : U64)
+    (kb : U64) (σ0 : Fl4Spec.State Unit) (m0 : U64 → U64) (pp : U64) (idx : List Bool) (p sb : U64)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (res.1 = .Ok () ∧ ∃ σ' Ac Lst D, (.ok (), σ') ∈ ((Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ0).1 ∧
     JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 σ' ∧
     capAt (L.mem res.2.1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb 0#u64 false) ∧ L.ksb res.2.1 = kb ∧
     ZeroRegion (L.mem res.2.1) p.val (p.val + 2 ^ sb.val) ∧ RgMiss p sb σ' ∧
     (¬ ∃ y, σ'.cdt y = some (pp.bv, idx)) ∧ PPR0 σ' ∧
-    ∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σ'.machineState.underlyingMemory y = 0) ∨
+    (∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σ'.machineState.underlyingMemory y = 0) ∧
+    ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → capAt (L.mem res.2.1) y = capAt m0 y) ∨
   (res.1 = .Err .Preempted ∧ ∃ σ', (.error (), σ') ∈ ((Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ0).1 ∧
     JAtPre (L := L) arI AR res.2.1 res.2.2 σ' ∧ ∃ Z', XTopAt (L := L) AR Z' res.2.1 res.2.2 σ')
 
@@ -160,7 +175,7 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb kb : U64} (hTh : restrictTh Z.th p.val (p.val + 2 ^ sb.val) = Z.th)
     (hfr : RegionFree Z.th p.val (p.val + 2 ^ sb.val)) (hRC : RgClear Z H Cs kb p sb) (hc0 : Z.c = 0#u64)
-    (hp16 : p.val % 65536 = 0) (hpf : p.val + 2 ^ sb.val ≤ 2 ^ 64) (σ0 : Fl4Spec.State Unit) :
+    (hp16 : p.val % 65536 = 0) (hpf : p.val + 2 ^ sb.val ≤ 2 ^ 64) (σ0 : Fl4Spec.State Unit) (m0 : U64 → U64) :
     ∀ (s : S) (a : A) (o : U64) (σk : Fl4Spec.State Unit) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (f : U64),
       o.val % 65536 = 0 → o.val + 65536 ≤ 2 ^ sb.val →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σk →
@@ -169,9 +184,10 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
       RContX false p.bv sb.val pp.bv idx σ0 (o.val / 65536) σk → RgMiss p sb σk →
       (¬ ∃ y, σk.cdt y = some (pp.bv, idx)) → PPR0 σk → L.ksb s = kb →
       (∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σk.machineState.underlyingMemory y = 0) →
+      (∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → capAt (L.mem s) y = capAt m0 y) →
       untyped.reset_untyped_loop st arI s a (cslotAddr (pp.bv, idx)) p sb false o ⦃ res =>
-        ResetJPost (L := L) arI AR Z H Cs kb σ0 pp idx p sb res ⦄ := by
-  intro s a o σk Ac Lst D f ho1 ho2 J hcap hf0 hZ hK hRM hnc hR0 hkb hum
+        ResetJPost (L := L) arI AR Z H Cs kb σ0 m0 pp idx p sb res ⦄ := by
+  intro s a o σk Ac Lst D f ho1 ho2 J hcap hf0 hZ hK hRM hnc hR0 hkb hum hSl
   set xs := cslotAddr (pp.bv, idx) with hxsdef
   have hP := J.xtop.rel.1
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
@@ -189,11 +205,12 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
       ZeroRegion (L.mem x.1) (p.val + x.2.2.val + 65536) (p.val + 2 ^ sb.val) ∧
       RContX false p.bv sb.val pp.bv idx σ0 (x.2.2.val / 65536) σk ∧ RgMiss p sb σk ∧
       (¬ ∃ y, σk.cdt y = some (pp.bv, idx)) ∧ PPR0 σk ∧ L.ksb x.1 = kb ∧
-      (∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σk.machineState.underlyingMemory y = 0))
+      (∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σk.machineState.underlyingMemory y = 0) ∧
+      (∀ y, IsSlot Z.th y → y ≠ xs → capAt (L.mem x.1) y = capAt m0 y))
     _ _ _ ?_ ?_
   rotate_left
-  · exact ⟨ho1, ho2, σk, Ac, Lst, D, f, J, hcap, hf0, hZ, hK, hRM, hnc, hR0, hkb, hum⟩
-  rintro ⟨s1, a1, o⟩ ⟨ho1, ho2, σk, Ac, Lst, D, f, J, hcap, hf0, hZ, hK, hRM, hnc, hR0, hkb, hum⟩
+  · exact ⟨ho1, ho2, σk, Ac, Lst, D, f, J, hcap, hf0, hZ, hK, hRM, hnc, hR0, hkb, hum, hSl⟩
+  rintro ⟨s1, a1, o⟩ ⟨ho1, ho2, σk, Ac, Lst, D, f, J, hcap, hf0, hZ, hK, hRM, hnc, hR0, hkb, hum, hSl⟩
   simp only at ho1 ho2 J hcap hZ hK hkb ⊢
   unfold untyped.reset_untyped_loop.body
   have hiv : (core.num.U64.wrapping_add p o).val = p.val + o.val := by
@@ -234,6 +251,8 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
   have hum2 : ∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val →
       σk2.machineState.underlyingMemory y = 0 := hum
   have hnc2 : ¬ ∃ y, σk2.cdt y = some (pp.bv, idx) := hnc
+  have hSl2 : ∀ y, IsSlot Z.th y → y ≠ xs → capAt (L.mem s2) y = capAt m0 y := fun y hy hne => by
+    rw [capAt_frame2 hP hxs hy hne hfr2, hS1.capAt hy]; exact hSl y hy hne
   -- the spec's chunk
   set k := o.val / 65536 with hkdef
   have hko : k * 65536 = o.val := by omega
@@ -260,7 +279,7 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
       have h0 := hchunk _ hy
       rw [hk0] at h0 hK
       exact RContX.done hK h0
-    refine (WP.spec_ok _).2 (Or.inl ⟨rfl, σk2, Ac, Lst, D, hmem, J2, ?_, hks2', ?_, hRM2, hnc2, hR02, hum2⟩)
+    refine (WP.spec_ok _).2 (Or.inl ⟨rfl, σk2, Ac, Lst, D, hmem, J2, ?_, hks2', ?_, hRM2, hnc2, hR02, hum2, hSl2⟩)
     · rw [hcap2, ho0]
     · intro w hw h1 h2; exact hZ2 w hw (by omega) h2
   · rw [if_neg ho0]
@@ -292,7 +311,8 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
         show (BitVec.ofNat 64 (max 0 (o.val - untyped.RESET_CHUNK.val))).toNat = _
         rw [hC]; simp; omega
       refine (WP.spec_ok _).2 ⟨⟨by rw [hsv]; omega, by rw [hsv]; omega, σp, Ac', Lst', D', o, J3, hcap3, ho0', ?_, ?_,
-        hRM2.of_kheap hkh, by rw [hcdt]; exact hnc2, hR03, by rw [hks3, hks2'], fun y h1 h2 => by rw [humq]; exact hum2 y h1 h2⟩, ?_⟩
+        hRM2.of_kheap hkh, by rw [hcdt]; exact hnc2, hR03, by rw [hks3, hks2'], fun y h1 h2 => by rw [humq]; exact hum2 y h1 h2,
+        fun y hy hne => by rw [hSS3.capAt hy]; exact hSl2 y hy hne⟩, ?_⟩
       · rw [hsv, show p.val + (o.val - 65536) + 65536 = p.val + o.val by omega]; exact hZ3
       · rw [hsv, show (o.val - 65536) / 65536 = k - 1 by omega]; exact hK'
       · show (core.num.U64.saturating_sub o untyped.RESET_CHUNK).val < o.val

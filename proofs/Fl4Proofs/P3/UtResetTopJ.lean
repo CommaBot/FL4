@@ -76,7 +76,7 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
     untyped.reset_untyped st arI s a (cslotAddr (pp.bv, idx)) ⦃ res =>
       ResetJPost (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
-        (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs (L.ksb s) σ pp idx p sb res ⦄ := by
+        (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs (L.ksb s) σ (L.mem s) pp idx p sb res ⦄ := by
   set x := cslotAddr (pp.bv, idx) with hxdef
   set Z' := (Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s) with hZ'
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
@@ -192,7 +192,8 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (by have := U.sb4; omega) hyD hz hk2 hwf2
     rw [e0] at J2
     refine (WP.spec_ok _).2 (Or.inl ⟨rfl, _, Ac, Lst, D, hmem, J2, hcap2, by rw [hks2, hs1z, L.ksb_zr], hZ2,
-      hRM.setCn hk2 idx _, hncD, hR0D.setCn hk2 hwf2 hidx _, hz⟩)
+      hRM.setCn hk2 idx _, hncD, hR0D.setCn hk2 hwf2 hidx _, hz, fun y hy hne => by
+        rw [capAt_frame2 hP' hxs' hy hne hfr2, hS1.capAt hy]⟩)
   · -- the chunked reset
     rw [if_neg hsm]
     have hsb16 : 16 ≤ sb.val := by rw [reset_chunk_bits_eq] at hsm; exact Nat.le_of_not_lt hsm
@@ -213,10 +214,10 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have hqa := Nat.lt_div_mul_add (a := fi.val - 1) (b := 65536) (by decide)
     have hK := reset_initX hk hwf hidx hg hfi0 hp8 hpb hrcb (by rw [hrcb]; simp; omega) hfib hyD
     rw [hrcb] at hK
-    exact JAtZ.reset_loopJ hAK hA hnd hPP hrcb hpp' hidx hTh hfr hRC hc0' (hmod 65536 ⟨t, ht⟩) hfit σ s a
+    exact JAtZ.reset_loopJ hAK hA hnd hPP hrcb hpp' hidx hTh hfr hRC hc0' (hmod 65536 ⟨t, ht⟩) hfit σ (L.mem s) s a
       (i &&& ~~~i1) _ Ac Lst D fi (by rw [hov]; omega) (by rw [hov, ht]; nlinarith) J' hcap hfi0
       (fun w hw h1 h2 => hZf w hw (by rw [hov] at h1; omega) h2)
-      (by rw [hov, Nat.mul_div_cancel _ (by decide)]; simpa using hK) hRM hncD hR0D rfl hz
+      (by rw [hov, Nat.mul_div_cancel _ (by decide)]; simpa using hK) hRM hncD hR0D rfl hz (fun _ _ _ => rfl)
 
 end
 
