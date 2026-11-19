@@ -4,6 +4,7 @@
 
 mod acpi;
 mod bootmem;
+mod dangerous_msr;
 mod elf;
 mod entry;
 mod gdt;
@@ -12,6 +13,7 @@ mod mboot;
 mod paging;
 mod smp;
 mod snp;
+mod snp_walk;
 mod trace;
 
 use core::cell::UnsafeCell;
@@ -59,9 +61,11 @@ const PAGE: u64 = 4096;
 /// An IOAPIC's registers: IOREGSEL and IOWIN.
 const IOAPIC_WINDOW: u64 = 0x20;
 /// The user address space the boot frames after the root task's image
-/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame and the
-/// extra BootInfo (at most `ExtraBi`'s 4 KiB).
-const IT_TAIL: u64 = 3 * PAGE;
+/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame, then
+/// the extra BootInfo, which fl4-core rounds up to a power of two over
+/// `ExtraBi`'s 4 KiB plus the l4h 0047 reservation (16 + 256 * 16 bytes),
+/// so at most 16 KiB.
+const IT_TAIL: u64 = 6 * PAGE;
 /// Memory map entries the BootInfo record holds (libsel4
 /// `SEL4_MULTIBOOT_MAX_MMAP_ENTRIES`).
 const BI_MMAP: usize = 50;
@@ -192,6 +196,14 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
             put_bytes(buf, &mut off, &mb.modules[i + 1].name);
         }
     }
+    // l4h 0047: the kernel appends the extra untyped chunk with word
+    // writes, so end on a word boundary. The records above come to at most
+    // 2010 bytes, so these at most 23 fit in `ExtraBi` too.
+    if off % 8 != 0 {
+        let pad = 8 - off % 8;
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::PADDING, (16 + pad) as u64);
+        put_bytes(buf, &mut off, &[0u8; 8][..pad]);
+    }
     off
 }
 
@@ -257,7 +269,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     gdt::init_idt();
     gdt::init_core(0, stack_top);
     cpu::init_pat();
-    fpu::init();
+    assert!(fpu::init(true));
     assert!(spec::init_core(true));
     assert!(fl4_arch_x86_64::vm::init(true));
     kprintln!("FL4: virtualization {}", match fl4_arch_x86_64::vm::backend() { 1 => "VT-x", 2 => "AMD-V", _ => "unavailable" });
@@ -272,7 +284,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         None => fail("no ACPI tables"),
     };
     pic::disable();
-    let apic_base = apic::enable(window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
+    let apic_base = apic::enable(true, window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
@@ -310,7 +322,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     let fb_console = mboot::has_option(&mb, b"fb_console");
 
     // The other cores, if any (each sets itself up and waits).
-    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx, window_top });
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top });
     if ncpus > 1 {
         kprintln!("FL4: {} cores running", ncpus);
     }
@@ -384,9 +396,11 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     let st = unsafe { &mut *STATICS.0.get() };
     let mods = keep_modules(&mb, image.p_end, &ram, &mut st.mods);
     if sev::snp::active() {
-        // Keep firmware RAM, including the SNP secrets, out of device caps.
+        // Keep usable RAM and ACPI NVS (including the SNP secrets)
+        // out of device caps. Root reads ACPI tables in reclaim memory
+        // through private device frames, which retain the encryption bit.
         for e in &mb.mmap[..mb.n_mmap] {
-            if matches!(e.ty, 1 | 3 | 4) {
+            if matches!(e.ty, 1 | 4) {
                 dev.remove(e.base & !(PAGE - 1), e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1));
             }
         }
@@ -487,6 +501,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         let why = match e {
             fl4_core::boot::BootError::NoMemory => "not enough memory",
             fl4_core::boot::BootError::TooManyCaps => "root CNode too small",
+            fl4_core::boot::BootError::TooManyUntypeds => "too many untyped regions",
         };
         kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");

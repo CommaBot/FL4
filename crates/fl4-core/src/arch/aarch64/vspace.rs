@@ -36,6 +36,10 @@ const D_UXN: u64 = 1 << 54;
 /// Table descriptors: the kernel never executes anything below them.
 const D_PXN_TABLE: u64 = 1 << 59;
 const ADDR_MASK: u64 = 0x0000_ffff_ffff_f000;
+/// Descriptor bits whose change needs break-before-make (Arm ARM DDI 0487
+/// D8.14.1): all but the access permissions, execute-never and the access
+/// flag, which may change in place.
+const BBM_MASK: u64 = !((3 << D_AP_SHIFT) | D_AF | D_UXN | D_PXN);
 
 /// MAIR_EL1 attribute indices; the backend programs `MAIR`.
 pub const ATTR_NORMAL: u64 = 0;
@@ -503,13 +507,45 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     let e = make_user_page(layout::paddr(f.ptr), vm, cap_read, attr, shift);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: true, is_ept: false, asid, vaddr });
-    // seL4 `performPageInvocationMap`: replacing a page needs a flush.
+    install_page(s, a, lu, e, root, asid, vaddr, f, attr);
+    Ok(())
+}
+
+/// seL4 `performPageInvocationMap`, with break-before-make (Arm ARM DDI
+/// 0487 D8.14.1) where it is needed: a live page or block descriptor whose
+/// output address, memory type, shareability, nG or type changes is
+/// cleared and its TLB entries are invalidated on every core before the
+/// new descriptor is written, so no core ever holds the old and the new
+/// translation at once. One that changes only its permissions or access
+/// flag, or not at all, is rewritten in place (another core's access then
+/// never finds it invalid and faults) and then invalidated: l4h 0023's
+/// TestAndClearAccessed clears AF without a flush and relies on a remap to
+/// drop the stale entry.
+///
+/// A RAM frame newly mapped non-cacheable has its lines cleaned and
+/// invalidated to the point of coherency before its descriptor: the kernel
+/// window maps it write-back, so zeroing (retype, untyped reset) or an
+/// earlier cacheable mapping may have left dirty lines that a
+/// non-cacheable access would read past (old data in memory) and that
+/// would later be written back over it. RAM frames always lie in the
+/// kernel window, so this never walks the user mapping. Device frames are
+/// never cache-maintained.
+#[allow(clippy::too_many_arguments)]
+fn install_page<S: Store, A: Arch>(s: &mut S, a: &mut A, lu: PtSlot, e: u64, root: u64, asid: u64, vaddr: u64, f: FrameCap, attr: u64) {
     let old = s.read(lu.slot);
-    s.write(lu.slot, e);
     if is_page(old, lu.shift) {
+        if (old ^ e) & BBM_MASK == 0 {
+            s.write(lu.slot, e);
+            a.invalidate_page(asid, vaddr);
+            return;
+        }
+        s.write(lu.slot, 0);
         a.invalidate_page(asid, vaddr);
     }
-    Ok(())
+    if !f.is_device && attr & arm_vm_attr::PAGE_CACHEABLE == 0 {
+        a.cache_op(CACHE_CLEAN_INVALIDATE, root, asid, vaddr, 1u64 << (lu.shift & 63), layout::paddr(f.ptr));
+    }
+    s.write(lu.slot, e);
 }
 
 /// The page or block descriptor mapping `f` at its recorded address, if
@@ -872,5 +908,311 @@ pub fn decode<S: Store, A: Arch>(
             Ok(())
         }
         _ => invalid_cap(0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Audit F1/F2 (TCB audit round 3): ARMPageMap's descriptor update
+    //! order (break-before-make) and the cache maintenance of RAM frames
+    //! mapped non-cacheable, through `decode_page_map` itself.
+    extern crate std;
+    use super::*;
+    use crate::capability::FrameSize;
+    use crate::obj::Tcb;
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+    use std::rc::Rc;
+    use std::vec;
+    use std::vec::Vec;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Ev {
+        Write(u64, u64),
+        InvalidatePage(u64, u64),
+        CacheOp { op: u64, asid: u64, vaddr: u64, len: u64, paddr: u64 },
+    }
+
+    type Log = Rc<RefCell<Vec<Ev>>>;
+
+    /// Kernel memory; writes to the watched descriptor are logged.
+    struct Mem {
+        words: BTreeMap<u64, u64>,
+        watch: u64,
+        log: Log,
+    }
+    impl Store for Mem {
+        fn read(&self, a: u64) -> u64 {
+            *self.words.get(&a).unwrap_or(&0)
+        }
+        fn write(&mut self, a: u64, v: u64) {
+            if a == self.watch {
+                self.log.borrow_mut().push(Ev::Write(a, v));
+            }
+            self.words.insert(a, v);
+        }
+        fn zero(&mut self, a: u64, len: u64) {
+            for i in (0..len).step_by(8) {
+                self.write(a + i, 0);
+            }
+        }
+        fn clear_free(&mut self, a: u64, len: u64) {
+            self.zero(a, len)
+        }
+        fn ks_base(&self) -> u64 {
+            0x10_0000
+        }
+        fn cur_cpu(&self) -> u64 {
+            0
+        }
+    }
+
+    struct Mach {
+        log: Log,
+    }
+    impl Arch for Mach {
+        fn now(&mut self) -> u64 { 0 }
+        fn set_deadline(&mut self, _: u64) {}
+        fn us_to_ticks(&self, x: u64) -> u64 { x }
+        fn ticks_to_us(&self, x: u64) -> u64 { x }
+        fn max_us(&self) -> u64 { u64::MAX }
+        fn kernel_wcet_ticks(&self) -> u64 { 1 }
+        fn irq_pending(&mut self) -> bool { false }
+        fn take_pending_irq(&mut self) -> u64 { u64::MAX }
+        fn mask_irq(&mut self, _: u64, _: bool) {}
+        fn ack_irq(&mut self, _: u64) {}
+        fn set_vspace(&mut self, _: u64, _: u64) {}
+        fn invalidate_page(&mut self, asid: u64, vaddr: u64) {
+            self.log.borrow_mut().push(Ev::InvalidatePage(asid, vaddr));
+        }
+        fn invalidate_asid(&mut self, _: u64) { panic!("unexpected invalidate_asid") }
+        fn invalidate_page_structures(&mut self, _: u64) { panic!("unexpected invalidate_page_structures") }
+        fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn num_ioapics(&self) -> u64 { 0 }
+        fn ioapic_pins(&self, _: u64) -> u64 { 0 }
+        fn port_in(&mut self, _: u64, _: u64) -> u64 { 0 }
+        fn port_out(&mut self, _: u64, _: u64, _: u64) {}
+        fn fpu_flush(&mut self, _: u64) {}
+        fn fpu_sanitise(&mut self, _: u64) {}
+        fn fpu_reload(&mut self, _: u64) {}
+        fn fpu_release(&mut self, _: u64) {}
+        fn remote_stall(&mut self, _: u64) {}
+        fn send_reschedule(&mut self, _: u64) {}
+        fn cache_op(&mut self, op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64) {
+            assert_eq!(root, layout::pptr(ROOT));
+            self.log.borrow_mut().push(Ev::CacheOp { op, asid, vaddr, len, paddr });
+        }
+        fn hw_access_flag(&self) -> bool { true }
+        fn max_spi(&self) -> u64 { 0 }
+        fn configure_irq(&mut self, _: u64, _: bool, _: u64) {}
+        fn putc(&mut self, _: u64) {}
+        fn get_char(&mut self) -> u64 { 0 }
+        fn halt(&mut self) {}
+    }
+
+    const ASID: u64 = 0x201;
+    const VADDR: u64 = 0x4000_0000;
+    // Physical addresses of the tables, the frame and the other frame an
+    // earlier mapping used.
+    const ROOT: u64 = 0x10_0000;
+    const L1: u64 = 0x10_1000;
+    const L2: u64 = 0x10_2000;
+    const L3: u64 = 0x10_3000;
+    const FRAME: u64 = 0x80_0000;
+    const OTHER: u64 = 0xa0_0000;
+
+    struct World {
+        s: Mem,
+        a: Mach,
+        log: Log,
+        fslot: Slot,
+        ex: [Slot; 3],
+        /// The descriptor `decode_page_map` writes.
+        pte: u64,
+        shift: u64,
+    }
+
+    /// A VSpace with ASID `ASID` whose tables reach the level that maps
+    /// `size` at `VADDR`, and the current thread's arguments for
+    /// ARMPageMap(VADDR, all rights, attr).
+    fn world(size: FrameSize, attr: u64) -> World {
+        let log: Log = Rc::new(RefCell::new(Vec::new()));
+        let mut s = Mem { words: BTreeMap::new(), watch: 0, log: log.clone() };
+        let root = layout::pptr(ROOT);
+        let shift = size.bits();
+        // Table descriptors down to the level that maps `shift`.
+        let tables = [(ROOT, L1, TOP_LEVEL_SHIFT), (L1, L2, 30), (L2, L3, 21)];
+        let mut leaf_table = ROOT;
+        for &(t, next, sh) in &tables {
+            if sh == shift {
+                break;
+            }
+            s.write(entry_addr(layout::pptr(t), VADDR, sh), make_user_table(next));
+            leaf_table = next;
+        }
+        let pte = entry_addr(layout::pptr(leaf_table), VADDR, shift);
+        // The ASID pool and its entry for the VSpace.
+        let pool = layout::pptr(0x50_0000);
+        set_asid_table(&mut s, ASID >> ASID_LOW_BITS, pool);
+        s.write(pool + (ASID & 511) * 8, root);
+        // The current thread and its message registers.
+        let t = Tcb(layout::pptr(0x60_0000));
+        sched::set_cur_thread(&mut s, t);
+        t.set_reg(&mut s, msg::msg_register(0), VADDR);
+        t.set_reg(&mut s, msg::msg_register(1), u64::MAX);
+        t.set_reg(&mut s, msg::msg_register(2), attr);
+        let vslot = Slot(layout::pptr(0x70_0000));
+        vslot.set_cap(&mut s, Cap::Pml4 { ptr: root, mapped: true, asid: ASID });
+        let fslot = Slot(layout::pptr(0x70_0040));
+        s.watch = pte;
+        World { s, a: Mach { log: log.clone() }, log, fslot, ex: [vslot, Slot(0), Slot(0)], pte, shift }
+    }
+
+    fn frame(size: FrameSize, is_device: bool, mapped: bool) -> FrameCap {
+        FrameCap {
+            ptr: layout::pptr(FRAME),
+            size,
+            rights: VM_READ_WRITE,
+            is_device,
+            mapped,
+            asid: if mapped { ASID } else { 0 },
+            vaddr: if mapped { VADDR } else { 0 },
+        }
+    }
+
+    fn map(w: &mut World, f: FrameCap) -> Vec<Ev> {
+        w.fslot.set_cap(&mut w.s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: f.mapped, is_ept: false, asid: f.asid, vaddr: f.vaddr });
+        w.log.borrow_mut().clear();
+        assert!(decode_page_map(&mut w.s, &mut w.a, 3, w.fslot, f, 0, &w.ex).is_ok());
+        let ev = w.log.borrow().clone();
+        ev
+    }
+
+    fn entry(attr: u64, shift: u64) -> u64 {
+        make_user_page(FRAME, VM_READ_WRITE, true, attr, shift)
+    }
+
+    fn clean(len: u64) -> Ev {
+        Ev::CacheOp { op: CACHE_CLEAN_INVALIDATE, asid: ASID, vaddr: VADDR, len, paddr: FRAME }
+    }
+
+    #[test]
+    fn ram_mapped_uncached_is_cleaned_to_poc_before_its_descriptor() {
+        for size in [FrameSize::Small, FrameSize::Large] {
+            let mut w = world(size, 0);
+            let f = frame(size, false, false);
+            let ev = map(&mut w, f);
+            let e = entry(0, w.shift);
+            assert_eq!(ev, vec![clean(1 << w.shift), Ev::Write(w.pte, e)], "size {}", size.bits());
+            assert_eq!(w.s.read(w.pte), e);
+            assert_eq!((e >> D_ATTR_SHIFT) & 7, ATTR_DEVICE_NGNRNE);
+        }
+    }
+
+    #[test]
+    fn device_frames_are_never_cache_maintained() {
+        let mut w = world(FrameSize::Small, 0);
+        let f = frame(FrameSize::Small, true, false);
+        let ev = map(&mut w, f);
+        assert_eq!(ev, vec![Ev::Write(w.pte, entry(0, 12))]);
+        // Nor when one replaces a live descriptor.
+        w.s.write(w.pte, make_user_page(OTHER, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, 12));
+        let ev = map(&mut w, f);
+        assert_eq!(ev, vec![Ev::Write(w.pte, 0), Ev::InvalidatePage(ASID, VADDR), Ev::Write(w.pte, entry(0, 12))]);
+    }
+
+    /// Overmapping another frame mapped with the same attributes is a new
+    /// output address: break-before-make too.
+    #[test]
+    fn overmapping_with_the_same_attributes_still_breaks() {
+        for attr in [0, arm_vm_attr::PAGE_CACHEABLE] {
+            let mut w = world(FrameSize::Small, attr);
+            w.s.write(w.pte, make_user_page(OTHER, VM_READ_WRITE, true, attr, 12));
+            let ev = map(&mut w, frame(FrameSize::Small, false, false));
+            let mut want = vec![Ev::Write(w.pte, 0), Ev::InvalidatePage(ASID, VADDR)];
+            if attr == 0 {
+                want.push(clean(0x1000));
+            }
+            want.push(Ev::Write(w.pte, entry(attr, 12)));
+            assert_eq!(ev, want, "attr {attr}");
+        }
+    }
+
+    #[test]
+    fn cacheable_ram_mappings_need_no_cache_maintenance() {
+        let mut w = world(FrameSize::Small, arm_vm_attr::PAGE_CACHEABLE);
+        let f = frame(FrameSize::Small, false, false);
+        let ev = map(&mut w, f);
+        assert_eq!(ev, vec![Ev::Write(w.pte, entry(arm_vm_attr::PAGE_CACHEABLE, 12))]);
+    }
+
+    /// Overmapping a live descriptor (another frame's, cacheable) breaks
+    /// it before the new one is made: cleared, flushed on every core,
+    /// cleaned for an uncached RAM mapping, and only then written.
+    #[test]
+    fn overmapping_a_live_descriptor_breaks_before_make() {
+        for size in [FrameSize::Small, FrameSize::Large] {
+            for attr in [0, arm_vm_attr::PAGE_CACHEABLE] {
+                let mut w = world(size, attr);
+                let old = make_user_page(OTHER, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, w.shift);
+                w.s.write(w.pte, old);
+                let f = frame(size, false, false);
+                let ev = map(&mut w, f);
+                let e = entry(attr, w.shift);
+                let mut want = vec![Ev::Write(w.pte, 0), Ev::InvalidatePage(ASID, VADDR)];
+                if attr == 0 {
+                    want.push(clean(1 << w.shift));
+                }
+                want.push(Ev::Write(w.pte, e));
+                assert_eq!(ev, want, "size {} attr {attr}", size.bits());
+                // No non-zero descriptor reaches the slot before the flush.
+                let flush = ev.iter().position(|x| matches!(x, Ev::InvalidatePage(..))).unwrap();
+                assert!(ev[..flush].iter().all(|x| !matches!(x, Ev::Write(_, v) if *v != 0)));
+            }
+        }
+    }
+
+    /// A remap of the frame's own mapping that changes its cacheability
+    /// (memory type and shareability) breaks before make.
+    #[test]
+    fn remapping_with_another_memory_type_breaks_and_flushes() {
+        for (before, after) in [(arm_vm_attr::PAGE_CACHEABLE, 0), (0, arm_vm_attr::PAGE_CACHEABLE)] {
+            let mut w = world(FrameSize::Small, after);
+            let f = frame(FrameSize::Small, false, true);
+            w.s.write(w.pte, entry(before, 12));
+            let ev = map(&mut w, f);
+            let mut want = vec![Ev::Write(w.pte, 0), Ev::InvalidatePage(ASID, VADDR)];
+            if after == 0 {
+                want.push(clean(0x1000));
+            }
+            want.push(Ev::Write(w.pte, entry(after, 12)));
+            assert_eq!(ev, want, "{before} -> {after}");
+        }
+    }
+
+    /// A remap that keeps the frame and its memory type, changing only
+    /// permissions, execute-never or the access flag (or nothing), is
+    /// rewritten in place and then flushed: never cleared, so another core
+    /// cannot fault on it, and the flush that TestAndClearAccessed (l4h
+    /// 0023, FL4VM0002) relies on still happens.
+    #[test]
+    fn remapping_only_permissions_rewrites_in_place_and_flushes() {
+        for attr in [0, arm_vm_attr::PAGE_CACHEABLE] {
+            let f = frame(FrameSize::Small, false, true);
+            let e = entry(attr, 12);
+            let olds = [
+                e,
+                e & !D_AF,
+                make_user_page(FRAME, VM_READ_ONLY, true, attr, 12),
+                make_user_page(FRAME, VM_READ_WRITE, true, attr | arm_vm_attr::EXECUTE_NEVER, 12),
+            ];
+            for old in olds {
+                let mut w = world(FrameSize::Small, attr);
+                w.s.write(w.pte, old);
+                let ev = map(&mut w, f);
+                assert_eq!(ev, vec![Ev::Write(w.pte, e), Ev::InvalidatePage(ASID, VADDR)], "attr {attr} old {old:#x}");
+            }
+        }
     }
 }

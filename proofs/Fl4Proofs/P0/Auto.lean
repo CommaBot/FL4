@@ -601,7 +601,10 @@ theorem obj.Tcb.Insts.CoreCmpPartialEqTcb.eq.p0 (self : obj.Tcb) (other : obj.Tc
 
 @[step] theorem interrupt.map_ioapic.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64) (vector : Std.U64) (remapped : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     interrupt.map_ioapic machineStoreInst machineArchInst s a buf vector remapped ⦃ _ => True ⦄ := by
-  unfold interrupt.map_ioapic; p0_split
+  -- #42: `let (a1, routed) ← if remapped then … else …` (step stops at a bound `if`)
+  unfold interrupt.map_ioapic
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals (rename_i a1 routed; exact (show (if routed = true then _ else _) ⦃ _ ⦄ by split <;> p0_auto))
 
 @[step] theorem interrupt.check_msi.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) (hS : StoreTotal machineStoreInst) :
     interrupt.check_msi machineStoreInst s buf ⦃ _ => True ⦄ := by
@@ -2930,6 +2933,10 @@ theorem boot.BOOT_THREAD_TIME_SLICE_US.p0  :
     boot.arch_n_paging r ⦃ _ => True ⦄ := by
   unfold boot.arch_n_paging; p0_auto
 
+theorem boot.extra_ut_reserve.p0  :
+    boot.extra_ut_reserve ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.boot.extra_ut_reserve.spec (fun _ _ => trivial)
+
 @[step] theorem boot.extra_bi_size_bits.p0 (len : Std.U64) :
     boot.extra_bi_size_bits len ⦃ _ => True ⦄ := by
   unfold boot.extra_bi_size_bits; p0_auto
@@ -2976,6 +2983,10 @@ theorem boot.BOOT_THREAD_TIME_SLICE_US.p0  :
 @[step] theorem boot.clear_dirty.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (start : Std.U64) (len : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.clear_dirty machineStoreInst s start len ⦃ _ => True ⦄ := by
   unfold boot.clear_dirty; p0_split
+
+@[step] theorem boot.provide_untyped.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (device : Bool) (start : Std.U64) (size_bits : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.provide_untyped machineStoreInst s b device start size_bits ⦃ _ => True ⦄ := by
+  unfold boot.provide_untyped; p0_split
 
 @[step] theorem boot.create_untypeds_for_region_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (device : Bool) (i : Std.U64) (first : Std.U64) (start : Std.U64) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
     boot.create_untypeds_for_region_loop machineStoreInst s b device i first start fuel ⦃ _ => True ⦄ := by
@@ -3069,7 +3080,10 @@ theorem boot.BOOT_THREAD_TIME_SLICE_US.p0  :
 
 @[step] theorem boot.create_untypeds.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) :
     boot.create_untypeds machineStoreInst s b p ⦃ _ => True ⦄ := by
-  unfold boot.create_untypeds; p0_auto
+  -- #47: binds of `if`s (the extra untyped chunk's `end`, `n`, `(s3, used)`)
+  unfold boot.create_untypeds
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals p0_close
 
 @[step] theorem sched.set_dom_sched.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) (dom : Std.U64) (duration : Std.U64) (hS : StoreTotal machineStoreInst) :
     sched.set_dom_sched machineStoreInst s i dom duration ⦃ _ => True ⦄ := by
@@ -3173,7 +3187,7 @@ theorem boot.BOOT_THREAD_TIME_SLICE_US.p0  :
 
 @[step] theorem boot.rootserver_objects.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) :
     boot.rootserver_objects machineStoreInst s p ⦃ _ => True ⦄ := by
-  unfold boot.rootserver_objects; p0_auto
+  unfold boot.rootserver_objects; p0_split
 
 @[step] theorem boot.create_root_task.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     boot.create_root_task machineStoreInst machineArchInst s a p ⦃ _ => True ⦄ := by

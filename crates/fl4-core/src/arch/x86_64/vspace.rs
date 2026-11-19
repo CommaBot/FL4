@@ -877,10 +877,20 @@ pub fn decode<S: Store, A: Arch>(
     match cap {
         Cap::Frame { .. } => decode_frame(s, a, lbl, length, slot, cap, call, buf, ex),
         Cap::PageTable { .. } | Cap::PageDirectory { .. } | Cap::Pdpt { .. } => decode_table(s, a, lbl, length, slot, cap, buf, ex),
-        Cap::Pml4 { mapped, asid, .. } => {
+        Cap::Pml4 { ptr, mapped, asid } => {
             if lbl == label::X86PML4Flush {
                 if !mapped {
                     return invalid_cap(0);
+                }
+                // The ASID still names this PML4: after its pool is deleted
+                // a new pool may give it to another address space.
+                match find_vspace_for_asid(s, asid) {
+                    Err(lf) => return failed_lookup(lf),
+                    Ok(r) => {
+                        if r != ptr {
+                            return invalid_cap(0);
+                        }
+                    }
                 }
                 sched::set_thread_state(s, ct, sched::TS_RESTART);
                 a.invalidate_asid(asid);

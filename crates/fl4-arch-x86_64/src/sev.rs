@@ -111,27 +111,69 @@ pub fn transition(base: u64, bytes: u64, shared: bool) {
     transition_inner(base, bytes, shared, true);
 }
 
+/// One step of a C-bit transition.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Step {
+    /// Flush the old representation's cache lines.
+    FlushOld,
+    /// INVLPG both aliases on this core.
+    LocalInvlpg,
+    /// The same on every online core, synchronously.
+    RemoteInvlpg,
+    /// PVALIDATE and the page state change.
+    ChangeState,
+    /// Zero through the new representation.
+    ZeroNew,
+    /// Flush the new representation's cache lines.
+    FlushNew,
+}
+
+/// The steps of a transition, in order. Under SNP both aliases leave every
+/// core's TLB before the page state changes and again after: a core can
+/// refill an entry (speculatively, or for a neighbour sharing a large
+/// page or RMP entry) between the first shootdown and the change, and
+/// PVALIDATE invalidates only the executing core's entries. Nothing touches
+/// the new representation before the second shootdown.
+fn steps(snp: bool, shootdown: bool, shared: bool, mut step: impl FnMut(Step)) {
+    step(Step::FlushOld);
+    if snp {
+        step(Step::LocalInvlpg);
+        if shootdown {
+            step(Step::RemoteInvlpg);
+        }
+        step(Step::ChangeState);
+        step(Step::LocalInvlpg);
+        if shootdown {
+            step(Step::RemoteInvlpg);
+        }
+    }
+    step(Step::ZeroNew);
+    if shared {
+        step(Step::FlushNew);
+    }
+}
+
 fn transition_inner(base: u64, bytes: u64, shared: bool, shootdown: bool) {
     let alias = shared_ptr(paddr(base));
     let (old, new) = if shared { (base, alias) } else { (alias, base) };
     let optimized = crate::cpu::cpuid(7, 0).ebx & (1 << 23) != 0;
     unsafe { asm!("mfence", options(nostack, preserves_flags)); }
-    flush(old, bytes, optimized);
-    if snp::active() {
-        invalidate_aliases(base, bytes);
-        if shootdown {
+    steps(snp::active(), shootdown, shared, |s| match s {
+        Step::FlushOld => flush(old, bytes, optimized),
+        Step::LocalInvlpg => invalidate_aliases(base, bytes),
+        Step::RemoteInvlpg => {
             crate::smp::remote_call(crate::smp::CALL_SNP_INVLPG, base, bytes, crate::smp::online_mask());
         }
-        snp::change_state(base, paddr(base), bytes, shared);
-    }
-    unsafe {
-        ptr::write_bytes(new as *mut u8, 0, bytes as usize);
-        asm!("mfence", options(nostack, preserves_flags));
-    }
-    if shared { flush(new, bytes, optimized); }
+        Step::ChangeState => snp::change_state(base, paddr(base), bytes, shared),
+        Step::ZeroNew => unsafe {
+            ptr::write_bytes(new as *mut u8, 0, bytes as usize);
+            asm!("mfence", options(nostack, preserves_flags));
+        },
+        Step::FlushNew => flush(new, bytes, optimized),
+    });
 }
 
-/// Used by both ends of a synchronous shootdown before an RMP change.
+/// Used by both ends of a synchronous shootdown around an RMP change.
 pub(crate) fn invalidate_aliases(base: u64, bytes: u64) {
     let alias = shared_ptr(paddr(base));
     for offset in (0..bytes).step_by(4096) {
@@ -150,6 +192,44 @@ mod tests {
         assert_eq!(gpa_top(1 << 52, 1 << 51), 1 << 51);
         assert_eq!(gpa_top(1 << 48, 1 << 39), 1 << 39);
         assert_eq!(gpa_top(1 << 36, 1 << 51), 1 << 36);
+    }
+
+    fn record(snp: bool, shootdown: bool, shared: bool) -> ([Option<Step>; 9], usize) {
+        let mut out = [None; 9];
+        let mut n = 0;
+        steps(snp, shootdown, shared, |s| {
+            out[n] = Some(s);
+            n += 1;
+        });
+        (out, n)
+    }
+
+    /// Audit round 5 F1: after the page state change no core may keep a
+    /// TLB entry of either alias from before it, and the new alias is
+    /// first touched only after every core dropped them.
+    #[test]
+    fn snp_transitions_shoot_down_both_aliases_after_the_state_change() {
+        use Step::*;
+        for shared in [false, true] {
+            let (s, n) = record(true, true, shared);
+            let change = s.iter().position(|&x| x == Some(ChangeState)).unwrap();
+            let zero = s.iter().position(|&x| x == Some(ZeroNew)).unwrap();
+            let before = &s[..change];
+            let after = &s[change + 1..zero];
+            for set in [before, after] {
+                assert!(set.contains(&Some(LocalInvlpg)) && set.contains(&Some(RemoteInvlpg)));
+            }
+            assert_eq!(s[0], Some(FlushOld));
+            assert_eq!(s[n - 1], Some(if shared { FlushNew } else { ZeroNew }));
+            // Early boot (no other core yet): local invalidation only.
+            let (s, _) = record(true, false, shared);
+            let change = s.iter().position(|&x| x == Some(ChangeState)).unwrap();
+            assert_eq!(s[change + 1], Some(LocalInvlpg));
+            assert!(!s.contains(&Some(RemoteInvlpg)));
+            // Without SNP there is no RMP state to change.
+            let (s, n) = record(false, true, shared);
+            assert_eq!(&s[..n], if shared { &[Some(FlushOld), Some(ZeroNew), Some(FlushNew)][..] } else { &[Some(FlushOld), Some(ZeroNew)][..] });
+        }
     }
 
     #[test]

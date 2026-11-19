@@ -8,7 +8,9 @@ Fl4Spec/Ext/VSpace model.
   hypothesis `VsReplyHyps.reply`, the IPC-buffer and register part of
   replies, outside VSpace);
 * `pml4_flush_rel` (l4h 0017): FL4's `vspace::decode` on a PML4 cap with
-  label `X86PML4Flush` against `decodePml4Flush`, `Restart` and
+  label `X86PML4Flush` (#39: the ASID must still name the cap's PML4,
+  `find_vspace_for_asid`; `h0`: a mapped PML4 cap's ASID is non-zero,
+  `VCapOK`) against `decodePml4Flush`, `Restart` and
   `performPml4Flush` (FL4's `invalidate_asid` matched by an outcome of l4v's
   `flush_all`, as for `unmap_pd`).
 -/
@@ -65,6 +67,37 @@ structure VsReplyHyps (A : Type) (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
         replyRunning ct.bv call [v.bv]) σ).1 ∧ UR st th P L4 L3 L2 L1 SR s' a σ' ⦄
 
 end Hyps
+
+section Pml4Spec
+open Fl4Spec
+
+/-- `decodePml4Flush` when the cap's ASID names no PML4. -/
+theorem decodePml4Flush_noVs {p : ObjRef} {asid : Asid} {σ : State Unit} {lf : LookupFailure}
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.error lf, σ)}, False)) :
+    ExceptT.run (decodePml4Flush (Z := Unit) (.pml4Cap p (some asid))) σ =
+      ({(.error (.failedLookup false lf), σ)}, False) := by
+  unfold decodePml4Flush lookupErrorOnFailure
+  exact runE_bind_err (by rw [runE_handle_err hf]; rfl)
+
+/-- `decodePml4Flush` when the cap's ASID names another PML4. -/
+theorem decodePml4Flush_wrongVs {p r1 : ObjRef} {asid : Asid} {σ : State Unit}
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok r1, σ)}, False)) (hne : r1 ≠ p) :
+    ExceptT.run (decodePml4Flush (Z := Unit) (.pml4Cap p (some asid))) σ =
+      ({(.error (.invalidCapability 0), σ)}, False) := by
+  unfold decodePml4Flush lookupErrorOnFailure
+  rw [runE_bind_ok (runE_handle_ok hf)]
+  exact runE_bind_err (by rw [runE_whenE_true hne]; rfl)
+
+/-- `decodePml4Flush` when the cap's ASID still names its PML4. -/
+theorem decodePml4Flush_ok {p : ObjRef} {asid : Asid} {σ : State Unit}
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok p, σ)}, False)) :
+    ExceptT.run (decodePml4Flush (Z := Unit) (.pml4Cap p (some asid))) σ =
+      ({(.ok (.flush p asid), σ)}, False) := by
+  unfold decodePml4Flush lookupErrorOnFailure
+  rw [runE_bind_ok (runE_handle_ok hf), runE_bind_ok (runE_whenE_false (fun h => h rfl) _ σ)]
+  rfl
+
+end Pml4Spec
 
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
@@ -140,7 +173,7 @@ theorem pml4_flush_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
     (hrun : Fl4Spec.runnable xct.tcbState = true) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (p asid : U64) (mp : Bool) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64)
-    (ex : Array obj.Slot 3#usize) :
+    (ex : Array obj.Slot 3#usize) (h0 : mp = true → asid ≠ 0#u64) :
     vspace.decode st ar s a fl4_abi.label.X86PML4Flush length slot (.Pml4 p mp asid) call buf ex ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧
         ExceptT.run (Fl4Spec.decodePml4Flush (Z := Unit) (.pml4Cap p.bv (if mp then some asid.bv else none))) σ =
@@ -160,17 +193,36 @@ theorem pml4_flush_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
   · simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
     exact (WP.spec_ok _).2 (Or.inl ⟨_, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩, rfl, rfl, rfl⟩)
   · simp only [↓reduceIte]
-    have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-    refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt' htcb hact hrun) ?_
-    rintro s1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩
-    refine WP.spec_bind (hH.flushAllH s1 a _ p.bv asid hS1) ?_
-    rintro a1 ⟨σ', hσ', hS'⟩
-    have hσ'' := hσ'
-    obtain ⟨ms, rfl⟩ := doMachineOp_mem hσ'
-    refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, ?_, hS', Vs.StateRel.ms hSt1 ms, hSV1,
-      ⟨hR1.1, hR1.2, hR1.3⟩, ⟨hPt1.l4, hPt1.l3, hPt1.l2, hPt1.l1⟩⟩)
-    · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hσ''
-    · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hH.flushAllOK _ _ _
+    refine WP.spec_bind (WP.spec_and (find_vspace_for_asid_rel s σ hU.2.2.2.1 asid (h0 rfl))
+      (find_vspace_for_asid_err s asid)) ?_
+    rintro r ⟨hf, he⟩
+    cases r with
+    | Err lf =>
+      obtain rfl := he lf rfl
+      simp only [vspace.failed_lookup, bind_ok]
+      exact (WP.spec_ok _).2 (Or.inl ⟨_, .failedLookup false .invalidRoot, rfl,
+        Or.inl (show SysErrRel (.Sys (.FailedLookup false .InvalidRoot)) (.failedLookup false .invalidRoot) by
+          simp [SysErrRel, LookupFaultRel]), decodePml4Flush_noVs hf, rfl, rfl⟩)
+    | Ok r1 =>
+      by_cases hr : r1 = p
+      swap
+      · have : (r1 != p) = true := by simp [hr]
+        simp only [this, ↓reduceIte, error.invalid_cap, bind_ok]
+        exact (WP.spec_ok _).2 (Or.inl ⟨_, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩,
+          decodePml4Flush_wrongVs hf (fun h => hr (eq_of_bv h)), rfl, rfl⟩)
+      subst r1
+      simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+      have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
+      refine WP.spec_bind (hH.restart s a σ ct xct hU hcur hkt' htcb hact hrun) ?_
+      rintro s1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩
+      refine WP.spec_bind (hH.flushAllH s1 a _ p.bv asid hS1) ?_
+      rintro a1 ⟨σ', hσ', hS'⟩
+      have hσ'' := hσ'
+      obtain ⟨ms, rfl⟩ := doMachineOp_mem hσ'
+      refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, decodePml4Flush_ok hf, ?_, ?_, hS', Vs.StateRel.ms hSt1 ms, hSV1,
+        ⟨hR1.1, hR1.2, hR1.3⟩, ⟨hPt1.l4, hPt1.l3, hPt1.l2, hPt1.l1⟩⟩)
+      · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hσ''
+      · rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]; exact hH.flushAllOK _ _ _
 
 end
 

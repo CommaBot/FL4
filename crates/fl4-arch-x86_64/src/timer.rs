@@ -151,6 +151,18 @@ pub fn source() -> &'static str {
     }
 }
 
+/// Whether a core can run the timer in the mode the boot core chose:
+/// TSC-deadline mode needs the core to have it (otherwise the LVT mode is
+/// reserved and writing IA32_TSC_DEADLINE raises #GP in the kernel).
+pub fn mode_supported(deadline: bool, has_tsc_deadline: bool) -> bool {
+    !deadline || has_tsc_deadline
+}
+
+/// `mode_supported` for this core.
+pub fn core_supported() -> bool {
+    mode_supported(DEADLINE.load(Ordering::Relaxed), has_tsc_deadline())
+}
+
 /// Program this core's LVT timer entry.
 pub fn init_core(vector: u32) {
     if DEADLINE.load(Ordering::Relaxed) {
@@ -263,5 +275,15 @@ mod tests {
             _ => gce_cpuid(leaf, sub),
         };
         assert_eq!(reported_tsc_khz(hypervisor, || None), Some((3_000_000, Source::Hypervisor)));
+    }
+
+    /// Audit F4: an application processor without TSC-deadline mode is
+    /// refused when the boot core uses it; one-shot mode suits any core.
+    #[test]
+    fn tsc_deadline_mode_needs_every_core_to_have_it() {
+        assert!(mode_supported(true, true));
+        assert!(!mode_supported(true, false));
+        assert!(mode_supported(false, true));
+        assert!(mode_supported(false, false));
     }
 }

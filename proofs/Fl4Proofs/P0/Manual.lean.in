@@ -151,3 +151,19 @@
   unfold untyped.shared_extent
   simp only [lift, bind_ok]
   p0_split
+
+
+@[step] theorem interrupt.map_ioapic.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64) (vector : Std.U64) (remapped : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    interrupt.map_ioapic machineStoreInst machineArchInst s a buf vector remapped ⦃ _ => True ⦄ := by
+  -- #42: `let (a1, routed) ← if remapped then … else …` (step stops at a bound `if`)
+  unfold interrupt.map_ioapic
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals (rename_i a1 routed; exact (show (if routed = true then _ else _) ⦃ _ ⦄ by split <;> p0_auto))
+
+
+@[step] theorem boot.create_untypeds.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) :
+    boot.create_untypeds machineStoreInst s b p ⦃ _ => True ⦄ := by
+  -- #47: binds of `if`s (the extra untyped chunk's `end`, `n`, `(s3, used)`)
+  unfold boot.create_untypeds
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals p0_close

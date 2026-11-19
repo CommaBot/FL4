@@ -160,15 +160,18 @@ theorem interrupt.map_ioapic.blk {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   step as ⟨i, _⟩
   split
   · exact K _ _
-  refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
-    (runnable_ok D.run).2) fun s1 h1 => ?_
+  -- #42: the IOAPIC first; an unrouted entry is `IllegalOperation` with the state unchanged
+  refine WP.spec_bind (Pₘ := fun _ => True) (by
+    split
+    · exact WP.spec_bind (hA.ioapic_map_remapped a _ _ _ _ _ _) fun ⟨_, _⟩ _ => (WP.spec_ok _).2 trivial
+    · exact WP.spec_bind (hA.ioapic_map a _ _ _ _ _) fun ⟨_, _⟩ _ => (WP.spec_ok _).2 trivial) ?_
+  rintro ⟨a1, routed⟩ _
+  refine (show (if routed = true then _ else _) ⦃ _ ⦄ from ?_)
   split
-  · refine WP.spec_bind (hA.ioapic_map_remapped a _ _ _ _ _ _) ?_
-    rintro ⟨_, a1⟩ _
+  · refine WP.spec_bind (sched.set_thread_state.restart_blk (Es := ∅) s _ D.bxi.blk hct (runnable_ok D.run).1
+      (runnable_ok D.run).2) fun s1 h1 => ?_
     exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by simp at he, Foot.cur0w h1.2.1 (Set.empty_subset _)⟩
-  · refine WP.spec_bind (hA.ioapic_map a _ _ _ _ _) ?_
-    rintro ⟨_, a1⟩ _
-    exact (WP.spec_ok _).2 ⟨h1.1, fun e he => by simp at he, Foot.cur0w h1.2.1 (Set.empty_subset _)⟩
+  · exact K _ _
 
 
 theorem irq_branch_ok {α β : Type} (x : α) :

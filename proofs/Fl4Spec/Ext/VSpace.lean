@@ -4,7 +4,8 @@ FL4 differences (PORTING.md, "FL4 differences"): **VSpace extensions**
 
 1. l4h 0017: `seL4_X64_PML4_Flush`, on a PML4 cap: flush the TLB entries
    of the cap's ASID. An unmapped PML4 cap (no ASID) is rejected with
-   `InvalidCapability 0`. The flush is l4v's `flush_all` of the PML4 and its
+   `InvalidCapability 0`; so is one whose ASID now names another PML4, and
+   an ASID that names none is `FailedLookup false` (FL4 #39). The flush is l4v's `flush_all` of the PML4 and its
    ASID (`invalidateASID`).
 2. l4h 0023/0029: `Page_TestAndClearAccessed`, on a mapped 4K or 2M frame
    cap: if the cap's mapping is still in place, report whether the page was
@@ -46,10 +47,16 @@ inductive Fl4Pml4Invocation where
 section
 variable {Z : Type} [StateExt Z]
 
-/-- l4h 0017: the decode of `X64PML4Flush`. -/
+/-- l4h 0017: the decode of `X64PML4Flush`. FL4 #39: the cap's ASID must
+still name this PML4 (`find_vspace_for_asid`; its lookup failure is
+`FailedLookup false`, another root `InvalidCapability 0`), since after the
+ASID pool is deleted a new pool may give the ASID to another address space. -/
 def decodePml4Flush (cap : ArchCap) : SEMonad Z Fl4Pml4Invocation :=
   match cap with
-  | .pml4Cap p (some asid) => NonDetE.returnOk (.flush p asid)
+  | .pml4Cap p (some asid) => do
+      let vs ← lookupErrorOnFailure false <| findVspaceForAsid asid
+      NonDetE.whenE (vs ≠ p) <| NonDetE.throwError (.invalidCapability 0)
+      NonDetE.returnOk (.flush p asid)
   | .pml4Cap _ none => NonDetE.throwError (.invalidCapability 0)
   | _ => NonDetE.liftE NonDet.fail
 

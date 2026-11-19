@@ -105,11 +105,17 @@ fn map_ioapic<S: Store, A: Arch>(s: &mut S, a: &mut A, buf: u64, vector: u64, re
     if handle >= 1 << 16 {
         return range(0, 0xffff);
     }
-    sched::set_thread_state(s, ct, sched::TS_RESTART);
-    if remapped {
-        a.ioapic_map_remapped(ioapic, pin, level, polarity, vector, handle);
+    // False when the entry cannot name the core it would deliver to (a
+    // compatibility-format entry and a boot core's x2APIC ID above 255):
+    // nothing changed, and no handler may be issued for a dead route.
+    let routed = if remapped {
+        a.ioapic_map_remapped(ioapic, pin, level, polarity, vector, handle)
     } else {
-        a.ioapic_map(ioapic, pin, level, polarity, vector);
+        a.ioapic_map(ioapic, pin, level, polarity, vector)
+    };
+    if !routed {
+        return illegal();
     }
+    sched::set_thread_state(s, ct, sched::TS_RESTART);
     Ok(())
 }

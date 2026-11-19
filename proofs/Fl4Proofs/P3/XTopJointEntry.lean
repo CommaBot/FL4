@@ -877,8 +877,10 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
       hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pml4 p mp asid =>
+    have hok := (hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J).at J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp)
     subst hLb
-    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp length
+    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp
+      (fun h => (hok.2.2 h).1) length
       (cslotAddr sl) buf blk call don fp extra _ ci sl excaps buffer).toP arI hPre
   case AsidPool ptr base =>
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci

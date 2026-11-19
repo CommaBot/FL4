@@ -911,7 +911,7 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
-    (p asid : U64) (mp : Bool) (length slot buf : U64) (blk call don fp : Bool)
+    (p asid : U64) (mp : Bool) (h0 : mp = true → asid ≠ 0#u64) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot (.Pml4 p mp asid) blk call don fp buf extra slbl
@@ -924,7 +924,7 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     exact ⟨r, hr⟩
   exact XCap.imp arI (decode_invocation_pml4_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
     hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlbl ct hct hcur htcb J.kern.act
-    (J.curRun.run hni) hinv p asid mp length slot buf blk call don fp extra args ci sl excaps buffer hX.esa hIA.dom)
+    (J.curRun.run hni) hinv p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer hX.esa hIA.dom)
     fun _ _ _ h => J.vsFlushJ hni hct h.1 h.2
 end
 

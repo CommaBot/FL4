@@ -1,8 +1,10 @@
 //! Regressions for fl4-core audit findings: the per-core debug TCB lists
 //! across migration (finding 2), IRQ backend release on handler deletion
 //! (finding 3b), the hardware debug exception path (finding 8.1), and
-//! DomainSetSet on a thread running on another core (audit F4), and the
-//! paging-structure flush after a PDPT unmap.
+//! DomainSetSet on a thread running on another core (audit F4), the
+//! paging-structure flush after a PDPT unmap, and IOAPIC routes the
+//! backend refuses.
+#![cfg(not(feature = "aarch64"))]
 
 use fl4_abi::consts::object as ot;
 use fl4_core::capability::{Cap, FrameSize};
@@ -53,6 +55,10 @@ struct Machine {
     masked: Vec<(u64, bool)>,
     /// When set, a remote stall runs the stalled core's side on this memory.
     smp: Option<Shared>,
+    /// IOAPICs (24 pins each), what routing a pin returns, and the routes.
+    ioapics: u64,
+    ioapic_ok: bool,
+    routed: Vec<(u64, u64, u64)>,
 }
 impl Arch for Machine {
     fn now(&mut self) -> u64 {
@@ -88,17 +94,19 @@ impl Arch for Machine {
     fn invalidate_page(&mut self, _: u64, _: u64) {}
     fn invalidate_asid(&mut self, asid: u64) { self.events.push(("invalidate_asid", asid)); }
     fn invalidate_page_structures(&mut self, asid: u64) { self.events.push(("invalidate_ps", asid)); }
-    fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
-        false
+    fn ioapic_map(&mut self, ioapic: u64, pin: u64, _: u64, _: u64, vector: u64) -> bool {
+        self.routed.push((ioapic, pin, vector));
+        self.ioapic_ok
     }
-    fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool {
-        false
+    fn ioapic_map_remapped(&mut self, ioapic: u64, pin: u64, _: u64, _: u64, vector: u64, _: u64) -> bool {
+        self.routed.push((ioapic, pin, vector));
+        self.ioapic_ok
     }
     fn num_ioapics(&self) -> u64 {
-        0
+        self.ioapics
     }
-    fn ioapic_pins(&self, _: u64) -> u64 {
-        0
+    fn ioapic_pins(&self, i: u64) -> u64 {
+        if i < self.ioapics { 24 } else { 0 }
     }
     fn port_in(&mut self, _: u64, _: u64) -> u64 {
         0
@@ -495,5 +503,103 @@ fn a_trap_gate_syscall_reports_the_int_instruction() {
         t.set_reg(&mut s, reg::FAULT_IP, saved);
         syscall::handle_trap_syscall(&mut s, &mut a, 0xa0);
         assert_eq!(t.reg(&s, reg::FAULT_IP), 0x1000, "FaultIP {saved:#x} before the handler");
+    }
+}
+
+/// X86PML4Flush checks that the cap's ASID still names its PML4, as every
+/// other use of a PML4 cap does (and AArch64's VSpace flush): once its
+/// ASID pool is deleted the cap keeps `mapped` and the ASID, and a new
+/// pool can give that ASID to another address space, whose TLB entries
+/// (and the cores running it) the stale cap must not reach.
+#[test]
+fn pml4_flush_through_a_stale_cap_reaches_no_other_address_space() {
+    use fl4_abi::label;
+    use fl4_core::error::{Exc, LookupFault, SysError};
+    use fl4_core::layout::{ks, pptr};
+    use fl4_core::obj::ks_set;
+    let (pool, root, other) = (pptr(0x2000), pptr(0x3000), pptr(0x5000));
+    let cap = Cap::Pml4 { ptr: root, mapped: true, asid: 1 };
+    let flush = |pool_entry: Option<u64>, cap: Cap| {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        node_set(&mut s, 0, node::CUR_THREAD, 0x40_0000);
+        if let Some(r) = pool_entry {
+            ks_set(&mut s, ks::ASID_TABLE, pool);
+            s.write(pool + 8, r);
+        }
+        let ex = [Slot(0); 3];
+        let r = vspace::decode(&mut s, &mut a, label::X86PML4Flush, 0, Slot(0x50060), cap, false, 0, &ex);
+        (r, a.events)
+    };
+    // The ASID names the cap's PML4: flushed.
+    let (r, events) = flush(Some(root), cap);
+    assert!(r.is_ok());
+    assert_eq!(events, [("invalidate_asid", 1)]);
+    // Unmapped: invalid, as before.
+    let (r, events) = flush(Some(root), Cap::Pml4 { ptr: root, mapped: false, asid: 1 });
+    assert!(r == Err(Exc::Sys(SysError::InvalidCapability { arg: 0 })));
+    assert!(events.is_empty());
+    // The pool was deleted: the ASID names nothing.
+    let (r, events) = flush(None, cap);
+    assert!(r == Err(Exc::Sys(SysError::FailedLookup { source: false, lf: LookupFault::InvalidRoot })));
+    assert!(events.is_empty(), "flushed an unassigned ASID: {events:?}");
+    // A new pool gave the ASID to another PML4, or to an EPT root.
+    for reused in [other, other | 1] {
+        let (r, events) = flush(Some(reused), cap);
+        assert!(r.is_err());
+        assert!(events.is_empty(), "flushed the ASID's new owner {reused:#x}: {events:?}");
+    }
+    let (r, _) = flush(Some(other), cap);
+    assert!(r == Err(Exc::Sys(SysError::InvalidCapability { arg: 0 })));
+}
+
+/// An IOAPIC route the backend cannot program (a compatibility-format
+/// entry cannot name a boot core whose x2APIC ID is above 255,
+/// fl4-arch-x86_64 ioapic.rs `map`) issues no IRQHandler: the IRQ stays
+/// inactive, the slot empty, and the caller is not restarted.
+#[test]
+fn an_ioapic_route_the_backend_refuses_issues_no_handler() {
+    use fl4_abi::label;
+    use fl4_core::error::{Exc, SysError};
+    use fl4_core::{msg, sched};
+    for remapped in [false, true] {
+        for ok in [false, true] {
+            let mut s = Memory::default();
+            let mut a = Machine { ioapics: 1, ioapic_ok: ok, ..Default::default() };
+            let caller = Tcb(0x20000);
+            node_set(&mut s, 0, node::CUR_THREAD, caller.0);
+            sched::set_thread_state(&mut s, caller, sched::TS_RUNNING);
+            let control = Slot(0x30000);
+            control.set_cap(&mut s, Cap::IrqControl);
+            let root = Slot(0x30100);
+            root.set_cap(&mut s, Cap::CNode { ptr: 0x50000, radix: 4, guard_size: 60, guard: 0 });
+            let buf = 0x40000;
+            // Slot 3 of the CNode, IOAPIC 0 pin 9, level, active low,
+            // IRQ 4 (vector 0x34), interrupt-remapping handle 7.
+            let args = [3, 64, 0, 9, 1, 1, 4, 7];
+            for (i, v) in args.into_iter().enumerate() {
+                let i = i as u64;
+                if i < msg::N_MSG_REGISTERS {
+                    caller.set_reg(&mut s, msg::msg_register(i), v);
+                }
+                s.write(buf + (i + 1) * 8, v);
+            }
+            let lbl = if remapped { label::X86IRQIssueIRQHandlerIOAPICRemapped } else { label::X86IRQIssueIRQHandlerIOAPIC };
+            let r = interrupt::decode_irq_control(&mut s, &mut a, lbl, 8, control, buf, &[root, Slot(0), Slot(0)]);
+            let dest = Slot::index(0x50000, 3);
+            assert_eq!(a.routed.len(), 1, "remapped {remapped} ok {ok}");
+            let irq = a.routed[0].2 - 0x20;
+            if ok {
+                assert!(r.is_ok(), "remapped {remapped}");
+                assert!(dest.cap(&s) == Cap::IrqHandler { irq }, "remapped {remapped}");
+                assert_eq!(interrupt::irq_state(&s, irq), interrupt::IRQ_SIGNAL);
+                assert_eq!(caller.state(&s), sched::TS_RESTART);
+            } else {
+                assert!(r == Err(Exc::Sys(SysError::IllegalOperation)), "remapped {remapped}");
+                assert!(dest.cap(&s).is_null(), "remapped {remapped}: a handler was issued");
+                assert_eq!(interrupt::irq_state(&s, irq), interrupt::IRQ_INACTIVE, "remapped {remapped}");
+                assert_eq!(caller.state(&s), sched::TS_RUNNING, "remapped {remapped}");
+            }
+        }
     }
 }

@@ -10,6 +10,10 @@ use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const MAX_IOAPICS: usize = 8;
 const REG_VER: u32 = 1;
+/// IOREGSEL is 8 bits: pin `p`'s redirection entry is registers
+/// `0x10 + 2p` and `0x11 + 2p`, so pins past 119 would wrap to the ID,
+/// version and lower pins' registers (82093AA §3.0).
+pub const MAX_PINS: u32 = (0x100 - 0x10) / 2;
 const MASKED: u32 = 1 << 16;
 const VALID: u64 = 1 << 63;
 
@@ -99,7 +103,21 @@ fn route_pin(r: u64) -> (usize, u64) {
     (((r >> 32) & 0xff) as usize, (r >> 40) & 0xff)
 }
 
+/// The pins an IOAPIC whose version register reads `ver` may use: its
+/// maximum redirection entry (bits 16..23) plus one, at most `MAX_PINS`.
+/// All ones is what nothing behind the address (or a broken emulation)
+/// reads: no pins.
+pub fn pin_count(ver: u32) -> u32 {
+    if ver == u32::MAX {
+        0
+    } else {
+        (((ver >> 16) & 0xff) + 1).min(MAX_PINS)
+    }
+}
+
 /// Register an IOAPIC mapped at kernel address `mmio`; masks every pin.
+/// One without usable pins keeps its index (later IOAPICs keep theirs)
+/// but is never written: every request for one of its pins is refused.
 pub fn add(mmio: u64) {
     let _g = lock();
     let i = COUNT.load(Ordering::Relaxed) as usize;
@@ -107,7 +125,7 @@ pub fn add(mmio: u64) {
         return;
     }
     BASE[i].store(mmio, Ordering::Relaxed);
-    let n = ((read(i, REG_VER) >> 16) & 0xff) + 1;
+    let n = pin_count(read(i, REG_VER));
     PINS[i].store(n as u64, Ordering::Relaxed);
     for p in 0..n {
         write(i, 0x10 + 2 * p, MASKED);
@@ -285,6 +303,31 @@ mod tests {
         // A remappable entry carries its own destination word.
         assert!(map(0, 5, 0, 0, 0x34, 0x101, (7 << 17) | (1 << 16), 0));
         assert_eq!(read(0, lo_reg(5) + 1), (7 << 17) | (1 << 16));
+        assert!(!LOCK.load(Ordering::Relaxed));
+
+        // Audit round 5 F6: a version register naming more redirection
+        // entries than the 8-bit IOREGSEL reaches is capped at 120 pins,
+        // so registering it writes no register past 0xff (the fake
+        // register file has 256 words: an index past it panics) and the
+        // highest pin's entry is registers 0xfe/0xff. All ones (nothing
+        // decodes the address) gives no pins.
+        assert_eq!(pin_count(u32::MAX), 0);
+        assert_eq!(pin_count(119 << 16), 120);
+        assert_eq!(pin_count(120 << 16), 120);
+        assert_eq!(pin_count(0xff << 16), 120);
+        assert_eq!(pin_count(0x00ff_0011), 120);
+        assert_eq!(lo_reg(MAX_PINS as u64 - 1) + 1, 0xff);
+        FAKE[2][REG_VER as usize].store(0xff << 16, Ordering::Relaxed);
+        FAKE[2][0].store(0x0500_0000, Ordering::Relaxed);
+        add(0x3000);
+        assert_eq!((count(), pins(2)), (3, 120));
+        assert_eq!(FAKE[2][0].load(Ordering::Relaxed), 0x0500_0000, "IOAPICID overwritten");
+        assert_eq!(FAKE[2][REG_VER as usize].load(Ordering::Relaxed), 0xff << 16);
+        assert!((0..120).all(|p| masked(2, p)));
+        FAKE[3][REG_VER as usize].store(u32::MAX, Ordering::Relaxed);
+        add(0x4000);
+        assert_eq!((count(), pins(3)), (4, 0));
+        assert!(FAKE[3].iter().skip(2).all(|r| r.load(Ordering::Relaxed) == 0), "a pinless IOAPIC was written");
         assert!(!LOCK.load(Ordering::Relaxed));
     }
 }

@@ -8,9 +8,10 @@ use crate::percpu;
 use fl4_core::layout::tcb;
 
 const EAGER_AFTER: u8 = 3;
-/// CPACR_EL1.FPEN: EL0 traps (EL1 does not), or nothing traps.
-const FPEN_EL0_TRAP: u64 = 1 << 20;
-const FPEN_NONE: u64 = 3 << 20;
+/// CPACR_EL1.FPEN: EL0 traps (EL1 does not), or nothing traps; trace
+/// register access always traps (`el0_access`).
+const FPEN_EL0_TRAP: u64 = crate::el0_access::CPACR_FP_EL0_TRAP;
+const FPEN_NONE: u64 = crate::el0_access::CPACR_FP_NONE;
 
 fn image(t: u64) -> u64 {
     t + tcb::FPU

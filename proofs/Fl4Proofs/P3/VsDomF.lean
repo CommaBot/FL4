@@ -686,7 +686,8 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hinv : ∀ (a : A) (asid : U64), ∃ a', arI.invalidate_asid a asid = ok a')
-    (p asid : U64) (mp : Bool) (length slot buf : U64) (blk call don fp : Bool)
+    (hVR : VsRel P (L.mem s) (L.ksb s) σ)
+    (p asid : U64) (mp : Bool) (h0 : mp = true → asid ≠ 0#u64) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKDM (L := L) arI s ar σ lbl length slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps
@@ -694,7 +695,7 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine DecOKM.withDom arI hDR (decode_invocation_pml4 arI th hP s ar σ G hCR hFI hMO lbl slbl hlbl ct hct hcur htcb
-    hact hinv p asid mp length slot buf blk call don fp extra args ci sl excaps buffer) ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
+    hact hinv hVR p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer) ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   unfold syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   unfold vspace.decode
@@ -709,14 +710,26 @@ theorem decode_invocation_pml4D (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
   · simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
     exact ⟨trivial, fun _ _ => trivial⟩
   simp only [↓reduceIte]
-  refine WP.spec_bind (WP.spec_and (set_thread_state_frame s ct sched.TS_RESTART (Vs.stA_al hP htcb) hact.1)
-    (set_thread_state_cpu s ct sched.TS_RESTART)) ?_
-  rintro s1 ⟨hF, hk, hc⟩
-  obtain ⟨a', ha'⟩ := hinv ar asid
-  rw [ha']; simp only [bind_ok, WP.spec_ok]
-  refine dom_of_foot hS (Or.inr ⟨hk, hc, fun b hb hn => hF b hb (fun e => hn ?_) (fun e => hn ?_)⟩)
-  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨ct, htcb, UScalar.eq_of_val_eq e⟩))))
-  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (UScalar.eq_of_val_eq e)))))
+  -- #39: the ASID must still name the PML4 (a read; its failures change nothing)
+  refine WP.spec_bind (P0.vspace.find_vspace_for_asid.p0 st s asid L.total) ?_
+  rintro r -
+  cases r with
+  | Err lf =>
+    simp only [vspace.failed_lookup, bind_ok, WP.spec_ok]
+    exact ⟨trivial, fun _ _ => trivial⟩
+  | Ok r1 =>
+    by_cases hr : (r1 != p) = true
+    · simp only [hr, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
+      exact ⟨trivial, fun _ _ => trivial⟩
+    simp only [hr, Bool.false_eq_true, ↓reduceIte]
+    refine WP.spec_bind (WP.spec_and (set_thread_state_frame s ct sched.TS_RESTART (Vs.stA_al hP htcb) hact.1)
+      (set_thread_state_cpu s ct sched.TS_RESTART)) ?_
+    rintro s1 ⟨hF, hk, hc⟩
+    obtain ⟨a', ha'⟩ := hinv ar asid
+    rw [ha']; simp only [bind_ok, WP.spec_ok]
+    refine dom_of_foot hS (Or.inr ⟨hk, hc, fun b hb hn => hF b hb (fun e => hn ?_) (fun e => hn ?_)⟩)
+    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨ct, htcb, UScalar.eq_of_val_eq e⟩))))
+    · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (UScalar.eq_of_val_eq e)))))
 
 
 end

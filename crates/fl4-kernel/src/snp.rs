@@ -60,47 +60,20 @@ fn virtual_msr(msr: u32) -> bool {
     )
 }
 
-const ADDR: u64 = 0x000f_ffff_ffff_f000;
-const PRESENT: u64 = 1;
-const WRITE: u64 = 1 << 1;
-const USER: u64 = 1 << 2;
-const HUGE: u64 = 1 << 7;
-const NX: u64 = 1 << 63;
-
-enum Access {
-    Execute,
-    Read,
-    Write,
-}
+use crate::snp_walk::Access;
 
 /// Walk the active user tables through their private kernel aliases.
 /// SNP's AMD CPUs run with the full kernel window in each user CR3.
 fn translate(va: u64, access: Access) -> Option<u64> {
-    if va > fl4_abi::consts::USER_TOP {
-        return None;
-    }
-    let private = sev::mask();
-    let mut table = cpu::read_cr3() & ADDR & !private;
-    for shift in [39, 30, 21, 12] {
-        let slot = pptr(table) + ((va >> shift) & 511) * 8;
-        let e = unsafe { (slot as *const u64).read_volatile() };
-        if e & (PRESENT | USER) != PRESENT | USER
-            || matches!(access, Access::Write) && e & WRITE == 0
-            || matches!(access, Access::Execute) && e & NX != 0
-        {
-            return None;
-        }
-        let pa = e & ADDR & !private;
-        if shift == 12 || (shift == 21 || shift == 30) && e & HUGE != 0 {
-            if (e & private != 0) != matches!(access, Access::Execute) {
-                return None;
-            }
-            let offset = (1 << shift) - 1;
-            return Some((pa & !offset) | (va & offset));
-        }
-        table = pa;
-    }
-    None
+    crate::snp_walk::translate(
+        va,
+        access,
+        cpu::read_cr3(),
+        sev::mask(),
+        fl4_abi::consts::USER_TOP,
+        crate::paging::window_top(),
+        |pa| unsafe { (pptr(pa) as *const u64).read_volatile() },
+    )
 }
 
 fn user_next_rip(rip: u64, length: u64) -> Option<u64> {
