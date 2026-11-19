@@ -59,17 +59,26 @@ fl4_el_setup:
      * HCR_EL2.API, or PACGA, which no SCTLR_EL1 bit enables, traps from
      * EL0 to EL2; HCR_EL2.APK, or EL1's key registers trap to EL2. The
      * keys are the firmware's: clear them, so PACGA gives every thread on
-     * every core the same function of its operands, of no one's secret. */
+     * every core the same function of its operands, of no one's secret.
+     * All ten key registers, APGAKey too, exist with FEAT_PAuth, which
+     * APA, API or APA3 identify; without it a key access is UNDEFINED
+     * (DDI 0487) and halts the core at EL2. GPA, GPI and GPA3 come with
+     * FEAT_PAuth on a conforming PE: they set the traps, but only
+     * FEAT_PAuth itself lets the keys be written (x12). */
     mrs     x10, id_aa64isar1_el1
-    ldr     x11, =0xff000ff0
-    and     x10, x10, x11
     mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 (RAZ before v8.6) */
+    and     x12, x10, #0xff0        /* APA, API */
+    and     x13, x11, #0xf000       /* APA3 */
+    orr     x12, x12, x13
+    ldr     x13, =0xff000ff0
+    and     x10, x10, x13
     and     x11, x11, #0xff00
     orr     x10, x10, x11
     cbz     x10, 7f
     orr     x9, x9, #(3 << 40)      /* HCR_EL2.APK, HCR_EL2.API */
     msr     hcr_el2, x9
     isb
+    cbz     x12, 7f
     msr     s3_0_c2_c1_0, xzr       /* APIAKeyLo_EL1 */
     msr     s3_0_c2_c1_1, xzr       /* APIAKeyHi_EL1 */
     msr     s3_0_c2_c1_2, xzr       /* APIBKeyLo_EL1 */

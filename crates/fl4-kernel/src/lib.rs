@@ -312,7 +312,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     let fb_console = mboot::has_option(&mb, b"fb_console");
 
     // The other cores, if any (each sets itself up and waits).
-    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::read_cr4(), efer_nx: nx, window_top });
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top });
     if ncpus > 1 {
         kprintln!("FL4: {} cores running", ncpus);
     }

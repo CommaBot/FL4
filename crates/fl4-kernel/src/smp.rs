@@ -26,6 +26,7 @@ const REJECT_APIC: u8 = 3;
 const REJECT_FPU: u8 = 4;
 const REJECT_TIMER: u8 = 5;
 const REJECT_TLB: u8 = 6;
+const REJECT_CR4: u8 = 7;
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -126,6 +127,7 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
                 REJECT_FPU => "FPU state components or save format differ between cores",
                 REJECT_TIMER => "TSC-deadline timer missing on this core",
                 REJECT_TLB => "PCID or INVPCID missing on this core",
+                REJECT_CR4 => "SMEP, SMAP or FSGSBASE missing on this core",
                 _ => "virtualization features differ between cores",
             });
             // VMX/SVM may already be active on other cores. Keep them at
@@ -154,14 +156,18 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
     if snp::active() { snp::register_cpu(); }
     cpu::write_cr3(paging::root_paddr());
-    // Natively before CR4.PCIDE, which faults on a core without PCIDs. An
-    // SNP AP starts with the boot core's CR4 (snp::start_ap) and takes #VC
-    // for CPUID, so it checks once its own GDT and IDT are in.
+    // Natively before CR4.PCIDE, SMEP, SMAP and FSGSBASE, which fault on a
+    // core without them, with no IDT yet to catch it (OSXSAVE and VMXE are
+    // left to fpu::init and vm::init). An SNP AP starts with the boot
+    // core's CR4 (snp::start_ap) and takes #VC for CPUID, so it checks once
+    // its own GDT and IDT are in.
     if !snp::active() && !fl4_arch_x86_64::tlb::core_supported() { reject_ap(REJECT_TLB); }
+    if !snp::active() && !cpu::core_cr4_supported(f.cr4) { reject_ap(REJECT_CR4); }
     cpu::write_cr4(f.cr4);
     let stack_top = percpu::stack_top(c as usize);
     gdt::init_core(c as usize, stack_top);
     if snp::active() && !fl4_arch_x86_64::tlb::core_supported() { reject_ap(REJECT_TLB); }
+    if snp::active() && !cpu::core_cr4_supported(f.cr4) { reject_ap(REJECT_CR4); }
     cpu::init_pat();
     if !fpu::init(false) { reject_ap(REJECT_FPU); }
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
