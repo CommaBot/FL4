@@ -1565,3 +1565,45 @@ no premise added to or removed from any existing theorem.
   scratch/axkp12.lean (untracked): std axioms only (propext/Classical.choice/Quot.sound) for ppr0_finaliseCap,
   TR.unE, PPR0.of_ppk, JAtZ.ppr0_start, curInv_of_sched, ct_not_inClassR, jAtPre_holeK, hPre_ofZK,
   dispatch_invokeJPZK, dispatch_invokeJEPZK, dispatch_invokeJEPZJ, handle_invocation_refinesJ.
+
+## sch8 (branch par/sched8 in FL4-sc, on 6b4a8493 = int/j2 incl. sch7, kp12)
+New leaves XTopJointKEntry2, XTopJointRecvMid (imported from Fl4Proofs.lean). Nothing existing edited, JAtZ untouched.
+- (1) DONE (XTopJointKEntry2): `SignalRestJHyp` [W] and `hvm` [S] are VT-x cases that `hNS` [S] (NativeScope at every
+  `JHoleAt` state; a `JAtZ` state is a `JHole` over itself, `JAtZ.toHole`) refutes: `signalRestJHyp_of_ns`,
+  `hvm_of_ns`. `KFinAt2` = `KFinAt` without `w`; `KFinAt2.toK hNS`. `dispatch_allK` = `dispatch_allJ` over kp12's
+  `dispatch_invokeJEPZK`. `kernel_entryJ2` = `kernel_entryJ` with `hFin : … → KFinAt2`, no `hvm`, and
+  `hRest : JPreemptRestHypK` (kp12, narrower than JPreemptRestHypJ). REMOVED: `KFinAt.w` (SignalRestJHyp [W]),
+  `hvm` [S]. ADDED: none. The lead's top chain should use `kernel_entryJ2`.
+- (2) BLOCKED by a FINDING (a design decision on JAtZ is needed; this line must not edit JAtZ):
+  `KDispHyps.mid` [W] is FALSE in reachable states, and no mid-receive leaf can end in `RJ`/`JAt` in that case.
+  Run: NBSendRecv (or NBSendWait) whose non-blocking send meets a waiting receiver `u` with an SC (or a
+  notification signal waking one), then no sender for the receive. The send's `possibleSwitchTo u`
+  (Fl4Spec KHeap.lean:484, MCS: no priority test; with numDomains = 1 and action resume it sets
+  `switchThread u` unconditionally), the receive blocks ct (`BlockedOnReceive`/`BlockedOnNotification`), and
+  `scheduleTcb`/`setThreadStateAct` reschedule only from `resumeCurThread` (KHeap.lean:500), so the outcome has
+  `schedulerAction = switchThread u` with ct IPC-blocked. `JAtZ.cur : chooseNewThread ∨ CurInv σ` fails there
+  (`CurInv.tcb` needs `NotIpcBlk` of ct), hence `JAt` fails, while `KDispHyps.mid`'s `DispPost` demands `JAt` at
+  the (deterministic) outcome. The spec follows l4v here (not a spec bug); cf. StepSem's `CurRunM`, which already allows exactly this.
+  Fix options (lead): (a) weaken `JAtZ.cur` to `σ.schedulerAction = .chooseNewThread ∨ (∃ u, σ.schedulerAction
+  = .switchThread u ∧ ¬ runnable ct) ∨ CurInv σ` (every `J.curInv` user under a switch then needs ct runnable,
+  e.g. from `CurRun`; grep `J.curInv`/`JAtZ.cur` users), or (b) state the mid receive's post as `JAtZ` OR a
+  `JAtZS` (= JAtZ with that disjunct) and give `jat_finishJ2` a `JAtZS` variant (the schedule switch branch with ct
+  blocked: no enqueue of ct, switch to u; not checked whether ScScheduleTop's switch branch covers a non-runnable ct
+  at SchedRel). Either is a JAtZ-level change; (b) keeps the 445
+  cone intact.
+  Done meanwhile (XTopJointRecvMid, valid under either option for the non-blocking leaves, whose post keeps ct
+  running so CurInv holds): `MidE σ` (ct ≠ idle ∧ CurRun ∧ (resume ∨ switchThread u with u ≠ ct)), `MidE.ncn/run/sa`,
+  `JAtZ.midE` (Entered → MidE), `JAtZ.curScAc` (under CurInv: ct's SC word = CUR_SC ∈ Ac, via SCsOK.act and the
+  idle SC being the idle thread's), `JAtZ.canBlockCurM` (canBlockCurG with the switch case; `CanBlock.ac` from
+  curScAc, since ct is not `Sch` then), `JAtZ.recvSigActiveJM` (recvSigActiveJ from MidE).
+  Also needed for MidE at the mid state: `u ≠ ct` for a pending switch (l4v `scheduler_act_sane`) is NOT in JAtZ
+  (ActSched only says u schedulable); `possibleSwitchTo` targets a woken (previously blocked) thread, so it is a
+  post fact of the first-phase invocation (with JMidRunHyp's route) or a new [J] invariant. The chooseNewThread mid
+  case (e.g. own-SC unbind/reply-SC return) is separate: leaves with `hsa`'s second disjunct need ct SC-less.
+- (3) NOT STARTED (JMidRunHyp: FK frame "ct stays runnable" over the first-phase perform cone; see sch7 (C) step 1).
+- (4) NOT STARTED (needs (2),(3)).
+- Builds (tokyo, b.sh): sch8-b1 `XTopJointKEntry2` OK (5486 jobs, on 2c8ea9c8), sch8-b2 `XTopJointRecvMid` OK, sch8-b3
+  `XTopJointKEntry2 XTopJointRecvMid` OK on 6b4a8493 (5492 jobs). Axioms (axsch8.sh/axsch8.lean, untracked):
+  propext, Classical.choice, Quot.sound only for kernel_entryJ2, dispatch_allK, signalRestJHyp_of_ns, hvm_of_ns,
+  KFinAt2.toK, kernel_entryJ, JAtZ.curScAc, JAtZ.canBlockCurM, JAtZ.recvSigActiveJM, JAtZ.midE; MidE.ncn/sa: none.
+  No sorry/admit/native_decide/bv_decide.
