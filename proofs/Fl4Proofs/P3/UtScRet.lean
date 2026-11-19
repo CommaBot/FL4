@@ -22,12 +22,9 @@ the window's `sc` objects) and the dead set without the new objects.
 * `JAtZ.addSetsC`: `SpecCover`, `ObjCover` (at `C ∪ Wc`), `zH`, `hset`,
   `hscC` over `HOut` with the new `sc` objects.
 * `JAtZ.utScJ`: the step (premises as `JAtZ.utEpJ`: `BufObjHyp`,
-  `ArchFitHyp`, `RegionUnrefJ` [J], `Z.c = 0`; and `hksg`: the source
-  region ends at least 8 bytes below the kernel-state block or starts above
-  it, which `SchedRel.scOut` asks of every byte `a` of an SC, `a + 8 ≤ ksb`;
-  `JCovD.ks` gives only `p + 2 ^ sb ≤ ksb`, so an SC ending exactly at `ksb`
-  is not excluded: UtEpRet's `jUtRetHyp` calls `utScJ` when `hksg` holds and
-  leaves the rest in `JUtRetHypR`, handoff/utj.md "uttypes" gap K8). The side conditions above
+  `ArchFitHyp`, `RegionUnrefJ` [J], `Z.c = 0`; the new SCs' bytes miss the
+  kernel-state block by `JCovD.ks`, `SchedRel.scOut` asking `a < ksb ∨ ksb +
+  13568 ≤ a` of each byte). The side conditions above
   come from the window: the untyped's free part holds no spec object
   (`SpecFree`), no typed-heap object (`UtCapP3.free`), misses the kernel-state
   block, the node (`JCovD.ks`) and the idle SC (`JCovD.idleOut`); its words
@@ -304,8 +301,7 @@ set_option maxHeartbeats 16000000 in
 reschedule pending), the decoded arguments (`RetCtx`, no reset: the source
 cap has a child), the source a CNode slot's RAM untyped cap, FL4's restart
 and `untyped::retype` of SCs end in `UtRetPostJ` (done, `JAt` after at the
-sets with `C` grown by the window's SCs), when the source region keeps 8
-bytes from the kernel-state block (`hksg`, module docstring). -/
+sets with `C` grown by the window's SCs). -/
 theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
@@ -314,7 +310,7 @@ theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     (hnt : nt.val = 5) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r false fiv)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs)
-    (hksg : p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) (blk call don : Bool) :
+    (blk call don : Bool) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) false
@@ -590,7 +586,7 @@ theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · have := hT0 t0 ht0; omega
     · rw [hnb1]; rcases k2c with h | h <;> omega
     · have := hT0 t0 ht0; omega
-    · rw [hks1]; rcases hksg with h | h <;> omega
+    · rw [hks1]; rcases k1 with h | h <;> omega
   have hdo : ∀ sc ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val, ∀ sc' ∈ Z.C, ∀ x' n',
       σ1.kheap sc'.bv = some (.schedContext x' n') → ∀ a : U64,
       Sched.ScObj sc (us.val - Fl4Spec.minSchedContextBits) a → ¬ Sched.ScObj sc' n' a := by

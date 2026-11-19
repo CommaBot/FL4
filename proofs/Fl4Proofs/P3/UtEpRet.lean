@@ -788,18 +788,14 @@ variable (arI) in
 cap childless) or of an object type other than endpoints, notifications,
 replies, PDPTs, page tables, page directories, frames, SCs and untypeds
 (left: TCBs, CNodes, PML4s and the VCPU/EPT types, the latter also
-`JUtPath.vtx` [scope]; SCs only from a region ending within 8 bytes below
-the kernel-state block, where `SchedRel.scOut`'s `a + 8 ≤ ksb` is false of
-the last SC's last bytes: UtScRet's `utScJ` asks the slack, handoff/utj.md
-"uttypes" gap K8).
+`JUtPath.vtx` [scope]).
 l4v: `invoke_untyped_corres` with `invoke_untyped_invs`. -/
 def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
   ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
     argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
     (reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧
-      (nt.val = 5 → ¬ (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)))) →
+      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧ nt.val ≠ 5)) →
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
@@ -830,14 +826,13 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     dsimp only at hp1 hpp
     subst hp1
     exact J.utUtJ hni hct hpp rfl hcap h0 hc0 hctx hBO hAF hRU blk call don
-  by_cases h5 : reset = false ∧ nt.val = 5 ∧
-      (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
-  · obtain ⟨rfl, h5, hksg⟩ := h5
+  by_cases h5 : reset = false ∧ nt.val = 5
+  · obtain ⟨rfl, h5⟩ := h5
     obtain ⟨sl1, idx⟩ := sl
     obtain ⟨pp, hp1, hpp⟩ := hsl
     dsimp only at hp1 hpp
     subst hp1
-    exact J.utScJ hni hct hpp rfl hcap h5 hc0 hctx hBO hAF hRU hksg blk call don
+    exact J.utScJ hni hct hpp rfl hcap h5 hc0 hctx hBO hAF hRU blk call don
   by_cases hc : reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
       nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)
   · refine hR nt us dest off win t r reset fiv hh hctx ?_
@@ -845,7 +840,7 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · rcases hc with h | h
       · exact Or.inl h
       · exact Or.inr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e => h0 ⟨rfl, e⟩, fun e hk => h5 ⟨rfl, e, hk⟩⟩
+          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e => h0 ⟨rfl, e⟩, fun e => h5 ⟨rfl, e⟩⟩
     · exact Or.inl rfl
   have hrs : reset = false := by
     cases reset
