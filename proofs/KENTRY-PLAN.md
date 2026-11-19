@@ -1198,3 +1198,59 @@ removed; JAtZ untouched.
 - (c), (d): not started (context). (d)'s statement is the ArchNd/ArchSw finding above: the FPU invariant that
   would make `ArchKeeps` true does not exist in the spec (no reachable invariant makes the owner's saved image
   equal the machine's: user code runs in between); the right fix is the frame weakening, not an invariant.
+
+## kp9 (branch par/budget5 in FL4-tcbj, on 2f97adc4 = int/j2 incl. kp8)
+- FINDING (blocks kp8's route (a) as written): `JAtPre`'s FIRST disjunct (`JAt` itself) is not "only formal" in a
+  way the proofs can ignore. It is produced by `hPre := fun _ _ _ h => Or.inl h` / `hXP` at ~35 sites
+  (XTopJointEntry `decOK_J`: every cap but CNode/Thread/Untyped; XTopJointWJLRestart: CNode Copy/Mint/Move/Mutate/
+  Rotate, illegal labels, CancelBadgedSends; XTopJointTcb:2804: the Thread cap's other labels; XTopJointTcbSsp /
+  XTopJointTcbInstall: the decode-error outcomes of the five installing labels), and `hPre_of*` must then run the
+  preemption path from an arbitrary `JAt` state (ct may be idle, a switch to ct may be pending). So adding
+  `NoSwitch σ0 ∧ ct ≠ idle` to the SECOND disjunct alone shrinks nothing: `JPreemptRestHypI` is still needed at
+  every `JAt` state. Neither fact can be put on the first disjunct either (after an invocation `NoSwitch` is false
+  in general; `ct ≠ idle`/`scheduler_act_sane` would have to be threaded through every invocation).
+- ROUTE (decided): DELETE the first disjunct. A preempted outcome only comes out of a preemption point, so at every
+  `Or.inl` site the outcome `Preempted` is impossible:
+  * error branch of `TopPostDMX`: `ErrRel .Preempted e'` is false (`ErrRel.not_preempted`);
+  * invocation branch: the spec's `fl4PerformInvocation` returns `.error ()` only for `PreInv` invocations
+    (Untyped, CNode Revoke/Delete, TCB ThreadControlCaps, ThreadControlSched with a fault handler), and the decode
+    of the site's cap/label yields none of them.
+- DONE (new leaf SpecNoPre, spec side only, checked with `lake env lean`, std axioms only):
+  `NoPre.NoErrE`/`OkP` (+ `liftE`/`pure`/bind/`liftME` lemmas), `NoPre.PreInv`, `NoPre.perform_noErr` (every
+  non-`PreInv` invocation never returns `.error ()`), `NoPre.dec_noPre`/`decOut_noPre` (a cap other than
+  CNode/Untyped/Thread decodes to no `PreInv`), `NoPre.dec_cnode_noPre` (CNode decode at a label ≠ Revoke/Delete),
+  `NoPre.dec_tcb_noPre`/`dec_thread_noPre` (TCB decode at a label not among Configure/SetSchedParams/
+  SetTimeoutEndpoint/SetIPCBuffer/SetSpace; SetPriority/SetMCPriority decode to ThreadControlSched with no fault
+  handler), `ErrRel.not_preempted`, `TopPostDMX.not_preempted` (a `TopPostDMX` outcome whose decoded invocations
+  are all non-`PreInv` is not `Preempted`).
+- NEXT (the many-module part, in this order; one cone build at the end):
+  1. XTopJointCnDel: import SpecNoPre; `JAtPre := ∃ s0 a0 σ0, (JAt s0 a0 σ0 ∧ Vs.NoSwitch σ0 ∧ σ0.curThread ≠
+     σ0.idleThread) ∧ pp ∧ mem` (first disjunct gone); `TopPostDMX.toPN (h) (hnp : ∀ inv, DecOut m σ inv →
+     ¬ PreInv inv) : TopPostDMXP X XP` (any XP: `TopPostDMX.not_preempted` + `if_neg`), `XCap.toPN` likewise,
+     `TopPostDMX.errP` for an explicit error outcome (`ErrRel.not_preempted`, no hnp).
+  2. Replace every `Or.inl` `hPre`/`hXP` (list above) by `toPN` with `decOut_noPre` (via `DecOut.liftME`-style
+     inversion: `dec_noPre … σ _ h.1 inv rfl`), `dec_cnode_noPre` (WJLRestart; labels from `hlbl` +
+     `cnodeLabelOf`), `dec_thread_noPre` (Tcb:2804; labels from `hlbl`/`tcbLabelOf`), `errP` (TcbSsp/TcbInstall:
+     all are `TopPostDMX.toP (Or.inl ⟨…⟩) hXP`, mechanical). TcbSsp:921 is an `.Ok` outcome (`ifP_ok`).
+  3. Facts at the preemption point's base: the deletion loop has `Vs.NoSwitch` in `WJ`, but `ct ≠ idle` in no loop.
+     Cheapest: put `σ.curThread ≠ σ.idleThread` into `WJP`'s base (`WJ … ∧ σ0.curThread ≠ σ0.idleThread`) and into
+     `WJR` beside `PPR0` (kept: finalise/insert frames keep curThread/idleThread — add a `curThread`/`idleThread`
+     equality to the step posts where missing), from `Entered` at the decode (`hni`, already passed to
+     `decode_invocation_cnode_*JL`, `thread_control_capsJ`). The reset loop (UtResetLoopJ/UtResetTopJ) needs both
+     facts in its invariant, from `Entered` at the Untyped decode (`JAtZ.utResetJ` callers have `hni`).
+     `JAtZ.jAtPre_pp` takes `NoSwitch σ` and `ct ≠ idle`.
+  4. Consumers: `jAtPre_hole`/`jAtPre_holeT`/`hPre_of*` lose the first case; from the second, `pp_err_eq` (σ is σ0
+     with the time updated) moves both facts to the hole, giving `PPCov`'s `ct ≠ idle` and `action ≠ switchThread
+     ct`. New premise `JPreemptRestHypJ` = `JPreemptRestHypI` with `σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ →`
+     added (remaining cases: ¬CurInv with an active current SC = (2b), kp5 (i) = (2c)); `jPreemptRestHypJ_of`.
+  Builds: XTopJointCnDel's dependents are the whole J cone (TcbInstall, TcbSsp, Tcb, WJL*, Ut*, Entry, Dispatch,
+  Preempt*); expect one long cone build.
+- (2b), (2c): not started.
+- Builds: kp9-c1..c10 (`lake env lean` checks of SpecNoPre, kp7chk.sh), kp9-b1 (`SpecNoPre` 4206 jobs,
+  scratch/axkp9.lean untracked): std axioms only (`ErrRel.not_preempted`: propext only) for perform_noErr, dec_noPre,
+  decOut_noPre, dec_cnode_noPre, dec_tcb_noPre, dec_thread_noPre, ErrRel.not_preempted, TopPostDMX.not_preempted.
+  Nothing in the existing cone was edited, so `handle_invocation_refinesJ` / `dispatch_invokeJEPZI` and their
+  premises are unchanged from kp8 (JPreemptRestHypI [W] still present). Lean note: `unfold`/`simp only [f]` of the
+  spec's big label matches (`decodeTcbInvocation`, the TCB sub-decoders) times out at 200000 heartbeats while
+  generating equation lemmas regardless of `set_option … in`; use `delta f` + `generalize`/`cases` + `dsimp only`,
+  and `with_reducible` for the syntax-directed `OkP` steps.
