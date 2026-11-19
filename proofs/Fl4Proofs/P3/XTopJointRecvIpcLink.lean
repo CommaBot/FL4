@@ -369,8 +369,9 @@ theorem jHeld_of_same {th : TypedHeap} {s s' : S} (h : SlotsSame th (L.mem s) (L
 with one not active (if blocking and lending its SC to the thread,
 `maybe_return_sc` first), the endpoint's head sender as in
 XTopJointRecvSendF's `SendOK` (not faulted and either not calling or calling
-without a reply pushed, or cap-faulted without a reply pushed; no reply
-pushed: neither grant right, or no reply cap, the sender `Inactive`). -/
+without a reply pushed, or faulted (a timeout fault only without an SC)
+without a reply pushed; no reply pushed: neither grant right, or no reply
+cap, the sender `Inactive`). -/
 def RecvSendBasicCase (ct : U64) (blocking : Bool) (σ : Fl4Spec.State Unit) (p : U64) (rc : capability.Cap) :
     Prop :=
   (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none ∨
@@ -386,8 +387,8 @@ typed heap `th` (stated per state, as `JCancelAt`, since a linked reply's
 `cancel_ipc` moves the receive to the state after), the reply cap null or
 naming a free reply object, outside the proved cases (`RecvSendBasicCase`).
 Left: the head sender pushing a reply (calling or faulted, a grant right and
-a reply cap: `reply_push`, with a possible SC donation), or faulted with a
-fault other than a cap fault. -/
+a reply cap: `reply_push`, with a possible SC donation), or holding a timeout
+fault and an SC. -/
 def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
