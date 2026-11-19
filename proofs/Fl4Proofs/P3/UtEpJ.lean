@@ -157,7 +157,7 @@ nodes; the current thread's and SC's objects are kept. -/
 theorem JKern.hout {H H' : Heap} {Cs D D' : Set U64} {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
     (K : JKern (L := L) H Cs D th s σ) (hH' : HeapOK H') {A k w : Nat} {Kd : Option HKind}
     (hout : HOut H H' A (A + w * k) A k w Kd) (hk1 : 1 ≤ k) (hA0 : 0 < A)
-    (hnew : ∀ q kd, NewAt A k w q → Kd = some kd → (∀ z, kd ≠ .other z) ∧
+    (hnew : ∀ q kd, NewAt A k w q → Kd = some kd →
       (q.val + 2 ^ kd.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ q.val) ∧
       ∀ c ∈ Cs, q.val + 2 ^ kd.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val)
     (hcur : (L.curW s).val + 2 ^ 12 ≤ A ∨ A + w * k ≤ (L.curW s).val)
@@ -175,13 +175,13 @@ theorem JKern.hout {H H' : Heap} {Cs D D' : Set U64} {th : TypedHeap} {s : S} {�
     fun q kd hq ho => ?_, fun q z hq => ?_, fun q kd hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs, ?_, hcsc,
     K.csLt, K.cs0⟩
   · rcases back hq with ⟨hn, hK⟩ | h
-    · exact (hnew q kd hn hK).2.1
+    · exact (hnew q kd hn hK).1
     · exact K.hks q kd h ho
   · rcases back hq with ⟨hn, hK⟩ | h
-    · exact absurd rfl ((hnew q _ hn hK).1 z)
+    · exact Or.imp_right Or.inl (hnew q _ hn hK).1
     · exact K.hksIn q z h
   · rcases back hq with ⟨hn, hK⟩ | h
-    · exact (hnew q kd hn hK).2.2 c hc
+    · exact (hnew q kd hn hK).2 c hc
     · exact K.hnd q kd h c hc
   · exact hout_old hout rfl rfl hk1 K.curH hcur
 
@@ -194,7 +194,8 @@ set_option maxHeartbeats 4000000 in
 /-- **P1's creation after the restart, without a reset** (module docstring):
 from `JAtZ` at the decode (no switch pending) and after the restart, a CNode
 slot's RAM untyped cap, the creation's `RetExp` over a window `[A0, A0 + w * k)`
-of objects of type `n` (no TCB, no SC: endpoints, notifications, replies), its slot-word frame and zero window: P1's heap after (`HOut` over
+of objects of type `n` (no TCB, no SC: endpoints, notifications, replies,
+VSpace tables), its slot-word frame and zero window: P1's heap after (`HOut` over
 the window), `BlkOK` and `JCovD` after (the window's objects dead,
 `retype_window_dead`, and unreferenced, `RegionUnrefJ` [J]). -/
 theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

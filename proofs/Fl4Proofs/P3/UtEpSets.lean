@@ -85,13 +85,14 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
     (hRw : ∀ r ∈ Rn, r.val % 32 = 0 ∧ lo ≤ r.val ∧ r.val + 32 ≤ hi ∧ NewAt A k w r ∧ K = some .reply)
     (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd →
-      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn))
+      (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn) ∨ (kd = .reply ∧ q ∈ Rn) ∨ ∃ m, kd = .other m)
     {σ' : Fl4Spec.State Unit}
     (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
       (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
       (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
       (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
-      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply))
+      (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
+      (∃ q, NewAt A k w q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧ ∃ m, 12 ≤ m ∧ K = some (.other m)))
     {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R ∪ Rn) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
     (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn) :
     KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
@@ -136,17 +137,20 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     fun hq hoff => hout_old hout rfl rfl hk1 hq (by omega)
   -- the spec's objects after, back
   have obk : ∀ o ko, σ'.kheap o = some ko → (∀ r cs, ko ≠ .cnode r cs) → (∀ x, ko ≠ .endpoint x) →
-      (∀ x, ko ≠ .notification x) → (∀ x, ko ≠ .reply x) → σ.kheap o = some ko := by
-    intro o ko h h1 h2 h3 h4
-    rcases hback o ko h with e | ⟨r, cs, cs', -, rfl⟩ | ⟨e, -, -, rfl⟩ | ⟨n, -, -, rfl⟩ | ⟨r, -, -, rfl⟩
+      (∀ x, ko ≠ .notification x) → (∀ x, ko ≠ .reply x) → (∀ x, ko ≠ .archObj x) → σ.kheap o = some ko := by
+    intro o ko h h1 h2 h3 h4 h5
+    rcases hback o ko h with e | ⟨r, cs, cs', -, rfl⟩ | ⟨e, -, -, rfl⟩ | ⟨n, -, -, rfl⟩ | ⟨r, -, -, rfl⟩ |
+      ⟨_, -, -, ⟨_, rfl⟩, -⟩
     · exact e
     · exact absurd rfl (h1 r cs')
     · exact absurd rfl (h2 _)
     · exact absurd rfl (h3 _)
     · exact absurd rfl (h4 _)
+    · exact absurd rfl (h5 _)
   have hcov : Sched.SpecCover H' σ' := by
     refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y z ho => ?_, fun o ao ho => ?_⟩
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩ | ⟨r, -, -, e'⟩
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩ | ⟨r, -, -, e'⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · refine keep (J.cover.ntfn o x e) ?_
         have := hspec _ _ e
         simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, HKind.bits] at this ⊢; exact this
@@ -154,7 +158,9 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · cases e'
       · obtain ⟨-, -, -, hna, hK⟩ := hNw n hn; exact hout_new hout hna hK
       · cases e'
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩ | ⟨r, -, -, e'⟩
+      · cases e''
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩ | ⟨r, -, -, e'⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · refine keep (J.cover.ep o x e) ?_
         have := hspec _ _ e
         simp only [Fl4Spec.objBits, Fl4Spec.endpointBits, HKind.bits] at this ⊢; exact this
@@ -162,7 +168,9 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · obtain ⟨-, -, -, hna, hK⟩ := hEw e he; exact hout_new hout hna hK
       · cases e'
       · cases e'
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, -, -, e'⟩ | ⟨r, hr, rfl, -⟩
+      · cases e''
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, -, -, e'⟩ | ⟨r, hr, rfl, -⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · refine keep (J.cover.reply o x e) ?_
         have := hspec _ _ e
         simp only [Fl4Spec.objBits, Fl4Spec.replyBits, HKind.bits] at this ⊢; exact this
@@ -170,10 +178,17 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · cases e'
       · cases e'
       · obtain ⟨-, -, -, hna, hK⟩ := hRw r hr; exact hout_new hout hna hK
+      · cases e''
     · exact J.cover.sc0 y z (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
-        (fun _ h => by cases h))
-    · have e := obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
-        (fun _ h => by cases h)
+        (fun _ h => by cases h) (fun _ h => by cases h))
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, -, -, e'⟩ | ⟨r, -, -, e'⟩ |
+        ⟨q, hna, rfl, -, m, hm, hK⟩
+      rotate_left
+      · cases e
+      · cases e'
+      · cases e'
+      · cases e'
+      · exact ⟨m, hm, hout_new hout hna hK⟩
       obtain ⟨n, hn12, hHn⟩ := J.cover.arch o ao e
       refine ⟨n, hn12, keep hHn ?_⟩
       have h1 := hspec _ _ e
@@ -184,27 +199,33 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hobj : Sched.ObjCover (Z.N ∪ Nn) Z.T (Z.E ∪ En) (Z.R ∪ Rn) Z.C σ' := by
     refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun o y z ho => ?_⟩
     · exact J.obj.tcb o x (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
-        (fun _ h => by cases h))
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩ | ⟨r, -, -, e'⟩
+        (fun _ h => by cases h) (fun _ h => by cases h))
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩ | ⟨r, -, -, e'⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · obtain ⟨n, hn, h⟩ := J.obj.ntfn o x e; exact ⟨n, Or.inl hn, h⟩
       · cases e
       · cases e'
       · exact ⟨n, Or.inr hn, rfl⟩
       · cases e'
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩ | ⟨r, -, -, e'⟩
+      · cases e''
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩ | ⟨r, -, -, e'⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · obtain ⟨e, he, h⟩ := J.obj.ep o x e; exact ⟨e, Or.inl he, h⟩
       · cases e
       · exact ⟨e, Or.inr he, rfl⟩
       · cases e'
       · cases e'
-    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, -, -, e'⟩ | ⟨r, hr, rfl, -⟩
+      · cases e''
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, -, -, e'⟩ | ⟨r, hr, rfl, -⟩ |
+        ⟨_, -, -, ⟨_, e''⟩, -⟩
       · obtain ⟨r, hr, h⟩ := J.obj.reply o x e; exact ⟨r, Or.inl hr, h⟩
       · cases e
       · cases e'
       · cases e'
       · exact ⟨r, Or.inr hr, rfl⟩
+      · cases e''
     · exact J.obj.sc o y z (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
-        (fun _ h => by cases h))
+        (fun _ h => by cases h) (fun _ h => by cases h))
   refine ⟨⟨fun e he => ?_, fun r hr => ?_, fun n hn => ?_, J.ks.buf⟩,
     ⟨⟨J.ip.n.tcb, fun n hn => ?_, fun n hn t ht => ?_⟩,
     ⟨J.ip.e.tcb, fun e he => ?_, fun r hr => ?_, fun e he t ht => ?_, fun r hr t ht => ?_, fun e he r hr => ?_,
@@ -282,26 +303,29 @@ theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     · obtain ⟨-, -, -, hna, hK⟩ := hNw n hn; exact hout_new hout hna hK
   -- hset
   · rcases hout_back hout he with ⟨hna, hK⟩ | h
-    · rcases hKn e hna _ hK with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩
+    · rcases hKn e hna _ hK with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩ | h
       · exact Or.inr h
       · cases h
       · cases h
+      · obtain ⟨_, h⟩ := h; cases h
     · exact Or.inl (J.hset.1 e h)
   · rcases hout_back hout hn with ⟨hna, hK⟩ | h
-    · rcases hKn n hna _ hK with ⟨h, -⟩ | ⟨-, h⟩ | ⟨h, -⟩
+    · rcases hKn n hna _ hK with ⟨h, -⟩ | ⟨-, h⟩ | ⟨h, -⟩ | h
       · cases h
       · exact Or.inr h
       · cases h
+      · obtain ⟨_, h⟩ := h; cases h
     · exact Or.inl (J.hset.2.1 n h)
   · rcases hout_back hout hr with ⟨hna, hK⟩ | h
-    · rcases hKn r hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ | ⟨-, h⟩
+    · rcases hKn r hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ | ⟨-, h⟩ | h
       · cases h
       · cases h
       · exact Or.inr h
+      · obtain ⟨_, h⟩ := h; cases h
     · exact Or.inl (J.hset.2.2 r h)
   -- hscC
   · rcases hout_back hout hc with ⟨hna, hK⟩ | h
-    · rcases hKn c hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ | ⟨h, -⟩ <;> cases h
+    · rcases hKn c hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ | ⟨h, -⟩ | ⟨_, h⟩ <;> cases h
     · exact J.hscC c z h
 
 set_option maxHeartbeats 2000000 in
