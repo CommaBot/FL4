@@ -710,3 +710,54 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   spec shadows as XTopJointFaultTmo's `rhoT`, transfer by `xferTmoStepJ`/`doIpcTransfer_tmo_eq`, then
   RSFr from that base as recvSendFJG / recvSendFPJG.
 - M5/M6/M7: not started.
+
+## ke14 (branch par/kentry4 in FL4-rb, on 8bea61cb = int/j2)
+- (R1b) 90f97473, new leaf XTopJointRecvSendRD (imported from Fl4Proofs.lean): the passive-server call.
+  * Spec: `testReschedule_cnN`, `donate_cnN_eq`, `pd_eqN`, `bd_donate_eqN` (donor not current, a reschedule
+    already pending: `test_reschedule` of a non-current thread is a no-op and `dnSt`'s
+    `schedulerAction := chooseNewThread` is the pending one); `receiveIpc_sendPushD_eq` (the spec's
+    `can_donate` true for a sender with an SC and no timeout fault); `runnable_notQ`, `runnable_tsc0`.
+  * `JAtZ.pushDonRJ`: pushDonJ with the donor `t` blocked on the reply, not current; the callee `d` any
+    thread with `ipcQueuedThreadState = false` (`hdq`), not idle (`hidd`); the donated SC `released`
+    (`hrelD`, push_donate_refinesW's `hrel`); the current SC another one (`hcsx`), in `Z.C`, bound to no
+    thread (`hk0`, `hcsF`): `CurOwnW` by its second disjunct, `OffOK` by the frame (`pd_ko`/`bd_oth`).
+  * `JAtZ.recvSendFPDJ` / `JAtZ.recvSendPDJ` = FPJG / PJG with `hAct` replaced by `hcn` (chooseNewThread),
+    `hnrT0`, `hxtn` (receiver no SC), `hpC`/`hxsp` (sender's SC `p`), `hnto` (FPDJ: no timeout fault) and
+    the current-SC facts. FL4's `can_donate` = true (`hpw3`, `hftT`); `reply_push_iC (don := true)` with
+    `P := σ'' = σD → ∃ V Lst', JAtZ ..` (hP' by `hneq`: the callee's SC differs), its donation step:
+    P1 at the block by `set_blocked_on_reply.ipc`/`.kw`, `JAtZ` at `pushSt σ5 ..` by `rsfr_postGR` (as
+    before), then `pushDonRJ`. `p` released at σ5 (`IR5`: no unblock -> `hrib`; unblock -> `ready_now` +
+    `sufficient_of_refOK (hz1 (I5'.refills ..))`), carried to σ' by `G'.tm`. The stack head (`hhP`) from
+    `J.stackHead` at σ (the receiver's reply free, so `Detached`) through `Fr5.callKeep`/`ps_ck`.
+  * `JAtZ.recvSendRetPDJ` = RetPJ's route with `hsn : xs.tcbSchedContext ≠ none`; σ.curSc = i by CurInv
+    (`hcsI`), `i` unbound after maybe_return_sc (`maybeReturn_shape`'s kheap-i field).
+  * XTopJointRecvIpcLink: `RecvSendRetPushCase` lost its `xs.tcbSchedContext = none` conjunct, the branch
+    splits on it (RetPJ / RetPDJ). `JRecvSendHyp` [W] now = the timeout-faulted sender with an SC only.
+  * ke14-b1: `XTopJointRecvSendRD XTopJointRecvIpcLink XTopJointEntry` 5410 jobs OK; scratch/axke14.lean
+    std axioms (handle_invocation_refinesJ, dispatch_recvJL, recvSendRetPDJ, recvSendFPDJ, recvSendPDJ,
+    pushDonRJ, donate_cnN_eq, receiveIpc_sendPushD_eq).
+  * Note: `lake env lean` of the 1750-line RD file takes ~20-35 s on the studio (ke10chk.sh), so iterate with it.
+- (R2) NOT started (context). Plan, refined:
+  * Remaining case: head sender with `tcbFault = some (.timeout bb)` and `tcbSchedContext = some sc`
+    (FL4: `can_donate` false, so either `Inactive` (no reply pushed: SendOK's shape) or a non-donating push
+    (PushOK's shape)), any receiver notification case (non-lending: J0X / P0X routes; lending blocking:
+    RetJ / RetPJ routes, after maybe_return_sc).
+  * Two core lemmas, copies of XTopJointRecvSendF's `JAtZ.recvSendFJG` (sender Inactive) and
+    XTopJointRecvSendP's `JAtZ.recvSendFPJG` (push), say `recvSendFTJ` / `recvSendFPTJ`, taking
+    `hmax`/`htu` (JEntryGlob.maxTU/tu; the callers jRecvIpcU_of / jRecvIpcLink_of / jRecvIpcHypL_of /
+    dispatch_recvJL must take them; dispatch_recvJL is not used by XTopJointEntry yet, so this is local):
+    (1) transfer by XTopJointFaultTmo's `xferTmoStepJ` instead of `xferFaultStepGJ` (outcome
+    `updK (tmoSt σ1 sc y n) t x'`, footprint `scW sc 8` + receiver registers, `Agree` with `tmoS`);
+    (2) the base `Jb` := `J.updConsumedJ hAT hmax htu hsc ht` at (`tmoS st s sc`, `tmoSt σ sc y n`) as in
+    `JAtZ.tmoBaseJ` (without set_fault: the fault is already there), spec equality with
+    `update_consumed_irel` as in tmoBaseJ;
+    (3) the spec frame `RSFr sd t (tmoSt σ sc y n) σ5` (dequeue/receiver/unblock updates commute with the SC
+    update: `rhoT`-style shadows or `updK` commutation, the unblock touches `sc` only via refills — check
+    UnblockOut's `p ≠ curSc` and that its `y` is the consumed-cleared one);
+    (4) FL4 footprints rebased onto `tmoS s sc` by `writesIn_rebase` (sendTmoRecvIJ does exactly this for
+    the send side: read it first, lines 641-1257 of XTopJointFaultTmo.lean);
+    (5) `Inv` at σ5' for the Inactive sender with an SC and a timeout fault: RelIfBound not needed if
+    `inClassR` excludes it (UPDATE 02:24Z: Inv.rd weakened for timeout-faulted senders); else from Jb.
+  * Then cases in XTopJointRecvIpcLink (`RecvSendTmoCase` split by receiver ntfn / push) and delete
+    `JRecvSendHyp`, its parameter of jRecvIpcU_of/jRecvIpcLink_of/jRecvIpcHypL_of/dispatch_recvJL.
+- M5/M6/M7: not started.
