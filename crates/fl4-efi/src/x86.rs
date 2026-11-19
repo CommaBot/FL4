@@ -8,6 +8,12 @@ const SNP_BLOB: Guid = Guid(
     0x44c5,
     [0x85, 0x54, 0x93, 0xd7, 0x77, 0x91, 0x2d, 0x42],
 );
+const GOP: Guid = Guid(
+    0x9042_a9de,
+    0x23dc,
+    0x4a38,
+    [0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a],
+);
 const TOP: u64 = 1 << 32;
 const HUGE: u64 = 2 << 20;
 const KERNEL_OFFSET: u64 = 0xffff_ffff_8000_0000;
@@ -103,6 +109,64 @@ fn sev() -> (u64, u64, u64) {
         fail("invalid SEV C-bit");
     }
     (1 << bit, cpuid_page, secrets_page)
+}
+
+#[repr(C)]
+struct Gop {
+    query_mode: usize,
+    set_mode: usize,
+    blt: usize,
+    mode: *const GopMode,
+}
+
+#[repr(C)]
+struct GopMode {
+    max_mode: u32,
+    mode: u32,
+    info: *const GopInfo,
+    info_size: usize,
+    base: u64,
+    size: usize,
+}
+
+#[repr(C)]
+struct GopInfo {
+    version: u32,
+    width: u32,
+    height: u32,
+    format: u32,
+    masks: [u32; 4],
+    per_line: u32,
+}
+
+/// The framebuffer tag for the mode firmware left the display in, as
+/// GRUB passes it: no mode is set, and a machine without a usable linear
+/// display boots without the tag.
+fn framebuffer() -> Option<[u8; gop::LEN]> {
+    let mut gop = core::ptr::null_mut();
+    if (bs().locate_protocol)(&GOP, core::ptr::null(), &mut gop) != SUCCESS || gop.is_null() {
+        return None;
+    }
+    let mode = unsafe { (*(gop as *const Gop)).mode };
+    if mode.is_null() || unsafe { (*mode).info.is_null() } {
+        return None;
+    }
+    let (mode, info) = unsafe { (&*mode, &*(*mode).info) };
+    let tag = gop::tag(
+        mode.base,
+        mode.size as u64,
+        info.width,
+        info.height,
+        info.format,
+        info.per_line,
+    )?;
+    say!(
+        "fl4-efi: GOP framebuffer {}x{} at {:#x}",
+        info.width,
+        info.height,
+        mode.base
+    );
+    Some(tag)
 }
 
 struct Info {
@@ -415,6 +479,14 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         write(info.tag(kind, size), unsafe {
             core::slice::from_raw_parts(rsdp as *const u8, size as usize)
         });
+    }
+    // Not for SEV guests: the framebuffer is device memory whose shared or
+    // private status firmware does not state, and the kernel's console
+    // refuses it under SNP (fbcon::usable) as well.
+    if mask == 0 {
+        if let Some(fb) = framebuffer() {
+            write(info.tag(8, gop::LEN as u64), &fb);
+        }
     }
     let trampoline = handoff_code();
     say!("fl4-efi: entering x86_64 kernel, SEV-SNP {}", cpuid != 0);

@@ -184,6 +184,8 @@ macro_rules! say {
 }
 
 #[cfg(target_arch = "x86_64")]
+mod gop;
+#[cfg(target_arch = "x86_64")]
 mod snp_map;
 #[cfg(target_arch = "x86_64")]
 mod x86;
