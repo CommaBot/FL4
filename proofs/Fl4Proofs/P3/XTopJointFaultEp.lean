@@ -1,8 +1,7 @@
 /-
 P3 (DESIGN.md §9), IPC: **`handle_fault` with an endpoint fault handler and
-no waiting receiver at `J`** (`JAtZ.faultBlockJ`; XTopJointNoFault's
-`FaultEpHypJ` narrowed to `FaultEpRecvHyp`, the handler endpoint with a
-waiting receiver).
+no waiting receiver at `J`** (`JAtZ.faultBlockJ`; the waiting receiver is
+XTopJointFaultRecv's `JAtZ.faultRecvJ`).
 
 FL4's `faults::handle_fault` with an endpoint cap in the current thread's
 fault-handler slot: `send_fault_ipc`'s endpoint branch, `set_fault` (for a
@@ -30,9 +29,6 @@ then `sendIpc` (blocking, call), then `return true`.
   pending reschedule after, `Inv.rd` of the now blocked sender carried from
   the runnable thread's `RelIfBound`; a cap fault is no timeout fault, so
   `inClassR` holds for it and `Inv.rd` must hold, and does).
-* `FaultEpRecvHyp` [W]: the endpoint handler with a waiting receiver (the
-  send-to-receiver line, par/sendj, covers no faulted sender yet);
-  `faultEpJ`: `FaultEpHypJ` from it and `CapFaultCorr`.
 -/
 import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointSendBlockG
@@ -667,40 +663,6 @@ theorem JAtZ.faultBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni 
   have J' := J.cs_frameV hks hX3 F.kback hCs R
   exact ⟨⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
     ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J'⟩⟩
-
-/-- **[W] The fault handler at `JAt` when the faulting thread's
-fault-handler slot holds an endpoint cap and the endpoint has a waiting
-receiver**: FL4's `set_fault` then `send_ipc` to the receiver (the fault
-message transferred, then the faulted sender `BlockedOnReply` with a reply
-push or `Inactive`) against the spec's `threadSet` of the fault then
-`sendIpc` (the par/sendj line's send to a receiver, which covers no faulted
-sender yet). The idle or sending endpoint is proved (`JAtZ.faultBlockJ`). -/
-def FaultEpRecvHyp (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (σ : Fl4Spec.State Unit) (ct : U64) (f : error.Fault)
-    (f' : Fl4Spec.Fault) : Prop :=
-  (∃ p b sd rv g gr, capAt (L.mem s) (cslotAddr (ct.bv, Fl4Spec.tcbCnodeIndex 3)) = ok (.Endpoint p b sd rv g gr) ∧
-    ∃ q, σ.kheap p.bv = some (.endpoint (.recvEP q))) →
-    FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct f f'
-
-/-- **`FaultEpHypJ` from the receiver case** (module docstring): an idle or
-sending handler endpoint by `JAtZ.faultBlockJ`. -/
-theorem faultEpJ (s : S) (σ : Fl4Spec.State Unit) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    {f : error.Fault} {f' : Fl4Spec.Fault} (hf : CapFaultCorr f f')
-    (hr : FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct f f') :
-    FaultEpHypJ (L := L) (arI := arI) AR s σ ct f f' := by
-  rintro ⟨p, b, sd, rv, g, gr, hc⟩ a hJ
-  obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
-  obtain ⟨hcur, x, hk⟩ := J.curEq hct
-  have htcb : Z.th ct = some .tcb := (J.xtop.curTcb hcur).1
-  have hAS : AbsSlot Z.th (ct.bv, Fl4Spec.tcbCnodeIndex 3) := ⟨ct, rfl, Or.inr ⟨htcb, 3, by decide, rfl⟩⟩
-  have hpE : p ∈ Z.E := J.slotE hAS hc
-  obtain ⟨xe, hke, -⟩ := (J.xtop.irelK J.ks J.buf).1.ep p hpE
-  cases xe with
-  | recvEP q => exact hr ⟨p, b, sd, rv, g, gr, hc, q, hke⟩ a ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  | idleEP =>
-    exact J.faultBlockJ hni hct hnq hc (fun xe h => by rw [hke] at h; cases h; trivial) hf
-  | sendEP q =>
-    exact J.faultBlockJ hni hct hnq hc (fun xe h => by rw [hke] at h; cases h; trivial) hf
 
 end
 

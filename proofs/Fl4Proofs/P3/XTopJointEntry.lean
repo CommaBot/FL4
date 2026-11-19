@@ -125,12 +125,14 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
     (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr)))
     (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False))
     (hrr : (∃ e exs, r2 = .Ok e ∧ er = .ok exs) ∨
-      (∃ f f', r2 = .Err f ∧ er = .error f' ∧ (blocking = true → FaultHypAtMX (L := L) arI X s σ ct f f')))
+      (∃ f f', r2 = .Err f ∧ er = .error f' ∧ (blocking = true → faults.handle_fault st arI s ar ct f ⦃ r =>
+        ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv f' σ).1, RelTopM (L := L) r.1 z.2 ∧ X r.1 r.2 z.2 ⦄)))
     (args : List Fl4Spec.Data) (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(args, σ)}, False))
     -- the fault of a failed lookup
     (hFL : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
-      FaultHypAtMX (L := L) arI X s σ ct (.Cap cptr false lf)
-        (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf'))
+      faults.handle_fault st arI s ar ct (.Cap cptr false lf) ⦃ r =>
+        ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf') σ).1,
+          RelTopM (L := L) r.1 z.2 ∧ X r.1 r.2 z.2 ⦄)
     -- the success tail (from `X` with the invoker still current) and the error reply (at the entry state)
     (hRepS : ∀ (s1 : S) (a1 : A) (σ' : Fl4Spec.State Unit), RelTopM (L := L) s1 σ' → X s1 a1 σ' →
       σ'.curThread = ct.bv → flTail (st := st) ct is_call s1 a1 ⦃ res => res.1 = .Ok () ∧
@@ -177,7 +179,7 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
         exact ⟨(.ok (), σ), hi_memR rep hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
           (mem_when (fun h => by cases h) (fun _ => rfl))), Or.inl ⟨rfl, rfl⟩, hRT0, ifP_ok rfl hX0⟩
       · simp only [↓reduceIte]
-        refine WP.spec_bind (hFL rfl lf lf' hrel ar hX0) ?_
+        refine WP.spec_bind (hFL rfl lf lf' hrel) ?_
         rintro ⟨s1, a1⟩ ⟨z, hz, hRT, hXz⟩
         refine (WP.spec_ok _).2 ?_
         exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
@@ -270,7 +272,7 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
           exact ⟨(.ok (), σ), hi_memR rep hcur hmi (mem_syscall_fault (z := ((), σ)) hmF
             (mem_when (fun h => by cases h) (fun _ => rfl))), Or.inl ⟨rfl, rfl⟩, hRT0, ifP_ok rfl hX0⟩
         · simp only [↓reduceIte]
-          refine WP.spec_bind (hfh rfl ar hX0) ?_
+          refine WP.spec_bind (hfh rfl) ?_
           rintro ⟨s1, a1⟩ ⟨z, hz, hRT, hXz⟩
           refine (WP.spec_ok _).2 ?_
           exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_fault hmF (mem_when (fun _ => hz) (fun h => by cases h))),
@@ -383,7 +385,7 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   `tcb_cap_cases` entry of `tcb_fault_handler`: `valid_fault_handler`; FL4's
   TCB SetSpace/Configure/SetSchedParams check `valid_fault_handler`
   before installing, a retyped TCB's slots are null, deletion nulls); for a
-  fault (`faultHypJ`: any other cap is a spec `fail`). -/
+  fault (`JAtZ.faultHypJZ`: any other cap is a spec `fail`). -/
   vfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler
   /-- [J] the current thread has no fault at the invocation (l4v MCS
   `fault_tcbs_valid_states`: a thread with a fault is not active; the spec
@@ -919,25 +921,6 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   glob : JEntryGlob (L := L) arI AR Z.th
   /-- `JEntryAt` ([J]/[P] per field). -/
   atE : JEntryAt (L := L) arI AR Z s ar σ
-  /-- [W] the fault handler at `JAt` for a failed cap lookup, narrowed to an
-  endpoint cap in the faulting thread's fault-handler slot whose endpoint has
-  a waiting receiver with an IPC buffer (XTopJointFaultRecv's `FaultEpBufHyp`:
-  `set_fault` then `send_ipc` to the receiver, whose fault transfer writes the
-  receive buffer; the par/sendj line's receive-buffer gap). A receiver without
-  a buffer is proved (`JAtZ.faultRecvJ`, `faultEpJ2`), an idle or sending
-  handler endpoint too (`JAtZ.faultBlockJ`), a null handler too
-  (XTopJointNoFault's `JAtZ.noFaultJ`; FL4 stores no fault there, as seL4's
-  `handleNoFaultHandler`), any other cap is excluded by `JEntryAt.vfh`
-  (`faultHypJ`). -/
-  lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
-    FaultEpBufHyp (L := L) (arI := arI) AR s σ ct (.Cap cptr false lf)
-      (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf')
-  /-- [W] the fault handler at `JAt` when the extra caps' lookup fails and the
-  handler endpoint has a waiting receiver with an IPC buffer (`FaultEpBufHyp`,
-  as `lookupFault`; both lookups succeed or fault with the same cap fault by
-  FrontEndExtra's `JAtZ.extraJ`). -/
-  extraLookup : ∀ f f', r2 = .Err f → er = .error f' → blocking = true →
-    FaultEpBufHyp (L := L) (arI := arI) AR s σ ct f f'
   /-- Per cap, its decode path (`JPath`). -/
   path : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
@@ -974,18 +957,17 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   obtain ⟨hcur, -⟩ := J.curEq hct
   have htcb := (J.xtop.curTcb hcur).1
   have hX := J.xtop
+  have hZ : XferHZ L AR Z := fun Z' s' a' σ' e hX' => ⟨hH.glob.ipcBufOK Z' s' a' σ' e hX',
+    hH.glob.bufCover Z' s' a' σ' e hX', hH.glob.bufPlaced Z' s' a' σ' e hX'⟩
   refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
     ((J.extraJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct hinfo hmi hbuf
-      hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun hb =>
-      faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh f f'
-        (faultEpJ2 hH.glob.tot s σ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) hH.atE.ni hct hH.atE.ctnq hcf
-          (hH.extraLookup f f' h1 h2 hb))⟩)
+      hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun _ =>
+      J.faultHypJZ hZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh hcf⟩)
     (argsU.map UScalar.bv) hmrs
-    (fun hb lf lf' hl => faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh _ _
-      (faultEpJ2 hH.glob.tot s σ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) hH.atE.ni hct hH.atE.ctnq
-        (capFaultCorr_lookup cptr hl) (hH.lookupFault hb lf lf' hl)))
+    (fun _ lf lf' hl => J.faultHypJZ hZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh
+      (capFaultCorr_lookup cptr hl))
     (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
     (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
       (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
