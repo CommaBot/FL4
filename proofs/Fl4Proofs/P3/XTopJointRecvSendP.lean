@@ -5,10 +5,13 @@ reply at `J`** (XTopJointRecvIpcLink's `JRecvSendHyp`, KENTRY-PLAN.md item 6
 sender calls or is faulted, has the grant or grant-reply right, and the
 receiver passes a reply object. At a resumed entry the receiver (the current
 thread) has the current SC (`CurInv`), so `reply_push` never donates: the
-reply is bound to the sender, which blocks on it.
+reply is bound to the sender, which blocks on it. `hAct` of `JAtZ.recvSendFPJG` /
+`JAtZ.recvSendPJG` also admits a pending reschedule with the receiver out of
+the release queue and a sender without an SC (no donation either; after
+`maybe_return_sc`, XTopJointRecvSendRP).
 
 * `replyPush_don_irrel`, `receiveIpc_sendPush_eq`: the spec's `reply_push`
-  to a callee with an SC is the same for every `can_donate`; the spec's
+  from a caller without an SC or to a callee with an SC is the same for every `can_donate`; the spec's
   receive ending in the push.
 * `updK3_eq`: two writes of one object around another collapse.
 * `JAtZ.undeadC`: an object covered at the state leaves the dead set
@@ -29,7 +32,8 @@ reply is bound to the sender, which blocks on it.
   at `σy`).
 * `PushOK`, `JAtZ.recvSendP0X`: the two cases, the receiver not lending its
   SC (`JAtZ.recvPreN`). A receiver whose bound notification lends it its SC
-  has none after `maybe_return_sc`, so its push donates: not covered here.
+  has none after `maybe_return_sc`, so a push from a sender with an SC
+  donates: not covered here (a sender without one: XTopJointRecvSendRP).
 -/
 import Fl4Proofs.P3.XTopJointRecvSendF
 open Aeneas Aeneas.Std Result
@@ -42,15 +46,19 @@ noncomputable section
 section SpecP
 open Fl4Spec
 
-/-- The spec's `reply_push` to a callee with an SC does not depend on
-`can_donate`. -/
+/-- The spec's `reply_push` from a caller without an SC, or to a callee with
+an SC, does not depend on `can_donate`. -/
 theorem replyPush_don_irrel {σ : State Unit} {t d r : ObjRef} {xt xd : Tcb} (hkt : σ.kheap t = some (.tcb xt))
-    (hkd : σ.kheap d = some (.tcb xd)) (hsc : xd.tcbSchedContext ≠ none) (b1 b2 : Bool) :
+    (hkd : σ.kheap d = some (.tcb xd)) (hsc : xt.tcbSchedContext = none ∨ xd.tcbSchedContext ≠ none)
+    (b1 b2 : Bool) :
     replyPush (Z := Unit) t d r b1 σ = replyPush (Z := Unit) t d r b2 σ := by
+  have hn : ∀ b : Bool, ¬ (xt.tcbSchedContext ≠ none ∧ xd.tcbSchedContext = none ∧ b = true) := by
+    intro b h; rcases hsc with h' | h'
+    · exact h.1 h'
+    · exact h' h.2.1
   unfold replyPush
   simp only [nd_bind_one (getTcbObjRef_eq _ hkt), nd_bind_one (getTcbObjRef_eq _ hkd),
-    nd_when_false (show ¬ (xt.tcbSchedContext ≠ none ∧ xd.tcbSchedContext = none ∧ b1 = true) by simp [hsc]),
-    nd_when_false (show ¬ (xt.tcbSchedContext ≠ none ∧ xd.tcbSchedContext = none ∧ b2 = true) by simp [hsc])]
+    nd_when_false (hn b1), nd_when_false (hn b2)]
 
 /-- Two writes of `p` around a write of `q ≠ p`. -/
 theorem updK3_eq (σ0 : State Unit) (p q : ObjRef) (o1 o2 o3 : KernelObject) (hpq : p ≠ q) :
@@ -290,11 +298,13 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
       σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
       (blk = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)))
-    (hct : σ.curThread = t.bv) (hni : Entered σ) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
+    (hct : σ.curThread = t.bv) (hni : σ.curThread ≠ σ.idleThread) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
     {e sd : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
     (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
     {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) {f : Fl4Spec.Fault}
     (hft : xs.tcbFault = some f) (hto : ∀ b, f = .timeout b → xs.tcbSchedContext = none)
+    (hAct : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ t.bv ∉ σ.releaseQueue ∧ xs.tcbSchedContext = none))
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
     (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
     (hcovR : (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
@@ -535,12 +545,20 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     · obtain ⟨x, -, -, -, hkx, -, hrx, -, -⟩ := J.inv.rel _ hm
       rw [hks] at hkx; cases hkx; rw [hstd] at hrx; cases hrx
   -- the receiver: current, with the current SC (so no donation)
-  have hres : σ.schedulerAction = .resumeCurThread := hni.2
-  have hCI : CurInv σ := J.cur.resolve_left (by rw [hres]; intro h; cases h)
-  have hscT : xt.tcbSchedContext = some σ.curSc := by
-    obtain ⟨xc, hkc, hcs, -⟩ := hCI.tcb
-    rw [hct, hkt] at hkc; cases hkc; exact hcs
-  have hnrT : t.bv ∉ σ.releaseQueue := by rw [← hct]; exact hCI.notRel
+  have hA0 := hAct
+  have hCI : σ.schedulerAction = .resumeCurThread → CurInv σ := fun hres =>
+    J.cur.resolve_left (by rw [hres]; intro h; cases h)
+  have hnd : xs.tcbSchedContext = none ∨ xt.tcbSchedContext ≠ none := by
+    rcases hA0 with hres | ⟨-, -, h⟩
+    · obtain ⟨xc, hkc, hcs, -⟩ := (hCI hres).tcb
+      rw [hct, hkt] at hkc; cases hkc; exact Or.inr (by rw [hcs]; simp)
+    · exact Or.inl h
+  have hnrT : t.bv ∉ σ.releaseQueue := by
+    rcases hA0 with hres | ⟨-, h, -⟩
+    · rw [← hct]; exact (hCI hres).notRel
+    · exact h
+  have hsw : ∀ u, σ.schedulerAction ≠ .switchThread u := fun u h => by
+    rcases hA0 with h' | ⟨h', -⟩ <;> rw [h'] at h <;> cases h
   have hnqT : ∀ dm p, t.bv ∉ σ.readyQueues dm p := by rw [← hct]; exact hnq
   -- the frames to `σ3`
   have Fr3 : RSFr sd'.bv t.bv σ2 σ3 := by
@@ -584,20 +602,15 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
       exact List.mem_map_of_mem hm
   obtain ⟨hqbS, hrbS⟩ := bits3 sd' hsT hnqS.1 hnqS.2
   obtain ⟨hqbT, hrbT⟩ := bits3 t ht hnqT hnrT
-  have hact3' : σ3.schedulerAction = .resumeCurThread := act3.trans hres
-  have ha0 : L.actionW s3 = 0#u64 := by
-    have h := hSR3.act
-    rw [hact3'] at h
-    unfold P1.LawfulStore.actionW; rw [hcq3.cur]; exact h
-  have hna3 : ∀ u ∈ Z.T, L.actionW s3 ≠ u := fun u hu h' => by
-    rw [ha0] at h'; exact (hcq3.tcbs u hu).ne0 (by rw [← h']; rfl)
+  have hna3 : ∀ u ∈ Z.T, L.actionW s3 ≠ u := fun u hu =>
+    actionW_ne_of hSR3 hu (fun h => hsw _ (act3.symm.trans h))
   have hidl3 : σ3.idleThread = σ.idleThread := Fr23.sk.idle
   have hiw3 : ∀ u ∈ Z.T, u.bv ≠ σ.idleThread → L.idleW s3 ≠ u := fun u hu hne h' => by
     apply hne
     rw [← hidl3, hs3.idleTh]
     unfold P1.LawfulStore.idleW at h'; rw [hcq3.cur] at h'
     exact congrArg _ (show nodeW st s3 Z.c layout.node.IDLE_THREAD = u from h').symm
-  have hit : t.bv ≠ σ.idleThread := by rw [← hct]; exact hni.1
+  have hit : t.bv ≠ σ.idleThread := by rw [← hct]; exact hni
   have his : sd'.bv ≠ σ.idleThread := by
     intro h
     obtain ⟨x, hkx, -, hxs, -⟩ := J.act.2
@@ -615,17 +628,21 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     rw [hkr3] at hkr'; cases hkr'
     exact optRef_none (hrl.symm.trans hxr0)
   have hns3 : tsCode xs.tcbState ≠ 6 := by rw [hstd]; simp [tsCode]
-  have hndF : x2.tcbSchedContext = none → False := fun h0 => by rw [hsc2, hscT] at h0; cases h0
   have hSM := ScRelM.of hIR3.1
   obtain ⟨xd3, hkd3', hdsc⟩ := hSM t ht
   rw [hkt3] at hkd3'; cases hkd3'
-  have hscw : L.mem s3 (P1.scA t) ≠ 0#u64 := fun h0 => hndF (by rw [hdsc, h0, optRef_zero])
+  obtain ⟨xs3', hks3', hssc⟩ := hSM sd' hsT
+  rw [hks3] at hks3'; cases hks3'
+  have hscw : L.mem s3 (P1.scA sd') = 0#u64 ∨ L.mem s3 (P1.scA t) ≠ 0#u64 := by
+    rcases hnd with h | h
+    · exact Or.inl (optRef_none (hssc.symm.trans h))
+    · exact Or.inr fun h0 => h (by rw [← hsc2, hdsc, h0, optRef_zero])
   have hw1 : P1.WritesIn st s3 (L.wr s3 (P1.rTcbA rv) sd') (fun b => b.val = rv.val) := by
     obtain ⟨-, -, -, hA1⟩ := reply_write_rel (hH.epHyps hP0) hP s3 σ3 hR3 hS3.1 hwR hkr3 sd'
     exact ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb hn => hA1 b hb hn⟩
   have hXc : P1.ExcT {y' | y' ∈ (∅ : Set U64) ∨ y' = sd'} sd' := fun y' hy' => by simpa using hy'
   -- the push on `IRel`, at P1
-  have hPush : ∀ cd : Bool, ipc.reply_push st arI s3 a sd' t rv cd ⦃ r => r.2 = a ∧
+  have hPush : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r => r.2 = a ∧
       Fl4Spec.replyPush (Z := Unit) sd'.bv t.bv rv.bv cd σ3 = ({((), pushSt σ3 sd'.bv rv.bv xr xs)}, False) ∧
       EpStateRel Z.T Z.E Z.R Z.B (L.mem r.1) (pushSt σ3 sd'.bv rv.bv xr xs) ∧
       SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
@@ -634,24 +651,25 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
         (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac r.1 ∧
       P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s3 r.1 ∧
       sched.set_blocked_on_reply st (L.wr s3 (P1.rTcbA rv) sd') sd' rv = ok r.1 ⦄ := by
-    intro cd
+    intro cd hcd
     refine WP.spec_mono (WP.spec_and (WP.spec_and
       (reply_push_iC (don := cd) (P := fun s' σ' => σ' = pushSt σ3 sd'.bv rv.bv xr xs ∧
           EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' ∧
           SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
             (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))) s' σ')
         hH hP0 hP s3 a σ3 hR3 hS3 hsT hks3 hkt3 hq3 hns3 hwR hkr3 (fun _ => ht)
-        (fun s' h1 h2 => ⟨rfl, h1, h2⟩) (fun _ _ _ _ _ _ _ _ hx0 => (hndF hx0).elim))
+        (fun s' h1 h2 => ⟨rfl, h1, h2⟩) (fun hd _ _ _ _ _ _ _ h9 => hcd.elim (fun e => by rw [e] at hd; cases hd)
+          (fun h => (h (by rw [hdsc] at h9; exact optRef_none h9)).elim)))
       (P1.ipc.reply_push.ipc hAT s3 a sd' t rv cd Q0 R0 h3 hXc (Or.inl (Or.inr rfl)) hB3 hX3 hS3' hSg3 hsH
         hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hqbT hrbT (hna3 t ht)
         (hiw3 t ht hit) hcA))
       (P1.ipc.reply_push.nd (Es := P1.EH H) s3 a sd' t rv cd h3 hXc (Or.inl (Or.inr rfl)) hB3 hX3 hS3' hSg3 hsH
-        hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hcA (Or.inr hscw))) ?_
+        hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hcA hcd)) ?_
     rintro ⟨s4, a4⟩ ⟨⟨⟨ha, σ', hm, e4, hR4, hS4⟩, hb1, -, -⟩, -, hf, hsb⟩
     subst e4
     exact ⟨ha, hm, hR4, hS4, hb1, hf, hsb⟩
   have hrv0 : (rv != 0#u64) = true := by simpa using hw00
-  suffices HH : ∀ cd : Bool, ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
+  suffices HH : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ by
     have HH' : (do
@@ -661,10 +679,12 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
             RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
       refine WP.spec_bind (Fl4Proofs.P1.obj.Tcb.sc.spec s3 sd') ?_
-      rintro i3 -
+      rintro i3 hi3
       by_cases h3' : (i3 != 0#u64) = true
-      · rw [if_pos h3']; exact ok_bind_spec _ _ (HH _)
-      · rw [if_neg h3']; exact ok_bind_spec _ _ (HH _)
+      · rw [if_pos h3']
+        refine ok_bind_spec _ _ (HH _ (hscw.elim (fun h => ?_) Or.inr))
+        rw [← hi3] at h; simp [h] at h3'
+      · rw [if_neg h3']; exact ok_bind_spec _ _ (HH _ (Or.inl rfl))
     rcases Bool.eq_false_or_eq_true dd.senderCanGrant with hG | hG
     · by_cases hci : (i2 != 0#u64) = true
       · simp only [hci, hg, hG, hrv0, ↓reduceIte]; exact HH'
@@ -673,8 +693,8 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
       by_cases hci : (i2 != 0#u64) = true
       · simp only [hci, hg, hG, hgr, hGR, hrv0, Bool.false_eq_true, ↓reduceIte]; exact HH'
       · simp only [hci, hftB, hg, hG, hgr, hGR, hrv0, Bool.false_eq_true, ↓reduceIte]; exact HH'
-  intro cd
-  refine WP.spec_mono (hPush cd) ?_
+  intro cd hcd
+  refine WP.spec_mono (hPush cd hcd) ?_
   rintro ⟨s4, a4⟩ ⟨ha4, hpush, hR4, hS4, hblk, fu4, hsb4⟩
   simp only at ha4 hpush hR4 hS4 hblk fu4 hsb4 ⊢
   subst ha4
@@ -761,9 +781,13 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     exact act5
   have hidT : σ5.idleThread ≠ sd'.bv := by rw [Fr5.sk.idle]; exact fun e0 => his e0.symm
   have hAI6 : ActIdle σ' :=
-    ⟨fun u hu => (by rw [hactP, hres] at hu; cases hu), ps_idleOK hkta hkwa hws hidT (Fr5.idleOK J.act.2)⟩
-  have hCIa : CurInv σ5 := Fr5.curInv hCI
-  have hCI' : CurInv σ' := by
+    ⟨fun u hu => (by rw [hactP] at hu; exact absurd hu (hsw u)), ps_idleOK hkta hkwa hws hidT (Fr5.idleOK J.act.2)⟩
+  have hcur6 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := by
+    rcases hA0 with hres | ⟨hcn, -⟩
+    swap
+    · exact Or.inl (hactP.trans hcn)
+    have hCIa : CurInv σ5 := Fr5.curInv (hCI hres)
+    refine Or.inr ?_
     obtain ⟨⟨xc, hkc, hcs, hnb'⟩, ⟨y0, n0, hky0⟩, hact0, hnr0⟩ := hCIa
     have hsne1 : σ5.curSc ≠ sd'.bv := kheap_ne hky0 hkta (fun _ h1 h2 => by subst h1; cases h2)
     have hsne2 : σ5.curSc ≠ rv.bv := kheap_ne hky0 hkwa (fun _ h1 h2 => by subst h1; cases h2)
@@ -776,12 +800,16 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
       rw [G'.csc, G'.isc] at hne
       exact hact0 hne x n hx
     · rw [G'.ct, ps_rel]; exact hnr0
-  have hrun5 : CurRunW σ5 := Fr5.curRunW (J.curRun.resolve_left fun e0 => e0 hres)
-  have hrun6 : CurRunM σ' := Or.inr (by
-    rcases hrun5 with h | h
-    · refine Or.inl fun y hy => h y ?_
-      rw [G'.ct, ps_ko hcne1 hcne2] at hy; exact hy
-    · exact Or.inr (by rw [G'.ct, G'.idle]; exact h))
+  have hrun6 : CurRunM σ' := by
+    rcases hA0 with hres | ⟨hcn, -⟩
+    swap
+    · exact Or.inl (by rw [hactP, hcn]; intro h; cases h)
+    have hrun5 : CurRunW σ5 := Fr5.curRunW (J.curRun.resolve_left fun e0 => e0 hres)
+    exact Or.inr (by
+      rcases hrun5 with h | h
+      · refine Or.inl fun y hy => h y ?_
+        rw [G'.ct, ps_ko hcne1 hcne2] at hy; exact hy
+      · exact Or.inr (by rw [G'.ct, G'.idle]; exact h))
   -- back to `JAtZ`
   obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX hZ ht hth hkt hW4' hfoot
   have hIu := Ju.xtop.irelK Ju.ks Ju.buf
@@ -798,7 +826,7 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     (ps_bufKeep hkta hkwa hws) (fun d _ h => ps_recvB hkta hkwa hws h) (ps_ksz hkta hkwa hws)
     (ps_kback hkta hkwa hws) (ps_ipcFr hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
-    I6 B6 hAI6 (Or.inr hCI') hrun6 (ps_own hkta hkwa hws (Fr5.own J.own))
+    I6 B6 hAI6 hcur6 hrun6 (ps_own hkta hkwa hws (Fr5.own J.own))
     (ps_off hkta hkwa hws (Fr5.off J.off)) (ps_nsc hkta hkwa hws (Fr5.nsc J.nsc))
     (ps_isorted hkta hkwa hws (Fr5.isorted J.isorted)) htD
   -- the spec's outcome
@@ -812,7 +840,7 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     intro r hr bd
     rw [Notif.optRef_ne hw00] at hr
     cases hr
-    rw [replyPush_don_irrel hks3 hkt3 (by rw [hsc2, hscT]; simp) bd cd, hpush, heqP]
+    rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inr (by rw [hft]; simp)) hPS
   exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6⟩
@@ -829,10 +857,12 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
       σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
       (blk = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)))
-    (hct : σ.curThread = t.bv) (hni : Entered σ) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
+    (hct : σ.curThread = t.bv) (hni : σ.curThread ≠ σ.idleThread) (hnq : ∀ dm p, σ.curThread ∉ σ.readyQueues dm p)
     {e sd : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
     (hk : σ.kheap e.bv = some (.endpoint (.sendEP (sd.bv :: q))))
     {xs : Fl4Spec.Tcb} (hks : σ.kheap sd.bv = some (.tcb xs)) (hfs : xs.tcbFault = none)
+    (hAct : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ t.bv ∉ σ.releaseQueue ∧ xs.tcbSchedContext = none))
     (cb : U64) (c1 c2 c3 c4 : Bool) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
     (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
     (hcovR : (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
@@ -1050,13 +1080,25 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     · obtain ⟨x, -, -, -, hkx, -, hrx, -, -⟩ := Jy.inv.rel _ hm
       rw [hksy] at hkx; cases hkx; rw [hstd] at hrx; cases hrx
   -- the receiver: current, with the current SC (so no donation)
-  have hres : σy.schedulerAction = .resumeCurThread := hsay.trans hni.2
+  have hA0 : σy.schedulerAction = .resumeCurThread ∨
+      (σy.schedulerAction = .chooseNewThread ∧ t.bv ∉ σ.releaseQueue ∧ xs.tcbSchedContext = none) := by
+    rw [hsay]; exact hAct
   have hcty' : σy.curThread = t.bv := hcty.trans hct
-  have hCI : CurInv σy := Jy.cur.resolve_left (by rw [hres]; intro h; cases h)
-  have hscT : xt.tcbSchedContext = some σy.curSc := by
-    obtain ⟨xc, hkc, hcs, -⟩ := hCI.tcb
-    rw [hcty', hkty] at hkc; cases hkc; exact hcs
-  have hnrT : t.bv ∉ σy.releaseQueue := by rw [← hcty']; exact hCI.notRel
+  have hCI : σy.schedulerAction = .resumeCurThread → CurInv σy := fun hres =>
+    Jy.cur.resolve_left (by rw [hres]; intro h; cases h)
+  have hrly : σy.releaseQueue = σ.releaseQueue := by
+    have e := congrArg Fl4Spec.AbstractState.releaseQueue hCnKy.1; exact e
+  have hnd : xs.tcbSchedContext = none ∨ xt.tcbSchedContext ≠ none := by
+    rcases hA0 with hres | ⟨-, -, h⟩
+    · obtain ⟨xc, hkc, hcs, -⟩ := (hCI hres).tcb
+      rw [hcty', hkty] at hkc; cases hkc; exact Or.inr (by rw [hcs]; simp)
+    · exact Or.inl h
+  have hnrT : t.bv ∉ σy.releaseQueue := by
+    rcases hA0 with hres | ⟨-, h, -⟩
+    · rw [← hcty']; exact (hCI hres).notRel
+    · rw [hrly]; exact h
+  have hsw : ∀ u, σy.schedulerAction ≠ .switchThread u := fun u h => by
+    rcases hA0 with h' | ⟨h', -⟩ <;> rw [h'] at h <;> cases h
   have hnqT : ∀ dm p, t.bv ∉ σy.readyQueues dm p := by rw [hrqy, ← hct]; exact hnq
   -- the frames to `σ3`
   have Fr3 : RSFr sd'.bv t.bv σ2 σ3 := by
@@ -1102,20 +1144,15 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
       exact List.mem_map_of_mem hm
   obtain ⟨hqbS, hrbS⟩ := bits3 sd' hsT hnqS.1 hnqS.2
   obtain ⟨hqbT, hrbT⟩ := bits3 t ht hnqT hnrT
-  have hact3' : σ3.schedulerAction = .resumeCurThread := act3.trans hres
-  have ha0 : L.actionW s3 = 0#u64 := by
-    have h := hSR3.act
-    rw [hact3'] at h
-    unfold P1.LawfulStore.actionW; rw [hcq3.cur]; exact h
-  have hna3 : ∀ u ∈ Z.T, L.actionW s3 ≠ u := fun u hu h' => by
-    rw [ha0] at h'; exact (hcq3.tcbs u hu).ne0 (by rw [← h']; rfl)
+  have hna3 : ∀ u ∈ Z.T, L.actionW s3 ≠ u := fun u hu =>
+    actionW_ne_of hSR3 hu (fun h => hsw _ (act3.symm.trans h))
   have hidl3 : σ3.idleThread = σy.idleThread := Fr23.sk.idle
   have hiw3 : ∀ u ∈ Z.T, u.bv ≠ σy.idleThread → L.idleW s3 ≠ u := fun u hu hne h' => by
     apply hne
     rw [← hidl3, hs3.idleTh]
     unfold P1.LawfulStore.idleW at h'; rw [hcq3.cur] at h'
     exact congrArg _ (show nodeW st s3 Z.c layout.node.IDLE_THREAD = u from h').symm
-  have hit : t.bv ≠ σy.idleThread := by rw [hidy, ← hct]; exact hni.1
+  have hit : t.bv ≠ σy.idleThread := by rw [hidy, ← hct]; exact hni
   have his : sd'.bv ≠ σy.idleThread := by
     intro h
     obtain ⟨x, hkx, -, hxs, -⟩ := Jy.act.2
@@ -1134,17 +1171,21 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     rw [hkr3] at hkr'; cases hkr'
     exact optRef_none (hrl.symm.trans hxr0)
   have hns3 : tsCode xs.tcbState ≠ 6 := by rw [hstd]; simp [tsCode]
-  have hndF : x2.tcbSchedContext = none → False := fun h0 => by rw [hsc2, hscT] at h0; cases h0
   have hSM := ScRelM.of hIR3.1
   obtain ⟨xd3, hkd3', hdsc⟩ := hSM t ht
   rw [hkt3] at hkd3'; cases hkd3'
-  have hscw : L.mem s3 (P1.scA t) ≠ 0#u64 := fun h0 => hndF (by rw [hdsc, h0, optRef_zero])
+  obtain ⟨xs3', hks3', hssc⟩ := hSM sd' hsT
+  rw [hks3] at hks3'; cases hks3'
+  have hscw : L.mem s3 (P1.scA sd') = 0#u64 ∨ L.mem s3 (P1.scA t) ≠ 0#u64 := by
+    rcases hnd with h | h
+    · exact Or.inl (optRef_none (hssc.symm.trans h))
+    · exact Or.inr fun h0 => h (by rw [← hsc2, hdsc, h0, optRef_zero])
   have hw1 : P1.WritesIn st s3 (L.wr s3 (P1.rTcbA rv) sd') (fun b => b.val = rv.val) := by
     obtain ⟨-, -, -, hA1⟩ := reply_write_rel (hH.epHyps hP0) hP s3 σ3 hR3 hS3.1 hwR hkr3 sd'
     exact ⟨L.ksb_wr _ _ _, L.cpu_wr _ _ _, fun b hb hn => hA1 b hb hn⟩
   have hXc : P1.ExcT {y' | y' ∈ (∅ : Set U64) ∨ y' = sd'} sd' := fun y' hy' => by simpa using hy'
   -- the push on `IRel`, at P1
-  have hPush : ∀ cd : Bool, ipc.reply_push st arI s3 a sd' t rv cd ⦃ r => r.2 = a ∧
+  have hPush : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r => r.2 = a ∧
       Fl4Spec.replyPush (Z := Unit) sd'.bv t.bv rv.bv cd σ3 = ({((), pushSt σ3 sd'.bv rv.bv xr xs)}, False) ∧
       EpStateRel Z.T Z.E Z.R Z.B (L.mem r.1) (pushSt σ3 sd'.bv rv.bv xr xs) ∧
       SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
@@ -1153,24 +1194,25 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
         (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac r.1 ∧
       P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s3 r.1 ∧
       sched.set_blocked_on_reply st (L.wr s3 (P1.rTcbA rv) sd') sd' rv = ok r.1 ⦄ := by
-    intro cd
+    intro cd hcd
     refine WP.spec_mono (WP.spec_and (WP.spec_and
       (reply_push_iC (don := cd) (P := fun s' σ' => σ' = pushSt σ3 sd'.bv rv.bv xr xs ∧
           EpStateRel Z.T Z.E Z.R Z.B (L.mem s') σ' ∧
           SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
             (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))) s' σ')
         hH hP0 hP s3 a σ3 hR3 hS3 hsT hks3 hkt3 hq3 hns3 hwR hkr3 (fun _ => ht)
-        (fun s' h1 h2 => ⟨rfl, h1, h2⟩) (fun _ _ _ _ _ _ _ _ hx0 => (hndF hx0).elim))
+        (fun s' h1 h2 => ⟨rfl, h1, h2⟩) (fun hd _ _ _ _ _ _ _ h9 => hcd.elim (fun e => by rw [e] at hd; cases hd)
+          (fun h => (h (by rw [hdsc] at h9; exact optRef_none h9)).elim)))
       (P1.ipc.reply_push.ipc hAT s3 a sd' t rv cd Q0 R0 h3 hXc (Or.inl (Or.inr rfl)) hB3 hX3 hS3' hSg3 hsH
         hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hqbT hrbT (hna3 t ht)
         (hiw3 t ht hit) hcA))
       (P1.ipc.reply_push.nd (Es := P1.EH H) s3 a sd' t rv cd h3 hXc (Or.inl (Or.inr rfl)) hB3 hX3 hS3' hSg3 hsH
-        hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hcA (Or.inr hscw))) ?_
+        hqbS hrbS (hna3 sd' hsT) (hiw3 sd' hsT his) hcold hwH hw00 hz3 htH hts hcA hcd)) ?_
     rintro ⟨s4, a4⟩ ⟨⟨⟨ha, σ', hm, e4, hR4, hS4⟩, hb1, -, -⟩, -, hf, hsb⟩
     subst e4
     exact ⟨ha, hm, hR4, hS4, hb1, hf, hsb⟩
   have hrv0 : (rv != 0#u64) = true := by simpa using hw00
-  suffices HH : ∀ cd : Bool, ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
+  suffices HH : ∀ cd : Bool, (cd = false ∨ L.mem s3 (P1.scA t) ≠ 0#u64) → ipc.reply_push st arI s3 a sd' t rv cd ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ by
     have HH' : (do
@@ -1180,16 +1222,18 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
           ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
             RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
       refine WP.spec_bind (Fl4Proofs.P1.obj.Tcb.sc.spec s3 sd') ?_
-      rintro i3 -
+      rintro i3 hi3
       by_cases h3' : (i3 != 0#u64) = true
-      · rw [if_pos h3']; exact ok_bind_spec _ _ (HH _)
-      · rw [if_neg h3']; exact ok_bind_spec _ _ (HH _)
+      · rw [if_pos h3']
+        refine ok_bind_spec _ _ (HH _ (hscw.elim (fun h => ?_) Or.inr))
+        rw [← hi3] at h; simp [h] at h3'
+      · rw [if_neg h3']; exact ok_bind_spec _ _ (HH _ (Or.inl rfl))
     rcases Bool.eq_false_or_eq_true dd.senderCanGrant with hG | hG
     · simp only [hc, hcl, hg, hG, hrv0, ↓reduceIte]; exact HH'
     · have hGR : dd.senderCanGrantReply = true := hgg.resolve_left (by rw [hG]; decide)
       simp only [hc, hcl, hg, hG, hgr, hGR, hrv0, Bool.false_eq_true, ↓reduceIte]; exact HH'
-  intro cd
-  refine WP.spec_mono (hPush cd) ?_
+  intro cd hcd
+  refine WP.spec_mono (hPush cd hcd) ?_
   rintro ⟨s4, a4⟩ ⟨ha4, hpush, hR4, hS4, hblk, fu4, hsb4⟩
   simp only at ha4 hpush hR4 hS4 hblk fu4 hsb4 ⊢
   subst ha4
@@ -1266,9 +1310,13 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     exact act5
   have hidT : σ5.idleThread ≠ sd'.bv := by rw [Fr5.sk.idle]; exact fun e0 => his e0.symm
   have hAI6 : ActIdle σ' :=
-    ⟨fun u hu => (by rw [hactP, hres] at hu; cases hu), ps_idleOK hkta hkwa hws hidT (Fr5.idleOK Jy.act.2)⟩
-  have hCIa : CurInv σ5 := Fr5.curInv hCI
-  have hCI' : CurInv σ' := by
+    ⟨fun u hu => (by rw [hactP] at hu; exact absurd hu (hsw u)), ps_idleOK hkta hkwa hws hidT (Fr5.idleOK Jy.act.2)⟩
+  have hcur6 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := by
+    rcases hA0 with hres | ⟨hcn, -⟩
+    swap
+    · exact Or.inl (hactP.trans hcn)
+    have hCIa : CurInv σ5 := Fr5.curInv (hCI hres)
+    refine Or.inr ?_
     obtain ⟨⟨xc, hkc, hcs, hnb'⟩, ⟨y0, n0, hky0⟩, hact0, hnr0⟩ := hCIa
     have hsne1 : σ5.curSc ≠ sd'.bv := kheap_ne hky0 hkta (fun _ h1 h2 => by subst h1; cases h2)
     have hsne2 : σ5.curSc ≠ rv.bv := kheap_ne hky0 hkwa (fun _ h1 h2 => by subst h1; cases h2)
@@ -1281,12 +1329,16 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
       rw [G'.csc, G'.isc] at hne
       exact hact0 hne x n hx
     · rw [G'.ct, ps_rel]; exact hnr0
-  have hrun5 : CurRunW σ5 := Fr5.curRunW (Jy.curRun.resolve_left fun e0 => e0 hres)
-  have hrun6 : CurRunM σ' := Or.inr (by
-    rcases hrun5 with h | h
-    · refine Or.inl fun y hy => h y ?_
-      rw [G'.ct, ps_ko hcne1 hcne2] at hy; exact hy
-    · exact Or.inr (by rw [G'.ct, G'.idle]; exact h))
+  have hrun6 : CurRunM σ' := by
+    rcases hA0 with hres | ⟨hcn, -⟩
+    swap
+    · exact Or.inl (by rw [hactP, hcn]; intro h; cases h)
+    have hrun5 : CurRunW σ5 := Fr5.curRunW (Jy.curRun.resolve_left fun e0 => e0 hres)
+    exact Or.inr (by
+      rcases hrun5 with h | h
+      · refine Or.inl fun y hy => h y ?_
+        rw [G'.ct, ps_ko hcne1 hcne2] at hy; exact hy
+      · exact Or.inr (by rw [G'.ct, G'.idle]; exact h))
   -- back to `JAtZ`
   have hth : Z.th t = some .tcb := by
     obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
@@ -1307,7 +1359,7 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     (ps_bufKeep hkta hkwa hws) (fun d _ h => ps_recvB hkta hkwa hws h) (ps_ksz hkta hkwa hws)
     (ps_kback hkta hkwa hws) (ps_ipcFr hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
-    I6 B6 hAI6 (Or.inr hCI') hrun6 (ps_own hkta hkwa hws (Fr5.own Jy.own))
+    I6 B6 hAI6 hcur6 hrun6 (ps_own hkta hkwa hws (Fr5.own Jy.own))
     (ps_off hkta hkwa hws (Fr5.off Jy.off)) (ps_nsc hkta hkwa hws (Fr5.nsc Jy.nsc))
     (ps_isorted hkta hkwa hws (Fr5.isorted Jy.isorted)) htD
   -- the spec's outcome
@@ -1321,7 +1373,7 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     intro r hr bd
     rw [Notif.optRef_ne hw00] at hr
     cases hr
-    rw [replyPush_don_irrel hks3 hkt3 (by rw [hsc2, hscT]; simp) bd cd, hpush, heqP]
+    rw [replyPush_don_irrel hks3 hkt3 (hnd.imp id fun h => by rw [hsc2]; exact h) bd cd, hpush, heqP]
   have hspec := receiveIpc_sendPush_eq b rights blk hsr hkt hbN hk hks hse hstd hyesS e2' hA hks3
     (Or.inl hcl) hPS
   exact ⟨((), σ'), by rw [hspec]; exact Set.mem_singleton _, J6.xtop.relTop, _, _, _, _, _, _, J6⟩
@@ -1359,9 +1411,9 @@ theorem JAtZ.recvSendP0X (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z)
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   obtain ⟨hrn, hyes, ⟨hfs, hcl⟩ | ⟨f, hft, hto⟩⟩ := hok
-  · exact J.recvSendPJG hAT hZ ht hkt hrun hbN hct hni hnq he hk hks hfs cb c1 c2 c3 c4 hrc hcovR hcl hyes hrn
+  · exact J.recvSendPJG hAT hZ ht hkt hrun hbN hct hni.1 hnq he hk hks hfs (Or.inl hni.2) cb c1 c2 c3 c4 hrc hcovR hcl hyes hrn
       b rights (J.recvPreN ht hkt hbN e cb c1 c2 c3 c4 hrc)
-  · exact J.recvSendFPJG hAT hZ ht hkt hrun hbN hct hni hnq he hk hks hft hto cb c1 c2 c3 c4 hrc hcovR hyes hrn
+  · exact J.recvSendFPJG hAT hZ ht hkt hrun hbN hct hni.1 hnq he hk hks hft hto (Or.inl hni.2) cb c1 c2 c3 c4 hrc hcovR hyes hrn
       b rights (J.recvPreN ht hkt hbN e cb c1 c2 c3 c4 hrc)
 end
 
