@@ -42,8 +42,9 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
   SchedControl, IRQ control, IO port control, IO ports and Untyped; for
   CNode, Thread, SchedContext, IRQ handler and Domain, whose decodes take an
   equality with an FL4-label map, at a canonical label with the same spec
-  decode (`*_canon`, `XCapP.lbl_congr`). The VSpace paths' labels
-  (XTopJointVsCap) are still named there.
+  decode (`*_canon`, `XCapP.lbl_congr`). The VSpace paths' labels too
+  (`pt_label` … `frame_label`, `makePool_label`), and their extra caps from
+  `ExtraOK` (XTopJointVsCap's `ExtraOK.vsExtra`, `.poolExtra`, `.mpExtra`).
 
 `JAtZ` is used only through the J decodes, `J.xtop`, `J.curEq` and
 `SpecGlob` at entry, so changes of `JAtZ`'s fields leave this module alone.
@@ -575,19 +576,15 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
       (lbl = fl4_abi.label.SchedContextYieldTo → JSchedYieldPath arI ar)
   | .SchedControl cpu => JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl
       excaps ct
-  | .PageTable ptr mp asid va => JPtPath (L := L) AR Z s ar σ lbl length (.PageTable ptr mp asid va) blk call don
-      fp buf extra slbl argsU ci sl excaps buffer ct
-  | .PageDirectory ptr mp asid va => JPdPath (L := L) AR Z s ar σ lbl length (.PageDirectory ptr mp asid va) blk
-      call don fp buf extra slbl argsU ci sl excaps buffer ct
-  | .Pdpt ptr mp asid va => JPdptPath (L := L) AR Z s ar σ lbl length (.Pdpt ptr mp asid va) blk call don fp buf
-      extra slbl argsU ci sl excaps buffer ct
-  | .Pml4 p mp asid => JPml4Path AR s ar σ lbl length (.Pml4 p mp asid) blk call don fp buf extra slbl
-      argsU ci sl excaps buffer ct
+  | .PageTable _ _ _ _ => True
+  | .PageDirectory _ _ _ _ => True
+  | .Pdpt _ _ _ _ => True
+  | .Pml4 _ _ _ => True
   | .AsidPool ptr base => JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra
       slbl argsU ci sl excaps buffer ct
   | .Frame p sz rt d m ep asid va =>
-      (ep = true → JVtxScope (L := L) arI AR s ar σ lbl length (.Frame p sz rt d m ep asid va) blk call don fp buf extra
-        slbl argsU ci sl excaps buffer ct) ∧
+      (ep = true ∨ lbl = fl4_abi.label.X86PageMapEPT → JVtxScope (L := L) arI AR s ar σ lbl length
+        (.Frame p sz rt d m ep asid va) blk call don fp buf extra slbl argsU ci sl excaps buffer ct) ∧
       (ep = false → JFramePath (L := L) AR Z s ar σ lbl length p sz rt d m asid va blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
   | .AsidControl => JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
@@ -628,9 +625,9 @@ on the cap:
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield; at `sc_canon`'s label) | YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
-| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]) |
-| ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra [W]; clean regions proved; dirty: the cap [W]) |
-| VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
+| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `JPoolPath` (the extra cap native [scope]), `JFramePath` (`hno` [J]); labels and extra caps proved (`pt_label` … `frame_label`, `ExtraOK.vsExtra`/`.poolExtra`) |
+| ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra caps and clean regions proved; dirty: the cap [W]) |
+| VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ` [J], `JUtRetHypR` [W]: the retype after the decode (label and extra slot proved) but the no-reset endpoints/notifications, `JAtZ.utEpJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
@@ -819,63 +816,65 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
       buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
   case PageTable ptr mp asid va =>
-    have hN : JPtPath (L := L) AR Z s ar σ lbl length (.PageTable ptr mp asid va) blk call don fp buf extra slbl argsU
-      ci sl excaps buffer ct := hN
     have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
-    subst hp0
-    exact (decode_invocation_page_tableJV arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hN.hlM hN.hlU hN.hlO length
-      buf ct hct argsU hlen hargs hth0 rfl hc extra excaps hN.ex blk call don fp ci buffer).toP arI hPre
+    subst hp0 hLb
+    obtain ⟨hlM, hlU, hlO⟩ := pt_label lbl
+    exact (decode_invocation_page_tableJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length
+      buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case PageDirectory ptr mp asid va =>
-    have hN : JPdPath (L := L) AR Z s ar σ lbl length (.PageDirectory ptr mp asid va) blk call don fp buf extra slbl
-      argsU ci sl excaps buffer ct := hN
     have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
-    subst hp0
-    exact (decode_invocation_page_directoryJV arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hN.hlM hN.hlU hN.hlO
-      length buf ct hct argsU hlen hargs hth0 rfl hc extra excaps hN.ex blk call don fp ci buffer).toP arI hPre
+    subst hp0 hLb
+    obtain ⟨hlM, hlU, hlO⟩ := pd_label lbl
+    exact (decode_invocation_page_directoryJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO
+      length buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pdpt ptr mp asid va =>
-    have hN : JPdptPath (L := L) AR Z s ar σ lbl length (.Pdpt ptr mp asid va) blk call don fp buf extra slbl argsU
-      ci sl excaps buffer ct := hN
     have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
-    subst hp0
-    exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hN.hlM hN.hlU hN.hlO length buf ct
-      hct argsU hlen hargs hth0 rfl hc extra excaps hN.ex blk call don fp ci buffer).toP arI hPre
+    subst hp0 hLb
+    obtain ⟨hlM, hlU, hlO⟩ := pdpt_label lbl
+    exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
+      hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pml4 p mp asid =>
-    have hN : JPml4Path AR s ar σ lbl length (.Pml4 p mp asid) blk call don fp buf extra slbl argsU ci sl
-      excaps buffer ct := hN
-    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl slbl hN.hlbl ct hct p asid mp length
+    subst hLb
+    exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp length
       (cslotAddr sl) buf blk call don fp extra _ ci sl excaps buffer).toP arI hPre
   case AsidPool ptr base =>
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci
       sl excaps buffer ct := hN
-    exact (decode_invocation_asid_poolJV arI s ar σ J hni (hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J) lbl slbl
-      hN.hlA length buf ct hct ptr base extra excaps hN.native hN.hext (cslotAddr sl) blk call don fp _ ci sl buffer
+    subst hLb
+    exact (decode_invocation_asid_poolJV arI s ar σ J hni (hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J) lbl lbl.bv
+      (pool_label lbl) length buf ct hct ptr base extra excaps hN.native (ExtraOK.poolExtra hPl hXO) (cslotAddr sl) blk call don fp _ ci sl buffer
       hAs.isSlot hc).toP arI hPre
   case Frame p sz rt d m ep asid va =>
     obtain ⟨hV, hF⟩ := hN
     cases ep
-    · have hF := hF rfl
+    · by_cases hEP : lbl = fl4_abi.label.X86PageMapEPT
+      · exact hV (Or.inr hEP)
+      have hF := hF rfl
       have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
       obtain ⟨sl1, idxs⟩ := sl
       obtain ⟨p0, hp0, hth0⟩ := hsl
       try simp only at hp0 hth0
       subst hp0
-      exact (decode_invocation_frameJS arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hF.hlbl hF.hlGA length buf ct
-        hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps hF.ex blk call don fp ci buffer).toP arI hPre
-    · exact hV rfl
+      subst hLb
+      exact (decode_invocation_frameJS arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv (frame_label lbl hEP)
+        (getAddress_label lbl).2 length buf ct hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps
+        (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+    · exact hV (Or.inl rfl)
   case AsidControl =>
     have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
       ct := hN
-    exact (decode_invocation_asid_controlJM arI s ar σ J hni lbl slbl hN.hlM length buf ct hct argsU hlen hargs
-      extra excaps hN.hext (cslotAddr sl) blk call don fp ci sl buffer (hN.dirty H Cs Ac Lst D J)).toP arI hPre
+    subst hLb
+    exact (decode_invocation_asid_controlJM arI s ar σ J hni lbl lbl.bv (makePool_label lbl) length buf ct hct argsU
+      hlen hargs extra excaps (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer (hN.dirty H Cs Ac Lst D J)).toP arI hPre
   case Untyped p sb fi dev =>
     obtain ⟨hDv, hU⟩ := hN
     cases dev

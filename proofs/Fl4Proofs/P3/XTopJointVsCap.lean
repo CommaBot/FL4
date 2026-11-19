@@ -8,7 +8,8 @@ pml4, asid_pool, frame}JV`, no per-op premise), `MakePool` in
 XTopJointMakePool; here the shared pieces and the paths' premises.
 
 * `JAtZ.ctTcb`: the current thread a TCB of the typed heap (`CurOK`).
-* `JVsExtra` [W]: the front end's first extra cap (VSpace's `vspace.extra`).
+* `JVsExtra`: the front end's first extra cap (VSpace's `vspace.extra`; from
+  `ExtraOK`, `ExtraOK.vsExtra`).
 * `XCap.jatR`: `XCap` at `FinXR` with `JPostHyp` at `JAt` (the frame cap's
   `DeriveSubframe` label, XTopJointVsMap's `decode_invocation_frameJV`).
 * `MakePool`'s split: `MpClean` (no dead object and no IPC-buffer word in a
@@ -19,15 +20,19 @@ XTopJointMakePool; here the shared pieces and the paths' premises.
   the cap is proved at `J` in XTopJointMakePool
   (`decode_invocation_asid_controlJM`); dirty, the cap at `J` [W] (the
   detype).
-* `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path`: each cap's premises, as
-  XTopJointEntry's `JPath` names them: the labels and extra caps [W], the
-  frame's `hno` [J] (l4v `valid_cap`/`cap_range` disjointness), the pool's
-  extra cap native ([scope]: guest-root assignment, DESIGN §9). No
+* `ExtraOK.vsExtra`, `.poolExtra`, `.mpExtra`: the extra caps from the front
+  end's `ExtraOK` (they were [W] path fields).
+* `J{Pool,Frame,AsidC}Path`: each cap's premises left, as XTopJointEntry's
+  `JPath` names them: the frame's `hno` [J] (l4v `valid_cap`/`cap_range`
+  disjointness), the pool's extra cap native ([scope]: guest-root
+  assignment, DESIGN §9), MakePool's dirty case [W]. The labels are proved
+  (FrontEndLabel), the page table/directory/PDPT/PML4 paths ask nothing. No
   `JPostHyp` is left (the frame's `DeriveSubframe` at `J` in XTopJointVsSub,
   `MakePool` in XTopJointMakePool).
 -/
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
+import Fl4Proofs.P3.FrontEndExtra
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -50,7 +55,8 @@ theorem JAtZ.ctTcb {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
   subst e
   exact ⟨hcur, hth⟩
 
-/-- **The front end's first extra cap of a VSpace decode** [W]. -/
+/-- **The front end's first extra cap of a VSpace decode** (proved from
+`ExtraOK`: `ExtraOK.vsExtra`). -/
 structure JVsExtra (Z : XSets) (s : S) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
   hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
@@ -70,7 +76,8 @@ theorem XCap.jatR {Z' : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl l
       buffer ct :=
   XCap.jat arI (h.imp arI fun _ _ _ hx => xtop_of_finXR hx) J hR
 
-/-- **The front end's extra caps of `MakePool`** [W] (the untyped cap's
+/-- **The front end's extra caps of `MakePool`** (proved from `ExtraOK`:
+`ExtraOK.mpExtra`; the untyped cap's
 slot a CNode slot of the typed heap, the root cap's valid and held in a
 slot of the typed heap: the front end's extra caps are looked up from the
 caller's CSpace, as `JVsExtra.hxs`). The region facts the decode needs of a
@@ -357,109 +364,142 @@ theorem JAtZ.mpBlk {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
       (P1.Heap.scs H') (P1.Heap.ntfns H') (P1.Heap.scBits H') Ac s :=
   P1.BlkOK.addOther (J.mpAddOK arI hcl hx hcx hnd hpal hpfit hp0) J.kern.heap J.blk
 
-/-! ## The VSpace caps' paths (XTopJointEntry's `JPath`) -/
+/-! ## The front end's extra caps of the VSpace decodes (from `ExtraOK`) -/
 
-/-- The page table path: the labels and extra cap [W]. -/
-structure JPtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (lbl length : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
-    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (ct : U64) : Prop where
-  hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap
-  hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap
-  hlO : lbl ≠ fl4_abi.label.X86PageTableMap → lbl ≠ fl4_abi.label.X86PageTableUnmap →
-    Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableMap ∧
-      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableUnmap
-  ex : JVsExtra (L := L) Z s extra excaps
+/-- `vspace.extra` at an index below 3: the slot word, `none` when null. -/
+theorem vsExtra_at (e : Aeneas.Std.Array obj.Slot 3#usize) (i : Usize) (hi : i.val < 3) (x : U64)
+    (hx : Aeneas.Std.Array.index_usize e i = ok x) :
+    vspace.extra e i = ok (if x = 0#u64 then none else some x) := by
+  unfold vspace.extra
+  have h3 : ¬ (i ≥ 3#usize) := by intro h; scalar_tac
+  rw [if_neg h3, hx]
+  simp only [bind_ok, obj.Slot.is_null]
+  by_cases h : x = 0#u64 <;> simp [h]
 
-/-- The page directory path: the labels and extra cap [W]. -/
-structure JPdPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (lbl length : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
-    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (ct : U64) : Prop where
-  hlM : lbl = fl4_abi.label.X86PageDirectoryMap →
-    Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap
-  hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap →
-    Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap
-  hlO : lbl ≠ fl4_abi.label.X86PageDirectoryMap → lbl ≠ fl4_abi.label.X86PageDirectoryUnmap →
-    Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryMap ∧
-      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryUnmap
-  ex : JVsExtra (L := L) Z s extra excaps
+/-- **`JVsExtra` from `ExtraOK`** (the front end's extra slots, `JAtZ.frontJ`):
+no longer a premise of the table and frame paths. -/
+theorem ExtraOK.vsExtra {Z : XSets} {s : S} {e : Aeneas.Std.Array obj.Slot 3#usize}
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} (hP : Placed Z.th) (h : ExtraOK Z.th (L.mem s) e caps) :
+    JVsExtra (L := L) Z s e caps := by
+  have h0 := vsExtra_at e 0#usize (by decide) _ (exAt_idx0 e)
+  obtain ⟨-, hs, hz⟩ := h
+  cases caps with
+  | nil =>
+    have hz0 : exAt e 0 = 0#u64 := hz 0 (by simp) (by omega)
+    rw [hz0, if_pos rfl] at h0
+    exact ⟨Or.inl ⟨h0, rfl⟩, fun x hx => by rw [h0] at hx; exact absurd (eq_of_ok_eq hx) (by simp)⟩
+  | cons y rest =>
+    obtain ⟨hne, hS, -, cv, hc, -, hcr, -, -⟩ := srcOK_facts hP (hs 0 (by simp))
+    rw [if_neg hne] at h0
+    refine ⟨Or.inr ⟨_, cv, y.1, y.2, rest, h0, hc, hcr, rfl⟩, fun x hx => ?_⟩
+    rw [h0] at hx
+    have e0 : exAt e 0 = x := Option.some.inj (eq_of_ok_eq hx)
+    rw [← e0]; exact hS
 
-/-- The PDPT path: the labels and extra cap [W]. -/
-structure JPdptPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (lbl length : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
-    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (ct : U64) : Prop where
-  hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap
-  hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap
-  hlO : lbl ≠ fl4_abi.label.X86PDPTMap → lbl ≠ fl4_abi.label.X86PDPTUnmap →
-    Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTMap ∧
-      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTUnmap
-  ex : JVsExtra (L := L) Z s extra excaps
+/-- **The ASID pool's extra cap from `ExtraOK`** (`JPoolPath`'s former
+`hext` [W]). -/
+theorem ExtraOK.poolExtra {Z : XSets} {s : S} {e : Aeneas.Std.Array obj.Slot 3#usize}
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} (hP : Placed Z.th) (h : ExtraOK Z.th (L.mem s) e caps) :
+    (vspace.extra e 0#usize = ok none ∧ caps = []) ∨
+    ∃ (pc : U64) (r : Nat) (idx : List Bool) (vc : capability.Cap) (vc' : Fl4Spec.Cap)
+      (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), Z.th pc = some (.cnode r) ∧ idx.length = r ∧
+      vspace.extra e 0#usize = ok (some (cslotAddr (pc.bv, idx))) ∧
+      capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok vc ∧ CapRel vc vc' ∧ caps = (vc', (pc.bv, idx)) :: rest := by
+  have h0 := vsExtra_at e 0#usize (by decide) _ (exAt_idx0 e)
+  obtain ⟨-, hs, hz⟩ := h
+  rcases caps with _ | ⟨⟨c0, q0, i0⟩, rest⟩
+  · have hz0 : exAt e 0 = 0#u64 := hz 0 (by simp) (by omega)
+    rw [hz0, if_pos rfl] at h0
+    exact Or.inl ⟨h0, rfl⟩
+  · obtain ⟨hne, -, hxa, cv, hc, -, hcr, -, ps, hps, hq⟩ := srcOK_facts hP (hs 0 (by simp))
+    simp only [List.getElem_cons_zero] at hne hxa hc hcr hps hq
+    subst hq
+    rw [if_neg hne, hxa] at h0
+    rw [hxa] at hc
+    exact Or.inr ⟨ps, _, i0, cv, c0, rest, hps, rfl, h0, hc, hcr, rfl⟩
 
-/-- The PML4 path: the label [W]. -/
-structure JPml4Path (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (lbl length : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
-    (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (ct : U64) : Prop where
-  hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush
+/-- **`JMpExtra` from `ExtraOK`** (no longer a premise of the ASID control
+path). -/
+theorem ExtraOK.mpExtra {Z : XSets} {s : S} {e : Aeneas.Std.Array obj.Slot 3#usize}
+    {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} (hP : Placed Z.th) (h : ExtraOK Z.th (L.mem s) e caps) :
+    JMpExtra (L := L) Z s e caps := by
+  have h0 := vsExtra_at e 0#usize (by decide) _ (exAt_idx0 e)
+  have h1 := vsExtra_at e 1#usize (by decide) _ (exAt_idx1 e)
+  obtain ⟨hlen, hs, hz⟩ := h
+  have hS1 : ∀ y, vspace.extra e 1#usize = ok (some y) → IsSlot Z.th y := by
+    intro y hy
+    rw [h1] at hy
+    by_cases hlt : 1 < caps.length
+    · obtain ⟨hne, hS, -⟩ := srcOK_facts hP (hs 1 hlt)
+      rw [if_neg hne] at hy
+      have e1 : exAt e 1 = y := Option.some.inj (eq_of_ok_eq hy)
+      rw [← e1]; exact hS
+    · rw [hz 1 (by omega) (by omega), if_pos rfl] at hy
+      exact absurd (eq_of_ok_eq hy) (by simp)
+  refine ⟨hS1, ?_⟩
+  by_cases hlt : 1 < caps.length
+  · rcases caps with _ | ⟨⟨c0, q0, i0⟩, _ | ⟨⟨c1, sl1⟩, rest⟩⟩
+    · simp at hlt
+    · simp at hlt
+    obtain ⟨hne0, -, hxa0, cv0, hc0, -, hcr0, -, ps, hps, hq⟩ := srcOK_facts hP (hs 0 (by simp))
+    obtain ⟨hne1, -, -, cv1, hc1, -, hcr1, hcv1, -⟩ := srcOK_facts hP (hs 1 (by simp))
+    simp only [List.getElem_cons_zero, List.getElem_cons_succ] at hne0 hxa0 hc0 hcr0 hps hq hne1 hc1 hcr1
+    subst hq
+    rw [if_neg hne0, hxa0] at h0
+    rw [if_neg hne1] at h1
+    rw [hxa0] at hc0
+    exact Or.inr ⟨ps, _, i0, exAt e 1, cv0, c0, cv1, c1, sl1, rest, hps, rfl, h0, h1, hc0, hcr0, hc1, hcr1, hcv1, rfl⟩
+  · rw [hz 1 (by omega) (by omega), if_pos rfl] at h1
+    exact Or.inl ⟨_, _, h0, h1, Or.inr rfl, by omega⟩
 
-/-- The ASID pool path: the label and extra cap [W], the extra cap native
-([scope]: guest-root ASID assignment, DESIGN §9). -/
+/-! ## The VSpace caps' paths (XTopJointEntry's `JPath`)
+
+The labels are proved from `slbl = lbl.bv` (FrontEndLabel's `pt_label`,
+`pd_label`, `pdpt_label`, `pml4_label`, `pool_label`, `frame_label`,
+`getAddress_label`, `makePool_label`) and the extra caps from `ExtraOK`
+(`ExtraOK.vsExtra`, `.poolExtra`, `.mpExtra`): the page table, page
+directory, PDPT and PML4 paths ask nothing (XTopJointEntry's `JPath` is
+`True` there). -/
+
+/-- The ASID pool path: the extra cap native ([scope]: guest-root ASID
+assignment, DESIGN §9). -/
 structure JPoolPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (c : capability.Cap) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
-    Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign
   native : ∀ x, vspace.extra extra 0#usize = ok (some x) →
     ∀ p level mapped asid va, capAt (L.mem s) x ≠ ok (.Ept p level mapped asid va)
-  hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
-    ∃ (pc : U64) (r : Nat) (idx : List Bool) (vc : capability.Cap) (vc' : Fl4Spec.Cap)
-      (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), Z.th pc = some (.cnode r) ∧ idx.length = r ∧
-      vspace.extra extra 0#usize = ok (some (cslotAddr (pc.bv, idx))) ∧
-      capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok vc ∧ CapRel vc vc' ∧ excaps = (vc', (pc.bv, idx)) :: rest
 
-/-- The native frame path: the labels and extra cap [W], `hno` [J] (l4v
-`valid_cap`: a large frame's range against the other frame caps'). Every
-label at `J` with no per-op premise (XTopJointVsSub's
-`decode_invocation_frameJS`). -/
+/-- The native frame path (FL4's EPT-map label is the [scope] case,
+XTopJointEntry's `JPath`): `hno` [J] (l4v `valid_cap`: a large frame's range
+against the other frame caps'). Every label at `J` with no per-op premise
+(XTopJointVsSub's `decode_invocation_frameJS`). -/
 structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (p : U64) (sz : capability.FrameSize) (rt : U64) (d m : Bool) (asid va : U64)
     (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  hlbl : FrameLabel lbl slbl
-  hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress → lbl = fl4_abi.label.X86PageGetAddress
   hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
     Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
     Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x)
-  ex : JVsExtra (L := L) Z s extra excaps
 
-/-- The ASID control path: the label and the extra caps [W]; when MakePool's
-regions are clean (`MpClean`, `MpSpecClean`) the cap is proved at `J`
-(XTopJointMakePool's `decode_invocation_asid_controlJM`: the pool's retype,
-its cap's insertion and the ASID-table write); otherwise the cap at `J`
-(`dirty` [W]: l4v `delete_objects` over a region holding dead objects, the
-detype at `J`, which shrinks the sets, `H` and the dead set — the untyped
-reset's drop step). `MpPlacedHyp` and the region facts are proved
-(`JAtZ.mpPlacedC`, `JAtZ.mpRegionC`); they were [J] premises, false when a
-dead object lies in the region (`MpClean`'s docstring). -/
+/-- The ASID control path: when MakePool's regions are clean (`MpClean`,
+`MpSpecClean`) the cap is proved at `J` (XTopJointMakePool's
+`decode_invocation_asid_controlJM`: the pool's retype, its cap's insertion
+and the ASID-table write); otherwise the cap at `J` (`dirty` [W]: l4v
+`delete_objects` over a region holding dead objects, the detype at `J`,
+which shrinks the sets, `H` and the dead set — the untyped reset's drop
+step). The label and extra caps are proved (`makePool_label`,
+`ExtraOK.mpExtra`); `MpPlacedHyp` and the region facts too
+(`JAtZ.mpPlacedC`, `JAtZ.mpRegionC`). -/
 structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
-    Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool
-  hext : JMpExtra (L := L) Z s extra excaps
   dirty : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ¬ (MpClean (L := L) Z H D s ∧ MpSpecClean (L := L) Z s σ) →
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) .AsidControl blk call don fp buf extra

@@ -372,7 +372,7 @@ theorem port_label (lbl : U64) : PortLabel lbl lbl.bv := by
   · rw [fl4Lab_ge h]
     exact ⟨fun e => absurd e (by omega), fun e => absurd e (by omega), fun _ => by decide⟩
 
-/-! ## The VSpace paths' label facts (XTopJointVsCap's paths: follow-up) -/
+/-! ## The VSpace paths' label facts (XTopJointEntry's VSpace cases) -/
 
 theorem pt_label (lbl : U64) :
     (lbl = fl4_abi.label.X86PageTableMap → invocationType lbl.bv = .archInvocationLabel .x64PageTableMap) ∧
@@ -452,6 +452,33 @@ theorem getAddress_label (lbl : U64) :
 theorem pml4_label (lbl : U64) : dataToNat lbl.bv = fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush := by
   have h1 : fl4_abi.label.X86PML4Flush.val = 46 := by simp [fl4_abi.label.X86PML4Flush]
   rw [dataToNat_bv, u64_val_eq, h1]; rfl
+
+set_option synthInstance.maxSize 2048 in
+set_option synthInstance.maxHeartbeats 400000 in
+/-- **The native frame cap's labels** (VsDecFrame's `FrameLabel`), off FL4's
+EPT-map label (the frame path's `[scope]` case). -/
+theorem frame_label (lbl : U64) (hn : lbl ≠ fl4_abi.label.X86PageMapEPT) : FrameLabel lbl lbl.bv := by
+  have h55 : fl4_abi.label.X86PageMap.val = 55 := by simp [fl4_abi.label.X86PageMap]
+  have h56 : fl4_abi.label.X86PageUnmap.val = 56 := by simp [fl4_abi.label.X86PageUnmap]
+  have h57 : fl4_abi.label.X86PageDeriveSubframe.val = 57 := by simp [fl4_abi.label.X86PageDeriveSubframe]
+  have h58 : fl4_abi.label.X86PageTestAndClearAccessed.val = 58 := by
+    simp [fl4_abi.label.X86PageTestAndClearAccessed]
+  have h59 : fl4_abi.label.X86PageGetAddress.val = 59 := by simp [fl4_abi.label.X86PageGetAddress]
+  have hds : fl4DeriveSubframeLabel = 57 := rfl
+  have htc : fl4TestAndClearLabel = 58 := rfl
+  refine ⟨hn, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    simp only [ne_eq, u64_val_eq, h55, h56, h57, h58, h59, dataToNat_bv, hds, htc, invocationType_eq]
+  · exact id
+  · exact id
+  · exact id
+  · intro e; rw [e]; decide
+  · intro e; rw [e]; decide
+  · intro e; rw [e]; decide
+  · exact id
+  · generalize lbl.val = n
+    rcases Nat.lt_or_ge n 72 with h | h
+    · revert n; decide
+    · rw [fl4Lab_ge h]; intros; exact ⟨by decide, by decide, by decide⟩
 
 /-! ## The maps' labels: on the cap's own labels -/
 
