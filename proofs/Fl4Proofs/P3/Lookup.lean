@@ -357,7 +357,7 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
       simp only [WP.spec_ok]
       have hlt : n.val < gs.val := by scalar_tac
       refine ⟨_, rab_guard _ _ _ _ _ h0 (guard_not_prefix hlt), ?_⟩
-      simp [WalkRel, ResRel, SlotOk, LookupFaultRel, hg]
+      simp [WalkRel, ResRel, SlotOk, LookupFaultRel, hg, hgs, hn]
     have hgsn : gs.val ≤ n.val := by rename_i h; scalar_tac
     have hgval : g.val = cptr.val / 2 ^ (n.val - gs.val) % 2 ^ gs.val := by
       have hiv : i.val = n.val - gs.val := by
@@ -377,7 +377,7 @@ theorem body_spec (th : TypedHeap) (s : S) (σ : Fl4Spec.State Z) (hR : StateRel
       simp only [WP.spec_ok]
       have hne' : g ≠ guard := by simpa using hne
       refine ⟨_, rab_guard _ _ _ _ _ h0 (fun h => hne' (hpre.1 h)), ?_⟩
-      simp [WalkRel, ResRel, SlotOk, LookupFaultRel, hg]
+      simp [WalkRel, ResRel, SlotOk, LookupFaultRel, hg, hgs, hn]
     have hp : bitsOf guard.val gs.val <+: bitsOf cptr.val n.val := hpre.2 (by rename_i h; exact UScalar.eq_of_val_eq (by simpa using h))
     split
     · -- not enough bits for the level

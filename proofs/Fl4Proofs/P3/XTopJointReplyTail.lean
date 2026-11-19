@@ -99,7 +99,7 @@ theorem setmrs_lf_gen (s : S) (ms : List Fl4Spec.Word) (hms : ms.length = 1) (hI
   | GuardMismatch g left gs =>
     cases lf' <;> (try simp only [LookupFaultRel] at hlf)
     rename_i n gl
-    have hg : g.val < 2 ^ gs.val := hlf.2.2
+    have hg : g.val < 2 ^ gs.val := hlf.2.2.1
     simp only [error.LookupFault.type_code, bind_ok]
     refine WP.spec_bind (step s ms hI 1#u64 (by rw [hms]; rfl) (by omega) _) ?_
     rintro ⟨i1, s1⟩ ⟨-, h2⟩
