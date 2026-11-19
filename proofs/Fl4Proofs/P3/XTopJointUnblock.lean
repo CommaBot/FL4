@@ -17,7 +17,8 @@ sporadic and not the current SC, l4v
   the core's `CUR_SC` node word, then `unblock_check` or nothing) against
   the spec's `getTcbObjRef … >>= ifSporadicCurScTestRefillUnblockCheck`, as
   IpcSchedLift's `unblock_top` but from `JAtZ` to `JAtZ`; every TCB and the
-  current thread kept.
+  current thread kept, every SC's `REFILL_MAX` (so its activeness) and bound
+  thread kept.
 -/
 import Fl4Proofs.P3.XTopJointRunPost
 open Aeneas Aeneas.Std Result
@@ -154,6 +155,8 @@ theorem JAtZ.replyUnblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
         Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ = ({((), σ')}, False) →
       JAtZ (L := L) arI AR Z H Cs Ac Lst' D s' a σ' →
       (∀ q xq, σ.kheap q = some (.tcb xq) → σ'.kheap q = some (.tcb xq)) → σ'.curThread = σ.curThread →
+      (∀ q y n, σ'.kheap q = some (.schedContext y n) → ∃ y0, σ.kheap q = some (.schedContext y0 n) ∧
+        y.scRefillMax = y0.scRefillMax ∧ y.scTcb = y0.scTcb) →
       k s' ⦃ P ⦄) :
     (do
       let i2 ← obj.Tcb.sc st t s
@@ -180,7 +183,7 @@ theorem JAtZ.replyUnblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
     rw [nd_bind_one (threadGet_eq _ hk), hsct]
   have skip : (Fl4Spec.ifSporadicCurScTestRefillUnblockCheck (Z := Unit) (optRef (L.mem s (scA t)))) σ =
       ({((), σ)}, False) → k s ⦃ P ⦄ := fun h =>
-    hc s σ Lst (by rw [hspec0, h]) J (fun _ _ h => h) rfl
+    hc s σ Lst (by rw [hspec0, h]) J (fun _ _ h => h) rfl (fun _ y _ h => ⟨y, h, rfl, rfl⟩)
   step with Fl4Proofs.P1.obj.Tcb.sc.spec as ⟨i2, hi2⟩
   step with sporadic.sc_sporadic.spec' as ⟨b, b_post⟩
   subst hi2
@@ -233,11 +236,22 @@ theorem JAtZ.replyUnblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
     have hya : Fl4Spec.scActive y = true := hy.active_of_rmax (hy.spor hsp')
     refine WP.spec_bind (J.unblockJ ht hk hrs hscC hxsc hpc hky hya) ?_
     rintro s' ⟨σ', he, hkp, hct, Lst', J'⟩
-    refine hc s' σ' Lst' ?_ J' (fun q xq hq => ?_) hct
+    refine hc s' σ' Lst' ?_ J' (fun q xq hq => ?_) hct (fun q y' n' hq => ?_)
     · rw [hspec0, hif', ite_t ⟨hsp.2 hsp', hpc⟩, he]
     · by_cases eq : q = (L.mem s (scA t)).bv
       · rw [eq, hky] at hq; cases hq
       · rw [hkp q eq]; exact hq
+    · by_cases eq : q = (L.mem s (scA t)).bv
+      · subst eq
+        have mem : ((), σ') ∈ (Fl4Spec.refillUnblockCheck (Z := Unit) (L.mem s (scA t)).bv σ).1 := by
+          rw [he]; exact Set.mem_singleton _
+        rcases unblock_result hky (J.inv.ne _ y n hky hya) mem with ⟨rfl, -⟩ | ⟨z, rfl, -, -, hz, -⟩
+        · exact ⟨y', hq, rfl, rfl⟩
+        · simp [Notif.updK] at hq
+          obtain ⟨h1, h2⟩ := hq
+          subst h1 h2
+          exact ⟨y, hky, (by rw [hz]), (by rw [hz])⟩
+      · rw [hkp q eq] at hq; exact ⟨y', hq, rfl, rfl⟩
 
 end
 

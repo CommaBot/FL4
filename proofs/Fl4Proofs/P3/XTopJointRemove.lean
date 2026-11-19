@@ -25,9 +25,10 @@ final reply cap's finalisation).
   popped reply's SC is bound to another thread (`scBack_of`: its thread has
   it, so it is not the caller, which has none) or to none (its thread
   deleted while the caller waited; ScCallPopRef's `donate_unbound_refines`).
-* `JAtZ.replyRemoveJD` also returns the dead set unchanged and the thread
-  `Inactive` after (for the reply's rest, XTopJointIpcJ); `replyRemoveJ` is
-  it without them (`JReplyRemoveHyp`).
+* `JAtZ.replyRemoveJD` also returns the dead set unchanged, the thread
+  `Inactive` after, and every SC bound to it after active (IpcRemove's
+  `remove_act`, from `BlockedScActive` before) (for the reply's rest,
+  XTopJointIpcJ); `replyRemoveJ` is it without them (`JReplyRemoveHyp`).
 -/
 import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.IpcRemoveSpecJ
@@ -511,7 +512,8 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧
       JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' res.1 res.2 σ' ∧
       SlotsSame Z.th (L.mem s) (L.mem res.1) ∧ L.ksb res.1 = L.ksb s ∧
-      D' = D ∧ (∃ x', σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive) ⦄ := by
+      D' = D ∧ (∃ x', σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = .inactive) ∧
+      (∀ q y n, σ'.kheap q = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true) ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q0, R0, hc, hs⟩ := hS.lists
@@ -946,7 +948,13 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ', V', Ac, Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks, rfl, _, kt', rfl⟩
+  -- the receiver's SCs after are active (`remove_act`, from `BlockedScActive` before)
+  have hact : ∀ q y n, σ'.kheap q = some (.schedContext y n) → y.scTcb = some t.bv → Fl4Spec.scActive y = true :=
+    remove_act J.bsa hk hst hsp (fun q y n hq => by
+      have h1 : q ≠ t.bv := by rintro rfl; rw [kt'] at hq; cases hq
+      have h2 : q ≠ r.bv := by rintro rfl; rw [kr'] at hq; cases hq
+      rw [ko' q h1 h2] at hq; exact hq)
+  exact ⟨σ', V', Ac, Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
 
 /-- **`reply_remove` at `J`** (`replyRemoveJD` without the dead set kept and
 the thread's `Inactive` after). -/

@@ -700,7 +700,10 @@ receiver's SC active and released, then `possible_switch_to`) and
 `ReplyRestPost` (`replyRestPostJ`: the SC active, not released, no valid
 timeout handler, `Running` and `postpone` as one step). The restart, the
 reply's thread, the branches where nothing happens, `reply_remove`
-(`JAtZ.replyRemoveJD`) and the unblock test are proved. What is left are J
+(`JAtZ.replyRemoveJD`) and the unblock test are proved, and an SC bound to
+the receiver is active (given: `remove_act` from `BlockedScActive` before
+`reply_remove`, the unblock test keeping `REFILL_MAX`; so no case with a
+bound inactive SC is left). What is left are J
 steps with an `IRel` proof but none at `J` (IpcReply's
 `do_reply_transfer_top`): with an SC not released and a valid timeout
 handler, `Running` together with `handle_timeout` (`ReplyHyps.tmo`: a fault
@@ -718,7 +721,9 @@ def JReplyRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4
     Fl4Spec.replyRemove (Z := Unit) i.bv p.bv σ1 = ({((), σ2)}, False) →
     (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext i.bv >>=
       Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ2 = ({((), σ3)}, False) →
-    JAt (L := L) arI AR s3 ar σ3 → ¬ ReplyRestNoSc σ3 ct i g → ¬ ReplyRestSw σ3 ct i g →
+    JAt (L := L) arI AR s3 ar σ3 →
+    (∀ q y n, σ3.kheap q = some (.schedContext y n) → y.scTcb = some i.bv → Fl4Spec.scActive y = true) →
+    ¬ ReplyRestNoSc σ3 ct i g → ¬ ReplyRestSw σ3 ct i g →
     ¬ ReplyRestPost σ3 ct i g →
     fl4ReplyRest2 st arI s3 ar ct i g ⦃ res => ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1,
       JAt (L := L) arI AR res.1 res.2 z.2 ⦄
@@ -783,7 +788,7 @@ theorem replyXferJ (hAT : P0.ArchTotal arI)
     obtain ⟨xc, hkc, hcr⟩ := hcs.2
     rw [hkc] at hkx; cases hkx; rw [hcr] at hst; cases hst
   obtain ⟨⟨s2, a2⟩, hrr, hpost⟩ := spec_exists (J1.replyRemoveJD hAT hp hiT hkx hst)
-  obtain ⟨ea, σ2, V', Ac', Lst', D', hrm, J2, -, -, hDD, hin⟩ := hpost
+  obtain ⟨ea, σ2, V', Ac', Lst', D', hrm, J2, -, -, hDD, hin, hact⟩ := hpost
   simp only at ea
   subst ea
   subst hDD
@@ -797,7 +802,15 @@ theorem replyXferJ (hAT : P0.ArchTotal arI)
       JAt (L := L) arI AR res.1 res.2 z.2 ⦄ from key
   rw [fl4ReplyRest_eq]
   refine J2.replyUnblockJ hiT hki0 hin0 (fun s3 => fl4ReplyRest2 st arI s3 a2 ct i g) _ ?_
-  intro s3 σ3 Lst3 hub J3 htk hct3
+  intro s3 σ3 Lst3 hub J3 htk hct3 hscK
+  -- the receiver's SC is active (`replyRemoveJD`'s `remove_act`, kept by the unblock test)
+  have hact3 : ∀ q y n, σ3.kheap q = some (.schedContext y n) → y.scTcb = some i.bv →
+      Fl4Spec.scActive y = true := by
+    intro q y n hq hyt
+    obtain ⟨y0, hq0, hm, htc⟩ := hscK q y n hq
+    have h0 := hact q y0 n hq0 (htc.symm.trans hyt)
+    show Fl4Spec.activeSc y.scRefillMax = true
+    rw [hm]; exact h0
   have hin3 : ∃ x', σ3.kheap i.bv = some (.tcb x') ∧ x'.tcbState = .inactive := ⟨xi0, htk _ _ hki0, hin0⟩
   have hct3' : σ3.curThread = ct.bv := hct3.trans hct2
   by_cases hC : ReplyRestNoSc σ3 ct i g
@@ -806,7 +819,7 @@ theorem replyXferJ (hAT : P0.ArchTotal arI)
   · exact replyRestSwJ (Z := Z.mv Z.G V') hmb hZ J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hC2
   by_cases hC3 : ReplyRestPost σ3 ct i g
   · exact replyRestPostJ (Z := Z.mv Z.G V') hmb hZ J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hC3
-  exact hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ hC hC2 hC3
+  exact hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ hact3 hC hC2 hC3
 
 set_option maxHeartbeats 4000000 in
 /-- **The reply cap's leaf at `J`** but for `JReplyRestHyp` (`replyXferJ`
