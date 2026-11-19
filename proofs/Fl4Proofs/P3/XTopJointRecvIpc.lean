@@ -14,7 +14,7 @@ toward XTopJointDispatch's `JRecvIpcHyp`).
   a reply object linked to another thread: `take_reply`'s `cancel_ipc`);
   `dispatch_recvJR`: `dispatch_recvJS` with it.
 -/
-import Fl4Proofs.P3.XTopJointRecvSig
+import Fl4Proofs.P3.XTopJointRecvSigBlock
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -103,11 +103,12 @@ variable (arI) in
 /-- **`receive_ipc` at `J`, the cases not proved** [W] (KENTRY-PLAN.md item 6;
 IpcLeaves' `recv_ipc_leaf` is at `IRel` only, and there without a bound
 notification): `JRecvIpcHyp` outside `RecvIpcPollCase`. -/
-def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (ct : U64) (blocking : Bool) (s : S) (a : A)
+def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
+    JHeld (L := L) th s (.Endpoint p b sd true g gr) →
     ¬ RecvIpcPollCase (L := L) ct blocking s σ p rc →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
@@ -118,12 +119,12 @@ set_option maxHeartbeats 4000000 in
 `RecvIpcPollCase`). -/
 theorem jRecvIpcHyp_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (blocking : Bool)
-    (hW : JRecvIpcRestHyp (L := L) arI AR ct blocking s a σ) :
-    JRecvIpcHyp (L := L) arI AR ct blocking s a σ := by
-  intro p b sd g gr rc rc' hpE hrc
+    (hW : JRecvIpcRestHyp (L := L) arI AR Z.th ct blocking s a σ) :
+    JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ := by
+  intro p b sd g gr rc rc' hpE hrc hHd
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
-  · exact hW p b sd g gr rc rc' hpE hrc hc
+  · exact hW p b sd g gr rc rc' hpE hrc hHd hc
   obtain ⟨rfl, hbn, hns, hrr⟩ := hc
   obtain ⟨xe, hke⟩ := hpE
   obtain ⟨e, he, h⟩ := J.obj.ep _ xe hke
@@ -148,15 +149,15 @@ theorem jRecvIpcHyp_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJS` with `jRecvIpcHyp_of`**: the receiving syscalls at
 `J` against `fl4HandleEvent rep`'s branches; premises the two receive
-leaves' remaining cases (`JRecvIpcRestHyp`, `JRecvSigBlockHyp` [W]). -/
+leaves' remaining cases (`JRecvIpcRestHyp`, `JRecvSigRetHyp` [W]). -/
 theorem dispatch_recvJR (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
-    (hW : JRecvIpcRestHyp (L := L) arI AR ct bl s a σ)
-    (hB : bl = true → JRecvSigBlockHyp (L := L) arI AR ct s a σ) :
+    (hW : JRecvIpcRestHyp (L := L) arI AR Z.th ct bl s a σ)
+    (hB : bl = true → JRecvSigRetHyp (L := L) arI AR ct s a σ) :
     syscall.dispatch_syscall st arI s a number ⦃ r =>
       ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr)).run σ).1,
         y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by

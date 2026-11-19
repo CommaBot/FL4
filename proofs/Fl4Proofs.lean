@@ -533,6 +533,7 @@ import Fl4Proofs.P3.IpcSlotsSameZ
 import Fl4Proofs.P3.VsCapWBase
 import Fl4Proofs.P3.CnodeVsW
 import Fl4Proofs.P3.UtTabAdd
+import Fl4Proofs.P3.IpcRecvTopH
 import Fl4Proofs.P3.XTopJointDispatch
 import Fl4Proofs.P3.XTopJointRecvSig
 import Fl4Proofs.P3.XTopJointRecvIpc
@@ -540,3 +541,4 @@ import Fl4Proofs.P3.VsPtUnmapOff
 import Fl4Proofs.P3.VsPdUnmapOff
 import Fl4Proofs.P3.VsPdptUnmapOff
 import Fl4Proofs.P3.VsOffTop
+import Fl4Proofs.P3.XTopJointRecvSigBlock

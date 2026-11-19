@@ -36,7 +36,7 @@ P3 (DESIGN.md §9): **the syscall dispatch above `handle_invocation` at `J`**
   spec syscall of FL4's number: `invSysOf`, `recvSysOf`).
 -/
 import Fl4Proofs.P3.XTopJointEntry
-import Fl4Proofs.P3.IpcRecvTop
+import Fl4Proofs.P3.IpcRecvTopH
 import Fl4Spec.Ext.Entry
 open Aeneas Aeneas.Std Result
 
@@ -222,26 +222,33 @@ theorem invoke_afterJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
 theorem regIdx_reply : regIdx Fl4Spec.replyRegister = layout.reg.REPLY := by
   unfold layout.reg.REPLY layout.reg.R12; rfl
 
+/-- A cap held in a slot of `th` (IpcRecvTopH's `Hd` at `J`). -/
+def JHeld (th : TypedHeap) (s : S) (c : capability.Cap) : Prop := ∃ y, IsSlot th y ∧ capV (L.mem s) y = c
+
 /-- The relation a receive at `J` ends in. -/
 abbrev RJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   RelTopM (L := L) s σ ∧ JAt (L := L) arI AR s a σ
 
 /-- **`receive_ipc` at `J`** [W] (KENTRY-PLAN.md item 6; IpcLeaves'
-`recv_ipc_leaf` is at `IRel` only): IpcRecvTop's `RecvLeaves.ipc` at `RJ`. -/
-def JRecvIpcHyp (AR : A → Fl4Spec.Cr3 → Prop) (ct : U64) (blocking : Bool) (s : S) (a : A)
+`recv_ipc_leaf` is at `IRel` only): IpcRecvTopH's `RecvLeavesH.ipc` at `RJ`, the
+endpoint cap held in a slot of `th` (`JHeld`). -/
+def JRecvIpcHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
+    JHeld (L := L) th s (.Endpoint p b sd true g gr) →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄
 
 /-- **`receive_signal` at `J`** [W] (KENTRY-PLAN.md item 5; IpcLeaves'
-`recv_sig_leaf` is at `IRel` only): IpcRecvTop's `RecvLeaves.sig` at `RJ`. -/
-def JRecvSigHyp (AR : A → Fl4Spec.Cr3 → Prop) (ct : U64) (blocking : Bool) (s : S) (a : A)
+`recv_sig_leaf` is at `IRel` only): IpcRecvTopH's `RecvLeavesH.sig` at `RJ`, the
+notification cap held in a slot of `th` (`JHeld`). -/
+def JRecvSigHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
+    JHeld (L := L) th s (.Notification p b w rd) →
     notification.receive_signal st arI s a ct p blocking ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac blocking σ).1, RJ (L := L) arI AR r.1 r.2 z.2 ⦄
 
@@ -256,7 +263,7 @@ theorem handle_recvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : 
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (blocking canReply : Bool)
-    (hIpc : JRecvIpcHyp (L := L) arI AR ct blocking s a σ) (hSig : JRecvSigHyp (L := L) arI AR ct blocking s a σ) :
+    (hIpc : JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ) (hSig : JRecvSigHyp (L := L) arI AR Z.th ct blocking s a σ) :
     syscall.handle_recv st arI s a blocking canReply ⦃ r =>
       ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) blocking canReply σ).1, RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
@@ -266,10 +273,10 @@ theorem handle_recvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : 
   have hxs := hI.1.toE.at_tcb hctT hks
   have hR := J.xtop.rel.2.1.1
   have hV := J.xtop.rel.2.1.2.1
-  refine handle_recv_refines (RJ (L := L) arI AR) s a σ blocking canReply ct hct hcur hks
+  refine handle_recv_refinesH (RJ (L := L) arI AR) (JHeld (L := L) Z.th s) s a σ blocking canReply ct hct hcur hks
     (by rw [← regIdx_cap]; exact hxs.regs _) (by rw [← regIdx_reply]; exact hxs.regs _)
     (fun cptr => lookup_cap_refines Z.th s σ hR hV ct htcb cptr)
-    (fun cptr => WP.spec_mono (lookup_cap_held Z.th s σ hR hV ct htcb cptr) fun r hr c hc => ?_)
+    (fun cptr => WP.spec_mono (lookup_cap_held Z.th s σ hR hV ct htcb cptr) fun r hr c hc => ⟨?_, hr c hc⟩)
     ⟨hIpc, hSig, recv_bound_leaf hI.1 J.obj, fun cptr lf lf' h =>
       J.faultHypJZ hZ hAT hni hct hnq hvfh ⟨cptr, true, lf, lf', rfl, by rw [ofBl_toBl64], h⟩⟩
   obtain ⟨y, hy, hcv⟩ := hr c hc
@@ -345,7 +352,7 @@ theorem dispatch_recvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a 
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
-    (hIpc : JRecvIpcHyp (L := L) arI AR ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR ct bl s a σ) :
+    (hIpc : JRecvIpcHyp (L := L) arI AR Z.th ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR Z.th ct bl s a σ) :
     syscall.dispatch_syscall st arI s a number ⦃ r =>
       ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) bl cr σ).1, RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   have h := handle_recvJ arI hZ hAT s a σ J hni hct hnq hvfh bl cr hIpc hSig
@@ -429,7 +436,7 @@ theorem dispatch_recvJE (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal ar
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
-    (hIpc : JRecvIpcHyp (L := L) arI AR ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR ct bl s a σ) :
+    (hIpc : JRecvIpcHyp (L := L) arI AR Z.th ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR Z.th ct bl s a σ) :
     syscall.dispatch_syscall st arI s a number ⦃ r =>
       ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr)).run σ).1,
         y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
