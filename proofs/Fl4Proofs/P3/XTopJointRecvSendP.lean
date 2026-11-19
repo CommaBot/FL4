@@ -198,7 +198,7 @@ theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     (F : RSFr n t σ σa) (G : SkD σa σ') (hks1 : KSub σa σ') (hsz1 : SzKeep σa σ') (hyk1 : YKeep σa σ')
     (hmk1 : McpKeep σa σ')
     (hbk1 : ∀ p x, σa.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer)
-    (hrb1 : ∀ d ∈ Z.R, RecvB σ' d → RecvB σa d) (hkz1 : KSz σa σ') (hkb1 : KBack σa σ')
+    (hrb1 : ∀ d ∈ Z.R, RecvB σ' d → RecvB σa d) (hkz1 : KSz σa σ') (hkb1 : KBack σa σ') (hfk1 : IpcFrKeep σa σ')
     (hck1 : (∀ q y n, σa.kheap q = some (.schedContext y n) → ∃ y', σ'.kheap q = some (.schedContext y' n) ∧
       y'.scReplies = y.scReplies) ∧
       (∀ q x, σa.kheap q = some (.reply x) → ∃ x', σ'.kheap q = some (.reply x') ∧ x'.replySc = x.replySc) ∧
@@ -276,7 +276,7 @@ theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (G.arch.trans F.sk.arch)
     (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)))
-    hsz hF.1 (F.kback.trans' hkb1) hC R⟩
+    hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **`receive_ipc` from a faulted head sender pushing a reply at `J`**
@@ -796,7 +796,7 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
   obtain ⟨V', J6⟩ := Ju.rsfr_postGR hIR4 hF hWu hblk hFu (RSFr.ofUm Fr5 umu) ps_skD
     (ps_ksub hkta hkwa hws) (ps_szKeep hkta hkwa hws) (ps_ykeep hkta hkwa hws) (ps_mcpKeep hkta hkwa hws)
     (ps_bufKeep hkta hkwa hws) (fun d _ h => ps_recvB hkta hkwa hws h) (ps_ksz hkta hkwa hws)
-    (ps_kback hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
+    (ps_kback hkta hkwa hws) (ps_ipcFr hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
     I6 B6 hAI6 (Or.inr hCI') hrun6 (ps_own hkta hkwa hws (Fr5.own J.own))
     (ps_off hkta hkwa hws (Fr5.off J.off)) (ps_nsc hkta hkwa hws (Fr5.nsc J.nsc))
@@ -1305,7 +1305,7 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
   obtain ⟨V', J6⟩ := Ju.rsfr_postGR (by rw [← hKy.2.1] at hIR4; exact hIR4) hF hWu hblk hFu (RSFr.ofUm Fr5 umu) ps_skD
     (ps_ksub hkta hkwa hws) (ps_szKeep hkta hkwa hws) (ps_ykeep hkta hkwa hws) (ps_mcpKeep hkta hkwa hws)
     (ps_bufKeep hkta hkwa hws) (fun d _ h => ps_recvB hkta hkwa hws h) (ps_ksz hkta hkwa hws)
-    (ps_kback hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
+    (ps_kback hkta hkwa hws) (ps_ipcFr hkta hkwa hws) (ps_ck hkta hkwa hws) (fun d _ h => ps_free hkta hkwa hws h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
     I6 B6 hAI6 (Or.inr hCI') hrun6 (ps_own hkta hkwa hws (Fr5.own Jy.own))
     (ps_off hkta hkwa hws (Fr5.off Jy.off)) (ps_nsc hkta hkwa hws (Fr5.nsc Jy.nsc))
