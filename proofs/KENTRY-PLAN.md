@@ -1379,3 +1379,43 @@ removed; JAtZ untouched.
   decode_invocation_cnodeJ_stepsL, decode_invocation_threadJ_step, decOK_J, jAtPre_hole, jAtPre_holeTN,
   jPreemptRestHypJ_of, hPre_ofZJ, dispatch_invokeJPZJ, dispatch_invokeJEPZJ, dispatch_invokeJEPZI,
   handle_invocation_refinesJ.
+## sch6 (branch par/sched6 in FL4-sc, on 01d8df6d = int/j2 incl. sch5)
+- (B) DONE e90fd451: new leaf XTopJointSchedRF3 (imported from Fl4Proofs.lean; nothing existing edited, JAtZ untouched,
+  no premise added). sch3/sch5's fake pre-state route, as planned:
+  * `ndF2 s kb v16 v24` / `ndF s kb v16 v24 v40` (FL4: rf.1 with ks16/ks24 [/ks40] written), `ndFSt σ dt di`
+    (spec: σ1 with domainTime/domainIndex replaced). `schedStep_dom2`: the two-word write is a `SchedStep`
+    (DomDecode's `schedStep_start` without the start word: `SchedRel.domW`, DomRelW kept since entries/start
+    are untouched, `blkKeep_domKW`). `JAtZ.ndFJ`: `JAtZ.schedJ` (XTopJointCopyRegs) + `JAtZ.workUnitsJD`
+    (XTopJointPP) give `JAtZ` at `ndF rf.1 (ksb rf.1) v16 v24 v40`/`ndFSt σ1 v16.bv di` for ANY values.
+  * `ndF_writes`: with v16/v24/v40 := the final state's words, `WritesIn rf.1 r.1 (KFootN rf.1 σ1)` gives
+    `WritesIn s0 r.1 (KFoot s0 σ0)` (NdW words equal by construction; the rest via `ndF_mem_ne`).
+  * Spec facts transfer: `SchS.ndF` (SchStep/SOK are structures, so rebuilt field by field: defeq per field);
+    `LK` and the idle fields by defeq. `JAtZ.sch_tailS` = `JAtZ.sch_tail` taking `SchS σ σ'` + the idle
+    equalities instead of `schedule σ = {σ'}`.
+  * `jat_scheduleFR2` (from `jat_scheduleWP0F` + P1 kw/tinv + hTail, then the J0 tail), `jat_scheduleSR2`
+    (`signalJHyp_of`), `jat_finishJ2` (+ `JAtZ.activateJ`). Conclusions identical to `jat_scheduleFRF`/
+    `jat_scheduleSRF`/`jat_finishJF`; premises: `hd : σ.domainTime ≠ 0` REPLACED by `hd : σ.domainTime ≠ 0 ∨
+    NdOK s σ` (NdOK = DomRel ∧ DomListOK [J] ∧ DOM_SCHED_IDX word = domain_index [J], sch2/sch3, entry only),
+    new `hAN : ArchNdF st Z.N Z.T Z.C Z.c` [P] (ScNextDomF, sch4), `hTail`'s footprint `KFoot` -> `KFootN`
+    (hTail only yields `SchTailHypsR.ar`, the CR3 [P] fact). Everything else unchanged (FpuOwnOK σ [J],
+    ArchSwF [P], hvm [S], htu/hmax [P]). SUPERSEDE the F versions; no top-chain theorem consumes
+    `jat_finishJ*` yet (grep: only XTopJointSchedR/RF/RF3), so the top chain (kernel_entryJ, not written)
+    should use `jat_finishJ2`.
+- (C) M6 NOT STARTED (scope, not context alone). sch2's route needs (i) a `CurRun` post fact of
+  `handle_invocation_refinesJ` for first-phase non-blocking non-calling invocations — inside XTopJointEntry,
+  which this line must not touch (kp10 is restructuring JAtPre there) — and (ii) the receive leaves without
+  `Entered σ`. Inventory for (ii) (`hni` CONSUMED, not just passed, ~45 sites in 14 files): `J.curInv (hni.2 ▸ …)`
+  (CurInv from resumeCurThread: RecvIpcAct:198, RecvIpcRet:220, RecvIpcBound:223, RecvIpcBlock:1084,
+  RecvSendRD:1650, RecvSendRP:55, RecvSendT:1256, RecvSig:144/218, RecvSendRet:110, RecvSigRet:829/984,
+  RecvSigBlock:746); `J.curRun.run hni` (CurRun: same files + RecvIpcLink:484/502/581/626); `Or.inl hni.2` (the
+  action disjunct of recvIpcBlockJG/recvIpcBlockNJG/recvSendPJG/recvSendFPJG/recvSendFPTJ/canBlockCurG);
+  `fun u hu => by rw [hni.2] at hu` (no pending switch, RecvIpcRet:250, RecvSendRD:1697, RecvSendRP:93,
+  RecvSendT:1294, RecvSendRet:148); `hni.1` (not idle: kept by the invocation). The CurInv uses are the hard
+  part: under `switchThread t`/`chooseNewThread` CurInv is not available, so each leaf needs a CurInv-free
+  variant (what it reads from CurInv: mostly `.notRel` for the blocking ones). Suggested order once
+  XTopJointEntry is free: (i) first (decode-path post `CurRun ∧ ¬idle` at Ok), then a `JMidR σ := ct ≠ idle ∧
+  CurRun σ` replacement leaf by leaf, starting with the blocking leaves (only `.notRel` + action disjunct).
+- Builds (tokyo, b.sh): sch6-b1 (3 elaboration errors, fixed), sch6-b2 `XTopJointSchedRF3` OK (5404 jobs; only
+  `if_neg` deprecation warnings). Axioms (axsch6.sh/axsch6.lean, untracked): propext, Classical.choice,
+  Quot.sound only for handle_invocation_refinesJ, jat_finishJ2, jat_scheduleFR2, jat_scheduleSR2,
+  JAtZ.sch_tailS, JAtZ.ndFJ, ndF_writes, schedStep_dom2, jat_finishJF; SchS.ndF: propext.
