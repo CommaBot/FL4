@@ -92,6 +92,10 @@ cargo build --release -p fl4-efi --target x86_64-unknown-uefi
 Copy `target/x86_64-unknown-uefi/release/fl4-efi.efi` to
 `/EFI/BOOT/BOOTX64.EFI` on the EFI system partition.
 
+Like GRUB, the x86_64 loader passes the display firmware set up to the
+kernel as the Multiboot 2 framebuffer: the Graphics Output Protocol's
+current mode when it is 32-bit RGB, and not in SEV guests.
+
 An x86_64 EFI application can supply its own boot policy through the
 `fl4-efi` library. Use `with_firmware` for EFI services and pass its
 selected kernel and ordered modules to `Firmware::boot` for the FL4 handoff.
