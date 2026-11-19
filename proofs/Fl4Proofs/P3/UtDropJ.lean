@@ -451,6 +451,147 @@ theorem JAtZ.dropX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact XTopAt.drop J.xtop (J.xKeep hsb U.pfit hRD hK) hsb U.pfit hD hK hcdt horig hrepr hcdom hdtime hist
     hinode harch hdl hdsi hum J.ut hx hcx hnd U.nostr (U.ns hnc) hXP hX4 hX3 hX2 hX1 hM
 
+/-- **The scheduler's spec invariants across the drop at `J`** (item 2, the
+spec-only `JAtZ` fields at the kept sets): `nsc`, `inv`, `cur`, `own`, `off`,
+`act`, `c0`, `bsa`, `sv`, `isorted`, `slink`, `curRun` (UtDropSpec's `.drop`
+lemmas with `SKeep`). -/
+theorem JAtZ.dropSpecInv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p sb : U64}
+    (hK : SKeep (RgOf p sb) σ) {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ') :
+    Sched.NSC (KeepS (KOff (RgOf p sb)) Z.N) (KeepS (KOff (RgOf p sb)) Z.C) σ' ∧ Sched.Inv σ' ∧
+      (σ'.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ') ∧
+      Sched.CurOwnW (KeepS (KOff (RgOf p sb)) Z.T) (KeepS (KOff (RgOf p sb)) Z.C) σ' ∧ Sched.OffOK σ' ∧
+      Sched.ActIdle σ' ∧ (∀ q ∈ KeepS (KOff (RgOf p sb)) Z.C, q ≠ 0#u64) ∧ Sched.BlockedScActive σ' ∧
+      Sched.SchedValid σ' ∧ Sched.IpcSorted σ' ∧ Sched.ScLinkHyp σ' ∧ CurRunM σ' :=
+  ⟨J.nsc.drop hK hD, J.inv.drop hK hD, CurInvW.drop J.cur hK hD, J.own.drop hK hD, J.off.drop hD,
+    J.act.drop hK hD, fun q hq => J.c0 q hq.1, J.bsa.drop hD, J.sv.drop hK hD, J.isorted.drop hK hD,
+    J.slink.drop hK hD, J.curRun.drop hD⟩
+
+section Mixed
+variable {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
+  (hRD : ∀ q, P1.RegionD H p.val (p.val + 2 ^ sb.val) q → DeadP (L := L) H s q)
+include hsb hfit hRD
+
+/-- A reply of `Z.R` is not null. -/
+theorem JAtZ.r_ne0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r : U64} (hr : r ∈ Z.R) : r ≠ 0#u64 :=
+  fun e => by have := J.zH.2.2.1 r hr; rw [e, J.kern.h0] at this; cases this
+
+/-- A reply linked from a reply of `Z.R` (its back link naming that reply)
+is off the region: a reply in the region is free (`rgReply`), so unlinked
+(`RFree`). -/
+theorem JAtZ.link_off (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {d n : U64} (hd : d ∈ Z.R)
+    (hn : n ∈ Z.R) (hb : L.mem s (P1.rPrevA n) = d ∨ L.mem s (P1.rNextA n) = d) : ¬ RgOf p sb n.bv := by
+  intro hr
+  obtain ⟨xr, hxr, -⟩ := J.xtop.ipc.reply n hn
+  have hfree : Free σ n := ⟨xr, hxr, J.rgReply hsb hfit hRD hxr hr⟩
+  obtain ⟨-, h1, h2⟩ := J.rfree n hn hfree
+  rcases hb with e | e
+  · rw [h2] at e; exact J.r_ne0 hsb hfit hRD hd e.symm
+  · rw [h1] at e; exact J.r_ne0 hsb hfit hRD hd e.symm
+
+/-- **The mixed relations across the drop at `J`** (item 2: `call`, `rfree`,
+`rrecv`, `yld`, `mcp`, `buf` at the kept sets, the same FL4 memory and the
+detyped spec state). -/
+theorem JAtZ.dropMixed (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hK : SKeep (RgOf p sb) σ)
+    {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ') :
+    Sched.CallRel (L.mem s) (KeepS (KOff (RgOf p sb)) Z.R) (KeepS (KOff (RgOf p sb)) Z.C) σ' Lst ∧
+      Sched.RFree (L.mem s) (KeepS (KOff (RgOf p sb)) Z.R) (KeepS (KOff (RgOf p sb)) Z.C) σ' Lst ∧
+      Sched.RRecv (L.mem s) (KeepS (KOff (RgOf p sb)) Z.R) σ' ∧
+      Sched.YieldRel (KeepS (KOff (RgOf p sb)) Z.T) (KeepS (KOff (RgOf p sb)) Z.C) (L.mem s) σ' ∧
+      Sched.McpRel (KeepS (KOff (RgOf p sb)) Z.T) (L.mem s) σ' ∧
+      BufWordRel (KeepS (KOff (RgOf p sb)) Z.T) (L.mem s) σ' := by
+  have C := J.call
+  -- a reply on a kept stack's SC: both kept
+  have onStack : ∀ sc ∈ Z.C, ∀ r ∈ Lst sc, ¬ RgOf p sb sc.bv ∧ ¬ RgOf p sb r.bv := by
+    intro sc hsc r hr
+    obtain ⟨⟨y, n, hk, hyL⟩, -⟩ := C.stack sc hsc
+    exact hK.scR sc.bv y n r.bv hk (by rw [hyL]; exact List.mem_map_of_mem hr)
+  have detC : ∀ d, Detached (KeepS (KOff (RgOf p sb)) Z.C) Lst d → Detached Z.C Lst d :=
+    fun d h sc hsc hm => h sc ⟨hsc, (onStack sc hsc d hm).1⟩ hm
+  have detC' : ∀ d, Detached Z.C Lst d → Detached (KeepS (KOff (RgOf p sb)) Z.C) Lst d :=
+    fun d h sc hsc => h sc hsc.1
+  refine ⟨⟨fun sc hsc => ?_, fun sc hsc sc' hsc' r h1 h2 => C.excl sc hsc.1 sc' hsc'.1 r h1 h2,
+    fun r hr => ?_, fun d hd hdet => ?_⟩, fun d hd hfr => ?_, fun d hd hrb => ?_, ⟨fun t ht => ?_,
+    fun t ht h0 => ?_, fun sc hsc y n hy q hq => ?_⟩, fun t ht => ?_, fun t ht => ?_⟩
+  · obtain ⟨⟨y, n, hk, hyL⟩, hLR, hnd, hSW⟩ := C.stack sc hsc.1
+    exact ⟨⟨y, n, hD.fwd hsc.2 hk, hyL⟩, fun r hr => ⟨hLR r hr, (onStack sc hsc.1 r hr).2⟩, hnd, hSW⟩
+  · obtain ⟨x, hk, hiff⟩ := C.reply r hr.1
+    refine ⟨x, hD.fwd hr.2 hk, fun q => ⟨fun h => ?_, fun ⟨sc, hsc, e, hh⟩ => (hiff q).2 ⟨sc, hsc.1, e, hh⟩⟩⟩
+    obtain ⟨sc, hsc, e, hh⟩ := (hiff q).1 h
+    exact ⟨sc, ⟨hsc, (onStack sc hsc r (List.mem_of_mem_head? hh)).1⟩, e, hh⟩
+  · obtain ⟨h1, h2, h3⟩ := C.det d hd.1 (detC d hdet)
+    refine ⟨h1, fun h0 => ?_, fun h0 => ?_⟩
+    · obtain ⟨a1, a2, a3⟩ := h2 h0
+      exact ⟨⟨a1, J.link_off hsb hfit hRD hd.1 a1 (Or.inl a3)⟩, detC' _ a2, a3⟩
+    · obtain ⟨a1, a2, a3⟩ := h3 h0
+      exact ⟨⟨a1, J.link_off hsb hfit hRD hd.1 a1 (Or.inr a3)⟩, detC' _ a2, a3⟩
+  · obtain ⟨x, hx, hn⟩ := hfr
+    obtain ⟨h1, h2, h3⟩ := J.rfree d hd.1 ⟨x, (hD.back hx).2, hn⟩
+    exact ⟨detC' d h1, h2, h3⟩
+  · obtain ⟨x, t, xt, h1, h2, h3, h4⟩ := hrb
+    exact J.rrecv d hd.1 ⟨x, t, xt, (hD.back h1).2, h2, (hD.back h3).2, h4⟩
+  · obtain ⟨x, hk, e⟩ := J.yld.tcb t ht.1
+    exact ⟨x, hD.fwd ht.2 hk, e⟩
+  · obtain ⟨h1, y, n, hy, e⟩ := J.yld.toSc t ht.1 h0
+    obtain ⟨x, hk, ex⟩ := J.yld.tcb t ht.1
+    have k2 := (hK.tcbYield t.bv x _ hk (by rw [ex, Notif.optRef_ne h0])).2
+    exact ⟨⟨h1, k2⟩, y, n, hD.fwd k2 hy, e⟩
+  · obtain ⟨t, ht, e1, e2⟩ := J.yld.frm sc hsc.1 y n (hD.back hy).2 q hq
+    have k := (hK.scY sc.bv y n q (hD.back hy).2 hq).2
+    exact ⟨t, ⟨ht, by show ¬ RgOf p sb t.bv; rw [e1]; exact k⟩, e1, e2⟩
+  · obtain ⟨x, hk, e⟩ := J.mcp t ht.1
+    exact ⟨x, hD.fwd ht.2 hk, e⟩
+  · obtain ⟨x, hk, e⟩ := J.buf t ht.1
+    exact ⟨x, hD.fwd ht.2 hk, e⟩
+
+end Mixed
+
+/-- **P1's `BlkOK` across the drop at `J`** (item 2, `blk`: P1's
+`BlkOK.drop` with `dropOK_of`): `H` loses the objects meeting the region,
+all dead (`rgDeadD`); the current thread and SC are live (no reschedule
+pending: `CurInv`, their SC/TCB links are not null); the region is off the
+kernel-state block (`UtKsApart`). The kept links are `RegionUnrefJ` [J]'s two
+parts at this region. -/
+theorem JAtZ.dropBlk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hres : σ.schedulerAction ≠ .chooseNewThread) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {p sb fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    (hKR : KeptRefsP3 (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) s)
+    (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s) :
+    let H' := H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))
+    P1.BlkOK st (P1.Heap.tcbs H') Cs (P1.Heap.omega H') H' (P1.Heap.frame H') (P1.Heap.replies H')
+      (P1.Heap.scs H') (P1.Heap.ntfns H') (P1.Heap.scBits H') Ac s := by
+  intro H'
+  have hRD := J.rgDeadD hx hcx hnd
+  have hC := J.curInv hres
+  obtain ⟨xt, hkt, hsc, -⟩ := hC.tcb
+  obtain ⟨Q, R0, hcr, hs⟩ := J.xtop.fin.1.1.1.lists
+  -- the current thread is live
+  have hcur : ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.curW s) := by
+    intro hd
+    have d2 := ((hRD _ hd).1 J.kern.curH).2.1
+    have hT := J.thT _ J.kern.curT
+    obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb _ hT
+    rw [← J.kern.cur, hkt] at hk'; cases hk'
+    rw [hR.sc, d2, optRef_zero] at hsc; cases hsc
+  -- the current SC is live
+  have hcsc : ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.cscW s) := by
+    intro hd
+    obtain ⟨y, n, hy, hyt⟩ := J.inv.back _ xt _ hkt hsc
+    have ecs : L.cscW s = Sched.nodeW st s Z.c layout.node.CUR_SC := by
+      unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA Sched.nodeW; rw [hcr.cur]
+    obtain ⟨q, hq, hqp⟩ := J.obj.sc _ y n hy
+    have eq : q = L.cscW s := P1.eq_of_bv (by rw [hqp, hs.curSc, ecs])
+    subst eq
+    obtain ⟨y', n', hk', hx'⟩ := hs.scs _ hq
+    have hk2 : σ.kheap σ.curSc = some (.schedContext y' n') := by rw [← hqp]; exact hk'
+    rw [hy] at hk2; cases hk2
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have hH := (hJ.sc _ y n (J.c0 _ hq) hk').2
+    have d := ((hRD _ hd).2.2.2.2 _ hH).1
+    rw [hx'.tcb, scW_tcb, d, optRef_zero] at hyt; cases hyt
+  have hreg := (J.jcov.ks x hx p sb fi hcx).1
+  refine P1.BlkOK.drop (dropOK_of J.kern.heap J.kern.h0 (fun q k _ hq => hRD q hq) hcur hcsc J.kern.hks
+    J.kern.hksIn hreg J.kern.hnd hKR hDT J.kern.ksbFit) J.blk
+
 end
 
 end
