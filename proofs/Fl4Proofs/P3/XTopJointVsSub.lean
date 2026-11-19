@@ -282,12 +282,22 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   obtain ⟨hJC, R⟩ := jowes_slotDFH J hX1' hcn hkcT hw hS'.F hMO' (capInsert_nkz (absCap c) _ _ σ _ hmem) hTKH hfh'
     (hdi J.del) hUK hjc horig hutc
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
-    Vs.VsSlotsT.of_some (· = dest) (fun y hy hn => hcapV y hy hn) fun y _ e P L4 L3 L2 L1 h => by
+    Vs.VsSlotsT.of_some (· = dest) (fun y hy hn => hcapV y hy hn) (fun y _ e P L4 L3 L2 L1 h => by
       subst e
       have h0 := h src hs
       rw [capV_of_capAt hcap] at h0
       rw [hdc]
-      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW
+      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
+      fun y _ e U h => by
+        subst e
+        have h0 := h src hs
+        rw [capV_of_capAt hcap, hsrcCdef] at h0
+        rw [hdc, hcdef]
+        have hL : (fbitsF .Large).val = 21 := by rw [fbitsF_val]; rfl
+        have hS : (fbitsF .Small).val = 12 := by rw [fbitsF_val]; rfl
+        intro _ x hx1 hx2
+        rw [hS] at hx2
+        exact h0 rfl x (by omega) (by rw [hL]; omega)
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R (J.vsc.step hvT)⟩
 

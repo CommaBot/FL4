@@ -118,23 +118,37 @@ theorem vsSlotsT_insert {src dest : U64} (hs : IsSlot th src) {c : capability.Ca
     (hc : ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV m' y = capV m y) (hd : capV m' dest = c)
     (hsC : capV m' src = (fullF (capV m src) c).getD (capV m src))
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV m src) → Vs.VCapOK P L4 L3 L2 L1 c)
-    (hu : Vs.TabUn c → Vs.TabUn (capV m src)) : Vs.VsSlotsT th m m' := by
+    (hu : Vs.TabUn c → Vs.TabUn (capV m src)) (hk : okey c = okey (capV m src)) : Vs.VsSlotsT th m m' := by
   refine Vs.VsSlotsT.of_some (fun y => y = src ∨ y = dest) (fun y hy hn => hc y hy (fun e => hn (Or.inl e))
-    (fun e => hn (Or.inr e))) ?_
-  intro y hy e P L4 L3 L2 L1 h
-  by_cases e2 : y = dest
-  · subst e2; rw [hd]; exact h.copy hs hv hu
-  · have e1 : y = src := e.resolve_right e2
-    subst e1
-    rw [hsC]
-    cases hf : fullF (capV m y) c with
-    | none => exact h y hy
-    | some u =>
-      simp only [Option.getD_some]
-      unfold fullF at hf
-      split at hf
-      · split_ifs at hf; cases hf; trivial
-      · cases hf
+    (fun e => hn (Or.inr e))) ?_ ?_
+  · intro y hy e P L4 L3 L2 L1 h
+    by_cases e2 : y = dest
+    · subst e2; rw [hd]; exact h.copy hs hv hu
+    · have e1 : y = src := e.resolve_right e2
+      subst e1
+      rw [hsC]
+      cases hf : fullF (capV m y) c with
+      | none => exact h y hy
+      | some u =>
+        simp only [Option.getD_some]
+        unfold fullF at hf
+        split at hf
+        · split_ifs at hf; cases hf; trivial
+        · cases hf
+  · intro y hy e U h
+    by_cases e2 : y = dest
+    · subst e2; rw [hd]; exact (h src hs).of_okey hk
+    · have e1 : y = src := e.resolve_right e2
+      subst e1
+      rw [hsC]
+      cases hf : fullF (capV m y) c with
+      | none => exact h y hy
+      | some u =>
+        simp only [Option.getD_some]
+        unfold fullF at hf
+        split at hf
+        · split_ifs at hf; cases hf; trivial
+        · cases hf
 
 /-- **A move keeps the slots placed**: the destination gets `c`, placed
 when the source is, the source emptied. -/
@@ -142,14 +156,19 @@ theorem vsSlotsT_move {src dest : U64} (hs : IsSlot th src) {c : capability.Cap}
     (hc : ∀ y, IsSlot th y → y ≠ src → y ≠ dest → capV m' y = capV m y) (hd : capV m' dest = c)
     (hsC : capV m' src = .Null)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV m src) → Vs.VCapOK P L4 L3 L2 L1 c)
-    (hu : Vs.TabUn c → Vs.TabUn (capV m src)) : Vs.VsSlotsT th m m' := by
+    (hu : Vs.TabUn c → Vs.TabUn (capV m src)) (hk : okey c = okey (capV m src)) : Vs.VsSlotsT th m m' := by
   refine Vs.VsSlotsT.of_some (fun y => y = src ∨ y = dest) (fun y hy hn => hc y hy (fun e => hn (Or.inl e))
-    (fun e => hn (Or.inr e))) ?_
-  intro y hy e P L4 L3 L2 L1 h
-  by_cases e2 : y = dest
-  · subst e2; rw [hd]; exact h.copy hs hv hu
-  · have e1 : y = src := e.resolve_right e2
-    subst e1; rw [hsC]; trivial
+    (fun e => hn (Or.inr e))) ?_ ?_
+  · intro y hy e P L4 L3 L2 L1 h
+    by_cases e2 : y = dest
+    · subst e2; rw [hd]; exact h.copy hs hv hu
+    · have e1 : y = src := e.resolve_right e2
+      subst e1; rw [hsC]; trivial
+  · intro y hy e U h
+    by_cases e2 : y = dest
+    · subst e2; rw [hd]; exact (h src hs).of_okey hk
+    · have e1 : y = src := e.resolve_right e2
+      subst e1; rw [hsC]; trivial
 
 /-- **A swap keeps the slots placed**: `s2` gets `c1`, placed when `s1`'s
 cap is, and `s1` gets `c2`, placed when `s2`'s is. -/
@@ -159,14 +178,20 @@ theorem vsSlotsT_swap {s1 s2 : U64} (hs1 : IsSlot th s1) (hs2 : IsSlot th s2) {c
     (hv1 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV m s1) → Vs.VCapOK P L4 L3 L2 L1 c1)
     (hu1 : Vs.TabUn c1 → Vs.TabUn (capV m s1))
     (hv2 : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 (capV m s2) → Vs.VCapOK P L4 L3 L2 L1 c2)
-    (hu2 : Vs.TabUn c2 → Vs.TabUn (capV m s2)) : Vs.VsSlotsT th m m' := by
+    (hu2 : Vs.TabUn c2 → Vs.TabUn (capV m s2)) (hk1 : okey c1 = okey (capV m s1))
+    (hk2 : okey c2 = okey (capV m s2)) : Vs.VsSlotsT th m m' := by
   refine Vs.VsSlotsT.of_some (fun y => y = s1 ∨ y = s2) (fun y hy hn => hc y hy (fun e => hn (Or.inl e))
-    (fun e => hn (Or.inr e))) ?_
-  intro y hy e P L4 L3 L2 L1 h
-  by_cases e2 : y = s2
-  · subst e2; rw [hd2]; exact h.copy hs1 hv1 hu1
-  · have e1 : y = s1 := e.resolve_right e2
-    subst e1; rw [hd1]; exact h.copy hs2 hv2 hu2
+    (fun e => hn (Or.inr e))) ?_ ?_
+  · intro y hy e P L4 L3 L2 L1 h
+    by_cases e2 : y = s2
+    · subst e2; rw [hd2]; exact h.copy hs1 hv1 hu1
+    · have e1 : y = s1 := e.resolve_right e2
+      subst e1; rw [hd1]; exact h.copy hs2 hv2 hu2
+  · intro y hy e U h
+    by_cases e2 : y = s2
+    · subst e2; rw [hd2]; exact (h s1 hs1).of_okey hk1
+    · have e1 : y = s1 := e.resolve_right e2
+      subst e1; rw [hd1]; exact (h s2 hs2).of_okey hk2
 
 end
 

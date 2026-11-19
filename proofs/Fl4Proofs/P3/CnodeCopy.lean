@@ -518,7 +518,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
                   rw [copied_ut hr2 hu]
                   exact isPF_ut hI1 ((hM1.members _).2 ⟨hAs.isSlot, srcC, hsc2, hsn⟩) (capV_of_capAt hsc2) hu _),
             vsSlotsT_insert hAs.isSlot htr.2.1 htr.2.2.1 (by rw [capV_of_capAt hsc2]; exact htr.2.2.2)
-              (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2),
+              (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2)
+              (by rw [capV_of_capAt hsc2]; exact hkey),
             coverUt_ins hAs.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               (copied_ut hr2) (fun _ _ _ _ e => by
                 have h := hsc2; rw [capAt_words, e] at h; exact (decode_encWf h).2)⟩
@@ -561,7 +562,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
                   have hu : isUt srcC = true := by rw [← isUt_of_shape hsh, h]; rfl
                   rw [capV_of_capAt hsc2, ← copied_ut hr2 hu, h]) htr.2.1,
             vsSlotsT_move hAs.isSlot htr.2.1 htr.2.2.1 htr.2.2.2
-              (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2),
+              (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2)
+              (by rw [capV_of_capAt hsc2]; exact hkey),
             coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl

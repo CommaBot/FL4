@@ -340,7 +340,8 @@ theorem irq_set_refinesD (th : TypedHeap) (hP : Placed th)
           (Or.inr fun k hk => by
             rw [hL.node irq hirq] at hk; cases hk
             rw [hk3, nodeA_val hL.fit hirq]; simp only [objSize]; omega) (fun _ => hD4)
-          (fun _ _ _ _ _ _ => by rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl]; trivial))
+          (fun _ _ _ _ _ _ => by rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl]; trivial)
+          (fun _ _ => by rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl]; trivial))
       · rw [hcap4 y hy, if_neg (by rwa [cslotAddr_nil] at hne)]
       · rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl] at h; cases h
     show _ ∈ ((Fl4Spec.getIrqSlot _ >>= fun irqSlot => Fl4Spec.capDeleteOne irqSlot >>= fun _ =>

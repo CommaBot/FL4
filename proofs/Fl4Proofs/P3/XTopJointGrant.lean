@@ -370,7 +370,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R
       (J.vsc.step (vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
-        (by rw [hsv]; exact htu)))⟩
+        (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey)))⟩
 
 
 /-! ## The transfer loop at `J` -/

@@ -547,6 +547,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64}
       (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) ⟨_, hAs.isSlot, hthr⟩
       (fun P L4 L3 L2 L1 h => by
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
+      (fun U h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
     have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) (absCap nc) (ps.bv, idxs)
         (t.bv, Fl4Spec.tcbCnodeIndex n) σ1).1 := by rw [hins]; rfl
     have hcn := capInsert_nkn _ _ _ σ1 _ hmem

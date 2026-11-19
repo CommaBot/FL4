@@ -447,7 +447,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   have hX2 := J.xtop.vs_backK hX2 hwS hcn2 hkc
   refine ⟨rfl, _, G2, Z.vs, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc,
     J.vsc.step (Vs.VsSlotsT.of_some (· = cslotAddr (q.bv, idx)) (fun y hy hn => hoth2 y hy hn)
-      fun y _ e _ _ _ _ _ _ => by rw [e, hnull2]; trivial), hDS2c, hnull2,
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hnull2]; trivial) fun y _ e _ _ => by rw [e, hnull2]; trivial), hDS2c, hnull2,
     hoth2, hw, rfl, rfl, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := (q.bv, idx)) (fun y hy e => hoth2 y hy e) hnull2 hw rfl horig hgp hM2 hUt
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc

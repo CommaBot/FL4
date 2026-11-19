@@ -179,7 +179,33 @@ end
 The form carried at `J` (`JAtZ.vsc`): every slot of the typed heap holds a
 placed cap (a null cap is placed), so no MDB ghost is involved;
 `VsSlotsT th m m'` is a step's obligation: placed slots before give placed
-slots after, at every set. -/
+slots after, at every set, and (`FrSlots`) every non-device frame cap's
+bytes lying in a set `U` before gives the same after, at every `U` (a step
+moves, copies or derives frame caps only within the ranges of frame caps
+before: what `JAtZ.fcap`, l4v `valid_cap` for frame caps, is kept by). -/
+
+/-- **A non-device frame cap's bytes lie in `U`** (every other cap: no
+condition). -/
+def FrIn (U : Nat → Prop) : capability.Cap → Prop
+  | .Frame q sz _ d _ _ _ _ => d = false → ∀ a : Nat, q.val ≤ a → a < q.val + 2 ^ (fbitsF sz).val → U a
+  | _ => True
+
+theorem FrIn.mono {U U' : Nat → Prop} {c : capability.Cap} (h : FrIn U c) (hU : ∀ a, U a → U' a) : FrIn U' c := by
+  cases c with
+  | Frame q sz r d m e a v => exact fun hd x h1 h2 => hU x (h hd x h1 h2)
+  | _ => trivial
+
+/-- `FrIn` reads only the cap's object key (`okey`: a frame's base, size and
+device flag). -/
+theorem FrIn.of_okey {U : Nat → Prop} {c c0 : capability.Cap} (h : okey c = okey c0) (h0 : FrIn U c0) :
+    FrIn U c := by
+  cases c with
+  | Frame q sz r d m e a v =>
+    cases c0 <;> simp [okey] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h; exact h0
+  | _ => trivial
+
+theorem FrIn.null (U : Nat → Prop) : FrIn U .Null := trivial
 
 section
 variable {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m m' m'' : U64 → U64}
@@ -188,15 +214,30 @@ variable {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m m' m'' : U64 → U64}
 def VsSlotsW (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (m : U64 → U64) : Prop :=
   ∀ y, IsSlot th y → VCapW P L4 L3 L2 L1 (capV m y)
 
-/-- **A step keeps the slots placed**, at every set. -/
+/-- **Every slot's non-device frame cap's bytes in `U`.** -/
+def FrSlots (th : TypedHeap) (U : Nat → Prop) (m : U64 → U64) : Prop :=
+  ∀ y, IsSlot th y → FrIn U (capV m y)
+
+/-- **A step keeps the slots placed**, at every set, and the frame caps'
+ranges within the old ones' (`FrSlots`, at every `U`). -/
 def VsSlotsT (th : TypedHeap) (m m' : U64 → U64) : Prop :=
-  ∀ P L4 L3 L2 L1 : Set U64, VsSlotsW th P L4 L3 L2 L1 m → VsSlotsW th P L4 L3 L2 L1 m'
+  (∀ P L4 L3 L2 L1 : Set U64, VsSlotsW th P L4 L3 L2 L1 m → VsSlotsW th P L4 L3 L2 L1 m') ∧
+    ∀ U : Nat → Prop, FrSlots th U m → FrSlots th U m'
+
+theorem FrSlots.of_eq {U : Nat → Prop} (h : FrSlots th U m) (hc : ∀ y, IsSlot th y → capV m' y = capV m y) :
+    FrSlots th U m' := fun y hy => by rw [hc y hy]; exact h y hy
+
+theorem FrSlots.mono {U U' : Nat → Prop} (h : FrSlots th U m) (hU : ∀ a, U a → U' a) : FrSlots th U' m :=
+  fun y hy => (h y hy).mono hU
+
+theorem FrSlots.step {U : Nat → Prop} (h : FrSlots th U m) (hT : VsSlotsT th m m') : FrSlots th U m' :=
+  hT.2 U h
 
 theorem VsSlotsW.of_eq (h : VsSlotsW th P L4 L3 L2 L1 m) (hc : ∀ y, IsSlot th y → capV m' y = capV m y) :
     VsSlotsW th P L4 L3 L2 L1 m' := fun y hy => by rw [hc y hy]; exact h y hy
 
 theorem VsSlotsW.step (h : VsSlotsW th P L4 L3 L2 L1 m) (hT : VsSlotsT th m m') : VsSlotsW th P L4 L3 L2 L1 m' :=
-  hT P L4 L3 L2 L1 h
+  hT.1 P L4 L3 L2 L1 h
 
 theorem VsSlotsW.mono {P' L4' L3' L2' L1' : Set U64} (h : VsSlotsW th P L4 L3 L2 L1 m) (hP : P ⊆ P')
     (h4 : L4 ⊆ L4') (h3 : L3 ⊆ L3') (h2 : L2 ⊆ L2') (h1 : L1 ⊆ L1') : VsSlotsW th P' L4' L3' L2' L1' m :=
@@ -215,24 +256,29 @@ theorem VsSlotsW.atOK (h : VsSlotsW th P L4 L3 L2 L1 m) {x : U64} (hx : IsSlot t
     VCapOK P L4 L3 L2 L1 c :=
   (h.at hx hc).ok_of hm
 
-theorem VsSlotsT.refl : VsSlotsT th m m := fun _ _ _ _ _ h => h
+theorem VsSlotsT.refl : VsSlotsT th m m := ⟨fun _ _ _ _ _ h => h, fun _ h => h⟩
 
 theorem VsSlotsT.trans (h1 : VsSlotsT th m m') (h2 : VsSlotsT th m' m'') : VsSlotsT th m m'' :=
-  fun P L4 L3 L2 L1 h => h2 P L4 L3 L2 L1 (h1 P L4 L3 L2 L1 h)
+  ⟨fun P L4 L3 L2 L1 h => h2.1 P L4 L3 L2 L1 (h1.1 P L4 L3 L2 L1 h), fun U h => h2.2 U (h1.2 U h)⟩
 
 theorem VsSlotsT.of_eq (hc : ∀ y, IsSlot th y → capV m' y = capV m y) : VsSlotsT th m m' :=
-  fun _ _ _ _ _ h => h.of_eq hc
+  ⟨fun _ _ _ _ _ h => h.of_eq hc, fun _ h => h.of_eq hc⟩
 
 /-- **Slots `W` rewritten**, each new cap placed whenever the old slots are
 (a copy, move, swap, a remap: `VCapW.transfer` from a source slot), the
 others kept. -/
 theorem VsSlotsT.of_some (W : U64 → Prop) (hc : ∀ y, IsSlot th y → ¬ W y → capV m' y = capV m y)
     (hw : ∀ y, IsSlot th y → W y → ∀ P L4 L3 L2 L1 : Set U64, VsSlotsW th P L4 L3 L2 L1 m →
-      VCapW P L4 L3 L2 L1 (capV m' y)) : VsSlotsT th m m' := by
-  intro P L4 L3 L2 L1 h y hy
-  by_cases e : W y
-  · exact hw y hy e P L4 L3 L2 L1 h
-  · rw [hc y hy e]; exact h y hy
+      VCapW P L4 L3 L2 L1 (capV m' y))
+    (hf : ∀ y, IsSlot th y → W y → ∀ U : Nat → Prop, FrSlots th U m → FrIn U (capV m' y)) :
+    VsSlotsT th m m' := by
+  refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_⟩
+  · by_cases e : W y
+    · exact hw y hy e P L4 L3 L2 L1 h
+    · rw [hc y hy e]; exact h y hy
+  · by_cases e : W y
+    · exact hf y hy e U h
+    · rw [hc y hy e]; exact h y hy
 
 /-- An untyped cap is placed. -/
 theorem vcapW_ut {P L4 L3 L2 L1 : Set U64} {c : capability.Cap} (h : isUt c = true) : VCapW P L4 L3 L2 L1 c := by
