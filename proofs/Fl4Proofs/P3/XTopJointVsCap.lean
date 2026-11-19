@@ -22,7 +22,8 @@ per-op premise `JPostHyp` [W].
   XTopJointEntry's `JPath` names them: the labels and extra caps [W], the
   frame's `hno` [J] (l4v `valid_cap`/`cap_range` disjointness), the pool's
   extra cap native ([scope]: guest-root assignment, DESIGN §9); `JPostHyp`
-  only in `JFramePath` (narrowed to `DeriveSubframe`) and `JAsidCPath`.
+  only in `JAsidCPath` (the frame's last one, `DeriveSubframe`, at `J` in
+  XTopJointVsSub).
 -/
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
@@ -190,8 +191,9 @@ structure JPoolPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : 
       capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok vc ∧ CapRel vc vc' ∧ excaps = (vc', (pc.bv, idx)) :: rest
 
 /-- The native frame path: the labels and extra cap [W], `hno` [J] (l4v
-`valid_cap`: a large frame's range against the other frame caps'),
-`JPostHyp` [W] for `DeriveSubframe`. -/
+`valid_cap`: a large frame's range against the other frame caps'). Every
+label at `J` with no per-op premise (XTopJointVsSub's
+`decode_invocation_frameJS`). -/
 structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (p : U64) (sz : capability.FrameSize) (rt : U64) (d m : Bool) (asid va : U64)
     (blk call don fp : Bool) (buf : U64)
@@ -205,12 +207,6 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
     Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x)
   ex : JVsExtra (L := L) Z s extra excaps
-  /-- [W] narrowed to `DeriveSubframe` (Map and Unmap at `J`: XTopJointVsMap's
-  `decode_invocation_frameJV`; GetAddress and TestAndClearAccessed: XTopJointVsReply's
-  `decode_invocation_frameJR`). -/
-  post : lbl = fl4_abi.label.X86PageDeriveSubframe →
-    JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Frame p sz rt d m false asid va) blk call don fp
-      buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
 /-- The ASID control path: the label [W], the extra caps (`JMpExtra`, [W]
 with the region facts [J]), `MpPlacedHyp` [J], `JPostHyp` [W]. -/

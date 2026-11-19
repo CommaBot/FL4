@@ -34,6 +34,7 @@ import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
+import Fl4Proofs.P3.XTopJointVsSub
 import Fl4Proofs.P3.XTopJointUt
 import Fl4Proofs.P3.ScJointUnbind
 import Fl4Proofs.P3.ScJointConsumed
@@ -578,7 +579,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .Frame p sz rt d m ep asid va =>
       (ep = true → JVtxScope (L := L) arI AR s ar σ lbl length (.Frame p sz rt d m ep asid va) blk call don fp buf extra
         slbl argsU ci sl excaps buffer ct) ∧
-      (ep = false → JFramePath (L := L) arI AR Z s ar σ lbl length p sz rt d m asid va blk call don fp buf extra slbl
+      (ep = false → JFramePath (L := L) AR Z s ar σ lbl length p sz rt d m asid va blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
   | .AsidControl => JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
       buffer ct
@@ -618,7 +619,7 @@ on the cap:
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield) | the label [W]; YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
-| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJR` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]; the frame's `DeriveSubframe`: `JPostHyp` [W]) |
+| PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]) |
 | ASID control | `decode_invocation_asid_controlJ` (XTopJointVsCap) | `JAsidCPath` (label, extra [W]; `JPostHyp` [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (label, extra [W], fan-out, core 0 [P], `JUtRetHyp` [W]: the retype after the decode); VT-x types `JVtxScope` [scope] |
@@ -827,8 +828,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       obtain ⟨p0, hp0, hth0⟩ := hsl
       try simp only at hp0 hth0
       subst hp0
-      exact (decode_invocation_frameJR arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hF.hlbl hF.hlGA length buf ct
-        hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps hF.ex blk call don fp ci buffer hF.post).toP arI hPre
+      exact (decode_invocation_frameJS arI s ar σ J hni hG.delParts.archRef hVC lbl slbl hF.hlbl hF.hlGA length buf ct
+        hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps hF.ex blk call don fp ci buffer).toP arI hPre
     · exact hV rfl
   case AsidControl =>
     have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
