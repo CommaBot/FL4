@@ -761,3 +761,60 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   * Then cases in XTopJointRecvIpcLink (`RecvSendTmoCase` split by receiver ntfn / push) and delete
     `JRecvSendHyp`, its parameter of jRecvIpcU_of/jRecvIpcLink_of/jRecvIpcHypL_of/dispatch_recvJL.
 - M5/M6/M7: not started.
+## kp5 (branch par/budget in FL4-tcbj, on 9060ec31)
+- DONE 91a38af5 (new leaf ScChargeR, std axioms; (b) round-robin part): `charge_budget used true` for a round-robin
+  current SC is `charge_budget used false` on both sides (`end_timeslice`'s timeout branch needs `!rr`).
+  `endTimeslice_rr`/`end_timeslice_rr`, `chargeHead_rr` (the spec head of an RR SC is an explicit `updSc` keeping
+  `scPeriod`; no `HeadKeeps` change needed), `charge_budget_rr` (FL4's period word after the head read from
+  `SchedRel` there + determinism of the head), `NoTmoSend σ` := no endpoint timeout handler ∨ RR current SC,
+  `JAtZ.chargeBudgetRJ`/`TJ`, `JHole.chargeBudgetRJ`/`TJ`. `JHole.checkBudgetF` and `JAtZ.budgetOkF` now take
+  `hnt : NoTmoSend σ` (was: no endpoint handler); callers: none outside these leaves.
+- DONE f737f874 (new leaves ScChargeT, XTopJointBudgetT, std axioms; (a) and the rest of (b) for an idle/sending
+  handler endpoint):
+  * P1: `sched.charge_head.ring` (the head's writes: ring + SC CONSUMED word, factored out of `charge_budget.allF`),
+    `rperiod_of_ring` (the head keeps the period word), `charge_pre_post` (BlkOK and a Foot-closed `G` after the
+    head and the node CONSUMED write). Spec: `nkt_/pres_/lkm_/fk_chargeHead`.
+  * `ScOnly c σ σ'` (kheap changes only at SC `c`, keeping size/scTcb/refillMax/yieldFrom/replies, ntfn kept or
+    cleared) + frame lemmas (szKeep, ykeep, mcpKeep, bufKeep, kback, ksz, ksub, khrb, ipcFr, prio, othF/othB,
+    scF/scB, tcbF/tcbB).
+  * `JTH … s0 a0 σ0 s a σ` (structure beside JAtZ, kp4's JHole pattern): JAtZ at the base, FL4 writes from it in
+    its KFoot, `ScOnly σ0.curSc σ0 σ` + scheduler fields equal + consumedTime 0, and at the hole XTopAt, buffer
+    words, NSC, `InvBut σ σ.curThread`, ActIdle, BlockedScActive, CurOwnW, IpcSorted, BlkOK, node-0 debug word.
+  * `JTH.tmoBlockJ`: `handle_timeout` of the current thread (Running/Restart, not queued, action
+    ResumeCurThread, not idle, active SC) with an endpoint handler on an idle/sending endpoint: runTmoJ's tail
+    for the current thread; the end assembled from the BASE JAtZ with composite frame facts (ScOnly then BFrT:
+    SzKeep/YKeep/McpKeep/BufKeep/KBack/KSz/KSub/KhRB/IpcFrKeep/call/reply/archObj via the existing `.trans`
+    lemmas), Inv by `InvBut.ik` at the hole + `inClassR.notTmoS`; state properties (nsc, own, bsa, isorted,
+    act) pushed from the hole through `BFrT`. `JAtZ (Z.mv Z.G V)` after with the action chooseNewThread.
+  * `JTH.endTimesliceTmoJ` (both sides take the timeout branch), `JHole.chargeBudgetTmoJ` (whole
+    `charge_budget used true` from a JHole, ends with `JAtZ.reschedJ` + `JAtZ.reprogramJ`; post: membership
+    `∃ z ∈ (chargeBudget …).1, ∃ V Ac' Lst' D', JAtZ (Z.mv Z.G V) …`), `JHole.checkBudgetT`, `JAtZ.budgetOkT`
+    (budget_ok false branch: `∃ z ∈ ((updateTimeStamp >>= checkBudgetRestart) σ).1, z.1 = false ∧ JAtZ …`;
+    restart branch generic via `restartRunJ`).
+  * No premise added or removed. Case restrictions (not invariant gaps): `hcb` (handler endpoint idle or
+    sending), `hrr` (current thread Running/Restart), `hnq` (= JEntryAt.ctnq at entry), `hres` (Entered).
+- Item 10 coverage now: NoTmoSend (budgetOkF) + endpoint handler, non-RR, idle/sending endpoint (budgetOkT).
+  LEFT: (i) handler endpoint with waiting receivers: the current thread's timeout-fault transfer to a receiver
+  = XTopJointFaultTmo `sendTmoRecvIJ`/`sendTmoRecvPJ` analogue started from a `JTH` (those build their base with
+  `JAtZ.tmoBaseJ`, which needs JAtZ at the send's start: at a JTH the base is the entry state, so the frames go
+  ScOnly-then-CFr as in tmoBlockJ; expect ~1200 lines, two cases (Inactive / reply push)); (ii) a RUNNING_VM
+  current thread with an endpoint handler: `valid = false`, so add a third disjunct `xt.tcbState = .runningVM`
+  to `NoTmoSend` (copy `endTimeslice_noTmo`/`end_timeslice_noTmo` with the VM guard; ~60 lines).
+- NOT DONE (c) item 7 / `hPre`: `JAtPre`'s second disjunct is the post of a PREEMPTING `sched.preemption_point`
+  from a `JAt` state (XTopJointCnDel); `hPre` (XTopJointDispatch `dispatch_invokeJ`) needs `after_invocation
+  (Err)` = `mcs_preemption_point` + `take_pending_irq` + `check_interrupt` from such states. Steps: (1) ppJ-style
+  facts after a preempting `preemption_point` (XTopJointPP `JAtZ.ppJD` covers only the non-preempting outcome;
+  the preempting one should end at a JHole-like state: it runs `update_timestamp`, so `JAtZ.timestampJH`);
+  (2) `mcs_preemption_point` branches: schedulable → `check_budget` (`JHole.checkBudgetF`/`T`; note the action
+  there may be chooseNewThread or a switch, so `checkBudgetT`'s `hres` must be generalised: with a switch target
+  pending the current thread's block leaves `cur` unprovable — CurInv fails and the action is not
+  chooseNewThread — l4v's preemption point has the same shape, so it needs the action-after facts from the
+  invocation (switch targets are set only by possible_switch_to, check whether `JAtPre`'s state can have one)),
+  active SC → `JHole.chargeBudgetJ` (needs CurInv; unbound current SC case of kp1 remains), inactive SC → node
+  CONSUMED := 0; (3) `check_interrupt` at J with M4 [P]. Not started.
+- Builds: kp5-b2 (`ScChargeR ScChargeH XTopJointBudgetF`), kp5-b12/b13 (`ScChargeT XTopJointBudgetT`, 5168/5176
+  jobs), kp5-ax1 (`XTopJointEntry`, 5368 jobs, + scratch/axkp5.lean, untracked): std axioms only for
+  charge_budget_rr, JAtZ/JHole.chargeBudgetTJ, checkBudgetF, budgetOkF, JTH.tmoBlockJ, JTH.endTimesliceTmoJ,
+  JHole.chargeBudgetTmoJ, JHole.checkBudgetT, JAtZ.budgetOkT, handle_invocation_refinesJ. Build script
+  proofs/scratch/kp5build.sh (kp1build.sh with longer error output; untracked).
+- HANDOFF (kp5 stopped for context after (a)/(b) idle/sending case). Next: (ii) above (cheap), then (i) or (c).
