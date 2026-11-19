@@ -526,3 +526,44 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   reply cap non-null: `reply_push sender cur reply can_donate`), and (d4') senders with a fault other than a
   cap fault (needs footprint lemmas like XTopJointFaultRecv's `do_ipc_transfer_capF_rg/_rgB` for the other
   fault messages, EpFaultNone/EpFaultMore give the IRel level for all kinds; then `recvSendFJG` generalised).
+## kp2 (branch par/budget in FL4-tcbj, on 8c856ee4)
+- DONE (new leaf XTopJointBudgetOk, imported from Fl4Proofs.lean; kp2-b4 `lake build Fl4Proofs.P3.XTopJointBudgetOk`
+  5058 jobs OK; scratch/axkp2.lean (untracked): std axioms only for `JAtZ.budgetOkJ`, `Sched.check_budget_restartT`,
+  `Sched.checkBudgetRestart_suff`, `handle_invocation_refinesJ`). Item 10, the true branch, no premise added:
+  * `Sched.check_budgetT` / `Sched.check_budget_restartT` (SchedRel level): FL4 returns `true` only in the
+    `sufficient` branch (one domain: `is_cur_domain_expired_eq`), then state and arch unchanged and the spec's
+    `getScRefillSufficient curSc consumedTime = {(true, σ)}` plus the head's `refillSufficient`; the charge/restart
+    branches by P0 totality only (`P0.sched.charge_budget.p0` etc.), post vacuous (`r.1 = false`).
+  * `Sched.checkBudgetRestart_suff` (spec): sufficient current SC ⇒ `checkBudgetRestart σ = {(true, σ)}`.
+  * `JAtZ.budgetOkJ`: from `JAtZ` + `CurInv σ` + `OffReady σ` (as `budget_ok_offReady`), [P] `NowAgree`, `hmb`,
+    `ARKeep`, `ArchTotal`, `numDomains = 1`: `syscall.budget_ok ⦃ r => r.1 = true → ∃ σ', (updateTimeStamp >>=
+    checkBudgetRestart) σ = {(true, σ')} ∧ kheap/curThread/curSc/schedulerAction/idleThread kept ∧ CurInv σ' ∧
+    OffReady σ' ∧ ∃ Ac' Lst' D', JAtZ … r.2.1 r.2.2 σ' ⦄` (`JAtZ.timestampJ` in parallel with
+    `update_timestamp_refines` for `Inv`/`CurInv` after; `OffOK` = `OffReady.ok` with the sufficient head;
+    `CurOwnW` by `curOwn_of_curInv`). So `Entered`, `OffReady.rd0` (JEntryAt.rd0) are available at dispatch.
+- NOT DONE (a): the current thread's timeout send inside `charge_budget can=true`. FINDINGS for the next agent:
+  * `JAtZ.faultBlockJ` (XTopJointFaultEp, the current thread's cap-fault block) uses `Inv` only at the end
+    (`(J.inv.toBut ct).ik hnqT hik` + `J.inv.rd ct` for the RelIfBound of the blocked thread). For a TIMEOUT fault
+    the blocked thread is exempt (`inClassR` excludes blockedOnSend with a timeout fault; Inactive / blockedOnReply
+    are not in class), so only `InvBut σ ct` is needed -- which is exactly what holds at the hole after the head
+    charge. But every other `J.*` lemma it uses needs a full `JAtZ` at the send's start, which does not exist at the
+    hole (Inv.rd of ct genuinely fails there: insufficient head ⇒ not `released`). No JAtZ field may change.
+  * Route ("frames from the base", as ke10's `recvSendJ0` / XTopJointFaultTmo's `sendTmoRecvIJ`): keep `J0` at the
+    pre-charge state σ0 and assemble the end by `J0.cs_frameI` with `W = CnW … s0 σ0` (CnW ⊇ FinW ⊇ KFoot, so the
+    SC ring / SC CONSUMED / node words of the head are inside) and a composite spec frame σ0 → σ' = "SC step at
+    curSc (HeadKeeps: only refills/consumed, scTcb and refillMax kept) + consumedTime := 0" then `BFrT ct ep`
+    (XTopJointSendBlockG). Steps: (1) `charge_head_refinesK` (ScChargeG) for SchedRel/NtfnStateRel/NSC/KFoot at s2,
+    IRel at s2 by `sc_step_lift` (as `JAtZ.setScConsumedJ`); (2) P1 at the hole: the head's P1 posts are inline in
+    `sched.charge_budget.allF` (ring_bx, node_bx) -- factor them out as a lemma (charge_budget.allG needs TmoKG, a
+    ∀-state premise, unusable); `P1.CanBlock` of ct from J0.curBits (queue bits untouched by the head);
+    (3) spec: `chargeBudget u true` at a schedulable ct with a valid handler and non-RR SC = chargeHead; consumed := 0;
+    handleTimeout ct (.timeout badge); rescheduleRequired; reprogram (`end_timeslice_refinesG`'s `hspec` shape);
+    (4) faultBlockJ's body from `set_fault` (timeout words: `set_fault_timeout_eq`, XTopJointSendBlockG) on, with
+    every start fact read off J0 + HeadKeeps, `Inv` at the end by `InvBut.ik` from `InvBut σ2 ct` (charge_head's
+    post); (5) then `reschedule_required` / `set_reprogram` at J (the tail of `charge_tail_refinesF`). The
+    waiting-receiver cases additionally use `xferTmoStepJ` (XTopJointFaultTmo) and `sendFaultIJ`/`sendFaultPJ`
+    (can_donate = false: no PDJ). Expect ~800 lines for the block case alone.
+- (b) false branch and (c) item 7 wait on (a). Item 7 note: `JAtPre`'s second disjunct is the post of a PREEMPTED
+  `sched.preemption_point` from a JAt state (XTopJointCnDel), so `hPre` first needs ppJ-style facts at that post
+  (XTopJointPP `JAtZ.ppJD` covers only the non-preempting outcome).
+- HANDOFF (kp2 stopped: (a) is several hundred lines beyond this context). Builds via proofs/scratch/kp1build.sh.
