@@ -438,7 +438,7 @@ def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` at `J` with a null or free reply** (the former `jRecvIpcHyp_of`'s
 case split, the waiting sender from `JRecvSendHyp`). -/
-theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
+theorem jRecvIpcU_of (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) (p b : U64) (sd g gr : Bool) (rc : capability.Cap) (rc' : Fl4Spec.Cap)
@@ -506,14 +506,14 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
     have hrun := (J.curRun.run hni) xt (by rw [hcur]; exact hkt)
     rcases hbn xt hkt with hb0 | ⟨n0, xn, hbn0, hkn, hna⟩
-    · exact J.recvSendJ0X hZ ht hkt hrun (Or.inl hb0) hcur he hke' hks
+    · exact J.recvSendJ0X ht hkt hrun (Or.inl hb0) hcur he hke' hks
         b sd true g gr hra hok b.bv (rightsOf sd true g gr)
     by_cases hl : blocking = true ∧ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)
     · obtain ⟨rfl, hl⟩ := hl
       obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
-      exact J.recvSendRetJ hZ ht hcur hni hnq hkt hn hbn0 hkn hna hl he hke' hks b sd true g gr hra hok b.bv
+      exact J.recvSendRetJ ht hcur hni hnq hkt hn hbn0 hkn hna hl he hke' hks b sd true g gr hra hok b.bv
         (rightsOf sd true g gr)
-    · exact J.recvSendJ0X hZ ht hkt hrun (Or.inr ⟨n0, xn, hbn0, hkn, hna, fun hb h => hl ⟨hb, h⟩⟩) hcur he hke' hks
+    · exact J.recvSendJ0X ht hkt hrun (Or.inr ⟨n0, xn, hbn0, hkn, hna, fun hb h => hl ⟨hb, h⟩⟩) hcur he hke' hks
         b sd true g gr hra hok b.bv (rightsOf sd true g gr)
   by_cases hcp : RecvSendPushCase ct blocking σ p rc
   · obtain ⟨hbn, sd0, q, xs, hke', hks, hok⟩ := hcp
@@ -528,7 +528,7 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
       · exact absurd h1 hok.1
       · exact (J.rp.align rv hr).2.1
     obtain ⟨-, hcovR⟩ := J.recvCov_of he hHd hHr hra
-    exact J.recvSendP0X hAT hZ ht hkt hrun (hbn xt hkt) hcur hni hnq he hke' hks b sd true g gr hra (hcovR hrv0) hok
+    exact J.recvSendP0X hAT ht hkt hrun (hbn xt hkt) hcur hni hnq he hke' hks b sd true g gr hra (hcovR hrv0) hok
       b.bv (rightsOf sd true g gr)
   by_cases hcr : RecvSendRetPushCase ct blocking σ p rc
   · obtain ⟨rfl, hbn, sd0, q, xs, hke', hks, hok⟩ := hcr
@@ -540,9 +540,9 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
     obtain ⟨n0, xn, hbn0, hkn, hna, hl1, hl2⟩ := hbn xt hkt
     obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
     by_cases hsn : xs.tcbSchedContext = none
-    · exact J.recvSendRetPJ hAT hZ ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
+    · exact J.recvSendRetPJ hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
         hHd hHr b.bv (rightsOf sd true g gr)
-    · exact J.recvSendRetPDJ hAT hZ ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
+    · exact J.recvSendRetPDJ hAT ht hcur hni hnq hkt hn hbn0 hkn hna ⟨hl1, hl2⟩ he hke' hks b sd hra hok hsn
         hHd hHr b.bv (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
@@ -562,7 +562,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`receive_ipc` at `J` with a reply linked to another thread**
 (module docstring): FL4's and the spec's `cancel_ipc` of that thread
 (`JAtZ.cancelLinkJ`), then `jRecvIpcU_of` at the state after. -/
-theorem jRecvIpcLink_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
+theorem jRecvIpcLink_of (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) (p b : U64) (sd g gr : Bool) (q : U64) (g' : Bool) (rc' : Fl4Spec.Cap)
@@ -611,30 +611,30 @@ theorem jRecvIpcLink_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR 
   obtain ⟨e, he', h⟩ := J.obj.ep _ xe hke
   rw [Sched.bv_inj h] at he'
   obtain ⟨xe', hke', -⟩ := hR'.ep p he'
-  exact jRecvIpcU_of (Z := Z.mv Z.G V) (fun Z' s' a' σ' h => hZ Z' s' a' σ' h) hS hAT J' ht (hct'.trans hcur) ⟨by rw [hct', hid']; exact hni.1, by rw [hact']; exact hni.2⟩
+  exact jRecvIpcU_of (Z := Z.mv Z.G V) hS hAT J' ht (hct'.trans hcur) ⟨by rw [hct', hid']; exact hni.1, by rw [hact']; exact hni.2⟩
     (by rw [hct', hrq']; exact hnq) blocking p b sd g gr (.Reply q g') _ ⟨xe', hke'⟩
     (Or.inr ⟨hcr, q, g', rfl, xr', hkr'⟩) (jHeld_of_same hSS hHd) (fun _ _ _ => jHeld_of_same hSS hHr)
     (Or.inr ⟨q, g', rfl, h0'⟩)
 
 /-- **`JRecvIpcHyp` from `JRecvSendHyp`** (`jRecvIpcU_of` for a null or free
 reply, `jRecvIpcLink_of` for a linked one). -/
-theorem jRecvIpcHypL_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
+theorem jRecvIpcHypL_of (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)
     (hcur : σ.curThread = ct.bv) (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (blocking : Bool) : JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ := by
   intro p b sd g gr rc rc' hpE hrc hHd hHr
   by_cases hun : rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64
-  · exact jRecvIpcU_of hZ hS hAT J ht hcur hni hnq blocking p b sd g gr rc rc' hpE hrc hHd hHr hun
+  · exact jRecvIpcU_of hS hAT J ht hcur hni hnq blocking p b sd g gr rc rc' hpE hrc hHd hHr hun
   · rcases hrc with ⟨rfl, -⟩ | ⟨hcr, q, g', rfl, xr, hkr⟩
     · exact absurd (Or.inl rfl) hun
-    · exact jRecvIpcLink_of hZ hS hAT J ht hcur hni hnq blocking p b sd g gr q g' rc' hpE hcr hkr hHd (hHr q g' rfl)
+    · exact jRecvIpcLink_of hS hAT J ht hcur hni hnq blocking p b sd g gr q g' rc' hpE hcr hkr hHd (hHr q g' rfl)
         (fun h => hun (Or.inr ⟨q, g', rfl, h⟩))
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJS` with `jRecvIpcHypL_of`**: the receiving syscalls at
 `J` against `fl4HandleEvent rep`'s branches; premise the waiting-sender case
 (`JRecvSendHyp` [W]). -/
-theorem dispatch_recvJL (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
+theorem dispatch_recvJL (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -646,8 +646,8 @@ theorem dispatch_recvJL (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal ar
         y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
   have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  exact dispatch_recvJS rep hZ hAT s a σ J hni hct hnq hvfh number bl cr hn
-    (jRecvIpcHypL_of hZ hS hAT J hctT hcur hni hnq bl)
+  exact dispatch_recvJS rep hAT s a σ J hni hct hnq hvfh number bl cr hn
+    (jRecvIpcHypL_of hS hAT J hctT hcur hni hnq bl)
 
 end
 

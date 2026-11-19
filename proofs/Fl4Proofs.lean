@@ -565,6 +565,7 @@ import Fl4Proofs.P3.BufFrN
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
 import Fl4Proofs.P3.BufInv
+import Fl4Proofs.P3.BufJ
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.IpcSlotsSameZ
 import Fl4Proofs.P3.VsCapWBase

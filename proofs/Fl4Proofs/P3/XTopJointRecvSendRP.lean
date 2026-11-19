@@ -32,7 +32,7 @@ reply, the receiver's bound notification lending it its SC, at `J`** (module
 docstring): XTopJointRecvSendRet's route, then XTopJointRecvSendP's
 `JAtZ.recvSendPJG` / `JAtZ.recvSendFPJG` at the state after
 `maybe_return_sc` (a reschedule pending, the receiver without an SC). -/
-theorem JAtZ.recvSendRetPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -140,10 +140,10 @@ theorem JAtZ.recvSendRetPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JA
     Or.inr ⟨n.bv, xn, hbn, hkn2, hna, fun _ => hnr2⟩
   rw [hsp]
   obtain ⟨hrn, hyes, ⟨hfs, hcl⟩ | ⟨f, hft, hto⟩⟩ := hok
-  · exact J2.recvSendPJG hAT hZ ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hfs hA2 cb c1 true g gr hrc2
+  · exact J2.recvSendPJG hAT ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hfs hA2 cb c1 true g gr hrc2
       (hcovR hrv0) hcl hyes hrn b rights (m := Endp.recvTail st arI s' a t e rv)
       (fun h => by unfold Endp.recvTail; exact h)
-  · exact J2.recvSendFPJG hAT hZ ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hft hto hA2 cb c1 true g gr hrc2
+  · exact J2.recvSendFPJG hAT ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hft hto hA2 cb c1 true g gr hrc2
       (hcovR hrv0) hyes hrn b rights (m := Endp.recvTail st arI s' a t e rv)
       (fun h => by unfold Endp.recvTail; exact h)
 

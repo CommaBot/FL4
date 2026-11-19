@@ -446,7 +446,7 @@ timeout, the receiver (current) without an SC, a reschedule pending, the
 current SC bound to no thread; the push donates `p` to the receiver
 (`reply_push_iC`'s donation step: `JAtZ` at the block by `JAtZ.rsfr_postGR`,
 then `JAtZ.pushDonRJ`). -/
-theorem JAtZ.recvSendFPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendFPDJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -588,19 +588,19 @@ theorem JAtZ.recvSendFPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by simp [σ1, hte, hkt]
   have hks1 : σ1.kheap sd'.bv = some (.tcb xs) := by simp [σ1, hse, hks]
   have hk1e : σ1.kheap e.bv = some (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv)) := by simp [σ1]
-  have hOK1 : Endp.IpcBufCapOK σ1 := ipcBufCapOK_epStep (hZ Z s a σ rfl J.xtop).1 (EpStep.ep hk)
+  have hOK1 : Endp.IpcBufCapOK σ1 := ipcBufCapOK_epStep (J.xferH).1 (EpStep.ep hk)
   have hth : Z.th t = some .tcb := by
     obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
     exact Ipc.RelTopB.tcbT hB0' hkt
   have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
   have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
-  have hUt := J.rbufU hZ ht hth hkt
+  have hUt := J.rbufU ht hth hkt
   have hok : FaultOK (L := L) s1 sd' xs f := by
     cases f with
     | timeout b0 => exact absurd rfl (hnto b0)
     | _ => trivial
   refine WP.spec_bind (xferFaultStepGJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
-    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) hsT ht (Ne.symm hts) hks1 hkt1 hft hok e bdg (i != 0#u64)
+    (bufCover_epStep (J.xferH).2.1 (EpStep.ep hk)) hsT ht (Ne.symm hts) hks1 hkt1 hft hok e bdg (i != 0#u64)
     hTP htH h1 hB1 hX1 hS1' hSg1 (fun b hb => ⟨(hUt b hb).1.ksb hW1.1, (hUt b hb).2⟩)) ?_
   rintro s2 ⟨x2, um2, e2, hx2, hR2, hS2, hA2, w2, h2, hB2, hX2, hS2'', hSg2, f2⟩
   set σ2 := Notif.updK (Endp.setUm σ1 um2) t.bv (.tcb x2) with hσ2
@@ -987,7 +987,7 @@ theorem JAtZ.recvSendFPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAt
     have hfoot := footW_trans (footW_trans (footW_trans (footW_trans (footW_of F1) F2) (footW_of fu3))
       (footW_of f1)) (footW_of f4)
     -- back to `JAtZ` at the block
-    obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX hZ ht hth hkt hW4' hfoot
+    obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX ht hth hkt hW4' hfoot
     have hIu := Ju.xtop.irelK Ju.ks Ju.buf
     have htD := Ju.not_dead_of_st hsT hks (by rw [hstd]; simp [tsCode])
     have hF : IFrame (L := L) Z.th su s4 := IRel.iframe_of hIu hWu fun b hb => CnW.oobj hIu.2.2.1 hb
@@ -1041,7 +1041,7 @@ set_option maxHeartbeats 64000000 in
 /-- **`receive_ipc` from a calling head sender (no fault) with an SC pushing
 a reply and donating the SC at `J`** (module docstring): XTopJointRecvSendP's
 `JAtZ.recvSendPJG` with the donation of `JAtZ.recvSendFPDJ`. -/
-theorem JAtZ.recvSendPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendPDJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -1179,7 +1179,7 @@ theorem JAtZ.recvSendPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     exact UScalar.eq_of_val_eq hi2
   have hbb : bdg.bv = dd.senderBadge := by rw [hbdg, hbw]; exact hbadge
   -- the transfer
-  refine WP.spec_bind (J.xferStepGJ hZ hk (epDeq (.sendEP (sd'.bv :: q)) sd'.bv) hR1 hS1 hW1 F1 hsT ht (Ne.symm hts)
+  refine WP.spec_bind (J.xferStepGJ hk (epDeq (.sendEP (sd'.bv :: q)) sd'.bv) hR1 hS1 hW1 F1 hsT ht (Ne.symm hts)
     hks hkt hfs bdg (i != 0#u64) h1 hB1 hX1 hS1' hSg1) ?_
   rintro s2 ⟨x2, um2, y, σy, Gy, Jy, e2, hx2, hR2, hS2', hA2, hW2, F2, h2, hB2, hX2, hS2'', hSg2, f2, hksb, hKy, hCnKy, hyk⟩
   have hncn : ∀ {q' : Fl4Spec.ObjRef} {o' : Fl4Spec.KernelObject}, σ.kheap q' = some o' →
@@ -1570,7 +1570,7 @@ theorem JAtZ.recvSendPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
       obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
       exact Ipc.RelTopB.tcbT hB0' hkt
     obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := JAtZ.bufRebaseX (Z := Z.mv Gy Z.vs)
-      (fun Z' s' a' σ' h => hZ Z' s' a' σ' h) Jy ht hth hkty hW4' hfoot
+      Jy ht hth hkty hW4' hfoot
     have hIu := Ju.xtop.irelK Ju.ks Ju.buf
     have htD := Ju.not_dead_of_st hsT hksy (by rw [hstd]; simp [tsCode])
     have hF : IFrame (L := L) Z.th su s4 := IRel.iframe_of hIu hWu fun b hb => CnW.oobj hIu.2.2.1 hb
@@ -1627,7 +1627,7 @@ passive-server call; module docstring): XTopJointRecvSendRP's route, then
 `maybe_return_sc` (a reschedule pending, the receiver without an SC, the
 current SC the notification's, now bound to no thread): the push donates the
 sender's SC to the receiver. -/
-theorem JAtZ.recvSendRetPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendRetPDJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
@@ -1744,10 +1744,10 @@ theorem JAtZ.recvSendRetPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : J
     Or.inr ⟨n.bv, xn, hbn, hkn2, hna, fun _ => hnr2⟩
   rw [hsp]
   obtain ⟨hrn, hyes, ⟨hfs, hcl⟩ | ⟨f, hft, hto⟩⟩ := hok
-  · exact J2.recvSendPDJ hAT hZ ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hfs hpC hp0 rfl (act hcur.symm)
+  · exact J2.recvSendPDJ hAT ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hfs hpC hp0 rfl (act hcur.symm)
       (fun h => hnrl (rel _ h)) hcsC2 hk02 rfl cb c1 true g gr hrc2 (hcovR hrv0) hcl hyes hrn b rights
       (m := Endp.recvTail st arI s' a t e rv) (fun h => by unfold Endp.recvTail; exact h)
-  · exact J2.recvSendFPDJ hAT hZ ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hft (fun b0 e0 => hsn (hto b0 e0))
+  · exact J2.recvSendFPDJ hAT ht kt hr hbN2 hcur2 hni2 hnq2 he hk2 hks2 hft (fun b0 e0 => hsn (hto b0 e0))
       hpC hp0 rfl (act hcur.symm) (fun h => hnrl (rel _ h)) hcsC2 hk02 rfl cb c1 true g gr hrc2 (hcovR hrv0)
       hyes hrn b rights (m := Endp.recvTail st arI s' a t e rv) (fun h => by unfold Endp.recvTail; exact h)
 

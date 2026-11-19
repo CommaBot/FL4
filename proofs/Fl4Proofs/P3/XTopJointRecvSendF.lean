@@ -20,6 +20,7 @@ but a timeout fault of a sender with an SC.
 -/
 import Fl4Proofs.P3.XTopJointRecvSend
 import Fl4Proofs.P3.XTopJointXferF
+import Fl4Proofs.P3.BufJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -47,7 +48,7 @@ set_option maxHeartbeats 64000000 in
 without an SC), no reply pushed
 (module docstring), for any FL4 program `m` reducing to the endpoint-state
 switch. -/
-theorem JAtZ.recvSendFJG (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendFJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -182,13 +183,13 @@ theorem JAtZ.recvSendFJG (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs A
   have hkt1 : σ1.kheap t.bv = some (.tcb xt) := by simp [σ1, hte, hkt]
   have hks1 : σ1.kheap sd'.bv = some (.tcb xs) := by simp [σ1, hse, hks]
   have hk1e : σ1.kheap e.bv = some (.endpoint (epDeq (.sendEP (sd'.bv :: q)) sd'.bv)) := by simp [σ1]
-  have hOK1 : Endp.IpcBufCapOK σ1 := ipcBufCapOK_epStep (hZ Z s a σ rfl J.xtop).1 (EpStep.ep hk)
+  have hOK1 : Endp.IpcBufCapOK σ1 := ipcBufCapOK_epStep (J.xferH).1 (EpStep.ep hk)
   have hth : Z.th t = some .tcb := by
     obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
     exact Ipc.RelTopB.tcbT hB0' hkt
   have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
   have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
-  have hUt := J.rbufU hZ ht hth hkt
+  have hUt := J.rbufU ht hth hkt
   have hok : FaultOK (L := L) s1 sd' xs f := by
     cases f with
     | timeout b0 =>
@@ -199,7 +200,7 @@ theorem JAtZ.recvSendFJG (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs A
       exact ⟨hsc, optRef_none (hscw.symm.trans hsc)⟩
     | _ => trivial
   refine WP.spec_bind (xferFaultStepGJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
-    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) hsT ht (Ne.symm hts) hks1 hkt1 hft hok e bdg (i != 0#u64)
+    (bufCover_epStep (J.xferH).2.1 (EpStep.ep hk)) hsT ht (Ne.symm hts) hks1 hkt1 hft hok e bdg (i != 0#u64)
     hTP htH h1 hB1 hX1 hS1' hSg1 (fun b hb => ⟨(hUt b hb).1.ksb hW1.1, (hUt b hb).2⟩)) ?_
   rintro s2 ⟨x2, um2, e2, hx2, hR2, hS2, hA2, w2, h2, hB2, hX2, hS2'', hSg2, f2⟩
   set σ2 := Notif.updK (Endp.setUm σ1 um2) t.bv (.tcb x2) with hσ2
@@ -404,7 +405,7 @@ theorem JAtZ.recvSendFJG (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs A
   have act5 : σ5.schedulerAction = σ.schedulerAction := by
     rw [hσ5, stsAct_ne hsc3]; exact act3
   -- back to `JAtZ`
-  obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX hZ ht hth hkt hW5' hfoot
+  obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX ht hth hkt hW5' hfoot
   have hIu := Ju.xtop.irelK Ju.ks Ju.buf
   have htD := Ju.not_dead_of_st hsT hks (by rw [hstd]; simp [tsCode])
   have hF : IFrame (L := L) Z.th su s5 := IRel.iframe_of hIu hWu fun b hb => CnW.oobj hIu.2.2.1 hb
@@ -420,7 +421,7 @@ theorem JAtZ.recvSendFJG (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs A
 
 /-- **`receive_ipc` from the head sender at `J`**, the cases of `SendOK`, for
 any FL4 program `m` reducing to the endpoint-state switch. -/
-theorem JAtZ.recvSendJX (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -446,13 +447,13 @@ theorem JAtZ.recvSendJX (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   rcases hok with ⟨hfs, hcall⟩ | ⟨⟨f, hft, hto⟩, hnp⟩
-  · exact J.recvSendJG hZ ht hkt hrun hbN hct he hk hks hfs cb c1 c2 c3 c4 hrc hcall b rights hm
-  · exact J.recvSendFJG hZ ht hkt hrun hbN hct he hk hks hft hto cb c1 c2 c3 c4 hrc hnp b rights hm
+  · exact J.recvSendJG ht hkt hrun hbN hct he hk hks hfs cb c1 c2 c3 c4 hrc hcall b rights hm
+  · exact J.recvSendFJG ht hkt hrun hbN hct he hk hks hft hto cb c1 c2 c3 c4 hrc hnp b rights hm
 
 /-- **`receive_ipc` from the head sender at `J`**, the cases of `SendOK`, the
 receiver without a bound notification or with one not active, polling or not
 lending its SC (XTopJointRecvSend's `JAtZ.recvPreN`). -/
-theorem JAtZ.recvSendJ0X (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.recvSendJ0X (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrun : Fl4Spec.runnable xt.tcbState = true) {blk : Bool}
     (hbN : xt.tcbBoundNotification = none ∨ ∃ n xn, xt.tcbBoundNotification = some n ∧
@@ -468,7 +469,7 @@ theorem JAtZ.recvSendJ0X (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs A
     endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) blk rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
-  J.recvSendJX hZ ht hkt hrun hbN hct he hk hks cb c1 c2 c3 c4 hrc hok b rights
+  J.recvSendJX ht hkt hrun hbN hct he hk hks cb c1 c2 c3 c4 hrc hok b rights
     (J.recvPreN ht hkt hbN e cb c1 c2 c3 c4 hrc)
 
 end

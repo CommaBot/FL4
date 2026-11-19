@@ -82,6 +82,7 @@ import Fl4Proofs.P3.UtDevUt
 import Fl4Proofs.P3.UtDevReset
 import Fl4Proofs.P3.XTopJointFaultTmo
 import Fl4Proofs.P3.MpDirtyJ
+import Fl4Proofs.P3.BufJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -312,13 +313,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   nd : Fl4Spec.numDomains = 1
   /-- [P] the preemption point's platform (`PPPlat`). -/
   pp : PPPlat arI AR
-  /-- [J] the Thread decode's `hOK` (l4v `valid_ipc_buffer_cap`). -/
-  ipcBufOK : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ'
-  /-- [J] the Thread decode's `hBC`. -/
-  bufCover : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ'
-  /-- [J] the Thread decode's `hBPl`. -/
-  bufPlaced : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' →
-    Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ'
   /-- [P] the domain configuration (`DomConfig`). -/
   dom : DomConfig
   /-- [P] the port-in values (`PortInVal`, the IO port decode for a call). -/
@@ -776,8 +770,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Endpoint p b sd rv g gr =>
     exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => sendLeafJ2 (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
-        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot J hni hE.ctnq hE.cnf hct hAs hc hst blk call g gr don
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => sendLeafJ2 hG.tot J hni hE.ctnq hE.cnf hct hAs hc hst blk call g gr don
         hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
@@ -785,10 +778,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
-      excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
-        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hct hAs hc hst
-        (runTmoP_recv _ (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX, hG.bufCover Z' s' a' σ' e hX,
-          hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot hG.maxTU hG.tu) hX0))) hPre
+      excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget J hni hct hAs hc hst
+        (runTmoP_recv _ hG.tot hG.maxTU hG.tu) hX0))) hPre
   case CNode p r gs g =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
@@ -842,8 +833,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       apply hE.sg.idle sl'.1 sl'.2 _ ha0 (by simp [IsPageCap, absCap])
       rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
-    exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hG.ipcBufOK
-      hG.bufCover hG.bufPlaced hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
+    exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
       (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hG.timeAg
   case IoPort first last z =>
@@ -1130,20 +1120,18 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   obtain ⟨hcur, -⟩ := J.curEq hct
   have htcb := (J.xtop.curTcb hcur).1
   have hX := J.xtop
-  have hZ : XferHZ L AR Z := fun Z' s' a' σ' e hX' => ⟨hH.glob.ipcBufOK Z' s' a' σ' e hX',
-    hH.glob.bufCover Z' s' a' σ' e hX', hH.glob.bufPlaced Z' s' a' σ' e hX'⟩
   refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
-    ((J.extraJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct hinfo hmi hbuf
+    ((J.extraJ J.xferH.1 J.xferH.2.1 hct hinfo hmi hbuf
       hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun _ =>
-      J.faultHypJZ hZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh hcf⟩)
+      J.faultHypJZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh hcf⟩)
     (argsU.map UScalar.bv) hmrs
-    (fun _ lf lf' hl => J.faultHypJZ hZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh
+    (fun _ lf lf' hl => J.faultHypJZ hH.glob.tot hH.atE.ni hct hH.atE.ctnq hH.atE.vfh
       (capFaultCorr_lookup cptr hl))
     (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
     (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
-      (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
+      (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hcur
         is_call e e' he)
     (fun inv σ1 y hst hy => by
       rw [perfCurKeep _ _ _ inv σ1 y hy]
@@ -1154,7 +1142,7 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       rw [Notif.setThreadState_eq .restart hk] at hm
       have e : σ1 = _ := congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
       rw [e, Sched.stsAct_rec]; exact hcur) ?_
-  obtain ⟨hLen, hArgs, hA5⟩ := J.argsJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop)
+  obtain ⟨hLen, hArgs, hA5⟩ := J.argsJ J.xferH.1 J.xferH.2.1
     hct hinfo hmi hbuf hbuffer hmrs
   intro sl c e exs hsl hc hget h1 h2
   have hl : argsU.length ≤ 120 := by
@@ -1164,7 +1152,7 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     have h4 : msg.N_MSG_REGISTERS.val = 4 := by simp [msg.N_MSG_REGISTERS]
     rw [← hLen]; unfold msgLen
     split_ifs <;> omega
-  obtain ⟨hLb, hXO⟩ := J.frontJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct
+  obtain ⟨hLb, hXO⟩ := J.frontJ J.xferH.1 J.xferH.2.1 hct
     hinfo hmi hbuf hbuffer hr2 her
   have hXN : ExtraNamed Z.th (L.mem s) e := by
     have h := lookup_extra_named Z.th s σ J.dstate.1.1 J.dstate.1.2.1 htcb buf info

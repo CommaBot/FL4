@@ -1035,7 +1035,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJE` with `jRecvSigHyp_of`**: the receiving syscalls at
 `J` against `fl4HandleEvent rep`'s branches; the notification receive has no
 premise left. -/
-theorem dispatch_recvJS (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
+theorem dispatch_recvJS (rep : Bool) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
@@ -1047,7 +1047,7 @@ theorem dispatch_recvJS (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal ar
         y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
   have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  exact dispatch_recvJE arI rep hZ hAT s a σ J hni hct hnq hvfh number bl cr hn hIpc
+  exact dispatch_recvJE arI rep hAT s a σ J hni hct hnq hvfh number bl cr hn hIpc
     (jRecvSigHyp_of hAT J hctT hcur hni hnq bl)
 
 end

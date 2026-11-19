@@ -21,6 +21,7 @@ of a send to a waiting receiver, with the insert as a trace (IpcGrantTr).
 import Fl4Proofs.P3.XTopJointXferB
 import Fl4Proofs.P3.XTopJointGrant
 import Fl4Proofs.P3.IpcGrantTr
+import Fl4Proofs.P3.BufJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Ipc
@@ -383,7 +384,7 @@ P1's hole by `xfer_all`/`blkX_bufw` (an insert's slot words first by
 same slot words as the actual insert's by `insWords_cong`) and the spec's
 `cap_insert` at `σ` (the actual one's outcome patched, `capInsert_patch`),
 from which the writes are again `CnW`/`KW` and the receiver's buffer words. -/
-theorem JAtZ.xferStepGJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.xferStepGJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {e : U64} {ep0 : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint ep0)) (o : Fl4Spec.Endpoint)
     {s1 : S} (hR1 : EpStateRel Z.T Z.E Z.R Z.B (L.mem s1) (Notif.updK σ e.bv (.endpoint o)))
     (hS1 : SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
@@ -436,13 +437,13 @@ theorem JAtZ.xferStepGJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
   have hre : rcv.bv ≠ e.bv := kheap_ne hkr hk (fun _ h1 h2 => by subst h1; cases h2)
   have hks1 : (Notif.updK σ e.bv (.endpoint o)).kheap snd.bv = some (.tcb xs) := by simp [hse, hks]
   have hkr1 : (Notif.updK σ e.bv (.endpoint o)).kheap rcv.bv = some (.tcb xr) := by simp [hre, hkr]
-  obtain ⟨hOK, hBC, -⟩ := hZ Z s a σ rfl J.xtop
+  obtain ⟨hOK, hBC, -⟩ := J.xferH
   have hOK1 : Endp.IpcBufCapOK (Notif.updK σ e.bv (.endpoint o)) := ipcBufCapOK_epStep hOK (EpStep.ep hk)
   have hBC1 : Endp.BufCover Z.T Z.B (Notif.updK σ e.bv (.endpoint o)) := bufCover_epStep hBC (EpStep.ep hk)
   have hdth : Z.th rcv = some .tcb := by
     obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := (IpcRel.toSRN hI.1 hI.2).1.1
     exact Ipc.RelTopB.tcbT hB0' hkr
-  have hUd := J.rbufU hZ hr hdth hkr
+  have hUd := J.rbufU hr hdth hkr
   have hIF : IFrame (L := L) Z.th s s1 := IRel.iframe_of hI hW1 fun b hb => CnW.oobj hI.2.2.1 hb
   have cXr : ∀ {s' : S} {σ' : Fl4Spec.State Unit} {b : U64}, XferRegW (P1.Heap.tcbs H) ∅ b →
       CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s' σ' b := by

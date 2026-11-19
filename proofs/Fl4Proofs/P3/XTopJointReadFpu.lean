@@ -40,6 +40,7 @@ facts are carried across the caller's restart and the arch's `fpu_flush`.
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
+import Fl4Proofs.P3.BufJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -280,8 +281,6 @@ set_option maxHeartbeats 8000000 in
 `H`, the VSpace objects and the kernel-global data, and lie in a spec object;
 `BufPlaced` at every `XTopAt` state of the typed heap (the decode's premise). -/
 theorem JAtZ.copyFrameJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
-      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
     (src f : U64) (hf8 : f.val % 8 = 0) (hfit : f.val + 2696 ≤ 2 ^ 64)
     (hApR : ∀ q k, H q = some k → (∀ z, k ≠ .other z) → f.val + 2696 ≤ q.val ∨ q.val + 2 ^ k.bits ≤ f.val)
     (hObjR : ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ f.val ∧ f.val + 2696 ≤ o.toNat + 2 ^ Fl4Spec.objBits ko)
@@ -330,7 +329,7 @@ theorem JAtZ.copyFrameJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       w.val < o.toNat + 2 ^ Fl4Spec.objBits ko := by
     obtain ⟨o, ko, hko, g1, g2⟩ := hObjR
     exact ⟨o, ko, hko, by omega, by omega⟩
-  obtain ⟨ms', J3⟩ := J2.frameWordJ (hBPl Z s2 a _ rfl J2.xtop) hu hAp hObj hks v
+  obtain ⟨ms', J3⟩ := J2.frameWordJ (J2.xferH.2.2) hu hAp hObj hks v
   exact ⟨by rw [L.ksb_wr, hk2], ms', J3⟩
 
 end
