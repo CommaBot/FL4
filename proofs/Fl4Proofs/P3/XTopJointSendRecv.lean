@@ -13,12 +13,12 @@ XTopJointIpcJ's `JSendRestHyp`).
   or nothing on either side without an SC.
 * `JAtZ.sendTailJ`: the receiver's tail of `send_ipc` (`unblock_sporadic`,
   `possible_switch_to`) against `specWakeTailE`.
-* `do_ipc_transfer_regsJ`: the transfer to a receiver without a receive
-  buffer for any grant (IpcGrantX's `do_ipc_transfer_regsX`; `EpBufMapHyps`
-  from `IpcBufCapOK` and `BufCover` carried in the relation,
-  `epBufMapHyps_bufC`, `bufCover_epStep`).
+* `JAtZ.sendRecvJ0`: the plain send to the head receiver; the transfer by
+  XTopJointXferB's `xferStepJ` (with or without a receive buffer, no cap
+  transferred, `XferNoCap`), back to `JAtZ` by `JAtZ.bufRebaseX` before
+  `JAtZ.wake_postD`.
 -/
-import Fl4Proofs.P3.XTopJointIpcJ
+import Fl4Proofs.P3.XTopJointXferB
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -328,292 +328,11 @@ theorem JAtZ.sendTailJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U6
   rw [nd_bind_one (threadGet_eq _ hk), nd_bind_one hU, h7]
 
 
-/-! ## The transfer's frame helpers -/
-
-theorem ipcBufCapOK_epStep {σ σ' : Fl4Spec.State Unit} (h : Endp.IpcBufCapOK σ) (hs : EpStep σ σ') :
-    Endp.IpcBufCapOK σ' := by
-  intro t x' hx' dev p R mt vms md hf hR
-  obtain ⟨-, -, hk⟩ := hs
-  have hx : ∃ x, σ.kheap t = some (.tcb x) ∧ x.tcbIpcframe = x'.tcbIpcframe ∧ x.tcbIpcBuffer = x'.tcbIpcBuffer := by
-    rcases hk t with e | ⟨a, b, h1, h2⟩ | ⟨a, b, h1, h2, -⟩ | ⟨a, b, h1, h2, e⟩
-    · exact ⟨x', by rw [← e]; exact hx', rfl, rfl⟩
-    · rw [hx'] at h2; cases h2
-    · rw [hx'] at h2; cases h2
-    · have hb : x' = b := by rw [hx'] at h2; exact Fl4Spec.KernelObject.tcb.inj (Option.some.inj h2)
-      subst hb
-      exact ⟨a, h1, by rw [e], by rw [e]⟩
-  obtain ⟨x, hx, e1, e2⟩ := hx
-  obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md (by rw [e1]; exact hf) hR
-  refine ⟨h1, h2, ?_, by rw [← e2]; exact h4, h5⟩
-  rcases hk p with e | ⟨a, b, h1', -⟩ | ⟨a, b, h1', -, -⟩ | ⟨a, b, h1', -, -⟩
-  · rw [e]; exact h3
-  · rw [h3] at h1'; cases h1'
-  · rw [h3] at h1'; cases h1'
-  · rw [h3] at h1'; cases h1'
-
-theorem ipcBufCapOK_of_kheap {σ σ' : Fl4Spec.State Unit} (h : Endp.IpcBufCapOK σ) (hk : σ'.kheap = σ.kheap) :
-    Endp.IpcBufCapOK σ' := by
-  unfold Endp.IpcBufCapOK at *; rw [hk]; exact h
-
-/-- `EpHyps` with `IpcBufCapOK` carried along (an `EpStep` keeps the TCBs'
-buffer fields and the data pages). -/
-theorem epHyps_buf {T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
-    (hH : EpHyps st T E R B SR) : EpHyps st T E R B (fun s σ => SR s σ ∧ Endp.IpcBufCapOK σ) :=
-  ⟨fun s s' σ σ' h hw hs => ⟨hH.stable s s' σ σ' h.1 hw hs, ipcBufCapOK_epStep h.2 hs⟩,
-   fun s σ t hR hS ht => WP.spec_mono (hH.scheduleTcb s σ t hR hS.1 ht) fun _ ⟨h1, h2⟩ =>
-     ⟨h1, h2, ipcBufCapOK_of_kheap hS.2 (stsAct_kheap σ t.bv)⟩⟩
-
-/-- `EpBufHyps` for `SRS (SRT … SRE)` with `IpcBufCapOK` carried along. -/
-theorem epBufHyps_buf {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)}
-    {c : U64} :
-    EpBufHyps st T E R B (fun s σ => SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s σ ∧
-      Endp.IpcBufCapOK σ) :=
-  ⟨fun s σ t x b _ hS _ hk => by
-    obtain ⟨⟨G, hB⟩, -⟩ := hS.1.1.1
-    exact lookup_buf_rel s σ hB.2.1.1 hB.2.1.2.1 (Ipc.RelTopB.tcbT hB hk) hk hS.2 b⟩
-
-theorem copy_mrs_loop0_rg {T : Set U64} (hT : P1.TcbPlaced T) {s0 s : S} {snd rcv n i : U64} (hr : rcv ∈ T)
-    (h : P1.WritesIn st s0 s (XferRegW T ∅)) :
-    msg.copy_mrs_loop0 st s snd rcv n i ⦃ r => P1.WritesIn st s0 r.1 (XferRegW T ∅) ⦄ := by
-  have hS : P0.StoreTotal st := L.total
-  unfold msg.copy_mrs_loop0
-  apply loop.spec_decr_nat (measure := fun y => 4 - y.2.val)
-    (inv := fun y => P1.WritesIn st s0 y.1 (XferRegW T ∅))
-  · rintro ⟨s1, i1⟩ h1
-    simp only at h1
-    dsimp only
-    unfold msg.copy_mrs_loop0.body
-    split
-    · split
-      · rename_i _ hi
-        have hi' : i1.val < 4 := by simpa [msg.N_MSG_REGISTERS] using hi
-        refine WP.spec_bind (msg.msg_register.lt i1) fun rg hrg => ?_
-        refine WP.spec_bind (P0.obj.Tcb.reg.p0 st snd s1 rg hS) fun v _ => ?_
-        refine WP.spec_bind (obj.Tcb.set_reg.rg (v := v) (s := s1) hT hr hrg) fun s2 w2 => ?_
-        step as ⟨i2, hi2⟩
-        exact ⟨rg_trans h1 w2, by first | omega | (dsimp only; omega)⟩
-      · exact (WP.spec_ok _).2 h1
-    · exact (WP.spec_ok _).2 h1
-  · exact h
-
-/-- **`do_ipc_transfer`'s footprint, a receiver without a buffer and a sender
-without a fault**: the receiver's registers only. -/
-theorem do_ipc_transfer_rg {T : Set U64} (hT : P1.TcbPlaced T) {snd rcv : U64} (hr : rcv ∈ T) (s : S) (a : A)
-    (ep badge : U64) (grant : Bool)
-    (hb : msg.lookup_ipc_buffer st s true rcv ⦃ w => w = 0#u64 ⦄) (hf : L.mem s (tFaultA snd) = 0#u64) :
-    ipc.do_ipc_transfer st arI s a snd ep badge grant rcv ⦃ s' => P1.WritesIn st s s' (XferRegW T ∅) ⦄ := by
-  have hS : P0.StoreTotal st := L.total
-  unfold ipc.do_ipc_transfer
-  refine WP.spec_bind hb ?_
-  rintro rb rfl
-  refine WP.spec_bind (obj.Tcb.fault_type.spec s snd) ?_
-  rintro ft rfl
-  rw [hf, if_pos (by unfold fl4_abi.consts.fault.NullFault; rfl)]
-  refine WP.spec_bind (P0.msg.lookup_ipc_buffer.p0 st s false snd hS) fun sb _ => ?_
-  unfold ipc.do_normal_transfer
-  refine WP.spec_bind (P0.msg.msg_info.p0 st s snd hS) fun tag _ => ?_
-  refine WP.spec_bind (Pₘ := fun _ => True) ?_ fun extra _ => ?_
-  · split
-    · refine WP.spec_bind (P0.ipc.lookup_extra_caps.p0 st s snd sb tag hS) fun r _ => ?_
-      rcases r with e | _ <;> exact (WP.spec_ok _).2 trivial
-    · exact (WP.spec_ok _).2 trivial
-  refine WP.spec_bind (Pₘ := fun r : U64 × S => P1.WritesIn st s r.2 (XferRegW T ∅)) ?_ ?_
-  · unfold msg.copy_mrs
-    refine WP.spec_bind (copy_mrs_loop0_rg hT hr (P1.WritesIn.refl s _)) ?_
-    rintro ⟨s1, i⟩ h1
-    first | exact (WP.spec_ok _).2 h1 | (simp only [↓reduceIte, WP.spec_ok]; exact h1) | (simp; exact h1)
-  rintro ⟨n, s1⟩ h1
-  simp only at h1
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (Pₘ := fun r : msginfo.MessageInfo × S => P1.WritesIn st s r.2 (XferRegW T ∅)) ?_ ?_
-  · unfold ipc.transfer_caps
-    refine WP.spec_bind (P0.msginfo.MessageInfo.new.p0 _ _ _ _) fun out _ => ?_
-    step as ⟨sl0, hsl0⟩
-    step as ⟨b, hb0⟩
-    split <;> first | exact (WP.spec_ok _).2 h1 | (rw [if_pos rfl]; exact (WP.spec_ok _).2 h1)
-  rintro ⟨out2, s2⟩ h2
-  simp only at h2
-  try simp only [WP.uncurry'_pair]
-  refine WP.spec_bind (Pₘ := fun s3 => P1.WritesIn st s s3 (XferRegW T ∅)) ?_
-    fun s3 h3 => WP.spec_mono (obj.Tcb.set_reg.rg (s := s3) (v := badge) hT hr
-      (by simp [layout.reg.BADGE, layout.reg.RDI])) fun s4 w4 => rg_trans h3 w4
-  unfold msg.set_msg_info
-  exact WP.spec_bind (P0.msginfo.MessageInfo.to_word.p0 _) fun w _ =>
-    WP.spec_mono (obj.Tcb.set_reg.rg (v := w) (s := s2) hT hr (by simp [layout.reg.MSG_INFO, layout.reg.RSI]))
-      fun s4 w4 => rg_trans h2 w4
-
-/-- `CnW` back to an earlier state with the same kernel base and SC sizes. -/
-theorem cnW_back {T N C E R : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit} (hk : L.ksb s' = L.ksb s)
-    (hz : SzKeepC C σ σ') {b : U64} (h : CnW (st := st) T N C E R c s' σ' b) : CnW (st := st) T N C E R c s σ b :=
-  h.elim (fun h => Or.inl (FinW.back hk hz h)) Or.inr
-
-/-- A thread other than the current one set: no reschedule. -/
-theorem stsAct_ne {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} (h : t ≠ σ.curThread) : Notif.stsAct σ t = σ := by
-  unfold Notif.stsAct; rw [if_neg (fun h' => h h'.1)]
-
-/-- A bound receive-blocked or inactive thread set `Running`. -/
-theorem CFr.stsRun {r t : Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit} {y : Fl4Spec.Tcb} (hk : σ.kheap t = some (.tcb y))
-    (hrb : RbIn y.tcbState) :
-    CFr r t σ (Notif.stsAct (Notif.updK σ t (.tcb { y with tcbState := .running })) t) :=
-  (CFr.upd hk (Or.inl ⟨y, .running, y.tcbBoundNotification, y.tcbFault, y.tcbArch, rfl, rfl,
-    Or.inr ⟨Or.inl rfl, rfl, hrb, Or.inr (Or.inl rfl)⟩⟩)).trans (CFr.sts _ _ _ _)
-
-/-- `IK t` across an update of `t`'s own TCB keeping its SC. -/
-theorem IK.updSelf {t : Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit} {x y : Fl4Spec.Tcb} (hk : σ.kheap t = some (.tcb x))
-    (h1 : y.tcbSchedContext = x.tcbSchedContext) : IK t σ (Notif.updK σ t (.tcb y)) :=
-  IK.upd hk ⟨fun x' e => by cases e; exact ⟨y, rfl, h1, fun h => absurd rfl h, fun h => absurd rfl h⟩, fun _ _ e => (by cases e),
-    fun _ e => (by cases e), fun _ _ => ⟨x, rfl⟩, fun _ _ e => (by cases e), fun _ e => by cases e⟩
-
-/-- `IK t` across an update of an endpoint or a reply. -/
-theorem IK.updOther {t p : Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit} {o o' : Fl4Spec.KernelObject}
-    (hk : σ.kheap p = some o)
-    (ho : ∀ o0, o0 = o ∨ o0 = o' → (∀ x, o0 ≠ .tcb x) ∧ (∀ y n, o0 ≠ .schedContext y n) ∧ (∀ x, o0 ≠ .notification x)) :
-    IK t σ (Notif.updK σ p o') :=
-  IK.upd hk (IKObj.other ho)
-
-theorem IK.sts (t : Fl4Spec.ObjRef) (σ : Fl4Spec.State Unit) (u : Fl4Spec.ObjRef) : IK t σ (Notif.stsAct σ u) :=
-  IK.of_eq (stsAct_kheap σ u) (by unfold Notif.stsAct; split <;> rfl) (by unfold Notif.stsAct; split <;> rfl)
-    (by unfold Notif.stsAct; split <;> rfl)
-
-
-theorem xferTcb_eqA (xr xs : Fl4Spec.Tcb) (b : Fl4Spec.Badge) :
-    xferTcb xr xs b = { xr with tcbArch := (xferTcb xr xs b).tcbArch } := by
-  simp only [Endp.xferTcb]; rw [Endp.copyRegsTcb_other]; rfl
-
-/-- `BufCover` across an `EpStep` (the TCBs' buffer fields kept, as
-`ipcBufCapOK_epStep`). -/
-theorem bufCover_epStep {T : Set U64} {B : Set (U64 × Fl4Spec.Word)} {σ σ' : Fl4Spec.State Unit}
-    (h : Endp.BufCover T B σ) (hs : EpStep σ σ') : Endp.BufCover T B σ' := by
-  intro t ht x' b p hx' hp w hw
-  obtain ⟨-, -, hk⟩ := hs
-  have hx : ∃ x, σ.kheap t.bv = some (.tcb x) ∧ Endp.ipcBufOf b x = Endp.ipcBufOf b x' := by
-    rcases hk t.bv with e | ⟨x1, y1, h1, h2⟩ | ⟨x1, y1, h1, h2, -⟩ | ⟨x1, y1, h1, h2, e⟩
-    · exact ⟨x', by rw [← e]; exact hx', rfl⟩
-    · rw [hx'] at h2; cases h2
-    · rw [hx'] at h2; cases h2
-    · have hb : x' = y1 := by rw [hx'] at h2; exact Fl4Spec.KernelObject.tcb.inj (Option.some.inj h2)
-      subst hb
-      refine ⟨x1, h1, ?_⟩
-      rw [e]; rfl
-  obtain ⟨x, hx, e⟩ := hx
-  exact h t ht x b p hx (e.trans hp) w hw
-
-/-- `EpHyps` with `IpcBufCapOK` and `BufCover` carried along. -/
-theorem epHyps_bufC {T E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {SR : S → Fl4Spec.State Unit → Prop}
-    (hH : EpHyps st T E R B SR) (T' : Set U64) :
-    EpHyps st T E R B (fun s σ => (SR s σ ∧ Endp.IpcBufCapOK σ) ∧ Endp.BufCover T' B σ) :=
-  ⟨fun s s' σ σ' h hw hs => ⟨(epHyps_buf hH).stable s s' σ σ' h.1 hw hs, bufCover_epStep h.2 hs⟩,
-   fun s σ t hR hS ht => WP.spec_mono ((epHyps_buf hH).scheduleTcb s σ t hR hS.1 ht) fun _ ⟨h1, h2⟩ =>
-     ⟨h1, h2, by unfold Endp.BufCover at *; rw [stsAct_kheap]; exact hS.2⟩⟩
-
-/-- `EpBufHyps` for `SRS (SRT … SRE)` with `IpcBufCapOK` and `BufCover`
-carried along. -/
-theorem epBufHyps_bufC {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)}
-    {c : U64} (T' : Set U64) :
-    EpBufHyps st T E R B (fun s σ => (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s σ ∧
-      Endp.IpcBufCapOK σ) ∧ Endp.BufCover T' B σ) :=
-  ⟨fun s σ t x b hR hS ht hk => (epBufHyps_buf (st := st)).lookup s σ t x b hR hS.1 ht hk⟩
-
-/-- **`EpBufMapHyps` for `SRS (SRT … SRE)` with `IpcBufCapOK` and
-`BufCover` carried along** (IpcBuf's `epBufMapHyps_top`, the two facts from
-the state instead of every `SRT` state). -/
-theorem epBufMapHyps_bufC {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)}
-    {c : U64} (hP0 : Ipc.IPlaced N T E R B) :
-    EpBufMapHyps st T E R B (fun s σ => (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s σ ∧
-      Endp.IpcBufCapOK σ) ∧ Endp.BufCover T B σ) := by
-  have hbuf : ∀ (σ : Fl4Spec.State Unit) (t : U64) (x : Fl4Spec.Tcb) (b : Bool) (p : Fl4Spec.ObjRef),
-      Endp.IpcBufCapOK σ → σ.kheap t.bv = some (.tcb x) → Endp.ipcBufOf b x = some p →
-      ∃ pb vms, σ.kheap pb = some (.archObj (.dataPage false vms)) ∧ pb ≠ 0 ∧
-        pb.toNat % 2 ^ Fl4Spec.pageBitsForSize vms = 0 ∧ x.tcbIpcBuffer.toNat % 1024 = 0 ∧
-        p = pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms)) := by
-    intro σ t x b p hO hk hp
-    unfold Endp.ipcBufOf at hp
-    split at hp
-    · rename_i dev pb R mt vms md he
-      split_ifs at hp with hc
-      cases hp
-      have hro : Fl4Spec.vmReadOnly ⊆ R := by
-        rcases hc with h | ⟨h, -⟩
-        · exact fun z hz => h (by unfold Fl4Spec.vmReadOnly Fl4Spec.vmReadWrite at *; simp at hz ⊢; simp [hz])
-        · exact h
-      obtain ⟨-, h0, hd, ha, hpa⟩ := hO t.bv x hk dev pb R mt vms md he hro
-      exact ⟨pb, vms, hd, h0, hpa, ha, rfl⟩
-    · cases hp
-  refine ⟨fun s σ t x b p _ hS ht hk hp => ?_, fun s σ t x p _ hS _ hk hp k hk128 => ?_,
-    fun s σ t x p hR hS ht hk hp => ?_⟩
-  · obtain ⟨⟨G, hB⟩, -⟩ := hS.1.1.1.1
-    refine WP.spec_mono (lookup_buf_full s σ hB.2.1.1 hB.2.1.2.1 (Ipc.RelTopB.tcbT hB hk) hk hS.1.2 b) ?_
-    rintro w ⟨h0, hw⟩
-    obtain ⟨x', hk', hwx⟩ := hS.1.1.1.1.2.bw t ht
-    rw [hk] at hk'; cases hk'
-    have hwp := hw hwx p hp
-    exact ⟨fun e => (by have h := h0.1 e; rw [hp] at h; cases h), hS.2 t ht x b p hk hp w hwp⟩
-  · obtain ⟨pb, vms, hd, -, hpa, ha, rfl⟩ := hbuf σ t x true p hS.1.2 hk hp
-    exact ⟨vms, by rw [Endp.buf_frame_base vms pb x.tcbIpcBuffer k hk128 hpa ha]; exact hd⟩
-  · obtain ⟨⟨G, hB⟩, -⟩ := hS.1.1.1.1
-    obtain ⟨pb, vms, hd, h0, hpa, ha, hpe⟩ := hbuf σ t x true p hS.1.2 hk hp
-    have hp0 : (⟨p⟩ : U64) ≠ 0#u64 := by
-      intro e
-      have e' : p = 0 := congrArg UScalar.bv e
-      have hb := Endp.pageBits_mem vms
-      have := Endp.buf_frame_base vms pb x.tcbIpcBuffer 0 (by norm_num) hpa ha
-      rw [← hpe] at this
-      unfold Endp.bufAddr at this
-      rw [e'] at this
-      simp at this
-      exact h0 this.symm
-    have hm := hS.2 t ht x true p hk hp ⟨p⟩ rfl
-    obtain ⟨dest, slots, heq, -⟩ := WP.spec_exists (Ipc.get_receive_slot_top hP0 hB hR (Ipc.RelTopB.tcbT hB hk) hm hp0 []
-      (Aeneas.Std.Array.repeat 3#usize 0#u64))
-    exact ⟨slots, heq⟩
-
-/-- **`do_ipc_transfer` without a receive buffer, any grant**, on
-`SRN (SRS (SRT … SRE))` with `IpcBufCapOK` and `BufCover` at the state
-(IpcGrantX's `do_ipc_transfer_regsT` without `IpcSchedHyps` and the global
-`EpBufMapHyps`: `do_ipc_transfer_regsX` on `epBufMapHyps_bufC`, the extra
-caps looked up read-only by `lookup_extra_top`). -/
-theorem do_ipc_transfer_regsJ {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64}
-    {B : Set (U64 × Fl4Spec.Word)} {c : U64} (hP0 : Ipc.IPlaced N T E R B) (hP : EPlaced T E R B)
-    (hHE : EpHyps st T E R B (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))))
-    (s : S) (a : A) (σ : Fl4Spec.State Unit) (hR : EpStateRel T E R B (L.mem s) σ)
-    (hSR : SRN st N T (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c))) s σ)
-    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover T B σ)
-    {snd rcv : U64} (hs : snd ∈ T) (hr : rcv ∈ T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
-    (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) (hf : xs.tcbFault = none)
-    (hrb : Endp.ipcBufOf true xr = none) (ep badge : U64) (grant : Bool) :
-    ipc.do_ipc_transfer st arI s a snd ep badge grant rcv ⦃ s' =>
-      Fl4Spec.doIpcTransfer (Z := Unit) snd.bv (some ep.bv) badge.bv grant rcv.bv σ =
-        ({((), Notif.updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv)))}, False) ∧
-      EpStateRel T E R B (L.mem s') (Notif.updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
-      (SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s'
-        (Notif.updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv))) ∧
-        Endp.IpcBufCapOK (Notif.updK σ rcv.bv (.tcb (xferTcb xr xs badge.bv)))) ∧
-      Agree (L.mem s) (L.mem s') (fun b => ¬ RcvReg rcv b) ⦄ := by
-  have hIR := (IpcRel.ofSRN hR hSR).1
-  obtain ⟨⟨⟨G, hB⟩, -⟩, -⟩ := hSR.1.1
-  refine WP.spec_mono (do_ipc_transfer_regsX (ar := arI) (epHyps_bufC hHE T) (epBufHyps_bufC T)
-    (epBufMapHyps_bufC hP0) hP s a σ hR ⟨⟨hSR.1, hOK⟩, hBC⟩ hs hr hne hks hkr hf hrb ep badge grant ?_)
-    fun _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3.1, h4⟩
-  intro _ sb tag hsb hext
-  have hsb' : sb = 0#u64 ↔ Endp.ipcBufOf false xs = none := by
-    rcases hsb with ⟨h1, h2⟩ | ⟨sp, h1, h2, -⟩
-    · exact ⟨fun _ => h1, fun _ => h2⟩
-    · rw [h1]; exact ⟨fun h => absurd h h2, fun h => by cases h⟩
-  have hsm : ∀ sp, Endp.ipcBufOf false xs = some sp → BufMap B sb sp := by
-    intro sp h
-    rcases hsb with ⟨h1, -⟩ | ⟨sp', h1, -, h3⟩
-    · rw [h1] at h; cases h
-    · rw [h1] at h; cases h; exact h3
-  refine WP.spec_mono (lookup_extra_top hP0 hB hIR (hB.tcbT hks) sb (Endp.ipcBufOf false xs) hsb' hsm tag
-    (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register))
-    (by show tag.extra_caps.bv.toNat = _; rw [hext]) (by show tag.extra_caps.bv.toNat ≤ 3; rw [hext]; exact extra_le3 _))
-    fun _ ⟨l, hl, _⟩ => ⟨l, hl⟩
-
 set_option maxHeartbeats 64000000 in
 /-- **`send_ipc` to a waiting receiver at `J`, without a call, a donation
 (`can_donate` only toward a receiver with an SC, `hdon`: then neither side
-donates), a fault or a receive buffer** (module docstring): FL4's dequeue,
-transfer (any grant), reply unlink and `Running` on `IRel` with the footprint `CnW`
+donates), a fault or a cap transferred** (module docstring): FL4's dequeue,
+transfer (`xferStepJ`, with or without a receive buffer), reply unlink and `Running` on `IRel` with the footprint `CnW`
 (`ep_dequeue_c`, `do_ipc_transfer_regsJ` with `IpcBufCapOK` carried,
 `reply_unlink_c`, `set_thread_state_c`), P1's `BlkOK` through the
 receiver's hole (`ep_dequeue.inv`, `xfer_all`, `reply_unlink.inv`,
@@ -627,8 +346,8 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     {e d : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
-    (hrb : ∀ xd, σ.kheap d.bv = some (.tcb xd) → Endp.ipcBufOf true xd = none)
     (blk : Bool) (badge : U64) (g gr don : Bool)
+    (hnc : ∀ xd, σ.kheap d.bv = some (.tcb xd) → XferNoCap g xt xd)
     (hdon : don = false ∨ ∀ xd, σ.kheap d.bv = some (.tcb xd) → xd.tcbSchedContext ≠ none) :
     endpoint.send_ipc st arI s a blk false badge g gr don t e ⦃ r =>
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr don t.bv e.bv σ).1,
@@ -727,22 +446,21 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
   have SK1 : SKeep σ σ1 := SKeep.updK (p := e.bv) (o := .endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) (fun y h => by cases h) (fun _ _ h => by cases h)
   have hOK1 : Endp.IpcBufCapOK σ1 := ipcBufCapOK_epStep (hZ Z s a σ rfl J.xtop).1 (EpStep.ep hk)
   -- the transfer
-  have hHB := epHyps_buf (hH.epHyps hP0)
-  have hBf := epBufHyps_buf (st := st) (th := Z.th) (cr := σ.archState.x64CurrentCr3) (N := Z.N) (T := Z.T)
-    (C := Z.C) (E := Z.E) (R := Z.R) (B := Z.B) (c := Z.c)
-  have hlk : msg.lookup_ipc_buffer st s1 true d' ⦃ w => w = 0#u64 ⦄ :=
-    WP.spec_mono (hBf.lookup s1 σ1 d' xd true hR1 ⟨hS1.1, hOK1⟩ hdT hkd1) fun w hw => hw.2 (hrb xd hkd)
-  have hf1 : L.mem s1 (tFaultA t) = 0#u64 := (hR1.at_tcb ht hkt1).fault0.2 hft
-  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regsJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
-    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft (hrb xd hkd) e badge g) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
-  rintro s2 ⟨⟨e2, hR2, hS2, hA2⟩, w2⟩
-  set σ2 := Notif.updK σ1 d'.bv (.tcb (xferTcb xd xt badge.bv)) with hσ2
-  have hkd2 : σ2.kheap d'.bv = some (.tcb (xferTcb xd xt badge.bv)) := by simp [σ2]
+  have hdth : Z.th d' = some .tcb := by
+    obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
+    exact Ipc.RelTopB.tcbT hB0' hkd
+  have hUd := J.rbufU hZ hdT hdth hkd
+  refine WP.spec_bind (xferStepJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
+    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft e badge g (hnc xd hkd)
+    hTP hdH h1 hB1 hX1 hS1' hSg1 (fun b hb => ⟨(hUd b hb).1.ksb hW1.1, (hUd b hb).2⟩)) ?_
+  rintro s2 ⟨x2, um2, e2, hx2, hR2, hS2, hA2, w2, h2, hB2, hX2, hS2'', hSg2, f2⟩
+  set σ2 := Notif.updK (Endp.setUm σ1 um2) d'.bv (.tcb x2) with hσ2
+  have hkd2 : σ2.kheap d'.bv = some (.tcb x2) := by simp [σ2]
   have hkt2 : σ2.kheap t.bv = some (.tcb xt) := by simp [σ2, htd', hkt1]
-  have hst2' : (xferTcb xd xt badge.bv).tcbState = .blockedOnReceive e.bv rep dd := by rw [xferTcb_state, hstd]
-  have hxsc : (xferTcb xd xt badge.bv).tcbSchedContext = xd.tcbSchedContext := by rw [xferTcb_eqA]
-  have hN2 := ntfn_lift_rcv hP0.toC hS1.2 hR2 hdT (hA2.mono fun _ h => h.1) (fun p hp => by simp [σ2, hp])
-    hkd1 hkd2 (xferTcb_state _ _ _)
+  have hst2' : x2.tcbState = .blockedOnReceive e.bv rep dd := by rw [hx2]; exact hstd
+  have hxsc : x2.tcbSchedContext = xd.tcbSchedContext := by rw [hx2]
+  have hN2 := ntfn_lift_rcv hP0.toC hS1.2 hR2 hdT hA2 (fun p hp => by simp [σ2, hp])
+    hkd1 hkd2 (by rw [hx2])
   have hS2' : SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
       (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))) s2 σ2 := ⟨hS2.1, hN2⟩
   have hk1e2 : σ2.kheap e.bv = some (.endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) := by
@@ -752,29 +470,34 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
     have hne : d'.bv ≠ e''.bv := by intro h; rw [← h, hkd2] at hz; cases hz
     exact hq1 e'' he'' z (by simpa [σ2, Ne.symm hne] using hz)
   have hrw : L.mem s2 (tReplyA d') = L.mem s (tReplyA d') := by
-    rw [hA2 _ (a_reply hda).1 ?_, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
-    rintro ⟨r', hr'⟩
-    rw [val_reply hda, regA_val hda (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
-  have hW2 : P1.WritesIn st s s2 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ) := hW1.trans1 (w2.mono fun b hb => by
-    rcases hb with ⟨y, hy, K, h1', h2', -, eb⟩ | hb
+    rw [hA2 _ (a_reply hda).1 ⟨?_, ?_⟩, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
+    · rintro ⟨r', hr'⟩
+      rw [val_reply hda, regA_val hda (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
+    · rintro ⟨wp, hwp, e'⟩
+      have h1' := hP.bt wp hwp d' hdT
+      have h2' := val_reply hda
+      rw [← e'] at h1'; omega
+  have hW2 : P1.WritesIn st s s2 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+    (hW1.mono fun b hb => Or.inl hb).trans1 (w2.mono fun b hb => by
+    rcases hb with (⟨y, hy, K, h1', h2', -, eb⟩ | hb) | hb
     · have hyT : y ∈ Z.T := by rw [hTe]; exact hy
-      refine Or.inl (Or.inr ⟨y, hyT, K.val, h1', by omega, by omega, by omega, by omega, ?_⟩)
+      refine Or.inl (Or.inl (Or.inr ⟨y, hyT, K.val, h1', by omega, by omega, by omega, by omega, ?_⟩))
       rw [eb]; exact tfield_val (hP.tcb y hyT) (by omega)
-    · exact absurd hb (Set.notMem_empty _))
-  have hU0 : P1.UserOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H ∅ s1 := fun b hb => absurd hb (Set.notMem_empty _)
-  obtain ⟨h2, hB2, hX2, hS2'', hSg2, -, -, -, -, f2, -⟩ :=
-    P1.xfer_all h1 hB1 hX1 hS1' hSg1 hU0 (w2.mono fun b hb => P1.XferRegW.foot hb)
-  have F2 : P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s1 s2 :=
+    · exact absurd hb (Set.notMem_empty _)
+    · exact Or.inr hb)
+  have F2 : P1.WritesIn st s1 s2 (fun b => P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) (P1.EH H) s1 b ∨ RcvBufW xd b) :=
     w2.mono fun b hb => by
-      rcases hb with ⟨y, hy, K, h1', h2', h3', eb⟩ | hb
-      · exact Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, eb⟩
+      rcases hb with (⟨y, hy, K, h1', h2', h3', eb⟩ | hb) | hb
+      · exact Or.inl (Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, eb⟩)
       · exact absurd hb (Set.notMem_empty _)
-  have Fr2 : CFr e.bv d'.bv σ σ2 := Fr1.trans (CFr.upd hkd1 (Or.inl ⟨xd, xd.tcbState, xd.tcbBoundNotification,
-    xd.tcbFault, (xferTcb xd xt badge.bv).tcbArch, rfl, by rw [xferTcb_eqA],
+      · exact Or.inr hb
+  have Fr2 : CFr e.bv d'.bv σ σ2 := (Fr1.trans (CFr.um _ _ σ1 um2)).trans (CFr.upd (σ := Endp.setUm σ1 um2) hkd1
+    (Or.inl ⟨xd, xd.tcbState, xd.tcbBoundNotification, xd.tcbFault, x2.tcbArch, rfl, by rw [hx2],
     Or.inr ⟨Or.inl rfl, rfl, Or.inl ⟨_, _, _, hstd⟩, Or.inr (Or.inr rfl)⟩⟩))
-  have IK2 : IK d'.bv σ σ2 := IK1.trans (IK.updSelf hkd1 hxsc)
-  have SK2 : SKeep σ σ2 := SK1.trans (SKeep.updK (p := d'.bv) (o := .tcb (xferTcb xd xt badge.bv)) (fun y h => ⟨xd, hkd1, by cases h; exact hxsc.symm⟩)
-    (fun _ _ h => by cases h))
+  have IK2 : IK d'.bv σ σ2 := IK1.trans ((IK.um _ σ1 um2).trans (IK.updSelf (σ := Endp.setUm σ1 um2) hkd1 hxsc))
+  have SK2 : SKeep σ σ2 := SK1.trans ((SKeep.um σ1 um2).trans (SKeep.updK (σ := Endp.setUm σ1 um2) (p := d'.bv)
+    (o := .tcb x2) (fun y h => ⟨xd, hkd1, by cases h; exact hxsc.symm⟩) (fun _ _ h => by cases h)))
   have hks2 : L.ksb s2 = L.ksb s := hW2.1
   have Fst2 : L.mem s2 (P1.stA d') = L.mem s (P1.stA d') := by
     rw [P1.stA_eq]
@@ -793,8 +516,9 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
       σ3.kheap t.bv = some (.tcb xt) ∧ σ3.kheap d'.bv = some (.tcb x3) ∧ RbIn x3.tcbState ∧
       tsCode x3.tcbState ≠ 6 ∧ x3.tcbSchedContext = xd.tcbSchedContext ∧
       (∀ e'' ∈ Z.E, ∀ z, σ3.kheap e''.bv = some (.endpoint z) → d'.bv ∉ z.epQueue) ∧
-      P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ) ∧
-      P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) (P1.EH H) s s3 ∧
+      P1.WritesIn st s s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) ∧
+      P1.WritesIn st s s3 (fun b => P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+        (P1.Heap.scBits H) (P1.EH H) s b ∨ RcvBufW xd b) ∧
       CFr e.bv d'.bv σ σ3 ∧ IK d'.bv σ σ3 ∧ SKeep σ σ3 ∧ σ3.curThread = σ.curThread ∧
       σ3.schedulerAction = σ.schedulerAction ∧
       P1.SchedQueuesInvX st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H X3 s3 Q0 R0 ∧
@@ -812,8 +536,8 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
       simp only [h00, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
       have hrA : L.mem s2 (P1.replyA d') = 0#u64 := by
         show L.mem s2 (tReplyA d') = 0#u64; rw [hrw]; exact h00
-      exact ⟨σ2, xferTcb xd xt badge.bv, _, rfl, hR2, hS2', hkt2, hkd2, Or.inl ⟨_, _, _, hst2'⟩,
-        by rw [hst2']; simp [tsCode], hxsc, hq2, hW2, F1.trans F2, Fr2, IK2, SK2, rfl, rfl, h2, hB2, hX2, hS2'',
+      exact ⟨σ2, x2, _, rfl, hR2, hS2', hkt2, hkd2, Or.inl ⟨_, _, _, hst2'⟩,
+        by rw [hst2']; simp [tsCode], hxsc, hq2, hW2, footW_trans (footW_of F1) F2, Fr2, IK2, SK2, rfl, rfl, h2, hB2, hX2, hS2'',
         hSg2, fun y hy => by simpa using hy, Or.inl (Or.inr rfl), hX2.noref0 hdta hrA⟩
     | some r =>
       rw [hrp] at hrep hrepR hst2'
@@ -844,16 +568,16 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
         intro r hr er
         obtain ⟨-, -, b2, -⟩ := hX2.2.1.back r hr (by rw [er]; exact fun e0 => hdta.ne0 (by rw [e0]; rfl))
         rw [er, hrA] at b2; rw [← b2]; exact z3
-      set x3 : Fl4Spec.Tcb := { xferTcb xd xt badge.bv with tcbState := .inactive } with hx3
+      set x3 : Fl4Spec.Tcb := { x2 with tcbState := .inactive } with hx3
       set σ3a := Notif.updK σ2 w.bv (.reply { xr with replyTcb := none }) with hσ3a
-      have hkd3a : σ3a.kheap d'.bv = some (.tcb (xferTcb xd xt badge.bv)) := by simp [σ3a, Ne.symm hwd, hkd2]
+      have hkd3a : σ3a.kheap d'.bv = some (.tcb (x2)) := by simp [σ3a, Ne.symm hwd, hkd2]
       have hct3a : d'.bv ≠ (Notif.updK σ3a d'.bv (.tcb x3)).curThread := hdc
       have e3s : Notif.stsAct (Notif.updK σ3a d'.bv (.tcb x3)) d'.bv = Notif.updK σ3a d'.bv (.tcb x3) :=
         stsAct_ne hct3a
-      have hW3' : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ) :=
-        hW2.trans1 (hW3.mono fun b hb => cnW_back hks2 (SzKeepC.of Fr2.szKeep) hb)
+      have hW3' : P1.WritesIn st s s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+        hW2.trans1 (hW3.mono fun b hb => Or.inl (cnW_back hks2 (SzKeepC.of Fr2.szKeep) hb))
       refine ⟨_, x3, _, e3, hR3, hS3, ?_, ?_, Or.inr rfl, by simp [x3, tsCode], by simp [x3, hxsc], ?_, hW3',
-        (F1.trans F2).trans fu3, ?_, ?_, ?_, ?_, ?_, h3,
+        footW_trans (footW_trans (footW_of F1) F2) (footW_of fu3), ?_, ?_, ?_, ?_, ?_, h3,
         hB2.keepT h2 k3 (by rw [e3']; exact P1.not_blocked_inactive) (by rw [e3']; exact P1.inactive_ne.1),
         hX2.keepT k3 (by rw [e3']; exact P1.inactive_ne) hclr, hS2''.keepT hX2 k3,
         ⟨hsub, fun b hb => by rw [k3.ksb]; exact hSg2.ks b hb, fun o h1' h2' => by rw [k3.ksb]; exact hSg2.ksΩ o h1' h2'⟩,
@@ -922,12 +646,12 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
   set σ5 := Notif.stsAct (Notif.updK σ3 d'.bv (.tcb x5)) d'.bv with hσ5
   have hks3 : L.ksb s3 = L.ksb s := hW3.1
   have hIR := IpcRel.ofSRN hR5 hS5
-  have hW5' : P1.WritesIn st s s5 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ) :=
-    hW3.trans1 (hW5.mono fun b hb => Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hks3).1 hb))))
+  have hW5' : P1.WritesIn st s s5 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+    hW3.trans1 (hW5.mono fun b hb => Or.inl (Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hks3).1 hb)))))
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s5 :=
     ⟨⟨Q0, R0, h5.congrX (P1.excT_congr hXc3)⟩, hB5, hX5, hS5', hSg5⟩
-  have hfoot := F3.trans fu5
+  have hfoot := footW_trans F3 (footW_of fu5)
   have Fr5 : CFr e.bv d'.bv σ σ5 := Fr3.trans (CFr.stsRun hkd3 hrb3)
   have IK5a : IK d'.bv σ (Notif.updK σ3 d'.bv (.tcb x5)) := IK3.trans (IK.updSelf (y := x5) hkd3 rfl)
   have IK5 : IK d'.bv σ σ5 := IK5a.trans (IK.sts _ _ _)
@@ -948,14 +672,16 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
   have hcur5 : σ5.schedulerAction = .chooseNewThread ∨ CurInv σ5 :=
     J.cur.imp (fun e0 => by rw [act5]; exact e0) Fr5.curInv
   have hrun5 : CurRunM σ5 := J.curRun.of_cn Fr5.curRunW (Or.inr act5)
-  have htD := J.not_dead_of_st hdT hkd (by rw [hstd]; simp [tsCode])
-  have hRR : ∀ q' ∈ Z.R, ∀ xr, σ.kheap q'.bv = some (.reply xr) → xr.replyTcb = some d'.bv →
-      Detached Z.C Lst q' ∧ L.mem s (rNextA q') = 0#u64 ∧ L.mem s (rPrevA q') = 0#u64 :=
-    fun q' hq'' xr hx' hxt' => recvReplyHyp_holds Z Ac Lst D s _ σ J q' hq'' xr d'.bv xd hx' hxt' hkd
-      (by rw [hstd]; rfl)
-  have hF : IFrame (L := L) Z.th s s5 := IRel.iframe_of hI hW5' fun b hb => CnW.oobj hI.2.2.1 hb
-  obtain ⟨V', J5⟩ := J.wake_postD hIR hF hW5' hblk hfoot (DWFr.ofCFr Fr5) I5 (Fr5.bsa J.bsa) hAI5 hcur5 hrun5
-    hRR htD ⟨d', hdT, rfl⟩
+  obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX hZ hdT hdth hkd hW5' hfoot
+  have hIu := Ju.xtop.irelK Ju.ks Ju.buf
+  have htD := Ju.not_dead_of_st hdT hkd (by rw [hstd]; simp [tsCode])
+  have hRR : ∀ q' ∈ Z.R, ∀ xr, (Endp.setUm σ umu).kheap q'.bv = some (.reply xr) → xr.replyTcb = some d'.bv →
+      Detached Z.C Lst q' ∧ L.mem su (rNextA q') = 0#u64 ∧ L.mem su (rPrevA q') = 0#u64 :=
+    fun q' hq'' xr hx' hxt' => recvReplyHyp_holds Z Ac Lst D su _ (Endp.setUm σ umu) Ju q' hq'' xr d'.bv xd hx'
+      hxt' hkd (by rw [hstd]; rfl)
+  have hF : IFrame (L := L) Z.th su s5 := IRel.iframe_of hIu hWu fun b hb => CnW.oobj hIu.2.2.1 hb
+  obtain ⟨V', J5⟩ := Ju.wake_postD hIR hF hWu hblk hFu (DWFr.ofUm (DWFr.ofCFr Fr5) umu) I5 (Fr5.bsa J.bsa) hAI5
+    hcur5 hrun5 hRR htD ⟨d', hdT, rfl⟩
   -- the tail
   have hk5 : σ5.kheap d'.bv = some (.tcb x5) := by rw [hσ5, stsAct_kheap]; simp
   have hnr5 : d'.bv ∉ σ5.releaseQueue := by rw [SK5.1]; exact hnqD.2
