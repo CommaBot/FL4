@@ -16,8 +16,8 @@ toward XTopJointDispatch's `JRecvSigHyp`), by the notification's state.
   word is the `CUR_SC` word; the spec: `specRecvTail_cur`).
 * `JAtZ.canBlockCur`: P1's `CanBlock` of the current thread at a resumed
   entry from `JAtZ` (as XTopJointFaultRecv's).
-* The blocking receive: XTopJointRecvSigBlock (`JAtZ.recvSigBlockJ`,
-  `jRecvSigHyp_of`, `dispatch_recvJS`).
+* The blocking receive: XTopJointRecvSigBlock (`JAtZ.recvSigBlockJ`) and
+  XTopJointRecvSigRet (`JAtZ.recvSigRetJ`, `jRecvSigHyp_of`, `dispatch_recvJS`).
 -/
 import Fl4Proofs.P3.XTopJointDispatch
 open Aeneas Aeneas.Std Result

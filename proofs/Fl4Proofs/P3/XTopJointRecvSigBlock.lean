@@ -23,10 +23,8 @@ an idle or waiting notification (`JAtZ.recvSigBlockJ`), from `JAtZ` before to
   carried from `Inv.rd` of a runnable thread.
 * The dead set: the notification may lie in it only while covered by a cap
   (`hcov`), so it leaves the dead set (`JCovD.undead`).
-* `jRecvSigHyp_of`: XTopJointDispatch's `JRecvSigHyp` from XTopJointRecvSig's
-  polling and active cases and `JAtZ.recvSigBlockJ` (the held cap's slot
-  covers the notification: `JAtZ.cover_cap`), but the blocking receive that
-  gives the SC back, named `JRecvSigRetHyp` [W]; `dispatch_recvJS`.
+* The blocking receive that gives the SC back, `jRecvSigHyp_of` and
+  `dispatch_recvJS` are in XTopJointRecvSigRet.
 -/
 import Fl4Proofs.P3.XTopJointRecvSig
 import Fl4Proofs.P3.XTopJointSendBlock
@@ -869,73 +867,6 @@ theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
   rw [heq]
   exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
 
-
-variable (arI) in
-/-- **The blocking `receive_signal` at `J` that gives the SC back** [W]
-(KENTRY-PLAN.md item 5, the remaining case): the current thread blocking on
-an idle or waiting notification whose SC is the current SC (l4v
-`maybe_return_sc` unbinds it from the thread: a passive server waiting again
-on the notification that lent it its SC; reachable). -/
-def JRecvSigRetHyp (AR : A → Fl4Spec.Cr3 → Prop) (ct : U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ (n : U64) (x : Fl4Spec.Notification) (cb : Fl4Spec.Badge) (cr : Fl4Spec.CapRights),
-    σ.kheap n.bv = some (.notification x) → (∀ b, x.ntfnObj ≠ .activeNtfn b) → x.ntfnSc = some σ.curSc →
-    notification.receive_signal st arI s a ct n true ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv (.notificationCap n.bv cb cr) true σ).1,
-        RJ (L := L) arI AR r.1 r.2 z.2 ⦄
-
-set_option maxHeartbeats 4000000 in
-/-- **`JRecvSigHyp` at a resumed entry** (module docstring): polling, an
-active notification and the blocking receive proved (the latter with the
-held cap's slot covering the notification, `JAtZ.cover_cap`), but the
-blocking receive that gives the SC back (`JRecvSigRetHyp`). -/
-theorem jRecvSigHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
-    (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (blocking : Bool)
-    (hB : blocking = true → JRecvSigRetHyp (L := L) arI AR ct s a σ) :
-    JRecvSigHyp (L := L) arI AR Z.th ct blocking s a σ := by
-  rintro p b w rd ac hcr ⟨x, hk⟩ ⟨y, hy, hcv⟩
-  have hac : ac = absCap (.Notification p b w rd) := hcr.abs
-  subst hac
-  obtain ⟨n, hn, h⟩ := J.obj.ntfn _ x hk
-  rw [Sched.bv_inj h] at hn
-  cases hact : x.ntfnObj with
-  | activeNtfn b0 =>
-    exact J.recvSigActiveJ hAT ht hcur hni hnq hn hk hact blocking b.bv (rightsOf w rd false false)
-  | _ =>
-    have hna : ∀ b', x.ntfnObj ≠ .activeNtfn b' := fun b' h => by rw [hact] at h; cases h
-    cases blocking
-    · exact J.recvSigPollJ ht hn hk hna b.bv (rightsOf w rd false false)
-    · by_cases hsc : x.ntfnSc = some σ.curSc
-      · exact hB rfl p x b.bv (rightsOf w rd false false) hk hna hsc
-      · have hHn : H p = some .ntfn := J.zH.2.2.2 p hn
-        have hfit := J.kern.heap.fits p _ hHn
-        simp only [P1.HKind.bits] at hfit
-        have hcov := J.cover_cap (P1.WritesIn.refl s _) hy (by rw [capAt_capV, hcv]) (fun h => by cases h)
-          (ok_inj (phys_eq _).symm) rfl (range_ntfn p b w rd hfit) fun k hk' => by
-            rw [hHn] at hk'; cases hk'
-            exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
-        exact J.recvSigBlockJ hAT ht hcur hni hnq hn hk hna hsc hcov b.bv (rightsOf w rd false false)
-
-set_option maxHeartbeats 4000000 in
-/-- **`dispatch_recvJE` with `jRecvSigHyp_of`**: the receiving syscalls at
-`J` against `fl4HandleEvent rep`'s branches, the notification receive's
-remaining premise the blocking receive giving the SC back
-(`JRecvSigRetHyp` [W]). -/
-theorem dispatch_recvJS (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
-    (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
-    (hIpc : JRecvIpcHyp (L := L) arI AR Z.th ct bl s a σ)
-    (hB : bl = true → JRecvSigRetHyp (L := L) arI AR ct s a σ) :
-    syscall.dispatch_syscall st arI s a number ⦃ r =>
-      ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr)).run σ).1,
-        y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  exact dispatch_recvJE arI rep hZ hAT s a σ J hni hct hnq hvfh number bl cr hn hIpc
-    (jRecvSigHyp_of hAT J hctT hcur hni hnq bl hB)
 
 end
 

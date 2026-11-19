@@ -14,7 +14,7 @@ toward XTopJointDispatch's `JRecvIpcHyp`).
   a reply object linked to another thread: `take_reply`'s `cancel_ipc`);
   `dispatch_recvJR`: `dispatch_recvJS` with it.
 -/
-import Fl4Proofs.P3.XTopJointRecvSigBlock
+import Fl4Proofs.P3.XTopJointRecvSigRet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -149,21 +149,20 @@ theorem jRecvIpcHyp_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJS` with `jRecvIpcHyp_of`**: the receiving syscalls at
 `J` against `fl4HandleEvent rep`'s branches; premises the two receive
-leaves' remaining cases (`JRecvIpcRestHyp`, `JRecvSigRetHyp` [W]). -/
+leaf's remaining cases (`JRecvIpcRestHyp` [W]). -/
 theorem dispatch_recvJR (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
     (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
     (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
-    (hW : JRecvIpcRestHyp (L := L) arI AR Z.th ct bl s a σ)
-    (hB : bl = true → JRecvSigRetHyp (L := L) arI AR ct s a σ) :
+    (hW : JRecvIpcRestHyp (L := L) arI AR Z.th ct bl s a σ):
     syscall.dispatch_syscall st arI s a number ⦃ r =>
       ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr)).run σ).1,
         y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
   have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
-  exact dispatch_recvJS rep hZ hAT s a σ J hni hct hnq hvfh number bl cr hn (jRecvIpcHyp_of J hctT bl hW) hB
+  exact dispatch_recvJS rep hZ hAT s a σ J hni hct hnq hvfh number bl cr hn (jRecvIpcHyp_of J hctT bl hW)
 
 end
 
