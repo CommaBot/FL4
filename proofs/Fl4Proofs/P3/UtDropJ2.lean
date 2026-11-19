@@ -451,7 +451,127 @@ theorem JAtZ.dropUtc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : Fl
       ((U.rst hn (by rw [← hcdt]; exact hnc) hf0).1 sl' (by rw [← horig]; exact ho)),
       (U.rst hn (by rw [← hcdt]; exact hnc) hf0).2⟩, U.dwReg, fun hn => by rw [harch]; exact U.gReg hn⟩
 
+/-- **The current thread and SC are live** (outside the region's dead
+objects; no reschedule pending: `CurInv`), as in `dropBlk`. -/
+theorem JAtZ.curLive (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hres : σ.schedulerAction ≠ .chooseNewThread)
+    (hRD : ∀ q, P1.RegionD H p.val (p.val + 2 ^ sb.val) q → DeadP (L := L) H s q) :
+    ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.curW s) ∧ ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.cscW s) := by
+  have hC := J.curInv hres
+  obtain ⟨xt, hkt, hsc, -⟩ := hC.tcb
+  obtain ⟨Q, R0, hcr, hs⟩ := J.xtop.fin.1.1.1.lists
+  refine ⟨fun hd => ?_, fun hd => ?_⟩
+  · have d2 := ((hRD _ hd).1 J.kern.curH).2.1
+    have hT := J.thT _ J.kern.curT
+    obtain ⟨x', hk', hR⟩ := J.xtop.ipc.tcb _ hT
+    rw [← J.kern.cur, hkt] at hk'; cases hk'
+    rw [hR.sc, d2, optRef_zero] at hsc; cases hsc
+  · obtain ⟨y, n, hy, hyt⟩ := J.inv.back _ xt _ hkt hsc
+    have ecs : L.cscW s = Sched.nodeW st s Z.c layout.node.CUR_SC := by
+      unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA Sched.nodeW; rw [hcr.cur]
+    obtain ⟨q, hq, hqp⟩ := J.obj.sc _ y n hy
+    have eq : q = L.cscW s := P1.eq_of_bv (by rw [hqp, hs.curSc, ecs])
+    subst eq
+    obtain ⟨y', n', hk', hx'⟩ := hs.scs _ hq
+    have hk2 : σ.kheap σ.curSc = some (.schedContext y' n') := by rw [← hqp]; exact hk'
+    rw [hy] at hk2; cases hk2
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have hH := (hJ.sc _ y n (J.c0 _ hq) hk').2
+    have d := ((hRD _ hd).2.2.2.2 _ hH).1
+    rw [hx'.tcb, scW_tcb, d, optRef_zero] at hyt; cases hyt
+
+/-- **`JKern` across the drop**: the current thread and SC live (`curLive`),
+the original caps' slots, the debug-list head and the global PML4 off the
+region (the source cap's `UtCapP3.rst`/`gReg`), the rest antitone or kept. -/
+theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : Fl4Spec.State Unit}
+    (hD : SDrop (RgOf p sb) σ σ') (horig : σ'.isOriginalCap = σ.isOriginalCap) (harch : σ'.archState = σ.archState)
+    (hcur : ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.curW s))
+    (hcsc : ¬ P1.RegionD H p.val (p.val + 2 ^ sb.val) (L.cscW s))
+    (hrst : ∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) sl)
+    (hhd : ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
+      (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
+    (hg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val)) :
+    JKern (L := L) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs D
+      (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) s σ' := by
+  have K := J.kern
+  have hcT : ¬ (p.val ≤ (L.curW s).val ∧ (L.curW s).val < p.val + 2 ^ sb.val) :=
+    off_val hsb hfit (off_of_notRD hsb hfit K.curH hcur)
+  refine ⟨fun sl h => hrst sl (by rw [← horig]; exact h), by rw [hD.ct]; exact K.cur,
+    by rw [restrictTh_out hcT]; exact K.curT, OutsideObjects.restrict K.act, K.dwAl,
+    fun a ha => K.dwObj a ha.of_restrict, K.dwNe, ?_, ?_, by rw [harch]; exact K.ga, by rw [harch]; exact K.gf,
+    P1.HeapOK.drop K.heap, ?_, fun q k hq hk => K.hks q k (drop_some hq) hk,
+    fun q z hq => K.hksIn q z (drop_some hq), fun q k hq c hc => K.hnd q k (drop_some hq) c hc, K.ksbFit,
+    K.ksbAl, K.nodeFit, K.cpuCs, drop_keep K.curH hcur, by rw [P1.Heap.drop_of_not hcsc]; exact K.cscH,
+    K.csLt, K.cs0⟩
+  · rcases K.head with h | ⟨h1, h2⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨by rw [restrictTh_out hhd]; exact h1, h2⟩
+  · rw [harch]
+    obtain ⟨pt, hk⟩ := K.gpm
+    refine ⟨pt, hD.fwd (fun hr => hg ?_) hk⟩
+    exact (rgOf_iff hsb hfit ⟨σ.archState.x64GlobalPml4⟩).1 hr
+  · cases e : H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val)) 0#u64 with
+    | none => rfl
+    | some k => have := drop_some e; rw [K.h0] at this; cases this
+
 end Rg
+
+/-- **`JAtZ` across the drop** (item 2 of handoff/utj.md "Round 9"): at a
+childless RAM untyped cap with a used region (`fi ≠ 0`, the spec's
+`resetUntypedCap` detypes then), from the same FL4 state, the spec state
+`σ'` detyped at the region, the kept sets, the restricted typed heap and
+P1's heap without the region's objects. Premises beyond `JAtZ`: no
+reschedule pending, the spec detype's own facts (`SDrop` and the fields it
+keeps), `KeptRefsP3`/`DbgTimerKept` at the region (`RegionUnrefJ` [J]'s two
+parts, as `utEpJ`), `ArchFitHyp` [J] (as `utEpJ`), and `VsReachMiss` [J]
+(VsDrop). -/
+theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hres : σ.schedulerAction ≠ .chooseNewThread) {sl : Fl4Spec.CslotPtr} (hsl : AbsSlot Z.th sl)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
+    (hnc : ¬ ∃ y, σ.cdt y = some sl) (hfi0 : fi.val ≠ 0)
+    (hKR : KeptRefsP3 (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) s)
+    (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s)
+    (hAF : ArchFitHyp H σ)
+    {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ')
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hrepr : σ'.reprogramTimer = σ.reprogramTimer) (hcdom : σ'.curDomain = σ.curDomain)
+    (hdtime : σ'.domainTime = σ.domainTime) (hist : σ'.interruptStates = σ.interruptStates)
+    (hinode : σ'.interruptIrqNode = σ.interruptIrqNode) (harch : σ'.archState = σ.archState)
+    (hdl : σ'.domainList = σ.domainList) (hdsi : σ'.domainStartIndex = σ.domainStartIndex)
+    (hum : ∀ x, ¬ RgOf p sb x → σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x)
+    {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
+    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
+    JAtZ (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
+      (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs Ac Lst D s a σ' := by
+  have U := J.utc sl p sb fi false hsl hcap rfl
+  have hsb : sb.val < 64 := capAt_untyped_inv hcap
+  have hfit := U.pfit
+  obtain ⟨hPl, ⟨-, -, hML, hC, -⟩, -⟩ := J.xtop.rel
+  have hx : cslotAddr sl ∈ Z.G.chains.flatten := (hML.members _).2 ⟨hsl.isSlot, _, hcap, by simp⟩
+  have hcx : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi false := capV_of_capAt hcap
+  have hnd : ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl) := fun y =>
+    Mdb.not_desc_of_no_child fun z hz => hnc ((hC.has_child_iff hPl hsl).2 ⟨z, hz⟩)
+  have hRD := J.rgDeadD hx hcx hnd
+  have hK := J.sKeep hsb hfit hRD hres hKR
+  have hND : NotDev (L.mem s) (cslotAddr sl) p sb fi := by
+    unfold NotDev; rw [hcx]; simp
+  obtain ⟨hrst, hhd⟩ := U.rst hND hnc hfi0
+  obtain ⟨hcur, hcsc⟩ := J.curLive hsb hfit hres hRD
+  obtain ⟨hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hcov, hobj, hzH, hsf, hhs, hscC, hiL⟩ :=
+    J.dropPlace hsb hfit hx hcx U.fiLe hAF U.nostr hD
+  obtain ⟨hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl', hcr⟩ := J.dropSpecInv hK hD
+  obtain ⟨hcall, hrf, hrr, hyl, hmcp, hbuf⟩ := J.dropMixed hsb hfit hRD hK hD
+  obtain ⟨hdel, hfin, hbd⟩ := J.dropDel hsb hfit hx hcx hnd U.nostr (U.ns hnc)
+  have hX := J.dropX hres hsl hcap hnc hKR hD hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi hum
+    hXP hX4 hX3 hX2 hX1 hM
+  have hjpl := J.dropJpl hsb hfit hx hcx hnd U.fiLe U.nostr hD
+  have hjc := J.dropCov hsb hfit
+  have hkn := J.dropKern hsb hfit hD horig harch hcur hcsc hrst hhd (U.gReg hND)
+  have hutc := J.dropUtc hsb hfit hcdt horig harch hrst
+  have hblk := J.dropBlk hres hx hcx hnd hKR hDT
+  exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
+    hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
+    hcr, hblk, hiL⟩
 
 end
 
