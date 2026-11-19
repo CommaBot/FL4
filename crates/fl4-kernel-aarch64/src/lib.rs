@@ -47,6 +47,8 @@ macro_rules! kprintln {
 }
 
 const PAGE: u64 = 4096;
+/// Bytes of the console UART the kernel maps from the base the tables give.
+const UART_MAP: u64 = 0x1000;
 // The loader's bounds (fl4-bootinfo) are the kernel's window and user space.
 const _: () = assert!(fl4_bootinfo::LOAD_TOP == PADDR_TOP && fl4_bootinfo::USER_END == fl4_abi::consts::USER_TOP + 1);
 const IDLE_STRIDE: usize = 8192;
@@ -174,7 +176,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     // (past the physical address size, or in RAM) is no console.
     let uart = match h.uart_kind {
         serial::KIND_NONE => None,
-        _ => paging::map_device(h.uart_base, 0x1000),
+        _ => paging::map_device(h.uart_base, UART_MAP),
     };
     if let Some(base) = uart {
         serial::init(h.uart_kind, base, h.uart_shift, h.uart_wide);
@@ -212,8 +214,10 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         r.add(s, e);
     };
     keep(&mut dev_used, h.gicd, h.gicd.saturating_add(0x1_0000));
+    // Every page of the console's mapping: two when the tables give a
+    // base inside a page (SPCR and device trees may).
     if fl4_abi::config::PRINTING && uart.is_some() {
-        dev_used.add(h.uart_base & !(PAGE - 1), (h.uart_base & !(PAGE - 1)) + PAGE);
+        keep(&mut dev_used, h.uart_base, h.uart_base.saturating_add(UART_MAP));
     }
     let gicc = if h.gic_version == 3 {
         for i in 0..h.n_gicr {
