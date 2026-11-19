@@ -910,3 +910,55 @@ removed; JAtZ untouched.
 - Builds: sch1-b1 (5380 jobs) / sch1-b5 / sch1-b7 `lake build Fl4Proofs.P3.XTopJointSchedR` OK; axioms
   (axsch1.sh/axsch1.lean, untracked): std only for jat_scheduleFR/SR, JAtZ.activateJ, JAtZ.actRestJ,
   activateThread_eq, jat_finishJ, handle_invocation_refinesJ.
+## kp6 (branch par/budget2 in FL4-tcbj, on cccbf9a3 = int/j2 + kp5)
+- Base check: kp6-b1 `ScChargeT XTopJointBudgetT XTopJointEntry` (5172/5180/5372 jobs) built at cccbf9a3 with no
+  change: the XferHZ removal (gl15/gl16) needed no fix in kp5's modules.
+- DONE a605fcf9 (new leaf XTopJointPPH, std axioms): item 7 step 1.
+  * `pp_err_eq` (spec): every `error` outcome of `preemption_point` is the state after its time update and IRQ
+    check (`NAll` of SpecFreeRet; `nall_getsThe`). `JAtZ.ppJH`: a PREEMPTING `sched.preemption_point` from `JAtZ`
+    (no `PPR0` needed) ends at a `JHole` whose base is the state after the two WORK_UNITS writes, for every spec
+    `error` outcome (ppJD with `timestampJH`). `JAtZ.toHole` (a JAtZ is a JHole over itself), `jAtPre_hole`: every
+    `JAtPre` state is a `JHole`.
+- DONE 892af980 + 64cc669d + (this commit) (new leaf XTopJointPreempt, std axioms): item 7 at J.
+  * Spec: `mem_pp_sched`/`mem_pp_charge`, `fail_pp_sched`/`fail_pp_charge` (outcomes/failure of `preemption_path`
+    from those of its budget part and `maybe_handle_interrupt true`; NB the spec's `preemption_path` elaborates with
+    a join point `__do_jp`, so it is not `ppIf >>= maybe…` by `rfl`), `checkBudget_suff`, `mem_maybeHandle_none/_some`,
+    `fail_maybeHandle_some`.
+  * `JHole.msAr` (another machine state with the same memory and an arch keeping AR), `JHoleAt` (∃ JHole ending at
+    the state).
+  * `JHole.mcsPPJ`: `mcs_preemption_point` from a JHole under `PPCov` (CurInv, current thread not idle, no switch to
+    it pending, `NoTmoSend`) or `PPCovT` (checkBudgetT's case: endpoint handler on an idle/sending endpoint, non-RR
+    SC, Running/Restart, unqueued, ResumeCurThread): schedulable → check_budget (true: unchanged, `check_budgetT` +
+    `checkBudget_suff`; false: `JHole.checkBudgetF`/`checkBudgetT`); not schedulable → `JHole.chargeBudgetJ` (SC
+    active by CurInv.active + `curSc_ne_idleSc_of`); the inactive-SC branch is unreachable under either.
+  * `JHole.afterInvJ`: `after_invocation (Err _)` = mcs + `take_pending_irq` + `check_interrupt` refines
+    `preemption_path` (`PPQ σ r` := spec fails ∨ ∃ outcome z, `JHoleAt r z` ∨ ∃ Z', XTopAt r z): no pending line
+    → `JHoleAt` (msAr); pending line → `JIrqHyp`.
+  * `hPre_of`: `invoke_afterJ`'s `hPre` for `Q := PPQ`; `dispatch_invokeJP` / `dispatch_invokeJEP` =
+    `dispatch_invokeJ`/`JE` without `hPre`.
+- PREMISES (hPre, a ∀ over JAtPre states with an arbitrary Q, is replaced in dispatch_invokeJP/JEP by):
+  * `IrqPlat arI AR` [P] (M4; l4v: `getActiveIRQ` is the machine's IRQ oracle): `take_pending_irq a ⦃ r => ∃ irq ms,
+    doMachineOp (getActiveIRQ true) σ = {(irq, {σ with machineState := ms})} ∧ (r.1 = NO_IRQ ↔ irq = none) ∧
+    (∀ i, irq = some i → r.1.val = i.toNat ∧ ms.irqMasks i = false) ∧ ms.underlyingMemory = σ.….underlyingMemory ⦄`,
+    and `take_pending_irq` keeps AR.
+  * `JIrqHyp` [W] (l4v `handle_interrupt_corres`): for a `JHoleAt` state σ, `w.val = i.toNat`,
+    `σ.machineState.irqMasks i = false`: `handle_interrupt s a w ⦃ r => (handleInterrupt i σ).2 ∨ ∃ z ∈
+    (handleInterrupt i σ).1, ∃ Z', XTopAt AR Z' r.1 r.2 z.2 ⦄`. Post XTopAt, not JHoleAt (a JHole's spec state differs
+    from its base only in machine state/time words; the timer branch sets reprogramTimer, a signal changes the heap).
+    The spec-failure disjunct covers an inactive line (spec `fail`, FL4 masks it; l4v excludes it by
+    `valid_irq_masks`, not carried by JHoleAt). Known deviations to check when proving it: IPI lines (FL4 IRQ_IPI /
+    `smp::handle_ipi` vs spec irqReserved / `handleReservedIrq`), the ARMED node word in the timer branch.
+  * `JPreemptRestHyp` [W]: `after_invocation (Err Preempted) ⦃ PPQ ⦄` at `JHoleAt` states with
+    `¬ (PPCov σ ∨ PPCovT σ)`: a reschedule pending without CurInv (e.g. the thread deleted its own SC: kp1's
+    unbound-current-SC case), the idle thread current, a switch to the current thread pending, the endpoint-handler
+    case with waiting receivers / reschedule pending / queued or RUNNING_VM thread, the handler case with an RR SC is
+    in PPCov via NoTmoSend. PPQ's weak disjuncts (spec failure, XTopAt only) keep it from being false.
+  * plus `ARKeep`, `ArchTotal`, `numDomains = 1`, `PPPlat` [P], `∀ a, max_release_time …` [P] (as elsewhere).
+- NOT DONE: (a) of the brief (current-thread timeout send to a waiting receiver from a JTH; RUNNING_VM third
+  disjunct of NoTmoSend) — untouched; the latter would also shrink JPreemptRestHyp. `JIrqHyp` (handle_interrupt at
+  J: the signal case is the notifLeafJ / send_signal route at J; the timer case is two node words). The chooseNewThread
+  case of the preemption path (CurInv missing: `chargeBudgetJ` variant for an unbound current SC). PPQ's `JHoleAt`
+  is not `JAtZ` (OffOK may fail after a time update; schedule at J (M7) would need a JHole start or PPR0-style facts).
+- Builds: kp6-c* (`lake env lean` checks, scratch/kp6chk.sh), kp6-b2..b5 (`XTopJointPPH XTopJointPreempt`, 5110/5404
+  jobs) OK; scratch/axkp6.lean (untracked): std axioms only for pp_err_eq, JAtZ.ppJH, jAtPre_hole, JHole.msAr,
+  JHole.mcsPPJ, JHole.afterInvJ, hPre_of, dispatch_invokeJP, dispatch_invokeJEP, handle_invocation_refinesJ.

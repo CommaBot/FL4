@@ -26,7 +26,9 @@ state (XTopJointPPH's `jAtPre_hole`: a `JHole`).
   `none`, otherwise the same line number, not masked in the spec), keeping
   `AR`.
 * `JIrqHyp` [W] (l4v `handle_interrupt_corres`): `handle_interrupt` of an
-  unmasked line from a `JHoleAt` state refines `handle_interrupt`, `XTopAt`
+  unmasked line from a `JHoleAt` state refines `handle_interrupt` (or the
+  spec fails: e.g. an inactive line, where FL4 masks it; l4v excludes it by
+  `valid_irq_masks`, which `JHoleAt` does not carry), `XTopAt`
   after (not `JHoleAt`: a `JHole`'s spec state differs from its base only in
   the machine state and the time words, while the timer branch sets
   `reprogramTimer` and a signal changes the heap). Not proved here; known FL4 deviations to check when
@@ -35,7 +37,8 @@ state (XTopJointPPH's `jAtPre_hole`: a `JHole`).
   an inactive line where the spec fails (excluded by `irqMasks i = false` and
   l4v's `valid_irq_masks`).
 * `JHole.afterInvJ`: `after_invocation (Err _)` from a `JHole` under `PPCov ∨ PPCovT`
-  refines `preemption_path` (`PPQ`: `JHoleAt` after when no line is pending,
+  refines `preemption_path` (`PPQ`: the spec fails, or an outcome with
+  `JHoleAt` after when no line is pending,
   `XTopAt` after `JIrqHyp` for a pending line).
 * `JPreemptRestHyp` [W]: `hPre` at the `JHoleAt` states outside `PPCov ∨
   PPCovT` (a reschedule pending without `CurInv`, the idle thread current, a
@@ -88,6 +91,29 @@ theorem mem_pp_charge {σ σ' : State Unit} {y : Unit × State Unit}
   rw [if_pos rfl]
   exact mem_bind_nd (x := (σ.consumedTime, σ)) rfl (mem_bind_nd h1 h2)
 
+theorem fail_pp_sched {σ σ' : State Unit} {b : Bool}
+    (hs : schedulable σ.curThread σ = true) (h1 : (b, σ') ∈ (checkBudget (Z := Unit) σ).1)
+    (h2 : (maybeHandleInterrupt (Z := Unit) true σ').2) : (preemptionPath (Z := Unit) σ).2 := by
+  unfold preemptionPath
+  refine Or.inr ⟨(σ.curThread, σ), rfl, Or.inr ⟨(schedulable σ.curThread σ, σ), rfl, ?_⟩⟩
+  show ((if schedulable σ.curThread σ = true then (_ : SMonad Unit Unit) else _) σ).2
+  rw [if_pos hs]
+  exact Or.inr ⟨_, h1, h2⟩
+
+theorem fail_pp_charge {σ σ' : State Unit}
+    (hs : schedulable σ.curThread σ = false)
+    (hga : getScActive (Z := Unit) σ.curSc σ = ({(true, σ)}, False))
+    (h1 : ((), σ') ∈ (chargeBudget (Z := Unit) σ.consumedTime false σ).1)
+    (h2 : (maybeHandleInterrupt (Z := Unit) true σ').2) : (preemptionPath (Z := Unit) σ).2 := by
+  unfold preemptionPath
+  refine Or.inr ⟨(σ.curThread, σ), rfl, Or.inr ⟨(schedulable σ.curThread σ, σ), rfl, ?_⟩⟩
+  show ((if schedulable σ.curThread σ = true then (_ : SMonad Unit Unit) else _) σ).2
+  rw [if_neg (by simp [hs])]
+  refine Or.inr ⟨(σ.curSc, σ), rfl, Or.inr ⟨(true, σ), by rw [hga]; rfl, ?_⟩⟩
+  show ((if true = true then (_ : SMonad Unit Unit) else _) σ).2
+  rw [if_pos rfl]
+  exact Or.inr ⟨(σ.consumedTime, σ), rfl, Or.inr ⟨_, h1, h2⟩⟩
+
 theorem checkBudget_suff {σ : State Unit} (hnd : numDomains = 1)
     (hb : getScRefillSufficient (Z := Unit) σ.curSc σ.consumedTime σ = ({(true, σ)}, False)) :
     checkBudget (Z := Unit) σ = ({(true, σ)}, False) := by
@@ -103,6 +129,13 @@ theorem mem_maybeHandle_none {σ σ' : State Unit}
     ((), σ') ∈ (maybeHandleInterrupt (Z := Unit) true σ).1 := by
   unfold maybeHandleInterrupt
   exact mem_bind_nd (x := (none, σ')) (by rw [h]; rfl) rfl
+
+/-- `maybe_handle_interrupt` fails when the handling of its line does. -/
+theorem fail_maybeHandle_some {σ σ' : State Unit} {i : Irq}
+    (h : doMachineOp (Z := Unit) (getActiveIRQ true) σ = ({(some i, σ')}, False))
+    (hf : (handleInterrupt (Z := Unit) i σ').2) : (maybeHandleInterrupt (Z := Unit) true σ).2 := by
+  unfold maybeHandleInterrupt
+  exact Or.inr ⟨(some i, σ'), by rw [h]; rfl, hf⟩
 
 /-- `maybe_handle_interrupt` with a pending line. -/
 theorem mem_maybeHandle_some {σ σ' : State Unit} {i : Irq} {z : Unit × State Unit}
@@ -180,6 +213,7 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     (hcov : PPCov σ ∨ PPCovT σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
+      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
       JHoleAt (L := L) arI AR r.1 r.2 σ' ⦄ := by
   obtain ⟨hC, hni, hnsw⟩ : CurInv σ ∧ σ.curThread ≠ σ.idleThread ∧
       σ.schedulerAction ≠ .switchThread σ.curThread := by
@@ -218,30 +252,35 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     rintro ⟨s', a'⟩ ⟨ha, σ', h1, -, Lst', J'⟩
     simp only at ha
     subst a'
-    refine ⟨σ', ?_, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
     have hkx' : σ.kheap σ.curSc = some (.schedContext x n) := by rw [hs.curSc]; exact hkx
     have hga : Fl4Spec.getScActive (Z := Unit) σ.curSc σ = ({(true, σ)}, False) := by
       unfold Fl4Spec.getScActive Fl4Spec.NonDet.getsThe; rw [readScActive_eq' hkx', hax]; rfl
     have h1' : Fl4Spec.chargeBudget (Z := Unit) σ.consumedTime false σ = ({((), σ')}, False) := by
       rw [hs.consumed]; exact h1
     have hs' : Fl4Spec.schedulable σ.curThread σ = false := by rw [ect]; exact hsch
-    exact fun y hy => mem_pp_charge hs' hga (by rw [h1']; rfl) hy
+    refine ⟨σ', ?_, ?_, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
+    · exact fun y hy => mem_pp_charge hs' hga (by rw [h1']; rfl) hy
+    · exact fun hy => fail_pp_charge hs' hga (by rw [h1']; rfl) hy
   · simp only [↓reduceIte]
     have hs' : Fl4Spec.schedulable σ.curThread σ = true := by rw [ect]; exact hsch
     have hFT : sched.check_budget st arI s a ⦃ res => res.1 = false → ∃ σ',
         (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 →
-          y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧ JHoleAt (L := L) arI AR res.2.1 res.2.2 σ' ⦄ := by
+          y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
+        ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
+        JHoleAt (L := L) arI AR res.2.1 res.2.2 σ' ⦄ := by
       rcases hcov with ⟨-, -, -, hnt⟩ | ⟨-, -, hres, hnq, hper, xt, p, bd, r, hkt, hrr, hth, hcb⟩
       · refine WP.spec_mono (Hh.checkBudgetF hAT hC hni hnsw hmrt hmb hnt) ?_
         rintro ⟨r, s', a'⟩ hF hr
         obtain ⟨ha, σ', h1, -, Lst', J'⟩ := hF hr
         simp only at ha
         subst a'
-        exact ⟨σ', fun y hy => mem_pp_sched hs' (by rw [h1]; rfl) hy, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
+        exact ⟨σ', fun y hy => mem_pp_sched hs' (by rw [h1]; rfl) hy,
+          fun hy => fail_pp_sched hs' (by rw [h1]; rfl) hy, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
       · refine WP.spec_mono (Hh.checkBudgetT hAT hC hni hres hnq hmrt hmb hkt hrr hth hper hcb) ?_
         rintro ⟨r, s', a'⟩ hF hr
         obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF hr
-        exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole⟩
+        exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, fun hy => fail_pp_sched hs' hz hy,
+          Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole⟩
     refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb) hFT) ?_
     rintro ⟨r, s', a'⟩ ⟨hT, hF⟩
     refine (WP.spec_ok _).2 ?_
@@ -250,8 +289,8 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     · obtain ⟨e, hsuf, -⟩ := hT rfl
       simp only [Prod.mk.injEq] at e
       obtain ⟨rfl, rfl⟩ := e
-      refine ⟨σ, ?_, Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-      exact fun y hy => mem_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy
+      exact ⟨σ, fun y hy => mem_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy,
+        fun hy => fail_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy, Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
 
 variable (arI) in
 /-- **The platform's pending interrupt is the spec's** [P] (M4; module
@@ -271,13 +310,14 @@ def JIrqHyp (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
     JHoleAt (L := L) arI AR s a σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
     interrupt.handle_interrupt st arI s a w ⦃ r =>
-      ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄
+      (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄
 
 variable (arI) in
 /-- What the preemption path ends in: some outcome of the spec's
 `preemption_path` from `σ1`, a `JHoleAt` state. -/
 def PPQ (AR : A → Fl4Spec.Cr3 → Prop) (σ1 : Fl4Spec.State Unit) (r : S × A) : Prop :=
-  ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1,
+  (Fl4Spec.preemptionPath (Z := Unit) σ1).2 ∨ ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1,
     JHoleAt (L := L) arI AR r.1 r.2 z.2 ∨ ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2
 
 set_option maxHeartbeats 16000000 in
@@ -291,7 +331,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   unfold syscall.after_invocation
   refine WP.spec_bind (Hh.mcsPPJ hAT hnd hmrt hmb hcov) ?_
-  rintro ⟨s1, a1⟩ ⟨σ', hm, Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh'⟩
+  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh'⟩
   have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := Hh'.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) ?_
   rintro ⟨w, a2⟩ ⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩
@@ -306,8 +346,8 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
       ok (false, s2, a3)) ⦃ _ ⦄
     rw [e]
     simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
-    refine (WP.spec_ok _).2 ⟨rfl, ((), { σ' with machineState := ms }),
-      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩⟩
+    refine (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨((), { σ' with machineState := ms }),
+      hm _ (mem_maybeHandle_none hIq), Or.inl ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩⟩⟩
   · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
       cases irq with
       | none => exact absurd (hnone.2 rfl) hw
@@ -320,8 +360,9 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
     rw [e]
     simp only [↓reduceIte]
     refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩ hwi hmask) ?_
-    rintro ⟨s2, a3⟩ ⟨z, hz, hJ⟩
-    exact (WP.spec_ok _).2 ⟨rfl, z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩
+    rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
+    · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
+    · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩⟩
 
 variable (arI) in
 /-- **The preemption path outside `PPCov`** [W] (module docstring;
