@@ -278,7 +278,20 @@ theorem JAtZ.bufWord (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : En
     obtain ⟨-, -, hd, ha, hpa⟩ := hOK t.bv x hk dev pb R mt vms md he hro
     obtain ⟨r1, r2, r3⟩ := buf_frame_rng vms pb x.tcbIpcBuffer k hk128 hpa ha
     rw [← hbv] at r1 r2
-    refine ⟨?_, pb, _, hd, r1, by show b.val < pb.toNat + 2 ^ Fl4Spec.pageBitsForSize vms; omega⟩
+    refine ⟨?_, ?_⟩
+    swap
+    · obtain ⟨sz', hsz'⟩ := hd k hk128
+      have hn := Endp.and_not_mask_toNat (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
+        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k) _ (Endp.pageBits_mem sz')
+      have hpos : 0 < 2 ^ Fl4Spec.pageBitsForSize sz' := by positivity
+      have hlo := Nat.div_mul_le_self (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
+        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat (2 ^ Fl4Spec.pageBitsForSize sz')
+      have hhi := Nat.lt_div_mul_add (a := (Endp.bufAddr (pb + (x.tcbIpcBuffer &&&
+        Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat) hpos
+      refine ⟨_, _, hsz', ?_, ?_⟩
+      · rw [hn, hbv]; exact hlo
+      · show b.val < _ + 2 ^ Fl4Spec.pageBitsForSize sz'
+        rw [hn, hbv]; exact hhi
     intro p k' hp hk'
     obtain ⟨x', c, hkx, hcap, hcr⟩ := J.xtop.rel.2.1.1.bufCap ht
     rw [hk] at hkx; cases hkx

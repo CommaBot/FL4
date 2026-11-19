@@ -620,9 +620,9 @@ theorem ipcBufCapOK_updT {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x y : F
     · exact ⟨x', by simpa [Notif.updK, e] using hx', rfl, rfl⟩
   obtain ⟨x0, hk0, e1, e2⟩ := hx0
   obtain ⟨h1, h2, h3, h4, h5⟩ := h t' x0 hk0 dev p R mt vms md (by rw [e1]; exact hc) hR
-  refine ⟨h1, h2, ?_, by rw [← e2]; exact h4, h5⟩
-  have hpt : p ≠ t := by rintro rfl; rw [hk] at h3; cases h3
-  simp [Notif.updK, hpt, h3]
+  refine ⟨h1, h2, fun k hk' => ?_, by rw [← e2]; exact h4, h5⟩
+  rw [← e2]
+  exact Endp.inUserFrame_updK hk (fun sz e => by cases e) _ (h3 k hk')
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}

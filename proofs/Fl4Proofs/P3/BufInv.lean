@@ -198,6 +198,11 @@ theorem _root_.Fl4Proofs.P3.Endp.ipcBufOf_null {b : Bool} {x : Tcb} (h : x.tcbIp
     Endp.ipcBufOf b x = none := by
   unfold Endp.ipcBufOf; rw [h]
 
+/-- A user frame across a step keeping the data pages. -/
+theorem inUserFrame_keep (hpg : ∀ p vms, σ.kheap p = some (.archObj (.dataPage false vms)) →
+    σ'.kheap p = some (.archObj (.dataPage false vms))) {a : Word} (h : inUserFrame a σ) : inUserFrame a σ' :=
+  let ⟨sz, hsz⟩ := h; ⟨sz, hpg _ _ hsz⟩
+
 /-- **`IpcBufCapOK` across an `IpcFrKeep` step.** -/
 theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.keep (h : Endp.IpcBufCapOK σ) (hK : IpcFrKeep σ σ') :
     Endp.IpcBufCapOK σ' := by
@@ -205,7 +210,7 @@ theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.keep (h : Endp.IpcBufCapOK σ) (hK 
   rcases hK.tcb t x' hx' with e | ⟨x, hx, e1, e2⟩
   · rw [e] at hf; cases hf
   · obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md (by rw [e1]; exact hf) hR
-    exact ⟨h1, h2, hK.page p vms h3, by rw [← e2]; exact h4, h5⟩
+    exact ⟨h1, h2, fun k hk => by rw [← e2]; exact inUserFrame_keep hK.page (h3 k hk), by rw [← e2]; exact h4, h5⟩
 
 theorem _root_.Fl4Proofs.P3.Endp.BufMap.mono {B B' : Set (U64 × Word)} {w : U64} {p : Word}
     (h : Endp.BufMap B w p) (hB : B ⊆ B') : Endp.BufMap B' w p :=
@@ -233,7 +238,9 @@ given the new pair's facts (the install's obligation: l4v
 theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.setFrame (h : Endp.IpcBufCapOK σ) {t : ObjRef} {x y : Tcb}
     (hk : σ.kheap t = some (.tcb x))
     (hy : ∀ dev p R mt vms md, y.tcbIpcframe = .archObjectCap (.pageCap dev p R mt vms md) → vmReadOnly ⊆ R →
-      dev = false ∧ p ≠ 0 ∧ σ.kheap p = some (.archObj (.dataPage false vms)) ∧ y.tcbIpcBuffer.toNat % 1024 = 0 ∧
+      dev = false ∧ p ≠ 0 ∧
+        (∀ k, k < 128 → inUserFrame (Endp.bufAddr (p + (y.tcbIpcBuffer &&& mask (pageBitsForSize vms))) k) σ) ∧
+        y.tcbIpcBuffer.toNat % 1024 = 0 ∧
         p.toNat % 2 ^ pageBitsForSize vms = 0) :
     Endp.IpcBufCapOK (Notif.updK σ t (.tcb y)) := by
   have hpg : ∀ p vms, σ.kheap p = some (.archObj (.dataPage false vms)) →
@@ -247,10 +254,10 @@ theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.setFrame (h : Endp.IpcBufCapOK σ) 
     simp only [Notif.updK_kheap, Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hq
     subst hq
     obtain ⟨h1, h2, h3, h4, h5⟩ := hy dev p R mt vms md hf hR
-    exact ⟨h1, h2, hpg p vms h3, h4, h5⟩
+    exact ⟨h1, h2, fun k hk => inUserFrame_keep hpg (h3 k hk), h4, h5⟩
   · simp only [Notif.updK_kheap, Function.update_of_ne e] at hq
     obtain ⟨h1, h2, h3, h4, h5⟩ := h q x' hq dev p R mt vms md hf hR
-    exact ⟨h1, h2, hpg p vms h3, h4, h5⟩
+    exact ⟨h1, h2, fun k hk => inUserFrame_keep hpg (h3 k hk), h4, h5⟩
 
 /-- **`BufCover` with a TCB's IPC frame and buffer address replaced**, given
 the new buffer mapped in `B` (the install's obligation: the new buffer's

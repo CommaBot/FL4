@@ -10,8 +10,13 @@ FL4's `lookup_ipc_buffer` reads the TCB's IPC-buffer word (`t + 3512`,
   TCBs of `T`; `BufWordRel.frame`: kept by any step that writes no `t + 3512`
   and keeps every TCB's `tcb_ipc_buffer` (both in IpcTopFrame; `VsP.bw` carries it).
 * `IpcBufCapOK` (l4v `valid_cap`, `valid_ipc_buffer_cap`): a buffer cap with
-  read rights is of a non-device frame at a nonzero address, an existing
-  data page, and the buffer pointer is aligned to the buffer size.
+  read rights is of a non-device frame at a nonzero address aligned to its
+  size, the buffer pointer is aligned to the buffer size, and the buffer's
+  128 words lie in user frames (`inUserFrame`, what `copy_mrs` and
+  `get_receive_slots` test). Not an existing data page at the cap's own
+  pointer and size, as l4v's `valid_cap` (`typ_at AUserData`) has it: FL4's
+  `Page_DeriveSubframe` (Ext/VSpace) makes 4 KiB caps inside a large page
+  that name no object of their own, and SetIPCBuffer accepts them.
   **Device frames:** l4v's abstract `lookup_ipc_buffer` (`ipcBufOf`) does
   not test the frame's device flag, while FL4 and C seL4
   (`lookupIPCBuffer`, `cap_frame_cap_get_capFIsDevice`) return no buffer
@@ -55,7 +60,9 @@ open Fl4Spec
 def IpcBufCapOK (σ : State Unit) : Prop :=
   ∀ t x, σ.kheap t = some (.tcb x) → ∀ dev p R mt vms md,
     x.tcbIpcframe = .archObjectCap (.pageCap dev p R mt vms md) → vmReadOnly ⊆ R →
-    dev = false ∧ p ≠ 0 ∧ σ.kheap p = some (.archObj (.dataPage false vms)) ∧ x.tcbIpcBuffer.toNat % 1024 = 0 ∧
+    dev = false ∧ p ≠ 0 ∧
+      (∀ k, k < 128 → inUserFrame (bufAddr (p + (x.tcbIpcBuffer &&& mask (pageBitsForSize vms))) k) σ) ∧
+      x.tcbIpcBuffer.toNat % 1024 = 0 ∧
       p.toNat % 2 ^ pageBitsForSize vms = 0
 
 /-- **The tracked buffer words cover the IPC buffers** (a ghost-set placement
@@ -359,7 +366,9 @@ theorem epBufMapHyps_top (hP0 : Ipc.IPlaced N T E R B)
   -- the spec's buffer, unfolded
   have hbuf : ∀ (σ : Fl4Spec.State Unit) (t : U64) (x : Fl4Spec.Tcb) (b : Bool) (p : Fl4Spec.ObjRef),
       IpcBufCapOK σ → σ.kheap t.bv = some (.tcb x) → ipcBufOf b x = some p →
-      ∃ pb vms, σ.kheap pb = some (.archObj (.dataPage false vms)) ∧ pb ≠ 0 ∧
+      ∃ pb vms, (∀ k, k < 128 →
+          Fl4Spec.inUserFrame (bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k) σ) ∧
+        pb ≠ 0 ∧
         pb.toNat % 2 ^ Fl4Spec.pageBitsForSize vms = 0 ∧ x.tcbIpcBuffer.toNat % 1024 = 0 ∧
         p = pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms)) := by
     intro σ t x b p hO hk hp
@@ -385,7 +394,7 @@ theorem epBufMapHyps_top (hP0 : Ipc.IPlaced N T E R B)
     have hwp := hw hwx p hp
     exact ⟨fun e => (by have h := h0.1 e; rw [hp] at h; cases h), hBC s σ hS t ht x b p hk hp w hwp⟩
   · obtain ⟨pb, vms, hd, -, hpa, ha, rfl⟩ := hbuf σ t x true p (hOK s σ hS) hk hp
-    exact ⟨vms, by rw [buf_frame_base vms pb x.tcbIpcBuffer k hk128 hpa ha]; exact hd⟩
+    exact hd k hk128
   · obtain ⟨⟨G, hB⟩, -⟩ := hS.1
     obtain ⟨pb, vms, hd, h0, hpa, ha, hpe⟩ := hbuf σ t x true p (hOK s σ hS) hk hp
     have hp0 : (⟨p⟩ : U64) ≠ 0#u64 := by

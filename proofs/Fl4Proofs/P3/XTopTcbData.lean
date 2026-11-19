@@ -206,8 +206,7 @@ theorem buf_frame_of_ok {σ : Fl4Spec.State Unit} (hO : Endp.IpcBufCapOK σ) {t 
       rcases hc with h | ⟨h, -⟩
       · exact fun z hz => h (by unfold Fl4Spec.vmReadOnly Fl4Spec.vmReadWrite at *; simp at hz ⊢; simp [hz])
       · exact h
-    obtain ⟨-, -, hd, ha, hpa⟩ := hO t x hk dev pb R mt vms md he hro
-    exact ⟨vms, by rw [Endp.buf_frame_base vms pb x.tcbIpcBuffer k hk128 hpa ha]; exact hd⟩
+    exact (hO t x hk dev pb R mt vms md he hro).2.2.1 k hk128
   · cases hp
 
 set_option maxHeartbeats 16000000 in

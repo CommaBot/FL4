@@ -55,16 +55,22 @@ theorem ipcBufCapOK_epStep {σ σ' : Fl4Spec.State Unit} (h : Endp.IpcBufCapOK �
       exact ⟨a, h1, by rw [e], by rw [e]⟩
   obtain ⟨x, hx, e1, e2⟩ := hx
   obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md (by rw [e1]; exact hf) hR
-  refine ⟨h1, h2, ?_, by rw [← e2]; exact h4, h5⟩
-  rcases hk p with e | ⟨a, b, h1', -⟩ | ⟨a, b, h1', -, -⟩ | ⟨a, b, h1', -, -⟩
-  · rw [e]; exact h3
-  · rw [h3] at h1'; cases h1'
-  · rw [h3] at h1'; cases h1'
-  · rw [h3] at h1'; cases h1'
+  refine ⟨h1, h2, fun k hk' => ?_, by rw [← e2]; exact h4, h5⟩
+  obtain ⟨sz, hsz⟩ := h3 k hk'
+  rw [← e2]
+  refine ⟨sz, ?_⟩
+  rcases hk (Endp.bufAddr (p + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k &&&
+      ~~~(Fl4Spec.mask (Fl4Spec.pageBitsForSize sz))) with e | ⟨a, b, h1', -⟩ | ⟨a, b, h1', -, -⟩ | ⟨a, b, h1', -, -⟩
+  · rw [e]; exact hsz
+  · rw [hsz] at h1'; cases h1'
+  · rw [hsz] at h1'; cases h1'
+  · rw [hsz] at h1'; cases h1'
 
 theorem ipcBufCapOK_of_kheap {σ σ' : Fl4Spec.State Unit} (h : Endp.IpcBufCapOK σ) (hk : σ'.kheap = σ.kheap) :
     Endp.IpcBufCapOK σ' := by
-  unfold Endp.IpcBufCapOK at *; rw [hk]; exact h
+  intro t x hx dev p R mt vms md hf hR
+  obtain ⟨h1, h2, h3, h4, h5⟩ := h t x (by rw [← hk]; exact hx) dev p R mt vms md hf hR
+  exact ⟨h1, h2, fun k hk' => by obtain ⟨sz, hsz⟩ := h3 k hk'; exact ⟨sz, by rw [hk]; exact hsz⟩, h4, h5⟩
 
 /-- `EpHyps` with `IpcBufCapOK` carried along (an `EpStep` keeps the TCBs'
 buffer fields and the data pages). -/
@@ -234,7 +240,9 @@ theorem epBufMapHyps_bufC {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U
       Endp.IpcBufCapOK σ) ∧ Endp.BufCover T B σ) := by
   have hbuf : ∀ (σ : Fl4Spec.State Unit) (t : U64) (x : Fl4Spec.Tcb) (b : Bool) (p : Fl4Spec.ObjRef),
       Endp.IpcBufCapOK σ → σ.kheap t.bv = some (.tcb x) → Endp.ipcBufOf b x = some p →
-      ∃ pb vms, σ.kheap pb = some (.archObj (.dataPage false vms)) ∧ pb ≠ 0 ∧
+      ∃ pb vms, (∀ k, k < 128 →
+          Fl4Spec.inUserFrame (Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k) σ) ∧
+        pb ≠ 0 ∧
         pb.toNat % 2 ^ Fl4Spec.pageBitsForSize vms = 0 ∧ x.tcbIpcBuffer.toNat % 1024 = 0 ∧
         p = pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms)) := by
     intro σ t x b p hO hk hp
@@ -260,7 +268,7 @@ theorem epBufMapHyps_bufC {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U
     have hwp := hw hwx p hp
     exact ⟨fun e => (by have h := h0.1 e; rw [hp] at h; cases h), hS.2 t ht x b p hk hp w hwp⟩
   · obtain ⟨pb, vms, hd, -, hpa, ha, rfl⟩ := hbuf σ t x true p hS.1.2 hk hp
-    exact ⟨vms, by rw [Endp.buf_frame_base vms pb x.tcbIpcBuffer k hk128 hpa ha]; exact hd⟩
+    exact hd k hk128
   · obtain ⟨⟨G, hB⟩, -⟩ := hS.1.1.1.1
     obtain ⟨pb, vms, hd, h0, hpa, ha, hpe⟩ := hbuf σ t x true p hS.1.2 hk hp
     have hp0 : (⟨p⟩ : U64) ≠ 0#u64 := by
