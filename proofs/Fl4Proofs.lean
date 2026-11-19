@@ -597,5 +597,6 @@ import Fl4Proofs.P3.XTopJointRecvSendF
 import Fl4Proofs.P3.XTopJointRecvSendP
 import Fl4Proofs.P3.XTopJointRecvSendRP
 import Fl4Proofs.P3.XTopJointRecvSendRD
+import Fl4Proofs.P3.XTopJointRecvSendT
 import Fl4Proofs.P3.XTopJointRecvSendRet
 import Fl4Proofs.P3.XTopJointRecvIpcRet
