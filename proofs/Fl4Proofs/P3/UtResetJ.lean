@@ -253,7 +253,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
       refine ⟨U.pal, U.pfit, hf', fun _ => U.high hND, fun _ => by rw [hcpu, hna]; exact U.actZ hND,
         fun q k hq => by rcases hfr q k hq with h | h <;> omega, fun _ w hal h1 h2 => ?_, U.sb4, U.nostr,
         fun y hy => by have := U.ns hnc y hy; omega, fun _ => U.ns hnc,
-        fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ _ hf0' => ?_, fun _ => by rw [hna]; exact U.dwReg hND,
+        fun _ _ hf0' => ?_, fun _ => by rw [hna]; exact U.dwReg hND,
         fun _ => U.gReg hND⟩
       · rw [hfr2 w hal (by have := hobj x hxs; omega) (by have := hobj x hxs; omega)]
         exact hZ w hal h1 h2
@@ -271,7 +271,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
         rcases U2.free q kq hq with e | e <;> omega
       refine ⟨U2.pal, U2.pfit, U2.fiLe, fun g => U2.high (B g), fun g => by rw [hcpu, hna]; exact U2.actZ (B g),
         U2.free, fun g w hal h1 h2 => ?_, U2.sb4, U2.nostr, U2.nsFree, fun h0 => U2.ns h0,
-        fun k0 v0 => by simpa only [hna] using U2.pp k0 v0, fun g h0 hf0' => ?_,
+        fun g h0 hf0' => ?_,
         fun g => by rw [hna]; exact U2.dwReg (B g), fun g => U2.gReg (B g)⟩
       · rw [hfr2 w hal (by have := hobj2 x hxs; omega) (by have := hobj2 x hxs; omega)]
         exact U2.zero (B g) w hal h1 h2
