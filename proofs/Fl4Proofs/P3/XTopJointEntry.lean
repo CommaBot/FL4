@@ -915,7 +915,19 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   `syscall_arg`s, as many as FL4's `msgLen`. -/
   len : (msgLen info buf).val = argsU.length
   args : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x
-  /-- [W] the fault handler at `JAt` for a failed cap lookup. -/
+  /-- [W] the fault handler at `JAt` for a failed cap lookup. FALSE in
+  reachable states as stated (`handle_fault` with no fault handler, i.e. a
+  null cap in the thread's fault-handler slot): FL4 runs `set_fault` before
+  `set_thread_state Inactive` (faults.rs `handle_fault`), writing the fault
+  type word (`tFaultA`, `CapFault` = 1), while the spec's `handleNoFault`
+  (l4v `handle_no_fault`, seL4 C `handleNoFaultHandler`) only sets
+  `Inactive` and leaves `tcbFault` (`none` for a running thread), so
+  `IpcRel`'s `TcbRel.fault0` fails after the step. Needs either the kernel
+  to drop that `set_fault` or the relation to ignore an inactive thread's
+  fault words. The endpoint-handler case is `set_fault` then the blocking
+  `send_ipc` (XTopJointIpcJ's `JSendRestHyp` territory); a handler cap that
+  is neither null nor an endpoint is a spec `fail` (needs l4v
+  `valid_fault_handler` [J]). The same holds for `extraLookup`'s fault. -/
   lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
     FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct (.Cap cptr false lf)
       (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf')
