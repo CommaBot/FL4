@@ -162,7 +162,7 @@ restart's state for a childless pool-sized RAM untyped's region, at the
 tables the slots' caps ask (`Vs.NeedR`, as `JUtPath.vsReach`). -/
 theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
-    (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs)
+    (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
       Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
@@ -274,7 +274,7 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
     have hnch1 : ¬ ∃ y, σ1.cdt y = some (pp.bv, idx) := by rw [hσ1cdt]; exact hnch
     -- the kept references at the restart's state (`RegionUnrefJ` [J])
     have hs1c : sched.set_thread_state st s (L.curW s) sched.TS_RESTART = ok s1 := by rw [← hctE]; exact hs1
-    obtain ⟨hKR, hDT⟩ := hRU AR Z Ac Lst D s s1 ar σ J hs1c p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val)
+    obtain ⟨hKR, hDT⟩ := hRU s1 hs1c p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val)
       (fun q k hq hr => (region_deadP J.jcov J.ut hCR.2.2.2.2 hxG hcv (Or.inr ⟨hnd, le_rfl⟩) le_rfl q k hq hr).1)
     -- the drop at the restart's state
     set σd : Fl4Spec.State Unit := Fl4Spec.detype (regionSet p.bv 12) σ1 with hσd

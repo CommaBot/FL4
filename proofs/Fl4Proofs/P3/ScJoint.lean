@@ -148,6 +148,24 @@ def RegionUnrefJ (arI : machine.Arch A) (H : P1.Heap) (Cs : Set U64) : Prop :=
     ∀ lo hi : Nat, (∀ q k, H q = some k → P1.RegionD H lo hi q → q ∈ D) →
       KeptRefsP3 (L := L) H (P1.RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (P1.RegionD H lo hi) Cs s
 
+/-- **[J] `RegionUnrefJ` at one state** (the form the J-level retypes and
+drops ask, at their own `JAtZ`'s heap `H`, cores `Cs`, dead set `D` and state
+`s0`): after the restart from `s0`, for a range whose objects of `H` are all
+in `D`, the kept objects' links and FL4's timer and debug lists name no
+object of the range (l4v `untyped_children_in_mdb` + `if_live_then_nonz_cap`
++ `sym_refs`: live objects name no dead object). -/
+def RegionUnrefAt (H : P1.Heap) (Cs D : Set U64) (s0 : S) : Prop :=
+  ∀ s : S, sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s →
+    ∀ lo hi : Nat, (∀ q k, H q = some k → P1.RegionD H lo hi q → q ∈ D) →
+      KeptRefsP3 (L := L) H (P1.RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (P1.RegionD H lo hi) Cs s
+
+/-- `RegionUnrefJ` at a `JAtZ` state. -/
+theorem RegionUnrefJ.at {H : P1.Heap} {Cs : Set U64} (hRU : RegionUnrefJ (L := L) arI H Cs)
+    {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} {s0 : S} {a : A}
+    {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s0 a σ) :
+    RegionUnrefAt (L := L) H Cs D s0 :=
+  fun s hs => hRU AR Z Ac Lst D s0 s a σ J hs
+
 theorem utOkRU_J {H : P1.Heap} {Cs : Set U64} (hRU : RegionUnrefJ (L := L) arI H Cs) :
     UtOkRU (L := L) arI H Cs (UtJOk (L := L) arI H Cs) := by
   rintro s0 s slot cap extra ⟨AR, a, σ, Z, Ac, Lst, D, pp, rs, idx, J, hres, hn, hi, hsl, hc, hx⟩ hrs

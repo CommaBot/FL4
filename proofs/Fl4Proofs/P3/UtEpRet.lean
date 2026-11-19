@@ -847,7 +847,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64}
     (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r false fiv)
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (blk call don : Bool) :
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (blk call don : Bool) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) false
@@ -894,7 +894,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     · rwa [hσ1k o ho] at h) hH
   have hRU1 : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
       KeptRefsP3 (L := L) H (RegionD H lo hi) s1 ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s1 :=
-    fun lo hi h1 h2 => hRU AR Z Ac Lst D s s1 ar σ J hs1 lo hi (J.free_dead hxG (capV_of_capAt hcap) h1 h2)
+    fun lo hi h1 h2 => hRU s1 hs1 lo hi (J.free_dead hxG (capV_of_capAt hcap) h1 h2)
   have hfiv : fiv = fi := by rw [hctx.fidx]; rfl
   rw [hs1]; simp only [bind_ok]
   exact WP.spec_mono (J1.utEpBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hBO1 hAF1 hRU1)
@@ -933,7 +933,7 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (hc0 : Z.c = 0#u64)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
     {blk call don : Bool} {argsU : List U64}
     (hR : JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
     JUtRetHyp (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU := by

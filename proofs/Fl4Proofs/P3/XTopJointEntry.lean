@@ -51,6 +51,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.JEntryKs
+import Fl4Proofs.P3.JEntryIrq
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.XTopJointIrqDel
 import Fl4Proofs.P3.ScMsgOK
@@ -501,18 +502,9 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hFr : lbl = fl4_abi.label.TCBReadFPU → ∀ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 →
     FpuFrameJHyp (L := L) Z s σ x0
 
-/-- The IRQ handler path. -/
-structure JIrqHPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct irq : U64) : Prop where
-  /-- [J] SetNotification's extra slot is not the IRQ's node slot (its
-  `ExtraSRel` is the front end's, proved: FrontEndExtra). -/
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ (lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
-  /-- [J] IrqDom's `IrqDelP1`. -/
-  hP1 : IrqDelP1 (L := L) s ct irq
-
 /-- The RAM Untyped path (native object types): XTopJointUt's
 `decode_invocation_untypedJ` premises. -/
-structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length p sb fi : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop where
@@ -531,13 +523,14 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   `BufObjHyp`; l4v `valid_ipc_buffer_cap` with `obj_at`), for the
   endpoints', notifications' and replies' retype (`JAtZ.utEpJ`). -/
   bufObj : BufObjHyp Z.B σ
-  /-- [J] at the ghost heap: UtEpSets' `ArchFitHyp` (`H`'s object at a spec
-  arch object no larger than it; l4v the arch objects' `obj_range`) and
-  ScJoint's `RegionUnrefJ` (the kept objects and FL4's debug and timer lists
-  name no dead object of the region; l4v `valid_objs`/`untyped_children_in_mdb`),
-  for `JAtZ.utEpJ`. -/
-  heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
+  /-- [J] at the entry's own ghost heap `H`, cores `Cs` and dead set `D`:
+  UtEpSets' `ArchFitHyp` (`H`'s object at a spec arch object no larger than
+  it; l4v the arch objects' `obj_range`) and ScJoint's `RegionUnrefAt` at the
+  entry state's restart (the kept objects and FL4's debug and timer lists name
+  no object of a range whose objects are in `D`; l4v `untyped_children_in_mdb`
+  + `if_live_then_nonz_cap` + `sym_refs`), for `JAtZ.utEpJ` and the other
+  retypes. -/
+  heapH : ArchFitHyp H σ ∧ RegionUnrefAt (L := L) H Cs D s
   /-- [J] the reset's `VsReachMiss` (VsDrop; l4v `valid_vs_lookup` with
   `dead_childless`: no table reachable from the ASID table lies in a childless
   untyped cap's region, nor one reachable from a table a slot's cap names:
@@ -565,7 +558,7 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   ret : Z.c = 0#u64 → JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
 
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
-def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
+def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data)
     (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
@@ -584,7 +577,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
         argsU ci sl excaps buffer ct)
   | .IrqControl => True
   | .IoPortControl => True
-  | .IrqHandler irq => JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq
+  | .IrqHandler _ => True
   | .Domain => True
   | .SchedContext p sb =>
       (ScJLabel s lbl p → JSchedCtxPath (L := L) arI AR Z s ar σ lbl length p sb blk call don fp buf extra
@@ -603,7 +596,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
         (.Frame p sz rt d m ep asid va) blk call don fp buf extra slbl argsU ci sl excaps buffer ct) ∧
       (ep = false → JFramePath (L := L) AR Z s ar σ lbl length p sz rt d m asid va blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
-  | .AsidControl => JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
+  | .AsidControl => JAsidCPath (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps
       buffer ct
   | .Vcpu p => JVtxScope (L := L) arI AR s ar σ lbl length (.Vcpu p) blk call don fp buf extra slbl argsU ci sl excaps
       buffer ct
@@ -612,7 +605,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .Untyped p sb fi dev =>
       (dev = true → JCapOpen (L := L) arI AR s ar σ lbl length (.Untyped p sb fi dev) blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct) ∧
-      (dev = false → JUtPath (L := L) arI AR Z s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl
+      (dev = false → JUtPath (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl
         excaps buffer ct)
 
 end
@@ -637,7 +630,7 @@ on the cap:
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
-| IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` (labels: `irqControl_label`, `ioControl_label`, `irqH_canon`, `dom_canon`) | `JIrqHPath` |
+| IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` (labels: `irqControl_label`, `ioControl_label`, `irqH_canon`, `dom_canon`) | none (IRQ handler: `JAtZ.irqExtraNe`, `JAtZ.irqDelP1J`, JEntryIrq) |
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield; at `sc_canon`'s label) | YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
@@ -658,9 +651,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length))
     (c : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hLb : lbl.bv = slbl)
+    (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hXN : ExtraNamed Z.th (L.mem s) extra) (hLb : lbl.bv = slbl)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5)
-    (hN : JPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c) :
+    (hN : JPath (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
@@ -785,19 +778,20 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       length buf ct hct argsU hlen hargs J.act3 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc blk call don fp ci
       buffer).toP arI hPre
   case IrqHandler irq =>
-    have hN : JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq := hN
     subst hLb
     obtain ⟨sl', hl', hd⟩ := irqH_canon lbl
     refine XCapP.lbl_congr arI (specDec_irqH irq hd) ?_
-    obtain ⟨x0, hx0, hxn⟩ := hN.hex
-    obtain rfl : x0 = exAt extra 0 := eq_of_ok_eq (hx0.symm.trans (exAt_idx0 extra))
+    have hx0 := exAt_idx0 extra
     have hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) (exAt extra 0) excaps := fun _ => ExtraOK.relS hPl hXO
     have hirq : irq.val < 128 := (slot_cap_wf J.xtop hAs hsc).1
+    -- SetNotification's extra slot is no IRQ node slot (JEntryIrq: the
+    -- lookup's CNode is named by a cap, `SpecGlob.ref`)
+    have hxn : lbl.val = 35 → exAt extra 0 ≠ nodeA (L.ksb s) irq := fun _ => J.irqExtraNe hE.sg hXN hirq
     exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt
       lbl sl' hl' ct hct sl hAs irq hsc
       (irqSlotOK_of_spec J.intL J.dstate.1.1 J.xtop.fin.1.1.2.2.2.1 hE.sg.irqNode hirq)
       (irqDelOKJ arI hG.delParts.live (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq)
-      (irqDelDKJ arI (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq) extra _ hx0 excaps hex hxn J.domPlaced hN.hP1 length buf blk call
+      (irqDelDKJ arI (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq) extra _ hx0 excaps hex hxn J.domPlaced (J.irqDelP1J hni hct hirq) length buf blk call
       don fp _ ci buffer).toP arI hPre
   case Domain =>
     subst hLb
@@ -952,10 +946,10 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
     · exact hV (Or.inl rfl)
   case AsidControl =>
-    have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
+    have hN : JAsidCPath (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
       ct := hN
     subst hLb
-    exact (decode_invocation_asid_controlJD arI s ar σ J hni (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
+    exact (decode_invocation_asid_controlJD arI s ar σ J hni hN.heapH.1 hN.heapH.2
       lbl lbl.bv (makePool_label lbl) length buf ct hct hN.vsReach argsU hlen hargs extra excaps
       (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toP arI hPre
   case Untyped p sb fi dev =>
@@ -971,9 +965,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       exact decode_invocation_untypedJ arI s ar σ J lbl slbl (by rw [← hLb]; exact genInvocationType_untyped_iff lbl) length buf ct hct argsU hlen hargs
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
-        (J.jUtRetHyp hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
-          hN.core0 (J.jUtRetHypR_of hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1
-            (hN.heapH H Cs Ac Lst D J).2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach
+        (J.jUtRetHyp hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2
+          hN.core0 (J.jUtRetHypR_of hni hct hsl hc hN.bufObj hN.heapH.1
+            hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach
             (hN.ret hN.core0)))
     · exact hDv rfl
   all_goals exact hN
@@ -983,7 +977,7 @@ the global ones, those at the entry state, the fault handler at `JAt`, and
 per cap its decode path (the reply tails are proved: XTopJointReplyTail; the
 front end's argument words, extra slots and label words are proved:
 FrontEndExtra). -/
-structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
+structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64) (info : msginfo.MessageInfo)
     (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef) (argsU : List U64)
     (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
@@ -997,7 +991,7 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
     capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
     r2 = .Ok e → er = .ok exs →
-    JPath (L := L) arI AR Z s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
+    JPath (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
       mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
 
 set_option maxHeartbeats 4000000 in
@@ -1020,7 +1014,7 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False))
     (argsU : List U64)
     (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
-    (hH : JEntryHyps (L := L) arI AR Z s ar σ ct is_call blocking can_donate first_phase cptr info mi buf buffer
+    (hH : JEntryHyps (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr info mi buf buffer
       argsU r2 er) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
       HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true σ is_call blocking can_donate first_phase
@@ -1064,9 +1058,13 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     split_ifs <;> omega
   obtain ⟨hLb, hXO⟩ := J.frontJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct
     hinfo hmi hbuf hbuffer hr2 her
+  have hXN : ExtraNamed Z.th (L.mem s) e := by
+    have h := lookup_extra_named Z.th s σ J.dstate.1.1 J.dstate.1.2.1 htcb buf info
+    rw [hr2, WP.spec_ok] at h
+    exact h e h1
   exact decOK_J arI s ar σ J hH.glob hH.atE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
-    (hXO e exs h1 h2) hLb hA5 (hH.path sl c e exs hsl hc hget h1 h2)
+    (hXO e exs h1 h2) hXN hLb hA5 (hH.path sl c e exs hsl hc hget h1 h2)
 
 end
 

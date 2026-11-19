@@ -208,7 +208,7 @@ theorem JAtZ.create_noresetW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     (hs1 : sched.set_thread_state st s (L.curW s) sched.TS_RESTART = ok s1)
     (hct1 : σ1.curThread = σ.curThread) (hcsc1 : σ1.curSc = σ.curSc) (hid1 : σ1.idleThread = σ.idleThread)
     (hisc1 : σ1.idleSc = σ.idleSc) (hns1 : ∀ u, σ1.schedulerAction = .switchThread u → False)
-    (hRU : RegionUnrefJ (L := L) arI H Cs)
+    (hRU : RegionUnrefAt (L := L) H Cs D s)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
@@ -279,7 +279,7 @@ theorem JAtZ.create_noresetW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     unfold RegionD at hr; rw [hq] at hr; simp only [Option.elim] at hr
     unfold MeetsR at hr; unfold MeetsW; omega
   have hreg : A0 + w * k ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ A0 := by rcases hk1' with h | h <;> omega
-  obtain ⟨hKR, hDT⟩ := hRU AR Z Ac Lst D s s1 ar σ J hs1 A0 (A0 + w * k) (fun q kd hq hr => (RD q kd hq hr).1)
+  obtain ⟨hKR, hDT⟩ := hRU s1 hs1 A0 (A0 + w * k) (fun q kd hq hr => (RD q kd hq hr).1)
   have hdrop := dead_dropOK UJ RD hfr hks1 hcpu1 hcw hcs hact hrun hKR hDT hreg
   have hRON : RegionOffNodes st Cs s1 A0 (A0 + w * k) := by
     refine ⟨fun c hc => ?_, ?_⟩
@@ -380,7 +380,7 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     (hs1 : sched.set_thread_state st s (L.curW s) sched.TS_RESTART = ok s1)
     (hct1 : σ1.curThread = σ.curThread) (hcsc1 : σ1.curSc = σ.curSc) (hid1 : σ1.idleThread = σ.idleThread)
     (hisc1 : σ1.idleSc = σ.idleSc) (hns1 : ∀ u, σ1.schedulerAction = .switchThread u → False)
-    (hRU : RegionUnrefJ (L := L) arI H Cs)
+    (hRU : RegionUnrefAt (L := L) H Cs D s)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
@@ -408,7 +408,7 @@ theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (hs1 : sched.set_thread_state st s (L.curW s) sched.TS_RESTART = ok s1)
     (hct1 : σ1.curThread = σ.curThread) (hcsc1 : σ1.curSc = σ.curSc) (hid1 : σ1.idleThread = σ.idleThread)
     (hisc1 : σ1.idleSc = σ.idleSc) (hns1 : ∀ u, σ1.schedulerAction = .switchThread u → False)
-    (hRU : RegionUnrefJ (L := L) arI H Cs)
+    (hRU : RegionUnrefAt (L := L) H Cs D s)
     {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}

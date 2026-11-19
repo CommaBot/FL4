@@ -328,7 +328,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64} (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r true fiv)
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s)
     (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hrcb : Fl4Spec.resetChunkBits = 16)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
@@ -406,7 +406,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false σ1 hg1
     have hRU1 : ∀ lo hi : Nat, p.val + (0#u64 : U64).val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
         KeptRefsP3 (L := L) H (RegionD H lo hi) s1 ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s1 :=
-      fun lo hi h1 h2 => hRU AR Z Ac Lst D s s1 ar σ J hs1 lo hi (J.free_dead hxG hcv h1 h2)
+      fun lo hi h1 h2 => hRU s1 hs1 lo hi (J.free_dead hxG hcv h1 h2)
     refine WP.spec_mono (hB Z H Cs Ac1 Lst1 D1 s1 ar σ1 J1 hni1 rs hpp hidx 0#u64 hcap1 hc0 true hctx1 hfiv0 hBO1
       hAF1 hRU1) (fun res h => ?_)
     obtain ⟨σ', hrun, hok, hrel, hJ⟩ := h
@@ -414,7 +414,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   -- a used cap: `reset_untyped` at the restart's state
   have hnd' : ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (pp.bv, idx)) := nodesc_of_cdt hP hC hAs hnc
   have hRD := (dead_childless J.jcov J.ut hI hxG hcv hnd').2
-  obtain ⟨hKR, hDT⟩ := hRU AR Z Ac Lst D s s1 ar σ J hs1 p.val (p.val + 2 ^ sb.val) (fun q k hq hr =>
+  obtain ⟨hKR, hDT⟩ := hRU s1 hs1 p.val (p.val + 2 ^ sb.val) (fun q k hq hr =>
     (hRD q k hq (by unfold RegionD MeetsR at hr; rw [hq] at hr; simpa using hr)).1)
   have hres1 : σ1.schedulerAction ≠ .chooseNewThread := by rw [hni1.2]; simp
   have hR0 : PPR0 σ := J.ppr0_start arI hni hRd0
@@ -575,7 +575,7 @@ theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ 
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (hc0 : Z.c = 0#u64)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
     (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hrcb : Fl4Spec.resetChunkBits = 16)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →

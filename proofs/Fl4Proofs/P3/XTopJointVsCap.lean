@@ -557,15 +557,15 @@ clean case's step; the former `dirty` [W] removed, handoff/utj.md Round 15),
 given the drop's premises, as the untyped path's (`JUtPath.heapH`,
 `JUtPath.vsReach`). The label and extra caps are proved (`makePool_label`,
 `ExtraOK.mpExtra`). -/
-structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  /-- [J] `ArchFitHyp` and `RegionUnrefJ` (as `JUtPath.heapH`): the drop's
+  /-- [J] `ArchFitHyp` and `RegionUnrefAt` at the entry's own `H`, `Cs`, `D`
+  and state (as `JUtPath.heapH`): the drop's
   kept references and arch objects (`JAtZ.dropA`). -/
-  heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
+  heapH : ArchFitHyp H σ ∧ RegionUnrefAt (L := L) H Cs D s
   /-- [J] the drop's `VsReachMiss` (as `JUtPath.vsReach`; VsDrop, l4v
   `valid_vs_lookup` with `dead_childless`: no table reachable from the ASID
   table lies in a childless untyped cap's region), for a childless
