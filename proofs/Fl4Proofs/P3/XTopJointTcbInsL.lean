@@ -104,7 +104,7 @@ theorem bufHypW_JL {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
       rw [WP.spec_ok]
       refine ⟨rfl, rfl, hSS, σ', ?_, J5.xtop.rel.2.1, KSub.of_kheap hK'.kh, ⟨V, Ac5, Lst5, D5, J5,
         by rw [hw.1]; exact hkb, (fun u e' => by rw [hact5] at e'; cases e'),
-        hsg.of_eq hK'.kh (congrArg Prod.fst hgk) (congrArg Prod.snd hgk), hp0.of_ppk (PPK.of_schedK hK')⟩,
+        hsg.of_eq hK'.kh (congrArg Prod.fst hgk) (congrArg Prod.snd hgk), hp0.of_ppk (PPK.of_schedK hK' fun u e' => by rw [hact5] at e'; cases e')⟩,
         hL1, ⟨lst, J.dbgWF_keep J5 rfl rfl hDW hdk⟩, hN.of_same (fun y hy => hSS.capV hy) horig⟩
       refine mem_bindE_ok (a := σ.curThread) (s' := σ) (mem_liftE_ok (x := (σ.curThread, σ)) rfl) ?_
       have hb : t.bv = σ.curThread := by rw [hcur, e]

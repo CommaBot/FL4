@@ -2690,6 +2690,79 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
+/-- **A Thread cap at an FL4 label other than the five installing ones**
+decodes to no invocation with a preemption point (`specDec_thread_noPre`). -/
+theorem thread_noPre_of {slbl : Fl4Spec.Data} {lbl : U64}
+    (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
+    (h : lbl.val ≠ 5 ∧ lbl.val ≠ 8 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 11)
+    {fp : Bool} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
+    {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit}
+    {p : U64} :
+    ∀ inv, DecOut (specDec fp slbl args ci sl (.Thread p) excaps buffer) σ inv → ¬ NoPre.PreInv inv := by
+  have key : ∀ g, tcbLabelOf lbl = g → (g = .tcbConfigure → lbl.val = 5) ∧ (g = .tcbSetSchedParams → lbl.val = 8) ∧
+      (g = .tcbSetTimeoutEndpoint → lbl.val = 9) ∧ (g = .tcbSetIPCBuffer → lbl.val = 10) ∧
+      (g = .tcbSetSpace → lbl.val = 11) := by
+    intro g hg
+    subst hg
+    unfold tcbLabelOf
+    by_cases h2 : lbl.val = 2
+    · rw [if_pos h2]; simp [h2]
+    rw [if_neg h2]
+    by_cases h3 : lbl.val = 3
+    · rw [if_pos h3]; simp [h3]
+    rw [if_neg h3]
+    by_cases h4 : lbl.val = 4
+    · rw [if_pos h4]; simp [h4]
+    rw [if_neg h4]
+    by_cases h5 : lbl.val = 5
+    · rw [if_pos h5]; simp [h5]
+    rw [if_neg h5]
+    by_cases h6 : lbl.val = 6
+    · rw [if_pos h6]; simp [h6]
+    rw [if_neg h6]
+    by_cases h7 : lbl.val = 7
+    · rw [if_pos h7]; simp [h7]
+    rw [if_neg h7]
+    by_cases h8 : lbl.val = 8
+    · rw [if_pos h8]; simp [h8]
+    rw [if_neg h8]
+    by_cases h9 : lbl.val = 9
+    · rw [if_pos h9]; simp [h9]
+    rw [if_neg h9]
+    by_cases h10 : lbl.val = 10
+    · rw [if_pos h10]; simp [h10]
+    rw [if_neg h10]
+    by_cases h11 : lbl.val = 11
+    · rw [if_pos h11]; simp [h11]
+    rw [if_neg h11]
+    by_cases h12 : lbl.val = 12
+    · rw [if_pos h12]; simp [h12]
+    rw [if_neg h12]
+    by_cases h13 : lbl.val = 13
+    · rw [if_pos h13]; simp [h13]
+    rw [if_neg h13]
+    by_cases h14 : lbl.val = 14
+    · rw [if_pos h14]; simp [h14]
+    rw [if_neg h14]
+    by_cases h15 : lbl.val = 15
+    · rw [if_pos h15]; simp [h15]
+    rw [if_neg h15]
+    by_cases h20 : lbl.val = 20
+    · rw [if_pos h20]; simp [h20]
+    rw [if_neg h20]
+    by_cases h21 : lbl.val = 21
+    · rw [if_pos h21]; simp [h21]
+    rw [if_neg h21]
+    simp
+  obtain ⟨k1, k2, k3, k4, k5⟩ := h
+  refine specDec_thread_noPre ?_ ?_ ?_ ?_ ?_ <;> intro e
+  · exact k1 ((key _ (hlbl.symm.trans e)).1 rfl)
+  · exact k2 ((key _ (hlbl.symm.trans e)).2.1 rfl)
+  · exact k3 ((key _ (hlbl.symm.trans e)).2.2.1 rfl)
+  · exact k4 ((key _ (hlbl.symm.trans e)).2.2.2.1 rfl)
+  · exact k5 ((key _ (hlbl.symm.trans e)).2.2.2.2 rfl)
+
+set_option maxHeartbeats 4000000 in
 set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAt` after** (module docstring): every label proved at
 `J` (no per-op `JPostHyp`, no X-level `TcbXIpc`). -/
@@ -2731,7 +2804,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
@@ -2801,7 +2873,15 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hR hT hARI.toARKeep hTA p hp slbl
         (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (hstall' p) call sl hAs hsc extra
         x0 x1 x2 hx0 hx1 hx2 excaps hXc hcapT hcapC blk don ci buffer)
-  refine XCap.toP arI (decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra
+  have hv : ∀ {c : U64}, lbl ≠ c → lbl.val ≠ c.val := fun hn e => hn (UScalar.eq_of_val_eq e)
+  have hnpT := thread_noPre_of (fp := fp) (args := argsU.map UScalar.bv) (ci := ci) (sl := sl) (excaps := excaps)
+    (buffer := buffer) (σ := σ) (p := p) hlbl
+    ⟨by have := hv h5; simpa [fl4_abi.label.TCBConfigure] using this,
+      by have := hv h8; simpa [fl4_abi.label.TCBSetSchedParams] using this,
+      by have := hv h9; simpa [fl4_abi.label.TCBSetTimeoutEndpoint] using this,
+      by have := hv h10; simpa [fl4_abi.label.TCBSetIPCBuffer] using this,
+      by have := hv h11; simpa [fl4_abi.label.TCBSetSpace] using this⟩
+  refine XCap.toPN arI (decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra
     ct hct slbl hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
       readRegisters := fun h => by
@@ -2895,7 +2975,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .setTimer by
           simp [tcbExtOf])
         exact tcb_set_timerJ arI s ar σ J hni p hpT slbl hg he length buf ct hct argsU hlen hargs (hstall' p) call
-          (cslotAddr sl) extra blk don ci sl excaps buffer }) hXP
+          (cslotAddr sl) extra blk don ci sl excaps buffer }) hnpT
 
 end
 

@@ -143,11 +143,11 @@ theorem cn_del_topJL {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
           hX'.rel.2.2.1, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ?_⟩
       simp only [reduceCtorEq, if_false]
       exact ⟨_, H, Cs, Ac', Lst', D', J'⟩
-    · obtain ⟨-, s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -⟩, hpp, hspp, hDom, hMO⟩ := hE'
+    · obtain ⟨-, s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩ := hE'
       refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.error (), σ'),
         mem_bindE_err hx, ⟨Z.th, G', Or.inr ⟨rfl, rfl⟩, J.xtop.rel.1, hCR', hFI', hDom, hMO⟩, ?_⟩
       simp only [if_true]
-      exact Or.inr ⟨s0, a0, σ0, ⟨_, H, Cs, Ac', Lst', D', J0⟩, hpp, hspp⟩
+      exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAt` at the Revoke label** (25): `cnode_revoke_refinesW` at
@@ -243,6 +243,17 @@ theorem decode_invocation_cnode_deleteJL [Fl4Proofs.P1.PlainStore st] (s : S) (a
     rw [if_neg (by simp)]
     exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
 
+/-- **A CNode cap at an FL4 label other than Revoke and Delete** decodes to
+no invocation with a preemption point (`specDec_cnode_noPre`). -/
+theorem cnode_noPre_of {slbl : Fl4Spec.Data} {lbl : U64}
+    (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl) (h : lbl.val ≠ 25 ∧ lbl.val ≠ 26)
+    {fp : Bool} {args : List Fl4Spec.Data} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr}
+    {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit}
+    {p r gs g : U64} :
+    ∀ inv, DecOut (specDec fp slbl args ci sl (.CNode p r gs g) excaps buffer) σ inv → ¬ NoPre.PreInv inv := by
+  refine specDec_cnode_noPre ?_ ?_ <;> rw [hlbl] <;> unfold cnodeLabelOf <;> intro e <;> split_ifs at e <;>
+    first | omega | cases e
+
 set_option maxHeartbeats 4000000 in
 /-- **The CNode cap, `JAt` after, with the deletion at `EJL`**:
 the former XTopJointCnDel `decode_invocation_cnodeJ_steps` with Revoke and Delete by
@@ -283,7 +294,8 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     exact (decode_invocation_cnode_copyXS arI s ar σ hX (J.curRun.run hni) ⟨Z, H, Cs, Ac, Lst, D, J⟩
       (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
       length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
-      excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
+      excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer).toPN arI
+      (cnode_noPre_of hlbl (by omega))
   by_cases hrd : 25 ≤ lbl.val ∧ lbl.val ≤ 26
   · rcases (show lbl.val = 25 ∨ lbl.val = 26 by omega) with h | h
     · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
@@ -296,7 +308,7 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
         length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
   by_cases hlo : lbl.val < 25 ∨ 32 < lbl.val
   · exact (decode_invocation_cnode_illegalJ arI s ar σ J lbl hlo slbl hlbl length buf ct hct _ p r gs g extra excaps
-      (cslotAddr sl) blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
+      (cslotAddr sl) blk call don fp ci sl buffer).toPN arI (cnode_noPre_of hlbl (by omega))
   have h27 : lbl.val = 27 := by omega
   have e : lbl = fl4_abi.label.CNodeCancelBadgedSends := UScalar.eq_of_val_eq (by rw [h27, lbl_cancel_val])
   subst e
@@ -306,7 +318,7 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     hQ (fun u hu => by rw [hni.2] at hu; cases hu) (fun e b sl' hsl hcV => by
       obtain ⟨Tr, Cq, hJl⟩ := J.jpl
       exact J.hset.1 e ((hJl.typed _ hsl.isSlot).1 e b _ _ _ _ hcV)) (cslotAddr sl)
-    blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
+    blk call don fp ci sl buffer).toPN arI (cnode_noPre_of hlbl (by omega))
 
 end
 

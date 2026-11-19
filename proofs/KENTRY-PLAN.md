@@ -1327,3 +1327,55 @@ removed; JAtZ untouched.
 - Builds (tokyo, b.sh, module builds): sch5-b2 `ScFpuOwnK ScNextDomF XTopJointSchedRF` OK (5396 jobs; ScArchF/
   ScScheduleF rebuilt), sch5-b3 `ScNextDomCF` OK, sch5-b4 `ScFpuOwnK XTopJointSchedRF2` OK (5402 jobs), sch5-b5
   `XTopJointSchedRF2` OK. Axioms: axsch5.sh/axsch5.lean (untracked).
+
+## kp10 (branch par/budget6 in FL4-tcbj, on 95724d05 = int/j2 incl. kp9 SpecNoPre)
+- DONE (2a) = kp9 steps 1-4 (`JAtPre`'s first disjunct deleted). Deviation from kp9 step 3 (cheaper, same
+  effect): the two base facts ride in `PPR0` instead of new conjuncts beside it.
+  * ScPPR: `PPR0 σ := (σ.curThread ≠ σ.idleThread ∧ ∀ u, σ.schedulerAction ≠ .switchThread u) ∧ (old PPR0)`;
+    `PPK` gains `ct`/`idle` equalities and `ns` (no switch kept); `of_cnK` (abs0), `of_ksStep`, `restart`
+    (`stsAct` keeps the threads, sets at most `chooseNewThread`), `of_schedK` (now takes the post's NoSwitch;
+    both callers have `hact5`), `updTcbSc`, UtResetTopJ's `delSt` frame. SpecPPR `PPR0.of_tr`/`ppr0_finaliseCap`
+    take `hct hid hns`, supplied in XTopJointDelR `jFinPPHyp` from `dk_finaliseCap.ct`, `gk_finaliseCap.idle`,
+    `ak_finaliseCap_ns`. XTopJointPP `ppJD` (post-time-update state: `rw [hσ2, hσ1]`), `ppr0_start` (from
+    `Entered`), UtRetResetJ's restart split. So both loops (deletion WJR/WJL, Untyped reset) carry the facts
+    with no new invariant conjunct.
+  * XTopJointDelR: `WJP`'s base is `WJR` (was `WJ`); producers `jPreemptHyp_of`, `jPreemptHypL` pass `hp0`.
+  * XTopJointCnDel: imports SpecNoPre; `JAtPre := ∃ s0 a0 σ0, (JAt s0 a0 σ0 ∧ Vs.NoSwitch σ0 ∧ σ0.curThread ≠
+    σ0.idleThread) ∧ pp ∧ mem`; `TopPostDMX.toPne`/`toPN`/`errP`, `XCap.toPN`, `specDec_noPre`/`NoPreKind`/
+    `specDec_noPreK` (any cap but CNode/Untyped/Thread, `(by trivial)`), `specDec_cnode_noPre`,
+    `specDec_thread_noPre`. Constructions of the second disjunct: cn_del_topJ, WJLRestart cn_del_topJL,
+    TcbSsp:856, TcbInstall:1116 (from WJR's NoSwitch + `PPR0.1.1`), UtResetZ `jAtPre_pp` (takes `PPR0 σ`).
+  * The `Or.inl` sites: XTopJointEntry `decOK_J` (25 sites, `specDec_noPreK (by trivial)`), WJLRestart
+    (`cnode_noPre_of`: copy/illegal/cancel labels ≠ 25, 26), Tcb `thread_noPre_of` (labels ≠ 5, 8, 9, 10, 11;
+    no `split_ifs` on `tcbLabelOf` — it hits simp's step limit — but a by_cases chain), TcbSsp/TcbInstall
+    (19 decode errors: `errP`; TcbSsp's Ok outcome: `toPne`), XTopJointUt's decode error (`errP`).
+  * Consumers: PPH `jAtPre_hole`, PreemptZ `jAtPre_holeT` (one case); new `jAtPre_holeTN` (the hole has
+    `ct ≠ idle` and NoSwitch: `pp_err_eq` makes it the base with the time updated).
+  * PreemptI: `JPreemptRestHypJ arI AR` [W] := `∀ s a σ, JHoleAt arI AR s a σ → NativeScope σ →
+    σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) → after_invocation s a
+    (.Err .Preempted) ⦃ r => PPQ arI AR σ (r.2.1, r.2.2) ⦄` (`jPreemptRestHypJ_of : JPreemptRestHypI →
+    JPreemptRestHypJ`), `hPre_ofZJ`, `dispatch_invokeJPZJ`, `dispatch_invokeJEPZJ` (new top; premises as
+    `dispatch_invokeJEPZI` with `JPreemptRestHypJ` for `JPreemptRestHypI`). What is left in it (by PPCov's
+    conjuncts): (i) no `CurInv` while the thread is schedulable or the current SC active (= (2b)); (ii)
+    `CurInv`, ¬`NoTmoSend`, ¬`PPCovT` (kp5 (i) = (2c)). Idle current thread and pending switch are gone.
+- (2b) NOT STARTED, finding (sizing): a `charge_budget_refinesF` copy "without htw/hts" is not a local copy. The
+  owner facts reach three layers: `charge_head_refinesK` (htw → `hown : x.scTcb = some ct`, fed to
+  `Inv.refillUpd`/`budget_check_refines_inv` as `Or.inl hown`, whose `InvBut σ' u0` is parametric in the SC's
+  OWNER `u0` and needs `u0 ∉ releaseQueue`), `charge_tail_refinesF` (`hxs` ct's SC = cur SC, `hown`), and
+  ScCharge's `rap_refines` (htw, hts). Route: re-parametrise the head/tail/rap chain by the SC's owner
+  `o : Option ObjRef` (`x.scTcb = o`, `∀ u, o = some u → u ∉ releaseQueue`) instead of ct; the owner's
+  release-queue fact is a NEW spec fact at the hole (l4v: `charge_budget` from `valid_sched`'s
+  `active_sc_valid_refills`/`released_sc` of a bound active SC, not `ct_not_in_release_q`); for an owner in
+  the release queue the spec's `charge_budget` still runs (l4v `refill_budget_check` on a released SC) — check
+  first whether FL4's `charge_budget` writes differ there. Then `JHole.mcsPPJU` (¬CurInv, active SC) with
+  `CurOwnW`'s second disjunct after, and `JPreemptRestHypK` = `JPreemptRestHypJ` with `CurInv σ ∨ ¬active`.
+- (2c) not started (kp5 (i), unchanged).
+- Builds: kp10-b1..b4 (module builds via scratch/kp5build.sh: ScPPR, SpecPPR, XTopJointDelR, XTopJointPP,
+  XTopJointCnDel, WJLPP, WJLRestart, UtResetZ/LoopJ/TopJ, UtRetResetJ, TcbInsL, TcbInstall, TcbSsp, Tcb, Ut, PPH,
+  PreemptZ, PreemptI, Entry, and the four sinks of ScPPR's reverse cone: XTopJointPreemptI, XTopJointRecvIpcLink,
+  XTopJointSchedR, XTopJointYieldSys; all green). scratch/axkp10.lean (untracked): std axioms only for
+  PPR0.of_ppk (Classical.choice), jFinPPHyp, jPreemptHyp_of, TopPostDMX.toPN/errP, XCap.toPN, specDec_noPreK,
+  specDec_cnode_noPre, specDec_thread_noPre, cn_del_topJ, cnode_noPre_of, thread_noPre_of,
+  decode_invocation_cnodeJ_stepsL, decode_invocation_threadJ_step, decOK_J, jAtPre_hole, jAtPre_holeTN,
+  jPreemptRestHypJ_of, hPre_ofZJ, dispatch_invokeJPZJ, dispatch_invokeJEPZJ, dispatch_invokeJEPZI,
+  handle_invocation_refinesJ.

@@ -748,7 +748,6 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hPre : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   obtain ⟨σ1, hst⟩ := XTop.restart (L := L) (show XTop (L := L) AR s ar σ from ⟨Z, J.xtop⟩)
   have hAs : AbsSlot Z.th sl := by
     obtain ⟨p, hp, hth⟩ := hsl; exact ⟨p, hp, Or.inl hth⟩
@@ -759,27 +758,27 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   have hPl : Placed Z.th := J.xtop.rel.1
   cases c
   case Null =>
-    refine XCap.toP arI (Or.inl ?_) hPre
+    refine XCap.toPN arI (Or.inl ?_) (specDec_noPreK (by trivial))
     unfold DecOKDMX syscall.decode_invocation
     rw [hct]; simp only [bind_ok, WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Zombie p zt n =>
-    refine XCap.toP arI (Or.inl ?_) hPre
+    refine XCap.toPN arI (Or.inl ?_) (specDec_noPreK (by trivial))
     unfold DecOKDMX syscall.decode_invocation
     rw [hct]; simp only [bind_ok, WP.spec_ok]
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Endpoint p b sd rv g gr =>
-    exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
+    exact XCap.toPN arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
       slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => sendLeafJ2 hG.tot J hni hE.ctnq hE.cnf hct hAs hc hst blk call g gr don
-        hX0)) hPre
+        hX0)) (specDec_noPreK (by trivial))
   case Notification p b sd rv =>
-    exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
+    exact XCap.toPN arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
       slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs)
-        hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
+        hG.pp.minBudget J hni hct hAs hc hst hX0)) (specDec_noPreK (by trivial))
   case Reply p g =>
-    exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
+    exact XCap.toPN arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
       excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget J hni hct hAs hc hst
-        (runTmoP_recv _ hG.tot hG.maxTU hG.tu) hX0))) hPre
+        (runTmoP_recv _ hG.tot hG.maxTU hG.tu) hX0))) (specDec_noPreK (by trivial))
   case CNode p r gs g =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
@@ -841,8 +840,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     by_cases h0 : z = 0#u64
     · subst h0 hLb
       exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot lbl lbl.bv (port_label lbl) length buf ct
-        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toP
-        arI hPre
+        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toPN
+        arI (specDec_noPreK (by trivial))
     · exact hOpen h0
   case IrqControl =>
     subst hLb
@@ -854,7 +853,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     subst hp0
     exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
-      blk call don fp ci buffer).toP arI hPre
+      blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case IoPortControl =>
     subst hLb
     have hex := ExtraOK.rel1 hPl hXO
@@ -864,7 +863,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     subst hp0
     exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hE.ports lbl lbl.bv (ioControl_label lbl)
       length buf ct hct argsU hlen hargs J.act3 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc blk call don fp ci
-      buffer).toP arI hPre
+      buffer).toPN arI (specDec_noPreK (by trivial))
   case IrqHandler irq =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := irqH_canon lbl
@@ -879,14 +878,14 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       lbl sl' hl' ct hct sl hAs irq hsc
       (irqSlotOK_of_spec J.intL J.dstate.1.1 J.xtop.fin.1.1.2.2.2.1 hE.sg.irqNode hirq)
       extra _ hx0 excaps hex hxn J.domPlaced (J.irqDelP1J hni hct hirq) length buf blk call
-      don fp _ ci buffer).toP arI hPre
+      don fp _ ci buffer).toPN arI (specDec_noPreK (by trivial))
   case Domain =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := dom_canon lbl
     refine XCapP.lbl_congr arI (specDec_dom hd) ?_
     have hex := ExtraOK.relS hPl hXO
     exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari ct hct J.ksOut J.actK lbl sl' hl' length
-      buf argsU hlen hargs extra _ (exAt_idx0 extra) excaps hex _ blk call don fp ci sl buffer).toP arI hPre
+      buf argsU hlen hargs extra _ (exAt_idx0 extra) excaps hex _ blk call don fp ci sl buffer).toPN arI (specDec_noPreK (by trivial))
   case SchedContext p sb =>
     obtain ⟨hP, hY⟩ := hN
     obtain ⟨hpC, hpi, hsb, hssz, hback, hbn⟩ := J.scCtxCap arI hAs.isSlot hc
@@ -897,14 +896,14 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     swap
     · by_cases hu : lbl = fl4_abi.label.SchedContextUnbind
       · exact (decode_invocation_sched_context_unbindJ s ar σ J hni lbl sl' hlbl hu sb hpC hpi hback hct extra
-          excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toP arI hPre
+          excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toPN arI (specDec_noPreK (by trivial))
       by_cases hy : lbl = fl4_abi.label.SchedContextYieldTo
       · have hYP := hY hy
         exact (decode_invocation_sched_context_yieldJ s ar σ J hni hG.tot hYP.mb hYP.max hYP.tu lbl sl' hlbl hy sb
-          hpC hback hct extra excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toP arI hPre
+          hpC hback hct extra excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toPN arI (specDec_noPreK (by trivial))
       · exact (decode_invocation_sched_context_otherJ s ar σ J lbl sl' hlbl (fun h => hl (Or.inl h))
           (fun h => hl (Or.inr (Or.inl h))) (fun h => hl (Or.inr (Or.inr h))) hu hy sb (fun h0 => (hback h0).1) hct
-          extra excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toP arI hPre
+          extra excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toPN arI (specDec_noPreK (by trivial))
     have hN := hP hl
     obtain rfl : sl' = lbl.bv := hsame (by rcases hl with h | h | h <;> rw [h] <;> simp)
     have hex := ExtraOK.rel1 hPl hXO
@@ -921,7 +920,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       hpi hl hback hbn hct hcs extra x0 hx0 excaps hex length (cslotAddr sl) buf blk call don fp _ ci sl buffer hc
       hAs.isSlot hsb hssz hxS hN.arch (hN.rest H Cs Ac Lst D J) (fun l44 =>
         sc_consumedReplyJ s ar σ J hni hG.tot hN.max hN.tu lbl lbl.bv hlbl l44 sb hpC hback hct extra
-          excaps length (cslotAddr sl) buf blk call don fp)).toP arI hPre
+          excaps length (cslotAddr sl) buf blk call don fp)).toPN arI (specDec_noPreK (by trivial))
   case SchedControl cpu =>
     have hN : JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl excaps ct := hN
     subst hLb
@@ -936,7 +935,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       buf ct hN.core hct argsU hlen hargs extra x0 hx0 excaps hex
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).1) (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.1)
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
-      buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
+      buffer hN.arch (hN.rest H Cs Ac Lst D J)).toPN arI (specDec_noPreK (by trivial))
   case PageTable ptr mp asid va =>
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
@@ -951,14 +950,14 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       rw [capV_of_capAt hc] at ht
       obtain ⟨hTy, hqa, hfr⟩ := ht hnL
       exact (decode_invocation_page_tableJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
-        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
     have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageTable ptr mp asid va) := hw.okTab (by
       cases mp with
       | false => exact hw.1 rfl
       | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
     have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_page_tableJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length
-      buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case PageDirectory ptr mp asid va =>
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
@@ -973,14 +972,14 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       rw [capV_of_capAt hc] at ht
       obtain ⟨hTy, hqa, hfr⟩ := ht hnL
       exact (decode_invocation_page_directoryJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
-        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
     have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageDirectory ptr mp asid va) := hw.okTab (by
       cases mp with
       | false => exact hw.1 rfl
       | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
     have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_page_directoryJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO
-      length buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      length buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case Pdpt ptr mp asid va =>
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
@@ -995,27 +994,27 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       rw [capV_of_capAt hc] at ht
       obtain ⟨hTy, hqa, hfr⟩ := ht hnL
       exact (decode_invocation_pdptJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
-        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
     have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.Pdpt ptr mp asid va) := hw.okTab (by
       cases mp with
       | false => exact hw.1 rfl
       | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
     have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
-      hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case Pml4 p mp asid =>
     have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).atOK J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp) (by simp)
     subst hLb
     exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp
       (fun h => (hok.2.2 h).1) length
-      (cslotAddr sl) buf blk call don fp extra _ ci sl excaps buffer).toP arI hPre
+      (cslotAddr sl) buf blk call don fp extra _ ci sl excaps buffer).toPN arI (specDec_noPreK (by trivial))
   case AsidPool ptr base =>
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci
       sl excaps buffer ct := hN
     subst hLb
     exact (decode_invocation_asid_poolJV arI s ar σ J hni (J.vsc.caps J.xtop.rel.2.1.2.2.1) lbl lbl.bv
       (pool_label lbl) length buf ct hct ptr base extra excaps hN.native (ExtraOK.poolExtra hPl hXO) (cslotAddr sl) blk call don fp _ ci sl buffer
-      hAs.isSlot hc).toP arI hPre
+      hAs.isSlot hc).toPN arI (specDec_noPreK (by trivial))
   case Frame p sz rt d m ep asid va =>
     obtain ⟨hV, hF⟩ := hN
     cases ep
@@ -1030,7 +1029,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       subst hLb
       exact (decode_invocation_frameJS arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv (frame_label lbl hEP)
         (getAddress_label lbl).2 length buf ct hct argsU hlen hargs hth0 rfl hc hF.hno extra excaps
-        (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+        (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
     · exact hV (Or.inl rfl)
   case AsidControl =>
     have hN : JAsidCPath (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
@@ -1038,7 +1037,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     subst hLb
     exact (decode_invocation_asid_controlJD arI s ar σ J hni hN.heapH.1 hN.heapH.2
       lbl lbl.bv (makePool_label lbl) length buf ct hct hN.vsReach argsU hlen hargs extra excaps
-      (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toP arI hPre
+      (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toPN arI (specDec_noPreK (by trivial))
   case Untyped p sb fi dev =>
     obtain ⟨hDv, hU⟩ := hN
     cases dev

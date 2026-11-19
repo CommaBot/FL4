@@ -775,7 +775,6 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
         (if scf then (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT ||| tcb.SCHED_UPDATE_SC)
           else (tcb.SCHED_UPDATE_MCP ||| tcb.SCHED_UPDATE_PRIO ||| tcb.SCHED_UPDATE_FAULT))) ⦃ res =>
       TopPostDMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) σ blk call don m s res ⦄ := by
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hpT : p ∈ Z.T := J.thT p hp
   obtain ⟨hcur, xc, hkc, hrunc⟩ := J.curRunnable hni hct
   obtain ⟨s1, σ1, hrc, hst1, hDS1, hW1, hS1⟩ := J.restartW arI hni hsg hP0 hct hHp (hR ct hct)
@@ -844,7 +843,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
   · -- preempted: `JAtPre`
     simp only at hr; subst hr
     rw [← he2] at hx
-    obtain ⟨s0', a0', σ0', ⟨V0, Ac0, Lst0, D0, J0, -⟩, hpp, hspp, hDom, hMO⟩ := hWp
+    obtain ⟨s0', a0', σ0', ⟨V0, Ac0, Lst0, D0, J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩ := hWp
     refine (WP.spec_ok _).2 (Or.inr ⟨_, hdec, σ1', hst1, (.error (), σ2), ?_, ⟨Z.th, G2, Or.inr ⟨rfl, rfl⟩,
       J0.xtop.rel.1, hDS2.1, hDS2.2.2, hDom, hMO⟩, ?_⟩)
     · show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
@@ -853,7 +852,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
       exact mem_bindE_err hx
     · show if _ = _ then _ else _
       rw [if_pos rfl]
-      exact Or.inr ⟨s0', a0', σ0', ⟨_, H, Cs, Ac0, Lst0, D0, J0⟩, hpp, hspp⟩
+      exact ⟨s0', a0', σ0', ⟨⟨_, H, Cs, Ac0, Lst0, D0, J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
   simp only at hr; subst hr
   rw [← he2] at hx
   obtain ⟨V2, Ac2, Lst2, D2, J2, -, hns2, -, -⟩ := (hHp.ins _).wjr _ _ _ _ hW2
@@ -918,9 +917,9 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
         TopPostDMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) σ blk call don m s res ⦄ := by
     rintro s5 a5 σc hcc ⟨Z', Ac', Lst', D', J'⟩
     rw [WP.spec_ok]
-    refine TopPostDMX.toP (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩,
+    refine TopPostDMX.toPne (Or.inr ⟨_, hdec, σ1', hst1, (.ok [], σc), ?_, ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩,
       J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
-      ⟨Z', H, Cs, Ac', Lst', D', J'⟩⟩) hXP
+      ⟨Z', H, Cs, Ac', Lst', D', J'⟩⟩) (by simp)
     show _ ∈ ((Fl4Spec.invokeTcb (Z := Unit) (.threadControlSched p.bv ssl (some e2)
       (some (Fl4Spec.ucast 8 y0.bv, q)) (some (Fl4Spec.ucast 8 y1.bv, q)) sco)).run σ1').1
     simp only [Fl4Spec.invokeTcb]
@@ -1055,7 +1054,6 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
   have hC0 := J.c0
   have hcur : σ.curThread = ct.bv := (J.curEq hct).1
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetSchedParams (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps) := by
@@ -1071,7 +1069,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeSetSchedParams (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
     apply run_liftME_err
     unfold Fl4Spec.decodeSetSchedParams
     by_cases ha : args.length < 2
@@ -1144,7 +1142,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
     rw [thread_arg_other s 1#u64 (fun q h => hth ⟨q, h⟩)]
     simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_, Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_, Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec0, he01]
     generalize absCap (capV (L.mem s) x0) = cc at hne ⊢
@@ -1168,7 +1166,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
   · rw [ite_eq_left hg0]
     simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec0, runE_bind_congr hcp0, whenE_pos (by rw [GT.gt, ← u64_lt_bv]; exact hg0)]
     exact run_throw_bind _ _ _
@@ -1178,7 +1176,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
   · rw [ite_eq_left hg1]
     simp only [bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.rangeError 0 (L.mem s (mcpA q)).bv, ?_, Or.inl ⟨rfl, rfl⟩⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec0, runE_bind_congr hcp0, whenE_neg (by rw [GT.gt, ← u64_lt_bv]; exact hg0), retOk_bind,
       runE_bind_congr hcp1, whenE_pos (by rw [GT.gt, ← u64_lt_bv]; exact hg1)]
@@ -1264,7 +1262,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
         intro _
-        refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 3, ?_, Or.inr ⟨3#u64, rfl, rfl⟩⟩, hJ0⟩) hXP)
+        refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 3, ?_, Or.inr ⟨3#u64, rfl, rfl⟩⟩, hJ0⟩)
         apply run_liftME_err
         rw [hspec1, run_bind_ok_st hdus]
         unfold Fl4Spec.checkHandlerEp
@@ -1291,7 +1289,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
     · simp only [decide_eq_true hpc, ↓reduceIte, error.illegal, bind_ok,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
         core.convert.FromSame.from, bind_tc_ok]
-      refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+      refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, hJ0⟩)
       apply run_liftME_err
       rw [hspec1]
       refine run_bind_error ?_ _
@@ -1338,7 +1336,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
             (Fl4Spec.decodeSetSchedParams (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
               excaps)) s res ⦄ := by
       intro h
-      refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+      refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.illegalOperation, ?_, Or.inl trivial⟩, hJ0⟩)
       apply run_liftME_err
       rw [hspec1]
       exact run_bind_error h _
@@ -1445,7 +1443,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
     rw [he11, hc1] at hspec1
     simp only [error.invalid_cap, bind_ok, core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 2, ?_, Or.inr ⟨2#u64, rfl, rfl⟩⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 2, ?_, Or.inr ⟨2#u64, rfl, rfl⟩⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec1]
     exact run_bind_error (dus_other hkp ssl (by simp [absCap]) (by simp [absCap])) _

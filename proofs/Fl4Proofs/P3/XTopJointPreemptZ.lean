@@ -12,8 +12,9 @@ update, without carrying anything through the invocation:
   the same elapsed time (`update_time_stamp`: `cur_time := now`,
   `consumed_time += now - cur_time`, time not going back).
 * `jAtPre_holeT`: every `JAtPre` state is a `JHole` with `TShift` from its
-  base (`JAtZ.toHole`: no shift; a preempting `preemption_point`: `pp_err_eq`,
-  `updateTimeStamp_eq'` and `NowAgree` [P]).
+  base (a preempting `preemption_point`: `pp_err_eq`, `updateTimeStamp_eq'`
+  and `NowAgree` [P]); `jAtPre_holeTN` also gives the base's no-switch and
+  non-idle facts at the hole (kp10).
 * `JHole.offOK_suff`: at such a hole with `CurInv`, a non-idle schedulable
   current thread and a sufficient head, `OffOK` holds. The base is `JAtZ`:
   for a positive consumed time its `OffOK` gives the head ready with it, for
@@ -69,24 +70,30 @@ theorem JHoleAtT.hole {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JHoleAtT (L
     JHoleAt (L := L) arI AR s a σ :=
   let ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, _⟩ := h; ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
 
+/-- **`jAtPre_holeT` with the base's no-switch and non-idle facts at the
+hole** (kp10: the preemption point changes neither the action nor the
+current and idle threads, `pp_err_eq`). -/
+theorem jAtPre_holeTN (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+    (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
+    JHoleAtT (L := L) arI AR s a σ ∧ σ.curThread ≠ σ.idleThread ∧ Vs.NoSwitch σ := by
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hns0, hni0⟩, hpp, hσ⟩ := h
+  have h := J.ppJH hAK hA hnd hP
+  rw [hpp, WP.spec_ok] at h
+  obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
+  obtain ⟨r0, -, ms0, hm0, hle0, -⟩ := spec_exists (hP.now a0 σ0)
+  have hE := Sched.updateTimeStamp_eq' hnd hm0
+  obtain ⟨r1, -, irq, ms, hIq, -, -⟩ := spec_exists (hP.irq a0
+    { { { σ0 with machineState := ms0 } with curTime := r0.1.bv } with
+      consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
+  have e := pp_err_eq hE hIq _ hσ rfl
+  subst e
+  exact ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, hle0, rfl⟩, hni0, hns0⟩
+
 /-- **Every `JAtPre` state is a `JHole` with `TShift`** (module docstring). -/
 theorem jAtPre_holeT (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
-    JHoleAtT (L := L) arI AR s a σ := by
-  rcases h with ⟨Z, H, Cs, Ac, Lst, D, J⟩ | ⟨s0, a0, σ0, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hpp, hσ⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole, TShift.refl σ⟩
-  · have h := J.ppJH hAK hA hnd hP
-    rw [hpp, WP.spec_ok] at h
-    obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
-    refine ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, ?_⟩
-    obtain ⟨r0, -, ms0, hm0, hle0, -⟩ := spec_exists (hP.now a0 σ0)
-    have hE := Sched.updateTimeStamp_eq' hnd hm0
-    obtain ⟨r1, -, irq, ms, hIq, -, -⟩ := spec_exists (hP.irq a0
-      { { { σ0 with machineState := ms0 } with curTime := r0.1.bv } with
-        consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
-    have e := pp_err_eq hE hIq _ hσ rfl
-    subst e
-    exact ⟨hle0, rfl⟩
+    JHoleAtT (L := L) arI AR s a σ :=
+  (jAtPre_holeTN hAK hA hnd hP h).1
 
 /-- **`OffOK` at a shifted hole with a sufficient head** (module docstring). -/
 theorem JHole.offOK_suff {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}

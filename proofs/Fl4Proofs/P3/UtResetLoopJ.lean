@@ -322,7 +322,7 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
       simp only [bind_tc_ok, bind_ok]
       have hmem := RContX.preempt hK (hchunk _ hy)
-      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, σp, hmem, J2.jAtPre_pp hp3 hy, Z, hXp⟩)
+      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, σp, hmem, J2.jAtPre_pp hp3 hy hR02, Z, hXp⟩)
 
 end
 

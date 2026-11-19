@@ -1096,10 +1096,12 @@ end Tks
 
 /-! ## `PPR0` kept -/
 
-theorem PPR0.of_tr {σ σ' : State Unit} (hP : PPR0 σ) (h : TR (fun _ => False) σ σ') : PPR0 σ' := by
-  intro h0
+theorem PPR0.of_tr {σ σ' : State Unit} (hP : PPR0 σ) (h : TR (fun _ => False) σ σ')
+    (hct : σ'.curThread = σ.curThread) (hid : σ'.idleThread = σ.idleThread)
+    (hns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, σ'.schedulerAction ≠ .switchThread u) : PPR0 σ' := by
+  refine ⟨⟨by rw [hct, hid]; exact hP.1.1, hns hP.1.2⟩, fun h0 => ?_⟩
   rw [h.cons] at h0
-  obtain ⟨h1, h2⟩ := hP h0
+  obtain ⟨h1, h2⟩ := hP.2 h0
   refine ⟨fun y n hy ha => ?_, fun u xt hu hs hr => ?_⟩
   · rw [h.csc] at hy
     obtain ⟨y0, n0, hy0, ha0, e⟩ := h.sc y n hy ha
@@ -1109,10 +1111,14 @@ theorem PPR0.of_tr {σ σ' : State Unit} (hP : PPR0 σ) (h : TR (fun _ => False)
     · exact h'.elim
     · exact h2 u x0 hx0 hs0 (h.rel u hr)
 
-/-- **`finalise_cap` keeps `PPR0`** from an `Inv` state (module docstring). -/
+/-- **`finalise_cap` keeps `PPR0`** from an `Inv` state (module docstring;
+the current and idle threads and no pending switch kept: `hct`/`hid`/`hns`,
+from VsDom's `DK`, SpecGlobFK's `GK` and SpecNoSwitch's `AK` at the caller). -/
 theorem ppr0_finaliseCap {cp : Cap} {b : Bool} {σ : State Unit} {x : (Cap × Cap) × State Unit}
-    (hI : Sched.Inv σ) (hx : x ∈ (finaliseCap (Z := Unit) cp b σ).1) (hP : PPR0 σ) : PPR0 x.2 :=
-  PPR0.of_tr hP (tks_finaliseCap (E := fun _ => False) cp b σ rfl (rqRun_of_inv hI) x hx)
+    (hI : Sched.Inv σ) (hx : x ∈ (finaliseCap (Z := Unit) cp b σ).1) (hP : PPR0 σ)
+    (hct : x.2.curThread = σ.curThread) (hid : x.2.idleThread = σ.idleThread)
+    (hns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, x.2.schedulerAction ≠ .switchThread u) : PPR0 x.2 :=
+  PPR0.of_tr hP (tks_finaliseCap (E := fun _ => False) cp b σ rfl (rqRun_of_inv hI) x hx) hct hid hns
 
 end
 

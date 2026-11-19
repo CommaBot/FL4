@@ -467,7 +467,7 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · rw [← hk1, ← hcs1]; exact h
       · show u.bv ∉ σ1.releaseQueue; rw [hrq1]
         by_cases h0 : σ.consumedTime = 0
-        · exact (hRd h0).2 u.bv xt hk hxs
+        · exact (hRd.2 h0).2 u.bv xt hk hxs
         · exact hnr (bv_pos h0)
     · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs1.symm⟩, fun x n h => h2 x n (by rw [← hk1, ← hcs1]; exact h)⟩
   -- FL4's reads
@@ -523,7 +523,7 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       rw [← hk1, ← hcs1]; exact hkx'
     have hrd : (Fl4Spec.refillHd x).rTime + σ.consumedTime ≤ σ.curTime ∧ (Fl4Spec.refillHd x).rTime ≤ σ.curTime := by
       by_cases h0 : σ.consumedTime = 0
-      · have h := (hRd h0).1 x n hkσ hact
+      · have h := (hRd.2 h0).1 x n hkσ hact
         simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0] at h
         rw [h0, bv_add0]; exact ⟨h, h⟩
       · obtain ⟨-, h1, h2⟩ := J.off (bv_pos h0) x n hkσ (fun _ => hact)
@@ -539,7 +539,7 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq]; rw [e1, e2]; exact hs1
       · simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0]; rw [e2]; exact hs2
     have hP2 : PPR0 σ2 := by
-      intro _
+      refine ⟨by rw [hσ2, hσ1]; exact hRd.1, fun _ => ?_⟩
       refine ⟨fun y m hy' _ => ?_, fun u xt hu hus hur => ?_⟩
       · rw [hkx'] at hy'; cases hy'
         simp only [Fl4Spec.refillReady, Fl4Spec.refillReady', decide_eq_true_eq, bv_add0]; rw [e2]; exact hs2
@@ -547,7 +547,7 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
         have hus' : xt.tcbSchedContext = some σ.curSc := by rw [← hcs1]; exact hus
         have hur' : u ∉ σ.releaseQueue → False := fun h => h (by rw [← hrq1]; exact hur)
         by_cases h0 : σ.consumedTime = 0
-        · exact hur' ((hRd h0).2 u xt hu' hus')
+        · exact hur' ((hRd.2 h0).2 u xt hu' hus')
         · obtain ⟨y', n', hy', hyt⟩ := J.inv.back u xt _ hu' hus'
           rcases J.own with ⟨u0, -, xt0, -, -, hb0, hnr0⟩ | ⟨-, hun⟩
           · have := hb0 y' n' hy'
@@ -615,7 +615,7 @@ theorem jPreemptHyp_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
   rcases hcase with ⟨rfl, hm0⟩ | ⟨rfl, hm⟩
   · obtain ⟨⟨Ac', Lst', D', J'⟩, hp'⟩ := hJ' rfl
     exact ⟨V, Ac', Lst', D', J', by rw [hks]; exact hkb, Vs.ake_preemptionPoint'.noSwitch hm0 hns, SpecGlob.pp hm0 hsg, hp'⟩
-  · exact ⟨s, a, σ, ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩, hr, hm, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩
+  · exact ⟨s, a, σ, ⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hr, hm, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩
 
 
 end

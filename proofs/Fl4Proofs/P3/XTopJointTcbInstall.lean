@@ -458,15 +458,17 @@ end
 /-! ## The IPC buffer's word, and a scheduler step, at `J` -/
 
 /-- A scheduler step (`SchedK`) keeps what `PPR0` reads. -/
-theorem PPK.of_schedK {σ σ' : Fl4Spec.State Unit} (h : SchedK σ σ') : PPK σ σ' :=
+theorem PPK.of_schedK {σ σ' : Fl4Spec.State Unit} (h : SchedK σ σ')
+    (hns : ∀ u, σ'.schedulerAction ≠ .switchThread u) : PPK σ σ' :=
   ⟨h.cons, h.ctime, h.csc, fun u hu => by rw [h.rel] at hu; exact hu,
-    fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl⟩⟩
+    fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl⟩, h.ct, h.idle,
+    fun _ => hns⟩
 
 /-- An update of one TCB keeping its SC keeps what `PPR0` reads. -/
 theorem PPK.updTcbSc {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
     (hk : σ.kheap t = some (.tcb x)) (hy : y.tcbSchedContext = x.tcbSchedContext) :
     PPK σ (Notif.updK σ t (.tcb y)) := by
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun p z n hp => ?_, fun p z hp => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun p z n hp => ?_, fun p z hp => ?_, rfl, rfl, fun h => h⟩
   · by_cases e : p = t
     · subst e; simp [Notif.updK] at hp
     · simpa [Notif.updK, e] using hp
@@ -666,7 +668,7 @@ theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
       refine ⟨rfl, rfl, hX.slotsSame_of hw (fun b hb => sfootI_oobj hc.tcbs hb), σ', ?_, J5.xtop.rel.2.1,
         KSub.of_kheap hK'.kh, V, Ac5, Lst5, D5, J5, by rw [hw.1]; exact hkb,
         (fun u e' => by rw [hact5] at e'; cases e'), hsg.of_eq hK'.kh (congrArg Prod.fst hgk) (congrArg Prod.snd hgk),
-        hp0.of_ppk (PPK.of_schedK hK')⟩
+        hp0.of_ppk (PPK.of_schedK hK' fun u e' => by rw [hact5] at e'; cases e')⟩
       refine mem_bindE_ok (a := σ.curThread) (s' := σ) (mem_liftE_ok (x := (σ.curThread, σ)) rfl) ?_
       have hb : t.bv = σ.curThread := by rw [hcur, e]
       simp only [Fl4Spec.NonDet.when, hb, ↓reduceIte]
@@ -1106,12 +1108,12 @@ theorem top_of_instJ {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost
     show if res.1 = .Err .Preempted then _ else _
     rw [if_neg (by rw [hr]; exact fun e => by cases e)]
     exact ⟨_, H, Cs, Ac', Lst', D', J'⟩
-  · obtain ⟨s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -⟩, hpp, hspp, hDom, hMO⟩ := hW'
+  · obtain ⟨s0, a0, σ0, ⟨V, Ac', Lst', D', J0, -, hns0, -, hp00⟩, hpp, hspp, hDom, hMO⟩ := hW'
     refine Or.inr ⟨_, hdec, σ1, hst, tcRet (.error (), σ'), tcCapsSpec_mem t ssl flags fh tmh cr vr ptr bfr hx,
       ⟨Z.th, G', Or.inr ⟨hr, rfl⟩, J0.xtop.rel.1, hDS'.1, hDS'.2.2, hDom, hMO⟩, ?_⟩
     show if res.1 = .Err .Preempted then _ else _
     rw [if_pos hr]
-    exact Or.inr ⟨s0, a0, σ0, ⟨_, H, Cs, Ac', Lst', D', J0⟩, hpp, hspp⟩
+    exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
 
 end
 
@@ -1284,7 +1286,6 @@ theorem tcb_set_timeoutJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     TcbOKXP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ fl4_abi.label.TCBSetTimeoutEndpoint p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl args ci ssl excaps buffer := by
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hdec0 : specDec false slbl args ci ssl (.Thread p) excaps buffer =
       Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetTimeoutEp (Z := Unit) (.threadCap p.bv) ssl excaps) := by
@@ -1303,7 +1304,7 @@ theorem tcb_set_timeoutJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     simp only [h0, ↓reduceIte, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
       core.convert.FromSame.from, bind_tc_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
     apply run_liftME_err
     unfold Fl4Spec.decodeSetTimeoutEp
     rw [whenE_pos (by omega)]
@@ -1357,8 +1358,8 @@ theorem tcb_set_timeoutJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → F
     simp only [cslot_zero, ← hxe] at hT'
     exact WP.spec_mono hT' (fun res h => top_of_instJ arI (hHp.ins _).wjr (DecOut.of_eq hdec) hst1 h)
   · rw [decide_eq_false hv]; simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
-      Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
+      Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec0 _ rfl]
     unfold Fl4Spec.checkHandlerEp
@@ -1393,7 +1394,6 @@ theorem tcb_set_spaceJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
     TcbOKXP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ fl4_abi.label.TCBSetSpace p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hP := J.xtop.rel.1
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
@@ -1412,7 +1412,7 @@ theorem tcb_set_spaceJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeSetSpace (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
     apply run_liftME_err
     unfold Fl4Spec.decodeSetSpace
     rw [whenE_pos (by simpa using h)]
@@ -1520,8 +1520,8 @@ theorem tcb_set_spaceJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
       simp only [cslot_zero, ← hxe0, bufArg] at hT'
       exact WP.spec_mono hT' (fun res h => top_of_instJ arI (hHp.ins _).wjr (DecOut.of_eq hdec) hst1 h)
     · rw [decide_eq_false hv]; simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok]
-      refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
-        Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩) hXP)
+      refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.invalidCapability 1, ?_,
+        Or.inr ⟨1#u64, rfl, rfl⟩⟩, hJ0⟩)
       apply run_liftME_err
       rw [hspec]
       unfold Fl4Spec.checkHandlerEp
@@ -1530,7 +1530,7 @@ theorem tcb_set_spaceJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
         (Fl4Spec.SyscallError.invalidCapability 1) : Fl4Spec.SEMonad Unit Unit)) rfl _) _
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, bind_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨e', ?_, herr⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨e', ?_, herr⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec]
     exact run_bind_error hcv _
@@ -1563,7 +1563,6 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Sp
     TcbOKXP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ fl4_abi.label.TCBSetIPCBuffer p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
   have hdec0 : specDec false slbl (args.map UScalar.bv) ci ssl (.Thread p) excaps buffer =
@@ -1599,7 +1598,7 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Sp
       blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
         (Fl4Spec.decodeSetIpcBuffer (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s
         (.Err (.Sys .TruncatedMessage), s, ar) := fun h =>
-    TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, htr h, Or.inl trivial⟩, hJ0⟩) hXP
+    TopPostDMX.errP ⟨_, rfl, rfl, ⟨.truncatedMessage, htr h, Or.inl trivial⟩, hJ0⟩
   by_cases h0 : x0 = 0#u64
   · have hl : excaps.length ≤ 0 := ((hX.2 0 x0 hx0').1).1 h0
     simp only [h0, ↓reduceIte, bind_ok, error.truncated, core.result.Result.Insts.CoreOpsTry.branch,
@@ -1689,7 +1688,7 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Sp
       simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
         bind_tc_ok]
-      refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨er', ?_, Or.inl hrel⟩, hJ0⟩) hXP)
+      refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨er', ?_, Or.inl hrel⟩, hJ0⟩)
       apply run_liftME_err
       rw [hspec, if_neg hy']
       exact run_bind_error (run_bind_error hr' _) _
@@ -1739,7 +1738,7 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Sp
         exact WP.spec_mono hT' (fun res h => top_of_instJ arI (hHp.ins _).wjr (DecOut.of_eq hdec) hst1 h)
       · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
           core.convert.FromSame.from, bind_tc_ok, bind_ok]
-        refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨er', ?_, ErrRel.of_map hmer⟩, hJ0⟩) hXP)
+        refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨er', ?_, ErrRel.of_map hmer⟩, hJ0⟩)
         apply run_liftME_err
         rw [hspec, if_neg hy']
         rw [← ha] at hr'
@@ -1774,7 +1773,6 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
     TcbOKXP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ fl4_abi.label.TCBConfigure p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
-  have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
   have hP := J.xtop.rel.1
   have hDS : DState (L := L) Z.th s σ Z.G := J.dstate
   unfold TcbOKXP
@@ -1793,7 +1791,7 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeTCB
           (Fl4Spec.decodeTcbConfigure (Z := Unit) (args.map UScalar.bv) (.threadCap p.bv) ssl excaps)) s res ⦄ := by
     intro h
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨.truncatedMessage, ?_, Or.inl trivial⟩, hJ0⟩)
     apply run_liftME_err
     unfold Fl4Spec.decodeTcbConfigure
     by_cases ha : args.length < 3
@@ -1871,7 +1869,7 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, bind_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨er', ?_, herr⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨er', ?_, herr⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec]
     exact run_bind_error ((ipc_spec σ p.bv ssl y2.bv [] e2 []).trans (run_bind_error hbs _)) _
@@ -1908,7 +1906,7 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4
     exact WP.spec_mono hT' (fun res h => top_of_instJ arI (hHp.ins _).wjr (DecOut.of_eq hdec) hst1 h)
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, bind_ok]
-    refine (WP.spec_ok _).2 (TopPostDMX.toP (Or.inl ⟨_, rfl, rfl, ⟨e', ?_, herr⟩, hJ0⟩) hXP)
+    refine (WP.spec_ok _).2 (TopPostDMX.errP ⟨_, rfl, rfl, ⟨e', ?_, herr⟩, hJ0⟩)
     apply run_liftME_err
     rw [hspec]
     exact run_bind_error hcv _

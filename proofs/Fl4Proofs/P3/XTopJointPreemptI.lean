@@ -23,6 +23,11 @@ inactive idle SC). `CurInv` is not needed: the step touches one node word.
   `jPreemptRestHypI_of`); `afterInv_of_mcs` (XTopJointPreemptZ's
   `afterInvJZ` from any `mcs_preemption_point` post with `JAt`),
   `hPre_ofZI`, `dispatch_invokeJPZI` / `dispatch_invokeJEPZI`.
+* kp10: `JPreemptRestHypJ` [W] = `JPreemptRestHypI` at a hole whose current
+  thread is not idle and with no switch pending (`JAtPre` carries both from
+  the preemption point's base, XTopJointPreemptZ's `jAtPre_holeTN`;
+  `jPreemptRestHypJ_of`), `hPre_ofZJ`, `dispatch_invokeJPZJ` /
+  `dispatch_invokeJEPZJ`.
 -/
 import Fl4Proofs.P3.XTopJointPreemptZ
 open Aeneas Aeneas.Std Result
@@ -319,6 +324,81 @@ theorem dispatch_invokeJEPZI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       DispPost (L := L) arI AR (PPQ (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ :=
   dispatch_invokeJE arI s ar σ J ct hct number call bl don hn hG hE hP _
     (hPre_ofZI hARI hA hnd hPP hmrt hIP hNS hRest)
+
+variable (arI) in
+/-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with
+no switch pending and a non-idle current thread** [W] (kp10:
+`JPreemptRestHypI` narrowed by `JAtPre`'s base facts, `jAtPre_holeTN`).
+Left: no `CurInv` with a schedulable thread or an active current SC (l4v
+`charge_budget` of an SC not owned by the current thread, after SchedContext
+Unbind of the own SC or a rebind, kp8 (b')), and kp5 (i) (an endpoint
+timeout handler with waiting receivers). -/
+def JPreemptRestHypJ (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
+    σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) →
+    syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
+
+theorem jPreemptRestHypJ_of (h : JPreemptRestHypI (L := L) arI AR) : JPreemptRestHypJ (L := L) arI AR :=
+  fun s a σ hJ hn _ _ hc => h s a σ hJ hn hc
+
+/-- **`hPre_ofZI` with `JPreemptRestHypJ`** (kp10). -/
+theorem hPre_ofZJ (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+    (hP : PPPlat arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hIP : IrqPlat arI AR)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hRest : JPreemptRestHypJ (L := L) arI AR) :
+    ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
+      JAtPre (L := L) arI AR s1 a1 σ1 →
+      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
+  intro s1 a1 σ1 _ h
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns⟩ := jAtPre_holeTN hARI.toARKeep hA hnd hP h
+  have hIrq := jIrqHypZ_of hARI hA hIP hP.minBudget hNS
+  by_cases hc : PPCov σ1 ∨ PPCovT σ1
+  · exact WP.spec_mono (Hh.afterInvJZ hTs hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _)
+      fun _ h => h.2.toPPQ
+  by_cases hi : PPCovI σ1
+  · exact WP.spec_mono (afterInv_of_mcs (Hh.mcsPPJI hi) hIP hIrq _) fun _ h => h.2.toPPQ
+  · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+      (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hni hns fun h' => h'.elim (fun h2 => hc (Or.inl h2))
+        fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
+
+set_option maxHeartbeats 4000000 in
+/-- **`dispatch_invokeJPZI` with `JPreemptRestHypJ`** (kp10). -/
+theorem dispatch_invokeJPZJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
+    (hn : InvSys number call bl don)
+    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hIP : IrqPlat arI AR)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hRest : JPreemptRestHypJ (L := L) arI AR) :
+    syscall.dispatch_syscall st arI s ar number ⦃ r =>
+      DispPost (L := L) arI AR (PPQ (L := L) arI AR) (DispInv call bl don) σ r ⦄ :=
+  dispatch_invokeJ arI s ar σ J ct hct number call bl don hn hG hE hP _
+    (hPre_ofZJ hARI hA hnd hPP hmrt hIP hNS hRest)
+
+set_option maxHeartbeats 4000000 in
+/-- **`dispatch_invokeJEPZI` with `JPreemptRestHypJ`** (kp10; against
+`fl4HandleEvent true`'s branch). -/
+theorem dispatch_invokeJEPZJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
+    (hn : InvSys number call bl don)
+    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hIP : IrqPlat arI AR)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hRest : JPreemptRestHypJ (L := L) arI AR) :
+    syscall.dispatch_syscall st arI s ar number ⦃ r =>
+      DispPost (L := L) arI AR (PPQ (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ :=
+  dispatch_invokeJE arI s ar σ J ct hct number call bl don hn hG hE hP _
+    (hPre_ofZJ hARI hA hnd hPP hmrt hIP hNS hRest)
 
 end
 

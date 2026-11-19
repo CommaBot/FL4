@@ -166,14 +166,14 @@ abbrev EJ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set 
   DelE (L := L) Z.th K s σ ∧ WJR (L := L) arI AR Z H Cs kb s a σ G
 
 /-- **The deletion's state after a preemption at `J`**: the post of a
-preempting preemption point from `WJ` (FL4's `preemption_point` returning
+preempting preemption point from `WJR` (FL4's `preemption_point` returning
 `Preempted`, a preempting outcome of the spec's). Not `WJ` itself: the
 preemption point updates the time, and the current SC's budget may then be
 exhausted (`JAtZ`'s `OffOK` false), which the caller's
 `mcs_preemption_point` charges before `schedule`. -/
 def WJP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (G : MdbGhost) : Prop :=
-  ∃ (s0 : S) (a0 : A) (σ0 : Fl4Spec.State Unit), WJ (L := L) arI AR Z H Cs kb s0 a0 σ0 G ∧
+  ∃ (s0 : S) (a0 : A) (σ0 : Fl4Spec.State Unit), WJR (L := L) arI AR Z H Cs kb s0 a0 σ0 G ∧
     sched.preemption_point st arI s0 a0 = ok (.Err .Preempted, s, a) ∧
     (.error (), σ) ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ0).1 ∧
     DomRel (L.mem s) (L.ksb s) σ ∧ MdbOKV (L.ksb s) (L.mem s) G
@@ -233,6 +233,7 @@ def JFinPPHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
 
 theorem jFinPPHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JFinPPHyp (L := L) arI AR th :=
   fun _ _ _ _ _ _ _ _ σ _ J _ _ _ _ _ x σ' hx hP => PPS.ppr0_finaliseCap (x := (x, σ')) J.inv hx hP
+    ((Vs.dk_finaliseCap _ _).ct hx) ((Vs.gk_finaliseCap _ _).idle hx) (fun hn => Vs.ak_finaliseCap_ns hx hn)
 
 /-! ## The named steps -/
 

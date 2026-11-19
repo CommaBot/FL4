@@ -1,6 +1,6 @@
 /-
 P3 (DESIGN.md §9), scheduling contexts: **the state after a PREEMPTING
-preemption point** (KENTRY-PLAN item 7, step 1: `JAtPre`'s second disjunct).
+preemption point** (KENTRY-PLAN item 7, step 1: `JAtPre`).
 
 * `nall_getsThe` (SpecFreeRet's `NAll`: every outcome satisfies `P`).
 * `pp_err_eq` (spec): every `error` outcome of `preemption_point` is the
@@ -11,8 +11,8 @@ preemption point** (KENTRY-PLAN item 7, step 1: `JAtPre`'s second disjunct).
   state after the two `WORK_UNITS` writes (XTopJointPP's `ppJD` with
   `JAtZ.timestampJH` in place of `timestampJD`), for EVERY spec `error`
   outcome (`pp_err_eq`).
-* `jAtPre_hole`: every `JAtPre` state is a `JHole` (the first disjunct with
-  the state itself as the base, `JAtZ.toHole`), so the preemption path
+* `jAtPre_hole`: every `JAtPre` state is a `JHole` (`JAtZ.ppJH`; since kp10
+  `JAtPre` has no `JAt` disjunct), so the preemption path
   (`after_invocation (Err)`) can start from a `JHole`.
 -/
 import Fl4Proofs.P3.ScChargeH
@@ -228,12 +228,11 @@ theorem jAtPre_hole (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec
     (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s0 : S) (a0 : A)
       (σ0 : Fl4Spec.State Unit), JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ := by
-  rcases h with ⟨Z, H, Cs, Ac, Lst, D, J⟩ | ⟨s0, a0, σ0, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hpp, hσ⟩
-  · exact ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩
-  · have h := J.ppJH hAK hA hnd hP
-    rw [hpp, WP.spec_ok] at h
-    obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
-    exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh⟩
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, -, -⟩, hpp, hσ⟩ := h
+  have h := J.ppJH hAK hA hnd hP
+  rw [hpp, WP.spec_ok] at h
+  obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
+  exact ⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh⟩
 
 end
 
