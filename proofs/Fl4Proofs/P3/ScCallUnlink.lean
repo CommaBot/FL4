@@ -37,7 +37,7 @@ theorem Inv.deactivate {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb}
       · subst e
         simp only [updK_kheap, Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at h2
         subst h2
-        rcases hc with hc | ⟨n, hc⟩ | ⟨e, d, hc⟩ | ⟨e, r, d, hc⟩ <;> cases hc
+        rcases hc.cls with hc | ⟨n, hc⟩ | ⟨e, d, hc⟩ | ⟨e, r, d, hc⟩ <;> cases hc
       · have h2' : σ.kheap u = some (.tcb y) := by simpa [updK, e] using h2
         exact h.rd u y h2' hc
   exact h1.qchange (qchange_stsAct _ _)
@@ -275,7 +275,7 @@ theorem reply_remove_full_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) 
     (hdon : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
       xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t)
     (hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-      xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+      xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (hRF : RFree (L.mem s) R C σ Lst) :
     ipc.reply_remove st ar s a r t ⦃ res => res.2 = a ∧ ∃ (σ' : Fl4Spec.State Unit) (Lst' : U64 → List U64),
       Fl4Spec.replyRemove (Z := Unit) t.bv r.bv σ = ({((), σ')}, False) ∧

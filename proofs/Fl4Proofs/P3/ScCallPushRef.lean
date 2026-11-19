@@ -25,7 +25,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
     (hk : σ.kheap sc.bv = some (.schedContext y n)) {f : U64} (hf : f ∈ T) (hyf : y.scTcb = some f.bv)
     {xf : Fl4Spec.Tcb} (hkf : σ.kheap f.bv = some (.tcb xf)) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none) (hft : f ≠ t)
-    (hrel : inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (hrel : inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     {r : U64} (hr : r ∈ R) (hdet : Detached C Lst r) (hiso : Isolated (L.mem s) R r)
     (hRF : RFree (L.mem s) R C σ Lst) (hnf : ¬ Free σ r) :
     (do
@@ -236,7 +236,7 @@ theorem push_donate_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : 
       rw [hkB _ (Ne.symm hrt), hkB1 _ (Ne.symm hpt), hkA _ (fun d hh e => by
         obtain ⟨xd, hkd, -⟩ := hCR.reply d (hhR d hh); rw [← e, hkt] at hkd; cases hkd)]
       exact hkt
-    have hrelB : inClass xt.tcbState → Fl4Spec.scActive { y with scReplies := r.bv :: y.scReplies } = true →
+    have hrelB : inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive { y with scReplies := r.bv :: y.scReplies } = true →
         released σB { y with scReplies := r.bv :: y.scReplies } := fun h1 h2 => by
       have := hrel h1 h2
       unfold released at this ⊢

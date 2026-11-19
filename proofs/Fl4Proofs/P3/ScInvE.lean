@@ -36,6 +36,14 @@ theorem EpStep.ntfn_back {σ σ' : State Unit} (h : EpStep σ σ') {p : ObjRef} 
   · rw [← e]; exact hk
   all_goals (rw [hk] at hb; cases hb)
 
+theorem EpStep.fault {σ σ' : State Unit} (h : EpStep σ σ') {p : ObjRef} {x y : Tcb}
+    (hx : σ.kheap p = some (.tcb x)) (hy : σ'.kheap p = some (.tcb y)) : y.tcbFault = x.tcbFault := by
+  rcases h.2.2 p with e | ⟨a, b, -, hb⟩ | ⟨a, b, -, hb, -⟩ | ⟨a, b, ha, hb, e⟩
+  · rw [e, hx] at hy; cases hy; rfl
+  · rw [hy] at hb; cases hb
+  · rw [hy] at hb; cases hb
+  · rw [hx] at ha; cases ha; rw [hy] at hb; cases hb; rw [e]
+
 theorem EpStep.relIfBound {σ σ' : State Unit} (h : EpStep σ σ') {u : ObjRef} (hr : RelIfBound σ u) :
     RelIfBound σ' u := by
   obtain ⟨-, e2, -, -, -, e6, -⟩ := Ipc.EpStep.abs h
@@ -51,7 +59,7 @@ theorem Inv.stepE {σ σ' : State Unit} (h : Inv σ) (hn : EpStep σ σ')
     (hst : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) →
       ((∃ d p, u ∈ σ.readyQueues d p) ∨ u ∈ σ.releaseQueue) → runnable x.tcbState = true →
       runnable y.tcbState = true)
-    (hrd : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) → inClass y.tcbState →
+    (hrd : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) → inClassR y.tcbState y.tcbFault →
       RelIfBound σ u) : Inv σ' := by
   obtain ⟨e1, e2, -, -, -, e6, -⟩ := Ipc.EpStep.abs hn
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun p y n hy => ?_,
@@ -102,7 +110,7 @@ theorem Inv.blockE {σ σ' : State Unit} {t : ObjRef} (h : Inv σ) (hn : EpStep 
     rw [hoth u x y h1 h2 hut]; exact hr
   · by_cases hut : u = t
     · subst hut; exact hrt
-    · exact h.rd u x h1 (hoth u x y h1 h2 hut ▸ hc)
+    · exact h.rd u x h1 (hc.congr (hoth u x y h1 h2 hut).symm fun _ => (EpStep.fault hn h1 h2).symm)
 
 end Spec
 

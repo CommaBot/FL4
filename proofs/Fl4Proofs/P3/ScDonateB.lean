@@ -191,7 +191,7 @@ theorem donate_bound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     (hk : σ.kheap sc.bv = some (.schedContext y n)) {f : U64} (hf : f ∈ T) (hyf : y.scTcb = some f.bv)
     {xf : Fl4Spec.Tcb} (hkf : σ.kheap f.bv = some (.tcb xf)) {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none) (hft : f ≠ t)
-    (hrel : inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y) :
+    (hrel : inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y) :
     schedcontext.donate st ar s a sc t ⦃ r => ∃ σ',
       Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv σ = ({((), σ')}, False) ∧ r.2 = a ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧

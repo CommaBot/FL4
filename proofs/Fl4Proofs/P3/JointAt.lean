@@ -315,7 +315,7 @@ theorem removeOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : U64}
       (∀ sc ∈ Z.C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
         xt.tcbSchedContext = none → ∃ f, f ∈ Z.T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∧
       (∀ sc ∈ Z.C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-        xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)) :
+        xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)) :
     RemoveOK st Z.N Z.T Z.C Z.R Z.c s σ r t :=
   ⟨Lst, J.call, J.rp, J.nsc, J.inv, J.c0, J.obj.sc, hrt, hdr⟩
 
@@ -323,7 +323,7 @@ theorem removeOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t : U64}
 receiver's release. -/
 theorem donNCOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t d : U64} (hsc : L.mem s (P1.scA t) ≠ 0#u64)
     (hrel : ∀ y n, σ.kheap (L.mem s (P1.scA t)).bv = some (.schedContext y n) → ∀ x, σ.kheap d.bv = some (.tcb x) →
-      inClass x.tcbState → Fl4Spec.scActive y = true → released σ y) :
+      inClassR x.tcbState x.tcbFault → Fl4Spec.scActive y = true → released σ y) :
     DonNCOK st Z.N Z.C s σ t d :=
   ⟨hsc, J.nsc, J.inv, hrel⟩
 
@@ -341,7 +341,7 @@ detached and the callee's release. -/
 theorem pushDonOK (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t d r : U64}
     (hiso : Sched.Isolated (L.mem s) Z.R r) (hdet : Sched.Detached Z.C Lst r)
     (hrel : ∀ y n x, σ.kheap (L.mem s (P1.scA t)).bv = some (.schedContext y n) → σ.kheap d.bv = some (.tcb x) →
-      inClass x.tcbState → Fl4Spec.scActive y = true → released σ y) :
+      inClassR x.tcbState x.tcbFault → Fl4Spec.scActive y = true → released σ y) :
     PushDonOK st Z.N Z.T Z.C Z.R Z.c s σ t d r :=
   ⟨J.nsc, J.inv, J.rp, hiso, ⟨Lst, J.call, hdet, J.rfree⟩, hrel⟩
 

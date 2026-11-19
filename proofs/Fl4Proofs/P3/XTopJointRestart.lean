@@ -742,7 +742,7 @@ theorem JAtZ.restartTcbJD (hAT : P0.ArchTotal arI)
         · exact hNt Z H Cs Ac Lst D s a σ rfl J t ht x hk h
         · exact hRp Z H Cs Ac Lst D s a σ rfl J t ht x hk h
       refine WP.spec_mono (WP.spec_and hP (cancel_ipc_irelP (ar := arI) hP0 (removeTcbHypP_ok hP0) s a σ hI ht hk
-        J.sv J.obj J.inv (removeTcbOK_fault hP0 hI ht hk J.removeTcbOK))) ?_
+        J.sv J.obj J.inv (fun hfr => removeTcbOK_fault hP0 hI ht hk hfr J.removeTcbOK))) ?_
       rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
       have e1 : σ1' = σ1 := by
         rw [h2] at h2'; exact ((Prod.mk.inj (Set.singleton_injective (congrArg Prod.fst h2'))).2).symm

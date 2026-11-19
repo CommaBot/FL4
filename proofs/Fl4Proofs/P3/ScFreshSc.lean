@@ -218,7 +218,7 @@ theorem Inv.add {σ σ' : State Unit} {W : ObjRef → Prop} {o : ObjRef → Kern
       · rw [hf3.sc rfl] at h4; cases h4
     · obtain ⟨-, hst⟩ := hf.tcb rfl
       rw [hst] at hc
-      rcases hc with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩ <;> cases h
+      rcases hc.cls with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩ <;> cases h
   · rcases kb hy with hy0 | hf
     · exact h.refills q y m hy0 ha
     · rw [hf.sc rfl] at ha; cases ha

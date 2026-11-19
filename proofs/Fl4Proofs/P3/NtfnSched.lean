@@ -90,6 +90,72 @@ endpoint-blocked states). -/
 def inClass (ts : ThreadState) : Prop := runnable ts = true ∨ (∃ n, ts = .blockedOnNotification n) ∨
   (∃ e d, ts = .blockedOnSend e d) ∨ (∃ e r d, ts = .blockedOnReceive e r d)
 
+/-- **The states and faults whose bound SC is kept released**: `inClass`
+but for a sender with a timeout fault (l4v `released_ipc_queues`: a thread
+blocked on send needs `valid_sender_sc_tcb_at`, a released SC if bound, or a
+timeout fault and an active SC; the active SC of a blocked thread is
+`BlockedScActive`). A thread that `handle_timeout` blocks on its timeout
+handler's endpoint is such a sender: its SC was not released. -/
+def inClassR (ts : ThreadState) (f : Option Fault) : Prop :=
+  runnable ts = true ∨ (∃ n, ts = .blockedOnNotification n) ∨
+    (∃ e d, ts = .blockedOnSend e d ∧ ∀ b, f ≠ some (.timeout b)) ∨ (∃ e r d, ts = .blockedOnReceive e r d)
+
+theorem inClassR.cls {ts : ThreadState} {f : Option Fault} (h : inClassR ts f) : inClass ts := by
+  rcases h with h | h | ⟨e, d, h, -⟩ | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl ⟨e, d, h⟩))
+  · exact Or.inr (Or.inr (Or.inr h))
+
+/-- `inClassR` from `inClass` and no timeout fault when blocked on send. -/
+theorem inClassR_of {ts : ThreadState} {f : Option Fault} (h : inClass ts)
+    (hs : ∀ e d, ts = .blockedOnSend e d → ∀ b, f ≠ some (.timeout b)) : inClassR ts f := by
+  rcases h with h | h | ⟨e, d, h⟩ | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl ⟨e, d, h, hs e d h⟩))
+  · exact Or.inr (Or.inr (Or.inr h))
+
+/-- `inClassR` of a state of `inClass` not blocked on send. -/
+theorem inClassR_ns {ts : ThreadState} {f : Option Fault} (h : inClass ts) (hs : ∀ e d, ts ≠ .blockedOnSend e d) :
+    inClassR ts f :=
+  inClassR_of h fun e d e' => absurd e' (hs e d)
+
+/-- `inClassR` of a state of `inClass` without a timeout fault. -/
+theorem inClassR_nf {ts : ThreadState} {f : Option Fault} (h : inClass ts) (hf : ∀ b, f ≠ some (.timeout b)) :
+    inClassR ts f :=
+  inClassR_of h fun _ _ _ => hf
+
+/-- **Not a sender with a timeout fault** (the exemption of `inClassR`;
+l4v `valid_sender_sc_tcb_at`'s `is_timeout_fault`). -/
+def NotTmoS (x : Tcb) : Prop := ∀ e d b, x.tcbState = .blockedOnSend e d → x.tcbFault ≠ some (.timeout b)
+
+theorem inClassR_of_not {x : Tcb} (h : inClass x.tcbState) (hn : NotTmoS x) : inClassR x.tcbState x.tcbFault :=
+  inClassR_of h fun e d hs b => hn e d b hs
+
+theorem inClassR.notTmoS {x : Tcb} (h : inClassR x.tcbState x.tcbFault) : NotTmoS x := by
+  intro e d b hs hf
+  rcases h with h | ⟨n, h⟩ | ⟨e', d', h, h'⟩ | ⟨e', r, d', h⟩ <;> rw [hs] at h
+  · cases h
+  · cases h
+  · exact h' b hf
+  · cases h
+
+theorem NotTmoS.of_fault {x : Tcb} (h : x.tcbFault = none) : NotTmoS x := fun _ _ _ _ e => by rw [h] at e; cases e
+
+theorem NotTmoS.of_ns {x : Tcb} (h : ∀ e d, x.tcbState ≠ .blockedOnSend e d) : NotTmoS x :=
+  fun e d _ hs => absurd hs (h e d)
+
+/-- `inClassR` only reads the state, and the fault of a sender. -/
+theorem inClassR.congr {ts ts' : ThreadState} {f f' : Option Fault} (h : inClassR ts f) (hs : ts' = ts)
+    (hf : (∃ e d, ts = .blockedOnSend e d) → f' = f) : inClassR ts' f' := by
+  subst hs
+  rcases h with h | h | ⟨e, d, h, h'⟩ | h
+  · exact Or.inl h
+  · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inl ⟨e, d, h, by rw [hf ⟨e, d, h⟩]; exact h'⟩))
+  · exact Or.inr (Or.inr (Or.inr h))
+
 /-- Blocked on no notification and no endpoint (the blocked states of
 `inClass`). -/
 def NotIpcBlk (ts : ThreadState) : Prop :=
@@ -127,7 +193,7 @@ from the idle state). -/
 def NoBlock (σ σ' : State Unit) : Prop :=
   ∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) →
     y.tcbState = x.tcbState ∨ (runnable y.tcbState = true ∧ x.tcbState ≠ .idleThreadState ∧
-      (inClass x.tcbState ∨ RelIfBound σ p))
+      (inClassR x.tcbState x.tcbFault ∨ RelIfBound σ p))
 
 /-- The thread is in no ready queue and not in the release queue (l4v
 `not_queued`, `not_in_release_q`). -/
@@ -234,7 +300,7 @@ theorem NoBlock.ntfnUpd (σ : State Unit) (p : ObjRef) (y : Notification) :
 theorem NoBlock.tcbUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
     (ts : ThreadState) (a : ArchTcb)
     (h : ts = x.tcbState ∨ (runnable ts = true ∧ x.tcbState ≠ .idleThreadState ∧
-      (inClass x.tcbState ∨ RelIfBound σ p))) :
+      (inClassR x.tcbState x.tcbFault ∨ RelIfBound σ p))) :
     NoBlock σ { σ with kheap := Function.update σ.kheap p (some (.tcb { x with tcbState := ts, tcbArch := a })) } := by
   intro q x' z h1 h2
   by_cases e : q = p
@@ -270,7 +336,7 @@ theorem set_thread_state_running (hH : SchedHyps st ar N T SR) (hP : NPlaced T N
     (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
     (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue)
-    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) (hni : x.tcbState ≠ .idleThreadState) :
+    (hcls : inClassR x.tcbState x.tcbFault ∨ RelIfBound σ t.bv) (hni : x.tcbState ≠ .idleThreadState) :
     sched.set_thread_state st s t sched.TS_RUNNING ⦃ s' =>
       NtfnStateRel N T (L.mem s') (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
       SR s' (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ⦄ := by
@@ -300,7 +366,7 @@ theorem wake_refines (hH : SchedHyps st ar N T SR) (hP : NPlaced T N) (s : S) (a
     (σ : Fl4Spec.State Unit) (hR : NtfnStateRel N T (L.mem s) σ) (hSR : SR s σ) {t n : U64} (ht : t ∈ T)
     (hn : n ∈ N) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
     (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue) (badge : U64)
-    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
+    (hcls : inClassR x.tcbState x.tcbFault ∨ RelIfBound σ t.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
     (hni : x.tcbState ≠ .idleThreadState) :
     rustWake st ar s a t n badge ⦃ r => ¬ (specWake t.bv n.bv badge.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (specWake t.bv n.bv badge.bv σ).1 ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ := by

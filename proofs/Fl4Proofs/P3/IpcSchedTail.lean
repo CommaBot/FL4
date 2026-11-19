@@ -80,7 +80,7 @@ theorem bind_irel (hP0 : IPlaced N T E R B) (s : S) (a : A) {σ : Fl4Spec.State 
     (hX : IRel st th cr N T C E R B c s σ) (hN : NSC N C σ) (hI : Inv σ) {p : U64} (hp : p ∈ C) (hp0 : p ≠ 0#u64)
     {y : Fl4Spec.SchedContext} {n : Nat} (hk : σ.kheap p.bv = some (.schedContext y n)) (hy0 : y.scTcb = none)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
-    (hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (hT : TimeAgree ar) :
     schedcontext.bind_tcb st ar s a p t ⦃ r => ∃ σ', Fl4Spec.schedContextBindTcb (Z := Unit) p.bv t.bv σ =
       ({((), σ')}, False) ∧ IRel st th cr N T C E R B c r.1 σ' ⦄ := by
@@ -103,7 +103,7 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-open Fl4Proofs.P3.Notif (inClass released)
+open Fl4Proofs.P3.Notif (inClass inClassR released)
 
 end
 

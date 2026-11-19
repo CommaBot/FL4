@@ -266,7 +266,7 @@ theorem JAtZ.flagsWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       (updK σ t.bv (.tcb { x with tcbFlags := nf })) := J.buf.frame kb hA.bufKeep
   have hI3 := hX'.irelK (by rw [hks]; exact J.ks) hBW
   exact J.reg_frameG hI3 (hw.mono fun b hb => Or.inr ⟨t, ht, Or.inr (by rw [hb, hKt])⟩) hA hyk
-    (J.inv.updSame hk rfl rfl) hblk hfoot
+    (J.inv.updSame hk rfl rfl (Or.inl rfl)) hblk hfoot
 
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ.fpuReleaseJ` with the facts the reply tail reads**: the current

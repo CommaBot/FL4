@@ -300,7 +300,7 @@ theorem cancel_ipc_irelP {P : S → Fl4Spec.State Unit → Prop} (hP0 : IPlaced 
     (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
     (hk : σ.kheap t.bv = some (.tcb x)) (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ)
-    (hPf : P (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none }))) :
+    (hPf : (∃ r, x.tcbState = .blockedOnReply r) → P (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none }))) :
     ipc.cancel_ipc st ar s a t ⦃ r => r.2 = a ∧ ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       IRel st th cr N T C E R B c r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = cancelSt x.tcbState ⦄ := by
   have hP := hP0.e
@@ -391,7 +391,7 @@ theorem cancel_ipc_irelP {P : S → Fl4Spec.State Unit → Prop} (hP0 : IPlaced 
     rw [hw, hstw, e3, tsVals.2.2.2.1, tsVals.2.2.1, tsVals.2.2.2.2]
     simp only [show (5#u64 : U64) ≠ 4#u64 by decide, show (5#u64 : U64) ≠ 3#u64 by decide,
       show (5#u64 : U64) ≠ 6#u64 by decide, ↓reduceIte]
-    refine WP.spec_bind (hRT _ _ t { x with tcbFault := none } rp ⟨hR1, hS1⟩ hPf ht (by simp [updK])
+    refine WP.spec_bind (hRT _ _ t { x with tcbFault := none } rp ⟨hR1, hS1⟩ (hPf ⟨_, hts⟩) ht (by simp [updK])
       (show x.tcbState = _ from hts)) ?_
     rintro s2 ⟨σ', x', h2, h3, h4, h5⟩
     simp only [WP.spec_ok]
@@ -425,7 +425,7 @@ theorem cancel_ipc_irel (hP0 : IPlaced N T E R B) (hRT : RemoveTcbHyp st th cr N
     ipc.cancel_ipc st ar s a t ⦃ r => r.2 = a ∧ ∃ σ' x', Fl4Spec.cancelIpc (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       IRel st th cr N T C E R B c r.1 σ' ∧ σ'.kheap t.bv = some (.tcb x') ∧ x'.tcbState = cancelSt x.tcbState ⦄ :=
   cancel_ipc_irelP (P := fun _ _ => True) hP0 (fun s σ t x r h _ => hRT s σ t x r h) s a σ hX ht hk hSV hOC hInv
-    trivial
+    fun _ => trivial
 
 end All
 

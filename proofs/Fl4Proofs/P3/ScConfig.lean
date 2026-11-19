@@ -249,7 +249,7 @@ but not runnable. -/
 theorem InvBut.resume {σ σ' : State Unit} {t p : ObjRef} (h : InvBut σ t) {x : Tcb} {y : SchedContext} {n : Nat}
     (kp : σ.kheap p = some (.schedContext y n)) (hyt : y.scTcb = some t) (kt : σ.kheap t = some (.tcb x))
     (hxp : x.tcbSchedContext = some p) (hnq : NotQueued σ t)
-    (hr : runnable x.tcbState = false → inClass x.tcbState → scActive y = true → released σ y)
+    (hr : runnable x.tcbState = false → inClassR x.tcbState x.tcbFault → scActive y = true → released σ y)
     (he : schedContextResume (Z := Unit) p σ = ({((), σ')}, False)) : Inv σ' := by
   have hne : scActive y = true → y.scRefills ≠ [] := h.ne p y n kp
   rw [resume_spec_eq kp hyt kt hne

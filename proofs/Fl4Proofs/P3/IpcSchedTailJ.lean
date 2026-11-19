@@ -22,7 +22,7 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-open Fl4Proofs.P3.Notif (inClass released)
+open Fl4Proofs.P3.Notif (inClass inClassR released)
 
 /-- **`JAtZ` after SetSchedParams' fault-handler install** [J-step, the
 CSpace side's install], with the current thread in no release queue
@@ -57,7 +57,7 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
       (.ok (), σ2) ∈ ((Fl4Spec.installTcbCap (Z := Unit) p.bv ssl 3 (some fh)).run σ1).1 →
       SpecPost σ2 p.bv sco ∧ ∀ v, sco = some (some v) → ∀ x y n, σ2.kheap p.bv = some (.tcb x) →
-        σ2.kheap v = some (.schedContext y n) → Fl4Spec.runnable x.tcbState = false → inClass x.tcbState →
+        σ2.kheap v = some (.schedContext y n) → Fl4Spec.runnable x.tcbState = false → inClassR x.tcbState x.tcbFault →
         Fl4Spec.scActive y = true → released σ2 y)
     (hJ2 : InstallJ (L := L) arI AR th s σ ct) :
     SchedTailXHyp (L := L) arI AR th s σ ct := by
@@ -96,9 +96,9 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
   have hIa := hXa.irelK (by rw [L.ksb_wr]; exact hKA) hBWa
   rw [hcra] at hIa
   -- the facts after `set_mcp`, from `JAtZ` after the install
-  have hTVa : TView σ2 σa := TView.upd hk2 rfl rfl rfl rfl
+  have hTVa : TView σ2 σa := TView.upd hk2 rfl rfl rfl rfl (Or.inl rfl)
   have hSVa : SchedValid σa := J2.sv.tcbView hTVa rfl
-  have hInva : Inv σa := inv_updView J2.inv hk2 ⟨rfl, rfl, rfl, rfl⟩
+  have hInva : Inv σa := inv_updView J2.inv hk2 ⟨rfl, rfl, rfl, rfl, rfl⟩
   have hOCa : ObjCover Z.N Z.T Z.E Z.R Z.C σa := J2.obj.tcbView hTVa
   have hSorta : IpcSorted σa := by
     refine J2.isorted.frame (fun q x' hq => ⟨x', (hTVa.ntcb (fun _ e => by cases e)).1 hq, rfl⟩)
@@ -199,10 +199,19 @@ theorem schedTailXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s : S
     obtain ⟨c', hc'C, hc'e⟩ := J2.obj.sc _ y n hkc0
     have hc' : scv = c' := (P1.eq_of_bv hc'e).symm
     subst hc'
-    have hblk : Fl4Spec.runnable xb.tcbState = false → inClass xb.tcbState → Fl4Spec.scActive y = true →
+    have hblk : Fl4Spec.runnable xb.tcbState = false → inClassR xb.tcbState xb.tcbFault → Fl4Spec.scActive y = true →
         released σb y := by
       intro hr hc ha'
       rw [hstb] at hr hc
+      -- `set_priority` of a blocked thread keeps its fault (`IK` at another thread)
+      have hka : σa.kheap p.bv = some (.tcb { x with tcbMcpriority := Fl4Spec.ucast 8 mcp.bv }) := by
+        simp [hσa, Notif.updK]
+      have hsb' := hsb
+      rw [Ipc.setPriority_blk hka hr] at hsb'
+      obtain ⟨x', hx', hf⟩ := ((Sched.ikm_setPriority_blk (t := p.bv + 1) p.bv _ _).of_eq hsb').tcbFB hkb
+      rw [hka] at hx'; cases hx'
+      have hfb : xb.tcbFault = x.tcbFault := hf (Sched.objRef_ne_succ _)
+      rw [hfb] at hc
       have := hrl _ rfl x y n hk2 hkc0 hr hc ha'
       unfold released at this ⊢; rw [hv.tm]; exact this
     refine WP.spec_bind (WP.spec_and (bind_irel hP0 s4 a1 hIb hNb hInvb hc'C hs0 hkcb hyt0 hpT hkb

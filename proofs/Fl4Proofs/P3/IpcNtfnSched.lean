@@ -63,7 +63,7 @@ theorem set_thread_state_runningI (hH : IpcSchedHyps st ar N T E R B SR) (hP : I
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
     (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue)
     (hqE : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue)
-    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) (hni : x.tcbState ≠ .idleThreadState) :
+    (hcls : inClassR x.tcbState x.tcbFault ∨ RelIfBound σ t.bv) (hni : x.tcbState ≠ .idleThreadState) :
     sched.set_thread_state st s t sched.TS_RUNNING ⦃ s' =>
       IpcRel N T E R B (L.mem s') (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
       SR s' (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ⦄ := by
@@ -98,7 +98,7 @@ theorem wake_refinesI (hH : IpcSchedHyps st ar N T E R B SR) (hP : IPlaced N T E
     (hn : n ∈ N) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
     (hq : ∀ n ∈ N, ∀ z, σ.kheap n.bv = some (.notification z) → t.bv ∉ z.ntfnObj.ntfnQueue)
     (hqE : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue) (badge : U64)
-    (hcls : inClass x.tcbState ∨ RelIfBound σ t.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
+    (hcls : inClassR x.tcbState x.tcbFault ∨ RelIfBound σ t.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
     (hni : x.tcbState ≠ .idleThreadState) :
     rustWake st ar s a t n badge ⦃ r => ¬ (specWake t.bv n.bv badge.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (specWake t.bv n.bv badge.bv σ).1 ∧ IpcRel N T E R B (L.mem r.1) σ' ∧ SR r.1 σ' ⦄ := by

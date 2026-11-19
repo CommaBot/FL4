@@ -24,13 +24,13 @@ noncomputable section
 /-- The fields of a TCB the scheduler invariants read, equal. -/
 def TcbViewEq (y x : Fl4Spec.Tcb) : Prop :=
   y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext ∧
-    y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo
+    y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo ∧ y.tcbFault = x.tcbFault
 
 theorem sanRegs_viewEq : ∀ (x : Fl4Spec.Tcb) (rs : List Fl4Spec.Register) (vs : List Fl4Spec.Word),
     TcbViewEq (sanRegs x rs vs) x
   | x, r :: rs, v :: vs => sanRegs_viewEq (setReg x r (Fl4Spec.sanitiseRegister false r v)) rs vs
-  | x, [], _ => ⟨rfl, rfl, rfl, rfl⟩
-  | x, _ :: _, [] => ⟨rfl, rfl, rfl, rfl⟩
+  | x, [], _ => ⟨rfl, rfl, rfl, rfl, rfl⟩
+  | x, _ :: _, [] => ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
@@ -72,11 +72,11 @@ theorem removeTcbOK_regs {s s' : S} {σ σ' : Fl4Spec.State Unit} (hX : IRel st 
 /-- `Inv` across a TCB update keeping its view. -/
 theorem inv_updView' {σ : Fl4Spec.State Unit} (h : Inv σ) {p : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) (hv : TcbViewEq y x) : Inv (Notif.updK σ p (.tcb y)) := by
-  have hTV := TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2
+  have hTV := TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2.1 (Or.inl hv.2.2.2.2)
   refine h.tcbView (fun q => ?_) rfl rfl rfl
-  rcases hTV q with e | ⟨a1, b1, h1, h2, e1, e2, -⟩
+  rcases hTV q with e | ⟨a1, b1, h1, h2, e1, e2, -, -, e5⟩
   · exact Or.inl e
-  · exact Or.inr ⟨a1, b1, h1, h2, e1, e2⟩
+  · exact Or.inr ⟨a1, b1, h1, h2, e1, e2, e5⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`write_registers` on `IRel`, re-scoped** (module docstring). -/
@@ -178,13 +178,13 @@ theorem write_registers_irelS (hP0 : IPlaced N T E R B)
       rfl
   refine WP.spec_bind hpm ?_
   rintro s4 ⟨σ4, hpm4, hX4, hct4, ⟨x4, hσ4, hv4⟩, hag4, hks4⟩
-  have hTV4 : TView σ σ4 := by rw [hσ4]; exact TView.upd hk hv4.1 hv4.2.1 hv4.2.2.1 hv4.2.2.2
+  have hTV4 : TView σ σ4 := by rw [hσ4]; exact TView.upd hk hv4.1 hv4.2.1 hv4.2.2.1 hv4.2.2.2.1 (Or.inl hv4.2.2.2.2)
   have hOK4 : RemoveTcbOK st N T C E R c s4 σ4 :=
     removeTcbOK_regs hX hp hOK hTV4 (by subst hσ4; rfl) (by subst hσ4; rfl) (by subst hσ4; rfl) hag4 hks4
   have hInv4 : Inv σ4 := hInv.tcbView (fun q => by
-    rcases hTV4 q with e | ⟨a1, b1, h1, h2, e1, e2, -⟩
+    rcases hTV4 q with e | ⟨a1, b1, h1, h2, e1, e2, -, -, e5⟩
     · exact Or.inl e
-    · exact Or.inr ⟨a1, b1, h1, h2, e1, e2⟩) (by subst hσ4; rfl) (by subst hσ4; rfl) (by subst hσ4; rfl)
+    · exact Or.inr ⟨a1, b1, h1, h2, e1, e2, e5⟩) (by subst hσ4; rfl) (by subst hσ4; rfl) (by subst hσ4; rfl)
   -- the restart
   have hrs : (if resume then sched.restart st ar s4 a p else ok (s4, a)) ⦃ r => r.2 = a ∧ ∃ σ5,
       Fl4Spec.NonDet.when resume (Fl4Spec.restart (Z := Unit) p.bv) σ4 = ({((), σ5)}, False) ∧
@@ -194,7 +194,7 @@ theorem write_registers_irelS (hP0 : IPlaced N T E R B)
       exact ⟨trivial, σ4, rfl, hX4, hct4, hInv4⟩
     · simp only [↓reduceIte]
       refine WP.spec_mono (restart_tcb_irelS hP0 (removeTcbHypP_ok hP0) s4 a σ4 hX4 hp (hSV.tcbView hTV4 (by subst hσ4; rfl))
-        (hOC.tcbView hTV4) hInv4 (fun x' hk' => removeTcbOK_fault hP0 hX4 hp hk' hOK4) (by rw [hσ4]; exact hRS x4 hv4)
+        (hOC.tcbView hTV4) hInv4 (fun x' hk' hfr => removeTcbOK_fault hP0 hX4 hp hk' hfr hOK4) (by rw [hσ4]; exact hRS x4 hv4)
         hmb) ?_
       rintro r ⟨h1, σ5, h2, h3, h4, h5⟩
       exact ⟨h1, σ5, by simpa [Fl4Spec.NonDet.when] using h2, h3, h4.trans hct4, h5⟩
@@ -281,7 +281,7 @@ theorem writeRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     congr 2; omega
   refine WP.spec_mono (write_registers_irelS (ar := arI) hP0 s1 a σ1 hI hpT _ n buf hVn hcur1 hk hRd J'.sv J'.obj
     J'.inv J'.removeTcbOK (fun x4 hv => Sched.restartSpecOK_of (inv_updView' J'.inv hk hv)
-      (fun q y n hq => (J'.sv.tcbView (TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2) rfl).scSpor q y n hq)) (hmb a)) ?_
+      (fun q y n hq => (J'.sv.tcbView (TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2.1 (Or.inl hv.2.2.2.2)) rfl).scSpor q y n hq)) (hmb a)) ?_
   rintro r ⟨hr2, σ', hsp, hI'⟩
   obtain ⟨⟨Z'', -, -, -, -, -, -, -, -, hZ''⟩, -⟩ :=
     IRel.xtop (L := L) (AR := AR) (a := r.2) hI' (by rw [hr2]; exact hAR)
@@ -306,7 +306,7 @@ theorem resumeXLeafJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj
-    J'.inv (fun x hk => removeTcbOK_fault hP0 hI1 hpT hk J'.removeTcbOK)
+    J'.inv (fun x hk hfr => removeTcbOK_fault hP0 hI1 hpT hk hfr J'.removeTcbOK)
     (Sched.restartSpecOK_of J'.inv J'.sv.scSpor) hmb) ?_
   rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2, -, -⟩
   exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩

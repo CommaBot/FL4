@@ -270,7 +270,7 @@ def RemoveOK (st : machine.Store S) [L : LawfulStore st] (N T C R : Set U64) (c 
       (∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
         xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∧
       (∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-        xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+        xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
 
 /-- **The receiver's SCs are active after `reply_remove`**, from [J]
 (`BlockedScActive`) before it: an SC then bound to the receiver was bound to

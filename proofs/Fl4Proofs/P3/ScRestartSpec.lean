@@ -38,21 +38,22 @@ theorem ScIK.trans {a b c : SchedContext} (h1 : ScIK a b) (h2 : ScIK b c) : ScIK
 
 /-- An object step of `cancel_ipc` (module docstring); `k`: the state kept. -/
 def IKObj (k : Prop) (o o' : KernelObject) : Prop :=
-  (∀ x, o = .tcb x → ∃ y, o' = .tcb y ∧ y.tcbSchedContext = x.tcbSchedContext ∧ (k → y.tcbState = x.tcbState)) ∧
+  (∀ x, o = .tcb x → ∃ y, o' = .tcb y ∧ y.tcbSchedContext = x.tcbSchedContext ∧ (k → y.tcbState = x.tcbState) ∧
+    (k → y.tcbFault = x.tcbFault)) ∧
   (∀ y n, o = .schedContext y n → ∃ y', o' = .schedContext y' n ∧ ScIK y y') ∧
   (∀ x, o = .notification x → ∃ y, o' = .notification y ∧ y.ntfnSc = x.ntfnSc) ∧
   (∀ y, o' = .tcb y → ∃ x, o = .tcb x) ∧ (∀ y n, o' = .schedContext y n → ∃ x m, o = .schedContext x m) ∧
   (∀ y, o' = .notification y → ∃ x, o = .notification x)
 
 theorem IKObj.refl (k : Prop) (o : KernelObject) : IKObj k o o :=
-  ⟨fun x e => ⟨x, e, rfl, fun _ => rfl⟩, fun y n e => ⟨y, e, ScIK.refl y⟩, fun x e => ⟨x, e, rfl⟩,
+  ⟨fun x e => ⟨x, e, rfl, fun _ => rfl, fun _ => rfl⟩, fun y n e => ⟨y, e, ScIK.refl y⟩, fun x e => ⟨x, e, rfl⟩,
     fun y e => ⟨y, e⟩, fun y n e => ⟨y, n, e⟩, fun y e => ⟨y, e⟩⟩
 
 theorem IKObj.trans {k : Prop} {a b c : KernelObject} (h1 : IKObj k a b) (h2 : IKObj k b c) : IKObj k a c := by
   refine ⟨fun x e => ?_, fun y n e => ?_, fun x e => ?_, fun y e => ?_, fun y n e => ?_, fun y e => ?_⟩
-  · obtain ⟨y, rfl, e1, f1⟩ := h1.1 x e
-    obtain ⟨z, rfl, e2, f2⟩ := h2.1 y rfl
-    exact ⟨z, rfl, e2.trans e1, fun hk => (f2 hk).trans (f1 hk)⟩
+  · obtain ⟨y, rfl, e1, f1, g1⟩ := h1.1 x e
+    obtain ⟨z, rfl, e2, f2, g2⟩ := h2.1 y rfl
+    exact ⟨z, rfl, e2.trans e1, fun hk => (f2 hk).trans (f1 hk), fun hk => (g2 hk).trans (g1 hk)⟩
   · obtain ⟨y', rfl, e1⟩ := h1.2.1 y n e
     obtain ⟨z, rfl, e2⟩ := h2.2.1 y' n rfl
     exact ⟨z, rfl, e1.trans e2⟩
@@ -125,16 +126,25 @@ theorem IK.objF (h : IK t σ σ') (p : ObjRef) {o : KernelObject} (ho : σ.kheap
 theorem IK.tcbF (h : IK t σ σ') {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbSchedContext = x.tcbSchedContext ∧ (p ≠ t → y.tcbState = x.tcbState) := by
   obtain ⟨o', ho', hr⟩ := h.objF p hk
-  obtain ⟨y, rfl, h1, h2⟩ := hr.1 x rfl
+  obtain ⟨y, rfl, h1, h2, -⟩ := hr.1 x rfl
   exact ⟨y, ho', h1, h2⟩
 
 theorem IK.tcbB (h : IK t σ σ') {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
     ∃ x, σ.kheap p = some (.tcb x) ∧ y.tcbSchedContext = x.tcbSchedContext ∧ (p ≠ t → y.tcbState = x.tcbState) := by
   obtain ⟨o, ho, hr⟩ := h.obj p hk
   obtain ⟨x, rfl⟩ := hr.2.2.2.1 y rfl
-  obtain ⟨y', e, h1, h2⟩ := hr.1 x rfl
+  obtain ⟨y', e, h1, h2, -⟩ := hr.1 x rfl
   cases e
   exact ⟨x, ho, h1, h2⟩
+
+/-- A TCB other than `t` keeps its fault (backward). -/
+theorem IK.tcbFB (h : IK t σ σ') {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
+    ∃ x, σ.kheap p = some (.tcb x) ∧ (p ≠ t → y.tcbFault = x.tcbFault) := by
+  obtain ⟨o, ho, hr⟩ := h.obj p hk
+  obtain ⟨x, rfl⟩ := hr.2.2.2.1 y rfl
+  obtain ⟨y', e, -, -, h3⟩ := hr.1 x rfl
+  cases e
+  exact ⟨x, ho, h3⟩
 
 theorem IK.scF (h : IK t σ σ') {p : ObjRef} {y : SchedContext} {n : Nat} (hk : σ.kheap p = some (.schedContext y n)) :
     ∃ y', σ'.kheap p = some (.schedContext y' n) ∧ ScIK y y' := by
@@ -201,13 +211,15 @@ theorem InvBut.ik {t : ObjRef} {σ σ' : State Unit} (h : InvBut σ t) (hq : Not
       rw [specRt_eq k1 (by rw [e1]; exact h2) k2 (by rw [e2.1]; exact hne), specRt_eq h1 h2 h4 hne, e2.hd]
     rw [rt a ha, rt b hb]; exact hab
   · obtain ⟨x0, k0, e0, f0⟩ := hk.tcbB hx
+    obtain ⟨x0', k0', g0⟩ := hk.tcbFB hx
+    rw [k0] at k0'; cases k0'
     intro x' scp y n h1 h2 h3 h4 h5
     rw [hx] at h1; cases h1
     obtain ⟨y0, k3, e3⟩ := hk.scB h3
     rw [hrl] at h5
     rw [released_congr htm]
     unfold released; rw [e3.hd]
-    exact h.rd u x0 hut k0 (by rw [← f0 hut]; exact hc) x0 scp y0 n k0 (by rw [← e0]; exact h2) k3
+    exact h.rd u x0 hut k0 (hc.congr (f0 hut).symm fun _ => (g0 hut).symm) x0 scp y0 n k0 (by rw [← e0]; exact h2) k3
       (by rw [← e3.active]; exact h4) h5
   · obtain ⟨y0, k0, e0⟩ := hk.scB hy
     intro ha hp
@@ -278,7 +290,8 @@ theorem ikm_modify {g : State Unit → State Unit}
   exact ⟨fun p => by rw [e1]; exact OIK.refl _ _, e2, e3, e4⟩
 
 theorem ikm_threadSet {g : Tcb → Tcb} {p : ObjRef}
-    (hg : ∀ x, (g x).tcbSchedContext = x.tcbSchedContext ∧ (p ≠ t → (g x).tcbState = x.tcbState)) :
+    (hg : ∀ x, (g x).tcbSchedContext = x.tcbSchedContext ∧ (p ≠ t → (g x).tcbState = x.tcbState) ∧
+      (p ≠ t → (g x).tcbFault = x.tcbFault)) :
     IKM t (threadSet (Z := Unit) g p) := by
   intro σ x ⟨y, hy, hx⟩
   obtain ⟨hk, hs⟩ := getsThe_getTcb_mem hy
@@ -289,7 +302,7 @@ theorem ikm_threadSet {g : Tcb → Tcb} {p : ObjRef}
   refine IK.upd hk ⟨fun x' e' => ?_, fun _ _ e' => (by cases e'), fun _ e' => (by cases e'), fun _ _ => ⟨_, rfl⟩,
     fun _ _ e' => (by cases e'), fun _ e' => by cases e'⟩
   cases e'
-  exact ⟨_, rfl, (hg _).1, (hg _).2⟩
+  exact ⟨_, rfl, (hg _).1, (hg _).2.1, (hg _).2.2⟩
 
 theorem ikm_updateSchedContext {g : SchedContext → SchedContext} (hg : ∀ y, ScIK y (g y)) (p : ObjRef) :
     IKM t (updateSchedContext (Z := Unit) p g) := by
@@ -350,8 +363,8 @@ macro "ikm_step0" : tactic => `(tactic| first
   | with_reducible exact ikm_gets _ | with_reducible exact ikm_assert _ | with_reducible exact ikm_assertOpt _
   | with_reducible exact ikm_getObject _ | with_reducible exact ikm_getsThe _
   | ((with_reducible apply ikm_modify); intro _; exact ⟨rfl, rfl, rfl, rfl⟩)
-  | ((with_reducible apply ikm_threadSet); intro _; exact ⟨rfl, fun _ => rfl⟩)
-  | ((with_reducible apply ikm_threadSet); intro _; exact ⟨rfl, fun h => absurd rfl h⟩)
+  | ((with_reducible apply ikm_threadSet); intro _; exact ⟨rfl, fun _ => rfl, fun _ => rfl⟩)
+  | ((with_reducible apply ikm_threadSet); intro _; exact ⟨rfl, fun h => absurd rfl h, fun h => absurd rfl h⟩)
   | ((with_reducible apply ikm_updateSchedContext); intro _; exact ScIK.refl _)
   | (with_reducible exact ikm_setSimpleKo notTSN_ep _ _)
   | (with_reducible exact ikm_updateSkObjRef notTSN_reply _ _ _)

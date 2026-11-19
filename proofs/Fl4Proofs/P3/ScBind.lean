@@ -142,7 +142,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
     {p : U64} (hp : p ∈ C) (hp0 : p ≠ 0#u64) {y : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap p.bv = some (.schedContext y n)) (hy0 : y.scTcb = none)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
-    (hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (hT : TimeAgree ar) :
     schedcontext.bind_tcb st ar s a p t ⦃ r => ∃ σ',
       Fl4Spec.schedContextBindTcb (Z := Unit) p.bv t.bv σ = ({((), σ')}, False) ∧
@@ -264,7 +264,7 @@ theorem bind_tcb_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
         (∀ q, q ≠ p.bv → σu.kheap q = σd.kheap q) ∧ σu.releaseQueue = σd.releaseQueue ∧
         σu.readyQueues = σd.readyQueues ∧ σu.schedulerAction = σd.schedulerAction ∧
         σu.idleThread = σd.idleThread ∧ σu.idleSc = σd.idleSc ∧
-        (Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive yu = true →
+        (Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive yu = true →
           released σu yu) ∧ InvBut σu t.bv := by
     rintro σu (rfl | ⟨hya, he⟩)
     · exact ⟨_, hkd, rfl, fun _ _ => rfl, rfl, rfl, rfl, rfl, rfl, fun h1 h2 h3 => hblk h1 h2 h3, hId⟩

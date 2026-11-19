@@ -878,7 +878,7 @@ theorem umn_nfr {σ σ' : State Unit} {r : ObjRef} {n : Notification} (hk : σ.k
         (Or.inl ⟨x, x.tcbState, none, x.tcbArch, rfl, rfl, Or.inl ⟨rfl, rfl⟩, Or.inr rfl⟩)), fun hI => ?_,
       ntfnBoundTcbUpdate (fun _ => none) n, ?_, rfl, rfl⟩
     · have hI1 : Inv σ1 := hI.updNtfn hk (fun p hp => hI.ntfnSc r n p hk hp)
-      exact hI1.tcbUpd hkt1 _ rfl rfl
+      exact hI1.tcbUpd hkt1 _ rfl rfl rfl
     · simp [updK, hσ1, Function.update_of_ne hrt]
 
 /-- **The spec's finalisation of notification `r`** (its three steps): `Inv`

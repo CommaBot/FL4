@@ -267,7 +267,7 @@ theorem reply_remove_refinesU {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ 
     (hdon : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
       xt.tcbSchedContext = none → (∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∨ y.scTcb = none)
     (hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-      xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+      xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (Q : S × A → Prop)
     (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
       SchedRel st N T C c s5 σ5 → NtfnStateRel N T (L.mem s5) σ5 → NSC N C σ5 → Inv σ5 →
@@ -508,7 +508,7 @@ theorem reply_remove_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ :
     (hdon : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
       xt.tcbSchedContext = none → ∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t)
     (hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-      xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+      xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (Q : S × A → Prop)
     (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
       SchedRel st N T C c s5 σ5 → NtfnStateRel N T (L.mem s5) σ5 → NSC N C σ5 → Inv σ5 →

@@ -220,7 +220,7 @@ theorem xFinThread_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (Cs : S
         hpre (Z.mv G V) s5 a5 σ5 rfl hX5
       have hI5 := hX5.irelK hK5 hBW5
       refine WP.spec_bind (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s5 a5 σ5 hI5 hpZ hSV5 hOC5 hInv5
-        (fun x hk => removeTcbOK_fault hP0 hI5 hpZ hk hRT5) hYR5 hB5) ?_
+        (fun x hk hfr => removeTcbOK_fault hP0 hI5 hpZ hk hfr hRT5) hYR5 hB5) ?_
       rintro ⟨s6, a6⟩ ⟨ha6, σ6, he6, hI6⟩
       simp only at ha6
       subst ha6

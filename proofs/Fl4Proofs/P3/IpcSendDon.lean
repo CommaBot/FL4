@@ -42,7 +42,7 @@ def DonNCOK (st : machine.Store S) [L : LawfulStore st] (N C : Set U64) (s : S) 
     (t d : U64) : Prop :=
   L.mem s (scA t) ≠ 0#u64 ∧ NSC N C σ ∧ Inv σ ∧
     ∀ y n, σ.kheap (L.mem s (scA t)).bv = some (.schedContext y n) → ∀ x, σ.kheap d.bv = some (.tcb x) →
-      inClass x.tcbState → Fl4Spec.scActive y = true → released σ y
+      inClassR x.tcbState x.tcbFault → Fl4Spec.scActive y = true → released σ y
 
 set_option maxHeartbeats 4000000 in
 /-- **The non-call donation step of `send_ipc` on `IRel`.** -/
@@ -138,7 +138,7 @@ def PushDonOK (st : machine.Store S) [L : LawfulStore st] (N T C R : Set U64) (c
   NSC N C σ ∧ Inv σ ∧ RPlaced st N T C R c s σ ∧ Isolated (L.mem s) R r ∧
     (∃ Lst, CallRel (L.mem s) R C σ Lst ∧ Detached C Lst r ∧ RFree (L.mem s) R C σ Lst) ∧
     ∀ y n x, σ.kheap (L.mem s (scA t)).bv = some (.schedContext y n) → σ.kheap d.bv = some (.tcb x) →
-      inClass x.tcbState → Fl4Spec.scActive y = true → released σ y
+      inClassR x.tcbState x.tcbFault → Fl4Spec.scActive y = true → released σ y
 
 theorem optRef_some_eq {w v : U64} (h : optRef w = some v.bv) : w = v := by
   unfold optRef at h; split at h

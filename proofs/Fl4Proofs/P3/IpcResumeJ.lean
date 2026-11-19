@@ -44,7 +44,7 @@ theorem restart_tcb_irelS (hP0 : IPlaced N T E R B) {P : S → Fl4Spec.State Uni
     (hRT : RemoveTcbHypP st th cr N T C E R B c P)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ)
-    (hPf : ∀ x, σ.kheap t.bv = some (.tcb x) →
+    (hPf : ∀ x, σ.kheap t.bv = some (.tcb x) → (∃ r, x.tcbState = .blockedOnReply r) →
       P (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none })))
     (hRS : RestartSpecOK t.bv σ)
     (hmb : sporadic.min_budget ar a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
@@ -217,7 +217,7 @@ theorem resumeXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have hP0 := J.ip
   have hAR : AR ar σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   refine WP.spec_bind (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj
-    J'.inv (fun x hk => removeTcbOK_fault hP0 hI1 hpT hk J'.removeTcbOK) hRS hmb) ?_
+    J'.inv (fun x hk hfr => removeTcbOK_fault hP0 hI1 hpT hk hfr J'.removeTcbOK) hRS hmb) ?_
   rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2, -, -⟩
   exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩
 

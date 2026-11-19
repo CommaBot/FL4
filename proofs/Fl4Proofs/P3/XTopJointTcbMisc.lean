@@ -511,7 +511,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
     (fun p hp => J.inv.ntfnSc n.bv xn p hkn hp)
   have hkt1 : (Notif.updK σ n.bv (.notification { xn with ntfnBoundTcb := some t.bv })).kheap t.bv =
       some (.tcb x) := by simp [Notif.updK, htn, hk]
-  have I3 := I1.tcbUpd hkt1 { x with tcbBoundNotification := some n.bv } rfl rfl
+  have I3 := I1.tcbUpd hkt1 { x with tcbBoundNotification := some n.bv } rfl rfl rfl
   -- the assembly (as `JAtZ.reg_frameFp`)
   have hck : Fl4Proofs.P3.CKeep σ σ' := F.ckeepP
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2

@@ -211,9 +211,8 @@ theorem JAtZ.cancelSendJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
   simp only at ea hbk hfoot hIR hW
   subst ea
   have hm : ((), σ') ∈ (Fl4Spec.cancelIpc (Z := Unit) t.bv σ).1 := by rw [hc]; exact Set.mem_singleton _
-  obtain ⟨F, -, hact⟩ := cancelIpc_send_kfr hk hst hke hqe hm
-  have hrib := F.rib J.inv hk (Or.inr (Or.inr (Or.inl ⟨e, d, hst⟩)))
-  have I3 := cancel_kb_inv J.inv hk (by rw [hst]; rfl) hm hrib
+  obtain ⟨F, hk1, hact⟩ := cancelIpc_send_kfr hk hst hke hqe hm
+  have I3 := cancel_kb_inv_in J.inv hk (by rw [hst]; rfl) hm hk1 rfl
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hW fun b hb => CnW.oobj hI.2.2.1 hb
   obtain ⟨V', J'⟩ := J.kfrStep hIR hF hW hbk hfoot F I3 hact htD
   exact ⟨rfl, σ', hc, V', Ac, Lst, J'⟩

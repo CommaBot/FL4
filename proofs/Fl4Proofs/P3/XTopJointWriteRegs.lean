@@ -387,7 +387,7 @@ theorem JAtZ.writeRegsJ (hAT : P0.ArchTotal arI)
       refine WP.spec_mono (WP.spec_and (J5.restartTcbJ (Z := Z.mv Z.G V5) hAT hSd hNt hRv hRp hmb hpT hxS hcap5
         hns)
         (restart_tcb_irelS (ar := arI) hP0 (removeTcbHypP_ok hP0) _ a _ hX5 hpT J5.sv J5.obj J5.inv
-          (fun x' hk' => removeTcbOK_fault hP0 hX5 hpT hk' J5.removeTcbOK)
+          (fun x' hk' hfr => removeTcbOK_fault hP0 hX5 hpT hk' hfr J5.removeTcbOK)
           (Sched.restartSpecOK_of J5.inv J5.sv.scSpor) hmb)) ?_
       rintro r ⟨⟨h1, σ6, h2, V', Ac', Lst', D', J6⟩, -, σ6', h2', -, hc6, -⟩
       have e6 : σ6' = σ6 := by

@@ -68,11 +68,11 @@ theorem remove_topJ (hP0 : IPlaced N T E R B) {s : S} {a : A} {σ : Fl4Spec.Stat
       CallStep (L.mem s) (L.mem res.1) R C Lst Lst' r ∧
       WritesIn st s res.1 (fun b => KFoot st T N C c s σ b ∨ CallW R C b) ⦄ := by
   have hrel : ∀ sc ∈ C, ∀ y n, σ.kheap sc.bv = some (.schedContext y n) → (Lst sc).head? = some r →
-      x.tcbSchedContext = none → inClass x.tcbState → Fl4Spec.scActive y = true → released σ y := by
+      x.tcbSchedContext = none → inClassR x.tcbState x.tcbFault → Fl4Spec.scActive y = true → released σ y := by
     intro _ _ _ _ _ _ _ hc
     exfalso
     rw [hst] at hc
-    rcases hc with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩
+    rcases hc.cls with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩
     · simp [Fl4Spec.runnable] at h
     all_goals cases h
   refine reply_remove_refinesU s a σ hX.2.2.1 hX.1.toN hN hI hCR hRP hC0 hSCs hr ht hk hdon hrel _ ?_

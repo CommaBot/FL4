@@ -461,7 +461,7 @@ theorem setPriority_invC {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tc
   cases hr : runnable x.tcbState
   · rw [Ipc.setPriority_blk hk hr pr] at hm
     have hik : ∀ u, IK u σ σ' := fun u => ikm_setPriority_blk (t := u) t pr x.tcbState σ _ hm
-    exact ⟨h.ikKeep (hik t) (IK.st_of_all hik), (hik t).1⟩
+    exact ⟨h.ikKeep (hik t) (IK.st_of_all hik) (IK.fl_of_all hik), (hik t).1⟩
   rw [Ipc.setPriority_run hk hr pr] at hm
   split_ifs at hm with hq
   · rw [nd_bind_one (tcbSchedAction_gen hk _)] at hm
@@ -504,10 +504,10 @@ theorem setPriority_invC {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tc
     rw [show σ' = σd from (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2]
     refine ⟨hIc.qchange hqd, fun p => ?_⟩
     rw [hqd.1]
-    exact (IK.updTcb (t := t) (σ := σ) (y := { x with tcbPriority := pr }) hk rfl rfl).1 p
+    exact (IK.updTcb (t := t) (σ := σ) (y := { x with tcbPriority := pr }) hk rfl rfl fun _ => rfl).1 p
   · rw [hts σ hk] at hm
     rw [show σ' = updK σ t (.tcb { x with tcbPriority := pr }) from (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2]
-    exact ⟨h.prioUpd hk pr, (IK.updTcb (t := t) (y := { x with tcbPriority := pr }) hk rfl rfl).1⟩
+    exact ⟨h.prioUpd hk pr, (IK.updTcb (t := t) (y := { x with tcbPriority := pr }) hk rfl rfl fun _ => rfl).1⟩
 
 /-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/
 theorem PFr.khrb {t : ObjRef} {σ σ' : State Unit} (h : PFr t σ σ') : KhRB σ σ' :=

@@ -153,7 +153,7 @@ theorem Inv.updEp {σ : State Unit} (h : Inv σ) {p : ObjRef} {x y : Endpoint} (
 set_option maxHeartbeats 8000000 in
 /-- **`restart_thread_if_no_fault` of a stopped thread** (module docstring). -/
 theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hkt : σ.kheap t = some (.tcb x))
-    (hnr : runnable x.tcbState = false) (hrib : RelIfBound σ t)
+    (hnr : runnable x.tcbState = false) (hrib : x.tcbFault = none → RelIfBound σ t)
     (hsa : ∀ p y k, x.tcbSchedContext = some p → σ.kheap p = some (.schedContext y k) → scActive y = true)
     (hm : ((), σ5) ∈ (restartThreadIfNoFault (Z := Unit) t σ).1) :
     Inv σ5 ∧ Sk σ σ5 ∧
@@ -184,7 +184,7 @@ theorem rtinf_inv {σ σ5 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ) (hk
         · have h2' : σ.kheap u = some (.tcb y) := by simpa [hσ2', updK, e] using h2
           rw [h1] at h2'; cases h2'; exact hr
       · by_cases e : u = t
-        · subst e; exact hrib
+        · subst e; exact hrib hf
         · have h2' : σ.kheap u = some (.tcb y) := by simpa [hσ2', updK, e] using h2
           exact hI.rd u y h2' hc
     have hst := setThreadState_eq' hkt .restart
@@ -311,7 +311,7 @@ def EpLoopInv (P : ObjRef → Prop) (σ : State Unit) (e : ObjRef) (l : List Obj
   Inv σ ∧ BlockedScActive σ ∧ (∃ x, σ.kheap e = some (.endpoint x) ∧ x.epQueue = l) ∧ l.Nodup ∧
     (∀ u ∈ l, ∃ xu, σ.kheap u = some (.tcb xu) ∧ epBlocked xu.tcbState = some e ∧
       (receiveBlocked xu.tcbState = true → P u)) ∧
-    (∀ u ∈ l, MemOK σ u ∧ RepOK σ u) ∧ ScBack σ ∧ ActReady σ
+    (∀ u ∈ l, MemOKE σ u ∧ RepOK σ u) ∧ ScBack σ ∧ ActReady σ
 
 /-- `BlockedScActive` across the frame. -/
 theorem EFr.bsa {e : ObjRef} {P : ObjRef → Prop} {σ σ' : State Unit} (h : EFr e P σ σ') (hB : BlockedScActive σ) :
@@ -420,8 +420,9 @@ theorem inv_ep_iter {P : ObjRef → Prop} {σ σ5 : State Unit} {e t : ObjRef} {
       rw [hky0] at hkr; cases hkr
     rw [hkp2 p hpt hpr, hkp1 p hpe, hky0] at hky; cases hky
     exact hB.tcb p _ _ t xt hky0 hyt hkt (epBlocked_ipcQ hbe)
-  have hrib : RelIfBound σ2 t :=
-    Ipc.RelIfBound.of_keep (hI.rd t xt hkt (epBlocked_inClass hbe)) (hK1.trans hK2)
+  have hrib : ({ xt with tcbState := st2 } : Tcb).tcbFault = none → RelIfBound σ2 t := fun hf =>
+    Ipc.RelIfBound.of_keep (hI.rd t xt hkt (inClassR_nf (epBlocked_inClass hbe) fun b e => by
+      rw [show xt.tcbFault = none from hf] at e; cases e)) (hK1.trans hK2)
   have hnr2 : runnable ({ xt with tcbState := st2 } : Tcb).tcbState = false := by
     show runnable st2 = false
     rcases hst2 with h | h

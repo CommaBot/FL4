@@ -47,7 +47,7 @@ theorem donate_unbound_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
     (hk : σ.kheap sc.bv = some (.schedContext y n)) (hyn : y.scTcb = none)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb}
     (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
-    (hrel : inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y) :
+    (hrel : inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y) :
     schedcontext.donate st ar s a sc t ⦃ r => ∃ σ',
       Fl4Spec.schedContextDonate (Z := Unit) sc.bv t.bv σ = ({((), σ')}, False) ∧ r.2 = a ∧
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
@@ -149,7 +149,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
     (hk : σ.kheap sc.bv = some (.schedContext y n)) {r : U64} {rest : List U64} (hL : Lst sc = r :: rest)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hdon : xt.tcbSchedContext = none → (∃ f, f ∈ T ∧ y.scTcb = some f.bv ∧ f ≠ t) ∨ y.scTcb = none)
-    (hrel : xt.tcbSchedContext = none → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (hrel : xt.tcbSchedContext = none → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     (Q : S × A → Prop)
     (hU : ∀ (s5 : S) (σ5 : Fl4Spec.State Unit) (Lst5 : U64 → List U64),
       SchedRel st N T C c s5 σ5 → NtfnStateRel N T (L.mem s5) σ5 → NSC N C σ5 → Inv σ5 →
@@ -423,7 +423,7 @@ theorem reply_pop_refines {N T C R : Set U64} {c : U64} (s : S) (a : A) (σ : Fl
       have hxt0 : xt.tcbSchedContext = none := by rw [hti, hi0, optRef_zero]
       have hkcsc : σc.kheap sc.bv = some (.schedContext { y with scReplies := y.scReplies.tail } n) := by
         rw [hkc _ hpr]; exact hkbsc
-      have hrelc : inClass xt.tcbState → Fl4Spec.scActive { y with scReplies := y.scReplies.tail } = true →
+      have hrelc : inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive { y with scReplies := y.scReplies.tail } = true →
           released σc { y with scReplies := y.scReplies.tail } := fun h1 h2 => by
         have := hrel hxt0 h1 h2
         unfold released at this ⊢

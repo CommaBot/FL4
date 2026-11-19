@@ -60,7 +60,7 @@ theorem readRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       have hB' := hB
       obtain ⟨⟨Q1, R1, h0⟩, hBd, hXI, -, hSg⟩ := hB'
       refine WP.spec_mono (WP.spec_and (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 a σ1 hI1 hpT J'.sv
-        J'.obj J'.inv (fun x hk => removeTcbOK_fault hP0 hI1 hpT hk J'.removeTcbOK) J'.yld hB)
+        J'.obj J'.inv (fun x hk hfr => removeTcbOK_fault hP0 hI1 hpT hk hfr J'.removeTcbOK) J'.yld hB)
         (Fl4Proofs.P1.sched.suspend.kw s1 a p h0 hpT hBd hXI hSg.sub)) ?_
       rintro ⟨s2, a2⟩ ⟨⟨h1, σy, h2, h3⟩, hF⟩
       try simp only [WP.uncurry'_pair] at hF

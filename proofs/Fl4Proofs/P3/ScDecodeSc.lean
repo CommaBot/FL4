@@ -590,7 +590,7 @@ theorem bind_tcb_invoke {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (s : S) 
     (hk : σ.kheap sc.bv = some (.schedContext y n)) (hy0 : y.scTcb = none)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hxt0 : xt.tcbSchedContext = none)
-    (hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true → released σ y)
+    (hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true → released σ y)
     {ct : U64} (hct : ct ∈ T) {xc : Fl4Spec.Tcb} (hkc : σ.kheap ct.bv = some (.tcb xc))
     (hrun : Fl4Spec.runnable xc.tcbState = true) (call : Bool) :
     (do
@@ -604,7 +604,7 @@ theorem bind_tcb_invoke {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (s : S) 
   have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
   have hk1 : σ1.kheap sc.bv = some (.schedContext y n) := by rw [hko1 _ hpc]; exact hk
   have key : ∃ xt1, σ1.kheap t.bv = some (.tcb xt1) ∧ xt1.tcbSchedContext = none ∧
-      (Fl4Spec.runnable xt1.tcbState = false → inClass xt1.tcbState → Fl4Spec.scActive y = true → released σ1 y) := by
+      (Fl4Spec.runnable xt1.tcbState = false → inClassR xt1.tcbState xt1.tcbFault → Fl4Spec.scActive y = true → released σ1 y) := by
     by_cases e : t = ct
     · subst e; rw [hkc] at hkt; cases hkt
       exact ⟨_, hkc1, hxt0, fun h => by cases h⟩
@@ -943,7 +943,7 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       by_cases hr : b1 = true
       · simp only [hr, ↓reduceIte]
         have hrel : Fl4Spec.scReleased σ.curTime y = true := eb.trans hr
-        have hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true →
+        have hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true →
             released σ y := by
           intro _ _ ha
           simp only [Fl4Spec.scReleased, Bool.and_eq_true] at hrel
@@ -955,10 +955,10 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
         rw [hpre2]
         exact hill _ ⟨hb, by rw [eb]; simpa using hr⟩ _
     · simp only [hb, Bool.false_eq_true, ↓reduceIte]
-      have hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true →
+      have hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true →
           released σ y := by
         intro h1' h2' _
-        rcases h2' with h | ⟨m, h⟩ | ⟨e, d, h⟩ | ⟨e, r, d, h⟩
+        rcases h2'.cls with h | ⟨m, h⟩ | ⟨e, d, h⟩ | ⟨e, r, d, h⟩
         · rw [h] at h1'; cases h1'
         all_goals (rw [h] at hb; exact absurd rfl hb)
       refine WP.spec_mono (hinv hblk hct hkc hrun call) fun r hr' => Or.inr ⟨_, ?_, hr'⟩

@@ -314,11 +314,11 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
   have hact_of : Fl4Spec.ipcQueuedThreadState xt.tcbState = true → Fl4Spec.scActive y = true := fun h => by
     have h1 := hrel h
     unfold Fl4Spec.scReleased at h1; simp only [Bool.and_eq_true] at h1; exact h1.1
-  have hblk : Fl4Spec.runnable xt.tcbState = false → inClass xt.tcbState → Fl4Spec.scActive y = true →
+  have hblk : Fl4Spec.runnable xt.tcbState = false → inClassR xt.tcbState xt.tcbFault → Fl4Spec.scActive y = true →
       released σ y := by
     intro hr hcl ha
     have hq : Fl4Spec.ipcQueuedThreadState xt.tcbState = true := by
-      rcases hcl with h | ⟨m, h⟩ | ⟨e, d, h⟩ | ⟨e, r, d, h⟩
+      rcases hcl.cls with h | ⟨m, h⟩ | ⟨e, d, h⟩ | ⟨e, r, d, h⟩
       · rw [h] at hr; cases hr
       all_goals rw [h]; rfl
     have h1 := hrel hq

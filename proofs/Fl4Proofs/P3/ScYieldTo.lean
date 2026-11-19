@@ -79,29 +79,35 @@ theorem ArchStep.nsc {N C : Set U64} {σ σ' : State Unit} (h : ArchStep σ σ')
 /-- The invariant across a step changing TCBs but not their state or SC. -/
 theorem Inv.tcbView {σ σ' : State Unit} (h : Inv σ)
     (hk : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
-      y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext)
+      y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext ∧
+      (y.tcbFault = x.tcbFault ∨ ∀ e d, x.tcbState ≠ .blockedOnSend e d))
     (hq : σ'.readyQueues = σ.readyQueues) (hr : σ'.releaseQueue = σ.releaseQueue) (ht : σ'.curTime = σ.curTime) :
     Inv σ' := by
   have kf : ∀ q y, σ.kheap q = some (.tcb y) → ∃ y', σ'.kheap q = some (.tcb y') ∧
       y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext := by
     intro q y hq
-    rcases hk q with e | ⟨a, b, ha, hb, e1, e2⟩
+    rcases hk q with e | ⟨a, b, ha, hb, e1, e2, -⟩
     · exact ⟨y, e.trans hq, rfl, rfl⟩
     · rw [hq] at ha; cases ha; exact ⟨b, hb, e1, e2⟩
   have kb : ∀ q y', σ'.kheap q = some (.tcb y') → ∃ y, σ.kheap q = some (.tcb y) ∧
-      y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext := by
+      y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext ∧
+      ((∃ e d, y.tcbState = .blockedOnSend e d) → y.tcbFault = y'.tcbFault) := by
     intro q y' hq
-    rcases hk q with e | ⟨a, b, ha, hb, e1, e2⟩
-    · exact ⟨y', by rw [← e]; exact hq, rfl, rfl⟩
-    · rw [hq] at hb; cases hb; exact ⟨a, ha, e1, e2⟩
+    rcases hk q with e | ⟨a, b, ha, hb, e1, e2, e3⟩
+    · exact ⟨y', by rw [← e]; exact hq, rfl, rfl, fun _ => rfl⟩
+    · rw [hq] at hb; cases hb
+      refine ⟨a, ha, e1, e2, fun ⟨e, d, hs⟩ => ?_⟩
+      rcases e3 with e3 | e3
+      · exact e3.symm
+      · exact absurd hs (e3 e d)
   have ks : ∀ q y m, σ'.kheap q = some (.schedContext y m) ↔ σ.kheap q = some (.schedContext y m) := by
     intro q y m
-    rcases hk q with e | ⟨a, b, ha, hb, -, -⟩
+    rcases hk q with e | ⟨a, b, ha, hb, -, -, -⟩
     · rw [e]
     · rw [ha, hb]; simp
   have kn' : ∀ q y, σ'.kheap q = some (.notification y) ↔ σ.kheap q = some (.notification y) := by
     intro q y
-    rcases hk q with e | ⟨a, b, ha, hb, -, -⟩
+    rcases hk q with e | ⟨a, b, ha, hb, -, -, -⟩
     · rw [e]
     · rw [ha, hb]; simp
   have rt : ∀ u ∈ σ.releaseQueue, specRt σ' u = specRt σ u := by
@@ -124,13 +130,13 @@ theorem Inv.tcbView {σ σ' : State Unit} (h : Inv σ)
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     rw [rt a ha, rt b hb]; exact hab
   · intro x' scp yu nu h1 h2 h3 h4 h5
-    obtain ⟨y0, hy0, e1, -⟩ := kb u y hy
-    obtain ⟨x0, hx0, -, e2⟩ := kb u x' h1
+    obtain ⟨y0, hy0, e1, -, e3⟩ := kb u y hy
+    obtain ⟨x0, hx0, -, e2, -⟩ := kb u x' h1
     rw [released_congr ht]
-    exact h.rd u y0 hy0 (by rw [← e1]; exact hc) x0 scp yu nu hx0 (by rw [← e2]; exact h2) ((ks _ _ _).1 h3) h4
+    exact h.rd u y0 hy0 (hc.congr e1.symm fun h => e3 (by rw [← e1]; exact h)) x0 scp yu nu hx0 (by rw [← e2]; exact h2) ((ks _ _ _).1 h3) h4
       (by rw [← hr]; exact h5)
   · exact h.refills q y m ((ks _ _ _).1 hy)
-  · obtain ⟨y0, hy0, -, e2⟩ := kb u y hy
+  · obtain ⟨y0, hy0, -, e2, -⟩ := kb u y hy
     obtain ⟨yq, mq, h1, h2⟩ := h.back u y0 q hy0 (by rw [← e2]; exact hq)
     exact ⟨yq, mq, (ks _ _ _).2 h1, h2⟩
   · obtain ⟨yq, mq, h1⟩ := h.ntfnSc q y q' ((kn' _ _).1 hy) hq
@@ -143,7 +149,7 @@ theorem ArchStep.inv {σ σ' : State Unit} (h : ArchStep σ σ') (hI : Inv σ) :
   refine hI.tcbView (fun p => ?_) e1 e2 e5
   rcases h.2.2 p with e | ⟨a, b, ha, hb, e⟩
   · exact Or.inl e
-  · exact Or.inr ⟨a, b, ha, hb, by rw [e], by rw [e]⟩
+  · exact Or.inr ⟨a, b, ha, hb, by rw [e], by rw [e], Or.inl (by rw [e])⟩
 
 theorem ArchStep.schedulable {σ σ' : State Unit} (h : ArchStep σ σ') (u : ObjRef) :
     schedulable u σ' = schedulable u σ := by

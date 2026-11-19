@@ -32,6 +32,37 @@ def ScOK (σ : State Unit) (x : Tcb) : Prop :=
     (scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧
     (scActive y = true → y.scPeriod ≠ 0 → RefOK y)
 
+/-- **A thread queued on an endpoint**: a TCB whose SC facts (`ScOK`) hold
+unless it has a fault (a sender with a timeout fault may have an SC that is
+not released, l4v `valid_sender_sc_tcb_at`; `cancel_all_ipc` and
+`cancel_badged_sends` restart only threads without a fault,
+`restart_thread_if_no_fault`). -/
+def MemOKE (σ : State Unit) (t : ObjRef) : Prop :=
+  ∃ x, σ.kheap t = some (.tcb x) ∧ (x.tcbFault = none → ScOK σ x)
+
+theorem MemOK.e {σ : State Unit} {t : ObjRef} (h : MemOK σ t) : MemOKE σ t := by
+  obtain ⟨x, hk, hc⟩ := h; exact ⟨x, hk, fun _ => hc⟩
+
+/-- `MemOKE` across a step keeping the heap and the time. -/
+theorem MemOKE.of_heap {σ σ' : State Unit} {t : ObjRef} (h : MemOKE σ t) (hk : σ'.kheap = σ.kheap)
+    (ht : σ'.curTime = σ.curTime) : MemOKE σ' t := by
+  obtain ⟨x, hx, hc⟩ := h
+  refine ⟨x, by rw [hk]; exact hx, fun hf c e => ?_⟩
+  obtain ⟨y, k, h1, h2⟩ := hc hf c e
+  exact ⟨y, k, by rw [hk]; exact h1, by rw [ht]; exact h2⟩
+
+/-- `MemOKE` across an update of an object that is neither a TCB nor an SC
+(`SFr.updOther`). -/
+theorem MemOKE.updOther {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.kheap p = some o)
+    (h1 : ∀ x, o ≠ .tcb x) (h2 : ∀ y n, o ≠ .schedContext y n) {t : ObjRef} (h : MemOKE σ t) :
+    MemOKE (updK σ p o') t := by
+  obtain ⟨x, hx, hc⟩ := h
+  have htp : t ≠ p := by rintro rfl; rw [hk] at hx; exact h1 x (Option.some.inj hx)
+  refine ⟨x, by simp only [updK, Function.update_of_ne htp]; exact hx, fun hf c e => ?_⟩
+  obtain ⟨y, k, hy, h3⟩ := hc hf c e
+  have hcp : c ≠ p := by rintro rfl; rw [hk] at hy; exact h2 y k (Option.some.inj hy)
+  exact ⟨y, k, by simp only [updK, Function.update_of_ne hcp]; exact hy, h3⟩
+
 /-- What a thread's `restart_thread_if_no_fault` keeps (`rtinf_ok`):
 `ScBack`, `ActReady`, the time, every object but the thread and its SC. -/
 def RtFacts (σ σ' : State Unit) (t : ObjRef) (x : Tcb) : Prop :=
@@ -228,13 +259,13 @@ theorem inactive_ok {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t =
 outcome keeping `ScBack`, `ActReady`, the time, and every object but the
 thread and its SC. -/
 theorem rtinf_ok {σ : State Unit} {t : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
-    (hxs : ScOK σ x) (hB : ScBack σ) (hA : ActReady σ) :
+    (hxs : x.tcbFault = none → ScOK σ x) (hB : ScBack σ) (hA : ActReady σ) :
     ∃ σ', ((), σ') ∈ (restartThreadIfNoFault (Z := Unit) t σ).1 ∧ ScBack σ' ∧ ActReady σ' ∧
       σ'.curTime = σ.curTime ∧ ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p := by
   unfold restartThreadIfNoFault
   rw [nd_bind_one (threadGet_eq _ hkt)]
-  split_ifs
-  · obtain ⟨σ', h, hB', hA', ht', -, hkp⟩ := restart_tail hkt hxs hB hA
+  split_ifs with hf
+  · obtain ⟨σ', h, hB', hA', ht', -, hkp⟩ := restart_tail hkt (hxs hf) hB hA
     exact ⟨σ', h, hB', hA', ht', hkp⟩
   · obtain ⟨σ', he, hB', hA', ht', -, hkp⟩ := inactive_ok hkt hB hA
     exact ⟨σ', by rw [he]; exact Set.mem_singleton _, hB', hA', ht', fun p hp _ => hkp p hp⟩
@@ -254,14 +285,14 @@ theorem epDeq_queue {x : Endpoint} {t : ObjRef} {l : List ObjRef} (hq : x.epQueu
   | cons a l => cases x <;> simp_all [updateEpQueue, Endpoint.epQueue]
 
 /-- A queued thread's facts at a state agreeing on what they read. -/
-theorem memRep_agree {σ σ' : State Unit} {u : ObjRef} (hm : MemOK σ u) (hr : RepOK σ u) (K : ObjRef → Prop)
+theorem memRep_agree {σ σ' : State Unit} {u : ObjRef} (hm : MemOKE σ u) (hr : RepOK σ u) (K : ObjRef → Prop)
     (hag : ∀ p, K p → σ'.kheap p = σ.kheap p) (ht : σ'.curTime = σ.curTime) (hu : K u)
     (hsc : ∀ x c, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some c → K c)
     (hrep : ∀ x ep r d, σ.kheap u = some (.tcb x) → x.tcbState = .blockedOnReceive ep (some r) d → K r) :
-    MemOK σ' u ∧ RepOK σ' u := by
+    MemOKE σ' u ∧ RepOK σ' u := by
   obtain ⟨x, hku, hc⟩ := hm
-  refine ⟨⟨x, by rw [hag u hu]; exact hku, fun c e => ?_⟩, fun x' hku' ep r d hst => ?_⟩
-  · obtain ⟨y, k, h1, h2⟩ := hc c e
+  refine ⟨⟨x, by rw [hag u hu]; exact hku, fun hf c e => ?_⟩, fun x' hku' ep r d hst => ?_⟩
+  · obtain ⟨y, k, h1, h2⟩ := hc hf c e
     exact ⟨y, k, by rw [hag c (hsc x c hku e)]; exact h1, by rw [ht]; exact h2⟩
   · rw [hag u hu, hku] at hku'; cases hku'
     obtain ⟨xr, h1, h2⟩ := hr x hku ep r d hst
@@ -271,15 +302,15 @@ theorem memRep_agree {σ σ' : State Unit} {u : ObjRef} (hm : MemOK σ u) (hr : 
 object but `t` and its SC kept, the time kept): `t`'s SC is not `u`'s
 (`ScBack`). -/
 theorem memOK_after {σ σ' : State Unit} {t u : ObjRef} {x : Tcb} (hkt : σ.kheap t = some (.tcb x))
-    (hB : ScBack σ) (hut : u ≠ t) (hm : MemOK σ u)
+    (hB : ScBack σ) (hut : u ≠ t) (hm : MemOKE σ u)
     (hkeep : ∀ p, p ≠ t → x.tcbSchedContext ≠ some p → σ'.kheap p = σ.kheap p)
-    (ht : σ'.curTime = σ.curTime) : MemOK σ' u := by
+    (ht : σ'.curTime = σ.curTime) : MemOKE σ' u := by
   obtain ⟨xu, hku, hcu⟩ := hm
   have hu1 : x.tcbSchedContext ≠ some u := fun h => by
     obtain ⟨y, k, hky, -⟩ := hB t x u hkt h
     rw [hku] at hky; cases hky
-  refine ⟨xu, by rw [hkeep u hut hu1]; exact hku, fun c e => ?_⟩
-  obtain ⟨y, k, h1, h2⟩ := hcu c e
+  refine ⟨xu, by rw [hkeep u hut hu1]; exact hku, fun hf c e => ?_⟩
+  obtain ⟨y, k, h1, h2⟩ := hcu hf c e
   have hct : c ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
   have hc1 : x.tcbSchedContext ≠ some c := fun h => by
     obtain ⟨y1, k1, hk1, hy1, -⟩ := hB t x c hkt h
@@ -291,7 +322,7 @@ theorem memOK_after {σ σ' : State Unit} {t u : ObjRef} {x : Tcb} (hkt : σ.khe
 /-- **What `cancel_badged_sends` carries along its loop, at its start**:
 the queued threads' facts (`MemOK`), `ScBack`, `ActReady`. -/
 def EpQPre (σ : State Unit) (r : ObjRef) : Prop :=
-  ∀ y, σ.kheap r = some (.endpoint y) → (∀ u ∈ y.epQueue, MemOK σ u) ∧ ScBack σ ∧ ActReady σ
+  ∀ y, σ.kheap r = some (.endpoint y) → (∀ u ∈ y.epQueue, MemOKE σ u) ∧ ScBack σ ∧ ActReady σ
 
 /-- **`EpQPre` after a thread's restart** (the caller's, before
 `cancel_badged_sends`), the thread not the switch target. -/
@@ -310,16 +341,20 @@ theorem epQPre_restart {σ : State Unit} {t e : ObjRef} {x : Tcb} (hkt : σ.khea
   have het : e ≠ t := by rintro rfl; rw [hkt'] at hy; cases hy
   rw [hkp e het] at hy
   obtain ⟨hm, hB, hA⟩ := hQ y hy
-  refine ⟨fun u hu => hF2.memOK ?_, hF2.scBack ?_, hF2.actReady ?_ ha2⟩
+  refine ⟨fun u hu => MemOKE.of_heap ?_ hk2 ht2, hF2.scBack ?_, hF2.actReady ?_ ha2⟩
   · by_cases hut : u = t
     · subst hut
       obtain ⟨x0, hk0, hc⟩ := hm u hu
       rw [hkt] at hk0; cases hk0
-      refine ⟨x', hkt', fun c ec => ?_⟩
-      obtain ⟨y0, k0, h1, h2⟩ := hc c ec
+      refine ⟨x', hkt', fun hf c ec => ?_⟩
+      obtain ⟨y0, k0, h1, h2⟩ := hc hf c ec
       have hct : c ≠ u := by rintro rfl; rw [hkt] at h1; cases h1
       exact ⟨y0, k0, by rw [hkp c hct]; exact h1, h2⟩
-    · exact (tcbUpd_keeps (x' := x') hkt rfl hut).2.1 (hm u hu)
+    · obtain ⟨x0, hk0, hc⟩ := hm u hu
+      refine ⟨x0, by rw [hkp u hut]; exact hk0, fun hf c ec => ?_⟩
+      obtain ⟨y0, k0, h1, h2⟩ := hc hf c ec
+      have hct : c ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
+      exact ⟨y0, k0, by rw [hkp c hct]; exact h1, h2⟩
   · intro u xu c hku hc
     by_cases hut : u = t
     · subst hut; rw [hkt'] at hku; cases hku
@@ -339,10 +374,10 @@ theorem epQPre_restart {σ : State Unit} {t e : ObjRef} {x : Tcb} (hkt : σ.khea
 /-- **One thread of `cancel_all_ipc`** (`remove_and_restart_ep_queued_thread`). -/
 theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint}
     (hk : σ.kheap e = some (.endpoint x)) (hq : x.epQueue = t :: l) (hnd : (t :: l).Nodup)
-    (hm : ∀ u ∈ t :: l, MemOK σ u ∧ RepOK σ u) (hB : ScBack σ) (hA : ActReady σ) :
+    (hm : ∀ u ∈ t :: l, MemOKE σ u ∧ RepOK σ u) (hB : ScBack σ) (hA : ActReady σ) :
     ∃ σ5, ((), σ5) ∈ (removeAndRestartEpQueuedThread (Z := Unit) t e σ).1 ∧
       (∃ x5, σ5.kheap e = some (.endpoint x5) ∧ x5.epQueue = l) ∧
-      (∀ u ∈ l, MemOK σ5 u ∧ RepOK σ5 u) ∧ ScBack σ5 ∧ ActReady σ5 := by
+      (∀ u ∈ l, MemOKE σ5 u ∧ RepOK σ5 u) ∧ ScBack σ5 ∧ ActReady σ5 := by
   have htl : t ∉ l := (List.nodup_cons.1 hnd).1
   obtain ⟨⟨xt, hkt, hxs⟩, hrt⟩ := hm t (List.mem_cons_self ..)
   have het : e ≠ t := by rintro rfl; rw [hk] at hkt; cases hkt
@@ -369,11 +404,11 @@ theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint
     · rw [hro, if_neg hb] at hr; cases hr
   have hstep2 : ∃ σ2, NonDet.maybeM (replyUnlinkTcb (Z := Unit) t) ro σ1 = ({((), σ2)}, False) ∧
       ScBack σ2 ∧ ActReady σ2 ∧ σ2.curTime = σ.curTime ∧
-      (∃ x2, σ2.kheap t = some (.tcb x2) ∧ x2.tcbSchedContext = xt.tcbSchedContext) ∧
+      (∃ x2, σ2.kheap t = some (.tcb x2) ∧ x2.tcbSchedContext = xt.tcbSchedContext ∧ x2.tcbFault = xt.tcbFault) ∧
       ∀ p, p ≠ t → ro ≠ some p → σ2.kheap p = σ1.kheap p := by
     rcases Option.eq_none_or_eq_some ro with hr | ⟨r, hr⟩
     · rw [hr]
-      exact ⟨σ1, rfl, hB1, hA1, rfl, ⟨xt, hkt1, rfl⟩, fun p _ _ => rfl⟩
+      exact ⟨σ1, rfl, hB1, hA1, rfl, ⟨xt, hkt1, rfl, rfl⟩, fun p _ _ => rfl⟩
     · obtain ⟨⟨xr, hkr, hxrt⟩, ep, d, hst⟩ := hroP r hr
       rw [hr]
       have hre : r ≠ e := by rintro rfl; rw [hk] at hkr; cases hkr
@@ -388,16 +423,16 @@ theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint
         simp only [hσ1', updK, Function.update_of_ne htr]; exact hkt1
       obtain ⟨σ2, he2, hB2, hA2, ht2, hkt2, hkp2⟩ :=
         inactive_ok hkt1' (hF1'.scBack hB1) (hF1'.actReady hA1 (Or.inl rfl))
-      refine ⟨σ2, he2, hB2, hA2, by rw [ht2]; rfl, ⟨_, hkt2, rfl⟩, fun p hpt hpr => ?_⟩
+      refine ⟨σ2, he2, hB2, hA2, by rw [ht2]; rfl, ⟨_, hkt2, rfl, rfl⟩, fun p hpt hpr => ?_⟩
       have hpr' : p ≠ r := fun h => hpr (by subst h; rfl)
       rw [hkp2 p hpt]; simp only [hσ1', updK, Function.update_of_ne hpr']
-  obtain ⟨σ2, he2, hB2, hA2, ht2, ⟨x2, hkt2, hsc2⟩, hkp2⟩ := hstep2
+  obtain ⟨σ2, he2, hB2, hA2, ht2, ⟨x2, hkt2, hsc2, hf2⟩, hkp2⟩ := hstep2
   have hscP : ∀ c, x2.tcbSchedContext = some c → ∃ y k, σ.kheap c = some (.schedContext y k) ∧ y.scTcb = some t := by
     intro c hc
     obtain ⟨y, k, h1, hyt, -⟩ := hB t xt c hkt (by rw [← hsc2]; exact hc)
     exact ⟨y, k, h1, hyt⟩
-  have hxs2 : ScOK σ2 x2 := fun c hc => by
-    obtain ⟨y, k, h1, h2⟩ := hxs c (by rw [← hsc2]; exact hc)
+  have hxs2 : x2.tcbFault = none → ScOK σ2 x2 := fun hf c hc => by
+    obtain ⟨y, k, h1, h2⟩ := hxs (hf2.symm.trans hf) c (by rw [← hsc2]; exact hc)
     have hct : c ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
     have hce : c ≠ e := by rintro rfl; rw [hk] at h1; cases h1
     have hcr : ro ≠ some c := fun hr => by
@@ -431,7 +466,7 @@ theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint
       · obtain ⟨y, k, h1, -⟩ := hscP u h; rw [hku] at h1; cases h1
     · intro x0 c hk0 hc0
       rw [hku] at hk0; cases hk0
-      obtain ⟨y, k, h1, -⟩ := hcu c hc0
+      obtain ⟨y, k, h1, -, -⟩ := hB u xu c hku hc0
       beta_reduce
       refine ⟨(by rintro rfl; rw [hkt] at h1; cases h1), (by rintro rfl; rw [hk] at h1; cases h1), fun h => ?_,
         fun h => ?_⟩
@@ -454,7 +489,7 @@ theorem ep_iter {σ : State Unit} {e t : ObjRef} {l : List ObjRef} {x : Endpoint
 /-- **The loop of `cancel_all_ipc`** over the endpoint's queue. -/
 theorem ep_loop {e : ObjRef} :
     ∀ (l : List ObjRef) (σ : State Unit), (∃ x, σ.kheap e = some (.endpoint x) ∧ x.epQueue = l) →
-      l.Nodup → (∀ u ∈ l, MemOK σ u ∧ RepOK σ u) → ScBack σ → ActReady σ →
+      l.Nodup → (∀ u ∈ l, MemOKE σ u ∧ RepOK σ u) → ScBack σ → ActReady σ →
       ∃ σ', ((), σ') ∈ (NonDet.mapMx (fun t => removeAndRestartEpQueuedThread (Z := Unit) t e) l σ).1 ∧
         ActReady σ'
   | [], σ, _, _, _, _, hA => ⟨σ, Set.mem_singleton _, hA⟩
@@ -468,7 +503,7 @@ the endpoint exists; its queue is a duplicate-free list of queued threads'
 facts (`MemOK`, and a receiver's reply bound to it, `RepOK`); `ScBack`;
 `ActReady`. -/
 def EpPre (σ : State Unit) (r : ObjRef) : Prop :=
-  ∃ x, σ.kheap r = some (.endpoint x) ∧ x.epQueue.Nodup ∧ (∀ u ∈ x.epQueue, MemOK σ u ∧ RepOK σ u) ∧
+  ∃ x, σ.kheap r = some (.endpoint x) ∧ x.epQueue.Nodup ∧ (∀ u ∈ x.epQueue, MemOKE σ u ∧ RepOK σ u) ∧
     ScBack σ ∧ ActReady σ
 
 /-- **`cancel_all_ipc` has an outcome.** -/
@@ -497,15 +532,15 @@ a receiver's reply bound to it. -/
 theorem epPre_of_inv {σ : State Unit} {r : ObjRef} {x : Endpoint} (hI : Inv σ) (hA : ActReady σ)
     (hsp : ∀ c y k, σ.kheap c = some (.schedContext y k) → y.scSporadic = true → scActive y = true)
     (hk : σ.kheap r = some (.endpoint x)) (hnd : x.epQueue.Nodup)
-    (hq : ∀ u ∈ x.epQueue, ∃ xu, σ.kheap u = some (.tcb xu) ∧ (∀ c, xu.tcbSchedContext = some c →
+    (hq : ∀ u ∈ x.epQueue, ∃ xu, σ.kheap u = some (.tcb xu) ∧ (NotTmoS xu → ∀ c, xu.tcbSchedContext = some c →
       ∀ y k, σ.kheap c = some (.schedContext y k) → scActive y = true →
         refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true) ∧ RepOK σ u) :
     EpPre σ r := by
   refine ⟨x, hk, hnd, fun u hu => ?_, fun u xu c hku hc => ?_, hA⟩
   · obtain ⟨xu, hku, hc, hr⟩ := hq u hu
-    refine ⟨⟨xu, hku, fun c e => ?_⟩, hr⟩
+    refine ⟨⟨xu, hku, fun hf c e => ?_⟩, hr⟩
     obtain ⟨y, k, hky, -⟩ := hI.back u xu c hku e
-    exact ⟨y, k, hky, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id), hc c e y k hky,
+    exact ⟨y, k, hky, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id), hc (NotTmoS.of_fault hf) c e y k hky,
       fun ha hp => hI.refills c y k hky ha hp⟩
   · obtain ⟨y, k, hky, hyt⟩ := hI.back u xu c hku hc
     exact ⟨y, k, hky, hyt, fun h => hI.ne c y k hky (h.elim (hsp c y k hky) id)⟩

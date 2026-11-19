@@ -436,7 +436,7 @@ theorem charge_tail_refines {N T C : Set U64} {c : U64} (s2 : S) (a : A) (σ2 : 
       intro x' scp y n h1 h2 h3 h4 h5
       have hkt3 : σ3.kheap ct.bv = some (.tcb xt) := hkt
       rw [hkt3] at hx h1; cases hx; cases h1
-      have := schedulable_of hkt3 h2 (inClass_runnable hcl hnb) h3 h4 h5
+      have := schedulable_of hkt3 h2 (inClass_runnable hcl.cls hnb) h3 h4 h5
       rw [hsch] at this; cases this
 
 /-- **`charge_budget` refines l4v `charge_budget`** and keeps the invariant.

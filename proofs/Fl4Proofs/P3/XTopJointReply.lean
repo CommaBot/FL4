@@ -104,7 +104,7 @@ theorem JAtZ.regWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
     · exact Or.inl (by simp [updK, hp])
   exact J.reg_frameF hX2 (hwr.mono fun b hb => Or.inl (Or.inl ⟨t, ht, by rw [hb, hra]; omega,
     by rw [hb, hra]; omega⟩)) hA (YK.YKS.updTcb (y := setReg x r v.bv) hk rfl).ykeep
-    (J.inv.updSame (y := setReg x r v.bv) hk rfl rfl) hblk hfoot
+    (J.inv.updSame (y := setReg x r v.bv) hk rfl rfl (Or.inl rfl)) hblk hfoot
 
 set_option maxHeartbeats 16000000 in
 /-- **`set_thread_state Running` of a `Restart` thread at `J`** (module

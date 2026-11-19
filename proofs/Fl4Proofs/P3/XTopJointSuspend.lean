@@ -378,7 +378,8 @@ theorem JAtZ.cancelFreeJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
     · exact Or.inl (by simp [updK, hp])
   obtain ⟨V, J1⟩ := J.reg_frameF ⟨hR1, hS1⟩ (hwr.mono fun b hb => Or.inr ⟨t, ht, by rw [hb, val_fault hta]⟩)
     hA (YK.YKS.updTcb (y := { x with tcbFault := none }) hk rfl).ykeep
-    (J.inv.updSame (y := { x with tcbFault := none }) hk rfl rfl) hblk hfoot
+    (J.inv.updSame (y := { x with tcbFault := none }) hk rfl rfl
+      (Or.inr fun e d h => by have h1 := hfree.1; rw [h] at h1; simp [Fl4Spec.epBlocked] at h1)) hblk hfoot
   exact ⟨rfl, hsp, V, J1⟩
 
 set_option maxHeartbeats 8000000 in
@@ -439,7 +440,7 @@ theorem JAtZ.restartPcJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
       · exact Or.inl (by simp [updK, hp])
     obtain ⟨V, J2⟩ := J.reg_frameF hX2 (hwr.mono fun b hb => Or.inl (Or.inl ⟨t, ht, by rw [hb, hra]; omega,
       by rw [hb, hra]; omega⟩)) hA (YK.YKS.updTcb (y := setReg x .faultIP ip.bv) hk rfl).ykeep
-      (J.inv.updSame (y := setReg x .faultIP ip.bv) hk rfl rfl) hblk hfoot
+      (J.inv.updSame (y := setReg x .faultIP ip.bv) hk rfl rfl (Or.inl rfl)) hblk hfoot
     refine ⟨updK σ t.bv (.tcb (setReg x .faultIP ip.bv)), setReg x .faultIP ip.bv, ?_, by simp [updK], rfl, rfl, rfl, rfl, L.ksb_wr _ _ _,
       J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _), V, J2⟩
     unfold Fl4Spec.NonDet.when
@@ -524,7 +525,7 @@ theorem JAtZ.suspendJD
       · exact hNt Z H Cs Ac Lst D s a σ rfl J t ht x hk h
       · exact hRp Z H Cs Ac Lst D s a σ rfl J t ht x hk h
     refine WP.spec_mono (WP.spec_and hP (cancel_ipc_irelP (ar := arI) hP0 (removeTcbHypP_ok hP0) s a σ hI ht hk
-      J.sv J.obj J.inv (removeTcbOK_fault hP0 hI ht hk J.removeTcbOK))) ?_
+      J.sv J.obj J.inv (fun hfr => removeTcbOK_fault hP0 hI ht hk hfr J.removeTcbOK))) ?_
     rintro r ⟨⟨h1, σ1, h2, V, Ac1, Lst1, J1⟩, -, σ1', x1, h2', -, hk1, hs1⟩
     have e1 : σ1' = σ1 := by
       rw [h2] at h2'; exact ((Prod.mk.inj (Set.singleton_injective (congrArg Prod.fst h2'))).2).symm

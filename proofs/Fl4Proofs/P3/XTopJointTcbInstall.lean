@@ -465,7 +465,7 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 (mcpKeep_buf hk v.bv), hBW, hRP',
       J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
-      J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl, hA.cur J.cur,
+      J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl (Or.inl rfl), hA.cur J.cur,
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩

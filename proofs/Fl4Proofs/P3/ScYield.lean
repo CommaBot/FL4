@@ -78,7 +78,8 @@ theorem YKeep.stsAct {σ : State Unit} (t : ObjRef) : YKeep σ (Fl4Proofs.P3.Not
 
 /-- **Replacing a TCB by one with the same state and SC keeps `Inv`.** -/
 theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
-    (x' : Tcb) (est : x'.tcbState = x.tcbState) (esc : x'.tcbSchedContext = x.tcbSchedContext) :
+    (x' : Tcb) (est : x'.tcbState = x.tcbState) (esc : x'.tcbSchedContext = x.tcbSchedContext)
+    (eft : x'.tcbFault = x.tcbFault) :
     Inv (updK σ p (.tcb x')) := by
   set σ' := updK σ p (.tcb x')
   have ko : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q := fun q hq => by simp [σ', updK, hq]
@@ -90,11 +91,11 @@ theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : �
     · subst e; rw [hk] at hq; cases hq; exact ⟨_, kp, est, esc⟩
     · exact ⟨y, by rw [ko q e]; exact hq, rfl, rfl⟩
   have kb : ∀ q y', σ'.kheap q = some (.tcb y') → ∃ y, σ.kheap q = some (.tcb y) ∧
-      y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext := by
+      y'.tcbState = y.tcbState ∧ y'.tcbSchedContext = y.tcbSchedContext ∧ y'.tcbFault = y.tcbFault := by
     intro q y' hq
     by_cases e : q = p
-    · subst e; rw [kp] at hq; cases hq; exact ⟨x, hk, est, esc⟩
-    · exact ⟨y', by rw [← ko q e]; exact hq, rfl, rfl⟩
+    · subst e; rw [kp] at hq; cases hq; exact ⟨x, hk, est, esc, eft⟩
+    · exact ⟨y', by rw [← ko q e]; exact hq, rfl, rfl, rfl⟩
   have ks : ∀ q y m, σ'.kheap q = some (.schedContext y m) ↔ σ.kheap q = some (.schedContext y m) := by
     intro q y m
     by_cases e : q = p
@@ -123,11 +124,11 @@ theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : �
     refine List.Pairwise.imp_of_mem (fun {a b} ha hb hab => ?_) h.sorted
     rw [rt a ha, rt b hb]; exact hab
   · intro x' scp yu nu h1 h2 h3 h4 h5
-    obtain ⟨y0, hy0, e1, -⟩ := kb u y hy
-    obtain ⟨x0, hx0, -, e2⟩ := kb u x' h1
-    exact h.rd u y0 hy0 (by rw [← e1]; exact hc) x0 scp yu nu hx0 (by rw [← e2]; exact h2) ((ks _ _ _).1 h3) h4 h5
+    obtain ⟨y0, hy0, e1, -, ef⟩ := kb u y hy
+    obtain ⟨x0, hx0, -, e2, -⟩ := kb u x' h1
+    exact h.rd u y0 hy0 (hc.congr e1.symm fun _ => ef.symm) x0 scp yu nu hx0 (by rw [← e2]; exact h2) ((ks _ _ _).1 h3) h4 h5
   · exact h.refills q y m ((ks _ _ _).1 hy)
-  · obtain ⟨y0, hy0, -, e2⟩ := kb u y hy
+  · obtain ⟨y0, hy0, -, e2, -⟩ := kb u y hy
     obtain ⟨yq, mq, h1, h2⟩ := h.back u y0 q hy0 (by rw [← e2]; exact hq)
     exact ⟨yq, mq, (ks _ _ _).2 h1, h2⟩
   · obtain ⟨yq, mq, h1⟩ := h.ntfnSc q y q' ((kn' _ _).1 hy) hq
@@ -138,7 +139,7 @@ theorem Inv.tcbUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : �
 /-- **Changing a TCB's `tcb_yield_to` keeps `Inv`.** -/
 theorem Inv.ytUpd {σ : State Unit} (h : Inv σ) {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
     (v : Option ObjRef) : Inv (updK σ p (.tcb { x with tcbYieldTo := v })) :=
-  h.tcbUpd hk _ rfl rfl
+  h.tcbUpd hk _ rfl rfl rfl
 
 theorem KView.ytUpd {σ : State Unit} {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x))
     (v : Option ObjRef) : KView σ (updK σ p (.tcb { x with tcbYieldTo := v })) := by

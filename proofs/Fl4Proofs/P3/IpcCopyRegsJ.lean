@@ -22,7 +22,7 @@ open Fl4Spec
 theorem crb_out {src dest : ObjRef} : ∀ (rs : List Register) (σ : State Unit) (x : Tcb),
     σ.kheap dest = some (.tcb x) → (∃ xs, σ.kheap src = some (.tcb xs)) →
     ∃ x', NonDet.mapMx (crb src dest) rs σ = ({((), updK σ dest (.tcb x'))}, False) ∧ TcbViewEq x' x
-  | [], σ, x, hk, _ => ⟨x, by rw [updK_self hk]; rfl, rfl, rfl, rfl, rfl⟩
+  | [], σ, x, hk, _ => ⟨x, by rw [updK_self hk]; rfl, rfl, rfl, rfl, rfl, rfl⟩
   | r :: rs, σ, x, hk, ⟨xs, hks⟩ => by
     set σa := updK σ dest (.tcb (setReg x r (sanitiseRegister false r (xs.tcbArch.tcbContext.userRegs r)))) with hσa
     have h1 : crb src dest r σ = ({((), σa)}, False) := by
@@ -50,11 +50,11 @@ variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64
 /-- `Inv` across a TCB update keeping its view. -/
 theorem inv_updView {σ : Fl4Spec.State Unit} (h : Inv σ) {p : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
     (hk : σ.kheap p = some (.tcb x)) (hv : TcbViewEq y x) : Inv (Notif.updK σ p (.tcb y)) := by
-  have hTV := TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2
+  have hTV := TView.upd hk hv.1 hv.2.1 hv.2.2.1 hv.2.2.2.1 (Or.inl hv.2.2.2.2)
   refine h.tcbView (fun q => ?_) rfl rfl rfl
-  rcases hTV q with e | ⟨a1, b1, h1, h2, e1, e2, -⟩
+  rcases hTV q with e | ⟨a1, b1, h1, h2, e1, e2, -, -, e5⟩
   · exact Or.inl e
-  · exact Or.inr ⟨a1, b1, h1, h2, e1, e2⟩
+  · exact Or.inr ⟨a1, b1, h1, h2, e1, e2, e5⟩
 
 /-- `Inv` across the spec's register copy (`crb_out`). -/
 theorem inv_crb {s : S} {σ σ' : Fl4Spec.State Unit} (hX : IRel st th cr N T C E R B c s σ) {src dest : U64}
@@ -181,7 +181,7 @@ theorem copy_registers_irelS (hP0 : IPlaced N T E R B)
       exact ⟨trivial, σ1, rfl, hX1, hInv1⟩
     · simp only [↓reduceIte]
       refine WP.spec_mono (restart_tcb_irelS hP0 (removeTcbHypP_ok hP0) s1 a σ1 hX1 hd hSV1 hOC1 hInv1
-        (fun x hk => removeTcbOK_fault hP0 hX1 hd hk hOK1) (Sched.restartSpecOK_of hInv1 hSV1.scSpor) hmb) ?_
+        (fun x hk hfr => removeTcbOK_fault hP0 hX1 hd hk hfr hOK1) (Sched.restartSpecOK_of hInv1 hSV1.scSpor) hmb) ?_
       rintro r ⟨h1, σ2, h2, h3, -, h5⟩
       exact ⟨h1, σ2, by simpa [Fl4Spec.NonDet.when] using h2, h3, h5⟩
   refine WP.spec_bind h2 ?_
@@ -288,7 +288,7 @@ theorem copy_registers_irelS (hP0 : IPlaced N T E R B)
     rw [hNx]
     have hX4 := reg_wr_irel hP0 hX3 hd hk3 .nextIP (by decide) pc
     have hInv4 : Inv (Notif.updK σ3 dest.bv (.tcb (Notif.setReg x3 .nextIP pc.bv))) :=
-      inv_updView hInv3 hk3 ⟨rfl, rfl, rfl, rfl⟩
+      inv_updView hInv3 hk3 ⟨rfl, rfl, rfl, rfl, rfl⟩
     refine WP.spec_mono (hgp (fun s' => tcb.copy_registers_loop1 st s' dest src 0#u64) _ _ hX4 hInv4
       (fun s' σ' hX' hI' => by unfold tcb.copy_registers_loop1; exact hlpg _ (fun _ _ => rfl) s' σ' hX' hI')) ?_
     rintro r ⟨h1, h2, σ', h3, h4⟩
@@ -396,7 +396,7 @@ theorem copyRegsXHypJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     have hB' := hB
     obtain ⟨⟨Q1, R1, h0⟩, hBd, hXI, -, hSg⟩ := hB'
     refine WP.spec_mono (WP.spec_and (WP.spec_and (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 a σ1
-      hI hsrcT J'.sv J'.obj J'.inv (fun x hk => removeTcbOK_fault hP0 hI hsrcT hk J'.removeTcbOK) J'.yld hB)
+      hI hsrcT J'.sv J'.obj J'.inv (fun x hk hfr => removeTcbOK_fault hP0 hI hsrcT hk hfr J'.removeTcbOK) J'.yld hB)
       (Fl4Proofs.P1.sched.suspend.kw s1 a src h0 hsrcT hBd hXI hSg.sub))
       (hSK s1 a σ1 _ src Ac' hI J'.sv J'.obj J'.inv J'.removeTcbOK J'.yld hB hsrcT)) ?_
     rintro ⟨s2, a2⟩ ⟨⟨⟨h1, σ2, h2, h3⟩, hF⟩, hW⟩

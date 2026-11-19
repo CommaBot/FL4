@@ -25,15 +25,17 @@ section Spec
 def TView (σ σ' : State Unit) : Prop :=
   ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
     y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext ∧
-    y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo
+    y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo ∧
+    (y.tcbFault = x.tcbFault ∨ ∀ e d, x.tcbState ≠ .blockedOnSend e d)
 
 theorem TView.upd {σ : State Unit} {p : ObjRef} {x y : Tcb} (hk : σ.kheap p = some (.tcb x))
     (h1 : y.tcbState = x.tcbState) (h2 : y.tcbSchedContext = x.tcbSchedContext)
-    (h3 : y.tcbBoundNotification = x.tcbBoundNotification) (h4 : y.tcbYieldTo = x.tcbYieldTo) :
+    (h3 : y.tcbBoundNotification = x.tcbBoundNotification) (h4 : y.tcbYieldTo = x.tcbYieldTo)
+    (h5 : y.tcbFault = x.tcbFault ∨ ∀ e d, x.tcbState ≠ .blockedOnSend e d) :
     TView σ (Notif.updK σ p (.tcb y)) := by
   intro q
   by_cases e : q = p
-  · subst e; exact Or.inr ⟨x, y, hk, by simp [Notif.updK], h1, h2, h3, h4⟩
+  · subst e; exact Or.inr ⟨x, y, hk, by simp [Notif.updK], h1, h2, h3, h4, h5⟩
   · exact Or.inl (by simp [Notif.updK, Function.update_of_ne e])
 
 section
@@ -43,14 +45,14 @@ include h
 theorem TView.fwd {q : ObjRef} {x : Tcb} (hq : σ.kheap q = some (.tcb x)) :
     ∃ y, σ'.kheap q = some (.tcb y) ∧ y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext ∧
       y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo := by
-  rcases h q with e | ⟨a, b, ha, hb, e1, e2, e3, e4⟩
+  rcases h q with e | ⟨a, b, ha, hb, e1, e2, e3, e4, -⟩
   · exact ⟨x, e.trans hq, rfl, rfl, rfl, rfl⟩
   · rw [hq] at ha; cases ha; exact ⟨b, hb, e1, e2, e3, e4⟩
 
 theorem TView.bwd {q : ObjRef} {y : Tcb} (hq : σ'.kheap q = some (.tcb y)) :
     ∃ x, σ.kheap q = some (.tcb x) ∧ y.tcbState = x.tcbState ∧ y.tcbSchedContext = x.tcbSchedContext ∧
       y.tcbBoundNotification = x.tcbBoundNotification ∧ y.tcbYieldTo = x.tcbYieldTo := by
-  rcases h q with e | ⟨a, b, ha, hb, e1, e2, e3, e4⟩
+  rcases h q with e | ⟨a, b, ha, hb, e1, e2, e3, e4, -⟩
   · exact ⟨y, by rw [← e]; exact hq, rfl, rfl, rfl, rfl⟩
   · rw [hq] at hb; cases hb; exact ⟨a, ha, e1, e2, e3, e4⟩
 
@@ -60,15 +62,27 @@ theorem TView.ntcb {q : ObjRef} {o : KernelObject} (ho : ∀ x, o ≠ .tcb x) :
   · rw [e]
   · rw [ha, hb]; constructor <;> intro e <;> cases e <;> exact absurd rfl (ho _)
 
+/-- Not a sender with a timeout fault before, if not after (`TView` keeps a
+sender's fault). -/
+theorem TView.notTmoS {q : ObjRef} {x y : Tcb} (hx : σ.kheap q = some (.tcb x)) (hy : σ'.kheap q = some (.tcb y))
+    (hn : Notif.NotTmoS y) : Notif.NotTmoS x := by
+  intro e d b hs hf
+  rcases h q with e' | ⟨a, b', ha, hb, e1, -, -, -, e5⟩
+  · rw [e', hx] at hy; cases hy; exact hn e d b hs hf
+  · rw [hx] at ha; cases ha; rw [hy] at hb; cases hb
+    rcases e5 with e5 | e5
+    · exact hn e d b (by rw [e1]; exact hs) (by rw [e5]; exact hf)
+    · exact e5 e d hs
+
 end
 
 theorem TView.qrdy {σ σ' : State Unit} (h : TView σ σ') (ht : σ'.curTime = σ.curTime) {u : ObjRef}
     (hq : QRdy σ u) : QRdy σ' u := by
   obtain ⟨x, hx, hr⟩ := hq
   obtain ⟨y, hy, -, e2, -⟩ := h.fwd hx
-  refine ⟨y, hy, fun c hc yc k hk ha => ?_⟩
+  refine ⟨y, hy, fun hn c hc yc k hk ha => ?_⟩
   rw [ht]
-  exact hr c (e2 ▸ hc) yc k ((h.ntcb (fun _ e => by cases e)).1 hk) ha
+  exact hr (h.notTmoS hx hy hn) c (e2 ▸ hc) yc k ((h.ntcb (fun _ e => by cases e)).1 hk) ha
 
 /-- **`SchedValid` across a `TView` step** keeping the time. -/
 theorem SchedValid.tcbView {σ σ' : State Unit} (hV : SchedValid σ) (h : TView σ σ') (ht : σ'.curTime = σ.curTime) :
@@ -176,15 +190,15 @@ theorem removeTcbOK_tview {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : RemoveTc
     hRF.frame hm (fun d _ ⟨x, hx, e⟩ => ⟨x, nR.1 hx, e⟩), hRP.frame hks (fun p x n hp => ⟨x, nS.1 hp⟩),
     hN.tcbView hV, ?_, hC0, hSV.tcbView hV ht, hOC.tcbView hV⟩
   refine hI.tcbView (fun p => ?_) hq hr ht
-  rcases hV p with e | ⟨x, y, h1, h2, e1, e2, -⟩
+  rcases hV p with e | ⟨x, y, h1, h2, e1, e2, -, -, e5⟩
   · exact Or.inl e
-  · exact Or.inr ⟨x, y, h1, h2, e1, e2⟩
+  · exact Or.inr ⟨x, y, h1, h2, e1, e2, e5⟩
 
 /-- **`RemoveTcbOK` across `cancel_ipc`'s fault clear** (`cancel_ipc_irelP`'s
 `P` at `RemoveTcbOK`). -/
 theorem removeTcbOK_fault (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State Unit}
     (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb}
-    (hk : σ.kheap t.bv = some (.tcb x)) (h : RemoveTcbOK st N T C E R c s σ) :
+    (hk : σ.kheap t.bv = some (.tcb x)) (hr : ∃ r, x.tcbState = .blockedOnReply r) (h : RemoveTcbOK st N T C E R c s σ) :
     RemoveTcbOK st N T C E R c (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none })) := by
   have hS := hX.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
@@ -192,7 +206,8 @@ theorem removeTcbOK_fault (hP0 : IPlaced N T E R B) {s : S} {σ : Fl4Spec.State 
   have hw := (a_fault hta).1
   have hfv := val_fault hta
   obtain ⟨-, -, -, hRP, -⟩ := id h
-  refine removeTcbOK_tview h (TView.upd hk rfl rfl rfl rfl) rfl rfl rfl (L.ksb_wr _ _ _) (fun sc hsc => ?_)
+  refine removeTcbOK_tview h (TView.upd hk rfl rfl rfl rfl (Or.inr fun e d hs => by
+    obtain ⟨r, hr⟩ := hr; rw [hr] at hs; cases hs)) rfl rfl rfl (L.ksb_wr _ _ _) (fun sc hsc => ?_)
     (fun r hr => ?_)
   · obtain ⟨y, n, hky, hy⟩ := hs.scs sc hsc
     obtain ⟨hal, hin⟩ := hy.hdr (K := 32#u64) (by decide) (by decide)
@@ -253,7 +268,7 @@ theorem suspend_irelY (hP0 : IPlaced N T E R B) {P : S → Fl4Spec.State Unit �
     (hRT : RemoveTcbHypP st th cr N T C E R B c P)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     (hSV : SchedValid σ) (hOC : ObjCover N T E R C σ) (hInv : Inv σ)
-    (hPf : ∀ x, σ.kheap t.bv = some (.tcb x) →
+    (hPf : ∀ x, σ.kheap t.bv = some (.tcb x) → (∃ r, x.tcbState = .blockedOnReply r) →
       P (L.wr s (tFaultA t) 0#u64) (updK σ t.bv (.tcb { x with tcbFault := none })))
     (hY : YieldRel T C (L.mem s) σ)
     {Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : P1.Heap} {Zb : U64 → Nat}
@@ -389,7 +404,7 @@ theorem suspendXLeafJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have hB := J'.blk
   rw [← J'.tcbs_eq.1] at hB
   refine WP.spec_bind (suspend_irelY (ar := arI) hP0 (removeTcbHypP_ok hP0) s1 ar σ1 hI1 hpT J'.sv J'.obj J'.inv
-    (fun x hk => removeTcbOK_fault hP0 hI1 hpT hk J'.removeTcbOK) J'.yld hB) ?_
+    (fun x hk hfr => removeTcbOK_fault hP0 hI1 hpT hk hfr J'.removeTcbOK) J'.yld hB) ?_
   rintro ⟨s2, a2⟩ ⟨rfl, σ2, hm, hI2⟩
   exact (WP.spec_ok _).2 ⟨rfl, hAR, ((), σ2), by rw [hm]; exact Set.mem_singleton _, hI2⟩
 

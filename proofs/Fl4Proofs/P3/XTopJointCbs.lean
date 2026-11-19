@@ -45,7 +45,7 @@ def BInvF (e b : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.Obj
     (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) (rest.map UScalar.bv) σ').1 →
       z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1) ∧
     IFrame (L := L) th s0 x.1 ∧ CnStep (st := st) T N C E R c s0 σ0 x.1 σ' ∧
-    (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
+    (∀ u ∈ rest.map UScalar.bv, MemOKE σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 8000000 in
 /-- **The loop of `cancel_badged_sends`** on `IRel`, with its frame. -/
@@ -160,8 +160,9 @@ theorem badged_loopF (hP0 : IPlaced N T E R B)
       have hFd : SFr σ' σd := SFr.updOther hky (fun _ h => by cases h)
         (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ _ h => by cases h)
       have hBd : ScBack σd := hFd.scBack hBk
-      have hxsd : ScOK σd xt := by
-        obtain ⟨x', hk', hsc⟩ := hFd.memOK (hmm t0.bv (by simp))
+      have hxsd : xt.tcbFault = none → ScOK σd xt := by
+        obtain ⟨x', hk', hsc⟩ := MemOKE.updOther (o' := .endpoint (epDeq y t0.bv)) hky (fun _ h => by cases h)
+          (fun _ _ h => by cases h) (hmm t0.bv (by simp))
         rw [hktd] at hk'; cases hk'; exact hsc
       refine WP.spec_bind (restart_irelF hP0 s1 σd hX1 ht0T hktd (by rw [hst]; simp [tsCode]) hq1 hxsd hBd
         (hFd.actReady hAr (Or.inl rfl))) ?_
@@ -182,7 +183,8 @@ theorem badged_loopF (hP0 : IPlaced N T E R B)
         exact ⟨((), σd), by rw [hdq]; rfl, hres⟩
       · obtain ⟨u0, hu0, rfl⟩ := List.mem_map.1 hu
         exact memOK_after hktd hBd (fun h => hnd' (eq_of_bv h ▸ hu0))
-          (hFd.memOK (hmm _ (List.mem_map_of_mem (List.mem_cons_of_mem _ hu0)))) hkp'' ht''
+          (MemOKE.updOther (o' := .endpoint (epDeq y t0.bv)) hky (fun _ h => by cases h) (fun _ _ h => by cases h)
+            (hmm _ (List.mem_map_of_mem (List.mem_cons_of_mem _ hu0)))) hkp'' ht''
       · rw [hfuel1]; scalar_tac
     · -- kept
       simp only [hm, ↓reduceIte, WP.spec_ok]
@@ -298,7 +300,9 @@ theorem inv_badged_iter {P : ObjRef → Prop} {σ σ5 : State Unit} {e t : ObjRe
       simp only [hσ1, updK, Function.update_of_ne hp]
     have hkt1 : σ1.kheap t = some (.tcb xt) := by rw [hkp1 t (Ne.symm het)]; exact hkt
     have hK1 : Ipc.SKeep σ σ1 := Ipc.SKeep.updK (fun _ h => by cases h) (fun _ _ h => by cases h)
-    have hrib : RelIfBound σ1 t := Ipc.RelIfBound.of_keep (hI.rd t xt hkt (epBlocked_inClass hbe)) hK1
+    have hrib : xt.tcbFault = none → RelIfBound σ1 t := fun hf =>
+      Ipc.RelIfBound.of_keep (hI.rd t xt hkt (inClassR_nf (epBlocked_inClass hbe) fun b e => by
+        rw [hf] at e; cases e)) hK1
     have hsa : ∀ p y k, xt.tcbSchedContext = some p → σ1.kheap p = some (.schedContext y k) →
         scActive y = true := by
       intro p y k hp hky

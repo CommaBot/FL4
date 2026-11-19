@@ -231,7 +231,7 @@ theorem Sched.Inv.cn (hI : Inv σ) (h : CnStep σ σ') : Inv σ' := by
     intro x' scp y n h1 h2 h3 h4 h5
     rw [h.rel] at h5
     rw [hx] at h1; cases h1
-    have hr := hI.rd u x0 hx0 (by rw [← hc0.st]; exact hc) x0 scp y n hx0 (by rw [← hc0.sc]; exact h2)
+    have hr := hI.rd u x0 hx0 (hc.congr hc0.1.symm fun _ => hc0.2.2.1.symm) x0 scp y n hx0 (by rw [← hc0.sc]; exact h2)
       (h.sc.1 h3) h4 h5
     unfold released at hr ⊢; rw [h.time]; exact hr
   · obtain ⟨x0, hx0, hc0⟩ := h.tcbB hx

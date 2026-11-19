@@ -105,7 +105,7 @@ theorem suspendSc_inv {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} 
   rw [stsAct_kheap] at hx'
   simp [updK] at hx'
   subst hx'
-  simp [inClass, runnable] at hc
+  simp [inClassR, runnable] at hc
 
 /-! ## The frame -/
 

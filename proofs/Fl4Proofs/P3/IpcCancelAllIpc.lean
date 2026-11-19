@@ -84,7 +84,7 @@ theorem restart_irelF (hP0 : IPlaced N T E R B)
     (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : tsCode x.tcbState ≠ 6)
     (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue)
-    (hxs : ScOK σ x) (hBk : ScBack σ) (hAr : ActReady σ) :
+    (hxs : x.tcbFault = none → ScOK σ x) (hBk : ScBack σ) (hAr : ActReady σ) :
     endpoint.restart_thread_if_no_fault st s t ⦃ s' => ∃ σ', ((), σ') ∈ (Fl4Spec.restartThreadIfNoFault (Z := Unit) t.bv σ).1 ∧
       IRel st th cr N T C E R B c s' σ' ∧
       (∀ p y, σ.kheap p = some (.endpoint y) → σ'.kheap p = some (.endpoint y)) ∧ IFrame (L := L) th s s' ∧
@@ -127,7 +127,7 @@ theorem restart_irelF (hP0 : IPlaced N T E R B)
       exact ⟨y0, h0⟩
     have hkt1 : (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv).kheap t.bv =
         some (.tcb { x with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
-    obtain ⟨σm, hmm, hktm, hBm, hAm, hTm, htm, hkpm⟩ := restart_tail_mid hk hxs hBk hAr
+    obtain ⟨σm, hmm, hktm, hBm, hAm, hTm, htm, hkpm⟩ := restart_tail_mid hk (hxs hf) hBk hAr
     have e2 : σm = σ2 := by
       have hmem : ((), σm) ∈ (specUnblock t.bv (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv)).1 := by
         rw [← specSporadicAssert_eq]; unfold specSporadicAssert
@@ -246,12 +246,12 @@ theorem ep_restart_irel (hP0 : IPlaced N T E R B)
     (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {e : U64} (he : e ∈ E)
     {y : Fl4Spec.Endpoint} (hky : σ.kheap e.bv = some (.endpoint y)) {t0 : U64} {rest : List U64}
     (hq : y.epQueue = (t0 :: rest).map UScalar.bv)
-    (hm : ∀ u ∈ y.epQueue, MemOK σ u ∧ RepOK σ u) (hBk : ScBack σ) (hAr : ActReady σ)
+    (hm : ∀ u ∈ y.epQueue, MemOKE σ u ∧ RepOK σ u) (hBk : ScBack σ) (hAr : ActReady σ)
     {γ : Type} (k : S → Result γ) {Q : γ → Prop}
     (hkont : ∀ s' σ' y', ((), σ') ∈ (rre e t0.bv σ).1 → IRel st th cr N T C E R B c s' σ' →
       σ'.kheap e.bv = some (.endpoint y') → y'.epQueue = rest.map UScalar.bv → IFrame (L := L) th s s' →
       CnStep (st := st) T N C E R c s σ s' σ' →
-      (∀ u ∈ rest.map UScalar.bv, MemOK σ' u ∧ RepOK σ' u) → ScBack σ' → ActReady σ' → k s' ⦃ Q ⦄) :
+      (∀ u ∈ rest.map UScalar.bv, MemOKE σ' u ∧ RepOK σ' u) → ScBack σ' → ActReady σ' → k s' ⦃ Q ⦄) :
     (do
       let s1 ← endpoint.ep_dequeue st s e t0
       let i ← obj.Tcb.state st t0 s1
@@ -321,21 +321,22 @@ theorem ep_restart_irel (hP0 : IPlaced N T E R B)
   have hndq : ((t0 :: rest).map UScalar.bv).Nodup := hnd.map (fun a b h => eq_of_bv h)
   obtain ⟨σ5, hm5, -, hmm5, hB5, hA5⟩ := ep_iter hky hq hndq (fun u hu => hm u (by rw [hq]; exact hu)) hBk hAr
   have fin3 : ∀ σ3, ((), σ3) ∈ (rre e t0.bv σ).1 →
-      (∀ u ∈ rest.map UScalar.bv, MemOK σ3 u ∧ RepOK σ3 u) ∧ ScBack σ3 ∧ ActReady σ3 := by
+      (∀ u ∈ rest.map UScalar.bv, MemOKE σ3 u ∧ RepOK σ3 u) ∧ ScBack σ3 ∧ ActReady σ3 := by
     intro σ3 h3
     have e35 : ((), σ3) = ((), σ5) := (det_removeAndRestartEp t0.bv e.bv).det σ _ _ h3 hm5
     rw [(Prod.mk.inj e35).2]; exact ⟨hmm5, hB5, hA5⟩
   -- the spec's facts at the dequeued state
   have hFd : SFr σ (updK σ e.bv (.endpoint (epDeq y t0.bv))) := SFr.updOther hky (fun _ h => by cases h)
     (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ _ h => by cases h)
-  have hm0 : MemOK σ t0.bv ∧ RepOK σ t0.bv := hm t0.bv (by rw [hq]; simp)
+  have hm0 : MemOKE σ t0.bv ∧ RepOK σ t0.bv := hm t0.bv (by rw [hq]; simp)
   have hdq' : (epDeq y t0.bv).epQueue = rest.map UScalar.bv := by
     rw [Sched.epDeq_queue', hq, removeAll_map hnd, List.erase_cons_head]
   have hq1 := dequeued_not_queued hR1 he hb1 hkyd (epDeq_not_mem _)
   have hBd : ScBack σd := hFd.scBack hBk
   have hAd : ActReady σd := hFd.actReady hAr (Or.inl rfl)
-  have hxsd : ScOK σd xt := by
-    obtain ⟨x', hk', hsc⟩ := hFd.memOK hm0.1
+  have hxsd : xt.tcbFault = none → ScOK σd xt := by
+    obtain ⟨x', hk', hsc⟩ := MemOKE.updOther (o' := .endpoint (epDeq y t0.bv)) hky (fun _ h => by cases h)
+      (fun _ _ h => by cases h) hm0.1
     rw [hktd] at hk'; cases hk'; exact hsc
   have hst1 : L.mem s1 (tStA t0) = L.mem s (tStA t0) := hA1 _ (a_st hta).1 ⟨t0, ht0T, (a_st hta).2⟩
   have hrp1 : L.mem s1 (tReplyA t0) = L.mem s (tReplyA t0) := hA1 _ (a_reply hta).1 ⟨t0, ht0T, (a_reply hta).2⟩
@@ -410,9 +411,10 @@ theorem ep_restart_irel (hP0 : IPlaced N T E R B)
     obtain ⟨σi, hei, hBi, hAi, hti, -, hkpi⟩ := inactive_ok hktr (hFr.scBack hBd) (hFr.actReady hAd (Or.inl rfl))
     rw [Notif.setThreadState_eq .inactive hktr] at hei
     have hσ2i : σ2 = σi := by rw [hσ2]; exact (Prod.mk.inj (singleton_one_eq hei)).2
-    have hxs2 : ScOK σi { xt with tcbState := .inactive } := by
-      intro c hc
-      obtain ⟨y0, k0, h1, h2⟩ := hxsd c hc
+    have hxs2 : ({ xt with tcbState := .inactive } : Fl4Spec.Tcb).tcbFault = none →
+        ScOK σi { xt with tcbState := .inactive } := by
+      intro hf c hc
+      obtain ⟨y0, k0, h1, h2⟩ := hxsd hf c hc
       have hct : c ≠ t0.bv := by rintro rfl; rw [hktd] at h1; cases h1
       have hcr : c ≠ i1.bv := by rintro rfl; rw [hkr] at h1; cases h1
       refine ⟨y0, k0, ?_, by rw [hti]; exact h2⟩
@@ -489,7 +491,7 @@ def AInv (e : U64) (s0 : S) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef
     (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rre e) (rest.map UScalar.bv) σ').1 →
       z ∈ (Fl4Spec.NonDet.mapMx (rre e) q0 σ0).1) ∧ IFrame (L := L) th s0 x.1 ∧
     CnStep (st := st) T N C E R c s0 σ0 x.1 σ' ∧
-    (∀ u ∈ rest.map UScalar.bv, MemOK σ' u ∧ RepOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
+    (∀ u ∈ rest.map UScalar.bv, MemOKE σ' u ∧ RepOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 4000000 in
 /-- **The loop of `cancel_all_ipc`** on `IRel`. -/
@@ -555,7 +557,7 @@ theorem cancel_all_ipc_irel (hP0 : IPlaced N T E R B)
   have hP := hP0.e
   obtain ⟨y, hky, hEP⟩ := hX.1.toE.ep e he
   obtain ⟨y0, hky0, -, hm0', hB0, hA0⟩ := hpre
-  have hm0 : ∀ u ∈ y.epQueue, MemOK σ u ∧ RepOK σ u := by
+  have hm0 : ∀ u ∈ y.epQueue, MemOKE σ u ∧ RepOK σ u := by
     have e0 : y0 = y := by rw [hky] at hky0; cases hky0; rfl
     rw [← e0]; exact hm0'
   unfold endpoint.cancel_all_ipc

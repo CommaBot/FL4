@@ -144,7 +144,7 @@ theorem wake_inv3B {σ1 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ1) (hkt
   have hI2 : Inv (Notif.stsAct σA t) := hIA.qchange (qchange_stsAct σA t)
   have hk2 : (Notif.stsAct σA t).kheap t = some (.tcb x1) := by rw [stsAct_kheap]; exact hktA
   show Inv (updK (Notif.stsAct σA t) t (.tcb (setReg x1 badge_register badge)))
-  exact hI2.tcbUpd hk2 _ rfl rfl
+  exact hI2.tcbUpd hk2 _ rfl rfl rfl
 
 set_option maxHeartbeats 4000000 in
 /-- **The scheduler invariants after the wake of an inactive bound thread**

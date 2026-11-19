@@ -193,7 +193,7 @@ theorem unbindN_nfr {σ : State Unit} {t n : ObjRef} {x : Tcb} {xn : Notificatio
     (Sched.NFr.upd (o' := .tcb (tcbBoundNotificationUpdate (fun _ => none) x)) hkt1
       (Or.inl ⟨x, x.tcbState, none, x.tcbArch, rfl, rfl, Or.inl ⟨rfl, rfl⟩, Or.inr rfl⟩)), ?_⟩
   have hI1 : Sched.Inv σ1 := hI.updNtfn hkn (fun p hp => hI.ntfnSc n xn p hkn hp)
-  exact hI1.tcbUpd hkt1 _ rfl rfl
+  exact hI1.tcbUpd hkt1 _ rfl rfl rfl
 
 end Spec
 

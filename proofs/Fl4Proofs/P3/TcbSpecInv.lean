@@ -24,7 +24,9 @@ section Spec
 
 /-- **`Inv` across an `IK t` step that keeps `t`'s state too.** -/
 theorem Inv.ikKeep {t : ObjRef} {σ σ' : State Unit} (h : Inv σ) (hk : IK t σ σ')
-    (hst : ∀ x x', σ.kheap t = some (.tcb x) → σ'.kheap t = some (.tcb x') → x'.tcbState = x.tcbState) :
+    (hst : ∀ x x', σ.kheap t = some (.tcb x) → σ'.kheap t = some (.tcb x') → x'.tcbState = x.tcbState)
+    (hsf : ∀ x x', σ.kheap t = some (.tcb x) → σ'.kheap t = some (.tcb x') →
+      (∃ e d, x.tcbState = .blockedOnSend e d) → x'.tcbFault = x.tcbFault) :
     Inv σ' := by
   have tF : ∀ {p : ObjRef} {x : Tcb}, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧
       y.tcbSchedContext = x.tcbSchedContext ∧ y.tcbState = x.tcbState := by
@@ -70,13 +72,19 @@ theorem Inv.ikKeep {t : ObjRef} {σ σ' : State Unit} (h : Inv σ) (hk : IK t σ
       rw [specRt_eq k1 (by rw [e1]; exact h2) k2 (by rw [e2.1]; exact hne), specRt_eq h1 h2 h4 hne, e2.hd]
     rw [rt a ha, rt b hb]; exact hab
   · obtain ⟨x0, k0, e0, f0⟩ := tB hx
+    have g0 : (∃ e d, x0.tcbState = .blockedOnSend e d) → x.tcbFault = x0.tcbFault := by
+      intro hsd
+      by_cases e : u = t
+      · subst e; exact hsf x0 x k0 hx hsd
+      · obtain ⟨x1, k1, g1⟩ := hk.tcbFB hx
+        rw [k0] at k1; cases k1; exact g1 e
     intro x' scp y n h1 h2 h3 h4 h5
     rw [hx] at h1; cases h1
     obtain ⟨y0, k3, e3⟩ := hk.scB h3
     rw [hrl] at h5
     rw [released_congr htm]
     unfold released; rw [e3.hd]
-    exact h.rd u x0 k0 (by rw [← f0]; exact hc) x0 scp y0 n k0 (by rw [← e0]; exact h2) k3
+    exact h.rd u x0 k0 (hc.congr f0.symm fun hs => (g0 (by rw [← f0]; exact hs)).symm) x0 scp y0 n k0 (by rw [← e0]; exact h2) k3
       (by rw [← e3.active]; exact h4) h5
   · obtain ⟨y0, k0, e0⟩ := hk.scB hy
     intro ha hp
@@ -99,9 +107,10 @@ theorem Inv.ikKeep {t : ObjRef} {σ σ' : State Unit} (h : Inv σ) (hk : IK t σ
 
 /-- `IK t` across a TCB update keeping its SC and state. -/
 theorem IK.updTcb {t p : ObjRef} {σ : State Unit} {x y : Tcb} (hk : σ.kheap p = some (.tcb x))
-    (h1 : y.tcbSchedContext = x.tcbSchedContext) (h2 : y.tcbState = x.tcbState) :
+    (h1 : y.tcbSchedContext = x.tcbSchedContext) (h2 : y.tcbState = x.tcbState)
+    (h3 : p ≠ t → y.tcbFault = x.tcbFault) :
     IK t σ (updK σ p (.tcb y)) :=
-  IK.upd hk ⟨fun x' e => by cases e; exact ⟨y, rfl, h1, fun _ => h2⟩, fun _ _ e => (by cases e),
+  IK.upd hk ⟨fun x' e => by cases e; exact ⟨y, rfl, h1, fun _ => h2, h3⟩, fun _ _ e => (by cases e),
     fun _ e => (by cases e), fun _ _ => ⟨x, rfl⟩, fun _ _ e => (by cases e), fun _ e => by cases e⟩
 
 /-- `IK t` across a step keeping the heap, the queues and the time. -/
@@ -124,7 +133,7 @@ theorem rdo_tcbAppend (u : ObjRef) (qs : List ObjRef) : RdO (tcbAppend (Z := Uni
 theorem ikm_threadSetPriority {t : ObjRef} (u : ObjRef) (pr : Priority) :
     IKM t (threadSetPriority (Z := Unit) u pr) := by
   unfold threadSetPriority
-  exact ikm_threadSet fun _ => ⟨rfl, fun _ => rfl⟩
+  exact ikm_threadSet fun _ => ⟨rfl, fun _ => rfl, fun _ => rfl⟩
 
 theorem ikm_reorderEp {t : ObjRef} (e u : ObjRef) : IKM t (reorderEp (Z := Unit) e u) := by
   unfold reorderEp
@@ -186,18 +195,34 @@ theorem IK.st_of_all {t : ObjRef} {σ σ' : State Unit} (h : ∀ u, IK u σ σ')
   rw [hx'] at hy; cases hy
   exact e (objRef_ne_succ t)
 
-/-- `Inv` across a TCB update keeping its SC and state. -/
+/-- `IK.st_of_all` for the fault. -/
+theorem IK.fl_of_all {t : ObjRef} {σ σ' : State Unit} (h : ∀ u, IK u σ σ') :
+    ∀ x x', σ.kheap t = some (.tcb x) → σ'.kheap t = some (.tcb x') →
+      (∃ e d, x.tcbState = .blockedOnSend e d) → x'.tcbFault = x.tcbFault := by
+  intro x x' hx hx' _
+  obtain ⟨y, hy, e⟩ := (h (t + 1)).tcbFB hx'
+  rw [hx] at hy; cases hy
+  exact e (objRef_ne_succ t)
+
+/-- `Inv` across a TCB update keeping its SC and state, and its fault if
+blocked on send. -/
 theorem Inv.updSame {σ : State Unit} (h : Inv σ) {t : ObjRef} {x y : Tcb} (hk : σ.kheap t = some (.tcb x))
-    (h1 : y.tcbSchedContext = x.tcbSchedContext) (h2 : y.tcbState = x.tcbState) :
+    (h1 : y.tcbSchedContext = x.tcbSchedContext) (h2 : y.tcbState = x.tcbState)
+    (h3 : y.tcbFault = x.tcbFault ∨ ∀ e d, x.tcbState ≠ .blockedOnSend e d) :
     Inv (updK σ t (.tcb y)) :=
-  h.ikKeep (IK.updTcb hk h1 h2) fun x0 x' h0 h' => by
+  h.ikKeep (IK.updTcb hk h1 h2 fun h => absurd rfl h) (fun x0 x' h0 h' => by
     rw [hk] at h0; cases h0
-    simp [updK] at h'; rw [← h']; exact h2
+    simp [updK] at h'; rw [← h']; exact h2) fun x0 x' h0 h' ⟨e, d, hs⟩ => by
+    rw [hk] at h0; cases h0
+    simp [updK] at h'; rw [← h']
+    rcases h3 with h3 | h3
+    · exact h3
+    · exact absurd hs (h3 e d)
 
 /-- `Inv` across a priority update. -/
 theorem Inv.prioUpd {σ : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x))
     (pr : Priority) : Inv (updK σ t (.tcb { x with tcbPriority := pr })) :=
-  h.updSame hk rfl rfl
+  h.updSame hk rfl rfl (Or.inl rfl)
 
 /-- `NSC` across a step keeping every notification's SC (backward). -/
 theorem NSC.oik {N C : Set U64} {k : ObjRef → Prop} {σ σ' : State Unit} (h : NSC N C σ)
@@ -228,7 +253,7 @@ theorem setPriority_inv {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb
   cases hr : runnable x.tcbState
   · rw [Ipc.setPriority_blk hk hr pr] at hm
     have hik : ∀ u, IK u σ σ' := fun u => ikm_setPriority_blk (t := u) t pr x.tcbState σ _ hm
-    exact ⟨h.ikKeep (hik t) (IK.st_of_all hik), (hik t).1⟩
+    exact ⟨h.ikKeep (hik t) (IK.st_of_all hik) (IK.fl_of_all hik), (hik t).1⟩
   rw [Ipc.setPriority_run hk hr pr] at hm
   split_ifs at hm with hq
   · have hq' : t ∈ σ.readyQueues x.tcbDomain x.tcbPriority := hq.resolve_right hnc
@@ -268,10 +293,10 @@ theorem setPriority_inv {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb
     rw [show σ' = σd from (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2]
     refine ⟨hIc.qchange hqd, fun p => ?_⟩
     rw [hqd.1]
-    exact (IK.updTcb (t := t) (σ := σ) (y := { x with tcbPriority := pr }) hk rfl rfl).1 p
+    exact (IK.updTcb (t := t) (σ := σ) (y := { x with tcbPriority := pr }) hk rfl rfl fun _ => rfl).1 p
   · rw [hts σ hk] at hm
     rw [show σ' = updK σ t (.tcb { x with tcbPriority := pr }) from (Prod.mk.inj (Set.mem_singleton_iff.1 hm)).2]
-    exact ⟨h.prioUpd hk pr, (IK.updTcb (t := t) (y := { x with tcbPriority := pr }) hk rfl rfl).1⟩
+    exact ⟨h.prioUpd hk pr, (IK.updTcb (t := t) (y := { x with tcbPriority := pr }) hk rfl rfl fun _ => rfl).1⟩
 
 
 /-! ## `suspend` -/
@@ -289,7 +314,7 @@ theorem ikm_cancelYieldTo {t : ObjRef} (u : ObjRef) : IKM t (schedContextCancelY
   refine ikm_bind (ikm_threadGet _ _) fun o => ikm_maybeM' (fun sc => ?_) o
   exact ikm_bind (ikm_updateSchedContext (g := scYieldFromUpdate fun _ => none)
     (fun _ => ⟨rfl, rfl, rfl, rfl, rfl⟩) _) fun _ =>
-    ikm_threadSet (g := tcbYieldToUpdate fun _ => none) fun _ => ⟨rfl, fun _ => rfl⟩
+    ikm_threadSet (g := tcbYieldToUpdate fun _ => none) fun _ => ⟨rfl, fun _ => rfl, fun _ => rfl⟩
 
 /-- The spec's `tcb_release_remove`: the thread filtered out of the release
 queue, the reprogram flag set or kept. -/
@@ -311,15 +336,15 @@ domain and priority. -/
 theorem restartPc_step {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) {P : Prop}
     [Decidable P] {y : Unit × State Unit} (h : y ∈ (NonDet.when P (updateRestartPc (Z := Unit) t) σ).1) :
     IK t σ y.2 ∧ ∃ x', y.2.kheap t = some (.tcb x') ∧ x'.tcbState = x.tcbState ∧ x'.tcbDomain = x.tcbDomain ∧
-      x'.tcbPriority = x.tcbPriority := by
+      x'.tcbPriority = x.tcbPriority ∧ x'.tcbFault = x.tcbFault := by
   unfold NonDet.when at h
   split_ifs at h
   · rw [Ipc.updateRestartPc_eq hk] at h
     rw [Set.mem_singleton_iff.1 h]
-    exact ⟨IK.updTcb hk rfl rfl, setReg x .faultIP (x.tcbArch.tcbContext.userRegs .nextIP), by simp [updK],
-      rfl, rfl, rfl⟩
+    exact ⟨IK.updTcb hk rfl rfl (fun _ => rfl), setReg x .faultIP (x.tcbArch.tcbContext.userRegs .nextIP), by simp [updK],
+      rfl, rfl, rfl, rfl⟩
   · rw [Set.mem_singleton_iff.1 h]
-    exact ⟨IK.refl _ _, x, hk, rfl, rfl, rfl⟩
+    exact ⟨IK.refl _ _, x, hk, rfl, rfl, rfl, rfl⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`Inv` after `suspend`**, the thread queued at most in its own ready
@@ -377,11 +402,13 @@ theorem suspend_inv {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (h
       rw [Set.mem_singleton_iff.1 h1] at h3
       have hk1 : (updK σ t (.tcb { x with tcbFault := none })).kheap t = some (.tcb { x with tcbFault := none }) := by
         simp [updK]
-      have hI1 : Inv (updK σ t (.tcb { x with tcbFault := none })) := h.updSame hk rfl rfl
-      have ik1 : IK t σ (updK σ t (.tcb { x with tcbFault := none })) := IK.updTcb hk rfl rfl
-      obtain ⟨ik3, x3, hk3, es3, ed3, ep3⟩ := restartPc_step hk1 h3
-      have hI3 : Inv y3.2 := hI1.ikKeep ik3 fun x0 x' h0 h' => by
-        rw [hk1] at h0; cases h0; rw [hk3] at h'; cases h'; exact es3
+      have hI1 : Inv (updK σ t (.tcb { x with tcbFault := none })) :=
+        h.updSame hk rfl rfl (Or.inr (NotIpcBlk.of_runnable hr).2.1)
+      have ik1 : IK t σ (updK σ t (.tcb { x with tcbFault := none })) := IK.updTcb hk rfl rfl fun h => absurd rfl h
+      obtain ⟨ik3, x3, hk3, es3, ed3, ep3, ef3⟩ := restartPc_step hk1 h3
+      have hI3 : Inv y3.2 := hI1.ikKeep ik3 (fun x0 x' h0 h' => by
+        rw [hk1] at h0; cases h0; rw [hk3] at h'; cases h'; exact es3) fun x0 x' h0 h' _ => by
+        rw [hk1] at h0; cases h0; rw [hk3] at h'; cases h'; exact ef3
       have ik13 := ik1.trans ik3
       rw [tcbSchedAction_gen hk3] at h4
       have e4 := Set.mem_singleton_iff.1 h4
@@ -420,7 +447,7 @@ theorem suspend_inv {σ σ' : State Unit} (h : Inv σ) {t : ObjRef} {x : Tcb} (h
   rw [stsAct_kheap] at hx'
   simp [updK] at hx'
   subst hx'
-  simp [inClass, runnable] at hc
+  simp [inClassR, runnable] at hc
 
 /-- The SCs' sizes back across a step keeping every object's kind (`OIK`). -/
 theorem oik_szKeep {k : ObjRef → Prop} {σ σ' : State Unit} (ho : ∀ p, OIK (k p) (σ.kheap p) (σ'.kheap p)) :

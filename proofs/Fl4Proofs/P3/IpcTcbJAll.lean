@@ -14,7 +14,7 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-open Fl4Proofs.P3.Notif (inClass released)
+open Fl4Proofs.P3.Notif (inClass inClassR released)
 
 /-- A notification cap's object in a slot is one of `JAtZ`'s notifications,
 not at address 0 (`JPlaced.typed`, `JKern.h0`). -/
@@ -54,7 +54,7 @@ theorem tcbXIpc_ofJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
       (.ok (), σ2) ∈ ((Fl4Spec.installTcbCap (Z := Unit) p.bv ssl 3 (some fh)).run σ1).1 →
       SpecPost σ2 p.bv sco ∧ ∀ v, sco = some (some v) → ∀ x y n, σ2.kheap p.bv = some (.tcb x) →
-        σ2.kheap v = some (.schedContext y n) → Fl4Spec.runnable x.tcbState = false → inClass x.tcbState →
+        σ2.kheap v = some (.schedContext y n) → Fl4Spec.runnable x.tcbState = false → inClassR x.tcbState x.tcbFault →
         Fl4Spec.scActive y = true → released σ2 y)
     (hStT : P0.StoreTotal st) (hArT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :

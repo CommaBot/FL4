@@ -53,7 +53,7 @@ structure Inv (σ : State Unit) : Prop where
   rel : ∀ u ∈ σ.releaseQueue, ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
-  rd : ∀ u x, σ.kheap u = some (.tcb x) → inClass x.tcbState → RelIfBound σ u
+  rd : ∀ u x, σ.kheap u = some (.tcb x) → inClassR x.tcbState x.tcbFault → RelIfBound σ u
   refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod ≠ 0 → RefOK y
   back : ∀ u x p, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n) ∧ y.scTcb = some u
@@ -198,6 +198,13 @@ theorem NtfnStep.ntfn_back {σ σ' : State Unit} (h : NtfnStep σ σ') {p : ObjR
   · rw [hk] at hb; cases hb; exact ⟨a, ha, h2⟩
   · rw [hk] at hb; cases hb
 
+theorem NtfnStep.fault {σ σ' : State Unit} (h : NtfnStep σ σ') {p : ObjRef} {x y : Tcb}
+    (hx : σ.kheap p = some (.tcb x)) (hy : σ'.kheap p = some (.tcb y)) : y.tcbFault = x.tcbFault := by
+  rcases h.2.2 p with e | ⟨a, b, -, hb, -, -⟩ | ⟨a, b, ha, hb, e⟩
+  · rw [e, hx] at hy; cases hy; rfl
+  · rw [hy] at hb; cases hb
+  · rw [hx] at ha; cases ha; rw [hy] at hb; cases hb; rw [e]
+
 theorem NtfnStep.relIfBound {σ σ' : State Unit} (h : NtfnStep σ σ') {u : ObjRef} (hr : RelIfBound σ u) :
     RelIfBound σ' u := by
   obtain ⟨-, e2, -, -, -, e6, -⟩ := NtfnStep.abs h
@@ -213,7 +220,7 @@ theorem Inv.step {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ')
     (hst : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) →
       ((∃ d p, u ∈ σ.readyQueues d p) ∨ u ∈ σ.releaseQueue) → runnable x.tcbState = true →
       runnable y.tcbState = true)
-    (hrd : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) → inClass y.tcbState →
+    (hrd : ∀ u x y, σ.kheap u = some (.tcb x) → σ'.kheap u = some (.tcb y) → inClassR y.tcbState y.tcbFault →
       RelIfBound σ u) : Inv σ' := by
   obtain ⟨e1, e2, -, -, -, e6, -⟩ := NtfnStep.abs hn
   refine ⟨fun d p u hu => ?_, fun u hu => ?_, ?_, fun u y hy hc => ?_, fun p y n hy => ?_,
@@ -255,7 +262,7 @@ theorem Inv.stable {σ σ' : State Unit} (h : Inv σ) (hn : NtfnStep σ σ') (hb
     · rw [e]; exact hr
     · exact hr'
   · rcases hb u x y h1 h2 with e | ⟨-, -, hc' | hr⟩
-    · exact h.rd u x h1 (e ▸ hc)
+    · exact h.rd u x h1 (hc.congr e.symm fun _ => (NtfnStep.fault hn h1 h2).symm)
     · exact h.rd u x h1 hc'
     · exact hr
 
@@ -274,7 +281,7 @@ theorem Inv.block {σ σ' : State Unit} {t : ObjRef} (h : Inv σ) (hn : NtfnStep
     rw [hoth u x y h1 h2 hut]; exact hr
   · by_cases hut : u = t
     · subst hut; exact hrt
-    · exact h.rd u x h1 (hoth u x y h1 h2 hut ▸ hc)
+    · exact h.rd u x h1 (hc.congr (hoth u x y h1 h2 hut).symm fun _ => (NtfnStep.fault hn h1 h2).symm)
 
 end Spec
 

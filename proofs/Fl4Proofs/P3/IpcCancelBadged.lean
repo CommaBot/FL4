@@ -51,7 +51,7 @@ theorem restart_irel (hP0 : IPlaced N T E R B)
     (s : S) (σ : Fl4Spec.State Unit) (hX : IRel st th cr N T C E R B c s σ) {t : U64} (ht : t ∈ T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : tsCode x.tcbState ≠ 6)
     (hq : ∀ e ∈ E, ∀ z, σ.kheap e.bv = some (.endpoint z) → t.bv ∉ z.epQueue)
-    (hxs : ScOK σ x) (hBk : ScBack σ) (hAr : ActReady σ) :
+    (hxs : x.tcbFault = none → ScOK σ x) (hBk : ScBack σ) (hAr : ActReady σ) :
     endpoint.restart_thread_if_no_fault st s t ⦃ s' => ∃ σ', ((), σ') ∈ (Fl4Spec.restartThreadIfNoFault (Z := Unit) t.bv σ).1 ∧
       IRel st th cr N T C E R B c s' σ' ∧
       (∀ p y, σ.kheap p = some (.endpoint y) → σ'.kheap p = some (.endpoint y)) ∧ RtFacts σ σ' t.bv x ⦄ := by
@@ -75,7 +75,7 @@ theorem restart_irel (hP0 : IPlaced N T E R B)
     rintro s2 ⟨σ2, hu, hf2, hv2, hX2⟩
     have hkt1 : (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv).kheap t.bv =
         some (.tcb { x with tcbState := .restart }) := by rw [stsAct_kheap]; simp [updK]
-    obtain ⟨σm, hmm, hktm, hBm, hAm, hTm, htm, hkpm⟩ := restart_tail_mid hk hxs hBk hAr
+    obtain ⟨σm, hmm, hktm, hBm, hAm, hTm, htm, hkpm⟩ := restart_tail_mid hk (hxs hf) hBk hAr
     have e2 : σm = σ2 := by
       have hmem : ((), σm) ∈ (specUnblock t.bv (stsAct (updK σ t.bv (.tcb { x with tcbState := .restart })) t.bv)).1 := by
         rw [← specSporadicAssert_eq]; unfold specSporadicAssert
@@ -197,7 +197,7 @@ def BInv (e b : U64) (σ0 : Fl4Spec.State Unit) (q0 : List Fl4Spec.ObjRef) (x : 
     rest.length ≤ x.2.2.val ∧
     (∀ z, z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) (rest.map UScalar.bv) σ').1 →
       z ∈ (Fl4Spec.NonDet.mapMx (rrb e b) q0 σ0).1) ∧
-    (∀ u ∈ rest.map UScalar.bv, MemOK σ' u) ∧ ScBack σ' ∧ ActReady σ'
+    (∀ u ∈ rest.map UScalar.bv, MemOKE σ' u) ∧ ScBack σ' ∧ ActReady σ'
 
 set_option maxHeartbeats 4000000 in
 /-- **The loop of `cancel_badged_sends`** on `IRel`. -/
@@ -308,8 +308,9 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
       have hFd : SFr σ' σd := SFr.updOther hky (fun _ h => by cases h)
         (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ _ h => by cases h)
       have hBd : ScBack σd := hFd.scBack hBk
-      have hxsd : ScOK σd xt := by
-        obtain ⟨x', hk', hsc⟩ := hFd.memOK (hmm t0.bv (by simp))
+      have hxsd : xt.tcbFault = none → ScOK σd xt := by
+        obtain ⟨x', hk', hsc⟩ := MemOKE.updOther (o' := .endpoint (epDeq y t0.bv)) hky (fun _ h => by cases h)
+          (fun _ _ h => by cases h) (hmm t0.bv (by simp))
         rw [hktd] at hk'; cases hk'; exact hsc
       refine WP.spec_bind (restart_irel hP0 s1 σd hX1 ht0T hktd (by rw [hst]; simp [tsCode]) hq1 hxsd hBd
         (hFd.actReady hAr (Or.inl rfl))) ?_
@@ -329,7 +330,8 @@ theorem badged_loop (hP0 : IPlaced N T E R B)
         exact ⟨((), σd), by rw [hdq]; rfl, hres⟩
       · obtain ⟨u0, hu0, rfl⟩ := List.mem_map.1 hu
         exact memOK_after hktd hBd (fun h => hnd' (eq_of_bv h ▸ hu0))
-          (hFd.memOK (hmm _ (List.mem_map_of_mem (List.mem_cons_of_mem _ hu0)))) hkp'' ht''
+          (MemOKE.updOther (o' := .endpoint (epDeq y t0.bv)) hky (fun _ h => by cases h) (fun _ _ h => by cases h)
+            (hmm _ (List.mem_map_of_mem (List.mem_cons_of_mem _ hu0)))) hkp'' ht''
       · rw [hfuel1]; scalar_tac
     · -- kept
       simp only [hm, ↓reduceIte, WP.spec_ok]

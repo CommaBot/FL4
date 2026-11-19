@@ -184,7 +184,7 @@ theorem set_mcp_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
     rintro d _ ⟨xr, hxr, e'⟩
     have : d.bv ≠ t.bv := fun e2 => by rw [e2] at hxr; simp [updK] at hxr
     exact ⟨xr, by simpa [updK, this] using hxr, e'⟩
-  refine ⟨updK σ t.bv (.tcb x'), threadSet_eq _ hk, hS', hR', hN.updTcb, hI.tcbUpd hk x' rfl rfl,
+  refine ⟨updK σ t.bv (.tcb x'), threadSet_eq _ hk, hS', hR', hN.updTcb, hI.tcbUpd hk x' rfl rfl rfl,
     hY.frame hyw (YKeep.updTcb hk rfl), hAI.sframe (SFrame.tcbUpd hk x' rfl rfl rfl rfl),
     hM.set hT ht hk hv, hCR.frame hscr hrw hsc hrp,
     hRP.frame (L.ksb_wr _ _ _) (SzKeep.updK hk fun _ _ e' => by cases e'),

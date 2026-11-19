@@ -222,7 +222,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 8000000 in
 /-- **The fault clear at `J`** (module docstring): a register-frame step. -/
 theorem JAtZ.faultClearJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
-    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) :
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hns : ∀ e d, x.tcbState ≠ .blockedOnSend e d) :
     ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D (L.wr s (tFaultA t) 0#u64) a
       (updK σ t.bv (.tcb { x with tcbFault := none })) := by
   have hP0 := J.ip
@@ -250,7 +250,7 @@ theorem JAtZ.faultClearJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : 
     exact ⟨b1, b2, b3, b5, b4⟩
   exact J.reg_frameF ⟨hR1, hS1⟩ (hwr.mono fun b hb => Or.inr ⟨t, ht, by rw [hb, val_fault hta]⟩)
     hA (YK.YKS.updTcb (y := { x with tcbFault := none }) hk rfl).ykeep
-    (J.inv.updSame (y := { x with tcbFault := none }) hk rfl rfl) hblk hfoot
+    (J.inv.updSame (y := { x with tcbFault := none }) hk rfl rfl (Or.inr hns)) hblk hfoot
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` after `reply_remove_tcb`** (module docstring), given P1's
@@ -700,7 +700,7 @@ theorem JAtZ.cancelReplyJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
   have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
   obtain ⟨xr, hkr, -⟩ := J.sv.onReply t.bv x rp hk hst
   obtain ⟨r, hr, rfl⟩ := J.obj.reply rp xr hkr
-  obtain ⟨V1, J1⟩ := J.faultClearJ ht hk
+  obtain ⟨V1, J1⟩ := J.faultClearJ ht hk fun e d h => by rw [hst] at h; cases h
   have hk1 : (updK σ t.bv (.tcb { x with tcbFault := none })).kheap t.bv = some (.tcb { x with tcbFault := none }) := by
     simp [updK]
   obtain ⟨x0, hk0, hx⟩ := hX.1.tcb t ht

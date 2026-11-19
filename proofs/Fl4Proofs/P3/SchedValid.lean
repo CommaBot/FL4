@@ -35,10 +35,11 @@ section Spec
 open Fl4Spec
 
 /-- A queued thread: a TCB whose SC (if any) is ready and sufficient when
-active (l4v `released_ipc_queues`). -/
+active, unless it is a sender with a timeout fault (l4v
+`released_ipc_queues`, `valid_sender_sc_tcb_at`). -/
 def QRdy (σ : State Unit) (u : ObjRef) : Prop :=
-  ∃ x, σ.kheap u = some (.tcb x) ∧ ∀ c, x.tcbSchedContext = some c → ∀ y k, σ.kheap c = some (.schedContext y k) →
-    scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true
+  ∃ x, σ.kheap u = some (.tcb x) ∧ (NotTmoS x → ∀ c, x.tcbSchedContext = some c → ∀ y k, σ.kheap c = some (.schedContext y k) →
+    scActive y = true → refillReady σ.curTime (refillHd y) = true ∧ refillSufficient 0 (refillHd y) = true)
 
 /-- **The spec invariant** (see the module docstring). -/
 structure SchedValid (σ : State Unit) : Prop where
@@ -100,7 +101,7 @@ theorem SchedValid.scRepOK {σ : State Unit} (h : SchedValid σ) {r : ObjRef} {x
 (`Inv.rd`; not runnable, it is in no release queue, `Inv.rel`). -/
 theorem Inv.qRdy_ntfn {σ : State Unit} (hI : Inv σ) {u n : ObjRef} {xu : Tcb} (hku : σ.kheap u = some (.tcb xu))
     (hs : xu.tcbState = .blockedOnNotification n) : QRdy σ u := by
-  refine ⟨xu, hku, fun c hc y k hky ha => ?_⟩
+  refine ⟨xu, hku, fun _ c hc y k hky ha => ?_⟩
   have hnq : u ∉ σ.releaseQueue := fun hm => by
     obtain ⟨x', -, -, -, hk', -, hr, -⟩ := hI.rel u hm
     rw [hku] at hk'; cases hk'
@@ -112,12 +113,12 @@ SC released when active (`Inv.rd`; not runnable, it is in no release queue,
 `Inv.rel`). -/
 theorem Inv.qRdy_blk {σ : State Unit} (hI : Inv σ) {u : ObjRef} {xu : Tcb} (hku : σ.kheap u = some (.tcb xu))
     (hcl : inClass xu.tcbState) (hnr : runnable xu.tcbState = false) : QRdy σ u := by
-  refine ⟨xu, hku, fun c hc y k hky ha => ?_⟩
+  refine ⟨xu, hku, fun hnt c hc y k hky ha => ?_⟩
   have hnq : u ∉ σ.releaseQueue := fun hm => by
     obtain ⟨x', -, -, -, hk', -, hr, -⟩ := hI.rel u hm
     rw [hku] at hk'; cases hk'
     rw [hnr] at hr; cases hr
-  exact hI.rd u xu hku hcl xu c y k hku hc hky ha hnq
+  exact hI.rd u xu hku (inClassR_of_not hcl hnt) xu c y k hku hc hky ha hnq
 
 theorem ntfnPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActReady σ) (hV : SchedValid σ)
     (ho : ∃ x, σ.kheap r = some (.notification x)) : NtfnPre σ r := by
@@ -125,7 +126,9 @@ theorem ntfnPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActR
   obtain ⟨hnd, hq⟩ := hV.ntfnQ r n hk
   exact ntfnPre_of_inv hI hA hV.scSpor hk (fun t ht => hV.ntfnTcb r n t hk ht) hnd fun u hu => by
     obtain ⟨xu, hku, hs⟩ := hq u hu
-    exact hI.qRdy_ntfn hku hs
+    obtain ⟨x', hk', hr⟩ := hI.qRdy_ntfn hku hs
+    rw [hku] at hk'; cases hk'
+    exact ⟨xu, hku, hr (NotTmoS.of_ns fun e d h => by rw [hs] at h; cases h)⟩
 
 theorem epPre_of_valid {σ : State Unit} {r : ObjRef} (hI : Inv σ) (hA : ActReady σ) (hV : SchedValid σ)
     (ho : ∃ x, σ.kheap r = some (.endpoint x)) : EpPre σ r := by

@@ -478,9 +478,23 @@ theorem cancel_kb_inv {σ σ1 : State Unit} {t : ObjRef} {x : Tcb} (hI : Inv σ)
   obtain ⟨hB, -⟩ := (hI.toBut t).ik (hI.notQueued hkt hnr) ik
   exact hB.inv fun _ _ _ => hrib
 
-/-- `t`'s `RelIfBound` across `KFr`, from `Inv` before (`t` in `inClass`). -/
+/-- **`Inv` after `cancel_ipc` of a thread not runnable, left `Inactive`**
+(`cancel_kb_inv` without `t`'s `RelIfBound`: `Inv.rd` is vacuous for an
+`Inactive` thread). -/
+theorem cancel_kb_inv_in {σ σ1 : State Unit} {t : ObjRef} {x x1 : Tcb} (hI : Inv σ)
+    (hkt : σ.kheap t = some (.tcb x)) (hnr : runnable x.tcbState = false)
+    (hm : ((), σ1) ∈ (cancelIpc (Z := Unit) t σ).1) (hk1 : σ1.kheap t = some (.tcb x1))
+    (hin : x1.tcbState = .inactive) : Inv σ1 := by
+  have ik : IK t σ σ1 := ikm_cancelIpc σ ((), σ1) hm
+  obtain ⟨hB, -⟩ := (hI.toBut t).ik (hI.notQueued hkt hnr) ik
+  refine hB.inv fun x' hx' hc => ?_
+  rw [hk1] at hx'; cases hx'
+  rw [hin] at hc
+  rcases hc with h | ⟨_, h⟩ | ⟨_, _, h, -⟩ | ⟨_, _, _, h⟩ <;> cases h
+
+/-- `t`'s `RelIfBound` across `KFr`, from `Inv` before (`t` in `inClassR`). -/
 theorem KFr.rib {σ σ1 : State Unit} {t : ObjRef} {x : Tcb} (F : KFr t σ σ1) (hI : Inv σ)
-    (hkt : σ.kheap t = some (.tcb x)) (hc : inClass x.tcbState) : RelIfBound σ1 t :=
+    (hkt : σ.kheap t = some (.tcb x)) (hc : inClassR x.tcbState x.tcbFault) : RelIfBound σ1 t :=
   Ipc.RelIfBound.of_keep (hI.rd t x hkt hc) F.skeep
 
 /-- No reply bound to a receiver gained (`ScRecvLinks`' `KhRB`). -/

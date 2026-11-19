@@ -25,7 +25,7 @@ structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
   rel : ∀ u ∈ σ.releaseQueue, ∃ x scp y n, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some scp ∧
     runnable x.tcbState = true ∧ σ.kheap scp = some (.schedContext y n) ∧ scActive y = true
   sorted : σ.releaseQueue.Pairwise (fun a b => specRt σ a ≤ specRt σ b)
-  rd : ∀ u x, u ≠ t → σ.kheap u = some (.tcb x) → inClass x.tcbState → RelIfBound σ u
+  rd : ∀ u x, u ≠ t → σ.kheap u = some (.tcb x) → inClassR x.tcbState x.tcbFault → RelIfBound σ u
   refills : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod ≠ 0 → RefOK y
   back : ∀ u x p, σ.kheap u = some (.tcb x) → x.tcbSchedContext = some p →
     ∃ y n, σ.kheap p = some (.schedContext y n) ∧ y.scTcb = some u
@@ -35,7 +35,7 @@ structure InvBut (σ : State Unit) (t : ObjRef) : Prop where
   rr : ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → y.scPeriod = 0 → RRok y
 
 theorem InvBut.inv {σ : State Unit} {t : ObjRef} (h : InvBut σ t)
-    (ht : ∀ x, σ.kheap t = some (.tcb x) → inClass x.tcbState → RelIfBound σ t) : Inv σ :=
+    (ht : ∀ x, σ.kheap t = some (.tcb x) → inClassR x.tcbState x.tcbFault → RelIfBound σ t) : Inv σ :=
   ⟨h.rq, h.rel, h.sorted, fun u x hx hc => by
     by_cases e : u = t
     · subst e; exact ht x hx hc
