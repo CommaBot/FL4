@@ -154,6 +154,28 @@ fn ap_admissible(boot_skim: bool, ap_needs_skim: bool, boot_plan: bool, ap_plan:
     (boot_skim || !ap_needs_skim) && (ap_plan || !boot_plan)
 }
 
+/// Whether a core whose policy needs one thread per physical core
+/// (`needs_no_smt`) may join: an AP may not, once SMT siblings may have
+/// been started (`no_smt` still false); a stricter AP policy must not
+/// leave an already-started sibling running. Mixed requirements need
+/// topology-aware admission before AP startup; reject such a configuration
+/// until that exists. `Some(needs_no_smt)`: admitted, and whether it
+/// requires `NO_SMT`.
+fn smt_admission(bsp: bool, needs_no_smt: bool, no_smt: bool) -> Option<bool> {
+    if needs_no_smt && !bsp && !no_smt {
+        return None;
+    }
+    Some(needs_no_smt)
+}
+
+/// Whether a native-only core (no `select` plan) needs SMT off for Safe
+/// RET: only if it can use Safe RET (`safe_ret`) and every core so far
+/// can too (`all_safe_ret`). Otherwise Safe RET stays off and SMT
+/// siblings change nothing for it.
+fn native_only_needs_no_smt(safe_ret: bool, all_safe_ret: bool) -> bool {
+    safe_ret && all_safe_ret
+}
+
 /// Probe and initialize each logical CPU after its GDT/IDT is installed,
 /// before VMX/SVM is enabled. BSP rejection leaves virtualization unavailable;
 /// available native mitigations are still applied. Incompatible AP capabilities
@@ -209,18 +231,20 @@ pub fn init_core(bsp: bool) -> bool {
     let mut entry = 0;
     let mut spec_ctrl = 0;
     let mut auto = false;
+    let safe_ret = native_safe_ret(&c) && !crate::sev::snp::active()
+        && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode));
+    let needs_no_smt = match plan {
+        Ok(p) => p.no_smt,
+        Err(_) => native_only_needs_no_smt(safe_ret, ALL_SAFE_RET.load(Ordering::Relaxed)),
+    };
+    let Some(needs_no_smt) = smt_admission(bsp, needs_no_smt, NO_SMT.load(Ordering::Relaxed)) else {
+        return false;
+    };
     if let Ok(p) = plan {
-        // A stricter AP policy must not leave an already-started sibling
-        // running. Mixed requirements need topology-aware admission before
-        // AP startup; reject such a configuration until that exists.
-        if !bsp && p.no_smt && !NO_SMT.load(Ordering::Relaxed) {
-            return false;
-        }
         entry = p.entry;
         spec_ctrl = p.spec_ctrl;
         auto = p.auto_ibrs;
         FL4_SPEC_BUFFERS.fetch_or(u32::from(p.buffers), Ordering::Relaxed);
-        NO_SMT.fetch_or(p.no_smt, Ordering::Relaxed);
         if p.disable_tsx {
             wrmsr(0x122, rdmsr(0x122) | 3);
         }
@@ -246,14 +270,12 @@ pub fn init_core(bsp: bool) -> bool {
         }
         FL4_SPEC_BUFFERS.store(1, Ordering::Relaxed);
     }
-    let safe_ret = native_safe_ret(&c) && !crate::sev::snp::active()
-        && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode));
     ALL_SAFE_RET.fetch_and(safe_ret, Ordering::Relaxed);
     if safe_ret && plan.is_err() {
         // A native-only boot still needs cross-thread predictor isolation.
         spec_ctrl |= 2;
-        NO_SMT.store(true, Ordering::Relaxed);
     }
+    NO_SMT.fetch_or(needs_no_smt, Ordering::Relaxed);
     if spec_ctrl != 0 {
         wrmsr(0x48, rdmsr(0x48) | spec_ctrl);
     }
@@ -399,6 +421,37 @@ mod tests {
         // A boot core without one already reports the policy incomplete.
         assert!(ap_admissible(false, false, false, false));
         assert!(ap_admissible(false, false, false, true));
+    }
+
+    /// Audit r11 F4: a native-only AP that could use Safe RET joins a
+    /// boot whose earlier cores already ruled Safe RET out (and may have
+    /// started SMT siblings). It must neither be refused for a no-SMT
+    /// need that no longer exists nor turn `NO_SMT` on halfway through AP
+    /// startup, which would skip the remaining cores' siblings.
+    #[test]
+    fn native_only_safe_ret_needs_no_smt_only_while_safe_ret_is_possible() {
+        assert!(native_only_needs_no_smt(true, true));
+        assert!(!native_only_needs_no_smt(true, false));
+        assert!(!native_only_needs_no_smt(false, true));
+        // The F4 case: BSP rejected for SRSO microcode (no Safe RET, SMT
+        // kept), AP rejected only for buffer clearing.
+        let need = native_only_needs_no_smt(true, false);
+        assert_eq!(smt_admission(false, need, false), Some(false));
+    }
+
+    /// Both policy paths share the stricter-AP rule: no core turns SMT
+    /// off after siblings may have started.
+    #[test]
+    fn stricter_smt_need_is_refused_after_siblings_may_have_started() {
+        // Boot core: decides before any AP starts.
+        assert_eq!(smt_admission(true, true, false), Some(true));
+        assert_eq!(smt_admission(true, false, false), Some(false));
+        // AP needing no SMT, siblings possibly running: refused.
+        assert_eq!(smt_admission(false, true, false), None);
+        // AP needing no SMT under a no-SMT boot, or needing nothing.
+        assert_eq!(smt_admission(false, true, true), Some(true));
+        assert_eq!(smt_admission(false, false, false), Some(false));
+        assert_eq!(smt_admission(false, false, true), Some(false));
     }
 
     #[test]
