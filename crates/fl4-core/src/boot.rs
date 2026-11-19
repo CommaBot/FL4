@@ -102,6 +102,9 @@ struct Boot {
     /// l4h 0047: kernel address of the extra untyped chunk's header, after
     /// the backend's chunks; 0 when there is no room for it.
     extra_ut: u64,
+    /// l4h 0047: the extra BootInfo's mapped size, set with `extra_ut`;
+    /// what it does not use is a padding record.
+    extra_bytes: u64,
     /// An untyped was dropped because neither list had room for it.
     ut_lost: bool,
 }
@@ -462,12 +465,14 @@ fn rootserver_objects<S: Store>(s: &mut S, p: &mut BootParams) -> Result<Root, B
         end: start.wrapping_add(l.total),
         full: false,
         extra_ut: 0,
+        extra_bytes: 0,
         ut_lost: false,
     };
     let extra_bi = alloc_root_objects(s, &mut b, l.ebits, l.cnode_bits);
     // `Store::write` takes aligned words; `alloc` zeroed the chunk.
     if EXTRA_UNTYPEDS > 0 && p.extra_bi_len & 7 == 0 {
         b.extra_ut = extra_bi.wrapping_add(p.extra_bi_len);
+        b.extra_bytes = l.ebytes;
     }
     let pml4 = alloc(s, &mut b, 12, 1);
     let asid_pool = alloc(s, &mut b, 12, 1);
@@ -652,11 +657,23 @@ fn create_untypeds<S: Store>(s: &mut S, b: &mut Boot, p: &BootParams) {
     let base_end = first.wrapping_add(MAX_BOOTINFO_UNTYPEDS);
     let end = if b.slot_pos < base_end { b.slot_pos } else { base_end };
     let n = if b.slot_pos > base_end { b.slot_pos - base_end } else { 0 };
+    let mut used = p.extra_bi_len;
     if n > 0 {
         let len = 16u64.wrapping_add(n.wrapping_mul(16));
         s.write(b.extra_ut, fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS);
         s.write(b.extra_ut.wrapping_add(8), len);
-        bi_set(s, b, bi::EXTRA_LEN, p.extra_bi_len.wrapping_add(len));
+        used = used.wrapping_add(len);
+        bi_set(s, b, bi::EXTRA_LEN, used);
+    }
+    // With the reservation the extra BootInfo is mapped whole, so, as in
+    // seL4, a padding record covers the rest and `extraLen` all of it: a
+    // root that reserves `extraLen` rounded up to pages then reserves
+    // every mapped page.
+    if b.extra_ut != 0 && b.extra_bytes > used && b.extra_bytes - used >= 16 {
+        let pad = b.extra_ut.wrapping_add(used.wrapping_sub(p.extra_bi_len));
+        s.write(pad, fl4_abi::consts::bootinfo_header::PADDING);
+        s.write(pad.wrapping_add(8), b.extra_bytes - used);
+        bi_set(s, b, bi::EXTRA_LEN, b.extra_bytes);
     }
     bi_set(s, b, bi::UNTYPED, first);
     bi_set(s, b, bi::UNTYPED + 1, end);
