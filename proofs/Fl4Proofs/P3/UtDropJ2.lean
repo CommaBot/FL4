@@ -47,6 +47,69 @@ theorem drop_keep {q : U64} {k : P1.HKind} (hq : H q = some k) (h : ¬ P1.Region
 
 end Heap
 
+/-! ## The VSpace cap field across the drop -/
+
+namespace Vs
+
+/-- **The tables a cap's `VCapW` asks in the sets**: level `k` (VsDrop's
+`lvlSet`: 1 PT, 2 PD, 3 PDPT, 4 PML4, 5 pool) and address `q`; mapped
+PT/PD/PDPT caps ask nothing (their table may be pruned). -/
+inductive VNeed : capability.Cap → Nat → U64 → Prop
+  | pt {p a v : U64} : VNeed (.PageTable p false a v) 1 p
+  | pd {p a v : U64} : VNeed (.PageDirectory p false a v) 2 p
+  | pdpt {p a v : U64} : VNeed (.Pdpt p false a v) 3 p
+  | pml4 {p a : U64} {mp : Bool} : VNeed (.Pml4 p mp a) 4 p
+  | pool {p b : U64} : VNeed (.AsidPool p b) 5 p
+
+/-- `VCapW` at new sets holding what the cap asks. -/
+theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capability.Cap}
+    (h : VCapW P L4 L3 L2 L1 c) (hn : ∀ k q, VNeed c k q → q ∈ lvlSet P' L4' L3' L2' L1' k) :
+    VCapW P' L4' L3' L2' L1' c := by
+  cases c <;> simp only [VCapW, VCapOK] at h ⊢
+  all_goals first
+    | exact ⟨fun e => by subst e; exact hn 1 _ .pt, h.2⟩
+    | exact ⟨fun e => by subst e; exact hn 2 _ .pd, h.2⟩
+    | exact ⟨fun e => by subst e; exact hn 3 _ .pdpt, h.2⟩
+    | exact ⟨hn 4 _ .pml4, h.2⟩
+    | exact ⟨⟨hn 5 _ .pool, h.1.2⟩, h.2⟩
+    | exact h
+    | trivial
+
+/-- What a slot's cap asks is in the sets (`VsSlotsW`). -/
+theorem VsSlotsW.need {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
+    (h : VsSlotsW th P L4 L3 L2 L1 m) {y : U64} (hy : IsSlot th y) {k : Nat} {q : U64}
+    (hn : VNeed (capV m y) k q) : q ∈ lvlSet P L4 L3 L2 L1 k := by
+  have hc := h y hy
+  generalize capV m y = c at hc hn
+  cases hn <;> simp only [VCapW, VCapOK] at hc
+  all_goals first | exact hc.1 trivial | exact hc.1 rfl | exact hc.1 | exact hc.1.1
+
+/-- **`VsSlotsW` across the drop**: at the restricted typed heap and the
+pruned sets, given that the roots `XP … X1` of `VsReachMiss` hold every
+table a slot's cap asks (`VNeed`): such a table is reached, so it is in its
+pruned set (`VsReach.pr`). -/
+theorem VsSlotsW.drop {th : TypedHeap} {P L4 L3 L2 L1 XP X4 X3 X2 X1 : Set U64} {m : U64 → U64} {ksb : U64}
+    {σ : Fl4Spec.State Unit} {rl rh : Nat} (h : VsSlotsW th P L4 L3 L2 L1 m)
+    (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hXP : XP ⊆ P) (hX4 : X4 ⊆ L4) (hX3 : X3 ⊆ L3) (hX2 : X2 ⊆ L2) (hX1 : X1 ⊆ L1)
+    (hM : VsReachMiss rl rh m ksb XP X4 X3 X2 X1)
+    (hXc : ∀ y, IsSlot th y → ∀ k q, VNeed (capV m y) k q → q ∈ lvlSet XP X4 X3 X2 X1 k) :
+    VsSlotsW (restrictTh th rl rh) (prP rl rh m P L4 L3 L2 L1) (pr4 rl rh m L4 L3 L2 L1) (pr3 rl rh m L3 L2 L1)
+      (pr2 rl rh m L2 L1) (pr1 rl rh L1) m := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := VsReach.pr (rl := rl) (rh := rh) hR hPt hPI hXP hX4 hX3 hX2 hX1 hM
+  intro y hy
+  refine VCapW.relevel (h y hy.of_restrict) fun k q hn => ?_
+  have hr := hXc y hy.of_restrict k q hn
+  generalize capV m y = c at hn
+  cases hn
+  · exact h1 _ (.x1 hr)
+  · exact h2 _ (.x2 hr)
+  · exact h3 _ (.x3 hr)
+  · exact h4 _ (.x4 hr)
+  · exact h5 _ (.xp hr)
+
+end Vs
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -419,6 +482,15 @@ theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
     | Frame q sz r d m' ep a' va =>
       rw [hc] at hC
       exact fun q' k hq hk => hC q' k (drop_some hq) hk
+    | PageTable q m' a' va =>
+      rw [hc] at hC
+      exact fun q' k hq hk => hC q' k (drop_some hq) hk
+    | PageDirectory q m' a' va =>
+      rw [hc] at hC
+      exact fun q' k hq hk => hC q' k (drop_some hq) hk
+    | Pdpt q m' a' va =>
+      rw [hc] at hC
+      exact fun q' k hq hk => hC q' k (drop_some hq) hk
     | SchedContext q sb' =>
       rw [hc] at hC
       obtain ⟨hH, hpi⟩ := hC
@@ -522,7 +594,11 @@ P1's heap without the region's objects. Premises beyond `JAtZ`: no
 reschedule pending, the spec detype's own facts (`SDrop` and the fields it
 keeps), `KeptRefsP3`/`DbgTimerKept` at the region (`RegionUnrefJ` [J]'s two
 parts, as `utEpJ`), `ArchFitHyp` [J] (as `utEpJ`), and `VsReachMiss` [J]
-(VsDrop). -/
+(VsDrop) at roots `XP … X1` holding every table a slot's cap asks
+(`hXc`, `Vs.VNeed`: an unmapped PT/PD/PDPT cap's, a PML4 or pool cap's; so
+the VSpace cap field `vsc` holds at the pruned sets, `VsSlotsW.drop`; the
+callers take the roots `{q | ∃ y, IsSlot Z.th y ∧ VNeed (capV m y) k q}`,
+in the sets by `VsSlotsW.need`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hres : σ.schedulerAction ≠ .chooseNewThread) {sl : Fl4Spec.CslotPtr} (hsl : AbsSlot Z.th sl)
     {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
@@ -538,7 +614,8 @@ theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hdl : σ'.domainList = σ.domainList) (hdsi : σ'.domainStartIndex = σ.domainStartIndex)
     (hum : ∀ x, ¬ RgOf p sb x → σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x)
     {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
-    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
+    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1)
+    (hXc : ∀ y, IsSlot Z.th y → ∀ k q, Vs.VNeed (capV (L.mem s) y) k q → q ∈ Vs.lvlSet XP X4 X3 X2 X1 k) :
     JAtZ (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
       (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs Ac Lst D s a σ' := by
   have U := J.utc sl p sb fi false hsl hcap rfl
@@ -567,9 +644,16 @@ theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hkn := J.dropKern hsb hfit hD horig harch hcur hcsc hrst hhd (U.gReg hND)
   have hutc := J.dropUtc hsb hfit hcdt horig harch hrst
   have hblk := J.dropBlk hres hx hcx hnd hKR hDT
+  have hvc : Vs.VsSlotsW (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
+      (Vs.prP p.val (p.val + 2 ^ sb.val) (L.mem s) Z.P Z.L4 Z.L3 Z.L2 Z.L1)
+      (Vs.pr4 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L4 Z.L3 Z.L2 Z.L1)
+      (Vs.pr3 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L3 Z.L2 Z.L1)
+      (Vs.pr2 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L2 Z.L1) (Vs.pr1 p.val (p.val + 2 ^ sb.val) Z.L1) (L.mem s) := by
+    obtain ⟨-, hR, hPt, hPI, -⟩ := J.xtop.fin
+    exact J.vsc.drop hR hPt hPI hXP hX4 hX3 hX2 hX1 hM hXc
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
-    hcr, hblk, hiL⟩
+    hcr, hblk, hiL, hvc⟩
 
 end
 

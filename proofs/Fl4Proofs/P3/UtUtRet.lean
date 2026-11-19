@@ -699,8 +699,24 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q} res.2.1 σ' :=
     ⟨hCR1, hRF1, hRR1, hY1, hMc1, hBw1, hRP1, hSA1, ⟨_, _, hJPa⟩, hjc', K2, hutc, hNSC1, hInv1, hCur1, hOwn1,
       hOff1, hAct1, hBsa1, hIs1, hCRun1, hblk'⟩
+  -- the VSpace caps placed (`JAtZ.vsc`): an old cap kept or an untyped cap,
+  -- a new cap (an untyped cap) set-free
+  have hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem res.2.1) := by
+    obtain ⟨-, hCRZ, -, -, hMOZ, -, -⟩ := hX'.rel
+    obtain ⟨P', L4', L3', L2', L1', hVI⟩ := hMOZ.2.2.1
+    refine Vs.VsCapsW.slots (G := G') ?_ hCRZ.2.2.1
+    intro x hx
+    rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
+    · by_cases hu : isUt (capV (L.mem s) x) = true
+      · exact Vs.vcapW_ut (hE.utk x hx0 hu)
+      · rw [(hE.keep x hx0 (by simpa using hu)).2]
+        exact J.vsc x ((hM.members x).1 hx0).1
+    · have h1 := hVI _ hx
+      rw [hE.newc j hj] at h1 ⊢
+      have hT : Vs.SetFree (cj j) := by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.SetFree]
+      exact (Vs.VCapOK.setFree hT h1).toW
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC'
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
