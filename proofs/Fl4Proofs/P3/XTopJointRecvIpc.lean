@@ -12,12 +12,15 @@ toward XTopJointDispatch's `JRecvIpcHyp`).
 * `jRecvIpcHyp_of`: `JRecvIpcHyp` from it, XTopJointRecvIpcAct's
   `JAtZ.recvIpcActJ` (an active bound notification), XTopJointRecvIpcBlock's
   `JAtZ.recvIpcBlockJ` (a blocking wait with no bound notification, the
-  reply cap null or naming an unlinked reply) and `JRecvIpcRestHyp` [W], the
-  other cases (a blocking wait with a bound idle notification, a waiting
+  reply cap null or naming an unlinked reply), XTopJointRecvIpcBound's
+  `JAtZ.recvIpcBlockNJ` (the same with a bound idle or waiting notification
+  whose SC is not the thread's) and `JRecvIpcRestHyp` [W], the other cases
+  (a polling receive with a bound notification, a blocking one whose bound
+  notification lends the thread's SC: `maybe_return_sched_context`, a waiting
   sender, a reply object linked to a thread: `take_reply`'s `cancel_ipc`);
   `dispatch_recvJR`: `dispatch_recvJS` with it.
 -/
-import Fl4Proofs.P3.XTopJointRecvIpcBlock
+import Fl4Proofs.P3.XTopJointRecvIpcBound
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -119,11 +122,22 @@ def RecvIpcBlockCase (ct : U64) (blocking : Bool) (s : S) (σ : Fl4Spec.State Un
     (∀ x, σ.kheap p.bv = some (.endpoint x) → ∀ q, x ≠ .sendEP q) ∧
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64)
 
+/-- The case `JAtZ.recvIpcBlockNJ` proves: blocking, a bound notification
+not active whose SC is not the thread's, no waiting sender, the reply cap
+null or naming a reply object not linked to a thread. -/
+def RecvIpcBoundCase (ct : U64) (blocking : Bool) (s : S) (σ : Fl4Spec.State Unit) (p : U64)
+    (rc : capability.Cap) : Prop :=
+  blocking = true ∧ (∃ xt n xn, σ.kheap ct.bv = some (.tcb xt) ∧ xt.tcbBoundNotification = some n ∧
+    σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
+    ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)) ∧
+    (∀ x, σ.kheap p.bv = some (.endpoint x) → ∀ q, x ≠ .sendEP q) ∧
+    (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64)
+
 variable (arI) in
 /-- **`receive_ipc` at `J`, the cases not proved** [W] (KENTRY-PLAN.md item 6;
 IpcLeaves' `recv_ipc_leaf` is at `IRel` only, and there without a bound
 notification): `JRecvIpcHyp` outside `RecvIpcPollCase`, `RecvIpcActCase` and
-`RecvIpcBlockCase`. -/
+`RecvIpcBlockCase`, `RecvIpcBoundCase`. -/
 def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
@@ -131,7 +145,7 @@ def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
     JHeld (L := L) th s (.Endpoint p b sd true g gr) → (∀ q g', rc = .Reply q g' → JHeld (L := L) th s rc) →
     ¬ RecvIpcPollCase (L := L) ct blocking s σ p rc → ¬ RecvIpcActCase (L := L) ct s σ rc →
-    ¬ RecvIpcBlockCase (L := L) ct blocking s σ p rc →
+    ¬ RecvIpcBlockCase (L := L) ct blocking s σ p rc → ¬ RecvIpcBoundCase (L := L) ct blocking s σ p rc →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄
@@ -156,6 +170,37 @@ theorem JAtZ.replyArg_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · cases h; exact h0
     exact ⟨q, Or.inr ⟨g', _, rfl, rfl, hr, h0⟩⟩
 
+/-- The objects of a blocking receive's caps are covered (both caps held,
+`J.cover_cap`). -/
+theorem JAtZ.recvCov_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p b : U64} {sd g gr : Bool} (he : p ∈ Z.E)
+    (hHd : JHeld (L := L) Z.th s (.Endpoint p b sd true g gr)) {rc : capability.Cap}
+    (hHr : ∀ q g', rc = .Reply q g' → JHeld (L := L) Z.th s rc) {rc' : Fl4Spec.Cap} {rv : U64}
+    (hra : ReplyArg Z.R (L.mem s) rc rc' rv) :
+    ((∀ k, Z.th p = some k → Sched.Covered (L.mem s) Z.G p.val (p.val + max (objSize k) 1)) ∧
+      (∀ k, H p = some k → Sched.Covered (L.mem s) Z.G p.val (p.val + 2 ^ k.bits))) ∧
+    (rv ≠ 0#u64 →
+      (∀ k, Z.th rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits))) := by
+  have hHe : H p = some .ep := J.zH.2.1 p he
+  have hfit := J.kern.heap.fits p _ hHe
+  simp only [P1.HKind.bits] at hfit
+  obtain ⟨y, hy, hcv⟩ := hHd
+  refine ⟨J.cover_cap (P1.WritesIn.refl s _) hy (by rw [capAt_capV, hcv]) (fun h => by cases h)
+    (ok_inj (phys_eq _).symm) rfl (range_ep p b sd true g gr hfit) fun k hk' => by
+      rw [hHe] at hk'; cases hk'
+      exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩, fun h0 => ?_⟩
+  rcases hra with ⟨-, -, rfl⟩ | ⟨g', r', rfl, -, hrR, -⟩
+  · exact absurd rfl h0
+  obtain ⟨y', hy', hcv'⟩ := hHr rv g' rfl
+  have hHr' : H rv = some .reply := J.zH.2.2.1 rv hrR
+  have hfit' := J.kern.heap.fits rv _ hHr'
+  simp only [P1.HKind.bits] at hfit'
+  exact J.cover_cap (P1.WritesIn.refl s _) hy' (by rw [capAt_capV, hcv']) (fun h => by cases h)
+    (ok_inj (phys_eq _).symm) rfl (range_reply rv g' hfit') fun k hk' => by
+      rw [hHr'] at hk'; cases hk'
+      exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+
 set_option maxHeartbeats 4000000 in
 /-- **`JRecvIpcHyp` from `JRecvIpcRestHyp`** (`JAtZ.recvIpcPollJ` for
 `RecvIpcPollCase`, `JAtZ.recvIpcActJ` for `RecvIpcActCase`). -/
@@ -179,39 +224,39 @@ theorem jRecvIpcHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.St
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
     have hI := J.xtop.irelK J.ks J.buf
     obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
-    have hHe : H p = some .ep := J.zH.2.1 p he
-    have hfit := J.kern.heap.fits p _ hHe
-    simp only [P1.HKind.bits] at hfit
-    obtain ⟨y, hy, hcv⟩ := hHd
-    have hcov := J.cover_cap (P1.WritesIn.refl s _) hy (by rw [capAt_capV, hcv]) (fun h => by cases h)
-      (ok_inj (phys_eq _).symm) rfl (range_ep p b sd true g gr hfit) fun k hk' => by
-        rw [hHe] at hk'; cases hk'
-        exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
-    have hcovR : rv ≠ 0#u64 →
-        (∀ k, Z.th rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
-        (∀ k, H rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)) := by
-      intro h0
-      have hra' := hra
-      rcases hra' with ⟨-, -, rfl⟩ | ⟨g', r', rfl, -, hrR, -⟩
-      · exact absurd rfl h0
-      obtain ⟨y', hy', hcv'⟩ := hHr rv g' rfl
-      have hHr' : H rv = some .reply := J.zH.2.2.1 rv hrR
-      have hfit' := J.kern.heap.fits rv _ hHr'
-      simp only [P1.HKind.bits] at hfit'
-      exact J.cover_cap (P1.WritesIn.refl s _) hy' (by rw [capAt_capV, hcv']) (fun h => by cases h)
-        (ok_inj (phys_eq _).symm) rfl (range_reply rv g' hfit') fun k hk' => by
-          rw [hHr'] at hk'; cases hk'
-          exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+    obtain ⟨hcov, hcovR⟩ := J.recvCov_of he hHd hHr hra
     have hcB : Endp.CanBlock true xe := by
       cases xe with
       | idleEP => trivial
       | recvEP q => rfl
       | sendEP q => exact absurd rfl (hns _ hke q)
-    exact J.recvIpcBlockJ ht hcur hni hnq hkt (hbn xt hkt) he hke hcB hcov hra hcovR b sd true g gr b.bv
+    have hx := hI.1.toE.at_ep he hke
+    have hst2 : stOf (L.mem s) p = 0#u64 ∨ stOf (L.mem s) p = 2#u64 := by
+      cases xe with
+      | idleEP => exact Or.inl hx.1
+      | recvEP q => exact Or.inr hx.1
+      | sendEP q => exact absurd rfl (hns _ hke q)
+    have hbound : L.mem s (tBoundA ct) = 0#u64 :=
+      optRef_none ((hI.1.toE.at_tcb ht hkt).bound.symm.trans (hbn xt hkt))
+    exact J.recvIpcBlockJ ht hcur hni hnq hkt he hke hcB hcov hra hcovR b sd true g gr b.bv
+      (rightsOf sd true g gr) (fun h => receive_ipc_block_red hra hbound hst2 h)
+      (receiveIpc_noSend b.bv (rightsOf sd true g gr) true (replyArg_spec J.ip.e hI.1.toE hra) hkt (hbn xt hkt) hke
+        (hns xe hke))
+  by_cases hcn : RecvIpcBoundCase (L := L) ct blocking s σ p rc
+  · obtain ⟨rfl, ⟨xt, n0, xn, hkt, hbn, hkn, hna, hnr⟩, hns, hrr⟩ := hcn
+    obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
+    obtain ⟨hcov, hcovR⟩ := J.recvCov_of he hHd hHr hra
+    have hcB : Endp.CanBlock true xe := by
+      cases xe with
+      | idleEP => trivial
+      | recvEP q => rfl
+      | sendEP q => exact absurd rfl (hns _ hke q)
+    exact J.recvIpcBlockNJ ht hcur hni hnq hkt hn hbn hkn hna hnr he hke hcB hcov hra hcovR b sd true g gr b.bv
       (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
-  · exact hW p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hHr hc hca hcb
+  · exact hW p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hHr hc hca hcb hcn
   obtain ⟨rfl, hbn, hns, hrr⟩ := hc
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht

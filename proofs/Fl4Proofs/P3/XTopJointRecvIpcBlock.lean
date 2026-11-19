@@ -151,12 +151,14 @@ theorem wait_for_sender_blockF (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : F
     (hX : IRel st th cr N T C E R B c s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4)
-    (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m) (hbn : xt.tcbBoundNotification = none)
+    (hnn : ∀ m, xt.tcbState ≠ .blockedOnNotification m)
     {e : U64} (he : e ∈ E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
     (hc : Endp.CanBlock true x)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
     (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
-    (hrc : ReplyArg R (L.mem s) rc rc' rv) :
+    (hrc : ReplyArg R (L.mem s) rc rc' rv)
+    (hspec0 : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
+      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ) :
     (do
       let s3 ← endpoint.wait_for_sender st s t e true rv
       ok (s3, a)) ⦃ r => r.2 = a ∧
@@ -178,7 +180,6 @@ theorem wait_for_sender_blockF (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : F
   have hq := not_queued hR ht hkt hnb
   have htq : t.bv ∉ x.epQueue := hq e he x hk
   have hns : ∀ q, x ≠ .sendEP q := fun q h => by subst h; simp [Endp.CanBlock] at hc
-  have hspec0 := receiveIpc_noSend b rights true (replyArg_spec hP hR hrc) hkt hbn hk hns
   set x1 : Fl4Spec.Tcb :=
     { xt with tcbState := .blockedOnReceive e.bv (optRef rv) { receiverCanGrant := false } }
   set σ1 := updK σ t.bv (.tcb x1)
@@ -693,11 +694,12 @@ end
 /-- **The spec's blocking receive in `BFrR`** (module docstring), the reply
 cap null or naming an unlinked reply (`Endp.SpecReplyArg`). -/
 theorem recvIpcBlock_eq {σ : State Unit} {t e : ObjRef} {xt : Tcb} {x : Endpoint}
-    (hkt : σ.kheap t = some (.tcb xt)) (hbn : xt.tcbBoundNotification = none)
+    (hkt : σ.kheap t = some (.tcb xt))
     (hk : σ.kheap e = some (.endpoint x)) (hc : Endp.CanBlock true x)
     (htq : t ∉ x.epQueue) (hq : ∀ y ∈ x.epQueue, ∃ z, σ.kheap y = some (.tcb z)) (hr : runnable xt.tcbState = true)
     (hS : SortedQ σ x.epQueue) (b : Badge) (rights : CapRights) {rc' : Cap} {r : Option ObjRef}
-    (hrc : Endp.SpecReplyArg σ rc' r) :
+    (hrc : Endp.SpecReplyArg σ rc' r)
+    (hsp0 : receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ = receiveIpcBlocked true t e r σ) :
     ∃ σ', receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ = ({((), σ')}, False) ∧
       BFrR t e r σ σ' ∧ IK t σ σ' ∧ σ'.readyQueues = σ.readyQueues ∧
       (t = σ.curThread → σ.schedulerAction = .resumeCurThread → σ'.schedulerAction = .chooseNewThread) ∧
@@ -753,7 +755,7 @@ theorem recvIpcBlock_eq {σ : State Unit} {t e : ObjRef} {xt : Tcb} {x : Endpoin
       ((setThreadState t (.blockedOnReceive e r { receiverCanGrant := false }) >>= fun _ =>
         NonDet.maybeM (fun q => setReplyObjRef (Z := Unit) replyTcbUpdate q (some t)) r >>= fun _ =>
           tcbEpAppend t e true) σ) := by
-    rw [Endp.receiveIpc_noSend b rights true hrc hkt hbn hk hns]
+    rw [hsp0]
     unfold receiveIpcBlocked
     rw [if_pos rfl]
   have heq : receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ = ({((), σ')}, False) := by
@@ -838,13 +840,15 @@ theorem spec_lift_ok {m : Result S} {P : S → Prop} (h : m ⦃ P ⦄) (a : A) :
 
 set_option maxHeartbeats 16000000 in
 /-- **The blocking receive at `J`** (module docstring): the current thread
-`t`, with no bound notification, blocks receiving on the idle or receiving
-endpoint `e`, covered by a cap (`hcov`), with a null reply cap or one naming
-a reply object linked to no thread, covered by the cap (`hcovR`). -/
+`t` blocks receiving on the idle or receiving endpoint `e`, covered by a cap
+(`hcov`), with a null reply cap or one naming a reply object linked to no
+thread, covered by the cap (`hcovR`); `hred`, `hsp`: FL4's and the spec's
+`receive_ipc` reduce to the wait (no bound notification: `receive_ipc_block_red`,
+`receiveIpc_noSend`; a bound idle or waiting one: XTopJointRecvIpcBound). -/
 theorem JAtZ.recvIpcBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hbn : xt.tcbBoundNotification = none)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
     (hc : Endp.CanBlock true x)
     (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
@@ -852,7 +856,12 @@ theorem JAtZ.recvIpcBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
     (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
       (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
-    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights)
+    (hred : ∀ {P : S × A → Prop}, (do
+      let s3 ← endpoint.wait_for_sender st s t e true rv
+      ok (s3, a)) ⦃ P ⦄ → endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ P ⦄)
+    (hsp : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
+      Fl4Spec.receiveIpcBlocked true t.bv e.bv (optRef rv) σ) :
     endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
@@ -872,7 +881,7 @@ theorem JAtZ.recvIpcBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨z, hz, -⟩ := (J.sv.epQ _ _ hk).2 y hy
     exact ⟨z, hz⟩
   obtain ⟨σ', heq, F, hik, -, hcn, hsrt⟩ :=
-    recvIpcBlock_eq hkt hbn hk hc htq hq hr (J.isorted.1 _ _ hk) b rights (replyArg_spec J.ip.e hI.1.toE hrc)
+    recvIpcBlock_eq hkt hk hc htq hq hr (J.isorted.1 _ _ hk) b rights (replyArg_spec J.ip.e hI.1.toE hrc) hsp
   -- the reply object (if any): in `R`, linked to no thread
   have hrv : rv ≠ 0#u64 → rv ∈ Z.R ∧ L.mem s (Endp.rTcbA rv) = 0#u64 := fun h0 => replyArg_ne J.ip.e hrc h0
   have hcn' : σ'.schedulerAction = .chooseNewThread := hcn hcur.symm hres
@@ -887,17 +896,15 @@ theorem JAtZ.recvIpcBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     | recvEP q => exact Or.inr hx.1
     | sendEP q => simp [Endp.CanBlock] at hc
   have hst0 : L.epState s e = 0#u64 ∨ L.epState s e = 2#u64 := by rw [epState_eq]; exact hst2
-  have hbound : L.mem s (tBoundA t) = 0#u64 :=
-    optRef_none ((hI.1.toE.at_tcb ht hkt).bound.symm.trans hbn)
   have hrH : rv ≠ 0#u64 → rv ∈ P1.Heap.replies H := fun h => J.zH.2.2.1 rv (hrv h).1
   have p1b := spec_lift_ok (P1.endpoint.wait_for_sender.inv s t e true rv Q0 R0 h0 hB0 hX0 hS0 hSg0
     (J.zH.1 t ht) (fun _ => hcb) hHe hst0 (fun h => ⟨hrH h, Or.inl (hrv h).2⟩)) a
   have p1f := spec_lift_ok (P1.endpoint.wait_for_sender.footR (Sg := P1.Heap.frame H) (Scs := P1.Heap.scs H)
     (Z := P1.Heap.scBits H) s t e rv h0 hcb hHe
     (fun h => ⟨hSg0.sub _ (hX0.1.tcbW (hrH h)), hX0.1.tcbW (hrH h)⟩)) a
-  apply receive_ipc_block_red hrc hbound hst2
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (wait_for_sender_blockF J.ip s a σ hI ht hkt hnb3 hnn hbn he hk hc
-    (J.qsortedE e he) b rights hrc) p1b) p1f) ?_
+  apply hred
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (wait_for_sender_blockF J.ip s a σ hI ht hkt hnb3 hnn he hk hc
+    (J.qsortedE e he) b rights hrc hsp) p1b) p1f) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨ea, σ0, h0eq, hIR, hW⟩, hbk⟩, hfoot⟩
   simp only at ea hbk hfoot hIR hW
   subst a'
