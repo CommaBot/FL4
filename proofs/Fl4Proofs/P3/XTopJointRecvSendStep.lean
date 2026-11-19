@@ -20,6 +20,19 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
+/-- The receive-from-sender step's object changes keep what the IPC-buffer
+fields read (a TCB's state and registers only, an SC's refills, an endpoint). -/
+theorem Sched.RSChg.objFrK {t r cur p : Fl4Spec.ObjRef} {o o' : Fl4Spec.KernelObject}
+    (h : Sched.RSChg t r cur p o o') : IpcFrKeep.ObjFrK o o' := by
+  rcases h with ⟨_, _, _, rfl, rfl, -⟩ | ⟨_, _, _, rfl, rfl, -⟩ | ⟨_, _, rfl, rfl, -, -⟩
+  · exact IpcFrKeep.objFrK_tcb rfl rfl
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+
+theorem Sched.RSFr.ipcFr {t r : Fl4Spec.ObjRef} {σ σ' : Fl4Spec.State Unit} (F : Sched.RSFr t r σ σ') :
+    IpcFrKeep σ σ' :=
+  IpcFrKeep.of_chg F.kh fun _ _ _ h => h.objFrK
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -125,7 +138,7 @@ theorem JAtZ.rsfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t r : F
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1
-    F.kback hC R⟩
+    F.kback F.ipcFr hC R⟩
 
 end
 

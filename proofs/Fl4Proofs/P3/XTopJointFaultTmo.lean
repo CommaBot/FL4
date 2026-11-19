@@ -1972,7 +1972,7 @@ theorem JAtZ.sendTmoRecvPJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
   obtain ⟨V', J5⟩ := J0.wake_postGR hIR hF hW05 hblk hfoot05 (DWFr.ofCFr Fr5) ps_skD
     (ps_ksub hkta hkwa hwt) (ps_szKeep hkta hkwa hwt) (ps_ykeep hkta hkwa hwt) (ps_mcpKeep hkta hkwa hwt)
     (ps_bufKeep hkta hkwa hwt) (fun d _ h => ps_recvB hkta hkwa hwt h) (ps_ksz hkta hkwa hwt)
-    (ps_kback hkta hkwa hwt) (ps_ck hkta hkwa hwt) (fun d _ h => ps_free hkta hkwa hwt h)
+    (ps_kback hkta hkwa hwt) (ps_ipcFr hkta hkwa hwt) (ps_ck hkta hkwa hwt) (fun d _ h => ps_free hkta hkwa hwt h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
     I5' B5' hAI5 hcur5 hrun5 (ps_own hkta hkwa hwt ((DWFr.ofCFr Fr5).own ⟨d', hdT, rfl⟩ J0.own))
     (ps_off hkta hkwa hwt ((DWFr.ofCFr Fr5).off J0.off)) (ps_nsc hkta hkwa hwt ((DWFr.ofCFr Fr5).nsc J0.nsc))

@@ -259,6 +259,29 @@ theorem CurInvW.cn (hC : σ.schedulerAction = .chooseNewThread ∨ CurInv σ) (h
 
 end Spec
 
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+
+/-- **`IpcFrKeep` of a CSpace step** (`KeepCT`) from `J`: each TCB's FL4
+buffer slot kept or emptied (`IpcFrKeep.of_slot2`). -/
+theorem JAtZ.slot2Fr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {mem' : U64 → U64} {σ' : Fl4Spec.State Unit}
+    (hkc : KeepCT σ σ') (hR' : StateRel Z.th mem' σ')
+    (h2 : ∀ q, Z.th q = some .tcb → capAt mem' (slotOf q 2) = capAt (L.mem s) (slotOf q 2) ∨
+      capV mem' (slotOf q 2) = .Null) : IpcFrKeep σ σ' := by
+  refine IpcFrKeep.of_slot2 (fun p => ?_) J.xtop.rel.2.1.1 hR' (fun t x hx => ?_) h2
+  · rcases hkc p with e | h | ⟨x, y, h1, h2, hc⟩
+    · exact Or.inl e
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl ⟨x, y, h1, h2, hc.2.1⟩))
+  · rcases hkc t with e | ⟨r, cs, cs', -, h1⟩ | ⟨x0, y, h1, h1', -⟩
+    · rw [e] at hx; exact J.thOfTcb hx
+    · rw [hx] at h1; cases h1
+    · exact J.thOfTcb h1
+
+end
+
 end
 
 end Fl4Proofs.P3

@@ -802,6 +802,24 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
         · have hb : ptrF (.PageTable b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
           exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, (fun h => by cases h), (fun h => by cases h)⟩
+  -- the buffer fields (`JBuf`): fresh device frames (no non-device data
+  -- page, no TCB), then CNode slots; the new caps device frame caps
+  have hfk : IpcFrKeep σ σ' :=
+    (IpcFrKeep.of_specAdd hA
+      (fun _ _ x e => by rcases ht with rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject] at e)
+      (fun _ _ vms e => by
+        rcases ht with rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject, Fl4Spec.defaultArchObject] at e)).trans
+      (IpcFrKeep.of_keepC hkc)
+  have hbf : JBuf (L := L) { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
+      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
+      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} } res.2.1 σ' := by
+    obtain ⟨-, hCRZ, -⟩ := hXZ.rel
+    exact ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.retype hE hM hCRZ.2.2.1 (fun _ => UFr.keep hfk.page)
+      (fun j _ => by
+        rw [hcj]
+        rcases hnt with h | h | h <;> simp [cjOf, newCapOf, h, Vs.FrIn])⟩
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -811,7 +829,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl

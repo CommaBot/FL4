@@ -50,6 +50,7 @@ theorem Sched.JPlaced.slotTFH {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s
     (hT : TypedKeptH th H (Sched.idleScW (L := L) s) (L.mem s) (L.mem s'))
     (hfh : ∀ t, th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbf : ∀ t, th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
@@ -62,7 +63,7 @@ theorem Sched.JPlaced.slotTFH {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s
     · exact capTyped_of_shape hs (h.typed b hb)
     · exact h1
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
-    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, fun a ha => ?_⟩
+    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, hbf, fun a ha => ?_⟩
   · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'
     · rw [h2] at hk'; cases hk'
@@ -83,6 +84,7 @@ theorem jowes_slotDFH {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hTK : TypedKeptH Z.th H (Sched.idleScW (L := L) s) (L.mem s) (L.mem s'))
     (hfh : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbf : ∀ t, Z.th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hDl : DelInv Z.th (L.mem s')) (hUK : UtKept Z.th (L.mem s) (L.mem s'))
     {D' : Set U64} (hjc : JCovD (L := L) Z.th H G' D' Cs s')
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl)
@@ -107,7 +109,7 @@ theorem jowes_slotDFH {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slotTFH hkc hw.1 J.intL hTK hfh (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2⟩
+    ⟨Tr, Cq, hJ.slotTFH hkc hw.1 J.intL hTK hfh hbf (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2⟩
   obtain ⟨-, ⟨-, -, hM', -, -⟩, -⟩ := hX'.rel
   have hJC0 := J.jcs_slot hM' hMO hFI hUK hkz hDl
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
@@ -280,7 +282,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       · right; rw [tcv']; rw [tsv'] at h; omega
     · right; left; exact ⟨y, hy, by rw [hcapV y hy e]⟩
   obtain ⟨hJC, R⟩ := jowes_slotDFH J hX1' hcn hkcT hw hS'.F hMO' (capInsert_nkz (absCap c) _ _ σ _ hmem) hTKH hfh'
-    (hdi J.del) hUK hjc horig hutc
+    (let ⟨_, _, hJ⟩ := J.jpl; hJ.bfsT fun t ht => Or.inl (hTS 2 (by decide) t ht)) (hdi J.del) hUK hjc horig hutc
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = dest) (fun y hy hn => hcapV y hy hn) (fun y _ e P L4 L3 L2 L1 h => by
       subst e
@@ -299,7 +301,8 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         rw [hS] at hx2
         exact h0 rfl x (by omega) (by rw [hL]; omega)
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
-    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R (J.vsc.step hvT)⟩
+    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
+      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT)⟩
 
 end
 

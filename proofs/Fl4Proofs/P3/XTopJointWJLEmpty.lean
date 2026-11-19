@@ -47,7 +47,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
     ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, hkb⟩ hD1 hD2 hF hnk hmS
-  obtain ⟨hks, hkb2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ _ := by
+  obtain ⟨hks, hkb2, hfk2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧ _ := by
     by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
     · exact J0.emptyJRD hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
     · exact J0.emptyJRTD hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
@@ -63,7 +63,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
-  have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R (J0.vsc.step hvT)
+  have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT)
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
   -- the slots in use after
   set x := cslotAddr sl with hx

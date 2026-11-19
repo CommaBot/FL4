@@ -547,7 +547,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
   refine ⟨heapOK_out hJP.heap hO hlo hhi hk1 hAk (fun kd hK => ?_) hfit hlt hsc7, hP', fun q => ⟨fun h => ?_, fun h => ?_⟩,
     fun p r h => ?_, fun q h => Or.inr h,
     fun c y n' hc hk => ⟨Or.inr ⟨hc, y, n', hk⟩, hSC c y n' hc hk⟩, fun p kd hp hko => ?_, fun p z hp => ?_,
-    fun a ha => ?_, fun i hi128 => ?_, fun t' ht' => ?_,
+    fun a ha => ?_, fun i hi128 => ?_, fun t' ht' => ?_, fun t' ht' => ?_,
     fun a ha => ?_⟩
   -- the new objects' size divides the slot size
   · rw [hRk]; exact Nat.pow_dvd_pow 2 ((Nat.pow_le_pow_iff_right (by decide)).1 (hbits kd hK))
@@ -675,6 +675,70 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
             rw [capAt_capV] at hc; have hc' := eq_of_ok_eq hc; rw [e] at hc'; exact absurd hc'.symm hcn
           · have hu : isUt (capV (L.mem s) (cslotAddr (p3.bv, Fl4Spec.tcbCnodeIndex 3))) = false := by rw [e]; rfl
             right; rw [(hE.keep _ ha0 hu).2, e]; exact ⟨ep, b0, b1, b2, b3, b4, rfl⟩
+        · exfalso
+          obtain ⟨q, r, hq, i, hi, hqi⟩ := hdsC j hj
+          obtain ⟨p4, i4, hi4, hp4, ha4⟩ := has.at
+          have e4 : p4 = p3 := bv_inj hp4.symm
+          subst e4
+          have := slotOf_inj hJP.pl (Or.inl ⟨r, hq, hi⟩) hi4 (by rw [← hqi, ← hj', ha4])
+          rw [this.1, hth] at hq; cases hq
+      · left
+        by_contra hne
+        exact hm ((hM'.members _).2 ⟨⟨p3, i3, hi3, ha3⟩, _, capAt_capV _ _, hne⟩)
+  -- the IPC-buffer slots
+  · obtain ⟨p3, i3, hi3, hp3, ha3⟩ := (show AbsSlot th' (t'.bv, Fl4Spec.tcbCnodeIndex 2) from
+      ⟨t', rfl, Or.inr ⟨ht', 2, by decide, rfl⟩⟩).at
+    have e3 : p3 = t' := bv_inj hp3.symm
+    subst e3
+    have hthp := ht'
+    rw [hth' p3] at hthp
+    split_ifs at hthp with hN
+    · -- a new TCB: its slots are zero
+      have hn1 : n = 1 := by unfold thKindN at hthp; split_ifs at hthp with h1 h4 <;> simp_all
+      subst hn1
+      have htT : t = .tcbObject := by have := hnT; simp [objTypeOf] at this; exact this.symm
+      have hk4 : k = 4096 := by rw [hRk]; exact hz1 rfl
+      have hWZ' := hWZ ⟨hdevT rfl, by rw [htT]; simp⟩
+      subst hk4
+      obtain ⟨j, hj, hjv⟩ := hN.1
+      have hiv := hi3.val hP'
+      have hi6 : i3 < 6 := by
+        rcases hi3 with ⟨r, hr, -⟩ | ⟨-, h⟩
+        · rw [ht'] at hr; cases hr
+        · simpa [tcbSlots] using h
+      have hj1 : (j + 1) * 4096 ≤ w * 4096 := Nat.mul_le_mul_right _ hj
+      have hz : ∀ v : U64, P1.Aligned v → v.val = p3.val + 32 * i3 ∨ v.val = p3.val + 32 * i3 + 8 →
+          L.mem res.2.1 v = 0#u64 := by
+        intro v hv hvv
+        have hvw := tcbSlot_win hjv hj1 hi6 hvv
+        rcases hWZ' v hv hvw.1 hvw.2 with e | ⟨-, j', hj', hI⟩
+        · exact e
+        · exfalso
+          have hj'v : (⟨BitVec.ofNat 64 (A + j' * 4096)⟩ : U64).val = A + j' * 4096 := by
+            have hlt2 : A + j' * 4096 < 2 ^ 64 := win_lt hj' (by decide) hfit
+            show (BitVec.ofNat 64 (A + j' * 4096)).toNat = _; rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt2]
+          obtain ⟨h1, h2, -⟩ := hI
+          rw [hj'v] at h1 h2
+          exact tcbSlot_notInT hjv hi6 hvv h1 h2
+      generalize hadef : cslotAddr (p3.bv, Fl4Spec.tcbCnodeIndex 2) = a at ha3 ⊢
+      have hav : a.val = p3.val + 32 * i3 := by rw [ha3, hiv]
+      have hal3 : a.val % 8 = 0 := by rw [hav]; exact tcbSlot_al (by have := hP'.align p3 _ ht'; simpa [objSize] using this)
+      have h8 : (wordOf a 8#u64).val = a.val + 8 := by
+        rw [ha3]; exact slot_word_val hP' ⟨p3, i3, hi3, rfl⟩ (Or.inr (Or.inl rfl))
+      left
+      refine capV_zero (hz a hal3 (Or.inl hav)) (hz _ ?_ (Or.inr ?_))
+      · show (wordOf a 8#u64).val % 8 = 0; rw [h8, Nat.add_mod_right]; exact hal3
+      · rw [h8, hav]
+    · -- an old TCB: its slot kept, or still empty
+      obtain ⟨hth, hout⟩ := hthR p3 _ hthp (by simp [objSize])
+      have has : AbsSlot th (p3.bv, Fl4Spec.tcbCnodeIndex 2) := ⟨p3, rfl, Or.inr ⟨hth, 2, by decide, rfl⟩⟩
+      by_cases hm : cslotAddr (p3.bv, Fl4Spec.tcbCnodeIndex 2) ∈ G'.chains.flatten
+      · rcases hE.gmem _ hm with ha0 | ⟨j, hj, hj'⟩
+        · rcases hJP.bfs p3 hth with e | ⟨q0, sz0, r0, m0, e0, a0, v0, e⟩
+          · obtain ⟨-, c, hc, hcn⟩ := (hM.members _).1 ha0
+            rw [capAt_capV] at hc; have hc' := eq_of_ok_eq hc; rw [e] at hc'; exact absurd hc'.symm hcn
+          · have hu : isUt (capV (L.mem s) (cslotAddr (p3.bv, Fl4Spec.tcbCnodeIndex 2))) = false := by rw [e]; rfl
+            right; rw [(hE.keep _ ha0 hu).2, e]; exact ⟨q0, sz0, r0, m0, e0, a0, v0, rfl⟩
         · exfalso
           obtain ⟨q, r, hq, i, hi, hqi⟩ := hdsC j hj
           obtain ⟨p4, i4, hi4, hp4, ha4⟩ := has.at

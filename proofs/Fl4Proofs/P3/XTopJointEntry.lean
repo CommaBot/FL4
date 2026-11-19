@@ -416,6 +416,13 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   inserts (XTopJointWJLIns' `LiveDN.insT`). -/
   live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
+  /-- [J] no non-device frame cap names the null pointer (`FrNZ`; l4v
+  `pspace_in_kernel_window` / `cap_refs_in_kernel_window`: a non-device frame
+  is RAM, in the kernel window; FL4's `UtW` puts RAM untypeds at or above
+  `PPTR_BASE` and a non-device frame is retyped from one): SetIPCBuffer /
+  Configure's frame install (`JAtZ.bokInstall`, the spec's `IpcBufCapOK`
+  asks the IPC frame's pointer nonzero). -/
+  fnz : FrNZ Z.th (L.mem s)
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -822,7 +829,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hG.ipcBufOK
-      hG.bufCover hG.bufPlaced hE.flags lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
+      hG.bufCover hG.bufPlaced hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
       (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hG.timeAg
   case IoPort first last z =>

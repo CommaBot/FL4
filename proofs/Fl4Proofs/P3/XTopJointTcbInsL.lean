@@ -34,7 +34,7 @@ set_option maxHeartbeats 8000000 in
 /-- **TcbCaps' `BufHypW` at `WJL`** (module docstring). -/
 theorem bufHypW_JL {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
     BufHypW (L := L) (WJL (L := L) arI AR Z H Cs kb) Z.th t addr addr.bv := by
-  refine ⟨fun s a σ G hDS hW => ?_, fun s a σ G hDS hW => ?_⟩
+  refine ⟨fun s a σ G hDS hW hnull => ?_, fun s a σ G hDS hW => ?_⟩
   · obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
     have hX := J.xtop
     have htT : t ∈ Z.T := J.thT t ht
@@ -46,7 +46,7 @@ theorem bufHypW_JL {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
     rintro s' rfl
     have hstep := tcbBufStep_upd hk addr.bv
     have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
-    obtain ⟨V', J'⟩ := J0.bufWrJ htT hk addr
+    obtain ⟨V', J'⟩ := J0.bufWrJ htT hk addr (ipcframe_null_of hX.rel.2.1.1 ht hk hnull)
     have hSS : SlotsSame Z.th (L.mem s) (L.mem (L.wr s (tIpcBufA t) addr)) :=
       hX.slotsSame_of (P1.writesIn_wr hwa) (fun b hb => by subst hb; exact tcb_oobj htT hta (by decide) (by decide))
     have hCR' := J'.xtop.rel.2.1

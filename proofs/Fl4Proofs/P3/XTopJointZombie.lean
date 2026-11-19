@@ -131,7 +131,7 @@ theorem JAtZ.zombieJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl 
     (hoth2 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s2) y = capV (L.mem s) y)
     (hX2 : XTopAt (L := L) AR (Z.mv Z.G V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
-    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ IpcFrKeep σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
         JRest (L := L) arI (Z.mv Z.G V2) H Cs Ac' Lst' D s2 σ2 := by
   have hP := J.xtop.rel.1
@@ -162,6 +162,19 @@ theorem JAtZ.zombieJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl 
         rw [hne] at e
         rw [e] at hal
         exact zombie_not_ep hJ (hDl2.zwf _ hxs p zt n hz2) hal hep
+    · left; rw [capAt_capV, capAt_capV, hoth2 _ h1 hne]
+  have hT2 : ∀ t, Z.th t = some .tcb → capAt (L.mem s2) (slotOf t 2) = capAt (L.mem s) (slotOf t 2) ∨
+      capV (L.mem s2) (slotOf t 2) = .Null := by
+    intro t ht
+    have h1 : IsSlot Z.th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by decide⟩, rfl⟩
+    by_cases hne : slotOf t 2 = cslotAddr sl
+    · exfalso
+      rcases hJ.bfs t ht with e | ⟨q0, sz0, r0, m0, e0, a0, v0, e⟩
+      · rw [cslot_tcb2, hne] at e; exact hxn e
+      · rw [cslot_tcb2, hne] at e
+        rw [e] at hal
+        have hfr := hal.frame
+        simp [isFrame] at hfr
     · left; rw [capAt_capV, capAt_capV, hoth2 _ h1 hne]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun x hx p' sb fi d h => by
     have e : x ≠ cslotAddr sl := fun e => by rw [e, hz2] at h; cases h
@@ -214,9 +227,9 @@ theorem JAtZ.zombieJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl 
       exact U.zero (B g) w hal' h1 h2
     · obtain ⟨r1, r3⟩ := U.rst (B g) (hnc h0) hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hok sl' id]; exact h), by rw [hna, hDbg]; exact r3⟩
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hT2 hDl2 hUK hjc
     (fun sl' h => Or.inl (by rw [← hok sl' id]; exact h)) hutc
-  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, R⟩
+  exact ⟨hks, KBack.of_keepCT hkc, J.slot2Fr hkc hR2 hT2, hJC, Ac, Lst, R⟩
 
 set_option maxHeartbeats 4000000 in
 /-- `JAtZ.zombieJCoreD` with the dead set existential. -/
@@ -230,11 +243,11 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     (hoth2 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s2) y = capV (L.mem s) y)
     (hX2 : XTopAt (L := L) AR (Z.mv Z.G V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
-    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ IpcFrKeep σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JRest (L := L) arI (Z.mv Z.G V2) H Cs Ac' Lst' D' s2 σ2 := by
-  obtain ⟨h1, h2, h3, Ac', Lst', R⟩ := J.zombieJCoreD hA hxn hal hsc hDS2 hz2 hoth2 hX2 hwS hcn2
-  exact ⟨h1, h2, h3, Ac', Lst', D, R⟩
+  obtain ⟨h1, h2, hf, h3, Ac', Lst', R⟩ := J.zombieJCoreD hA hxn hal hsc hDS2 hz2 hoth2 hX2 hwS hcn2
+  exact ⟨h1, h2, hf, h3, Ac', Lst', D, R⟩
 
 section Spec
 open Fl4Spec
@@ -274,7 +287,7 @@ theorem JAtZ.swapJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : 
       else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y)
     (hX2 : XTopAt (L := L) AR (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
-    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ IpcFrKeep σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
         JRest (L := L) arI (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) H Cs Ac' Lst' D s2 σ2 := by
   have hP := J.xtop.rel.1
@@ -336,6 +349,31 @@ theorem JAtZ.swapJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : 
       · rw [h12] at h; omega
     left
     rw [capAt_capV, capAt_capV, hcap' _ h1, Equiv.swap_apply_of_ne_of_ne hp3 hx3]
+  have hT2 : ∀ t, Z.th t = some .tcb → capAt (L.mem s2) (slotOf t 2) = capAt (L.mem s) (slotOf t 2) ∨
+      capV (L.mem s2) (slotOf t 2) = .Null := by
+    intro t ht
+    have h1 : IsSlot Z.th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by decide⟩, rfl⟩
+    have hx2 : slotOf t 2 ≠ cslotAddr sl := by
+      intro e
+      rcases hJ.bfs t ht with e' | ⟨q0, sz0, r0, m0, e0, a0, v0, e'⟩ <;> rw [cslot_tcb2, e, hz] at e' <;> cases e'
+    have hp2 : slotOf t 2 ≠ p := by
+      intro e
+      have hv : (slotOf t 2).val = t.val + 32 * 2 :=
+        (show IsSlotAt Z.th t 2 from Or.inr ⟨ht, by decide⟩).val hP
+      rw [e] at hv
+      obtain ⟨k, hHk⟩ : ∃ k, H p = some k := by
+        rcases hZ with ⟨-, h, -⟩ | ⟨-, h, -⟩
+        · exact ⟨_, (hJ.tcb p).1 h⟩
+        · exact ⟨_, hJ.cnode p _ h⟩
+      have hHt : H t = some .tcb := (hJ.tcb t).1 ht
+      have hpt : p ≠ t := fun e' => by rw [e'] at hv; omega
+      have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
+      have h12 : (P1.HKind.tcb).bits = 12 := rfl
+      rcases J.kern.heap.disj p k t .tcb hHk hHt hpt with h | h
+      · omega
+      · rw [h12] at h; omega
+    left
+    rw [capAt_capV, capAt_capV, hcap' _ h1, Equiv.swap_apply_of_ne_of_ne hp2 hx2]
   have hUK : UtKept Z.th (L.mem s) (L.mem s2) := fun y hy p' sb fi d h =>
     ⟨_, he y hy, fi, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩
   have hCK : CoverKept Z.th (L.mem s) (L.mem s2) := by
@@ -435,14 +473,14 @@ theorem JAtZ.swapJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : 
         · exact AbsSlot.restrict hP U.nostr (home_abs hZ) (by rw [hHa]; exact hpOut (hnc h0))
         · exact AbsSlot.restrict hP U.nostr hA (U.ns (hnc h0) _ hxG)
       · exact r1 sl' (by rw [← hok sl' hd]; exact h)
-  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
+  obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hT2 hDl2 hUK hjc
     (fun sl' h => by
       by_cases hd : sl' = homeSl p zt ∨ sl' = sl
       · rcases hd with rfl | rfl
         · exact Or.inr (home_abs hZ)
         · exact Or.inr hA
       · exact Or.inl (by rw [← hok sl' hd]; exact h)) hutc
-  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, R⟩
+  exact ⟨hks, KBack.of_keepCT hkc, J.slot2Fr hkc hR2 hT2, hJC, Ac, Lst, R⟩
 
 set_option maxHeartbeats 4000000 in
 /-- `JAtZ.swapJCoreD` with the dead set existential. -/
@@ -456,11 +494,11 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
       else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y)
     (hX2 : XTopAt (L := L) AR (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
-    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ IpcFrKeep σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JRest (L := L) arI (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) H Cs Ac' Lst' D' s2 σ2 := by
-  obtain ⟨h1, h2, h3, Ac', Lst', R⟩ := J.swapJCoreD hA hz hpx hsw hDS2 hcap hX2 hwS hcn2
-  exact ⟨h1, h2, h3, Ac', Lst', D, R⟩
+  obtain ⟨h1, h2, hf, h3, Ac', Lst', R⟩ := J.swapJCoreD hA hz hpx hsw hDS2 hcap hX2 hwS hcn2
+  exact ⟨h1, h2, hf, h3, Ac', Lst', D, R⟩
 
 end
 

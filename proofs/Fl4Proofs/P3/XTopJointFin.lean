@@ -18,6 +18,7 @@ at the sets `Z.mv Z.G V'` (the slots kept, the VSpace sets fresh).
 -/
 import Fl4Proofs.P3.XTopJointFinW
 import Fl4Proofs.P3.IpcFinNtfnInv
+import Fl4Proofs.P3.BufFrN
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -206,7 +207,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       res.1 = (capability.Cap.Null, capability.Cap.Null) ∧ res.2.2 = a ∧ ∃ σ' V',
         ((absCap capability.Cap.Null, absCap capability.Cap.Null), σ') ∈
           (Fl4Spec.finaliseCap (Z := Unit) (absCap (.Notification p b w r)) true σ).1 ∧
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D res.2.1 res.2.2 σ' ∧ KBack σ σ' ∧
+        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D res.2.1 res.2.2 σ' ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧
         SlotsSame Z.th (L.mem s) (L.mem res.2.1) ∧ L.ksb res.2.1 = L.ksb s ⦄ := by
   have hpH : H p = some .ntfn := J.zH.2.2.2 p hp
   refine WP.spec_mono (WP.spec_and (J.finNtfn_p3 hp)
@@ -284,7 +285,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s3 σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨e1, e2, σ3, Z.vs, hmem, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hC R, F.kback, hF.1, hks⟩
+  exact ⟨e1, e2, σ3, Z.vs, hmem, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R, F.kback, F.ipcFr, hF.1, hks⟩
 
 end
 

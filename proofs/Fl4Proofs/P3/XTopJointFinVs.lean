@@ -36,6 +36,8 @@ import Fl4Proofs.P3.XTopJointFinVsSpec
 import Fl4Proofs.P3.XTopJointFinW
 import Fl4Proofs.P3.XTopJointFin
 import Fl4Proofs.P3.XTopJointEmpty
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 /-! ## The hypotheses carried to the narrow footprint -/
@@ -599,7 +601,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       J.vs_utc hW hVR1 hTN hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact ⟨h1, h2, h3, σ1, hm, J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R (J.vsc.of_eq fun y hy => hSS.capV hy), hSS, hkb⟩
+  exact ⟨h1, h2, h3, σ1, hm, J.cs_frame (G' := Z.G) hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy), hSS, hkb⟩
 
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
 at a table or pool cap). -/

@@ -90,8 +90,8 @@ theorem jPostDelHypL (hAM : ARMask arI AR)
       CRel Z.th (L.mem s') σ' G → P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' →
       WJL (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' hCR hK => by
     obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a' σ σ' hw hO _ H Cs Ac Lst _ rfl J0 hX'
-    have J' := J0.cs_frame hw.1 hX' (KBack.of_kheap hO.kh) (JCs.same J0 hSS (KSz.of_kheap hO.kh)) R
-      (J0.vsc.of_eq fun y hy => hSS.capV hy)
+    have J' := J0.cs_frame hw.1 hX' (KBack.of_kheap hO.kh) (IpcFrKeep.of_kheap hO.kh)
+      (JCs.same J0 hSS (KSz.of_kheap hO.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
     have hmem : ∀ y ∈ G.chains.flatten, IsSlot Z.th y := fun y hy => ((hDS.1.2.2.1.members y).1 hy).1
     have horig : σ'.isOriginalCap = σ.isOriginalCap :=
       orig_eq_of_slots hDS.1.2.2.2.1 hCR.2.2.2.1 J.kern.orig J'.kern.orig hSS

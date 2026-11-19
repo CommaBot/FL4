@@ -532,7 +532,7 @@ theorem JAtZ.sendCallPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
       obtain ⟨V', J4⟩ := Ju.wake_postGR (by rw [← hKy.2.1] at hIR4; exact hIR4) hF4 hWu hblk4 hFu (DWFr.ofUm (DWFr.ofCFr Fr3) umu) ps_skD
         (ps_ksub hkt3 hkr3 hwt) (ps_szKeep hkt3 hkr3 hwt) (ps_ykeep hkt3 hkr3 hwt) (ps_mcpKeep hkt3 hkr3 hwt)
         (ps_bufKeep hkt3 hkr3 hwt) (fun d _ h => ps_recvB hkt3 hkr3 hwt h) (ps_ksz hkt3 hkr3 hwt)
-        (ps_kback hkt3 hkr3 hwt) (ps_ck hkt3 hkr3 hwt) (fun d _ h => ps_free hkt3 hkr3 hwt h)
+        (ps_kback hkt3 hkr3 hwt) (ps_ipcFr hkt3 hkr3 hwt) (ps_ck hkt3 hkr3 hwt) (fun d _ h => ps_free hkt3 hkr3 hwt h)
         (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
         I4 B4 hAI4 (Or.inl hcnP) (Or.inl (by rw [hcnP]; intro h; cases h))
         (ps_own hkt3 hkr3 hwt ((DWFr.ofCFr Fr3).own ⟨d', hdT, rfl⟩ J.own))

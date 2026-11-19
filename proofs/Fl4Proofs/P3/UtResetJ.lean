@@ -214,7 +214,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
   have hidl := J.idleW_keep hX'.fin.1.1.1 hC'.idle hC'.isc
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK (fun t ht => hTS t ht 3 (by decide)) hidl.2⟩
+    ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK (fun t ht => hTS t ht 3 (by decide)) (fun t ht => hTS t ht 2 (by decide)) hidl.2⟩
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep hX' hC'.toHStep k3 (fun q z hq K h8 hK => J.inSlot_scKeep hw hq h8 hK) (J.act.cn hC').1
       (J.yld.frame k2 yk) yk (J.jcov.dead q hq)
@@ -283,10 +283,9 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
       J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl, hjc, hkern, hutc, J.nsc.cn hC'.toHStep, J.inv.cn hC',
       CurInvW.cn J.cur hC', J.own.cn hC'.toHStep, J.off.cn hC'.toHStep, J.act.cn hC', J.bsa.cn hC'.toHStep,
       J.isorted.cn hC'.toHStep, J.curRun.cn hC'.toHStep (Or.inr hC'.act), hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) hJC R (fun y hy => by
-    by_cases e : y = x
-    · rw [e, hcap']; exact Vs.vcapW_ut rfl
-    · rw [hco y hy e]; exact J.vsc y hy)
+  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) hJC R
+    (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e) (fun y _ e _ _ _ _ _ _ => by
+      rw [e, hcap']; exact Vs.vcapW_ut rfl) (fun y _ e _ _ => by rw [e, hcap']; trivial))
 
 end
 

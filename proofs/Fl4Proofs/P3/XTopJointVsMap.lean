@@ -27,6 +27,8 @@ import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointTcbInstall
 import Fl4Proofs.P3.XTopJointFpu
 import Fl4Proofs.P3.XTopJointVsCap
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -98,6 +100,7 @@ object but the CNodes). -/
 theorem Sched.JPlaced.ofShape {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : JPlaced (L := L) th H Tr C s σ) (hsz : SzKeep σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
     (hS : ∀ a, IsSlot th a → shape (capV (L.mem s') a) = shape (capV (L.mem s) a))
+    (hB : ∀ t, th t = some .tcb → BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
@@ -106,7 +109,7 @@ theorem Sched.JPlaced.ofShape {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
     fun a ha => capTyped_of_shape (hS a ha) (h.typed a ha),
     fun i hi => by rw [hk]; exact capTyped_of_shape (hS _ (hirqS i hi)) (h.irq i hi),
-    fun t ht => ?_, fun a ha => by rw [hiw]; exact capObjH_of_shape (hS a ha) (h.cobj a ha)⟩
+    fun t ht => ?_, hB, fun a ha => by rw [hiw]; exact capObjH_of_shape (hS a ha) (h.cobj a ha)⟩
   · obtain ⟨y0, hk0⟩ := hsz c.bv y n hk'
     exact h.sc c y0 n hc hk0
   · have hs : IsSlot th (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) :=
@@ -423,6 +426,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (hW : P1.WritesIn st s s' (fun b => VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b))
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pc.bv, idx) → capV (L.mem s') y = capV (L.mem s) y)
     (hsh : shape (capV (L.mem s') (cslotAddr (pc.bv, idx))) = shape (capV (L.mem s) (cslotAddr (pc.bv, idx))))
+    (hok : okey (capV (L.mem s') (cslotAddr (pc.bv, idx))) = okey (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hnu : isUt (capV (L.mem s) (cslotAddr (pc.bv, idx))) = false)
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
@@ -576,7 +580,11 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 (F1.khrb.trans C2.toHStep.khrb)
   have hidl : Sched.IdleKeep (L := L) s s' := J.idleW_keep hX'.fin.1.1.1 F.idle F.isc
-  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := ⟨Tr, Cq, hJ.ofShape F.szKeep hkb J.intL hS hidl.2⟩
+  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := ⟨Tr, Cq, hJ.ofShape F.szKeep hkb J.intL hS (fun t ht => by
+    have hs : IsSlot Z.th (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) :=
+      AbsSlot.isSlot ⟨t, rfl, Or.inr ⟨ht, 2, by decide, rfl⟩⟩
+    rw [hcap _ hs (fun e => cnode_slot_ne_tcb J.xtop.rel.1 hpc hidx ht 2 (by decide) e.symm)]
+    exact hJ.bfs t ht) hidl.2⟩
   have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl
   have hJC := J.jcs_slot hM' hMO' hFI' hUK F.ksz hDel
   -- `JKern`
@@ -622,7 +630,40 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       CurInvW.cn (CurInvW.ar J.cur F1) C2, (J.own.ar F1).cn C2.toHStep, (J.off.ar F1).cn C2.toHStep, hAI,
       (J.bsa.ar F1).cn C2.toHStep, (J.isorted.ar F1).cn C2.toHStep,
       (J.curRun.ar F1).cn C2.toHStep (Or.inr C2.act), hblk⟩
-  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R hvc
+  -- the buffer fields (`JBuf`): objects kept, arch objects of the same type,
+  -- CNode slots or TCB caps changed (each TCB's buffer slot kept: the
+  -- invoked slot is a CNode slot); the invoked slot's cap of the same object
+  -- key (`hok`, so the same frame range)
+  have hbf : JBuf (L := L) Z s' σ' := by
+    obtain ⟨-, ⟨hSR', -⟩, -⟩ := hX'.rel
+    have hfk : IpcFrKeep σ σ' := by
+      refine IpcFrKeep.of_slot2 (th := Z.th) (mem := L.mem s) (mem' := L.mem s') (fun p => ?_) J.xtop.rel.2.1.1
+        hSR' (fun t x0 hx => ?_) (fun q hq => ?_)
+      · rcases F.kh p with e | h | h | ⟨x0, y0, h1, h2, hco⟩
+        · exact Or.inl e
+        · exact Or.inr (Or.inr (Or.inr h))
+        · exact Or.inr (Or.inl h)
+        · exact Or.inr (Or.inr (Or.inl ⟨x0, y0, h1, h2, hco.2.1⟩))
+      · rcases F.kh t with e | ⟨a0, a1, -, h2, -⟩ | ⟨r0, cs, cs', -, h2⟩ | ⟨x1, y1, h1, -, -⟩
+        · exact J.thOfTcb (by rw [← e]; exact hx)
+        · rw [hx] at h2; cases h2
+        · rw [hx] at h2; cases h2
+        · exact J.thOfTcb h1
+      · left
+        have hs : IsSlot Z.th (slotOf q 2) := ⟨q, 2, Or.inr ⟨hq, by simp [tcbSlots]⟩, rfl⟩
+        have he : cslotAddr (q.bv, Fl4Spec.tcbCnodeIndex 2) = slotOf q 2 := by
+          show slotAddr q.bv (Fl4Spec.ofBl _) = _
+          rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
+        have hne : slotOf q 2 ≠ x := fun e =>
+          cnode_slot_ne_tcb J.xtop.rel.1 hpc hidx hq 2 (by decide) (by rw [he, e])
+        rw [capAt_capV, capAt_capV, hcap _ hs hne]
+    refine ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, fun y hy => ?_⟩
+    by_cases e : y = x
+    · rw [e]
+      exact Vs.FrIn.of_okey hok ((J.fcap x (by rw [← e]; exact hy)).mono fun _ => UFr.keep hfk.page)
+    · rw [hcap y hy e]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
+  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
+    hvc
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/
@@ -633,12 +674,13 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hW : P1.WritesIn st s s' (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))))
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pc.bv, idx) → capV (L.mem s') y = capV (L.mem s) y)
     (hsh : shape (capV (L.mem s') (cslotAddr (pc.bv, idx))) = shape (capV (L.mem s) (cslotAddr (pc.bv, idx))))
+    (hok : okey (capV (L.mem s') (cslotAddr (pc.bv, idx))) = okey (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hnu : isUt (capV (L.mem s) (cslotAddr (pc.bv, idx))) = false)
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
     (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' :=
-  J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hnu hl hvc
+  J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hok hnu hl hvc
 
 end
 
@@ -814,7 +856,8 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
           exact hw.okTab hTI
       exact (hLk.2 _ _ _ _ _ hok).toW
     · rw [hcap y hy e]; exact J1.vsc y hy
-  have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hnu)
+  have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
+    (by rw [hcv1]; exact hnu)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J'⟩
 

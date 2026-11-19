@@ -37,6 +37,7 @@ import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.ScIpcSorted
 import Fl4Proofs.P3.ScRecvLinks
 import Fl4Proofs.P3.VsCapW
+import Fl4Proofs.P3.BufDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -226,6 +227,26 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   `VsSlotsT` for the slot steps, `VCapW.transfer` for a copy), the sets kept
   or grown. -/
   vsc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s)
+  /-- [carried] **Every IPC frame cap valid** (l4v `valid_ipc_buffer_cap`,
+  from `valid_objs`; FL4's form `Endp.IpcBufCapOK`: the buffer's words in a
+  user frame, so an alias inside a large page from `Page_DeriveSubframe`
+  counts). Kept by every step not touching an IPC frame or a data page
+  (`IpcFrKeep`), set by SetIPCBuffer/Configure (`IpcBufCapOK.setFrame`, the
+  cap checked), dropped TCBs' frames by `IpcBufCapOK.sdrop`. -/
+  bok : Endp.IpcBufCapOK σ
+  /-- [carried] **`B` covers every word of every non-device user frame**
+  (`FrameCover`; FL4's ghost `B` relates FL4 memory and the spec's
+  `underlyingMemory` there, l4v's shared `machine_state`). Kept by every step
+  keeping the data pages (`FrameCover.ipcFr`), grown with `B` at the frame
+  retype, shrunk with `B` at the detype (`FrameCover.sdrop`). -/
+  fcov : FrameCover Z.B σ
+  /-- [carried] **Every non-device frame cap names user frames** (l4v
+  `valid_cap` for frame caps: each byte of a slot's frame cap range lies in a
+  non-device data page). Kept by every step keeping the data pages and moving
+  frame caps within old ranges (`Vs.VsSlotsT`'s `FrSlots` part: copy, mint,
+  move, swap, DeriveSubframe's sub-range), set at the frame retype for the new
+  pages, released at the detype by `FrameOffJ`. -/
+  fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=

@@ -26,6 +26,8 @@ reschedule (the caller is current), and binds the SC to the receiver.
 import Fl4Proofs.P3.XTopJointSendCall
 import Fl4Proofs.P3.IpcSendDon
 import Fl4Proofs.P1.QueueReplyKw
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 /-! ## P1: the donation's footprint from a thread in no queue -/
@@ -383,6 +385,12 @@ theorem dn_kback : KBack σ (dnSt σ t d p xt xd y n) := fun q o' hq => by
   · subst e3; rw [dn_kt htd hpt] at hq; exact tc _ _ hkt (Option.some.inj hq).symm
   rw [dn_ko e3 e1 e2] at hq; exact KBack.of_kheap (σ := σ) (σ' := σ) rfl q o' hq
 
+
+theorem dn_ipcFr : IpcFrKeep σ (dnSt σ t d p xt xd y n) :=
+  IpcFrKeep.of_kbackF (dn_kback hkt hkd hkp htd hpt hpd)
+    (fun q x hq => by obtain ⟨sc, h⟩ := dn_tcbF hkt hkd hkp htd hpt hpd hq; exact ⟨_, h, rfl, rfl⟩)
+    (fun q vms => dn_oth hkt hkd hkp htd hpt hpd (fun _ e => by cases e) (fun _ _ e => by cases e))
+
 theorem dn_ck :
     (∀ q y' m, σ.kheap q = some (.schedContext y' m) → ∃ y'', (dnSt σ t d p xt xd y n).kheap q =
       some (.schedContext y'' m) ∧ y''.scReplies = y'.scReplies) ∧
@@ -575,7 +583,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
     (F : DWFr n t σ σa) (G : SkD σa σ') (hks1 : KSub σa σ') (hsz1 : SzKeep σa σ') (hyk1 : YKeep σa σ')
     (hmk1 : McpKeep σa σ')
     (hbk1 : ∀ p x, σa.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer)
-    (hrb1 : KhRB σa σ') (hkz1 : KSz σa σ') (hkb1 : KBack σa σ')
+    (hrb1 : KhRB σa σ') (hkz1 : KSz σa σ') (hkb1 : KBack σa σ') (hfk1 : IpcFrKeep σa σ')
     (hck1 : (∀ q y n, σa.kheap q = some (.schedContext y n) → ∃ y', σ'.kheap q = some (.schedContext y' n) ∧
       y'.scReplies = y.scReplies) ∧
       (∀ q x, σa.kheap q = some (.reply x) → ∃ x', σ'.kheap q = some (.reply x') ∧ x'.replySc = x.replySc) ∧
@@ -658,7 +666,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
   have hC0 := JCs.same J hF.1 (F.ksz.trans hkz1)
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (G.arch.trans F.sk.arch) (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) hC R⟩
+        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R⟩
 
 
 /-- An SC bound to a thread is not dead (a dead SC's `TCB` word is 0). -/
@@ -1230,7 +1238,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     (dn_ksub hkta hkda hkpa htd' hpt hpd) (dn_szKeep hkta hkda hkpa htd' hpt hpd)
     (dn_ykeep hkta hkda hkpa htd' hpt hpd) (dn_mcpKeep hkta hkda hkpa htd' hpt hpd)
     (dn_bufKeep hkta hkda hkpa htd' hpt hpd) (dn_khrb hkta hkda hkpa htd' hpt hpd)
-    (dn_ksz hkta hkda hkpa htd' hpt hpd) (dn_kback hkta hkda hkpa htd' hpt hpd)
+    (dn_ksz hkta hkda hkpa htd' hpt hpd) (dn_kback hkta hkda hkpa htd' hpt hpd) (dn_ipcFr hkta hkda hkpa htd' hpt hpd)
     (dn_ck hkta hkda hkpa htd' hpt hpd)
     (fun q x h => (ho (fun _ e => by cases e) (fun _ _ e => by cases e)).1 h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hkq

@@ -31,6 +31,8 @@ released, so `Inv.rd` fails there).
 import Fl4Proofs.P3.XTopJointSendBlock
 import Fl4Proofs.P3.XTopJointStsI
 import Fl4Proofs.P3.IpcTimeout
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Endp
@@ -77,6 +79,14 @@ docstring). -/
 structure BFrT (t e : ObjRef) (σ σ' : State Unit) : Prop where
   sk : Sk σ σ'
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ BChgT t e p o o'
+
+theorem BChgT.objFrK {t e p : ObjRef} {o o' : KernelObject} (h : BChgT t e p o o') : IpcFrKeep.ObjFrK o o' := by
+  rcases h with ⟨_, _, _, _, rfl, rfl, -⟩ | ⟨_, _, rfl, rfl, -⟩
+  · exact IpcFrKeep.objFrK_tcb rfl rfl
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+
+theorem BFrT.ipcFr {t e : ObjRef} {σ σ' : State Unit} (F : BFrT t e σ σ') : IpcFrKeep σ σ' :=
+  IpcFrKeep.of_chg F.kh fun _ _ _ h => h.objFrK
 
 section
 variable {t e : ObjRef} {σ σ' : State Unit}
@@ -785,7 +795,7 @@ theorem JAtZ.runTmoJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
         hrun3, hblk⟩
     have hC0 := JCs.same J hF.1 F.ksz
     have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hCs R⟩
+    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R⟩
   all_goals simp [absCap] at habs6
 
 end

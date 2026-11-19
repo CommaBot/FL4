@@ -345,6 +345,15 @@ structure BFrN (t n : ObjRef) (σ σ' : State Unit) : Prop where
   sk : Sk σ σ'
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ BChgN t n p o o'
 
+theorem BChgN.objFrK {t n p : ObjRef} {o o' : KernelObject} (h : BChgN t n p o o') : IpcFrKeep.ObjFrK o o' := by
+  rcases h with ⟨_, _, rfl, rfl, -, -⟩ | ⟨_, _, rfl, rfl, -, -, -⟩
+  · exact IpcFrKeep.objFrK_tcb rfl rfl
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+
+/-- The blocking receive keeps what the IPC-buffer fields read. -/
+theorem BFrN.ipcFr {t n : ObjRef} {σ σ' : State Unit} (F : BFrN t n σ σ') : IpcFrKeep σ σ' :=
+  IpcFrKeep.of_chg F.kh fun _ _ _ h => h.objFrK
+
 section
 variable {t n : ObjRef} {σ σ' : State Unit}
 
@@ -863,7 +872,7 @@ theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J3 := J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
   rw [heq]
   exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
 

@@ -258,7 +258,7 @@ theorem Sched.JPlaced.addP {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s : 
     fun q r hq => ?_, h.tr, fun c y n hc hk => ⟨(h.sc c y n hc hk).1,
       (hAddP_iff (fun _ e => by cases e) hp).2 (h.sc c y n hc hk).2⟩, fun q k hq hk => ?_, fun q z hq => ?_,
     fun a ha => by rw [hR, hN]; exact capTyped_addP hp (h.typed a ha),
-    fun i hi => by rw [hR, hN]; exact capTyped_addP hp (h.irq i hi), h.fh,
+    fun i hi => by rw [hR, hN]; exact capTyped_addP hp (h.irq i hi), h.fh, h.bfs,
     fun a ha => capObjH_addP hp (h.cobj a ha)⟩
   · have e := h.cnode q r hq
     have hq' : q ≠ p := fun e' => by subst e'; rw [hp] at e; cases e
@@ -445,6 +445,7 @@ theorem Sched.JPlaced.slotTFHs {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {
     (hT : TypedKeptH th H (Sched.idleScW (L := L) s) (L.mem s) (L.mem s'))
     (hfh : ∀ t, th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbf : ∀ t, th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
@@ -458,7 +459,7 @@ theorem Sched.JPlaced.slotTFHs {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {
     · exact h1
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => h.sc c y n hc (hsc c y n hk'),
     by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
-    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, fun a ha => ?_⟩
+    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, hbf, fun a ha => ?_⟩
   rcases hT a ha with hn | ⟨b, hb, hs⟩ | ⟨-, h2⟩
   · exact capObjH_of_tyObj hn
   · rw [hiw]; exact capObjH_of_shape hs (h.cobj b hb)
@@ -825,10 +826,18 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     rw [cslot_tcb3, hcap _ ⟨t, 3, hi3, rfl⟩ (slotOf_ne_cnV hPl hi3 ht hpp hidx) (slotOf_ne_cnV hPl hi3 ht hpd hld),
       ← cslot_tcb3]
     exact hJ.fh t ht
+  have hbf : ∀ t, Z.th t = some .tcb →
+      Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))) := by
+    intro t ht
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have hi2 : IsSlotAt Z.th t 2 := Or.inr ⟨ht, by decide⟩
+    rw [cslot_tcb2, hcap _ ⟨t, 2, hi2, rfl⟩ (slotOf_ne_cnV hPl hi2 ht hpp hidx) (slotOf_ne_cnV hPl hi2 ht hpd hld),
+      ← cslot_tcb2]
+    exact hJ.bfs t ht
   have Ad' : P1.AddOKP st H (· = p) (.other 12) Cs s' := addOKP_ksb Ad hks
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th (hAddP H p) Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact ⟨Tr, Cq, (hJ.slotTFHs (fun c y n h => F.sc.1 h) hks J.intL hTKH hfh hidl.2).addP Ad'⟩
+    exact ⟨Tr, Cq, (hJ.slotTFHs (fun c y n h => F.sc.1 h) hks J.intL hTKH hfh hbf hidl.2).addP Ad'⟩
   -- the cover
   have hCK : CoverKept Z.th (L.mem s) (L.mem s') := by
     intro y hy hph hu
@@ -904,6 +913,32 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       exact VCapOK.toW (by simp only [VCapOK]; exact ⟨⟨Set.mem_insert _ _, hp0⟩, h1, h2⟩)
     · rw [hcap y hy e1 e2]
       exact (J.vsc y hy).mono (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl subset_rfl
+  -- the buffer fields (`JBuf`): the pool fresh, CNode slots changed, the
+  -- region's (absent) objects gone; the source an untyped cap, the
+  -- destination a pool cap
+  have hfk : IpcFrKeep σ σ' := by
+    refine ⟨fun t x' hx => ?_, fun q vms hq => ?_, fun q vms hq => ?_⟩
+    · rcases F.kh t with e | ⟨r, cs, cs', -, e⟩ | ⟨-, a0, e⟩
+      · exact Or.inr ⟨x', by rw [← e]; exact hx, rfl, rfl⟩
+      · rw [hx] at e; cases e
+      · rw [hx] at e; cases e
+    · rcases F.kh q with e | ⟨r, cs, cs', e0, -⟩ | ⟨e0, -⟩
+      · rw [e]; exact hq
+      · rw [hq] at e0; cases e0
+      · rw [hq] at e0; cases e0
+    · by_cases hq0 : q = p.bv
+      · subst hq0; rw [hkp] at hq; cases hq
+      · rcases hkh q hq0 with e | ⟨-, e⟩ | ⟨r, cs, cs', -, e⟩
+        · rw [← e]; exact hq
+        · rw [hq] at e; cases e
+        · rw [hq] at e; cases e
+  have hbf : JBuf (L := L) (Z.mp G' p) s' σ' := by
+    refine ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, fun y hy => ?_⟩
+    by_cases e1 : y = cslotAddr (pp.bv, idx)
+    · rw [e1, hsrc]; trivial
+    by_cases e2 : y = cslotAddr (pd.bv, idxd)
+    · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
+    · rw [hcap y hy e1 e2]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
   exact J.add_frame rfl rfl rfl hks hX' hJC R (by rw [hks]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hks]; exact J.nk n hn) (J.cover.addP hp F hnew) (J.obj.mp F)
     ⟨fun t ht => (hk' (fun _ e => by cases e) t).2 (J.zH.1 t ht),
@@ -913,7 +948,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     ⟨fun e he => J.hset.1 e ((hk' (fun _ e => by cases e) e).1 he),
       fun n hn => J.hset.2.1 n ((hk' (fun _ e => by cases e) n).1 hn),
       fun r hr => J.hset.2.2 r ((hk' (fun _ e => by cases e) r).1 hr)⟩
-    (fun c z hc => J.hscC c z ((hk' (fun _ e => by cases e) c).1 hc)) hvc
+    (fun c z hc => J.hscC c z ((hk' (fun _ e => by cases e) c).1 hc)) hvc hbf
 
 
 end

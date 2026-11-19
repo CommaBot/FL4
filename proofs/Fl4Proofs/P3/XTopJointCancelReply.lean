@@ -17,6 +17,8 @@ toward `suspend` of a final thread cap's thread). Two `J` steps:
 -/
 import Fl4Proofs.P3.XTopJointSuspend
 import Fl4Proofs.P3.XTopJointRemove
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 /-! ## The spec's `reply_remove_tcb` -/
@@ -683,7 +685,10 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ', Z.vs, Lst', hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb hC R, hF.1, hks⟩
+  exact ⟨σ', Z.vs, Lst', hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb
+    ((IpcFrKeep.of_otk hK.kh).trans (IpcFrKeep.of_upd2 hk5t kt' rfl rfl hk5r kr'
+      (IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) ko'))
+    hC R, hF.1, hks⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` of a thread blocked on its reply, at `J`** (module

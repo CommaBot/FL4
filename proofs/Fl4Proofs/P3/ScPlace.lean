@@ -134,6 +134,11 @@ theorem idleScW_keep_of {N T C N' T' C' : Set U64} {c c' : U64} {s s' : S} {σ �
     idleScW (L := L) s' = idleScW (L := L) s :=
   P1.eq_of_bv (by rw [hS'.idleScW_bv, hS.idleScW_bv, h])
 
+/-- A TCB IPC-buffer slot's cap (slot 2): empty or a non-device frame cap
+(l4v `valid_tcb` / `tcb_cap_cases`: `is_nondevice_page_cap` or `NullCap`). -/
+def BufSlotOK (c : capability.Cap) : Prop :=
+  c = .Null ∨ ∃ q sz r m e a v, c = .Frame q sz r false m e a v
+
 /-- **The joint placement invariant** (module docstring). -/
 structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
   heap : HeapOK H
@@ -156,6 +161,9 @@ structure JPlaced (th : TypedHeap) (H : Heap) (Tr C : Set U64) (s : S) (σ : Fl4
   irq : ∀ i : U64, i.val < 128 → CapTyped H (Heap.replies H) (Heap.ntfns H) (capV (L.mem s) (nodeA (L.ksb s) i))
   fh : ∀ t, th t = some .tcb → capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
     ∃ ep b0 b1 b2 b3 b4, capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4
+  /-- Each TCB's IPC-buffer slot (slot 2) holds nothing or a non-device frame
+  cap (`BufSlotOK`; l4v `valid_tcb` / `tcb_cap_cases`), as `fh` for slot 3. -/
+  bfs : ∀ t, th t = some .tcb → BufSlotOK (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)))
   /-- The slots' EPT, frame and SC caps' objects (`CapObjH`; the idle SC
   the current core's `IDLE_SC` word). -/
   cobj : ∀ a, IsSlot th a → CapObjH H (idleScW (L := L) s) (capV (L.mem s) a)
@@ -520,13 +528,18 @@ theorem JPlaced.step (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
         capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) ∨
       capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hB : ∀ t, th t = some .tcb →
+      capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) =
+        capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) ∨
+      BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hsc : ∀ (c : U64) y n, c ≠ 0#u64 → σ'.kheap c.bv = some (.schedContext y n) →
       ∃ y0, σ.kheap c.bv = some (.schedContext y0 n))
     (hk : L.ksb s' = L.ksb s) (hI : ∀ i : U64, i.val < 128 → ChgZ (L.mem s) (L.mem s') (nodeA (L.ksb s) i))
     (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
-    fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_, fun a ha => ?_⟩
+    fun i hi => by rw [hk]; exact capTyped_of_chgZ (h.irq i hi) (hI i hi), fun t ht => ?_,
+    fun t ht => (hB t ht).elim (fun e => by rw [e]; exact h.bfs t ht) id, fun a ha => ?_⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0
   · by_cases hx : X a
@@ -552,7 +565,8 @@ theorem JPlaced.same (h : JPlaced (L := L) th H Tr C s σ) {s' : S} {σ' : Fl4Sp
     (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn, fun a ha => ?_,
-    fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_, fun a ha => by
+    fun i hi => by rw [hk, hI i hi]; exact h.irq i hi, fun t ht => ?_, fun t ht => by
+      rw [hS.capV (AbsSlot.isSlot ⟨t, rfl, Or.inr ⟨ht, 2, by decide, rfl⟩⟩)]; exact h.bfs t ht, fun a ha => by
       rw [hS.capV ha, hiw]; exact h.cobj a ha⟩
   · obtain ⟨y0, hk0⟩ := hsc c y n hc hk
     exact h.sc c y0 n hc hk0

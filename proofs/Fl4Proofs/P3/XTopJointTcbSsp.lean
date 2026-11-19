@@ -476,7 +476,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
     (hH : DelHypsWRZ (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
-    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (idx : U64) (hidx : idx.val = n)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
     (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
     (nc : capability.Cap) (hwf : CapWf nc) (hcv : CapValid Z.th nc) (he : EncWf nc)
@@ -542,9 +542,9 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl4
       rw [hca0.abs, e0] at ha0
       exact hsg1.insTcb hins hnut hsh ha0
     have hwS := SlotFrame2.writesIn hF
-    obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.insTJ ht hn hins hDS' hst hwS hroot hcap
+    obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.insTJ (fun e => absurd e hn2) ht hn hins hDS' hst hwS hroot hcap
       (by rw [hdst]; exact hnut) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
-      (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) ⟨_, hAs.isSlot, hthr⟩
+      (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) (fun e => absurd e hn2) ⟨_, hAs.isSlot, hthr⟩
       (fun P L4 L3 L2 L1 h => by
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
       (fun U h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
@@ -604,7 +604,7 @@ theorem install_fhOkJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → F
     (hH : DelHypsWRZ (L := L) arI W (WJP (L := L) arI AR Z H Cs kb) Rd Rz Z.th)
     (s0 s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) Z.th s σ G)
     (hW : W s a σ G)
-    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (idx : U64) (hidx : idx.val = n)
+    (t : U64) (ht : Z.th t = some .tcb) (n : Nat) (hn : n < tcbSlots) (hn2 : n ≠ 2) (idx : U64) (hidx : idx.val = n)
     (hcz0 : InstFr Z.th t (L.mem s0) (L.mem s))
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl)
     (nc : capability.Cap) (sl : Fl4Spec.CslotPtr) (hok : NewCapOK Z.th (L.mem s0) nc sl)
@@ -618,7 +618,7 @@ theorem install_fhOkJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → F
   obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu⟩ := hok
   obtain ⟨sa, idxs⟩ := sl
   simp only at h1s hls; subst h1s
-  exact install_fhJ arI hI hH s0 s a σ G hDS hW t ht n hn idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
+  exact install_fhJ arI hI hH s0 s a σ G hDS hW t ht n hn hn2 idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
     hsh hbd hkey hvk htu hep hnoe
 
 end
@@ -831,7 +831,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
   have hnf := vfh_not_frame hv
   have hok : NewCapOK Z.th (L.mem s1') (capV (L.mem s) x2) e2.2 := by
     rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
-  have hI := install_fhOkJ arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots])
+  have hI := install_fhOkJ arI (hHp.ins (L.ksb s1')) (hHp.del (L.ksb s1')) s1' s1' ar σ1' Z.G hDS1 hW1 p hp 3 (by simp [tcbSlots]) (by decide)
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs
     (capV (L.mem s) x2) e2.2 hok (fun _ => vfh_ep hv) hnoe
   rw [← hxe2] at hI

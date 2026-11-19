@@ -459,7 +459,7 @@ theorem jFinNtfnK [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : S
   · rw [decide_eq_true hfin]
     refine WP.spec_mono (WP.spec_and (J.finNtfnJ hpN)
       (P1.fin_cap_ntfn.dead (ar := arI) s a p b w r false J.blk hHp hHp)) ?_
-    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, hmem1, J1, -, hSS1, hks1⟩, d1, d2, d3⟩
+    rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, e2, σ1, V1, hmem1, J1, -, -, hSS1, hks1⟩, d1, d2, d3⟩
     simp only at e1 e2 hmem1 J1 hSS1 hks1 d1 d2 d3
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
     subst e2
@@ -502,7 +502,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
-  obtain ⟨hks, hkb2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ _ := by
+  obtain ⟨hks, hkb2, hfk2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧ _ := by
     by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
     · exact J.emptyJR hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
     · exact J.emptyJRT hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
@@ -518,7 +518,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
-  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
 
 /-- **An endpoint cap's slot is ready once the endpoint is dead** (as
@@ -1032,7 +1032,7 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
   have hnk := Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
-  obtain ⟨hks, hkb2, hC, Ac', Lst', D', R⟩ := J.zombieJCore hA hxn hal hsc hD2 hz hoth hX2
+  obtain ⟨hks, hkb2, hfk2, hC, Ac', Lst', D', R⟩ := J.zombieJCore hA hxn hal hsc hD2 hz hoth hX2
     (SlotFrame2.writesIn hF) hnk
   -- `SpecGlob` after: the zombie names the objects of the cap it replaces
   -- (`CapAlike.refs`); that cap is no notification cap, its object no
@@ -1067,7 +1067,7 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) fun y _ e _ _ => by rw [e, hz]; trivial
-  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 /-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
@@ -1079,7 +1079,7 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
   have hnk := capSwapForDelete_nkn _ _ σ ((), σ') (mem_of_single hsw)
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G _
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, hkb⟩ hD1 hD2 hF hnk hmS
-  obtain ⟨hks, hkb2, hC, Ac', Lst', D', R⟩ := J.swapJCore hA hz hpx hsw hD2 hcap hX2
+  obtain ⟨hks, hkb2, hfk2, hC, Ac', Lst', D', R⟩ := J.swapJCore hA hz hpx hsw hD2 hcap hX2
     (SlotFrame2.writesIn hF) hnk
   -- `SpecGlob` after: caps only move, both slots off the IRQ node (the
   -- zombie's slot holds no null or notification cap, its first slot lies in
@@ -1109,7 +1109,7 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
       · exact h p hpS
       · exact h _ hA.isSlot
       · exact h y hy
-  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
 
 end

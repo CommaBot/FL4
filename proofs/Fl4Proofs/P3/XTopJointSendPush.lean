@@ -25,6 +25,8 @@ and blocks the caller on it; no SC moves, so the call stacks stay.
 import Fl4Proofs.P3.XTopJointSendDon
 import Fl4Proofs.P3.EpCall
 import Fl4Proofs.P3.IpcPushCore
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 /-! ## P1: `reply_push` without a donation -/
@@ -289,6 +291,12 @@ theorem ps_kback : KBack σ (pushSt σ t w xr xt) := fun q o' hq => by
     · rintro ⟨_, h⟩; cases h
   rw [ps_ko e1 e2] at hq; exact KBack.of_kheap (σ := σ) (σ' := σ) rfl q o' hq
 
+
+theorem ps_ipcFr : IpcFrKeep σ (pushSt σ t w xr xt) :=
+  IpcFrKeep.of_kbackF (ps_kback hkt hkw hwt)
+    (fun q x hq => by obtain ⟨ts, h⟩ := ps_tcbF hkt hkw hwt hq; exact ⟨_, h, rfl, rfl⟩)
+    (fun q vms => ps_oth hkt hkw hwt (fun _ e => by cases e) (fun _ e => by cases e))
+
 theorem ps_ck :
     (∀ q y' m, σ.kheap q = some (.schedContext y' m) → ∃ y'', (pushSt σ t w xr xt).kheap q =
       some (.schedContext y'' m) ∧ y''.scReplies = y'.scReplies) ∧
@@ -476,7 +484,7 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     (F : DWFr n t σ σa) (G : SkD σa σ') (hks1 : KSub σa σ') (hsz1 : SzKeep σa σ') (hyk1 : YKeep σa σ')
     (hmk1 : McpKeep σa σ')
     (hbk1 : ∀ p x, σa.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer)
-    (hrb1 : ∀ d ∈ Z.R, RecvB σ' d → RecvB σa d) (hkz1 : KSz σa σ') (hkb1 : KBack σa σ')
+    (hrb1 : ∀ d ∈ Z.R, RecvB σ' d → RecvB σa d) (hkz1 : KSz σa σ') (hkb1 : KBack σa σ') (hfk1 : IpcFrKeep σa σ')
     (hck1 : (∀ q y n, σa.kheap q = some (.schedContext y n) → ∃ y', σ'.kheap q = some (.schedContext y' n) ∧
       y'.scReplies = y.scReplies) ∧
       (∀ q x, σa.kheap q = some (.reply x) → ∃ x', σ'.kheap q = some (.reply x') ∧ x'.replySc = x.replySc) ∧
@@ -561,7 +569,7 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (G.arch.trans F.sk.arch)
     (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) hC R⟩
+        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R⟩
 
 
 
@@ -1079,7 +1087,7 @@ theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ 
   obtain ⟨V', J5⟩ := Ju.wake_postGR (by rw [← hKy.2.1] at hIR; exact hIR) hF hWu hblk hFu (DWFr.ofUm (DWFr.ofCFr Fr5) umu) ps_skD
     (ps_ksub hkta hkwa hwt) (ps_szKeep hkta hkwa hwt) (ps_ykeep hkta hkwa hwt) (ps_mcpKeep hkta hkwa hwt)
     (ps_bufKeep hkta hkwa hwt) (fun d _ h => ps_recvB hkta hkwa hwt h) (ps_ksz hkta hkwa hwt)
-    (ps_kback hkta hkwa hwt) (ps_ck hkta hkwa hwt) (fun d _ h => ps_free hkta hkwa hwt h)
+    (ps_kback hkta hkwa hwt) (ps_ipcFr hkta hkwa hwt) (ps_ck hkta hkwa hwt) (fun d _ h => ps_free hkta hkwa hwt h)
     (fun q ao h => (ho (fun _ e => by cases e) (fun _ e => by cases e)).2 h) hkq
     I5' B5' hAI5 (Or.inl hcn) hrun5 (ps_own hkta hkwa hwt ((DWFr.ofCFr Fr5).own ⟨d', hdT, rfl⟩ J.own))
     (ps_off hkta hkwa hwt ((DWFr.ofCFr Fr5).off J.off)) (ps_nsc hkta hkwa hwt ((DWFr.ofCFr Fr5).nsc J.nsc))

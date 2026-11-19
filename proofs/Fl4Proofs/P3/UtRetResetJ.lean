@@ -280,10 +280,11 @@ def UtBodyHyp (AR : A → Fl4Spec.Cr3 → Prop) (pp : U64) (idx : List Bool) (p 
 tables, frames). -/
 theorem utEp_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
     {r : Nat} {fiv : U64}
-    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) :
+    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11))
+    (hnf : nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11) :
     UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
   fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU =>
-    J.utEpBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
+    J.utEpBodyJ hni hpp hidx hcap hnt hnf hc0 hctx hfiv hBO hAF hRU
 
 /-- UtScRet's `JAtZ.utScBodyJ` as `UtBodyHyp` (SCs). -/
 theorem utSc_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
@@ -550,14 +551,16 @@ directories, frames (UtEpRet's `JAtZ.utEpJ`), untypeds (UtUtRet's
 `JAtZ.utUtJ`), SCs (UtScRet's `JAtZ.utScJ`) and PML4s (UtPmRet's
 `JAtZ.utPmJ`), CNodes (UtCnRet's `JAtZ.utCnJ`) and TCBs (UtTcbRet's
 `JAtZ.utTcbJ`), with or without a reset (`JAtZ.utResetJ`): the VCPU/EPT
-types (14..18, also `JUtPath.vtx` [scope]). l4v: `invoke_untyped_corres` with
+types (14..18, also `JUtPath.vtx` [scope]), and for now the frames (9, 10,
+11: `JAtZ.fcov` needs `B` grown by the new pages, `XTopAt.addBuf` with
+`UtZero`, not yet proved; handoff/glob.md gl13). l4v: `invoke_untyped_corres` with
 `invoke_untyped_invs`. -/
 def JUtRetHypR2 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
   ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
     argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
     (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧ nt.val ≠ 5 ∧ nt.val ≠ 8 ∧ nt.val ≠ 4 ∧ nt.val ≠ 1) →
+      nt.val ≠ 0 ∧ nt.val ≠ 5 ∧ nt.val ≠ 8 ∧ nt.val ≠ 4 ∧ nt.val ≠ 1) →
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
@@ -588,8 +591,8 @@ theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ 
     (hR : JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
     JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU := by
   intro nt us dest off win t r reset fiv hh hctx hcase
-  by_cases hcov : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨
-      nt.val = 10 ∨ nt.val = 11 ∨ nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8 ∨ nt.val = 4 ∨ nt.val = 1
+  by_cases hcov : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨
+      nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8 ∨ nt.val = 4 ∨ nt.val = 1
   · have hrs : reset = true := by
       rcases hcase with h | h
       · exact h
@@ -600,10 +603,10 @@ theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ 
     dsimp only at hp1 hpp
     subst hp1
     have hB : UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv := by
-      rcases (show (nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨
-          nt.val = 10 ∨ nt.val = 11)) ∨ nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8 ∨ nt.val = 4 ∨ nt.val = 1 by omega) with
+      rcases (show (nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13) ∨
+          nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8 ∨ nt.val = 4 ∨ nt.val = 1 by omega) with
         h | h | h | h | h | h
-      · exact utEp_bodyHyp h
+      · exact utEp_bodyHyp (by omega) (by omega)
       · exact utUt_bodyHyp h
       · exact utSc_bodyHyp h
       · exact utPm_bodyHyp h

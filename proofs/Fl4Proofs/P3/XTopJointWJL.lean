@@ -81,7 +81,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
   have hnk := Ipc.nkn_setCap _ _ σ ((), σ') (mem_of_single hsc)
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) (L.ksb s) s s' a σ σ' G G
     ⟨⟨V, J.xtop⟩, J.ks, J.thT, rfl⟩ hD1 hD2 hF hnk hmS
-  obtain ⟨hks, hkb2, hC, Ac', Lst', R⟩ := J.zombieJCoreD hA hxn hal hsc hD2 hz hoth hX2
+  obtain ⟨hks, hkb2, hfk2, hC, Ac', Lst', R⟩ := J.zombieJCoreD hA hxn hal hsc hD2 hz hoth hX2
     (SlotFrame2.writesIn hF) hnk
   have hsg2 : SpecGlob σ' := by
     obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hD1.1.1.abs_cap hA
@@ -112,7 +112,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) fun y _ e _ _ => by rw [e, hz]; trivial
-  exact ⟨V, Ac', Lst', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+  exact ⟨V, Ac', Lst', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
     (J.vsc.step hvT), hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in

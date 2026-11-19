@@ -230,7 +230,8 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       exact VCapW.mono (subset_refl _) (subset_refl _) Set.subset_union_left Set.subset_union_left
         Set.subset_union_left (J1.vsc y hy)
   have Ap : VsApart (L := L) Z H Cs s1 := jVsApartHyp arI Z H Cs Ac1 Lst1 D1 s1 ar σ1 rfl J1
-  have J' := J1.vsStepJX Ap hpc hidx hXa hX'' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hnu)
+  have J' := J1.vsStepJX Ap hpc hidx hXa hX'' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
+    (by rw [hcv1]; exact hnu)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
   exact ⟨_, H, Cs, Ac1, Lst1, D1, J'⟩
 

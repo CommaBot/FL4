@@ -803,6 +803,7 @@ structure BufHyp (th : TypedHeap) (t addr : U64) (ptr : Fl4Spec.VSpaceRef) : Pro
 structure BufHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (t addr : U64)
     (ptr : Fl4Spec.VSpaceRef) : Prop where
   ipc : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G → W s a σ G →
+    capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) = .Null →
     obj.Tcb.set_ipc_buffer st t s addr ⦃ s' => SlotsSame th (L.mem s) (L.mem s') ∧ ∃ σ',
       ((), σ') ∈ (Fl4Spec.threadSet (Z := Unit) (fun x => { x with tcbIpcBuffer := ptr }) t.bv σ).1 ∧
       CRel th (L.mem s') σ' G ∧ KSub σ σ' ∧ W s' a σ' G ⦄
@@ -825,7 +826,7 @@ structure BufHypW (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th
 theorem BufHyp.w {Q : (U64 → U64) → MdbGhost → Prop} (hQ : ∀ m G m' G', MdbStep m G m' G' → Q m G → Q m' G')
     {th : TypedHeap} {t addr : U64} {ptr : Fl4Spec.VSpaceRef} (h : BufHyp (L := L) (A := A) th t addr ptr) :
     BufHypW (L := L) (WQ (L := L) (A := A) Q) th t addr ptr := by
-  refine ⟨fun s a σ G hDS hW => ?_, fun s a σ G hDS hW => ?_⟩
+  refine ⟨fun s a σ G hDS hW _ => ?_, fun s a σ G hDS hW => ?_⟩
   · refine WP.spec_mono (h.ipc s σ G hDS) ?_
     rintro s' ⟨hS, σ', h1, h2, h3⟩
     exact ⟨hS, σ', h1, h2, h3, hQ _ _ _ _ (MdbStep.of_same hDS.1.2.2.1 hS) hW⟩
@@ -987,7 +988,7 @@ theorem install_buffer_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl
           else ok (core.result.Result.Ok (), s4, a1)) ⦃ res =>
         InstPostW (L := L) W th t (Fl4Spec.installTcbFrameCap t.bv ssl (some (ptr, frameOf bfr))) s0 σ res ⦄ := by
     intro s1 a1 σ1 G1 hDS1 hMO1 hnull hcz hmem
-    apply WP.spec_bind (hBuf.ipc s1 a1 σ1 G1 hDS1 hMO1)
+    apply WP.spec_bind (hBuf.ipc s1 a1 σ1 G1 hDS1 hMO1 hnull)
     rintro s2 ⟨hS2, σ2, hts, hCR2, hK2, hMO2⟩
     have hDS2 := hDS1.of_same hS2 hCR2 hK2
     have hnull2 : capV (L.mem s2) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2)) = .Null := by

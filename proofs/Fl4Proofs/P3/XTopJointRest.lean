@@ -293,6 +293,22 @@ theorem cslot_tcb3 (t : U64) : cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3) = slotO
   show slotAddr t.bv (Fl4Spec.ofBl _) = _
   rw [slotAddr_ofBl, tcbCnodeIndex_blVal 3 (by decide)]
 
+theorem cslot_tcb2 (t : U64) : cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2) = slotOf t 2 := by
+  show slotAddr t.bv (Fl4Spec.ofBl _) = _
+  rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
+
+/-- The TCBs' IPC-buffer slots kept or emptied keep `JPlaced.bfs`. -/
+theorem Sched.JPlaced.bfsT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (h : JPlaced (L := L) th H Tr C s σ)
+    (hT2 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2) ∨
+      capV (L.mem s') (slotOf t 2) = .Null) :
+    ∀ t, th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))) := by
+  intro t ht
+  rcases hT2 t ht with e | e
+  · rw [capAt_capV, capAt_capV] at e
+    rw [cslot_tcb2, eq_of_ok_eq e, ← cslot_tcb2]; exact h.bfs t ht
+  · left; rw [cslot_tcb2]; exact e
+
 /-- **`JPlaced` after a slot step** (CNodes' contents changed only, `KeepC`):
 the caps keep their objects (`TypedKept`, the IRQ node's slots among the
 slots, `IntLayout`), the TCBs' fault-handler slots kept. -/
@@ -301,6 +317,7 @@ theorem Sched.JPlaced.slotTF {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s 
     (hT : TypedKept th (L.mem s) (L.mem s'))
     (hfh : ∀ t, th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Endpoint ep b0 b1 b2 b3 b4)
+    (hbf : ∀ t, th t = some .tcb → Sched.BufSlotOK (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 2))))
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
@@ -312,7 +329,7 @@ theorem Sched.JPlaced.slotTF {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s 
     · exact capTyped_of_tyObj hn
     · exact capTyped_of_shape hs (h.typed b hb)
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
-    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, fun a ha => ?_⟩
+    fun a ha => hty' a ha, fun i hi => by rw [hk]; exact hty' _ (hirqS i hi), hfh, hbf, fun a ha => ?_⟩
   · rcases hkc c.bv with e | ⟨r, cs, cs', -, h2⟩ | ⟨x, y', -, h2, -⟩
     · rw [e] at hk'; exact h.sc c y n hc hk'
     · rw [h2] at hk'; cases hk'
@@ -326,9 +343,11 @@ theorem Sched.JPlaced.slotT {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s
     (hT : TypedKept th (L.mem s) (L.mem s'))
     (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3) ∨
       capV (L.mem s') (slotOf t 3) = .Null)
+    (hT2 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2) ∨
+      capV (L.mem s') (slotOf t 2) = .Null)
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
-  refine h.slotTF hkc hk hL hT (fun t ht => ?_) hiw
+  refine h.slotTF hkc hk hL hT (fun t ht => ?_) (h.bfsT hT2) hiw
   rcases hT3 t ht with e | e
   · rw [capAt_capV, capAt_capV] at e
     rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact h.fh t ht
@@ -338,9 +357,10 @@ theorem Sched.JPlaced.slot {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s'
     (h : JPlaced (L := L) th H Tr C s σ) (hkc : KeepC σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
     (hT : TypedKept th (L.mem s) (L.mem s'))
     (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3))
+    (hT2 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2))
     (hiw : Sched.idleScW (L := L) s' = Sched.idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' :=
-  h.slotT (KeepC.t hkc) hk hL hT (fun t ht => Or.inl (hT3 t ht)) hiw
+  h.slotT (KeepC.t hkc) hk hL hT (fun t ht => Or.inl (hT3 t ht)) (fun t ht => Or.inl (hT2 t ht)) hiw
 
 theorem sizeF_cnode (q r g gb : U64) :
     sizeF (.CNode q r g gb) = core.num.U64.wrapping_add r fl4_abi.consts.bits.SLOT := ok_inj (size_eq _).symm
@@ -676,6 +696,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
     {kb : U64} (hFI : FinInv th (L.mem s') σ' G') (hMO : MdbOKV kb (L.mem s') G') (hkz : KSz σ σ')
     (hTK : TypedKept th (L.mem s) (L.mem s'))
     (hT3 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3))
+    (hT2 : ∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2))
     (hDl : DelInv th (L.mem s) → DelInv th (L.mem s'))
     (hR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a σ' →
@@ -703,7 +724,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
     exact (P1.blk_of_capw J.blk hw' (J.slotCapW P1.tlow_slots)).1
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     let ⟨Tr, Cq, hJ⟩ := J.jpl
-    ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK hT3 (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2⟩
+    ⟨Tr, Cq, hJ.slot hkc hw.1 J.intL hTK hT3 hT2 (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2⟩
   have hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q := fun q _ hd =>
     J.deadP_hstep hX' hC.toHStep k3 (fun q z hq K h8 hK => J.inSlot_scKeep hw hq h8 hK) (J.act.cn hC).1
       (J.yld.frame k2 yk) yk hd
@@ -751,7 +772,12 @@ theorem jowes_ins {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGh
     rintro p (rfl | hp)
     · obtain ⟨cs, h, -⟩ := hSt.cnode ps rs hps; exact ⟨rs, cs, h⟩
     · rw [Set.mem_singleton_iff.1 hp]; obtain ⟨cs, h, -⟩ := hSt.cnode pd rd hpd; exact ⟨rd, cs, h⟩)
-  refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO (capInsert_nkz c _ _ σ _ hmem) hTK hT3 hDl
+  have hT2 : ∀ t, Z.th t = some .tcb → capAt (L.mem s') (slotOf t 2) = capAt (L.mem s) (slotOf t 2) := by
+    intro t ht
+    have hs : IsSlot Z.th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by decide⟩, rfl⟩
+    rw [capAt_capV, capAt_capV, hcap _ hs fun e => cnode_slot_ne_tcb J.xtop.rel.1 hpd hld ht 2 (by decide)
+      (by rw [cslot_tcb2]; exact e.symm)]
+  refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO (capInsert_nkz c _ _ σ _ hmem) hTK hT3 hT2 hDl
     (fun Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2 => ?_) Z H Cs Ac Lst D rfl J hX'
   have hcap' : ∀ y, IsSlot Z2.th y → y ≠ cslotAddr (pd.bv, idxd) → capV (L.mem s') y = capV (L.mem s) y :=
     fun y h => hcap y (hth2 ▸ h)
@@ -787,7 +813,17 @@ theorem jowes_cn {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGho
     (hoW : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W)
     (hUS : UtSrc th (L.mem s) (L.mem s') σ σ') :
     JOwesCs (L := L) arI AR th G' s a σ s' a σ' := by
-  refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO hkz hTK hT3 hDl (fun Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2 => ?_)
+  intro Z H Cs Ac Lst D hth J hX'
+  have hPl : Placed th := hth ▸ J.xtop.rel.1
+  refine jowes_slotOf arI s s' a σ σ' hcn hkc hw hFI hMO hkz hTK hT3 ?_ hDl (fun Z2 H2 Cs2 Ac2 Lst2 D2 hth2 J2 hX2 => ?_)
+    Z H Cs Ac Lst D hth J hX'
+  · intro t ht
+    have hs : IsSlot th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by decide⟩, rfl⟩
+    rw [capAt_capV, capAt_capV, hcW _ hs fun sl hsl e => ?_]
+    obtain ⟨p, r, h1, hp, hl, -⟩ := hW sl hsl
+    have hsl' : sl = (p.bv, sl.2) := Prod.ext h1 rfl
+    rw [hsl'] at e
+    exact cnode_slot_ne_tcb hPl hp hl ht 2 (by decide) (by rw [cslot_tcb2]; exact e.symm)
   subst hth2
   obtain ⟨-, ⟨-, -, hM2', -, -⟩, -⟩ := hX2.rel
   exact ⟨hCK, hUK, horig, J2.cn_utc arI W hW hcW hoW hUS hw

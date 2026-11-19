@@ -717,8 +717,14 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       rw [hE.newc j hj] at h1 ⊢
       have hT : Vs.SetFree (cj j) := by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.SetFree]
       exact (Vs.VCapOK.setFree hT h1).toW
+  -- the buffer fields (`JBuf`): CNode slots changed only, the new caps untyped
+  have hfk : IpcFrKeep σ σ' := IpcFrKeep.of_keepC hkc
+  have hbf : JBuf (L := L) { Z with G := G' } res.2.1 σ' :=
+    by obtain ⟨-, hCRZ, -⟩ := hX'.rel
+       exact ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.retype hE hM hCRZ.2.2.1 (fun _ => UFr.keep hfk.page)
+         (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.FrIn])⟩
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

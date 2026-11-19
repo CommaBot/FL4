@@ -28,6 +28,8 @@ from `JAtZ` before to `JAt` after, against the spec's `specTail true`.
 -/
 import Fl4Proofs.P3.XTopJointDelR
 import Fl4Proofs.P3.XTopJointReply
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -207,7 +209,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R (J.vsc.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
 
 /-- **The IPC-buffer word `k` lies in the buffer's frame** (as IpcBuf's
 `buf_frame_base`, by value): at least the frame's base, its last byte below

@@ -405,6 +405,18 @@ structure BFrR (t e : ObjRef) (r : Option ObjRef) (σ σ' : State Unit) : Prop w
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ BChgR t e r p o o'
   rq : ∀ q, r = some q → ∃ x, σ.kheap q = some (.reply x) ∧ σ'.kheap q = some (.reply { x with replyTcb := some t })
 
+theorem BChgR.objFrK {t e : ObjRef} {r : Option ObjRef} {p : ObjRef} {o o' : KernelObject}
+    (h : BChgR t e r p o o') : IpcFrKeep.ObjFrK o o' := by
+  rcases h with ⟨_, _, _, rfl, rfl, -, -⟩ | ⟨_, _, rfl, rfl, -⟩ | ⟨_, rfl, rfl, -⟩
+  · exact IpcFrKeep.objFrK_tcb rfl rfl
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+  · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+
+/-- The blocking receive keeps what the IPC-buffer fields read. -/
+theorem BFrR.ipcFr {t e : ObjRef} {r : Option ObjRef} {σ σ' : State Unit} (F : BFrR t e r σ σ') :
+    IpcFrKeep σ σ' :=
+  IpcFrKeep.of_chg F.kh fun _ _ _ h => h.objFrK
+
 section
 variable {t e : ObjRef} {r : Option ObjRef} {σ σ' : State Unit}
 
@@ -1043,7 +1055,7 @@ theorem JAtZ.recvIpcBlockJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J3 := J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
   rw [heq]
   exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
 

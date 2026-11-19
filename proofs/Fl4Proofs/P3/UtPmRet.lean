@@ -730,6 +730,18 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       have hb : ptrF (.Pml4 b false 0#u64) = b := ok_inj (ptr_eq _).symm
       rw [hb] at hqW
       exact ⟨Set.mem_union_right _ hqW, h1.2.1, fun h => by cases h⟩
+  -- the buffer fields (`JBuf`): fresh PML4s, then CNode slots; the new caps PML4 caps
+  have hfk : IpcFrKeep σ σ' :=
+    (IpcFrKeep.of_specAdd hA
+      (fun q hq x e => by obtain ⟨pt, e', -⟩ := hpm q hq; rw [e'] at e; cases e)
+      (fun q hq vms e => by obtain ⟨pt, e', -⟩ := hpm q hq; rw [e'] at e; cases e)).trans
+      (IpcFrKeep.of_keepC hkc)
+  have hbf : JBuf (L := L) { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L4 := Z.L4 ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val } res.2.1 σ' :=
+    by obtain ⟨-, hCRZ, -⟩ := hX4.rel
+       exact ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.retype hE hM hCRZ.2.2.1 (fun _ => UFr.keep hfk.page)
+         (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.FrIn])⟩
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -737,7 +749,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     rfl rfl rfl hwI.1 hX4 ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

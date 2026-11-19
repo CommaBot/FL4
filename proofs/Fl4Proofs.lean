@@ -557,6 +557,7 @@ import Fl4Proofs.P3.XTopJointSendPush
 import Fl4Proofs.P3.XTopJointPushDon
 import Fl4Proofs.P3.XTopJointSendPushD
 import Fl4Proofs.P3.BufDefs
+import Fl4Proofs.P3.BufFrN
 import Fl4Proofs.P3.BufFr
 import Fl4Proofs.P3.BufFrA
 import Fl4Proofs.P3.BufInv

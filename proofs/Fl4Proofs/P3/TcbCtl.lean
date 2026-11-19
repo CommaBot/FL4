@@ -1354,6 +1354,22 @@ theorem ipc_spec (σ : Fl4Spec.State Unit) (p : Fl4Spec.ObjRef) (ssl : Fl4Spec.C
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
+/-- **The facts of an accepted IPC-buffer frame** (FL4's and the spec's
+`check_valid_ipc_buffer`): a non-device, non-EPT frame cap and the buffer
+address 1 KiB aligned. -/
+def BufFrOK (ptr : Fl4Spec.VSpaceRef) (c : capability.Cap) : Prop :=
+  (∃ q sz rr m aa va, c = .Frame q sz rr false m false aa va) ∧ ptr.toNat % 1024 = 0
+
+/-- **The non-device frame caps name no null pointer** (l4v
+`pspace_in_kernel_window` / `cap_refs_in_kernel_window`: a non-device frame
+lies in RAM, the kernel window; FL4's `UtW`: RAM untypeds at or above
+`PPTR_BASE`, and a non-device frame is retyped from one). -/
+def FrNZ (th : TypedHeap) (mem : U64 → U64) : Prop :=
+  ∀ y, IsSlot th y → ∀ q sz r m e a v, capV mem y = .Frame q sz r false m e a v → q ≠ 0#u64
+
+theorem FrNZ.of_same {th : TypedHeap} {mem mem' : U64 → U64} (h : FrNZ th mem) (hS : SlotsSame th mem mem') :
+    FrNZ th mem' := fun y hy q sz r m e a v hc => h y hy q sz r m e a v (by rw [← hS.capV hy]; exact hc)
+
 /-- **FL4's `derive_for_buffer` is the spec's buffer frame** (`bufSpec`):
 FL4's buffer argument of `thread_control_caps` (`bufArg`), a new cap of an
 install (`NewCapOK`) if a frame, or the same error. -/
@@ -1364,7 +1380,8 @@ theorem buf_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost
     (hnc : isUt (capV (L.mem s) (cslotAddr e.2)) = true → NoChildrenRel (st := st) s σ (cslotAddr e.2) e.2) :
     ∃ r, tcb.derive_for_buffer st s y (cslotAddr e.2) = ok r ∧
       ((∃ bc0 bfr, r = .Ok (bufArg bc0 bfr) ∧ (bufSpec y.bv e).run σ = ({(.ok (frameOf bfr), σ)}, False) ∧
-          ∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s) c sl) ∨
+          (∀ c sl, bfr = some (c, sl) → NewCapOK th (L.mem s) c sl) ∧
+          ∀ c sl, bfr = some (c, sl) → BufFrOK y.bv c) ∨
        (∃ er er', r = .Err er ∧ (bufSpec y.bv e).run σ = ({(.error er', σ)}, False) ∧ ErrRel er er')) := by
   obtain ⟨ps, hps, hps1⟩ := hes
   obtain ⟨e1, e2⟩ := e
@@ -1377,7 +1394,7 @@ theorem buf_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost
   by_cases hy : y = 0#u64
   · have hy' : y.bv = 0 := by rw [hy]; rfl
     simp only [hy, ↓reduceIte, slot_cap_eq, capAt_capV, bind_ok, show U64.bv 0#u64 = 0 from rfl]
-    exact ⟨_, rfl, Or.inl ⟨_, none, rfl, rfl, fun _ _ h => by cases h⟩⟩
+    exact ⟨_, rfl, Or.inl ⟨_, none, rfl, rfl, fun _ _ h => (by cases h), fun _ _ h => (by cases h)⟩⟩
   have hy' : ¬ y.bv = 0 := fun h => hy (UScalar.eq_of_val_eq (by
     have := congrArg BitVec.toNat h; simpa using this))
   simp only [hy, hy', ↓reduceIte, slot_cap_eq, capAt_capV, bind_ok]
@@ -1408,8 +1425,12 @@ theorem buf_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost
         subst hc0
         have hcvc : CapValid th (capability.Cap.Frame q sz rr false m false aa va) := hcv' th hcv0
         refine ⟨.Ok (bufArg .Null (some (.Frame q sz rr false m false aa va, e2))), by simp [bufArg],
-          Or.inl ⟨.Null, some (.Frame q sz rr false m false aa va, e2), rfl, ?_, ?_⟩⟩
+          Or.inl ⟨.Null, some (.Frame q sz rr false m false aa va, e2), rfl, ?_, ?_, ?_⟩⟩
         · rw [run_bind_ok hr', run_bind_ok hck]; rfl
+        rotate_left
+        · intro c sl h
+          cases h
+          exact ⟨⟨q, sz, rr, m, aa, va, rfl⟩, Vs.check_valid_ipc_buffer_al hrc'⟩
         · intro c sl h
           cases h
           refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_⟩ <;>
@@ -1550,7 +1571,7 @@ theorem tcb_configure_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
     rfl
   obtain ⟨rb, hrb, hbcase⟩ := buf_rel th s σ G hDS y2 e2 he21 ⟨ps2, hps2, hps21⟩ (hnc _ (by simp) e2.2 ⟨ps2, hps21, Or.inl hps2⟩ rfl)
   rw [hrb]
-  rcases hbcase with ⟨bc0, bfr, rfl, hbs, hbok⟩ | ⟨er, er', rfl, hbs, herr⟩
+  rcases hbcase with ⟨bc0, bfr, rfl, hbs, hbok, -⟩ | ⟨er, er', rfl, hbs, herr⟩
   swap
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,
       core.convert.FromSame.from, bind_tc_ok, bind_ok]

@@ -465,7 +465,8 @@ theorem JAtZ.add_frameC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
       (∀ r, H' r = some .reply → r ∈ Z'.R))
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
-    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hbf : JBuf (L := L) Z' s' σ') :
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -482,7 +483,7 @@ theorem JAtZ.add_frameC {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
 
 end Frame
 

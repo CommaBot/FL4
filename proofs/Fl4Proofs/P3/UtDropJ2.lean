@@ -21,6 +21,7 @@ module proves the placement, cover and CSpace fields there:
 -/
 import Fl4Proofs.P3.UtDropJ
 import Fl4Proofs.P3.UtEpSets
+import Fl4Proofs.P3.BufCov
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -202,6 +203,25 @@ for a device cap). -/
 def SpecOffR (σ : Fl4Spec.State Unit) (p sb : U64) : Prop :=
   ∀ o ko, σ.kheap o = some ko → ¬ RgOf p sb o →
     o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat
+
+theorem nowrap64 {q X : Nat} (hq : q < 2 ^ 64) (hX : 0 < X) (hX2 : X ≤ 2 ^ 63) (h : q ≤ (q + (X - 1)) % 2 ^ 64) :
+    (q + (X - 1)) % 2 ^ 64 = q + X - 1 ∧ q + X ≤ 2 ^ 64 := by
+  omega
+
+/-- **A frame cap's range when it does not wrap** (`UtInv.reg`): its top is
+`q + 2^bits - 1`, inside the address space. -/
+theorem frame_top_of_reg {q r a va : U64} {sz : capability.FrameSize} {d m ep : Bool}
+    (hreg : baseF (.Frame q sz r d m ep a va) ≤ topF (.Frame q sz r d m ep a va)) :
+    topF (.Frame q sz r d m ep a va) = q.val + 2 ^ (fbitsF sz).val - 1 ∧ q.val + 2 ^ (fbitsF sz).val ≤ 2 ^ 64 := by
+  obtain ⟨bs, ts⟩ := Vs.frame_range q sz r d m a va ep
+  have hb : (fbitsF sz).val < 64 := by rw [fbitsF_val]; cases sz <;> decide
+  have hm : (maskF (fbitsF sz)).val = 2 ^ (fbitsF sz).val - 1 := maskF_val hb
+  have hpos : 0 < 2 ^ (fbitsF sz).val := by positivity
+  have hq : q.val < 2 ^ 64 := q.hBounds
+  have hw : (core.num.U64.wrapping_add q (maskF (fbitsF sz))).val = (q.val + (2 ^ (fbitsF sz).val - 1)) % 2 ^ 64 := by
+    rw [core.num.U64.wrapping_add_val_eq, hm]; simp [U64.size_def, U64.numBits]
+  rw [bs, ts, hw] at hreg; rw [ts, hw]
+  exact nowrap64 hq hpos (Nat.pow_le_pow_right (by decide) (by omega)) hreg
 
 section Rg
 variable {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
@@ -481,7 +501,8 @@ theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
   refine ⟨Tr, Cq, P1.HeapOK.drop hJP.heap, hJP.pl.restrict, fun t => ⟨fun h => ?_, fun h => ?_⟩, fun q r h => ?_,
     fun t h => hJP.tr t (restrictTh_some h).1, fun c y n hc hk => ?_, fun q k hq hk => hJP.ks q k (drop_some hq) hk,
     fun q z hq => hJP.ksIn q z (drop_some hq), fun a ha => htyp a ha.of_restrict, fun i hi => htyp _ (hirqS i hi),
-    fun t h => hJP.fh t (restrictTh_some h).1, fun a ha => ?_⟩
+    fun t h => hJP.fh t (restrictTh_some h).1, 
+    fun t h => hJP.bfs t (restrictTh_some h).1, fun a ha => ?_⟩
   · obtain ⟨h1, -⟩ := restrictTh_some h
     have hH := (hJP.tcb t).1 h1
     refine drop_keep hH (notRD_of hH ?_)
@@ -622,6 +643,99 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     | none => rfl
     | some k => have := drop_some e; rw [K.h0] at this; cases this
 
+/-- A byte of a word off the region is off it. -/
+theorem kbByte {w : Fl4Spec.Word} (hw8 : w.toNat + 8 ≤ 2 ^ 64)
+    (hoff : w.toNat + 8 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ w.toNat) {i : Int} (hi : i ∈ Fl4Spec.intUpto 0 7) :
+    ¬ RgOf p sb (w + (7 - BitVec.ofInt 64 i)) := by
+  intro hr
+  obtain ⟨c1, c2⟩ := buf_byte hw8 hi
+  have h := (rgOf_iff hsb hfit ⟨_⟩).1 hr
+  have e : ∀ v : BitVec 64, (⟨v⟩ : U64).val = v.toNat := fun _ => rfl
+  rw [e (w + (7 - BitVec.ofInt 64 i))] at h
+  omega
+
+set_option maxHeartbeats 4000000 in
+/-- **The buffer fields across the drop** (`JBuf` at the kept sets, the
+restricted typed heap and the spec state detyped at the region): `bok` by
+`JAtZ.ipcBufDrop`, with `FrameOffJ` proved here (a childless untyped cap's
+region meets no frame cap: `UtInv.drange` + `MdbInv.anc_ut`, l4v
+`untyped_inc` / `descendants_range`) and the region's data pages inside it
+(`SpecFree`); `fcov` by `FrameCover.sdrop` (a kept page misses the region,
+so its words are `KBOf`: the untyped base is 8-aligned, `hp8`); `fcap`: a
+frame cap's bytes miss the region (`FrameOffJ`), so the pages holding them
+are kept. -/
+theorem JAtZ.dropBuf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {fi : U64} {dv : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hSO : SpecOffR σ p sb)
+    (hIn : ∀ o ko, σ.kheap o = some ko → RgOf p sb o →
+      p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + 2 ^ sb.val)
+    (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) (hp8 : p.val % 8 = 0) {σ' : Fl4Spec.State Unit}
+    (hD : SDrop (RgOf p sb) σ σ') :
+    JBuf (L := L) ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s σ' := by
+  obtain ⟨-, ⟨-, -, hML, -, hI⟩, -⟩ := J.xtop.rel
+  have hrx := J.ut.reg x hx (by rw [hcx]; exact physF_ut _ _ _ _)
+  rw [hcx] at hrx
+  obtain ⟨x1, x2, -⟩ := ut_range hsb hrx
+  -- no frame cap meets the region
+  have hFO : FrameOffJ Z.th (L.mem s) p.val (p.val + 2 ^ sb.val) := by
+    intro y hy q sz r d m ep asid va hc
+    have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc]; simp⟩
+    have hyx : y ≠ x := by rintro rfl; rw [hcx] at hc; cases hc
+    by_cases hdj : Disj (capV (L.mem s) y) (capV (L.mem s) x)
+    · unfold Disj at hdj; rw [hc, hcx, x1, x2] at hdj
+      have := Nat.one_le_two_pow (n := sb.val)
+      omega
+    · rcases J.ut.drange x hx p sb fi dv hcx y hyG hyx (by rw [hc]; exact physF_frame _ _ _ _ _ _ _ _) hdj
+        with e | e
+      · exact absurd e (hnd y)
+      · have := hI.anc_ut e (by rw [hcx]; rfl); rw [hc] at this; cases this
+  -- a data page meeting the region lies inside it
+  have hin : ∀ q vms, σ.kheap q = some (.archObj (.dataPage false vms)) → RgOf p sb q →
+      p.val ≤ q.toNat ∧ q.toNat + 2 ^ Fl4Spec.pageBitsForSize vms ≤ p.val + 2 ^ sb.val := by
+    intro q vms hq hr
+    exact hIn q _ hq hr
+  -- one off it misses it
+  have hoff : ∀ q vms, σ.kheap q = some (.archObj (.dataPage false vms)) → ¬ RgOf p sb q →
+      q.toNat + 2 ^ Fl4Spec.pageBitsForSize vms ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.toNat :=
+    fun q vms hq hr => hSO q _ hq hr
+  -- a byte off the region in a user frame before is in one after
+  have hUF : ∀ a : Nat, a < 2 ^ 64 → (a < p.val ∨ p.val + 2 ^ sb.val ≤ a) → UFr σ a → UFr σ' a := by
+    intro a ha hao ⟨vms, hk⟩
+    refine ⟨vms, ?_⟩
+    obtain ⟨g1, g2⟩ := andNot_bounds (BitVec.ofNat 64 a) vms
+    have hta : (BitVec.ofNat 64 a).toNat = a := by simp; omega
+    rw [hta] at g1 g2
+    by_cases hr : RgOf p sb (BitVec.ofNat 64 a &&& ~~~(Fl4Spec.mask (Fl4Spec.pageBitsForSize vms) : BitVec 64))
+    · obtain ⟨h1, h2⟩ := hin _ vms hk hr; omega
+    · rw [hD.kout _ hr]; exact hk
+  refine ⟨J.ipcBufDrop J.bok hsb hfit hFO hD ?_, J.fcov.sdrop hD ?_, ?_⟩
+  · intro q vms hq hr a h1 h2
+    obtain ⟨b1, b2⟩ := hin q vms hq hr
+    exact (rgOf_iff hsb hfit ⟨a⟩).2 ⟨by show p.val ≤ a.toNat; omega, by show a.toNat < _; omega⟩
+  · intro q vms hq hr a h1 h2 h3
+    have ha8 : a.val + 8 ≤ 2 ^ 64 := by have : a.val < 2 ^ 64 := a.hBounds; omega
+    have hw : a.val + 8 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ a.val := by
+      rcases hoff q vms hq hr with e | e <;> omega
+    show (∀ i ∈ Fl4Spec.intUpto 0 7, ¬ RgOf p sb (a.bv + (7 - BitVec.ofInt 64 i))) ∧
+      (a.val + 8 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    exact ⟨fun i hi => kbByte hsb hfit (w := a.bv) ha8 hw hi, hw⟩
+  · intro y hy
+    have hy0 : IsSlot Z.th y := hy.of_restrict
+    have h0 := J.fcap y hy0
+    generalize hc : capV (L.mem s) y = c at h0 ⊢
+    cases c with
+    | Frame q sz r d m ep asid va =>
+      intro hd a h1 h2
+      have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy0, _, capAt_capV _ _, by rw [hc]; simp⟩
+      have hreg := J.ut.reg y hyG (by rw [hc]; exact physF_frame _ _ _ _ _ _ _ _)
+      rw [hc] at hreg
+      obtain ⟨ht, hfit'⟩ := frame_top_of_reg hreg
+      have hbs := (Vs.frame_range q sz r d m asid va ep).1
+      have := Nat.one_le_two_pow (n := (fbitsF sz).val)
+      have hfo := hFO y hy0 q sz r d m ep asid va hc
+      rw [ht, hbs] at hfo
+      exact hUF a (by omega) (by omega) (h0 hd a h1 h2)
+    | _ => trivial
+
 end Rg
 
 /-- **The reset's facts of `UtCapP3.rst` for any free index**: at a
@@ -727,9 +841,27 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (Vs.pr2 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L2 Z.L1) (Vs.pr1 p.val (p.val + 2 ^ sb.val) Z.L1) (L.mem s) := by
     obtain ⟨-, hR, hPt, hPI, -⟩ := J.xtop.fin
     exact J.vsc.drop hR hPt hPI hXP hX4 hX3 hX2 hX1 hM hXc
+  have hp8 : p.val % 8 = 0 := by
+    have h1 : 8 ∣ 2 ^ sb.val := by
+      have := Nat.pow_dvd_pow 2 (show 3 ≤ sb.val by have := U.sb4; omega)
+      simpa using this
+    exact Nat.mod_eq_zero_of_dvd (Nat.dvd_trans h1 (Nat.dvd_of_mod_eq_zero U.pal))
+  have hIn : ∀ o ko, σ.kheap o = some ko → RgOf p sb o →
+      p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + 2 ^ sb.val := by
+    intro o ko hk hr
+    have hr' := (rgOf_iff hsb hfit ⟨o⟩).1 hr
+    have hv : (⟨o⟩ : U64).val = o.toNat := rfl
+    rw [hv] at hr'
+    have := Nat.one_le_two_pow (n := Fl4Spec.objBits ko)
+    have hfi := U.fiLe
+    rcases J.sfree _ hx p sb fi hcx o ko hk with (h | h) | ⟨h1, h2⟩
+    · omega
+    · omega
+    · exact ⟨h1, by omega⟩
+  have hbf := J.dropBuf hsb hfit hx hcx hSO hIn hnd hp8 hD
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
-    hcr, hblk, hiL, hvc⟩
+    hcr, hblk, hiL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
 
 /-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

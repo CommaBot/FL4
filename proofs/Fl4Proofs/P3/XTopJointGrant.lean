@@ -366,11 +366,14 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     rw [capAt_capV, capAt_capV] at e
     rw [cslot_tcb3, eq_of_ok_eq e, ← cslot_tcb3]; exact hJ.fh t ht
   obtain ⟨hJC, R⟩ := jowes_slotDF J hX1' hcn hkcT hw hFI' hMO' (capInsert_nkz ac _ _ σ _ hmem)
-    (typedKept_ins hAs.isSlot hsv hoth hdc hsc hsh) hfh' (hdi J.del) hCU.2 hjc horig hutc
+    (typedKept_ins hAs.isSlot hsv hoth hdc hsc hsh) hfh'
+    (let ⟨_, _, hJ⟩ := J.jpl; hJ.bfsT fun t ht => Or.inl (hTS 2 (by decide) t ht)) (hdi J.del) hCU.2 hjc horig hutc
+  have hvT := vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
+    (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
-    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R
-      (J.vsc.step (vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
-        (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey)))⟩
+    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
+      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R
+      (J.vsc.step hvT)⟩
 
 
 /-! ## The transfer loop at `J` -/

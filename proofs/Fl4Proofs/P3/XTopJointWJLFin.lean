@@ -128,7 +128,7 @@ theorem jFinAtL_ntfn : JFinAtL (L := L) arI AR th NtfnK := by
   refine WP.spec_mono (WP.spec_and (WP.spec_and (J0.finNtfnJ hpN)
     (P1.fin_cap_ntfn.dead (ar := arI) s a p b w r false J.blk hHp hHp))
     (P1.fin_cap_ntfn.dbgKeep (ar := arI) s a p b w r true false J.blk hHp hHp)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨e1, e2, σ1, V1, hmem1, J1, -, hSS1, hks1⟩, d1, d2, d3⟩, hK⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨e1, e2, σ1, V1, hmem1, J1, -, -, hSS1, hks1⟩, d1, d2, d3⟩, hK⟩
   simp only at e1 e2 hmem1 J1 hSS1 hks1 d1 d2 d3 hK
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
   subst e2

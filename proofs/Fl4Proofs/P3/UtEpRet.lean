@@ -90,7 +90,8 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
-    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) (hc0 : Z.c = 0#u64)
+    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11))
+    (hnf : nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv) (hfiv : fiv = fi)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ)
     (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
@@ -112,6 +113,24 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       t = .archObject .smallPageObj ∨ t = .archObject .largePageObj := by
     rcases hnt with h | h | h | h | h | h | h | h | h <;> rw [h] at hty <;> simp [objTypeOf, Fl4Spec.archDataToObjType] at hty <;>
       simp [hty]
+  -- no frame (`hnf`, the frame retype is `JUtRetHypR` [W] until `B` grows
+  -- with the new pages, handoff/glob.md gl13): no new data page, no new TCB
+  have htD : ∀ vms d, Fl4Spec.defaultObject t false us.val d ≠ .archObj (.dataPage false vms) := by
+    intro vms d
+    obtain ⟨hn9, hn10, hn11⟩ := hnf
+    rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    · simp [Fl4Spec.defaultObject]
+    · simp [Fl4Spec.defaultObject]
+    · simp [Fl4Spec.defaultObject]
+    · simp [Fl4Spec.defaultObject, Fl4Spec.defaultArchObject]
+    · simp [Fl4Spec.defaultObject, Fl4Spec.defaultArchObject]
+    · simp [Fl4Spec.defaultObject, Fl4Spec.defaultArchObject]
+    · exact absurd (objTypeOf_huge hty) hn9
+    · exact absurd (objTypeOf_small hty) hn10
+    · exact absurd (objTypeOf_large hty) hn11
+  have htX : ∀ d x, Fl4Spec.defaultObject t false us.val d = .tcb x → x.tcbIpcframe = .nullCap := by
+    intro d x e
+    rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject] at e
   have htU : t ≠ .untyped := by rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have htP : t ≠ .archObject .pml4Obj := by rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have htT : t ≠ .tcbObject := by rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
@@ -816,6 +835,23 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
         · have hb : ptrF (.PageTable b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
           exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, (fun h => by cases h), (fun h => by cases h)⟩
+  -- the buffer fields (`JBuf`): fresh objects (no data page, no TCB), then
+  -- CNode slots; the new caps no frame caps
+  have hfk : IpcFrKeep σ σ' :=
+    (IpcFrKeep.of_specAdd hA (fun _ _ x e => htX _ x e) (fun _ _ vms e => htD vms _ e)).trans
+      (IpcFrKeep.of_keepC hkc)
+  have hbf : JBuf (L := L) { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
+      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
+      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} } res.2.1 σ' := by
+    obtain ⟨-, hCRZ, -⟩ := hXZ.rel
+    obtain ⟨hn9, hn10, hn11⟩ := hnf
+    exact ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.retype hE hM hCRZ.2.2.1 (fun _ => UFr.keep hfk.page)
+      (fun j _ => by
+        rw [hcj]
+        rcases hnt with h | h | h | h | h | h | h | h | h
+        all_goals first | omega | simp [cjOf, newCapOf, h, Vs.FrIn])⟩
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -825,7 +861,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
@@ -845,7 +881,8 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64}
-    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) (hc0 : Z.c = 0#u64)
+    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11))
+    (hnf : nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r false fiv)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (blk call don : Bool) :
     (do
@@ -897,23 +934,26 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     fun lo hi h1 h2 => hRU s1 hs1 lo hi (J.free_dead hxG (capV_of_capAt hcap) h1 h2)
   have hfiv : fiv = fi := by rw [hctx.fidx]; rfl
   rw [hs1]; simp only [bind_ok]
-  exact WP.spec_mono (J1.utEpBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hBO1 hAF1 hRU1)
+  exact WP.spec_mono (J1.utEpBodyJ hni1 hpp hidx hcap1 hnt hnf hc0 hctx1 hfiv hBO1 hAF1 hRU1)
     (fun res h => utRetPostJ_of_body hst1 h)
 
 variable (arI) in
 /-- **[W] The retype of a RAM untyped at `J`, outside `JAtZ.utEpJ`'s case**
 (XTopJointUt's `JUtRetHyp` narrowed): asked only with a reset (the source
 cap childless) or of an object type other than endpoints, notifications,
-replies, PDPTs, page tables, page directories, frames, SCs, untypeds,
-PML4s and CNodes (left: TCBs, handoff/utj.md gap K9, and the VCPU/EPT types,
-the latter also `JUtPath.vtx` [scope]).
+replies, PDPTs, page tables, page directories, SCs, untypeds,
+PML4s and CNodes (left: the VCPU/EPT types, also `JUtPath.vtx` [scope]; and,
+for now, the frames (types 9, 10, 11): since `JAtZ.fcov` (every user data
+page's words in `B`) the frame retype needs `B` grown by the new pages'
+words, `XTopAt.addBuf` with their spec memory zero by `UtZero`, not yet
+proved, handoff/glob.md gl13).
 l4v: `invoke_untyped_corres` with `invoke_untyped_invs`. -/
 def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
   ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
     argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
     (reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧ nt.val ≠ 5 ∧ nt.val ≠ 8 ∧ nt.val ≠ 4 ∧ nt.val ≠ 1)) →
+      nt.val ≠ 0 ∧ nt.val ≠ 5 ∧ nt.val ≠ 8 ∧ nt.val ≠ 4 ∧ nt.val ≠ 1)) →
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
@@ -973,14 +1013,13 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     dsimp only at hp1 hpp
     subst hp1
     exact J.utTcbJ hni hct hpp rfl hcap h1 hc0 hctx hBO hAF hRU blk call don
-  by_cases hc : reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)
+  by_cases hc : reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13)
   · refine hR nt us dest off win t r reset fiv hh hctx ?_
     cases reset
     · rcases hc with h | h
       · exact Or.inl h
-      · exact Or.inr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e => h0 ⟨rfl, e⟩, fun e => h5 ⟨rfl, e⟩, fun e => h8 ⟨rfl, e⟩,
+      · exact Or.inr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2,
+          fun e => h0 ⟨rfl, e⟩, fun e => h5 ⟨rfl, e⟩, fun e => h8 ⟨rfl, e⟩,
           fun e => h4 ⟨rfl, e⟩, fun e => h1 ⟨rfl, e⟩⟩
     · exact Or.inl rfl
   have hrs : reset = false := by
@@ -990,12 +1029,15 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11) := by
     by_contra h
     exact hc (Or.inr (by omega))
+  have hnf : nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 := by
+    by_contra h
+    exact hc (Or.inr (by omega))
   subst hrs
   obtain ⟨sl1, idx⟩ := sl
   obtain ⟨pp, hp1, hpp⟩ := hsl
   dsimp only at hp1 hpp
   subst hp1
-  exact J.utEpJ hni hct hpp rfl hcap hnt hc0 hctx hBO hAF hRU blk call don
+  exact J.utEpJ hni hct hpp rfl hcap hnt hnf hc0 hctx hBO hAF hRU blk call don
 
 end
 

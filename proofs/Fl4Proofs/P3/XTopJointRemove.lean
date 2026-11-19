@@ -34,6 +34,8 @@ import Fl4Proofs.P3.XTopJointFinReply
 import Fl4Proofs.P3.IpcRemoveSpecJ
 import Fl4Proofs.P3.IpcQP
 import Fl4Proofs.P1.QueueReplyKw
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 /-! ## `reply_remove` on `IRel` with the call stacks -/
@@ -963,7 +965,10 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
       have h1 : q ≠ t.bv := by rintro rfl; rw [kt'] at hq; cases hq
       have h2 : q ≠ r.bv := by rintro rfl; rw [kr'] at hq; cases hq
       rw [ko' q h1 h2] at hq; exact hq)
-  exact ⟨σ', Z.vs, Ac, Lst', D, hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
+  exact ⟨σ', Z.vs, Ac, Lst', D, hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb
+    ((IpcFrKeep.of_otk hK.kh).trans (IpcFrKeep.of_upd2 hk5t kt' rfl rfl hk5r kr'
+      (IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) ko'))
+    hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
 
 /-- **`reply_remove` at `J`** (`replyRemoveJD` without the dead set kept and
 the thread's `Inactive` after). -/

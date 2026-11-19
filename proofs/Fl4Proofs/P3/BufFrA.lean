@@ -16,18 +16,6 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-theorem aaType_userData {a : ArchKernelObj} {vms : VMPageSize} :
-    aaType a = aaType (.dataPage false vms) ↔ a = .dataPage false vms := by
-  refine ⟨fun h => ?_, fun h => by rw [h]⟩
-  cases a with
-  | dataPage d sz =>
-    cases d
-    · simp only [aaType] at h
-      simp only [Bool.false_eq_true, if_false] at h
-      injection h with h; rw [h]
-    · simp [aaType] at h
-  | _ => simp [aaType] at h
-
 variable {σ σ' : State Unit}
 
 theorem ArFr.ipcFr (h : ArFr σ σ') : IpcFrKeep σ σ' := by

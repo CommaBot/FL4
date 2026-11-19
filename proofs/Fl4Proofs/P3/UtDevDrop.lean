@@ -155,9 +155,29 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (Vs.pr2 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L2 Z.L1) (Vs.pr1 p.val (p.val + 2 ^ sb.val) Z.L1) (L.mem s) := by
     obtain ⟨-, hR, hPt, hPI, -⟩ := J.xtop.fin
     exact J.vsc.drop hR hPt hPI hXP hX4 hX3 hX2 hX1 hM hXc
+  -- the buffer fields (`JAtZ.dropBuf`): spec objects in the region inside it (`DevFreeT`)
+  have hIn : ∀ o ko, σ.kheap o = some ko → RgOf p sb o →
+      p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + 2 ^ sb.val := by
+    intro o ko hk hr
+    have hr' := (rgOf_iff hsb hfit ⟨o⟩).1 hr
+    have hv : (⟨o⟩ : U64).val = o.toNat := rfl
+    rw [hv] at hr'
+    have := Nat.one_le_two_pow (n := Fl4Spec.objBits ko)
+    have hfi : fi.val ≤ 2 ^ sb.val := J.ut.fib _ hx p sb fi true hcx
+    rcases hDF _ hx p sb fi true hcx ⟨rfl, trivial⟩ o ko hk with (h | h) | ⟨h1, h2⟩
+    · omega
+    · omega
+    · exact ⟨h1, by omega⟩
+  have hp8 : p.val % 8 = 0 := by
+    have h4 : 4 ≤ sb.val := (hDA _ hx p sb fi hcx).2.2.2.2.2.2.2.2
+    have h1 : 8 ∣ 2 ^ sb.val := by
+      have := Nat.pow_dvd_pow 2 (show 3 ≤ sb.val by omega)
+      simpa using this
+    exact Nat.mod_eq_zero_of_dvd (Nat.dvd_trans h1 (Nat.dvd_of_mod_eq_zero hpal))
+  have hbf := J.dropBuf hsb hfit hx hcx hSO hIn hnd hp8 hD
   exact ⟨hX, hcall, hrf', hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
-    hcr, hblk, hiL, hvc⟩
+    hcr, hblk, hiL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
 
 end
 

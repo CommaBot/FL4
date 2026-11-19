@@ -135,6 +135,44 @@ theorem bufFree_of_obj {B : Set (U64 × Fl4Spec.Word)} {m : U64 → U64} {G : Md
   obtain ⟨o, ko, hk, h1, h2⟩ := hO wp hw
   rcases hF x hx p sb fi hc o ko hk with (h | h) | ⟨h3, h4⟩ <;> omega
 
+/-! ### The buffer fields (`JBuf`) across a retype -/
+
+/-- **Fresh objects added** (`SpecAdd`), none a TCB with an IPC frame or a
+non-device data page: `IpcFrKeep`. -/
+theorem IpcFrKeep.of_specAdd {σ σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop}
+    {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject} (h : Sched.SpecAdd σ σ' W o)
+    (ht : ∀ p, W p → ∀ x, o p = .tcb x → x.tcbIpcframe = .nullCap)
+    (hd : ∀ p, W p → ∀ vms, o p ≠ .archObj (.dataPage false vms)) : IpcFrKeep σ σ' :=
+  IpcFrKeep.of_fresh fun p => by
+    by_cases hp : W p
+    · obtain ⟨h1, h2⟩ := h.new p hp
+      refine Or.inr ⟨h1, fun x hx => ht p hp x ?_, fun vms hv => hd p hp vms ?_⟩
+      · rw [h2] at hx; exact Option.some.inj hx
+      · rw [h2] at hv; exact Option.some.inj hv
+    · exact Or.inl (h.old p hp)
+
+/-- An untyped cap's `FrIn` (no condition). -/
+theorem Vs.frIn_ut {U : Nat → Prop} {c : capability.Cap} (h : isUt c = true) : Vs.FrIn U c := by
+  cases c <;> first | trivial | (simp [isUt] at h)
+
+/-- **`FrSlots` across a retype** (`RetExp`): an old cap kept or an untyped
+cap, a new cap `FrIn` by `hn`. -/
+theorem Vs.FrSlots.retype {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {A0 k w : Nat}
+    {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64} {U U' : Nat → Prop}
+    (h : Vs.FrSlots th U m) (hE : RetExp th th' m m' G G' A0 k w dslot cj xs)
+    (hM : MdbLinks th m G) (hM' : MdbLinks th2 m' G') (hU : ∀ a, U a → U' a)
+    (hn : ∀ j, j < w → Vs.FrIn U' (cj j)) : Vs.FrSlots th2 U' m' := by
+  intro y hy
+  by_cases hnull : capV m' y = .Null
+  · rw [hnull]; trivial
+  have hy' : y ∈ G'.chains.flatten := (hM'.members y).2 ⟨hy, _, capAt_capV m' y, hnull⟩
+  rcases hE.gmem y hy' with hy0 | ⟨j, hj, rfl⟩
+  · by_cases hu : isUt (capV m y) = true
+    · exact Vs.frIn_ut (hE.utk y hy0 hu)
+    · rw [(hE.keep y hy0 (by simpa using hu)).2]
+      exact (h y ((hM.members y).1 hy0).1).mono hU
+  · rw [hE.newc j hj]; exact hn j hj
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -490,7 +528,8 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hset : (∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
       (∀ r, H' r = some .reply → r ∈ Z'.R))
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
-    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hbf : JBuf (L := L) Z' s' σ') :
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -504,7 +543,7 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
 
 end
 

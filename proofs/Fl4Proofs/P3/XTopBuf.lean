@@ -393,7 +393,7 @@ spec's `ActReady` at every `WX` state [J]. -/
 theorem bufHypW_X {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {t : U64} (ht : th t = some .tcb)
     (hA : ∀ s a σ G, WX (L := L) AR th s a σ G → Notif.ActReady σ) (addr : U64) (ptr : Fl4Spec.VSpaceRef) :
     BufHypW (L := L) (WX (L := L) AR th) th t addr ptr := by
-  refine ⟨fun s a σ G _ hW => ?_, fun s a σ G _ hW => ?_⟩
+  refine ⟨fun s a σ G _ hW _ => ?_, fun s a σ G _ hW => ?_⟩
   · obtain ⟨Z, rfl, rfl, hX, hK, hTh⟩ := hW
     have htT := hTh t ht
     obtain ⟨Q, R0, hc, hs⟩ := hX.fin.1.1.1.lists

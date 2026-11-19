@@ -23,6 +23,8 @@ two words, the replies' `TCB` words) and the spec frame `CFr`
 import Fl4Proofs.P3.ScFireJ
 import Fl4Proofs.P3.IpcSignalBound
 import Fl4Proofs.P3.IpcSignalBoundSpec
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -439,7 +441,7 @@ theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hC R⟩
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`send_signal` to an idle notification bound to a thread blocked

@@ -18,6 +18,8 @@ register: the frame is `nfrStep`'s (XTopJointFinThread) with the spec's
   P1's `BlkOK` and `KW` footprint given.
 -/
 import Fl4Proofs.P3.XTopJointFinThreadSc
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Sched
@@ -131,6 +133,20 @@ theorem QKY.ckeepP : Fl4Proofs.P3.CKeep σ σ' := by
     · rw [h0] at ha; cases ha
   · obtain ⟨y, hy, e⟩ := h.tcb ht
     exact ⟨y, hy, by rw [e]; rfl⟩
+
+/-- `QKY` keeps the IPC frames and the data pages. -/
+theorem QKY.ipcFr : IpcFrKeep σ σ' :=
+  IpcFrKeep.of_chg (C := fun _ o o' => (∃ x y, o = .tcb x ∧ o' = .tcb y ∧ y.tcbIpcframe = x.tcbIpcframe ∧
+      y.tcbIpcBuffer = x.tcbIpcBuffer) ∨ ∃ z w n, o = .schedContext z n ∧ o' = .schedContext w n)
+    (fun p => by
+      rcases h.kh p with e | ⟨x, y, h1, h2, e⟩ | ⟨z, w, n, h1, h2, -⟩
+      · exact Or.inl e
+      · exact Or.inr ⟨_, _, h1, h2, Or.inl ⟨x, y, rfl, rfl, by rw [e], by rw [e]⟩⟩
+      · exact Or.inr ⟨_, _, h1, h2, Or.inr ⟨z, w, n, rfl, rfl⟩⟩)
+    (fun _ _ _ hc => by
+      rcases hc with ⟨x, y, rfl, rfl, h1, h2⟩ | ⟨z, w, n, rfl, rfl⟩
+      · exact IpcFrKeep.objFrK_tcb h1 h2
+      · exact IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e))
 
 theorem QKY.kback : KBack σ σ' := by
   intro o ko' ho
@@ -375,7 +391,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R⟩
 
 /-- **`JAtZ` across a register step** (`reg_frameF` without fault words). -/
 theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}

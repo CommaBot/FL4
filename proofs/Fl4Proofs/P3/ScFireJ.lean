@@ -24,6 +24,8 @@ one `Fire`: the signal (`Signal`), then `reprogram_timer` set.
   (given `SignalJHyp`), at fresh VSpace sets.
 -/
 import Fl4Proofs.P3.XTopJointFin
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -301,7 +303,7 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv, F.own J.own, F.off J.off,
       hAI, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback (JCs.same J hSS F.ksz) R (J.vsc.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
 
 
 variable (arI) in

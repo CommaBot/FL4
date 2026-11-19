@@ -49,6 +49,18 @@ structure IpcFrKeep (σ σ' : State Unit) : Prop where
   pback : ∀ p vms, σ'.kheap p = some (.archObj (.dataPage false vms)) →
     σ.kheap p = some (.archObj (.dataPage false vms))
 
+theorem aaType_userData {a : ArchKernelObj} {vms : VMPageSize} :
+    aaType a = aaType (.dataPage false vms) ↔ a = .dataPage false vms := by
+  refine ⟨fun h => ?_, fun h => by rw [h]⟩
+  cases a with
+  | dataPage d sz =>
+    cases d
+    · simp only [aaType] at h
+      simp only [Bool.false_eq_true, if_false] at h
+      injection h with h; rw [h]
+    · simp [aaType] at h
+  | _ => simp [aaType] at h
+
 namespace IpcFrKeep
 variable {σ σ' σ'' : State Unit}
 
@@ -195,7 +207,8 @@ of the typed heap's, whose FL4 buffer slot (`slotOf t 2`) is kept or emptied;
 the spec's IPC frame is FL4's (`StateRel.bufCap`, `CapRel` functional). -/
 theorem of_slot2 {th : TypedHeap} {mem mem' : U64 → U64}
     (hkc : ∀ p, σ'.kheap p = σ.kheap p ∨ (∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) ∨
-      ∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer)
+      (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer) ∨
+      ∃ a a', σ.kheap p = some (.archObj a) ∧ σ'.kheap p = some (.archObj a') ∧ aaType a' = aaType a)
     (hR : StateRel th mem σ) (hR' : StateRel th mem' σ')
     (hT : ∀ t x, σ'.kheap t = some (.tcb x) → ∃ q : U64, q.bv = t ∧ th q = some .tcb)
     (h2 : ∀ q, th q = some .tcb → capAt mem' (slotOf q 2) = capAt mem (slotOf q 2) ∨ capV mem' (slotOf q 2) = .Null) :
@@ -208,7 +221,7 @@ theorem of_slot2 {th : TypedHeap} {mem mem' : U64 → U64}
     obtain ⟨c', ac', hc', hac', hca'⟩ := hsl' 2 (by decide)
     rw [tcbCnodeMap_two] at hac'
     cases hac'
-    rcases hkc q.bv with e | ⟨r, cs, cs', -, h1'⟩ | ⟨x, y, h1, h1', hb⟩
+    rcases hkc q.bv with e | ⟨r, cs, cs', -, h1'⟩ | ⟨x, y, h1, h1', hb⟩ | ⟨_, _, -, h1', -⟩
     · exact Or.inr ⟨y', by rw [← e]; exact hx', rfl, rfl⟩
     · rw [hx'] at h1'; cases h1'
     · have e2 : y = y' := by rw [hx'] at h1'; exact (KernelObject.tcb.inj (Option.some.inj h1')).symm
@@ -229,14 +242,36 @@ theorem of_slot2 {th : TypedHeap} {mem mem' : U64 → U64}
       · left
         have h3 : capV mem' (slotOf q 2) = c' := capV_of_capAt hc'
         rw [hca'.abs, ← h3, e, absCap_null]
-  · rcases hkc p with e | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+    · rw [hx'] at h1'; cases h1'
+  · rcases hkc p with e | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩ | ⟨a, a', h1, h2, ht⟩
     · rw [e]; exact h
     · rw [h] at h1; cases h1
     · rw [h] at h1; cases h1
-  · rcases hkc p with e | ⟨r, cs, cs', -, h1⟩ | ⟨x, y, -, h1, -⟩
+    · rw [h] at h1; cases h1
+      rw [h2, aaType_userData.1 ht]
+  · rcases hkc p with e | ⟨r, cs, cs', -, h1⟩ | ⟨x, y, -, h1, -⟩ | ⟨a, a', h1, h2, ht⟩
     · rw [← e]; exact h
     · rw [h] at h1; cases h1
     · rw [h] at h1; cases h1
+    · rw [h] at h2; cases h2
+      rw [h1, aaType_userData.1 ht.symm]
+
+/-- A TCB's spec IPC frame is null when FL4's buffer slot is (`StateRel`). -/
+theorem _root_.Fl4Proofs.P3.ipcframe_null_of {th : TypedHeap} {mem : U64 → U64} (hR : StateRel th mem σ) {q : U64}
+    (hq : th q = some .tcb) {x : Tcb} (hk : σ.kheap q.bv = some (.tcb x))
+    (h : capV mem (cslotAddr (q.bv, Fl4Spec.tcbCnodeIndex 2)) = .Null) : x.tcbIpcframe = .nullCap := by
+  have he : cslotAddr (q.bv, Fl4Spec.tcbCnodeIndex 2) = slotOf q 2 := by
+    show slotAddr q.bv (Fl4Spec.ofBl _) = _
+    rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
+  rw [he] at h
+  obtain ⟨y, hky, hsl⟩ := hR.tcb q hq
+  have e1 : y = x := by rw [hk] at hky; exact (KernelObject.tcb.inj (Option.some.inj hky)).symm
+  subst e1
+  obtain ⟨c, ac, hc, hac, hca⟩ := hsl 2 (by decide)
+  rw [tcbCnodeMap_two] at hac
+  cases hac
+  have h3 : capV mem (slotOf q 2) = c := capV_of_capAt hc
+  rw [hca.abs, ← h3, h, absCap_null]
 
 /-- **The IPC frames' facts of one object step**: a TCB after was a TCB with
 the same IPC frame and buffer address, and neither object is a non-device
@@ -278,6 +313,26 @@ theorem of_chg {C : ObjRef → KernelObject → KernelObject → Prop}
     · rw [← e]; exact h
     · rw [h] at h2; cases h2; exact absurd rfl ((hC p o _ hc).2.2 vms)
 
+/-- **Two objects changed** (a TCB keeping its frame and buffer, another
+object by `ObjFrK`), the rest kept. -/
+theorem of_upd2 {t r : ObjRef} {x y : Tcb} {o o' : KernelObject} (hkt : σ.kheap t = some (.tcb x))
+    (hkt' : σ'.kheap t = some (.tcb y)) (h1 : y.tcbIpcframe = x.tcbIpcframe) (h2 : y.tcbIpcBuffer = x.tcbIpcBuffer)
+    (hkr : σ.kheap r = some o) (hkr' : σ'.kheap r = some o') (ho : ObjFrK o o')
+    (hko : ∀ p, p ≠ t → p ≠ r → σ'.kheap p = σ.kheap p) : IpcFrKeep σ σ' :=
+  of_chg (C := fun _ a b => ObjFrK a b) (fun p => by
+    by_cases e1 : p = t
+    · subst e1; exact Or.inr ⟨_, _, hkt, hkt', objFrK_tcb h1 h2⟩
+    by_cases e2 : p = r
+    · subst e2; exact Or.inr ⟨_, _, hkr, hkr', ho⟩
+    exact Or.inl (hko p e1 e2)) (fun _ _ _ h => h)
+
+/-- **A CNode-only step** (`KeepC`: objects kept or a CNode's slots changed). -/
+theorem of_keepC (h : KeepC σ σ') : IpcFrKeep σ σ' :=
+  of_chg (C := fun _ o o' => ∃ r cs cs', o = .cnode r cs ∧ o' = .cnode r cs')
+    (fun p => (h p).imp_right fun ⟨r, cs, cs', h1, h2⟩ => ⟨_, _, h1, h2, r, cs, cs', rfl, rfl⟩)
+    (fun _ _ _ ⟨_, _, _, e1, e2⟩ => by
+      subst e1 e2; exact objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e))
+
 end IpcFrKeep
 
 variable {σ σ' : State Unit}
@@ -299,6 +354,21 @@ theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.keep (h : Endp.IpcBufCapOK σ) (hK 
   · rw [e] at hf; cases hf
   · obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md (by rw [e1]; exact hf) hR
     exact ⟨h1, h2, fun k hk => by rw [← e2]; exact inUserFrame_keep hK.page (h3 k hk), by rw [← e2]; exact h4, h5⟩
+
+/-- **The bytes in a user frame** (`JAtZ.fcap`'s set). -/
+def _root_.Fl4Proofs.P3.UFr (σ : State Unit) (a : Nat) : Prop := inUserFrame (BitVec.ofNat 64 a) σ
+
+theorem _root_.Fl4Proofs.P3.UFr.keep (hpg : ∀ p vms, σ.kheap p = some (.archObj (.dataPage false vms)) →
+    σ'.kheap p = some (.archObj (.dataPage false vms))) {a : Nat} (h : UFr σ a) : UFr σ' a :=
+  inUserFrame_keep hpg h
+
+/-- `JAtZ.fcap` across a step keeping the data pages and the frame caps
+within their ranges (`Vs.VsSlotsT`). -/
+theorem _root_.Fl4Proofs.P3.Vs.FrSlots.keepU {th : TypedHeap} {m m' : U64 → U64}
+    (h : Vs.FrSlots th (UFr σ) m) (hT : Vs.VsSlotsT th m m')
+    (hpg : ∀ p vms, σ.kheap p = some (.archObj (.dataPage false vms)) →
+      σ'.kheap p = some (.archObj (.dataPage false vms))) : Vs.FrSlots th (UFr σ') m' :=
+  (h.step hT).mono fun _ => UFr.keep hpg
 
 /-- **`B` covers the user frames** (module docstring). -/
 def FrameCover (B : Set (U64 × Word)) (σ : State Unit) : Prop :=

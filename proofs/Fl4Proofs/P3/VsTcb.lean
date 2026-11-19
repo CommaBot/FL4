@@ -128,6 +128,25 @@ def MapOk (c : capability.Cap) : Prop := ∀ p asid, c = .Pml4 p true asid → a
 def MappedAsid (th : TypedHeap) (mem : U64 → U64) : Prop :=
   ∀ a, IsSlot th a → ∀ c, capAt mem a = ok c → MapOk c
 
+/-- **An accepted IPC buffer address is 1 KiB aligned** (FL4's
+`check_valid_ipc_buffer` on a non-device frame cap returned `Ok`). -/
+theorem check_valid_ipc_buffer_al {vptr p r a v : U64} {m ept : Bool} {sz : capability.FrameSize}
+    (h : vspace.check_valid_ipc_buffer vptr (.Frame p sz r false m ept a v) = ok (.Ok ())) :
+    vptr.bv.toNat % 1024 = 0 := by
+  have hFL : vspace.check_valid_ipc_buffer vptr (.Frame p sz r false m ept a v) =
+      ok (if (vptr &&& 1023#u64) != 0#u64 then .Err (.Sys .AlignmentError) else .Ok ()) := by
+    simp only [vspace.check_valid_ipc_buffer, Bool.false_eq_true, ↓reduceIte, ipc_shift, bind_ok]
+    have h1 : (1024#u64 - 1#u64 : Result U64) = ok 1023#u64 := rfl
+    rw [h1]
+    simp only [bind_ok, lift]
+    split <;> rfl
+  rw [hFL] at h
+  by_cases hal : (vptr &&& 1023#u64) = 0#u64
+  · have h2 := (isAligned10_iff vptr).2 hal
+    unfold Fl4Spec.isAligned at h2
+    exact Nat.mod_eq_zero_of_dvd (by simpa using h2)
+  · simp [hal] at h
+
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 

@@ -1134,13 +1134,21 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       rw [hE.newc j hj] at h1 ⊢
       have hT : Vs.SetFree (cj j) := by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.SetFree]
       exact (Vs.VCapOK.setFree hT h1).toW
+  -- the buffer fields (`JBuf`): fresh TCBs (null IPC frames), then CNode slots; the new caps TCB caps
+  have hfk : IpcFrKeep σ σ' :=
+    (IpcFrKeep.of_specAdd hA (fun _ _ x e => by rw [ht] at e; cases e; rfl)
+      (fun _ _ vms e => by rw [ht] at e; cases e)).trans (IpcFrKeep.of_keepC hkc)
+  have hbf : JBuf (L := L) { Z with th := th', G := G', T := Z.T ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val }
+      res.2.1 σ' :=
+    ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.retype hE hM hM' (fun _ => UFr.keep hfk.page)
+      (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.FrIn])⟩
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G', T := Z.T ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hwT.1 hXT hCs hJR hKs'
     (fun t0 ht0 => by
       rcases hThX.casesI ht0 with h | ⟨h, -⟩
       · exact Or.inl (J.thT t0 h)
       · exact Or.inr h)
-    (thk_grow hThX hksk J.thk) (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
+    (thk_grow hThX hksk J.thk) (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
