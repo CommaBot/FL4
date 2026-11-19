@@ -188,15 +188,23 @@ def JIrqSigHyp (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
       ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, ∃ Z', XTopAt (L := L) AR Z' r'.1 r'.2 z.2 ⦄
 
 set_option maxHeartbeats 16000000 in
-/-- **`handle_interrupt` at `J`** (module docstring): `JIrqHyp` from the
-premises named there. -/
-theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+/-- **`handle_interrupt` from one `JHole`** (module docstring): the signal
+from the hole when it is not `JAtZ` (`¬ (OffOK ∧ CurOwnW)`) is the premise
+`hSig` of this hole only (`jIrqHyp_of` passes `JIrqSigHyp`; from a `JAtZ`
+state it is vacuous, XTopJointPreemptZ). -/
+theorem JHole.handleIrqJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
-    (hSig : JIrqSigHyp (L := L) arI AR) :
-    JIrqHyp (L := L) arI AR := by
-  intro s a σ w i hJ hwi _ h126 h127
-  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+    {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ)
+    (hSig : ¬ (OffOK σ ∧ CurOwnW Z.T Z.C σ) → ∀ (w n badge : U64) (r : Bool),
+      w.val < 128 → capAt (L.mem s) (nodeA (L.ksb s) w) = ok (.Notification n badge true r) →
+      notification.send_signal st arI s a n badge ⦃ r' =>
+        ∃ z ∈ (Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ).1, ∃ Z', XTopAt (L := L) AR Z' r'.1 r'.2 z.2 ⦄)
+    (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
+    interrupt.handle_interrupt st arI s a w ⦃ r =>
+      (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
   have hX := Hh.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
@@ -320,7 +328,7 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
             refine WP.spec_bind (signalJHyp_of hAT hW hmb Z Ac Lst' D s a σ p b J hpN) ?_
             rintro ⟨s2, a2⟩ ⟨σ', V', Ac', Lst'', D', hsp, -, J'⟩
             exact hmask s2 a2 σ' _ (hwhen σ' (by rw [hsp]; rfl)) J'.xtop
-          · refine WP.spec_bind (hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w p b rv Hh hO hw128 hcap) ?_
+          · refine WP.spec_bind (hSig hO w p b rv hw128 hcap) ?_
             rintro ⟨s2, a2⟩ ⟨z, hz, Z', hX2⟩
             exact hmask s2 a2 z.2 Z' (hwhen z.2 hz) hX2
       | _ =>
@@ -386,6 +394,18 @@ theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPl
         rw [hst]; unfold irqSt; simp [h0, h1, h2]
       simp only [h0, ↓reduceIte, bind_ok, WP.spec_ok]
       exact Or.inr ⟨_, mem_hi_reserved hle hres, Z, hX⟩
+
+/-- **`handle_interrupt` at `J`** (module docstring): `JIrqHyp` from the
+premises named there (`JHole.handleIrqJ` with `JIrqSigHyp`). -/
+theorem jIrqHyp_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hSig : JIrqSigHyp (L := L) arI AR) :
+    JIrqHyp (L := L) arI AR := by
+  intro s a σ w i hJ hwi _ h126 h127
+  obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := hJ
+  exact Hh.handleIrqJ hARI hAT hIP hmb hNS
+    (fun hO w' n b r h1 h2 => hSig Z H Cs Ac Lst D s0 a0 σ0 s a σ w' n b r Hh hO h1 h2) w i hwi h126 h127
 
 variable (arI) in
 /-- **`JPreemptRestHyp` in the native scope** [W] (module docstring): the
