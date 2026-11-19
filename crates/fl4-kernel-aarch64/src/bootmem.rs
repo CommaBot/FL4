@@ -120,3 +120,15 @@ pub fn device_pages(pa: u64, len: u64, pa_top: u64) -> Option<(u64, u64)> {
     let size = end.checked_add(PAGE - 1)? & !(PAGE - 1);
     Some((base, size - base))
 }
+
+/// Where the next device mapping of `size` bytes goes in the kernel's
+/// device area, which ends at `top`: `next` (the end of the previous
+/// mapping) rounded up to 64 KiB. Returns that address and the new end;
+/// none for a mapping past `top`, or whose address or end would wrap past
+/// 2^64 (a firmware range of 512 GiB or more from the device area's base
+/// did, and mapped over the kernel image above `top`).
+pub fn device_va(next: u64, size: u64, top: u64) -> Option<(u64, u64)> {
+    let va = next.checked_add(0xffff)? & !0xffff;
+    let end = va.checked_add(size)?;
+    (end <= top).then_some((va, end))
+}

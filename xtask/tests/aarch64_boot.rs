@@ -73,6 +73,8 @@ mod bootmem;
 mod hw;
 #[path = "../../crates/fl4-efi/src/efi_mmap.rs"]
 mod efi_mmap;
+#[path = "../../crates/fl4-kernel-aarch64/src/extra_bi.rs"]
+mod extra_bi;
 
 // ---- GIC ---------------------------------------------------------------------
 
@@ -253,64 +255,220 @@ fn el2_setup_reads_pmcr_only_with_an_architected_pmu() {
     assert_eq!(before, ["b.eq    4f", "cmp     x9, #0xf", "cbz     x9, 4f", "ubfx    x9, x9, #8, #4"]);
 }
 
-/// Run `fl4_el_setup`'s pointer authentication set-up (from the
-/// ID_AA64ISAR1_EL1 read to the HCR_EL2 write both paths reach) on the
-/// given ID registers; returns that HCR_EL2 value and the system registers
-/// written with zero on the way.
-fn pauth_setup(c: &[String], isar1: u64, isar2: u64) -> (u64, Vec<String>) {
-    let start = c.iter().position(|l| l == "mrs     x10, id_aa64isar1_el1").expect("ISAR1 read");
-    let mut regs = std::collections::HashMap::new();
-    regs.insert("x9".to_string(), 1u64 << 31);
-    let mut written = vec![];
-    let mut hcr = None;
-    let val = |regs: &std::collections::HashMap<String, u64>, o: &str| -> u64 {
-        let o = o.trim();
-        match o.strip_prefix('#') {
-            Some(imm) => {
-                let imm = imm.trim_start_matches('(').trim_end_matches(')');
-                match imm.split_once("<<") {
-                    Some((a, b)) => a.trim().parse::<u64>().unwrap() << b.trim().parse::<u64>().unwrap(),
-                    None => u64::from_str_radix(imm.trim_start_matches("0x"), if imm.starts_with("0x") { 16 } else { 10 }).unwrap(),
-                }
+/// The pointer authentication key registers, APIAKeyLo_EL1 to
+/// APGAKeyHi_EL1.
+const PAUTH_KEYS: [&str; 10] = ["s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0",
+    "s3_0_c2_c2_1", "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1"];
+
+/// `fl4_el_setup` as written in boot.S, comments left out and labels on
+/// lines of their own ("7:").
+fn el_setup_lines() -> Vec<String> {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find("\nfl4_el_setup:\n").expect("fl4_el_setup") + "\nfl4_el_setup:\n".len();
+    let end = boot[at..].find("\n\n").map_or(boot.len(), |e| at + e);
+    let mut out = vec![];
+    let mut comment = false;
+    for l in boot[at..end].lines() {
+        let mut l = l.to_string();
+        if comment {
+            match l.find("*/") {
+                Some(e) => { l = l[e + 2..].to_string(); comment = false; }
+                None => continue,
             }
-            None => regs[o],
+        }
+        while let Some(b) = l.find("/*") {
+            match l[b..].find("*/") {
+                Some(e) => l.replace_range(b..b + e + 2, ""),
+                None => { comment = true; l.truncate(b); }
+            }
+        }
+        let mut l = l.trim().to_string();
+        if let Some((n, rest)) = l.split_once(':') {
+            if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) {
+                out.push(format!("{n}:"));
+                l = rest.trim().to_string();
+            }
+        }
+        if !l.is_empty() {
+            out.push(l.split_whitespace().collect::<Vec<_>>().join(" "));
+        }
+    }
+    out
+}
+
+/// A constant of boot.S: a number, an `.equ` name or `(a << b)`.
+fn boot_const(e: &str) -> u64 {
+    let e = e.trim().trim_start_matches('(').trim_end_matches(')').trim();
+    if let Some((a, b)) = e.split_once("<<") {
+        return boot_const(a) << boot_const(b);
+    }
+    if let Some(h) = e.strip_prefix("0x") {
+        return u64::from_str_radix(h, 16).unwrap();
+    }
+    if let Ok(v) = e.parse() {
+        return v;
+    }
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let def = boot.lines().find_map(|l| l.strip_prefix(".equ ").and_then(|d| d.split_once(',')).filter(|(n, _)| n.trim() == e));
+    boot_const(def.unwrap_or_else(|| panic!("unknown constant {e}")).1)
+}
+
+/// Run `fl4_el_setup` on a core entering it at `el` (1 or 2; at 2 with
+/// HCR_EL2.E2H as `e2h`), whose ID_AA64ISAR1_EL1 and ID_AA64ISAR2_EL1 are
+/// `isar1` and `isar2` and whose other ID registers read zero. Returns the
+/// system registers written, with the EL each was written at and the value.
+/// Panics on what would trap or be UNDEFINED: a key register access
+/// without FEAT_PAuth, one at EL1 entered from EL2 before HCR_EL2.APK is
+/// set, or any EL2 register access from a core entered at EL1.
+fn run_el_setup(el: u64, e2h: bool, isar1: u64, isar2: u64) -> Vec<(u64, String, u64)> {
+    let c = el_setup_lines();
+    let entry_el = el;
+    let mut el = el;
+    let pauth = (isar1 & 0xff0) | (isar2 & 0xf000) != 0;
+    let mut x: std::collections::HashMap<String, u64> = Default::default();
+    let mut hcr = (e2h as u64) << 34;
+    let mut elr = None;
+    let mut flags = (0u64, 0u64);
+    let mut writes = vec![];
+    let label = |pc: usize, t: &str| -> usize {
+        let (n, dir) = t.split_at(t.len() - 1);
+        let l = format!("{n}:");
+        match dir {
+            "f" => pc + c[pc..].iter().position(|x| *x == l).unwrap_or_else(|| panic!("no {l} after {pc}")),
+            "b" => c[..pc].iter().rposition(|x| *x == l).unwrap_or_else(|| panic!("no {l} before {pc}")),
+            _ => panic!("branch to {t}"),
         }
     };
-    let mut pc = start;
-    loop {
-        let l = &c[pc];
+    let el2_reg = |r: &str| r.ends_with("_el2") || r.starts_with("s3_4_");
+    let mut pc = 0;
+    for _ in 0..10_000 {
+        let l = c[pc].clone();
         pc += 1;
-        let (op, args) = l.split_once(' ').unwrap_or((l, ""));
-        let a: Vec<&str> = args.split(',').map(str::trim).collect();
+        if l.ends_with(':') {
+            continue;
+        }
+        let (op, args) = l.split_once(' ').unwrap_or((&l, ""));
+        let a: Vec<&str> = args.split(", ").collect();
+        let get = |x: &std::collections::HashMap<String, u64>, o: &str| -> u64 {
+            match o.strip_prefix('#') {
+                Some(imm) => boot_const(imm),
+                None if o == "xzr" => 0,
+                None => *x.get(o).unwrap_or_else(|| panic!("{o} read before it is written: {l}")),
+            }
+        };
         match op {
-            "mrs" => {
-                let v = match a[1] { "id_aa64isar1_el1" => isar1, "s3_0_c0_c6_2" => isar2, r => panic!("read of {r}") };
-                regs.insert(a[0].to_string(), v);
-            }
-            "ldr" => { let v = val(&regs, &format!("#{}", a[1].trim_start_matches('='))); regs.insert(a[0].to_string(), v); }
-            "and" => { let v = val(&regs, a[1]) & val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
-            "orr" => { let v = val(&regs, a[1]) | val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
-            "cbz" => {
-                assert_eq!(a[1], "7f");
-                if regs[a[0]] == 0 {
-                    // Label 7 is the HCR_EL2 write after the last key.
-                    let last_key = c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap();
-                    pc = last_key + 1;
-                }
-            }
             "isb" => {}
-            "msr" if a[0] == "hcr_el2" => {
-                hcr = Some(val(&regs, a[1]));
-                if pc > c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap() {
-                    return (regs["x9"], written);
-                }
+            "mrs" => {
+                let r = a[1].to_ascii_lowercase();
+                assert!(!(entry_el == 1 && el2_reg(&r)), "EL2 register read at EL1: {l}");
+                let v = match r.as_str() {
+                    "currentel" => el << 2,
+                    "hcr_el2" => hcr,
+                    "id_aa64isar1_el1" => isar1,
+                    "s3_0_c0_c6_2" => isar2,
+                    _ => 0,
+                };
+                x.insert(a[0].into(), v);
             }
             "msr" => {
-                assert_eq!(a[1], "xzr");
-                assert!(hcr.is_some_and(|h| h & (1 << 40) != 0), "key written before HCR_EL2.APK");
-                written.push(a[0].to_string());
+                let r = a[0].to_ascii_lowercase();
+                let v = get(&x, a[1]);
+                assert!(!(entry_el == 1 && el2_reg(&r)), "EL2 register written at EL1: {l}");
+                if PAUTH_KEYS.contains(&r.as_str()) {
+                    assert!(pauth, "key register written without FEAT_PAuth (UNDEFINED): {l}");
+                    assert!(entry_el == 1 || hcr & (1 << 40) != 0, "key written before HCR_EL2.APK: {l}");
+                }
+                match r.as_str() {
+                    // E2H fixed at 1 (no FEAT_E2H0) stays 1.
+                    "hcr_el2" => hcr = v | (e2h as u64) << 34,
+                    "elr_el2" => elr = Some(v),
+                    _ => {}
+                }
+                writes.push((el, r, v));
             }
-            _ => panic!("unexpected {l}"),
+            "mov" => { let v = get(&x, a[1]); x.insert(a[0].into(), v); }
+            "ldr" => { x.insert(a[0].into(), boot_const(a[1].strip_prefix('=').expect("literal load"))); }
+            "adr" => {
+                let v = if a[1].ends_with('f') || a[1].ends_with('b') { 0x1_0000_0000 + label(pc, a[1]) as u64 } else { 0xadd0_0000 };
+                x.insert(a[0].into(), v);
+            }
+            "lsr" => { let v = get(&x, a[1]) >> get(&x, a[2]); x.insert(a[0].into(), v); }
+            "and" => { let v = get(&x, a[1]) & get(&x, a[2]); x.insert(a[0].into(), v); }
+            "orr" => { let v = get(&x, a[1]) | get(&x, a[2]); x.insert(a[0].into(), v); }
+            "ubfx" => {
+                let (lsb, w) = (get(&x, a[2]), get(&x, a[3]));
+                let v = (get(&x, a[1]) >> lsb) & ((1 << w) - 1);
+                x.insert(a[0].into(), v);
+            }
+            "cmp" => flags = (get(&x, a[0]), get(&x, a[1])),
+            "b.ne" | "b.eq" | "b.lo" => {
+                let take = match op { "b.ne" => flags.0 != flags.1, "b.eq" => flags.0 == flags.1, _ => flags.0 < flags.1 };
+                if take { pc = label(pc, a[0]); }
+            }
+            "b" => pc = label(pc, a[0]),
+            "cbz" => if get(&x, a[0]) == 0 { pc = label(pc, a[1]); },
+            "tbz" | "tbnz" => {
+                let set = get(&x, a[0]) >> get(&x, a[1]) & 1 != 0;
+                if set == (op == "tbnz") { pc = label(pc, a[2]); }
+            }
+            "eret" => {
+                assert_eq!(el, 2, "eret at EL1");
+                el = 1;
+                pc = (elr.expect("ELR_EL2 set before eret") - 0x1_0000_0000) as usize;
+            }
+            "ret" => {
+                assert_eq!(el, 1, "returns at EL{el}");
+                return writes;
+            }
+            _ => panic!("the model has no {l}"),
+        }
+    }
+    panic!("fl4_el_setup does not return");
+}
+
+/// The pointer authentication ID fields: (ISAR1 bits, ISAR2 bits) of APA,
+/// API, GPA, GPI, APA3 and GPA3, each set or clear, with every other field
+/// of the two registers set.
+fn pauth_id_combinations() -> Vec<(u64, u64)> {
+    let fields = [(1u64 << 4, 0u64), (1 << 8, 0), (1 << 24, 0), (1 << 28, 0), (0, 1 << 12), (0, 1 << 8)];
+    (0..64u32).map(|m| {
+        let (mut i1, mut i2) = (0x00f0_000f_u64 | 0xffff_ffff_0000_0000, 0xffff_ffff_ffff_00ff_u64);
+        for (b, f) in fields.iter().enumerate() {
+            if m & (1 << b) != 0 {
+                i1 |= f.0;
+                i2 |= f.1;
+            }
+        }
+        (i1, i2)
+    }).collect()
+}
+
+/// Audit r10 F3: every core clears all ten pointer authentication keys
+/// whenever it has FEAT_PAuth (APA, API or APA3), entered at EL1 as at EL2,
+/// and writes none without it (an UNDEFINED access). Before, a core entered
+/// at EL1 (QEMU's default, KVM and cloud guests) skipped the clearing and
+/// kept the firmware's keys, which PACGA, enabled by no SCTLR_EL1 bit, lets
+/// EL0 compute with. From EL2, HCR_EL2.{APK,API} are set for any of the six
+/// fields before any key is written (`run_el_setup` checks the order).
+#[test]
+fn pauth_keys_are_cleared_on_every_entry() {
+    for (isar1, isar2) in pauth_id_combinations() {
+        let feat = (isar1 & 0xff0) | (isar2 & 0xf000) != 0;
+        let any = (isar1 & 0xff00_0ff0) | (isar2 & 0xff00) != 0;
+        for (el, e2h) in [(1, false), (2, false), (2, true)] {
+            let w = run_el_setup(el, e2h, isar1, isar2);
+            let keys: Vec<&(u64, String, u64)> = w.iter().filter(|(_, r, _)| PAUTH_KEYS.contains(&r.as_str())).collect();
+            let what = format!("EL{el} e2h {e2h} isar1 {isar1:#x} isar2 {isar2:#x}");
+            if feat {
+                assert_eq!(keys.iter().map(|k| k.1.as_str()).collect::<Vec<_>>(), PAUTH_KEYS, "{what}");
+                assert!(keys.iter().all(|k| k.0 == 1 && k.2 == 0), "{what}");
+            } else {
+                assert!(keys.is_empty(), "{what}");
+            }
+            if el == 2 {
+                let hcr: Vec<u64> = w.iter().filter(|(_, r, _)| r == "hcr_el2").map(|w| w.2).collect();
+                assert_eq!(hcr, [1 << 31 | if any { 3 << 40 } else { 0 }], "{what}");
+            }
         }
     }
 }
@@ -359,23 +517,8 @@ fn el2_setup_leaves_nothing_trapping_to_el2() {
     assert_eq!(&c[el2 + 1..el2 + 4], ["adr     x9, fl4_el2_vectors", "msr     vbar_el2, x9", "isb"]);
     let has = |l: &str| c.iter().any(|x| x == l);
     assert!(has("orr     x9, x9, #(3 << 40)"));
-    // Which of HCR_EL2.{APK,API} and the keys each combination of the
-    // pointer authentication ID fields gets: `pauth_setup` runs the code.
-    let keys = ["s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0", "s3_0_c2_c2_1",
-        "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1"];
-    assert_eq!(pauth_setup(&c, 0, 0), (1 << 31, vec![]));
-    for (isar1, isar2) in [(1 << 4, 0), (3 << 8, 0), (0, 1 << 12), (5 << 4 | 1 << 24, 0), (1 << 8 | 1 << 28, 0),
-        (0, 1 << 12 | 1 << 8)] {
-        // FEAT_PAuth: every key exists, and all are cleared with APK set.
-        let (hcr, written) = pauth_setup(&c, isar1 | 0x00f0_000f, isar2 | 0xffff_0000_0000_00ff);
-        assert_eq!(hcr, 1 << 31 | 3 << 40, "{isar1:#x} {isar2:#x}");
-        assert_eq!(written, keys, "{isar1:#x} {isar2:#x}");
-    }
-    // Generic authentication fields without FEAT_PAuth (no conforming PE
-    // has them): no key register exists, so none may be written.
-    for (isar1, isar2) in [(1 << 24, 0), (1 << 28, 0), (0, 1 << 8)] {
-        assert_eq!(pauth_setup(&c, isar1, isar2).1, Vec::<String>::new(), "{isar1:#x} {isar2:#x}");
-    }
+    // HCR_EL2.{APK,API} and the keys for each combination of the pointer
+    // authentication ID fields: `pauth_keys_are_cleared_on_every_entry`.
     for r in ["s3_4_c1_c1_4", "s3_4_c1_c1_5", "s3_4_c1_c1_6", "s3_4_c3_c1_4", "s3_4_c3_c1_5", "s3_4_c3_c1_6",
         "s3_4_c3_c1_0", "s3_4_c3_c1_1", "s3_4_c3_c1_2", "s3_4_c3_c1_3", "s3_4_c3_c1_7", "s3_4_c1_c2_2"] {
         assert!(has(&format!("msr     {r}, xzr")), "{r} not cleared");
@@ -470,6 +613,57 @@ fn memory_map_entries_never_wrap() {
     assert_eq!(bootmem::entry_pages(u64::MAX - 0xfff, 0x2000, u64::MAX), None);
     assert_eq!(bootmem::entry_pages(0xffff_ffff_ffff_f001, 0x10, u64::MAX), None);
     assert_eq!(bootmem::entry_pages(0x1000, 0, u64::MAX), None);
+}
+
+/// The kernel's device area (paging.rs): from the top of the window
+/// (fl4-core aarch64 `PPTR_TOP`) to the kernel image (`KERNEL_VBASE`).
+const DEVICE_BASE: u64 = 0xffff_ff80_0000_0000;
+const DEVICE_TOP: u64 = fl4_bootinfo::KERNEL_VBASE;
+
+/// Audit r10 F1: a device mapping never wraps past 2^64 into the kernel
+/// image. `device_pages` lets through any range below the physical address
+/// top (up to 2^48), but from DEVICE_BASE only 512 GiB remain to 2^64:
+/// before, `va + size` of a 512 GiB GICR range wrapped to 0, passed the
+/// `<= DEVICE_TOP` check, and `map` remapped the kernel's own text and data
+/// as device memory.
+#[test]
+fn device_mappings_never_wrap_past_the_device_area() {
+    let paging = include_str!("../../crates/fl4-kernel-aarch64/src/paging.rs");
+    assert!(paging.contains("const DEVICE_BASE: u64 = PPTR_TOP;") && paging.contains("const DEVICE_TOP: u64 = KERNEL_VBASE;"));
+    assert!(paging.contains("crate::bootmem::device_va(s.next_device, size, DEVICE_TOP)"));
+    let va = bootmem::device_va;
+    // 512 GiB from the base ends exactly at 2^64; one page less than what
+    // remains to 2^64; and everything to 2^64.
+    assert_eq!(va(DEVICE_BASE, 0x80_0000_0000, DEVICE_TOP), None);
+    assert_eq!(va(DEVICE_BASE, u64::MAX - DEVICE_BASE + 1, DEVICE_TOP), None);
+    assert_eq!(va(DEVICE_BASE, u64::MAX - DEVICE_BASE, DEVICE_TOP), None);
+    assert_eq!(va(DEVICE_BASE, 1 << 48, DEVICE_TOP), None);
+    for size in [0x80_0000_1000, 0xff_ffff_f000, (1 << 48) - 0x1000] {
+        assert_eq!(va(DEVICE_BASE + 0x1_0000, size, DEVICE_TOP), None, "{size:#x}");
+    }
+    // The whole area, and one page more.
+    assert_eq!(va(DEVICE_BASE, DEVICE_TOP - DEVICE_BASE, DEVICE_TOP), Some((DEVICE_BASE, DEVICE_TOP)));
+    assert_eq!(va(DEVICE_BASE, DEVICE_TOP - DEVICE_BASE + 0x1000, DEVICE_TOP), None);
+    // Rounding up to 64 KiB near the top: what is left after it.
+    let next = DEVICE_TOP - 0x2_0000 + 0x1000;
+    assert_eq!(va(next, 0x1_0000, DEVICE_TOP), Some((DEVICE_TOP - 0x1_0000, DEVICE_TOP)));
+    assert_eq!(va(next, 0x1_1000, DEVICE_TOP), None);
+    assert_eq!(va(DEVICE_TOP, 0x1000, DEVICE_TOP), None);
+    // A `next` the rounding would wrap.
+    assert_eq!(va(u64::MAX - 0x1000, 0x1000, u64::MAX), None);
+    // Ordinary mappings: 64 KiB aligned, each after the last.
+    assert_eq!(va(DEVICE_BASE, 0x1000, DEVICE_TOP), Some((DEVICE_BASE, DEVICE_BASE + 0x1000)));
+    assert_eq!(va(DEVICE_BASE + 0x1000, 0x2_0000, DEVICE_TOP), Some((DEVICE_BASE + 0x1_0000, DEVICE_BASE + 0x3_0000)));
+    // Whatever was asked, an accepted mapping lies inside the area.
+    for next in [DEVICE_BASE, DEVICE_BASE + 0x1234_5000, DEVICE_TOP - 0x10_0000, DEVICE_TOP] {
+        for shift in 12..64 {
+            for size in [1u64 << shift, (1u64 << shift) - 0x1000, (1u64 << shift).wrapping_add(0x1000)] {
+                if let Some((v, end)) = va(next, size, DEVICE_TOP) {
+                    assert!(v >= next && v % 0x1_0000 == 0 && end == v + size && end <= DEVICE_TOP, "{next:#x} {size:#x}");
+                }
+            }
+        }
+    }
 }
 
 /// Audit r7 F3: the console UART's pages kept from user space are the
@@ -1078,4 +1272,126 @@ fn the_aarch64_loader_uses_no_console_after_exit_boot_services() {
     assert!(h.contains("if tries == 0 {\n        fail(msg);\n    }"), "{h}");
     assert!(h.contains("msr daifset, #0xf") && h.contains("wfi"), "{h}");
     assert_eq!(h.matches("fail(").count(), 1);
+}
+
+// ---- extra BootInfo ---------------------------------------------------------------
+
+/// The records of an extra BootInfo of `len` bytes, as user space walks
+/// them: (id, offset, length); every header inside, none of length 0.
+fn bi_records(buf: &[u8], len: usize) -> Vec<(u64, usize, usize)> {
+    let mut out = vec![];
+    let mut off = 0;
+    while off < len {
+        assert!(off + 16 <= len, "header at {off:#x} past the end {len:#x}");
+        let id = u64::from_le_bytes(buf[off..off + 8].try_into().unwrap());
+        let l = u64::from_le_bytes(buf[off + 8..off + 16].try_into().unwrap()) as usize;
+        assert!(l >= 16 && off + l <= len, "record {id} at {off:#x} of {l:#x} bytes, end {len:#x}");
+        out.push((id, off, l));
+        off += l;
+    }
+    out
+}
+
+/// Bytes without 0xAA, the poison of the buffers below.
+fn not_poison(i: usize, salt: u8) -> u8 {
+    match (i as u8).wrapping_mul(31).wrapping_add(salt) {
+        0xaa => 0x55,
+        b => b,
+    }
+}
+
+/// Audit r10 F2: the extra BootInfo is a chain of records each exactly as
+/// long as its header says, that ends exactly at the length given to user
+/// space, a multiple of 8, and has no byte the kernel did not write: the
+/// buffer is free RAM the firmware left, poisoned here. Before, with the
+/// ACPI RSDP (52 bytes) the device tree record started 4 bytes off 8, and
+/// rounding the end up added 4 bytes past the record (a device tree of a
+/// multiple of 8) or none to it (4 more), so the chain ran past or stopped
+/// short of the end; the padding and the tail came from the old RAM.
+#[test]
+fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
+    use fl4_abi::consts::bootinfo_header as id;
+    let rsdp: Vec<u8> = (0..36).map(|i| not_poison(i, 1)).collect();
+    let regs = [0x1111_2222_3333_4444, 0x0123_4567_89ab_cdef, 0, u64::MAX >> 1, 0x10];
+    let all_mods: Vec<fl4_bootinfo::Module> = (0..fl4_bootinfo::MAX_MODULES)
+        .map(|m| {
+            let mut name = [0u8; fl4_bootinfo::NAME_LEN];
+            for (i, c) in name.iter_mut().enumerate().take(10) {
+                *c = not_poison(i, m as u8);
+            }
+            fl4_bootinfo::Module { paddr: 0x4000_0000 + m as u64 * 0x10_0000, size: 0x1234 + m as u64, name }
+        })
+        .collect();
+    for has_rsdp in [false, true] {
+        for n_mods in [0, 1, 3, fl4_bootinfo::MAX_MODULES] {
+            for dtb_len in [0usize, 40, 41, 44, 45, 48, 0x1000, 0x1003, 0x1004, 0x1_0000] {
+                let what = format!("rsdp {has_rsdp} mods {n_mods} dtb {dtb_len:#x}");
+                let mut dtb: Vec<u8> = (0..dtb_len).map(|i| not_poison(i, 7)).collect();
+                if dtb_len >= 8 {
+                    dtb[..4].copy_from_slice(&0xd00d_feedu32.to_be_bytes());
+                    dtb[4..8].copy_from_slice(&0x0002_0000u32.to_be_bytes());
+                }
+                // The kernel's size for it (lib.rs `extra_size`).
+                let size = 4096 + ((dtb_len + 16 + 4096) & !4095);
+                let mut buf = vec![0xaau8; size];
+                let mods = &all_mods[..n_mods];
+                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, mods, &dtb).expect(&what);
+                assert_eq!(len % 8, 0, "{what}");
+                assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
+                let recs = bi_records(&buf, len);
+                let mut want = vec![];
+                if has_rsdp {
+                    want.push(id::X86_ACPI_RSDP);
+                }
+                want.push(id::AARCH64_ID_REGS);
+                if n_mods != 0 {
+                    want.push(id::X86_BOOT_MODULES);
+                }
+                if dtb_len != 0 {
+                    want.push(id::FDT);
+                }
+                if recs.last().unwrap().0 == id::PADDING {
+                    want.push(id::PADDING);
+                }
+                assert_eq!(recs.iter().map(|r| r.0).collect::<Vec<_>>(), want, "{what}");
+                for &(rid, at, l) in &recs {
+                    let body = &buf[at + 16..at + l];
+                    match rid {
+                        id::X86_ACPI_RSDP => assert_eq!(body, &rsdp[..], "{what}"),
+                        id::AARCH64_ID_REGS => {
+                            let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                            assert_eq!(got, regs, "{what}");
+                        }
+                        id::X86_BOOT_MODULES => {
+                            assert_eq!(l, 16 + 8 + 80 * n_mods, "{what}");
+                            assert_eq!(u64::from_le_bytes(body[..8].try_into().unwrap()), n_mods as u64);
+                            for (m, e) in mods.iter().zip(body[8..].chunks(80)) {
+                                assert_eq!(u64::from_le_bytes(e[..8].try_into().unwrap()), m.paddr);
+                                assert_eq!(u64::from_le_bytes(e[8..16].try_into().unwrap()), m.size);
+                                assert_eq!(&e[16..], &m.name[..]);
+                            }
+                        }
+                        id::FDT => {
+                            assert_eq!(l, 16 + dtb_len.div_ceil(8) * 8, "{what}");
+                            let total = u32::from_be_bytes(body[4..8].try_into().unwrap()) as usize;
+                            assert_eq!(total, dtb_len, "{what}: FDT totalsize");
+                            assert_eq!(&body[..4], &dtb[..4]);
+                            assert_eq!(&body[8..dtb_len], &dtb[8..], "{what}");
+                            assert!(body[dtb_len..].iter().all(|&b| b == 0), "{what}");
+                        }
+                        id::PADDING => {
+                            assert!(l < 24, "{what}");
+                            assert!(body.iter().all(|&b| b == 0), "{what}");
+                        }
+                        _ => panic!("{what}: record {rid}"),
+                    }
+                }
+            }
+        }
+    }
+    // Too small a buffer is refused, not overrun.
+    let mut small = [0u8; 64];
+    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, &[], &[]), None);
+    let mut small = vec![0u8; 4096];
+    assert_eq!(extra_bi::build(&mut small, None, &regs, &[], &[1u8; 4096]), None);
 }

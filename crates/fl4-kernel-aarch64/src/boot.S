@@ -40,8 +40,9 @@ _ap_start:
     br      x9
 
 /* Leave EL2 for EL1 with EL1 given the timers, FP/SIMD and the GIC
- * system registers, and nothing left that traps EL0 or EL1 to EL2; at EL1
- * do nothing. Keeps x19-x21; returns at EL1. */
+ * system registers, and nothing left that traps EL0 or EL1 to EL2; then,
+ * at EL1 on either path, mask interrupts, reset SCTLR_EL1 and clear the
+ * pointer authentication keys. Keeps x19-x21; returns at EL1. */
 fl4_el_setup:
     mrs     x9, CurrentEL
     lsr     x9, x9, #2
@@ -58,37 +59,15 @@ fl4_el_setup:
     /* Pointer authentication (any of APA, API, GPA, GPI, APA3, GPA3):
      * HCR_EL2.API, or PACGA, which no SCTLR_EL1 bit enables, traps from
      * EL0 to EL2; HCR_EL2.APK, or EL1's key registers trap to EL2. The
-     * keys are the firmware's: clear them, so PACGA gives every thread on
-     * every core the same function of its operands, of no one's secret.
-     * All ten key registers, APGAKey too, exist with FEAT_PAuth, which
-     * APA, API or APA3 identify; without it a key access is UNDEFINED
-     * (DDI 0487) and halts the core at EL2. GPA, GPI and GPA3 come with
-     * FEAT_PAuth on a conforming PE: they set the traps, but only
-     * FEAT_PAuth itself lets the keys be written (x12). */
+     * keys themselves are cleared at EL1, below, on either path. */
     mrs     x10, id_aa64isar1_el1
     mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 (RAZ before v8.6) */
-    and     x12, x10, #0xff0        /* APA, API */
-    and     x13, x11, #0xf000       /* APA3 */
-    orr     x12, x12, x13
     ldr     x13, =0xff000ff0
     and     x10, x10, x13
     and     x11, x11, #0xff00
     orr     x10, x10, x11
     cbz     x10, 7f
     orr     x9, x9, #(3 << 40)      /* HCR_EL2.APK, HCR_EL2.API */
-    msr     hcr_el2, x9
-    isb
-    cbz     x12, 7f
-    msr     s3_0_c2_c1_0, xzr       /* APIAKeyLo_EL1 */
-    msr     s3_0_c2_c1_1, xzr       /* APIAKeyHi_EL1 */
-    msr     s3_0_c2_c1_2, xzr       /* APIBKeyLo_EL1 */
-    msr     s3_0_c2_c1_3, xzr       /* APIBKeyHi_EL1 */
-    msr     s3_0_c2_c2_0, xzr       /* APDAKeyLo_EL1 */
-    msr     s3_0_c2_c2_1, xzr       /* APDAKeyHi_EL1 */
-    msr     s3_0_c2_c2_2, xzr       /* APDBKeyLo_EL1 */
-    msr     s3_0_c2_c2_3, xzr       /* APDBKeyHi_EL1 */
-    msr     s3_0_c2_c3_0, xzr       /* APGAKeyLo_EL1 */
-    msr     s3_0_c2_c3_1, xzr       /* APGAKeyHi_EL1 */
 7:  msr     hcr_el2, x9
     isb
     /* Fine-grained traps (FEAT_FGT, FEAT_FGT2): reset to UNKNOWN values
@@ -179,7 +158,36 @@ fl4_el_setup:
     ldr     x9, =SCTLR_EL1_RES1
     msr     sctlr_el1, x9
     isb
-    ret
+    /* The pointer authentication keys are the firmware's (or UNKNOWN on a
+     * core PSCI started), on a core booted at EL1 as at EL2: clear them,
+     * so PACGA gives every thread on every core the same function of its
+     * operands, of no one's secret. All ten key registers, APGAKey too,
+     * exist with FEAT_PAuth, which APA, API or APA3 identify; without it a
+     * key access is UNDEFINED (DDI 0487). GPA, GPI and GPA3 come with
+     * FEAT_PAuth on a conforming PE: only FEAT_PAuth itself lets the keys
+     * be written. Coming from EL2 above, HCR_EL2.APK is then set, so the
+     * writes do not trap. Booted at EL1, EL2 (if any) is a hypervisor's:
+     * one that reports FEAT_PAuth to its guest lets EL1 write the keys, as
+     * Linux does at EL1 (KVM traps the first access, then hands the guest
+     * its keys; it hides FEAT_PAuth from a guest it does not give it). */
+    mrs     x10, id_aa64isar1_el1
+    mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 (RAZ before v8.6) */
+    and     x10, x10, #0xff0        /* APA, API */
+    and     x11, x11, #0xf000       /* APA3 */
+    orr     x10, x10, x11
+    cbz     x10, 15f
+    msr     s3_0_c2_c1_0, xzr       /* APIAKeyLo_EL1 */
+    msr     s3_0_c2_c1_1, xzr       /* APIAKeyHi_EL1 */
+    msr     s3_0_c2_c1_2, xzr       /* APIBKeyLo_EL1 */
+    msr     s3_0_c2_c1_3, xzr       /* APIBKeyHi_EL1 */
+    msr     s3_0_c2_c2_0, xzr       /* APDAKeyLo_EL1 */
+    msr     s3_0_c2_c2_1, xzr       /* APDAKeyHi_EL1 */
+    msr     s3_0_c2_c2_2, xzr       /* APDBKeyLo_EL1 */
+    msr     s3_0_c2_c2_3, xzr       /* APDBKeyHi_EL1 */
+    msr     s3_0_c2_c3_0, xzr       /* APGAKeyLo_EL1 */
+    msr     s3_0_c2_c3_1, xzr       /* APGAKeyHi_EL1 */
+    isb
+15: ret
 
 /* EL2's exception vectors while FL4 runs, at EL1. Nothing is meant to
  * reach EL2: a synchronous exception from AArch64 EL0 (a trap the setup

@@ -6,6 +6,7 @@
 
 mod bootmem;
 mod entry;
+mod extra_bi;
 mod hw;
 mod paging;
 mod smp;
@@ -76,25 +77,9 @@ pub fn fail(msg: &str) -> ! {
     cpu::halt_forever()
 }
 
-fn put(buf: &mut [u8], off: &mut usize, b: &[u8]) {
-    buf[*off..*off + b.len()].copy_from_slice(b);
-    *off += b.len();
-}
-
-fn hdr(buf: &mut [u8], off: &mut usize, id: u64, len: u64) {
-    put(buf, off, &id.to_le_bytes());
-    put(buf, off, &len.to_le_bytes());
-}
-
-/// The extra BootInfo records: the ACPI RSDP, the device tree, the boot
-/// core's ID registers (l4h 0018) and the boot modules (l4h 0021).
-fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, bi: &BootInfo, mods: &[(u64, u64)]) -> usize {
-    use fl4_abi::consts::bootinfo_header as id;
-    let mut off = 0;
-    if h.has_rsdp {
-        hdr(buf, &mut off, id::X86_ACPI_RSDP, 16 + hw::RSDP_LEN as u64);
-        put(buf, &mut off, &h.rsdp);
-    }
+/// The extra BootInfo records (`extra_bi::build`): the ACPI RSDP, the
+/// boot core's ID registers, the boot modules and the device tree.
+fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module]) -> usize {
     let regs = [
         fl4_arch_aarch64::mrs!("id_aa64isar0_el1"),
         fl4_arch_aarch64::mrs!("id_aa64isar1_el1"),
@@ -102,30 +87,12 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, bi: &BootI
         fl4_arch_aarch64::mrs!("id_aa64pfr0_el1"),
         fl4_arch_aarch64::mrs!("id_aa64pfr1_el1"),
     ];
-    hdr(buf, &mut off, id::AARCH64_ID_REGS, 16 + 8 * regs.len() as u64);
-    for r in regs {
-        put(buf, &mut off, &r.to_le_bytes());
+    let src: &[u8] = if dtb_len != 0 { unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) } } else { &[] };
+    let rsdp = if h.has_rsdp { Some(&h.rsdp[..]) } else { None };
+    match extra_bi::build(buf, rsdp, &regs, mods, src) {
+        Some(len) => len,
+        None => fail("extra BootInfo too large"),
     }
-    if !mods.is_empty() {
-        hdr(buf, &mut off, id::X86_BOOT_MODULES, 16 + 8 + 80 * mods.len() as u64);
-        put(buf, &mut off, &(mods.len() as u64).to_le_bytes());
-        for (i, &(paddr, size)) in mods.iter().enumerate() {
-            put(buf, &mut off, &paddr.to_le_bytes());
-            put(buf, &mut off, &size.to_le_bytes());
-            put(buf, &mut off, &bi.modules[i].name);
-        }
-    }
-    if dtb_len != 0 {
-        let len = (dtb_len + 7) & !7;
-        hdr(buf, &mut off, id::FDT, 16 + len);
-        let src = unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) };
-        let at = off;
-        put(buf, &mut off, src);
-        // The copy's total size is what was copied.
-        buf[at + 4..at + 8].copy_from_slice(&(dtb_len as u32).to_be_bytes());
-        off = (off + 7) & !7;
-    }
-    off
 }
 
 fn has_option(bi: &BootInfo, opt: &[u8]) -> bool {
@@ -274,7 +241,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     let mut free = usable;
     free.remove(bi.region_paddr, bi.region_paddr + bi.region_len);
     free.remove(root.p_start, root.p_end);
-    let mut mods = [(0u64, 0u64); fl4_bootinfo::MAX_MODULES];
+    let mut mods = [fl4_bootinfo::Module::default(); fl4_bootinfo::MAX_MODULES];
     let n_mods = (bi.n_modules as usize).min(fl4_bootinfo::MAX_MODULES);
     for i in 0..n_mods {
         let m = bi.modules[i];
@@ -304,7 +271,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         let start = m.paddr & !(PAGE - 1);
         let end = (m.paddr + m.size + PAGE - 1) & !(PAGE - 1);
         dev.add(start, end);
-        mods[extra_mods] = (m.paddr, m.size);
+        mods[extra_mods] = m;
         extra_mods += 1;
         kprintln!("FL4: boot module {}: {:#x} bytes at {:#x}", i, m.size, m.paddr);
     }
@@ -323,7 +290,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     };
     free.remove(extra_pa, extra_pa + extra_size);
     let extra = unsafe { core::slice::from_raw_parts_mut(pptr(extra_pa) as *mut u8, extra_size as usize) };
-    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, bi, &mods[..extra_mods]);
+    let extra_len = build_extra_bi(extra, &h, bi.dtb, dtb_len, &mods[..extra_mods]);
     // The boot frames go after the image in user space (fl4-core
     // `root_layout`): all of them below its end.
     let root_v_end = root.v_start.checked_add(root.p_end - root.p_start);
