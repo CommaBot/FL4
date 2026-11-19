@@ -59,6 +59,7 @@ import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
 import Fl4Proofs.P3.XTopJointVsSub
+import Fl4Proofs.P3.XTopJointMakePool
 import Fl4Proofs.P3.XTopJointUt
 import Fl4Proofs.P3.UtEpRet
 import Fl4Proofs.P3.ScJointUnbind
@@ -628,7 +629,7 @@ on the cap:
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield; at `sc_canon`'s label) | YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]) |
-| ASID control | `decode_invocation_asid_controlJ` (XTopJointVsCap) | `JAsidCPath` (label, extra [W]; clean regions: `JPostHyp` [W]; dirty: the cap [W]) |
+| ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra [W]; clean regions proved; dirty: the cap [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ` [J], `JUtRetHypR` [W]: the retype after the decode (label and extra slot proved) but the no-reset endpoints/notifications, `JAtZ.utEpJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
@@ -873,9 +874,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   case AsidControl =>
     have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
       ct := hN
-    exact (decode_invocation_asid_controlJ arI s ar σ J hni lbl slbl hN.hlM length buf ct hct argsU hlen hargs
-      extra excaps hN.hext (cslotAddr sl) blk call don fp ci sl buffer (hN.post H Cs Ac Lst D J)
-      (hN.dirty H Cs Ac Lst D J)).toP arI hPre
+    exact (decode_invocation_asid_controlJM arI s ar σ J hni lbl slbl hN.hlM length buf ct hct argsU hlen hargs
+      extra excaps hN.hext (cslotAddr sl) blk call don fp ci sl buffer (hN.dirty H Cs Ac Lst D J)).toP arI hPre
   case Untyped p sb fi dev =>
     obtain ⟨hDv, hU⟩ := hN
     cases dev

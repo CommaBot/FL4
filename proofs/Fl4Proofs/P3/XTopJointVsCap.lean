@@ -4,29 +4,27 @@ P3 (DESIGN.md §9), VSpace: **the native VSpace caps' decodes from `JAtZ`**
 and invocation refined, every label), their premises from `JAtZ` at the
 entry. The map, unmap, flush and ASID assignment steps are proved at `J`
 in XTopJointVsMap (`decode_invocation_{page_table, page_directory, pdpt,
-pml4, asid_pool, frame}JV`, no per-op premise); here the shared pieces and
-the ASID control cap, lifted to `JAt` by XTopJointStep's `XCap.jat` with the
-per-op premise `JPostHyp` [W].
+pml4, asid_pool, frame}JV`, no per-op premise), `MakePool` in
+XTopJointMakePool; here the shared pieces and the paths' premises.
 
 * `JAtZ.ctTcb`: the current thread a TCB of the typed heap (`CurOK`).
 * `JVsExtra` [W]: the front end's first extra cap (VSpace's `vspace.extra`).
 * `XCap.jatR`: `XCap` at `FinXR` with `JPostHyp` at `JAt` (the frame cap's
   `DeriveSubframe` label, XTopJointVsMap's `decode_invocation_frameJV`).
-* `decode_invocation_asid_controlJ`: `MakePool`, the RAM untyped caps apart
-  from the kernel-state block from `JCovD.ks` (`UtKsOut`). Split on
-  `MpClean` (no dead object and no IPC-buffer word in a childless pool-sized
-  untyped's region): clean, `MpPlacedHyp` and the region facts are proved
+* `MakePool`'s split: `MpClean` (no dead object and no IPC-buffer word in a
+  childless pool-sized untyped's region) and `MpSpecClean` (no spec object
+  there); clean, `MpPlacedHyp` and the region facts are proved
   (`JAtZ.mpEmpty`, `JAtZ.mpOObj`, `JAtZ.mpPlacedC`, `JAtZ.mpRegionC`; they
   were [J] premises, false in reachable states with a dead object there) and
-  `JPostHyp` [W] is asked (the pool's retype, its cap's insertion and the
-  ASID-table write at `J`: l4v `performASIDControlInvocation`); dirty, the
-  cap at `J` [W] (the detype).
+  the cap is proved at `J` in XTopJointMakePool
+  (`decode_invocation_asid_controlJM`); dirty, the cap at `J` [W] (the
+  detype).
 * `J{Pt,Pd,Pdpt,Pml4,Pool,Frame,AsidC}Path`: each cap's premises, as
   XTopJointEntry's `JPath` names them: the labels and extra caps [W], the
   frame's `hno` [J] (l4v `valid_cap`/`cap_range` disjointness), the pool's
-  extra cap native ([scope]: guest-root assignment, DESIGN §9); `JPostHyp`
-  only in `JAsidCPath` (the frame's last one, `DeriveSubframe`, at `J` in
-  XTopJointVsSub).
+  extra cap native ([scope]: guest-root assignment, DESIGN §9). No
+  `JPostHyp` is left (the frame's `DeriveSubframe` at `J` in XTopJointVsSub,
+  `MakePool` in XTopJointMakePool).
 -/
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
@@ -73,12 +71,15 @@ theorem XCap.jatR {Z' : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit} {lbl l
   XCap.jat arI (h.imp arI fun _ _ _ hx => xtop_of_finXR hx) J hR
 
 /-- **The front end's extra caps of `MakePool`** [W] (the untyped cap's
-slot a CNode slot of the typed heap, the root cap's valid). The region
-facts the decode needs of a childless untyped (`MpRegion`, `RegOKTop`) are
-proved from `JAtZ` when the regions are clean (`JAtZ.mpRegionC`). -/
+slot a CNode slot of the typed heap, the root cap's valid and held in a
+slot of the typed heap: the front end's extra caps are looked up from the
+caller's CSpace, as `JVsExtra.hxs`). The region facts the decode needs of a
+childless untyped (`MpRegion`, `RegOKTop`) are proved from `JAtZ` when the
+regions are clean (`JAtZ.mpRegionC`). -/
 def JMpExtra (Z : XSets) (s : S)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop :=
-  (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+  (∀ y, vspace.extra extra 1#usize = ok (some y) → IsSlot Z.th y) ∧
+  ((∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
       (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
     ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
       (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
@@ -87,7 +88,7 @@ def JMpExtra (Z : XSets) (s : S)
       vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
       capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
       capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid Z.th rc ∧
-      excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest
+      excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest)
 
 /-- **MakePool's regions are clean** (the split of the ASID control path):
 for every childless pool-sized RAM untyped cap of the MDB, no dead object
@@ -113,6 +114,17 @@ def MpClean (Z : XSets) (H : P1.Heap) (D : Set U64) (s : S) : Prop :=
     ∀ wp ∈ Z.B, (wp.1.val + 8 ≤ p.val ∨ p.val + 4096 ≤ wp.1.val) ∧
       ∀ i ∈ Fl4Spec.intUpto 0 7, (wp.2 + (7 - BitVec.ofInt 64 i)).toNat < p.val ∨
         p.val + 4096 ≤ (wp.2 + (7 - BitVec.ofInt 64 i)).toNat
+
+/-- **No spec object in MakePool's regions** (the second half of the clean
+case): for every childless pool-sized RAM untyped cap of the MDB, the spec
+has no object at an address in its region `[p, p + 4096)`. Every live spec
+object is one of `th`'s or `H`'s (`KTyped`, `SpecCover`, `ObjCover`) and
+`MpClean` keeps those out of the region, so only a dead object (a CNode the
+typed heap lost track of) can sit there; l4v's `delete_objects` removes it
+(the detype, `JAsidCPath.dirty`). Not a premise: a case split. -/
+def MpSpecClean (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ x ∈ Z.G.chains.flatten, ∀ p fi, capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+    (∀ y, ¬ Mdb.Desc Z.G.par y x) → ∀ o ko, σ.kheap o = some ko → o.toNat < p.val ∨ p.val + 4096 ≤ o.toNat
 
 theorem two_pow_asidPool : 2 ^ (fl4_abi.consts.bits.ASID_POOL).val = 4096 := by
   unfold fl4_abi.consts.bits.ASID_POOL; rfl
@@ -345,65 +357,6 @@ theorem JAtZ.mpBlk {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) 
       (P1.Heap.scs H') (P1.Heap.ntfns H') (P1.Heap.scBits H') Ac s :=
   P1.BlkOK.addOther (J.mpAddOK arI hcl hx hcx hnd hpal hpfit hp0) J.kern.heap J.blk
 
-set_option maxHeartbeats 4000000 in
-/-- **The ASID control cap at `JAt`** (`decode_invocation_asid_control_thX`;
-the RAM untyped caps apart from the kernel-state block from `JCovD.ks`).
-When the regions are clean (`MpClean`), `MpPlacedHyp` and the region facts
-come from `JAtZ` (`JAtZ.mpPlacedC`, `JAtZ.mpRegionC`) and the state after
-`MakePool` is asked as `hR` [W] (`JPostHyp`: the pool's retype, its cap's
-insertion and the ASID-table write at `J`, l4v
-`performASIDControlInvocation`); otherwise the whole cap is asked as
-`hdirty` [W] (l4v `delete_objects` over a region holding dead objects: the
-detype at `J`, which shrinks the sets, `H` and the dead set — the untyped
-reset's drop step). -/
-theorem decode_invocation_asid_controlJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
-    (lbl : U64) (slbl : Fl4Spec.Data)
-    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
-      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
-    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
-    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hext : JMpExtra (L := L) Z s extra excaps)
-    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
-    (buffer : Option Fl4Spec.ObjRef)
-    (hR : MpClean (L := L) Z H D s → JPostHyp (L := L) arI AR s ar σ lbl length slot .AsidControl blk call don fp buf
-      extra slbl (args.map UScalar.bv) ci sl excaps buffer ct)
-    (hdirty : ¬ MpClean (L := L) Z H D s → XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot .AsidControl
-      blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct) :
-    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl
-      (args.map UScalar.bv) ci sl excaps buffer ct := by
-  by_cases hcl : MpClean (L := L) Z H D s
-  swap
-  · exact hdirty hcl
-  have hMP := J.mpPlacedC arI hcl
-  have hext' : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
-        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
-      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
-        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
-        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
-        Z.th pp = some (.cnode rs) ∧ idx.length = rs ∧
-        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
-        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
-        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid Z.th rc ∧
-        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
-        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
-          (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
-          MpRegion Z.th Z.G Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) p ∧
-            RegOKTop (L := L) Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ p := by
-    rcases hext with h | ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10,
-        fun p fi e hn => J.mpRegionC arI hcl h1 h2 (by rw [← e]; exact h5) hn⟩
-  have hX := J.xtop
-  obtain ⟨hcur, htcb⟩ := J.ctTcb arI hct
-  obtain ⟨-, hCR, hFI, hDR, hMO, hIA, -⟩ := hX.rel
-  have hUK : UtKsOut (L.ksb s) (L.mem s) Z.G := fun x hx p sb fi h => (J.jcov.ks x hx p sb fi h).1
-  exact XCap.jat arI ((decode_invocation_asid_control_thX arI Z.th s ar σ Z.G hCR hFI J.ut hMO hDR hX.fin.1
-    hX.fin.2.1 hX.fin.2.2.1 hX.fin.2.2.2.1 hX.fin.2.2.2.2 hMP lbl slbl hlM length buf ct hct hcur htcb J.kern.act
-    (J.curRun.run hni) args hlen hargs extra excaps hext' hUK slot blk call don fp ci sl buffer hX.esa
-    hIA.dom).imp arI fun _ _ _ ⟨_, hx⟩ => xtop_of_finXR hx) J (hR hcl)
-
 /-! ## The VSpace caps' paths (XTopJointEntry's `JPath`) -/
 
 /-- The page table path: the labels and extra cap [W]. -/
@@ -491,9 +444,12 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   ex : JVsExtra (L := L) Z s extra excaps
 
 /-- The ASID control path: the label and the extra caps [W]; when MakePool's
-regions are clean (`MpClean`), the state after MakePool at `J` (`post`,
-`JPostHyp` [W]); otherwise the cap at `J` (`dirty` [W]: the detype of a
-region holding dead objects). `MpPlacedHyp` and the region facts are proved
+regions are clean (`MpClean`, `MpSpecClean`) the cap is proved at `J`
+(XTopJointMakePool's `decode_invocation_asid_controlJM`: the pool's retype,
+its cap's insertion and the ASID-table write); otherwise the cap at `J`
+(`dirty` [W]: l4v `delete_objects` over a region holding dead objects, the
+detype at `J`, which shrinks the sets, `H` and the dead set — the untyped
+reset's drop step). `MpPlacedHyp` and the region facts are proved
 (`JAtZ.mpPlacedC`, `JAtZ.mpRegionC`); they were [J] premises, false when a
 dead object lies in the region (`MpClean`'s docstring). -/
 structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -504,12 +460,8 @@ structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
     Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool
   hext : JMpExtra (L := L) Z s extra excaps
-  post : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → MpClean (L := L) Z H D s →
-    JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) .AsidControl blk call don fp buf extra slbl
-      (argsU.map UScalar.bv) ci sl excaps buffer ct
   dirty : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ¬ MpClean (L := L) Z H D s →
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ¬ (MpClean (L := L) Z H D s ∧ MpSpecClean (L := L) Z s σ) →
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) .AsidControl blk call don fp buf extra
       slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
