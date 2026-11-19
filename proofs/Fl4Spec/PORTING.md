@@ -414,13 +414,23 @@ details.
   to l4v's decoder and invocation, unchanged.
   `fl4HandleInvocation` is `handle_invocation` (Syscall_A) with this
   dispatcher, unchanged otherwise.
+- **`Ext/Timer`: FL4's TCB timers** (l4h 0003, `TCBSetTimer`). At every
+  kernel exit FL4's `sched::schedule` first fires the expired TCB timers
+  (`sched::awaken` → `timer::fire`, at most 32 per entry): each signals its
+  thread's bound notification, if any, with the timer's badge, and sets the
+  reprogram flag. l4v has no such timers. The timer tree is not modelled (as
+  for `TCBSetTimer`), so `fl4Awaken` is nondeterministic: any finite
+  sequence (`fl4TimerFires`) of fired timers (`fl4TimerFire`: no signal or
+  one l4v `send_signal` (`fl4TimerSignal`), then `reprogram_timer := true`).
+  It does not fail. `Ext/Entry`'s `fl4CallKernel` runs it before `schedule`.
 - **`Ext/Entry`: the kernel entry with FL4's dispatcher.**
   `fl4HandleEvent rep` is `handle_event` (Syscall_A) with
   `handle_invocation` replaced by `fl4HandleInvocationR rep` (the
   substitution of `Ext/Invocation` and `Ext/ReplyError` one level up); its
   `match` on the syscall is `fl4HandleSyscall rep`, and the non-syscall
   events are l4v's (`fl4HandleEvent_other`, by `rfl`). `fl4CallKernel rep`
-  is `call_kernel` with `fl4HandleEvent rep`. `fl4KernelEntrySyscall rep c`
+  is `call_kernel` with `fl4HandleEvent rep` and `Ext/Timer`'s `fl4Awaken`
+  before `schedule`. `fl4KernelEntrySyscall rep c`
   is the syscall entry: the current thread's `FaultIP` register :=
   `NextIP - 2` (`fl4SyscallFaultIP`; the `syscall` instruction is two bytes),
   then `fl4CallKernel rep (.syscallEvent c)`. l4v's `call_kernel` has no

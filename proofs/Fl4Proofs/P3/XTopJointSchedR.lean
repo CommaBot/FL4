@@ -18,11 +18,14 @@ and `activate_thread` at `J` against the spec's outcomes**.
   (`JAtZ.completeYieldJa`, `completeYieldTo_sframe` keeps every state),
   then `JAtZ.actRestJ` (`Restart`: next IP := fault IP, `JAtZ.regWrJ`,
   then `Running`, `JAtZ.runJ`; `Running`/idle: nothing). The spec's failing
-  branch is unreachable from `CurRunW` but for `RunningVM` ([W] `hvm`,
+  branch is unreachable from `CurRunW` but for `RunningVM` ([S] `hvm`,
   native scope; the ported `activateThread` lacks seL4 C's `RunningVM`
   case).
-* `jat_finishJ`: FL4's `syscall::finish` against `schedule >>=
-  activateThread` after `Fires`.
+* `jat_finishJ`: FL4's `syscall::finish` against the Ext entry's tail
+  `fl4Awaken >>= schedule >>= activateThread` (Ext/Timer, Ext/Entry's
+  `fl4CallKernel`, KENTRY-PLAN.md D1): one `fl4Awaken` outcome `σ1`
+  (`Fires σ σ1`, `fires_iff`) from which `schedule >>= activateThread` has
+  the one outcome `σ'`, so `σ'` is an outcome of the whole tail.
 -/
 import Fl4Proofs.P3.ScSignalJ
 import Fl4Proofs.P3.XTopJointDispatch
@@ -290,7 +293,7 @@ current thread yields (`JAtZ.completeYieldJa`, the spec's
 then the state dispatch (`JAtZ.actRestJ`). The spec's `activateThread` does
 not fail: its failing branch is a current thread neither running, restarted
 nor idle, excluded by `CurRunW` except `RunningVM` (`hvm`, below). Named:
-`hvm` [W] the current thread is not `RunningVM` (VT-x, outside the native
+`hvm` [S] (scope) the current thread is not `RunningVM` (VT-x, outside the native
 scope, IpcLeaves' `NativeScope`, DESIGN §9; seL4's C `activateThread` treats
 `ThreadState_RunningVM` as `Running` under `CONFIG_VTX`, the ported
 `activateThread` has no such branch and fails), and the platform's
@@ -351,15 +354,27 @@ theorem JAtZ.activateJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : 
   rintro r ⟨σ', he, hRJ, V2, Ac2, Lst2, D2, J2⟩
   exact ⟨σ', hspec.trans he, hRJ.1, hRJ.2, V2, Ac2, Lst2, D2, J2⟩
 
+/-- P3's `Fires` (ScAwaken) is Ext/Timer's `fl4TimerFires` (the definitions
+are the same; ScAwaken's is kept to avoid rebuilding its cone). -/
+theorem fires_iff {σ σ1 : Fl4Spec.State Unit} : Fires σ σ1 ↔ Fl4Spec.fl4TimerFires σ σ1 := Iff.rfl
+
+/-- `Fires` is an outcome of `fl4Awaken`. -/
+theorem mem_fl4Awaken_of {σ σ1 : Fl4Spec.State Unit} (h : Fires σ σ1) :
+    ((), σ1) ∈ (Fl4Spec.fl4Awaken (Z := Unit) σ).1 := Fl4Spec.mem_fl4Awaken.2 (fires_iff.1 h)
+
 set_option maxHeartbeats 4000000 in
-/-- **FL4's `finish` (`schedule`, then `activate_thread`) at `J`**: some
-`Fires σ σ1`, then the spec's `schedule >>= activateThread` from `σ1` with
-the one outcome `σ'`, `RJ` and `JAtZ` at `σ'` (`jat_scheduleSR`, then
-`JAtZ.activateJ` from its `CurRunW`). Premises: `jat_scheduleSR`'s, the
-platform's `ticks_to_us`/`getMaxTicksToUs` [P] at every arch state, and
-`hvm` [W]: the current thread of a `JAt` state is not `RunningVM` (VT-x,
-outside the native scope: IpcLeaves' `NativeScope`, DESIGN §9; the ported
-`activateThread` has no `RunningVM` branch, seL4's C one has). -/
+/-- **FL4's `finish` (`schedule`, then `activate_thread`) at `J`**, against
+the Ext entry's tail `fl4Awaken >>= schedule >>= activateThread` (Ext/Entry's
+`fl4CallKernel` after the event): an outcome `σ1` of `fl4Awaken` (FL4's TCB
+timers, Ext/Timer) from which the spec's `schedule >>= activateThread` has
+the one outcome `σ'`, hence `σ'` an outcome of the whole tail; `RJ` and
+`JAtZ` at `σ'` (`jat_scheduleSR`, then `JAtZ.activateJ` from its
+`CurRunW`). Premises: `jat_scheduleSR`'s, the platform's
+`ticks_to_us`/`getMaxTicksToUs` [P] at every arch state, and `hvm` [S]
+(scope, not an invariant gap): the current thread of a `JAt` state is not
+`RunningVM` (VT-x is outside the native scope: IpcLeaves' `NativeScope`,
+DESIGN §9; the ported `activateThread` has no `RunningVM` branch, seL4's C
+one has; Fl4Spec is not changed, lead decision D2). -/
 theorem jat_finishJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0) (hnd : Fl4Spec.numDomains = 1)
@@ -379,8 +394,9 @@ theorem jat_finishJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hvm : ∀ s1 a1 σ1, JAt (L := L) arI AR s1 a1 σ1 → ∀ x, σ1.kheap σ1.curThread = some (.tcb x) →
       x.tcbState ≠ .runningVM) :
-    syscall.finish st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), Fires σ σ1 ∧
+    syscall.finish st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), ((), σ1) ∈ (Fl4Spec.fl4Awaken (Z := Unit) σ).1 ∧
       (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) ∧
+      ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) σ).1 ∧
       RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
   unfold syscall.finish
@@ -388,7 +404,11 @@ theorem jat_finishJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1⟩, -, hcr⟩
   refine WP.spec_mono (J1.activateJ hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
   rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2⟩
-  exact ⟨σ1, σ', hF, by rw [Notif.nd_bind_one hsc]; exact ha, hRJ, V2, Ac2, Lst2, D2, J2⟩
+  have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by
+    rw [Notif.nd_bind_one hsc]; exact ha
+  refine ⟨σ1, σ', mem_fl4Awaken_of hF, hsa, ⟨((), σ1), mem_fl4Awaken_of hF, ?_⟩, hRJ, V2, Ac2, Lst2, D2, J2⟩
+  show ((), σ') ∈ ((Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1).1
+  rw [hsa]; exact Set.mem_singleton _
 
 end
 
