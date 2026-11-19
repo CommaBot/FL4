@@ -26,6 +26,7 @@ set without the new objects.
 import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtPmRet
 import Fl4Proofs.P3.UtCnRet
+import Fl4Proofs.P3.UtTabAdd
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -731,8 +732,99 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q} res.2.1 σ' :=
     ⟨hCR1.addR hkR hRz hRn, hRF1.addR hCR1 hRz hRn, hRR1.addR hRz, hY1, hMc1, hBw1, hRP1, hSA1, ⟨_, _, hJPa⟩, hjc', K2, hutc, hNSC1, hInv1, hCur1, hOwn1,
       hOff1, hAct1, hBsa1, hIs1, hCRun1, hblk'⟩
-  have JZ := J.add_frame (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) rfl rfl rfl hwI.1 hXZ hCs hJR
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC'
+  -- the window's tables added to `L3`, `L2` or `L1` (`XTopAt.addTab`): the
+  -- new table caps are unmapped, so `JAtZ.vsc` asks their tables in the sets
+  have hTw : ∀ q, (q ∈ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7} ∨
+      q ∈ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13} ∨
+      q ∈ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12}) →
+      q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ (2 : Nat) ^ zOf nt.val us.val = 4096 ∧
+        (nt.val = 7 ∨ nt.val = 13 ∨ nt.val = 12) := by
+    rintro q (⟨hq, h⟩ | ⟨hq, h⟩ | ⟨hq, h⟩) <;> refine ⟨hq, ?_, by omega⟩ <;> simp [zOf, h]
+  have hXT := XTopAt.addTab hXZ (W3 := {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7})
+    (W2 := {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13})
+    (W1 := {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12})
+    (fun q ⟨hq, h⟩ => by
+      have e := hty; rw [h] at e; simp [objTypeOf, Fl4Spec.archDataToObjType] at e
+      subst e; rw [hspec q hq]; rfl)
+    (fun q ⟨hq, h⟩ => by
+      have e := hty; rw [h] at e; simp [objTypeOf, Fl4Spec.archDataToObjType] at e
+      subst e; rw [hspec q hq]; rfl)
+    (fun q ⟨hq, h⟩ => by
+      have e := hty; rw [h] at e; simp [objTypeOf, Fl4Spec.archDataToObjType] at e
+      subst e; rw [hspec q hq]; rfl)
+    (fun q hq => by
+      obtain ⟨hq, h4k, -⟩ := hTw q hq
+      obtain ⟨-, -, b3⟩ := hwb q hq
+      rw [h4k] at b3; exact b3)
+    (fun q hq i hi => by
+      obtain ⟨hq, h4k, -⟩ := hTw q hq
+      obtain ⟨b1, b2, b3⟩ := hwb q hq
+      rw [h4k] at b2 b3
+      have hKv : (core.num.U64.wrapping_mul i 8#u64).val = i.val * 8 := by
+        simp [core.num.U64.wrapping_mul_val_eq, U64.size_def, U64.numBits]; omega
+      unfold peA
+      exact winZero_field hWZ' hTn hq (by omega) (by rw [h4k]; omega) (by rw [h4k, hKv]; omega)
+        (by rw [hKv]; omega))
+    (fun q hq b g1 g2 => by
+      obtain ⟨hq', h4k, hn⟩ := hTw q hq
+      obtain ⟨b1, b2, -⟩ := hwb q hq'
+      rw [h4k] at b2
+      obtain ⟨n1, n2⟩ := hfr0 b (by omega) (by omega)
+      refine ⟨fun ho => n1 ?_, n2, fun p0 k0 hp0 hpk => ?_⟩
+      · rcases oobj_unionR ho with ho | ⟨r, hr, -⟩
+        · rcases oobj_unionN ho with ho | ⟨n, hn', -⟩
+          · rcases oobj_unionE ho with ho | ⟨e, he, -⟩
+            · exact ho
+            · have := hEt e he; omega
+          · have := hNt n hn'; omega
+        · have := hRt r hr; omega
+      · have := hU.free p0 k0 hp0; omega)
+  -- the VSpace caps placed (`JAtZ.vsc`): an old cap kept or an untyped cap,
+  -- a new cap set-free (its placement from the ghost-set invariant after) or
+  -- a new table cap, unmapped, its table in the grown set
+  have hvc : Vs.VsSlotsW Z.th Z.P Z.L4 (Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7})
+      (Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13})
+      (Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12}) (L.mem res.2.1) := by
+    obtain ⟨-, hCRZ, -, -, hMOZ, -, -⟩ := hXZ.rel
+    obtain ⟨P', L4', L3', L2', L1', hVI⟩ := hMOZ.2.2.1
+    refine Vs.VsCapsW.slots (G := G') ?_ hCRZ.2.2.1
+    intro x hx
+    rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
+    · by_cases hu : isUt (capV (L.mem s) x) = true
+      · exact Vs.vcapW_ut (hE.utk x hx0 hu)
+      · rw [(hE.keep x hx0 (by simpa using hu)).2]
+        exact (J.vsc x ((hM.members x).1 hx0).1).mono subset_rfl subset_rfl Set.subset_union_left
+          Set.subset_union_left Set.subset_union_left
+    · have h1 := hVI _ hx
+      rw [hE.newc j hj] at h1 ⊢
+      by_cases hT : Vs.SetFree (cj j)
+      · exact (Vs.VCapOK.setFree hT h1).toW
+      · have hqW : ptrF (cj j) ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val := ⟨j, hj, hE.cbase j hj⟩
+        obtain ⟨b, hpt⟩ : ∃ b, (nt.val = 7 ∧ cj j = .Pdpt b false 0#u64 0#u64) ∨
+            (nt.val = 13 ∧ cj j = .PageDirectory b false 0#u64 0#u64) ∨
+            (nt.val = 12 ∧ cj j = .PageTable b false 0#u64 0#u64) := by
+          rw [hcj] at hT ⊢
+          rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [cjOf, newCapOf, h, Vs.SetFree] at hT ⊢
+        rcases hpt with ⟨hn, e⟩ | ⟨hn, e⟩ | ⟨hn, e⟩ <;> rw [e] at h1 hqW ⊢
+        · have hb : ptrF (.Pdpt b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
+          rw [hb] at hqW
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+        · have hb : ptrF (.PageDirectory b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
+          rw [hb] at hqW
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+        · have hb : ptrF (.PageTable b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
+          rw [hb] at hqW
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+  have JZ := J.add_frame
+    (Z' := { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
+      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
+      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} })
+    rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
+    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
+      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

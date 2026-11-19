@@ -92,7 +92,7 @@ theorem JAtZ.workUnitsJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R⟩
+  exact ⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩
 
 
 /-- **FL4's clock agrees with the spec's** [P] (module docstring). -/

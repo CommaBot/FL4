@@ -254,7 +254,8 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
       (Steps.insert arI hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
         (fun y hy hne => by rw [hcap2 y hy, if_neg hne]) hdst1
         (fun p sb fi d h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h)
-        (typedKept_set hcap2 (Or.inl rfl)) (hDL.same hS hk1) hdi)
+        (typedKept_set hcap2 (Or.inl rfl)) (hDL.same hS hk1) hdi
+        (fun _ _ _ _ _ _ => by rw [hcap2 _ hAd.isSlot, if_pos rfl]; trivial))
   refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG, hstp⟩
   rotate_right
   · intro y hy i hi

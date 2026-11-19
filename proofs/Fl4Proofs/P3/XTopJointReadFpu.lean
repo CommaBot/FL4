@@ -255,7 +255,7 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R
+  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R (J.vsc.of_eq fun y hy => hSS.capV hy)
 
 /-- **A frame word written at `J`** (`JAtZ.userWrJ` for an IPC-buffer word,
 `JAtZ.frameWrJ` for another), the spec's machine state some `ms`. -/

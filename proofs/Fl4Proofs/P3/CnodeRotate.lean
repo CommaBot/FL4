@@ -381,6 +381,9 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                     rw [htr.2.2.1] at h
                     have hu : isUt srcC = true := by rw [← isUt_of_shape hshs, h]; rfl
                     rw [capV_of_capAt hsc2, ← update_ut hns hu, h]) htr.2.1,
+              vsSlotsT_swap hAs.isSlot hAp.isSlot htr.2.1 htr.2.2.1 htr.2.2.2
+                (by rw [capV_of_capAt hsc2]; exact update_vcap hns) (by rw [capV_of_capAt hsc2]; exact update_tabun hns)
+                (by rw [capV_of_capAt hpc2]; exact update_vcap hnp) (by rw [capV_of_capAt hpc2]; exact update_tabun hnp),
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
                 htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -559,6 +562,10 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                     rw [htr2.2.2.1] at h
                     have hu : isUt srcC = true := by rw [← isUt_of_shape hshs, h]; rfl
                     rw [capV_of_capAt hsc3, ← update_ut hns hu, h]) htr2.2.1),
+              (vsSlotsT_move hAp.isSlot htr1.2.1 htr1.2.2.1 htr1.2.2.2 (by rw [capV_of_capAt hpc2]; exact update_vcap hnp)
+                (by rw [capV_of_capAt hpc2]; exact update_tabun hnp)).trans
+                (vsSlotsT_move hAs.isSlot htr2.2.1 htr2.2.2.1 htr2.2.2.2 (by rw [capV_of_capAt hsc3]; exact update_vcap hns)
+                (by rw [capV_of_capAt hsc3]; exact update_tabun hns)),
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
                 htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl

@@ -23,6 +23,7 @@ import Fl4Proofs.P3.SchedRel
 import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.SlotCover
 import Fl4Proofs.P1.QueueBlock
+import Fl4Proofs.P3.VsCapWBase
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -256,7 +257,7 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     TypedKept th (L.mem s) (L.mem s') →
     (∀ t, th t = some .tcb → capAt (L.mem s') (slotOf t 3) = capAt (L.mem s) (slotOf t 3)) →
     DestLive th (L.mem s) (L.ksb s) pd →
-    (DelInv th (L.mem s) → DelInv th (L.mem s')) → Q s a σ s' a σ'
+    (DelInv th (L.mem s) → DelInv th (L.mem s')) → Vs.VsSlotsT th (L.mem s) (L.mem s') → Q s a σ s' a σ'
   sched : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit), SchedStep (L := L) th s σ s' σ' → Q s a σ s' a σ'
   cslot : ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G' : MdbGhost), Ipc.CnK σ σ' →
     (∀ p, σ'.kheap p = σ.kheap p ∨
@@ -272,7 +273,7 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ th p = some (.cnode r) ∧ sl.2.length = r ∧ DestLive th (L.mem s) (L.ksb s) p) →
     (∀ y, IsSlot th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y) →
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
-    UtSrc th (L.mem s) (L.mem s') σ σ' → Q s a σ s' a σ'
+    UtSrc th (L.mem s) (L.mem s') σ σ' → Vs.VsSlotsT th (L.mem s) (L.mem s') → Q s a σ s' a σ'
   del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
     AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
     capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
@@ -381,11 +382,14 @@ theorem Steps.insert {th : TypedHeap} (hP : Placed th) {s s' : S} {a : A} {σ σ
     (hnull : capAt (L.mem s) (cslotAddr (pd.bv, idxd)) = ok .Null)
     (hnu : ∀ p sb fi d, capV (L.mem s') (cslotAddr (pd.bv, idxd)) ≠ .Untyped p sb fi d)
     (hTK : TypedKept th (L.mem s) (L.mem s')) (hDL : DestLive th (L.mem s) (L.ksb s) pd)
-    (hDl : DelInv th (L.mem s) → DelInv th (L.mem s')) :
+    (hDl : DelInv th (L.mem s) → DelInv th (L.mem s'))
+    (hvt : ∀ P L4 L3 L2 L1 : Set U64, Vs.VsSlotsW th P L4 L3 L2 L1 (L.mem s) →
+      Vs.VCapW P L4 L3 L2 L1 (capV (L.mem s') (cslotAddr (pd.bv, idxd)))) :
     Steps (L := L) arI th s a σ s' a σ' := by
   intro Q hQ
   refine hQ.slot s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu
     ⟨hF.1, hF.2.1, fun b hb hn => hF.2.2 b hb fun ⟨x, k, hx, hk, e⟩ => hn ⟨x, hx, ?_⟩⟩ hCR hFI hMO (fun t ht => ?_) hTK (fun t ht => ?_) hDL hDl
+    (Vs.VsSlotsT.of_some (· = cslotAddr (pd.bv, idxd)) (fun y hy hn => hcap y hy hn) fun y _ e => by subst e; exact hvt)
   · have hf := hx.fit hP
     have := hk.lt
     have hv := wordOf_val (a := x) (k := k) (by omega)

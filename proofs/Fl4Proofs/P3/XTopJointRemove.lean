@@ -222,6 +222,15 @@ def RmX (R C : Set U64) (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
 def RmW (T N C R : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
   FinW (st := st) T N C c s σ b ∨ RmX R C σ b
 
+/-- `RmW`'s words are words of the other objects (`OObj`). -/
+theorem RmW.oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {s : S}
+    {σ : Fl4Spec.State Unit} (hS : Sched.SchedRel st N T C c s σ) {b : U64}
+    (h : RmW (st := st) T N C R c s σ b) : Vs.OObj st N T C E R B c s σ b := by
+  rcases h with h | ⟨r, hr, h1, h2⟩ | ⟨sc, hsc, x, n, hk, ho⟩
+  · exact CnW.oobj hS (Or.inl h)
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨r, hr, h1, h2⟩))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hk, ho⟩))))))
+
 theorem JAtZ.rmW_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (fun b => KFoot st Z.T Z.N Z.C Z.c s σ b ∨ CallW Z.R Z.C b)) :
     P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ) := by
@@ -954,7 +963,7 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
       have h1 : q ≠ t.bv := by rintro rfl; rw [kt'] at hq; cases hq
       have h2 : q ≠ r.bv := by rintro rfl; rw [kr'] at hq; cases hq
       rw [ko' q h1 h2] at hq; exact hq)
-  exact ⟨σ', V', Ac, Lst', D, hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
+  exact ⟨σ', Z.vs, Ac, Lst', D, hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
 
 /-- **`reply_remove` at `J`** (`replyRemoveJD` without the dead set kept and
 the thread's `Inactive` after). -/

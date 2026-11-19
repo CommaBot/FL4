@@ -568,8 +568,11 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     let ⟨h1, h2⟩ := hRL
     J.delUtFact_of hA hD2 hX2.rel.2.2.2.2.1.1.2.1 hx0 hoth hw hcs.1 hcs.2 hu hcu hpar honly hleaf h1 h2
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
-  exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
+  have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
+    Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
+      fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+    (J.vsc.step hvT), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`delete_one` of a notification cap at `J`** (as XTopDelOne's
@@ -1287,8 +1290,11 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
       rcases hD2.2.1.zwf _ hA.isSlot p zt n hz with ⟨-, ht, -⟩ | ⟨-, hc, -⟩
       · have := J.zH.1 p (J.thT p ht); rw [hHp] at this; cases this
       · have := hJ.cnode p _ hc; rw [hHp] at this; cases this
-  exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+  have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
+    Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
+      fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+    (J.vsc.step hvT), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 /-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
 `XTopAt` after, `JAtZ.swapJCore`, `cs_frameV`). -/
@@ -1319,8 +1325,18 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
       rw [← e1]; simp [absCap, Fl4Spec.objRefs]
     · rw [e] at ha0
       rcases hsg.irq irq _ ha0 with h | ⟨_, _, _, h⟩ <;> simp [absCap] at h
-  exact ⟨V2, Ac', Lst', D', J.cs_frameV hks hX2 hkb2 hC R, hks.trans hkb,
-    (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
+  have hpS : IsSlot Z.th p := by
+    have h := (home_abs (J.del.zwf _ hA.isSlot p zt n hz)).isSlot
+    rwa [home_addr] at h
+  have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') := by
+    intro P L4 L3 L2 L1 h y hy
+    rw [hcap y hy]
+    split_ifs
+    · exact h p hpS
+    · exact h _ hA.isSlot
+    · exact h y hy
+  exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+    (J.vsc.step hvT), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A non-final cap's finalisation at `J` with the loop's readiness**

@@ -52,7 +52,7 @@ theorem jat_restart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
   obtain ⟨Ac', Lst', D', R⟩ := hJS.restart s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R⟩
+  exact ⟨Ac', Lst', D', J.cs_frame hk1 hX1 hkb (JCs.same J hSS hkz) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A TCB leaf from `JAtZ`** (module docstring): the leaf's `XTop` is not

@@ -719,6 +719,8 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (horig : ∀ sl, sl ≠ (pd.bv, idxd) → σ'.isOriginalCap sl = σ.isOriginalCap sl)
     (hsrc : capV (L.mem s') (cslotAddr (pp.bv, idx)) = .Untyped p fl4_abi.consts.bits.ASID_POOL 4096#u64 false)
     (hdst : ∃ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b)
+    (hdstb : ∀ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b → b.val % 512 = 0 ∧ b.val < 2 ^ 20)
+    (hp0 : p ≠ 0#u64)
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s) y)
     (hDel : DelInv Z.th (L.mem s')) (hU' : UtInv (L.mem s') G') :
@@ -886,6 +888,19 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · rw [e2] at h1; cases h1
   have hk' : ∀ {k : P1.HKind}, (∀ z, k ≠ .other z) → ∀ q, hAddP H p q = some k ↔ H q = some k :=
     fun hk q => hAddP_iff hk hp
+  -- the VSpace caps placed: the source an untyped cap, the destination the
+  -- new pool's cap (its pool in the grown `P`), the other slots kept
+  have hvc : Vs.VsSlotsW Z.th (insert p Z.P) Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') := by
+    intro y hy
+    by_cases e1 : y = cslotAddr (pp.bv, idx)
+    · rw [e1, hsrc]; trivial
+    by_cases e2 : y = cslotAddr (pd.bv, idxd)
+    · obtain ⟨b, hb⟩ := hdst
+      obtain ⟨h1, h2⟩ := hdstb b hb
+      rw [e2, hb]
+      exact VCapOK.toW (by simp only [VCapOK]; exact ⟨⟨Set.mem_insert _ _, hp0⟩, h1, h2⟩)
+    · rw [hcap y hy e1 e2]
+      exact (J.vsc y hy).mono (Set.subset_insert _ _) subset_rfl subset_rfl subset_rfl subset_rfl
   exact J.add_frame rfl rfl rfl hks hX' hJC R (by rw [hks]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hks]; exact J.nk n hn) (J.cover.addP hp F hnew) (J.obj.mp F)
     ⟨fun t ht => (hk' (fun _ e => by cases e) t).2 (J.zH.1 t ht),
@@ -895,7 +910,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     ⟨fun e he => J.hset.1 e ((hk' (fun _ e => by cases e) e).1 he),
       fun n hn => J.hset.2.1 n ((hk' (fun _ e => by cases e) n).1 hn),
       fun r hr => J.hset.2.2 r ((hk' (fun _ e => by cases e) r).1 hr)⟩
-    (fun c z hc => J.hscC c z ((hk' (fun _ e => by cases e) c).1 hc))
+    (fun c z hc => J.hscC c z ((hk' (fun _ e => by cases e) c).1 hc)) hvc
 
 
 end
@@ -978,7 +993,7 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   intro s' a' σ' p th' G' dest ps y rc hex1 hcy hSR hR' hPt' hcur' hPI' hCR' hFI' hMO' hth hk hsc hRg hxu hU' hMS
     hMid hDR'
   obtain ⟨s1, ct', hi, σ1, hs1, hct', hst', hh, hks1, hcpu1, hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst,
-    hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
+    hdstb, hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
   -- the region holds no object
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   have hsm : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten :=
@@ -1045,7 +1060,7 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   have hcap1 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s1) y := fun y hy h1 h2 => by rw [hcap y hy h1 h2, hSS.capV hy]
   exact ⟨_, _, Cs, Ac1, Lst1, D1, J1.mpStepJ hh hTh hHo Ad hspec1 hpp hidx hsrc1 hnch1 hpd hld hnull1 hDL1 hX'
-    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hcap1 (hDI J.del) hU'⟩
+    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hp0 hcap1 (hDI J.del) hU'⟩
 
 /-- **The ASID control cap at `JAt`** (XTopJointEntry's dispatch): the
 clean case proved (`decode_invocation_asid_controlJC`), the dirty one asked

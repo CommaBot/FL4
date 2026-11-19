@@ -683,7 +683,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       hrun, hblk⟩
   have hC0 := JCs.same J hF.1 hksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ', V', Lst', hrm, J.cs_frameV hks hX3 hkb hC R, hF.1, hks⟩
+  exact ⟨σ', Z.vs, Lst', hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) harch hao szk hF.1 hkb hC R, hF.1, hks⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_ipc` of a thread blocked on its reply, at `J`** (module

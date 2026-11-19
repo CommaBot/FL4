@@ -131,6 +131,13 @@ def FinW (T N C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (b : U64)
   KFoot st T N C c s σ b ∨
     ∃ y ∈ T, ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ K ≠ 3512 ∧ b.val = y.val + K
 
+/-- `FinW`'s words are words of the other objects (`OObj`). -/
+theorem FinW.oobj {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) {b : U64}
+    (h : FinW (st := st) T N C c s σ b) : Vs.OObj st N T C E R B c s σ b := by
+  rcases h with hk | ⟨y, hy, K, h1, h2, -, -, -, e⟩
+  · exact tfoot_oobj hS (Or.inl hk)
+  · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
+
 theorem SzKeepC.trans' {C : Set U64} {σ1 σ2 σ3 : Fl4Spec.State Unit} (h1 : SzKeepC C σ1 σ2)
     (h2 : SzKeepC C σ2 σ3) : SzKeepC C σ1 σ3 :=
   fun sc hsc x n hk => by obtain ⟨x1, h⟩ := h2 sc hsc x n hk; exact h1 sc hsc x1 n h

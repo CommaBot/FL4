@@ -36,6 +36,7 @@ import Fl4Proofs.P3.ScXProd
 import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.ScIpcSorted
 import Fl4Proofs.P3.ScRecvLinks
+import Fl4Proofs.P3.VsCapW
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -216,6 +217,15 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   /-- [carried] The interrupt state and node layout (`IntLayout`, the boot's
   [P]; kept by every step: `Z.th` and the kernel-state base are kept). -/
   intL : IntLayout Z.th (L.ksb s)
+  /-- [carried] **The VSpace caps placed in the relation's own sets**, weakened
+  (VsCapW's `VsCapsW`: l4v `valid_cap` for the arch caps with
+  `valid_table_caps`), at every slot of the typed heap: an unmapped page-table/directory/PDPT cap's table in
+  its set, a PML4 or ASID pool cap's object in its set, the ASID and
+  alignment facts; a mapped table may lie outside the sets (pruned by a
+  detype). Kept by every step (`VsSlotsW.of_eq` for slots kept,
+  `VsSlotsT` for the slot steps, `VCapW.transfer` for a copy), the sets kept
+  or grown. -/
+  vsc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s)
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
@@ -231,6 +241,10 @@ variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs A
 /-- `WX` (the deletions' bundle). -/
 theorem wx (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : WX (L := L) AR Z.th s a σ Z.G :=
   ⟨Z, rfl, rfl, J.xtop, J.ks, J.thT⟩
+
+/-- The MDB tree's links (`CRel`'s). -/
+theorem mdbL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : MdbLinks Z.th (L.mem s) Z.G :=
+  J.xtop.rel.2.1.2.2.1
 
 /-- `DState` (the CSpace deletions' state). -/
 theorem dstate (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : DState (L := L) Z.th s σ Z.G :=

@@ -1124,7 +1124,7 @@ theorem JStepHyps.of_del {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
       ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
         JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
           XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
-          JCs (L := L) (Z.mv G' V') s' σ' ∧
+          Vs.VsSlotsW Z.th V'.1 V'.2.1 V'.2.2.1 V'.2.2.2.1 V'.2.2.2.2 (L.mem s') ∧ JCs (L := L) (Z.mv G' V') s' σ' ∧
           ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
             JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ') :
     JStepHyps (L := L) arI AR th where

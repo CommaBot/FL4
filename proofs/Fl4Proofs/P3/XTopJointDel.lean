@@ -283,7 +283,7 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       ∃ y ∈ Z.G.chains.flatten, y ≠ cslotAddr sl ∧ ∃ b' w' r', capV (L.mem s) y = .Notification p b' w' r') :
     cdt.empty_slot st arI s a (cslotAddr sl) .Null ⦃ res => res.2 = a ∧ ∃ σ' G' V',
       ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 ∧ XTopAt (L := L) AR (Z.mv G' V') res.1 res.2 σ' ∧
-      L.ksb res.1 = L.ksb s ∧ KBack σ σ' ∧
+      L.ksb res.1 = L.ksb s ∧ KBack σ σ' ∧ Vs.VsSlotsW Z.th V'.1 V'.2.1 V'.2.2.1 V'.2.2.2.1 V'.2.2.2.2 (L.mem res.1) ∧
       DState (L := L) Z.th res.1 σ' G' ∧ capV (L.mem res.1) (cslotAddr sl) = .Null ∧
       (∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem res.1) y = capV (L.mem s) y) ∧
       P1.WritesIn st s res.1 (InSlot Z.th) ∧ σ'.cdt = (emptySlotCdtState σ sl).cdt ∧
@@ -444,7 +444,10 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     by_cases e : sl' = (q.bv, idx)
     · subst e; simp [setCnodeSlot, emptySlotCdtState] at h
     · simpa [setCnodeSlot, emptySlotCdtState, Function.update_of_ne e] using h
-  refine ⟨rfl, _, G2, V2, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc, hDS2c, hnull2,
+  have hX2 := J.xtop.vs_backK hX2 hwS hcn2 hkc
+  refine ⟨rfl, _, G2, Z.vs, by rw [he]; exact Set.mem_singleton _, hX2, hw.1, KBack.of_keepC hkc,
+    J.vsc.step (Vs.VsSlotsT.of_some (· = cslotAddr (q.bv, idx)) (fun y hy hn => hoth2 y hy hn)
+      fun y _ e _ _ _ _ _ _ => by rw [e, hnull2]; trivial), hDS2c, hnull2,
     hoth2, hw, rfl, rfl, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := (q.bv, idx)) (fun y hy e => hoth2 y hy e) hnull2 hw rfl horig hgp hM2 hUt
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 (KeepC.t hkc) hw hFI2 hMO hkz hTK (fun t ht => Or.inl (hT3 t ht)) hDl2 hUK hjc

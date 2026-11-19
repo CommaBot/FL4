@@ -154,7 +154,7 @@ theorem JAtZ.kfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : Fl4S
       hAI3, F.bsa J.bsa, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨V', J.cs_frameV hks hX3 F.kback hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hC R⟩
 
 /-- A blocked thread (state code not `Inactive`) is not dead. -/
 theorem JAtZ.notDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)

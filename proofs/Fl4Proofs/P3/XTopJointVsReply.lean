@@ -441,7 +441,7 @@ theorem JAtZ.clrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     AbsSlot.isSlot (th := Z.th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
   refine J.vsStepJ (jVsApartHyp arI Z H Cs Ac Lst D s a σ rfl J) hpc hidx (J.xtop.clr5 hb hba)
     (VsSFr.of_eq rfl) hW (fun y hy _ => hSS.capV hy) (by rw [hSS.capV hA]) hnu
-    (fun y hy => ⟨(hSS y hy).2.2.1, (hSS y hy).2.2.2⟩)
+    (fun y hy => ⟨(hSS y hy).2.2.1, (hSS y hy).2.2.2⟩) (J.vsc.of_eq fun y hy => hSS.capV hy)
 
 end
 

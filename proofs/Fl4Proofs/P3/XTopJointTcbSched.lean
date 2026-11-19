@@ -297,6 +297,16 @@ def WideW (T N C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (b : U64
     (L.nodeBase s c ≤ b.val ∧ b.val < L.nodeBase s c + 4288) ∨
     (∃ n ∈ N, n.val ≤ b.val ∧ b.val < n.val + 40) ∨ ScObjW C σ b
 
+/-- `WideW`'s words are words of the other objects (`OObj`). -/
+theorem WideW.oobj {T N C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64} {s : S}
+    {σ : Fl4Spec.State Unit} {b : U64} (h : WideW (st := st) T N C c s σ b) :
+    Vs.OObj st N T C E R B c s σ b := by
+  rcases h with ⟨y, hy, h1, h2⟩ | h | ⟨n, hn, h1, h2⟩ | ⟨sc, hsc, x, n, hk, ho⟩
+  · exact Or.inr (Or.inr (Or.inl ⟨y, hy, h1, h2⟩))
+  · exact Or.inl h
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨n, hn, h1, by omega⟩)))))
+  · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨sc, hsc, x, n, hk, ho⟩))))))
+
 end
 
 section
@@ -567,7 +577,7 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨V', J.cs_frameV hks hX3 hA.kback hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hwW (fun b hb => WideW.oobj hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hC R⟩
 
 end
 

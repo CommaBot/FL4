@@ -486,6 +486,7 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64}
     (hsh : shape nc = shape srcC0) (hbd : badgeF nc = badgeF srcC0 ∨ badgeF srcC0 = 0#u64)
     (hkey : okey nc = okey srcC0)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC0 → Vs.VCapOK P L4 L3 L2 L1 nc)
+    (htu : Vs.TabUn nc → Vs.TabUn srcC0)
     (hep : n = 3 → nc ≠ .Null → ∃ e b x1 x2 x3 x4, nc = .Endpoint e b x1 x2 x3 x4)
     (hnoe : P1.NullOrEp H (capV (L.mem s) (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
     tcb.install_tcb_cap st arI s a t (cslotAddr ssl) idx nc (cslotAddr (ps.bv, idxs)) ⦃ res =>
@@ -544,6 +545,8 @@ theorem install_fhJ [Fl4Proofs.P1.PlainStore st] {kb : U64}
     obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.insTJ ht hn hins hDS' hst hwS hroot hcap
       (by rw [hdst]; exact hnut) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
       (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) ⟨_, hAs.isSlot, hthr⟩
+      (fun P L4 L3 L2 L1 h => by
+        rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
     have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) (absCap nc) (ps.bv, idxs)
         (t.bv, Fl4Spec.tcbCnodeIndex n) σ1).1 := by rw [hins]; rfl
     have hcn := capInsert_nkn _ _ _ σ1 _ hmem
@@ -609,11 +612,11 @@ theorem install_fhOkJ [Fl4Proofs.P1.PlainStore st] {kb : U64}
         (Fl4Spec.installTcbCap t.bv ssl n (some (absCap nc, sl))) s0 σ res ∧
       (res.1 = .Ok () → ∀ y, IsSlot Z.th y → y ≠ cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n) →
         capV (L.mem res.2.1) y = capV (L.mem s) y) ⦄ := by
-  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk⟩ := hok
+  obtain ⟨ps, rs, hps, h1s, hls, hwf, hcv, he, hfw, hsh, hbd, hkey, hvk, htu⟩ := hok
   obtain ⟨sa, idxs⟩ := sl
   simp only at h1s hls; subst h1s
   exact install_fhJ arI hH s0 s a σ G hDS hW t ht n hn idx hidx hcz0 ssl hAs nc hwf hcv he hfw hps hls rfl
-    hsh hbd hkey hvk hep hnoe
+    hsh hbd hkey hvk htu hep hnoe
 
 end
 

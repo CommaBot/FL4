@@ -100,7 +100,7 @@ theorem jowes_del [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
       ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
         JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
           XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
-          JCs (L := L) (Z.mv G' V') s' σ' ∧
+          Vs.VsSlotsW Z.th V'.1 V'.2.1 V'.2.2.1 V'.2.2.2.1 V'.2.2.2.2 (L.mem s') ∧ JCs (L := L) (Z.mv G' V') s' σ' ∧
           ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
             JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ' := by
   intro s s' a a' σ σ' sl p b w r hA hcnode hcv0 hrun hm Z H Cs Ac Lst D hth J
@@ -133,7 +133,7 @@ theorem jowes_del [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
   have key : cdt.delete_one st arI s a (cslotAddr sl) ⦃ res => ∃ σ2 G2 V2,
       ((), σ2) ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ XTopAt (L := L) AR (Z.mv G2 V2) res.1 res.2 σ2 ∧
       L.ksb res.1 = L.ksb s ∧ KBack σ σ2 ∧
-      JCs (L := L) (Z.mv G2 V2) res.1 σ2 ∧
+      Vs.VsSlotsW Z.th V2.1 V2.2.1 V2.2.2.1 V2.2.2.2.1 V2.2.2.2.2 (L.mem res.1) ∧ JCs (L := L) (Z.mv G2 V2) res.1 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' res.1 σ2 ⦄ := by
     unfold cdt.delete_one
@@ -165,11 +165,11 @@ theorem jowes_del [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
       have hcdt1 : σ1.cdt = σ.cdt := hck.cdt
       have hDbg1 := J.kw_dbg hfoot1
       refine WP.spec_mono (J1.emptyNtfnJ hA hcnode hc1 (Or.inl hdp)) ?_
-      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hDS2, hnull2, hoth2, hw2, hcdt2, hor2, hR2⟩
-      simp only at e3 hes hX2 hks2 hkb2 hDS2 hnull2 hoth2 hw2 hcdt2 hor2 hR2 ⊢
+      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hvc2, hDS2, hnull2, hoth2, hw2, hcdt2, hor2, hR2⟩
+      simp only at e3 hes hX2 hks2 hkb2 hvc2 hDS2 hnull2 hoth2 hw2 hcdt2 hor2 hR2 ⊢
       subst e3
       refine ⟨σ2, G2, V2, hspec σ1 σ2 .Null (by rw [hdt]; exact hmem1) hes, hX2, hks2.trans hks1,
-        hkb1.trans' hkb2, hR2 fun u up usb ufi udev hu hcu h1 h2 h3 => ?_⟩
+        hkb1.trans' hkb2, hvc2, hR2 fun u up usb ufi udev hu hcu h1 h2 h3 => ?_⟩
       have hcu0 : capAt (L.mem s) (cslotAddr u) = ok (.Untyped up usb ufi udev) := by
         rw [capAt_capV, ← hSS1.capV hu.isSlot, ← capAt_capV]; exact hcu
       rw [hcdt1] at h1 h2 h3
@@ -185,19 +185,19 @@ theorem jowes_del [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop}
       rw [he]; simp only [bind_ok]
       simp only [uncurry_apply_pair]
       refine WP.spec_mono (J.emptyNtfnJ hA hcnode hc0 (Or.inr (other_ntfn hP hDS hA hcv hfin))) ?_
-      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hDS2, hnull2, hoth2, hw2, hcdt2, hor2, hR2⟩
-      simp only at e3 hes hX2 hks2 hkb2 hDS2 hnull2 hoth2 hw2 hcdt2 hor2 hR2 ⊢
+      rintro ⟨s2, a2⟩ ⟨e3, σ2, G2, V2, hes, hX2, hks2, hkb2, hvc2, hDS2, hnull2, hoth2, hw2, hcdt2, hor2, hR2⟩
+      simp only at e3 hes hX2 hks2 hkb2 hvc2 hDS2 hnull2 hoth2 hw2 hcdt2 hor2 hR2 ⊢
       subst e3
-      refine ⟨σ2, G2, V2, hspec σ σ2 .Null (by rw [hdf]; exact hmem) hes, hX2, hks2, hkb2,
+      refine ⟨σ2, G2, V2, hspec σ σ2 .Null (by rw [hdf]; exact hmem) hes, hX2, hks2, hkb2, hvc2,
         hR2 fun u up usb ufi udev hu hcu h1 h2 h3 => ?_⟩
       have hL := hU0 u up usb ufi udev hu hcu h1 h2 h3
       exact J.delUtFact_of hA hDS2 hX2.rel.2.2.2.2.1.1.2.1 hnull2 hoth2 hw2 hcdt2 hor2 hu hcu h1 h2 h3 hL.1 hL.2
   rw [hrun, WP.spec_ok] at key
-  obtain ⟨σ2, G2, V2, hm2, hX2, hks2, hkb2, hC2, R2⟩ := key
+  obtain ⟨σ2, G2, V2, hm2, hX2, hks2, hkb2, hvc2, hC2, R2⟩ := key
   have e := (Det.detAt_capDeleteOne_ntfn hg).eq hm2 hm
   have e2 : σ2 = σ' := congrArg Prod.snd e
   subst e2
-  exact ⟨G2, V2, hX2, hks2, hkb2, hC2, R2⟩
+  exact ⟨G2, V2, hX2, hks2, hkb2, hvc2, hC2, R2⟩
 
 /-- **`JStepHyps` from `DelUtHyp`** (`JStepHyps.of_del` with `jowes_del`):
 the primitive steps' closure at `J` from the deletion's liveness facts. -/

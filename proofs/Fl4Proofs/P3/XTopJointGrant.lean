@@ -275,6 +275,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (ps.bv, idxs))) (hzb : isZb srcC = false)
     (hkey : okey cc = okey srcC)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 cc)
+    (htu : Vs.TabUn cc → Vs.TabUn srcC)
     (huc : isUt srcC = true → cc = srcC)
     (hDs : DestLive Z.th (L.mem s) (L.ksb s) ps) (hDd : DestLive Z.th (L.mem s) (L.ksb s) pd) :
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' => ∃ σ',
@@ -367,7 +368,9 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨hJC, R⟩ := jowes_slotDF J hX1' hcn hkcT hw hFI' hMO' (capInsert_nkz ac _ _ σ _ hmem)
     (typedKept_ins hAs.isSlot hsv hoth hdc hsc hsh) hfh' (hdi J.del) hCU.2 hjc horig hutc
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
-    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R⟩
+    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT) hJC R
+      (J.vsc.step (vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
+        (by rw [hsv]; exact htu)))⟩
 
 
 /-! ## The transfer loop at `J` -/
@@ -623,7 +626,8 @@ theorem tc_bodyJ (hZ : XferHZ L AR Z) {rcv : U64} (hrT : Z.th rcv = some .tcb) {
                 have hDd : DestLive Z.th (L.mem s) (L.ksb s) pd := hDd0.same hSS hks0
                 have hins := WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
                   (hv' Z.th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
-                  (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (derive_ut hr) hDs hDd)
+                  (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (fun h => (derive_tabun hr h).elim)
+                  (derive_ut hr) hDs hDd)
                   (insert_capfr2 hPl s c' _ _ hsI' hAd.isSlot cv hsrcC he0 he' hnx)
                 rw [← hxa, ← hdA] at hins
                 refine WP.spec_bind hins ?_

@@ -515,3 +515,6 @@ import Fl4Proofs.P3.XTopJointSendPushD
 import Fl4Proofs.P3.BufInv
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.IpcSlotsSameZ
+import Fl4Proofs.P3.VsCapWBase
+import Fl4Proofs.P3.CnodeVsW
+import Fl4Proofs.P3.UtTabAdd

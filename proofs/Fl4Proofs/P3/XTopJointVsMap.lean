@@ -321,7 +321,8 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hsh : shape (capV (L.mem s') (cslotAddr (pc.bv, idx))) = shape (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hnu : isUt (capV (L.mem s) (cslotAddr (pc.bv, idx))) = false)
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
-      L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64)) :
+      L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' := by
   set x := cslotAddr (pc.bv, idx) with hxdef
   have hkb : L.ksb s' = L.ksb s := hW.1
@@ -512,7 +513,7 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       CurInvW.cn (CurInvW.ar J.cur F1) C2, (J.own.ar F1).cn C2.toHStep, (J.off.ar F1).cn C2.toHStep, hAI,
       (J.bsa.ar F1).cn C2.toHStep, (J.isorted.ar F1).cn C2.toHStep,
       (J.curRun.ar F1).cn C2.toHStep (Or.inr C2.act), hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX' F.kback hJC R
+  exact J.cs_frame (G' := Z.G) hkb hX' F.kback hJC R hvc
 
 end
 
@@ -579,7 +580,8 @@ and the action word pinned by `XTopAt` at both states, the spec keeping the
 TCBs' states and the action; the other slots' words by `SlotFoot`), then
 `JAtZ.vsStepJ`. -/
 theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (hni : Entered σ) (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct) {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPost (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G s ar σ s' a' σ') : JAt (L := L) arI AR s' a' σ' := by
   rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, ⟨pc, r, idx, c, hpc, hidx, hc0, hnu, hSF, hLk, hsp⟩, hCR', hFI', hMO'⟩
@@ -673,8 +675,20 @@ theorem JAtZ.vsPostJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     obtain ⟨-, -, h⟩ := hSlot y hy
     unfold capV; rw [(h hne).1, (h hne).2]
   have Ap : VsApart (L := L) Z H Cs s1 := jVsApartHyp arI Z H Cs Ac1 Lst1 D1 s1 ar σ1 rfl J1
+  -- the VSpace caps placed: the invoked slot's new cap from its old one
+  -- (`VsLike`, the entry's `VsCapsIn`), the other slots kept
+  have hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') := by
+    intro y hy
+    by_cases e : y = cslotAddr (pc.bv, idx)
+    · rw [e]
+      have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 c := by
+        by_cases hn : c = .Null
+        · subst hn; trivial
+        · exact hVC.at J.mdbL hA.isSlot hc0 hn
+      exact (hLk.2 _ _ _ _ _ hok).toW
+    · rw [hcap y hy e]; exact J1.vsc y hy
   have J' := J1.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hnu)
-    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩)
+    (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J'⟩
 
 
@@ -748,7 +762,7 @@ theorem decode_invocation_page_tableJV (s : S) (ar : A) (σ : Fl4Spec.State Unit
   exact XCap.imp arI (decode_invocation_page_table_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
     hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 hVC lbl slbl hlM hlU hlO length buf ct hct hcur htcb
     J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap extra excaps hex.hext blk call don fp ci buffer hex.hxs
-    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hct h.1 h.2
+    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hVC hct h.1 h.2
 
 set_option maxHeartbeats 4000000 in
 /-- **A page directory cap at `JAt`** (`decode_invocation_page_directory_thX`). -/
@@ -780,7 +794,7 @@ theorem decode_invocation_page_directoryJV (s : S) (ar : A) (σ : Fl4Spec.State 
   exact XCap.imp arI (decode_invocation_page_directory_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
     hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 hVC lbl slbl hlM hlU hlO length buf ct hct hcur htcb
     J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap extra excaps hex.hext blk call don fp ci buffer hex.hxs
-    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hct h.1 h.2
+    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hVC hct h.1 h.2
 
 set_option maxHeartbeats 4000000 in
 /-- **A PDPT cap at `JAt`** (`decode_invocation_pdpt_thX`). -/
@@ -809,7 +823,7 @@ theorem decode_invocation_pdptJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   exact XCap.imp arI (decode_invocation_pdpt_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
     hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 hVC lbl slbl hlM hlU hlO length buf ct hct hcur htcb
     J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap extra excaps hex.hext blk call don fp ci buffer hex.hxs
-    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hct h.1 h.2
+    hX.esa hIA.dom) fun _ _ _ h => J.vsPostJ hni hVC hct h.1 h.2
 
 set_option maxHeartbeats 4000000 in
 /-- **An ASID pool cap at `JAt`** (`decode_invocation_asid_pool_thX`). -/
@@ -840,7 +854,7 @@ theorem decode_invocation_asid_poolJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
   exact XCap.imp arI (decode_invocation_asid_pool_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hX.fin.1 hX.fin.2.1
     hX.fin.2.2.1 hX.fin.2.2.2.1 hX.fin.2.2.2.2 hVC lbl slbl hlA length buf ct hct hcur htcb J.kern.act
     (J.curRun.run hni) ptr base extra excaps hNative hext slot blk call don fp args ci sl buffer hsl hcap hX.esa
-    hIA.dom) fun _ _ _ h => J.vsPostJ hni hct h.1 h.2
+    hIA.dom) fun _ _ _ h => J.vsPostJ hni hVC hct h.1 h.2
 
 
 set_option maxHeartbeats 4000000 in
@@ -886,7 +900,7 @@ theorem decode_invocation_frameJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
   · have h1 : lbl ≠ fl4_abi.label.X86PageDeriveSubframe := fun e => hc (Or.inl e)
     have h2 : lbl ≠ fl4_abi.label.X86PageGetAddress := fun e => hc (Or.inr (Or.inl e))
     have h3 : lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed := fun e => hc (Or.inr (Or.inr e))
-    exact XCap.imp arI h fun _ _ _ h => J.vsPostJ hni hct h.1 (h.2 h1 h2 h3)
+    exact XCap.imp arI h fun _ _ _ h => J.vsPostJ hni hVC hct h.1 (h.2 h1 h2 h3)
 
 set_option maxHeartbeats 4000000 in
 /-- **A PML4 cap at `JAt`** (`decode_invocation_pml4_thX`; the ASID

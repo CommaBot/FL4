@@ -64,7 +64,8 @@ theorem JAtZ.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     fun n hn => by rw [hks]; exact J.nk n hn,
     fun wp hw c hc => by simp only [P1.LawfulStore.nodeBase, hks]; exact J.nodeB wp hw c hc, hjpl, hcov, hobj, J.zH, ?_, J.hset, J.hscC, hjc, hkern,
     J.del.of_same hSS, UtInv.of_same hM J.ut hSS, J.bound, fun G hG => ?_, hutc, hnsc, hinv, hcur, hown, hoff, hact,
-    J.c0, hbsa, hsv, hsrt, hsl, hcr, hblk, by rw [hks]; exact J.intL⟩
+    J.c0, hbsa, hsv, hsrt, hsl, hcr, hblk, by rw [hks]; exact J.intL,
+    J.vsc.of_eq fun y hy => hSS.capV hy⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

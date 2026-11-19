@@ -253,7 +253,7 @@ theorem JAtZ.vtJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) ar
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       J.vt_utc hW hSS hDbg, J.nsc, J.inv, J.cur, J.own, J.off, hAI, J.bsa, J.isorted, J.curRun, hblk⟩
-  exact ⟨J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R, hSS, hkb⟩
+  exact ⟨J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R (J.vsc.of_eq fun y hy => hSS.capV hy), hSS, hkb⟩
 
 
 /-- The value of the VCPU list's head word (`VCPU_HEAD`, offset 80 of the
@@ -307,7 +307,7 @@ theorem JAtZ.vheadJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R⟩, hSS, hw.1⟩
+  exact ⟨⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩, hSS, hw.1⟩
 
 /-- **`JAtZ` across writes of `VtOut` words and the VCPU list's head word**
 (`vtJ`, then `vheadJ` for the head word, split off by a write back of its old
