@@ -31,11 +31,22 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} 
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64}
   {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
+/-- A `BlkFoot` step from `s` with the reply object `r0` inside `KW`. -/
+theorem blkfoot_footR {X : Set U64} {s s' : S} {t r0 : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (hr0 : r0 ≠ 0#u64 → rTcbA r0 ∈ Sg) (w : WritesIn st s s' (BlkFoot st s t r0)) :
+    Foot st T Cs Sg Scs Z Es s s' :=
+  Foot.of w fun b hb => by
+    rcases hb with ⟨K, hK, rfl⟩ | rfl | ⟨h0, rfl⟩
+    · exact kw_field ht (by omega) (by omega) (by omega)
+    · exact kw_node h.cur (by rw [act_val]; omega) (by rw [act_val]; omega)
+    · exact kw_sg (hr0 h0)
+
 set_option maxHeartbeats 4000000 in
-/-- **The blocking wait's footprint** with no reply object. -/
-theorem endpoint.wait_for_sender.foot0 (s : S) (t e : U64)
-    (h : SchedQueuesInv st T Cs Ω H s Q R) (hc : CanBlock st T Ac s t) (hH : H e = some .ep) :
-    endpoint.wait_for_sender st s t e true 0#u64 ⦃ s' => Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+/-- **The blocking wait's footprint** with the reply object `r0` (`0`: none). -/
+theorem endpoint.wait_for_sender.footR (s : S) (t e r0 : U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hc : CanBlock st T Ac s t) (hH : H e = some .ep)
+    (hr : r0 ≠ 0#u64 → rTcbA r0 ∈ Ω ∧ rTcbA r0 ∈ Sg) :
+    endpoint.wait_for_sender st s t e true r0 ⦃ s' => Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
   have ht := hc.mem
   have hta := h.tcbs t ht
   have hN := h.nodes _ h.cur
@@ -51,7 +62,7 @@ theorem endpoint.wait_for_sender.foot0 (s : S) (t e : U64)
   have h3 : SchedQueuesInvX st T Cs Ω H {y | y ∈ (∅ : Set U64) ∨ y = t} s3 Q R := by
     rw [e3]; exact inv_wr_fieldX (K := 3360#u64) h2 ht (Or.inr rfl) (by simp) (by simp) (by simp)
   rw [stA_eq] at e1
-  have w3 : WritesIn st s s3 (BlkFoot st s t 0#u64) := by
+  have w3 : WritesIn st s s3 (BlkFoot st s t r0) := by
     rw [e3, e2, e1]
     exact blk_wr_field (K := 3360#u64) hta (blk_wr_field hta (blk_wr_field hta (WritesIn.refl _ _) (by simp))
       (by simp)) (by simp)
@@ -68,24 +79,34 @@ theorem endpoint.wait_for_sender.foot0 (s : S) (t e : U64)
     ?_
   rintro s4 ⟨h4, e4, -⟩
   obtain ⟨w4, -, -, -, -, -⟩ := blk_sched h3 ht w3 a3 e4
-  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-  try simp only [Aeneas.Std.bind_ok]
   obtain ⟨E, EQ, hEW⟩ := h.eps
   have heE : e ∈ E := (hEW.2.2.2.2.2.2.2.1 e).2 (Or.inl hH)
   obtain ⟨hE, -, hq⟩ := hEW.1 e heE
-  obtain ⟨kf, -, -, ke⟩ := blkfoot_keep h hEW ht (fun h0 => absurd rfl h0) w4
-  have hqe : L.epQ s4 e = L.epQ s e := by simp only [LawfulStore.epQ, (ke e heE).1, (ke e heE).2]
-  have hq4 : QueueRel (L.mem s4) T .Ep (L.epQ s4 e) (EQ e) :=
-    ⟨hq.nodup, hq.mem, by rw [hqe]; exact hq.head, by rw [hqe]; exact hq.last, hq.seg.congr fun y hy =>
-      ⟨kf y (hq.mem y hy) (prevOff .Ep) (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simp [prevOff]),
-       kf y (hq.mem y hy) (nextOff .Ep) (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simp [nextOff])⟩⟩
   have hn : t ∉ EQ e := fun hm => hc.nb (hEW.2.2.2.1 e heE t hm).2.2
-  refine WP.spec_mono (endpoint.ep_append.foot s4 e t obj.EP_RECV (EQ e) h.tcbs hE hq4 ht hn) fun s6 w6 => ?_
-  refine (blkfoot_foot h ht w4).trans (Foot.of w6 fun b hb => hb.kw ?_ (Or.inl hH))
-  intro w hw
-  rcases List.mem_cons.1 hw with rfl | hw
-  · exact ht
-  · exact hq.mem w hw
+  have tail : ∀ s5 : S, WritesIn st s s5 (BlkFoot st s t r0) →
+      endpoint.ep_append st s5 e t obj.EP_RECV ⦃ s' => Foot st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+    intro s5 w5
+    obtain ⟨kf, -, -, ke⟩ := blkfoot_keep h hEW ht (fun h0 => (hr h0).1) w5
+    have hqe : L.epQ s5 e = L.epQ s e := by simp only [LawfulStore.epQ, (ke e heE).1, (ke e heE).2]
+    have hq5 : QueueRel (L.mem s5) T .Ep (L.epQ s5 e) (EQ e) :=
+      ⟨hq.nodup, hq.mem, by rw [hqe]; exact hq.head, by rw [hqe]; exact hq.last, hq.seg.congr fun y hy =>
+        ⟨kf y (hq.mem y hy) (prevOff .Ep) (by simp [prevOff]) (by simp [prevOff]) (fun _ => by simp [prevOff]),
+         kf y (hq.mem y hy) (nextOff .Ep) (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simp [nextOff])⟩⟩
+    refine WP.spec_mono (endpoint.ep_append.foot s5 e t obj.EP_RECV (EQ e) h.tcbs hE hq5 ht hn) fun s6 w6 => ?_
+    refine (blkfoot_footR h ht (fun h0 => (hr h0).2) w5).trans (Foot.of w6 fun b hb => hb.kw ?_ (Or.inl hH))
+    intro w hw
+    rcases List.mem_cons.1 hw with rfl | hw
+    · exact ht
+    · exact hq.mem w hw
+  split
+  · rename_i hne
+    have h0 : r0 ≠ 0#u64 := by simpa using hne
+    obtain ⟨hm, -⟩ := hr h0
+    step with obj.Reply.set_tcb.spec as ⟨s6, e6⟩
+    try simp only [Aeneas.Std.bind_ok]
+    exact tail _ (by rw [e6]; exact blk_wr_reply (h4.omega _ hm).1 h0 w4)
+  · try simp only [Aeneas.Std.bind_ok]
+    exact tail s4 w4
 
 end
 
@@ -320,130 +341,155 @@ section Spec
 open Fl4Spec Classical
 
 
-/-- **One object's change by the blocking receive (null reply)**: `t`'s TCB from a runnable
-state to `blockedOnReceive`, or `e`'s endpoint. -/
-def BChgR (t e p : ObjRef) (o o' : KernelObject) : Prop :=
-  (∃ x ep d, o = .tcb x ∧ o' = .tcb { x with tcbState := .blockedOnReceive ep none d } ∧ p = t ∧
+/-- **One object's change by the blocking receive with the reply `r`**:
+`t`'s TCB from a runnable state to `blockedOnReceive _ r _`, `e`'s endpoint,
+or the reply `r`'s thread := `t`. -/
+def BChgR (t e : ObjRef) (r : Option ObjRef) (p : ObjRef) (o o' : KernelObject) : Prop :=
+  (∃ x ep d, o = .tcb x ∧ o' = .tcb { x with tcbState := .blockedOnReceive ep r d } ∧ p = t ∧
     runnable x.tcbState = true) ∨
-  (∃ x y, o = .endpoint x ∧ o' = .endpoint y ∧ p = e)
+  (∃ x y, o = .endpoint x ∧ o' = .endpoint y ∧ p = e) ∨
+  (∃ x, o = .reply x ∧ o' = .reply { x with replyTcb := some t } ∧ r = some p)
 
-/-- **The spec's frame of the blocking receive (null reply)** (module docstring). -/
-structure BFrR (t e : ObjRef) (σ σ' : State Unit) : Prop where
+/-- **The spec's frame of the blocking receive with the reply `r`** (module
+docstring). -/
+structure BFrR (t e : ObjRef) (r : Option ObjRef) (σ σ' : State Unit) : Prop where
   sk : Sk σ σ'
-  kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ BChgR t e p o o'
+  kh : ∀ p, σ'.kheap p = σ.kheap p ∨ ∃ o o', σ.kheap p = some o ∧ σ'.kheap p = some o' ∧ BChgR t e r p o o'
+  rq : ∀ q, r = some q → ∃ x, σ.kheap q = some (.reply x) ∧ σ'.kheap q = some (.reply { x with replyTcb := some t })
 
 section
-variable {t e : ObjRef} {σ σ' : State Unit}
+variable {t e : ObjRef} {r : Option ObjRef} {σ σ' : State Unit}
 
 /-- A TCB's change: kept, or `t`'s, runnable, to `blockedOnReceive`. -/
-def TKbR (t p : ObjRef) (x : Tcb) (st : ThreadState) : Prop :=
-  st = x.tcbState ∨ (p = t ∧ runnable x.tcbState = true ∧ ∃ ep d, st = .blockedOnReceive ep none d)
+def TKbR (t : ObjRef) (r : Option ObjRef) (p : ObjRef) (x : Tcb) (st : ThreadState) : Prop :=
+  st = x.tcbState ∨ (p = t ∧ runnable x.tcbState = true ∧ ∃ ep d, st = .blockedOnReceive ep r d)
 
-theorem TKbR.run {p : ObjRef} {x : Tcb} {st : ThreadState} (h : TKbR t p x st) (hr : runnable x.tcbState = false) :
+theorem TKbR.run {p : ObjRef} {x : Tcb} {st : ThreadState} (h : TKbR t r p x st) (hr : runnable x.tcbState = false) :
     st = x.tcbState := by
   rcases h with h | ⟨-, h, -⟩
   · exact h
   · rw [hr] at h; cases h
 
-theorem BFrR.tcbF (h : BFrR t e σ σ') {p : ObjRef} {x : Tcb} (hp : σ.kheap p = some (.tcb x)) :
-    ∃ st, σ'.kheap p = some (.tcb { x with tcbState := st }) ∧ TKbR t p x st := by
+theorem BFrR.tcbF (h : BFrR t e r σ σ') {p : ObjRef} {x : Tcb} (hp : σ.kheap p = some (.tcb x)) :
+    ∃ st, σ'.kheap p = some (.tcb { x with tcbState := st }) ∧ TKbR t r p x st := by
   rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
   · exact ⟨x.tcbState, by rw [h1, hp], Or.inl rfl⟩
   · rw [hp] at h1; cases h1
-    rcases hc with ⟨x', ep, d, e1, rfl, hp', hr⟩ | ⟨_, _, e1, -⟩ <;> cases e1
+    rcases hc with ⟨x', ep, d, e1, rfl, hp', hr⟩ | ⟨_, _, e1, -⟩ | ⟨_, e1, -⟩ <;> cases e1
     exact ⟨_, h2, Or.inr ⟨hp', hr, ep, d, rfl⟩⟩
 
-theorem BFrR.tcbB (h : BFrR t e σ σ') {p : ObjRef} {y : Tcb} (hp : σ'.kheap p = some (.tcb y)) :
-    ∃ x st, σ.kheap p = some (.tcb x) ∧ y = { x with tcbState := st } ∧ TKbR t p x st := by
+theorem BFrR.tcbB (h : BFrR t e r σ σ') {p : ObjRef} {y : Tcb} (hp : σ'.kheap p = some (.tcb y)) :
+    ∃ x st, σ.kheap p = some (.tcb x) ∧ y = { x with tcbState := st } ∧ TKbR t r p x st := by
   rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
   · exact ⟨y, y.tcbState, by rw [← h1, hp], rfl, Or.inl rfl⟩
   · rw [hp] at h2; cases h2
-    rcases hc with ⟨x, ep, d, rfl, e2, hp', hr⟩ | ⟨_, _, -, e2, -⟩ <;> cases e2
+    rcases hc with ⟨x, ep, d, rfl, e2, hp', hr⟩ | ⟨_, _, -, e2, -⟩ | ⟨_, -, e2, -⟩ <;> cases e2
     exact ⟨x, _, h1, rfl, Or.inr ⟨hp', hr, ep, d, rfl⟩⟩
 
 /-- The other kinds kept. -/
-theorem BFrR.othF (h : BFrR t e σ σ') {p : ObjRef} {o : KernelObject} (hp : σ.kheap p = some o)
-    (h1 : ∀ x, o ≠ .tcb x) (h4 : ∀ x, o ≠ .endpoint x) : σ'.kheap p = some o := by
+theorem BFrR.othF (h : BFrR t e r σ σ') {p : ObjRef} {o : KernelObject} (hp : σ.kheap p = some o)
+    (h1 : ∀ x, o ≠ .tcb x) (h4 : ∀ x, o ≠ .endpoint x) (h5 : ∀ x, o ≠ .reply x) : σ'.kheap p = some o := by
   rcases h.kh p with e' | ⟨o0, o', k1, k2, hc⟩
   · rw [e', hp]
   · rw [hp] at k1; cases k1
-    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, e1, -⟩
+    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, e1, -⟩ | ⟨_, e1, -⟩
     · exact absurd e1 (h1 _)
     · exact absurd e1 (h4 _)
+    · exact absurd e1 (h5 _)
 
-theorem BFrR.othB (h : BFrR t e σ σ') {p : ObjRef} {o' : KernelObject} (hp : σ'.kheap p = some o')
-    (h1 : ∀ x, o' ≠ .tcb x) (h4 : ∀ x, o' ≠ .endpoint x) : σ.kheap p = some o' := by
+theorem BFrR.othB (h : BFrR t e r σ σ') {p : ObjRef} {o' : KernelObject} (hp : σ'.kheap p = some o')
+    (h1 : ∀ x, o' ≠ .tcb x) (h4 : ∀ x, o' ≠ .endpoint x) (h5 : ∀ x, o' ≠ .reply x) : σ.kheap p = some o' := by
   rcases h.kh p with e' | ⟨o, o'', k1, k2, hc⟩
   · rw [← e', hp]
   · rw [hp] at k2; cases k2
-    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩
+    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩ | ⟨_, -, e2, -⟩
     · exact absurd e2 (h1 _)
     · exact absurd e2 (h4 _)
+    · exact absurd e2 (h5 _)
 
-theorem BFrR.scF (h : BFrR t e σ σ') {p : ObjRef} {y : SchedContext} {n : Nat}
+theorem BFrR.scF (h : BFrR t e r σ σ') {p : ObjRef} {y : SchedContext} {n : Nat}
     (hp : σ.kheap p = some (.schedContext y n)) : σ'.kheap p = some (.schedContext y n) :=
-  h.othF hp (fun _ e => by cases e) (fun _ e => by cases e)
+  h.othF hp (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
 
-theorem BFrR.scB (h : BFrR t e σ σ') {p : ObjRef} {y : SchedContext} {n : Nat}
+theorem BFrR.scB (h : BFrR t e r σ σ') {p : ObjRef} {y : SchedContext} {n : Nat}
     (hp : σ'.kheap p = some (.schedContext y n)) : σ.kheap p = some (.schedContext y n) :=
-  h.othB hp (fun _ e => by cases e) (fun _ e => by cases e)
+  h.othB hp (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
 
-theorem BFrR.replyF (h : BFrR t e σ σ') {p : ObjRef} {x : Reply} (hp : σ.kheap p = some (.reply x)) :
-    σ'.kheap p = some (.reply x) :=
-  h.othF hp (fun _ e => by cases e) (fun _ e => by cases e)
+theorem BFrR.replyF (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ.kheap p = some (.reply x)) :
+    ∃ x', σ'.kheap p = some (.reply x') ∧ x'.replySc = x.replySc ∧ (r ≠ some p → x' = x) := by
+  rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
+  · exact ⟨x, by rw [h1, hp], rfl, fun _ => rfl⟩
+  · rw [hp] at h1; cases h1
+    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨_, _, e1, -⟩ | ⟨x', e1, rfl, hr⟩ <;> cases e1
+    exact ⟨_, h2, rfl, fun hn => absurd hr hn⟩
 
-theorem BFrR.replyB (h : BFrR t e σ σ') {p : ObjRef} {x : Reply} (hp : σ'.kheap p = some (.reply x)) :
-    σ.kheap p = some (.reply x) :=
-  h.othB hp (fun _ e => by cases e) (fun _ e => by cases e)
+theorem BFrR.replyB (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ'.kheap p = some (.reply x)) :
+    ∃ x0, σ.kheap p = some (.reply x0) ∧ x.replySc = x0.replySc ∧ (r ≠ some p → x = x0) := by
+  rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
+  · exact ⟨x, by rw [← h1, hp], rfl, fun _ => rfl⟩
+  · rw [hp] at h2; cases h2
+    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨_, _, -, e2, -⟩ | ⟨x0, rfl, e2, hr⟩ <;> cases e2
+    exact ⟨x0, h1, rfl, fun hn => absurd hr hn⟩
 
-theorem BFrR.ntfnF (h : BFrR t e σ σ') {p : ObjRef} {x : Notification} (hp : σ.kheap p = some (.notification x)) :
+/-- A reply other than `r` is kept. -/
+theorem BFrR.replyF' (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ.kheap p = some (.reply x))
+    (hr : r ≠ some p) : σ'.kheap p = some (.reply x) := by
+  obtain ⟨x', h1, -, h3⟩ := h.replyF hp
+  rw [h1, h3 hr]
+
+theorem BFrR.replyB' (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ'.kheap p = some (.reply x))
+    (hr : r ≠ some p) : σ.kheap p = some (.reply x) := by
+  obtain ⟨x0, h1, -, h3⟩ := h.replyB hp
+  rw [h1, h3 hr]
+
+theorem BFrR.ntfnF (h : BFrR t e r σ σ') {p : ObjRef} {x : Notification} (hp : σ.kheap p = some (.notification x)) :
     σ'.kheap p = some (.notification x) :=
-  h.othF hp (fun _ e => by cases e) (fun _ e => by cases e)
+  h.othF hp (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
 
-theorem BFrR.ntfnB (h : BFrR t e σ σ') {p : ObjRef} {x : Notification} (hp : σ'.kheap p = some (.notification x)) :
+theorem BFrR.ntfnB (h : BFrR t e r σ σ') {p : ObjRef} {x : Notification} (hp : σ'.kheap p = some (.notification x)) :
     σ.kheap p = some (.notification x) :=
-  h.othB hp (fun _ e => by cases e) (fun _ e => by cases e)
+  h.othB hp (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
 
-theorem BFrR.epF (h : BFrR t e σ σ') {p : ObjRef} {x : Endpoint} (hp : σ.kheap p = some (.endpoint x)) :
+theorem BFrR.epF (h : BFrR t e r σ σ') {p : ObjRef} {x : Endpoint} (hp : σ.kheap p = some (.endpoint x)) :
     ∃ y, σ'.kheap p = some (.endpoint y) ∧ (y = x ∨ p = e) := by
   rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
   · exact ⟨x, by rw [h1, hp], Or.inl rfl⟩
   · rw [hp] at h1; cases h1
-    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hp'⟩ <;> cases e1
+    rcases hc with ⟨_, _, _, e1, -⟩ | ⟨x', y, e1, rfl, hp'⟩ | ⟨_, e1, -⟩ <;> cases e1
     exact ⟨y, h2, Or.inr hp'⟩
 
-theorem BFrR.epB (h : BFrR t e σ σ') {p : ObjRef} {y : Endpoint} (hp : σ'.kheap p = some (.endpoint y)) :
+theorem BFrR.epB (h : BFrR t e r σ σ') {p : ObjRef} {y : Endpoint} (hp : σ'.kheap p = some (.endpoint y)) :
     ∃ x, σ.kheap p = some (.endpoint x) ∧ (y = x ∨ p = e) := by
   rcases h.kh p with h1 | ⟨o, o', h1, h2, hc⟩
   · exact ⟨y, by rw [← h1, hp], Or.inl rfl⟩
   · rw [hp] at h2; cases h2
-    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨x, y', rfl, e2, hp'⟩ <;> cases e2
+    rcases hc with ⟨_, _, _, -, e2, -⟩ | ⟨x, y', rfl, e2, hp'⟩ | ⟨_, -, e2, -⟩ <;> cases e2
     exact ⟨x, h1, Or.inr hp'⟩
 
-theorem BFrR.kind (h : BFrR t e σ σ') (p : ObjRef) :
+theorem BFrR.kind (h : BFrR t e r σ σ') (p : ObjRef) :
     (∀ o, σ.kheap p = some o → ∃ o', σ'.kheap p = some o' ∧ aType o' = aType o) ∧
     (∀ o', σ'.kheap p = some o' → ∃ o, σ.kheap p = some o ∧ aType o' = aType o) := by
   rcases h.kh p with e' | ⟨o, o', h1, h2, hc⟩
   · exact ⟨fun o ho => ⟨o, by rw [e', ho], rfl⟩, fun o' ho => ⟨o', by rw [← e', ho], rfl⟩⟩
   · have ha : aType o' = aType o := by
-      rcases hc with ⟨x, ep, d, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ <;> rfl
+      rcases hc with ⟨x, ep, d, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, rfl, rfl, -⟩ <;> rfl
     exact ⟨fun o0 ho0 => ⟨o', h2, by rw [h1] at ho0; cases ho0; exact ha⟩,
       fun o0 ho0 => ⟨o, h1, by rw [h2] at ho0; cases ho0; exact ha⟩⟩
 
-theorem BFrR.szKeep (h : BFrR t e σ σ') : SzKeep σ σ' := fun _ y n hp => ⟨y, h.scB hp⟩
+theorem BFrR.szKeep (h : BFrR t e r σ σ') : SzKeep σ σ' := fun _ y n hp => ⟨y, h.scB hp⟩
 
-theorem BFrR.ykeep (h : BFrR t e σ σ') : YKeep σ σ' := by
+theorem BFrR.ykeep (h : BFrR t e r σ σ') : YKeep σ σ' := by
   refine ⟨fun p x hp => ?_, fun p y n hp => ⟨y, h.scF hp, rfl⟩, fun p z n hp => ⟨z, h.scB hp, rfl⟩⟩
   obtain ⟨st, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
 
-theorem BFrR.mcpKeep (h : BFrR t e σ σ') : McpKeep σ σ' := fun p x hp => by
+theorem BFrR.mcpKeep (h : BFrR t e r σ σ') : McpKeep σ σ' := fun p x hp => by
   obtain ⟨st, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
 
-theorem BFrR.bufKeep (h : BFrR t e σ σ') :
+theorem BFrR.bufKeep (h : BFrR t e r σ σ') :
     ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer :=
   fun p x hp => by obtain ⟨st, hp', -⟩ := h.tcbF hp; exact ⟨_, hp', rfl⟩
 
-theorem BFrR.prio (h : BFrR t e σ σ') (u : ObjRef) : Sched.prioOf σ' u = Sched.prioOf σ u := by
+theorem BFrR.prio (h : BFrR t e r σ σ') (u : ObjRef) : Sched.prioOf σ' u = Sched.prioOf σ u := by
   unfold Sched.prioOf
   rw [tcbsOf_eq, tcbsOf_eq]
   cases hk : σ.kheap u with
@@ -465,11 +511,11 @@ theorem BFrR.prio (h : BFrR t e σ σ') (u : ObjRef) : Sched.prioOf σ' u = Sche
       | tcb y => obtain ⟨x, -, hx, -⟩ := h.tcbB hk'; rw [hk] at hx; cases hx
       | _ => rfl
 
-theorem BFrR.nsc {N C : Set U64} (h : BFrR t e σ σ') (hN : NSC N C σ) : NSC N C σ' := by
+theorem BFrR.nsc {N C : Set U64} (h : BFrR t e r σ σ') (hN : NSC N C σ) : NSC N C σ' := by
   intro n hn y p hy hp
   exact hN n hn y p (h.ntfnB hy) hp
 
-theorem BFrR.own {T C : Set U64} (h : BFrR t e σ σ') (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
+theorem BFrR.own {T C : Set U64} (h : BFrR t e r σ σ') (hO : CurOwnW T C σ) : CurOwnW T C σ' := by
   rcases hO with ⟨u, hu, xt, hkt, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
   · obtain ⟨st, hkt', -⟩ := h.tcbF hkt
     refine Or.inl ⟨u, hu, _, hkt', by rw [h.sk.csc]; exact hxs, fun y n hy => ?_, fun h0 hm => ?_⟩
@@ -480,13 +526,13 @@ theorem BFrR.own {T C : Set U64} (h : BFrR t e σ σ') (hO : CurOwnW T C σ) : C
     rw [h.sk.csc] at hy
     exact hun y n (h.scB hy)
 
-theorem BFrR.off (h : BFrR t e σ σ') (hO : OffOK σ) : OffOK σ' := by
+theorem BFrR.off (h : BFrR t e r σ σ') (hO : OffOK σ) : OffOK σ' := by
   intro hc y n hy ha
   rw [h.sk.cons] at hc ⊢; rw [h.sk.tm]
   rw [h.sk.csc] at hy; rw [h.sk.csc, h.sk.isc] at ha
   exact hO hc y n (h.scB hy) ha
 
-theorem BFrR.idleOK (h : BFrR t e σ σ') (hO : IdleOK σ) : IdleOK σ' := by
+theorem BFrR.idleOK (h : BFrR t e r σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   obtain ⟨x, hx, h1, h2, h3⟩ := hO
   obtain ⟨st, hx', hs⟩ := h.tcbF hx
   refine ⟨{ x with tcbState := st }, by rw [h.sk.idle]; exact hx', by rw [h.sk.isc]; exact h1, ?_,
@@ -495,7 +541,7 @@ theorem BFrR.idleOK (h : BFrR t e σ σ') (hO : IdleOK σ) : IdleOK σ' := by
   rw [hs.run (by rw [h2]; rfl)]; exact h2
 
 /-- `BlockedScActive` after, `t`'s SCs active. -/
-theorem BFrR.bsa (h : BFrR t e σ σ') (hB : BlockedScActive σ)
+theorem BFrR.bsa (h : BFrR t e r σ σ') (hB : BlockedScActive σ)
     (ht : ∀ p y n, σ.kheap p = some (.schedContext y n) → y.scTcb = some t → scActive y = true) :
     BlockedScActive σ' := by
   refine ⟨fun p z n u y hp hyt hy hq => ?_, fun p z n hp hr => hB.replies p z n (h.scB hp) hr⟩
@@ -505,7 +551,7 @@ theorem BFrR.bsa (h : BFrR t e σ σ') (hB : BlockedScActive σ)
   · exact ht p z n (h.scB hp) hyt
 
 /-- `IpcSorted` after, `e`'s queue sorted. -/
-theorem BFrR.isorted (h : BFrR t e σ σ') (hS : IpcSorted σ)
+theorem BFrR.isorted (h : BFrR t e r σ σ') (hS : IpcSorted σ)
     (he : ∀ y, σ'.kheap e = some (.endpoint y) → SortedQ σ y.epQueue) : IpcSorted σ' := by
   refine ⟨fun p y hp => ?_, fun p y hp => ?_⟩
   · obtain ⟨x, hx, hc⟩ := h.epB hp
@@ -514,47 +560,70 @@ theorem BFrR.isorted (h : BFrR t e σ σ') (hS : IpcSorted σ)
     · exact (he y hp).congr fun u _ => h.prio u
   · exact (hS.2 p y (h.ntfnB hp)).congr fun u _ => h.prio u
 
-theorem BFrR.kback (h : BFrR t e σ σ') : KBack σ σ' := by
+theorem BFrR.kback (h : BFrR t e r σ σ') : KBack σ σ' := by
   intro o ko' ho
   rcases h.kh o with e' | ⟨ko, ko'', h1, h2, hc⟩
   · exact ⟨ko', by rw [← e', ho], id, id, id, id, id, id⟩
   · rw [ho] at h2; cases h2
-    rcases hc with ⟨x, ep, d, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩
+    rcases hc with ⟨x, ep, d, rfl, rfl, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, rfl, rfl, -⟩
+    · exact ⟨_, h1, by simp⟩
     · exact ⟨_, h1, by simp⟩
     · exact ⟨_, h1, by simp⟩
 
-theorem BFrR.ksz (h : BFrR t e σ σ') : KSz σ σ' := fun o ko' ho => by
+theorem BFrR.ksz (h : BFrR t e r σ σ') : KSz σ σ' := fun o ko' ho => by
   obtain ⟨ko, h1, e'⟩ := (h.kind o).2 ko' ho
   exact ⟨ko, h1, e'.symm⟩
 
-theorem BFrR.ksub (h : BFrR t e σ σ') : KSub σ σ' := by
+theorem BFrR.ksub (h : BFrR t e r σ σ') : KSub σ σ' := by
   intro o
   refine ⟨fun rr cs hc hw => ⟨cs, ?_, hw⟩, fun u hu => ?_, fun hn => ?_⟩
-  · exact h.othB hc (fun _ e => by cases e) (fun _ e => by cases e)
+  · exact h.othB hc (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
   · obtain ⟨x, -, hx, -⟩ := h.tcbB hu; exact ⟨x, hx⟩
   · rcases h.kh o with e' | ⟨ko, ko', h1, -, -⟩
     · rw [e']; exact hn
     · rw [hn] at h1; cases h1
 
-theorem BFrR.callKeep (h : BFrR t e σ σ') :
+theorem BFrR.callKeep (h : BFrR t e r σ σ') :
     (∀ q y n, σ.kheap q = some (.schedContext y n) → ∃ y', σ'.kheap q = some (.schedContext y' n) ∧
       y'.scReplies = y.scReplies) ∧
     (∀ q x, σ.kheap q = some (.reply x) → ∃ x', σ'.kheap q = some (.reply x') ∧ x'.replySc = x.replySc) ∧
     (∀ p x n, σ'.kheap p = some (.schedContext x n) → ∃ x0, σ.kheap p = some (.schedContext x0 n)) :=
-  ⟨fun q y n hq => ⟨y, h.scF hq, rfl⟩, fun q x hq => ⟨x, h.replyF hq, rfl⟩, fun p x n hp => ⟨x, h.scB hp⟩⟩
+  ⟨fun q y n hq => ⟨y, h.scF hq, rfl⟩, fun q x hq => (by obtain ⟨x', h1, h2, -⟩ := h.replyF hq; exact ⟨x', h1, h2⟩),
+    fun p x n hp => ⟨x, h.scB hp⟩⟩
 
-theorem BFrR.skeep (h : BFrR t e σ σ') : Ipc.SKeep σ σ' := by
+theorem BFrR.skeep (h : BFrR t e r σ σ') : Ipc.SKeep σ σ' := by
   refine ⟨h.sk.rel, h.sk.tm, fun p y hy => ?_, fun p y n hy => h.scB hy⟩
   obtain ⟨x, st, hx, rfl, -⟩ := h.tcbB hy
   exact ⟨x, hx, rfl⟩
 
-/-- **`RRecv` across `BFrR`** (module docstring): no reply names `t` before. -/
-theorem RRecv.frameR {R : Set U64} {m m' : U64 → U64} {σ σ' : State Unit} {t e : ObjRef} (h : RRecv m R σ)
-    (hm : ∀ d ∈ R, m' (rPrevA d) = m (rPrevA d) ∧ m' (rNextA d) = m (rNextA d)) (F : BFrR t e σ σ')
-    (hnt : ∀ d ∈ R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb ≠ some t) :
+/-- **`IK` of a `BFrR` step** keeping the ready queues. -/
+theorem BFrR.ik (h : BFrR t e r σ σ') (hrq : σ'.readyQueues = σ.readyQueues) : IK t σ σ' := by
+  refine ⟨fun p => ?_, hrq, h.sk.rel, h.sk.tm⟩
+  rcases h.kh p with e1 | ⟨o, o', h1, h2, hc⟩
+  · rw [e1]; exact OIK.refl _ _
+  · rw [h1, h2]
+    show IKObj (p ≠ t) o o'
+    rcases hc with ⟨x, ep, d, rfl, rfl, hp, -⟩ | ⟨x, y, rfl, rfl, -⟩ | ⟨x, rfl, rfl, -⟩
+    · exact ⟨fun x' e => (by cases e; exact ⟨_, rfl, rfl, fun hk => absurd hp hk, fun _ => rfl⟩),
+        fun _ _ e => (by cases e), fun _ e => (by cases e), fun _ _ => ⟨_, rfl⟩, fun _ _ e => (by cases e),
+        fun _ e => (by cases e)⟩
+    · exact IKObj.other fun o0 h0 => by
+        rcases h0 with rfl | rfl <;> exact ⟨fun _ e => (by cases e), fun _ _ e => (by cases e), fun _ e => (by cases e)⟩
+    · exact IKObj.other fun o0 h0 => by
+        rcases h0 with rfl | rfl <;> exact ⟨fun _ e => (by cases e), fun _ _ e => (by cases e), fun _ e => (by cases e)⟩
+
+/-- **`RRecv` across `BFrR`** (module docstring): no reply names `t` before;
+the reply `r` (now naming the receive-blocked `t`) has null links after. -/
+theorem RRecv.frameR {R : Set U64} {m m' : U64 → U64} (h : RRecv m R σ)
+    (hm : ∀ d ∈ R, m' (rPrevA d) = m (rPrevA d) ∧ m' (rNextA d) = m (rNextA d)) (F : BFrR t e r σ σ')
+    (hnt : ∀ d ∈ R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb ≠ some t)
+    (hrq : ∀ d ∈ R, r = some d.bv → m' (rNextA d) = 0#u64 ∧ m' (rPrevA d) = 0#u64) :
     RRecv m' R σ' := fun d hd hr => by
+  by_cases hdr : r = some d.bv
+  · exact hrq d hd hdr
   obtain ⟨xr, u, xu, hkr, hru, hku, hrb⟩ := hr
-  have hkr0 := F.replyB hkr
+  obtain ⟨xr0, hkr0, -, hxe⟩ := F.replyB hkr
+  obtain rfl := hxe hdr
   obtain ⟨x0, st0, hk0, rfl, hs⟩ := F.tcbB hku
   have hut : u ≠ t := fun e => hnt d hd xr hkr0 (e ▸ hru)
   have hst : st0 = x0.tcbState := by
@@ -566,89 +635,128 @@ theorem RRecv.frameR {R : Set U64} {m m' : U64 → U64} {σ σ' : State Unit} {t
 
 end
 
-/-- **The spec's blocking receive with a null reply cap in `BFrR`** (module
-docstring). -/
-theorem recvIpcBlock0_eq {σ : State Unit} {t e : ObjRef} {xt : Tcb} {x : Endpoint}
+/-- **The spec's blocking receive in `BFrR`** (module docstring), the reply
+cap null or naming an unlinked reply (`Endp.SpecReplyArg`). -/
+theorem recvIpcBlock_eq {σ : State Unit} {t e : ObjRef} {xt : Tcb} {x : Endpoint}
     (hkt : σ.kheap t = some (.tcb xt)) (hbn : xt.tcbBoundNotification = none)
     (hk : σ.kheap e = some (.endpoint x)) (hc : Endp.CanBlock true x)
     (htq : t ∉ x.epQueue) (hq : ∀ y ∈ x.epQueue, ∃ z, σ.kheap y = some (.tcb z)) (hr : runnable xt.tcbState = true)
-    (hS : SortedQ σ x.epQueue) (b : Badge) (rights : CapRights) :
-    ∃ σ', receiveIpc (Z := Unit) t (.endpointCap e b rights) true .nullCap σ = ({((), σ')}, False) ∧
-      BFrR t e σ σ' ∧ IK t σ σ' ∧ σ'.readyQueues = σ.readyQueues ∧
+    (hS : SortedQ σ x.epQueue) (b : Badge) (rights : CapRights) {rc' : Cap} {r : Option ObjRef}
+    (hrc : Endp.SpecReplyArg σ rc' r) :
+    ∃ σ', receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ = ({((), σ')}, False) ∧
+      BFrR t e r σ σ' ∧ IK t σ σ' ∧ σ'.readyQueues = σ.readyQueues ∧
       (t = σ.curThread → σ.schedulerAction = .resumeCurThread → σ'.schedulerAction = .chooseNewThread) ∧
       (∀ y, σ'.kheap e = some (.endpoint y) → SortedQ σ y.epQueue) := by
-  let x1 : Tcb := { xt with tcbState := .blockedOnReceive e none { receiverCanGrant := false } }
+  let x1 : Tcb := { xt with tcbState := .blockedOnReceive e r { receiverCanGrant := false } }
   let σ2 := stsAct (updK σ t (.tcb x1)) t
-  let q' := Notif.specIns x.epQueue (Sched.prioOf σ2) x1.tcbPriority t
-  let σ' := updK σ2 e (.endpoint (updateEpQueue x q' true))
   have hns : ∀ q, x ≠ .sendEP q := fun q h => by subst h; simp [Endp.CanBlock] at hc
   have hte : t ≠ e := by rintro rfl; rw [hkt] at hk; cases hk
   have hk2 : σ2.kheap e = some (.endpoint x) := by simp [σ2, stsAct_kheap, Ne.symm hte, hk]
   have hkt2 : σ2.kheap t = some (.tcb x1) := by simp [σ2, stsAct_kheap]
-  have hq2 : ∀ y ∈ x.epQueue, ∃ z, σ2.kheap y = some (.tcb z) ∧ z.tcbPriority = Sched.prioOf σ2 y := by
+  have hk2o : ∀ p, p ≠ t → σ2.kheap p = σ.kheap p := fun p hp => by simp [σ2, stsAct_kheap, hp]
+  -- the reply step
+  obtain ⟨σr, hrep, hσr, hkr, hrq⟩ : ∃ σr, NonDet.maybeM (fun q => setReplyObjRef (Z := Unit) replyTcbUpdate q (some t))
+      r σ2 = ({((), σr)}, False) ∧ (∃ kh, σr = { σ2 with kheap := kh }) ∧
+      (∀ p, σr.kheap p = σ2.kheap p ∨ ∃ xr, r = some p ∧ σ.kheap p = some (.reply xr) ∧
+        σr.kheap p = some (.reply { xr with replyTcb := some t })) ∧
+      (∀ q, r = some q → ∃ xr, σ.kheap q = some (.reply xr) ∧
+        σr.kheap q = some (.reply { xr with replyTcb := some t })) := by
+    rcases hrc with ⟨-, rfl⟩ | ⟨q, rr, xr, -, rfl, hkr, -⟩
+    · exact ⟨σ2, rfl, ⟨_, rfl⟩, fun p => Or.inl rfl, fun q h => by cases h⟩
+    · have hqt : q ≠ t := by rintro rfl; rw [hkt] at hkr; cases hkr
+      have hkr2 : σ2.kheap q = some (.reply xr) := by rw [hk2o q hqt]; exact hkr
+      refine ⟨_, Endp.setReplyTcb_eq _ hkr2, ⟨_, rfl⟩, fun p => ?_, fun q' h => ?_⟩
+      · by_cases hp : p = q
+        · subst hp; exact Or.inr ⟨xr, rfl, hkr, by simp [updK]⟩
+        · exact Or.inl (by simp [updK, hp])
+      · cases h; exact ⟨xr, hkr, by simp [updK]⟩
+  obtain ⟨kh, hσr⟩ := hσr
+  have hkrT : ∀ p o, σ2.kheap p = some o → (∀ y, o ≠ .reply y) → σr.kheap p = some o := by
+    intro p o hp ho
+    rcases hkr p with h | ⟨xr, hr', h1, -⟩
+    · rw [h, hp]
+    · have hpt : p ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
+      rw [hk2o p hpt, h1] at hp; cases hp; exact absurd rfl (ho xr)
+  have hkr2 : σr.kheap e = some (.endpoint x) := hkrT e _ hk2 fun _ h => by cases h
+  have hktr : σr.kheap t = some (.tcb x1) := hkrT t _ hkt2 fun _ h => by cases h
+  have hprr : ∀ u, Sched.prioOf σr u = Sched.prioOf σ2 u := by
+    intro u
+    unfold Sched.prioOf; rw [tcbsOf_eq, tcbsOf_eq]
+    rcases hkr u with h | ⟨xr, -, h1, h2⟩
+    · rw [h]
+    · have hut : u ≠ t := by rintro rfl; rw [hkt] at h1; cases h1
+      rw [h2, hk2o u hut, h1]
+  let q' := Notif.specIns x.epQueue (Sched.prioOf σr) x1.tcbPriority t
+  let σ' := updK σr e (.endpoint (updateEpQueue x q' true))
+  have hq2 : ∀ y ∈ x.epQueue, ∃ z, σr.kheap y = some (.tcb z) ∧ z.tcbPriority = Sched.prioOf σr y := by
     intro y hy
     obtain ⟨z, hz⟩ := hq y hy
     have hyt : y ≠ t := fun h => htq (h ▸ hy)
-    have hz2 : σ2.kheap y = some (.tcb z) := by simp [σ2, stsAct_kheap, hyt, hz]
+    have hz2 : σr.kheap y = some (.tcb z) := hkrT y _ (by rw [hk2o y hyt]; exact hz) fun _ h => by cases h
     exact ⟨z, hz2, (prioOf_eq hz2).symm⟩
-  have hblk : receiveIpc (Z := Unit) t (.endpointCap e b rights) true .nullCap σ =
-      ((setThreadState t (.blockedOnReceive e none { receiverCanGrant := false }) >>= fun _ =>
-        (pure () : SMonad Unit Unit) >>= fun _ => tcbEpAppend t e true) σ) := by
-    rw [Endp.receiveIpc_noSend b rights true (Or.inl ⟨rfl, rfl⟩) hkt hbn hk hns]
+  have hblk : receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ =
+      ((setThreadState t (.blockedOnReceive e r { receiverCanGrant := false }) >>= fun _ =>
+        NonDet.maybeM (fun q => setReplyObjRef (Z := Unit) replyTcbUpdate q (some t)) r >>= fun _ =>
+          tcbEpAppend t e true) σ) := by
+    rw [Endp.receiveIpc_noSend b rights true hrc hkt hbn hk hns]
     unfold receiveIpcBlocked
     rw [if_pos rfl]
-    rfl
-  have heq : receiveIpc (Z := Unit) t (.endpointCap e b rights) true .nullCap σ = ({((), σ')}, False) := by
-    rw [hblk, nd_bind_one (Notif.setThreadState_eq _ hkt), nd_pure_bind']
-    exact Endp.tcbEpAppend_eq hk2 hkt2 (Sched.prioOf σ2) hq2 true
-  have hm : ((), σ') ∈ (receiveIpc (Z := Unit) t (.endpointCap e b rights) true .nullCap σ).1 := by
-    rw [heq]; exact Set.mem_singleton _
-  have hik : IK t σ σ' := by
-    rw [hblk] at hm
-    exact ikm_bind (ikm_setThreadState _) (fun _ => ikm_bind (ikm_pure _) fun _ => ikm_tcbEpAppend t e true)
-      σ ((), σ') hm
+  have heq : receiveIpc (Z := Unit) t (.endpointCap e b rights) true rc' σ = ({((), σ')}, False) := by
+    rw [hblk, nd_bind_one (Notif.setThreadState_eq _ hkt), nd_bind_one hrep]
+    exact Endp.tcbEpAppend_eq hkr2 hktr (Sched.prioOf σr) hq2 true
   have hsk2 : Sk σ σ2 := by
     show Sk σ (stsAct _ t)
     unfold stsAct; split
     · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-  have hsk : Sk σ σ' := hsk2.trans ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-  have hkh : ∀ p, σ'.kheap p = if p = e then some (.endpoint (updateEpQueue x q' true))
-      else if p = t then some (.tcb x1) else σ.kheap p := by
-    intro p
-    simp only [σ', σ2, updK_kheap, stsAct_kheap, Function.update_apply]
+  have hskr : Sk σ2 σr := by rw [hσr]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have hsk : Sk σ σ' := (hsk2.trans hskr).trans ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have hkh' : ∀ p, p ≠ e → σ'.kheap p = σr.kheap p := fun p hp => by simp [σ', updK, hp]
   have hpr2 : ∀ u, Sched.prioOf σ2 u = Sched.prioOf σ u := by
     intro u
     by_cases hut : u = t
     · subst hut; exact (prioOf_eq hkt2).trans (prioOf_eq hkt).symm
-    · unfold Sched.prioOf; rw [tcbsOf_eq, tcbsOf_eq]
-      simp only [σ2, stsAct_kheap, updK_kheap, Function.update_apply, if_neg hut]
-  have hrq : σ'.readyQueues = σ.readyQueues := by
+    · unfold Sched.prioOf; rw [tcbsOf_eq, tcbsOf_eq, hk2o u hut]
+  have hrq' : σ'.readyQueues = σ.readyQueues := by
+    show σr.readyQueues = _
+    rw [hσr]
     show (stsAct _ t).readyQueues = _
     unfold stsAct; split <;> rfl
-  refine ⟨σ', heq, ⟨hsk, fun p => ?_⟩, hik, hrq, fun hct hres => ?_, fun y hy => ?_⟩
-  · rw [hkh]
-    by_cases hpe : p = e
-    · rw [if_pos hpe]; exact Or.inr ⟨.endpoint x, .endpoint (updateEpQueue x q' true), by rw [hpe]; exact hk, rfl,
-        Or.inr ⟨x, _, rfl, rfl, hpe⟩⟩
-    · rw [if_neg hpe]
-      by_cases hpt : p = t
-      · rw [if_pos hpt]
-        exact Or.inr ⟨.tcb xt, .tcb x1, by rw [hpt]; exact hkt, rfl, Or.inl ⟨xt, e, _, rfl, rfl, hpt, hr⟩⟩
-      · rw [if_neg hpt]; exact Or.inl rfl
+  have F : BFrR t e r σ σ' := by
+    refine ⟨hsk, fun p => ?_, fun q hq0 => ?_⟩
+    · by_cases hpe : p = e
+      · subst hpe
+        exact Or.inr ⟨.endpoint x, .endpoint (updateEpQueue x q' true), hk, by simp [σ', updK],
+          Or.inr (Or.inl ⟨x, _, rfl, rfl, rfl⟩)⟩
+      rw [hkh' p hpe]
+      rcases hkr p with h | ⟨xr, hr', h1, h2⟩
+      · rw [h]
+        by_cases hpt : p = t
+        · subst hpt
+          exact Or.inr ⟨.tcb xt, .tcb x1, hkt, hkt2, Or.inl ⟨xt, e, _, rfl, rfl, rfl, hr⟩⟩
+        · exact Or.inl (hk2o p hpt)
+      · exact Or.inr ⟨_, _, h1, h2, Or.inr (Or.inr ⟨xr, rfl, rfl, hr'⟩)⟩
+    · obtain ⟨xr, h1, h2⟩ := hrq q hq0
+      have hqe : q ≠ e := by rintro rfl; rw [hk] at h1; cases h1
+      exact ⟨xr, h1, by rw [hkh' q hqe]; exact h2⟩
+  refine ⟨σ', heq, F, F.ik hrq', hrq', fun hct hres => ?_, fun y hy => ?_⟩
   · have hns' : ¬ schedulable t (updK σ t (.tcb x1)) = true := by
       intro hs
       obtain ⟨y, -, -, -, hy, -, hrun, -⟩ := schedulable_inv hs
       rw [updK_kheap, Function.update_self] at hy
       cases hy
       simp [x1, runnable] at hrun
+    show σr.schedulerAction = _
+    rw [hσr]
     show (stsAct _ t).schedulerAction = _
     unfold stsAct
     rw [if_pos ⟨hct, hres, hns'⟩]
-  · rw [hkh, if_pos rfl] at hy
+  · have : σ'.kheap e = some (.endpoint (updateEpQueue x q' true)) := by simp [σ', updK]
+    rw [this] at hy
     cases hy
     rw [epQueue_update]
-    exact (sortedQ_specIns (hS.congr fun u _ => hpr2 u) t (prioOf_eq hkt2)).congr fun u _ => (hpr2 u).symm
+    have hpr : ∀ u, Sched.prioOf σr u = Sched.prioOf σ u := fun u => (hprr u).trans (hpr2 u)
+    exact (sortedQ_specIns (hS.congr fun u _ => hpr u) t (prioOf_eq hktr)).congr fun u _ => (hpr u).symm
 
 end Spec
 
@@ -705,7 +813,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨z, hz, -⟩ := (J.sv.epQ _ _ hk).2 y hy
     exact ⟨z, hz⟩
   obtain ⟨σ', heq, F, hik, -, hcn, hsrt⟩ :=
-    recvIpcBlock0_eq hkt hbn hk hc htq hq hr (J.isorted.1 _ _ hk) b rights
+    recvIpcBlock_eq hkt hbn hk hc htq hq hr (J.isorted.1 _ _ hk) b rights (Or.inl ⟨rfl, rfl⟩)
   have hcn' : σ'.schedulerAction = .chooseNewThread := hcn hcur.symm hres
   -- P1's `BlkOK` after and footprint
   have hcb := J.canBlockCur ht hcur hkt hr hni hnq
@@ -722,8 +830,8 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     optRef_none ((hI.1.toE.at_tcb ht hkt).bound.symm.trans hbn)
   have p1b := spec_lift_ok (P1.endpoint.wait_for_sender.inv s t e true 0#u64 Q0 R0 h0 hB0 hX0 hS0 hSg0
     (J.zH.1 t ht) (fun _ => hcb) hHe hst0 (fun h => absurd rfl h)) a
-  have p1f := spec_lift_ok (P1.endpoint.wait_for_sender.foot0 (Sg := P1.Heap.frame H) (Scs := P1.Heap.scs H)
-    (Z := P1.Heap.scBits H) s t e h0 hcb hHe) a
+  have p1f := spec_lift_ok (P1.endpoint.wait_for_sender.footR (Sg := P1.Heap.frame H) (Scs := P1.Heap.scs H)
+    (Z := P1.Heap.scBits H) s t e 0#u64 h0 hcb hHe (fun h => absurd rfl h)) a
   apply receive_ipc_block0_red hbound hst2
   refine WP.spec_mono (WP.spec_and (WP.spec_and (wait_for_sender_blockF0 J.ip s a σ hI ht hkt hnb3 hnn hbn he hk hc
     (J.qsortedE e he) b rights) p1b) p1f) ?_
@@ -750,7 +858,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     intro d hd hfd
     obtain ⟨y, hy, hyt⟩ := hfd
     obtain ⟨e1, e2⟩ := k4 d hd
-    obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB hy, hyt⟩
+    obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB' hy (fun h => by cases h), hyt⟩
     exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hAI3 : ActIdle σ' := ⟨fun u hu => (by rw [hcn'] at hu; cases hu), F.idleOK J.act.2⟩
@@ -764,7 +872,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have hqe : q.bv ≠ e.bv := fun h => hq.2 (P1.eq_of_bv h)
     refine J.deadP_keep hS3 hIR.1 (fun x hx h0 => ?_) (fun x hx => ?_)
       (fun x hx => ⟨x, F.ntfnF hx, Or.inl rfl, rfl, Or.inl rfl⟩)
-      (fun x hx => ⟨x, F.replyF hx, rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
+      (fun x hx => ⟨x, F.replyF' hx (fun h => by cases h), rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
       (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hW hz hqC hK8 hK) F.sk.idle hAI3.1
       (J.yld.frame k2 F.ykeep) (F.ykeep.dk q.bv) hd
     · obtain ⟨st', hk3, hs'⟩ := F.tcbF hx
@@ -783,7 +891,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hW) hidl.2⟩
   have hkern := J.kern_keep hks hW.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
     (D' := D \ {e})
   -- no reply names the runnable thread (`SchedValid.replyTcb`)
   have hnt : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb ≠ some t.bv := by
@@ -791,7 +899,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨x', hk', hs'⟩ := J.sv.replyTcb _ xr _ hkr hrt
     rw [hkt] at hk'; cases hk'
     rcases hs' with hs' | ⟨ep, dd, hs'⟩ <;> rw [hs'] at hr <;> cases hr
-  have hRR' := J.rrecv.frameR k4 F hnt
+  have hRR' := J.rrecv.frameR k4 F hnt (fun _ _ h => by cases h)
   have hjcov : JCovD (L := L) Z.th H Z.G (D \ {e}) Cs s' := by
     obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -825,7 +933,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J3 := J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback hCs R
   rw [heq]
   exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
 
