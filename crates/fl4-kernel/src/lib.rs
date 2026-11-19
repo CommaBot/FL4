@@ -258,7 +258,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     gdt::init_idt();
     gdt::init_core(0, stack_top);
     cpu::init_pat();
-    fpu::init();
+    assert!(fpu::init(true));
     assert!(spec::init_core(true));
     assert!(fl4_arch_x86_64::vm::init(true));
     kprintln!("FL4: virtualization {}", match fl4_arch_x86_64::vm::backend() { 1 => "VT-x", 2 => "AMD-V", _ => "unavailable" });

@@ -72,6 +72,8 @@ fl4_el_setup:
     mrs     x9, id_aa64dfr0_el1
     ubfx    x9, x9, #8, #4
     cbz     x9, 4f
+    cmp     x9, #0xf                /* IMPLEMENTATION DEFINED: no PMCR_EL0 */
+    b.eq    4f
     mrs     x9, pmcr_el0
     ubfx    x9, x9, #11, #5
     b       5f

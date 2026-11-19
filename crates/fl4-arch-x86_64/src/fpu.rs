@@ -154,9 +154,33 @@ fn components() -> u64 {
     })
 }
 
-/// Enable the FPU on this core and pick the state components and the save
-/// instruction (the same on every core).
-pub fn init() {
+/// What `init` picks on a core: state components, their standard-format
+/// layout and compacted alignment, the save instruction, lazy switching
+/// and the MXCSR mask. Images and the globals below are shared by every
+/// core, so another core must come to the boot core's choice exactly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Config {
+    pub xsave: bool,
+    pub xcr0: u64,
+    pub insn: u8,
+    pub align: u64,
+    pub size: [u32; 64],
+    pub std_off: [u32; 64],
+    pub lazy: bool,
+    pub mxcsr_mask: u64,
+}
+
+/// Whether a core that picked `ap` can share the boot core's (`bsp`)
+/// images and globals: only with the same choice on every axis. A core
+/// with other state components or layouts would make XRSTOR(S) of an
+/// image fault in the kernel (#GP), or lose state.
+pub fn symmetric(bsp: &Config, ap: &Config) -> bool {
+    bsp == ap
+}
+
+/// Enable the FPU on this core (CR0, CR4, XCR0, XSS: this core's own
+/// registers) and work out its `Config`, changing no global.
+fn probe() -> Config {
     write_cr0((read_cr0() & !(CR0_EM | CR0_TS)) | CR0_MP | CR0_NE);
     let mut cr4 = read_cr4() | CR4_OSFXSR | CR4_OSXMMEXCPT;
     let has_xsave = cpuid(1, 0).ecx & (1 << 26) != 0;
@@ -164,23 +188,30 @@ pub fn init() {
         cr4 |= CR4_OSXSAVE;
     }
     write_cr4(cr4);
+    let mut c = Config {
+        xsave: has_xsave,
+        xcr0: 0,
+        insn: Insn::Fxsave as u8,
+        align: 0,
+        size: [0; 64],
+        std_off: [0; 64],
+        lazy: false,
+        mxcsr_mask: 0,
+    };
     if has_xsave {
         let x = components();
         xsetbv(0, x);
-        XCR0.store(x, Ordering::Relaxed);
-        XSAVE.store(true, Ordering::Relaxed);
-        let mut align = 0u64;
+        c.xcr0 = x;
         for i in 2..63 {
             if x & (1 << i) != 0 {
                 let l = cpuid(0xd, i);
-                SIZE[i as usize].store(l.eax, Ordering::Relaxed);
-                STD_OFF[i as usize].store(l.ebx, Ordering::Relaxed);
+                c.size[i as usize] = l.eax;
+                c.std_off[i as usize] = l.ebx;
                 if l.ecx & 2 != 0 {
-                    align |= 1 << i;
+                    c.align |= 1 << i;
                 }
             }
         }
-        ALIGN.store(align, Ordering::Relaxed);
         let ext = cpuid(0xd, 1).eax;
         let i = if ext & (1 << 3) != 0 {
             // XSAVES saves supervisor state too; FL4 enables none.
@@ -193,17 +224,54 @@ pub fn init() {
         } else {
             Insn::Xsave
         };
-        INSN.store(i as u8, Ordering::Relaxed);
+        c.insn = i as u8;
     }
     // LazyFP is an Intel erratum; AMD (and Hygon) are not affected.
     let v = cpuid(0, 0);
     let intel = v.ebx == 0x756e_6547 && v.edx == 0x4965_6e69 && v.ecx == 0x6c65_746e;
-    LAZY.store(!intel, Ordering::Relaxed);
+    c.lazy = !intel;
     unsafe { asm!("fninit", options(nomem, nostack)) };
     let mut f = Scratch([0; 512]);
     unsafe { asm!("fxsave64 [{}]", in(reg) f.0.as_mut_ptr(), options(nostack)) };
     let m = u32::from_le_bytes([f.0[28], f.0[29], f.0[30], f.0[31]]) as u64;
-    MXCSR_MASK.store(if m == 0 { 0xffbf } else { m }, Ordering::Relaxed);
+    c.mxcsr_mask = if m == 0 { 0xffbf } else { m };
+    c
+}
+
+/// The boot core's `Config`, as `init(true)` recorded it.
+fn recorded() -> Config {
+    Config {
+        xsave: XSAVE.load(Ordering::Relaxed),
+        xcr0: XCR0.load(Ordering::Relaxed),
+        insn: INSN.load(Ordering::Relaxed),
+        align: ALIGN.load(Ordering::Relaxed),
+        size: core::array::from_fn(|i| SIZE[i].load(Ordering::Relaxed)),
+        std_off: core::array::from_fn(|i| STD_OFF[i].load(Ordering::Relaxed)),
+        lazy: LAZY.load(Ordering::Relaxed),
+        mxcsr_mask: MXCSR_MASK.load(Ordering::Relaxed),
+    }
+}
+
+/// Enable the FPU on this core and pick the state components and the save
+/// instruction. The boot core (`bsp`) records its choice for every core;
+/// another core returns whether it came to the same (`symmetric`), and
+/// changes no global either way.
+pub fn init(bsp: bool) -> bool {
+    let c = probe();
+    if !bsp {
+        return symmetric(&recorded(), &c);
+    }
+    XSAVE.store(c.xsave, Ordering::Relaxed);
+    XCR0.store(c.xcr0, Ordering::Relaxed);
+    INSN.store(c.insn, Ordering::Relaxed);
+    ALIGN.store(c.align, Ordering::Relaxed);
+    for i in 0..64 {
+        SIZE[i].store(c.size[i], Ordering::Relaxed);
+        STD_OFF[i].store(c.std_off[i], Ordering::Relaxed);
+    }
+    LAZY.store(c.lazy, Ordering::Relaxed);
+    MXCSR_MASK.store(c.mxcsr_mask, Ordering::Relaxed);
+    true
 }
 
 pub fn xcr0() -> u64 {
@@ -756,5 +824,48 @@ mod tests {
         assert_eq!(choose_components(0x1 | AVX | AVX512, size), 0x1);
         assert_eq!(choose_components(0x3 | AVX512, size), 0x3);
         assert_eq!(choose_components(0x3 | (MPX & 0x8), size), 0x3);
+    }
+
+    fn boot() -> Config {
+        let mut size = [0; 64];
+        let mut std_off = [0; 64];
+        size[2] = 256;
+        std_off[2] = 576;
+        size[9] = 8;
+        std_off[9] = 2688;
+        Config {
+            xsave: true,
+            xcr0: 0x207,
+            insn: Insn::Xsavec as u8,
+            align: 0,
+            size,
+            std_off,
+            lazy: true,
+            mxcsr_mask: 0xffff,
+        }
+    }
+
+    /// Audit F4: a core whose FPU set-up differs from the boot core's in
+    /// any respect is refused, never allowed to replace the boot core's.
+    #[test]
+    fn an_application_processor_must_match_the_boot_cores_fpu_choice() {
+        let b = boot();
+        assert!(symmetric(&b, &b));
+        let axes: [fn(&mut Config); 9] = [
+            |c| c.xsave = false,
+            |c| c.xcr0 |= AVX512,
+            |c| c.xcr0 &= !PKRU,
+            |c| c.insn = Insn::Xsaves as u8,
+            |c| c.align |= 1 << 9,
+            |c| c.size[2] = 512,
+            |c| c.std_off[9] = 2432,
+            |c| c.lazy = false,
+            |c| c.mxcsr_mask = 0xffbf,
+        ];
+        for (i, change) in axes.iter().enumerate() {
+            let mut ap = b;
+            change(&mut ap);
+            assert!(!symmetric(&b, &ap), "axis {i}");
+        }
     }
 }

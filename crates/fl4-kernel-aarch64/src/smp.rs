@@ -3,8 +3,8 @@
 //! its physical address, leaves EL2 if it is there, turns its MMU on with
 //! the kernel's tables, sets itself up and waits for the boot core.
 use crate::{entry, kprintln, paging};
-use core::sync::atomic::{AtomicBool, Ordering};
-use fl4_arch_aarch64::{cpu, el0_access, fpu, gic, percpu, smp, timer};
+use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use fl4_arch_aarch64::{ap_caps, cpu, el0_access, fpu, gic, percpu, smp, timer};
 use fl4_core::layout::{pptr, MAX_NODES};
 use fl4_core::sched;
 
@@ -15,6 +15,17 @@ extern "C" {
 }
 
 static BOOT_DONE: AtomicBool = AtomicBool::new(false);
+// An AP that cannot run beside the boot core says so here and stops: a
+// panic would halt only that core and look like a startup timeout.
+static AP_REJECTED: AtomicU8 = AtomicU8::new(0);
+const REJECT_CAPS: u8 = 1;
+/// The boot core's capabilities, for the other cores to match.
+static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps { asid16: false, hw_af: false, pan: false, pa_bits: 0, cntfrq: 0 };
+
+fn reject_ap(reason: u8) -> ! {
+    AP_REJECTED.store(reason, Ordering::Release);
+    cpu::halt_forever()
+}
 
 /// Per core: what `fl4_ap_main` needs to find its redistributor.
 static mut GICR: [(u64, u64); crate::hw::MAX_GICR] = [(0, 0); crate::hw::MAX_GICR];
@@ -96,6 +107,7 @@ pub fn start_aps(mpidrs: &[u64], ttbr1: u64) -> usize {
     let entry_pa = paging::image_pa(unsafe { &_ap_start as *const u8 as u64 });
     let params_pa = paging::image_pa(unsafe { &fl4_ap_params as *const u8 as u64 });
     let params = pptr(params_pa) as *mut u64;
+    unsafe { BOOT_CAPS = cpu::caps() };
     let mut next = 1;
     for &m in &mpidrs[1..] {
         if next >= max {
@@ -117,8 +129,13 @@ pub fn start_aps(mpidrs: &[u64], ttbr1: u64) -> usize {
             continue;
         }
         let deadline = timer::now() + timer::us_to_ticks(1_000_000);
-        while smp::num_online() == before && timer::now() < deadline {
+        while smp::num_online() == before && AP_REJECTED.load(Ordering::Acquire) == 0 && timer::now() < deadline {
             core::hint::spin_loop();
+        }
+        if AP_REJECTED.load(Ordering::Acquire) != 0 {
+            kprintln!("FL4: rejecting core {:#x}: ASID size, access-flag management, PAN, physical address size \
+                or CNTFRQ_EL0 differ from the boot core's", m);
+            crate::fail("incompatible AP capabilities; refusing to start userspace");
         }
         if smp::num_online() == before {
             kprintln!("FL4: core {:#x} did not start", m);
@@ -137,6 +154,9 @@ pub fn release_aps() {
 #[no_mangle]
 extern "C" fn fl4_ap_main(c: u64) -> ! {
     percpu::init(c as usize);
+    if !ap_caps::ap_matches(unsafe { &*core::ptr::addr_of!(BOOT_CAPS) }, &cpu::caps()) {
+        reject_ap(REJECT_CAPS);
+    }
     init_core_regs();
     fpu::init();
     gic::init_cpu(find_gicr());

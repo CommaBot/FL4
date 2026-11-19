@@ -109,3 +109,13 @@ pub fn reserve(base: u64, raw_len: u64, len: u64, typer: impl Fn(u64) -> u64) ->
 pub fn span(base: u64, len: u64, typer: impl Fn(u64) -> u64) -> u64 {
     walk(base, len, typer, |_, _| true).0 - base
 }
+
+/// Whether core `me` changes interrupt `id`'s enable or trigger bits for
+/// `core` by a remote call to that core. A GICv2 distributor banks IDs
+/// 0..31 per CPU interface, so only the core itself reaches its copy
+/// (another core writing them changes its own); GICv3 keeps every core's
+/// in that core's redistributor, which any core reaches, and an SPI's are
+/// in the distributor, shared by all.
+pub fn banked_remote(gicv3: bool, id: u64, core: u64, me: u64) -> bool {
+    !gicv3 && id < 32 && core != me
+}

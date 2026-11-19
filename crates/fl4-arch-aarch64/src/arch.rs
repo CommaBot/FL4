@@ -6,7 +6,8 @@
 //! cores or the hardware would observe are queued (`Effect`) and run after
 //! commit; and operations that can be neither repeated nor deferred (remote
 //! stalls, FP/SIMD state on another core, TLB invalidation after unmapping,
-//! interrupt configuration, cache invalidation) send the entry to the
+//! interrupt configuration, cache invalidation, and masking another
+//! core's banked interrupt on GICv2, a remote call) send the entry to the
 //! serial gate.
 use crate::{gic, percpu, serial, smp, timer};
 use fl4_core::layout::irq;
@@ -52,6 +53,14 @@ fn defer(e: Effect) -> bool {
 
 fn mask(irq: u64, m: bool) {
     gic::mask(irq::id(irq), irq::core(irq), m);
+}
+
+/// Mask or unmask (`m`), or set the trigger of (`edge`), another core's
+/// banked interrupt on GICv2 (`gic::remote`): that core does it, by a
+/// remote call, which needs the serial gate. It is done before the call
+/// returns, so an IRQ handler deleted from here is masked on its core.
+fn remote_gic(kind: u64, id: u64, core: u64, v: bool) {
+    smp::remote_call(kind, id, v as u64, 1u64 << (core & 63));
 }
 
 pub fn apply_effects() {
@@ -147,6 +156,13 @@ impl Arch for PhysArch {
         v
     }
     fn mask_irq(&mut self, irq: u64, m: bool) {
+        if gic::remote(irq::id(irq), irq::core(irq)) {
+            // Effects run after the gate opens; a remote call cannot.
+            if in_tx() {
+                return serial_needed();
+            }
+            return remote_gic(smp::CALL_GIC_MASK, irq::id(irq), irq::core(irq), m);
+        }
         if !defer(Effect::Mask(irq, m)) {
             mask(irq, m)
         }
@@ -268,6 +284,9 @@ impl Arch for PhysArch {
     fn configure_irq(&mut self, irq: u64, edge: bool, core: u64) {
         if in_tx() {
             return serial_needed();
+        }
+        if gic::remote(irq::id(irq), core) {
+            return remote_gic(smp::CALL_GIC_CONFIG, irq::id(irq), core, edge);
         }
         gic::configure(irq::id(irq), core, edge);
     }
