@@ -608,3 +608,5 @@ import Fl4Proofs.P3.XTopJointRecvSendRet
 import Fl4Proofs.P3.XTopJointRecvIpcRet
 import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScNextDom
+import Fl4Proofs.P3.ScNextDomB
+import Fl4Proofs.P3.ScNextDomC

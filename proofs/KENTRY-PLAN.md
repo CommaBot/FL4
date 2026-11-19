@@ -1151,3 +1151,50 @@ removed; JAtZ untouched.
   Quot.sound) for jAtPre_holeT, JHole.offOK_suff, JHole.mcsPPJZ, jIrqHypZ_of, JHole.afterInvJZ, hPre_ofZ,
   dispatch_invokeJPZ, dispatch_invokeJEPZ, JHole.mcsPPJI, afterInv_of_mcs, jPreemptRestHypI_of, hPre_ofZI,
   dispatch_invokeJPZI, dispatch_invokeJEPZI, jIrqHyp_of, dispatch_invokeJEPI, handle_invocation_refinesJ.
+## sch3 (branch par/sched3 in FL4-sc, on d6bc987c = int/j2 incl. sch2)
+- (b) domainTime = 0, schedule level. New leaves ScNextDomB, ScNextDomC (imported from Fl4Proofs.lean; ScScheduleTop
+  untouched). No existing theorem changed; JAtZ untouched.
+  * ScNextDomB: `DI m` (outcomes keep `domain_index`; combinators + `di_awaken`: the spec's `awaken` keeps it —
+    SchStep/SOK keep the domain list/start but not the index, which `next_domain` writes); `TK0` (= `TK` without
+    the domain time); `NdW` (ks DOMAIN_TIME/DOM_SCHED_IDX/WORK_UNITS), `SFootN = SFoot ∪ NdW`, `KFootN = KFoot ∪ NdW`
+    (+ `sfootN_trans`, `kfootN_trans`); `NdOK s σ := DomRel ∧ DomListOK σ ∧ IDX word = domain_index` (the two [J]
+    facts of sch2, unchanged; hidx NOT folded into DomRel/SchedRel: SchedRel's cone is the 445-module one, and a
+    DomRel field would have to be re-proved by every DomRel producer); `NdOK.keep/sfoot/sfoot'` (kept by SFoot
+    writes); `ndS_writes` (footprint of FL4's next_domain: NdW + node REPROGRAM; CUR_DOMAIN rewritten with its
+    value 0), `schedRel_ndS` (SchedRel at `ndS s t`, `ndSt σ t.bv`), `ntfnRel_ndS` (needs `hNk`: notifications
+    off the ks block, = JAtZ.nk), `ks_not_sfoot`; `ArchNd` [P] (below); `scnt_refines0`:
+    `schedule_choose_new_thread` for `σ.domainTime ≠ 0 ∨ NdOK s σ` (0 case: next_domain_eq + nextDomain_eq after
+    archPrepareNextDomain, then `choose_thread_refines` at `ndS s t`/`ndSt σa t.bv`), post with `TK0`, `SFootN`.
+  * ScNextDomC: `SchedPreW0` (SchedPreW minus the domain time), `awaken_refinesW0`, `cn_refines0`,
+    `cn_enq0`/`cn_app0`, `switch_branch_refines0`, `schedule_refinesWP0` (copies; hfire's post carries
+    `SchedPreW0 ∧ ((dt ≠ 0 ∨ NdOK r.1 σ1) ∧ hNk at r.1 ∧ Pf)`, extra `hAN : ArchNd`; post footprint `KFootN`; the
+    NdOK transfer across awaken uses `schs_awaken` (dl/dsi) + `di_awaken`, across the ct enqueue `schs_when`/
+    `di_when`).
+  * `ArchNd st N T C c` [P] (l4v `arch_prepare_next_domain` = X64 `switch_local_fpu_owner None`; FL4: nothing):
+    `∀ s σ, SchedRel s σ → NtfnStateRel s σ → ∃ σ1, archPrepareNextDomain σ = {((), σ1)} ∧ SchedRel s σ1 ∧
+    NtfnStateRel s σ1 ∧ ArchKeeps σ σ1 ∧ domainList/domainIndex/domainStartIndex kept`. CHECKED: NOT TRUE in
+    every reachable state. The spec's owner is set by `lazyFpuRestore` in every `archSwitchToThread` to a thread
+    without `fpuDisabled`; then `switchLocalFpuOwner none` saves the machine FPU image into the owner's `tcbArch`
+    (`asUser … setFPUState`) and clears its `tcbCurFpu` (`setX64CurrentFpuOwner`), so `kheap` changes (only inside
+    that TCB's `tcbArch`, registers kept: the shape of XTopFpuRel's `fpuRelease_outF`). FL4's lazy FPU (arch
+    backend, `machine.Arch`) does keep the owner live across `next_domain`: there is no FPU-boundary at a domain
+    switch in FL4 — harmless with `numDomains = 1` (the release exists in l4v for domain separation of FPU state),
+    but the spec states differ in `tcbArch`/owner. Same defect as `ArchSw`'s `archSwitchToThread` (sch2 finding).
+    Fix route for both: replace `ArchKeeps`'s `kheap` equality by "equal up to TCB `tcbArch` with registers kept"
+    (`fpuRelease_outF` normal form) through choose_thread/switch_to_thread posts and `SchStep` (its `OTK` already
+    tolerates it: `schs_switchLocalFpuOwner`), J side via `JAtZ.tcbArchJ`.
+  * NOT DONE (J side, `jat_scheduleFR2` and `jat_finishJ` without `hd`). Route (checked against the code):
+    from J1 (after fire, at rf/σ1) build J0 at a *fake pre-state* `s0 := rf.1` with ks16/ks24/ks40 set to their
+    values in the final `r.1`, spec `σ0 := {σ1 with domainTime := σ'.domainTime, domainIndex := σ'.domainIndex}`:
+    ks40 by `JAtZ.workUnitsJD` (XTopJointPP), ks16/ks24 by a SchedStep copy of DomDecode's `schedStep_start`
+    (domW + blkKeep_domKW) through `stepClosed_jat`'s sched case (XTopAt.schedStep + jowes_sched + cs_frame,
+    keeps Z.G/Z.vs). Then `WritesIn s0 r.1 (KFoot s0 σ0)` is immediate from WP0's `KFootN` post, and every
+    spec fact transfers by defeq (`SchStep`, `LK`, `SOK`, IK, `RunM` read no domain time/index), so the rest of
+    `jat_scheduleFR` runs from J0 with a `sch_tail` copy taking `SchS σ0 σ'`, the IK facts and `bsa` directly
+    (instead of `schedule σ0 = {σ'}`, false for σ0). hTail's footprint argument becomes `KFootN`. Missing
+    piece for the entry: NdOK at the post-fire state from NdOK at entry — needs `Fires` to keep
+    domain_index/list/start (DI for `sendSignal`: cancelIpc subtree, not done; dl/dsi from a Pres lemma) and
+    FL4's `timer.fire` to keep ks24 (P1 `FootD`/`KW`: check `Sg` excludes ks24).
+- (c), (d): not started (context). (d)'s statement is the ArchNd/ArchSw finding above: the FPU invariant that
+  would make `ArchKeeps` true does not exist in the spec (no reachable invariant makes the owner's saved image
+  equal the machine's: user code runs in between); the right fix is the frame weakening, not an invariant.
