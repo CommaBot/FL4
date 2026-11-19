@@ -1042,3 +1042,52 @@ removed; JAtZ untouched.
 - Builds: sch2-b1 (D1, 5428 jobs), sch2-b2 `ScNextDom XTopJointSchedR` 5384 jobs OK; axioms (sch2ax.sh/axsch2.lean,
   untracked): std only for jat_finishJ, jat_scheduleFR/SR, handle_invocation_refinesJ, fires_iff,
   mem_fl4Awaken_of, nextDomain_eq, next_domain_eq, next_domain_words, DomListOK.start0.
+## kp7 (branch par/budget3 in FL4-tcbj, on ca33ecc3 = int/j2)
+- DONE 41f1a808 (new leaves SchedArmed, XTopJointIrq, imported from Fl4Proofs.lean; std axioms): scope (a),
+  `JIrqHyp` [W] is now a theorem (`jIrqHyp_of`) up to a narrow signal premise.
+  * Correspondence decided (XTopJointIrq docstring): line > FL4 `irq::MAX` (127) = spec `irq > maxIRQ` (mask + ack on
+    both sides, arch vs machine ops); state word 0 = spec `irqInactive` (spec fails: JIrqHyp's failure disjunct); 2 =
+    timer (FL4 `REPROGRAM := 1`, `ARMED := 0`; spec `reprogram_timer := True`, `ackDeadlineIRQ` no-op); 3 (`IRQ_IPI`)
+    and every other word = spec `irqReserved` (`handle_reserved_irq` no-op; FL4 `handle_ipi` is a no-op off
+    `RESCHEDULE_IPI`); 1 = signal (IRQ node slot cap via `IrqRel.node` + `IntLayout.node` + StateRel, notification cap
+    with send right: `send_signal` both sides, then the mask). DECISION IPI: the IPI lines 126/127 never reach
+    `handle_interrupt` -- new field `IrqPlat.noIpi` [P] (one core; l4v is uniprocessor, seL4 C raises IPIs only under
+    `ENABLE_SMP_SUPPORT`). Without it JIrqHyp is false at line 127 (FL4 `reschedule_required`, spec masks the line).
+  * XTopJointPreempt edits: `IrqPlat` += `noIpi`, `ackAR` [P] (`ack_irq` keeps `AR`); `JIrqHyp` takes
+    `w.val ≠ 126 → w.val ≠ 127 →`; `afterInvJ` passes them from `noIpi`.
+  * `Sched.SchedRel.set_armed` (SchedArmed): writing node offset 80 keeps `SchedRel` with the spec unchanged
+    (`SAgree`/`CAgree` ask offset 80 to agree, so the agreement proofs are redone with 80 exempt). Timer branch:
+    `xtop_sc_step` from the hole (node words are `TFoot`), `NtfnStateRel.frame`.
+  * `XTopAt.msAR` (machine state with the same memory + an `AR` arch state); spec membership lemmas
+    `mem_hi_big/_reserved/_timer/_signal`, `fail_hi_inactive` (NB: `handleInterrupt`'s arms carry the final
+    `ackInterrupt` inside, right-nested binds).
+  * Signal at `J`: from a hole with `OffOK ∧ CurOwnW`, `JHole.toJ` + ScSignalJ's `signalJHyp_of`; its
+    `SignalRestJHyp` (bound thread RunningVM) discharged by `hNS` [S].
+- PREMISES now (jIrqHyp_of / hPre_ofI / dispatch_invokeJPI / dispatch_invokeJEPI; JIrqHyp gone from the latter three):
+  * `hNS : ∀ s a σ, JHoleAt arI AR s a σ → NativeScope σ` [S] (VT-x outside the native scope; sch1's `hvm`).
+  * `JIrqSigHyp arI AR` [W]: `∀ Z H Cs Ac Lst D s0 a0 σ0 s a σ w n badge r, JHole … s0 a0 σ0 s a σ →
+    ¬ (OffOK σ ∧ CurOwnW Z.T Z.C σ) → w.val < 128 → capAt (L.mem s) (nodeA (L.ksb s) w) = ok (.Notification n badge
+    true r) → send_signal s a n badge ⦃ r' => ∃ z ∈ (sendSignal n.bv badge.bv σ).1, ∃ Z', XTopAt AR Z' r'.1 r'.2 z.2 ⦄`.
+    A proof gap, not an invariant: only the sufficient-head branch of `mcs_preemption_point` reaches
+    `check_interrupt` at a non-`JAtZ` hole (all charge branches end at `JAtZ`); there `OffOK` needs l4v
+    `cur_sc_offset_ready` (`OffReady`) at the hole, which `JHole` does not carry. Ways out: carry `OffReady` through
+    the invocation (JEntryAt.rd0 holds at entry; `update_timestamp` keeps it, modulo time wrap) into `JHole`, then
+    `OffReady.ok` + sufficiency give `OffOK`, `curOwn_of_curInv` gives `CurOwnW` (PPCov/PPCovT carry CurInv) — that
+    also gives schedule-at-J (M7) a `JAtZ` start after the preemption path; or a frames-from-the-base signal
+    (ScChargeH/T style, ~6 branches: large).
+  * `JPreemptRestHypN arI AR` [W] = `JPreemptRestHyp` with an extra `NativeScope σ →` (a RUNNING_VM current thread is
+    `hNS` [S]); `jPreemptRestHyp_of` gives the old one.
+  * unchanged: `IrqPlat` (now with noIpi/ackAR) [P], `PPPlat` [P], `ARIface` (was `ARKeep`; the mask), `ArchTotal`,
+    `numDomains = 1`, `max_release_time` [P].
+- NOT DONE (b) beyond the RUNNING_VM case. Findings for the remaining `JPreemptRestHypN` cases:
+  * switch to the current thread pending: excluded in l4v by `scheduler_act_sane`; not carried by `JAtZ`/`JHole`
+    (Inv/ActIdle/CurRunM do not say it). A ∀-JHoleAt premise would be false at unreachable JHoleAt states; it has to
+    be carried as a post of the invocation (like sch1's M6 `JMid`) or added beside JAtZ.
+  * idle current: the invoker is never idle (Entered at entry, invocations keep curThread), same carrying problem.
+  * reschedule pending without CurInv (kp1's unbound current SC): needs a `chargeBudgetJ` variant for an unbound /
+    no-owner current SC (P1 `hcsc`/`hts` vacuous) and the inactive-SC branch (node CONSUMED := 0).
+  * endpoint handler with waiting receivers (kp5 (i)): current-thread `sendTmoRecvIJ/PJ` from a `JTH` (~1200 lines).
+- Builds: kp7-c1..c4 (`lake env lean` checks, scratch/kp7chk.sh), kp7-b1 (`SchedArmed XTopJointPreempt XTopJointIrq`,
+  3704/5404/5408 jobs), kp7-b2 (+ `XTopJointEntry`); scratch/axkp7.lean (untracked): std axioms only for
+  SchedRel.set_armed, jIrqHyp_of, hPre_ofI, dispatch_invokeJPI, dispatch_invokeJEPI, hPre_of, JHole.afterInvJ,
+  handle_invocation_refinesJ.
