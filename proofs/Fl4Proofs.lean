@@ -489,6 +489,7 @@ import Fl4Proofs.P3.XTopJointYieldSys
 import Fl4Proofs.P3.XTopJointBudgetOk
 import Fl4Proofs.P3.ScChargeN
 import Fl4Proofs.P3.ScChargeH
+import Fl4Proofs.P3.XTopJointBudgetF
 import Fl4Proofs.P3.XTopJointUnblock
 import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointVsMap
