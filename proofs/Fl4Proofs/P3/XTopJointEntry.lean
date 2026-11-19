@@ -47,6 +47,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.XTopJointIrqDel
+import Fl4Proofs.P3.ScMsgOK
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointVsCap
@@ -408,8 +409,6 @@ structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   mb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄
   max : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ v, arI.ticks_to_us ar v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [W] ScYieldTo's `MsgOK` (the `set_consumed` message leaf, `ScExtra`'s). -/
-  msg : MsgOK st Z.N Z.T Z.C Z.c
   /-- [W] the front end's label. -/
   hlbl : Fl4Spec.genInvocationType slbl = .schedControlConfigureFlags ↔ lbl = fl4_abi.label.SchedControlConfigureFlags
   /-- [P] one core (as `JEntryAt.stall`): the cap's core is the current one
@@ -449,8 +448,6 @@ structure JSchedCtxPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (a
   mb : sporadic.min_budget arI ar ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄
   max : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ v, arI.ticks_to_us ar v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [W] ScYieldTo's `MsgOK` (as `JSchedCPath`'s). -/
-  msg : MsgOK st Z.N Z.T Z.C Z.c
   /-- [W] the front end's label. -/
   hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl
   /-- [P] the decode's timer and IPI operations keep `AR`. -/
@@ -819,7 +816,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨hcur, xc, hkc, hrun⟩ := J.curRunnable hni hct
     have hcs := ct_schedulable (J.curInv (by rw [hni.2]; simp)) J.act J.inv (hcur ▸ hkc) hrun
     rw [hcur] at hcs
-    exact (decode_invocation_sched_contextJ s ar σ J hni.2 hN.tm hN.mb hN.max hN.tu hN.msg lbl slbl hN.hlbl sb hpC
+    exact (decode_invocation_sched_contextJ s ar σ J hni.2 hN.tm hN.mb hN.max hN.tu Ipc.msgOK_holds lbl slbl hN.hlbl sb hpC
       hpi hl hback hbn hct hcs extra x0 hx0 excaps hex length (cslotAddr sl) buf blk call don fp _ ci sl buffer hc
       hAs.isSlot hsb hssz hxS hN.arch (hN.rest H Cs Ac Lst D J) (fun l44 =>
         sc_consumedReplyJ s ar σ J hni hG.tot hN.max hN.tu lbl slbl hN.hlbl l44 sb hpC hback hct extra
@@ -833,7 +830,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       rcases hex with ⟨e, -⟩ | ⟨-, hs, -⟩
       · exact absurd e h
       · exact hs
-    exact (decode_invocation_sched_controlJ s ar σ J hni hN.tm hN.mb hN.max hN.tu hN.msg lbl slbl hN.hlbl cpu length
+    exact (decode_invocation_sched_controlJ s ar σ J hni hN.tm hN.mb hN.max hN.tu Ipc.msgOK_holds lbl slbl hN.hlbl cpu length
       buf ct hN.core hct argsU hlen hargs extra x0 hx0 excaps hex
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).1) (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.1)
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
