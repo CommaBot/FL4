@@ -448,3 +448,59 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   When all are in: delete `JRecvSendHyp`, `JRecvIpcRestHyp`, `jRecvIpcHyp_of`, `dispatch_recvJR`.
 - Tooling: scratch/ke10chk.sh (elaborate a file, errors + goals only via ke10f.py), scratch/axke10.lean.
   station_task keys are single-use: a new key per run (same key returns the old result).
+## kp1 (branch par/budget in FL4-tcbj, on 8a3919e9; scheduling-budget items 8, 9, 10, 7)
+- DONE f55d72b0 (item 8, std axioms): `charge_budget used false` at J.
+  * ScChargeG (new leaf, SchedRel level): ScCharge6's `charge_budget_refines` asks `hto` (the timeout-fault send)
+    for every `can`; copies without it: `end_timeslice_refinesG` (`hto : can = true → …`),
+    `charge_tail_refinesF` / `charge_budget_refinesF` (`can = false`, no `hto`), and FL4's writes in the posts:
+    `charge_head_refinesK` (`KFoot`: ring, `budget_check`, the SC's CONSUMED word), `end_timeslice_sfootF`
+    (`SFoot`: `append` or `postpone`; `r.2 = a`), the tail's `SFoot` (node words, `reschedule_required`);
+    `charge_budget_refinesF` also exposes the mid state (`∃ σ2, HeadKeeps σ σ2 csc ∧ chargeTail false σ2 = …`).
+    `rel0_of`: a thread off the spec's release queue has a clear release bit.
+  * ScChargeJ (new leaf): P1 `sched.end_timeslice.allF` / `sched.charge_budget.allF` (QueueBudgetG's `.allG` at
+    `cto = false` without `TmoKG`); spec `nkt_/pres_/lkm_/fk_chargeBudgetF` (`chargeBudget u false` is an SC
+    step: `NKT`, `Pres f`, `LKM W`, `FKA`), `kh_chargeTailF` (the tail keeps the kheap);
+    `JAtZ.chargeBudgetJ`: from `JAtZ` + `CurInv σ` + current thread not idle + action not a switch to it,
+    `sched.charge_budget used false` refines `chargeBudget used False` and ends at `JAtZ` (same `Z`, `Ac`, `D`;
+    `Lst'`), `r.2 = a`. An SC step (`xtop_sc_step`, `ScAll.of_tr`, `JAtZ.sc_frame`, the `sc_*` frames);
+    `CurInv`/`CurRunM` after from `HeadKeeps` when no reschedule; `CurOwnW`/`OffOK` vacuous on the consumed-time
+    side (`consumedTime = 0`); `BlockedScActive.back` from the kheap shape (only the current SC changes, kept
+    active); `hval` from `hval_of_rel` (ScTmo). Only [P] premises: `hmrt`, `hmb` (MAX_RELEASE_TIME/MIN_BUDGET),
+    `ArchTotal`. `curSc ≠ idleSc` derived (`Inv.back` + `IdleOK`), which gives `cscW ∈ Ac` for P1.
+- DONE f786ae48 (item 9, XTopJointYieldSys, new leaf): `JAtZ.curSc_ne_idle`, `JAtZ.setScConsumedJ` (any value to an SC's
+  CONSUMED word at J; `reg_frame` as `updConsumedJ`, IRel by `sc_step_lift`, P1 by `consumedW_all`),
+  `JAtZ.handleYieldJ` (FL4 `syscall::handle_yield` refines `handleYield` at J: reads, `chargeBudgetJ` of the
+  head's amount, the consumed word), `dispatch_yieldJ` (`dispatch_syscall SysYield` against
+  `fl4HandleSyscall rep .sysYield` at `RJ`, from `Entered σ`: `CurInv` by `JAtZ.cur`). There was no Yield
+  dispatch at J before (no premise to remove); Yield is now proved with [P] `hmrt`/`hmb` only.
+- FINDING (items 10 and 7 are not "item 8 + time words"): FL4's `check_budget` (sched.rs:513) and the spec's
+  `checkBudget` (Ipc.lean:555) charge with `can_timeout_fault = true` (`charge_budget(c, true)` /
+  `chargeBudget consumed true`), so `budget_ok`'s false branch and the preemption point's schedulable branch run
+  `end_timeslice true`: when the current SC is not round-robin and the current thread has a valid timeout
+  handler, `handle_timeout` of the CURRENT thread (fault to its timeout endpoint: send/block of the current
+  thread, at the hole after the refill charge where only `InvBut` holds). The existing timeout sends at J
+  (`JAtZ.runTmoJ`, `runTmoP_recv`, XTopJointFaultTmo) are for a thread other than the current one
+  (`htc : t ≠ curThread`) after `Running`/`Restart`. Needed: a current-thread variant of
+  `JAtZ.runTmoJ`/`sendTmoRecvIJ` composed with the head (`charge_head_refinesK`, InvBut) — or prove
+  `end_timeslice_refinesG`'s `hto` at J in the J setting (`JTmoCurHyp`-shaped: SchedRel-level post plus the
+  J-level rest, as `chargeBudgetJ` does for `can = false`).
+- Item 10 plan, true branch only (no timeout): `JAtZ.timestampJ` (XTopJointPP; JAtZ after when `OffOK` and
+  `CurOwnW` hold after) + ScEntry `budget_ok_refines` (`OffReady σ → OffOK σ'`) + ScEntryRd
+  `checkBudgetRestart_true`; the FL4 side of `check_budget` true leaves the state unchanged (P1
+  `check_budget.allG`'s `r = true → s' = s`, which asks `TmoKG` — needs a `cto`-free copy like `.allF`, or
+  stepping `sufficient` directly). Totality of the false branch still needs the timeout send (`hto`).
+- Item 7 (`mcs_preemption_point`): branch 2 (not schedulable, SC active: `charge_budget c false`) is
+  `JAtZ.chargeBudgetJ` only under `CurInv` (`JAtPre` gives `chooseNewThread ∨ CurInv`; with a pending reschedule
+  the current SC may be unbound, e.g. after the thread deleted its own SC: `chargeBudgetJ` would need a variant
+  for an unbound current SC: `hcsc`/`hts` hold vacuously in P1, the spec charges `curSc` without an owner);
+  branch 3 (inactive SC: node CONSUMED := 0, spec `consumedTime := 0`) is a node-word step (as
+  `update_timestamp`'s CONSUMED write in `JAtZ.timestampJD`); branch 1 (schedulable: `check_budget`) needs the
+  timeout send as above; then `check_interrupt` / `maybeHandleInterrupt` with M4 [P]. Not started.
+- Builds: kp1-b9 (`lake build Fl4Proofs.P3.ScChargeJ`, cone ScChargeG/ScChargeJ, 5078 jobs) and kp1-b13
+  (`Fl4Proofs.P3.XTopJointYieldSys`, 5370 jobs) OK; `#print axioms` (proofs/scratch/axkp1.lean, untracked):
+  std only for `JAtZ.chargeBudgetJ`, `JAtZ.handleYieldJ`, `JAtZ.setScConsumedJ`, `dispatch_yieldJ`,
+  `Sched.charge_budget_refinesF`, `Sched.end_timeslice_refinesG`, `Sched.kh_chargeTailF`,
+  `P1.sched.charge_budget.allF`, `handle_invocation_refinesJ`. Build script: proofs/scratch/kp1build.sh
+  (untracked; `AX=<file> sh proofs/scratch/kp1build.sh Mod...` from the mirror root).
+- HANDOFF (kp1 stopped after items 8/9; items 10 and 7 need the current thread's timeout-fault send at J, see
+  FINDING above). No premise added; `handle_invocation_refinesJ`'s `hPre` still open (item 7).
