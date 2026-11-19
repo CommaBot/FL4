@@ -316,8 +316,6 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
     (hQ : ∀ e, Sched.EpQPre σ e)
-    (hE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
-      capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl)
       (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
@@ -356,7 +354,9 @@ theorem decode_invocation_cnodeJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   obtain ⟨hcur, -⟩ := J.curEq hct
   exact (decode_invocation_cnode_cancelJ arI hARI.toMask hJ s ar σ J (J.curRun.run hni) slbl
     (by rw [hlbl]; simp [cnodeLabelOf]) length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps J.kern.act hcur
-    hQ (fun u hu => by rw [hni.2] at hu; cases hu) (fun e b sl' hsl hcV => hE Z e b sl' hX hsl hcV) (cslotAddr sl)
+    hQ (fun u hu => by rw [hni.2] at hu; cases hu) (fun e b sl' hsl hcV => by
+      obtain ⟨Tr, Cq, hJl⟩ := J.jpl
+      exact J.hset.1 e ((hJl.typed _ hsl.isSlot).1 e b _ _ _ _ hcV)) (cslotAddr sl)
     blk call don fp ci sl buffer).toP arI fun _ _ _ h => Or.inl h
 
 end

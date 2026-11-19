@@ -361,9 +361,6 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   cw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)
   /-- [J] the CNode decode's `hQ` (the endpoint queues' precondition). -/
   epQ : ∀ e, Sched.EpQPre σ e
-  /-- [J] the CNode decode's `hE` (an endpoint cap's object in `E`). -/
-  epE : ∀ (Z' : XSets) (e b : U64) (sl : Fl4Spec.CslotPtr), XTopAt (L := L) AR Z' s ar σ → AbsSlot Z.th sl →
-    capV (L.mem s) (cslotAddr sl) = .Endpoint e b true true true true → e ∈ Z'.E
   /-- [J] the IRQ control decode's `hHA`. -/
   handlers : HandlersActive (L.mem s) (L.ksb s) Z.G
   /-- [J] the IO port control decode's `hPA`. -/
@@ -712,7 +709,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 lbl
       sl' hl' length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra (exAt extra 0) (exAt extra 1)
       (exAt_idx0 extra) (exAt_idx1 extra) excaps (ExtraOK.rel2 hPl hXO) hE.epQ
-      hE.epE blk call don fp ci buffer
+      blk call don fp ci buffer
   case Thread p =>
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
