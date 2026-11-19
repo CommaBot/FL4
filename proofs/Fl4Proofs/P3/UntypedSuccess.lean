@@ -263,7 +263,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     {p sb fi : U64} {dev : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi dev))
     (hpal : p.val % 2 ^ sb.val = 0) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) (hfi : fi.val ≤ 2 ^ sb.val)
-    (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hcan : CanonR p.val (p.val + 2 ^ sb.val)) (hhigh : dev = false → 2 ^ 64 - 2 ^ 47 ≤ p.val)
     (nt us : U64) (t : Fl4Spec.ApiObjectType) (ht : objTypeOf nt.val = some t)
     (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hus : us.val < 64) (hz47 : zOf nt.val us.val ≤ 47)
     (hsc : nt.val = 5 → 7 ≤ us.val) (hct0 : nt.val = 4 → us.val ≠ 0)
@@ -293,6 +293,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
           A = (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ∧ k = 2 ^ zOf nt.val us.val ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w ⦄ := by
   -- sizes and the region
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
+  have hp0 : 0 < p.val := hcan.1
   set z := zOf nt.val us.val with hzdef
   have hz : z < 64 := by omega
   set k := 2 ^ z with hkdef
@@ -462,7 +463,8 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
         unfold DisjR; left; simp only [Nat.zero_mul, Nat.add_zero]; omega
     obtain ⟨⟨s2, a2⟩, hres, ha2, hfin, hW2⟩ := spec_exists (create_loop_frame (L := L) arI ar th' hP' hpp' hidx hsb hpfit σb
       hdest' (by omega) nt us dev t ht hn hus hz hsc off win aligned hwin
-      (by simp only [← hzdef, ← hkdef, halv]; omega) (by simp only [halv]; omega) (by simp only [halv]; omega)
+      (by simp only [← hzdef, ← hkdef, halv]; omega)
+      (hcan.sub (by simp only [halv]; omega) (by simp only [← hzdef, ← hkdef, halv]; omega)) (by simp only [halv]; omega)
       (by simp only [← hzdef, ← hkdef, halv]; omega) hcv' zl (p.val + 2 ^ sb.val) hzs' G (L.mem s1)
       hsrcd th (fun x hx => ((hM.members x).1 hx).1) (fun j hj => ⟨dest, off.val + j, Or.inl ⟨r, hdest, by omega⟩, rfl⟩)
       hs s1 hinv0)
@@ -578,7 +580,7 @@ theorem retype_full {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     have hkz : 2 ^ z = 32 * 2 ^ us.val := by rw [← hkdef]; exact hk32
     rw [hk32] at hfitA hrf hzeroA
     obtain ⟨hP', hR', hV', hM', hC'⟩ := extend_cnode_rel th (L.mem s1) σa G hR1 hV1 hP hM1 hC1 hio1' Ab A win.val
-      us.val rfl hfitA (by omega) hal hrf hzeroA
+      us.val rfl hfitA (by have := hhigh hdf; omega) hal hrf hzeroA
     refine key _ _ hP' hR' hV' hM' hC' ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
       (fun hN => hN.extend hP' (by simp [objSize]) hzeroA)
     rotate_left 6

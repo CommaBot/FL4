@@ -104,7 +104,7 @@ theorem create_loop_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th' : T
     (hn : nt.val = 0 ∨ (2 ≤ nt.val ∧ nt.val ≤ 13 ∧ nt.val ≠ 8)) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
     (hsc : nt.val = 5 → 7 ≤ us.val)
     (off win base : U64) (hwin : off.val + win.val ≤ 2 ^ r)
-    (hfit : base.val + win.val * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ base.val)
+    (hfit : base.val + win.val * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hcan : CanonR base.val (base.val + win.val * 2 ^ zOf nt.val us.val))
     (hpA : p.val ≤ base.val) (hAp : base.val + win.val * 2 ^ zOf nt.val us.val ≤ p.val + 2 ^ sb.val)
     (hnewcv : ∀ i, i < win.val →
       CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i * 2 ^ zOf nt.val us.val)⟩ us dev))
@@ -158,6 +158,8 @@ theorem create_loop_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th' : T
       have hik : (i.val + 1) * 2 ^ zOf nt.val us.val ≤ win.val * 2 ^ zOf nt.val us.val :=
         Nat.mul_le_mul_right _ hit'
       rw [Nat.add_mul, Nat.one_mul] at hik
+      have hb0 : 0 < base.val := hcan.1
+      have hwk : win.val ≤ win.val * 2 ^ zOf nt.val us.val := Nat.le_mul_of_pos_right _ Nat.one_le_two_pow
       obtain ⟨i2, hi2, hv2, -⟩ := spec_exists (UScalar.ShiftLeft_spec i
         ((⟨BitVec.ofNat 64 (zOf nt.val us.val)⟩ : U64) &&& 63#u64) _
         (by rw [h63]; simp [UScalarTy.U64_numBits_eq]; omega) rfl)
@@ -181,7 +183,7 @@ theorem create_loop_frame {A' : Type} (arI : machine.Arch A') (ar : A') (th' : T
           rw [spec_eq_ok (slot_index_spec dest _), hi4]]
       simp only [bind_ok]
       have hL := loop_step (L := L) th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht (by omega) hus hz hsc off.val
-        win.val base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1 i.val hit' hI
+        win.val base.val hwin hfit hcan hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1 i.val hit' hI
       obtain ⟨σi, Gi, -, -, -, hMi, -, -, hcsi, -, -, -, -, hmemG, -⟩ := id hI
       have hAs : AbsSlot th' (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
       have hss : IsSlot th' (cslotAddr (pp.bv, idx)) := hAs.isSlot

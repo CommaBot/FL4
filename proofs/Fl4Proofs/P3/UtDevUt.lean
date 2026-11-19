@@ -158,7 +158,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
     (hnt : nt.val = 0) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi true nt us dest off win t r reset fiv) (hfiv : fiv = fi)
-    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
@@ -170,7 +170,8 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   -- the source's facts: `DevApart`
   have hxG0 : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
-  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  have hp0 : 0 < p.val := hcan.1
   have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 :=
     fit_of_al (show p.val < 2 ^ 64 from p.bv.isLt) (capAt_untyped_inv hcap) hpal
   have hfiLe : fi.val ≤ 2 ^ sb.val := J.ut.fib _ hxG0 p sb fi true (capV_of_capAt hcap)
@@ -194,7 +195,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   obtain ⟨hA1, hA2, hA3, -⟩ := retype_region p fiv sb.val (zOf nt.val us.val) win.val hsb (by rw [hz]; exact hus64)
     hpal hpfit hfiLe hctx.window.1 hctx.memory
   refine WP.spec_mono (retype_bodyD (L := L) arI ar Z.th s σ Z.G hSR hV hP hM hC hI J.ut J.kern.orig hpp hidx hcap
-    hpal hpfit hfiLe hhigh hfree (fun h => by cases h) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
+    hpal hpfit hfiLe hcan (fun h => by cases h) hfree (fun h => by cases h) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
     (by omega) hctx.size.1 hctx.size.2.1 (fun h => by omega) (fun h => by omega) (fun _ => by omega) hctx.cnode.1
     hctx.cnode.2.1
     hctx.window.2.2 hctx.window.1 hctx.memory hctx.empty hb) (fun res hRP => ?_)
@@ -552,8 +553,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
 set_option maxHeartbeats 4000000 in
 /-- **The no-reset retype from a device untyped at `J`** (module docstring;
 as UtEpRet's `JAtZ.utEpJ`): from `JAtZ` at the decode with `DevApart` and
-`DevFreeT` there, the source a CNode slot's device untyped cap (in the kernel
-half, `hhigh`), FL4's restart and `untyped::retype` of untypeds (type 0) or
+`DevFreeT` there, the source a CNode slot's device untyped cap, FL4's restart and `untyped::retype` of untypeds (type 0) or
 frames (types 9, 10, 11) without a reset, or with the reset of an unused cap
 (free index 0: FL4's and the spec's resets do nothing, `retype_reset_unused`,
 `invokeUntyped_reset_unused`), end in `UtRetPostJ`. -/
@@ -566,7 +566,7 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi true nt us dest off win t r reset fiv)
     (hrs : reset = false ∨ fi.val = 0)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hDA : DevApart (L := L) Z.th H Z.G Cs s)
-    (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val) (blk call don : Bool) :
+    (hDF : DevFreeT (L.mem s) Z.G σ) (blk call don : Bool) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) reset
@@ -619,10 +619,10 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hDA1 : DevApart (L := L) Z.th H Z.G Cs s1 := by
     intro x hx p0 sb0 fi0 hc
     rw [hcvK x hx] at hc
-    obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hDA x hx p0 sb0 fi0 hc
+    obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := hDA x hx p0 sb0 fi0 hc
     have hnb : ∀ c, L.nodeBase s1 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks1]
     refine ⟨a1, by rw [hks1]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks1]; exact a4,
-      fun q hq => a5 q ?_, a6, a7⟩
+      fun q hq => a5 q ?_, a6, a7, a8⟩
     unfold IdleAt at hq ⊢; rw [hidK.1, hidK.2] at hq; exact hq
   have hDF1 : DevFreeT (L.mem s1) Z.G σ1 := SpecFreeP.frame hDF
     (fun x hx p0 sb0 fi0 d hc => ⟨x, hx, fi0, by rw [← hcvK x hx]; exact hc, le_rfl⟩)
@@ -638,7 +638,7 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     unfold RegionD MeetsR at hr
     rw [hq] at hr
     simp only [Option.elim] at hr
-    exact meets_off hr h1 h2 ((hDA _ hxG p sb fi (capV_of_capAt hcap)).2.2.2.2.2.2 q kd hq)
+    exact meets_off hr h1 h2 ((hDA _ hxG p sb fi (capV_of_capAt hcap)).2.2.2.2.2.2.1 q kd hq)
   have hfiv : fiv = fi := by
     rw [hctx.fidx]
     rcases hrs with rfl | h
@@ -652,8 +652,8 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
         res ⦄ := by
     rcases hnt with h0 | hnt
-    · exact J1.utUtDevBodyJ hni1 hpp hidx hcap1 h0 hc0 hctx1 hfiv hDA1 hDF1 hhigh hBO1 hAF1 hRU1
-    · exact J1.utDevBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hDA1 hDF1 hhigh hBO1 hAF1 hRU1
+    · exact J1.utUtDevBodyJ hni1 hpp hidx hcap1 h0 hc0 hctx1 hfiv hDA1 hDF1 hBO1 hAF1 hRU1
+    · exact J1.utDevBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hDA1 hDF1 hBO1 hAF1 hRU1
   rw [hs1]; simp only [bind_ok]
   cases reset
   · exact WP.spec_mono hbody (fun res h => utRetPostJ_of_body hst1 h.post)
@@ -696,13 +696,13 @@ def JUtRetHypDevR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar
 
 /-- **`JUtRetHypD` of a device untyped cap from its narrowed form**: the
 no-reset retype of frames by `JAtZ.utDevJ` (with `DevApart`, `DevFreeT`
-[J], the cap in the kernel half), the rest `JUtRetHypDevR` [W]. -/
+[J]), the rest `JUtRetHypDevR` [W]. -/
 theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
     (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
-    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ)
     {blk call don : Bool} {argsU : List U64}
     (hR : JUtRetHypDevR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
     JUtRetHypD (L := L) arI AR Z.th s ar σ sl p sb fi true ct blk call don argsU := by
@@ -723,7 +723,7 @@ theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   obtain ⟨pp, hp1, hpp⟩ := hsl
   dsimp only at hp1 hpp
   subst hp1
-  exact J.utDevJ hni hct hpp rfl hcap hnt hc0 hctx hrs hBO hAF hRU hDA hDF hhigh blk call don
+  exact J.utDevJ hni hct hpp rfl hcap hnt hc0 hctx hrs hBO hAF hRU hDA hDF blk call don
 
 end
 

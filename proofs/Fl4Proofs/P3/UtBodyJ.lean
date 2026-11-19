@@ -728,7 +728,7 @@ theorem retype_body {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val) :=
     fun w hw h1 h2 => hzero w hw (by omega) (by omega)
   refine WP.spec_mono (retype_full (L := L) arI ar th s σ G hR hV hP hM hC hI hU horig hpp hidx hcap hpal hpfit
-    hfi hhigh nt us t ht hn hus hz47 hsc hct0 hdest hr off win hwin hw1 hmem hempty hfree (fun _ => hzero)
+    hfi (CanonR.of_high hhigh) (fun _ => hhigh) nt us t ht hn hus hz47 hsc hct0 hdest hr off win hwin hw1 hmem hempty hfree (fun _ => hzero)
     (fun h => by cases h) bitsApi hb) ?_
   rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, A, k, w,
     dslot, cj, hE, rfl, rfl, rfl, hnu, hthx, hcjE, hdsC⟩

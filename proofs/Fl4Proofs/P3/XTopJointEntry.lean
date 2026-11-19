@@ -582,9 +582,11 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   /-- [J] DevJ's `DevApart` at the entry's sets and heap (l4v `valid_untyped` /
   `pspace_no_overlap` for device caps with `valid_global_refs` /
   `kernel_window`: no device untyped range covers a kernel object, a typed-heap
-  object or a RAM object, and `H`'s objects meeting it lie below its free index):
-  true from boot by the boot checks (e408a625: no device untyped over the kernel
-  image's names; RAM and device physical ranges are disjoint), kept by retype
+  object or a RAM object, `H`'s objects meeting it lie below its free index, and
+  its range lies in one canonical half with a nonzero base): true from boot by
+  the boot checks (e408a625: no device untyped over the kernel image's names;
+  9ab17db1: none at the pointer 0; RAM and device physical ranges are
+  disjoint; physical memory below `2^47`), kept by retype
   (UtDevRet's `DevApart.retype`: a device child is a sub-range, a new device
   frame lies below the source's new free index). -/
   devApart : DevApart (L := L) Z.th H Z.G Cs s
@@ -593,12 +595,6 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   in a device range), kept by retype (DevFree's `DevFree.retype`,
   UtDevUt's `SpecFreeP.retypeU`). -/
   devFree : DevFreeT (L.mem s) Z.G σ
-  /-- [W] a device untyped cap whose pointer wrapped into the lower half
-  (physical ≥ 512 GiB; the boot check 9ab17db1 excludes only the pointer 0):
-  the proof of the retype keeps `retype_full`'s kernel-half pointer
-  (handoff/devretype.md "dj2 line", "dj4 line"). -/
-  low : p.val < 2 ^ 64 - 2 ^ 47 → JCapOpen (L := L) arI AR s ar σ lbl length (.Untyped p sb fi true) blk call don fp
-    buf extra slbl argsU ci sl excaps buffer ct
   /-- [W] the retype with the reset of a used device cap (UtDevUt's
   `JUtRetHypDevR`: the spec detypes the region's device frames, FL4 rewrites
   only the cap), asked on core 0 only. -/
@@ -685,7 +681,7 @@ on the cap:
 | ASID control | `decode_invocation_asid_controlJD` (MpDirtyJ; any region: restart, drop, `MakePool`) | `JAsidCPath` (label and extra caps proved; `ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], as `JUtPath`) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: only the VT-x types; every native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`/`utTcbJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
-| Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevUt's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0 [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT` [J]; proved: the no-reset retype of untypeds and frames and the reset of an unused cap; `JUtRetHypDevR` [W]: the reset of a used cap; a lower-half pointer `JCapOpen` [W]); VT-x types `JVtxScope` [scope] |
+| Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevUt's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0 [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT` [J]; proved: the no-reset retype of untypeds and frames and the reset of an unused cap; `JUtRetHypDevR` [W]: the reset of a used cap); VT-x types `JVtxScope` [scope] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -1020,8 +1016,6 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
       · obtain ⟨x, hx, h1, h2⟩ := hv
         exact hN.vtx x hx h1 h2
-      by_cases hlo : p.val < 2 ^ 64 - 2 ^ 47
-      · exact hN.low hlo
       have hex := ExtraOK.rel1 hPl hXO
       have hx0 := exAt_idx0 extra
       generalize exAt extra 0 = x0 at hex hx0
@@ -1029,7 +1023,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHypDev hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2 hN.core0 hN.devApart hN.devFree
-          (by omega) (hN.ret hN.core0))
+          (hN.ret hN.core0))
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):

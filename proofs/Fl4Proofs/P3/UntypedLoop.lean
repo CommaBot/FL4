@@ -593,6 +593,30 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
+/-- **A pointer range in one canonical half with a nonzero base**: `[lo, hi)`
+below `2^47` or at or above `2^64 - 2^47`, and `0 < lo`. A RAM untyped's range
+is in the kernel half (`CanonR.of_high`); a device untyped's range may lie in
+the lower half (its pointer wrapped past `2^64`), DevJ's `DevApart`. -/
+def CanonR (lo hi : Nat) : Prop := 0 < lo ∧ (hi ≤ 2 ^ 47 ∨ 2 ^ 64 - 2 ^ 47 ≤ lo)
+
+theorem CanonR.of_high {lo hi : Nat} (h : 2 ^ 64 - 2 ^ 47 ≤ lo) : CanonR lo hi := ⟨by omega, Or.inr h⟩
+
+theorem CanonR.sub {lo hi lo' hi' : Nat} (h : CanonR lo hi) (h1 : lo ≤ lo') (h2 : hi' ≤ hi) : CanonR lo' hi' :=
+  ⟨by have := h.1; omega, h.2.imp (fun h => by omega) (fun h => by omega)⟩
+
+theorem canonical_of_low {a : U64} (h : a.val < 2 ^ 47) : Canonical a := by
+  left
+  intro j hj hj'
+  rw [← BitVec.getLsbD_eq_getElem]
+  show a.val.testBit j = false
+  exact Nat.testBit_lt_two_pow (Nat.lt_of_lt_of_le h (Nat.pow_le_pow_right (by decide) hj'))
+
+theorem CanonR.canonical {lo hi : Nat} (h : CanonR lo hi) {a : U64} (h1 : lo ≤ a.val) (h2 : a.val < hi) :
+    Canonical a := by
+  rcases h.2 with h' | h'
+  · exact canonical_of_low (by omega)
+  · exact canonical_of_high (by omega)
+
 theorem newCap_encWf {n : Nat} (hn : n ≤ 13) (base us : U64) (dev : Bool) (hus : us.val < 64)
     (hb : Canonical base) : EncWf (newCapOf n base us dev) := by
   unfold newCapOf
@@ -624,7 +648,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
     (hn : nt.val ≤ 13) (hus : us.val < 64) (hz : zOf nt.val us.val < 64)
     (hsc : nt.val = 5 → 7 ≤ us.val)
     (off win A : Nat) (hwin : off + win ≤ 2 ^ r)
-    (hfit : A + win * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ A)
+    (hfit : A + win * 2 ^ zOf nt.val us.val ≤ 2 ^ 64) (hcan : CanonR A (A + win * 2 ^ zOf nt.val us.val))
     (hpA : p.val ≤ A) (hAp : A + win * 2 ^ zOf nt.val us.val ≤ p.val + 2 ^ sb.val)
     (hnewcv : ∀ i, i < win →
       CapValid th' (newCapOf nt.val ⟨BitVec.ofNat 64 (A + i * 2 ^ zOf nt.val us.val)⟩ us dev))
@@ -698,7 +722,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
   have hreg : ∀ x ∈ Gi.chains.flatten, physF (capV (L.mem s) x) = true →
       baseF (capV (L.mem s) x) ≤ topF (capV (L.mem s) x) := fun x hx hp => (hno x hx hp).1
   have hca := newCap_rel ht hn bi us dev hus hsc
-  have he : EncWf c := newCap_encWf hn bi us dev hus (canonical_of_high (by rw [hbiv]; omega))
+  have he : EncWf c := newCap_encWf hn bi us dev hus (hcan.canonical (by rw [hbiv]; omega) (by rw [hbiv]; omega))
   have hAd0 : AbsSlot th' (dest.bv, Fl4Spec.natToCref r (off + i)) :=
     ⟨dest, rfl, Or.inl (by rw [natToCref_length _ _ hr]; exact hdest)⟩
   have hAs0 : AbsSlot th' (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
@@ -971,7 +995,7 @@ theorem create_loop_rel {A' : Type} (arI : machine.Arch A') (ar : A') (th' : Typ
           rw [spec_eq_ok (slot_index_spec dest _), hi4]]
       simp only [bind_ok]
       step with loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht (by omega) hus hz hsc off.val win.val
-        base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1 i.val hit' hI as ⟨s3, hs3⟩
+        base.val hwin hfit (CanonR.of_high hhigh) hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1 i.val hit' hI as ⟨s3, hs3⟩
       step as ⟨i5, hi5⟩
       refine ⟨by omega, by rw [hi5]; exact hs3, by omega⟩
     · rw [if_neg hit, WP.spec_ok]

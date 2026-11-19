@@ -207,7 +207,7 @@ theorem create_loop_rel_gen {A' : Type} (arI : machine.Arch A') (ar : A') (th' :
           rw [spec_eq_ok (slot_index_spec dest _), hi4]]
       simp only [bind_ok]
       obtain ⟨s3, hs3e, hs3⟩ := spec_exists (loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht hn hus hz
-        hsc off.val win.val base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1' i.val hit' hI)
+        hsc off.val win.val base.val hwin hfit (CanonR.of_high hhigh) hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1' i.val hit' hI)
       obtain ⟨s3', hs3', hk3⟩ := spec_exists (insert_new_cap_ksb (L := L) s1' (cslotAddr (pp.bv, idx))
         (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val)))
         (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev))
@@ -364,7 +364,7 @@ theorem create_loop_frame_gen {A' : Type} (arI : machine.Arch A') (ar : A') (th'
         (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev) _ _ hss
         (hdsl i.val hit') hnx)
       obtain ⟨s3, hs3e, hs3⟩ := spec_exists (loop_step th' hP' hpp hidx hsb hpfit σ1 hdest hr nt us dev t ht hn hus hz
-        hsc off.val win.val base.val hwin hfit hhigh hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1' i.val hit' hI)
+        hsc off.val win.val base.val hwin hfit (CanonR.of_high hhigh) hpA hAp hnewcv zlo zhi hzs G0 m0 hsrcd s1' i.val hit' hI)
       obtain ⟨s3', hs3', hk3⟩ := spec_exists (insert_new_cap_kc (L := L) s1' (cslotAddr (pp.bv, idx))
         (slotAddr dest.bv (BitVec.ofNat 64 (off.val + i.val)))
         (newCapOf nt.val ⟨BitVec.ofNat 64 (base.val + i.val * 2 ^ zOf nt.val us.val)⟩ us dev))

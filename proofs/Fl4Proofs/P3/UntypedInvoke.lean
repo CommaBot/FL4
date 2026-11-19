@@ -175,7 +175,7 @@ theorem retype_cont {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
     · left; omega
     · right; omega
   have hfull := retype_full (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1 hpal hpfit
-    hfi hhigh nt us t ht hn hus hz47 hsc hct0 hdest (by omega) off win hwin hw1 hmem hempty1 hfree (fun _ => hzero1) (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb
+    hfi (CanonR.of_high hhigh) (fun _ => hhigh) nt us t ht hn hus hz47 hsc hct0 hdest (by omega) off win hwin hw1 hmem hempty1 hfree (fun _ => hzero1) (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb
   have hRB0 : reset = true → (∃ p sb d, capAt (L.mem s2) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb 0#u64 d)) ∧
       untyped.reset_untyped st arI s2 ar (cslotAddr (pp.bv, idx)) = ok (.Ok (), s2, ar) := by
     intro hrs

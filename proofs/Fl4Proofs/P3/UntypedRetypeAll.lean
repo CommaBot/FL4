@@ -150,7 +150,7 @@ theorem retype_cont_all {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
         · have e4 : objSize ObjKind.tcb = 4096 := rfl
           rcases hfree _ _ hq with h' | h' <;> omega
     · refine WP.spec_mono (retype_full (L := L) arI ar th s2 σ1 G hR1 hV1 hP hM1 hC1 hI1 hU1 horig1 hpp hidx hcap1 hpal hpfit
-        hfi hhigh nt us t ht (by omega) hus hz47 hsc hct0 hdest (by omega) off win hwin hw1 hmem hempty1 hfree (fun _ => hzero1)
+        hfi (CanonR.of_high hhigh) (fun _ => hhigh) nt us t ht (by omega) hus hz47 hsc hct0 hdest (by omega) off win hwin hw1 hmem hempty1 hfree (fun _ => hzero1)
         (fun hd => (dev_nt ht (hdevc hd)).2.1) bitsApi hb) ?_
       rintro res ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15⟩
       exact ⟨h1, h2, σ', G', th', h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13,

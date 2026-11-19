@@ -17,8 +17,7 @@ from a CNode slot's device untyped cap, without a reset, of frames (types 9,
   `BufFreeHyp`) replaced by `DevApart` and `DevFreeT`; `retype_bodyD`,
   `JPlaced.retypeGS`, `JAtZ.create_noresetBD`, `retype_window_deadS` with
   `DevApart.srcOK`, `SpecFree.retype_dev`, `DevFree.retype`. The source's
-  pointer in the kernel half (`hhigh`, `retype_full`'s) until the
-  canonical-half generalisation.
+  range in one canonical half with a nonzero base from `DevApart` (`CanonR`).
 -/
 import Fl4Proofs.P3.UtEpRet
 import Fl4Proofs.P3.DevJ
@@ -65,14 +64,15 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   have hidb : ∀ q, IdleAt (L := L) s' q → IdleAt (L := L) s q := fun q h => by
     unfold IdleAt at h ⊢; rw [hid.1, hid.2] at h; exact h
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ : p.val % 2 ^ sb.val = 0 ∧
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ : p.val % 2 ^ sb.val = 0 ∧
       (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
       (∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val) ∧
       (p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000 ∨ (L.ksb s).val + 288000 + 16384 ≤ p.val) ∧
       (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
       RegionFree th p.val (p.val + 2 ^ sb.val) ∧
       (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
-        (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) := by
+        (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) ∧
+      CanonR p.val (p.val + 2 ^ sb.val) := by
     rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
     · obtain ⟨fi0, hle, hc0⟩ : ∃ fi0 : U64, fi0.val ≤ fi.val ∧
           capV (L.mem s) x = .Untyped p sb fi0 true := by
@@ -90,20 +90,20 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
           · obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h5⟩ := hE.usrc
             rw [h5 x hx0 hu hxs] at hc
             exact ⟨fi, le_rfl, hc⟩
-      obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hD x hx0 p sb fi0 hc0
-      refine ⟨a1, a2, a3, a4, a5, a6, fun q kd hq => ?_⟩
+      obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := hD x hx0 p sb fi0 hc0
+      refine ⟨a1, a2, a3, a4, a5, a6, fun q kd hq => ?_, a8⟩
       rcases a7 q kd hq with e | e | ⟨e1, e2⟩
       · exact Or.inl e
       · exact Or.inr (Or.inl e)
       · exact Or.inr (Or.inr ⟨e1, by omega⟩)
     · rw [hE.newc j hj] at hc
       obtain ⟨ps, sbs, fis, hcs, hxsG, hal, hlo, hhi⟩ := hcjD j hj p sb fi hc
-      obtain ⟨b1, b2, b3, b4, b5, b6, b7⟩ := hD xs hxsG ps sbs fis hcs
+      obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := hD xs hxsG ps sbs fis hcs
       refine ⟨hal, by omega, fun c hc => by have := b3 c hc; omega, by omega,
         fun q hq => by have := b5 q hq; omega, fun q kd hq => by have := b6 q kd hq; omega,
-        fun q kd hq => by have := b7 q kd hq; omega⟩
+        fun q kd hq => by have := b7 q kd hq; omega, b8.sub (by omega) hhi⟩
   refine ⟨a1, by rw [hks]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks]; exact a4,
-    fun q hq => a5 q (hidb q hq), a6, fun q kd hq => ?_⟩
+    fun q hq => a5 q (hidb q hq), a6, fun q kd hq => ?_, a8⟩
   rcases hH q kd hq with h | ⟨ko, hko, hb⟩
   · exact a7 q kd h
   · have h2 : 2 ^ kd.bits ≤ 2 ^ Fl4Spec.objBits ko := Nat.pow_le_pow_right (by decide) hb
@@ -155,8 +155,8 @@ set_option maxHeartbeats 16000000 in
 docstring; UtEpRet's `JAtZ.utEpBodyJ` for a device source and frame types
 9/10/11): `UtBodyPostD` (`UtBodyPost` with `DevApart` and `DevFreeT` after,
 at the same sets). The source's facts from `DevApart` / `DevFreeT` instead
-of `JAtZ.utc` / `SpecFree` / `JCovD.ks`; its pointer in the kernel half
-(`hhigh`, `retype_full`'s) until the canonical-half generalisation. -/
+of `JAtZ.utc` / `SpecFree` / `JCovD.ks`; its range in one canonical half
+with a nonzero base (`DevApart`'s `CanonR`). -/
 theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
@@ -164,7 +164,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
     (hnt : nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11) (hc0 : Z.c = 0#u64)
     (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi true nt us dest off win t r reset fiv) (hfiv : fiv = fi)
-    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ)
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ)
     (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
       KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
@@ -177,7 +177,8 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   -- the source's facts: `DevApart`
   have hxG0 : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
-  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  have hp0 : 0 < p.val := hcan.1
   have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 :=
     fit_of_al (show p.val < 2 ^ 64 from p.bv.isLt) (capAt_untyped_inv hcap) hpal
   have hfiLe : fi.val ≤ 2 ^ sb.val := J.ut.fib _ hxG0 p sb fi true (capV_of_capAt hcap)
@@ -200,7 +201,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   obtain ⟨hA1, hA2, hA3, -⟩ := retype_region p fiv sb.val (zOf nt.val us.val) win.val hsb (by rcases hnt with h | h | h <;>
     simp [zOf, h]) hpal hpfit hfiLe hctx.window.1 hctx.memory
   refine WP.spec_mono (retype_bodyD (L := L) arI ar Z.th s σ Z.G hSR hV hP hM hC hI J.ut J.kern.orig hpp hidx hcap
-    hpal hpfit hfiLe hhigh hfree (fun h => by cases h) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
+    hpal hpfit hfiLe hcan (fun h => by cases h) hfree (fun h => by cases h) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
     (by omega) hctx.size.1 hctx.size.2.1 (fun h => by omega) (fun h => by omega) (fun _ => by omega) hctx.cnode.1 hctx.cnode.2.1
     hctx.window.2.2 hctx.window.1 hctx.memory hctx.empty hb) (fun res hRP => ?_)
   have hRPN := RetPostB.toNB hRP

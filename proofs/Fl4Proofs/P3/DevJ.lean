@@ -24,11 +24,9 @@ being a sub-range of its parent's.
 * `DevApart.srcOK`: a device source's `SrcOK` (ScPlaceRet), so
   `retype_window_deadS` / `JCovD.retypeS` apply to the device retype.
 * `retype_bodyD`: UtBodyJ's `retype_body` for any device flag (the window
-  zero only for a RAM cap), from `retype_full`. It keeps `retype_full`'s
-  `2^64 - 2^47 ≤ p` (not unused: `loop_step` needs it for the new caps'
-  encoding, `canonical_of_high`, and their pointers ≠ 0), so a device cap
-  whose pointer wrapped into the lower half (physical ≥ 512 GiB) is not
-  covered yet (handoff/devretype.md "dj2 line").
+  zero only for a RAM cap), from `retype_full`: the source's range in one
+  canonical half with a nonzero base (`CanonR`, for the new caps' encoding
+  and pointers ≠ 0), the kernel half only for a RAM cap (CNodes).
 * `JAtZ.create_noresetBD`: UtBodyJ's `create_noresetB` for a device source.
 -/
 import Fl4Proofs.P3.DevFree
@@ -48,7 +46,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 `kernel_window`): every device untyped cap of the MDB has an aligned range
 off the kernel-state block, the nodes, the ASID-table area, the idle objects
 and the typed heap's objects, and every `H` object meeting the range lies in
-its used part `[p, p + fi)`. -/
+its used part `[p, p + fi)`; the range lies in one canonical half with a
+nonzero base (`CanonR`: the boot check 9ab17db1 cuts the page at pointer 0;
+a device piece's pointer range is `PPTR_BASE` + its physical range modulo
+`2^64`, physical memory below `2^47`, so the range is either in the kernel
+half (physical below 512 GiB) or below `2^47 - 2^39`; a child is a
+sub-range). -/
 def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop :=
   ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi true →
     p.val % 2 ^ sb.val = 0 ∧
@@ -58,7 +61,8 @@ def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) :
     (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
     RegionFree th p.val (p.val + 2 ^ sb.val) ∧
     (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
-      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val))
+      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) ∧
+    CanonR p.val (p.val + 2 ^ sb.val)
 
 /-- **A device source's `SrcOK`**: its region off the kernel-state block and
 the idle objects (`DevApart`), the new caps no RAM untypeds. -/
@@ -69,7 +73,7 @@ theorem DevApart.srcOK {th th' : TypedHeap} {H : Heap} {G G' : MdbGhost} {Cs : S
     (hcj : ∀ j, j < w → ∀ p sb fi, cj j ≠ .Untyped p sb fi false) :
     SrcOK (L := L) th H s xs w cj := by
   obtain ⟨hxs, -⟩ := hE.usrc
-  obtain ⟨-, k1, -, -, hid, hth, hH⟩ := hD xs hxs p sb fi hc
+  obtain ⟨-, k1, -, -, hid, hth, hH, -⟩ := hD xs hxs p sb fi hc
   refine ⟨p, sb, fi, true, hc, k1, fun q hq => ⟨hid q hq, fun kd hk => ?_, fun kd hk => ?_⟩, fun _ => hcj⟩
   · rcases hid q hq with h' | h'
     · rcases hth q kd hk with h | h
@@ -85,7 +89,8 @@ theorem DevApart.srcOK {th th' : TypedHeap} {H : Heap} {G G' : MdbGhost} {Cs : S
 
 /-- **The retype without a reset from any state, any device flag**
 (UtBodyJ's `retype_body`; the window zero only for a RAM cap, no CNodes from
-a device cap; the source in the kernel half, `hhigh`). -/
+a device cap; the source's range in one canonical half, `hcan`, in the
+kernel half for a RAM cap, `hhigh`). -/
 theorem retype_bodyD {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
     (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
@@ -95,7 +100,8 @@ theorem retype_bodyD {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHe
     {p sb fi : U64} {dev : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi dev))
     (hpal : p.val % 2 ^ sb.val = 0) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) (hfi : fi.val ≤ 2 ^ sb.val)
-    (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val) (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (hcan : CanonR p.val (p.val + 2 ^ sb.val)) (hhigh : dev = false → 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
     (hzero : dev = false → ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
     (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
     (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat)
@@ -126,7 +132,7 @@ theorem retype_bodyD {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHe
       ((Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val) :=
     fun hd w hw h1 h2 => hzero hd w hw (by omega) (by omega)
   refine WP.spec_mono (retype_full (L := L) arI ar th s σ G hR hV hP hM hC hI hU horig hpp hidx hcap hpal hpfit
-    hfi hhigh nt us t ht hn hus hz47 hsc hct0 hdest hr off win hwin hw1 hmem hempty hfree hzero
+    hfi hcan hhigh nt us t ht hn hus hz47 hsc hct0 hdest hr off win hwin hw1 hmem hempty hfree hzero
     hdevT bitsApi hb) ?_
   rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, A, k, w,
     dslot, cj, hE, rfl, rfl, rfl, hnu, hthx, hcjE, hdsC⟩
