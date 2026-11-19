@@ -53,6 +53,7 @@ import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
 import Fl4Proofs.P3.XTopJointVsSub
 import Fl4Proofs.P3.XTopJointUt
+import Fl4Proofs.P3.UtEpRet
 import Fl4Proofs.P3.ScJointUnbind
 import Fl4Proofs.P3.ScJointConsumed
 import Fl4Proofs.P3.ScJointYield
@@ -561,10 +562,23 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   `CORE` words are 0, ScFresh's `SchedRel.add_tcbs`, ScFreshSc's
   `SchedRel.add_scs`). -/
   core0 : Z.c = 0#u64
-  /-- [W] the retype after the decode (XTopJointUt's `JUtRetHyp`), asked on
+  /-- [J] every IPC-buffer word lies in a spec object (XTopJointUtEp's
+  `BufObjHyp`; l4v `valid_ipc_buffer_cap` with `obj_at`), for the
+  endpoints'/notifications' retype (`JAtZ.utEpJ`). -/
+  bufObj : BufObjHyp Z.B σ
+  /-- [J] at the ghost heap: UtEpSets' `ArchFitHyp` (`H`'s object at a spec
+  arch object no larger than it; l4v the arch objects' `obj_range`) and
+  ScJoint's `RegionUnrefJ` (the kept objects and FL4's debug and timer lists
+  name no dead object of the region; l4v `valid_objs`/`untyped_children_in_mdb`),
+  for `JAtZ.utEpJ`. -/
+  heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
+  /-- [W] the retype after the decode (UtEpRet's `JUtRetHypR`: XTopJointUt's
+  `JUtRetHyp` without the no-reset retype of endpoints or notifications,
+  proved by `JAtZ.utEpJ`), asked on
   core 0 only (on another core `JAtZ`'s one-core sets do not hold the new
   core-0 TCBs and SCs, so the statement need not hold there). -/
-  ret : Z.c = 0#u64 → JUtRetHyp (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
+  ret : Z.c = 0#u64 → JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
 
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
 def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
@@ -657,7 +671,7 @@ on the cap:
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]) |
 | ASID control | `decode_invocation_asid_controlJ` (XTopJointVsCap) | `JAsidCPath` (label, extra [W]; clean regions: `JPostHyp` [W]; dirty: the cap [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
-| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `JUtRetHyp` [W]: the retype after the decode; label and extra slot proved); VT-x types `JVtxScope` [scope] |
+| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ` [J], `JUtRetHypR` [W]: the retype after the decode (label and extra slot proved) but the no-reset endpoints/notifications, `JAtZ.utEpJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -897,7 +911,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       generalize exAt extra 0 = x0 at hex hx0
       exact decode_invocation_untypedJ arI s ar σ J lbl slbl (by rw [← hLb]; exact genInvocationType_untyped_iff lbl) length buf ct hct argsU hlen hargs
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
-        hx0 excaps hex hN.fan blk call don fp ci buffer (hN.ret hN.core0)
+        hx0 excaps hex hN.fan blk call don fp ci buffer
+        (J.jUtRetHyp hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
+          (hN.ret hN.core0))
     · exact hDv rfl
   all_goals exact hN
 

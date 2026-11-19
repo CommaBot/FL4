@@ -292,7 +292,8 @@ set_option maxRecDepth 8000 in
 before, `JCovD`, `RetPostN` with the retype done, the FL4 type number `n`
 of the spec type, the kernel-global area placed, the current thread a TCB, the IRQ node's layout (`IntLayout`: its
 slots are slots of the typed heap, whose caps `typed` covers),
-`SpecFree` and well-formed spec CNodes (l4v `valid_objs`) before, and the
+`SpecFree` before, no malformed spec CNode turned into an SC by the
+invocation (`hgc`; l4v `valid_objs` makes every CNode well formed), and the
 source cap (FL4's, the spec's after `set_thread_state`, the window at or
 past its free index without a reset; for an SC retype a RAM untyped, as
 FL4's `decode_untyped` checks: `hdevS`): the typed heap (without a reset `ThX` of `th`),
@@ -316,7 +317,10 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     (hcurT : ∀ ct, sched.cur_thread st s = ok ct → th ct = some .tcb)
     (hL : IntLayout th (L.ksb s))
     (hSF : SpecFree (L.mem s) G σ)
-    (hgc : ∀ o sz cs, σ.kheap o = some (.cnode sz cs) → Fl4Spec.wellFormedCnodeN sz cs)
+    (hgc : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      ∀ y ∈ ((Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1).1,
+      ∀ o sz cs y0 n0, σ.kheap o = some (.cnode sz cs) → ¬ Fl4Spec.wellFormedCnodeN sz cs →
+        y.2.kheap o ≠ some (.schedContext y0 n0))
     {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0) (hd0 : d0 = false)
     (hg : ∀ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
@@ -422,7 +426,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     · obtain ⟨ko0, h0, e00⟩ := ksz_of_eq (nkz_setThreadState _ _) hst1 c.bv ko1 h1
       have hty := e00.trans e1
       rcases sc_of_aType hty with ⟨y00, rfl⟩ | ⟨sz, cs, rfl, hnw⟩
-      swap; · exact absurd (hgc _ _ _ h0) hnw
+      swap; · exact absurd hk (hgc σ1 hst1 y0 hy0 _ _ _ _ _ h0 hnw)
       left
       refine ⟨y00, h0, ?_⟩
       have hOW := old_window hSF hU hxG hcs0 hd0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
