@@ -251,6 +251,98 @@ fn el2_setup_reads_pmcr_only_with_an_architected_pmu() {
     assert_eq!(before, ["b.eq    4f", "cmp     x9, #0xf", "cbz     x9, 4f", "ubfx    x9, x9, #8, #4"]);
 }
 
+/// The code of `label` in boot.S, up to the next blank line, comments and
+/// labels' own lines left out.
+fn boot_code(label: &str) -> Vec<String> {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find(&format!("\n{label}:\n")).unwrap_or_else(|| panic!("{label} not found")) + label.len() + 3;
+    let end = boot[at..].find("\n\n").map_or(boot.len(), |e| at + e);
+    let mut out = vec![];
+    let mut comment = false;
+    for l in boot[at..end].lines() {
+        let mut l = l.to_string();
+        if comment {
+            match l.find("*/") {
+                Some(e) => { l = l[e + 2..].to_string(); comment = false; }
+                None => continue,
+            }
+        }
+        if let Some(b) = l.find("/*") {
+            comment = !l[b..].contains("*/");
+            l.truncate(b);
+        }
+        let l = l.trim();
+        let l = match l.split_once(':') { Some((n, rest)) if n.chars().all(|c| c.is_ascii_digit()) => rest.trim(), _ => l };
+        if !l.is_empty() {
+            out.push(l.to_string());
+        }
+    }
+    out
+}
+
+/// Audit r7 F1: at EL2, the first thing `fl4_el_setup` does is point
+/// VBAR_EL2 at FL4's own vectors, before any register access that could
+/// trap (the firmware's VBAR_EL2 lies in memory that becomes user RAM).
+/// With pointer authentication HCR_EL2 gets API and APK (PACGA has no
+/// SCTLR_EL1 enable: with API clear it traps from EL0 to EL2) and every key
+/// is cleared; the fine-grained trap registers and HCRX_EL2 are cleared
+/// when implemented.
+#[test]
+fn el2_setup_leaves_nothing_trapping_to_el2() {
+    let c = boot_code("fl4_el_setup");
+    let el2 = c.iter().position(|l| l == "b.ne    1f").expect("EL check");
+    assert_eq!(&c[el2 + 1..el2 + 4], ["adr     x9, fl4_el2_vectors", "msr     vbar_el2, x9", "isb"]);
+    let has = |l: &str| c.iter().any(|x| x == l);
+    assert!(has("orr     x9, x9, #(3 << 40)"));
+    let api = c.iter().position(|l| l == "orr     x9, x9, #(3 << 40)").unwrap();
+    assert_eq!(c[api - 1], "cbz     x10, 7f");
+    assert_eq!(c[api - 7..api - 1], [
+        "mrs     x10, id_aa64isar1_el1", "ldr     x11, =0xff000ff0", "and     x10, x10, x11",
+        "mrs     x11, s3_0_c0_c6_2", "and     x11, x11, #0xff00", "orr     x10, x10, x11",
+    ]);
+    // Every key, after HCR_EL2 has APK.
+    let keys = ["s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0", "s3_0_c2_c2_1",
+        "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1"];
+    assert_eq!(&c[api + 1..api + 3], ["msr     hcr_el2, x9", "isb"]);
+    for (i, k) in keys.iter().enumerate() {
+        assert_eq!(c[api + 3 + i], format!("msr     {k}, xzr"));
+    }
+    // HCR_EL2 is written with the bits on either path.
+    assert_eq!(&c[api + 13..api + 15], ["msr     hcr_el2, x9", "isb"]);
+    for r in ["s3_4_c1_c1_4", "s3_4_c1_c1_5", "s3_4_c1_c1_6", "s3_4_c3_c1_4", "s3_4_c3_c1_5", "s3_4_c3_c1_6",
+        "s3_4_c3_c1_0", "s3_4_c3_c1_1", "s3_4_c3_c1_2", "s3_4_c3_c1_3", "s3_4_c3_c1_7", "s3_4_c1_c2_2"] {
+        assert!(has(&format!("msr     {r}, xzr")), "{r} not cleared");
+    }
+    // FEAT_FGT, FEAT_HCX and FEAT_AMU fields of the ID registers.
+    assert!(has("ubfx    x10, x10, #56, #4") && has("ubfx    x10, x10, #40, #4") && has("ubfx    x11, x11, #44, #4"));
+}
+
+/// Audit r7 F1: FL4's EL2 vectors pass a synchronous exception from AArch64
+/// EL0 on to EL1 as an Undefined Instruction exception, and stop the core
+/// on anything else; nothing at EL2 runs outside the kernel image.
+#[test]
+fn el2_vectors_reflect_el0_traps_and_halt_on_the_rest() {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find("fl4_el2_vectors:").unwrap();
+    assert_eq!(boot[..at].lines().next_back().unwrap().trim(), ".balign 2048");
+    let v = boot_code("fl4_el2_vectors");
+    assert_eq!(v, [".rept 8", "el2_halt", ".endr", ".balign 128", "b       fl4_el2_reflect", ".rept 7", "el2_halt", ".endr"]);
+    assert!(boot.contains(".macro el2_halt\n    .balign 128\n    b       fl4_el2_halt\n.endm"));
+    let r = boot_code("fl4_el2_reflect");
+    assert_eq!(&r[..5], ["msr     tpidr_el2, x0", "mrs     x0, spsr_el2", "tst     x0, #0x1f", "b.ne    fl4_el2_halt", "msr     spsr_el1, x0"]);
+    assert_eq!(r.iter().filter(|l| l.starts_with("msr     esr_el1")).count(), 1);
+    assert!(r.contains(&"mov     x0, #(1 << 25)".to_string()));
+    assert_eq!(&r[r.len() - 5..], ["mrs     x0, vbar_el1", "add     x0, x0, #0x400", "msr     elr_el2, x0", "mrs     x0, tpidr_el2", "eret"]);
+    // Only x0 is used, and given back.
+    for l in &r {
+        for op in l.split([' ', ',']).skip(1).filter(|o| !o.is_empty()) {
+            let gpr = op.len() > 1 && (op.starts_with('x') || op.starts_with('w')) && op[1..].chars().all(|c| c.is_ascii_digit());
+            assert!(!(gpr && op[1..] != *"0") && op != "sp" && op != "wsp", "{l} uses {op}");
+        }
+    }
+    assert_eq!(boot_code("fl4_el2_halt"), ["wfi", "b       fl4_el2_halt"]);
+}
+
 #[test]
 fn pmuserenr_is_written_only_with_a_pmu() {
     // PMUVer: neither absent nor IMPLEMENTATION DEFINED.
