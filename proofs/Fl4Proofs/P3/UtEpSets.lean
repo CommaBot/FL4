@@ -1,0 +1,296 @@
+/-
+P3 (DESIGN.md §9), untyped: **`JAtZ`'s set and heap fields at the sets
+enlarged by a retype's endpoints or notifications** (the nine inputs of
+`JAtZ.add_frame` but `XTopAt`, handoff/utj.md "Exactly what remains" a).
+
+The window `[A, A + w * k)` lies in a part `[lo, hi)` of RAM untyped
+memory in which no object of the typed heap, no spec object and no IPC-buffer
+word lies, and which misses the kernel-state block. P1's heap after is
+`HOut` over the window (objects meeting it dropped, the new ones added):
+
+* `hout_old`, `hout_new`, `hout_back`: lookups in an `HOut` heap.
+* `ArchFitHyp` [J]: an `other` object of `H` at a spec arch object is no
+  larger than it (the `H` object's range lies in the spec object's).
+* `JAtZ.addSets`: from `JAtZ` at the old sets and heap, the window's new
+  endpoints `En` or notifications `Nn` (one of them empty), the spec state
+  after (its objects the old ones, CNodes changed, or the window's idle
+  objects), `KsApart`, `IPlaced`, the notifications off the kernel-state
+  block, `SpecCover`, `ObjCover`, `zH`, `hset` and `hscC` at the new sets
+  and heap.
+-/
+import Fl4Proofs.P3.UtAddSpec
+open Aeneas Aeneas.Std Result
+
+namespace Fl4Proofs.P3
+open fl4_core Classical Fl4Proofs.P3.Sched Fl4Proofs.P3.Ipc Fl4Proofs.P1
+
+noncomputable section
+
+/-! ## Lookups in an `HOut` heap -/
+
+section
+variable {H H' : Heap} {lo hi A k w : Nat} {K : Option HKind}
+
+theorem newAt_bd {A k w : Nat} {q : U64} (hk : 1 ≤ k) (h : NewAt A k w q) : A ≤ q.val ∧ q.val < A + w * k := by
+  obtain ⟨j, hj, e⟩ := h
+  have := Nat.mul_le_mul_right k (show j + 1 ≤ w by omega)
+  rw [Nat.add_mul, Nat.one_mul] at this
+  omega
+
+theorem hout_old (h : HOut H H' lo hi A k w K) (hlo : lo = A) (hhi : hi = A + w * k) (hk : 1 ≤ k) {q : U64}
+    {kd : HKind} (hq : H q = some kd) (hoff : q.val + 2 ^ kd.bits ≤ A ∨ A + w * k ≤ q.val) : H' q = some kd := by
+  subst hlo hhi
+  have h1 := Nat.one_le_two_pow (n := kd.bits)
+  rw [h q, if_neg (fun ⟨hn, _⟩ => by have := newAt_bd hk hn; omega), if_neg, hq]
+  rintro ⟨kd', hq', hm⟩
+  rw [hq] at hq'; cases hq'
+  exact hm (by omega)
+
+theorem hout_new (h : HOut H H' lo hi A k w K) {q : U64} (hn : NewAt A k w q) {kd : HKind} (hK : K = some kd) :
+    H' q = some kd := by
+  rw [h q, if_pos ⟨hn, by rw [hK]; rfl⟩, hK]
+
+theorem hout_back (h : HOut H H' lo hi A k w K) {q : U64} {kd : HKind} (hq : H' q = some kd) :
+    (NewAt A k w q ∧ K = some kd) ∨ H q = some kd := by
+  rw [h q] at hq
+  split_ifs at hq with h1 h2
+  · exact Or.inl ⟨h1.1, hq⟩
+  · exact Or.inr hq
+
+end
+
+/-- **[J] The `other` object of `H` at a spec arch object is no larger than
+it** (l4v: the arch objects' `obj_range` is the object's own; P1's heap
+holds a VSpace table as `other 12`, the spec's table of `2 ^ 12` bytes).
+With `SpecFree` it keeps those `H` objects off an untyped cap's free part. -/
+def ArchFitHyp (H : Heap) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ o ao n, σ.kheap o = some (.archObj ao) → H ⟨o⟩ = some (.other n) → n ≤ Fl4Spec.objBits (.archObj ao)
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} {arI : machine.Arch A'}
+variable {AR : A' → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64}
+
+set_option maxHeartbeats 2000000 in
+/-- **The set and heap fields at the enlarged sets** (module docstring). -/
+theorem JAtZ.addSets {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hks : L.ksb s' = L.ksb s) {lo hi : Nat} (hlo0 : 0 < lo) (hhi64 : hi ≤ 2 ^ 64)
+    (hfree : RegionFree Z.th lo hi) (hksr : hi ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ lo)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hB : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ lo ∨ hi ≤ wp.1.val) (harch : ArchFitHyp H σ)
+    {A k w : Nat} (hlo : lo ≤ A) (hhi : A + w * k ≤ hi) (hk1 : 1 ≤ k) {K : Option HKind} {H' : Heap}
+    (hout : HOut H H' A (A + w * k) A k w K) {En Nn : Set U64}
+    (hEw : ∀ e ∈ En, e.val % 16 = 0 ∧ lo ≤ e.val ∧ e.val + 16 ≤ hi ∧ NewAt A k w e ∧ K = some .ep)
+    (hNw : ∀ n ∈ Nn, n.val % 64 = 0 ∧ lo ≤ n.val ∧ n.val + 64 ≤ hi ∧ NewAt A k w n ∧ K = some .ntfn)
+    (hEN : En = ∅ ∨ Nn = ∅)
+    (hKn : ∀ q, NewAt A k w q → ∀ kd, K = some kd → (kd = .ep ∧ q ∈ En) ∨ (kd = .ntfn ∧ q ∈ Nn))
+    {σ' : Fl4Spec.State Unit}
+    (hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+      (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
+      (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification))
+    {Z' : XSets} (hT : Z'.T = Z.T) (hR : Z'.R = Z.R) (hC : Z'.C = Z.C) (hBB : Z'.B = Z.B)
+    (hE : Z'.E = Z.E ∪ En) (hN : Z'.N = Z.N ∪ Nn) :
+    KsApart Z'.N Z'.T Z'.E Z'.R Z'.B (L.ksb s') ∧ IPlaced Z'.N Z'.T Z'.E Z'.R Z'.B ∧
+    (∀ n ∈ Z'.N, n.val + 40 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ n.val) ∧
+    Sched.SpecCover H' σ' ∧ Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ' ∧
+    ((∀ t ∈ Z'.T, H' t = some .tcb) ∧ (∀ e ∈ Z'.E, H' e = some .ep) ∧ (∀ r ∈ Z'.R, H' r = some .reply) ∧
+      (∀ n ∈ Z'.N, H' n = some .ntfn)) ∧
+    ((∀ e, H' e = some .ep → e ∈ Z'.E) ∧ (∀ n, H' n = some .ntfn → n ∈ Z'.N) ∧
+      (∀ r, H' r = some .reply → r ∈ Z'.R)) ∧
+    (∀ c z, H' c = some (.sc z) → c ∈ Z'.C) := by
+  rw [hT, hR, hC, hBB, hE, hN, hks]
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  -- the old objects off `[lo, hi)`
+  have offT : ∀ t ∈ Z.T, t.val + 4096 ≤ lo ∨ hi ≤ t.val := by
+    intro t ht
+    have hth : Z.th t = some .tcb := (hJ.tcb t).2 (J.zH.1 t ht)
+    have := hfree t .tcb hth
+    simp only [objSize] at this; omega
+  have offE : ∀ e ∈ Z.E, e.val + 16 ≤ lo ∨ hi ≤ e.val := by
+    intro e he
+    obtain ⟨x, hx, -⟩ := J.xtop.ipc.toE.ep e he
+    have := hspec _ _ hx
+    simp only [Fl4Spec.objBits, Fl4Spec.endpointBits, UScalar.bv_toNat] at this; omega
+  have offR : ∀ r ∈ Z.R, r.val + 32 ≤ lo ∨ hi ≤ r.val := by
+    intro r hr
+    obtain ⟨x, hx, -⟩ := J.xtop.ipc.toE.reply r hr
+    have := hspec _ _ hx
+    simp only [Fl4Spec.objBits, Fl4Spec.replyBits, UScalar.bv_toNat] at this; omega
+  have offN : ∀ n ∈ Z.N, n.val + 64 ≤ lo ∨ hi ≤ n.val := by
+    intro n hn
+    obtain ⟨x, hx, -⟩ := J.xtop.fin.1.1.2.2.1.ntfn n hn
+    have := hspec _ _ hx
+    simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, UScalar.bv_toNat] at this; omega
+  have keep : ∀ {q : U64} {kd : HKind}, H q = some kd → (q.val + 2 ^ kd.bits ≤ lo ∨ hi ≤ q.val) → H' q = some kd :=
+    fun hq hoff => hout_old hout rfl rfl hk1 hq (by omega)
+  -- the spec's objects after, back
+  have obk : ∀ o ko, σ'.kheap o = some ko → (∀ r cs, ko ≠ .cnode r cs) → (∀ x, ko ≠ .endpoint x) →
+      (∀ x, ko ≠ .notification x) → σ.kheap o = some ko := by
+    intro o ko h h1 h2 h3
+    rcases hback o ko h with e | ⟨r, cs, cs', -, rfl⟩ | ⟨e, -, -, rfl⟩ | ⟨n, -, -, rfl⟩
+    · exact e
+    · exact absurd rfl (h1 r cs')
+    · exact absurd rfl (h2 _)
+    · exact absurd rfl (h3 _)
+  have hcov : Sched.SpecCover H' σ' := by
+    refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun y z ho => ?_, fun o ao ho => ?_⟩
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩
+      · refine keep (J.cover.ntfn o x e) ?_
+        have := hspec _ _ e
+        simp only [Fl4Spec.objBits, Fl4Spec.ntfnBits, HKind.bits] at this ⊢; exact this
+      · cases e
+      · cases e'
+      · obtain ⟨-, -, -, hna, hK⟩ := hNw n hn; exact hout_new hout hna hK
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩
+      · refine keep (J.cover.ep o x e) ?_
+        have := hspec _ _ e
+        simp only [Fl4Spec.objBits, Fl4Spec.endpointBits, HKind.bits] at this ⊢; exact this
+      · cases e
+      · obtain ⟨-, -, -, hna, hK⟩ := hEw e he; exact hout_new hout hna hK
+      · cases e'
+    · have e := obk o _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
+      refine keep (J.cover.reply o x e) ?_
+      have := hspec _ _ e
+      simp only [Fl4Spec.objBits, Fl4Spec.replyBits, HKind.bits] at this ⊢; exact this
+    · exact J.cover.sc0 y z (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h))
+    · have e := obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h)
+      obtain ⟨n, hn12, hHn⟩ := J.cover.arch o ao e
+      refine ⟨n, hn12, keep hHn ?_⟩
+      have h1 := hspec _ _ e
+      have h2 := Nat.pow_le_pow_right (show 0 < 2 by decide) (harch o ao n e hHn)
+      simp only [HKind.bits]
+      show o.toNat + 2 ^ n ≤ lo ∨ hi ≤ o.toNat
+      omega
+  have hobj : Sched.ObjCover (Z.N ∪ Nn) Z.T (Z.E ∪ En) Z.R Z.C σ' := by
+    refine ⟨fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun o x ho => ?_, fun o y z ho => ?_⟩
+    · exact J.obj.tcb o x (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h))
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, -, -, e'⟩ | ⟨n, hn, rfl, -⟩
+      · obtain ⟨n, hn, h⟩ := J.obj.ntfn o x e; exact ⟨n, Or.inl hn, h⟩
+      · cases e
+      · cases e'
+      · exact ⟨n, Or.inr hn, rfl⟩
+    · rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨e, he, rfl, -⟩ | ⟨n, -, -, e'⟩
+      · obtain ⟨e, he, h⟩ := J.obj.ep o x e; exact ⟨e, Or.inl he, h⟩
+      · cases e
+      · exact ⟨e, Or.inr he, rfl⟩
+      · cases e'
+    · exact J.obj.reply o x (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h))
+    · exact J.obj.sc o y z (obk _ _ ho (fun _ _ h => by cases h) (fun _ h => by cases h) (fun _ h => by cases h))
+  refine ⟨⟨fun e he => ?_, J.ks.rep, fun n hn => ?_, J.ks.buf⟩, ⟨⟨J.ip.n.tcb, fun n hn => ?_, fun n hn t ht => ?_⟩,
+    ⟨J.ip.e.tcb, fun e he => ?_, J.ip.e.rep, fun e he t ht => ?_, J.ip.e.rt, fun e he r hr => ?_, J.ip.e.balign,
+      J.ip.e.bt, fun wp hw e he => ?_, J.ip.e.br, J.ip.e.binj⟩, fun n hn e he => ?_, fun n hn r hr => ?_,
+      fun n hn wp hw => ?_⟩, fun n hn => ?_, hcov, hobj, ⟨fun t ht => ?_, fun e he => ?_, fun r hr => ?_, fun n hn => ?_⟩,
+      ⟨fun e he => ?_, fun n hn => ?_, fun r hr => ?_⟩, fun c z hc => ?_⟩
+  -- KsApart
+  · rcases he with he | he
+    · exact J.ks.ep e he
+    · obtain ⟨-, h1, h2, -⟩ := hEw e he; omega
+  · rcases hn with hn | hn
+    · exact J.ks.ntfn n hn
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; omega
+  -- IPlaced
+  · rcases hn with hn | hn
+    · exact J.ip.n.ntfn n hn
+    · obtain ⟨h0, h1, h2, -⟩ := hNw n hn; exact ⟨h0, by omega⟩
+  · rcases hn with hn | hn
+    · exact J.ip.n.disj n hn t ht
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; have := offT t ht; omega
+  · rcases he with he | he
+    · exact J.ip.e.ep e he
+    · obtain ⟨h0, h1, h2, -⟩ := hEw e he; exact ⟨h0, by omega, by omega⟩
+  · rcases he with he | he
+    · exact J.ip.e.et e he t ht
+    · obtain ⟨-, h1, h2, -⟩ := hEw e he; have := offT t ht; omega
+  · rcases he with he | he
+    · exact J.ip.e.er e he r hr
+    · obtain ⟨-, h1, h2, -⟩ := hEw e he; have := offR r hr; omega
+  · rcases he with he | he
+    · exact J.ip.e.be wp hw e he
+    · obtain ⟨-, h1, h2, -⟩ := hEw e he; have := hB wp hw; omega
+  · rcases hn with hn | hn <;> rcases he with he | he
+    · exact J.ip.ne n hn e he
+    · obtain ⟨-, h1, h2, -⟩ := hEw e he; have := offN n hn; omega
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; have := offE e he; omega
+    · rcases hEN with h | h
+      · rw [h] at he; exact he.elim
+      · rw [h] at hn; exact hn.elim
+  · rcases hn with hn | hn
+    · exact J.ip.nr n hn r hr
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; have := offR r hr; omega
+  · rcases hn with hn | hn
+    · exact J.ip.nb n hn wp hw
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; have := hB wp hw; omega
+  -- nk
+  · rcases hn with hn | hn
+    · exact J.nk n hn
+    · obtain ⟨-, h1, h2, -⟩ := hNw n hn; omega
+  -- zH
+  · exact keep (J.zH.1 t ht) (by simp only [HKind.bits]; have := offT t ht; omega)
+  · rcases he with he | he
+    · exact keep (J.zH.2.1 e he) (by simp only [HKind.bits]; have := offE e he; omega)
+    · obtain ⟨-, -, -, hna, hK⟩ := hEw e he; exact hout_new hout hna hK
+  · exact keep (J.zH.2.2.1 r hr) (by simp only [HKind.bits]; have := offR r hr; omega)
+  · rcases hn with hn | hn
+    · exact keep (J.zH.2.2.2 n hn) (by simp only [HKind.bits]; have := offN n hn; omega)
+    · obtain ⟨-, -, -, hna, hK⟩ := hNw n hn; exact hout_new hout hna hK
+  -- hset
+  · rcases hout_back hout he with ⟨hna, hK⟩ | h
+    · rcases hKn e hna _ hK with ⟨-, h⟩ | ⟨h, -⟩
+      · exact Or.inr h
+      · cases h
+    · exact Or.inl (J.hset.1 e h)
+  · rcases hout_back hout hn with ⟨hna, hK⟩ | h
+    · rcases hKn n hna _ hK with ⟨h, -⟩ | ⟨-, h⟩
+      · cases h
+      · exact Or.inr h
+    · exact Or.inl (J.hset.2.1 n h)
+  · rcases hout_back hout hr with ⟨hna, hK⟩ | h
+    · rcases hKn r hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ <;> cases h
+    · exact J.hset.2.2 r h
+  -- hscC
+  · rcases hout_back hout hc with ⟨hna, hK⟩ | h
+    · rcases hKn c hna _ hK with ⟨h, -⟩ | ⟨h, -⟩ <;> cases h
+    · exact J.hscC c z h
+
+
+set_option maxHeartbeats 1000000 in
+/-- **`RPlaced` and `SlotsApart` at the notifications grown by the window**
+across the retype (`JAtZ.uaRest`'s `RPlaced` at the old notifications,
+`SlotsApart.sc_frame`): the new notifications lie in `[lo, hi)`, where no
+spec object (so no reply) and no object of the typed heap (so no slot) is. -/
+theorem JAtZ.addRP {s : S} {a : A'} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} (hw : P1.WritesIn st s s' (InSlot Z.th)) {σB σ' : Fl4Spec.State Unit} {W : Fl4Spec.ObjRef → Prop}
+    {o : Fl4Spec.ObjRef → Fl4Spec.KernelObject} (hA : SpecAdd σ σB W o) (hid : IdleNew W o) (hcn : CnK σB σ')
+    {Nn : Set U64} (hWn : ∀ n ∈ Nn, W n.bv) {lo hi : Nat} (hfree : RegionFree Z.th lo hi)
+    (hspec : ∀ o ko, σ.kheap o = some ko → o.toNat + 2 ^ Fl4Spec.objBits ko ≤ lo ∨ hi ≤ o.toNat)
+    (hNw : ∀ n ∈ Nn, lo ≤ n.val ∧ n.val + 64 ≤ hi) :
+    RPlaced st (Z.N ∪ Nn) Z.T Z.C Z.R Z.c s' σ' ∧ SlotsApart (st := st) Z.th Z.T (Z.N ∪ Nn) Z.C Z.R Z.c s' σ' := by
+  obtain ⟨-, hRP, -⟩ := J.uaRest hw hA hid hcn hWn
+  have offR : ∀ r ∈ Z.R, r.val + 32 ≤ lo ∨ hi ≤ r.val := by
+    intro r hr
+    obtain ⟨x, hx, -⟩ := J.xtop.ipc.toE.reply r hr
+    have := hspec _ _ hx
+    simp only [Fl4Spec.objBits, Fl4Spec.replyBits, UScalar.bv_toNat] at this; omega
+  have hP := J.xtop.rel.1
+  have slotOff : ∀ x, IsSlot Z.th x → x.val + 32 ≤ lo ∨ hi ≤ x.val := by
+    rintro x ⟨p, i, hpi, rfl⟩
+    obtain ⟨k, hk, hs⟩ := hpi.size
+    rw [hpi.val hP]
+    have := hfree p k hk; omega
+  have hAp := J.apart.sc_frame hw.1 (uaSzKeep hA hid (CnStep.of_cnK hcn))
+  refine ⟨⟨hRP.align, hRP.ksb, hRP.tcb, fun r hr n hn => ?_, hRP.sc⟩, fun x hx => ?_⟩
+  · rcases hn with hn | hn
+    · exact hRP.ntfn r hr n hn
+    · have := offR r hr; have := hNw n hn; omega
+  · obtain ⟨h1, h2, h3, h4, h5⟩ := hAp x hx
+    refine ⟨h1, h2, fun n hn => ?_, h4, h5⟩
+    rcases hn with hn | hn
+    · exact h3 n hn
+    · have := slotOff x hx; have := hNw n hn; omega
+
+end
+
+end
+
+end Fl4Proofs.P3
