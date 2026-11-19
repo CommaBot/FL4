@@ -586,6 +586,22 @@ def fl4_abi.consts.root_slot.InitThreadSC : Std.U64 := 14#u64
   "fl4_abi::consts::root_slot::NumInitialCaps"]
 def fl4_abi.consts.root_slot.NumInitialCaps : Std.U64 := 16#u64
 
+/-- [fl4_abi::consts::bootinfo_header::PADDING]
+    Source: 'crates/fl4-abi/src/consts.rs', lines 203:4-203:26
+    Name pattern: [fl4_abi::consts::bootinfo_header::PADDING]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "fl4_abi::consts::bootinfo_header::PADDING"]
+def fl4_abi.consts.bootinfo_header.PADDING : Std.U64 := 0#u64
+
+/-- [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
+    Source: 'crates/fl4-abi/src/consts.rs', lines 215:4-215:37
+    Name pattern: [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
+    Visibility: public -/
+@[global_simps, irreducible, rust_const
+  "fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS"]
+def fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS : Std.U64 := 10#u64
+
 /-- [fl4_abi::label::UntypedRetype]
     Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 7:4-7:32
     Name pattern: [fl4_abi::label::UntypedRetype]
@@ -1462,6 +1478,11 @@ def fl4_abi.config.ROOT_CNODE_SIZE_BITS : Std.U64 := 13#u64
 @[global_simps, irreducible]
 def boot.PADDR_USER_DEVICE_TOP : Result Std.U64 := 1#u64 <<< 47#i32
 
+/-- [fl4_core::boot::EXTRA_UNTYPEDS]
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 6:0-6:36
+    Visibility: public -/
+@[global_simps, irreducible] def boot.EXTRA_UNTYPEDS : Std.U64 := 256#u64
+
 /-- [fl4_core::layout::PPTR_BASE]
     Source: 'crates/fl4-core/src/arch/x86_64/layout.rs', lines 2:0-2:49
     Visibility: public -/
@@ -1475,7 +1496,7 @@ def layout.pptr (paddr : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add paddr layout.PPTR_BASE)
 
 /-- [fl4_core::boot::entry_addr]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 164:0-166:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 184:0-186:1 -/
 def boot.entry_addr
   (table : Std.U64) (vaddr : Std.U64) (shift : Std.U64) : Result Std.U64 := do
   let i ← lift (shift &&& 63#u64)
@@ -1485,7 +1506,7 @@ def boot.entry_addr
   ok (core.num.U64.wrapping_add table i3)
 
 /-- [fl4_core::boot::next_table]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 169:0-171:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 189:0-191:1 -/
 def boot.next_table
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (table : Std.U64)
   (vaddr : Std.U64) (shift : Std.U64) :
@@ -1497,7 +1518,7 @@ def boot.next_table
   layout.pptr i2
 
 /-- [fl4_core::boot::map_it_frame]:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 5:0-10:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 9:0-14:1 -/
 def boot.map_it_frame
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (pml4 : Std.U64)
   (vaddr : Std.U64) (paddr : Std.U64) :
@@ -1520,7 +1541,7 @@ def layout.paddr (pptr : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_sub pptr layout.PPTR_BASE)
 
 /-- [fl4_core::boot::n_paging]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 139:0-144:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 149:0-154:1 -/
 def boot.n_paging (r : boot.Region) (bits : Std.U64) : Result Std.U64 := do
   let b ← lift (bits &&& 63#u64)
   let start ← r.start >>> b
@@ -1532,7 +1553,7 @@ def boot.n_paging (r : boot.Region) (bits : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_sub «end» start)
 
 /-- [fl4_core::boot::alloc]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 130:0-136:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 140:0-146:1 -/
 def boot.alloc
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (size_bits : Std.U64) (n : Std.U64) :
@@ -1558,7 +1579,7 @@ def obj.Slot.index (base : Std.U64) (i : Std.U64) : Result obj.Slot := do
   ok i2
 
 /-- [fl4_core::boot::root_slot]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 114:0-116:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 124:0-126:1 -/
 def boot.root_slot (b : boot.Boot) (i : Std.U64) : Result obj.Slot := do
   obj.Slot.index b.root_cnode i
 
@@ -1892,7 +1913,7 @@ def obj.Slot.set_cap
   machineStoreInst.write s1 i w1
 
 /-- [fl4_core::boot::write_slot]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 107:0-112:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 117:0-122:1 -/
 def boot.write_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
   (c : capability.Cap) :
@@ -1910,7 +1931,7 @@ def boot.write_slot
 def boot.ROOT_CNODE_BITS : Std.U64 := fl4_abi.config.ROOT_CNODE_SIZE_BITS
 
 /-- [fl4_core::boot::provide_cap]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 121:0-128:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 131:0-138:1 -/
 def boot.provide_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (c : capability.Cap) :
@@ -1926,7 +1947,7 @@ def boot.provide_cap
     ok (s2, { b with slot_pos := i1 })
 
 /-- [fl4_core::boot::bi_set]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 102:0-104:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 112:0-114:1 -/
 def boot.bi_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (word : Std.U64) (v : Std.U64) :
@@ -1937,7 +1958,7 @@ def boot.bi_set
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::boot::bi::USER_IMAGE_PAGING]
-    Source: 'crates/fl4-core/src/boot.rs', lines 82:4-82:42
+    Source: 'crates/fl4-core/src/boot.rs', lines 84:4-84:42
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.USER_IMAGE_PAGING : Std.U64 := 11#u64
 
@@ -2034,7 +2055,7 @@ def vspace.copy_global_mappings
   vspace.copy_global_mappings_loop machineStoreInst s new_root k 256#u64
 
 /-- [fl4_core::boot::create_it_address_space]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 26:8-45:9 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 30:8-49:9 -/
 @[rust_loop_body]
 def boot.create_it_address_space_loop0_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (pml4 : Std.U64)
@@ -2082,7 +2103,7 @@ def boot.create_it_address_space_loop0_loop0.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_it_address_space]: loop 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 26:8-45:9 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 30:8-49:9 -/
 @[rust_loop]
 def boot.create_it_address_space_loop0_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -2096,7 +2117,7 @@ def boot.create_it_address_space_loop0_loop0
     (s, b, j)
 
 /-- [fl4_core::boot::create_it_address_space]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 21:4-47:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 25:4-51:5 -/
 @[rust_loop_body]
 def boot.create_it_address_space_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (it : boot.Region)
@@ -2121,7 +2142,7 @@ def boot.create_it_address_space_loop0.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_it_address_space]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 21:4-47:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 25:4-51:5 -/
 @[rust_loop]
 def boot.create_it_address_space_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -2134,7 +2155,7 @@ def boot.create_it_address_space_loop0
     (s, b, k)
 
 /-- [fl4_core::boot::create_it_address_space]:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 13:0-51:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 17:0-55:1 -/
 def boot.create_it_address_space
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (it : boot.Region) (pml4 : Std.U64) :
@@ -2233,7 +2254,7 @@ def layout.irq.REMOTE_CALL_IPI : Result Std.U64 := 158#u64 - 32#u64
 def layout.irq.TIMER : Result Std.U64 := 157#u64 - 32#u64
 
 /-- [fl4_core::boot::init_irq_states]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 67:4-77:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 71:4-81:5 -/
 @[rust_loop_body]
 def boot.init_irq_states_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -2265,7 +2286,7 @@ def boot.init_irq_states_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_irq_states]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 67:4-77:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 71:4-81:5 -/
 @[rust_loop]
 def boot.init_irq_states_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -2276,14 +2297,14 @@ def boot.init_irq_states_loop
     (s, i)
 
 /-- [fl4_core::boot::init_irq_states]:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 65:0-78:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 69:0-82:1 -/
 @[reducible]
 def boot.init_irq_states
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   boot.init_irq_states_loop machineStoreInst s 0#u64
 
 /-- [fl4_core::boot::init_root_cnode]:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 55:0-63:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 59:0-67:1 -/
 def boot.init_root_cnode
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) :
   Result (capability.Cap × S)
@@ -2315,7 +2336,7 @@ def obj.Tcb.fpu_addr (self : obj.Tcb) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add self layout.tcb.FPU)
 
 /-- [fl4_core::boot::objects_init_fpu]:
-    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 80:0-84:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/boot.rs', lines 84:0-88:1 -/
 def boot.objects_init_fpu
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -4257,7 +4278,7 @@ def sched.set_thread_state
   sched.schedule_tcb machineStoreInst s1 t
 
 /-- [fl4_core::interrupt::map_ioapic]:
-    Source: 'crates/fl4-core/src/arch/x86_64/interrupt.rs', lines 84:0-115:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/interrupt.rs', lines 84:0-121:1 -/
 def interrupt.map_ioapic
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64)
@@ -4303,18 +4324,27 @@ def interrupt.map_ioapic
             then let r ← error.range Unit 0#u64 65535#u64
                  ok (r, s, a)
             else
-              let s1 ←
-                sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-              if remapped
+              let (a1, routed) ←
+                if remapped
+                then
+                  do
+                  let (routed1, a2) ←
+                    machineArchInst.ioapic_map_remapped a ioapic pin level
+                      polarity vector handle
+                  ok (a2, routed1)
+                else
+                  do
+                  let (routed1, a2) ←
+                    machineArchInst.ioapic_map a ioapic pin level polarity
+                      vector
+                  ok (a2, routed1)
+              if routed
               then
-                let (_, a1) ←
-                  machineArchInst.ioapic_map_remapped a ioapic pin level
-                    polarity vector handle
+                let s1 ←
+                  sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
                 ok (core.result.Result.Ok (), s1, a1)
-              else
-                let (_, a1) ←
-                  machineArchInst.ioapic_map a ioapic pin level polarity vector
-                ok (core.result.Result.Ok (), s1, a1)
+              else let r ← error.illegal Unit
+                   ok (r, s, a1)
 
 /-- [fl4_core::interrupt::PCI_FUNC_MAX]
     Source: 'crates/fl4-core/src/interrupt.rs', lines 24:0-24:32
@@ -5234,7 +5264,7 @@ def vcpu.svm.EFER : Result Std.U64 := vcpu.svm.SAVE + 208#u64
 @[global_simps, irreducible] def vcpu.SVM_CPU : Std.U64 := 20536#u64
 
 /-- [fl4_core::vcpu::reset_svm]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 644:4-656:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 651:4-663:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.reset_svm_loop.body
@@ -5261,7 +5291,7 @@ def vcpu.reset_svm_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::reset_svm]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 644:4-656:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 651:4-663:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.reset_svm_loop
@@ -5274,7 +5304,7 @@ def vcpu.reset_svm_loop
     (s, off)
 
 /-- [fl4_core::vcpu::reset_svm]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 640:0-666:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 647:0-673:1
     Visibility: public -/
 def vcpu.reset_svm
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) :
@@ -5757,14 +5787,14 @@ def vcpu.WRITE_FIELDS : Array Std.U64 73#usize :=
     ]
 
 /-- [fl4_core::vcpu::SVM_I2_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 561:0-561:38
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 566:0-566:38
     Visibility: public -/
 @[global_simps, irreducible] def vcpu.SVM_I2_FORCED : Std.U64 := 32381#u64
 
 /-- [fl4_core::vcpu::SVM_I1_FORCED]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 559:0-559:43
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 564:0-564:43
     Visibility: public -/
-@[global_simps, irreducible] def vcpu.SVM_I1_FORCED : Std.U64 := 2621472783#u64
+@[global_simps, irreducible] def vcpu.SVM_I1_FORCED : Std.U64 := 2621472815#u64
 
 /-- [fl4_core::vcpu::controls]:
     Source: 'crates/fl4-core/src/vcpu.rs', lines 486:0-490:1 -/
@@ -5952,7 +5982,7 @@ def error.invalid_arg
     arg)))
 
 /-- [fl4_core::vcpu::sanitize_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 491:0-558:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 491:0-560:1
     Visibility: public -/
 def vcpu.sanitize_vmcs
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
@@ -6121,9 +6151,13 @@ def vcpu.sanitize_vmcs
         else ok fixed
       let i3 ← lift (value ||| fixed1)
       let i4 ← machineArchInst.vcpu_capability a 1159#u64
-      let v ← lift (i3 &&& i4)
-      let i5 ← f >>> 13#i32
-      match i5 with
+      let i5 ← lift (i3 &&& i4)
+      let i6 ← vcpu.CR0_OWNED
+      let i7 ← lift (~~~ i6)
+      let i8 ← lift (fixed1 ||| i7)
+      let v ← lift (i5 &&& i8)
+      let i9 ← f >>> 13#i32
+      match i9 with
       | 0#uscalar =>
         let value1 ← lift (v &&& 65535#u64)
         ok (core.result.Result.Ok value1)
@@ -6242,7 +6276,7 @@ def vcpu.write_vmcs
 @[global_simps, irreducible] def layout.ks.VCPU_HEAD : Std.U64 := 80#u64
 
 /-- [fl4_core::vcpu::init]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 614:4-617:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 621:4-624:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop0.body
@@ -6260,7 +6294,7 @@ def vcpu.init_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 614:4-617:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 621:4-624:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop0
@@ -6273,7 +6307,7 @@ def vcpu.init_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::init]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 627:8-633:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 634:8-640:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop1.body
@@ -6298,7 +6332,7 @@ def vcpu.init_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 627:8-633:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 634:8-640:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop1
@@ -6313,7 +6347,7 @@ def vcpu.init_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::init]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 605:0-639:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 612:0-646:1
     Visibility: public -/
 def vcpu.init
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14148,7 +14182,7 @@ def vcpu.svm.CR3 : Result Std.U64 := vcpu.svm.SAVE + 336#u64
 @[global_simps, irreducible] def vcpu.CR2 : Std.U64 := 20512#u64
 
 /-- [fl4_core::vcpu::report]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1053:4-1061:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1060:4-1068:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop0.body
@@ -14183,7 +14217,7 @@ def vcpu.report_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1053:4-1061:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1060:4-1068:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop0
@@ -14197,7 +14231,7 @@ def vcpu.report_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::report]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1084:8-1087:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1091:8-1094:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.report_loop1.body
@@ -14217,7 +14251,7 @@ def vcpu.report_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::report]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1084:8-1087:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1091:8-1094:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.report_loop1
@@ -14230,7 +14264,7 @@ def vcpu.report_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::report]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1048:0-1122:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1055:0-1129:1
     Visibility: public -/
 def vcpu.report
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14509,7 +14543,7 @@ def vcpu.report
         sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::check]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1029:0-1046:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1036:0-1053:1
     Visibility: public -/
 def vcpu.check
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14578,19 +14612,19 @@ def vcpu.check
         else ok (s, a)
 
 /-- [fl4_core::vcpu::SVM_EVENT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 562:0-562:49
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 567:0-567:49
     Visibility: public -/
 @[global_simps, irreducible]
 def vcpu.SVM_EVENT : Std.U64 := 18446744071562072063#u64
 
 /-- [fl4_core::vcpu::SVM_I1_WRITABLE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 560:0-560:45
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 565:0-565:45
     Visibility: public -/
 @[global_simps, irreducible]
-def vcpu.SVM_I1_WRITABLE : Std.U64 := 1673494512#u64
+def vcpu.SVM_I1_WRITABLE : Std.U64 := 1673494480#u64
 
 /-- [fl4_core::vcpu::enter]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 999:0-1027:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1006:0-1034:1
     Visibility: public -/
 def vcpu.enter
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18479,7 +18513,7 @@ def vspace.decode_table
            ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 905:12-907:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 915:12-917:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -18496,7 +18530,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 905:12-907:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 915:12-917:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -18508,7 +18542,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -18533,7 +18567,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -18546,7 +18580,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -18571,7 +18605,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 949:12-951:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -18584,7 +18618,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 865:0-964:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 865:0-974:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18645,15 +18679,25 @@ def vspace.decode
   | capability.Cap.Pdpt _ _ _ _ =>
     vspace.decode_table machineStoreInst machineArchInst s a lbl length slot
       cap buf ex
-  | capability.Cap.Pml4 _ mapped asid =>
+  | capability.Cap.Pml4 ptr mapped asid =>
     if lbl = fl4_abi.label.X86PML4Flush
     then
       if mapped
       then
-        let s1 ←
-          sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-        let a1 ← machineArchInst.invalidate_asid a asid
-        ok (core.result.Result.Ok (), s1, a1)
+        let r ← vspace.find_vspace_for_asid machineStoreInst s asid
+        match r with
+        | core.result.Result.Ok r1 =>
+          if r1 != ptr
+          then let r2 ← error.invalid_cap Unit 0#u64
+               ok (r2, s, a)
+          else
+            let s1 ←
+              sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
+            let a1 ← machineArchInst.invalidate_asid a asid
+            ok (core.result.Result.Ok (), s1, a1)
+        | core.result.Result.Err lf =>
+          let r1 ← vspace.failed_lookup Unit lf
+          ok (r1, s, a)
       else let r ← error.invalid_cap Unit 0#u64
            ok (r, s, a)
     else let r ← error.illegal Unit
@@ -19132,72 +19176,72 @@ impl_def boot.BootError.Insts.CoreCmpEq : core.cmp.Eq boot.BootError := {
 }
 
 /-- [fl4_core::boot::bi::EXTRA_LEN]
-    Source: 'crates/fl4-core/src/boot.rs', lines 75:4-75:33
+    Source: 'crates/fl4-core/src/boot.rs', lines 77:4-77:33
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.EXTRA_LEN : Std.U64 := 0#u64
 
 /-- [fl4_core::boot::bi::NODE_ID]
-    Source: 'crates/fl4-core/src/boot.rs', lines 76:4-76:31
+    Source: 'crates/fl4-core/src/boot.rs', lines 78:4-78:31
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.NODE_ID : Std.U64 := 1#u64
 
 /-- [fl4_core::boot::bi::NUM_NODES]
-    Source: 'crates/fl4-core/src/boot.rs', lines 77:4-77:33
+    Source: 'crates/fl4-core/src/boot.rs', lines 79:4-79:33
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.NUM_NODES : Std.U64 := 2#u64
 
 /-- [fl4_core::boot::bi::NUM_IOPT_LEVELS]
-    Source: 'crates/fl4-core/src/boot.rs', lines 78:4-78:39
+    Source: 'crates/fl4-core/src/boot.rs', lines 80:4-80:39
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.NUM_IOPT_LEVELS : Std.U64 := 3#u64
 
 /-- [fl4_core::boot::bi::IPC_BUFFER]
-    Source: 'crates/fl4-core/src/boot.rs', lines 79:4-79:34
+    Source: 'crates/fl4-core/src/boot.rs', lines 81:4-81:34
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.IPC_BUFFER : Std.U64 := 4#u64
 
 /-- [fl4_core::boot::bi::EMPTY]
-    Source: 'crates/fl4-core/src/boot.rs', lines 80:4-80:29
+    Source: 'crates/fl4-core/src/boot.rs', lines 82:4-82:29
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.EMPTY : Std.U64 := 5#u64
 
 /-- [fl4_core::boot::bi::USER_IMAGE_FRAMES]
-    Source: 'crates/fl4-core/src/boot.rs', lines 81:4-81:41
+    Source: 'crates/fl4-core/src/boot.rs', lines 83:4-83:41
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.USER_IMAGE_FRAMES : Std.U64 := 9#u64
 
 /-- [fl4_core::boot::bi::EXTRA_BI_PAGES]
-    Source: 'crates/fl4-core/src/boot.rs', lines 83:4-83:39
+    Source: 'crates/fl4-core/src/boot.rs', lines 85:4-85:39
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.EXTRA_BI_PAGES : Std.U64 := 15#u64
 
 /-- [fl4_core::boot::bi::CNODE_SIZE_BITS]
-    Source: 'crates/fl4-core/src/boot.rs', lines 84:4-84:40
+    Source: 'crates/fl4-core/src/boot.rs', lines 86:4-86:40
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.CNODE_SIZE_BITS : Std.U64 := 17#u64
 
 /-- [fl4_core::boot::bi::DOMAIN]
-    Source: 'crates/fl4-core/src/boot.rs', lines 85:4-85:31
+    Source: 'crates/fl4-core/src/boot.rs', lines 87:4-87:31
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.DOMAIN : Std.U64 := 18#u64
 
 /-- [fl4_core::boot::bi::SCHED_CONTROL]
-    Source: 'crates/fl4-core/src/boot.rs', lines 86:4-86:38
+    Source: 'crates/fl4-core/src/boot.rs', lines 88:4-88:38
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.SCHED_CONTROL : Std.U64 := 19#u64
 
 /-- [fl4_core::boot::bi::UNTYPED]
-    Source: 'crates/fl4-core/src/boot.rs', lines 87:4-87:32
+    Source: 'crates/fl4-core/src/boot.rs', lines 89:4-89:32
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.UNTYPED : Std.U64 := 21#u64
 
 /-- [fl4_core::boot::bi::UNTYPED_LIST]
-    Source: 'crates/fl4-core/src/boot.rs', lines 88:4-88:37
+    Source: 'crates/fl4-core/src/boot.rs', lines 90:4-90:37
     Visibility: public -/
 @[global_simps, irreducible] def boot.bi.UNTYPED_LIST : Std.U64 := 23#u64
 
 /-- [fl4_core::boot::arch_n_paging]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 146:0-148:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 156:0-158:1 -/
 def boot.arch_n_paging (r : boot.Region) : Result Std.U64 := do
   let i ← boot.n_paging r 21#u64
   let i1 ← boot.n_paging r 30#u64
@@ -19205,8 +19249,16 @@ def boot.arch_n_paging (r : boot.Region) : Result Std.U64 := do
   let i3 ← boot.n_paging r 39#u64
   ok (core.num.U64.wrapping_add i2 i3)
 
+/-- [fl4_core::boot::extra_ut_reserve]:
+    Source: 'crates/fl4-core/src/boot.rs', lines 162:0-168:1 -/
+def boot.extra_ut_reserve : Result Std.U64 := do
+  if boot.EXTRA_UNTYPEDS > 0#u64
+  then let i ← 16#u64 * boot.EXTRA_UNTYPEDS
+       16#u64 + i
+  else ok 0#u64
+
 /-- [fl4_core::boot::extra_bi_size_bits]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 150:0-160:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 170:0-180:1 -/
 def boot.extra_bi_size_bits (len : Std.U64) : Result Std.U64 := do
   if len = 0#u64
   then ok 0#u64
@@ -19225,7 +19277,7 @@ def boot.extra_bi_size_bits (len : Std.U64) : Result Std.U64 := do
     else ok msb
 
 /-- [fl4_core::boot::it_frame_cap]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 173:0-184:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 193:0-204:1 -/
 def boot.it_frame_cap
   (pptr : Std.U64) (vaddr : Std.U64) (mapped : Bool) :
   Result capability.Cap
@@ -19242,7 +19294,7 @@ def boot.it_frame_cap
       capability.VM_READ_WRITE false mapped false i 0#u64)
 
 /-- [fl4_core::boot::create_frames]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 191:4-198:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 211:4-218:5 -/
 @[rust_loop_body]
 def boot.create_frames_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (i : Std.U64)
@@ -19264,7 +19316,7 @@ def boot.create_frames_loop.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_frames]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 191:4-198:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 211:4-218:5 -/
 @[rust_loop]
 def boot.create_frames_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -19278,7 +19330,7 @@ def boot.create_frames_loop
     (s, b, i1)
 
 /-- [fl4_core::boot::create_frames]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 186:0-200:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 206:0-220:1 -/
 def boot.create_frames
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (reg : boot.Region) (pml4 : Std.U64) (pv_offset : Std.U64) :
@@ -19296,7 +19348,7 @@ def boot.create_frames
   ok ((b.slot_pos, b1.slot_pos), s1, b1)
 
 /-- [fl4_core::boot::all_zero]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 266:4-268:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 302:4-304:5 -/
 @[rust_loop_body]
 def boot.all_zero_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
@@ -19315,7 +19367,7 @@ def boot.all_zero_loop.body
   else ok (done k)
 
 /-- [fl4_core::boot::all_zero]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 266:4-268:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 302:4-304:5 -/
 @[rust_loop]
 def boot.all_zero_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
@@ -19327,7 +19379,7 @@ def boot.all_zero_loop
     k
 
 /-- [fl4_core::boot::all_zero]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 264:0-270:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 300:0-306:1 -/
 def boot.all_zero
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (base : Std.U64)
   (words : Std.U64) :
@@ -19337,7 +19389,7 @@ def boot.all_zero
   ok (k = words)
 
 /-- [fl4_core::boot::clear_dirty]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 254:4-260:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 290:4-296:5 -/
 @[rust_loop_body]
 def boot.clear_dirty_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (start : Std.U64)
@@ -19358,7 +19410,7 @@ def boot.clear_dirty_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::clear_dirty]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 254:4-260:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 290:4-296:5 -/
 @[rust_loop]
 def boot.clear_dirty_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (start : Std.U64)
@@ -19371,7 +19423,7 @@ def boot.clear_dirty_loop
     (s, i)
 
 /-- [fl4_core::boot::clear_dirty]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 247:0-261:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 283:0-297:1 -/
 def boot.clear_dirty
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (start : Std.U64)
   (len : Std.U64) :
@@ -19386,8 +19438,29 @@ def boot.clear_dirty
     let n ← len / chunk
     boot.clear_dirty_loop machineStoreInst s start chunk n 0#u64
 
+/-- [fl4_core::boot::provide_untyped]:
+    Source: 'crates/fl4-core/src/boot.rs', lines 270:0-278:1 -/
+def boot.provide_untyped
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
+  (device : Bool) (start : Std.U64) (size_bits : Std.U64) :
+  Result (S × boot.Boot)
+  := do
+  let ptr ← if device
+              then layout.pptr start
+              else ok start
+  let s1 ←
+    if device
+    then ok s
+    else
+      do
+      let i ← lift (size_bits &&& 63#u64)
+      let i1 ← 1#u64 <<< i
+      boot.clear_dirty machineStoreInst s start i1
+  boot.provide_cap machineStoreInst s1 b (capability.Cap.Untyped ptr size_bits
+    0#u64 device)
+
 /-- [fl4_core::boot::create_untypeds_for_region]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 207:4-241:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 227:4-265:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_for_region_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (device : Bool)
@@ -19427,51 +19500,48 @@ def boot.create_untypeds_for_region_loop.body
         then
           do
           let i5 ← lift (core.num.U64.wrapping_sub b.slot_pos first)
+          let paddr ← if device
+                        then ok start
+                        else layout.paddr start
+          let i6 ← if device
+                     then 1#u64 <<< 8#i32
+                     else ok 0#u64
+          let desc ← lift (size_bits2 ||| i6)
           if i5 < boot.MAX_BOOTINFO_UNTYPEDS
           then
-            let paddr ← if device
-                          then ok start
-                          else layout.paddr start
-            let i6 ← 2#u64 * i5
-            let i7 ← boot.bi.UNTYPED_LIST + i6
-            let s2 ← boot.bi_set machineStoreInst s b i7 paddr
-            let i8 ← boot.bi.UNTYPED_LIST + i6
-            let i9 ← i8 + 1#u64
-            if device
+            let i7 ← 2#u64 * i5
+            let i8 ← boot.bi.UNTYPED_LIST + i7
+            let s2 ← boot.bi_set machineStoreInst s b i8 paddr
+            let i9 ← boot.bi.UNTYPED_LIST + i7
+            let i10 ← i9 + 1#u64
+            let s3 ← boot.bi_set machineStoreInst s2 b i10 desc
+            boot.provide_untyped machineStoreInst s3 b device start size_bits2
+          else
+            if b.extra_ut != 0#u64
             then
-              let i10 ← 1#u64 <<< 8#i32
-              let i11 ← lift (size_bits2 ||| i10)
-              let s3 ← boot.bi_set machineStoreInst s2 b i9 i11
-              let ptr ← if device
-                          then layout.pptr start
-                          else ok start
-              let s4 ←
-                if device
-                then ok s3
-                else
-                  do
-                  let i12 ← lift (size_bits2 &&& 63#u64)
-                  let i13 ← 1#u64 <<< i12
-                  boot.clear_dirty machineStoreInst s3 start i13
-              boot.provide_cap machineStoreInst s4 b (capability.Cap.Untyped
-                ptr size_bits2 0#u64 device)
+              let i7 ← i5 - boot.MAX_BOOTINFO_UNTYPEDS
+              if i7 < boot.EXTRA_UNTYPEDS
+              then
+                let i8 ← lift (core.num.U64.wrapping_add b.extra_ut 16#u64)
+                let i9 ← lift (core.num.U64.wrapping_mul i7 16#u64)
+                let e ← lift (core.num.U64.wrapping_add i8 i9)
+                let s2 ← machineStoreInst.write s e paddr
+                let i10 ← lift (core.num.U64.wrapping_add e 8#u64)
+                let s3 ← machineStoreInst.write s2 i10 desc
+                boot.provide_untyped machineStoreInst s3 b device start
+                  size_bits2
+              else
+                let b2 ←
+                  if boot.EXTRA_UNTYPEDS > 0#u64
+                  then ok true
+                  else ok b.ut_lost
+                ok (s, { b with ut_lost := b2 })
             else
-              let i10 ← lift (size_bits2 ||| 0#u64)
-              let s3 ← boot.bi_set machineStoreInst s2 b i9 i10
-              let ptr ← if device
-                          then layout.pptr start
-                          else ok start
-              let s4 ←
-                if device
-                then ok s3
-                else
-                  do
-                  let i11 ← lift (size_bits2 &&& 63#u64)
-                  let i12 ← 1#u64 <<< i11
-                  boot.clear_dirty machineStoreInst s3 start i12
-              boot.provide_cap machineStoreInst s4 b (capability.Cap.Untyped
-                ptr size_bits2 0#u64 device)
-          else ok (s, b)
+              let b2 ←
+                if boot.EXTRA_UNTYPEDS > 0#u64
+                then ok true
+                else ok b.ut_lost
+              ok (s, { b with ut_lost := b2 })
         else ok (s, b)
       let i5 ← lift (size_bits2 &&& 63#u64)
       let i6 ← 1#u64 <<< i5
@@ -19481,7 +19551,7 @@ def boot.create_untypeds_for_region_loop.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_untypeds_for_region]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 207:4-241:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 227:4-265:5 -/
 @[rust_loop]
 def boot.create_untypeds_for_region_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -19495,7 +19565,7 @@ def boot.create_untypeds_for_region_loop
     (s, b, start, fuel)
 
 /-- [fl4_core::boot::create_untypeds_for_region]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 202:0-242:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 222:0-266:1 -/
 @[reducible]
 def boot.create_untypeds_for_region
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -19563,7 +19633,7 @@ def sporadic.refill_new
 @[global_simps, irreducible] def sporadic.MIN_REFILLS : Std.U64 := 2#u64
 
 /-- [fl4_core::boot::configure_sched_context]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 272:0-276:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 308:0-312:1 -/
 def boot.configure_sched_context
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (sc : obj.Sc) (budget : Std.U64) :
@@ -19576,7 +19646,7 @@ def boot.configure_sched_context
   obj.Sc.set_tcb machineStoreInst sc s2 t
 
 /-- [fl4_core::boot::set_name]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 283:8-289:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 319:8-325:9 -/
 @[rust_loop_body]
 def boot.set_name_loop0_loop0.body
   («name» : Slice Std.U8) (w : Std.U64) (v : Std.U64) (k : Std.U64) :
@@ -19604,7 +19674,7 @@ def boot.set_name_loop0_loop0.body
   else ok (done v)
 
 /-- [fl4_core::boot::set_name]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 283:8-289:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 319:8-325:9 -/
 @[rust_loop]
 def boot.set_name_loop0_loop0
   («name» : Slice Std.U8) (w : Std.U64) (v : Std.U64) (k : Std.U64) :
@@ -19615,7 +19685,7 @@ def boot.set_name_loop0_loop0
     (v, k)
 
 /-- [fl4_core::boot::set_name]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 280:4-292:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 316:4-328:5 -/
 @[rust_loop_body]
 def boot.set_name_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
@@ -19634,7 +19704,7 @@ def boot.set_name_loop0.body
   else ok (done s)
 
 /-- [fl4_core::boot::set_name]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 280:4-292:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 316:4-328:5 -/
 @[rust_loop]
 def boot.set_name_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -19647,7 +19717,7 @@ def boot.set_name_loop0
     (s, w)
 
 /-- [fl4_core::boot::set_name]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 278:0-293:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 314:0-329:1 -/
 @[reducible]
 def boot.set_name
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -19657,7 +19727,7 @@ def boot.set_name
   boot.set_name_loop0 machineStoreInst s t «name» 0#u64
 
 /-- [fl4_core::boot::find_rootserver_mem]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 325:4-339:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 361:4-375:1 -/
 @[rust_loop_body]
 def boot.find_rootserver_mem_loop.body
   (a : Array boot.Region 32#usize) (size : Std.U64) (align_bits : Std.U64)
@@ -19691,7 +19761,7 @@ def boot.find_rootserver_mem_loop.body
   else ok (done none)
 
 /-- [fl4_core::boot::find_rootserver_mem]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 325:4-339:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 361:4-375:1 -/
 @[rust_loop]
 def boot.find_rootserver_mem_loop
   (a : Array boot.Region 32#usize) (size : Std.U64) (align_bits : Std.U64)
@@ -19703,7 +19773,7 @@ def boot.find_rootserver_mem_loop
     i
 
 /-- [fl4_core::boot::find_rootserver_mem]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 323:0-339:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 359:0-375:1 -/
 @[reducible]
 def boot.find_rootserver_mem
   (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
@@ -19712,7 +19782,7 @@ def boot.find_rootserver_mem
   boot.find_rootserver_mem_loop p.free size align_bits p.n_free
 
 /-- [fl4_core::boot::take_rootserver_mem]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 297:0-315:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 333:0-351:1 -/
 def boot.take_rootserver_mem
   (p : boot.BootParams) (size : Std.U64) (align_bits : Std.U64) :
   Result ((Option Std.U64) × boot.BootParams)
@@ -19746,13 +19816,13 @@ def boot.take_rootserver_mem
           ok (some x.start, { p with free := a })
 
 /-- [fl4_core::boot::create_untypeds]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 589:4-593:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 644:4-648:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (p : boot.BootParams)
   (first : Std.U64) (s : S) (b : boot.Boot) (i : Std.U64) :
   Result (ControlFlow (S × boot.Boot × Std.U64) (S × boot.Boot × (Array
-    boot.Region 32#usize) × Std.U64))
+    boot.Region 32#usize) × Std.U64 × Std.U64))
   := do
   if i < p.n_device
   then
@@ -19765,16 +19835,16 @@ def boot.create_untypeds_loop0.body
         boot.create_untypeds_for_region machineStoreInst s b true r first
       let i3 ← i + 1#u64
       ok (cont (s1, b1, i3))
-    else ok (done (s, b, p.free, p.n_free))
-  else ok (done (s, b, p.free, p.n_free))
+    else ok (done (s, b, p.free, p.n_free, p.extra_bi_len))
+  else ok (done (s, b, p.free, p.n_free, p.extra_bi_len))
 
 /-- [fl4_core::boot::create_untypeds]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 589:4-593:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 644:4-648:5 -/
 @[rust_loop]
 def boot.create_untypeds_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (p : boot.BootParams) (first : Std.U64) (i : Std.U64) :
-  Result (S × boot.Boot × (Array boot.Region 32#usize) × Std.U64)
+  Result (S × boot.Boot × (Array boot.Region 32#usize) × Std.U64 × Std.U64)
   := do
   loop
     (fun (s1, b1, i1) => boot.create_untypeds_loop0.body machineStoreInst p
@@ -19782,7 +19852,7 @@ def boot.create_untypeds_loop0
     (s, b, i)
 
 /-- [fl4_core::boot::create_untypeds]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 595:4-599:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 650:4-654:5 -/
 @[rust_loop_body]
 def boot.create_untypeds_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S)
@@ -19805,7 +19875,7 @@ def boot.create_untypeds_loop1.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::create_untypeds]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 595:4-599:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 650:4-654:5 -/
 @[rust_loop]
 def boot.create_untypeds_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
@@ -19819,24 +19889,68 @@ def boot.create_untypeds_loop1
     (s, b, i1)
 
 /-- [fl4_core::boot::create_untypeds]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 586:0-604:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 641:0-682:1 -/
 def boot.create_untypeds
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (p : boot.BootParams) :
   Result (S × boot.Boot)
   := do
-  let (s1, b1, a, i) ←
+  let (s1, b1, a, i, i1) ←
     boot.create_untypeds_loop0 machineStoreInst s b p b.slot_pos 0#u64
   let (s2, b2) ←
     boot.create_untypeds_loop1 machineStoreInst s1 b1 a i b.slot_pos 0#u64
-  let s3 ← boot.bi_set machineStoreInst s2 b2 boot.bi.UNTYPED b.slot_pos
-  let i1 ← boot.bi.UNTYPED + 1#u64
-  let s4 ← boot.bi_set machineStoreInst s3 b2 i1 b2.slot_pos
-  let s5 ← boot.bi_set machineStoreInst s4 b2 boot.bi.EMPTY b2.slot_pos
-  let i2 ← boot.bi.EMPTY + 1#u64
-  let i3 ← 1#u64 <<< boot.ROOT_CNODE_BITS
-  let s6 ← boot.bi_set machineStoreInst s5 b2 i2 i3
-  ok (s6, b2)
+  let base_end ←
+    lift (core.num.U64.wrapping_add b.slot_pos boot.MAX_BOOTINFO_UNTYPEDS)
+  let «end» ←
+    if b2.slot_pos < base_end
+    then ok b2.slot_pos
+    else ok base_end
+  let n ← if b2.slot_pos > base_end
+            then b2.slot_pos - base_end
+            else ok 0#u64
+  let (s3, used) ←
+    if n > 0#u64
+    then
+      do
+      let i2 ← lift (core.num.U64.wrapping_mul n 16#u64)
+      let len ← lift (core.num.U64.wrapping_add 16#u64 i2)
+      let s4 ←
+        machineStoreInst.write s2 b2.extra_ut
+          fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS
+      let i3 ← lift (core.num.U64.wrapping_add b2.extra_ut 8#u64)
+      let s5 ← machineStoreInst.write s4 i3 len
+      let used1 ← lift (core.num.U64.wrapping_add i1 len)
+      let s6 ← boot.bi_set machineStoreInst s5 b2 boot.bi.EXTRA_LEN used1
+      ok (s6, used1)
+    else ok (s2, i1)
+  let s4 ←
+    if b2.extra_ut != 0#u64
+    then
+      if b2.extra_bytes > used
+      then
+        do
+        let i2 ← b2.extra_bytes - used
+        if i2 >= 16#u64
+        then
+          let i3 ← lift (core.num.U64.wrapping_sub used i1)
+          let pad ← lift (core.num.U64.wrapping_add b2.extra_ut i3)
+          let s5 ←
+            machineStoreInst.write s3 pad
+              fl4_abi.consts.bootinfo_header.PADDING
+          let i4 ← lift (core.num.U64.wrapping_add pad 8#u64)
+          let s6 ← machineStoreInst.write s5 i4 i2
+          boot.bi_set machineStoreInst s6 b2 boot.bi.EXTRA_LEN b2.extra_bytes
+        else ok s3
+      else ok s3
+    else ok s3
+  let s5 ← boot.bi_set machineStoreInst s4 b2 boot.bi.UNTYPED b.slot_pos
+  let i2 ← boot.bi.UNTYPED + 1#u64
+  let s6 ← boot.bi_set machineStoreInst s5 b2 i2 «end»
+  let s7 ← boot.bi_set machineStoreInst s6 b2 boot.bi.EMPTY b2.slot_pos
+  let i3 ← boot.bi.EMPTY + 1#u64
+  let i4 ← 1#u64 <<< boot.ROOT_CNODE_BITS
+  let s8 ← boot.bi_set machineStoreInst s7 b2 i3 i4
+  ok (s8, b2)
 
 /-- [fl4_core::sched::set_dom_sched]:
     Source: 'crates/fl4-core/src/sched.rs', lines 570:0-573:1
@@ -19861,7 +19975,7 @@ def sched.set_dom_sched
 @[global_simps, irreducible] def layout.ks.NUM_NODES : Std.U64 := 0#u64
 
 /-- [fl4_core::boot::init_core_state]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 572:8-576:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 627:8-631:9 -/
 @[rust_loop_body]
 def boot.init_core_state_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (num_nodes : Std.U64)
@@ -19877,7 +19991,7 @@ def boot.init_core_state_loop.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_core_state]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 572:8-576:9 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 627:8-631:9 -/
 @[rust_loop]
 def boot.init_core_state_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -19890,7 +20004,7 @@ def boot.init_core_state_loop
     (s, c)
 
 /-- [fl4_core::boot::init_core_state]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 566:0-583:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 621:0-638:1 -/
 def boot.init_core_state
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (tcb : obj.Tcb)
   (num_nodes : Std.U64) :
@@ -19969,7 +20083,7 @@ def obj.Tcb.set_ipc_buffer
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::boot::init_root_thread]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 541:0-563:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 596:0-618:1 -/
 def boot.init_root_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (r : boot.Root)
@@ -20052,7 +20166,7 @@ def obj.Tcb.set_flags
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::boot::create_idle_thread]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 521:0-537:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 576:0-592:1 -/
 def boot.create_idle_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (c : Std.U64)
@@ -20090,7 +20204,7 @@ def boot.create_idle_thread
   ok (s15, a)
 
 /-- [fl4_core::boot::create_idle_threads]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 513:4-518:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 568:4-573:5 -/
 @[rust_loop_body]
 def boot.create_idle_threads_loop.body
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20111,7 +20225,7 @@ def boot.create_idle_threads_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::boot::create_idle_threads]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 513:4-518:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 568:4-573:5 -/
 @[rust_loop]
 def boot.create_idle_threads_loop
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20125,7 +20239,7 @@ def boot.create_idle_threads_loop
     (s, a, c)
 
 /-- [fl4_core::boot::create_idle_threads]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 510:0-519:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 565:0-574:1 -/
 def boot.create_idle_threads
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (p : boot.BootParams) :
@@ -20136,7 +20250,7 @@ def boot.create_idle_threads
     0#u64
 
 /-- [fl4_core::boot::init_asid_pool]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 501:0-507:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 556:0-562:1 -/
 def boot.init_asid_pool
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root) :
   Result S
@@ -20159,7 +20273,7 @@ def boot.init_asid_pool
   machineStoreInst.write s5 i6 r.pml4
 
 /-- [fl4_core::boot::init_address_space]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 483:0-499:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 538:0-554:1 -/
 def boot.init_address_space
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root)
   (p : boot.BootParams) :
@@ -20197,7 +20311,7 @@ def boot.init_address_space
   ok ((vcap, ipc_cap), s13, { r with b := b2 })
 
 /-- [fl4_core::boot::init_bootinfo]: loop body 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 466:4-470:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5 -/
 @[rust_loop_body]
 def boot.init_bootinfo_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (i : Std.U64)
@@ -20219,7 +20333,7 @@ def boot.init_bootinfo_loop0.body
   else ok (done s)
 
 /-- [fl4_core::boot::init_bootinfo]: loop 0:
-    Source: 'crates/fl4-core/src/boot.rs', lines 466:4-470:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 521:4-525:5 -/
 @[rust_loop]
 def boot.init_bootinfo_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -20232,7 +20346,7 @@ def boot.init_bootinfo_loop0
     (s, w)
 
 /-- [fl4_core::boot::init_bootinfo]: loop body 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 473:4-476:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 528:4-531:5 -/
 @[rust_loop_body]
 def boot.init_bootinfo_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (i : Std.U64) (s : S)
@@ -20248,7 +20362,7 @@ def boot.init_bootinfo_loop1.body
   else ok (done (s, b))
 
 /-- [fl4_core::boot::init_bootinfo]: loop 1:
-    Source: 'crates/fl4-core/src/boot.rs', lines 473:4-476:5 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 528:4-531:5 -/
 @[rust_loop]
 def boot.init_bootinfo_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -20261,7 +20375,7 @@ def boot.init_bootinfo_loop1
     (s, b, n)
 
 /-- [fl4_core::boot::init_bootinfo]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 455:0-479:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 510:0-534:1 -/
 def boot.init_bootinfo
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : boot.Root)
   (p : boot.BootParams) :
@@ -20294,7 +20408,7 @@ def boot.init_bootinfo
   ok (s11, { r with b })
 
 /-- [fl4_core::boot::alloc_root_objects]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 444:0-452:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 499:0-507:1 -/
 def boot.alloc_root_objects
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot)
   (ebits : Std.U64) (cnode_bits : Std.U64) :
@@ -20319,43 +20433,45 @@ def boot.alloc_root_objects
   else ok (extra_bi, s2, { b2 with root_cnode := i })
 
 /-- [fl4_core::boot::root_layout]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 395:0-411:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 434:0-451:1 -/
 def boot.root_layout (p : boot.BootParams) : Result boot.RootLayout := do
   let ui_v_start ← lift (core.num.U64.wrapping_sub p.ui_p_start p.pv_offset)
   let ui_v_end ← lift (core.num.U64.wrapping_sub p.ui_p_end p.pv_offset)
   let bi_frame_vptr ← lift (core.num.U64.wrapping_add ui_v_end 4096#u64)
   let extra_bi_vptr ← lift (core.num.U64.wrapping_add bi_frame_vptr 4096#u64)
-  let ebits ← boot.extra_bi_size_bits p.extra_bi_len
+  let i ← boot.extra_ut_reserve
+  let i1 ← lift (core.num.U64.wrapping_add p.extra_bi_len i)
+  let ebits ← boot.extra_bi_size_bits i1
   let ebytes ←
     if ebits > 0#u64
     then do
-         let i ← lift (ebits &&& 63#u64)
-         1#u64 <<< i
+         let i2 ← lift (ebits &&& 63#u64)
+         1#u64 <<< i2
     else ok 0#u64
-  let i ← lift (core.num.U64.wrapping_add extra_bi_vptr ebytes)
-  let i1 ← lift (core.num.U64.wrapping_add i 4095#u64)
-  let i2 ← lift (~~~ 4095#u64)
-  let i3 ← lift (i1 &&& i2)
+  let i2 ← lift (core.num.U64.wrapping_add extra_bi_vptr ebytes)
+  let i3 ← lift (core.num.U64.wrapping_add i2 4095#u64)
+  let i4 ← lift (~~~ 4095#u64)
+  let i5 ← lift (i3 &&& i4)
   let cnode_bits ← boot.ROOT_CNODE_BITS + fl4_abi.consts.bits.SLOT
-  let n_paging ← boot.arch_n_paging { start := ui_v_start, «end» := i3 }
-  let i4 ← lift (cnode_bits &&& 63#u64)
-  let i5 ← 1#u64 <<< i4
-  let i6 ← 1#u64 <<< fl4_abi.consts.bits.TCB
-  let i7 ← i5 + i6
-  let i8 ← 4096#u64 * 3#u64
+  let n_paging ← boot.arch_n_paging { start := ui_v_start, «end» := i5 }
+  let i6 ← lift (cnode_bits &&& 63#u64)
+  let i7 ← 1#u64 <<< i6
+  let i8 ← 1#u64 <<< fl4_abi.consts.bits.TCB
   let i9 ← i7 + i8
-  let i10 ← i9 + 4096#u64
-  let i11 ← 1#u64 <<< fl4_abi.consts.bits.MIN_SCHED_CONTEXT
-  let fixed ← i10 + i11
-  let i12 ← lift (core.num.U64.wrapping_add fixed ebytes)
-  let i13 ← lift (core.num.U64.wrapping_mul n_paging 4096#u64)
-  let size ← lift (core.num.U64.wrapping_add i12 i13)
+  let i10 ← 4096#u64 * 3#u64
+  let i11 ← i9 + i10
+  let i12 ← i11 + 4096#u64
+  let i13 ← 1#u64 <<< fl4_abi.consts.bits.MIN_SCHED_CONTEXT
+  let fixed ← i12 + i13
+  let i14 ← lift (core.num.U64.wrapping_add fixed ebytes)
+  let i15 ← lift (core.num.U64.wrapping_mul n_paging 4096#u64)
+  let size ← lift (core.num.U64.wrapping_add i14 i15)
   let max_bits ← if cnode_bits > ebits
                    then ok cnode_bits
                    else ok ebits
-  let i14 ← lift (max_bits &&& 63#u64)
-  let i15 ← 1#u64 <<< i14
-  let total ← lift (core.num.U64.wrapping_add size i15)
+  let i16 ← lift (max_bits &&& 63#u64)
+  let i17 ← 1#u64 <<< i16
+  let total ← lift (core.num.U64.wrapping_add size i17)
   ok
     {
       ipcbuf_vptr := ui_v_end,
@@ -20363,14 +20479,14 @@ def boot.root_layout (p : boot.BootParams) : Result boot.RootLayout := do
       extra_bi_vptr,
       ebits,
       ebytes,
-      it := { start := ui_v_start, «end» := i3 },
+      it := { start := ui_v_start, «end» := i5 },
       cnode_bits,
       max_bits,
       total
     }
 
 /-- [fl4_core::boot::rootserver_objects]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 414:0-440:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 454:0-495:1 -/
 def boot.rootserver_objects
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (p : boot.BootParams) :
@@ -20391,18 +20507,36 @@ def boot.rootserver_objects
           bi_frame := 0#u64,
           next := x,
           «end» := i,
-          full := false
+          full := false,
+          extra_ut := 0#u64,
+          extra_bytes := 0#u64,
+          ut_lost := false
         } l.ebits l.cnode_bits
-    let (pml4, s2, b1) ← boot.alloc machineStoreInst s1 b 12#u64 1#u64
-    let (asid_pool, s3, b2) ← boot.alloc machineStoreInst s2 b1 12#u64 1#u64
-    let (ipc_buf, s4, b3) ← boot.alloc machineStoreInst s3 b2 12#u64 1#u64
-    let (i1, s5, b4) ← boot.alloc machineStoreInst s4 b3 12#u64 1#u64
-    let (i2, s6, b5) ←
-      boot.alloc machineStoreInst s5 { b4 with bi_frame := i1 }
+    let (s2, p2, b1) ←
+      if boot.EXTRA_UNTYPEDS > 0#u64
+      then
+        do
+        let i1 ← lift (p1.extra_bi_len &&& 7#u64)
+        let b2 ←
+          if i1 = 0#u64
+          then
+            do
+            let i2 ←
+              lift (core.num.U64.wrapping_add extra_bi p1.extra_bi_len)
+            ok { b with extra_ut := i2, extra_bytes := l.ebytes }
+          else ok b
+        ok (s1, p1, b2)
+      else ok (s1, p1, b)
+    let (pml4, s3, b2) ← boot.alloc machineStoreInst s2 b1 12#u64 1#u64
+    let (asid_pool, s4, b3) ← boot.alloc machineStoreInst s3 b2 12#u64 1#u64
+    let (ipc_buf, s5, b4) ← boot.alloc machineStoreInst s4 b3 12#u64 1#u64
+    let (i1, s6, b5) ← boot.alloc machineStoreInst s5 b4 12#u64 1#u64
+    let (i2, s7, b6) ←
+      boot.alloc machineStoreInst s6 { b5 with bi_frame := i1 }
         fl4_abi.consts.bits.TCB 1#u64
     ok (core.result.Result.Ok
       {
-        b := b5,
+        b := b6,
         extra_bi,
         pml4,
         asid_pool,
@@ -20413,10 +20547,10 @@ def boot.rootserver_objects
         extra_bi_vptr := l.extra_bi_vptr,
         ebytes := l.ebytes,
         it := l.it
-      }, s6, p1)
+      }, s7, p2)
 
 /-- [fl4_core::boot::create_root_task]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 343:0-363:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 379:0-402:1
     Visibility: public -/
 def boot.create_root_task
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -20448,7 +20582,12 @@ def boot.create_root_task
       let (s10, b1) ← boot.create_untypeds machineStoreInst s9 b p1
       if b1.full
       then ok (core.result.Result.Err boot.BootError.TooManyCaps, s10, a2, p1)
-      else ok (core.result.Result.Ok r2.tcb, s10, a2, p1)
+      else
+        if b1.ut_lost
+        then
+          ok (core.result.Result.Err boot.BootError.TooManyUntypeds, s10, a2,
+            p1)
+        else ok (core.result.Result.Ok r2.tcb, s10, a2, p1)
   | core.ops.control_flow.ControlFlow.Break residual =>
     let r1 ←
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
@@ -20456,14 +20595,14 @@ def boot.create_root_task
     ok (r1, s1, a, p1)
 
 /-- [fl4_core::boot::{impl core::clone::Clone for fl4_core::boot::RootLayout}::clone]:
-    Source: 'crates/fl4-core/src/boot.rs', lines 382:9-382:14
+    Source: 'crates/fl4-core/src/boot.rs', lines 421:9-421:14
     Visibility: public -/
 def boot.RootLayout.Insts.CoreCloneClone.clone
   (self : boot.RootLayout) : Result boot.RootLayout := do
   ok self
 
 /-- Trait implementation: [fl4_core::boot::{impl core::clone::Clone for fl4_core::boot::RootLayout}]
-    Source: 'crates/fl4-core/src/boot.rs', lines 382:9-382:14 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 421:9-421:14 -/
 @[reducible]
 def boot.RootLayout.Insts.CoreCloneClone : core.clone.Clone boot.RootLayout
   := {
@@ -20471,7 +20610,7 @@ def boot.RootLayout.Insts.CoreCloneClone : core.clone.Clone boot.RootLayout
 }
 
 /-- Trait implementation: [fl4_core::boot::{impl core::marker::Copy for fl4_core::boot::RootLayout}]
-    Source: 'crates/fl4-core/src/boot.rs', lines 382:16-382:20 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 421:16-421:20 -/
 @[reducible]
 def boot.RootLayout.Insts.CoreMarkerCopy : core.marker.Copy boot.RootLayout
   := {
@@ -21889,7 +22028,7 @@ def sched.preemption_point
   else ok (core.result.Result.Ok (), s1, a)
 
 /-- [fl4_core::vcpu::ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 715:4-721:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 722:4-728:5 -/
 @[rust_loop_body]
 def vcpu.ports_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
@@ -21923,7 +22062,7 @@ def vcpu.ports_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 715:4-721:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 722:4-728:5 -/
 @[rust_loop]
 def vcpu.ports_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -21936,7 +22075,7 @@ def vcpu.ports_loop
     (s, port)
 
 /-- [fl4_core::vcpu::ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 713:0-722:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 720:0-729:1 -/
 @[reducible]
 def vcpu.ports
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -21951,7 +22090,7 @@ def vcpu.ports
 @[global_simps, irreducible] def vcpu.TCB : Std.U64 := 20480#u64
 
 /-- [fl4_core::vcpu::stall]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 667:0-673:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 674:0-680:1
     Visibility: public -/
 def vcpu.stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -21966,7 +22105,7 @@ def vcpu.stall
   else smp.remote_tcb_stall machineStoreInst machineArchInst s a1 i
 
 /-- [fl4_core::vcpu::revoke_ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 732:4-739:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 739:4-746:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.revoke_ports_loop.body
@@ -21994,7 +22133,7 @@ def vcpu.revoke_ports_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::revoke_ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 732:4-739:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 739:4-746:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.revoke_ports_loop
@@ -22009,7 +22148,7 @@ def vcpu.revoke_ports_loop
     (s, a, v, fuel)
 
 /-- [fl4_core::vcpu::revoke_ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 725:0-740:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 732:0-747:1
     Visibility: public -/
 def vcpu.revoke_ports
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22026,7 +22165,7 @@ def vcpu.revoke_ports
       v layout.WALK_FUEL
 
 /-- [fl4_core::vcpu::detach]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 684:0-695:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 691:0-702:1
     Visibility: public -/
 def vcpu.detach
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22050,7 +22189,7 @@ def vcpu.detach
     ok (s4, a1)
 
 /-- [fl4_core::vcpu::finalise]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 696:0-712:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 703:0-719:1
     Visibility: public -/
 def vcpu.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -28522,7 +28661,7 @@ def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
 @[global_simps, irreducible] def vcpu.MSRS : Std.U64 := 20864#u64
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 773:20-773:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure_1) (tupled_args : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_add c vcpu.MSRS)
@@ -28530,7 +28669,7 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   ok (core.num.U64.wrapping_add i i1)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 773:20-773:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure_1 Std.U64 Std.U64 := {
@@ -28539,13 +28678,13 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
 }
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 768:30-768:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure) (tupled_args : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add c tupled_args)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 768:30-768:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
 @[reducible]
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure Std.U64 Std.U64 := {
@@ -28584,7 +28723,7 @@ def vcpu.svm.LSTAR : Result Std.U64 := vcpu.svm.SAVE + 520#u64
 def vcpu.svm.STAR : Result Std.U64 := vcpu.svm.SAVE + 512#u64
 
 /-- [fl4_core::vcpu::svm_msr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 752:0-762:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 759:0-769:1 -/
 def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => let i ← vcpu.svm.STAR
@@ -28602,7 +28741,7 @@ def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_slot]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 742:0-751:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 749:0-758:1 -/
 def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => ok (some 0#u64)
@@ -28613,7 +28752,7 @@ def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 763:0-774:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 770:0-781:1 -/
 def vcpu.msr_addr
   (v : Std.U64) (f : Std.U64) (amd : Bool) : Result (Option Std.U64) := do
   if f = 4294967294#u64
@@ -28635,7 +28774,7 @@ def vcpu.msr_addr
           vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
 
 /-- [fl4_core::vcpu::reply]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 674:0-683:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 681:0-690:1 -/
 def vcpu.reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (call : Bool)
   (value : Std.U64) :
@@ -28655,7 +28794,7 @@ def vcpu.reply
   sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::vmcb_hidden]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 598:0-603:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 605:0-610:1
     Visibility: public -/
 def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
   match f with
@@ -28727,7 +28866,7 @@ def vcpu.canonical (value : Std.U64) (width : Std.U64) : Result Bool := do
        ok (top = i)
 
 /-- [fl4_core::vcpu::sanitize_vmcb]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 565:0-597:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 570:0-604:1
     Visibility: public -/
 def vcpu.sanitize_vmcb
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) (f : Std.U64)
@@ -28746,16 +28885,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 4294967295#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 18446744069415632896#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 18446744069415632896#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 4294967295#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 4294967295#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 18446744069415632896#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 18446744069415632896#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 8#uscalar =>
     let i ← vcpu.SVM_I1_WRITABLE <<< 32#i32
     let mask ← lift (4294967295#u64 ||| i)
@@ -28772,16 +28925,30 @@ def vcpu.sanitize_vmcb
         let i5 ← lift (old &&& i4)
         let i6 ← lift (value &&& mask)
         let i7 ← lift (i5 ||| i6)
-        let i8 ← lift (i7 ||| forced)
-        ok (core.result.Result.Ok i8)
+        let v ← lift (i7 ||| forced)
+        let i8 ← vcpu.svm.CR0
+        if f = i8
+        then
+          let i9 ← vcpu.CR0_OWNED
+          let i10 ← lift (~~~ i9)
+          let v1 ← lift (v &&& i10)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i4 ← lift (~~~ mask)
       let i5 ← lift (old &&& i4)
       let i6 ← lift (value &&& mask)
       let i7 ← lift (i5 ||| i6)
-      let i8 ← lift (i7 ||| forced)
-      ok (core.result.Result.Ok i8)
+      let v ← lift (i7 ||| forced)
+      let i8 ← vcpu.svm.CR0
+      if f = i8
+      then
+        let i9 ← vcpu.CR0_OWNED
+        let i10 ← lift (~~~ i9)
+        let v1 ← lift (v &&& i10)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 16#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28793,16 +28960,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 386#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| vcpu.SVM_I2_FORCED)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 386#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 386#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| vcpu.SVM_I2_FORCED)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| vcpu.SVM_I2_FORCED)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 56#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28814,16 +28995,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 18446744069414584320#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 18446744069414584320#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 18446744069414584320#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 80#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28835,16 +29030,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 96#uscalar =>
     let forced ← 1#u64 <<< 24#i32
     let i ← vcpu.svm.G_PAT
@@ -28857,16 +29066,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 1095218692607#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| forced)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| forced)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 1095218692607#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 1095218692607#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| forced)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| forced)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 104#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28878,16 +29101,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 1#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 1#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 1#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 168#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28899,16 +29136,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& vcpu.SVM_EVENT)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ vcpu.SVM_EVENT)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& vcpu.SVM_EVENT)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 200#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28920,16 +29171,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1224#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -28941,16 +29206,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& 4278190080#u64)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ 4278190080#u64)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& 4278190080#u64)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1232#uscalar =>
     let forced ← 1#u64 <<< 12#i32
     let i ← vcpu.svm.G_PAT
@@ -28963,16 +29242,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| forced)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| forced)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| forced)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| forced)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1352#uscalar =>
     let mask ← vcpu.CR4_ALLOWED
     let i ← vcpu.svm.G_PAT
@@ -28985,16 +29278,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& mask)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ mask)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& mask)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1024#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29006,16 +29313,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1040#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29027,16 +29348,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1056#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29048,16 +29383,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1072#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29069,16 +29418,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1088#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29090,16 +29453,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1104#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29111,16 +29488,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1120#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29132,16 +29523,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1136#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29153,16 +29558,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1152#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29174,16 +29593,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1168#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29195,16 +29628,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1360#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29216,16 +29663,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1368#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29237,16 +29698,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1376#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29258,16 +29733,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1384#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29279,16 +29768,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1392#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29300,16 +29803,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1400#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29321,16 +29838,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1496#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29342,16 +29873,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1528#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29363,16 +29908,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1536#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29384,16 +29943,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1560#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29405,16 +29978,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1576#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29426,16 +30013,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1600#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29447,16 +30048,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1640#uscalar =>
     let i ← vcpu.svm.G_PAT
     if f = i
@@ -29468,16 +30083,30 @@ def vcpu.sanitize_vmcb
         let i2 ← lift (old &&& i1)
         let i3 ← lift (value &&& core.num.U64.MAX)
         let i4 ← lift (i2 ||| i3)
-        let i5 ← lift (i4 ||| 0#u64)
-        ok (core.result.Result.Ok i5)
+        let v ← lift (i4 ||| 0#u64)
+        let i5 ← vcpu.svm.CR0
+        if f = i5
+        then
+          let i6 ← vcpu.CR0_OWNED
+          let i7 ← lift (~~~ i6)
+          let v1 ← lift (v &&& i7)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
       else error.invalid_arg Std.U64 1#u64
     else
       let i1 ← lift (~~~ core.num.U64.MAX)
       let i2 ← lift (old &&& i1)
       let i3 ← lift (value &&& core.num.U64.MAX)
       let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| 0#u64)
-      ok (core.result.Result.Ok i5)
+      let v ← lift (i4 ||| 0#u64)
+      let i5 ← vcpu.svm.CR0
+      if f = i5
+      then
+        let i6 ← vcpu.CR0_OWNED
+        let i7 ← lift (~~~ i6)
+        let v1 ← lift (v &&& i7)
+        ok (core.result.Result.Ok v1)
+      else ok (core.result.Result.Ok v)
   | 1032#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
     let b ← vcpu.canonical value i
@@ -29493,16 +30122,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1048#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29519,16 +30162,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1064#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29545,16 +30202,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1080#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29571,16 +30242,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1096#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29597,16 +30282,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1112#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29623,16 +30322,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1128#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29649,16 +30362,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1144#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29675,16 +30402,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1160#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29701,16 +30442,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1176#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29727,16 +30482,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1544#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29753,16 +30522,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1552#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29779,16 +30562,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1568#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29805,16 +30602,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1584#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29831,16 +30642,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | 1592#uscalar =>
     let i ← machineArchInst.vcpu_capability a 1#u64
@@ -29857,16 +30682,30 @@ def vcpu.sanitize_vmcb
           let i3 ← lift (old &&& i2)
           let i4 ← lift (value &&& core.num.U64.MAX)
           let i5 ← lift (i3 ||| i4)
-          let i6 ← lift (i5 ||| 0#u64)
-          ok (core.result.Result.Ok i6)
+          let v ← lift (i5 ||| 0#u64)
+          let i6 ← vcpu.svm.CR0
+          if f = i6
+          then
+            let i7 ← vcpu.CR0_OWNED
+            let i8 ← lift (~~~ i7)
+            let v1 ← lift (v &&& i8)
+            ok (core.result.Result.Ok v1)
+          else ok (core.result.Result.Ok v)
         else error.invalid_arg Std.U64 1#u64
       else
         let i2 ← lift (~~~ core.num.U64.MAX)
         let i3 ← lift (old &&& i2)
         let i4 ← lift (value &&& core.num.U64.MAX)
         let i5 ← lift (i3 ||| i4)
-        let i6 ← lift (i5 ||| 0#u64)
-        ok (core.result.Result.Ok i6)
+        let v ← lift (i5 ||| 0#u64)
+        let i6 ← vcpu.svm.CR0
+        if f = i6
+        then
+          let i7 ← vcpu.CR0_OWNED
+          let i8 ← lift (~~~ i7)
+          let v1 ← lift (v &&& i8)
+          ok (core.result.Result.Ok v1)
+        else ok (core.result.Result.Ok v)
     else error.invalid_arg Std.U64 1#u64
   | _ => error.illegal Std.U64
 
@@ -29994,7 +30833,7 @@ def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
 def vcpu.svm.RAX : Result Std.U64 := vcpu.svm.SAVE + 504#u64
 
 /-- [fl4_core::vcpu::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 821:8-825:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 828:8-832:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop0.body
@@ -30013,7 +30852,7 @@ def vcpu.decode_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 821:8-825:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 828:8-832:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop0
@@ -30026,7 +30865,7 @@ def vcpu.decode_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 895:16-906:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop1.body
@@ -30055,7 +30894,7 @@ def vcpu.decode_loop1.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 895:16-906:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop1
@@ -30070,7 +30909,7 @@ def vcpu.decode_loop1
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 895:16-906:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop2.body
@@ -30099,7 +30938,7 @@ def vcpu.decode_loop2.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 895:16-906:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop2
@@ -30114,7 +30953,7 @@ def vcpu.decode_loop2
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 970:20-977:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop3.body
@@ -30142,7 +30981,7 @@ def vcpu.decode_loop3.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 970:20-977:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop3
@@ -30157,7 +30996,7 @@ def vcpu.decode_loop3
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]: loop body 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 970:20-977:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop4.body
@@ -30185,7 +31024,7 @@ def vcpu.decode_loop4.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 970:20-977:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop4
@@ -30200,7 +31039,7 @@ def vcpu.decode_loop4
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 777:0-996:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 784:0-1003:1
     Visibility: public -/
 def vcpu.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)

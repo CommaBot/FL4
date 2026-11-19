@@ -318,6 +318,9 @@ open fl4_core
 @[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
   unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
 
+@[step] theorem boot.extra_ut_reserve.spec : boot.extra_ut_reserve ⦃ v => v = 4112#u64 ⦄ := by
+  unfold boot.extra_ut_reserve; simp only [boot.EXTRA_UNTYPEDS]; step*
+
 @[step] theorem domain.MAX_DURATION.spec : domain.MAX_DURATION ⦃ v => v = 72057594037927935#u64 ⦄ := by
   unfold domain.MAX_DURATION; step*
 
@@ -618,6 +621,12 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem fl4_abi.consts.root_slot.NumInitialCaps.val_eq : fl4_abi.consts.root_slot.NumInitialCaps.val = 16 := by
   unfold fl4_abi.consts.root_slot.NumInitialCaps; rfl
 
+@[simp, scalar_tac_simps] theorem fl4_abi.consts.bootinfo_header.PADDING.val_eq : fl4_abi.consts.bootinfo_header.PADDING.val = 0 := by
+  unfold fl4_abi.consts.bootinfo_header.PADDING; rfl
+
+@[simp, scalar_tac_simps] theorem fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS.val_eq : fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS.val = 10 := by
+  unfold fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS; rfl
+
 @[simp, scalar_tac_simps] theorem fl4_abi.label.UntypedRetype.val_eq : fl4_abi.label.UntypedRetype.val = 1 := by
   unfold fl4_abi.label.UntypedRetype; rfl
 
@@ -896,6 +905,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem fl4_abi.config.ROOT_CNODE_SIZE_BITS.val_eq : fl4_abi.config.ROOT_CNODE_SIZE_BITS.val = 13 := by
   unfold fl4_abi.config.ROOT_CNODE_SIZE_BITS; rfl
+
+@[simp, scalar_tac_simps] theorem boot.EXTRA_UNTYPEDS.val_eq : boot.EXTRA_UNTYPEDS.val = 256 := by
+  unfold boot.EXTRA_UNTYPEDS; rfl
 
 @[simp, scalar_tac_simps] theorem layout.PPTR_BASE.val_eq : layout.PPTR_BASE.val = 18446743523953737728 := by
   unfold layout.PPTR_BASE; rfl
@@ -1419,7 +1431,7 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.SVM_I2_FORCED.val_eq : vcpu.SVM_I2_FORCED.val = 32381 := by
   unfold vcpu.SVM_I2_FORCED; rfl
 
-@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_FORCED.val_eq : vcpu.SVM_I1_FORCED.val = 2621472783 := by
+@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_FORCED.val_eq : vcpu.SVM_I1_FORCED.val = 2621472815 := by
   unfold vcpu.SVM_I1_FORCED; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.PRIMARY_ALLOWED.val_eq : vcpu.PRIMARY_ALLOWED.val = 4225343116 := by
@@ -1674,7 +1686,7 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem vcpu.SVM_EVENT.val_eq : vcpu.SVM_EVENT.val = 18446744071562072063 := by
   unfold vcpu.SVM_EVENT; rfl
 
-@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_WRITABLE.val_eq : vcpu.SVM_I1_WRITABLE.val = 1673494512 := by
+@[simp, scalar_tac_simps] theorem vcpu.SVM_I1_WRITABLE.val_eq : vcpu.SVM_I1_WRITABLE.val = 1673494480 := by
   unfold vcpu.SVM_I1_WRITABLE; rfl
 
 @[simp, scalar_tac_simps] theorem tcb.N_FRAME.val_eq : tcb.N_FRAME.val = 18 := by

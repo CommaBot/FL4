@@ -1,8 +1,10 @@
 {
- "functions": 1060,
- "proved": 1060,
+ "functions": 1062,
+ "proved": 1062,
  "manual": [
+  "boot.create_untypeds",
   "ept.map_frame",
+  "interrupt.map_ioapic",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.decode",

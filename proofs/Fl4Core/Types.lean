@@ -102,7 +102,7 @@ structure boot.Region where
   «end» : Std.U64
 
 /-- [fl4_core::boot::Boot]
-    Source: 'crates/fl4-core/src/boot.rs', lines 91:0-100:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 93:0-110:1 -/
 structure boot.Boot where
   root_cnode : Std.U64
   slot_pos : Std.U64
@@ -110,6 +110,9 @@ structure boot.Boot where
   next : Std.U64
   «end» : Std.U64
   full : Bool
+  extra_ut : Std.U64
+  extra_bytes : Std.U64
+  ut_lost : Bool
 
 /-- [fl4_core::obj::Tcb]
     Source: 'crates/fl4-core/src/obj.rs', lines 26:0-26:24
@@ -349,21 +352,22 @@ structure boot.BootParams where
   idle_stride : Std.U64
 
 /-- [fl4_core::boot::BootError]
-    Source: 'crates/fl4-core/src/boot.rs', lines 68:0-71:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 68:0-73:1
     Visibility: public -/
 @[discriminant isize]
 inductive boot.BootError where
 | NoMemory : boot.BootError
 | TooManyCaps : boot.BootError
+| TooManyUntypeds : boot.BootError
 
 /-- [fl4_core::boot::Pick]
-    Source: 'crates/fl4-core/src/boot.rs', lines 318:0-321:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 354:0-357:1 -/
 structure boot.Pick where
   k : Std.Usize
   start : Std.U64
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 366:0-378:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 405:0-417:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -378,7 +382,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 383:0-393:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 422:0-432:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64
@@ -397,12 +401,12 @@ structure cdt.Finalised where
   cleanup : capability.Cap
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 773:20-773:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 768:30-768:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 
