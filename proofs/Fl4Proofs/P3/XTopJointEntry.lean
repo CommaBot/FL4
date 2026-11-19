@@ -32,7 +32,14 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
   - `JPath`: per cap, the facts of exactly that cap's decode path; a cap or
     label with no J proof yet is one named `XCapP` (`JCapOpen`, [W]).
 * `decOK_J`: the dispatch on the cap (the table in its docstring).
-* `handle_invocation_refinesJ`: the composition.
+* `handle_invocation_refinesJ`: the composition. The front end's reads are
+  proved related (FrontEndExtra): the label words (`JAtZ.frontJ`:
+  `info.label.bv = mi.miLabel`), the extra slots (`ExtraOK`, giving every
+  path's `ExtraRel`/`ExtraRel2`/`ExtraSRel`/`XcRel`) and the argument words
+  (`JAtZ.argsJ`: `msgLen`, `syscall_arg`, `ArgRel`). The per-path label
+  premises stay: with FL4's label numbering they are false from label 16 on
+  (FrontEndLabel; the spec decodes labels by l4v's enumeration), except the
+  Untyped one, proved (`genInvocationType_untyped_iff`).
 
 `JAtZ` is used only through the J decodes, `J.xtop`, `J.curEq` and
 `SpecGlob` at entry, so changes of `JAtZ`'s fields leave this module alone.
@@ -51,6 +58,8 @@ import Fl4Proofs.P3.ScJointConsumed
 import Fl4Proofs.P3.ScJointYield
 import Fl4Proofs.P3.XTopJointReplyTail
 import Fl4Proofs.P3.SpecPerfCur
+import Fl4Proofs.P3.FrontEndExtra
+import Fl4Proofs.P3.FrontEndLabel
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -403,10 +412,6 @@ structure JSchedCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   (`decode_configure_refines` needs it; with several cores a SchedControl cap
   of another core is valid, l4v `valid_cap` only bounds its core). -/
   core : cpu = Z.c
-  /-- [W] the front end's extra slot (`ExtraRel`). An SC extra cap's facts
-  (size, object, back-link, not the idle SC) are `JAtZ.scCtlExtra`'s, asked
-  only of a present cap (`x0 ≠ 0`, a slot of the typed heap). -/
-  hx : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
   /-- [P] the decode's timer and IPI operations keep `AR`. -/
   arch : syscall.decode_invocation st arI s ar lbl length (cslotAddr sl) (.SchedControl cpu) blk call don fp buf extra
     ⦃ r => ∀ c, AR ar c → AR r.2.2 c ⦄
@@ -444,8 +449,6 @@ structure JSchedCtxPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (a
   msg : MsgOK st Z.N Z.T Z.C Z.c
   /-- [W] the front end's label. -/
   hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl
-  /-- [W] the front end's extra slot (`ExtraRel`). -/
-  hx : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
   /-- [P] the decode's timer and IPI operations keep `AR`. -/
   arch : syscall.decode_invocation st arI s ar lbl length (cslotAddr sl) (.SchedContext sc sb) blk call don fp buf
     extra ⦃ r => ∀ c, AR ar c → AR r.2.2 c ⦄
@@ -468,12 +471,11 @@ structure JSchedYieldPath (ar : A) : Prop where
   max : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ v, arI.ticks_to_us ar v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
 
-/-- The CNode path [W] (the front end's label and extra slots). -/
+/-- The CNode path [W] (the front end's label; FALSE in reachable states,
+FrontEndLabel's `cnodeLabel_mismatch`). -/
 structure JCnodePath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
   hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl
-  hex : ∃ x0 x1, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧
-    Aeneas.Std.Array.index_usize extra 1#usize = ok x1 ∧ ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst)
 
 /-- The Thread path (a native label): the Thread decode's per-invocation
 premises. -/
@@ -485,16 +487,15 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl
   /-- [W] the front end's extension label. -/
   hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl
-  /-- [W] the front end's extra slots (`XcRel`); [J] `NcHyp`, the untyped
-  extra cap's children (`NoChildrenRel`), an SC extra cap's object in `C`. -/
+  /-- [J] at the extra slots (their `XcRel` is the front end's, proved:
+  FrontEndExtra): `NcHyp`, the untyped extra cap's children
+  (`NoChildrenRel`), an SC extra cap's object in `C`. -/
   hx : ∃ x0 x1 x2, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧
     Aeneas.Std.Array.index_usize extra 1#usize = ok x1 ∧ Aeneas.Std.Array.index_usize extra 2#usize = ok x2 ∧
-    XcRel Z.th (L.mem s) x0 x1 x2 excaps ∧ NcHyp (st := st) s σ x0 x1 x2 ∧
+    NcHyp (st := st) s σ x0 x1 x2 ∧
     (∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl) ∧
     (x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
-  /-- [W] the front end's argument 5 (`ArgRel`). -/
-  hA5 : ArgRel (st := st) s σ ct buf buffer 5
   /-- [J] TcbExt's `GetBpHyp`. -/
   hGb : GetBpHyp (st := st) s ct p
   /-- [J] ReadFPU's destination frame (XTopJointReadFpu's `FpuFrameJHyp`: l4v
@@ -503,18 +504,18 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hFr : lbl = fl4_abi.label.TCBReadFPU → ∀ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 →
     FpuFrameJHyp (L := L) Z s σ x0
 
-/-- The IRQ control path [W] (the front end's labels and extra slot). -/
+/-- The IRQ control path [W] (the front end's labels; false in reachable
+states, FrontEndLabel: FL4's 33/70/71/72 are l4v's 26/57/58 and the spec's 59). -/
 structure JIrqCPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
   hlbl : IrqCLabel lbl slbl
   hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
 
-/-- The IO port control path [W] (the front end's label and extra slot). -/
+/-- The IO port control path [W] (the front end's label; false in
+reachable states, FrontEndLabel: FL4's 63 is l4v's 50). -/
 structure JIoCPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
   hlbl : lbl.val = 63 ↔ Fl4Spec.invocationType slbl = .archInvocationLabel .x64IOPortControlIssue
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
 
 /-- The IRQ handler path. -/
 structure JIrqHPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -523,18 +524,17 @@ structure JIrqHPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra
   hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl
   /-- [J] IrqHandler's `IrqSlotOK` at the IRQ's node slot. -/
   hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq)
-  /-- [W] the front end's extra slot (SetNotification); [J] it is not the
-  IRQ's node slot. -/
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧
-    (lbl.val = 35 → ExtraSRel Z.th (L.mem s) x0 excaps) ∧ (lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+  /-- [J] SetNotification's extra slot is not the IRQ's node slot (its
+  `ExtraSRel` is the front end's, proved: FrontEndExtra). -/
+  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ (lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
   /-- [J] IrqDom's `IrqDelP1`. -/
   hP1 : IrqDelP1 (L := L) s ct irq
 
-/-- The domain path [W] (the front end's label and extra slot). -/
+/-- The domain path [W] (the front end's label; false in reachable states,
+FrontEndLabel: FL4's 37..39 are l4v's 30..32). -/
 structure JDomPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) : Prop where
   hlbl : Fl4Spec.genInvocationType slbl = domLabelOf lbl
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraSRel Z.th (L.mem s) x0 excaps
 
 /-- The RAM Untyped path (native object types): XTopJointUt's
 `decode_invocation_untypedJ` premises. -/
@@ -542,10 +542,6 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
     (lbl length p sb fi : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop where
-  /-- [W] the front end's label. -/
-  hlbl : Fl4Spec.genInvocationType slbl = .untypedRetype ↔ lbl = fl4_abi.label.UntypedRetype
-  /-- [W] the front end's extra slot (`ExtraRel`). -/
-  hex : ∃ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧ ExtraRel Z.th (L.mem s) x0 (excaps.map Prod.fst)
   /-- [P] `CONFIG_RETYPE_FAN_OUT_LIMIT` is FL4's 256. -/
   fan : Fl4Spec.retypeFanOutLimit = 256#64
   /-- [scope] a VT-x object type (14 to 18: VMCS, EPT tables). -/
@@ -574,7 +570,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
-  | .CNode .. => JCnodePath (L := L) Z s lbl slbl extra excaps
+  | .CNode .. => JCnodePath Z s lbl slbl extra excaps
   | .Thread p =>
       (lbl = fl4_abi.label.TCBSetEPTRoot →
         JVtxScope (L := L) arI AR s ar σ lbl length (.Thread p) blk call don fp buf extra slbl argsU ci sl excaps buffer
@@ -585,10 +581,10 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
       (z = 0#u64 → PortLabel lbl slbl) ∧
       (z ≠ 0#u64 → JVtxScope (L := L) arI AR s ar σ lbl length (.IoPort first last z) blk call don fp buf extra slbl
         argsU ci sl excaps buffer ct)
-  | .IrqControl => JIrqCPath (L := L) Z s lbl slbl extra excaps
-  | .IoPortControl => JIoCPath (L := L) Z s lbl slbl extra excaps
+  | .IrqControl => JIrqCPath Z s lbl slbl extra excaps
+  | .IoPortControl => JIoCPath Z s lbl slbl extra excaps
   | .IrqHandler irq => JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq
-  | .Domain => JDomPath (L := L) Z s lbl slbl extra excaps
+  | .Domain => JDomPath Z s lbl slbl extra excaps
   | .SchedContext p sb =>
       (ScJLabel s lbl p → JSchedCtxPath (L := L) arI AR Z s ar σ lbl length p sb blk call don fp buf extra
         slbl sl excaps ct) ∧
@@ -643,7 +639,7 @@ on the cap:
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo`: the receiver's SC not released, a valid timeout handler, the tail's `handle_timeout`) [W] |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a send to a receiver; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
-| CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
+| CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (the label, false: FrontEndLabel) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
@@ -653,7 +649,7 @@ on the cap:
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `J{Pt,Pd,Pdpt,Pml4,Pool,Frame}Path` (labels, extra [W]) |
 | ASID control | `decode_invocation_asid_controlJ` (XTopJointVsCap) | `JAsidCPath` (label, extra [W]; clean regions: `JPostHyp` [W]; dirty: the cap [W]) |
 | VCPU, EPT, EPT-mapped Frame, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
-| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (label, extra [W], fan-out, core 0 [P], `JUtRetHyp` [W]: the retype after the decode); VT-x types `JVtxScope` [scope] |
+| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `JUtRetHyp` [W]: the retype after the decode; label and extra slot proved); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -667,6 +663,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length))
     (c : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
+    (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hLb : lbl.bv = slbl)
+    (hA5 : ArgRel (st := st) s σ ct buf buffer 5)
     (hN : JPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
@@ -678,6 +676,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   have hsc : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
   have hUt := delUtHyp_of_live arI hG.delParts.live
   have hni := hE.ni
+  have hPl : Placed Z.th := J.xtop.rel.1
   cases c
   case Null =>
     refine XCap.toP arI (Or.inl ?_) hPre
@@ -702,16 +701,20 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
         hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hct hAs hc hst hN hX0))) hPre
   case CNode p r gs g =>
-    have hN : JCnodePath (L := L) Z s lbl slbl extra excaps := hN
-    obtain ⟨x0, x1, hx0, hx1, hex⟩ := hN.hex
+    have hN : JCnodePath Z s lbl slbl extra excaps := hN
     exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 lbl
-      slbl hN.hlbl length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hE.epQ
+      slbl hN.hlbl length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra (exAt extra 0) (exAt extra 1)
+      (exAt_idx0 extra) (exAt_idx1 extra) excaps (ExtraOK.rel2 hPl hXO) hE.epQ
       hE.epE blk call don fp ci buffer
   case Thread p =>
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
-    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hFr⟩ := hN hn
+    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hnc, hnc0, hcapC⟩, hGb, hFr⟩ := hN hn
+    obtain rfl : x0 = exAt extra 0 := eq_of_ok_eq (hx0.symm.trans (exAt_idx0 extra))
+    obtain rfl : x1 = exAt extra 1 := eq_of_ok_eq (hx1.symm.trans (exAt_idx1 extra))
+    obtain rfl : x2 = exAt extra 2 := eq_of_ok_eq (hx2.symm.trans (exAt_idx2 extra))
+    have hXc := ExtraOK.xc hPl hXO
     have hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
         q ≠ L.idleW s := by
       -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
@@ -725,8 +728,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hG.ipcBufOK
       hG.bufCover hG.bufPlaced hE.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
-      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
-      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.timeAg
+      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
+      (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.timeAg
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
@@ -736,37 +739,39 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         arI hPre
     · exact hOpen h0
   case IrqControl =>
-    have hN : JIrqCPath (L := L) Z s lbl slbl extra excaps := hN
-    obtain ⟨x0, hx0, hex⟩ := hN.hex
+    have hN : JIrqCPath Z s lbl slbl extra excaps := hN
+    have hex := ExtraOK.rel1 hPl hXO
     obtain ⟨nA, hnum, hnA⟩ := hE.ioapics
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
     exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.handlers lbl slbl hN.hlbl
-      hN.hrm length buf ct hct argsU hlen hargs hE.act2 extra x0 hx0 excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
+      hN.hrm length buf ct hct argsU hlen hargs hE.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toP arI hPre
   case IoPortControl =>
-    have hN : JIoCPath (L := L) Z s lbl slbl extra excaps := hN
-    obtain ⟨x0, hx0, hex⟩ := hN.hex
+    have hN : JIoCPath Z s lbl slbl extra excaps := hN
+    have hex := ExtraOK.rel1 hPl hXO
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
     exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.ports lbl slbl hN.hlbl
-      length buf ct hct argsU hlen hargs hE.act3 extra x0 hx0 excaps hex hth0 rfl hc blk call don fp ci
+      length buf ct hct argsU hlen hargs hE.act3 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc blk call don fp ci
       buffer).toP arI hPre
   case IrqHandler irq =>
     have hN : JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq := hN
-    obtain ⟨x0, hx0, hex, hxn⟩ := hN.hex
+    obtain ⟨x0, hx0, hxn⟩ := hN.hex
+    obtain rfl : x0 = exAt extra 0 := eq_of_ok_eq (hx0.symm.trans (exAt_idx0 extra))
+    have hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) (exAt extra 0) excaps := fun _ => ExtraOK.relS hPl hXO
     exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt hG.finObj hG.postDel hG.ntfnKeep
-      lbl slbl hN.hlbl ct hct sl hAs irq hsc hN.hok extra x0 hx0 excaps hex hxn hE.domPl hN.hP1 length buf blk call
+      lbl slbl hN.hlbl ct hct sl hAs irq hsc hN.hok extra _ hx0 excaps hex hxn hE.domPl hN.hP1 length buf blk call
       don fp _ ci buffer).toP arI hPre
   case Domain =>
-    have hN : JDomPath (L := L) Z s lbl slbl extra excaps := hN
-    obtain ⟨x0, hx0, hex⟩ := hN.hex
+    have hN : JDomPath Z s lbl slbl extra excaps := hN
+    have hex := ExtraOK.relS hPl hXO
     exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari hUt ct hct hE.ksO hE.actK lbl slbl hN.hlbl length
-      buf argsU hlen hargs extra x0 hx0 excaps hex _ blk call don fp ci sl buffer).toP arI hPre
+      buf argsU hlen hargs extra _ (exAt_idx0 extra) excaps hex _ blk call don fp ci sl buffer).toP arI hPre
   case SchedContext p sb =>
     obtain ⟨hP, hO, hY⟩ := hN
     obtain ⟨hpC, hpi, hsb, hssz, hback, hbn⟩ := J.scCtxCap arI hAs.isSlot hc
@@ -784,7 +789,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
           (fun h => hl (Or.inr (Or.inl h))) (fun h => hl (Or.inr (Or.inr h))) hu hy sb (fun h0 => (hback h0).1) hct
           extra excaps length (cslotAddr sl) buf blk call don fp _ ci sl buffer).toP arI hPre
     have hN := hP hl
-    obtain ⟨x0, hx0, hex⟩ := hN.hx
+    have hex := ExtraOK.rel1 hPl hXO
+    have hx0 := exAt_idx0 extra
+    generalize exAt extra 0 = x0 at hex hx0
     have hxS : x0 ≠ 0#u64 → IsSlot Z.th x0 := fun h => by
       rcases hex with ⟨e, -⟩ | ⟨-, hs, -⟩
       · exact absurd e h
@@ -799,7 +806,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
           excaps length (cslotAddr sl) buf blk call don fp)).toP arI hPre
   case SchedControl cpu =>
     have hN : JSchedCPath (L := L) arI AR Z s ar σ lbl length cpu blk call don fp buf extra slbl argsU sl excaps ct := hN
-    obtain ⟨x0, hx0, hex⟩ := hN.hx
+    have hex := ExtraOK.rel1 hPl hXO
+    have hx0 := exAt_idx0 extra
+    generalize exAt extra 0 = x0 at hex hx0
     have hxS : x0 ≠ 0#u64 → IsSlot Z.th x0 := fun h => by
       rcases hex with ⟨e, -⟩ | ⟨-, hs, -⟩
       · exact absurd e h
@@ -875,17 +884,20 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
       · obtain ⟨x, hx, h1, h2⟩ := hv
         exact hN.vtx x hx h1 h2
-      obtain ⟨x0, hx0, hex⟩ := hN.hex
-      exact decode_invocation_untypedJ arI s ar σ J lbl slbl hN.hlbl length buf ct hct argsU hlen hargs
+      have hex := ExtraOK.rel1 hPl hXO
+      have hx0 := exAt_idx0 extra
+      generalize exAt extra 0 = x0 at hex hx0
+      exact decode_invocation_untypedJ arI s ar σ J lbl slbl (by rw [← hLb]; exact genInvocationType_untyped_iff lbl) length buf ct hct argsU hlen hargs
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer (hN.ret hN.core0)
     · exact hDv rfl
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
-the global ones, those at the entry state, the front end's argument words,
-the fault handler at `JAt`, and per cap its decode path (the reply tails are
-proved: XTopJointReplyTail). -/
+the global ones, those at the entry state, the fault handler at `JAt`, and
+per cap its decode path (the reply tails are proved: XTopJointReplyTail; the
+front end's argument words, extra slots and label words are proved:
+FrontEndExtra). -/
 structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64) (info : msginfo.MessageInfo)
     (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef) (argsU : List U64)
@@ -895,10 +907,6 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   glob : JEntryGlob (L := L) arI AR Z.th
   /-- `JEntryAt` ([J]/[P] per field). -/
   atE : JEntryAt (L := L) arI AR Z s ar σ
-  /-- [W] the front end: the message's words (the spec's `getMrs`) are FL4's
-  `syscall_arg`s, as many as FL4's `msgLen`. -/
-  len : (msgLen info buf).val = argsU.length
-  args : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x
   /-- [W] the fault handler at `JAt` for a failed cap lookup. FALSE in
   reachable states as stated (`handle_fault` with no fault handler, i.e. a
   null cap in the thread's fault-handler slot): FL4 runs `set_fault` before
@@ -972,17 +980,21 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       rw [Notif.setThreadState_eq .restart hk] at hm
       have e : σ1 = _ := congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
       rw [e, Sched.stsAct_rec]; exact hcur) ?_
+  obtain ⟨hLen, hArgs, hA5⟩ := J.argsJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop)
+    hct hinfo hmi hbuf hbuffer hmrs
   intro sl c e exs hsl hc hget h1 h2
   have hl : argsU.length ≤ 120 := by
     have hm := Endp.msg_info_spec (L := L) s ct
     rw [hinfo, WP.spec_ok] at hm
     have h120 := hm.2.2.2
     have h4 : msg.N_MSG_REGISTERS.val = 4 := by simp [msg.N_MSG_REGISTERS]
-    rw [← hH.len]; unfold msgLen
+    rw [← hLen]; unfold msgLen
     split_ifs <;> omega
+  obtain ⟨hLb, hXO⟩ := J.frontJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct
+    hinfo hmi hbuf hbuffer hr2 her
   exact decOK_J arI s ar σ J hH.glob hH.atE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
-    buf e mi.miLabel argsU hH.len hH.args hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
-    (hH.path sl c e exs hsl hc hget h1 h2)
+    buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
+    (hXO e exs h1 h2) hLb hA5 (hH.path sl c e exs hsl hc hget h1 h2)
 
 end
 
