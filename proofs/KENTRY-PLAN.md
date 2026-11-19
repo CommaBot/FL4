@@ -1466,3 +1466,54 @@ removed; JAtZ untouched.
   curScFree_of, jAtPre_holeO, jAtPre_holeTN, JAtZ.jAtPre_pp, dispatch_invokeJEPZJ, handle_invocation_refinesJ.
 - Premises: none added, none removed (`JPreemptRestHypJ` [W] unchanged; its (2b) part now needs only the carried
   `CtLink`/`Chg` facts above, not a release-queue fact).
+## sch7 (branch par/sched7 in FL4-sc, on 1412d306 = int/j2 incl. sch6, kp10)
+New leaves XTopJointMidRun, XTopJointKEntry (imported from Fl4Proofs.lean). Nothing existing edited, JAtZ untouched;
+no premise added to or removed from any existing theorem.
+- (C) step 1 DONE d1c2866f (XTopJointMidRun): `JMidRunHyp rep don cptr σ` [W] = l4v
+  `handle_invocation_not_blocking_not_calling_first_phase_ct_active`, at the invocation's entry state on the spec:
+  `∀ y ∈ ((fl4HandleInvocationR rep false false don true cptr).run σ).1, y.1 = .ok () → CurRun y.2`.
+  NOT derivable from existing facts: `HIPostMXP`'s `JAt` carries only `CurRunM` (the mid action may be
+  `switchThread t`/`chooseNewThread`) and the decode paths' `DecOut` facts stay inside `decOK_J`; no spec frame
+  keeps the current thread's state across a perform. Removal route: an FK-style "current thread stays runnable"
+  frame (VsDom's `dk_auto` pattern) over the first-phase perform cone (sendIpc non-blocking, sendSignal,
+  doReplyTransfer, IRQ, untyped retype, arch) with "the woken/receiving thread ≠ ct" from `CurRun` (blocked threads
+  are not runnable), plus read-only lookups/decodes; then the `syscall` shell (fault branch is a no-op for
+  `blocking = false`, error branch a no-op for `calling = false`, the restart→running tail).
+  Derived: `curRun_ne_idle` (CurRun + IdleOK ⇒ ct ≠ idle), `JMid` (= RelTopM ∧ JAt ∧ CurRun ∧ ct ≠ idle, l4v
+  `invs and ct_active`, no condition on the scheduler action), `HIPostMXP.mid`, `handle_invocation_midJ`
+  (`handle_invocation_refinesJ` for first_phase/non-blocking/non-calling with `JMid` at Ok, `JAtPre` at Preempted).
+- (C) step 2 NOT DONE (scope): the receive leaves from `JMid` instead of `Entered` (sch6's ~45-site list in 14
+  XTopJointRecv* files; the CurInv uses need CurInv-free variants). In kernel_entryJ it is the `KDispHyps.mid` [W].
+- (D) DONE 7bb09948 (XTopJointKEntry): `kernel_entryJ`:
+  `syscall.handle_syscall st arI s a n ⦃ r => (fl4KernelEntrySyscall true c σ).2 ∨ ∃ σ', ((), σ') ∈
+  (fl4KernelEntrySyscall true c σ).1 ∧ RJ arI AR r.1 r.2 σ' ⦄` for `NativeSys n c` (Send/NBSend/Call, Recv/NBRecv/
+  Wait/NBWait, Yield, ReplyRecv/NBSendRecv/NBSendWait). Proved pieces: FAULT_IP write at J (`reg_wr_irel` +
+  `JAtZ.regWrJ`; spec `fl4SyscallFaultIP_eq`, `faultIPSt`), `NativeSys.range`, budget split `budgetOkJ` with
+  `budgetOkF` or `budgetOkT`, `dispatch_allJ` (dispatch_invokeJEPZJ / dispatch_recvJL / dispatch_yieldJ), `jat_finishJ2`
+  after the dispatch and after a stopping budget check, spec composition (`specFront`, `mem_kentry`,
+  `fail_kentry`: a failing preemption path fails the entry; `mem_handleE_ok/err`, `mem_fl4HandleEvent`).
+  Premises (all at the entry or at spec-reachable intermediate states, never ∀ JAt states except those inherited):
+  * `J : JAtZ … s a σ`, `hni : Entered σ` [J] (l4v ct_running, resume_cur_thread).
+  * `hflag` [S] (M2, l4h trap mode out of scope): `∀ ct v, cur_thread s = ok ct → obj.Tcb.flags st ct
+    (L.wr s (regA ct FAULT_IP) v) ⦃ f => f &&& TRAP_SYSCALLS = 0 ⦄`.
+  * `hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x)`:
+    `now` NowAgree [P]; `cur` CurInv, `off` OffReady [J] (budget_ok_offReady; FOLD LATER: transfer from σ, the
+    write changes one register); `tmo` NoTmoSend ∨ budgetOkT's premises (ct_not_in_q [J], ct running/restart,
+    endpoint timeout handler can block [J], non-round-robin SC).
+  * `hK : ∀ σb, BudgetAt σ σb true → ∀ ghosts s' a', JAtZ … s' a' σb → KDispHyps …`: `inv` JEntryGlob/JEntryAt/
+    JPathAt (dispatch_invokeJEPZJ's, fields tagged there), `recv` ct_not_in_q / valid_fault_handler [J], `mid`
+    [W] = the whole ReplyRecv/NBSendRecv/NBSendWait dispatch to `DispPost (PPQ) (fl4HandleSyscall true c)` (M6:
+    to be replaced by `handle_invocation_midJ` + `JMidRunHyp` + the receive from `JMid`, (C) step 2).
+  * `hFin : ∀ x ∈ (specFront c σ).1, ∀ ghosts s' a', JAtZ … s' a' x.2 → KFinAt …` (jat_finishJ2's state/ghost
+    premises: hd (domainTime ≠ 0 ∨ NdOK) [J], hVt [J], hW SignalRestJHyp [W], ArchSwF/ArchNdF [P], FpuOwnOK [J],
+    SniHyp/SendHyp [P], hTail (CR3 [P])). Removal: carry FpuOwnOK/NdOK through the dispatch (spec frames) instead
+    of assuming them before `finish`.
+  * `hPF : KPreFinHyp arI AR c σ` [W]: after a preempted invocation (`PreemptedAt`), from `PPQ σ1 r` (JHoleAt/
+    XTopAt or spec failure), `finish` refines `fl4Awaken; schedule; activateThread` from an outcome of
+    `preemption_path σ1` (l4v he_invs/schedule_invs). Missing: `JAt` after the uncovered preemption path.
+  * globals: hARI hA hnd hPP hmrt hmb hIP [P], hNS [S], hRest JPreemptRestHypJ [W] (kp line), hT hmax htu [P],
+    hvm [S].
+- Builds (tokyo, b.sh): sch7-b1 `XTopJointMidRun` OK (5376 jobs); sch7-b2..b4 elaboration fixes; sch7-b5
+  `XTopJointKEntry` OK (5484 jobs). Axioms (axsch7.sh/axsch7.lean, untracked): propext, Classical.choice,
+  Quot.sound only for kernel_entryJ, dispatch_allJ, handle_invocation_midJ, HIPostMXP.mid, mem_kentry, fail_kentry,
+  fl4SyscallFaultIP_eq, NativeSys.range, handle_invocation_refinesJ, jat_finishJ2; curRun_ne_idle: propext.
