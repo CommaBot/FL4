@@ -445,8 +445,8 @@ theorem faults.set_fault.sc (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPla
       subst e5; exact W 3400#u64 w2 h4 (by simp) (by simp) (by simp)
 
 /-- seL4 `handleFault`: a fault IPC to the thread's fault handler when it is
-an endpoint cap (donating the thread's SC if it has one), else the fault is
-recorded and the thread made inactive.  From the hypotheses at the call:
+an endpoint cap (donating the thread's SC if it has one), else the thread is
+made inactive with no fault stored (seL4 `handleNoFaultHandler`).  From the hypotheses at the call:
 the handler cap is typed, the thread can block, `UserOK` and `XferOK`. -/
 theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) {U : Set U64}
     {G : S → Prop} (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U G) {Ac : Set U64} (s : S) (a : A) (t : obj.Tcb)
@@ -487,13 +487,11 @@ theorem faults.handle_fault.bxi {A : Type _} {ar : machine.Arch A} (hA : P0.Arch
     · rename_i hb
       have e2' : s2 = s := e2 (by simpa using hb)
       subst e2'
-      refine WP.spec_bind (faults.set_fault.blk s2 t f h2 ht hU hc) ?_
-      rintro s3 ⟨h3, -, hc3⟩
-      obtain ⟨⟨Q3, R3, q3⟩, hB3, hX3, hS3, hSg3⟩ := h3
-      refine WP.spec_bind (sts_all s3 t _ Q3 R3 q3 hB3 hX3 hS3 hSg3 ht not_blocked_inactive inactive_ne
-        (Or.inr hc3.nb) (hX3.noref (q3.tcbs t ht) hc3.nrp (fun e => hc3.nb (Or.inr (Or.inl e))))
-        ⟨fun c hc' p hp hm => absurd hm (q3.notQ ht hc3.nq hc' hp), fun c hc' hm => absurd hm (q3.notR ht hc3.nr hc'),
-          fun e => absurd e hc3.na⟩) ?_
+      obtain ⟨⟨Q3, R3, q3⟩, hB3, hX3, hS3, hSg3⟩ := h2
+      refine WP.spec_bind (sts_all s2 t _ Q3 R3 q3 hB3 hX3 hS3 hSg3 ht not_blocked_inactive inactive_ne
+        (Or.inr hc.nb) (hX3.noref (q3.tcbs t ht) hc.nrp (fun e => hc.nb (Or.inr (Or.inl e))))
+        ⟨fun c hc' p hp hm => absurd hm (q3.notQ ht hc.nq hc' hp), fun c hc' hm => absurd hm (q3.notR ht hc.nr hc'),
+          fun e => absurd e hc.na⟩) ?_
       rintro s4 ⟨h4, hB4, hX4, hS4, hSg4, -, -⟩
       exact (WP.spec_ok _).2 ⟨⟨Q3, R3, h4.congrX empty_congr⟩, hB4, hX4, hS4, hSg4⟩
 
