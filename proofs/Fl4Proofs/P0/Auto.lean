@@ -3001,6 +3001,14 @@ theorem boot.extra_ut_reserve.p0  :
     boot.create_untypeds_for_region machineStoreInst s b device reg first ⦃ _ => True ⦄ := by
   unfold boot.create_untypeds_for_region; p0_auto
 
+@[step] theorem boot.create_device_untypeds_image.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (reg : boot.Region) (kernel : boot.Region) (first : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.create_device_untypeds_image machineStoreInst s b reg kernel first ⦃ _ => True ⦄ := by
+  unfold boot.create_device_untypeds_image; p0_split
+
+@[step] theorem boot.create_device_untypeds.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (reg : boot.Region) (kernel : boot.Region) (first : Std.U64) (hS : StoreTotal machineStoreInst) :
+    boot.create_device_untypeds machineStoreInst s b reg kernel first ⦃ _ => True ⦄ := by
+  unfold boot.create_device_untypeds; p0_split
+
 @[step] theorem sporadic.maybe_add_empty_tail.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
     sporadic.maybe_add_empty_tail machineStoreInst s sc ⦃ _ => True ⦄ := by
   unfold sporadic.maybe_add_empty_tail; p0_auto

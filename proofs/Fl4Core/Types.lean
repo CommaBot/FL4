@@ -102,7 +102,7 @@ structure boot.Region where
   «end» : Std.U64
 
 /-- [fl4_core::boot::Boot]
-    Source: 'crates/fl4-core/src/boot.rs', lines 93:0-110:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 99:0-116:1 -/
 structure boot.Boot where
   root_cnode : Std.U64
   slot_pos : Std.U64
@@ -334,7 +334,7 @@ structure vspace.TableCap where
   vaddr : Std.U64
 
 /-- [fl4_core::boot::BootParams]
-    Source: 'crates/fl4-core/src/boot.rs', lines 43:0-65:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 43:0-71:1
     Visibility: public -/
 structure boot.BootParams where
   free : Array boot.Region 32#usize
@@ -350,9 +350,10 @@ structure boot.BootParams where
   num_nodes : Std.U64
   idle_base : Std.U64
   idle_stride : Std.U64
+  kernel_image : boot.Region
 
 /-- [fl4_core::boot::BootError]
-    Source: 'crates/fl4-core/src/boot.rs', lines 68:0-73:1
+    Source: 'crates/fl4-core/src/boot.rs', lines 74:0-79:1
     Visibility: public -/
 @[discriminant isize]
 inductive boot.BootError where
@@ -361,13 +362,13 @@ inductive boot.BootError where
 | TooManyUntypeds : boot.BootError
 
 /-- [fl4_core::boot::Pick]
-    Source: 'crates/fl4-core/src/boot.rs', lines 354:0-357:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 416:0-419:1 -/
 structure boot.Pick where
   k : Std.Usize
   start : Std.U64
 
 /-- [fl4_core::boot::Root]
-    Source: 'crates/fl4-core/src/boot.rs', lines 405:0-417:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 467:0-479:1 -/
 structure boot.Root where
   b : boot.Boot
   extra_bi : Std.U64
@@ -382,7 +383,7 @@ structure boot.Root where
   it : boot.Region
 
 /-- [fl4_core::boot::RootLayout]
-    Source: 'crates/fl4-core/src/boot.rs', lines 422:0-432:1 -/
+    Source: 'crates/fl4-core/src/boot.rs', lines 484:0-494:1 -/
 structure boot.RootLayout where
   ipcbuf_vptr : Std.U64
   bi_frame_vptr : Std.U64
