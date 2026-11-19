@@ -1,8 +1,9 @@
 //! The AArch64 kernel's boot-time decisions on the host: its memory lists
 //! (fl4-kernel-aarch64 bootmem.rs), its ACPI parsing (hw.rs, over
-//! host-allocated tables), the GIC layout arithmetic and the cache
-//! maintenance rule (fl4-arch-aarch64 gic_layout.rs, cache_rule.rs). Only
-//! the window, the console and the boot core's MPIDR are replaced.
+//! host-allocated tables), the GIC layout arithmetic, the cache
+//! maintenance rule and the cores' capability check (fl4-arch-aarch64
+//! gic_layout.rs, cache_rule.rs, ap_caps.rs). Only the window, the console
+//! and the boot core's MPIDR are replaced.
 extern crate self as fl4_core;
 extern crate self as fl4_arch_aarch64;
 
@@ -62,6 +63,8 @@ pub mod gic_layout;
 mod cache_rule;
 #[path = "../../crates/fl4-arch-aarch64/src/el0_access.rs"]
 mod el0_access;
+#[path = "../../crates/fl4-arch-aarch64/src/ap_caps.rs"]
+mod ap_caps;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
@@ -139,6 +142,25 @@ fn a_gicv4_redistributor_reserves_its_vlpi_frames() {
 
 // ---- cache maintenance ------------------------------------------------------------
 
+/// Audit F1: on GICv2 another core's SGIs and PPIs (IDs 0..31) are banked
+/// in its own CPU interface's view of the distributor, so masking,
+/// unmasking or configuring one from here takes a remote call (an IRQ
+/// handler deleted on core 0 for core 1's PPI must mask it on core 1).
+/// This core's, every GICv3 one (the redistributors) and SPIs are direct.
+#[test]
+fn another_cores_gicv2_banked_interrupts_take_a_remote_call() {
+    for id in [0, 15, 16, 27, 31] {
+        assert!(gic_layout::banked_remote(false, id, 1, 0), "id {id}");
+        assert!(gic_layout::banked_remote(false, id, 0, 3), "id {id}");
+        assert!(!gic_layout::banked_remote(false, id, 2, 2), "id {id}");
+        assert!(!gic_layout::banked_remote(true, id, 1, 0), "id {id}");
+    }
+    for id in [32, 33, 1019] {
+        assert!(!gic_layout::banked_remote(false, id, 1, 0), "id {id}");
+        assert!(!gic_layout::banked_remote(true, id, 1, 0), "id {id}");
+    }
+}
+
 #[test]
 fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
     assert!(cache_rule::needs_gate(true, true));
@@ -162,6 +184,41 @@ fn el0_debug_channel_and_trace_registers_trap() {
     }
     assert_eq!((el0_access::CPACR_FP_EL0_TRAP >> 20) & 3, 1);
     assert_eq!((el0_access::CPACR_FP_NONE >> 20) & 3, 3);
+}
+
+/// Audit F5: a core runs beside the boot core only with 16-bit ASIDs and
+/// the boot core's access-flag management, PAN, at least its physical
+/// address size, and its counter frequency.
+#[test]
+fn an_application_processor_must_match_the_boot_core() {
+    let bsp = ap_caps::Caps { asid16: true, hw_af: true, pan: true, pa_bits: 40, cntfrq: 62_500_000 };
+    assert!(ap_caps::ap_matches(&bsp, &bsp));
+    assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
+    for ap in [
+        ap_caps::Caps { asid16: false, ..bsp },
+        ap_caps::Caps { hw_af: false, ..bsp },
+        ap_caps::Caps { pan: false, ..bsp },
+        ap_caps::Caps { pa_bits: 36, ..bsp },
+        ap_caps::Caps { cntfrq: 24_000_000, ..bsp },
+        ap_caps::Caps { cntfrq: 0, ..bsp },
+    ] {
+        assert!(!ap_caps::ap_matches(&bsp, &ap), "{ap:?}");
+    }
+    // Nor a core with what the boot core lacks: the kernel set up neither.
+    let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
+    assert!(!ap_caps::ap_matches(&plain, &bsp));
+    assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+/// Audit F5: EL2 set-up reads PMCR_EL0 only with an architected PMU, as
+/// `el0_access::has_pmu` decides: PMUVer 0xf (IMPLEMENTATION DEFINED) has
+/// no PMCR_EL0, and reading it there traps before any vector is set.
+#[test]
+fn el2_setup_reads_pmcr_only_with_an_architected_pmu() {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find("mrs     x9, pmcr_el0").expect("PMCR_EL0 read");
+    let before: Vec<&str> = boot[..at].lines().rev().skip(1).take(4).map(|l| l.split("/*").next().unwrap().trim()).collect();
+    assert_eq!(before, ["b.eq    4f", "cmp     x9, #0xf", "cbz     x9, 4f", "ubfx    x9, x9, #8, #4"]);
 }
 
 #[test]

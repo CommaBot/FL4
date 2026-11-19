@@ -236,3 +236,44 @@ fn a_root_table_shorter_than_its_header_gives_no_tables() {
     checksum(&mut rsdp, 32);
     assert!(acpi::init(Some(rsdp.as_ptr() as u64), u64::MAX).is_none());
 }
+
+/// A core listed twice (twice as a Local APIC or x2APIC, as both, or in a
+/// second MADT) is one core: started twice, the second INIT/SIPI (or SNP
+/// AP creation) would take the running core off the slot it was first
+/// started on, which stays online with nothing serving its remote calls.
+#[test]
+fn a_core_listed_twice_is_recorded_once() {
+    let mut entries = Vec::new();
+    entries.extend_from_slice(&lapic(0, 1));
+    entries.extend_from_slice(&lapic(1, 1));
+    entries.extend_from_slice(&lapic(1, 1));
+    entries.extend_from_slice(&x2apic(1, 1));
+    entries.extend_from_slice(&x2apic(0x100, 1));
+    entries.extend_from_slice(&x2apic(0x100, 1));
+    entries.extend_from_slice(&lapic(0, 1));
+    entries.extend_from_slice(&x2apic(0, 1));
+    entries.extend_from_slice(&lapic(2, 1));
+    let info = parse(&entries);
+    assert_eq!(&info.cpus[..info.n_cpus], &[0, 1, 0x100, 2]);
+}
+
+#[test]
+fn duplicates_do_not_use_up_the_cpu_slots() {
+    let mut entries = Vec::new();
+    for _ in 0..acpi::MAX_CPUS {
+        entries.extend_from_slice(&lapic(7, 1));
+        entries.extend_from_slice(&x2apic(7, 1));
+    }
+    entries.extend_from_slice(&lapic(8, 1));
+    let info = parse(&entries);
+    assert_eq!(&info.cpus[..info.n_cpus], &[7, 8]);
+}
+
+/// `start_aps` starts each APIC ID at most once whatever list it is given.
+#[test]
+fn each_apic_id_is_started_once() {
+    let ids = [0, 3, 3, 5, 0, 5, 6];
+    let started: Vec<u32> = (0..ids.len()).filter(|&i| acpi::first_listing(&ids, i)).map(|i| ids[i]).collect();
+    assert_eq!(started, [0, 3, 5, 6]);
+    assert!(!acpi::first_listing(&ids, ids.len()));
+}

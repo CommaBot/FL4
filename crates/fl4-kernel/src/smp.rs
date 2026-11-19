@@ -23,6 +23,8 @@ static AP_REJECTED: AtomicU8 = AtomicU8::new(0);
 const REJECT_SPEC: u8 = 1;
 const REJECT_VM: u8 = 2;
 const REJECT_APIC: u8 = 3;
+const REJECT_FPU: u8 = 4;
+const REJECT_TIMER: u8 = 5;
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -75,8 +77,8 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     let data_off = unsafe { &fl4_ap_data as *const u8 as usize } - tramp as usize;
     let boot_root = if snp_guest { 0 } else { paging::ap_boot_root() };
     let mut next = 1;
-    for &id in apic_ids {
-        if next >= max || !fl4_arch_x86_64::spec::allow_ap(
+    for (i, &id) in apic_ids.iter().enumerate() {
+        if next >= max || !crate::acpi::first_listing(apic_ids, i) || !fl4_arch_x86_64::spec::allow_ap(
             id, bsp, smt_shift, fl4_arch_x86_64::spec::no_smt()) {
             continue;
         }
@@ -113,6 +115,8 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             kprintln!("FL4: rejecting AP with APIC id {}: {}", id, match rejected {
                 REJECT_SPEC => "speculation capabilities differ between cores",
                 REJECT_APIC => "local APIC outside the physical window",
+                REJECT_FPU => "FPU state components or save format differ between cores",
+                REJECT_TIMER => "TSC-deadline timer missing on this core",
                 _ => "virtualization features differ between cores",
             });
             // VMX/SVM may already be active on other cores. Keep them at
@@ -145,7 +149,7 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     let stack_top = percpu::stack_top(c as usize);
     gdt::init_core(c as usize, stack_top);
     cpu::init_pat();
-    fpu::init();
+    if !fpu::init(false) { reject_ap(REJECT_FPU); }
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
     if !fl4_arch_x86_64::vm::init(false) { reject_ap(REJECT_VM); }
     percpu::get().cr3.set(paging::root_paddr());
@@ -155,6 +159,7 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
     percpu::set_apic_id(apic::id());
+    if !timer::core_supported() { reject_ap(REJECT_TIMER); }
     timer::init_core(TIMER_VECTOR);
     smp::set_online(c as usize);
     while !BOOT_DONE.load(Ordering::Acquire) {

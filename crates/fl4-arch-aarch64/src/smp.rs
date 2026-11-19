@@ -12,6 +12,10 @@ pub const CALL_STALL: u64 = 1;
 pub const CALL_FPU_DROP: u64 = 5;
 pub const CALL_FPU_RELEASE: u64 = 6;
 pub const CALL_ASID: u64 = 7;
+/// GICv2 banked interrupt (arg0) of the called core: mask (arg1 1) or
+/// unmask it, or set edge (arg1 1) or level triggering (`gic::remote`).
+pub const CALL_GIC_MASK: u64 = 8;
+pub const CALL_GIC_CONFIG: u64 = 9;
 
 pub static TX_COMMITS: AtomicU64 = AtomicU64::new(0);
 pub static TX_ABORTS: AtomicU64 = AtomicU64::new(0);
@@ -77,12 +81,16 @@ pub fn service(stall: impl FnOnce()) -> bool {
     }
     let kind = CALL.kind.load(Ordering::Relaxed);
     let a0 = CALL.arg0.load(Ordering::Relaxed);
+    let a1 = CALL.arg1.load(Ordering::Relaxed);
     let stalled = kind == CALL_STALL;
+    let here = percpu::cpu_index() as u64;
     match kind {
         CALL_STALL => stall(),
         CALL_FPU_DROP => crate::fpu::forget_local(a0),
         CALL_FPU_RELEASE => crate::fpu::release_local(a0),
         CALL_ASID => crate::mmu::retired(a0),
+        CALL_GIC_MASK => gic::mask(a0, here, a1 != 0),
+        CALL_GIC_CONFIG => gic::configure(a0, here, a1 != 0),
         _ => {}
     }
     CALL.pending.fetch_and(!me, Ordering::AcqRel);

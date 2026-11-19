@@ -136,6 +136,24 @@ pub fn init(given: Option<u64>, top: u64) -> Option<Info> {
     Some(info)
 }
 
+/// Record a boot core once: firmware may list a core as both a Local APIC
+/// and an x2APIC, or in two MADTs (and an SNP guest's hypervisor writes
+/// the tables). Each listing would otherwise take a CPU slot of its own.
+fn add_cpu(info: &mut Info, id: u32) {
+    if info.cpus[..info.n_cpus].contains(&id) || info.n_cpus == MAX_CPUS {
+        return;
+    }
+    info.cpus[info.n_cpus] = id;
+    info.n_cpus += 1;
+}
+
+/// Whether `ids[i]` is that APIC ID's first listing (false past the end):
+/// `smp::start_aps` starts each core once, as another INIT/SIPI (or SNP
+/// AP creation) would take the running core off the slot it started on.
+pub fn first_listing(ids: &[u32], i: usize) -> bool {
+    i < ids.len() && !ids[..i].contains(&ids[i])
+}
+
 fn parse_madt(t: u64, top: u64, info: &mut Info) {
     let len = rd32(t + 4) as u64;
     let end = match t.checked_add(len) {
@@ -154,9 +172,8 @@ fn parse_madt(t: u64, top: u64, info: &mut Info) {
                 // Only Enabled (bit 0) means ready for boot. Online Capable
                 // (bit 1) alone requires runtime hotplug, which we do not support.
                 let flags = rd32(p + 4);
-                if flags & 1 != 0 && info.n_cpus < MAX_CPUS {
-                    info.cpus[info.n_cpus] = rd8(p + 3) as u32;
-                    info.n_cpus += 1;
+                if flags & 1 != 0 {
+                    add_cpu(info, rd8(p + 3) as u32);
                 }
             }
             1 if l >= 12 => {
@@ -170,9 +187,8 @@ fn parse_madt(t: u64, top: u64, info: &mut Info) {
             9 if l >= 16 => {
                 // Processor local x2APIC uses the same Enabled flag.
                 let flags = rd32(p + 8);
-                if flags & 1 != 0 && info.n_cpus < MAX_CPUS {
-                    info.cpus[info.n_cpus] = rd32(p + 4);
-                    info.n_cpus += 1;
+                if flags & 1 != 0 {
+                    add_cpu(info, rd32(p + 4));
                 }
             }
             _ => {}

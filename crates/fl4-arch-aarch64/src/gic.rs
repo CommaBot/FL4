@@ -285,8 +285,16 @@ pub fn pending() -> bool {
     crate::mrs!("isr_el1") & (1 << 7) != 0
 }
 
+/// Whether `id`'s bits for `core` can only be changed on that core
+/// (`gic_layout::banked_remote`): `mask` and `configure` would reach
+/// nothing from here, so the caller makes a remote call (`smp::CALL_GIC_*`).
+pub fn remote(id: u64, core: u64) -> bool {
+    gic_layout::banked_remote(version() == 3, id, core, percpu::cpu_index() as u64)
+}
+
 /// The registers that hold banked interrupt `id`'s bits for `core`, or
-/// None when they cannot be reached from here (GICv2, another core).
+/// None when they cannot be reached from here (GICv2, another core:
+/// `remote`).
 fn banked_base(core: u64) -> Option<u64> {
     if version() == 3 {
         let r = percpu::gicr(core as usize);

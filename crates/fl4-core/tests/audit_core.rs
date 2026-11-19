@@ -498,3 +498,50 @@ fn a_trap_gate_syscall_reports_the_int_instruction() {
         assert_eq!(t.reg(&s, reg::FAULT_IP), 0x1000, "FaultIP {saved:#x} before the handler");
     }
 }
+
+/// X86PML4Flush checks that the cap's ASID still names its PML4, as every
+/// other use of a PML4 cap does (and AArch64's VSpace flush): once its
+/// ASID pool is deleted the cap keeps `mapped` and the ASID, and a new
+/// pool can give that ASID to another address space, whose TLB entries
+/// (and the cores running it) the stale cap must not reach.
+#[test]
+fn pml4_flush_through_a_stale_cap_reaches_no_other_address_space() {
+    use fl4_abi::label;
+    use fl4_core::error::{Exc, LookupFault, SysError};
+    use fl4_core::layout::{ks, pptr};
+    use fl4_core::obj::ks_set;
+    let (pool, root, other) = (pptr(0x2000), pptr(0x3000), pptr(0x5000));
+    let cap = Cap::Pml4 { ptr: root, mapped: true, asid: 1 };
+    let flush = |pool_entry: Option<u64>, cap: Cap| {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        node_set(&mut s, 0, node::CUR_THREAD, 0x40_0000);
+        if let Some(r) = pool_entry {
+            ks_set(&mut s, ks::ASID_TABLE, pool);
+            s.write(pool + 8, r);
+        }
+        let ex = [Slot(0); 3];
+        let r = vspace::decode(&mut s, &mut a, label::X86PML4Flush, 0, Slot(0x50060), cap, false, 0, &ex);
+        (r, a.events)
+    };
+    // The ASID names the cap's PML4: flushed.
+    let (r, events) = flush(Some(root), cap);
+    assert!(r.is_ok());
+    assert_eq!(events, [("invalidate_asid", 1)]);
+    // Unmapped: invalid, as before.
+    let (r, events) = flush(Some(root), Cap::Pml4 { ptr: root, mapped: false, asid: 1 });
+    assert!(r == Err(Exc::Sys(SysError::InvalidCapability { arg: 0 })));
+    assert!(events.is_empty());
+    // The pool was deleted: the ASID names nothing.
+    let (r, events) = flush(None, cap);
+    assert!(r == Err(Exc::Sys(SysError::FailedLookup { source: false, lf: LookupFault::InvalidRoot })));
+    assert!(events.is_empty(), "flushed an unassigned ASID: {events:?}");
+    // A new pool gave the ASID to another PML4, or to an EPT root.
+    for reused in [other, other | 1] {
+        let (r, events) = flush(Some(reused), cap);
+        assert!(r.is_err());
+        assert!(events.is_empty(), "flushed the ASID's new owner {reused:#x}: {events:?}");
+    }
+    let (r, _) = flush(Some(other), cap);
+    assert!(r == Err(Exc::Sys(SysError::InvalidCapability { arg: 0 })));
+}
