@@ -358,3 +358,53 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   -> none. Expect ~1500 lines over several files; do (d1) without bound ntfn first, then narrow
   `JRecvSendHyp` case by case (state the proved cases as `RecvSendBasicCase` etc. like RecvIpcPollCase).
 - Items 7, 8, M5-M7: not started.
+
+## ke9 (branch par/kentry3 in FL4-rb, on 5a758a10)
+- FINDING (why (d) is not a copy of `sendRecvJ0`): no existing spec frame covers a receive from a waiting
+  sender. `CFr`/`DWFr` (IpcSignalBoundFr/IpcSignalDonFr) let only the WOKEN thread's registers change and
+  need it receive-blocked or inactive (`TCX`/`RbIn`); `KFr` (IpcCancelFr) has no `Running`, no register or SC
+  change. Here the woken thread is the send-blocked sender `t`, the registers that change are the CURRENT
+  thread `r`'s (the receiver), and the sender's sporadic check (FL4 `unblock_sporadic` BEFORE `Running`, so
+  at the hole between the dequeue and the wake, where no `JAtZ` holds: `sendUnblockJ` is not usable) changes
+  the sender's SC refills. Reordering FL4 steps is impossible (abstract `LawfulStore`, no state equality).
+- DONE (commit "receive from a waiting sender, groundwork"; spec + J groundwork; ke9-b2 module build, ke9-ax2 std axioms only for `handle_invocation_refinesJ`, `dispatch_recvJL`, `JAtZ.rsfrStep`, `JAtZ.deadP_rsfr`, `Inv.scRef`; names RS* because XTopJointFinScReply already has `Sched.RFr`):
+  * IpcRecvSendFr (new leaf, spec side): `RSTc` (registers only of `r`, state only of `t`: `KbIn` to
+    `Inactive`/`Running`), `RSChg` (TCB by `RSTc`; an SC other than the current one, refills only; an endpoint
+    holding `t` to a sub-queue), `RSFr t r` (+ `trans`/`upd`/`sts`/`um`/`reprog`/`stsRun`/`arch`, the per-kind
+    lemmas, `curF`/`curB` (current SC kept), and `szKeep`/`ykeep`/`mcpKeep`/`bufKeep`/`prio`/`nsc`/`isorted`/
+    `own`/`off`/`idleOK`/`bsa`/`curInv`/`curRunW`/`sched`/`kback`/`ksz`/`ksub`/`callKeep`/`khrb`).
+    `Inv.scRef`: `Inv` across one SC's refill change given `unblock_result`'s explicit outcome (copy of
+    ScInvU `Inv.unblock`'s body): the way to get `Inv` at the end (below).
+  * XTopJointRecvSendStep (new leaf, J side): `JAtZ.deadP_rsfr`, `JAtZ.rsfrStep` (= `kfrStep` for `RSFr`).
+- NEXT (d1) `JAtZ.recvSendJ0`: non-call sender without fault, receiver without bound ntfn (then add the
+  bound non-active prefixes as ke7 did). Recipe, mirroring `sendRecvJ0` with roles swapped (FL4 order:
+  `receive_ipc` -> take_reply no-op -> `receive_from_sender`: head, `ep_dequeue`, badge/flags reads
+  (EpRecvSend `receive_ipc_send_gen` has the FL4 stepping and `flags_grant`/`flags_call`), `xferStepGJ`
+  (snd = sender, rcv = cur; base `y`/`σy`/`Jy`), `unblock_sporadic sender` AT THE HOLE, fault read,
+  `set_thread_state sender RUNNING`, `possible_switch_to sender`):
+  1. dequeue: `ep_dequeue_c` (as in sendRecvJ0, `.sendEP`), P1 `ep_dequeue.inv`/`.foot` with the sender's
+     state `TS_BLOCKED_ON_SEND`.
+  2. transfer: `J.xferStepGJ hZ hk o hR1 hS1 hW1 F1 hsT htT hne hks hkt hfs badge grant ...` then
+     `J.bufRebaseX`-style rebase is NOT needed for the frame (the receiver's buffer writes are `RcvBufW`):
+     use `JAtZ.bufRebaseX` on `Jy` for `r = cur` exactly as sendRecvJ0 does for its receiver.
+  3. unblock at the hole: IRel level `Ipc.unblock_irel` (IpcEpTail; IRel from `IpcRel.ofSRN`), its spec
+     outcome `specUnblock` = `specSporadicAssert` (`specSporadicAssert_eq`); P1 `sporadic.unblock_check.all`
+     /`.kw` (X-generic, take the hole's `SchedQueuesInvX X`); the FL4 words: `unblock_check_kfoot` (as in
+     `JAtZ.unblockRJ`). Spec outcome form: `unblock_result` (σ3 = σ2 or `updSc {σ2 with reprogramTimer :=
+     true} p z n`, `p ≠ curSc` from the if-guard), so the frame step is `RSFr.reprog` + `RSFr.upd` (SC case).
+  4. `set_thread_state_c`/`sts_all`/`set_thread_state.kw` as in sendRecvJ0 (sender `KbIn` via
+     blockedOnSend, `RSFr.stsRun`); the receiver's TCB change by `RSFr.arch` (+ `RSFr.um` for `setUm`).
+  5. `Inv` at the end: σ5' := the same state without the SC update; `Inv σ5'` by
+     `(Jy.inv.toBut sd).ik hnq IK` (IK as sendRecvJ0: `IK.updOther` for the endpoint and the receiver's
+     TCB (same state/SC), `IK.um`, `IK.updSelf` + `IK.sts` for the sender) and the sender's `RelIfBound`
+     (`Inv.rd` at σy: blockedOnSend with no fault is `inClassR`; carried by `SKeep`); then σ5 =
+     `updSc {σ5' with reprogramTimer := true} p z n` (updK at different keys commute; `stsAct_ne`) and
+     `Inv.scRef` (no release-queue member bound to p: only the sender is, by `Inv.back`/`scTcb`, and it is
+     blocked).
+  6. `JAtZ.rsfrStep` (action unchanged: `stsAct_ne`, sender ≠ cur), then `JAtZ.sendSwitchJ` for
+     `possible_switch_to` (sender runnable, not in the release queue, SC active by `BlockedScActive.tcb` at
+     σy since it was ipc-queued, not idle, not current).
+  7. spec outcome: EpRecvSend `receiveIpc_send_eq` (no bound ntfn) with `possibleSwitchTo` after.
+  Then narrow `JRecvSendHyp` by `RecvSendBasicCase` (sendEP, head sender non-call, no fault, no bound
+  ntfn) and wire it into `jRecvIpcU_of`. (d2) call/fault without grant: sender `Inactive` (RSTc allows it).
+  (d3) reply_push with donation: RSFr needs a donation case (DWFr's `DChg` SC/TCB cases) -- extend RSFr.
