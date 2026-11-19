@@ -285,6 +285,64 @@ theorem JAtZ.frontJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   subst e2
   exact hok
 
+set_option maxHeartbeats 4000000 in
+/-- **The extra caps' lookups at `J`**: FL4's and the spec's both succeed, or
+both fault with the same cap fault (`CapFaultCorr`, IpcGrant's
+`lookup_extra_rel`). -/
+theorem JAtZ.extraJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hOK : Endp.IpcBufCapOK σ) (hBC : Endp.BufCover Z.T Z.B σ)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {info : msginfo.MessageInfo} (hinfo : msg.msg_info st s ct = ok info)
+    {mi : Fl4Spec.MessageInfo} (hmi : Fl4Spec.getMessageInfo (Z := Unit) ct.bv σ = ({(mi, σ)}, False))
+    {buf : U64} (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf)
+    {buffer : Option Fl4Spec.ObjRef}
+    (hbuffer : Fl4Spec.lookupIpcBuffer (Z := Unit) false ct.bv σ = ({(buffer, σ)}, False))
+    {r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault}
+    (hr2 : ipc.lookup_extra_caps st s ct buf info = ok r2)
+    {er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))}
+    (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False)) :
+    (∃ e exs, r2 = .Ok e ∧ er = .ok exs) ∨ (∃ f f', r2 = .Err f ∧ er = .error f' ∧ Endp.CapFaultCorr f f') := by
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨htcb, xs, hks⟩ := J.xtop.curTcb hcur
+  have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
+  have hI := J.xtop.irelK J.ks J.buf
+  have hxs := hI.1.toE.at_tcb hctT hks
+  have hwmi : (L.mem s (regA ct layout.reg.MSG_INFO)).bv =
+      xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register := by
+    rw [← regIdx_msgInfo]; exact hxs.regs _
+  have hmi' : mi = Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register) := by
+    have h := (congrArg Prod.fst (hmi.symm.trans (getMessageInfo_eq hks)))
+    exact congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
+  have hbuffer' : buffer = Endp.ipcBufOf false xs := by
+    have h := (congrArg Prod.fst (hbuffer.symm.trans (lookupIpcBuffer_eq hks false)))
+    exact congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
+  subst hmi' hbuffer'
+  have hm := Endp.msg_info_spec (L := L) s ct
+  rw [hinfo, WP.spec_ok] at hm
+  obtain ⟨-, -, hext, -⟩ := hm
+  have hb := lookup_buf_full s σ J.xtop.rel.2.1.1 J.xtop.rel.2.1.2.1 htcb hks hOK false
+  rw [hbuf, WP.spec_ok] at hb
+  obtain ⟨hsb, hsbp⟩ := hb
+  obtain ⟨xs', hks', hws⟩ := J.buf ct hctT
+  rw [hks] at hks'; cases hks'
+  have hsm : ∀ sp, Endp.ipcBufOf false xs = some sp → Endp.BufMap Z.B buf sp :=
+    fun sp h => hBC ct hctT xs false sp hks h buf (hsbp hws sp h)
+  have hlk := Ipc.lookup_extra_rel J.ip J.xtop.rel hI.1 htcb buf (Endp.ipcBufOf false xs)
+    ⟨hsb.1, hsb.2⟩ hsm info (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register))
+    (by show info.extra_caps.bv.toNat = _; rw [hext, hwmi])
+    (by show info.extra_caps.bv.toNat ≤ 3; rw [hext, hwmi]; exact Endp.extra_le3 _)
+  rw [hr2, WP.spec_ok] at hlk
+  have huniq : ∀ {x y : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))},
+      ({(x, σ)} : Set _) = {(y, σ)} → x = y := fun h =>
+    congrArg Prod.fst (Set.singleton_eq_singleton_iff.1 h)
+  cases r2 with
+  | Ok e =>
+    obtain ⟨caps, hc, -⟩ := hlk
+    exact Or.inl ⟨e, caps, rfl, huniq (congrArg Prod.fst (her.symm.trans hc))⟩
+  | Err f =>
+    obtain ⟨f', hc, hf⟩ := hlk
+    exact Or.inr ⟨f, f', rfl, huniq (congrArg Prod.fst (her.symm.trans hc)), hf⟩
+
 
 set_option maxHeartbeats 4000000 in
 /-- **The argument words at `J`**: the spec's `getMrs` words are FL4's

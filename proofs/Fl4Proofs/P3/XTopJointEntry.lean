@@ -929,16 +929,12 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
     FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct (.Cap cptr false lf)
       (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf')
-  /-- [W] the extra caps' lookup: both succeed, or both fault with FL4's and
-  the spec's cap fault related (`CapFaultCorr`: FL4's `lookup_extra_caps`
-  returns `Cap { addr, in_recv: false, lf }` of the failing extra cptr, l4v's
-  `lookup_extra_caps` `CapFault cptr False lf'` of the same lookup; IpcGrant's
-  `lookup_extra_loop` relates only the successes) and the fault handler at
-  `JAt` for an endpoint handler with a waiting receiver (`FaultEpRecvHyp`, as
-  `lookupFault`). -/
-  extraLookup : (∃ e exs, r2 = .Ok e ∧ er = .ok exs) ∨
-    (∃ f f', r2 = .Err f ∧ er = .error f' ∧ (blocking = true → CapFaultCorr f f' ∧
-      FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct f f'))
+  /-- [W] the fault handler at `JAt` when the extra caps' lookup fails and the
+  handler endpoint has a waiting receiver (`FaultEpRecvHyp`,
+  as `lookupFault`; both lookups succeed or fault with the same cap fault by
+  FrontEndExtra's `JAtZ.extraJ`). -/
+  extraLookup : ∀ f f', r2 = .Err f → er = .error f' → blocking = true →
+    FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct f f'
   /-- Per cap, its decode path (`JPath`). -/
   path : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
@@ -978,9 +974,10 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
-    (hH.extraLookup.imp id fun ⟨f, f', h1, h2, h3⟩ => ⟨f, f', h1, h2, fun hb =>
+    ((J.extraJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct hinfo hmi hbuf
+      hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun hb =>
       faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh f f'
-        (faultEpJ s σ hH.atE.ni hct hH.atE.ctnq (h3 hb).1 (h3 hb).2)⟩)
+        (faultEpJ s σ hH.atE.ni hct hH.atE.ctnq hcf (hH.extraLookup f f' h1 h2 hb))⟩)
     (argsU.map UScalar.bv) hmrs
     (fun hb lf lf' hl => faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh _ _
       (faultEpJ s σ hH.atE.ni hct hH.atE.ctnq (capFaultCorr_lookup cptr hl) (hH.lookupFault hb lf lf' hl)))

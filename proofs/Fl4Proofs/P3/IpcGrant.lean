@@ -1054,9 +1054,21 @@ theorem exAt_set (extra : Aeneas.Std.Array obj.Slot 3#usize) (i : Usize) (x : U6
   · rw [if_neg (fun h' => h h'.1)]
     simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne h]
 
+/-- **FL4's and the spec's cap fault**: FL4's `Fault::Cap { addr, in_recv,
+lf }` and l4v's `CapFault addr in_recv lf'`, the lookup failures related
+(`LookupFaultRel`, with its bounds). -/
+def _root_.Fl4Proofs.P3.Endp.CapFaultCorr (f : error.Fault) (f' : Fl4Spec.Fault) : Prop :=
+  ∃ (a : U64) (rp : Bool) (lf : error.LookupFault) (lf' : Fl4Spec.LookupFailure),
+    f = .Cap a rp lf ∧ f' = .capFault a.bv rp lf' ∧ LookupFaultRel lf lf'
+
+theorem _root_.Fl4Proofs.P3.Endp.ofBl_toBl64 (w : BitVec 64) : (Fl4Spec.ofBl (Fl4Spec.toBl w) : BitVec 64) = w := by
+  rw [toBl_eq_bitsOf, ofBl_bitsOf_eq, Nat.mod_eq_of_lt w.isLt]; simp
+
 set_option maxHeartbeats 8000000 in
 /-- **`lookup_extra_caps`' loop refines the spec's lookups** of the extra
-caps (`map_mE` of `lookup_cap_and_slot`). -/
+caps (`map_mE` of `lookup_cap_and_slot`); on a failed lookup both fault with
+the same cap fault (`CapFaultCorr`: the failing extra cptr, the same walk's
+lookup failures). -/
 theorem lookup_extra_loop {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
     (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
     {t : U64} (ht : th t = some .tcb) {sbw : U64} {sb : Fl4Spec.Word} (hm : BufMap B sbw sb) (n : U64)
@@ -1065,8 +1077,9 @@ theorem lookup_extra_loop {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.
       | .Ok e => ∃ caps, (Fl4Spec.NonDetE.mapME (xLook t.bv)
           (xCptrs σ.machineState.underlyingMemory sb n.val)).run σ = ({(.ok caps, σ)}, False) ∧
           ExtraOK th (L.mem s) e caps
-      | .Err _ => ∃ e', (Fl4Spec.NonDetE.mapME (xLook t.bv)
-          (xCptrs σ.machineState.underlyingMemory sb n.val)).run σ = ({(.error e', σ)}, False) ⦄ := by
+      | .Err f => ∃ e', (Fl4Spec.NonDetE.mapME (xLook t.bv)
+          (xCptrs σ.machineState.underlyingMemory sb n.val)).run σ = ({(.error e', σ)}, False) ∧
+          Endp.CapFaultCorr f e' ⦄ := by
   obtain ⟨hPl, ⟨hSt, hV, -⟩, -⟩ := hB
   set cp := xCptrs σ.machineState.underlyingMemory sb n.val with hcp
   have hcpl : cp.length = n.val := by simp [hcp, xCptrs]
@@ -1158,7 +1171,10 @@ theorem lookup_extra_loop {th : TypedHeap} {G : MdbGhost} {s : S} {σ : Fl4Spec.
         | ok _ => exact hrel.elim
         | error lf' =>
           simp only [WP.spec_ok]
-          exact ⟨_, herr _ (by rw [hdrop]; exact mapME_cons_err (lcs_err _ he'))⟩
+          refine ⟨_, herr _ (by rw [hdrop]; exact mapME_cons_err (lcs_err _ he')), _, false, lf, lf', rfl, ?_, hrel⟩
+          rw [← hw]
+          unfold Fl4Spec.dataToCptr
+          rw [Endp.ofBl_toBl64]
     · rw [if_neg hin, WP.spec_ok]
       have hieq : i.val = n.val := by have : ¬ i.val < n.val := fun h => hin (by scalar_tac); omega
       refine ⟨acc, ?_, by omega, fun j hj => by rw [← hacc] at *; exact hsrc j hj, fun j hj hj3 => hz j (by omega) hj3⟩
@@ -1248,9 +1264,57 @@ theorem lookup_extra_top (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhos
       obtain ⟨caps, hc, hok⟩ := hr
       exact ⟨caps, Vs.catch_ok (hrun _ hc), hok⟩
     | Err _ =>
-      obtain ⟨e', he⟩ := hr
+      obtain ⟨e', he, -⟩ := hr
       refine ⟨[], ?_, extraOK_none th _⟩
       rw [Vs.catch_err (hrun _ he)]; rfl
+
+/-- **`lookup_extra_caps` refines `lookup_extra_caps`**, both outcomes: the
+extra caps related (`ExtraOK`) or the same cap fault (`CapFaultCorr`). -/
+theorem lookup_extra_rel (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGhost} {s : S}
+    {σ : Fl4Spec.State Unit} (hB : RelTopB (L := L) th G N T C E R B c s σ) (hR : IpcRel N T E R B (L.mem s) σ)
+    {t : U64} (ht : th t = some .tcb) (sbw : U64) (sbo : Option Fl4Spec.Word) (hsb : sbw = 0#u64 ↔ sbo = none)
+    (hm : ∀ sb, sbo = some sb → BufMap B sbw sb) (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo)
+    (hn : info.extra_caps.val = Fl4Spec.unat mi.miExtraCaps) (hn3 : info.extra_caps.val ≤ 3) :
+    ipc.lookup_extra_caps st s t sbw info ⦃ r => match r with
+      | .Ok e => ∃ caps, (Fl4Spec.lookupExtraCaps (Z := Unit) t.bv sbo mi).run σ = ({(.ok caps, σ)}, False) ∧
+          ExtraOK th (L.mem s) e caps
+      | .Err f => ∃ f', (Fl4Spec.lookupExtraCaps (Z := Unit) t.bv sbo mi).run σ = ({(.error f', σ)}, False) ∧
+          Endp.CapFaultCorr f f' ⦄ := by
+  unfold ipc.lookup_extra_caps
+  by_cases h0 : sbw = 0#u64
+  · rw [if_pos h0, WP.spec_ok]
+    refine ⟨[], ?_, extraOK_none th _⟩
+    unfold Fl4Spec.lookupExtraCaps
+    rw [runE_liftE_bind (getExtraCptrs_nil (Or.inl (hsb.1 h0)))]; rfl
+  · rw [if_neg h0]
+    obtain ⟨sb, hsbo⟩ : ∃ sb, sbo = some sb := by
+      cases e : sbo with
+      | none => exact absurd (hsb.2 e) h0
+      | some sb => exact ⟨sb, rfl⟩
+    subst hsbo
+    have hmb := hm sb rfl
+    have hal : ∀ k, k < 128 → (bufAddr sb k).toNat % 8 = 0 := fun k hk => by
+      have hv : (⟨BitVec.ofNat 64 k⟩ : U64).val = k := by
+        show (BitVec.ofNat 64 k).toNat = k; simp; omega
+      have h := (hP0.e.balign _ (hmb ⟨BitVec.ofNat 64 k⟩ (by rw [hv]; omega))).2
+      rw [hv] at h; exact h
+    have hge := getExtraCptrs_some (σ := σ) (sb := sb) (mi := mi) (by omega) hal
+    rw [← hn] at hge
+    refine WP.spec_mono (lookup_extra_loop hB hR ht hmb info.extra_caps hn3) ?_
+    intro r hr
+    have hrun : ∀ res, (Fl4Spec.NonDetE.mapME (xLook t.bv)
+        (xCptrs σ.machineState.underlyingMemory sb info.extra_caps.val)).run σ = res →
+        (Fl4Spec.lookupExtraCaps (Z := Unit) t.bv (some sb) mi).run σ = res := by
+      intro res h
+      unfold Fl4Spec.lookupExtraCaps
+      rw [runE_liftE_bind hge]; exact h
+    cases r with
+    | Ok e =>
+      obtain ⟨caps, hc, hok⟩ := hr
+      exact ⟨caps, hrun _ hc, hok⟩
+    | Err _ =>
+      obtain ⟨e', he, hf⟩ := hr
+      exact ⟨e', hrun _ he, hf⟩
 
 end ExtraTop2
 

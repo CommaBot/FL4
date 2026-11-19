@@ -11,7 +11,8 @@ cap fault the lookup-failure words, then the fault words), then a blocking
 word); the spec's `handleFault`: `sendFaultIpc` = `threadSet` of the fault,
 then `sendIpc` (blocking, call), then `return true`.
 
-* `CapFaultCorr f f'`: FL4's fault is a cap fault and the spec's the same
+* `CapFaultCorr f f'` (defined in IpcGrant, where `lookup_extra_loop`'s
+  failure produces it): FL4's fault is a cap fault and the spec's the same
   cap fault, the lookup failures related (`LookupFaultRel`, with its bounds).
 * `encode_lfRel`: `LookupFault::encode` of related lookup failures gives the
   words `LfRel` reads (the guard mismatch's packed word by the bounds).
@@ -41,14 +42,6 @@ namespace Fl4Proofs.P3.Endp
 open fl4_core Fl4Proofs.P1 Fl4Proofs.P3 Fl4Proofs.P3.Notif Fl4Proofs.P3.Ipc
 
 noncomputable section
-
-/-- **FL4's and the spec's cap fault** (module docstring). -/
-def CapFaultCorr (f : error.Fault) (f' : Fl4Spec.Fault) : Prop :=
-  ∃ (a : U64) (rp : Bool) (lf : error.LookupFault) (lf' : Fl4Spec.LookupFailure),
-    f = .Cap a rp lf ∧ f' = .capFault a.bv rp lf' ∧ LookupFaultRel lf lf'
-
-theorem ofBl_toBl64 (w : BitVec 64) : (Fl4Spec.ofBl (Fl4Spec.toBl w) : BitVec 64) = w := by
-  rw [toBl_eq_bitsOf, ofBl_bitsOf_eq, Nat.mod_eq_of_lt w.isLt]; simp
 
 /-- A failed cap lookup's fault (`handle_invocation`'s). -/
 theorem capFaultCorr_lookup (cptr : U64) {lf : error.LookupFault} {lf' : Fl4Spec.LookupFailure}
