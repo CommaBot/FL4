@@ -383,6 +383,14 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   before installing, a retyped TCB's slots are null, deletion nulls); for a
   fault (`faultHypJ`: any other cap is a spec `fail`). -/
   vfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler
+  /-- [J] the current thread has no fault at the invocation (l4v MCS
+  `fault_tcbs_valid_states`: a thread with a fault is not active; the spec
+  sets a fault only in `send_fault_ipc`, whose sender then blocks on the
+  endpoint or on a reply or goes `Inactive`, and `cancel_ipc` (restart,
+  suspend) and the fault reply clear it, `restart_thread_if_no_fault` leaves
+  a faulted thread `Inactive`): the Endpoint cap's send is a normal transfer
+  (`sendLeafJ2`, `JSendRecvHyp`'s `hnf`). -/
+  cnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -619,7 +627,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo` with receivers waiting on the timeout handler's endpoint, `¬ TmoIdle`: the tail's `handle_timeout` sends to a receiver) [W] |
-| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver but for `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, and `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver but for `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, and `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
@@ -672,7 +680,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   case Endpoint p b sd rv g gr =>
     exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
       slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => sendLeafJ2 (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
-        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot J hni hE.ctnq hct hAs hc hst blk call g gr don
+        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot J hni hE.ctnq hE.cnf hct hAs hc hst blk call g gr don
         (fun s1 σ1' h1 h2 => hN s1 σ1' h1 h2 hsd) hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra

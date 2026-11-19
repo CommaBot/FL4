@@ -1096,19 +1096,20 @@ variable (arI) in
 /-- **[W] The endpoint cap's `send_ipc` at `J` where it meets a receiver,
 but for `SendRecvBasic`, `SendRecvCI`, `SendRecvDon` and `SendRecvCP`**
 (`sendLeafJ2`; XTopJointIpcJ's `JSendRestHyp` narrowed by `¬ SendRecvBasic`,
-`¬ SendRecvCI`, `¬ SendRecvDon` and `¬ SendRecvCP`): after the caller's
-restart (`s1`, `σ1`), a send to an endpoint with receivers that pushes a
-reply with the caller's SC donated (a call with a grant or grant-reply right
-and `can_donate` to a receiver with a reply object and no SC), comes from a
-faulted sender, reaches a receiver with an IPC buffer or grants caps ends at
-`JAt` with an outcome of the spec's `send_ipc`. What is left: the donating
-reply push (`reply_push` with `bind_sc_reply` and the donation), the buffer
-and grant transfers (XTopJointGrant's `JAtZ.xferAllJ` has them at `J`, but
-the dequeued receiver makes the state between the dequeue and `Running` no
-`JAtZ` state), the fault transfer (and then the caller's block or reply
-push). l4v: `send_ipc_invs` / `send_ipc_corres`. -/
+`¬ SendRecvCI`, `¬ SendRecvDon` and `¬ SendRecvCP`, and given the caller
+without a fault, `hnf`, which `sendLeafJ2` takes from JEntryAt's `cnf` [J]):
+after the caller's restart (`s1`, `σ1`), a send to an endpoint with receivers
+that pushes a reply with the caller's SC donated (a call with a grant or
+grant-reply right and `can_donate` to a receiver with a reply object and no
+SC) or reaches a receiver with an IPC buffer or grants caps ends at `JAt`
+with an outcome of the spec's `send_ipc`. What is left: the donating reply
+push (`reply_push` with `bind_sc_reply` and the donation), the buffer and
+grant transfers (XTopJointGrant's `JAtZ.xferAllJ` has them at `J`, but the
+dequeued receiver makes the state between the dequeue and `Running` no
+`JAtZ` state). l4v: `send_ipc_invs` / `send_ipc_corres`. -/
 def JSendRecvHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit)
     (blk call : Bool) (b : U64) (g gr don : Bool) (ct p : U64) : Prop :=
+  (∀ xt, σ1.kheap ct.bv = some (.tcb xt) → xt.tcbFault = none) →
   ∀ x : Fl4Spec.Endpoint, σ1.kheap p.bv = some (.endpoint x) → ¬ CanBlock false x →
     ¬ SendRecvBasic σ1 call g don ct.bv p.bv → ¬ SendRecvCI σ1 call g gr ct.bv p.bv →
     ¬ SendRecvDon σ1 call g don ct.bv p.bv → ¬ SendRecvCP σ1 call g gr don ct.bv p.bv →
@@ -1122,7 +1123,7 @@ set_option maxHeartbeats 4000000 in
 theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar : A} {σ1 : Fl4Spec.State Unit}
     (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 ar σ1) {ct p : U64} (hct : ct ∈ Z.T) (hp : p ∈ Z.E)
     {xt : Fl4Spec.Tcb} (hkt : σ1.kheap ct.bv = some (.tcb xt)) (hrs : xt.tcbState = .restart)
-    (hcur : σ1.curThread = ct.bv) (hres : σ1.schedulerAction = .resumeCurThread)
+    (hft0 : xt.tcbFault = none) (hcur : σ1.curThread = ct.bv) (hres : σ1.schedulerAction = .resumeCurThread)
     (hti : σ1.curThread ≠ σ1.idleThread) (hnq : ∀ dm q, ct.bv ∉ σ1.readyQueues dm q)
     (blk call : Bool) (b : U64) (g gr don : Bool)
     (hR : JSendRecvHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p) :
@@ -1168,14 +1169,15 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
     exact J1.sendCallPJ hAT hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr don hcaps hg hrepn hnd
-  · exact hR x hk hc hb hci hdo hcp
+  · exact hR (fun x' hx' => by rw [hkt] at hx'; cases hx'; exact hft0) x hk hc hb hci hdo hcp
 
 set_option maxHeartbeats 4000000 in
 /-- **The endpoint cap's leaf at `J`** but for `JSendRecvHyp` (XTopJointIpcJ's
 `sendLeafJ` with `jSendRest_of` at the restart state). -/
 theorem sendLeafJ2 (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hnq : ∀ d q, σ.curThread ∉ σ.readyQueues d q) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (hni : Entered σ) (hnq : ∀ d q, σ.curThread ∉ σ.readyQueues d q)
+    (hnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl) {p b : U64} {x1 x2 x3 x4 : Bool}
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint p b x1 x2 x3 x4))
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -1224,7 +1226,8 @@ theorem sendLeafJ2 (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s : S} {ar : A
   have e1 : s1' = s1 := eq_of_ok_eq (h1.symm.trans hs1)
   subst e1
   obtain rfl := restart_out_eq h2 hst
-  exact jSendRest_of hZ hAT J1 hctT hpE hkt1 rfl hc1 hres1 hti1 hnq1 blk call b g gr don (hR _ _ h1 h2)
+  exact jSendRest_of hZ hAT J1 hctT hpE hkt1 rfl (hnf x (by rw [hcur]; exact hkx)) hc1 hres1 hti1 hnq1 blk call b g gr don
+    (hR _ _ h1 h2)
 
 end
 
