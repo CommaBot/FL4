@@ -423,6 +423,20 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   Configure's frame install (`JAtZ.bokInstall`, the spec's `IpcBufCapOK`
   asks the IPC frame's pointer nonzero). -/
   fnz : FrNZ Z.th (L.mem s)
+  /-- [J] the free part of every RAM untyped cap reads zero in the spec's
+  memory (`UtZero`; l4v `untyped_ranges_zero`: true in reachable states, the
+  spec's memory is written only by the IPC-buffer and frame stores (inside
+  objects, so off every free part, `freeOut_of_obj`), `freeMemory` and
+  `clearMemory`, both zeroing): the frame retype's new pages read zero
+  (XTopJointUtEp's `UtFreeZ`, `B` grown at them, UtFrameAdd). The untyped decode runs at the
+  entry state; the restart keeps the spec's memory. -/
+  urz : UtZero (L.mem s) Z.G σ
+  /-- [J] every RAM untyped region misses the 64 cores' node slots
+  (XTopJointUtEp's `UtNodesJ`; l4v `kernel_window`/`valid_untyped`: FL4's
+  kernel-state block, all `MAX_NODES` = 64 nodes, is static kernel data,
+  never untyped memory; `JCovD.ks` names only `Cs`'s nodes): the frame
+  retype's new `B` words miss every node (`JAtZ.nodeB`). -/
+  utks : UtNodesJ (L.mem s) Z.G (L.ksb s)
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -1049,8 +1063,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHyp hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2
-          hN.core0 (J.jUtRetHypR_of hni hct hsl hc hN.bufObj hN.heapH.1
-            hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach
+          hN.core0 hE.urz hE.utks (J.jUtRetHypR_of hni hct hsl hc hN.bufObj hN.heapH.1
+            hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach hE.urz hE.utks
             (hN.ret hN.core0)))
     · have hN := hDv rfl
       by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
