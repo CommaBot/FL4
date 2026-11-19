@@ -150,7 +150,8 @@ theorem decode_invocation_page_table_thX (th : TypedHeap) (s : S) (ar : A) (σ :
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ') s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_page_table_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
@@ -159,7 +160,7 @@ theorem decode_invocation_page_table_thX (th : TypedHeap) (s : S) (ar : A) (σ :
     (domFrame_page_table arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
       htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pageTable fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
-    (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+    (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 set_option maxHeartbeats 8000000 in
 /-- **A page_directory cap at `FinXR`** (`VsThX`): `decode_invocation_page_directory_capX`
@@ -193,7 +194,8 @@ theorem decode_invocation_page_directory_thX (th : TypedHeap) (s : S) (ar : A) (
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ') s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_page_directory_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
@@ -202,7 +204,7 @@ theorem decode_invocation_page_directory_thX (th : TypedHeap) (s : S) (ar : A) (
     (domFrame_page_directory arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
       htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pageDirectory fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
-    (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+    (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 set_option maxHeartbeats 8000000 in
 /-- **A pdpt cap at `FinXR`** (`VsThX`): `decode_invocation_pdpt_capX`
@@ -236,7 +238,8 @@ theorem decode_invocation_pdpt_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (hxs : ∀ x, vspace.extra extra 0#usize = ok (some x) → IsSlot th x)
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ') s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_pdpt_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
@@ -245,7 +248,7 @@ theorem decode_invocation_pdpt_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (domFrame_pdpt arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
       htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pdpt fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
-    (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+    (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 
 set_option maxHeartbeats 8000000 in
@@ -278,7 +281,8 @@ theorem decode_invocation_asid_pool_thX (th : TypedHeap) (s : S) (ar : A) (σ : 
     (hsl : IsSlot th slot) (hcap : capAt (L.mem s) slot = ok (.AsidPool ptr base))
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ') s ar σ lbl length
       slot (.AsidPool ptr base) blk call don fp buf extra slbl args ci sl excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_asid_pool_capX arI th s ar σ G hCR hFI hMO hS hR hPt hPI hCur hVC lbl
       slbl hlA length buf ct hct hcur htcb hact hrun ptr base extra excaps hNative hext slot blk call don fp args ci
@@ -286,7 +290,7 @@ theorem decode_invocation_asid_pool_thX (th : TypedHeap) (s : S) (ar : A) (σ : 
     (domFrame_asid_pool arI th s ar σ G hCR hFI hMO hS hR hVC lbl slbl hlA length buf ct hct hcur htcb hact hrun
       ptr base extra excaps hNative hext slot blk call don fp args ci sl buffer hsl hcap)
     (okAll_specDec_asidPool fp slbl args ci sl ptr base excaps buffer) hDR
-    (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+    (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of a frame cap's decode**, its label neither
@@ -414,19 +418,23 @@ theorem decode_invocation_frame_thX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap
     (hDom : DomRel (L.mem s) (L.ksb s) σ)
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      (lbl ≠ fl4_abi.label.X86PageDeriveSubframe → lbl ≠ fl4_abi.label.X86PageGetAddress →
+        lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed →
+        VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ')) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp buf extra slbl (args.map UScalar.bv)
       ci (pc.bv, idx) excaps buffer ct := by
   rcases decode_invocation_frame_capXR arI th s ar σ G hCR hFI hU hMO hA hS hPI hCur hR hPt hVC lbl slbl hlbl length
       buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hAl hno extra excaps hext hxs blk call don fp ci
-      buffer hDom with ⟨hga, htac, h⟩ | h
+      buffer hDom with ⟨hga, htac, h⟩ | ⟨hl, h⟩
   · exact Or.inl (DecOKMX.toXD arI h
       (domFrame_frame arI th s ar σ G hCR hFI hU hMO hA hS hPI hR hPt hVC lbl slbl hlbl length buf ct hct hcur htcb
         hact hrun args hlen hargs hpc hidx hcap hAl hno extra excaps hext hxs blk call don fp ci buffer hga htac)
       (okAll_specDec_frameCap fp slbl (args.map UScalar.bv) ci (pc.bv, idx) p sz rt d m false asid va excaps buffer
         (fun e => htac (hlbl.tac e)) (fun e => hga (hlGA e))) hDom
-      (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
-  · exact Or.inr (DecOKRMX.toXR arI h hDom (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+      (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, fun h1 _ _ => hx.2 h1⟩))
+  · exact Or.inr (DecOKRMX.toXR arI h hDom (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx hd,
+      fun _ h2 h3 => hl.elim (fun e => (h2 e).elim) (fun e => (h3 e).elim)⟩))
 
 set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of a PML4 cap's decode** (from `decode_invocation_pml4D`). -/
@@ -493,14 +501,15 @@ theorem decode_invocation_pml4_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (hEA : EpSchedApart st T C E R B c s σ)
     (hdom : ∀ a, IWords N T E R B a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 256 ≤ a.val) :
-    XCap (L := L) arI (FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c)) s ar σ lbl length
+    XCap (L := L) arI (fun s' a' σ' => FinXR (L := L) AR (xsetsOf th G P L4 L3 L2 L1 N T C E R B c) s' a' σ' ∧
+      VsJFlush (L := L) th G s ar σ s' a' σ') s ar σ lbl length
       slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_pml4_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt lbl slbl
       hlbl ct hct hcur htcb hact hrun p asid mp length slot buf blk call don fp extra args ci sl excaps buffer)
     (domFrame_pml4 arI th hS.2.pl s ar σ G hCR hFI hMO hS lbl slbl hlbl ct hct hcur htcb hact hinv p asid mp length
       slot buf blk call don fp extra args ci sl excaps buffer)
     (okAll_specDec_pml4 fp slbl args ci sl p mp asid excaps buffer) hDR
-    (fun _ _ _ hx hd => FinXT.toXR G hEA hdom hx hd))
+    (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 set_option maxHeartbeats 8000000 in
 /-- **The domain-schedule frame of the ASID control cap's decode** (from

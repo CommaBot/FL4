@@ -454,5 +454,7 @@ import Fl4Proofs.P3.XTopJointRunI
 import Fl4Proofs.P3.XTopJointSwitch
 import Fl4Proofs.P3.XTopJointRunPost
 import Fl4Proofs.P3.XTopJointUnblock
+import Fl4Proofs.P3.XTopJointVsMapSpec
+import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointEntry
 import Fl4Proofs.P3.KsHeap

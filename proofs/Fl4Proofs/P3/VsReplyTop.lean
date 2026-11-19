@@ -1110,12 +1110,14 @@ theorem decode_invocation_frame_capXR [Fl4Proofs.P1.PlainStore st] (th : TypedHe
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hDom : DomRel (L.mem s) (L.ksb s) σ) :
     (lbl ≠ fl4_abi.label.X86PageGetAddress ∧ lbl ≠ fl4_abi.label.X86PageTestAndClearAccessed ∧
-    DecOKMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
-      (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
+    DecOKMX (L := L) arI (fun s' a' σ' => FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ s' a' σ' ∧
+      (lbl ≠ fl4_abi.label.X86PageDeriveSubframe → VsJPost (L := L) th P L4 L3 L2 L1 G s ar σ s' a' σ'))
+      s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer) ∨
+    ((lbl = fl4_abi.label.X86PageGetAddress ∨ lbl = fl4_abi.label.X86PageTestAndClearAccessed) ∧
     DecOKRMX (L := L) arI (FinXT (L := L) th P L4 L3 L2 L1 N T C E R B c AR (L.ksb s) σ) s ar σ lbl length
       (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
-      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct :=
+      buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct) :=
   decode_invocation_frame_capX arI th s ar σ G hCR hFI hU hMO hA hS hPI hCur hR hPt hVC lbl slbl hlbl length buf ct hct
     hcur htcb hact hrun args hlen hargs hpc hidx hcap hAl hno extra excaps hext hxs blk call don fp ci buffer
     (Vs.getAddrHypX_topT s ar σ G hCR hFI hMO hDom ct p call hcur.symm htcb hact (fun x hk => hrun x (hcur ▸ hk)))

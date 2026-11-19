@@ -11,9 +11,9 @@ cap's map, unmap or ASID assignment (XTopJointVsMap).
   `fv_performPml4Flush`: every outcome keeps `vsF` (VsDom's `FK`, the
   leaves `set_object` of an arch object over one of the same type,
   `set_cap`, `get_cap`, `do_machine_op`).
-* `VsFr σ σ'`: the frame `vsF` gives (as XTopJointFinVsSpec's `ArFr`, with
+* `VsSFr σ σ'`: the frame `vsF` gives (as XTopJointFinVsSpec's `ArFr`, with
   CNodes and TCBs' caps changed as well).
-* `VsFr.mid`: a `VsFr` step is an `ArFr` step (the arch objects) followed by
+* `VsSFr.mid`: a `VsSFr` step is an `ArFr` step (the arch objects) followed by
   a `CnStep` (the CNodes and the TCBs' caps), so the scheduler's spec
   invariants carry over by `….ar` and `….cn`.
 -/
@@ -154,7 +154,7 @@ theorem fv_performPml4Flush (i : Fl4Pml4Invocation) : Vs.FK vsF (performPml4Flus
 /-! ### The frame -/
 
 /-- **The frame of a VSpace invocation** (module docstring). -/
-structure VsFr (σ σ' : State Unit) : Prop where
+structure VsSFr (σ σ' : State Unit) : Prop where
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨
     (∃ a a', σ.kheap p = some (.archObj a) ∧ σ'.kheap p = some (.archObj a') ∧ aaType a' = aaType a) ∨
     (∃ r cs cs', σ.kheap p = some (.cnode r cs) ∧ σ'.kheap p = some (.cnode r cs')) ∨
@@ -189,7 +189,7 @@ theorem eraseV_tcb {x y : Tcb} (h : eraseV (some (.tcb y)) = eraseV (some (.tcb 
     (congrArg Tcb.tcbYieldTo e :), (congrArg Tcb.tcbPriority e :), (congrArg Tcb.tcbDomain e :), (congrArg Tcb.tcbFlags e :),
     (congrArg Tcb.tcbArch e :)⟩
 
-theorem VsFr.of_eq {σ σ' : State Unit} (h : vsF σ' = vsF σ) : VsFr σ σ' := by
+theorem VsSFr.of_eq {σ σ' : State Unit} (h : vsF σ' = vsF σ) : VsSFr σ σ' := by
   simp only [vsF, Prod.mk.injEq] at h
   obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdl, hdi, hdsi, hcd, hdt, hrq, hrel, hin, his,
     har⟩ := h
@@ -230,9 +230,9 @@ theorem VsFr.of_eq {σ σ' : State Unit} (h : vsF σ' = vsF σ) : VsFr σ σ' :=
       | _ =>
         cases k' <;> first | (left; exact e1) | (exfalso; simp [aType] at e2; done) | (exfalso; simp only [aType] at e2; split at e2 <;> cases e2; done) | (exfalso; simp [eraseV] at e1; done)
 
-theorem VsFr.of_fk {α : Type} {m : NonDet (State Unit) α} (hm : Vs.FK vsF m) {σ : State Unit} {x : α × State Unit}
-    (hx : x ∈ (m σ).1) : VsFr σ x.2 :=
-  VsFr.of_eq (hm σ x hx)
+theorem VsSFr.of_fk {α : Type} {m : NonDet (State Unit) α} (hm : Vs.FK vsF m) {σ : State Unit} {x : α × State Unit}
+    (hx : x ∈ (m σ).1) : VsSFr σ x.2 :=
+  VsSFr.of_eq (hm σ x hx)
 
 /-- The heap between: the arch objects as after, the rest as before. -/
 def kmid (o o' : Option KernelObject) : Option KernelObject :=
@@ -241,8 +241,8 @@ def kmid (o o' : Option KernelObject) : Option KernelObject :=
   | some (.tcb _) => o
   | _ => o'
 
-/-- **A `VsFr` step through the state between** (module docstring). -/
-theorem VsFr.mid {σ σ' : State Unit} (h : VsFr σ σ') :
+/-- **A `VsSFr` step through the state between** (module docstring). -/
+theorem VsSFr.mid {σ σ' : State Unit} (h : VsSFr σ σ') :
     ∃ σm : State Unit, ArFr σ σm ∧ CnStep σm σ' := by
   refine ⟨{ σ' with kheap := fun p => kmid (σ.kheap p) (σ'.kheap p) }, ⟨fun p => ?_, h.cdt, h.orig, h.ct, h.idle,
     h.cons, h.time, h.csc, h.repr, h.act, h.dt, h.rq, h.rel, congrArg (fun a => a.x64GlobalPml4) h.arch,
@@ -260,13 +260,13 @@ theorem VsFr.mid {σ σ' : State Unit} (h : VsFr σ σ') :
 
 variable {σ σ' : State Unit}
 
-theorem VsFr.kback (h : VsFr σ σ') : KBack σ σ' := by
+theorem VsSFr.kback (h : VsSFr σ σ') : KBack σ σ' := by
   intro o ko' ho
   rcases h.kh o with e | ⟨a, a', h1, h2, -⟩ | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
   · rw [e] at ho; exact ⟨ko', ho, id, id, id, id, id, id⟩
   all_goals (rw [h2] at ho; cases ho; refine ⟨_, h1, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp)
 
-theorem VsFr.ksz (h : VsFr σ σ') : KSz σ σ' := by
+theorem VsSFr.ksz (h : VsSFr σ σ') : KSz σ σ' := by
   intro o ko' ho
   have e := h.ty o
   rw [ho] at e
@@ -274,13 +274,13 @@ theorem VsFr.ksz (h : VsFr σ σ') : KSz σ σ' := by
   | none => rw [g] at e; cases e
   | some k => rw [g] at e; simp only [Option.map_some, Option.some.injEq] at e; exact ⟨k, rfl, e.symm⟩
 
-theorem VsFr.szKeep (h : VsFr σ σ') : Sched.SzKeep σ σ' := by
+theorem VsSFr.szKeep (h : VsSFr σ σ') : Sched.SzKeep σ σ' := by
   intro p x n hp
   rcases h.kh p with e | ⟨a, a', h1, h2, -⟩ | ⟨r, cs, cs', h1, h2⟩ | ⟨y, z, h1, h2, -⟩
   · exact ⟨x, by rw [← e]; exact hp⟩
   all_goals (rw [hp] at h2; cases h2)
 
-theorem VsFr.ksub (h : VsFr σ σ') : KSub σ σ' := by
+theorem VsSFr.ksub (h : VsSFr σ σ') : KSub σ σ' := by
   intro o
   refine ⟨fun r cs ho hw => ?_, fun t ho => ?_, fun h0 => ?_⟩
   · rcases h.kh o with e | ⟨a, a', h1, h2, -⟩ | ⟨r', ds, ds', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
@@ -304,7 +304,7 @@ theorem VsFr.ksub (h : VsFr σ σ') : KSub σ σ' := by
     · rw [e, h0]
     all_goals (rw [h0] at h1; cases h1)
 
-theorem VsFr.tcbF (h : VsFr σ σ') {p : ObjRef} {x : Tcb} (hx : σ.kheap p = some (.tcb x)) :
+theorem VsSFr.tcbF (h : VsSFr σ σ') {p : ObjRef} {x : Tcb} (hx : σ.kheap p = some (.tcb x)) :
     ∃ y, σ'.kheap p = some (.tcb y) ∧ CapsOnly x y := by
   rcases h.kh p with e | ⟨a, a', h1, -, -⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x', y, h1, h2, hc⟩
   · exact ⟨x, by rw [e]; exact hx, CapsOnly.refl x⟩
@@ -312,13 +312,13 @@ theorem VsFr.tcbF (h : VsFr σ σ') {p : ObjRef} {x : Tcb} (hx : σ.kheap p = so
   · rw [hx] at h1; cases h1
   · rw [hx] at h1; cases h1; exact ⟨y, h2, hc⟩
 
-theorem VsFr.look (h : VsFr σ σ') {p : ObjRef} {ko : KernelObject} (ha : ∀ a, ko ≠ .archObj a)
+theorem VsSFr.look (h : VsSFr σ σ') {p : ObjRef} {ko : KernelObject} (ha : ∀ a, ko ≠ .archObj a)
     (hc : ∀ r cs, ko ≠ .cnode r cs) (ht : ∀ x, ko ≠ .tcb x) : σ'.kheap p = some ko ↔ σ.kheap p = some ko := by
   rcases h.kh p with e | ⟨a, a', h1, h2, -⟩ | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
   · rw [e]
   all_goals (rw [h1, h2]; constructor <;> intro e <;> cases e <;> first | exact absurd rfl (ha _) | exact absurd rfl (hc _ _) | exact absurd rfl (ht _))
 
-theorem VsFr.hasPm (h : VsFr σ σ') {g : ObjRef} (hp : HasPm σ g) : HasPm σ' g := by
+theorem VsSFr.hasPm (h : VsSFr σ σ') {g : ObjRef} (hp : HasPm σ g) : HasPm σ' g := by
   obtain ⟨pt, hpt⟩ := hp
   rcases h.kh g with e | ⟨a, a', h1, h2, ht⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -, -⟩
   · exact ⟨pt, by rw [e]; exact hpt⟩
@@ -331,8 +331,8 @@ theorem VsFr.hasPm (h : VsFr σ σ') {g : ObjRef} (hp : HasPm σ g) : HasPm σ' 
   · rw [hpt] at h1; cases h1
   · rw [hpt] at h1; cases h1
 
-theorem VsFr.trans {σ1 σ2 σ3 : State Unit} (h1 : vsF σ2 = vsF σ1) (h2 : vsF σ3 = vsF σ2) : VsFr σ1 σ3 :=
-  VsFr.of_eq (h2.trans h1)
+theorem VsSFr.trans {σ1 σ2 σ3 : State Unit} (h1 : vsF σ2 = vsF σ1) (h2 : vsF σ3 = vsF σ2) : VsSFr σ1 σ3 :=
+  VsSFr.of_eq (h2.trans h1)
 
 end Spec
 
