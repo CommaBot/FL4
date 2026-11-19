@@ -41,6 +41,42 @@ pub fn v2_targets(itargetsr0: u32) -> u32 {
     (if t == 0 { 1 } else { t }) * 0x0101_0101
 }
 
+/// GICv2 CPU interfaces: GICD_ITARGETSR and GICD_SGIR target lists have
+/// eight bits.
+pub const V2_INTERFACES: usize = 8;
+
+/// GICv2: the CPU interface bits a core's banked GICD_ITARGETSR0 gives
+/// (each byte that core's own bit; zero on a uniprocessor GIC).
+pub fn v2_interface(itargetsr0: u32) -> u64 {
+    let mut t = itargetsr0;
+    t |= t >> 16;
+    t |= t >> 8;
+    (t & 0xff) as u64
+}
+
+/// GICv2: whether SGIs can reach a core whose interface bits are `mine`
+/// beside cores with `others`: exactly one interface, no other core's. A
+/// core with none (or several) would be sent SGIs that reach nobody (or
+/// another core too), so a remote call to it would never return.
+pub fn v2_interface_ok(mine: u64, others: impl IntoIterator<Item = u64>) -> bool {
+    mine < 1 << V2_INTERFACES && mine.is_power_of_two() && others.into_iter().all(|o| o != mine)
+}
+
+/// GICv3: whether SGIs can name Aff0 values of 16 and more: ICC_SGI1R_EL1's
+/// range selector (RS, bits 44..47) is RES0 unless both the distributor
+/// (GICD_TYPER.RSS, bit 26) and the sending core's CPU interface
+/// (ICC_CTLR_EL1.RSS, bit 18) support it (IHI 0069).
+pub fn v3_rss(gicd_typer: u32, icc_ctlr: u64) -> bool {
+    gicd_typer & (1 << 26) != 0 && icc_ctlr & (1 << 18) != 0
+}
+
+/// GICv3: whether an SGI can name a core with affinity 0 `aff0`: without
+/// the range selector only targets 0..15 exist, and a larger value would
+/// reach the core at `aff0 % 16` instead.
+pub fn v3_sgi_reaches(aff0: u64, rss: bool) -> bool {
+    aff0 < 16 || rss
+}
+
 /// A redistributor's size from its GICR_TYPER.
 fn frame_size(typer: u64) -> u64 {
     if typer & TYPER_VLPIS != 0 { GICR_FRAME_VLPI } else { GICR_FRAME }
@@ -108,6 +144,63 @@ pub fn reserve(base: u64, raw_len: u64, len: u64, typer: impl Fn(u64) -> u64) ->
 /// (a MADT GICC entry gives each core's RD and SGI frames only).
 pub fn span(base: u64, len: u64, typer: impl Fn(u64) -> u64) -> u64 {
     walk(base, len, typer, |_, _| true).0 - base
+}
+
+/// Record redistributor range (`base`, `len`; `len` 0: up to the frame
+/// marked last) among the `*n` ranges of `ranges`. A bounded range that
+/// overlaps recorded bounded ranges is merged with them into one covering
+/// all: a MADT can give a GICR discovery range and its cores' GICC
+/// redistributors in either order, and keeping only the first range from
+/// a base (a core's two frames) would hand the rest of the discovery range
+/// to user space, while recording each core's frames inside a discovery
+/// range separately would fill `ranges`. Unbounded ranges are only
+/// deduplicated. Returns false when the range cannot be recorded (no room,
+/// address 0, or an end past the address space): the boot then fails
+/// rather than give the range to user space.
+pub fn add_redistributors(ranges: &mut [(u64, u64)], n: &mut usize, base: u64, len: u64) -> bool {
+    if base == 0 {
+        return false;
+    }
+    if len == 0 {
+        if ranges[..*n].contains(&(base, 0)) {
+            return true;
+        }
+        if *n == ranges.len() {
+            return false;
+        }
+        ranges[*n] = (base, 0);
+        *n += 1;
+        return true;
+    }
+    let Some(mut end) = base.checked_add(len) else { return false };
+    let mut start = base;
+    // Absorb every overlapping bounded range, until none is left: merging
+    // can widen the range over further recorded ones.
+    loop {
+        let mut merged = false;
+        let mut i = 0;
+        while i < *n {
+            let (b, l) = ranges[i];
+            if l != 0 && b < end && start < b + l {
+                start = start.min(b);
+                end = end.max(b + l);
+                ranges.copy_within(i + 1..*n, i);
+                *n -= 1;
+                merged = true;
+            } else {
+                i += 1;
+            }
+        }
+        if !merged {
+            break;
+        }
+    }
+    if *n == ranges.len() {
+        return false;
+    }
+    ranges[*n] = (start, end - start);
+    *n += 1;
+    true
 }
 
 /// Whether core `me` changes interrupt `id`'s enable or trigger bits for

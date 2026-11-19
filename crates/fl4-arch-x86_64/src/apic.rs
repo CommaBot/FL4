@@ -198,8 +198,20 @@ pub fn irr_pending(lo: u32, hi: u32) -> bool {
     false
 }
 
-/// Send an IPI with physical destination mode.
+/// Whether `dest` names one core as a physical destination: xAPIC has 8
+/// bits (a larger ID would be truncated to another core's) and 0xff is
+/// the broadcast ID; x2APIC's broadcast ID is 0xffff_ffff (Intel SDM
+/// vol. 3A §11.6.1, §11.12.9).
+pub fn valid_physical_dest(dest: u32, x2apic: bool) -> bool {
+    if x2apic { dest != u32::MAX } else { dest < 0xff }
+}
+
+/// Send an IPI with physical destination mode to one core. A destination
+/// that does not name exactly one core sends nothing.
 pub fn send_ipi(dest: u32, icr_lo: u32) {
+    if !valid_physical_dest(dest, is_x2apic()) {
+        return;
+    }
     if is_x2apic() {
         wrmsr(0x830, ((dest as u64) << 32) | icr_lo as u64);
     } else {
@@ -226,6 +238,23 @@ mod tests {
             registers(last_page | (1 << 11), false, top),
             Some(Registers::Mmio(fl4_core::layout::pptr(last_page)))
         );
+    }
+
+    /// Audit round 5 F2: an MADT x2APIC entry's ID above 0xfe cannot be
+    /// sent an xAPIC IPI (0x100 would become 0x00, the boot core), and
+    /// neither mode's broadcast ID names one core.
+    #[test]
+    fn physical_destinations_name_exactly_one_core() {
+        assert!(valid_physical_dest(0, false));
+        assert!(valid_physical_dest(0xfe, false));
+        assert!(!valid_physical_dest(0xff, false));
+        assert!(!valid_physical_dest(0x100, false));
+        assert!(!valid_physical_dest(0x101, false));
+        assert!(!valid_physical_dest(u32::MAX, false));
+        assert!(valid_physical_dest(0xff, true));
+        assert!(valid_physical_dest(0x100, true));
+        assert!(valid_physical_dest(u32::MAX - 1, true));
+        assert!(!valid_physical_dest(u32::MAX, true));
     }
 
     /// Audit F6: an AP works only in the boot core's mode and, in xAPIC

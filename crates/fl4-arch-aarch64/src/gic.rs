@@ -2,7 +2,7 @@
 //! tree). All interrupts are group 1 at one priority; the kernel takes
 //! them one at a time with interrupts masked except in the idle loop.
 use crate::{cpu, gic_layout, percpu};
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub const SPURIOUS: u64 = 1023;
 const PRIO: u32 = 0xa0;
@@ -11,6 +11,9 @@ static VERSION: AtomicU64 = AtomicU64::new(0);
 static GICD: AtomicU64 = AtomicU64::new(0);
 static GICC: AtomicU64 = AtomicU64::new(0);
 static LINES: AtomicU64 = AtomicU64::new(32);
+/// GICv3: some core started has Aff0 16 or more, so every core must be
+/// able to send SGIs with the range selector.
+static NEED_RSS: AtomicBool = AtomicBool::new(false);
 
 const GICD_CTLR: u64 = 0x0;
 const GICD_TYPER: u64 = 0x4;
@@ -207,10 +210,7 @@ pub fn init_cpu(gicr: u64) {
             i += 4;
         }
         // This interface's number: the banked targets of an SGI.
-        let mut t = rd(d + GICD_ITARGETSR);
-        t |= t >> 16;
-        t |= t >> 8;
-        percpu::set_gic_cpu((t & 0xff) as u64);
+        percpu::set_gic_cpu(gic_layout::v2_interface(rd(d + GICD_ITARGETSR)));
         let c = GICC.load(Ordering::Relaxed);
         wr(c + GICC_PMR, 0xff);
         wr(c + GICC_BPR, 0);
@@ -222,6 +222,35 @@ pub fn init_cpu(gicr: u64) {
     wr(bank + GICD_ISENABLER,
        (1 << irq::TIMER_ID) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
     cpu::dsb_sy();
+}
+
+/// GICv3: whether the calling core can send SGIs to Aff0 16 and more
+/// (`gic_layout::v3_rss`); after `init_cpu`, which enables the system
+/// register interface.
+pub fn rss() -> bool {
+    if version() != 3 {
+        return false;
+    }
+    let ctlr: u64;
+    unsafe { core::arch::asm!("mrs {}, s3_0_c12_c12_4", out(reg) ctlr) };
+    gic_layout::v3_rss(rd(gicd() + GICD_TYPER), ctlr)
+}
+
+/// Before the APs start: whether a core with Aff0 16 or more will run.
+pub fn set_need_rss(v: bool) {
+    NEED_RSS.store(v, Ordering::Relaxed);
+}
+
+/// Whether the calling core, index `c`, after `init_cpu`, can exchange
+/// SGIs with the cores before it: GICv2, one CPU interface of its own;
+/// GICv3, the range selector if a core needs it (`start_aps` starts no
+/// core an SGI cannot name).
+pub fn sgi_ok(c: usize) -> bool {
+    if version() == 3 {
+        !NEED_RSS.load(Ordering::Relaxed) || rss()
+    } else {
+        gic_layout::v2_interface_ok(percpu::gic_cpu(c), (0..c).map(percpu::gic_cpu))
+    }
 }
 
 fn msr_s(reg: &str, v: u64) {

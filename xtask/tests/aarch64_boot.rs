@@ -101,6 +101,36 @@ fn gicv2_spis_go_to_the_boot_cores_interface() {
     assert_eq!(gic_layout::v2_targets(0), 0x0101_0101);
 }
 
+/// Audit round 5 F5: SGIs only reach cores a target list can name. GICv2
+/// has eight CPU interfaces; a core reading no interface (or several, or
+/// another core's) would never answer a remote call. GICv3 names Aff0 16
+/// and more only with the range selector, which both the distributor and
+/// the sending CPU interface must support.
+#[test]
+fn sgis_only_go_to_cores_a_target_list_can_name() {
+    assert_eq!(gic_layout::v2_interface(0x0404_0404), 4);
+    assert_eq!(gic_layout::v2_interface(0), 0);
+    assert!(gic_layout::v2_interface_ok(1, []));
+    assert!(gic_layout::v2_interface_ok(0x80, [1, 2, 4]));
+    assert!(!gic_layout::v2_interface_ok(0, []), "no interface");
+    assert!(!gic_layout::v2_interface_ok(3, []), "two interfaces");
+    assert!(!gic_layout::v2_interface_ok(0x100, []), "a ninth interface");
+    assert!(!gic_layout::v2_interface_ok(2, [1, 2]), "another core's interface");
+    assert_eq!(gic_layout::V2_INTERFACES, 8);
+    let typer_rss = 1 << 26;
+    let ctlr_rss = 1 << 18;
+    assert!(gic_layout::v3_rss(typer_rss, ctlr_rss));
+    assert!(!gic_layout::v3_rss(typer_rss, 0));
+    assert!(!gic_layout::v3_rss(0, ctlr_rss));
+    assert!(!gic_layout::v3_rss(!typer_rss, !ctlr_rss));
+    assert!(gic_layout::v3_sgi_reaches(0, false));
+    assert!(gic_layout::v3_sgi_reaches(15, false));
+    assert!(!gic_layout::v3_sgi_reaches(16, false), "would reach Aff0 0");
+    assert!(!gic_layout::v3_sgi_reaches(0xff, false));
+    assert!(gic_layout::v3_sgi_reaches(16, true));
+    assert!(gic_layout::v3_sgi_reaches(0xff, true));
+}
+
 /// GICR_TYPER values at frame addresses.
 fn frames(list: &[(u64, u64)]) -> impl Fn(u64) -> u64 + '_ {
     move |a| list.iter().find(|f| f.0 == a).map(|f| f.1).unwrap_or_else(|| panic!("read of an unknown frame {a:#x}"))
@@ -399,6 +429,67 @@ fn redistributors_past_the_table_are_a_boot_failure() {
     let h = hw::discover(t.rsdp(), 0).expect("ACPI");
     assert_eq!(h.n_gicr, hw::MAX_GICR);
     assert!(h.gicr_lost);
+}
+
+/// Audit round 5 F3: a MADT giving both a GICR discovery range and its
+/// cores' GICC redistributors, in either order, records the discovery
+/// range whole, once; the kernel then keeps all of it from user space.
+#[test]
+fn a_discovery_range_and_its_cores_redistributors_merge() {
+    let b = 0x80a_0000u64;
+    let len = 0xf6_0000u32;
+    let cores = 100u64;
+    let mut gicc_first = vec![gicd()];
+    for c in 0..cores {
+        gicc_first.push(gicc(c, b + (c % 0x7b) * 0x2_0000));
+    }
+    gicc_first.push(gicr(b, len));
+    let mut gicr_first = vec![gicd(), gicr(b, len)];
+    gicr_first.extend_from_slice(&gicc_first[1..cores as usize + 1]);
+    for (name, e) in [("GICC first", gicc_first), ("GICR first", gicr_first)] {
+        let t = tables(&madt(&e), 2, b"XSDT");
+        let h = hw::discover(t.rsdp(), 0).expect("ACPI");
+        assert!(!h.gicr_lost, "{name}");
+        assert_eq!(&h.gicr[..h.n_gicr], &[(b, len as u64)], "{name}");
+        // What boot reserves of it (`gic_layout::reserve`, as lib.rs runs
+        // it on the recorded range): the whole discovery range.
+        let last = b + len as u64 - 0x2_0000;
+        let typer = |a: u64| if a == last { LAST } else { 0 };
+        assert_eq!(gic_layout::reserve(b, len as u64, len as u64, typer), Some(len as u64), "{name}");
+    }
+}
+
+#[test]
+fn redistributor_ranges_merge_only_where_they_overlap() {
+    let mut r = [(0u64, 0u64); 4];
+    let mut n = 0;
+    let add = |r: &mut [(u64, u64)], n: &mut usize, b, l| gic_layout::add_redistributors(r, n, b, l);
+    // Adjacent ranges stay apart; an overlapping one joins both.
+    assert!(add(&mut r, &mut n, 0x10_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x12_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x2_0000), (0x12_0000, 0x2_0000)]);
+    assert!(add(&mut r, &mut n, 0x11_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x4_0000)]);
+    // Contained: nothing new.
+    assert!(add(&mut r, &mut n, 0x10_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x4_0000)]);
+    // A wider range from below swallows it.
+    assert!(add(&mut r, &mut n, 0xf_0000, 0x10_0000));
+    assert_eq!(&r[..n], &[(0xf_0000, 0x10_0000)]);
+    // Unbounded ranges are deduplicated, never merged.
+    assert!(add(&mut r, &mut n, 0xf_0000, 0));
+    assert!(add(&mut r, &mut n, 0xf_0000, 0));
+    assert_eq!(&r[..n], &[(0xf_0000, 0x10_0000), (0xf_0000, 0)]);
+    // Address 0 and an end past the address space are not recorded.
+    assert!(!add(&mut r, &mut n, 0, 0x2_0000));
+    assert!(!add(&mut r, &mut n, u64::MAX - 0xffff, 0x2_0000));
+    assert_eq!(n, 2);
+    // Full: a range that overlaps still merges, a new one does not fit.
+    assert!(add(&mut r, &mut n, 0x100_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x200_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x200_0000, 0x4_0000));
+    assert!(!add(&mut r, &mut n, 0x300_0000, 0x2_0000));
+    assert_eq!(n, 4);
 }
 
 #[test]
