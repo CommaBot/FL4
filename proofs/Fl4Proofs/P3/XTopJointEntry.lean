@@ -291,7 +291,7 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the platform's timer constants for a timeout fault's consumed time
   (`maxTicksToUs`, `ticks_to_us` at every arch state; as `JSchedCPath`'s
   `max`/`tu`): the reply's `do_fault_transfer` of a replier with a timeout
-  fault and an SC (`JAtZ.xferAnyJ`). -/
+  fault and an SC (`JAtZ.xferAllJ`). -/
   maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
 
