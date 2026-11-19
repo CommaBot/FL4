@@ -26,6 +26,7 @@ set without the new objects.
 import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtPmRet
 import Fl4Proofs.P3.UtCnRet
+import Fl4Proofs.P3.UtBodyJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -74,27 +75,50 @@ theorem objTypeOf_large {n : Nat} (h : objTypeOf n = some (.archObject .largePag
     rw [(objTypeOf_none n).2 (by omega)] at h; cases h
   interval_cases n <;> simp_all [objTypeOf, Fl4Spec.archDataToObjType]
 
+variable (arI) in
+/-- **The outcome of a retype body at `J`** (handoff/utj.md Round 13): the
+spec's `invoke_untyped` from `σ` has the single outcome `ok` at `σ'`, FL4's is
+`Ok`, related by the CSpace relations, `DomRel` and `MdbOKV`, `JAt` after.
+`utRetPostJ_of_body`: after the restart, `UtRetPostJ`. -/
+def UtBodyPost (AR : A → Fl4Spec.Cr3 → Prop) (σ : Fl4Spec.State Unit) (inv : Fl4Spec.UntypedInvocation)
+    (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  ∃ σ', (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ = ({(.ok (), σ')}, False) ∧
+    res.1 = .Ok () ∧
+    (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
+      DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
+    JAt (L := L) arI AR res.2.1 res.2.2 σ'
+
+theorem utRetPostJ_of_body {σ σ1 : Fl4Spec.State Unit} {blk call don : Bool} {inv : Fl4Spec.UntypedInvocation}
+    {res : core.result.Result Unit error.Exc × S × A}
+    (hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
+    (h : UtBodyPost (L := L) arI AR σ1 inv res) : UtRetPostJ (L := L) arI AR σ blk call don inv res := by
+  obtain ⟨σ', hrun, hok, ⟨th', G', hrel⟩, hJ⟩ := h
+  refine ⟨σ1, hst1, (.ok [], σ'), perf_ut_mem blk call don hrun, ⟨th', G', Or.inl ⟨hok, rfl⟩, hrel⟩, ?_⟩
+  rw [if_neg (by rw [hok]; simp)]
+  exact hJ
+
 set_option maxHeartbeats 16000000 in
-/-- **The no-reset retype of endpoints, notifications, replies, VSpace
-tables (PDPTs, page directories, page tables) or frames at `J`**
-(module docstring; one core, `Z.c = 0`, for the replies' placement off the
-nodes): from `JAtZ` at the decode (no reschedule pending), the decoded
-arguments (`RetCtx`, no reset: the source cap has a child), the source a
-CNode slot's RAM untyped cap, FL4's restart and `untyped::retype` end in
-`UtRetPostJ` (done, `JAt` after). -/
-theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
+/-- **The body of `JAtZ.utEpJ`: the retype without a reset from a `JAtZ`
+state** (handoff/utj.md Round 13): FL4's `untyped::retype` with `reset = false`
+from the state itself (after the restart; or after the restart and the
+reset, the cap's free index then 0), against the spec's `invoke_untyped`
+without a reset from `σ`: `UtBodyPost`. The arguments `RetCtx` at the state
+(any `reset` flag, the window base from the cap's free index `fiv = fi`),
+`Entered` (no switch pending), and the kept objects' references to a range
+in the cap's free part (`hRU`, `RegionUnrefJ`'s conclusion at the state). -/
+theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) {pp : U64} {rs : Nat} {idx : List Bool}
     (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
-    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64}
+    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {reset : Bool} {fiv : U64}
     (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) (hc0 : Z.c = 0#u64)
-    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r false fiv)
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (blk call don : Bool) :
-    (do
-      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
-      untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) false
-        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false) ⦃ res =>
-      UtRetPostJ (L := L) arI AR σ blk call don (.retype (pp.bv, idx) false p.bv
+    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r reset fiv) (hfiv : fiv = fi)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ)
+    (hRU : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
+        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      UtBodyPost (L := L) arI AR σ (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
         res ⦄ := by
   have hBF : BufFreeHyp Z.B (L.mem s) Z.G := bufFree_of_obj J.sfree hBO
@@ -103,8 +127,6 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hnd : Sched.NotDev (L.mem s) (cslotAddr (pp.bv, idx)) p sb fi := Sched.notDev_ram (capV_of_capAt hcap)
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   have hc2 : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
-  have hctE : ct = L.curW s := by rw [hct] at hc2; exact eq_of_ok_eq hc2
-  subst hctE
   have hty := hctx.ty
   have ht : t = .endpointObject ∨ t = .notificationObject ∨ t = .replyObject ∨ t = .archObject .pdptObj ∨
       t = .archObject .pageTableObj ∨ t = .archObject .pageDirectoryObj ∨ t = .archObject .hugePageObj ∨
@@ -115,41 +137,24 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have htP : t ≠ .archObject .pml4Obj := by rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have htT : t ≠ .tcbObject := by rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp
   have hb : Fl4Spec.fl4ObjBitsApi t us.val = zOf nt.val us.val := (objTypeOf_fl4 hty us.val).2.1
-  have hfiv : fiv = fi := by rw [hctx.fidx]; rfl
   subst hfiv
-  have hunused : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fiv.val = 0 := fun hnc => by
-    have e := hctx.resetEq; simp [hnc] at e
-  -- the restart, at `J` and at the CSpace
-  obtain ⟨s1, σ1, x1, -, hst1, -, -, he1, hns1, hid1, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
-  obtain ⟨s1', σ1', -, hs1', -, hSS1, -, -, hk1, hcpu1⟩ :=
-    restart_dstate Z.th hP s σ Z.G J.dstate (L.curW s) hct J.kern.cur J.kern.curT J.kern.act
-  rw [hs1] at hs1'; cases eq_of_ok_eq hs1'
-  have hksz : KSz σ σ1 := ksz_of_eq (nkz_setThreadState _ _) hst1
+  -- no restart here: the state the body starts at
+  have hksz : KSz σ σ := fun o ko h => ⟨ko, h, rfl⟩
   -- the window, against the source cap
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
   obtain ⟨hA1, hA2, hA3, -⟩ := retype_region p fiv sb.val (zOf nt.val us.val) win.val hsb (by rcases hnt with h | h | h | h | h | h | h | h | h <;>
     simp [zOf, h]) hU.pal hU.pfit hU.fiLe hctx.window.1 hctx.memory
-  refine WP.spec_mono (retype_cont_all (L := L) arI ar Z.th s σ Z.G hSR hV hP hM hC hI J.ut J.kern.orig (L.curW s)
-    J.kern.cur hct J.kern.curT J.kern.act hpp hidx hcap hU.pal hU.pfit hU.fiLe (hU.high hnd)
-    (fun h => (hU.actZ hnd) ⟨by omega, h.2⟩) hU.free (hU.zero hnd) hunused Fl4Spec.fl4ObjBitsApi nt us dest off win t r
-    false fiv (by omega) hb J.kern.dwAl J.kern.dwObj (fun h => (hU.dwReg hnd) ⟨by omega, h.2⟩) J.kern.dwNe J.kern.head
-    hctx) (fun res hRP => ?_)
-  unfold UtRetPostJ
-  have hRPN := RetPost.toN hRP
-  obtain ⟨hok, har, σ1'', hst, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
-    hE, hRF, hRFu⟩ := hRP
-  have e1 : σ1'' = σ1 := by
-    have e := congrArg Prod.fst (hst.symm.trans hst1)
-    simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at e
-    exact e
-  subst σ1''
-  obtain ⟨ct0, s0, hct0, hs0, hbr⟩ := hRF
-  rw [hct] at hct0; cases eq_of_ok_eq hct0
-  rw [hs1] at hs0; cases eq_of_ok_eq hs0
+  refine WP.spec_mono (retype_body (L := L) arI ar Z.th s σ Z.G hSR hV hP hM hC hI J.ut J.kern.orig hpp hidx hcap
+    hU.pal hU.pfit hU.fiLe (hU.high hnd) hU.free (hU.zero hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
+    (by omega) hctx.size.1 hctx.size.2.1 (fun h => by omega) (fun h => by omega) hctx.cnode.1 hctx.cnode.2.1
+    hctx.window.2.2 hctx.window.1 hctx.memory hctx.empty hb) (fun res hRP => ?_)
+  have hRPN := RetPostB.toNB hRP
+  obtain ⟨hok, har, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
+    hE, hbr, hRFu⟩ := hRP
   rcases hbr with ⟨e, -⟩ | ⟨-, ⟨eA, ek, ew, hAk⟩, sR, thR, lo, hi, hor, -, -, -, -, ⟨n0, hn0, hThX, uu, -, hcj⟩, -,
     hW, hWZ, -⟩
   · rw [hok] at e; cases e
-  have hsR : sR = s1 ∧ thR = Z.th := by
+  have hsR : sR = s ∧ thR = Z.th := by
     rcases hor with ⟨h1, h2, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
     · exact ⟨h1, h2⟩
     · cases hRB
@@ -173,16 +178,16 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hth : th' = Z.th := funext fun q => by rw [hThX.1 q, hk0]; simp
   subst hth
   -- FL4's writes: slot words
-  have hw : P1.WritesIn st s1 res.2.1 (Sched.SlotWd Z.th) := ⟨hW.1, hW.2.1, fun b hb hn => hW.2.2 b hb (fun h => hn (by
+  have hw : P1.WritesIn st s res.2.1 (Sched.SlotWd Z.th) := ⟨hW.1, hW.2.1, fun b hb hn => hW.2.2 b hb (fun h => hn (by
     rcases h with (⟨h1, -⟩ | h) | ⟨h1, -⟩
     · exact absurd h1 htT
     · exact Sched.slotSpan_wd hP hb h
     · exact absurd h1 htP))⟩
   -- the spec's outcome: the window's objects added, then CNodes changed
-  have hSR1 := J1.xtop.rel.2.1.1
+  have hSR1 := J.xtop.rel.2.1.1
   have hlen : (windowSlots dest r off.val win.val).length = win.val := by simp [windowSlots]
   obtain ⟨-, σB, hA, hcnk, hkc⟩ := invokeUntyped_noreset_add Fl4Spec.fl4ObjBitsApi (pp.bv, idx) p.bv _ t us.val
-    (windowSlots dest r off.val win.val) false σ1 htU htP {pp.bv, dest.bv} (Or.inl rfl)
+    (windowSlots dest r off.val win.val) false σ htU htP {pp.bv, dest.bv} (Or.inl rfl)
     (fun d hd => by
       obtain ⟨i, -, rfl⟩ := List.mem_map.1 hd
       exact Or.inr rfl)
@@ -200,7 +205,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       have hfit := hU.pfit
       have hqv := ptrAdd_toNat (rb := Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
         (n := j * 2 ^ zOf nt.val us.val) (by have := Nat.one_le_two_pow (n := zOf nt.val us.val); omega)
-      cases hq1 : σ1.kheap (Fl4Spec.ptrAdd (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
+      cases hq1 : σ.kheap (Fl4Spec.ptrAdd (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
           (j * 2 ^ zOf nt.val us.val)) with
       | none => rfl
       | some ko =>
@@ -215,22 +220,20 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     (.ok (), σ') (by rw [hrun]; rfl)
   have ho : ∀ q, q ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi t us.val) →
-      ∀ x n, Fl4Spec.defaultObject t false us.val σ1.curDomain ≠ .schedContext x n := by
+      ∀ x n, Fl4Spec.defaultObject t false us.val σ.curDomain ≠ .schedContext x n := by
     intro q _ x n; rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject]
-  have hks1 : L.ksb s1 = L.ksb s := hk1
   have hcjne : ∀ j, j < w → ∀ p b a, cj j ≠ .Pml4 p b a := by
     intro j _ p b a
     rw [hcj]
     rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [cjOf, newCapOf, h]
   have hTS : ∀ t0, Z.th t0 = some .tcb → ∀ p0 asid, capAt (L.mem res.2.1) (slotOf t0 1) = ok (.Pml4 p0 true asid) →
-      capAt (L.mem s1) (slotOf t0 1) = ok (.Pml4 p0 true asid) := by
+      capAt (L.mem s) (slotOf t0 1) = ok (.Pml4 p0 true asid) := by
     intro t0 ht0 p0 asid hc
     have hxs : IsSlot Z.th (slotOf t0 1) := ⟨t0, 1, Or.inr ⟨ht0, by decide⟩, rfl⟩
-    rw [hSS1.capAt hxs]
     exact retExp_pml4_back hE hM hM' hcjne hxs hc
-  have hX' := XTopAt.addStep J1.xtop hw hA ho hcnk hkc ⟨hR', hV', hM', hC', hI'⟩ (hFin hFI0)
-    (by rw [hks1]; exact hSt.okv hMO0) hTS
-  have hksR : L.ksb res.2.1 = L.ksb s := hw.1.trans hks1
+  have hX' := XTopAt.addStep J.xtop hw hA ho hcnk hkc ⟨hR', hV', hM', hC', hI'⟩ (hFin hFI0)
+    (hSt.okv hMO0) hTS
+  have hksR : L.ksb res.2.1 = L.ksb s := hw.1
   have hnbR : L.nodeBase res.2.1 Z.c = L.nodeBase s Z.c := by simp only [P1.LawfulStore.nodeBase, hksR]
   have hfit := hU.pfit
   have hhigh := hU.high hnd
@@ -260,7 +263,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       (by omega)]
     simp only [UScalar.bv_toNat]
     omega
-  have hspec : ∀ q ∈ (winSet (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat (2 ^ (zOf nt.val us.val)) win.val), σ'.kheap q.bv = some (Fl4Spec.defaultObject t false us.val σ1.curDomain) := by
+  have hspec : ∀ q ∈ (winSet (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)).toNat (2 ^ (zOf nt.val us.val)) win.val), σ'.kheap q.bv = some (Fl4Spec.defaultObject t false us.val σ.curDomain) := by
     intro q hq
     have hB := (hA.new _ (hreg q hq)).2
     rcases hkc q.bv with e | ⟨r0, cs, cs', e1, -⟩
@@ -378,33 +381,21 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       simp only [Set.union_empty]
       exact hX'
   -- the spec side
-  have hdet : ∀ σx, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σx)}, False) → σx = σ1 :=
-    fun σx h => by
-      have e := congrArg Prod.fst (h.symm.trans hst1)
-      simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at e
-      exact e
   obtain ⟨hcdtK, horgK⟩ := invokeUntyped_noreset_co Fl4Spec.fl4ObjBitsApi (pp.bv, idx) p.bv _ t us.val
-    (windowSlots dest r off.val win.val) false σ1 htU htP (.ok (), σ') (by rw [hrun]; rfl)
-  have hσ1k : ∀ o, o ≠ (L.curW s).bv → σ1.kheap o = σ.kheap o := fun o ho => by
-    rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; exact Function.update_of_ne ho _ _
-  have hσ1c : ∃ y, σ1.kheap (L.curW s).bv = some (.tcb y) :=
-    ⟨{ x1 with tcbState := .restart }, by rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; simp⟩
-  have hσ1cdt : σ1.cdt = σ.cdt := by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl
-  have hcsc1 : σ1.curSc = σ.curSc := by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl
-  have hisc1 : σ1.idleSc = σ.idleSc := by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl
+    (windowSlots dest r off.val win.val) false σ htU htP (.ok (), σ') (by rw [hrun]; rfl)
   have hC2 := CnStep.of_cnK hcnk
-  have hctB : σB.curThread = σ1.curThread := by
+  have hctB : σB.curThread = σ.curThread := by
     have e := congrArg Fl4Spec.AbstractState.curThread hA.abs; exact e
-  have hcscB : σB.curSc = σ1.curSc := by
+  have hcscB : σB.curSc = σ.curSc := by
     have e := congrArg Fl4Spec.AbstractState.curSc hA.abs; exact e
-  have hidB : σB.idleThread = σ1.idleThread := by
+  have hidB : σB.idleThread = σ.idleThread := by
     have e := congrArg Fl4Spec.AbstractState.idleThread hA.abs; exact e
-  have hiscB : σB.idleSc = σ1.idleSc := by
+  have hiscB : σB.idleSc = σ.idleSc := by
     have e := congrArg Fl4Spec.AbstractState.idleSc hA.abs; exact e
-  have hgp' : σ'.archState.x64GlobalPml4 = σ1.archState.x64GlobalPml4 := by
+  have hgp' : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcnk.1
     exact e.trans (congrArg (fun a => a.x64GlobalPml4) hA.arch)
-  have hao : ∀ q ao, σ1.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao) := fun q ao h => by
+  have hao : ∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao) := fun q ao h => by
     have hB := hA.kold h
     rcases hkc q with e | ⟨r0, cs, cs', e1, -⟩
     · rw [e]; exact hB
@@ -417,41 +408,38 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     rw [List.mem_range'_1] at hi
     refine ⟨⟨dest, rfl, Or.inl ?_⟩, i, hi.1, hi.2, rfl⟩
     rw [natToCref_length _ _ (by have := hctx.cnode.2.1; omega)]; exact hctx.cnode.1
-  have horig : ∀ sl, σ'.isOriginalCap sl = true → σ1.isOriginalCap sl = true ∨ AbsSlot Z.th sl := fun sl h => by
+  have horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl := fun sl h => by
     by_cases hs : sl ∈ windowSlots dest r off.val win.val
     · exact Or.inr (hslA sl hs).1
     · exact Or.inl (by rw [← horgK sl hs]; exact h)
   -- FL4's writes: inside slots
-  have hwI : P1.WritesIn st s1 res.2.1 (InSlot Z.th) := ⟨hW.1, hW.2.1, fun b hb hn => hW.2.2 b hb (fun h => hn (by
+  have hwI : P1.WritesIn st s res.2.1 (InSlot Z.th) := ⟨hW.1, hW.2.1, fun b hb hn => hW.2.2 b hb (fun h => hn (by
     rcases h with (⟨h1, -⟩ | h) | ⟨h1, -⟩
     · exact absurd h1 htT
     · exact h
     · exact absurd h1 htP))⟩
-  have hidl1 : IdleKeep (L := L) s s1 := J.idleW_keep J1.xtop.fin.1.1.1 hid1 hisc1
-  have hidl2 : IdleKeep (L := L) s1 res.2.1 :=
-    J1.idleW_keep hX'.fin.1.1.1 (hC2.idle.trans hidB) (hC2.isc.trans hiscB)
-  have hidl : IdleKeep (L := L) s res.2.1 := hidl1.trans hidl2
+  have hidl : IdleKeep (L := L) s res.2.1 :=
+    J.idleW_keep hX'.fin.1.1.1 (hC2.idle.trans hidB) (hC2.isc.trans hiscB)
   -- P1's creation: the heap after, `BlkOK`, `JCovD`
   have hcjU : ∀ j, j < win.val → isUt (cj j) = false := by
     intro j _; rw [hcj]; rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [cjOf, newCapOf, h, isUt]
-  obtain ⟨H', Ac', hblk', hout, hjc'⟩ := J.create_noreset hni J1 hs1 hct1 hcsc1 hid1 hisc1 hns1 hRU hpp hidx hcap hE
-    hcjU ⟨by omega, fun h => absurd h (by omega)⟩ (k := 2 ^ zOf nt.val us.val) rfl hAk htT htP hW (hWZ ⟨rfl, htP⟩) hidl
+  obtain ⟨H', Ac', hblk', hout, hjc'⟩ := J.create_noresetB hni hpp hidx hcap hE
+    (hRU _ _ hA1 hA3) (fun _ => hcjU) ⟨by omega, fun h => absurd h (by omega)⟩
+    (k := 2 ^ zOf nt.val us.val) rfl hAk htT hW (fun _ => hWZ ⟨rfl, htP⟩) hidl
   -- `JPlaced` after
-  have hcap1 : capAt (L.mem s1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fiv false) :=
-    (hSS1.capAt hAs.isSlot).trans hcap
-  have hg1 : Fl4Spec.getCap (Z := Unit) (pp.bv, idx) σ1 = ({(.untypedCap false p.bv sb.val fiv.val, σ1)}, False) := by
-    obtain ⟨c, a, hc, hca, hg⟩ := J1.xtop.rel.2.1.1.slot_cap (sl := (pp.bv, idx)) (p := pp) rfl
+  have hcap1 : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fiv false) := hcap
+  have hg1 : Fl4Spec.getCap (Z := Unit) (pp.bv, idx) σ = ({(.untypedCap false p.bv sb.val fiv.val, σ)}, False) := by
+    obtain ⟨c, a, hc, hca, hg⟩ := J.xtop.rel.2.1.1.slot_cap (sl := (pp.bv, idx)) (p := pp) rfl
       (by simpa [hidx] using hpp)
     rw [hcap1] at hc; have := eq_of_ok_eq hc; subst this
     rw [hg, hca.abs]; rfl
-  have hgc : ∀ σx, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σx)}, False) →
-      ∀ y ∈ ((Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi (.retype (pp.bv, idx) false p.bv
+  have hgc : ∀ y ∈ ((Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi (.retype (pp.bv, idx) false p.bv
         (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val)
-        false)).run σx).1,
+        false)).run σ).1,
       ∀ o sz cs y0 n0, σ.kheap o = some (.cnode sz cs) → ¬ Fl4Spec.wellFormedCnodeN sz cs →
         y.2.kheap o ≠ some (.schedContext y0 n0) := by
-    intro σx hx y hy o sz cs y0 n0 h0 _ hk
-    rw [hdet σx hx, hrun] at hy
+    intro y hy o sz cs y0 n0 h0 _ hk
+    rw [hrun] at hy
     obtain rfl := Set.mem_singleton_iff.1 hy
     dsimp only at hk
     have hk' : σB.kheap o = some (.schedContext y0 n0) := by
@@ -459,38 +447,36 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · exact e.symm.trans hk
       · rw [e2] at hk; cases hk
     rcases hA.kback hk' with h1 | ⟨-, h2⟩
-    · by_cases ho : o = (L.curW s).bv
-      · subst ho; obtain ⟨y1, hy1⟩ := hσ1c; rw [hy1] at h1; cases h1
-      · rw [hσ1k o ho, h0] at h1; cases h1
+    · rw [h0] at h1; cases h1
     · rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject] at h2
   have hn1 : nt.val ≠ 1 := by omega
-  obtain ⟨th2, σ2, A2, k2', w2, lo2, hi2, eA2, ek2, ew2, -, -, hor2, ⟨σ12, hst12, hhas2⟩, hthx2, hJP2⟩ :=
-    Sched.JPlaced.retype (L := L) hJp J.jcov J.ut hI hM hRPN hok nt.val hty (by omega)
+  obtain ⟨th2, σ2, A2, k2', w2, lo2, hi2, eA2, ek2, ew2, -, -, hor2, hhas2, hthx2, hJP2⟩ :=
+    Sched.JPlaced.retypeG (L := L) hJp J.jcov J.ut hI hM hksz hRPN hok nt.val hty (by omega)
       (fun kd h => by rw [newKind_bits h, hb]) (fun kd h => by rw [newKind_bits h]; have := hctx.size.2.1; omega)
       (fun z h => by rcases hnt with h' | h' | h' | h' | h' | h' | h' | h' | h' <;> simp [newKind, h'] at h) (fun h => absurd h hn1) (fun h => absurd h hn1)
       J.kern.ksbAl J.kern.nodeFit (fun ct h => by rw [hc2] at h; cases eq_of_ok_eq h; exact J.kern.curT) J.intL
-      J.sfree hgc (capV_of_capAt hcap) rfl (fun σx hx => by rw [hdet σx hx]; exact hg1)
+      J.sfree hgc (capV_of_capAt hcap) rfl hg1
       (fun _ => by rw [← eA]; exact hA1) (fun h => rfl) hidl.2
   have e1' : Aw = A2 := eA.trans eA2.symm
   have e2' : k2' = 2 ^ zOf nt.val us.val := by rw [ek2, hb]
   have e3' : w2 = win.val := by rw [ew2, hlen]
   subst e1' e2' e3'
   have hlohi : Aw = lo2 ∧ Aw + win.val * 2 ^ zOf nt.val us.val = hi2 := by
-    rcases hor2 with h | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
+    rcases hor2 with h | ⟨-, -, -, -, -, -, -, -, -, -, hRB⟩
     · exact ⟨h.1.symm, h.2.symm⟩
     · cases hRB
   obtain ⟨rfl, rfl⟩ := hlohi
   have hth2 : th2 = Z.th := funext fun q => by rw [(hthx2 rfl).1 q, hk0]; simp
   subst hth2
   obtain ⟨y2, hy2, -, hKS⟩ := hhas2
-  rw [hdet σ12 hst12, hrun] at hy2
+  rw [hrun] at hy2
   obtain rfl := Set.mem_singleton_iff.1 hy2
   have hJPa := (hJP2 H' hout).of_kheap hKS.1
   -- `JKern` after
-  have hDbg : L.mem res.2.1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS) =
-      L.mem s1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS) :=
-    hwI.mem_eq J1.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J1.kern.dwObj x hx ⟨h1, h2⟩
-  have K1 := J1.kern_keep (D' := {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q}) hwI.1 hwI.2.1
+  have hDbg : L.mem res.2.1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) =
+      L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
+    hwI.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
+  have K1 := J.kern_keep (D' := {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q}) hwI.1 hwI.2.1
     hX'.fin.1.1.1 (hC2.ct.trans hctB) (hC2.csc.trans hcscB) horig hgp' hao hDbg
   have hRD := (retype_window_dead J.jcov J.ut hI hE ⟨p, sb, fiv, capV_of_capAt hcap⟩).1
   have hoffD : ∀ q kd, H q = some kd → q ∉ D → H' q = some kd := fun q kd hq hqD =>
@@ -498,12 +484,10 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       by_contra hm
       exact hqD (hRD q kd hq (by unfold MeetsW; omega)).1)
   have hres : σ.schedulerAction ≠ .chooseNewThread := by rw [hni.2]; simp
-  have hcs1 : L.cscW s1 = L.cscW s :=
-    cscW_of_sched J.xtop.fin.1.1.1 J1.xtop.fin.1.1.1 hk1 hcpu1 hcsc1
-  have hcsR : L.cscW res.2.1 = L.cscW s1 :=
-    cscW_of_sched J1.xtop.fin.1.1.1 hX'.fin.1.1.1 hwI.1 hwI.2.1 (hC2.csc.trans hcscB)
+  have hcsR : L.cscW res.2.1 = L.cscW s :=
+    cscW_of_sched J.xtop.fin.1.1.1 hX'.fin.1.1.1 hwI.1 hwI.2.1 (hC2.csc.trans hcscB)
   have hcscH : H' (L.cscW res.2.1) ≠ none := by
-    rw [hcsR, hcs1]
+    rw [hcsR]
     obtain ⟨kd, hkd⟩ := Option.ne_none_iff_exists'.1 J.kern.cscH
     rw [hoffD _ kd hkd (J.cscLive.resolve_right hres)]; simp
   have hcurR : (L.curW res.2.1).val + 2 ^ 12 ≤ Aw ∨ Aw + win.val * 2 ^ zOf nt.val us.val ≤ (L.curW res.2.1).val := by
@@ -553,11 +537,8 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       rw [h3, isUt_untyped] at h2; cases h2
   have hcapK : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) →
       (∀ d ∈ windowSlots dest r off.val win.val, y ≠ cslotAddr d) →
-      capV (L.mem res.2.1) y = capV (L.mem s1) y := by
+      capV (L.mem res.2.1) y = capV (L.mem s) y := by
     intro y hy hyx hyd
-    have e1 : capV (L.mem s1) y = capV (L.mem s) y := by
-      have := hSS1.capAt hy; rw [capAt_capV, capAt_capV] at this; exact eq_of_ok_eq this
-    rw [e1]
     by_cases hyG : y ∈ Z.G.chains.flatten
     · cases hu : isUt (capV (L.mem s) y)
       · exact (hE.keep y hyG hu).2
@@ -579,34 +560,34 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
         rw [hdy, hb1] at hcd
         by_cases hdW : d ∈ windowSlots dest r off.val win.val
         · exact hyd d hdW hdy.symm
-        · rw [hcdtK d hdW, hσ1cdt] at hcd
+        · rw [hcdtK d hdW] at hcd
           have hcd0 := hC.cdt d hdA
           rw [hdy, hcd] at hcd0
           exact hyG (hM.tree.par_mem _ _ hcd0.symm).1
-  have hDL : DestLive Z.th (L.mem s1) (L.ksb s1) dest := by
+  have hDL : DestLive Z.th (L.mem s) (L.ksb s) dest := by
     obtain ⟨-, -, -, y, rr, gs, g, hy, hcy⟩ := hctx.cnode
-    exact DestLive.same (Or.inl ⟨y, rr, gs, g, hy, capV_of_capAt hcy⟩) hSS1 hk1
-  have hutc := J1.ret_utc (G' := G') hAs (capV_of_capAt hcap1) e1u (by omega) hfi1
+    exact DestLive.same (Or.inl ⟨y, rr, gs, g, hy, capV_of_capAt hcy⟩) (SlotsSame.refl _ _) rfl
+  have hutc := J.ret_utc (G' := G') hAs (capV_of_capAt hcap1) e1u (by omega) hfi1
     (· ∈ windowSlots dest r off.val win.val) (fun d hd => (hslA d hd).1)
-    (fun d hd => (hSS1.capAt (hslA d hd).1.isSlot).trans (hDn0 d hd)) hDu hcapK hwI hcdtK horgK hgp' hM'
+    (fun d hd => hDn0 d hd) hDu hcapK hwI hcdtK horgK hgp' hM'
     (RetExp.src_child hE hctx.window.1 hP' hC' hAs)
     (fun d hd sl p1 sb1 fi2 dev hsl hcv hdv hnc => by
       obtain ⟨-, i, -, -, rfl⟩ := hslA d hd
-      exact J1.live_slot arI hsl hcv hdv hnc ⟨dest, r, rfl, hctx.cnode.1,
+      exact J.live_slot arI hsl hcv hdv hnc ⟨dest, r, rfl, hctx.cnode.1,
         natToCref_length _ _ (by have := hctx.cnode.2.1; omega), hDL⟩)
   -- the spec's invariants and the call stacks (`uaRest`, `addRP`)
   have hIN : IdleNew (fun q => q ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi t us.val))
-      (fun _ => Fl4Spec.defaultObject t false us.val σ1.curDomain) := fun q _ => by
+      (fun _ => Fl4Spec.defaultObject t false us.val σ.curDomain) := fun q _ => by
     rcases ht with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp [Fl4Spec.defaultObject]
   have hWnN : ∀ n ∈ Nn, n.bv ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi t us.val) := fun n hn => hreg n (hNs hn)
   obtain ⟨hCR1, -, hRF1, hRR1, hY1, hMc1, hBw1, hNSC1, hInv1, hCur1, hOwn1, hOff1, hAct1, hBsa1, hIs1, hCRun1⟩ :=
-    J1.uaRest hwI hA hIN hcnk hWnN
-  have hspec1 : ∀ o ko, σ1.kheap o = some ko →
+    J.uaRest hwI hA hIN hcnk hWnN
+  have hspec1 : ∀ o ko, σ.kheap o = some ko →
       o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + fiv.val ∨ p.val + 2 ^ sb.val ≤ o.toNat := by
     intro o ko hk
-    rcases J1.sfree _ hxG p sb fiv (capV_of_capAt hcap1) o ko hk with (h | h) | ⟨h3, h4⟩
+    rcases J.sfree _ hxG p sb fiv (capV_of_capAt hcap1) o ko hk with (h | h) | ⟨h3, h4⟩
     · left; omega
     · right; exact h
     · left; exact h4
@@ -651,7 +632,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       winZero_field hWZ' hTn (hRs hr) (by omega) (by omega) (by rw [h32]; simp) (by simp)⟩
   have hRn : ∀ r ∈ Rn, r ∉ Z.R := by
     intro r hr hrR
-    obtain ⟨x, hx, -⟩ := J1.xtop.ipc.toE.reply r hrR
+    obtain ⟨x, hx, -⟩ := J.xtop.ipc.toE.reply r hrR
     have := hspec1 _ _ hx
     obtain ⟨-, b1, b2, -⟩ := hRw0 r hr
     simp only [Fl4Spec.objBits, Fl4Spec.replyBits, UScalar.bv_toNat] at this; omega
@@ -669,7 +650,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     · exact Or.inl h
     · refine Or.inr (Set.ext fun r => ⟨fun hr => ?_, fun h => False.elim h⟩)
       exfalso; have := hNt n hn; have := hRt r hr; omega
-  obtain ⟨hRP1, hSA1⟩ := J1.addRP hwI hA hIN hcnk hWnN (by omega) hU.pfit hU.free hspec1
+  obtain ⟨hRP1, hSA1⟩ := J.addRP hwI hA hIN hcnk hWnN (by omega) hU.pfit hU.free hspec1
     (fun n hn => ⟨(hNw0 n hn).2.1, (hNw0 n hn).2.2.1⟩) (fun r hr => ⟨(hRw0 r hr).1, (hRw0 r hr).2.1,
       (hRw0 r hr).2.2.1⟩) hRks hNR
   -- the set and heap fields (`addSets`)
@@ -697,15 +678,15 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       ⟨j, hj, ?_⟩, rfl⟩
     show (Fl4Spec.ptrAdd _ _).toNat = _
     rw [ptrAdd_toNat (by omega), ← eA]
-  have hback : ∀ o ko, σ'.kheap o = some ko → σ1.kheap o = some ko ∨
-      (∃ r cs cs', σ1.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
+  have hback : ∀ o ko, σ'.kheap o = some ko → σ.kheap o = some ko ∨
+      (∃ r cs cs', σ.kheap o = some (.cnode r cs) ∧ ko = .cnode r cs') ∨
       (∃ e ∈ En, e.bv = o ∧ ko = .endpoint Fl4Spec.defaultEp) ∨
       (∃ n ∈ Nn, n.bv = o ∧ ko = .notification Fl4Spec.defaultNotification) ∨
       (∃ r ∈ Rn, r.bv = o ∧ ko = .reply Fl4Spec.defaultReply) ∨
       (∃ q, NewAt Aw (2 ^ zOf nt.val us.val) win.val q ∧ q.bv = o ∧ (∃ ao, ko = .archObj ao) ∧
         ∃ m, 12 ≤ m ∧ newKind nt.val us.val = some (.other m)) := by
     intro o ko hk
-    have hback1 : ∀ ko', σB.kheap o = some ko' → σ1.kheap o = some ko' ∨
+    have hback1 : ∀ ko', σB.kheap o = some ko' → σ.kheap o = some ko' ∨
         (∃ e ∈ En, e.bv = o ∧ ko' = .endpoint Fl4Spec.defaultEp) ∨
         (∃ n ∈ Nn, n.bv = o ∧ ko' = .notification Fl4Spec.defaultNotification) ∨
         (∃ r ∈ Rn, r.bv = o ∧ ko' = .reply Fl4Spec.defaultReply) ∨
@@ -747,13 +728,10 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       · cases hn
       · cases hn
       · cases hn
-  have harch1 : ArchFitHyp H σ1 := fun o ao n h hH => hAF o ao n (by
-    by_cases ho : o = (L.curW s).bv
-    · subst ho; obtain ⟨y1, hy1⟩ := hσ1c; rw [hy1] at h; cases h
-    · rwa [hσ1k o ho] at h) hH
+  have harch1 : ArchFitHyp H σ := hAF
   obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J1.addSets (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hU.pfit hU.free
-      (by rw [hk1]; rcases k1 with h | h <;> omega) hspec1
+    J.addSets (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hU.pfit hU.free
+      (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => hBF wp hwp _ hxG p sb fiv (capV_of_capAt hcap)) harch1 hA1 hA3 hE.k1 hout hEw0 hNw0 hRw0 hKn
       hback rfl rfl rfl rfl rfl rfl
   -- the CSpace fields (`JCs`)
@@ -772,17 +750,85 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hCs : JCs (L := L) { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn } res.2.1 σ' :=
     JCs.retype rfl rfl J.del hE hM hP' hM' hcjZ (fun _ _ _ h => h) hU' (hFin hFI0).fm hSF'
   -- `JRest` and `JAtZ` after
-  have hJR : JRest (L := L) arI { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn } H' Cs Ac' Lst1
+  have hJR : JRest (L := L) arI { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn } H' Cs Ac' Lst
       {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q} res.2.1 σ' :=
     ⟨hCR1.addR hkR hRz hRn, hRF1.addR hCR1 hRz hRn, hRR1.addR hRz, hY1, hMc1, hBw1, hRP1, hSA1, ⟨_, _, hJPa⟩, hjc', K2, hutc, hNSC1, hInv1, hCur1, hOwn1,
       hOff1, hAct1, hBsa1, hIs1, hCRun1, hblk'⟩
-  have JZ := J1.add_frame (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) rfl rfl rfl hwI.1 hXZ hCs hJR
-    hKs' J1.thT hIp' hnk' hcov' hobj' hzH' hset' hscC'
-  refine ⟨σ1, hst1, (.ok [], σ'), perf_ut_mem blk call don hrun, ⟨Z.th, G', Or.inl ⟨hok, rfl⟩, ?_⟩, ?_⟩
+  have JZ := J.add_frame (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) rfl rfl rfl hwI.1 hXZ hCs hJR
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC'
+  refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
-  · rw [if_neg (by rw [hok]; simp), har]
-    exact ⟨_, H', Cs, Ac', Lst1, _, JZ⟩
+  · rw [har]
+    exact ⟨_, H', Cs, Ac', Lst, _, JZ⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **The no-reset retype of endpoints, notifications, replies, VSpace
+tables (PDPTs, page directories, page tables) or frames at `J`**
+(module docstring; one core, `Z.c = 0`, for the replies' placement off the
+nodes): from `JAtZ` at the decode (no reschedule pending), the decoded
+arguments (`RetCtx`, no reset: the source cap has a child), the source a
+CNode slot's RAM untyped cap, FL4's restart and `untyped::retype` end in
+`UtRetPostJ` (done, `JAt` after). -/
+theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
+    (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64}
+    (hnt : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11)) (hc0 : Z.c = 0#u64)
+    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi false nt us dest off win t r false fiv)
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (blk call don : Bool) :
+    (do
+      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
+      untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) false
+        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win false) ⦃ res =>
+      UtRetPostJ (L := L) arI AR σ blk call don (.retype (pp.bv, idx) false p.bv
+        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
+        res ⦄ := by
+  have hc2 : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
+  have hctE : ct = L.curW s := by rw [hct] at hc2; exact eq_of_ok_eq hc2
+  subst hctE
+  obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
+  have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
+  have hxG : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
+  -- the restart (`JAtZ.restartJ`), then the body from its state
+  obtain ⟨s1, σ1, x1, -, hst1, hkx, hcur, he1, -, hid1, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨s1', σ1', -, hs1', -, hSS1, -, -, -, -⟩ :=
+    restart_dstate Z.th hP s σ Z.G J.dstate (L.curW s) hct J.kern.cur J.kern.curT J.kern.act
+  rw [hs1] at hs1'; cases eq_of_ok_eq hs1'
+  have hσ1k : ∀ o, o ≠ (L.curW s).bv → σ1.kheap o = σ.kheap o := fun o ho => by
+    rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; exact Function.update_of_ne ho _ _
+  have hσ1c : σ1.kheap (L.curW s).bv = some (.tcb { x1 with tcbState := .restart }) := by
+    rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; simp
+  have hσ1cdt : σ1.cdt = σ.cdt := by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl
+  have hni1 : Entered σ1 :=
+    ⟨by rw [hct1, hid1]; exact hni.1, by rw [he1]; exact J.restart_keeps_resume hni hkx hcur⟩
+  have hcap1 : capAt (L.mem s1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false) :=
+    (hSS1.capAt hAs.isSlot).trans hcap
+  have hctx1 : RetCtx (L := L) Z.th s1 σ1 (pp.bv, idx) sb fi false nt us dest off win t r false fiv :=
+    ⟨hctx.ty, hctx.size, ⟨hctx.cnode.1, hctx.cnode.2.1, hctx.cnode.2.2.1, by
+        obtain ⟨y, rr, gs, g, hy, hcy⟩ := hctx.cnode.2.2.2
+        exact ⟨y, rr, gs, g, hy, (hSS1.capAt hy).trans hcy⟩⟩, hctx.window,
+      fun i h1 h2 => (hSS1.capAt ⟨dest, i, Or.inl ⟨r, hctx.cnode.1, by have := hctx.window.2.2; omega⟩, rfl⟩).trans
+        (hctx.empty i h1 h2),
+      by rw [hσ1cdt]; exact hctx.resetEq, hctx.fidx, hctx.sizeBits, hctx.memory, hctx.device⟩
+  have hBO1 : BufObjHyp Z.B σ1 := fun wp hw => by
+    obtain ⟨o, ko, hk, h1, h2⟩ := hBO wp hw
+    by_cases ho : o = (L.curW s).bv
+    · subst ho; rw [hkx] at hk; cases hk
+      exact ⟨_, _, hσ1c, h1, by simpa [Fl4Spec.objBits] using h2⟩
+    · exact ⟨o, ko, by rw [hσ1k o ho]; exact hk, h1, h2⟩
+  have hAF1 : ArchFitHyp H σ1 := fun o ao n h hH => hAF o ao n (by
+    by_cases ho : o = (L.curW s).bv
+    · subst ho; rw [hσ1c] at h; cases h
+    · rwa [hσ1k o ho] at h) hH
+  have hRU1 : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
+      KeptRefsP3 (L := L) H (RegionD H lo hi) s1 ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s1 :=
+    fun lo hi h1 h2 => hRU AR Z Ac Lst D s s1 ar σ J hs1 lo hi (J.free_dead hxG (capV_of_capAt hcap) h1 h2)
+  have hfiv : fiv = fi := by rw [hctx.fidx]; rfl
+  rw [hs1]; simp only [bind_ok]
+  exact WP.spec_mono (J1.utEpBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hBO1 hAF1 hRU1)
+    (fun res h => utRetPostJ_of_body hst1 h)
 
 variable (arI) in
 /-- **[W] The retype of a RAM untyped at `J`, outside `JAtZ.utEpJ`'s case**

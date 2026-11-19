@@ -88,7 +88,7 @@ theorem JAtZ.ppJS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKee
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
       (r.1 = .Ok () → (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧ PPR0 σ') ∧
-      SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ∧ L.cpu r.2.1 = L.cpu s ∧
+      XTopAt (L := L) AR Z r.2.1 r.2.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ∧ L.cpu r.2.1 = L.cpu s ∧
       (∀ b : U64, P1.Aligned b → ¬ ((L.ksb s).val ≤ b.val ∧ b.val < (L.ksb s).val + 13568) →
         ¬ (L.nodeBase s Z.c ≤ b.val ∧ b.val < L.nodeBase s Z.c + 4288) → L.mem r.2.1 b = L.mem s b) ⦄ := by
   obtain ⟨⟨r1, s', a'⟩, hr, ⟨σ', hcase, hX', hJ'⟩, -, hw⟩ :=
@@ -133,7 +133,7 @@ theorem JAtZ.ppJS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKee
       show L.nodeBase s _ ≤ (L.nodeAt s (L.cpu s) layout.node.CONSUMED).val ∧
         (L.nodeAt s (L.cpu s) layout.node.CONSUMED).val < L.nodeBase s _ + 4288
       rw [e, hc.cur]; omega
-  exact ⟨σ', hcase, hJ', hSS, hw.1, hw.2.1, fun b hb h1 h2 => hw.mem_eq hb fun hb' => (hloc b hb').elim h1 h2⟩
+  exact ⟨σ', hcase, hJ', hX', hSS, hw.1, hw.2.1, fun b hb h1 h2 => hw.mem_eq hb fun hb' => (hloc b hb').elim h1 h2⟩
 
 /-- **What the reset at `J` ends with** (module docstring): done, the cap's
 free index 0 and the region zero, `JAtZ` at the same sets and a spec `Ok`
@@ -149,7 +149,7 @@ def ResetJPost (arI : machine.Arch A) (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSe
     (¬ ∃ y, σ'.cdt y = some (pp.bv, idx)) ∧ PPR0 σ' ∧
     ∀ y : Fl4Spec.Word, p.val ≤ y.toNat → y.toNat < p.val + 2 ^ sb.val → σ'.machineState.underlyingMemory y = 0) ∨
   (res.1 = .Err .Preempted ∧ ∃ σ', (.error (), σ') ∈ ((Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ0).1 ∧
-    JAtPre (L := L) arI AR res.2.1 res.2.2 σ')
+    JAtPre (L := L) arI AR res.2.1 res.2.2 σ' ∧ ∃ Z', XTopAt (L := L) AR Z' res.2.1 res.2.2 σ')
 
 set_option maxHeartbeats 16000000 in
 /-- **The reset's chunk loop at `J`** (module docstring), from offset `o`
@@ -265,11 +265,11 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
     · intro w hw h1 h2; exact hZ2 w hw (by omega) h2
   · rw [if_neg ho0]
     have ho0' : o.val ≠ 0 := fun e => ho0 (UScalar.eq_of_val_eq e)
-    obtain ⟨⟨r, s3, a2⟩, hp3, σp, hcase, hJp, hSS3, hks3, -, hfr3⟩ :=
+    obtain ⟨⟨r, s3, a2⟩, hp3, σp, hcase, hJp, hXp, hSS3, hks3, -, hfr3⟩ :=
       spec_exists (J2.ppJS hAK hA hnd hPP hR02)
     rw [hp3]
     simp only [bind_ok]
-    simp only at hcase hJp hSS3 hks3 hfr3
+    simp only at hcase hJp hXp hSS3 hks3 hfr3
     have hcap3 : capAt (L.mem s3) xs = ok (.Untyped p sb o false) := by rw [hSS3.capAt hxs]; exact hcap2
     have hZ3 : ZeroRegion (L.mem s3) (p.val + o.val) (p.val + 2 ^ sb.val) := by
       intro w hw h1 h2
@@ -302,7 +302,7 @@ theorem JAtZ.reset_loopJ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
       simp only [bind_tc_ok, bind_ok]
       have hmem := RContX.preempt hK (hchunk _ hy)
-      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, σp, hmem, J2.jAtPre_pp hp3 hy⟩)
+      exact (WP.spec_ok _).2 (Or.inr ⟨rfl, σp, hmem, J2.jAtPre_pp hp3 hy, Z, hXp⟩)
 
 end
 
