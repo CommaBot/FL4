@@ -29,6 +29,8 @@ P3 (DESIGN.md §9): **the syscall dispatch above `handle_invocation` at `J`**
   (`JAtZ.faultHypJZ` with the receive flag) proved; `receive_ipc` and
   `receive_signal` at `J` named (`JRecvIpcHyp`, `JRecvSigHyp` [W]: plan
   items 5, 6).
+* `dispatch_recvJ`: `dispatch_syscall` for `SysRecv`, `SysNBRecv`,
+  `SysWait`, `SysNBWait` by `handle_recvJ`.
 -/
 import Fl4Proofs.P3.XTopJointEntry
 import Fl4Proofs.P3.IpcRecvTop
@@ -321,6 +323,57 @@ theorem dispatch_invokeJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   · rw [if_pos rfl]; exact h
   · rw [if_neg n65, if_pos rfl]; exact h
   · rw [if_neg n15, if_neg n16, if_pos rfl]; exact h
+
+/-- FL4's receiving syscall numbers with `handle_recv`'s flags
+(`dispatch_syscall`): `SysRecv`, `SysNBRecv`, `SysWait`, `SysNBWait`
+(`handleRecv true true`, `false true`, `true false`, `false false`). -/
+def RecvSys (n : I64) (bl cr : Bool) : Prop :=
+  (n = fl4_abi.syscall.SysRecv ∧ bl = true ∧ cr = true) ∨
+  (n = fl4_abi.syscall.SysNBRecv ∧ bl = false ∧ cr = true) ∨
+  (n = fl4_abi.syscall.SysWait ∧ bl = true ∧ cr = false) ∨
+  (n = fl4_abi.syscall.SysNBWait ∧ bl = false ∧ cr = false)
+
+set_option maxHeartbeats 4000000 in
+/-- **`dispatch_syscall` for the receiving syscalls at `J`** (`handle_recvJ`):
+against `handleRecv bl cr` (the spec's `withoutPreemption` of it). -/
+theorem dispatch_recvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
+    (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
+    (hIpc : JRecvIpcHyp (L := L) arI AR ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR ct bl s a σ) :
+    syscall.dispatch_syscall st arI s a number ⦃ r =>
+      ∃ z ∈ (Fl4Spec.handleRecv (Z := Unit) bl cr σ).1, RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+  have h := handle_recvJ arI hZ hAT s a σ J hni hct hnq hvfh bl cr hIpc hSig
+  unfold syscall.dispatch_syscall
+  rw [hct]; simp only [bind_ok]
+  refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.CAP) ?_
+  rintro c0 -
+  refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.REPLY) ?_
+  rintro c1 -
+  rcases hn with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩
+  · rw [if_neg (show fl4_abi.syscall.SysRecv ≠ fl4_abi.syscall.SysSend by unfold fl4_abi.syscall.SysRecv fl4_abi.syscall.SysSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysRecv ≠ fl4_abi.syscall.SysNBSend by unfold fl4_abi.syscall.SysRecv fl4_abi.syscall.SysNBSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysRecv ≠ fl4_abi.syscall.SysCall by unfold fl4_abi.syscall.SysRecv fl4_abi.syscall.SysCall; decide)]
+    rw [if_pos rfl]; exact h
+  · rw [if_neg (show fl4_abi.syscall.SysNBRecv ≠ fl4_abi.syscall.SysSend by unfold fl4_abi.syscall.SysNBRecv fl4_abi.syscall.SysSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBRecv ≠ fl4_abi.syscall.SysNBSend by unfold fl4_abi.syscall.SysNBRecv fl4_abi.syscall.SysNBSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBRecv ≠ fl4_abi.syscall.SysCall by unfold fl4_abi.syscall.SysNBRecv fl4_abi.syscall.SysCall; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBRecv ≠ fl4_abi.syscall.SysRecv by unfold fl4_abi.syscall.SysNBRecv fl4_abi.syscall.SysRecv; decide)]
+    rw [if_pos rfl]; exact h
+  · rw [if_neg (show fl4_abi.syscall.SysWait ≠ fl4_abi.syscall.SysSend by unfold fl4_abi.syscall.SysWait fl4_abi.syscall.SysSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysWait ≠ fl4_abi.syscall.SysNBSend by unfold fl4_abi.syscall.SysWait fl4_abi.syscall.SysNBSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysWait ≠ fl4_abi.syscall.SysCall by unfold fl4_abi.syscall.SysWait fl4_abi.syscall.SysCall; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysWait ≠ fl4_abi.syscall.SysRecv by unfold fl4_abi.syscall.SysWait fl4_abi.syscall.SysRecv; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysWait ≠ fl4_abi.syscall.SysNBRecv by unfold fl4_abi.syscall.SysWait fl4_abi.syscall.SysNBRecv; decide)]
+    rw [if_pos rfl]; exact h
+  · rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysSend by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysNBSend by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysNBSend; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysCall by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysCall; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysRecv by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysRecv; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysNBRecv by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysNBRecv; decide)]
+    rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysWait by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysWait; decide)]
+    rw [if_pos rfl]; exact h
 
 end
 
