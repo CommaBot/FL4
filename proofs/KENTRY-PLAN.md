@@ -1091,3 +1091,63 @@ removed; JAtZ untouched.
   3704/5404/5408 jobs), kp7-b2 (+ `XTopJointEntry`); scratch/axkp7.lean (untracked): std axioms only for
   SchedRel.set_armed, jIrqHyp_of, hPre_ofI, dispatch_invokeJPI, dispatch_invokeJEPI, hPre_of, JHole.afterInvJ,
   handle_invocation_refinesJ.
+
+## kp8 (branch par/budget4 in FL4-tcbj, on 21c0a352 = int/j2 incl. kp7, sch2)
+- DONE c155f952 (new leaf XTopJointPreemptZ; XTopJointIrq edited; std axioms): scope (1), `JIrqSigHyp` [W] DELETED
+  (not needed by the new top theorems; still defined, used only by the old `jIrqHyp_of`/`hPre_ofI`/`*PI`).
+  * No OffReady carried through the invocation was needed: the hole's time words are the base's shifted by one
+    `update_time_stamp` (`TShift σ0 σ` := `σ0.curTime ≤ σ.curTime ∧ σ.consumedTime = σ0.consumedTime + (σ.curTime -
+    σ0.curTime)`), and the base is `JAtZ`. `jAtPre_holeT`: every `JAtPre` state is a `JHole` with `TShift` (first
+    disjunct: `TShift.refl`; second: `pp_err_eq` + `updateTimeStamp_eq'` + `PPPlat.now`/`.irq`, spec only, no
+    change to `JHole`, `ppJH` or `JAtPre`).
+  * `JHole.offOK_suff`: shifted hole + `CurInv` + non-idle schedulable current thread + sufficient head ⇒ `OffOK`
+    (positive consumed time at the base: `J0.off`; zero: `J0.inv.rd` of the runnable, bound, unreleased current
+    thread = released head; then `rdy_shift`). This is l4v's `cur_sc_offset_ready` for the sufficient branch.
+  * `JHole.mcsPPJZ` (= `mcsPPJ` with `JAt` after in every branch), `JAtZ.msArJ`, `JIrqHypZ`/`jIrqHypZ_of`
+    (`handle_interrupt` from `JAt`: `JHole.handleIrqJ` over `J.toHole`, signal premise refuted by `J.off`/`J.own`;
+    `JHole.handleIrqJ` is kp7's `jIrqHyp_of` body with a per-hole signal premise, `jIrqHyp_of` now a wrapper),
+    `JHole.afterInvJZ` (post `PPQZ`: spec fails ∨ outcome with `JAt` (no line pending: the post-budget-check
+    state IS `JAtZ`, for M7) ∨ `XTopAt` (handled line); `PPQZ.toPPQ`), `hPre_ofZ`, `dispatch_invokeJPZ/JEPZ`.
+- DONE b7ec37e6 (new leaf XTopJointPreemptI, std axioms): (b), the inactive-SC branch (the reachable shape of
+  "reschedule pending without CurInv" after the thread finalised its own SC: l4v unbinds and zeroes refill_max,
+  cur_sc stays). `PPCovI σ` := `schedulable σ.curThread σ = false ∧ ∀ x n, σ.kheap σ.curSc = some (.schedContext
+  x n) → scActive x = false`. `JHole.mcsPPJI`: from ANY `JHole` (no CurInv), FL4's node `CONSUMED := 0` vs spec
+  `consumed_time := 0` (`SchedRel.set_node_consumed`, `consumed0_bxi`, `xtop_sc_step` from the base, KFoot
+  node word), `JAt` after (`toJ`: OffOK vacuous at 0, CurOwnW = the base's). `afterInv_of_mcs` (afterInvJZ
+  generic in the budget part), `hPre_ofZI`, `dispatch_invokeJPZI` / `dispatch_invokeJEPZI`.
+- PREMISES of `dispatch_invokeJEPZI` (the new top): `ARIface`, `ArchTotal`, `numDomains = 1`, `PPPlat` [P],
+  `max_release_time` [P], `IrqPlat` [P], `hNS` [S] (unchanged), and
+  `JPreemptRestHypI arI AR` [W] := `∀ s a σ, JHoleAt arI AR s a σ → NativeScope σ → ¬ (PPCov σ ∨ PPCovT σ ∨
+  PPCovI σ) → after_invocation s a (.Err .Preempted) ⦃ r => PPQ arI AR σ (r.2.1, r.2.2) ⦄`
+  (= kp7's `JPreemptRestHypN` minus the inactive-SC case; `jPreemptRestHypI_of : JPreemptRestHypN →
+  JPreemptRestHypI`). `JIrqSigHyp` gone. Nothing added.
+- LEFT in `JPreemptRestHypI` (findings):
+  * (a) switch to the current thread pending / idle current thread. NoSwitch is ALREADY carried by the deletion
+    loop: `WJ` (XTopJointDelR) has `Vs.NoSwitch σ` (no switch at all), and `WJP`'s base is a `WJ` state, but
+    `JAtPre`'s second disjunct (built at XTopJointCnDel:187, XTopJointWJLRestart:150, XTopJointTcbInstall:1114
+    from WJP, and UtResetZ `JAtZ.jAtPre_pp` from the reset loop UtResetLoopJ:325) drops it. Route: second
+    disjunct `∃ s0 a0 σ0, (JAt s0 a0 σ0 ∧ NoSwitch σ0 ∧ σ0.curThread ≠ σ0.idleThread) ∧ pp ∧ mem`; NoSwitch from
+    WJ at the three WJP sites; the reset loop carries no NoSwitch (UtResetLoopJ/UtResetTopJ: none) — add it to
+    its loop invariant (the reset never touches the action: `Entered` at the decode gives resumeCurThread).
+    ct ≠ idle is carried by neither loop: add `σ.curThread ≠ σ.idleThread` beside PPR0 in WJR/WJL and the reset
+    loop (kept by every spec step there: curThread/idleThread are unchanged by finalise/reset frames; from
+    `Entered` at the invocation start). The first disjunct of JAtPre (Or.inl via hXP for non-preempting caps) is
+    only formal for preempted outcomes; it would need the facts too unless those statements are narrowed. Then
+    `ppJH` keeps both (action/curThread/idleThread unchanged), and `PPCov`'s `hni`/`hnsw` follow for JAtPre
+    states, which shrinks `JPreemptRestHypI` to the CurInv-less active-SC and kp5 (i) cases. Size: JAtPre edit +
+    ~6 construction sites + 3 loop invariants; several module rebuilds (XTopJointTcbInstall, TcbSsp, CnDel,
+    WJLRestart, UtReset*, XTopJointEntry cone).
+  * (b') reschedule pending, current SC ACTIVE but not the current thread's (e.g. SchedContext Unbind of the
+    own SC, or a pending reschedule with the SC re-bound): `charge_budget c false` of an unowned active SC.
+    `chargeBudgetJ` uses CurInv only through `CurInv.facts` (`htw` SC TCB word = cur thread, `hts` thread SC
+    word = cur SC, `hnr`, `hnb`) fed to ScChargeG `charge_budget_refinesF` and P1 `charge_budget.allF`
+    (`hcsc1` vacuous if the thread's SC word is 0) — needs a `charge_budget_refinesF` copy without htw/hts
+    (the spec head/tail do not read the owner; `reschedule_required` already pending) and `CurOwnW`'s second
+    disjunct after. Not started.
+  * (c) kp5 (i) (endpoint timeout handler with waiting receivers) untouched.
+- Builds: kp8-b1 (`XTopJointIrq` 5410 jobs; PreemptZ failed on one rw), kp8-b2 (`XTopJointPreemptZ` 5412),
+  kp8-ax1 (+ `XTopJointEntry` 5372, scratch/axkp8.lean), kp8-c1/c2 (`lake env lean` checks, kp7chk.sh), kp8-b4
+  (`XTopJointPreemptI` 5414, scratch/axkp8b.lean; both untracked): std axioms only (propext, Classical.choice,
+  Quot.sound) for jAtPre_holeT, JHole.offOK_suff, JHole.mcsPPJZ, jIrqHypZ_of, JHole.afterInvJZ, hPre_ofZ,
+  dispatch_invokeJPZ, dispatch_invokeJEPZ, JHole.mcsPPJI, afterInv_of_mcs, jPreemptRestHypI_of, hPre_ofZI,
+  dispatch_invokeJPZI, dispatch_invokeJEPZI, jIrqHyp_of, dispatch_invokeJEPI, handle_invocation_refinesJ.
