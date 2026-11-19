@@ -300,9 +300,11 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   own fields tagged there; `live` (`LiveJ` [J]) is also used by the IO port
   and Thread decodes). -/
   delParts : JDelParts (L := L) arI AR th
-  /-- [J] XTopJointFinVs's `JVsTabHyp`: a mapped PT/PD/PDPT cap's table in
-  its set (the VSpace decodes' `VsCapsIn`, with the proved `JAtZ.vsc`; not
-  yet true after a drop prunes an unreachable mapped table, see there). -/
+  /-- [W] XTopJointFinVs's `JVsTabHyp`: a mapped PT/PD/PDPT cap's table in
+  its set (the VSpace decodes' `VsCapsIn`, with the proved `JAtZ.vsc`). FALSE
+  in some reachable states: after a drop prunes an unreachable mapped PD/PDPT
+  from its set, and at `Z`s shrunk below an unreachable mapped table (∀-Z
+  form); see there. -/
   vsTab : JVsTabHyp (L := L) arI AR th
   /-- [P] one domain. -/
   nd : Fl4Spec.numDomains = 1

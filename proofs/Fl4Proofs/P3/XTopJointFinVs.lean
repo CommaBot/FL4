@@ -162,17 +162,18 @@ def MappedTabIn (L3 L2 L1 : Set U64) : capability.Cap → Prop
   | .Pdpt p true _ _ => p ∈ L3
   | _ => True
 
-/-- **Hypothesis: a mapped table cap's table in its set at `J`** [J] (the
+/-- **Hypothesis: a mapped table cap's table in its set at `J`** [W] (the
 VSpace decodes' `VsCapsIn` at the entry, beyond the proved `JAtZ.vsc`; l4v
 `valid_cap`'s `typ_at` for the cap's table plus `valid_vs_lookup` for its
-mapping). It replaces `JVsCapsHyp` (every cap's placement) and is NOT YET
-TRUE in every reachable state: after an untyped reset/retype (VsDrop) a
-mapped PD or PDPT whose child lay in the dropped region is pruned from
-`L2`/`L3` while its cap still says mapped (the table was unreachable, so
-the child's unmap could not clear the entry), and the `JAtZ` sets may be
-shrunk below an unreachable mapped table. Only the Unmap decode of such a
-cap needs it (FL4's `decode_table_unmap` zeroes the table); see
-handoff/vsreach.md for the plan to prove that case. -/
+mapping). It replaces `JVsCapsHyp` (every cap's placement). It is FALSE in
+some reachable states, hence [W], not [J]: after an untyped reset/retype
+(VsDrop) a mapped PD or PDPT whose child lay in the dropped region is pruned
+from `L2`/`L3` while its cap still says mapped (the table was unreachable,
+so the child's unmap could not clear the entry), and, being stated for every
+`Z` with `JAtZ`, it also asks it at sets shrunk below an unreachable mapped
+table. Only the Unmap decode of such a cap needs it (FL4's
+`decode_table_unmap` zeroes the table); see handoff/vsreach.md for the plan
+to prove that case and remove it. -/
 def JVsTabHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
