@@ -459,7 +459,7 @@ theorem JAtZ.utEpJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have hcjU : ∀ j, j < win.val → isUt (cj j) = false := by
     intro j _; rw [hcj]; rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [cjOf, newCapOf, h, isUt]
   obtain ⟨H', Ac', hblk', hout, hjc'⟩ := J.create_noreset hni J1 hs1 hct1 hcsc1 hid1 hisc1 hns1 hRU hpp hidx hcap hE
-    hcjU ⟨by omega, by omega⟩ (k := 2 ^ zOf nt.val us.val) rfl hAk htT htP hW (hWZ ⟨rfl, htP⟩) hidl
+    hcjU ⟨by omega, fun h => absurd h (by omega)⟩ (k := 2 ^ zOf nt.val us.val) rfl hAk htT htP hW (hWZ ⟨rfl, htP⟩) hidl
   -- `JPlaced` after
   have hcap1 : capAt (L.mem s1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fiv false) :=
     (hSS1.capAt hAs.isSlot).trans hcap

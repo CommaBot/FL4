@@ -475,5 +475,6 @@ import Fl4Proofs.P3.FrontEndExtra
 import Fl4Proofs.P3.UtEpJ
 import Fl4Proofs.P3.UtReplyAdd
 import Fl4Proofs.P3.UtEpRet
+import Fl4Proofs.P3.UtScAdd
 import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointSendBlockG
