@@ -89,6 +89,19 @@ pub fn init(skim: bool) -> u64 {
     }
 }
 
+/// Whether an AP can run with what `init` chose on the boot core: CR4.PCIDE
+/// needs PCIDs (writing it otherwise faults), and INVPCID, which no CR4
+/// bit gates, is executed on every core once the boot core has it.
+fn ap_compatible(boot_pcid: bool, boot_invpcid: bool, ap_pcid: bool, ap_invpcid: bool) -> bool {
+    (!boot_pcid || ap_pcid) && (!boot_invpcid || ap_invpcid)
+}
+
+/// The calling AP has the PCID features the boot core turned on; check
+/// before loading the boot core's CR4.
+pub fn core_supported() -> bool {
+    ap_compatible(pcid(), invpcid_available(), cpuid(1, 0).ecx & (1 << 17) != 0, cpuid(7, 0).ebx & (1 << 10) != 0)
+}
+
 pub fn pcid() -> bool {
     PCID.load(Ordering::Relaxed)
 }
@@ -274,6 +287,21 @@ fn cores_on(asid: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit round 5 F4: an AP without INVPCID beside a boot core with it
+    /// would take #UD in the kernel at its first PCID flush; one without
+    /// PCIDs would fault loading the boot core's CR4.
+    #[test]
+    fn aps_have_the_pcid_features_the_boot_core_uses() {
+        assert!(!ap_compatible(true, true, true, false));
+        assert!(!ap_compatible(true, false, false, false));
+        assert!(!ap_compatible(true, true, false, true));
+        assert!(ap_compatible(true, true, true, true));
+        assert!(ap_compatible(true, false, true, false));
+        assert!(ap_compatible(true, false, true, true));
+        assert!(ap_compatible(false, false, false, false));
+        assert!(ap_compatible(false, false, true, true));
+    }
 
     #[test]
     fn a_pool_and_the_first_asids_of_pools_get_distinct_slots() {

@@ -4,7 +4,7 @@
 //! the kernel's tables, sets itself up and waits for the boot core.
 use crate::{entry, kprintln, paging};
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use fl4_arch_aarch64::{ap_caps, cpu, el0_access, fpu, gic, percpu, smp, timer};
+use fl4_arch_aarch64::{ap_caps, cpu, el0_access, fpu, gic, gic_layout, percpu, smp, timer};
 use fl4_core::layout::{pptr, MAX_NODES};
 use fl4_core::sched;
 
@@ -19,6 +19,7 @@ static BOOT_DONE: AtomicBool = AtomicBool::new(false);
 // panic would halt only that core and look like a startup timeout.
 static AP_REJECTED: AtomicU8 = AtomicU8::new(0);
 const REJECT_CAPS: u8 = 1;
+const REJECT_GIC: u8 = 2;
 /// The boot core's capabilities, for the other cores to match.
 static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps { asid16: false, hw_af: false, pan: false, pa_bits: 0, cntfrq: 0 };
 
@@ -94,22 +95,45 @@ fn wait_us(us: u64) {
     }
 }
 
-/// Start the cores in `mpidrs` after the first (the boot core); returns
-/// the number running.
+/// Start the cores in `mpidrs` other than the boot core (which the tables
+/// may also leave out); returns the number running.
 pub fn start_aps(mpidrs: &[u64], ttbr1: u64) -> usize {
-    let max = (MAX_NODES as usize).min(percpu::MAX_CPUS);
+    let mut max = (MAX_NODES as usize).min(percpu::MAX_CPUS);
     if smp::psci() == smp::PSCI_NONE {
         if mpidrs.len() > 1 {
             kprintln!("FL4: no PSCI: running on the boot core only");
         }
         return 1;
     }
+    let me = cpu::mpidr();
+    let v3 = gic::version() == 3;
+    let rss = gic::rss();
+    // Cores an SGI cannot name would never answer a remote call.
+    let reachable = |m: u64| !v3 || gic_layout::v3_sgi_reaches(m & 0xff, rss);
+    if !reachable(me) || (!v3 && !gic::sgi_ok(0)) {
+        if mpidrs.iter().any(|&m| m != me) {
+            kprintln!("FL4: SGIs cannot reach the boot core: running on the boot core only");
+        }
+        return 1;
+    }
+    if v3 {
+        gic::set_need_rss(mpidrs.iter().any(|&m| reachable(m) && m & 0xff >= 16) || me & 0xff >= 16);
+    } else {
+        max = max.min(gic_layout::V2_INTERFACES);
+    }
     let entry_pa = paging::image_pa(unsafe { &_ap_start as *const u8 as u64 });
     let params_pa = paging::image_pa(unsafe { &fl4_ap_params as *const u8 as u64 });
     let params = pptr(params_pa) as *mut u64;
     unsafe { BOOT_CAPS = cpu::caps() };
     let mut next = 1;
-    for &m in &mpidrs[1..] {
+    for &m in mpidrs {
+        if m == me {
+            continue;
+        }
+        if !reachable(m) {
+            kprintln!("FL4: skipping core {:#x}: SGIs cannot name Aff0 {} without the GIC range selector", m, m & 0xff);
+            continue;
+        }
         if next >= max {
             break;
         }
@@ -132,7 +156,13 @@ pub fn start_aps(mpidrs: &[u64], ttbr1: u64) -> usize {
         while smp::num_online() == before && AP_REJECTED.load(Ordering::Acquire) == 0 && timer::now() < deadline {
             core::hint::spin_loop();
         }
-        if AP_REJECTED.load(Ordering::Acquire) != 0 {
+        let rejected = AP_REJECTED.load(Ordering::Acquire);
+        if rejected == REJECT_GIC {
+            kprintln!("FL4: rejecting core {:#x}: SGIs cannot reach it or it cannot reach the others \
+                (GICv2 CPU interface missing or shared, or no GICv3 range selector)", m);
+            crate::fail("incompatible AP capabilities; refusing to start userspace");
+        }
+        if rejected != 0 {
             kprintln!("FL4: rejecting core {:#x}: ASID size, access-flag management, PAN, physical address size \
                 or CNTFRQ_EL0 differ from the boot core's", m);
             crate::fail("incompatible AP capabilities; refusing to start userspace");
@@ -160,6 +190,9 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     init_core_regs();
     fpu::init();
     gic::init_cpu(find_gicr());
+    if !gic::sgi_ok(c as usize) {
+        reject_ap(REJECT_GIC);
+    }
     timer::init_core();
     smp::set_online(c as usize);
     while !BOOT_DONE.load(Ordering::Acquire) {

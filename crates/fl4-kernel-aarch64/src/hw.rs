@@ -66,17 +66,12 @@ impl Hw {
         }
     }
 
-    /// Note a redistributor range (not again if one starts there).
+    /// Note a redistributor range, merged with the overlapping ones
+    /// already noted (`gic_layout::add_redistributors`).
     fn add_gicr(&mut self, base: u64, len: u64) {
-        if self.gicr[..self.n_gicr].iter().any(|x| x.0 == base) {
-            return;
-        }
-        if self.n_gicr == MAX_GICR {
+        if !fl4_arch_aarch64::gic_layout::add_redistributors(&mut self.gicr, &mut self.n_gicr, base, len) {
             self.gicr_lost = true;
-            return;
         }
-        self.gicr[self.n_gicr] = (base, len);
-        self.n_gicr += 1;
     }
 
     /// Add a core; the boot core always ends up first.
@@ -179,39 +174,48 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
     let ok = acpi_tables(rsdp_p, |sig, t, len| match sig {
         b"APIC" => {
             madt = true;
-            let mut off = 44;
-            while off + 2 <= len {
-                let ty = rd8(t + off);
-                let l = rd8(t + off + 1) as u64;
-                if l < 2 || off + l > len {
-                    break;
-                }
-                let e = t + off;
-                match ty {
-                    // GICC: enabled cores (flags bit 0), their MPIDR, the
-                    // GICv2 CPU interface or a GICv3 redistributor.
-                    0x0b if l >= 76 => {
-                        if rd32(e + 12) & 1 != 0 {
-                            hw.add_cpu(rd64(e + 68) & 0xff_00ff_ffff);
-                        }
-                        if hw.gicc == 0 {
-                            hw.gicc = rd64(e + 32);
-                        }
-                        // A core's RD and SGI frames; GICv4 VLPI frames
-                        // after them are found at boot (`gic::redistributor_span`).
-                        let r = rd64(e + 60);
-                        if r != 0 {
-                            hw.add_gicr(r, fl4_arch_aarch64::gic_layout::GICR_FRAME);
-                        }
+            // GICR discovery ranges first: the GICC entries' redistributors
+            // inside one then merge into it whatever the tables' order,
+            // rather than fill `gicr` one core at a time before it comes.
+            for gicr_pass in [true, false] {
+                let mut off = 44;
+                while off + 2 <= len {
+                    let ty = rd8(t + off);
+                    let l = rd8(t + off + 1) as u64;
+                    if l < 2 || off + l > len {
+                        break;
                     }
-                    0x0c if l >= 21 => {
-                        hw.gicd = rd64(e + 8);
-                        hw.gic_version = rd8(e + 20) as u64;
+                    let e = t + off;
+                    if (ty == 0x0e) != gicr_pass {
+                        off += l;
+                        continue;
                     }
-                    0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
-                    _ => {}
+                    match ty {
+                        // GICC: enabled cores (flags bit 0), their MPIDR, the
+                        // GICv2 CPU interface or a GICv3 redistributor.
+                        0x0b if l >= 76 => {
+                            if rd32(e + 12) & 1 != 0 {
+                                hw.add_cpu(rd64(e + 68) & 0xff_00ff_ffff);
+                            }
+                            if hw.gicc == 0 {
+                                hw.gicc = rd64(e + 32);
+                            }
+                            // A core's RD and SGI frames; GICv4 VLPI frames
+                            // after them are found at boot (`gic::redistributor_span`).
+                            let r = rd64(e + 60);
+                            if r != 0 {
+                                hw.add_gicr(r, fl4_arch_aarch64::gic_layout::GICR_FRAME);
+                            }
+                        }
+                        0x0c if l >= 21 => {
+                            hw.gicd = rd64(e + 8);
+                            hw.gic_version = rd8(e + 20) as u64;
+                        }
+                        0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
+                        _ => {}
+                    }
+                    off += l;
                 }
-                off += l;
             }
         }
         b"GTDT" if len >= 72 => {
