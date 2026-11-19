@@ -271,6 +271,33 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
     }
 }
 
+/// Device untypeds for the physical region `reg`, minus the physical page
+/// whose pointer is 0 and the physical addresses whose pointers are the
+/// kernel image's addresses `kernel` (`create_device_untypeds_image`).
+///
+/// The pointer-0 page is physical `2^64 - PPTR_BASE` (x86_64 512 GiB,
+/// AArch64 128 TiB), where device pointers wrap to the lower half: a
+/// device untyped starting there would have pointer 0, the null name
+/// (seL4's null capability pointer), and so would the first frame
+/// retyped from it. The cut is the whole page [paddr(0), paddr(0) +
+/// 4 KiB) rather than the smallest untyped (2^MIN_UNTYPED bytes): device
+/// memory is page granular and a device untyped makes only frames (at
+/// least a page, page aligned) and smaller untypeds, so the rest of that
+/// page could never hold a frame and would only spend bootinfo slots on
+/// up to eight tiny untypeds; with the page cut every device untyped
+/// stays page aligned in pointer space, as without it. The untypeds
+/// below the cut end at pointer 2^64 (as before), those above start at
+/// pointer 4 KiB, so no device untyped's range contains pointer 0.
+fn create_device_untypeds<S: Store>(s: &mut S, b: &mut Boot, reg: Region, kernel: Region, first: u64) {
+    // paddr(0) = 2^64 - PPTR_BASE < 2^64 - 4096: no overflow.
+    let null_start = layout::paddr(0);
+    let null_end = null_start.wrapping_add(4096);
+    let below_end = if reg.end < null_start { reg.end } else { null_start };
+    create_device_untypeds_image(s, b, Region { start: reg.start, end: below_end }, kernel, first);
+    let above_start = if reg.start > null_end { reg.start } else { null_end };
+    create_device_untypeds_image(s, b, Region { start: above_start, end: reg.end }, kernel, first);
+}
+
 /// Device untypeds for the physical region `reg`, minus the physical
 /// addresses whose pointers are the kernel image's addresses `kernel`.
 ///
@@ -287,7 +314,7 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
 /// kernel leaves it out. Pointers above it wrap to the lower half, which
 /// holds no kernel object, and an untyped never wraps (it is aligned in
 /// pointer space), so every device untyped's range misses `kernel`.
-fn create_device_untypeds<S: Store>(s: &mut S, b: &mut Boot, reg: Region, kernel: Region, first: u64) {
+fn create_device_untypeds_image<S: Store>(s: &mut S, b: &mut Boot, reg: Region, kernel: Region, first: u64) {
     let cut_start = layout::paddr(kernel.start);
     let cut_end = layout::paddr(kernel.end);
     if cut_start >= cut_end {
@@ -757,6 +784,16 @@ mod tests {
     /// The device untypeds made for `reg` with the image at `kernel`, as
     /// (pointer, size bits).
     fn device_untypeds(reg: Region, kernel: Region) -> Vec<(u64, u64)> {
+        made(|s, b| create_device_untypeds(s, b, reg, kernel, 0))
+    }
+
+    /// The device untypeds `create_untypeds_for_region` makes for `reg`,
+    /// with no cut at all.
+    fn uncut_untypeds(reg: Region) -> Vec<(u64, u64)> {
+        made(|s, b| create_untypeds_for_region(s, b, true, reg, 0))
+    }
+
+    fn made(f: impl FnOnce(&mut Mem, &mut Boot)) -> Vec<(u64, u64)> {
         let mut s = Mem(BTreeMap::new());
         let mut b = Boot {
             root_cnode: 0x100_0000,
@@ -769,7 +806,7 @@ mod tests {
             extra_bytes: 0,
             ut_lost: false,
         };
-        create_device_untypeds(&mut s, &mut b, reg, kernel, 0);
+        f(&mut s, &mut b);
         assert!(!b.full && !b.ut_lost);
         (0..b.slot_pos)
             .map(|i| match root_slot(&b, i).cap(&s) {
@@ -790,8 +827,9 @@ mod tests {
 
     /// Device memory around the image's physical addresses (on x86_64
     /// [510 GiB, 510 GiB + 4 MiB), the window's top): everything but the
-    /// image's part becomes untypeds, none of them meeting the image's
-    /// names, including those past 512 GiB whose pointers wrap.
+    /// image's part and the pointer-0 page becomes untypeds, none of them
+    /// meeting the image's names, including those past 512 GiB whose
+    /// pointers wrap.
     #[test]
     fn device_untypeds_skip_kernel_image() {
         let kernel = Region { start: IMAGE, end: IMAGE + (4 << 20) };
@@ -804,13 +842,57 @@ mod tests {
             assert!(reg.start <= pa && pa + (1 << sb) <= reg.end);
             assert_eq!(ptr & ((1 << sb) - 1), 0, "pointer alignment");
         }
-        assert_eq!(total(&uts), 4 * GIB - (4 << 20));
+        assert!(uts.iter().all(|&(ptr, sb)| !meets(ptr, sb, NULL_PAGE)));
+        assert_eq!(total(&uts), 4 * GIB - (4 << 20) - 4096);
         // Both sides of the image are there.
         assert!(uts.iter().any(|&(ptr, _)| layout::paddr(ptr) < p));
         assert!(uts.iter().any(|&(ptr, _)| layout::paddr(ptr) >= p + (4 << 20)));
     }
 
-    /// Regions away from the image, or no image given: nothing is cut.
+    /// The pointers [0, 4 KiB): the page `create_device_untypeds` cuts.
+    const NULL_PAGE: Region = Region { start: 0, end: 4096 };
+
+    /// Device memory across physical 2^64 - PPTR_BASE (x86_64 512 GiB,
+    /// AArch64 128 TiB), where pointers wrap to 0: exactly the pointer-0
+    /// page is cut, no untyped has pointer 0 or covers it, the rest is
+    /// what the two sides give uncut, and every untyped stays page aligned.
+    #[test]
+    fn device_untypeds_skip_null_page() {
+        let z = layout::paddr(0);
+        for (lo, hi) in [(GIB, GIB), (4096, 1 << 20), (3 * GIB + 8192, 7 * GIB), (1 << 39, 1 << 39)] {
+            let reg = Region { start: z - lo, end: z + hi };
+            for kernel in [Region::EMPTY, Region { start: IMAGE, end: IMAGE + (4 << 20) }] {
+                let uts = device_untypeds(reg, kernel);
+                let cut_image = kernel.start < kernel.end && reg.start <= layout::paddr(kernel.start);
+                for &(ptr, sb) in &uts {
+                    assert_ne!(ptr, 0, "untyped at pointer 0");
+                    assert!(!meets(ptr, sb, NULL_PAGE), "untyped {ptr:#x}/{sb} covers pointer 0");
+                    assert!(!meets(ptr, sb, kernel));
+                    assert_eq!(ptr & ((1 << sb) - 1), 0, "pointer alignment");
+                    assert!(sb >= 12, "page aligned");
+                    let pa = layout::paddr(ptr);
+                    assert!(reg.start <= pa && pa + (1 << sb) <= reg.end);
+                }
+                let image = if cut_image { kernel.end - kernel.start } else { 0 };
+                assert_eq!(total(&uts), lo + hi - 4096 - image);
+                if !cut_image {
+                    let mut want = uncut_untypeds(Region { start: reg.start, end: z });
+                    want.extend(uncut_untypeds(Region { start: z + 4096, end: reg.end }));
+                    assert_eq!(uts, want);
+                }
+                // Both sides of the page are there.
+                assert!(uts.iter().any(|&(ptr, sb)| ptr.wrapping_add(1 << sb) == 0));
+                assert!(uts.iter().any(|&(ptr, _)| ptr == 4096));
+            }
+        }
+        // A region ending at, or starting just past, the page is untouched.
+        for reg in [Region { start: z - GIB, end: z }, Region { start: z + 4096, end: z + GIB }] {
+            assert_eq!(device_untypeds(reg, Region::EMPTY), uncut_untypeds(reg));
+        }
+    }
+
+    /// Regions away from the image and the pointer-0 page, or no image
+    /// given: nothing is cut.
     #[test]
     fn device_untypeds_elsewhere_unchanged() {
         let kernel = Region { start: IMAGE, end: IMAGE + (4 << 20) };
@@ -823,6 +905,7 @@ mod tests {
         ] {
             let with = device_untypeds(reg, kernel);
             assert_eq!(with, device_untypeds(reg, Region::EMPTY));
+            assert_eq!(with, uncut_untypeds(reg));
             assert_eq!(total(&with), reg.end - reg.start);
         }
         let reg = Region { start: p - GIB, end: p + GIB };
