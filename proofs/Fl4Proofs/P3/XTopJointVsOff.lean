@@ -19,6 +19,7 @@ unmapped cap naming `q`, which `JAtZ.vsc` asks in its set. So:
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.UtTabAdd
 import Fl4Proofs.P3.VsOffTop
+import Fl4Proofs.P3.VsOffDec
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -232,6 +233,153 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   have J' := J1.vsStepJX Ap hpc hidx hXa hX'' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hnu)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
   exact ⟨_, H, Cs, Ac1, Lst1, D1, J'⟩
+
+end
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+
+/-- **A table frame apart from the sets' objects** at `Z`: 4 KiB-aligned, and
+no word of it an `OObj` word, a `VObj` word or inside a typed-heap object
+(`JAtZ.vsPostOffJ`'s `hqa`/`hfr`). -/
+def OffFrame (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) (q : U64) : Prop :=
+  q.val % 4096 = 0 ∧ ∀ b : U64, q.val ≤ b.val → b.val < q.val + 4096 →
+    ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b ∧
+    ∀ p k, Z.th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k)
+
+/-- **A mapped table cap whose table is in no set: what its decode reads**
+(XTopJointEntry's `JEntryAt.vsTyp`): the spec's table of the cap's kind at
+`q` (l4v `valid_cap`'s `typ_at`) and `q`'s frame apart from the sets'
+objects (`OffFrame`; l4v `pspace_distinct`). Nothing for other caps. -/
+def OffTabOK (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : capability.Cap → Prop
+  | .PageTable q true _ _ => q ∉ Z.L1 →
+      (∃ f, σ.kheap q.bv = some (.archObj (.pageTable f))) ∧ OffFrame (L := L) Z s σ q
+  | .PageDirectory q true _ _ => q ∉ Z.L2 →
+      (∃ f, σ.kheap q.bv = some (.archObj (.pageDirectory f))) ∧ OffFrame (L := L) Z s σ q
+  | .Pdpt q true _ _ => q ∉ Z.L3 →
+      (∃ f, σ.kheap q.bv = some (.archObj (.pdPointerTable f))) ∧ OffFrame (L := L) Z s σ q
+  | _ => True
+
+end
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64}
+
+set_option maxHeartbeats 4000000 in
+/-- **A mapped page table cap whose table is in no set, at `JAt`**
+(VsOffDec's `decode_invocation_page_table_offX`, then `JAtZ.vsPostOffJ`);
+`q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
+theorem decode_invocation_page_tableJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
+    (hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PageTableMap → lbl ≠ fl4_abi.label.X86PageTableUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableMap ∧
+        Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageTableUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageTable ptr true asid0 va0))
+    (hok : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageTable ptr true asid0 va0))
+    (hTy : ∃ f, σ.kheap ptr.bv = some (.archObj (.pageTable f))) (hqa : ptr.val % 4096 = 0)
+    (hfr : ∀ b : U64, ptr.val ≤ b.val → b.val < ptr.val + 4096 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b ∧
+      ∀ p k, Z.th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : JVsExtra (L := L) Z s extra excaps)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr true asid0 va0)
+      blk call don fp buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, htcb⟩ := J.ctTcb arI hct
+  obtain ⟨-, hCR, hFI, hDR, hMO, hIA, -⟩ := hX.rel
+  have hTy' : ∃ ao, σ.kheap ptr.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12 := by
+    obtain ⟨f, hf⟩ := hTy
+    exact ⟨_, hf, by first | rfl | decide | simp [Fl4Spec.objBits, Fl4Spec.archKobjSize]⟩
+  exact XCap.imp arI (decode_invocation_page_table_offX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
+    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlM hlU hlO length buf ct hct hcur htcb
+    J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap hok.2.2.1 hok.2.2.2 hTy hqa hfr extra excaps hex.hext
+    blk call don fp ci buffer hX.esa hIA.dom) fun _ _ _ h => J.vsPostOffJ hni hct hqa hTy' hfr h.1 h.2
+
+set_option maxHeartbeats 4000000 in
+/-- **A mapped page table cap whose table is in no set, at `JAt`**
+(VsOffDec's `decode_invocation_page_directory_offX`, then `JAtZ.vsPostOffJ`);
+`q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
+theorem decode_invocation_page_directoryJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PageDirectoryMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap)
+    (hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PageDirectoryMap → lbl ≠ fl4_abi.label.X86PageDirectoryUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryMap ∧
+        Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PageDirectoryUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr true asid0 va0))
+    (hok : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageDirectory ptr true asid0 va0))
+    (hTy : ∃ f, σ.kheap ptr.bv = some (.archObj (.pageDirectory f))) (hqa : ptr.val % 4096 = 0)
+    (hfr : ∀ b : U64, ptr.val ≤ b.val → b.val < ptr.val + 4096 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b ∧
+      ∀ p k, Z.th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : JVsExtra (L := L) Z s extra excaps)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr true asid0 va0)
+      blk call don fp buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, htcb⟩ := J.ctTcb arI hct
+  obtain ⟨-, hCR, hFI, hDR, hMO, hIA, -⟩ := hX.rel
+  have hTy' : ∃ ao, σ.kheap ptr.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12 := by
+    obtain ⟨f, hf⟩ := hTy
+    exact ⟨_, hf, by first | rfl | decide | simp [Fl4Spec.objBits, Fl4Spec.archKobjSize]⟩
+  exact XCap.imp arI (decode_invocation_page_directory_offX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
+    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlM hlU hlO length buf ct hct hcur htcb
+    J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap hok.2.2.1 hok.2.2.2 hTy hqa hfr extra excaps hex.hext
+    blk call don fp ci buffer hX.esa hIA.dom) fun _ _ _ h => J.vsPostOffJ hni hct hqa hTy' hfr h.1 h.2
+
+set_option maxHeartbeats 4000000 in
+/-- **A mapped PDPT cap whose table is in no set, at `JAt`**
+(VsOffDec's `decode_invocation_pdpt_offX`, then `JAtZ.vsPostOffJ`);
+`q`'s facts as XTopJointEntry's `JEntryAt.vsTyp` gives them. -/
+theorem decode_invocation_pdptJO (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
+    (hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap)
+    (hlO : lbl ≠ fl4_abi.label.X86PDPTMap → lbl ≠ fl4_abi.label.X86PDPTUnmap →
+      Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTMap ∧
+        Fl4Spec.invocationType slbl ≠ .archInvocationLabel .x64PDPTUnmap)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {ptr asid0 va0 : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr true asid0 va0))
+    (hok : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.Pdpt ptr true asid0 va0))
+    (hTy : ∃ f, σ.kheap ptr.bv = some (.archObj (.pdPointerTable f))) (hqa : ptr.val % 4096 = 0)
+    (hfr : ∀ b : U64, ptr.val ≤ b.val → b.val < ptr.val + 4096 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b ∧
+      ∀ p k, Z.th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : JVsExtra (L := L) Z s extra excaps)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr true asid0 va0)
+      blk call don fp buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, htcb⟩ := J.ctTcb arI hct
+  obtain ⟨-, hCR, hFI, hDR, hMO, hIA, -⟩ := hX.rel
+  have hTy' : ∃ ao, σ.kheap ptr.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12 := by
+    obtain ⟨f, hf⟩ := hTy
+    exact ⟨_, hf, by first | rfl | decide | simp [Fl4Spec.objBits, Fl4Spec.archKobjSize]⟩
+  exact XCap.imp arI (decode_invocation_pdpt_offX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
+    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlM hlU hlO length buf ct hct hcur htcb
+    J.kern.act (J.curRun.run hni) args hlen hargs hpc hidx hcap hok.2.2.1 hok.2.2.2 hTy hqa hfr extra excaps hex.hext
+    blk call don fp ci buffer hX.esa hIA.dom) fun _ _ _ h => J.vsPostOffJ hni hct hqa hTy' hfr h.1 h.2
 
 end
 

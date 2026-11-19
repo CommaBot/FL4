@@ -93,7 +93,7 @@ theorem decode_invocation_frame_full [Fl4Proofs.P1.PlainStore st] (th : TypedHea
         (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR)) hS hS.2.pt
       hS.2.vs hS.2.vo hS.2.po hR hPt lbl slbl hlbl hl length buf ct hct hcur htcb hact hkt (hrun _ hkt) args hlen
       hargs (pc := pc) (r := r) (idx := idx) hpc hidx (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va)
-      (d := d) (m := m) hcap hno hMO hVC extra excaps hext' blk call don fp ci buffer
+      (d := d) (m := m) hcap hno hMO hVC.toW extra excaps hext' blk call don fp ci buffer
     exact this
   exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt lbl slbl hlbl length buf ct
     hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hfu hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci

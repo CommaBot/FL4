@@ -1087,7 +1087,7 @@ theorem decode_invocation_frame_capXR [Fl4Proofs.P1.PlainStore st] (th : TypedHe
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))

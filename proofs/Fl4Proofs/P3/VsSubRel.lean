@@ -23,6 +23,7 @@ import Fl4Proofs.P3.VsArch
 import Fl4Proofs.P3.VsFrameInv
 import Fl4Proofs.P3.VsCapOps
 import Fl4Proofs.P3.VsMdbInv
+import Fl4Proofs.P3.VsCapW
 import Fl4Spec.Ext.VSpace
 open Aeneas Aeneas.Std Result
 
@@ -98,8 +99,8 @@ structure SubRel {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (SR : S �
     isFrame (capV (L.mem s) w) = true ∧ ∃ ch ∈ G.chains, src ∈ ch ∧ w ∈ ch
   /-- The frame invariant (`Vs.FrameInv`). -/
   FR : Vs.FrameInv (L.mem s) G
-  /-- The VSpace cap-placement invariant (`VsCapsIn`). -/
-  VC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G
+  /-- The VSpace cap-placement invariant, weakened (`VsCapsW`). -/
+  VC : VsCapsW P L4 L3 L2 L1 (L.mem s) G
 
 end Hyps
 
@@ -458,8 +459,9 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
   have hFR' : Vs.FrameInv (L.mem s') (insG G src dest rv) :=
     hFR.insert_alias hsrcm hdestm rv (capV_of_capAt hcap) hctx.cd (hctx.cz hsrcm) (fun z hz _ => hctx.cz hz)
       hq1 (by omega) (Vs.large_aligned hV hM)
-  have hVC' : VsCapsIn P L4 L3 L2 L1 (L.mem s') (insG G src dest rv) :=
-    hVC.insert_copy hsrcm rv (by rw [hctx.cd]; exact vcap_alias (hVC.at hM hs hcap (by simp)) hq1 hq2 hqal)
+  have hVC' : VsCapsW P L4 L3 L2 L1 (L.mem s') (insG G src dest rv) :=
+    hVC.insert_copy hsrcm rv (fun _ => by
+        rw [hctx.cd]; exact (vcap_alias (hVC.atOK hM hs hcap (by simp) (fun _ _ _ => by simp)) hq1 hq2 hqal).toW)
       (fun h => by rw [hctx.cz hsrcm]; exact h) (fun z hz _ _ => hctx.cz hz)
   have hMS : MdbStep (L.mem s) G (L.mem s') (insG G src dest rv) :=
     MdbStep.frameAlias hM hI rv hsrcm hdestm (capV_of_capAt hcap) hctx.cd hq1 (by omega)
@@ -877,7 +879,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))
     (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
     (hrun : Fl4Spec.runnable xct.tcbState = true)

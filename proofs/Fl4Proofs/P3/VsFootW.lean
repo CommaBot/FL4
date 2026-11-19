@@ -776,7 +776,7 @@ theorem derive_subframe_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))
     (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hFR : Vs.FrameInv (L.mem s) G) (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
     (hrun : Fl4Spec.runnable xct.tcbState = true)

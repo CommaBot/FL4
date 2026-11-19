@@ -94,6 +94,31 @@ theorem VCapW.ok_of {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c)
     · exact absurd rfl this
   | _ => exact h
 
+/-- **A table cap's table in its set** (mapped or not; no condition on the
+other caps): what `VCapW` leaves out of `VCapOK` for a mapped table cap. -/
+def TabIn (L3 L2 L1 : Set U64) : capability.Cap → Prop
+  | .PageTable p _ _ _ => p ∈ L1
+  | .PageDirectory p _ _ _ => p ∈ L2
+  | .Pdpt p _ _ _ => p ∈ L3
+  | _ => True
+
+/-- **The strong placement from the weakened one** and the table in its set. -/
+theorem VCapW.okTab {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c) (ht : TabIn L3 L2 L1 c) :
+    VCapOK P L4 L3 L2 L1 c := by
+  cases c with
+  | PageTable p mp a v => exact ⟨ht, h.2⟩
+  | PageDirectory p mp a v => exact ⟨ht, h.2⟩
+  | Pdpt p mp a v => exact ⟨ht, h.2⟩
+  | _ => exact h
+
+/-- `VCapOK` puts a table cap's table in its set. -/
+theorem VCapOK.tabIn {c : capability.Cap} (h : VCapOK P L4 L3 L2 L1 c) : TabIn L3 L2 L1 c := by
+  cases c with
+  | PageTable p mp a v => exact h.1
+  | PageDirectory p mp a v => exact h.1
+  | Pdpt p mp a v => exact h.1
+  | _ => trivial
+
 /-- A mapped table cap's or an unmapped one's placement: the table in its set
 when unmapped. -/
 theorem VCapW.mono {P' L4' L3' L2' L1' : Set U64} (hP : P ⊆ P') (h4 : L4 ⊆ L4') (h3 : L3 ⊆ L3')

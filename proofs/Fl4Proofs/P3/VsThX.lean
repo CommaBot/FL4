@@ -128,7 +128,7 @@ theorem decode_invocation_page_table_thX (th : TypedHeap) (s : S) (ar : A) (σ :
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageTableMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableMap)
     (hlU : lbl = fl4_abi.label.X86PageTableUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageTableUnmap)
@@ -142,6 +142,7 @@ theorem decode_invocation_page_table_thX (th : TypedHeap) (s : S) (ar : A) (σ :
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {ptr asid0 va0 : U64} {mp : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageTable ptr mp asid0 va0))
+    (hok0 : VCapOK P L4 L3 L2 L1 (.PageTable ptr mp asid0 va0))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -155,10 +156,10 @@ theorem decode_invocation_page_table_thX (th : TypedHeap) (s : S) (ar : A) (σ :
       (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_page_table_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
-      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call
+      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call
       don fp ci buffer hxs)
     (domFrame_page_table arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
-      htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
+      htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pageTable fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
     (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
@@ -172,7 +173,7 @@ theorem decode_invocation_page_directory_thX (th : TypedHeap) (s : S) (ar : A) (
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PageDirectoryMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryMap)
     (hlU : lbl = fl4_abi.label.X86PageDirectoryUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
@@ -186,6 +187,7 @@ theorem decode_invocation_page_directory_thX (th : TypedHeap) (s : S) (ar : A) (
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {ptr asid0 va0 : U64} {mp : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0))
+    (hok0 : VCapOK P L4 L3 L2 L1 (.PageDirectory ptr mp asid0 va0))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -199,10 +201,10 @@ theorem decode_invocation_page_directory_thX (th : TypedHeap) (s : S) (ar : A) (
       (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_page_directory_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
-      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call
+      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call
       don fp ci buffer hxs)
     (domFrame_page_directory arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
-      htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
+      htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pageDirectory fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
     (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
@@ -216,7 +218,7 @@ theorem decode_invocation_pdpt_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlM : lbl = fl4_abi.label.X86PDPTMap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTMap)
     (hlU : lbl = fl4_abi.label.X86PDPTUnmap → Fl4Spec.invocationType slbl = .archInvocationLabel .x64PDPTUnmap)
@@ -230,6 +232,7 @@ theorem decode_invocation_pdpt_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {ptr asid0 va0 : U64} {mp : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr mp asid0 va0))
+    (hok0 : VCapOK P L4 L3 L2 L1 (.Pdpt ptr mp asid0 va0))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -243,10 +246,10 @@ theorem decode_invocation_pdpt_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
       (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp buf extra slbl (args.map UScalar.bv) ci
       (pc.bv, idx) excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_pdpt_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt hVC lbl
-      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call
+      slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call
       don fp ci buffer hxs)
     (domFrame_pdpt arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt hVC lbl slbl hlM hlU hlO length buf ct hct hcur
-      htcb hact hrun args hlen hargs hpc hidx hcap extra excaps hext blk call don fp ci buffer hxs)
+      htcb hact hrun args hlen hargs hpc hidx hcap hok0 extra excaps hext blk call don fp ci buffer hxs)
     (okAll_specDec_pdpt fp slbl (args.map UScalar.bv) ci (pc.bv, idx) ptr mp asid0 va0 excaps buffer) hDR
     (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
@@ -260,7 +263,7 @@ theorem decode_invocation_asid_pool_thX (th : TypedHeap) (s : S) (ar : A) (σ : 
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPI : PoolsIn P L4 (L.mem s))
     (hCur : CurOK st th s σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlA : lbl = fl4_abi.label.X86ASIDPoolAssign ↔
       Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDPoolAssign)
@@ -302,7 +305,7 @@ theorem domFrame_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (s : S) (ar
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s))
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
@@ -328,7 +331,7 @@ theorem domFrame_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (s : S) (ar
       fp buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
   have hsl : IsSlot th (cslotAddr (pc.bv, idx)) :=
     AbsSlot.isSlot (th := th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
-  have hok := hVC.at hCR.2.2.1 hsl hcap (by simp)
+  have hok := hVC.atOK hCR.2.2.1 hsl hcap (by simp) (fun _ _ _ => by simp)
   simp only [VCapOK] at hok
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -337,7 +340,7 @@ theorem domFrame_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (s : S) (ar
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
+      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
       rw [e] at hv
       obtain ⟨hv1, -, hv3⟩ := hv
       exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
@@ -393,7 +396,7 @@ theorem decode_invocation_frame_thX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap
     (hA : ArchRefines arI AR) (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (hPI : PoolsIn P L4 (L.mem s)) (hCur : CurOK st th s σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsCapsW P L4 L3 L2 L1 (L.mem s) G)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : FrameLabel lbl slbl)
     (hlGA : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageGetAddress → lbl = fl4_abi.label.X86PageGetAddress)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)

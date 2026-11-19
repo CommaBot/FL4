@@ -154,30 +154,6 @@ of `H` in `Z.C`, so `scOut` is vacuous (`JAtZ.scOut`). -/
 theorem jVsApartHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JVsApartHyp (L := L) arI AR th :=
   fun _ _ _ _ _ _ _ _ _ _ J => ⟨J.scOut⟩
 
-/-- A mapped page-table, page-directory or PDPT cap names a table of its
-set (what `JAtZ.vsc`'s weakened form leaves out). -/
-def MappedTabIn (L3 L2 L1 : Set U64) : capability.Cap → Prop
-  | .PageTable p true _ _ => p ∈ L1
-  | .PageDirectory p true _ _ => p ∈ L2
-  | .Pdpt p true _ _ => p ∈ L3
-  | _ => True
-
-/-- **Hypothesis: a mapped table cap's table in its set at `J`** [W] (the
-VSpace decodes' `VsCapsIn` at the entry, beyond the proved `JAtZ.vsc`; l4v
-`valid_cap`'s `typ_at` for the cap's table plus `valid_vs_lookup` for its
-mapping). It replaces `JVsCapsHyp` (every cap's placement). It is FALSE in
-some reachable states, hence [W], not [J]: after an untyped reset/retype
-(VsDrop) a mapped PD or PDPT whose child lay in the dropped region is pruned
-from `L2`/`L3` while its cap still says mapped (the table was unreachable,
-so the child's unmap could not clear the entry), and, being stated for every
-`Z` with `JAtZ`, it also asks it at sets shrunk below an unreachable mapped
-table. Only the Unmap decode of such a cap needs it (FL4's
-`decode_table_unmap` zeroes the table); see handoff/vsreach.md for the plan
-to prove that case and remove it. -/
-def JVsTabHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-      ∀ y, IsSlot Z.th y → MappedTabIn Z.L3 Z.L2 Z.L1 (capV (L.mem s) y)
 
 end
 
@@ -651,36 +627,6 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
         cases e
   exact J.finVsJb hA Ap hDS hAs hc hvf hac true hw
 
-/-- **The strong placement from the weakened one** and a mapped table's
-table in its set. -/
-theorem VCapW.ok_tab {P L4 L3 L2 L1 : Set U64} {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c)
-    (ht : MappedTabIn L3 L2 L1 c) : VCapOK P L4 L3 L2 L1 c := by
-  cases c with
-  | PageTable p mp a v =>
-    obtain ⟨h1, h2⟩ := h
-    cases mp
-    · exact ⟨h1 rfl, h2⟩
-    · exact ⟨ht, h2⟩
-  | PageDirectory p mp a v =>
-    obtain ⟨h1, h2⟩ := h
-    cases mp
-    · exact ⟨h1 rfl, h2⟩
-    · exact ⟨ht, h2⟩
-  | Pdpt p mp a v =>
-    obtain ⟨h1, h2⟩ := h
-    cases mp
-    · exact ⟨h1 rfl, h2⟩
-    · exact ⟨ht, h2⟩
-  | _ => exact h
-
-/-- **`VsCapsIn` at `J`** from `JAtZ.vsc` and the mapped tables' membership
-(`JVsTabHyp`). -/
-theorem JAtZ.vsCapsIn_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hT : ∀ y, IsSlot Z.th y → MappedTabIn Z.L3 Z.L2 Z.L1 (capV (L.mem s) y)) :
-    VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G := fun x hx => by
-  have hs := ((J.mdbL.members x).1 hx).1
-  exact VCapW.ok_tab (J.vsc x hs) (hT x hs)
 
 /-- **A VSpace cap's slot is ready** (module docstring): a table cap's range
 meets no object of `H` but `other` ones (`JPlaced.cobj`, mapped or not, in

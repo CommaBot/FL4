@@ -59,6 +59,7 @@ import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointSendPushD
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
+import Fl4Proofs.P3.XTopJointVsOff
 import Fl4Proofs.P3.XTopJointVsReply
 import Fl4Proofs.P3.XTopJointVsSub
 import Fl4Proofs.P3.XTopJointMakePool
@@ -302,12 +303,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   own fields tagged there; `live` (`LiveJ` [J]) is also used by the IO port
   and Thread decodes). -/
   delParts : JDelParts (L := L) arI AR th
-  /-- [W] XTopJointFinVs's `JVsTabHyp`: a mapped PT/PD/PDPT cap's table in
-  its set (the VSpace decodes' `VsCapsIn`, with the proved `JAtZ.vsc`). FALSE
-  in some reachable states: after a drop prunes an unreachable mapped PD/PDPT
-  from its set, and at `Z`s shrunk below an unreachable mapped table (∀-Z
-  form); see there. -/
-  vsTab : JVsTabHyp (L := L) arI AR th
   /-- [P] one domain. -/
   nd : Fl4Spec.numDomains = 1
   /-- [P] the preemption point's platform (`PPPlat`). -/
@@ -392,6 +387,16 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   a faulted thread `Inactive`): the Endpoint cap's send is a normal transfer
   (`sendLeafJ2`'s `hnf`). -/
   cnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none
+  /-- [J] a mapped page-table, page-directory or PDPT cap whose table is in
+  no set of `Z` (a detype pruned it while the cap still says mapped,
+  handoff/vsreach.md): the spec's table of that kind at its address (l4v
+  `valid_cap`'s `typ_at` for the cap's table; `valid_objs`) and the table's
+  frame 4 KiB-aligned and apart from the sets' objects and the typed heap
+  (l4v `pspace_aligned`, `pspace_distinct`: the frame is one spec object, an
+  arch object, so no TCB, CNode, endpoint, notification, reply, SC or
+  kernel-global word, and no table or pool of the sets); XTopJointVsOff's
+  `OffTabOK`, what the Unmap of such a cap reads (`decode_invocation_page_tableJO`). -/
+  vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -849,32 +854,71 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
       buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
   case PageTable ptr mp asid va =>
-    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0 hLb
     obtain ⟨hlM, hlU, hlO⟩ := pt_label lbl
+    have hw : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageTable ptr mp asid va) := by
+      have h := J.vsc _ hAs.isSlot; rwa [capV_of_capAt hc] at h
+    by_cases hoff : mp = true ∧ ptr ∉ Z.L1
+    · obtain ⟨rfl, hnL⟩ := hoff
+      have ht := hE.vsTyp _ hAs.isSlot
+      rw [capV_of_capAt hc] at ht
+      obtain ⟨hTy, hqa, hfr⟩ := ht hnL
+      exact (decode_invocation_page_tableJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+    have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageTable ptr mp asid va) := hw.okTab (by
+      cases mp with
+      | false => exact hw.1 rfl
+      | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
+    have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_page_tableJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length
-      buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case PageDirectory ptr mp asid va =>
-    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0 hLb
     obtain ⟨hlM, hlU, hlO⟩ := pd_label lbl
+    have hw : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageDirectory ptr mp asid va) := by
+      have h := J.vsc _ hAs.isSlot; rwa [capV_of_capAt hc] at h
+    by_cases hoff : mp = true ∧ ptr ∉ Z.L2
+    · obtain ⟨rfl, hnL⟩ := hoff
+      have ht := hE.vsTyp _ hAs.isSlot
+      rw [capV_of_capAt hc] at ht
+      obtain ⟨hTy, hqa, hfr⟩ := ht hnL
+      exact (decode_invocation_page_directoryJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+    have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.PageDirectory ptr mp asid va) := hw.okTab (by
+      cases mp with
+      | false => exact hw.1 rfl
+      | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
+    have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_page_directoryJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO
-      length buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      length buf ct hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pdpt ptr mp asid va =>
-    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0 hLb
     obtain ⟨hlM, hlU, hlO⟩ := pdpt_label lbl
+    have hw : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.Pdpt ptr mp asid va) := by
+      have h := J.vsc _ hAs.isSlot; rwa [capV_of_capAt hc] at h
+    by_cases hoff : mp = true ∧ ptr ∉ Z.L3
+    · obtain ⟨rfl, hnL⟩ := hoff
+      have ht := hE.vsTyp _ hAs.isSlot
+      rw [capV_of_capAt hc] at ht
+      obtain ⟨hTy, hqa, hfr⟩ := ht hnL
+      exact (decode_invocation_pdptJO arI s ar σ J hni hG.delParts.archRef lbl lbl.bv hlM hlU hlO length buf ct hct argsU hlen
+        hargs hth0 rfl hc hw hTy hqa hfr extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+    have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 (.Pdpt ptr mp asid va) := hw.okTab (by
+      cases mp with
+      | false => exact hw.1 rfl
+      | true => exact Classical.byContradiction fun hn => hoff ⟨rfl, hn⟩)
+    have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
     exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
-      hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
+      hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pml4 p mp asid =>
     have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).atOK J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp) (by simp)
     subst hLb
@@ -885,7 +929,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci
       sl excaps buffer ct := hN
     subst hLb
-    exact (decode_invocation_asid_poolJV arI s ar σ J hni (J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)) lbl lbl.bv
+    exact (decode_invocation_asid_poolJV arI s ar σ J hni (J.vsc.caps J.xtop.rel.2.1.2.2.1) lbl lbl.bv
       (pool_label lbl) length buf ct hct ptr base extra excaps hN.native (ExtraOK.poolExtra hPl hXO) (cslotAddr sl) blk call don fp _ ci sl buffer
       hAs.isSlot hc).toP arI hPre
   case Frame p sz rt d m ep asid va =>
@@ -894,7 +938,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     · by_cases hEP : lbl = fl4_abi.label.X86PageMapEPT
       · exact hV (Or.inr hEP)
       have hF := hF rfl
-      have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
+      have hVC := (J.vsc.caps J.xtop.rel.2.1.2.2.1)
       obtain ⟨sl1, idxs⟩ := sl
       obtain ⟨p0, hp0, hth0⟩ := hsl
       try simp only at hp0 hth0
