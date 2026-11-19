@@ -199,13 +199,13 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 set_option maxHeartbeats 8000000 in
 /-- **The inactive SC at `J`** (module docstring): XTopJointFinSc's
 a step of XTopJointFinSc's `JAtZ.finScJ`, proved. -/
-theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.setInactiveJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
     (hpi : p.bv ≠ σ.idleSc) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
     (n0 : L.mem s (P1.scNtfnA p) = 0#u64) (r0 : L.mem s (P1.scReplyA p) = 0#u64) :
     ∃ σ', Fl4Spec.schedContextSetInactive (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-      JTP (L := L) arI AR Z H Cs (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ' := by
+      JTPD (L := L) arI AR Z H Cs D (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ' := by
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
@@ -275,10 +275,22 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   obtain ⟨hblk', hfoot⟩ := P1.deact_all J.blk hpS hnbW hnnW r0
   rw [esp] at hblk' hfoot
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
-  exact ⟨Z.vs, Ac \ {p}, Lst', D, J.sc_frame hW6 hK6 hX' hCR' hRF' hY' hM' (J.sc_buf hW6 hK6) hRP'
+  exact ⟨Z.vs, Ac \ {p}, Lst', J.sc_frame hW6 hK6 hX' hCR' hRF' hY' hM' (J.sc_buf hW6 hK6) hRP'
     (J.sc_apart hW6 hK6) (J.sc_jpl hW6 hK6 (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW6 hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hW6 hK6 hF hX' hDbg fun _ h => h) (J.sc_utc hW6 hK6 hDbg) J.nsc.updSc hI'
     (J.cur.imp id (hO.curInv J.inv)) (hO.own J.inv J.own) (hO.off hpi J.off) hact' (hO.bsa J.bsa) (hO.curRun J.curRun) hblk'⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.setInactiveJD` with the dead set existential. -/
+theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
+    (hpi : p.bv ≠ σ.idleSc) (t0 : L.mem s (P1.scTcbA p) = 0#u64)
+    (n0 : L.mem s (P1.scNtfnA p) = 0#u64) (r0 : L.mem s (P1.scReplyA p) = 0#u64) :
+    ∃ σ', Fl4Spec.schedContextSetInactive (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
+      JTP (L := L) arI AR Z H Cs (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) a σ' :=
+  let ⟨σ', he, V, Ac', Lst', J'⟩ := J.setInactiveJD arI hpC hp0 hpi t0 n0 r0; ⟨σ', he, V, Ac', Lst', D, J'⟩
 
 end
 

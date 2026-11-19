@@ -64,12 +64,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 set_option maxHeartbeats 8000000 in
 /-- **`unbind_ntfn` of an SC at `J`** (module docstring): XTopJointFinSc's
 a step of XTopJointFinSc's `JAtZ.finScJ`, proved (for any SC of the SCs, non-null). -/
-theorem JAtZ.unbindNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.unbindNtfnJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64) :
     schedcontext.unbind_ntfn st s p ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindNtfn (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ := by
+      JTPD (L := L) arI AR Z H Cs D s' a σ' ⦄ := by
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
@@ -109,7 +109,18 @@ theorem JAtZ.unbindNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
   rw [hK.arch] at hI3
   have hFr : IFrame (L := L) Z.th s s' := ⟨J.xtop.slotsSame_of hW fun b h => Sched.tfoot_oobj hS h, hW.1⟩
   obtain ⟨V', J'⟩ := J.nfrStep hI3 hFr (hWK.mono fun b hb => Or.inl hb) F hI' hK.ckeep hblk hfoot
-  exact ⟨σ', he, V', Ac, Lst, D, J'⟩
+  exact ⟨σ', he, V', Ac, Lst, J'⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.unbindNtfnJD` with the dead set existential. -/
+theorem JAtZ.unbindNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64) :
+    schedcontext.unbind_ntfn st s p ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextUnbindNtfn (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
+      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ :=
+  WP.spec_mono (J.unbindNtfnJD arI hpC hp0) fun _ ⟨σ', he, V, Ac', Lst', J'⟩ => ⟨σ', he, V, Ac', Lst', D, J'⟩
 
 end
 

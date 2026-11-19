@@ -46,10 +46,10 @@ theorem workUnits_val {kb : U64} (hf : kb.val + 13568 ≤ 2 ^ 64) :
 
 set_option maxHeartbeats 4000000 in
 /-- **A write of `WORK_UNITS` keeps `JAtZ`** (module docstring). -/
-theorem JAtZ.workUnitsJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (v : U64) :
-    ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D'
+    ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D
         (L.wr s (core.num.U64.wrapping_add (L.ksb s) layout.ks.WORK_UNITS) v) a σ := by
   have hX := J.xtop
   have hf := J.kern.ksbFit
@@ -91,8 +91,16 @@ theorem JAtZ.workUnitsJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (hD.frame (fun o ho => hdk.2 o ho) rfl rfl) hAR
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
-  obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩
+  obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
+  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩
+
+/-- `JAtZ.workUnitsJD` with the dead set existential. -/
+theorem JAtZ.workUnitsJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (v : U64) :
+    ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D'
+        (L.wr s (core.num.U64.wrapping_add (L.ksb s) layout.ks.WORK_UNITS) v) a σ :=
+  let ⟨Ac', Lst', J'⟩ := J.workUnitsJD arI v; ⟨Ac', Lst', D, J'⟩
 
 
 /-- **FL4's clock agrees with the spec's** [P] (module docstring). -/
@@ -160,7 +168,7 @@ theorem Sched.updateTimeStamp_eq' {σ : Fl4Spec.State Unit} {now : Fl4Spec.Word}
 
 set_option maxHeartbeats 8000000 in
 /-- **`update_timestamp` at `J`** (module docstring). -/
-theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.timestampJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hnow : NowAgree arI a σ) :
     sched.update_timestamp st arI s a ⦃ r => ∃ σ', Fl4Spec.updateTimeStamp (Z := Unit) σ = ({((), σ')}, False) ∧
@@ -172,8 +180,8 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         (AR r.2 σ.archState.x64CurrentCr3 → AR a2 σ.archState.x64CurrentCr3) →
         XTopAt (L := L) AR Z r.1 a2 { σ' with machineState := ms2 } ∧
         (Sched.OffOK { σ' with machineState := ms2 } → Sched.CurOwnW Z.T Z.C { σ' with machineState := ms2 } →
-          ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-            JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.1 a2 { σ' with machineState := ms2 }) ⦄ := by
+          ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+            JAtZ (L := L) arI AR Z H Cs Ac' Lst' D r.1 a2 { σ' with machineState := ms2 }) ⦄ := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
@@ -244,9 +252,31 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rcases hb with hb | hb
     · have := congrArg UScalar.val hb; rw [hd, h1] at this; simp at this; omega
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
-  exact ⟨Ac, Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
+  exact ⟨Ac, Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.timestampJD` with the dead set existential. -/
+theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
+    (hnd : Fl4Spec.numDomains = 1) (hnow : NowAgree arI a σ) :
+    sched.update_timestamp st arI s a ⦃ r => ∃ σ', Fl4Spec.updateTimeStamp (Z := Unit) σ = ({((), σ')}, False) ∧
+      σ'.kheap = σ.kheap ∧ σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ σ'.curThread = σ.curThread ∧
+      σ'.archState = σ.archState ∧
+      σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory ∧
+      (Sched.OffReady σ → Sched.OffReady σ') ∧
+      ∀ (ms2 : Fl4Spec.MachineState) (a2 : A), ms2.underlyingMemory = σ.machineState.underlyingMemory →
+        (AR r.2 σ.archState.x64CurrentCr3 → AR a2 σ.archState.x64CurrentCr3) →
+        XTopAt (L := L) AR Z r.1 a2 { σ' with machineState := ms2 } ∧
+        (Sched.OffOK { σ' with machineState := ms2 } → Sched.CurOwnW Z.T Z.C { σ' with machineState := ms2 } →
+          ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+            JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.1 a2 { σ' with machineState := ms2 }) ⦄ :=
+  WP.spec_mono (J.timestampJD arI hAK hA hnd hnow) fun _ ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9⟩ =>
+    ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, fun ms2 a2 hm ha =>
+      let ⟨x1, x2⟩ := h9 ms2 a2 hm ha
+      ⟨x1, fun hO hOw => let ⟨Ac', Lst', J'⟩ := x2 hO hOw; ⟨Ac', Lst', D, J'⟩⟩⟩
 
 end
 
@@ -381,32 +411,32 @@ set_option maxHeartbeats 16000000 in
 /-- **The preemption point from `JAtZ`** (module docstring): an outcome of
 the spec's of the same kind, `XTopAt` after, and `JAtZ` after when not
 preempted. -/
-theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hP : PPPlat arI AR) (hRd : PPR0 σ) :
     sched.preemption_point st arI s a ⦃ r => ∃ σ',
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) ∨
         (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
       XTopAt (L := L) AR Z r.2.1 r.2.2 σ' ∧
-      (r.1 = .Ok () → (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧ PPR0 σ') ⦄ := by
+      (r.1 = .Ok () → (∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D r.2.1 r.2.2 σ') ∧ PPR0 σ') ⦄ := by
   generalize hPP : ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 = PPs
   unfold sched.preemption_point
   step with obj.ks_get.spec as ⟨i, _⟩
   step as ⟨w, _⟩
   step with obj.ks_set.spec as ⟨s1, e1⟩
   subst e1
-  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.workUnitsJ arI w
+  obtain ⟨Ac1, Lst1, J1⟩ := J.workUnitsJD arI w
   split
   swap
   · rw [WP.spec_ok]
     obtain ⟨y, hy, rfl⟩ := pp_ok σ
     rw [hPP] at hy
-    exact ⟨σ, Or.inl ⟨rfl, hy⟩, J1.xtop, fun _ => ⟨⟨Ac1, Lst1, D1, J1⟩, hRd⟩⟩
+    exact ⟨σ, Or.inl ⟨rfl, hy⟩, J1.xtop, fun _ => ⟨⟨Ac1, Lst1, J1⟩, hRd⟩⟩
   step with obj.ks_set.spec as ⟨s2, e2⟩
   subst e2
-  obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.workUnitsJ arI 0#u64
-  refine WP.spec_bind (J2.timestampJ arI hAK hA hnd (hP.now a σ)) ?_
+  obtain ⟨Ac2, Lst2, J2⟩ := J1.workUnitsJD arI 0#u64
+  refine WP.spec_bind (J2.timestampJD arI hAK hA hnd (hP.now a σ)) ?_
   rintro ⟨s3, a1⟩ ⟨σ1, hE1, hk1, hcs1, hrq1, hct1, har1, hum1, -, hK⟩
   -- the time and the consumed time after the update
   obtain ⟨r0, -, ms0, hm0, hle0, -⟩ := spec_exists (hP.now a σ)
@@ -530,6 +560,20 @@ theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [if_pos rfl, WP.spec_ok]
     rw [if_pos (Or.inl (hiff.1 rfl))] at hy
     exact ⟨σ2, Or.inr ⟨by simp, hy⟩, hX2', fun h => by simp at h⟩
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.ppJD` with the dead set existential. -/
+theorem JAtZ.ppJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI)
+    (hnd : Fl4Spec.numDomains = 1) (hP : PPPlat arI AR) (hRd : PPR0 σ) :
+    sched.preemption_point st arI s a ⦃ r => ∃ σ',
+      ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) ∨
+        (r.1 = .Err .Preempted ∧ (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1)) ∧
+      XTopAt (L := L) AR Z r.2.1 r.2.2 σ' ∧
+      (r.1 = .Ok () → (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' r.2.1 r.2.2 σ') ∧ PPR0 σ') ⦄ :=
+  WP.spec_mono (J.ppJD arI hAK hA hnd hP hRd) fun _ ⟨σ', h1, h2, h3⟩ =>
+    ⟨σ', h1, h2, fun hr => let ⟨⟨Ac', Lst', J'⟩, hp⟩ := h3 hr; ⟨⟨Ac', Lst', D, J'⟩, hp⟩⟩
 
 
 set_option maxHeartbeats 4000000 in

@@ -67,6 +67,43 @@ theorem LiveJ.of_same {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {Cs : Set U6
   · exact hL.zslots y hy p zt n (by rw [← hSS.capV hy]; exact hz) i hpi hni (hU _ ⟨p, i, hpi, rfl⟩ hu)
   · exact hdead p (hL.zdead y hy p zt n (by rw [← hSS.capV hy]; exact hz) hzt)
 
+/-- The TCBs of the TCB zombies (type 65) in the slots. -/
+def ZTcb (th : TypedHeap) (s : S) : Set U64 :=
+  {p | ∃ y, IsSlot th y ∧ ∃ zt n, capV (L.mem s) y = .Zombie p zt n ∧ zt.val = 65}
+
+/-- `LiveJ.zdead` on `ZTcb`. -/
+theorem LiveJ.ztcb {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {σ : Fl4Spec.State Unit}
+    (hL : LiveJ (L := L) th H G s σ) : ∀ p ∈ ZTcb (L := L) th s, DeadP (L := L) H s p :=
+  fun _ ⟨y, hy, zt, n, hz, h65⟩ => hL.zdead y hy _ zt n hz h65
+
+/-- **`LiveJ.of_same` with only the TCB zombies' TCBs dead after** (`ZTcb`). -/
+theorem LiveJ.of_sameZ {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {Cs : Set U64} {s s' : S}
+    {σ σ' : Fl4Spec.State Unit} (hL : LiveJ (L := L) th H G s σ) (hSS : SlotsSame th (L.mem s) (L.mem s'))
+    (hmem : ∀ y ∈ G.chains.flatten, IsSlot th y) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hc0 : 0#u64 ∈ Cs) (hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s)
+    (hdead : ∀ p ∈ ZTcb (L := L) th s, DeadP (L := L) H s' p) :
+    LiveJ (L := L) th H G s' σ' := by
+  have hU : ∀ y, IsSlot th y → InUse (L.mem s') σ' y → InUse (L.mem s) σ y := fun y hy hu => by
+    unfold InUse at hu ⊢
+    rw [hSS.capV hy, horig] at hu
+    exact hu
+  have hhd : dbgHead (L := L) s' = dbgHead (L := L) s := by
+    unfold dbgHead
+    rw [nodeAt_of_ksb hK.1]
+    exact hK.2 _ (Or.inr ⟨0#u64, hc0, rfl⟩)
+  have hN : ∀ n, dbgNth (L.mem s') n (dbgHead (L := L) s') = dbgNth (L.mem s) n (dbgHead (L := L) s) := fun n => by
+    rw [hhd]
+    exact dbgNth_keep (fun y hy => hK.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) n _ (hTz.dh _ hc0)
+  refine ⟨fun q i hqi hu => ?_, fun n hn => ?_, fun y hy p zt n hz i hpi hni hu => ?_,
+    fun y hy p zt n hz hzt => ?_⟩
+  · obtain ⟨y, hy, hr⟩ := hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hu)
+    exact ⟨y, hy, by rw [hSS.capV (hmem y hy)]; exact hr⟩
+  · rw [hN] at hn ⊢
+    obtain ⟨y, hy, hr⟩ := hL.dbg n hn
+    exact ⟨y, hy, by rw [hSS.capV (hmem y hy)]; exact hr⟩
+  · exact hL.zslots y hy p zt n (by rw [← hSS.capV hy]; exact hz) i hpi hni (hU _ ⟨p, i, hpi, rfl⟩ hu)
+  · exact hdead p ⟨y, hy, zt, n, by rw [← hSS.capV hy]; exact hz, hzt⟩
+
 /-- **`DbgWFL` across a step keeping the debug words and the affinities.** -/
 theorem DbgWFL.of_keep {T Cs : Set U64} {s s' : S} {lst : U64 → List U64}
     (hW : DbgWFL T Cs (L.mem s) (dbgHd (L := L) s) lst) (hK : P1.DbgKeep st T Cs s s')
@@ -77,6 +114,17 @@ theorem DbgWFL.of_keep {T Cs : Set U64} {s s' : S} {lst : U64 → List U64}
 
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
   {D : Set U64}
+
+/-- **A dead set joins the dead set** (as XTopJointFinThreadU's `JAtZ.addDead`). -/
+theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
+    (hd : ∀ p ∈ E, DeadP (L := L) H s p) : JAtZ (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
+  { J with
+    jcov := ⟨fun q k hq => (J.jcov.th q k hq).imp_right (Or.imp_left Or.inl),
+      fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left Or.inl),
+      fun q hq => hq.elim (J.jcov.dead q) (hd q),
+      J.jcov.ks, J.jcov.idleOut⟩
+    kern := { J.kern with } }
 
 /-- **`DbgWFL` across a `JAtZ` step keeping the debug words** (the
 affinities: every TCB on the current core before and after). -/

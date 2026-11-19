@@ -285,6 +285,29 @@ theorem jYieldToHyp_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : 
 theorem JThreadFinHyps.yieldToH {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
     (h : JThreadFinHyps (L := L) arI AR th) : JYieldToHyp (L := L) arI AR th := jYieldToHyp_of arI hT h.ticks
 
+/-- `JYieldToHyp` at the same dead set. -/
+def JYieldToHypD (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
+    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
+    ∀ q ∈ Z.C, L.mem s (scYieldFromA q) ≠ 0#u64 →
+      schedcontext.complete_yield_to st arI s a (L.mem s (scYieldFromA q)) ⦃ r => ∃ σ',
+        Fl4Spec.completeYieldTo (Z := Unit) (L.mem s (scYieldFromA q)).bv σ = ({((), σ')}, False) ∧
+        JTPD (L := L) arI AR Z H Cs D r.1 r.2 σ' ⦄
+
+/-- **`JYieldToHypD` proved** (`JAtZ.completeYieldJD`, as `jYieldToHyp_of`). -/
+theorem jYieldToHypD_of {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (hT : P0.ArchTotal arI)
+    (hticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
+      ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    JYieldToHypD (L := L) arI AR th := by
+  intro Z H Cs Ac Lst D s a σ _ J q hq h0
+  obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
+  obtain ⟨y5, n5, hk5, hx5⟩ := hs.scs q hq
+  have e5 : y5.scYieldFrom = some (L.mem s (scYieldFromA q)).bv := by
+    rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne h0]
+  obtain ⟨t, ht, et, -⟩ := J.yld.frm q hq y5 n5 hk5 _ e5
+  have hjT : L.mem s (scYieldFromA q) ∈ Z.T := by rw [← P1.eq_of_bv et]; exact ht
+  exact J.completeYieldJD hT hticks.1 (hticks.2 a) hjT
+
 /-- **An SC cap's slot is ready once the SC is dead** (as `JAtZ.ep_ready`),
 the cap of the SC's size. -/
 theorem JAtZ.sc_ready {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -434,6 +457,113 @@ theorem JAtZ.finScJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     try simp only [WP.uncurry'_pair] at hP4 y4
     obtain ⟨-, -, -, k4⟩ := hP4
     refine fin5 s4 a4 σ4 V4 Ac4 Lst4 D4 J4 (by rw [k4.1, t3])
+      (by rw [k4.2.1, n3]) (k4.2.2.2 r3') y4 (unbindYieldFrom_some hk3 ?_ e4)
+    rw [hx3.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hi]; exact h0)]
+
+
+set_option maxHeartbeats 16000000 in
+/-- `JAtZ.finScJ` at the same dead set (each step's `…JD`, the yielder by `JYieldToHypD`). -/
+theorem JAtZ.finScJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hT : P0.ArchTotal arI) (hY : JYieldToHypD (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p sb : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
+    (hpi : p.bv ≠ σ.idleSc) (hpS : p ∈ P1.Heap.scs H)
+    (hna : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p))
+    (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
+    objects.finalise_cap st arI s a (.SchedContext p sb) true false ⦃ r => ∃ σ',
+      ((Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap), σ') ∈
+        (Fl4Spec.finaliseCap (Z := Unit) (absCap (.SchedContext p sb)) true σ).1 ∧
+      JTPD (L := L) arI AR Z H Cs D r.2.1 r.2.2 σ' ∧ L.mem r.2.1 (scYieldFromA p) = 0#u64 ⦄ := by
+  rw [P1.fin_cap_eq_obj (by simp)]
+  unfold objects.finalise_cap_object
+  simp only [↓reduceIte]
+  -- `unbind_all_tcbs`
+  refine WP.spec_bind (WP.spec_and (JAtZ.unbindAllJD arI J hpC hp0 hpi hna hidle)
+    (P1.schedcontext.unbind_all_tcbs.blk hT s a p J.blk hpS hp0 hna hidle)) ?_
+  rintro ⟨s1, a1⟩ ⟨⟨σ1, he1, V1, Ac1, Lst1, J1⟩, hP1⟩
+  try simp only [WP.uncurry'_pair] at hP1
+  obtain ⟨-, -, -, -, t1, -⟩ := hP1
+  -- `unbind_ntfn`
+  refine WP.spec_bind (WP.spec_and (JAtZ.unbindNtfnJD arI J1 hpC hp0)
+    (P1.schedcontext.unbind_ntfn.blk s1 p J1.blk fun _ => hpS)) ?_
+  rintro s2 ⟨⟨σ2, he2, V2, Ac2, Lst2, J2⟩, -, -, t2, -, n2⟩
+  have t2' : L.mem s2 (P1.scTcbA p) = 0#u64 := by rw [t2, t1]
+  -- `unbind_reply`
+  refine WP.spec_bind (WP.spec_and
+    (JAtZ.unbindReplyJD arI J2 hpC hp0)
+    (P1.schedcontext.unbind_reply.blk s2 p p J2.blk (fun _ => hpS) hpS)) ?_
+  rintro s3 ⟨⟨σ3, he3, V3, Ac3, Lst3, J3⟩, -, -, k3, r3⟩
+  have t3 : L.mem s3 (P1.scTcbA p) = 0#u64 := by rw [k3.1, t2']
+  have n3 : L.mem s3 (P1.scNtfnA p) = 0#u64 := by rw [k3.2.1, n2 hp0]
+  have r3' : L.mem s3 (P1.scReplyA p) = 0#u64 := r3 hp0
+  obtain ⟨Q3, R3, hc3, hs3⟩ := J3.xtop.fin.1.1.1.lists
+  obtain ⟨y3, n3', hk3, hx3⟩ := hs3.scs p hpC
+  -- the inactive SC and the post
+  have fin5 : ∀ (s4 : S) (a4 : A) (σ4 : Fl4Spec.State Unit) (V4 : XVs) (Ac4 : Set U64) (Lst4 : U64 → List U64),
+      JAtZ (L := L) arI AR (Z.mv Z.G V4) H Cs Ac4 Lst4 D s4 a4 σ4 →
+      L.mem s4 (P1.scTcbA p) = 0#u64 → L.mem s4 (P1.scNtfnA p) = 0#u64 → L.mem s4 (P1.scReplyA p) = 0#u64 →
+      L.mem s4 (scYieldFromA p) = 0#u64 →
+      Fl4Spec.schedContextUnbindYieldFrom (Z := Unit) p.bv σ3 = ({((), σ4)}, False) →
+      (do
+        let s5 ← obj.Sc.set_refill_max st p s4 0#u64
+        let s6 ← obj.Sc.set_sporadic st p s5 0#u64
+        ok ((capability.Cap.Null, capability.Cap.Null), s6, a4)) ⦃ r => ∃ σ',
+          ((Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap), σ') ∈
+            (Fl4Spec.finaliseCap (Z := Unit) (absCap (.SchedContext p sb)) true σ).1 ∧
+          JTPD (L := L) arI AR Z H Cs D r.2.1 r.2.2 σ' ∧ L.mem r.2.1 (scYieldFromA p) = 0#u64 ⦄ := by
+    intro s4 a4 σ4 V4 Ac4 Lst4 J4 t4 n4 r4 y4 he4
+    step with obj.Sc.set_refill_max.spec as ⟨s5, hs5⟩
+    step with obj.Sc.set_sporadic.spec2 as ⟨s6, hs6⟩
+    subst hs5 hs6
+    have y6 : L.mem (L.wr (L.wr s4 (P1.maxA p) 0#u64) (scW p 64#u64) 0#u64) (scYieldFromA p) = 0#u64 := by
+      have hO4 := J4.blk.2.2.1.1
+      obtain ⟨hPp, hzp⟩ := hO4.sc p hpS
+      obtain ⟨-, -, -, e72, -, -, -, e56⟩ := P1.sc_facts hO4 hpS
+      obtain ⟨c8, c128, cfit⟩ := P1.sc_lo hPp hzp
+      have v56 : (scYieldFromA p).val = p.val + 56 := e56
+      have v64 : (scW p 64#u64).val = p.val + 64 := P1.sc_word_val hPp hzp (o := 64#u64) (by decide)
+      have hb : P1.Aligned (scYieldFromA p) := by unfold P1.Aligned; rw [v56]; omega
+      have ha64 : P1.Aligned (scW p 64#u64) := by unfold P1.Aligned; rw [v64]; omega
+      rw [L.mem_wr_ne ha64 hb (by rw [v64, v56]; omega),
+        L.mem_wr_ne (P1.maxA_facts hO4 hpS).1 hb (by rw [e72, v56]; omega)]
+      exact y4
+    have hpi4 : p.bv ≠ σ4.idleSc := by
+      have e4 : σ4.idleSc = σ3.idleSc :=
+        isk_schedContextUnbindYieldFrom p.bv σ3 ((), σ4) (by rw [he4]; exact Set.mem_singleton _)
+      rw [e4, ((pres_schedContextUnbindReply p.bv).of_eq he3).isc,
+        ((pres_schedContextUnbindNtfn (f := (true, true)) p.bv).of_eq he2).isc,
+        ((pres_schedContextUnbindAllTcbs (f := (true, true)) p.bv).of_eq he1).isc]
+      exact hpi
+    obtain ⟨σ5, he5, V5, Ac5, Lst5, J5⟩ := JAtZ.setInactiveJD arI J4 hpC hp0 hpi4 t4 n4 r4
+    exact ⟨σ5, finSc_mem he1 he2 he3 he4 he5, ⟨V5, Ac5, Lst5, J5⟩, y6⟩
+  -- the yielder
+  step with obj.Sc.yield_from.spec' as ⟨i, hi⟩
+  step with obj.Tcb.is_null.spec as ⟨b0, hb0⟩
+  by_cases h0 : i = 0#u64
+  · have hb : b0 = true := by rw [hb0, h0]; rfl
+    simp only [hb, ↓reduceIte, bind_ok]
+    refine fin5 s3 a1 σ3 V3 Ac3 Lst3 J3 t3 n3 r3' (by rw [← hi, h0]) (unbindYieldFrom_none hk3 ?_)
+    rw [hx3.yieldFrom, ← scYieldFromA_eq, ← hi, h0, Notif.optRef_zero]
+  · have hb : b0 = false := by rw [hb0]; simp [h0]
+    simp only [hb, Bool.false_eq_true, ↓reduceIte]
+    rw [hi]
+    have hy : L.mem s3 (scYieldFromA p) ≠ 0#u64 → L.mem s3 (scYieldFromA p) ∈ P1.Heap.tcbs H := fun hy0 =>
+      J3.blk.2.2.1.2.2.yt.2.2 p hpS hy0
+    have hy0 : L.mem s3 (scYieldFromA p) ≠ 0#u64 := by rw [← hi]; exact h0
+    -- the yielder yields to `p` (`YieldRel.frm`)
+    have hyp : L.mem s3 (yieldA (L.mem s3 (scYieldFromA p))) = p := by
+      have e3 : y3.scYieldFrom = some (L.mem s3 (scYieldFromA p)).bv := by
+        rw [hx3.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne hy0]
+      obtain ⟨t, -, et, ht⟩ := J3.yld.frm p hpC y3 n3' hk3 _ e3
+      rw [← P1.eq_of_bv et]; exact ht
+    refine WP.spec_bind (WP.spec_and (WP.spec_and
+      (hY (Z.mv Z.G V3) H Cs Ac3 Lst3 D s3 a1 σ3 rfl J3 p hpC hy0)
+      (P1.schedcontext.complete_yield_to.blkS hT s3 a1 _ p J3.blk hy hpS))
+      (P1.schedcontext.complete_yield_to.yfZ hT s3 a1 _ p J3.blk (hy hy0) hyp hp0)) ?_
+    rintro ⟨s4, a4⟩ ⟨⟨⟨σ4, e4, V4, Ac4, Lst4, J4⟩, hP4⟩, y4⟩
+    try simp only [WP.uncurry'_pair] at hP4 y4
+    obtain ⟨-, -, -, k4⟩ := hP4
+    refine fin5 s4 a4 σ4 V4 Ac4 Lst4 J4 (by rw [k4.1, t3])
       (by rw [k4.2.1, n3]) (k4.2.2.2 r3') y4 (unbindYieldFrom_some hk3 ?_ e4)
     rw [hx3.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hi]; exact h0)]
 

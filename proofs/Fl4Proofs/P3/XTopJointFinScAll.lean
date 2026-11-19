@@ -29,7 +29,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`unbind_all_tcbs` of an SC at `J`** (module docstring): for an SC of
 the SCs, non-null, not the idle SC, its thread (if any) neither the
 scheduler action nor the idle thread. -/
-theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.unbindAllJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
     (hpi : p.bv ≠ σ.idleSc)
@@ -37,7 +37,7 @@ theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
     schedcontext.unbind_all_tcbs st arI s a p ⦃ r => ∃ σ',
       Fl4Spec.schedContextUnbindAllTcbs (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-      JTP (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄ := by
+      JTPD (L := L) arI AR Z H Cs D r.1 r.2 σ' ⦄ := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨y, n, hk, hx⟩ := hs.scs p hpC
@@ -51,7 +51,7 @@ theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   by_cases hi0 : i = 0#u64
   · subst hi0
     simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ, ?_, Z.vs, Ac, Lst, D, J⟩
+    refine ⟨σ, ?_, Z.vs, Ac, Lst, J⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
     rw [nd_bind_one (getSchedContext_eq hk), hyi, optRef_zero, Notif.nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_neg (by simp)]; rfl
@@ -72,13 +72,27 @@ theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rintro ⟨s1, a1⟩ he
     simp only [Prod.mk.injEq] at he
     obtain ⟨rfl, rfl⟩ := he
-    refine WP.spec_bind (J.unbindTcbJ hiT hpC hkx hsp hsa hid) ?_
-    rintro s2 ⟨σ2, h2, Ac2, Lst2, D2, J2⟩
+    refine WP.spec_bind (J.unbindTcbJD hiT hpC hkx hsp hsa hid) ?_
+    rintro s2 ⟨σ2, h2, Ac2, Lst2, J2⟩
     rw [WP.spec_ok]
-    refine ⟨σ2, ?_, Z.vs, Ac2, Lst2, D2, J2⟩
+    refine ⟨σ2, ?_, Z.vs, Ac2, Lst2, J2⟩
     unfold Fl4Spec.schedContextUnbindAllTcbs
     rw [nd_bind_one (getSchedContext_eq hk), Notif.nd_gets_bind]
     unfold Fl4Spec.NonDet.when; rw [if_pos ⟨by rw [hyt]; simp, hpi⟩]; exact h2
+
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.unbindAllJD` with the dead set existential. -/
+theorem JAtZ.unbindAllJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64)
+    (hpi : p.bv ≠ σ.idleSc)
+    (hna : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (P1.scTcbA p))
+    (hidle : L.mem s (P1.scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (P1.scTcbA p)) :
+    schedcontext.unbind_all_tcbs st arI s a p ⦃ r => ∃ σ',
+      Fl4Spec.schedContextUnbindAllTcbs (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
+      JTP (L := L) arI AR Z H Cs r.1 r.2 σ' ⦄ :=
+  WP.spec_mono (J.unbindAllJD arI hpC hp0 hpi hna hidle) fun _ ⟨σ', he, V, Ac', Lst', J'⟩ => ⟨σ', he, V, Ac', Lst', D, J'⟩
 
 end
 

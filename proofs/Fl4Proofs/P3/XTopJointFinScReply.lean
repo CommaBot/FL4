@@ -518,12 +518,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 set_option maxHeartbeats 16000000 in
 /-- **`unbind_reply` of an SC at `J`** (module docstring): XTopJointFinSc's
 a step of XTopJointFinSc's `JAtZ.finScJ`, proved (for any SC of the SCs, non-null). -/
-theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.unbindReplyJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64) :
     schedcontext.unbind_reply st s p ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindReply (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
-      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ := by
+      JTPD (L := L) arI AR Z H Cs D s' a σ' ⦄ := by
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
@@ -637,11 +637,22 @@ theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
       (J.ymd hX'.fin.1.1.1 hY' ((hsok.ykeep rfl).dk q.bv)) (fun h => h) (J.jcov.dead q hq)
   -- the rest
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
-  exact ⟨σ', he, Z.vs, Ac, Lst', D, J.sc_frameS hks hSS hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
+  exact ⟨σ', he, Z.vs, Ac, Lst', J.sc_frameS hks hSS hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
     (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2))
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'
     (hF.bsa J.bsa) (hF.curRun J.curRun) hblk⟩
+
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.unbindReplyJD` with the dead set existential. -/
+theorem JAtZ.unbindReplyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64} (hpC : p ∈ Z.C) (hp0 : p ≠ 0#u64) :
+    schedcontext.unbind_reply st s p ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextUnbindReply (Z := Unit) p.bv σ = ({((), σ')}, False) ∧
+      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ :=
+  WP.spec_mono (J.unbindReplyJD arI hpC hp0) fun _ ⟨σ', he, V, Ac', Lst', J'⟩ => ⟨σ', he, V, Ac', Lst', D, J'⟩
 
 end
 

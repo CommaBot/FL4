@@ -88,6 +88,11 @@ abbrev JTP (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set
   ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s a σ
 
+/-- **`JAtZ` after a step at the same dead set** (`JTP` with `D` kept). -/
+abbrev JTPD (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) : Prop :=
+  ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64), JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s a σ
+
 /-- **The steps of a thread's finalisation at `J` not proved here** (module
 docstring), each at every `JAtZ` state of the typed heap `th`. -/
 structure JThreadFinHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where

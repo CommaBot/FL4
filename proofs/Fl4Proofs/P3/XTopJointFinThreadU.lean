@@ -37,13 +37,6 @@ abbrev DbgSuccCov (T : Set U64) (G : MdbGhost) (s : S) : Prop :=
 abbrev FootH (H : P1.Heap) (Cs Es : Set U64) (s s' : S) : Prop :=
   P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) Es s s'
 
-variable (arI) in
-/-- **`JAtZ` after a step at the same dead set** (XTopJointFinThread's
-`JTP` with `D` kept). -/
-abbrev JTPD (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit) : Prop :=
-  ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64), JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s a σ
-
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 

@@ -121,7 +121,7 @@ set_option maxHeartbeats 16000000 in
 outcome, `DState` after at the same ghost tree, the slot's zombie and the
 others kept, `XTopAt` after, the slot words' frame, `CnK`), the
 kernel-state base, `KBack`, `JCs` and `JRest` after. -/
-theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+theorem JAtZ.zombieJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hA : AbsSlot Z.th sl) {p zt n : U64} (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
     (hal : CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {V2 : XVs}
@@ -132,8 +132,8 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     (hX2 : XTopAt (L := L) AR (Z.mv Z.G V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
     L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
-      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JRest (L := L) arI (Z.mv Z.G V2) H Cs Ac' Lst' D' s2 σ2 := by
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+        JRest (L := L) arI (Z.mv Z.G V2) H Cs Ac' Lst' D s2 σ2 := by
   have hP := J.xtop.rel.1
   have hw : P1.WritesIn st s s2 (InSlot Z.th) := hwS.mono fun b hb => slotWd_range hP hb
   obtain ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hDl2, hFI2⟩ := hDS2
@@ -216,7 +216,25 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
       exact ⟨fun sl' h => r1 sl' (by rw [← hok sl' id]; exact h), by rw [hna, hDbg]; exact r3⟩
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hDl2 hUK hjc
     (fun sl' h => Or.inl (by rw [← hok sl' id]; exact h)) hutc
-  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, D, R⟩
+  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, R⟩
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.zombieJCoreD` with the dead set existential. -/
+theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+    (hA : AbsSlot Z.th sl) {p zt n : U64} (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
+    (hal : CapAlike (.Zombie p zt n) (capV (L.mem s) (cslotAddr sl)))
+    {s2 : S} {σ2 : Fl4Spec.State Unit} {V2 : XVs}
+    (hsc : Fl4Spec.setCap (Z := Unit) (absCap (.Zombie p zt n)) sl σ = ({((), σ2)}, False))
+    (hDS2 : DState (L := L) Z.th s2 σ2 Z.G)
+    (hz2 : capV (L.mem s2) (cslotAddr sl) = .Zombie p zt n)
+    (hoth2 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl → capV (L.mem s2) y = capV (L.mem s) y)
+    (hX2 : XTopAt (L := L) AR (Z.mv Z.G V2) s2 a σ2)
+    (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv Z.G V2) s2 σ2 ∧
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JRest (L := L) arI (Z.mv Z.G V2) H Cs Ac' Lst' D' s2 σ2 := by
+  obtain ⟨h1, h2, h3, Ac', Lst', R⟩ := J.zombieJCoreD hA hxn hal hsc hDS2 hz2 hoth2 hX2 hwS hcn2
+  exact ⟨h1, h2, h3, Ac', Lst', D, R⟩
 
 section Spec
 open Fl4Spec
@@ -246,7 +264,7 @@ slots' caps swapped and the others kept, `XTopAt` after, the slot words'
 frame, `CnK`), the kernel-state base, `KBack`, `JCs` and `JRest` after.
 The first slot, linked after, misses the regions of the untyped caps without
 children: the zombie, a physical cap of the MDB based at it, does (`ut_free`). -/
-theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+theorem JAtZ.swapJCoreD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hA : AbsSlot Z.th sl) {p zt n : U64} (hz : capV (L.mem s) (cslotAddr sl) = .Zombie p zt n)
     (hpx : p ≠ cslotAddr sl)
     {s2 : S} {σ2 : Fl4Spec.State Unit} {V2 : XVs}
@@ -257,8 +275,8 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
     (hX2 : XTopAt (L := L) AR (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 a σ2)
     (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
     L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
-      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JRest (L := L) arI (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) H Cs Ac' Lst' D' s2 σ2 := by
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+        JRest (L := L) arI (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) H Cs Ac' Lst' D s2 σ2 := by
   have hP := J.xtop.rel.1
   obtain ⟨-, ⟨-, -, hM, hC, -⟩, -⟩ := J.xtop.rel
   have hw : P1.WritesIn st s s2 (InSlot Z.th) := hwS.mono fun b hb => slotWd_range hP hb
@@ -424,7 +442,25 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
         · exact Or.inr (home_abs hZ)
         · exact Or.inr hA
       · exact Or.inl (by rw [← hok sl' hd]; exact h)) hutc
-  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, D, R⟩
+  exact ⟨hks, KBack.of_keepCT hkc, hJC, Ac, Lst, R⟩
+
+set_option maxHeartbeats 4000000 in
+/-- `JAtZ.swapJCoreD` with the dead set existential. -/
+theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
+    (hA : AbsSlot Z.th sl) {p zt n : U64} (hz : capV (L.mem s) (cslotAddr sl) = .Zombie p zt n)
+    (hpx : p ≠ cslotAddr sl)
+    {s2 : S} {σ2 : Fl4Spec.State Unit} {V2 : XVs}
+    (hsw : Fl4Spec.capSwapForDelete (Z := Unit) (homeSl p zt) sl σ = ({((), σ2)}, False))
+    (hDS2 : DState (L := L) Z.th s2 σ2 (renG Z.G (Equiv.swap p (cslotAddr sl))))
+    (hcap : ∀ y, IsSlot Z.th y → capV (L.mem s2) y = if y = cslotAddr sl then capV (L.mem s) p
+      else if y = p then capV (L.mem s) (cslotAddr sl) else capV (L.mem s) y)
+    (hX2 : XTopAt (L := L) AR (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 a σ2)
+    (hwS : P1.WritesIn st s s2 (Sched.SlotWd Z.th)) (hcn2 : Ipc.CnK σ σ2) :
+    L.ksb s2 = L.ksb s ∧ KBack σ σ2 ∧ JCs (L := L) (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) s2 σ2 ∧
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JRest (L := L) arI (Z.mv (renG Z.G (Equiv.swap p (cslotAddr sl))) V2) H Cs Ac' Lst' D' s2 σ2 := by
+  obtain ⟨h1, h2, h3, Ac', Lst', R⟩ := J.swapJCoreD hA hz hpx hsw hDS2 hcap hX2 hwS hcn2
+  exact ⟨h1, h2, h3, Ac', Lst', D, R⟩
 
 end
 
