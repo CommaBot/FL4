@@ -118,7 +118,7 @@ structure SchedRel (N T C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit)
   scOut : ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, ScObj sc n a →
     ¬ NWrite N T a ∧
     (a.val < L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-    (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)
+    (a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)
   /-- Distinct SC objects do not overlap. -/
   scDisj : ∀ sc ∈ C, ∀ sc' ∈ C, sc ≠ sc' → ∀ x n x' n', σ.kheap sc.bv = some (.schedContext x n) →
     σ.kheap sc'.bv = some (.schedContext x' n') → ∀ a : U64, ScObj sc n a → ¬ ScObj sc' n' a
@@ -379,10 +379,10 @@ theorem scOut_transfer {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.
     (hz : SzKeep σ σ')
     (h : ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, ScObj sc n a → ¬ NWrite N T a ∧
       (a.val < L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)) :
+      (a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)) :
     ∀ sc ∈ C, ∀ x n, σ'.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, ScObj sc n a → ¬ NWrite N T a ∧
       (a.val < L.nodeBase s' c ∨ L.nodeBase s' c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ a.val) := by
+      (a.val < (L.ksb s').val ∨ (L.ksb s').val + 13568 ≤ a.val) := by
   intro sc hsc x n hx a ha
   obtain ⟨x0, hx0⟩ := hz _ x n hx
   have := h sc hsc x0 n hx0 a ha
@@ -398,11 +398,18 @@ theorem scDisj_transfer {C : Set U64} {σ σ' : Fl4Spec.State Unit} (hz : SzKeep
   obtain ⟨x0', hx0'⟩ := hz _ x' n' hx'
   exact h sc hsc sc' hsc' hne x0 n x0' n' hx0 hx0' a
 
+/-- **An aligned word below the kernel-state block ends at or before it**:
+`SchedRel.scOut` asks of every byte `a` of an SC only `a < ksb ∨ ksb + 13568
+≤ a` (an SC may end exactly at `ksb`); a word FL4 reads or writes at an
+8-aligned `a`, with `ksb` 8-aligned, lies wholly below `ksb` then. -/
+theorem ksb_word_out {a k : Nat} (ha : a % 8 = 0) (hk : k % 8 = 0) (h : a < k ∨ k + 13568 ≤ a) :
+    a + 8 ≤ k ∨ k + 13568 ≤ a := by omega
+
 /-- `scOut` for a word the relation reads. -/
 theorem SchedRel.scOutIn {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) {sc a : U64} (hsc : sc ∈ C) (hin : ScIn st s sc a) : ¬ NWrite N T a ∧
       (a.val < L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val) := by
+      (a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val) := by
   obtain ⟨Q, R, -, hs⟩ := hS.lists
   obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
   exact hS.scOut sc hsc x n hk a (hx.in_obj hin)

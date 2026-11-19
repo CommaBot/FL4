@@ -58,7 +58,7 @@ theorem SchedRel.add_scs {N T C Wc : Set U64} {c : U64} {s : S} {σ σ' : Fl4Spe
     (hid : ∀ sc ∈ Wc, sc.bv ≠ σ.idleSc)
     (hout : ∀ sc ∈ Wc, ∀ a : U64, ScObj sc n a → ¬ NWrite N T a ∧
       (a.val < L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ a.val) ∧ (∀ t ∈ T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val))
+      (a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val))
     (hdo : ∀ sc ∈ Wc, ∀ sc' ∈ C, ∀ x' n', σ.kheap sc'.bv = some (.schedContext x' n') → ∀ a : U64,
       ScObj sc n a → ¬ ScObj sc' n' a)
     (hdn : ∀ sc ∈ Wc, ∀ sc' ∈ Wc, sc ≠ sc' → ∀ a : U64, ScObj sc n a → ¬ ScObj sc' n a)

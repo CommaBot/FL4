@@ -283,7 +283,7 @@ words (no slot, `ScApart`; not the domain words, `hSD`). -/
 theorem RelTopB.frameS {th : TypedHeap} {G : MdbGhost} {s s' : S} {σ σ' : Fl4Spec.State Unit} {W : U64 → Prop}
     (h : RelTopB (L := L) th G N T C E R B c s σ) (hW : WritesIn st s s' W)
     (hWI : ∀ a, W a → IWords N T E R B a ∨ NodeW (L.ksb s) c a ∨ ScObjW C σ a)
-    (hSD : ∀ a, ScObjW C σ a → a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)
+    (hSD : ∀ a, ScObjW C σ a → a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val)
     (hK : CKeep σ σ') (hdl : σ'.domainList = σ.domainList) (hds : σ'.domainStartIndex = σ.domainStartIndex)
     (hz : Sched.SzKeep σ σ') :
     RelTopB (L := L) th G N T C E R B c s' σ' := by

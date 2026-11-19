@@ -579,7 +579,7 @@ theorem JAtZ.utScJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       Sched.ScObj sc (us.val - Fl4Spec.minSchedContextBits) a → ¬ Notif.NWrite Z.N Z.T a ∧
       (a.val < L.nodeBase s1 Z.c ∨ L.nodeBase s1 Z.c + 4288 ≤ a.val) ∧
       (∀ t ∈ Z.T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s1).val ∨ (L.ksb s1).val + 13568 ≤ a.val) := by
+      (a.val < (L.ksb s1).val ∨ (L.ksb s1).val + 13568 ≤ a.val) := by
     intro sc hsc a ha
     obtain ⟨g1, g2⟩ := hwa sc hsc a ha
     refine ⟨fun hN => ?_, ?_, fun t0 ht0 => ?_, ?_⟩

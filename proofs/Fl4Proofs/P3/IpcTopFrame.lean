@@ -262,7 +262,7 @@ structure VsP (th : TypedHeap) (cr : Fl4Spec.Cr3) (N T C E R : Set U64) (B : Set
   ksN : ∀ n ∈ N, n.val + 64 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val
   ksB : ∀ wp ∈ B, wp.1.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ wp.1.val
   ksC : ∀ sc ∈ C, ∀ x n, σ.kheap sc.bv = some (.schedContext x n) → ∀ a : U64, Sched.ScObj sc n a →
-    a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val
+    a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val
   /-- The spec's CR3 (for the arch relation, outside the IPC code). -/
   cr3 : σ.archState.x64CurrentCr3 = cr
   /-- The IPC-buffer words (`BufWordRel`). -/

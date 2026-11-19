@@ -100,7 +100,7 @@ theorem XTopAt.addStepC {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets}
     (hout : ∀ sc ∈ Wc, ∀ a : U64, Sched.ScObj sc n a → ¬ Notif.NWrite Z.N Z.T a ∧
       (a.val < L.nodeBase s Z.c ∨ L.nodeBase s Z.c + 4288 ≤ a.val) ∧
       (∀ t ∈ Z.T, a.val < t.val ∨ t.val + 4096 ≤ a.val) ∧
-      (a.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val))
+      (a.val < (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ a.val))
     (hdo : ∀ sc ∈ Wc, ∀ sc' ∈ Z.C, ∀ x' n', σ.kheap sc'.bv = some (.schedContext x' n') → ∀ a : U64,
       Sched.ScObj sc n a → ¬ Sched.ScObj sc' n' a)
     (hdn : ∀ sc ∈ Wc, ∀ sc' ∈ Wc, sc ≠ sc' → ∀ a : U64, Sched.ScObj sc n a → ¬ Sched.ScObj sc' n a)

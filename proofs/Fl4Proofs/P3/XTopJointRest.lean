@@ -808,7 +808,7 @@ theorem ksW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {C
   · obtain ⟨hal, hv, hfit⟩ := sc_reply_word hS hq
     obtain ⟨x, n, hk, hx⟩ := hs.scs q hq
     have := (hS.scOutIn hq (a := scReplyA q) ⟨by rw [hv]; omega, by rw [hv]; omega⟩).2.2.2
-    exact ksW_keep hw hal (by omega)
+    exact ksW_keep hw hal (Sched.ksb_word_out hal J.kern.ksbAl this)
   · have hal := J.rp.align r hr
     have h8 := rPrevA_val hal
     have h16 := rNextA_val hal
