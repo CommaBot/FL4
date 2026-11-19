@@ -22,6 +22,44 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proof
 
 noncomputable section
 
+section SpecD
+open Fl4Spec
+
+/-- The spec's `send_ipc` to a waiting receiver `d` (non-call, the sender
+without a fault), a donation asked only where `d` has an SC (so none
+happens): `sendIpc_recv_eq` for any `canDonate`. -/
+theorem sendIpc_recv_eqD {σ : State Unit} {t e d : ObjRef} {q : List ObjRef}
+    (hk : σ.kheap e = some (.endpoint (.recvEP (d :: q)))) {xd : Tcb} (hkd : σ.kheap d = some (.tcb xd))
+    (hde : d ≠ e) {e' : ObjRef} {rep : Option ObjRef} {dd : ReceiverPayload}
+    (hst : xd.tcbState = .blockedOnReceive e' rep dd) (blk : Bool) (badge : Badge) (g gr don : Bool)
+    {σ2 σ3 : State Unit}
+    (hT : doIpcTransfer (Z := Unit) t (some e) badge g d (updK σ e (.endpoint (epDeq (.recvEP (d :: q)) d))) =
+      ({((), σ2)}, False))
+    (hU : NonDet.maybeM (replyUnlinkTcb (Z := Unit) d) rep σ2 = ({((), σ3)}, False))
+    {xt3 x3 : Tcb} (hkt3 : σ3.kheap t = some (.tcb xt3)) (hf3 : xt3.tcbFault = none)
+    (hkd3 : σ3.kheap d = some (.tcb x3)) (hdon : don = false ∨ x3.tcbSchedContext ≠ none) :
+    sendIpc (Z := Unit) blk false badge g gr don t e σ =
+      specWakeTailE d (stsAct (updK σ3 d (.tcb { x3 with tcbState := .running })) d) := by
+  have hkd1 : (updK σ e (.endpoint (epDeq (.recvEP (d :: q)) d))).kheap d = some (.tcb xd) := by
+    simp [hde, hkd]
+  have hnd : ¬ (don = true ∧ x3.tcbSchedContext = none) := by
+    rintro ⟨h1, h2⟩
+    rcases hdon with h | h
+    · rw [h] at h1; cases h1
+    · exact h h2
+  unfold sendIpc
+  rw [nd_bind_one (getEndpoint_eq hk)]
+  cases blk <;> dsimp only <;>
+  · rw [nd_bind_one (tcbEpDequeue_eq hk (by simp [Endpoint.epQueue])), nd_bind_one (getThreadState_eq hkd1), hst]
+    dsimp only
+    rw [nd_pure_bind', nd_bind_one hT, nd_bind_one hU, nd_bind_one (getTcbObjRef_eq _ hkd3),
+      nd_bind_one (threadGet_eq _ hkt3), hf3]
+    simp only [Bool.false_eq_true, ne_eq, not_true_eq_false, or_self, ↓reduceIte]
+    rw [nd_when_false_bind (by exact hnd), nd_bind_one (Notif.setThreadState_eq _ hkd3)]
+    rfl
+
+end SpecD
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -439,8 +477,9 @@ theorem xferTcb_eqA (xr xs : Fl4Spec.Tcb) (b : Fl4Spec.Badge) :
   simp only [Endp.xferTcb]; rw [Endp.copyRegsTcb_other]; rfl
 
 set_option maxHeartbeats 64000000 in
-/-- **`send_ipc` to a waiting receiver at `J`, without a call, a donation, a
-fault, a receive buffer or granted caps** (module docstring): FL4's dequeue,
+/-- **`send_ipc` to a waiting receiver at `J`, without a call, a donation
+(`can_donate` only toward a receiver with an SC, `hdon`: then neither side
+donates), a fault, a receive buffer or granted caps** (module docstring): FL4's dequeue,
 transfer, reply unlink and `Running` on `IRel` with the footprint `CnW`
 (`ep_dequeue_c`, `do_ipc_transfer_regs` with `IpcBufCapOK` carried,
 `reply_unlink_c`, `set_thread_state_c`), P1's `BlkOK` through the
@@ -449,18 +488,19 @@ receiver's hole (`ep_dequeue.inv`, `xfer_all`, `reply_unlink.inv`,
 woken as a cancelled receive: its TCB from receive-blocked to `Running`
 with a new user context, the endpoint's queue shrunk, its reply unbound),
 `Inv` by `InvBut.ik`; `JAtZ` by ScSignalDonJ's `JAtZ.wake_postD`; then the
-tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_recv_eq`. -/
+tail `JAtZ.sendTailJ`; the spec's outcome `sendIpc_recv_eqD`. -/
 theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hrs : xt.tcbState = .restart) (hft : xt.tcbFault = none) (hct : σ.curThread = t.bv)
     {e d : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     (hrb : ∀ xd, σ.kheap d.bv = some (.tcb xd) → Endp.ipcBufOf true xd = none)
-    (blk : Bool) (badge : U64) (g gr : Bool)
+    (blk : Bool) (badge : U64) (g gr don : Bool)
     (hcaps : g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0) :
-    endpoint.send_ipc st arI s a blk false badge g gr false t e ⦃ r =>
-      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr false t.bv e.bv σ).1,
+      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
+    (hdon : don = false ∨ ∀ xd, σ.kheap d.bv = some (.tcb xd) → xd.tcbSchedContext ≠ none) :
+    endpoint.send_ipc st arI s a blk false badge g gr don t e ⦃ r =>
+      ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr don t.bv e.bv σ).1,
         JAt (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
@@ -718,7 +758,24 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
     rintro i1 hi1
     have hf0 : i1 = fl4_abi.consts.fault.NullFault := by
       rw [hi1, hxt3.fault0.2 hft]; unfold fl4_abi.consts.fault.NullFault; rfl
-    simp only [hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
+    simp only [hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    cases don with
+    | false => exact (WP.spec_ok _).2 rfl
+    | true =>
+      rw [if_pos rfl]
+      step with Fl4Proofs.P1.obj.Tcb.sc.spec as ⟨i2, hi2⟩
+      have hne : i2 ≠ 0#u64 := by
+        obtain ⟨Q3, R3', -, hs3⟩ := hS3.1.1.2.1.lists
+        obtain ⟨x3', hk3', -, -, hsc', -⟩ := hs3.tcb d' hdT
+        rw [hkd3] at hk3'; cases hk3'
+        intro h0
+        rw [hi2] at h0
+        rw [h0, optRef_zero, hsc3] at hsc'
+        rcases hdon with h | h
+        · cases h
+        · exact h xd hkd hsc'
+      rw [if_neg hne]
+      exact (WP.spec_ok _).2 rfl
   rintro _ rfl
   try dsimp only
   -- the receiver runs
@@ -785,7 +842,9 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
     obtain ⟨x, hkx, -, hxs, -⟩ := J.act.2
     rw [← h, hkd] at hkx; cases hkx; rw [hstd] at hxs; cases hxs
   have htc5 : d'.bv ≠ σ5.curThread := by rw [Fr5.sk.ct]; exact hdc
-  have hspec := sendIpc_recv_eq hk hkd hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 (t := t.bv)
+  have hdon3 : don = false ∨ x3.tcbSchedContext ≠ none := hdon.imp_right fun h => by
+    rw [hsc3]; exact h xd hkd
+  have hspec := sendIpc_recv_eqD hk hkd hde hstd blk badge.bv g gr don e2 hU hkt3 hft hkd3 hdon3 (t := t.bv)
   refine WP.spec_mono (J5.sendTailJ hdT hk5 rfl hnr5 hact5 hti5 htc5) ?_
   rintro ⟨s7, a7⟩ ⟨ha7, σ7, h7, Lst7, J7⟩
   simp only at ha7
@@ -794,11 +853,13 @@ theorem JAtZ.sendRecvJ0 (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
 
 
 /-- **The sends to a waiting receiver `JAtZ.sendRecvJ0` covers**: no call,
-no donation, the sender without a fault, the head receiver without a
-receive buffer, no granted caps. -/
+no donation (`can_donate` false, or the head receiver has an SC), the sender
+without a fault, the head receiver without a receive buffer, no granted
+caps. -/
 def SendRecvBasic (σ : Fl4Spec.State Unit) (call g don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
-  call = false ∧ don = false ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
+  call = false ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
+    (don = false ∨ ∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext ≠ none) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → Endp.ipcBufOf true xd = none) ∧
     (g = false ∨ Endp.ipcBufOf false xt = none ∨
       Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
@@ -810,7 +871,8 @@ narrowed by `¬ SendRecvBasic`): after the caller's restart (`s1`, `σ1`), a
 send to an endpoint with receivers that calls, donates, comes from a
 faulted sender, reaches a receiver with an IPC buffer or grants caps ends
 at `JAt` with an outcome of the spec's `send_ipc`. What is left: the reply
-push or the caller's block (call or fault), the SC donation, the buffer and
+push or the caller's block (call or fault), the SC donation to a receiver
+without an SC, the buffer and
 grant transfers (XTopJointGrant's `JAtZ.xferAllJ` has them at `J`, but the
 dequeued receiver makes the state between the dequeue and `Running` no
 `JAtZ` state), the fault transfer. l4v: `send_ipc_invs` / `send_ipc_corres`. -/
@@ -832,7 +894,7 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) {s1 : S} {ar : A} {σ1 : Fl4Spec.State
     JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p := by
   intro x hk hc
   by_cases hb : SendRecvBasic σ1 call g don ct.bv p.bv
-  · obtain ⟨rfl, rfl, xt', dv, q, hkt', hft, hk', hrb, hcaps⟩ := hb
+  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hdon, hrb, hcaps⟩ := hb
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -840,7 +902,8 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) {s1 : S} {ar : A} {σ1 : Fl4Spec.State
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendRecvJ0 hZ hct hkt hrs hft hcur hp hk' hrb blk b g gr hcaps
+    exact J1.sendRecvJ0 hZ hct hkt hrs hft hcur hp hk' hrb blk b g gr don hcaps hdon
+
   · exact hR x hk hc hb
 
 set_option maxHeartbeats 4000000 in
