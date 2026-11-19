@@ -567,3 +567,31 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   `sched.preemption_point` from a JAt state (XTopJointCnDel), so `hPre` first needs ppJ-style facts at that post
   (XTopJointPP `JAtZ.ppJD` covers only the non-preempting outcome).
 - HANDOFF (kp2 stopped: (a) is several hundred lines beyond this context). Builds via proofs/scratch/kp1build.sh.
+## kp3 (branch par/budget in FL4-tcbj, on c6e750ff)
+- DONE (new leaf ScChargeN, imported from Fl4Proofs.lean; std axioms): `charge_budget` with `can_timeout_fault = true`
+  when the current thread's timeout-handler slot holds no endpoint cap (no timeout fault can be raised).
+  * `Sched.endTimeslice_noTmo` (spec) / `Sched.end_timeslice_noTmo` (FL4): the two `end_timeslice`s are equal when
+    the handler is not valid (FL4: `if rr then R else R`).
+  * `Sched.charge_budget_noTmo` (SchedRel level, `charge_budget_refinesF`'s premises + `hnt`): FL4's
+    `charge_budget used true = charge_budget used false` (the mid state through `charge_head_refinesK`'s WP by
+    `bind_congr_spec`; the handler at the state after the head by `TmoKeep` + `hval`) and the spec's
+    `chargeBudget u true σ = chargeBudget u false σ` (`chargeBudget_noTmo`: `HeadKeeps` keeps the TCB).
+  * `JAtZ.chargeBudgetNJ`: `JAtZ.chargeBudgetJ` for `can = true` under `hnt : ∀ xt, σ.kheap σ.curThread =
+    some (.tcb xt) → isEpCap xt.tcbTimeoutHandler = false`. So (a) is now only the case "endpoint timeout handler"
+    (and non-round-robin SC, thread not RUNNING_VM); with an RR SC it is also `can = false`'s path, not yet
+    stated (HeadKeeps does not carry `scPeriod`; add it, or read the period off `charge_head`'s `updSc` shape).
+- FINDING for (b) (budget_ok's false branch) and item 7 branch 1: the start of `charge_budget` there is NOT a `JAtZ`
+  state either. After `update_timestamp` the consumed time is the new one and `check_budget` charges exactly when the
+  head is insufficient for it, so `OffOK` (JAtZ field `off`) fails at that state (`JAtZ.timestampJ` gives `JAtZ` only
+  under `OffOK`; `budgetOkJ` gets it from the sufficient head). `chargeBudgetJ`/`chargeBudgetNJ` need `JAtZ` at their
+  start, so (b) needs either (i) `chargeBudgetJ` from "JAtZ but `off`" (the charge resets consumed time to 0, so
+  `OffOK` after is vacuous; check whether `JAtZ.sc_frame` and the sub-lemmas `chargeBudgetJ` uses read `J.off`; if
+  only `cs`/`sc_frame`'s construction needs the old structure, a `JAtZ`-minus-`off` record built from
+  `timestampJ`'s hole is the way), or (ii) fusing `update_timestamp` with the charge (frames from the entry
+  state). (i) looks cheaper. The same applies to (a): its start is the same hole.
+- NOT DONE: (a) the current thread's timeout-fault send (route in kp2 unchanged; its start is the hole above, so it
+  must start from J at the entry (pre-timestamp) state or from the (i) record); (b) false branch; (c) item 7.
+- Builds: kp3-b4 `lake build Fl4Proofs.P3.ScChargeN` (5080 jobs) OK; scratch/axkp3.lean (untracked): std axioms only for
+  `JAtZ.chargeBudgetNJ`, `Sched.charge_budget_noTmo`, `handle_invocation_refinesJ`. No premise added or removed.
+- HANDOFF (kp3 stopped for context). Gotcha: `Result` here is ITree-like (`ret`/`vis`), so `cases m` with `ok`/`fail`
+  alternatives fails; go through `spec_exists`, and reduce `ok v >>= f` with `simp only [Bind.bind, bind_ok]`.
