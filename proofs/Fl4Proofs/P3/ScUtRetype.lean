@@ -678,7 +678,8 @@ theorem newKind_bits {n us : Nat} {kd : HKind} (h : newKind n us = some kd) : kd
   · interval_cases n <;> simp [newKind] at h <;> subst h <;> simp [zOf, HKind.bits] <;> omega
   · have : newKind n us = none := by
       unfold newKind; simp only [show ¬ n = 1 by omega, show ¬ n = 2 by omega, show ¬ n = 3 by omega,
-        show ¬ n = 4 by omega, show ¬ n = 5 by omega, show ¬ n = 6 by omega, show ¬ n = 14 by omega, ↓reduceIte]
+        show ¬ n = 4 by omega, show ¬ n = 5 by omega, show ¬ n = 6 by omega, show ¬ n = 14 by omega,
+        show ¬ n = 9 by omega, show ¬ n = 10 by omega, show ¬ n = 11 by omega, ↓reduceIte]
       rw [if_neg (by omega)]
     rw [this] at h; cases h
 
@@ -1103,7 +1104,24 @@ theorem reset_heap {A' : Type} {arI : machine.Arch A'} (hA : P0.ArchTotal arI) {
 SCs and replies. -/
 theorem newKind_core {n us : Nat} (hs : (newKind n us).isSome) (ho : ∀ z, newKind n us ≠ some (.other z)) :
     n = 1 ∨ n = 2 ∨ n = 3 ∨ n = 5 ∨ n = 6 := by
-  unfold newKind at hs ho; split_ifs at hs ho <;> simp_all
+  by_cases h1 : n = 1
+  · exact Or.inl h1
+  by_cases h2 : n = 2
+  · exact Or.inr (Or.inl h2)
+  by_cases h3 : n = 3
+  · exact Or.inr (Or.inr (Or.inl h3))
+  by_cases h5 : n = 5
+  · exact Or.inr (Or.inr (Or.inr (Or.inl h5)))
+  by_cases h6 : n = 6
+  · exact Or.inr (Or.inr (Or.inr (Or.inr h6)))
+  exfalso
+  unfold newKind at hs ho
+  simp only [if_neg h1, if_neg h2, if_neg h3] at hs ho
+  by_cases h4' : n = 4
+  · simp only [if_pos h4'] at ho; exact ho _ rfl
+  simp only [if_neg h4', if_neg h5, if_neg h6] at hs ho
+  split_ifs at hs ho
+  all_goals first | exact ho _ rfl | simp at hs
 
 theorem utHeap_false (H : Heap) (p sb : U64) : utHeap H false p sb = H := rfl
 theorem utHeap_true (H : Heap) (p sb : U64) :

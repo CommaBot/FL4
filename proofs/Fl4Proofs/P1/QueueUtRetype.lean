@@ -120,8 +120,7 @@ theorem retype_heapOK {H1 H' : Heap} {lo hi A k w n us : Nat} (hH : HeapOK H1) (
       exact (Nat.pow_lt_pow_iff_right (by decide)).1 hlt
   · rcases hsh p (.sc z) hp with ⟨h1, -⟩ | ⟨-, hk⟩
     · exact hH.scmin p z h1
-    · have : n = 5 ∧ z = us := by
-        unfold newKind at hk; split_ifs at hk <;> simp_all
+    · have : n = 5 ∧ z = us := newKind_sc hk
       obtain ⟨h5, rfl⟩ := this
       exact hus h5
   · have hp1 := Nat.one_le_two_pow (n := kd.bits)

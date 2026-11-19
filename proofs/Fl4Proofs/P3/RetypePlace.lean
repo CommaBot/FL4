@@ -733,10 +733,15 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       · rw [hE.newc j hj]
         have hb := hE.cbase j hj
         have ht := hE.ctop j hj
-        have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va → newKind n us = none := by
+        have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va →
+            ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
           rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p sz r d m' ep a' va, c = .Frame p sz r d m' ep a' va → newKind n us = none)
-          all_goals (intros; simp_all [newKind])
+          apply newCapOf_ind (fun c => ∀ p sz r d m' ep a' va, c = .Frame p sz r d m' ep a' va →
+            ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
+          all_goals first
+            | (intros; simp_all; done)
+            | (intro hn _ _ _ _ _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
+               exact ⟨_, rfl⟩)
         have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
           rw [hcjE]; unfold cjOf
           apply newCapOf_ind (fun c => ∀ p lv m' a' va, c ≠ .Ept p lv m' a' va)
@@ -749,7 +754,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
           intro q kq hq hkq
           rw [hO q] at hq
           split_ifs at hq with h1 h2
-          · rw [hK] at h1; exact absurd h1.2 (by simp)
+          · obtain ⟨z, rfl⟩ := hK kq hq; exact absurd rfl (hkq z)
           · have hm' : ¬ MeetsR lo hi q.val (q.val + 2 ^ kq.bits) := fun hm' => h2 ⟨kq, hq, hm'⟩
             unfold MeetsR at hm'
             have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj

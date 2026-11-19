@@ -36,13 +36,32 @@ def NewAt (A k w : Nat) (q : U64) : Prop := ∃ j, j < w ∧ q.val = A + j * k
 /-- The heap kind of the new objects of FL4 type `n` (user size `us`), if
 they are heap objects: TCB, endpoint, notification, CNode, SC, reply, and the
 untracked kernel objects (`.other`): the VSpace tables (PDPT, PML4, page
-table, page directory) and the EPT tables (4 KiB) and VCPUs (32 KiB).  Frames
-are not heap objects (their words are user words). -/
+table, page directory), the EPT tables (4 KiB), VCPUs (32 KiB) and the
+frames (4 KiB, 2 MiB, 1 GiB: P1 reads none of their words, which are user
+words; as `other` objects they are what P3's `SpecCover.arch` asks of the
+spec's frames, and `FrApartH` exempts them). -/
 def newKind (n us : Nat) : Option HKind :=
   if n = 1 then some .tcb else if n = 2 then some .ep else if n = 3 then some .ntfn else
   if n = 4 then some (.other (us + 5)) else if n = 5 then some (.sc us) else if n = 6 then some .reply else
   if n = 7 ∨ n = 8 ∨ n = 12 ∨ n = 13 ∨ (15 ≤ n ∧ n ≤ 18) then some (.other 12) else
-  if n = 14 then some (.other 15) else none
+  if n = 14 then some (.other 15) else if n = 9 then some (.other 30) else if n = 10 then some (.other 12) else
+  if n = 11 then some (.other 21) else none
+
+/-- Only type 5 makes SCs, of the user size. -/
+theorem newKind_sc {n us z : Nat} (h : newKind n us = some (.sc z)) : n = 5 ∧ z = us := by
+  unfold newKind at h
+  by_cases h1 : n = 1
+  · simp [h1] at h
+  by_cases h2 : n = 2
+  · simp [h2] at h
+  by_cases h3 : n = 3
+  · simp [h3] at h
+  by_cases h4 : n = 4
+  · simp [h4] at h
+  by_cases h5 : n = 5
+  · simp [h5] at h; exact ⟨h5, h.symm⟩
+  rw [if_neg h1, if_neg h2, if_neg h3, if_neg h4, if_neg h5] at h
+  split_ifs at h <;> simp at h
 
 /-- The TCB words a new TCB's creation initialises: the context
 (registers, debug registers, FPU: below `F`), the domain (`F + 104`), the
