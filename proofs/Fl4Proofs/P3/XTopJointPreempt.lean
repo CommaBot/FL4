@@ -24,18 +24,17 @@ state (XTopJointPPH's `jAtPre_hole`: a `JHole`).
 * `IrqPlat` [P] (M4): FL4's `take_pending_irq` is the spec's
   `getActiveIRQ true` (an oracle of the spec's machine state; `NO_IRQ` ↔
   `none`, otherwise the same line number, not masked in the spec), keeping
-  `AR`.
+  `AR`; one core: no IPI line is pending (`noIpi`); `ack_irq` keeps `AR`.
 * `JIrqHyp` [W] (l4v `handle_interrupt_corres`): `handle_interrupt` of an
   unmasked line from a `JHoleAt` state refines `handle_interrupt` (or the
   spec fails: e.g. an inactive line, where FL4 masks it; l4v excludes it by
   `valid_irq_masks`, which `JHoleAt` does not carry), `XTopAt`
   after (not `JHoleAt`: a `JHole`'s spec state differs from its base only in
   the machine state and the time words, while the timer branch sets
-  `reprogramTimer` and a signal changes the heap). Not proved here; known FL4 deviations to check when
-  proving it: IPI lines (FL4 `IRQ_IPI` / `handle_ipi`, spec `irqReserved` /
-  `handleReservedIrq`), the `ARMED` node word of the timer branch, FL4 masking
-  an inactive line where the spec fails (excluded by `irqMasks i = false` and
-  l4v's `valid_irq_masks`).
+  `reprogramTimer` and a signal changes the heap); the IPI lines 126/127
+  excluded (`IrqPlat.noIpi`). Proved downstream: XTopJointIrq's
+  `jIrqHyp_of` (the signal from a hole that is not `JAtZ` named there,
+  `JIrqSigHyp` [W]).
 * `JHole.afterInvJ`: `after_invocation (Err _)` from a `JHole` under `PPCov ∨ PPCovT`
   refines `preemption_path` (`PPQ`: the spec fails, or an outcome with
   `JHoleAt` after when no line is pending,
@@ -302,6 +301,12 @@ structure IrqPlat (AR : A → Fl4Spec.Cr3 → Prop) : Prop where
     (∀ i, irq = some i → r.1.val = i.toNat ∧ ms.irqMasks i = false) ∧
     ms.underlyingMemory = σ.machineState.underlyingMemory ⦄
   takeAR : ∀ a c, AR a c → arI.take_pending_irq a ⦃ r => AR r.2 c ⦄
+  /-- One core (l4v's model is uniprocessor; seL4 C raises IPIs only under
+  `ENABLE_SMP_SUPPORT`): no IPI line (`REMOTE_CALL_IPI` = 126,
+  `RESCHEDULE_IPI` = 127 on x86_64) is ever pending. -/
+  noIpi : ∀ a : A, arI.take_pending_irq a ⦃ r => r.1.val ≠ 126 ∧ r.1.val ≠ 127 ⦄
+  /-- Acknowledging an interrupt keeps `AR` (the CR3 is not touched). -/
+  ackAR : ∀ a i c, AR a c → arI.ack_irq a i ⦃ a' => AR a' c ⦄
 
 variable (arI) in
 /-- **`handle_interrupt` at `J`** [W] (l4v `handle_interrupt_corres`; module
@@ -309,6 +314,7 @@ docstring). -/
 def JIrqHyp (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
     JHoleAt (L := L) arI AR s a σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
+    w.val ≠ 126 → w.val ≠ 127 →
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
         ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄
@@ -333,8 +339,8 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
   refine WP.spec_bind (Hh.mcsPPJ hAT hnd hmrt hmb hcov) ?_
   rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh'⟩
   have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := Hh'.xtop.fin.1.1.2.2.2.2.2.2
-  refine WP.spec_bind (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) ?_
-  rintro ⟨w, a2⟩ ⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (hIP.take a1 σ') (hIP.takeAR a1 _ hAR1)) (hIP.noIpi a1)) ?_
+  rintro ⟨w, a2⟩ ⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩
   have Hh2 := Hh'.msAr ms a2 hum (fun _ => hAR2)
   unfold syscall.check_interrupt
   by_cases hw : w = syscall.NO_IRQ
@@ -359,7 +365,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
       ok (false, s2, a3)) ⦃ _ ⦄
     rw [e]
     simp only [↓reduceIte]
-    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩ hwi hmask) ?_
+    refine WP.spec_bind (hIrq s1 a2 _ w i ⟨Z', H', Cs', Ac', Lst', D', s0', a0', σ0', Hh2⟩ hwi hmask h126 h127) ?_
     rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inl (hmf (fail_maybeHandle_some hIq hf))⟩
     · exact (WP.spec_ok _).2 ⟨rfl, Or.inr ⟨z, hm _ (mem_maybeHandle_some hIq hz), Or.inr hJ⟩⟩
