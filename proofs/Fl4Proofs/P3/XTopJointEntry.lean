@@ -50,6 +50,7 @@ import Fl4Proofs.P3.XTopJointIrqDel
 import Fl4Proofs.P3.ScMsgOK
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
+import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
@@ -580,7 +581,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
   | .Null | .Zombie .. | .Notification .. => True
   | .Endpoint p b sd _ g gr => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      sd = true → JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p
+      sd = true → JSendRecvHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p
   | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
@@ -652,7 +653,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo`: the receiver's SC not released, a valid timeout handler, the tail's `handle_timeout`) [W] |
-| Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a send to a receiver; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver but for `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (the label, false: FrontEndLabel) |
 | Thread | `decode_invocation_threadJ_step` | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
@@ -704,7 +705,8 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Endpoint p b sd rv g gr =>
     exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => sendLeafJ J hni hE.ctnq hct hAs hc hst blk call g gr don
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => sendLeafJ2 (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
+        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hE.ctnq hct hAs hc hst blk call g gr don
         (fun s1 σ1' h1 h2 => hN s1 σ1' h1 h2 hsd) hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
