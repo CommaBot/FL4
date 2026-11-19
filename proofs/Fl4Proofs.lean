@@ -253,6 +253,7 @@ import Fl4Proofs.P3.SpecCnK
 import Fl4Proofs.P3.SpecNKO
 import Fl4Proofs.P3.IpcGrant
 import Fl4Proofs.P3.IpcGrantX
+import Fl4Proofs.P3.IpcGrantTr
 import Fl4Proofs.P3.IpcEpGrant
 import Fl4Proofs.P3.IpcLeaves
 import Fl4Proofs.P3.EpRecvX
