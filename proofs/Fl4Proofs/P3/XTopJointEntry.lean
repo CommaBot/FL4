@@ -60,6 +60,7 @@ import Fl4Proofs.P3.XTopJointReplyTail
 import Fl4Proofs.P3.SpecPerfCur
 import Fl4Proofs.P3.FrontEndExtra
 import Fl4Proofs.P3.FrontEndLabel
+import Fl4Proofs.P3.XTopJointNoFault
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -371,6 +372,13 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   ioapics : ∃ nA, arI.num_ioapics ar = ok nA ∧ nA.bv = σ.archState.x64NumIoapics
   /-- [P] the IRQ control decode's `hAR`. -/
   archIrq : ArchIrqRel arI ar σ
+  /-- [J] the current thread's fault handler is null or an endpoint cap with
+  send and grant or grant-reply rights (l4v `valid_objs`' `valid_tcb`, the
+  `tcb_cap_cases` entry of `tcb_fault_handler`: `valid_fault_handler`; FL4's
+  TCB SetSpace/Configure/SetSchedParams check `valid_fault_handler`
+  before installing, a retyped TCB's slots are null, deletion nulls); for a
+  fault (`faultHypJ`: any other cap is a spec `fail`). -/
+  vfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -907,26 +915,20 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   glob : JEntryGlob (L := L) arI AR Z.th
   /-- `JEntryAt` ([J]/[P] per field). -/
   atE : JEntryAt (L := L) arI AR Z s ar σ
-  /-- [W] the fault handler at `JAt` for a failed cap lookup. FALSE in
-  reachable states as stated (`handle_fault` with no fault handler, i.e. a
-  null cap in the thread's fault-handler slot): FL4 runs `set_fault` before
-  `set_thread_state Inactive` (faults.rs `handle_fault`), writing the fault
-  type word (`tFaultA`, `CapFault` = 1), while the spec's `handleNoFault`
-  (l4v `handle_no_fault`, seL4 C `handleNoFaultHandler`) only sets
-  `Inactive` and leaves `tcbFault` (`none` for a running thread), so
-  `IpcRel`'s `TcbRel.fault0` fails after the step. Needs either the kernel
-  to drop that `set_fault` or the relation to ignore an inactive thread's
-  fault words. The endpoint-handler case is `set_fault` then the blocking
-  `send_ipc` (XTopJointIpcJ's `JSendRestHyp` territory); a handler cap that
-  is neither null nor an endpoint is a spec `fail` (needs l4v
-  `valid_fault_handler` [J]). The same holds for `extraLookup`'s fault. -/
+  /-- [W] the fault handler at `JAt` for a failed cap lookup, narrowed to an
+  endpoint cap in the faulting thread's fault-handler slot (`FaultEpHypJ`:
+  `set_fault` then the blocking `send_ipc`, XTopJointIpcJ's `JSendRestHyp`
+  machinery). A null handler is proved (XTopJointNoFault's `JAtZ.noFaultJ`;
+  FL4 stores no fault there, as seL4's `handleNoFaultHandler`), any other cap
+  is excluded by `JEntryAt.vfh` (`faultHypJ`). -/
   lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
-    FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct (.Cap cptr false lf)
+    FaultEpHypJ (L := L) (arI := arI) AR s σ ct (.Cap cptr false lf)
       (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf')
   /-- [W] the extra caps' lookup: both succeed, or both fault with the
-  fault handler at `JAt`. -/
+  fault handler at `JAt` for an endpoint handler (`FaultEpHypJ`, as
+  `lookupFault`). -/
   extraLookup : (∃ e exs, r2 = .Ok e ∧ er = .ok exs) ∨
-    (∃ f f', r2 = .Err f ∧ er = .error f' ∧ (blocking = true → FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct f f'))
+    (∃ f f', r2 = .Err f ∧ er = .error f' ∧ (blocking = true → FaultEpHypJ (L := L) (arI := arI) AR s σ ct f f'))
   /-- Per cap, its decode path (`JPath`). -/
   path : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
@@ -966,7 +968,11 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
-    hH.extraLookup (argsU.map UScalar.bv) hmrs hH.lookupFault
+    (hH.extraLookup.imp id fun ⟨f, f', h1, h2, h3⟩ => ⟨f, f', h1, h2, fun hb =>
+      faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh f f' (h3 hb)⟩)
+    (argsU.map UScalar.bv) hmrs
+    (fun hb lf lf' hl => faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh _ _
+      (hH.lookupFault hb lf lf' hl))
     (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
     (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
       (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
