@@ -109,8 +109,11 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
       rcases hD2.2.1.zwf _ hA.isSlot p zt n hz with ⟨-, ht, -⟩ | ⟨-, hc, -⟩
       · have := J.zH.1 p (J.thT p ht); rw [hHp] at this; cases this
       · have := hJ.cnode p _ hc; rw [hHp] at this; cases this
-  exact ⟨V2, Ac', Lst', J.cs_frameV hks hX2 hkb2 hC R, hks,
-    (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+  have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
+    Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
+      fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial
+  exact ⟨V, Ac', Lst', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R
+    (J.vsc.step hvT), hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A zombie written over a cap alike it keeps `WJL`** (module docstring). -/

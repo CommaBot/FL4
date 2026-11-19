@@ -113,7 +113,7 @@ set_option maxHeartbeats 16000000 in
 footprint, as `JAtZ.finVsJb`). -/
 theorem JAtZ.finVsDbg [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
+    (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hvf : IsVsFin c) (b : Bool) (hw : FinWork c b) :
     objects.finalise_cap st arI s a c b false ⦃ r => P1.DbgKeep st (P1.Heap.tcbs H) Cs s r.2.1 ⦄ := by
@@ -123,7 +123,7 @@ theorem JAtZ.finVsDbg [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s 
     VsFinHyps.footN (fun _ h => Or.inl h) (fun _ h => Or.inr h) (vsFinHyps_top hA)
   refine WP.spec_mono (vs_fin hH s a σ Z.G sl hDS hAs
     ⟨hS.2.pl, hS.2.pt, hS.2.ps, hS.2.pv, hS.2.po, hS.2.vo, hS.2.sd, hS.2.vs,
-      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, hVC⟩ c hc hvf b hw) ?_
+      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, J.vsc⟩ c hc hvf b hw) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨-, -, -, -, -, -, -, -, -, -, ⟨-, hW⟩, -⟩, -⟩
   simp only at hW ⊢
   exact dbgKeep_of_writes J.blk hW fun b hb =>
