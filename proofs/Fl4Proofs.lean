@@ -532,3 +532,4 @@ import Fl4Proofs.P3.VsCapWBase
 import Fl4Proofs.P3.CnodeVsW
 import Fl4Proofs.P3.UtTabAdd
 import Fl4Proofs.P3.XTopJointDispatch
+import Fl4Proofs.P3.XTopJointRecvSig
