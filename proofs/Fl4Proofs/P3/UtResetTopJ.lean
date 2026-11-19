@@ -220,6 +220,35 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
 
 end
 
+/-! ## The spec's retype with a reset, split at the reset -/
+
+section SpecSplit
+open Fl4Spec
+
+/-- **The spec's retype with a reset**, a done reset: the retype without one
+from the reset's outcome. -/
+theorem invoke_reset_ok (bitsApi : ApiObjectType → Nat → Nat) (sl : CslotPtr) (base rb : Word) (t : ApiObjectType)
+    (us : Nat) (slots : List CslotPtr) (dev : Bool) {σ σr : State Unit}
+    (hr : ((.ok (), σr) : Except Unit Unit × State Unit) ∈ ((resetUntypedCap (Z := Unit) sl).run σ).1)
+    {y : Except Unit Unit × State Unit}
+    (hy : y ∈ ((invokeUntypedWith (Z := Unit) bitsApi (.retype sl false base rb t us slots dev)).run σr).1) :
+    y ∈ ((invokeUntypedWith (Z := Unit) bitsApi (.retype sl true base rb t us slots dev)).run σ).1 := by
+  unfold invokeUntypedWith at hy ⊢
+  simp only [NonDetE.whenE, ↓reduceIte, Bool.false_eq_true, ndE_pure_bind] at hy ⊢
+  exact memE_bind hr rfl hy
+
+/-- **The spec's retype with a reset**, a preempted reset. -/
+theorem invoke_reset_err (bitsApi : ApiObjectType → Nat → Nat) (sl : CslotPtr) (base rb : Word) (t : ApiObjectType)
+    (us : Nat) (slots : List CslotPtr) (dev : Bool) {σ σr : State Unit}
+    (hr : ((.error (), σr) : Except Unit Unit × State Unit) ∈ ((resetUntypedCap (Z := Unit) sl).run σ).1) :
+    ((.error (), σr) : Except Unit Unit × State Unit) ∈
+      ((invokeUntypedWith (Z := Unit) bitsApi (.retype sl true base rb t us slots dev)).run σ).1 := by
+  unfold invokeUntypedWith
+  simp only [NonDetE.whenE, ↓reduceIte]
+  exact memE_bind_err hr rfl
+
+end SpecSplit
+
 end
 
 end Fl4Proofs.P3
