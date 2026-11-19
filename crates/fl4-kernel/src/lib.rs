@@ -13,6 +13,7 @@ mod mboot;
 mod paging;
 mod smp;
 mod snp;
+mod snp_walk;
 mod trace;
 
 use core::cell::UnsafeCell;
