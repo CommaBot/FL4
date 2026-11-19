@@ -55,7 +55,7 @@ import Fl4Proofs.P3.XTopJointIrqDel
 import Fl4Proofs.P3.ScMsgOK
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
-import Fl4Proofs.P3.XTopJointSendDon
+import Fl4Proofs.P3.XTopJointSendPush
 import Fl4Proofs.P3.XTopJointVsCap
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
@@ -617,7 +617,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo` with receivers waiting on the timeout handler's endpoint, `¬ TmoIdle`: the tail's `handle_timeout` sends to a receiver) [W] |
-| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver but for `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, and `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver but for `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, and `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
