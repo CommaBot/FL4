@@ -100,6 +100,13 @@ pub fn entry_pages(base: u64, len: u64, top: u64) -> Option<(u64, u64)> {
     (start < end).then_some((start, end))
 }
 
+/// The whole pages that hold [start, end): what boot keeps of a kernel
+/// device range from user space's device memory, which comes in pages.
+/// An end in the last page of the address space saturates.
+pub fn pages_covering(start: u64, end: u64) -> (u64, u64) {
+    (start & !(PAGE - 1), end.saturating_add(PAGE - 1) & !(PAGE - 1))
+}
+
 /// The pages a device mapping of `len` bytes at `pa` takes, as (first
 /// page, bytes): none unless all of it lies below `pa_top` (what the
 /// processor can address, which a descriptor's output address must not

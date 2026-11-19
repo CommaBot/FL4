@@ -147,6 +147,13 @@ pub fn redistributor_span(base: u64, len: u64) -> u64 {
     gic_layout::span(base, len, typer)
 }
 
+/// What boot keeps from user space of the redistributor range mapped at
+/// `base` for `len` bytes, which the tables gave `raw_len` bytes
+/// (`gic_layout::reserve`): None if it cannot tell.
+pub fn redistributor_reserve(base: u64, raw_len: u64, len: u64) -> Option<u64> {
+    gic_layout::reserve(base, raw_len, len, typer)
+}
+
 /// The calling core's affinity as GICR_TYPER[63:32] gives it.
 fn affinity() -> u64 {
     let me = cpu::mpidr();

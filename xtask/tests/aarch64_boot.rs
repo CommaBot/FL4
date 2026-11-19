@@ -60,6 +60,8 @@ pub mod cpu {
 pub mod gic_layout;
 #[path = "../../crates/fl4-arch-aarch64/src/cache_rule.rs"]
 mod cache_rule;
+#[path = "../../crates/fl4-arch-aarch64/src/el0_access.rs"]
+mod el0_access;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
@@ -144,6 +146,30 @@ fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
     // Clean, clean+invalidate and unify through TTBR0.
     assert!(cache_rule::needs_gate(false, false));
     assert!(!cache_rule::needs_gate(false, true));
+}
+
+// ---- EL0 access to per-core registers (audit F3) -------------------------------
+
+#[test]
+fn el0_debug_channel_and_trace_registers_trap() {
+    // MDSCR_EL1.TDCC; no debug events (MDE, KDE, SS clear).
+    assert_eq!(el0_access::MDSCR_EL1, 1 << 12);
+    // CPACR_EL1.TTA in both FP/SIMD states, which differ only in FPEN.
+    for v in [el0_access::CPACR_FP_EL0_TRAP, el0_access::CPACR_FP_NONE] {
+        assert_ne!(v & (1 << 28), 0, "{v:#x}");
+        // SVE and SME stay trapped (ZEN, SMEN clear).
+        assert_eq!(v & (3 << 16 | 3 << 24), 0, "{v:#x}");
+    }
+    assert_eq!((el0_access::CPACR_FP_EL0_TRAP >> 20) & 3, 1);
+    assert_eq!((el0_access::CPACR_FP_NONE >> 20) & 3, 3);
+}
+
+#[test]
+fn pmuserenr_is_written_only_with_a_pmu() {
+    // PMUVer: neither absent nor IMPLEMENTATION DEFINED.
+    assert!(!el0_access::has_pmu(0));
+    assert!(!el0_access::has_pmu(0xf << 8));
+    assert!(el0_access::has_pmu(4 << 8));
 }
 
 // ---- memory lists -----------------------------------------------------------------
@@ -345,4 +371,273 @@ fn rsdp_extended_checksum_and_root_signature_are_checked() {
     let mut t = tables(&e, 2, b"XSDT");
     let h = hw::discover(t.rsdp(), 0).expect("ACPI 2.0");
     assert_eq!(&h.rsdp[..], &t.buf()[..36]);
+}
+
+// ---- device tree (audit F5) -----------------------------------------------------
+
+/// A flattened device tree under construction.
+#[derive(Default)]
+struct Dtb {
+    structs: Vec<u8>,
+    strings: Vec<u8>,
+}
+
+impl Dtb {
+    fn word(&mut self, w: u32) {
+        self.structs.extend_from_slice(&w.to_be_bytes());
+    }
+    fn pad(&mut self) {
+        while self.structs.len() % 4 != 0 {
+            self.structs.push(0);
+        }
+    }
+    fn begin(&mut self, name: &str) {
+        self.word(1);
+        self.structs.extend_from_slice(name.as_bytes());
+        self.structs.push(0);
+        self.pad();
+    }
+    fn end(&mut self) {
+        self.word(2);
+    }
+    fn prop(&mut self, name: &str, val: &[u8]) {
+        let off = self.strings.len() as u32;
+        self.strings.extend_from_slice(name.as_bytes());
+        self.strings.push(0);
+        self.word(3);
+        self.word(val.len() as u32);
+        self.word(off);
+        self.structs.extend_from_slice(val);
+        self.pad();
+    }
+    fn prop_u32(&mut self, name: &str, v: u32) {
+        self.prop(name, &v.to_be_bytes());
+    }
+    fn prop_str(&mut self, name: &str, v: &str) {
+        let mut b = v.as_bytes().to_vec();
+        b.push(0);
+        self.prop(name, &b);
+    }
+    /// The blob: header, an empty reservation map, then the blocks.
+    fn blob(mut self) -> Vec<u8> {
+        self.word(9);
+        let rsv = 40u32;
+        let st = rsv + 16;
+        let strs = st + self.structs.len() as u32;
+        let total = strs + self.strings.len() as u32;
+        let mut b = Vec::new();
+        for w in [0xd00d_feed, total, st, strs, rsv, 17, 16, 0, self.strings.len() as u32, self.structs.len() as u32] {
+            b.extend_from_slice(&u32::to_be_bytes(w));
+        }
+        b.extend_from_slice(&[0; 16]);
+        b.extend_from_slice(&self.structs);
+        b.extend_from_slice(&self.strings);
+        b
+    }
+}
+
+/// `reg` of (address, size) pairs, two cells each.
+fn reg2(regs: &[(u64, u64)]) -> Vec<u8> {
+    regs.iter().flat_map(|&(a, s)| [a.to_be_bytes(), s.to_be_bytes()].concat()).collect()
+}
+
+/// The hardware a device tree with one interrupt controller node
+/// (`compat`, `reg`, `#redistributor-regions` if given) describes.
+fn dt_hw(compat: &str, regs: &[(u64, u64)], redist: Option<u32>) -> hw::Hw {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", compat);
+    d.prop_u32("#interrupt-cells", 3);
+    // reg before #redistributor-regions: a node's facts are used at its end.
+    d.prop("reg", &reg2(regs));
+    if let Some(n) = redist {
+        d.prop_u32("#redistributor-regions", n);
+    }
+    // A child (an ITS) with its own reg, which is not the GIC's.
+    d.begin("msi-controller@8080000");
+    d.prop_str("compatible", "arm,gic-v3-its");
+    d.prop("reg", &reg2(&[(0x808_0000, 0x2_0000)]));
+    d.end();
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE).expect("device tree");
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+const GICD: (u64, u64) = (0x800_0000, 0x1_0000);
+
+fn gicr_regions(n: u64) -> Vec<(u64, u64)> {
+    (0..n).map(|i| (0x1_0000_0000 + i * 0x100_0000, 0x40_0000)).collect()
+}
+
+#[test]
+fn every_redistributor_region_of_the_device_tree_is_kept() {
+    // Five regions (six reg entries), then GICC, GICH and GICV.
+    let regions = gicr_regions(5);
+    let tail = [(0x2c00_0000, 0x2_0000), (0x2c01_0000, 0x2_0000), (0x2c02_0000, 0x2_0000)];
+    for with_tail in [false, true] {
+        let mut regs = vec![GICD];
+        regs.extend_from_slice(&regions);
+        if with_tail {
+            regs.extend_from_slice(&tail);
+        }
+        let h = dt_hw("arm,gic-v3", &regs, Some(5));
+        assert_eq!(h.gic_version, 3);
+        assert_eq!(h.gicd, GICD.0);
+        assert!(!h.gicr_lost, "tail {with_tail}");
+        assert_eq!(&h.gicr[..h.n_gicr], &regions[..], "tail {with_tail}");
+    }
+}
+
+#[test]
+fn more_redistributor_regions_than_recorded_are_a_boot_failure() {
+    let n = hw::MAX_GICR as u64 + 1;
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(n));
+    let h = dt_hw("arm,gic-v3", &regs, Some(n as u32));
+    assert!(h.gicr_lost);
+    // So is a count the reg property does not hold, or none at all.
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(2));
+    assert!(dt_hw("arm,gic-v3", &regs, Some(3)).gicr_lost);
+    assert!(dt_hw("arm,gic-v3", &regs, Some(0)).gicr_lost);
+    // Exactly as many as recorded is fine.
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(hw::MAX_GICR as u64));
+    let h = dt_hw("arm,gic-v3", &regs, Some(hw::MAX_GICR as u32));
+    assert!(!h.gicr_lost);
+    assert_eq!(h.n_gicr, hw::MAX_GICR);
+}
+
+#[test]
+fn gicc_gich_and_gicv_are_not_redistributor_regions() {
+    // One region (the default, or said), then 128 KiB GICC, GICH and
+    // GICV (64 KiB-spaced aliases): none of them is a redistributor.
+    let regs = [GICD, (0x80a_0000, 0xf6_0000), (0x2c00_0000, 0x2_0000), (0x2c01_0000, 0x2_0000), (0x2c02_0000, 0x2_0000)];
+    for redist in [None, Some(1)] {
+        let h = dt_hw("arm,gic-v3", &regs, redist);
+        assert!(!h.gicr_lost);
+        assert_eq!(&h.gicr[..h.n_gicr], &[(0x80a_0000, 0xf6_0000)], "{redist:?}");
+    }
+}
+
+#[test]
+fn a_gicv2_cpu_interface_is_kept_whole() {
+    let h = dt_hw("arm,gic-400", &[(0x2c00_1000, 0x1000), (0x2c02_0000, 0x2_0000)], None);
+    assert_eq!(h.gic_version, 2);
+    assert_eq!((h.gicc, h.gicc_len), (0x2c02_0000, 0x2_0000));
+}
+
+#[test]
+fn kernel_device_ranges_are_kept_in_whole_pages() {
+    assert_eq!(bootmem::pages_covering(0x800_0000, 0x801_0000), (0x800_0000, 0x801_0000));
+    assert_eq!(bootmem::pages_covering(0x800_0800, 0x801_0800), (0x800_0000, 0x801_1000));
+    assert_eq!(bootmem::pages_covering(0x800_0fff, 0x800_1001), (0x800_0000, 0x800_2000));
+    assert_eq!(bootmem::pages_covering(u64::MAX - 0x10, u64::MAX), (u64::MAX & !0xfff, u64::MAX & !0xfff));
+    // Through the device list: no page of an unaligned GIC is left over.
+    let mut dev = bootmem::Ranges::new();
+    dev.add(0, 0x1000_0000);
+    let (s, e) = bootmem::pages_covering(0x800_0800, 0x800_0800 + 0x1_0000);
+    dev.remove(s, e);
+    assert_eq!(dev.n, 2);
+    assert_eq!((dev.r[0].end, dev.r[1].start), (0x800_0000, 0x801_1000));
+}
+
+#[test]
+fn an_unbounded_redistributor_range_must_end_inside_the_mapping() {
+    let b = 0x800_0000;
+    // No bound from the tables, mapped for two cores: two redistributors
+    // and the last frame, or more redistributors past the mapping.
+    let closed = [(b, 0), (b + 0x2_0000, LAST)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x8_0000, frames(&closed)), Some(0x8_0000));
+    let open = [(b, 0), (b + 0x2_0000, 0), (b + 0x4_0000, 0), (b + 0x6_0000, 0)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x8_0000, frames(&open)), None);
+    // GICv4: the last frame's VLPI frames may pass the mapping.
+    let v4 = [(b, VLPIS), (b + 0x4_0000, VLPIS | LAST)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x6_0000, frames(&v4)), Some(0x8_0000));
+    // A bound from the tables: all of it, last frame seen or not.
+    assert_eq!(gic_layout::reserve(b, 0x8_0000, 0x8_0000, frames(&open)), Some(0x8_0000));
+    assert_eq!(gic_layout::reserve(b, 0x2_0000, 0x2_0000, frames(&[(b, VLPIS)])), Some(0x4_0000));
+}
+
+/// The hardware a device tree describes whose root has `root` cells and
+/// whose GICv3 sits under /soc with `soc` cells and a raw `reg`.
+fn dt_soc(root: (u32, u32), soc: (u32, u32), reg: &[u8], redist: u32) -> Option<hw::Hw> {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", root.0);
+    d.prop_u32("#size-cells", root.1);
+    d.begin("cpus");
+    d.prop_u32("#address-cells", 1);
+    d.prop_u32("#size-cells", 0);
+    d.begin("cpu@0");
+    d.prop("reg", &0u32.to_be_bytes());
+    d.end();
+    d.end();
+    d.begin("soc");
+    d.prop_u32("#address-cells", soc.0);
+    d.prop_u32("#size-cells", soc.1);
+    // The root's cells for /soc's own reg.
+    d.prop("reg", &[0u8; 12]);
+    d.begin("interrupt-controller@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    // The GIC's cells are its children's (an ITS), not its own reg's.
+    d.prop_u32("#address-cells", 1);
+    d.prop_u32("#size-cells", 1);
+    d.prop("reg", reg);
+    d.prop_u32("#redistributor-regions", redist);
+    d.end();
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE);
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+/// Proposal 5: reg is read in its parent's cells, not the root's.
+#[test]
+fn reg_uses_the_parents_cells() {
+    let regions = gicr_regions(3);
+    let mut regs = vec![GICD];
+    regs.extend_from_slice(&regions);
+    let h = dt_soc((2, 1), (2, 2), &reg2(&regs), 3).expect("device tree");
+    assert_eq!(h.gicd, GICD.0);
+    assert!(!h.gicr_lost);
+    assert_eq!(&h.gicr[..h.n_gicr], &regions[..]);
+    assert_eq!(&h.cpus[..h.n_cpus], &[0]);
+    // One address cell and one size cell under /soc.
+    let one: Vec<u8> = [(0x800_0000u32, 0x1_0000u32), (0x80a_0000, 0xf6_0000)]
+        .iter()
+        .flat_map(|&(a, s)| [a.to_be_bytes(), s.to_be_bytes()].concat())
+        .collect();
+    let h = dt_soc((2, 2), (1, 1), &one, 1).expect("device tree");
+    assert_eq!(h.gicd, 0x800_0000);
+    assert!(!h.gicr_lost);
+    assert_eq!(&h.gicr[..h.n_gicr], &[(0x80a_0000, 0xf6_0000)]);
+}
+
+#[test]
+fn a_gic_reg_the_kernel_cannot_read_whole_is_never_used() {
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(2));
+    // Cells the kernel does not handle: no GIC found, so no boot.
+    assert!(dt_soc((2, 2), (3, 2), &reg2(&regs), 2).is_none());
+    assert!(dt_soc((2, 2), (2, 0), &reg2(&regs), 2).is_none());
+    // A reg that is not whole entries is not read at all: no GIC either.
+    let mut bytes = reg2(&regs);
+    bytes.extend_from_slice(&[0; 8]);
+    assert!(dt_soc((2, 2), (2, 2), &bytes, 2).is_none());
+    assert!(dt_soc((2, 2), (2, 2), &reg2(&regs), 2).is_some());
 }

@@ -454,17 +454,29 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     }
     // The bench profile's MSR syscalls (DESIGN.md §3) touch only the
     // caller's registers and the MSR: answered here, outside the core.
+    // Not for a thread with trapSyscalls (l4h 0001): its syscall goes to
+    // its fault handler like every other (`dangerous_msr::call`).
     if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL && !fl4_arch_x86_64::sev::snp::active() {
         let n = f.rdx as i64;
-        if n == fl4_abi::syscall::SysX86DangerousRDMSR {
-            f.r10 = cpu::rdmsr(f.rdi as u32);
-            // seL4_MessageInfo_new(0, 0, 0, 1).
-            f.rsi = 1;
-            return resume_user();
-        }
-        if n == fl4_abi::syscall::SysX86DangerousWRMSR {
-            cpu::wrmsr(f.rdi as u32, f.r10);
-            return resume_user();
+        // The TCB flags are read only for the MSR calls themselves.
+        if n == fl4_abi::syscall::SysX86DangerousRDMSR || n == fl4_abi::syscall::SysX86DangerousWRMSR {
+            let flags = {
+                let s = store();
+                sched::cur_thread(&s).flags(&s)
+            };
+            match crate::dangerous_msr::of(n, flags) {
+                Some(crate::dangerous_msr::Call::Read) => {
+                    f.r10 = cpu::rdmsr(f.rdi as u32);
+                    // seL4_MessageInfo_new(0, 0, 0, 1).
+                    f.rsi = 1;
+                    return resume_user();
+                }
+                Some(crate::dangerous_msr::Call::Write) => {
+                    cpu::wrmsr(f.rdi as u32, f.r10);
+                    return resume_user();
+                }
+                None => {}
+            }
         }
     }
     save_user(&mut store(), f);

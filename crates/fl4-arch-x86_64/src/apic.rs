@@ -47,19 +47,58 @@ fn registers(base: u64, cpu_x2: bool, window_top: u64) -> Option<Registers> {
     }
 }
 
+/// The boot core's xAPIC register page (physical), the one page boot
+/// keeps from user space's device memory.
+static BSP_BASE: AtomicU64 = AtomicU64::new(0);
+
+/// An application processor's registers, given the boot core's mode
+/// (`bsp_x2`) and xAPIC page (`bsp_base`): None unless it can work the
+/// same way. The mode and the page are global (`is_x2apic`, `MMIO`) and
+/// boot reserves only the boot core's page, so an AP in the other mode
+/// would fault on its first register access (or switch every core's
+/// accesses to its mode), and one with its own xAPIC page would leave an
+/// active APIC in user space's device memory.
+fn ap_registers(base: u64, cpu_x2: bool, bsp_x2: bool, bsp_base: u64, window_top: u64) -> Option<Registers> {
+    if bsp_x2 {
+        (cpu_x2 || base & X2_ENABLE != 0).then_some(Registers::Msr)
+    } else if base & X2_ENABLE != 0 || base & BASE_ADDR_MASK != bsp_base {
+        // x2APIC cannot go back to xAPIC without disabling the APIC.
+        None
+    } else {
+        crate::sev::mmio_ptr(base & BASE_ADDR_MASK, 4096, window_top).map(Registers::Mmio)
+    }
+}
+
 /// Enable this core's APIC and return its physical base for boot memory
-/// reservation. Only xAPIC requires a mapped register page.
-pub fn enable(window_top: u64) -> Option<u64> {
+/// reservation. Only xAPIC requires a mapped register page. The boot core
+/// (`bsp`) sets the mode and page every core uses; an application
+/// processor that cannot use them gets None and changes nothing.
+pub fn enable(bsp: bool, window_top: u64) -> Option<u64> {
     let base = rdmsr(msr::APIC_BASE);
-    match registers(base, has_x2apic(), window_top)? {
+    let regs = if bsp {
+        registers(base, has_x2apic(), window_top)?
+    } else {
+        // After the boot core's Release stores (it enabled its APIC before
+        // starting any AP).
+        ap_registers(base, has_x2apic(), X2APIC.load(Ordering::Acquire), BSP_BASE.load(Ordering::Acquire), window_top)?
+    };
+    // An AP's mode and page are the boot core's: the globals stay.
+    match regs {
         Registers::Msr => {
             wrmsr(msr::APIC_BASE, base | (1 << 11) | X2_ENABLE);
-            X2APIC.store(true, Ordering::Relaxed);
+            if bsp {
+                X2APIC.store(true, Ordering::Release);
+            }
         }
         Registers::Mmio(mmio) => {
             wrmsr(msr::APIC_BASE, base | (1 << 11));
-            MMIO.store(mmio, Ordering::Relaxed);
+            if bsp {
+                MMIO.store(mmio, Ordering::Release);
+            }
         }
+    }
+    if bsp {
+        BSP_BASE.store(base & BASE_ADDR_MASK, Ordering::Release);
     }
     Some(base & BASE_ADDR_MASK)
 }
@@ -187,6 +226,37 @@ mod tests {
             registers(last_page | (1 << 11), false, top),
             Some(Registers::Mmio(fl4_core::layout::pptr(last_page)))
         );
+    }
+
+    /// Audit F6: an AP works only in the boot core's mode and, in xAPIC
+    /// mode, at the boot core's register page.
+    #[test]
+    fn application_processors_use_the_boot_cores_apic_mode_and_page() {
+        let top = 16 << 30;
+        let page = 0xfee0_0000u64;
+        let en = 1 << 11;
+        let mmio = Some(Registers::Mmio(fl4_core::layout::pptr(page)));
+        // Both x2APIC: the CPU has it, or the firmware enabled it.
+        assert_eq!(ap_registers(page | en, true, true, page, top), Some(Registers::Msr));
+        assert_eq!(ap_registers(page | en | X2_ENABLE, false, true, page, top), Some(Registers::Msr));
+        // x2APIC boot core, xAPIC-only AP: rejected, nothing written.
+        assert_eq!(ap_registers(page | en, false, true, page, top), None);
+        // Both xAPIC at the boot core's page; an x2APIC-capable AP stays
+        // in xAPIC mode with the boot core.
+        assert_eq!(ap_registers(page | en, false, false, page, top), mmio);
+        assert_eq!(ap_registers(page | en, true, false, page, top), mmio);
+        assert_eq!(ap_registers(page, false, false, page, top), mmio);
+        // xAPIC boot core, AP the firmware left in x2APIC mode: rejected
+        // (it would switch every core to MSR access).
+        assert_eq!(ap_registers(page | en | X2_ENABLE, true, false, page, top), None);
+        assert_eq!(ap_registers(page | en | X2_ENABLE, false, false, page, top), None);
+        // xAPIC at another page than the boot core's: rejected, mappable
+        // or not.
+        assert_eq!(ap_registers((page + 0x1000) | en, false, false, page, top), None);
+        assert_eq!(ap_registers(0x1000 | en, true, false, page, top), None);
+        assert_eq!(ap_registers(top | en, false, false, page, top), None);
+        // The boot core's own page past the window: rejected as before.
+        assert_eq!(ap_registers(top | en, false, false, top, top), None);
     }
 
     fn set_in_service(v: u32) {

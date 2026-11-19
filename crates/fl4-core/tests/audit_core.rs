@@ -3,6 +3,7 @@
 //! (finding 3b), the hardware debug exception path (finding 8.1), and
 //! DomainSetSet on a thread running on another core (audit F4), and the
 //! paging-structure flush after a PDPT unmap.
+#![cfg(not(feature = "aarch64"))]
 
 use fl4_abi::consts::object as ot;
 use fl4_core::capability::{Cap, FrameSize};

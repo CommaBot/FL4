@@ -50,21 +50,26 @@ fn frame_size(typer: u64) -> u64 {
 /// one whose RD and SGI frames lie wholly inside, with its GICR_TYPER as
 /// `typer` reads it (at the frame's first page), until `visit` says stop,
 /// the last frame, or the end. Returns where the walk ended: past the last
-/// redistributor visited (which can be past `base + len`: its VLPI frames).
-fn walk(base: u64, len: u64, typer: impl Fn(u64) -> u64, mut visit: impl FnMut(u64, u64) -> bool) -> u64 {
-    let Some(end) = base.checked_add(len) else { return base };
+/// redistributor visited (which can be past `base + len`: its VLPI frames),
+/// and whether that one is the frame marked last.
+fn walk(base: u64, len: u64, typer: impl Fn(u64) -> u64, mut visit: impl FnMut(u64, u64) -> bool) -> (u64, bool) {
+    let Some(end) = base.checked_add(len) else { return (base, false) };
     let mut a = base;
     let mut reached = base;
     while a.checked_add(GICR_FRAME).is_some_and(|f| f <= end) {
         let t = typer(a);
         let Some(next) = a.checked_add(frame_size(t)) else { break };
         reached = next;
-        if !visit(a, t) || t & TYPER_LAST != 0 {
+        if t & TYPER_LAST != 0 {
+            visit(a, t);
+            return (reached, true);
+        }
+        if !visit(a, t) {
             break;
         }
         a = next;
     }
-    reached
+    (reached, false)
 }
 
 /// The redistributor for affinity `aff` (GICR_TYPER[63:32]) among the
@@ -83,9 +88,24 @@ pub fn find_frame(base: u64, len: u64, aff: u64, typer: impl Fn(u64) -> u64) -> 
     found
 }
 
+/// What boot keeps from user space of a redistributor range at `base`
+/// that the tables gave `raw_len` bytes (0: no bound, up to the frame
+/// marked last) and that is mapped for `len` bytes: the bytes from `base`
+/// its redistributors occupy, at least `len`. None when the range had no
+/// bound and the frame marked last is not within the mapping: where its
+/// redistributors end is then unknown, and those past the mapping would
+/// be user space's device memory.
+pub fn reserve(base: u64, raw_len: u64, len: u64, typer: impl Fn(u64) -> u64) -> Option<u64> {
+    let (end, last) = walk(base, len, typer, |_, _| true);
+    if raw_len == 0 && !last {
+        return None;
+    }
+    Some((end - base).max(len))
+}
+
 /// How many bytes from `base` the redistributors found in its `len`
 /// mapped bytes occupy: more than `len` where the last has VLPI frames
 /// (a MADT GICC entry gives each core's RD and SGI frames only).
 pub fn span(base: u64, len: u64, typer: impl Fn(u64) -> u64) -> u64 {
-    walk(base, len, typer, |_, _| true) - base
+    walk(base, len, typer, |_, _| true).0 - base
 }

@@ -4,6 +4,7 @@
 
 mod acpi;
 mod bootmem;
+mod dangerous_msr;
 mod elf;
 mod entry;
 mod gdt;
@@ -272,7 +273,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         None => fail("no ACPI tables"),
     };
     pic::disable();
-    let apic_base = apic::enable(window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
+    let apic_base = apic::enable(true, window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
