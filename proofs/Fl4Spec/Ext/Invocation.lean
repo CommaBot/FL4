@@ -13,8 +13,7 @@ functions:
 2. the IRQControl cap: `decodeFl4IrqControl` and `invokeFl4IrqControl`
    (`Ext/IrqControl`) for `decode_irq_control_invocation` and
    `invoke_irq_control`. The l4h label `IRQIssueIRQHandlerIOAPICRemapped` is
-   not an l4v label; it is the first label number past l4v's
-   (`fl4RemappedLabel`, the length of `invocation_label`'s enumeration).
+   not an l4v label; its number is FL4's (`fl4RemappedLabel`).
 3. arch caps: `fl4ArchDecodeInvocation` and `fl4ArchPerformInvocation` for
    `arch_decode_invocation` and `arch_perform_invocation` (ArchDecode_A,
    Arch_A). They are l4v's, except that the l4h VSpace labels go to the
@@ -23,15 +22,14 @@ functions:
    `Page_TestAndClearAccessed` on a frame cap (`decodeDeriveSubframe`,
    `performDeriveSubframe`; `decodeTestAndClearAccessed`,
    `performTestAndClearAccessed`). These labels are not l4v labels either:
-   they are the label numbers after `fl4RemappedLabel`, in FL4's ABI order
-   (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
+   their numbers are FL4's (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
    `fl4TestAndClearLabel`).
 
 4. thread caps: `fl4DecodeTcbInvocation` for `decode_tcb_invocation`,
    which is l4v's except for FL4's TCB extensions (`Ext/Tcb`): the label
    `TCBSetFlags` goes to FL4's `decodeFl4SetFlags`, and the extension
-   labels (seL4's debug API, l4h's FPU transfer and timer), numbered after
-   the l4h VSpace labels (`fl4TcbExtLabelNum`), to their decoders
+   labels (seL4's debug API, l4h's FPU transfer and timer), at FL4's
+   numbers (`fl4TcbExtLabelNum`), to their decoders
    (`decodeFl4TcbExt`); their invocations are `invokeFl4TCB`
    (`invokeFl4Tcb`).
 
@@ -57,30 +55,32 @@ namespace Fl4Spec
 noncomputable section
 open Classical
 
-/-- l4h: the label number of `IRQIssueIRQHandlerIOAPICRemapped`, the first
-past l4v's `invocation_label` enumeration. -/
-def fl4RemappedLabel : Nat := InvocationLabel.enum.length
+/-- l4h: the label number of `IRQIssueIRQHandlerIOAPICRemapped`
+(`fl4_abi::label`, PORTING.md "Invocation label numbers"), past every
+number of `InvocationLabel.fl4Numbering`. -/
+def fl4RemappedLabel : Nat := 72
 
 /-- Whether a message label is the remapped IOAPIC label. -/
 def isFl4RemappedLabel (label : Data) : Bool := decide (dataToNat label = fl4RemappedLabel)
 
-/-- l4h: the label number of `X64PML4Flush`. -/
-def fl4Pml4FlushLabel : Nat := fl4RemappedLabel + 1
+/-- l4h: the label number of `X64PML4Flush` (FL4's `X86PML4Flush`). -/
+def fl4Pml4FlushLabel : Nat := 46
 /-- l4h: the label number of `X86PageDeriveSubframe`. -/
-def fl4DeriveSubframeLabel : Nat := fl4RemappedLabel + 2
+def fl4DeriveSubframeLabel : Nat := 57
 /-- l4h: the label number of `X86PageTestAndClearAccessed`. -/
-def fl4TestAndClearLabel : Nat := fl4RemappedLabel + 3
+def fl4TestAndClearLabel : Nat := 58
 
-/-- The label number of an FL4 TCB extension label, after the l4h VSpace
-labels, in FL4's ABI order. -/
+/-- The label number of an FL4 TCB extension label (FL4's ABI numbers:
+seL4's debug API, then after `TCBSetTLSBase`/`TCBSetFlags` the FPU and
+timer labels). -/
 def fl4TcbExtLabelNum : Fl4TcbExtLabel → Nat
-  | .setBreakpoint => fl4RemappedLabel + 4
-  | .getBreakpoint => fl4RemappedLabel + 5
-  | .unsetBreakpoint => fl4RemappedLabel + 6
-  | .configureSingleStepping => fl4RemappedLabel + 7
-  | .readFpu => fl4RemappedLabel + 8
-  | .writeFpu => fl4RemappedLabel + 9
-  | .setTimer => fl4RemappedLabel + 10
+  | .setBreakpoint => 16
+  | .getBreakpoint => 17
+  | .unsetBreakpoint => 18
+  | .configureSingleStepping => 19
+  | .readFpu => 22
+  | .writeFpu => 23
+  | .setTimer => 24
 
 /-- The FL4 TCB extension label of a message label not in l4v's
 enumeration, if any. -/
