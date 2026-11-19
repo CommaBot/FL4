@@ -17,9 +17,12 @@ noncomputable section
 /-- **A VSpace cap placed, weakened** (module docstring). -/
 def VCapW (P L4 L3 L2 L1 : Set U64) : capability.Cap → Prop
   | .PageTable p mp a v => (mp = false → p ∈ L1) ∧ PaM p 4503599627366400#u64 ∧
-      (mp = true → a ≠ 0#u64 ∧ v.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
-  | .PageDirectory p mp a _ => (mp = false → p ∈ L2) ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
-  | .Pdpt p mp a _ => (mp = false → p ∈ L3) ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
+      (mp = true → a ≠ 0#u64 ∧ v.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0) ∧
+      (mp = true → UserV v)
+  | .PageDirectory p mp a v => (mp = false → p ∈ L2) ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64) ∧
+      (mp = true → UserV v)
+  | .Pdpt p mp a v => (mp = false → p ∈ L3) ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64) ∧
+      (mp = true → UserV v)
   | c => VCapOK P L4 L3 L2 L1 c
 
 /-- An unmapped page-table, page-directory or PDPT cap. -/
@@ -130,17 +133,17 @@ theorem VCapW.transfer {c0 c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c0)
   | PageTable p mp a v =>
     cases mp
     · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back _ _ (insert p L1) (hv P L4 L3 L2 (insert p L1) ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2 rfl⟩)
+    · exact back _ _ (insert p L1) (hv P L4 L3 L2 (insert p L1) ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
   | PageDirectory p mp a v =>
     cases mp
     · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back _ (insert p L2) _ (hv P L4 L3 (insert p L2) L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2 rfl⟩)
+    · exact back _ (insert p L2) _ (hv P L4 L3 (insert p L2) L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
   | Pdpt p mp a v =>
     cases mp
     · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back (insert p L3) _ _ (hv P L4 (insert p L3) L2 L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2 rfl⟩)
+    · exact back (insert p L3) _ _ (hv P L4 (insert p L3) L2 L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
   | _ => exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
 

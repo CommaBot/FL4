@@ -173,13 +173,13 @@ theorem vcap_of_newV {S : Set U64} {c : capability.Cap} (h : NewVPlaced c) (hS :
   cases c with
   | PageTable p mp a v =>
     obtain ⟨rfl, hb, ha⟩ := h
-    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, fun e => by cases e⟩
+    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, (fun e => by cases e), (fun e => by cases e)⟩
   | PageDirectory p mp a v =>
     obtain ⟨rfl, hb, ha⟩ := h
-    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, fun e => by cases e⟩
+    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, (fun e => by cases e), (fun e => by cases e)⟩
   | Pdpt p mp a v =>
     obtain ⟨rfl, hb, ha⟩ := h
-    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, fun e => by cases e⟩
+    exact ⟨hpS p (ok_inj (ptr_eq _).symm), pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha, (fun e => by cases e), (fun e => by cases e)⟩
   | Pml4 p mp a =>
     obtain ⟨rfl, hb⟩ := h
     refine ⟨hpS p (ok_inj (ptr_eq _).symm), fun e => ?_, fun e => by cases e⟩
@@ -188,7 +188,7 @@ theorem vcap_of_newV {S : Set U64} {c : capability.Cap} (h : NewVPlaced c) (hS :
     omega
   | Frame p sz r dv m ept a va =>
     obtain ⟨rfl, hb, ha⟩ := h
-    refine ⟨(fun e => by cases e), ?_⟩
+    refine ⟨(fun e => by cases e), ?_, (fun e => by cases e)⟩
     cases sz
     · exact pam_win (Or.inl rfl) Vs.mask_small_bits (by omega) ha
     · exact pam_win (Or.inr (Or.inl rfl)) Vs.mask_large_bits (by omega) ha

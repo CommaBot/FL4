@@ -103,7 +103,7 @@ FL4 clears the accessed bit of a page-table word and replies 1 or 0. -/
 theorem tac_gen [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPP : PtPlaced L4 L3 L2 L1)
     (hPI : PoolsIn P L4 (L.mem s)) (ct : U64) (hct : sched.cur_thread st s = ok ct)
-    (f : vspace.FrameCap) (call : Bool) (Q : core.result.Result Unit error.Exc × S → Prop)
+    (f : vspace.FrameCap) (hfu : f.mapped = true → Vs.UserV f.vaddr) (call : Bool) (Q : core.result.Result Unit error.Exc × S → Prop)
     (herr : ∀ e e', VsErrRel e e' →
       ExceptT.run (Fl4Spec.decodeTestAndClearAccessed (Z := Unit) (frameACapG f)) σ = ({(.error e', σ)}, False) →
       Q (.Err e, s))
@@ -158,7 +158,7 @@ theorem tac_gen [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 : Set U64} (s : S) (
     | Ok r1 =>
       have hr1 := hL r1 rfl
       dsimp only
-      refine WP.spec_bind (mapped_entry_small s σ hPt hPP hr1 ptr rt fa fv dev true hf) ?_
+      refine WP.spec_bind (mapped_entry_small s σ hPt hPP hr1 ptr rt fa fv dev true hf (hfu rfl)) ?_
       rintro o hme
       rcases hme with ⟨rfl, hfms⟩ | ⟨q, hq, rfl, hfms⟩
       · simp only [error.invalid_cap, bind_ok]
@@ -219,7 +219,7 @@ theorem tac_gen [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 : Set U64} (s : S) (
     | Ok r1 =>
       have hr1 := hL r1 rfl
       dsimp only
-      refine WP.spec_bind (mapped_entry_large s σ hPt hPP hr1 ptr rt fa fv dev true hf) ?_
+      refine WP.spec_bind (mapped_entry_large s σ hPt hPP hr1 ptr rt fa fv dev true hf (hfu rfl)) ?_
       rintro o hme
       rcases hme with ⟨rfl, hfms⟩ | ⟨q, hq, rfl, hfms⟩
       · simp only [error.invalid_cap, bind_ok]
@@ -258,7 +258,7 @@ theorem decode_invocation_frame_tac [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 
     (hl : lbl = fl4_abi.label.X86PageTestAndClearAccessed)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcur : σ.curThread = ct.bv) {tcb : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb tcb))
-    {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
+    {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool} (hfu : m = true → Vs.UserV va)
     (slot : U64) (blk call don fp : Bool) (htac : TacHyp (L := L) L4 L3 L2 L1 s σ ct call)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data)
     (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
@@ -293,7 +293,7 @@ theorem decode_invocation_frame_tac [Fl4Proofs.P1.PlainStore st] {P L4 L3 L2 L1 
   rw [hfc]
   simp only [bind_ok, n1, n2, n3, hlbl.native, ↓reduceIte]
   obtain ⟨σ1, hst, -⟩ := setThreadState_eq σ ct.bv tcb hkt .restart
-  refine WP.spec_bind (tac_gen (L := L) s σ hR hPt hPP hPI ct hct f call
+  refine WP.spec_bind (tac_gen (L := L) s σ hR hPt hPP hPI ct hct f hfu call
     (fun r => TopPostRM (L := L) σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.testAndClearAccessed
           (Fl4Spec.decodeTestAndClearAccessed (Z := Unit) (frameACapG f)))) ct s (r.1, r.2, ar))
@@ -436,7 +436,7 @@ theorem decode_invocation_frame_tacX [Fl4Proofs.P1.PlainStore st] {X : S → A �
     (hl : lbl = fl4_abi.label.X86PageTestAndClearAccessed)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hcur : σ.curThread = ct.bv) {tcb : Fl4Spec.Tcb} (hkt : σ.kheap ct.bv = some (.tcb tcb))
-    {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
+    {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool} (hfu : m = true → Vs.UserV va)
     (slot : U64) (blk call don fp : Bool) (htac : TacHypX (L := L) X L4 L3 L2 L1 s σ ar ct call) (hX0 : X s ar σ)
     (hXc : ∀ b, PtWAll L4 L3 L2 L1 b → P1.Aligned b → X (L.wr s b (L.mem s b &&& ~~~32#u64)) ar σ)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data)
@@ -472,7 +472,7 @@ theorem decode_invocation_frame_tacX [Fl4Proofs.P1.PlainStore st] {X : S → A �
   rw [hfc]
   simp only [bind_ok, n1, n2, n3, hlbl.native, ↓reduceIte]
   obtain ⟨σ1, hst, -⟩ := setThreadState_eq σ ct.bv tcb hkt .restart
-  refine WP.spec_bind (tac_gen (L := L) s σ hR hPt hPP hPI ct hct f call
+  refine WP.spec_bind (tac_gen (L := L) s σ hR hPt hPP hPI ct hct f hfu call
     (fun r => TopPostRMX (L := L) X σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
         (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.testAndClearAccessed
           (Fl4Spec.decodeTestAndClearAccessed (Z := Unit) (frameACapG f)))) ct s (r.1, r.2, ar))

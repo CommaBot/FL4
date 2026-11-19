@@ -70,7 +70,8 @@ theorem unmap_page_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arc
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
-    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (sz : capability.FrameSize) (asid vaddr pp : U64) (h0 : asid ≠ 0#u64) :
+    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (sz : capability.FrameSize) (asid vaddr pp : U64) (h0 : asid ≠ 0#u64)
+    (hv : UserV vaddr) :
     vspace.unmap_page st ar s a sz asid vaddr pp ⦃ r =>
       ¬ (Fl4Spec.unmapPage (Z := Unit) (frameSizeOf sz) asid.bv vaddr.bv pp.bv σ).2 ∧
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPage (Z := Unit) (frameSizeOf sz) asid.bv vaddr.bv pp.bv σ).1 →
@@ -102,7 +103,7 @@ theorem unmap_page_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arc
     simp only [layout.paddr, bind_ok]
     cases sz with
     | Small =>
-      refine WP.spec_bind (lookup_pt_slot_rel s σ hPt hPP hr1 vaddr) ?_
+      refine WP.spec_bind (lookup_pt_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
       rintro r2 ⟨hsp, hsl, hse⟩
       cases r2 with
       | Err lf =>
@@ -200,7 +201,7 @@ theorem unmap_page_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arc
         · show ((), _) ∈ (Fl4Spec.unmapPage (Z := Unit) .x64SmallPage asid.bv vaddr.bv pp.bv σ).1
           rw [hun]; exact hσ''
     | Large =>
-      refine WP.spec_bind (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr) ?_
+      refine WP.spec_bind (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
       rintro r2 ⟨hsp, hsl, hse⟩
       cases r2 with
       | Err lf =>
@@ -312,7 +313,7 @@ theorem unmap_page_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arc
         · show ((), _) ∈ (Fl4Spec.unmapPage (Z := Unit) .x64LargePage asid.bv vaddr.bv pp.bv σ).1
           rw [hun]; exact hσ''
     | Huge =>
-      refine WP.spec_bind (lookup_pdpt_slot_rel s σ hPt hPP hr1 vaddr) ?_
+      refine WP.spec_bind (lookup_pdpt_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
       rintro r2 ⟨hsp, hsl, hse⟩
       cases r2 with
       | Err lf =>
@@ -461,7 +462,7 @@ theorem frame_unmap_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Ar
     (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f))
-    (hfm : f.mapped = true → f.asid ≠ 0#u64)
+    (hfm : f.mapped = true → f.asid ≠ 0#u64) (hfu : f.mapped = true → Vs.UserV f.vaddr)
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     (hcx : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (frameCapOf f))
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageUnmap)
@@ -561,7 +562,7 @@ theorem frame_unmap_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Ar
     rintro s5 ⟨hU5, hF5, hcv5⟩
     rw [setCnodeSlot_self hkc1 hcs] at hU5
     refine (WP.spec_ok _).2 ⟨rfl, _, σ1, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans hF5,
-      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩, KFoot.sts hkt' _⟩
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2.1 | exact ⟨fun e => absurd e (by decide), h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨fun e => absurd e (by decide), h.2.1, trivial⟩ | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩, KFoot.sts hkt' _⟩
     unfold MapSpec
     dsimp only
     rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt'), performUnmap_none]
@@ -592,7 +593,7 @@ theorem frame_unmap_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Ar
           (fun a'' ⟨σ'', hm, hS''⟩ => ⟨σ'', hm, hS'', h2, h3.trans (by
             obtain ⟨ms, rfl⟩ := doMachineOp_mem hm; exact KFoot.ms _ ms)⟩) }
     refine WP.spec_bind (unmap_page_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV) hPI1
-      ⟨⟨hS1, SlotFoot.refl _ _, KFoot.refl _⟩, hSt1, hSV1, hR1, hPt1⟩ sz fa fv ptr hfa) ?_
+      ⟨⟨hS1, SlotFoot.refl _ _, KFoot.refl _⟩, hSt1, hSV1, hR1, hPt1⟩ sz fa fv ptr hfa (hfu rfl)) ?_
     rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hU3⟩, hk3⟩
     replace hU3 : UR st th P L4 L3 L2 L1 SR s3 a3 σu := ⟨hS3, hU3⟩
     have hall' : ∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPage (Z := Unit) (frameSizeOf sz) fa.bv fv.bv ptr.bv σ1).1 →
@@ -603,7 +604,7 @@ theorem frame_unmap_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Ar
     refine WP.spec_bind (fin_cap s3 a3 σu hU3 ((hall' _ _ hu).trans hkc1) (hk3.trans hk1)) ?_
     rintro s5 ⟨hU5, hF5, hcv5⟩
     refine (WP.spec_ok _).2 ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans (hF3.trans hF5),
-      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩,
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; first | exact h | exact h.2.1 | exact ⟨fun e => absurd e (by decide), h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨fun e => absurd e (by decide), h.2.1, trivial⟩ | exact h.2 | exact ⟨fun e => absurd e (by decide), h.2⟩⟩,
       (KFoot.sts hkt' _).trans (hK3.trans (KFoot.cnode ((hall' _ _ hu).trans hkc1) hwf idx nc))⟩
     unfold MapSpec
     dsimp only

@@ -544,7 +544,10 @@ theorem decode_invocation_frame_tacJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : 
   have hD := decode_invocation_frame_tacX (L := L) arI (X := fun s' a' σ' => FinXT (L := L) Z.th Z.P Z.L4 Z.L3
       Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR (L.ksb s) σ s' a' σ' ∧ JAt (L := L) arI AR s' a' σ')
     s ar σ hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.pt hX.fin.2.2.2.1 lbl slbl hlbl hl length buf ct hct hcur hk
-    (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m) (cslotAddr (pc.bv, idx)) blk call don fp
+    (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m)
+    (hfu := by
+      have h := J.vsc.at (show AbsSlot Z.th (pc.bv, idx) from ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩).isSlot hcap
+      simp only [Vs.VCapW, Vs.VCapOK] at h; exact h.2.2) (cslotAddr (pc.bv, idx)) blk call don fp
     htac ⟨hX0, Z, H, Cs, Ac, Lst, D, J⟩
     (fun b hb hal => ⟨finXT_clr5 hX0 hb hal, Z, H, Cs, Ac, Lst, D, J.clrJ hpc hidx hnu hb hal⟩)
     extra args ci sl excaps buffer

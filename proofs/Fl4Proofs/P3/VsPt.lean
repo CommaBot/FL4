@@ -178,10 +178,14 @@ def PTERel (w : U64) : Fl4Spec.PTE → Prop
   | .invalidPTE => ¬ eP w
   | .smallPagePTE f attrs rights => eP w ∧ (eA w).bv = f ∧ PteRights w rights ∧ PteAttrs w attrs
 
-/-- The page tables of FL4 memory `m` and of `σ`. -/
+/-- The page tables of FL4 memory `m` and of `σ`. A PML4's entries are
+related in its user half only (index < 256, `UserV`): the kernel half is
+FL4's own kernel mappings (`copy_global_mappings` from the kernel root) on
+one side and the spec's `x64GlobalPml4` entries on the other, which no walk
+for a user address reads. -/
 structure PtRel (L4 L3 L2 L1 : Set U64) (m : U64 → U64) (σ : Fl4Spec.State Unit) : Prop where
   l4 : ∀ p ∈ L4, ∃ f, σ.kheap p.bv = some (.archObj (.pageMapL4 f)) ∧
-    ∀ i : U64, i.val < 512 → PML4ERel L3 (m (peA p i)) (f (Fl4Spec.ucast 9 i.bv))
+    ∀ i : U64, i.val < 256 → PML4ERel L3 (m (peA p i)) (f (Fl4Spec.ucast 9 i.bv))
   l3 : ∀ p ∈ L3, ∃ f, σ.kheap p.bv = some (.archObj (.pdPointerTable f)) ∧
     ∀ i : U64, i.val < 512 → PDPTERel L2 (m (peA p i)) (f (Fl4Spec.ucast 9 i.bv))
   l2 : ∀ p ∈ L2, ∃ f, σ.kheap p.bv = some (.archObj (.pageDirectory f)) ∧
@@ -268,6 +272,25 @@ def vIdx (vaddr : U64) (sh : Nat) : U64 := ⟨vaddr.bv >>> sh⟩ &&& 511#u64
 
 theorem vIdx_lt (vaddr : U64) (sh : Nat) : (vIdx vaddr sh).val < 512 := and_lt _ 9 511#u64 rfl (by decide)
 
+theorem vIdx_val (vaddr : U64) (sh : Nat) : (vIdx vaddr sh).val = (vaddr.val >>> sh) % 512 := by
+  show (⟨vaddr.bv >>> sh⟩ &&& 511#u64 : U64).bv.toNat = _
+  rw [UScalar.bv_and, BitVec.toNat_and, show (UScalar.bv (511#u64 : U64)).toNat = 2 ^ 9 - 1 from rfl,
+    Nat.and_two_pow_sub_one_eq_mod, BitVec.toNat_ushiftRight]
+  rfl
+
+/-- **A user address indexes the user half of a PML4.** -/
+theorem vIdx_lt_256_of_user {v : U64} (h : UserV v) : (vIdx v 39).val < 256 := by
+  rw [vIdx_val, Nat.shiftRight_eq_div_pow]
+  have h1 : v.val / 2 ^ 39 < 256 := Nat.div_lt_of_lt_mul (by unfold UserV at h; show v.val < 140737488355328; omega)
+  rw [Nat.mod_eq_of_lt (by omega)]; exact h1
+
+/-- **FL4's `vaddr > USER_TOP` check failed**: a user address. -/
+theorem userV_of_not_gt {v : U64} (h : ¬ v > fl4_abi.consts.USER_TOP) : UserV v := by
+  have := h
+  rw [gt_iff_val] at this
+  have hU : fl4_abi.consts.USER_TOP.val = 140737488355327 := by unfold fl4_abi.consts.USER_TOP; rfl
+  unfold UserV; omega
+
 theorem vIdx_bv (vaddr : U64) (sh : Nat) : (vIdx vaddr sh).bv = (vaddr.bv >>> sh) &&& Fl4Spec.mask 9 := by
   show (⟨vaddr.bv >>> sh⟩ &&& 511#u64 : U64).bv = _
   rw [UScalar.bv_and]; rfl
@@ -346,7 +369,8 @@ theorem slot_bv (q : U64) (vaddr : U64) (sh : Nat) (hq : q.val % 4096 = 0) :
 
 /-- **`lookup_pdpt_slot`** refines l4v `lookup_pdpt_slot` on a PML4 of `L4`. -/
 theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
+    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64)
+    (hv : UserV vaddr) :
     vspace.lookup_pdpt_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPdptSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
       (∀ x, r = .Ok x → ∃ q ∈ L3, x = peA q (vIdx vaddr 30)) ∧
@@ -354,7 +378,7 @@ theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
   obtain ⟨f, hk, hf⟩ := hR.l4 pm hpm
   have hpa := hP pm (Or.inl hpm)
   have hi := vIdx_lt vaddr 39
-  have hfe := hf _ hi
+  have hfe := hf _ (vIdx_lt_256_of_user hv)
   have hsl : Fl4Spec.lookupPml4Slot pm.bv vaddr.bv = pm.bv + ((vIdx vaddr 39).bv <<< Fl4Spec.wordSizeBits) := by
     unfold Fl4Spec.lookupPml4Slot Fl4Spec.getPml4Index
     rw [vIdx_bv]; rfl
@@ -402,13 +426,14 @@ theorem lookup_pdpt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State
 
 /-- **`lookup_pd_slot`** refines l4v `lookup_pd_slot` on a PML4 of `L4`. -/
 theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
+    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64)
+    (hv : UserV vaddr) :
     vspace.lookup_pd_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPdSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
       (∀ x, r = .Ok x → ∃ q ∈ L2, x = peA q (vIdx vaddr 21)) ∧
       (∀ e, r = .Err e → ∃ n, e = .MissingCapability n) ⦄ := by
   unfold vspace.lookup_pd_slot Fl4Spec.lookupPdSlot
-  refine WP.spec_bind (lookup_pdpt_slot_rel s σ hR hP hpm vaddr) ?_
+  refine WP.spec_bind (lookup_pdpt_slot_rel s σ hR hP hpm vaddr hv) ?_
   rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Err e =>
@@ -483,13 +508,14 @@ theorem lookup_pd_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State U
 
 /-- **`lookup_pt_slot`** refines l4v `lookup_pt_slot` on a PML4 of `L4`. -/
 theorem lookup_pt_slot_rel {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
+    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64)
+    (hv : UserV vaddr) :
     vspace.lookup_pt_slot st s pm vaddr ⦃ r =>
       ExceptT.run (Fl4Spec.lookupPtSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(slotRes r, σ)}, False) ∧
       (∀ x, r = .Ok x → ∃ q ∈ L1, x = peA q (vIdx vaddr 12)) ∧
       (∀ e, r = .Err e → ∃ n, e = .MissingCapability n) ⦄ := by
   unfold vspace.lookup_pt_slot Fl4Spec.lookupPtSlot
-  refine WP.spec_bind (lookup_pd_slot_rel s σ hR hP hpm vaddr) ?_
+  refine WP.spec_bind (lookup_pd_slot_rel s σ hR hP hpm vaddr hv) ?_
   rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Err e =>

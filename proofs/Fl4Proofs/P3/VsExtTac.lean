@@ -134,7 +134,7 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 theorem mapped_entry_small [PlainStore st] {L4 L3 L2 L1 : Set U64} (s : S) (σ : State Unit)
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPP : PtPlaced L4 L3 L2 L1) {r1 : U64} (hr1 : r1 ∈ L4)
     (ptr rt asid vaddr : U64) (dev mp : Bool)
-    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok r1.bv, σ)}, False)) :
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok r1.bv, σ)}, False)) (hv : UserV vaddr) :
     vspace.mapped_entry st s ⟨ptr, .Small, rt, dev, mp, false, asid, vaddr⟩ r1 ⦃ o =>
       (o = none ∧ ExceptT.run (frameMappingSlot (Z := Unit) ptr.bv .x64SmallPage asid.bv vaddr.bv) σ =
         ({(.error (.invalidCapability 0), σ)}, False)) ∨
@@ -144,7 +144,7 @@ theorem mapped_entry_small [PlainStore st] {L4 L3 L2 L1 : Set U64} (s : S) (σ :
   have hAM : vspace.ADDR_MASK = 4503599627366400#u64 := by unfold vspace.ADDR_MASK; rfl
   unfold vspace.mapped_entry
   simp only [layout.paddr, bind_ok, Bool.false_eq_true, ↓reduceIte]
-  refine WP.spec_bind (lookup_pt_slot_rel s σ hPt hPP hr1 vaddr) ?_
+  refine WP.spec_bind (lookup_pt_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
   rintro r2 ⟨hsp, hsl, hse⟩
   cases r2 with
   | Err lf =>
@@ -199,7 +199,7 @@ theorem mapped_entry_small [PlainStore st] {L4 L3 L2 L1 : Set U64} (s : S) (σ :
 theorem mapped_entry_large [PlainStore st] {L4 L3 L2 L1 : Set U64} (s : S) (σ : State Unit)
     (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ) (hPP : PtPlaced L4 L3 L2 L1) {r1 : U64} (hr1 : r1 ∈ L4)
     (ptr rt asid vaddr : U64) (dev mp : Bool)
-    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok r1.bv, σ)}, False)) :
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok r1.bv, σ)}, False)) (hv : UserV vaddr) :
     vspace.mapped_entry st s ⟨ptr, .Large, rt, dev, mp, false, asid, vaddr⟩ r1 ⦃ o =>
       (o = none ∧ ExceptT.run (frameMappingSlot (Z := Unit) ptr.bv .x64LargePage asid.bv vaddr.bv) σ =
         ({(.error (.invalidCapability 0), σ)}, False)) ∨
@@ -208,7 +208,7 @@ theorem mapped_entry_large [PlainStore st] {L4 L3 L2 L1 : Set U64} (s : S) (σ :
           ({(.ok (peA q (vIdx vaddr 21)).bv, σ)}, False)) ⦄ := by
   unfold vspace.mapped_entry
   simp only [layout.paddr, bind_ok, ↓reduceIte]
-  refine WP.spec_bind (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr) ?_
+  refine WP.spec_bind (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
   rintro r2 ⟨hsp, hsl, hse⟩
   cases r2 with
   | Err lf =>
@@ -344,7 +344,7 @@ theorem tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {th : TypedHeap} {P L4 L
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
-    (f : vspace.FrameCap) (call : Bool) :
+    (f : vspace.FrameCap) (hfu : f.mapped = true → UserV f.vaddr) (call : Bool) :
     vspace.decode_test_and_clear_accessed st s f call ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧
         ExceptT.run (Fl4Spec.decodeTestAndClearAccessed (Z := Unit) (frameACapG f)) σ = ({(.error e', σ)}, False) ∧
@@ -399,7 +399,7 @@ theorem tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {th : TypedHeap} {P L4 L
     | Ok r1 =>
       have hr1 := hL r1 rfl
       dsimp only
-      refine WP.spec_bind (mapped_entry_small s σ hPt hPP hr1 ptr rt fa fv dev true hf) ?_
+      refine WP.spec_bind (mapped_entry_small s σ hPt hPP hr1 ptr rt fa fv dev true hf (hfu rfl)) ?_
       rintro o hme
       rcases hme with ⟨rfl, hfms⟩ | ⟨q, hq, rfl, hfms⟩
       · simp only [error.invalid_cap, bind_ok]
@@ -493,7 +493,7 @@ theorem tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {th : TypedHeap} {P L4 L
     | Ok r1 =>
       have hr1 := hL r1 rfl
       dsimp only
-      refine WP.spec_bind (mapped_entry_large s σ hPt hPP hr1 ptr rt fa fv dev true hf) ?_
+      refine WP.spec_bind (mapped_entry_large s σ hPt hPP hr1 ptr rt fa fv dev true hf (hfu rfl)) ?_
       rintro o hme
       rcases hme with ⟨rfl, hfms⟩ | ⟨q, hq, rfl, hfms⟩
       · simp only [error.invalid_cap, bind_ok]
@@ -566,7 +566,7 @@ theorem frame_tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arch
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : ct.bv = σ.curThread)
     {xct : Fl4Spec.Tcb} (hkt : σ.kheap σ.curThread = some (.tcb xct))
-    (f : vspace.FrameCap) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64) (ex : Array obj.Slot 3#usize) :
+    (f : vspace.FrameCap) (hfu : f.mapped = true → UserV f.vaddr) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64) (ex : Array obj.Slot 3#usize) :
     vspace.decode_frame st ar s a fl4_abi.label.X86PageTestAndClearAccessed length slot (frameCapOf f) call buf ex
       ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧
@@ -588,7 +588,7 @@ theorem frame_tac_rel [Fl4Proofs.P1.PlainStore st] {A : Type} {ar : machine.Arch
   have hnEpt : ¬ fl4_abi.label.X86PageTestAndClearAccessed = fl4_abi.label.X86PageMapEPT := by
     unfold fl4_abi.label.X86PageTestAndClearAccessed fl4_abi.label.X86PageMapEPT; decide
   simp only [bind_ok, hn1, hn2, hn3, hnEpt, ↓reduceIte]
-  refine WP.spec_bind (tac_rel hH s a σ hU hPl hPP hPS hVP hPV hPI ct hct hcur hkt { f with is_ept := false } call) ?_
+  refine WP.spec_bind (tac_rel hH s a σ hU hPl hPP hPS hVP hPV hPI ct hct hcur hkt { f with is_ept := false } hfu call) ?_
   rintro ⟨r, s1⟩ h
   rcases h with ⟨e, e', h1, h2, h3, h4⟩ | ⟨h1, h2⟩
   · exact (WP.spec_ok _).2 (Or.inl ⟨e, e', h1, h2, h3, h4, rfl⟩)

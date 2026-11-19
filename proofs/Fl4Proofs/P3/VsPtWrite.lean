@@ -92,7 +92,7 @@ theorem PtRel.upd_l1 {L4 L3 L2 L1 : Set U64} {m m' : U64 → U64} {σ : Fl4Spec.
   · obtain ⟨g, hg, hgf⟩ := hR.l4 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inl hq)
-    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp hj]; exact hgf j hj⟩
+    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp (by omega)]; exact hgf j hj⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inr (Or.inl hq))

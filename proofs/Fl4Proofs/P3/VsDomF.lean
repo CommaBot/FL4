@@ -191,7 +191,7 @@ theorem domFrame_page_table (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.Stat
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   have h := decode_invocation_page_table arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPtMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPtMapHyps_top hA)) (VsPtUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPtUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
+    hpc hidx hcap hok.1 hok.2.1 hok.2.2.1 hok.2.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
 
 set_option maxHeartbeats 8000000 in
@@ -279,7 +279,7 @@ theorem domFrame_page_directory (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   have h := decode_invocation_page_directory arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdMapHyps_top hA)) (VsPdUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
+    hpc hidx hcap hok.1 hok.2.1 hok.2.2.1 hok.2.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
 
 set_option maxHeartbeats 8000000 in
@@ -367,7 +367,7 @@ theorem domFrame_pdpt (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
   have h := decode_invocation_pdpt arI th hS.2.pl s ar σ G hCR hFI hMO (SR := FootSR st (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s (VsFootW st th P L4 L3 L2 L1 s)) (Q := fun s' => P1.WritesIn st s s' (VsFootW st th P L4 L3 L2 L1 s)) (fun _ _ _ h => h.2) (VsPdptMapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdptMapHyps_top hA)) (VsPdptUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsPdptUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hok.1 hok.2.1 hok.2.2 extra excaps hext' blk call don fp ci buffer
+    hpc hidx hcap hok.1 hok.2.1 hok.2.2.1 hok.2.2.2 extra excaps hext' blk call don fp ci buffer
   exact WP.spec_mono h fun res hr => dom_of_foot hS hr.2
 
 set_option maxHeartbeats 8000000 in
@@ -550,7 +550,7 @@ theorem decode_invocation_frame_capD [Fl4Proofs.P1.PlainStore st] (th : TypedHea
   by_cases hltac : lbl = fl4_abi.label.X86PageTestAndClearAccessed
   · right
     have := decode_invocation_frame_tac (L := L) arI s ar σ hR hPt hS.2.pt hPI lbl slbl hlbl hltac length buf ct hct
-      hcur hkt0 (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m)
+      hcur hkt0 (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m) (hfu := hok.2.2)
       (cslotAddr (pc.bv, idx)) blk call don fp htac extra (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer
     exact this
   left
@@ -585,8 +585,8 @@ theorem decode_invocation_frame_capD [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     (VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameHypsL_top hA))
     (VsFrameUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩
     hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb hact hrun
-    args hlen hargs hpc hidx hcap hok.1 (fun e => by subst e; exact hok.2) (fun e => by subst e; exact hok.2)
-    (fun e => by subst e; exact hok.2) hAl extra excaps hext' blk call don fp ci buffer
+    args hlen hargs hpc hidx hcap hok.1 hok.2.2 (fun e => by subst e; exact hok.2.1) (fun e => by subst e; exact hok.2.1)
+    (fun e => by subst e; exact hok.2.1) hAl extra excaps hext' blk call don fp ci buffer
     (fun h => absurd h hlga) (fun h => absurd h hltac) hDS
   rcases h with ⟨-, -, h⟩ | ⟨e, -⟩
   · exact DecOKM.withDom arI hDR (DecOKMQ.toM arI h)

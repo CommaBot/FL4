@@ -808,13 +808,13 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
         rcases hpt with ⟨hn, e⟩ | ⟨hn, e⟩ | ⟨hn, e⟩ <;> rw [e] at h1 hqW ⊢
         · have hb : ptrF (.Pdpt b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
-          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, (fun h => by cases h), (fun h => by cases h)⟩
         · have hb : ptrF (.PageDirectory b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
-          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, (fun h => by cases h), (fun h => by cases h)⟩
         · have hb : ptrF (.PageTable b false 0#u64 0#u64) = b := ok_inj (ptr_eq _).symm
           rw [hb] at hqW
-          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, fun h => by cases h⟩
+          exact ⟨fun _ => Or.inr ⟨hqW, hn⟩, h1.2.1, (fun h => by cases h), (fun h => by cases h)⟩
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,

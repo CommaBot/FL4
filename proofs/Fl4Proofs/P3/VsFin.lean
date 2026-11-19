@@ -357,7 +357,7 @@ theorem fin_page_table (hH : VsPtInnerHyps st A ar L2 SR) (s : S) (a : A) (σ : 
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
   have hok := hX.vc.at hA.isSlot hc
   simp only [VCapW, VCapOK] at hok
-  obtain ⟨-, -, hm⟩ := hok
+  obtain ⟨-, -, hm, hmu⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -365,7 +365,7 @@ theorem fin_page_table (hH : VsPtInnerHyps st A ar L2 SR) (s : S) (a : A) (σ : 
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_page_table_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hal) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hal (hmu rfl)) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -381,7 +381,7 @@ theorem fin_page_directory (hH : VsPdInnerHyps st A ar L3 SR) (s : S) (a : A) (�
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
   have hok := hX.vc.at hA.isSlot hc
   simp only [VCapW, VCapOK] at hok
-  obtain ⟨-, -, hm⟩ := hok
+  obtain ⟨-, -, hm, hmu⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -389,7 +389,7 @@ theorem fin_page_directory (hH : VsPdInnerHyps st A ar L3 SR) (s : S) (a : A) (�
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_page_directory_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 (hmu rfl)) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -405,7 +405,7 @@ theorem fin_pdpt (hH : VsPdptInnerHyps st A ar L4 SR) (s : S) (a : A) (σ : Fl4S
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
   have hok := hX.vc.at hA.isSlot hc
   simp only [VCapW, VCapOK] at hok
-  obtain ⟨-, -, hm⟩ := hok
+  obtain ⟨-, -, hm, hmu⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -413,7 +413,7 @@ theorem fin_pdpt (hH : VsPdptInnerHyps st A ar L4 SR) (s : S) (a : A) (σ : Fl4S
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_pdpt_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inl hq, i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 (hmu rfl)) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -431,10 +431,11 @@ theorem fin_frame [Fl4Proofs.P1.PlainStore st] (hH : VsUnmapPageHyps st A ar L3 
   have hok := hX.vc.at hA.isSlot hc
   simp only [VCapW, VCapOK] at hok
   have h0 : asid ≠ 0#u64 := by simpa using hok.1
+  have hvU : UserV va := by simpa using hok.2.2
   simp only [objects.finalise_cap, objects.finalise_cap_object, plain_retire, bind_ok, ↓reduceIte,
     bne_iff_ne, ne_eq, h0, not_false_eq_true, not_true_eq_false, Bool.false_eq_true, ite_self]
   refine WP.spec_bind (unmap_page_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps hX.vp
-    hX.pv hX.x.2.2.2.1 ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ sz asid va p h0) ?_
+    hX.pv hX.x.2.2.2.1 ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ sz asid va p h0 hvU) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 

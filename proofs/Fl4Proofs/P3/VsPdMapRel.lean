@@ -70,7 +70,7 @@ theorem PtRel.upd_l3 {L4 L3 L2 L1 : Set U64} {m m' : U64 → U64} {σ : Fl4Spec.
   · obtain ⟨g, hg, hgf⟩ := hR.l4 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inl hq)
-    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp hj]; exact hgf j hj⟩
+    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp (by omega)]; exact hgf j hj⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     have hqa := hP q (Or.inr (Or.inl hq))
     by_cases e : q = p
@@ -145,7 +145,8 @@ theorem vaddr30_bv (a0 : U64) :
 
 /-- `table_entry_slot` at level 30 is `lookup_pdpt_slot`. -/
 theorem table_entry_slot_30 {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
+    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64)
+    (hv : UserV vaddr) :
     vspace.table_entry_slot st s pm vaddr 30#u64 ⦃ r =>
       (∀ x, r = .Ok x → ExceptT.run (Fl4Spec.lookupPdptSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(.ok x.bv, σ)}, False) ∧
         ∃ q ∈ L3, x = peA q (vIdx vaddr 30)) ∧
@@ -154,7 +155,7 @@ theorem table_entry_slot_30 {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State 
           ({(.error (.missingCapability n.val), σ)}, False)) ⦄ := by
   unfold vspace.table_entry_slot
   simp only [↓reduceIte]
-  refine WP.spec_bind (lookup_pdpt_slot_rel s σ hR hP hpm vaddr) ?_
+  refine WP.spec_bind (lookup_pdpt_slot_rel s σ hR hP hpm vaddr hv) ?_
   rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Ok x =>
@@ -290,7 +291,7 @@ theorem pd_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
           simp only [Bind.bind, bind_ok]
           exact (WP.spec_ok _).2 (Or.inl ⟨e, e', rfl, he, hdec.trans hte, rfl, rfl⟩)
         simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-        refine WP.spec_bind (table_entry_slot_30 s σ hPt hPP hp1 v) ?_
+        refine WP.spec_bind (table_entry_slot_30 s σ hPt hPP hp1 v (userV_of_not_gt hv)) ?_
         rintro r2 ⟨hsl, hse⟩
         cases r2 with
         | Err lf =>
@@ -429,7 +430,7 @@ theorem pd_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
               exact performPdMap_mem (setCap_cnode nc hkc1 hwf hidx) hstore hm' (hH.flushOK _ _ _)
             · exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
             · show VsLike (capV (L.mem s3) _) _
-              rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1⟩⟩
+              rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1, fun _ => userV_of_not_gt hv⟩⟩
             · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
           · have : ((L.mem s (peA q (vIdx v 30)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
             simp only [this, ↓reduceIte]

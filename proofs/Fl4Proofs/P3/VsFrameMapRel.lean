@@ -122,7 +122,7 @@ theorem PtRel.frame {L4 L3 L2 L1 : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Sp
     PtRel L4 L3 L2 L1 m' σ' := by
   refine ⟨fun q hq => ?_, fun q hq => ?_, fun q hq => ?_, fun q hq => ?_⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l4 q hq
-    exact ⟨g, (hk q (Or.inl hq)).trans hg, fun j hj => by rw [hm _ ⟨q, Or.inl hq, j, hj, rfl⟩]; exact hgf j hj⟩
+    exact ⟨g, (hk q (Or.inl hq)).trans hg, fun j hj => by rw [hm _ ⟨q, Or.inl hq, j, (by omega), rfl⟩]; exact hgf j hj⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     exact ⟨g, (hk q (Or.inr (Or.inl hq))).trans hg,
       fun j hj => by rw [hm _ ⟨q, Or.inr (Or.inl hq), j, hj, rfl⟩]; exact hgf j hj⟩
@@ -258,7 +258,8 @@ theorem add4096 (v : U64) : (core.num.U64.wrapping_add v 4096#u64).bv = v.bv + 4
   rw [core.num.U64.wrapping_add_bv_eq]; rfl
 
 theorem page_entry_slot_small {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.State Unit)
-    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64) :
+    (hR : PtRel L4 L3 L2 L1 (L.mem s) σ) (hP : PtPlaced L4 L3 L2 L1) {pm : U64} (hpm : pm ∈ L4) (vaddr : U64)
+    (hv : UserV vaddr) :
     vspace.page_entry_slot st s pm vaddr .Small ⦃ r =>
       (∀ x, r = .Ok x → ExceptT.run (Fl4Spec.lookupPtSlot (Z := Unit) pm.bv vaddr.bv) σ = ({(.ok x.bv, σ)}, False) ∧
         ∃ q ∈ L1, x = peA q (vIdx vaddr 12)) ∧
@@ -266,7 +267,7 @@ theorem page_entry_slot_small {L4 L3 L2 L1 : Set U64} (s : S) (σ : Fl4Spec.Stat
         ExceptT.run (Fl4Spec.lookupPtSlot (Z := Unit) pm.bv vaddr.bv) σ =
           ({(.error (.missingCapability n.val), σ)}, False)) ⦄ := by
   unfold vspace.page_entry_slot
-  refine WP.spec_bind (lookup_pt_slot_rel s σ hR hP hpm vaddr) ?_
+  refine WP.spec_bind (lookup_pt_slot_rel s σ hR hP hpm vaddr hv) ?_
   rintro r ⟨hsp, hsl, hse⟩
   cases r with
   | Ok x =>
@@ -310,7 +311,7 @@ macro "map_tail" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 4095#u64) = 0#u64
   · have : ((a0 &&& 4095#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (page_entry_slot_small s σ hPt hPP hp1 a0) ?_
+    refine WP.spec_bind (page_entry_slot_small s σ hPt hPP hp1 a0 hvU) ?_
     rintro r3 ⟨hsl, hse⟩
     cases r3 with
     | Err lf =>
@@ -400,7 +401,7 @@ macro "map_tail" : tactic => `(tactic| (
         exact performMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
       · rw [hr3]
         exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
-      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; exact ⟨fun _ => has1, h.2⟩⟩
+      · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; exact ⟨fun _ => has1, h.2.1, fun _ => hvU⟩⟩
       · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans
           (kfoot_store_flush hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm'))
   · have : ((a0 &&& 4095#u64) != 0#u64) = true := by simp [hal]
@@ -422,7 +423,7 @@ theorem frame_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
     (hrun : Fl4Spec.runnable xct.tcbState = true)
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (f : vspace.FrameCap) (hsz : f.size = .Small) (hfw : CapWf (frameCapOf f)) (hfe : EncWf (frameCapOf f)) (hfcv : CapValid th (frameCapOf f))
-    (hfm : f.mapped = true → f.asid ≠ 0#u64)
+    (hfm : f.mapped = true → f.asid ≠ 0#u64) (hfu : f.mapped = true → UserV f.vaddr)
     (hpa : (core.num.U64.wrapping_sub f.ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub f.ptr layout.PPTR_BASE)
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
@@ -444,7 +445,7 @@ theorem frame_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩ := f
-  simp only at hsz hfm hpa ⊢
+  simp only at hsz hfm hfu hpa ⊢
   subst hsz
   rw [show ∀ args' ex', Fl4Spec.archDecodeInvocation (Z := Unit) slbl args' xs (pc.bv, idx)
       (frameACap ⟨ptr, .Small, rt, dev, mp, ep, fa, fv⟩) ex' =
@@ -507,6 +508,7 @@ theorem frame_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
               rw [gt_iff_val] at this
               have hU : fl4_abi.consts.USER_TOP.val = 140737488355327 := by unfold fl4_abi.consts.USER_TOP; rfl
               omega
+            have hvU : UserV a0 := userV_of_not_gt hv1
             map_tail
       · have hfa := hfm rfl
         have hfa' : (fa != 0#u64) = true := by simp [hfa]
@@ -524,6 +526,7 @@ theorem frame_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
               rw [← hDec, hdec0, runE_bind_ok (runE_whenE_false (by simp [hfa1]) _ σ),
                 runE_bind_ok (runE_whenE_false (by simp) _ σ), runE_bind_ok (runE_whenE_false (by simp [hfv]) _ σ)]
             have hva : a0.val < 2 ^ 48 := hfv ▸ hfe.2.2.2
+            have hvU : UserV a0 := hfv ▸ hfu rfl
             map_tail
           · have : (fv != a0) = true := by simp [hfv]
             simp only [this, ↓reduceIte, error.invalid_arg, bind_ok]

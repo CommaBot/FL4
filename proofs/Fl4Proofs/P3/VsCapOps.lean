@@ -132,9 +132,9 @@ theorem vcap_alias {P L4 L3 L2 L1 : Set U64} {ptr rt fa fv q vm : U64} {mm : Boo
     (hq1 : ptr.val ≤ q.val) (hq2 : q.val + 4096 ≤ ptr.val + 2 ^ 21) (hqal : q.val % 4096 = 0) :
     VCapOK P L4 L3 L2 L1 (.Frame q .Small vm false false false 0#u64 0#u64) := by
   have hp : PaM ptr 4503599625273344#u64 := by
-    simp only [VCapOK, frameMaskOf] at h; first | exact h.2 | exact h
+    simp only [VCapOK, frameMaskOf] at h; first | exact h.2.1 | exact h.2 | exact h
   suffices hq : PaM q 4503599627366400#u64 by
-    simp only [VCapOK, frameMaskOf]; exact ⟨fun e => absurd e (by decide), hq⟩
+    simp only [VCapOK, frameMaskOf]; exact ⟨fun e => absurd e (by decide), hq, fun e => absurd e (by decide)⟩
   have hp' := (pam_iff_large ptr).1 hp
   rw [pam_iff_small]
   have hb := Fl4Proofs.P0.Consts.layout.PPTR_BASE.val_eq

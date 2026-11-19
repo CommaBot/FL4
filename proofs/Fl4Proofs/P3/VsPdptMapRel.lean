@@ -73,16 +73,17 @@ theorem PtRel.upd_l4 {L4 L3 L2 L1 : Set U64} {m m' : U64 → U64} {σ : Fl4Spec.
     · subst e
       rw [hk] at hg; injection hg with hg; injection hg with hg; injection hg with hg; subst hg
       refine ⟨Function.update f (Fl4Spec.ucast 9 i.bv) pde, by simp [updK], fun j hj => ?_⟩
+      have hj5 : j.val < 512 := by omega
       by_cases ej : j = i
       · subst ej; rw [Function.update_self, hme]; exact hv
-      · rw [Function.update_of_ne (fun h => ej (ucast_inj 9 hj hi h)),
-          hm _ (hal q j hqa hj) (fun h => ej (by
+      · rw [Function.update_of_ne (fun h => ej (ucast_inj 9 hj5 hi h)),
+          hm _ (hal q j hqa hj5) (fun h => ej (by
             have := congrArg UScalar.val h
-            rw [peA_val (tbl_fit hqa) hj, peA_val (tbl_fit hqa) hi] at this
+            rw [peA_val (tbl_fit hqa) hj5, peA_val (tbl_fit hqa) hi] at this
             exact UScalar.eq_of_val_eq (by omega)))]
         exact hgf j hj
     · exact ⟨g, by simp [updK, show q.bv ≠ p.bv from fun h => e (eq_of_bv h), hg],
-        fun j hj => by rw [hoth q j hqa e hj]; exact hgf j hj⟩
+        fun j hj => by rw [hoth q j hqa e (by omega)]; exact hgf j hj⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inr (Or.inl hq))
@@ -291,7 +292,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         obtain ⟨f, hk, hf2⟩ := hPt.l4 q hq
         have hqa := hPP q (Or.inl hq)
         have hj := vIdx_lt v 39
-        have hfe2 := hf2 _ hj
+        have hfe2 := hf2 _ (vIdx_lt_256_of_user (userV_of_not_gt hv))
         have hsl := pml4_slot_bv hqa v
         have hg : Fl4Spec.getPml4e (Z := Unit) (Fl4Spec.lookupPml4Slot q.bv v.bv) σ =
             ({(f (Fl4Spec.ucast 9 (vIdx v 39).bv), σ)}, False) := by
@@ -414,7 +415,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
             exact performPdptMap_mem (setCap_cnode nc hkc1 hwf hidx) hstore hm' (hH.flushOK _ _ _)
           · exact (SlotFoot.of_same hSS1 _).trans (hF2.trans (SlotFoot.wr_out hPl s2 hbo _))
           · show VsLike (capV (L.mem s3) _) _
-            rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1⟩⟩
+            rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1, fun _ => userV_of_not_gt hv⟩⟩
           · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
         · have : ((L.mem s (peA q (vIdx v 39)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
           simp only [this, ↓reduceIte]

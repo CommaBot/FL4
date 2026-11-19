@@ -75,7 +75,7 @@ theorem PtRel.zero_l2 {L4 L3 L2 L1 : Set U64} {m m' : U64 → U64} {σ : Fl4Spec
   · obtain ⟨g, hg, hgf⟩ := hR.l4 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inl hq)
-    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp hj]; exact hgf j hj⟩
+    exact ⟨g, hk', fun j hj => by rw [hoth q j hqa hqp (by omega)]; exact hgf j hj⟩
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     obtain ⟨hk', hqp⟩ := hkq q _ hg (fun _ h => by cases h)
     have hqa := hP q (Or.inr (Or.inl hq))
@@ -118,7 +118,7 @@ theorem unmap_page_directory_rel {A : Type} {ar : machine.Arch A} {th : TypedHea
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, PdptW L3 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
-    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64) :
+    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64) (hv : UserV vaddr) :
     vspace.unmap_page_directory st ar s a asid vaddr pt ⦃ r =>
       ¬ (Fl4Spec.unmapPd (Z := Unit) asid.bv vaddr.bv pt.bv σ).2 ∧
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPd (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
@@ -145,7 +145,7 @@ theorem unmap_page_directory_rel {A : Type} {ar : machine.Arch A} {th : TypedHea
   | Err lf => exact hskip (unmapPD_noVs hf)
   | Ok r1 =>
     have hr1 := hL r1 rfl
-    refine WP.spec_bind (lookup_pdpt_slot_rel s σ hPt hPP hr1 vaddr) ?_
+    refine WP.spec_bind (lookup_pdpt_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
     rintro r2 ⟨hsp, hsl, hse⟩
     cases r2 with
     | Err lf =>
@@ -293,7 +293,7 @@ theorem pd_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (ptr asid0 va0 : U64) (mp : Bool) (hpL2 : ptr ∈ L2) (hfe : EncWf (.PageDirectory ptr mp asid0 va0))
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     (hcx : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0))
     {slbl : Fl4Spec.Data} (hl : Fl4Spec.invocationType slbl = .archInvocationLabel .x64PageDirectoryUnmap)
@@ -410,7 +410,7 @@ theorem pd_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     refine WP.spec_bind (fin_cap s1 a σ1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩ hkc1 hk1) ?_
     rintro s5 ⟨hU5, hF5, hcv5⟩
     refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans hF5,
-      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (KFoot.cnode hkc1 hwf idx nc)⟩)
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (KFoot.cnode hkc1 hwf idx nc)⟩)
     unfold PdMapSpec
     dsimp only
     rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt'), performPdUnmap_none hkc1 hwf hidx hcs]
@@ -442,7 +442,7 @@ theorem pd_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         L.ksb p.1 = L.ksb s ∧ SlotFoot th (L.mem s1) (L.mem p.1) (cslotAddr (pc.bv, idx)) ∧
         KFoot σ1 (updK σu ptr.bv (.archObj (.pageDirectory fun _ => .invalidPDE)))) ?_ ?_
     · refine WP.spec_bind (unmap_page_directory_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV3) hPI1 hU1
-        asid0 va0 ptr hA0) ?_
+        asid0 va0 ptr hA0 (hmu rfl)) ?_
       rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]
@@ -489,7 +489,7 @@ theorem pd_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       refine WP.spec_bind (fin_cap s4 a4 _ hU4 hkc4 hks4) ?_
       rintro s5 ⟨hU5, hF5, hcv5⟩
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans (hF4.trans hF5),
-        by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (hK4.trans (KFoot.cnode hkc4 hwf idx nc))⟩)
+        by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (hK4.trans (KFoot.cnode hkc4 hwf idx nc))⟩)
       unfold PdMapSpec
       dsimp only
       rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]

@@ -37,7 +37,7 @@ theorem decode_invocation_frame_full [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hfm : m = true → asid ≠ 0#u64)
+    (hfm : m = true → asid ≠ 0#u64) (hfu : m = true → Vs.UserV va)
     (hpaS : sz = .Small → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub p layout.PPTR_BASE)
     (hpaL : sz = .Large → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599625273344#u64) =
@@ -74,7 +74,7 @@ theorem decode_invocation_frame_full [Fl4Proofs.P1.PlainStore st] (th : TypedHea
       DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
         buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct := fun hl => by
     have := decode_invocation_frame_tac (L := L) arI s ar σ hR hPt hS.2.pt hPI lbl slbl hlbl hl length buf ct hct
-      hcur hkt0 (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m)
+      hcur hkt0 (p := p) (sz := sz) (rt := rt) (asid := asid) (va := va) (d := d) (m := m) (hfu := hfu)
       (cslotAddr (pc.bv, idx)) blk call don fp htac extra (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer
     exact this
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
@@ -96,7 +96,7 @@ theorem decode_invocation_frame_full [Fl4Proofs.P1.PlainStore st] (th : TypedHea
       (d := d) (m := m) hcap hno hMO hVC extra excaps hext' blk call don fp ci buffer
     exact this
   exact Vs.decode_invocation_frame_top (L := L) arI th s ar σ G hCR hFI hMO hA hS hPI hR hPt lbl slbl hlbl length buf ct
-    hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci
+    hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hfu hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci
     buffer hGA hTAC hDS
 
 

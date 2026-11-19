@@ -374,8 +374,8 @@ theorem domFrame_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (s : S) (ar
     (VsFrameHypsL.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameHypsL_top hA))
     (VsFrameUnmapHyps.foot (s0 := s) (fun _ h => h.toW) hS.2.pl (vsFrameUnmapHyps_top hA)) ⟨hS, P1.WritesIn.refl _ _⟩
     hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb hact hrun
-    args hlen hargs hpc hidx hcap hok.1 (fun e => by subst e; exact hok.2) (fun e => by subst e; exact hok.2)
-    (fun e => by subst e; exact hok.2) hAl extra excaps hext' blk call don fp ci buffer
+    args hlen hargs hpc hidx hcap hok.1 hok.2.2 (fun e => by subst e; exact hok.2.1) (fun e => by subst e; exact hok.2.1)
+    (fun e => by subst e; exact hok.2.1) hAl extra excaps hext' blk call don fp ci buffer
     (fun h => absurd h hlga) (fun h => absurd h hltac) hDS
   rcases h with ⟨-, -, h⟩ | ⟨e, -⟩
   · exact ⟨WP.spec_mono h fun res hr => dom_of_foot hS hr.2, dk_spec_arch ⟨_, rfl⟩ hkt⟩

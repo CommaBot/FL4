@@ -242,7 +242,7 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hfm : m = true → asid ≠ 0#u64)
+    (hfm : m = true → asid ≠ 0#u64) (hfu : m = true → Vs.UserV va)
     (hpaS : sz = .Small → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub p layout.PPTR_BASE)
     (hpaL : sz = .Large → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599625273344#u64) =
@@ -347,19 +347,19 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
           (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
     cases sz
     · exact WP.spec_mono (frame_map_rel hH1 s ar σ hP hVP hD hPP hPS hPV1 hPO hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt)
-        htcb hact ⟨p, .Small, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm (hpaS rfl) hpc hidx hl length buf args hlen
+        htcb hact ⟨p, .Small, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaS rfl) hpc hidx hl length buf args hlen
         hargs ci extra hex hcx hvr xsl rest hvc) post
     · exact WP.spec_mono (frame_map_large_rel hHL s ar σ hP hVP hD hPP hPS hPV hPO hSt hSV hR hPt hS ct hct hcur'
-        hkt (hrun _ hkt) htcb hact ⟨p, .Large, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm (hpaL rfl) hpc hidx hl length buf args
+        hkt (hrun _ hkt) htcb hact ⟨p, .Large, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaL rfl) hpc hidx hl length buf args
         hlen hargs ci extra hex hcx hvr xsl rest hvc) post
     · exact WP.spec_mono (frame_map_huge_rel hHL s ar σ hP hVP hD hPP hPS hPV hPO hSt hSV hR hPt hS ct hct hcur'
-        hkt (hrun _ hkt) htcb hact ⟨p, .Huge, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm (hpaH rfl) hpc hidx hl length buf args
+        hkt (hrun _ hkt) htcb hact ⟨p, .Huge, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaH rfl) hpc hidx hl length buf args
         hlen hargs ci extra hex hcx hvr xsl rest hvc) post
   by_cases hunmap : lbl = fl4_abi.label.X86PageUnmap
   · subst hunmap
     have hl := hlbl.unmap rfl
     refine WP.spec_mono (frame_unmap_rel hHU s ar σ hP hVP hD hPP hPS hPV hPI hPO hSt hSV hR hPt hS ct hct hcur'
-      hkt (hrun _ hkt) htcb hact ⟨p, sz, rt, d, m, false, asid, va⟩ hfw hfe hfm hpc hidx hcap hl length buf call extra
+      hkt (hrun _ hkt) htcb hact ⟨p, sz, rt, d, m, false, asid, va⟩ hfw hfe hfm hfu hpc hidx hcap hl length buf call extra
       (args.map UScalar.bv) ci excaps) ?_
     rintro res ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩
     exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms,
@@ -398,7 +398,7 @@ theorem decode_invocation_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (h
     {pc : U64} {r : Nat} (hpc : th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hfm : m = true → asid ≠ 0#u64)
+    (hfm : m = true → asid ≠ 0#u64) (hfu : m = true → Vs.UserV va)
     (hpaS : sz = .Small → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub p layout.PPTR_BASE)
     (hpaL : sz = .Large → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503599625273344#u64) =
@@ -427,7 +427,7 @@ theorem decode_invocation_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (h
     ((lbl = fl4_abi.label.X86PageGetAddress ∨ lbl = fl4_abi.label.X86PageTestAndClearAccessed) ∧
     DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer ct) := by
-  exact (decode_invocation_frameX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hH1 hHL hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC (fun h => DecOKMQ.toXT arI (hDS h))).imp (fun h => ⟨h.1, h.2.1, DecOKMQX.toMQ arI h.2.2⟩) id
+  exact (decode_invocation_frameX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hH1 hHL hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlbl length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hfm hfu hpaS hpaL hpaH hAl extra excaps hext blk call don fp ci buffer hGA hTAC (fun h => DecOKMQ.toXT arI (hDS h))).imp (fun h => ⟨h.1, h.2.1, DecOKMQX.toMQ arI h.2.2⟩) id
 
 set_option maxHeartbeats 8000000 in
 /-- **A PageTable cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
@@ -462,6 +462,7 @@ theorem decode_invocation_page_tableX (th : TypedHeap) (hP : Placed th) (s : S) 
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
     (hm0 : mp = true → asid0 ≠ 0#u64 ∧ va0.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+    (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -529,7 +530,7 @@ theorem decode_invocation_page_tableX (th : TypedHeap) (hP : Placed th) (s : S) 
           Set.mem_union_left _ (Set.mem_union_left _ ⟨ptr.bv, by simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef], rfl⟩)
         rw [h] at this; exact this)
     refine WP.spec_mono (pt_unmap_rel hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
-      hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
+      hact hPO ptr asid0 va0 mp hpL hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
@@ -572,6 +573,7 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
     (hm0 : mp = true → asid0 ≠ 0#u64 ∧ va0.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+    (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -580,7 +582,7 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
-  exact DecOKMQX.toMQ arI (decode_invocation_page_tableX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer)
+  exact DecOKMQX.toMQ arI (decode_invocation_page_tableX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer)
 
 set_option maxHeartbeats 8000000 in
 /-- **A PageDirectory cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
@@ -614,7 +616,7 @@ theorem decode_invocation_page_directoryX (th : TypedHeap) (hP : Placed th) (s :
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0)) (hpL : ptr ∈ L2)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -682,7 +684,7 @@ theorem decode_invocation_page_directoryX (th : TypedHeap) (hP : Placed th) (s :
           Set.mem_union_left _ (Set.mem_union_left _ ⟨ptr.bv, by simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef], rfl⟩)
         rw [h] at this; exact this)
     refine WP.spec_mono (pd_unmap_rel hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
-      hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
+      hact hPO ptr asid0 va0 mp hpL hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
@@ -724,7 +726,7 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0)) (hpL : ptr ∈ L2)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -733,7 +735,7 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
-  exact DecOKMQX.toMQ arI (decode_invocation_page_directoryX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer)
+  exact DecOKMQX.toMQ arI (decode_invocation_page_directoryX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer)
 
 set_option maxHeartbeats 8000000 in
 /-- **A Pdpt cap**, every label (`Map`, `Unmap`; any other l4v's `IllegalOperation`). -/
@@ -767,7 +769,7 @@ theorem decode_invocation_pdptX (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr mp asid0 va0)) (hpL : ptr ∈ L3)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -835,7 +837,7 @@ theorem decode_invocation_pdptX (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
           Set.mem_union_left _ (Set.mem_union_left _ ⟨ptr.bv, by simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef], rfl⟩)
         rw [h] at this; exact this)
     refine WP.spec_mono (pdpt_unmap_rel hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inl hq, i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
-      hact hPO ptr asid0 va0 mp hpL hfe hm0 hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
+      hact hPO ptr asid0 va0 mp hpL hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci extra excaps
       (is_final_eq s _) hfinR) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
@@ -878,7 +880,7 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr mp asid0 va0)) (hpL : ptr ∈ L3)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -887,7 +889,7 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
-  exact DecOKMQX.toMQ arI (decode_invocation_pdptX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer)
+  exact DecOKMQX.toMQ arI (decode_invocation_pdptX arI th hP s ar σ G hCR hFI hMO hQ (X := fun _ _ _ => True) trivial (fun _ _ _ _ _ _ _ _ _ _ _ => trivial) hHM hHU hS hVP hD hPP hPS hPV hPO hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer)
 
 set_option maxHeartbeats 8000000 in
 /-- **`DeriveSubframe` on a frame cap** (`derive_subframe_rel`; the node cap

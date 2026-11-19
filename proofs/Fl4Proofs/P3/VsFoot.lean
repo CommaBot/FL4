@@ -42,15 +42,22 @@ def frameMaskOf : capability.FrameSize → U64
   | .Large => 4503599625273344#u64
   | .Huge => 4503598553628672#u64
 
+/-- **A user virtual address**: at most FL4's `USER_TOP` (`0x7fff_ffff_ffff`;
+l4v `wellformed_mapdata`'s `vref < pptr_base`, user half: PML4 index < 256). -/
+def UserV (v : U64) : Prop := v.val ≤ 140737488355327
+
 /-- **A VSpace cap well placed** in the ghost sets (see the module
-docstring); the other caps impose nothing. -/
+docstring); the other caps impose nothing. A mapped PT/PD/PDPT/frame cap's
+vaddr is a user address (`UserV`, l4v `wellformed_mapdata`). -/
 def VCapOK (P L4 L3 L2 L1 : Set U64) : capability.Cap → Prop
   | .PageTable p mp a v => p ∈ L1 ∧ PaM p 4503599627366400#u64 ∧
-      (mp = true → a ≠ 0#u64 ∧ v.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
-  | .PageDirectory p mp a _ => p ∈ L2 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
-  | .Pdpt p mp a _ => p ∈ L3 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64)
+      (mp = true → a ≠ 0#u64 ∧ v.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0) ∧
+      (mp = true → UserV v)
+  | .PageDirectory p mp a v => p ∈ L2 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64) ∧
+      (mp = true → UserV v)
+  | .Pdpt p mp a v => p ∈ L3 ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64) ∧ (mp = true → UserV v)
   | .Pml4 p mp a => p ∈ L4 ∧ p ≠ 0#u64 ∧ (mp = true → a ≠ 0#u64 ∧ a.val < 2 ^ 20)
-  | .Frame p sz _ _ m _ a _ => (m = true → a ≠ 0#u64) ∧ PaM p (frameMaskOf sz)
+  | .Frame p sz _ _ m _ a v => (m = true → a ≠ 0#u64) ∧ PaM p (frameMaskOf sz) ∧ (m = true → UserV v)
   | .AsidPool p b => (p ∈ P ∧ p ≠ 0#u64) ∧ b.val % 512 = 0 ∧ b.val < 2 ^ 20
   | _ => True
 

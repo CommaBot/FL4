@@ -66,7 +66,7 @@ def pr3 (L3 L2 L1 : Set U64) : Set U64 :=
 
 /-- The PML4s kept: off the region, present entries in `pr3`. -/
 def pr4 (L4 L3 L2 L1 : Set U64) : Set U64 :=
-  {q | q ∈ L4 ∧ FrMiss rl rh q ∧ ∀ i : U64, i.val < 512 → eP (m (peA q i)) →
+  {q | q ∈ L4 ∧ FrMiss rl rh q ∧ ∀ i : U64, i.val < 256 → eP (m (peA q i)) →
     eT (m (peA q i)) ∈ pr3 rl rh m L3 L2 L1}
 
 /-- The ASID pools kept: off the region, native entries in `pr4`. -/
@@ -87,7 +87,7 @@ inductive VsReach (m : U64 → U64) (ksb : U64) (XP X4 X3 X2 X1 : Set U64) : Nat
   | x1 {q : U64} : q ∈ X1 → VsReach m ksb XP X4 X3 X2 X1 1 q
   | pool {p lo : U64} : VsReach m ksb XP X4 X3 X2 X1 5 p → lo.val < 512 → m (peA p lo) ≠ 0#u64 →
       m (peA p lo) &&& 1#u64 = 0#u64 → VsReach m ksb XP X4 X3 X2 X1 4 (m (peA p lo))
-  | l4 {p i : U64} : VsReach m ksb XP X4 X3 X2 X1 4 p → i.val < 512 → eP (m (peA p i)) →
+  | l4 {p i : U64} : VsReach m ksb XP X4 X3 X2 X1 4 p → i.val < 256 → eP (m (peA p i)) →
       VsReach m ksb XP X4 X3 X2 X1 3 (eT (m (peA p i)))
   | l3 {p i : U64} : VsReach m ksb XP X4 X3 X2 X1 3 p → i.val < 512 → eP (m (peA p i)) → ¬ eS (m (peA p i)) →
       VsReach m ksb XP X4 X3 X2 X1 2 (eT (m (peA p i)))
@@ -240,7 +240,7 @@ theorem vsDropOK (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : P
     obtain ⟨f, hk, hf⟩ := hPt.l4 q hq4
     have hfit := fitT q (Or.inl hq4)
     refine ⟨f, by rw [hD.kh q hqM.self]; exact hk, fun i hi => ?_⟩
-    rw [wd q i hfit hqM hi]; exact pml4e_mono (hf i hi) (hqT i hi)
+    rw [wd q i hfit hqM (by omega)]; exact pml4e_mono (hf i hi) (hqT i hi)
   · obtain ⟨hq3, hqM, hqT⟩ := hq
     obtain ⟨f, hk, hf⟩ := hPt.l3 q hq3
     have hfit := fitT q (Or.inr (Or.inl hq3))

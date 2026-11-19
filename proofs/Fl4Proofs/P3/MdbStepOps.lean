@@ -54,7 +54,7 @@ theorem derive_vcap {S : Type} {st : machine.Store S} {s : S} {slot : obj.Slot} 
     | _ => simp
   case Frame p sz r dv m ept a va =>
     simp only [objects.derive_cap] at h; simp at h; subst h
-    simp only [Vs.VCapOK] at hv ⊢; exact ⟨fun e => absurd e (by decide), hv.2⟩
+    simp only [Vs.VCapOK] at hv ⊢; exact ⟨fun e => absurd e (by decide), hv.2.1, fun e => absurd e (by decide)⟩
   all_goals simp only [objects.derive_cap] at h
   all_goals (repeat' split at h) <;> (simp at h; try subst h; exact hv)
 

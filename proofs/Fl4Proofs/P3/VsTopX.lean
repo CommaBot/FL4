@@ -209,6 +209,7 @@ theorem decode_invocation_page_table_topX (th : TypedHeap) (s : S) (ar : A) (σ 
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
     (hm0 : mp = true → asid0 ≠ 0#u64 ∧ va0.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0)
+    (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -219,7 +220,7 @@ theorem decode_invocation_page_table_topX (th : TypedHeap) (s : S) (ar : A) (σ 
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
   DecOKMQX.toX arI (decode_invocation_page_tableX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (X := FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) ⟨vs_x0T hS hR hPt hPI hCur hCR hFI hMO, Or.inl ⟨rfl, rfl, rfl⟩⟩ (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK hJ => ⟨vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK, Or.inr ⟨hSR.2.mono fun _ h => h.toW, hJ, hCR', hFI', hMO'⟩⟩) ((vsPtMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPtUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
+    hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
 set_option maxHeartbeats 8000000 in
 /-- **A page-table cap at `TopSR` with `VsCapsIn`** (`decode_invocation_page_table_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
@@ -267,7 +268,7 @@ theorem decode_invocation_page_table_capX (th : TypedHeap) (s : S) (ar : A) (σ 
       rw [e] at hv
       obtain ⟨hv1, -, hv3⟩ := hv
       exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
-  exact decode_invocation_page_table_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
+  exact decode_invocation_page_table_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 set_option maxHeartbeats 8000000 in
 /-- **A page-directory cap with the composite relation** (`decode_invocation_page_directory`; the placement from `TopPlaced`). -/
@@ -293,7 +294,7 @@ theorem decode_invocation_page_directory_topX (th : TypedHeap) (s : S) (ar : A) 
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.PageDirectory ptr mp asid0 va0)) (hpL : ptr ∈ L2)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -304,7 +305,7 @@ theorem decode_invocation_page_directory_topX (th : TypedHeap) (s : S) (ar : A) 
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
   DecOKMQX.toX arI (decode_invocation_page_directoryX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (X := FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) ⟨vs_x0T hS hR hPt hPI hCur hCR hFI hMO, Or.inl ⟨rfl, rfl, rfl⟩⟩ (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK hJ => ⟨vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK, Or.inr ⟨hSR.2.mono fun _ h => h.toW, hJ, hCR', hFI', hMO'⟩⟩) ((vsPdMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
+    hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
 set_option maxHeartbeats 8000000 in
 /-- **A page-directory cap at `TopSR` with `VsCapsIn`** (`decode_invocation_page_directory_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
@@ -352,7 +353,7 @@ theorem decode_invocation_page_directory_capX (th : TypedHeap) (s : S) (ar : A) 
       rw [e] at hv
       obtain ⟨hv1, -, hv3⟩ := hv
       exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
-  exact decode_invocation_page_directory_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
+  exact decode_invocation_page_directory_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 set_option maxHeartbeats 8000000 in
 /-- **A PDPT cap with the composite relation** (`decode_invocation_pdpt`; the placement from `TopPlaced`). -/
@@ -378,7 +379,7 @@ theorem decode_invocation_pdpt_topX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Pdpt ptr mp asid0 va0)) (hpL : ptr ∈ L3)
     (hpa : (core.num.U64.wrapping_sub ptr layout.PPTR_BASE &&& 4503599627366400#u64) =
       core.num.U64.wrapping_sub ptr layout.PPTR_BASE)
-    (hm0 : mp = true → asid0 ≠ 0#u64)
+    (hm0 : mp = true → asid0 ≠ 0#u64) (hmu : mp = true → Vs.UserV va0)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
@@ -389,7 +390,7 @@ theorem decode_invocation_pdpt_topX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer :=
   DecOKMQX.toX arI (decode_invocation_pdptX arI th hS.2.pl s ar σ G hCR hFI hMO (fun _ _ _ _ => trivial) (X := FinXTJ (L := L) th P L4 L3 L2 L1 N T C E R B c AR G s ar σ) ⟨vs_x0T hS hR hPt hPI hCur hCR hFI hMO, Or.inl ⟨rfl, rfl, rfl⟩⟩ (fun _ _ _ hSR hR' hPt' hCR' hFI' hMO' hK hJ => ⟨vs_x_afterT hS hPI hCur hSR hR' hPt' hCR' hFI' hMO' hK, Or.inr ⟨hSR.2.mono fun _ h => h.toW, hJ, hCR', hFI', hMO'⟩⟩) ((vsPdptMapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ((vsPdptUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl) ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt
     hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlM hlU hlO length buf ct hct hcur htcb hact hrun args hlen hargs
-    hpc hidx hcap hpL hpa hm0 extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
+    hpc hidx hcap hpL hpa hm0 hmu extra excaps hext blk call don fp ci buffer) (fun _ _ _ h => h)
 
 set_option maxHeartbeats 8000000 in
 /-- **A PDPT cap at `TopSR` with `VsCapsIn`** (`decode_invocation_pdpt_top`; the table's placement and the extra PML4 cap's shape from the invariant). -/
@@ -437,7 +438,7 @@ theorem decode_invocation_pdpt_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
       rw [e] at hv
       obtain ⟨hv1, -, hv3⟩ := hv
       exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
-  exact decode_invocation_pdpt_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
+  exact decode_invocation_pdpt_topX arI (th := th) (s := s) (ar := ar) (σ := σ) (G := G) (hCR := hCR) (hFI := hFI) (hMO := hMO) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (N := N) (T := T) (C := C) (E := E) (R := R) (B := B) (c := c) (AR := AR) (hA := hA) (hS := hS) (hPI := hPI) (hCur := hCur) (hR := hR) (hPt := hPt) (lbl := lbl) (slbl := slbl) (hlM := hlM) (hlU := hlU) (hlO := hlO) (length := length) (buf := buf) (ct := ct) (hct := hct) (hcur := hcur) (htcb := htcb) (hact := hact) (hrun := hrun) (args := args) (hlen := hlen) (hargs := hargs) (pc := pc) (r := r) (hpc := hpc) (idx := idx) (hidx := hidx) (ptr := ptr) (asid0 := asid0) (va0 := va0) (mp := mp) (hcap := hcap) (hpL := hok.1) (hpa := hok.2.1) (hm0 := hok.2.2.1) (hmu := hok.2.2.2) (extra := extra) (excaps := excaps) (hext := hext') (blk := blk) (call := call) (don := don) (fp := fp) (ci := ci) (buffer := buffer)
 
 /-! ## The accessed-bit clear of `TestAndClearAccessed` -/
 
@@ -478,7 +479,7 @@ theorem PtRel.clr5 {m m' : U64 → U64} {σ0 : Fl4Spec.State Unit} (hR : PtRel L
     refine ⟨g, hg, fun j hj => ?_⟩
     by_cases e : peA q j = b
     · rw [e, hb]; exact PML4ERel_clr5 (e ▸ hgf j hj)
-    · rw [hm _ ⟨q, Or.inl hq, j, hj, rfl⟩ e]; exact hgf j hj
+    · rw [hm _ ⟨q, Or.inl hq, j, (by omega), rfl⟩ e]; exact hgf j hj
   · obtain ⟨g, hg, hgf⟩ := hR.l3 q hq
     refine ⟨g, hg, fun j hj => ?_⟩
     by_cases e : peA q j = b
@@ -595,7 +596,10 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
       hkt0' _ blk call don fp hga hX0' extra _ ci _ excaps buffer⟩
   by_cases htac' : lbl = fl4_abi.label.X86PageTestAndClearAccessed
   · exact Or.inr ⟨Or.inr htac', decode_invocation_frame_tacX (L := L) arI s ar σ hR hPt hS.2.pt hPI lbl slbl hlbl htac' length buf
-      ct hct hcur hkt0' _ blk call don fp htac hX0' (fun b hb hal => finXT_clr5 hX0' hb hal) extra _ ci _ excaps
+      ct hct hcur hkt0' (hfu := by
+        have h := hVC.at hCR.2.2.1 (AbsSlot.isSlot (th := th) (sl := (pc.bv, idx))
+          ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩) hcap (by simp)
+        simp only [VCapOK] at h; exact h.2.2) _ blk call don fp htac hX0' (fun b hb hal => finXT_clr5 hX0' hb hal) extra _ ci _ excaps
       buffer⟩
   refine Or.inl ⟨hga', htac', ?_⟩
   have hnGA := hga'
@@ -655,8 +659,8 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     ((vsFrameHypsL_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ((vsFrameUnmapHyps_top hA).foot (s0 := s) (W := VsFootW0 st th L4 L3 L2 L1 s) (fun _ h => h) hS.2.pl)
     ⟨hS, P1.WritesIn.refl _ _⟩ hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po hPI hR hPt lbl slbl hlbl length buf ct
-    hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hok.1 (fun e => by subst e; exact hok.2)
-    (fun e => by subst e; exact hok.2) (fun e => by subst e; exact hok.2) hAl extra excaps hext' blk call don fp ci
+    hct hcur htcb hact hrun args hlen hargs hpc hidx hcap hok.1 hok.2.2 (fun e => by subst e; exact hok.2.1)
+    (fun e => by subst e; exact hok.2.1) (fun e => by subst e; exact hok.2.1) hAl extra excaps hext' blk call don fp ci
     buffer (fun h => absurd h hnGA) (fun h => absurd h hnTAC) hDS
   rcases h with ⟨-, -, h⟩ | ⟨h, -⟩
   · exact DecOKMQX.toX arI h (fun _ _ _ h => h)
