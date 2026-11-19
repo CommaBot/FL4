@@ -287,9 +287,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the platform's timer agreement (`TimeAgree`; the Thread cap's
   SetSchedParams, `bind_tcb_refines`). -/
   timeAg : TimeAgree arI
-  /-- [P] XTopJointTcbSsp's `BindDbgP` (`bind_tcb` migrating nothing keeps
-  core 0's `DEBUG_TCBS` word). -/
-  bindDbg : BindDbgP st arI
   /-- [J] XTopJointTcbSsp's `InstSchedHyp` (what the spec's fault-handler
   install keeps of the scheduler; SetSchedParams). -/
   instSched : InstSchedHyp
@@ -700,7 +697,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
-      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hG.timeAg hG.bindDbg
+      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hG.timeAg
       hG.instSched
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN

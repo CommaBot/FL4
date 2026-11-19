@@ -6,14 +6,16 @@ P3 (DESIGN.md §9), TCB: **SetSchedParams of the Thread cap at `J`**
   weakened to "no switch pending" (a reschedule may be pending: the
   fault-handler install's `cancel_all_ipc` asks for one).
 * `JAtZ.bindTcbJ`: `schedcontext::bind_tcb` at `J` (as XTopJointFinThreadSc's
-  `JAtZ.unbindTcbJ`): `bind_tcb_refines` (the relations), P1's
-  `bind_tcb.blkF` (`BlkOK`), `xtop_sc_step`, `ScAll.of_k`, `BlockedScActive`
+  `JAtZ.unbindTcbJ`): `bind_tcb_refines` (the relations),
+  `bind_tcb.blkK` (`BlkOK` and the footprint `Foot`), `xtop_sc_step`, `ScAll.of_k`, `BlockedScActive`
   by `bka_schedContextBindTcb`, the mid-entry facts by
   `mka_schedContextBindTcb` and `MidK.midN`, the dead set by
   `deadP_sc_step` outside the bound pair and the pair covered by its caps
-  (`cover_cap`). Named: `BindDbgP` [P] (core 0's `DEBUG_TCBS` word kept by
-  a `bind_tcb` that migrates nothing; P1's `bind_tcb.blkF` has the coarser
-  footprint `FootD`, with the debug lists a migration rewrites).
+  (`cover_cap`), core 0's `DEBUG_TCBS` word by `JAtZ.kw_dbg`.
+* `P1.schedcontext.bind_tcb.blkK`: P1's `bind_tcb.blkF` with the tighter
+  footprint `Foot` (no debug-list word) when the thread's affinity is
+  already the SC's core (at `JAtZ` by `SchedRel`'s one core): `migrate_tcb`
+  is then a no-op (`smp.migrate_tcb.frame`).
 -/
 import Fl4Proofs.P3.XTopJointTcbInstall
 import Fl4Proofs.P3.XTopJointTcbPrio
@@ -101,21 +103,172 @@ end
 
 end Fl4Proofs.P3.Sched
 
+namespace Fl4Proofs.P1
+open fl4_core Fl4Proofs.P0.Consts
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {Es : Set U64}
+
+/-- **`bind_tcb` with the footprint `Foot`** when the thread's affinity is
+already the SC's core (P1's `schedcontext.bind_tcb.blkF` with `migrate_tcb`
+a no-op by `smp.migrate_tcb.frame`): no debug-list word is written. -/
+theorem schedcontext.bind_tcb.blkK {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
+    (sc t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hsc : sc ∈ Scs) (hsc0 : sc ≠ 0#u64)
+    (ht0 : L.mem s (scA t) = 0#u64) (hc0 : L.mem s (scTcbA sc) = 0#u64)
+    (hbA : BlockedR (L.mem s (stA t)) → sc ∈ Ac) (haff : L.mem s (affA t) = L.mem s (scCoreA sc)) :
+    schedcontext.bind_tcb st ar s a sc t ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      Foot st T Cs Sg Scs Z Es s s' ⦄ := by
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  have hT := h0.tcbs
+  have hta := hT t ht
+  have hO := hX.1
+  have hm : scTcbA sc ∈ Ω := hSg.sub _ (hO.fixW sc hsc).1
+  have ho := h0.omega _ hm
+  have hal : Aligned (scTcbA sc) := by
+    obtain ⟨hP, hz⟩ := hO.sc sc hsc
+    have := (sc_lo hP hz).1
+    unfold Aligned; rw [scTcbA_val hP hz]; omega
+  have htq : (L.mem s (inqA t) &&& sched.Q_QUEUED) = 0#u64 := by
+    by_contra hq; exact hB.q t ht hq ht0
+  have htr : (L.mem s (inqA t) &&& sched.Q_RELEASE) = 0#u64 := by
+    by_contra hq; exact hB.r t ht hq ht0
+  have hna : L.actionW s ≠ t := fun e => hB.act (e ▸ ht) (by rw [e]; exact ht0)
+  have hnb : ∀ y ∈ T, L.mem s (scA y) ≠ sc := fun y hy e => by
+    obtain ⟨-, h2, -⟩ := hX.2.2.bound y hy (by rw [e]; exact hsc0)
+    rw [e, hc0] at h2; exact (hT y hy).ne0 (by rw [← h2]; rfl)
+  have hdisj : sc ≠ L.cscW s → ∀ b, InSC sc (Z sc) b → Outside b (L.cscW s) (Z (L.cscW s)) := by
+    intro hne b hb
+    have := hO.scDisj sc hsc _ hX.2.2.cur hne
+    unfold Outside; unfold InSC at hb; omega
+  have hcore := hX.2.2.core sc hsc
+  have hsA : Sch st s t → sc ∈ Ac := by
+    rintro (e | e | e | e | ⟨e1, e2⟩ | e)
+    · exact absurd htq e
+    · exact absurd htr e
+    · exact absurd e hna
+    · exact absurd (by rw [e]; exact ht0) hB.idle
+    · exact absurd (by rw [e2]; exact ht0) (hB.resume e1)
+    · exact hbA e
+  -- the two writes
+  unfold schedcontext.bind_tcb
+  step with obj.Tcb.set_sc.wr as ⟨s1, e1⟩
+  step with obj.Sc.set_tcb.wr as ⟨s2, e2⟩
+  subst e1 e2
+  have fw2 : Foot st T Cs Sg Scs Z Es s (L.wr (L.wr s (scA t) sc) (scTcbA sc) t) := by
+    have f1 : Foot st T Cs Sg Scs Z Es s (L.wr s (scA t) sc) := by
+      rw [scA_eq]; exact foot_field hT ht (by simp) (by simp) (by simp) (by simp)
+    exact f1.trans (foot_wr hal (kw_sg (hO.fixW sc hsc).1))
+  obtain ⟨p8, pB, pX, pS, pSg, -, pfl, pcore, psc, ptc, pact⟩ :=
+    donate_pair h0 hB hX.x0 hX.2.2.tsc.x ht0 hS hSg ht hsc hsc0 hnb hcore hdisj hsA
+      (fun e => hB.idle (by rw [e]; exact ht0))
+  have hsw := bind_swap (L := L) (s := s) (scA_aligned hta) ho.1
+    (fun e => out_ne_field (K := 3464#u64) ho ht hta (by simp) e)
+  obtain ⟨h2, hB2, hX2, hS2, hSg2⟩ := agree_all p8 pB pX pS pSg (by simp) (by simp) hsw
+  set s2 := L.wr (L.wr s (scA t) sc) (scTcbA sc) t with hs2
+  have fl2 : ∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 → (y = t → K.val ≠ 3464) →
+      L.mem s2 (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) :=
+    fun y hy K hK hK8 hne => (hsw _ (field_aligned (hT y hy) hK hK8)).trans (pfl y hy K hK hK8 hne)
+  have sc2 : L.mem s2 (scA t) = sc := (hsw _ (scA_aligned hta)).trans psc
+  have core2 : L.mem s2 (scCoreA sc) = L.mem s (scCoreA sc) :=
+    (hsw _ (h0.omega _ ((objs_omega hO hSg.sub).2 sc hsc).2.1).1).trans pcore
+  have ea2 : L.actionW s2 = L.actionW s := by
+    have e : L.actionW s2 = L.actionW (L.wr (L.wr s (scTcbA sc) t) (scA t) sc) := by
+      unfold LawfulStore.actionW
+      rw [show L.nodeAt s2 (L.cpu s2) layout.node.SCHED_ACTION =
+        L.nodeAt (L.wr (L.wr s (scTcbA sc) t) (scA t) sc) (L.cpu (L.wr (L.wr s (scTcbA sc) t) (scA t) sc))
+          layout.node.SCHED_ACTION by simp [hs2, nodeAt_wr]]
+      exact hsw _ (nodeAt_aligned (p8.nodes _ p8.cur) (by rw [act_val]; omega) (by rw [act_val]))
+    rw [e, pact]
+  have iq2 : L.mem s2 (inqA t) = L.mem s (inqA t) := by
+    rw [inqA_eq]; exact fl2 t ht _ (by simp) (by simp) (fun _ => by simp)
+  -- migration
+  step with obj.Sc.cpu.spec as ⟨cpu, ecpu⟩
+  have hc' : cpu ∈ Cs := by rw [ecpu, core2]; exact hcore
+  -- the thread already on the SC's core: `migrate_tcb` is a no-op (`migrate_tcb.frame`)
+  have haff2 : L.mem s2 (affA t) = cpu := by
+    rw [ecpu, core2, ← haff, affA_eq]; exact fl2 t ht _ (by simp) (by simp) (fun _ => by simp)
+  refine WP.spec_bind (WP.spec_and (migrate_tail hA s2 a sc t cpu Q R h2 hB2 hX2 hS2 hSg2 ht (by rw [iq2]; exact htq)
+    (by rw [iq2]; exact htr) hc' hsc) (smp.migrate_tcb.frame
+      hA s2 a t cpu h2.tcbs h2.nodes ⟨hX2.2.2.tm.dn, hX2.2.2.tm.dp, hX2.2.2.tm.dh⟩ (h2.aff t ht) hc' ht)) ?_
+  rintro ⟨s3, a1⟩ ⟨⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, -, -, -, sc3, -, ea3⟩, -, -, hid⟩
+  try simp only [WP.uncurry'_pair]
+  rw [sc2] at sc3
+  have fw3' : Foot st T Cs Sg Scs Z Es s s3 := by rw [hid haff2]; exact fw2
+  -- the sporadic unblock check
+  step with sporadic.sc_sporadic.spec as ⟨b, eb⟩
+  refine WP.spec_bind (Pₘ := fun s4 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ L.mem s4 (scA t) = sc ∧
+      L.actionW s4 = L.actionW s ∧ Foot st T Cs Sg Scs Z Es s s4) ?_ ?_
+  · have ok3 : (ok s3 : Result S) ⦃ s4 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s4 ∧ L.mem s4 (scA t) = sc ∧
+        L.actionW s4 = L.actionW s ∧ Foot st T Cs Sg Scs Z Es s s4 ⦄ :=
+      (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, h3⟩, hB3, hX3, hS3, hSg3⟩, sc3, by rw [ea3, ea2], fw3'⟩
+    split
+    · step with sporadic.sc_active.val as ⟨b1, eb1⟩
+      split
+      · rename_i hb1
+        step with sched.cur_sc.spec as ⟨c4, _⟩
+        step with sc_ne.spec as ⟨b2⟩
+        split
+        · have hAc : sc ∈ Ac := (hS3.act sc hsc).2 (eb1 hb1)
+          have hW : RefillsWF st s3 sc (Z sc) := hS3.wf hsc hAc
+          have hSCin : SCin st s3 Ω sc (Z sc) := ⟨hW, hX3.1.scW sc hsc⟩
+          have hN' := h3.nodes _ h3.cur
+          have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+          have aR : Aligned (L.nodeA s3 layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
+          have oR : Outside (L.nodeA s3 layout.node.REPROGRAM) sc (Z sc) :=
+            hSCin.node_out h3.omega h3.cur hN' (by rw [rp]; omega) (by rw [rp])
+          refine WP.spec_mono (WP.spec_and (sporadic.unblock_check.all s3 t sc h3 hB3 hX3 hS3 hSg3 ht sc3.symm hsc0
+            hAc) (sporadic.unblock_check.fr hW ⟨aR, oR⟩)) fun s4 hh => ?_
+          obtain ⟨⟨h4, hB4, hX4, hS4, hSg4, ea4, -, -, f4, -⟩, w4⟩ := hh
+          have fw4 : Foot st T Cs Sg Scs Z Es s3 s4 := Foot.of w4 fun b hb => by
+            rcases hb with hb | rfl
+            · exact hb.kw hsc
+            · exact kw_node h3.cur (by rw [rp]; omega) (by rw [rp]; omega)
+          exact ⟨⟨⟨Q3, R3, h4⟩, hB4, hX4, hS4, hSg4⟩, by rw [scA_eq, f4 t ht _ (by simp) (by simp), ← scA_eq]; exact sc3,
+            by rw [ea4, ea3, ea2], fw3'.trans fw4⟩
+        · exact ok3
+      · exact ok3
+    · exact ok3
+  rintro s4 ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hS4, hSg4⟩, sc4, ea4, fw4⟩
+  -- resume
+  have tc4 : L.mem s4 (scTcbA sc) = t := by
+    have := (hX4.2.2.bound t ht (by rw [sc4]; exact hsc0)).2.1; rwa [sc4] at this
+  have hres : sc ≠ 0#u64 → L.mem s4 (scTcbA sc) ≠ 0#u64 →
+      L.mem s4 (scTcbA sc) ∈ T ∧ OutsideObjs st T Cs s4 (scCoreA sc) ∧ L.mem s4 (scCoreA sc) ∈ Cs ∧
+        L.actionW s4 ≠ L.mem s4 (scTcbA sc) := fun _ _ => by
+    rw [tc4]
+    exact ⟨ht, h4.omega _ ((objs_omega hX4.1 hSg4.sub).2 sc hsc).2.1, hX4.2.2.core sc hsc,
+      by rw [ea4]; exact hna⟩
+  refine WP.spec_bind (WP.spec_and (schedcontext.resume.all hA s4 a1 sc Q4 R4 h4 hB4 hX4 hSg4 hS4 hres)
+    (schedcontext.resume.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) hA s4 a1 sc Q4 R4 h4 hres)) ?_
+  rintro ⟨s5, a2⟩ ⟨⟨Q5, R5, h5, hB5, hX5, hSg5, f5⟩, fw5⟩
+  have hS5 := hS4.fr f5
+  have fw5' : Foot st T Cs Sg Scs Z Es s s5 := fw4.trans fw5
+  try simp only [WP.uncurry'_pair]
+  -- enqueue if schedulable
+  step with sched.is_schedulable.spec' as ⟨b3, eb3⟩
+  split
+  · rename_i hb3
+    obtain ⟨hrun, hbd, hrl, hrm⟩ := eb3 hb3
+    have hA5 : L.mem s5 (scA t) ∈ Ac := (hS5.act _ (hX5.2.2.bound t ht hbd).1).2 hrm
+    refine WP.spec_bind (WP.spec_and (sched.enqueue.sch s5 t Q5 R5 h5 hB5 hSg5 ht (fun _ => hrl) (fun _ => hrun)
+      (fun _ => hbd) (fun _ => hA5)) (sched.enqueue.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s5 t h5 ht)) ?_
+    rintro s6 ⟨⟨⟨⟨Q6, R6, h6⟩, hB6, f6⟩, -, -, -⟩, fw6⟩
+    refine WP.spec_bind (WP.spec_and (sched.reschedule_required.sch s6 Q6 R6 h6 hB6 (hSg5.fr f6))
+      (sched.reschedule_required.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s6 h6)) ?_
+    rintro s7 ⟨⟨⟨⟨Q7, R7, h7⟩, hB7, f7⟩, -, -, -⟩, fw7⟩
+    exact (WP.spec_ok _).2 ⟨⟨⟨Q7, R7, h7⟩, hB7, (hX5.fr f6).fr f7, (hS5.fr f6).fr f7, (hSg5.fr f6).fr f7⟩,
+      fw5'.trans (fw6.trans fw7)⟩
+  · exact (WP.spec_ok _).2 ⟨⟨⟨Q5, R5, h5⟩, hB5, hX5, hS5, hSg5⟩, fw5'⟩
+
+end
+
+end Fl4Proofs.P1
+
 namespace Fl4Proofs.P3
 open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
 
 noncomputable section
-
-/-- **[P] `bind_tcb` that migrates nothing keeps core 0's `DEBUG_TCBS`
-word** (the thread's affinity already the SC's core: `migrate_tcb` is a
-no-op, and the other writes are scheduler words; P1's `bind_tcb.blkF`
-states only the coarser `FootD`, with the debug lists a migration
-rewrites). At `JAtZ` the guard holds by `SchedRel`'s one core
-(`SchedCore.aff`, `SchedRel.core`). -/
-def BindDbgP {S A : Type} (st : machine.Store S) [L : P1.LawfulStore st] (arI : machine.Arch A) : Prop :=
-  ∀ (s : S) (a : A) (sc t : U64), L.mem s (P1.affA t) = L.mem s (P1.scCoreA sc) →
-    schedcontext.bind_tcb st arI s a sc t ⦃ r =>
-      L.mem r.1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ⦄
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -128,7 +281,7 @@ thread, a thread with no SC (not idle), a blocked thread's SC released (the
 decode's check), no switch pending and `CurInv`; the pair's caps in slots
 (the invoked thread cap, the SC cap). -/
 theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
-    (hAK : ARKeep arI AR) (hTA : TimeAgree arI) (hBD : BindDbgP st arI)
+    (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     {sc t : U64} (hsC : sc ∈ Z.C) (ht : t ∈ Z.T) {y : Fl4Spec.SchedContext} {n : Nat}
     (hk : σ.kheap sc.bv = some (.schedContext y n)) (hy0 : y.scTcb = none)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hxt0 : xt.tcbSchedContext = none)
@@ -187,10 +340,10 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
   have haff : L.mem s (P1.affA t) = L.mem s (P1.scCoreA sc) := by
     rw [hc.aff t ht, scCoreA_eq, hS.core sc hsC]
   refine WP.spec_mono (WP.spec_and (bind_tcb_refines s a σ hS hR J.nsc J.inv hsC hsc0 hk hy0 ht hkt hxt0 hblk hTA)
-    (WP.spec_and (P1.schedcontext.bind_tcb.blkF (Es := ∅) hAT s a sc t J.blk htH hscH hsc0 ht0 hc0 hbA)
-      (WP.spec_and (AK.schedcontext_bind_tcb (P1.LawfulStore.total (st := st)) hAT hAK hA0)
-        (hBD s a sc t haff)))) ?_
-  rintro ⟨s', a'⟩ ⟨⟨σ', he, hS', hR', hN', hI', -, hwk⟩, ⟨hblk', -⟩, hA', hDbg⟩
+    (WP.spec_and (P1.schedcontext.bind_tcb.blkK (Es := ∅) hAT s a sc t J.blk htH hscH hsc0 ht0 hc0 hbA haff)
+      (AK.schedcontext_bind_tcb (P1.LawfulStore.total (st := st)) hAT hAK hA0))) ?_
+  rintro ⟨s', a'⟩ ⟨⟨σ', he, hS', hR', hN', hI', -, hwk⟩, ⟨hblk', hfD⟩, hA'⟩
+  have hDbg := J.kw_dbg (P1.Foot.mono hfD (Set.empty_subset _))
   have hm : ((), σ') ∈ (Fl4Spec.schedContextBindTcb (Z := Unit) sc.bv t.bv σ).1 := by
     rw [he]; exact Set.mem_singleton _
   have hWk : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ) := hwk
@@ -574,7 +727,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
-    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI) (hBD : BindDbgP st arI)
+    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (hIS : InstSchedHyp)
     (p : U64) (hp : Z.th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl) (hpsl : capV (L.mem s) (cslotAddr ssl) = .Thread p)
@@ -833,7 +986,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     have hS4 : capAt (L.mem s4) xs = ok (.SchedContext scv sb) := by
       rw [capAt_capV, hSS4.capV hxsS, hSS3.capV hxsS, hroot1 _ hxsS hSn hSe, hxsc]
     obtain ⟨hscvC, -, hsb, hssz, -⟩ := J4.scCtxCap arI hxsS hS4
-    refine WP.spec_bind (J4.bindTcbJ hAT hAK hTA hBD hscvC hpT hkbd hyd0 hkb hxb0 hrelb hnsb hCb hidb
+    refine WP.spec_bind (J4.bindTcbJ hAT hAK hTA hscvC hpT hkbd hyd0 hkb hxb0 hrelb hnsb hCb hidb
       hAs.isSlot hT4 hxsS hS4 hsb (hssz yd nd hkbd)) ?_
     rintro ⟨s5, a5⟩ ⟨σc, hsc, Ac5, Lst5, D5, J5⟩
     try simp only [uncurry_apply_pair]
@@ -850,7 +1003,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ 
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
-    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI) (hBD : BindDbgP st arI)
+    (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
     (hIS : InstSchedHyp)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
@@ -1069,14 +1222,14 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ 
       by_cases hscf : (L.mem s (P1.scA p) != scv) = true
       · simp only [hscf, ↓reduceIte]
         have h1' : sco = none ↔ true = false := by rw [hs1, hscf]
-        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hBD hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 true q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [↓reduceIte] at this
         exact this
       · simp only [Bool.not_eq_true] at hscf
         simp only [hscf, Bool.false_eq_true, ↓reduceIte]
         have h1' : sco = none ↔ false = false := by rw [hs1, hscf]
-        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hBD hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 false q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [Bool.false_eq_true, ↓reduceIte] at this
         exact this
