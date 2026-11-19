@@ -493,3 +493,5 @@ import Fl4Proofs.P3.XTopJointSendDon
 import Fl4Proofs.P3.VsDrop
 import Fl4Proofs.P3.IpcPushCore
 import Fl4Proofs.P3.XTopJointSendPush
+import Fl4Proofs.P3.XTopJointPushDon
+import Fl4Proofs.P3.XTopJointSendPushD

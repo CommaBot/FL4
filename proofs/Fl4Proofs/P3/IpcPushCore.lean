@@ -29,7 +29,8 @@ theorem reply_push_iC {don : Bool} (hH : IpcCore st N T E R B SR) (hP0 : IPlaced
     (hdT : don = true → d ∈ T) {P : S → Fl4Spec.State Unit → Prop}
     (hP' : ∀ s', EpStateRel T E R B (L.mem s') (pushSt σ t.bv r.bv xr xt) →
       SRN st N T (SRS st T SR) s' (pushSt σ t.bv r.bv xr xt) → P s' (pushSt σ t.bv r.bv xr xt))
-    (hD : don = true → ∀ s3, EpStateRel T E R B (L.mem s3) (pushSt σ t.bv r.bv xr xt) →
+    (hD : don = true → ∀ s3, sched.set_blocked_on_reply st (L.wr s (rTcbA r) t) t r = ok s3 →
+      EpStateRel T E R B (L.mem s3) (pushSt σ t.bv r.bv xr xt) →
       SRN st N T (SRS st T SR) s3 (pushSt σ t.bv r.bv xr xt) → L.mem s (scA t) ≠ 0#u64 →
       L.mem s3 (scA d) = 0#u64 → xt.tcbSchedContext = some (L.mem s (scA t)).bv → xd.tcbSchedContext = none →
       (do
@@ -122,12 +123,21 @@ theorem reply_push_iC {don : Bool} (hH : IpcCore st N T E R B SR) (hP0 : IPlaced
   step with Fl4Proofs.P1.obj.Tcb.sc.spec as ⟨i, hi⟩
   step with Fl4Proofs.P3.Endp.obj.Reply.set_tcb.spec as ⟨s1', hs1'⟩
   subst hs1'
-  unfold sched.set_blocked_on_reply
-  step with Fl4Proofs.P3.Notif.obj.Tcb.set_state.spec as ⟨s2a, hs2a⟩
-  step with Fl4Proofs.P3.Endp.obj.Tcb.set_reply_obj.spec as ⟨s2b, hs2b⟩
-  subst hs2a hs2b
-  refine WP.spec_bind (hH.schedC hP0 _ _ t hR2 hSR2 ht) ?_
-  rintro s3 ⟨hf3, hfN3, hS3⟩
+  have hblkS : sched.set_blocked_on_reply st s1 t r ⦃ s3 => FootEq T E R B (L.mem s2) (L.mem s3) ∧
+      Notif.FootEq N T (L.mem s2) (L.mem s3) ∧ SRS st T SR s3 (stsAct (updK σ1 t.bv (.tcb x1)) t.bv) ⦄ := by
+    unfold sched.set_blocked_on_reply
+    step with Fl4Proofs.P3.Notif.obj.Tcb.set_state.spec as ⟨s2a, hs2a⟩
+    step with Fl4Proofs.P3.Endp.obj.Tcb.set_reply_obj.spec as ⟨s2b, hs2b⟩
+    subst hs2a hs2b
+    exact hH.schedC hP0 _ _ t hR2 hSR2 ht
+  obtain ⟨s3, hsb, hf3, hfN3, hS3⟩ : ∃ s3, sched.set_blocked_on_reply st s1 t r = ok s3 ∧
+      FootEq T E R B (L.mem s2) (L.mem s3) ∧ Notif.FootEq N T (L.mem s2) (L.mem s3) ∧
+      SRS st T SR s3 (stsAct (updK σ1 t.bv (.tcb x1)) t.bv) := by
+    revert hblkS; cases sched.set_blocked_on_reply st s1 t r <;> simp [WP.spec_vis, WP.spec_div, WP.spec_ok]
+  refine WP.spec_bind (show sched.set_blocked_on_reply st s1 t r ⦃ fun x => x = s3 ⦄ by
+    rw [hsb]; exact (WP.spec_ok _).2 rfl) ?_
+  intro x hx
+  rw [hx]
   have hR3 := hR2.frame hP hf3 (KView.stsAct' _ t.bv)
   have hN3 := hN2.frame hP0.n hfN3 (Notif.KView.stsAct _ t.bv)
   have hS3' : SRN st N T (SRS st T SR) s3 (pushSt σ t.bv r.bv xr xt) := ⟨hS3, hN3⟩
@@ -155,7 +165,7 @@ theorem reply_push_iC {don : Bool} (hH : IpcCore st N T E R B SR) (hP0 : IPlaced
           obtain ⟨x, hx, hxs⟩ := hS3.2 d (hdT rfl)
           rw [← hkdP x hx, hxs, hd0, optRef_zero]
         have hxt0 : xt.tcbSchedContext = some (L.mem s (scA t)).bv := by rw [hsct, Notif.optRef_ne h0']
-        refine WP.spec_mono (hD rfl s3 hR3 hS3' h0' hd0 hxt0 hxd0) ?_
+        refine WP.spec_mono (hD rfl s3 hsb hR3 hS3' h0' hd0 hxt0 hxd0) ?_
         rintro res ⟨ha, σ', hm, hPs⟩
         refine ⟨ha, σ', ?_, hPs⟩
         have hc : (some (L.mem s (scA t)).bv ≠ none ∧ xd.tcbSchedContext = none ∧ true = true) := by simp [hxd0]
