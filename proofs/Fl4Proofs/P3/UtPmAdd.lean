@@ -57,6 +57,131 @@ theorem initArch_pml4H (σ : State Unit) (dev : Bool) (ptr : ObjRef) (n sz : Nat
       · obtain ⟨pt, hpt⟩ := h2 r hr'
         exact ⟨pt, by show k1 r = _; rw [hk1o r hrq]; exact hpt⟩
 
+/-- **A PML4 with an empty user half** (entries below 256, the user
+addresses; the kernel half holds the global mappings). -/
+def HasPmU (σ : State Unit) (p : ObjRef) : Prop :=
+  ∃ pt, σ.kheap p = some (.archObj (.pageMapL4 pt)) ∧ ∀ j : BitVec 9, j.toNat < 256 → pt j = .invalidPML4E
+
+theorem HasPmU.pm {σ : State Unit} {p : ObjRef} (h : HasPmU σ p) : HasPm σ p :=
+  let ⟨pt, hk, _⟩ := h; ⟨pt, hk⟩
+
+/-- `copy_global_mappings` copies the kernel half only (from `pptr_base`'s
+index, 511). -/
+theorem gm_list : ∀ x ∈ uptoEnum (getPml4Index pptr_base) ((1 : Word) <<< ptTranslationBits - 1),
+    256 ≤ x.toNat ∧ x.toNat < 512 := by
+  have hL : uptoEnum (getPml4Index pptr_base) ((1 : Word) <<< ptTranslationBits - 1) = [BitVec.ofNat 64 511] := by
+    first | rfl | decide
+  rw [hL]
+  intro x hx
+  simp only [List.mem_singleton] at hx
+  subst hx
+  decide
+
+theorem storePml4e_detX {σ : State Unit} {g j : ObjRef} {pt : BitVec 9 → PML4E}
+    (hk : σ.kheap g = some (.archObj (.pageMapL4 pt))) (hg : g.toNat % 4096 = 0) (hfit : g.toNat + 4096 ≤ 2 ^ 64)
+    (hj : j.toNat < 512) (e : PML4E) :
+    storePml4e (Z := Unit) (g + (j <<< wordSizeBits)) e σ =
+      ({((), { σ with kheap := Function.update σ.kheap g (some (.archObj (.pageMapL4 (Function.update pt (ucast 9 j) e)))) })}, False) := by
+  have ho : (j <<< wordSizeBits).toNat < 4096 := by
+    rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+    simp only [wordSizeBits]
+    rw [Nat.mod_eq_of_lt (by omega)]; omega
+  obtain ⟨-, h2⟩ := split_slot g j hg hj
+  unfold storePml4e
+  rw [nd_pure_bind, nd_pure_bind, pml4_base hg hfit ho, nd_bind_single (getPml4_det hk), nd_pure_bind]
+  simp only [pml4Bits, tableSize, ptTranslationBits, wordSizeBits] at h2 ⊢
+  rw [h2]
+  exact setPml4_det ⟨pt, hk⟩ _
+
+/-- **`copy_global_mappings` keeps a new PML4's user half empty** (as
+`copyGM_det`; the spec copies entry 511 only, `gm_list`). -/
+theorem copyGM_detU (σ : State Unit) (pm : ObjRef) (hg : HasPm σ σ.archState.x64GlobalPml4)
+    (hga : σ.archState.x64GlobalPml4.toNat % 4096 = 0) (hgf : σ.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64)
+    (hn : HasPmU σ pm) (hna : pm.toNat % 4096 = 0) (hnf : pm.toNat + 4096 ≤ 2 ^ 64) :
+    ∃ k, copyGlobalMappings (Z := Unit) pm σ = ({((), { σ with kheap := k })}, False) ∧
+      (∀ x, x ≠ pm → k x = σ.kheap x) ∧ HasPmU { σ with kheap := k } pm := by
+  unfold copyGlobalMappings
+  rw [nd_bind_single (show (NonDet.gets fun s : State Unit => s.archState.x64GlobalPml4) σ =
+    ({(σ.archState.x64GlobalPml4, σ)}, False) from rfl)]
+  rw [nd_pure_bind, nd_pure_bind, nd_pure_bind]
+  have hlist := gm_list
+  generalize uptoEnum (getPml4Index pptr_base) ((1 : Word) <<< ptTranslationBits - 1) = L at hlist
+  suffices ∀ (k0 : ObjRef → Option KernelObject), (∀ x, x ≠ pm → k0 x = σ.kheap x) →
+      HasPmU { σ with kheap := k0 } pm → HasPm { σ with kheap := k0 } σ.archState.x64GlobalPml4 →
+      ∃ k, NonDet.mapMx (fun index : Word => do
+          let offset ← pure (index <<< wordSizeBits)
+          let pme ← getPml4e (Z := Unit) (σ.archState.x64GlobalPml4 + offset)
+          storePml4e (pm + offset) pme) L { σ with kheap := k0 } = ({((), { σ with kheap := k })}, False) ∧
+        (∀ x, x ≠ pm → k x = σ.kheap x) ∧ HasPmU { σ with kheap := k } pm by
+    exact this σ.kheap (fun _ _ => rfl) hn hg
+  induction L with
+  | nil => intro k0 h1 h2 _; exact ⟨k0, rfl, h1, h2⟩
+  | cons i L ih =>
+    intro k0 h1 h2 h3
+    obtain ⟨hi1, hi2⟩ := hlist i (List.mem_cons_self ..)
+    have hi : (i <<< wordSizeBits).toNat < 4096 := by
+      rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+      simp only [wordSizeBits]
+      rw [Nat.mod_eq_of_lt (by omega)]; omega
+    obtain ⟨e, he⟩ := getPml4e_det h3 hga hgf hi
+    obtain ⟨pt, hpt, hpu⟩ := h2
+    have hst := storePml4e_detX (σ := { σ with kheap := k0 }) hpt hna hnf hi2 e
+    have hstep : (do
+        let offset ← pure (i <<< wordSizeBits)
+        let pme ← getPml4e (Z := Unit) (σ.archState.x64GlobalPml4 + offset)
+        storePml4e (pm + offset) pme : NonDet (State Unit) Unit) { σ with kheap := k0 } =
+        ({((), { σ with kheap := Function.update k0 pm (some (.archObj (.pageMapL4 (Function.update pt (ucast 9 i) e)))) })}, False) := by
+      rw [nd_pure_bind, nd_bind_single he]; exact hst
+    simp only [NonDet.mapMx]
+    rw [ndb_one hstep]
+    have h3' : HasPm { σ with kheap := Function.update k0 pm (some (.archObj (.pageMapL4 (Function.update pt (ucast 9 i) e)))) } σ.archState.x64GlobalPml4 := by
+      by_cases hgp : σ.archState.x64GlobalPml4 = pm
+      · exact ⟨Function.update pt (ucast 9 i) e, by simp [hgp]⟩
+      · obtain ⟨q, hq⟩ := h3; exact ⟨q, by simp only [Function.update_of_ne hgp]; exact hq⟩
+    refine ih (fun x hx => hlist x (List.mem_cons_of_mem _ hx)) _
+      (fun x hx => by simp only [Function.update_of_ne hx]; exact h1 x hx) ⟨Function.update pt (ucast 9 i) e, by simp, fun j hj => ?_⟩ h3'
+    have hne : j ≠ ucast 9 i := by
+      intro e'
+      have := congrArg BitVec.toNat e'
+      simp only [ucast, BitVec.toNat_setWidth] at this
+      rw [Nat.mod_eq_of_lt (by omega)] at this
+      omega
+    rw [Function.update_of_ne hne]; exact hpu j hj
+
+/-- **`init_arch_objects` for new PML4s with an empty user half** (as
+`initArch_pml4H`, keeping `HasPmU`). -/
+theorem initArch_pml4HU (σ : State Unit) (dev : Bool) (ptr : ObjRef) (n sz : Nat) (refs : List ObjRef)
+    (hg : HasPm σ σ.archState.x64GlobalPml4)
+    (hga : σ.archState.x64GlobalPml4.toNat % 4096 = 0) (hgf : σ.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64)
+    (hgr : σ.archState.x64GlobalPml4 ∉ refs)
+    (hr : ∀ q ∈ refs, HasPmU σ q ∧ q.toNat % 4096 = 0 ∧ q.toNat + 4096 ≤ 2 ^ 64) :
+    ∃ k, initArchObjects (Z := Unit) (.archObject .pml4Obj) dev ptr n sz refs σ = ({((), { σ with kheap := k })}, False) ∧
+      (∀ x, x ∉ refs → k x = σ.kheap x) ∧ ∀ q ∈ refs, HasPmU { σ with kheap := k } q := by
+  unfold initArchObjects
+  simp only [NonDet.when, ↓reduceIte]
+  suffices ∀ (L : List ObjRef) (k0 : ObjRef → Option KernelObject), (∀ q ∈ L, q ∈ refs) →
+      (∀ x, x ∉ refs → k0 x = σ.kheap x) → (∀ q ∈ refs, HasPmU { σ with kheap := k0 } q) →
+      ∃ k, NonDet.mapMx copyGlobalMappings L { σ with kheap := k0 } = ({((), { σ with kheap := k })}, False) ∧
+        (∀ x, x ∉ refs → k x = σ.kheap x) ∧ ∀ q ∈ refs, HasPmU { σ with kheap := k } q by
+    exact this refs σ.kheap (fun _ h => h) (fun _ _ => rfl) (fun q hq => (hr q hq).1)
+  intro L
+  induction L with
+  | nil => intro k0 _ h1 h2; exact ⟨k0, rfl, h1, h2⟩
+  | cons q L ih =>
+    intro k0 hL h1 h2
+    have hq := hL q (List.mem_cons_self ..)
+    have hg0 : HasPm { σ with kheap := k0 } σ.archState.x64GlobalPml4 := by
+      obtain ⟨pt, hpt⟩ := hg; exact ⟨pt, by show k0 _ = _; rw [h1 _ hgr]; exact hpt⟩
+    obtain ⟨k1, hk1, hk1o, hH⟩ := copyGM_detU { σ with kheap := k0 } q hg0 hga hgf (h2 q hq) (hr q hq).2.1 (hr q hq).2.2
+    simp only [NonDet.mapMx]
+    rw [ndb_one hk1]
+    refine ih k1 (fun x hx => hL x (List.mem_cons_of_mem _ hx)) (fun x hx => ?_) (fun r hr' => ?_)
+    · rw [hk1o x (fun e => hx (e ▸ hq))]; exact h1 x hx
+    · by_cases hrq : r = q
+      · subst hrq; exact hH
+      · obtain ⟨pt, hpt, hpu⟩ := h2 r hr'
+        exact ⟨pt, by show k1 r = _; rw [hk1o r hrq]; exact hpt, hpu⟩
+
 /-- **The spec's `invoke_untyped` without a reset, for PML4s** (module
 docstring). -/
 theorem invokeUntyped_noreset_pml4 (bitsApi : ApiObjectType → Nat → Nat) (sl : CslotPtr) (pb rb : ObjRef)
@@ -72,7 +197,7 @@ theorem invokeUntyped_noreset_pml4 (bitsApi : ApiObjectType → Nat → Nat) (sl
       (fun y => y.1 = .ok () ∧ ∃ σB o,
         Sched.SpecAdd σ σB (fun q => q ∈ regionPtrs rb slots.length (2 ^ bitsApi (.archObject .pml4Obj) us)) o ∧
         (∀ q, q ∈ regionPtrs rb slots.length (2 ^ bitsApi (.archObject .pml4Obj) us) →
-          ∃ pt, o q = .archObj (.pageMapL4 pt)) ∧
+          ∃ pt, o q = .archObj (.pageMapL4 pt) ∧ ∀ j : BitVec 9, j.toNat < 256 → pt j = .invalidPML4E) ∧
         CnK σB y.2 ∧ KeepC σB y.2) := by
   set ptrs := regionPtrs rb slots.length (2 ^ bitsApi (.archObject .pml4Obj) us) with hptrs
   have hpre : NAll (NonDetE.whenE (false = true) (resetUntypedCap (Z := Unit) sl)).run σ
@@ -116,9 +241,9 @@ theorem invokeUntyped_noreset_pml4 (bitsApi : ApiObjectType → Nat → Nat) (sl
     rw [har0]
     obtain ⟨pt, hpt⟩ := hg
     exact ⟨pt, by rw [hR0, if_neg hgW, h01.2 _ hgP]; exact hpt⟩
-  have hr0 : ∀ q ∈ ptrs, HasPm (regionHeap x2.2 ptrs o0) q ∧ q.toNat % 4096 = 0 ∧ q.toNat + 4096 ≤ 2 ^ 64 :=
-    fun q hq => ⟨⟨fun _ => .invalidPML4E, by rw [hR0, if_pos hq]; rfl⟩, hal q hq⟩
-  obtain ⟨k, hk, hko, hkH⟩ := initArch_pml4H (regionHeap x2.2 ptrs o0) dev rb slots.length us ptrs hg0
+  have hr0 : ∀ q ∈ ptrs, HasPmU (regionHeap x2.2 ptrs o0) q ∧ q.toNat % 4096 = 0 ∧ q.toNat + 4096 ≤ 2 ^ 64 :=
+    fun q hq => ⟨⟨fun _ => .invalidPML4E, by rw [hR0, if_pos hq]; rfl, fun _ _ => rfl⟩, hal q hq⟩
+  obtain ⟨k, hk, hko, hkH⟩ := initArch_pml4HU (regionHeap x2.2 ptrs o0) dev rb slots.length us ptrs hg0
     (by show x2.2.archState.x64GlobalPml4.toNat % 4096 = 0; rw [har0]; exact hga)
     (by show x2.2.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64; rw [har0]; exact hgf)
     (by show x2.2.archState.x64GlobalPml4 ∉ ptrs; rw [har0]; exact hgW) hr0
@@ -133,7 +258,7 @@ theorem invokeUntyped_noreset_pml4 (bitsApi : ApiObjectType → Nat → Nat) (sl
   have hkx : ∀ q, q ∉ ptrs → k q = x2.2.kheap q := fun q hq => by rw [hko q hq, hR0, if_neg hq]
   refine ⟨{ σr with kheap := fun q => if q ∈ ptrs then k q else σr.kheap q }, fun q => (k q).getD o0, ?_⟩
   have hkW : ∀ q ∈ ptrs, k q = some ((k q).getD o0) := fun q hq => by
-    obtain ⟨pt, hpt⟩ := hkH q hq
+    obtain ⟨pt, hpt, -⟩ := hkH q hq
     have e : k q = some (.archObj (.pageMapL4 pt)) := hpt
     rw [e]; rfl
   have hC : CnK { σr with kheap := fun q => if q ∈ ptrs then k q else σr.kheap q } y.2 := by
@@ -152,9 +277,9 @@ theorem invokeUntyped_noreset_pml4 (bitsApi : ApiObjectType → Nat → Nat) (sl
     rw [if_pos hp]; exact hkW p hp
   · show (if p ∈ ptrs then k p else σr.kheap p) = _
     rw [if_neg hp]
-  · obtain ⟨pt, hpt⟩ := hkH q hq
+  · obtain ⟨pt, hpt, hpu⟩ := hkH q hq
     have e : k q = some (.archObj (.pageMapL4 pt)) := hpt
-    exact ⟨pt, by show (k q).getD o0 = _; rw [e]; rfl⟩
+    exact ⟨pt, by show (k q).getD o0 = _; rw [e]; rfl, hpu⟩
   · have e : y.2.kheap p = k p := h3.2 p hp
     rw [e]
     show k p = if p ∈ ptrs then k p else σr.kheap p

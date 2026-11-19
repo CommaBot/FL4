@@ -7,13 +7,17 @@ P3 (DESIGN.md §9), untyped: **the no-reset retype of PML4s at `J`**
 writes slot words and the window (each new PML4's kernel half,
 `copy_global_mappings`); the spec adds the window's PML4s, each with the
 global mappings copied in (`invokeUntyped_noreset_pml4`), then changes
-CNodes. No set grows (the new PML4s are in none of `Z`'s sets; `XTopAt`
-by `XTopAt.addStepW`, the window's words read by no relation, UtPmAdd). The
+CNodes. `XTopAt` by `XTopAt.addStepW` (the window's words read by no
+relation, UtPmAdd), then `XTopAt.addPml4` puts the new PML4s into `L4` (their
+caps are unassigned, `JAtZ.vsc` asks them there; a new PML4's user half is
+zero in FL4, `retype_cont_pml4R`, and empty in the spec,
+`invokeUntyped_noreset_pml4`). The
 scheduler and untyped-cap fields across the window writes by UtPmKeep's
 `uaRestW`, `addRPW`, `ret_utcW`; P1's creation by `JAtZ.create_noresetW`
 (the window's words in new `other 12` objects, which P1 does not track).
 -/
 import Fl4Proofs.P3.UtPmKeep
+import Fl4Proofs.P3.UtTabAdd
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -70,7 +74,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   refine WP.spec_mono (retype_body_pml4 (L := L) arI ar Z.th s σ Z.G hSR hV hP hM hC hI J.ut J.kern.orig hpp hidx
     hcap hU.pal hU.pfit hU.fiLe (hU.high hnd) hU.free (hU.zero hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r hty
     hnt hctx.size.1 hctx.cnode.1 hctx.cnode.2.1 hctx.window.2.2 hctx.window.1 hctx.memory hctx.empty hb
-    J.kern.gpm J.kern.ga J.kern.gf (hU.gReg hnd)) (fun res hRP => ?_)
+    J.kern.gpm J.kern.ga J.kern.gf (hU.gReg hnd)) (fun res ⟨hRP, hUZ⟩ => ?_)
   have hRPN := RetPostB.toNB hRP
   obtain ⟨hok, har, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt, hFin, hks, Aw, k, w, dslot, cj,
     hE, hbr, hRFu⟩ := hRP
@@ -157,7 +161,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have ho : ∀ q, q ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val) →
       ∀ x n, oo q ≠ .schedContext x n := by
-    intro q hq x n e; obtain ⟨pt, e'⟩ := hpm q hq; rw [e'] at e; cases e
+    intro q hq x n e; obtain ⟨pt, e', -⟩ := hpm q hq; rw [e'] at e; cases e
   have hcjne : ∀ j, j < w → ∀ p a, cj j ≠ .Pml4 p true a := by
     intro j _ p a
     rw [hcj]
@@ -203,7 +207,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     rcases hkc q.bv with e | ⟨r0, cs, cs', e1, -⟩
     · exact e.trans hB
     · have e2 := hB.symm.trans e1
-      obtain ⟨pt, e'⟩ := hpm _ (by rw [← ht]; exact hreg q hq)
+      obtain ⟨pt, e', -⟩ := hpm _ (by rw [← ht]; exact hreg q hq)
       rw [e'] at e2; cases e2
   have hsc : ∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) →
       ∃ ko, σ.kheap q.bv = some ko ∧ Fl4Spec.objBits ko = n + Fl4Spec.minSchedContextBits := by
@@ -215,7 +219,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     by_cases hWq : q.bv ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
         (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val)
     · rw [(hA.new _ hWq).2] at hBk
-      obtain ⟨pt, e'⟩ := hpm _ hWq
+      obtain ⟨pt, e', -⟩ := hpm _ hWq
       rw [e'] at hBk; cases hBk
     · rw [hA.old _ hWq] at hBk
       obtain ⟨ko, hko, hty⟩ := hksz _ _ hBk
@@ -234,7 +238,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   subst hwv hkv
   replace hE : RetExp Z.th Z.th (L.mem s) (L.mem res.2.1) Z.G G' Aw (2 ^ zOf nt.val us.val) win.val dslot cj
       (cslotAddr (pp.bv, idx)) := hE
-  rw [← eA] at hwb hreg hspec hTT hA1 hA2 hA3
+  rw [← eA] at hwb hreg hspec hTT hA1 hA2 hA3 hUZ
   -- `XTopAt` after (`XTopAt.addStepW`: the window's words read by no relation)
   have hsc1 : ∀ (q : U64) y n, σ.kheap q.bv = some (.schedContext y n) →
       ∃ ko, σ.kheap q.bv = some ko ∧ Fl4Spec.objBits ko = n + Fl4Spec.minSchedContextBits := by
@@ -341,7 +345,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · by_cases ho : o = (L.curW s).bv
       · subst ho; obtain ⟨y1, hy1⟩ := hσ1c; rw [hy1] at h1; cases h1
       · rw [h0] at h1; cases h1
-    · obtain ⟨pt, e'⟩ := hpm _ hW'
+    · obtain ⟨pt, e', -⟩ := hpm _ hW'
       rw [e'] at h2; cases h2
   have hn1 : nt.val ≠ 1 := by omega
   obtain ⟨th2, σ2, A2, k2', w2, lo2, hi2, eA2, ek2, ew2, -, -, hor2, hhas2, hthx2, hJP2⟩ :=
@@ -485,7 +489,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hIN : IdleNew (fun q => q ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val))
       oo := fun q hq => by
-    obtain ⟨pt, e⟩ := hpm q hq
+    obtain ⟨pt, e, -⟩ := hpm q hq
     exact Or.inr (Or.inr (Or.inr (Or.inl ⟨_, e⟩)))
   have hWnN : ∀ n ∈ Nn, n.bv ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val) :=
@@ -627,7 +631,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
         · exfalso; have := hNt q hqN; omega
         · exfalso; have := hRt q hqR; omega
         · refine Or.inr (Or.inr (Or.inr (Or.inr ⟨q, hq, hqo, ?_, ⟨12, le_rfl, by simp [newKind, ha]⟩⟩)))
-          obtain ⟨pt, e⟩ := hpm o hW'
+          obtain ⟨pt, e, -⟩ := hpm o hW'
           exact ⟨_, by rw [h2, e]⟩
     rcases hkc o with e | ⟨r0, cs, cs', e1, e2⟩
     · rcases hback1 ko (e.symm.trans hk) with h1 | h1 | h1 | h1 | h1
@@ -665,8 +669,75 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       {q | q ∈ D ∧ ¬ NewQ Aw (2 ^ zOf nt.val us.val) win.val cj q} res.2.1 σ' :=
     ⟨hCR1.addR hkR hRz hRn, hRF1.addR hCR1 hRz hRn, hRR1.addR hRz, hY1, hMc1, hBw1, hRP1, hSA1, ⟨_, _, hJPa⟩, hjc', K2, hutc, hNSC1, hInv1, hCur1, hOwn1,
       hOff1, hAct1, hBsa1, hIs1, hCRun1, hblk'⟩
-  have JZ := J.add_frame (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) rfl rfl rfl hwI.1 hXZ hCs hJR
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC'
+  -- the window's PML4s added to `L4` (`XTopAt.addPml4`): the new PML4 caps are
+  -- unassigned, `JAtZ.vsc` (`VCapOK`) asks their PML4s in `L4`; a new PML4's
+  -- user half is zero in FL4 (`hUZ`) and empty in the spec (`hpm`)
+  have h4k : 2 ^ zOf nt.val us.val = 4096 := by simp [zOf, hnt]
+  have hal4 : ∀ q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val, q.val % 4096 = 0 := fun q hq => by
+    have := (hwb q hq).2.2; rw [h4k] at this; exact this
+  have hz4 : ∀ q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val, ∀ i : U64, i.val < 256 →
+      L.mem res.2.1 (peA q i) = 0#u64 := by
+    intro q hq i hi
+    have hq4 := hal4 q hq
+    obtain ⟨j, hj, hqj⟩ := hq
+    have hv := peA_val (tbl_fit hq4) (show i.val < 512 by omega)
+    have hjk : (j + 1) * 2 ^ zOf nt.val us.val ≤ win.val * 2 ^ zOf nt.val us.val := Nat.mul_le_mul_right _ hj
+    rw [Nat.add_mul, Nat.one_mul] at hjk
+    rw [h4k] at hqj hjk
+    refine hUZ _ (by unfold P1.Aligned; rw [hv]; omega) (by rw [hv]; omega) (by rw [hv, h4k]; omega) ?_
+    rw [h4k, show (peA q i).val - Aw = 8 * i.val + j * 4096 by rw [hv]; omega, Nat.add_mul_mod_self_right,
+      Nat.mod_eq_of_lt (by omega)]
+    omega
+  have hX4 := XTopAt.addPml4 hXZ (W4 := winSet Aw (2 ^ zOf nt.val us.val) win.val)
+    (fun q hq => by
+      obtain ⟨pt, e, hu⟩ := hpm q.bv (by rw [← ht]; exact hreg q hq)
+      refine ⟨pt, by rw [hspec q hq, e], fun i hi => hu _ ?_⟩
+      simp only [Fl4Spec.ucast, BitVec.toNat_setWidth]
+      exact lt_of_le_of_lt (Nat.mod_le _ _) hi)
+    hal4 hz4
+    (fun q hq b g1 g2 => by
+      obtain ⟨b1, b2, -⟩ := hwb q hq
+      rw [h4k] at b2
+      obtain ⟨n1, n2⟩ := hfr0 b (by omega) (by omega)
+      refine ⟨fun ho => n1 ?_, n2, fun p0 k0 hp0 hpk => ?_⟩
+      · rcases oobj_unionR ho with ho | ⟨r, hr, -⟩
+        · rcases oobj_unionN ho with ho | ⟨n, hn', -⟩
+          · rcases oobj_unionE ho with ho | ⟨e, he, -⟩
+            · exact ho
+            · have := hEt e he; omega
+          · have := hNt n hn'; omega
+        · have := hRt r hr; omega
+      · have := hU.free p0 k0 hp0; omega)
+  -- the VSpace caps placed (`JAtZ.vsc`): an old cap kept or an untyped cap,
+  -- a new cap an unassigned PML4 cap, its PML4 in the grown `L4`
+  have hvc : Vs.VsSlotsW Z.th Z.P (Z.L4 ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val) Z.L3 Z.L2 Z.L1
+      (L.mem res.2.1) := by
+    obtain ⟨-, hCRZ, -, -, hMOZ, -, -⟩ := hXZ.rel
+    obtain ⟨P', L4', L3', L2', L1', hVI⟩ := hMOZ.2.2.1
+    refine Vs.VsCapsW.slots (G := G') ?_ hCRZ.2.2.1
+    intro x hx
+    rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
+    · by_cases hu : isUt (capV (L.mem s) x) = true
+      · exact Vs.vcapW_ut (hE.utk x hx0 hu)
+      · rw [(hE.keep x hx0 (by simpa using hu)).2]
+        exact (J.vsc x ((hM.members x).1 hx0).1).mono subset_rfl Set.subset_union_left subset_rfl subset_rfl
+          subset_rfl
+    · have h1 := hVI _ hx
+      rw [hE.newc j hj] at h1 ⊢
+      have hqW : ptrF (cj j) ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val := ⟨j, hj, hE.cbase j hj⟩
+      obtain ⟨b, e⟩ : ∃ b, cj j = .Pml4 b false 0#u64 := by rw [hcj]; simp [cjOf, newCapOf, hnt]
+      rw [e] at h1 hqW ⊢
+      have hb : ptrF (.Pml4 b false 0#u64) = b := ok_inj (ptr_eq _).symm
+      rw [hb] at hqW
+      exact ⟨Set.mem_union_right _ hqW, h1.2.1, fun h => by cases h⟩
+  have JZ := J.add_frame
+    (Z' := { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L4 := Z.L4 ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
+    rfl rfl rfl hwI.1 hX4 ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
+    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
+      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

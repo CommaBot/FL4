@@ -681,7 +681,11 @@ theorem retype_body_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
       ⟨Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
       RetPostB (L := L) th (L.mem s) G σ ar arI s bitsApi (L.ksb s) (.retype (pp.bv, idx) false p.bv
-        (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false) res ⦄ := by
+        (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false) res ∧
+        (∀ w : U64, P1.Aligned w → (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat ≤ w.val →
+          w.val < (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat + win.val * 2 ^ zOf nt.val us.val →
+          (w.val - (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat) % 2 ^ zOf nt.val us.val < 2048 →
+          L.mem res.2.1 w = 0#u64) ⦄ := by
   have htP : t = .archObject .pml4Obj := by
     have := ht; rw [hn8] at this; simpa [objTypeOf, Fl4Spec.archDataToObjType] using this.symm
   have hsb : sb.val < 64 := capAt_untyped_inv hcap
@@ -691,14 +695,28 @@ theorem retype_body_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   rw [← htP] at hfull
   have hWA2 : (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 :=
     (retype_region p fi sb.val (zOf nt.val us.val) win.val hsb (by simp [zOf, hn8]) hpal hpfit hfi hw1 hmem).2.1
+  obtain ⟨hWA1, -, hWA3, -⟩ :=
+    retype_region p fi sb.val (zOf nt.val us.val) win.val hsb (by simp [zOf, hn8]) hpal hpfit hfi hw1 hmem
   refine WP.spec_mono hfull ?_
   rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, A, k, w,
     dslot, cj, hE, rfl, rfl, rfl, hnu, hthx, hcjE, hdsC⟩
+  refine ⟨?_, fun w0 hw0 g1 g2 g3 => ?_⟩
+  rotate_left
+  · -- the new PML4s' user halves: zero before (`hzero`), written by no step
+    have hns : ¬ SlotSpan th w0 := by
+      rintro ⟨a, ha, a1, a2⟩
+      obtain ⟨q, kq, hq, hq1, hq2, -⟩ := slot_in_object hP ha
+      rcases hfree q kq hq with h | h <;> omega
+    rw [hWf.2.2 w0 hw0 (by
+      rintro (h | ⟨-, -, h⟩)
+      · exact hns h
+      · exact absurd h (Nat.not_le.2 g3))]
+    exact hzero w0 hw0 (by omega) (by omega)
   exact ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt', hFin, hks, _, _, _, dslot, cj, hE,
     ⟨Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s, th, _, _,
       Or.inl ⟨rfl, rfl, rfl, rfl, fun h => by cases h⟩, le_rfl, le_rfl, hthx.2, fun a h => h,
       ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
-      hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h⟩),
+      hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h.1, h.2.1⟩),
       fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩,
      fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
 

@@ -145,6 +145,80 @@ theorem XTopAt.addTab {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {
         rw [hz q (Or.inr (Or.inr hq)) i hi]; exact not_eP_zero
   exact ⟨⟨⟨hO, hP'⟩, hR, hPt', hPI, hCO⟩, hRel, hIpc, hE⟩
 
+/-- **`XTopAt` with fresh PML4s added to `L4`** (as `XTopAt.addTab`): a new
+PML4's user half (entries below 256, the only ones `PtRel` relates) is zero in
+FL4's memory and empty in the spec; its kernel half (the copied global
+mappings) is related by nothing. -/
+theorem XTopAt.addPml4 {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) {W4 : Set U64}
+    (hk4 : ∀ q ∈ W4, ∃ f, σ.kheap q.bv = some (.archObj (.pageMapL4 f)) ∧
+      ∀ i : U64, i.val < 256 → f (Fl4Spec.ucast 9 i.bv) = .invalidPML4E)
+    (hal : ∀ q ∈ W4, q.val % 4096 = 0)
+    (hz : ∀ q ∈ W4, ∀ i : U64, i.val < 256 → L.mem s (peA q i) = 0#u64)
+    (hfr : ∀ q ∈ W4, ∀ b : U64, q.val ≤ b.val → b.val < q.val + 4096 →
+      ¬ OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b ∧ ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b ∧
+      ∀ p k, Z.th p = some k → ¬ (p.val ≤ b.val ∧ b.val < p.val + objSize k)) :
+    XTopAt (L := L) AR { Z with L4 := Z.L4 ∪ W4 } s a σ := by
+  obtain ⟨⟨⟨hO, hP⟩, hR, hPt, hPI, hCO⟩, hRel, hIpc, hE⟩ := hX
+  have hPl := hP.pl
+  have hin : ∀ q ∈ W4, ∀ i : U64, i.val < 512 → q.val ≤ (peA q i).val ∧ (peA q i).val < q.val + 4096 := by
+    intro q hq i hi
+    have hv := peA_val (tbl_fit (hal q hq)) hi
+    omega
+  have hW : ∀ b, PtWAll (Z.L4 ∪ W4) Z.L3 Z.L2 Z.L1 b →
+      PtWAll Z.L4 Z.L3 Z.L2 Z.L1 b ∨ ∃ q ∈ W4, ∃ i : U64, i.val < 512 ∧ b = peA q i := by
+    rintro b ⟨q, hq, i, hi, rfl⟩
+    rcases hq with (hq | hq) | hq
+    · exact Or.inl ⟨q, Or.inl hq, i, hi, rfl⟩
+    · exact Or.inr ⟨q, hq, i, hi, rfl⟩
+    · exact Or.inl ⟨q, Or.inr hq, i, hi, rfl⟩
+  have hP' : TopPlaced st Z.th Z.P (Z.L4 ∪ W4) Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ := by
+    refine ⟨hP.ep, hP.vs, ?_, hP.pl, ?_, hP.nodeE, ?_, ?_, ?_, hP.vo, hP.sd, hP.tko⟩
+    · intro q hq
+      rcases hq with (hq | hq) | hq
+      · exact hP.pt q (Or.inl hq)
+      · exact hal q hq
+      · exact hP.pt q (Or.inr hq)
+    · intro b hb hv
+      rcases hv with h | h | ⟨q, hq, h1, h2⟩ | h
+      · exact hP.disj b hb (Or.inl h)
+      · exact hP.disj b hb (Or.inr (Or.inl h))
+      · rcases hq with hq | (hq | hq) | hq
+        · exact hP.disj b hb (Or.inr (Or.inr (Or.inl ⟨q, Or.inl hq, h1, h2⟩)))
+        · exact hP.disj b hb (Or.inr (Or.inr (Or.inl ⟨q, Or.inr (Or.inl hq), h1, h2⟩)))
+        · exact (hfr q hq b h1 h2).1 hb
+        · exact hP.disj b hb (Or.inr (Or.inr (Or.inl ⟨q, Or.inr (Or.inr hq), h1, h2⟩)))
+      · exact hP.disj b hb (Or.inr (Or.inr (Or.inr h)))
+    · intro b hb
+      rcases hW b hb with h | ⟨q, hq, i, hi, rfl⟩
+      · exact hP.po b h
+      · have hv := peA_val (tbl_fit (hal q hq)) hi
+        obtain ⟨g1, g2⟩ := hin q hq i hi
+        refine ⟨?_, fun p k hp hpk => (hfr q hq _ g1 g2).2.2 p k hp hpk⟩
+        unfold P1.Aligned; rw [hv]; have := hal q hq; omega
+    · intro b hb
+      rcases hW b hb with h | ⟨q, hq, i, hi, rfl⟩
+      · exact hP.ps b h
+      · intro hs
+        obtain ⟨g1, g2⟩ := hin q hq i hi
+        exact (hfr q hq _ g1 g2).2.1 (slotW_vobj hPl hs (L.ksb s))
+    · intro b hb
+      rcases hW b hb with h | ⟨q, hq, i, hi, rfl⟩
+      · exact hP.pv b h
+      · intro hs
+        obtain ⟨g1, g2⟩ := hin q hq i hi
+        exact (hfr q hq _ g1 g2).2.1 (vsWrite_vobj hP.vs hs)
+  have hPt' : PtRel (Z.L4 ∪ W4) Z.L3 Z.L2 Z.L1 (L.mem s) σ := by
+    refine ⟨fun q hq => ?_, hPt.l3, hPt.l2, hPt.l1⟩
+    rcases hq with hq | hq
+    · exact hPt.l4 q hq
+    · obtain ⟨f, hf, he⟩ := hk4 q hq
+      refine ⟨f, hf, fun i hi => ?_⟩
+      rw [he i hi]
+      show ¬ eP _
+      rw [hz q hq i hi]; exact not_eP_zero
+  exact ⟨⟨⟨hO, hP'⟩, hR, hPt', fun p hp lo hl h1 h2 => Set.mem_union_left _ (hPI p hp lo hl h1 h2), hCO⟩, hRel, hIpc, hE⟩
+
 end
 
 end
