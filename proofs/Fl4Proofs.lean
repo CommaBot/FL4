@@ -548,3 +548,4 @@ import Fl4Proofs.P3.XTopJointRecvSigBlock
 import Fl4Proofs.P3.XTopJointRecvSigRet
 import Fl4Proofs.P3.XTopJointRecvIpcAct
 import Fl4Proofs.P3.BufCov
+import Fl4Proofs.P3.XTopJointRecvIpcBlock
