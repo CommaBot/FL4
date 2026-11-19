@@ -1,12 +1,13 @@
 /-
 P3 (DESIGN.md §9), scheduler (KENTRY-PLAN.md sch5 (A)): **FL4's TCB timers
 keep the spec's FPU owner valid**. `OK := FK owF` (VsDom's generic `FK`):
-every outcome keeps `x64_current_fpu_owner`. The leaves are SpecGlobFK's
+every outcome keeps `x64_current_fpu_owner` and `domain_index`. The leaves are SpecGlobFK's
 `GK` lemmas for the projection `owF`, proved the same way (VsDom's
 combinators are generic in the projection), for the cone of the spec's
 `send_signal` (cancel_ipc, set_thread_state, maybe_donate_sc,
 possible_switch_to, the refill checks): `owk_sendSignal`, then
-`owF_fires` (`Fires` keeps the owner).
+`owF_fires` (`Fires` keeps both; with AllDom's `dk_sendSignal'` also the
+domain list and start: `fires_dom`).
 
 `FpuOwnOK` [J] (ScArchF, l4v X64 `valid_cur_fpu`) after `Fires` then
 follows from `FpuOwnOK` at the entry state and the J relation at both
@@ -17,6 +18,7 @@ timers (`NtfnStateRel.tcb`): `fpuOwnOK_fires` (XTopJointSchedRF2). So no
 -/
 import Fl4Proofs.P3.SpecGlobFK
 import Fl4Proofs.P3.ScAwaken
+import Fl4Proofs.P3.AllDom
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -24,10 +26,11 @@ open Fl4Spec Classical
 
 noncomputable section
 
-/-- The FPU owner (l4v X64 `x64_current_fpu_owner`). -/
-def owF (σ : State Unit) : Option ObjRef := σ.archState.x64CurrentFpuOwner
+/-- The FPU owner (l4v X64 `x64_current_fpu_owner`) and the domain index
+(`domain_index`, for ScNextDomB's `NdOK` after the timers). -/
+def owF (σ : State Unit) : Option ObjRef × Nat := (σ.archState.x64CurrentFpuOwner, σ.domainIndex)
 
-/-- Every outcome of `m` keeps the FPU owner. -/
+/-- Every outcome of `m` keeps the FPU owner and the domain index. -/
 abbrev OWK {α : Type} (m : NonDet (State Unit) α) : Prop := FK owF m
 
 /-- An `OWK` lemma of a spec function (extended below, one rule per lemma). -/
@@ -296,10 +299,10 @@ end Fl4Proofs.P3.Vs
 namespace Fl4Proofs.P3.Sched
 open Fl4Spec
 
-/-- **FL4's TCB timers keep the spec's FPU owner** (`Fires`: notification
-signals, `owk_sendSignal`, and `reprogram_timer` writes). -/
-theorem owF_fires {σ σ1 : State Unit} (h : Fires σ σ1) :
-    σ1.archState.x64CurrentFpuOwner = σ.archState.x64CurrentFpuOwner := by
+/-- **FL4's TCB timers keep the spec's FPU owner and domain index**
+(`Fires`: notification signals, `owk_sendSignal`, and `reprogram_timer`
+writes). -/
+theorem owF_firesP {σ σ1 : State Unit} (h : Fires σ σ1) : Vs.owF σ1 = Vs.owF σ := by
   induction h with
   | refl => rfl
   | tail _ hf ih =>
@@ -308,5 +311,23 @@ theorem owF_fires {σ σ1 : State Unit} (h : Fires σ σ1) :
     · exact ih
     · have := Vs.owk_sendSignal n b _ ((), σa) (by rw [he]; exact Set.mem_singleton _)
       exact this.trans ih
+
+theorem owF_fires {σ σ1 : State Unit} (h : Fires σ σ1) :
+    σ1.archState.x64CurrentFpuOwner = σ.archState.x64CurrentFpuOwner :=
+  congrArg Prod.fst (owF_firesP h)
+
+/-- **FL4's TCB timers keep the domain schedule** (`domain_list`,
+`domain_index`, `domain_start_index`; AllDom's `dk_sendSignal'`). -/
+theorem fires_dom {σ σ1 : State Unit} (h : Fires σ σ1) :
+    σ1.domainList = σ.domainList ∧ σ1.domainIndex = σ.domainIndex ∧ σ1.domainStartIndex = σ.domainStartIndex := by
+  refine ⟨?_, congrArg Prod.snd (owF_firesP h), ?_⟩ <;>
+  · induction h with
+    | refl => rfl
+    | tail _ hf ih =>
+      obtain ⟨σa, ho, rfl⟩ := hf
+      rcases ho with rfl | ⟨n, b, he⟩
+      · exact ih
+      · have := (Vs.dk_sendSignal' n b).dom (σ := _) (x := ((), σa)) (by rw [he]; exact Set.mem_singleton _)
+        first | exact this.1.trans ih | exact this.2.trans ih
 
 end Fl4Proofs.P3.Sched

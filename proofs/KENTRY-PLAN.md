@@ -1289,3 +1289,41 @@ removed; JAtZ untouched.
   cn_enq0/app0, switch_branch_refines0, schedule_refinesWP0) as ScNextDomCF with the same perl renames used
   for ScScheduleF (σ'.kheap = σ.kheap → HeapEqUpToFpu σ σ', ArchSw → ArchSwF, ArchNd → ArchNdF, hfo
   threading, `hPo`), then sch3's jat_scheduleFR2 route on top of `schedule_refinesWP0F`.
+
+## sch5 (branch par/sched5 in FL4-sc, on 4465e559 = int/j2 incl. sch4)
+- (A) DONE da41487c (+ fires_dom in the (B) commit): `hFO` gone. `FpuOwnOK` re-tagged [J] (l4v X64 `valid_cur_fpu`,
+  a reachable-state invariant; docstrings of ScArchF/ScScheduleF/ScNextDomF/XTopJointSchedRF). New leaf ScFpuOwnK:
+  `OWK := FK owF` (VsDom's generic FK; `owF σ = (x64CurrentFpuOwner, domainIndex)`), leaves = SpecGlobFK's GK
+  lemmas re-proved for `owF` over send_signal's cone (cancel_ipc, set_thread_state, maybe_donate_sc/
+  sched_context_resume/postpone, possible_switch_to, refill checks, update_waiting_ntfn), `owk_sendSignal`,
+  `owF_firesP`/`owF_fires` (Fires keeps owner and index), `fires_dom` (with AllDom's `dk_sendSignal'`: list, index,
+  start). The "TCBs not deleted" half is NOT a spec framework: `fpuOwnOK_fires` (XTopJointSchedRF) takes the owner
+  (a spec TCB at entry) into `Z.T` by `JAtZ.obj.tcb` (ObjCover) and back to a spec TCB after the timers by
+  `NtfnStateRel.tcb` of the post-fire J. `jat_scheduleFRF`/`jat_scheduleSRF`/`jat_finishJF` now take
+  `hFO : FpuOwnOK σ` [J] at the entry state only (was `∀ σ1, Fires σ σ1 → FpuOwnOK σ1` [S]).
+- (B) PARTIAL.
+  * DONE: ScNextDomCF (scripted copy of ScNextDomC with ScScheduleF's changes: `ArchSwF`/`ArchNdF`, `hfo` threaded,
+    `HeapEqUpToFpu` posts): `cn_refines0F`, `cn_enq0F`/`cn_app0F`, `switch_branch_refines0F`,
+    `schedule_refinesWP0F` (`hPo : ∀ r σ1, Pf r σ1 → FpuOwnOK σ1`, no hfo); supersedes `schedule_refinesWP0`.
+  * DONE: XTopJointSchedRF2: `JAtZ.ndOK_fire` (NdOK entry → after FL4's timers: `fires_dom` spec side; FL4 side
+    `timer.fire.kw`'s FootD misses ks words < 256: `kwApartJ` for KW, `JKern.hks`/node layout for DbgW);
+    `jat_scheduleWP0F`: FL4 `schedule` from `JAtZ` with `hd : σ.domainTime ≠ 0 ∨ NdOK s σ`, `FpuOwnOK σ` [J],
+    `ArchSwF`/`ArchNdF` [P], post at SchedRel level: `Fires σ σ1`, `schedule σ1 = {σ'}`, SchedRel/NtfnStateRel/
+    NSC/Inv/CurInv/ActIdle at σ', `JAtZ` after the timers at `rf`, `WritesIn rf.1 r.1 (KFootN rf.1 σ1)`, the OffOK/
+    RunW witness σ3. NdOK's two [J] facts (`DomListOK`, IDX word = domain_index; sch2) now needed only at entry.
+  * NOT DONE: `jat_scheduleFR2` (JAtZ/RJ at σ' without `hd`) and `jat_finishJ2`. Route unchanged from sch3,
+    starting from `jat_scheduleWP0F`'s post (exactly what `jat_scheduleFRF`'s proof destructures after
+    `schedule_refinesWPF`, except KFootN for KFoot and no `hd`): build J0 at the fake pre-state
+    s0 := rf.1 with ks16/ks24/ks40 set to their r.1 values and σ0 := {σ1 with domainTime := σ'.domainTime,
+    domainIndex := σ'.domainIndex}: ks40 by `JAtZ.workUnitsJD` (XTopJointPP; spec unchanged), ks16/ks24 by a
+    SchedStep (StepSem) like DomDecode's `schedStep_start` (domW + blkKeep_domKW; note `startS` also writes ks32,
+    so a 2-word variant is needed) through `XTopAt.schedStep`/`stepClosed_jat`'s sched case. Then
+    `WritesIn s0 r.1 (KFoot s0 σ0)` from KFootN (NdW words agree by construction), `SchStep σ0 σ'`/LK/SOK by defeq
+    from σ1's (they read no domain time/index), and the rest of `jat_scheduleFRF`'s proof from J0 (sch_tail with
+    `schedule σ1 = {σ'}` replaced by `SchS σ0 σ'` + IK + `bsa`: `JAtZ.sch_tail` reads `schedule σ = {σ'}` only
+    through `schs_schedule`/`lkm_schedule`/`bsa_schedule`; copy it taking those three facts). hTail's footprint
+    argument becomes KFootN.
+- (C) M6: not started.
+- Builds (tokyo, b.sh, module builds): sch5-b2 `ScFpuOwnK ScNextDomF XTopJointSchedRF` OK (5396 jobs; ScArchF/
+  ScScheduleF rebuilt), sch5-b3 `ScNextDomCF` OK, sch5-b4 `ScFpuOwnK XTopJointSchedRF2` OK (5402 jobs), sch5-b5
+  `XTopJointSchedRF2` OK. Axioms: axsch5.sh/axsch5.lean (untracked).
