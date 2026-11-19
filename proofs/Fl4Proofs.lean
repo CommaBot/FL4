@@ -512,3 +512,4 @@ import Fl4Proofs.P3.IpcPushCore
 import Fl4Proofs.P3.XTopJointSendPush
 import Fl4Proofs.P3.XTopJointPushDon
 import Fl4Proofs.P3.XTopJointSendPushD
+import Fl4Proofs.P3.BufInv
