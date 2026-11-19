@@ -61,9 +61,11 @@ const PAGE: u64 = 4096;
 /// An IOAPIC's registers: IOREGSEL and IOWIN.
 const IOAPIC_WINDOW: u64 = 0x20;
 /// The user address space the boot frames after the root task's image
-/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame and the
-/// extra BootInfo (at most `ExtraBi`'s 4 KiB).
-const IT_TAIL: u64 = 3 * PAGE;
+/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame, then
+/// the extra BootInfo, which fl4-core rounds up to a power of two over
+/// `ExtraBi`'s 4 KiB plus the l4h 0047 reservation (16 + 256 * 16 bytes),
+/// so at most 16 KiB.
+const IT_TAIL: u64 = 6 * PAGE;
 /// Memory map entries the BootInfo record holds (libsel4
 /// `SEL4_MULTIBOOT_MAX_MMAP_ENTRIES`).
 const BI_MMAP: usize = 50;
