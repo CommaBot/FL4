@@ -380,7 +380,8 @@ bundle), `DelHypsWR.toZ` (at `Rz := True`, `RzT`).
 /-- No slot fact handed to the zombie write. -/
 abbrev RzT : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop := fun _ _ _ _ _ => True
 
-/-- **`FinObjHypWRc` with `Rz`** at the finalised slot after. -/
+/-- **`FinObjHypWRc` with `Rz`** at the finalised slot after, when the
+remainder is a zombie (the loop's zombie write follows). -/
 def FinObjHypWRcZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (c : capability.Cap),
@@ -395,7 +396,7 @@ def FinObjHypWRcZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
           (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
         MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ W r.2.1 r.2.2 σ' G' ∧
         (RmOK r.1.1 (cslotAddr sl) → Rd r.2.1 r.2.2 σ' G' (cslotAddr sl)) ∧
-        Rz r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄
+        (∀ p zt n, r.1.1 = .Zombie p zt n → Rz r.2.1 r.2.2 σ' G' (cslotAddr sl)) ⦄
 
 /-- **`ZombieHypW` given `Rz`** at the slot when it holds a thread cap, and
 given, when it replaces a zombie, that it is the same zombie or the same
@@ -451,7 +452,7 @@ theorem FinObjHypWRc.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop
   intro s a σ G sl c hDS hW hA hc hk _
   refine WP.spec_mono (h s a σ G sl c hDS hW hA hc hk trivial) ?_
   rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
-  exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10, trivial⟩
+  exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10, fun _ _ _ _ => trivial⟩
 
 theorem ZombieHypW.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
     (h : ZombieHypW (L := L) (A := A) W th) : ZombieHypWZ (L := L) (A := A) W RzT th :=

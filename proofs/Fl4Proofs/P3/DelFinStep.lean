@@ -37,7 +37,8 @@ def FinPost (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (r.1.1 = .Null ∨ ∃ p zt n, r.1.1 = .Zombie p zt n ∧ ZCond th (L.mem r.2.1) G1 x p zt n) ∧
     MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x)
 
-/-- `FinPost` with `Rz` at `x` after, when `c` is a thread cap. -/
+/-- `FinPost` with `Rz` at `x` after, when `c` is a thread cap and the
+remainder a zombie. -/
 def FinPostZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) (c : capability.Cap)
     (r : (capability.Cap × capability.Cap) × S × A) : Prop :=
@@ -49,7 +50,7 @@ def FinPostZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     CleanCap r.1.2 ∧ CapWf r.1.2 ∧ (isZb c = true → r.1.1 = c) ∧
     (r.1.1 = .Null ∨ ∃ p zt n, r.1.1 = .Zombie p zt n ∧ ZCond th (L.mem r.2.1) G1 x p zt n) ∧
     MdbStep (L.mem s) G (L.mem r.2.1) G1 ∧ W r.2.1 r.2.2 σ1 G1 ∧ (RmOK r.1.1 x → Rd r.2.1 r.2.2 σ1 G1 x) ∧
-    (∀ q, c = .Thread q → Rz r.2.1 r.2.2 σ1 G1 x) ∧
+    (∀ q, c = .Thread q → ∀ p zt n, r.1.1 = .Zombie p zt n → Rz r.2.1 r.2.2 σ1 G1 x) ∧
     (isZb c = false → ∀ p zt n, r.1.1 = .Zombie p zt n → (∀ i, IsSlotAt th p i → i < n.val) ∧
       ((∃ q, c = .Thread q) ∨ ∃ q r gs g, c = .CNode q r gs g))
 

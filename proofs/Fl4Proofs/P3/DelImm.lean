@@ -345,7 +345,7 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
     (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1)
   have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
-  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq))
+  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq) p zt n rfl)
     (fun p' zt' n' hq => by
       have e := hzr (by rw [← hx1, hq]; rfl)
       rw [← hx1, hq] at e; cases e; exact ⟨rfl, rfl, Or.inl rfl⟩)
