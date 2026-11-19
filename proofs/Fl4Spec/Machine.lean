@@ -436,10 +436,18 @@ def gdtToSel (g : GDTSlot) : Word := (BitVec.ofNat 64 g.fromEnum <<< 3) ||| 3
 /-- l4v: MachineTypes.X64.gdtToSel_masked. -/
 def gdtToSel_masked (g : GDTSlot) : Word := gdtToSel g ||| 3
 
-/-- l4v: MachineTypes.X64.selCS3. -/
-def selCS3 : Word := gdtToSel_masked .gdtCs3
-/-- l4v: MachineTypes.X64.selDS3. -/
-def selDS3 : Word := gdtToSel_masked .gdtDs3
+/-- l4v: MachineTypes.X64.selCS3 (= `gdtToSel_masked gdtCs3` = 0x2b there).
+FL4 deviation (like idleSc): FL4 uses the Linux user selector layout
+(crates/fl4-core/src/arch/x86_64/regs.rs SEL_CS_3/SEL_DS_3, l4h 0028: SYSRET
+and IRET load the same values); l4v/seL4 C have CS_3 = slot 5, DS_3 = slot 6.
+Here `selCS3` = 0x33 (slot 6). -/
+def selCS3 : Word := 0x33#64
+/-- l4v: MachineTypes.X64.selDS3 (= `gdtToSel_masked gdtDs3` = 0x33 there).
+FL4 deviation (like idleSc): FL4 uses the Linux user selector layout
+(crates/fl4-core/src/arch/x86_64/regs.rs SEL_CS_3/SEL_DS_3, l4h 0028: SYSRET
+and IRET load the same values); l4v/seL4 C have CS_3 = slot 5, DS_3 = slot 6.
+Here `selDS3` = 0x2b (slot 5). -/
+def selDS3 : Word := 0x2b#64
 /-- l4v: MachineTypes.X64.selFS. -/
 def selFS : Word := gdtToSel_masked .gdtFs
 /-- l4v: MachineTypes.X64.selGS. -/
