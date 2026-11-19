@@ -266,11 +266,11 @@ set_option maxHeartbeats 4000000 in
 /-- **A write of the VCPU list's head word keeps `JAtZ`** (as XTopJointPP's
 `workUnitsJ`: a `KsW` word, read by no relation; `jowes_ks`), the spec
 state, the sets and the arch state kept. -/
-theorem JAtZ.vheadJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZ.vheadJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw0 : P1.WritesIn st s s' (· = P1.vHeadA st s)) :
-    (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ) ∧
+    (∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a σ) ∧
       SlotsSame Z.th (L.mem s) (L.mem s') ∧ L.ksb s' = L.ksb s := by
   have hX := J.xtop
   have hf := J.kern.ksbFit
@@ -306,17 +306,17 @@ theorem JAtZ.vheadJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hX1 : XTopAt (L := L) AR Z s' a σ := XTopAt.ksStep hX J.ks hw (KsStep.refl σ) hirq hio hD' hAR
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
-  obtain ⟨Ac', Lst', D', R⟩ := jowes_ks arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨⟨Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩, hSS, hw.1⟩
+  obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
+  exact ⟨⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (JCs.same J hSS (KSz.of_kheap rfl)) R (J.vsc.of_eq fun y hy => hSS.capV hy)⟩, hSS, hw.1⟩
 
 /-- **`JAtZ` across writes of `VtOut` words and the VCPU list's head word**
 (`vtJ`, then `vheadJ` for the head word, split off by a write back of its old
 value), the spec state kept, the arch relation at the new arch state. -/
-theorem JAtZ.vtHJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.vtHJD {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {s1 : S} {a1 : A} (hW : P1.WritesIn st s s1 (fun b => VtOut (L := L) Z H Cs s σ b ∨ b = P1.vHeadA st s))
     (hAR : AR a1 σ.archState.x64CurrentCr3) :
-    (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s1 a1 σ) ∧
+    (∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s1 a1 σ) ∧
       SlotsSame Z.th (L.mem s) (L.mem s1) ∧ L.ksb s1 = L.ksb s := by
   have hf := J.kern.ksbFit
   have hal := J.kern.ksbAl
@@ -337,8 +337,28 @@ theorem JAtZ.vtHJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) a
       (· = P1.vHeadA st (L.wr s1 (P1.vHeadA st s) (L.mem s (P1.vHeadA st s)))) := by
     refine ⟨by rw [P1.LawfulStore.ksb_wr], by rw [P1.LawfulStore.cpu_wr], fun b hb hn => ?_⟩
     rw [L.mem_wr _ _ _ _ ha hb, if_neg fun e => hn (by rw [hhd]; exact e.symm)]
-  obtain ⟨J1, hS1, hk1⟩ := JA.vheadJ hB
+  obtain ⟨J1, hS1, hk1⟩ := JA.vheadJD hB
   exact ⟨J1, hSA.trans hS1, hk1.trans hkA⟩
+
+/-- `vheadJD` with the dead set existential. -/
+theorem JAtZ.vheadJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw0 : P1.WritesIn st s s' (· = P1.vHeadA st s)) :
+    (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ) ∧
+      SlotsSame Z.th (L.mem s) (L.mem s') ∧ L.ksb s' = L.ksb s :=
+  let ⟨⟨Ac', Lst', J'⟩, h1, h2⟩ := J.vheadJD hw0
+  ⟨⟨Ac', Lst', D, J'⟩, h1, h2⟩
+
+/-- `vtHJD` with the dead set existential. -/
+theorem JAtZ.vtHJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s1 : S} {a1 : A} (hW : P1.WritesIn st s s1 (fun b => VtOut (L := L) Z H Cs s σ b ∨ b = P1.vHeadA st s))
+    (hAR : AR a1 σ.archState.x64CurrentCr3) :
+    (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s1 a1 σ) ∧
+      SlotsSame Z.th (L.mem s) (L.mem s1) ∧ L.ksb s1 = L.ksb s :=
+  let ⟨⟨Ac', Lst', J'⟩, h1, h2⟩ := J.vtHJD hW hAR
+  ⟨⟨Ac', Lst', D, J'⟩, h1, h2⟩
 
 end
 

@@ -842,14 +842,16 @@ theorem irqNode_keep {s s' : S} {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
       rcases hW _ h with e | e <;> omega]
 
 set_option maxHeartbeats 4000000 in
-/-- **`JStepHyps.ks`**, with no premise: FL4 writes kernel-state words only
+/-- **`JStepHyps.ks`**, with no premise, the dead set kept: FL4 writes kernel-state words only
 (`ksW_keeps`), the spec keeps the heap and the scheduler's fields (`KsStep`,
 so `CnStep`); the untyped caps' facts kept (the caps and their free parts lie
 outside the kernel-state block); P1's `BlkOK` kept (`blk_of_capw`: the
 kernel-state words are in `Ω` and none is an SC word, `SgOK`). -/
-theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit)
+theorem jowes_ksD {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit)
     (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ') :
-    JOwes (L := L) arI AR th s a σ s' a' σ' := by
+    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
+      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JRest (L := L) arI Z H Cs Ac' Lst' D s' σ' := by
   intro Z H Cs Ac Lst D hth J hX'
   have hC : CnStep σ σ' := ⟨⟨fun p => Or.inl (by rw [hO.kh]), hO.rel, hO.ct, hO.csc, hO.ctime, hO.cons, hO.idle, hO.isc⟩,
     hO.rq, hO.act⟩
@@ -920,11 +922,18 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     · rw [hO.cdt] at h0
       obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
       exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
-  exact ⟨Ac, Lst, D, ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 mk,
+  exact ⟨Ac, Lst, ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
     J.jpl_keep arI hSS hO.kh hw.1 hI (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2, J.jcov_keep hw.1 hSS hdead (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc), hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
+
+/-- `jowes_ksD` with the dead set existential (`JOwes`). -/
+theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit)
+    (hw : P1.WritesIn st s s' (KsW (L.ksb s))) (hO : KsStep σ σ') :
+    JOwes (L := L) arI AR th s a σ s' a' σ' := fun Z H Cs Ac Lst D hth J hX' =>
+  let ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a' σ σ' hw hO Z H Cs Ac Lst D hth J hX'
+  ⟨Ac', Lst', D, R⟩
 
 /-! ## A scheduler step -/
 
