@@ -196,6 +196,13 @@ theorem AbsSlot.restrict2 {th : TypedHeap} {a1 b1 a2 b2 : Nat} {sl : Fl4Spec.Csl
     · exact (restrictTh_some k).2
   exact ⟨q', e1, by rw [restrictTh_out ho]; exact k1⟩
 
+/-- **A spec object at an address off the region misses it** (the source
+cap's spec-object fact: `JAtZ.specOff` from `SpecFree` for a RAM cap, DevFree
+for a device cap). -/
+def SpecOffR (σ : Fl4Spec.State Unit) (p sb : U64) : Prop :=
+  ∀ o ko, σ.kheap o = some ko → ¬ RgOf p sb o →
+    o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat
+
 section Rg
 variable {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
 include hsb hfit
@@ -235,10 +242,21 @@ theorem JAtZ.specKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64
   · left; show o.toNat + _ ≤ _; omega
   · right; exact h
 
+/-- `JAtZ.specKeep` from the source's `SpecOffR` fact at the object. -/
+theorem specKeepS {o : Fl4Spec.ObjRef} {ko : Fl4Spec.KernelObject}
+    (hSO : o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat)
+    {k : P1.HKind} (hH : H ⟨o⟩ = some k) (hle : k.bits ≤ Fl4Spec.objBits ko) :
+    H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val)) ⟨o⟩ = some k := by
+  refine drop_keep hH (notRD_of hH ?_)
+  have h2 := Nat.pow_le_pow_right (show 0 < 2 by decide) hle
+  rcases hSO with h | h
+  · left; show o.toNat + _ ≤ _; omega
+  · right; exact h
+
 /-- **The placement, cover and set fields across the drop** (module
 docstring; `ArchFitHyp` [J] for the arch objects, as `utEpJ`). -/
-theorem JAtZ.dropPlace (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
-    {fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hfi : fi.val ≤ 2 ^ sb.val)
+theorem JAtZ.dropPlace (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hSO : SpecOffR σ p sb)
+    (hreg : p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
     (hAF : ArchFitHyp H σ) (hN : NoStraddle Z.th p.val (p.val + 2 ^ sb.val)) {σ' : Fl4Spec.State Unit}
     (hD : SDrop (RgOf p sb) σ σ') :
     let K := KOff (RgOf p sb)
@@ -265,8 +283,7 @@ theorem JAtZ.dropPlace (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
   have hoff : ∀ {q : U64} {k : P1.HKind}, H' q = some k → ¬ RgOf p sb q.bv := fun {q k} e =>
     off_of_notRD hsb hfit (drop_some e) (P1.Heap.drop_eq_some.1 e).1
   have hkeep := fun {o} {ko} (hk : σ.kheap o = some ko) (ho : ¬ RgOf p sb o) {k} (hH : H ⟨o⟩ = some k)
-    (hle : k.bits ≤ Fl4Spec.objBits ko) => J.specKeep hsb hfit hx hcx hfi hk ho hH hle
-  have hreg := (J.jcov.ks x hx p sb fi hcx).1
+    (hle : k.bits ≤ Fl4Spec.objBits ko) => specKeepS hsb hfit (hSO o ko hk ho) hH hle
   refine ⟨⟨fun e he => J.ks.ep e he.1, fun r hr => J.ks.rep r hr.1, fun n hn => J.ks.ntfn n hn.1,
       fun wp hw => J.ks.buf wp hw.1⟩,
     fun t ht => ⟨J.thT t (restrictTh_some ht).1, fun hr => (restrictTh_some ht).2 ((rgOf_iff hsb hfit t).1 hr)⟩,
@@ -351,7 +368,7 @@ null (`nullIn`), so a tree of the restricted heap is one of the whole heap;
 for `DelBound`'s other memories, the region's slot words are cleared, which
 keeps the tree and its measure. -/
 theorem JAtZ.dropDel (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
-    {fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    {fi : U64} {d : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
     (hN : NoStraddle Z.th p.val (p.val + 2 ^ sb.val))
     (hns : ∀ a ∈ Z.G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val) :
     DelInv (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) (L.mem s) ∧
@@ -441,8 +458,8 @@ CNodes are the typed heap's, which straddle no region (`NoStraddle`); a spec
 SC off the region misses it (`specKeep`); a cap in the MDB covers its
 objects, which so miss the childless region (`ut_free`). -/
 theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
-    {fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
-    (hfi : fi.val ≤ 2 ^ sb.val) (hN : NoStraddle Z.th p.val (p.val + 2 ^ sb.val))
+    {fi : U64} {d : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi d) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    (hSO : SpecOffR σ p sb) (hN : NoStraddle Z.th p.val (p.val + 2 ^ sb.val))
     {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ') :
     ∃ Tr Cq, Sched.JPlaced (L := L) (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
       (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Tr Cq s σ' := by
@@ -486,7 +503,7 @@ theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
     omega
   · obtain ⟨ho, hk0⟩ := hD.back hk
     obtain ⟨h1, h2⟩ := hJP.sc c y n hc hk0
-    exact ⟨h1, J.specKeep hsb hfit hx hcx hfi (o := c.bv) hk0 ho h2
+    exact ⟨h1, specKeepS hsb hfit (hSO _ _ hk0 ho) h2
       (by show n + Fl4Spec.minSchedContextBits ≤ Fl4Spec.minSchedContextBits + n; omega)⟩
   · have hy := IsSlot.of_restrict ha
     have hC := hJP.cobj a hy
@@ -689,18 +706,20 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     unfold NotDev; rw [hcx]; simp
   obtain ⟨hrst, hhd⟩ := J.rstAll hsl hcap hnc
   obtain ⟨hcur, hcsc⟩ := J.curLive hsb hfit hres hRD
+  have hSO : SpecOffR σ p sb := fun o ko hk ho => J.specOff hsb hfit hx hcx U.fiLe hk ho
+  have hreg := (J.jcov.ks _ hx p sb fi hcx).1
   obtain ⟨hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hcov, hobj, hzH, hsf, hhs, hscC, hiL⟩ :=
-    J.dropPlace hsb hfit hx hcx U.fiLe hAF U.nostr hD
+    J.dropPlace hsb hfit hSO hreg hAF U.nostr hD
   obtain ⟨hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl', hcr⟩ := J.dropSpecInv hK hD
   obtain ⟨hcall, hrf, hrr, hyl, hmcp, hbuf⟩ := J.dropMixed hsb hfit hRD hK hD
   obtain ⟨hdel, hfin, hbd⟩ := J.dropDel hsb hfit hx hcx hnd U.nostr (U.ns hnc)
   have hX := J.dropX hres hsl hcap hnc hKR hD hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi hum
     hXP hX4 hX3 hX2 hX1 hM
-  have hjpl := J.dropJpl hsb hfit hx hcx hnd U.fiLe U.nostr hD
+  have hjpl := J.dropJpl hsb hfit hx hcx hnd hSO U.nostr hD
   have hjc := J.dropCov hsb hfit
   have hkn := J.dropKern hsb hfit hD horig harch hcur hcsc hrst hhd (U.gReg hND)
   have hutc := J.dropUtc hsb hfit hcdt horig harch hrst
-  have hblk := J.dropBlk hres hx hcx hnd hKR hDT
+  have hblk := J.dropBlk hres hRD hreg hKR hDT
   have hvc : Vs.VsSlotsW (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
       (Vs.prP p.val (p.val + 2 ^ sb.val) (L.mem s) Z.P Z.L4 Z.L3 Z.L2 Z.L1)
       (Vs.pr4 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L4 Z.L3 Z.L2 Z.L1)

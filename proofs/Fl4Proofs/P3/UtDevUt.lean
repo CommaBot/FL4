@@ -638,7 +638,7 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     unfold RegionD MeetsR at hr
     rw [hq] at hr
     simp only [Option.elim] at hr
-    exact meets_off hr h1 h2 ((hDA _ hxG p sb fi (capV_of_capAt hcap)).2.2.2.2.2.2.1 q kd hq)
+    exact meets_off hr h1 h2 ((hDA _ hxG p sb fi (capV_of_capAt hcap)).2.2.2.2.2.2.1 q kd hq |>.imp_right (Or.imp_right fun h => ⟨h.1, h.2.1⟩))
   have hfiv : fiv = fi := by
     rw [hctx.fidx]
     rcases hrs with rfl | h

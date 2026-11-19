@@ -57,7 +57,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
       ∃ ps sbs fis : U64, capV (L.mem s) xs = .Untyped ps sbs fis true ∧ xs ∈ G.chains.flatten ∧
         p.val % 2 ^ sb.val = 0 ∧ ps.val + fis.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ ps.val + 2 ^ sbs.val)
     (hH : ∀ q kd, H' q = some kd → H q = some kd ∨
-      ∃ ko, σ'.kheap q.bv = some ko ∧ kd.bits ≤ Fl4Spec.objBits ko)
+      ((∃ z, kd = .other z) ∧ ∃ ko, σ'.kheap q.bv = some ko ∧ kd.bits ≤ Fl4Spec.objBits ko))
     (hDF : DevFreeT (L.mem s') G' σ') :
     DevApart (L := L) th H' G' Cs s' := by
   intro x hx p sb fi hc
@@ -71,7 +71,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
       (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
       RegionFree th p.val (p.val + 2 ^ sb.val) ∧
       (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
-        (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) ∧
+        (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val ∧ ∃ z, kd = .other z)) ∧
       CanonR p.val (p.val + 2 ^ sb.val) := by
     rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
     · obtain ⟨fi0, hle, hc0⟩ : ∃ fi0 : U64, fi0.val ≤ fi.val ∧
@@ -92,19 +92,23 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
             exact ⟨fi, le_rfl, hc⟩
       obtain ⟨a1, a2, a3, a4, a5, a6, a7, a8⟩ := hD x hx0 p sb fi0 hc0
       refine ⟨a1, a2, a3, a4, a5, a6, fun q kd hq => ?_, a8⟩
-      rcases a7 q kd hq with e | e | ⟨e1, e2⟩
+      rcases a7 q kd hq with e | e | ⟨e1, e2, e3⟩
       · exact Or.inl e
       · exact Or.inr (Or.inl e)
-      · exact Or.inr (Or.inr ⟨e1, by omega⟩)
+      · exact Or.inr (Or.inr ⟨e1, by omega, e3⟩)
     · rw [hE.newc j hj] at hc
       obtain ⟨ps, sbs, fis, hcs, hxsG, hal, hlo, hhi⟩ := hcjD j hj p sb fi hc
       obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := hD xs hxsG ps sbs fis hcs
       refine ⟨hal, by omega, fun c hc => by have := b3 c hc; omega, by omega,
         fun q hq => by have := b5 q hq; omega, fun q kd hq => by have := b6 q kd hq; omega,
-        fun q kd hq => by have := b7 q kd hq; omega, b8.sub (by omega) hhi⟩
+        fun q kd hq => by
+          rcases b7 q kd hq with e | e | ⟨e1, e2, -⟩
+          · left; omega
+          · right; left; omega
+          · omega, b8.sub (by omega) hhi⟩
   refine ⟨a1, by rw [hks]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks]; exact a4,
     fun q hq => a5 q (hidb q hq), a6, fun q kd hq => ?_, a8⟩
-  rcases hH q kd hq with h | ⟨ko, hko, hb⟩
+  rcases hH q kd hq with h | ⟨hz, ko, hko, hb⟩
   · exact a7 q kd h
   · have h2 : 2 ^ kd.bits ≤ 2 ^ Fl4Spec.objBits ko := Nat.pow_le_pow_right (by decide) hb
     have := hDF x hx p sb fi true hc ⟨rfl, trivial⟩ q.bv ko hko
@@ -112,7 +116,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
     rcases this with (e | e) | ⟨e1, e2⟩
     · exact Or.inl (by omega)
     · exact Or.inr (Or.inl e)
-    · exact Or.inr (Or.inr ⟨e1, by omega⟩)
+    · exact Or.inr (Or.inr ⟨e1, by omega, hz⟩)
 
 end
 
@@ -822,7 +826,8 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · rw [if_pos hN] at e
         right
         obtain ⟨j, hj, hv⟩ := hN.1
-        refine ⟨_, hspec q ⟨j, hj, hv⟩, ?_⟩
+        refine ⟨?_, _, hspec q ⟨j, hj, hv⟩, ?_⟩
+        · rcases hnt with h | h | h <;> rw [h] at e <;> simp [newKind] at e <;> exact ⟨_, e⟩
         rw [hobE, hb, newKind_bits e.symm]
       · rw [if_neg hN] at e
         split_ifs at e

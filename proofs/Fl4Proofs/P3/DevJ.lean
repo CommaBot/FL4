@@ -46,7 +46,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 `kernel_window`): every device untyped cap of the MDB has an aligned range
 off the kernel-state block, the nodes, the ASID-table area, the idle objects
 and the typed heap's objects, and every `H` object meeting the range lies in
-its used part `[p, p + fi)`; the range lies in one canonical half with a
+its used part `[p, p + fi)` and is a device frame (`.other`: a device
+untyped makes only frames and device untypeds); the range lies in one canonical half with a
 nonzero base (`CanonR`: the boot check 9ab17db1 cuts the page at pointer 0;
 a device piece's pointer range is `PPTR_BASE` + its physical range modulo
 `2^64`, physical memory below `2^47`, so the range is either in the kernel
@@ -61,7 +62,7 @@ def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) :
     (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
     RegionFree th p.val (p.val + 2 ^ sb.val) ∧
     (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
-      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) ∧
+      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val ∧ ∃ z, kd = .other z)) ∧
     CanonR p.val (p.val + 2 ^ sb.val)
 
 /-- **A device source's `SrcOK`**: its region off the kernel-state block and

@@ -552,15 +552,15 @@ pending: `CurInv`, their SC/TCB links are not null); the region is off the
 kernel-state block (`UtKsApart`). The kept links are `RegionUnrefJ` [J]'s two
 parts at this region. -/
 theorem JAtZ.dropBlk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hres : σ.schedulerAction ≠ .chooseNewThread) {x : U64} (hx : x ∈ Z.G.chains.flatten)
-    {p sb fi : U64} (hcx : capV (L.mem s) x = .Untyped p sb fi false) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    (hres : σ.schedulerAction ≠ .chooseNewThread) {p sb : U64}
+    (hRD : ∀ q, P1.RegionD H p.val (p.val + 2 ^ sb.val) q → DeadP (L := L) H s q)
+    (hreg : p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
     (hKR : KeptRefsP3 (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) s)
     (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s) :
     let H' := H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))
     P1.BlkOK st (P1.Heap.tcbs H') Cs (P1.Heap.omega H') H' (P1.Heap.frame H') (P1.Heap.replies H')
       (P1.Heap.scs H') (P1.Heap.ntfns H') (P1.Heap.scBits H') Ac s := by
   intro H'
-  have hRD := J.rgDeadD hx hcx hnd
   have hC := J.curInv hres
   obtain ⟨xt, hkt, hsc, -⟩ := hC.tcb
   obtain ⟨Q, R0, hcr, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -588,7 +588,6 @@ theorem JAtZ.dropBlk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have hH := (hJ.sc _ y n (J.c0 _ hq) hk').2
     have d := ((hRD _ hd).2.2.2.2 _ hH).1
     rw [hx'.tcb, scW_tcb, d, optRef_zero] at hyt; cases hyt
-  have hreg := (J.jcov.ks x hx p sb fi hcx).1
   refine P1.BlkOK.drop (dropOK_of J.kern.heap J.kern.h0 (fun q k _ hq => hRD q hq) hcur hcsc J.kern.hks
     J.kern.hksIn hreg J.kern.hnd hKR hDT J.kern.ksbFit) J.blk
 
