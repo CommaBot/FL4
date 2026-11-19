@@ -63,7 +63,13 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - SetTimeoutEndpoint and SetSpace (XTopJointTcbInstall's
     `tcb_set_timeoutJ`, `tcb_set_spaceJ`: the restart, the cap installs at
     the deletion loop's invariant by `thread_control_capsJ`, `JAtPre` after
-    a preempted delete). The conclusion is `XCapP` at `JAt`, `JAtPre`
+    a preempted delete);
+  - SetSchedParams (XTopJointTcbSsp's `tcb_set_sched_paramsJ`: the decode,
+    the restart, the fault handler's install at the deletion loop's
+    invariant with the other slots kept (`install_fhJ`), `set_mcp`,
+    `set_priority` (`JAtZ.setPrioJS`), then `unbind_tcb` (`JAtZ.unbindTcbJ`)
+    or `bind_tcb` (`JAtZ.bindTcbJ`); named: `InstSchedHyp` [J], `BindDbgP`
+    [P], the platform's `TimeAgree` [P]). The conclusion is `XCapP` at `JAt`, `JAtPre`
     (`XCap.toP` for the other labels); the installs' deletion from the
     loop's steps (`JDelParts`, the platform's `PPPlat` [P], `hRd0` [J] for
     `PPR0`), as `decode_invocation_cnodeJ_steps`.
@@ -83,6 +89,7 @@ import Fl4Proofs.P3.XTopJointRestart
 import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointTcbInstall
 import Fl4Proofs.P3.XTopJointReadFpu
+import Fl4Proofs.P3.XTopJointTcbSsp
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -96,12 +103,12 @@ BindNotification (14), UnbindNotification (15), SetBreakpoint (16), GetBreakpoin
 UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20),
 SetFlags (21), WriteFPU (23), SetTimer (24), SetPriority (6),
 SetMCPriority (7), WriteRegisters (3), CopyRegisters (4), SetTimeoutEndpoint (9), SetSpace (11), SetIPCBuffer (10),
-Configure (5) and ReadFPU (22). -/
+Configure (5), ReadFPU (22) and SetSchedParams (8). -/
 def TcbJOpen (lbl : U64) : Prop :=
   3 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 14 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
     lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21 ∧ lbl.val ≠ 23 ∧ lbl.val ≠ 24 ∧ lbl.val ≠ 6 ∧ lbl.val ≠ 7 ∧
     lbl.val ≠ 13 ∧ lbl.val ≠ 3 ∧ lbl.val ≠ 4 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 11 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 5 ∧
-    lbl.val ≠ 22
+    lbl.val ≠ 22 ∧ lbl.val ≠ 8
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -2814,6 +2821,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
+    (hTA : TimeAgree arI) (hBD : BindDbgP st arI) (hIS : InstSchedHyp)
     (hR : TcbJOpen lbl → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf
       extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
@@ -2879,11 +2887,11 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   have no : ∀ l : U64, 3 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 14 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
       l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → l.val ≠ 23 → l.val ≠ 24 → l.val ≠ 6 → l.val ≠ 7 →
-      l.val ≠ 13 → l.val ≠ 3 → l.val ≠ 4 → l.val ≠ 9 → l.val ≠ 11 → l.val ≠ 10 → l.val ≠ 5 → l.val ≠ 22 → lbl = l →
-      False :=
-    fun l h1 h2 h3 h14 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h13 h3' h4' h9' hx11 hx10 hx5 hx22 h =>
+      l.val ≠ 13 → l.val ≠ 3 → l.val ≠ 4 → l.val ≠ 9 → l.val ≠ 11 → l.val ≠ 10 → l.val ≠ 5 → l.val ≠ 22 → l.val ≠ 8 →
+      lbl = l → False :=
+    fun l h1 h2 h3 h14 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h13 h3' h4' h9' hx11 hx10 hx5 hx22 hx8 h =>
       hop (h ▸ ⟨h1, h2, h3, h14, h4, h5, h5', h6, h7, h8, h9, h123, h124, h6', h7', h13, h3', h4', h9', hx11, hx10, hx5,
-        hx22⟩)
+        hx22, hx8⟩)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
     intro hx q hc
@@ -2896,6 +2904,12 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     have hA0 : AbsSlot Z.th e.2 := ⟨ps, hpe, Or.inl hps⟩
     exact J.thT q (show CapValid Z.th (.Thread q) from
       J.xtop.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
+  by_cases h8 : lbl = fl4_abi.label.TCBSetSchedParams
+  · subst h8
+    exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
+      buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hT hARI.toARKeep hTA hBD hIS p hp slbl
+        (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (hstall' p) call sl hAs hsc extra
+        x0 x1 x2 hx0 hx1 hx2 excaps hXc hcapT hcapC blk don ci buffer)
   refine XCap.toP arI (decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra
     ct hct slbl hlbl _ ci sl excaps buffer hext (hstall' p) hNative
     {
@@ -2921,7 +2935,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         exact tcb_set_mcpJ arI s ar σ J hni p hpT slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen
           hargs (hstall' p) call sl extra x0 x1 x2 hx0 excaps hXc hcapT blk don ci buffer,
-      setSchedParams := fun h => (no _ (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) h).elim,
+      setSchedParams := fun h => absurd h h8,
       setTimeoutEndpoint := fun h => absurd h h9,
       setIPCBuffer := fun h => absurd h h10,
       setSpace := fun h => absurd h h11,
