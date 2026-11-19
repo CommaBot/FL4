@@ -18,7 +18,7 @@ is linked to another thread** (`take_reply`'s `cancel_ipc`, l4v
 * `JAtZ.cancelLinkJ`: the J step (`JAtZ.cancelReplyJ` / `JAtZ.cancelRecvJ`)
   with the post facts the later receive needs (the slots kept:
   `JAtZ.cancel_slots`, so the caps stay held, `jHeld_of_same`).
-* `JRecvSendHyp` [W]: the one case left, a waiting sender outside `RecvSendBasicCase` (XTopJointRecvSendF's `JAtZ.recvSendJ0X`, XTopJointRecvSendRet's `JAtZ.recvSendRetJ`; reply cap null or
+* `JRecvSendHyp` [W]: the one case left, a waiting sender outside `RecvSendBasicCase` (XTopJointRecvSendF's `JAtZ.recvSendJ0X`, XTopJointRecvSendRet's `JAtZ.recvSendRetJ`) and `RecvSendPushCase` (XTopJointRecvSendP's `JAtZ.recvSendP0X`; reply cap null or
   free), stated at every `JAtZ` state of the typed heap (as XTopJointSuspend's
   `JCancelAt`), since the linked case reaches it at the state after the
   cancel. `jRecvIpcU_of`: XTopJointRecvIpc's case split for a null or free
@@ -31,6 +31,7 @@ is linked to another thread** (`take_reply`'s `cancel_ipc`, l4v
 -/
 import Fl4Proofs.P3.XTopJointRecvIpc
 import Fl4Proofs.P3.XTopJointRecvSendRet
+import Fl4Proofs.P3.XTopJointRecvSendP
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -380,15 +381,28 @@ def RecvSendBasicCase (ct : U64) (blocking : Bool) (σ : Fl4Spec.State Unit) (p 
     ∃ sd q xs, σ.kheap p.bv = some (.endpoint (.sendEP (sd :: q))) ∧ σ.kheap sd = some (.tcb xs) ∧
       SendOK xs rc
 
+/-- The case XTopJointRecvSendP's `JAtZ.recvSendP0X` proves: the current
+thread without a bound notification or with one not active (if blocking, not
+lending its SC to the thread), the endpoint's head sender as in
+XTopJointRecvSendP's `PushOK` (a reply pushed). -/
+def RecvSendPushCase (ct : U64) (blocking : Bool) (σ : Fl4Spec.State Unit) (p : U64) (rc : capability.Cap) :
+    Prop :=
+  (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none ∨
+    ∃ n xn, xt.tcbBoundNotification = some n ∧ σ.kheap n = some (.notification xn) ∧
+      Fl4Spec.isActive xn = false ∧ (blocking = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none))) ∧
+    ∃ sd q xs, σ.kheap p.bv = some (.endpoint (.sendEP (sd :: q))) ∧ σ.kheap sd = some (.tcb xs) ∧
+      PushOK xs rc
+
 variable (arI) in
 /-- **`receive_ipc` at `J` with a waiting sender** [W] (KENTRY-PLAN.md item 6
 (d); l4v `receive_ipc`'s `send_ep` branch): at every `JAtZ` state of the
 typed heap `th` (stated per state, as `JCancelAt`, since a linked reply's
 `cancel_ipc` moves the receive to the state after), the reply cap null or
-naming a free reply object, outside the proved cases (`RecvSendBasicCase`).
-Left: the head sender pushing a reply (calling or faulted, a grant right and
-a reply cap: `reply_push`, with a possible SC donation), or holding a timeout
-fault and an SC. -/
+naming a free reply object, outside the proved cases (`RecvSendBasicCase`,
+`RecvSendPushCase`). Left: the head sender pushing a reply to a receiver
+whose bound notification lends it its SC (blocking: `maybe_return_sc` takes
+it back, so `reply_push` donates the sender's SC), or holding a timeout fault
+and an SC. -/
 def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
@@ -400,7 +414,7 @@ def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64) →
     ¬ RecvIpcPollCase (L := L) ct blocking s σ p rc → ¬ RecvIpcActCase (L := L) ct s σ rc →
     ¬ RecvIpcBlockCase (L := L) ct blocking s σ p rc → ¬ RecvIpcBoundCase (L := L) ct blocking s σ p rc →
-    ¬ RecvSendBasicCase ct blocking σ p rc →
+    ¬ RecvSendBasicCase ct blocking σ p rc → ¬ RecvSendPushCase ct blocking σ p rc →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄
@@ -485,10 +499,25 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
         (rightsOf sd true g gr)
     · exact J.recvSendJ0X hZ ht hkt hrun (Or.inr ⟨n0, xn, hbn0, hkn, hna, fun hb h => hl ⟨hb, h⟩⟩) hcur he hke' hks
         b sd true g gr hra hok b.bv (rightsOf sd true g gr)
+  by_cases hcp : RecvSendPushCase ct blocking σ p rc
+  · obtain ⟨hbn, sd0, q, xs, hke', hks, hok⟩ := hcp
+    obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
+    subst hsde
+    have hI := J.xtop.irelK J.ks J.buf
+    obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
+    obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
+    have hrun := (J.curRun.run hni) xt (by rw [hcur]; exact hkt)
+    have hrv0 : rv ≠ 0#u64 := by
+      rcases hra with ⟨h1, -, -⟩ | ⟨_, _, _, _, hr, -⟩
+      · exact absurd h1 hok.1
+      · exact (J.rp.align rv hr).2.1
+    obtain ⟨-, hcovR⟩ := J.recvCov_of he hHd hHr hra
+    exact J.recvSendP0X hAT hZ ht hkt hrun (hbn xt hkt) hcur hni hnq he hke' hks b sd true g gr hra (hcovR hrv0) hok
+      b.bv (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
   · exact hS Z H Cs Ac Lst D s a σ rfl J ct ht hcur hni hnq blocking p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hHr hun
-      hc hca hcb hcn hcs
+      hc hca hcb hcn hcs hcp
   obtain ⟨rfl, hbn, hns, hrr⟩ := hc
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
