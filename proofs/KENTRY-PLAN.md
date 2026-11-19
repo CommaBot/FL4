@@ -818,3 +818,29 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   JHole.chargeBudgetTmoJ, JHole.checkBudgetT, JAtZ.budgetOkT, handle_invocation_refinesJ. Build script
   proofs/scratch/kp5build.sh (kp1build.sh with longer error output; untracked).
 - HANDOFF (kp5 stopped for context after (a)/(b) idle/sending case). Next: (ii) above (cheap), then (i) or (c).
+
+## ke15 (branch par/kentry5 in FL4-rb, on d0509548 = int/j2)
+- (R2) 4093653e, new leaf XTopJointRecvSendT (imported from Fl4Proofs.lean): the head sender with a timeout
+  fault and an SC.
+  * `JAtZ.tmoRecvBaseJ`: base `Jb` at (`tmoS st s sc`, `tmoSt σ sc y n`) by `JAtZ.updConsumedJ` +
+    `update_consumed_irel` (tmoBaseJ without set_fault).
+  * `JAtZ.recvSendFTJ` / `JAtZ.recvSendFPTJ` = recvSendFJG / recvSendFPJG with `hft : tcbFault = some (.timeout bb)`,
+    `hsn : tcbSchedContext ≠ none`, `hAT hmax htu`: transfer `xferTmoStepJ` (no receive-buffer write, so no
+    `bufRebaseX`); spec states rewritten from the base by `updSc_updK_comm` (dequeue commutes with the SC
+    update), `RSFr`/`IK`/`SKeep` from `σb`; `Inv` from `Jb.inv` (`InvBut.inv`'s premise vacuous: the sender
+    ends Inactive, not `inClassR`); FL4 footprints from `s` rebased (`writesIn_rebase`, the SC word in
+    `CnW` via `sw_hdr`, in `KW` via `scW8_inSC`), then `Jb.rsfrStep` / `Jb.rsfr_postGR`. Push: FL4's
+    `can_donate` false (`hcdF`: fault word 5 = Timeout), spec `receiveIpc_sendPushT_eq` (spec can_donate
+    false); `hAct` lost the `xs.sc = none` conjunct.
+  * `TmoOK`, `sendOK_split` (SendOK ∨ PushOK ∨ TmoOK for a blocked sender), `noPush_of`, `JAtZ.head_sendT`,
+    wrappers `JAtZ.recvSendT0X` (recvPreN) / `JAtZ.recvSendRetTJ` (RP's maybe_return route).
+- da8d8f6b: `JRecvSendHyp` [W] DELETED. jRecvIpcU_of's last branch proves exhaustiveness (bound ntfn exists by
+  `J.sv.tcbNtfn`, active -> RecvIpcActCase; no sender -> Poll/Block/Bound; head sender by head_sendT +
+  sendOK_split -> Basic / Push / RetPush / the tmo wrappers). jRecvIpcU_of / jRecvIpcLink_of /
+  jRecvIpcHypL_of / dispatch_recvJL take `hmax` / `htu` (JEntryGlob.maxTU / tu) instead of `hS`;
+  dispatch_recvJL is still not used by XTopJointEntry.
+- Builds: ke15-b1 `XTopJointRecvSendT XTopJointRecvIpcLink XTopJointEntry` 5416 jobs OK; scratch/axke15.lean std
+  axioms (handle_invocation_refinesJ, dispatch_recvJL, jRecvIpcU_of, recvSendFTJ, recvSendFPTJ, recvSendT0X,
+  recvSendRetTJ, tmoRecvBaseJ, receiveIpc_sendPushT_eq, sendOK_split).
+- Stale docstring mentions of `JRecvSendHyp` remain in RecvSend/RecvSendF/P/RP/RD/Ret/Step, XferF, IpcRecvSendFr
+  (not touched to avoid rebuilding their cones).
