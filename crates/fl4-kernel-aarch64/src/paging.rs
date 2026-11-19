@@ -197,11 +197,11 @@ pub fn map_device(pa: u64, len: u64) -> Option<u64> {
         return None;
     }
     // Keep each mapping 64 KiB aligned.
-    let va = (s.next_device + 0xffff) & !0xffff;
-    if va + size > DEVICE_TOP {
-        crate::fail("out of device mappings");
-    }
-    s.next_device = va + size;
+    let (va, end) = match crate::bootmem::device_va(s.next_device, size, DEVICE_TOP) {
+        Some(r) => r,
+        None => crate::fail("out of device mappings"),
+    };
+    s.next_device = end;
     map(s.root, va, base, size, (ATTR_DEVICE_NGNRNE << 2) | D_AF | D_UXN | D_PXN);
     cpu::dsb_ishst();
     cpu::isb();
