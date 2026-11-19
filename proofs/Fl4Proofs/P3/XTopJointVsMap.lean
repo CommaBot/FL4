@@ -197,6 +197,74 @@ theorem JAtZ.cslotW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       rw [wordOf_val (by omega), h8]
     omega
 
+/-! ## The frames of tables outside the sets -/
+
+/-- **Off-set table frames** (`PtW X`, written by the Unmap of a mapped table
+cap whose table is in no set): every `q ∈ X` 4 KiB-aligned and a spec arch
+object of a page (l4v `valid_cap`'s `typ_at`). -/
+def TabsArch (X : Set U64) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ q ∈ X, q.val % 4096 = 0 ∧ ∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12
+
+theorem TabsArch.empty (σ : Fl4Spec.State Unit) : TabsArch ∅ σ := fun _ h => h.elim
+
+/-- A word of an off-set table frame by value. -/
+theorem tabW_val {X : Set U64} {σ : Fl4Spec.State Unit} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) :
+    ∃ q ∈ X, ∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.objBits (.archObj ao) = 12 ∧
+      q.val % 4096 = 0 ∧ q.val ≤ b.val ∧ b.val + 8 ≤ q.val + 4096 ∧ b.val % 8 = 0 := by
+  obtain ⟨q, hq, i, hi, rfl⟩ := hb
+  obtain ⟨hqa, ao, hao, hb⟩ := hX q hq
+  have hv := peA_val (tbl_fit hqa) hi
+  exact ⟨q, hq, ao, hao, hb, hqa, by omega, by omega, by omega⟩
+
+/-- **An off-set table word misses every object of `H` but the `other`
+ones** (the table is an `other` object of `H`, `SpecCover.arch`,
+`HeapOK.disj`). -/
+theorem JAtZ.tabObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val := by
+  obtain ⟨q, -, ao, hao, -, -, g1, g2, -⟩ := tabW_val hX hb
+  obtain ⟨n, hn, hH⟩ := J.cover.arch _ ao hao
+  have hne : p ≠ q := fun e => hk n (by subst e; exact Option.some.inj (hp.symm.trans hH))
+  have h4 : 2 ^ 12 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hn
+  rcases J.kern.heap.disj p k q _ hp hH hne with h | h
+  · right; omega
+  · simp only [P1.HKind.bits] at h
+    left; omega
+
+/-- **An off-set table word misses every core's node.** -/
+theorem JAtZ.tabNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val := by
+  obtain ⟨q, -, ao, hao, -, -, g1, g2, -⟩ := tabW_val hX hb
+  obtain ⟨n, hn, hH⟩ := J.cover.arch _ ao hao
+  have h4 : 2 ^ 12 ≤ 2 ^ n := Nat.pow_le_pow_right (by decide) hn
+  rcases J.kern.hnd q _ hH c hc with h | h
+  · simp only [P1.HKind.bits] at h
+    left; omega
+  · right; omega
+
+theorem tabW_al {X : Set U64} {σ : Fl4Spec.State Unit} (hX : TabsArch X σ) {b : U64} (hb : PtW X b) :
+    P1.Aligned b := by
+  obtain ⟨-, -, -, -, -, -, -, -, h⟩ := tabW_val hX hb
+  exact h
+
+/-- **A VSpace word or an off-set table word misses every object of `H` but
+the `other` ones.** -/
+theorem JAtZ.vsObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {b : U64}
+    (hb : VsW Z (L.ksb s) b ∨ PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  hb.elim (fun hb => J.vsObjW Ap hb hp hk) (fun hb => J.tabObjW hX hb hp hk)
+
+theorem JAtZ.vsNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) {c : U64} (hc : c ∈ Cs) :
+    b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  hb.elim (fun hb => J.vsNodeW hb hc) (fun hb => J.tabNodeW hX hb hc)
+
+theorem JAtZ.vsW_alX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {b : U64} (hb : VsW Z (L.ksb s) b ∨ PtW X b) : P1.Aligned b :=
+  hb.elim (fun hb => J.vsW_al hb) (fun hb => tabW_al hX hb)
+
 /-- **A word of `VsXW` misses every object of `H` but the `other` ones.** -/
 theorem JAtZ.vsxObjW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
@@ -217,6 +285,20 @@ theorem JAtZ.vsxNodeW {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   · exact J.vsNodeW hb hc
   · exact J.cslotW_node hpc hidx hb hc
 
+/-- `VsXW` or an off-set table word misses every object of `H` but the `other` ones. -/
+theorem JAtZ.vsxObjWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s) {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool}
+    (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r) {b : U64}
+    (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {p : U64} {k : P1.HKind}
+    (hp : H p = some k) (hk : ∀ z, k ≠ .other z) : b.val < p.val ∨ p.val + 2 ^ k.bits ≤ b.val :=
+  hb.elim (fun hb => J.vsxObjW Ap hpc hidx hb hp hk) (fun hb => J.tabObjW hX hb hp hk)
+
+theorem JAtZ.vsxNodeWX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {X : Set U64} (hX : TabsArch X σ) {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
+    (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b) {c : U64}
+    (hc : c ∈ Cs) : b.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ b.val :=
+  hb.elim (fun hb => J.vsxNodeW hpc hidx hb hc) (fun hb => J.tabNodeW hX hb hc)
+
 theorem JAtZ.vsxW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r))
     (hidx : idx.length = r) {b : U64} (hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b) : P1.Aligned b := by
@@ -227,10 +309,10 @@ theorem JAtZ.vsxW_al {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
 /-- **The untyped caps' facts after a VSpace map, unmap or assignment**
 (`vs_utc` with the invoked slot's words: a CNode slot misses every untyped
 cap's free part, `RegionFree`; the untyped caps kept, `hUt`). -/
-theorem JAtZ.vsx_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+theorem JAtZ.vsx_utcX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
-    {s' : S} {σ' : Fl4Spec.State Unit}
-    (hw : P1.WritesIn st s s' (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))))
+    {X : Set U64} (hX : TabsArch X σ) {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (fun b => VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b))
     (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
     (hTN : ∀ i, σ.archState.x64AsidTable i = none → σ'.archState.x64AsidTable i = none)
     (hUt : ∀ y, IsSlot Z.th y → isUt (capV (L.mem s') y) = true → capV (L.mem s') y = capV (L.mem s) y)
@@ -266,10 +348,10 @@ theorem JAtZ.vsx_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     ?_, fun g => by rw [hna]; exact U.dwReg (B g),
     fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · intro g w hal h1 h2
-    by_cases hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) w
+    by_cases hb : VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) w ∨ PtW X w
     swap
     · rw [hw.mem_eq hal hb]; exact U.zero (B g) w hal h1 h2
-    rcases hb with (⟨q, hq, i, hi, rfl⟩ | ⟨⟨hi, hh, rfl⟩ | ⟨q, hq, lo, hl, rfl⟩⟩) | hx
+    rcases hb with ((⟨q, hq, i, hi, rfl⟩ | ⟨⟨hi, hh, rfl⟩ | ⟨q, hq, lo, hl, rfl⟩⟩) | hx) | hxt
     · exfalso
       have hf := tbl_fit (J.xtop.fin.1.2.pt q hq)
       have hv := peA_val hf hi
@@ -300,10 +382,28 @@ theorem JAtZ.vsx_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       rcases U.free pc _ hpc with e | e
       · simp only [objSize] at e; omega
       · omega
+    · exfalso
+      obtain ⟨q, -, ao, hao, hb12, -, g1, g2, -⟩ := tabW_val hX hxt
+      rcases spec4k q _ hao hb12 w (by omega) (by omega) with e | e <;> omega
   · intro g h0 hf0
     rw [hcdt] at h0
     obtain ⟨r1, r3⟩ := U.rst (B g) h0 hf0
     exact ⟨fun sl' h => r1 sl' (by rw [← horig]; exact h), by rw [hna, hDbg]; exact r3⟩
+
+/-- `vsx_utcX` without off-set table frames. -/
+theorem JAtZ.vsx_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {s' : S} {σ' : Fl4Spec.State Unit}
+    (hw : P1.WritesIn st s s' (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))))
+    (hVR1 : VsRel Z.P (L.mem s') (L.ksb s) σ')
+    (hTN : ∀ i, σ.archState.x64AsidTable i = none → σ'.archState.x64AsidTable i = none)
+    (hUt : ∀ y, IsSlot Z.th y → isUt (capV (L.mem s') y) = true → capV (L.mem s') y = capV (L.mem s) y)
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) :
+    ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s') (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
+      Sched.UtCapP3 (L := L) arI Z.th s' σ' Z.G sl p sb fi :=
+  J.vsx_utcX hpc hidx (TabsArch.empty σ) (hw.mono fun _ h => Or.inl h) hVR1 hTN hUt hcdt horig hgp hDbg
 
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a VSpace map, unmap or ASID assignment after the
@@ -311,19 +411,23 @@ restart** (module docstring): FL4 writes the VSpace words and the invoked
 CNode slot's cap words (`VsXW`), that slot's cap of the same shape after and
 no untyped cap, the other slots kept (`hcap`), the slots' MDB words kept
 (`hl`); the spec steps by `VsSFr`; `XTopAt` after at the same sets. At the
-same dead set and P1's sets. -/
-theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+same dead set and P1's sets. `vsStepJX`: also writing the frames `X` of
+tables outside the sets (`TabsArch`: spec arch objects, so `other` objects
+of `H`, apart from every other object, node and untyped free part), with
+the table sets `L3'`, `L2'`, `L1'` after (`XTopAt` and the slots' placement there). -/
+theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (Ap : VsApart (L := L) Z H Cs s)
     {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
-    {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR Z s' a' σ') (F : VsSFr σ σ')
-    (hW : P1.WritesIn st s s' (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))))
+    {X : Set U64} (hXa : TabsArch X σ) {L3' L2' L1' : Set U64}
+    {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) s' a' σ') (F : VsSFr σ σ')
+    (hW : P1.WritesIn st s s' (fun b => VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx)) b ∨ PtW X b))
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pc.bv, idx) → capV (L.mem s') y = capV (L.mem s) y)
     (hsh : shape (capV (L.mem s') (cslotAddr (pc.bv, idx))) = shape (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hnu : isUt (capV (L.mem s) (cslotAddr (pc.bv, idx))) = false)
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
-    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' := by
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s')) :
+    JAtZ (L := L) arI AR (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) H Cs Ac Lst D s' a' σ' := by
   set x := cslotAddr (pc.bv, idx) with hxdef
   have hkb : L.ksb s' = L.ksb s := hW.1
   have hcpu : L.cpu s' = L.cpu s := hW.2.1
@@ -358,7 +462,7 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hHk := J.kern.heap
   have objK : ∀ p k, H p = some k → (∀ z, k ≠ .other z) → ∀ w : U64, P1.Aligned w → p.val ≤ w.val →
       w.val < p.val + 2 ^ k.bits → L.mem s' w = L.mem s w := fun p k hp hk w hal g1 g2 =>
-    hW.mem_eq hal fun hb => by rcases J.vsxObjW Ap hpc hidx hb hp hk with e | e <;> omega
+    hW.mem_eq hal fun hb => by rcases J.vsxObjWX Ap hXa hpc hidx hb hp hk with e | e <;> omega
   have tcbK : ∀ t ∈ Z.T, ∀ w : U64, P1.Aligned w → t.val ≤ w.val → w.val < t.val + 4096 →
       L.mem s' w = L.mem s w := fun t ht w hal g1 g2 =>
     objK t .tcb (J.zH.1 t ht) (fun _ e => by cases e) w hal g1 (by simpa [P1.HKind.bits] using g2)
@@ -404,7 +508,7 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hdv := P1.nodeAt_val hN0 (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
     have hdo : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
-    exact hW.mem_eq J.kern.dwAl fun hb => by rcases J.vsxNodeW hpc hidx hb J.kern.cs0 with e | e <;> omega
+    exact hW.mem_eq J.kern.dwAl fun hb => by rcases J.vsxNodeWX hXa hpc hidx hb J.kern.cs0 with e | e <;> omega
   -- the spec's frames
   have hlook : ∀ {p : Fl4Spec.ObjRef} {ko : Fl4Spec.KernelObject}, (∀ a, ko ≠ .archObj a) →
       (∀ r cs, ko ≠ .cnode r cs) → (∀ x, ko ≠ .tcb x) → (σ'.kheap p = some ko ↔ σ.kheap p = some ko) :=
@@ -433,31 +537,36 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · exact ⟨x, hA.isSlot, 8#u64, Or.inr (Or.inl rfl), rfl⟩
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' := by
-    refine (P1.blk_of_capw_untracked J.blk hW fun b hb => ?_).1
-    rcases hb with hb | hb
-    · refine Or.inr ⟨⟨J.vsW_al hb, fun t ht => ?_, fun c hc => ?_⟩, fun e he => ?_, fun hf => ?_⟩
-      · rcases J.vsObjW Ap hb (p := t) (k := .tcb) ht (fun _ e => by cases e) with e | e
+    refine (P1.blk_of_capw_untracked J.blk hW fun b hb0 => ?_).1
+    have hb1 : (VsW Z (L.ksb s) b ∨ PtW X b) ∨ (b = x ∨ b = wordOf x 8#u64) := by
+      rcases hb0 with (hb | hb) | hb
+      · exact Or.inl (Or.inl hb)
+      · exact Or.inr hb
+      · exact Or.inl (Or.inr hb)
+    rcases hb1 with hb | hb
+    · refine Or.inr ⟨⟨J.vsW_alX hXa hb, fun t ht => ?_, fun c hc => ?_⟩, fun e he => ?_, fun hf => ?_⟩
+      · rcases J.vsObjWX Ap hXa hb (p := t) (k := .tcb) ht (fun _ e => by cases e) with e | e
         · left; omega
         · right; simpa [P1.HKind.bits] using e
-      · rcases J.vsNodeW hb hc with e | e <;> omega
+      · rcases J.vsNodeWX hXa hb hc with e | e <;> omega
       · rcases he with he | he
-        · have hb8 : b.val % 8 = 0 := J.vsW_al hb
+        · have hb8 : b.val % 8 = 0 := J.vsW_alX hXa hb
           have ha := hHk.align e _ he
           simp only [P1.HKind.bits] at ha
-          rcases J.vsObjW Ap hb he (fun _ e => by cases e) with e | e
+          rcases J.vsObjWX Ap hXa hb he (fun _ e => by cases e) with e | e
           · left; omega
           · right; simp only [P1.HKind.bits] at e; omega
-        · have hb8 : b.val % 8 = 0 := J.vsW_al hb
+        · have hb8 : b.val % 8 = 0 := J.vsW_alX hXa hb
           have ha := hHk.align e _ he
           simp only [P1.HKind.bits] at ha
-          rcases J.vsObjW Ap hb he (fun _ e => by cases e) with e | e
+          rcases J.vsObjWX Ap hXa hb he (fun _ e => by cases e) with e | e
           · left; omega
           · right; simp only [P1.HKind.bits] at e; omega
       · obtain ⟨-, p, k, hp, hk, hin⟩ := hf
         have hko : ∀ z, k ≠ .other z := by
           rcases hk with rfl | ⟨z, rfl⟩ | ⟨rfl, -⟩ <;> intro z e <;> cases e
         obtain ⟨g1, g2⟩ := hin
-        rcases J.vsObjW Ap hb hp hko with e | e <;> omega
+        rcases J.vsObjWX Ap hXa hb hp hko with e | e <;> omega
     · exact Or.inl (J.slotCapW P1.tlow_slots b (hslw b hb))
   -- the spec's keeps
   have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, lsc.2 hq, rfl⟩,
@@ -503,9 +612,9 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
       K.csLt, K.cs0⟩
     rw [hna, hDbg]; exact K.head
-  have hutc := J.vsx_utc hpc hidx hW hVR1 (fun i h => by rw [F.arch]; exact h) hUt F.cdt F.orig
+  have hutc := J.vsx_utcX hpc hidx hXa hW hVR1 (fun i h => by rw [F.arch]; exact h) hUt F.cdt F.orig
     (by rw [F.arch]) hDbg
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ' :=
+  have R : JRest (L := L) arI (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 yk,
       J.mcp.frame k1 (fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.mcp⟩),
       J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.buf⟩), hRP',
@@ -513,7 +622,23 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       CurInvW.cn (CurInvW.ar J.cur F1) C2, (J.own.ar F1).cn C2.toHStep, (J.off.ar F1).cn C2.toHStep, hAI,
       (J.bsa.ar F1).cn C2.toHStep, (J.isorted.ar F1).cn C2.toHStep,
       (J.curRun.ar F1).cn C2.toHStep (Or.inr C2.act), hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX' F.kback hJC R hvc
+  exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R hvc
+
+set_option maxHeartbeats 4000000 in
+/-- **`vsStepJX` at the same sets, no off-set table frame written.** -/
+theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (Ap : VsApart (L := L) Z H Cs s)
+    {pc : U64} {r : Nat} {idx : List Bool} (hpc : Z.th pc = some (.cnode r)) (hidx : idx.length = r)
+    {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR Z s' a' σ') (F : VsSFr σ σ')
+    (hW : P1.WritesIn st s s' (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))))
+    (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pc.bv, idx) → capV (L.mem s') y = capV (L.mem s) y)
+    (hsh : shape (capV (L.mem s') (cslotAddr (pc.bv, idx))) = shape (capV (L.mem s) (cslotAddr (pc.bv, idx))))
+    (hnu : isUt (capV (L.mem s) (cslotAddr (pc.bv, idx))) = false)
+    (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
+      L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' :=
+  J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hnu hl hvc
 
 end
 

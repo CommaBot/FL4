@@ -163,6 +163,31 @@ def VsJPost {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (G : MdbGhost)
     VsPostJx th (L.mem s0) (L.mem s) σ0 σ ∧ CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧
     MdbOKV (L.ksb s0) (L.mem s) G)
 
+/-- **A mapped table cap's table emptied** (the spec's post of the Unmap of
+a mapped PT, PD or PDPT cap `c` whose table `q` is in no set): `q` is `c`'s
+table and the spec's object there the empty table of that kind. -/
+def TabEmptied (c : capability.Cap) (q : U64) (σ : Fl4Spec.State Unit) : Prop :=
+  match c with
+  | .PageTable p true _ _ => p = q ∧ σ.kheap q.bv = some (.archObj (.pageTable fun _ => .invalidPTE))
+  | .PageDirectory p true _ _ => p = q ∧ σ.kheap q.bv = some (.archObj (.pageDirectory fun _ => .invalidPDE))
+  | .Pdpt p true _ _ => p = q ∧ σ.kheap q.bv = some (.archObj (.pdPointerTable fun _ => .invalidPDPTE))
+  | _ => False
+
+/-- **What the `J` layer reads after the Unmap of a mapped table cap whose
+table `q` is in no set** (`VsJPost` with the invoked CNode slot `(pc, idx)`
+and its cap `c` named): FL4's writes from `s0` in the VSpace footprint and
+`q`'s frame (`PtW {q}`), `q`'s words zero after and the spec's table at `q`
+empty (`TabEmptied`), so the `J` layer adds `q` to its set
+(UtTabAdd's `XTopAt.addTab`). -/
+def VsJPostO {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (G : MdbGhost) (pc : U64) (r : Nat)
+    (idx : List Bool) (c : capability.Cap) (q : U64) (s0 : S) (a0 : A)
+    (σ0 : Fl4Spec.State Unit) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
+  (s = s0 ∧ a = a0 ∧ σ = σ0) ∨ (P1.WritesIn st s0 s (fun b => VsFootW st th P L4 L3 L2 L1 s0 b ∨ PtW {q} b) ∧
+    th pc = some (.cnode r) ∧ idx.length = r ∧ capAt (L.mem s0) (cslotAddr (pc.bv, idx)) = ok c ∧ isUt c = false ∧
+    VsPostJ th (L.mem s0) (L.mem s) (cslotAddr (pc.bv, idx)) c σ0 σ ∧
+    CRel th (L.mem s) σ G ∧ FinInv th (L.mem s) σ G ∧ MdbOKV (L.ksb s0) (L.mem s) G ∧
+    (∀ i : U64, i.val < 512 → L.mem s (peA q i) = 0#u64) ∧ TabEmptied c q σ)
+
 /-- **What the `J` layer reads after a PML4 flush** (XTopJointVsMap): the
 outcome unchanged, or FL4's restart alone (the flush changes the arch state
 only) against the spec's restart and a new machine state, with the CSpace
