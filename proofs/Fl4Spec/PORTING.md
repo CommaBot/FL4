@@ -414,6 +414,22 @@ details.
   to l4v's decoder and invocation, unchanged.
   `fl4HandleInvocation` is `handle_invocation` (Syscall_A) with this
   dispatcher, unchanged otherwise.
+- **`Ext/Entry`: the kernel entry with FL4's dispatcher.**
+  `fl4HandleEvent rep` is `handle_event` (Syscall_A) with
+  `handle_invocation` replaced by `fl4HandleInvocationR rep` (the
+  substitution of `Ext/Invocation` and `Ext/ReplyError` one level up); its
+  `match` on the syscall is `fl4HandleSyscall rep`, and the non-syscall
+  events are l4v's (`fl4HandleEvent_other`, by `rfl`). `fl4CallKernel rep`
+  is `call_kernel` with `fl4HandleEvent rep`. `fl4KernelEntrySyscall rep c`
+  is the syscall entry: the current thread's `FaultIP` register :=
+  `NextIP - 2` (`fl4SyscallFaultIP`; the `syscall` instruction is two bytes),
+  then `fl4CallKernel rep (.syscallEvent c)`. l4v's `call_kernel` has no
+  such write: ADT_A's `kernel_entry` installs a user context in which the
+  C kernel's entry has already done it (`thread_set (tcb_arch :=
+  arch_tcb_context_set tc)`); FL4's `handle_syscall` does it itself, and the
+  register matters because `activate_thread` restarts a `Restart` thread at
+  `FaultIP` (`getRestartPC`). FL4's `TRAP_SYSCALLS` flag (l4h) and its
+  debug/TLS syscalls (`handle_unknown_syscall`) have no branch here yet.
 - **Invocation label numbers** (a deliberate deviation from l4v). l4v's
   `invocation_type` numbers labels by the Haskell `Enum` of
   `invocation_label` (l4v's labels only, generic then arch). FL4's ABI

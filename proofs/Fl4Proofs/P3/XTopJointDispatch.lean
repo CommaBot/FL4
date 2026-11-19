@@ -31,9 +31,13 @@ P3 (DESIGN.md §9): **the syscall dispatch above `handle_invocation` at `J`**
   items 5, 6).
 * `dispatch_recvJ`: `dispatch_syscall` for `SysRecv`, `SysNBRecv`,
   `SysWait`, `SysNBWait` by `handle_recvJ`.
+* `dispatch_invokeJE`, `dispatch_recvJE`: the same against the branches of
+  `fl4HandleEvent true` (Ext/Entry's `fl4HandleSyscall true c`, `c` the
+  spec syscall of FL4's number: `invSysOf`, `recvSysOf`).
 -/
 import Fl4Proofs.P3.XTopJointEntry
 import Fl4Proofs.P3.IpcRecvTop
+import Fl4Spec.Ext.Entry
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -374,6 +378,65 @@ theorem dispatch_recvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a 
     rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysNBRecv by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysNBRecv; decide)]
     rw [if_neg (show fl4_abi.syscall.SysNBWait ≠ fl4_abi.syscall.SysWait by unfold fl4_abi.syscall.SysNBWait fl4_abi.syscall.SysWait; decide)]
     rw [if_pos rfl]; exact h
+
+/-- The spec syscall of an invoking syscall's flags (`InvSys`). -/
+def invSysOf (call bl : Bool) : Fl4Spec.Syscall :=
+  if call then .sysCall else if bl then .sysSend else .sysNBSend
+
+/-- The invoking branches of `fl4HandleEvent true` are `DispInv`. -/
+theorem fl4HandleSyscall_inv {n : I64} {call bl don : Bool} (hn : InvSys n call bl don) :
+    Fl4Spec.fl4HandleSyscall (Z := Unit) true (invSysOf call bl) = DispInv call bl don := by
+  rcases hn with ⟨-, rfl, rfl, rfl⟩ | ⟨-, rfl, rfl, rfl⟩ | ⟨-, rfl, rfl, rfl⟩ <;> rfl
+
+/-- The spec syscall of a receiving syscall's flags (`RecvSys`). -/
+def recvSysOf (bl cr : Bool) : Fl4Spec.Syscall :=
+  match bl, cr with
+  | true, true => .sysRecv
+  | false, true => .sysNBRecv
+  | true, false => .sysWait
+  | false, false => .sysNBWait
+
+/-- The receiving branches of `fl4HandleEvent rep` are `withoutPreemption
+(handleRecv bl cr)`. -/
+theorem fl4HandleSyscall_recv (rep bl cr : Bool) :
+    Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr) =
+      Fl4Spec.withoutPreemption (Fl4Spec.handleRecv bl cr) := by
+  cases bl <;> cases cr <;> rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **`dispatch_invokeJ` against `fl4HandleEvent true`'s branch.** -/
+theorem dispatch_invokeJE [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
+    (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
+    (hn : InvSys number call bl don)
+    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
+    (hP : JPathAt (L := L) arI AR Z s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (Q : Fl4Spec.State Unit → S × A → Prop)
+    (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
+      JAtPre (L := L) arI AR s1 a1 σ1 →
+      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
+    syscall.dispatch_syscall st arI s ar number ⦃ r =>
+      DispPost (L := L) arI AR Q (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ := by
+  rw [fl4HandleSyscall_inv hn]
+  exact dispatch_invokeJ arI s ar σ J ct hct number call bl don hn hG hE hP Q hPre
+
+set_option maxHeartbeats 4000000 in
+/-- **`dispatch_recvJ` against `fl4HandleEvent rep`'s branch** (the spec's
+outcome `.ok ()`). -/
+theorem dispatch_recvJE (rep : Bool) (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) {ct : U64}
+    (hct : sched.cur_thread st s = ok ct) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (hvfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
+    (number : I64) (bl cr : Bool) (hn : RecvSys number bl cr)
+    (hIpc : JRecvIpcHyp (L := L) arI AR ct bl s a σ) (hSig : JRecvSigHyp (L := L) arI AR ct bl s a σ) :
+    syscall.dispatch_syscall st arI s a number ⦃ r =>
+      ∃ y ∈ ((Fl4Spec.fl4HandleSyscall (Z := Unit) rep (recvSysOf bl cr)).run σ).1,
+        y.1 = .ok () ∧ RJ (L := L) arI AR r.1 r.2 y.2 ⦄ := by
+  refine WP.spec_mono (dispatch_recvJ arI hZ hAT s a σ J hni hct hnq hvfh number bl cr hn hIpc hSig) ?_
+  rintro r ⟨z, hz, hR⟩
+  rw [fl4HandleSyscall_recv]
+  exact ⟨_, mem_liftE (ε := Unit) hz, rfl, hR⟩
 
 end
 
