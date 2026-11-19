@@ -51,12 +51,46 @@ theorem pres_maybeReturnSc (f : Bool × Bool) (n t : ObjRef) : Pres f (maybeRetu
   unfold maybeReturnSc getTcbObjRef getNtfnObjRef getSkObjRef getSimpleKo getObject; pres_auto
   all_goals exact pres_rescheduleRequired f
 
+/-- **`maybe_return_sc` keeps the invariant**, for a thread in no queue
+(not runnable, or the current thread: `Inv.ret`). -/
+theorem Inv.retQ {σ σ' : State Unit} (h : Inv σ) {n t : ObjRef} {xt : Tcb} {xn : Notification}
+    (hkt : σ.kheap t = some (.tcb xt)) (hkn : σ.kheap n = some (.notification xn))
+    (hnq : NotQueued σ t)
+    (he : ((), σ') ∈ (maybeReturnSc (Z := Unit) n t σ).1) : Inv σ' := by
+  unfold maybeReturnSc getTcbObjRef at he
+  rw [nd_bind_one (getNtfnSc_eq hkn), nd_bind_one (threadGet_eq _ hkt)] at he
+  simp only [NonDet.when] at he
+  split_ifs at he with hc
+  swap
+  · rw [mem_pure he]; exact h
+  obtain ⟨e1, e2⟩ := hc
+  obtain ⟨p, hp⟩ := Option.ne_none_iff_exists'.1 e2
+  rw [hp] at he
+  have hsc : xt.tcbSchedContext = some p := e1 ▸ hp
+  obtain ⟨ys, ns, hks, -⟩ := h.back t xt p hkt hsc
+  have hpt : p ≠ t := by rintro rfl; rw [hkt] at hks; cases hks
+  rw [nd_bind_one (show NonDet.assertOpt (σ := State Unit) (some p) σ = ({(p, σ)}, False) from rfl),
+    nd_bind_one (threadSet_eq _ hkt)] at he
+  have hks1 : (updK σ t (.tcb (tcbSchedContextUpdate (fun _ => none) xt))).kheap p =
+      some (.schedContext ys ns) := by simp [updK, hpt, hks]
+  change ((), σ') ∈ ((updateSchedContext p _ >>= _) _).1 at he
+  rw [nd_bind_one (updateSchedContext_eq hks1 _), Notif.nd_gets_bind] at he
+  have hI := h.unbound hkt hsc hks hnq
+  have e3 : (updSc (updK σ t (.tcb (tcbSchedContextUpdate (fun _ => none) xt))) p
+      (scTcbUpdate (fun _ => none) ys) ns) =
+      updSc (updK σ t (.tcb { xt with tcbSchedContext := none })) p { ys with scTcb := none } ns := rfl
+  rw [e3] at he
+  split_ifs at he
+  · obtain ⟨σ3, h3, hq3⟩ := rescheduleRequired_qchange hI.actReady
+    rw [h3, Set.mem_singleton_iff] at he; cases he; exact hI.qchange hq3
+  · rw [mem_pure he]; exact hI
+
 /-- **The spec's `maybe_return_sc`** when the notification's SC is the
 thread's (module docstring). -/
 theorem maybeReturn_shape {σ : State Unit} {n t i : ObjRef} {xn : Notification} {x : Tcb} {y : SchedContext}
     {m : Nat} (hI : Inv σ) (hkn : σ.kheap n = some (.notification xn)) (hkt : σ.kheap t = some (.tcb x))
     (hks : σ.kheap i = some (.schedContext y m)) (hxs : x.tcbSchedContext = some i) (hxn : xn.ntfnSc = some i)
-    (hnr : runnable x.tcbState = false) :
+    (hnq : NotQueued σ t) :
     ∃ σ', maybeReturnSc (Z := Unit) n t σ = ({((), σ')}, False) ∧
       σ'.kheap t = some (.tcb (tcbSchedContextUpdate (fun _ => none) x)) ∧
       σ'.kheap i = some (.schedContext (scTcbUpdate (fun _ => none) y) m) ∧
@@ -65,11 +99,12 @@ theorem maybeReturn_shape {σ : State Unit} {n t i : ObjRef} {xn : Notification}
       σ'.consumedTime = σ.consumedTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc ∧
       (∀ u ∈ σ'.releaseQueue, u ∈ σ.releaseQueue) ∧
       (t = σ.curThread → σ'.schedulerAction = .chooseNewThread) ∧
-      (¬ t = σ.curThread → σ'.schedulerAction = σ.schedulerAction) := by
+      (¬ t = σ.curThread → σ'.schedulerAction = σ.schedulerAction) ∧
+      (∀ d p, t ∉ σ'.readyQueues d p) := by
   have hti : t ≠ i := by rintro rfl; rw [hkt] at hks; cases hks
   set σ2 := updSc (updK σ t (.tcb (tcbSchedContextUpdate (fun _ => none) x))) i
     (scTcbUpdate (fun _ => none) y) m with hσ2
-  have hI2 : Inv σ2 := hI.unbound hkt hxs hks (hI.notQueued hkt hnr)
+  have hI2 : Inv σ2 := hI.unbound hkt hxs hks hnq
   have hks1 : (updK σ t (.tcb (tcbSchedContextUpdate (fun _ => none) x))).kheap i = some (.schedContext y m) := by
     simp [updK, Ne.symm hti, hks]
   obtain ⟨σ1, he1, k1, c1, s1, t1, n1, i1, isc1, r1, a1, b1⟩ :=
@@ -85,10 +120,26 @@ theorem maybeReturn_shape {σ : State Unit} {n t i : ObjRef} {xn : Notification}
     rw [nd_bind_one (updateSchedContext_eq hks1 _), Notif.nd_gets_bind]
     exact he1
   refine ⟨σ1, heq, ?_, ?_, fun q hq1 hq2 => ?_, c1, s1, t1, n1, i1, isc1, fun u hu => by rw [r1] at hu; exact hu,
-    fun h => a1 h, fun h => b1 h⟩
+    fun h => a1 h, fun h => b1 h, ?_⟩
   · rw [k1]; simp [σ2, updSc, updK, hti]
   · rw [k1]; simp [σ2, updSc, updK]
   · rw [k1]; simp only [σ2, updSc, updK, Function.update_of_ne hq1, Function.update_of_ne hq2]
+  · intro d p hm
+    have hkt2 : σ2.kheap t = some (.tcb (tcbSchedContextUpdate (fun _ => none) x)) := by
+      simp [σ2, updSc, updK, hti]
+    by_cases hP : t = σ2.curThread
+    · obtain ⟨σ3, e3, hq3, -⟩ := rescheduleRequired_calm hI2.actReady
+      have e4 : (if t = σ2.curThread then rescheduleRequired (Z := Unit) else NonDet.pure ()) σ2 =
+          ({((), σ3)}, False) := by rw [if_pos hP]; exact e3
+      rw [← the_result he1 e4] at hm
+      rcases hq3.2.2.2 d p t hm with h | h
+      · exact hnq.1 d p h
+      · obtain ⟨xu, scp, -, -, hku, hsc, -⟩ := schedulable_inv h
+        rw [hkt2] at hku; cases hku; simp [tcbSchedContextUpdate] at hsc
+    · have e4 : (if t = σ2.curThread then rescheduleRequired (Z := Unit) else NonDet.pure ()) σ2 =
+          ({((), σ2)}, False) := by rw [if_neg hP]; rfl
+      rw [← the_result he1 e4] at hm
+      exact hnq.1 d p hm
 
 /-- **The mid-entry facts after `maybe_return_sc`** (module docstring; the
 proof is `unbindTcb_mid`'s on `maybeReturn_shape`). -/
@@ -96,7 +147,7 @@ theorem maybeReturn_mid {T C : Set U64} {σ σ' : State Unit} {n i t : ObjRef} {
     {x : Tcb} {xn : Notification}
     (hI : Inv σ) (hks : σ.kheap i = some (.schedContext y m)) (hy : y.scTcb = some t)
     (hkt : σ.kheap t = some (.tcb x)) (hxs : x.tcbSchedContext = some i)
-    (hkn : σ.kheap n = some (.notification xn)) (hxn : xn.ntfnSc = some i) (hnr : runnable x.tcbState = false)
+    (hkn : σ.kheap n = some (.notification xn)) (hxn : xn.ntfnSc = some i) (hnq : NotQueued σ t)
     (hiC : ∃ q ∈ C, UScalar.bv q = i)
     (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t) (hid : t ≠ σ.idleThread)
     (hcur : σ.schedulerAction = .chooseNewThread ∨ CurInv σ) (hown : CurOwnW T C σ) (hoff : OffOK σ)
@@ -104,7 +155,7 @@ theorem maybeReturn_mid {T C : Set U64} {σ σ' : State Unit} {n i t : ObjRef} {
     (he : maybeReturnSc (Z := Unit) n t σ = ({((), σ')}, False)) :
     (σ'.schedulerAction = .chooseNewThread ∨ CurInv σ') ∧ CurOwnW T C σ' ∧ OffOK σ' ∧ ActIdle σ' ∧
       CurRunM σ' ∧ FK σ σ' := by
-  obtain ⟨σ2, e2, kt, ki, ko, ct, cs, tm, cn, hidl, hisc, rq, a1, b1⟩ := maybeReturn_shape hI hkn hkt hks hxs hxn hnr
+  obtain ⟨σ2, e2, kt, ki, ko, ct, cs, tm, cn, hidl, hisc, rq, a1, b1, -⟩ := maybeReturn_shape hI hkn hkt hks hxs hxn hnq
   have e := the_result e2 he
   subst e
   have hti : t ≠ i := by rintro rfl; rw [hkt] at hks; cases hks
@@ -669,29 +720,31 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 set_option maxHeartbeats 8000000 in
-/-- **`maybe_return_sched_context` at `J`** (module docstring): a thread
-`t`, not runnable, neither the idle thread nor the switch target, whose SC
-`i` is the notification `n`'s, gives it back. -/
-theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n i : U64} {x : Fl4Spec.Tcb}
+/-- **`maybe_return_sched_context` at `J`** (module docstring), for a thread
+`t` in no queue (spec `hnq`, FL4 `hout`: not runnable, or the running current
+thread of a receive, XTopJointRecvIpcRet), neither the idle thread nor the
+switch target, whose SC `i` is the notification `n`'s. -/
+theorem JAtZ.maybeReturnJQ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n i : U64} {x : Fl4Spec.Tcb}
     {xn : Fl4Spec.Notification} (ht : t ∈ Z.T) (hn : n ∈ Z.N) (hiC : i ∈ Z.C)
     (hk : σ.kheap t.bv = some (.tcb x)) (hkn : σ.kheap n.bv = some (.notification xn))
-    (hsp : x.tcbSchedContext = some i.bv) (hxn : xn.ntfnSc = some i.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
-    (hnrw : ¬ P1.Runnable (L.mem s (P1.stA t)))
+    (hsp : x.tcbSchedContext = some i.bv) (hxn : xn.ntfnSc = some i.bv) (hnq : NotQueued σ t.bv)
+    (hout : (L.mem s (P1.inqA t) &&& sched.Q_QUEUED) = 0#u64 ∧ (L.mem s (P1.inqA t) &&& sched.Q_RELEASE) = 0#u64 ∧
+      L.actionW s ≠ t)
     (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
-    notification.maybe_return_sched_context st s n t ⦃ s' => ∃ σ',
+    notification.maybe_return_sched_context st s n t ⦃ s' =>
+      P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ) ∧ ∃ σ',
       Fl4Spec.maybeReturnSc (Z := Unit) n.bv t.bv σ = ({((), σ')}, False) ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a σ' ⦄ := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
   obtain ⟨y, m, hky, hyt⟩ := J.inv.back t.bv x i.bv hk hsp
-  obtain ⟨σ2, he, kt, ki, ko, -⟩ := maybeReturn_shape J.inv hkn hk hky hsp hxn hnr
+  obtain ⟨σ2, he, kt, ki, ko, -⟩ := maybeReturn_shape J.inv hkn hk hky hsp hxn hnq
   have hm : ((), σ2) ∈ (Fl4Spec.maybeReturnSc (Z := Unit) n.bv t.bv σ).1 := by
     rw [he]; exact Set.mem_singleton _
   obtain ⟨-, hidle⟩ := J.words_of_spec ht hsa hid
   have htP : t ∈ P1.Heap.tcbs H := by rw [← J.tcbs_eq.1]; exact ht
   obtain ⟨⟨Q0, R0, h0⟩, hB0, hX0, hS0, hSg0⟩ := J.blk
-  have hout := P1.blocked_out h0 htP hnrw
   refine WP.spec_mono (WP.spec_and (WP.spec_and (maybe_return_refines s σ hR hS J.inv.actReady t n ht hn)
     (maybe_return_sfoot hS ht hiC hk hsp))
     (WP.spec_and (P1.notification.maybe_return_sched_context.inv s n t Q0 R0 h0 hB0 hX0 hS0 hSg0 htP hout hidle)
@@ -710,7 +763,7 @@ theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n
     by_cases e3 : q.bv = i.bv
     · rw [e3, ki] at hx; cases hx
     rw [ko _ e1 e3] at hx; exact hx) hp
-  have hI' : Inv σ2 := Inv.ret J.inv hk hkn hnr hm
+  have hI' : Inv σ2 := Inv.retQ J.inv hk hkn hnq hm
   have hWk : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ) :=
     Sched.WritesIn.kfoot_of_sfoot_scw hS hiC (K := 24#u64) (by simp) (by simp) (by decide) hw5
   have hW : P1.WritesIn st s s' (TFoot st Z.T Z.N Z.C Z.c s σ) := Sched.WritesIn.tfoot_of_kfoot hWk
@@ -720,7 +773,7 @@ theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n
   have hall := ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree
     ⟨⟨hS', hR', hN', hI'⟩, hWk, (pres_maybeReturnSc (true, true) _ _).of_eq he⟩
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ := hall
-  obtain ⟨hcur', hown', hoff', hact', hcr', hF⟩ := maybeReturn_mid (T := Z.T) J.inv hky hyt hk hsp hkn hxn hnr
+  obtain ⟨hcur', hown', hoff', hact', hcr', hF⟩ := maybeReturn_mid (T := Z.T) J.inv hky hyt hk hsp hkn hxn hnq
     ⟨i, hiC, rfl⟩ hsa hid J.cur J.own J.off J.act J.curRun he
   have hB' : BlockedScActive σ2 :=
     J.bsa.bk (bk_of_tk_sk hK (skm_maybeReturnSc _ _ σ _ hm)) ((pres_maybeReturnSc (true, true) _ _).of_eq he)
@@ -729,11 +782,28 @@ theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hact'.1 hY'
       ((((pres_maybeReturnSc (true, true) _ _).of_eq he).ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg hfoot
-  exact ⟨σ2, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
+  exact ⟨hW, σ2, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2)
     (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk⟩
+
+/-- **`maybe_return_sched_context` at `J`** (module docstring): a thread
+`t`, not runnable, neither the idle thread nor the switch target, whose SC
+`i` is the notification `n`'s, gives it back. -/
+theorem JAtZ.maybeReturnJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n i : U64} {x : Fl4Spec.Tcb}
+    {xn : Fl4Spec.Notification} (ht : t ∈ Z.T) (hn : n ∈ Z.N) (hiC : i ∈ Z.C)
+    (hk : σ.kheap t.bv = some (.tcb x)) (hkn : σ.kheap n.bv = some (.notification xn))
+    (hsp : x.tcbSchedContext = some i.bv) (hxn : xn.ntfnSc = some i.bv) (hnr : Fl4Spec.runnable x.tcbState = false)
+    (hnrw : ¬ P1.Runnable (L.mem s (P1.stA t)))
+    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
+    notification.maybe_return_sched_context st s n t ⦃ s' => ∃ σ',
+      Fl4Spec.maybeReturnSc (Z := Unit) n.bv t.bv σ = ({((), σ')}, False) ∧
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a σ' ⦄ := by
+  have htP : t ∈ P1.Heap.tcbs H := by rw [← J.tcbs_eq.1]; exact ht
+  obtain ⟨⟨Q0, R0, h0⟩, -⟩ := J.blk
+  exact WP.spec_mono (J.maybeReturnJQ ht hn hiC hk hkn hsp hxn (J.inv.notQueued hk hnr) (P1.blocked_out h0 htP hnrw)
+    hsa hid) fun _ h => h.2
 
 set_option maxHeartbeats 16000000 in
 /-- **The blocking receive at `J` up to `maybe_return_sched_context`** (as

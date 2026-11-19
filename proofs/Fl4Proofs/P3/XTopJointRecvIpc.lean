@@ -7,20 +7,24 @@ toward XTopJointDispatch's `JRecvIpcHyp`).
   null reply cap or one whose reply object is not linked to a thread
   (EpRecv's `ReplyArg`): the badge register := 0 (the spec's
   `doNbrecvFailedTransfer`, EpRecv's `receiveIpc_noSend`), one register write
-  at `J` (`JAtZ.regWrJ`, `badge_wr_irel`); FL4's side by EpRecv's
-  `receive_ipc_pre` (`receive_ipc_poll_eq`).
-* `jRecvIpcHyp_of`: `JRecvIpcHyp` from it, XTopJointRecvIpcAct's
+  at `J` (`JAtZ.recvIpcPollJR`: `JAtZ.regWrJ`, `badge_wr_irel`, given the
+  reductions); FL4's side by EpRecv's `receive_ipc_pre` and
+  `receive_ipc_poll_cont` (`receive_ipc_poll_eq`). `JAtZ.recvIpcPollNJ`: the
+  same with a bound notification that is not active (no `maybe_return` when
+  polling: `receive_ipc_pollN_pre`, XTopJointRecvIpcBound's
+  `receiveIpc_boundNA`).
+* `jRecvIpcHyp_of`: `JRecvIpcHyp` from them, XTopJointRecvIpcAct's
   `JAtZ.recvIpcActJ` (an active bound notification), XTopJointRecvIpcBlock's
   `JAtZ.recvIpcBlockJ` (a blocking wait with no bound notification, the
   reply cap null or naming an unlinked reply), XTopJointRecvIpcBound's
   `JAtZ.recvIpcBlockNJ` (the same with a bound idle or waiting notification
-  whose SC is not the thread's) and `JRecvIpcRestHyp` [W], the other cases
-  (a polling receive with a bound notification, a blocking one whose bound
-  notification lends the thread's SC: `maybe_return_sched_context`, a waiting
-  sender, a reply object linked to a thread: `take_reply`'s `cancel_ipc`);
+  whose SC is not the thread's), XTopJointRecvIpcRet's `JAtZ.recvIpcRetJ`
+  (one lending the thread its SC: `maybe_return_sched_context` first) and
+  `JRecvIpcRestHyp` [W], the other cases (a waiting sender, a reply object
+  linked to a thread: `take_reply`'s `cancel_ipc`);
   `dispatch_recvJR`: `dispatch_recvJS` with it.
 -/
-import Fl4Proofs.P3.XTopJointRecvIpcBound
+import Fl4Proofs.P3.XTopJointRecvIpcRet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -33,12 +37,19 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
 
-/-- FL4's polling `receive_ipc` with no bound notification on an idle or
-receiving endpoint, the reply cap as in `ReplyArg`: the badge register := 0. -/
-theorem receive_ipc_poll_eq {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Bool}
-    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg R (L.mem s) rc rc' rv)
-    (hbound : L.mem s (tBoundA t) = 0#u64) (hst : stOf (L.mem s) e = 0#u64 ∨ stOf (L.mem s) e = 2#u64) :
-    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
+/-- FL4's polling wait on an idle or receiving endpoint (the part of
+`receive_ipc` after the bound notification): the badge register := 0. -/
+theorem receive_ipc_poll_cont {s : S} {a : A} {t e rv : U64}
+    (hst : stOf (L.mem s) e = 0#u64 ∨ stOf (L.mem s) e = 2#u64) :
+    (do
+      let st1 ← obj.Ep.state st e s
+      if st1 = obj.EP_IDLE then do
+        let s3 ← endpoint.wait_for_sender st s t e false rv
+        ok (s3, a)
+      else if st1 = obj.EP_RECV then do
+        let s3 ← endpoint.wait_for_sender st s t e false rv
+        ok (s3, a)
+      else endpoint.receive_from_sender st arI s a t e rv) ⦃ r =>
       r = (L.wr s (regA t (regIdx Fl4Spec.badge_register)) 0#u64, a) ⦄ := by
   have key : (do
       let s3 ← endpoint.wait_for_sender st s t e false rv
@@ -48,7 +59,6 @@ theorem receive_ipc_poll_eq {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 
     refine WP.spec_bind (obj.Tcb.set_reg.spec s t layout.reg.BADGE 0#u64) ?_
     rintro s1 rfl
     rw [WP.spec_ok, regIdx_badge]
-  apply receive_ipc_pre s a t e cb c1 c2 c3 c4 false rc rc' rv hrc hbound
   refine WP.spec_bind (P1.obj.Ep.state.spec s e) ?_
   rintro v rfl
   rw [epState_eq]
@@ -58,7 +68,89 @@ theorem receive_ipc_poll_eq {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 
   · rw [h, if_neg (by rw [ep_state_vals.1]; decide), if_pos ep_state_vals.2.2.symm]
     exact key
 
+/-- FL4's polling `receive_ipc` with no bound notification on an idle or
+receiving endpoint, the reply cap as in `ReplyArg`: the badge register := 0. -/
+theorem receive_ipc_poll_eq {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Bool}
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg R (L.mem s) rc rc' rv)
+    (hbound : L.mem s (tBoundA t) = 0#u64) (hst : stOf (L.mem s) e = 0#u64 ∨ stOf (L.mem s) e = 2#u64) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
+      r = (L.wr s (regA t (regIdx Fl4Spec.badge_register)) 0#u64, a) ⦄ :=
+  receive_ipc_pre s a t e cb c1 c2 c3 c4 false rc rc' rv hrc hbound (receive_ipc_poll_cont hst)
+
+/-- FL4's polling `receive_ipc` with a bound notification that is not
+active (no `maybe_return_sched_context` when polling), reduced to the wait. -/
+theorem receive_ipc_pollN_pre {R : Set U64} {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Bool}
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg R (L.mem s) rc rc' rv) {n : U64}
+    (hbound : L.mem s (tBoundA t) = n) (hn0 : n ≠ 0#u64) (hstN : stOf (L.mem s) n ≠ obj.NTFN_ACTIVE)
+    {P : S × A → Prop}
+    (h : (do
+      let st1 ← obj.Ep.state st e s
+      if st1 = obj.EP_IDLE then do
+        let s3 ← endpoint.wait_for_sender st s t e false rv
+        ok (s3, a)
+      else if st1 = obj.EP_RECV then do
+        let s3 ← endpoint.wait_for_sender st s t e false rv
+        ok (s3, a)
+      else endpoint.receive_from_sender st arI s a t e rv) ⦃ P ⦄) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ P ⦄ := by
+  unfold endpoint.receive_ipc
+  simp only [capability.Cap.ptr, bind_tc_ok]
+  rcases hrc with ⟨rfl, -, rfl⟩ | ⟨b, r', rfl, -, -, h0⟩
+  · simp only [endpoint.take_reply, bind_tc_ok]
+    step with Endp.obj.Tcb.bound_ntfn.spec as ⟨i, hi⟩
+    simp only [hi, hbound]
+    rw [if_pos (by simpa using hn0)]
+    refine WP.spec_bind (P1.obj.Ntfn.state.spec s n) ?_
+    rintro v rfl
+    rw [epState_eq, if_neg hstN]
+    simp only [show (n != 0#u64) = true by simpa using hn0, ↓reduceIte, Bool.false_eq_true, bind_tc_ok,
+      bind_ok, Bind.bind]
+    exact h
+  · simp only [endpoint.take_reply]
+    step with Endp.obj.Reply.tcb.spec as ⟨i, hi⟩
+    step with P1.obj.Tcb.is_null.spec as ⟨b, hb⟩
+    simp only [hb, hi, h0, decide_true, ↓reduceIte, bind_tc_ok]
+    step with Endp.obj.Tcb.bound_ntfn.spec as ⟨j, hj⟩
+    simp only [hj, hbound]
+    rw [if_pos (by simpa using hn0)]
+    refine WP.spec_bind (P1.obj.Ntfn.state.spec s n) ?_
+    rintro v rfl
+    rw [epState_eq, if_neg hstN]
+    simp only [show (n != 0#u64) = true by simpa using hn0, ↓reduceIte, Bool.false_eq_true, bind_tc_ok,
+      bind_ok, Bind.bind]
+    exact h
+
 set_option maxHeartbeats 8000000 in
+/-- **A polling receive at `J`, given the reductions**: FL4's `receive_ipc`
+writes 0 to the badge register (`hpoll`), the spec's is the polling
+`receiveIpcBlocked` (`hsp`). -/
+theorem JAtZ.recvIpcPollJR {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) {e : U64} (cb : U64) (c1 c2 c3 c4 : Bool)
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap}
+    (hpoll : endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
+      r = (L.wr s (regA t (regIdx Fl4Spec.badge_register)) 0#u64, a) ⦄)
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) {reply : Option Fl4Spec.ObjRef}
+    (hsp : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) false rc' σ =
+      Fl4Spec.receiveIpcBlocked false t.bv e.bv reply σ) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) false rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+  have hI := J.xtop.irelK J.ks J.buf
+  refine WP.spec_mono hpoll ?_
+  rintro r rfl
+  have hspec : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) false rc' σ =
+      ({((), updK σ t.bv (.tcb (setReg xt Fl4Spec.badge_register (0#u64 : U64).bv)))}, False) := by
+    rw [hsp]
+    unfold Fl4Spec.receiveIpcBlocked Fl4Spec.doNbrecvFailedTransfer
+    rw [if_neg (by simp), nd_bind_one (asUser_setRegister_eq _ _ hkt)]
+    rfl
+  have hXb := badge_wr_irel J.ip hI ht hkt 0#u64
+  rw [badgeRegA_eq_regA] at hXb
+  obtain ⟨V1, J1⟩ := J.regWrJ ht hkt Fl4Spec.badge_register 0#u64 hXb
+  rw [hspec]
+  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1⟩
+
 /-- **A polling receive at `J`** (module docstring). -/
 theorem JAtZ.recvIpcPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
@@ -80,28 +172,57 @@ theorem JAtZ.recvIpcPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     | idleEP => exact Or.inl hx.1
     | recvEP q => exact Or.inr hx.1
     | sendEP q => exact absurd rfl (hns q)
-  refine WP.spec_mono (receive_ipc_poll_eq (arI := arI) (a := a) (cb := cb) (c1 := c1) (c2 := c2) (c3 := c3)
-    (c4 := c4) hrc hbound hst) ?_
-  rintro r rfl
-  have hspec0 := receiveIpc_noSend b rights false (replyArg_spec J.ip.e hR hrc) hkt hbn hk hns
-  have hspec : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) false rc' σ =
-      ({((), updK σ t.bv (.tcb (setReg xt Fl4Spec.badge_register (0#u64 : U64).bv)))}, False) := by
-    rw [hspec0]
-    unfold Fl4Spec.receiveIpcBlocked Fl4Spec.doNbrecvFailedTransfer
-    rw [if_neg (by simp), nd_bind_one (asUser_setRegister_eq _ _ hkt)]
-    rfl
-  have hXb := badge_wr_irel J.ip hI ht hkt 0#u64
-  rw [badgeRegA_eq_regA] at hXb
-  obtain ⟨V1, J1⟩ := J.regWrJ ht hkt Fl4Spec.badge_register 0#u64 hXb
-  rw [hspec]
-  exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1⟩
+  exact J.recvIpcPollJR ht hkt cb c1 c2 c3 c4 (receive_ipc_poll_eq hrc hbound hst) b rights
+    (receiveIpc_noSend b rights false (replyArg_spec J.ip.e hR hrc) hkt hbn hk hns)
 
-/-- The case `JAtZ.recvIpcPollJ` proves: polling, no bound notification, no
-waiting sender, the reply cap null or naming a reply object not linked to a
+/-- **A polling receive with a bound notification that is not active at
+`J`**: as `JAtZ.recvIpcPollJ` (no `maybe_return` when polling, on either
+side). -/
+theorem JAtZ.recvIpcPollNJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {n : U64} (hn : n ∈ Z.N) (hbn : xt.tcbBoundNotification = some n.bv)
+    {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn))
+    (hna : Fl4Spec.isActive xn = false)
+    {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
+    (hns : ∀ q, x ≠ .sendEP q) (cb : U64) (c1 c2 c3 c4 : Bool)
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) false rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) false rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+  have hI := J.xtop.irelK J.ks J.buf
+  have hR := hI.1.toE
+  have hx := hR.at_ep he hk
+  have hxt := hR.at_tcb ht hkt
+  have hst : stOf (L.mem s) e = 0#u64 ∨ stOf (L.mem s) e = 2#u64 := by
+    cases x with
+    | idleEP => exact Or.inl hx.1
+    | recvEP q => exact Or.inr hx.1
+    | sendEP q => exact absurd rfl (hns q)
+  have hb1 : optRef (L.mem s (tBoundA t)) = some n.bv := hxt.bound.symm.trans hbn
+  have hbz : L.mem s (tBoundA t) ≠ 0#u64 := fun e => by rw [e, optRef_zero] at hb1; cases hb1
+  have hbound : L.mem s (tBoundA t) = n := by
+    rw [Notif.optRef_ne hbz] at hb1; exact P1.eq_of_bv (Option.some.inj hb1)
+  have hxn := hI.1.toN.at_ntfn hn hkn
+  have hstN : stOf (L.mem s) n ≠ obj.NTFN_ACTIVE := by
+    have ho := hxn.obj
+    cases hxo : xn.ntfnObj with
+    | activeNtfn b0 => simp [Fl4Spec.isActive, hxo] at hna
+    | idleNtfn => rw [hxo] at ho; rw [ho.1, ntfn_consts.2.2]; decide
+    | waitingNtfn q => rw [hxo] at ho; rw [ho.1, ntfn_consts.2.2]; decide
+  exact J.recvIpcPollJR ht hkt cb c1 c2 c3 c4
+    (receive_ipc_pollN_pre hrc hbound (by rw [← hbound]; exact hbz) hstN (receive_ipc_poll_cont hst)) b rights
+    (receiveIpc_boundNA b rights false (replyArg_spec J.ip.e hR hrc) hkt hbn hk hns hkn hna (fun h => by cases h))
+
+/-- The case `JAtZ.recvIpcPollJ`/`JAtZ.recvIpcPollNJ` prove: polling, no bound
+notification or one not active, no waiting sender, the reply cap null or naming a reply object not linked to a
 thread. -/
 def RecvIpcPollCase (ct : U64) (blocking : Bool) (s : S) (σ : Fl4Spec.State Unit) (p : U64)
     (rc : capability.Cap) : Prop :=
-  blocking = false ∧ (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none) ∧
+  blocking = false ∧ (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none ∨
+      ∃ n xn, xt.tcbBoundNotification = some n ∧ σ.kheap n = some (.notification xn) ∧
+        Fl4Spec.isActive xn = false) ∧
     (∀ x, σ.kheap p.bv = some (.endpoint x) → ∀ q, x ≠ .sendEP q) ∧
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64)
 
@@ -122,22 +243,24 @@ def RecvIpcBlockCase (ct : U64) (blocking : Bool) (s : S) (σ : Fl4Spec.State Un
     (∀ x, σ.kheap p.bv = some (.endpoint x) → ∀ q, x ≠ .sendEP q) ∧
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64)
 
-/-- The case `JAtZ.recvIpcBlockNJ` proves: blocking, a bound notification
-not active whose SC is not the thread's, no waiting sender, the reply cap
-null or naming a reply object not linked to a thread. -/
+/-- The case `JAtZ.recvIpcBlockNJ` (the notification's SC not the thread's)
+and `JAtZ.recvIpcRetJ` (the thread's) prove: blocking, a bound notification
+not active, no waiting sender, the reply cap null or naming a reply object
+not linked to a thread. -/
 def RecvIpcBoundCase (ct : U64) (blocking : Bool) (s : S) (σ : Fl4Spec.State Unit) (p : U64)
     (rc : capability.Cap) : Prop :=
   blocking = true ∧ (∃ xt n xn, σ.kheap ct.bv = some (.tcb xt) ∧ xt.tcbBoundNotification = some n ∧
-    σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false ∧
-    ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none)) ∧
+    σ.kheap n = some (.notification xn) ∧ Fl4Spec.isActive xn = false) ∧
     (∀ x, σ.kheap p.bv = some (.endpoint x) → ∀ q, x ≠ .sendEP q) ∧
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64)
 
 variable (arI) in
 /-- **`receive_ipc` at `J`, the cases not proved** [W] (KENTRY-PLAN.md item 6;
 IpcLeaves' `recv_ipc_leaf` is at `IRel` only, and there without a bound
-notification): `JRecvIpcHyp` outside `RecvIpcPollCase`, `RecvIpcActCase` and
-`RecvIpcBlockCase`, `RecvIpcBoundCase`. -/
+notification): `JRecvIpcHyp` outside `RecvIpcPollCase`, `RecvIpcActCase`,
+`RecvIpcBlockCase` and `RecvIpcBoundCase`, i.e. a waiting sender (l4v
+`receive_ipc`'s `send_ep` branch) or a reply cap whose reply object is linked
+to a thread (`take_reply`'s `cancel_ipc`, l4v `reply_tcb` of the reply). -/
 def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
@@ -181,25 +304,8 @@ theorem JAtZ.recvCov_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
       (∀ k, H p = some k → Sched.Covered (L.mem s) Z.G p.val (p.val + 2 ^ k.bits))) ∧
     (rv ≠ 0#u64 →
       (∀ k, Z.th rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
-      (∀ k, H rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits))) := by
-  have hHe : H p = some .ep := J.zH.2.1 p he
-  have hfit := J.kern.heap.fits p _ hHe
-  simp only [P1.HKind.bits] at hfit
-  obtain ⟨y, hy, hcv⟩ := hHd
-  refine ⟨J.cover_cap (P1.WritesIn.refl s _) hy (by rw [capAt_capV, hcv]) (fun h => by cases h)
-    (ok_inj (phys_eq _).symm) rfl (range_ep p b sd true g gr hfit) fun k hk' => by
-      rw [hHe] at hk'; cases hk'
-      exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩, fun h0 => ?_⟩
-  rcases hra with ⟨-, -, rfl⟩ | ⟨g', r', rfl, -, hrR, -⟩
-  · exact absurd rfl h0
-  obtain ⟨y', hy', hcv'⟩ := hHr rv g' rfl
-  have hHr' : H rv = some .reply := J.zH.2.2.1 rv hrR
-  have hfit' := J.kern.heap.fits rv _ hHr'
-  simp only [P1.HKind.bits] at hfit'
-  exact J.cover_cap (P1.WritesIn.refl s _) hy' (by rw [capAt_capV, hcv']) (fun h => by cases h)
-    (ok_inj (phys_eq _).symm) rfl (range_reply rv g' hfit') fun k hk' => by
-      rw [hHr'] at hk'; cases hk'
-      exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+      (∀ k, H rv = some k → Sched.Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits))) :=
+  J.recvCov_ofW (P1.WritesIn.refl s _) he hHd hHr hra
 
 set_option maxHeartbeats 4000000 in
 /-- **`JRecvIpcHyp` from `JRecvIpcRestHyp`** (`JAtZ.recvIpcPollJ` for
@@ -243,15 +349,17 @@ theorem jRecvIpcHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.St
       (receiveIpc_noSend b.bv (rightsOf sd true g gr) true (replyArg_spec J.ip.e hI.1.toE hra) hkt (hbn xt hkt) hke
         (hns xe hke))
   by_cases hcn : RecvIpcBoundCase (L := L) ct blocking s σ p rc
-  · obtain ⟨rfl, ⟨xt, n0, xn, hkt, hbn, hkn, hna, hnr⟩, hns, hrr⟩ := hcn
+  · obtain ⟨rfl, ⟨xt, n0, xn, hkt, hbn, hkn, hna⟩, hns, hrr⟩ := hcn
     obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
-    obtain ⟨hcov, hcovR⟩ := J.recvCov_of he hHd hHr hra
     have hcB : Endp.CanBlock true xe := by
       cases xe with
       | idleEP => trivial
       | recvEP q => rfl
       | sendEP q => exact absurd rfl (hns _ hke q)
+    by_cases hnr : xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none
+    · exact J.recvIpcRetJ ht hcur hni hnq hkt hn hbn hkn hna hnr he hke hcB hHd hHr hra b.bv (rightsOf sd true g gr)
+    obtain ⟨hcov, hcovR⟩ := J.recvCov_of he hHd hHr hra
     exact J.recvIpcBlockNJ ht hcur hni hnq hkt hn hbn hkn hna hnr he hke hcB hcov hra hcovR b sd true g gr b.bv
       (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
@@ -261,7 +369,11 @@ theorem jRecvIpcHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.St
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
   obtain ⟨rv, hra⟩ := J.replyArg_of hrc hrr
-  exact J.recvIpcPollJ ht hkt (hbn xt hkt) he hke (hns xe hke) b sd true g gr hra b.bv (rightsOf sd true g gr)
+  rcases hbn xt hkt with hbn | ⟨n0, xn, hbn, hkn, hna⟩
+  · exact J.recvIpcPollJ ht hkt hbn he hke (hns xe hke) b sd true g gr hra b.bv (rightsOf sd true g gr)
+  · obtain ⟨n, hn, rfl⟩ := J.obj.ntfn _ xn hkn
+    exact J.recvIpcPollNJ ht hkt hn hbn hkn hna he hke (hns xe hke) b sd true g gr hra b.bv
+      (rightsOf sd true g gr)
 
 set_option maxHeartbeats 4000000 in
 /-- **`dispatch_recvJS` with `jRecvIpcHyp_of`**: the receiving syscalls at

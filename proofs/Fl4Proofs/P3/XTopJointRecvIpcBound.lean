@@ -143,11 +143,15 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 set_option maxHeartbeats 4000000 in
 /-- **The blocking receive with a bound idle or waiting notification at `J`**
-(module docstring): the notification's SC is not the thread's (`hnr`). -/
-theorem JAtZ.recvIpcBlockNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
-    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+(module docstring): the notification's SC is not the thread's (`hnr`); at a
+resumed entry or with a reschedule pending when the thread has no SC (`hsa`,
+as `JAtZ.recvIpcBlockJG`). -/
+theorem JAtZ.recvIpcBlockNJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hti : σ.curThread ≠ σ.idleThread)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (hnrl : t.bv ∉ σ.releaseQueue)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hr : Fl4Spec.runnable xt.tcbState = true)
+    (hsa : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ xt.tcbSchedContext = none))
     {n : U64} (hn : n ∈ Z.N) (hbn : xt.tcbBoundNotification = some n.bv)
     {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn))
     (hna : Fl4Spec.isActive xn = false) (hnr : ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none))
@@ -192,9 +196,33 @@ theorem JAtZ.recvIpcBlockNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     · refine Or.inr fun he' => hnr ⟨?_, ?_⟩
       · rw [hsN, he']; exact hsct.symm
       · rw [hsN, Notif.optRef_ne h0]; simp
-  exact J.recvIpcBlockJ ht hcur hni hnq hkt he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights
+  exact J.recvIpcBlockJG ht hcur hti hnq hnrl hkt hr hsa he hk hc hcov hrc hcovR cb c1 c2 c3 c4 b rights
     (fun h => receive_ipc_blockN_red hrc hbound (by rw [← hbound]; exact hbz) hstN hwn hst2 h)
     (receiveIpc_boundNA b rights true (replyArg_spec J.ip.e hI.1.toE hrc) hkt hbn hk hns hkn hna (fun _ => hnr))
+
+/-- **The blocking receive with a bound idle or waiting notification at `J`**
+(module docstring): the notification's SC is not the thread's (`hnr`). -/
+theorem JAtZ.recvIpcBlockNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
+    {n : U64} (hn : n ∈ Z.N) (hbn : xt.tcbBoundNotification = some n.bv)
+    {xn : Fl4Spec.Notification} (hkn : σ.kheap n.bv = some (.notification xn))
+    (hna : Fl4Spec.isActive xn = false) (hnr : ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none))
+    {e : U64} (he : e ∈ Z.E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
+    (hc : Endp.CanBlock true x)
+    (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
+      (∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)))
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
+    (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
+        RJ (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  J.recvIpcBlockNJG ht hcur hni.1 hnq (by rw [← hcur]; exact (J.curInv (by rw [hni.2]; intro e; cases e)).notRel) hkt
+    ((J.curRun.run hni) xt (by rw [hcur]; exact hkt)) (Or.inl hni.2) hn hbn hkn hna hnr he hk hc hcov hrc hcovR
+    cb c1 c2 c3 c4 b rights
 
 end
 

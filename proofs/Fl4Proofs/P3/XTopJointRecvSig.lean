@@ -86,33 +86,32 @@ theorem JAtZ.recvSigPollJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   rw [hspec, badgeRegA_eq_regA]
   exact ⟨_, Set.mem_singleton _, J1.xtop.relTop, _, _, _, _, _, _, J1⟩
 
-/-- P1's `CanBlock` of the current thread at a resumed entry (runnable, in no
-ready queue). -/
-theorem JAtZ.canBlockCur {s : S} {a : A} {σ : Fl4Spec.State Unit}
+/-- P1's `CanBlock` of the current thread, runnable, in no queue, not the
+idle thread, at a resumed entry or after a reschedule became pending when the
+thread has no SC (a receive after `maybe_return_sched_context`,
+XTopJointRecvIpcRet). -/
+theorem JAtZ.canBlockCurG {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrn : Fl4Spec.runnable x.tcbState = true)
-    (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) :
+    (hti : σ.curThread ≠ σ.idleThread) (hnr : ct.bv ∉ σ.releaseQueue)
+    (hsa : σ.schedulerAction = .resumeCurThread ∨
+      (σ.schedulerAction = .chooseNewThread ∧ x.tcbSchedContext = none))
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) :
     P1.CanBlock st (P1.Heap.tcbs H) Ac s ct := by
   have hS := J.xtop.fin.1.1.1
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨Q, R, hcq, hs⟩ := hS.lists
   have htH : ct ∈ P1.Heap.tcbs H := J.zH.1 ct ht
   have hnq' : ∀ d p, ct.bv ∉ σ.readyQueues d p := by rw [← hcur]; exact hnq
-  have hC : CurInv σ := J.curInv (by rw [hni.2]; intro e; cases e)
-  have hnr : ct.bv ∉ σ.releaseQueue := by rw [← hcur]; exact hC.notRel
-  have hti : σ.curThread ≠ σ.idleThread := hni.1
   obtain ⟨bq, br⟩ := J.curBits ht hnq' hnr
-  obtain ⟨hna, -⟩ := J.words_of_spec ht (fun u hu => by rw [hni.2] at hu; cases hu)
-    (fun e => hni.1 (by rw [hcur, e]))
+  have hsw : ∀ u, σ.schedulerAction = .switchThread u → u ≠ ct.bv := fun u hu => by
+    rcases hsa with h | ⟨h, -⟩ <;> rw [h] at hu <;> cases hu
+  obtain ⟨hna, -⟩ := J.words_of_spec ht hsw (fun e => hti (by rw [hcur, e]))
   obtain ⟨x0, hk0, hTR⟩ := hI.1.tcb ct ht
   rw [hk] at hk0; cases hk0
   have hv : (L.mem s (P1.stA ct)).val = tsCode x.tcbState := by
     rw [P1.stA_eq, ← tStA_eq]; exact hTR.st
   obtain ⟨hnb, hnrp⟩ := P1.run_word (w := L.mem s (P1.stA ct)) (by rw [hv]; exact runnable_code hrn)
-  have ha0 : L.actionW s = 0#u64 := by
-    have h := hS.act
-    rw [hni.2] at h
-    unfold P1.LawfulStore.actionW; rw [hcq.cur]; exact h
   have hcw : L.curW s = ct := by
     apply P1.eq_of_bv
     rw [← hcur, hs.curThread]
@@ -123,7 +122,27 @@ theorem JAtZ.canBlockCur {s : S} {a : A} {σ : Fl4Spec.State Unit}
     have ei : L.idleW s = nodeW st s Z.c layout.node.IDLE_THREAD := by
       unfold P1.LawfulStore.idleW nodeW; rw [hcq.cur]
     exact hti (by rw [hcur, hs.idleTh, ← ei, h])
-  · exact fun h1 => hB0.sact ct htH (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨ha0, hcw⟩))))) h1
+  · rcases hsa with hres | ⟨-, hsc0⟩
+    · have ha0 : L.actionW s = 0#u64 := by
+        have h := hS.act
+        rw [hres] at h
+        unfold P1.LawfulStore.actionW; rw [hcq.cur]; exact h
+      exact fun h1 => hB0.sact ct htH (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨ha0, hcw⟩))))) h1
+    · intro h1
+      obtain ⟨xt0, hkt0, -, -, hsct, -⟩ := hs.tcb ct ht
+      rw [hk] at hkt0; cases hkt0
+      rw [hsc0] at hsct
+      exact absurd (optRef_none hsct.symm) h1
+
+/-- P1's `CanBlock` of the current thread at a resumed entry (runnable, in no
+ready queue). -/
+theorem JAtZ.canBlockCur {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T) (hcur : σ.curThread = ct.bv)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrn : Fl4Spec.runnable x.tcbState = true)
+    (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) :
+    P1.CanBlock st (P1.Heap.tcbs H) Ac s ct :=
+  J.canBlockCurG ht hcur hk hrn hni.1 (by rw [← hcur]; exact (J.curInv (by rw [hni.2]; intro e; cases e)).notRel)
+    (Or.inl hni.2) hnq
 
 /-- FL4's `maybe_donate_sched_context` for a thread with an SC: nothing. -/
 theorem maybe_donate_hasSc {s : S} {a : A} {t n : U64} (h0 : L.mem s (P1.scA t) ≠ 0#u64) :
