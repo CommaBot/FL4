@@ -611,3 +611,7 @@ import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScNextDom
 import Fl4Proofs.P3.ScNextDomB
 import Fl4Proofs.P3.ScNextDomC
+import Fl4Proofs.P3.ScArchF
+import Fl4Proofs.P3.ScScheduleF
+import Fl4Proofs.P3.XTopJointSchedRF
+import Fl4Proofs.P3.ScNextDomF

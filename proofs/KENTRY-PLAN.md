@@ -1254,3 +1254,38 @@ removed; JAtZ untouched.
   spec's big label matches (`decodeTcbInvocation`, the TCB sub-decoders) times out at 200000 heartbeats while
   generating equation lemmas regardless of `set_option … in`; use `delta f` + `generalize`/`cases` + `dsimp only`,
   and `with_reducible` for the syntax-directed `OkP` steps.
+## sch4 (branch par/sched4 in FL4-sc, on 382b094a = int/j2 incl. sch3)
+- (A) DONE: the arch premises up to the FPU. New leaves ScArchF, ScScheduleF, XTopJointSchedRF, ScNextDomF
+  (imported from Fl4Proofs.lean; nothing in the 445-module cone changed; JAtZ untouched).
+  * Check (1): no relation reads the spec's saved FPU image (`userFpuState`) or `tcbCurFpu` (only `userRegs`;
+    XTopFpuRel/XTopJointFpu say the same, ScTK's TKObj already tolerates them) ⇒ frame weakening, not an
+    invariant. `TcbFpuEq y x` (= but for `tcbArch`, `userRegs` kept), `HeapEqUpToFpu σ σ'` (heaps equal but
+    for TcbFpuEq TCBs) + refl/trans/of_eq/eq_trans/trans_eq/tcb/tcb_back/ntcb/sc; frames `Inv.fpu`
+    (via Inv.tcbView), `NSC.fpu`, `SzKeep.fpu`, `schedulable_fpu`, `OffOK.fpu`, `IdleOK.fpu`,
+    `RunW.of_new2F`, `newcur_ofF`, `newcur_of2F`.
+  * New [S] side condition `FpuOwnOK σ` (owner is none or a TCB; l4v X64 `valid_cur_fpu`): without it the
+    spec's save `as_user owner …` FAILS for a dangling owner, so even the FPU-weakened premise would be false
+    at (unreachable) SchedRel states. `OW m` (owner kept; copy of ScNextDomB's DI framework): `ow_awaken`,
+    `ow_tcbSchedAction`, `ow_when`; `FpuOwnOK.of`.
+  * `ArchKeepsF` (ArchKeeps with HeapEqUpToFpu; `ArchKeeps.toF`); `ArchSwF` [P]: thread part
+    `∀ s a σ, SchedRel → NtfnStateRel → FpuOwnOK σ → ∀ t ∈ T, set_vm_root ⦃ ∃ σ1, archSwitchToThread t σ =
+    {σ1} ∧ SchedRel ∧ NtfnStateRel ∧ ArchKeepsF σ σ1 ⦄`, idle part unchanged (`set_vm_root idle`: no FPU
+    step, ArchKeeps true); `ArchSw.toF`. `ArchNdF` [P] (ScNextDomF): ArchNd with `FpuOwnOK σ →`, ArchKeepsF,
+    and `σ1.archState.x64CurrentFpuOwner = none`. Remaining platform reading in both (as every arch premise):
+    one outcome needs the opaque machine ops (enableFpuImpl, writeFpuStateImpl, readFpuStateVal, CR3 write)
+    deterministic.
+  * Chain copies (posts: `HeapEqUpToFpu σ σ'` for `σ'.kheap = σ.kheap`): `switch_to_thread_refinesF`,
+    `choose_thread_refinesF` (ScArchF); `schedule_choose_new_thread_refinesF`, `sw_refinesF`, `cn_refinesF`/
+    `cn_enqF`/`cn_appF`, `switch_branch_refinesF` (take `hfo : FpuOwnOK σ`), `schedule_refinesWPF` (extra
+    `hPo : ∀ r σ1, Pf r σ1 → FpuOwnOK σ1`; FpuOwnOK carried σ1→σ2 by ow_awaken + Calm, →σ4 by
+    ow_when/ow_tcbSchedAction + QChange, →σ6 in cn) (ScScheduleF); `scnt_refines0F` (ScNextDomF; the 0
+    branch's switch state has no owner after ArchNdF).
+  * J level (XTopJointSchedRF): `jat_scheduleFRF`, `jat_scheduleSRF`, `jat_finishJF` = the old proofs with
+    `ArchSwF` and new premise `hFO : ∀ σ1, Fires σ σ1 → FpuOwnOK σ1` [S] (valid_cur_fpu after the timer
+    signals; removal route: a DK-style "owner kept + TCBs kept" framework for `sendSignal` (AllDom's dk_auto
+    pattern) plus FpuOwnOK carried as an entry invariant). These SUPERSEDE jat_scheduleFR/SR/finishJ; the
+    lead's top chain should use jat_finishJF.
+- (B), (C): not started (context). Next step for (B): copy ScNextDomC (awaken_refinesW0, cn_refines0,
+  cn_enq0/app0, switch_branch_refines0, schedule_refinesWP0) as ScNextDomCF with the same perl renames used
+  for ScScheduleF (σ'.kheap = σ.kheap → HeapEqUpToFpu σ σ', ArchSw → ArchSwF, ArchNd → ArchNdF, hfo
+  threading, `hPo`), then sch3's jat_scheduleFR2 route on top of `schedule_refinesWP0F`.
