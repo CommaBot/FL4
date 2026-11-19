@@ -108,6 +108,27 @@ theorem VsSlotsW.drop {th : TypedHeap} {P L4 L3 L2 L1 XP X4 X3 X2 X1 : Set U64} 
   · exact h4 _ (.x4 hr)
   · exact h5 _ (.xp hr)
 
+/-- **The tables the slots' caps ask** at level `k` (`VNeed`): the roots
+`JAtZ.drop`'s `VsReachMiss` is asked at. -/
+def NeedR (th : TypedHeap) (m : U64 → U64) (k : Nat) : Set U64 :=
+  {q | ∃ y, IsSlot th y ∧ VNeed (capV m y) k q}
+
+/-- The asked tables are roots (`JAtZ.drop`'s `hXc` at `NeedR`). -/
+theorem needR_roots {th : TypedHeap} {m : U64 → U64} :
+    ∀ y, IsSlot th y → ∀ k q, VNeed (capV m y) k q →
+      q ∈ lvlSet (NeedR th m 5) (NeedR th m 4) (NeedR th m 3) (NeedR th m 2) (NeedR th m 1) k := by
+  intro y hy k q hn
+  have hm : q ∈ NeedR th m k := ⟨y, hy, hn⟩
+  generalize capV m y = c at hn
+  cases hn <;> exact hm
+
+/-- The asked tables are in the sets (`VsSlotsW.need`). -/
+theorem VsSlotsW.needR {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
+    (h : VsSlotsW th P L4 L3 L2 L1 m) :
+    NeedR th m 5 ⊆ P ∧ NeedR th m 4 ⊆ L4 ∧ NeedR th m 3 ⊆ L3 ∧ NeedR th m 2 ⊆ L2 ∧ NeedR th m 1 ⊆ L1 :=
+  ⟨fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn,
+    fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn⟩
+
 end Vs
 
 section

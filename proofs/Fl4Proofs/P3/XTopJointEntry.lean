@@ -556,11 +556,17 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
   /-- [J] the reset's `VsReachMiss` (VsDrop; l4v `valid_vs_lookup` with
   `dead_childless`: no table reachable from the ASID table lies in a childless
-  untyped cap's region), for the cap's region at the restart's state, with no
-  extra roots: UtResetTopJ's `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype
-  with a reset (`JAtZ.utResetJ`). -/
+  untyped cap's region, nor one reachable from a table a slot's cap names:
+  l4v `valid_cap` + `untyped_children_in_mdb` for the caps' own tables), for
+  the cap's region at the restart's state, with the roots the slots' caps ask
+  (`Vs.NeedR`: unmapped PT/PD/PDPT caps' tables, PML4 and pool caps' frames;
+  `JAtZ.drop`'s `hXc`, so `JAtZ.vsc` survives the drop): UtResetTopJ's
+  `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype with a reset
+  (`JAtZ.utResetJ`). -/
   vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-    Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅
+    Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
+        (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
+        (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
   /-- [P] `CONFIG_RESET_CHUNK_BITS` is FL4's 16 (`untyped::RESET_CHUNK_BITS`):
   the reset's chunks (`JAtZ.reset_untypedJ`). -/
   rcb : Fl4Spec.resetChunkBits = 16

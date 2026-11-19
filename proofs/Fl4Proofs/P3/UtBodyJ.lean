@@ -489,6 +489,15 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
           | Frame p sz r d m' ep a' va =>
             rw [hc] at hC
             exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | PageTable p m' a' va =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | PageDirectory p m' a' va =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | Pdpt p m' a' va =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
           | SchedContext p sb =>
             rw [hc] at hC
             obtain ⟨hH, hpi⟩ := hC
@@ -513,6 +522,30 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
             | (intros; simp_all; done)
             | (intro hn _ _ _ _ _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
                exact ⟨_, rfl⟩)
+        -- a new table's object is an `other` one too
+        have hnkT : ∀ p m' a' va, (cj j = .PageTable p m' a' va ∨ cj j = .PageDirectory p m' a' va ∨
+            cj j = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
+          rw [hcjE]; unfold cjOf
+          apply newCapOf_ind (fun c => ∀ p m' a' va, (c = .PageTable p m' a' va ∨ c = .PageDirectory p m' a' va ∨
+            c = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
+          all_goals first
+            | (intros; simp_all; done)
+            | (intro hn _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
+               exact ⟨_, rfl⟩)
+        have hfrT : ∀ c', cj j = c' → (∀ kd, newKind n us = some kd → ∃ z, kd = .other z) →
+            FrApartH H' c' := by
+          intro c' hc hK q kq hq hkq
+          have hb' := hb
+          have ht' := ht
+          rw [hc] at hb' ht'
+          rw [hO q] at hq
+          split_ifs at hq with h1 h2
+          · obtain ⟨z, rfl⟩ := hK kq hq; exact absurd rfl (hkq z)
+          · have hm' : ¬ MeetsR lo hi q.val (q.val + 2 ^ kq.bits) := fun hm' => h2 ⟨kq, hq, hm'⟩
+            unfold MeetsR at hm'
+            have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
+            rw [Nat.add_mul, Nat.one_mul] at this
+            rw [hb', ht']; omega
         have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
           rw [hcjE]; unfold cjOf
           apply newCapOf_ind (fun c => ∀ p lv m' a' va, c ≠ .Ept p lv m' a' va)
@@ -531,6 +564,9 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
             have : (j + 1) * k ≤ w * k := Nat.mul_le_mul_right _ hj
             rw [Nat.add_mul, Nat.one_mul] at this
             rw [hb, ht]; omega
+        | PageTable p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inl hc))
+        | PageDirectory p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inl hc)))
+        | Pdpt p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inr hc)))
         | SchedContext p sb =>
           -- a new SC: `H'`'s at the window's slot, of the cap's size, in the
           -- source (RAM) untyped's region, so not the idle SC (`IdleOut`)

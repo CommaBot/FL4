@@ -73,7 +73,8 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hDT : DbgTimerKept (L := L) H (P1.RegionD H p.val (p.val + 2 ^ sb.val)) Cs s)
     (hAF : ArchFitHyp H σ)
     {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
-    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
+    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1)
+    (hXc : ∀ y, IsSlot Z.th y → ∀ k q, Vs.VNeed (capV (L.mem s) y) k q → q ∈ Vs.lvlSet XP X4 X3 X2 X1 k) :
     untyped.reset_untyped st arI s a (cslotAddr (pp.bv, idx)) ⦃ res =>
       ResetJPost (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
         (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs (L.ksb s) σ (L.mem s) pp idx p sb res ⦄ := by
@@ -115,7 +116,7 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hσD : σD = delSt p.bv sb.val σ := deleteObjects_delSt p sb hp8 (by have := U.sb4; omega) hsb hfit σ hyD
   subst hσD
   have J' := J.drop hres hAs hcap hnc hfi0 hKR hDT hAF hSD hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi
-    hum hXP hX4 hX3 hX2 hX1 hM
+    hum hXP hX4 hX3 hX2 hX1 hM hXc
   have hRC : RgClear Z' (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs (L.ksb s) p sb := J.rgClear_drop hAs hcap
   have hTh : restrictTh Z'.th p.val (p.val + 2 ^ sb.val) = Z'.th := restrictTh_idem _ _ _
   have hfr : RegionFree Z'.th p.val (p.val + 2 ^ sb.val) := RegionFree.restrict U.nostr

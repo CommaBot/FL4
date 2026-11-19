@@ -283,7 +283,10 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
       J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl, hjc, hkern, hutc, J.nsc.cn hC'.toHStep, J.inv.cn hC',
       CurInvW.cn J.cur hC', J.own.cn hC'.toHStep, J.off.cn hC'.toHStep, J.act.cn hC', J.bsa.cn hC'.toHStep,
       J.isorted.cn hC'.toHStep, J.curRun.cn hC'.toHStep (Or.inr hC'.act), hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) hJC R
+  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) hJC R (fun y hy => by
+    by_cases e : y = x
+    · rw [e, hcap']; exact Vs.vcapW_ut rfl
+    · rw [hco y hy e]; exact J.vsc y hy)
 
 end
 

@@ -494,7 +494,7 @@ theorem JAtZ.xferStepGJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
         hSg2, f2, rfl, KeepCV.refl σ, CnK.refl σ, fun q _ => rfl⟩
     · -- one insert: the base `(y, σy)`
       obtain ⟨cv, c', a', ps, pd, rs, rd, idx, idxd, sk, σk, hps, hpd, hls, hld, ⟨j, hj, hsl⟩, hslots, hsrcC1, hsnn,
-        hdst1, hca, hcv, he', hcnn, hsh, hbd, hnu, hzb, hkey, hv, huc, hSk, hiw, -, ⟨um1, hσk⟩, hci⟩ := hrec
+        hdst1, hca, hcv, he', hcnn, hsh, hbd, hnu, hzb, hkey, hv, htu, huc, hSk, hiw, -, ⟨um1, hσk⟩, hci⟩ := hrec
       have hX0 := J.xtop
       obtain ⟨hPl, ⟨hSt, hV, hM, hC, hI'⟩, -, -, -, -, -⟩ := hX0.rel
       have hAs : AbsSlot Z.th (ps.bv, idx) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
@@ -532,7 +532,7 @@ theorem JAtZ.xferStepGJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
       rw [epd] at hDd
       obtain ⟨y, -, ⟨⟨σy, hci', hKCV, hCnK, hksy, -, -, -, G', Jy⟩, hiwy⟩, hwy⟩ := spec_exists
         (WP.spec_and (WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' hca hcv he' hcnn hsh (Or.inl hbd) hut
-          hzb hkey hv huc (hDs.same (SlotsSame.symm' hIF.1) hIF.2.symm) (hDd.same (SlotsSame.symm' hIF.1) hIF.2.symm)) (insert_mem hPl s c' _ _ hAs.isSlot hAd.isSlot hsd cv hsrcC hnxS))
+          hzb hkey hv htu huc (hDs.same (SlotsSame.symm' hIF.1) hIF.2.symm) (hDd.same (SlotsSame.symm' hIF.1) hIF.2.symm)) (insert_mem hPl s c' _ _ hAs.isSlot hAd.isSlot hsd cv hsrcC hnxS))
           (insert_ws hPl s c' _ _ hAs.isSlot hAd.isSlot cv hsrcC hnxW))
       have hSy2 : SlotsSame Z.th (L.mem y) (L.mem s2) :=
         SlotsSame.trans' (insWords_cong hSsk hAs.isSlot hAd.isSlot hiwy hiw) hSSk

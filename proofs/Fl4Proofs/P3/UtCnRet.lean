@@ -689,9 +689,25 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hintL : IntLayout th' (L.ksb res.2.1) := by
     rw [hwI.1]
     exact IntLayout.grow J.intL hThX hksk hk0' hposZ (by rcases k1 with h | h <;> omega)
+  -- the VSpace caps placed (`JAtZ.vsc`): an old cap kept or an untyped cap,
+  -- a new cap (a CNode cap) set-free
+  have hvc : Vs.VsSlotsW th' Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem res.2.1) := by
+    obtain ⟨-, hCRZ, -, -, hMOZ, -, -⟩ := hX'.rel
+    obtain ⟨P', L4', L3', L2', L1', hVI⟩ := hMOZ.2.2.1
+    refine Vs.VsCapsW.slots (G := G') ?_ hCRZ.2.2.1
+    intro x hx
+    rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
+    · by_cases hu : isUt (capV (L.mem s) x) = true
+      · exact Vs.vcapW_ut (hE.utk x hx0 hu)
+      · rw [(hE.keep x hx0 (by simpa using hu)).2]
+        exact J.vsc x ((hM.members x).1 hx0).1
+    · have h1 := hVI _ hx
+      rw [hE.newc j hj] at h1 ⊢
+      have hT : Vs.SetFree (cj j) := by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.SetFree]
+      exact (Vs.VCapOK.setFree hT h1).toW
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G' }) rfl rfl hwI.1 hX' hCs hJR
     hKs' (fun t0 ht0 => J.thT t0 (thT_grow hThX hksk hn1 ht0)) (thk_grow hThX hksk J.thk)
-    (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC'
+    (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
