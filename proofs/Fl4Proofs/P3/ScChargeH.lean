@@ -32,7 +32,7 @@ and XTopJointFaultTmo's `sendTmoRecvIJ`):
   (`ScTKw`/`SOK`/`LK`/`FK` `.trans`). `OffOK`
   after is vacuous (the charge zeroes the consumed time).
 -/
-import Fl4Proofs.P3.ScChargeN
+import Fl4Proofs.P3.ScChargeR
 import Fl4Proofs.P3.XTopJointPP
 open Aeneas Aeneas.Std Result
 
@@ -368,12 +368,55 @@ theorem JHole.chargeBudgetNJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S
   exact ⟨h1, σ', by rw [e2]; exact h2, h3, h4⟩
 
 set_option maxHeartbeats 8000000 in
+/-- **`charge_budget` with `can_timeout_fault = true` from a `JHole`, round-robin
+current SC**: ScChargeR's `JAtZ.chargeBudgetRJ` at the state after
+`update_timestamp`. -/
+theorem JHole.chargeBudgetRJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
+    (hnsw : σ.schedulerAction ≠ .switchThread σ.curThread)
+    (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hp : ∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scPeriod = 0)
+    (used : U64) :
+    sched.charge_budget st arI s a used true ⦃ r => r.2 = a ∧ ∃ σ',
+      Fl4Spec.chargeBudget (Z := Unit) used.bv true σ = ({((), σ')}, False) ∧ ScTKw (fun _ => False) σ σ' ∧
+      ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D r.1 a σ' ⦄ := by
+  have hS := Hh.xtop.fin.1.1.1
+  have hR := Hh.xtop.fin.1.1.2.2.1
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  obtain ⟨hscC, -, htw, -, hact, hnr, -⟩ := CurInv.facts hS Hh.inv hC
+  have hid := curSc_ne_idleSc_of Hh.inv Hh.act hC hni
+  obtain ⟨e1, e2⟩ := charge_budget_rr (ar := arI) s a σ hS hR Hh.nsc Hh.inv hscC htw hS.idle hact hnr hmrt hmb
+    (by rw [← hs.curSc]; exact hid) (fun x n hx => hp x n (by rw [hs.curSc]; exact hx)) used
+  rw [e1]
+  refine WP.spec_mono (Hh.chargeBudgetJ hAT hC hni hnsw hmrt hmb used) ?_
+  rintro r ⟨h1, σ', h2, h3, h4⟩
+  exact ⟨h1, σ', by rw [e2]; exact h2, h3, h4⟩
+
+/-- **`charge_budget` with `can_timeout_fault = true` from a `JHole` when no
+timeout fault can be raised** (ScChargeR's `NoTmoSend`). -/
+theorem JHole.chargeBudgetTJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
+    (hC : CurInv σ) (hni : σ.curThread ≠ σ.idleThread)
+    (hnsw : σ.schedulerAction ≠ .switchThread σ.curThread)
+    (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hnt : NoTmoSend σ) (used : U64) :
+    sched.charge_budget st arI s a used true ⦃ r => r.2 = a ∧ ∃ σ',
+      Fl4Spec.chargeBudget (Z := Unit) used.bv true σ = ({((), σ')}, False) ∧ ScTKw (fun _ => False) σ σ' ∧
+      ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D r.1 a σ' ⦄ := by
+  rcases hnt with h | h
+  · exact Hh.chargeBudgetNJ hAT hC hni hnsw hmrt hmb h used
+  · exact Hh.chargeBudgetRJ hAT hC hni hnsw hmrt hmb h used
+
+set_option maxHeartbeats 8000000 in
 /-- **`check_budget` charging from a `JHole`** (KENTRY-PLAN item 10's false
 branch and the preemption point's schedulable branch, without an endpoint
-timeout handler): when FL4's `check_budget` returns `false` at the state
+timeout handler or with a round-robin current SC, `NoTmoSend`): when FL4's `check_budget` returns `false` at the state
 after `update_timestamp`, the head was insufficient, the spec's
 `check_budget` returns `false` too (the charge of the consumed time with
-`can_timeout_fault = true`, `JHole.chargeBudgetNJ`), the arch state is kept
+`can_timeout_fault = true`, `JHole.chargeBudgetTJ`), the arch state is kept
 and `JAtZ` holds after. -/
 theorem JHole.checkBudgetF {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) (hAT : P0.ArchTotal arI)
@@ -381,7 +424,7 @@ theorem JHole.checkBudgetF {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} 
     (hnsw : σ.schedulerAction ≠ .switchThread σ.curThread)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hnt : ∀ xt, σ.kheap σ.curThread = some (.tcb xt) → Fl4Spec.isEpCap xt.tcbTimeoutHandler = false) :
+    (hnt : NoTmoSend σ) :
     sched.check_budget st arI s a ⦃ r => r.1 = false → r.2.2 = a ∧ ∃ σ',
       Fl4Spec.checkBudget (Z := Unit) σ = ({(false, σ')}, False) ∧ ScTKw (fun _ => False) σ σ' ∧
       ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR Z H Cs Ac Lst' D r.2.1 a σ' ⦄ := by
@@ -408,7 +451,7 @@ theorem JHole.checkBudgetF {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} 
   · rw [if_neg hbt]
     have hbf : b = false := by simpa using hbt
     subst hbf
-    refine WP.spec_bind (Hh.chargeBudgetNJ hAT hC hni hnsw hmrt hmb hnt (nodeW st s Z.c layout.node.CONSUMED)) ?_
+    refine WP.spec_bind (Hh.chargeBudgetTJ hAT hC hni hnsw hmrt hmb hnt (nodeW st s Z.c layout.node.CONSUMED)) ?_
     rintro ⟨s1, a1⟩ ⟨ha1, σ', h1, hK, J'⟩
     refine (WP.spec_ok _).2 fun _ => ⟨ha1, σ', ?_, hK, J'⟩
     have hb' : Fl4Spec.getScRefillSufficient (Z := Unit) σ.curSc σ.consumedTime σ = ({(false, σ)}, False) := by

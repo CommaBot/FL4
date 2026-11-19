@@ -9,7 +9,8 @@ without an endpoint timeout handler.
   thread's `set_thread_state Restart` at `J`) from a runnable current thread
   instead of `Entered` (after the charge a reschedule is pending).
 * `JAtZ.budgetOkF`: from `JAtZ` at kernel entry with `Entered`, `CurInv` and
-  no endpoint timeout handler of the current thread, when FL4's `budget_ok`
+  `NoTmoSend` (no endpoint timeout handler of the current thread, or a
+  round-robin current SC: ScChargeR), when FL4's `budget_ok`
   returns `false`, l4v's `update_time_stamp; check_budget_restart` returns
   `false` and `JAtZ` holds after: ScChargeH's `JAtZ.timestampJH` (the hole
   after `update_timestamp`, where `OffOK` fails), `JHole.checkBudgetF` (the
@@ -82,14 +83,14 @@ set_option maxHeartbeats 16000000 in
 /-- **`budget_ok` at `J`, when it stops the system call** (KENTRY-PLAN item 10,
 false branch; module docstring): the clock [P] (`NowAgree`), one domain, the
 platform's `MAX_RELEASE_TIME`/`MIN_BUDGET` [P] (`hmrt`, `hmb`), and at kernel
-entry `Entered`, `CurInv` and no endpoint cap as the current thread's timeout
-handler (`hnt`). -/
+entry `Entered`, `CurInv` and `NoTmoSend` (`hnt`: no endpoint cap as the
+current thread's timeout handler, or a round-robin current SC). -/
 theorem JAtZ.budgetOkF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : ARKeep arI AR)
     (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hnow : NowAgree arI a σ) (hni : Entered σ)
     (hC : CurInv σ)
     (hmrt : ∀ a : A, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hnt : ∀ xt, σ.kheap σ.curThread = some (.tcb xt) → Fl4Spec.isEpCap xt.tcbTimeoutHandler = false) :
+    (hnt : NoTmoSend σ) :
     syscall.budget_ok st arI s a ⦃ r => r.1 = false → ∃ σ',
       (Fl4Spec.updateTimeStamp (Z := Unit) >>= fun _ => Fl4Spec.checkBudgetRestart) σ = ({(false, σ')}, False) ∧
       ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
@@ -103,8 +104,7 @@ theorem JAtZ.budgetOkF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAK : 
   have hC1 : CurInv σ1 := Hh.cur.resolve_left (by rw [hres1]; exact fun h => by cases h)
   have hni1 : σ1.curThread ≠ σ1.idleThread := by rw [ect, eidle]; exact hni.1
   have hnsw1 : σ1.schedulerAction ≠ .switchThread σ1.curThread := by rw [hres1]; exact fun h => by cases h
-  have hnt1 : ∀ xt, σ1.kheap σ1.curThread = some (.tcb xt) → Fl4Spec.isEpCap xt.tcbTimeoutHandler = false :=
-    fun xt h => hnt xt (by rw [← ekh, ← ect]; exact h)
+  have hnt1 : NoTmoSend σ1 := hnt.of_eq ekh ect (by obtain ⟨ms, tm, cn, -, e⟩ := Hh.spec; rw [e])
   unfold sched.check_budget_restart
   refine WP.spec_bind (Hh.checkBudgetF hA hC1 hni1 hnsw1 (hmrt a1) (hmb a1) hnt1) ?_
   rintro ⟨r, s2, a2⟩ hB
