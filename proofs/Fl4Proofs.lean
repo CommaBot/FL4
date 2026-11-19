@@ -453,6 +453,7 @@ import Fl4Proofs.P3.DbgWF
 import Fl4Proofs.P1.QueueDbgKeep
 import Fl4Proofs.P3.XTopJointDbgKeep
 import Fl4Proofs.P3.XTopJointLiveKeep
+import Fl4Proofs.P3.XTopJointFinThreadU
 import Fl4Proofs.P3.XTopJointReadRegs
 import Fl4Proofs.P3.XTopJointTcbMisc
 import Fl4Proofs.P3.XTopJointTcbSched
