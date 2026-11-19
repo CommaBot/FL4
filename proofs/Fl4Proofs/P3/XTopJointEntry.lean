@@ -15,7 +15,17 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 * `HIPostMXP`, `handle_invocation_refinesMXP`: `handle_invocation_refinesMX`
   with `XP` after a preempted invocation (`X` after any other), the decode's
   statement `XCapP` (XTopJointCnDel), and the invoked slot a CNode slot of
-  the typed heap (from the lookup, `WalkRel`) passed to `hDec`.
+  the typed heap (from the lookup, `WalkRel`) passed to `hDec`. Its reply
+  premises are narrower than HandleTopX's `ReplyHypMX`: the success tail
+  (`hRepS`) only from states whose current thread is still the invoker
+  (`hPK`: the invocation keeps the current thread), the error reply
+  (`hRepF`) only at the entry state (a decode error leaves FL4's and the
+  spec's states unchanged).
+* The reply tails at `J` (XTopJointReplyTail): `JAtZ.flTailJ` (success,
+  empty result) and `JAtZ.replyFailJ` (the error reply with the debug word,
+  so the top theorem is against `fl4HandleInvocationR true`, FL4's
+  `KERNEL_INVOCATION_REPORT_ERROR_IPC`), from `JEntryGlob`'s buffer facts
+  and `PerfCurKeep` [J].
 * The premises, by scope (`JEntryHyps` bundles them):
   - `JEntryGlob`: platform [P] and ∀-state facts at the typed heap [J]/[W];
   - `JEntryAt`: facts at the entry state [J];
@@ -39,6 +49,7 @@ import Fl4Proofs.P3.XTopJointUt
 import Fl4Proofs.P3.ScJointUnbind
 import Fl4Proofs.P3.ScJointConsumed
 import Fl4Proofs.P3.ScJointYield
+import Fl4Proofs.P3.XTopJointReplyTail
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -97,8 +108,23 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
     (hFL : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
       FaultHypAtMX (L := L) arI X s σ ct (.Cap cptr false lf)
         (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf'))
-    -- the reply writes
-    (hRep : ReplyHypMX (L := L) X rep ct is_call)
+    -- the success tail (from `X` with the invoker still current) and the error reply (at the entry state)
+    (hRepS : ∀ (s1 : S) (a1 : A) (σ' : Fl4Spec.State Unit), RelTopM (L := L) s1 σ' → X s1 a1 σ' →
+      σ'.curThread = ct.bv → flTail (st := st) ct is_call s1 a1 ⦃ res => res.1 = .Ok () ∧
+        ∃ z ∈ (specTail is_call ct.bv [] σ').1, RelTopM (L := L) res.2.1 z.2 ∧ X res.2.1 res.2.2 z.2 ⦄)
+    (hRepF : ∀ (a1 : A) (e : error.SysError) (e' : Fl4Spec.SyscallError), X s a1 σ → ErrRel (.Sys e) e' →
+      ((if is_call then do
+          let s2 ← syscall.reply_error st s ct e
+          ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1)
+        else ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s, a1)) :
+        Result ((core.result.Result Unit error.Exc) × S × A)) ⦃ res =>
+        res.1 = .Ok () ∧ ∃ z ∈ ((Fl4Spec.NonDet.when is_call <|
+          Fl4Spec.fl4ReplyFromKernelError rep ct.bv (Fl4Spec.msgFromSyscallError e')) σ).1,
+          RelTopM (L := L) res.2.1 z.2 ∧ X res.2.1 res.2.2 z.2 ⦄)
+    -- the invocation keeps the current thread
+    (hPK : ∀ inv σ1 y, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+      y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blocking is_call can_donate inv).run σ1).1 →
+      y.2.curThread = ct.bv)
     -- the decode and invocation of the cap
     (hDec : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ th p = some (.cnode sl.2.length)) →
@@ -167,7 +193,7 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
             subst he3 hs1
             cases e3 with
             | Sys e2 =>
-              refine WP.spec_mono (hRep.fail _ a1 σ e2 e' hRT0 hXe herr) ?_
+              refine WP.spec_mono (hRepF a1 e2 e' hXe herr) ?_
               rintro res ⟨hres, z, hz, hRT, hXz⟩
               exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
                 Or.inl ⟨hres, rfl⟩, hRT, ifP_ok hres hXz⟩
@@ -189,7 +215,7 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
           subst he3 hs1
           cases e3 with
           | Sys e2 =>
-            refine WP.spec_mono (hRep.fail _ a1 σ e2 e' hRT0 (ifP_X (r := .Err (.Sys e2)) (fun h => by cases h) hXe) herr) ?_
+            refine WP.spec_mono (hRepF a1 e2 e' (ifP_X (r := .Err (.Sys e2)) (fun h => by cases h) hXe) herr) ?_
             rintro res ⟨hres, z, hz, hRT, hXz⟩
             exact ⟨(.ok z.1, z.2), hi_memR rep hcur hmi (mem_syscall_err hmF (by rw [hmE, hdec]; rfl) hz),
               Or.inl ⟨hres, rfl⟩, hRT, ifP_ok hres hXz⟩
@@ -199,7 +225,8 @@ theorem handle_invocation_refinesMXP (X XP : S → A → Fl4Spec.State Unit → 
         · rcases hcase with ⟨hok3, hyr⟩ | ⟨hpre, hyr⟩
           · simp only at hok3
             subst hok3
-            refine WP.spec_mono (hRep.succ s1 a1 y.2 ⟨th', G', hP', hCR', hFI', hDR', hFR'⟩ (ifP_X (r := .Ok ()) (fun h => by cases h) hXy)) ?_
+            refine WP.spec_mono (hRepS s1 a1 y.2 ⟨th', G', hP', hCR', hFI', hDR', hFR'⟩ (ifP_X (r := .Ok ()) (fun h => by cases h) hXy)
+              (hPK inv σ1 y hst hy)) ?_
             rintro res ⟨hres, z, hz, hRT, hXz⟩
             obtain ⟨y1, y2⟩ := y
             simp only at hyr; subst hyr
@@ -234,6 +261,18 @@ end
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+
+/-- **An invocation keeps the current thread** [J] (spec-only: the spec
+changes `curThread` only in `switchToThread`/`switchToIdleThread`, reached
+from `schedule` alone, never from `fl4PerformInvocation`; l4v:
+`perform_invocation` leaves `cur_thread` alone, used by `handle_invocation`'s
+`set_thread_state Running thread` and Syscall_AI's `pinv_tcb`). FL4's success
+tail (`flTail`) writes the reply registers of the invoker, so the spec's
+invoker must still be a TCB related at `J` (`JAtZ.flTailJ` from the current
+thread). -/
+def PerfCurKeep : Prop :=
+  ∀ (blk call don : Bool) (inv : Fl4Spec.Fl4Invocation) (σ1 : Fl4Spec.State Unit) y,
+    y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1 → y.2.curThread = σ1.curThread
 
 /-- **The global premises** (platform, or ∀-state at the typed heap `th`),
 each exactly as a J decode takes it. -/
@@ -294,6 +333,9 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   fault and an SC (`JAtZ.xferAllJ`). -/
   maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
+  /-- [J] the invocation keeps the current thread (`PerfCurKeep`, spec-only;
+  the success tail at `J`, `JAtZ.flTailJ`). -/
+  perfCur : PerfCurKeep
 
 /-- **The premises at the entry state**, each exactly as a J decode takes it. -/
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -858,9 +900,10 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
 the global ones, those at the entry state, the front end's argument words,
-the reply and fault handler at `JAt`, and per cap its decode path. -/
+the fault handler at `JAt`, and per cap its decode path (the reply tails are
+proved: XTopJointReplyTail). -/
 structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
-    (rep is_call blocking can_donate first_phase : Bool) (cptr : U64) (info : msginfo.MessageInfo)
+    (is_call blocking can_donate first_phase : Bool) (cptr : U64) (info : msginfo.MessageInfo)
     (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef) (argsU : List U64)
     (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
     (er : Except Fl4Spec.Fault (List (Fl4Spec.Cap × Fl4Spec.CslotPtr))) : Prop where
@@ -872,10 +915,6 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   `syscall_arg`s, as many as FL4's `msgLen`. -/
   len : (msgLen info buf).val = argsU.length
   args : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x
-  /-- [W] HandleTopX's `ReplyHypMX` at `JAt`: the success tail for an empty
-  result and the error reply keep `JAt` (XTopJointReply's `jReplyHyp`
-  proves `reply1` at `J`; not yet bridged to `flTail`). -/
-  reply : ReplyHypMX (L := L) (JAt (L := L) arI AR) rep ct is_call
   /-- [W] the fault handler at `JAt` for a failed cap lookup. -/
   lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
     FaultHypAtMX (L := L) arI (JAt (L := L) arI AR) s σ ct (.Cap cptr false lf)
@@ -897,7 +936,7 @@ set_option maxHeartbeats 4000000 in
 `handle_invocation` refines the spec's `fl4HandleInvocationR`, with `JAt`
 after (`JAtPre` after a preempted invocation), from `JEntryHyps`. The front
 end's reads are the equations of `handle_invocation_refinesMX`. -/
-theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (rep : Bool) (s : S) (ar : A)
+theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
@@ -912,18 +951,31 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (rep : Bool) (s 
     (her : (Fl4Spec.lookupExtraCaps (Z := Unit) ct.bv buffer mi).run σ = ({(er, σ)}, False))
     (argsU : List U64)
     (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
-    (hH : JEntryHyps (L := L) arI AR Z s ar σ ct rep is_call blocking can_donate first_phase cptr info mi buf buffer
+    (hH : JEntryHyps (L := L) arI AR Z s ar σ ct is_call blocking can_donate first_phase cptr info mi buf buffer
       argsU r2 er) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
-      HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) rep σ is_call blocking can_donate first_phase
+      HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true σ is_call blocking can_donate first_phase
         (Fl4Spec.toBl cptr.bv) res ⦄ := by
   obtain ⟨hcur, -⟩ := J.curEq hct
   have htcb := (J.xtop.curTcb hcur).1
   have hX := J.xtop
-  refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) rep s ar σ Z.th Z.G
+  refine handle_invocation_refinesMXP arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true s ar σ Z.th Z.G
     hX.rel.1 hX.rel.2.1 hX.rel.2.2.1 hX.rel.2.2.2.1 hX.rel.2.2.2.2.1 ⟨Z, H, Cs, Ac, Lst, D, J⟩ ct hct hcur htcb
     is_call blocking can_donate first_phase cptr info hinfo mi hmi buf hbuf buffer hbuffer r2 hr2 er her
-    hH.extraLookup (argsU.map UScalar.bv) hmrs hH.lookupFault hH.reply ?_
+    hH.extraLookup (argsU.map UScalar.bv) hmrs hH.lookupFault
+    (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
+    (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
+      (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
+        is_call e e' he)
+    (fun inv σ1 y hst hy => by
+      rw [hH.glob.perfCur _ _ _ inv σ1 y hy]
+      obtain ⟨x, hk⟩ := (J.xtop.curTcb hcur).2
+      rw [hcur] at hst
+      have hm : ((), σ1) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by
+        rw [hst]; exact Set.mem_singleton _
+      rw [Notif.setThreadState_eq .restart hk] at hm
+      have e : σ1 = _ := congrArg Prod.snd (Set.mem_singleton_iff.1 hm)
+      rw [e, Sched.stsAct_rec]; exact hcur) ?_
   intro sl c e exs hsl hc hget h1 h2
   have hl : argsU.length ≤ 120 := by
     have hm := Endp.msg_info_spec (L := L) s ct
