@@ -1153,12 +1153,13 @@ abbrev UtDbgTcb {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) : 
 /-- P1's `UtRetypeP3.run` conclusion. -/
 def UtRunPost {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs : Set U64) (s : S) (a : A') (slot ptr sb fi : U64)
     (dev reset : Bool) (aligned nt us dest off win : U64) : Prop :=
-  (reset = true → ResetOK st H Cs s slot ptr sb fi dev) ∧
+  (reset = true → dev = false → ResetOK st H Cs s slot ptr sb fi dev) ∧
+  (dev = true → obj.Slot.cap st slot s = ok (.Untyped ptr sb fi true)) ∧
   untyped.retype st arI s a slot reset aligned nt us dest off win dev ⦃ r s' a' =>
     (reset = true ∧ r ≠ .Ok () ∧ untyped.reset_untyped st arI s a slot = ok (r, s', a')) ∨
     (r = .Ok () ∧ ∃ sR, ((reset = false ∧ sR = s) ∨
         (reset = true ∧ ∃ a1, untyped.reset_untyped st arI s a slot = ok (.Ok (), sR, a1))) ∧
-      CreateOK st (utHeap H reset ptr sb) Cs sR s') ⦄
+      CreateOK st (utHeap H (reset && !dev) ptr sb) Cs sR s') ⦄
 
 /-- **[The VT-x types]** (named): the retype of the VT-x objects (types 14
 to 18: VMCS, EPT tables), outside `retype_cont_allN`'s native types. -/
@@ -1194,25 +1195,14 @@ theorem utOkRU_of {A' : Type} {arI : machine.Arch A'} {H : Heap} {Cs : Set U64}
   rintro s0 s slot cap extra ⟨th, G, D, σ, pp, rs, idx, J⟩ hrs
   exact ⟨th, G, D, σ, pp, rs, idx, J, hRU _ _ _ _ _ _ _ _ _ _ _ _ J hrs⟩
 
-/-- **[W] The retype from a device untyped** (named, as `UtVtxP`): P1's
+/-- **The retype from a device untyped** (the statement of `devRetype_holds`,
+ScUtRetypeDev.lean; it was the named premise [W] of losfair/FL4#34): P1's
 `UtRetypeP3.run` conclusion at the decode's `P3Ok` states whose untyped cap
-is a device untyped (losfair/FL4#34). Was: "no device untyped is retyped",
-false for any real device retype. Not done here because the retype stack
-(`retype_cont_allN`, `retype_cont_pml4N`, `createOK_noreset`/`createOK_reset`
-with `CreateOK`'s `RegionOffNodes`) takes `UtCapP3`'s facts, which
-`JAtZ.utc` gives for RAM untypeds only: a device untyped's pointer
-`paddr + PPTR_BASE` may wrap to the lower half (`high` false) or lie in the
-kernel image, its region then holding the kernel-state block, the IRQ
-node's CNodes and slots and the per-core nodes (`free`, `nostr`, `nsFree`,
-`ns`, `pp`, `actZ`, `dwReg`, `gReg`, `JCovD.ks` false), and its memory is
-not zero (`zero` false). What FL4 does there (crates/fl4-core untyped.rs):
-`decode` refuses every type but frames and untypeds for a device cap;
-`reset_untyped` of a device cap only sets the free index to 0 (no
-`clear_free`, no preemption point); `retype` sets the free index and
-`create_new_objects` makes frame or untyped caps over device memory (no
-typed-heap object, no `H` object: P1's `newKind` is `none` for frames, and
-for untypeds). The missing proof: that run (a `CreateOK` with no new
-object) without the RAM placement facts. -/
+is a device untyped. Since #34 a device untyped's pointer `paddr + PPTR_BASE`
+may lie in the kernel image (physical [510, 512) GiB) or wrap to the lower
+half, so `UtCapP3`'s placement facts are RAM-only; P1's interface therefore
+asks no `ResetOK` of a device cap (its reset only rewrites the free index)
+and runs a device creation over `H` itself (`utHeap H (reset && !dev)`). -/
 def DevRetypeGap {A' : Type} (arI : machine.Arch A') (H : Heap) (Cs U : Set U64)
     (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop :=
   ∀ (Ac : Set U64) (s0 s : S) (a : A') (extra : Aeneas.Std.Array obj.Slot 3#usize) (slot ptr sb fi : U64)
@@ -1267,8 +1257,9 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
   have hROK : reset = true → ResetOK st H Cs s slot ptr sb fi false := fun h =>
     resetOK_of J rfl hfr hks hcpu hcw hcs hact hrun hcapS' (hnc h) (fun hd => (hRUJ _ _ hd).1)
       (fun hd => (hRUJ _ _ hd).2)
-  refine ⟨hROK, ?_⟩
+  refine ⟨fun h _ => hROK h, fun h => absurd h (by simp), ?_⟩
   rw [hv, WP.spec_ok]
+  simp only [Bool.not_false, Bool.and_true]
   -- the outcome
   obtain ⟨σ1, -, -, e, σ', G', th', he, hhas, -, -, -, -, -, -, -, -, -, hksv, A, k, w, dslot, cj, hE, hRF, -⟩ :=
     hRP
@@ -1370,15 +1361,6 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
       · rw [hRK.2.1, Heap.drop_of_not hROK'.2.2.2.1.csc, hcs]; exact J.cscH
 
 
-/-- **P1's `UtRetypeP3` with `UtP3Ok` as `P3Ok`** (`utRetypeP3_gen`). -/
-theorem utRetypeP3_of [Fl4Proofs.P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
-    (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
-    (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
-    (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
-    (hVtx : UtVtx (L := L) arI H Cs U) (hDev : DevRetypeGap (L := L) arI H Cs U (UtP3Ok (L := L) arI H Cs)) :
-    UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
-      (UtP3Ok (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_of hRU) hDbg hVtx hDev
 
 end
 

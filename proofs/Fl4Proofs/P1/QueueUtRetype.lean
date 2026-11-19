@@ -54,7 +54,12 @@ admissible; core `0` is a core; and, from P3's state fact `UtOk` at the
 decode's start (e.g. `valid_untyped` of the joint state), after the restart,
 the reset's facts (when it resets) and what `untyped.retype` does: the reset's
 error, or the creation (`CreateOK`) after the reset's success or without a
-reset. -/
+reset. A device untyped's reset only rewrites its cap (no clearing, no
+preemption point, nothing dropped: `reset_untyped_dev`), so the reset's facts
+are asked of RAM untypeds only and a device retype's creation runs over `H`
+(`utHeap H (reset && !dev)`): since losfair/FL4#34 a device untyped's region
+may hold the kernel image (pointers `paddr + PPTR_BASE` from 510 GiB on), where
+`ResetOK`'s `DropOK`/`RegionOffNodes` are false. -/
 structure UtRetypeP3 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A)
     (Adm : PSets → Prop) (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (U : Set U64)
     (UtOk : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop) : Prop where
@@ -69,12 +74,13 @@ structure UtRetypeP3 (st : machine.Store S) [L : LawfulStore st] {A : Type _} (a
     DecPre st T Cs Ω H Sg Rp Scs Nt Z U Ac s0 (.Untyped ptr sb fi dev) extra → CapSlotW T Ω Sg slot →
     UtArgs st s0 extra slot ptr sb fi dev reset aligned nt us dest off win →
     Cur0 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s →
-    (reset = true → ResetOK st H Cs s slot ptr sb fi dev) ∧
+    (reset = true → dev = false → ResetOK st H Cs s slot ptr sb fi dev) ∧
+    (dev = true → obj.Slot.cap st slot s = ok (.Untyped ptr sb fi true)) ∧
     untyped.retype st ar s a slot reset aligned nt us dest off win dev ⦃ r s' a' =>
       (reset = true ∧ r ≠ .Ok () ∧ untyped.reset_untyped st ar s a slot = ok (r, s', a')) ∨
       (r = .Ok () ∧ ∃ sR, ((reset = false ∧ sR = s) ∨
           (reset = true ∧ ∃ a1, untyped.reset_untyped st ar s a slot = ok (.Ok (), sR, a1))) ∧
-        CreateOK st (utHeap H reset ptr sb) Cs sR s') ⦄
+        CreateOK st (utHeap H (reset && !dev) ptr sb) Cs sR s') ⦄
 
 /-- **The heap after a retype is well formed**, from the heap before, the
 retype's shape and the window. -/
@@ -162,6 +168,41 @@ theorem reset_heap_eq {H H' : Heap} {p sb : U64}
 
 variable {T Cs Ω : Set U64} {H : Heap} {Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 
+/-- **A device untyped's reset** (untyped.rs `reset_untyped`, `is_device`):
+`Ok`, the arch state kept, and at most the cap rewritten with free index 0
+(no `clear_free`, no preemption point). -/
+theorem reset_untyped_dev {A : Type _} (ar : machine.Arch A) (s : S) (a : A) (x p sb fi : U64)
+    (hx : CapSlotW T Ω Sg x) (hcap : obj.Slot.cap st x s = ok (.Untyped p sb fi true)) :
+    ∃ s1, untyped.reset_untyped st ar s a x = ok (.Ok (), s1, a) ∧
+      (s1 = s ∨ obj.Slot.set_cap st x s (.Untyped p sb 0#u64 true) = ok s1) := by
+  obtain ⟨s1, h1, -⟩ := spec_exists_u (obj.Slot.set_cap.capw (st := st) (s := s) (c := .Untyped p sb 0#u64 true) hx)
+  unfold untyped.reset_untyped
+  rw [hcap]
+  simp only [bind_ok, untyped.as_untyped]
+  split
+  · exact ⟨s, rfl, Or.inl rfl⟩
+  · simp only [↓reduceIte, bind_ok, h1]
+    exact ⟨s1, rfl, Or.inr rfl⟩
+
+/-- **A device untyped's reset keeps `BlkOK`** (it writes only the cap's
+slot words, `reset_untyped_dev`). -/
+theorem reset_untyped_dev_blk {A : Type _} (ar : machine.Arch A) {Ac : Set U64} {s : S} (a : A) {x p sb fi : U64}
+    (hb : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : CapSlotW T Ω Sg x)
+    (hcap : obj.Slot.cap st x s = ok (.Untyped p sb fi true)) :
+    ∃ s1, untyped.reset_untyped st ar s a x = ok (.Ok (), s1, a) ∧ BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1 ∧
+      ResetKeeps st s s1 ∧ WritesIn st s s1 (CapW T Ω Sg) := by
+  obtain ⟨s1, h1, hor⟩ := reset_untyped_dev ar s a x p sb fi hx hcap
+  have hw : WritesIn st s s1 (CapW T Ω Sg) := by
+    rcases hor with rfl | e
+    · exact WritesIn.refl _ _
+    · obtain ⟨v, hv, hP⟩ := spec_exists_u (obj.Slot.set_cap.capw (st := st) (s := s) (c := .Untyped p sb 0#u64 true) hx)
+      rw [e] at hv; simp only [ok.injEq] at hv; subst hv; exact hP
+  have hct : L.curW s ∈ T := hb.1.choose_spec.choose_spec.curT
+  obtain ⟨b, -, ec, ecs, ea, fld, -, -⟩ := blk_of_capw hb hw fun _ h => h
+  refine ⟨s1, h1, b, ⟨ec, ecs, ea, ?_, ?_⟩, hw⟩
+  · rw [scA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
+  · rw [stA_eq]; exact fld _ hct _ (by simp) (by simp) (by simp)
+
 set_option maxHeartbeats 4000000 in
 /-- **`UtPlace` from P3's facts** (`UtRetypeP3`), P1's reset and retype. -/
 theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
@@ -171,20 +212,20 @@ theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
   subst eT eΩ eSg eRp eScs eNt eZ
   refine ⟨P.shared,
     fun Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC => ?_⟩
-  obtain ⟨hR, hrun⟩ := P.run Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC
+  obtain ⟨hR, hD, hrun⟩ := P.run Ac s0 s a extra slot ptr sb fi dev reset aligned nt us dest off win hOk hrs D hslot hU hC
   obtain ⟨hc0, Ac1, hX, ec, ecs, esc, na, nb, -⟩ := hC
   have hb := hX.blk
   have hcurT : L.curW s ∈ H.tcbs := hX.1.choose_spec.choose_spec.curT
   -- the reset, when it runs
-  have RS : reset = true → ∀ (rr : core.result.Result Unit error.Exc × S × A),
+  have RS : reset = true → dev = false → ∀ (rr : core.result.Result Unit error.Exc × S × A),
       untyped.reset_untyped st ar s a slot = ok rr →
       ∃ Ac2, BlkOK st (utHeap H true ptr sb).tcbs Cs (utHeap H true ptr sb).omega (utHeap H true ptr sb)
           (utHeap H true ptr sb).frame (utHeap H true ptr sb).replies (utHeap H true ptr sb).scs
           (utHeap H true ptr sb).ntfns (utHeap H true ptr sb).scBits Ac2 rr.2.1 ∧
         ResetKeeps st s rr.2.1 ∧ HeapOK (utHeap H true ptr sb) ∧ utHeap H true ptr sb 0#u64 = none ∧
         utHeap H true ptr sb (L.curW s) = some .tcb := by
-    intro hr rr heq
-    obtain ⟨hcap, hpal, hfit, hdrop, hnode, hfi⟩ := hR hr
+    intro hr hdv rr heq
+    obtain ⟨hcap, hpal, hfit, hdrop, hnode, hfi⟩ := hR hr hdv
     obtain ⟨r', hr', H2, Ac2, hb2, hsh, -, hK⟩ :=
       spec_exists_u (resetP1Step_holds (st := st) hA H Cs Ac1 s a slot ptr sb fi dev hb hcap hslot hpal hfit hdrop
         hnode hfi)
@@ -197,27 +238,43 @@ theorem UtRetypeP3.utPlace {A : Type _} {ar : machine.Arch A} {Adm : PSets → P
     · simp only [utHeap, if_true]; rw [Heap.drop_of_not hdrop.cur]; exact hcurT
   refine WP.spec_mono hrun fun ⟨r, s', a'⟩ hpost => ?_
   rcases hpost with ⟨hr, hne, heq⟩ | ⟨hok, sR, hsR, hcr⟩
-  · -- the reset's error
-    obtain ⟨Ac2, hb2, hK, hok2, h02, hcur2⟩ := RS hr _ heq
+  · -- the reset's error (a device reset has none, `reset_untyped_dev`)
+    have hdv : dev = false := by
+      cases dev
+      · rfl
+      · exfalso
+        obtain ⟨s1, h1, -⟩ := reset_untyped_dev ar s a slot ptr sb fi hslot (hD rfl)
+        rw [h1] at heq
+        simp only [ok.injEq, Prod.mk.injEq] at heq
+        exact hne heq.1.symm
+    obtain ⟨Ac2, hb2, hK, hok2, h02, hcur2⟩ := RS hr hdv _ heq
     refine ⟨PSets.ofHeap (utHeap H true ptr sb), P.adm _ hok2 h02, by rw [← ec]; exact hcur2, ?_⟩
     obtain ⟨k1, k2, k3, k4, k5⟩ := hK
     refine Cur0.postOf hc0 hb2.bxi (k1.trans ec) (k2.trans ecs) ?_ fun y hy => ?_
     · rw [← ec] at esc ⊢; rw [k4]; exact esc
     · rw [k3]; simp only [utHeap, if_true] at hy; exact na y (Heap.mem_tcbs_drop.1 hy).1
   · -- the creation
-    have base : ∃ Ac2, BlkOK st (utHeap H reset ptr sb).tcbs Cs (utHeap H reset ptr sb).omega (utHeap H reset ptr sb)
-        (utHeap H reset ptr sb).frame (utHeap H reset ptr sb).replies (utHeap H reset ptr sb).scs
-        (utHeap H reset ptr sb).ntfns (utHeap H reset ptr sb).scBits Ac2 sR ∧
-        L.curW sR = L.curW s ∧ utHeap H reset ptr sb (L.curW s) = some .tcb := by
+    have base : ∃ Ac2, BlkOK st (utHeap H (reset && !dev) ptr sb).tcbs Cs (utHeap H (reset && !dev) ptr sb).omega (utHeap H (reset && !dev) ptr sb)
+        (utHeap H (reset && !dev) ptr sb).frame (utHeap H (reset && !dev) ptr sb).replies (utHeap H (reset && !dev) ptr sb).scs
+        (utHeap H (reset && !dev) ptr sb).ntfns (utHeap H (reset && !dev) ptr sb).scBits Ac2 sR ∧
+        L.curW sR = L.curW s ∧ utHeap H (reset && !dev) ptr sb (L.curW s) = some .tcb := by
+      have e : utHeap H false ptr sb = H := by simp [utHeap]
       rcases hsR with ⟨rfl, rfl⟩ | ⟨rfl, a1, heq⟩
-      · have e : utHeap H false ptr sb = H := by simp [utHeap]
-        rw [e]; exact ⟨Ac1, hb, rfl, hcurT⟩
-      · obtain ⟨Ac2, hb2, hK, -, -, hcur2⟩ := RS rfl _ heq
-        exact ⟨Ac2, hb2, hK.1, hcur2⟩
+      · rw [Bool.false_and, e]; exact ⟨Ac1, hb, rfl, hcurT⟩
+      · cases dev
+        · obtain ⟨Ac2, hb2, hK, -, -, hcur2⟩ := RS rfl rfl _ heq
+          exact ⟨Ac2, hb2, hK.1, hcur2⟩
+        · -- a device reset: only the cap rewritten (`reset_untyped_dev_blk`)
+          obtain ⟨s1, h1, hb1, hK1, -⟩ := reset_untyped_dev_blk ar a hb hslot (hD rfl)
+          rw [h1] at heq
+          simp only [ok.injEq, Prod.mk.injEq] at heq
+          obtain ⟨-, rfl, -⟩ := heq
+          rw [show (true && !true) = false from rfl, e]
+          exact ⟨Ac1, hb1, hK1.1, hcurT⟩
     obtain ⟨Ac2, hb2, ecR, hc1⟩ := base
     obtain ⟨lo, hi, A, k, w, n, us', hlo, hhi, hbits, hdrop', hnode', hw, hwin, hdbg, hwp⟩ := hcr
     obtain ⟨H', Ac', hb', hkeep, hsh, -, -⟩ :=
-      (retypeP1Step : RetypeP1Step st sR s' (utHeap H reset ptr sb) Cs Ac2 lo hi A k w n us') hb2 hlo hhi hbits
+      (retypeP1Step : RetypeP1Step st sR s' (utHeap H (reset && !dev) ptr sb) Cs Ac2 lo hi A k w n us') hb2 hlo hhi hbits
         hdrop' hnode' hw hwin hdbg hwp P.core0
     obtain ⟨hok', h0'⟩ := retype_heapOK hdrop'.heap hdrop'.h0 hlo hhi hbits hwp hsh
     have hcurK : H' (L.curW s0) = some .tcb := by

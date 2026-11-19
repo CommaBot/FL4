@@ -13,6 +13,7 @@ state in place of its bundles (`XTopAt`, `ScExtra`, `UtP3Ok`), through
   `utRetypeP3_ofJ`: P1's `UtRetypeP3` at `UtJOk` (`utRetypeP3_gen`).
 -/
 import Fl4Proofs.P3.JointAt
+import Fl4Proofs.P3.ScUtRetypeDev
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -155,16 +156,16 @@ theorem utOkRU_J {H : P1.Heap} {Cs : Set U64} (hRU : RegionUnrefJ (L := L) arI H
 /-- **P1's `UtRetypeP3` at `UtJOk`** (`utRetypeP3_gen`): `JAt` at the
 decode's start ⇒ the retype's `CreateOK` (P1's kernel entry). Named:
 `RegionUnrefJ` [J], the new TCBs' debug links and the VT-x types at
-`UtJOk`, and `DevRetypeGap` [W] (the device retype, losfair/FL4#34). -/
+`UtJOk`; the device retype (losfair/FL4#34) is proved, `devRetype_holds`. -/
 theorem utRetypeP3_ofJ [Fl4Proofs.P1.PlainStore st] (arI : machine.Arch A) (hA : P0.ArchTotal arI) (H : P1.Heap) (Cs U : Set U64)
     (Adm : P1.PSets → Prop) (hAdm : ∀ H' : P1.Heap, P1.HeapOK H' → H' 0#u64 = none → Adm (P1.PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
     (hRU : RegionUnrefJ (L := L) arI H Cs) (hDbg : UtDbgTcbP (L := L) arI H Cs (UtJOk (L := L) arI H Cs))
-    (hVtx : UtVtxP (L := L) arI H Cs U (UtJOk (L := L) arI H Cs))
-    (hDev : DevRetypeGap (L := L) arI H Cs U (UtJOk (L := L) arI H Cs)) :
+    (hVtx : UtVtxP (L := L) arI H Cs U (UtJOk (L := L) arI H Cs)) :
     P1.UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtJOk (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_J hRU) hDbg hVtx hDev
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_J hRU) hDbg hVtx
+    (devRetype_holds (utOkRU_J hRU) h0Cs)
 
 end
 

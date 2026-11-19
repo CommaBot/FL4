@@ -162,6 +162,7 @@ import Fl4Proofs.P3.UntypedFrame
 import Fl4Proofs.P3.RetypeBridge
 import Fl4Proofs.P3.RetypePlace
 import Fl4Proofs.P3.ScUtRetype
+import Fl4Proofs.P3.ScUtRetypeDev
 import Fl4Proofs.P3.ScRemoveTcb
 import Fl4Proofs.P3.JointAt
 import Fl4Proofs.P3.ScJoint
