@@ -18,6 +18,14 @@ pub fn layout_ok(size: usize, stride: usize) -> bool {
     stride >= DESCRIPTOR_MIN && size % stride == 0
 }
 
+/// The map buffer's size: the `size` bytes the sizing GetMemoryMap call
+/// gave and room for 16 more descriptors of at least 48 bytes (a stride
+/// the sizing call gives need not be the one that follows). None if that
+/// does not fit in a usize.
+pub fn capacity(size: usize, stride: usize) -> Option<usize> {
+    size.checked_add(stride.max(48).checked_mul(16)?)
+}
+
 pub fn kind(ty: u32) -> u32 {
     match ty {
         // Loader code/data, boot services code/data, conventional.

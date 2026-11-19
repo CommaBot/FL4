@@ -411,6 +411,20 @@ fn build_tables(tables: u64, pa: u64, len: u64) -> (u64, u64) {
     (tables, tables + PAGE)
 }
 
+/// After the first ExitBootServices call (`tries` > 0), firmware may have
+/// shut boot services down in part even though the call failed, and only
+/// GetMemoryMap and ExitBootServices may be called (UEFI 2.10 §7.4): halt
+/// without the console.
+#[cfg(target_arch = "aarch64")]
+fn handoff_failed(tries: usize, msg: &str) -> ! {
+    if tries == 0 {
+        fail(msg);
+    }
+    loop {
+        unsafe { asm!("msr daifset, #0xf", "wfi", options(nomem, nostack)) };
+    }
+}
+
 /// Leave the loader for the kernel: caches and MMU off at this exception
 /// level, then branch to `entry` (physical) with x0 = `arg`.
 #[cfg(target_arch = "aarch64")]
@@ -557,28 +571,28 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     if r != BUFFER_TOO_SMALL && r != SUCCESS {
         fail("GetMemoryMap");
     }
-    let cap = size + 16 * dsize.max(48);
+    let cap = efi_mmap::capacity(size, dsize).unwrap_or_else(|| fail("GetMemoryMap"));
     let buf = alloc_pages((cap as u64).div_ceil(PAGE));
     let mut tries = 0;
     loop {
         size = cap;
         if (bs().get_memory_map)(&mut size, buf as *mut u8, &mut key, &mut dsize, &mut dver) != SUCCESS || size > cap {
-            fail("GetMemoryMap");
+            handoff_failed(tries, "GetMemoryMap");
         }
         // Adjacent entries of the same kind are merged. Every entry must
         // fit: the kernel hands out what the map leaves out as device
-        // memory. Read while the console still works.
+        // memory.
         let map = unsafe { core::slice::from_raw_parts(buf as *const u8, size) };
         bi.n_mmap = match efi_mmap::regions(map, dsize, &mut bi.mmap) {
             Some(n) => n as u64,
-            None => fail("invalid EFI memory map (descriptor size, an entry past 2^64, or too many entries)"),
+            None => handoff_failed(tries, "invalid EFI memory map (descriptor size, an entry past 2^64, or too many entries)"),
         };
         if (bs().exit_boot_services)(image, key) == SUCCESS {
             break;
         }
         tries += 1;
         if tries > 8 {
-            fail("ExitBootServices");
+            handoff_failed(tries, "ExitBootServices");
         }
     }
     // No boot services from here on.

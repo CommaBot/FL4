@@ -253,6 +253,68 @@ fn el2_setup_reads_pmcr_only_with_an_architected_pmu() {
     assert_eq!(before, ["b.eq    4f", "cmp     x9, #0xf", "cbz     x9, 4f", "ubfx    x9, x9, #8, #4"]);
 }
 
+/// Run `fl4_el_setup`'s pointer authentication set-up (from the
+/// ID_AA64ISAR1_EL1 read to the HCR_EL2 write both paths reach) on the
+/// given ID registers; returns that HCR_EL2 value and the system registers
+/// written with zero on the way.
+fn pauth_setup(c: &[String], isar1: u64, isar2: u64) -> (u64, Vec<String>) {
+    let start = c.iter().position(|l| l == "mrs     x10, id_aa64isar1_el1").expect("ISAR1 read");
+    let mut regs = std::collections::HashMap::new();
+    regs.insert("x9".to_string(), 1u64 << 31);
+    let mut written = vec![];
+    let mut hcr = None;
+    let val = |regs: &std::collections::HashMap<String, u64>, o: &str| -> u64 {
+        let o = o.trim();
+        match o.strip_prefix('#') {
+            Some(imm) => {
+                let imm = imm.trim_start_matches('(').trim_end_matches(')');
+                match imm.split_once("<<") {
+                    Some((a, b)) => a.trim().parse::<u64>().unwrap() << b.trim().parse::<u64>().unwrap(),
+                    None => u64::from_str_radix(imm.trim_start_matches("0x"), if imm.starts_with("0x") { 16 } else { 10 }).unwrap(),
+                }
+            }
+            None => regs[o],
+        }
+    };
+    let mut pc = start;
+    loop {
+        let l = &c[pc];
+        pc += 1;
+        let (op, args) = l.split_once(' ').unwrap_or((l, ""));
+        let a: Vec<&str> = args.split(',').map(str::trim).collect();
+        match op {
+            "mrs" => {
+                let v = match a[1] { "id_aa64isar1_el1" => isar1, "s3_0_c0_c6_2" => isar2, r => panic!("read of {r}") };
+                regs.insert(a[0].to_string(), v);
+            }
+            "ldr" => { let v = val(&regs, &format!("#{}", a[1].trim_start_matches('='))); regs.insert(a[0].to_string(), v); }
+            "and" => { let v = val(&regs, a[1]) & val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
+            "orr" => { let v = val(&regs, a[1]) | val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
+            "cbz" => {
+                assert_eq!(a[1], "7f");
+                if regs[a[0]] == 0 {
+                    // Label 7 is the HCR_EL2 write after the last key.
+                    let last_key = c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap();
+                    pc = last_key + 1;
+                }
+            }
+            "isb" => {}
+            "msr" if a[0] == "hcr_el2" => {
+                hcr = Some(val(&regs, a[1]));
+                if pc > c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap() {
+                    return (regs["x9"], written);
+                }
+            }
+            "msr" => {
+                assert_eq!(a[1], "xzr");
+                assert!(hcr.is_some_and(|h| h & (1 << 40) != 0), "key written before HCR_EL2.APK");
+                written.push(a[0].to_string());
+            }
+            _ => panic!("unexpected {l}"),
+        }
+    }
+}
+
 /// The code of `label` in boot.S, up to the next blank line, comments and
 /// labels' own lines left out.
 fn boot_code(label: &str) -> Vec<String> {
@@ -288,7 +350,8 @@ fn boot_code(label: &str) -> Vec<String> {
 /// With pointer authentication HCR_EL2 gets API and APK (PACGA has no
 /// SCTLR_EL1 enable: with API clear it traps from EL0 to EL2) and every key
 /// is cleared; the fine-grained trap registers and HCRX_EL2 are cleared
-/// when implemented.
+/// when implemented. Audit r9 F1: the keys only with FEAT_PAuth (APA, API
+/// or APA3), the one condition under which any key register exists.
 #[test]
 fn el2_setup_leaves_nothing_trapping_to_el2() {
     let c = boot_code("fl4_el_setup");
@@ -296,21 +359,23 @@ fn el2_setup_leaves_nothing_trapping_to_el2() {
     assert_eq!(&c[el2 + 1..el2 + 4], ["adr     x9, fl4_el2_vectors", "msr     vbar_el2, x9", "isb"]);
     let has = |l: &str| c.iter().any(|x| x == l);
     assert!(has("orr     x9, x9, #(3 << 40)"));
-    let api = c.iter().position(|l| l == "orr     x9, x9, #(3 << 40)").unwrap();
-    assert_eq!(c[api - 1], "cbz     x10, 7f");
-    assert_eq!(c[api - 7..api - 1], [
-        "mrs     x10, id_aa64isar1_el1", "ldr     x11, =0xff000ff0", "and     x10, x10, x11",
-        "mrs     x11, s3_0_c0_c6_2", "and     x11, x11, #0xff00", "orr     x10, x10, x11",
-    ]);
-    // Every key, after HCR_EL2 has APK.
+    // Which of HCR_EL2.{APK,API} and the keys each combination of the
+    // pointer authentication ID fields gets: `pauth_setup` runs the code.
     let keys = ["s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0", "s3_0_c2_c2_1",
         "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1"];
-    assert_eq!(&c[api + 1..api + 3], ["msr     hcr_el2, x9", "isb"]);
-    for (i, k) in keys.iter().enumerate() {
-        assert_eq!(c[api + 3 + i], format!("msr     {k}, xzr"));
+    assert_eq!(pauth_setup(&c, 0, 0), (1 << 31, vec![]));
+    for (isar1, isar2) in [(1 << 4, 0), (3 << 8, 0), (0, 1 << 12), (5 << 4 | 1 << 24, 0), (1 << 8 | 1 << 28, 0),
+        (0, 1 << 12 | 1 << 8)] {
+        // FEAT_PAuth: every key exists, and all are cleared with APK set.
+        let (hcr, written) = pauth_setup(&c, isar1 | 0x00f0_000f, isar2 | 0xffff_0000_0000_00ff);
+        assert_eq!(hcr, 1 << 31 | 3 << 40, "{isar1:#x} {isar2:#x}");
+        assert_eq!(written, keys, "{isar1:#x} {isar2:#x}");
     }
-    // HCR_EL2 is written with the bits on either path.
-    assert_eq!(&c[api + 13..api + 15], ["msr     hcr_el2, x9", "isb"]);
+    // Generic authentication fields without FEAT_PAuth (no conforming PE
+    // has them): no key register exists, so none may be written.
+    for (isar1, isar2) in [(1 << 24, 0), (1 << 28, 0), (0, 1 << 8)] {
+        assert_eq!(pauth_setup(&c, isar1, isar2).1, Vec::<String>::new(), "{isar1:#x} {isar2:#x}");
+    }
     for r in ["s3_4_c1_c1_4", "s3_4_c1_c1_5", "s3_4_c1_c1_6", "s3_4_c3_c1_4", "s3_4_c3_c1_5", "s3_4_c3_c1_6",
         "s3_4_c3_c1_0", "s3_4_c3_c1_1", "s3_4_c3_c1_2", "s3_4_c3_c1_3", "s3_4_c3_c1_7", "s3_4_c1_c2_2"] {
         assert!(has(&format!("msr     {r}, xzr")), "{r} not cleared");
@@ -977,4 +1042,40 @@ fn a_gic_reg_the_kernel_cannot_read_whole_is_never_used() {
     bytes.extend_from_slice(&[0; 8]);
     assert!(dt_soc((2, 2), (2, 2), &bytes, 2).is_none());
     assert!(dt_soc((2, 2), (2, 2), &reg2(&regs), 2).is_some());
+}
+
+/// The AArch64 loader sizes its memory map buffer with `capacity`: the
+/// sizing call's map and 16 more descriptors of at least 48 bytes, None
+/// where that does not fit (as x86_mmap::capacity).
+#[test]
+fn the_efi_memory_map_capacity_never_wraps() {
+    assert_eq!(efi_mmap::capacity(4800, 48), Some(4800 + 16 * 48));
+    assert_eq!(efi_mmap::capacity(4800, 0), Some(4800 + 16 * 48));
+    assert_eq!(efi_mmap::capacity(4800, 80), Some(4800 + 16 * 80));
+    assert_eq!(efi_mmap::capacity(usize::MAX - 16 * 48, 48), Some(usize::MAX));
+    assert_eq!(efi_mmap::capacity(usize::MAX - 16 * 48 + 1, 48), None);
+    assert_eq!(efi_mmap::capacity(0, usize::MAX / 16 + 1), None);
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    assert!(lib.contains("let cap = efi_mmap::capacity(size, dsize).unwrap_or_else(|| fail(\"GetMemoryMap\"));"));
+}
+
+/// UEFI 2.10 §7.4: after the first ExitBootServices call, even a failed
+/// one, firmware may have shut boot services down in part, and the loader
+/// may call only GetMemoryMap and ExitBootServices: every failure in the
+/// retry loop halts through `handoff_failed`, which uses the console
+/// (`fail`) only before that first call.
+#[test]
+fn the_aarch64_loader_uses_no_console_after_exit_boot_services() {
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    let at = lib.find("    let mut tries = 0;\n    loop {\n").expect("handoff loop");
+    let end = at + lib[at..].find("\n    }\n").expect("loop end");
+    let body = &lib[at..end];
+    assert!(body.contains("(bs().exit_boot_services)(image, key)"));
+    assert!(!body.contains(" fail("), "a failure after ExitBootServices writes to the console:\n{body}");
+    assert_eq!(body.matches("handoff_failed(tries, ").count(), 3);
+    let h = &lib[lib.find("fn handoff_failed(tries: usize, msg: &str) -> ! {").expect("handoff_failed")..];
+    let h = &h[..h.find("\n}\n").unwrap()];
+    assert!(h.contains("if tries == 0 {\n        fail(msg);\n    }"), "{h}");
+    assert!(h.contains("msr daifset, #0xf") && h.contains("wfi"), "{h}");
+    assert_eq!(h.matches("fail(").count(), 1);
 }

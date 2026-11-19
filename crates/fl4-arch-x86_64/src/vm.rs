@@ -349,6 +349,17 @@ fn pass_msr(bitmap: &mut [u8], msr: u32, amd: bool) {
         bitmap[base + 2048 + (index / 8) as usize] &= !(1 << (index % 8));
     }
 }
+/// CPUID 8000_000AH:EDX features `run` uses on every core as the boot
+/// core found them (`SVM_FEATURES`): VMCB clean bits (bit 5). The ones
+/// every core needs (nested paging, NRIP save) `init_svm` checks itself.
+const SVM_SHARED: u32 = 1 << 5;
+
+/// An AP whose CPUID 8000_000AH:EDX is `ap` has the shared features the
+/// boot core (`bsp`) has.
+fn svm_ap_compatible(bsp: u32, ap: u32) -> bool {
+    bsp & SVM_SHARED & !ap == 0
+}
+
 fn init_svm(bsp: bool) -> bool {
     if spec::vmexit().is_none() {
         return false;
@@ -358,6 +369,9 @@ fn init_svm(bsp: bool) -> bool {
     }
     let c = cpu::cpuid(0x8000_000a, 0);
     if c.edx & 9 != 9 || c.ebx < 2 || cpu::rdmsr(0xc001_0114) & 16 != 0 {
+        return false;
+    }
+    if !bsp && !svm_ap_compatible(SVM_FEATURES.load(Ordering::Relaxed) as u32, c.edx) {
         return false;
     }
     if bsp {
@@ -1024,6 +1038,22 @@ pub fn empty_root() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An AP without VMCB clean bits beside a boot core with them would be
+    /// given nonzero clean bits by `run` (all cores share `SVM_FEATURES`):
+    /// it is rejected, as VMX APs are for any capability difference.
+    #[test]
+    fn svm_aps_need_the_boot_cores_vmcb_clean_bits() {
+        let (np, nrips, clean, decode) = (1u32, 1u32 << 3, 1u32 << 5, 1u32 << 7);
+        let base = np | nrips;
+        assert!(!svm_ap_compatible(base | clean, base));
+        assert!(!svm_ap_compatible(base | clean | decode, base | decode));
+        assert!(svm_ap_compatible(base | clean, base | clean));
+        assert!(svm_ap_compatible(base, base | clean));
+        assert!(svm_ap_compatible(base, base));
+        // Features `run` does not share are this core's own business.
+        assert!(svm_ap_compatible(base | decode, base));
+    }
 
     #[test]
     fn vmx_exit_entries_preserve_guest_registers_and_restore_the_host_stack() {
