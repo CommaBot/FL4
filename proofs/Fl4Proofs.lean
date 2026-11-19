@@ -498,6 +498,7 @@ import Fl4Proofs.P3.XTopJointPreempt
 import Fl4Proofs.P3.SchedArmed
 import Fl4Proofs.P3.XTopJointIrq
 import Fl4Proofs.P3.XTopJointPreemptZ
+import Fl4Proofs.P3.XTopJointPreemptI
 import Fl4Proofs.P3.XTopJointUnblock
 import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointVsMap
