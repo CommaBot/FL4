@@ -461,20 +461,21 @@ end
 theorem PPK.of_schedK {σ σ' : Fl4Spec.State Unit} (h : SchedK σ σ')
     (hns : ∀ u, σ'.schedulerAction ≠ .switchThread u) : PPK σ σ' :=
   ⟨h.cons, h.ctime, h.csc, fun u hu => by rw [h.rel] at hu; exact hu,
-    fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl⟩, h.ct, h.idle,
+    fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl, id⟩, h.ct, h.idle,
     fun _ => hns⟩
 
 /-- An update of one TCB keeping its SC keeps what `PPR0` reads. -/
 theorem PPK.updTcbSc {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
-    (hk : σ.kheap t = some (.tcb x)) (hy : y.tcbSchedContext = x.tcbSchedContext) :
+    (hk : σ.kheap t = some (.tcb x)) (hy : y.tcbSchedContext = x.tcbSchedContext)
+    (hb : NotBlk x.tcbState → NotBlk y.tcbState := by first | exact id | (intro _; exact ⟨fun _ h => (by cases h), fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ _ _ h => by cases h⟩)) :
     PPK σ (Notif.updK σ t (.tcb y)) := by
   refine ⟨rfl, rfl, rfl, fun u hu => hu, fun p z n hp => ?_, fun p z hp => ?_, rfl, rfl, fun h => h⟩
   · by_cases e : p = t
     · subst e; simp [Notif.updK] at hp
     · simpa [Notif.updK, e] using hp
   · by_cases e : p = t
-    · subst e; simp [Notif.updK] at hp; subst hp; exact ⟨x, hk, hy.symm⟩
-    · exact ⟨z, by simpa [Notif.updK, e] using hp, rfl⟩
+    · subst e; simp [Notif.updK] at hp; subst hp; exact ⟨x, hk, hy.symm, hb⟩
+    · exact ⟨z, by simpa [Notif.updK, e] using hp, rfl, id⟩
 
 /-- The IPC-buffer update of one TCB empties and writes no cap. -/
 theorem SlotK.ipcBuf {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb}

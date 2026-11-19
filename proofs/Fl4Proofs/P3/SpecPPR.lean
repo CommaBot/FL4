@@ -5,7 +5,9 @@ P3 (DESIGN.md §9), CSpace: **the spec's `finalise_cap` keeps `PPR0`**
 * `TR E σ σ'`: the time, the consumed time and the current SC kept, the
   release queue shrunk, the current SC active after only if active before
   with the same head refill, and a thread bound to the current SC and in the
-  release queue after either bound to it before or in `E` (reflexive,
+  release queue after either bound to it before or in `E`, and (kp12,
+  `tst`) a TCB blocked on nothing (`NotBlk`) before is blocked on nothing after,
+  with its SC link kept or cleared, unless in `E` (reflexive,
   transitive). `TK E c m`: from a state whose current SC is `c`, every
   outcome of `m` is `TR E`-related to its start (the combinators and
   `tk_auto`, as ScMaxKeep's `MK`/`mk_auto`; the leaves as DomRecDel's).
@@ -19,7 +21,10 @@ P3 (DESIGN.md §9), CSpace: **the spec's `finalise_cap` keeps `PPR0`**
   `sched_context_set_inactive` (the SC inactive after), the sporadic unblock
   check of `cancel_all_ipc`/`cancel_all_signals` (an SC other than the
   current one: `if_sporadic_cur_sc_assert_refill_unblock_check`),
-  `sched_context_donate` and `reply_remove` to a thread in `E`.
+  `sched_context_donate` and `reply_remove` to a thread in `E` (`TKN`: `TK`
+  with the thread added to `E`; `TR.unE` removes it again from a start where
+  it is blocked on the reply and outside the release queue). Every
+  `set_thread_state` of the deletion sets a state blocked on nothing.
 * `tr_finaliseCap`: from an `Inv` state, every outcome of `finalise_cap` is
   `TR`-related with `E` empty: `reply_remove`'s donee is blocked on the
   reply, hence (`Inv.rel`) outside the release queue, which only shrinks.
@@ -49,6 +54,8 @@ structure TR (E : ObjRef → Prop) (σ σ' : State Unit) : Prop where
     ∃ y0 n0, σ.kheap σ.curSc = some (.schedContext y0 n0) ∧ scActive y0 = true ∧ refillHd y = refillHd y0
   own : ∀ u xt, σ'.kheap u = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc → u ∈ σ'.releaseQueue →
     E u ∨ ∃ x0, σ.kheap u = some (.tcb x0) ∧ x0.tcbSchedContext = some σ.curSc
+  tst : ∀ u y, σ'.kheap u = some (.tcb y) → E u ∨ ∃ x, σ.kheap u = some (.tcb x) ∧
+    (NotBlk x.tcbState → NotBlk y.tcbState ∧ (y.tcbSchedContext = x.tcbSchedContext ∨ y.tcbSchedContext = none))
 
 variable {E : ObjRef → Prop}
 
@@ -57,13 +64,14 @@ theorem TR.of_eq {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (h1 : σ'.con
     TR E σ σ' :=
   ⟨h1, h2, h3, fun u hu => by rw [h4] at hu; exact hu,
     fun y n hy ha => ⟨y, n, by rw [← hk]; exact hy, ha, rfl⟩,
-    fun u xt hu hs _ => Or.inr ⟨xt, by rw [← hk]; exact hu, hs⟩⟩
+    fun u xt hu hs _ => Or.inr ⟨xt, by rw [← hk]; exact hu, hs⟩,
+    fun u y hu => Or.inr ⟨y, by rw [← hk]; exact hu, fun h => ⟨h, Or.inl rfl⟩⟩⟩
 
 theorem TR.refl (σ : State Unit) : TR E σ σ := TR.of_eq rfl rfl rfl rfl rfl
 
 theorem TR.trans {σ1 σ2 σ3 : State Unit} (h1 : TR E σ1 σ2) (h2 : TR E σ2 σ3) : TR E σ1 σ3 := by
   refine ⟨h2.cons.trans h1.cons, h2.time.trans h1.time, h2.csc.trans h1.csc,
-    fun u hu => h1.rel u (h2.rel u hu), fun y n hy ha => ?_, fun u xt hu hs hr => ?_⟩
+    fun u hu => h1.rel u (h2.rel u hu), fun y n hy ha => ?_, fun u xt hu hs hr => ?_, fun u y hu => ?_⟩
   · rw [← h1.csc] at hy
     obtain ⟨y2, n2, hy2, ha2, e2⟩ := h2.sc y n hy ha
     rw [h1.csc] at hy2
@@ -74,6 +82,17 @@ theorem TR.trans {σ1 σ2 σ3 : State Unit} (h1 : TR E σ1 σ2) (h2 : TR E σ2 �
     · exact Or.inl h
     · rw [h1.csc] at hs2
       exact h1.own u x2 hx2 hs2 (h2.rel u hr)
+  · rcases h2.tst u y hu with h | ⟨x2, hx2, h2b⟩
+    · exact Or.inl h
+    · rcases h1.tst u x2 hx2 with h | ⟨x1, hx1, h1b⟩
+      · exact Or.inl h
+      · refine Or.inr ⟨x1, hx1, fun hb => ?_⟩
+        obtain ⟨hb2, hl2⟩ := h1b hb
+        obtain ⟨hb3, hl3⟩ := h2b hb2
+        refine ⟨hb3, ?_⟩
+        rcases hl3 with e | e
+        · rw [e]; exact hl2
+        · exact Or.inr e
 
 /-- From a state whose current SC is `c`, every outcome of `m` is
 `TR E`-related to its start. -/
@@ -318,13 +337,16 @@ theorem tk_setObject (p : ObjRef) (o : KernelObject) (h1 : ∀ y n, o ≠ .sched
   intro σ _ x hx
   obtain ⟨k, -, -, e⟩ := MaxK.mk_setObject_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
   · by_cases hq : σ.curSc = p
     · rw [hq] at hy; simp only [Function.update_self, Option.some.injEq] at hy; exact absurd hy (h1 y n)
     · simp only [Function.update_of_ne hq] at hy; exact ⟨y, n, hy, ha, rfl⟩
   · by_cases hq : u = p
     · subst hq; simp only [Function.update_self, Option.some.injEq] at hu; exact absurd hu (h2 xt)
     · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+  · by_cases hq : u = p
+    · subst hq; simp only [Function.update_self, Option.some.injEq] at hu; exact absurd hu (h2 xt)
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
 
 theorem getTcb_kh {σ : State Unit} {t : ObjRef} {x : Tcb} (h : getTcb (Z := Unit) t σ = some x) :
     σ.kheap t = some (.tcb x) := by
@@ -349,12 +371,19 @@ theorem threadSet_mem {σ : State Unit} {t : ObjRef} {f : Tcb → Tcb} {x : Unit
 
 /-- `thread_set` keeping the TCB's SC link or clearing it. -/
 theorem tk_threadSet (f : Tcb → Tcb) (t : ObjRef)
-    (hf : ∀ x, (f x).tcbSchedContext = x.tcbSchedContext ∨ (f x).tcbSchedContext = none) :
+    (hf : ∀ x, (f x).tcbSchedContext = x.tcbSchedContext ∨ (f x).tcbSchedContext = none)
+    (hb : ∀ x, NotBlk x.tcbState → NotBlk (f x).tcbState) :
     TK E c (threadSet (Z := Unit) f t) := by
   intro σ _ x hx
   obtain ⟨x0, hk, e⟩ := threadSet_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
+  rotate_left 2
+  · by_cases hq : u = t
+    · subst hq; simp only [Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hu
+      subst hu
+      exact Or.inr ⟨x0, hk, fun h => ⟨hb x0 h, hf x0⟩⟩
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
   · by_cases hq : σ.curSc = t
     · rw [hq] at hy; simp at hy
     · simp only [Function.update_of_ne hq] at hy; exact ⟨y, n, hy, ha, rfl⟩
@@ -371,13 +400,16 @@ theorem tk_threadSet_E (f : Tcb → Tcb) (t : ObjRef) (hE : E t) : TK E c (threa
   intro σ _ x hx
   obtain ⟨x0, hk, e⟩ := threadSet_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
   · by_cases hq : σ.curSc = t
     · rw [hq] at hy; simp at hy
     · simp only [Function.update_of_ne hq] at hy; exact ⟨y, n, hy, ha, rfl⟩
   · by_cases hq : u = t
     · subst hq; exact Or.inl hE
     · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+  · by_cases hq : u = t
+    · subst hq; exact Or.inl hE
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
 
 /-- `update_sched_context` keeping an active SC's activity and head. -/
 theorem tk_updateSchedContext (q : ObjRef) (f : SchedContext → SchedContext)
@@ -386,7 +418,7 @@ theorem tk_updateSchedContext (q : ObjRef) (f : SchedContext → SchedContext)
   intro σ _ x hx
   obtain ⟨y0, n0, hk, e⟩ := MaxK.updSc_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
   · by_cases hq : σ.curSc = q
     · rw [hq] at hy ⊢
       simp only [Function.update_self, Option.some.injEq, KernelObject.schedContext.injEq] at hy
@@ -397,6 +429,9 @@ theorem tk_updateSchedContext (q : ObjRef) (f : SchedContext → SchedContext)
   · by_cases hq : u = q
     · subst hq; simp at hu
     · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+  · by_cases hq : u = q
+    · subst hq; simp at hu
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
 
 /-- Any `update_sched_context` of an SC other than the current one. -/
 theorem tk_updateSchedContext_ne (q : ObjRef) (f : SchedContext → SchedContext) (hq : q ≠ c) :
@@ -404,19 +439,23 @@ theorem tk_updateSchedContext_ne (q : ObjRef) (f : SchedContext → SchedContext
   intro σ hc x hx
   obtain ⟨y0, n0, hk, e⟩ := MaxK.updSc_mem hx
   rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
   · have hq' : σ.curSc ≠ q := fun h => hq (by rw [← hc, h])
     simp only [Function.update_of_ne hq'] at hy; exact ⟨y, n, hy, ha, rfl⟩
   · by_cases hq : u = q
     · subst hq; simp at hu
     · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+  · by_cases hq : u = q
+    · subst hq; simp at hu
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
 
 /-- The CNode steps (`CnK`: every SC kept, every TCB's SC link kept). -/
 theorem tk_of_nkn {α : Type} {m : NonDet (State Unit) α} (h : Ipc.NKN m) : TK E c m := by
   intro σ _ x hx
   have hk := PPK.of_cnK (h σ x hx)
   exact ⟨hk.cons, hk.time, hk.csc, hk.rel, fun y n hy ha => ⟨y, n, hk.sc _ y n hy, ha, rfl⟩,
-    fun u xt hu hs _ => let ⟨x0, h0, e⟩ := hk.tcb u xt hu; Or.inr ⟨x0, h0, by rw [e]; exact hs⟩⟩
+    fun u xt hu hs _ => let ⟨x0, h0, e, _⟩ := hk.tcb u xt hu; Or.inr ⟨x0, h0, by rw [e]; exact hs⟩,
+    fun u xt hu => let ⟨x0, h0, e, hb⟩ := hk.tcb u xt hu; Or.inr ⟨x0, h0, fun h => ⟨hb h, Or.inl e.symm⟩⟩⟩
 
 /-- The arch finalisation (`archF`: every non-arch object kept, the
 scheduler's fields kept). -/
@@ -436,9 +475,11 @@ theorem tk_of_archF {α : Type} {m : NonDet (State Unit) α} (h : Vs.FK archF m)
       cases hσ : σ.kheap q with
       | none => rw [hσ] at this; simp [eraseA] at this
       | some k => rw [hσ] at this; cases k <;> simp_all [eraseA]
-  refine ⟨e5, e6, e7, fun u hu => by rw [e12] at hu; exact hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨e5, e6, e7, fun u hu => by rw [e12] at hu; exact hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_,
+    fun u xt hu => ?_⟩
   · exact ⟨y, n, k _ _ (fun _ h => by cases h) hy, ha, rfl⟩
   · exact Or.inr ⟨xt, k _ _ (fun _ h => by cases h) hu, hs⟩
+  · exact Or.inr ⟨xt, k _ _ (fun _ h => by cases h) hu, fun h => ⟨h, Or.inl rfl⟩⟩
 
 end Obj
 
@@ -452,9 +493,15 @@ def TKA (E : ObjRef → Prop) (c t : ObjRef) (x : Tcb) {α : Type} (m : NonDet (
   ∀ σ, σ.curSc = c → σ.kheap t = some (.tcb x) → ∀ z, z ∈ (m σ).1 → TR E σ z.2
 
 theorem tr_setTcb {σ : State Unit} {t : ObjRef} {x y : Tcb} (hk : σ.kheap t = some (.tcb x))
-    (hs : y.tcbSchedContext = x.tcbSchedContext) :
+    (hs : y.tcbSchedContext = x.tcbSchedContext) (hb : NotBlk x.tcbState → NotBlk y.tcbState) :
     TR E σ { σ with kheap := Function.update σ.kheap t (some (.tcb y)) } := by
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y' n hy ha => ?_, fun u xt hu hs' _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y' n hy ha => ?_, fun u xt hu hs' _ => ?_, fun u xt hu => ?_⟩
+  rotate_left 2
+  · by_cases hq : u = t
+    · subst hq; simp only [Function.update_self, Option.some.injEq, KernelObject.tcb.injEq] at hu
+      subst hu
+      exact Or.inr ⟨x, hk, fun h => ⟨hb h, Or.inl hs⟩⟩
+    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
   · by_cases hq : σ.curSc = t
     · rw [hq] at hy; simp at hy
     · simp only [Function.update_of_ne hq] at hy; exact ⟨y', n, hy, ha, rfl⟩
@@ -489,17 +536,19 @@ theorem tka_selectF_bind {t : ObjRef} {x : Tcb} {α β : Type} {S : Set α × Pr
   simp only at e; subst e
   exact h a _ hc hk z hz
 
-theorem tka_setObject {t : ObjRef} {x y : Tcb} (hs : y.tcbSchedContext = x.tcbSchedContext) :
+theorem tka_setObject {t : ObjRef} {x y : Tcb} (hs : y.tcbSchedContext = x.tcbSchedContext)
+    (hb : NotBlk x.tcbState → NotBlk y.tcbState := by exact id) :
     TKA E c t x (setObject (Z := Unit) t (.tcb y)) := by
   intro σ _ hk z hz
   obtain ⟨-, -, -, e⟩ := MaxK.mk_setObject_mem hz
-  rw [e]; exact tr_setTcb hk hs
+  rw [e]; exact tr_setTcb hk hs hb
 
 theorem tka_setObject_bind {t : ObjRef} {x y : Tcb} {β : Type} {g : Unit → NonDet (State Unit) β}
-    (hs : y.tcbSchedContext = x.tcbSchedContext) (h : ∀ u, TK E c (g u)) :
+    (hs : y.tcbSchedContext = x.tcbSchedContext) (h : ∀ u, TK E c (g u))
+    (hb : NotBlk x.tcbState → NotBlk y.tcbState := by exact id) :
     TKA E c t x (setObject (Z := Unit) t (.tcb y) >>= g) := by
   intro σ hc hk z ⟨w, hw, hz⟩
-  have h1 := tka_setObject (E := E) (c := c) hs σ hc hk w hw
+  have h1 := tka_setObject (E := E) (c := c) hs hb σ hc hk w hw
   exact h1.trans (h w.1 w.2 (h1.csc.trans hc) z hz)
 
 end Tka
@@ -509,18 +558,35 @@ end Tka
 section Tkn
 variable {c : ObjRef}
 
-/-- From a state where `t` is outside the release queue. -/
+/-- `TK` with `t` added to `E` (kp12: `t` is the reply's caller, blocked on
+the reply and outside the release queue at the start, `TR.unE`). -/
 def TKN (E : ObjRef → Prop) (c t : ObjRef) {α : Type} (m : NonDet (State Unit) α) : Prop :=
-  ∀ σ, σ.curSc = c → t ∉ σ.releaseQueue → ∀ x, x ∈ (m σ).1 → TR E σ x.2
+  TK (fun u => E u ∨ u = t) c m
+
+theorem TR.mono {E' : ObjRef → Prop} {σ σ' : State Unit} (h : TR E σ σ') (hE : ∀ u, E u → E' u) : TR E' σ σ' :=
+  ⟨h.cons, h.time, h.csc, h.rel, h.sc, fun u xt hu hs hr => (h.own u xt hu hs hr).imp_left (hE u),
+    fun u y hu => (h.tst u y hu).imp_left (hE u)⟩
+
+/-- **`TR` with `t` added to `E`, from a start where `t` is outside the
+release queue and blocked on a reply.** -/
+theorem TR.unE {t : ObjRef} {σ σ' : State Unit} (h : TR (fun u => E u ∨ u = t) σ σ')
+    (ht : t ∉ σ.releaseQueue) {x0 : Tcb} (hk : σ.kheap t = some (.tcb x0)) (hb : ¬ NotBlk x0.tcbState) :
+    TR E σ σ' := by
+  refine ⟨h.cons, h.time, h.csc, h.rel, h.sc, fun u xt hu hs hr => ?_, fun u y hu => ?_⟩
+  · rcases h.own u xt hu hs hr with (h' | rfl) | h'
+    · exact Or.inl h'
+    · exact absurd (h.rel _ hr) ht
+    · exact Or.inr h'
+  · rcases h.tst u y hu with (h' | rfl) | h'
+    · exact Or.inl h'
+    · exact Or.inr ⟨x0, hk, fun h' => absurd h' hb⟩
+    · exact Or.inr h'
 
 theorem tkn_of {t : ObjRef} {α : Type} {m : NonDet (State Unit) α} (h : TK E c m) : TKN E c t m :=
-  fun σ hc _ x hx => h σ hc x hx
+  fun σ hc x hx => (h σ hc x hx).mono fun _ => Or.inl
 
 theorem tkn_bind {t : ObjRef} {α β : Type} {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β}
-    (hm : TKN E c t m) (hg : ∀ a, TKN E c t (g a)) : TKN E c t (m >>= g) := by
-  intro σ hc ht x ⟨y, hy, hx⟩
-  have h1 := hm σ hc ht y hy
-  exact h1.trans (hg y.1 y.2 (h1.csc.trans hc) (fun h => ht (h1.rel t h)) x hx)
+    (hm : TKN E c t m) (hg : ∀ a, TKN E c t (g a)) : TKN E c t (m >>= g) := tk_bind hm hg
 
 theorem tkn_when {t : ObjRef} (P : Prop) [Decidable P] {m : NonDet (State Unit) Unit} (h : TKN E c t m) :
     TKN E c t (NonDet.when P m) := by
@@ -529,17 +595,8 @@ theorem tkn_when {t : ObjRef} (P : Prop) [Decidable P] {m : NonDet (State Unit) 
   · exact tkn_of (tk_pure' _)
 
 /-- Any `thread_set` of `t`, outside the release queue. -/
-theorem tkn_threadSet (f : Tcb → Tcb) (t : ObjRef) : TKN E c t (threadSet (Z := Unit) f t) := by
-  intro σ _ ht x hx
-  obtain ⟨x0, hk, e⟩ := threadSet_mem hx
-  rw [e]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs hr => ?_⟩
-  · by_cases hq : σ.curSc = t
-    · rw [hq] at hy; simp at hy
-    · simp only [Function.update_of_ne hq] at hy; exact ⟨y, n, hy, ha, rfl⟩
-  · by_cases hq : u = t
-    · subst hq; exact absurd hr ht
-    · simp only [Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+theorem tkn_threadSet (f : Tcb → Tcb) (t : ObjRef) : TKN E c t (threadSet (Z := Unit) f t) :=
+  tk_threadSet_E f t (Or.inr rfl)
 
 end Tkn
 
@@ -552,8 +609,12 @@ variable {c : ObjRef}
 macro "tk_neq" : tactic => `(tactic| first | (intro _ _ h; cases h) | (intro _ h; cases h))
 
 macro_rules | `(tactic| tk_leaf) => `(tactic| ((with_reducible refine tk_setObject _ _ ?_ ?_) <;> tk_neq))
+/-- The `NotBlk` side goal of a TCB write (kp12): the state kept, a parameter's, or a constant. -/
+macro "tk_nobor" : tactic => `(tactic| first
+  | (intro _ h; exact h) | (intro _ _; assumption) | assumption | (intro _ _; exact ⟨fun _ h => (by cases h), fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ _ _ h => by cases h⟩) | exact ⟨fun _ h => (by cases h), fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ _ _ h => by cases h⟩)
+
 macro_rules | `(tactic| tk_leaf) => `(tactic|
-  ((with_reducible refine tk_threadSet _ _ ?_); intro _; first | exact Or.inl rfl | exact Or.inr rfl))
+  ((with_reducible refine tk_threadSet _ _ ?_ ?_); (intro _; first | exact Or.inl rfl | exact Or.inr rfl); tk_nobor))
 macro_rules | `(tactic| tk_leaf) => `(tactic|
   ((with_reducible refine tk_updateSchedContext _ _ ?_); intro _ h; exact ⟨h, rfl⟩))
 macro_rules | `(tactic| tk_leaf) => `(tactic|
@@ -643,7 +704,8 @@ theorem tk_tcbReleaseRemove' (t : ObjRef) : TK E c (tcbReleaseRemove (Z := Unit)
   rw [Set.mem_singleton_iff.1 hx]
   obtain ⟨e1, e2, e3, e4, e5⟩ := hz2
   refine ⟨e5, e4, e3, fun u hu => ?_, fun y n hy ha => ⟨y, n, by rw [← e2]; exact hy, ha, rfl⟩,
-    fun u xt hu hs _ => Or.inr ⟨xt, by rw [← e2]; exact hu, hs⟩⟩
+    fun u xt hu hs _ => Or.inr ⟨xt, by rw [← e2]; exact hu, hs⟩,
+    fun u xt hu => Or.inr ⟨xt, by rw [← e2]; exact hu, fun h => ⟨h, Or.inl rfl⟩⟩⟩
   exact (List.mem_filter.1 hu).1
 macro_rules | `(tactic| tk_leaf) => `(tactic| with_reducible exact tk_tcbReleaseRemove' _)
 
@@ -658,7 +720,7 @@ theorem tk_schedContextSetInactive' (p : ObjRef) : TK E c (schedContextSetInacti
   obtain ⟨y0, n0, hk⟩ := hk
   rw [Sched.setInactive_eq hk] at hx
   rw [Set.mem_singleton_iff.1 hx]
-  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_⟩
+  refine ⟨rfl, rfl, rfl, fun u hu => hu, fun y n hy ha => ?_, fun u xt hu hs _ => ?_, fun u xt hu => ?_⟩
   · by_cases hq : σ.curSc = p
     · rw [hq] at hy; simp [Notif.updK] at hy
       obtain ⟨rfl, -⟩ := hy
@@ -667,15 +729,19 @@ theorem tk_schedContextSetInactive' (p : ObjRef) : TK E c (schedContextSetInacti
   · by_cases hq : u = p
     · subst hq; simp [Notif.updK] at hu
     · simp [Notif.updK, Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, hs⟩
+  · by_cases hq : u = p
+    · subst hq; simp [Notif.updK] at hu
+    · simp [Notif.updK, Function.update_of_ne hq] at hu; exact Or.inr ⟨xt, hu, fun h => ⟨h, Or.inl rfl⟩⟩
 macro_rules | `(tactic| tk_leaf) => `(tactic| with_reducible exact tk_schedContextSetInactive' _)
 
 theorem tk_getThreadState' (t : ObjRef) : TK E c (getThreadState (Z := Unit) t) := by
   unfold getThreadState; tk_auto
 macro_rules | `(tactic| tk_leaf) => `(tactic| with_reducible exact tk_getThreadState' _)
 
-theorem tk_setThreadState' (t : ObjRef) (ts : ThreadState) : TK E c (setThreadState (Z := Unit) t ts) := by
+theorem tk_setThreadState' (t : ObjRef) (ts : ThreadState) (hts : NotBlk ts) :
+    TK E c (setThreadState (Z := Unit) t ts) := by
   unfold setThreadState setThreadStateAct setSchedulerAction; tk_auto
-macro_rules | `(tactic| tk_leaf) => `(tactic| with_reducible exact tk_setThreadState' _ _)
+macro_rules | `(tactic| tk_leaf) => `(tactic| ((with_reducible refine tk_setThreadState' _ _ ?_); tk_nobor))
 
 theorem tk_getSchedContext' (q : ObjRef) : TK E c (getSchedContext (Z := Unit) q) := by
   unfold getSchedContext; tk_auto
@@ -1058,7 +1124,7 @@ theorem tks_replyBody (r : ObjRef) : TKS E c RQRun (do
     subst e
     cases st with
     | blockedOnReply r' =>
-      refine tkn_replyRemove (E := E) tp r' s hc (fun h => ?_) x hx
+      refine (tkn_replyRemove (E := E) tp r' s hc x hx).unE (fun h => ?_) hk (fun hb => hb.1 r' hst)
       obtain ⟨x', hk', hr'⟩ := hR tp h
       rw [hk] at hk'; cases hk'
       rw [hst] at hr'; cases hr'
@@ -1099,7 +1165,17 @@ end Tks
 theorem PPR0.of_tr {σ σ' : State Unit} (hP : PPR0 σ) (h : TR (fun _ => False) σ σ')
     (hct : σ'.curThread = σ.curThread) (hid : σ'.idleThread = σ.idleThread)
     (hns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, σ'.schedulerAction ≠ .switchThread u) : PPR0 σ' := by
-  refine ⟨⟨by rw [hct, hid]; exact hP.1.1, hns hP.1.2⟩, fun h0 => ?_⟩
+  refine ⟨⟨by rw [hct, hid]; exact hP.1.1, hns hP.1.2.1, fun yt hy => ?_⟩, fun h0 => ?_⟩
+  · rw [hct] at hy
+    rcases h.tst _ yt hy with h' | ⟨x, hx, hb⟩
+    · exact h'.elim
+    obtain ⟨h1, h2⟩ := hP.1.2.2 x hx
+    obtain ⟨h3, h4⟩ := hb h2
+    rw [h.csc]
+    refine ⟨?_, h3⟩
+    rcases h4 with e | e
+    · rw [e]; exact h1
+    · exact Or.inr e
   rw [h.cons] at h0
   obtain ⟨h1, h2⟩ := hP.2 h0
   refine ⟨fun y n hy ha => ?_, fun u xt hu hs hr => ?_⟩

@@ -133,7 +133,7 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · rw [hSD.kout q hr] at hq; exact hq
     · by_cases hr : RgOf p sb q
       · rw [hSD.kin q hr] at hq; cases hq
-      · rw [hSD.kout q hr] at hq; exact ⟨y, hq, rfl⟩
+      · rw [hSD.kout q hr] at hq; exact ⟨y, hq, rfl, id⟩
   have hc0' : Z'.c = 0#u64 := hc0
   have hP' : Placed Z'.th := J'.xtop.rel.1
   have hAs' : AbsSlot Z'.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp')⟩

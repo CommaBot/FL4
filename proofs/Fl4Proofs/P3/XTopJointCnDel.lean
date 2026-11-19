@@ -90,7 +90,11 @@ theorem JAtZ.ppr0_start {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true) : PPR0 σ := by
-  refine ⟨⟨hni.1, fun u e => by rw [hni.2] at e; cases e⟩, fun h0 => ?_⟩
+  refine ⟨⟨hni.1, fun u e => (by rw [hni.2] at e; cases e), fun xt hx => ?_⟩, fun h0 => ?_⟩
+  · obtain ⟨xc, hkc, hsc, -⟩ := (J.curInv (by rw [hni.2]; exact fun h => by cases h)).tcb
+    have e : xt = xc := by rw [hkc] at hx; cases hx; rfl
+    subst e
+    exact ⟨Or.inl hsc, NotBlk.of_runnable (J.curRun.run hni _ hkc)⟩
   refine ⟨hRd0 h0, fun u xt hu hus hur => ?_⟩
   have hC := J.curInv (by rw [hni.2]; exact fun h => by cases h)
   obtain ⟨xc, hkc, hsc, -⟩ := hC.tcb

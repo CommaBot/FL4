@@ -1517,3 +1517,51 @@ no premise added to or removed from any existing theorem.
   `XTopJointKEntry` OK (5484 jobs). Axioms (axsch7.sh/axsch7.lean, untracked): propext, Classical.choice,
   Quot.sound only for kernel_entryJ, dispatch_allJ, handle_invocation_midJ, HIPostMXP.mid, mem_kentry, fail_kentry,
   fl4SyscallFaultIP_eq, NativeSys.range, handle_invocation_refinesJ, jat_finishJ2; curRun_ne_idle: propext.
+## kp12 (branch par/budget8 in FL4-tcbj, on b3b69063 = int/j2 incl. kp11)
+- DONE (2b) case (a), no [J]: a schedulable current thread at a preemption hole has `CurInv`.
+  * ScPPR: `NotBlk ts` (not blocked on a reply, an endpoint or a notification), `CtOK σ` (ct's TCB linked to
+    `curSc` or to none, and `NotBlk`); `PPR0`'s first conjunct is now `ct ≠ idle ∧ NoSwitch ∧ CtOK` (`.1.2` →
+    `.1.2.1` for NoSwitch). `PPK.tcb` also says `NotBlk x → NotBlk y`; `PPK.restart` takes `NotBlk ts`
+    (autoParam), XTopJointTcbInstall `PPK.updTcbSc` takes `NotBlk x → NotBlk y` (autoParam: `id`, or a constant).
+    `JAtZ.ppr0_start` gives `CtOK` from `CurInv.tcb` (link = curSc) and `CurRunM.run` (runnable → NotBlk).
+  * SpecPPR: `TR.tst` (every TCB after: in `E`, or before with `NotBlk x → NotBlk y ∧ (link kept ∨ cleared)`),
+    transitive; leaves: `tk_threadSet` takes `hb` (state kept/param/constant, macro `tk_nobor`),
+    `tk_setThreadState'` takes `NotBlk ts` (every deletion `set_thread_state` is Restart/Inactive),
+    `tr_setTcb`/`tka_setObject(_bind)` take `hb` (autoParam `id`). `TKN E c t := TK (E ∨ · = t) c` (the donee
+    exempt), `TR.mono`, `TR.unE` (drop `t` again from a start where it is outside the release queue and not
+    `NotBlk`: `tks_replyBody`'s caller is `BlockedOnReply`). `PPR0.of_tr` derives `CtOK` after.
+  * New leaf XTopJointPreemptK: `curInv_of_sched` (CtOK + schedulable ct → CurInv), `ct_not_inClassR` ((b) with
+    ct as owner: an unschedulable ct bound to the active curSc, with CtOK/CurScFree, is not `inClassR`),
+    `jAtPre_holeK` (= jAtPre_holeO + CtOK at the hole), `JPreemptRestHypK` [W] (below), `jPreemptRestHypK_of`,
+    `hPre_ofZK`, `dispatch_invokeJPZK`, `dispatch_invokeJEPZK` (new top; premises as dispatch_invokeJEPZJ with
+    `JPreemptRestHypK` for `JPreemptRestHypJ`).
+- Premise change: `JPreemptRestHypJ` [W] replaced at the top by `JPreemptRestHypK arI AR` [W] := `∀ s a σ,
+  JHoleAt arI AR s a σ → NativeScope σ → σ.curThread ≠ σ.idleThread → Vs.NoSwitch σ → CurScFree σ → CtOK σ →
+  (CurInv σ ∨ schedulable σ.curThread σ = false) → ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) → after_invocation s a
+  (.Err .Preempted) ⦃ r => PPQ arI AR σ (r.2.1, r.2.2) ⦄`. Left in it: (b) ¬CurInv, ct not schedulable, curSc
+  active; (2c) CurInv, ¬NoTmoSend, ¬PPCovT.
+- (b) NOT done; finding (why the kp11 route stops at cur_sc_chargeable): `ct_not_inClassR` settles the owner =
+  ct case; for an owner u ≠ ct (reachable only as `reply_remove`'s donee of curSc, which `replyUnlinkTcb`
+  then makes Inactive) `Chg σ := ∀ u xt, kheap u = tcb xt → link = some curSc → u = ct ∨ ¬ inClassR` must be
+  carried. It is NOT a TR-leaf fact like `tst`: `restart_thread_if_no_fault` (in `cancel_all_ipc`/
+  `cancel_all_signals`/`cancel_badged_sends` loops) sets `Restart` on a queue member with no fault, and only
+  the queue invariant (l4v `valid_ep_q`/`valid_ntfn_q`: queued threads are blocked on that object, so
+  `inClassR` before, or faulted senders → Inactive) excludes restarting an Inactive/BlockedOnReply thread
+  bound to curSc. SpecPPR works from `Inv` only (no queue facts). Route: prove `Chg` preservation at J per
+  finalisation kind from the J-level frames that already know the queues (IpcFinEpInv's `EFr`/`TChgE`:
+  "a TCB's state kept, or a thread blocked on e made Restart/Inactive"; the ntfn/badged/reply/TCB/SC
+  analogues used by `JAtZ.finEpJ` etc.), i.e. a `JFinPPHyp`-level lemma "finalise_cap from a JAtZ state keeps
+  Chg" fed into WJR's PPR0 (add Chg as a PPR0 conjunct; `ppr0_start`: Chg from CurInv + Inv.back). Then the
+  charge: owner-parametrised copy of `charge_head_refinesK` (u0 for ct; `CurScFree` for `u0 ∉ RQ`; unowned
+  variant of `Inv.refillUpd` without `hnr`), tail = only `set_consumed 0` (ct stays unschedulable:
+  HeadKeeps), `InvBut σ' u0 → Inv σ'` by `ct_not_inClassR`/Chg; FL4 side `charge_budget.allF`'s `hcsc1` from
+  CtOK; `JHole.mcsPPJU` and `JPreemptRestHypL` = K with `CurInv σ` only. curSc = idleSc in (b): the spec skips
+  the charge (check FL4's branch; ActIdle may make it PPCovI).
+- (2c) not started (kp5 (i), unchanged).
+- Builds: kp12-b1 (ScPPR, SpecPPR), kp12-b2..b6 (module builds via scratch/kp5build.sh: SpecPPR, XTopJointCnDel,
+  UtResetZ, UtResetTopJ, XTopJointTcbInsL, XTopJointTcbInstall, UtRetResetJ, XTopJointPP, XTopJointPreemptK,
+  XTopJointTcb, XTopJointUt, XTopJointEntry, XTopJointWJLEmpty, XTopJointWJLSwap, XTopJointPost, and the sinks
+  XTopJointRecvIpcLink, XTopJointSchedR, XTopJointYieldSys: all green after fixes at CnDel:93 and UtRetResetJ:431).
+  scratch/axkp12.lean (untracked): std axioms only (propext/Classical.choice/Quot.sound) for ppr0_finaliseCap,
+  TR.unE, PPR0.of_ppk, JAtZ.ppr0_start, curInv_of_sched, ct_not_inClassR, jAtPre_holeK, hPre_ofZK,
+  dispatch_invokeJPZK, dispatch_invokeJEPZK, dispatch_invokeJEPZJ, handle_invocation_refinesJ.
