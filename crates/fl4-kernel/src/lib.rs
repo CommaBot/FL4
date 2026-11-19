@@ -61,9 +61,11 @@ const PAGE: u64 = 4096;
 /// An IOAPIC's registers: IOREGSEL and IOWIN.
 const IOAPIC_WINDOW: u64 = 0x20;
 /// The user address space the boot frames after the root task's image
-/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame and the
-/// extra BootInfo (at most `ExtraBi`'s 4 KiB).
-const IT_TAIL: u64 = 3 * PAGE;
+/// take (boot.rs `root_layout`): the IPC buffer, the BootInfo frame, then
+/// the extra BootInfo, which fl4-core rounds up to a power of two over
+/// `ExtraBi`'s 4 KiB plus the l4h 0047 reservation (16 + 256 * 16 bytes),
+/// so at most 16 KiB.
+const IT_TAIL: u64 = 6 * PAGE;
 /// Memory map entries the BootInfo record holds (libsel4
 /// `SEL4_MULTIBOOT_MAX_MMAP_ENTRIES`).
 const BI_MMAP: usize = 50;
@@ -193,6 +195,14 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
             put_bytes(buf, &mut off, &k.size[i].to_le_bytes());
             put_bytes(buf, &mut off, &mb.modules[i + 1].name);
         }
+    }
+    // l4h 0047: the kernel appends the extra untyped chunk with word
+    // writes, so end on a word boundary. The records above come to at most
+    // 2010 bytes, so these at most 23 fit in `ExtraBi` too.
+    if off % 8 != 0 {
+        let pad = 8 - off % 8;
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::PADDING, (16 + pad) as u64);
+        put_bytes(buf, &mut off, &[0u8; 8][..pad]);
     }
     off
 }
@@ -491,6 +501,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         let why = match e {
             fl4_core::boot::BootError::NoMemory => "not enough memory",
             fl4_core::boot::BootError::TooManyCaps => "root CNode too small",
+            fl4_core::boot::BootError::TooManyUntypeds => "too many untyped regions",
         };
         kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");
