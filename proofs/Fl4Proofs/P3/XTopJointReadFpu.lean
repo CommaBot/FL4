@@ -102,7 +102,7 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
     (hks : w.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ w.val) (v : U64) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
   set s1 := L.wr s w v with hs1
-  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
   have hal : P1.Aligned w := hu.al
   have hW : P1.WritesIn st s s1 (· = w) := P1.writesIn_wr hal
@@ -247,12 +247,12 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 F.khrb
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s1 σ :=
-    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq⟩
+    ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc).2⟩
   have hkern := J.kern_keepA hkb hcpu hX1.fin.1.1.1 F hDbg
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle), hkern,
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact J.cs_frame (G' := Z.G) hkb hX1 F.kback (JCs.same J hSS F.ksz) R

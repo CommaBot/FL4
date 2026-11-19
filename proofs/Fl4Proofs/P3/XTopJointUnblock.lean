@@ -79,7 +79,7 @@ theorem JAtZ.unblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   have hK0 : ScTKw (fun _ => False) σ σ' := nkt_refillUnblockCheck p.bv σ _ mem
   have hK : ScTKw (fun q => q = t.bv) σ σ' := hK0.ofFalse
   have hL : LK (fun _ => False) σ σ' := lkm_refillUnblockCheck p.bv σ _ mem
-  have hFK : FK σ σ' := ⟨e_csc, e_idle⟩
+  have hFK : FK σ σ' := ⟨e_csc, e_idle, hK0.isc⟩
   have hsok : SOK (true, true) σ σ' := pres_refillUnblockCheck (f := (true, true)) p.bv σ _ mem
   have hBK : BK σ σ' := bkm_of (nkt_refillUnblockCheck _) (MaxK.mk_refillUnblockCheck' _) σ _ mem
   have hwT := WritesIn.tfoot_of_kfoot hw
@@ -117,7 +117,7 @@ theorem JAtZ.unblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       obtain ⟨xc, hkc, hcs, hnb⟩ := hC.tcb
       refine ⟨⟨xc, by rw [e_ct]; exact htk' _ _ hkc, by rw [e_csc]; exact hcs, hnb⟩, ?_, ?_, ?_⟩
       · rw [hkcs]; exact hC.sc
-      · intro hne' y2 n2 hy; rw [hkcs] at hy; rw [e_csc] at hne'; exact hC.active hne' y2 n2 hy
+      · intro hne' y2 n2 hy; rw [hkcs] at hy; rw [e_csc, hK0.isc] at hne'; exact hC.active hne' y2 n2 hy
       · rw [e_ct, e_rel]; exact hC.notRel
   have hown' : CurOwnW Z.T Z.C σ' := by
     rcases J.own with ⟨u, hu, xu, hku, hxs, hown, hnr⟩ | ⟨hcs, hun⟩
@@ -126,7 +126,7 @@ theorem JAtZ.unblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
     · exact Or.inr ⟨by rw [e_csc]; exact hcs, fun y1 n1 hy => hun y1 n1 (by rw [← hkcs]; exact hy)⟩
   have hoff : OffOK σ' := by
     intro h0' y1 n1 hy ha
-    rw [e_cons] at h0' ⊢; rw [e_tm]; rw [hkcs] at hy; rw [e_csc] at ha
+    rw [e_cons] at h0' ⊢; rw [e_tm]; rw [hkcs] at hy; rw [e_csc, hK0.isc] at ha
     exact J.off h0' y1 n1 hy ha
   have hAI : ActIdle σ' := J.act.unblock hky hne mem
   have hcr : CurRunM σ' := by
@@ -140,7 +140,7 @@ theorem JAtZ.unblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
     J.deadP_sc_stepQ hX' hwT hK0 (fun _ hp => hp.elim) hL hFK hAI.1 (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg hfoot
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hFK.2))
+    (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hFK.2.1 hFK.2.2).2) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hFK.2.1 hFK.2.2))
     (J.sc_kern hwT hK hFK hX' hDbg fun _ h => h) (J.sc_utc hwT hK hDbg) hN' hI' hC' hown' hoff hAI
     (J.bsa.bk hBK hsok) hcr ⟨⟨Q1, R1, hq2⟩, hB2, hX2, hS2, hSg2⟩⟩
 

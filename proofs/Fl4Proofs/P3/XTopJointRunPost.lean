@@ -160,13 +160,14 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   have e_cons : σ6.consumedTime = σ.consumedTime := by rw [hrec]; rfl
   have e_tm : σ6.curTime = σ.curTime := by rw [hrec]; rfl
   have e_idle : σ6.idleThread = σ.idleThread := by rw [hrec]; rfl
+  have e_isc : σ6.idleSc = σ.idleSc := by rw [hrec]; rfl
   have e_rel : σ6.releaseQueue = σ.releaseQueue := by rw [hrec]; rfl
   have hW : P1.WritesIn st s s6 (TFoot st Z.T Z.N Z.C Z.c s σ) := WritesIn.tfoot_sfoot (P1.WritesIn.refl _ _) hw6
   have hfx : IpcFree x.tcbState := by
     rw [hrs]; exact ⟨rfl, rfl, fun _ e => by cases e⟩
   have hK : ScTKw (fun p => p = t.bv) σ σ6 := by
     refine ⟨fun p => ?_, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl,
-      by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, e_ct⟩
+      by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, by rw [hrec]; rfl, e_ct, e_isc⟩
     by_cases hp : p = t.bv
     · subst hp; rw [hk, hk6]
       show TKObj _ _ _
@@ -251,6 +252,7 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   have e7_cons : σ7.consumedTime = σ.consumedTime := by rw [hσ7]; exact e_cons
   have e7_tm : σ7.curTime = σ.curTime := hte.trans e_tm
   have e7_idle : σ7.idleThread = σ.idleThread := by rw [hσ7]; exact e_idle
+  have e7_isc : σ7.idleSc = σ.idleSc := by rw [hσ7]; exact e_isc
   have hk7 : σ7.kheap t.bv = some (.tcb x6) := by rw [hke]; exact hk6
   have hkp7 : ∀ p, p ≠ t.bv → σ7.kheap p = σ.kheap p := fun p hp => by rw [hke]; exact hkp p hp
   have hrel7 : ∀ u, u ∈ σ7.releaseQueue ↔ u = t.bv ∨ u ∈ σ.releaseQueue := fun u => by
@@ -296,11 +298,11 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       have hut : u ≠ t.bv := fun e => hnsw (e ▸ hu0)
       exact hsched u hut (J.act.1 u hu0)
     · obtain ⟨y1, h1, h2, h3, h4⟩ := J.act.2
-      exact ⟨y1, by rw [e7_idle, hkp7 _ hidt]; exact h1, h2, h3, by
+      exact ⟨y1, by rw [e7_idle, hkp7 _ hidt]; exact h1, by rw [e7_isc]; exact h2, h3, by
         rw [e7_idle]; intro hm; rcases (hrel7 _).1 hm with e | e; exact hidt e; exact h4 e⟩
   have hoff : OffOK σ7 := by
     intro h0' y1 n1 hy ha
-    rw [e7_cons] at h0' ⊢; rw [e7_tm]; rw [e7_csc] at hy ha
+    rw [e7_cons] at h0' ⊢; rw [e7_tm]; rw [e7_csc] at hy; rw [e7_csc, e7_isc] at ha
     by_cases e : σ.curSc = t.bv
     · rw [e, hk7] at hy; cases hy
     · rw [hkp7 _ e] at hy; exact J.off h0' y1 n1 hy ha
@@ -317,7 +319,7 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       refine ⟨?_, ⟨y1, n1, by rw [e7_csc, hkp7 _ hne]; exact hk1'⟩, fun hne' y2 n2 hy => ?_,
         fun hm => ?_⟩
       · exact ⟨xt, by rw [e7_ct, hkp7 _ (Ne.symm htc)]; exact hkc, by rw [e7_csc]; exact hcs, hnb⟩
-      · rw [e7_csc] at hne' hy
+      · rw [e7_csc, e7_isc] at hne'; rw [e7_csc] at hy
         rw [hkp7 _ hne] at hy
         exact hC.active hne' y2 n2 hy
       · rw [e7_ct] at hm
@@ -373,13 +375,13 @@ theorem JAtZ.runPostJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       · intro y1 n1 ey; cases ey
       · intro y1 ey; cases ey
     · rw [hkp7 p hp]; exact OL.refl _)
-  have hfk : FK σ σ7 := ⟨e7_csc, e7_idle⟩
+  have hfk : FK σ σ7 := ⟨e7_csc, e7_idle, e7_isc⟩
   have hDbg := J.kw_dbg (P1.Foot.trans hfoot6 hfoot7)
   have hdead : ∀ q ∈ D, DeadP (L := L) H s7 q := fun q hq =>
     J.deadP_sc_stepQ hX7 hW7 hK7 (fun _ hp => absurd (show q = t from P1.eq_of_bv hp) (fun e => htD (e ▸ hq)))
       hlk hfk hAI.1 (fun h => h) (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frame hW7 hK7 hX7 hCR' hRF' hY' hM' (J.sc_buf hW7 hK7) hRP' (J.sc_apart hW7 hK7)
-    (J.sc_jpl hW7 hK7) (J.sc_jcov hW7 hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX7.fin.1.1.1 hfk.2))
+    (J.sc_jpl hW7 hK7 (J.idleW_keep hX7.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW7 hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX7.fin.1.1.1 hfk.2.1 hfk.2.2))
     (J.sc_kern hW7 hK7 hfk hX7 hDbg fun _ h => h)
     (J.sc_utc hW7 hK7 hDbg) hNSC hI7 hcur7 hown7 hoff hAI (BlockedScActive.tkw J.bsa hK7 fun p y1 n1 hp ha => by
       by_cases e : p = t.bv
