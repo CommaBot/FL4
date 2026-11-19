@@ -294,7 +294,7 @@ theorem decode_invocation_sched_contextJ {N T C R : Set U64} {c : U64} (hT : Tim
           hJ.ufoot hS hRP hIA hSS hall.2.2.2.2.2 hsok
             (idleScW_keep_of hS hall.1.1 (by
               have h12 : SOK (false, false) σ1 σ2 := by
-                rcases hcase with ⟨-, rfl⟩ | ⟨-, h⟩
+                rcases hcase with ⟨-, rfl⟩ | ⟨-, -, h⟩
                 · exact SOK.refl _ _
                 · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
               exact h12.isc.trans hsok.isc))⟩
