@@ -127,22 +127,25 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 set_option maxHeartbeats 8000000 in
-/-- **`JStepHyps.restart`** (module docstring): with no premise; P1's `BlkOK`
+/-- **`JStepHyps.restart` at a fixed dead set** (module docstring): with no
+premise, the dead set kept (every dead object stays dead); P1's `BlkOK`
 after by `set_thread_state.restart_ok` (the current thread runnable, so
 neither blocked nor waiting for a reply), the node-0 `DEBUG_TCBS` word kept
 (`set_thread_state` writes the TCB's state word and the scheduler-action
 word only, `JKern.dwNe`). -/
-theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+theorem jowes_restartD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (ct : U64) (x : Fl4Spec.Tcb) (s1 : S) (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x))
-    (htcb : th ct = some .tcb) (hrun : Fl4Spec.runnable x.tcbState = true)
-    (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
-    JOwes (L := L) arI AR th s a σ s1 a
+    (htcb : Z.th ct = some .tcb) (hrun : Fl4Spec.runnable x.tcbState = true)
+    (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hX1 : XTopAt (L := L) AR Z s1 a (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv)) :
+    ∃ Lst' : U64 → List U64, JRest (L := L) arI Z H Cs Ac Lst' D s1
       (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
-  intro Z H Cs Ac Lst D hth J hX1
   set σ1 := Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv with hσ1
   have hX := J.xtop
   have hS := hX.fin.1.1.1
-  have hT : ct ∈ Z.T := J.thT ct (hth ▸ htcb)
+  have hT : ct ∈ Z.T := J.thT ct htcb
   have he1 : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) := setThreadState_eq' hk _
   have hm1 : ((), σ1) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by
     rw [he1]; exact Set.mem_singleton _
@@ -180,8 +183,8 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hP := hX.rel.1
     have hctW : ct = L.curW s := P1.eq_of_bv (hcur.symm.trans J.kern.cur)
-    have htf := hP.fits ct _ (hth ▸ htcb)
-    have hta := hP.align ct _ (hth ▸ htcb)
+    have htf := hP.fits ct _ htcb
+    have hta := hP.align ct _ htcb
     have hstv : (stA ct).val = ct.val + 3328 := by
       rw [stA_eq, wordOf_val (by simp [objSize] at htf; simp; omega)]; simp
     have h := set_thread_state_frame (L := L) s ct sched.TS_RESTART (by unfold P1.Aligned; rw [hstv]; omega)
@@ -210,10 +213,22 @@ theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S)
   have hDead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>
     J.deadP_sc_step hX1 hwT hK (fun p y e hy => by subst e; rw [hk] at hy; cases hy; exact hrun) hL hF hAI.1
       hY' ((hSOK.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
-  refine ⟨Ac, Lst', D, ⟨hCR', hRF', hRR', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2).2,
+  refine ⟨Lst', ⟨hCR', hRF', hRR', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2).2,
     J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2), J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
     J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwnW_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
     J.isorted.tkw hK, Or.inr (Or.inl hCR''), hBlk'⟩⟩
+
+/-- **`JStepHyps.restart`** (`jowes_restartD`, at the same dead set). -/
+theorem jowes_restart {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (ct : U64) (x : Fl4Spec.Tcb) (s1 : S) (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x))
+    (htcb : th ct = some .tcb) (hrun : Fl4Spec.runnable x.tcbState = true)
+    (hs1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
+    JOwes (L := L) arI AR th s a σ s1 a
+      (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
+  intro Z H Cs Ac Lst D hth J hX1
+  subst hth
+  obtain ⟨Lst', R⟩ := jowes_restartD arI s a σ ct x s1 hcur hk htcb hrun hs1 J hX1
+  exact ⟨Ac, Lst', D, R⟩
 
 /-! ## The slot steps (an insertion, a CNode-only step) -/
 
@@ -1121,21 +1136,11 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     J.curRun.cn hC hQ.2, hblk⟩⟩
 
 
-/-- **`JStepHyps` from its deletion field alone**: every other primitive
-step's residue is discharged (`jowes_restart`, `jowes_ks`, `jowes_ins`,
-`jowes_sched`, `jowes_cn`); the notification cap's deletion (`del`, the IPC
-side's finalisation) stays the named premise [W]. -/
-theorem JStepHyps.of_del {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
-    (hdel : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-      AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
-      capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
-      cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-      ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
-          XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
-          Vs.VsSlotsW Z.th V'.1 V'.2.1 V'.2.2.1 V'.2.2.2.1 V'.2.2.2.2 (L.mem s') ∧ JCs (L := L) (Z.mv G' V') s' σ' ∧
-          ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-            JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ') :
+/-- **`JStepHyps`, proved**: every primitive step's residue is discharged
+(`jowes_restart`, `jowes_ks`, `jowes_ins`, `jowes_sched`, `jowes_cn`); a
+notification cap's deletion is no primitive step (StepSem; the IRQ handler
+invocations' deletion at `J` in XTopJointIrqL). -/
+theorem jStepHyps {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} :
     JStepHyps (L := L) arI AR th where
   restart := fun s a σ ct x s1 hcur hk htcb hrun hs1 => jowes_restart arI s a σ ct x s1 hcur hk htcb hrun hs1
   ks := fun s s' a a' σ σ' hw hO _ _ _ _ _ _ => jowes_ks arI s s' a a' σ σ' hw hO
@@ -1144,7 +1149,6 @@ theorem JStepHyps.of_del {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
   sched := fun s s' a σ σ' hS => jowes_sched arI s s' a σ σ' hS
   cslot := fun s s' a σ σ' G' hcn hkc hCK hUK horig hw _ hFI hMO _ hTK hT3 hkz hDl W hW hcW hoW hUS =>
     jowes_cn arI s s' a σ σ' hcn hkc hCK hUK horig hw hFI hMO hkz hTK hT3 hDl W hW hcW hoW hUS
-  del := hdel
 
 end
 

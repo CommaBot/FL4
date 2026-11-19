@@ -9,7 +9,10 @@ per-cap discharges of TopXAll's named `XCap` hypotheses.
   XTopStep's `restart`, `ksStep` and `slotStep`, given `ARMask` (the arch
   relation kept by the interrupt decodes' arch operations, a named
   hypothesis: `ArchRefines` has no such clause).
-* `XDelNtfnHyp`: the named premise for the deletion step (`StepClosed.del`).
+* `XDelNtfnHyp`: the named premise for a notification cap's deletion (the
+  IRQ handler invocations' `IrqSteps`, XTopIrqH; no primitive step since
+  StepSem's `StepClosed` lost its deletion field). `stepClosed_xtop` and
+  `Steps.xtop` keep it as an unused argument for their callers.
 * `decode_invocation_irq_controlX`, `decode_invocation_ioport_controlX`:
   `IrqXHyp` / `IoXHyp` for the IRQ control and IO port control caps, from
   `CPost`'s / `IoCPost`'s `Steps`.
@@ -37,8 +40,9 @@ def ARMask (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
 (`delete_one`: the notification's finalisation when the cap is final,
 `cancel_all_signals` and `unbind_maybe_notification`, then the slot
 emptied), at sets whose TCBs include the typed heap's. The single named
-finalisation premise of the step closure (`stepClosed_xtop`); the null
-cap's deletion is proved (`Steps.deleteOne`). To discharge it: the CSpace
+finalisation premise of the IRQ handler invocations at `XTop`
+(XTopIrqH's `IrqSteps.xtop`); the null cap's deletion is proved
+(`IrqSteps.of_del`). To discharge it: the CSpace
 side from `delete_one_refines`/`delete_one_keep` (DelOne, with `FinObjHyp`,
 `PostDelHyp`, `NtfnKeepHyp`), the kernel-global base and domain words from
 `delete_one_dk4` (IrqDom), and the scheduler/IPC side from the
@@ -59,16 +63,14 @@ def QX (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (a : A) (σ : 
     ∃ G' V', XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s
 
 theorem stepClosed_xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
-    (hDel : XDelNtfnHyp (L := L) arI AR th) :
+    (_hDel : XDelNtfnHyp (L := L) arI AR th) :
     StepClosed (L := L) arI th (QX (L := L) AR th) := by
   refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z hth hX hK hTh => ?_,
     fun s a σ ct x s1 hcur hk htcb hrun hs1 Z hth hX hK hTh => ?_,
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z hth hX hK hTh => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci _ _ _ _ hw hCR hFI hMO hTS _ _ _ _ _ Z hth hX hK hTh => ?_,
     fun s s' a σ σ' hS Z hth hX hK hTh => ?_,
-    fun s s' a σ σ' G' hcn hkc _ _ _ hw hCR hFI hMO hTS _ _ _ _ _ _ _ _ _ _ Z hth hX hK hTh => ?_,
-    fun s s' a a' σ σ' sl p b w r hA _ hc hd hm Z hth hX hK hTh =>
-      hDel Z s s' a a' σ σ' sl p b w r hth hX hK hTh hA hc hd hm⟩
+    fun s s' a σ σ' G' hcn hkc _ _ _ hw hCR hFI hMO hTS _ _ _ _ _ _ _ _ _ _ Z hth hX hK hTh => ?_⟩
   · obtain ⟨G1, V1, hX1, hk1⟩ := h1 Z hth hX hK hTh
     obtain ⟨G2, V2, hX2, hk2⟩ := h2 (Z.mv G1 V1) hth hX1 (by rw [hk1]; exact hK) hTh
     exact ⟨G2, V2, hX2, hk2.trans hk1⟩

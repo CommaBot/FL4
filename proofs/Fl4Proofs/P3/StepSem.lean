@@ -9,8 +9,11 @@ insert into a CNode (`slot`, with the CSpace relation after), a CNode-only
 step (`cslot`: the spec's `CnK` changing CNodes only, FL4's slot words, the
 CSpace relation after: a move, a swap), a scheduler
 step (`sched`: `SchedStep`, the queue, action and domain-schedule words and
-the scheduler relation after at every family of sets) and the deletion of a
-notification cap (`del`, `delete_one`) relates its start and end. XTopStep
+the scheduler relation after at every family of sets) relates its start and
+end. A notification cap's deletion (`delete_one`, the IRQ handler
+invocations) is no primitive step: IrqHandler's `IrqSteps` records it beside
+the steps, and each relation proves it with its own invariant (XTopIrqH at
+`XTop`, XTopJointIrqL at `J` with the entry's `LiveJ`). XTopStep
 proves `XTop`'s instance; the decodes stay free of the composite relation's
 definitions.
 -/
@@ -274,11 +277,6 @@ structure StepClosed (th : TypedHeap) (Q : S → A → Fl4Spec.State Unit → S 
     (∀ y, IsSlot th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y) →
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
     UtSrc th (L.mem s) (L.mem s') σ σ' → Vs.VsSlotsT th (L.mem s) (L.mem s') → Q s a σ s' a σ'
-  del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-    AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
-    capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
-    cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-    Q s a σ s' a' σ'
 
 /-- **A run made of primitive steps** (module docstring). -/
 def Steps (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) :

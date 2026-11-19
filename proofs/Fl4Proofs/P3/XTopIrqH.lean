@@ -3,8 +3,9 @@ P3 (DESIGN.md §9), interrupts: **the IRQ handler cap at the composite
 relation** (`IrqXHyp` for `.IrqHandler`).
 
 `decode_invocation_irq_handlerX`: every label (`Ack`, `SetNotification`,
-`Clear`, the others), from `HPost`'s `Steps` (the restart, the unmask, the
-deletion of the IRQ slot's cap, the new cap's insertion) and `Steps.xtop`;
+`Clear`, the others), from `HPost`'s `IrqSteps` (the restart, the unmask, the
+deletion of the IRQ slot's cap, the new cap's insertion) and `IrqSteps.xtop`
+(`Steps.xtop`, the deletion by `XDelNtfnHyp`);
 the kernel-global base kept by IrqDom's `irq_handler_dk4` (its `DomPlaced`
 and `IrqDelP1`).
 -/
@@ -40,7 +41,7 @@ theorem decode_invocation_irq_handlerXSD {AR : A → Fl4Spec.Cr3 → Prop}
     (hFR : MdbOKV (L.ksb s) (L.mem s) G) (hD : DomPlaced (L := L) th s) (hP1 : IrqDelP1 (L := L) s ct irq)
     {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
     (hC : CurRun σ) (X : S → A → Fl4Spec.State Unit → Prop) (hXa : X s ar σ)
-    (hXS : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXS : ∀ s' a' σ', IrqSteps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
     (hXX : ∀ s a σ, X s a σ → XTop (L := L) AR s a σ)
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
@@ -85,7 +86,7 @@ theorem decode_invocation_irq_handlerXS {AR : A → Fl4Spec.Cr3 → Prop}
     (hFR : MdbOKV (L.ksb s) (L.mem s) G) (hD : DomPlaced (L := L) th s) (hP1 : IrqDelP1 (L := L) s ct irq)
     {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
     (hC : CurRun σ) (X : S → A → Fl4Spec.State Unit → Prop) (hXa : X s ar σ)
-    (hXS : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXS : ∀ s' a' σ', IrqSteps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
     (hXX : ∀ s a σ, X s a σ → XTop (L := L) AR s a σ)
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
@@ -95,6 +96,21 @@ theorem decode_invocation_irq_handlerXS {AR : A → Fl4Spec.Cr3 → Prop}
     hok (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok)
     (irqDelDK_of arI th hO s ar σ G hL ct irq hirq) extra x0 hx0 excaps hex hxn hFR hD hP1 hth hX0 hC X hXa hXS hXX
     length slot buf blk call don fp args ci sl buffer
+
+/-- **`XTop` after an IRQ handler invocation's run** (`Steps.xtop`; the
+notification cap's deletion by `XDelNtfnHyp`). -/
+theorem IrqSteps.xtop {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
+    (hDel : XDelNtfnHyp (L := L) arI AR th) {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} (h : IrqSteps (L := L) arI th s a σ s' a' σ') {Z : XSets} (hth : Z.th = th)
+    (hX : XTopAt (L := L) AR Z s a σ) (hK : KsApart Z.N Z.T Z.E Z.R Z.B (L.ksb s))
+    (hTh : ∀ t, th t = some .tcb → t ∈ Z.T) :
+    XTop (L := L) AR s' a' σ' := by
+  rcases h with h | ⟨ct, s2, σ1, sl, p, b, w, r, s3, a3, σ3, -, -, -, h1, hA, -, hk, hd, hm, h2⟩
+  · exact h.xtop arI hAM hDel hth hX hK hTh
+  · obtain ⟨G1, V1, hX1, hk1⟩ := h1 _ (stepClosed_xtop arI hAM hDel) Z hth hX hK hTh
+    obtain ⟨G2, V2, hX2, hk2⟩ := hDel (Z.mv G1 V1) s2 s3 a a3 σ1 σ3 sl p b w r hth hX1
+      (by rw [hk1]; exact hK) hTh hA hk hd hm
+    exact Steps.xtop arI hAM hDel h2 (Z := (Z.mv G1 V1).mv G2 V2) hth hX2 (by rw [hk2, hk1]; exact hK) hTh
 
 /-- **`IrqXHyp` for the IRQ handler cap**: beyond
 `decode_invocation_irq_handler`'s hypotheses and `irq_handler_dk4`'s,
@@ -123,7 +139,7 @@ theorem decode_invocation_irq_handlerX {AR : A → Fl4Spec.Cr3 → Prop} (hAM : 
       args ci sl excaps buffer ct :=
   decode_invocation_irq_handlerXS arI th hP hO hPD hK s ar σ G hDS hL hIR lbl slbl hlbl ct hct hcur htcb hact hmask
     irq hirq hok extra x0 hx0 excaps hex hxn hFR hD hP1 hth hX0 hC _ ⟨Z, hX0⟩
-    (fun _ _ _ h => h.xtop arI hAM hDel hth hX0 hKA hTh) (fun _ _ _ h => h) length slot buf blk call don fp args ci sl
+    (fun _ _ _ h => IrqSteps.xtop arI hAM hDel h hth hX0 hKA hTh) (fun _ _ _ h => h) length slot buf blk call don fp args ci sl
     buffer
 
 end

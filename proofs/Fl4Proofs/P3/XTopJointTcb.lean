@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
 (`decode_invocation_threadJ_step`, in the shape of the CNode cap's
-`decode_invocation_cnodeJ_steps`).
+`decode_invocation_cnodeJ_stepsL`).
 
 * Every label (no Thread-cap label is left open: no per-op `JPostHyp`, no
   X-level `TcbXIpc`) through `decode_invocation_threadX` at `X := JAt`: the
@@ -70,7 +70,7 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
     `install_sched`; named: the platform's `TimeAgree` [P]). The conclusion is `XCapP` at `JAt`, `JAtPre`
     (`XCap.toP` for the other labels); the installs' deletion from the
     loop's steps (`JDelParts`, the platform's `PPPlat` [P], `hRd0` [J] for
-    `PPR0`), as `decode_invocation_cnodeJ_steps`.
+    `PPR0`), as `decode_invocation_cnodeJ_stepsL`.
 * `JAtZ.restartJ` (XTopJointTcbInstall): the caller's restart at `J` (`jowes_restart`, no premise).
 * `JAtZ.reg_frameG`, `JAtZ.dbgWrJ`: XTopJointRegFrame's register frame
   widened to the TCBs' debug words (offsets 448..512, read by no relation),
@@ -2767,7 +2767,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       · obtain ⟨sp, h⟩ := hbm hb; exact ⟨sp, fun _ => h⟩
     rw [J.argsRestart (hBPl Z s ar σ rfl J.xtop) hctT hctH hsp (by omega) h1]
     exact hargs i x hx
-  -- the cap installs' deletion at `J` (as `decode_invocation_cnodeJ_steps`)
+  -- the cap installs' deletion at `J` (as `decode_invocation_cnodeJ_stepsL`)
   have hJP := jPreemptHyp_of (L := L) arI hARI.toARKeep hT hnd hPP Z.th
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩

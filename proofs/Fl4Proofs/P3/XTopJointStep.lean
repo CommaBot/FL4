@@ -15,16 +15,15 @@ preservation, in the shape of the SC family's `sched_controlJ_step`).
 * `stepClosed_jat`, `Steps.jat`: `JAtZ` across a run of primitive steps
   (StepSem's `StepClosed`), from `JStepHyps`, the per-kind named premise:
   for each kind, at the step's post, `JRest` (and `JCs` for the kinds
-  changing slots: an insertion, a CNode-only step; a notification cap's
-  deletion owes, besides, its MDB ghost with `XTopAt` and `KBack`).
-  Discharged here: the restart, a
+  changing slots: an insertion, a CNode-only step). Discharged here: the restart, a
   kernel-state step and a scheduler step keep every slot (the TCB state
   word, the kernel-state block, the scheduler's words are outside the slots)
   and the objects' kinds and sizes, so `JCs` and the covers; the insertion
   and the CNode-only step keep the kinds (`KeepC`), so the covers.
-* `decode_invocation_{irq_control, ioport_control, irq_handler}J_step`: the
-  three `Steps`-producing cap leaves, `JAt` after (`XCap` at `JAt`), the
-  decode errors at the start's `JAtZ`.
+* `decode_invocation_{irq_control, ioport_control}J_step`: the
+  `Steps`-producing cap leaves, `JAt` after (`XCap` at `JAt`), the decode
+  errors at the start's `JAtZ` (the IRQ handler cap, whose run deletes a
+  notification cap, in XTopJointIrqL).
 * `XCap.jat`: a cap's leaves whose post is not a `Steps` run, with the
   per-op named premise `JPostHyp` (at the decode's post, over the spec's
   outcome: `JAt`), the unchanged states (decode errors) discharged by the
@@ -262,10 +261,7 @@ def JOwesCs (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (G' : MdbGhost) (
 
 /-- **The per-kind named premise of `JAtZ`'s step closure** [W]: for each
 primitive step (StepSem's `StepClosed`), what it owes (`JOwes`; with the
-CSpace fields, `JOwesCs`, for an insertion and a CNode-only step). A
-notification cap's deletion owes all of `JAtZ` but the kept fields: an MDB
-ghost after with `XTopAt` (as `XDelNtfnHyp`, `xDelNtfnHyp_of`), the
-kernel-state base and the objects' kinds kept, `JCs` and `JRest`. -/
+CSpace fields, `JOwesCs`, for an insertion and a CNode-only step). -/
 structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
   restart : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (ct : U64) (x : Fl4Spec.Tcb) (s1 : S),
     σ.curThread = ct.bv → σ.kheap ct.bv = some (.tcb x) → th ct = some .tcb →
@@ -306,16 +302,6 @@ structure JStepHyps (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop wh
     (∀ y, IsSlot th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y) →
     (∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W) →
     UtSrc th (L.mem s) (L.mem s') σ σ' → JOwesCs (L := L) arI AR th G' s a σ s' a σ'
-  del : ∀ (s s' : S) (a a' : A) (σ σ' : Fl4Spec.State Unit) (sl : Fl4Spec.CslotPtr) (p b : U64) (w r : Bool),
-    AbsSlot th sl → (∃ q, sl.1 = q.bv ∧ th q = some (.cnode sl.2.length)) →
-    capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
-    cdt.delete_one st arI s a (cslotAddr sl) = ok (s', a') → ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 →
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → ∃ (G' : MdbGhost) (V' : XVs),
-        XTopAt (L := L) AR (Z.mv G' V') s' a' σ' ∧ L.ksb s' = L.ksb s ∧ KBack σ σ' ∧
-        Vs.VsSlotsW Z.th V'.1 V'.2.1 V'.2.2.1 V'.2.2.2.1 V'.2.2.2.2 (L.mem s') ∧ JCs (L := L) (Z.mv G' V') s' σ' ∧
-        ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-          JRest (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ'
 
 /-- **`JAtZ`'s instance of `StepClosed`**: the ghost sets, P1's heap and the
 cores kept, the MDB ghost, the active SCs, the call stacks and the dead set
@@ -345,8 +331,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl hVT Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a a' σ σ' sl p b w r hA hcn hc hd hm Z H Cs Ac Lst D hth J => ?_⟩
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, V1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     obtain ⟨G2, V2, Ac2, Lst2, D2, J2⟩ := h2 (Z.mv G1 V1) H Cs Ac1 Lst1 D1 hth J1
     exact ⟨G2, V2, Ac2, Lst2, D2, J2⟩
@@ -409,10 +394,6 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     have hX1 := XTopAt.slotStep hX hw' hcn hkc hCR hFI hMO hTS
     obtain ⟨hC, Ac', Lst', D', R⟩ := hJ.cslot s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS Z H Cs Ac Lst D rfl J hX1
     exact ⟨G', Z.vs, Ac', Lst', D', J.cs_frame hw.1 hX1 (KBack.of_keepC hkc) hC R (J.vsc.step hVT)⟩
-  · -- a notification cap's deletion
-    obtain ⟨G', V', hX1, hks, hkb, hvc, hC, Ac', Lst', D', R⟩ := hJ.del s s' a a' σ σ' sl p b w r hA hcn hc hd hm Z H Cs Ac Lst D
-      hth J
-    exact ⟨G', V', Ac', Lst', D', J.cs_frameV hks hX1 hkb hC R hvc⟩
 
 /-- **`JAtZ` after a run of primitive steps.** -/
 theorem Steps.jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
@@ -516,35 +497,6 @@ theorem decode_invocation_ioport_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.St
     buf ct hct args hlen hargs hcur J.kern.act hact3 extra x0 hx0 excaps hex hps hls hsrcC rfl rfl hX (J.curRun.run hni) _
     ⟨Z, H, Cs, Ac, Lst, D, J⟩ (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J)
     (fun _ _ _ h => JAt.xtop arI h) blk call don fp ci buffer
-
-set_option maxHeartbeats 4000000 in
-/-- **An IRQ handler cap, `JAt` after** (`decode_invocation_irq_handlerJAt`'s
-premises and `JStepHyps` [W]; the IRQ node slot's deletion at the restarted
-state, `IrqDelOK`/`IrqDelDK`, from XTopJointIrqDel at `J`). -/
-theorem decode_invocation_irq_handlerJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
-    (ct : U64) (hct : sched.cur_thread st s = ok ct)
-    (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (irq : U64) (hsc : capV (L.mem s) (cslotAddr sl) = .IrqHandler irq)
-    (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
-    (hDel : IrqDelOK (L := L) arI Z.th s ar σ Z.G ct irq) (hDD : IrqDelDK (L := L) arI Z.th s ar σ Z.G ct irq)
-    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) x0 excaps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
-    (hD : DomPlaced (L := L) Z.th s) (hP1 : IrqDelP1 (L := L) s ct irq)
-    (length buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
-    (buffer : Option Fl4Spec.ObjRef) :
-    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IrqHandler irq) blk call don fp buf
-      extra slbl args ci sl excaps buffer ct := by
-  have hX := J.xtop
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  have hirq : irq.val < 128 := (slot_cap_wf hX hAs hsc).1
-  exact decode_invocation_irq_handlerXSD arI Z.th hX.rel.1 s ar σ Z.G J.dstate J.intL
-    hX.fin.1.1.2.2.2.1 lbl slbl hlbl ct hct hcur (hX.curTcb hcur).1 J.kern.act (maskIrq_total arI hT) irq hirq hok
-    hDel hDD extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J⟩
-    (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h)
-    length (cslotAddr sl) buf blk call don fp args ci sl buffer
 
 /-! ## The other cap leaves: the per-op named premise -/
 

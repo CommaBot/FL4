@@ -54,6 +54,7 @@ import Fl4Proofs.P3.JEntryKs
 import Fl4Proofs.P3.JEntryIrq
 import Fl4Proofs.P3.XTopJointCnDel
 import Fl4Proofs.P3.XTopJointIrqDel
+import Fl4Proofs.P3.XTopJointIrqL
 import Fl4Proofs.P3.ScMsgOK
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
@@ -302,8 +303,11 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the arch operations total. -/
   tot : P0.ArchTotal arI
   /-- [J]/[P] XTopJointDelR's `JDelParts`: the deletion's named steps (its
-  own fields tagged there; `live` (`LiveJ` [J]) is also used by the IO port
-  and Thread decodes). -/
+  own fields tagged there). The CNode and IRQ handler decodes read only its
+  platform and scope fields (`JDelParts.jDelHypL`, the deletion at `WJL`
+  from `JEntryAt.live`); its `live` (`LiveJHyp` [J], false as stated at
+  every `JAtZ` state) is still read by the Thread decode's cap installs
+  (XTopJointTcb: `JDelParts.hypsWR`, the deletion at `WJR`). -/
   delParts : JDelParts (L := L) arI AR th
   /-- [P] one domain. -/
   nd : Fl4Spec.numDomains = 1
@@ -399,6 +403,18 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   kernel-global word, and no table or pool of the sets); XTopJointVsOff's
   `OffTabOK`, what the Unmap of such a cap reads (`decode_invocation_page_tableJO`). -/
   vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
+  /-- [J] the liveness of FL4's caps at the invocation, at the entry's `JAtZ`
+  ghost (XTopJointWJLRestart's `LiveDN`): `LiveJ` (l4v `if_unsafe_then_cap`
+  and `if_live_then_nonz_cap` for the debug lists' TCBs; `zombies_final` and
+  `cap_removeable` for a zombie's unused slots, a TCB zombie's TCB not
+  `live`), `DbgWF` (the debug lists well formed: FL4's TCB debug list, as
+  l4v's `valid_objs`/`valid_idle`-style list invariants) and `NullOrig` (a
+  null slot carries no original bit: l4v `valid_nullcaps` of `valid_mdb'`).
+  The deletion at `WJL` (CNode Revoke/Delete, the IRQ handler's
+  SetIRQHandler/ClearIRQHandler) carries it from here across the caller's
+  restart (`WJL.restart`). -/
+  live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
 (`JAtPre` if preempted), named. -/
@@ -670,10 +686,10 @@ on the cap:
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` (receivers waiting on the timeout handler's endpoint: XTopJointFaultTmo's `runTmoP_recv`) | — |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ2` | — (every send to a waiting receiver, any grant: `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`, the transfer by XTopJointXferG's `JAtZ.xferStepGJ` (a granted cap's insert redone at `J` before the dequeue); the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) |
-| CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
+| CNode | `decode_invocation_cnodeJ_stepsL` (at `cnode_canon`'s label; Revoke/Delete at `WJL` from `JEntryAt.live` [J]) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
-| IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` (labels: `irqControl_label`, `ioControl_label`, `irqH_canon`, `dom_canon`) | none (IRQ handler: `JAtZ.irqExtraNe`, `JAtZ.irqDelP1J`, JEntryIrq) |
+| IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,domain}J`, `decode_invocation_irq_handlerJL` (labels: `irqControl_label`, `ioControl_label`, `irqH_canon`, `dom_canon`) | none (IRQ handler: `JAtZ.irqExtraNe`, `JAtZ.irqDelP1J`, JEntryIrq; its deletion at `WJL` from `JEntryAt.live` [J]) |
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield; at `sc_canon`'s label) | YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
@@ -705,8 +721,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   have hAs : AbsSlot Z.th sl := by
     obtain ⟨p, hp, hth⟩ := hsl; exact ⟨p, hp, Or.inl hth⟩
   have hsc : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
-  have hUt := delUtHyp_of_live arI hG.delParts.live
   have hni := hE.ni
+  have hLv := hE.live H Cs Ac Lst D J
+  have hP0 := J.ppr0_start arI hni hE.rd0
   have hPl : Placed Z.th := J.xtop.rel.1
   cases c
   case Null =>
@@ -738,7 +755,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     subst hLb
     obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
     refine XCapP.lbl_congr arI (specDec_cnode p r gs g hd) ?_
-    exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 lbl
+    exact decode_invocation_cnodeJ_stepsL arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 lbl
       sl' hl' length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra (exAt extra 0) (exAt extra 1)
       (exAt_idx0 extra) (exAt_idx1 extra) excaps (ExtraOK.rel2 hPl hXO) hE.epQ
       blk call don fp ci buffer
@@ -795,7 +812,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hOpen := hN
     by_cases h0 : z = 0#u64
     · subst h0 hLb
-      exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot hG.delParts.live lbl lbl.bv (port_label lbl) length buf ct
+      exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot lbl lbl.bv (port_label lbl) length buf ct
         hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toP
         arI hPre
     · exact hOpen h0
@@ -807,7 +824,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.handlers lbl lbl.bv (irqControl_label lbl)
+    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toP arI hPre
   case IoPortControl =>
@@ -817,7 +834,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.ports lbl lbl.bv (ioControl_label lbl)
+    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hE.ports lbl lbl.bv (ioControl_label lbl)
       length buf ct hct argsU hlen hargs J.act3 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc blk call don fp ci
       buffer).toP arI hPre
   case IrqHandler irq =>
@@ -830,18 +847,17 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     -- SetNotification's extra slot is no IRQ node slot (JEntryIrq: the
     -- lookup's CNode is named by a cap, `SpecGlob.ref`)
     have hxn : lbl.val = 35 → exAt extra 0 ≠ nodeA (L.ksb s) irq := fun _ => J.irqExtraNe hE.sg hXN hirq
-    exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt
+    exact (decode_invocation_irq_handlerJL arI s ar σ J hni hE.sg hP0 hLv hG.ari hG.tot
       lbl sl' hl' ct hct sl hAs irq hsc
       (irqSlotOK_of_spec J.intL J.dstate.1.1 J.xtop.fin.1.1.2.2.2.1 hE.sg.irqNode hirq)
-      (irqDelOKJ arI hG.delParts.live (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq)
-      (irqDelDKJ arI (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq) extra _ hx0 excaps hex hxn J.domPlaced (J.irqDelP1J hni hct hirq) length buf blk call
+      extra _ hx0 excaps hex hxn J.domPlaced (J.irqDelP1J hni hct hirq) length buf blk call
       don fp _ ci buffer).toP arI hPre
   case Domain =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := dom_canon lbl
     refine XCapP.lbl_congr arI (specDec_dom hd) ?_
     have hex := ExtraOK.relS hPl hXO
-    exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari hUt ct hct J.ksOut J.actK lbl sl' hl' length
+    exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari ct hct J.ksOut J.actK lbl sl' hl' length
       buf argsU hlen hargs extra _ (exAt_idx0 extra) excaps hex _ blk call don fp ci sl buffer).toP arI hPre
   case SchedContext p sb =>
     obtain ⟨hP, hY⟩ := hN

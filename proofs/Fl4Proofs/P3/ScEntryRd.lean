@@ -2,7 +2,7 @@
 P3 (DESIGN.md §9), scheduling contexts: **the current SC's head ready at an
 invocation's start** (l4v `cur_sc_offset_ready`), from the system-call entry.
 
-`decode_invocation_cnodeJ_steps` (XTopJointCnDel) asks `hRd0`: at a zero
+`decode_invocation_cnodeJ_stepsL` (XTopJointWJLRestart) asks `hRd0`: at a zero
 consumed time, the current SC's head is ready. It is not a consequence of
 `JAtZ` (whose `OffOK` speaks of a positive consumed time only), but of the
 entry path the invocation runs after:

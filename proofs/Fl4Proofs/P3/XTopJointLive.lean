@@ -31,8 +31,9 @@ P3 (DESIGN.md §9), CSpace: **the liveness invariant of FL4's caps at `J`**
   cap elsewhere; `readyLive_noRef` (`x`'s cap names no container),
   `readyLive_key` (another cap alike `x`'s: a non-final cap, `other_keyN`),
   `readyLive_zombie` (a removable zombie: its slots unused, `zslots`).
-* `utTcb_of_live`, `delUtHyp_of_live`: XTopJointFinThread's
-  `JThreadFinHyps.utTcb` and XTopJointDelLive's `DelUtHyp` from `LiveJ`.
+* `utTcb_of_live`: XTopJointFinThread's `JThreadFinHyps.utTcb` from
+  `LiveJHyp` (XTopJointDelR's `JDelParts.thread`, for the deletion at `WJR`
+  the TCB installs still run).
 -/
 import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -304,17 +305,6 @@ theorem other_keyN {th : TypedHeap} (hP : Placed th) {s : S} {σ : Fl4Spec.State
     · exact absurd hov.symm (hF.fm.zfin y hy _ hx hyx h)
   rw [← hcv]
   exact (hF.fm.key _ hx y hy (Ne.symm hyx) hov hzx hzy (by rw [hcv, hNF.nf]; simp)).symm
-
-
-variable (arI) in
-/-- **`DelUtHyp` from `LiveJ`** (XTopJointDelLive: `DelLive` is `ReadyLive`,
-and a notification cap names no container). -/
-theorem delUtHyp_of_live {th : TypedHeap} (hLv : LiveJHyp (L := L) arI AR th) : DelUtHyp (L := L) arI AR th := by
-  intro s a σ sl p b w r _ hcv Z H Cs Ac Lst D hth J _ _ _ _ _ _ _ _ _ _
-  have hR := J.readyLive_noRef (hLv Z H Cs Ac Lst D s a σ hth J) (x := cslotAddr sl)
-    (fun q h => by rw [hcv] at h; exact h)
-  subst hth
-  exact hR
 
 end
 
