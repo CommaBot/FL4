@@ -224,9 +224,9 @@ def DefPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     WPost W Wp res.1 res.2.1 res.2.2 σ' G'
 
 /-- **FL4's deferred finalisation loop refines `finalise_slot slot False`.** -/
-theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
-    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
-    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
+theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wp Rd Rz th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (s : S) (a : A) (fuel : U64) (hinv : DefInv (L := L) W th sl s0 σ0 G0 (s, a, fuel)) :
     cdt.finalise_slot_deferred_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
@@ -256,10 +256,10 @@ theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
   have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
-  apply WP.spec_bind (fin_step arI W Rd th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
+  apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,
-    hfs1, hW1, hRd1⟩
+    hfs1, hW1, hRd1, hRz1⟩
   simp only [uncurry_apply_pair] at hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   dsimp only at hR1 hV1 hM1 hC1 hI1 hD1 hmem hx1 hch1 hcl hclw hzr hrem hfs1 hW1 ⊢
   have hmS1 := hmS.trans hfs1
@@ -290,7 +290,7 @@ theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
     (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1)
   have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
-  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
+  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq)) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hF2 hsc2 hA hxn1 hx2 hz.al hoth2 hrc2
   have hsc2' : StrictChg th (L.mem s0) (L.mem s2) G0 G1 (cslotAddr sl) := by
     refine hsc1.trans (fun y hy hne hcnd => ?_) (le_trans hps1 hps) hps2
@@ -356,6 +356,16 @@ theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
       core.convert.FromSame.from, bind_ok, bind_tc_ok, WP.spec_ok]
     exact ⟨σ4, G3, ⟨hCR4, hD4, hFI4⟩, by dsimp only at *; omega, by dsimp only at *; omega, hch4, hsc4, hmS4, Or.inr ⟨rfl,
       htr _ (rd_fin_pp_err hg hcan hmem hnrm hcy' hsc2 hrz hpm)⟩, hW4⟩
+
+/-- `deferred_loopZ` at `Rz := True`. -/
+theorem deferred_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
+    (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
+    (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
+    (s : S) (a : A) (fuel : U64) (hinv : DefInv (L := L) W th sl s0 σ0 G0 (s, a, fuel)) :
+    cdt.finalise_slot_deferred_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
+      DefPost (L := L) W Wp Rd th sl s0 σ0 G0 res ⦄ :=
+  deferred_loopZ arI W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s0 σ0 G0 s a fuel hinv
 
 end
 

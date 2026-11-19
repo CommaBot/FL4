@@ -26,15 +26,15 @@ def DDPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : T
       (res.1 = .Err .Preempted ∧ RD (.cTEDeleteCall sl false) σ (.error (), σ'))) ∧
     WPost W Wp res.1 res.2.1 res.2.2 σ' G'
 
-theorem delete_deferred_refines [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
-    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
-    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
+theorem delete_deferred_refinesZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
+    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wp Rd Rz th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
     cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W Wp th s σ G sl res ⦄ := by
   unfold cdt.delete_deferred cdt.finalise_slot_deferred
   have hWF : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  apply WP.spec_bind (deferred_loop arI W Wp Rd th hP hF hH sl hA s σ G s a layout.WALK_FUEL
+  apply WP.spec_bind (deferred_loopZ arI W Wp Rd Rz th hP hF hH sl hA s σ G s a layout.WALK_FUEL
     ⟨σ, G, hDS, by simp only; rw [hWF]; exact hfuel, le_refl _, le_refl _, fun _ h => h,
       fun _ _ _ => ChgOK.refl _ _, StrictChg.refl _ _ _, MdbStep.refl hDS.1.2.2.1, hW⟩)
   rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, hres, hW1⟩
@@ -69,6 +69,15 @@ theorem delete_deferred_refines [Fl4Proofs.P1.PlainStore st] (W Wp : S → A →
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
       bind_ok, bind_tc_ok, WP.spec_ok]
     exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inr ⟨rfl, rd_cte_err hrd⟩, hW1⟩
+
+/-- `delete_deferred_refinesZ` at `Rz := True`. -/
+theorem delete_deferred_refines [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+    (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
+    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
+    (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
+    cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W Wp th s σ G sl res ⦄ :=
+  delete_deferred_refinesZ arI W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s a σ G hDS hW hfuel
 
 end
 
