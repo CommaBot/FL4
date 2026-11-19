@@ -3,7 +3,6 @@
 //! fl4-bootinfo. The x86_64 handoff builds Multiboot 2 information and keeps
 //! long mode active for confidential guests.
 #![no_std]
-#![no_main]
 
 use core::arch::asm;
 use core::ffi::c_void;
@@ -16,14 +15,14 @@ mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 }
 
-type Handle = *mut c_void;
-type Status = usize;
+pub type Handle = *mut c_void;
+pub type Status = usize;
 const SUCCESS: Status = 0;
 const BUFFER_TOO_SMALL: Status = (1 << 63) | 5;
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Guid(u32, u16, u16, [u8; 8]);
+pub struct Guid(pub u32, pub u16, pub u16, pub [u8; 8]);
 
 const ACPI_20: Guid = Guid(0x8868_e871, 0xe4f1, 0x11d3, [0xbc, 0x22, 0x00, 0x80, 0xc7, 0x3c, 0x88, 0x81]);
 const ACPI_10: Guid = Guid(0xeb9d_2d30, 0x2d88, 0x11d3, [0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d]);
@@ -34,7 +33,7 @@ const SIMPLE_FS: Guid = Guid(0x964e_5b22, 0x6459, 0x11d2, [0x8e, 0x39, 0x00, 0xa
 const FILE_INFO: Guid = Guid(0x0957_6e92, 0x6d3f, 0x11d2, [0x8e, 0x39, 0x00, 0xa0, 0xc9, 0x69, 0x72, 0x3b]);
 
 #[repr(C)]
-struct SystemTable {
+pub struct SystemTable {
     hdr: [u64; 3],
     vendor: *const u16,
     revision: u32,
@@ -95,6 +94,14 @@ struct BootServices {
     get_next_monotonic_count: usize,
     stall: extern "efiapi" fn(usize) -> Status,
     set_watchdog_timer: extern "efiapi" fn(usize, u64, usize, *const u16) -> Status,
+    connect_controller: usize,
+    disconnect_controller: usize,
+    open_protocol: usize,
+    close_protocol: usize,
+    open_protocol_information: usize,
+    protocols_per_handle: usize,
+    locate_handle_buffer: usize,
+    locate_protocol: extern "efiapi" fn(*const Guid, *const c_void, *mut *mut c_void) -> Status,
 }
 
 #[repr(C)]
@@ -195,15 +202,19 @@ const MB2: u64 = 2 << 20;
 
 /// Allocate loader data within the architecture's boot address range.
 fn alloc_pages(n: u64) -> u64 {
+    try_alloc_pages(n).unwrap_or_else(|msg| fail(msg))
+}
+
+fn try_alloc_pages(n: u64) -> Result<u64, &'static str> {
     #[cfg(target_arch = "aarch64")]
     let mut p = LOAD_TOP - 1;
     #[cfg(target_arch = "x86_64")]
     let mut p = (1u64 << 32) - 1;
     let r = (bs().allocate_pages)(1, 2, n as usize, &mut p);
     if r != SUCCESS {
-        fail("out of memory");
+        return Err("out of memory");
     }
-    p
+    Ok(p)
 }
 
 /// `len` bytes, 2 MiB aligned.
@@ -291,40 +302,47 @@ fn options(li: &LoadedImage) -> Words {
 /// Read the file `path` (ASCII, `\` or `/` separated) from the volume
 /// this loader came from, into fresh pages; returns (address, size).
 fn read_file(li: &LoadedImage, path: &[u8]) -> (u64, u64) {
+    try_read_file(li, path).unwrap_or_else(|msg| fail(msg))
+}
+
+fn try_read_file(li: &LoadedImage, path: &[u8]) -> Result<(u64, u64), &'static str> {
     let mut fs: *mut c_void = core::ptr::null_mut();
     if (bs().handle_protocol)(li.device, &SIMPLE_FS, &mut fs) != SUCCESS {
-        fail("no file system on the boot device");
+        return Err("no file system on the boot device");
     }
     let fs = fs as *mut SimpleFs;
     let mut root: *mut File = core::ptr::null_mut();
     if unsafe { ((*fs).open_volume)(fs, &mut root) } != SUCCESS {
-        fail("cannot open the boot volume");
+        return Err("cannot open the boot volume");
     }
     let mut name = [0u16; 256];
     for (i, &c) in path.iter().take(255).enumerate() {
         name[i] = if c == b'/' { b'\\' as u16 } else { c as u16 };
     }
     let mut f: *mut File = core::ptr::null_mut();
-    if unsafe { ((*root).open)(root, &mut f, name.as_ptr(), 1, 0) } != SUCCESS {
-        say!("fl4-efi: cannot open {}", core::str::from_utf8(path).unwrap_or("?"));
-        fail("missing file");
+    let status = unsafe { ((*root).open)(root, &mut f, name.as_ptr(), 1, 0) };
+    unsafe { ((*root).close)(root) };
+    if status != SUCCESS {
+        return Err("missing file");
     }
-    let mut info = [0u8; 512];
-    let mut isz = info.len();
-    if unsafe { ((*f).get_info)(f, &FILE_INFO, &mut isz, info.as_mut_ptr()) } != SUCCESS {
-        fail("cannot stat a file");
-    }
-    let size = rd64(&info, 8);
-    let p = alloc_pages(size.div_ceil(PAGE).max(1));
-    let mut n = size as usize;
-    if unsafe { ((*f).read)(f, &mut n, p as *mut u8) } != SUCCESS || n as u64 != size {
-        fail("cannot read a file");
-    }
-    unsafe {
-        ((*f).close)(f);
-        ((*root).close)(root);
-    }
-    (p, size)
+    let result = (|| {
+        let mut info = [0u8; 512];
+        let mut isz = info.len();
+        if unsafe { ((*f).get_info)(f, &FILE_INFO, &mut isz, info.as_mut_ptr()) } != SUCCESS {
+            return Err("cannot stat a file");
+        }
+        let size = rd64(&info, 8);
+        let pages = size.div_ceil(PAGE).max(1);
+        let p = try_alloc_pages(pages)?;
+        let mut n = size as usize;
+        if unsafe { ((*f).read)(f, &mut n, p as *mut u8) } != SUCCESS || n as u64 != size {
+            (bs().free_pages)(p, pages as usize);
+            return Err("cannot read a file");
+        }
+        Ok((p, size))
+    })();
+    unsafe { ((*f).close)(f) };
+    result
 }
 
 fn config_table(g: Guid) -> u64 {
@@ -431,8 +449,8 @@ fn mem_kind(ty: u32) -> u32 {
 }
 
 #[cfg(target_arch = "aarch64")]
-#[no_mangle]
-extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
+#[doc(hidden)]
+pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     unsafe { ST = system };
     (bs().set_watchdog_timer)(0, 0, 0, core::ptr::null());
     say!("fl4-efi: FL4 UEFI loader (AArch64)");
@@ -595,12 +613,11 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
     unsafe { enter(region, bi_off) }
 }
 
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {
-        #[cfg(target_arch = "aarch64")]
-        unsafe { asm!("wfi") };
-        #[cfg(target_arch = "x86_64")]
-        unsafe { asm!("hlt") };
-    }
-}
+#[cfg(target_arch = "x86_64")]
+#[doc(hidden)]
+pub use x86::start_default;
+
+#[cfg(target_arch = "x86_64")]
+mod firmware;
+#[cfg(target_arch = "x86_64")]
+pub use firmware::{with_firmware, Firmware, FileContents};
