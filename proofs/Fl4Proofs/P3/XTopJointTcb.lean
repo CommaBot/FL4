@@ -88,6 +88,7 @@ import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointTcbInstall
 import Fl4Proofs.P3.XTopJointReadFpu
 import Fl4Proofs.P3.XTopJointTcbSsp
+import Fl4Proofs.P3.XTopJointTcbInsL
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -2734,7 +2735,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
       q ≠ L.idleW s)
     (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf) (hl : argsU.length ≤ 120)
-    (hJDP : JDelParts (L := L) arI AR Z.th) (hsg : SpecGlob σ)
+    (hJDP : JDelParts (L := L) arI AR Z.th) (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
@@ -2768,32 +2769,30 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     rw [J.argsRestart (hBPl Z s ar σ rfl J.xtop) hctT hctH hsp (by omega) h1]
     exact hargs i x hx
   -- the cap installs' deletion at `J` (as `decode_invocation_cnodeJ_stepsL`)
-  have hJP := jPreemptHyp_of (L := L) arI hARI.toARKeep hT hnd hPP Z.th
-  have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
-    obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
-  have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
-    obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
-  have hHp := fun kb => hJDP.hypsWR arI hJP (jPostDelHyp_of arI hARI.toMask hmask hfree) hT Z H Cs kb rfl
+  have hHp := tcbInsW_wjl (L := L) (Z := Z) (H := H) (Cs := Cs) arI hT hJDP.archRef hJDP.arKeep hJDP.vt
+    hJDP.thr hnd hPP hARI.toMask
   have hP0 := J.ppr0_start arI hni hRd0
+  have hR : RestartWJ (st := st) Z s ar σ (WJL (L := L) arI AR Z H Cs (L.ksb s)) :=
+    fun _ hct s1 σ1 h1 h2 => WJL.restart arI J hni hsg hP0 hLv hct s1 σ1 h1 h2
   by_cases h9 : lbl = fl4_abi.label.TCBSetTimeoutEndpoint
   · subst h9
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_timeoutJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
+      buffer (tcb_set_timeoutJ arI s ar σ J hni hsg hP0 hHp hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
         (hstall' p) call sl hAs extra x0 x1 x2 hx0 excaps hXc _ blk don ci buffer)
   by_cases h11 : lbl = fl4_abi.label.TCBSetSpace
   · subst h11
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_spaceJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
+      buffer (tcb_set_spaceJ arI s ar σ J hni hsg hP0 hHp hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct
         argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   by_cases h10 : lbl = fl4_abi.label.TCBSetIPCBuffer
   · subst h10
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_ipcJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
+      buffer (tcb_set_ipcJ arI s ar σ J hni hsg hP0 hHp hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 excaps hXc hnc0 blk don ci buffer)
   by_cases h5 : lbl = fl4_abi.label.TCBConfigure
   · subst h5
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_configureJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
+      buffer (tcb_configureJ arI s ar σ J hni hsg hP0 hHp hR p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
@@ -2810,7 +2809,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   by_cases h8 : lbl = fl4_abi.label.TCBSetSchedParams
   · subst h8
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hT hARI.toARKeep hTA p hp slbl
+      buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hR hT hARI.toARKeep hTA p hp slbl
         (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (hstall' p) call sl hAs hsc extra
         x0 x1 x2 hx0 hx1 hx2 excaps hXc hcapT hcapC blk don ci buffer)
   refine XCap.toP arI (decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra

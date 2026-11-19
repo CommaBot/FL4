@@ -304,11 +304,9 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the arch operations total. -/
   tot : P0.ArchTotal arI
   /-- [J]/[P] XTopJointDelR's `JDelParts`: the deletion's named steps (its
-  own fields tagged there). The CNode and IRQ handler decodes read only its
-  platform and scope fields (`JDelParts.jDelHypL`, the deletion at `WJL`
-  from `JEntryAt.live`); its `live` (`LiveJHyp` [J], false as stated at
-  every `JAtZ` state) is still read by the Thread decode's cap installs
-  (XTopJointTcb: `JDelParts.hypsWR`, the deletion at `WJR`). -/
+  own fields tagged there): platform and scope facts only. Every deletion
+  runs at `WJL` from `JEntryAt.live` (CNode, IRQ handler: `JDelParts.jDelHypL`;
+  the Thread cap's installs: XTopJointTcbInsL's `tcbInsW_wjl`). -/
   delParts : JDelParts (L := L) arI AR th
   /-- [P] one domain. -/
   nd : Fl4Spec.numDomains = 1
@@ -412,8 +410,10 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   l4v's `valid_objs`/`valid_idle`-style list invariants) and `NullOrig` (a
   null slot carries no original bit: l4v `valid_nullcaps` of `valid_mdb'`).
   The deletion at `WJL` (CNode Revoke/Delete, the IRQ handler's
-  SetIRQHandler/ClearIRQHandler) carries it from here across the caller's
-  restart (`WJL.restart`). -/
+  SetIRQHandler/ClearIRQHandler, the Thread cap's SetTimeoutEndpoint,
+  SetSpace, SetIPCBuffer, Configure and SetSchedParams installs) carries it
+  from here across the caller's restart (`WJL.restart`) and the installs'
+  inserts (XTopJointWJLIns' `LiveDN.insT`). -/
   live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
 
@@ -704,7 +704,7 @@ on the cap:
 | Reply | `decode_replyDMX`, `replyLeafJ` (receivers waiting on the timeout handler's endpoint: XTopJointFaultTmo's `runTmoP_recv`) | — |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ2` | — (every send to a waiting receiver, any grant: `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`, the transfer by XTopJointXferG's `JAtZ.xferStepGJ` (a granted cap's insert redone at `J` before the dequeue); the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) |
 | CNode | `decode_invocation_cnodeJ_stepsL` (at `cnode_canon`'s label; Revoke/Delete at `WJL` from `JEntryAt.live` [J]) | — |
-| Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
+| Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label; the cap installs at `WJL` from `JEntryAt.live` [J]) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,domain}J`, `decode_invocation_irq_handlerJL` (labels: `irqControl_label`, `ioControl_label`, `irqH_canon`, `dom_canon`) | none (IRQ handler: `JAtZ.irqExtraNe`, `JAtZ.irqDelP1J`, JEntryIrq; its deletion at `WJL` from `JEntryAt.live` [J]) |
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
@@ -824,7 +824,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hG.ipcBufOK
       hG.bufCover hG.bufPlaced hE.flags lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
-      (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.timeAg
+      (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hG.timeAg
   case IoPort first last z =>
     have hOpen := hN
     by_cases h0 : z = 0#u64

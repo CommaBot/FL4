@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), CSpace: **the liveness invariant of FL4's caps at `J`**
-(`LiveJ`), the one named premise behind the deletion's slot readiness
-(XTopJointDelR's `JDelParts.live`).
+(`LiveJ`), behind the deletion's slot readiness: carried through the
+deletion loop by `WJL` (XTopJointWJL) from XTopJointEntry's `JEntryAt.live`.
 
 * `RefsObj q c`: the cap `c` names the CNode or TCB `q` as a container (a
   CNode cap, a thread cap or a zombie to it; l4v `obj_refs` / `zobj_refs`).
@@ -31,9 +31,6 @@ P3 (DESIGN.md §9), CSpace: **the liveness invariant of FL4's caps at `J`**
   cap elsewhere; `readyLive_noRef` (`x`'s cap names no container),
   `readyLive_key` (another cap alike `x`'s: a non-final cap, `other_keyN`),
   `readyLive_zombie` (a removable zombie: its slots unused, `zslots`).
-* `utTcb_of_live`: XTopJointFinThread's `JThreadFinHyps.utTcb` from
-  `LiveJHyp` (XTopJointDelR's `JDelParts.thread`, for the deletion at `WJR`
-  the TCB installs still run).
 -/
 import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointEmptyUt
@@ -78,13 +75,6 @@ structure LiveJ (th : TypedHeap) (H : P1.Heap) (G : MdbGhost) (s : S) (σ : Fl4S
     ∀ i, IsSlotAt th p i → n.val ≤ i → ¬ InUse (L.mem s) σ (slotOf p i)
   zdead : ∀ y, IsSlot th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n → zt.val = 65 →
     DeadP (L := L) H s p
-
-variable (arI) in
-/-- **Hypothesis: `LiveJ` at every `JAtZ` state** [J] (module docstring). -/
-def LiveJHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
-    (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    LiveJ (L := L) Z.th H Z.G s σ
 
 /-- **The emptied slot's liveness readiness** (module docstring). -/
 def ReadyLive (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) : Prop :=
@@ -184,30 +174,6 @@ theorem JAtZ.thread_cover (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y :
     Covered (L.mem s) Z.G w.val (w.val + 1) :=
   let ⟨h1, h2, h3, h4⟩ := J.thread_coverF hy hT
   ⟨y, hy, h1, h2, h3, h4⟩
-
-variable (arI) in
-/-- **`JThreadFinHyps.utTcb` from `LiveJ`** (`dbg` at `1`: the debug
-successor of the head is named by a thread cap). -/
-theorem utTcb_of_live {th : TypedHeap} (hLv : LiveJHyp (L := L) arI AR th) :
-    ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S)
-    (a : A) (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-    L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) ∈ Z.T →
-    L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))) ≠ 0#u64 →
-    Covered (L.mem s) Z.G (L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val
-      ((L.mem s (P1.dnA (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))).val + 1) := by
-  intro Z H Cs Ac Lst D s a σ hth J hT hn
-  have hL := hLv Z H Cs Ac Lst D s a σ hth J
-  have h0 : dbgHead (L := L) s ≠ 0#u64 := by
-    intro e
-    have h1 := J.zH.1 _ hT
-    rw [show L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = dbgHead (L := L) s from rfl, e,
-      J.kern.h0] at h1
-    cases h1
-  have e1 : dbgNth (L.mem s) 1 (dbgHead (L := L) s) = L.mem s (P1.dnA (dbgHead (L := L) s)) := by
-    simp only [dbgNth, if_neg h0]
-  obtain ⟨y, hy, hT'⟩ := hL.dbg 1 (by rw [e1]; exact hn)
-  rw [e1] at hT'
-  exact J.thread_cover hy hT'
 
 /-- **`ReadyLive` from `LiveJ`** (module docstring): the slots in use and the
 debug-list head are named by caps; a cap at `x` naming one has another
