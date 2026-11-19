@@ -18,7 +18,7 @@ is linked to another thread** (`take_reply`'s `cancel_ipc`, l4v
 * `JAtZ.cancelLinkJ`: the J step (`JAtZ.cancelReplyJ` / `JAtZ.cancelRecvJ`)
   with the post facts the later receive needs (the slots kept:
   `JAtZ.cancel_slots`, so the caps stay held, `jHeld_of_same`).
-* `JRecvSendHyp` [W]: the one case left, a waiting sender outside XTopJointRecvSend's `RecvSendBasicCase` (reply cap null or
+* `JRecvSendHyp` [W]: the one case left, a waiting sender outside `RecvSendBasicCase` (XTopJointRecvSend's `JAtZ.recvSendJ0`; reply cap null or
   free), stated at every `JAtZ` state of the typed heap (as XTopJointSuspend's
   `JCancelAt`), since the linked case reaches it at the state after the
   cancel. `jRecvIpcU_of`: XTopJointRecvIpc's case split for a null or free
@@ -365,12 +365,18 @@ theorem jHeld_of_same {th : TypedHeap} {s s' : S} (h : SlotsSame th (L.mem s) (L
   exact e
 
 /-- The case XTopJointRecvSend's `JAtZ.recvSendJ0` proves: the current
-thread without a bound notification, the endpoint's head sender neither
-calling nor faulted. -/
-def RecvSendBasicCase (ct : U64) (σ : Fl4Spec.State Unit) (p : U64) : Prop :=
-  (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none) ∧
+thread without a bound notification or with one not active (polling, or not
+lending its SC to the thread), the endpoint's head sender not faulted
+and either not calling or calling without a reply pushed (neither grant
+right, or no reply cap: the sender `Inactive`). -/
+def RecvSendBasicCase (ct : U64) (blocking : Bool) (σ : Fl4Spec.State Unit) (p : U64) (rc : capability.Cap) :
+    Prop :=
+  (∀ xt, σ.kheap ct.bv = some (.tcb xt) → xt.tcbBoundNotification = none ∨
+    ∃ n xn, xt.tcbBoundNotification = some n ∧ σ.kheap n = some (.notification xn) ∧
+      Fl4Spec.isActive xn = false ∧ (blocking = true → ¬ (xn.ntfnSc = xt.tcbSchedContext ∧ xn.ntfnSc ≠ none))) ∧
     ∃ sd q xs, σ.kheap p.bv = some (.endpoint (.sendEP (sd :: q))) ∧ σ.kheap sd = some (.tcb xs) ∧
-      xs.tcbFault = none ∧ ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false
+      xs.tcbFault = none ∧ ∀ e' dd, xs.tcbState = .blockedOnSend e' dd → dd.senderIsCall = false ∨
+        ((dd.senderCanGrant = false ∧ dd.senderCanGrantReply = false) ∨ rc = .Null)
 
 variable (arI) in
 /-- **`receive_ipc` at `J` with a waiting sender** [W] (KENTRY-PLAN.md item 6
@@ -389,7 +395,7 @@ def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
     (rc = .Null ∨ ∃ q g', rc = .Reply q g' ∧ L.mem s (rTcbA q) = 0#u64) →
     ¬ RecvIpcPollCase (L := L) ct blocking s σ p rc → ¬ RecvIpcActCase (L := L) ct s σ rc →
     ¬ RecvIpcBlockCase (L := L) ct blocking s σ p rc → ¬ RecvIpcBoundCase (L := L) ct blocking s σ p rc →
-    ¬ RecvSendBasicCase ct σ p →
+    ¬ RecvSendBasicCase ct blocking σ p rc →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄
@@ -456,7 +462,7 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
     obtain ⟨hcov, hcovR⟩ := J.recvCov_of he hHd hHr hra
     exact J.recvIpcBlockNJ ht hcur hni hnq hkt hn hbn hkn hna hnr he hke hcB hcov hra hcovR b sd true g gr b.bv
       (rightsOf sd true g gr)
-  by_cases hcs : RecvSendBasicCase ct σ p
+  by_cases hcs : RecvSendBasicCase ct blocking σ p rc
   · obtain ⟨hbn, sd0, q, xs, hke', hks, hfs, hcall⟩ := hcs
     obtain ⟨sdU, -, hsde⟩ := J.obj.tcb _ xs hks
     subst hsde
@@ -464,7 +470,7 @@ theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.t
     obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht
     obtain ⟨rv, hra⟩ := J.replyArg_of hrc hun
     exact J.recvSendJ0 hZ ht hkt ((J.curRun.run hni) xt (by rw [hcur]; exact hkt)) (hbn xt hkt) hcur he hke' hks
-      hfs hcall b sd true g gr hra b.bv (rightsOf sd true g gr) blocking
+      hfs b sd true g gr hra hcall b.bv (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
   · exact hS Z H Cs Ac Lst D s a σ rfl J ct ht hcur hni hnq blocking p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hHr hun

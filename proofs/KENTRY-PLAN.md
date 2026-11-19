@@ -408,3 +408,43 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   Then narrow `JRecvSendHyp` by `RecvSendBasicCase` (sendEP, head sender non-call, no fault, no bound
   ntfn) and wire it into `jRecvIpcU_of`. (d2) call/fault without grant: sender `Inactive` (RSTc allows it).
   (d3) reply_push with donation: RSFr needs a donation case (DWFr's `DChg` SC/TCB cases) -- extend RSFr.
+
+## ke10 (branch par/kentry3 in FL4-rb, on edfb68a1)
+- Scope change (lead): items 7-10 (charge_budget, Yield, budget_ok, preemption/hPre) moved to kp1 (FL4-tcbj);
+  this line: the waiting sender until `JRecvSendHyp` is gone, then M5-M7. Don't edit ScCharge*/budget files.
+- DONE c192d6f6 (d1) + the next commit (d2 + bound prefix), new leaf XTopJointRecvSend (imported from
+  Fl4Proofs.lean; XTopJointRecvIpcLink imports it):
+  * `unblockHole`: FL4 `unblock_sporadic` at the dequeued sender's hole (only `IRel` there, no `JAtZ`):
+    IRel after (`sc_step_lift`), `KFoot`, P1 posts for any hole set `X` + P1 `Foot`, the TCB words kept, and
+    the spec's outcome `UnblockOut` (unchanged, or `updSc {σ with reprogramTimer} p z n`, `p ≠ curSc`, the
+    `unblock_result` facts that `Inv.scRef` takes). Takes `hne` (active SC refills nonempty), which the
+    caller gets from `Jy.inv.ne` through `SKeep σy σ2`.
+  * `JAtZ.recvSendJ0`: ke9's 7 steps as planned, with: `σy`-based frames as sendRecvJ0 (Fr2/IK2/SK2),
+    `Inv` at the end by `InvBut.ik` at `σ5' := updK σ2 sd x5` (no SC refill) + `Inv.scRef` and
+    `updSc_updK_comm` (ScBind) for `σ5 = updSc {σ5' with reprogramTimer} p z n`; `hnr'` of scRef from
+    `I5'.back` (only the sender is bound to p) + `hnqD`. Branches on `dd.senderIsCall`: false -> Running +
+    `sendSwitchJ` (spec `receiveIpc_send_eqB`); true (no grant/grant-reply, or reply cap null) -> Inactive,
+    no switch (spec `receiveIpc_sendCall_eq`; P1's sts_all `hq` from `J.curBits` at σ and
+    `actionW_ne_of` + `Jy.act.1`/`schedulable_inv`). `RSFr.stsInact`, `RSFr.ofUm`, `flags_grantReply`.
+  * Bound-notification prefix (receiver with a bound non-active ntfn, polling or not lending its SC):
+    `receive_ipc_preN` (FL4; `maybe_return_noop`), spec lemmas take `hbN` (the `maybeReturnSc_noop` tail as
+    in XTopJointRecvIpcBound). Lending + blocking (maybe_return really returns the SC) is NOT covered.
+  * `RecvSendBasicCase ct blocking σ p rc` (XTopJointRecvIpcLink): receiver bound none or non-active
+    (blocking -> not lending), head sender unfaulted, not calling or calling with neither grant right or
+    rc = Null. `JRecvSendHyp` [W] gains `¬ RecvSendBasicCase …`; `jRecvIpcU_of`/`jRecvIpcLink_of`/
+    `jRecvIpcHypL_of` take `hZ : XferHZ L AR Z` (dispatch_recvJL has it).
+- LEFT in `JRecvSendHyp` (the waiting sender): (d3) calling sender with grant/grant-reply and a reply cap:
+  `reply_push sender cur reply can_donate` (sender BlockedOnReply, reply linked; donation of the sender's
+  SC when the receiver has none). RSFr cannot hold it (RSTc only Inactive/Running; replies kept): plan as
+  XTopJointSendPushD: after the transfer + unblockHole, do the link/block on IRel (`reply_push_iC`'s
+  block part with the roles of SendPushD swapped: there the CURRENT thread blocks; here the sender, which
+  is already off-queue), reach `JAtZ` at the block's state by a `wake_postGR`-like step (needs a frame
+  with the sender to BlockedOnReply + reply's replyTcb := sender; check XTopJointSendPushD's `pushSt`),
+  then XTopJointPushDon's `JAtZ.pushDonJ` for the donation (receiver = current thread has no SC: then it
+  must be a passive server, `CurInv`/`CurOwnW` need care since the current thread GETS an SC), receiver
+  stays current. (d4) faulted senders (fault transfer: XTopJointFaultRecv's `xferFaultStepJ`/fault
+  variants instead of `xferStepGJ`; the Inactive/push split as for calls, FL4 reads ftype). (d5) blocking
+  receive with a bound ntfn lending its SC (ke7's `maybeReturnJQ` route before the sendEP branch).
+  When all are in: delete `JRecvSendHyp`, `JRecvIpcRestHyp`, `jRecvIpcHyp_of`, `dispatch_recvJR`.
+- Tooling: scratch/ke10chk.sh (elaborate a file, errors + goals only via ke10f.py), scratch/axke10.lean.
+  station_task keys are single-use: a new key per run (same key returns the old result).
