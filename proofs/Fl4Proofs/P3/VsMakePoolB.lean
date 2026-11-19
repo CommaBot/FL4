@@ -37,6 +37,7 @@ def MpMidB {A : Type} (th0 : TypedHeap) (s0 : S) (rc : capability.Cap) (σ : Fl4
     (∀ sl, sl ≠ dest → σ'.isOriginalCap sl = σ.isOriginalCap sl) ∧
     capV (L.mem res.2.1) (cslotAddr ps) = .Untyped p fl4_abi.consts.bits.ASID_POOL 4096#u64 false ∧
     (∃ b, capV (L.mem res.2.1) (cslotAddr dest) = .AsidPool p b) ∧
+    (∀ b, capV (L.mem res.2.1) (cslotAddr dest) = .AsidPool p b → b.val % 512 = 0 ∧ b.val < 2 ^ 20) ∧
     (∀ y, IsSlot th' y → y ≠ cslotAddr ps → y ≠ cslotAddr dest → capV (L.mem res.2.1) y = capV (L.mem s0) y) ∧
     (DelInv th' (L.mem s0) → DelInv th' (L.mem res.2.1)) ∧
     (∃ (pp : U64) (rs : Nat) (idx : List Bool) (fi0 : U64), ps = (pp.bv, idx) ∧ th0 pp = some (.cnode rs) ∧
@@ -619,12 +620,18 @@ theorem mp_perform_relB {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     refine ⟨i, hi, by show L.ksb s5 = L.ksb s; rw [hksb5],
       hcpu5, hW5, fun w hw h1 h2 => by
         rw [hm54 w hw (by rw [hAtv]; rcases hTo with e | e <;> omega), hmemR w hw h1 h2],
-      L.mem_wr_same hAt, hMp, hkp, hkhf, hcdtf, horf, ?_, ⟨base, ?_⟩, ?_, hDI, ⟨pp, rs, idx, fi, rfl, hpp, hidx, by rw [← hsb]; exact hcap, hnch⟩,
+      L.mem_wr_same hAt, hMp, hkp, hkhf, hcdtf, horf, ?_, ⟨base, ?_⟩, ?_, ?_, hDI, ⟨pp, rs, idx, fi, rfl, hpp, hidx, by rw [← hsb]; exact hcap, hnch⟩,
       pd, rd, idxd, rfl, hpd, hidxd, hdst⟩
     · show capV (L.mem s5) x = _
       rw [hSS5.capV hxs', hctx.cz hxm, RR3.cap, hsb]
     · show capV (L.mem s5) val = _
       rw [hSS5.capV hvs', hctx.cd]
+    · intro b hb
+      have e : capV (L.mem s5) val = .AsidPool p base := by rw [hSS5.capV hvs', hctx.cd]
+      have e2 : capV (L.mem s5) (cslotAddr (pd.bv, idxd)) = .AsidPool p b := hb
+      rw [show cslotAddr (pd.bv, idxd) = val from rfl, e] at e2
+      cases e2
+      exact ⟨by rw [hbase]; omega, by rw [hbase]; omega⟩
     · intro y hy h1 h2
       show capV (L.mem s5) y = _
       rw [hSS5.capV hy, hctx.hcap y hy, if_neg h2, hSS3.capV hy, hco2 y hy h1, hSS.capV hy.of_restrict]

@@ -33,8 +33,7 @@ XTopJointMakePool; here the shared pieces and the paths' premises.
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.FrontEndExtra
-import Fl4Proofs.P3.VsDrop
-import Fl4Proofs.P3.UtEpSets
+import Fl4Proofs.P3.UtDropJ2
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -507,12 +506,14 @@ structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   /-- [J] the drop's `VsReachMiss` (as `JUtPath.vsReach`; VsDrop, l4v
   `valid_vs_lookup` with `dead_childless`: no table reachable from the ASID
   table lies in a childless untyped cap's region), for a childless
-  pool-sized RAM untyped cap's region at the restart's state, with no extra
-  roots. -/
+  pool-sized RAM untyped cap's region at the restart's state, at the tables
+  the slots' caps ask (`Vs.NeedR`). -/
   vsReach : ∀ (x p fi : U64) (s1 : S), x ∈ Z.G.chains.flatten →
     capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false → (∀ y, ¬ Mdb.Desc Z.G.par y x) →
     sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-    Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅
+    Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1)
+      (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
+      (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
 
 end
 

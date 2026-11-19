@@ -154,7 +154,8 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hdl : σ'.domainList = σ.domainList) (hdsi : σ'.domainStartIndex = σ.domainStartIndex)
     (hum : ∀ x, ¬ RgOf p sb x → σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x)
     {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
-    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
+    (hX1 : X1 ⊆ Z.L1) (hM : Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1)
+    (hXc : ∀ y, IsSlot Z.th y → ∀ k q, Vs.VNeed (capV (L.mem s) y) k q → q ∈ Vs.lvlSet XP X4 X3 X2 X1 k) :
     JAtZ (L := L) arI AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s))
       (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs Ac Lst D s a σ' := by
   have U := J.utc sl p sb fi false hsl hcap rfl
@@ -183,10 +184,16 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hkn := J.dropKern hsb hfit hD horig harch hcur hcsc hrst hhd (U.gReg hND)
   have hutc := J.dropUtc hsb hfit hcdt horig harch hrst
   have hblk := J.dropBlk hres hx hcx hnd hKR hDT
+  have hvc : Vs.VsSlotsW (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
+      (Vs.prP p.val (p.val + 2 ^ sb.val) (L.mem s) Z.P Z.L4 Z.L3 Z.L2 Z.L1)
+      (Vs.pr4 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L4 Z.L3 Z.L2 Z.L1)
+      (Vs.pr3 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L3 Z.L2 Z.L1)
+      (Vs.pr2 p.val (p.val + 2 ^ sb.val) (L.mem s) Z.L2 Z.L1) (Vs.pr1 p.val (p.val + 2 ^ sb.val) Z.L1) (L.mem s) := by
+    obtain ⟨-, hR, hPt, hPI, -⟩ := J.xtop.fin
+    exact J.vsc.drop hR hPt hPI hXP hX4 hX3 hX2 hX1 hM hXc
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
-    hcr, hblk, hiL⟩
-
+    hcr, hblk, hiL, hvc⟩
 
 end Drop
 
@@ -496,8 +503,8 @@ spec's perform from the detyped state is its perform from the restart's
 (`perform_mp_detype`). The domain schedule from the footprint (`VsFootW`, as
 VsThX's `domFrame_asid_control`). Premises: `ArchFitHyp` and
 `RegionUnrefJ` [J] (as `JUtPath.heapH`), and `VsReachMiss` [J] at the
-restart's state for a childless pool-sized RAM untyped's region, with no
-extra roots (as `JUtPath.vsReach`). -/
+restart's state for a childless pool-sized RAM untyped's region, at the
+tables the slots' caps ask (`Vs.NeedR`, as `JUtPath.vsReach`). -/
 theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs)
@@ -508,7 +515,9 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
     (hVM : ∀ (x p fi : U64) (s1 : S), x ∈ Z.G.chains.flatten →
       capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false → (∀ y, ¬ Mdb.Desc Z.G.par y x) →
       sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅)
+      Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1)
+        (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
+        (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
     (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
@@ -621,8 +630,8 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
           rw [hσd]; simp only [Fl4Spec.detype]; exact if_neg h,
         rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     have Jd := J1.dropA hres1 hAs hcap1 hnch1 hKR hDT hAF1 hSD rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
-      (fun _ _ => rfl) (Set.empty_subset _) (Set.empty_subset _) (Set.empty_subset _) (Set.empty_subset _)
-      (Set.empty_subset _) (hVM _ p fi s1 hxG hcv hnd hs1)
+      (fun _ _ => rfl) J1.vsc.needR.1 J1.vsc.needR.2.1 J1.vsc.needR.2.2.1 J1.vsc.needR.2.2.2.1
+      J1.vsc.needR.2.2.2.2 (hVM _ p fi s1 hxG hcv hnd hs1) Vs.needR_roots
     set Zd := ((Z.keep (KOff (RgOf p fl4_abi.consts.bits.ASID_POOL)) (KBOf p fl4_abi.consts.bits.ASID_POOL)).dropV
       p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1)) with hZd
     set Hd := H.drop (P1.RegionD H p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val)) with hHd
@@ -670,7 +679,7 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
       Jd.xtop.fin.1.2.po Jd.xtop.fin.1.2.pv hFId hMOd.1.1 (rc := rc)) ?_
     rintro res ⟨hok, har, σ', th', G', hm, hnf, hP', hSt', hSV', hM', hC', hI', hU', hR', hPt', hSRq, hF', -, -, hMS, -,
       hcur', hth', hk', hsc, hRg', hxu, hPI', hMid⟩
-    obtain ⟨hi', hh, hks1, hcpu1', hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst, hcap', hDI, -, -⟩ := hMid
+    obtain ⟨hi', hh, hks1, hcpu1', hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst, hdstb, hcap', hDI, -, -⟩ := hMid
     have hTh := hE.1
     have hrt := restrictTh_clean hTh
     rw [hrt] at hth'
@@ -731,7 +740,7 @@ theorem decode_invocation_asid_controlJD (s : S) (ar : A) (σ : Fl4Spec.State Un
           by rw [hSS1.capV hy']; exact hc⟩
       · exact Or.inr (fun k hk => by rw [hk1]; exact h k (restrictTh_some hk).1)
     exact ⟨_, _, Cs, Ac1, Lst1, D1, Jd.mpStepJ hh hTh hE.2.1 Ad hspecd hppd hidx hcap1 hnchd hpdd hld hnull1 hDLd hX'
-      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hcap' (hDI Jd.del) hU'⟩
+      ⟨hks1, hcpu1', hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hRg.p0 hcap' (hDI Jd.del) hU'⟩
   have hD := decode_invocation_asid_controlXP arI Z.th hPl s ar σ Z.G hCR hFI J.ut hMO vsMpHyps_top hX.fin.1
     hX.fin.2.1 hX.fin.2.2.1 hX.fin.1.2.vs hX.fin.1.2.pt hX.fin.1.2.vo hX.fin.1.2.po hX.fin.1.2.pv lbl slbl hlM length
     buf ct hct hcur htcb J.kern.act hrun args hlen hargs extra excaps (Q := fun s' => P1.WritesIn st s s' W)
