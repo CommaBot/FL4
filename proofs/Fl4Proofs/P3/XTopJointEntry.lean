@@ -526,7 +526,7 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   core0 : Z.c = 0#u64
   /-- [J] every IPC-buffer word lies in a spec object (XTopJointUtEp's
   `BufObjHyp`; l4v `valid_ipc_buffer_cap` with `obj_at`), for the
-  endpoints'/notifications' retype (`JAtZ.utEpJ`). -/
+  endpoints', notifications' and replies' retype (`JAtZ.utEpJ`). -/
   bufObj : BufObjHyp Z.B σ
   /-- [J] at the ghost heap: UtEpSets' `ArchFitHyp` (`H`'s object at a spec
   arch object no larger than it; l4v the arch objects' `obj_range`) and
@@ -890,7 +890,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHyp hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
-          (hN.ret hN.core0))
+          hN.core0 (hN.ret hN.core0))
     · exact hDv rfl
   all_goals exact hN
 

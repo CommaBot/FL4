@@ -194,8 +194,7 @@ set_option maxHeartbeats 4000000 in
 /-- **P1's creation after the restart, without a reset** (module docstring):
 from `JAtZ` at the decode (no switch pending) and after the restart, a CNode
 slot's RAM untyped cap, the creation's `RetExp` over a window `[A0, A0 + w * k)`
-of objects of type `n` (endpoints or notifications: no TCB, no `other`
-object), its slot-word frame and zero window: P1's heap after (`HOut` over
+of objects of type `n` (no TCB, no SC: endpoints, notifications, replies), its slot-word frame and zero window: P1's heap after (`HOut` over
 the window), `BlkOK` and `JCovD` after (the window's objects dead,
 `retype_window_dead`, and unreferenced, `RegionUnrefJ` [J]). -/
 theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -212,7 +211,7 @@ theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
     (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G G' A0 k w dslot cj (cslotAddr (pp.bv, idx)))
     (hcjU : ∀ j, j < w → isUt (cj j) = false)
-    {n us : Nat} (hn : n = 2 ∨ n = 3) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
+    {n us : Nat} (hn : n ≠ 1 ∧ n ≠ 5) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
     {T pml4 : Prop} (hT : ¬ T) (hP4 : ¬ pml4)
     (hW : WFrame (L := L) s1 s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)
       (L.mem s1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
@@ -291,7 +290,7 @@ theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (∀ c ∈ Cs, v.val < L.nodeBase s1 c ∨ L.nodeBase s1 c + 4288 ≤ v.val) := fun v hv => by
     obtain ⟨o1, o2⟩ := slot_word_off hJP J.kern.hnd hv
     exact ⟨o1, fun c hc => by rw [hnb]; exact o2 c hc⟩
-  have hn1 : n ≠ 1 := by omega
+  have hn1 : n ≠ 1 := hn.1
   have hdbg : DbgLinksOK st H Cs s' A0 (A0 + w * k) A0 k w n := by
     refine dbgLinks_nonTcb hn1 hdrop hTm hW (fun v hv => ?_) (fun y hy => ?_) (fun c hc => ?_)
     · rcases hv with (⟨hT', -⟩ | hsl) | ⟨hp4', -, -⟩
@@ -313,7 +312,7 @@ theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     · exact nodeAt_aligned (hTm.npl c hc) (by simp [layout.node.DEBUG_TCBS]) (by simp [layout.node.DEBUG_TCBS])
   have hkd : ∀ kd, newKind n us = some kd → 2 ^ kd.bits = k := fun kd h => by rw [newKind_bits h, hk]
   have hwp : WinPlaced A0 k w n us := by
-    refine ⟨fun kd h => ?_, hfitW, hpos, fun h5 => by omega⟩
+    refine ⟨fun kd h => ?_, hfitW, hpos, fun h5 => absurd h5 hn.2⟩
     rw [hkd kd h]
     exact ⟨hAk, Nat.mod_self _⟩
   have hh0 : L.mem s1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS) ≠ 0#u64 →
