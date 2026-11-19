@@ -167,7 +167,7 @@ theorem JAtZ.dropPlace (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U6
     Sched.RPlaced st (KeepS K Z.N) (KeepS K Z.T) (KeepS K Z.C) (KeepS K Z.R) Z.c s σ' ∧
     Sched.SlotsApart (st := st) th' (KeepS K Z.T) (KeepS K Z.N) (KeepS K Z.C) (KeepS K Z.R) Z.c s σ' ∧
     (∀ n ∈ KeepS K Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val) ∧
-    (∀ wp ∈ KeepB (KBOf p sb) Z.B, ∀ c ∈ Cs, wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val) ∧
+    (∀ wp ∈ KeepB (KBOf p sb) Z.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val) ∧
     Sched.SpecCover H' σ' ∧
     Sched.ObjCover (KeepS K Z.N) (KeepS K Z.T) (KeepS K Z.E) (KeepS K Z.R) (KeepS K Z.C) σ' ∧
     ((∀ t ∈ KeepS K Z.T, H' t = some .tcb) ∧ (∀ e ∈ KeepS K Z.E, H' e = some .ep) ∧

@@ -120,7 +120,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have hdv := P1.nodeAt_val hN0 (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
     have hdo : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
     exact hW.mem_eq J.kern.dwAl fun hb => by
-      have := J.nodeB wp hwB _ J.kern.cs0
+      have := J.nodeB wp hwB 0#u64 (by simp)
       rw [hb] at hdv; omega
   have hnbc : L.nodeBase s Z.c = (L.ksb s).val + 13568 + Z.c.val * 4288 := rfl
   have hirq : ∀ i : U64, i.val < 128 → capV (L.mem s1) (nodeA (L.ksb s) i) = capV (L.mem s) (nodeA (L.ksb s) i) :=
@@ -148,7 +148,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · left; omega
       · right; simpa [P1.HKind.bits] using e
     · subst hb
-      rcases J.nodeB wp hwB c hc with e | e <;> omega
+      rcases J.nodeB wp hwB c (J.kern.csLt c hc) with e | e <;> omega
     · subst hb
       rcases he with he | he
       · rcases hAp e _ he (fun _ e => by cases e) with e | e

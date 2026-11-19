@@ -132,7 +132,7 @@ theorem JAtZ.otherTmOK {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       exact miss t _ (J.zH.1 t ht) ⟨h1, by simp only [P1.HKind.bits]; omega⟩
     · unfold Endp.TL at h
       exact miss t _ (J.zH.1 t ht) ⟨by omega, by simp only [P1.HKind.bits]; omega⟩
-    · have := J.nodeB wp hwp c' hc'; rw [← h] at this; omega
+    · have := J.nodeB wp hwp c' (J.kern.csLt c' hc'); rw [← h] at this; omega
   · -- no notification-relation word
     rintro (⟨n, hn, h1, h2⟩ | ⟨t, ht, h⟩)
     · exact miss n _ (J.zH.2.2.2 n hn) ⟨h1, by simp only [P1.HKind.bits]; omega⟩

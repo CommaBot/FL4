@@ -116,7 +116,7 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
       simp only [P1.HKind.bits] at this; omega
     · have := J.kern.hnd m _ (J.zH.2.2.2 m hm) 0#u64 J.kern.cs0
       simp only [P1.HKind.bits] at this; omega
-    · have := J.nodeB wp hwp 0#u64 J.kern.cs0; omega
+    · have := J.nodeB wp hwp 0#u64 (by simp); omega
   -- the scheduler fields
   have hAI3 : ActIdle σ3 := F.actIdle J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR3 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep

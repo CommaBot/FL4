@@ -788,7 +788,7 @@ theorem JAtZ.rbufU (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst 
   · rcases hAp t .tcb ht (fun _ e => by cases e) with e | e
     · left; omega
     · right; simpa [P1.HKind.bits] using e
-  · have e := J.nodeB _ hwB c hc
+  · have e := J.nodeB _ hwB c (J.kern.csLt c hc)
     dsimp only at e
     rcases e with e | e <;> omega
   · rcases he with he | he

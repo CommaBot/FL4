@@ -93,6 +93,31 @@ theorem JAtZ.bufPlaced0 (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hc0 :
     Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ :=
   J.bufPlacedLow fun _ _ => by rw [hc0]; omega
 
+/-- **`BufPlaced` at every `JAtZ`** (no premise): `hlow` from `JAtZ.nodeB`
+at the node slots below core `Z.c` (`Z.c ∈ Cs`, `JKern.csLt`). -/
+theorem JAtZ.bufPlacedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
+    Vs.BufPlaced (L := L) Z.N Z.C Z.B Z.c s σ := by
+  refine J.bufPlacedLow fun wp hw => ?_
+  obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
+  have hcC : Z.c ∈ Cs := hc.cur ▸ J.kern.cpuCs
+  have hc64 := J.kern.csLt Z.c hcC
+  have hn0 : L.nodeBase s 0#u64 = (L.ksb s).val + 13568 := by rw [nodeBase_val]; simp
+  rw [hn0, nodeBase_val]
+  by_contra hne
+  have h1 : (L.ksb s).val + 13568 ≤ wp.1.val := by omega
+  have h2 : wp.1.val < (L.ksb s).val + 13568 + Z.c.val * 4288 := by omega
+  set k := (wp.1.val - ((L.ksb s).val + 13568)) / 4288 with hk
+  have hkc : k < Z.c.val := by
+    rw [hk, Nat.div_lt_iff_lt_mul (by norm_num)]; rw [Nat.mul_comm] at h2; omega
+  obtain ⟨c', hc'⟩ : ∃ c' : U64, c'.val = k := ⟨⟨BitVec.ofNat 64 k⟩, by
+    show (BitVec.ofNat 64 _).toNat = _; rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)⟩
+  have e := J.nodeB wp hw c' (by omega)
+  rw [nodeBase_val, hc'] at e
+  have hlo : k * 4288 ≤ wp.1.val - ((L.ksb s).val + 13568) := Nat.div_mul_le_self _ _
+  have hhi : wp.1.val - ((L.ksb s).val + 13568) < k * 4288 + 4288 := by
+    rw [hk]; exact Nat.lt_div_mul_add (by norm_num)
+  omega
+
 end Placed
 
 /-! ## The spec steps keeping the IPC-buffer facts -/

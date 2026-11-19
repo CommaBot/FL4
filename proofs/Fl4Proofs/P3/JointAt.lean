@@ -142,9 +142,11 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   rp : Sched.RPlaced st Z.N Z.T Z.C Z.R Z.c s σ
   apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
   nk : ∀ n ∈ Z.N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val
-  /-- [carried] The IPC-buffer words miss every core's node ([W] producer: the
-  buffer words' frames). -/
-  nodeB : ∀ wp ∈ Z.B, ∀ c ∈ Cs, wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val
+  /-- [carried] The IPC-buffer words miss every node slot of the kernel-state
+  block (all 64 cores', not only `Cs`'s: the buffer words are user frames;
+  kept by every step, `Z.B` grows only by a frame retype from an untyped
+  region, which misses the block). -/
+  nodeB : ∀ wp ∈ Z.B, ∀ c : U64, c.val < 64 → wp.1.val + 8 ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ wp.1.val
   jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
   cover : Sched.SpecCover H σ
   obj : Sched.ObjCover Z.N Z.T Z.E Z.R Z.C σ
