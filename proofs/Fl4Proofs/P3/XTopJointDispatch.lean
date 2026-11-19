@@ -119,7 +119,7 @@ theorem JAtZ.frontEx {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
 /-- **The per-cap path premise at the front end's values** (`JEntryHyps.path`
 for every outcome of the front end's reads, which `JAtZ.frontEx` shows to
 exist and be unique). -/
-def JPathAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
+def JPathAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64) : Prop :=
   ∀ (info : msginfo.MessageInfo) (mi : Fl4Spec.MessageInfo) (buf : U64) (buffer : Option Fl4Spec.ObjRef)
     (r2 : core.result.Result (Aeneas.Std.Array obj.Slot 3#usize) error.Fault)
@@ -135,7 +135,7 @@ def JPathAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ :
       (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
       capAt (L.mem s) (cslotAddr sl) = ok c → Fl4Spec.getCap (Z := Unit) sl σ = ({(absCap c, σ)}, False) →
       r2 = .Ok e → er = .ok exs →
-      JPath (L := L) arI AR Z s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
+      JPath (L := L) arI AR Z H Cs D s ar σ info.label (msgLen info buf) blocking is_call can_donate first_phase buf e
         mi.miLabel argsU (Fl4Spec.toBl cptr.bv) sl exs buffer ct c
 
 /-- **One invocation at `J`, the front end discharged**:
@@ -146,7 +146,7 @@ theorem handle_invocation_entryJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
-    (hP : JPathAt (L := L) arI AR Z s ar σ ct is_call blocking can_donate first_phase cptr) :
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
       HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true σ is_call blocking can_donate first_phase
         (Fl4Spec.toBl cptr.bv) res ⦄ := by
@@ -180,7 +180,7 @@ theorem invoke_afterJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (call bl don : Bool)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
-    (hP : JPathAt (L := L) arI AR Z s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPre (L := L) arI AR s1 a1 σ1 →
@@ -311,7 +311,7 @@ theorem dispatch_invokeJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
-    (hP : JPathAt (L := L) arI AR Z s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPre (L := L) arI AR s1 a1 σ1 →
@@ -417,7 +417,7 @@ theorem dispatch_invokeJE [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
     (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
-    (hP : JPathAt (L := L) arI AR Z s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
+    (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPre (L := L) arI AR s1 a1 σ1 →
