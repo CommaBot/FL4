@@ -196,18 +196,6 @@ impl Info {
     }
 }
 
-/// Conventional and reclaimable boot-services pages are free. Keep
-/// firmware RAM distinguishable from device apertures for encrypted guests.
-fn memory_kind(ty: u64, attributes: u64) -> u32 {
-    match ty {
-        1..=4 | 7 => 1,
-        9 => 3,
-        5 | 6 | 10 | 14 | 15 => 4,
-        0 if attributes & 8 != 0 => 4,
-        _ => 2,
-    }
-}
-
 fn memory_map(
     info: &mut Info,
     map: &[u8],
@@ -215,17 +203,10 @@ fn memory_map(
     cpuid: u64,
     secrets: u64,
 ) -> Result<(), &'static str> {
-    // The kernel keeps these pages out of user space by the type their
-    // descriptors get below: neither may lie in a hole of the map.
-    let descriptors = map.chunks_exact(stride).map(|d| (rd64(d, 8), rd64(d, 24) * PAGE));
-    if !snp_map::all_held(descriptors, &[cpuid, secrets]) {
-        return Err("SEV-SNP CPUID or secrets page is not in the EFI memory map");
-    }
     let tag = info.tag(6, 8);
     write(tag, &24u32.to_le_bytes());
     let mut count = 0;
-    let mut previous: Option<(u64, u64, u32)> = None;
-    let mut emit = |(base, bytes, kind): (u64, u64, u32)| {
+    x86_mmap::regions(map, stride, cpuid, secrets, |(base, bytes, kind)| {
         count += 1;
         if count > MAX_MMAP || info.used + 24 + 8 > INFO_BYTES {
             return Err("EFI memory map has too many regions for FL4");
@@ -236,30 +217,7 @@ fn memory_map(
         write(p + 16, &(kind as u64).to_le_bytes());
         info.used += 24;
         Ok(())
-    };
-    for d in map.chunks_exact(stride) {
-        let base = rd64(d, 8);
-        let bytes = rd64(d, 24) * PAGE;
-        let sensitive = [cpuid, secrets]
-            .into_iter()
-            .any(|page| snp_map::holds(base, bytes, page));
-        let kind = if sensitive {
-            4
-        } else {
-            memory_kind(rd32(d, 0), rd64(d, 32))
-        };
-        if let Some((start, len, ty)) = previous {
-            if start + len == base && ty == kind {
-                previous = Some((start, len + bytes, ty));
-                continue;
-            }
-            emit((start, len, ty))?;
-        }
-        previous = Some((base, bytes, kind));
-    }
-    if let Some(last) = previous {
-        emit(last)?;
-    }
+    })?;
     write(
         tag - 4,
         &((info.base + info.used - (tag - 8)) as u32).to_le_bytes(),
@@ -501,7 +459,7 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
     {
         fail("GetMemoryMap");
     }
-    let capacity = size + 16 * stride;
+    let capacity = x86_mmap::capacity(size, stride).unwrap_or_else(|| fail("GetMemoryMap"));
     let buffer = alloc_pages((capacity as u64).div_ceil(PAGE));
     let tags_end = info.used;
     for attempt in 0..8 {
@@ -516,7 +474,7 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         {
             handoff_failed(attempt, "GetMemoryMap");
         }
-        if stride < 40 || size % stride != 0 {
+        if !x86_mmap::layout_ok(size, stride, capacity) {
             handoff_failed(attempt, "invalid EFI memory map");
         }
         let map = unsafe { core::slice::from_raw_parts(buffer as *const u8, size) };

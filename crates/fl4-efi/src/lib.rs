@@ -191,6 +191,8 @@ mod gop;
 mod snp_map;
 #[cfg(target_arch = "x86_64")]
 mod x86;
+#[cfg(target_arch = "x86_64")]
+mod x86_mmap;
 
 fn fail(msg: &str) -> ! {
     say!("fl4-efi: {}", msg);
