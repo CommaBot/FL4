@@ -202,10 +202,44 @@ structure MpRegion (th : TypedHeap) (G : MdbGhost) (P L4 L3 L2 L1 : Set U64) (ks
   tables : ∀ q, (q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1) → q.val + 4096 ≤ p.val ∨ p.val + 4096 ≤ q.val
   atab : p.val + 4096 ≤ ksb.val + 288000 ∨ ksb.val + 288000 + 16384 ≤ p.val
 
+/-- **What `MakePool`'s perform exports for the joint invariant**
+(XTopJointMakePool): the state `s1` after the restart, the words written
+since (`MpW`), the spec's step from the restart's state (`MpStep`, the heap
+changed at the pool's cell, the region's cells and two CNodes, the CDT and
+the original bits at the destination only), the source's and destination's
+caps after, the other slots' caps kept, `DelInv` kept, and the destination's
+CNode reached from the root cap `rc` (`CnRef`). -/
+def MpMid {A : Type} (th0 : TypedHeap) (s0 : S) (rc : capability.Cap) (σ : Fl4Spec.State Unit) (p : U64)
+    (dest ps : Fl4Spec.CslotPtr) (σ' : Fl4Spec.State Unit) (th' : TypedHeap)
+    (res : core.result.Result Unit error.Exc × S × A) : Prop :=
+  ∃ (s1 : S) (ct hi : U64) (σ1 : Fl4Spec.State Unit),
+    sched.set_thread_state st s0 ct sched.TS_RESTART = ok s1 ∧ ct.bv = σ.curThread ∧
+    Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+    hi.val < 2048 ∧ L.ksb res.2.1 = L.ksb s1 ∧ L.cpu res.2.1 = L.cpu s1 ∧
+    (∀ b, Aligned b → ¬ MpW th0 p (L.ksb s1) hi b → L.mem res.2.1 b = L.mem s1 b) ∧
+    (∀ w : U64, Aligned w → p.val ≤ w.val → w.val < p.val + 4096 → L.mem res.2.1 w = 0#u64) ∧
+    (L.mem res.2.1 (atA (L.ksb s1) hi) = p) ∧
+    MpStep p σ1 σ' ∧
+    σ'.kheap p.bv = some (.archObj (.asidPool fun _ => none)) ∧
+    (∀ o, o ≠ p.bv → σ'.kheap o = σ1.kheap o ∨ (o ∈ Fl4Proofs.P3.regionSet p.bv 12 ∧ σ'.kheap o = none) ∨
+      ∃ r cs cs', σ1.kheap o = some (.cnode r cs) ∧ σ'.kheap o = some (.cnode r cs')) ∧
+    σ'.cdt = Function.update σ1.cdt dest (some ps) ∧
+    (∀ sl, sl ≠ dest → σ'.isOriginalCap sl = σ1.isOriginalCap sl) ∧
+    capV (L.mem res.2.1) (cslotAddr ps) = .Untyped p fl4_abi.consts.bits.ASID_POOL 4096#u64 false ∧
+    (∃ b, capV (L.mem res.2.1) (cslotAddr dest) = .AsidPool p b) ∧
+    (∀ y, IsSlot th' y → y ≠ cslotAddr ps → y ≠ cslotAddr dest → capV (L.mem res.2.1) y = capV (L.mem s0) y) ∧
+    (DelInv th' (L.mem s0) → DelInv th' (L.mem res.2.1)) ∧
+    (∃ (pp : U64) (rs : Nat) (idx : List Bool) (fi0 : U64), ps = (pp.bv, idx) ∧ th0 pp = some (.cnode rs) ∧
+      idx.length = rs ∧ capAt (L.mem s0) (cslotAddr ps) = ok (.Untyped p fl4_abi.consts.bits.ASID_POOL fi0 false) ∧
+      ¬ ∃ sl, σ.cdt sl = some ps) ∧
+    ∃ (pd : U64) (rd : Nat) (idxd : List Bool), dest = (pd.bv, idxd) ∧ th0 pd = some (.cnode rd) ∧
+      idxd.length = rd ∧ capAt (L.mem s0) (cslotAddr dest) = ok .Null ∧ CnRef th0 (L.mem s0) rc pd
+
 /-- The post of `MakePool`'s perform. -/
 def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
     (th0 : TypedHeap) (k0 : U64)
-    (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid)
+    (m0 : U64 → U64) (G0 : MdbGhost) (s0 : S) (rc : capability.Cap) (σ : Fl4Spec.State Unit) (p : U64)
+    (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid)
     (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   ∃ σ' th' G', ((), σ') ∈ ((Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart >>= fun _ =>
       Fl4Spec.performAsidControlInvocation (.makePool p.bv dest ps base)) σ).1 ∧
@@ -227,7 +261,17 @@ def MpPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State 
     MpRegion th0 G0 P L4 L3 L2 L1 k0 p ∧
     (∃ x fi, x ∈ G0.chains.flatten ∧ capV m0 x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false ∧
       ∀ y, ¬ Mdb.Desc G0.par y x) ∧
-    ∀ L4' : Set U64, Vs.PoolsIn P L4' m0 → Vs.PoolsIn (insert p P) L4' (L.mem res.2.1)
+    (∀ L4' : Set U64, Vs.PoolsIn P L4' m0 → Vs.PoolsIn (insert p P) L4' (L.mem res.2.1)) ∧
+    MpMid (L := L) th0 s0 rc σ p dest ps σ' th' res
+
+theorem spec_eq_mp {α : Type} {m : Result α} {P : α → Prop} (h : m ⦃ P ⦄) : m ⦃ v => m = ok v ∧ P v ⦄ := by
+  cases m <;> simp_all [WP.spec_ok]
+
+theorem delInv_same_mp {th0 : TypedHeap} {m m' : U64 → U64} (hD : DelInv th0 m) (hS : SlotsSame th0 m m') :
+    DelInv th0 m' :=
+  DelInv.of_kept hD id (fun y hy p zt n h => ⟨hy, by show capV m y = _; rw [← hS.capV hy]; exact h⟩)
+    (fun _ _ _ _ hne _ _ _ _ _ _ _ _ => hne)
+    (fun y hy h => by rw [hS.prevOf hy, hS.nextOf hy]; exact hD.nc y hy (by rw [← hS.capV hy]; exact h))
 
 set_option maxHeartbeats 4000000 in
 /-- **`MakePool`'s perform refines l4v** (see the module docstring): from the
@@ -258,7 +302,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
     (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G) :
+    (hFR : Vs.FrameInv (L.mem s) G) {rc : capability.Cap} (hCn : CnRef th (L.mem s) rc pd) :
     (do
       let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
       let i1 ← lift (sb &&& 63#u64)
@@ -268,7 +312,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       let s4 ← cdt.insert st s3 (capability.Cap.AsidPool p base) (cslotAddr (pp.bv, idx)) (cslotAddr (pd.bv, idxd))
       let s5 ← vspace.set_asid_table st s4 i p
       ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s5, a)) ⦃ res =>
-      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
+      res.1 = .Ok () ∧ res.2.2 = a ∧ MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G s rc σ p (pd.bv, idxd) (pp.bv, idx) base.bv res ⦄ := by
   obtain ⟨hpal, hpfit, hp0, hN, hns, hcn, hPo, hLo, hTo⟩ := hRg
   set x := cslotAddr (pp.bv, idx) with hxdef
   set val := cslotAddr (pd.bv, idxd) with hvaldef
@@ -293,9 +337,9 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     intro e; rw [e, hdst] at hcap; cases eq_of_ok_eq hcap
   -- restart
   have hkt' : σ.kheap ct.bv = some (.tcb xct) := by rw [hcur]; exact hkt
-  refine WP.spec_bind (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt' htcb hact hrun)
-    (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact)) ?_
-  rintro s1 ⟨⟨hR1, hPt1, hS1, hksb1, hcpu1, hRO1⟩, hSS⟩
+  refine WP.spec_bind (spec_eq_mp (WP.spec_and (hH.restart s a σ ct xct hS hR hPt hcur hkt' htcb hact hrun)
+    (set_thread_state_slots th hPl s ct sched.TS_RESTART htcb hact))) ?_
+  rintro s1 ⟨hs1e, ⟨hR1, hPt1, hS1, hksb1, hcpu1, hRO1⟩, hSS⟩
   set σ1 := stsAct (updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv with hσ1
   have hst : Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) :=
     Notif.setThreadState_eq .restart hkt'
@@ -343,13 +387,14 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       ResetRel th' G x p sb false (L.mem s2)
         (setCnodeSlot τd pp.bv rs cs idx (.untypedCap false p.bv sb.val (4096#u64 : U64).val)) 4096#u64 ∧
       (∀ w : U64, P1.Aligned w → w.val ≠ x.val → w.val ≠ x.val + 8 → L.mem s2 w = L.mem s1 w) ∧
-      ∀ y, IsSlot th' y → y ≠ x → capV (L.mem s2) y = capV (L.mem s1) y := by
+      (∀ y, IsSlot th' y → y ≠ x → capV (L.mem s2) y = capV (L.mem s1) y) ∧
+      LinksKeep th' (L.mem s1) (L.mem s2) := by
     intro τd hD
     have := hset τd hD
     rw [hs2, WP.spec_ok] at this
-    obtain ⟨cs, h1, h2, h3, h4, h5, -⟩ := this
-    exact ⟨cs, h1, h2, h3, h4, h5⟩
-  obtain ⟨cs0, -, -, RR2, hfr2, hco2⟩ := hset2 _ (KSame.refl _)
+    obtain ⟨cs, h1, h2, h3, h4, h5, h6⟩ := this
+    exact ⟨cs, h1, h2, h3, h4, h5, h6⟩
+  obtain ⟨cs0, -, -, RR2, hfr2, hco2, hLK2⟩ := hset2 _ (KSame.refl _)
   -- the zeroing
   rw [L.clear_free_eq]; simp only [bind_ok]
   set s3 := L.zr s2 p 4096#u64 with hs3
@@ -380,7 +425,11 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     rcases hnx with h | ⟨h, -⟩
     · exact Or.inl h
     · exact Or.inr h
-  obtain ⟨s4, hs4, hW4, hF4, hF2⟩ := spec_exists (WP.spec_and
+  have hvm0 : val ∉ G.chains.flatten := by
+    intro h; obtain ⟨-, c0, h0, hn⟩ := (RR3.M.members val).1 h
+    rw [hdst3] at h0; exact hn (eq_of_ok_eq h0).symm
+  obtain ⟨s4, hs4, hdi4, hW4, hF4, hF2⟩ := spec_exists (WP.spec_and
+    (insert_delinv_imp (L := L) hP' s3 G RR3.M hxm hvs' hvm0 hsrc3 (.AsidPool p base) heA (by simp) rfl) <| WP.spec_and
     (insert_mem (L := L) hP' s3 (.AsidPool p base) x val hxs' hvs' hxv _ hsrc3 hnx)
     (WP.spec_and (insert_frame (L := L) hP' s3 (.AsidPool p base) x val hxs' hvs' _ hsrc3 hnx')
       (insert_frame2 (L := L) hP' s3 (.AsidPool p base) x val hxs' hvs' _ hsrc3 hnx')))
@@ -388,7 +437,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
   refine WP.spec_bind (set_asid_table_spec s4 i p) ?_
   rintro s5 rfl
   refine (WP.spec_ok _).2 ⟨rfl, rfl, ?_⟩
-  show MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ p (pd.bv, idxd) (pp.bv, idx) base.bv
+  show MpPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G s rc σ p (pd.bv, idxd) (pp.bv, idx) base.bv
     (.Ok (), L.wr s4 (atA (L.ksb s4) (i &&& 2047#u64)) p, a)
   -- FL4: the kernel-state base and the words
   have hksb2 : L.ksb s2 = L.ksb s1 := by
@@ -447,9 +496,13 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         τf.archState.x64AsidTable =
           Function.update σ1.archState.x64AsidTable (Fl4Spec.ucast 11 i.bv) (some p.bv) ∧
         OStep (fun _ => False) τd τf ∧ τf.machineState = τd.machineState ∧
-        τf.archState.x64CurrentCr3 = σ1.archState.x64CurrentCr3 ∧ KTyped th' τf := by
+        τf.archState.x64CurrentCr3 = σ1.archState.x64CurrentCr3 ∧ KTyped th' τf ∧
+        (∀ o, o ≠ p.bv → τf.kheap o = σ1.kheap o ∨ (o ∈ Fl4Proofs.P3.regionSet p.bv 12 ∧ τf.kheap o = none) ∨
+          ∃ r cs cs', σ1.kheap o = some (.cnode r cs) ∧ τf.kheap o = some (.cnode r cs')) ∧
+        τf.cdt = Function.update σ1.cdt (pd.bv, idxd) (some (pp.bv, idx)) ∧
+        (∀ sl, sl ≠ (pd.bv, idxd) → τf.isOriginalCap sl = σ1.isOriginalCap sl) := by
     intro τd hD
-    obtain ⟨cs, hkpp, hwf, RR2τ, -, -⟩ := hset2 τd hD
+    obtain ⟨cs, hkpp, hwf, RR2τ, -, -, -⟩ := hset2 τd hD
     have hτs : setCnodeSlot τd pp.bv rs cs idx (.untypedCap false p.bv sb.val (4096#u64 : U64).val) =
         setCnodeSlot τd pp.bv rs cs idx (.untypedCap false p.bv 12 4096) := by rw [hsbv]; rfl
     rw [hτs] at RR2τ
@@ -514,7 +567,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     have hppp : p.bv ≠ pp.bv := fun e => hpq pp hpp_out e.symm
     refine ⟨mpTable τi p.bv base.bv, hperf, (hR4.of_kheap (σ' := mpTable τi p.bv base.bv) rfl).of_caps (fun y hy => hSS5.capAt hy),
       Fl4Proofs.P3.SlotsValid.of_caps hV4 (fun y hy => hSS5.capAt hy), hM4, hM4.of_same hSS5,
-      hC4.of_same hSS5 rfl rfl, fun q hq ao hqa => ?_, ?_, ?_, ?_, rfl, ?_, ?_⟩
+      hC4.of_same hSS5 rfl rfl, fun q hq ao hqa => ?_, ?_, ?_, ?_, rfl, ?_, ?_, ?_, ?_, ?_⟩
     · obtain ⟨h1, h2⟩ := hpdq q ao hqa
       show (Function.update τr.kheap pd.bv _) q.bv = _
       rw [Function.update_of_ne h1, hkr q hq]
@@ -596,6 +649,41 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         simp only [Fl4Spec.detype] at ht
         split_ifs at ht with h4
         rw [hout o h4]; exact (hKT1 o).2 t ht
+    · -- the heap: the pool's cell, the region's cells and two CNodes change
+      have hτr' : τr = updK τs p.bv (.archObj (.asidPool fun _ => none)) := by
+        simp only [hτr, mpRegion, regionHeap, regionPtrs, List.range_one, List.map_cons, List.map_nil,
+          List.foldr_cons, List.foldr_nil, hp0bv]; rfl
+      have hkh : ∀ o, (mpTable τi p.bv base.bv).kheap o = Function.update (Function.update
+          (Function.update τd.kheap pp.bv (some (.cnode rs (Function.update cs idx
+            (some (.untypedCap false p.bv 12 4096)))))) p.bv (some (.archObj (.asidPool fun _ => none)))) pd.bv
+          (some (.cnode rd (Function.update csd idxd (some A)))) o := by
+        intro o; show (Function.update τr.kheap pd.bv _) o = _; rw [hτr']; rfl
+      intro o hop
+      rw [hkh]
+      obtain ⟨c1, hk1, -⟩ := hSt1.cnode pd rd hpd
+      obtain ⟨c2, hk2, -⟩ := hSt1.cnode pp rs hpp
+      by_cases e1 : o = pd.bv
+      · subst e1; rw [Function.update_self]
+        exact Or.inr (Or.inr ⟨rd, c1, _, hk1, rfl⟩)
+      rw [Function.update_of_ne e1, Function.update_of_ne hop]
+      by_cases e3 : o = pp.bv
+      · subst e3; rw [Function.update_self]
+        exact Or.inr (Or.inr ⟨rs, c2, _, hk2, rfl⟩)
+      rw [Function.update_of_ne e3, hD.1]
+      simp only [Fl4Spec.detype]
+      split_ifs with h4
+      · exact Or.inr (Or.inl ⟨h4, rfl⟩)
+      · exact Or.inl rfl
+    · -- the CDT
+      show Function.update τr.cdt (pd.bv, idxd) (if _ = true then _ else _) = _
+      rw [if_pos hb]
+      have : τr.cdt = σ1.cdt := hD.2.1
+      rw [this]
+    · -- the original bits
+      intro sl hsl
+      show Function.update τr.isOriginalCap (pd.bv, idxd) _ sl = _
+      rw [Function.update_of_ne hsl]
+      exact congrFun hD.2.2.1 sl
   -- the MDB invariants after the insertion
   have heU : EncWf (capability.Cap.Untyped p sb 4096#u64 false) := ⟨he0.1, he0.2⟩
   have hNc : Canonical (nextOf (L.mem s3) x) := by
@@ -657,7 +745,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       obtain ⟨τf, he, -⟩ := key y.2 ⟨hy.1, hy.2.1, hy.2.2.1, hy.2.2.2⟩
       exact nsat_det he trivial)
   obtain ⟨y, hy, hPy⟩ := hDel.2
-  obtain ⟨τf, he, hR5, hV5, hM4, hM5, hC5, hkq, hkp, htab, hOf, hmsf, hcrf, hKTf⟩ := key y.2 ⟨hPy.1, hPy.2.1, hPy.2.2.1, hPy.2.2.2⟩
+  obtain ⟨τf, he, hR5, hV5, hM4, hM5, hC5, hkq, hkp, htab, hOf, hmsf, hcrf, hKTf, hkhf, hcdtf, horf⟩ := key y.2 ⟨hPy.1, hPy.2.1, hPy.2.2.1, hPy.2.2.2⟩
   have hmem : ((), τf) ∈ ((Fl4Spec.deleteObjects p.bv 12 >>= fun _ =>
       mpPerf p.bv (pd.bv, idxd) (pp.bv, idx) base.bv) σ1).1 := by
     obtain ⟨r, hr, hre⟩ := nhas_bind (m := Fl4Spec.deleteObjects (Z := Unit) p.bv 12)
@@ -727,8 +815,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     refine ⟨(hO1.trans hOf).mono (fun q h => h.elim id False.elim), fun x hx => ?_, hcrf⟩
     rw [hmsf, hy2]
     exact hum x hx
-  have hSR5 : SR s5 a τf := hH.mpSR s1 s5 a σ1 τf p i hi hS1 (hRO1 p hRO)
-    (by rw [hksb5, hksb1]) hcpu5 (fun b hb hn => by
+  have hW5 : ∀ b, P1.Aligned b → ¬ MpW th p (L.ksb s1) i b → L.mem s5 b = L.mem s1 b := (fun b hb hn => by
       have hr : ¬ (p.val ≤ b.val ∧ b.val < p.val + 4096) := fun h => hn (Or.inr (Or.inl h))
       have hnv : b ≠ atA K i := fun e => hn (Or.inr (Or.inr (by rw [e, hksb1])))
       have hns : ¬ ∃ x' k, IsSlot th' x' ∧ Off k ∧ b = wordOf x' k :=
@@ -738,7 +825,37 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       · rw [wordOf_zero]; exact UScalar.eq_of_val_eq e
       · apply UScalar.eq_of_val_eq; rw [e, wordOf_val (show x.val + (8#u64).val < 2 ^ 64 by
         have := hxs.fit hPl; simp; omega)]; rfl)
-    hMp
+  have hSR5 : SR s5 a τf := hH.mpSR s1 s5 a σ1 τf p i hi hS1 (hRO1 p hRO)
+    (by rw [hksb5, hksb1]) hcpu5 hW5 hMp
+  -- `DelInv`
+  have hDI : DelInv th' (L.mem s) → DelInv th' (L.mem s5) := by
+    intro D0
+    have D1 := delInv_same_mp D0 (fun a ha => hSS a ha.of_restrict)
+    have D2 : DelInv th' (L.mem s2) := DelInv.of_kept D1 id (fun y hy p0 zt n h => ⟨hy, by
+        show capV _ y = _
+        by_cases e : y = x
+        · rw [e, RR2.cap] at h; cases h
+        · rw [← hco2 y hy e]; exact h⟩) (fun _ _ _ _ hne _ _ _ _ _ _ _ _ => hne)
+      (fun y hy h => by
+        by_cases e : y = x
+        · rw [e, RR2.cap] at h; cases h
+        · obtain ⟨l1, l2⟩ := hLK2 y hy
+          have := D1.nc y hy (by rw [← hco2 y hy e]; exact h)
+          unfold prevOf nextOf at this ⊢; rw [l1, l2]; exact this)
+    exact delInv_same_mp (hdi4 (delInv_same_mp D2 hSS3)) hSS5
+  have hMid : MpMid (L := L) th s rc σ p (pd.bv, idxd) (pp.bv, idx) τf th' ((.Ok () : core.result.Result Unit error.Exc), s5, a) := by
+    refine ⟨s1, ct, i, σ1, hs1e, hcur, by rw [← hcur]; exact hst, hi, by show L.ksb s5 = L.ksb s1; rw [hksb5, hksb1],
+      hcpu5, hW5, fun w hw h1 h2 => by
+        rw [hm54 w hw (by rw [hAtv]; rcases hTo with e | e <;> omega), hmemR w hw h1 h2],
+      by rw [hksb1]; exact L.mem_wr_same hAt, hMp, hkp, hkhf, hcdtf, horf, ?_, ⟨base, ?_⟩, ?_, hDI, ⟨pp, rs, idx, fi, rfl, hpp, hidx, by rw [← hsb]; exact hcap, hnch⟩,
+      pd, rd, idxd, rfl, hpd, hidxd, hdst, hCn⟩
+    · show capV (L.mem s5) x = _
+      rw [hSS5.capV hxs', hctx.cz hxm, RR3.cap, hsb]
+    · show capV (L.mem s5) val = _
+      rw [hSS5.capV hvs', hctx.cd]
+    · intro y hy h1 h2
+      show capV (L.mem s5) y = _
+      rw [hSS5.capV hy, hctx.hcap y hy, if_neg h2, hSS3.capV hy, hco2 y hy h1, hSS.capV hy.of_restrict]
   -- `FinInv`
   have hnd0 := hM.tree.nodup
   have F1 : FinM (L.mem s1) G := hFI.fm.of_caps hnd0 (fun z hz => hSS.capV ((hM.members z).1 hz).1)
@@ -810,7 +927,7 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     MdbInv.of_same hM4 hI4 hSS5, UtInv.of_same hM4 hU4 hSS5, by rw [hksb5]; exact hVs5, hPt5, hSR5, ⟨hKTf, F5⟩, FR5, VC,
     MS, VM, hMp.1.ct.trans (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl), by rw [hth', h2sb],
     by rw [hksb5], ?_, ⟨hpal, hpfit, hp0, hN, hns, hcn, hPo, hLo, hTo⟩,
-    ⟨x, fi, hxm, by rw [← hsb]; exact capV_of_capAt hcap, hnd⟩, ?_⟩
+    ⟨x, fi, hxm, by rw [← hsb]; exact capV_of_capAt hcap, hnd⟩, ?_, hMid⟩
   · -- no new SC
     intro q y n hk
     have e := hMp.1.keep' (q := q.bv) (by
@@ -853,12 +970,12 @@ variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 outcome `D`: an error, as the spec's, the state unchanged; or one of the
 spec's invocations, with no failure, performed (`MpPost`). -/
 def MpDecPost {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
-    (th0 : TypedHeap) (k0 : U64) (m0 : U64 → U64) (G0 : MdbGhost) (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
+    (th0 : TypedHeap) (k0 : U64) (m0 : U64 → U64) (G0 : MdbGhost) (rc : capability.Cap) (σ : Fl4Spec.State Unit) (D : Set (Except Fl4Spec.SyscallError Fl4Spec.ArchInvocation × Fl4Spec.State Unit) × Prop)
     (s : S) (a : A) (res : core.result.Result Unit error.Exc × S × A) : Prop :=
   (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧ D = ({(.error e', σ)}, False) ∧ res.2.1 = s ∧ res.2.2 = a) ∨
   (res.1 = .Ok () ∧ ∃ (p : U64) (dest ps : Fl4Spec.CslotPtr) (base : Fl4Spec.Asid),
     (.ok (.invokeASIDControl (.makePool p.bv dest ps base)), σ) ∈ D.1 ∧ ¬ D.2 ∧
-    MpPost (L := L) P L4 L3 L2 L1 SR th0 k0 m0 G0 σ p dest ps base res)
+    MpPost (L := L) P L4 L3 L2 L1 SR th0 k0 m0 G0 s rc σ p dest ps base res)
 
 /-- **ASIDControl `MakePool` refines l4v** (decode and perform; for the
 extra caps present): FL4's error is the spec decode's single outcome, or the
@@ -897,7 +1014,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p) (hFI : FinInv th (L.mem s) σ G)
     (hFR : Vs.FrameInv (L.mem s) G) :
     vspace.decode st ar s a fl4_abi.label.X86ASIDControlMakePool length slot .AsidControl call buf ex ⦃ res =>
-      MpDecPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+      MpDecPost (L := L) P L4 L3 L2 L1 SR th (L.ksb s) (L.mem s) G rc σ (ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
         (args.map UScalar.bv) xs cte .asidControlCap ((uc', (pp.bv, idx)) :: (rc', ysl) :: rest)) σ) s a res ⦄ := by
   unfold vspace.decode
   rw [hct]
@@ -1018,7 +1135,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       cases e1 with
       | error _ => exact hrel1.elim
       | ok dsl =>
-        obtain ⟨rfl, pd, hpd1, hpd, -⟩ := hrel1
+        obtain ⟨rfl, pd, hpd1, hpd, hcn1⟩ := hrel1
         obtain ⟨cd, ad, hcd, hcad, hgd⟩ := hSt.slot_cap (Z := Unit) hpd1 hpd
         unfold cdt.ensure_empty_slot
         simp only [slot_cap_eq, hcd, bind_ok]
@@ -1043,7 +1160,7 @@ theorem makepool_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         subst hpd1
         refine WP.spec_mono (mp_perform_rel (L := L) hH s a σ G hPl hSt hSV hM hC hI hU hR hPt hS hVP hPP ct hcur hkt hrun
           htcb hact hpp hidx hsb hcx hch hpd rfl hcd hi hbv (hRg p fi (by rw [hsb]) hch).1 (hRg p fi (by rw [hsb]) hch).2
-          hVO hPO hPV hFI hFR) ?_
+          hVO hPO hPV hFI hFR hcn1) ?_
         rintro res ⟨h1, -, hpost⟩
         have hk : ExceptT.run (mpRest a0.bv a1.bv (.untypedCap false p.bv Fl4Spec.pageBits fi.val) (pp.bv, idx) rc'
             (Fl4Spec.ucast Fl4Spec.asidRepLen (Fl4Spec.ucast 11 i.bv : BitVec 11) <<< Fl4Spec.asidLowBits)) σ =

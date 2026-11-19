@@ -463,6 +463,7 @@ import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointVsReply
 import Fl4Proofs.P3.XTopJointVsSub
+import Fl4Proofs.P3.XTopJointMakePoolSpec
 import Fl4Proofs.P3.SpecPerfCur
 import Fl4Proofs.P3.XTopJointEntry
 import Fl4Proofs.P3.KsHeap

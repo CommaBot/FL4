@@ -1161,6 +1161,108 @@ theorem decode_invocation_asid_pool (th : TypedHeap) (hP : Placed th) (s : S) (a
 
 set_option maxHeartbeats 8000000 in
 /-- **The ASID control cap**, every label (`MakePool`: `makepool_rel`; the
+others l4v's `IllegalOperation`), the producer given all of `MakePool`'s post
+(`MpPost`'s untyped invariant, MDB step and `MpMid`; for XTopJointMakePool). -/
+theorem decode_invocation_asid_controlXG (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
+    (hMO : MdbOKV (L.ksb s) (L.mem s) G)
+    {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
+    {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s') {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
+    (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) (hS : SR s ar σ)
+    (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
+    (hVP : VsPlaced P (L.ksb s)) (hPP : PtPlaced L4 L3 L2 L1)
+    (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
+    (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
+    (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b)
+    (lbl : U64) (slbl : Fl4Spec.Data)
+    (hlM : lbl = fl4_abi.label.X86ASIDControlMakePool ↔
+      Fl4Spec.invocationType slbl = .archInvocationLabel .x64ASIDControlMakePool)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
+    (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hext : (∃ o0 o1, vspace.extra extra 0#usize = ok o0 ∧ vspace.extra extra 1#usize = ok o1 ∧
+        (o0 = none ∨ o1 = none) ∧ excaps.length ≤ 1) ∨
+      ∃ (pp : U64) (rs : Nat) (idx : List Bool) (y : obj.Slot) (uc : capability.Cap) (uc' : Fl4Spec.Cap)
+        (rc : capability.Cap) (rc' : Fl4Spec.Cap) (ysl : Fl4Spec.CslotPtr)
+        (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)),
+        th pp = some (.cnode rs) ∧ idx.length = rs ∧
+        vspace.extra extra 0#usize = ok (some (cslotAddr (pp.bv, idx))) ∧ vspace.extra extra 1#usize = ok (some y) ∧
+        capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok uc ∧ CapRel uc uc' ∧
+        capAt (L.mem s) y = ok rc ∧ CapRel rc rc' ∧ CapValid th rc ∧
+        excaps = (uc', (pp.bv, idx)) :: (rc', ysl) :: rest ∧
+        ∀ p fi, uc = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false →
+      (¬ ∃ sl, σ.cdt sl = some (pp.bv, idx)) →
+          MpRegion th G P L4 L3 L2 L1 (L.ksb s) p ∧ RegOK s σ p)
+    {X : S → A → Fl4Spec.State Unit → Prop} (hX0 : X s ar σ)
+    (hXs : ∀ s' a' σ' (p : U64) (th' : TypedHeap) (G' : MdbGhost) (dest ps : Fl4Spec.CslotPtr) (y : obj.Slot)
+      (rc : capability.Cap), vspace.extra extra 1#usize = ok (some y) → capAt (L.mem s) y = ok rc → SR s' a' σ' →
+      VsRel (insert p P) (L.mem s') (L.ksb s') σ' → PtRel L4 L3 L2 L1 (L.mem s') σ' → σ'.curThread = σ.curThread →
+      (∀ L4' : Set U64, Vs.PoolsIn P L4' (L.mem s) → Vs.PoolsIn (insert p P) L4' (L.mem s')) →
+      CRel th' (L.mem s') σ' G' → FinInv th' (L.mem s') σ' G' → MdbOKV (L.ksb s) (L.mem s') G' →
+      th' = restrictTh th p.val (p.val + 4096) → L.ksb s' = L.ksb s →
+      (∀ (q : U64) y n, σ'.kheap q.bv = some (.schedContext y n) → ∃ y0, σ.kheap q.bv = some (.schedContext y0 n)) →
+      MpRegion th G P L4 L3 L2 L1 (L.ksb s) p →
+      (∃ x fi, x ∈ G.chains.flatten ∧ capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false ∧
+        ∀ y, ¬ Mdb.Desc G.par y x) → UtInv (L.mem s') G' → MdbStep (L.mem s) G (L.mem s') G' →
+      MpMid (L := L) th s rc σ p dest ps σ' th' ((.Ok () : core.result.Result Unit error.Exc), s', a') → X s' a' σ')
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    DecOKMQX (L := L) arI Q X s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
+      excaps buffer := by
+  have hCR0 := hCR
+  obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR0
+  obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
+  have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
+  unfold DecOKMQX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have hspec : specDec fp slbl (args.map UScalar.bv) ci sl .AsidControl excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
+        (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
+          (args.map UScalar.bv) ci sl .asidControlCap excaps)) := rfl
+  rw [hspec]
+  by_cases hl : lbl = fl4_abi.label.X86ASIDControlMakePool
+  swap
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok]
+    have : (lbl != fl4_abi.label.X86ASIDControlMakePool) = true := by simpa using hl
+    simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
+    exact topMQX_err (⟨_, rfl, rfl, .illegalOperation,
+      decodeMP_illegal (fun h => hl (hlM.2 h)) _ _ _ _ σ, Or.inl trivial⟩) hX0
+  subst hl
+  have hl' := hlM.1 rfl
+  rcases hext with ⟨o0, o1, h0, h1, hn, hlen1⟩ |
+    ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, hpp, hidx, hex0, hex1, hcx, hur, hcy, hrr, hrv, rfl, hRg⟩
+  · unfold vspace.decode
+    rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    rw [h0, h1]; simp only [bind_ok]
+    rcases hn with rfl | rfl
+    · simp only [error.truncated, bind_ok, WP.spec_ok]
+      exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩) hX0
+    · cases o0 <;> simp only [error.truncated, bind_ok, WP.spec_ok] <;>
+        exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩) hX0
+  have hd := makepool_rel (L := L) (ar := arI) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP hVO hPO hPV ct hct
+    hcur.symm hkt (hrun _ hkt) htcb hact hl' length buf args hlen hargs ci sl slot call extra hpp hidx hex0 hex1 hcx hur hcy hrr hrv
+    ysl rest hRg hFI hMO.1.1
+  refine WP.spec_mono hd ?_
+  rintro res (⟨e, e', h1, he, hD, h2, h2a⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
+    hM', hC', hI', hU', hR', hPt', hSRq, hF', -, -, hMSp, -, hcur', hth', hk', hscs, hRgp, hxu, hPI', hMid⟩)
+  · exact topMQX_err (⟨e, h1, h2, e', hD, he⟩) (by rw [h2, h2a]; exact hX0)
+  · have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
+        ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
+      rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
+    have hm' := hm
+    rw [nd_bind_one hst1] at hm'
+    exact ⟨topMX_of_lift2M ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
+      mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), ⟨th', G',
+      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.okv hMO⟩,
+      hXs _ _ _ p th' G' dest ps y rc hex1 hcy hSRq hR' hPt' hcur' hPI' ⟨hSt', hSV', hM', hC', hI'⟩ hF' (hMSp.okv hMO) hth' hk'
+        hscs hRgp hxu hU' hMSp hMid⟩, Or.inr (hQ _ _ _ hSRq)⟩
+
+set_option maxHeartbeats 8000000 in
+/-- **The ASID control cap**, every label (`MakePool`: `makepool_rel`; the
 others l4v's `IllegalOperation`). -/
 theorem decode_invocation_asid_controlX (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
@@ -1208,54 +1310,11 @@ theorem decode_invocation_asid_controlX (th : TypedHeap) (hP : Placed th) (s : S
     (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQX (L := L) arI Q X s ar σ lbl length slot .AsidControl blk call don fp buf extra slbl (args.map UScalar.bv) ci sl
-      excaps buffer := by
-  have hCR0 := hCR
-  obtain ⟨hSt, hSV, hM, hC, hI⟩ := hCR0
-  obtain ⟨xct, hkt0, -⟩ := hSt.tcb ct htcb
-  have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
-  unfold DecOKMQX syscall.decode_invocation
-  rw [hct]; simp only [bind_ok]
-  have hspec : specDec fp slbl (args.map UScalar.bv) ci sl .AsidControl excaps buffer =
-      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
-        (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
-          (args.map UScalar.bv) ci sl .asidControlCap excaps)) := rfl
-  rw [hspec]
-  by_cases hl : lbl = fl4_abi.label.X86ASIDControlMakePool
-  swap
-  · unfold vspace.decode
-    rw [hct]; simp only [bind_ok]
-    have : (lbl != fl4_abi.label.X86ASIDControlMakePool) = true := by simpa using hl
-    simp only [this, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
-    exact topMQX_err (⟨_, rfl, rfl, .illegalOperation,
-      decodeMP_illegal (fun h => hl (hlM.2 h)) _ _ _ _ σ, Or.inl trivial⟩) hX0
-  subst hl
-  have hl' := hlM.1 rfl
-  rcases hext with ⟨o0, o1, h0, h1, hn, hlen1⟩ |
-    ⟨pp, rs, idx, y, uc, uc', rc, rc', ysl, rest, hpp, hidx, hex0, hex1, hcx, hur, hcy, hrr, hrv, rfl, hRg⟩
-  · unfold vspace.decode
-    rw [hct]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-    rw [h0, h1]; simp only [bind_ok]
-    rcases hn with rfl | rfl
-    · simp only [error.truncated, bind_ok, WP.spec_ok]
-      exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩) hX0
-    · cases o0 <;> simp only [error.truncated, bind_ok, WP.spec_ok] <;>
-        exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, decodeMP_trunc hl' _ _ _ _ hlen1 σ, Or.inl trivial⟩) hX0
-  have hd := makepool_rel (L := L) (ar := arI) hH s ar σ G hP hSt hSV hM hC hI hU hR hPt hS hVP hPP hVO hPO hPV ct hct
-    hcur.symm hkt (hrun _ hkt) htcb hact hl' length buf args hlen hargs ci sl slot call extra hpp hidx hex0 hex1 hcx hur hcy hrr hrv
-    ysl rest hRg hFI hMO.1.1
-  refine WP.spec_mono hd ?_
-  rintro res (⟨e, e', h1, he, hD, h2, h2a⟩ | ⟨h1, p, dest, ps, base, hmem, hnf, σ', th', G', hm, hnf', hP', hSt', hSV',
-    hM', hC', hI', -, hR', hPt', hSRq, hF', -, -, hMSp, -, hcur', hth', hk', hscs, hRgp, hxu, hPI'⟩)
-  · exact topMQX_err (⟨e, h1, h2, e', hD, he⟩) (by rw [h2, h2a]; exact hX0)
-  · have hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ =
-        ({((), Notif.stsAct (Notif.updK σ ct.bv (.tcb { xct with tcbState := .restart })) ct.bv)}, False) := by
-      rw [hcur]; exact Notif.setThreadState_eq .restart hkt0
-    have hm' := hm
-    rw [nd_bind_one hst1] at hm'
-    exact ⟨topMX_of_lift2M ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'),
-      mem_liftE (ε := Unit) (x := ([], σ')) (mem_bind_nd (x := ((), σ')) hm' (Set.mem_singleton _)), ⟨th', G',
-      Or.inl ⟨h1, [], rfl⟩, hP', ⟨hSt', hSV', hM', hC', hI'⟩, hF', hMSp.okv hMO⟩,
-      hXs _ _ _ p th' G' hSRq hR' hPt' hcur' hPI' ⟨hSt', hSV', hM', hC', hI'⟩ hF' (hMSp.okv hMO) hth' hk' hscs hRgp hxu⟩, Or.inr (hQ _ _ _ hSRq)⟩
+      excaps buffer :=
+  decode_invocation_asid_controlXG arI th hP s ar σ G hCR hFI hU hMO hQ hH hS hR hPt hVP hPP hVO hPO hPV lbl slbl hlM
+    length buf ct hct hcur htcb hact hrun args hlen hargs extra excaps hext hX0
+    (fun s' a' σ' p th' G' _ _ _ _ _ _ h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 _ _ _ =>
+      hXs s' a' σ' p th' G' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13) slot blk call don fp ci sl buffer
 
 /-- **The ASID control cap**, every label (`MakePool`: `makepool_rel`; the
 others l4v's `IllegalOperation`). -/
