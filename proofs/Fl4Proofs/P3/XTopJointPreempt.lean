@@ -11,12 +11,16 @@ state (XTopJointPPH's `jAtPre_hole`: a `JHole`).
   from an outcome of its budget part (`check_budget`, or `charge_budget
   consumed false` for an active SC) and of `maybe_handle_interrupt true`.
 * `JHole.mcsPPJ`: `mcs_preemption_point` from a `JHole` under `PPCov`
-  (`CurInv`, a non-idle current thread, no switch to it pending, `NoTmoSend`):
+  (`CurInv`, a non-idle current thread, no switch to it pending, `NoTmoSend`)
+  or `PPCovT` (`JHole.checkBudgetT`'s case: an endpoint timeout handler on an
+  idle or sending endpoint, non-RR SC, the current thread running or
+  restarting, unqueued, no reschedule pending):
   schedulable → `check_budget` (`true`: nothing changes, `check_budgetT` /
-  `checkBudget_suff`; `false`: `JHole.checkBudgetF`), not schedulable →
+  `checkBudget_suff`; `false`: `JHole.checkBudgetF` / `JHole.checkBudgetT`,
+  the current thread's timeout fault blocking it), not schedulable →
   `charge_budget consumed false` (`JHole.chargeBudgetJ`; the SC is active:
   `CurInv.active`, `curSc ≠ idleSc`); the third FL4 branch (inactive SC) is
-  unreachable under `PPCov`.
+  unreachable under either.
 * `IrqPlat` [P] (M4): FL4's `take_pending_irq` is the spec's
   `getActiveIRQ true` (an oracle of the spec's machine state; `NO_IRQ` ↔
   `none`, otherwise the same line number, not masked in the spec), keeping
@@ -30,13 +34,14 @@ state (XTopJointPPH's `jAtPre_hole`: a `JHole`).
   `handleReservedIrq`), the `ARMED` node word of the timer branch, FL4 masking
   an inactive line where the spec fails (excluded by `irqMasks i = false` and
   l4v's `valid_irq_masks`).
-* `JHole.afterInvJ`: `after_invocation (Err _)` from a `JHole` under `PPCov`
+* `JHole.afterInvJ`: `after_invocation (Err _)` from a `JHole` under `PPCov ∨ PPCovT`
   refines `preemption_path` (`PPQ`: `JHoleAt` after when no line is pending,
   `XTopAt` after `JIrqHyp` for a pending line).
-* `JPreemptRestHyp` [W]: `hPre` at the `JHoleAt` states outside `PPCov` (a
-  reschedule pending without `CurInv`, the idle thread current, a pending
-  switch to the current thread, an endpoint timeout handler with a non-RR
-  SC).
+* `JPreemptRestHyp` [W]: `hPre` at the `JHoleAt` states outside `PPCov ∨
+  PPCovT` (a reschedule pending without `CurInv`, the idle thread current, a
+  pending switch to the current thread, an endpoint timeout handler with a
+  non-RR SC and waiting receivers / a reschedule pending / a queued or
+  RUNNING_VM current thread).
 * `hPre_of`: `invoke_afterJ`'s `hPre` for `Q := PPQ` from the platform facts
   [P], `JIrqHyp` [W] and `JPreemptRestHyp` [W]; `dispatch_invokeJP` /
   `dispatch_invokeJEP` are `dispatch_invokeJ` / `dispatch_invokeJE` with it
@@ -153,6 +158,18 @@ thread not idle, no switch to it pending, no timeout fault raisable. -/
 def PPCov (σ : Fl4Spec.State Unit) : Prop :=
   CurInv σ ∧ σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction ≠ .switchThread σ.curThread ∧ NoTmoSend σ
 
+/-- **The endpoint-timeout-handler case of the preemption path proved here**
+(`JHole.checkBudgetT`'s conditions): `CurInv`, the current thread not idle,
+running or restarting, not queued, no reschedule pending, an endpoint cap as
+its timeout handler on an idle or sending endpoint, a non-RR current SC. -/
+def PPCovT (σ : Fl4Spec.State Unit) : Prop :=
+  CurInv σ ∧ σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction = .resumeCurThread ∧
+    (∀ d p, σ.curThread ∉ σ.readyQueues d p) ∧
+    (∀ x n, σ.kheap σ.curSc = some (.schedContext x n) → x.scPeriod ≠ 0) ∧
+    ∃ (xt : Fl4Spec.Tcb) (p bd : Fl4Spec.Word) (r : Fl4Spec.CapRights),
+      σ.kheap σ.curThread = some (.tcb xt) ∧ (xt.tcbState = .running ∨ xt.tcbState = .restart) ∧
+      xt.tcbTimeoutHandler = .endpointCap p bd r ∧ ∀ xe, σ.kheap p = some (.endpoint xe) → Endp.CanBlock false xe
+
 set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` from a `JHole`** (module docstring). -/
 theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -160,11 +177,15 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hcov : PPCov σ) :
+    (hcov : PPCov σ ∨ PPCovT σ) :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       JHoleAt (L := L) arI AR r.1 r.2 σ' ⦄ := by
-  obtain ⟨hC, hni, hnsw, hnt⟩ := hcov
+  obtain ⟨hC, hni, hnsw⟩ : CurInv σ ∧ σ.curThread ≠ σ.idleThread ∧
+      σ.schedulerAction ≠ .switchThread σ.curThread := by
+    rcases hcov with ⟨h1, h2, h3, -⟩ | ⟨h1, h2, h3, -⟩
+    · exact ⟨h1, h2, h3⟩
+    · exact ⟨h1, h2, by rw [h3]; exact fun h => by cases h⟩
   have hS := Hh.xtop.fin.1.1.1
   have hR := Hh.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -206,22 +227,30 @@ theorem JHole.mcsPPJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A
     have hs' : Fl4Spec.schedulable σ.curThread σ = false := by rw [ect]; exact hsch
     exact fun y hy => mem_pp_charge hs' hga (by rw [h1']; rfl) hy
   · simp only [↓reduceIte]
-    refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb)
-      (Hh.checkBudgetF hAT hC hni hnsw hmrt hmb hnt)) ?_
+    have hs' : Fl4Spec.schedulable σ.curThread σ = true := by rw [ect]; exact hsch
+    have hFT : sched.check_budget st arI s a ⦃ res => res.1 = false → ∃ σ',
+        (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 →
+          y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧ JHoleAt (L := L) arI AR res.2.1 res.2.2 σ' ⦄ := by
+      rcases hcov with ⟨-, -, -, hnt⟩ | ⟨-, -, hres, hnq, hper, xt, p, bd, r, hkt, hrr, hth, hcb⟩
+      · refine WP.spec_mono (Hh.checkBudgetF hAT hC hni hnsw hmrt hmb hnt) ?_
+        rintro ⟨r, s', a'⟩ hF hr
+        obtain ⟨ha, σ', h1, -, Lst', J'⟩ := hF hr
+        simp only at ha
+        subst a'
+        exact ⟨σ', fun y hy => mem_pp_sched hs' (by rw [h1]; rfl) hy, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
+      · refine WP.spec_mono (Hh.checkBudgetT hAT hC hni hres hnq hmrt hmb hkt hrr hth hper hcb) ?_
+        rintro ⟨r, s', a'⟩ hF hr
+        obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF hr
+        exact ⟨z.2, fun y hy => mem_pp_sched hs' hz hy, Z.mv Z.G V, H, Cs, Ac', Lst', D', s', a', z.2, J'.toHole⟩
+    refine WP.spec_bind (WP.spec_and (check_budgetT hAT s a σ hS hscC hact hmb) hFT) ?_
     rintro ⟨r, s', a'⟩ ⟨hT, hF⟩
     refine (WP.spec_ok _).2 ?_
     cases r
-    · obtain ⟨ha, σ', h1, -, Lst', J'⟩ := hF rfl
-      simp only at ha
-      subst a'
-      refine ⟨σ', ?_, Z, H, Cs, Ac, Lst', D, s', a, σ', J'.toHole⟩
-      have hs' : Fl4Spec.schedulable σ.curThread σ = true := by rw [ect]; exact hsch
-      exact fun y hy => mem_pp_sched hs' (by rw [h1]; rfl) hy
+    · exact hF rfl
     · obtain ⟨e, hsuf, -⟩ := hT rfl
       simp only [Prod.mk.injEq] at e
       obtain ⟨rfl, rfl⟩ := e
       refine ⟨σ, ?_, Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-      have hs' : Fl4Spec.schedulable σ.curThread σ = true := by rw [ect]; exact hsch
       exact fun y hy => mem_pp_sched hs' (by rw [checkBudget_suff hnd hsuf]; rfl) hy
 
 variable (arI) in
@@ -258,7 +287,7 @@ theorem JHole.afterInvJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a 
     (hnd : Fl4Spec.numDomains = 1)
     (hmrt : sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hIP : IrqPlat arI AR) (hIrq : JIrqHyp (L := L) arI AR) (hcov : PPCov σ) (e : error.Exc) :
+    (hIP : IrqPlat arI AR) (hIrq : JIrqHyp (L := L) arI AR) (hcov : PPCov σ ∨ PPCovT σ) (e : error.Exc) :
     syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
   unfold syscall.after_invocation
   refine WP.spec_bind (Hh.mcsPPJ hAT hnd hmrt hmb hcov) ?_
@@ -298,7 +327,7 @@ variable (arI) in
 /-- **The preemption path outside `PPCov`** [W] (module docstring;
 KENTRY-PLAN kp6). -/
 def JPreemptRestHyp (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → ¬ PPCov σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → ¬ (PPCov σ ∨ PPCovT σ) →
     syscall.after_invocation st arI s a (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ (r.2.1, r.2.2) ⦄
 
 /-- **`invoke_afterJ`'s `hPre` for `Q := PPQ`** (module docstring). -/
@@ -311,7 +340,7 @@ theorem hPre_of (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.num
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => PPQ (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
   intro s1 a1 σ1 _ h
   obtain ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ := jAtPre_hole hAK hA hnd hP h
-  by_cases hc : PPCov σ1
+  by_cases hc : PPCov σ1 ∨ PPCovT σ1
   · exact WP.spec_mono (Hh.afterInvJ hA hnd (hmrt a1) (hP.minBudget a1) hIP hIrq hc _) fun _ h => h.2
   · exact hRest s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩ hc
 
