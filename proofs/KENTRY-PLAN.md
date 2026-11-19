@@ -962,3 +962,83 @@ removed; JAtZ untouched.
 - Builds: kp6-c* (`lake env lean` checks, scratch/kp6chk.sh), kp6-b2..b5 (`XTopJointPPH XTopJointPreempt`, 5110/5404
   jobs) OK; scratch/axkp6.lean (untracked): std axioms only for pp_err_eq, JAtZ.ppJH, jAtPre_hole, JHole.msAr,
   JHole.mcsPPJ, JHole.afterInvJ, hPre_of, dispatch_invokeJP, dispatch_invokeJEP, handle_invocation_refinesJ.
+
+## sch2 (branch par/sched2 in FL4-sc, on 073c67e5 = int/j2 incl. sch1)
+- DONE 87f9493f (a) D1: new `Fl4Spec/Ext/Timer.lean` (generic `Z`): `fl4TimerSignal` (one `send_signal` outcome),
+  `fl4TimerFire` (none or one signal, then `reprogram_timer := true`), `fl4TimerFires` (ReflTransGen),
+  `fl4Awaken σ := ({p | fl4TimerFires σ p.2}, False)` (never fails), `mem_fl4Awaken`. Ext/Entry's `fl4CallKernel`
+  runs `fl4Awaken` between the event and `schedule`; PORTING.md "FL4 differences" entry `Ext/Timer` + the
+  `Ext/Entry` line. P3's `Fires` (ScAwaken) is NOT moved (ScAwaken's cone is 446 modules = a full build):
+  `fires_iff : Fires σ σ1 ↔ Fl4Spec.fl4TimerFires σ σ1 := Iff.rfl` (XTopJointSchedR; the definitions are the
+  same). FOLD LATER (at a lead full build): `def Fires := Fl4Spec.fl4TimerFires (Z := Unit)` etc. in ScAwaken.
+  `jat_finishJ` restated: `∃ σ1 σ', ((), σ1) ∈ (fl4Awaken σ).1 ∧ (schedule >>= fun _ => activateThread) σ1 =
+  {((), σ')} ∧ ((), σ') ∈ ((fl4Awaken >>= fun _ => schedule >>= fun _ => activateThread) σ).1 ∧ RJ ∧ JAtZ`
+  (membership: `fl4Awaken` is nondeterministic, so "one outcome" is per chosen `σ1`). D2: `hvm` tagged [S]
+  (scope, NativeScope) in JAtZ.activateJ / jat_finishJ docstrings; Fl4Spec's activateThread unchanged.
+  Build sch2-b1 (Ext.Entry's cone: XTopJointSchedR + the 13 XTopJointRecv*/YieldSys modules) 5428 jobs OK.
+- PARTIAL (b) domainTime = 0, new leaf ScNextDom (imported from Fl4Proofs.lean): the pieces both sides compute.
+  * `DomListOK σ` [J]: l4v `valid_domain_list` (DetSchedDomainTime_AI, `rt`: `1 < length`, time 0 only in the end
+    marker, `start < length`, `dlist ! start ≠ (0,0)`, last entry `(0,0)`, `index < length - 1`) + every entry's
+    domain 0 (FL4 `numDomains = 1`; l4v's own note on `valid_domain_list_2`: "domains ... should also be ≤
+    maxDomain"). Not carried by any invariant yet (l4v keeps it by `next_domain_valid_domain_list`,
+    `domain_set_start_valid_domain_list_inv`, `domain_schedule_configure_valid_domain_list_inv`; spec init
+    `[(0,-1),(0,0)]` satisfies it). With DomRel's length 2: `DomListOK.idx0` (index 0), `start0` (start 0),
+    `last1` (entry 1 = end marker).
+  * `nextDomain_eq`: spec `nextDomain σ = {((), ndSt σ (ucast 64 d))}` (`ndSt` = index 0, domain 0, domain time
+    `d`, `reprogram_timer`; work units = extended op, none at `Z = Unit`).
+  * `next_domain_eq`: FL4 `next_domain s = ok (ndS s dur0)` (IDX := 0, REPROGRAM := 1, WORK_UNITS := 0,
+    CUR_DOMAIN := 0, DOMAIN_TIME := entry 0's duration word), from IDX = START = 0, entry 1 duration 0, entry 0
+    domain 0; `next_domain_words` gives those from `DomRel` + `DomListOK` + `hidx : (m (ksW kb 24)).val =
+    σ.domainIndex` ([J] too: FL4's DOM_SCHED_IDX word is in no relation; true: boot 0/0, ScheduleSetStart
+    writes 0 vs `length - 2` = 0, next_domain writes START vs `domain_start_index`), and `ucast 64 d =` the word.
+  * NOT DONE (route, all new code in leaves; ScScheduleTop's cone is 445 modules, do not edit it):
+    (1) spec `archPrepareNextDomain` = `switchLocalFpuOwner none` (FPU save into the owner's TCB, owner := none,
+    FPU disabled; FL4: nothing, its FPU switching is behind `machine.Arch`): same nature as `ArchSw`'s
+    `archSwitchToThread` (which also runs `lazyFpuRestore`/`switchLocalFpuOwner (some t)` yet is assumed with
+    `ArchKeeps`, i.e. `kheap` unchanged): add an `ArchSw`-style arch hypothesis for it (∃ one outcome, SchedRel/
+    NtfnStateRel kept, `ArchKeeps` + domain fields kept), or prove it from an FPU invariant (saved image of the
+    owner = machine FPU) that does not exist; NOTE `ArchSw` itself relies on that unstated invariant.
+    (2) `schedule_choose_new_thread_refines0` (dt = 0) at SchedRel: FL4 `next_domain` (ndS) then
+    `choose_thread_refines` at (ndS s, ndSt σ'); SchedRel across the ks writes: copy `Sched.SchedRel.domW`
+    (DomDecode) with the footprint {kb+16, kb+24, kb+40} (all in [kb+16, kb+216], so its `hm` argument applies)
+    and the CUR_DOMAIN write of the same value 0 (`hcd`), `SchedRel.set_reprogram` (ScFrame) for REPROGRAM;
+    NtfnStateRel by `.frame` (FootEq: ks/node words are no ntfn/TCB word), Inv/NSC unchanged fields (record
+    update: likely defeq). Its post differs from the dt ≠ 0 lemma: `TK` (domainTime kept) fails, footprint
+    `SFoot ∪ {ks 8,16,24,40}`, `reprogramTimer` set.
+    (3) copies of `cn_refines`/`cn_enq`/`cn_app`/`switch_branch_refines`/`schedule_refinesWP` with
+    `hdt : σ.domainTime ≠ 0 ∨ (DomRel ∧ DomListOK ∧ hidx ∧ arch hyp)` (≈700 lines, mechanical except the TK/
+    footprint posts: `hd4`-style transfers become "domain time kept or ndSt").
+    (4) jat_scheduleFR's JAtZ reconstruction: KFoot ∌ ks words, so either widen the footprint used there or
+    pass the ks writes through `JAtZ.ksW_*` frame lemmas (XTopJointDbgKeep `KsW`, DeadKeep `JAtZ.ksW_scKeep`;
+    preemption_point's WORK_UNITS write at J is handled in XTopJointPP — reuse), `SchStep` (ScXSched) keeps
+    domainList/domainStartIndex (fine), DomRel after (`DomRel.of_same`, entries untouched).
+    Then jat_scheduleFR/SR/jat_finishJ take `hd : σ.domainTime ≠ 0 ∨ (DomRel .. ∧ DomListOK σ ∧ hidx)`;
+    l4v also has `domain_time s = 0 → scheduler_action s = choose_new_thread` (DetSchedDomainTime_AI, for
+    `1 < numDomains`; with one domain it is not needed: the resume branch never reads the domain time).
+- NOT DONE (c) M6. FINDING from l4v (`rt`, Syscall_AI): `he_invs` for SysReplyRecv/NBSendRecv/NBSendWait gets the
+  receive's precondition `invs and ct_active` (`hw_invs`) from
+  `handle_invocation_not_blocking_not_calling_first_phase_ct_active`: from `invs ∧ ct_active ∧
+  scheduler_action = resume_cur_thread ∧ ct_schedulable`, `handle_invocation False False can_donate True cptr`
+  ends in `ct_active`, because `decode_invocation True …` (first phase) rejects Thread/Domain/SchedContext/
+  SchedControl/CNode caps (`InvalidCapability 0`, `decode_invocation_safe_invocation`: `safe_invocation`) and a
+  safe non-blocking non-calling `perform_invocation` keeps `ct_active`
+  (`perform_invocation_not_blocking_not_calling_ct_active`, needs `fault_tcb_at None ct`). Both Fl4Spec's
+  `fl4DecodeInvocation firstPhase` (Ext/Invocation) and FL4's `decode_invocation(first_phase)` (syscall.rs:119-147)
+  have the same rejection, so sch1's example (NBSendRecv on the own TCB cap's Suspend) cannot occur.
+  l4v requires NOTHING about the scheduler action at the receive (`hw_invs` = `invs and ct_active`); the mid
+  action may be `switch_thread t` (reply/send waking a thread: `possible_switch_to`) or `choose_new_thread`
+  (`reschedule_required` inside `possible_switch_to` when an action is already pending, timeout paths, …).
+  So sch1's `JMid` (with `action ≠ chooseNewThread`) is FALSE in reachable mid states; the right mid
+  precondition is l4v's: `CurRun σ` (ct_active: running/restart; `Restart` is set by handle_invocation and reset
+  to `Running` on success) + not idle + whatever JAtZ already has, with the receive leaves generalised over the
+  action (uses (1) `J.curInv (hni.2 ▸ …)` and (3) `Or.inl hni.2` of sch1's list must handle `chooseNewThread`
+  and `switchThread t`, t ≠ ct, not only resume). Route: (i) a post fact of `handle_invocation_refinesJ` for
+  `firstPhase = true, blocking = calling = false`: `CurRun` at the Ok outcome (decode-path by decode path, as
+  l4v: the first phase leaves only Endpoint/Notification/Reply/Untyped/IRQ/arch caps); (ii) the receive at J
+  from `CurRun ∧ ¬idle` with any action: check `JRecvIpcHyp`'s leaves (`recvIpcBlock*`, `recvIpcBound*`) —
+  ke13 already handled `cnN` (chooseNewThread) for the passive server; where `CurInv` is used, replace it by
+  the `CurInv`-free facts (CurInv is only needed under `resumeCurThread`). The receive-file signature change
+  was NOT made: replacing `hni` by sch1's JMid would bake in a premise that is false in reachable states.
+- Builds: sch2-b1 (D1, 5428 jobs), sch2-b2 `ScNextDom XTopJointSchedR` 5384 jobs OK; axioms (sch2ax.sh/axsch2.lean,
+  untracked): std only for jat_finishJ, jat_scheduleFR/SR, handle_invocation_refinesJ, fires_iff,
+  mem_fl4Awaken_of, nextDomain_eq, next_domain_eq, next_domain_words, DomListOK.start0.
