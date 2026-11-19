@@ -78,8 +78,7 @@ pub fn handle_fault<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, f: Fault) {
     let handler = t.slot(tl::SLOT_FAULT_HANDLER).cap(s);
     let can_donate = t.sc(s) != 0;
     if !send_fault_ipc(s, a, t, handler, can_donate, f) {
-        // handleNoFaultHandler: the thread stops.
-        set_fault(s, t, f);
+        // handleNoFaultHandler: the thread stops (no fault is stored).
         sched::set_thread_state(s, t, sched::TS_INACTIVE);
     }
 }
