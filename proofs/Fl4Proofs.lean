@@ -494,6 +494,7 @@ import Fl4Proofs.P3.UtCnGrow
 import Fl4Proofs.P3.UtResetZ
 import Fl4Proofs.P3.XTopJointXferB
 import Fl4Proofs.P3.UtCnAdd
+import Fl4Proofs.P3.UtResetSpecJ
 import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointSendBlockG
 import Fl4Proofs.P3.XTopJointSendCall
