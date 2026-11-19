@@ -34,7 +34,9 @@ against the spec's, from `JAtZ` at the invocation to `JAt` after.
   `bufCover`, `bufPlaced` [J].
 * `sendLeafJ`: the restart, then `sendXferJ`: `send_ipc` at `J` where
   nothing happens (a non-blocking send to an endpoint without receivers),
-  the blocking send and the send to a receiver named (`JSendRestHyp` [W]).
+  the blocking send (XTopJointSendBlock's `JAtZ.sendBlockJ`; the caller in
+  no ready queue, JEntryAt's `ctnq` [J]), the send to a receiver named
+  (`JSendRestHyp` [W]).
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.ScSignalJ
@@ -48,6 +50,7 @@ import Fl4Proofs.P3.XTopJointSwitch
 import Fl4Proofs.P3.XTopJointRunPost
 import Fl4Proofs.P3.XTopJointUnblock
 import Fl4Proofs.P3.XTopJointFaultReply
+import Fl4Proofs.P3.XTopJointSendBlock
 import Fl4Proofs.P3.AllDom
 open Aeneas Aeneas.Std Result
 
@@ -1341,50 +1344,55 @@ theorem replyLeafJ (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.
 
 
 variable (arI) in
-/-- **[W] The endpoint cap's `send_ipc` at `J` where it blocks or meets a
-receiver** (`sendLeafJ`): after the caller's restart (`s1`, `σ1`), a
-blocking send, or one to an endpoint with receivers, ends at `JAt` with an
-outcome of the spec's `send_ipc`. The restart and a non-blocking send to an
-endpoint without receivers (nothing happens, `send_ipc_noblock`) are proved.
-What is left has an `IRel` proof (IpcLeaves's `send_ipc_top`: the block,
-`send_ipc_blockI`; the receiver's dequeue, `do_ipc_transfer`, the reply
-push or the caller's block, the SC donation and the switch,
-`send_ipc_recvG` / `send_ipc_callX_gen`, `SendRest`) but no J frame. l4v:
-`send_ipc_invs` / `send_ipc_corres`. -/
+/-- **[W] The endpoint cap's `send_ipc` at `J` where it meets a receiver**
+(`sendLeafJ`): after the caller's restart (`s1`, `σ1`), a send to an
+endpoint with receivers ends at `JAt` with an outcome of the spec's
+`send_ipc`. The restart, a non-blocking send to an endpoint without
+receivers (nothing happens, `send_ipc_noblock`) and the blocking send to one
+(XTopJointSendBlock's `JAtZ.sendBlockJ`) are proved. What is left has an
+`IRel` proof (IpcLeaves's `send_ipc_top`: the receiver's dequeue,
+`do_ipc_transfer`, the reply push or the caller's block, the SC donation and
+the switch, `send_ipc_recvG` / `send_ipc_callX_gen`, `SendRest`) but no J
+frame. l4v: `send_ipc_invs` / `send_ipc_corres`. -/
 def JSendRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit)
     (blk call : Bool) (b : U64) (g gr don : Bool) (ct p : U64) : Prop :=
-  ∀ x : Fl4Spec.Endpoint, σ1.kheap p.bv = some (.endpoint x) → (blk = true ∨ ¬ CanBlock false x) →
+  ∀ x : Fl4Spec.Endpoint, σ1.kheap p.bv = some (.endpoint x) → ¬ CanBlock false x →
     endpoint.send_ipc st arI s1 ar blk call b g gr don ct p ⦃ r =>
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don ct.bv p.bv σ1).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄
 
 set_option maxHeartbeats 4000000 in
-/-- **`send_ipc` at `J`** but for `JSendRestHyp` (a non-blocking send to an
-endpoint without receivers: nothing happens on either side). -/
+/-- **`send_ipc` at `J`** but for `JSendRestHyp`: a non-blocking send to an
+endpoint without receivers (nothing happens on either side), or a blocking
+one (`hblk`, from `JAtZ.sendBlockJ` in `sendLeafJ`). -/
 theorem sendXferJ {s1 : S} {ar : A} {σ1 : Fl4Spec.State Unit}
     (J1 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 ar σ1) {ct p : U64} (hp : p ∈ Z.E)
     (blk call : Bool) (b : U64) (g gr don : Bool)
+    (hblk : ∀ x : Fl4Spec.Endpoint, σ1.kheap p.bv = some (.endpoint x) → CanBlock false x →
+      endpoint.send_ipc st arI s1 ar true call b g gr don ct p ⦃ r =>
+        ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) true call b.bv g gr don ct.bv p.bv σ1).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄)
     (hR : JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p) :
     endpoint.send_ipc st arI s1 ar blk call b g gr don ct p ⦃ r =>
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don ct.bv p.bv σ1).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   have hJ1 : JAt (L := L) arI AR s1 ar σ1 := ⟨_, _, _, _, _, _, J1⟩
   have hI := J1.xtop.irelK J1.ks J1.buf
   obtain ⟨x, hk, -⟩ := hI.1.ep p hp
-  by_cases hnb : blk = false ∧ CanBlock false x
-  · obtain ⟨rfl, hc⟩ := hnb
-    refine WP.spec_mono (send_ipc_noblock (ar := arI) s1 ar σ1 hI.1.toE hp hk hc call b g gr don ct) ?_
-    rintro r ⟨rfl, h2⟩
-    exact ⟨((), σ1), by rw [h2]; exact Set.mem_singleton _, hJ1⟩
-  refine hR x hk ?_
-  cases blk
-  · exact Or.inr fun h => hnb ⟨rfl, h⟩
-  · exact Or.inl rfl
+  by_cases hc : CanBlock false x
+  · cases blk
+    · refine WP.spec_mono (send_ipc_noblock (ar := arI) s1 ar σ1 hI.1.toE hp hk hc call b g gr don ct) ?_
+      rintro r ⟨rfl, h2⟩
+      exact ⟨((), σ1), by rw [h2]; exact Set.mem_singleton _, hJ1⟩
+    · exact hblk x hk hc
+  · exact hR x hk hc
 
 set_option maxHeartbeats 4000000 in
 /-- **The endpoint cap's leaf at `J`** but for `JSendRestHyp` (`sendXferJ`
 after the caller's restart, `JAtZ.restartJ`; the cap's endpoint in `E`,
-`JAtZ.slotE`). -/
+`JAtZ.slotE`; the blocking send by `JAtZ.sendBlockJ`: the current thread
+`Restart`, still resumed (schedulable, `ct_schedulable`), in no ready queue
+(`hnq`, JEntryAt's `ctnq`), the endpoint covered by the invoked cap,
+`JAtZ.cover_cap`, its slot kept by the restart, `restart_dstate`). -/
 theorem sendLeafJ {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (hni : Entered σ) (hnq : ∀ d q, σ.curThread ∉ σ.readyQueues d q) {ct : U64} (hct : sched.cur_thread st s = ok ct)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl) {p b : U64} {x1 x2 x3 x4 : Bool}
     (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Endpoint p b x1 x2 x3 x4))
     (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
@@ -1399,13 +1407,64 @@ theorem sendLeafJ {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L :=
       (Fl4Spec.sendIpc (Z := Unit) blk call b.bv g gr don σ1.curThread p.bv σ1) := by
   intro _
   have hpE := J.slotE hA hc
-  obtain ⟨s1, σ1', x, -, hst1, -, hcur, -, -, -, hcur1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨-, xr0, hkr, hrun0⟩ := J.curRunnable hni hct
+  obtain ⟨s1, σ1', x, -, hst1, hkx, hcur, eσ1, -, hidl, hcur1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   obtain rfl := restart_out_eq hst1 hst
+  have hrun : Fl4Spec.runnable x.tcbState = true := by rw [hkx] at hkr; cases hkr; exact hrun0
   have hc1 : σ1'.curThread = ct.bv := hcur1.trans hcur
+  -- the blocking send's premises at the restart's state
+  have hblk : ∀ xe : Fl4Spec.Endpoint, σ1'.kheap p.bv = some (.endpoint xe) → CanBlock false xe →
+      endpoint.send_ipc st arI s1 ar true call b g gr don ct p ⦃ r =>
+        ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) true call b.bv g gr don ct.bv p.bv σ1').1,
+          JAt (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+    intro xe hke hcb
+    have hS := J.xtop.fin.1.1.1
+    obtain ⟨Q, R', hcq, -⟩ := hS.lists
+    have hct' : ct = nodeW st s Z.c layout.node.CUR_THREAD := by
+      have h := sched.cur_thread.spec' (L := L) s
+      rw [hct, WP.spec_ok, hcq.cur] at h; exact h
+    have hctT : ct ∈ Z.T := hct' ▸ hcq.curT
+    set xr : Fl4Spec.Tcb := { x with tcbState := .restart }
+    have hkt1 : σ1'.kheap ct.bv = some (.tcb xr) := by
+      rw [eσ1, (stsAct_fields _ _).1]; simp [Notif.updK]
+    -- still resumed: the current thread stays schedulable
+    have hsch : Fl4Spec.schedulable ct.bv σ = true := by
+      have h := ct_schedulable (J.curInv (by rw [hni.2]; simp)) J.act J.inv (hcur ▸ hkx) hrun
+      rw [hcur] at h; exact h
+    have hsch1 : Fl4Spec.schedulable ct.bv (Notif.updK σ ct.bv (.tcb xr)) = true := by
+      rw [schedulable_updK_tcb (y := xr) (y' := x) (by rw [hrun]; rfl) rfl]
+      exact (schedulable_heap (σ := σ) (σ' := Notif.updK σ ct.bv (.tcb x))
+        (by simp only [Notif.updK_kheap]; exact Function.update_eq_self_iff.2 hkx.symm) rfl ct.bv).trans hsch
+    have hres1 : σ1'.schedulerAction = .resumeCurThread := by
+      rw [eσ1]; unfold Notif.stsAct
+      rw [if_neg (fun h => by simp [hsch1] at h)]
+      exact hni.2
+    have hti1 : σ1'.curThread ≠ σ1'.idleThread := by rw [hcur1, hidl]; exact hni.1
+    have hrq1 : σ1'.readyQueues = σ.readyQueues := by
+      rw [eσ1]; unfold Notif.stsAct; split <;> rfl
+    have hnq1 : ∀ d q, ct.bv ∉ σ1'.readyQueues d q := by
+      rw [hrq1, ← hcur]; exact hnq
+    -- the endpoint covered by the invoked cap (its slot kept by the restart)
+    have hDS : DState (L := L) Z.th s σ Z.G := ⟨J.xtop.rel.2.1, J.del, J.xtop.rel.2.2.1⟩
+    obtain ⟨s1'', -, -, hrs, -, hSS, -⟩ :=
+      restart_dstate Z.th J.xtop.rel.1 s σ Z.G hDS ct hct hcur (J.xtop.curTcb hcur).1 J.kern.act
+    obtain rfl : s1 = s1'' := eq_of_ok_eq (hs1.symm.trans hrs)
+    have hc1' : capAt (L.mem s1) (cslotAddr sl) = ok (.Endpoint p b x1 x2 x3 x4) := by
+      rw [hSS.capAt hA.isSlot]; exact hc
+    have hHe : H p = some .ep := J1.zH.2.1 p hpE
+    have hfit := J1.kern.heap.fits p _ hHe
+    simp only [P1.HKind.bits] at hfit
+    have hcov := J1.cover_cap (P1.WritesIn.refl s1 _) hA.isSlot hc1' (fun h => by cases h) (ok_inj (phys_eq _).symm) rfl
+      (range_ep p b x1 x2 x3 x4 hfit) fun k hk => by
+        rw [hHe] at hk; cases hk
+        exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
+    refine WP.spec_mono (J1.sendBlockJ hctT hkt1 rfl hc1 hres1 hti1 hnq1 hpE hke hcb hcov call b g gr don) ?_
+    rintro r ⟨-, σ', heq, V, J'⟩
+    exact ⟨((), σ'), by rw [heq]; exact Set.mem_singleton _, ⟨_, _, _, _, _, _, J'⟩⟩
   rw [hs1]
   simp only [bind_ok]
   rw [hc1]
-  refine WP.spec_bind (sendXferJ J1 hpE blk call b g gr don (hR s1 σ1' hs1 hst1)) ?_
+  refine WP.spec_bind (sendXferJ J1 hpE blk call b g gr don hblk (hR s1 σ1' hs1 hst1)) ?_
   rintro ⟨s2, a2⟩ ⟨z, hz, Z', H', Cs', Ac', Lst', D', J'⟩
   apply (WP.spec_ok _).2
   exact ⟨rfl, z, hz, J'.xtop.relTop, Z', H', Cs', Ac', Lst', D', J'⟩
