@@ -248,6 +248,21 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
   rintro ⟨s5, a5⟩ ⟨σ5, hJ5, he5, c5, i5, a5', f5⟩
   exact fin6 s5 a5 σ5 hJ5 he5 ⟨c5, i5, a5'⟩ f5
 
+/-- **A dead object joins the dead set** (`JCovD`'s `th`/`h` weakened, `dead`
+by `hd`; no other `JAtZ` field reads `D`). Toward `LiveJ.zdead` as
+"a TCB zombie's TCB is in `D`": the thread's finalisation adds it. -/
+theorem JAtZ.addDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
+    (hd : DeadP (L := L) H s p) : JAtZ (L := L) arI AR Z H Cs Ac Lst (insert p D) s a σ :=
+  { J with
+    jcov := ⟨fun q k hq => (J.jcov.th q k hq).imp_right (Or.imp_left (Set.mem_insert_of_mem p)),
+      fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left (Set.mem_insert_of_mem p)),
+      fun q hq => by
+        rcases hq with rfl | hq
+        · exact hd
+        · exact J.jcov.dead q hq,
+      J.jcov.ks, J.jcov.idleOut⟩
+    kern := { J.kern with } }
+
 /-- **`finThreadJU` from `LiveJ` at the start** (`dbgSuccCov_of_live`). -/
 theorem JAtZ.finThreadJL (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     (hticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
