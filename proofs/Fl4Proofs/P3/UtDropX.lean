@@ -190,6 +190,46 @@ theorem XTopAt.dropB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
   rw [restrictTh_out (by rw [← rgOf_iff hsb hfit t, h1]; exact hK.cur.1)]
   exact h2
 
+/-- The IPC-buffer words kept by the detype: their bytes off the region. -/
+def KBOf (p sb : U64) : U64 × Fl4Spec.Word → Prop :=
+  fun wp => ∀ i ∈ Fl4Spec.intUpto 0 7, ¬ RgOf p sb (wp.2 + (7 - BitVec.ofInt 64 i))
+
+theorem loadWordAt_off {um um' : Fl4Spec.Word → Fl4Spec.Word8} {p : Fl4Spec.Word}
+    (h : ∀ i ∈ Fl4Spec.intUpto 0 7, um' (p + (7 - BitVec.ofInt 64 i)) = um (p + (7 - BitVec.ofInt 64 i))) :
+    loadWordAt um' p = loadWordAt um p := by
+  unfold loadWordAt
+  rw [List.map_congr_left h]
+
+/-- **`XTopAt` across the drop** (stages A and B): the IPC and scheduler
+sets cut to their parts off the region (`XTopAt.keepS`, given `XKeep`), then
+the spec's detype (`XTopAt.dropB`, given `SKeep`, `VsReachMiss` [J] and the
+CSpace facts of the childless untyped cap). -/
+theorem XTopAt.drop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A} {σ σ' : Fl4Spec.State Unit}
+    {p sb : U64} (hX : XTopAt (L := L) AR Z s a σ) (hXK : XKeep st (KOff (RgOf p sb)) Z s σ)
+    (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
+    (hD : SDrop (RgOf p sb) σ σ') (hK : SKeep (RgOf p sb) σ)
+    (hcdt : σ'.cdt = σ.cdt) (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hrepr : σ'.reprogramTimer = σ.reprogramTimer) (hcdom : σ'.curDomain = σ.curDomain)
+    (hdtime : σ'.domainTime = σ.domainTime) (hist : σ'.interruptStates = σ.interruptStates)
+    (hinode : σ'.interruptIrqNode = σ.interruptIrqNode) (harch : σ'.archState = σ.archState)
+    (hdl : σ'.domainList = σ.domainList) (hdsi : σ'.domainStartIndex = σ.domainStartIndex)
+    (hum : ∀ x, ¬ RgOf p sb x → σ'.machineState.underlyingMemory x = σ.machineState.underlyingMemory x)
+    (hU : UtInv (L.mem s) Z.G) {x fi : U64} {dev : Bool} (hx : x ∈ Z.G.chains.flatten)
+    (hcx : capV (L.mem s) x = .Untyped p sb fi dev) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    (hN : NoStraddle Z.th p.val (p.val + 2 ^ sb.val))
+    (hns : ∀ a ∈ Z.G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
+    {XP X4 X3 X2 X1 : Set U64} (hXP : XP ⊆ Z.P) (hX4 : X4 ⊆ Z.L4) (hX3 : X3 ⊆ Z.L3) (hX2 : X2 ⊆ Z.L2)
+    (hX1 : X1 ⊆ Z.L1) (hM : VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s) XP X4 X3 X2 X1) :
+    XTopAt (L := L) AR ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s a σ' := by
+  have hX1' := hX.keepS (KB := KBOf p sb) hXK
+  have hin : ∀ q : U64, p.val ≤ q.val → q.val < p.val + 2 ^ sb.val → RgOf p sb q.bv := fun q h1 h2 =>
+    (rgOf_iff hsb hfit q).2 ⟨h1, h2⟩
+  exact (hX1'.dropB hsb hfit hD hK hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi
+    (fun wp hw => loadWordAt_off fun i hi => hum _ (hw.2 i hi))
+    (fun q h1 h2 => ⟨fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2),
+      fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2)⟩)
+    hU hx hcx hnd hN hns hXP hX4 hX3 hX2 hX1 hM).1
+
 end
 
 end
