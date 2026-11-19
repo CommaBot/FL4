@@ -444,6 +444,7 @@ import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.XTopJointReplyTail
 import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointFaultEp
+import Fl4Proofs.P3.XTopJointFaultRecv
 import Fl4Proofs.P3.XTopJointReadRegs
 import Fl4Proofs.P3.XTopJointTcbMisc
 import Fl4Proofs.P3.XTopJointTcbSched

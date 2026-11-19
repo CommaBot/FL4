@@ -72,6 +72,7 @@ import Fl4Proofs.P3.FrontEndExtra
 import Fl4Proofs.P3.FrontEndLabel
 import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointFaultEp
+import Fl4Proofs.P3.XTopJointFaultRecv
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -920,21 +921,23 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   atE : JEntryAt (L := L) arI AR Z s ar σ
   /-- [W] the fault handler at `JAt` for a failed cap lookup, narrowed to an
   endpoint cap in the faulting thread's fault-handler slot whose endpoint has
-  a waiting receiver (XTopJointFaultEp's `FaultEpRecvHyp`: `set_fault` then
-  `send_ipc` to the receiver, the par/sendj line). An idle or sending handler
-  endpoint is proved (`JAtZ.faultBlockJ`, `faultEpJ`), a null handler too
+  a waiting receiver with an IPC buffer (XTopJointFaultRecv's `FaultEpBufHyp`:
+  `set_fault` then `send_ipc` to the receiver, whose fault transfer writes the
+  receive buffer; the par/sendj line's receive-buffer gap). A receiver without
+  a buffer is proved (`JAtZ.faultRecvJ`, `faultEpJ2`), an idle or sending
+  handler endpoint too (`JAtZ.faultBlockJ`), a null handler too
   (XTopJointNoFault's `JAtZ.noFaultJ`; FL4 stores no fault there, as seL4's
   `handleNoFaultHandler`), any other cap is excluded by `JEntryAt.vfh`
   (`faultHypJ`). -/
   lookupFault : blocking = true → ∀ lf lf', LookupFaultRel lf lf' →
-    FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct (.Cap cptr false lf)
+    FaultEpBufHyp (L := L) (arI := arI) AR s σ ct (.Cap cptr false lf)
       (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) false lf')
   /-- [W] the fault handler at `JAt` when the extra caps' lookup fails and the
-  handler endpoint has a waiting receiver (`FaultEpRecvHyp`,
+  handler endpoint has a waiting receiver with an IPC buffer (`FaultEpBufHyp`,
   as `lookupFault`; both lookups succeed or fault with the same cap fault by
   FrontEndExtra's `JAtZ.extraJ`). -/
   extraLookup : ∀ f f', r2 = .Err f → er = .error f' → blocking = true →
-    FaultEpRecvHyp (L := L) (arI := arI) AR s σ ct f f'
+    FaultEpBufHyp (L := L) (arI := arI) AR s σ ct f f'
   /-- Per cap, its decode path (`JPath`). -/
   path : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
@@ -977,10 +980,12 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     ((J.extraJ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) (hH.glob.bufCover Z s ar σ rfl J.xtop) hct hinfo hmi hbuf
       hbuffer hr2 her).imp id fun ⟨f, f', h1, h2, hcf⟩ => ⟨f, f', h1, h2, fun hb =>
       faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh f f'
-        (faultEpJ s σ hH.atE.ni hct hH.atE.ctnq hcf (hH.extraLookup f f' h1 h2 hb))⟩)
+        (faultEpJ2 hH.glob.tot s σ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) hH.atE.ni hct hH.atE.ctnq hcf
+          (hH.extraLookup f f' h1 h2 hb))⟩)
     (argsU.map UScalar.bv) hmrs
     (fun hb lf lf' hl => faultHypJ (arI := arI) (AR := AR) s σ hH.atE.ni hct (fun _ => hH.atE.ctnq) hH.atE.vfh _ _
-      (faultEpJ s σ hH.atE.ni hct hH.atE.ctnq (capFaultCorr_lookup cptr hl) (hH.lookupFault hb lf lf' hl)))
+      (faultEpJ2 hH.glob.tot s σ (hH.glob.ipcBufOK Z s ar σ rfl J.xtop) hH.atE.ni hct hH.atE.ctnq
+        (capFaultCorr_lookup cptr hl) (hH.lookupFault hb lf lf' hl)))
     (fun s1 a1 σ' _ ⟨_, _, _, _, _, _, J'⟩ hc => J'.flTailJ hc is_call)
     (fun a1 e e' ⟨_, _, _, _, _, _, J''⟩ he =>
       (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
