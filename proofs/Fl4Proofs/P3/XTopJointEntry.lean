@@ -300,6 +300,10 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   own fields tagged there; `live` (`LiveJ` [J]) is also used by the IO port
   and Thread decodes). -/
   delParts : JDelParts (L := L) arI AR th
+  /-- [J] XTopJointFinVs's `JVsTabHyp`: a mapped PT/PD/PDPT cap's table in
+  its set (the VSpace decodes' `VsCapsIn`, with the proved `JAtZ.vsc`; not
+  yet true after a drop prunes an unreachable mapped table, see there). -/
+  vsTab : JVsTabHyp (L := L) arI AR th
   /-- [P] one domain. -/
   nd : Fl4Spec.numDomains = 1
   /-- [P] the preemption point's platform (`PPPlat`). -/
@@ -838,7 +842,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       (fun h _ _ hc => (J.scCtlExtra arI (hxS h) hc).2.2) (cslotAddr sl) blk call don fp ci sl
       buffer hN.arch (hN.rest H Cs Ac Lst D J)).toP arI hPre
   case PageTable ptr mp asid va =>
-    have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
+    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
@@ -847,7 +851,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_page_tableJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length
       buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case PageDirectory ptr mp asid va =>
-    have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
+    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
@@ -856,7 +860,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact (decode_invocation_page_directoryJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO
       length buf ct hct argsU hlen hargs hth0 rfl hc extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toP arI hPre
   case Pdpt ptr mp asid va =>
-    have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
+    have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
     obtain ⟨sl1, idxs⟩ := sl
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
@@ -872,7 +876,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci
       sl excaps buffer ct := hN
     subst hLb
-    exact (decode_invocation_asid_poolJV arI s ar σ J hni (hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J) lbl lbl.bv
+    exact (decode_invocation_asid_poolJV arI s ar σ J hni (J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)) lbl lbl.bv
       (pool_label lbl) length buf ct hct ptr base extra excaps hN.native (ExtraOK.poolExtra hPl hXO) (cslotAddr sl) blk call don fp _ ci sl buffer
       hAs.isSlot hc).toP arI hPre
   case Frame p sz rt d m ep asid va =>
@@ -881,7 +885,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     · by_cases hEP : lbl = fl4_abi.label.X86PageMapEPT
       · exact hV (Or.inr hEP)
       have hF := hF rfl
-      have hVC := hG.delParts.vsCaps Z H Cs Ac Lst D s ar σ rfl J
+      have hVC := J.vsCapsIn_of (hG.vsTab Z H Cs Ac Lst D s ar σ rfl J)
       obtain ⟨sl1, idxs⟩ := sl
       obtain ⟨p0, hp0, hth0⟩ := hsl
       try simp only at hp0 hth0

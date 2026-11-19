@@ -282,6 +282,15 @@ def FinX (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap)
   SR s a σ ∧ VsRel P (L.mem s) (L.ksb s) σ ∧ PtRel L4 L3 L2 L1 (L.mem s) σ ∧ PoolsIn P L4 (L.mem s) ∧
     CurOK st th s σ
 
+/-- **The ghost form gives the slot form** (`VCapOK.toW`; a slot outside
+the tree holds the null cap). -/
+theorem VsCapsIn.slotsW {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64} {G : MdbGhost}
+    (h : VsCapsIn P L4 L3 L2 L1 m G) (hM : MdbLinks th m G) : VsSlotsW th P L4 L3 L2 L1 m := by
+  intro y hy
+  by_cases hn : capV m y = .Null
+  · rw [hn]; trivial
+  · exact (h y ((hM.members y).2 ⟨hy, _, capAt_capV m y, hn⟩)).toW
+
 /-- The context of the VSpace finalisations: the placement, `FinX` and the
 cap invariant. -/
 structure VsFinCtx (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64)
@@ -295,7 +304,9 @@ structure VsFinCtx (st : machine.Store S) [L : LawfulStore st] {A : Type} (th : 
   sd : VsSlotsDisj th P (L.ksb s)
   vp : VsPlaced P (L.ksb s)
   x : FinX st th P L4 L3 L2 L1 SR s a σ
-  vc : VsCapsIn P L4 L3 L2 L1 (L.mem s) G
+  /-- The slots' VSpace caps placed (`JAtZ.vsc`, VsCapWBase's weakened form:
+  a mapped table cap's table need not be in its set). -/
+  vc : VsSlotsW th P L4 L3 L2 L1 (L.mem s)
 
 section Ops
 variable {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
@@ -344,9 +355,9 @@ theorem fin_page_table (hH : VsPtInnerHyps st A ar L2 SR) (s : S) (a : A) (σ : 
     objects.finalise_cap st ar s a (.PageTable p mp asid va) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.PageTable p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
-  obtain ⟨hpL, -, hm⟩ := hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
+  obtain ⟨-, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -354,7 +365,7 @@ theorem fin_page_table (hH : VsPtInnerHyps st A ar L2 SR) (s : S) (a : A) (σ : 
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_page_table_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hal hpL) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hal) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -368,9 +379,9 @@ theorem fin_page_directory (hH : VsPdInnerHyps st A ar L3 SR) (s : S) (a : A) (�
     objects.finalise_cap st ar s a (.PageDirectory p mp asid va) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.PageDirectory p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
-  obtain ⟨hpL, -, hm⟩ := hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
+  obtain ⟨-, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -378,7 +389,7 @@ theorem fin_page_directory (hH : VsPdInnerHyps st A ar L3 SR) (s : S) (a : A) (�
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_page_directory_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hpL) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -392,9 +403,9 @@ theorem fin_pdpt (hH : VsPdptInnerHyps st A ar L4 SR) (s : S) (a : A) (σ : Fl4S
     objects.finalise_cap st ar s a (.Pdpt p mp asid va) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.Pdpt p mp asid va) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
-  obtain ⟨hpL, -, hm⟩ := hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
+  obtain ⟨-, -, hm⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
     exact (WP.spec_ok _).2 (fin_none hDS hc hX.x rfl (Set.mem_singleton _))
@@ -402,7 +413,7 @@ theorem fin_pdpt (hH : VsPdptInnerHyps st A ar L4 SR) (s : S) (a : A) (σ : Fl4S
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (unmap_pdpt_rel (hH.fin (W := PtWAll L4 L3 L2 L1) (s0 := s) (σ0 := σ) (fun _ h => h)) s a σ hX.pl hX.pp hX.ps
     hX.vp (fun b ⟨q, hq, i, hi, e⟩ => hX.pv b ⟨q, Or.inl hq, i, hi, e⟩) hX.x.2.2.2.1
-    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0 hpL) ?_
+    ⟨FinSR.init hX.x.1, hDS.1.1, hDS.1.2.1, hX.x.2.1, hX.x.2.2.1⟩ asid va p h0) ?_
   rintro ⟨s1, a1⟩ ⟨-, -, σ', hm, ⟨hF, hSt1, -, hR1, hPt1⟩, -⟩
   exact (WP.spec_ok _).2 (fin_unmap_after hDS hA hX hc hF hSt1 hR1 hPt1 rfl (mem_bind_nd hm (Set.mem_singleton _)))
 
@@ -417,8 +428,8 @@ theorem fin_frame [Fl4Proofs.P1.PlainStore st] (hH : VsUnmapPageHyps st A ar L3 
     objects.finalise_cap st ar s a (.Frame p sz rt d true false asid va) b false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.Frame p sz rt d true false asid va) b (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
   have h0 : asid ≠ 0#u64 := by simpa using hok.1
   simp only [objects.finalise_cap, objects.finalise_cap_object, plain_retire, bind_ok, ↓reduceIte,
     bne_iff_ne, ne_eq, h0, not_false_eq_true, not_true_eq_false, Bool.false_eq_true, ite_self]
@@ -437,8 +448,8 @@ theorem fin_pml4 (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spec.Sta
     objects.finalise_cap st ar s a (.Pml4 p mp asid) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.Pml4 p mp asid) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
   obtain ⟨-, hp0, -⟩ := hok
   cases mp
   · simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, Bool.false_eq_true, ↓reduceIte]
@@ -459,8 +470,8 @@ theorem fin_asid_pool (hH : VsHyps st A ar P th SR) (s : S) (a : A) (σ : Fl4Spe
     objects.finalise_cap st ar s a (.AsidPool p base) true false ⦃ r =>
       FinOKX (L := L) th s σ G sl (.AsidPool p base) true (FinX st th P L4 L3 L2 L1 SR) r ∧
         SlotsSame th (L.mem s) (L.mem r.2.1) ⦄ := by
-  have hok := hX.vc.at hDS.1.2.2.1 hA.isSlot hc (by simp)
-  simp only [VCapOK] at hok
+  have hok := hX.vc.at hA.isSlot hc
+  simp only [VCapW, VCapOK] at hok
   obtain ⟨⟨-, hp0⟩, hb, -⟩ := hok
   simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok, ↓reduceIte]
   refine WP.spec_bind (delete_asid_pool_rel (hH.fin (W := VsWrite P (L.ksb s)) (s0 := s) (σ0 := σ) hX.pp (fun _ h => h) hX.pv) s a σ hX.vp
@@ -589,7 +600,7 @@ cap slot written. -/
 theorem vs_fin_top [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (sl : Fl4Spec.CslotPtr) (hDS : DState (L := L) th s σ G) (hAs : AbsSlot th sl)
     (hX : FinX st th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) s a σ)
-    (hVC : VsCapsIn P L4 L3 L2 L1 (L.mem s) G)
+    (hVC : VsSlotsW th P L4 L3 L2 L1 (L.mem s))
     (cp : capability.Cap) (hc : capAt (L.mem s) (cslotAddr sl) = ok cp) (hv : IsVsFin cp) (b : Bool)
     (hw : FinWork cp b) :
     objects.finalise_cap st arI s a cp b false ⦃ r =>

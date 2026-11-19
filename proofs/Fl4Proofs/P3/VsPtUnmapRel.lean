@@ -216,7 +216,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, PdW L2 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
     (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64)
-    (hal : vaddr.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0) (hpt : pt ∈ L1) :
+    (hal : vaddr.bv &&& Fl4Spec.mask (Fl4Spec.ptTranslationBits + Fl4Spec.pageBits) = 0) :
     vspace.unmap_page_table st ar s a asid vaddr pt ⦃ r =>
       ¬ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).2 ∧
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
@@ -304,6 +304,9 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       rw [hpde] at hg
       have hun := unmapPT_match hf hsp hg
       have hptk : ∃ g, σ.kheap pt.bv = some (.archObj (.pageTable g)) := by
+        -- the matched PD entry's table is `pt`, one of `L1` (`PtRel.l2`)
+        have hpt : pt ∈ L1 := by
+          have h := hfe2; rw [hpde] at h; rw [← eT_of_eA hadrE]; exact h.2.2.2
         obtain ⟨g, hg', -⟩ := hPt.l1 pt hpt; exact ⟨g, hg'⟩
       have hstoreAt : ∀ ms, Fl4Spec.storePde (Z := Unit) (peA q (vIdx vaddr 21)).bv .invalidPDE
           { σ with machineState := ms } = ({((), updK { σ with machineState := ms } q.bv
@@ -571,7 +574,7 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         L.ksb p.1 = L.ksb s ∧ SlotFoot th (L.mem s1) (L.mem p.1) (cslotAddr (pc.bv, idx)) ∧
         KFoot σ1 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE)))) ?_ ?_
     · refine WP.spec_bind (unmap_page_table_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV2) hPI1 hU1
-        asid0 va0 ptr hA0 hVA hpL1) ?_
+        asid0 va0 ptr hA0 hVA) ?_
       rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]

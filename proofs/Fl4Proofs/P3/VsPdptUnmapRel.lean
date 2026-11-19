@@ -116,8 +116,7 @@ theorem unmap_pdpt_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, Pml4W L4 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
-    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64)
-    (hpt : pt ∈ L3) :
+    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64) :
     vspace.unmap_pdpt st ar s a asid vaddr pt ⦃ r =>
       ¬ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).2 ∧
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
@@ -420,7 +419,7 @@ theorem pdpt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
         L.ksb p.1 = L.ksb s ∧ SlotFoot th (L.mem s1) (L.mem p.1) (cslotAddr (pc.bv, idx)) ∧
         KFoot σ1 (updK σu ptr.bv (.archObj (.pdPointerTable fun _ => .invalidPDPTE)))) ?_ ?_
     · refine WP.spec_bind (unmap_pdpt_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV4) hPI1 hU1
-        asid0 va0 ptr hA0 hpL3) ?_
+        asid0 va0 ptr hA0) ?_
       rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]

@@ -154,13 +154,29 @@ of `H` in `Z.C`, so `scOut` is vacuous (`JAtZ.scOut`). -/
 theorem jVsApartHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JVsApartHyp (L := L) arI AR th :=
   fun _ _ _ _ _ _ _ _ _ _ J => ⟨J.scOut⟩
 
-/-- **Hypothesis: the VSpace cap invariant at `J`** [J] (XTopFinVs's
-`VsCapsIn` premise, l4v `valid_cap` for the arch caps, at every `JAtZ`
-state). -/
-def JVsCapsHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
+/-- A mapped page-table, page-directory or PDPT cap names a table of its
+set (what `JAtZ.vsc`'s weakened form leaves out). -/
+def MappedTabIn (L3 L2 L1 : Set U64) : capability.Cap → Prop
+  | .PageTable p true _ _ => p ∈ L1
+  | .PageDirectory p true _ _ => p ∈ L2
+  | .Pdpt p true _ _ => p ∈ L3
+  | _ => True
+
+/-- **Hypothesis: a mapped table cap's table in its set at `J`** [J] (the
+VSpace decodes' `VsCapsIn` at the entry, beyond the proved `JAtZ.vsc`; l4v
+`valid_cap`'s `typ_at` for the cap's table plus `valid_vs_lookup` for its
+mapping). It replaces `JVsCapsHyp` (every cap's placement) and is NOT YET
+TRUE in every reachable state: after an untyped reset/retype (VsDrop) a
+mapped PD or PDPT whose child lay in the dropped region is pruned from
+`L2`/`L3` while its cap still says mapped (the table was unreachable, so
+the child's unmap could not clear the entry), and the `JAtZ` sets may be
+shrunk below an unreachable mapped table. Only the Unmap decode of such a
+cap needs it (FL4's `decode_table_unmap` zeroes the table); see
+handoff/vsreach.md for the plan to prove that case. -/
+def JVsTabHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
   ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit), Z.th = th → JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ →
-      VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G
+      ∀ y, IsSlot Z.th y → MappedTabIn Z.L3 Z.L2 Z.L1 (capV (L.mem s) y)
 
 end
 
@@ -451,10 +467,10 @@ set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a native VSpace finalisation doing work** (module
 docstring; `vs_fin`'s caps: a VSpace-mapped frame, final or not, or a final
 table or pool cap): at the same sets, the dead set and P1's sets kept. From
-`VsCapsIn` and `VsApart` [J] at the state and `ArchRefines` [P]. -/
+the slots' caps placed (`JAtZ.vsc`), `VsApart` at the state (`jVsApartHyp`)
+and `ArchRefines` [P]. -/
 theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hvf : IsVsFin c)
     (hac : ∃ ac, absCap c = .archObjectCap ac) (b : Bool) (hw : FinWork c b) :
@@ -469,7 +485,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
     VsFinHyps.footN (fun _ h => Or.inl h) (fun _ h => Or.inr h) (vsFinHyps_top hA)
   refine WP.spec_mono (vs_fin hH s a σ Z.G sl hDS hAs
     ⟨hS.2.pl, hS.2.pt, hS.2.ps, hS.2.pv, hS.2.po, hS.2.vo, hS.2.sd, hS.2.vs,
-      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, hVC⟩ c hc hvf b hw) ?_
+      ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, J.vsc⟩ c hc hvf b hw) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, σ1, G1, hm, hDS1, -, -, -, ⟨hS1, hW⟩, hx1⟩, hSS⟩
   simp only at h1 h2 h3 hm hDS1 hS1 hW hx1 hSS ⊢
   obtain ⟨ac, hacE⟩ := hac
@@ -611,8 +627,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
 at a table or pool cap). -/
 theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) (Ap : VsApart (L := L) Z H Cs s)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
     (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
@@ -633,21 +648,82 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
     · intro f l e
       rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
         cases e
-  exact J.finVsJb hA hVC Ap hDS hAs hc hvf hac true hw
+  exact J.finVsJb hA Ap hDS hAs hc hvf hac true hw
 
-/-- **A VSpace cap's slot is ready** (module docstring): its frame `p`, a
-VSpace frame of the sets, holds no object of `H` but `other` ones, so every
-object in its range is dead, and the current SC is not in it. -/
-theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
+/-- **The strong placement from the weakened one** and a mapped table's
+table in its set. -/
+theorem VCapW.ok_tab {P L4 L3 L2 L1 : Set U64} {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c)
+    (ht : MappedTabIn L3 L2 L1 c) : VCapOK P L4 L3 L2 L1 c := by
+  cases c with
+  | PageTable p mp a v =>
+    obtain ⟨h1, h2⟩ := h
+    cases mp
+    · exact ⟨h1 rfl, h2⟩
+    · exact ⟨ht, h2⟩
+  | PageDirectory p mp a v =>
+    obtain ⟨h1, h2⟩ := h
+    cases mp
+    · exact ⟨h1 rfl, h2⟩
+    · exact ⟨ht, h2⟩
+  | Pdpt p mp a v =>
+    obtain ⟨h1, h2⟩ := h
+    cases mp
+    · exact ⟨h1 rfl, h2⟩
+    · exact ⟨ht, h2⟩
+  | _ => exact h
+
+/-- **`VsCapsIn` at `J`** from `JAtZ.vsc` and the mapped tables' membership
+(`JVsTabHyp`). -/
+theorem JAtZ.vsCapsIn_of {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hVC : VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    (hT : ∀ y, IsSlot Z.th y → MappedTabIn Z.L3 Z.L2 Z.L1 (capV (L.mem s) y)) :
+    VsCapsIn Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s) Z.G := fun x hx => by
+  have hs := ((J.mdbL.members x).1 hx).1
+  exact VCapW.ok_tab (J.vsc x hs) (hT x hs)
+
+/-- **A VSpace cap's slot is ready** (module docstring): a table cap's range
+meets no object of `H` but `other` ones (`JPlaced.cobj`, mapped or not, in
+the sets or not); a PML4 or pool cap's frame `p`, a VSpace frame of the sets
+(`JAtZ.vsc`), holds none either; so every object in its range is dead, and
+the current SC is not in it. -/
+theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
     {c : capability.Cap} (hcv : capV (L.mem s) x = c)
     (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
       (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b) {s' : S}
     (hcv' : capV (L.mem s') x = c) : EmptyReady (L := L) H Z.G s' x := by
   have hS := J.xtop.fin.1
-  have hok := hVC x hx
-  rw [hcv] at hok
+  have hxs : IsSlot Z.th x := ((J.mdbL.members x).1 hx).1
+  -- a cap whose range misses `H`'s live objects
+  have apartR : (∀ q k, H q = some k → (∀ z, k ≠ .other z) → q.val + 2 ^ k.bits ≤ baseF c ∨ topF c < q.val) →
+      EmptyReady (L := L) H Z.G s' x := by
+    intro hap
+    unfold EmptyReady
+    rw [hcv']
+    intro _ _
+    refine fun lo hi hlh h1 h2 => Or.inr fun q hq => ?_
+    cases hk : H q with
+    | none => exact deadP_none hk
+    | some k =>
+      by_cases ho : ∃ z, k = .other z
+      · obtain ⟨z, rfl⟩ := ho
+        exact ⟨fun e => (by rw [hk] at e; cases e), fun e => (by rw [hk] at e; cases e),
+          fun e => (by rw [hk] at e; cases e), fun e => (by rw [hk] at e; cases e),
+          fun z' e => (by rw [hk] at e; cases e)⟩
+      · have : 1 ≤ 2 ^ k.bits := Nat.one_le_two_pow
+        rcases hap q k hk (fun z e => ho ⟨z, e⟩) with e | e <;> omega
+  have hcobj : Sched.CapObjH H (Sched.idleScW (L := L) s) c := by
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have h := hJ.cobj x hxs
+    rw [hcv] at h; exact h
+  rcases hv with ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | hv
+  · exact apartR hcobj
+  · exact apartR hcobj
+  · exact apartR hcobj
+  have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 c := by
+    have h := J.vsc x hxs
+    rw [hcv] at h
+    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩ <;> exact h
   -- the cap's frame and range
   have key : ∃ p : U64, VsFr Z p ∧ baseF c = p.val ∧ topF c ≤ p.val + 4095 := by
     have rng : ∀ p : U64, p.val % 4096 = 0 → ptrF c = p → sizeF c = 12#u64 →
@@ -656,16 +732,7 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
       have := capRange (c := c) (b := 12#u64) hp hs (by decide) hf
       have e2 : topF c = p.val + 2 ^ 12 - 1 := this.2
       exact ⟨this.1, by omega⟩
-    rcases hv with ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩
-    · simp only [VCapOK] at hok
-      exact ⟨p, Or.inr (Or.inr (Or.inr (Or.inr hok.1))), rng p (hS.2.pt p (Or.inr (Or.inr (Or.inr hok.1))))
-        (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩
-    · simp only [VCapOK] at hok
-      exact ⟨p, Or.inr (Or.inr (Or.inr (Or.inl hok.1))), rng p (hS.2.pt p (Or.inr (Or.inr (Or.inl hok.1))))
-        (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩
-    · simp only [VCapOK] at hok
-      exact ⟨p, Or.inr (Or.inr (Or.inl hok.1)), rng p (hS.2.pt p (Or.inr (Or.inl hok.1)))
-        (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩
+    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩
     · simp only [VCapOK] at hok
       exact ⟨p, Or.inr (Or.inl hok.1), rng p (hS.2.pt p (Or.inl hok.1))
         (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩

@@ -319,6 +319,16 @@ theorem eT_bv (w : U64) : (eT w).bv = Fl4Spec.ptrFromPAddr (eA w).bv := by
   unfold eT Fl4Spec.ptrFromPAddr Fl4Spec.pptrBase
   rw [core.num.U64.wrapping_add_bv_eq]; rfl
 
+/-- **An entry's table is the pointer its address names** (`eT` undoes
+`wrapping_sub _ PPTR_BASE`). -/
+theorem eT_of_eA {w p : U64} (h : eA w = core.num.U64.wrapping_sub p layout.PPTR_BASE) : eT w = p := by
+  unfold eT
+  rw [h]
+  apply eq_of_bv
+  rw [core.num.U64.wrapping_add_bv_eq, core.num.U64.wrapping_sub_bv_eq]
+  unfold layout.PPTR_BASE
+  exact BitVec.sub_add_cancel _ _
+
 theorem eP_iff (w : U64) : ((w &&& 1#u64) = 0#u64) ↔ ¬ eP w := by unfold eP; exact not_not.symm
 theorem eS_iff (w : U64) : ((w &&& 128#u64) != 0#u64) = true ↔ eS w := by unfold eS; simp
 

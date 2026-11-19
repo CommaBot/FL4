@@ -118,8 +118,7 @@ theorem unmap_page_directory_rel {A : Type} {ar : machine.Arch A} {th : TypedHea
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (hPl : Placed th) (hPP : PtPlaced L4 L3 L2 L1)
     (hPS : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ SlotW th b) (hVP : VsPlaced P (L.ksb s))
     (hPV : ∀ b, PdptW L3 b → ¬ VsWrite P (L.ksb s) b) (hPI : PoolsIn P L4 (L.mem s))
-    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64)
-    (hpt : pt ∈ L2) :
+    (hU : UR st th P L4 L3 L2 L1 SR s a σ) (asid vaddr pt : U64) (h0 : asid ≠ 0#u64) :
     vspace.unmap_page_directory st ar s a asid vaddr pt ⦃ r =>
       ¬ (Fl4Spec.unmapPd (Z := Unit) asid.bv vaddr.bv pt.bv σ).2 ∧
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPd (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
@@ -207,6 +206,9 @@ theorem unmap_page_directory_rel {A : Type} {ar : machine.Arch A} {th : TypedHea
       rw [hpde] at hg
       have hun := unmapPD_match hf hsp hg
       have hptk : ∃ g, σ.kheap pt.bv = some (.archObj (.pageDirectory g)) := by
+        -- the matched PDPT entry's directory is `pt`, one of `L2` (`PtRel.l3`)
+        have hpt : pt ∈ L2 := by
+          have h := hfe2; rw [hpde] at h; rw [← eT_of_eA hadrE]; exact h.2.2.2
         obtain ⟨g, hg', -⟩ := hPt.l2 pt hpt; exact ⟨g, hg'⟩
       have hstoreAt : ∀ ms, Fl4Spec.storePdpte (Z := Unit) (peA q (vIdx vaddr 30)).bv .invalidPDPTE
           { σ with machineState := ms } = ({((), updK { σ with machineState := ms } q.bv
@@ -440,7 +442,7 @@ theorem pd_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         L.ksb p.1 = L.ksb s ∧ SlotFoot th (L.mem s1) (L.mem p.1) (cslotAddr (pc.bv, idx)) ∧
         KFoot σ1 (updK σu ptr.bv (.archObj (.pageDirectory fun _ => .invalidPDE)))) ?_ ?_
     · refine WP.spec_bind (unmap_page_directory_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV3) hPI1 hU1
-        asid0 va0 ptr hA0 hpL2) ?_
+        asid0 va0 ptr hA0) ?_
       rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]

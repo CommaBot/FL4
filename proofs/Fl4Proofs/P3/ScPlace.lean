@@ -38,7 +38,10 @@ def FrApartH (H : Heap) (c : capability.Cap) : Prop :=
 /-- **The objects of a slot's EPT or frame cap** (l4v `valid_cap` with
 `pspace_distinct`, beyond P1's `CapTyped`): an EPT cap names an `other`
 object of `H` inside its range (so a non-null table, `H` holding nothing at
-0); an EPT or frame cap's range meets no object of `H` but `other` ones (the frames
+0); an EPT, frame, page-table, page-directory or PDPT cap's range meets no
+object of `H` but `other` ones (l4v `valid_cap`'s `typ_at` with
+`pspace_distinct`; a VSpace table is an `other` object, so its cap's frame
+holds no live object even once the table left the VSpace sets; the frames
 are user memory; stated by range, not by an object at the frame's base,
 since a 4 KiB alias of a page of a large frame has no object of its own).
 An SC cap names an SC of `H` of the cap's size (l4v `valid_cap`'s
@@ -51,6 +54,9 @@ def CapObjH (H : Heap) (isc : U64) : capability.Cap → Prop
   | .Ept p lv m a va => (∃ n, H p = some (.other n) ∧ baseF (.Ept p lv m a va) ≤ p.val ∧
       p.val + 2 ^ n ≤ topF (.Ept p lv m a va) + 1) ∧ FrApartH H (.Ept p lv m a va)
   | .Frame p sz r d m ep a va => FrApartH H (.Frame p sz r d m ep a va)
+  | .PageTable p m a v => FrApartH H (.PageTable p m a v)
+  | .PageDirectory p m a v => FrApartH H (.PageDirectory p m a v)
+  | .Pdpt p m a v => FrApartH H (.Pdpt p m a v)
   | .SchedContext p sb => H p = some (.sc sb.val) ∧ p ≠ isc
   | _ => True
 
@@ -68,6 +74,18 @@ theorem capObjH_of_shape {H : Heap} {isc : U64} {c d : capability.Cap} (h : shap
     refine ⟨⟨n, h1, by rw [hb]; exact h2, by rw [ht]; exact h3⟩, fun q k hq hk => ?_⟩
     rw [hb, ht]; exact hA q k hq hk
   | Frame p sz r d' m ep a va =>
+    cases d <;> simp only [shape, reduceCtorEq] at h
+    intro q k hq hk
+    rw [hb, ht]; exact hd q k hq hk
+  | PageTable p m a v =>
+    cases d <;> simp only [shape, reduceCtorEq] at h
+    intro q k hq hk
+    rw [hb, ht]; exact hd q k hq hk
+  | PageDirectory p m a v =>
+    cases d <;> simp only [shape, reduceCtorEq] at h
+    intro q k hq hk
+    rw [hb, ht]; exact hd q k hq hk
+  | Pdpt p m a v =>
     cases d <;> simp only [shape, reduceCtorEq] at h
     intro q k hq hk
     rw [hb, ht]; exact hd q k hq hk

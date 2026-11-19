@@ -133,7 +133,7 @@ theorem xFinRest_of [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Pro
     VsFinHyps.foot (fun _ h => h.toW) (fun b h => Or.inr (Or.inr (Or.inr (Or.inl h)))) (vsFinHyps_top hA)
   refine WP.spec_mono (vs_fin hH s a σ Z.G sl hDS hAs
     ⟨hS.2.pl, hS.2.pt, hS.2.ps, hS.2.pv, hS.2.po, hS.2.vo, hS.2.sd, hS.2.vs,
-      ⟨⟨hS, P1.WritesIn.refl _ _⟩, hX.fin.2⟩, hVC⟩ c hc hv _ hw) ?_
+      ⟨⟨hS, P1.WritesIn.refl _ _⟩, hX.fin.2⟩, hVC.slotsW hDS.1.2.2.1⟩ c hc hv _ hw) ?_
   rintro r ⟨⟨h1, h2, h3, σ', G', hm, hDS', hcv, hoth, hmS, ⟨hS', hW⟩, hx'⟩, -⟩
   have hkb : L.ksb r.2.1 = L.ksb s := hW.1
   have hdom := dom_of_foot hS (Or.inr hW)

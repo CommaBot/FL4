@@ -62,6 +62,9 @@ def tyObj : capability.Cap → Bool
   | .Reply .. => true
   | .Frame .. => true
   | .Ept .. => true
+  | .PageTable .. => true
+  | .PageDirectory .. => true
+  | .Pdpt .. => true
   | _ => false
 
 theorem tyObj_of_shape {c d : capability.Cap} (h : shape c = shape d) : tyObj c = tyObj d := by
