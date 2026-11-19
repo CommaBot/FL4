@@ -27,9 +27,6 @@ theorem natToCref_tcb {i : Nat} (hi : i < tcbSlots) : Fl4Spec.natToCref 3 i = Fl
   unfold tcbSlots at hi
   interval_cases i <;> rfl
 
-/-- The spec's slot `i` of a zombie's object. -/
-abbrev zSlot (p zt : U64) (i : Nat) : Fl4Spec.CslotPtr :=
-  (p.bv, Fl4Spec.natToCref (Fl4Spec.zombieCteBits (zombieBits zt)) i)
 
 theorem cnode_radix_lt {th : TypedHeap} (hP : Placed th) {p : U64} {r : Nat} (h : th p = some (.cnode r)) : r < 60 := by
   have := hP.fits p _ h
@@ -57,6 +54,56 @@ theorem zSlot_abs {th : TypedHeap} (hP : Placed th) {p zt n : U64} (h : ZOK th p
     · show cslotAddr (p.bv, Fl4Spec.natToCref (Fl4Spec.zombieCteBits (zombieBits zt)) i) = _
       rw [hz]
       exact cslotAddr_natToCref _ zt.val i hr (by omega)
+
+/-- No object starts at a slot of another object. -/
+theorem slotOf_ne_obj {th : TypedHeap} (hP : Placed th) {p : U64} {i : Nat} (hi : IsSlotAt th p i)
+    {q : U64} {k : ObjKind} (hq : th q = some k) (hne : q ≠ p) : slotOf p i ≠ q := by
+  intro e
+  obtain ⟨kp, hkp, hs⟩ := hi.size
+  have hv := hi.val hP
+  rw [e] at hv
+  rcases hP.disj p q kp k hkp hq (Ne.symm hne) with h | h
+  · omega
+  · have : q.val ≤ p.val := by omega
+    have : i = 0 := by omega
+    subst this
+    exact hne (UScalar.eq_of_val_eq (by omega))
+
+/-- **A zombie counted down leaves its last slot null**: after deleting the
+zombie's slot `m` (`n = m + 1`), the slot is null or holds a zombie at home
+(`delete_deferred`'s post); a zombie at home at `m` names an object starting
+at a slot of the zombie's object, so it is the zombie's own object at its
+slot `0`, i.e. the zombie itself at home with count `1` (removable, not
+counted down) — or a second zombie to the same object (`DelInv.zu`). -/
+theorem zlast_null {th : TypedHeap} (hP : Placed th) {mem : U64 → U64} (hD : DelInv th mem) {x p zt n : U64}
+    (hxs : IsSlot th x) (hx : capV mem x = .Zombie p zt n) {m : Nat} (hm : m + 1 = n.val)
+    (hrm : ¬ (n.val = 1 ∧ p = x))
+    (h : capV mem (cslotAddr (zSlot p zt m)) = .Null ∨ HomeZ mem (cslotAddr (zSlot p zt m))) :
+    capV mem (cslotAddr (zSlot p zt m)) = .Null := by
+  rcases h with h | ⟨zt', n', e⟩
+  · exact h
+  exfalso
+  have hz := hD.zwf x hxs p zt n hx
+  obtain ⟨hEa, hEaddr⟩ := zSlot_abs hP hz (show m < n.val by omega)
+  have hys := hEa.isSlot
+  have hsm : IsSlotAt th p m := by
+    rcases hz with ⟨-, ht, hn⟩ | ⟨-, hc', hn⟩
+    · exact Or.inr ⟨ht, by omega⟩
+    · exact Or.inl ⟨_, hc', by omega⟩
+  have hz' := hD.zwf _ hys _ _ _ e
+  obtain ⟨k, hk⟩ : ∃ k, th (cslotAddr (zSlot p zt m)) = some k := by
+    rcases hz' with ⟨-, h1, -⟩ | ⟨-, h1, -⟩ <;> exact ⟨_, h1⟩
+  have hyv : cslotAddr (zSlot p zt m) = slotOf p m := hEaddr
+  by_cases hyp : cslotAddr (zSlot p zt m) = p
+  · by_cases hxy : x = cslotAddr (zSlot p zt m)
+    · rw [← hxy] at e
+      rw [hx] at e
+      cases e
+      have hv := hsm.val hP
+      rw [← hyv, hyp] at hv
+      exact hrm ⟨by omega, hxy.trans hyp |>.symm⟩
+    · exact hD.zu x _ hxs hys hxy p zt n _ zt' n' hx e hyp.symm
+  · rw [hyv] at hk hyp; exact slotOf_ne_obj hP hsm hk hyp rfl
 
 theorem absCap_zombie_inj {c : capability.Cap} (hc : CapWf c) {p zt n : U64} (hz : CapWf (.Zombie p zt n))
     (h : absCap c = absCap (.Zombie p zt n)) : c = .Zombie p zt n := by
@@ -298,7 +345,10 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
     (fun z hz' hzx => hoth2 z ((hM1.members z).1 hz').1 hzx) (fun z hz' => hrv2 z ((hM1.members z).1 hz').1)
   have hmS2 : MdbStep (L.mem s0) G0 (L.mem s2) G1 := hmS1.trans hrc2
   have hFI2 := hFI1.set_zombie hM1 (ksub_of_eq (nks_setCap _ _) hsc2) hx2 hoth2 hz.zf
-  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq)) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
+  have hW2 : W s2 a1 σ2 G1 := hH.zomb s1 s2 a1 σ1 σ2 G1 sl p zt n hW1 (fun q hq => hRz1 q (hx1.symm.trans hq))
+    (fun n' hq hnn => by
+      have e := hzr (by rw [← hx1, hq]; rfl)
+      rw [← hx1, hq] at e; cases e; omega) ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hF2 hsc2 hA hxn1 hx2 hz.al hoth2 hrc2
   have hcz2 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s2) y :=
     fun y hy hyx => (hcz1 y hy hyx).trans (ChgZ.of_eq (hoth2 y hy hyx))
@@ -391,7 +441,10 @@ theorem immediate_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec
       (fun z hz' hzx => hoth4 z ((hM3.members z).1 hz').1 hzx) (fun z hz' => hrv4 z ((hM3.members z).1 hz').1)
     have hmS4 : MdbStep (L.mem s0) G0 (L.mem s4) G3 := hmS3'.trans hrc4
     have hFI4 := hFI3.set_zombie hM3 (ksub_of_eq (nks_setCap _ _) hsc4) hx4 hoth4 (hFI3.zombie_alone hM3 hxs hcv3)
-    have hW4 : W s4 a3 σ4 G3 := hH.zomb s3 s4 a3 σ3 σ4 G3 sl p zt w hW3 (fun q hq => by rw [hcv3] at hq; cases hq) ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
+    have hW4 : W s4 a3 σ4 G3 := hH.zomb s3 s4 a3 σ3 σ4 G3 sl p zt w hW3 (fun q hq => by rw [hcv3] at hq; cases hq)
+      (fun _ _ _ => by
+        rw [hwv]
+        exact zlast_null hP hD3 hxs hcv3 (by omega) (fun h => hrmv (Or.inr h)) hxend) ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩
       ⟨hCR4, hD4, hFI4⟩ hF4 hsc4 hA hxn3 hx4 (by rw [hcv3]; exact capAlike_zombie_zombie) hoth4 hrc4
     have hcz4 : ∀ y, IsSlot th y → y ≠ cslotAddr sl → ChgZ (L.mem s0) (L.mem s4) y :=
       fun y hy hyx => (hcz3 y hy hyx).trans (ChgZ.of_eq (hoth4 y hy hyx))

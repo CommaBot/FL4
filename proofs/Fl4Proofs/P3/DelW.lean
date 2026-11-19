@@ -29,6 +29,10 @@ open fl4_core Classical
 
 noncomputable section
 
+/-- The spec's slot `i` of a zombie's object. -/
+abbrev zSlot (p zt : U64) (i : Nat) : Fl4Spec.CslotPtr :=
+  (p.bv, Fl4Spec.natToCref (Fl4Spec.zombieCteBits (zombieBits zt)) i)
+
 /-! ## The spec's slot edits are `CnK` -/
 
 section Spec
@@ -393,11 +397,15 @@ def FinObjHypWRcZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
         (RmOK r.1.1 (cslotAddr sl) → Rd r.2.1 r.2.2 σ' G' (cslotAddr sl)) ∧
         Rz r.2.1 r.2.2 σ' G' (cslotAddr sl) ⦄
 
-/-- **`ZombieHypW` given `Rz`** at the slot when it holds a thread cap. -/
+/-- **`ZombieHypW` given `Rz`** at the slot when it holds a thread cap, and
+given, when it counts a zombie down from `n + 1` to `n`, that the zombie's
+slot `n` (the one just deleted) is null. -/
 def ZombieHypWZ (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) : Prop :=
   ∀ (s s' : S) (a : A) (σ σ' : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr) (p zt n : U64),
     W s a σ G → (∀ q, capV (L.mem s) (cslotAddr sl) = .Thread q → Rz s a σ G (cslotAddr sl)) →
+    (∀ n', capV (L.mem s) (cslotAddr sl) = .Zombie p zt n' → n'.val = n.val + 1 →
+      capV (L.mem s) (cslotAddr (zSlot p zt n.val)) = .Null) →
     DState (L := L) th s σ G → DState (L := L) th s' σ' G → Vs.SlotFrame2 (L := L) th s s' →
     Fl4Spec.setCap (Z := Unit) (absCap (.Zombie p zt n)) sl σ = ({((), σ')}, False) → AbsSlot th sl →
     capV (L.mem s) (cslotAddr sl) ≠ .Null → capV (L.mem s') (cslotAddr sl) = .Zombie p zt n →
@@ -426,7 +434,7 @@ theorem FinObjHypWRc.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop
 
 theorem ZombieHypW.z {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop} {th : TypedHeap}
     (h : ZombieHypW (L := L) (A := A) W th) : ZombieHypWZ (L := L) (A := A) W RzT th :=
-  fun s s' a σ σ' G sl p zt n hW _ => h s s' a σ σ' G sl p zt n hW
+  fun s s' a σ σ' G sl p zt n hW _ _ => h s s' a σ σ' G sl p zt n hW
 
 /-- **`DelHypsWR` is `DelHypsWRZ` at `Rz := True`.** -/
 theorem DelHypsWR.toZ {W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
