@@ -844,3 +844,69 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   recvSendRetTJ, tmoRecvBaseJ, receiveIpc_sendPushT_eq, sendOK_split).
 - Stale docstring mentions of `JRecvSendHyp` remain in RecvSend/RecvSendF/P/RP/RD/Ret/Step, XferF, IpcRecvSendFr
   (not touched to avoid rebuilding their cones).
+
+## sch1 (branch par/sched1 in FL4-sc, on d0509548 = int/j2; items M5-M7 / 11)
+New leaf XTopJointSchedR (imported from Fl4Proofs.lean; std axioms). No premise added to existing theorems, none
+removed; JAtZ untouched.
+- DONE fccc456d (a) M7: `jat_scheduleFR` / `jat_scheduleSR`: ScFireJ's `jat_scheduleF` (same premises, proof copied)
+  with the spec outcome in the post: `∃ σ1 σ', Fires σ σ1 ∧ Fl4Spec.schedule σ1 = ({((), σ')}, False) ∧ RJ r σ' ∧
+  (∃ V' Ac' Lst' D', JAtZ (Z.mv Z.G V') … r σ') ∧ CurInv σ' ∧ CurRunW σ'` (`CurRunW σ'` is `RunW.scAndTimer`, which
+  the old proof already built for `sch_tail`). The old `jat_scheduleF/S` are left alone (FOLD LATER: derive them).
+  * The spec relation is `Fires` then `schedule`: FL4's TCB timers (`timer::fire`, l4h 0003, M8) have no spec
+    counterpart in `fl4CallKernel`. DECISION for the top statement (lead): either an Ext step (e.g.
+    `fl4Awaken := NonDet.select {σ1 | Fires σ σ1}` before `schedule`; `Fires` is defined in P3 ScAwaken over the
+    spec's `sendSignal`, so it would move to Fl4Spec/Ext) or a relational top theorem `∃ σ1, Fires σ σ1 ∧ …`.
+  * FINDING (`hd : σ.domainTime ≠ 0`, kept from `jat_scheduleF`, needed by `schedule_refinesWP`'s `SchedPreW`):
+    FALSE in reachable states right after DomainScheduleSetStart (spec `domainSetStart` sets `domainTime := 0`;
+    with `numDomains = 1` nothing else writes it; the next `schedule` takes `scheduleChooseNewThread`'s
+    `nextDomain` branch, FL4 `switch_to_thread`'s `next_domain`). It is a case hypothesis of these theorems, not a
+    global premise, but `kernel_entryJ` needs the other case: `schedule_refinesWP`/`cn_refines` (ScScheduleTop)
+    with `domainTime = 0` (FL4 `next_domain` ks words vs spec `nextDomain`: domainIndex/curDomain/domainTime/
+    reprogramTimer/workUnits; `archPrepareNextDomain` = FPU release? check). Not started.
+- DONE 06434837 (b) M5: `JAtZ.activateJ`: FL4's `sched::activate_thread` refines `activateThread` at `J` from `JAtZ` +
+  `CurRunW σ` (what `jat_scheduleFR` gives) + `hvm` [W]: `∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbState ≠
+  .runningVM`. Yield completion by `JAtZ.completeYieldJa` (FL4 re-reads `yield_to`; the spec's `completeYieldTo`
+  keeps every thread state, cur and idle: `completeYieldTo_sframe`, the SC from `YieldRel.toSc`), then
+  `JAtZ.actRestJ` (Restart: NEXT_IP := FAULT_IP via `reg_wr_irel` + `JAtZ.regWrJ`, then `JAtZ.runJ`; spec
+  `getRestartPC`/`setNextPC`/`setThreadState running`; Running/idle: no-op, spec `return ()`/
+  `archActivateIdleThread = return ()`). The spec's `NonDet.fail` branch is unreachable from `CurRunW` (`runnable`
+  = running/restart/runningVM; idle by `IdleOK`) except `RunningVM`. `hvm` justification: VT-x is outside the
+  native scope (IpcLeaves' `NativeScope`, DESIGN §9). SPEC FINDING: the ported `activateThread` has no `RunningVM`
+  branch (seL4 C `activateThread` has `case ThreadState_RunningVM:` under CONFIG_VTX, a no-op); adding
+  `| .runningVM => return ()` to Fl4Spec (a PORTING "FL4 differences" entry) would remove `hvm` here (FL4's
+  `activate_thread` does nothing for TS_RUNNING_VM). Premise is false in reachable states only when a VM runs.
+  `jat_finishJ`: FL4's `syscall::finish` = schedule ; activate_thread against `Fires` then
+  `schedule >>= activateThread` (one outcome), `RJ`/`JAtZ` after; `hvm` there is ∀ `JAt` states (same [W]);
+  `htu` [P] at every arch state.
+- NOT DONE (c) M6, FINDING: the receive after ReplyRecv / NBSendRecv / NBSendWait's invocation cannot get
+  JEntryAt's `ni : Entered σmid` – it is FALSE in reachable mid states: the invocation may leave
+  `switchThread t` (a reply/send waking a higher-priority thread: `possibleSwitchTo`) or `chooseNewThread`
+  (a blocking or self-suspending invocation; with `chooseNewThread` the current thread may be Inactive, e.g.
+  NBSendRecv on its own TCB cap's Suspend). Uses of `hni` in the receive at J (grep `hni` in XTopJointRecv*):
+  (1) `J.curInv (hni.2 ▸ …)` – needs only `action ≠ chooseNewThread`; (2) `J.curRun.run hni` – the current thread
+  runnable; (3) `Or.inl hni.2` – an `action = resume ∨ …` disjunct of the block lemmas (`recvIpcBlock*`,
+  `recvIpcBound*`: check whether `switchThread t` with `t ≠ ct` is admissible there, as for `cnN` in ke13);
+  (4) `hni.1` – not idle (kept: the invocation keeps `curThread`, `hPK`, and idleness). Route: replace `hni` in
+  `handle_recvJ` / `dispatch_recvJ*` / the leaves by `JMid σ := σ.curThread ≠ σ.idleThread ∧ σ.schedulerAction ≠
+  .chooseNewThread ∧ CurRun σ ∧ (∀ t, σ.schedulerAction = .switchThread t → t ≠ σ.curThread)` (l4v:
+  `ct_active`, `scheduler_act_sane`), and separately prove the chooseNewThread / non-runnable mid case (the
+  spec's receive from an inactive or blocked current thread; l4v proves `handle_recv` from `ct_active` only, so
+  check what l4v's `handle_event` ReplyRecv proof assumes after `handle_invocation` before naming anything).
+  `ctnq` (no ready queue holds ct: `possibleSwitchTo` enqueues only other threads) and `vfh` (only TCB installs
+  write the fault handler, after `valid_fault_handler`) are true at the mid state but need a post fact of
+  `handle_invocation_refinesJ` (per decode path) or a separate invariant beside `JAtZ`; `cnf` likewise (a lookup
+  fault in the invocation leaves ct faulted and blocked: then (2) fails too). Nothing proved for (c).
+- kernel_entryJ statement plan (no proof): for `c` a native syscall (Send/NBSend/Call/Recv*/Yield/ReplyRecv/
+  NBSendRecv/NBSendWait, M2 excluded),
+  `syscall.handle_syscall st arI s a n ⦃ r => ∃ σ1 σ2 σ', (fl4SyscallFaultIP-then-handleE part) σ = … σ1 ∧
+  Fires σ1 σ2 ∧ (schedule >>= activateThread) σ2 = {σ'} ∧ RJ r σ' ⦄` from `JAtZ` + `Entered` + `CurInv` +
+  `OffReady` + `σ.domainTime ≠ 0` (until the next_domain case is proved), against
+  `fl4KernelEntrySyscall true c` (M1 (a)) once the `Fires` decision above is taken (then literally
+  `(fl4KernelEntrySyscall true c σ).1 ∋ ((), σ')` with the Ext timer step). Pieces: M1 FAULT_IP write at J
+  (`JAtZ.regWrJ` + `reg_wr_irel`, as in `actRestJ`); `budgetOkJ`/`budgetOkF` (kp2/kp4; endpoint timeout handler
+  open); `dispatch_invokeJE`/`dispatch_recvJL`/`dispatch_yieldJ`; preemption (`hPre`, item 7, open);
+  ReplyRecv's receive at the mid state (M6, open); `jat_finishJ` from any `RJ` post: needs `CurRunW`-free
+  inputs: `jat_scheduleFR` takes only `JAtZ` + `hd` (+ globals), so the RJ of each branch suffices.
+- Builds: sch1-b1 (5380 jobs) / sch1-b5 / sch1-b7 `lake build Fl4Proofs.P3.XTopJointSchedR` OK; axioms
+  (axsch1.sh/axsch1.lean, untracked): std only for jat_scheduleFR/SR, JAtZ.activateJ, JAtZ.actRestJ,
+  activateThread_eq, jat_finishJ, handle_invocation_refinesJ.
