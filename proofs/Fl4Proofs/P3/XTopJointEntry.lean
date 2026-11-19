@@ -25,7 +25,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
   empty result) and `JAtZ.replyFailJ` (the error reply with the debug word,
   so the top theorem is against `fl4HandleInvocationR true`, FL4's
   `KERNEL_INVOCATION_REPORT_ERROR_IPC`), from `JEntryGlob`'s buffer facts
-  and `PerfCurKeep` [J].
+  and `PerfCurKeep` (proved: SpecPerfCur's `perfCurKeep`).
 * The premises, by scope (`JEntryHyps` bundles them):
   - `JEntryGlob`: platform [P] and ∀-state facts at the typed heap [J]/[W];
   - `JEntryAt`: facts at the entry state [J];
@@ -50,6 +50,7 @@ import Fl4Proofs.P3.ScJointUnbind
 import Fl4Proofs.P3.ScJointConsumed
 import Fl4Proofs.P3.ScJointYield
 import Fl4Proofs.P3.XTopJointReplyTail
+import Fl4Proofs.P3.SpecPerfCur
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -262,18 +263,6 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **An invocation keeps the current thread** [J] (spec-only: the spec
-changes `curThread` only in `switchToThread`/`switchToIdleThread`, reached
-from `schedule` alone, never from `fl4PerformInvocation`; l4v:
-`perform_invocation` leaves `cur_thread` alone, used by `handle_invocation`'s
-`set_thread_state Running thread` and Syscall_AI's `pinv_tcb`). FL4's success
-tail (`flTail`) writes the reply registers of the invoker, so the spec's
-invoker must still be a TCB related at `J` (`JAtZ.flTailJ` from the current
-thread). -/
-def PerfCurKeep : Prop :=
-  ∀ (blk call don : Bool) (inv : Fl4Spec.Fl4Invocation) (σ1 : Fl4Spec.State Unit) y,
-    y ∈ ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don inv).run σ1).1 → y.2.curThread = σ1.curThread
-
 /-- **The global premises** (platform, or ∀-state at the typed heap `th`),
 each exactly as a J decode takes it. -/
 structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
@@ -333,9 +322,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   fault and an SC (`JAtZ.xferAllJ`). -/
   maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
-  /-- [J] the invocation keeps the current thread (`PerfCurKeep`, spec-only;
-  the success tail at `J`, `JAtZ.flTailJ`). -/
-  perfCur : PerfCurKeep
 
 /-- **The premises at the entry state**, each exactly as a J decode takes it. -/
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -980,7 +966,7 @@ theorem handle_invocation_refinesJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       (J.archJ J''.xtop.fin.1.1.2.2.2.2.2.2).replyFailJ hH.glob.ipcBufOK hH.glob.bufCover hH.glob.bufPlaced hcur
         is_call e e' he)
     (fun inv σ1 y hst hy => by
-      rw [hH.glob.perfCur _ _ _ inv σ1 y hy]
+      rw [perfCurKeep _ _ _ inv σ1 y hy]
       obtain ⟨x, hk⟩ := (J.xtop.curTcb hcur).2
       rw [hcur] at hst
       have hm : ((), σ1) ∈ (Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ).1 := by
