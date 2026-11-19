@@ -11,8 +11,7 @@ per-op premise `JPostHyp` [W].
 * `JAtZ.ctTcb`: the current thread a TCB of the typed heap (`CurOK`).
 * `JVsExtra` [W]: the front end's first extra cap (VSpace's `vspace.extra`).
 * `XCap.jatR`: `XCap` at `FinXR` with `JPostHyp` at `JAt` (the frame cap's
-  `DeriveSubframe`, `GetAddress` and `TestAndClearAccessed` labels,
-  XTopJointVsMap's `decode_invocation_frameJV`).
+  `DeriveSubframe` label, XTopJointVsMap's `decode_invocation_frameJV`).
 * `decode_invocation_asid_controlJ`: `MakePool`, the RAM untyped caps apart
   from the kernel-state block from `JCovD.ks` (`UtKsOut`); `MpPlacedHyp`
   and the childless untyped's region facts (`JMpExtra`) [J] (l4v
@@ -23,8 +22,7 @@ per-op premise `JPostHyp` [W].
   XTopJointEntry's `JPath` names them: the labels and extra caps [W], the
   frame's `hno` [J] (l4v `valid_cap`/`cap_range` disjointness), the pool's
   extra cap native ([scope]: guest-root assignment, DESIGN §9); `JPostHyp`
-  only in `JFramePath` (narrowed to `DeriveSubframe`, `GetAddress`,
-  `TestAndClearAccessed`) and `JAsidCPath`.
+  only in `JFramePath` (narrowed to `DeriveSubframe`) and `JAsidCPath`.
 -/
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
@@ -193,7 +191,7 @@ structure JPoolPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : 
 
 /-- The native frame path: the labels and extra cap [W], `hno` [J] (l4v
 `valid_cap`: a large frame's range against the other frame caps'),
-`JPostHyp` [W] for `DeriveSubframe`, `GetAddress` and `TestAndClearAccessed`. -/
+`JPostHyp` [W] for `DeriveSubframe`. -/
 structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (p : U64) (sz : capability.FrameSize) (rt : U64) (d m : Bool) (asid va : U64)
     (blk call don fp : Bool) (buf : U64)
@@ -207,10 +205,10 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
     Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x)
   ex : JVsExtra (L := L) Z s extra excaps
-  /-- [W] narrowed to `DeriveSubframe`, `GetAddress` and `TestAndClearAccessed`
-  (Map and Unmap at `J`: XTopJointVsMap's `decode_invocation_frameJV`). -/
-  post : lbl = fl4_abi.label.X86PageDeriveSubframe ∨ lbl = fl4_abi.label.X86PageGetAddress ∨
-    lbl = fl4_abi.label.X86PageTestAndClearAccessed →
+  /-- [W] narrowed to `DeriveSubframe` (Map and Unmap at `J`: XTopJointVsMap's
+  `decode_invocation_frameJV`; GetAddress and TestAndClearAccessed: XTopJointVsReply's
+  `decode_invocation_frameJR`). -/
+  post : lbl = fl4_abi.label.X86PageDeriveSubframe →
     JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Frame p sz rt d m false asid va) blk call don fp
       buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
