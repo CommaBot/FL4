@@ -9,7 +9,7 @@ use core::ffi::c_void;
 #[cfg(target_arch = "aarch64")]
 use fl4_bootinfo::elf::{self, Layout};
 #[cfg(target_arch = "aarch64")]
-use fl4_bootinfo::{mem, BootInfo, MemRegion, Module, RootTask, KERNEL_VBASE, LOAD_TOP, MAGIC, USER_END, VERSION};
+use fl4_bootinfo::{BootInfo, Module, RootTask, KERNEL_VBASE, LOAD_TOP, MAGIC, USER_END, VERSION};
 
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
@@ -183,6 +183,8 @@ macro_rules! say {
     }};
 }
 
+#[cfg(target_arch = "aarch64")]
+mod efi_mmap;
 #[cfg(target_arch = "x86_64")]
 mod gop;
 #[cfg(target_arch = "x86_64")]
@@ -243,6 +245,7 @@ fn rd16(b: &[u8], o: usize) -> u64 {
     u16::from_le_bytes([b[o], b[o + 1]]) as u64
 }
 
+#[cfg(target_arch = "x86_64")]
 fn rd32(b: &[u8], o: usize) -> u64 {
     u32::from_le_bytes(b[o..o + 4].try_into().unwrap()) as u64
 }
@@ -442,17 +445,6 @@ unsafe fn enter(entry: u64, arg: u64) -> ! {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn mem_kind(ty: u32) -> u32 {
-    match ty {
-        // Loader code/data, boot services code/data, conventional.
-        1 | 2 | 3 | 4 | 7 => mem::FREE,
-        // Runtime services, ACPI reclaim and NVS, persistent memory.
-        5 | 6 | 9 | 10 | 14 => mem::FIRMWARE,
-        _ => mem::OTHER,
-    }
-}
-
-#[cfg(target_arch = "aarch64")]
 #[doc(hidden)]
 pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     unsafe { ST = system };
@@ -568,9 +560,17 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     let mut tries = 0;
     loop {
         size = cap;
-        if (bs().get_memory_map)(&mut size, buf as *mut u8, &mut key, &mut dsize, &mut dver) != SUCCESS {
+        if (bs().get_memory_map)(&mut size, buf as *mut u8, &mut key, &mut dsize, &mut dver) != SUCCESS || size > cap {
             fail("GetMemoryMap");
         }
+        // Adjacent entries of the same kind are merged. Every entry must
+        // fit: the kernel hands out what the map leaves out as device
+        // memory. Read while the console still works.
+        let map = unsafe { core::slice::from_raw_parts(buf as *const u8, size) };
+        bi.n_mmap = match efi_mmap::regions(map, dsize, &mut bi.mmap) {
+            Some(n) => n as u64,
+            None => fail("invalid EFI memory map (descriptor size, an entry past 2^64, or too many entries)"),
+        };
         if (bs().exit_boot_services)(image, key) == SUCCESS {
             break;
         }
@@ -580,35 +580,6 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
         }
     }
     // No boot services from here on.
-    // Adjacent entries of the same kind are merged. Every entry must fit:
-    // the kernel hands out what the map leaves out as device memory.
-    let mut n = 0;
-    let mut off = 0;
-    while off + dsize <= size {
-        let d = unsafe { core::slice::from_raw_parts((buf + off as u64) as *const u8, dsize) };
-        let ty = rd32(d, 0) as u32;
-        let base = rd64(d, 8);
-        let pages = rd64(d, 24);
-        let attr = rd64(d, 32);
-        let e = MemRegion { base, len: pages * PAGE, kind: mem_kind(ty), cacheable: (attr & 8 != 0) as u32 };
-        off += dsize;
-        if n > 0 {
-            let p = &mut bi.mmap[n - 1];
-            if p.kind == e.kind && p.cacheable == e.cacheable && p.base + p.len == e.base {
-                p.len += e.len;
-                continue;
-            }
-        }
-        if n == fl4_bootinfo::MAX_MMAP {
-            // Boot services are gone: no console to say why.
-            loop {
-                unsafe { asm!("wfi") };
-            }
-        }
-        bi.mmap[n] = e;
-        n += 1;
-    }
-    bi.n_mmap = n as u64;
     clean(region, region_len);
     clean(bi.root.p_start, bi.root.p_end - bi.root.p_start);
     for i in 0..bi.n_modules as usize {

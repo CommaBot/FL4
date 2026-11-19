@@ -71,6 +71,8 @@ mod bootmem;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/hw.rs"]
 mod hw;
+#[path = "../../crates/fl4-efi/src/efi_mmap.rs"]
+mod efi_mmap;
 
 // ---- GIC ---------------------------------------------------------------------
 
@@ -426,6 +428,62 @@ fn the_consoles_kept_pages_are_the_ones_it_maps() {
         assert_eq!(bootmem::pages_covering(base, base + 0x1000), (pa, pa + size), "{base:#x}");
     }
     assert_eq!(bootmem::pages_covering(0x900_0800, 0x900_1800), (0x900_0000, 0x900_2000));
+}
+
+/// One EFI memory descriptor of `stride` bytes.
+fn efi_desc(stride: usize, ty: u32, base: u64, pages: u64, attr: u64) -> Vec<u8> {
+    let mut d = vec![0u8; stride];
+    d[0..4].copy_from_slice(&ty.to_le_bytes());
+    d[8..16].copy_from_slice(&base.to_le_bytes());
+    d[24..32].copy_from_slice(&pages.to_le_bytes());
+    d[32..40].copy_from_slice(&attr.to_le_bytes());
+    d
+}
+
+/// Audit r7 F4: the AArch64 loader takes only a map of whole descriptors
+/// (stride at least 40 bytes, size a multiple of it, as the x86_64 loader
+/// requires), and no descriptor whose size or end passes 2^64: a wrapped
+/// length would shrink a RAM region and the kernel would hand the rest out
+/// as device memory. Before, stride 0 or below 40 read past the
+/// descriptor, and `pages * PAGE` wrapped.
+#[test]
+fn the_efi_memory_map_is_whole_and_never_wraps() {
+    use fl4_bootinfo::{mem, MemRegion};
+    let mut out = [MemRegion::default(); 4];
+    let wb = 8;
+    // Merged: two FREE kinds back to back, then firmware memory.
+    let mut map = efi_desc(48, 7, 0x4000_0000, 0x100, wb);
+    map.extend(efi_desc(48, 4, 0x4010_0000, 0x10, wb));
+    map.extend(efi_desc(48, 5, 0x4011_0000, 1, wb));
+    assert_eq!(efi_mmap::regions(&map, 48, &mut out), Some(2));
+    assert_eq!((out[0].base, out[0].len, out[0].kind, out[0].cacheable), (0x4000_0000, 0x110_000, mem::FREE, 1));
+    assert_eq!((out[1].base, out[1].len, out[1].kind), (0x4011_0000, 0x1000, mem::FIRMWARE));
+    // Not contiguous, or not of one cacheability: not merged.
+    let mut map = efi_desc(40, 7, 0x4000_0000, 1, wb);
+    map.extend(efi_desc(40, 7, 0x4000_2000, 1, wb));
+    map.extend(efi_desc(40, 7, 0x4000_3000, 1, 0));
+    assert_eq!(efi_mmap::regions(&map, 40, &mut out), Some(3));
+    // Layout: a stride of 0, below 40, or not dividing the size.
+    let one = efi_desc(48, 7, 0x4000_0000, 1, wb);
+    assert_eq!(efi_mmap::regions(&one, 0, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one[..32], 32, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one[..47], 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one, 40, &mut out), None);
+    assert_eq!(efi_mmap::regions(&[], 48, &mut out), Some(0));
+    assert!(efi_mmap::layout_ok(96, 48) && !efi_mmap::layout_ok(96, 36) && !efi_mmap::layout_ok(100, 48));
+    // Size or end past 2^64.
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, 0, 1 << 52, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, 0x1000, u64::MAX / 0x1000 + 1, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0xfff, 2, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0xfff, 1, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0x1fff, 1, wb), 48, &mut out), Some(1));
+    // More regions than the record holds.
+    let mut map = vec![];
+    for i in 0..5u64 {
+        map.extend(efi_desc(40, 7, i * 0x2000, 1, wb));
+    }
+    assert_eq!(efi_mmap::regions(&map, 40, &mut out), None);
+    assert_eq!(efi_mmap::regions(&map[..160], 40, &mut out), Some(4));
 }
 
 #[test]
