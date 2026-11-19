@@ -4,8 +4,13 @@ P3 (DESIGN.md §9), CSpace: **FL4's `finalise_slot_immediate` refines l4v's
 round finalises the cap; a zombie that is not removable deletes its last
 slot (`delete_deferred`, l4v `reduce_zombie slot True`: `cte_delete
 end_slot False`) and, if the slot still holds it, counts down; then the
-preemption point. The rounds are bounded: `psiD` does not grow, and the
-zombie's count goes down, or `psiD` does.
+preemption point. The rounds are bounded by a measure of the slot alone
+(`muI`, at most `2K + 2` for `K` bounding the CNode sizes): a round turns a
+cap into a zombie, counts the zombie down, or (when the deletion of the
+last slot swapped another zombie in) leaves the slot empty or with a zombie
+at home, and only when the zombie there was not at home. So the fuel the
+loop needs is linear in the CNode sizes; `psiD` (at most twice the number
+of slots) bounds the inner deferred deletions' fuel.
 -/
 import Fl4Proofs.P3.DelDelete
 open Aeneas Aeneas.Std Result
@@ -116,10 +121,19 @@ theorem ChgZ.of_fin {m0 m1 : U64 → U64} {y : U64}
   · exact Or.inl e
   · exact Or.inr (Or.inl e)
 
+/-- The measure of the immediate loop at the slot `x`: nothing for an empty
+slot, the count of a zombie at home, `K + 1` plus the count of a zombie
+elsewhere, `2K + 2` for any other cap. -/
+def muI (K : Nat) (mem : U64 → U64) (x : U64) : Nat :=
+  match capV mem x with
+  | .Null => 0
+  | .Zombie p _ n => if p = x then n.val else K + 1 + n.val
+  | _ => 2 * K + 2
+
 def ImmInv (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (K : Nat) (th : TypedHeap) (sl : Fl4Spec.CslotPtr) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
     (x : S × A × U64) : Prop :=
   ∃ σ G, DState (L := L) th x.1 σ G ∧
-    psiD (L.mem x.1) G * (K + 1) + nuX K (L.mem x.1) (cslotAddr sl) < x.2.2.val ∧
+    muI K (L.mem x.1) (cslotAddr sl) < x.2.2.val ∧
     (nnS G).card ≤ (nnS G0).card ∧ psiD (L.mem x.1) G ≤ psiD (L.mem s0) G0 ∧
     (capV (L.mem x.1) (cslotAddr sl) = .Null → psiD (L.mem x.1) G < psiD (L.mem s0) G0) ∧
     (∀ y, RD (.finaliseSlotCall sl true) σ y → RD (.finaliseSlotCall sl true) σ0 y) ∧
@@ -153,12 +167,66 @@ theorem nuX_le {K : Nat} {th : TypedHeap} (hK : ∀ p r, th p = some (.cnode r) 
     · exact le_trans hn (hK p _ hc)
   · exact le_refl _
 
+theorem zcount_le {K : Nat} {th : TypedHeap} (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    {mem : U64 → U64} (hD : DelInv th mem) {x : U64} (hx : IsSlot th x) {p zt n : U64}
+    (h : capV mem x = .Zombie p zt n) : n.val ≤ K := by
+  have := nuX_le hK hK6 hD hx (K := K); rwa [nuX_zombie h] at this
+
+theorem muI_zombie {K : Nat} {mem : U64 → U64} {x p zt n : U64} (h : capV mem x = .Zombie p zt n) :
+    muI K mem x = if p = x then n.val else K + 1 + n.val := by unfold muI; rw [h]
+
+theorem muI_null {K : Nat} {mem : U64 → U64} {x : U64} (h : capV mem x = .Null) : muI K mem x = 0 := by
+  unfold muI; rw [h]
+
+theorem muI_other {K : Nat} {mem : U64 → U64} {x : U64} {c : capability.Cap} (h : capV mem x = c)
+    (hn : c ≠ .Null) (hz : isZb c = false) : muI K mem x = 2 * K + 2 := by
+  unfold muI; rw [h]
+  cases c <;> first | rfl | exact absurd rfl hn | simp [isZb] at hz
+
+theorem muI_le {K : Nat} {th : TypedHeap} (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
+    {mem : U64 → U64} (hD : DelInv th mem) {x : U64} (hx : IsSlot th x) : muI K mem x ≤ 2 * K + 2 := by
+  cases hzc : isZb (capV mem x)
+  · by_cases hn : capV mem x = .Null
+    · rw [muI_null hn]; omega
+    · rw [muI_other rfl hn hzc]
+  · obtain ⟨p, zt, n, e⟩ : ∃ p zt n, capV mem x = .Zombie p zt n := by
+      cases h : capV mem x <;> rw [h] at hzc <;> simp [isZb] at hzc
+      exact ⟨_, _, _, rfl⟩
+    have := zcount_le hK hK6 hD hx e
+    rw [muI_zombie e]; split_ifs <;> omega
+
+/-- A round that counts the zombie in the slot down lowers `muI`. -/
+theorem muI_dec {K : Nat} {mem mem' : U64 → U64} {x p zt n w : U64} {c : capability.Cap}
+    (hc : capV mem x = c) (hcn : c ≠ .Null) (hzr : isZb c = true → c = .Zombie p zt n) (hnK : n.val ≤ K)
+    (hn1 : 1 ≤ n.val) (h' : capV mem' x = .Zombie p zt w) (hw : w.val = n.val - 1) :
+    muI K mem' x + 1 ≤ muI K mem x := by
+  rw [muI_zombie h', hw]
+  cases hzc : isZb c
+  · rw [muI_other hc hcn hzc]; split_ifs <;> omega
+  · rw [muI_zombie (hc.trans (hzr hzc))]; split_ifs <;> omega
+
+/-- A round after which the slot is empty or holds a zombie at home, when
+the zombie it made was not at home, lowers `muI`. -/
+theorem muI_chg {K : Nat} {mem mem' : U64 → U64} {x p zt n : U64} {c : capability.Cap}
+    (hc : capV mem x = c) (hcn : c ≠ .Null) (hzr : isZb c = true → c = .Zombie p zt n) (hpx : p ≠ x)
+    (h' : capV mem' x = .Null ∨ HomeZ mem' x)
+    (hle : ∀ p' zt' n', capV mem' x = .Zombie p' zt' n' → n'.val ≤ K) :
+    muI K mem' x + 1 ≤ muI K mem x := by
+  have h1 : muI K mem' x ≤ K := by
+    rcases h' with e | ⟨zt', n', e⟩
+    · rw [muI_null e]; omega
+    · rw [muI_zombie e, if_pos rfl]; exact hle _ _ _ e
+  cases hzc : isZb c
+  · rw [muI_other hc hcn hzc]; omega
+  · rw [muI_zombie (hc.trans (hzr hzc)), if_neg hpx]; omega
+
 /-- **FL4's immediate finalisation loop refines `finalise_slot slot True`.** -/
 theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap) (hP : Placed th)
     (hF : FinalHyp (L := L) th) (hH : DelHypsWR (L := L) arI W Wp Rd th)
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s0 : S) (σ0 : Fl4Spec.State Unit) (G0 : MdbGhost)
+    (hps0 : psiD (L.mem s0) G0 < 2 ^ 64 - 1)
     (s : S) (a : A) (fuel : U64) (hinv : ImmInv (L := L) (A := A) W K th sl s0 σ0 G0 (s, a, fuel))
     (hfuel : fuel.val ≤ 2 ^ 64 - 1) :
     cdt.finalise_slot_immediate_loop st arI s a (cslotAddr sl) fuel ⦃ res =>
@@ -216,16 +284,12 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   have hn1 : 1 ≤ n.val := by omega
   have hnrm : ¬ Fl4Spec.capRemoveable (absCap (.Zombie p zt n)) sl := fun h => hrmv (hrmS.1 h)
   have hxn1 : capV (L.mem s1) (cslotAddr sl) ≠ .Null := by rw [hx1]; exact hcn
-  -- the zombie's count bounds the round
-  have hnle : n.val ≤ nuX K (L.mem s) (cslotAddr sl) := by
-    by_cases hzc : isZb c = true
-    · rw [nuX_zombie (by rw [hcvx, hzr hzc])]
-    · have : nuX K (L.mem s) (cslotAddr sl) = K := by
-        unfold nuX; rw [hcvx]; cases c <;> simp [isZb] at hzc ⊢
-      rw [this]
-      rcases hz.zok with ⟨-, -, hn⟩ | ⟨-, hc', hn⟩
-      · unfold tcbSlots at hn; omega
-      · exact le_trans hn (hK p _ hc')
+  -- the zombie's count is within the CNode sizes
+  have hnK : n.val ≤ K := by
+    rcases hz.zok with ⟨-, -, hn⟩ | ⟨-, hc', hn⟩
+    · unfold tcbSlots at hn; omega
+    · exact le_trans hn (hK p _ hc')
+  have hzr' : isZb c = true → c = .Zombie p zt n := fun h => (hzr h).symm
   apply WP.spec_bind (WP.spec_and (set_zombie th s1 σ1 G1 hR1 hV1 hP hM1 hC1 hI1 hD1 hA hxn1 hz.wf hz.enc hz.zok
     hz.zu hz.bx hz.bf hz.h1 hz.h2 hz.home) (set_zombie_frame hP s1 hxs _))
   rintro s2 ⟨⟨σ2, hsc2, ⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hps2, hx2, hoth2, hrv2⟩, hF2⟩
@@ -248,12 +312,11 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       ok (slotAddr p.bv (core.num.U64.wrapping_sub n 1#u64).bv) from spec_eq_ok (slot_index_spec _ _), hEaddr]
     congr 2
     apply BitVec.eq_of_toNat_eq
-    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by have := n.hBounds; omega)]
+    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by have hb : n.val < 2 ^ 64 := n.hBounds; omega)]
     exact hwv
   simp only [lift, bind_ok, hidx]
-  have hmul : psiD (L.mem s) G ≤ psiD (L.mem s) G * (K + 1) := Nat.le_mul_of_pos_right _ (by omega)
   have hfuel2 : psiD (L.mem s2) G1 < 2 ^ 64 - 1 :=
-    lt_of_le_of_lt (le_trans hps2 (le_trans hps1 hmul)) (lt_of_le_of_lt (Nat.le_add_right _ _) (lt_of_lt_of_le hlt hfu))
+    lt_of_le_of_lt (le_trans hps2 (le_trans hps1 hps)) hps0
   apply WP.spec_bind (delete_deferred_refines arI W Wp Rd th hP hF hH _ hEa s2 a1 σ2 G1
     ⟨⟨hR2, hV2, hM2, hC2, hI2⟩, hD2, hFI2⟩ hW2 hfuel2)
   rintro ⟨r3, s3, a3⟩ ⟨σ3, G3, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hcd3, hps3, hch3, hsc3, hmS3, hres3, hW3⟩
@@ -292,12 +355,6 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
     · exact (hcz2 y hy hyx).trans (ChgZ.of_chgOK (hch3 y hy hye))
   simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok, slot_cap_eq, capAt_capV]
   have hps2' : psiD (L.mem s2) G1 ≤ psiD (L.mem s) G := le_trans hps2 hps1
-  have hmulle : ∀ q, q ≤ psiD (L.mem s) G → q * (K + 1) ≤ psiD (L.mem s) G * (K + 1) :=
-    fun q h => Nat.mul_le_mul_right _ h
-  have hmullt : ∀ q, q < psiD (L.mem s) G → q * (K + 1) + (K + 1) ≤ psiD (L.mem s) G * (K + 1) := by
-    intro q h
-    have := Nat.mul_le_mul_right (K + 1) (show q + 1 ≤ psiD (L.mem s) G by omega)
-    rw [Nat.add_mul, Nat.one_mul] at this; exact this
   obtain ⟨c3, ac3, hc3, hca3, hg3⟩ := hR3.abs_cap hA
   have hcv3 := capV_of_capAt hc3
   rw [hcv3]
@@ -345,11 +402,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
           show Fl4Spec.Cap.zombie p.bv (zombieBits zt) w.val = _; rw [hwv]
         rw [← this]; exact hsc4)
     rw [← hzS] at hz4
-    have hphi : psiD (L.mem s4) G3 * (K + 1) + nuX K (L.mem s4) (cslotAddr sl) + 1 ≤
-        psiD (L.mem s) G * (K + 1) + nuX K (L.mem s) (cslotAddr sl) := by
-      rw [nuX_zombie hx4, hwv]
-      have := hmulle _ (le_trans hps4 (le_trans hps3 hps2'))
-      omega
+    have hphi : muI K (L.mem s4) (cslotAddr sl) + 1 ≤ muI K (L.mem s) (cslotAddr sl) :=
+      muI_dec hcvx hcn hzr' hnK hn1 hx4 hwv
     have hnul4 : capV (L.mem s4) (cslotAddr sl) = .Null → psiD (L.mem s4) G3 < psiD (L.mem s) G :=
       fun h => by rw [hx4] at h; cases h
     have hDS4 : DState (L := L) th s4 σ4 G3 := ⟨hCR4, hD4, hFI4⟩
@@ -363,8 +417,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       fun y hy hyx => (hcz4 y hy hyx).trans (ChgZ.of_eq (hS5.capV hy))
     have hFI5 := hFI4.of_same hM4 hS5 (pp_ksub hcase)
     have hps5 := psiD_same hM4 hCR5.2.2.1 hS5
-    have hnu5 : nuX K (L.mem s5) (cslotAddr sl) = nuX K (L.mem s4) (cslotAddr sl) := by
-      unfold nuX; rw [hS5.capV hxs]
+    have hnu5 : muI K (L.mem s5) (cslotAddr sl) = muI K (L.mem s4) (cslotAddr sl) := by
+      unfold muI; rw [hS5.capV hxs]
     have hps5' : psiD (L.mem s5) G3 ≤ psiD (L.mem s0) G0 := by
       rw [hps5]; exact le_trans hps4 (le_trans hps3 (le_trans hps2' hps))
     have hnul5 : capV (L.mem s5) (cslotAddr sl) = .Null → psiD (L.mem s5) G3 < psiD (L.mem s0) G0 := by
@@ -374,8 +428,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       refine ⟨⟨⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, ?_, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, fun y hy => ?_,
         hcz5, hmS5, hW5⟩, by omega⟩,
         by omega⟩
-      · show psiD (L.mem s5) G3 * (K + 1) + nuX K (L.mem s5) (cslotAddr sl) < fuel1.val
-        rw [hps5, hnu5]; omega
+      · show muI K (L.mem s5) (cslotAddr sl) < fuel1.val
+        rw [hnu5]; omega
       · exact htr _ (rd_fin_reduce hg hcan hmem hnrm hcy' hsc2 hz4 hpm hy)
     · simp only [core.result.Result.Insts.CoreOpsTry.branch,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,
@@ -447,11 +501,9 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       by_cases he : cslotAddr sl = cslotAddr (zSlot p zt m)
       · right; rw [← he, hzx2]; rfl
       · left; exact he
-    have hphi : psiD (L.mem s3) G3 * (K + 1) + nuX K (L.mem s3) (cslotAddr sl) + 1 ≤
-        psiD (L.mem s) G * (K + 1) + nuX K (L.mem s) (cslotAddr sl) := by
-      have := hmullt _ (lt_of_lt_of_le hstr hps2')
-      have := nuX_le hK hK6 hD3 hxs (K := K)
-      omega
+    have hphi : muI K (L.mem s3) (cslotAddr sl) + 1 ≤ muI K (L.mem s) (cslotAddr sl) :=
+      muI_chg hcvx hcn hzr' hchg.2 (hchg.1.imp (fun e => by rw [hcv3, e]) id)
+        (fun _ _ _ e => zcount_le hK hK6 hD3 hxs e)
     have hps4 : psiD (L.mem s3) G3 ≤ psiD (L.mem s3) G3 := le_refl _
     have hnul4 : capV (L.mem s3) (cslotAddr sl) = .Null → psiD (L.mem s3) G3 < psiD (L.mem s) G :=
       fun _ => lt_of_lt_of_le hstr hps2'
@@ -466,8 +518,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       fun y hy hyx => (hcz3 y hy hyx).trans (ChgZ.of_eq (hS5.capV hy))
     have hFI5 := hFI3'.of_same hM3' hS5 (pp_ksub hcase)
     have hps5 := psiD_same hM3' hCR5.2.2.1 hS5
-    have hnu5 : nuX K (L.mem s5) (cslotAddr sl) = nuX K (L.mem s3) (cslotAddr sl) := by
-      unfold nuX; rw [hS5.capV hxs]
+    have hnu5 : muI K (L.mem s5) (cslotAddr sl) = muI K (L.mem s3) (cslotAddr sl) := by
+      unfold muI; rw [hS5.capV hxs]
     have hps5' : psiD (L.mem s5) G3 ≤ psiD (L.mem s0) G0 := by
       rw [hps5]; exact le_trans hps4 (le_trans hps3 (le_trans hps2' hps))
     have hnul5 : capV (L.mem s5) (cslotAddr sl) = .Null → psiD (L.mem s5) G3 < psiD (L.mem s0) G0 := by
@@ -477,8 +529,8 @@ theorem immediate_loop [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
       refine ⟨⟨⟨σ5, G3, ⟨hCR5, hD5, hFI5⟩, ?_, le_trans hcd3 (le_trans hcd1 hcd), hps5', hnul5, fun y hy => ?_,
         hcz5, hmS5, hW5⟩, by omega⟩,
         by omega⟩
-      · show psiD (L.mem s5) G3 * (K + 1) + nuX K (L.mem s5) (cslotAddr sl) < fuel1.val
-        rw [hps5, hnu5]; omega
+      · show muI K (L.mem s5) (cslotAddr sl) < fuel1.val
+        rw [hnu5]; omega
       · exact htr _ (rd_fin_reduce hg hcan hmem hnrm hcy' hsc2 hz4 hpm hy)
     · simp only [core.result.Result.Insts.CoreOpsTry.branch,
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from,

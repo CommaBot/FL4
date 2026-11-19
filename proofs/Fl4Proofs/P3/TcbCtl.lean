@@ -245,12 +245,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 def TcHyps (th : TypedHeap) : Prop :=
   FinObjHyp (L := L) arI th ∧ PPHypD (L := L) arI th ∧ PostDelHyp (L := L) arI th ∧
     ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1
 
 theorem tc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th)
     (hH : DelHypsW (L := L) arI W th)
     (hKB : ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hMO : W s a σ G)
     (t : U64) (ht : th t = some .tcb) (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot th ssl) (flags : U64)
@@ -313,7 +313,7 @@ theorem decode_timeout_eq (s : S) (ar : A) (p : U64) (c : tcb.Ctx)
 installing the timeout handler. -/
 theorem tcb_set_timeout_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th) (hH : DelHypsW (L := L) arI W th)
     (hKB : ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (p : U64) (hp : th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTimeoutEndpoint)
@@ -533,7 +533,7 @@ restart and `invoke_tcb ThreadControlCaps` installing the buffer; the
 buffer's word and the scheduler are P1's (`BufHyp`, for every address). -/
 theorem tcb_set_ipc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th) (hH : DelHypsW (L := L) arI W th)
     (hKB : ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (p : U64) (hp : th p = some .tcb) (hBuf : ∀ v : U64, BufHypW (L := L) W th p v v.bv)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetIPCBuffer)
@@ -1140,7 +1140,7 @@ handler), the restart and `invoke_tcb ThreadControlCaps` installing the
 fault handler and the roots. -/
 theorem tcb_set_space_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th) (hH : DelHypsW (L := L) arI W th)
     (hKB : ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (p : U64) (hp : th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSpace)
@@ -1435,7 +1435,7 @@ roots (`decode_cv_space`), the restart and `invoke_tcb ThreadControlCaps`
 installing the roots and the buffer. -/
 theorem tcb_configure_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : TypedHeap) (hP : Placed th) (hH : DelHypsW (L := L) arI W th)
     (hKB : ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-      ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1)
+      ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (p : U64) (hp : th p = some .tcb) (hBuf : ∀ v : U64, BufHypW (L := L) W th p v v.bv)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbConfigure)

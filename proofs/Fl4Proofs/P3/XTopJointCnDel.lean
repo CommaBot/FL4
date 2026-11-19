@@ -212,7 +212,6 @@ theorem decode_invocation_cnode_revokeJ (s : S) (ar : A) (σ : Fl4Spec.State Uni
   have hP := hX.rel.1
   have hfew : psiD (L.mem s) Z.G < 2 ^ 64 - 1 := by
     have := hDE.2.1 Z.G hM
-    have : psiD (L.mem s) Z.G ≤ psiD (L.mem s) Z.G * (K + 1) := Nat.le_mul_of_pos_right _ (by omega)
     omega
   unfold XCapP
   left

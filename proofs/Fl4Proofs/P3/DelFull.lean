@@ -4,7 +4,9 @@ P3 (DESIGN.md §9), CSpace: **FL4's `delete(slot, true)` refines l4v's
 _immediate`, then `empty_slot` with the cleanup cap, for any cap, with
 zombies, given the hypotheses of `DelRound` (`FinalHyp`, `FinObjHyp`,
 `PPHypD`, `PostDelHyp`) and a bound `K` on CNode sizes with
-`(psiD + 1) * (K + 1) < 2 ^ 64` (the fuel then suffices).
+`psiD + 2K + 2 < 2 ^ 64 - 1` (the fuel then suffices: the immediate loop
+runs at most `2K + 2` rounds (`muI`), each inner deferred deletion at most
+`psiD`).
 
 When it succeeds, the measure `psiD` is strictly smaller. The number of
 MDB slots need not be: deleting a zombie stored in its own CNode can move
@@ -29,7 +31,7 @@ theorem delete_fullWR [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hWs : W s a σ G) (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
-    (hbound : psiD (L.mem s) G * (K + 1) + K < 2 ^ 64 - 1) :
+    (hbound : psiD (L.mem s) G + 2 * K + 2 < 2 ^ 64 - 1) :
     cdt.delete st arI s a (cslotAddr sl) true ⦃ r => ∃ σ' G', DState (L := L) th r.2.1 σ' G' ∧
       psiD (L.mem r.2.1) G' ≤ psiD (L.mem s) G ∧ (nnS G').card ≤ (nnS G).card ∧
       MdbStep (L.mem s) G (L.mem r.2.1) G' ∧
@@ -41,8 +43,8 @@ theorem delete_fullWR [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
   unfold cdt.delete cdt.finalise_slot_immediate
   simp only [↓reduceIte]
   have hW : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  have hnu := nuX_le hK hK6 hDS.2.1 hA.isSlot (K := K)
-  apply WP.spec_bind (immediate_loop arI W Wp Rd th hP hF hH K hK hK6 sl hA s σ G s a layout.WALK_FUEL
+  have hnu := muI_le hK hK6 hDS.2.1 hA.isSlot (K := K) (mem := L.mem s) (x := cslotAddr sl)
+  apply WP.spec_bind (immediate_loop arI W Wp Rd th hP hF hH K hK hK6 sl hA s σ G (by omega) s a layout.WALK_FUEL
     ⟨σ, G, hDS, by simp only; rw [hW]; omega, le_refl _, le_refl _, fun h => absurd h hxn, fun _ h => h,
       fun _ _ _ => ChgZ.refl _ _, MdbStep.refl hDS.1.2.2.1, hWs⟩
     (by rw [hW]))
@@ -72,7 +74,7 @@ theorem delete_fullW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Spec.State
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hWs : W s a σ G) (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
-    (hbound : psiD (L.mem s) G * (K + 1) + K < 2 ^ 64 - 1) :
+    (hbound : psiD (L.mem s) G + 2 * K + 2 < 2 ^ 64 - 1) :
     cdt.delete st arI s a (cslotAddr sl) true ⦃ r => ∃ σ' G', DState (L := L) th r.2.1 σ' G' ∧
       psiD (L.mem r.2.1) G' ≤ psiD (L.mem s) G ∧ (nnS G').card ≤ (nnS G).card ∧
       MdbStep (L.mem s) G (L.mem r.2.1) G' ∧
@@ -90,7 +92,7 @@ theorem delete_full [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Placed t
     (K : Nat) (hK : ∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) (hK6 : 6 ≤ K)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hxn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
-    (hbound : psiD (L.mem s) G * (K + 1) + K < 2 ^ 64 - 1) :
+    (hbound : psiD (L.mem s) G + 2 * K + 2 < 2 ^ 64 - 1) :
     cdt.delete st arI s a (cslotAddr sl) true ⦃ r => ∃ σ' G', DState (L := L) th r.2.1 σ' G' ∧
       psiD (L.mem r.2.1) G' ≤ psiD (L.mem s) G ∧ (nnS G').card ≤ (nnS G).card ∧
       MdbStep (L.mem s) G (L.mem r.2.1) G' ∧
@@ -107,10 +109,37 @@ theorem psiD_links_eq {th : TypedHeap} {m : U64 → U64} {G1 G2 : MdbGhost} (h1 
     (h2 : MdbLinks th m G2) : psiD m G1 = psiD m G2 :=
   le_antisymm (psiD_le h2 h1 (fun _ _ h => h) (fun _ _ _ h => h)) (psiD_le h1 h2 (fun _ _ h => h) (fun _ _ _ h => h))
 
+/-- **A placed typed heap has fewer than `2 ^ 59` linked slots**: they are
+distinct 32-byte aligned addresses (`IsSlot.align`). -/
+theorem nnS_card_le {th : TypedHeap} (hP : Placed th) {m : U64 → U64} {G : MdbGhost} (hM : MdbLinks th m G) :
+    (nnS G).card ≤ 2 ^ 59 := by
+  have := Finset.card_le_card_of_injOn (s := nnS G) (t := Finset.range (2 ^ 59)) (fun y : U64 => y.val / 32)
+    (by
+      intro y _
+      have hb : y.val < 2 ^ 64 := y.hBounds
+      simp only [Finset.mem_coe, Finset.mem_range]
+      omega)
+    (by
+      intro y hy z hz e
+      have hy' := ((mem_nnS hM y).1 (Finset.mem_coe.1 hy)).1.align hP
+      have hz' := ((mem_nnS hM z).1 (Finset.mem_coe.1 hz)).1.align hP
+      simp only at e
+      exact UScalar.eq_of_val_eq (by omega))
+  simpa using this
+
+/-- The deletions' fuel bound from the placement alone (`psiD` is at most
+twice the number of slots, `nnS_card_le`). -/
+theorem psiD_fuel {th : TypedHeap} (hP : Placed th) {m : U64 → U64} {G : MdbGhost} (hM : MdbLinks th m G) :
+    psiD m G + 2 * 2 ^ 59 + 2 < 2 ^ 64 - 1 := by
+  have h1 := psiD_bound hM
+  have h2 := nnS_card_le hP hM
+  rw [nnS_card hM] at h2
+  omega
+
 /-- The invariant `DelHyp` needs: `DelInv`, the bound on `psiD` for the
 fuel, and `FinInv` (for any ghost of the links). -/
 def DelE (th : TypedHeap) (K : Nat) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
-  DelInv th (L.mem s) ∧ (∀ G, MdbLinks th (L.mem s) G → psiD (L.mem s) G * (K + 1) + K < 2 ^ 64 - 1) ∧
+  DelInv th (L.mem s) ∧ (∀ G, MdbLinks th (L.mem s) G → psiD (L.mem s) G + 2 * K + 2 < 2 ^ 64 - 1) ∧
     KTyped th σ ∧ ∀ G, MdbLinks th (L.mem s) G → FinM (L.mem s) G
 
 theorem MdbLinks.of_same_symm {th : TypedHeap} {m m' : U64 → U64} {G : MdbGhost} (hM : MdbLinks th m' G)
@@ -145,7 +174,6 @@ theorem delHyp_full [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Placed t
     · exact Or.inr ⟨h1, h2⟩
   · have := hB G hCR.2.2.1
     rw [psiD_links_eq hM'' hCR'.2.2.1]
-    have := Nat.mul_le_mul_right (K + 1) hps'
     omega
 
 /-- **`DelHypW` holds** for the measure `psiD` and the invariant `DelE` with
@@ -168,7 +196,6 @@ theorem delHyp_fullWR [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.S
     · exact Or.inr ⟨h1, h2⟩
   · have := hB G hCR.2.2.1
     rw [psiD_links_eq hM'' hCR'.2.2.1]
-    have := Nat.mul_le_mul_right (K + 1) hps'
     omega
 
 /-- **`DelHypW` holds** for the measure `psiD` and the invariant `DelE` with

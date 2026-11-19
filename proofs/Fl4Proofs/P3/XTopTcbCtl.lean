@@ -50,10 +50,20 @@ theorem WX.restart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A
   exact ⟨Z, rfl, rfl, hX1, by rw [hk1]; exact hKA, hTh⟩
 
 /-- The CSpace bound of the deletes (`TcHyps`' part): a bound `K` on CNode
-sizes with the fuel enough for every ghost tree of the typed heap. -/
+sizes with the fuel enough for every ghost tree of the typed heap. Linear:
+the immediate loop runs at most `2K + 2` rounds (`muI`), the deferred and
+revoke loops at most `psiD` (twice the slots). It holds of every placed
+heap (`DelBound.of_placed`, `K = 2 ^ 59`), so no reachable state lacks it. -/
 abbrev DelBound (th : TypedHeap) : Prop :=
   ∃ K : Nat, (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) ∧ 6 ≤ K ∧
-    ∀ m G, MdbLinks th m G → psiD m G * (K + 1) + K < 2 ^ 64 - 1
+    ∀ m G, MdbLinks th m G → psiD m G + 2 * K + 2 < 2 ^ 64 - 1
+
+/-- **`DelBound` of a placed typed heap**: a CNode's radix is below 60
+(`cnode_radix_lt`), and `psiD` is at most twice the slots, fewer than
+`2 ^ 59` (`psiD_fuel`). -/
+theorem DelBound.of_placed {th : TypedHeap} (hP : Placed th) : DelBound th :=
+  ⟨2 ^ 59, fun _ _ h => Nat.pow_le_pow_right (by decide) (by have := cnode_radix_lt hP h; omega),
+    by norm_num, fun _ _ hM => psiD_fuel hP hM⟩
 
 /-- **TcbXLeaves' SetTimeoutEndpoint at `XTop`.** Beyond
 `tcb_set_timeout_refines`' premises: `XTopAt` with `KsApart`, the typed

@@ -51,7 +51,6 @@ theorem cnode_revoke_full [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (s : S) 
         (res.1, res.2.1) ⦄ := by
   have hfew : psiD (L.mem s) G < 2 ^ 64 - 1 := by
     have := hDE.2.1 G hM
-    have : psiD (L.mem s) G ≤ psiD (L.mem s) G * (K + 1) := Nat.le_mul_of_pos_right _ (by omega)
     omega
   exact cnode_revoke_refines arI th s ar σ G hR hV hP hM hC slbl hlbl length buf ct hct args hlen hargs cap a hca hcv
     extra excaps hI hact hcur htcb (DelE (L := L) th K) psiD psiD_slotsSame

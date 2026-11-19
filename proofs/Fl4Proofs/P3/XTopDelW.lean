@@ -187,7 +187,6 @@ theorem decode_invocation_cnode_revokeX [Fl4Proofs.P1.PlainStore st] {AR : A →
   have hH := delHypsW_X arI hXF hXP hXD
   have hfew : psiD (L.mem s) Z.G < 2 ^ 64 - 1 := by
     have := hDE.2.1 Z.G hM
-    have : psiD (L.mem s) Z.G ≤ psiD (L.mem s) Z.G * (K + 1) := Nat.le_mul_of_pos_right _ (by omega)
     omega
   left
   unfold DecOKDMX syscall.decode_invocation
