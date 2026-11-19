@@ -31,9 +31,9 @@ some of them proved here.
   without the slot), asked only on the removable path (DelW's `RmOK`); from
   `LiveJ` [J] (`JDelParts.live`): `finJL`, `rdTrivJL`, `delete_oneJ`.
 * Named premises [J] (`JDelParts`), each one step of the loop at `WJ`:
-  `JFinAtF` (a final object cap's finalisation, but notification, IRQ
-  handler, endpoint, frame and IO port caps, with `RdJ` after; a non-final one's is `jFin_nonfinal`:
-  nothing, the slot ready by another cap alike it),
+  (the final object caps' finalisation is proved for every kind,
+  `finObjKind_covered`: no residual `JFinAtF` premise; a non-final one's is
+  `jFin_nonfinal`: nothing, the slot ready by another cap alike it),
   `LiveJ` (XTopJointLive: l4v `if_unsafe_then_cap`,
   `if_live_then_nonz_cap`, the zombies' slots and TCB; it gives
   `ReadyLive`, `JZombieTcbHyp` (`jZombieTcbHyp_of_live`, then
@@ -454,8 +454,6 @@ structure JThreadFinHypsU (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : P
 
 /-- **The named steps of the deletion at `J`** (module docstring). -/
 structure JDelParts (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
-  fin : JFinAtF (L := L) arI AR th (fun c => ¬ NtfnK c ∧ ¬ FrIoK c ∧ ¬ IrqK c ∧ ¬ EpK c ∧ ¬ RpK c ∧ ¬ VsK c ∧ ¬ ScK c ∧ ¬ TcbK c ∧
-    ¬ (EptK c ∨ VcpuK c) ∧ ¬ EptRootK c)
   /-- The x86 backend's obligations (VsArch's `ArchRefines` [P]), for a final
   native VSpace cap's finalisation. -/
   archRef : ArchRefines arI AR
@@ -1091,9 +1089,37 @@ theorem jFin_nonfinal [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs
     hW, EmptyReady.of_cover (x := cslotAddr sl) hy hne (fun h => by rw [ep]; rw [hcv] at h; exact h) hut
       (by rw [eb, hcv]) (by rw [et, hcv])⟩
 
+/-- **Every object cap kind has its final finalisation proved**: an object
+cap (`FinObjKind`) is a notification, frame or IO port, IRQ handler,
+endpoint, reply, native VSpace, SC, thread, VT-x (EPT or VCPU) or mapped EPT
+root cap (the cases of `finJ`). -/
+theorem finObjKind_covered {c : capability.Cap} (hk : FinObjKind c) (hn : ¬ NtfnK c) (hfi : ¬ FrIoK c)
+    (hq : ¬ IrqK c) (he : ¬ EpK c) (hr : ¬ RpK c) (hvs : ¬ VsK c) (hsc : ¬ ScK c) (ht : ¬ TcbK c)
+    (hvt : ¬ (EptK c ∨ VcpuK c)) (hrt : ¬ EptRootK c) : False := by
+  cases c with
+  | Endpoint e b x1 x2 x3 x4 => exact he ⟨_, _, _, _, _, _, rfl⟩
+  | Notification p b w r => exact hn ⟨_, _, _, _, rfl⟩
+  | Reply p g => exact hr ⟨_, _, rfl⟩
+  | Thread t => exact ht ⟨_, rfl⟩
+  | SchedContext p sb => exact hsc ⟨_, _, rfl⟩
+  | IrqHandler i => exact hq ⟨_, rfl⟩
+  | PageTable p m a v => exact hvs (Or.inl ⟨_, _, _, _, rfl⟩)
+  | PageDirectory p m a v => exact hvs (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩))
+  | Pdpt p m a v => exact hvs (Or.inr (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩)))
+  | Pml4 p m a => exact hvs (Or.inr (Or.inr (Or.inr (Or.inl ⟨_, _, _, rfl⟩))))
+  | AsidPool p b => exact hvs (Or.inr (Or.inr (Or.inr (Or.inr ⟨_, _, rfl⟩))))
+  | Vcpu v => exact hvt (Or.inr ⟨_, rfl⟩)
+  | Ept p lv m asid va =>
+    by_cases hm : m = true ∧ lv = 0#u64
+    · obtain ⟨rfl, rfl⟩ := hm; exact hrt ⟨_, _, _, rfl⟩
+    · exact hvt (Or.inl ⟨_, _, _, _, _, rfl, hm⟩)
+  | IoPort f l o => exact hfi (Or.inr ⟨_, _, _, rfl⟩)
+  | _ => first | exact hk | exact hfi (Or.inl rfl)
+
 /-- The object caps' finalisation at `J`, from the notification caps'
-(`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps'
-(`JDelParts.fin`) and the frame and IO port caps' (`jFinAt_frio`). -/
+(`jFinAt_ntfn`), the non-final caps' (`jFin_nonfinal`), the final caps' of
+each kind (no kind left, `finObjKind_covered`) and the frame and IO port
+caps' (`jFinAt_frio`). -/
 theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     (hT : P0.ArchTotal arI) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
     (kb : U64) (hth : Z.th = th) :
@@ -1120,7 +1146,7 @@ theorem finJ [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) arI AR th)
     · exact jFinAt_vt arI h.archRef h.arKeep h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvt hfin
     by_cases hrt : EptRootK c
     · exact jFinAt_eptRoot arI h.archRef h.vsCaps (jVsApartHyp arI) h.vt Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hrt hfin
-    · exact h.fin Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨hn, hfi, hq, he, hr, hvs, hsc, ht, hvt, hrt⟩ hfin
+    · exact (finObjKind_covered hk hn hfi hq he hr hvs hsc ht hvt hrt).elim
   · exact jFin_nonfinal arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
 
 /-- The trivially finalised caps but untyped ones are not physical. -/
