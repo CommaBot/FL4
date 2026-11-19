@@ -197,11 +197,38 @@ fn another_cores_gicv2_banked_interrupts_take_a_remote_call() {
 
 #[test]
 fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
-    assert!(cache_rule::needs_gate(true, true));
-    assert!(cache_rule::needs_gate(true, false));
+    assert!(cache_rule::needs_gate(true, true, 64));
+    assert!(cache_rule::needs_gate(true, false, 64));
     // Clean, clean+invalidate and unify through TTBR0.
-    assert!(cache_rule::needs_gate(false, false));
-    assert!(!cache_rule::needs_gate(false, true));
+    assert!(cache_rule::needs_gate(false, false, 64));
+    assert!(!cache_rule::needs_gate(false, true, 64));
+}
+
+/// Audit r11 F3: a 2 MiB or 1 GiB clean (a non-cacheable block mapping,
+/// a Page or VSpace flush) is not repeated on every transaction retry.
+#[test]
+fn large_cache_maintenance_waits_for_the_gate() {
+    let max = cache_rule::MAX_TX_CACHE;
+    assert!(!cache_rule::needs_gate(false, true, 4096));
+    assert!(!cache_rule::needs_gate(false, true, max));
+    assert!(cache_rule::needs_gate(false, true, max + 1));
+    assert!(cache_rule::needs_gate(false, true, 2 << 20));
+    assert!(cache_rule::needs_gate(false, true, 1 << 30));
+}
+
+/// Audit r11 F3: once the transaction is doomed (a conflicting read
+/// returned 0) no cache operation reaches the hardware, whatever its
+/// range: the entry runs again on a consistent view.
+#[test]
+fn doomed_transactions_do_no_cache_maintenance() {
+    use cache_rule::{in_tx, InTx};
+    for (invalidate, in_window, len) in [(false, true, 64), (false, true, 1 << 30), (true, true, 64), (false, false, 64)] {
+        assert_eq!(in_tx(true, invalidate, in_window, len), InTx::Skip);
+    }
+    assert_eq!(in_tx(false, false, true, 4096), InTx::Run);
+    assert_eq!(in_tx(false, false, true, 2 << 20), InTx::Serial);
+    assert_eq!(in_tx(false, true, true, 64), InTx::Serial);
+    assert_eq!(in_tx(false, false, false, 64), InTx::Serial);
 }
 
 // ---- EL0 access to per-core registers (audit F3) -------------------------------
