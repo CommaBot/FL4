@@ -528,6 +528,8 @@ import Fl4Proofs.P3.XTopJointSendPush
 import Fl4Proofs.P3.XTopJointPushDon
 import Fl4Proofs.P3.XTopJointSendPushD
 import Fl4Proofs.P3.BufDefs
+import Fl4Proofs.P3.BufFr
+import Fl4Proofs.P3.BufFrA
 import Fl4Proofs.P3.BufInv
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.IpcSlotsSameZ

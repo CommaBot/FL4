@@ -16,6 +16,10 @@ of `JAtZ` (handoff/glob.md decisions 2-4): what `JAtZ.bok`/`JAtZ.fcov` and
   data page is a pair `(a, a)` of `B`; `step`, `keep`, `of_kheap`.
 * `UtZero mem G σ` (l4v `untyped_ranges_zero`): the spec's memory is zero in
   the free part of every RAM untyped cap of the MDB slots; `step`, `same`.
+* `UmIn σ σ'`: every byte of the spec's memory changed lies in a non-device
+  data page of `σ` (`of_eq`, `refl`, `trans`, `store`: one word stored in a
+  user frame); `UtZero.umIn`/`UtZero.sameU` keep `UtZero` across it (with
+  `SpecFree`: no object in a free part).
 -/
 import Fl4Proofs.P3.XTopCnodeAll
 import Fl4Proofs.P3.XTopTcbAll
@@ -368,6 +372,66 @@ theorem UtZero.same (h : UtZero mem G σ) (hG : ∀ x ∈ G'.chains.flatten, x �
     (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory) : UtZero mem' G' σ' :=
   h.step fun x hx p sb fi hcx => Or.inl ⟨x, hG x hx, fi, by rw [← hcap x hx]; exact hcx, le_rfl,
     fun a _ _ => Or.inl (by rw [hum])⟩
+
+/-- **The spec's memory changed only inside user frames** (each byte changed
+lies in a non-device data page of the state before): what a step writing
+only IPC-buffer and FPU-frame words keeps `UtZero` by (`UtZero.umIn`, with
+`SpecFree`: a free part holds no object). -/
+def UmIn (σ σ' : State Unit) : Prop :=
+  ∀ a : Word, σ'.machineState.underlyingMemory a = σ.machineState.underlyingMemory a ∨ inUserFrame a σ
+
+theorem UmIn.of_eq (h : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory) : UmIn σ σ' :=
+  fun a => Or.inl (by rw [h])
+
+theorem UmIn.refl (σ : State Unit) : UmIn σ σ := fun _ => Or.inl rfl
+
+/-- `UmIn` across two steps, the middle state's data pages the first's. -/
+theorem UmIn.trans {σ'' : State Unit} (h1 : UmIn σ σ') (h2 : UmIn σ' σ'')
+    (hpb : ∀ p vms, σ'.kheap p = some (.archObj (.dataPage false vms)) →
+      σ.kheap p = some (.archObj (.dataPage false vms))) : UmIn σ σ'' := by
+  intro a
+  rcases h2 a with e | ⟨sz, hz⟩
+  · rw [e]; exact h1 a
+  · exact Or.inr ⟨sz, hpb _ _ hz⟩
+
+/-- **One word stored in a user frame** (each of its 8 bytes `inUserFrame`). -/
+theorem UmIn.store {w v : Word} (hw : ∀ y : Word, y.toNat < 8 → inUserFrame (w + y) σ) :
+    UmIn σ (Endp.setUm σ (Endp.storeMem σ.machineState.underlyingMemory w v)) := by
+  intro a
+  by_cases h : ∃ y : Word, y.toNat < 8 ∧ a = w + y
+  · obtain ⟨y, hy, rfl⟩ := h; exact Or.inr (hw y hy)
+  · refine Or.inl (Endp.storeMem_other _ w v a fun y hy e => h ⟨y, hy, e⟩)
+
+/-- `UmIn` of a step whose memory is the state before's (`setUm` of the same
+memory, or any step keeping it). -/
+theorem UmIn.setUm_self (um : Word → Word8) (h : ∀ a, um a = σ.machineState.underlyingMemory a ∨ inUserFrame a σ) :
+    UmIn σ (Endp.setUm σ um) := h
+
+theorem umIn_bounds (a : Word) (sz : VMPageSize) :
+    (a &&& ~~~(mask (pageBitsForSize sz) : BitVec 64)).toNat ≤ a.toNat ∧
+      a.toNat < (a &&& ~~~(mask (pageBitsForSize sz) : BitVec 64)).toNat + 2 ^ pageBitsForSize sz := by
+  have hn := Endp.and_not_mask_toNat a _ (Endp.pageBits_mem sz)
+  have hpos : 0 < 2 ^ pageBitsForSize sz := by positivity
+  rw [hn]
+  exact ⟨Nat.div_mul_le_self _ _, Nat.lt_div_mul_add hpos⟩
+
+/-- **`UtZero` across a step writing only user frames** (`UmIn`; the caps
+and the free parts kept). -/
+theorem UtZero.umIn (h : UtZero mem G σ) (hF : Sched.SpecFree mem G σ) (hu : UmIn σ σ') :
+    UtZero mem G σ' := by
+  intro x hx p sb fi hcx a h1 h2
+  rcases hu a with e | ⟨sz, hz⟩
+  · rw [e]; exact h x hx p sb fi hcx a h1 h2
+  · obtain ⟨g1, g2⟩ := umIn_bounds a sz
+    have hb : objBits (.archObj (.dataPage false sz)) = pageBitsForSize sz := rfl
+    rcases hF x hx p sb fi hcx _ _ hz with (g | g) | ⟨g3, g4⟩ <;> rw [hb] at * <;> omega
+
+/-- **`UtZero` across a step keeping the slots' caps, writing only user
+frames** (`UtZero.same` and `UtZero.umIn`). -/
+theorem UtZero.sameU (h : UtZero mem G σ) (hF : Sched.SpecFree mem G σ)
+    (hG : ∀ x ∈ G'.chains.flatten, x ∈ G.chains.flatten)
+    (hcap : ∀ x ∈ G'.chains.flatten, capV mem' x = capV mem x) (hu : UmIn σ σ') : UtZero mem' G' σ' :=
+  (h.umIn hF hu).same hG hcap rfl
 
 end Zero
 
