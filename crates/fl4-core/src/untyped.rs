@@ -245,6 +245,12 @@ fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult
         if offset == 0 {
             return Ok(());
         }
+        // The cap just written reads back, except in a doomed transaction
+        // (DESIGN.md §7: reads return 0 there). Its preemption point would
+        // never count up, so give up the rest here: the entry reruns.
+        if as_untyped(slot.cap(s)).is_none() {
+            return Err(Exc::Preempted);
+        }
         sched::preemption_point(s, a)?;
         // `offset` is a nonzero multiple of the chunk here.
         offset = offset.saturating_sub(RESET_CHUNK);
@@ -276,4 +282,124 @@ fn retype<S: Store, A: Arch>(
     }
     objects::create_new_objects(s, a, new_type, slot, dest, offset, length, base, user_size, device);
     Ok(())
+}
+
+#[cfg(all(test, not(feature = "aarch64")))]
+mod tests {
+    //! `reset_untyped` inside a doomed transaction (DESIGN.md §7): reads
+    //! return 0 and writes are dropped, so the preemption point never
+    //! counts up and cannot end the loop.
+    extern crate std;
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// A store that behaves like a transaction: a `clear_free` larger
+    /// than `limit` dooms it (fl4-store's `MAX_TX_CLEAR`), after which
+    /// every read is 0 and every write is lost.
+    struct TxMem {
+        words: BTreeMap<u64, u64>,
+        limit: u64,
+        doomed: bool,
+        clears: u64,
+    }
+    impl Store for TxMem {
+        fn read(&self, a: u64) -> u64 {
+            if self.doomed { 0 } else { *self.words.get(&a).unwrap_or(&0) }
+        }
+        fn write(&mut self, a: u64, v: u64) {
+            if !self.doomed {
+                self.words.insert(a, v);
+            }
+        }
+        fn zero(&mut self, a: u64, len: u64) {
+            for i in (0..len).step_by(8) {
+                self.write(a + i, 0);
+            }
+        }
+        fn clear_free(&mut self, a: u64, len: u64) {
+            self.clears += 1;
+            if self.doomed {
+                return;
+            }
+            if len > self.limit {
+                self.doomed = true;
+                return;
+            }
+            self.zero(a, len);
+        }
+        fn ks_base(&self) -> u64 {
+            0x10_0000
+        }
+        fn cur_cpu(&self) -> u64 {
+            0
+        }
+    }
+
+    struct NoIrq;
+    impl Arch for NoIrq {
+        fn now(&mut self) -> u64 { 0 }
+        fn set_deadline(&mut self, _: u64) {}
+        fn us_to_ticks(&self, x: u64) -> u64 { x }
+        fn ticks_to_us(&self, x: u64) -> u64 { x }
+        fn max_us(&self) -> u64 { u64::MAX }
+        fn kernel_wcet_ticks(&self) -> u64 { 1 }
+        fn irq_pending(&mut self) -> bool { false }
+        fn take_pending_irq(&mut self) -> u64 { u64::MAX }
+        fn mask_irq(&mut self, _: u64, _: bool) {}
+        fn ack_irq(&mut self, _: u64) {}
+        fn set_vspace(&mut self, _: u64, _: u64) {}
+        fn invalidate_page(&mut self, _: u64, _: u64) {}
+        fn invalidate_asid(&mut self, _: u64) {}
+        fn invalidate_page_structures(&mut self, _: u64) {}
+        fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
+        fn num_ioapics(&self) -> u64 { 0 }
+        fn ioapic_pins(&self, _: u64) -> u64 { 0 }
+        fn port_in(&mut self, _: u64, _: u64) -> u64 { 0 }
+        fn port_out(&mut self, _: u64, _: u64, _: u64) {}
+        fn fpu_flush(&mut self, _: u64) {}
+        fn fpu_sanitise(&mut self, _: u64) {}
+        fn fpu_reload(&mut self, _: u64) {}
+        fn fpu_release(&mut self, _: u64) {}
+        fn remote_stall(&mut self, _: u64) {}
+        fn send_reschedule(&mut self, _: u64) {}
+        fn putc(&mut self, _: u64) {}
+        fn get_char(&mut self) -> u64 { 0 }
+        fn halt(&mut self) {}
+    }
+
+    const SLOT: Slot = Slot(0x20_0000);
+    const UT: u64 = 0x1_0000_0000;
+
+    fn untyped(free_index: u64, limit: u64) -> TxMem {
+        let mut s = TxMem { words: BTreeMap::new(), limit, doomed: false, clears: 0 };
+        SLOT.set_cap(&mut s, Cap::Untyped { ptr: UT, size_bits: 36, free_index, is_device: false });
+        s
+    }
+
+    /// Audit r11 F2: the first 64 KiB chunk dooms the transaction; the
+    /// reset must give up at once rather than walk the remaining chunks
+    /// (a 64 GiB untyped: about a million rounds with interrupts off,
+    /// holding off the serial gate).
+    #[test]
+    fn doomed_reset_stops_after_the_first_chunk() {
+        let mut s = untyped(64 << 20, 8192);
+        let r = reset_untyped(&mut s, &mut NoIrq, SLOT);
+        assert!(s.doomed);
+        assert_eq!(s.clears, 1, "doomed reset kept clearing chunks");
+        assert!(r.is_err());
+    }
+
+    /// Outside a transaction the reset is unchanged: every chunk, top
+    /// down, and the cap ends with a free index of 0.
+    #[test]
+    fn serial_reset_clears_every_chunk() {
+        let chunks = 64;
+        let mut s = untyped(chunks * RESET_CHUNK, u64::MAX);
+        s.words.insert(UT + 8, 0xdead);
+        assert!(reset_untyped(&mut s, &mut NoIrq, SLOT).is_ok());
+        assert_eq!(s.clears, chunks);
+        assert_eq!(s.read(UT + 8), 0);
+        assert!(SLOT.cap(&s) == Cap::Untyped { ptr: UT, size_bits: 36, free_index: 0, is_device: false });
+    }
 }
