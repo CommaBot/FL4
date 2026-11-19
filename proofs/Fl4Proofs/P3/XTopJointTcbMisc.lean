@@ -324,7 +324,7 @@ theorem JAtZ.reg_frameFp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1 (J.yld.frame k2 hyk) hyk
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.finW_irq hwF)
@@ -537,7 +537,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
       (fun y hy => by rw [ek]; exact hy) (fun y hy => ⟨y, by rw [ek]; exact hy, Or.inl rfl, rfl, Or.inl rfl⟩)
       (fun y hy => ⟨y, by rw [ek]; exact hy, rfl⟩) (fun y m hy => ⟨y, by rw [ek]; exact hy, Or.inl rfl, Or.inl rfl⟩)
       (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK) rfl hAI3.1
-      (J.jcov.dead q hq.1)
+      (J.yld.frame k2 F.ykeep) (F.ykeep.dk q.bv) (J.jcov.dead q hq.1)
   -- `JCovD` with the new dead set
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1

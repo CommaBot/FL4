@@ -413,6 +413,8 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     hlook (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
   -- the dead stay dead
   have hAI : Sched.ActIdle σ' := (J.act.ar F1).cn C2
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.yld⟩,
+    fun p x n hp => ⟨x, lsc.2 hp, rfl⟩, fun p y n hp => ⟨y, lsc.1 hp, rfl⟩⟩
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_keep hX'.fin.1.1.1 hX'.ipc
       (fun x hx _ => let ⟨y, hy, hc⟩ := F.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
@@ -421,7 +423,7 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         Or.inl rfl, rfl, Or.inl rfl⟩)
       (fun x hx => ⟨x, (hlook (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx, rfl⟩)
       (fun x n hx => ⟨x, lsc.2 hx, Or.inl rfl, Or.inl rfl⟩) (k3 q) (fun z hz _ => hOut q z hz) F.idle hAI.1
-      (J.jcov.dead q hq)
+      (J.yld.frame k2 yk) (yk.dk q.bv) (J.jcov.dead q hq)
   -- P1's `BlkOK`: the VSpace words untracked, the slot's words cap-slot words
   have hslw : ∀ b, (b = x ∨ b = wordOf x 8#u64) → SlotWd Z.th b := by
     have hA : AbsSlot Z.th (pc.bv, idx) := ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
@@ -460,8 +462,6 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have ck : Sched.CKeep σ σ' := ⟨fun q y n hq => ⟨y, lsc.2 hq, rfl⟩,
     fun q x hq => ⟨x, (hlook (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hq, rfl, rfl⟩,
     fun p x n hp => ⟨x, lsc.1 hp⟩⟩
-  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.yld⟩,
-    fun p x n hp => ⟨x, lsc.2 hp, rfl⟩, fun p y n hp => ⟨y, lsc.1 hp, rfl⟩⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hkb ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 (F1.khrb.trans C2.toHStep.khrb)

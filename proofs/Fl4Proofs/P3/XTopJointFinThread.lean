@@ -226,7 +226,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
   have hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' :=
     J.cur.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curInv
   have hrun3 : CurRunM σ' := J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw)
@@ -532,7 +532,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   -- the dead stay dead
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep (G' := Z.G) hX' ⟨fun p => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun q hq => k3 q hq) hOut
-      J.act.1 (J.jcov.dead q hq)
+      J.act.1 (J.yld.frame k2 F.ykeep) F.ykeep (J.jcov.dead q hq)
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck

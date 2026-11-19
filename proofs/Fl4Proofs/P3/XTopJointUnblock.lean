@@ -138,7 +138,7 @@ theorem JAtZ.unblockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
       · left; intro y1 hy; rw [e_ct] at hy; exact h y1 (htk _ _ hy)
       · right; rw [e_ct, e_idle]; exact h
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_sc_stepQ hX' hwT hK0 (fun _ hp => hp.elim) hL hFK hAI.1 (fun h => h) (J.jcov.dead q hq)
+    J.deadP_sc_stepQ hX' hwT hK0 (fun _ hp => hp.elim) hL hFK hAI.1 hY' ((hsok.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg hfoot
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hFK.2.1 hFK.2.2).2) (J.sc_jcov hwT hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hFK.2.1 hFK.2.2))

@@ -390,7 +390,8 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
     rw [hHs] at hk'; cases hk'
     exact ⟨by simp only [P1.HKind.bits]; omega, fun z h => by cases h⟩
   have hDead : ∀ q ∈ {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)}, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hAI'.1 hq.2 (J.jcov.dead q hq.1)
+    J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hAI'.1 hY'
+      ((((pres_schedContextBindTcb (true, true) _ _).of_eq he).ykeep rfl).dk q.bv) hq.2 (J.jcov.dead q hq.1)
   have hCov : ∀ q ∈ D, q ∉ {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)} →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := fun q hq hn => by

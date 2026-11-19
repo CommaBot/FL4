@@ -270,7 +270,7 @@ theorem sched_controlJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hP : ∀ p x, p = ct.bv → σ.kheap p = some (.tcb x) → Fl4Spec.runnable x.tcbState = true := by
     rintro p x rfl hk; rw [hkc] at hk; cases hk; exact hrun
   have hDead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 (fun h => h) (J.jcov.dead q hq)
+    J.deadP_sc_step hX' hwT hK hP hL hF hAI'.1 hY' ((hSOK.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hCR'' : CurRun σ' := curRun_sc_step hkc hcur he1 (NKT.of_eq (nkt_invokeSchedControlConfigureFlags _) he2)
   exact ⟨σ', Ac', Lst', D, J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
@@ -296,8 +296,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
-      lbl = fl4_abi.label.SchedContextUnbindObject ∨
-      (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
+      lbl = fl4_abi.label.SchedContextUnbindObject)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)
@@ -396,8 +395,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   left
   subst hd; subst hσ
   -- Consumed always replies: `return_consumed` returns a word
-  replace hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject ∨
-      (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64) := by
+  replace hl : lbl = fl4_abi.label.SchedContextBind ∨ lbl = fl4_abi.label.SchedContextUnbindObject := by
     rcases hl with l | hl
     · exfalso
       have hg : Fl4Spec.genInvocationType slbl = .schedContextConsumed := by rw [hlbl, l]; unfold scLabelOf; simp
@@ -422,10 +420,10 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     rw [hσ0, stsAct_kheap]; simp [updK]
   have hK0 : ScTKw (fun p => p = ct.bv) σ σ0 := tk_setThreadState hkc (ipcFree_of_runnable hrunc) ipcFree_restart _ hm0
   -- the invocation's shape, and Bind's decode check
-  have hshape : ((∃ q cap, inv = .invokeSchedContextBind q cap) ∨ (∃ q cap, inv = .invokeSchedContextUnbindObject q cap) ∨
-      (∃ q x n, inv = .invokeSchedContextYieldTo q ∧ σ0.kheap q = some (.schedContext x n) ∧ x.scYieldFrom = none)) ∧
+  have hshape2 : ((∃ q cap, inv = .invokeSchedContextBind q cap) ∨
+      (∃ q cap, inv = .invokeSchedContextUnbindObject q cap)) ∧
       ∀ q t, inv = .invokeSchedContextBind q (.threadCap t) → ScBindOK q t σ := by
-    rcases hl with l | l | ⟨l, hy0⟩
+    rcases hl with l | l
     · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       obtain ⟨cap, rfl⟩ := (retP_bindDec _ _).of_run hrun
@@ -436,23 +434,20 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         rw [hlbl, l]; unfold scLabelOf; simp
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run hrun
-      exact ⟨Or.inr (Or.inl ⟨_, _, rfl⟩), fun q t e => by cases e⟩
-    · have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by rw [hlbl, l]; unfold scLabelOf; simp
-      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
-      have e := (retP_yieldToDec _).of_run hrun
-      obtain ⟨x, n, hk, hx⟩ := hs.scs sc hsc
-      have hyf : x.scYieldFrom = none := by rw [hx.yieldFrom, ← scYieldFromA_eq, hy0, optRef_zero]
-      have hpc : sc.bv ≠ ct.bv := fun e => by rw [e, hkc] at hk; cases hk
-      exact ⟨Or.inr (Or.inr ⟨_, x, n, e, by rw [hko _ hpc]; exact hk, hyf⟩), fun q t e' => by rw [e] at e'; cases e'⟩
+      exact ⟨Or.inr ⟨_, _, rfl⟩, fun q t e => by cases e⟩
+  have hshape : ((∃ q cap, inv = .invokeSchedContextBind q cap) ∨ (∃ q cap, inv = .invokeSchedContextUnbindObject q cap) ∨
+      (∃ q x n, inv = .invokeSchedContextYieldTo q ∧ σ0.kheap q = some (.schedContext x n) ∧ x.scYieldFrom = none)) ∧
+      ∀ q t, inv = .invokeSchedContextBind q (.threadCap t) → ScBindOK q t σ :=
+    ⟨hshape2.1.imp id Or.inl, hshape2.2⟩
+  have hnY : ∀ p, inv ≠ .invokeSchedContextYieldTo p := by
+    rcases hshape2.1 with ⟨q, cap, rfl⟩ | ⟨q, cap, rfl⟩ <;> intro p h <;> cases h
   obtain ⟨hshape, hbind⟩ := hshape
   have hK1 : ScTKw (fun _ => False) σ0 σ2 := tk_invokeSchedContext hshape _ hm1
   -- FL4's writes
   have hW : P1.WritesIn st s s' (TFoot st Z.T Z.N Z.C Z.c s σ) := by
-    rcases hl with l | l | ⟨l, hy0⟩
+    rcases hl with l | l
     · exact hfine.1 (Or.inl l)
     · exact hfine.1 (Or.inr l)
-    · obtain ⟨y, hky, -, hy⟩ := hK1.tcb hkc0
-      exact hfine.2 l hy0 y hky (hy.elim id fun h => h.1.elim)
   have hX' : XTopAt (L := L) AR Z s' a' σ2 :=
     xtop_sc_step hX J.ip J.nk hW (hK0.trans (hK1.mono fun _ h => h.elim)) hall.1.1 hall.1.2.1 fun h => hA2 _ h
   obtain ⟨⟨-, -, hN', hI'⟩, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ := hall
@@ -496,7 +491,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hpc : sc.bv ≠ ct.bv := fun e => by
     obtain ⟨x, n', hk, -⟩ := hs.scs sc hsc; rw [e, hkc] at hk; cases hk
   have hMid : MidK σ0 σ2 := by
-    rcases hl with l | l | ⟨l, -⟩
+    rcases hl with l | l
     · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       have hpre := (rdp_decodeBindPre _ _ σ _ (by rw [hrun]; exact Set.mem_singleton _)).2 _ rfl
@@ -533,17 +528,6 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       case notificationCap n b r =>
         exact (mka_bind_ret (mka_schedContextUnbindNtfn _) _) σ0 trivial _ hm1
       all_goals exact (mka_fail (P := fun _ => True)) σ0 trivial _ hm1
-    · have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by rw [hlbl, l]; unfold scLabelOf; simp
-      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
-      obtain ⟨y, n, t, hy, hyt, htc⟩ := (rdp_decodeYieldToPre _ σ _ (by rw [hrun]; exact Set.mem_singleton _)).2 _ rfl
-      rw [(retP_yieldToDec _).of_run hrun] at hm1
-      rcases hshape with ⟨q, cap, e⟩ | ⟨q, cap, e⟩ | ⟨q, x, n', e, hk0, hyf⟩
-      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
-      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
-      · rw [(retP_yieldToDec _).of_run hrun] at e; cases e
-        rw [hko _ hpc, hy] at hk0; cases hk0
-        exact mka_schedContextYieldTo (by rw [hko _ hpc]; exact hy) hyf (fun t' ht' => by
-          rw [hyt] at ht'; cases ht'; rw [hct0, ← hcur, hid0]; exact ⟨hnid y n t hy hyt, htc⟩) _ hm1
   obtain ⟨hC', hOw', hO', hAI'⟩ := hMid.mid (T := Z.T) hres0 hC0 hO0 hA0 hI0 ⟨ct, hctT, hct0.symm⟩
   have hF : FK σ σ2 := ((fk_setThreadState _ _).of_eq he0).trans (fk_invokeSchedContext hshape _ hm1)
   have hCR'' : CurRun σ2 := curRun_sc_step hkc hcur he0 hK1
@@ -570,7 +554,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := by
     intro q _ hqW
-    rcases hl with l | l | ⟨l, -⟩
+    rcases hl with l | l
     · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       obtain ⟨a0, rest, hex', rfl⟩ := (retP_bindHead _ _).of_run hrun
@@ -619,12 +603,14 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
       obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run hrun
       exact hqW.elim
-    · have hg : Fl4Spec.genInvocationType slbl = .schedContextYieldTo := by rw [hlbl, l]; unfold scLabelOf; simp
-      simp only [Fl4Spec.decodeSchedContextInvocation, hg] at hrun
-      rw [(retP_yieldToDec _).of_run hrun] at hqW
-      exact hqW.elim
+  -- the yield fields kept (no YieldTo here)
+  have hYK2 : YKeep σ σ2 :=
+    (((pres_setThreadState (f := (true, true)) _ _ σ _ hm0).weaken (f' := (true, false)) (fun _ => rfl)
+        (fun h => absurd h (by decide))).trans
+      ((pres_invokeSchedContext inv σ0 _ hm1).weaken (f' := (true, false)) (fun _ => decide_eq_true hnY)
+        (fun h => absurd h (by decide)))).ykeep rfl
   have hDead : ∀ q ∈ {q | q ∈ D ∧ ¬ invLinkW inv q.bv}, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_sc_step hX' hW hKt hP hL hF hAI'.1 hq.2 (J.jcov.dead q hq.1)
+    J.deadP_sc_step hX' hW hKt hP hL hF hAI'.1 hY' (hYK2.dk q.bv) hq.2 (J.jcov.dead q hq.1)
   have hCov : ∀ q ∈ D, q ∉ {q | q ∈ D ∧ ¬ invLinkW inv q.bv} →
       (∀ k, Z.th q = some k → Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)) := fun q hq hn =>
@@ -715,7 +701,7 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     XCap (L := L) arI (JAt (L := L) arI AR) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       slbl args ci sl excaps buffer ct := by
   have hJ := sched_contextJ_step s a σ J hres htm hmb hmax htu hmsg lbl slbl hlbl sb hsc hpi
-    (hl.imp id fun h => h.imp id Or.inl) hback hbn hct hcs extra
+    hl hback hbn hct hcs extra
     x0 hx0 excaps hex length slot buf blk call don fp args ci sl buffer hslot hslotS hsb hssz hx0S hArch hRest
   obtain ⟨r, hr, hp⟩ := spec_exists hJ
   have tr : ∀ P : core.result.Result Unit error.Exc × S × A → Prop, P r →

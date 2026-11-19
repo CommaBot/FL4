@@ -255,7 +255,7 @@ theorem JAtZ.setInactiveJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     · rw [hO.ko e]; exact OL.refl _)
   have hF : Sched.FK σ (updSc σ p.bv (inactSc x) n) := ⟨rfl, rfl, rfl⟩
   have hDead : ∀ q ∈ D, DeadP (L := L) H (L.wr (L.wr s (maxA p) 0#u64) (scW p 64#u64) 0#u64) q := fun q hq =>
-    J.deadP_sc_step hX' hW6 hK6 (fun _ _ h _ => h.elim) hL hF hact'.1 (fun h => h) (J.jcov.dead q hq)
+    J.deadP_sc_step hX' hW6 hK6 (fun _ _ h _ => h.elim) hL hF hact'.1 hY' ((hSOK.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   -- P1
   have hpS : p ∈ P1.Heap.scs H := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl

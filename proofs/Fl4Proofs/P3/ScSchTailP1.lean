@@ -183,8 +183,12 @@ theorem jat_scheduleT2 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hX' : XTopAt (L := L) AR Z s' a' σ' :=
     xtop_sched_step J1.xtop J1.ip J1.nk hwT (ct := σ1.curThread)
       { hK1 with kh := fun p => (hK1.kh p).mono False.elim } hS' hR' hcur hTl.ar
+  have hSOK1 := (schs_schedule.of_eq hsc).2
+  have hY1 : YieldRel Z.T Z.C (L.mem s') σ' :=
+    (ScAll.of_k J1.xtop.fin.1.1.1 J1.rp J1.yld J1.mcp J1.call J1.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSOK1⟩).2.1
   have hdead : ∀ q ∈ D1, Sched.DeadP (L := L) H s' q := fun q hq =>
-    J1.deadP_sch_step hX' hwT hK1 hL1 hA' (fun h => h) (J1.jcov.dead q hq)
+    J1.deadP_sch_step hX' hwT hK1 hL1 hA' (J1.ymd hS' hY1 ((hSOK1.ykeep rfl).dk q.bv)) (fun h => h)
+      (J1.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR Z H Cs D1 rf.1 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩

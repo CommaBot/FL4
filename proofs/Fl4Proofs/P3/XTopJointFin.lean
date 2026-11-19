@@ -144,7 +144,8 @@ theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     {σ3 : Fl4Spec.State Unit} (F : Sched.NFr qq r σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
-    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3) :
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
     ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
   have hd := J.jcov.dead q hq
   refine J.deadP_keep hS3 hI3 (fun x hx h0 => ?_)
@@ -152,7 +153,7 @@ theorem JAtZ.deadP_nfr {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (fun x hx => ?_)
     (fun x hx => ⟨x, F.othF hx (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e), rfl⟩)
     (fun x n hx => ?_) (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK)
-    F.sk.idle hAS hd
+    F.sk.idle hAS hY3 (hYK.dk q.bv) hd
   · -- a dead TCB: its state and (null) bound notification kept
     obtain ⟨t, ht, e⟩ := J.obj.tcb q.bv x hx
     have htq : t = q := P1.eq_of_bv e
@@ -267,7 +268,7 @@ theorem JAtZ.finNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
       · exact Or.inl (by rw [(Fq.act rfl).1]; exact e)
       · exact Or.inr (Fq.curRunW hR)
   -- the dead stay dead
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_nfr F hS3 hI3.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s3 σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw)

@@ -26,7 +26,8 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ))
     (hK0 : SchStep (fun _ => False) σ σ')
     {W : Fl4Spec.ObjRef → Prop} (hL : LK W σ σ') (hAI : ActIdle σ')
-    {q : U64} (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
+    {q : U64} (hYm : YMemDead (L := L) H Z.C s s' q) (hW : ¬ W q.bv) (hd : DeadP (L := L) H s q) :
+    DeadP (L := L) H s' q := by
   have hK := hK0.toTK
   have hAS := hAI.1
   have hX := J.xtop
@@ -38,7 +39,7 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   have hI' := hX'.ipc
   refine ⟨fun hq => ?_, fun hq => ?_, fun hq => ?_, fun hq => ?_, fun z hq => ?_⟩
   · -- a TCB
-    obtain ⟨d1, d2, d3, d4, d5⟩ := hd.1 hq
+    obtain ⟨d1, d2, d3, d4, d5, d6⟩ := hd.1 hq
     have hqT : q ∈ Z.T := by rw [J.tcbs_eq.1]; exact hq
     obtain ⟨x, hk, hR⟩ := hI.tcb q hqT
     obtain ⟨x', hk', hR'⟩ := hI'.tcb q hqT
@@ -58,7 +59,7 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       rcases e with e | e
       · rw [e, hxs]
       · exact e
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, hYm.1 hq d6⟩
     · have h1 : (L.mem s' (tStA q)).val = (L.mem s (tStA q)).val := by rw [hR'.st, hR.st, hstate]
       rw [stA_tStA, UScalar.eq_of_val_eq h1, ← stA_tStA, d1]
     · exact optRef_eq_none (by rw [← hR'.sc, hxs'])
@@ -137,7 +138,7 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
     rw [show Endp.rTcbA q = P1.rTcbA q from rfl, hd.2.2.2.1 hq, optRef_zero] at h1
     exact optRef_eq_none (by rw [show P1.rTcbA q = Endp.rTcbA q from rfl, ← hR', e, h1])
   · -- an SC
-    obtain ⟨d1, d2, d3⟩ := hd.2.2.2.2 z hq
+    obtain ⟨d1, d2, d3, d4⟩ := hd.2.2.2.2 z hq
     by_cases hqC : q ∈ Z.C
     · obtain ⟨x, n, hk, hR⟩ := hs.scs q hqC
       obtain ⟨x', n', hk', hR'⟩ := hs'.scs q hqC
@@ -145,7 +146,7 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       rw [hk'] at hy; cases hy
       have hxt : x.scTcb = none := by rw [hR.tcb, scW_tcb, d1, optRef_zero]
       have hxn : x.scNtfn = none := by rw [hR.ntfn, scW_ntfn, d3, optRef_zero]
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, ?_, ?_, hYm.2 z hq hqC d4⟩
       · rw [← scW_tcb]; refine optRef_eq_none ?_; rw [← hR'.tcb]
         rcases e1 with e | e
         · rw [e, hxt]
@@ -155,10 +156,11 @@ theorem JAtZ.deadP_sch_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
         rcases e2 with e | e
         · rw [e, hxn]
         · exact e
-    · refine ⟨?_, ?_, ?_⟩
+    · refine ⟨?_, ?_, ?_, ?_⟩
       · rw [← scW_tcb, J.sc_out_keep hw hq hqC (by decide) (by decide), scW_tcb]; exact d1
       · rw [scReplyA_eq', J.sc_out_keep hw hq hqC (by decide) (by decide), ← scReplyA_eq']; exact d2
       · rw [← scW_ntfn, J.sc_out_keep hw hq hqC (by decide) (by decide), scW_ntfn]; exact d3
+      · rw [scYieldFromA_eq, J.sc_out_keep hw hq hqC (by decide) (by decide), ← scYieldFromA_eq]; exact d4
 
 
 end

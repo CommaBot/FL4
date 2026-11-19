@@ -55,13 +55,15 @@ theorem JAtZ.deadP_slot {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hcn : Ipc.CnK σ σ') (hkc : KeepCT σ σ') (hw : P1.WritesIn st s s' (InSlot Z.th))
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
   have hC := CnStep.of_cnK hcn
-  obtain ⟨-, -, -, k3, -⟩ := inSlot_keeps arI J hw
+  obtain ⟨-, k2, -, k3, -⟩ := inSlot_keeps arI J hw
+  have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
+    fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
   exact J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => let ⟨y, hy, hc⟩ := hC.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
     (fun x hx => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx)
     (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (fun hqC => k3 q hqC)
-    (fun z hz _ K h8 hK => J.inSlot_scKeep hw hz h8 hK) hC.idle (J.act.cn hC).1 hd
+    (fun z hz _ K h8 hK => J.inSlot_scKeep hw hz h8 hK) hC.idle (J.act.cn hC).1 (J.yld.frame k2 yk) (yk.dk q.bv) hd
 
 set_option maxHeartbeats 4000000 in
 /-- **A CNode-only slot step's `JCs` and `JRest`** (`jowes_slotOf` with the

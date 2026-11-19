@@ -490,12 +490,13 @@ theorem JAtZ.deadP_pfr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : Fl
     {σ3 : Fl4Spec.State Unit} (F : PFr t σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
-    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3) :
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
     ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
   have hd := J.jcov.dead q hq
   refine J.deadP_keep hS3 hI3 (fun x hx h0 => ?_) (fun x hx => ?_) (fun x hx => ?_)
     (fun x hx => ⟨x, F.replyF hx, rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
-    (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hw hz hqC hK8 hK) F.sk.idle hAS hd
+    (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hw hz hqC hK8 hK) F.sk.idle hAS hY3 (hYK.dk q.bv) hd
   · obtain ⟨pr, hk3⟩ := F.tcbF hx
     exact ⟨_, hk3, rfl, rfl, Or.inl rfl⟩
   · -- a dead endpoint: idle, so holding nobody
@@ -637,7 +638,7 @@ theorem JAtZ.setPrioJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hDbg := J.kw_dbg hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hAI3 : ActIdle σ' := F.actIdle J.act
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_pfr F hS3 hIR.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_pfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)

@@ -210,9 +210,15 @@ theorem JAtZ.cancelYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y p
     ((pres_schedContextCancelYieldTo y.bv).of_eq he) rfl
   obtain ⟨-, -, hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ := hall
   have hAI := hA.actIdle J.act
+  have hYD : ∀ r, YDeadKeep σ (updK (updSc σ p.bv { z with scYieldFrom := none } n) y.bv
+      (.tcb { xy with tcbYieldTo := none })) r := fun r =>
+    YDeadKeep.upd (p := y.bv) (o := .tcb { xy with tcbYieldTo := none })
+      (YDeadKeep.upd (p := p.bv) (o := .schedContext { z with scYieldFrom := none } n) (YDeadKeep.of_at rfl)
+        (fun _ e => by cases e) (fun _ _ e => by cases e; rfl))
+      (fun _ e => by cases e; rfl) (fun _ _ e => by cases e)
   have hdead : ∀ q ∈ D, DeadP (L := L) H (L.wr (L.wr s (scYieldFromA p) 0#u64) (yieldA y) 0#u64) q := fun q hq =>
-    J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 (fun h => h)
-      (J.jcov.dead q hq)
+    J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 hY' (hYD q.bv)
+      (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg (hP.2.1.mono (Set.empty_subset _))
   exact ⟨_, he, Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2)) (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)

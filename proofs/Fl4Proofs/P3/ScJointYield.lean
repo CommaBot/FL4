@@ -178,7 +178,8 @@ links set: `YieldRel.pair`, P1's `yield_link.blk`). -/
 theorem JAtZ.linkYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct sc : U64} (hct : ct ∈ Z.T)
     (hsc : sc ∈ Z.C) (hy0 : L.mem s (yieldA ct) = 0#u64) {xc : Fl4Spec.Tcb}
     (hkc : σ.kheap ct.bv = some (.tcb xc)) {y : Fl4Spec.SchedContext} {n : Nat}
-    (hks : σ.kheap sc.bv = some (.schedContext y n)) (hyf : y.scYieldFrom = none) :
+    (hks : σ.kheap sc.bv = some (.schedContext y n)) (hyf : y.scYieldFrom = none)
+    (hrun : P1.Runnable (L.mem s (P1.stA ct))) (htw : L.mem s (P1.scTcbA sc) ≠ 0#u64) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D'
       (L.wr (L.wr s (yieldA ct) sc) (scYieldFromA sc) ct) a
       (updSc (updK σ ct.bv (.tcb { xc with tcbYieldTo := some sc.bv })) sc.bv { y with scYieldFrom := some ct.bv } n) := by
@@ -251,9 +252,17 @@ theorem JAtZ.linkYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct sc
     hsok rfl
   obtain ⟨-, -, hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ := hall
   have hAI := hA.actIdle J.act
-  have hdead : ∀ q ∈ D, DeadP (L := L) H (L.wr (L.wr s (yieldA ct) sc) (scYieldFromA sc) ct) q := fun q hq =>
-    J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 (fun h => h)
-      (J.jcov.dead q hq)
+  -- the dead stay dead: the caller (runnable) and the SC (with a thread) are not dead
+  have hdead : ∀ q ∈ D, DeadP (L := L) H (L.wr (L.wr s (yieldA ct) sc) (scYieldFromA sc) ct) q := fun q hq => by
+    have hd := J.jcov.dead q hq
+    have hqc : q.bv ≠ ct.bv := fun e => by
+      rw [P1.eq_of_bv e] at hd
+      exact P1.runnable_ne_inactive hrun (hd.1 (J.zH.1 ct hct)).1
+    have hqs : q.bv ≠ sc.bv := fun e => by
+      rw [P1.eq_of_bv e] at hd
+      exact htw (hd.2.2.2.2 _ (hJ.sc sc y n hsc0 hks).2).1
+    exact J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 hY2
+      (YDeadKeep.of_at (by simp [σ', updK, hqc, hqs])) (fun h => h) hd
   exact ⟨Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY2 hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2))
     (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)
@@ -342,7 +351,11 @@ theorem JAtZ.yieldSwitchesJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
         some (.schedContext x n) := by simp [updK, hpc', hk]
     have hsf := (SFrame.ytUpd hkc (some sc.bv)).trans
       (SFrame.updSc (x' := { x with scYieldFrom := some ct.bv }) hka rfl rfl)
-    obtain ⟨AcL, LstL, DL, JL⟩ := J.linkYieldJ hct hsc hyc hkc hk hyf
+    have hrunc : P1.Runnable (L.mem s (P1.stA ct)) := by
+      obtain ⟨hrw, -, -, -⟩ := of_decide_eq_true ((schedulable_eq hR hS hct).trans hcs)
+      rw [stA_tStA]; exact hrw
+    obtain ⟨AcL, LstL, DL, JL⟩ := J.linkYieldJ hct hsc hyc hkc hk hyf hrunc
+      (by rw [scTcbA_eq, htw]; exact fun e => (hc.tcbs i ht).ne0 (by rw [e]; rfl))
     obtain ⟨xtL, hktL, -⟩ := hsf.tcb _ xt hkt
     obtain ⟨xcL, hkcL, -⟩ := hsf.tcb _ xc hkc
     refine WP.spec_bind (JL.dequeueJ ht) ?_

@@ -128,6 +128,8 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       subst hb; have := hBP.far wp hwB; omega
   -- the dead stay dead
   have hAI : ActIdle σ1 := J.act.ar F
+  have yk : YKeep σ σ1 := ⟨fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩,
+    fun p x n hp => ⟨x, F.sc.2 hp, rfl⟩, fun p y n hp => ⟨y, F.sc.1 hp, rfl⟩⟩
   have hdead : ∀ q ∈ D, DeadP (L := L) H s1 q := fun q hq =>
     J.deadP_keep hX1.fin.1.1.1 hX1.ipc
       (fun x hx _ => ⟨x, (F.look (fun _ e => by cases e)).2 hx, rfl, rfl, Or.inl rfl⟩)
@@ -135,7 +137,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (fun x hx => ⟨x, F.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
       (fun x hx => ⟨x, (F.look (fun _ e => by cases e)).2 hx, rfl⟩)
       (fun x n hx => ⟨x, F.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (k3 q) (fun z hz _ => hOut q z hz) F.idle hAI.1
-      (J.jcov.dead q hq)
+      (J.yld.frame k2 yk) (yk.dk q.bv) (J.jcov.dead q hq)
   -- P1's `BlkOK`
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s1 := by
@@ -193,8 +195,6 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   -- the spec's frames
   have ck : Sched.CKeep σ σ1 := ⟨fun q y n hq => ⟨y, F.sc.2 hq, rfl⟩,
     fun q x hq => ⟨x, (F.look (fun _ e => by cases e)).2 hq, rfl, rfl⟩, fun p x n hp => ⟨x, F.sc.1 hp⟩⟩
-  have yk : YKeep σ σ1 := ⟨fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩,
-    fun p x n hp => ⟨x, F.sc.2 hp, rfl⟩, fun p y n hp => ⟨y, F.sc.1 hp, rfl⟩⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hkb ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 F.khrb

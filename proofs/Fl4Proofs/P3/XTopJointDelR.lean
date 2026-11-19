@@ -983,12 +983,12 @@ theorem jFinAt_sc (hT : P0.ArchTotal arI) (hF : JScFinHyp (L := L) arI AR th) :
   rw [decide_eq_true hfin]
   refine WP.spec_mono (WP.spec_and (hF (Z.mv G V) H Cs Ac Lst D s a σ rfl J hns sl p sb hA hc hfin)
     (P1.fin_cap_sc.dead (ar := arI) hT s a p sb false J.blk hpS hp0 hna hidle)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1⟩, ⟨d1, d2, d3⟩⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨e1, σ1, V1, Ac1, Lst1, D1, hmem1, J1, hSS1, hks1, y1⟩, ⟨d1, d2, d3⟩⟩
   simp only at e1 hmem1 J1 hSS1 hks1 d1 d2 d3
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj e1
   have hdp : DeadP (L := L) H s1 p :=
     ⟨fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h),
-      fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h), fun _ _ => ⟨d1, d2, d3⟩⟩
+      fun h => (by rw [hHp] at h; cases h), fun h => (by rw [hHp] at h; cases h), fun _ _ => ⟨d1, d2, d3, y1⟩⟩
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = .SchedContext p sb := by
     rw [hSS1.capV hA.isSlot, hcv]
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
@@ -1023,14 +1023,14 @@ theorem jFinAt_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR) (hF : JThread
   refine WP.spec_mono (WP.spec_and (WP.spec_and (JAtZ.finThreadJ (Z := Z.mv G V) hT hK hF J hpT hv0 hna hidle)
     (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
     (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5⟩, e, -, f, hW1⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, D1, J1⟩, d1, d2, d3, d4, d5, d6⟩, e, -, f, hW1⟩
   simp only [ite_true, Prod.mk.injEq] at e
   obtain ⟨rfl, rfl⟩ := e
   have hSS1 : SlotsSame Z.th (L.mem s) (L.mem s1) :=
     slotsSame_of_capw J.xtop.rel.1 (J.slotCapW (tLowSlots_all _)) hW1
   have hks1 : L.ksb s1 = L.ksb s := f.1
   have hdp : DeadP (L := L) H s1 p :=
-    ⟨fun _ => ⟨d1, d2, d3, Ne.symm d4, Ne.symm d5⟩, fun h => (by rw [hpH] at h; cases h),
+    ⟨fun _ => ⟨d1, d2, d3, Ne.symm d4, Ne.symm d5, d6⟩, fun h => (by rw [hpH] at h; cases h),
       fun h => (by rw [hpH] at h; cases h), fun h => (by rw [hpH] at h; cases h),
       fun z h => (by rw [hpH] at h; cases h)⟩
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Thread p := by

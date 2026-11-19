@@ -226,7 +226,9 @@ theorem JAtZ.timestampJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hL : LK (fun _ => False) σ σ' := fun p => Or.inr (OL.refl _)
   have hAI' : ActIdle σ' := hA2 J.act
   have hDead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
-    J.deadP_sc_step hX' hwT hK (fun _ _ h => h.elim) hL hF hAI'.1 (fun h => h) (J.jcov.dead q hq)
+    J.deadP_sc_step hX' hwT hK (fun _ _ h => h.elim) hL hF hAI'.1 hY'
+      ((SOK.ykeep (f := (true, true)) ⟨fun p => ORel.refl _ _, rfl, rfl, rfl, rfl, rfl⟩ rfl).dk q.bv) (fun h => h)
+      (J.jcov.dead q hq)
   -- the node-0 debug word
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hN0 : P1.NodePlaced st Z.T s 0#u64 := by rw [J.tcbs_eq.1]; exact P1.TInv.nodes J.blk _ J.kern.cs0

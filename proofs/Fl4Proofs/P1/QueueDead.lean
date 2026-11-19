@@ -1236,7 +1236,7 @@ theorem fin_thread.dead {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
     (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) :
     objects.finalise_cap_object st ar s a (.Thread p) true ⦃ r =>
       L.mem r.2.1 (stA p) = sched.TS_INACTIVE ∧ L.mem r.2.1 (scA p) = 0#u64 ∧ L.mem r.2.1 (boundA p) = 0#u64 ∧
-      L.actionW r.2.1 ≠ p ∧ L.idleW r.2.1 ≠ p ⦄ := by
+      L.actionW r.2.1 ≠ p ∧ L.idleW r.2.1 ≠ p ∧ L.mem r.2.1 (yieldA p) = 0#u64 ⦄ := by
   unfold objects.finalise_cap_object
   dsimp only
   simp only [ite_true]
@@ -1295,16 +1295,17 @@ theorem fin_thread.dead {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   rintro ⟨s4, a2⟩ ⟨h4, na4, sc4, b4⟩
   try simp only [WP.uncurry'_pair]
   refine WP.spec_bind (WP.spec_and (sched.suspend.blk s4 a2 p h4 hp na4) (sched.suspend.keepF s4 a2 p h4 hp)) ?_
-  rintro ⟨s5, a3⟩ ⟨⟨h5, -⟩, sc5, b5, st5⟩
+  rintro ⟨s5, a3⟩ ⟨⟨h5, -⟩, sc5, b5, st5, y5⟩
   try simp only [WP.uncurry'_pair]
   refine WP.spec_bind (WP.spec_and (objects.debug_remove.blk s5 p h5 hp) (objects.debug_remove.keepF s5 p h5 hp))
     fun s6 ⟨⟨h6, _⟩, k6⟩ => ?_
   refine WP.spec_bind (hA.fpu_release a3 p) fun a4 _ => ?_
   refine WP.spec_bind (P0.obj.Tcb.slot.p0 p _) fun s7 _ => ?_
-  have st6 : L.mem s6 (stA p) = sched.TS_INACTIVE := (k6 p hp).2.2.trans st5
+  have st6 : L.mem s6 (stA p) = sched.TS_INACTIVE := (k6 p hp).2.2.1.trans st5
+  have y6 : L.mem s6 (yieldA p) = 0#u64 := (k6 p hp).2.2.2.trans y5
   have sc6 : L.mem s6 (scA p) = 0#u64 := (k6 p hp).1.trans (sc5.trans sc4)
   have b6 : L.mem s6 (boundA p) = 0#u64 := (k6 p hp).2.1.trans (b5.trans b4)
-  refine (WP.spec_ok _).2 ⟨st6, sc6, b6, fun e => ?_, fun e => ?_⟩
+  refine (WP.spec_ok _).2 ⟨st6, sc6, b6, fun e => ?_, fun e => ?_, y6⟩
   · have := (h6.1.choose_spec.choose_spec.actOK (by rw [e]; exact hp)).1
     rw [e, st6] at this; exact not_runnable_inactive this
   · have := h6.2.1.idle
@@ -1317,7 +1318,7 @@ theorem fin_cap_thread.dead {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTota
     (hidle : L.idleW s ≠ p) (hv0 : L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) :
     objects.finalise_cap st ar s a (.Thread p) true ex ⦃ r =>
       L.mem r.2.1 (stA p) = sched.TS_INACTIVE ∧ L.mem r.2.1 (scA p) = 0#u64 ∧ L.mem r.2.1 (boundA p) = 0#u64 ∧
-      L.actionW r.2.1 ≠ p ∧ L.idleW r.2.1 ≠ p ⦄ := by
+      L.actionW r.2.1 ≠ p ∧ L.idleW r.2.1 ≠ p ∧ L.mem r.2.1 (yieldA p) = 0#u64 ⦄ := by
   rw [fin_cap_eq_obj (by simp)]
   exact fin_thread.dead hA s a p h hp hna hidle hv0
 

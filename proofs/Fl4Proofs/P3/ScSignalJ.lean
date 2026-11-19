@@ -119,7 +119,7 @@ theorem JAtZ.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · have := J.nodeB wp hwp 0#u64 J.kern.cs0; omega
   -- the scheduler fields
   have hAI3 : ActIdle σ3 := F.actIdle J.act
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR3 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR3 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw) (J.idleW_keep hS3 F.sk.idle F.sk.isc).2⟩
@@ -164,7 +164,7 @@ theorem JAtZ.wake_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hRR' := J.rrecv.frame k4 F.khrb
   have hDbg := J.kw_dbg hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_nfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.finW_irq hw)

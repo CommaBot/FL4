@@ -478,7 +478,7 @@ theorem JAtZ.cancelBadgedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {e 
     rcases hact with e' | e'
     · exact Or.inl (act_cn_nr e')
     · rw [e']; exact J.curRun
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s3 σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)

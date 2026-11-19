@@ -764,7 +764,7 @@ theorem JAtZ.sendBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
     refine J.deadP_keep hS3 hIR.1 (fun x hx h0 => ?_) (fun x hx => ?_)
       (fun x hx => ⟨x, F.ntfnF hx, Or.inl rfl, rfl, Or.inl rfl⟩)
       (fun x hx => ⟨x, F.replyF hx, rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
-      (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hW hz hqC hK8 hK) F.sk.idle hAI3.1 hd
+      (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hW hz hqC hK8 hK) F.sk.idle hAI3.1 (J.yld.frame k2 F.ykeep) (F.ykeep.dk q.bv) hd
     · obtain ⟨st', hk3, hs'⟩ := F.tcbF hx
       refine ⟨_, hk3, ?_, rfl, Or.inl rfl⟩
       show st' = x.tcbState

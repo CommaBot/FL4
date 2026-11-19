@@ -292,7 +292,8 @@ theorem JAtZ.deadP_qk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S}
     (hA : QKY σ σ3) (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3)
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ))
-    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3) :
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
     ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
   have hd := J.jcov.dead q hq
   refine J.deadP_keep hS3 hI3 (fun x hx _ => ?_)
@@ -300,7 +301,7 @@ theorem JAtZ.deadP_qk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s3 : S}
     (fun x hx => ⟨x, (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 hx, rfl⟩)
     (fun x n hx => ?_) (fun hqC => k3 q hqC)
-    (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK) hA.idle hAS hd
+    (fun z hz hqC K hK8 hK => J.finW_scOut hw hz hqC hK8 hK) hA.idle hAS hY3 (hYK.dk q.bv) hd
   · obtain ⟨y, hy, e⟩ := hA.tcb hx
     exact ⟨y, hy, by rw [e], by rw [e], Or.inl (by rw [e])⟩
   · obtain ⟨w, hw, e⟩ := hA.sc hx
@@ -358,7 +359,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1 (J.yld.frame k2 hyk) hyk
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.finW_irq hwF)

@@ -41,7 +41,8 @@ it `INACTIVE`. -/
 theorem sched.suspend.keepF {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t : obj.Tcb)
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
     sched.suspend st ar s a t ⦃ s' _ => L.mem s' (scA t) = L.mem s (scA t) ∧
-      L.mem s' (boundA t) = L.mem s (boundA t) ∧ L.mem s' (stA t) = sched.TS_INACTIVE ⦄ := by
+      L.mem s' (boundA t) = L.mem s (boundA t) ∧ L.mem s' (stA t) = sched.TS_INACTIVE ∧
+      L.mem s' (yieldA t) = 0#u64 ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hsub := hSg.sub
   have hT := h0.tcbs
@@ -88,11 +89,14 @@ theorem sched.suspend.keepF {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (
     (field_qfoot hT hW3 (h3.nodes _ hc3) (h3.nodes _ h3.cur) ht hw4 ht (K := K) (by omega) (by omega)
       (by omega) (fun _ => by omega)).trans (F3 K hK)
   refine WP.spec_bind (Pₘ := fun s5 => ∃ Q5 R5, SchedQueuesInv st T Cs Ω H s5 Q5 R5 ∧
-      L.mem s5 (scA t) = L.mem s (scA t) ∧ L.mem s5 (boundA t) = L.mem s (boundA t)) ?_ ?_
+      L.mem s5 (scA t) = L.mem s (scA t) ∧ L.mem s5 (boundA t) = L.mem s (boundA t) ∧
+      L.mem s5 (yieldA t) = 0#u64) ?_ ?_
   · unfold schedcontext.cancel_yield_to
     step with obj.Tcb.is_null.spec as ⟨b, b_post⟩
     split
-    · exact (WP.spec_ok _).2 ⟨_, _, h4, by rw [scA_eq]; exact F4 _ (by simp), F4 3368#u64 (by simp)⟩
+    · rename_i hb
+      have e0 : t = 0#u64 := by rw [b_post] at hb; simpa using hb
+      exact absurd (show t.val = 0 by rw [e0]; rfl) hta.ne0
     step with obj.Tcb.yield_to.spec as ⟨yt, yt_post⟩
     split
     · rename_i _ hy
@@ -106,50 +110,58 @@ theorem sched.suspend.keepF {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (
       refine WP.spec_mono (obj.Tcb.set_yield_to.spec _ t 0#u64) fun s6 e => ?_
       subst e
       obtain ⟨h6, f6, -⟩ := field_wr_keep (K := 3472#u64) (v := 0#u64) h5 ht (by simp) (by simp) (by simp)
-      refine ⟨_, _, h6, ?_, ?_⟩
+      refine ⟨_, _, h6, ?_, ?_, L.mem_wr_same (field_aligned hta (K := 3472#u64) (by simp) (by simp))⟩
       · rw [scA_eq]
         exact (f6 3464#u64 (by simp) (by simp) (by simp)).trans
           ((f5 t ht 3464#u64 (by simp) (by simp)).trans (F4 _ (by simp)))
       · exact (f6 3368#u64 (by simp) (by simp) (by simp)).trans
           ((f5 t ht 3368#u64 (by simp) (by simp)).trans (F4 3368#u64 (by simp)))
-    · exact (WP.spec_ok _).2 ⟨_, _, h4, by rw [scA_eq]; exact F4 _ (by simp), F4 3368#u64 (by simp)⟩
-  rintro s5 ⟨Q5, R5, h5, e1, e2⟩
+    · rename_i _ hy
+      have y0 : yt = 0#u64 := UScalar.eq_of_val_eq (by simpa using hy)
+      exact (WP.spec_ok _).2 ⟨_, _, h4, by rw [scA_eq]; exact F4 _ (by simp), F4 3368#u64 (by simp),
+        by rw [← yt_post]; exact y0⟩
+  rintro s5 ⟨Q5, R5, h5, e1, e2, e3⟩
   refine WP.spec_bind (sched.set_thread_state.state s5 t sched.TS_INACTIVE Q5 R5 h5 ht hO.ksb hsub) ?_
   rintro s6 ⟨est, k6⟩
-  refine (WP.spec_ok _).2 ⟨(k6.scf ht).trans e1, ?_, est⟩
-  show L.mem _ (core.num.U64.wrapping_add t 3368#u64) = _
-  rw [k6.fld t ht 3368#u64 (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)]
-  exact e2
+  refine (WP.spec_ok _).2 ⟨(k6.scf ht).trans e1, ?_, est, ?_⟩
+  · show L.mem _ (core.num.U64.wrapping_add t 3368#u64) = _
+    rw [k6.fld t ht 3368#u64 (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)]
+    exact e2
+  · show L.mem _ (core.num.U64.wrapping_add t 3472#u64) = _
+    rw [k6.fld t ht 3472#u64 (by simp) (by simp) (by simp) (by simp) (fun _ => ⟨by simp, by simp⟩)]
+    exact e3
 
 /-- The three fields of every thread. -/
 def Keep3 (st : machine.Store S) [L : LawfulStore st] (T : Set U64) (s s' : S) : Prop :=
   ∀ y ∈ T, L.mem s' (scA y) = L.mem s (scA y) ∧ L.mem s' (boundA y) = L.mem s (boundA y) ∧
-    L.mem s' (stA y) = L.mem s (stA y)
+    L.mem s' (stA y) = L.mem s (stA y) ∧ L.mem s' (yieldA y) = L.mem s (yieldA y)
 
 theorem Keep3.trans {s1 s2 s3 : S} (h1 : Keep3 st T s1 s2) (h2 : Keep3 st T s2 s3) : Keep3 st T s1 s3 :=
   fun y hy => ⟨(h2 y hy).1.trans (h1 y hy).1, (h2 y hy).2.1.trans (h1 y hy).2.1,
-    (h2 y hy).2.2.trans (h1 y hy).2.2⟩
+    (h2 y hy).2.2.1.trans (h1 y hy).2.2.1, (h2 y hy).2.2.2.trans (h1 y hy).2.2.2⟩
 
 theorem keep3_field {s : S} {x K v : U64} (hT : TcbPlaced T) (hx : x ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
-    (h1 : K.val ≠ 3464) (h2 : K.val ≠ 3368) (h3 : K.val ≠ 3328) :
+    (h1 : K.val ≠ 3464) (h2 : K.val ≠ 3368) (h3 : K.val ≠ 3328) (h4 : K.val ≠ 3472) :
     Keep3 st T s (L.wr s (core.num.U64.wrapping_add x K) v) := by
-  have k : ∀ y ∈ T, ∀ K0 : U64, (K0.val = 3464 ∨ K0.val = 3368 ∨ K0.val = 3328) →
+  have k : ∀ y ∈ T, ∀ K0 : U64, (K0.val = 3464 ∨ K0.val = 3368 ∨ K0.val = 3328 ∨ K0.val = 3472) →
       L.mem (L.wr s (core.num.U64.wrapping_add x K) v) (core.num.U64.wrapping_add y K0) =
         L.mem s (core.num.U64.wrapping_add y K0) := fun y hy K0 hK0 =>
     L.mem_wr_ne (field_aligned (hT x hx) hK hK8) (field_aligned (hT y hy) (by omega) (by omega))
       (fun e => field_ne (hT x hx) (hT y hy) hK (by omega) (fun _ => by omega) (UScalar.eq_of_val_eq e))
   intro y hy
-  exact ⟨by rw [scA_eq]; exact k y hy _ (by simp), k y hy 3368#u64 (by simp), by rw [stA_eq]; exact k y hy _ (by simp)⟩
+  exact ⟨by rw [scA_eq]; exact k y hy _ (by simp), k y hy 3368#u64 (by simp), by rw [stA_eq]; exact k y hy _ (by simp),
+    k y hy 3472#u64 (by simp)⟩
 
 theorem keep3_node {s : S} {c o v : U64} (hT : TcbPlaced T) (hN : NodePlaced st T s c) (ho : o.val < 4288)
     (ho8 : o.val % 8 = 0) : Keep3 st T s (L.wr s (L.nodeAt s c o) v) := by
-  have k : ∀ y ∈ T, ∀ K0 : U64, (K0.val = 3464 ∨ K0.val = 3368 ∨ K0.val = 3328) →
+  have k : ∀ y ∈ T, ∀ K0 : U64, (K0.val = 3464 ∨ K0.val = 3368 ∨ K0.val = 3328 ∨ K0.val = 3472) →
       L.mem (L.wr s (L.nodeAt s c o) v) (core.num.U64.wrapping_add y K0) =
         L.mem s (core.num.U64.wrapping_add y K0) := fun y hy K0 hK0 =>
     L.mem_wr_ne (nodeAt_aligned hN ho ho8) (field_aligned (hT y hy) (by omega) (by omega))
       (fun e => node_ne_field hN ho hy (hT y hy) (by omega) (UScalar.eq_of_val_eq e))
   intro y hy
-  exact ⟨by rw [scA_eq]; exact k y hy _ (by simp), k y hy 3368#u64 (by simp), by rw [stA_eq]; exact k y hy _ (by simp)⟩
+  exact ⟨by rw [scA_eq]; exact k y hy _ (by simp), k y hy 3368#u64 (by simp), by rw [stA_eq]; exact k y hy _ (by simp),
+    k y hy 3472#u64 (by simp)⟩
 
 /-- **`debug_remove`** keeps every thread's `SC`, `BOUND_NTFN` and `STATE`. -/
 theorem objects.debug_remove.keepF (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
@@ -168,8 +180,8 @@ theorem objects.debug_remove.keepF (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg 
   have tpv : Tz T pv := by rw [epv]; exact hTm.dp t ht
   have dbg : ∀ {s1 : S} {x : U64} (v : U64), x ∈ T → (K : U64) → (K.val = 3576 ∨ K.val = 3584) →
       Keep3 st T s s1 → Keep3 st T s (L.wr s1 (core.num.U64.wrapping_add x K) v) := fun v hx K hK k =>
-    k.trans (keep3_field hT hx (by omega) (by omega) (by omega) (by omega) (by omega))
-  have k0 : Keep3 st T s s := fun _ _ => ⟨rfl, rfl, rfl⟩
+    k.trans (keep3_field hT hx (by omega) (by omega) (by omega) (by omega) (by omega) (by omega))
+  have k0 : Keep3 st T s s := fun _ _ => ⟨rfl, rfl, rfl, rfl⟩
   refine WP.spec_bind (Pₘ := fun s1 => Keep3 st T s s1 ∧ L.ksb s1 = L.ksb s) ?_ ?_
   · split
     · exact WP.spec_mono (obj.node_set.spec s cpu _ nx) fun s1 e => by

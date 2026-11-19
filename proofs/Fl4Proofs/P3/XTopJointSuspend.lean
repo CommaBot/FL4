@@ -300,12 +300,27 @@ theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
     ScAll.of_tr hS J.rp J.mcp J.call J.rfree ⟨hX6.2.2.1, hX6.1.toN, hNSC, hInv⟩ hY6 (hW.mono fun _ h => Or.inl h)
       hsok rfl
   have hAI := hF.actIdle J.act hsa hid
+  have hYD5 : ∀ r, YDeadKeep σ σ5 r := fun r => by
+    refine ⟨fun x0 hx0 h0 y hy => ?_, fun x0 m hx0 h0 y m' hy => ?_⟩
+    · by_cases e : r = t.bv
+      · subst e; rw [hk5] at hy; cases hy; rfl
+      · rcases hko5 r e with h | ⟨z, n, hz, h⟩
+        · rw [h, hx0] at hy; cases hy; exact h0
+        · rw [hz] at hx0; cases hx0
+    · by_cases e : r = t.bv
+      · subst e; rw [hk5] at hy; cases hy
+      · rcases hko5 r e with h | ⟨z, n, hz, h⟩
+        · rw [h, hx0] at hy; cases hy; exact h0
+        · rw [h] at hy; cases hy; rfl
+  have hYD6 : ∀ r, YDeadKeep σ σ6 r := fun r =>
+    (YDeadKeep.upd (p := t.bv) (o := .tcb { { x with tcbYieldTo := none } with tcbState := .inactive }) (hYD5 r)
+      (fun _ e => by cases e; rfl) (fun _ _ e => by cases e)).congr (by rw [hσ6, stsAct_kheap])
   have hdead : ∀ q ∈ D, DeadP (L := L) H s6 q := fun q hq =>
     J.deadP_sc_stepG hX' hW hK (fun p x' hp hk' h0 y hy => by
         subst hp; rw [hk] at hk'; cases hk'; rw [hF.hk'] at hy; cases hy
         show Fl4Spec.ThreadState.inactive = x.tcbState
         cases hx : x.tcbState <;> simp_all [tsCode])
-      (hF.lk (W := fun _ => False)) hF.fk hAI.1 (fun h => h) (J.jcov.dead q hq)
+      (hF.lk (W := fun _ => False)) hF.fk hAI.1 hY' (hYD6 q.bv) (fun h => h) (J.jcov.dead q hq)
   refine ⟨_, hsp, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2)) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv (J.cur.imp (fun e => hF.act.elim (fun e' => e'.trans e) id) hF.curInv)

@@ -310,10 +310,12 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
         unfold rTcbA; exact zw _ (by simp [layout.reply.TCB, HKind.bits]) (by simp [layout.reply.TCB])
       · have h128 : 128 ≤ 2 ^ (HKind.sc us).bits := le_trans (by decide) (Nat.pow_le_pow_right (by decide) h7)
         refine ⟨(fun h => by cases h), (fun h => by cases h), (fun h => by cases h), (fun h => by cases h),
-          (fun z' _ => ⟨?_, ?_, ?_⟩)⟩
+          (fun z' _ => ⟨?_, ?_, ?_, ?_⟩)⟩
         · unfold scTcbA; exact zw _ (lt_of_lt_of_le (by simp [layout.sc.TCB]) h128) (by simp [layout.sc.TCB])
         · unfold scReplyA; exact zw _ (lt_of_lt_of_le (by simp [layout.sc.REPLY]) h128) (by simp [layout.sc.REPLY])
         · unfold scNtfnA; exact zw _ (lt_of_lt_of_le (by simp [layout.sc.NTFN]) h128) (by simp [layout.sc.NTFN])
+        · unfold scYieldFromA
+          exact zw _ (lt_of_lt_of_le (by simp [layout.sc.YIELD_FROM]) h128) (by simp [layout.sc.YIELD_FROM])
     · have h1 : retypeHeap H lo hi A k w n us q = H.drop (RegionD H lo hi) q := by rw [heq, if_neg hc]
       have h2 : H.drop (RegionD H lo hi) q = H q := h1.symm.trans he
       have hd1 : DeadQ st (H.drop (RegionD H lo hi)) s q := DeadQ.heq h2 hd
@@ -322,17 +324,19 @@ theorem retypeP1Step_base {s s' : S} {H : Heap} {Cs Ac : Set U64} {lo hi A k w n
       have hb0 := hb.drop P
       have hO := hb0.2.2.1.1
       have hcur := hb0.1.choose_spec.choose_spec.cur
-      refine DeadQ.heq h1 (hd1.keepw (fun hq => ⟨?_, ?_, ?_⟩) ?_ ?_ (fun hq => ?_) (fun hq => ?_) (fun hq => ?_)
+      refine DeadQ.heq h1 (hd1.keepw (fun hq => ⟨?_, ?_, ?_, ?_⟩) ?_ ?_ (fun hq => ?_) (fun hq => ?_) (fun hq => ?_)
         (fun z hq => ?_))
       · rw [stA_eq]; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · rw [scA_eq]; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · unfold boundA; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
+      · unfold yieldA; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · unfold LawfulStore.actionW; exact G.cur hcur (by rw [act_val]; omega) (by rw [act_val]) (by rw [act_val]; omega)
       · unfold LawfulStore.idleW; exact G.cur hcur (by rw [idle8]; omega) (by rw [idle8]) (by rw [idle8]; omega)
       · unfold LawfulStore.epState; rw [(G.epw q hq).2]
       · exact ⟨G.sig _ (hO.ntB q hq).2, G.sig _ (hO.ntW q hq)⟩
       · exact G.sig _ (hO.tcbW hq)
-      · exact ⟨G.sig _ (hO.fixW q ⟨z, hq⟩).1, G.sig _ (hO.repW q ⟨z, hq⟩), G.sig _ (hO.snW q ⟨z, hq⟩)⟩
+      · exact ⟨G.sig _ (hO.fixW q ⟨z, hq⟩).1, G.sig _ (hO.repW q ⟨z, hq⟩), G.sig _ (hO.snW q ⟨z, hq⟩),
+          G.sig _ (hO.syW q ⟨z, hq⟩)⟩
 
 
 

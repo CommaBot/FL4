@@ -283,7 +283,7 @@ theorem JAtZ.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hAI : ActIdle σ' := F.actIdle J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_hstep (G' := Z.G) hX' ⟨fun p => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun q hq => k3 q hq) hOut
-      hAI.1 (J.jcov.dead q hq)
+      hAI.1 (J.yld.frame k2 F.ykeep) F.ykeep (J.jcov.dead q hq)
   have ck := F.ckeep
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
@@ -554,8 +554,12 @@ theorem jat_scheduleF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hX' : XTopAt (L := L) AR (Z.mv Z.G V1) s' a' σ' :=
     xtop_sched_step J1.xtop J1.ip J1.nk hwT (ct := σ1.curThread)
       { hK1 with kh := fun p => (hK1.kh p).mono False.elim } hS' hR' hcur hTl.ar
+  have hSOK1 := (schs_schedule.of_eq hsc).2
+  have hY1 : YieldRel Z.T Z.C (L.mem s') σ' :=
+    (ScAll.of_k J1.xtop.fin.1.1.1 J1.rp J1.yld J1.mcp J1.call J1.rfree ⟨⟨hS', hR', hN', hI'⟩, hw, hSOK1⟩).2.1
   have hdead : ∀ q ∈ D1, Sched.DeadP (L := L) H s' q := fun q hq =>
-    J1.deadP_sch_step hX' hwT hK1 hL1 hA' (fun h => h) (J1.jcov.dead q hq)
+    J1.deadP_sch_step hX' hwT hK1 hL1 hA' (J1.ymd hS' hY1 ((hSOK1.ykeep rfl).dk q.bv)) (fun h => h)
+      (J1.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D1 rf.1 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
       ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩

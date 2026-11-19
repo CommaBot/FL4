@@ -157,7 +157,7 @@ theorem retypeP1Step_tcb {s s' : S} {Ac : Set U64} {lo hi A k w us : Nat} :
       have nT : q ∉ (H.drop (RegionD H lo hi)).tcbs := fun h => AT.notN h hc.1
       unfold DeadQ
       rw [hq']
-      refine ⟨fun _ => ⟨?_, AT.zSc hc.1, AT.zBnd hc.1, ?_, ?_⟩, (fun h => by cases h), (fun h => by cases h),
+      refine ⟨fun _ => ⟨?_, AT.zSc hc.1, AT.zBnd hc.1, ?_, ?_, AT.zYl hc.1⟩, (fun h => by cases h), (fun h => by cases h),
         (fun h => by cases h), (fun z h => by cases h)⟩
       · rw [AT.zSt hc.1]; unfold sched.TS_INACTIVE; rfl
       · rw [ea]
@@ -170,17 +170,19 @@ theorem retypeP1Step_tcb {s s' : S} {Ac : Set U64} {lo hi A k w us : Nat} :
       have h2 : H.drop (RegionD H lo hi) q = H q := h1.symm.trans he
       have hd1 : DeadQ st (H.drop (RegionD H lo hi)) s q := DeadQ.heq h2 hd
       have hO := hb0.2.2.1.1
-      refine DeadQ.heq h1 (hd1.keepw (fun hq => ⟨?_, ?_, ?_⟩) ?_ ?_ (fun hq => ?_) (fun hq => ?_) (fun hq => ?_)
+      refine DeadQ.heq h1 (hd1.keepw (fun hq => ⟨?_, ?_, ?_, ?_⟩) ?_ ?_ (fun hq => ?_) (fun hq => ?_) (fun hq => ?_)
         (fun z hq => ?_))
       · rw [stA_eq]; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · rw [scA_eq]; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · unfold boundA; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
+      · unfold yieldA; exact G.fld q hq _ (by simp) (by simp) (by simp) (by simp) (by simp)
       · exact ea
       · exact ei
       · unfold LawfulStore.epState; rw [(G.epw q hq).2]
       · exact ⟨G.sig _ (hO.ntB q hq).2, G.sig _ (hO.ntW q hq)⟩
       · exact G.sig _ (hO.tcbW hq)
-      · exact ⟨G.sig _ (hO.fixW q ⟨z, hq⟩).1, G.sig _ (hO.repW q ⟨z, hq⟩), G.sig _ (hO.snW q ⟨z, hq⟩)⟩
+      · exact ⟨G.sig _ (hO.fixW q ⟨z, hq⟩).1, G.sig _ (hO.repW q ⟨z, hq⟩), G.sig _ (hO.snW q ⟨z, hq⟩),
+          G.sig _ (hO.syW q ⟨z, hq⟩)⟩
 
 /-- The families are all done. -/
 theorem retypeFams : RetypeFams st := ⟨fun _ _ _ _ _ _ _ _ _ _ _ => retypeP1Step_tcb⟩

@@ -802,7 +802,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       (fun x hx _ => let ⟨y, hy, hc⟩ := F.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
       (fun x hx => F.ep.2 hx) (fun x hx => ⟨x, F.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
       (fun x hx => ⟨x, F.reply.2 hx, rfl⟩) (fun x n hx => ⟨x, F.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (k3 q)
-      (fun z hz _ => hOut q z hz) F.idle hAI.1 (J.jcov.dead q hq)
+      (fun z hz _ => hOut q z hz) F.idle hAI.1 (J.yld.frame k2 yk) (yk.dk q.bv) (J.jcov.dead q hq)
   -- the slots
   have hTKH : TypedKeptH Z.th H (Sched.idleScW (L := L) s) (L.mem s) (L.mem s') := by
     intro y hy

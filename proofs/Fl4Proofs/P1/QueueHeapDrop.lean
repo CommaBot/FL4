@@ -22,12 +22,12 @@ variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 def DeadQ (st : machine.Store S) [L : LawfulStore st] (H : Heap) (s : S) (q : U64) : Prop :=
   (H q = some .tcb → L.mem s (stA q) = sched.TS_INACTIVE ∧
     L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧
-    q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
+    q ≠ L.actionW s ∧ q ≠ L.idleW s ∧ L.mem s (yieldA q) = 0#u64) ∧
   (H q = some .ep → L.epState s q = 0#u64) ∧
   (H q = some .ntfn → L.epState s q ≠ 1#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧
   (H q = some .reply → L.mem s (rTcbA q) = 0#u64) ∧
   (∀ z, H q = some (.sc z) → L.mem s (scTcbA q) = 0#u64 ∧ L.mem s (scReplyA q) = 0#u64 ∧
-    L.mem s (scNtfnA q) = 0#u64)
+    L.mem s (scNtfnA q) = 0#u64 ∧ L.mem s (scYieldFromA q) = 0#u64)
 
 /-- `[lo, hi)` met by `[a, b)`. -/
 def MeetsR (lo hi a b : Nat) : Prop := ¬ (b ≤ lo ∨ hi ≤ a)
@@ -327,7 +327,7 @@ theorem DropOK.keepSc (P : DropOK st H D Cs s) {c : U64} (hc : c ∈ H.scs)
   have d := (P.deadOf (by rw [hz]; simp) hD).2.2.2.2 z hz
   rcases hs with h | h
   · exact h d.1
-  · exact h d.2.2
+  · exact h d.2.2.1
 
 /-- Heap objects are not at the null address. -/
 theorem DropOK.ne0 (P : DropOK st H D Cs s) {q : U64} (hq : H q ≠ none) : q ≠ 0#u64 := fun e => by
@@ -501,7 +501,7 @@ theorem SchedQueuesInv.drop (P : DropOK st H D Cs s) {Q : U64 → U64 → List U
   have hact : L.actionW s ∈ H.tcbs → ¬ D (L.actionW s) := fun ha hD =>
     ((P.deadOf (by rw [show H (L.actionW s) = some .tcb from ha]; simp) hD).1 ha).2.2.2.1 rfl
   have hidl : L.idleW s ∈ H.tcbs → ¬ D (L.idleW s) := fun ha hD =>
-    ((P.deadOf (by rw [show H (L.idleW s) = some .tcb from ha]; simp) hD).1 ha).2.2.2.2 rfl
+    ((P.deadOf (by rw [show H (L.idleW s) = some .tcb from ha]; simp) hD).1 ha).2.2.2.2.1 rfl
   refine ⟨fun t ht => h.tcbs t (sub ht), fun c hc => (h.nodes c hc).sub sub, h.cur,
     fun t ht => h.aff t (sub ht), fun t ht => h.prio t (sub ht), fun c hc => ?_, fun c hc => ?_, h.inQ, h.inR,
     fun t ht => h.queued t (sub ht), fun t ht => h.released t (sub ht), fun t ht => h.excl t (sub ht), ?_,

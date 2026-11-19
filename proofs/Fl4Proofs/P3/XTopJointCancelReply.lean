@@ -611,7 +611,7 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have hqt := ht' q' hq'
     refine J.deadP_keep hIR.2.2.1 hIR.1 (fun x0 hx0 h0 => ?_) (fun x0 hx0 => ?_) (fun x0 hx0 => ?_)
       (fun x0 hx0 => ?_) (fun x0 n hx0 => ?_) (fun hqC => ?_)
-      (fun z hz hqC K hK8 hK' => J.rmW_scOut hw hz hqC hK8 hK') hidle' hAS hd
+      (fun z hz hqC K hK8 hK' => J.rmW_scOut hw hz hqC hK8 hK') hidle' hAS (J.yld.frame k2 hyk) (hyk.dk q'.bv) hd
     · obtain ⟨x', hx', es, eb, esc⟩ := tcbF _ x0 hx0 hqt
       exact ⟨x', hx', es, eb, esc.imp id (fun h => h.1)⟩
     · have hq1 : q'.bv ≠ r.bv := by rintro e; rw [e, hkr] at hx0; cases hx0

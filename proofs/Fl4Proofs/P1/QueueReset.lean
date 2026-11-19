@@ -150,28 +150,29 @@ theorem epTSA_val' {e : U64} (h : e.val + 16 ≤ 2 ^ 64) : (epTSA e).val = e.val
 /-- A dead object stays dead when the words `DeadQ` reads are kept. -/
 theorem DeadQ.keepw {H' : Heap} {s1 s2 : S} {q : U64} (h : DeadQ st H' s1 q)
     (ht : H' q = some .tcb → L.mem s2 (stA q) = L.mem s1 (stA q) ∧ L.mem s2 (scA q) = L.mem s1 (scA q) ∧
-      L.mem s2 (boundA q) = L.mem s1 (boundA q))
+      L.mem s2 (boundA q) = L.mem s1 (boundA q) ∧ L.mem s2 (yieldA q) = L.mem s1 (yieldA q))
     (ha : L.actionW s2 = L.actionW s1) (hi : L.idleW s2 = L.idleW s1)
     (he : H' q = some .ep ∨ H' q = some .ntfn → L.epState s2 q = L.epState s1 q)
     (hn : H' q = some .ntfn → L.mem s2 (ntfnBtA q) = L.mem s1 (ntfnBtA q) ∧
       L.mem s2 (ntfnScA q) = L.mem s1 (ntfnScA q))
     (hr : H' q = some .reply → L.mem s2 (rTcbA q) = L.mem s1 (rTcbA q))
     (hs : ∀ z, H' q = some (.sc z) → L.mem s2 (scTcbA q) = L.mem s1 (scTcbA q) ∧
-      L.mem s2 (scReplyA q) = L.mem s1 (scReplyA q) ∧ L.mem s2 (scNtfnA q) = L.mem s1 (scNtfnA q)) :
+      L.mem s2 (scReplyA q) = L.mem s1 (scReplyA q) ∧ L.mem s2 (scNtfnA q) = L.mem s1 (scNtfnA q) ∧
+      L.mem s2 (scYieldFromA q) = L.mem s1 (scYieldFromA q)) :
     DeadQ st H' s2 q := by
   obtain ⟨d1, d2, d3, d4, d5⟩ := h
   refine ⟨fun hq => ?_, fun hq => ?_, fun hq => ?_, fun hq => ?_, fun z hq => ?_⟩
-  · obtain ⟨e1, e2, e3⟩ := ht hq
-    obtain ⟨a1, a2, a3, a4, a5⟩ := d1 hq
-    exact ⟨e1 ▸ a1, e2 ▸ a2, e3 ▸ a3, ha ▸ a4, hi ▸ a5⟩
+  · obtain ⟨e1, e2, e3, e4⟩ := ht hq
+    obtain ⟨a1, a2, a3, a4, a5, a6⟩ := d1 hq
+    exact ⟨e1 ▸ a1, e2 ▸ a2, e3 ▸ a3, ha ▸ a4, hi ▸ a5, e4 ▸ a6⟩
   · rw [he (Or.inl hq)]; exact d2 hq
   · obtain ⟨e1, e2⟩ := hn hq
     obtain ⟨a1, a2, a3⟩ := d3 hq
     exact ⟨by rw [he (Or.inr hq)]; exact a1, e1 ▸ a2, e2 ▸ a3⟩
   · rw [hr hq]; exact d4 hq
-  · obtain ⟨e1, e2, e3⟩ := hs z hq
-    obtain ⟨a1, a2, a3⟩ := d5 z hq
-    exact ⟨e1 ▸ a1, e2 ▸ a2, e3 ▸ a3⟩
+  · obtain ⟨e1, e2, e3, e4⟩ := hs z hq
+    obtain ⟨a1, a2, a3, a4⟩ := d5 z hq
+    exact ⟨e1 ▸ a1, e2 ▸ a2, e3 ▸ a3, e4 ▸ a4⟩
 
 /-- **A step of the reset keeps `RInv`**, given `BlkOK` after and the frames:
 the kept TCBs' fields from 192, the scheduler words, the kept endpoints'
@@ -189,18 +190,21 @@ theorem RInv.step {s0 s1 s2 : S} (I : RInv st H D Cs s0 s1) {Ac2 : Set U64}
   obtain ⟨Ac1, hb1⟩ := I.blk
   have hO := hb1.2.2.1.1
   have tf : ∀ {q : U64}, H.drop D q = some .tcb → L.mem s2 (stA q) = L.mem s1 (stA q) ∧
-      L.mem s2 (scA q) = L.mem s1 (scA q) ∧ L.mem s2 (boundA q) = L.mem s1 (boundA q) := fun hq =>
+      L.mem s2 (scA q) = L.mem s1 (scA q) ∧ L.mem s2 (boundA q) = L.mem s1 (boundA q) ∧
+      L.mem s2 (yieldA q) = L.mem s1 (yieldA q) := fun hq =>
     ⟨by rw [stA_eq]; exact fld _ hq _ (by simp) (by simp) (by simp),
      by rw [scA_eq]; exact fld _ hq _ (by simp) (by simp) (by simp),
-     by unfold boundA; exact fld _ hq _ (by simp) (by simp) (by simp)⟩
+     by unfold boundA; exact fld _ hq _ (by simp) (by simp) (by simp),
+     by unfold yieldA; exact fld _ hq _ (by simp) (by simp) (by simp)⟩
   refine ⟨⟨Ac2, hb2⟩, fun q hq hd => (I.dead q hq hd).keepw tf ea ei (fun h' => by
       unfold LawfulStore.epState; rw [hep q h']) (fun h' => ⟨sig _ (hO.ntB q h').2, sig _ (hO.ntW q h')⟩)
       (fun h' => sig _ (hO.tcbW h'))
-      (fun z h' => ⟨sig _ (hO.fixW q ⟨z, h'⟩).1, sig _ (hO.repW q ⟨z, h'⟩), sig _ (hO.snW q ⟨z, h'⟩)⟩),
+      (fun z h' => ⟨sig _ (hO.fixW q ⟨z, h'⟩).1, sig _ (hO.repW q ⟨z, h'⟩), sig _ (hO.snW q ⟨z, h'⟩),
+        sig _ (hO.syW q ⟨z, h'⟩)⟩),
     ?_, hk.trans I.ksb, hc.trans I.cpu⟩
   obtain ⟨k1, k2, k3, k4, k5⟩ := I.keep
   have hcT : L.curW s0 ∈ (H.drop D).tcbs := by rw [← k1]; exact hb1.1.choose_spec.choose_spec.curT
-  obtain ⟨t1, t2, -⟩ := tf hcT
+  obtain ⟨t1, t2, -, -⟩ := tf hcT
   exact ⟨ec.trans k1, ecs.trans k2, ea.trans k3, t2.trans k4, t1.trans k5⟩
 
 end

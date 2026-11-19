@@ -43,6 +43,7 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (hOut : ∀ z, H q = some (.sc z) → q ∉ Z.C → ∀ K : U64, K.val % 8 = 0 → K.val < 128 →
       L.mem s' (scW q K) = L.mem s (scW q K))
     (hidle : σ'.idleThread = σ.idleThread) (hAS : ActSched σ')
+    (hY' : YieldRel Z.T Z.C (L.mem s') σ') (hYD : YDeadKeep σ σ' q.bv)
     (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
@@ -51,7 +52,7 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   have hI := hX.ipc
   refine ⟨fun hq => ?_, fun hq => ?_, fun hq => ?_, fun hq => ?_, fun z hq => ?_⟩
   · -- a TCB
-    obtain ⟨d1, d2, d3, d4, d5⟩ := hd.1 hq
+    obtain ⟨d1, d2, d3, d4, d5, d6⟩ := hd.1 hq
     have hqT : q ∈ Z.T := by rw [J.tcbs_eq.1]; exact hq
     obtain ⟨x, hk, hR⟩ := hI.tcb q hqT
     obtain ⟨x', hk', hR'⟩ := hI'.tcb q hqT
@@ -64,7 +65,7 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       rcases e with e | e
       · rw [e, hxs]
       · exact e
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, ?_, ?_, ?_, ?_, J.deadY_tcb hY' hYD hqT d6⟩
     · have h1 : (L.mem s' (tStA q)).val = (L.mem s (tStA q)).val := by rw [hR'.st, hR.st, hstate]
       rw [stA_tStA, UScalar.eq_of_val_eq h1, ← stA_tStA, d1]
     · exact optRef_eq_none (by rw [← hR'.sc, hxs'])
@@ -142,7 +143,7 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     rw [show Endp.rTcbA q = P1.rTcbA q from rfl, hd.2.2.2.1 hq, optRef_zero] at h1
     exact optRef_eq_none (by rw [show P1.rTcbA q = Endp.rTcbA q from rfl, ← hR', e, h1])
   · -- an SC
-    obtain ⟨d1, d2, d3⟩ := hd.2.2.2.2 z hq
+    obtain ⟨d1, d2, d3, d4⟩ := hd.2.2.2.2 z hq
     by_cases hqC : q ∈ Z.C
     · obtain ⟨x, n, hk, hR⟩ := hs.scs q hqC
       obtain ⟨x', n', hk', hR'⟩ := hs'.scs q hqC
@@ -150,7 +151,7 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
       rw [hk'] at hy; cases hy
       have hxt : x.scTcb = none := by rw [hR.tcb, scW_tcb, d1, optRef_zero]
       have hxn : x.scNtfn = none := by rw [hR.ntfn, scW_ntfn, d3, optRef_zero]
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, ?_, ?_, ?_⟩
       · rw [← scW_tcb]; refine optRef_eq_none ?_; rw [← hR'.tcb]
         rcases e1 with e | e
         · rw [e, hxt]
@@ -160,10 +161,13 @@ theorem JAtZ.deadP_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
         rcases e2 with e | e
         · rw [e, hxn]
         · exact e
-    · refine ⟨?_, ?_, ?_⟩
+      · rw [scYieldFromA_eq]; refine optRef_eq_none ?_; rw [← hR'.yieldFrom]
+        exact hYD.2 x _ hk (by rw [hR.yieldFrom, ← scYieldFromA_eq, d4, optRef_zero]) x' _ hk'
+    · refine ⟨?_, ?_, ?_, ?_⟩
       · rw [← scW_tcb, hOut z hq hqC _ (by decide) (by decide), scW_tcb]; exact d1
       · rw [scReplyA_eq', hOut z hq hqC _ (by decide) (by decide), ← scReplyA_eq']; exact d2
       · rw [← scW_ntfn, hOut z hq hqC _ (by decide) (by decide), scW_ntfn]; exact d3
+      · rw [scYieldFromA_eq, hOut z hq hqC _ (by decide) (by decide), ← scYieldFromA_eq]; exact d4
 
 
 /-- **An SC of `H`'s words**: within its object, aligned. -/
@@ -266,12 +270,14 @@ theorem JAtZ.deadP_hstep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     (hRW : ∀ q ∈ Z.C, L.mem s' (P1.scReplyA q) = L.mem s (P1.scReplyA q))
     (hOut : ∀ q z, H q = some (.sc z) → ∀ K : U64, K.val % 8 = 0 → K.val < 128 →
       L.mem s' (scW q K) = L.mem s (scW q K)) (hAS : ActSched σ')
+    (hY' : YieldRel Z.T Z.C (L.mem s') σ') (hYK : YKeep σ σ')
     {q : U64} (hd : DeadP (L := L) H s q) : DeadP (L := L) H s' q :=
   J.deadP_keep hX'.fin.1.1.1 hX'.ipc (fun x hx _ => let ⟨y, hy, hc⟩ := hC.tcbF hx; ⟨y, hy, hc.st, hc.ntfn, Or.inl hc.sc⟩)
     (fun x hx => (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx)
     (fun x hx => ⟨x, hC.ntfn.2 hx, Or.inl rfl, rfl, Or.inl rfl⟩)
     (fun x hx => ⟨x, (hC.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 hx, rfl⟩)
-    (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (hRW q) (fun z hz _ => hOut q z hz) hC.idle hAS hd
+    (fun x n hx => ⟨x, hC.sc.2 hx, Or.inl rfl, Or.inl rfl⟩) (hRW q) (fun z hz _ => hOut q z hz) hC.idle hAS hY'
+    (hYK.dk q.bv) hd
 
 /-- **`JCovD` across a step keeping every slot and the dead dead**
 (`JCovD.same`, the MDB kept). -/

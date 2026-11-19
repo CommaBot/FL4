@@ -48,12 +48,13 @@ theorem JAtZ.deadP_efr (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {e : Fl
     {P : Fl4Spec.ObjRef → Prop} {s3 : S} {σ3 : Fl4Spec.State Unit} (F : EFr e P σ σ3)
     (hS3 : SchedRel st Z.N Z.T Z.C Z.c s3 σ3) (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
-    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3) :
+    (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3) :
     ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
   have hd := J.jcov.dead q hq
   refine J.deadP_keep hS3 hI3 (fun x hx h0 => ?_) (fun x hx => ?_) (fun x hx => ?_) (fun x hx => ?_)
     (fun x n hx => ?_) (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hw hz hqC hK8 hK)
-    F.sk.idle hAS hd
+    F.sk.idle hAS hY3 (hYK.dk q.bv) hd
   · -- a dead TCB: inactive, so blocked on nothing; kept
     obtain ⟨st', hk3, hs⟩ := F.tcbF hx
     have hst : st' = x.tcbState := hs.st (fun hb => by
@@ -183,7 +184,7 @@ theorem JAtZ.finEpJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     · exact Or.inl (act_cn_nr e')
     · rw [e']; exact J.curRun
   -- the dead stay dead
-  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s3 q := J.deadP_efr F hS3 hI3.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s3 σ3 := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => F.szKeep q.bv y n hq) hks (J.cnW_irq hw)

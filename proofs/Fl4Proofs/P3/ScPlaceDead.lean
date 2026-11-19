@@ -4,10 +4,13 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
 
 * `DeadP H s q`: the object at `q` is read by nothing P1 tracks: a TCB
   inactive (so in no queue and named by no reply, through `runQ`/`runR`
-  and `back`), with no SC or bound notification, neither the scheduler
-  action nor idle; an endpoint idle; a notification not
+  and `back`), with no SC, bound notification or `YIELD_TO` SC, neither the
+  scheduler action nor idle; an endpoint idle; a notification not
   waiting, with no bound TCB and no SC; a reply with no TCB; an SC with no
-  TCB, reply or notification.  (The current thread and the current SC may
+  TCB, reply, notification or yielder (`YIELD_FROM`).  The yield words: l4v
+  `if_live_then_nonz_cap` (a TCB with `tcb_yield_to ≠ None` and an SC with
+  `sc_yield_from ≠ None` are live) with `sym_refs`; FL4's finalisation
+  clears them (`suspend`'s `cancel_yield_to`, the SC's `complete_yield_to`).  (The current thread and the current SC may
   still name a dead object: finalising the current thread's TCB or SC
   leaves `CUR_THREAD` / `CUR_SC` until the next `schedule`, as in seL4; a
   notification keeps an `Active` state and its badge.)
@@ -23,7 +26,9 @@ P3 (DESIGN.md §9): **keeping `JCov`: monotone ghost heaps and a dead set**
   so retype removes only dead objects.
 * `FinDeadHyp`: P1's finalisation of a final cap leaves its object dead;
   proved per kind from P1's `fin_cap_*.dead` (QueueDead): `finDead_ep`,
-  `finDead_ntfn`, `finDead_reply`, `finDead_sc`, `finDead_thread`.
+  `finDead_ntfn`, `finDead_reply`, `finDead_thread` (the SC's at `J`:
+  XTopJointDelR's `jFinAt_sc`, its `YIELD_FROM` word by the yield links'
+  symmetry).
 -/
 import Fl4Proofs.P3.ScPlaceUt
 import Fl4Proofs.P1.QueueDead
@@ -41,12 +46,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 def DeadP (H : Heap) (s : S) (q : U64) : Prop :=
   (H q = some .tcb → L.mem s (P1.stA q) = sched.TS_INACTIVE ∧
     L.mem s (scA q) = 0#u64 ∧ L.mem s (boundA q) = 0#u64 ∧
-    q ≠ L.actionW s ∧ q ≠ L.idleW s) ∧
+    q ≠ L.actionW s ∧ q ≠ L.idleW s ∧ L.mem s (yieldA q) = 0#u64) ∧
   (H q = some .ep → L.epState s q = 0#u64) ∧
   (H q = some .ntfn → L.epState s q ≠ 1#u64 ∧ L.mem s (ntfnBtA q) = 0#u64 ∧ L.mem s (ntfnScA q) = 0#u64) ∧
   (H q = some .reply → L.mem s (rTcbA q) = 0#u64) ∧
   (∀ z, H q = some (.sc z) → L.mem s (scTcbA q) = 0#u64 ∧ L.mem s (scReplyA q) = 0#u64 ∧
-    L.mem s (scNtfnA q) = 0#u64)
+    L.mem s (scNtfnA q) = 0#u64 ∧ L.mem s (scYieldFromA q) = 0#u64)
 
 /-- **`JCov` with a dead set** (module docstring): every object of `th`
 and `H` covered, dead, or exempt (`ExAt`): an idle object (`IdleAt`,
@@ -238,16 +243,11 @@ theorem finDead_reply (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp 
     ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun _ => e,
       fun z h' => by simp [finObj, hH] at h'⟩
 
-/-- **Scheduling context**: its `TCB`, `REPLY` and `NTFN` words cleared;
-P1's conditions: the SC's thread is neither the scheduler action nor idle. -/
-theorem finDead_sc (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp Scs Nt Z Ac
-    (fun s c => ∃ p x z, c = .SchedContext p x ∧ p ∈ Scs ∧ p ≠ 0#u64 ∧ H p = some (.sc z) ∧
-      (L.mem s (scTcbA p) ≠ 0#u64 → L.actionW s ≠ L.mem s (scTcbA p)) ∧
-      (L.mem s (scTcbA p) ≠ 0#u64 → L.idleW s ≠ L.mem s (scTcbA p))) finObj := by
-  rintro s a c ex ⟨p, x, z, rfl, hp, hp0, hH, hna, hidle⟩ h
-  exact WP.spec_mono (fin_cap_sc.dead hA s a p x ex h hp hp0 hna hidle) fun r e =>
-    ⟨fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h',
-      fun h' => by simp [finObj, hH] at h', fun _ _ => e⟩
+/- The SC's `.dead` fact (`finDead_sc`) is not a P1 lemma: its `YIELD_FROM`
+word is cleared by the yielder's `complete_yield_to` only because the yield
+links are symmetric (P3's `YieldRel.frm`; P1 tracks only their types), so it
+is produced at `J` (XTopJointFinSc's `JAtZ.finScJ`, `JScFinHyp`, XTopJointDelR's
+`jFinAt_sc`, from P1's `complete_yield_to.yfZ`). -/
 
 /-- **Thread**: inactive, with no SC and no bound notification, neither the
 scheduler action nor idle; P1's conditions: the thread is neither the
@@ -256,8 +256,8 @@ theorem finDead_thread (hA : P0.ArchTotal ar) : FinDeadHyp st ar T Cs Ω H Sg Rp
     (fun s c => ∃ p, c = .Thread p ∧ p ∈ T ∧ H p = some .tcb ∧ L.actionW s ≠ p ∧ L.idleW s ≠ p ∧
       L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64) finObj := by
   rintro s a c ex ⟨p, rfl, hp, hH, hna, hidle, hv0⟩ h
-  exact WP.spec_mono (fin_cap_thread.dead hA s a p ex h hp hna hidle hv0) fun r ⟨e1, e2, e3, e4, e5⟩ =>
-    ⟨fun _ => ⟨e1, e2, e3, Ne.symm e4, Ne.symm e5⟩, fun h' => by simp [finObj, hH] at h',
+  exact WP.spec_mono (fin_cap_thread.dead hA s a p ex h hp hna hidle hv0) fun r ⟨e1, e2, e3, e4, e5, e6⟩ =>
+    ⟨fun _ => ⟨e1, e2, e3, Ne.symm e4, Ne.symm e5, e6⟩, fun h' => by simp [finObj, hH] at h',
       fun h' => by simp [finObj, hH] at h', fun h' => by simp [finObj, hH] at h', fun z h' => by simp [finObj, hH] at h'⟩
 
 end fin

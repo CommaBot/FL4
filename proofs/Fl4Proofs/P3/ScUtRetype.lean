@@ -499,12 +499,13 @@ theorem deadQ_keep {H : Heap} {s0 s : S} {q : U64} {k : HKind} (hH : HeapOK H) (
   obtain ⟨d1, d2, d3, d4, d5⟩ := hd
   refine ⟨fun hq' => ?_, fun hq' => ?_, fun hq' => ?_, fun hq' => ?_, fun z hq' => ?_⟩
   · rw [hq] at hq'; cases hq'
-    obtain ⟨a1, a2, a3, -, a5⟩ := d1 hq
+    obtain ⟨a1, a2, a3, -, a5, a6⟩ := d1 hq
     have b12 : (HKind.tcb).bits = 12 := rfl
-    refine ⟨?_, ?_, ?_, hact hq, by rw [hi]; exact a5⟩
+    refine ⟨?_, ?_, ?_, hact hq, by rw [hi]; exact a5, ?_⟩
     · unfold P1.stA; rw [kw _ (by simp [b12]) (by simp [b12, layout.tcb.STATE, layout.tcb.F]) (by simp [layout.tcb.STATE, layout.tcb.F])]; exact a1
     · unfold P1.scA; rw [kw _ (by simp [b12]) (by simp [b12]) (by simp)]; exact a2
     · unfold P1.boundA; rw [kw _ (by simp [b12]) (by simp [b12]) (by simp)]; exact a3
+    · unfold P1.yieldA; rw [kw _ (by simp [b12]) (by simp [b12]) (by simp)]; exact a6
   · rw [hq] at hq'; cases hq'
     have b4 : (HKind.ep).bits = 4 := rfl
     unfold LawfulStore.epState epTSA
@@ -527,14 +528,17 @@ theorem deadQ_keep {H : Heap} {s0 s : S} {q : U64} {k : HKind} (hH : HeapOK H) (
   · rw [hq] at hq'; cases hq'
     have hz : 7 ≤ z := hH.scmin q z hq
     have b7 : (2 : Nat) ^ 7 ≤ 2 ^ (HKind.sc z).bits := Nat.pow_le_pow_right (by norm_num) hz
-    obtain ⟨a1, a2, a3⟩ := d5 z hq
-    refine ⟨?_, ?_, ?_⟩
+    obtain ⟨a1, a2, a3, a4⟩ := d5 z hq
+    refine ⟨?_, ?_, ?_, ?_⟩
     · unfold scTcbA; rw [kw _ (by show 3 ≤ z; omega) (by simp [layout.sc.TCB]; omega) (by simp [layout.sc.TCB])]
       exact a1
     · unfold scReplyA; rw [kw _ (by show 3 ≤ z; omega) (by simp [layout.sc.REPLY]; omega) (by simp [layout.sc.REPLY])]
       exact a2
     · unfold scNtfnA; rw [kw _ (by show 3 ≤ z; omega) (by simp [layout.sc.NTFN]; omega) (by simp [layout.sc.NTFN])]
       exact a3
+    · unfold scYieldFromA
+      rw [kw _ (by show 3 ≤ z; omega) (by simp [layout.sc.YIELD_FROM]; omega) (by simp [layout.sc.YIELD_FROM])]
+      exact a4
 
 /-- **The restart keeps the words of every other object**: it writes the
 current thread's state word (inside that TCB) and the current core's
