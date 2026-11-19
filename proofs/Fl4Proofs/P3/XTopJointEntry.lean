@@ -288,6 +288,12 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the platform's timer agreement (`TimeAgree`; the Thread cap's
   SetSchedParams, `bind_tcb_refines`). -/
   timeAg : TimeAgree arI
+  /-- [P] the platform's timer constants for a timeout fault's consumed time
+  (`maxTicksToUs`, `ticks_to_us` at every arch state; as `JSchedCPath`'s
+  `max`/`tu`): the reply's `do_fault_transfer` of a replier with a timeout
+  fault and an SC (`JAtZ.xferAnyJ`). -/
+  maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
+  tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
 
 /-- **The premises at the entry state**, each exactly as a J decode takes it. -/
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -668,7 +674,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         hG.pp.minBudget J hni hct hAs hc hst hX0)) hPre
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
-      excaps buffer ct hct hst (replyLeafJ hG.tot hG.pp.minBudget (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
+      excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
         hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hct hAs hc hst hN hX0))) hPre
   case CNode p r gs g =>
     have hN : JCnodePath (L := L) Z s lbl slbl extra excaps := hN

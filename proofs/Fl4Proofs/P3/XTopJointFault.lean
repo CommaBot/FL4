@@ -940,34 +940,37 @@ theorem JAtZ.xferFaultJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hZ : 
 
 /-- The transfers proved at `J`: a sender without a fault whose transfer
 grants no caps (no grant, no send buffer, or no extra caps), or a faulted
-sender but for a timeout with an SC. -/
+sender. -/
 def XferOK (xs : Fl4Spec.Tcb) (g : Bool) : Prop :=
   (xs.tcbFault = none ∧ (g = false ∨ Endp.ipcBufOf false xs = none ∨
     Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)) ∨
-  (xs.tcbFault ≠ none ∧ ∀ b, xs.tcbFault = some (.timeout b) → xs.tcbSchedContext = none)
+  xs.tcbFault ≠ none
 
 set_option maxHeartbeats 8000000 in
 /-- **`do_ipc_transfer` at `J` for `XferOK`**: `JAtZ.xferJ` or
 `JAtZ.xferFaultJ`; the spec's outcome changes only the receiver's TCB, in its
-user context. -/
+user context, and the sender's SC (a timeout fault's consumed time). [P]
+`hAT`, `hmax`, `htu` (JEntryGlob's `tot`, `maxTU`, `tu`). -/
 theorem JAtZ.xferAnyJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hZ : XferHZ L AR Z)
+    (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     {snd : U64} (hs : snd ∈ Z.T) (hr : rcv ∈ Z.T) (hne : snd ≠ rcv) {xs xr : Fl4Spec.Tcb}
     (hks : σ.kheap snd.bv = some (.tcb xs)) (hkr : σ.kheap rcv.bv = some (.tcb xr)) {grant : Bool}
     (hok : XferOK xs grant) (epo : Option Fl4Spec.ObjRef) (ep badge : U64) :
     ipc.do_ipc_transfer st arI s a snd ep badge grant rcv ⦃ s' => ∃ σ',
       Fl4Spec.doIpcTransfer (Z := Unit) snd.bv epo badge.bv grant rcv.bv σ = ({((), σ')}, False) ∧
-      (∀ p, p ≠ rcv.bv → σ'.kheap p = σ.kheap p) ∧
+      (∀ p, p ≠ rcv.bv → (∀ sc, xs.tcbSchedContext = some sc → p ≠ sc) → σ'.kheap p = σ.kheap p) ∧
       (∃ x', σ'.kheap rcv.bv = some (.tcb x') ∧ x' = { xr with tcbArch := x'.tcbArch }) ∧
       ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s' a σ' ⦄ := by
-  rcases hok with ⟨hf, hcaps⟩ | ⟨hf, hnt⟩
-  · exact J.xferJ hZ hs hr hne hks hkr hf epo ep badge grant hcaps
+  rcases hok with ⟨hf, hcaps⟩ | hf
+  · refine WP.spec_mono (J.xferJ hZ hs hr hne hks hkr hf epo ep badge grant hcaps) ?_
+    rintro s' ⟨σ', h1, h2, h3, h4⟩
+    exact ⟨σ', h1, fun q hq _ => h2 q hq, h3, h4⟩
   · obtain ⟨f, hf'⟩ := Option.ne_none_iff_exists'.1 hf
-    have hno : ∀ b sc, xs.tcbFault = some (.timeout b) → xs.tcbSchedContext = some sc → False :=
-      fun b sc h1 h2 => by rw [hnt b h1] at h2; cases h2
-    refine WP.spec_mono (J.xferFaultJ hZ hs hr hne hks hkr hf' (fun b sc h1 h2 => (hno b sc h1 h2).elim)
+    refine WP.spec_mono (J.xferFaultJ hZ hs hr hne hks hkr hf' (fun _ _ _ _ => ⟨hAT, hmax, htu⟩)
       epo ep badge grant) ?_
     rintro s' ⟨σ', h1, h2, h3, h4⟩
-    exact ⟨σ', h1, fun q hq => h2 q hq (fun b sc h1 h2 => (hno b sc h1 h2).elim), h3, h4⟩
+    exact ⟨σ', h1, fun q hq hsc => h2 q hq (fun b sc _ h2 => hsc sc h2), h3, h4⟩
 
 end
 
