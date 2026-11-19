@@ -119,6 +119,22 @@ def BufFreeHyp (B : Set (U64 × Fl4Spec.Word)) (m : U64 → U64) (G : MdbGhost) 
   ∀ wp ∈ B, ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV m x = .Untyped p sb fi false →
     wp.1.val + 8 ≤ p.val + fi.val ∨ p.val + 2 ^ sb.val ≤ wp.1.val
 
+/-- **[J] Every IPC-buffer word lies in a spec object** (l4v
+`valid_ipc_buffer_cap` with `obj_at`: a thread's buffer lies in the data
+page its buffer cap names; the ghost set `B` holds such words only: it is
+fixed by every step at `J` and only the retype of frames would add words,
+the reset's detype drop them). With `SpecFree` it gives `BufFreeHyp`
+(`bufFree_of_obj`). -/
+def BufObjHyp (B : Set (U64 × Fl4Spec.Word)) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ wp ∈ B, ∃ (o : Fl4Spec.ObjRef) (ko : Fl4Spec.KernelObject), σ.kheap o = some ko ∧ o.toNat ≤ wp.1.val ∧
+    wp.1.val + 8 ≤ o.toNat + 2 ^ Fl4Spec.objBits ko
+
+theorem bufFree_of_obj {B : Set (U64 × Fl4Spec.Word)} {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit}
+    (hF : Sched.SpecFree m G σ) (hO : BufObjHyp B σ) : BufFreeHyp B m G := by
+  intro wp hw x hx p sb fi hc
+  obtain ⟨o, ko, hk, h1, h2⟩ := hO wp hw
+  rcases hF x hx p sb fi hc o ko hk with (h | h) | ⟨h3, h4⟩ <;> omega
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
