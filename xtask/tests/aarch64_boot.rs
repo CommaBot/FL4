@@ -409,6 +409,25 @@ fn memory_map_entries_never_wrap() {
     assert_eq!(bootmem::entry_pages(0x1000, 0, u64::MAX), None);
 }
 
+/// Audit r7 F3: the console UART's pages kept from user space are the
+/// pages `map_device` maps for it, a base inside a page included (two
+/// pages); before, only the first page was kept and the second went to
+/// user space as a device untyped the kernel also mapped.
+#[test]
+fn the_consoles_kept_pages_are_the_ones_it_maps() {
+    let lib = include_str!("../../crates/fl4-kernel-aarch64/src/lib.rs");
+    assert!(lib.contains("paging::map_device(h.uart_base, UART_MAP)"));
+    assert!(lib.contains("keep(&mut dev_used, h.uart_base, h.uart_base.saturating_add(UART_MAP));"));
+    assert!(lib.contains("const UART_MAP: u64 = 0x1000;"));
+    assert!(!lib.contains("dev_used.add("), "a kernel device range kept other than by `keep`");
+    let top = 1 << 40;
+    for base in [0x900_0000u64, 0x900_0800, 0x900_0ffc, 0x900_0001, 0xfe21_5040] {
+        let (pa, size) = bootmem::device_pages(base, 0x1000, top).unwrap();
+        assert_eq!(bootmem::pages_covering(base, base + 0x1000), (pa, pa + size), "{base:#x}");
+    }
+    assert_eq!(bootmem::pages_covering(0x900_0800, 0x900_1800), (0x900_0000, 0x900_2000));
+}
+
 #[test]
 fn device_mappings_stay_below_the_physical_address_size() {
     let top = 1 << 40;
