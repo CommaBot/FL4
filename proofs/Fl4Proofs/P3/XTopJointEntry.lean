@@ -79,6 +79,7 @@ import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointFaultRecv
 import Fl4Proofs.P3.UtRetResetJ
 import Fl4Proofs.P3.UtDevUt
+import Fl4Proofs.P3.UtDevReset
 import Fl4Proofs.P3.XTopJointFaultTmo
 import Fl4Proofs.P3.MpDirtyJ
 open Aeneas Aeneas.Std Result
@@ -576,7 +577,7 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (C
 
 /-- The device Untyped path (losfair/FL4#34): XTopJointUt's
 `decode_invocation_untypedJ` premises for a device untyped cap, the
-invocation from UtDevUt's `JAtZ.jUtRetHypDev`. -/
+invocation from UtDevReset's `JAtZ.jUtRetHypDev`. -/
 structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length p sb fi : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
@@ -599,10 +600,12 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   `pspace_no_overlap` for device caps with `valid_global_refs` /
   `kernel_window`: no device untyped range covers a kernel object, a typed-heap
   object or a RAM object, `H`'s objects meeting it lie below its free index, and
-  its range lies in one canonical half with a nonzero base): true from boot by
+  its range lies in one canonical half with a nonzero base, of size bits at
+  least 4, l4v `untyped_min_bits`): true from boot by
   the boot checks (e408a625: no device untyped over the kernel image's names;
   9ab17db1: none at the pointer 0; RAM and device physical ranges are
-  disjoint; physical memory below `2^47`), kept by retype
+  disjoint; physical memory below `2^47`; boot.rs gives out blocks of at
+  least `MIN_UNTYPED` = 4 size bits), kept by retype
   (UtDevRet's `DevApart.retype`: a device child is a sub-range, a new device
   frame lies below the source's new free index). -/
   devApart : DevApart (L := L) Z.th H Z.G Cs s
@@ -611,10 +614,24 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   in a device range), kept by retype (DevFree's `DevFree.retype`,
   UtDevUt's `SpecFreeP.retypeU`). -/
   devFree : DevFreeT (L.mem s) Z.G σ
-  /-- [W] the retype with the reset of a used device cap (UtDevUt's
-  `JUtRetHypDevR`: the spec detypes the region's device frames, FL4 rewrites
-  only the cap), asked on core 0 only. -/
-  ret : Z.c = 0#u64 → JUtRetHypDevR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
+  /-- [J] UtDevDrop's `DevGpm` (l4v `valid_global_refs`: no untyped range
+  covers a global kernel object): the spec's global PML4 lies off every
+  device untyped cap's range; true from boot (the global PML4 is a static of
+  the kernel image, fl4-kernel paging.rs, and the boot check e408a625 skips
+  device memory over the image), kept (`x64GlobalPml4` never changes, a
+  device child is a sub-range). For the reset of a used device cap
+  (UtDevReset's `JAtZ.utDevResetJ`, UtDevDrop's `JAtZ.dropAD`). -/
+  devGpm : DevGpm (L.mem s) Z.G σ
+  /-- [J] the reset's `VsReachMiss` at the restart's state, as
+  `JUtPath.vsReach`, for the device cap's region (UtDevDrop's `JAtZ.dropAD`
+  in UtDevReset's `JAtZ.reset_untypedDJ`). -/
+  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
+        (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
+        (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
+  /-- [P] `CONFIG_RESET_CHUNK_BITS` is FL4's 16, as `JUtPath.rcb` (the spec's
+  device reset, UtDevDrop's `reset_devX`). -/
+  rcb : Fl4Spec.resetChunkBits = 16
 
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
 def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
@@ -697,7 +714,7 @@ on the cap:
 | ASID control | `decode_invocation_asid_controlJD` (MpDirtyJ; any region: restart, drop, `MakePool`) | `JAsidCPath` (label and extra caps proved; `ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], as `JUtPath`) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: only the VT-x types; every native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`/`utTcbJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
-| Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevUt's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0 [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT` [J]; proved: the no-reset retype of untypeds and frames and the reset of an unused cap; `JUtRetHypDevR` [W]: the reset of a used cap); VT-x types `JVtxScope` [scope] |
+| Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevReset's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0, `resetChunkBits` [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT`/`DevGpm`, `VsReachMiss` [J]; proved: every retype a device cap's decode admits (untypeds, frames), with or without a reset); VT-x types `JVtxScope` [scope] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -1039,7 +1056,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHypDev hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2 hN.core0 hN.devApart hN.devFree
-          (hN.ret hN.core0))
+          hN.devGpm hN.rcb hN.vsReach)
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):

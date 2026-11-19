@@ -19,8 +19,7 @@ source's free part, so they inherit `DevApart`'s clauses from the source's
   `retype_window_deadS`); no window zero is needed (no new object).
 * `JAtZ.utDevJ`: the restart and the no-reset retype of untypeds or frames
   from a device untyped, ending in `UtRetPostJ`.
-* `JUtRetHypDevR` [W] (the device reset only, and the types the decode
-  refuses for a device cap) and `JAtZ.jUtRetHypDev`.
+  (The reset of a used device cap and `JAtZ.jUtRetHypDev`: UtDevReset.)
 -/
 import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtDevRet
@@ -170,7 +169,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   -- the source's facts: `DevApart`
   have hxG0 : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
-  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan, -⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
   have hp0 : 0 < p.val := hcan.1
   have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 :=
     fit_of_al (show p.val < 2 ^ 64 from p.bv.isLt) (capAt_untyped_inv hcap) hpal
@@ -402,7 +401,8 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
   have hcjD : ∀ j, j < win.val → ∀ p1 sb1 fi2, cj j = .Untyped p1 sb1 fi2 true →
       ∃ ps sbs fis : U64, capV (L.mem s) (cslotAddr (pp.bv, idx)) = .Untyped ps sbs fis true ∧
         cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten ∧
-        p1.val % 2 ^ sb1.val = 0 ∧ ps.val + fis.val ≤ p1.val ∧ p1.val + 2 ^ sb1.val ≤ ps.val + 2 ^ sbs.val := by
+        p1.val % 2 ^ sb1.val = 0 ∧ ps.val + fis.val ≤ p1.val ∧ p1.val + 2 ^ sb1.val ≤ ps.val + 2 ^ sbs.val ∧
+        4 ≤ sb1.val := by
     intro j hj p1 sb1 fi2 h3
     rw [hcj] at h3
     simp only [cjOf] at h3
@@ -418,7 +418,9 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
       show (BitVec.ofNat 64 (Aw + j * 2 ^ zOf nt.val us.val)).toNat = _
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt]
     have h2z : 2 ^ zOf nt.val us.val = 2 ^ uu.val := by rw [hz, huu]
-    refine ⟨by rw [hv, ← h2z, Nat.add_mul_mod_self_right]; exact hA2, by rw [hv]; omega, by rw [hv, ← h2z]; omega⟩
+    have hzu : zOf nt.val us.val = uu.val := Nat.pow_right_injective (le_refl 2) h2z
+    refine ⟨by rw [hv, ← h2z, Nat.add_mul_mod_self_right]; exact hA2, by rw [hv]; omega, by rw [hv, ← h2z]; omega,
+      by omega⟩
   have hcapK : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) →
       (∀ d ∈ windowSlots dest r off.val win.val, y ≠ cslotAddr d) →
       capV (L.mem res.2.1) y = capV (L.mem s) y := by
@@ -673,57 +675,6 @@ theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     obtain ⟨σ', hrun, hok, hrel, hJ⟩ := h.post
     exact utRetPostJ_of_body hst1 ⟨σ', by rw [hU0]; exact hrun, hok, hrel, hJ⟩
 
-
-variable (arI) in
-/-- **[W] The retype of a device untyped at `J`, outside `JAtZ.utDevJ`'s
-case**: asked only with the reset of a used cap (the source cap childless,
-its free index not 0: the device reset, handoff/devretype.md "dj2 line" (3),
-"dj4 line"; the decode admits only untypeds and frames for a device cap,
-`RetCtx.device`, both proved by `JAtZ.utDevJ`).
-l4v: `invoke_untyped_corres` with `invoke_untyped_invs` for device caps. -/
-def JUtRetHypDevR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
-  ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
-    argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi true nt us dest off win t r reset fiv →
-    (reset = true ∧ fi.val ≠ 0) →
-    (do
-      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
-      untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
-        dest off win true) ⦃ res =>
-      UtRetPostJ (L := L) arI AR σ blk call don (.retype sl reset p.bv
-        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
-        res ⦄
-
-/-- **`JUtRetHypD` of a device untyped cap from its narrowed form**: the
-no-reset retype of frames by `JAtZ.utDevJ` (with `DevApart`, `DevFreeT`
-[J]), the rest `JUtRetHypDevR` [W]. -/
-theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
-    (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
-    (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
-    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ)
-    {blk call don : Bool} {argsU : List U64}
-    (hR : JUtRetHypDevR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
-    JUtRetHypD (L := L) arI AR Z.th s ar σ sl p sb fi true ct blk call don argsU := by
-  intro nt us dest off win t r reset fiv hh hctx
-  by_cases hc : reset = true ∧ fi.val ≠ 0
-  · exact hR nt us dest off win t r reset fiv hh hctx hc
-  have hrs : reset = false ∨ fi.val = 0 := by
-    cases reset
-    · exact Or.inl rfl
-    · exact Or.inr (Classical.byContradiction fun h => hc ⟨rfl, h⟩)
-  -- a device cap's decode admits only untypeds and frames (`RetCtx.device`)
-  have hnt : nt.val = 0 ∨ nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11 := by
-    have hT := objTypeOf_fl4 hctx.ty us.val
-    rcases hctx.device rfl with h | h
-    · exact Or.inr (hT.2.2.1.1 h)
-    · exact Or.inl (hT.2.2.2.1.1 h)
-  obtain ⟨sl1, idx⟩ := sl
-  obtain ⟨pp, hp1, hpp⟩ := hsl
-  dsimp only at hp1 hpp
-  subst hp1
-  exact J.utDevJ hni hct hpp rfl hcap hnt hc0 hctx hrs hBO hAF hRU hDA hDF blk call don
 
 end
 

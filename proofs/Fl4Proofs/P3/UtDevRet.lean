@@ -55,7 +55,8 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
     (hks : L.ksb s' = L.ksb s) (hid : IdleKeep (L := L) s s')
     (hcjD : ∀ j, j < w → ∀ p sb fi, cj j = .Untyped p sb fi true →
       ∃ ps sbs fis : U64, capV (L.mem s) xs = .Untyped ps sbs fis true ∧ xs ∈ G.chains.flatten ∧
-        p.val % 2 ^ sb.val = 0 ∧ ps.val + fis.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ ps.val + 2 ^ sbs.val)
+        p.val % 2 ^ sb.val = 0 ∧ ps.val + fis.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ ps.val + 2 ^ sbs.val ∧
+        4 ≤ sb.val)
     (hH : ∀ q kd, H' q = some kd → H q = some kd ∨
       ((∃ z, kd = .other z) ∧ ∃ ko, σ'.kheap q.bv = some ko ∧ kd.bits ≤ Fl4Spec.objBits ko))
     (hDF : DevFreeT (L.mem s') G' σ') :
@@ -72,7 +73,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
       RegionFree th p.val (p.val + 2 ^ sb.val) ∧
       (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
         (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val ∧ ∃ z, kd = .other z)) ∧
-      CanonR p.val (p.val + 2 ^ sb.val) := by
+      CanonR p.val (p.val + 2 ^ sb.val) ∧ 4 ≤ sb.val := by
     rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
     · obtain ⟨fi0, hle, hc0⟩ : ∃ fi0 : U64, fi0.val ≤ fi.val ∧
           capV (L.mem s) x = .Untyped p sb fi0 true := by
@@ -97,7 +98,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
       · exact Or.inr (Or.inl e)
       · exact Or.inr (Or.inr ⟨e1, by omega, e3⟩)
     · rw [hE.newc j hj] at hc
-      obtain ⟨ps, sbs, fis, hcs, hxsG, hal, hlo, hhi⟩ := hcjD j hj p sb fi hc
+      obtain ⟨ps, sbs, fis, hcs, hxsG, hal, hlo, hhi, h4⟩ := hcjD j hj p sb fi hc
       obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8⟩ := hD xs hxsG ps sbs fis hcs
       refine ⟨hal, by omega, fun c hc => by have := b3 c hc; omega, by omega,
         fun q hq => by have := b5 q hq; omega, fun q kd hq => by have := b6 q kd hq; omega,
@@ -105,7 +106,7 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
           rcases b7 q kd hq with e | e | ⟨e1, e2, -⟩
           · left; omega
           · right; left; omega
-          · omega, b8.sub (by omega) hhi⟩
+          · omega, b8.1.sub (by omega) hhi, h4⟩
   refine ⟨a1, by rw [hks]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks]; exact a4,
     fun q hq => a5 q (hidb q hq), a6, fun q kd hq => ?_, a8⟩
   rcases hH q kd hq with h | ⟨hz, ko, hko, hb⟩
@@ -181,7 +182,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   obtain ⟨hP, ⟨hSR, hV, hM, hC, hI⟩, hFI0, -, hMO0, -⟩ := J.xtop.rel
   -- the source's facts: `DevApart`
   have hxG0 : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
-  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
+  obtain ⟨hpal, hks1, hnd1, -, -, hrf, -, hcan, -⟩ := hDA _ hxG0 p sb fi (capV_of_capAt hcap)
   have hp0 : 0 < p.val := hcan.1
   have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 :=
     fit_of_al (show p.val < 2 ^ 64 from p.bv.isLt) (capAt_untyped_inv hcap) hpal

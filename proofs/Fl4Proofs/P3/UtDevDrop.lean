@@ -78,7 +78,7 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨hPl, ⟨-, -, hML, hC, -⟩, -⟩ := J.xtop.rel
   have hx : cslotAddr sl ∈ Z.G.chains.flatten := (hML.members _).2 ⟨hsl.isSlot, _, hcap, by simp⟩
   have hcx : capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi true := capV_of_capAt hcap
-  obtain ⟨hpal, hreg, -, -, -, hrf, hHo, hcan⟩ := hDA _ hx p sb fi hcx
+  obtain ⟨hpal, hreg, -, -, -, hrf, hHo, hcan, -⟩ := hDA _ hx p sb fi hcx
   have hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 := fit_of_al (show p.val < 2 ^ 64 from p.bv.isLt) hsb hpal
   have hnd : ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl) := fun y =>
     Mdb.not_desc_of_no_child fun z hz => hnc ((hC.has_child_iff hPl hsl).2 ⟨z, hz⟩)

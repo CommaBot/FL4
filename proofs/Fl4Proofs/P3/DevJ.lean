@@ -52,7 +52,11 @@ nonzero base (`CanonR`: the boot check 9ab17db1 cuts the page at pointer 0;
 a device piece's pointer range is `PPTR_BASE` + its physical range modulo
 `2^64`, physical memory below `2^47`, so the range is either in the kernel
 half (physical below 512 GiB) or below `2^47 - 2^39`; a child is a
-sub-range). -/
+sub-range); and its size is at least 2^4 bytes (l4v `valid_cap`'s
+`untyped_min_bits ≤ bits` for untyped caps: boot.rs
+`create_untypeds_for_region` gives out only blocks of at least
+`MIN_UNTYPED = 4` size bits, a device child's size bits are the retype's
+`us ≥ 4`, decode's `RetCtx.size`). -/
 def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop :=
   ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi true →
     p.val % 2 ^ sb.val = 0 ∧
@@ -63,7 +67,7 @@ def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) :
     RegionFree th p.val (p.val + 2 ^ sb.val) ∧
     (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
       (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val ∧ ∃ z, kd = .other z)) ∧
-    CanonR p.val (p.val + 2 ^ sb.val)
+    CanonR p.val (p.val + 2 ^ sb.val) ∧ 4 ≤ sb.val
 
 /-- **A device source's `SrcOK`**: its region off the kernel-state block and
 the idle objects (`DevApart`), the new caps no RAM untypeds. -/
