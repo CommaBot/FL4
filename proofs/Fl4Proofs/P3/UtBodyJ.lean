@@ -86,7 +86,7 @@ set_option maxRecDepth 8000 in
 /-- **`JPlaced.retype` after its restart**: the same from `RetPostNB` (the run
 from `σ1`, `KSz σ σ1`; the frame from `s0`), so also for a retype that
 starts after the restart and the reset (handoff/utj.md Round 13). -/
-theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
+theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
     {σ : Fl4Spec.State Unit} {A' : Type} {arI : machine.Arch A'} {ar : A'}
     {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat} {sl : Fl4Spec.CslotPtr} {rs : Bool} {pb rb : Fl4Spec.ObjRef}
     {t : Fl4Spec.ApiObjectType} {us : Nat} {slots : List Fl4Spec.CslotPtr} {dev : Bool}
@@ -103,11 +103,14 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
     (hka : (L.ksb s).val % 8 = 0) (hnf : (L.ksb s).val + 13568 + ((L.cpu s).val + 1) * 4288 ≤ 2 ^ 64)
     (hcurT : ∀ ct, sched.cur_thread st s = ok ct → th ct = some .tcb)
     (hL : IntLayout th (L.ksb s))
-    (hSF : SpecFree (L.mem s) G σ)
     (hgc : ∀ y ∈ ((Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1).1,
       ∀ o sz cs y0 n0, σ.kheap o = some (.cnode sz cs) → ¬ Fl4Spec.wellFormedCnodeN sz cs →
         y.2.kheap o ≠ some (.schedContext y0 n0))
-    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0) (hd0 : d0 = false)
+    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0)
+    (hk0 : p0.val + 2 ^ sb0.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p0.val)
+    (hSF0 : ∀ o ko, σ.kheap o = some ko →
+      (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p0.val ∨ p0.val + 2 ^ sb0.val ≤ o.toNat) ∨
+      (p0.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p0.val + fi0.val))
     (hg : Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
     (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false)
     (hiw : idleScW (L := L) res.2.1 = idleScW (L := L) s) :
@@ -157,10 +160,6 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
       ∀ v : U64, (L.ksb s).val + 1248 ≤ v.val → v.val < (L.ksb s).val + 5344 →
       ¬ (p.val ≤ v.val ∧ v.val < p.val + 2 ^ sb.val) := fun x hx p sb fi hc v h1 h2 hin => by
     rcases (hJ.ks x hx p sb fi hc).1 with e | e <;> omega
-  -- the source is a RAM untyped
-  have hflag : ∀ {p sb fi : U64} {d : Bool}, capV (L.mem s) (cslotAddr sl) = .Untyped p sb fi d → d = false :=
-    fun {p sb fi d} h => by
-      rw [hcs0] at h; injection h with _ _ _ e; rw [← e]; exact hd0
   have hNd : ∀ (s1 : S) (c off : U64), L.ksb s1 = L.ksb s → c.val ≤ (L.cpu s).val → off.val < 4288 →
       (L.ksb s).val + 13568 ≤ (L.nodeAt s1 c off).val := fun s1 c off hk hc ho => node_ge hnf hk hc ho
   have hT4 : t = .tcbObject → k = 4096 := fun hT => by rw [ek]; exact hz1 (objTypeOf_tcb (hT ▸ hnT))
@@ -170,7 +169,7 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
     have e0' : capV (L.mem s) (cslotAddr sl) = .Untyped p1 sb1 fi1' d1 := e0
     have hxG : cslotAddr sl ∈ G.chains.flatten := hxG
     rw [hcs0] at e0'; cases e0'
-    have hk := (hJ.ks _ hxG p0 sb0 fi0 (by rw [hcs0, hd0])).1
+    have hk := hk0
     rcases hor with ⟨-, -, rfl, rfl, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, hcs, -, -, -, -, rfl, rfl, -, -⟩
     · omega
     · have hcv' := capV_of_capAt hcs
@@ -200,7 +199,7 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
       swap; · exact absurd hk (hgc y0 hy0 _ _ _ _ _ h0 hnw)
       left
       refine ⟨y00, h0, ?_⟩
-      have hOW := old_window hSF hU hxG hcs0 hd0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
+      have hOW := old_windowP hU hxG hcs0 hSF0 h0 hR (A := A) (fun hr => by rw [eA]; exact hbelow hr)
       simp only [Fl4Spec.objBits] at hOW
       have hcv : c.bv.toNat = c.val := rfl
       rw [hcv] at hOW
@@ -360,22 +359,30 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
   -- outside the kernel-global area
   · rw [hks']
     rcases hO.some hp with ⟨hn, hK⟩ | ⟨hH, -⟩
-    · obtain ⟨hx0, p0, sb0, fi0, fi1, d0, hc0, -, h1, -, h2, -, -⟩ := hE.usrc
+    · obtain ⟨hx0, p0', sb0', fi0', fi1, d0', hc0, -, h1, -, h2, -, -⟩ := hE.usrc
+      have e0' : capV (L.mem s) (cslotAddr sl) = .Untyped p0' sb0' fi0' d0' := hc0
+      rw [hcs0] at e0'
+      simp only [capability.Cap.Untyped.injEq] at e0'
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := e0'
       obtain ⟨j, hj, hv, ha1, ha2⟩ := newAt_val hn hk1
       have hb := hbits kd hK
       rw [← hRk] at hb
-      rcases (hJ.ks _ hx0 p0 sb0 fi0 (by rw [hc0, hflag hc0])).1 with e | e
+      rcases hk0 with e | e
       · left; omega
       · right; omega
     · exact hJP.ks p kd hH hko
   · rw [hks']
     rcases hO.some hp with ⟨hn, hK⟩ | ⟨hH, -⟩
-    · obtain ⟨hx0, p0, sb0, fi0, fi1, d0, hc0, -, h1, -, h2, -, -⟩ := hE.usrc
+    · obtain ⟨hx0, p0', sb0', fi0', fi1, d0', hc0, -, h1, -, h2, -, -⟩ := hE.usrc
+      have e0' : capV (L.mem s) (cslotAddr sl) = .Untyped p0' sb0' fi0' d0' := hc0
+      rw [hcs0] at e0'
+      simp only [capability.Cap.Untyped.injEq] at e0'
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := e0'
       obtain ⟨j, hj, hv, ha1, ha2⟩ := newAt_val hn hk1
       have hb := hbits _ hK
       rw [← hRk] at hb
       simp only [HKind.bits] at hb
-      rcases (hJ.ks _ hx0 p0 sb0 fi0 (by rw [hc0, hflag hc0])).1 with e | e
+      rcases hk0 with e | e
       · left; omega
       · right; left; omega
     · exact hJP.ksIn p z hH
@@ -457,7 +464,7 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
         by_contra hne
         exact hm ((hM'.members _).2 ⟨⟨p3, i3, hi3, ha3⟩, _, capAt_capV _ _, hne⟩)
   -- the slots' EPT and frame caps' objects
-  · clear hflag hUt hd0
+  · clear hUt
     by_cases hm : a ∈ G'.chains.flatten
     · rcases hE.gmem a hm with ha0 | ⟨j, hj, rfl⟩
       · cases hu : isUt (capV (L.mem s) a)
@@ -594,6 +601,51 @@ theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : 
         by_contra hne
         exact hm ((hM'.members a).2 ⟨ha, _, capAt_capV _ _, hne⟩)
       rw [hnull]; trivial
+
+/-- **`JPlaced.retypeGS` for a RAM source**: the source's kernel-state-block
+apartness from `JCovD.ks`, its spec-object fact from `SpecFree`. -/
+theorem JPlaced.retypeG {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} {A' : Type} {arI : machine.Arch A'} {ar : A'}
+    {bitsApi : Fl4Spec.ApiObjectType → Nat → Nat} {sl : Fl4Spec.CslotPtr} {rs : Bool} {pb rb : Fl4Spec.ObjRef}
+    {t : Fl4Spec.ApiObjectType} {us : Nat} {slots : List Fl4Spec.CslotPtr} {dev : Bool}
+    {res : core.result.Result Unit error.Exc × S × A'}
+    (hJP : JPlaced (L := L) th H Tr C s σ) (hJ : JCovD (L := L) th H G D Cs s) (hU : UtInv (L.mem s) G)
+    (hI : MdbInv (L.mem s) G) (hM : MdbLinks th (L.mem s) G)
+    {σ1 : Fl4Spec.State Unit} {s0 : S} (hksz : KSz σ σ1)
+    (hRP : RetPostNB (L := L) th (L.mem s) G σ σ1 arI ar s s0 bitsApi (L.ksb s) (.retype sl rs pb rb t us slots dev) res)
+    (hok : res.1 = .Ok ())
+    (n : Nat) (hnT : objTypeOf n = some t) (hn13 : n ≤ 13)
+    (hbits : ∀ kd, newKind n us = some kd → 2 ^ kd.bits ≤ 2 ^ bitsApi t us)
+    (hlt : ∀ kd, newKind n us = some kd → kd.bits < 64) (hsc7 : ∀ z, newKind n us = some (.sc z) → 7 ≤ z)
+    (hdevT : n = 1 → dev = false) (hz1 : n = 1 → 2 ^ bitsApi t us = 4096)
+    (hka : (L.ksb s).val % 8 = 0) (hnf : (L.ksb s).val + 13568 + ((L.cpu s).val + 1) * 4288 ≤ 2 ^ 64)
+    (hcurT : ∀ ct, sched.cur_thread st s = ok ct → th ct = some .tcb)
+    (hL : IntLayout th (L.ksb s))
+    (hSF : SpecFree (L.mem s) G σ)
+    (hgc : ∀ y ∈ ((Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1).1,
+      ∀ o sz cs y0 n0, σ.kheap o = some (.cnode sz cs) → ¬ Fl4Spec.wellFormedCnodeN sz cs →
+        y.2.kheap o ≠ some (.schedContext y0 n0))
+    {p0 sb0 fi0 : U64} {d0 : Bool} (hcs0 : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 d0) (hd0 : d0 = false)
+    (hg : Fl4Spec.getCap (Z := Unit) sl σ1 = ({(.untypedCap d0 p0.bv sb0.val fi0.val, σ1)}, False))
+    (hbelow : rs = false → p0.val + fi0.val ≤ rb.toNat) (hdevS : n = 5 → d0 = false)
+    (hiw : idleScW (L := L) res.2.1 = idleScW (L := L) s) :
+    ∃ (th' : TypedHeap) (σ' : Fl4Spec.State Unit) (A k w lo hi : Nat),
+      A = rb.toNat ∧ k = 2 ^ bitsApi t us ∧ w = slots.length ∧ lo ≤ A ∧ A + w * k ≤ hi ∧
+      ((lo = A ∧ hi = A + w * k) ∨ ∃ (sR : S) (a1 : A') (p sb fi : U64) (d : Bool),
+        untyped.reset_untyped st arI s0 ar (cslotAddr sl) = ok (.Ok (), sR, a1) ∧
+        capAt (L.mem s0) (cslotAddr sl) = ok (.Untyped p sb fi d) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧ rs = true) ∧
+      NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1
+          (fun y => y.1 = .ok () ∧ KSame σ' y.2) ∧
+      (rs = false → ThX th th' A k w n us) ∧
+      ∀ H' : Heap, HOut H H' lo hi A k w (newKind n us) →
+        JPlaced (L := L) th' H' {q | q ∈ Tr ∨ th' q = some .tcb}
+          {c | c ∈ C ∨ (c ≠ 0#u64 ∧ ∃ y n', σ'.kheap c.bv = some (.schedContext y n'))} res.2.1 σ' := by
+  have hxG : cslotAddr sl ∈ G.chains.flatten := by
+    obtain ⟨-, e, σ', G', th', he, hhas, hP', -, -, hM', -, -, -, -, -, hks, A, k, w, dslot, cj, hE, hbr⟩ := hRP
+    exact hE.usrc.1
+  have hc' : capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 false := by rw [hcs0, hd0]
+  exact JPlaced.retypeGS hJP hJ hU hI hM hksz hRP hok n hnT hn13 hbits hlt hsc7 hdevT hz1 hka hnf hcurT hL hgc
+    hcs0 (hJ.ks _ hxG p0 sb0 fi0 hc').1 (fun o ko h => hSF _ hxG p0 sb0 fi0 hc' o ko h) hg hbelow hdevS hiw
 
 end
 

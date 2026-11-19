@@ -119,9 +119,9 @@ region, `hlv`, from the destination's liveness). -/
 theorem JAtZ.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit} {G' : MdbGhost}
-    {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} (hxs : AbsSlot Z.th xs)
-    (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 false)
-    (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 false) (hfi : fi0.val ≤ fi1.val)
+    {xs : Fl4Spec.CslotPtr} {p0 sb0 fi0 fi1 : U64} {d0 : Bool} (hxs : AbsSlot Z.th xs)
+    (hc0 : capV (L.mem s) (cslotAddr xs) = .Untyped p0 sb0 fi0 d0)
+    (hc1 : capV (L.mem s') (cslotAddr xs) = .Untyped p0 sb0 fi1 d0) (hfi : fi0.val ≤ fi1.val)
     (hfi1 : fi1.val ≤ 2 ^ sb0.val) (Dst : Fl4Spec.CslotPtr → Prop)
     (hDa : ∀ d, Dst d → AbsSlot Z.th d) (hDn : ∀ d, Dst d → capAt (L.mem s) (cslotAddr d) = ok .Null)
     (hDu : ∀ d, Dst d → ∀ p sb fi dv, capV (L.mem s') (cslotAddr d) ≠ .Untyped p sb fi dv)
@@ -157,6 +157,8 @@ theorem JAtZ.ret_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     have hcv := capV_of_capAt hcap'
     rw [hc1] at hcv
     injection hcv with e1 e2 e3 e4
+    have hd0 : d0 = false := e4.trans hdF
+    subst hd0
     rw [← e1, ← e2, ← e3]
     have hcap0 : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p0 sb0 fi0 false) := by rw [capAt_capV, hc0]
     have U := J.utc sl p0 sb0 fi0 false hsl hcap0 rfl

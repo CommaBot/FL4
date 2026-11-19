@@ -43,10 +43,14 @@ theorem ptrAdd_toNat {rb : Fl4Spec.ObjRef} {n : Nat} (h : rb.toNat + n < 2 ^ 64)
 /-- **An old object after `invoke_untyped`, against the source cap**: outside
 its range, or (without a reset) below the window. A used source cap that is
 reset loses its objects (`hR`), an unused one has none. -/
-theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x : U64} {p sb fi : U64} {d : Bool}
+theorem old_windowP {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x : U64} {p sb fi : U64} {d : Bool}
     {A : Nat} {rs : Bool} {o : Fl4Spec.ObjRef} {ko : Fl4Spec.KernelObject}
-    (hSF : Sched.SpecFree m G σ) (hU : UtInv m G) (hxG : x ∈ G.chains.flatten)
-    (hcs : capV m x = .Untyped p sb fi d) (hd : d = false) (h0 : σ.kheap o = some ko)
+    (hU : UtInv m G) (hxG : x ∈ G.chains.flatten)
+    (hcs : capV m x = .Untyped p sb fi d)
+    (hSF : ∀ o ko, σ.kheap o = some ko →
+      (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
+      (p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val + fi.val))
+    (h0 : σ.kheap o = some ko)
     (hR : o ∉ (if rs = true ∧ fi.val ≠ 0 then regionSet p.bv sb.val else ∅))
     (hbelow : rs = false → p.val + fi.val ≤ A) :
     (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
@@ -58,7 +62,7 @@ theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x
     exact (ut_range hsb hreg).2.2
   have hfiS : fi.val ≤ 2 ^ sb.val := hU.fib _ hxG p sb fi d hcs
   have hb1 := Nat.one_le_two_pow (n := Fl4Spec.objBits ko)
-  rcases hSF _ hxG p sb fi (by rw [hcs, hd]) o ko h0 with e | ⟨l1, l2⟩
+  rcases hSF o ko h0 with e | ⟨l1, l2⟩
   · exact Or.inl e
   · by_cases hc : rs = true ∧ fi.val ≠ 0
     · rw [if_pos hc] at hR
@@ -68,6 +72,17 @@ theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x
       · have hz : fi.val = 0 := by by_contra hz; exact hc ⟨hr, hz⟩
         omega
       · have := hbelow hr; right; exact ⟨hr, l1, by omega⟩
+
+/-- `old_windowP` for a RAM source (`SpecFree`). -/
+theorem old_window {m : U64 → U64} {G : MdbGhost} {σ : Fl4Spec.State Unit} {x : U64} {p sb fi : U64} {d : Bool}
+    {A : Nat} {rs : Bool} {o : Fl4Spec.ObjRef} {ko : Fl4Spec.KernelObject}
+    (hSF : Sched.SpecFree m G σ) (hU : UtInv m G) (hxG : x ∈ G.chains.flatten)
+    (hcs : capV m x = .Untyped p sb fi d) (hd : d = false) (h0 : σ.kheap o = some ko)
+    (hR : o ∉ (if rs = true ∧ fi.val ≠ 0 then regionSet p.bv sb.val else ∅))
+    (hbelow : rs = false → p.val + fi.val ≤ A) :
+    (o.toNat + 2 ^ Fl4Spec.objBits ko ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat) ∨
+      (rs = false ∧ p.val ≤ o.toNat ∧ o.toNat + 2 ^ Fl4Spec.objBits ko ≤ A) :=
+  old_windowP hU hxG hcs (fun o ko h => hSF _ hxG p sb fi (by rw [hcs, hd]) o ko h) h0 hR hbelow
 
 theorem emptyCnode_wf (n : Nat) : Fl4Spec.wellFormedCnodeN n (Fl4Spec.emptyCnode n) := by
   unfold Fl4Spec.wellFormedCnodeN Fl4Spec.dom Fl4Spec.emptyCnode
