@@ -65,12 +65,12 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
     have h := (home_abs hzok).isSlot
     rwa [home_addr] at h
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') := by
-    intro P L4 L3 L2 L1 h y hy
-    rw [hcap y hy]
-    split_ifs
-    · exact h p hpS
-    · exact h _ hA.isSlot
-    · exact h y hy
+    refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_⟩ <;>
+    · rw [hcap y hy]
+      split_ifs
+      · exact h p hpS
+      · exact h _ hA.isSlot
+      · exact h y hy
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R (J0.vsc.step hvT)
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
   -- the swap of the slots

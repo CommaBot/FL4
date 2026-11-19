@@ -62,7 +62,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   obtain ⟨hC, Ac', Lst', D', hDD, R⟩ := hR hUt
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
-      fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 hC R (J0.vsc.step hvT)
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
   -- the slots in use after
