@@ -1197,7 +1197,7 @@ theorem tcb_decode_ext [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Place
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     -- the work of the CSpace-side labels
     (hres : TlsResHyp (L := L) th s σ ct) (hBuf : ∀ v : U64, BufHyp (L := L) (A := A) th p v v.bv)

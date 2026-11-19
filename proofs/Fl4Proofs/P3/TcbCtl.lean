@@ -547,7 +547,7 @@ theorem tcb_set_ipc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Sp
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
+    (hnc : ∀ sl : Fl4Spec.CslotPtr, AbsSlot th sl → x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hWr : ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → SlotsSame th (L.mem s) (L.mem s1) →
@@ -666,7 +666,7 @@ theorem tcb_set_ipc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Sp
   simp only [slot_cap_eq, capAt_capV, bind_ok]
   generalize capV (L.mem s) (cslotAddr e2) = c0 at hcwf hcv0 hc1 hnc hspec ⊢
   obtain ⟨r, hr, r', hr', hrel⟩ := derive_rel (st := st) s σ (cslotAddr e2) e2 c0
-    hcwf.1 hcwf.2 (fun h => hnc e2 rfl (by cases c0 <;> simp_all [isUt]))
+    hcwf.1 hcwf.2 (fun h => hnc e2 ⟨ps, hps1, Or.inl hps⟩ rfl (by cases c0 <;> simp_all [isUt]))
   simp only [hr, bind_ok]
   cases r with
   | Err er =>
@@ -690,7 +690,7 @@ theorem tcb_set_ipc_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4Sp
       rcases hcase with ⟨rfl, hck⟩ | ⟨er, er', rfl, hmer, hck⟩
       · simp only [bind_ok, hrc]
         obtain ⟨q, sz, rr, m, ep, aa, va, rfl⟩ := check_ok_frame hrc'
-        obtain ⟨rfl, m0, ep0, a0, va0, hc0⟩ := derive_frame_inv (fun h => ⟨_, hnc e2 rfl h⟩) hr
+        obtain ⟨rfl, m0, ep0, a0, va0, hc0⟩ := derive_frame_inv (fun h => ⟨_, hnc e2 ⟨ps, hps1, Or.inl hps⟩ rfl h⟩) hr
         have hcvc : CapValid th (capability.Cap.Frame q sz rr false m false aa va) := hcv' th hcv0
         have hok : NewCapOK th (L.mem s1) (.Frame q sz rr false m false aa va) e2 := by
           refine ⟨ps, _, hps, hps1, rfl, hwf', hcvc, hev', fun _ => frame_so_refl hcvc, ?_, ?_, ?_, ?_, ?_⟩
@@ -745,7 +745,7 @@ theorem tcb_set_ipc_refines [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : 
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
+    (hnc : ∀ sl : Fl4Spec.CslotPtr, AbsSlot th sl → x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetIPCBuffer p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk
@@ -1114,9 +1114,11 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- The untyped extra caps' MDB condition (`NoChildrenRel`, for
-`derive_cap` of an untyped cap). -/
-def NcHyp (s : S) (σ : Fl4Spec.State Unit) (x0 x1 x2 : U64) : Prop :=
-  ∀ x ∈ [x0, x1, x2], ∀ sl : Fl4Spec.CslotPtr, x = cslotAddr sl → isUt (capV (L.mem s) x) = true →
+`derive_cap` of an untyped cap), at the abstract slot names (`AbsSlot`) of
+the extra slots: an alias name of the same word (one the spec's `cdt` does
+not relate) is excluded. -/
+def NcHyp (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (x0 x1 x2 : U64) : Prop :=
+  ∀ x ∈ [x0, x1, x2], ∀ sl : Fl4Spec.CslotPtr, AbsSlot th sl → x = cslotAddr sl → isUt (capV (L.mem s) x) = true →
     NoChildrenRel (st := st) s σ x sl
 
 end
@@ -1159,7 +1161,7 @@ theorem tcb_set_space_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hWr : ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → SlotsSame th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → W s1 ar σ1 G) :
@@ -1235,7 +1237,7 @@ theorem tcb_set_space_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
   subst hexc
   subst hxe1 hxe2
   obtain ⟨r, hr, hcase⟩ := roots_rel th hP s σ G hDS p hp y0 y1 e1 e2 he11 ⟨ps1, hps1, hps11⟩ he21
-    ⟨ps2, hps2, hps21⟩ (hnc _ (by simp) e1.2 rfl) (hnc _ (by simp) e2.2 rfl) ssl
+    ⟨ps2, hps2, hps21⟩ (hnc _ (by simp) e1.2 ⟨ps1, hps11, Or.inl hps1⟩ rfl) (hnc _ (by simp) e2.2 ⟨ps2, hps21, Or.inl hps2⟩ rfl) ssl
   rw [hr]
   have hspec : (Fl4Spec.decodeSetSpace (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) (.threadCap p.bv) ssl
       [e0, e1, e2]).run σ =
@@ -1318,7 +1320,7 @@ theorem tcb_set_space_refines [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP 
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBSetSpace p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk
       call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
@@ -1454,7 +1456,7 @@ theorem tcb_configure_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hWr : ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → SlotsSame th (L.mem s) (L.mem s1) →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) → W s1 ar σ1 G) :
@@ -1546,7 +1548,7 @@ theorem tcb_configure_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
     simp only [List.map_cons, List.take_succ_cons, List.take_zero, List.getElem?_cons_succ,
       List.getElem?_cons_zero, the_some, retOk_bind]
     rfl
-  obtain ⟨rb, hrb, hbcase⟩ := buf_rel th s σ G hDS y2 e2 he21 ⟨ps2, hps2, hps21⟩ (hnc _ (by simp) e2.2 rfl)
+  obtain ⟨rb, hrb, hbcase⟩ := buf_rel th s σ G hDS y2 e2 he21 ⟨ps2, hps2, hps21⟩ (hnc _ (by simp) e2.2 ⟨ps2, hps21, Or.inl hps2⟩ rfl)
   rw [hrb]
   rcases hbcase with ⟨bc0, bfr, rfl, hbs, hbok⟩ | ⟨er, er', rfl, hbs, herr⟩
   swap
@@ -1563,7 +1565,7 @@ theorem tcb_configure_refinesW [Fl4Proofs.P1.PlainStore st] (W : S → A → Fl4
     (ipc_spec σ p.bv ssl y2.bv [] e2 []).trans ((run_bind_ok hbs _).trans rfl)
   rw [run_bind_ok hip] at hspec
   obtain ⟨r, hr, hcase⟩ := roots_rel th hP s σ G hDS p hp y0 y1 e0 e1 he01 ⟨ps0, hps0, hps01⟩ he11
-    ⟨ps1, hps1, hps11⟩ (hnc _ (by simp) e0.2 rfl) (hnc _ (by simp) e1.2 rfl) ssl
+    ⟨ps1, hps1, hps11⟩ (hnc _ (by simp) e0.2 ⟨ps0, hps01, Or.inl hps0⟩ rfl) (hnc _ (by simp) e1.2 ⟨ps1, hps11, Or.inl hps1⟩ rfl) ssl
   rw [hr]
   rcases hcase with ⟨cc, vc, rfl, hcv, hokc, hokv⟩ | ⟨e, e', rfl, hcv, herr⟩
   · simp only [lift, bind_ok]
@@ -1611,7 +1613,7 @@ theorem tcb_configure_refines [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP 
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKF (L := L) arI s ar σ fl4_abi.label.TCBConfigure p ⟨length, buf, call, cslotAddr ssl, extra⟩ blk
       call don slbl (args.map UScalar.bv) ci ssl excaps buffer := by
@@ -2134,7 +2136,7 @@ theorem tcb_decode_cspace [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Pl
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hX : XcRel th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     -- the scheduler and register work of the CSpace-side labels
     (hres : TlsResHyp (L := L) th s σ ct) (hBuf : ∀ v : U64, BufHyp (L := L) (A := A) th p v v.bv)
@@ -2198,7 +2200,7 @@ theorem tcb_decode_cspace [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Pl
   · rintro rfl
     exact tcb_set_ipc_refines arI th hP hT s ar σ G hDS hFR p hp hBuf slbl (lbl_of hlbl rfl (by simp [tcbLabelOf]))
       length buf ct hct args hlen hargs hcur htcb hact hstall call ssl hAs extra x0 x1 x2 hx0 excaps hX
-      (fun sl h hu => hnc x0 (by simp) sl h hu) blk don ci buffer
+      (fun sl hA h hu => hnc x0 (by simp) sl hA h hu) blk don ci buffer
   · rintro rfl
     exact tcb_set_space_refines arI th hP hT s ar σ G hDS hFR p hp slbl (lbl_of hlbl rfl (by simp [tcbLabelOf]))
       length buf ct hct args hlen hargs hcur htcb hact hstall call ssl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hX hnc

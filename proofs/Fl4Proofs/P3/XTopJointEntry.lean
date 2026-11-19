@@ -495,15 +495,6 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
     (lbl length p : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop where
-  /-- [J] at the extra slots (their `XcRel` is the front end's, proved:
-  FrontEndExtra): `NcHyp`, the untyped extra cap's children
-  (`NoChildrenRel`). (An SC extra cap's object in `C` is proved:
-  `JAtZ.scCtxCap` at the slot `XcRel` names.) -/
-  hx : ∃ x0 x1 x2, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 ∧
-    Aeneas.Std.Array.index_usize extra 1#usize = ok x1 ∧ Aeneas.Std.Array.index_usize extra 2#usize = ok x2 ∧
-    NcHyp (st := st) s σ x0 x1 x2 ∧
-    (∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
-      NoChildrenRel (st := st) s σ x0 sl)
   /-- [J] ReadFPU's destination frame (XTopJointReadFpu's `FpuFrameJHyp`: l4v
   `valid_cap`, `pspace_distinct`, `valid_global_refs` for the first extra
   cap's frame, at the start). -/
@@ -719,14 +710,26 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
-    obtain ⟨⟨x0, x1, x2, hx0, hx1, hx2, hnc, hnc0⟩, hFr⟩ := hN hn
+    have hFr := (hN hn).hFr
     subst hLb
     obtain ⟨sl', hlbl, hext, hd⟩ := tcb_canon lbl
     refine XCapP.lbl_congr arI (specDec_thread p hd) ?_
-    obtain rfl : x0 = exAt extra 0 := eq_of_ok_eq (hx0.symm.trans (exAt_idx0 extra))
-    obtain rfl : x1 = exAt extra 1 := eq_of_ok_eq (hx1.symm.trans (exAt_idx1 extra))
-    obtain rfl : x2 = exAt extra 2 := eq_of_ok_eq (hx2.symm.trans (exAt_idx2 extra))
+    have hx0 := exAt_idx0 extra
+    have hx1 := exAt_idx1 extra
+    have hx2 := exAt_idx2 extra
     have hXc := ExtraOK.xc hPl hXO
+    -- the untyped extra caps' children at their abstract names: CRel's
+    -- `MdbLinks`/`CdtRel`/`MdbInv.parentAdj` (`noChildren_of_adj`)
+    have hnc : NcHyp (st := st) Z.th s σ (exAt extra 0) (exAt extra 1) (exAt extra 2) := by
+      obtain ⟨-, -, hM, hC, hI⟩ := J.dstate.1
+      intro x _ sl0 hAs0 hx hu
+      subst hx
+      refine noChildren_of_adj Z.th hPl s σ Z.G hM hC (hI.parentAdj (th := Z.th)) sl0 hAs0
+        ((hM.members _).2 ⟨hAs0.isSlot, capV (L.mem s) (cslotAddr sl0), capAt_capV _ _, ?_⟩)
+      intro h0; rw [h0] at hu; simp [isUt] at hu
+    have hnc0 : ∀ sl0 : Fl4Spec.CslotPtr, AbsSlot Z.th sl0 → exAt extra 0 = cslotAddr sl0 →
+        isUt (capV (L.mem s) (exAt extra 0)) = true → NoChildrenRel (st := st) s σ (exAt extra 0) sl0 :=
+      fun sl0 hA h hu => hnc _ (by simp) sl0 hA h hu
     have hcapC : exAt extra 1 ≠ 0#u64 → ∀ q b, capV (L.mem s) (exAt extra 1) = .SchedContext q b → q ∈ Z.C := by
       -- the slot `XcRel` names, a slot of a CNode of `Z.th` (`JAtZ.scCtxCap`)
       intro h1 q b hq

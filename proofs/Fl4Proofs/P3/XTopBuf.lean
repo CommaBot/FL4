@@ -469,7 +469,7 @@ theorem tcb_set_ipcXT [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → P
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 x2 : U64)
     (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hnc : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
+    (hnc : ∀ sl : Fl4Spec.CslotPtr, AbsSlot Z.th sl → x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
       NoChildrenRel (st := st) s σ x0 sl)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBSetIPCBuffer p
@@ -498,7 +498,7 @@ theorem tcb_configureXT [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
     (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps)
-    (hnc : NcHyp (st := st) s σ x0 x1 x2)
+    (hnc : NcHyp (st := st) Z.th s σ x0 x1 x2)
     (blk don : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     TcbOKX (L := L) arI (XTop (L := L) AR) s ar σ fl4_abi.label.TCBConfigure p
       ⟨length, buf, call, cslotAddr ssl, extra⟩ blk call don slbl (args.map UScalar.bv) ci ssl excaps buffer :=
