@@ -48,7 +48,7 @@ def eraseV : Option KernelObject → Option KernelObject
 /-- **The fields a VSpace invocation keeps** (module docstring). -/
 def vsF (σ : State Unit) :=
   ((fun p => eraseV (σ.kheap p)), (fun p => (σ.kheap p).map aType), σ.cdt, σ.isOriginalCap, σ.curThread,
-    σ.idleThread, σ.consumedTime, σ.curTime, σ.curSc, σ.reprogramTimer, σ.schedulerAction, σ.domainList,
+    σ.idleThread, σ.consumedTime, σ.curTime, σ.curSc, σ.idleSc, σ.reprogramTimer, σ.schedulerAction, σ.domainList,
     σ.domainIndex, σ.domainStartIndex, σ.curDomain, σ.domainTime, σ.readyQueues, σ.releaseQueue,
     σ.interruptIrqNode, σ.interruptStates, σ.archState)
 
@@ -167,6 +167,7 @@ structure VsSFr (σ σ' : State Unit) : Prop where
   cons : σ'.consumedTime = σ.consumedTime
   time : σ'.curTime = σ.curTime
   csc : σ'.curSc = σ.curSc
+  isc : σ'.idleSc = σ.idleSc
   repr : σ'.reprogramTimer = σ.reprogramTimer
   act : σ'.schedulerAction = σ.schedulerAction
   dl : σ'.domainList = σ.domainList
@@ -191,9 +192,9 @@ theorem eraseV_tcb {x y : Tcb} (h : eraseV (some (.tcb y)) = eraseV (some (.tcb 
 
 theorem VsSFr.of_eq {σ σ' : State Unit} (h : vsF σ' = vsF σ) : VsSFr σ σ' := by
   simp only [vsF, Prod.mk.injEq] at h
-  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdl, hdi, hdsi, hcd, hdt, hrq, hrel, hin, his,
-    har⟩ := h
-  refine ⟨fun p => ?_, fun p => congrFun h2 p, hc, ho, hct, hid, hcons, htime, hcsc, hrep, hact, hdl, hdi, hdsi, hcd,
+  obtain ⟨h1, h2, hc, ho, hct, hid, hcons, htime, hcsc, hisc, hrep, hact, hdl, hdi, hdsi, hcd, hdt, hrq, hrel, hin,
+    his, har⟩ := h
+  refine ⟨fun p => ?_, fun p => congrFun h2 p, hc, ho, hct, hid, hcons, htime, hcsc, hisc, hrep, hact, hdl, hdi, hdsi, hcd,
     hdt, hrq, hrel, hin, his, har⟩
   have e1 : eraseV (σ'.kheap p) = eraseV (σ.kheap p) := congrFun h1 p
   have e2 : (σ'.kheap p).map aType = (σ.kheap p).map aType := congrFun h2 p
@@ -245,8 +246,8 @@ def kmid (o o' : Option KernelObject) : Option KernelObject :=
 theorem VsSFr.mid {σ σ' : State Unit} (h : VsSFr σ σ') :
     ∃ σm : State Unit, ArFr σ σm ∧ CnStep σm σ' := by
   refine ⟨{ σ' with kheap := fun p => kmid (σ.kheap p) (σ'.kheap p) }, ⟨fun p => ?_, h.cdt, h.orig, h.ct, h.idle,
-    h.cons, h.time, h.csc, h.repr, h.act, h.dt, h.rq, h.rel, congrArg (fun a => a.x64GlobalPml4) h.arch,
-    h.cdom⟩, ⟨⟨fun p => ?_, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl⟩⟩
+    h.cons, h.time, h.csc, h.isc, h.repr, h.act, h.dt, h.rq, h.rel, congrArg (fun a => a.x64GlobalPml4) h.arch,
+    h.cdom⟩, ⟨⟨fun p => ?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl⟩⟩
   · rcases h.kh p with e | ⟨a, a', h1, h2, ht⟩ | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y, h1, h2, -⟩
     · left; show kmid (σ.kheap p) (σ'.kheap p) = σ.kheap p; rw [e]; unfold kmid; split <;> rfl
     · right; refine ⟨a, a', h1, ?_, ht⟩; show kmid (σ.kheap p) (σ'.kheap p) = _; rw [h2]; rfl

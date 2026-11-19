@@ -97,7 +97,8 @@ same shape** (`JPlaced.slotTF` with the spec's SCs kept rather than every
 object but the CNodes). -/
 theorem Sched.JPlaced.ofShape {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
     (h : JPlaced (L := L) th H Tr C s σ) (hsz : SzKeep σ σ') (hk : L.ksb s' = L.ksb s) (hL : IntLayout th (L.ksb s))
-    (hS : ∀ a, IsSlot th a → shape (capV (L.mem s') a) = shape (capV (L.mem s) a)) :
+    (hS : ∀ a, IsSlot th a → shape (capV (L.mem s') a) = shape (capV (L.mem s) a))
+    (hiw : idleScW (L := L) s' = idleScW (L := L) s) :
     JPlaced (L := L) th H Tr C s' σ' := by
   have hirqS : ∀ i : U64, i.val < 128 → IsSlot th (nodeA (L.ksb s) i) := fun i hi => by
     have hA : AbsSlot th ((nodeA (L.ksb s) i).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node i hi)⟩
@@ -105,7 +106,7 @@ theorem Sched.JPlaced.ofShape {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s
   refine ⟨h.heap, h.pl, h.tcb, h.cnode, h.tr, fun c y n hc hk' => ?_, by rw [hk]; exact h.ks, by rw [hk]; exact h.ksIn,
     fun a ha => capTyped_of_shape (hS a ha) (h.typed a ha),
     fun i hi => by rw [hk]; exact capTyped_of_shape (hS _ (hirqS i hi)) (h.irq i hi),
-    fun t ht => ?_, fun a ha => capObjH_of_shape (hS a ha) (h.cobj a ha)⟩
+    fun t ht => ?_, fun a ha => by rw [hiw]; exact capObjH_of_shape (hS a ha) (h.cobj a ha)⟩
   · obtain ⟨y0, hk0⟩ := hsz c.bv y n hk'
     exact h.sc c y0 n hc hk0
   · have hs : IsSlot th (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) :=
@@ -464,8 +465,8 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hkb ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 (F1.khrb.trans C2.toHStep.khrb)
-  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := ⟨Tr, Cq, hJ.ofShape F.szKeep hkb J.intL hS⟩
-  have hidl : L.idleW s' = L.idleW s := J.idleW_keep hX'.fin.1.1.1 F.idle
+  have hidl : Sched.IdleKeep (L := L) s s' := J.idleW_keep hX'.fin.1.1.1 F.idle F.isc
+  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := ⟨Tr, Cq, hJ.ofShape F.szKeep hkb J.intL hS hidl.2⟩
   have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl
   have hJC := J.jcs_slot hM' hMO' hFI' hUK F.ksz hDel
   -- `JKern`
@@ -708,7 +709,7 @@ theorem JAtZ.vsFlushJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     obtain ⟨⟨⟨hSch, hEp, hNt, -⟩, -⟩, -⟩ := id hFin
     exact ⟨hFin, ⟨hPl, hCR', hFI', hD, by rw [hks']; exact hMO', hIA, hSA⟩, IpcRel.of hNt hEp (sched_sc hSch), hE⟩
   exact ⟨Z, H, Cs, Ac1, Lst1, D1, J1.arFrS
-    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
+    ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ hX'⟩
 
 end
 
