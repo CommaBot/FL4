@@ -23,7 +23,7 @@ set without the new objects.
   `JAtZ.create_noreset`, `JKern.hout`, `JAtZ.ret_utc`), the sets and heap
   (`JAtZ.addSets`), put together by `JAtZ.add_frame`.
 -/
-import Fl4Proofs.P3.UtScRet
+import Fl4Proofs.P3.UtUtRet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -786,8 +786,8 @@ variable (arI) in
 /-- **[W] The retype of a RAM untyped at `J`, outside `JAtZ.utEpJ`'s case**
 (XTopJointUt's `JUtRetHyp` narrowed): asked only with a reset (the source
 cap childless) or of an object type other than endpoints, notifications,
-replies, PDPTs, page tables, page directories, frames and SCs (left:
-untypeds, TCBs, CNodes, PML4s and the VCPU/EPT types, the latter also
+replies, PDPTs, page tables, page directories, frames, SCs and untypeds
+(left: TCBs, CNodes, PML4s and the VCPU/EPT types, the latter also
 `JUtPath.vtx` [scope]; SCs only from a region ending within 8 bytes below
 the kernel-state block, where `SchedRel.scOut`'s `a + 8 ≤ ksb` is false of
 the last SC's last bytes: UtScRet's `utScJ` asks the slack, handoff/utj.md
@@ -798,7 +798,7 @@ def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : 
   ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
     argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
     (reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧
+      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧
       (nt.val = 5 → ¬ (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)))) →
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
@@ -810,7 +810,8 @@ def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : 
 
 /-- **`JUtRetHyp` from its narrowed form**: the no-reset retype of
 endpoints, notifications, replies, VSpace tables (PDPT, PD, PT) or frames from a
-CNode slot by `JAtZ.utEpJ`, of SCs by UtScRet's `JAtZ.utScJ` (one
+CNode slot by `JAtZ.utEpJ`, of SCs by UtScRet's `JAtZ.utScJ`, of untypeds
+by UtUtRet's `JAtZ.utUtJ` (one
 core, as `JUtPath.core0` [P]; with
 `BufObjHyp`, `ArchFitHyp`, `RegionUnrefJ` [J]), the rest `JUtRetHypR` [W]. -/
 theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -822,6 +823,13 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hR : JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
     JUtRetHyp (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU := by
   intro nt us dest off win t r reset fiv hh hctx
+  by_cases h0 : reset = false ∧ nt.val = 0
+  · obtain ⟨rfl, h0⟩ := h0
+    obtain ⟨sl1, idx⟩ := sl
+    obtain ⟨pp, hp1, hpp⟩ := hsl
+    dsimp only at hp1 hpp
+    subst hp1
+    exact J.utUtJ hni hct hpp rfl hcap h0 hc0 hctx hBO hAF hRU blk call don
   by_cases h5 : reset = false ∧ nt.val = 5 ∧
       (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
   · obtain ⟨rfl, h5, hksg⟩ := h5
@@ -837,7 +845,7 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · rcases hc with h | h
       · exact Or.inl h
       · exact Or.inr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
-          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e hk => h5 ⟨rfl, e, hk⟩⟩
+          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e => h0 ⟨rfl, e⟩, fun e hk => h5 ⟨rfl, e, hk⟩⟩
     · exact Or.inl rfl
   have hrs : reset = false := by
     cases reset
