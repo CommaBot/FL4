@@ -21,7 +21,12 @@ against the spec's, from `JAtZ` at the invocation to `JAt` after.
   `replyRestSwJ` for a released SC (`JAtZ.switchJ`),
   `replyRestPostJ` for an active SC that is not released and no
   valid timeout handler (`Running` and the tail's `postpone` as one step,
-  `JAtZ.runPostJ`); all three after the sporadic unblock test
+  `JAtZ.runPostJ`), `replyRestFaultJ` for a faulted receiver (the fault
+  reply, `faultBranchJ`: XTopJointFaultReply's `JAtZ.hfrJ`, the fault clear,
+  `Inactive` or `Restart` by XTopJointStsI's `JAtZ.stsIJ`, then the tail:
+  nothing, `JAtZ.switchJ`, or `Restart` and `postpone` as one step,
+  `JAtZ.rstPostJ`; not the restart into a timeout-fault send,
+  `ReplyFaultTmo`); all four after the sporadic unblock test
   (`JAtZ.replyUnblockJ`, XTopJointUnblock; `fl4ReplyRest_eq` splits FL4's
   code there), their cases read at the state after it; the other cases
   named (`JReplyRestHyp` [W]). `hZ`: JEntryGlob's `ipcBufOK`,
@@ -41,6 +46,7 @@ import Fl4Proofs.P3.XTopJointRunI
 import Fl4Proofs.P3.XTopJointSwitch
 import Fl4Proofs.P3.XTopJointRunPost
 import Fl4Proofs.P3.XTopJointUnblock
+import Fl4Proofs.P3.XTopJointFaultReply
 import Fl4Proofs.P3.AllDom
 open Aeneas Aeneas.Std Result
 
@@ -709,6 +715,415 @@ theorem replyRestPostJ (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.
   · rw [if_neg hr4]
     exact tmo
 
+/-- The replier's message label of the fault reply (l4v `get_message_info`). -/
+abbrev frLbl (xs : Fl4Spec.Tcb) : Fl4Spec.Data :=
+  (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miLabel
+
+/-- The replier's message words of the fault reply (l4v `get_mrs`). -/
+abbrev frMrs (xs : Fl4Spec.Tcb) (σ : Fl4Spec.State Unit) : List Fl4Spec.Word :=
+  Endp.specMrs xs.tcbArch.tcbContext.userRegs (Endp.ipcBufOf false xs) σ.machineState.underlyingMemory
+    (Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miLength)
+
+/-- The spec state after the fault reply (the receiver `i`'s user context
+`x4`, its fault cleared, its new state). -/
+abbrev frSt (σ2 : Fl4Spec.State Unit) (i : U64) (x4 : Fl4Spec.Tcb) (rst : Bool) : Fl4Spec.State Unit :=
+  stsAct (updK (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })) i.bv
+    (.tcb { ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+      tcbState := if rst then .restart else .inactive })) i.bv
+
+set_option maxHeartbeats 8000000 in
+/-- **FL4's fault reply at `J`** (`fl4FaultReply`): `handle_fault_reply`
+(XTopJointFaultReply's `JAtZ.hfrJ`), `clear_fault` (`JAtZ.faultClearJ`),
+then the receiver's new state by the given step `hQ` (for each outcome
+`rst` of the spec's `handle_fault_reply`). The spec's fault reply ends at
+`frSt`. -/
+theorem faultBranchJ
+    (hZ : ∀ (Z' : XSets) (s' : S) (a' : A) σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Endp.IpcBufCapOK σ' ∧ Endp.BufCover Z'.T Z'.B σ' ∧ Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    {s2 : S} {ar : A} {σ2 : Fl4Spec.State Unit} (J2 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 ar σ2)
+    {ct i : U64} (hne : ct ≠ i) (hiT : i ∈ Z.T) (hcT : ct ∈ Z.T) {xs xi : Fl4Spec.Tcb} {f : Fl4Spec.Fault}
+    (hks : σ2.kheap ct.bv = some (.tcb xs)) (hki : σ2.kheap i.bv = some (.tcb xi)) (hfi : xi.tcbFault = some f)
+    (Q : Bool → S → Fl4Spec.State Unit → Prop)
+    (hQ : ∀ (rst : Bool) (x4 : Fl4Spec.Tcb) (s5 : S) (V : XVs), x4 = { xi with tcbArch := x4.tcbArch } →
+      JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s5 ar
+        (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })) →
+      sched.set_thread_state st s5 i (if rst then sched.TS_RESTART else sched.TS_INACTIVE) ⦃ s6 =>
+        Q rst s6 (frSt σ2 i x4 rst) ⦄) :
+    fl4FaultReply st arI s2 ar i ct ⦃ res => res.2 = ar ∧ ∃ (rst : Bool) (x4 : Fl4Spec.Tcb),
+      x4 = { xi with tcbArch := x4.tcbArch } ∧
+      Fl4Spec.handleFaultReply (Z := Unit) f i.bv (frLbl xs) (frMrs xs σ2) σ2 =
+        ({(rst, updK σ2 i.bv (.tcb x4))}, False) ∧
+      ((), frSt σ2 i x4 rst) ∈ (specFaultReply ct.bv i.bv f σ2).1 ∧ Q rst res.1 (frSt σ2 i x4 rst) ⦄ := by
+  unfold fl4FaultReply
+  refine WP.spec_bind (J2.hfrJ hZ hiT hcT hne hki hks hfi) ?_
+  rintro ⟨rst, s4, a3⟩ ⟨ha, x4, hhf, hpre, hx4, V4, J4⟩
+  dsimp only at ha hhf hpre J4
+  subst ha
+  have hk4 : (updK σ2 i.bv (.tcb x4)).kheap i.bv = some (.tcb x4) := by simp [updK]
+  have hk5 : (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })).kheap i.bv =
+      some (.tcb { x4 with tcbFault := none }) := by simp [updK]
+  have hmem : ∀ ts : Fl4Spec.ThreadState, ((), stsAct (updK (updK (updK σ2 i.bv (.tcb x4)) i.bv
+      (.tcb { x4 with tcbFault := none })) i.bv (.tcb { ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+        tcbState := ts })) i.bv) ∈ ((Fl4Spec.threadSet (Z := Unit) (fun tcb => { tcb with tcbFault := none }) i.bv >>=
+      fun _ => Fl4Spec.setThreadState (Z := Unit) i.bv ts) (updK σ2 i.bv (.tcb x4))).1 := by
+    intro ts
+    rw [nd_bind_one (Notif.threadSet_eq _ hk4), Notif.setThreadState_eq _ hk5]; rfl
+  unfold faults.clear_fault
+  step with Fl4Proofs.P1.obj.Tcb.set_fault_type.spec as ⟨s5, hs5⟩
+  have e5 : s5 = L.wr s4 (tFaultA i) 0#u64 := by rw [hs5]; unfold fl4_abi.consts.fault.NullFault; rfl
+  subst e5
+  obtain ⟨V5, J5⟩ := J4.faultClearJ hiT hk4
+  have key := hQ rst x4 _ V5 hx4 J5
+  cases rst
+  · simp only [Bool.false_eq_true, ↓reduceIte] at key hpre ⊢
+    refine WP.spec_bind key ?_
+    intro s6 hq
+    exact (WP.spec_ok _).2 ⟨rfl, false, x4, hx4, hhf, hpre _ (hmem _), hq⟩
+  · simp only [eq_self_iff_true, if_true, ↓reduceIte] at key hpre ⊢
+    refine WP.spec_bind key ?_
+    intro s6 hq
+    exact (WP.spec_ok _).2 ⟨rfl, true, x4, hx4, hhf, hpre _ (hmem _), hq⟩
+
+/-- The case of a faulted receiver left to `JReplyRestHyp`: the fault reply
+restarts it, its SC is bound and not released, it has a valid timeout
+handler and its fault is no timeout fault (the tail then sends a timeout
+fault, `handle_timeout`). -/
+def ReplyFaultTmo (σ : Fl4Spec.State Unit) (xi : Fl4Spec.Tcb) (f : Fl4Spec.Fault) : Prop :=
+  ∃ sp y n, xi.tcbSchedContext = some sp ∧ σ.kheap sp = some (.schedContext y n) ∧
+    ¬ (Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true ∧
+      Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true) ∧
+    Fl4Spec.isEpCap xi.tcbTimeoutHandler = true ∧ Fl4Spec.isTimeoutFault f = false
+
+/-- The fourth case of the rest of `do_reply_transfer` proved at `J`
+(`replyRestFaultJ`), after `reply_remove` and the unblock test (`σ2`): the
+receiver `i` has a fault, and a restart by its fault reply (the spec's
+`handle_fault_reply` returning true) does not lead into `ReplyFaultTmo`. -/
+def ReplyRestFault (σ2 : Fl4Spec.State Unit) (ct i : U64) : Prop :=
+  ∃ xs xi f, σ2.kheap ct.bv = some (.tcb xs) ∧ σ2.kheap i.bv = some (.tcb xi) ∧ xi.tcbFault = some f ∧
+    ∀ σ', Fl4Spec.handleFaultReply (Z := Unit) f i.bv (frLbl xs) (frMrs xs σ2) σ2 = ({(true, σ')}, False) →
+      ¬ ReplyFaultTmo σ2 xi f
+
+set_option maxHeartbeats 32000000 in
+/-- **The rest of `do_reply_transfer` at `J`, for `ReplyRestFault`**: FL4's
+fault word of the receiver is not 0 (`fault0`), so the fault reply
+(`faultBranchJ`), the new state `Inactive` or `Restart` by `JAtZ.stsIJ`
+(XTopJointStsI; `RelIfBound` with no SC or a released one), then the tail:
+nothing for no SC or `Inactive`; `possible_switch_to` (`JAtZ.switchJ`) for a
+released SC; for an SC not released, `Restart` and `postpone` as one step
+(`JAtZ.rstPostJ`), the timeout handler invalid or the fault a timeout
+(`faultT`: FL4's fault word 5) by `ReplyRestFault`. The spec's outcome by
+`mem_doReplyTransfer` (the fault branch). -/
+theorem replyRestFaultJ (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hZ : ∀ (Z' : XSets) (s' : S) (a' : A) σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
+      Endp.IpcBufCapOK σ' ∧ Endp.BufCover Z'.T Z'.B σ' ∧ Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
+    {s2 : S} {ar : A} {σ1 σ0 σ2 : Fl4Spec.State Unit} (J2 : JAtZ (L := L) arI AR Z H Cs Ac Lst D s2 ar σ2)
+    {ct i p : U64} (g : Bool) (hne : ct ≠ i) (hiD : i ∉ D) (hct2 : σ2.curThread = ct.bv)
+    {xr : Fl4Spec.Reply} (hkr : σ1.kheap p.bv = some (.reply xr)) (hrep : xr.replyTcb = some i.bv)
+    {x : Fl4Spec.Tcb} (hkx : σ1.kheap i.bv = some (.tcb x)) (hst : x.tcbState = .blockedOnReply p.bv)
+    (hrm : Fl4Spec.replyRemove (Z := Unit) i.bv p.bv σ1 = ({((), σ0)}, False))
+    (hub : (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext i.bv >>=
+      Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ0 = ({((), σ2)}, False))
+    (hin : ∃ x', σ2.kheap i.bv = some (.tcb x') ∧ x'.tcbState = .inactive)
+    (hact : ∀ q y n, σ2.kheap q = some (.schedContext y n) → y.scTcb = some i.bv → Fl4Spec.scActive y = true)
+    (hC : ReplyRestFault σ2 ct i) :
+    fl4ReplyRest2 st arI s2 ar ct i g ⦃ res => ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1,
+      JAt (L := L) arI AR res.1 res.2 z.2 ⦄ := by
+  obtain ⟨xs, xi, f, hks, hki, hfi, hnt⟩ := hC
+  obtain ⟨xi', hki', hin⟩ := hin
+  rw [hki] at hki'; cases hki'
+  have hI := J2.xtop.irelK J2.ks J2.buf
+  have hiT : i ∈ Z.T := by
+    obtain ⟨t, ht, h⟩ := J2.obj.tcb _ xi hki
+    rw [Sched.bv_inj h] at ht; exact ht
+  have hcT : ct ∈ Z.T := by
+    obtain ⟨t, ht, h⟩ := J2.obj.tcb _ xs hks
+    rw [Sched.bv_inj h] at ht; exact ht
+  have hnr2 : i.bv ∉ σ2.releaseQueue := fun hm => by
+    obtain ⟨x', -, -, -, h1, -, h3, -⟩ := J2.inv.rel _ hm
+    rw [hki] at h1; cases h1; rw [hin] at h3; cases h3
+  have hxr := hI.1.toE.at_tcb hiT hki
+  obtain ⟨Q0, R0, hc, hsp⟩ := J2.xtop.fin.1.1.1.lists
+  obtain ⟨x0, hk0, -, -, hscw, -⟩ := hsp.tcb i hiT
+  rw [hki] at hk0; cases hk0
+  unfold fl4ReplyRest2
+  step with Fl4Proofs.P3.Endp.obj.Tcb.fault_type.spec as ⟨ft, hft⟩
+  have hft0 : ¬ ft = fl4_abi.consts.fault.NullFault := by
+    intro e
+    have h := hxr.fault0.1 (by rw [← hft, e]; unfold fl4_abi.consts.fault.NullFault; rfl)
+    rw [hfi] at h; cases h
+  have hftT : ft = fl4_abi.consts.fault.Timeout ↔ Fl4Spec.isTimeoutFault f = true := by
+    rw [hft, show fl4_abi.consts.fault.Timeout = 5#u64 by unfold fl4_abi.consts.fault.Timeout; rfl, hxr.faultT, hfi]
+    cases f <;> simp [Fl4Spec.isTimeoutFault]
+  rw [if_neg hft0]
+  have e0 : U64.bv 0#u64 = (0 : Fl4Spec.Word) := rfl
+  -- the receiver's new state, `J` after it (no SC, or a released one, or `Inactive`)
+  have stsQ : ∀ (rst : Bool) (x4 : Fl4Spec.Tcb) (s5 : S) (V : XVs), x4 = { xi with tcbArch := x4.tcbArch } →
+      JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s5 ar
+        (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })) →
+      (rst = true → RelIfBound (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })) i.bv) →
+      sched.set_thread_state st s5 i (if rst then sched.TS_RESTART else sched.TS_INACTIVE) ⦃ s6 =>
+        ∃ (V' : XVs) (Lst' : U64 → List U64), JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D s6 ar
+          (frSt σ2 i x4 rst) ⦄ := by
+    intro rst x4 s5 V hx4 J5 hrel
+    have hk5 : (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })).kheap i.bv =
+        some (.tcb { x4 with tcbFault := none }) := by simp [updK]
+    have hrs : ({ x4 with tcbFault := none } : Fl4Spec.Tcb).tcbState = .inactive := by
+      have h := congrArg Fl4Spec.Tcb.tcbState hx4; exact h.trans hin
+    obtain ⟨x5, hk5', hTR5⟩ := (J5.xtop.irelK J5.ks J5.buf).1.tcb i hiT
+    rw [hk5] at hk5'; cases hk5'
+    have hr0 : L.mem s5 (P1.stA i) = sched.TS_INACTIVE := by
+      apply UScalar.eq_of_val_eq
+      rw [P1.stA_eq, ← tStA_eq, hTR5.st, hrs]; unfold sched.TS_INACTIVE; rfl
+    have htH : i ∈ P1.Heap.tcbs H := J5.zH.1 i hiT
+    cases rst
+    · refine WP.spec_mono (J5.stsIJ hiT hiD hk5 hrs .inactive (by decide) sched.TS_INACTIVE
+        (by unfold sched.TS_INACTIVE; rfl) (fun h => by
+          rcases h with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩ <;> cases h)
+        (P1.sched.set_thread_state.inactive_blkI (Es := P1.EH H) s5 i J5.blk htH hr0)) ?_
+      rintro s6 ⟨Lst', J6⟩
+      exact ⟨V, Lst', J6⟩
+    · refine WP.spec_mono (J5.stsIJ hiT hiD hk5 hrs .restart (by decide) sched.TS_RESTART
+        (by unfold sched.TS_RESTART; rfl) (fun _ => hrel rfl)
+        (P1.sched.set_thread_state.restart_blkI (Es := P1.EH H) s5 i J5.blk htH hr0)) ?_
+      rintro s6 ⟨Lst', J6⟩
+      exact ⟨V, Lst', J6⟩
+  -- the spec's facts at the state after the fault reply
+  have hk6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), (frSt σ2 i x4 rst).kheap i.bv = some (.tcb { ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+      tcbState := if rst then .restart else .inactive }) := by
+    intro x4 rst; simp [frSt, stsAct_kheap, updK]
+  have hkp6 : ∀ x4 rst q, q ≠ i.bv → (frSt σ2 i x4 rst).kheap q = σ2.kheap q := by
+    intro x4 rst q hq; simp [frSt, stsAct_kheap, updK, hq]
+  have hrec6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), frSt σ2 i x4 rst = { (updK (updK (updK σ2 i.bv (.tcb x4)) i.bv
+      (.tcb { x4 with tcbFault := none })) i.bv (.tcb { ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+        tcbState := if rst then .restart else .inactive })) with
+      schedulerAction := (frSt σ2 i x4 rst).schedulerAction } := fun x4 rst => stsAct_rec _ _
+  have htm6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), (frSt σ2 i x4 rst).curTime = σ2.curTime := fun x4 rst => by rw [hrec6]; rfl
+  have hct6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), (frSt σ2 i x4 rst).curThread = ct.bv := fun x4 rst => by rw [hrec6]; exact hct2
+  have hrq6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), (frSt σ2 i x4 rst).releaseQueue = σ2.releaseQueue := fun x4 rst => by rw [hrec6]; rfl
+  have hsc6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), x4 = { xi with tcbArch := x4.tcbArch } →
+      ({ ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+        tcbState := if rst then Fl4Spec.ThreadState.restart else .inactive } : Fl4Spec.Tcb).tcbSchedContext =
+        xi.tcbSchedContext := by
+    intro x4 rst hx4; have h := congrArg Fl4Spec.Tcb.tcbSchedContext hx4; exact h
+  have hth6 : ∀ (x4 : Fl4Spec.Tcb) (rst : Bool), x4 = { xi with tcbArch := x4.tcbArch } →
+      ({ ({ x4 with tcbFault := none } : Fl4Spec.Tcb) with
+        tcbState := if rst then Fl4Spec.ThreadState.restart else .inactive } : Fl4Spec.Tcb).tcbTimeoutHandler =
+        xi.tcbTimeoutHandler := by
+    intro x4 rst hx4; have h := congrArg Fl4Spec.Tcb.tcbTimeoutHandler hx4; exact h
+  have fin : ∀ (rst : Bool) (x4 : Fl4Spec.Tcb) (z : Unit × Fl4Spec.State Unit) (s' : S) (a' : A),
+      ((), frSt σ2 i x4 rst) ∈ (specFaultReply ct.bv i.bv f σ2).1 →
+      z ∈ (specReplyTail i.bv xi.tcbFault (frSt σ2 i x4 rst)).1 → JAt (L := L) arI AR s' a' z.2 →
+      ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1, JAt (L := L) arI AR s' a' z.2 :=
+    fun rst x4 z s' a' hz1 hz hJ => ⟨z, mem_doReplyTransfer hkr hrep hkx hst g hrm hub hki (Or.inr ⟨f, hfi, hz1⟩) hz, hJ⟩
+  -- the receiver's SC word, and whether its SC is released
+  obtain ⟨i2, hi2⟩ : ∃ i2 : U64, i2 = L.mem s2 (P1.scA i) := ⟨_, rfl⟩
+  rw [← hi2] at hscw
+  set relC : Prop := ∀ sp y n, xi.tcbSchedContext = some sp → σ2.kheap sp = some (.schedContext y n) →
+    Fl4Spec.refillReady σ2.curTime (Fl4Spec.refillHd y) = true ∧ Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true
+    with hrelC
+  -- the step after the fault reply: `Inactive`, `J`; `Restart`, `J` when `relC`, otherwise with the tail's `postpone`
+  refine WP.spec_bind (faultBranchJ hZ J2 hne hiT hcT hks hki hfi
+    (fun rst s σ => (rst = false → ∃ (V' : XVs) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D s ar σ) ∧
+      (rst = true → ∃ V' : XVs, XTopAt (L := L) AR (Z.mv Z.G V') s ar σ ∧
+        (relC → ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D s ar σ) ∧
+        (¬ relC → sched.postpone st s i2 ⦃ s7 => ∃ σ7, Fl4Spec.postpone (Z := Unit) i2.bv σ = ({((), σ7)}, False) ∧
+          ∃ Lst' : U64 → List U64, JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst' D s7 ar σ7 ⦄)))
+    ?_) ?_
+  · intro rst x4 s5 V hx4 J5
+    have hk5 : (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })).kheap i.bv =
+        some (.tcb { x4 with tcbFault := none }) := by simp [updK]
+    have hsc5 : ({ x4 with tcbFault := none } : Fl4Spec.Tcb).tcbSchedContext = xi.tcbSchedContext := by
+      have h := congrArg Fl4Spec.Tcb.tcbSchedContext hx4; exact h
+    cases rst
+    · refine WP.spec_mono (stsQ false x4 s5 V hx4 J5 (fun h => absurd h Bool.false_ne_true)) ?_
+      intro s6 h6
+      exact ⟨fun _ => h6, fun h => absurd h Bool.false_ne_true⟩
+    · by_cases hR : relC
+      · have hrel : RelIfBound (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })) i.bv := by
+          intro x' scp y' n' h1 h2 h3 _ _
+          rw [hk5] at h1; cases h1
+          have hsp' : xi.tcbSchedContext = some scp := hsc5.symm.trans h2
+          have hti' : scp ≠ i.bv := fun e => by
+            rw [e] at h3; simp [updK] at h3
+          have h3' : σ2.kheap scp = some (.schedContext y' n') := by simpa [updK, hti'] using h3
+          exact hR scp y' n' hsp' h3'
+        refine WP.spec_mono (stsQ true x4 s5 V hx4 J5 (fun _ => hrel)) ?_
+        rintro s6 ⟨V', Lst', J6⟩
+        exact ⟨fun h => absurd h.symm Bool.false_ne_true, fun _ => ⟨V', J6.xtop, fun _ => ⟨Lst', J6⟩,
+          fun h => absurd hR h⟩⟩
+      · -- the SC is bound and not released: `Restart` and `postpone` as one step
+        have hR' : ∃ sp y n, xi.tcbSchedContext = some sp ∧ σ2.kheap sp = some (.schedContext y n) ∧
+            ¬ (Fl4Spec.refillReady σ2.curTime (Fl4Spec.refillHd y) = true ∧
+              Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true) := by
+          by_contra hc
+          exact hR fun sp y n h1 h2 => by
+            by_contra h3; exact hc ⟨sp, y, n, h1, h2, h3⟩
+        obtain ⟨sp, y, n, hxsc, hky, hnrel⟩ := hR'
+        have h0 : i2 ≠ 0#u64 := by
+          intro e; rw [e, optRef_zero, hxsc] at hscw; cases hscw
+        have esp : sp = i2.bv := by rw [Notif.optRef_ne h0, hxsc] at hscw; exact Option.some.inj hscw
+        subst esp
+        have hi2C : i2 ∈ Z.C := by rw [hi2]; exact hsp.scMem i hiT (by rw [← hi2]; exact h0)
+        obtain ⟨y0, n0, hky0, hyt⟩ := J2.inv.back _ _ _ hki hxsc
+        rw [hky] at hky0; cases hky0
+        have hya := hact _ y n hky hyt
+        have hti : i2.bv ≠ i.bv := fun e => by rw [e, hki] at hky; cases hky
+        have hky5 : (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })).kheap i2.bv =
+            some (.schedContext y n) := by simp [updK, hti, hky]
+        have hrs : ({ x4 with tcbFault := none } : Fl4Spec.Tcb).tcbState = .inactive := by
+          have h := congrArg Fl4Spec.Tcb.tcbState hx4; exact h.trans hin
+        have htc5 : i.bv ≠ (updK (updK σ2 i.bv (.tcb x4)) i.bv (.tcb { x4 with tcbFault := none })).curThread := by
+          show i.bv ≠ σ2.curThread
+          rw [hct2]; intro e; exact hne (P1.eq_of_bv e).symm
+        refine WP.spec_mono (J5.rstPostJ hiT hiD hk5 hrs htc5 hi2C (hsc5.trans hxsc) hky5 hya hnrel) ?_
+        rintro s6 ⟨hX6, -, hpost⟩
+        exact ⟨fun h => absurd h.symm Bool.false_ne_true, fun _ => ⟨V, hX6, fun h => absurd h hR, fun _ => hpost⟩⟩
+  rintro ⟨s6, a2⟩ ⟨ha, rst, x4, hx4, hhf, hz1, hq⟩
+  dsimp only at ha hq
+  subst ha
+  -- the tail's reads at the state after the fault reply
+  have hX6 : ∃ V6 : XVs, XTopAt (L := L) AR (Z.mv Z.G V6) s6 a2 (frSt σ2 i x4 rst) := by
+    cases rst
+    · obtain ⟨V6, _, J6⟩ := hq.1 rfl; exact ⟨V6, J6.xtop⟩
+    · obtain ⟨V6, hX, -⟩ := hq.2 rfl; exact ⟨V6, hX⟩
+  obtain ⟨V6, hX6⟩ := hX6
+  have hS6 := hX6.fin.1.1.1
+  obtain ⟨Q6, R6, hc6, hsp6⟩ := hS6.lists
+  obtain ⟨x6, hk6', -, -, hscw6, -⟩ := hsp6.tcb i hiT
+  rw [hk6 x4 rst] at hk6'; cases hk6'
+  obtain ⟨x6', hk6'', hTR6⟩ := hX6.ipc.tcb i hiT
+  rw [hk6 x4 rst] at hk6''; cases hk6''
+  step with Fl4Proofs.P1.obj.Tcb.sc.spec as ⟨i3, hi3⟩
+  step with Fl4Proofs.P3.Sched.obj.Sc.is_null.spec' as ⟨b2, hb2⟩
+  by_cases h3 : i3 = 0#u64
+  · -- no SC: nothing
+    rw [hb2, if_pos (by simp [h3]), WP.spec_ok]
+    have hn : xi.tcbSchedContext = none := by
+      have e := hscw6
+      rw [← hi3, h3, optRef_zero] at e
+      exact (hsc6 x4 rst hx4).symm.trans e
+    have hJ6 : JAt (L := L) arI AR s6 a2 (frSt σ2 i x4 rst) := by
+      cases rst
+      · obtain ⟨V', Lst', J6⟩ := hq.1 rfl; exact ⟨_, _, _, _, _, _, J6⟩
+      · obtain ⟨V', -, hJ, -⟩ := hq.2 rfl
+        obtain ⟨Lst', J6⟩ := hJ (fun sp y n h => by rw [hn] at h; cases h)
+        exact ⟨_, _, _, _, _, _, J6⟩
+    exact fin rst x4 ((), frSt σ2 i x4 rst) s6 a2 hz1
+      (by rw [specReplyTail_skip (hk6 x4 rst) (Or.inl ((hsc6 x4 rst hx4).trans hn))]; rfl) hJ6
+  rw [hb2, if_neg (by simp [h3])]
+  have e3 : xi.tcbSchedContext = some i3.bv := by
+    have e := hscw6
+    rw [← hi3, Notif.optRef_ne h3] at e
+    exact (hsc6 x4 rst hx4).symm.trans e
+  have hi23 : i3 = i2 := by
+    rw [Notif.optRef_ne (fun e => by rw [e, optRef_zero, e3] at hscw; cases hscw), e3] at hscw
+    exact P1.eq_of_bv (Option.some.inj hscw)
+  subst hi23
+  have hi2C : i3 ∈ Z.C := by
+    rw [hi2]; exact hsp.scMem i hiT (by rw [← hi2]; exact h3)
+  obtain ⟨y, n, hky, hyt⟩ := J2.inv.back _ _ _ hki e3
+  have hya := hact _ y n hky hyt
+  have hti : i3.bv ≠ i.bv := fun e => by rw [e, hki] at hky; cases hky
+  have hky6 : (frSt σ2 i x4 rst).kheap i3.bv = some (.schedContext y n) := by rw [hkp6 x4 rst _ hti]; exact hky
+  refine WP.spec_bind (Fl4Proofs.P3.Sched.is_runnable_spec s6 i) ?_
+  rintro b3 rfl
+  cases rst
+  · -- `Inactive`: not runnable, nothing
+    have hrw : L.mem s6 (tStA i) = sched.TS_INACTIVE := by
+      apply UScalar.eq_of_val_eq; rw [hTR6.st]; unfold sched.TS_INACTIVE; rfl
+    rw [if_neg (by rw [hrw]; unfold sched.TS_INACTIVE sched.TS_RUNNING sched.TS_RESTART sched.TS_RUNNING_VM; decide),
+      WP.spec_ok]
+    obtain ⟨V', Lst', J6⟩ := hq.1 rfl
+    exact fin false x4 ((), frSt σ2 i x4 false) s6 a2 hz1 (by rw [specReplyTail_skip (hk6 x4 false) (Or.inr rfl)]; rfl)
+      ⟨_, _, _, _, _, _, J6⟩
+  -- `Restart`: runnable
+  have hrw : L.mem s6 (tStA i) = sched.TS_RESTART := by
+    apply UScalar.eq_of_val_eq; rw [hTR6.st]; unfold sched.TS_RESTART; rfl
+  rw [if_pos (by rw [hrw]; simp)]
+  obtain ⟨V', hX6', hJR, hpost⟩ := hq.2 rfl
+  have hne6 : y.scRefills ≠ [] := J2.inv.ne _ y n hky hya
+  have hsc6' := hsc6 x4 true hx4
+  refine WP.spec_bind (Fl4Proofs.P3.Sched.ready_refines s6 (frSt σ2 i x4 true) hS6 hi2C hky6 hya) ?_
+  rintro b4 hb4
+  rw [Fl4Proofs.P3.Sched.getScRefillReady_eq hky6 hne6] at hb4
+  have hb4' : b4 = Fl4Spec.refillReady (frSt σ2 i x4 true).curTime (Fl4Spec.refillHd y) := by
+    have := congrArg (fun q => (b4, frSt σ2 i x4 true) ∈ q.1) hb4; simpa using this.symm
+  by_cases hrl : Fl4Spec.refillReady σ2.curTime (Fl4Spec.refillHd y) = true ∧
+      Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true
+  · -- released: `possible_switch_to`
+    have hR : relC := fun sp y' n' h1 h2 => by
+      rw [e3] at h1; cases h1; rw [hky] at h2; cases h2; exact hrl
+    obtain ⟨Lst', J6⟩ := hJR hR
+    rw [if_pos (by rw [hb4', htm6]; exact hrl.1)]
+    refine WP.spec_bind (Fl4Proofs.P3.Sched.sufficient_refines s6 _ (frSt σ2 i x4 true) hS6 hi2C hky6 hya 0#u64 (hmb _)) ?_
+    rintro b5 hb5
+    rw [Fl4Proofs.P3.Sched.getScRefillSufficient_eq hky6 hne6] at hb5
+    have hb5' : b5 = Fl4Spec.refillSufficient (U64.bv 0#u64) (Fl4Spec.refillHd y) := by
+      have := congrArg (fun q => (b5, frSt σ2 i x4 true) ∈ q.1) hb5; simpa using this.symm
+    rw [if_pos (by rw [hb5', e0]; exact hrl.2)]
+    have hnr6 : i.bv ∉ (frSt σ2 i x4 true).releaseQueue := by rw [hrq6]; exact hnr2
+    have hsch : Fl4Spec.schedulable i.bv (frSt σ2 i x4 true) = true :=
+      schedulable_of (hk6 x4 true) (hsc6'.trans e3) rfl hky6 hya hnr6
+    have hti6 : i.bv ≠ (frSt σ2 i x4 true).idleThread := by
+      intro e
+      obtain ⟨yi, h1, -, h3, -⟩ := J6.act.2
+      rw [← e, hk6 x4 true] at h1; cases h1; cases h3
+    have htc6 : i.bv ≠ (frSt σ2 i x4 true).curThread := by
+      rw [hct6]; intro e; exact hne (P1.eq_of_bv e).symm
+    refine WP.spec_bind (J6.switchJ hiT hti6 htc6 hsch) ?_
+    rintro s7 ⟨σ7, hps, Lst7, J7⟩
+    apply (WP.spec_ok _).2
+    refine fin true x4 ((), σ7) s7 a2 hz1 ?_ ⟨_, _, _, _, _, _, J7⟩
+    rw [specReplyTail_run (hk6 x4 true) (hsc6'.trans e3) rfl hky6, if_pos ⟨by rw [htm6]; exact hrl.1, hrl.2⟩, hps]
+    exact Set.mem_singleton _
+  · -- not released: `postpone` (no valid timeout handler, or a timeout fault)
+    have hnR : ¬ relC := fun h => hrl (h _ _ _ e3 hky)
+    have hnot : ¬ (Fl4Spec.isEpCap xi.tcbTimeoutHandler = true ∧ Fl4Spec.isTimeoutFault f = false) :=
+      fun ⟨h1, h2⟩ => hnt _ hhf ⟨i3.bv, y, n, e3, hky, hrl, h1, h2⟩
+    have hpost' := hpost hnR
+    have tmo : fl4ReplyTmo st arI i ft i3 s6 a2 ⦃ res => ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1,
+        JAt (L := L) arI AR res.1 res.2 z.2 ⦄ := by
+      unfold fl4ReplyTmo
+      refine WP.spec_bind (valid_timeout_handler_rel s6 (frSt σ2 i x4 true) hX6.rel.2.1.1
+        (hX6.rel.tcbT (hk6 x4 true))) ?_
+      rintro b5 ⟨-, x', hkx', hb5⟩
+      rw [hk6 x4 true] at hkx'; cases hkx'
+      have hb5x : b5 = Fl4Spec.isEpCap xi.tcbTimeoutHandler :=
+        hb5.trans (congrArg Fl4Spec.isEpCap (hth6 x4 true hx4))
+      have post : (do let s4 ← sched.postpone st s6 i3; ok (s4, a2)) ⦃ res =>
+          ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1, JAt (L := L) arI AR res.1 res.2 z.2 ⦄ := by
+        refine WP.spec_bind hpost' ?_
+        rintro s7 ⟨σ7, hpp, Lst7, J7⟩
+        apply (WP.spec_ok _).2
+        refine fin true x4 ((), σ7) s7 a2 hz1 ?_ ⟨_, _, _, _, _, _, J7⟩
+        rw [specReplyTail_run (hk6 x4 true) (hsc6'.trans e3) rfl hky6, if_neg (by rw [htm6]; exact hrl)]
+        unfold specReplyTmo
+        rw [nd_bind_one (getTcb_eq (hk6 x4 true)), if_neg (fun h => hnot ⟨by rw [← hth6 x4 true hx4]; exact h.1,
+          by have h2 := h.2; rw [hfi] at h2; simpa using h2⟩), hpp]
+        exact Set.mem_singleton _
+      by_cases hb : b5 = true
+      · rw [if_pos hb]
+        have htf : Fl4Spec.isTimeoutFault f = true := by
+          by_contra h; exact hnot ⟨by rw [← hb5x]; exact hb, by simpa using h⟩
+        rw [if_neg (by simp [hftT.2 htf])]
+        exact post
+      · rw [if_neg hb]
+        exact post
+    unfold fl4ReplyTmo at tmo
+    by_cases hr4 : b4 = true
+    · rw [if_pos hr4]
+      refine WP.spec_bind (Fl4Proofs.P3.Sched.sufficient_refines s6 _ (frSt σ2 i x4 true) hS6 hi2C hky6 hya 0#u64 (hmb _)) ?_
+      rintro b5 hb5
+      rw [Fl4Proofs.P3.Sched.getScRefillSufficient_eq hky6 hne6] at hb5
+      have hb5' : b5 = Fl4Spec.refillSufficient (U64.bv 0#u64) (Fl4Spec.refillHd y) := by
+        have := congrArg (fun q => (b5, frSt σ2 i x4 true) ∈ q.1) hb5; simpa using this.symm
+      have hr5 : ¬ b5 = true := fun h => hrl ⟨by rw [← htm6 x4 true, ← hb4']; exact hr4, by rw [← e0, ← hb5']; exact h⟩
+      rw [if_neg hr5]
+      exact tmo
+    · rw [if_neg hr4]
+      exact tmo
+
 variable (arI) in
 /-- **[W] The reply cap's transfer after `reply_remove` and the sporadic
 unblock test, at `J`** (`replyLeafJ`): from the caller's restart (`s1`,
@@ -720,7 +1135,9 @@ outside `ReplyRestNoSc` (`replyRestNoScJ`: no SC and no fault on the
 receiver), `ReplyRestSw` (`replyRestSwJ`: the
 receiver's SC active and released, then `possible_switch_to`) and
 `ReplyRestPost` (`replyRestPostJ`: the SC active, not released, no valid
-timeout handler, `Running` and `postpone` as one step). The restart, the
+timeout handler, `Running` and `postpone` as one step) and `ReplyRestFault`
+(`replyRestFaultJ`: a faulted receiver, the fault reply, `Inactive` or
+`Restart`, the tail). The restart, the
 reply's thread, the branches where nothing happens, `reply_remove`
 (`JAtZ.replyRemoveJD`) and the unblock test are proved, and an SC bound to
 the receiver is active (given: `remove_act` from `BlockedScActive` before
@@ -728,8 +1145,9 @@ the receiver is active (given: `remove_act` from `BlockedScActive` before
 bound inactive SC is left). What is left are J
 steps with an `IRel` proof but none at `J` (IpcReply's
 `do_reply_transfer_top`): with an SC not released and a valid timeout
-handler, `Running` together with `handle_timeout` (`ReplyHyps.tmo`: a fault
-send); the fault reply (`ReplyHyps.faultReply`). (`do_ipc_transfer` itself is
+handler, `Running` (after the transfer) or `Restart` (after a fault reply
+restarting the receiver from a fault other than a timeout, `ReplyFaultTmo`)
+together with `handle_timeout` (`ReplyHyps.tmo`: a fault send). (`do_ipc_transfer` itself is
 at `J` in every case, XTopJointGrant's `JAtZ.xferAllJ`.) l4v: `do_reply_transfer_invs` /
 `do_reply_transfer_corres`. -/
 def JReplyRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit) (ct p : U64) (g : Bool) :
@@ -743,7 +1161,7 @@ def JReplyRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4
     JAt (L := L) arI AR s3 ar σ3 →
     (∀ q y n, σ3.kheap q = some (.schedContext y n) → y.scTcb = some i.bv → Fl4Spec.scActive y = true) →
     ¬ ReplyRestNoSc σ3 ct i g → ¬ ReplyRestSw σ3 ct i g →
-    ¬ ReplyRestPost σ3 ct i g →
+    ¬ ReplyRestPost σ3 ct i g → ¬ ReplyRestFault σ3 ct i →
     fl4ReplyRest2 st arI s3 ar ct i g ⦃ res => ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1,
       JAt (L := L) arI AR res.1 res.2 z.2 ⦄
 
@@ -839,7 +1257,9 @@ theorem replyXferJ (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.
   · exact replyRestSwJ (Z := Z.mv Z.G V') hmb hZ hAT hmax htu J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hC2
   by_cases hC3 : ReplyRestPost σ3 ct i g
   · exact replyRestPostJ (Z := Z.mv Z.G V') hmb hZ hAT hmax htu J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hC3
-  exact hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ hact3 hC hC2 hC3
+  by_cases hC4 : ReplyRestFault σ3 ct i
+  · exact replyRestFaultJ (Z := Z.mv Z.G V') hmb hZ J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hact3 hC4
+  exact hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ hact3 hC hC2 hC3 hC4
 
 set_option maxHeartbeats 4000000 in
 /-- **The reply cap's leaf at `J`** but for `JReplyRestHyp` (`replyXferJ`
