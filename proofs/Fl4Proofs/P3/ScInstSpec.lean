@@ -31,21 +31,25 @@ structure SK (σ σ' : State Unit) : Prop where
   ep : ∀ e ep, σ.kheap e = some (.endpoint ep) → σ'.kheap e = some (.endpoint ep)
   ntfn : ∀ n x, σ.kheap n = some (.notification x) → σ'.kheap n = some (.notification x)
   act : σ'.schedulerAction = σ.schedulerAction
+  /-- the current SC and the idle thread and SC -/
+  fk : σ'.curSc = σ.curSc ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc
 
 theorem SK.refl (σ : State Unit) : SK σ σ :=
-  ⟨VK.refl σ, rfl, fun _ _ h => h, fun _ _ h => h, rfl⟩
+  ⟨VK.refl σ, rfl, fun _ _ h => h, fun _ _ h => h, rfl, rfl, rfl, rfl⟩
 
 theorem SK.trans {σ1 σ2 σ3 : State Unit} (h1 : SK σ1 σ2) (h2 : SK σ2 σ3) : SK σ1 σ3 :=
   ⟨h1.vk.trans h2.vk, h2.rdq.trans h1.rdq, fun e ep h => h2.ep e ep (h1.ep e ep h),
-    fun n x h => h2.ntfn n x (h1.ntfn n x h), h2.act.trans h1.act⟩
+    fun n x h => h2.ntfn n x (h1.ntfn n x h), h2.act.trans h1.act,
+    h2.fk.1.trans h1.fk.1, h2.fk.2.1.trans h1.fk.2.1, h2.fk.2.2.trans h1.fk.2.2⟩
 
 /-- A state change outside the heap and the scheduler fields. -/
 theorem SK.of_eq {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (hq : σ'.readyQueues = σ.readyQueues)
     (hr : σ'.releaseQueue = σ.releaseQueue) (hc : σ'.curThread = σ.curThread) (ht : σ'.curTime = σ.curTime)
-    (ha : σ'.schedulerAction = σ.schedulerAction) : SK σ σ' := by
+    (ha : σ'.schedulerAction = σ.schedulerAction) (hcs : σ'.curSc = σ.curSc)
+    (hid : σ'.idleThread = σ.idleThread) (his : σ'.idleSc = σ.idleSc) : SK σ σ' := by
   refine ⟨⟨fun p x h => ⟨x, by rw [hk]; exact h, rfl, rfl⟩, fun p y h => ⟨y, by rw [← hk]; exact h⟩,
     fun p y n => by rw [hk], hc, ht, hr, Or.inl ha⟩, hq, fun e ep h => by rw [hk]; exact h,
-    fun n x h => by rw [hk]; exact h, ha⟩
+    fun n x h => by rw [hk]; exact h, ha, hcs, hid, his⟩
 
 /-- Replacing a TCB by one with the same state and SC, or a CNode by a CNode. -/
 theorem SK.upd {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.kheap p = some o)
@@ -55,7 +59,7 @@ theorem SK.upd {σ : State Unit} {p : ObjRef} {o o' : KernelObject} (hk : σ.khe
   have hkn : ∀ q, q ≠ p → (Function.update σ.kheap p (some o')) q = σ.kheap q :=
     fun q hq => Function.update_of_ne hq _ _
   refine ⟨⟨fun q x hq => ?_, fun q y hq => ?_, fun q y n => ?_, rfl, rfl, rfl, Or.inl rfl⟩, rfl,
-    fun e ep he => ?_, fun n x hn => ?_, rfl⟩
+    fun e ep he => ?_, fun n x hn => ?_, rfl, rfl, rfl, rfl⟩
   · by_cases e : q = p
     · subst e; rw [hk] at hq; cases hq
       rcases hc with ⟨x', y, e1, rfl, h1, h2⟩ | ⟨a, b, a', b', e1, -⟩
@@ -203,12 +207,12 @@ theorem psk_doExtendedOp (eop : DetExtMonad Unit) : PSK (doExtendedOp (Z := Unit
 
 theorem psk_setCdt (t : Cdt) : PSK (setCdt (Z := Unit) t) := by
   unfold setCdt
-  exact psk_get_put fun σ => SK.of_eq rfl rfl rfl rfl rfl rfl
+  exact psk_get_put fun σ => SK.of_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl
 
 theorem psk_setOriginal (sl : CslotPtr) (v : Bool) : PSK (setOriginal (Z := Unit) sl v) := by
   intro σ x hx
   rw [setOriginal_eq] at hx
-  rw [Set.mem_singleton_iff.1 hx]; exact SK.of_eq rfl rfl rfl rfl rfl rfl
+  rw [Set.mem_singleton_iff.1 hx]; exact SK.of_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl
 
 theorem psk_capInsert (c : Cap) (src dest : CslotPtr) : PSK (capInsert (Z := Unit) c src dest) := by
   unfold capInsert setUntypedCapAsFull updateCdt
@@ -256,7 +260,7 @@ theorem emptySlot_tcb {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t 
     rw [nd_bind_one h1, nd_bind_one (doExtendedOp_unit _ σa), nd_bind_one (setOriginal_eq sl false σa),
       nd_bind_one (setCap_tcb (Z := Unit) .nullCap hkb (by decide))]
     rfl
-  · have e : SK σ σb := SK.of_eq rfl rfl rfl rfl rfl rfl
+  · have e : SK σ σb := SK.of_eq rfl rfl rfl rfl rfl rfl rfl rfl rfl
     refine e.trans (SK.upd hkb (Or.inl ⟨x, _, rfl, rfl, ?_, ?_⟩)) <;> simp [tcbSet]
 
 theorem liftE_mem_inv {σ ε α : Type} {m : NonDet σ α} {s : σ} {y : Except ε α × σ}

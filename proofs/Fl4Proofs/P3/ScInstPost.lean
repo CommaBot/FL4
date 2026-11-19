@@ -54,7 +54,7 @@ theorem finEpSpecHyp : FinEpSpecHyp := by
     have hz' : (.ok (), z.2) ∈ ((capDelete (Z := Unit) (p, tcbCnodeIndex 3)).run σ1).1 := by
       have : z = (.ok (), z.2) := by obtain ⟨r, s⟩ := z; simp only at ha; subst ha; rfl
       rw [← this]; exact hz
-    have hP := capDelete_ep_post hg hz' p sco hpost
+    have hP := (capDelete_ep_post hg hz').1 p sco hpost
     unfold NonDetE.unlessE at hx
     split at hx
     · have hx' : ((.ok (), σ2) : Except Unit Unit × State Unit) ∈ ({(.ok (), z.2)} : Set _) := hx
@@ -63,6 +63,35 @@ theorem finEpSpecHyp : FinEpSpecHyp := by
       simp only at ew
       rw [ew]
       exact hP.sk (psk_checkCapAt _ _ (psk_checkCapAt _ _ (psk_capInsert _ _ _)) z.2 w hw)
+  · cases hx
+
+/-- **The spec's fault-handler install over a null or endpoint cap is `InstK`**
+(`install_sk` for the null cap; for an endpoint cap, final or not,
+`capDelete_ep_post` for the delete, `SK` for the checks and the insert). -/
+theorem install_ik {σ1 σ2 : State Unit} {p : ObjRef} {x : Tcb} (hk : σ1.kheap p = some (.tcb x))
+    (ssl : CslotPtr) (fh : Cap × CslotPtr)
+    (hfh : x.tcbFaultHandler = .nullCap ∨ ∃ e b R, x.tcbFaultHandler = .endpointCap e b R)
+    (hx : (.ok (), σ2) ∈ ((installTcbCap (Z := Unit) p ssl 3 (some fh)).run σ1).1) : InstK σ1 σ2 := by
+  rcases hfh with h0 | ⟨e, b, R, hfe⟩
+  · exact InstK.of_sk (install_sk hk ssl fh (Or.inl h0) hx)
+  obtain ⟨nc, sl⟩ := fh
+  unfold installTcbCap at hx
+  dsimp only at hx
+  obtain ⟨z, hz, ⟨a, ha, hx⟩ | ⟨e', he, hx⟩⟩ := bindE_mem_inv hx
+  · have hg : getCap (Z := Unit) (p, tcbCnodeIndex 3) σ1 = ({(.endpointCap e b R, σ1)}, False) := by
+      rw [getCap_tcb_three hk, hfe]
+    have hz' : (.ok (), z.2) ∈ ((capDelete (Z := Unit) (p, tcbCnodeIndex 3)).run σ1).1 := by
+      have : z = (.ok (), z.2) := by obtain ⟨r, s⟩ := z; simp only at ha; subst ha; rfl
+      rw [← this]; exact hz
+    have hK := (capDelete_ep_post hg hz').2
+    unfold NonDetE.unlessE at hx
+    split at hx
+    · have hx' : ((.ok (), σ2) : Except Unit Unit × State Unit) ∈ ({(.ok (), z.2)} : Set _) := hx
+      rw [(Prod.mk.inj (Set.mem_singleton_iff.1 hx')).2]; exact hK
+    · obtain ⟨w, hw, ew⟩ := liftE_mem_inv hx
+      simp only at ew
+      rw [ew]
+      exact hK.trans (InstK.of_sk (psk_checkCapAt _ _ (psk_checkCapAt _ _ (psk_capInsert _ _ _)) z.2 w hw))
   · cases hx
 
 end Spec

@@ -684,26 +684,45 @@ theorem specPost_install {σ1 σ2 : State Unit} {p : ObjRef} {x1 : Tcb} {sco : O
       rw [hce]
       exact ⟨rfl, by rw [← hce, ← hfc]; exact hfin⟩
 
-/-- **[J] What the spec's fault-handler install keeps of the scheduler**
-(over a slot holding the null cap or an endpoint cap, from an `Inv` state):
-`CurInv` (the current thread, its SC and state, the current SC, activity
-and the release queue), the time, the idle thread, every SC bound to no thread, and the
-target's IPC-blocked state (it can only be restarted or made inactive).
-l4v: `cap_delete` of an endpoint cap is `cancel_all_ipc`, which restarts
-the endpoint's waiters (`restart_thread_if_no_fault`: `set_thread_state`,
-`if_cond_refill_unblock_check` of the waiter's own SC, bound to it by
-`sym_refs`, `possible_switch_to`) and asks for a reschedule; `cap_insert`
-writes the slot only. ScCancelFrame's `Fr` and ScInstSpec's `SK` keep all
-of this but the current SC and the SCs' refills, which they do not state. -/
-def InstSchedHyp : Prop :=
-  ∀ (σ1 σ2 : State Unit) (p : ObjRef) (x : Tcb) (ssl : CslotPtr) (fh : Cap × CslotPtr),
-    σ1.kheap p = some (.tcb x) →
-    (x.tcbFaultHandler = .nullCap ∨ ∃ e b R, x.tcbFaultHandler = .endpointCap e b R) → Inv σ1 →
-    (.ok (), σ2) ∈ ((installTcbCap (Z := Unit) p ssl 3 (some fh)).run σ1).1 →
+/-- **What the spec's fault-handler install keeps of the scheduler** (over a
+slot holding the null cap or an endpoint cap, from an `Inv` state; from
+ScInstPost's `install_ik`): `CurInv` (the current thread, its SC and state,
+the current SC, activity and the release queue), the time, the idle thread,
+every SC bound to no thread (no TCB names it by `Inv.back`, and
+`cancel_all_ipc` refill-checks only each waiter's own SC), and the target's
+IPC-blocked state (it can only be restarted or made inactive). -/
+theorem install_sched (σ1 σ2 : State Unit) (p : ObjRef) (x : Tcb) (ssl : CslotPtr) (fh : Cap × CslotPtr)
+    (hk : σ1.kheap p = some (.tcb x))
+    (hfh : x.tcbFaultHandler = .nullCap ∨ ∃ e b R, x.tcbFaultHandler = .endpointCap e b R) (hI : Inv σ1)
+    (hx : (.ok (), σ2) ∈ ((installTcbCap (Z := Unit) p ssl 3 (some fh)).run σ1).1) :
     (CurInv σ1 → CurInv σ2) ∧ σ2.curTime = σ1.curTime ∧ σ2.idleThread = σ1.idleThread ∧
     (∀ c y n, σ1.kheap c = some (.schedContext y n) → y.scTcb = none →
       σ2.kheap c = some (.schedContext y n)) ∧
-    (∀ x2, σ2.kheap p = some (.tcb x2) → ipcQueuedThreadState x2.tcbState = true → x2.tcbState = x.tcbState)
+    (∀ x2, σ2.kheap p = some (.tcb x2) → ipcQueuedThreadState x2.tcbState = true → x2.tcbState = x.tcbState) := by
+  have K := install_ik hk ssl fh hfh hx
+  obtain ⟨hcs, htm, hid, his⟩ := K.fk
+  refine ⟨fun hC => ?_, htm, hid, fun c y n hy hy0 => K.scU c y n hy fun u xu hu hc => ?_, fun x2 hx2 hq => ?_⟩
+  · obtain ⟨xt, hkt, hsc, hnb⟩ := hC.tcb
+    obtain ⟨yt, hyt, sr, hs⟩ := K.tcb _ xt hkt
+    obtain ⟨y0, n0, hy0⟩ := hC.sc
+    obtain ⟨y0', hy0', hm⟩ := K.sc _ y0 n0 hy0
+    refine ⟨⟨yt, by rw [K.ct]; exact hyt, by rw [hs, hcs]; exact hsc, ?_⟩, ⟨y0', n0, by rw [hcs]; exact hy0'⟩,
+      fun hne y1 n1 hy1 => ?_, by rw [K.ct, K.rel]; exact hC.notRel⟩
+    · rcases sr with e | e | e <;> rw [e]
+      · exact hnb
+      all_goals exact ⟨fun q h => (by cases h), fun e d h => (by cases h), fun e r d h => (by cases h)⟩
+    · rw [hcs, his] at hne
+      rw [hcs, hy0'] at hy1; cases hy1
+      have := hC.active hne y0 n0 hy0
+      simpa [scActive, hm] using this
+  · obtain ⟨y1, n1, hk1, hb1⟩ := hI.back u xu c hu hc
+    rw [hy] at hk1; cases hk1
+    rw [hy0] at hb1; cases hb1
+  · obtain ⟨y, hy, sr, -⟩ := K.tcb p x hk
+    rw [hx2] at hy; cases hy
+    rcases sr with e | e | e
+    · exact e
+    all_goals rw [e] at hq; simp [ipcQueuedThreadState] at hq
 
 end
 
@@ -722,13 +741,12 @@ other slots' caps kept), then `set_mcp` (`JAtZ.mcpWrJ`), `set_priority`
 `CurInv`) and the SC step: none, `unbind_tcb` (`JAtZ.unbindTcbJ`) or
 `bind_tcb` (`JAtZ.bindTcbJ`, the decode's checks carried: `SpecPost` by
 `specPost_restart`, `specPost_install`, `BindOK.after`; the SC and the
-release check by `InstSchedHyp` [J]). -/
+release check by `install_sched`). -/
 theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
-    (hIS : InstSchedHyp)
     (p : U64) (hp : Z.th p = some .tcb) (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (ssl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th ssl) (hpsl : capV (L.mem s) (cslotAddr ssl) = .Thread p)
     (x2 : U64) (e2 : Fl4Spec.Cap × Fl4Spec.CslotPtr)
@@ -834,7 +852,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
   obtain ⟨V2, Ac2, Lst2, D2, J2, -, hns2, -, -⟩ := hW2
   -- the spec after the install
   have hpost2 := specPost_install hkp1 hfc hcNE hx hpost1
-  obtain ⟨hCI, htm2, hid2, hscK, hstK⟩ := hIS σ1' σ2 p.bv xp1 ssl e2 hkp1 hfcS J1.inv hx
+  obtain ⟨hCI, htm2, hid2, hscK, hstK⟩ := install_sched σ1' σ2 p.bv xp1 ssl e2 hkp1 hfcS J1.inv hx
   have hC2 : Sched.CurInv σ2 := hCI hC1
   have hct2 : σ2.curThread = σ1'.curThread := Vs.DK.ct (Vs.dke_installTcbCap' p.bv ssl 3 (some e2)) hx
   obtain ⟨x, hk2, -, -, -, hU2, hB2⟩ := hpost2
@@ -1004,7 +1022,6 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ 
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
     (hAT : P0.ArchTotal arI) (hAK : ARKeep arI AR) (hTA : TimeAgree arI)
-    (hIS : InstSchedHyp)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetSchedParams)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1222,14 +1239,14 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ 
       by_cases hscf : (L.mem s (P1.scA p) != scv) = true
       · simp only [hscf, ↓reduceIte]
         have h1' : sco = none ↔ true = false := by rw [hs1, hscf]
-        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 true q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [↓reduceIte] at this
         exact this
       · simp only [Bool.not_eq_true] at hscf
         simp only [hscf, Bool.false_eq_true, ↓reduceIte]
         have h1' : sco = none ↔ false = false := by rw [hs1, hscf]
-        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA hIS p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
+        have := ssp_tailJ arI s ar σ J hni hsg hP0 hHp hAT hAK hTA p hp ct hct ssl hAs hpsl x2 e2 hxe2 he21 ps2
           hps2 hps21 hv y0 y1 scv hy0 hy1 false q.bv sco h1' hs2 hs3 hD hpI hscs _ (DecOut.of_eq hdec) blk call don
         simp only [Bool.false_eq_true, ↓reduceIte] at this
         exact this

@@ -42,6 +42,29 @@ structure Fr (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endpoi
     ∃ x c, σ'.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some c
   rel : σ'.releaseQueue = σ.releaseQueue
   ct : σ'.curThread = σ.curThread
+  /-- the current SC, the time, the idle thread and SC -/
+  fk : σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc
+  /-- an SC no TCB names is kept (only a thread's own SC is refill-checked) -/
+  scU : ∀ c y n, σ.kheap c = some (.schedContext y n) → (∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some c) →
+    σ'.kheap c = some (.schedContext y n)
+
+/-- No TCB names the SC `c`. -/
+def ScUnref (σ : State Unit) (c : ObjRef) : Prop := ∀ u x, σ.kheap u = some (.tcb x) → x.tcbSchedContext ≠ some c
+
+/-- Some TCB names the SC `c`. -/
+def ScRef (σ : State Unit) (c : ObjRef) : Prop := ∃ u x, σ.kheap u = some (.tcb x) ∧ x.tcbSchedContext = some c
+
+theorem ScUnref.fr {SR ER} {σ σ' : State Unit} {c : ObjRef} (h : ScUnref σ c) (F : Fr SR ER σ σ') : ScUnref σ' c := by
+  intro u x' hx'
+  obtain ⟨x, hx⟩ := F.tcb' u x' hx'
+  obtain ⟨y, hy, -, hs, -⟩ := F.tcb u x hx
+  rw [hx'] at hy; cases hy
+  rw [hs]; exact h u x hx
+
+theorem ScRef.fr {SR ER} {σ σ' : State Unit} {c : ObjRef} (h : ScRef σ c) (F : Fr SR ER σ σ') : ScRef σ' c := by
+  obtain ⟨u, x, hx, hc⟩ := h
+  obtain ⟨y, hy, -, hs, -⟩ := F.tcb u x hx
+  exact ⟨u, y, hy, by rw [hs, hc]⟩
 
 /-- The state relation is a preorder. -/
 structure FrOK (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endpoint → Endpoint → Prop) : Prop where
@@ -53,13 +76,15 @@ structure FrOK (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endp
 theorem Fr.refl {SR ER} (h : FrOK SR ER) (σ : State Unit) : Fr SR ER σ σ :=
   ⟨fun _ x hx => ⟨x, hx, h.sr _, rfl, rfl⟩, fun _ y hy => ⟨y, hy⟩, fun _ y _ hy => ⟨y, hy, rfl, id, rfl⟩,
     fun e ep he => ⟨ep, he, h.er e ep⟩, fun _ _ h => h, fun _ _ _ h => h, rfl, rfl, fun _ _ _ hu => Or.inl hu,
-    rfl, rfl⟩
+    rfl, rfl, ⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ h _ => h⟩
 
 theorem Fr.trans {SR ER} (h : FrOK SR ER) {σ1 σ2 σ3 : State Unit} (h1 : Fr SR ER σ1 σ2) (h2 : Fr SR ER σ2 σ3) :
     Fr SR ER σ1 σ3 := by
   refine ⟨fun u x hx => ?_, fun u y hy => ?_, fun c y n hy => ?_, fun e ep he => ?_,
     fun n x hn => h2.ntfn n x (h1.ntfn n x hn), fun u a b hu => h2.cn u a b (h1.cn u a b hu),
-    h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, fun d pr u hu => ?_, h2.rel.trans h1.rel, h2.ct.trans h1.ct⟩
+    h2.cdt.trans h1.cdt, h2.orig.trans h1.orig, fun d pr u hu => ?_, h2.rel.trans h1.rel, h2.ct.trans h1.ct,
+    ⟨h2.fk.1.trans h1.fk.1, h2.fk.2.1.trans h1.fk.2.1, h2.fk.2.2.1.trans h1.fk.2.2.1, h2.fk.2.2.2.trans h1.fk.2.2.2⟩,
+    fun c y n hy hu => h2.scU c y n (h1.scU c y n hy hu) (ScUnref.fr hu h1)⟩
   · obtain ⟨y, hy, s1, c1, m1⟩ := h1.tcb u x hx
     obtain ⟨z, hz, s2, c2, m2⟩ := h2.tcb u y hy
     exact ⟨z, hz, h.srt _ _ _ s1 s2, c2.trans c1, m2.trans m1⟩
@@ -79,7 +104,8 @@ theorem Fr.trans {SR ER} (h : FrOK SR ER) {σ1 σ2 σ3 : State Unit} (h1 : Fr SR
 
 theorem Fr.mono {SR SR' ER ER'} {σ σ' : State Unit} (h : Fr SR ER σ σ') (hs : ∀ a b, SR a b → SR' a b)
     (he : ∀ e a b, ER e a b → ER' e a b) : Fr SR' ER' σ σ' := by
-  refine ⟨fun u x hx => ?_, h.tcb', h.sc, fun e ep h' => ?_, h.ntfn, h.cn, h.cdt, h.orig, h.rq, h.rel, h.ct⟩
+  refine ⟨fun u x hx => ?_, h.tcb', h.sc, fun e ep h' => ?_, h.ntfn, h.cn, h.cdt, h.orig, h.rq, h.rel, h.ct, h.fk,
+    h.scU⟩
   · obtain ⟨y, hy, s, c, m⟩ := h.tcb u x hx; exact ⟨y, hy, hs _ _ s, c, m⟩
   · obtain ⟨ep', h1, h2⟩ := h.ep e ep h'; exact ⟨ep', h1, he _ _ _ h2⟩
 
@@ -88,11 +114,12 @@ queues, the release queue and the current thread. -/
 theorem Fr.of_eq {SR ER} (h : FrOK SR ER) {σ σ' : State Unit} (hk : σ'.kheap = σ.kheap)
     (hd : σ'.cdt = σ.cdt) (ho : σ'.isOriginalCap = σ.isOriginalCap)
     (hq : σ'.readyQueues = σ.readyQueues) (hr : σ'.releaseQueue = σ.releaseQueue)
-    (hc : σ'.curThread = σ.curThread) : Fr SR ER σ σ' := by
+    (hc : σ'.curThread = σ.curThread) (hfk : σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧
+      σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc) : Fr SR ER σ σ' := by
   refine ⟨fun u x hx => ⟨x, by rw [hk]; exact hx, h.sr _, rfl, rfl⟩, fun u y hy => ⟨y, by rw [← hk]; exact hy⟩,
     fun c y n hy => ⟨y, by rw [hk]; exact hy, rfl, id, rfl⟩, fun e ep he => ⟨ep, by rw [hk]; exact he, h.er _ _⟩,
     fun n x hn => by rw [hk]; exact hn, fun u a b hu => by rw [hk]; exact hu, hd, ho,
-    fun d pr u hu => Or.inl (by rw [← hq]; exact hu), hr, hc⟩
+    fun d pr u hu => Or.inl (by rw [← hq]; exact hu), hr, hc, hfk, fun c y n hy _ => by rw [hk]; exact hy⟩
 
 /-- The object changes `Fr` allows. -/
 def Compat (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endpoint → Endpoint → Prop) (q : ObjRef)
@@ -105,12 +132,18 @@ def Compat (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endpoint
   (∃ r r', o = .reply r ∧ o' = .reply r')
 
 theorem Fr.upd {SR ER} (h : FrOK SR ER) {σ : State Unit} {q : ObjRef} {o o' : KernelObject}
-    (hk : σ.kheap q = some o) (hc : Compat SR ER q o o') :
+    (hk : σ.kheap q = some o) (hc : Compat SR ER q o o') (hR : ∀ y n, o = .schedContext y n → ScRef σ q) :
     Fr SR ER σ { σ with kheap := Function.update σ.kheap q (some o') } := by
   have hkn : ∀ u, u ≠ q → (Function.update σ.kheap q (some o')) u = σ.kheap u :=
     fun u hu => Function.update_of_ne hu _ _
   refine ⟨fun u x hx => ?_, fun u y hy => ?_, fun c y n hy => ?_, fun e ep he => ?_, fun n x hn => ?_,
-    fun u a b hu => ?_, rfl, rfl, fun d pr u hu => Or.inl hu, rfl, rfl⟩
+    fun u a b hu => ?_, rfl, rfl, fun d pr u hu => Or.inl hu, rfl, rfl, ⟨rfl, rfl, rfl, rfl⟩, fun c y n hy hu => ?_⟩
+  rotate_right
+  · by_cases e : c = q
+    · subst e; rw [hk] at hy; cases hy
+      obtain ⟨u, x, hx, hxc⟩ := hR y n rfl
+      exact absurd hxc (hu u x hx)
+    · simp only [hkn c e]; exact hy
   · by_cases e : u = q
     · subst e; rw [hk] at hx; cases hx
       rcases hc with ⟨x', y, e1, rfl, h1, h2, h3⟩ | ⟨_, _, _, e1, -⟩ | ⟨_, _, e1, -⟩ | ⟨_, _, e1, -⟩ <;> cases e1
@@ -203,11 +236,12 @@ theorem pf_whileLoop (h : FrOK SR ER) {α : Type} {C : α → State Unit → Pro
 
 theorem pf_modify (h : FrOK SR ER) {f : State Unit → State Unit} (hf : ∀ σ, (f σ).kheap = σ.kheap ∧
     (f σ).cdt = σ.cdt ∧ (f σ).isOriginalCap = σ.isOriginalCap ∧
-    (f σ).readyQueues = σ.readyQueues ∧ (f σ).releaseQueue = σ.releaseQueue ∧ (f σ).curThread = σ.curThread) :
+    (f σ).readyQueues = σ.readyQueues ∧ (f σ).releaseQueue = σ.releaseQueue ∧ (f σ).curThread = σ.curThread ∧
+    (f σ).curSc = σ.curSc ∧ (f σ).curTime = σ.curTime ∧ (f σ).idleThread = σ.idleThread ∧ (f σ).idleSc = σ.idleSc) :
     PF SR ER (NonDet.modify f) := by
   intro σ x hx; rw [Set.mem_singleton_iff.1 hx]
-  obtain ⟨a, b, c, d, e, g⟩ := hf σ
-  exact Fr.of_eq h a b c d e g
+  obtain ⟨a, b, c, d, e, g, i1, i2, i3, i4⟩ := hf σ
+  exact Fr.of_eq h a b c d e g ⟨i1, i2, i3, i4⟩
 
 theorem pf_threadGet (h : FrOK SR ER) {α : Type} (f : Tcb → α) (t : ObjRef) :
     PF SR ER (threadGet (Z := Unit) f t) := by
@@ -230,7 +264,7 @@ theorem pf_getSchedContext (h : FrOK SR ER) (p : ObjRef) : PF SR ER (getSchedCon
 
 /-- `set_object` of a compatible object. -/
 theorem pf_setObject_at (h : FrOK SR ER) {σ : State Unit} {q : ObjRef} {o o' : KernelObject}
-    (hk : σ.kheap q = some o) (hc : Compat SR ER q o o') :
+    (hk : σ.kheap q = some o) (hc : Compat SR ER q o o') (hR : ∀ y n, o = .schedContext y n → ScRef σ q) :
     ∀ x, x ∈ (setObject (Z := Unit) q o' σ).1 → Fr SR ER σ x.2 := by
   intro x hx
   unfold setObject at hx
@@ -240,7 +274,7 @@ theorem pf_setObject_at (h : FrOK SR ER) {σ : State Unit} {q : ObjRef} {o o' : 
   obtain ⟨z, hz, hx⟩ := hx
   rw [Set.mem_singleton_iff.1 hz] at hx
   rw [Set.mem_singleton_iff.1 hx]
-  exact Fr.upd h hk hc
+  exact Fr.upd h hk hc hR
 
 theorem getTcb_some {σ : State Unit} {t : ObjRef} {x : Tcb} (h : getTcb (Z := Unit) t σ = some x) :
     σ.kheap t = some (.tcb x) := by
@@ -263,7 +297,8 @@ theorem pf_threadSet (h : FrOK SR ER) (f : Tcb → Tcb)
     rw [hg] at ha
     obtain ⟨e1, rfl⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 ha)
     subst e1
-    exact pf_setObject_at h (getTcb_some hg) (Or.inl ⟨_, _, rfl, rfl, (hf _).1, (hf _).2.1, (hf _).2.2⟩) x hx
+    exact pf_setObject_at h (getTcb_some hg) (Or.inl ⟨_, _, rfl, rfl, (hf _).1, (hf _).2.1, (hf _).2.2⟩)
+      (fun _ _ e => by cases e) x hx
 
 theorem partialInv_some {α β : Type} [Nonempty α] {f : α → β} {x : β} (h : partialInv f x ≠ none) :
     ∃ y, f y = x := by
@@ -290,12 +325,46 @@ theorem pf_setReply (h : FrOK SR ER) (r : ObjRef) (v : Reply) :
     obtain ⟨z, hz, hx⟩ := hx
     obtain ⟨hpi, rfl⟩ := hz
     obtain ⟨r0, rfl⟩ := partialInv_some hpi
-    exact pf_setObject_at h hk (Or.inr (Or.inr (Or.inr ⟨_, _, rfl, rfl⟩))) x hx
+    exact pf_setObject_at h hk (Or.inr (Or.inr (Or.inr ⟨_, _, rfl, rfl⟩))) (fun _ _ e => by cases e) x hx
 
-/-- `update_sched_context` keeping the SC's TCB and non-empty refills. -/
+/-- Every outcome from a state of `P` is `Fr`. -/
+def PFC (SR : ThreadState → ThreadState → Prop) (ER : ObjRef → Endpoint → Endpoint → Prop) (P : State Unit → Prop)
+    {α : Type} (m : NonDet (State Unit) α) : Prop :=
+  ∀ σ, P σ → ∀ x, x ∈ (m σ).1 → Fr SR ER σ x.2
+
+theorem pfc_of {P : State Unit → Prop} {α : Type} {m : NonDet (State Unit) α} (hm : PF SR ER m) : PFC SR ER P m :=
+  fun σ _ x hx => hm σ x hx
+
+theorem pfc_bind (h : FrOK SR ER) {P : State Unit → Prop} (hP : ∀ σ σ', P σ → Fr SR ER σ σ' → P σ')
+    {α β : Type} {m : NonDet (State Unit) α} {f : α → NonDet (State Unit) β}
+    (hm : PFC SR ER P m) (hf : ∀ a, PFC SR ER P (f a)) : PFC SR ER P (m >>= f) := by
+  intro σ hσ x ⟨y, hy, hx⟩
+  have F := hm σ hσ y hy
+  exact F.trans h (hf y.1 y.2 (hP _ _ hσ F) x hx)
+
+theorem pfc_when (h : FrOK SR ER) {P' : State Unit → Prop} {P : Prop} {inst : Decidable P}
+    {m : NonDet (State Unit) Unit} (hm : PFC SR ER P' m) : PFC SR ER P' (@NonDet.when _ P inst m) := by
+  unfold NonDet.when; split; exact hm; exact pfc_of (pf_pure' h _)
+
+theorem pfc_whileLoop (h : FrOK SR ER) {P : State Unit → Prop} (hP : ∀ σ σ', P σ → Fr SR ER σ σ' → P σ')
+    {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (State Unit) α}
+    (hB : ∀ r, PFC SR ER P (B r)) (r : α) : PFC SR ER P (NonDet.whileLoop C B r) := by
+  intro σ hσ x hx
+  change NonDet.WhileResults C B r σ x at hx
+  induction hx with
+  | done _ => exact Fr.refl h _
+  | step _ hb _ ih =>
+    have F := hB _ _ hσ _ hb
+    exact F.trans h (ih (hP _ _ hσ F))
+
+theorem scRef_fr {p : ObjRef} : ∀ σ σ', ScRef σ p → Fr SR ER σ σ' → ScRef σ' p := fun _ _ h F => h.fr F
+
+/-- `update_sched_context` keeping the SC's TCB and non-empty refills, of an
+SC some TCB names. -/
 theorem pf_updateSchedContext (h : FrOK SR ER) (p : ObjRef) (g : SchedContext → SchedContext)
-    (hg : ∀ y, (g y).scTcb = y.scTcb ∧ (g y).scRefills ≠ [] ∧ (g y).scRefillMax = y.scRefillMax) : PF SR ER (updateSchedContext (Z := Unit) p g) := by
-  intro σ x hx
+    (hg : ∀ y, (g y).scTcb = y.scTcb ∧ (g y).scRefills ≠ [] ∧ (g y).scRefillMax = y.scRefillMax) :
+    PFC SR ER (fun σ => ScRef σ p) (updateSchedContext (Z := Unit) p g) := by
+  intro σ hRef x hx
   unfold updateSchedContext at hx
   cases hk : σ.kheap p with
   | none =>
@@ -307,11 +376,12 @@ theorem pf_updateSchedContext (h : FrOK SR ER) (p : ObjRef) (g : SchedContext �
     rw [nd_bind_one (Notif.getObject_eq hk)] at hx
     cases o with
     | schedContext y n =>
-      exact pf_setObject_at h hk (Or.inr (Or.inl ⟨_, _, _, rfl, rfl, (hg y).1, fun _ => (hg y).2.1, (hg y).2.2⟩)) x hx
+      exact pf_setObject_at h hk (Or.inr (Or.inl ⟨_, _, _, rfl, rfl, (hg y).1, fun _ => (hg y).2.1, (hg y).2.2⟩))
+        (fun _ _ _ => hRef) x hx
     | _ => exact hx.elim
 
 theorem pf_updateRefillHd (h : FrOK SR ER) (p : ObjRef) (f : Refill → Refill) :
-    PF SR ER (updateRefillHd (Z := Unit) p f) :=
+    PFC SR ER (fun σ => ScRef σ p) (updateRefillHd (Z := Unit) p f) :=
   pf_updateSchedContext h p _ fun _ => ⟨rfl, List.cons_ne_nil _ _, rfl⟩
 
 theorem getsThe_state {α : Type} {f : State Unit → Option α} {σ : State Unit} {x : α × State Unit}
@@ -351,8 +421,8 @@ theorem updSc_out {σ : State Unit} {p : ObjRef} {g : SchedContext → SchedCont
 /-- `merge_overlapping_refills`: the head popped, then merged into the new
 head. -/
 theorem pf_mergeOverlappingRefills (h : FrOK SR ER) (p : ObjRef) :
-    PF SR ER (mergeOverlappingRefills (Z := Unit) p) := by
-  intro σ x hx
+    PFC SR ER (fun σ => ScRef σ p) (mergeOverlappingRefills (Z := Unit) p) := by
+  intro σ hRef x hx
   unfold mergeOverlappingRefills refillPopHead getRefillHead at hx
   obtain ⟨⟨hd, σa⟩, ha, hx⟩ := hx
   obtain ⟨⟨r0, σ0⟩, h0, ha⟩ := ha
@@ -370,7 +440,7 @@ theorem pf_mergeOverlappingRefills (h : FrOK SR ER) (p : ObjRef) :
   obtain ⟨rfl, rfl⟩ := hk'
   rw [e2]
   simp only [Function.update_idem]
-  exact Fr.upd h hk (Or.inr (Or.inl ⟨_, _, _, rfl, rfl, rfl, fun _ => List.cons_ne_nil _ _, rfl⟩))
+  exact Fr.upd h hk (Or.inr (Or.inl ⟨_, _, _, rfl, rfl, rfl, fun _ => List.cons_ne_nil _ _, rfl⟩)) fun _ _ _ => hRef
 
 /-! ### Reads, and the dependent steps -/
 
@@ -448,7 +518,7 @@ theorem fr_enq (h : FrOK SR ER) {σ : State Unit} {t : ObjRef}
   obtain ⟨xt, c, hkt, hct⟩ := hsc
   refine ⟨fun u x hx => ⟨x, hx, h.sr _, rfl, rfl⟩, fun u y hy => ⟨y, hy⟩, fun c y n hy => ⟨y, hy, rfl, id, rfl⟩,
     fun e ep he => ⟨ep, he, h.er _ _⟩, fun n x hn => hn, fun _ _ _ hu => hu, rfl, rfl, fun d' p' u hu => ?_,
-    rfl, rfl⟩
+    rfl, rfl, ⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ hy _ => hy⟩
   simp only at hu
   split at hu
   · rename_i hdp
@@ -463,7 +533,7 @@ theorem fr_enq (h : FrOK SR ER) {σ : State Unit} {t : ObjRef}
 
 theorem pf_setSchedulerAction (h : FrOK SR ER) (a : SchedulerAction) :
     PF SR ER (setSchedulerAction (Z := Unit) a) := by
-  unfold setSchedulerAction; exact pf_modify h fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+  unfold setSchedulerAction; exact pf_modify h fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem pf_rescheduleRequired (h : FrOK SR ER) : PF SR ER (rescheduleRequired (Z := Unit)) := by
   unfold rescheduleRequired
@@ -531,21 +601,29 @@ theorem pf_possibleSwitchTo (h : FrOK SR ER) (t : ObjRef) : PF SR ER (possibleSw
       · exact pf_setSchedulerAction h _ σ
   · exact pf_pure' h _ σ x hx
 
-theorem pf_refillUnblockCheck (h : FrOK SR ER) (p : ObjRef) : PF SR ER (refillUnblockCheck (Z := Unit) p) := by
+theorem pf_refillUnblockCheck (h : FrOK SR ER) (p : ObjRef) :
+    PFC SR ER (fun σ => ScRef σ p) (refillUnblockCheck (Z := Unit) p) := by
   unfold refillUnblockCheck isRoundRobin getScRefillReady
-  refine pf_bind h (pf_bind h (pf_getSchedContext h _) (fun _ => pf_pure h _)) (fun _ =>
-    pf_bind h (pf_getsThe h _) (fun _ => pf_when h ?_))
-  refine pf_bind h (pf_gets h _) (fun _ => pf_bind h (pf_updateRefillHd h _ _) (fun _ =>
-    pf_bind h (pf_modify h (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)) (fun _ => ?_)))
+  refine pfc_bind h scRef_fr (pfc_of (pf_bind h (pf_getSchedContext h _) (fun _ => pf_pure h _))) (fun _ =>
+    pfc_bind h scRef_fr (pfc_of (pf_getsThe h _)) (fun _ => pfc_when h ?_))
+  refine pfc_bind h scRef_fr (pfc_of (pf_gets h _)) (fun _ => pfc_bind h scRef_fr (pf_updateRefillHd h _ _) (fun _ =>
+    pfc_bind h scRef_fr (pfc_of (pf_modify h (fun σ => ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)))
+      (fun _ => ?_)))
   unfold refillHeadOverlappingLoop
-  exact pf_whileLoop h (fun _ => pf_mergeOverlappingRefills h _) _
+  exact pfc_whileLoop h scRef_fr (fun _ => pf_mergeOverlappingRefills h _) _
 
+/-- `if_cond_refill_unblock_check` of an SC some TCB names. -/
 theorem pf_ifCondRefillUnblockCheck (h : FrOK SR ER) (o : Option ObjRef) (a b : Option Bool) :
-    PF SR ER (ifCondRefillUnblockCheck (Z := Unit) o a b) := by
+    PFC SR ER (fun σ => ∀ c, o = some c → ScRef σ c) (ifCondRefillUnblockCheck (Z := Unit) o a b) := by
   unfold ifCondRefillUnblockCheck
-  refine pf_maybeM h (fun _ => ?_) _
-  exact pf_bind h (pf_getSchedContext h _) (fun _ => pf_bind h (pf_gets h _) (fun _ => pf_bind h (pf_pure h _)
-    (fun _ => pf_when h (pf_when h (pf_refillUnblockCheck h _)))))
+  cases o with
+  | none => exact pfc_of (pf_pure' h _)
+  | some c =>
+    intro σ hσ
+    refine (show PFC SR ER (fun σ => ScRef σ c) _ from ?_) σ (hσ c rfl)
+    exact pfc_bind h scRef_fr (pfc_of (pf_getSchedContext h _)) (fun _ => pfc_bind h scRef_fr (pfc_of (pf_gets h _))
+      (fun _ => pfc_bind h scRef_fr (pfc_of (pf_pure h _))
+        (fun _ => pfc_when h (pfc_when h (pf_refillUnblockCheck h _)))))
 
 theorem pf_setThreadStateAct (h : FrOK SR ER) (t : ObjRef) : PF SR ER (setThreadStateAct (Z := Unit) t) := by
   unfold setThreadStateAct
@@ -636,13 +714,25 @@ theorem pf_replyUnlinkTcb (h : FrOK SR ER) (hI : ∀ a, SR a .inactive) (t r : O
   exact pf_bind h (pf_bind h (pf_getSimpleKo h _ _) (fun _ => pf_setReply h _ _))
     (fun _ => pf_setThreadState h _ _ hI)
 
+/-- The tail of `restart_thread_if_no_fault` after the restart: the
+thread's own SC refill-checked. -/
+theorem pf_rtTail (h : FrOK SR ER) (t : ObjRef) :
+    PF SR ER (threadGet (Z := Unit) Tcb.tcbSchedContext t >>= fun o =>
+      ifCondRefillUnblockCheck (Z := Unit) o (some false) (some true) >>= fun _ => possibleSwitchTo (Z := Unit) t) := by
+  intro σ x ⟨⟨o, σ1⟩, h1, hx⟩
+  obtain ⟨e1, tcb, hk, hsco⟩ := threadGet_out h1
+  simp only at e1 hsco
+  subst σ1
+  obtain ⟨y, hy, hx⟩ := hx
+  have F := pf_ifCondRefillUnblockCheck h o _ _ σ (fun c hc => ⟨t, tcb, hk, by rw [← hsco, hc]⟩) y hy
+  exact F.trans h (pf_possibleSwitchTo h t y.2 x hx)
+
 theorem pf_restartThreadIfNoFault (h : FrOK SR ER) (hR : ∀ a, SR a .restart) (hI : ∀ a, SR a .inactive)
     (t : ObjRef) : PF SR ER (restartThreadIfNoFault (Z := Unit) t) := by
   unfold restartThreadIfNoFault getTcbObjRef ifSporadicCurScAssertRefillUnblockCheck
   refine pf_bind h (pf_threadGet h _ _) (fun _ => ?_)
   split
-  · exact pf_bind h (pf_setThreadState h _ _ hR) (fun _ => pf_bind h (pf_threadGet h _ _) (fun _ =>
-      pf_bind h (pf_ifCondRefillUnblockCheck h _ _ _) (fun _ => pf_possibleSwitchTo h _)))
+  · exact pf_bind h (pf_setThreadState h _ _ hR) (fun _ => pf_rtTail h t)
   · exact pf_setThreadState h _ _ hI
 
 /-- After `restart_thread_if_no_fault t`, `t` is restarted or inactive. -/
@@ -656,8 +746,7 @@ theorem restartThreadIfNoFault_st {σ : State Unit} {t : ObjRef} {x : Unit × St
   simp only at hx
   split at hx
   · obtain ⟨⟨u, σa⟩, ha, hx⟩ := hx
-    have F : Fr SR0 ER0 σa x.2 := (pf_bind frOK0 (pf_threadGet frOK0 _ _) (fun _ =>
-      pf_bind frOK0 (pf_ifCondRefillUnblockCheck frOK0 _ _ _) (fun _ => pf_possibleSwitchTo frOK0 _))) σa x hx
+    have F : Fr SR0 ER0 σa x.2 := pf_rtTail frOK0 t σa x hx
     obtain ⟨z, hz, ez⟩ := F.state0 hy
     rw [ez, setThreadState_st ha hz]; exact Or.inl rfl
   · exact Or.inr (setThreadState_st hx hy)
@@ -730,6 +819,7 @@ theorem pf_tcbEpDequeue (t e : ObjRef) : PF SRr (ERq e) (tcbEpDequeue (Z := Unit
   obtain ⟨ep, ep', hk, -, hq, hx2⟩ := tcbEpDequeue_out hx
   rw [hx2]
   refine Fr.upd (frOKrq e) hk (Or.inr (Or.inr (Or.inl ⟨ep, ep', rfl, rfl, fun _ u hu => ?_, fun h => absurd rfl h⟩)))
+    (fun _ _ e => by cases e)
   rw [hq] at hu; exact (removeAll_mem.1 hu).1
 
 theorem pf_mapMx (h : FrOK SR ER) {α β : Type} {f : α → NonDet (State Unit) β} (hf : ∀ a, PF SR ER (f a)) :
@@ -928,6 +1018,59 @@ theorem SpecPost.cancel {σ σ' : State Unit} {p e : ObjRef} {sco : Option (Opti
 /-- `SpecPost` of every thread is kept. -/
 def Post (σ σ' : State Unit) : Prop := ∀ p sco, SpecPost σ p sco → SpecPost σ' p sco
 
+/-- **What the fault-handler install's delete keeps of the scheduler**
+(`SK` and `Fr SRr` both give it): the current thread and SC, the time, the
+idle thread and SC, the release queue, the TCBs with their SC (their states
+kept, restarted or made inactive), the SCs with their refill max, and every
+SC no TCB names, exactly. -/
+structure InstK (σ σ' : State Unit) : Prop where
+  ct : σ'.curThread = σ.curThread
+  rel : σ'.releaseQueue = σ.releaseQueue
+  fk : σ'.curSc = σ.curSc ∧ σ'.curTime = σ.curTime ∧ σ'.idleThread = σ.idleThread ∧ σ'.idleSc = σ.idleSc
+  tcb : ∀ u x, σ.kheap u = some (.tcb x) → ∃ y, σ'.kheap u = some (.tcb y) ∧ SRr x.tcbState y.tcbState ∧
+    y.tcbSchedContext = x.tcbSchedContext
+  tcb' : ∀ u y, σ'.kheap u = some (.tcb y) → ∃ x, σ.kheap u = some (.tcb x)
+  sc : ∀ c y n, σ.kheap c = some (.schedContext y n) → ∃ y', σ'.kheap c = some (.schedContext y' n) ∧
+    y'.scRefillMax = y.scRefillMax
+  scU : ∀ c y n, σ.kheap c = some (.schedContext y n) → ScUnref σ c → σ'.kheap c = some (.schedContext y n)
+
+theorem InstK.refl (σ : State Unit) : InstK σ σ :=
+  ⟨rfl, rfl, ⟨rfl, rfl, rfl, rfl⟩, fun _ x h => ⟨x, h, Or.inl rfl, rfl⟩, fun _ y h => ⟨y, h⟩,
+    fun _ y _ h => ⟨y, h, rfl⟩, fun _ _ _ h _ => h⟩
+
+theorem InstK.unref {σ σ' : State Unit} (K : InstK σ σ') {c : ObjRef} (h : ScUnref σ c) : ScUnref σ' c := by
+  intro u x' hx'
+  obtain ⟨x, hx⟩ := K.tcb' u x' hx'
+  obtain ⟨y, hy, -, hs⟩ := K.tcb u x hx
+  rw [hx'] at hy; cases hy
+  rw [hs]; exact h u x hx
+
+theorem InstK.trans {σ1 σ2 σ3 : State Unit} (h1 : InstK σ1 σ2) (h2 : InstK σ2 σ3) : InstK σ1 σ3 := by
+  refine ⟨h2.ct.trans h1.ct, h2.rel.trans h1.rel,
+    ⟨h2.fk.1.trans h1.fk.1, h2.fk.2.1.trans h1.fk.2.1, h2.fk.2.2.1.trans h1.fk.2.2.1, h2.fk.2.2.2.trans h1.fk.2.2.2⟩,
+    fun u x hx => ?_, fun u y hy => ?_, fun c y n hy => ?_, fun c y n hy hu => h2.scU c y n (h1.scU c y n hy hu)
+      (h1.unref hu)⟩
+  · obtain ⟨y, hy, s1, c1⟩ := h1.tcb u x hx
+    obtain ⟨z, hz, s2, c2⟩ := h2.tcb u y hy
+    exact ⟨z, hz, srr_trans _ _ _ s1 s2, c2.trans c1⟩
+  · obtain ⟨x, hx⟩ := h2.tcb' u y hy; exact h1.tcb' u x hx
+  · obtain ⟨y', hy', m1⟩ := h1.sc c y n hy
+    obtain ⟨y'', hy'', m2⟩ := h2.sc c y' n hy'
+    exact ⟨y'', hy'', m2.trans m1⟩
+
+theorem InstK.of_sk {σ σ' : State Unit} (h : SK σ σ') : InstK σ σ' := by
+  refine ⟨h.vk.ct, h.vk.rq, ⟨h.fk.1, h.vk.tm, h.fk.2.1, h.fk.2.2⟩, fun u x hx => ?_, h.vk.tcb',
+    fun c y n hy => ⟨y, (h.vk.sc c y n).2 hy, rfl⟩, fun c y n hy _ => (h.vk.sc c y n).2 hy⟩
+  obtain ⟨y, hy, e1, e2⟩ := h.vk.tcb u x hx
+  exact ⟨y, hy, Or.inl e1, e2⟩
+
+theorem InstK.of_fr {ER} {σ σ' : State Unit} (h : Fr SRr ER σ σ') : InstK σ σ' := by
+  refine ⟨h.ct, h.rel, h.fk, fun u x hx => ?_, h.tcb', fun c y n hy => ?_, h.scU⟩
+  · obtain ⟨y, hy, sr, hs, -⟩ := h.tcb u x hx
+    exact ⟨y, hy, sr, hs⟩
+  · obtain ⟨y', hy', -, -, hm⟩ := h.sc c y n hy
+    exact ⟨y', hy', hm⟩
+
 theorem bindE_mem_inv {σ ε α β : Type} {m : NonDetE σ ε α} {f : α → NonDetE σ ε β} {s : σ}
     {x : Except ε β × σ} (hx : x ∈ ((m >>= f).run s).1) :
     ∃ z ∈ (m.run s).1, (∃ a, z.1 = .ok a ∧ x ∈ ((f a).run z.2).1) ∨ (∃ e, z.1 = .error e ∧ x = (.error e, z.2)) := by
@@ -955,9 +1098,9 @@ theorem psk_emptySlot_null (sl : CslotPtr) : PSK (emptySlot (Z := Unit) sl .null
 /-- What a `rec_del` call keeps when its slot holds an endpoint cap. -/
 def QD (sl : CslotPtr) : RecDelCall → State Unit → Except Unit (Bool × Cap) × State Unit → Prop
   | .finaliseSlotCall sl' _, σ, x => sl' = sl → (∃ e b R, getCap (Z := Unit) sl σ = ({(.endpointCap e b R, σ)}, False)) →
-      x.1 = .ok (true, .nullCap) ∧ Post σ x.2
+      x.1 = .ok (true, .nullCap) ∧ Post σ x.2 ∧ InstK σ x.2
   | .cTEDeleteCall sl' _, σ, x => sl' = sl → (∃ e b R, getCap (Z := Unit) sl σ = ({(.endpointCap e b R, σ)}, False)) →
-      ∀ v, x.1 = .ok v → Post σ x.2
+      ∀ v, x.1 = .ok v → Post σ x.2 ∧ InstK σ x.2
   | .reduceZombieCall _ _ _, _, _ => True
 
 theorem qd_prefixed (sl : CslotPtr) :
@@ -972,7 +1115,7 @@ theorem qd_prefixed (sl : CslotPtr) :
     change x ∈ ((recDelF (Z := Unit) _ (.cTEDeleteCall sl' ex)).run t).1 at hx
     unfold recDelF at hx
     obtain ⟨y, hy, ⟨a, ha, hx⟩ | ⟨e, he, rfl⟩⟩ := bindE_mem_inv hx
-    · obtain ⟨hy1, hP⟩ := (show QD sl' (.finaliseSlotCall sl' ex) t y from hy) rfl hg
+    · obtain ⟨hy1, hP, hK⟩ := (show QD sl' (.finaliseSlotCall sl' ex) t y from hy) rfl hg
       rw [hy1] at ha; cases ha
       simp only [withoutPreemption] at hx
       obtain ⟨z, hz, ⟨b, hb, hx⟩ | ⟨e, he, rfl⟩⟩ := bindE_mem_inv hx
@@ -985,7 +1128,7 @@ theorem qd_prefixed (sl : CslotPtr) :
           split at hw
           · exact psk_emptySlot_null sl' y.2 w hw
           · rw [Set.mem_singleton_iff.1 hw]; exact SK.refl _
-        exact fun p sco h => (hP p sco h).sk hsk
+        exact ⟨fun p sco h => (hP p sco h).sk hsk, hK.trans (InstK.of_sk hsk)⟩
       · obtain ⟨w, -, hw⟩ := liftE_mem_inv' hz
         rw [hw] at he; cases he
     · cases hv
@@ -1008,22 +1151,21 @@ theorem qd_prefixed (sl : CslotPtr) :
       simp only at hx
       rw [if_pos (by trivial)] at hx
       rw [Set.mem_singleton_iff.1 hx]
-      refine ⟨rfl, fun p sco h => ?_⟩
       unfold NonDet.when at hw'
       split at hw'
       · obtain ⟨F, hK, hact⟩ := cancelAllIpc_fr e hw'
-        exact h.cancel F (hK p) hact
-      · rw [Set.mem_singleton_iff.1 hw']; exact h
+        exact ⟨rfl, fun p sco h => h.cancel F (hK p) hact, InstK.of_fr F⟩
+      · rw [Set.mem_singleton_iff.1 hw']; exact ⟨rfl, fun _ _ h => h, InstK.refl _⟩
     · obtain ⟨w, -, hw⟩ := liftE_mem_inv' hz
       rw [hw] at he; cases he
   | reduceZombieCall _ _ _ => trivial
 
 /-- **The spec's `cap_delete` of a slot holding an endpoint cap keeps
 `SpecPost`** (final: `cancel_all_ipc`, `SpecPost.cancel`; then
-`empty_slot`, `SK`). -/
+`empty_slot`, `SK`), and `InstK`. -/
 theorem capDelete_ep_post {sl : CslotPtr} {σ σd : State Unit} {e : ObjRef} {b : Badge} {R : CapRights}
     (hg : getCap (Z := Unit) sl σ = ({(.endpointCap e b R, σ)}, False))
-    (hd : (.ok (), σd) ∈ ((capDelete (Z := Unit) sl).run σ).1) : Post σ σd := by
+    (hd : (.ok (), σd) ∈ ((capDelete (Z := Unit) sl).run σ).1) : Post σ σd ∧ InstK σ σd := by
   unfold capDelete at hd
   obtain ⟨z, hz, ⟨a, ha, hd⟩ | ⟨e', he, hd⟩⟩ := bindE_mem_inv hd
   · have e2 : σd = z.2 := by

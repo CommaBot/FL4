@@ -66,8 +66,8 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
     the restart, the fault handler's install at the deletion loop's
     invariant with the other slots kept (`install_fhJ`), `set_mcp`,
     `set_priority` (`JAtZ.setPrioJS`), then `unbind_tcb` (`JAtZ.unbindTcbJ`)
-    or `bind_tcb` (`JAtZ.bindTcbJ`); named: `InstSchedHyp` [J], the
-    platform's `TimeAgree` [P]). The conclusion is `XCapP` at `JAt`, `JAtPre`
+    or `bind_tcb` (`JAtZ.bindTcbJ`); the spec's install by
+    `install_sched`; named: the platform's `TimeAgree` [P]). The conclusion is `XCapP` at `JAt`, `JAtPre`
     (`XCap.toP` for the other labels); the installs' deletion from the
     loop's steps (`JDelParts`, the platform's `PPPlat` [P], `hRd0` [J] for
     `PPR0`), as `decode_invocation_cnodeJ_steps`.
@@ -2698,7 +2698,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
-    (hTA : TimeAgree arI) (hIS : InstSchedHyp) :
+    (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
@@ -2770,7 +2770,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   by_cases h8 : lbl = fl4_abi.label.TCBSetSchedParams
   · subst h8
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hT hARI.toARKeep hTA hIS p hp slbl
+      buffer (tcb_set_sched_paramsJ arI s ar σ J hni hsg hP0 hHp hT hARI.toARKeep hTA p hp slbl
         (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU hlen hargs hpI (hstall' p) call sl hAs hsc extra
         x0 x1 x2 hx0 hx1 hx2 excaps hXc hcapT hcapC blk don ci buffer)
   refine XCap.toP arI (decode_invocation_threadX arI s ar σ hJ0 lbl length (cslotAddr sl) p blk call don fp buf extra

@@ -287,9 +287,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [P] the platform's timer agreement (`TimeAgree`; the Thread cap's
   SetSchedParams, `bind_tcb_refines`). -/
   timeAg : TimeAgree arI
-  /-- [J] XTopJointTcbSsp's `InstSchedHyp` (what the spec's fault-handler
-  install keeps of the scheduler; SetSchedParams). -/
-  instSched : InstSchedHyp
 
 /-- **The premises at the entry state**, each exactly as a J decode takes it. -/
 structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -698,7 +695,6 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
       (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hG.timeAg
-      hG.instSched
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
