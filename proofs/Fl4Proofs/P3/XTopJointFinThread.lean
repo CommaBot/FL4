@@ -250,12 +250,12 @@ set_option maxHeartbeats 8000000 in
 after (`bound_wr_irel`), the footprint `FinW` (as `unbind_maybe_irel`'s),
 the spec frame `unbindN_nfr`, P1's `unbind_notification.blkF`; then
 `JAtZ.nfrStep`. -/
-theorem JAtZ.unbindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+theorem JAtZ.unbindNJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     (h0 : L.mem s (P1.boundA t) ≠ 0#u64) :
     notification.unbind_notification st s t ⦃ s' => ∃ σ',
       Fl4Spec.unbindNotification (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
       σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread ∧ σ'.curThread = σ.curThread ∧
-      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ := by
+      ∃ V : XVs, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s' a σ' ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   obtain ⟨x, xn, hk, hb, hn, hkn⟩ := bound_ntfn_of hI J.sv J.obj ht h0
@@ -290,7 +290,16 @@ theorem JAtZ.unbindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64
   obtain ⟨F, I3⟩ := unbindN_nfr hkn hk J.inv
   have hck : CKeep σ _ := nkc_unbindNotification t.bv σ _ (by rw [he]; exact Set.mem_singleton _)
   obtain ⟨V', J'⟩ := J.nfrStep hX2 hF hw F I3 hck hblk hfoot
-  exact ⟨_, he, rfl, rfl, rfl, V', Ac, Lst, D, J'⟩
+  exact ⟨_, he, rfl, rfl, rfl, V', J'⟩
+
+/-- `unbindNJD` with the sets existential (`JTP`). -/
+theorem JAtZ.unbindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    (h0 : L.mem s (P1.boundA t) ≠ 0#u64) :
+    notification.unbind_notification st s t ⦃ s' => ∃ σ',
+      Fl4Spec.unbindNotification (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
+      σ'.schedulerAction = σ.schedulerAction ∧ σ'.idleThread = σ.idleThread ∧ σ'.curThread = σ.curThread ∧
+      JTP (L := L) arI AR Z H Cs s' a σ' ⦄ :=
+  WP.spec_mono (J.unbindNJD ht h0) fun _ ⟨σ', he, h1, h2, h3, V, J'⟩ => ⟨σ', he, h1, h2, h3, V, Ac, Lst, D, J'⟩
 
 /-! ## The debug-list removal at `J` -/
 

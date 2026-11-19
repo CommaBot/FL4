@@ -138,11 +138,11 @@ theorem JAtZ.setConsumedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT
 
 set_option maxHeartbeats 8000000 in
 /-- **`cancel_yield_to` of a yielder at `J`** (module docstring). -/
-theorem JAtZ.cancelYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y p : U64} (hy : y ∈ Z.T)
+theorem JAtZ.cancelYieldJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y p : U64} (hy : y ∈ Z.T)
     (hp : L.mem s (yieldA y) = p) (hp0 : p ≠ 0#u64) :
     schedcontext.cancel_yield_to st s y ⦃ s' => ∃ σ',
       Fl4Spec.schedContextCancelYieldTo (Z := Unit) y.bv σ = ({((), σ')}, False) ∧
-      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ' ⦄ := by
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a σ' ⦄ := by
   have hS := J.xtop.fin.1.1.1
   have hR := J.xtop.fin.1.1.2.2.1
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -220,20 +220,28 @@ theorem JAtZ.cancelYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y p
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 hY' (hYD q.bv)
       (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg (hP.2.1.mono (Set.empty_subset _))
-  exact ⟨_, he, Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
+  exact ⟨_, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2)) (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' (hA.cur J.cur) (hA.own J.own) (hA.off J.off) hAI (hA.bsa J.bsa)
     (hA.curRunM J.curRun) hP.1⟩
 
+/-- `cancelYieldJD` with the dead set existential. -/
+theorem JAtZ.cancelYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y p : U64} (hy : y ∈ Z.T)
+    (hp : L.mem s (yieldA y) = p) (hp0 : p ≠ 0#u64) :
+    schedcontext.cancel_yield_to st s y ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextCancelYieldTo (Z := Unit) y.bv σ = ({((), σ')}, False) ∧
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64), JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ' ⦄ :=
+  WP.spec_mono (J.cancelYieldJD hy hp hp0) fun _ ⟨σ', he, Ac', Lst', J'⟩ => ⟨σ', he, Ac', Lst', D, J'⟩
+
 set_option maxHeartbeats 8000000 in
-/-- **The yielder's `complete_yield_to` at `J`** (module docstring). -/
-theorem JAtZ.completeYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
+/-- **The yielder's `complete_yield_to` at `J`** (module docstring), the dead set kept. -/
+theorem JAtZ.completeYieldJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) {y : U64} (hy : y ∈ Z.T) :
     schedcontext.complete_yield_to st arI s a y ⦃ r => ∃ σ',
       Fl4Spec.completeYieldTo (Z := Unit) y.bv σ = ({((), σ')}, False) ∧
-      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
   obtain ⟨Q, R0, hc, hs⟩ := J.xtop.fin.1.1.1.lists
   have hy0 : y ≠ 0#u64 := fun e => (hc.tcbs y hy).ne0 (by rw [e]; rfl)
   obtain ⟨xy, hky, eyt⟩ := J.yld.tcb y hy
@@ -247,7 +255,7 @@ theorem JAtZ.completeYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h
   by_cases hi0 : L.mem s (yieldA y) = 0#u64
   · have : (L.mem s (yieldA y) != 0#u64) = false := by simp [hi0]
     simp only [this, Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    exact ⟨σ, completeYieldTo_none hky (by rw [eyt, hi0, Notif.optRef_zero]), Z.vs, Ac, Lst, D, J⟩
+    exact ⟨σ, completeYieldTo_none hky (by rw [eyt, hi0, Notif.optRef_zero]), Z.vs, Ac, Lst, J⟩
   obtain ⟨p, hp⟩ : ∃ p, L.mem s (yieldA y) = p := ⟨_, rfl⟩
   rw [hp] at hi0 eyt ⊢
   have hb' : (p != 0#u64) = true := by simp [hi0]
@@ -263,11 +271,21 @@ theorem JAtZ.completeYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h
     rw [eyt, Notif.optRef_ne hi0] at e1'
     rw [e1'] at e1
     exact P1.eq_of_bv (Notif.optRef_some e1.symm).2
-  refine WP.spec_bind (J1.cancelYieldJ hy hm1 hi0) ?_
-  rintro s2 ⟨σ2, he2, Ac2, Lst2, D2, J2⟩
-  refine (WP.spec_ok _).2 ⟨σ2, ?_, V1, Ac2, Lst2, D2, J2⟩
+  refine WP.spec_bind (J1.cancelYieldJD hy hm1 hi0) ?_
+  rintro s2 ⟨σ2, he2, Ac2, Lst2, J2⟩
+  refine (WP.spec_ok _).2 ⟨σ2, ?_, V1, Ac2, Lst2, J2⟩
   rw [completeYieldTo_some hky (by rw [eyt, Notif.optRef_ne hi0]), nd_bind_one he1]
   exact he2
+
+/-- `completeYieldJD` with the dead set existential. -/
+theorem JAtZ.completeYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) {y : U64} (hy : y ∈ Z.T) :
+    schedcontext.complete_yield_to st arI s a y ⦃ r => ∃ σ',
+      Fl4Spec.completeYieldTo (Z := Unit) y.bv σ = ({((), σ')}, False) ∧
+      ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ :=
+  WP.spec_mono (J.completeYieldJD hAT hmax htu hy) fun _ ⟨σ', he, V, Ac', Lst', J'⟩ => ⟨σ', he, V, Ac', Lst', D, J'⟩
 
 end
 

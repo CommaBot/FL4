@@ -285,13 +285,13 @@ theorem JAtZ.words_of_spec (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t 
 set_option maxHeartbeats 8000000 in
 /-- **`unbind_tcb` of a thread's SC at `J`** (module docstring), for a
 thread neither the idle thread nor the switch target. -/
-theorem JAtZ.unbindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t i : U64} {x : Fl4Spec.Tcb}
+theorem JAtZ.unbindTcbJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t i : U64} {x : Fl4Spec.Tcb}
     (ht : t ∈ Z.T) (hiC : i ∈ Z.C) (hk : σ.kheap t.bv = some (.tcb x)) (hsp : x.tcbSchedContext = some i.bv)
     (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
     schedcontext.unbind_tcb st s i ⦃ s' => ∃ σ',
       Fl4Spec.schedContextUnbindTcb (Z := Unit) i.bv σ = ({((), σ')}, False) ∧
-      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ' ⦄ := by
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64),
+        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D s' a σ' ⦄ := by
   have hX := J.xtop
   have hS := hX.fin.1.1.1
   have hR := hX.fin.1.1.2.2.1
@@ -329,9 +329,19 @@ theorem JAtZ.unbindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t i :
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hact'.1 hY'
       ((((pres_schedContextUnbindTcb (true, true) _).of_eq he).ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
-  exact ⟨σ', he, Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
+  exact ⟨σ', he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk⟩
+
+/-- `unbindTcbJD` with the dead set existential. -/
+theorem JAtZ.unbindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t i : U64} {x : Fl4Spec.Tcb}
+    (ht : t ∈ Z.T) (hiC : i ∈ Z.C) (hk : σ.kheap t.bv = some (.tcb x)) (hsp : x.tcbSchedContext = some i.bv)
+    (hsa : ∀ u, σ.schedulerAction = .switchThread u → u ≠ t.bv) (hid : t.bv ≠ σ.idleThread) :
+    schedcontext.unbind_tcb st s i ⦃ s' => ∃ σ',
+      Fl4Spec.schedContextUnbindTcb (Z := Unit) i.bv σ = ({((), σ')}, False) ∧
+      ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a σ' ⦄ :=
+  WP.spec_mono (J.unbindTcbJD ht hiC hk hsp hsa hid) fun _ ⟨σ', he, Ac', Lst', J'⟩ => ⟨σ', he, Ac', Lst', D, J'⟩
 
 end
 

@@ -37,6 +37,13 @@ abbrev DbgSuccCov (T : Set U64) (G : MdbGhost) (s : S) : Prop :=
 abbrev FootH (H : P1.Heap) (Cs Es : Set U64) (s s' : S) : Prop :=
   P1.Foot st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H) Es s s'
 
+variable (arI) in
+/-- **`JAtZ` after a step at the same dead set** (XTopJointFinThread's
+`JTP` with `D` kept). -/
+abbrev JTPD (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) : Prop :=
+  ∃ (V : XVs) (Ac : Set U64) (Lst : U64 → List U64), JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D s a σ
+
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
@@ -79,7 +86,8 @@ theorem JAtZ.dbgSuccCov_of_live (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ` across a final thread cap's finalisation, `utTcb` only after a
 `KW` footprint** (module docstring; XTopJointFinThread's `finThreadJ`
-with `hU` for `JThreadFinHyps.utTcb`). -/
+with `hU` for `JThreadFinHyps.utTcb`), the dead set kept (`JTPD`, by the
+`…JD` step lemmas). -/
 theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     (hticks : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv ∧
       ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
@@ -90,7 +98,7 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
       ((Fl4Spec.Cap.zombie p.bv none 6, Fl4Spec.Cap.nullCap), σ') ∈
         (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
-      JTP (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ := by
+      JTPD (L := L) arI AR Z H Cs D r.2.1 r.2.2 σ' ⦄ := by
   have hfc : objects.finalise_cap st arI s a (.Thread p) true false =
       objects.finalise_cap_object st arI s a (.Thread p) true := by
     simp [objects.finalise_cap]
@@ -116,23 +124,23 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
   have h3 : notification.unbind_notification st s p ⦃ s3 => ∃ σ3,
       Fl4Spec.unbindNotification (Z := Unit) p.bv σ = ({((), σ3)}, False) ∧
       σ3.schedulerAction = σ.schedulerAction ∧ σ3.idleThread = σ.idleThread ∧ σ3.curThread = σ.curThread ∧
-      JTP (L := L) arI AR Z H Cs s3 a σ3 ⦄ := by
+      JTPD (L := L) arI AR Z H Cs D s3 a σ3 ⦄ := by
     by_cases h0 : L.mem s (P1.boundA p) = 0#u64
     · rw [unbind_ntfn_zero s p h0, WP.spec_ok]
       have hI0 := J.xtop.irelK J.ks J.buf
       obtain ⟨x, hk, hx⟩ := hI0.1.tcb p hp
-      refine ⟨σ, unbindNtfn_none hk ?_, rfl, rfl, rfl, Z.vs, Ac, Lst, D, J⟩
+      refine ⟨σ, unbindNtfn_none hk ?_, rfl, rfl, rfl, Z.vs, Ac, Lst, J⟩
       rw [hx.bound, show tBoundA p = P1.boundA p from rfl, h0, Notif.optRef_zero]
-    · exact J.unbindNJ hp h0
+    · exact WP.spec_mono (J.unbindNJD hp h0) fun _ ⟨σ', he, h1, h2, h3, V, J'⟩ => ⟨σ', he, h1, h2, h3, V, Ac, Lst, J'⟩
   refine WP.spec_bind (WP.spec_and h3 (P1.notification.unbind_notification.blkF s p J.blk hpT)) ?_
-  rintro s3 ⟨⟨σ3, he3, ha3, hi3, hc3, V3, Ac3, Lst3, D3, J3⟩, -, f3, -⟩
+  rintro s3 ⟨⟨σ3, he3, ha3, hi3, hc3, V3, Ac3, Lst3, J3⟩, -, f3, -⟩
   -- the timer-tree removal
   refine WP.spec_bind (WP.spec_and (J3.tmRemoveJ hp)
     (P1.timer.remove.tf (s0 := s3) s3 p (P1.TF.start (P1.BlkOK.tinv J3.blk)) hpT)) ?_
   rintro s4 ⟨J4, -, f4, -⟩
   have f34 : FootH (st := st) H Cs ∅ s s4 := f3.trans f4
   -- the rest, after `unbind_from_sc`
-  have fin6 : ∀ (s5 : S) (a5 : A) (σ5 : Fl4Spec.State Unit), JTP (L := L) arI AR Z H Cs s5 a5 σ5 →
+  have fin6 : ∀ (s5 : S) (a5 : A) (σ5 : Fl4Spec.State Unit), JTPD (L := L) arI AR Z H Cs D s5 a5 σ5 →
       Fl4Spec.unbindFromSc (Z := Unit) p.bv σ3 = ({((), σ5)}, False) →
       σ5.curThread = σ.curThread ∧ σ5.idleThread = σ.idleThread ∧
         (σ5.schedulerAction = σ.schedulerAction ∨ σ5.schedulerAction = .chooseNewThread) →
@@ -145,8 +153,8 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
         ok ((capability.Cap.Zombie s8 capability.ZOMBIE_TCB layout.tcb.NUM_SLOTS, capability.Cap.Null), s7, a6))
         ⦃ r => ∃ σ', ((Fl4Spec.Cap.zombie p.bv none 6, Fl4Spec.Cap.nullCap), σ') ∈
             (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
-          JTP (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ := by
-    rintro s5 a5 σ5 ⟨V5, Ac5, Lst5, D5, J5⟩ he5 ⟨hc5, hi5, ha5⟩ f5
+          JTPD (L := L) arI AR Z H Cs D r.2.1 r.2.2 σ' ⦄ := by
+    rintro s5 a5 σ5 ⟨V5, Ac5, Lst5, J5⟩ he5 ⟨hc5, hi5, ha5⟩ f5
     have hsa5 : ∀ u, σ5.schedulerAction = .switchThread u → u ≠ p.bv := fun u hu => by
       rcases ha5 with e | e
       · exact hsa u (by rw [← e]; exact hu)
@@ -154,10 +162,10 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     have hid5 : p.bv ≠ σ5.idleThread := by rw [hi5]; exact hid
     have na5 : L.actionW s5 ≠ p := (J5.words_of_spec hp hsa5 hid5).1
     refine WP.spec_bind (WP.spec_and
-      (JAtZ.suspendJ (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
+      (JAtZ.suspendJD (Z := Z.mv Z.G V5) (jCancel_send arI) (jCancel_ntfn arI) (jCancel_recv arI)
         (jCancel_reply arI) J5 hp hsa5 hid5)
       (P1.sched.suspend.blk s5 a5 p J5.blk hpT na5)) ?_
-    rintro ⟨s6, a6⟩ ⟨⟨ha6, σ6, he6, V6, Ac6, Lst6, D6, J6⟩, hb6⟩
+    rintro ⟨s6, a6⟩ ⟨⟨ha6, σ6, he6, V6, Ac6, Lst6, J6⟩, hb6⟩
     have f6 : FootH (st := st) H Cs (P1.EH H) s5 s6 := hb6.2
     simp only at ha6
     subst ha6
@@ -166,7 +174,7 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     refine WP.spec_bind (J7.fpuReleaseJ hK hp) ?_
     rintro a8 ⟨σ8, hm8, V8, J8⟩
     simp only [P1.tcb_slot_ctable, bind_ok, WP.spec_ok]
-    exact ⟨σ8, finThread_mem he3 he5 he6 hm8, V8, Ac6, Lst6, D6, J8⟩
+    exact ⟨σ8, finThread_mem he3 he5 he6 hm8, V8, Ac6, Lst6, J8⟩
   -- `unbind_from_sc`
   obtain ⟨Q4, R4, hc4, hs4⟩ := J4.xtop.fin.1.1.1.lists
   obtain ⟨x4, hk4, -, -, hsc4, -⟩ := hs4.tcb p hp
@@ -175,7 +183,7 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
   by_cases h0 : i = 0#u64
   · have hb' : b = true := by rw [hb, h0]; rfl
     simp only [hb', ↓reduceIte, bind_ok]
-    exact fin6 s4 a σ3 ⟨V3, Ac3, Lst3, D3, J4⟩ (unbindFromSc_none hk4 (by rw [hsc4, ← hi, h0, Notif.optRef_zero]))
+    exact fin6 s4 a σ3 ⟨V3, Ac3, Lst3, J4⟩ (unbindFromSc_none hk4 (by rw [hsc4, ← hi, h0, Notif.optRef_zero]))
       ⟨hc3, hi3, Or.inl ha3⟩ f34
   have hb' : b = false := by rw [hb]; simp [h0]
   simp only [hb', Bool.false_eq_true, ↓reduceIte]
@@ -191,15 +199,15 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
       let i1 ← obj.Sc.yield_from st i s6
       let b1 ← obj.Tcb.is_null i1
       if b1 = true then ok (s6, a) else schedcontext.complete_yield_to st arI s6 a i1) ⦃ r =>
-      ∃ σ5, JTP (L := L) arI AR Z H Cs r.1 r.2 σ5 ∧
+      ∃ σ5, JTPD (L := L) arI AR Z H Cs D r.1 r.2 σ5 ∧
         Fl4Spec.unbindFromSc (Z := Unit) p.bv σ3 = ({((), σ5)}, False) ∧
         σ5.curThread = σ.curThread ∧ σ5.idleThread = σ.idleThread ∧
         (σ5.schedulerAction = σ.schedulerAction ∨ σ5.schedulerAction = .chooseNewThread) ∧
         FootH (st := st) H Cs ∅ s r.1 ⦄ := by
-    refine WP.spec_bind (WP.spec_and (J4.unbindTcbJ hp hiC hk4 hsp hsa3 hid3)
+    refine WP.spec_bind (WP.spec_and (J4.unbindTcbJD hp hiC hk4 hsp hsa3 hid3)
       (P1.schedcontext.unbind_tcb.blk s4 i J4.blk hiS h0 (fun _ => by rw [hit]; exact na4)
         (fun _ => by rw [hit]; exact ni4))) ?_
-    rintro s5 ⟨⟨σ4, he4, Ac5, Lst5, D5, J5⟩, -, f5, -⟩
+    rintro s5 ⟨⟨σ4, he4, Ac5, Lst5, J5⟩, -, f5, -⟩
     have f45 : FootH (st := st) H Cs ∅ s s5 := f34.trans f5
     have hca4 : σ4.curThread = σ.curThread ∧ σ4.idleThread = σ.idleThread ∧
         (σ4.schedulerAction = σ.schedulerAction ∨ σ4.schedulerAction = .chooseNewThread) := by
@@ -219,7 +227,7 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     by_cases j0 : j = 0#u64
     · have hb1' : b1 = true := by rw [hb1, j0]; rfl
       simp only [hb1', ↓reduceIte, WP.spec_ok]
-      refine ⟨σ4, ⟨V3, Ac5, Lst5, D5, J5⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_, hca4.1, hca4.2.1, hca4.2.2, f45⟩
+      refine ⟨σ4, ⟨V3, Ac5, Lst5, J5⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_, hca4.1, hca4.2.1, hca4.2.2, f45⟩
       rw [hx5.yieldFrom, ← scYieldFromA_eq, ← hj, j0, Notif.optRef_zero]; rfl
     · have hb1' : b1 = false := by rw [hb1]; simp [j0]
       simp only [hb1', Bool.false_eq_true, ↓reduceIte]
@@ -229,9 +237,9 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
           rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]
         obtain ⟨t, ht, et, -⟩ := J5.yld.frm i hiC y5 n5 hk5 _ e5
         rw [← P1.eq_of_bv et]; exact ht
-      refine WP.spec_mono (WP.spec_and (J5.completeYieldJ hAT hticks.1 (hticks.2 a) hjT)
+      refine WP.spec_mono (WP.spec_and (J5.completeYieldJD hAT hticks.1 (hticks.2 a) hjT)
         (P1.schedcontext.complete_yield_to.blk hAT s5 a _ J5.blk (fun _ => by rw [← hTe]; exact hjT))) ?_
-      rintro ⟨s6, a6⟩ ⟨⟨σ6, e6, V6, Ac6, Lst6, D6, J6⟩, hb6⟩
+      rintro ⟨s6, a6⟩ ⟨⟨σ6, e6, V6, Ac6, Lst6, J6⟩, hb6⟩
       have f6 : FootH (st := st) H Cs ∅ s5 s6 := hb6.2.1
       obtain ⟨xj, hkj, eyj⟩ := J5.yld.tcb _ hjT
       have hqj : ∀ q, xj.tcbYieldTo = some q → ∃ z n, σ4.kheap q = some (.schedContext z n) := by
@@ -241,7 +249,7 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
         · obtain ⟨-, z, n, hkz, -⟩ := J5.yld.toSc _ hjT h0
           rw [eyj, Notif.optRef_ne h0] at hq; cases hq; exact ⟨z, n, hkz⟩
       obtain ⟨c6, a6', i6⟩ := Sched.completeYieldTo_ca hkj hqj e6
-      refine ⟨σ6, ⟨V6, Ac6, Lst6, D6, J6⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_, c6.trans hca4.1,
+      refine ⟨σ6, ⟨V6, Ac6, Lst6, J6⟩, unbindFromSc_some hk4 hsp he4 hk5 ?_, c6.trans hca4.1,
         i6.trans hca4.2.1, by rw [a6']; exact hca4.2.2, f45.trans f6⟩
       rw [hx5.yieldFrom, ← scYieldFromA_eq, Notif.optRef_ne (by rw [← hj]; exact j0)]; exact e6
   refine WP.spec_bind hin ?_
@@ -273,7 +281,7 @@ theorem JAtZ.finThreadJL (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => ∃ σ',
       ((Fl4Spec.Cap.zombie p.bv none 6, Fl4Spec.Cap.nullCap), σ') ∈
         (Fl4Spec.finaliseCap (Z := Unit) (.threadCap p.bv) true σ).1 ∧
-      JTP (L := L) arI AR Z H Cs r.2.1 r.2.2 σ' ⦄ :=
+      JTPD (L := L) arI AR Z H Cs D r.2.1 r.2.2 σ' ⦄ :=
   J.finThreadJU hAT hK hticks (fun _ f => J.dbgSuccCov_of_live hL f) hp hv0 hna hidle
 
 end
