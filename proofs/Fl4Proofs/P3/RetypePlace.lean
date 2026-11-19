@@ -329,7 +329,10 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       ((lo = A ∧ hi = A + w * k) ∨ ∃ (ct : U64) (s0 sR : S) (a1 : A') (p sb fi : U64) (d : Bool),
         sched.cur_thread st s = ok ct ∧ sched.set_thread_state st s ct sched.TS_RESTART = ok s0 ∧
         untyped.reset_untyped st arI s0 ar (cslotAddr sl) = ok (.Ok (), sR, a1) ∧
-        capAt (L.mem s0) (cslotAddr sl) = ok (.Untyped p sb fi d) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val) ∧
+        capAt (L.mem s0) (cslotAddr sl) = ok (.Untyped p sb fi d) ∧ lo = p.val ∧ hi = p.val + 2 ^ sb.val ∧ rs = true) ∧
+      (∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1
+          (fun y => y.1 = .ok () ∧ KSame σ' y.2)) ∧
       ∀ H' : Heap, HOut H H' lo hi A k w (newKind n us) →
         JPlaced (L := L) th' H' {q | q ∈ Tr ∨ th' q = some .tcb}
           {c | c ∈ C ∨ (c ≠ 0#u64 ∧ ∃ y n', σ'.kheap c.bv = some (.schedContext y n'))} res.2.1 σ' := by
@@ -459,10 +462,13 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       have : c.bv.toNat = A + j * k := by
         rw [hjc, eA, ← ek]; exact ptrAdd_toNat (by rw [← eA]; omega)
       exact this
-  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, fun H' hO => ?_⟩
-  · rcases hor with ⟨-, -, h1, h2, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, -⟩
+  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, ⟨σ1, hst1, ?_⟩, fun H' hO => ?_⟩
+  · rcases hor with ⟨-, -, h1, h2, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, hRB⟩
     · exact Or.inl ⟨h1, h2⟩
-    · exact Or.inr ⟨ct, s0, sR, a1, p, sb, fi, d, hct, hs0, hr, hc, h1, h2⟩
+    · exact Or.inr ⟨ct, s0, sR, a1, p, sb, fi, d, hct, hs0, hr, hc, h1, h2, hRB⟩
+  · rcases he with ⟨-, rfl⟩ | ⟨h, -⟩
+    · exact hhas
+    · rw [hok] at h; cases h
   have hRk : k = 2 ^ bitsApi t us := ek
   -- the objects a cap in the MDB covers are kept
   have hkeepH : ∀ q kd, H q = some kd → Covered (L.mem s) G q.val (q.val + 2 ^ kd.bits) → H' q = some kd := by
