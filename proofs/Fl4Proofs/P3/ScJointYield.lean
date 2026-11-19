@@ -70,7 +70,7 @@ theorem SFrame.updTcbF {σ : State Unit} {p : ObjRef} {x x' : Tcb} (hk : σ.khea
     (e1 : x'.tcbState = x.tcbState) (e2 : x'.tcbSchedContext = x.tcbSchedContext)
     (e3 : x'.tcbPriority = x.tcbPriority) (e4 : x'.tcbDomain = x.tcbDomain) :
     SFrame σ (updK σ p (.tcb x')) := by
-  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl⟩
+  refine ⟨fun q y hq => ?_, fun q y m hq => ?_, rfl, rfl, rfl, rfl, rfl⟩
   · by_cases h : q = p
     · subst h; rw [hk] at hq; cases hq
       exact ⟨x', by simp [updK], e1, e2, e3, e4⟩
@@ -221,7 +221,7 @@ theorem JAtZ.linkYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct sc
   have hK : ScTKw (fun _ => False) σ σ' := nkt_yieldLink ct.bv sc.bv σ _ hm
   have hsok : SOK (false, true) σ σ' := pres_yieldLink ct.bv sc.bv σ _ hm
   have hA : QKY σ σ' := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
     by_cases e1 : q = ct.bv
     · subst e1; exact Or.inr (Or.inl ⟨xc, { xc with tcbYieldTo := some sc.bv }, hkc, by simp [σ', updK, Ne.symm hpc'], rfl⟩)
     by_cases e2 : q = sc.bv
@@ -255,7 +255,7 @@ theorem JAtZ.linkYieldJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct sc
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) (hA.lk (W := fun _ => False)) hA.fk hAI.1 (fun h => h)
       (J.jcov.dead q hq)
   exact ⟨Ac, Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY2 hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2))
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2))
     (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN2 hI2 (hA.cur J.cur) (hA.own J.own) (hA.off J.off) hAI (hA.bsa J.bsa)
     (hA.curRunM J.curRun) hblk⟩
