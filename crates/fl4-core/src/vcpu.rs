@@ -540,7 +540,9 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
             if a.vcpu_capability(0x48b) >> 32 & 128 != 0 {
                 fixed &= !((1 << 31) | 1);
             }
-            (value | fixed) & a.vcpu_capability(0x487)
+            // CONTROL_CR0_MASK owns CR0_OWNED (CD, NW, reserved bits), so
+            // the guest's own MOV cannot set them: neither may the VMM.
+            (value | fixed) & a.vcpu_capability(0x487) & (fixed | !CR0_OWNED)
         }
         GUEST_CR4 => {
             let fixed = a.vcpu_capability(0x488);
@@ -556,8 +558,11 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         _ => v,
     })
 }
-pub const SVM_I1_FORCED: u64 = 0x9c40_800f;
-pub const SVM_I1_WRITABLE: u64 = 0x63bf_7ff0;
+/// Intercept vector at 0x00c. Bit 5 (selective CR0 write) makes every
+/// guest CR0 write that changes more than TS and MP exit: SVM has no CR0
+/// guest/host mask, and CD/NW would otherwise reach the hardware CR0.
+pub const SVM_I1_FORCED: u64 = 0x9c40_802f;
+pub const SVM_I1_WRITABLE: u64 = 0x63bf_7fd0;
 pub const SVM_I2_FORCED: u64 = 0x7e7d;
 pub const SVM_EVENT: u64 = 0xffff_ffff_8000_0fff;
 
@@ -593,7 +598,9 @@ pub fn sanitize_vmcb<A: Arch>(a: &A, f: u64, old: u64, value: u64) -> KResult<u6
     if f == svm::G_PAT && !valid_pat(value) {
         return invalid_arg(1);
     }
-    Ok((old & !mask) | (value & mask) | forced)
+    let v = (old & !mask) | (value & mask) | forced;
+    // As GUEST_CR0 on VMX: no CD, NW or reserved bits, whatever `old` held.
+    Ok(if f == svm::CR0 { v & !CR0_OWNED } else { v })
 }
 pub fn vmcb_hidden(f: u64) -> bool {
     matches!(

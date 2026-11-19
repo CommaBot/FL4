@@ -220,9 +220,11 @@ pub fn active(cpu: u64) -> bool {
 }
 
 /// The entry must run under the serial gate (an irrevocable operation).
+/// A transaction already doomed by a conflict stays retryable: it reads 0
+/// since then, so the path that reached the operation may be made up.
 pub fn doom_serial(cpu: u64) {
     let t = st(cpu);
-    if t.active {
+    if t.active && t.doom == DOOM_NONE {
         t.doom = DOOM_SERIAL;
     }
 }
@@ -385,12 +387,16 @@ pub fn write(cpu: u64, addr: u64, v: u64) {
 }
 
 pub fn zero(cpu: u64, addr: u64, len: u64) {
-    if len > MAX_TX_ZERO {
-        doom_serial(cpu);
+    if st(cpu).doom != DOOM_NONE {
         return;
     }
+    // Every word written, and the step past the last, fit in 64 bits.
+    let end = match addr.checked_add(len) {
+        Some(end) if len <= MAX_TX_ZERO && end <= u64::MAX - 7 => end,
+        _ => return doom_serial(cpu),
+    };
     let mut a = addr;
-    while a < addr + len {
+    while a < end {
         write(cpu, a, 0);
         a += 8;
     }
@@ -424,7 +430,15 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
     if t.doom != DOOM_NONE {
         return;
     }
-    if len > MAX_TX_CLEAR || (((addr + len + STRIPE_BYTES - 1) >> STRIPE_BITS) - (addr >> STRIPE_BITS)) as usize > CLEAR_LINES {
+    // The end and its stripe round-up fit in 64 bits.
+    let end = match addr.checked_add(len) {
+        Some(end) if len <= MAX_TX_CLEAR && end <= u64::MAX - (STRIPE_BYTES - 1) => end,
+        _ => {
+            t.doom = DOOM_SERIAL;
+            return;
+        }
+    };
+    if (((end + (STRIPE_BYTES - 1)) >> STRIPE_BITS) - (addr >> STRIPE_BITS)) as usize > CLEAR_LINES {
         t.doom = DOOM_SERIAL;
         return;
     }
@@ -447,7 +461,7 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
         }
     } else {
         let mut a = addr & !(STRIPE_BYTES - 1);
-        while a < addr + len {
+        while a < end {
             let e = stripe(a);
             if t.zstamp[e] != t.zgen {
                 t.zstamp[e] = t.zgen;
@@ -506,7 +520,7 @@ pub fn clear_free<M: Mem>(cpu: u64, m: &M, addr: u64, len: u64) {
         // Buffered writes into the region came before the clear.
         for k in 0..t.nw {
             let i = t.worder[k] as usize;
-            if t.wkey[i] >= addr && t.wkey[i] < addr + len {
+            if t.wkey[i] >= addr && t.wkey[i] < end {
                 t.wval[i] = 0;
             }
         }
@@ -1093,5 +1107,83 @@ mod tests {
             t.join().unwrap();
         }
         assert_eq!(GEN.0[0].load(Ordering::Relaxed), 10_000);
+    }
+
+    /// A transaction doomed by a conflict reads 0 from then on, so its
+    /// later arguments are made up; nothing it does after that may turn a
+    /// retry into a serial rerun (which stalls every core), and no made-up
+    /// address may overflow (a debug build would panic in the kernel).
+    #[test]
+    fn conflict_doom_stays_retryable_through_zero_and_serial_requests() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        let addr = 0x1b0000;
+        let doom_by_conflict = || {
+            begin(0, &m);
+            let e = &TABLE[stripe(addr)].0;
+            let v = e.load(Ordering::Relaxed);
+            e.store(v | 1, Ordering::Relaxed);
+            assert_eq!(read(0, &m, addr), 0);
+            e.store(v, Ordering::Relaxed);
+            assert!(doomed(0) && !needs_serial(0));
+        };
+        // A clear larger than MAX_TX_ZERO, from a length read as 0 - 8.
+        doom_by_conflict();
+        zero(0, 0, 0u64.wrapping_sub(8));
+        assert!(doomed(0) && !needs_serial(0), "zero turned a conflict into a serial rerun");
+        end(0);
+        // An address made from a 0 read wrapping below zero.
+        doom_by_conflict();
+        zero(0, 0u64.wrapping_sub(8), 16);
+        assert!(doomed(0) && !needs_serial(0));
+        end(0);
+        // An irrevocable operation reached only on the made-up path.
+        doom_by_conflict();
+        doom_serial(0);
+        assert!(doomed(0) && !needs_serial(0), "doom_serial overwrote a conflict");
+        assert!(!commit(0, &m));
+        end(0);
+        // Without a conflict, both still send the entry down the serial path.
+        begin(0, &m);
+        zero(0, addr, MAX_TX_ZERO + 8);
+        assert!(needs_serial(0));
+        end(0);
+        begin(0, &m);
+        doom_serial(0);
+        assert!(needs_serial(0));
+        end(0);
+    }
+
+    /// A zero or clear whose end does not fit in 64 bits is no region: it
+    /// goes serial rather than overflowing (a panic in a debug build) or
+    /// wrapping to clear the bottom of the address space.
+    #[test]
+    fn zero_and_clear_free_ranges_past_the_top_go_serial() {
+        let _test = TEST_LOCK.lock().unwrap();
+        let m = SparseMem::default();
+        for (addr, len) in [(u64::MAX - 7, 16), (u64::MAX - 15, 16), (u64::MAX - 7, 8), (u64::MAX - 7, 7), (u64::MAX - 3, 3)] {
+            begin(0, &m);
+            zero(0, addr, len);
+            assert!(needs_serial(0), "zero({addr:#x}, {len})");
+            assert_eq!(st(0).nw, 0);
+            end(0);
+            begin(0, &m);
+            clear_free(0, &m, addr, len);
+            assert!(needs_serial(0), "clear_free({addr:#x}, {len})");
+            end(0);
+        }
+        // The last whole word still zeroes in the transaction.
+        begin(0, &m);
+        zero(0, u64::MAX - 15, 8);
+        assert!(!doomed(0));
+        assert_eq!(st(0).nw, 1);
+        end(0);
+        // The last whole stripe still clears in place.
+        begin(0, &m);
+        m.store(u64::MAX - 31, 5);
+        clear_free(0, &m, u64::MAX - 31, 16);
+        assert!(!doomed(0));
+        assert_eq!(m.load(u64::MAX - 31), 0);
+        end(0);
     }
 }

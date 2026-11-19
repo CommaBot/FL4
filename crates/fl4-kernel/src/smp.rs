@@ -23,6 +23,10 @@ static AP_REJECTED: AtomicU8 = AtomicU8::new(0);
 const REJECT_SPEC: u8 = 1;
 const REJECT_VM: u8 = 2;
 const REJECT_APIC: u8 = 3;
+const REJECT_FPU: u8 = 4;
+const REJECT_TIMER: u8 = 5;
+const REJECT_TLB: u8 = 6;
+const REJECT_CR4: u8 = 7;
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -75,9 +79,16 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     let data_off = unsafe { &fl4_ap_data as *const u8 as usize } - tramp as usize;
     let boot_root = if snp_guest { 0 } else { paging::ap_boot_root() };
     let mut next = 1;
-    for &id in apic_ids {
-        if next >= max || !fl4_arch_x86_64::spec::allow_ap(
+    for (i, &id) in apic_ids.iter().enumerate() {
+        if next >= max || !crate::acpi::first_listing(apic_ids, i) || !fl4_arch_x86_64::spec::allow_ap(
             id, bsp, smt_shift, fl4_arch_x86_64::spec::no_smt()) {
+            continue;
+        }
+        // An ID this APIC mode cannot name (an x2APIC entry above 0xfe in
+        // xAPIC mode would be truncated to another core's), or the
+        // broadcast ID, which would reset every core.
+        if !apic::valid_physical_dest(id, apic::is_x2apic()) {
+            kprintln!("FL4: skipping core with APIC id {:#x}: not addressable in this APIC mode", id);
             continue;
         }
         let c = next;
@@ -113,6 +124,10 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             kprintln!("FL4: rejecting AP with APIC id {}: {}", id, match rejected {
                 REJECT_SPEC => "speculation capabilities differ between cores",
                 REJECT_APIC => "local APIC outside the physical window",
+                REJECT_FPU => "FPU state components or save format differ between cores",
+                REJECT_TIMER => "TSC-deadline timer missing on this core",
+                REJECT_TLB => "PCID or INVPCID missing on this core",
+                REJECT_CR4 => "SMEP, SMAP or FSGSBASE missing on this core",
                 _ => "virtualization features differ between cores",
             });
             // VMX/SVM may already be active on other cores. Keep them at
@@ -141,20 +156,30 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
     if snp::active() { snp::register_cpu(); }
     cpu::write_cr3(paging::root_paddr());
+    // Natively before CR4.PCIDE, SMEP, SMAP and FSGSBASE, which fault on a
+    // core without them, with no IDT yet to catch it (OSXSAVE and VMXE are
+    // left to fpu::init and vm::init). An SNP AP starts with the boot
+    // core's CR4 (snp::start_ap) and takes #VC for CPUID, so it checks once
+    // its own GDT and IDT are in.
+    if !snp::active() && !fl4_arch_x86_64::tlb::core_supported() { reject_ap(REJECT_TLB); }
+    if !snp::active() && !cpu::core_cr4_supported(f.cr4) { reject_ap(REJECT_CR4); }
     cpu::write_cr4(f.cr4);
     let stack_top = percpu::stack_top(c as usize);
     gdt::init_core(c as usize, stack_top);
+    if snp::active() && !fl4_arch_x86_64::tlb::core_supported() { reject_ap(REJECT_TLB); }
+    if snp::active() && !cpu::core_cr4_supported(f.cr4) { reject_ap(REJECT_CR4); }
     cpu::init_pat();
-    fpu::init();
+    if !fpu::init(false) { reject_ap(REJECT_FPU); }
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
     if !fl4_arch_x86_64::vm::init(false) { reject_ap(REJECT_VM); }
     percpu::get().cr3.set(paging::root_paddr());
-    if apic::enable(f.window_top).is_none() { reject_ap(REJECT_APIC); }
+    if apic::enable(false, f.window_top).is_none() { reject_ap(REJECT_APIC); }
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
     percpu::set_apic_id(apic::id());
+    if !timer::core_supported() { reject_ap(REJECT_TIMER); }
     timer::init_core(TIMER_VECTOR);
     smp::set_online(c as usize);
     while !BOOT_DONE.load(Ordering::Acquire) {

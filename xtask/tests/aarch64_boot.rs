@@ -1,8 +1,9 @@
 //! The AArch64 kernel's boot-time decisions on the host: its memory lists
 //! (fl4-kernel-aarch64 bootmem.rs), its ACPI parsing (hw.rs, over
-//! host-allocated tables), the GIC layout arithmetic and the cache
-//! maintenance rule (fl4-arch-aarch64 gic_layout.rs, cache_rule.rs). Only
-//! the window, the console and the boot core's MPIDR are replaced.
+//! host-allocated tables), the GIC layout arithmetic, the cache
+//! maintenance rule and the cores' capability check (fl4-arch-aarch64
+//! gic_layout.rs, cache_rule.rs, ap_caps.rs). Only the window, the console
+//! and the boot core's MPIDR are replaced.
 extern crate self as fl4_core;
 extern crate self as fl4_arch_aarch64;
 
@@ -60,12 +61,18 @@ pub mod cpu {
 pub mod gic_layout;
 #[path = "../../crates/fl4-arch-aarch64/src/cache_rule.rs"]
 mod cache_rule;
+#[path = "../../crates/fl4-arch-aarch64/src/el0_access.rs"]
+mod el0_access;
+#[path = "../../crates/fl4-arch-aarch64/src/ap_caps.rs"]
+mod ap_caps;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/hw.rs"]
 mod hw;
+#[path = "../../crates/fl4-efi/src/efi_mmap.rs"]
+mod efi_mmap;
 
 // ---- GIC ---------------------------------------------------------------------
 
@@ -94,6 +101,36 @@ fn gicv2_spis_go_to_the_boot_cores_interface() {
     assert_eq!(gic_layout::v2_targets(0x0000_0080), 0x8080_8080);
     // A uniprocessor GIC reads zero.
     assert_eq!(gic_layout::v2_targets(0), 0x0101_0101);
+}
+
+/// Audit round 5 F5: SGIs only reach cores a target list can name. GICv2
+/// has eight CPU interfaces; a core reading no interface (or several, or
+/// another core's) would never answer a remote call. GICv3 names Aff0 16
+/// and more only with the range selector, which both the distributor and
+/// the sending CPU interface must support.
+#[test]
+fn sgis_only_go_to_cores_a_target_list_can_name() {
+    assert_eq!(gic_layout::v2_interface(0x0404_0404), 4);
+    assert_eq!(gic_layout::v2_interface(0), 0);
+    assert!(gic_layout::v2_interface_ok(1, []));
+    assert!(gic_layout::v2_interface_ok(0x80, [1, 2, 4]));
+    assert!(!gic_layout::v2_interface_ok(0, []), "no interface");
+    assert!(!gic_layout::v2_interface_ok(3, []), "two interfaces");
+    assert!(!gic_layout::v2_interface_ok(0x100, []), "a ninth interface");
+    assert!(!gic_layout::v2_interface_ok(2, [1, 2]), "another core's interface");
+    assert_eq!(gic_layout::V2_INTERFACES, 8);
+    let typer_rss = 1 << 26;
+    let ctlr_rss = 1 << 18;
+    assert!(gic_layout::v3_rss(typer_rss, ctlr_rss));
+    assert!(!gic_layout::v3_rss(typer_rss, 0));
+    assert!(!gic_layout::v3_rss(0, ctlr_rss));
+    assert!(!gic_layout::v3_rss(!typer_rss, !ctlr_rss));
+    assert!(gic_layout::v3_sgi_reaches(0, false));
+    assert!(gic_layout::v3_sgi_reaches(15, false));
+    assert!(!gic_layout::v3_sgi_reaches(16, false), "would reach Aff0 0");
+    assert!(!gic_layout::v3_sgi_reaches(0xff, false));
+    assert!(gic_layout::v3_sgi_reaches(16, true));
+    assert!(gic_layout::v3_sgi_reaches(0xff, true));
 }
 
 /// GICR_TYPER values at frame addresses.
@@ -137,6 +174,25 @@ fn a_gicv4_redistributor_reserves_its_vlpi_frames() {
 
 // ---- cache maintenance ------------------------------------------------------------
 
+/// Audit F1: on GICv2 another core's SGIs and PPIs (IDs 0..31) are banked
+/// in its own CPU interface's view of the distributor, so masking,
+/// unmasking or configuring one from here takes a remote call (an IRQ
+/// handler deleted on core 0 for core 1's PPI must mask it on core 1).
+/// This core's, every GICv3 one (the redistributors) and SPIs are direct.
+#[test]
+fn another_cores_gicv2_banked_interrupts_take_a_remote_call() {
+    for id in [0, 15, 16, 27, 31] {
+        assert!(gic_layout::banked_remote(false, id, 1, 0), "id {id}");
+        assert!(gic_layout::banked_remote(false, id, 0, 3), "id {id}");
+        assert!(!gic_layout::banked_remote(false, id, 2, 2), "id {id}");
+        assert!(!gic_layout::banked_remote(true, id, 1, 0), "id {id}");
+    }
+    for id in [32, 33, 1019] {
+        assert!(!gic_layout::banked_remote(false, id, 1, 0), "id {id}");
+        assert!(!gic_layout::banked_remote(true, id, 1, 0), "id {id}");
+    }
+}
+
 #[test]
 fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
     assert!(cache_rule::needs_gate(true, true));
@@ -144,6 +200,242 @@ fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
     // Clean, clean+invalidate and unify through TTBR0.
     assert!(cache_rule::needs_gate(false, false));
     assert!(!cache_rule::needs_gate(false, true));
+}
+
+// ---- EL0 access to per-core registers (audit F3) -------------------------------
+
+#[test]
+fn el0_debug_channel_and_trace_registers_trap() {
+    // MDSCR_EL1.TDCC; no debug events (MDE, KDE, SS clear).
+    assert_eq!(el0_access::MDSCR_EL1, 1 << 12);
+    // CPACR_EL1.TTA in both FP/SIMD states, which differ only in FPEN.
+    for v in [el0_access::CPACR_FP_EL0_TRAP, el0_access::CPACR_FP_NONE] {
+        assert_ne!(v & (1 << 28), 0, "{v:#x}");
+        // SVE and SME stay trapped (ZEN, SMEN clear).
+        assert_eq!(v & (3 << 16 | 3 << 24), 0, "{v:#x}");
+    }
+    assert_eq!((el0_access::CPACR_FP_EL0_TRAP >> 20) & 3, 1);
+    assert_eq!((el0_access::CPACR_FP_NONE >> 20) & 3, 3);
+}
+
+/// Audit F5: a core runs beside the boot core only with 16-bit ASIDs and
+/// the boot core's access-flag management, PAN, at least its physical
+/// address size, and its counter frequency.
+#[test]
+fn an_application_processor_must_match_the_boot_core() {
+    let bsp = ap_caps::Caps { asid16: true, hw_af: true, pan: true, pa_bits: 40, cntfrq: 62_500_000 };
+    assert!(ap_caps::ap_matches(&bsp, &bsp));
+    assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
+    for ap in [
+        ap_caps::Caps { asid16: false, ..bsp },
+        ap_caps::Caps { hw_af: false, ..bsp },
+        ap_caps::Caps { pan: false, ..bsp },
+        ap_caps::Caps { pa_bits: 36, ..bsp },
+        ap_caps::Caps { cntfrq: 24_000_000, ..bsp },
+        ap_caps::Caps { cntfrq: 0, ..bsp },
+    ] {
+        assert!(!ap_caps::ap_matches(&bsp, &ap), "{ap:?}");
+    }
+    // Nor a core with what the boot core lacks: the kernel set up neither.
+    let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
+    assert!(!ap_caps::ap_matches(&plain, &bsp));
+    assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+/// Audit F5: EL2 set-up reads PMCR_EL0 only with an architected PMU, as
+/// `el0_access::has_pmu` decides: PMUVer 0xf (IMPLEMENTATION DEFINED) has
+/// no PMCR_EL0, and reading it there traps before any vector is set.
+#[test]
+fn el2_setup_reads_pmcr_only_with_an_architected_pmu() {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find("mrs     x9, pmcr_el0").expect("PMCR_EL0 read");
+    let before: Vec<&str> = boot[..at].lines().rev().skip(1).take(4).map(|l| l.split("/*").next().unwrap().trim()).collect();
+    assert_eq!(before, ["b.eq    4f", "cmp     x9, #0xf", "cbz     x9, 4f", "ubfx    x9, x9, #8, #4"]);
+}
+
+/// Run `fl4_el_setup`'s pointer authentication set-up (from the
+/// ID_AA64ISAR1_EL1 read to the HCR_EL2 write both paths reach) on the
+/// given ID registers; returns that HCR_EL2 value and the system registers
+/// written with zero on the way.
+fn pauth_setup(c: &[String], isar1: u64, isar2: u64) -> (u64, Vec<String>) {
+    let start = c.iter().position(|l| l == "mrs     x10, id_aa64isar1_el1").expect("ISAR1 read");
+    let mut regs = std::collections::HashMap::new();
+    regs.insert("x9".to_string(), 1u64 << 31);
+    let mut written = vec![];
+    let mut hcr = None;
+    let val = |regs: &std::collections::HashMap<String, u64>, o: &str| -> u64 {
+        let o = o.trim();
+        match o.strip_prefix('#') {
+            Some(imm) => {
+                let imm = imm.trim_start_matches('(').trim_end_matches(')');
+                match imm.split_once("<<") {
+                    Some((a, b)) => a.trim().parse::<u64>().unwrap() << b.trim().parse::<u64>().unwrap(),
+                    None => u64::from_str_radix(imm.trim_start_matches("0x"), if imm.starts_with("0x") { 16 } else { 10 }).unwrap(),
+                }
+            }
+            None => regs[o],
+        }
+    };
+    let mut pc = start;
+    loop {
+        let l = &c[pc];
+        pc += 1;
+        let (op, args) = l.split_once(' ').unwrap_or((l, ""));
+        let a: Vec<&str> = args.split(',').map(str::trim).collect();
+        match op {
+            "mrs" => {
+                let v = match a[1] { "id_aa64isar1_el1" => isar1, "s3_0_c0_c6_2" => isar2, r => panic!("read of {r}") };
+                regs.insert(a[0].to_string(), v);
+            }
+            "ldr" => { let v = val(&regs, &format!("#{}", a[1].trim_start_matches('='))); regs.insert(a[0].to_string(), v); }
+            "and" => { let v = val(&regs, a[1]) & val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
+            "orr" => { let v = val(&regs, a[1]) | val(&regs, a[2]); regs.insert(a[0].to_string(), v); }
+            "cbz" => {
+                assert_eq!(a[1], "7f");
+                if regs[a[0]] == 0 {
+                    // Label 7 is the HCR_EL2 write after the last key.
+                    let last_key = c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap();
+                    pc = last_key + 1;
+                }
+            }
+            "isb" => {}
+            "msr" if a[0] == "hcr_el2" => {
+                hcr = Some(val(&regs, a[1]));
+                if pc > c.iter().rposition(|l| l == "msr     s3_0_c2_c3_1, xzr").unwrap() {
+                    return (regs["x9"], written);
+                }
+            }
+            "msr" => {
+                assert_eq!(a[1], "xzr");
+                assert!(hcr.is_some_and(|h| h & (1 << 40) != 0), "key written before HCR_EL2.APK");
+                written.push(a[0].to_string());
+            }
+            _ => panic!("unexpected {l}"),
+        }
+    }
+}
+
+/// The code of `label` in boot.S, up to the next blank line, comments and
+/// labels' own lines left out.
+fn boot_code(label: &str) -> Vec<String> {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find(&format!("\n{label}:\n")).unwrap_or_else(|| panic!("{label} not found")) + label.len() + 3;
+    let end = boot[at..].find("\n\n").map_or(boot.len(), |e| at + e);
+    let mut out = vec![];
+    let mut comment = false;
+    for l in boot[at..end].lines() {
+        let mut l = l.to_string();
+        if comment {
+            match l.find("*/") {
+                Some(e) => { l = l[e + 2..].to_string(); comment = false; }
+                None => continue,
+            }
+        }
+        if let Some(b) = l.find("/*") {
+            comment = !l[b..].contains("*/");
+            l.truncate(b);
+        }
+        let l = l.trim();
+        let l = match l.split_once(':') { Some((n, rest)) if n.chars().all(|c| c.is_ascii_digit()) => rest.trim(), _ => l };
+        if !l.is_empty() {
+            out.push(l.to_string());
+        }
+    }
+    out
+}
+
+/// Audit r7 F1: at EL2, the first thing `fl4_el_setup` does is point
+/// VBAR_EL2 at FL4's own vectors, before any register access that could
+/// trap (the firmware's VBAR_EL2 lies in memory that becomes user RAM).
+/// With pointer authentication HCR_EL2 gets API and APK (PACGA has no
+/// SCTLR_EL1 enable: with API clear it traps from EL0 to EL2) and every key
+/// is cleared; the fine-grained trap registers and HCRX_EL2 are cleared
+/// when implemented. Audit r9 F1: the keys only with FEAT_PAuth (APA, API
+/// or APA3), the one condition under which any key register exists.
+#[test]
+fn el2_setup_leaves_nothing_trapping_to_el2() {
+    let c = boot_code("fl4_el_setup");
+    let el2 = c.iter().position(|l| l == "b.ne    1f").expect("EL check");
+    assert_eq!(&c[el2 + 1..el2 + 4], ["adr     x9, fl4_el2_vectors", "msr     vbar_el2, x9", "isb"]);
+    let has = |l: &str| c.iter().any(|x| x == l);
+    assert!(has("orr     x9, x9, #(3 << 40)"));
+    // Which of HCR_EL2.{APK,API} and the keys each combination of the
+    // pointer authentication ID fields gets: `pauth_setup` runs the code.
+    let keys = ["s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0", "s3_0_c2_c2_1",
+        "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1"];
+    assert_eq!(pauth_setup(&c, 0, 0), (1 << 31, vec![]));
+    for (isar1, isar2) in [(1 << 4, 0), (3 << 8, 0), (0, 1 << 12), (5 << 4 | 1 << 24, 0), (1 << 8 | 1 << 28, 0),
+        (0, 1 << 12 | 1 << 8)] {
+        // FEAT_PAuth: every key exists, and all are cleared with APK set.
+        let (hcr, written) = pauth_setup(&c, isar1 | 0x00f0_000f, isar2 | 0xffff_0000_0000_00ff);
+        assert_eq!(hcr, 1 << 31 | 3 << 40, "{isar1:#x} {isar2:#x}");
+        assert_eq!(written, keys, "{isar1:#x} {isar2:#x}");
+    }
+    // Generic authentication fields without FEAT_PAuth (no conforming PE
+    // has them): no key register exists, so none may be written.
+    for (isar1, isar2) in [(1 << 24, 0), (1 << 28, 0), (0, 1 << 8)] {
+        assert_eq!(pauth_setup(&c, isar1, isar2).1, Vec::<String>::new(), "{isar1:#x} {isar2:#x}");
+    }
+    for r in ["s3_4_c1_c1_4", "s3_4_c1_c1_5", "s3_4_c1_c1_6", "s3_4_c3_c1_4", "s3_4_c3_c1_5", "s3_4_c3_c1_6",
+        "s3_4_c3_c1_0", "s3_4_c3_c1_1", "s3_4_c3_c1_2", "s3_4_c3_c1_3", "s3_4_c3_c1_7", "s3_4_c1_c2_2"] {
+        assert!(has(&format!("msr     {r}, xzr")), "{r} not cleared");
+    }
+    // FEAT_FGT, FEAT_HCX and FEAT_AMU fields of the ID registers.
+    assert!(has("ubfx    x10, x10, #56, #4") && has("ubfx    x10, x10, #40, #4") && has("ubfx    x11, x11, #44, #4"));
+}
+
+/// Audit r7 F1 (r8 F1 for E2H fixed at 1): FL4's EL2 vectors pass a synchronous exception from AArch64
+/// EL0 on to EL1 as an Undefined Instruction exception, and stop the core
+/// on anything else; nothing at EL2 runs outside the kernel image.
+#[test]
+fn el2_vectors_reflect_el0_traps_and_halt_on_the_rest() {
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    let at = boot.find("fl4_el2_vectors:").unwrap();
+    assert_eq!(boot[..at].lines().next_back().unwrap().trim(), ".balign 2048");
+    let v = boot_code("fl4_el2_vectors");
+    assert_eq!(v, [".rept 8", "el2_halt", ".endr", ".balign 128", "b       fl4_el2_reflect", ".rept 7", "el2_halt", ".endr"]);
+    assert!(boot.contains(".macro el2_halt\n    .balign 128\n    b       fl4_el2_halt\n.endm"));
+    let r = boot_code("fl4_el2_reflect");
+    assert_eq!(&r[..4], ["msr     tpidr_el2, x0", "mrs     x0, spsr_el2", "tst     x0, #0x1f", "b.ne    fl4_el2_halt"]);
+    // The reflection itself, per HCR_EL2.E2H, is run by aarch64_vhe.rs.
+    assert_eq!(&r[4..], [
+        "mrs     x0, hcr_el2", "tbnz    x0, #34, 13f",
+        "el2_reflect_to sctlr_el1, spsr_el1, elr_el1, esr_el1, vbar_el1",
+        "el2_reflect_to s3_5_c1_c0_0, s3_5_c4_c0_0, s3_5_c4_c0_1, s3_5_c5_c2_0, s3_5_c12_c0_0",
+    ]);
+    assert_eq!(boot_code("fl4_el2_halt"), ["wfi", "b       fl4_el2_halt"]);
+}
+
+#[test]
+fn pmuserenr_is_written_only_with_a_pmu() {
+    // PMUVer: neither absent nor IMPLEMENTATION DEFINED.
+    assert!(!el0_access::has_pmu(0));
+    assert!(!el0_access::has_pmu(0xf << 8));
+    assert!(el0_access::has_pmu(4 << 8));
+}
+
+/// An interrupt from EL0 records the thread's restart PC (FAULT_IP) before
+/// it takes the interrupt: taking a remote-call SGI services a stall
+/// (`take_irq` -> `service_remote` -> `fl4_core::smp::stall`), whose
+/// acknowledgement lets the calling core restart, rewrite (TCB_WriteRegisters)
+/// or delete the thread and retype its memory at once. After `take_irq`,
+/// `fl4_entry` must not touch the thread it read before (x86_64 entry.rs
+/// likewise saves the user state before `service_remote`).
+#[test]
+fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
+    let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
+    let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap()).collect();
+    let start = code.iter().position(|l| l.contains("fn fl4_entry(")).expect("fl4_entry");
+    let irq = start + code[start..].iter().position(|l| l.trim() == "if kind == KIND_IRQ {").expect("IRQ branch");
+    let end = irq + code[irq..].iter().position(|l| l.trim() == "exit()").expect("end of the IRQ branch");
+    let branch = &code[start..=end];
+    let take = branch.iter().position(|l| l.contains("take_irq()")).expect("take_irq in fl4_entry");
+    let save = branch.iter().position(|l| l.contains("t.set_reg(s, reg::FAULT_IP, elr)")).expect("FAULT_IP save");
+    assert!(save < take, "fl4_entry takes the interrupt (and services stalls) before it saves FAULT_IP");
+    for l in &branch[take..] {
+        let uses_t = l.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.')).any(|w| w.starts_with("t."));
+        assert!(!uses_t, "fl4_entry touches the interrupted thread after take_irq: {}", l.trim());
+    }
 }
 
 // ---- memory lists -----------------------------------------------------------------
@@ -178,6 +470,81 @@ fn memory_map_entries_never_wrap() {
     assert_eq!(bootmem::entry_pages(u64::MAX - 0xfff, 0x2000, u64::MAX), None);
     assert_eq!(bootmem::entry_pages(0xffff_ffff_ffff_f001, 0x10, u64::MAX), None);
     assert_eq!(bootmem::entry_pages(0x1000, 0, u64::MAX), None);
+}
+
+/// Audit r7 F3: the console UART's pages kept from user space are the
+/// pages `map_device` maps for it, a base inside a page included (two
+/// pages); before, only the first page was kept and the second went to
+/// user space as a device untyped the kernel also mapped.
+#[test]
+fn the_consoles_kept_pages_are_the_ones_it_maps() {
+    let lib = include_str!("../../crates/fl4-kernel-aarch64/src/lib.rs");
+    assert!(lib.contains("paging::map_device(h.uart_base, UART_MAP)"));
+    assert!(lib.contains("keep(&mut dev_used, h.uart_base, h.uart_base.saturating_add(UART_MAP));"));
+    assert!(lib.contains("const UART_MAP: u64 = 0x1000;"));
+    assert!(!lib.contains("dev_used.add("), "a kernel device range kept other than by `keep`");
+    let top = 1 << 40;
+    for base in [0x900_0000u64, 0x900_0800, 0x900_0ffc, 0x900_0001, 0xfe21_5040] {
+        let (pa, size) = bootmem::device_pages(base, 0x1000, top).unwrap();
+        assert_eq!(bootmem::pages_covering(base, base + 0x1000), (pa, pa + size), "{base:#x}");
+    }
+    assert_eq!(bootmem::pages_covering(0x900_0800, 0x900_1800), (0x900_0000, 0x900_2000));
+}
+
+/// One EFI memory descriptor of `stride` bytes.
+fn efi_desc(stride: usize, ty: u32, base: u64, pages: u64, attr: u64) -> Vec<u8> {
+    let mut d = vec![0u8; stride];
+    d[0..4].copy_from_slice(&ty.to_le_bytes());
+    d[8..16].copy_from_slice(&base.to_le_bytes());
+    d[24..32].copy_from_slice(&pages.to_le_bytes());
+    d[32..40].copy_from_slice(&attr.to_le_bytes());
+    d
+}
+
+/// Audit r7 F4: the AArch64 loader takes only a map of whole descriptors
+/// (stride at least 40 bytes, size a multiple of it, as the x86_64 loader
+/// requires), and no descriptor whose size or end passes 2^64: a wrapped
+/// length would shrink a RAM region and the kernel would hand the rest out
+/// as device memory. Before, stride 0 or below 40 read past the
+/// descriptor, and `pages * PAGE` wrapped.
+#[test]
+fn the_efi_memory_map_is_whole_and_never_wraps() {
+    use fl4_bootinfo::{mem, MemRegion};
+    let mut out = [MemRegion::default(); 4];
+    let wb = 8;
+    // Merged: two FREE kinds back to back, then firmware memory.
+    let mut map = efi_desc(48, 7, 0x4000_0000, 0x100, wb);
+    map.extend(efi_desc(48, 4, 0x4010_0000, 0x10, wb));
+    map.extend(efi_desc(48, 5, 0x4011_0000, 1, wb));
+    assert_eq!(efi_mmap::regions(&map, 48, &mut out), Some(2));
+    assert_eq!((out[0].base, out[0].len, out[0].kind, out[0].cacheable), (0x4000_0000, 0x110_000, mem::FREE, 1));
+    assert_eq!((out[1].base, out[1].len, out[1].kind), (0x4011_0000, 0x1000, mem::FIRMWARE));
+    // Not contiguous, or not of one cacheability: not merged.
+    let mut map = efi_desc(40, 7, 0x4000_0000, 1, wb);
+    map.extend(efi_desc(40, 7, 0x4000_2000, 1, wb));
+    map.extend(efi_desc(40, 7, 0x4000_3000, 1, 0));
+    assert_eq!(efi_mmap::regions(&map, 40, &mut out), Some(3));
+    // Layout: a stride of 0, below 40, or not dividing the size.
+    let one = efi_desc(48, 7, 0x4000_0000, 1, wb);
+    assert_eq!(efi_mmap::regions(&one, 0, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one[..32], 32, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one[..47], 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&one, 40, &mut out), None);
+    assert_eq!(efi_mmap::regions(&[], 48, &mut out), Some(0));
+    assert!(efi_mmap::layout_ok(96, 48) && !efi_mmap::layout_ok(96, 36) && !efi_mmap::layout_ok(100, 48));
+    // Size or end past 2^64.
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, 0, 1 << 52, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, 0x1000, u64::MAX / 0x1000 + 1, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0xfff, 2, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0xfff, 1, wb), 48, &mut out), None);
+    assert_eq!(efi_mmap::regions(&efi_desc(48, 7, u64::MAX - 0x1fff, 1, wb), 48, &mut out), Some(1));
+    // More regions than the record holds.
+    let mut map = vec![];
+    for i in 0..5u64 {
+        map.extend(efi_desc(40, 7, i * 0x2000, 1, wb));
+    }
+    assert_eq!(efi_mmap::regions(&map, 40, &mut out), None);
+    assert_eq!(efi_mmap::regions(&map[..160], 40, &mut out), Some(4));
 }
 
 #[test]
@@ -318,6 +685,67 @@ fn redistributors_past_the_table_are_a_boot_failure() {
     assert!(h.gicr_lost);
 }
 
+/// Audit round 5 F3: a MADT giving both a GICR discovery range and its
+/// cores' GICC redistributors, in either order, records the discovery
+/// range whole, once; the kernel then keeps all of it from user space.
+#[test]
+fn a_discovery_range_and_its_cores_redistributors_merge() {
+    let b = 0x80a_0000u64;
+    let len = 0xf6_0000u32;
+    let cores = 100u64;
+    let mut gicc_first = vec![gicd()];
+    for c in 0..cores {
+        gicc_first.push(gicc(c, b + (c % 0x7b) * 0x2_0000));
+    }
+    gicc_first.push(gicr(b, len));
+    let mut gicr_first = vec![gicd(), gicr(b, len)];
+    gicr_first.extend_from_slice(&gicc_first[1..cores as usize + 1]);
+    for (name, e) in [("GICC first", gicc_first), ("GICR first", gicr_first)] {
+        let t = tables(&madt(&e), 2, b"XSDT");
+        let h = hw::discover(t.rsdp(), 0).expect("ACPI");
+        assert!(!h.gicr_lost, "{name}");
+        assert_eq!(&h.gicr[..h.n_gicr], &[(b, len as u64)], "{name}");
+        // What boot reserves of it (`gic_layout::reserve`, as lib.rs runs
+        // it on the recorded range): the whole discovery range.
+        let last = b + len as u64 - 0x2_0000;
+        let typer = |a: u64| if a == last { LAST } else { 0 };
+        assert_eq!(gic_layout::reserve(b, len as u64, len as u64, typer), Some(len as u64), "{name}");
+    }
+}
+
+#[test]
+fn redistributor_ranges_merge_only_where_they_overlap() {
+    let mut r = [(0u64, 0u64); 4];
+    let mut n = 0;
+    let add = |r: &mut [(u64, u64)], n: &mut usize, b, l| gic_layout::add_redistributors(r, n, b, l);
+    // Adjacent ranges stay apart; an overlapping one joins both.
+    assert!(add(&mut r, &mut n, 0x10_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x12_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x2_0000), (0x12_0000, 0x2_0000)]);
+    assert!(add(&mut r, &mut n, 0x11_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x4_0000)]);
+    // Contained: nothing new.
+    assert!(add(&mut r, &mut n, 0x10_0000, 0x2_0000));
+    assert_eq!(&r[..n], &[(0x10_0000, 0x4_0000)]);
+    // A wider range from below swallows it.
+    assert!(add(&mut r, &mut n, 0xf_0000, 0x10_0000));
+    assert_eq!(&r[..n], &[(0xf_0000, 0x10_0000)]);
+    // Unbounded ranges are deduplicated, never merged.
+    assert!(add(&mut r, &mut n, 0xf_0000, 0));
+    assert!(add(&mut r, &mut n, 0xf_0000, 0));
+    assert_eq!(&r[..n], &[(0xf_0000, 0x10_0000), (0xf_0000, 0)]);
+    // Address 0 and an end past the address space are not recorded.
+    assert!(!add(&mut r, &mut n, 0, 0x2_0000));
+    assert!(!add(&mut r, &mut n, u64::MAX - 0xffff, 0x2_0000));
+    assert_eq!(n, 2);
+    // Full: a range that overlaps still merges, a new one does not fit.
+    assert!(add(&mut r, &mut n, 0x100_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x200_0000, 0x2_0000));
+    assert!(add(&mut r, &mut n, 0x200_0000, 0x4_0000));
+    assert!(!add(&mut r, &mut n, 0x300_0000, 0x2_0000));
+    assert_eq!(n, 4);
+}
+
 #[test]
 fn acpi_1_0_rsdps_use_the_rsdt_and_copy_20_bytes() {
     let e = madt(&[gicd(), gicc(0, 0x80a_0000)]);
@@ -345,4 +773,309 @@ fn rsdp_extended_checksum_and_root_signature_are_checked() {
     let mut t = tables(&e, 2, b"XSDT");
     let h = hw::discover(t.rsdp(), 0).expect("ACPI 2.0");
     assert_eq!(&h.rsdp[..], &t.buf()[..36]);
+}
+
+// ---- device tree (audit F5) -----------------------------------------------------
+
+/// A flattened device tree under construction.
+#[derive(Default)]
+struct Dtb {
+    structs: Vec<u8>,
+    strings: Vec<u8>,
+}
+
+impl Dtb {
+    fn word(&mut self, w: u32) {
+        self.structs.extend_from_slice(&w.to_be_bytes());
+    }
+    fn pad(&mut self) {
+        while self.structs.len() % 4 != 0 {
+            self.structs.push(0);
+        }
+    }
+    fn begin(&mut self, name: &str) {
+        self.word(1);
+        self.structs.extend_from_slice(name.as_bytes());
+        self.structs.push(0);
+        self.pad();
+    }
+    fn end(&mut self) {
+        self.word(2);
+    }
+    fn prop(&mut self, name: &str, val: &[u8]) {
+        let off = self.strings.len() as u32;
+        self.strings.extend_from_slice(name.as_bytes());
+        self.strings.push(0);
+        self.word(3);
+        self.word(val.len() as u32);
+        self.word(off);
+        self.structs.extend_from_slice(val);
+        self.pad();
+    }
+    fn prop_u32(&mut self, name: &str, v: u32) {
+        self.prop(name, &v.to_be_bytes());
+    }
+    fn prop_str(&mut self, name: &str, v: &str) {
+        let mut b = v.as_bytes().to_vec();
+        b.push(0);
+        self.prop(name, &b);
+    }
+    /// The blob: header, an empty reservation map, then the blocks.
+    fn blob(mut self) -> Vec<u8> {
+        self.word(9);
+        let rsv = 40u32;
+        let st = rsv + 16;
+        let strs = st + self.structs.len() as u32;
+        let total = strs + self.strings.len() as u32;
+        let mut b = Vec::new();
+        for w in [0xd00d_feed, total, st, strs, rsv, 17, 16, 0, self.strings.len() as u32, self.structs.len() as u32] {
+            b.extend_from_slice(&u32::to_be_bytes(w));
+        }
+        b.extend_from_slice(&[0; 16]);
+        b.extend_from_slice(&self.structs);
+        b.extend_from_slice(&self.strings);
+        b
+    }
+}
+
+/// `reg` of (address, size) pairs, two cells each.
+fn reg2(regs: &[(u64, u64)]) -> Vec<u8> {
+    regs.iter().flat_map(|&(a, s)| [a.to_be_bytes(), s.to_be_bytes()].concat()).collect()
+}
+
+/// The hardware a device tree with one interrupt controller node
+/// (`compat`, `reg`, `#redistributor-regions` if given) describes.
+fn dt_hw(compat: &str, regs: &[(u64, u64)], redist: Option<u32>) -> hw::Hw {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", compat);
+    d.prop_u32("#interrupt-cells", 3);
+    // reg before #redistributor-regions: a node's facts are used at its end.
+    d.prop("reg", &reg2(regs));
+    if let Some(n) = redist {
+        d.prop_u32("#redistributor-regions", n);
+    }
+    // A child (an ITS) with its own reg, which is not the GIC's.
+    d.begin("msi-controller@8080000");
+    d.prop_str("compatible", "arm,gic-v3-its");
+    d.prop("reg", &reg2(&[(0x808_0000, 0x2_0000)]));
+    d.end();
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE).expect("device tree");
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+const GICD: (u64, u64) = (0x800_0000, 0x1_0000);
+
+fn gicr_regions(n: u64) -> Vec<(u64, u64)> {
+    (0..n).map(|i| (0x1_0000_0000 + i * 0x100_0000, 0x40_0000)).collect()
+}
+
+#[test]
+fn every_redistributor_region_of_the_device_tree_is_kept() {
+    // Five regions (six reg entries), then GICC, GICH and GICV.
+    let regions = gicr_regions(5);
+    let tail = [(0x2c00_0000, 0x2_0000), (0x2c01_0000, 0x2_0000), (0x2c02_0000, 0x2_0000)];
+    for with_tail in [false, true] {
+        let mut regs = vec![GICD];
+        regs.extend_from_slice(&regions);
+        if with_tail {
+            regs.extend_from_slice(&tail);
+        }
+        let h = dt_hw("arm,gic-v3", &regs, Some(5));
+        assert_eq!(h.gic_version, 3);
+        assert_eq!(h.gicd, GICD.0);
+        assert!(!h.gicr_lost, "tail {with_tail}");
+        assert_eq!(&h.gicr[..h.n_gicr], &regions[..], "tail {with_tail}");
+    }
+}
+
+#[test]
+fn more_redistributor_regions_than_recorded_are_a_boot_failure() {
+    let n = hw::MAX_GICR as u64 + 1;
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(n));
+    let h = dt_hw("arm,gic-v3", &regs, Some(n as u32));
+    assert!(h.gicr_lost);
+    // So is a count the reg property does not hold, or none at all.
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(2));
+    assert!(dt_hw("arm,gic-v3", &regs, Some(3)).gicr_lost);
+    assert!(dt_hw("arm,gic-v3", &regs, Some(0)).gicr_lost);
+    // Exactly as many as recorded is fine.
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(hw::MAX_GICR as u64));
+    let h = dt_hw("arm,gic-v3", &regs, Some(hw::MAX_GICR as u32));
+    assert!(!h.gicr_lost);
+    assert_eq!(h.n_gicr, hw::MAX_GICR);
+}
+
+#[test]
+fn gicc_gich_and_gicv_are_not_redistributor_regions() {
+    // One region (the default, or said), then 128 KiB GICC, GICH and
+    // GICV (64 KiB-spaced aliases): none of them is a redistributor.
+    let regs = [GICD, (0x80a_0000, 0xf6_0000), (0x2c00_0000, 0x2_0000), (0x2c01_0000, 0x2_0000), (0x2c02_0000, 0x2_0000)];
+    for redist in [None, Some(1)] {
+        let h = dt_hw("arm,gic-v3", &regs, redist);
+        assert!(!h.gicr_lost);
+        assert_eq!(&h.gicr[..h.n_gicr], &[(0x80a_0000, 0xf6_0000)], "{redist:?}");
+    }
+}
+
+#[test]
+fn a_gicv2_cpu_interface_is_kept_whole() {
+    let h = dt_hw("arm,gic-400", &[(0x2c00_1000, 0x1000), (0x2c02_0000, 0x2_0000)], None);
+    assert_eq!(h.gic_version, 2);
+    assert_eq!((h.gicc, h.gicc_len), (0x2c02_0000, 0x2_0000));
+}
+
+#[test]
+fn kernel_device_ranges_are_kept_in_whole_pages() {
+    assert_eq!(bootmem::pages_covering(0x800_0000, 0x801_0000), (0x800_0000, 0x801_0000));
+    assert_eq!(bootmem::pages_covering(0x800_0800, 0x801_0800), (0x800_0000, 0x801_1000));
+    assert_eq!(bootmem::pages_covering(0x800_0fff, 0x800_1001), (0x800_0000, 0x800_2000));
+    assert_eq!(bootmem::pages_covering(u64::MAX - 0x10, u64::MAX), (u64::MAX & !0xfff, u64::MAX & !0xfff));
+    // Through the device list: no page of an unaligned GIC is left over.
+    let mut dev = bootmem::Ranges::new();
+    dev.add(0, 0x1000_0000);
+    let (s, e) = bootmem::pages_covering(0x800_0800, 0x800_0800 + 0x1_0000);
+    dev.remove(s, e);
+    assert_eq!(dev.n, 2);
+    assert_eq!((dev.r[0].end, dev.r[1].start), (0x800_0000, 0x801_1000));
+}
+
+#[test]
+fn an_unbounded_redistributor_range_must_end_inside_the_mapping() {
+    let b = 0x800_0000;
+    // No bound from the tables, mapped for two cores: two redistributors
+    // and the last frame, or more redistributors past the mapping.
+    let closed = [(b, 0), (b + 0x2_0000, LAST)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x8_0000, frames(&closed)), Some(0x8_0000));
+    let open = [(b, 0), (b + 0x2_0000, 0), (b + 0x4_0000, 0), (b + 0x6_0000, 0)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x8_0000, frames(&open)), None);
+    // GICv4: the last frame's VLPI frames may pass the mapping.
+    let v4 = [(b, VLPIS), (b + 0x4_0000, VLPIS | LAST)];
+    assert_eq!(gic_layout::reserve(b, 0, 0x6_0000, frames(&v4)), Some(0x8_0000));
+    // A bound from the tables: all of it, last frame seen or not.
+    assert_eq!(gic_layout::reserve(b, 0x8_0000, 0x8_0000, frames(&open)), Some(0x8_0000));
+    assert_eq!(gic_layout::reserve(b, 0x2_0000, 0x2_0000, frames(&[(b, VLPIS)])), Some(0x4_0000));
+}
+
+/// The hardware a device tree describes whose root has `root` cells and
+/// whose GICv3 sits under /soc with `soc` cells and a raw `reg`.
+fn dt_soc(root: (u32, u32), soc: (u32, u32), reg: &[u8], redist: u32) -> Option<hw::Hw> {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", root.0);
+    d.prop_u32("#size-cells", root.1);
+    d.begin("cpus");
+    d.prop_u32("#address-cells", 1);
+    d.prop_u32("#size-cells", 0);
+    d.begin("cpu@0");
+    d.prop("reg", &0u32.to_be_bytes());
+    d.end();
+    d.end();
+    d.begin("soc");
+    d.prop_u32("#address-cells", soc.0);
+    d.prop_u32("#size-cells", soc.1);
+    // The root's cells for /soc's own reg.
+    d.prop("reg", &[0u8; 12]);
+    d.begin("interrupt-controller@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    // The GIC's cells are its children's (an ITS), not its own reg's.
+    d.prop_u32("#address-cells", 1);
+    d.prop_u32("#size-cells", 1);
+    d.prop("reg", reg);
+    d.prop_u32("#redistributor-regions", redist);
+    d.end();
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE);
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+/// Proposal 5: reg is read in its parent's cells, not the root's.
+#[test]
+fn reg_uses_the_parents_cells() {
+    let regions = gicr_regions(3);
+    let mut regs = vec![GICD];
+    regs.extend_from_slice(&regions);
+    let h = dt_soc((2, 1), (2, 2), &reg2(&regs), 3).expect("device tree");
+    assert_eq!(h.gicd, GICD.0);
+    assert!(!h.gicr_lost);
+    assert_eq!(&h.gicr[..h.n_gicr], &regions[..]);
+    assert_eq!(&h.cpus[..h.n_cpus], &[0]);
+    // One address cell and one size cell under /soc.
+    let one: Vec<u8> = [(0x800_0000u32, 0x1_0000u32), (0x80a_0000, 0xf6_0000)]
+        .iter()
+        .flat_map(|&(a, s)| [a.to_be_bytes(), s.to_be_bytes()].concat())
+        .collect();
+    let h = dt_soc((2, 2), (1, 1), &one, 1).expect("device tree");
+    assert_eq!(h.gicd, 0x800_0000);
+    assert!(!h.gicr_lost);
+    assert_eq!(&h.gicr[..h.n_gicr], &[(0x80a_0000, 0xf6_0000)]);
+}
+
+#[test]
+fn a_gic_reg_the_kernel_cannot_read_whole_is_never_used() {
+    let mut regs = vec![GICD];
+    regs.extend(gicr_regions(2));
+    // Cells the kernel does not handle: no GIC found, so no boot.
+    assert!(dt_soc((2, 2), (3, 2), &reg2(&regs), 2).is_none());
+    assert!(dt_soc((2, 2), (2, 0), &reg2(&regs), 2).is_none());
+    // A reg that is not whole entries is not read at all: no GIC either.
+    let mut bytes = reg2(&regs);
+    bytes.extend_from_slice(&[0; 8]);
+    assert!(dt_soc((2, 2), (2, 2), &bytes, 2).is_none());
+    assert!(dt_soc((2, 2), (2, 2), &reg2(&regs), 2).is_some());
+}
+
+/// The AArch64 loader sizes its memory map buffer with `capacity`: the
+/// sizing call's map and 16 more descriptors of at least 48 bytes, None
+/// where that does not fit (as x86_mmap::capacity).
+#[test]
+fn the_efi_memory_map_capacity_never_wraps() {
+    assert_eq!(efi_mmap::capacity(4800, 48), Some(4800 + 16 * 48));
+    assert_eq!(efi_mmap::capacity(4800, 0), Some(4800 + 16 * 48));
+    assert_eq!(efi_mmap::capacity(4800, 80), Some(4800 + 16 * 80));
+    assert_eq!(efi_mmap::capacity(usize::MAX - 16 * 48, 48), Some(usize::MAX));
+    assert_eq!(efi_mmap::capacity(usize::MAX - 16 * 48 + 1, 48), None);
+    assert_eq!(efi_mmap::capacity(0, usize::MAX / 16 + 1), None);
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    assert!(lib.contains("let cap = efi_mmap::capacity(size, dsize).unwrap_or_else(|| fail(\"GetMemoryMap\"));"));
+}
+
+/// UEFI 2.10 §7.4: after the first ExitBootServices call, even a failed
+/// one, firmware may have shut boot services down in part, and the loader
+/// may call only GetMemoryMap and ExitBootServices: every failure in the
+/// retry loop halts through `handoff_failed`, which uses the console
+/// (`fail`) only before that first call.
+#[test]
+fn the_aarch64_loader_uses_no_console_after_exit_boot_services() {
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    let at = lib.find("    let mut tries = 0;\n    loop {\n").expect("handoff loop");
+    let end = at + lib[at..].find("\n    }\n").expect("loop end");
+    let body = &lib[at..end];
+    assert!(body.contains("(bs().exit_boot_services)(image, key)"));
+    assert!(!body.contains(" fail("), "a failure after ExitBootServices writes to the console:\n{body}");
+    assert_eq!(body.matches("handoff_failed(tries, ").count(), 3);
+    let h = &lib[lib.find("fn handoff_failed(tries: usize, msg: &str) -> ! {").expect("handoff_failed")..];
+    let h = &h[..h.find("\n}\n").unwrap()];
+    assert!(h.contains("if tries == 0 {\n        fail(msg);\n    }"), "{h}");
+    assert!(h.contains("msr daifset, #0xf") && h.contains("wfi"), "{h}");
+    assert_eq!(h.matches("fail(").count(), 1);
 }

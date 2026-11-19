@@ -134,6 +134,33 @@ pub fn max_paddr() -> u64 {
     1 << phys_addr_bits(max_ext, eax)
 }
 
+const CR4_VMXE: u64 = 1 << 13;
+const CR4_FSGSBASE: u64 = 1 << 16;
+const CR4_OSXSAVE: u64 = 1 << 18;
+const CR4_SMEP: u64 = 1 << 20;
+const CR4_SMAP: u64 = 1 << 21;
+
+/// The boot core's CR4 as the other cores load it, before their own IDT
+/// is in: without OSXSAVE and VMXE, which `fpu::init` and `vm::init` set
+/// on each core once they have checked its XSAVE and VMX.
+pub const fn ap_boot_cr4(cr4: u64) -> u64 {
+    cr4 & !(CR4_OSXSAVE | CR4_VMXE)
+}
+
+/// Whether a core whose CPUID.(EAX=7,ECX=0):EBX is `leaf7_ebx` can load
+/// `cr4`: setting FSGSBASE, SMEP or SMAP without its feature is #GP.
+/// PCIDE is `tlb::core_supported`'s.
+pub fn cr4_supported(cr4: u64, leaf7_ebx: u32) -> bool {
+    [(CR4_FSGSBASE, 0), (CR4_SMEP, 7), (CR4_SMAP, 20)]
+        .iter()
+        .all(|&(bit, feature)| cr4 & bit == 0 || leaf7_ebx & (1 << feature) != 0)
+}
+
+/// The calling core can load `cr4` (`cr4_supported`).
+pub fn core_cr4_supported(cr4: u64) -> bool {
+    cr4_supported(cr4, if cpuid(0, 0).eax >= 7 { cpuid(7, 0).ebx } else { 0 })
+}
+
 pub fn has_fsgsbase() -> bool {
     cpuid(7, 0).ebx & 1 != 0
 }

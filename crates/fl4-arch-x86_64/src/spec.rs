@@ -25,6 +25,8 @@ static NO_SMT: AtomicBool = AtomicBool::new(false);
 static SKIM: AtomicBool = AtomicBool::new(false);
 static BOOT_VENDOR: AtomicU32 = AtomicU32::new(0);
 static BOOT_IBPB: AtomicBool = AtomicBool::new(false);
+/// The boot core's `select` succeeded.
+static BOOT_PLAN: AtomicBool = AtomicBool::new(false);
 
 fn caps() -> Caps {
     let root = cpuid(0, 0);
@@ -116,12 +118,25 @@ fn needs_skim(vendor: Vendor, hygon: bool, arch: u64) -> bool {
     }
 }
 
-pub fn detect() {
-    let c = caps();
+fn hygon() -> bool {
     let v = cpuid(0, 0);
     // "HygonGenuine".
-    let hygon = (v.ebx, v.edx, v.ecx) == (0x6f67_7948, 0x6e65_476e, 0x656e_6975);
-    SKIM.store(needs_skim(c.vendor, hygon, c.arch), Ordering::Relaxed);
+    (v.ebx, v.edx, v.ecx) == (0x6f67_7948, 0x6e65_476e, 0x656e_6975)
+}
+
+pub fn detect() {
+    let c = caps();
+    SKIM.store(needs_skim(c.vendor, hygon(), c.arch), Ordering::Relaxed);
+}
+
+/// Whether an AP may join the boot core: the boot core chose the skim
+/// window from its own capabilities only, so an AP that needs it when the
+/// boot core did not would run user code with the kernel mapped; and an
+/// AP whose `select` fails beside a boot core whose `select` succeeded
+/// would leave that core with an incomplete policy the boot core reports
+/// as complete (and skip the stricter-SMT check below).
+fn ap_admissible(boot_skim: bool, ap_needs_skim: bool, boot_plan: bool, ap_plan: bool) -> bool {
+    (boot_skim || !ap_needs_skim) && (ap_plan || !boot_plan)
 }
 
 /// Probe and initialize each logical CPU after its GDT/IDT is installed,
@@ -167,6 +182,12 @@ pub fn init_core(bsp: bool) -> bool {
         wrmsr(0xc001_1029, de_cfg);
     }
     let plan = select(&c);
+    if bsp {
+        BOOT_PLAN.store(plan.is_ok(), Ordering::Relaxed);
+    } else if !ap_admissible(SKIM.load(Ordering::Relaxed), needs_skim(c.vendor, hygon(), c.arch),
+        BOOT_PLAN.load(Ordering::Relaxed), plan.is_ok()) {
+        return false;
+    }
     let pc = percpu::get();
     pc.spec_plan.set(plan.ok());
     pc.spec_rejected.set(plan.err());
@@ -337,6 +358,24 @@ mod tests {
         // Other vendors' architectural capabilities are not read.
         assert!(needs_skim(Vendor::Other, false, 0));
         assert!(needs_skim(Vendor::Other, false, RDCL_NO));
+    }
+
+    /// Audit round 5 F4: with no VM backend nothing else compares an AP's
+    /// speculation state with the boot core's.
+    #[test]
+    fn aps_never_weaken_the_boot_cores_skim_window_or_policy() {
+        // AP needs the skim window the boot core did not turn on.
+        assert!(!ap_admissible(false, true, true, true));
+        assert!(!ap_admissible(false, true, false, false));
+        assert!(ap_admissible(true, true, true, true));
+        assert!(ap_admissible(true, false, true, true));
+        assert!(ap_admissible(false, false, true, true));
+        // AP without a policy beside a boot core with one.
+        assert!(!ap_admissible(false, false, true, false));
+        assert!(!ap_admissible(true, true, true, false));
+        // A boot core without one already reports the policy incomplete.
+        assert!(ap_admissible(false, false, false, false));
+        assert!(ap_admissible(false, false, false, true));
     }
 
     #[test]

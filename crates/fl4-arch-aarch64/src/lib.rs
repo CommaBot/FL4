@@ -4,9 +4,11 @@
 //! console UART. The kernel runs at EL1 without EL2 support.
 #![no_std]
 
+pub mod ap_caps;
 pub mod arch;
 pub mod cache_rule;
 pub mod cpu;
+pub mod el0_access;
 pub mod fpu;
 pub mod gic;
 pub mod gic_layout;

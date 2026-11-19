@@ -1157,6 +1157,15 @@ impl Sim {
     }
 
     fn boot(&mut self) {
+        if self.try_boot(&[], &[], 0).is_err() {
+            panic!("create_root_task failed");
+        }
+    }
+
+    /// Boot with `more_devices` after the standard device regions, and
+    /// `backend` (`backend_len` bytes of it) as the backend's extra
+    /// BootInfo records.
+    fn try_boot(&mut self, more_devices: &[Region], backend: &[u64], backend_len: u64) -> Result<(), boot::BootError> {
         let image = MEM_BYTES - IMAGE_BYTES;
         let idle_base = pptr(image + (1 << 20));
         let extra = pptr(image + (2 << 20));
@@ -1172,7 +1181,7 @@ impl Sim {
             pv_offset: ui_p.wrapping_sub(0x40_0000),
             v_entry: 0x40_0000,
             extra_bi: extra,
-            extra_bi_len: 0,
+            extra_bi_len: backend_len,
             num_nodes: self.ncores,
             idle_base,
             idle_stride: 8192,
@@ -1182,20 +1191,26 @@ impl Sim {
         // A 64-bit BAR far above the kernel window, where physical and
         // pointer alignment differ (GitHub issue #2).
         p.device[1] = Region { start: 0x3800_0000_0000, end: 0x3800_0000_0000 + (1 << 44) };
+        for (i, &r) in more_devices.iter().enumerate() {
+            p.device[2 + i] = r;
+            p.n_device += 1;
+        }
+        for (i, &w) in backend.iter().enumerate() {
+            self.s.write(extra + 8 * i as u64, w);
+        }
         self.on(0);
         let ks_base = self.s.ks_base;
         self.s.zero(ks_base, ks::SIZE);
         let root = pptr(image + (3 << 20));
         fl4_core::obj::ks_set(&mut self.s, ks::KERNEL_ROOT, root);
-        if boot::create_root_task(&mut self.s, &mut self.a, &mut p).is_err() {
-            panic!("create_root_task failed");
-        }
+        boot::create_root_task(&mut self.s, &mut self.a, &mut p)?;
         sched::schedule(&mut self.s, &mut self.a);
         sched::activate_thread(&mut self.s, &mut self.a);
         let bi = 0x40_0000 + 4 * 4096 + 4096;
         let _ = bi;
         self.next_slot = self.first_empty();
         self.check("boot");
+        Ok(())
     }
 
     /// The first empty slot BootInfo reports (seL4_BootInfo.empty.start).
@@ -2539,6 +2554,167 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Word `w` of the root task's BootInfo frame.
+    fn bi_word(sim: &Sim, w: u64) -> u64 {
+        match sim.root_cnode_slot(rs::BootInfoFrame) {
+            Cap::Frame { ptr, .. } => sim.s.read(ptr + 8 * w),
+            _ => panic!("no BootInfo frame cap"),
+        }
+    }
+
+    /// Kernel address of the extra BootInfo (its first frame).
+    fn extra_bi(sim: &Sim) -> u64 {
+        // seL4_BootInfo.extraBIPages.start
+        match sim.root_cnode_slot(bi_word(sim, 15)) {
+            Cap::Frame { ptr, .. } => ptr,
+            _ => panic!("no extra BootInfo frame"),
+        }
+    }
+
+    use fl4_abi::consts::bootinfo_header as hdr;
+
+    /// Boot with `total` untypeds and the backend's extra BootInfo
+    /// `backend` of `backend_len` bytes. A device region `[base, base + x)`
+    /// with `pptr(base)` 2^39-aligned and `x` a multiple of 16 below 2^39
+    /// splits into exactly `popcount(x)` untypeds, so regions of up to 35
+    /// make up what the standard boot lacks.
+    fn boot_with(total: u64, backend: &[u64], backend_len: u64) -> (Sim, Result<(), boot::BootError>) {
+        let std = booted(1);
+        let base = bi_word(&std, 5) - bi_word(&std, 21);
+        assert!(total >= base, "the standard boot has {base} untypeds");
+        let mut more = Vec::new();
+        let mut left = total - base;
+        while left > 0 {
+            let k = left.min(35);
+            let start = 0x3900_0000_0000 + ((more.len() as u64) << 39);
+            more.push(Region { start, end: start + (((1u64 << k) - 1) << 4) });
+            left -= k;
+        }
+        let mut sim = Sim::new(BOOT_SEED, 1);
+        let r = sim.try_boot(&more, backend, backend_len);
+        (sim, r)
+    }
+
+    /// The extra BootInfo's records as (offset, ID, len), walked by `len`
+    /// from offset 0 up to `extraLen`, which the walk must end on exactly.
+    fn records(sim: &Sim) -> Vec<(u64, u64, u64)> {
+        let (e, extra_len) = (extra_bi(sim), bi_word(sim, 0));
+        let mut v = Vec::new();
+        let mut off = 0;
+        while off < extra_len {
+            let (id, len) = (sim.s.read(e + off), sim.s.read(e + off + 8));
+            assert!(len >= 16, "record at {off} has len {len}");
+            v.push((off, id, len));
+            off += len;
+        }
+        assert_eq!(off, extra_len);
+        v
+    }
+
+    /// The untyped descriptors at `desc` match the caps from `slot` on.
+    fn check_descriptors(sim: &Sim, desc: u64, slot: u64, n: u64) {
+        for j in 0..n {
+            let (paddr, d) = (sim.s.read(desc + 16 * j), sim.s.read(desc + 16 * j + 8));
+            match sim.root_cnode_slot(slot + j) {
+                Cap::Untyped { ptr, size_bits, is_device, .. } => {
+                    assert_eq!(layout::pptr(paddr), ptr, "descriptor {j}");
+                    assert_eq!(d, size_bits | (is_device as u64) << 8, "descriptor {j}");
+                }
+                _ => panic!("slot {} is not an untyped", slot + j),
+            }
+        }
+    }
+
+    /// (untyped.start, untyped.end, empty.start) from BootInfo.
+    fn ut_range(sim: &Sim) -> (u64, u64, u64) {
+        (bi_word(sim, 21), bi_word(sim, 22), bi_word(sim, 5))
+    }
+
+    /// l4h 0047: exactly 230 untypeds need no record; the extra BootInfo's
+    /// two pages are one padding record, all of them in `extraLen`.
+    #[test]
+    fn x86_extra_untypeds_absent_at_230() {
+        let (sim, r) = boot_with(230, &[], 0);
+        assert!(r.is_ok());
+        let (start, end, empty) = ut_range(&sim);
+        assert_eq!((end - start, empty - start), (230, 230));
+        assert_eq!(bi_word(&sim, 0), 8192);
+        assert_eq!(records(&sim), [(0, hdr::PADDING, 8192)]);
+    }
+
+    /// The standard boot: no ID 10 record, the same padding.
+    #[test]
+    fn x86_extra_untypeds_absent_without_overflow() {
+        let sim = booted(1);
+        let (start, end, empty) = ut_range(&sim);
+        assert!(end - start < boot::MAX_BOOTINFO_UNTYPEDS);
+        assert_eq!(empty, end);
+        assert_eq!(records(&sim), [(0, hdr::PADDING, 8192)]);
+    }
+
+    /// 231 untypeds: one descriptor in an ID 10 record, its cap after
+    /// `untyped.end`; the base list still describes the first 230.
+    #[test]
+    fn x86_extra_untypeds_spill_one() {
+        let (sim, r) = boot_with(231, &[], 0);
+        assert!(r.is_ok());
+        let (start, end, empty) = ut_range(&sim);
+        assert_eq!((end - start, empty - start), (230, 231));
+        assert_eq!(hdr::X86_EXTRA_UNTYPEDS, 10);
+        assert_eq!(records(&sim), [(0, 10, 32), (32, hdr::PADDING, 8192 - 32)]);
+        check_descriptors(&sim, extra_bi(&sim) + 16, end, 1);
+        // seL4_BootInfo.untypedList is at word 23.
+        let bi = match sim.root_cnode_slot(rs::BootInfoFrame) {
+            Cap::Frame { ptr, .. } => ptr,
+            _ => panic!("no BootInfo frame cap"),
+        };
+        check_descriptors(&sim, bi + 8 * 23, start, 230);
+    }
+
+    /// 486 untypeds fill the record; the free RAM, created last, is in it.
+    #[test]
+    fn x86_extra_untypeds_spill_full() {
+        let (sim, r) = boot_with(486, &[], 0);
+        assert!(r.is_ok());
+        let (start, end, empty) = ut_range(&sim);
+        assert_eq!((end - start, empty - start), (230, 486));
+        let len = 16 + 16 * 256;
+        assert_eq!(records(&sim), [(0, hdr::X86_EXTRA_UNTYPEDS, len), (len, hdr::PADDING, 8192 - len)]);
+        check_descriptors(&sim, extra_bi(&sim) + 16, end, 256);
+        assert!(matches!(sim.root_cnode_slot(end + 255), Cap::Untyped { is_device: false, .. }));
+    }
+
+    /// One more fails boot.
+    #[test]
+    fn x86_extra_untypeds_overflow_fails_boot() {
+        assert!(matches!(boot_with(487, &[], 0).1, Err(boot::BootError::TooManyUntypeds)));
+    }
+
+    /// The record goes after the backend's records, which stay intact.
+    #[test]
+    fn x86_extra_untypeds_after_backend_records() {
+        // A 24-byte record of an ID the root ignores.
+        let fake = [0x7f, 24, 0x1234_5678_9abc_def0];
+        let (sim, r) = boot_with(240, &fake, 24);
+        assert!(r.is_ok());
+        let e = extra_bi(&sim);
+        assert_eq!([sim.s.read(e), sim.s.read(e + 8), sim.s.read(e + 16)], fake);
+        let used = 24 + 16 + 16 * 10;
+        assert_eq!(records(&sim), [(0, 0x7f, 24), (24, hdr::X86_EXTRA_UNTYPEDS, 16 + 16 * 10), (used, hdr::PADDING, 8192 - used)]);
+        check_descriptors(&sim, e + 24 + 16, ut_range(&sim).1, 10);
+    }
+
+    /// A backend length that is not a word multiple leaves no room for the
+    /// record: overflow fails boot, otherwise `extraLen` is unchanged.
+    #[test]
+    fn x86_extra_untypeds_misaligned_backend() {
+        let fake = [0x7f, 20, 0x1234_5678];
+        assert!(matches!(boot_with(231, &fake, 20).1, Err(boot::BootError::TooManyUntypeds)));
+        let (sim, r) = boot_with(230, &fake, 20);
+        assert!(r.is_ok());
+        assert_eq!(bi_word(&sim, 0), 20);
+    }
 
     /// GitHub issue #6: an attempt polls an interrupt at a preemption point
     /// and aborts; the rerun reaches no preemption point. The interrupt is

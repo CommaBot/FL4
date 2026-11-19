@@ -19,6 +19,8 @@ pub struct Hw {
     pub gicd: u64,
     /// GICv2 CPU interface.
     pub gicc: u64,
+    /// Its size where the tables give one (0: they do not).
+    pub gicc_len: u64,
     /// GICv3 redistributor ranges (base, length; length 0: until the
     /// frame marked last).
     pub gicr: [(u64, u64); MAX_GICR],
@@ -47,6 +49,7 @@ impl Hw {
             gic_version: 0,
             gicd: 0,
             gicc: 0,
+            gicc_len: 0,
             gicr: [(0, 0); MAX_GICR],
             n_gicr: 0,
             gicr_lost: false,
@@ -63,17 +66,12 @@ impl Hw {
         }
     }
 
-    /// Note a redistributor range (not again if one starts there).
+    /// Note a redistributor range, merged with the overlapping ones
+    /// already noted (`gic_layout::add_redistributors`).
     fn add_gicr(&mut self, base: u64, len: u64) {
-        if self.gicr[..self.n_gicr].iter().any(|x| x.0 == base) {
-            return;
-        }
-        if self.n_gicr == MAX_GICR {
+        if !fl4_arch_aarch64::gic_layout::add_redistributors(&mut self.gicr, &mut self.n_gicr, base, len) {
             self.gicr_lost = true;
-            return;
         }
-        self.gicr[self.n_gicr] = (base, len);
-        self.n_gicr += 1;
     }
 
     /// Add a core; the boot core always ends up first.
@@ -176,39 +174,48 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
     let ok = acpi_tables(rsdp_p, |sig, t, len| match sig {
         b"APIC" => {
             madt = true;
-            let mut off = 44;
-            while off + 2 <= len {
-                let ty = rd8(t + off);
-                let l = rd8(t + off + 1) as u64;
-                if l < 2 || off + l > len {
-                    break;
-                }
-                let e = t + off;
-                match ty {
-                    // GICC: enabled cores (flags bit 0), their MPIDR, the
-                    // GICv2 CPU interface or a GICv3 redistributor.
-                    0x0b if l >= 76 => {
-                        if rd32(e + 12) & 1 != 0 {
-                            hw.add_cpu(rd64(e + 68) & 0xff_00ff_ffff);
-                        }
-                        if hw.gicc == 0 {
-                            hw.gicc = rd64(e + 32);
-                        }
-                        // A core's RD and SGI frames; GICv4 VLPI frames
-                        // after them are found at boot (`gic::redistributor_span`).
-                        let r = rd64(e + 60);
-                        if r != 0 {
-                            hw.add_gicr(r, fl4_arch_aarch64::gic_layout::GICR_FRAME);
-                        }
+            // GICR discovery ranges first: the GICC entries' redistributors
+            // inside one then merge into it whatever the tables' order,
+            // rather than fill `gicr` one core at a time before it comes.
+            for gicr_pass in [true, false] {
+                let mut off = 44;
+                while off + 2 <= len {
+                    let ty = rd8(t + off);
+                    let l = rd8(t + off + 1) as u64;
+                    if l < 2 || off + l > len {
+                        break;
                     }
-                    0x0c if l >= 21 => {
-                        hw.gicd = rd64(e + 8);
-                        hw.gic_version = rd8(e + 20) as u64;
+                    let e = t + off;
+                    if (ty == 0x0e) != gicr_pass {
+                        off += l;
+                        continue;
                     }
-                    0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
-                    _ => {}
+                    match ty {
+                        // GICC: enabled cores (flags bit 0), their MPIDR, the
+                        // GICv2 CPU interface or a GICv3 redistributor.
+                        0x0b if l >= 76 => {
+                            if rd32(e + 12) & 1 != 0 {
+                                hw.add_cpu(rd64(e + 68) & 0xff_00ff_ffff);
+                            }
+                            if hw.gicc == 0 {
+                                hw.gicc = rd64(e + 32);
+                            }
+                            // A core's RD and SGI frames; GICv4 VLPI frames
+                            // after them are found at boot (`gic::redistributor_span`).
+                            let r = rd64(e + 60);
+                            if r != 0 {
+                                hw.add_gicr(r, fl4_arch_aarch64::gic_layout::GICR_FRAME);
+                            }
+                        }
+                        0x0c if l >= 21 => {
+                            hw.gicd = rd64(e + 8);
+                            hw.gic_version = rd8(e + 20) as u64;
+                        }
+                        0x0e if l >= 16 => hw.add_gicr(rd64(e + 4), rd32(e + 12) as u64),
+                        _ => {}
+                    }
+                    off += l;
                 }
-                off += l;
             }
         }
         b"GTDT" if len >= 72 => {
@@ -277,7 +284,8 @@ const FDT_END: u32 = 9;
 const MAX_DEPTH: usize = 16;
 
 /// A property: its node's path depth and name, the property's name and
-/// value (physical address and length).
+/// value (physical address and length), and the `#address-cells` and
+/// `#size-cells` of the node's parent, in which its `reg` is written.
 struct Prop {
     depth: usize,
     node: &'static [u8],
@@ -285,7 +293,13 @@ struct Prop {
     name: &'static [u8],
     val: u64,
     len: u64,
+    ac: u64,
+    sc: u64,
 }
+
+/// What a node's children have when it says nothing (Devicetree
+/// Specification §2.3.5: not inherited from further up).
+const DEFAULT_CELLS: (u64, u64) = (2, 1);
 
 /// A NUL-terminated string at physical `p` (at most 256 bytes, and none
 /// at or after `end`) as a slice through the window.
@@ -326,6 +340,9 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
     let end = dtb + h.structs.1;
     let (strings, strings_end) = (dtb + h.strings.0, dtb + h.strings.1);
     let mut stack: [&'static [u8]; MAX_DEPTH] = [&[]; MAX_DEPTH];
+    // Per open node: the cells its children's reg uses. A node's
+    // properties all come before its children.
+    let mut cells: [(u64, u64); MAX_DEPTH] = [DEFAULT_CELLS; MAX_DEPTH];
     let mut depth = 0usize;
     while p + 4 <= end {
         let tok = be32(p);
@@ -336,6 +353,7 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
                 p = (p + name.len() as u64 + 1 + 3) & !3;
                 if depth < MAX_DEPTH {
                     stack[depth] = name;
+                    cells[depth] = DEFAULT_CELLS;
                 }
                 depth += 1;
             }
@@ -356,7 +374,15 @@ fn fdt_walk(dtb: u64, mut f: impl FnMut(&Prop)) -> bool {
                 if depth > 0 && depth <= MAX_DEPTH {
                     let node = stack[depth - 1];
                     let parent = if depth >= 2 { stack[depth - 2] } else { &[] };
-                    f(&Prop { depth, node, parent, name: cstr(strings + nameoff, strings_end), val, len });
+                    let name = cstr(strings + nameoff, strings_end);
+                    if len >= 4 && name == b"#address-cells" {
+                        cells[depth - 1].0 = be32(val) as u64;
+                    }
+                    if len >= 4 && name == b"#size-cells" {
+                        cells[depth - 1].1 = be32(val) as u64;
+                    }
+                    let (ac, sc) = if depth >= 2 { cells[depth - 2] } else { DEFAULT_CELLS };
+                    f(&Prop { depth, node, parent, name, val, len, ac, sc });
                 }
             }
             FDT_NOP => {}
@@ -390,12 +416,25 @@ fn cells(p: u64, n: u64) -> u64 {
     }
 }
 
+/// `reg` entries a node keeps: a GICv3's distributor and as many
+/// redistributor regions as `Hw::gicr` holds.
+const NODE_REGS: usize = 1 + MAX_GICR;
+
 /// What a device tree node said about itself.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct Node {
     kind: u8,
-    reg: [(u64, u64); 4],
+    reg: [(u64, u64); NODE_REGS],
     n_reg: usize,
+    /// The reg property could not be read whole: cells the kernel does
+    /// not handle, or a length that is not a whole number of entries.
+    reg_bad: bool,
+    /// GICv3 `#redistributor-regions` (the binding's default is 1).
+    redist_regions: u64,
+}
+
+impl Node {
+    const EMPTY: Node = Node { kind: 0, reg: [(0, 0); NODE_REGS], n_reg: 0, reg_bad: false, redist_regions: 1 };
 }
 
 const N_GICV3: u8 = 1;
@@ -404,18 +443,12 @@ const N_PL011: u8 = 3;
 const N_16550: u8 = 4;
 
 fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
-    // Root cells, then a pass per node: compatible strings come before or
-    // after reg, so each node's facts are gathered and used at its end.
-    let (mut ac, mut sc) = (2u64, 1u64);
+    // The console and PSCI, then a pass per node: compatible strings come
+    // before or after reg, so each node's facts are gathered and used at
+    // its end.
     let mut stdout: &'static [u8] = &[];
     let mut psci_method: &'static [u8] = &[];
     let ok = fdt_walk(dtb, |p| {
-        if p.depth == 1 && p.name == b"#address-cells" && p.len >= 4 {
-            ac = be32(p.val) as u64;
-        }
-        if p.depth == 1 && p.name == b"#size-cells" && p.len >= 4 {
-            sc = be32(p.val) as u64;
-        }
         if p.node == b"chosen" && p.name == b"stdout-path" {
             stdout = prop_str(p);
         }
@@ -436,7 +469,7 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
         let s = stdout.split(|&c| c == b':').next().unwrap_or(&[]);
         s.rsplit(|&c| c == b'/').next().unwrap_or(&[])
     };
-    let mut cur = Node::default();
+    let mut cur = Node::EMPTY;
     let mut cur_name: &'static [u8] = &[];
     let mut uart_any: Option<(u8, u64)> = None;
     let mut uart_stdout: Option<(u8, u64)> = None;
@@ -448,14 +481,20 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             N_GICV3 => {
                 hw.gic_version = 3;
                 hw.gicd = n.reg[0].0;
-                // Then the redistributor regions (#redistributor-regions);
+                // Then `#redistributor-regions` redistributor regions;
                 // GICC, GICH and GICV may follow, which are not regions.
+                // A count that `gicr` cannot hold, that the reg property
+                // does not have, or of none, leaves regions unknown: the
+                // boot fails rather than give them to user space.
                 hw.n_gicr = 0;
                 hw.gicr_lost = false;
-                for &r in &n.reg[1..n.n_reg] {
-                    if hw.n_gicr == 0 || r.1 >= 0x2_0000 {
-                        hw.add_gicr(r.0, r.1);
-                    }
+                let want = n.redist_regions;
+                let have = (n.n_reg - 1) as u64;
+                if n.reg_bad || want == 0 || want > MAX_GICR as u64 || want > have {
+                    hw.gicr_lost = true;
+                }
+                for &r in &n.reg[1..1 + want.min(have) as usize] {
+                    hw.add_gicr(r.0, r.1);
                 }
             }
             N_GICV2 => {
@@ -463,6 +502,7 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
                 hw.gicd = n.reg[0].0;
                 if n.n_reg > 1 {
                     hw.gicc = n.reg[1].0;
+                    hw.gicc_len = n.reg[1].1;
                 }
             }
             N_PL011 | N_16550 => {
@@ -480,7 +520,7 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
     fdt_walk(dtb, |p| {
         if p.node.as_ptr() != cur_name.as_ptr() {
             flush(hw, cur_name, &cur, &mut uart_any, &mut uart_stdout);
-            cur = Node::default();
+            cur = Node::EMPTY;
             cur_name = p.node;
         }
         if has_compat(p, b"arm,gic-v3") {
@@ -496,20 +536,24 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
             if p.parent == b"cpus" {
                 // A core's reg is its MPIDR affinity (#address-cells of
                 // /cpus, 1 or 2).
-                if p.node.starts_with(b"cpu@") && p.len >= 4 {
-                    let v = if p.len >= 8 { cells(p.val, 2) } else { cells(p.val, 1) };
-                    hw.add_cpu(v & 0xff_00ff_ffff);
+                if p.node.starts_with(b"cpu@") && (1..=2).contains(&p.ac) && p.len >= p.ac * 4 {
+                    hw.add_cpu(cells(p.val, p.ac) & 0xff_00ff_ffff);
                 }
+            } else if !(1..=2).contains(&p.ac) || !(1..=2).contains(&p.sc) || p.len % ((p.ac + p.sc) * 4) != 0 {
+                cur.reg_bad = true;
             } else {
-                let step = (ac + sc) * 4;
+                let step = (p.ac + p.sc) * 4;
                 let mut i = 0;
-                while (i + 1) * step <= p.len && cur.n_reg < 4 {
+                while (i + 1) * step <= p.len && cur.n_reg < NODE_REGS {
                     let a = p.val + i * step;
-                    cur.reg[cur.n_reg] = (cells(a, ac), cells(a + ac * 4, sc));
+                    cur.reg[cur.n_reg] = (cells(a, p.ac), cells(a + p.ac * 4, p.sc));
                     cur.n_reg += 1;
                     i += 1;
                 }
             }
+        }
+        if p.name == b"#redistributor-regions" && p.len >= 4 {
+            cur.redist_regions = be32(p.val) as u64;
         }
         if p.name == b"interrupts" && p.len >= 12 * 3 && p.node == b"timer" {
             // (type, number, flags) for the secure, non-secure, virtual

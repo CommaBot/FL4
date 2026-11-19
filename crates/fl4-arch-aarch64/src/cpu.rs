@@ -153,3 +153,14 @@ pub fn has_pan() -> bool {
 pub fn has_gic_sysregs() -> bool {
     (mrs!("id_aa64pfr0_el1") >> 24) & 0xf != 0
 }
+
+/// This core's `ap_caps::Caps`.
+pub fn caps() -> crate::ap_caps::Caps {
+    crate::ap_caps::Caps {
+        asid16: has_asid16(),
+        hw_af: has_hw_af(),
+        pan: has_pan(),
+        pa_bits: pa_bits(),
+        cntfrq: mrs!("cntfrq_el0") & 0xffff_ffff,
+    }
+}

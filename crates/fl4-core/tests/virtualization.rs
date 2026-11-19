@@ -1,3 +1,5 @@
+// x86_64 only: the AArch64 core has other registers and Arch methods.
+#![cfg(not(feature = "aarch64"))]
 use fl4_abi::label;
 use fl4_core::capability::{Cap, FrameSize};
 use fl4_core::error::{Exc, SysError};
@@ -761,4 +763,55 @@ fn guests_cannot_enable_five_level_paging() {
     assert_eq!(vcpu::sanitize_vmcb(&amd, 0, 0, 0).ok().unwrap() & (1 << 20), 1 << 20);
     assert_eq!(vcpu::sanitize_vmcb(&amd, 0x548, 0, u64::MAX).ok().unwrap() & LA57, 0);
     assert_eq!(vcpu::sanitize_vmcb(&amd, 0x548, 0, LA57).ok().unwrap() & LA57, 0);
+}
+
+/// CR0.CD (bit 30) and CR0.NW (bit 29) are in `CR0_OWNED`: the guest's
+/// own MOV to them exits to the VMM, and neither the VMM nor the guest may
+/// put them in the CR0 the hardware runs the guest with. In VMX non-root
+/// operation, and in an SVM guest, they drive this core's caches (no-fill
+/// mode); KVM keeps them out of the hardware CR0 on both backends.
+#[test]
+fn guests_cannot_disable_the_cores_caches() {
+    use vcpu::vmx::*;
+    const CD_NW: u64 = (1 << 30) | (1 << 29);
+    // PG, AM, WP, NE, ET, TS, MP, PE: the bits a guest really runs with.
+    const USUAL: u64 = 0x8005_003b;
+    let intel = Machine {
+        backend: 1,
+        ..Default::default()
+    };
+    let write = |v| vcpu::sanitize_vmcs(&intel, GUEST_CR0, v).ok().unwrap();
+    assert_eq!(write(u64::MAX) & CD_NW, 0);
+    assert_eq!(write(1 << 30) & CD_NW, 0);
+    assert_eq!(write(1 << 29) & CD_NW, 0);
+    assert_eq!(write(USUAL | CD_NW), USUAL);
+    assert_eq!(write(u64::MAX) & vcpu::CR0_OWNED, 0);
+    // The guest's own MOV to CD or NW exits to the VMM.
+    assert_eq!(vcpu::sanitize_vmcs(&intel, CONTROL_CR0_MASK, 0).ok().unwrap() & CD_NW, CD_NW);
+
+    let amd = Machine {
+        backend: 2,
+        ..Default::default()
+    };
+    let write = |old, v| vcpu::sanitize_vmcb(&amd, vcpu::svm::CR0, old, v).ok().unwrap();
+    assert_eq!(write(0, u64::MAX) & CD_NW, 0);
+    assert_eq!(write(0, 1 << 30) & CD_NW, 0);
+    assert_eq!(write(0, 1 << 29) & CD_NW, 0);
+    assert_eq!(write(0, USUAL | CD_NW), USUAL);
+    assert_eq!(write(CD_NW, USUAL), USUAL);
+    assert_eq!(write(0, u64::MAX) & vcpu::CR0_OWNED, 0);
+    // SVM has no CR0 guest/host mask: the selective CR0 write intercept
+    // (bit 5 of the vector at 0x00c, bit 37 of word 0x008) makes every
+    // guest CR0 write that changes more than TS and MP exit (AMD APM vol. 2,
+    // selective CR0 write intercept), so CD and NW reach the VMCB only
+    // through the check above.
+    // CLTS and TS/MP-only writes (lazy FPU switching) still do not exit.
+    const SEL_CR0: u64 = 1 << 5;
+    assert_ne!(vcpu::SVM_I1_FORCED & SEL_CR0, 0);
+    assert_eq!(vcpu::SVM_I1_WRITABLE & SEL_CR0, 0);
+    for val in [0, u64::MAX] {
+        assert_ne!(vcpu::sanitize_vmcb(&amd, 8, 0, val).ok().unwrap() & (SEL_CR0 << 32), 0);
+    }
+    let (s, _, _, v) = fixture(2);
+    assert_ne!(vcpu::get(&s, v, 8) & (SEL_CR0 << 32), 0);
 }

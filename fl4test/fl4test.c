@@ -196,6 +196,82 @@ static int test_trap_syscall_sweep(env_t env)
 DEFINE_TEST(FL4TRAP0003, "trapSyscalls: every RDX from -1 to -64 faults, SetTLSBase included (l4h 0001)",
             test_trap_syscall_sweep, true)
 
+#ifdef CONFIG_ARCH_AARCH64
+/* PACGA x0, x1, x2 (FEAT_PAuth), as an encoding so any assembler takes it.
+ * Unlike PACIA and AUTIA, PACGA has no SCTLR_EL1 enable: at EL0 it runs,
+ * or traps to EL2 when HCR_EL2.API is clear (ARM ARM, AddPACGA). */
+static seL4_Word pacga(seL4_Word x, seL4_Word y)
+{
+    register seL4_Word x0 __asm__("x0");
+    register seL4_Word x1 __asm__("x1") = x;
+    register seL4_Word x2 __asm__("x2") = y;
+    __asm__ volatile(".inst 0x9ac23020" : "=r"(x0) : "r"(x1), "r"(x2));
+    return x0;
+}
+
+#define PACGA_LABEL 0x5ac
+
+/* One PACGA, its result sent on `ep` (the thread's fault endpoint too:
+ * where PAuth is absent the instruction is UNDEFINED and faults there). */
+static int pacga_report(seL4_Word ep, seL4_Word b, seL4_Word c, seL4_Word d)
+{
+    seL4_Word r = pacga(0x0123456789abcdefull, 0x42);
+    seL4_Word r2 = pacga(0x0123456789abcdefull, 0x42);
+    seL4_SetMR(0, r);
+    seL4_SetMR(1, r2);
+    seL4_Send(ep, seL4_MessageInfo_new(PACGA_LABEL, 0, 0, 2));
+    return 0;
+}
+
+/* An EL0 PACGA on every core finishes at EL0 with one result: FL4 owns
+ * EL2 when it boots there, sets HCR_EL2.API and clears the generic key on
+ * each core. Before, the boot core's PACGA trapped to EL2 and ran at the
+ * VBAR_EL2 the firmware left in memory FL4 hands to user space (another
+ * core's at whatever its VBAR_EL2 reset to), and never came back. Without
+ * PAuth (tcg-a57) PACGA is UNDEFINED: a user exception fault, and nothing
+ * to check (as is any trap to EL2 FL4 did not foresee, which its EL2
+ * vectors pass on to EL1). */
+static int test_el0_pacga_stays_at_el0(env_t env)
+{
+    seL4_Word first = 0;
+    for (int core = 0; core < env->cores; core++) {
+        helper_thread_t t;
+        vka_object_t reply;
+        test_error_eq(vka_alloc_reply(&env->vka, &reply), 0);
+        seL4_CPtr ep = vka_alloc_endpoint_leaky(&env->vka);
+        create_helper_thread(env, &t);
+        test_error_eq(api_tcb_set_space(get_helper_tcb(&t), ep, env->cspace_root,
+                                        api_make_guard_skip_word(seL4_WordBits - env->cspace_size_bits),
+                                        env->page_directory, seL4_NilData), seL4_NoError);
+        set_helper_affinity(env, &t, core);
+        start_helper(env, &t, pacga_report, ep, 0, 0, 0);
+        seL4_Word badge;
+        seL4_MessageInfo_t tag = api_recv(ep, &badge, reply.cptr);
+        seL4_Word label = seL4_MessageInfo_get_label(tag);
+        if (label == seL4_Fault_UserException) {
+            printf("FL4TRAP0004: no PAuth on core %d\n", core);
+            test_eq(core, 0);
+            cleanup_helper(env, &t);
+            break;
+        }
+        test_eq(label, (seL4_Word) PACGA_LABEL);
+        seL4_Word r = seL4_GetMR(0);
+        printf("FL4TRAP0004: PACGA at EL0 on core %d: %#lx\n", core, (unsigned long) r);
+        test_eq(r, seL4_GetMR(1));
+        test_eq(r & 0xffffffffull, (seL4_Word) 0);
+        if (core == 0) {
+            first = r;
+        }
+        test_eq(r, first);
+        wait_for_helper(&t);
+        cleanup_helper(env, &t);
+    }
+    return sel4test_get_result();
+}
+DEFINE_TEST(FL4TRAP0004, "EL0 PACGA runs at EL0 with the same zero key on every core (EL2 boot)",
+            test_el0_pacga_stays_at_el0, true)
+#endif
+
 /* ---- l4h 0003, 0006: seL4_TCB_SetTimer ------------------------------ */
 
 /* The timer signals its badge to the TCB's bound notification, not before

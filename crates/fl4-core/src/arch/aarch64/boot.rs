@@ -2,6 +2,10 @@
 /// the processor's own size (ID_AA64MMFR0_EL1.PARange).
 pub const PADDR_USER_DEVICE_TOP: u64 = 1 << 48;
 
+/// AArch64 has no l4h 0047: untypeds past `MAX_BOOTINFO_UNTYPEDS` are
+/// dropped, as in seL4.
+pub const EXTRA_UNTYPEDS: u64 = 0;
+
 /// AArch64: the same walk; the four levels are the VSpace and three page
 /// tables.
 fn map_it_frame<S: Store>(s: &mut S, pml4: u64, vaddr: u64, paddr: u64) {

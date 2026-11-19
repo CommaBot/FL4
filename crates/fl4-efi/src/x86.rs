@@ -8,6 +8,12 @@ const SNP_BLOB: Guid = Guid(
     0x44c5,
     [0x85, 0x54, 0x93, 0xd7, 0x77, 0x91, 0x2d, 0x42],
 );
+const GOP: Guid = Guid(
+    0x9042_a9de,
+    0x23dc,
+    0x4a38,
+    [0x96, 0xfb, 0x7a, 0xde, 0xd0, 0x80, 0x51, 0x6a],
+);
 const TOP: u64 = 1 << 32;
 const HUGE: u64 = 2 << 20;
 const KERNEL_OFFSET: u64 = 0xffff_ffff_8000_0000;
@@ -105,6 +111,64 @@ fn sev() -> (u64, u64, u64) {
     (1 << bit, cpuid_page, secrets_page)
 }
 
+#[repr(C)]
+struct Gop {
+    query_mode: usize,
+    set_mode: usize,
+    blt: usize,
+    mode: *const GopMode,
+}
+
+#[repr(C)]
+struct GopMode {
+    max_mode: u32,
+    mode: u32,
+    info: *const GopInfo,
+    info_size: usize,
+    base: u64,
+    size: usize,
+}
+
+#[repr(C)]
+struct GopInfo {
+    version: u32,
+    width: u32,
+    height: u32,
+    format: u32,
+    masks: [u32; 4],
+    per_line: u32,
+}
+
+/// The framebuffer tag for the mode firmware left the display in, as
+/// GRUB passes it: no mode is set, and a machine without a usable linear
+/// display boots without the tag.
+fn framebuffer() -> Option<[u8; gop::LEN]> {
+    let mut gop = core::ptr::null_mut();
+    if (bs().locate_protocol)(&GOP, core::ptr::null(), &mut gop) != SUCCESS || gop.is_null() {
+        return None;
+    }
+    let mode = unsafe { (*(gop as *const Gop)).mode };
+    if mode.is_null() || unsafe { (*mode).info.is_null() } {
+        return None;
+    }
+    let (mode, info) = unsafe { (&*mode, &*(*mode).info) };
+    let tag = gop::tag(
+        mode.base,
+        mode.size as u64,
+        info.width,
+        info.height,
+        info.format,
+        info.per_line,
+    )?;
+    say!(
+        "fl4-efi: GOP framebuffer {}x{} at {:#x}",
+        info.width,
+        info.height,
+        mode.base
+    );
+    Some(tag)
+}
+
 struct Info {
     base: u64,
     used: u64,
@@ -132,18 +196,6 @@ impl Info {
     }
 }
 
-/// Conventional and reclaimable boot-services pages are free. Keep
-/// firmware RAM distinguishable from device apertures for encrypted guests.
-fn memory_kind(ty: u64, attributes: u64) -> u32 {
-    match ty {
-        1..=4 | 7 => 1,
-        9 => 3,
-        5 | 6 | 10 | 14 | 15 => 4,
-        0 if attributes & 8 != 0 => 4,
-        _ => 2,
-    }
-}
-
 fn memory_map(
     info: &mut Info,
     map: &[u8],
@@ -154,8 +206,7 @@ fn memory_map(
     let tag = info.tag(6, 8);
     write(tag, &24u32.to_le_bytes());
     let mut count = 0;
-    let mut previous: Option<(u64, u64, u32)> = None;
-    let mut emit = |(base, bytes, kind): (u64, u64, u32)| {
+    x86_mmap::regions(map, stride, cpuid, secrets, |(base, bytes, kind)| {
         count += 1;
         if count > MAX_MMAP || info.used + 24 + 8 > INFO_BYTES {
             return Err("EFI memory map has too many regions for FL4");
@@ -166,30 +217,7 @@ fn memory_map(
         write(p + 16, &(kind as u64).to_le_bytes());
         info.used += 24;
         Ok(())
-    };
-    for d in map.chunks_exact(stride) {
-        let base = rd64(d, 8);
-        let bytes = rd64(d, 24) * PAGE;
-        let sensitive = [cpuid, secrets]
-            .into_iter()
-            .any(|page| page != 0 && base <= page && page - base < bytes);
-        let kind = if sensitive {
-            4
-        } else {
-            memory_kind(rd32(d, 0), rd64(d, 32))
-        };
-        if let Some((start, len, ty)) = previous {
-            if start + len == base && ty == kind {
-                previous = Some((start, len + bytes, ty));
-                continue;
-            }
-            emit((start, len, ty))?;
-        }
-        previous = Some((base, bytes, kind));
-    }
-    if let Some(last) = previous {
-        emit(last)?;
-    }
+    })?;
     write(
         tag - 4,
         &((info.base + info.used - (tag - 8)) as u32).to_le_bytes(),
@@ -266,46 +294,9 @@ fn long_mode_entry(kernel: &[u8]) -> Option<u64> {
     Some(rd64(entry, 16))
 }
 
-#[no_mangle]
-extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
-    unsafe { ST = system };
-    (bs().set_watchdog_timer)(0, 0, 0, core::ptr::null());
-    say!("fl4-efi: FL4 UEFI loader (x86_64)");
-    let cr4: u64;
-    unsafe { asm!("mov {}, cr4", out(reg) cr4) };
-    if cr4 & (1 << 12) != 0 {
-        fail("firmware uses five-level paging");
-    }
-    let (mask, cpuid, secrets) = sev();
-    let kernel = embedded::KERNEL;
-    if kernel.len() < 64 || &kernel[..5] != b"\x7fELF\x02" || rd16(kernel, 18) != 62 {
-        fail("no x86_64 kernel image built in");
-    }
-    let ph = rd64(kernel, 32) as usize;
-    let stride = rd16(kernel, 54) as usize;
-    let segments = kernel[ph..ph + stride * rd16(kernel, 56) as usize]
-        .chunks_exact(stride)
-        .filter(|p| rd32(p, 0) == 1);
-    let end = segments
-        .clone()
-        .map(|p| rd64(p, 24) + rd64(p, 40))
-        .max()
-        .unwrap_or(0);
-    let entry = long_mode_entry(kernel)
-        .filter(|&entry| {
-            entry >= KERNEL_OFFSET
-                && segments.clone().any(|p| {
-                    let base = rd64(p, 16);
-                    rd32(p, 4) & 1 != 0 && entry >= base && entry - base < rd64(p, 32)
-                })
-        })
-        .unwrap_or_else(|| fail("no long-mode kernel entry"));
-    let mut li = core::ptr::null_mut();
-    if (bs().handle_protocol)(image, &LOADED_IMAGE, &mut li) != SUCCESS {
-        fail("no loaded image protocol");
-    }
-    let li = unsafe { &*(li as *const LoadedImage) };
-    let opts = options(li);
+pub(super) type BootFile<'a> = (u64, u64, &'a [u8]);
+
+fn boot_files<'a>(li: &LoadedImage, opts: &'a Words) -> ([BootFile<'a>; 9], usize) {
     let mut files = [(0, 0, &[][..]); 9];
     let mut n = 1;
     for opt in opts.iter() {
@@ -344,8 +335,54 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
         );
         n += 1;
     }
+    (files, n)
+}
+
+pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
+    unsafe { ST = system };
+    (bs().set_watchdog_timer)(0, 0, 0, core::ptr::null());
+    say!("fl4-efi: FL4 UEFI loader (x86_64)");
+    let mut li = core::ptr::null_mut();
+    if (bs().handle_protocol)(image, &LOADED_IMAGE, &mut li) != SUCCESS {
+        fail("no loaded image protocol");
+    }
+    let li = unsafe { &*(li as *const LoadedImage) };
+    let opts = options(li);
+    let (files, n) = boot_files(li, &opts);
+    boot(image, embedded::KERNEL, &files[..n])
+}
+
+pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
+    let cr4: u64;
+    unsafe { asm!("mov {}, cr4", out(reg) cr4) };
+    if cr4 & (1 << 12) != 0 {
+        fail("firmware uses five-level paging");
+    }
+    let (mask, cpuid, secrets) = sev();
+    if kernel.len() < 64 || &kernel[..5] != b"\x7fELF\x02" || rd16(kernel, 18) != 62 {
+        fail("no x86_64 kernel image built in");
+    }
+    let ph = rd64(kernel, 32) as usize;
+    let stride = rd16(kernel, 54) as usize;
+    let segments = kernel[ph..ph + stride * rd16(kernel, 56) as usize]
+        .chunks_exact(stride)
+        .filter(|p| rd32(p, 0) == 1);
+    let end = segments
+        .clone()
+        .map(|p| rd64(p, 24) + rd64(p, 40))
+        .max()
+        .unwrap_or(0);
+    let entry = long_mode_entry(kernel)
+        .filter(|&entry| {
+            entry >= KERNEL_OFFSET
+                && segments.clone().any(|p| {
+                    let base = rd64(p, 16);
+                    rd32(p, 4) & 1 != 0 && entry >= base && entry - base < rd64(p, 32)
+                })
+        })
+        .unwrap_or_else(|| fail("no long-mode kernel entry"));
     let end = end.div_ceil(PAGE) * PAGE;
-    let files_len: u64 = files[..n]
+    let files_len: u64 = files
         .iter()
         .map(|&(_, len, _)| len.div_ceil(PAGE) * PAGE)
         .sum();
@@ -379,7 +416,7 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
         });
     }
     let mut dst = cpuid_copy + 2 * PAGE;
-    for &(src, size, path) in &files[..n] {
+    for &(src, size, path) in files {
         write(dst, unsafe {
             core::slice::from_raw_parts(src as *const u8, size as usize)
         });
@@ -401,6 +438,14 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
             core::slice::from_raw_parts(rsdp as *const u8, size as usize)
         });
     }
+    // Not for SEV guests: the framebuffer is device memory whose shared or
+    // private status firmware does not state, and the kernel's console
+    // refuses it under SNP (fbcon::usable) as well.
+    if mask == 0 {
+        if let Some(fb) = framebuffer() {
+            write(info.tag(8, gop::LEN as u64), &fb);
+        }
+    }
     let trampoline = handoff_code();
     say!("fl4-efi: entering x86_64 kernel, SEV-SNP {}", cpuid != 0);
     let (mut size, mut key, mut stride, mut version) = (0, 0, 0, 0);
@@ -414,7 +459,7 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
     {
         fail("GetMemoryMap");
     }
-    let capacity = size + 16 * stride;
+    let capacity = x86_mmap::capacity(size, stride).unwrap_or_else(|| fail("GetMemoryMap"));
     let buffer = alloc_pages((capacity as u64).div_ceil(PAGE));
     let tags_end = info.used;
     for attempt in 0..8 {
@@ -429,7 +474,7 @@ extern "efiapi" fn efi_main(image: Handle, system: *mut SystemTable) -> Status {
         {
             handoff_failed(attempt, "GetMemoryMap");
         }
-        if stride < 40 || size % stride != 0 {
+        if !x86_mmap::layout_ok(size, stride, capacity) {
             handoff_failed(attempt, "invalid EFI memory map");
         }
         let map = unsafe { core::slice::from_raw_parts(buffer as *const u8, size) };

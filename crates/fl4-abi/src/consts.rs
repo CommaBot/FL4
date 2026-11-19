@@ -210,4 +210,7 @@ pub mod bootinfo_header {
     pub const AARCH64_ID_REGS: u64 = 7;
     pub const X86_BOOT_MODULES: u64 = 8;
     pub const SHARED_DMA: u64 = 9;
+    /// l4h 0047: untyped descriptors past the BootInfo's 230, whose caps
+    /// follow `untyped.end`.
+    pub const X86_EXTRA_UNTYPEDS: u64 = 10;
 }

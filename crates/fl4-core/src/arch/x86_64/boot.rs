@@ -1,6 +1,10 @@
 /// CONFIG_PADDR_USER_DEVICE_TOP: 2^47.
 pub const PADDR_USER_DEVICE_TOP: u64 = 1 << 47;
 
+/// l4h 0047: untypeds past `MAX_BOOTINFO_UNTYPEDS` that keep their caps,
+/// with descriptors in an extra BootInfo chunk; one more fails boot.
+pub const EXTRA_UNTYPEDS: u64 = 256;
+
 /// Map a page of the initial address space (seL4 `map_it_frame_cap`).
 fn map_it_frame<S: Store>(s: &mut S, pml4: u64, vaddr: u64, paddr: u64) {
     let pdpt = next_table(s, pml4, vaddr, 39);

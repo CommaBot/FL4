@@ -47,6 +47,8 @@ macro_rules! kprintln {
 }
 
 const PAGE: u64 = 4096;
+/// Bytes of the console UART the kernel maps from the base the tables give.
+const UART_MAP: u64 = 0x1000;
 // The loader's bounds (fl4-bootinfo) are the kernel's window and user space.
 const _: () = assert!(fl4_bootinfo::LOAD_TOP == PADDR_TOP && fl4_bootinfo::USER_END == fl4_abi::consts::USER_TOP + 1);
 const IDLE_STRIDE: usize = 8192;
@@ -174,7 +176,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     // (past the physical address size, or in RAM) is no console.
     let uart = match h.uart_kind {
         serial::KIND_NONE => None,
-        _ => paging::map_device(h.uart_base, 0x1000),
+        _ => paging::map_device(h.uart_base, UART_MAP),
     };
     if let Some(base) = uart {
         serial::init(h.uart_kind, base, h.uart_shift, h.uart_wide);
@@ -205,22 +207,36 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     let gicd = device(h.gicd, 0x1_0000, "GIC distributor not mappable");
     let mut gicr_va = [(0u64, 0u64); hw::MAX_GICR];
     let mut dev_used = Ranges::new();
-    dev_used.add(h.gicd, h.gicd + 0x1_0000);
+    // Device memory goes to user space in pages: every page a kernel
+    // device range touches is kept.
+    let keep = |r: &mut Ranges, start: u64, end: u64| {
+        let (s, e) = bootmem::pages_covering(start, end);
+        r.add(s, e);
+    };
+    keep(&mut dev_used, h.gicd, h.gicd.saturating_add(0x1_0000));
+    // Every page of the console's mapping: two when the tables give a
+    // base inside a page (SPCR and device trees may).
     if fl4_abi::config::PRINTING && uart.is_some() {
-        dev_used.add(h.uart_base & !(PAGE - 1), (h.uart_base & !(PAGE - 1)) + PAGE);
+        keep(&mut dev_used, h.uart_base, h.uart_base.saturating_add(UART_MAP));
     }
     let gicc = if h.gic_version == 3 {
         for i in 0..h.n_gicr {
-            let (base, len) = h.gicr[i];
+            let (base, raw_len) = h.gicr[i];
             // An unsized range: up to one GICv4 redistributor per core.
-            let len = if len == 0 { fl4_arch_aarch64::gic_layout::GICR_FRAME_VLPI * h.n_cpus as u64 } else { len };
+            let len = if raw_len == 0 { fl4_arch_aarch64::gic_layout::GICR_FRAME_VLPI * h.n_cpus.max(1) as u64 } else { raw_len };
             let va = device(base, len, "GIC redistributors not mappable");
             gicr_va[i] = (va, len);
             // A MADT GICC entry sizes a core's RD and SGI frames only;
             // GICv4 adds two VLPI frames, which are not user space's
-            // either (they hold tables the GIC writes to memory).
-            let span = gic::redistributor_span(va, len).max(len);
-            dev_used.add(base, base.saturating_add(span));
+            // either (they hold tables the GIC writes to memory). An
+            // unsized range must end with its last frame inside the
+            // mapping (disabled cores' redistributors, more than
+            // `MAX_CPUS` of them): what follows would be user space's.
+            let span = match gic::redistributor_reserve(va, raw_len, len) {
+                Some(s) => s,
+                None => fail("GIC redistributor range ends past what the kernel maps"),
+            };
+            keep(&mut dev_used, base, base.saturating_add(span));
         }
         smp::set_gicr(&gicr_va[..h.n_gicr]);
         0
@@ -228,7 +244,9 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         if h.gicc == 0 {
             fail("no GICv2 CPU interface");
         }
-        dev_used.add(h.gicc, h.gicc + 0x2000);
+        // The tables may give more than the two pages the kernel maps
+        // (64 KiB-spaced aliases of the CPU interface).
+        keep(&mut dev_used, h.gicc, h.gicc.saturating_add(h.gicc_len.max(0x2000)));
         device(h.gicc, 0x2000, "GIC CPU interface not mappable")
     };
     gic::init_dist(h.gic_version, gicd, gicc);
@@ -266,6 +284,10 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     dev.add(0, pa_top);
     for i in 0..usable.n {
         dev.remove(usable.r[i].start, usable.r[i].end);
+    }
+    // A kernel device range the list lost would be user space's.
+    if dev_used.lost {
+        fail("too many kernel device ranges");
     }
     for i in 0..dev_used.n {
         dev.remove(dev_used.r[i].start, dev_used.r[i].end);
@@ -366,6 +388,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         let why = match e {
             fl4_core::boot::BootError::NoMemory => "not enough memory",
             fl4_core::boot::BootError::TooManyCaps => "root CNode too small",
+            fl4_core::boot::BootError::TooManyUntypeds => "too many untyped regions",
         };
         kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");

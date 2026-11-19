@@ -7,6 +7,7 @@
 //! data not executable.
 use fl4_arch_x86_64::sev;
 use core::cell::UnsafeCell;
+use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_arch_x86_64::cpu::{self, cpuid, write_cr3};
 use fl4_core::layout::{PADDR_TOP, PPTR_BASE};
 
@@ -101,6 +102,14 @@ pub fn image_paddr(v: u64) -> u64 {
     cpu::image_paddr(v)
 }
 
+/// The top of the physical memory the window maps (`init`'s second
+/// result); 0 before `init`.
+static WINDOW_TOP: AtomicU64 = AtomicU64::new(0);
+
+pub fn window_top() -> u64 {
+    WINDOW_TOP.load(Ordering::Acquire)
+}
+
 pub fn text_bounds() -> (u64, u64) {
     unsafe { (sym(&__text_start), sym(&__text_end)) }
 }
@@ -173,6 +182,7 @@ pub fn init(nx: bool, skim: bool, gpa_top: u64) -> (u64, u64) {
     t.pml4.0[511] = image_paddr(&t.pdpt as *const Table as u64) | P | RW;
     let root = image_paddr(&t.pml4 as *const Table as u64);
     write_cr3(root);
+    WINDOW_TOP.store(window_top, Ordering::Release);
     (root + PPTR_BASE, window_top)
 }
 
