@@ -233,7 +233,8 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hinv : ∀ (a : A) (asid : U64), ∃ a', arI.invalidate_asid a asid = ok a')
-    (p asid : U64) (mp : Bool) (length slot buf : U64) (blk call don fp : Bool)
+    {P : Set U64} (hVR : Vs.VsRel P (L.mem s) (L.ksb s) σ)
+    (p asid : U64) (mp : Bool) (h0 : mp = true → asid ≠ 0#u64) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKM (L := L) arI s ar σ lbl length slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps
@@ -269,28 +270,47 @@ theorem decode_invocation_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
   · simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
     exact topM_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 0, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩)
   simp only [↓reduceIte]
-  refine WP.spec_bind (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact) ?_
-  intro s1 hS
-  obtain ⟨a', ha'⟩ := hinv ar asid
-  rw [ha']; simp only [bind_ok, WP.spec_ok]
-  obtain ⟨hR, hV, hM, hC, hI⟩ := hCR
-  obtain ⟨tcb, hkt, -⟩ := hR.tcb ct htcb
-  obtain ⟨σ1, hst1, hR1, hV1, hM1, hC1, -, -⟩ := restart_rel hR hV hM hC hS (t := ct.bv) hkt .restart
-  obtain ⟨-, ⟨⟨u, σ'⟩, hy⟩, h3⟩ := Vs.flushAll_ok p.bv asid.bv σ1
-  obtain ⟨ms, e, -⟩ := h3 _ hy
-  cases u
-  simp only at e
-  subst e
-  have h0 : (([] : List Fl4Spec.Data), { σ1 with machineState := ms }) ∈
-      ((do Fl4Spec.flushAll (Z := Unit) p.bv asid.bv; pure [] : Fl4Spec.SMonad Unit (List Fl4Spec.Data)) σ1).1 :=
-    mem_bind_nd (x := ((), { σ1 with machineState := ms })) hy (Set.mem_singleton _)
-  have hmem : ((.ok [], { σ1 with machineState := ms }) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
-      ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
-        (.invokeArchObject (.pml4Flush (.flush p.bv asid.bv)))).run σ1).1 :=
-    mem_liftE (ε := Unit) h0
-  refine topM_of_lift2 (Or.inr ⟨.flush p.bv asid.bv, rfl, σ1, by rw [hcur]; exact hst1, _, hmem, th, G,
-    Or.inl ⟨rfl, [], rfl⟩, hP, ⟨Vs.StateRel.ms hR1 ms, hV1, hM1, hC1.of_cdt rfl rfl, MdbInv.of_same hM hI hS⟩,
-    hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOKV.of_same hM hS hMO⟩)
+  -- #39: the ASID must still name the PML4
+  refine WP.spec_bind (WP.spec_and (Vs.find_vspace_for_asid_rel s σ hVR asid (h0 rfl))
+    (Vs.find_vspace_for_asid_err s asid)) ?_
+  rintro r ⟨hf, he⟩
+  cases r with
+  | Err lf =>
+    obtain rfl := he lf rfl
+    simp only [vspace.failed_lookup, bind_ok, WP.spec_ok]
+    exact topM_of_lift2 (Or.inl ⟨_, rfl, rfl, .failedLookup false .invalidRoot, Vs.decodePml4Flush_noVs hf,
+      Or.inl ⟨rfl, trivial⟩⟩)
+  | Ok r1 =>
+    by_cases hr : r1 = p
+    swap
+    · have : (r1 != p) = true := by simp [hr]
+      simp only [this, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
+      exact topM_of_lift2 (Or.inl ⟨_, rfl, rfl, .invalidCapability 0,
+        Vs.decodePml4Flush_wrongVs hf (fun h => hr (P1.eq_of_bv h)), Or.inr ⟨0#u64, rfl, rfl⟩⟩)
+    subst r1
+    simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    refine WP.spec_bind (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact) ?_
+    intro s1 hS
+    obtain ⟨a', ha'⟩ := hinv ar asid
+    rw [ha']; simp only [bind_ok, WP.spec_ok]
+    obtain ⟨hR, hV, hM, hC, hI⟩ := hCR
+    obtain ⟨tcb, hkt, -⟩ := hR.tcb ct htcb
+    obtain ⟨σ1, hst1, hR1, hV1, hM1, hC1, -, -⟩ := restart_rel hR hV hM hC hS (t := ct.bv) hkt .restart
+    obtain ⟨-, ⟨⟨u, σ'⟩, hy⟩, h3⟩ := Vs.flushAll_ok p.bv asid.bv σ1
+    obtain ⟨ms, e, -⟩ := h3 _ hy
+    cases u
+    simp only at e
+    subst e
+    have h0 : (([] : List Fl4Spec.Data), { σ1 with machineState := ms }) ∈
+        ((do Fl4Spec.flushAll (Z := Unit) p.bv asid.bv; pure [] : Fl4Spec.SMonad Unit (List Fl4Spec.Data)) σ1).1 :=
+      mem_bind_nd (x := ((), { σ1 with machineState := ms })) hy (Set.mem_singleton _)
+    have hmem : ((.ok [], { σ1 with machineState := ms }) : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
+        ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don
+          (.invokeArchObject (.pml4Flush (.flush p.bv asid.bv)))).run σ1).1 :=
+      mem_liftE (ε := Unit) h0
+    refine topM_of_lift2 (Or.inr ⟨.flush p.bv asid.bv, Vs.decodePml4Flush_ok hf, σ1, by rw [hcur]; exact hst1, _, hmem, th, G,
+      Or.inl ⟨rfl, [], rfl⟩, hP, ⟨Vs.StateRel.ms hR1 ms, hV1, hM1, hC1.of_cdt rfl rfl, MdbInv.of_same hM hI hS⟩,
+      hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst1).trans (KSub.of_kheap rfl)), MdbOKV.of_same hM hS hMO⟩)
 
 end
 

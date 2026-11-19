@@ -791,6 +791,14 @@ theorem vspace.decode.dec {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal 
     split
     swap
     · errV
+    -- #39: the ASID must still name the PML4
+    refine WP.spec_bind (P0.vspace.find_vspace_for_asid.p0 st s asid hS) fun r _ => ?_
+    rcases r with r1 | lf
+    swap
+    · errV
+    try dsimp only
+    split
+    · errV
     refine WP.spec_bind (Cur0.restart D) fun s1 h1 => ?_
     refine WP.spec_bind (hA.invalidate_asid a asid) fun a1 _ => ?_
     exact (WP.spec_ok _).2 h1.post

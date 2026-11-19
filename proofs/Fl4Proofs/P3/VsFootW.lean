@@ -746,10 +746,10 @@ theorem pml4_flush_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 
     (hrun : Fl4Spec.runnable xct.tcbState = true) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (p asid : U64) (mp : Bool) (length : U64) (slot : obj.Slot) (call : Bool) (buf : U64)
-    (ex : Array obj.Slot 3#usize) (hPl : Placed th) :
+    (ex : Array obj.Slot 3#usize) (hPl : Placed th) (h0 : mp = true → asid ≠ 0#u64) :
     vspace.decode st ar s a fl4_abi.label.X86PML4Flush length slot (.Pml4 p mp asid) call buf ex ⦃ res =>
       WritesIn st s res.2.1 (VsFootW st th P L4 L3 L2 L1 s) ⦄ := by
-  refine WP.spec_mono (pml4_flush_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFlushHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hU := ⟨⟨hU.1, WritesIn.refl _ _⟩, hU.2⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (p := p) (asid := asid) (mp := mp) (length := length) (slot := slot) (call := call) (buf := buf) (ex := ex)) ?_
+  refine WP.spec_mono (pml4_flush_rel (SR := FootSR st SR s (VsFootW st th P L4 L3 L2 L1 s)) (hH := VsFlushHyps.foot (s0 := s) (fun _ h => h.toW) hPl hH) (hU := ⟨⟨hU.1, WritesIn.refl _ _⟩, hU.2⟩) (A := A) (ar := ar) (th := th) (P := P) (L4 := L4) (L3 := L3) (L2 := L2) (L1 := L1) (s := s) (a := a) (σ := σ) (ct := ct) (hct := hct) (hcur := hcur) (xct := xct) (hkt := hkt) (hrun := hrun) (htcb := htcb) (hact := hact) (p := p) (asid := asid) (mp := mp) (length := length) (slot := slot) (call := call) (buf := buf) (ex := ex) (h0 := h0)) ?_
   intro res h
   rcases h with h | ⟨-, iv, σ', -, -, -, hU⟩
   · obtain ⟨-, -, -, -, -, hs, -⟩ := h; rw [hs]; exact WritesIn.refl _ _
