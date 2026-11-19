@@ -151,6 +151,12 @@ fn memory_map(
     cpuid: u64,
     secrets: u64,
 ) -> Result<(), &'static str> {
+    // The kernel keeps these pages out of user space by the type their
+    // descriptors get below: neither may lie in a hole of the map.
+    let descriptors = map.chunks_exact(stride).map(|d| (rd64(d, 8), rd64(d, 24) * PAGE));
+    if !snp_map::all_held(descriptors, &[cpuid, secrets]) {
+        return Err("SEV-SNP CPUID or secrets page is not in the EFI memory map");
+    }
     let tag = info.tag(6, 8);
     write(tag, &24u32.to_le_bytes());
     let mut count = 0;
@@ -172,7 +178,7 @@ fn memory_map(
         let bytes = rd64(d, 24) * PAGE;
         let sensitive = [cpuid, secrets]
             .into_iter()
-            .any(|page| page != 0 && base <= page && page - base < bytes);
+            .any(|page| snp_map::holds(base, bytes, page));
         let kind = if sensitive {
             4
         } else {
