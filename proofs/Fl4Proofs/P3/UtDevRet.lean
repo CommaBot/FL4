@@ -45,15 +45,18 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
 /-- **`DevApart` across a retype keeping the typed heap** (module docstring):
 the old device caps keep their ranges (the source's free index only grows,
-`hbelow`), the kernel-state base and the idle objects are kept, the new caps
-are no device untypeds, and a new `H` object lies at a new spec object no
-smaller than it, which `DevFreeT` after places. -/
+`hbelow`), the kernel-state base and the idle objects are kept, a new device
+untyped cap is aligned and lies in the device source's free part (`hcjD`:
+its clauses inherited from the source's), and a new `H` object lies at a new
+spec object no smaller than it, which `DevFreeT` after places. -/
 theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs : Set U64} {s s' : S}
     {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64} {σ' : Fl4Spec.State Unit}
     (hD : DevApart (L := L) th H G Cs s) (hE : RetExp th th' (L.mem s) (L.mem s') G G' A k w dslot cj xs)
     (hbelow : ∀ p sb fi d, capV (L.mem s) xs = .Untyped p sb fi d → p.val + fi.val ≤ A)
     (hks : L.ksb s' = L.ksb s) (hid : IdleKeep (L := L) s s')
-    (hcjD : ∀ j, j < w → ∀ p sb fi, cj j ≠ .Untyped p sb fi true)
+    (hcjD : ∀ j, j < w → ∀ p sb fi, cj j = .Untyped p sb fi true →
+      ∃ ps sbs fis : U64, capV (L.mem s) xs = .Untyped ps sbs fis true ∧ xs ∈ G.chains.flatten ∧
+        p.val % 2 ^ sb.val = 0 ∧ ps.val + fis.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ ps.val + 2 ^ sbs.val)
     (hH : ∀ q kd, H' q = some kd → H q = some kd ∨
       ∃ ko, σ'.kheap q.bv = some ko ∧ kd.bits ≤ Fl4Spec.objBits ko)
     (hDF : DevFreeT (L.mem s') G' σ') :
@@ -62,33 +65,47 @@ theorem DevApart.retype {th th' : TypedHeap} {H H' : Heap} {G G' : MdbGhost} {Cs
   have hnb : ∀ c, L.nodeBase s' c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
   have hidb : ∀ q, IdleAt (L := L) s' q → IdleAt (L := L) s q := fun q h => by
     unfold IdleAt at h ⊢; rw [hid.1, hid.2] at h; exact h
-  obtain ⟨fi0, hle, hx0, hc0⟩ : ∃ fi0 : U64, fi0.val ≤ fi.val ∧ x ∈ G.chains.flatten ∧
-      capV (L.mem s) x = .Untyped p sb fi0 true := by
+  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ : p.val % 2 ^ sb.val = 0 ∧
+      (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
+      (∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val) ∧
+      (p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000 ∨ (L.ksb s).val + 288000 + 16384 ≤ p.val) ∧
+      (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
+      RegionFree th p.val (p.val + 2 ^ sb.val) ∧
+      (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
+        (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val)) := by
     rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
-    · cases hu : isUt (capV (L.mem s) x)
-      · have e := (hE.keep x hx0 hu).2
-        rw [e] at hc; rw [hc, isUt_untyped] at hu; cases hu
-      · by_cases hxs : x = xs
-        · subst hxs
-          obtain ⟨-, p0, sb0, fi0, fi1, d0, e0, e1, -, hA2, -, -, -⟩ := hE.usrc
-          rw [e1] at hc
-          simp only [capability.Cap.Untyped.injEq] at hc
-          obtain ⟨rfl, rfl, rfl, rfl⟩ := hc
-          have hb := hbelow _ _ _ _ e0
-          exact ⟨fi0, by omega, hx0, e0⟩
-        · obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h5⟩ := hE.usrc
-          rw [h5 x hx0 hu hxs] at hc
-          exact ⟨fi, le_rfl, hx0, hc⟩
+    · obtain ⟨fi0, hle, hc0⟩ : ∃ fi0 : U64, fi0.val ≤ fi.val ∧
+          capV (L.mem s) x = .Untyped p sb fi0 true := by
+        cases hu : isUt (capV (L.mem s) x)
+        · have e := (hE.keep x hx0 hu).2
+          rw [e] at hc; rw [hc, isUt_untyped] at hu; cases hu
+        · by_cases hxs : x = xs
+          · subst hxs
+            obtain ⟨-, p0, sb0, fi0, fi1, d0, e0, e1, -, hA2, -, -, -⟩ := hE.usrc
+            rw [e1] at hc
+            simp only [capability.Cap.Untyped.injEq] at hc
+            obtain ⟨rfl, rfl, rfl, rfl⟩ := hc
+            have hb := hbelow _ _ _ _ e0
+            exact ⟨fi0, by omega, e0⟩
+          · obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, h5⟩ := hE.usrc
+            rw [h5 x hx0 hu hxs] at hc
+            exact ⟨fi, le_rfl, hc⟩
+      obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hD x hx0 p sb fi0 hc0
+      refine ⟨a1, a2, a3, a4, a5, a6, fun q kd hq => ?_⟩
+      rcases a7 q kd hq with e | e | ⟨e1, e2⟩
+      · exact Or.inl e
+      · exact Or.inr (Or.inl e)
+      · exact Or.inr (Or.inr ⟨e1, by omega⟩)
     · rw [hE.newc j hj] at hc
-      exact absurd hc (hcjD j hj p sb fi)
-  obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hD x hx0 p sb fi0 hc0
+      obtain ⟨ps, sbs, fis, hcs, hxsG, hal, hlo, hhi⟩ := hcjD j hj p sb fi hc
+      obtain ⟨b1, b2, b3, b4, b5, b6, b7⟩ := hD xs hxsG ps sbs fis hcs
+      refine ⟨hal, by omega, fun c hc => by have := b3 c hc; omega, by omega,
+        fun q hq => by have := b5 q hq; omega, fun q kd hq => by have := b6 q kd hq; omega,
+        fun q kd hq => by have := b7 q kd hq; omega⟩
   refine ⟨a1, by rw [hks]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks]; exact a4,
     fun q hq => a5 q (hidb q hq), a6, fun q kd hq => ?_⟩
   rcases hH q kd hq with h | ⟨ko, hko, hb⟩
-  · rcases a7 q kd h with e | e | ⟨e1, e2⟩
-    · exact Or.inl e
-    · exact Or.inr (Or.inl e)
-    · exact Or.inr (Or.inr ⟨e1, by omega⟩)
+  · exact a7 q kd h
   · have h2 : 2 ^ kd.bits ≤ 2 ^ Fl4Spec.objBits ko := Nat.pow_le_pow_right (by decide) hb
     have := hDF x hx p sb fi true hc ⟨rfl, trivial⟩ q.bv ko hko
     simp only [UScalar.bv_toNat] at this
@@ -392,7 +409,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     have h2 := hcjU j hj; rw [e, isUt_untyped] at h2; cases h2
   obtain ⟨H', Ac', hblk', hout, hjc'⟩ := J.create_noresetBD hni hpp hidx hcap hDA hE
     (hRU _ _ hA1 hA3) (fun _ => hcjU) hcjR (by omega) ⟨by omega, fun h => absurd h (by omega)⟩
-    (k := 2 ^ zOf nt.val us.val) rfl hAk htT hW (fun hz => by
+    (k := 2 ^ zOf nt.val us.val) rfl hAk htT hW (fun _ hz => by
       exfalso
       rcases hnt with h | h | h
       · exact hz 30 (by simp [newKind, h])
@@ -815,147 +832,6 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
   · rw [har]
     exact ⟨_, H', Cs, Ac', Lst, _, JZ, hDA', hDF'⟩
 
-
-set_option maxHeartbeats 4000000 in
-/-- **The no-reset retype of device frames at `J`** (module docstring; as
-UtEpRet's `JAtZ.utEpJ`): from `JAtZ` at the decode with `DevApart` and
-`DevFreeT` there, the source a CNode slot's device untyped cap (in the kernel
-half, `hhigh`), FL4's restart and `untyped::retype` of frames (types 9, 10,
-11) without a reset end in `UtRetPostJ`. -/
-theorem JAtZ.utDevJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {pp : U64} {rs : Nat} {idx : List Bool}
-    (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs) {p sb fi : U64}
-    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true))
-    {nt us dest off win : U64} {t : Fl4Spec.ApiObjectType} {r : Nat} {fiv : U64}
-    (hnt : nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11) (hc0 : Z.c = 0#u64)
-    (hctx : RetCtx (L := L) Z.th s σ (pp.bv, idx) sb fi true nt us dest off win t r false fiv)
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (hDA : DevApart (L := L) Z.th H Z.G Cs s)
-    (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val) (blk call don : Bool) :
-    (do
-      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
-      untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) false
-        ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us dest off win true) ⦃ res =>
-      UtRetPostJ (L := L) arI AR σ blk call don (.retype (pp.bv, idx) false p.bv
-        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
-        res ⦄ := by
-  have hc2 : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
-  have hctE : ct = L.curW s := by rw [hct] at hc2; exact eq_of_ok_eq hc2
-  subst hctE
-  obtain ⟨hP, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
-  have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
-  have hxG : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten := (hM.members _).2 ⟨hAs.isSlot, _, hcap, by simp⟩
-  -- the restart (`JAtZ.restartJ`), then the body from its state
-  obtain ⟨s1, σ1, x1, -, hst1, hkx, hcur, he1, -, hid1, hct1, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
-  obtain ⟨s1', σ1', -, hs1', -, hSS1, hDS1, -, hks1, -⟩ :=
-    restart_dstate Z.th hP s σ Z.G J.dstate (L.curW s) hct J.kern.cur J.kern.curT J.kern.act
-  rw [hs1] at hs1'; cases eq_of_ok_eq hs1'
-  have hσ1k : ∀ o, o ≠ (L.curW s).bv → σ1.kheap o = σ.kheap o := fun o ho => by
-    rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; exact Function.update_of_ne ho _ _
-  have hσ1c : σ1.kheap (L.curW s).bv = some (.tcb { x1 with tcbState := .restart }) := by
-    rw [he1, Notif.stsAct_kheap, Notif.updK_kheap]; simp
-  have hσ1cdt : σ1.cdt = σ.cdt := by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl
-  have hni1 : Entered σ1 :=
-    ⟨by rw [hct1, hid1]; exact hni.1, by rw [he1]; exact J.restart_keeps_resume hni hkx hcur⟩
-  have hcap1 : capAt (L.mem s1) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi true) :=
-    (hSS1.capAt hAs.isSlot).trans hcap
-  have hctx1 : RetCtx (L := L) Z.th s1 σ1 (pp.bv, idx) sb fi true nt us dest off win t r false fiv :=
-    ⟨hctx.ty, hctx.size, ⟨hctx.cnode.1, hctx.cnode.2.1, hctx.cnode.2.2.1, by
-        obtain ⟨y, rr, gs, g, hy, hcy⟩ := hctx.cnode.2.2.2
-        exact ⟨y, rr, gs, g, hy, (hSS1.capAt hy).trans hcy⟩⟩, hctx.window,
-      fun i h1 h2 => (hSS1.capAt ⟨dest, i, Or.inl ⟨r, hctx.cnode.1, by have := hctx.window.2.2; omega⟩, rfl⟩).trans
-        (hctx.empty i h1 h2),
-      by rw [hσ1cdt]; exact hctx.resetEq, hctx.fidx, hctx.sizeBits, hctx.memory, hctx.device⟩
-  have hBO1 : BufObjHyp Z.B σ1 := fun wp hw => by
-    obtain ⟨o, ko, hk, h1, h2⟩ := hBO wp hw
-    by_cases ho : o = (L.curW s).bv
-    · subst ho; rw [hkx] at hk; cases hk
-      exact ⟨_, _, hσ1c, h1, by simpa [Fl4Spec.objBits] using h2⟩
-    · exact ⟨o, ko, by rw [hσ1k o ho]; exact hk, h1, h2⟩
-  have hAF1 : ArchFitHyp H σ1 := fun o ao n h hH => hAF o ao n (by
-    by_cases ho : o = (L.curW s).bv
-    · subst ho; rw [hσ1c] at h; cases h
-    · rwa [hσ1k o ho] at h) hH
-  -- the device facts after the restart, the region's free part dead (no `H` object meets it)
-  have hcvK : ∀ x ∈ Z.G.chains.flatten, capV (L.mem s1) x = capV (L.mem s) x := fun x hx =>
-    capV_of_capAt ((hSS1.capAt ((hM.members x).1 hx).1).trans (capAt_capV _ _))
-  have hidK : IdleKeep (L := L) s s1 :=
-    J.idleW_keep J1.xtop.fin.1.1.1 hid1 (by rw [he1]; unfold Notif.stsAct; split_ifs <;> rfl)
-  have hDA1 : DevApart (L := L) Z.th H Z.G Cs s1 := by
-    intro x hx p0 sb0 fi0 hc
-    rw [hcvK x hx] at hc
-    obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hDA x hx p0 sb0 fi0 hc
-    have hnb : ∀ c, L.nodeBase s1 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks1]
-    refine ⟨a1, by rw [hks1]; exact a2, fun c hc => by rw [hnb]; exact a3 c hc, by rw [hks1]; exact a4,
-      fun q hq => a5 q ?_, a6, a7⟩
-    unfold IdleAt at hq ⊢; rw [hidK.1, hidK.2] at hq; exact hq
-  have hDF1 : DevFreeT (L.mem s1) Z.G σ1 := SpecFreeP.frame hDF
-    (fun x hx p0 sb0 fi0 d hc => ⟨x, hx, fi0, by rw [← hcvK x hx]; exact hc, le_rfl⟩)
-    (fun o ko h => by
-      by_cases ho : o = (L.curW s).bv
-      · subst ho; rw [hσ1c] at h; cases h; exact ⟨_, hkx, rfl⟩
-      · exact ⟨ko, by rw [← hσ1k o ho]; exact h, rfl⟩)
-  have hRU1 : ∀ lo hi : Nat, p.val + fi.val ≤ lo → hi ≤ p.val + 2 ^ sb.val →
-      KeptRefsP3 (L := L) H (RegionD H lo hi) s1 ∧ DbgTimerKept (L := L) H (RegionD H lo hi) Cs s1 := by
-    intro lo hi h1 h2
-    refine hRU AR Z Ac Lst D s s1 ar σ J hs1 lo hi (fun q kd hq hr => ?_)
-    exfalso
-    unfold RegionD MeetsR at hr
-    rw [hq] at hr
-    simp only [Option.elim] at hr
-    exact meets_off hr h1 h2 ((hDA _ hxG p sb fi (capV_of_capAt hcap)).2.2.2.2.2.2 q kd hq)
-  have hfiv : fiv = fi := by rw [hctx.fidx]; rfl
-  rw [hs1]; simp only [bind_ok]
-  exact WP.spec_mono (J1.utDevBodyJ hni1 hpp hidx hcap1 hnt hc0 hctx1 hfiv hDA1 hDF1 hhigh hBO1 hAF1 hRU1)
-    (fun res h => utRetPostJ_of_body hst1 h.post)
-
-
-variable (arI) in
-/-- **[W] The retype of a device untyped at `J`, outside `JAtZ.utDevJ`'s
-case**: asked only with a reset (the source cap childless: the device reset,
-handoff/devretype.md "dj3 line" (4)) or of an object type other than the
-frames 9/10/11 (left: device untyped children, type 0).
-l4v: `invoke_untyped_corres` with `invoke_untyped_invs` for device caps. -/
-def JUtRetHypDevR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
-  ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
-    argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi true nt us dest off win t r reset fiv →
-    (reset = true ∨ (nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)) →
-    (do
-      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
-      untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
-        dest off win true) ⦃ res =>
-      UtRetPostJ (L := L) arI AR σ blk call don (.retype sl reset p.bv
-        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) true)
-        res ⦄
-
-/-- **`JUtRetHypD` of a device untyped cap from its narrowed form**: the
-no-reset retype of frames by `JAtZ.utDevJ` (with `DevApart`, `DevFreeT`
-[J], the cap in the kernel half), the rest `JUtRetHypDevR` [W]. -/
-theorem JAtZ.jUtRetHypDev {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
-    (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
-    (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi true))
-    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (hc0 : Z.c = 0#u64)
-    (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
-    {blk call don : Bool} {argsU : List U64}
-    (hR : JUtRetHypDevR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
-    JUtRetHypD (L := L) arI AR Z.th s ar σ sl p sb fi true ct blk call don argsU := by
-  intro nt us dest off win t r reset fiv hh hctx
-  by_cases hc : reset = true ∨ (nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)
-  · exact hR nt us dest off win t r reset fiv hh hctx hc
-  have hrs : reset = false := by
-    cases reset
-    · rfl
-    · exact absurd (Or.inl rfl) hc
-  have hnt : nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11 := by
-    by_contra h
-    exact hc (Or.inr (by omega))
-  subst hrs
-  obtain ⟨sl1, idx⟩ := sl
-  obtain ⟨pp, hp1, hpp⟩ := hsl
-  dsimp only at hp1 hpp
-  subst hp1
-  exact J.utDevJ hni hct hpp rfl hcap hnt hc0 hctx hBO hAF hRU hDA hDF hhigh blk call don
 
 end
 

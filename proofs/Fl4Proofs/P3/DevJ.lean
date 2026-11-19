@@ -175,7 +175,8 @@ theorem JAtZ.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H :
     (hW : WFrame (L := L) s s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
       (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
       (pml4 ∧ A0 ≤ v.val ∧ v.val < A0 + w * k)))
-    (hWZ : (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A0 k w T) (hidl : IdleKeep (L := L) s s') :
+    (hWZ : (newKind n us).isSome → (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A0 k w T)
+    (hidl : IdleKeep (L := L) s s') :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
         (Heap.ntfns H') (Heap.scBits H') Ac' s' ∧
@@ -269,7 +270,7 @@ theorem JAtZ.create_noresetBD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H :
     fun hne => (hTm.dh _ J.kern.cs0).resolve_left hne
   obtain ⟨H', Ac', hb', hkeep, hshape, hnew, hdead'⟩ := creation_step (n := n) (us := us) hb1
     (fun kd h => (hkd kd h).le) hdrop hRON hdbg hwp hW hP hSC J.kern.cs0 hh0 (fun h => absurd h hT) hfitW
-    (fun _ hz w0 hw0 h1 h2 => Or.inl ((hWZ hz w0 hw0 h1 h2).resolve_right (fun h => hT h.1))) (fun h => absurd h hn1)
+    (fun hs hz w0 hw0 h1 h2 => Or.inl ((hWZ hs hz w0 hw0 h1 h2).resolve_right (fun h => hT h.1))) (fun h => absurd h hn1)
   have hout : HOut H H' A0 (A0 + w * k) A0 k w (newKind n us) :=
     hOut_of_steps hk1 le_rfl le_rfl (Or.inl ⟨rfl, rfl, rfl⟩) hkeep hshape hnew
   have hdk : ∀ q kd, H q = some kd → DeadP (L := L) H s q → DeadQ st H s q := fun q kd hq hd =>
