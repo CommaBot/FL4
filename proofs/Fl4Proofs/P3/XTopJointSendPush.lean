@@ -581,8 +581,6 @@ theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ 
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     (hrb : ∀ xd, σ.kheap d.bv = some (.tcb xd) → Endp.ipcBufOf true xd = none)
     (blk : Bool) (badge : U64) (g gr don : Bool)
-    (hcaps : g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hg : g = true ∨ gr = true)
     (hrepn : ∀ xd, σ.kheap d.bv = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none)
     (hnd : don = false ∨ ∀ xd, σ.kheap d.bv = some (.tcb xd) → xd.tcbSchedContext ≠ none) :
@@ -689,8 +687,8 @@ theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ 
   have hlk : msg.lookup_ipc_buffer st s1 true d' ⦃ w => w = 0#u64 ⦄ :=
     WP.spec_mono (hBf.lookup s1 σ1 d' xd true hR1 ⟨hS1.1, hOK1⟩ hdT hkd1) fun w hw => hw.2 (hrb xd hkd)
   have hf1 : L.mem s1 (tFaultA t) = 0#u64 := (hR1.at_tcb ht hkt1).fault0.2 hft
-  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regs hHB hBf hP s1 a σ1 hR1 ⟨hS1.1, hOK1⟩ ht hdT htd hkt1
-    hkd1 hft (hrb xd hkd) e badge g hcaps) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
+  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regsJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
+    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft (hrb xd hkd) e badge g) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
   rintro s2 ⟨⟨e2, hR2, hS2, hA2⟩, w2⟩
   set σ2 := Notif.updK σ1 d'.bv (.tcb (xferTcb xd xt badge.bv)) with hσ2
   have hkd2 : σ2.kheap d'.bv = some (.tcb (xferTcb xd xt badge.bv)) := by simp [σ2]
@@ -1080,14 +1078,12 @@ theorem JAtZ.sendCallPJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ 
 
 /-- **The calls to a waiting receiver `JAtZ.sendCallPJ` covers**: a call
 from a sender without a fault, the head receiver without a receive buffer and
-with a reply object, no granted caps, the grant or grant-reply right, and no
+with a reply object, the grant or grant-reply right, and no
 donation (`can_donate` false, or the receiver has an SC). -/
 def SendRecvCP (σ : Fl4Spec.State Unit) (call g gr don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
   call = true ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → Endp.ipcBufOf true xd = none) ∧
-    (g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0) ∧
     (g = true ∨ gr = true) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none) ∧
     (don = false ∨ ∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext ≠ none)

@@ -627,7 +627,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo` with receivers waiting on the timeout handler's endpoint, `¬ TmoIdle`: the tail's `handle_timeout` sends to a receiver) [W] |
-| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver with a receive buffer or granted caps; the others by `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send to a receiver with a receive buffer; the others, any grant, by `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |

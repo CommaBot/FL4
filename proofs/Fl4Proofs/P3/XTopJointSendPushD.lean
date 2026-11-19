@@ -49,8 +49,6 @@ theorem JAtZ.sendCallPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     (hrb : ∀ xd, σ.kheap d.bv = some (.tcb xd) → Endp.ipcBufOf true xd = none)
     (blk : Bool) (badge : U64) (g gr : Bool)
-    (hcaps : g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hg : g = true ∨ gr = true)
     (hrepn : ∀ xd, σ.kheap d.bv = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none)
     (hxdn : ∀ xd, σ.kheap d.bv = some (.tcb xd) → xd.tcbSchedContext = none) :
@@ -157,8 +155,8 @@ theorem JAtZ.sendCallPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
   have hlk : msg.lookup_ipc_buffer st s1 true d' ⦃ w => w = 0#u64 ⦄ :=
     WP.spec_mono (hBf.lookup s1 σ1 d' xd true hR1 ⟨hS1.1, hOK1⟩ hdT hkd1) fun w hw => hw.2 (hrb xd hkd)
   have hf1 : L.mem s1 (tFaultA t) = 0#u64 := (hR1.at_tcb ht hkt1).fault0.2 hft
-  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regs hHB hBf hP s1 a σ1 hR1 ⟨hS1.1, hOK1⟩ ht hdT htd hkt1
-    hkd1 hft (hrb xd hkd) e badge g hcaps) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
+  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regsJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
+    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft (hrb xd hkd) e badge g) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
   rintro s2 ⟨⟨e2, hR2, hS2, hA2⟩, w2⟩
   set σ2 := Notif.updK σ1 d'.bv (.tcb (xferTcb xd xt badge.bv)) with hσ2
   have hkd2 : σ2.kheap d'.bv = some (.tcb (xferTcb xd xt badge.bv)) := by simp [σ2]
@@ -588,31 +586,30 @@ theorem JAtZ.sendCallPDJ (hAT : P0.ArchTotal arI) (hZ : XferHZ L AR Z) (J : JAtZ
 
 /-- **The calls to a waiting receiver `JAtZ.sendCallPDJ` covers**: a call
 with `can_donate` from a sender without a fault, the head receiver without a
-receive buffer, with a reply object and without an SC, no granted caps, the
-grant or grant-reply right. -/
+receive buffer, with a reply object and without an SC, the grant or
+grant-reply right. -/
 def SendRecvCPD (σ : Fl4Spec.State Unit) (call g gr don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
   call = true ∧ don = true ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → Endp.ipcBufOf true xd = none) ∧
-    (g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0) ∧
     (g = true ∨ gr = true) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep ≠ none) ∧
     (∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext = none)
 
 variable (arI) in
 /-- **[W] The endpoint cap's `send_ipc` at `J` where it meets a receiver
-with a receive buffer or granted caps** (`sendLeafJ2`; XTopJointIpcJ's
+with a receive buffer** (`sendLeafJ2`; XTopJointIpcJ's
 `JSendRestHyp` narrowed by `¬ SendRecvBasic`, `¬ SendRecvCI`, `¬ SendRecvDon`,
 `¬ SendRecvCP` and `¬ SendRecvCPD`, and given the caller without a fault,
 `hnf`, which `sendLeafJ2` takes from JEntryAt's `cnf` [J]): after the caller's
 restart (`s1`, `σ1`), a send to an endpoint with receivers where the head
-receiver has an IPC buffer, or the sender grants caps (the grant right, a
-sender's IPC buffer and extra caps in the message info), ends at `JAt` with an
-outcome of the spec's `send_ipc` (every other send to a receiver is covered by
-those five cases). What is left: the buffer and grant transfers
-(XTopJointGrant's `JAtZ.xferAllJ` has them at `J`, but the dequeued receiver
-makes the state between the dequeue and `Running` no `JAtZ` state).
+receiver has an IPC (receive) buffer ends at `JAt` with an outcome of the
+spec's `send_ipc` (every send to a receiver without one, any grant, is covered
+by those five cases: with no receive buffer the extra caps are looked up and
+dropped, `do_ipc_transfer_regsJ`). What is left: the copy into the receive
+buffer and the cap grant (XTopJointGrant's `JAtZ.xferAllJ` has them at `J`,
+but the dequeued receiver makes the state between the dequeue and `Running`
+no `JAtZ` state, and the user-memory writes are outside `CnW`).
 l4v: `send_ipc_invs` / `send_ipc_corres`. -/
 def JSendRecvHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit)
     (blk call : Bool) (b : U64) (g gr don : Bool) (ct p : U64) : Prop :=
@@ -639,7 +636,7 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     JSendRestHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p := by
   intro x hk hc
   by_cases hb : SendRecvBasic σ1 call g don ct.bv p.bv
-  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hdon, hrb, hcaps⟩ := hb
+  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hdon, hrb⟩ := hb
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -647,9 +644,9 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendRecvJ0 hZ hct hkt hrs hft hcur hp hk' hrb blk b g gr don hcaps hdon
+    exact J1.sendRecvJ0 hZ hct hkt hrs hft hcur hp hk' hrb blk b g gr don hdon
   by_cases hci : SendRecvCI σ1 call g gr ct.bv p.bv
-  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hrb, hcaps, hno⟩ := hci
+  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hrb, hno⟩ := hci
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -657,9 +654,9 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendCallIJ hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr don hcaps hno
+    exact J1.sendCallIJ hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr don hno
   by_cases hdo : SendRecvDon σ1 call g don ct.bv p.bv
-  · obtain ⟨rfl, rfl, xt', dv, q, hkt', hft, hk', hsn, hrb, hcaps⟩ := hdo
+  · obtain ⟨rfl, rfl, xt', dv, q, hkt', hft, hk', hsn, hrb⟩ := hdo
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -667,9 +664,9 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendDonJ hZ hAT hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr hcaps hsn
+    exact J1.sendDonJ hZ hAT hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr hsn
   by_cases hcp : SendRecvCP σ1 call g gr don ct.bv p.bv
-  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hrb, hcaps, hg, hrepn, hnd⟩ := hcp
+  · obtain ⟨rfl, xt', dv, q, hkt', hft, hk', hrb, hg, hrepn, hnd⟩ := hcp
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -677,9 +674,9 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendCallPJ hAT hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr don hcaps hg hrepn hnd
+    exact J1.sendCallPJ hAT hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr don hg hrepn hnd
   by_cases hcpd : SendRecvCPD σ1 call g gr don ct.bv p.bv
-  · obtain ⟨rfl, rfl, xt', dv, q, hkt', hft, hk', hrb, hcaps, hg, hrepn, hxdn⟩ := hcpd
+  · obtain ⟨rfl, rfl, xt', dv, q, hkt', hft, hk', hrb, hg, hrepn, hxdn⟩ := hcpd
     rw [hkt] at hkt'; cases hkt'
     have hx := (J1.xtop.irelK J1.ks J1.buf).1.toE.at_ep hp hk'
     obtain ⟨-, xs, hxs0, hq, -, -⟩ := hx
@@ -687,7 +684,7 @@ theorem jSendRest_of (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI) {s1 : S} {ar 
     simp only [List.map_cons, List.cons.injEq] at hq
     obtain ⟨hd, -⟩ := hq
     obtain rfl : dv = d.bv := by first | exact hd | exact hd.symm
-    exact J1.sendCallPDJ hAT hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr hcaps hg hrepn hxdn
+    exact J1.sendCallPDJ hAT hZ hct hkt hrs hft hcur hres hti hnq hp hk' hrb blk b g gr hg hrepn hxdn
   · exact hR (fun x' hx' => by rw [hkt] at hx'; cases hx'; exact hft0) x hk hc hb hci hdo hcp hcpd
 
 set_option maxHeartbeats 4000000 in

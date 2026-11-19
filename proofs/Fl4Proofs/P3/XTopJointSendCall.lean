@@ -464,8 +464,6 @@ theorem JAtZ.sendCallIJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     (hrb : ∀ xd, σ.kheap d.bv = some (.tcb xd) → Endp.ipcBufOf true xd = none)
     (blk : Bool) (badge : U64) (g gr don : Bool)
-    (hcaps : g = false ∨ Endp.ipcBufOf false xt = none ∨
-      Fl4Spec.unat (Fl4Spec.dataToMessageInfo (xt.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register)).miExtraCaps = 0)
     (hno : (g = false ∧ gr = false) ∨
       ∀ xd, σ.kheap d.bv = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep = none) :
     endpoint.send_ipc st arI s a blk true badge g gr don t e ⦃ r =>
@@ -571,8 +569,8 @@ theorem JAtZ.sendCallIJ (hZ : XferHZ L AR Z) (J : JAtZ (L := L) arI AR Z H Cs Ac
   have hlk : msg.lookup_ipc_buffer st s1 true d' ⦃ w => w = 0#u64 ⦄ :=
     WP.spec_mono (hBf.lookup s1 σ1 d' xd true hR1 ⟨hS1.1, hOK1⟩ hdT hkd1) fun w hw => hw.2 (hrb xd hkd)
   have hf1 : L.mem s1 (tFaultA t) = 0#u64 := (hR1.at_tcb ht hkt1).fault0.2 hft
-  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regs hHB hBf hP s1 a σ1 hR1 ⟨hS1.1, hOK1⟩ ht hdT htd hkt1
-    hkd1 hft (hrb xd hkd) e badge g hcaps) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
+  refine WP.spec_bind (WP.spec_and (do_ipc_transfer_regsJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
+    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft (hrb xd hkd) e badge g) (do_ipc_transfer_rg (arI := arI) hTP hdH s1 a e badge g hlk hf1)) ?_
   rintro s2 ⟨⟨e2, hR2, hS2, hA2⟩, w2⟩
   set σ2 := Notif.updK σ1 d'.bv (.tcb (xferTcb xd xt badge.bv)) with hσ2
   have hkd2 : σ2.kheap d'.bv = some (.tcb (xferTcb xd xt badge.bv)) := by simp [σ2]
