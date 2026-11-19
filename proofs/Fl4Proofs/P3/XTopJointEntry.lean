@@ -393,7 +393,7 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   endpoint or on a reply or goes `Inactive`, and `cancel_ipc` (restart,
   suspend) and the fault reply clear it, `restart_thread_if_no_fault` leaves
   a faulted thread `Inactive`): the Endpoint cap's send is a normal transfer
-  (`sendLeafJ2`, `JSendRecvHyp`'s `hnf`). -/
+  (`sendLeafJ2`'s `hnf`). -/
   cnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none
 
 /-- **A decode path with no J proof** [W]: the cap's statement at `JAt`
@@ -564,9 +564,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
     (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
   | .Null | .Zombie .. | .Notification .. => True
-  | .Endpoint p b sd _ g gr => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      sd = true → JSendRecvHyp (L := L) arI AR s1 ar σ1 blk call b g gr don ct p
+  | .Endpoint .. => True
   | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
@@ -631,7 +629,7 @@ on the cap:
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo` with receivers waiting on the timeout handler's endpoint, `¬ TmoIdle`: the tail's `handle_timeout` sends to a receiver) [W] |
-| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | `JSendRecvHyp` (a send granting caps into a receiver's receive buffer; the others, with or without a receive buffer (XTopJointXferB's `xferStepJ`, `XferNoCap`), by `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`; the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) [W] |
+| Endpoint | `decode_endpointDMX`, `sendLeafJ2` | — (every send to a waiting receiver, any grant: `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`, the transfer by XTopJointXferG's `JAtZ.xferStepGJ` (a granted cap's insert redone at `J` before the dequeue); the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) |
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` (`port_label`) | a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
@@ -683,9 +681,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, hX0⟩
   case Endpoint p b sd rv g gr =>
     exact XCap.toP arI (Or.inl (decode_endpointDMX arI _ s ar σ lbl length _ p b sd rv g gr blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun hsd => sendLeafJ2 (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => sendLeafJ2 (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
         hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot J hni hE.ctnq hE.cnf hct hAs hc hst blk call g gr don
-        (fun s1 σ1' h1 h2 => hN s1 σ1' h1 h2 hsd) hX0)) hPre
+        hX0)) hPre
   case Notification p b sd rv =>
     exact XCap.toP arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
       slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs)

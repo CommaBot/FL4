@@ -697,7 +697,6 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     {e d : U64} (he : e ∈ Z.E) {q : List Fl4Spec.ObjRef}
     (hk : σ.kheap e.bv = some (.endpoint (.recvEP (d.bv :: q))))
     (blk : Bool) (badge : U64) (g gr : Bool)
-    (hnc : ∀ xd, σ.kheap d.bv = some (.tcb xd) → XferNoCap g xt xd)
     (hdn : ∀ xd, σ.kheap d.bv = some (.tcb xd) → xd.tcbSchedContext = none) :
     endpoint.send_ipc st arI s a blk false badge g gr true t e ⦃ r =>
       ∃ z ∈ (Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ).1,
@@ -800,55 +799,69 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     obtain ⟨⟨⟨G0, hB0'⟩, -⟩, -⟩ := hS0.1.1
     exact Ipc.RelTopB.tcbT hB0' hkd
   have hUd := J.rbufU hZ hdT hdth hkd
-  refine WP.spec_bind (xferStepJ hP0 hP (hH.epHyps hP0) s1 a σ1 hR1 hS1 hOK1
-    (bufCover_epStep (hZ Z s a σ rfl J.xtop).2.1 (EpStep.ep hk)) ht hdT htd hkt1 hkd1 hft e badge g (hnc xd hkd)
-    hTP hdH h1 hB1 hX1 hS1' hSg1 (fun b hb => ⟨(hUd b hb).1.ksb hW1.1, (hUd b hb).2⟩)) ?_
-  rintro s2 ⟨x2, um2, e2, hx2, hR2, hS2, hA2, w2, h2, hB2, hX2, hS2'', hSg2, f2⟩
-  set σ2 := Notif.updK (Endp.setUm σ1 um2) d'.bv (.tcb x2) with hσ2
+  refine WP.spec_bind (J.xferStepGJ hZ hk (epDeq (.recvEP (d'.bv :: q)) d'.bv) hR1 hS1 hW1 F1 ht hdT htd hkt hkd hft
+    badge g h1 hB1 hX1 hS1' hSg1) ?_
+  rintro s2 ⟨x2, um2, yb, σy, Gy, Jy, e2, hx2, hR2, hS2', hA2, hW2, F2, h2, hB2, hX2, hS2'', hSg2, f2, hksy, hKy, hCnKy, hyk⟩
+  have hncn : ∀ {q' : Fl4Spec.ObjRef} {o' : Fl4Spec.KernelObject}, σ.kheap q' = some o' →
+      (∀ r cs, o' ≠ .cnode r cs) → σy.kheap q' = some o' :=
+    fun hq ho => (hyk _ fun r cs h0 => ho r cs (by rw [hq] at h0; exact Option.some.inj h0)).trans hq
+  have hky : σy.kheap e.bv = some (.endpoint (.recvEP (d'.bv :: q))) := hncn hk (fun _ _ h0 => by cases h0)
+  have hkdy : σy.kheap d'.bv = some (.tcb xd) := hncn hkd (fun _ _ h0 => by cases h0)
+  have hkty : σy.kheap t.bv = some (.tcb xt) := hncn hkt (fun _ _ h0 => by cases h0)
+  have hcty : σy.curThread = σ.curThread := hKy.2.2.2.2
+  have hsay : σy.schedulerAction = σ.schedulerAction := by
+    have e := congrArg Fl4Spec.AbstractState.schedulerAction hCnKy.1; exact e
+  have hidy : σy.idleThread = σ.idleThread := by
+    have e := congrArg Fl4Spec.AbstractState.idleThread hCnKy.1; exact e
+  have hrqy : σy.readyQueues = σ.readyQueues := by
+    have e := congrArg Fl4Spec.AbstractState.readyQueues hCnKy.1; exact e
+  have hrly : σy.releaseQueue = σ.releaseQueue := by
+    have e := congrArg Fl4Spec.AbstractState.releaseQueue hCnKy.1; exact e
+  set σ1y := Notif.updK σy e.bv (.endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) with hσ1y
+  have hkt1y : σ1y.kheap t.bv = some (.tcb xt) := by simp [σ1y, hte, hkty]
+  have hkd1y : σ1y.kheap d'.bv = some (.tcb xd) := by simp [σ1y, hde, hkdy]
+  have hk1ey : σ1y.kheap e.bv = some (.endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) := by simp [σ1y]
+  have Fr1y : CFr e.bv d'.bv σy σ1y := CFr.upd hky (Or.inr (Or.inr (Or.inl ⟨_, _, rfl, rfl,
+    by rw [epDeq_queue']; unfold Fl4Spec.removeAll; exact List.filter_sublist,
+    by simp [Fl4Spec.Endpoint.epQueue]⟩)))
+  have IK1y : IK d'.bv σy σ1y := IK.updOther (o' := .endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) hky (fun o0 h => by
+    rcases h with rfl | rfl <;> exact ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩)
+  have SK1y : SKeep σy σ1y := SKeep.updK (p := e.bv) (o := .endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv))
+    (fun y h => by cases h) (fun _ _ h => by cases h)
+  have hq1y : ∀ e'' ∈ Z.E, ∀ z, σ1y.kheap e''.bv = some (.endpoint z) → d'.bv ∉ z.epQueue := by
+    intro e'' he'' z hz
+    refine hq1 e'' he'' z ?_
+    by_cases hee : e''.bv = e.bv
+    · rw [hee] at hz ⊢; rw [hk1ey] at hz; rw [hk1e]; exact hz
+    · simp only [σ1y, Notif.updK_kheap, Function.update_of_ne hee] at hz
+      simp only [σ1, Notif.updK_kheap, Function.update_of_ne hee]
+      exact keepC_back hKy.1 hz (fun _ _ h0 => by cases h0)
+  set σ2 := Notif.updK (Endp.setUm σ1y um2) d'.bv (.tcb x2) with hσ2
   have hkd2 : σ2.kheap d'.bv = some (.tcb x2) := by simp [σ2]
-  have hkt2 : σ2.kheap t.bv = some (.tcb xt) := by simp [σ2, htd', hkt1]
+  have hkt2 : σ2.kheap t.bv = some (.tcb xt) := by simp [σ2, htd', hkt1y]
   have hst2' : x2.tcbState = .blockedOnReceive e.bv rep dd := by rw [hx2]; exact hstd
   have hxsc : x2.tcbSchedContext = xd.tcbSchedContext := by rw [hx2]
-  have hN2 := ntfn_lift_rcv hP0.toC hS1.2 hR2 hdT hA2 (fun p hp => by simp [σ2, hp])
-    hkd1 hkd2 (by rw [hx2])
-  have hS2' : SRN st Z.N Z.T (SRS st Z.T (SRT st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c
-      (SRE st Z.N Z.T Z.C Z.E Z.R Z.B Z.c))) s2 σ2 := ⟨hS2.1, hN2⟩
   have hk1e2 : σ2.kheap e.bv = some (.endpoint (epDeq (.recvEP (d'.bv :: q)) d'.bv)) := by
-    simp [σ2, Ne.symm hde, hk1e]
+    simp [σ2, Ne.symm hde, hk1ey]
   have hq2 : ∀ e'' ∈ Z.E, ∀ z, σ2.kheap e''.bv = some (.endpoint z) → d'.bv ∉ z.epQueue := by
     intro e'' he'' z hz
     have hne : d'.bv ≠ e''.bv := by intro h; rw [← h, hkd2] at hz; cases hz
-    exact hq1 e'' he'' z (by simpa [σ2, Ne.symm hne] using hz)
+    exact hq1y e'' he'' z (by simpa [σ2, Ne.symm hne] using hz)
   have hrw : L.mem s2 (tReplyA d') = L.mem s (tReplyA d') := by
-    rw [hA2 _ (a_reply hda).1 ⟨?_, ?_⟩, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
+    rw [hA2 _ (a_reply hda).1 ⟨⟨d', hdT, (a_reply hda).2⟩, ?_, ?_⟩, hA1 _ (a_reply hda).1 ⟨d', hdT, (a_reply hda).2⟩]
     · rintro ⟨r', hr'⟩
       rw [val_reply hda, regA_val hda (regIdx_lt r')] at hr'; have := regIdx_lt r'; omega
     · rintro ⟨wp, hwp, e'⟩
       have h1' := hP.bt wp hwp d' hdT
       have h2' := val_reply hda
       rw [← e'] at h1'; omega
-  have hW2 : P1.WritesIn st s s2 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
-    (hW1.mono fun b hb => Or.inl hb).trans1 (w2.mono fun b hb => by
-    rcases hb with (⟨y, hy, K, h1', h2', -, eb⟩ | hb) | hb
-    · have hyT : y ∈ Z.T := by rw [hTe]; exact hy
-      refine Or.inl (Or.inl (Or.inr ⟨y, hyT, K.val, h1', by omega, by omega, by omega, by omega, ?_⟩))
-      rw [eb]; exact tfield_val (hP.tcb y hyT) (by omega)
-    · exact absurd hb (Set.notMem_empty _)
-    · exact Or.inr hb)
-  have F2 : P1.WritesIn st s1 s2 (fun b => P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
-      (P1.Heap.scBits H) (P1.EH H) s1 b ∨ RcvBufW xd b) :=
-    w2.mono fun b hb => by
-      rcases hb with (⟨y, hy, K, h1', h2', h3', eb⟩ | hb) | hb
-      · exact Or.inl (Or.inl ⟨y, hy, K, by omega, by omega, by omega, by omega, eb⟩)
-      · exact absurd hb (Set.notMem_empty _)
-      · exact Or.inr hb
-  have Fr2 : CFr e.bv d'.bv σ σ2 := (Fr1.trans (CFr.um _ _ σ1 um2)).trans (CFr.upd (σ := Endp.setUm σ1 um2) hkd1
+  have Fr2 : CFr e.bv d'.bv σy σ2 := (Fr1y.trans (CFr.um _ _ σ1y um2)).trans (CFr.upd (σ := Endp.setUm σ1y um2) hkd1y
     (Or.inl ⟨xd, xd.tcbState, xd.tcbBoundNotification, xd.tcbFault, x2.tcbArch, rfl, by rw [hx2],
     Or.inr ⟨Or.inl rfl, rfl, Or.inl ⟨_, _, _, hstd⟩, Or.inr (Or.inr rfl)⟩⟩))
-  have IK2 : IK d'.bv σ σ2 := IK1.trans ((IK.um _ σ1 um2).trans (IK.updSelf (σ := Endp.setUm σ1 um2) hkd1 hxsc))
-  have SK2 : SKeep σ σ2 := SK1.trans ((SKeep.um σ1 um2).trans (SKeep.updK (σ := Endp.setUm σ1 um2) (p := d'.bv)
-    (o := .tcb x2) (fun y h => ⟨xd, hkd1, by cases h; exact hxsc.symm⟩) (fun _ _ h => by cases h)))
-  have hks2 : L.ksb s2 = L.ksb s := hW2.1
+  have IK2 : IK d'.bv σy σ2 := IK1y.trans ((IK.um _ σ1y um2).trans (IK.updSelf (σ := Endp.setUm σ1y um2) hkd1y hxsc))
+  have SK2 : SKeep σy σ2 := SK1y.trans ((SKeep.um σ1y um2).trans (SKeep.updK (σ := Endp.setUm σ1y um2) (p := d'.bv)
+    (o := .tcb x2) (fun y h => ⟨xd, hkd1y, by cases h; exact hxsc.symm⟩) (fun _ _ h => by cases h)))
+  have hks2 : L.ksb s2 = L.ksb yb := hW2.1
   have Fst2 : L.mem s2 (P1.stA d') = L.mem s (P1.stA d') := by
     rw [P1.stA_eq]
     exact (f2 d' hdH _ (by simp) (by simp) (by simp)).trans (f1 d' hdH _ (by simp) (by simp) (by simp) (by simp))
@@ -866,11 +879,11 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
       σ3.kheap t.bv = some (.tcb xt) ∧ σ3.kheap d'.bv = some (.tcb x3) ∧ RbIn x3.tcbState ∧
       tsCode x3.tcbState ≠ 6 ∧ x3.tcbSchedContext = xd.tcbSchedContext ∧
       (∀ e'' ∈ Z.E, ∀ z, σ3.kheap e''.bv = some (.endpoint z) → d'.bv ∉ z.epQueue) ∧
-      P1.WritesIn st s s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) ∧
-      P1.WritesIn st s s3 (fun b => P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
-        (P1.Heap.scBits H) (P1.EH H) s b ∨ RcvBufW xd b) ∧
-      CFr e.bv d'.bv σ σ3 ∧ IK d'.bv σ σ3 ∧ SKeep σ σ3 ∧ σ3.curThread = σ.curThread ∧
-      σ3.schedulerAction = σ.schedulerAction ∧
+      P1.WritesIn st yb s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c yb σy b ∨ RcvBufW xd b) ∧
+      P1.WritesIn st yb s3 (fun b => P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+        (P1.Heap.scBits H) (P1.EH H) yb b ∨ RcvBufW xd b) ∧
+      CFr e.bv d'.bv σy σ3 ∧ IK d'.bv σy σ3 ∧ SKeep σy σ3 ∧ σ3.curThread = σy.curThread ∧
+      σ3.schedulerAction = σy.schedulerAction ∧
       P1.SchedQueuesInvX st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H X3 s3 Q0 R0 ∧
       P1.BoundInv st (P1.Heap.tcbs H) Ac s3 ∧
       P1.XInv st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) (P1.Heap.frame H) (P1.Heap.replies H) (P1.Heap.scs H)
@@ -889,7 +902,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
       have hrA : L.mem s2 (P1.replyA d') = 0#u64 := by
         show L.mem s2 (tReplyA d') = 0#u64; rw [hrw]; exact h00
       exact ⟨σ2, x2, _, rfl, hR2, hS2', hkt2, hkd2, Or.inl ⟨_, _, _, hst2'⟩,
-        by rw [hst2']; simp [tsCode], hxsc, hq2, hW2, footW_trans (footW_of F1) F2, Fr2, IK2, SK2, rfl, rfl, h2, hB2, hX2, hS2'',
+        by rw [hst2']; simp [tsCode], hxsc, hq2, hW2, F2, Fr2, IK2, SK2, rfl, rfl, h2, hB2, hX2, hS2'',
         hSg2, fun y hy => by simpa using hy, Or.inl (Or.inr rfl), hX2.noref0 hdta hrA, Or.inl hrA⟩
     | some r =>
       rw [hrp] at hrep hrepR hst2'
@@ -903,7 +916,8 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
       have hwe : w.bv ≠ e.bv := kheap_ne hkr hk (fun _ h1 h2 => by subst h1; cases h2)
       have hwd : w.bv ≠ d'.bv := kheap_ne hkr hkd (fun _ h1 h2 => by subst h1; cases h2)
       have hwt : w.bv ≠ t.bv := kheap_ne hkr hkt (fun _ h1 h2 => by subst h1; cases h2)
-      have hkr2 : σ2.kheap w.bv = some (.reply xr) := by simp [σ2, σ1, hwe, hwd, hkr]
+      have hkr2 : σ2.kheap w.bv = some (.reply xr) := by
+        simp [σ2, σ1y, hwe, hwd, hncn hkr (fun _ _ h0 => by cases h0)]
       have hb' : xr.replyTcb = some d'.bv := hback_of J.sv hkd e.bv w.bv dd xr (by rw [hstd, hrp]) hkr
       have hX2' := IpcRel.ofSRN hR2 hS2'
       have hrA : L.mem s2 (P1.replyA d') = w := by show L.mem s2 (tReplyA d') = w; rw [hrw]
@@ -923,13 +937,14 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
       set x3 : Fl4Spec.Tcb := { x2 with tcbState := .inactive } with hx3
       set σ3a := Notif.updK σ2 w.bv (.reply { xr with replyTcb := none }) with hσ3a
       have hkd3a : σ3a.kheap d'.bv = some (.tcb (x2)) := by simp [σ3a, Ne.symm hwd, hkd2]
-      have hct3a : d'.bv ≠ (Notif.updK σ3a d'.bv (.tcb x3)).curThread := hdc
+      have hct3a : d'.bv ≠ (Notif.updK σ3a d'.bv (.tcb x3)).curThread := by
+        show d'.bv ≠ σy.curThread; rw [hcty]; exact hdc
       have e3s : Notif.stsAct (Notif.updK σ3a d'.bv (.tcb x3)) d'.bv = Notif.updK σ3a d'.bv (.tcb x3) :=
         stsAct_ne hct3a
-      have hW3' : P1.WritesIn st s s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+      have hW3' : P1.WritesIn st yb s3 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c yb σy b ∨ RcvBufW xd b) :=
         hW2.trans1 (hW3.mono fun b hb => Or.inl (cnW_back hks2 (SzKeepC.of Fr2.szKeep) hb))
       refine ⟨_, x3, _, e3, hR3, hS3, ?_, ?_, Or.inr rfl, by simp [x3, tsCode], by simp [x3, hxsc], ?_, hW3',
-        footW_trans (footW_trans (footW_of F1) F2) (footW_of fu3), ?_, ?_, ?_, ?_, ?_, h3,
+        footW_trans F2 (footW_of fu3), ?_, ?_, ?_, ?_, ?_, h3,
         hB2.keepT h2 k3 (by rw [e3']; exact P1.not_blocked_inactive) (by rw [e3']; exact P1.inactive_ne.1),
         hX2.keepT k3 (by rw [e3']; exact P1.inactive_ne) hclr, hS2''.keepT hX2 k3,
         ⟨hsub, fun b hb => by rw [k3.ksb]; exact hSg2.ks b hb, fun o h1' h2' => by rw [k3.ksb]; exact hSg2.ksΩ o h1' h2'⟩,
@@ -945,9 +960,9 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
         exact hq2 e'' he'' z (by simpa [σ3a, Ne.symm hne, Ne.symm hne'] using hz)
       · exact (Fr2.trans (CFr.upd hkr2 (Or.inr (Or.inr (Or.inr ⟨xr, rfl, rfl, hb'⟩))))).trans
           (CFr.stsIn hkd3a (Or.inl ⟨_, _, _, hst2'⟩))
-      · have IK3a : IK d'.bv σ σ3a := IK2.trans (IK.updOther (o' := .reply { xr with replyTcb := none }) hkr2 (fun o0 h => by
+      · have IK3a : IK d'.bv σy σ3a := IK2.trans (IK.updOther (o' := .reply { xr with replyTcb := none }) hkr2 (fun o0 h => by
           rcases h with rfl | rfl <;> exact ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩))
-        have IK3b : IK d'.bv σ (Notif.updK σ3a d'.bv (.tcb x3)) := IK3a.trans (IK.updSelf (y := x3) hkd3a rfl)
+        have IK3b : IK d'.bv σy (Notif.updK σ3a d'.bv (.tcb x3)) := IK3a.trans (IK.updSelf (y := x3) hkd3a rfl)
         exact IK3b.trans (IK.sts _ _ _)
       · exact ((SK2.trans (SKeep.updK (p := w.bv) (o := .reply { xr with replyTcb := none }) (fun y h => by cases h) (fun _ _ h => by cases h))).trans
           (SKeep.updK (p := d'.bv) (o := .tcb x3) (fun y h => ⟨_, hkd3a, by cases h; rfl⟩) (fun _ _ h => by cases h))).trans (SKeep.stsAct _ _)
@@ -959,11 +974,27 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
         · exact absurd hy1 hy2
   rintro s3 ⟨σ3, x3, X3, hU, hR3, hS3, hkt3, hkd3, hrb3, hns3, hsc3, hq3, hW3, F3, Fr3, IK3, SK3, hct3, hact3,
     h3, hB3, hX3, hS3', hSg3, hXc3, hx3, hnr3, hra3⟩
+
+  have J0 := J
+  have hk0 := hk
+  have hkd0 := hkd
+  have hkt0 := hkt
+  have J := Jy
+  have hkd : σy.kheap d'.bv = some (.tcb xd) := hkdy
+  have hkt : σy.kheap t.bv = some (.tcb xt) := hkty
+  have hk : σy.kheap e.bv = some (.endpoint (.recvEP (d'.bv :: q))) := hky
+  have hres : σy.schedulerAction = .resumeCurThread := hsay.trans hres
+  have hti : σy.curThread ≠ σy.idleThread := by rw [hcty, hidy]; exact hti
+  have hct : σy.curThread = t.bv := hcty.trans hct
+  have hnq : ∀ dm q', t.bv ∉ σy.readyQueues dm q' := by rw [hrqy]; exact hnq
+  have hdc : d'.bv ≠ σy.curThread := by rw [hcty]; exact hdc
+  have hdn : ∀ xd, σy.kheap d'.bv = some (.tcb xd) → xd.tcbSchedContext = none := fun xd h => hdn xd (by
+    rw [hkdy] at h; rw [hkd0]; exact h)
   have hxt3 := hR3.at_tcb ht hkt3
-  have hks3 : L.ksb s3 = L.ksb s := hW3.1
+  have hks3 : L.ksb s3 = L.ksb yb := hW3.1
   -- the caller's SC, the current SC
-  have hCI : CurInv σ := J.cur.resolve_left (by rw [hres]; intro h; cases h)
-  have hnrT : t.bv ∉ σ.releaseQueue := by rw [← hct]; exact hCI.notRel
+  have hCI : CurInv σy := J.cur.resolve_left (by rw [hres]; intro h; cases h)
+  have hnrT : t.bv ∉ σy.releaseQueue := by rw [← hct]; exact hCI.notRel
   obtain ⟨xc, hkc, hcs, -⟩ := hCI.tcb
   rw [hct, hkt] at hkc
   cases hkc
@@ -978,10 +1009,10 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     have : xt.tcbSchedContext = none := by rw [hsct, h0, optRef_zero]
     rw [hcs] at this; cases this
   have hxtsc : xt.tcbSchedContext = some sc.bv := by rw [hsct, Notif.optRef_ne hsc0]
-  have hscp : sc.bv = σ.curSc := Option.some.inj (hxtsc.symm.trans hcs)
+  have hscp : sc.bv = σy.curSc := Option.some.inj (hxtsc.symm.trans hcs)
   have hscC : sc ∈ Z.C := hs3.scMem t ht hsc0
   obtain ⟨y, n, hky3, -⟩ := hs3.scs sc hscC
-  have hky : σ.kheap sc.bv = some (.schedContext y n) := SK3.2.2.2 _ _ _ hky3
+  have hky : σy.kheap sc.bv = some (.schedContext y n) := SK3.2.2.2 _ _ _ hky3
   have hyt : y.scTcb = some t.bv := by
     obtain ⟨y', n', hk', hyt⟩ := J.inv.back t.bv xt sc.bv hkt hxtsc
     rw [hky] at hk'; cases hk'; exact hyt
@@ -996,7 +1027,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     by_contra h
     rw [Notif.optRef_ne h] at hdsc; rw [hx30] at hdsc; cases hdsc
   -- in no queue
-  have hnqD : NotQueued σ d'.bv := by
+  have hnqD : NotQueued σy d'.bv := by
     refine ⟨fun dm p hm => ?_, fun hm => ?_⟩
     · obtain ⟨x, -, -, -, hkx, -, hrx, -, -⟩ := J.inv.rq dm p _ hm
       rw [hkd] at hkx; cases hkx; rw [hstd] at hrx; cases hrx
@@ -1028,14 +1059,14 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
   have hcw3 : L.curW s3 = t := by
     have h : (nodeW st s3 Z.c layout.node.CUR_THREAD).bv = t.bv := by rw [← hs3.curThread, hct3, hct]
     unfold P1.LawfulStore.curW; rw [hcq3.cur]; exact P1.eq_of_bv h
-  have hidl3 : σ3.idleThread = σ.idleThread := Fr3.sk.idle
-  have hiw3 : ∀ u ∈ Z.T, u.bv ≠ σ.idleThread → L.idleW s3 ≠ u := fun u hu hne h' => by
+  have hidl3 : σ3.idleThread = σy.idleThread := Fr3.sk.idle
+  have hiw3 : ∀ u ∈ Z.T, u.bv ≠ σy.idleThread → L.idleW s3 ≠ u := fun u hu hne h' => by
     apply hne
     rw [← hidl3, hs3.idleTh]
     unfold P1.LawfulStore.idleW at h'; rw [hcq3.cur] at h'
     exact congrArg _ (show nodeW st s3 Z.c layout.node.IDLE_THREAD = u from h').symm
-  have hit : t.bv ≠ σ.idleThread := by rw [← hct]; exact hti
-  have hid : d'.bv ≠ σ.idleThread := by
+  have hit : t.bv ≠ σy.idleThread := by rw [← hct]; exact hti
+  have hid : d'.bv ≠ σy.idleThread := by
     intro h
     obtain ⟨x, hkx, -, hxs, -⟩ := J.act.2
     rw [← h, hkd] at hkx; cases hkx; rw [hstd] at hxs; cases hxs
@@ -1051,7 +1082,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     Ipc.RelIfBound.of_keep (J.inv.rd d'.bv xd hkd (Or.inr (Or.inr (Or.inr ⟨_, _, _, hstd⟩)))) SK3
   have I3 : Inv σ3 := ((J.inv.toBut d'.bv).ik hnqD IK3).1.inv fun _ _ _ => hrib3
   have hN3 : NSC Z.N Z.C σ3 := Fr3.nsc J.nsc
-  have hrelσ : Fl4Spec.scActive y = true → released σ y := fun ha =>
+  have hrelσ : Fl4Spec.scActive y = true → released σy y := fun ha =>
     J.inv.rd t.bv xt hkt (Or.inl (by rw [hrs]; rfl)) xt sc.bv y n hkt hxtsc hky ha hnrT
   have hrel3 : inClass x3.tcbState → Fl4Spec.scActive y = true → released σ3 y := fun _ ha => by
     have := hrelσ ha; unfold released at this ⊢; rw [SK3.2.1]; exact this
@@ -1115,7 +1146,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     rcases hra3 with h | ⟨h1, h2⟩
     · exact hX4.noref0 hdta (by rw [hrp4 d' hdH]; exact h)
     · exact hX4.noref hdta (by rw [hst4 d' hdH]; exact h1) (by rw [hst4 d' hdH]; exact h2)
-  have hks4 : L.ksb s4 = L.ksb s := hW4.1.trans hks3
+  have hks4 : L.ksb s4 = L.ksb yb := hW4.1.trans hks3
   -- the receiver runs
   refine WP.spec_bind (WP.spec_and (WP.spec_and (set_thread_state_c hH hP0 hP s4 _ hR4 hS4 hdT hkd4 hq4 hns3
       .running (by simp [tsCode]) sched.TS_RUNNING (by unfold sched.TS_RUNNING; rfl))
@@ -1135,20 +1166,20 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
   have hIR : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s5
       (dnSt σa t.bv d'.bv sc.bv xt x5 y n) := by
     rw [← heq5]; exact hIR0
-  have hsw : SW Z.C σ (scW sc 24#u64) := sw_hdr J.xtop.fin.1.1.1 hscC (K := 24#u64) (by simp) (by simp) (by decide)
-  have hW4' : P1.WritesIn st s s4 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+  have hsw : SW Z.C σy (scW sc 24#u64) := sw_hdr J.xtop.fin.1.1.1 hscC (K := 24#u64) (by simp) (by simp) (by decide)
+  have hW4' : P1.WritesIn st yb s4 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c yb σy b ∨ RcvBufW xd b) :=
     hW3.trans1 (hW4.mono fun b hb => hb.elim (fun h => Or.inl (Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hks3).1 h)))))
       (fun h => Or.inl (Or.inl (Or.inl (Or.inr (Or.inr (h ▸ hsw)))))))
-  have hW5' : P1.WritesIn st s s5 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b ∨ RcvBufW xd b) :=
+  have hW5' : P1.WritesIn st yb s5 (fun b => CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c yb σy b ∨ RcvBufW xd b) :=
     hW4'.trans1 (hW5.mono fun b hb => Or.inl (Or.inl (Or.inl (KFoot.of_sfoot ((SFoot.ksb hks4).1 hb)))))
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s5 :=
     ⟨⟨Q4, R4, h5.congrX (P1.excT_congr hXc3)⟩, hB5, hX5, hS5', hSg5⟩
   have hfoot := footW_trans (footW_trans F3 (footW_of fu4)) (footW_of fu5)
-  have Fr5 : CFr e.bv d'.bv σ σa := Fr3.trans (CFr.stsRun hkd3 hrb3)
-  have IK5a : IK d'.bv σ (Notif.updK σ3 d'.bv (.tcb x5)) := IK3.trans (IK.updSelf (y := x5) hkd3 rfl)
-  have IK5 : IK d'.bv σ σa := IK5a.trans (IK.sts _ _ _)
-  have SK5 : SKeep σ σa := (SK3.trans (SKeep.updK (p := d'.bv) (o := .tcb x5) (fun y h => ⟨x3, hkd3, by cases h; rfl⟩)
+  have Fr5 : CFr e.bv d'.bv σy σa := Fr3.trans (CFr.stsRun hkd3 hrb3)
+  have IK5a : IK d'.bv σy (Notif.updK σ3 d'.bv (.tcb x5)) := IK3.trans (IK.updSelf (y := x5) hkd3 rfl)
+  have IK5 : IK d'.bv σy σa := IK5a.trans (IK.sts _ _ _)
+  have SK5 : SKeep σy σa := (SK3.trans (SKeep.updK (p := d'.bv) (o := .tcb x5) (fun y h => ⟨x3, hkd3, by cases h; rfl⟩)
     (fun _ _ h => by cases h))).trans (SKeep.stsAct _ _)
   have hrib : RelIfBound σa d'.bv :=
     Ipc.RelIfBound.of_keep (J.inv.rd d'.bv xd hkd (Or.inr (Or.inr (Or.inr ⟨_, _, _, hstd⟩)))) SK5
@@ -1184,16 +1215,17 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     exact J.scOwned_not_dead ht hky hyt (J.jcov.dead sc hq')
   have hkq : ∀ q ∈ D, σ'.kheap q.bv = σa.kheap q.bv := fun q hq =>
     dn_ko (hcD q hq) (htD q hq) (hpD q hq)
-  obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := J.bufRebaseX hZ hdT hdth hkd hW5' hfoot
+  obtain ⟨su, umu, Ju, hWu, hFu, -, -⟩ := JAtZ.bufRebaseX (Z := Z.mv Gy Z.vs) (fun Z' s' a' σ' h => hZ Z' s' a' σ' h) J hdT hdth hkd
+    hW5' hfoot
   have hIu := Ju.xtop.irelK Ju.ks Ju.buf
-  have hRR : ∀ q' ∈ Z.R, ∀ xr, (Endp.setUm σ umu).kheap q'.bv = some (.reply xr) → xr.replyTcb = some d'.bv →
+  have hRR : ∀ q' ∈ Z.R, ∀ xr, (Endp.setUm σy umu).kheap q'.bv = some (.reply xr) → xr.replyTcb = some d'.bv →
       Detached Z.C Lst q' ∧ L.mem su (rNextA q') = 0#u64 ∧ L.mem su (rPrevA q') = 0#u64 :=
-    fun q' hq'' xr hx' hxt' => recvReplyHyp_holds Z Ac Lst D su _ (Endp.setUm σ umu) Ju q' hq'' xr d'.bv xd hx'
+    fun q' hq'' xr hx' hxt' => recvReplyHyp_holds _ Ac Lst D su _ (Endp.setUm σy umu) Ju q' hq'' xr d'.bv xd hx'
       hxt' hkd (by rw [hstd]; rfl)
   have hF : IFrame (L := L) Z.th su s5 := IRel.iframe_of hIu hWu fun b hb => CnW.oobj hIu.2.2.1 hb
   have ho : ∀ {q : Fl4Spec.ObjRef} {o : Fl4Spec.KernelObject}, (∀ x, o ≠ .tcb x) → (∀ x m, o ≠ .schedContext x m) →
       (σ'.kheap q = some o ↔ σa.kheap q = some o) := fun h1 h2 => dn_oth hkta hkda hkpa htd' hpt hpd h1 h2
-  obtain ⟨V', J5⟩ := Ju.wake_postG hIR hF hWu hblk hFu (DWFr.ofUm (DWFr.ofCFr Fr5) umu) dn_skD
+  obtain ⟨V', J5⟩ := Ju.wake_postG (by rw [← hKy.2.1] at hIR; exact hIR) hF hWu hblk hFu (DWFr.ofUm (DWFr.ofCFr Fr5) umu) dn_skD
     (dn_ksub hkta hkda hkpa htd' hpt hpd) (dn_szKeep hkta hkda hkpa htd' hpt hpd)
     (dn_ykeep hkta hkda hkpa htd' hpt hpd) (dn_mcpKeep hkta hkda hkpa htd' hpt hpd)
     (dn_bufKeep hkta hkda hkpa htd' hpt hpd) (dn_khrb hkta hkda hkpa htd' hpt hpd)
@@ -1216,7 +1248,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     show d'.bv ≠ σa.idleThread; exact Ne.symm hidA
   have htc5 : d'.bv ≠ σ'.curThread := by
     show d'.bv ≠ σa.curThread; rw [Fr5.sk.ct]; exact hdc
-  have hspec := sendIpc_recv_eqDon hk hkd hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 hx30 hxtsc hdon4 hkd4
+  have hspec := sendIpc_recv_eqDon hk0 hkd0 hde hstd blk badge.bv g gr e2 hU hkt3 hft hkd3 hx30 hxtsc hdon4 hkd4
     (t := t.bv)
   have hspec' : Fl4Spec.sendIpc (Z := Unit) blk false badge.bv g gr true t.bv e.bv σ =
       Endp.specWakeTailE d'.bv σ' := by
@@ -1229,33 +1261,31 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
 
 /-- **The sends to a waiting receiver `JAtZ.sendRecvJ0` covers**: no call,
 no donation (`can_donate` false, or the head receiver has an SC), the sender
-without a fault, no cap transferred (`XferNoCap`: no grant, no sender
-buffer or extra caps, or no receive buffer; XTopJointXferB's `xferStepJ`). -/
-def SendRecvBasic (σ : Fl4Spec.State Unit) (call g don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
+without a fault, any grant (XTopJointXferG's `JAtZ.xferStepGJ`: a cap
+inserted into the receiver's CNode slot is redone at `J` before the
+dequeue). -/
+def SendRecvBasic (σ : Fl4Spec.State Unit) (call don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
   call = false ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
-    (don = false ∨ ∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext ≠ none) ∧
-    (∀ xd, σ.kheap d = some (.tcb xd) → XferNoCap g xt xd)
+    (don = false ∨ ∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext ≠ none)
 
 /-- **The calls to a waiting receiver `JAtZ.sendCallIJ` covers**: a call
-from a sender without a fault, no cap transferred (`XferNoCap`),
+from a sender without a fault, any grant (XTopJointXferG's `JAtZ.xferStepGJ`),
 and no reply pushed (the caller has neither the grant nor
 the grant-reply right, or the receiver no reply object). -/
 def SendRecvCI (σ : Fl4Spec.State Unit) (call g gr : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
   call = true ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
-    (∀ xd, σ.kheap d = some (.tcb xd) → XferNoCap g xt xd) ∧
     ((g = false ∧ gr = false) ∨
       ∀ xd, σ.kheap d = some (.tcb xd) → ∀ e' rep dd, xd.tcbState = .blockedOnReceive e' rep dd → rep = none)
 
 /-- **The plain sends to a waiting receiver without an SC that
 `JAtZ.sendDonJ` covers**: no call, `can_donate`, the sender without a
-fault, the head receiver without an SC, no cap transferred (`XferNoCap`). -/
-def SendRecvDon (σ : Fl4Spec.State Unit) (call g don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
+fault, the head receiver without an SC, any grant. -/
+def SendRecvDon (σ : Fl4Spec.State Unit) (call don : Bool) (t e : Fl4Spec.ObjRef) : Prop :=
   call = false ∧ don = true ∧ ∃ xt d q, σ.kheap t = some (.tcb xt) ∧ xt.tcbFault = none ∧
     σ.kheap e = some (.endpoint (.recvEP (d :: q))) ∧
-    (∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext = none) ∧
-    (∀ xd, σ.kheap d = some (.tcb xd) → XferNoCap g xt xd)
+    (∀ xd, σ.kheap d = some (.tcb xd) → xd.tcbSchedContext = none)
 
 end
 
