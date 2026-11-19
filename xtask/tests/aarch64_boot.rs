@@ -259,6 +259,30 @@ fn pmuserenr_is_written_only_with_a_pmu() {
     assert!(el0_access::has_pmu(4 << 8));
 }
 
+/// An interrupt from EL0 records the thread's restart PC (FAULT_IP) before
+/// it takes the interrupt: taking a remote-call SGI services a stall
+/// (`take_irq` -> `service_remote` -> `fl4_core::smp::stall`), whose
+/// acknowledgement lets the calling core restart, rewrite (TCB_WriteRegisters)
+/// or delete the thread and retype its memory at once. After `take_irq`,
+/// `fl4_entry` must not touch the thread it read before (x86_64 entry.rs
+/// likewise saves the user state before `service_remote`).
+#[test]
+fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
+    let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
+    let code: Vec<&str> = entry.lines().map(|l| l.split("//").next().unwrap()).collect();
+    let start = code.iter().position(|l| l.contains("fn fl4_entry(")).expect("fl4_entry");
+    let irq = start + code[start..].iter().position(|l| l.trim() == "if kind == KIND_IRQ {").expect("IRQ branch");
+    let end = irq + code[irq..].iter().position(|l| l.trim() == "exit()").expect("end of the IRQ branch");
+    let branch = &code[start..=end];
+    let take = branch.iter().position(|l| l.contains("take_irq()")).expect("take_irq in fl4_entry");
+    let save = branch.iter().position(|l| l.contains("t.set_reg(s, reg::FAULT_IP, elr)")).expect("FAULT_IP save");
+    assert!(save < take, "fl4_entry takes the interrupt (and services stalls) before it saves FAULT_IP");
+    for l in &branch[take..] {
+        let uses_t = l.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.')).any(|w| w.starts_with("t."));
+        assert!(!uses_t, "fl4_entry touches the interrupted thread after take_irq: {}", l.trim());
+    }
+}
+
 // ---- memory lists -----------------------------------------------------------------
 
 #[test]
