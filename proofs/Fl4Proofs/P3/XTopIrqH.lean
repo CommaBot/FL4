@@ -24,6 +24,51 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 `decode_invocation_irq_handler`'s hypotheses and `irq_handler_dk4`'s,
 `XTopAt` at its typed heap, `KsApart`, the current thread runnable, the
 typed heap's TCBs in `Z.T`, `ARMask` and `XDelNtfnHyp`. -/
+theorem decode_invocation_irq_handlerXSD {AR : A → Fl4Spec.Cr3 → Prop}
+    (th : TypedHeap) (hP : Placed th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI th s ar σ G ct irq) (hDD : IrqDelDK (L := L) arI th s ar σ G ct irq)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 excaps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G) (hD : DomPlaced (L := L) th s) (hP1 : IrqDelP1 (L := L) s ct irq)
+    {Z : XSets} (hth : Z.th = th) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    (hC : CurRun σ) (X : S → A → Fl4Spec.State Unit → Prop) (hXa : X s ar σ)
+    (hXS : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s a σ, X s a σ → XTop (L := L) AR s a σ)
+    (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI X s ar σ lbl length slot (.IrqHandler irq) blk call don fp buf extra slbl
+      args ci sl excaps buffer ct := by
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  refine WP.spec_mono (WP.spec_and (irq_handler_decode_refinesD arI th hP s ar σ G hDS hL hIR lbl slbl hlbl
+    ct hct hcur htcb hact hmask irq hirq hok hDel extra x0 hx0 excaps hex hxn hFR)
+    (irq_handler_dk4D arI th hP s ar σ G hDS hL lbl ct hct hcur htcb hact hmask irq hirq hok hDel hDD extra x0 hx0
+      excaps hex hxn hD hP1)) ?_
+  rintro ⟨r0, s', a'⟩ ⟨hq, hdk⟩
+  cases r0 with
+  | Err e =>
+    obtain ⟨rfl, ⟨e', h1, h2⟩, rfl⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, hXa⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, hstp⟩ := hq
+    have hXp := hXS _ _ _ (hstp hdk.1 hC)
+    obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXp
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+      mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
+        hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, hXp⟩
+
+
+/-- `decode_invocation_irq_handlerXSD` with DelOne's ∀-state deletion
+premises (`irqDelOK_of`, `irqDelDK_of`). -/
 theorem decode_invocation_irq_handlerXS {AR : A → Fl4Spec.Cr3 → Prop}
     (th : TypedHeap) (hP : Placed th)
     (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
@@ -45,27 +90,11 @@ theorem decode_invocation_irq_handlerXS {AR : A → Fl4Spec.Cr3 → Prop}
     (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI X s ar σ lbl length slot (.IrqHandler irq) blk call don fp buf extra slbl
-      args ci sl excaps buffer ct := by
-  left
-  unfold DecOKDMX syscall.decode_invocation
-  rw [hct]; simp only [bind_ok]
-  refine WP.spec_mono (WP.spec_and (irq_handler_decode_refines arI th hP hO hPD hK s ar σ G hDS hL hIR lbl slbl hlbl
-    ct hct hcur htcb hact hmask irq hirq hok extra x0 hx0 excaps hex hxn hFR)
-    (irq_handler_dk4 arI th hP hO hPD hK s ar σ G hDS hL lbl ct hct hcur htcb hact hmask irq hirq hok extra x0 hx0
-      excaps hex hxn hD hP1)) ?_
-  rintro ⟨r0, s', a'⟩ ⟨hq, hdk⟩
-  cases r0 with
-  | Err e =>
-    obtain ⟨rfl, ⟨e', h1, h2⟩, rfl⟩ := hq
-    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, hXa⟩
-  | Ok u =>
-    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, -, -, -, hstp⟩ := hq
-    have hXp := hXS _ _ _ (hstp hdk.1 hC)
-    obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXp
-    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
-      mem_bindE_ok (mem_liftE hx) (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
-        hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, hXp⟩
-
+      args ci sl excaps buffer ct :=
+  decode_invocation_irq_handlerXSD arI th hP s ar σ G hDS hL hIR lbl slbl hlbl ct hct hcur htcb hact hmask irq hirq
+    hok (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok)
+    (irqDelDK_of arI th hO s ar σ G hL ct irq hirq) extra x0 hx0 excaps hex hxn hFR hD hP1 hth hX0 hC X hXa hXS hXX
+    length slot buf blk call don fp args ci sl buffer
 
 /-- **`IrqXHyp` for the IRQ handler cap**: beyond
 `decode_invocation_irq_handler`'s hypotheses and `irq_handler_dk4`'s,

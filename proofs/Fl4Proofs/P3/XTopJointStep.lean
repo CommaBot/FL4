@@ -483,15 +483,16 @@ theorem decode_invocation_ioport_controlJ_step (s : S) (ar : A) (σ : Fl4Spec.St
 
 set_option maxHeartbeats 4000000 in
 /-- **An IRQ handler cap, `JAt` after** (`decode_invocation_irq_handlerJAt`'s
-premises and `JStepHyps` [W]). -/
+premises and `JStepHyps` [W]; the IRQ node slot's deletion at the restarted
+state, `IrqDelOK`/`IrqDelDK`, from XTopJointIrqDel at `J`). -/
 theorem decode_invocation_irq_handlerJ_step (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hJ : JStepHyps (L := L) arI AR Z.th)
-    (hO : FinObjHyp (L := L) arI Z.th) (hPD : PostDelHyp (L := L) arI Z.th) (hK : NtfnKeepHyp (L := L) arI Z.th)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (irq : U64) (hsc : capV (L.mem s) (cslotAddr sl) = .IrqHandler irq)
     (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI Z.th s ar σ Z.G ct irq) (hDD : IrqDelDK (L := L) arI Z.th s ar σ Z.G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) x0 excaps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
@@ -503,9 +504,9 @@ theorem decode_invocation_irq_handlerJ_step (s : S) (ar : A) (σ : Fl4Spec.State
   have hX := J.xtop
   obtain ⟨hcur, -⟩ := J.curEq hct
   have hirq : irq.val < 128 := (slot_cap_wf hX hAs hsc).1
-  exact decode_invocation_irq_handlerXS arI Z.th hX.rel.1 hO hPD hK s ar σ Z.G J.dstate J.intL
+  exact decode_invocation_irq_handlerXSD arI Z.th hX.rel.1 s ar σ Z.G J.dstate J.intL
     hX.fin.1.1.2.2.2.1 lbl slbl hlbl ct hct hcur (hX.curTcb hcur).1 J.kern.act (maskIrq_total arI hT) irq hirq hok
-    extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J⟩
+    hDel hDD extra x0 hx0 excaps hex hxn hX.rel.2.2.2.2.1 hD hP1 rfl hX (J.curRun.run hni) _ ⟨Z, H, Cs, Ac, Lst, D, J⟩
     (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h)
     length (cslotAddr sl) buf blk call don fp args ci sl buffer
 

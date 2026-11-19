@@ -81,9 +81,13 @@ variable {S A : Type} {st : machine.Store S} [L : P1.LawfulStore st] (arI : mach
 schedule's words**: the finalisation by P1's `fin_cap_ntfn.slots` (a `Foot`,
 from P1's invariant over sets whose `KW` lies apart, `KWApart`), the
 emptying by `empty_frame_of_links` (the MDB from `FinObjHyp`'s `DState`). -/
-theorem delete_one_dk4 (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
+theorem delete_one_dk4D (th : TypedHeap) (hP : Placed th)
     (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (hD : KsbOK (L := L) th s)
+    (hFD : ∀ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+      objects.finalise_cap st arI s a (.Notification p b w r)
+        (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) false ⦃ res =>
+          ∃ σ' G', DState (L := L) th res.2.1 σ' G' ⦄)
     (hk : capV (L.mem s) (cslotAddr sl) = .Null ∨
       ∃ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r)
     (hP1 : ∀ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
@@ -105,16 +109,31 @@ theorem delete_one_dk4 (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L
   rw [is_final_with_cap_eq _ _ _ hc, hbf]; simp only [bind_ok]
   obtain ⟨T, Cs, Ω, H, Sg, Rp, Scs, Nt, Z, Ac, hB, hpN, hH, hKW⟩ := hP1 p b w r hk
   rw [← finalise_cap_ntfn arI s a p b w r _ false]
-  have hO' := hO s a σ G sl _ hDS hA hc trivial
+  have hO' := hFD p b w r hk
   refine WP.spec_bind (WP.spec_and (P1.fin_cap_ntfn.slots (ar := arI) s a p b w r _ false hB hpN hH) hO') ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨-, -, hfoot, -⟩, hO1⟩
   simp only [uncurry_apply_pair]
-  obtain ⟨-, -, -, σ1, G1, -, hDS1, -, -, -⟩ := hO1
+  obtain ⟨σ1, G1, hDS1⟩ := hO1
   have h1 : DK4 (L := L) s s1 := DK4.of_foot hD.fits hD.align hKW hfoot
   have hD1 : KsbOK (L := L) th s1 := hD.same hfoot.1
   exact WP.spec_mono (empty_frame_of_links (ar := arI) hP s1 a1 hDS1.1.2.2.1 hA.isSlot) fun r hr =>
     h1.trans (DK4.of_slotFrame hD1 hr)
 
+
+/-- `delete_one_dk4D` with `FinObjHyp`. -/
+theorem delete_one_dk4 (th : TypedHeap) (hP : Placed th) (hO : FinObjHyp (L := L) arI th)
+    (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) (hD : KsbOK (L := L) th s)
+    (hk : capV (L.mem s) (cslotAddr sl) = .Null ∨
+      ∃ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r)
+    (hP1 : ∀ p b w r, capV (L.mem s) (cslotAddr sl) = .Notification p b w r →
+      ∃ (T Cs Ω : Set U64) (H : P1.Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64),
+        P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ p ∈ Nt ∧ H p = some .ntfn ∧
+        KWApart (L := L) T Cs Sg Scs Z (P1.EH H) s) :
+    cdt.delete_one st arI s a (cslotAddr sl) ⦃ r => DK4 (L := L) s r.1 ⦄ :=
+  delete_one_dk4D arI th hP s a σ G hDS hA hD (fun p b w r e =>
+    WP.spec_mono (hO s a σ G sl _ hDS hA (by rw [capAt_capV, e]) trivial) fun _ h =>
+      let ⟨_, _, _, σ1, G1, _, hDS1, _⟩ := h; ⟨σ1, G1, hDS1⟩) hk hP1
 end
 
 
@@ -140,7 +159,8 @@ theorem restart_dk4 (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION)) (hD : DomPlaced (L := L) th s) :
     ∃ s2, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 ∧ DK4 (L := L) s s2 ∧
       L.ksb s2 = L.ksb s ∧ L.cpu s2 = L.cpu s ∧ SlotsSame th (L.mem s) (L.mem s2) ∧
-      ∃ σ1, DState (L := L) th s2 σ1 G := by
+      ∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
+        DState (L := L) th s2 σ1 G := by
   obtain ⟨⟨hR, hV, hM, hC, hI⟩, hDl, hFI⟩ := hDS
   have hts := WP.spec_and (WP.spec_and (set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact)
     (sts_dk4 hP hD htcb sched.TS_RESTART)) (set_thread_state_cases s ct sched.TS_RESTART)
@@ -149,40 +169,63 @@ theorem restart_dk4 (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
   obtain ⟨tcb, hk, -⟩ := hR.tcb ct htcb
   rw [← hcur] at hk
   obtain ⟨σ1, hst, hR1, hV1, hM1, hC1, -, -⟩ := restart_rel hR hV hM hC hS hk .restart
-  exact ⟨s2, hs2, hdk, hdk.1, hcpu, hS, σ1, ⟨hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS⟩, hDl.of_same hS,
+  exact ⟨s2, hs2, hdk, hdk.1, hcpu, hS, σ1, hst, ⟨hR1, hV1, hM1, hC1, MdbInv.of_same hM hI hS⟩, hDl.of_same hS,
     hFI.of_same hM hS (ksub_of_eq (setThreadState_nks _ _) hst)⟩
 
+/-- **The IRQ node slot's notification finalisation after the caller's
+restart, `DState` after** (what `delete_one_dk4D` needs at the restarted
+state). From `FinObjHyp` (`irqDelDK_of`), or at `J` from XTopJointDelR's
+`jFinNtfnK` (XTopJointIrqDel). -/
+def IrqDelDK (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (ct irq : U64) : Prop :=
+  ∀ s2 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 →
+    Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+    DState (L := L) th s2 σ1 G → ∀ p b w r, capV (L.mem s2) (nodeA (L.ksb s) irq) = .Notification p b w r →
+      objects.finalise_cap st arI s2 ar (.Notification p b w r)
+        (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ1)) false ⦃ res =>
+          ∃ σ' G', DState (L := L) th res.2.1 σ' G' ⦄
+
+/-- `IrqDelDK` from `FinObjHyp`. -/
+theorem irqDelDK_of (th : TypedHeap) (hO : FinObjHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hL : IntLayout th (L.ksb s))
+    (ct irq : U64) (hirq : irq.val < 128) : IrqDelDK (L := L) arI th s ar σ G ct irq := by
+  intro s2 σ1 _ _ hDS1 p b w r e
+  have hA : AbsSlot th ((nodeA (L.ksb s) irq).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node irq hirq)⟩
+  refine WP.spec_mono (hO s2 ar σ1 G _ _ hDS1 hA (by rw [capAt_capV, cslotAddr_nil, e]) trivial) fun _ h => ?_
+  obtain ⟨_, _, _, σ', G', _, hDS', _⟩ := h
+  exact ⟨σ', G', hDS'⟩
+
 /-- **`decode_irq_handler` keeps the domain schedule's words**, every label. -/
-theorem irq_handler_dk4 (th : TypedHeap) (hP : Placed th)
-    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+theorem irq_handler_dk4D (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hL : IntLayout th (L.ksb s)) (lbl : U64)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI th s ar σ G ct irq) (hDD : IrqDelDK (L := L) arI th s ar σ G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
     (hD : DomPlaced (L := L) th s) (hP1 : IrqDelP1 (L := L) s ct irq) :
     interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res => DK4 (L := L) s res.2.1 ⦄ := by
-  obtain ⟨s2, hs2, hdk2, hkb2, hcpu2, hS2, σ1, hDS1⟩ := restart_dk4 th hP s σ G hDS ct hcur htcb hact hD
+  obtain ⟨s2, hs2, hdk2, hkb2, hcpu2, hS2, σ1, hst1, hDS1⟩ := restart_dk4 th hP s σ G hDS ct hcur htcb hact hD
   have hA : AbsSlot th ((nodeA (L.ksb s) irq).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node irq hirq)⟩
   have hns : IsSlot th (nodeA (L.ksb s) irq) := by have := hA.isSlot; rwa [cslotAddr_nil] at this
   have hok2 : IrqSlotOK (L.mem s2) (nodeA (L.ksb s) irq) := by unfold IrqSlotOK; rw [hS2.capV hns]; exact hok
   have hD2 : KsbOK (L := L) th s2 := hD.toK.same hkb2
   -- the deletion of the IRQ slot's cap, from the restarted state
-  have hdel : ∀ a2 : A, cdt.delete_one st arI s2 a2 (nodeA (L.ksb s) irq) ⦃ r =>
+  have hdel : ∀ a2 : A, a2 = ar → cdt.delete_one st arI s2 a2 (nodeA (L.ksb s) irq) ⦃ r =>
       DK4 (L := L) s r.1 ∧ ∃ σ' G', DState (L := L) th r.1 σ' G' ∧
         ∀ y, IsSlot th y → y ≠ nodeA (L.ksb s) irq → capV (L.mem r.1) y = capV (L.mem s2) y ⦄ := by
-    intro a2
+    rintro a2 rfl
     have hok3 : capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Null ∨
         ∃ p b w r, capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Notification p b w r := by
       have h := hok2; unfold IrqSlotOK at h; simpa only [cslotAddr_nil] using h
-    have h1 := delete_one_dk4 arI th hP hO s2 a2 σ1 G hDS1 hA hD2 hok3
+    have h1 := delete_one_dk4D arI th hP s2 a2 σ1 G hDS1 hA hD2
+      (fun p b w r e => hDD s2 σ1 hs2 hst1 hDS1 p b w r (by simpa only [cslotAddr_nil] using e)) hok3
       (fun p b w r e => hP1 s2 hs2 p b w r (by simpa only [cslotAddr_nil] using e))
-    have h2 := delete_one_keep arI th hP (finalHyp_full th hP) hO hPD hK s2 a2 σ1 G hDS1 hA hok3
-    rw [cslotAddr_nil] at h1 h2
+    have h2 := hDel s2 σ1 hs2 hst1 hDS1
+    rw [cslotAddr_nil] at h1
     refine WP.spec_mono (WP.spec_and h1 h2) ?_
     rintro r ⟨hr1, ⟨σ', G', -, hDS', -⟩, -, hoth⟩
     exact ⟨hdk2.trans hr1, σ', G', hDS', hoth⟩
@@ -205,7 +248,7 @@ theorem irq_handler_dk4 (th : TypedHeap) (hP : Placed th)
     by_cases hgood : ∃ p b r, c = .Notification p b true r
     · obtain ⟨p, b, r, rfl⟩ := hgood
       simp only [↓reduceIte, hs2, bind_ok, irq_slot_eq, hkb2]
-      refine WP.spec_bind (hdel ar) ?_
+      refine WP.spec_bind (hdel ar rfl) ?_
       rintro ⟨s3, a3⟩ ⟨hdk3, σ2, G2, hDS3, hoth⟩
       simp only [uncurry_apply_pair]
       have hAs : AbsSlot th (ps.bv, idxs) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
@@ -232,11 +275,31 @@ theorem irq_handler_dk4 (th : TypedHeap) (hP : Placed th)
   simp only [h35, ↓reduceIte]
   by_cases h36 : lbl = fl4_abi.label.IRQClearIRQHandler
   · simp only [h36, ↓reduceIte, hs2, bind_ok, irq_slot_eq, hkb2]
-    refine WP.spec_bind (hdel ar) ?_
+    refine WP.spec_bind (hdel ar rfl) ?_
     rintro ⟨s3, a3⟩ ⟨hdk3, -⟩
     exact (WP.spec_ok _).2 hdk3
   simp only [h36, ↓reduceIte, error.illegal, bind_ok, WP.spec_ok]
   exact DK4.refl s
+
+
+/-- **`decode_irq_handler` keeps the domain schedule's words** (with DelOne's
+∀-state deletion premises: `irqDelOK_of`, `irqDelDK_of`). -/
+theorem irq_handler_dk4 (th : TypedHeap) (hP : Placed th)
+    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hL : IntLayout th (L.ksb s)) (lbl : U64)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+    (hD : DomPlaced (L := L) th s) (hP1 : IrqDelP1 (L := L) s ct irq) :
+    interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res => DK4 (L := L) s res.2.1 ⦄ :=
+  irq_handler_dk4D arI th hP s ar σ G hDS hL lbl ct hct hcur htcb hact hmask irq hirq hok
+    (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok)
+    (irqDelDK_of arI th hO s ar σ G hL ct irq hirq) extra x0 hx0 cps hex hxn hD hP1
 
 end
 

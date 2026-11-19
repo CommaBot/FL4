@@ -258,11 +258,11 @@ theorem decode_invocation_ioport_controlJ [Fl4Proofs.P1.PlainStore st] (s : S) (
 theorem decode_invocation_irq_handlerJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI) (hUt : DelUtHyp (L := L) arI AR Z.th)
-    (hO : FinObjHyp (L := L) arI Z.th) (hPD : PostDelHyp (L := L) arI Z.th) (hK : NtfnKeepHyp (L := L) arI Z.th)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (irq : U64) (hsc : capV (L.mem s) (cslotAddr sl) = .IrqHandler irq)
     (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI Z.th s ar σ Z.G ct irq) (hDD : IrqDelDK (L := L) arI Z.th s ar σ Z.G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) x0 excaps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
@@ -271,8 +271,8 @@ theorem decode_invocation_irq_handlerJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IrqHandler irq) blk call don fp buf
       extra slbl args ci sl excaps buffer ct :=
-  decode_invocation_irq_handlerJ_step arI s ar σ J hni hARI hT (JStepHyps.of_ut arI hUt) hO hPD hK lbl slbl hlbl
-    ct hct sl hAs irq hsc hok extra x0 hx0 excaps hex hxn hD hP1 length buf blk call don fp args ci buffer
+  decode_invocation_irq_handlerJ_step arI s ar σ J hni hARI hT (JStepHyps.of_ut arI hUt) lbl slbl hlbl
+    ct hct sl hAs irq hsc hok hDel hDD extra x0 hx0 excaps hex hxn hD hP1 length buf blk call don fp args ci buffer
 
 /-- **The domain cap at `JAt`** from `DelUtHyp`. -/
 theorem decode_invocation_domainJ [Fl4Proofs.P1.PlainStore st] (hcfg : DomConfig) (s : S) (ar : A)

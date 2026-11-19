@@ -137,15 +137,53 @@ theorem irq_ack_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Un
         hFI.of_same hM hS ((ksub_of_eq (setThreadState_nks _ _) hst).trans (KSub.of_kheap rfl)), MdbStep.of_same hM hS,
         fun _ => hstp⟩
 
+/-- **The IRQ node slot's deletion after the caller's restart** (what
+`Clear` and `SetNotification` need of `delete_one`): from the restarted
+state (FL4's `set_thread_state Restart`, the spec's), with `DState` there,
+FL4's `delete_one` of the IRQ's node slot refines `cap_delete_one` with
+`DState` after, the slot emptied and the other slots kept. From DelOne's
+`delete_one_keep` (`irqDelOK_of`, with `FinObjHyp`/`PostDelHyp`/
+`NtfnKeepHyp`), or at `J` from XTopJointDelR's `delete_oneJ`
+(XTopJointIrqDel). -/
+def IrqDelOK (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (ct irq : U64) : Prop :=
+  ∀ s2 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s2 →
+    Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
+    DState (L := L) th s2 σ1 G →
+    cdt.delete_one st arI s2 ar (nodeA (L.ksb s) irq) ⦃ r =>
+      (∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) ((nodeA (L.ksb s) irq).bv, []) σ1).1 ∧
+        DState (L := L) th r.1 σ' G' ∧ MdbStep (L.mem s2) G (L.mem r.1) G') ∧
+      capV (L.mem r.1) (nodeA (L.ksb s) irq) = .Null ∧
+      ∀ y, IsSlot th y → y ≠ nodeA (L.ksb s) irq → capV (L.mem r.1) y = capV (L.mem s2) y ⦄
+
+/-- `IrqDelOK` from DelOne's `delete_one_keep` (the deletion's ∀-state
+premises `FinObjHyp`, `PostDelHyp`, `NtfnKeepHyp`). -/
+theorem irqDelOK_of (th : TypedHeap) (hP : Placed th)
+    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hL : IntLayout th (L.ksb s))
+    (ct : U64) (htcb : th ct = some .tcb) (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq)) :
+    IrqDelOK (L := L) arI th s ar σ G ct irq := by
+  intro s2 σ1 hs2 _ hDS1
+  have hS : SlotsSame th (L.mem s) (L.mem s2) := by
+    have h := set_thread_state_slots th hP s ct sched.TS_RESTART htcb hact
+    rw [hs2, WP.spec_ok] at h; exact h
+  have hA : AbsSlot th ((nodeA (L.ksb s) irq).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node irq hirq)⟩
+  have hns : IsSlot th (nodeA (L.ksb s) irq) := by have := hA.isSlot; rwa [cslotAddr_nil] at this
+  have hok3 : capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Null ∨
+      ∃ p b w r, capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Notification p b w r := by
+    rw [cslotAddr_nil, hS.capV hns]; exact hok
+  have h := delete_one_keep arI th hP (finalHyp_full th hP) hO hPD hK s2 ar σ1 G hDS1 hA hok3
+  rw [cslotAddr_nil] at h; exact h
+
 /-- **`Clear`.** -/
-theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
-    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th)
+theorem irq_clear_refinesD (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqClearIRQHandler)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI th s ar σ G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
     interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQClearIRQHandler irq extra ⦃ res =>
       HPost (L := L) arI th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s ar res ⦄ := by
@@ -172,11 +210,10 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
   have hok3 : capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Null ∨
       ∃ p b w r, capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Notification p b w r := by
     have h := hok2; unfold IrqSlotOK at h; simpa only [cslotAddr_nil] using h
-  have := delete_one_refines arI th hP (finalHyp_full th hP) hO hPD s2 ar σ1 G hDS1 hA hok3
+  have := hDel s2 σ1 hs2 hst hDS1
   have hrun := spec_self this
-  rw [cslotAddr_nil] at this hrun
   refine WP.spec_bind (WP.spec_and this hrun) ?_
-  rintro ⟨s3, a3⟩ ⟨⟨σ', G', hdel, hDS3, hmS3⟩, hr3⟩
+  rintro ⟨s3, a3⟩ ⟨⟨⟨σ', G', hdel, hDS3, hmS3⟩, -, -⟩, hr3⟩
   apply (WP.spec_ok (core.result.Result.Ok (), s3, a3)).mpr
   have hdel' : ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) ((nodeA (L.ksb s) irq).bv, []) σ1).1 := hdel
   refine ⟨.clearIRQHandler (BitVec.ofNat 8 irq.val), ?_, σ1, hst, σ', G', ?_, hDS3.1, hDS3.2.2,
@@ -189,14 +226,14 @@ theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
     exact hdel
 
 /-- **`SetNotification`.** -/
-theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
-    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+theorem irq_set_refinesD (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqSetIRQHandler)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI th s ar σ G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 cps)
     (hxn : x0 ≠ nodeA (L.ksb s) irq) (hFR : MdbOKV (L.ksb s) (L.mem s) G) :
@@ -255,9 +292,8 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
     have hok3 : capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Null ∨
         ∃ p b w r, capV (L.mem s2) (cslotAddr ((nodeA (L.ksb s) irq).bv, [])) = .Notification p b w r := by
       have h := hok2; unfold IrqSlotOK at h; simpa only [cslotAddr_nil] using h
-    have := delete_one_keep arI th hP (finalHyp_full th hP) hO hPD hK s2 ar σ1 G hDS1 hA hok3
+    have := hDel s2 σ1 hs2 hst hDS1
     have hrun := spec_self this
-    rw [cslotAddr_nil] at this hrun
     refine WP.spec_bind (WP.spec_and this hrun) ?_
     rintro ⟨s3, a3⟩ ⟨⟨⟨σ2, G2, hdel, ⟨⟨hR3, hV3, hM3, hC3, hI3⟩, hD3, hFI3⟩, hmS3⟩, hnull, hoth⟩, hr3⟩
     simp only [uncurry_apply_pair]
@@ -334,6 +370,38 @@ theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
          · simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
            exact hfin _ rfl
          · exact absurd ⟨p, b, r, rfl⟩ hgood)
+
+/-- **`Clear`** (with DelOne's ∀-state deletion premises, `irqDelOK_of`). -/
+theorem irq_clear_refines (th : TypedHeap) (hP : Placed th)
+    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqClearIRQHandler)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) :
+    interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQClearIRQHandler irq extra ⦃ res =>
+      HPost (L := L) arI th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s ar res ⦄ :=
+  irq_clear_refinesD arI th hP s ar σ G hDS hL hIR slbl hlbl ct hct hcur htcb hact irq hirq hok
+    (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok) extra cps
+
+/-- **`SetNotification`** (with DelOne's ∀-state deletion premises, `irqDelOK_of`). -/
+theorem irq_set_refines (th : TypedHeap) (hP : Placed th)
+    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .irqSetIRQHandler)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraSRel th (L.mem s) x0 cps)
+    (hxn : x0 ≠ nodeA (L.ksb s) irq) (hFR : MdbOKV (L.ksb s) (L.mem s) G) :
+    interrupt.decode_irq_handler st arI s ar fl4_abi.label.IRQSetIRQHandler irq extra ⦃ res =>
+      HPost (L := L) arI th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s ar res ⦄ :=
+  irq_set_refinesD arI th hP s ar σ G hDS hL hIR slbl hlbl ct hct hcur htcb hact irq hirq hok
+    (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok) extra x0 hx0 cps hex hxn hFR
 
 /-- **Any other label**: `IllegalOperation`. -/
 theorem irq_other_refines (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) {G : MdbGhost}

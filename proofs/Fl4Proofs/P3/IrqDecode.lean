@@ -37,8 +37,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- **`decode_irq_handler`, every label.** -/
-theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
-    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+theorem irq_handler_decode_refinesD (th : TypedHeap) (hP : Placed th)
     (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
     (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
@@ -46,6 +45,7 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (hDel : IrqDelOK (L := L) arI th s ar σ G ct irq)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
     (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
@@ -61,17 +61,37 @@ theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
   · have e : lbl = fl4_abi.label.IRQSetIRQHandler :=
       UScalar.eq_of_val_eq (by rw [h35]; simp [fl4_abi.label.IRQSetIRQHandler])
     subst e
-    exact irq_set_refines arI th hP hO hPD hK s ar σ G hDS hL hIR slbl (by rw [hlbl]; simp [irqHLabelOf, h35]) ct hct
-      hcur htcb hact irq hirq hok extra x0 hx0 cps (hex h35) (hxn h35) hFR
+    exact irq_set_refinesD arI th hP s ar σ G hDS hL hIR slbl (by rw [hlbl]; simp [irqHLabelOf, h35]) ct hct
+      hcur htcb hact irq hirq hok hDel extra x0 hx0 cps (hex h35) (hxn h35) hFR
   by_cases h36 : lbl.val = 36
   · have e : lbl = fl4_abi.label.IRQClearIRQHandler :=
       UScalar.eq_of_val_eq (by rw [h36]; simp [fl4_abi.label.IRQClearIRQHandler])
     subst e
-    exact irq_clear_refines arI th hP hO hPD s ar σ G hDS hL hIR slbl (by rw [hlbl]; simp [irqHLabelOf, h36]) ct hct
-      hcur htcb hact irq hirq hok extra cps
+    exact irq_clear_refinesD arI th hP s ar σ G hDS hL hIR slbl (by rw [hlbl]; simp [irqHLabelOf, h36]) ct hct
+      hcur htcb hact irq hirq hok hDel extra cps
   have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by
     rw [hlbl]; simp [irqHLabelOf, h34, h35, h36]
   exact irq_other_refines arI th s ar σ lbl h34 h35 h36 slbl (by rw [hg]; decide) ct hct irq extra cps
+
+/-- **`decode_irq_handler`, every label** (with DelOne's ∀-state deletion
+premises, `irqDelOK_of`). -/
+theorem irq_handler_decode_refines (th : TypedHeap) (hP : Placed th)
+    (hO : FinObjHyp (L := L) arI th) (hPD : PostDelHyp (L := L) arI th) (hK : NtfnKeepHyp (L := L) arI th)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hL : IntLayout th (L.ksb s)) (hIR : IrqRel (L.mem s) (L.ksb s) σ)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = irqHLabelOf lbl)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (irq : U64) (hirq : irq.val < 128) (hok : IrqSlotOK (L.mem s) (nodeA (L.ksb s) irq))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (cps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hex : lbl.val = 35 → ExtraSRel th (L.mem s) x0 cps) (hxn : lbl.val = 35 → x0 ≠ nodeA (L.ksb s) irq)
+    (hFR : MdbOKV (L.ksb s) (L.mem s) G) :
+    interrupt.decode_irq_handler st arI s ar lbl irq extra ⦃ res =>
+      HPost (L := L) arI th σ G (Fl4Spec.decodeIrqHandlerInvocation slbl (BitVec.ofNat 8 irq.val) cps) s ar res ⦄ :=
+  irq_handler_decode_refinesD arI th hP s ar σ G hDS hL hIR lbl slbl hlbl ct hct hcur htcb hact hmask irq hirq hok
+    (irqDelOK_of arI th hP hO hPD hK s ar σ G hL ct htcb hact irq hirq hok) extra x0 hx0 cps hex hxn hFR
 
 /-- **`decode_irq_control`, every label.** -/
 theorem irq_control_decode_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : Fl4Spec.State Unit)

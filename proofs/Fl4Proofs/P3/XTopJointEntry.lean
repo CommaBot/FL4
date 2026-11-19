@@ -46,6 +46,7 @@ spec's `callKernel`); P1 has only `handle_syscall.entry` (`EntryInv`).
 -/
 import Fl4Proofs.P3.XTopJointTcb
 import Fl4Proofs.P3.XTopJointCnDel
+import Fl4Proofs.P3.XTopJointIrqDel
 import Fl4Proofs.P3.TopXAll
 import Fl4Proofs.P3.XTopJointIpcJ
 import Fl4Proofs.P3.XTopJointVsCap
@@ -296,12 +297,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [J] the Thread decode's `hBPl`. -/
   bufPlaced : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' →
     Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ'
-  /-- [J] the IRQ handler decode's `FinObjHyp` (DelRound). -/
-  finObj : FinObjHyp (L := L) arI th
-  /-- [J] the IRQ handler decode's `PostDelHyp` (DelRound). -/
-  postDel : PostDelHyp (L := L) arI th
-  /-- [J] the IRQ handler decode's `NtfnKeepHyp` (DelOne). -/
-  ntfnKeep : NtfnKeepHyp (L := L) arI th
   /-- [P] the domain configuration (`DomConfig`). -/
   dom : DomConfig
   /-- [P] the port-in values (`PortInVal`, the IO port decode for a call). -/
@@ -786,8 +781,11 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨x0, hx0, hxn⟩ := hN.hex
     obtain rfl : x0 = exAt extra 0 := eq_of_ok_eq (hx0.symm.trans (exAt_idx0 extra))
     have hex : lbl.val = 35 → ExtraSRel Z.th (L.mem s) (exAt extra 0) excaps := fun _ => ExtraOK.relS hPl hXO
-    exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt hG.finObj hG.postDel hG.ntfnKeep
-      lbl slbl hN.hlbl ct hct sl hAs irq hsc hN.hok extra _ hx0 excaps hex hxn hE.domPl hN.hP1 length buf blk call
+    have hirq : irq.val < 128 := (slot_cap_wf J.xtop hAs hsc).1
+    exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt
+      lbl slbl hN.hlbl ct hct sl hAs irq hsc hN.hok
+      (irqDelOKJ arI hG.delParts.live (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq)
+      (irqDelDKJ arI (JStepHyps.of_ut arI hUt) J hni hE.sg hct irq hirq) extra _ hx0 excaps hex hxn hE.domPl hN.hP1 length buf blk call
       don fp _ ci buffer).toP arI hPre
   case Domain =>
     have hN : JDomPath Z s lbl slbl extra excaps := hN
