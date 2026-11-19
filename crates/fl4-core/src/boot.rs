@@ -62,6 +62,12 @@ pub struct BootParams {
     /// `idle_stride` bytes apart, starting at `idle_base`.
     pub idle_base: u64,
     pub idle_stride: u64,
+    /// The kernel image's addresses as linked, [first, end) (seL4
+    /// [KERNEL_ELF_BASE, ki_end)): the names of the kernel's statics,
+    /// which hold kernel objects (the global state, the IRQ node, the idle
+    /// threads). `PPTR_BASE <= start`; no device untyped's pointer range
+    /// meets it (`create_device_untypeds`).
+    pub kernel_image: Region,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -263,6 +269,35 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
         }
         start = start.wrapping_add(1u64 << (size_bits & 63));
     }
+}
+
+/// Device untypeds for the physical region `reg`, minus the physical
+/// addresses whose pointers are the kernel image's addresses `kernel`.
+///
+/// An untyped's objects are named by pointers, and a device untyped's
+/// pointer is its physical address plus PPTR_BASE whatever is there, so
+/// device memory at physical `kernel - PPTR_BASE` (on x86_64
+/// [510 GiB, 510 GiB + image size), just above the window; on AArch64
+/// just below 128 TiB) would get the names of the kernel's statics: a
+/// retype or reset of it would create or delete objects (in the
+/// specification, `deleteObjects` over its range) under the names of the
+/// global state, the IRQ node's CNodes and the idle threads. seL4 hands
+/// that memory out (boot.c `create_untypeds`); l4v assumes it does not
+/// (`valid_global_refs`: no untyped covers a kernel object). So the
+/// kernel leaves it out. Pointers above it wrap to the lower half, which
+/// holds no kernel object, and an untyped never wraps (it is aligned in
+/// pointer space), so every device untyped's range misses `kernel`.
+fn create_device_untypeds<S: Store>(s: &mut S, b: &mut Boot, reg: Region, kernel: Region, first: u64) {
+    let cut_start = layout::paddr(kernel.start);
+    let cut_end = layout::paddr(kernel.end);
+    if cut_start >= cut_end {
+        create_untypeds_for_region(s, b, true, reg, first);
+        return;
+    }
+    let below_end = if reg.end < cut_start { reg.end } else { cut_start };
+    create_untypeds_for_region(s, b, true, Region { start: reg.start, end: below_end }, first);
+    let above_start = if reg.start > cut_end { reg.start } else { cut_end };
+    create_untypeds_for_region(s, b, true, Region { start: above_start, end: reg.end }, first);
 }
 
 /// The cap for the untyped at `start` (a kernel address for RAM, physical
@@ -643,7 +678,7 @@ fn create_untypeds<S: Store>(s: &mut S, b: &mut Boot, p: &BootParams) {
     let mut i = 0;
     while i < p.n_device && i < MAX_REGIONS as u64 {
         let r = p.device[i as usize];
-        create_untypeds_for_region(s, b, true, r, first);
+        create_device_untypeds(s, b, r, p.kernel_image, first);
         i += 1;
     }
     let mut i = 0;
@@ -679,4 +714,118 @@ fn create_untypeds<S: Store>(s: &mut S, b: &mut Boot, p: &BootParams) {
     bi_set(s, b, bi::UNTYPED + 1, end);
     bi_set(s, b, bi::EMPTY, b.slot_pos);
     bi_set(s, b, bi::EMPTY + 1, 1u64 << ROOT_CNODE_BITS);
+}
+
+#[cfg(test)]
+mod tests {
+    //! Device untypeds never take the kernel image's names
+    //! (`create_device_untypeds`).
+    extern crate std;
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::vec::Vec;
+
+    struct Mem(BTreeMap<u64, u64>);
+    impl Store for Mem {
+        fn read(&self, a: u64) -> u64 {
+            *self.0.get(&a).unwrap_or(&0)
+        }
+        fn write(&mut self, a: u64, v: u64) {
+            self.0.insert(a, v);
+        }
+        fn zero(&mut self, a: u64, len: u64) {
+            for i in (0..len).step_by(8) {
+                self.write(a + i, 0);
+            }
+        }
+        fn clear_free(&mut self, a: u64, len: u64) {
+            self.zero(a, len)
+        }
+        fn ks_base(&self) -> u64 {
+            0x10_0000
+        }
+        fn cur_cpu(&self) -> u64 {
+            0
+        }
+    }
+
+    const GIB: u64 = 1 << 30;
+    /// Where both kernels link their image (x86_64 KERNEL_OFFSET, AArch64
+    /// KERNEL_VBASE).
+    const IMAGE: u64 = 0xffff_ffff_8000_0000;
+
+    /// The device untypeds made for `reg` with the image at `kernel`, as
+    /// (pointer, size bits).
+    fn device_untypeds(reg: Region, kernel: Region) -> Vec<(u64, u64)> {
+        let mut s = Mem(BTreeMap::new());
+        let mut b = Boot {
+            root_cnode: 0x100_0000,
+            slot_pos: 0,
+            bi_frame: 0x200_0000,
+            next: 0,
+            end: 0,
+            full: false,
+            extra_ut: 0,
+            extra_bytes: 0,
+            ut_lost: false,
+        };
+        create_device_untypeds(&mut s, &mut b, reg, kernel, 0);
+        assert!(!b.full && !b.ut_lost);
+        (0..b.slot_pos)
+            .map(|i| match root_slot(&b, i).cap(&s) {
+                Cap::Untyped { ptr, size_bits, free_index: 0, is_device: true } => (ptr, size_bits),
+                _ => panic!("slot {i} is not a fresh device untyped"),
+            })
+            .collect()
+    }
+
+    fn meets(ptr: u64, size_bits: u64, r: Region) -> bool {
+        let (a, e) = (ptr as u128, ptr as u128 + (1u128 << size_bits));
+        a < (r.end as u128) && (r.start as u128) < e
+    }
+
+    fn total(uts: &[(u64, u64)]) -> u64 {
+        uts.iter().map(|&(_, sb)| 1u64 << sb).sum()
+    }
+
+    /// Device memory around the image's physical addresses (on x86_64
+    /// [510 GiB, 510 GiB + 4 MiB), the window's top): everything but the
+    /// image's part becomes untypeds, none of them meeting the image's
+    /// names, including those past 512 GiB whose pointers wrap.
+    #[test]
+    fn device_untypeds_skip_kernel_image() {
+        let kernel = Region { start: IMAGE, end: IMAGE + (4 << 20) };
+        let p = layout::paddr(IMAGE);
+        let reg = Region { start: p - GIB, end: p + 3 * GIB };
+        let uts = device_untypeds(reg, kernel);
+        for &(ptr, sb) in &uts {
+            assert!(!meets(ptr, sb, kernel), "untyped {ptr:#x}/{sb} meets the image");
+            let pa = layout::paddr(ptr);
+            assert!(reg.start <= pa && pa + (1 << sb) <= reg.end);
+            assert_eq!(ptr & ((1 << sb) - 1), 0, "pointer alignment");
+        }
+        assert_eq!(total(&uts), 4 * GIB - (4 << 20));
+        // Both sides of the image are there.
+        assert!(uts.iter().any(|&(ptr, _)| layout::paddr(ptr) < p));
+        assert!(uts.iter().any(|&(ptr, _)| layout::paddr(ptr) >= p + (4 << 20)));
+    }
+
+    /// Regions away from the image, or no image given: nothing is cut.
+    #[test]
+    fn device_untypeds_elsewhere_unchanged() {
+        let kernel = Region { start: IMAGE, end: IMAGE + (4 << 20) };
+        let p = layout::paddr(IMAGE);
+        for reg in [
+            Region { start: 0xfe00_0000, end: 0x1_0000_0000 },
+            Region { start: p - GIB, end: p },
+            Region { start: p + (4 << 20), end: p + GIB },
+            Region { start: 0x3800_0000_0000, end: 0x3800_0000_0000 + (1 << 44) },
+        ] {
+            let with = device_untypeds(reg, kernel);
+            assert_eq!(with, device_untypeds(reg, Region::EMPTY));
+            assert_eq!(total(&with), reg.end - reg.start);
+        }
+        let reg = Region { start: p - GIB, end: p + GIB };
+        assert_eq!(total(&device_untypeds(reg, Region::EMPTY)), 2 * GIB);
+    }
 }

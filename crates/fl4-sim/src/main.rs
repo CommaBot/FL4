@@ -1185,6 +1185,7 @@ impl Sim {
             num_nodes: self.ncores,
             idle_base,
             idle_stride: 8192,
+            kernel_image: Region { start: pptr(image), end: pptr(MEM_BYTES) },
         };
         p.free[0] = Region { start: pptr(2 << 20), end: pptr(image) };
         p.device[0] = Region { start: MEM_BYTES, end: MEM_BYTES + (1 << 30) };

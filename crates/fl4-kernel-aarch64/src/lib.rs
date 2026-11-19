@@ -133,6 +133,10 @@ fn has_option(bi: &BootInfo, opt: &[u8]) -> bool {
     bi.cmdline[..n].split(|&c| c == b' ').any(|w| w == opt)
 }
 
+extern "C" {
+    static __kernel_end: u8;
+}
+
 #[no_mangle]
 pub extern "C" fn fl4_boot(off: u64) -> ! {
     let bi = unsafe { &*((KERNEL_VBASE + off) as *const BootInfo) };
@@ -349,6 +353,9 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         num_nodes: ncpus as u64,
         idle_base: st.idle.0.as_ptr() as u64,
         idle_stride: IDLE_STRIDE as u64,
+        // Its pointers' physical addresses, just below 128 TiB, can be
+        // device memory: fl4-core's `create_device_untypeds` leaves them out.
+        kernel_image: Region { start: KERNEL_VBASE, end: unsafe { &__kernel_end as *const u8 as u64 } },
     };
     // The largest free ranges, if there are more than BootParams holds.
     while free.n > MAX_REGIONS {

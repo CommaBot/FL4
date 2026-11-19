@@ -334,8 +334,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // as in seL4 (firmware places 64-bit BARs far above the 510 GiB
     // window): the kernel never touches it, and a device untyped's
     // pointer is only its physical address plus PPTR_BASE, wrapping to
-    // the lower half from 512 GiB on (and, for [510 GiB, 512 GiB), has
-    // the values of the kernel image's addresses, which means nothing).
+    // the lower half from 512 GiB on. Over [510 GiB, 512 GiB) it has the
+    // values of the kernel image's addresses, the names of the kernel's
+    // statics: fl4-core's `create_device_untypeds` leaves out the image's
+    // part (BootParams::kernel_image).
     // Nothing goes past what the CPU can address either (MAXPHYADDR): a
     // mapping of it would set reserved bits in a paging, EPT or NPT entry.
     let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
@@ -438,6 +440,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         num_nodes: ncpus as u64,
         idle_base: st.idle.0.as_ptr() as u64,
         idle_stride: 8192,
+        kernel_image: Region { start: paging::KERNEL_OFFSET, end: unsafe { &__kernel_end as *const u8 as u64 } },
     };
     for i in 0..free.n.min(MAX_REGIONS) {
         p.free[i] = Region { start: pptr(free.r[i].start), end: pptr(free.r[i].end) };
