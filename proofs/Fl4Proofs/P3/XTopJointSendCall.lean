@@ -199,7 +199,7 @@ theorem ciSt_inv (hk : σ.kheap c = some (.tcb x)) (hI : Inv σ) (hnq : ∀ d p,
         rw [h1] at h2'; cases h2'; exact hr
     · by_cases e : u = c
       · subst e; simp [updK] at h2; subst h2
-        exact absurd hc (by intro h; rcases h with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩ <;> cases h)
+        exact absurd hc (by intro h; rcases h with h | ⟨_, h⟩ | ⟨_, _, h, -⟩ | ⟨_, _, _, h⟩ <;> cases h)
       · have h2' : σ.kheap u = some (.tcb y) := by simpa [updK, e] using h2
         exact hI.rd u y h2' hc
   exact hI1.qchange (qchange_stsAct _ c)

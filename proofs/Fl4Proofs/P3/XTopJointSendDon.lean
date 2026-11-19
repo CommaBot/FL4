@@ -1074,7 +1074,7 @@ theorem JAtZ.sendDonJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
     step with Fl4Proofs.P1.obj.Tcb.sc.spec as ⟨i3, hi3⟩
     subst hi3
     refine WP.spec_mono (WP.spec_and (WP.spec_and
-      (donate_bound_refines s3 a σ3 hSR3 hX3'.1.toN hN3 I3 hscC hsc0 hky3 ht hyt hkt3 hdT hkd3 hx30 htd hrel3)
+      (donate_bound_refines s3 a σ3 hSR3 hX3'.1.toN hN3 I3 hscC hsc0 hky3 ht hyt hkt3 hdT hkd3 hx30 htd (fun h => hrel3 h.cls))
       (P1.schedcontext.donate.ipc hAT s3 a sc d' t Q0 R0 h3 hB3 hX3 hS3' hSg3 htH rfl hsc0
         ⟨hqbT, hrbT, hna3 t ht⟩ (hiw3 t ht hit) (J.zH.1 d' hdT) hd0 hqbD hrbD (hna3 d' hdT) (Ne.symm htd) hsA
         (hiw3 d' hdT hid)))
