@@ -13,6 +13,11 @@ left there).
   (every debug-list member after one before: `dbgNth_mem_wf`,
   `dbgNth_getElem_wf`) and `RzJ` at the zombie remainder (the thread dead,
   off the list).
+* `jFinNtfnKL`, `delete_oneJL`, `jFinAtL_irq`: XTopJointDelR's `jFinNtfnK`,
+  `delete_oneJ` and `jFinAt_irq` at `WJL` (the notification's finalisation
+  by `jFinAtL_ntfn`/`jFin_nonfinalLO`, every slot kept by `jFinNtfnK`; the
+  slot emptied by `emptyHypJL` with `RdLO`; the handler's slot `RdLO` by
+  `rdLO_noRef`: an IRQ handler cap is not physical and names nothing).
 -/
 import Fl4Proofs.P3.XTopJointWJLFin
 import Fl4Proofs.P3.XTopJointFinThreadU
@@ -246,6 +251,168 @@ theorem jFinAtL_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR)
     · exact hp00 (hn.symm.trans h)
     · rw [hn] at h
       exact ((List.Nodup.mem_erase_iff hnd).1 h).1 rfl
+
+set_option maxHeartbeats 4000000 in
+/-- **A notification cap's finalisation at `WJL`, every slot kept** (module
+docstring). -/
+theorem jFinNtfnKL [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
+    (hth : Z.th = th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (sl : Fl4Spec.CslotPtr)
+    (p b : U64) (w r : Bool)
+    (hDS : DState (L := L) th s σ G) (hW : WJL (L := L) arI AR Z H Cs kb s a σ G) (hA : AbsSlot th sl)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r)) :
+    objects.finalise_cap st arI s a (.Notification p b w r)
+        (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) false ⦃ res =>
+      res.1.1 = finRem (.Notification p b w r) (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) ∧
+      res.1.2 = .Null ∧ ∃ σ' G', ((absCap res.1.1, absCap res.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit)
+          (absCap (.Notification p b w r)) (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ)) σ).1 ∧
+        DState (L := L) th res.2.1 σ' G' ∧ (∀ y, IsSlot th y → capV (L.mem res.2.1) y = capV (L.mem s) y) ∧
+        MdbStep (L.mem s) G (L.mem res.2.1) G' ∧ WJL (L := L) arI AR Z H Cs kb res.2.1 res.2.2 σ' G' ∧
+        RdLO (L := L) (A := A) th H res.2.1 res.2.2 σ' G' (cslotAddr sl) ⦄ := by
+  have hK := jFinNtfnK arI Z H Cs kb hth s a σ G sl p b w r hDS (hW.1.wj arI) hA hc
+  have hfi : ¬ FrIoK (.Notification p b w r) := by
+    rintro (h | ⟨f, l, o, e⟩)
+    · simp [isFrame] at h
+    · cases e
+  by_cases hfin : Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ
+  · refine WP.spec_mono (WP.spec_and hK
+      (jFinAtL_ntfn arI Z H Cs kb hth s a σ G sl _ hDS hW hA hc trivial ⟨p, b, w, r, rfl⟩ hfin)) ?_
+    rintro res ⟨⟨h1, h2, σ0, G0, -, -, hkeep, -⟩, ⟨-, -, -, σ', G', h4, h5, -, -, h7, h8, h9, -⟩⟩
+    exact ⟨h1, h2, σ', G', h4, h5, hkeep, h7, h8, h9 (Or.inl h1)⟩
+  · refine WP.spec_mono (WP.spec_and hK
+      (jFin_nonfinalLO arI Z H Cs kb hth s a σ G sl _ hDS hW hA hc trivial hfi hfin)) ?_
+    rintro res ⟨⟨h1, h2, σ0, G0, -, -, hkeep, -⟩, ⟨-, -, -, σ', G', h4, h5, -, -, h7, h8, h9, -⟩⟩
+    exact ⟨h1, h2, σ', G', h4, h5, hkeep, h7, h8, h9 (Or.inl h1)⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **`delete_one` of a notification cap at `WJL`** (module docstring). -/
+theorem delete_oneJL [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64)
+    (hth : Z.th = th) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost) (hDS : DState (L := L) th s σ G)
+    (hW : WJL (L := L) arI AR Z H Cs kb s a σ G) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot th sl) {p b : U64}
+    {w r : Bool} (hk : capV (L.mem s) (cslotAddr sl) = .Notification p b w r) :
+    cdt.delete_one st arI s a (cslotAddr sl) ⦃ res =>
+      ∃ σ' G', ((), σ') ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl σ).1 ∧ DState (L := L) th res.1 σ' G' ∧
+        capV (L.mem res.1) (cslotAddr sl) = .Null ∧
+        (∀ y, IsSlot th y → y ≠ cslotAddr sl → capV (L.mem res.1) y = capV (L.mem s) y) ∧
+        MdbStep (L.mem s) G (L.mem res.1) G' ∧ WJL (L := L) arI AR Z H Cs kb res.1 res.2 σ' G' ⦄ := by
+  have hP : Placed th := by obtain ⟨⟨V, Ac, Lst, D, J, -⟩, -⟩ := hW; exact hth ▸ J.xtop.rel.1
+  obtain ⟨c, ac, hc, hca, hg⟩ := hDS.1.1.abs_cap hA
+  rw [hca.abs] at hg
+  have hcv := capV_of_capAt hc
+  unfold cdt.delete_one
+  rw [slot_cap_eq, hc]
+  simp only [bind_ok, cap_is_null_eq]
+  rw [hcv] at hk; subst hk
+  have hcn : capability.Cap.Notification p b w r ≠ .Null := by simp
+  simp only [isNullB_false hcn, Bool.false_eq_true, ↓reduceIte]
+  obtain ⟨bf, hbf, hbf2, -⟩ := finalHyp_full th hP s σ G sl _ hDS hA hc hcn
+  have hNF : NeedsFin (.Notification p b w r) := Or.inl ⟨trivial, rfl⟩
+  rw [hbf2 hNF] at hbf
+  rw [is_final_with_cap_eq _ _ _ hc, hbf]; simp only [bind_ok]
+  rw [← finalise_cap_ntfn arI s a p b w r _ false]
+  apply WP.spec_bind (jFinNtfnKL arI Z H Cs kb hth s a σ G sl p b w r hDS hW hA hc)
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨hrem, hcl, σ1, G1, hmem, hDS1, hkeep, hm1, hW1, hRd1⟩
+  simp only at hrem hcl hmem hDS1 hkeep hm1 hW1 hRd1
+  subst hcl
+  simp only [uncurry_apply_pair]
+  refine WP.spec_mono (empty_stepWR' arI (WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) th H) th hP
+    (cl := .Null) (fun h => absurd rfl h) (emptyHypJL arI Z H Cs kb hth) s1 a1 σ1 G1 hDS1 hW1 hA
+    (fun _ => hRd1) trivial trivial) ?_
+  rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, hx2, hoth, -, -, -, hm2, hW2⟩
+  refine ⟨σ2, G2, ?_, hDS2, hx2, fun y hy hyx => by rw [hoth y hy hyx, hkeep y hy], hm1.trans hm2, hW2⟩
+  unfold Fl4Spec.capDeleteOne
+  refine mem_bind_nd (x := (absCap (.Notification p b w r), σ)) (by rw [hg]; rfl) ?_
+  simp only [absCap, Fl4Spec.NonDet.unless, reduceCtorEq, ↓reduceIte]
+  refine mem_bind_nd (x := (decide (Fl4Spec.isFinalCap' (absCap (.Notification p b w r)) σ), σ)) rfl ?_
+  refine mem_bind_nd (x := ((), σ1)) (fastFinalise_of_finaliseCap hmem) ?_
+  exact hes
+
+set_option maxHeartbeats 8000000 in
+/-- **A final IRQ handler cap's finalisation at `WJL`** (module docstring). -/
+theorem jFinAtL_irq [Fl4Proofs.P1.PlainStore st] : JFinAtL (L := L) arI AR th IrqK := by
+  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ ⟨i, hci⟩ hfin
+  subst hci hth
+  obtain ⟨V, hX, hL⟩ : ∃ V, XTopAt (L := L) AR (Z.mv G V) s a σ ∧ IntLayout Z.th (L.ksb s) := by
+    obtain ⟨⟨V, Ac, Lst, D, J, -⟩, -⟩ := hW; exact ⟨V, J.xtop, J.intL⟩
+  obtain ⟨c', ac, hc', hca, -⟩ := hDS.1.1.abs_cap hA
+  rw [hc] at hc'; cases eq_of_ok_eq hc'
+  have hcw : CapWf (.IrqHandler i) := hca.1
+  have hi : i.val < 128 := hcw
+  rw [decide_eq_true hfin]
+  unfold objects.finalise_cap
+  simp only [↓reduceIte]
+  unfold interrupt.deleting_irq_handler
+  rw [irq_slot_eq]; simp only [bind_ok]
+  have hA' : AbsSlot Z.th ((nodeA (L.ksb s) i).bv, []) := ⟨_, rfl, Or.inl (by simpa using hL.node i hi)⟩
+  set sl' : Fl4Spec.CslotPtr := ((nodeA (L.ksb s) i).bv, []) with hsl'
+  have hcs : cslotAddr sl' = nodeA (L.ksb s) i := cslotAddr_nil _
+  have hcv := capV_of_capAt hc
+  have hnode : σ.interruptIrqNode (BitVec.ofNat 8 i.val) = (nodeA (L.ksb s) i).bv :=
+    hX.fin.1.1.2.2.2.1.node i hi
+  have hfo : ∀ (s1 : S) (a1 : A), objects.finalise_cap_object st arI s1 a1 (.IrqHandler i) true =
+      ok ((.Null, .IrqHandler i), s1, a1) := fun _ _ => rfl
+  have hspec : ∀ σ1 : Fl4Spec.State Unit, ((), σ1) ∈ (Fl4Spec.capDeleteOne (Z := Unit) sl' σ).1 →
+      ((absCap .Null, absCap (.IrqHandler i)), σ1) ∈
+        (Fl4Spec.finaliseCap (Z := Unit) (absCap (.IrqHandler i)) true σ).1 := by
+    intro σ1 h1
+    show _ ∈ ((if true = true then do
+        Fl4Spec.deletingIrqHandler (BitVec.ofNat 8 i.val)
+        return (Fl4Spec.Cap.nullCap, Fl4Spec.Cap.irqHandlerCap (BitVec.ofNat 8 i.val))
+      else return (Fl4Spec.Cap.nullCap, Fl4Spec.Cap.nullCap)) σ).1
+    simp only [↓reduceIte]
+    refine mem_bind_nd (x := ((), σ1)) ?_ (Set.mem_singleton _)
+    unfold Fl4Spec.deletingIrqHandler Fl4Spec.getIrqSlot
+    refine mem_bind_nd (x := (sl', σ)) (by
+      show (((nodeA (L.ksb s) i).bv, []), σ) = ((σ.interruptIrqNode (BitVec.ofNat 8 i.val), []), σ)
+      rw [hnode]) h1
+  have hok := jIrqSlotHyp arI (AR := AR) Z H Cs kb rfl s a σ G (hW.1.wj arI) i hi
+  have hne : cslotAddr sl ≠ nodeA (L.ksb s) i := by
+    intro e
+    rcases hok with h | ⟨p, b, w, r, h⟩
+    · rw [← e, hcv] at h; cases h
+    · rw [← e, hcv] at h; cases h
+  have hphys : physF (.IrqHandler i) = false := ok_inj (phys_eq _).symm
+  have hrd : ∀ (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) (G' : MdbGhost),
+      WJL (L := L) arI AR Z H Cs kb s' a' σ' G' →
+      capV (L.mem s') (cslotAddr sl) = .IrqHandler i → RdLO (L := L) (A := A) Z.th H s' a' σ' G' (cslotAddr sl) := by
+    intro s' a' σ' G' hW' h
+    obtain ⟨⟨V', Ac', Lst', D', J', -⟩, hL', -⟩ := hW'
+    exact rdLO_noRef arI J' hL' (fun hp => by rw [h, hphys] at hp; cases hp)
+      (fun q hr => by rw [h] at hr; exact hr)
+  rcases hok with hnull | ⟨p, b, w, r, hn⟩
+  · -- a null node slot: nothing to delete
+    obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hDS.1.1.abs_cap hA'
+    rw [hca0.abs] at hg0
+    have hcv0 := capV_of_capAt hc0
+    rw [hcs] at hcv0
+    rw [hcv0] at hnull; subst hnull
+    have e1 : cdt.delete_one st arI s a (nodeA (L.ksb s) i) = ok (s, a) := by
+      unfold cdt.delete_one
+      rw [slot_cap_eq, ← hcs, hc0]
+      simp only [bind_ok, cap_is_null_eq, isNullB, ↓reduceIte]
+    have e2 : Fl4Spec.capDeleteOne (Z := Unit) sl' σ = ({((), σ)}, False) := by
+      unfold Fl4Spec.capDeleteOne
+      rw [nd_bind_one hg0]
+      simp [absCap, Fl4Spec.NonDet.unless, Fl4Spec.NonDet.pure]
+    rw [e1]; simp only [bind_ok]
+    show objects.finalise_cap_object st arI s a (.IrqHandler i) true ⦃ _ ⦄
+    rw [hfo, WP.spec_ok]
+    exact ⟨rfl, trivial, hcw, σ, G, hspec σ (by rw [e2]; exact Set.mem_singleton _), hDS, hcv,
+      fun _ _ _ => Or.inl rfl, MdbStep.refl hDS.1.2.2.1, hW, fun _ => hrd s a σ G hW hcv,
+      fun _ _ _ e => by cases e⟩
+  · -- a notification cap: `delete_oneJL`
+    have hd := delete_oneJL arI Z H Cs kb rfl s a σ G hDS hW hA' (by rw [hcs]; exact hn)
+    rw [hcs] at hd
+    refine WP.spec_bind hd ?_
+    rintro ⟨s1, a1⟩ ⟨σ1, G1, hm1, hDS1, hx1, hoth1, hmS1, hW1⟩
+    show objects.finalise_cap_object st arI s1 a1 (.IrqHandler i) true ⦃ _ ⦄
+    rw [hfo, WP.spec_ok]
+    have hcv1 : capV (L.mem s1) (cslotAddr sl) = .IrqHandler i := by
+      rw [hoth1 _ hA.isSlot hne]; exact hcv
+    refine ⟨rfl, trivial, hcw, σ1, G1, hspec σ1 hm1, hDS1, hcv1, fun y hy hyx => ?_, hmS1, hW1,
+      fun _ => hrd _ _ _ _ hW1 hcv1, fun _ _ _ e => by cases e⟩
+    by_cases e : y = nodeA (L.ksb s) i
+    · subst e; refine Or.inr ⟨hx1, ?_⟩; rw [hn]; rfl
+    · exact Or.inl (hoth1 y hy e)
 
 end
 
