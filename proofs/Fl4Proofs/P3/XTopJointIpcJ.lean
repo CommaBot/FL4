@@ -29,7 +29,8 @@ against the spec's, from `JAtZ` at the invocation to `JAt` after.
   `ReplyFaultTmo`); all four after the sporadic unblock test
   (`JAtZ.replyUnblockJ`, XTopJointUnblock; `fl4ReplyRest_eq` splits FL4's
   code there), their cases read at the state after it; the other cases
-  named (`JReplyRestHyp` [W]). `hZ`: JEntryGlob's `ipcBufOK`,
+  named (`JReplyRestHyp` [W]: only `ReplyRestTmo`, the tail's
+  `handle_timeout`). `hZ`: JEntryGlob's `ipcBufOK`,
   `bufCover`, `bufPlaced` [J].
 * `sendLeafJ`: the restart, then `sendXferJ`: `send_ipc` at `J` where
   nothing happens (a non-blocking send to an endpoint without receivers),
@@ -1124,31 +1125,42 @@ theorem replyRestFaultJ (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb
     · rw [if_neg hr4]
       exact tmo
 
+/-- **The case of the rest of `do_reply_transfer` left to `JReplyRestHyp`**
+(at `σ3`, after `reply_remove` and the unblock test): the receiver `i`'s SC
+is bound, active and not released, it has a valid timeout handler, and it
+either has no fault (the transfer, then `Running`) or a fault `f` other than
+a timeout whose fault reply restarts it (`Restart`, `ReplyFaultTmo`); the
+tail then calls `handle_timeout`. Every other case is proved
+(`replyRestNoScJ`, `replyRestSwJ`, `replyRestPostJ`, `replyRestFaultJ`;
+`replyXferJ` shows the split complete). -/
+def ReplyRestTmo (σ3 : Fl4Spec.State Unit) (ct i : U64) : Prop :=
+  ∃ xi sp y n, σ3.kheap i.bv = some (.tcb xi) ∧ xi.tcbSchedContext = some sp ∧
+    σ3.kheap sp = some (.schedContext y n) ∧ Fl4Spec.scActive y = true ∧
+    ¬ (Fl4Spec.refillReady σ3.curTime (Fl4Spec.refillHd y) = true ∧
+      Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true) ∧
+    Fl4Spec.isEpCap xi.tcbTimeoutHandler = true ∧
+    (xi.tcbFault = none ∨ ∃ xs f σ', σ3.kheap ct.bv = some (.tcb xs) ∧ xi.tcbFault = some f ∧
+      Fl4Spec.isTimeoutFault f = false ∧
+      Fl4Spec.handleFaultReply (Z := Unit) f i.bv (frLbl xs) (frMrs xs σ3) σ3 = ({(true, σ')}, False))
+
 variable (arI) in
-/-- **[W] The reply cap's transfer after `reply_remove` and the sporadic
-unblock test, at `J`** (`replyLeafJ`): from the caller's restart (`s1`,
-`σ1`) and a receiver `i` blocked on the reply `p`, `reply_remove` (`σ2`) and
-the spec's unblock test (`σ3`; FL4's at `J` by `JAtZ.replyUnblockJ`), FL4's
-rest of `do_reply_transfer` (`fl4ReplyRest2`) from a `JAt` state at `σ3`
-ends at `JAt` with an outcome of the spec's `do_reply_transfer` from `σ1`,
-outside `ReplyRestNoSc` (`replyRestNoScJ`: no SC and no fault on the
-receiver), `ReplyRestSw` (`replyRestSwJ`: the
-receiver's SC active and released, then `possible_switch_to`) and
-`ReplyRestPost` (`replyRestPostJ`: the SC active, not released, no valid
-timeout handler, `Running` and `postpone` as one step) and `ReplyRestFault`
-(`replyRestFaultJ`: a faulted receiver, the fault reply, `Inactive` or
-`Restart`, the tail). The restart, the
-reply's thread, the branches where nothing happens, `reply_remove`
-(`JAtZ.replyRemoveJD`) and the unblock test are proved, and an SC bound to
-the receiver is active (given: `remove_act` from `BlockedScActive` before
-`reply_remove`, the unblock test keeping `REFILL_MAX`; so no case with a
-bound inactive SC is left). What is left are J
-steps with an `IRel` proof but none at `J` (IpcReply's
-`do_reply_transfer_top`): with an SC not released and a valid timeout
-handler, `Running` (after the transfer) or `Restart` (after a fault reply
-restarting the receiver from a fault other than a timeout, `ReplyFaultTmo`)
-together with `handle_timeout` (`ReplyHyps.tmo`: a fault send). (`do_ipc_transfer` itself is
-at `J` in every case, XTopJointGrant's `JAtZ.xferAllJ`.) l4v: `do_reply_transfer_invs` /
+/-- **[W] The reply's `handle_timeout` path at `J`** (`replyLeafJ`): from the
+caller's restart (`s1`, `σ1`) and a receiver `i` blocked on the reply `p`,
+`reply_remove` (`σ2`) and the spec's unblock test (`σ3`; FL4's at `J` by
+`JAtZ.replyUnblockJ`), in the case `ReplyRestTmo` (the receiver's SC not
+released and a valid timeout handler, the receiver `Running` after the
+transfer or `Restart` after a fault reply), FL4's rest of
+`do_reply_transfer` (`fl4ReplyRest2`) from a `JAt` state at `σ3` ends at
+`JAt` with an outcome of the spec's `do_reply_transfer` from `σ1`. Everything
+else of `do_reply_transfer` is proved at `J` (`replyXferJ`): the restart,
+the reply's thread, the branches where nothing happens, `reply_remove`, the
+unblock test, the transfer in every case (XTopJointGrant's
+`JAtZ.xferAllJ`), the fault reply, `Running` / `Restart` / `Inactive`, the
+tail's switch and `postpone`. What is left is the tail's `handle_timeout`
+(`send_fault_ipc` to the timeout handler's endpoint: `send_ipc`, the
+machinery `JSendRestHyp` names; IRel: IpcReply's `ReplyHyps.tmo`), taken
+together with the receiver's new state since `Running` / `Restart` with an
+SC not released is no `J` state (`Inv.rd`). l4v: `do_reply_transfer_invs` /
 `do_reply_transfer_corres`. -/
 def JReplyRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4Spec.State Unit) (ct p : U64) (g : Bool) :
     Prop :=
@@ -1158,10 +1170,7 @@ def JReplyRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (s1 : S) (ar : A) (σ1 : Fl4
     Fl4Spec.replyRemove (Z := Unit) i.bv p.bv σ1 = ({((), σ2)}, False) →
     (Fl4Spec.getTcbObjRef (Z := Unit) Fl4Spec.Tcb.tcbSchedContext i.bv >>=
       Fl4Spec.ifSporadicCurScTestRefillUnblockCheck) σ2 = ({((), σ3)}, False) →
-    JAt (L := L) arI AR s3 ar σ3 →
-    (∀ q y n, σ3.kheap q = some (.schedContext y n) → y.scTcb = some i.bv → Fl4Spec.scActive y = true) →
-    ¬ ReplyRestNoSc σ3 ct i g → ¬ ReplyRestSw σ3 ct i g →
-    ¬ ReplyRestPost σ3 ct i g → ¬ ReplyRestFault σ3 ct i →
+    JAt (L := L) arI AR s3 ar σ3 → ReplyRestTmo σ3 ct i →
     fl4ReplyRest2 st arI s3 ar ct i g ⦃ res => ∃ z ∈ (Fl4Spec.doReplyTransfer (Z := Unit) ct.bv p.bv g σ1).1,
       JAt (L := L) arI AR res.1 res.2 z.2 ⦄
 
@@ -1169,7 +1178,8 @@ set_option maxHeartbeats 8000000 in
 /-- **`do_reply_transfer` at `J`** but for `JReplyRestHyp`: no thread on the
 reply, or a thread not blocked on it, nothing happens on either side; a
 thread blocked on it, `reply_remove` at `J` (`JAtZ.replyRemoveJD`), then
-`replyRestNoScJ` or `JReplyRestHyp`. -/
+`replyRestNoScJ`, `replyRestSwJ`, `replyRestPostJ`, `replyRestFaultJ`, or (`ReplyRestTmo`,
+the split complete) `JReplyRestHyp`. -/
 theorem replyXferJ (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -1259,7 +1269,38 @@ theorem replyXferJ (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = core.
   · exact replyRestPostJ (Z := Z.mv Z.G V') hmb hZ hAT hmax htu J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hC3
   by_cases hC4 : ReplyRestFault σ3 ct i
   · exact replyRestFaultJ (Z := Z.mv Z.G V') hmb hZ J3 g hne hiD hct3' hkr hrep hkx hst hrm hub hin3 hact3 hC4
-  exact hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ hact3 hC hC2 hC3 hC4
+  -- the case left: the split is complete (`ReplyRestTmo`)
+  have hcT : ct ∈ Z.T := by
+    obtain ⟨xc, hkc, -⟩ := hcs.2
+    obtain ⟨t, ht, h⟩ := J1.obj.tcb _ xc hkc
+    rw [Sched.bv_inj h] at ht; exact ht
+  obtain ⟨xs, hks3, -⟩ := (J3.xtop.irelK J3.ks J3.buf).1.tcb ct hcT
+  obtain ⟨xi, hki3, -⟩ := hin3
+  refine hR i x s2 σ2 s3 σ3 hi.symm hkx hst hrr hrm hub ⟨_, _, _, _, _, _, J3⟩ ?_
+  cases hf : xi.tcbFault with
+  | none =>
+    cases hsc : xi.tcbSchedContext with
+    | none => exact absurd ⟨xs, xi, hks3, hki3, hsc, hf⟩ hC
+    | some sp =>
+      obtain ⟨y, n, hky, hyt⟩ := J3.inv.back _ _ _ hki3 hsc
+      have hya := hact3 _ y n hky hyt
+      have hnrel : ¬ (Fl4Spec.refillReady σ3.curTime (Fl4Spec.refillHd y) = true ∧
+          Fl4Spec.refillSufficient 0 (Fl4Spec.refillHd y) = true) :=
+        fun h => hC2 ⟨xs, xi, sp, y, n, hks3, hki3, hsc, hky, hya, h.1, h.2, hf⟩
+      have hvt : Fl4Spec.isEpCap xi.tcbTimeoutHandler = true := by
+        cases h : Fl4Spec.isEpCap xi.tcbTimeoutHandler
+        · exact absurd ⟨xs, xi, sp, y, n, hks3, hki3, hsc, hky, hya, hnrel, h, hf⟩ hC3
+        · rfl
+      exact ⟨xi, sp, y, n, hki3, hsc, hky, hya, hnrel, hvt, Or.inl hf⟩
+  | some f =>
+    have h4 : ∃ σ', Fl4Spec.handleFaultReply (Z := Unit) f i.bv (frLbl xs) (frMrs xs σ3) σ3 =
+        ({(true, σ')}, False) ∧ ReplyFaultTmo σ3 xi f := by
+      by_contra hc
+      exact hC4 ⟨xs, xi, f, hks3, hki3, hf, fun σ' h1 h2 => hc ⟨σ', h1, h2⟩⟩
+    obtain ⟨σ', hhf, sp, y, n, hsc, hky, hnrel, hvt, htf⟩ := h4
+    obtain ⟨y0, n0, hky0, hyt⟩ := J3.inv.back _ _ _ hki3 hsc
+    rw [hky] at hky0; cases hky0
+    exact ⟨xi, sp, y, n, hki3, hsc, hky, hact3 _ y n hky hyt, hnrel, hvt, Or.inr ⟨xs, f, σ', hks3, hf, htf, hhf⟩⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **The reply cap's leaf at `J`** but for `JReplyRestHyp` (`replyXferJ`
