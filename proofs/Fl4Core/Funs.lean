@@ -11770,7 +11770,7 @@ def obj.Tcb.fault_w0
   machineStoreInst.read s i1
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop body 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 117:4-121:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 116:4-120:5 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -11794,7 +11794,7 @@ def faults.copy_mrs_fault_loop0.body
   else ok (done (s, i))
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 117:4-121:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 116:4-120:5 -/
 @[rust_loop]
 def faults.copy_mrs_fault_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -11807,7 +11807,7 @@ def faults.copy_mrs_fault_loop0
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop body 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 123:8-127:9 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 122:8-126:9 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -11827,7 +11827,7 @@ def faults.copy_mrs_fault_loop1.body
   else ok (done s)
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 123:8-127:9 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 122:8-126:9 -/
 @[rust_loop]
 def faults.copy_mrs_fault_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -11840,7 +11840,7 @@ def faults.copy_mrs_fault_loop1
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 115:0-129:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 114:0-128:1 -/
 def faults.copy_mrs_fault
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
   (receiver : obj.Tcb) (regs_list : Slice Std.U64) (buf : Std.U64) :
@@ -11868,7 +11868,7 @@ def error.LookupFault.type_code
     ok fl4_abi.consts.lookup.GuardMismatch
 
 /-- [fl4_core::faults::set_mrs_lookup_failure]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 93:0-108:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 92:0-107:1 -/
 def faults.set_mrs_lookup_failure
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (receiver : obj.Tcb) (buf : Std.U64) (lf : error.LookupFault)
@@ -11958,7 +11958,7 @@ def faults.lookup_failure
   error.LookupFault.decode i i1 i2
 
 /-- [fl4_core::faults::set_mrs_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 133:0-177:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 132:0-176:1
     Visibility: public -/
 def faults.set_mrs_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13771,7 +13771,7 @@ def faults.send_fault_ipc
   | capability.Cap.IoPort _ _ _ => ok (false, s, a)
 
 /-- [fl4_core::faults::handle_timeout]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 88:0-91:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 87:0-90:1
     Visibility: public -/
 def faults.handle_timeout
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14017,7 +14017,7 @@ def syscall.budget_ok
   sched.check_budget_restart machineStoreInst machineArchInst s1 a1
 
 /-- [fl4_core::faults::handle_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 77:0-85:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 77:0-84:1
     Visibility: public -/
 def faults.handle_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14034,9 +14034,8 @@ def faults.handle_fault
   if b
   then ok (s2, a1)
   else
-    let s3 ← faults.set_fault machineStoreInst s2 t f
-    let s4 ← sched.set_thread_state machineStoreInst s3 t sched.TS_INACTIVE
-    ok (s4, a1)
+    let s3 ← sched.set_thread_state machineStoreInst s2 t sched.TS_INACTIVE
+    ok (s3, a1)
 
 /-- [fl4_core::syscall::handle_user_exception]:
     Source: 'crates/fl4-core/src/syscall.rs', lines 551:0-557:1
@@ -25504,7 +25503,7 @@ def faults.valid_fault_handler (cap : capability.Cap) : Result Bool := do
   | capability.Cap.IoPort _ _ _ => ok false
 
 /-- [fl4_core::faults::set_mrs_lookup_failure_at]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 111:0-113:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 110:0-112:1
     Visibility: public -/
 def faults.set_mrs_lookup_failure_at
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -25515,7 +25514,7 @@ def faults.set_mrs_lookup_failure_at
   faults.set_mrs_lookup_failure machineStoreInst s receiver buf lf offset
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop body 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 182:4-187:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 181:4-186:5 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_reply_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -25544,7 +25543,7 @@ def faults.copy_mrs_fault_reply_loop0.body
   else ok (done (s, i))
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 182:4-187:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 181:4-186:5 -/
 @[rust_loop]
 def faults.copy_mrs_fault_reply_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -25558,7 +25557,7 @@ def faults.copy_mrs_fault_reply_loop0
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop body 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 191:12-196:13 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 190:12-195:13 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_reply_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (receiver : obj.Tcb)
@@ -25583,7 +25582,7 @@ def faults.copy_mrs_fault_reply_loop1.body
   else ok (done s)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 191:12-196:13 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 190:12-195:13 -/
 @[rust_loop]
 def faults.copy_mrs_fault_reply_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -25597,7 +25596,7 @@ def faults.copy_mrs_fault_reply_loop1
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 179:0-199:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 178:0-198:1 -/
 def faults.copy_mrs_fault_reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
   (receiver : obj.Tcb) (regs_list : Slice Std.U64) (length : Std.U64) :
@@ -25623,7 +25622,7 @@ def faults.copy_mrs_fault_reply
   else ok s1
 
 /-- [fl4_core::faults::handle_fault_reply]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 203:0-230:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 202:0-229:1
     Visibility: public -/
 def faults.handle_fault_reply
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
