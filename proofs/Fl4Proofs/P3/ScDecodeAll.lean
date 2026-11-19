@@ -184,7 +184,7 @@ theorem sc_decode_refines {N T C R : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       (((pres_returnConsumed _ _).of_eq he2).trans
         ((pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq he3))
     exact Or.inr ⟨.invokeSchedContextConsumed sc.bv, by rw [hdec _ hg]; rfl, h1, σ1, data, σ2, σ3, he1, he2,
-      Or.inr ⟨hst2, he3⟩, ScAll.of_tr hS hRP hM hCR hRF ⟨hS3, hR3, hN3, hI3⟩ hY3 hw3 hsok rfl,
+      Or.inr ⟨retConsumed_ne he2, hst2, he3⟩, ScAll.of_tr hS hRP hM hCR hRF ⟨hS3, hR3, hN3, hI3⟩ hY3 hw3 hsok rfl,
       fun h => by rcases h with h | h <;> exact absurd h (lbl_ne l44 (by simp)),
       fun h => absurd h (lbl_ne l44 (by simp))⟩
   rw [ite_eq_right l44]

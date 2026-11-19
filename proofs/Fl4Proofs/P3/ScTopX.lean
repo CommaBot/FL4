@@ -130,7 +130,7 @@ theorem decode_invocation_sched_contextX {N T C R : Set U64} {c : U64} (hT : Tim
       ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeSchedContext inv)).run σ0).1 :=
     mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := (data, σ1))
       (by rw [he1]; exact Set.mem_singleton _)
-  rcases hcase with ⟨hd, -⟩ | ⟨⟨xr, hkr, hrs⟩, hdo⟩
+  rcases hcase with ⟨hd, -⟩ | ⟨-, ⟨xr, hkr, hrs⟩, hdo⟩
   · -- no data: the empty success tail
     left
     obtain ⟨c1, c2, c3, c4⟩ := fin σ1 hsok1

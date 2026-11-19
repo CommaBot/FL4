@@ -1,6 +1,36 @@
 /-
 P3 (DESIGN.md §9), scheduling contexts: **SchedContext YieldTo at `J`**
-(any yielder, either outcome).
+(any yielder, either outcome: `decode_invocation_sched_context_yieldJ`),
+and the SC labels of no invocation (`decode_invocation_sched_context_otherJ`),
+proved at `J` directly as Unbind's (ScJointUnbind).
+
+FL4's YieldTo branch: the decode's prefix, `decode_sched_context_yield_to`'s
+checks (the SC's thread, not the caller, its priority at most the caller's
+MCP, the caller yielding to nothing; the spec's `IllegalOperation` with the
+state unchanged), the caller's restart (`JAtZ.restartJ`), then `yield_to`
+(`JAtZ.yieldToJ`, as ScYieldTo's `yield_to_refines` with `JAtZ` carried):
+
+* the SC's yielder (if any) completes its yield (`JAtZ.completeYieldJa`:
+  XTopJointYield's `JAtZ.completeYieldJ` with the arch state kept); on the
+  spec side `completeYieldTo_sframe` (an `SFrame` step after which the SC is
+  yielded from by none and the caller's yield-to field is kept);
+* `resume` is a no-op (ScYieldTo's `resume_noop`, `resume_spec_noop`);
+* `yield_switches` (`JAtZ.yieldSwitchesJ`): the SC's thread not schedulable
+  (nothing), of lower priority (`dequeue` and `enqueue` of it, each a
+  scheduler step at `J`: `JAtZ.dequeueJ`, `JAtZ.enqueueJ` by
+  XTopJointCopyRegs' `JAtZ.schedJ`), else the yield links
+  (`JAtZ.linkYieldJ`: an SC step, `YieldRel.pair`), the requeues and the
+  reschedule (`JAtZ.reschedJ`); the spec's `return_now` is the negation;
+* when the call returns at once, `set_consumed` (XTopJointYield's
+  `JAtZ.setConsumedJ` with the message when a call, else ScJointConsumed's
+  `JAtZ.updConsumedJ`) and `Running` (`JAtZ.runJ`); the spec's
+  `return_consumed` and `handle_invocation`'s reply tail end in the same
+  state (as `sc_consumedReplyJ`).
+
+The outcome is `DecOKDMX`'s (no data, `JAt` after `sched_context_yield_to`)
+or `DecOKRMX`'s (the consumed time, `JAt` after the reply tail), chosen per
+outcome (`xcap_of_or`). Named [P]: the platform's `min_budget`,
+`ticks_to_us`, `getMaxTicksToUs` and `ArchTotal`; [W] the front end's label.
 -/
 import Fl4Proofs.P3.ScJointConsumed
 open Aeneas Aeneas.Std Result
@@ -776,6 +806,60 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
       mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) (.invokeSchedContextYieldTo sc.bv))
         (s := σ1) (x := (data, σy)) hmem,
       ((), σ2), htail, ⟨Z'.th, Z'.G, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩
+
+set_option maxHeartbeats 8000000 in
+/-- **The SchedContext cap with a label of no SC invocation, `XCap` at
+`JAt`**: FL4's decode (`error::illegal`) and the spec's
+(`decode_sched_context_invocation`'s `IllegalOperation`) both fail, the
+state unchanged. Premise: the front end's label (`hlbl` [W], as every SC
+label's). -/
+theorem decode_invocation_sched_context_otherJ (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
+    (l44 : lbl ≠ fl4_abi.label.SchedContextConsumed) (l41 : lbl ≠ fl4_abi.label.SchedContextBind)
+    (l43 : lbl ≠ fl4_abi.label.SchedContextUnbindObject) (l42 : lbl ≠ fl4_abi.label.SchedContextUnbind)
+    (l45 : lbl ≠ fl4_abi.label.SchedContextYieldTo)
+    {sc : U64} (sb : U64) (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 → L.mem s (scW sc 24#u64) ∈ Z.T)
+    {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (length slot buf : U64) (blk call don fp : Bool) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
+    (sl : Fl4Spec.CslotPtr) (buffer : Option Fl4Spec.ObjRef) :
+    XCap (L := L) arI (JAt (L := L) arI AR) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
+      slbl args ci sl excaps buffer ct := by
+  left
+  have hS := J.xtop.fin.1.1.1
+  have h44 : lbl.val ≠ 44 := fun h => l44 (UScalar.eq_of_val_eq (by simp [h]))
+  have h41 : lbl.val ≠ 41 := fun h => l41 (UScalar.eq_of_val_eq (by simp [h]))
+  have h43 : lbl.val ≠ 43 := fun h => l43 (UScalar.eq_of_val_eq (by simp [h]))
+  have h42 : lbl.val ≠ 42 := fun h => l42 (UScalar.eq_of_val_eq (by simp [h]))
+  have h45 : lbl.val ≠ 45 := fun h => l45 (UScalar.eq_of_val_eq (by simp [h]))
+  have hg : Fl4Spec.genInvocationType slbl = .invalidInvocation := by
+    rw [hlbl]; unfold scLabelOf; simp [h41, h42, h43, h44, h45]
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  swap
+  · simp only [↓reduceIte, WP.spec_ok]
+    exact Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, _, _, _, _, _, _, J⟩
+  simp only [Bool.false_eq_true, ↓reduceIte]
+  unfold schedcontext.decode
+  step with P1.obj.Sc.tcb.spec as ⟨i, hi⟩
+  rw [scTcbA_eq] at hi
+  subst hi
+  refine WP.spec_bind (show _ ⦃ r => r = (s, a) ⦄ from ?_) ?_
+  · by_cases h0 : L.mem s (scW sc 24#u64) = 0#u64
+    · have : (L.mem s (scW sc 24#u64) != 0#u64) = false := by simp [h0]
+      simp only [this, Bool.false_eq_true, ↓reduceIte]; exact (WP.spec_ok _).mpr rfl
+    · have : (L.mem s (scW sc 24#u64) != 0#u64) = true := by simp [h0]
+      simp only [this, ↓reduceIte]; exact remote_tcb_stall_id (ar := arI) a hS (hback h0)
+  intro r hr
+  subst hr
+  show (sched.cur_thread st s >>= _) ⦃ _ ⦄
+  rw [hct, bind_tc_ok]
+  rw [ite_eq_right l44, ite_eq_right l41, ite_eq_right l43, ite_eq_right l42, ite_eq_right l45]
+  refine illegal_ok s a _ (Or.inl ⟨_, rfl, rfl, ⟨.illegalOperation, run_liftME_err ?_, Or.inl trivial⟩,
+    _, _, _, _, _, _, J⟩)
+  unfold Fl4Spec.decodeSchedContextInvocation; rw [hg]; rfl
 
 end
 

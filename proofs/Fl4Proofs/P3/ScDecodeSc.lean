@@ -27,6 +27,18 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif
 
 noncomputable section
 
+/-- `return_consumed` returns a word (the consumed time): its data is never
+empty. -/
+theorem retConsumed_ne {p : Fl4Spec.ObjRef} {σ σ' : Fl4Spec.State Unit} {d : List Fl4Spec.Data}
+    (h : Fl4Spec.returnConsumed (Z := Unit) p σ = ({(d, σ')}, False)) : d ≠ [] := by
+  have hm : (d, σ') ∈ (Fl4Spec.returnConsumed (Z := Unit) p σ).1 := by rw [h]; exact Set.mem_singleton _
+  unfold Fl4Spec.returnConsumed at hm
+  rw [nd_bind_apply'] at hm
+  obtain ⟨⟨c, σm⟩, -, h2⟩ := hm
+  rw [nd_pure_apply'] at h2
+  obtain ⟨rfl, -⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 h2)
+  simp [Fl4Spec.wordsFromTime]
+
 /-- After the reply and `set_thread_state Running`, the thread is running. -/
 theorem running_after {σ1 σ2 : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x : Fl4Spec.Tcb} {call : Bool}
     {d : List Fl4Spec.Data} (hk : σ1.kheap t = some (.tcb x))
@@ -102,7 +114,7 @@ def ScQ (Rels : S → Fl4Spec.State Unit → Prop) (σ : Fl4Spec.State Unit) (ct
     Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
     Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) ∧
     ((data = [] ∧ σ2 = σ1) ∨
-      (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
+      data ≠ [] ∧ (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
         Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
         Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
     Rels res.2.1 σ2
@@ -249,14 +261,14 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   rintro r ⟨h1, -, σ0, data, σ1, σ2, he0, hyt, hcase, hS', hR', hN', hI', hY', hA', hw'⟩
   have hsok : SOK (false, true) σ σ2 := by
     refine ((pres_setThreadState _ _ _).of_eq he0).trans (((pres_schedContextYieldTo _).of_eq hyt).trans ?_)
-    rcases hcase with ⟨-, rfl, -⟩ | ⟨-, h⟩
+    rcases hcase with ⟨-, rfl, -⟩ | ⟨-, -, h⟩
     · exact SOK.refl _ _
     · exact (pres_bind (pres_when _ (pres_replyFromKernel _ _ _)) fun _ => pres_setThreadState _ _ _).of_eq h
   have hfine : L.mem s (scYieldFromA sc) = 0#u64 →
       (∃ x', σ2.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) →
       WritesIn st s r.2.1 (TFoot st T N C c s σ) := by
     intro h0 ⟨x', hk', hst'⟩
-    rcases hcase with ⟨-, -, h3⟩ | ⟨⟨x1, hk1, -⟩, hdo⟩
+    rcases hcase with ⟨-, -, h3⟩ | ⟨-, ⟨x1, hk1, -⟩, hdo⟩
     · exact h3 h0
     · obtain ⟨y, hy, hyr⟩ := running_after hk1 hdo
       rw [hk'] at hy; cases hy; rw [hst'] at hyr; cases hyr

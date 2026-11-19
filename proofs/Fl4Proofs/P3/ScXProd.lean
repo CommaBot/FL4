@@ -351,7 +351,7 @@ theorem decode_invocation_sched_contextXT {AR : A → Fl4Spec.Cr3 → Prop} {Z :
       ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeSchedContext inv)).run σ0).1 :=
     mem_liftE (ε := Unit) (m := Fl4Spec.invokeSchedContext (Z := Unit) inv) (s := σ0) (x := (data, σ1))
       (by rw [he1]; exact Set.mem_singleton _)
-  rcases hcase with ⟨hd, hσ⟩ | ⟨⟨xr, hkr, hrs⟩, hdo⟩
+  rcases hcase with ⟨hd, hσ⟩ | ⟨-, ⟨xr, hkr, hrs⟩, hdo⟩
   · -- no data: `XTop` after
     left
     rw [hσ] at hall hfine

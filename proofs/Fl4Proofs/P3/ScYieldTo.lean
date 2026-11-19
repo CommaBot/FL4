@@ -909,7 +909,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       ∃ (data : List Fl4Spec.Data) (σ1 σ2 : Fl4Spec.State Unit),
       Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ = ({(data, σ1)}, False) ∧
       ((data = [] ∧ σ2 = σ1 ∧ (L.mem s (scYieldFromA sc) = 0#u64 → WritesIn st s r.1 (TFoot st T N C c s σ))) ∨
-        (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = xc.tcbState) ∧ (do
+        data ≠ [] ∧ (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = xc.tcbState) ∧ (do
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.1 σ2 ∧ NtfnStateRel N T (L.mem r.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧
@@ -1031,7 +1031,7 @@ theorem yield_to_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Sp
       (fun n h => by cases h)) (set_thread_state_yw hS4 hct _)) (set_thread_state_sfoot hS4 hct _)) ?_
     rintro s5 ⟨⟨⟨σ5, he5, hR5, hS5⟩, hw5⟩, hwf5⟩
     have hσ5 := the_result (Fl4Proofs.P3.Notif.setThreadState_eq .running hkc4) he5
-    refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime cv.bv, σa, σ5, ?_, Or.inr ⟨?_, ?_⟩, hS5, hR5, ?_, ?_, ?_,
+    refine (WP.spec_ok _).mpr ⟨rfl, Fl4Spec.wordsFromTime cv.bv, σa, σ5, ?_, Or.inr ⟨by simp [Fl4Spec.wordsFromTime], ?_, ?_⟩, hS5, hR5, ?_, ?_, ?_,
       by rw [hσ5]; exact ActIdle.ofSts (ActIdle.updState (ActIdle.sframe hAI3 hsf4) hkc4 hrun4 .running rfl) _,
       WritesIn.tfootR_sfoot hw4 hwf5⟩
     · rw [hpre]
@@ -1161,7 +1161,7 @@ theorem yieldto_invoke_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
       Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
       Fl4Spec.schedContextYieldTo (Z := Unit) sc.bv σ0 = ({(data, σ1)}, False) ∧
       ((data = [] ∧ σ2 = σ1 ∧ (L.mem s (scYieldFromA sc) = 0#u64 → WritesIn st s r.2.1 (TFoot st T N C c s σ))) ∨
-        (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
+        data ≠ [] ∧ (∃ x', σ1.kheap ct.bv = some (.tcb x') ∧ x'.tcbState = .restart) ∧ (do
           Fl4Spec.NonDet.when (call = true) (Fl4Spec.replyFromKernel (Z := Unit) ct.bv (0, data))
           Fl4Spec.setThreadState (Z := Unit) ct.bv .running : Fl4Spec.SMonad Unit Unit) σ1 = ({((), σ2)}, False)) ∧
       SchedRel st N T C c r.2.1 σ2 ∧ NtfnStateRel N T (L.mem r.2.1) σ2 ∧ NSC N C σ2 ∧ Inv σ2 ∧

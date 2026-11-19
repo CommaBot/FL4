@@ -333,7 +333,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
           (Fl4Spec.decodeSchedContextInvocation (Z := Unit) slbl sc.bv (excaps.map Prod.fst)).run σ =
             ({(.ok inv, σ)}, False) ∧
           Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
-          Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) ∧
+          Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False) ∧ data ≠ [] ∧
           ∃ σ2, ((), σ2) ∈ (Fl4Proofs.P3.specTail call ct.bv data σ1).1) ⦄ := by
   have hcapT : x0 ≠ 0#u64 → ∀ p, capAt (L.mem s) x0 = ok (.Thread p) → p ∈ Z.T := by
     intro hx p hc
@@ -379,7 +379,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
   · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J, Or.inl ⟨_, rfl, rfl, rfl, rfl, _, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩⟩
   rcases hq with ⟨e, e', he, hrun, herr⟩ | ⟨inv, hrun, hr1, σ0, data, σ1, σ2, he0, he1, hcase, hall, hfine⟩
   · cases he; exact Or.inl ⟨σ, Ac, Lst, D, J, Or.inl ⟨e, rfl, rfl, rfl, rfl, e', run_liftME_err hrun, herr⟩⟩
-  rcases hcase with ⟨hd, hσ⟩ | ⟨⟨xr, hkr, hrs⟩, hdo⟩
+  rcases hcase with ⟨hd, hσ⟩ | ⟨hdn, ⟨xr, hkr, hrs⟩, hdo⟩
   swap
   · -- FL4 has replied: the current thread `Running` (the TCB relation after)
     obtain ⟨y2, hky2, hrun2⟩ := running_after hkr hdo
@@ -391,7 +391,7 @@ theorem sched_contextJ_step {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P
       rw [hrun2] at h1
       rw [show tStA ct = stA ct by rw [tStA_eq, stA_eq], e, tsVals.2.1] at h1
       simp [tsCode] at h1
-    exact Or.inr ⟨hr1, hne, rfl, inv, σ0, data, σ1, hrun, he0, he1, σ2,
+    exact Or.inr ⟨hr1, hne, rfl, inv, σ0, data, σ1, hrun, he0, he1, hdn, σ2,
       by rw [specTail_of_restart hkr hrs, hdo]; exact Set.mem_singleton _⟩
   left
   subst hd; subst hσ
@@ -643,8 +643,8 @@ outcome after the restart, the invocation (`return_consumed`) and the reply
 tail (`reply_from_kernel` when a call, `Running`) is at `JAt`. l4v:
 `invoke_sched_context`'s `return_consumed`, its `sched_context_yield_to`
 with the target not switched to, and `handle_invocation`'s reply, keep
-`invs`. Consumed's case is proved (ScJointConsumed's `sc_consumedReplyJ`);
-XTopJointEntry asks it only for an at-once YieldTo. -/
+`invs`. Consumed's case is proved (ScJointConsumed's `sc_consumedReplyJ`),
+an at-once YieldTo's by ScJointYield's `decode_invocation_sched_context_yieldJ`. -/
 def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) (lbl length slot : U64)
     (sc sb : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (ct : U64) : Prop :=
@@ -657,13 +657,29 @@ def ScReplyJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.Sta
       ((), σ2) ∈ (Fl4Proofs.P3.specTail call ct.bv data σ1).1 →
       JAt (L := L) arI AR r.2.1 r.2.2 σ2 ⦄
 
+/-- Bind's and UnbindObject's invocations return no data. -/
+theorem invokeSc_data_nil {inv : Fl4Spec.SchedContextInvocation}
+    (hinv : (∃ q cap, inv = .invokeSchedContextBind q cap) ∨ (∃ q cap, inv = .invokeSchedContextUnbindObject q cap))
+    {σ0 σ1 : Fl4Spec.State Unit} {data : List Fl4Spec.Data}
+    (h : Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({(data, σ1)}, False)) : data = [] := by
+  have hm : (data, σ1) ∈ (Fl4Spec.invokeSchedContext (Z := Unit) inv σ0).1 := by rw [h]; exact Set.mem_singleton _
+  rcases hinv with ⟨q, cap, rfl⟩ | ⟨q, cap, rfl⟩ <;> cases cap <;>
+    simp only [Fl4Spec.invokeSchedContext] at hm <;>
+    first
+    | (rw [nd_bind_apply'] at hm
+       obtain ⟨⟨u, σm⟩, -, h2⟩ := hm
+       rw [nd_pure_apply'] at h2
+       exact (Prod.mk.inj (Set.mem_singleton_iff.1 h2)).1)
+    | (simp [Fl4Spec.NonDet.fail] at hm)
+
 set_option maxHeartbeats 2000000 in
-/-- **The SchedContext cap, `XCap` at `JAt`**, for Consumed, Bind,
-UnbindObject and a YieldTo from an SC yielded to by none: `sched_contextJ_step`'s outcome (the
-spec's decode failing with the state unchanged, or the decode, restart and
-invocation with no data and `JAtZ` after), else FL4 has replied and the
-outcome is `ScReplyJ`'s. Premises as `sched_contextJ_step`'s and
-`ScReplyJ` [W]. -/
+/-- **The SchedContext cap, `XCap` at `JAt`**, for Consumed, Bind and
+UnbindObject: `sched_contextJ_step`'s outcome (the spec's decode failing
+with the state unchanged, or the decode, restart and invocation with no
+data and `JAtZ` after), else FL4 has replied: the invocation returned data
+(`sched_contextJ_step`), so it is Consumed (Bind's and UnbindObject's return
+none, `invokeSc_data_nil`), whose outcome is `ScReplyJ`'s (`hRep`,
+ScJointConsumed's `sc_consumedReplyJ`). Premises as `sched_contextJ_step`'s. -/
 theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hres : σ.schedulerAction = .resumeCurThread)
@@ -673,8 +689,7 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = scLabelOf lbl)
     {sc : U64} (sb : U64) (hsc : sc ∈ Z.C) (hpi : sc.bv ≠ σ.idleSc)
     (hl : lbl = fl4_abi.label.SchedContextConsumed ∨ lbl = fl4_abi.label.SchedContextBind ∨
-      lbl = fl4_abi.label.SchedContextUnbindObject ∨
-      (lbl = fl4_abi.label.SchedContextYieldTo ∧ L.mem s (P1.scYieldFromA sc) = 0#u64))
+      lbl = fl4_abi.label.SchedContextUnbindObject)
     (hback : L.mem s (scW sc 24#u64) ≠ 0#u64 →
       L.mem s (scW sc 24#u64) ∈ Z.T ∧ L.mem s (P1.scA (L.mem s (scW sc 24#u64))) = sc ∧
       (L.mem s (scW sc 24#u64)).bv ≠ σ.idleThread)
@@ -695,18 +710,20 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ0)}, False) ∧
         Fl4Spec.invokeSchedContext (Z := Unit) inv σ0 = ({([], σ1)}, False)) →
         ScStepP1 (L := L) Z H Cs s r.2.1 ⦄)
-    (hRep : ScReplyJ (L := L) (arI := arI) AR s a σ lbl length slot sc sb blk call don fp buf extra slbl excaps ct) :
+    (hRep : lbl = fl4_abi.label.SchedContextConsumed →
+      ScReplyJ (L := L) (arI := arI) AR s a σ lbl length slot sc sb blk call don fp buf extra slbl excaps ct) :
     XCap (L := L) arI (JAt (L := L) arI AR) s a σ lbl length slot (.SchedContext sc sb) blk call don fp buf extra
       slbl args ci sl excaps buffer ct := by
-  have hJ := sched_contextJ_step s a σ J hres htm hmb hmax htu hmsg lbl slbl hlbl sb hsc hpi hl hback hbn hct hcs extra
+  have hJ := sched_contextJ_step s a σ J hres htm hmb hmax htu hmsg lbl slbl hlbl sb hsc hpi
+    (hl.imp id fun h => h.imp id Or.inl) hback hbn hct hcs extra
     x0 hx0 excaps hex length slot buf blk call don fp args ci sl buffer hslot hslotS hsb hssz hx0S hArch hRest
-  obtain ⟨r, hr, hp, hR⟩ := spec_exists (WP.spec_and hJ hRep)
+  obtain ⟨r, hr, hp⟩ := spec_exists hJ
   have tr : ∀ P : core.result.Result Unit error.Exc × S × A → Prop, P r →
       syscall.decode_invocation st arI s a lbl length slot (.SchedContext sc sb) blk call don fp buf extra ⦃ P ⦄ :=
     fun P hP => by rw [hr]; exact (WP.spec_ok _).2 hP
   obtain ⟨hcur, -⟩ := J.curEq hct
   rcases hp with ⟨σ', Ac', Lst', D', J', ⟨e, h1, rfl, h2, h3, e', h4, h5⟩ | ⟨h1, rfl, inv, σ0, h2, h3, h4⟩⟩ |
-    ⟨h1, hne, rfl, inv, σ0, data, σ1, h2, h3, h4, σ2, h5⟩
+    ⟨h1, hne, rfl, inv, σ0, data, σ1, h2, h3, h4, hdn, σ2, h5⟩
   · left
     refine tr _ (Or.inl ⟨e, h1, h2, ⟨e', h4, h5⟩, ?_⟩)
     exact ⟨_, _, _, _, _, _, J'⟩
@@ -717,6 +734,23 @@ theorem decode_invocation_sched_contextJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : 
         (by rw [h4]; exact Set.mem_singleton _),
       ⟨Z.th, Z.G, Or.inl ⟨h1, rfl⟩, hPl, hCR, hFI, hD, hMO⟩, ⟨_, _, _, _, _, _, J'⟩⟩)
   · right
+    by_cases l44 : lbl = fl4_abi.label.SchedContextConsumed
+    swap
+    · exfalso
+      refine hdn (invokeSc_data_nil ?_ h4)
+      rcases hl.resolve_left l44 with l | l
+      · have hg : Fl4Spec.genInvocationType slbl = .schedContextBind := by rw [hlbl, l]; unfold scLabelOf; simp
+        simp only [Fl4Spec.decodeSchedContextInvocation, hg] at h2
+        obtain ⟨cap, rfl⟩ := (retP_bindDec _ _).of_run h2
+        exact Or.inl ⟨_, _, rfl⟩
+      · have hg : Fl4Spec.genInvocationType slbl = .schedContextUnbindObject := by
+          rw [hlbl, l]; unfold scLabelOf; simp
+        simp only [Fl4Spec.decodeSchedContextInvocation, hg] at h2
+        obtain ⟨cap, rfl⟩ := (retP_unbindObjDec _ _).of_run h2
+        exact Or.inr ⟨_, _, rfl⟩
+    have hR := hRep l44
+    unfold ScReplyJ at hR
+    rw [hr, WP.spec_ok] at hR
     have hX := hR h1 hne inv σ0 data σ1 σ2 h2 h3 h4 h5
     obtain ⟨Z2, H2, Cs2, Ac2, Lst2, D2, J2⟩ := hX
     obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := J2.xtop.rel
