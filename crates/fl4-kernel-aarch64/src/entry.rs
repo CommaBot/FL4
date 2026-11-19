@@ -196,11 +196,15 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64) -> ! {
     let elr = t.reg(s, reg::ELR_EL1);
     let ec = esr >> 26;
     if kind == KIND_IRQ {
+        // The restart PC first: taking a remote-call SGI services a stall,
+        // and once that is acknowledged the calling core may restart,
+        // rewrite or delete `t` (and retype its memory). Not a word of `t`
+        // after `take_irq`. Harmless when the interrupt needs no entry.
+        t.set_reg(s, reg::FAULT_IP, elr);
         let irq = match take_irq() {
             Some(i) => i,
             None => resume(),
         };
-        t.set_reg(s, reg::FAULT_IP, elr);
         run_entry(true, |s, a| {
             if s.tx {
                 syscall::handle_interrupt_entry(&mut s.specialize::<true>(), a, irq)
