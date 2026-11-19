@@ -11,9 +11,7 @@ set for the tables and frames, which are `H`'s `other` objects of 12, 30 or
 21 bits, P1's `newKind`), P1's heap after the creation (`HOut`) and the dead
 set without the new objects.
 
-* `perf_ut_mem`: the spec's `fl4PerformInvocation` of an untyped
-  invocation returns `[]` after `invoke_untyped`.
-* `cscW_of_sched`: the current SC word kept when the spec's current SC is.
+* (`perf_ut_mem`, `cscW_of_sched`: UtScRet.)
 * `JAtZ.utEpJ`: the step. Its J premises: `BufObjHyp` [J] (every IPC-buffer
   word inside a spec object), `ArchFitHyp` [J] (UtEpSets: `H`'s object at a
   spec arch object no larger than it) and `RegionUnrefJ` [J] (ScJoint: the
@@ -25,7 +23,7 @@ set without the new objects.
   `JAtZ.create_noreset`, `JKern.hout`, `JAtZ.ret_utc`), the sets and heap
   (`JAtZ.addSets`), put together by `JAtZ.add_frame`.
 -/
-import Fl4Proofs.P3.UtReplyAdd
+import Fl4Proofs.P3.UtScRet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -33,34 +31,10 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Pr
 
 noncomputable section
 
-/-- The spec's `fl4PerformInvocation` of an untyped invocation: `[]` after
-`invoke_untyped`'s outcome. -/
-theorem perf_ut_mem {σ1 σ' : Fl4Spec.State Unit} {inv : Fl4Spec.UntypedInvocation} (blk call don : Bool)
-    (h : (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ1 = ({(.ok (), σ')}, False)) :
-    ((.ok [], σ') : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈
-      ((Fl4Spec.fl4PerformInvocation (Z := Unit) blk call don (.invokeUntyped inv)).run σ1).1 :=
-  mem_bindE_ok (mem_of_run h) (mem_returnOk [])
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
-
-/-- The current SC word is kept by a step keeping the kernel-state base,
-the core and the spec's current SC (`SchedRel`'s lists). -/
-theorem cscW_of_sched {N T C : Set U64} {c : U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (hS : Sched.SchedRel st N T C c s σ) (hS' : Sched.SchedRel st N T C c s' σ')
-    (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s) (hcsc : σ'.curSc = σ.curSc) : L.cscW s' = L.cscW s := by
-  have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
-  obtain ⟨Q, R, hc, hs⟩ := hS.lists
-  obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
-  apply P1.eq_of_bv
-  have h1 := hs'.curSc; have h2 := hs.curSc
-  unfold P1.LawfulStore.cscW P1.LawfulStore.nodeA
-  rw [hcpu, hna, hc.cur]
-  unfold nodeW at h1 h2
-  rw [hna] at h1
-  rw [← h1, ← h2, hcsc]
 
 theorem objTypeOf_pdpt {n : Nat} (h : objTypeOf n = some (.archObject .pdptObj)) : n = 7 := by
   have hn : n < 19 := by
@@ -812,16 +786,20 @@ variable (arI) in
 /-- **[W] The retype of a RAM untyped at `J`, outside `JAtZ.utEpJ`'s case**
 (XTopJointUt's `JUtRetHyp` narrowed): asked only with a reset (the source
 cap childless) or of an object type other than endpoints, notifications,
-replies, PDPTs, page tables, page directories and frames (left: untypeds,
-TCBs, CNodes, SCs, PML4s and the VCPU/EPT types, the latter also
-`JUtPath.vtx` [scope]).
+replies, PDPTs, page tables, page directories, frames and SCs (left:
+untypeds, TCBs, CNodes, PML4s and the VCPU/EPT types, the latter also
+`JUtPath.vtx` [scope]; SCs only from a region ending within 8 bytes below
+the kernel-state block, where `SchedRel.scOut`'s `a + 8 ≤ ksb` is false of
+the last SC's last bytes: UtScRet's `utScJ` asks the slack, handoff/utj.md
+"uttypes" gap K8).
 l4v: `invoke_untyped_corres` with `invoke_untyped_invs`. -/
 def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
   ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
     argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
     (reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
-      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)) →
+      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧
+      (nt.val = 5 → ¬ (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)))) →
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
@@ -832,7 +810,7 @@ def JUtRetHypR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : 
 
 /-- **`JUtRetHyp` from its narrowed form**: the no-reset retype of
 endpoints, notifications, replies, VSpace tables (PDPT, PD, PT) or frames from a
-CNode slot by `JAtZ.utEpJ` (one
+CNode slot by `JAtZ.utEpJ`, of SCs by UtScRet's `JAtZ.utScJ` (one
 core, as `JUtPath.core0` [P]; with
 `BufObjHyp`, `ArchFitHyp`, `RegionUnrefJ` [J]), the rest `JUtRetHypR` [W]. -/
 theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -844,9 +822,23 @@ theorem JAtZ.jUtRetHyp {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hR : JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
     JUtRetHyp (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU := by
   intro nt us dest off win t r reset fiv hh hctx
+  by_cases h5 : reset = false ∧ nt.val = 5 ∧
+      (p.val + 2 ^ sb.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val)
+  · obtain ⟨rfl, h5, hksg⟩ := h5
+    obtain ⟨sl1, idx⟩ := sl
+    obtain ⟨pp, hp1, hpp⟩ := hsl
+    dsimp only at hp1 hpp
+    subst hp1
+    exact J.utScJ hni hct hpp rfl hcap h5 hc0 hctx hBO hAF hRU hksg blk call don
   by_cases hc : reset = true ∨ (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
       nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11)
-  · exact hR nt us dest off win t r reset fiv hh hctx hc
+  · refine hR nt us dest off win t r reset fiv hh hctx ?_
+    cases reset
+    · rcases hc with h | h
+      · exact Or.inl h
+      · exact Or.inr ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2.1, h.2.2.2.2.2.2.1,
+          h.2.2.2.2.2.2.2.1, h.2.2.2.2.2.2.2.2, fun e hk => h5 ⟨rfl, e, hk⟩⟩
+    · exact Or.inl rfl
   have hrs : reset = false := by
     cases reset
     · rfl

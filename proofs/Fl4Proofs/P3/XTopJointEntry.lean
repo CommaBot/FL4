@@ -538,8 +538,10 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
   /-- [W] the retype after the decode (UtEpRet's `JUtRetHypR`: XTopJointUt's
-  `JUtRetHyp` without the no-reset retype of endpoints or notifications,
-  proved by `JAtZ.utEpJ`), asked on
+  `JUtRetHyp` without the no-reset retypes proved by `JAtZ.utEpJ`
+  (endpoints, notifications, replies, VSpace tables, frames) and
+  UtScRet's `JAtZ.utScJ` (SCs, the source region 8 bytes off the
+  kernel-state block)), asked on
   core 0 only (on another core `JAtZ`'s one-core sets do not hold the new
   core-0 TCBs and SCs, so the statement need not hold there). -/
   ret : Z.c = 0#u64 → JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
