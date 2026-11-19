@@ -5,7 +5,7 @@ P3 (DESIGN.md §9), scheduler: **`schedule` refines l4v's up to the FPU**
 with the arch hypothesis `ArchSwF` [P] (ScArchF) in place of `ArchSwF`,
 whose `ArchKeeps` heap equality is false whenever the spec has an FPU
 owner. Every post's `HeapEqUpToFpu σ σ'` becomes `HeapEqUpToFpu σ σ'`; the
-switching lemmas take `FpuOwnOK` at the switch state (`ArchSwF`'s [S]
+switching lemmas take `FpuOwnOK` at the switch state (`ArchSwF`'s [J]
 side condition), carried from the state after the TCB timers
 (`schedule_refinesWPF`'s `hPo`: the fire predicate implies it) across
 `awaken` (`ow_awaken`, `Calm`'s heap equality) and the queue operations

@@ -12,14 +12,16 @@ The J side needs nothing new: JAtZ reads no spec FPU field and the spec
 facts after `schedule` come from `schedule σ1 = {σ'}` (`schs_schedule`'s
 `SchStep` already tolerates FPU changes).
 
-New premise `hFO` [S] (l4v X64 `valid_cur_fpu`, ScArchF's `FpuOwnOK`): at
-every state after FL4's TCB timers (`Fires σ σ1`) the spec's FPU owner is
-a TCB. True at reachable states: `FpuOwnOK` holds at every reachable
-state (l4v invariant) and a timer's signal (`send_signal`) neither writes
-the owner nor deletes a TCB. What `ArchSwF` needs at the switch state.
+Premise `hFO : FpuOwnOK σ` [J] at the ENTRY state only (l4v X64
+`valid_cur_fpu`, a reachable-state invariant; ScArchF's `FpuOwnOK`): what
+`ArchSwF` needs at the switch state is derived from it by `fpuOwnOK_fires`
+(sch5 (A): the timers' signals keep the owner, ScFpuOwnK's `owF_fires`, and
+the J relation keeps the related TCBs; sch4 had `∀ σ1, Fires σ σ1 →
+FpuOwnOK σ1` [S] here).
 -/
 import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScScheduleF
+import Fl4Proofs.P3.ScFpuOwnK
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -30,6 +32,21 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop}
+
+/-- **`FpuOwnOK` [J] after FL4's TCB timers from `FpuOwnOK` at the entry**
+(sch5 (A)): the timers keep the owner (`owF_fires`); the owner is a spec TCB at
+entry, hence a related TCB (`JAtZ.obj`, ObjCover), and every related TCB is a
+spec TCB after the timers (`NtfnStateRel.tcb`). -/
+theorem fpuOwnOK_fires {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ σ1 : Fl4Spec.State Unit} {m : U64 → U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hF : Fires σ σ1) (hN : NtfnStateRel Z.N Z.T m σ1)
+    (hfo : FpuOwnOK σ) : FpuOwnOK σ1 := by
+  intro o ho
+  rw [owF_fires hF] at ho
+  obtain ⟨x, hx⟩ := hfo o ho
+  obtain ⟨t, ht, rfl⟩ := J.obj.tcb o x hx
+  obtain ⟨y, hy, -⟩ := hN.tcb t ht
+  exact ⟨y, hy⟩
 
 
 set_option maxHeartbeats 4000000 in
@@ -45,7 +62,7 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
     (hSig : SignalJHyp (L := L) arI AR H Cs)
-    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : ∀ σ1, Fires σ σ1 → FpuOwnOK σ1)
+    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
@@ -75,7 +92,7 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     simp only [WP.uncurry'_pair] at hk
     have hd1' : σ1.domainTime ≠ 0 := by rw [hd1]; exact hd
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, J1.schedPreW hd1',
-      ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, hFO σ1 h1⟩
+      ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_fires J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
   refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWPF s a σ hS hR J.nsc hnd hfire2 (fun _ _ h => h.2.2.2) hA hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
       hTail)) ?_
@@ -146,7 +163,7 @@ theorem jat_scheduleSRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
     (hW : SignalRestJHyp (L := L) arI AR H Cs) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : ∀ σ1, Fires σ σ1 → FpuOwnOK σ1)
+    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
@@ -181,7 +198,7 @@ theorem jat_finishJF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (D1 : Set U64), JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
     (hW : SignalRestJHyp (L := L) arI AR H Cs) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : ∀ σ1, Fires σ σ1 → FpuOwnOK σ1)
+    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →

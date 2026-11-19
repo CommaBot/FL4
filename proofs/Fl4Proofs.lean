@@ -615,3 +615,5 @@ import Fl4Proofs.P3.ScArchF
 import Fl4Proofs.P3.ScScheduleF
 import Fl4Proofs.P3.XTopJointSchedRF
 import Fl4Proofs.P3.ScNextDomF
+import Fl4Proofs.P3.ScFpuOwnK
+import Fl4Proofs.P3.ScNextDomCF

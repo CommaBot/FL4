@@ -5,7 +5,7 @@ spec has an FPU owner (its `ArchKeeps` keeps the heap; l4v
 `arch_prepare_next_domain = switch_local_fpu_owner None` saves the machine
 FPU image into the owner's TCB and clears its `tcbCurFpu`). Restated:
 
-* `ArchNdF` [P]: at a state whose FPU owner is a TCB (`FpuOwnOK` [S],
+* `ArchNdF` [P]: at a state whose FPU owner is a TCB (`FpuOwnOK` [J],
   ScArchF), the spec's `arch_prepare_next_domain` has one outcome, with
   `SchedRel`/`NtfnStateRel` kept at FL4's unchanged store, `ArchKeepsF`
   (the heap up to the old owner's saved FPU image and `tcbCurFpu`,

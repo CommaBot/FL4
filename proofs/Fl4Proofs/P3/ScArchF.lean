@@ -25,7 +25,7 @@ code runs between the save and the switch).
   trans, `of_eq`, `eq_trans`, `trans_eq`, `tcb`, `tcb_back`, `ntcb`).
 * Frames: `Inv.fpu`, `NSC.fpu`, `schedulable_fpu`, `OffOK.fpu`,
   `IdleOK.fpu`, `SzKeep.fpu`, `newcur_ofF`, `newcur_of2F`, `RunW.of_new2F`.
-* `FpuOwnOK σ` [S] (l4v X64 `valid_cur_fpu`: the current FPU owner is a
+* `FpuOwnOK σ` [J] (l4v X64 `valid_cur_fpu`: the current FPU owner is a
   TCB): what makes the spec's save to the owner not fail (`as_user`/
   `arch_thread_set` of a non-TCB fail). `OW m`: a spec computation keeps
   the FPU owner (the DI framework of ScNextDomB; `ow_awaken`,
@@ -208,8 +208,9 @@ theorem newcur_of2F {σ σ' : State Unit} (h : σ'.curThread = σ.idleThread ∨
 
 /-! ## The FPU owner -/
 
-/-- **The current FPU owner is a TCB** [S] (l4v X64 `valid_cur_fpu`, part of
-`valid_arch_state`; preserved by every spec step: a TCB is only deleted
+/-- **The current FPU owner is a TCB** [J] (l4v X64 `valid_cur_fpu`, part of
+`valid_arch_state`: a reachable-state invariant, taken at the kernel entry
+only and carried by the scheduling proofs; preserved by every spec step: a TCB is only deleted
 after `fpu_release`, and only `lazy_fpu_restore`/`switch_local_fpu_owner`
 set the owner, to a TCB or none). -/
 def FpuOwnOK (σ : State Unit) : Prop :=
@@ -372,7 +373,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 /-- **The arch hypotheses of a thread switch, up to the FPU** [P], at every
 related state (module docstring): FL4's `set_vm_root` refines the spec's
 `arch_switch_to_thread` (`set_vm_root; lazy_fpu_restore`) at a state whose
-FPU owner is a TCB (`FpuOwnOK` [S]), keeping `ArchKeepsF` (the heap equal
+FPU owner is a TCB (`FpuOwnOK` [J]), keeping `ArchKeepsF` (the heap equal
 but for the old and new owners' saved FPU image and `tcbCurFpu`, registers
 kept); `set_kernel_vm_root` refines `arch_switch_to_idle_thread` (the
 spec's `set_vm_root` of the idle thread: no FPU step) keeping `ArchKeeps`.
