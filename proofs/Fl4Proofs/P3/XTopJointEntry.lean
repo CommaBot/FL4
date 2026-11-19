@@ -77,6 +77,7 @@ import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointFaultRecv
 import Fl4Proofs.P3.UtRetResetJ
+import Fl4Proofs.P3.UtDevUt
 import Fl4Proofs.P3.XTopJointFaultTmo
 import Fl4Proofs.P3.MpDirtyJ
 open Aeneas Aeneas.Std Result
@@ -557,6 +558,52 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (C
   new core-0 TCBs and SCs, so the statement need not hold there). -/
   ret : Z.c = 0#u64 → JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
 
+/-- The device Untyped path (losfair/FL4#34): XTopJointUt's
+`decode_invocation_untypedJ` premises for a device untyped cap, the
+invocation from UtDevUt's `JAtZ.jUtRetHypDev`. -/
+structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (lbl length p sb fi : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
+    (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) (ct : U64) : Prop where
+  /-- [P] `CONFIG_RETYPE_FAN_OUT_LIMIT` is FL4's 256 (as `JUtPath.fan`). -/
+  fan : Fl4Spec.retypeFanOutLimit = 256#64
+  /-- [scope] a VT-x object type (14 to 18), as `JUtPath.vtx` (the decode of a
+  device cap refuses these types on both sides; `decode_invocation_untypedJ`
+  takes the native types only). -/
+  vtx : ∀ x, argsU.head? = some x → 14 ≤ x.val → x.val < 19 →
+    JVtxScope (L := L) arI AR s ar σ lbl length (.Untyped p sb fi true) blk call don fp buf extra slbl argsU ci sl
+      excaps buffer ct
+  /-- [P] one core (as `JUtPath.core0`). -/
+  core0 : Z.c = 0#u64
+  /-- [J] as `JUtPath.bufObj`. -/
+  bufObj : BufObjHyp Z.B σ
+  /-- [J] as `JUtPath.heapH`. -/
+  heapH : ArchFitHyp H σ ∧ RegionUnrefAt (L := L) H Cs D s
+  /-- [J] DevJ's `DevApart` at the entry's sets and heap (l4v `valid_untyped` /
+  `pspace_no_overlap` for device caps with `valid_global_refs` /
+  `kernel_window`: no device untyped range covers a kernel object, a typed-heap
+  object or a RAM object, and `H`'s objects meeting it lie below its free index):
+  true from boot by the boot checks (e408a625: no device untyped over the kernel
+  image's names; RAM and device physical ranges are disjoint), kept by retype
+  (UtDevRet's `DevApart.retype`: a device child is a sub-range, a new device
+  frame lies below the source's new free index). -/
+  devApart : DevApart (L := L) Z.th H Z.G Cs s
+  /-- [J] UtDevRet's `DevFreeT` (l4v `valid_untyped` for device caps: no spec
+  object in a device untyped cap's free part): true from boot (no spec object
+  in a device range), kept by retype (DevFree's `DevFree.retype`,
+  UtDevUt's `SpecFreeP.retypeU`). -/
+  devFree : DevFreeT (L.mem s) Z.G σ
+  /-- [W] a device untyped cap whose pointer wrapped into the lower half
+  (physical ≥ 512 GiB; the boot check 9ab17db1 excludes only the pointer 0):
+  the proof of the retype keeps `retype_full`'s kernel-half pointer
+  (handoff/devretype.md "dj2 line", "dj4 line"). -/
+  low : p.val < 2 ^ 64 - 2 ^ 47 → JCapOpen (L := L) arI AR s ar σ lbl length (.Untyped p sb fi true) blk call don fp
+    buf extra slbl argsU ci sl excaps buffer ct
+  /-- [W] the retype with the reset of a used device cap (UtDevUt's
+  `JUtRetHypDevR`: the spec detypes the region's device frames, FL4 rewrites
+  only the cap), asked on core 0 only. -/
+  ret : Z.c = 0#u64 → JUtRetHypDevR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
+
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
 def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data)
@@ -603,8 +650,8 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Se
   | .Ept p l m asid va => JVtxScope (L := L) arI AR s ar σ lbl length (.Ept p l m asid va) blk call don fp buf extra
       slbl argsU ci sl excaps buffer ct
   | .Untyped p sb fi dev =>
-      (dev = true → JCapOpen (L := L) arI AR s ar σ lbl length (.Untyped p sb fi dev) blk call don fp buf extra slbl
-        argsU ci sl excaps buffer ct) ∧
+      (dev = true → JDevPath (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU
+        ci sl excaps buffer ct) ∧
       (dev = false → JUtPath (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl
         excaps buffer ct)
 
@@ -638,7 +685,7 @@ on the cap:
 | ASID control | `decode_invocation_asid_controlJD` (MpDirtyJ; any region: restart, drop, `MakePool`) | `JAsidCPath` (label and extra caps proved; `ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], as `JUtPath`) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: only the VT-x types; every native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`/`utTcbJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
-| Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
+| Untyped (device, losfair/FL4#34) | `decode_invocation_untypedJ` with UtDevUt's `JAtZ.jUtRetHypDev` | `JDevPath` (fan-out, core 0 [P]; `BufObjHyp`/`ArchFitHyp`/`RegionUnrefAt`, `DevApart`/`DevFreeT` [J]; proved: the no-reset retype of untypeds and frames and the reset of an unused cap; `JUtRetHypDevR` [W]: the reset of a used cap; a lower-half pointer `JCapOpen` [W]); VT-x types `JVtxScope` [scope] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -969,7 +1016,20 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
           hN.core0 (J.jUtRetHypR_of hni hct hsl hc hN.bufObj hN.heapH.1
             hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach
             (hN.ret hN.core0)))
-    · exact hDv rfl
+    · have hN := hDv rfl
+      by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19
+      · obtain ⟨x, hx, h1, h2⟩ := hv
+        exact hN.vtx x hx h1 h2
+      by_cases hlo : p.val < 2 ^ 64 - 2 ^ 47
+      · exact hN.low hlo
+      have hex := ExtraOK.rel1 hPl hXO
+      have hx0 := exAt_idx0 extra
+      generalize exAt extra 0 = x0 at hex hx0
+      exact decode_invocation_untypedJ arI s ar σ J lbl slbl (by rw [← hLb]; exact genInvocationType_untyped_iff lbl) length buf ct hct argsU hlen hargs
+        (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
+        hx0 excaps hex hN.fan blk call don fp ci buffer
+        (J.jUtRetHypDev hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2 hN.core0 hN.devApart hN.devFree
+          (by omega) (hN.ret hN.core0))
   all_goals exact hN
 
 /-- **The premises of one invocation at `J`** (`handle_invocation_refinesJ`):
