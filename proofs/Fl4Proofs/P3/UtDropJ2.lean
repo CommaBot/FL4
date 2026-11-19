@@ -445,8 +445,6 @@ theorem JAtZ.dropUtc (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : Fl
   have U := J.utc sl p' sb' fi' dev hsl.of_restrict hc hd
   refine ⟨U.pal, U.pfit, U.fiLe, U.high, U.actZ, fun q kd h => U.free q kd (restrictTh_some h).1, U.zero, U.sb4,
     fun q k h => U.nostr q k (restrictTh_some h).1, U.nsFree, fun h => U.ns (by rw [← hcdt]; exact h),
-    fun k0 v0 t a' hE => WP.spec_mono (U.pp k0 v0 t a' hE) fun r ⟨h1, h2, h3, h4⟩ =>
-      ⟨fun y hy => h1 y hy.of_restrict, h2, h3, h4⟩,
     fun hn hnc hf0 => ⟨fun sl' ho => (hrst sl' (by rw [← horig]; exact ho)).restrict2
       ((U.rst hn (by rw [← hcdt]; exact hnc) hf0).1 sl' (by rw [← horig]; exact ho)),
       (U.rst hn (by rw [← hcdt]; exact hnc) hf0).2⟩, U.dwReg, fun hn => by rw [harch]; exact U.gReg hn⟩

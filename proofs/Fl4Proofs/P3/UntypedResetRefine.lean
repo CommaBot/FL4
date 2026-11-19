@@ -162,7 +162,16 @@ variable {th : TypedHeap} {G : MdbGhost} {p sb : U64} {dev : Bool}
 here): it keeps the slot words, the words of the region and a property
 `E` of the state (for the retype after it: `ksb` and the debug-list head), and returns
 `Ok` or `Preempted`, the latter only when the spec's preemption point can
-preempt too (keeping the CSpace parts of the state). -/
+preempt too (keeping the CSpace parts of the state).
+
+[W-false] not true in reachable states (gap K10: the spec cannot preempt
+from every state — no error outcome at a state with no pending IRQ and an
+active, sufficient current SC, while FL4 preempts on an insufficient SC
+without consulting the IRQ line; ∀ ksb: a state with `ksb = slot - 40` has
+the `WORK_UNITS` write on a slot word); only the pre-J XTop reset path uses
+it (explicit argument of `retype_cont_allN`/`retype_cont_pml4N`/`retype_postN`/
+`utRetypeP3_gen`, not a field of `UtCapP3`); superseded by the J-level reset
+(the preemption point at a related state, `JAtZ.ppJ`/`jPreemptHyp_of`). -/
 def PPHyp (th : TypedHeap) (p sb : U64) (E : S → Prop) : Prop :=
   ∀ (s : S) (a : A'), E s → sched.preemption_point st arI s a ⦃ r =>
     SlotsSame th (L.mem s) (L.mem r.2.1) ∧

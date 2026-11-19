@@ -368,11 +368,11 @@ theorem decDomHyp_untyped [Fl4Proofs.P1.PlainStore st] {A' : Type} (arI : machin
         ⟨by omega, by rw [hlen', hb]; omega⟩ hTk hDWal hDWobj hDWreg hDWne hhd
     by_cases h8 : nt.val = 8
     · exact WP.spec_mono (retype_cont_pml4N arI ar th s σ G hR hV hP hM hC hI hU horig ct hcur hct htcb hact hpp hidx
-        hcap hpal hpfit hfi hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hPP hRst Fl4Spec.fl4ObjBitsApi nt us dest off
-        win t r reset fiv h8 hb hDWal hDWobj hDWreg hDWne hhead hgpm hga hgf hgreg hctx) key
+        hcap hpal hpfit hfi hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hRst Fl4Spec.fl4ObjBitsApi nt us dest off
+        win t r reset fiv h8 hb hDWal hDWobj hDWreg hDWne hhead hgpm hga hgf hgreg hctx (fun _ => hPP)) key
     · exact WP.spec_mono (retype_cont_allN arI ar th s σ G hR hV hP hM hC hI hU horig ct hcur hct htcb hact hpp hidx
-        hcap hpal hpfit hfi hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hPP hRst Fl4Spec.fl4ObjBitsApi nt us dest off
-        win t r reset fiv ⟨hn, h8⟩ hb hDWal hDWobj hDWreg hDWne hhead hctx) key
+        hcap hpal hpfit hfi hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hRst Fl4Spec.fl4ObjBitsApi nt us dest off
+        win t r reset fiv ⟨hn, h8⟩ hb hDWal hDWobj hDWreg hDWne hhead hctx (fun _ => hPP)) key
   · rintro res (⟨e, e', rfl, -, -⟩ | ⟨-, -, h⟩)
     · exact DK4.refl _
     · exact h

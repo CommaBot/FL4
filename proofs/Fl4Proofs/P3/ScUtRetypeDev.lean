@@ -296,11 +296,14 @@ device retype by `devRetype_holds`). -/
 theorem utRetypeP3_of [Fl4Proofs.P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
     (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
+    /- [W-false] not true in reachable states (gap K10: the spec cannot preempt from every state; ∀ ksb); only the pre-J XTop reset path uses it; superseded by the J-level reset -/
+    (hPPW : ∀ (th : TypedHeap) (s0 : S) (p sb k0 v0 : U64), PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
+      L.mem t (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRU : RegionUnref (L := L) arI H Cs) (hDbg : UtDbgTcb (L := L) arI H Cs)
     (hVtx : UtVtx (L := L) arI H Cs U) :
     UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtP3Ok (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_of hRU) hDbg hVtx
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS hPPW _ (utOkRU_of hRU) hDbg hVtx
     (devRetype_holds (utOkRU_of hRU) h0Cs)
 
 end

@@ -237,7 +237,7 @@ theorem JAtZ.sc_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    ?_, fun g => by rw [hna]; exact U.dwReg (B g),
     fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
   · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]

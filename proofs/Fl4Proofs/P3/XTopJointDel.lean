@@ -229,7 +229,7 @@ theorem JAtZ.del_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   have B := notDev_back (capV_of_capAt hcap') hcv
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
     fun g w hal h1 h2 => ?_, U.sb4,
-    U.nostr, fun y hy => U.nsFree y (hmem y hy), fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+    U.nostr, fun y hy => U.nsFree y (hmem y hy), fun h0 y hy => ?_, 
     fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
     exact U.zero (B g) w hal h1 h2

@@ -322,7 +322,12 @@ def DelHyp (μ : (U64 → U64) → MdbGhost → Nat) (th : TypedHeap) (E : S →
 
 /-- **Hypothesis on FL4's preemption point** (the scheduler's): Ok with a
 non-preempting outcome of the spec's, or preempted with a preempting one;
-the cap slots, the CSpace relations and `E` kept. -/
+the cap slots, the CSpace relations and `E` kept.
+
+[W-false] not true in reachable states (gap K10: for an `E` that pins
+neither the kernel-state base nor the SC/time words, FL4 can preempt where
+the spec at `σ` cannot, and the `WORK_UNITS` write can hit a slot word); off
+the J path (the J layer uses `JPreemptHyp`, proved by `jPreemptHyp_of`). -/
 def RPPHyp (th : TypedHeap) (E : S → Fl4Spec.State Unit → Prop) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), CRel th (L.mem s) σ G → E s σ →
     sched.preemption_point st arI s a ⦃ r => SlotsSame th (L.mem s) (L.mem r.2.1) ∧ ∃ σ',

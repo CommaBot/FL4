@@ -216,12 +216,13 @@ theorem notDev_ram {m : U64 → U64} {x p sb fi : U64} (h : capV m x = .Untyped 
 and the kernel's placement, as the CSpace retype proofs take them): the
 region aligned, fitting and high, its free part free of objects and zero,
 at least 16 bytes, no object straddling it and no linked slot in it, the
-reset's conditions, the debug-list head and the global PML4 off it, and the
-preemption point's hypothesis over it. The placement facts (`high`,
+reset's conditions, the debug-list head and the global PML4 off it. (No
+preemption-point field: `PPHyp`'s ∀-state form is false, gap K10; the
+pre-J reset takes it as an explicit [W-false] argument.) The placement facts (`high`,
 `actZ`, `zero`, `rst`, `dwReg`, `gReg`) are asked of a RAM untyped
 only (`NotDev`): a device untyped's pointer may wrap to the lower half or
 lie in the kernel image (losfair/FL4#34). The other facts (`free`,
-`nostr`, `nsFree`, `ns`, `pp`) are false of a device untyped over the
+`nostr`, `nsFree`, `ns`) are false of a device untyped over the
 kernel image too (its region holds the kernel-state block, with the IRQ
 node's CNodes and slots and the preemption point's word), so `JAtZ.utc` and
 `UtJoint.utc` ask `UtCapP3` of RAM untypeds only, and the `NotDev` guards
@@ -245,8 +246,6 @@ structure UtCapP3 {A' : Type} (arI : machine.Arch A') (th : TypedHeap) (s : S) (
   retyped from the cap can hold slots in the region only while the cap has a
   descendant (the CNode's caps). Used by the reset, which only runs then. -/
   ns : (¬ ∃ x, σ.cdt x = some sl) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val
-  pp : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
-    L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0)
   /-- The reset's facts when the cap has no children and a used region: the
   original caps' slots and core 0's debug-list head off the region. (No
   clause on the typed heap's CNodes: `th` keeps a CNode after its last cap
@@ -339,7 +338,10 @@ theorem retype_postN {A' : Type} (arI : machine.Arch A') {H : Heap} {Cs : Set U6
     (hdv : dev = false)
     (hrs : sched.set_thread_state st s0 (L.curW s0) sched.TS_RESTART = ok s)
     (hA : UtArgs st s0 extra slot p sb fi dev reset aligned nt us dest off win)
-    (hnt : nt.val ≤ 13) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame) :
+    (hnt : nt.val ≤ 13) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
+    /- the reset branch's preemption points: [W-false] not true in reachable states (gap K10: the spec cannot preempt from every state; ∀ ksb); only the pre-J XTop reset path uses it; superseded by the J-level reset -/
+    (hpp : reset = true → ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
+      L.mem t (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = v0)) :
     untyped.retype st arI s ar slot reset aligned nt us dest off win dev ⦃ res =>
       ∃ t r fiv, RetCtx (L := L) th s0 σ (pp.bv, idx) sb fi dev nt us dest off win t r reset fiv ∧
         aligned = ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ ∧
@@ -372,12 +374,12 @@ theorem retype_postN {A' : Type} (arI : machine.Arch A') {H : Heap} {Cs : Set U6
   by_cases h8 : nt.val = 8
   · exact retype_cont_pml4N arI ar th s0 σ G J.rel J.valid J.placed J.links J.cdt J.mdb J.ut J.orig (L.curW s0) J.cur
       hct J.curT J.act J.node J.idxLen hcap U.pal U.pfit U.fiLe (U.high hnd) (U.actZ hnd) U.free (U.zero hnd) U.sb4 U.nostr U.ns hrcb
-      hppS U.pp (U.rst hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv h8 hb J.dwAl J.dwObj (U.dwReg hnd) J.dwNe J.head
-      J.gpm J.ga J.gf (U.gReg hnd) hctx
+      hppS (U.rst hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv h8 hb J.dwAl J.dwObj (U.dwReg hnd) J.dwNe J.head
+      J.gpm J.ga J.gf (U.gReg hnd) hctx hpp
   · exact retype_cont_allN arI ar th s0 σ G J.rel J.valid J.placed J.links J.cdt J.mdb J.ut J.orig (L.curW s0) J.cur
       hct J.curT J.act J.node J.idxLen hcap U.pal U.pfit U.fiLe (U.high hnd) (U.actZ hnd) U.free (U.zero hnd) U.sb4 U.nostr U.ns hrcb
-      hppS U.pp (U.rst hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv ⟨hnt, h8⟩ hb J.dwAl J.dwObj (U.dwReg hnd) J.dwNe
-      J.head hctx
+      hppS (U.rst hnd) Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv ⟨hnt, h8⟩ hb J.dwAl J.dwObj (U.dwReg hnd) J.dwNe
+      J.head hctx hpp
 
 /-! ## `DropOK` -/
 
@@ -1249,6 +1251,9 @@ Named: the kept links (`RegionUnref`), the new TCBs' debug links
 theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) (H : Heap) (Cs U : Set U64)
     (Adm : PSets → Prop) (hAdm : ∀ H' : Heap, HeapOK H' → H' 0#u64 = none → Adm (PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
+    /- the reset's preemption points: [W-false] not true in reachable states (gap K10: the spec cannot preempt from every state; ∀ ksb); only the pre-J XTop reset path uses it; superseded by the J-level reset -/
+    (hPPW : ∀ (th : TypedHeap) (s0 : S) (p sb k0 v0 : U64), PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
+      L.mem t (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = v0))
     (P3Ok : S → U64 → capability.Cap → Aeneas.Std.Array obj.Slot 3#usize → Prop)
     (hOk : UtOkRU (L := L) arI H Cs P3Ok) (hDbg : UtDbgTcbP (L := L) arI H Cs P3Ok)
     (hVtx : UtVtxP (L := L) arI H Cs U P3Ok)
@@ -1271,7 +1276,7 @@ theorem utRetypeP3_gen [P1.PlainStore st] {A' : Type} (arI : machine.Arch A') (h
       (Heap.scBits H) Ac' s := ⟨hbx.1, hbx.2.1, hbx.2.2.1, hbx.2.2.2.2, hbx.2.2.2.1⟩
   have hTm : TimerOK st H.tcbs Cs s := hbx.2.2.1.2.2.tm
   obtain ⟨⟨r0, s', a'⟩, hv, t, r, fiv, hctx, haleq, hRP⟩ :=
-    spec_exists (retype_postN (ar := a) arI J rfl hrs hUA (by omega) hrcb hppS)
+    spec_exists (retype_postN (ar := a) arI J rfl hrs hUA (by omega) hrcb hppS (fun _ => hPPW th s0 ptr sb))
   -- the reset's facts
   have hcapS' : obj.Slot.cap st slot s = ok (.Untyped ptr sb fi false) := by rw [slot_cap_eq]; exact hcapS
   have hnc : reset = true → ¬ ∃ x, σ.cdt x = some (pp.bv, idx) := fun h => by

@@ -208,7 +208,7 @@ theorem JAtZ.zombieJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl :
     have B := notDev_back (capV_of_capAt hcap') hcv
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
       fun g w hal' h1 h2 => ?_, U.sb4,
-      U.nostr, U.nsFree, fun h0 => U.ns (hnc h0), fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+      U.nostr, U.nsFree, fun h0 => U.ns (hnc h0), 
       fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal' fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
       exact U.zero (B g) w hal' h1 h2
@@ -397,7 +397,7 @@ theorem JAtZ.swapJCore (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : F
       unfold NotDev at *; rw [hc0]; rw [hcu] at g; exact g
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
       fun g w hal' h1 h2 => ?_, U.sb4,
-      U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+      U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
       fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal' fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
       exact U.zero (B g) w hal' h1 h2

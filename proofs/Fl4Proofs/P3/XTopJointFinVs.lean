@@ -372,7 +372,7 @@ theorem JAtZ.vs_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
     fun h0 => U.ns (by rw [hcdt] at h0; exact h0),
-    fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    ?_, fun g => by rw [hna]; exact U.dwReg (B g),
     fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · intro g w hal h1 h2
     by_cases hb : VsW Z (L.ksb s) w

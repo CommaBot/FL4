@@ -528,7 +528,7 @@ theorem JAtZ.mp_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
         have := U.nostr q k hk
         rw [two_pow_asidPool] at this; rw [two_pow_asidPool, h4]; omega, fun _ w _ h1 h2 => by rw [h4] at h1; rw [two_pow_asidPool] at h2; omega,
       U.sb4, U.nostr, fun y _ => by rw [two_pow_asidPool, h4]; omega, fun h0 => absurd hch h0,
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ h0 => absurd hch h0,
+      fun _ h0 => absurd hch h0,
       fun _ => by rw [hna]; exact U.dwReg B, fun _ => by rw [hgp]; exact U.gReg B⟩
   have hne : cslotAddr sl ≠ cslotAddr (pd.bv, idxd) := fun e => by
     obtain ⟨b, hb⟩ := hdst
@@ -561,7 +561,7 @@ theorem JAtZ.mp_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
   have B := notDev_ram hcv
   refine ⟨U.pal, U.pfit, U.fiLe, fun _ => U.high B, fun _ => by rw [hcpu, hna]; exact U.actZ B, U.free,
     fun _ w hal h1 h2 => ?_, U.sb4,
-    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
     fun _ h0 hf0 => ?_, fun _ => by rw [hna]; exact U.dwReg B, fun _ => by rw [hgp]; exact U.gReg B⟩
   · by_cases hb : MpW Z.th p (L.ksb s) hi w
     · rcases hb with ⟨x, k, hx, hk, rfl⟩ | ⟨g1, g2⟩ | rfl

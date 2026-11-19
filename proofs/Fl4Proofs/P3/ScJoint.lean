@@ -160,11 +160,14 @@ decode's start ⇒ the retype's `CreateOK` (P1's kernel entry). Named:
 theorem utRetypeP3_ofJ [Fl4Proofs.P1.PlainStore st] (arI : machine.Arch A) (hA : P0.ArchTotal arI) (H : P1.Heap) (Cs U : Set U64)
     (Adm : P1.PSets → Prop) (hAdm : ∀ H' : P1.Heap, P1.HeapOK H' → H' 0#u64 = none → Adm (P1.PSets.ofHeap H'))
     (h0Cs : 0#u64 ∈ Cs) (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
+    /- [W-false] not true in reachable states (gap K10: the spec cannot preempt from every state; ∀ ksb); only the pre-J XTop reset path uses it; superseded by the J-level reset -/
+    (hPPW : ∀ (th : TypedHeap) (s0 : S) (p sb k0 v0 : U64), PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
+      L.mem t (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRU : RegionUnrefJ (L := L) arI H Cs) (hDbg : UtDbgTcbP (L := L) arI H Cs (UtJOk (L := L) arI H Cs))
     (hVtx : UtVtxP (L := L) arI H Cs U (UtJOk (L := L) arI H Cs)) :
     P1.UtRetypeP3 st arI Adm H.tcbs Cs H.omega H H.frame H.replies H.scs H.ntfns H.scBits U
       (UtJOk (L := L) arI H Cs) :=
-  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS _ (utOkRU_J hRU) hDbg hVtx
+  utRetypeP3_gen arI hA H Cs U Adm hAdm h0Cs hrcb hppS hPPW _ (utOkRU_J hRU) hDbg hVtx
     (devRetype_holds (utOkRU_J hRU) h0Cs)
 
 end

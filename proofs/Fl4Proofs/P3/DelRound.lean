@@ -116,6 +116,13 @@ def FinObjHyp (th : TypedHeap) : Prop :=
           (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
         MdbStep (L.mem s) G (L.mem r.2.1) G' ⦄
 
+/-- The preemption point keeps every cap slot and matches a spec outcome of
+the same kind, with the CSpace relation after.
+
+[W-false] not true in reachable states (gap K10: `DState` pins neither the
+kernel-state base nor the SC/time words, so FL4 can preempt where the spec
+at `σ` cannot, and the `WORK_UNITS` write can hit a slot word); off the J
+path (the J layer uses `JPreemptHyp`, proved by `jPreemptHyp_of`). -/
 def PPHypD (th : TypedHeap) : Prop :=
   ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost), DState (L := L) th s σ G →
     sched.preemption_point st arI s a ⦃ r =>

@@ -118,7 +118,7 @@ theorem JAtZ.vt_utc {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
     (hM.members _).2 ⟨hsl.isSlot, _, hcap0, fun h => by cases h⟩
   have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_, U.sb4, U.nostr, U.nsFree,
-    fun h0 => U.ns h0, fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+    fun h0 => U.ns h0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
     fun g => U.gReg (B g)⟩
   · intro g w hal h1 h2
     rw [hw.mem_eq hal fun hb => ?_]

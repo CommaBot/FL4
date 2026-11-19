@@ -70,8 +70,6 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     (hsb4 : 4 ≤ sb.val) (hN : NoStraddle th p.val (p.val + 2 ^ sb.val))
     (hns : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val)
     (hrcb : Fl4Spec.resetChunkBits = 16) (hppS : PPFrame)
-    (hPP : ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
-      L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0))
     (hRst : (¬ ∃ x, σ.cdt x = some (pp.bv, idx)) → fi.val ≠ 0 →
       (∀ sl, σ.isOriginalCap sl = true → AbsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) sl) ∧
       ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
@@ -89,7 +87,10 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     (hhead : L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = 0#u64 ∨
       (th (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) = some .tcb ∧
         TcbOk (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS))))
-    (hctx : RetCtx (L := L) th s σ (pp.bv, idx) sb fi dev nt us dest off win t r reset fiv) :
+    (hctx : RetCtx (L := L) th s σ (pp.bv, idx) sb fi dev nt us dest off win t r reset fiv)
+    /- the reset branch's preemption points: [W-false] not true in reachable states (gap K10: the spec cannot preempt from every state; ∀ ksb); only the pre-J XTop reset path uses it; superseded by the J-level reset -/
+    (hPP : reset = true → ∀ k0 v0 : U64, PPHyp (L := L) arI th p sb (fun t => L.ksb t = k0 ∧
+      L.mem t (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = v0)) :
     (do
       let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
       untyped.retype st arI s2 ar (cslotAddr (pp.bv, idx)) reset
@@ -163,7 +164,7 @@ theorem retype_cont_allN {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
   have hdout := hdout0
   have hPP2 : PPHyp (L := L) arI th p sb (fun t => L.ksb t = L.ksb s2 ∧
       L.mem t (L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS) = L.mem s2 (L.nodeAt s2 0#u64 layout.node.DEBUG_TCBS)) := by
-    rw [hDW2]; exact hPP _ _
+    rw [hDW2]; exact hPP (by first | rfl | assumption) _ _
   have hsbW : sb.val < 64 := capAt_untyped_inv hcap
   have hWR := retype_region p 0#u64 sb.val (zOf nt.val us.val) win.val hsbW (by omega) hpal hpfit (by simp) hw1 hmem
   have hWA2 : (Fl4Spec.alignUp (p.bv + (0 : BitVec 64)) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 := hWR.2.1
@@ -318,8 +319,8 @@ theorem untyped_retype_refines_fl4N [Fl4Proofs.P1.PlainStore st] {A' : Type} (ar
   have hn := hnt nt hnt0
   have hb : Fl4Spec.fl4ObjBitsApi t us.val = zOf nt.val us.val := (objTypeOf_fl4 hctx.ty us.val).2.1
   exact retype_cont_allN arI ar th s σ G hR hV hP hM hC hI hU horig ct hcur hct htcb hact hpp hidx hcap hpal hpfit hfi
-    hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hPP hRst Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv hn hb
-    hDWal hDWobj hDWreg hDWne hhead hctx
+    hhigh hactZ hfree hzero hsb4 hN hns hrcb hppS hRst Fl4Spec.fl4ObjBitsApi nt us dest off win t r reset fiv hn hb
+    hDWal hDWobj hDWreg hDWne hhead hctx (fun _ => hPP)
 
 end
 

@@ -179,7 +179,7 @@ theorem JAtZ.userWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, ?_,
       U.sb4, U.nostr, U.nsFree,
       fun h0 => U.ns (by rw [F.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [F.gpml4]; exact U.gReg (B g)⟩
     · intro g w hal' h1 h2
       rw [hW.mem_eq hal' fun hb => ?_]

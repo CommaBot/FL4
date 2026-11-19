@@ -222,11 +222,6 @@ theorem Sched.UtCapP3.slice {th : TypedHeap} {s s' : S} {σ σ' : Fl4Spec.State 
     fun _ a ha => by
       have := hslot a ((hM'.members a).1 ha).1
       omega,
-    fun k0 v0 => by
-      simp only [hna]
-      intro s0 a0 hE0
-      exact WP.spec_mono (U.pp k0 v0 s0 a0 hE0) (fun r ⟨h1, h2, h3, h4⟩ =>
-        ⟨h1, fun w hw g1 g2 => h2 w hw (by omega) (by omega), h3, h4⟩),
     fun _ _ h0 => absurd h00 h0,
     fun _ => by
       rw [hna]
@@ -295,7 +290,7 @@ theorem JAtZ.ret_utcU {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     refine ⟨U.pal, U.pfit, hfi1, fun _ => U.high B0, fun _ => by rw [hcpu, hna]; exact U.actZ B0,
       fun q k hq => (U.free q k hq).imp (fun e => by omega) id,
       fun _ w hal h1 h2 => ?_, U.sb4, U.nostr, fun y hy => ?_, fun h0 => absurd hchild h0,
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ h0 => absurd hchild h0,
+      fun _ h0 => absurd hchild h0,
       fun _ => by rw [hna]; exact U.dwReg B0, fun _ => by rw [hgp]; exact U.gReg B0⟩
     · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
       exact U.zero B0 w hal (by omega) h2
@@ -333,7 +328,7 @@ theorem JAtZ.ret_utcU {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hM.members _).2 ⟨hxs.isSlot, _, by rw [capAt_capV, hc0], by simp⟩
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
     fun g w hal h1 h2 => ?_, U.sb4,
-    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
     fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
     exact U.zero (B g) w hal h1 h2

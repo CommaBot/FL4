@@ -375,7 +375,7 @@ theorem JAtZ.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     refine ⟨U.pal, U.pfit, hfi1, fun _ => U.high B0, fun _ => by rw [hcpu, hna]; exact U.actZ B0,
       fun q k hq => (U.free q k hq).imp (fun e => by omega) id,
       fun _ w hal h1 h2 => ?_, U.sb4, U.nostr, fun y hy => ?_, fun h0 => absurd hchild h0,
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ h0 => absurd hchild h0,
+      fun _ h0 => absurd hchild h0,
       fun _ => by rw [hna]; exact U.dwReg B0, fun _ => by rw [hgp]; exact U.gReg B0⟩
     · rw [hw.mem_eq hal fun h => h.elim (fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega)
         (fun h => by have := hWs w h; omega)]
@@ -409,7 +409,7 @@ theorem JAtZ.ret_utcW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hM.members _).2 ⟨hxs.isSlot, _, by rw [capAt_capV, hc0], by simp⟩
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
     fun g w hal h1 h2 => ?_, U.sb4,
-    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
     fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun h => h.elim (fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega)
       (fun h => by

@@ -412,7 +412,7 @@ theorem JAtZ.ins_utcG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have B := notDev_back (capV_of_capAt hcap') hcv
   refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
     fun g w hal h1 h2 => ?_, U.sb4,
-    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+    U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
     fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
   · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
     exact U.zero (B g) w hal h1 h2
@@ -620,7 +620,7 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   rcases hcase with ⟨rfl, hcd⟩ | ⟨hfull, hch⟩
   · refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free,
       fun g w hal h1 h2 => ?_, U.sb4,
-      U.nostr, fun y hy => ?_, fun h0 y hy => ?_, fun k0 v0 => by simpa only [hna] using U.pp k0 v0,
+      U.nostr, fun y hy => ?_, fun h0 y hy => ?_, 
       fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
     · rw [hw.mem_eq hal fun ⟨y, hy, h1', h2'⟩ => by rcases hobj y hy with e | e <;> omega]
       exact U.zero (B g) w hal h1 h2
@@ -639,7 +639,7 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   · refine ⟨U.pal, U.pfit, by omega, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g),
       fun q k hk => by rcases U.nostr q k hk with h | h | h <;> omega,
       fun _ w _ h1 h2 => by omega, U.sb4, U.nostr, fun y _ => by omega, fun h0 => absurd hch h0,
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun _ h0 => absurd hch h0,
+      fun _ h0 => absurd hch h0,
       fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
 
 /-- **What a slot step still owes** [W] (each reads the caps changed): the covering caps
@@ -911,7 +911,7 @@ theorem jowes_ks {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) (
     have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hO.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [hO.gpml4]; exact U.gReg (B g)⟩
     · have hw8 : w.val % 8 = 0 := hal
       have hapart := (J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))).1
@@ -1077,7 +1077,7 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
     have B := notDev_back (capV_of_capAt hcap) (capV_of_capAt hcap0)
     refine ⟨U.pal, U.pfit, U.fiLe, fun g => U.high (B g), fun g => by rw [hcpu, hna]; exact U.actZ (B g), U.free, fun g w hal h1 h2 => ?_, U.sb4,
       U.nostr, U.nsFree, fun h0 => U.ns (by rw [hK.cdt] at h0; exact h0),
-      fun k0 v0 => by simpa only [hna] using U.pp k0 v0, fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
+      fun g h0 hf0 => ?_, fun g => by rw [hna]; exact U.dwReg (B g),
       fun g => by rw [hK.arch]; exact U.gReg (B g)⟩
     · have hapart := J.jcov.ks _ hxm p sb fi (ramCap_of_notDev hcv (B g))
       have hnd := hapart.2.1 Z.c hcZ

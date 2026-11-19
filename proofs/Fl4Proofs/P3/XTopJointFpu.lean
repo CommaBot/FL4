@@ -95,7 +95,7 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
     intro sl p sb fi dev hsl hcap hdv
     have U := J.utc sl p sb fi dev hsl hcap hdv
     refine ⟨U.pal, U.pfit, U.fiLe, U.high, U.actZ, U.free, U.zero, U.sb4, U.nostr, U.nsFree,
-      fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), U.pp, ?_, U.dwReg, fun g => by rw [F.gpml4]; exact U.gReg g⟩
+      fun h0 => U.ns (by rw [F.cdt] at h0; exact h0), ?_, U.dwReg, fun g => by rw [F.gpml4]; exact U.gReg g⟩
     intro g h0 hf0
     rw [F.cdt] at h0
     obtain ⟨r1, r3⟩ := U.rst g h0 hf0
