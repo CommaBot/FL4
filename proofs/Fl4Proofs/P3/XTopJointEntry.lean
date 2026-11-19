@@ -574,8 +574,8 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   `JUtRetHyp` without the retypes proved with or without a reset by
   `JAtZ.utEpJ`/`JAtZ.utScJ`/`JAtZ.utUtJ`/`JAtZ.utPmJ` and `JAtZ.utResetJ`
   (endpoints, notifications, replies, VSpace tables, frames, SCs, untypeds,
-  PML4s) and UtCnRet's `JAtZ.utCnJ` (CNodes): left TCBs (1) and the VT-x
-  types (14..18, also `vtx`)),
+  PML4s), UtCnRet's `JAtZ.utCnJ` (CNodes) and UtTcbRet's `JAtZ.utTcbJ` (TCBs):
+  left the VT-x types (14..18, also `vtx`)),
   asked on core 0 only (on another core `JAtZ`'s one-core sets do not hold the
   new core-0 TCBs and SCs, so the statement need not hold there). -/
   ret : Z.c = 0#u64 → JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
@@ -660,7 +660,7 @@ on the cap:
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `JPoolPath` (the extra cap native [scope]), `JFramePath` (`hno` [J]); labels and extra caps proved (`pt_label` … `frame_label`, `ExtraOK.vsExtra`/`.poolExtra`) |
 | ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra caps and clean regions proved; dirty: the cap [W]) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
-| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: the retype of TCBs; every other native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
+| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: only the VT-x types; every native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`/`utTcbJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
