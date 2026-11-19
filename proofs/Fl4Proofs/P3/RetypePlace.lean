@@ -290,14 +290,13 @@ set_option maxHeartbeats 4000000 in
 set_option maxRecDepth 8000 in
 /-- **`JPlaced` across a retype** (module docstring): from the placement
 before, `JCovD`, `RetPostN` with the retype done, the FL4 type number `n`
-of the spec type, the kernel-global area placed, the current thread a TCB, the preemption point's
-write frame (`hPPW`, P1's `PPW`), the IRQ node's layout (`IntLayout`: its
+of the spec type, the kernel-global area placed, the current thread a TCB, the IRQ node's layout (`IntLayout`: its
 slots are slots of the typed heap, whose caps `typed` covers),
 `SpecFree` and well-formed spec CNodes (l4v `valid_objs`) before, and the
 source cap (FL4's, the spec's after `set_thread_state`, the window at or
 past its free index without a reset; for an SC retype a RAM untyped, as
-FL4's `decode_untyped` checks: `hdevS`): the typed heap, spec state and window
-after, such that over any P1 heap after in `HOut`'s shape (the dropped
+FL4's `decode_untyped` checks: `hdevS`): the typed heap (without a reset `ThX` of `th`),
+spec state and window after, such that over any P1 heap after in `HOut`'s shape (the dropped
 region `[lo, hi)`), with the new TCBs among `Tr'` and the spec's SCs in
 `C'`, the placement holds. -/
 theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : Set U64} {s : S}
@@ -315,7 +314,6 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
     (hdevT : n = 1 → dev = false) (hz1 : n = 1 → 2 ^ bitsApi t us = 4096)
     (hka : (L.ksb s).val % 8 = 0) (hnf : (L.ksb s).val + 13568 + ((L.cpu s).val + 1) * 4288 ≤ 2 ^ 64)
     (hcurT : ∀ ct, sched.cur_thread st s = ok ct → th ct = some .tcb)
-    (hPPW : ∀ (s1 : S) (a1 : A'), sched.preemption_point st arI s1 a1 ⦃ r => WritesIn st s1 r.2.1 (PPW st s1) ⦄)
     (hL : IntLayout th (L.ksb s))
     (hSF : SpecFree (L.mem s) G σ)
     (hgc : ∀ o sz cs, σ.kheap o = some (.cnode sz cs) → Fl4Spec.wellFormedCnodeN sz cs)
@@ -333,6 +331,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       (∃ σ1, Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) ∧
         NHas (Fl4Spec.invokeUntypedWith (Z := Unit) bitsApi (.retype sl rs pb rb t us slots dev)).run σ1
           (fun y => y.1 = .ok () ∧ KSame σ' y.2)) ∧
+      (rs = false → ThX th th' A k w n us) ∧
       ∀ H' : Heap, HOut H H' lo hi A k w (newKind n us) →
         JPlaced (L := L) th' H' {q | q ∈ Tr ∨ th' q = some .tcb}
           {c | c ∈ C ∨ (c ≠ 0#u64 ∧ ∃ y n', σ'.kheap c.bv = some (.schedContext y n'))} res.2.1 σ' := by
@@ -462,13 +461,16 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
       have : c.bv.toNat = A + j * k := by
         rw [hjc, eA, ← ek]; exact ptrAdd_toNat (by rw [← eA]; omega)
       exact this
-  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, ⟨σ1, hst1, ?_⟩, fun H' hO => ?_⟩
+  refine ⟨th', σ', A, k, w, lo, hi, eA, ek, ew, hlo, hhi, ?_, ⟨σ1, hst1, ?_⟩, fun hrs => ?_, fun H' hO => ?_⟩
   · rcases hor with ⟨-, -, h1, h2, -⟩ | ⟨a1, p, sb, fi, d, hr, hc, -, -, -, -, -, h1, h2, -, hRB⟩
     · exact Or.inl ⟨h1, h2⟩
     · exact Or.inr ⟨ct, s0, sR, a1, p, sb, fi, d, hct, hs0, hr, hc, h1, h2, hRB⟩
   · rcases he with ⟨-, rfl⟩ | ⟨h, -⟩
     · exact hhas
     · rw [hok] at h; cases h
+  · rcases hor with ⟨-, rfl, -, -⟩ | ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, hRB⟩
+    · exact hthx
+    · rw [hrs] at hRB; cases hRB
   have hRk : k = 2 ^ bitsApi t us := ek
   -- the objects a cap in the MDB covers are kept
   have hkeepH : ∀ q kd, H q = some kd → Covered (L.mem s) G q.val (q.val + 2 ^ kd.bits) → H' q = some kd := by
