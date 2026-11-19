@@ -531,7 +531,7 @@ theorem JAtZ.utPmJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L)
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val))
       oo := fun q hq => by
     obtain ⟨pt, e⟩ := hpm q hq
-    exact Or.inr (Or.inr (Or.inr ⟨_, e⟩))
+    exact Or.inr (Or.inr (Or.inr (Or.inl ⟨_, e⟩)))
   have hWnN : ∀ n ∈ Nn, n.bv ∈ regionPtrs (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val))
       (windowSlots dest r off.val win.val).length (2 ^ Fl4Spec.fl4ObjBitsApi (.archObject .pml4Obj) us.val) :=
     fun n hn => by rw [← ht]; exact hreg n (hNs hn)

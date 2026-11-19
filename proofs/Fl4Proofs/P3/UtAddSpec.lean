@@ -6,7 +6,7 @@ A no-reset retype of endpoints or notifications changes the spec's state in
 two parts (UtEpXTop's `invokeUntyped_noreset_add`): `SpecAdd` (the window's
 objects, `defaultEp` or `defaultNotification`, at addresses the heap had
 free) and a CNode-only step (`CnK`). `IdleNew` names the first part's
-objects (idle endpoints, notifications, free replies or arch objects).
+objects (idle endpoints, notifications, free replies, arch objects or CNodes).
 Each scheduler-side invariant `JAtZ` carries survives `SpecAdd` (no TCB or
 SC is added; the new endpoints' and notifications' queues are empty, their SC
 and bound thread null; the new replies have no TCB and no SC): `NSC` (at the notifications
@@ -29,50 +29,54 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- The added objects are idle endpoints, notifications, replies or arch
-objects. -/
+/-- The added objects are idle endpoints, notifications, replies, arch
+objects or CNodes. -/
 def IdleNew (W : ObjRef → Prop) (o : ObjRef → KernelObject) : Prop :=
   ∀ p, W p → o p = .endpoint defaultEp ∨ o p = .notification defaultNotification ∨ o p = .reply defaultReply ∨
-    ∃ ao, o p = .archObj ao
+    (∃ ao, o p = .archObj ao) ∨ ∃ r cs, o p = .cnode r cs
 
 variable {σ σ' σ'' : State Unit} {W : ObjRef → Prop} {o : ObjRef → KernelObject}
 
 theorem IdleNew.fresh (hi : IdleNew W o) : ∀ p, W p → FreshOK (o p) := by
   intro p hp
-  rcases hi p hp with e | e | e | ⟨ao, e⟩ <;> rw [e]
+  rcases hi p hp with e | e | e | ⟨ao, e⟩ | ⟨r, cs, e⟩ <;> rw [e]
   · exact Or.inr (Or.inr (Or.inr ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩))
   · exact Or.inr (Or.inr (Or.inl rfl))
+  · exact Or.inr (Or.inr (Or.inr ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩))
   · exact Or.inr (Or.inr (Or.inr ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩))
   · exact Or.inr (Or.inr (Or.inr ⟨fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ h => (by cases h)⟩))
 
 /-- An object of a kind `SpecAdd` with `IdleNew` does not add is looked up alike. -/
 theorem Sched.SpecAdd.lookI (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : ObjRef} {ko : KernelObject}
     (he : ∀ x, ko ≠ .endpoint x) (hn : ∀ x, ko ≠ .notification x) (hr : ∀ x, ko ≠ .reply x)
-    (ha : ∀ x, ko ≠ .archObj x) :
+    (ha : ∀ x, ko ≠ .archObj x) (hc : ∀ r cs, ko ≠ .cnode r cs) :
     σ'.kheap p = some ko ↔ σ.kheap p = some ko := by
   refine ⟨fun hk => ?_, h.kold⟩
   rcases h.kback hk with e | ⟨hw, rfl⟩
   · exact e
-  · rcases hi p hw with e | e | e | ⟨_, e⟩
+  · rcases hi p hw with e | e | e | ⟨_, e⟩ | ⟨_, _, e⟩
     · exact absurd e (he _)
     · exact absurd e (hn _)
     · exact absurd e (hr _)
     · exact absurd e (ha _)
+    · exact absurd e (hc _ _)
 
 theorem Sched.SpecAdd.tcbI (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : ObjRef} {x : Tcb} :
     σ'.kheap p = some (.tcb x) ↔ σ.kheap p = some (.tcb x) :=
   h.lookI hi (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+    (fun _ _ e => by cases e)
 
 theorem Sched.SpecAdd.scI (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : ObjRef} {y : SchedContext} {n : Nat} :
     σ'.kheap p = some (.schedContext y n) ↔ σ.kheap p = some (.schedContext y n) :=
   h.lookI hi (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)
+    (fun _ _ e => by cases e)
 
 /-- A reply after: one before, or a new free one. -/
 theorem Sched.SpecAdd.replyB (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : ObjRef} {x : Reply}
     (hk : σ'.kheap p = some (.reply x)) : σ.kheap p = some (.reply x) ∨ (W p ∧ x = defaultReply) := by
   rcases h.kback hk with e | ⟨hw, e⟩
   · exact Or.inl e
-  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ <;> rw [e'] at e <;> cases e
+  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ | ⟨_, _, e'⟩ <;> rw [e'] at e <;> cases e
     exact Or.inr ⟨hw, rfl⟩
 
 /-- A notification after: one before, or a new idle one. -/
@@ -80,7 +84,7 @@ theorem Sched.SpecAdd.ntfnB (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : Obj
     (hk : σ'.kheap p = some (.notification x)) : σ.kheap p = some (.notification x) ∨ (W p ∧ x = defaultNotification) := by
   rcases h.kback hk with e | ⟨hw, e⟩
   · exact Or.inl e
-  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ <;> rw [e'] at e <;> cases e
+  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ | ⟨_, _, e'⟩ <;> rw [e'] at e <;> cases e
     exact Or.inr ⟨hw, rfl⟩
 
 /-- An endpoint after: one before, or a new idle one. -/
@@ -88,7 +92,7 @@ theorem Sched.SpecAdd.epB (h : SpecAdd σ σ' W o) (hi : IdleNew W o) {p : ObjRe
     (hk : σ'.kheap p = some (.endpoint x)) : σ.kheap p = some (.endpoint x) ∨ x = defaultEp := by
   rcases h.kback hk with e | ⟨hw, e⟩
   · exact Or.inl e
-  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ <;> rw [e'] at e <;> cases e
+  · rcases hi p hw with e' | e' | e' | ⟨_, e'⟩ | ⟨_, _, e'⟩ <;> rw [e'] at e <;> cases e
     exact Or.inr rfl
 
 theorem Sched.SpecAdd.sched_eq (h : SpecAdd σ σ' W o) (hi : IdleNew W o) (t : ObjRef) :
@@ -118,7 +122,7 @@ theorem prioOf_uadd (h : SpecAdd σ σ' W o) (hi : IdleNew W o) (u : ObjRef) : S
       rcases h.kback hk' with e | ⟨hw, rfl⟩
       · rw [hk] at e; cases e
       · unfold Sched.prioOf tcbsOf tcbsOfKh optMap; rw [hk, hk']
-        rcases hi u hw with e | e | e | ⟨_, e⟩ <;> rw [e] <;> rfl
+        rcases hi u hw with e | e | e | ⟨_, e⟩ | ⟨_, _, e⟩ <;> rw [e] <;> rfl
 
 theorem Sched.NSC.uadd {N Nn C : Set U64} (hN : NSC N C σ) (h : SpecAdd σ σ' W o) (hi : IdleNew W o)
     (hW : ∀ n ∈ Nn, W n.bv) : NSC (N ∪ Nn) C σ' := by
