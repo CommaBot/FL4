@@ -2293,6 +2293,17 @@ theorem JAtZ.runTmoRecvJ (hZ : XferHZ L AR Z) (hAT : P0.ArchTotal arI)
         exact (WP.spec_ok _).2 ⟨((), z.2), handleTimeout_mem hk6 hth6 _ (fin z hz), hJ⟩
   all_goals simp [absCap] at habs6
 
+
+/-- **`RunTmoP` for a timeout handler endpoint with receivers waiting**
+(`JAtZ.runTmoRecvJ`): what XTopJointIpcJ's `replyXferJ` / `replyLeafJ` take
+for that case (formerly the named premise `JReplyRestHyp`). -/
+theorem runTmoP_recv (Z0 : XSets) (hZ : XferHZ L AR Z0) (hAT : P0.ArchTotal arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    RunTmoP (L := L) arI AR Z0 (fun xe => ¬ Endp.CanBlock false xe) :=
+  fun _ _ _ _ _ _ _ a _ hth J hcr _ ht htD _ hk hrs htc _ hsc hxsc _ _ hky hya _ _ _ hthd hcb ts hrun hts v hv hB =>
+    JAtZ.runTmoRecvJ (fun Z' s' a' σ' e hX => hZ Z' s' a' σ' (e.trans hth) hX) hAT hmax (htu a) hcr J ht htD hk hrs htc
+      hsc hxsc hky hya hthd hcb ts hrun hts v hv hB
 end
 
 end

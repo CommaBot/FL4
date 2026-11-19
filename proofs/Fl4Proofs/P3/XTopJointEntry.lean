@@ -74,6 +74,7 @@ import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointFaultRecv
 import Fl4Proofs.P3.UtRetResetJ
+import Fl4Proofs.P3.XTopJointFaultTmo
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -577,9 +578,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
     (buffer : Option Fl4Spec.ObjRef) (ct : U64) : capability.Cap → Prop
   | .Null | .Zombie .. | .Notification .. => True
   | .Endpoint .. => True
-  | .Reply p g => ∀ s1 σ1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
-      JReplyRestHyp (L := L) arI AR s1 ar σ1 ct p g
+  | .Reply .. => True
   | .CNode .. => True
   | .Thread p =>
       (lbl = fl4_abi.label.TCBSetEPTRoot →
@@ -640,7 +639,7 @@ on the cap:
 |---|---|---|
 | Null, Zombie | the decode fails, the state unchanged | — |
 | Notification | `decode_notificationDMX`, `notifLeafJ` | — (`SignalRestJHyp` [J] in `JEntryGlob`) |
-| Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (only `ReplyRestTmo` with receivers waiting on the timeout handler's endpoint, `¬ TmoIdle`: the tail's `handle_timeout` sends to a receiver) [W] |
+| Reply | `decode_replyDMX`, `replyLeafJ` (receivers waiting on the timeout handler's endpoint: XTopJointFaultTmo's `runTmoP_recv`) | — |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ2` | — (every send to a waiting receiver, any grant: `SendRecvBasic`, XTopJointSendRecv's `JAtZ.sendRecvJ0`, `SendRecvCI`, XTopJointSendCall's `JAtZ.sendCallIJ`, `SendRecvDon`, XTopJointSendDon's `JAtZ.sendDonJ`, `SendRecvCP`, XTopJointSendPush's `JAtZ.sendCallPJ`, and `SendRecvCPD`, XTopJointSendPushD's `JAtZ.sendCallPDJ`, the transfer by XTopJointXferG's `JAtZ.xferStepGJ` (a granted cap's insert redone at `J` before the dequeue); the blocking send by `JAtZ.sendBlockJ`, JEntryAt's `ctnq` [J]; the sender's fault excluded by JEntryAt's `cnf` [J]) |
 | CNode | `decode_invocation_cnodeJ_steps` (at `cnode_canon`'s label) | — |
 | Thread | `decode_invocation_threadJ_step` (at `tcb_canon`'s label) | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
@@ -703,7 +702,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   case Reply p g =>
     exact XCap.toP arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
       excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.pp.minBudget (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX,
-        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hct hAs hc hst hN hX0))) hPre
+        hG.bufCover Z' s' a' σ' e hX, hG.bufPlaced Z' s' a' σ' e hX⟩) J hni hct hAs hc hst
+        (runTmoP_recv _ (fun Z' s' a' σ' e hX => ⟨hG.ipcBufOK Z' s' a' σ' e hX, hG.bufCover Z' s' a' σ' e hX,
+          hG.bufPlaced Z' s' a' σ' e hX⟩) hG.tot hG.maxTU hG.tu) hX0))) hPre
   case CNode p r gs g =>
     subst hLb
     obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
