@@ -27,7 +27,7 @@ built on it.
   IPC buffer change; `BufWordRel` by XTopBuf's `bufWordRel_setIpc`).
 * `bufHypW_J`: TcbCaps' `BufHypW` at `WJR` (the word by `bufWrJ`, the tail's
   `reschedule_required` by XTopJointCopyRegs' `JAtZ.schedJ`; `SpecGlob`/`PPR0`/`NoSwitch` kept),
-  given `ActReady` at `WX` [J] (`decode_invocation_threadJ_step`'s `hA`).
+  with `ActReady` from the state's `JAtZ` (`Sched.Inv.actReady`).
 * `install_bufferJ`: `tcb::install_buffer` at `WJR`/`WJP`, as TcbCaps'
   `install_buffer_refinesW` (the insert by `check_insert`'s case split and
   `insTJ`).
@@ -482,10 +482,9 @@ set_option maxHeartbeats 8000000 in
 IPC-buffer word and `thread_set` by `JAtZ.bufWrJ` (the scheduler action and
 `PPR0` kept: `PPK.updTcbSc`); the tail's `reschedule_required` of the
 current thread as a scheduler step (`JAtZ.schedJ`; after it the action is
-`choose_new_thread`), given the spec's `ActReady` at every `WX` state [J]
-(already `decode_invocation_threadJ_step`'s `hA`). -/
-theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ) (kb addr : U64) :
+`choose_new_thread`), with the spec's `ActReady` at the state's `JAtZ`
+(`Sched.Inv.actReady`). -/
+theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
     BufHypW (L := L) (WJR (L := L) arI AR Z H Cs kb) Z.th t addr addr.bv := by
   refine ⟨fun s a σ G _ hW => ?_, fun s a σ G _ hW => ?_⟩
   · obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩ := hW
@@ -505,7 +504,6 @@ theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb)
     rw [Notif.threadSet_eq _ hk]; rfl
   · obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩ := hW
     have hX := J.xtop
-    have hW0 : WX (L := L) AR Z.th s a σ G := ⟨Z.mv G V, rfl, rfl, hX, J.ks, J.thT⟩
     have hS := hX.fin.1.1.1
     obtain ⟨Q, R0, hc, hs⟩ := hS.lists
     have hcur : σ.curThread = (L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)).bv := by
@@ -514,7 +512,7 @@ theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb)
     simp only [bind_ok, tcb_eq_ct]
     by_cases e : t = L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)
     · simp only [e, decide_true, ↓reduceIte]
-      have hA1 := hA s a σ G hW0
+      have hA1 : Notif.ActReady σ := J.inv.actReady
       obtain ⟨σ', hres, hK', hdl', hds'⟩ := rescheduleRequired_k hA1
       have hN := hX.fin.1.1.2.2.1
       refine WP.spec_bind (WP.spec_and (WP.spec_and (Sched.reschedule_required_refines s _ hN hS hA1)
@@ -1310,7 +1308,6 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
     (p : U64) (hp : Z.th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetIPCBuffer)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1413,7 +1410,7 @@ theorem tcb_set_ipcJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec
     hDS.1.2.1.abs ⟨ps, hps1, Or.inl hps⟩ (capAt_capV _ _)
   have hB : (tcb.UPDATE_IPC_BUFFER &&& tcb.UPDATE_IPC_BUFFER) ≠ 0#u64 →
       BufHypW (L := L) (WJR (L := L) arI AR Z H Cs (L.ksb s1)) Z.th p y0 y0.bv :=
-    fun _ => bufHypW_J arI hp hA (L.ksb s1) y0
+    fun _ => bufHypW_J arI hp (L.ksb s1) y0
   by_cases hy : y0 = 0#u64
   · -- no frame
     have hy' : y0.bv = 0 := by rw [hy]; rfl
@@ -1517,7 +1514,6 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Sp
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
     (hHp : ∀ kb, DelHypsWR (L := L) arI (WJR (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
       (RdL (L := L) (A := A) Z.th H) Z.th)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
     (p : U64) (hp : Z.th p = some .tcb)
     (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbConfigure)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1663,7 +1659,7 @@ theorem tcb_configureJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Sp
       (tcb.UPDATE_SPACE ||| tcb.UPDATE_IPC_BUFFER) (.Null, (0, [])) (.Null, (0, [])) (cc, e0.2) (vc, e1.2)
       (fun h => (Eq.mp flags_SB.1 h).elim) (fun h => (Eq.mp flags_SB.2.1 h).elim)
       (fun _ => hokc.of_same hS1) (fun _ => hokv.of_same hS1) (fun _ h => absurd rfl h) y2 y2.bv
-      (fun _ => bufHypW_J arI hp hA (L.ksb s1) y2) bc0 bfr (fun c sl h => (hbok c sl h).of_same hS1)
+      (fun _ => bufHypW_J arI hp (L.ksb s1) y2) bc0 bfr (fun c sl h => (hbok c sl h).of_same hS1)
     simp only [cslot_zero] at hT'
     exact WP.spec_mono hT' (fun res h => top_of_instJ arI (DecOut.of_eq hdec) hst1 h)
   · simp only [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual,

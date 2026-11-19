@@ -19,19 +19,17 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 set_option maxHeartbeats 4000000 in
-/-- **`JPostDelHyp` holds** (module docstring), from the kernel-state block's
-layout at the `XTopAt` states (`IntLayout`, `IoLayout` [P]) and the arch IRQ
+/-- **`JPostDelHyp` holds** (module docstring): the kernel-state block's
+layout from the state's `JAtZ` (`JAtZ.intL`, `JAtZ.ioLay`), the arch IRQ
 operations total and keeping `AR` (`ARMask` [P]), as `xPostDelHyp_of`. -/
 theorem jPostDelHyp_of {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {th : TypedHeap}
-    (hLay : ∀ (Z : XSets) s a σ, Z.th = th → XTopAt (L := L) AR Z s a σ →
-      IntLayout th (L.ksb s) ∧ IoLayout th (L.ksb s))
     (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
     (hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a') :
     JPostDelHyp (L := L) arI AR th := by
   intro Z H Cs kb hth s a σ G cl _ ⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩ hcl hcln hclw
   subst hth
   have hX := J.xtop
-  have hLy := hLay (Z.mv G V) s a σ rfl hX
+  have hLy : IntLayout Z.th (L.ksb s) ∧ IoLayout Z.th (L.ksb s) := ⟨J.intL, J.ioLay⟩
   have hfin : ∀ (s' : S) (a' : A) (σ' : Fl4Spec.State Unit), SlotsSame (Z.mv G V).th (L.mem s) (L.mem s') →
       P1.WritesIn st s s' (KsW (L.ksb s)) → KsStep σ σ' → XTopAt (L := L) AR (Z.mv G V) s' a' σ' →
       WJR (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' => by

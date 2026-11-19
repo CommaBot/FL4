@@ -278,17 +278,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   nd : Fl4Spec.numDomains = 1
   /-- [P] the preemption point's platform (`PPPlat`). -/
   pp : PPPlat arI AR
-  /-- [P] the interrupt and IO-port layout at every related state of `th`
-  (the CNode cleanups). -/
-  lay : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' →
-    IntLayout th (L.ksb s') ∧ IoLayout th (L.ksb s')
-  /-- [W] XTopJoint's `CsGlobal` (the IPC, scheduler, VSpace and CSpace
-  steps of the Thread cap and the IRQ/IO-port controls at `XTop`). -/
-  csG : CsGlobal (L := L) arI AR th
-  /-- [J] the Thread decode's `hA` (`ActReady` at every `WX` state). -/
-  actReady : ∀ s a σ G, WX (L := L) AR th s a σ G → Notif.ActReady σ
-  /-- [J] the Thread decode's `hBT` (IPC-buffer words). -/
-  bufT : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ'
   /-- [J] the Thread decode's `hOK` (l4v `valid_ipc_buffer_cap`). -/
   ipcBufOK : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ'
   /-- [J] the Thread decode's `hBC`. -/
@@ -296,8 +285,6 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
   /-- [J] the Thread decode's `hBPl`. -/
   bufPlaced : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' →
     Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ'
-  /-- [J] the Thread decode's `hFl` (the TCB flags). -/
-  flags : ∀ (Z' : XSets) s' a' σ', Z'.th = th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ'
   /-- [J] the IRQ handler decode's `FinObjHyp` (DelRound). -/
   finObj : FinObjHyp (L := L) arI th
   /-- [J] the IRQ handler decode's `PostDelHyp` (DelRound). -/
@@ -346,6 +333,10 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
     Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true
   /-- [P] the Thread decode's `hstall'` (the remote stall a no-op, one core). -/
   stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
+  /-- [J] the Thread decode's `hFl` (SetFlags): FL4's flags word of every TCB
+  of `T` against the spec's `tcb_flags` at the invocation (l4v `tcb_relation`'s
+  `tcbFlags`; framed across the caller's restart by `JAtZ.flagsRestart`). -/
+  flags : FlagsRel Z.T (L.mem s) σ
   /-- [J] the Thread decode's `hcw` (the current-thread word outside objects). -/
   cw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)
   /-- [J] the CNode decode's `hQ` (the endpoint queues' precondition). -/
@@ -713,7 +704,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   case CNode p r gs g =>
     have hN : JCnodePath (L := L) Z s lbl slbl extra excaps := hN
     obtain ⟨x0, x1, hx0, hx1, hex⟩ := hN.hex
-    exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay lbl
+    exact decode_invocation_cnodeJ_steps arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hG.nd hG.pp hE.rd0 lbl
       slbl hN.hlbl length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra x0 x1 hx0 hx1 excaps hex hE.epQ
       hE.epE blk call don fp ci buffer
   case Thread p =>
@@ -732,10 +723,10 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
       apply hE.sg.idle sl'.1 sl'.2 _ ha0 (by simp [IsPageCap, absCap])
       rw [JAtZ.idleThread_eq arI J, ← e]; simp [absCap, Fl4Spec.objRefs]
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
-    exact decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
-      hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
+    exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hG.ipcBufOK
+      hG.bufCover hG.bufPlaced hE.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
-      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hG.timeAg
+      (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.timeAg
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64
@@ -752,7 +743,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.csG hG.ari hG.tot hUt hE.handlers lbl slbl hN.hlbl
+    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.handlers lbl slbl hN.hlbl
       hN.hrm length buf ct hct argsU hlen hargs hE.act2 extra x0 hx0 excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toP arI hPre
   case IoPortControl =>
@@ -762,13 +753,13 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.csG hG.ari hG.tot hUt hE.ports lbl slbl hN.hlbl
+    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hUt hE.ports lbl slbl hN.hlbl
       length buf ct hct argsU hlen hargs hE.act3 extra x0 hx0 excaps hex hth0 rfl hc blk call don fp ci
       buffer).toP arI hPre
   case IrqHandler irq =>
     have hN : JIrqHPath (L := L) Z s lbl slbl extra excaps ct irq := hN
     obtain ⟨x0, hx0, hex, hxn⟩ := hN.hex
-    exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.csG hG.ari hG.tot hUt hG.finObj hG.postDel hG.ntfnKeep
+    exact (decode_invocation_irq_handlerJ arI s ar σ J hni hG.ari hG.tot hUt hG.finObj hG.postDel hG.ntfnKeep
       lbl slbl hN.hlbl ct hct sl hAs irq hsc hN.hok extra x0 hx0 excaps hex hxn hE.domPl hN.hP1 length buf blk call
       don fp _ ci buffer).toP arI hPre
   case Domain =>

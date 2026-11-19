@@ -1040,10 +1040,10 @@ set_option maxHeartbeats 8000000 in
 /-- **The SetTLSBase label at `JAt`** (as `tcb_set_tlsX`): the caller's
 restart (`JAtZ.restartJ`), the `TLS_BASE` register (`JAtZ.regWrJ`), and for
 the current thread `reschedule_required` as a scheduler step
-(`JAtZ.schedJ`; `ActReady` at `WX` [J], already a premise); the
+(`JAtZ.schedJ`; `ActReady` from the `JAtZ` after the write, `Sched.Inv.actReady`); the
 current-thread word outside the objects [P]. -/
 theorem tcb_set_tlsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
+    (hni : Entered σ)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetTLSBase)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1150,7 +1150,7 @@ theorem tcb_set_tlsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := 
   by_cases hpc : p = ct
   · subst hpc
     simp only [decide_true, ↓reduceIte]
-    have hA2 := hA _ _ _ _ ⟨Z.mv Z.G V2, rfl, rfl, J2.xtop, J2.ks, J2.thT⟩
+    have hA2 : Notif.ActReady _ := J2.inv.actReady
     obtain ⟨σ', hres, hK', hdl', hds'⟩ := rescheduleRequired_k hA2
     have hS := J2.xtop.fin.1.1.1
     have hN := J2.xtop.fin.1.1.2.2.1
@@ -1299,16 +1299,59 @@ theorem tcb_single_stepJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L
       exact Or.inr ⟨hres, hne, _, DecOut.of_eq hdec, σ1, hst1, [0], _, hy', z, hz, hRT, hJ5 z hz⟩
     split <;> first | exact tail | (split <;> exact tail)
 
+variable {arI} in
+/-- **`FlagsRel` across the caller's restart**: `set_thread_state ct Restart`
+writes the caller's state word (offset 3328) and maybe the current core's
+scheduler-action word (outside the objects, `JKern.act`), no flags word
+(offset 3456 of a TCB of `T`, the TCBs disjoint); the spec changes the
+caller's state only. -/
+theorem JAtZ.flagsRestart {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hFl : FlagsRel Z.T (L.mem s) σ)
+    {ct : U64} (hth : Z.th ct = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x))
+    {s1 : S} (h1 : sched.set_thread_state st s ct sched.TS_RESTART = ok s1) :
+    FlagsRel Z.T (L.mem s1) (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
+  have hc := set_thread_state_cases (st := st) s ct sched.TS_RESTART
+  rw [h1, WP.spec_ok] at hc
+  have hPl := J.xtop.rel.1
+  have hctT := J.thT ct hth
+  have hta : P1.TcbAddr ct := J.ip.e.tcb ct hctT
+  have hstv : (stA ct).val = ct.val + 3328 := stA_val hPl hth
+  have hal_st : P1.Aligned (stA ct) := by unfold P1.Aligned; rw [hstv]; have := hta.align; omega
+  have hact := J.kern.act
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  refine FlagsRel.frame hFl (fun t ht => ?_) (fun q y hq => ?_)
+  · have htt : P1.TcbAddr t := J.ip.e.tcb t ht
+    have htth : Z.th t = some .tcb := (hJ.tcb t).2 (J.zH.1 t ht)
+    have hfv : (tFlagsWA t).val = t.val + 3456 := Notif.tfield_val htt (by decide)
+    have hfa : P1.Aligned (tFlagsWA t) := P1.field_aligned htt (by decide) (by decide)
+    have n1 : (tFlagsWA t).val ≠ (stA ct).val := by
+      rw [hfv, hstv]
+      by_cases e : t = ct
+      · subst e; omega
+      · have := hPl.disj t ct .tcb .tcb htth hth e
+        simp only [objSize] at this; omega
+    have n2 : (tFlagsWA t).val ≠ (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION).val := by
+      intro e
+      exact hact.2 t .tcb htth ⟨by omega, by simp only [objSize]; omega⟩
+    rcases hc with rfl | rfl
+    · exact L.mem_wr_ne hal_st hfa (Ne.symm n1)
+    · rw [L.mem_wr_ne hact.1 hfa (Ne.symm n2)]; exact L.mem_wr_ne hal_st hfa (Ne.symm n1)
+  · rw [Notif.stsAct_kheap]
+    by_cases e : q = ct.bv
+    · subst e; rw [hk] at hq; cases hq
+      exact ⟨{ x with tcbState := .restart }, by simp [Notif.updK], rfl⟩
+    · exact ⟨y, by simp [Notif.updK, e, hq], rfl⟩
+
 set_option maxHeartbeats 16000000 in
 /-- **The SetFlags label at `JAt`** (as `tcb_set_flagsX`): the caller's
-restart (`JAtZ.restartJ`), FL4's flags read (`FlagsRel`, the existing global
-premise) and write with the spec's `set_flags` (`JAtZ.flagsWrJ`), the FPU
+restart (`JAtZ.restartJ`), FL4's flags read (`FlagsRel` at the entry state
+[J], across the restart by `JAtZ.flagsRestart`) and write with the spec's `set_flags` (`JAtZ.flagsWrJ`), the FPU
 release when the FPU is disabled (`JAtZ.fpuReleaseJ'`, `ARKeep` [P]), then
 the data tail of the new flags word (`XTop`'s facts by the XTop tails, `JAt`
 by `JAtZ.runJ` / `JAtZ.replyWords1J`). -/
 theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ)
-    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
+    (hFl : FlagsRel Z.T (L.mem s) σ)
     (p : U64) (hp : Z.th p = some .tcb) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .tcbSetFlags)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -1341,9 +1384,10 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 0#u64 y0 (by simp)
   have ha1 : tcb.arg st s ⟨length, buf, call, slot, extra⟩ 1#u64 = ok y1 := by
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
-  obtain ⟨s1, σ1, x0, hrc1, hst1, hk0, -, hσ1, -, -, hcu1, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x0, hrc1, hst1, hk0, -, hσ1, -, -, hcu1, hss1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   rw [hkc] at hk0; cases hk0
   have hX1 := J1.xtop
+  have hFl1 : FlagsRel Z.T (L.mem s1) σ1 := by rw [hσ1]; exact J.flagsRestart hFl htcb hkc hss1
   have hkc1 : σ1.kheap ct.bv = some (.tcb { xc with tcbState := .restart }) := by
     rw [hσ1, Notif.stsAct_kheap]; simp [Notif.updK]
   have hcurY1 : σ1.curThread = ct.bv := by rw [hcu1, hcur]
@@ -1354,7 +1398,7 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   rw [hrc1]; simp only [bind_ok]
   rw [flags_eq]; simp only [bind_ok, lift, set_flags_eq]
   -- the flags, both sides
-  obtain ⟨xp, hkp, hfp⟩ := hFl Z s1 ar σ1 rfl hX1 p hpT
+  obtain ⟨xp, hkp, hfp⟩ := hFl1 p hpT
   set f := L.mem s1 (tFlagsWA p)
   set f2 := (f &&& ~~~y0) ||| (y1 &&& fl4_abi.consts.tcb_flag.MASK) with hf2
   set nf : Fl4Spec.TcbFlags := xp.tcbFlags \ Fl4Spec.wordToTcbFlags y0.bv ∪ Fl4Spec.wordToTcbFlags y1.bv with hnf
@@ -2656,15 +2700,13 @@ set_option maxHeartbeats 4000000 in
 /-- **The Thread cap, `JAt` after** (module docstring): every label proved at
 `J` (no per-op `JPostHyp`, no X-level `TcbXIpc`). -/
 theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
-    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
     (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
     (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
     (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
-    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
+    (hFl : FlagsRel Z.T (L.mem s) σ)
     (lbl length : U64) (p : U64)
     (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
     (hct : sched.cur_thread st s = ok ct)
@@ -2696,8 +2738,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
-    (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
-      IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
@@ -2733,7 +2773,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
-  have hHp := fun kb => hJDP.hypsWR arI hJP (jPostDelHyp_of arI hARI.toMask hLay hmask hfree) hT Z H Cs kb rfl
+  have hHp := fun kb => hJDP.hypsWR arI hJP (jPostDelHyp_of arI hARI.toMask hmask hfree) hT Z H Cs kb rfl
   have hP0 := J.ppr0_start arI hni hRd0
   by_cases h9 : lbl = fl4_abi.label.TCBSetTimeoutEndpoint
   · subst h9
@@ -2748,12 +2788,12 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   by_cases h10 : lbl = fl4_abi.label.TCBSetIPCBuffer
   · subst h10
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_set_ipcJ arI s ar σ J hni hsg hP0 hHp hA p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
+      buffer (tcb_set_ipcJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 excaps hXc hnc0 blk don ci buffer)
   by_cases h5 : lbl = fl4_abi.label.TCBConfigure
   · subst h5
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
-      buffer (tcb_configureJ arI s ar σ J hni hsg hP0 hHp hA p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
+      buffer (tcb_configureJ arI s ar σ J hni hsg hP0 hHp p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
@@ -2844,7 +2884,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
           (fun i hi => hA5 i (by omega)) call (cslotAddr sl) extra blk don _ ci sl excaps,
       setTLSBase := fun h => by
         subst h
-        exact tcb_set_tlsJ arI s ar σ J hni hA p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
+        exact tcb_set_tlsJ arI s ar σ J hni p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct hct argsU
           hlen hargs hcw (hstall' p) call (cslotAddr sl) extra blk don ci sl excaps buffer,
       setFlags := fun h => by
         subst h
