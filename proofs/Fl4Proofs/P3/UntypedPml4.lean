@@ -725,6 +725,7 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
         objSize kd = 0)) ∨ (NewQ A k win.val (cjOf nt.val us dev aligned.val k) q ∧ objSize kd ≤ k)) →
       (∀ q, th' q = if (∃ i, i < win.val ∧ q.val = A + i * k) ∧ (thKindN nt.val us.val).isSome then
         thKindN nt.val us.val else th q) →
+      (NullClr th (L.mem s1) → NullClr th' (L.mem s1)) →
       (do
         let (s2, a2) ← objects.create_new_objects st arI s1 ar nt src dest off win aligned us dev
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a2)) ⦃ res =>
@@ -738,7 +739,7 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
         WFrame (L := L) s res.2.1 (fun w => SlotSpan th w ∨ (A ≤ w.val ∧ w.val < A + win.val * k)) ∧
         ∃ A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr (pp.bv, idx)) ∧
           A = Ab.toNat ∧ k = 2 ^ z ∧ w = win.val ∧ (∀ j, j < w → isUt (cj j) = true → nt.val = 0) ∧ ThX th th' A k w nt.val us.val ∧ cj = cjOf nt.val us dev A k ∧ DslotC th dslot w ⦄ := by
-    intro th' σb hP' hR' hV' hM' hC' σb0 hrb hini hpp' hdest' hcv' hzs hslo hKb hth hthE
+    intro th' σb hP' hR' hV' hM' hC' σb0 hrb hini hpp' hdest' hcv' hzs hslo hKb hth hthE hnz
     have hbA : (BitVec.ofNat 64 aligned.val : BitVec 64) = Ab := by
       rw [← bv_eq_ofNat]
     have hsrc1 : capAt (L.mem s1) src = ok srcC' := by rw [capAt_capV, hcs1]
@@ -757,7 +758,7 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
         fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
           rintro (h | ⟨j, hj, -⟩)
           · exact h
-          · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl⟩
+          · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl, NullKeep.refl _ _⟩
       · intro j _ hj
         have hj' : off.val + j < 2 ^ r := by omega
         have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -825,7 +826,8 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
     simp only [bind_ok, uncurry_apply_pair]
     rw [WP.spec_ok]
     simp only at ha2 hfin
-    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf⟩ := hfin
+    obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf,
+      hNKf⟩ := hfin
     have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val k)).drop
         win.val = [] := by
       apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
@@ -896,7 +898,7 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
       fun hFI => ⟨(hKb hFI).sub (ksub_of_eq (nks_mapMx (nks_createCap _ _ _ _) _) hmx),
         hFf (hFI.fm.recap hM.tree.nodup src (by rw [hcs1, hcv0]; exact CapSim.of_shape rfl rfl)
           (fun z hz hzs => hco1 z ((hM.members z).1 hz).1 hzs))⟩, hks2, hW, A, k, win.val, _, _,
-      hRD.toExp hU hMf hth, rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1, ⟨hthE, hrf⟩, rfl, fun j hj => ⟨dest, r, hdest, off.val + j, by omega, rfl⟩⟩
+      hRD.toExp hU hMf hth (fun hN => (hnz (hupd.nullClr hN)).of_keep hNKf), rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1, ⟨hthE, hrf⟩, rfl, fun j hj => ⟨dest, r, hdest, off.val + j, by omega, rfl⟩⟩
     · rw [hbA] at hmx
       exact invokeUntyped_noreset_init bitsApi (pp.bv, idx) p.bv Ab _ us.val _ dev σ σa σb0 σb σf _ _ hgs hss hrb
         hini (by rw [hwl]; exact hmx)
@@ -961,7 +963,7 @@ theorem retype_full_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : Typ
       simp only [regionHeap, foldr_update_apply, if_pos hq]; rfl)
   refine key th { σb0 with kheap := kb } hP (StateRel.of_agree hR' (fun q kd hq hs1 => ?_)) hV1 hM1
     (hC'.of_cdt rfl rfl) σb0 ?_ ?_ hpp hdest hcvo hzsOld ?_ ?_ (th_same_shape hk1 hrf)
-    (fun q => by simp [thKindN, hnt])
+    (fun q => by simp [thKindN, hnt]) id
   · show kb q.bv = _
     apply hkb
     intro hq'

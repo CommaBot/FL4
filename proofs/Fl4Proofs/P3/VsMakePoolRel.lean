@@ -347,7 +347,8 @@ theorem mp_perform_rel {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     intro τd hD
     have := hset τd hD
     rw [hs2, WP.spec_ok] at this
-    exact this
+    obtain ⟨cs, h1, h2, h3, h4, h5, -⟩ := this
+    exact ⟨cs, h1, h2, h3, h4, h5⟩
   obtain ⟨cs0, -, -, RR2, hfr2, hco2⟩ := hset2 _ (KSame.refl _)
   -- the zeroing
   rw [L.clear_free_eq]; simp only [bind_ok]

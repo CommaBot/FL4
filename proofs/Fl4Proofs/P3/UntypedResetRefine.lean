@@ -94,8 +94,9 @@ theorem reset_set_step (hP : Placed th) {pp : U64} {rs : Nat}
           (setCnodeSlot σ pp.bv rs cs idx (.untypedCap dev p.bv sb.val f'.val)) f' ∧
         (∀ w : U64, P1.Aligned w → w.val ≠ (cslotAddr (pp.bv, idx)).val →
           w.val ≠ (cslotAddr (pp.bv, idx)).val + 8 → L.mem s' w = L.mem s w) ∧
-        ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ cslotAddr (pp.bv, idx) →
-          capV (L.mem s') y = capV (L.mem s) y ⦄ := by
+        (∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ cslotAddr (pp.bv, idx) →
+          capV (L.mem s') y = capV (L.mem s) y) ∧
+        LinksKeep (restrictTh th p.val (p.val + 2 ^ sb.val)) (L.mem s) (L.mem s') ⦄ := by
   set th' := restrictTh th p.val (p.val + 2 ^ sb.val)
   set xs := cslotAddr (pp.bv, idx)
   have hP' : Placed th' := hP.restrict
@@ -124,7 +125,7 @@ theorem reset_set_step (hP : Placed th) {pp : U64} {rs : Nat}
       nn := by rw [hcs1]; simp }
   refine ⟨cs, hk, hwf, ⟨hR1, hV1, hupd.mdbLinks h.M hxm, hupd.cdtRel h.C hcdt1 hio1, hupd.mdbInv h.M h.I,
     UtInv.reset_fi h.M h.I h.U hxm h.cap hnd hcs1 hf' (fun z hz hzx => hco1 z ((h.M.members z).1 hz).1 hzx),
-    hcs1⟩, hfr, hco1⟩
+    hcs1⟩, hfr, hco1, hlk1⟩
 
 end
 
@@ -180,7 +181,8 @@ def ResetPost (σ : Fl4Spec.State Unit) (pp : U64) (idx : List Bool) (th' : Type
     (res.1 = .Err .Preempted ∧ NHas (Fl4Spec.resetUntypedCap (Z := Unit) (pp.bv, idx)).run σ (TopP (.error ()) σ'))) ∧
     ResetRel th' G x p sb dev (L.mem res.2.1) σ' f ∧
     (zero = true → ZeroRegion (L.mem res.2.1) (p.val + f.val) (p.val + 2 ^ sb.val)) ∧
-    (∀ y, IsSlot th' y → y ≠ x → capV (L.mem res.2.1) y = capV m0 y) ∧ E res.2.1
+    (∀ y, IsSlot th' y → y ≠ x → capV (L.mem res.2.1) y = capV m0 y) ∧ LinksKeep th' m0 (L.mem res.2.1) ∧
+    E res.2.1
 
 /-- A property of the state kept by zeroing part of the region and by
 writing the untyped cap's slot. -/
@@ -203,7 +205,8 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
     (hZ : ZeroRegion (L.mem s) (p.val + o.val + 65536) (p.val + 2 ^ sb.val))
     (hK : RCont dev p.bv sb.val pp.bv idx σ0 (o.val / 65536) σk) (m0 : U64 → U64)
     (hF : ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ cslotAddr (pp.bv, idx) →
-      capV (L.mem s) y = capV m0 y) (hE : E s) :
+      capV (L.mem s) y = capV m0 y) (hLk : LinksKeep (restrictTh th p.val (p.val + 2 ^ sb.val)) m0 (L.mem s))
+    (hE : E s) :
     untyped.reset_untyped_loop st arI s a (cslotAddr (pp.bv, idx)) p sb dev o ⦃ res =>
       ResetPost (L := L) (p := p) (sb := sb) (dev := dev) σ0 pp idx (restrictTh th p.val (p.val + 2 ^ sb.val)) G (cslotAddr (pp.bv, idx))
         m0 E res true ⦄ := by
@@ -220,11 +223,12 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
       ResetRel th' G xs p sb dev (L.mem x.1) σk f ∧
       ZeroRegion (L.mem x.1) (p.val + x.2.2.val + 65536) (p.val + 2 ^ sb.val) ∧
       RCont dev p.bv sb.val pp.bv idx σ0 (x.2.2.val / 65536) σk ∧
-      (∀ y, IsSlot th' y → y ≠ xs → capV (L.mem x.1) y = capV m0 y) ∧ E x.1) _ _ _ ?_ ?_
+      (∀ y, IsSlot th' y → y ≠ xs → capV (L.mem x.1) y = capV m0 y) ∧ LinksKeep th' m0 (L.mem x.1) ∧ E x.1)
+    _ _ _ ?_ ?_
   rotate_left
-  · exact ⟨ho1, ho2, σk, f, hRR, hZ, hK, fun y hy hyx => hF y hy hyx, hE⟩
-  rintro ⟨s1, a1, o⟩ ⟨ho1, ho2, σk, f, hRR, hZ, hK, hF, hE⟩
-  simp only at ho1 ho2 hRR hZ hK hF hE ⊢
+  · exact ⟨ho1, ho2, σk, f, hRR, hZ, hK, fun y hy hyx => hF y hy hyx, hLk, hE⟩
+  rintro ⟨s1, a1, o⟩ ⟨ho1, ho2, σk, f, hRR, hZ, hK, hF, hLk, hE⟩
+  simp only at ho1 ho2 hRR hZ hK hF hLk hE ⊢
   unfold untyped.reset_untyped_loop.body
   have hiv : (core.num.U64.wrapping_add p o).val = p.val + o.val := by
     rw [core.num.U64.wrapping_add_val_eq]; simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; omega
@@ -239,7 +243,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
     split_ifs with hc
     · rfl
     · rw [hiv, hC] at hc; exact hZ w hw (by omega) h2
-  obtain ⟨s2, hs2, cs, hk, hwf, hRR2, hfr2, hco2⟩ := spec_exists (reset_set_step (L := L) hP hpp hidx hRR1 hnd o (by omega))
+  obtain ⟨s2, hs2, cs, hk, hwf, hRR2, hfr2, hco2, hlk2⟩ := spec_exists (reset_set_step (L := L) hP hpp hidx hRR1 hnd o (by omega))
   have hE1 : E s1z := hEk.1 _ _ _ (by unfold P1.Aligned; rw [hiv]; omega) (by rw [hC])
     (by rw [hiv]; omega) (by rw [hiv, hC]; omega) hE
   obtain ⟨s2', hs2', hE2⟩ := spec_exists (hEk.2 s1z (.Untyped p sb o dev) hE1)
@@ -252,6 +256,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
       rw [hz1 w hw, if_neg (by rw [hiv, hC]; omega)])
   have hF2 : ∀ y, IsSlot th' y → y ≠ xs → capV (L.mem s2) y = capV m0 y := fun y hy hyx => by
     rw [hco2 y hy hyx, hS1.capV hy]; exact hF y hy hyx
+  have hL2 : LinksKeep th' m0 (L.mem s2) := (hLk.trans (LinksKeep.of_same hS1)).trans hlk2
   have hZ2 : ZeroRegion (L.mem s2) (p.val + o.val) (p.val + 2 ^ sb.val) := by
     intro w hw h1 h2
     rw [hfr2 w hw (by omega) (by omega)]; exact hZ1 w hw h1 h2
@@ -261,7 +266,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
     have hov : o.val = 0 := by rw [ho0]; rfl
     rw [hov] at hK
     refine (WP.spec_ok _).2 ⟨setCnodeSlot σk pp.bv rs cs idx (.untypedCap dev p.bv sb.val o.val), 0#u64,
-      Or.inl ⟨rfl, rfl, ?_⟩, ?_, fun _ => ?_, hF2, hE2⟩
+      Or.inl ⟨rfl, rfl, ?_⟩, ?_, fun _ => ?_, hF2, hL2, hE2⟩
     · have := RCont.done hrcb (by show (p.bv.toNat) % 8 = 0; show p.val % 8 = 0; omega) hidx hK hk hwf
       rw [hov]; simpa using this
     · rw [ho0] at hRR2 ⊢; exact hRR2
@@ -278,6 +283,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
     have hRR3 := hRR2.of_same hS3' hxs (KSame.refl _)
     have hF3 : ∀ y, IsSlot th' y → y ≠ xs → capV (L.mem s3) y = capV m0 y := fun y hy hyx => by
       rw [hS3'.capV hy]; exact hF2 y hy hyx
+    have hL3 : LinksKeep th' m0 (L.mem s3) := hL2.trans (LinksKeep.of_same hS3')
     rcases hr3 with hok | ⟨herr, hppE⟩
     · simp only at hok; subst hok
       simp only [bind_ok, core.result.Result.Insts.CoreOpsTry.branch, uncurry_apply_pair]
@@ -291,7 +297,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
         show (BitVec.ofNat 64 (max 0 (o.val - untyped.RESET_CHUNK.val))).toNat = _
         rw [hC]; simp; omega
       refine (WP.spec_ok _).2 ⟨⟨by rw [hsv]; omega, by rw [hsv]; omega, σn, o, hRR3.of_same (SlotsSame.refl _ _) hxs hKS,
-        ?_, ?_, hF3, hE3⟩, ?_⟩
+        ?_, ?_, hF3, hL3, hE3⟩, ?_⟩
       · rw [hsv, show p.val + (o.val - 65536) + 65536 = p.val + o.val by omega]; exact hZ3
       · rw [hsv, show (o.val - 65536) / 65536 = k - 1 by omega]; exact hK'
       · show (core.num.U64.saturating_sub o untyped.RESET_CHUNK).val < o.val
@@ -301,7 +307,7 @@ theorem reset_loop (hP : Placed th) (hN : NoStraddle th p.val (p.val + 2 ^ sb.va
         core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
       simp only [bind_tc_ok, bind_ok]
       refine (WP.spec_ok _).2 ⟨setCnodeSlot σk pp.bv rs cs idx (.untypedCap dev p.bv sb.val o.val), o,
-        Or.inr ⟨rfl, ?_⟩, hRR3, fun _ => hZ3, hF3, hE3⟩
+        Or.inr ⟨rfl, ?_⟩, hRR3, fun _ => hZ3, hF3, hL3, hE3⟩
       have := RCont.preempt hrcb (by show p.val % 8 = 0; omega) hidx hppE hK hk hwf
       rw [hk0] at this; exact this
 
@@ -466,7 +472,7 @@ theorem reset_untyped_refines (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.St
       obtain ⟨σD, hD, hhas⟩ := reset_small hk hwf hidx hg hfi0 hp8 hpb hrcb (Or.inr (by rw [hrcb]; exact hsm'))
       obtain ⟨hRR1, hz1⟩ := reset_zero_step hP hN (rel0 σD hD) hxs' p i1
         hp8 (by rw [hi1v]; omega) (le_refl _) (by rw [hi1v]) hfit
-      obtain ⟨s2, hs2, cs', hk', hwf', hRR2, hfr2, hco2⟩ := spec_exists
+      obtain ⟨s2, hs2, cs', hk', hwf', hRR2, hfr2, hco2, hlk2⟩ := spec_exists
         (reset_set_step (L := L) hP hpp' hidx hRR1 hnd 0#u64 (by simp))
       have hE1 : E (L.zr s p i1) := hEk.1 _ _ _ hp8 (by rw [hi1v]; omega) (le_refl _) (by rw [hi1v]) hE
       obtain ⟨s2', hs2', hE2⟩ := spec_exists (hEk.2 _ (.Untyped p sb 0#u64 false) hE1)
@@ -480,7 +486,8 @@ theorem reset_untyped_refines (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.St
       have e : cs' = cs := by rw [hcsD σD hD] at hk'; cases hk'; rfl
       subst e
       refine (WP.spec_ok _).2 ⟨hNS, setCnodeSlot σD pp.bv rs cs' idx (.untypedCap false p.bv sb.val 0), 0#u64,
-        Or.inl ⟨rfl, rfl, hhas⟩, hRR2, fun _ => ?_, fun y hy hyx => by rw [hco2 y hy hyx, hS1.capV hy], hE2⟩
+        Or.inl ⟨rfl, rfl, hhas⟩, hRR2, fun _ => ?_, fun y hy hyx => by rw [hco2 y hy hyx, hS1.capV hy],
+        (LinksKeep.of_same hS1).trans hlk2, hE2⟩
       intro w hw h1 h2
       have h1' : p.val ≤ w.val := by simpa using h1
       have hxw := hxs'.restrict_words hP hN
@@ -509,12 +516,13 @@ theorem reset_untyped_refines (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.St
       refine WP.spec_mono (reset_loop arI hP hN hfit (hmod 65536 ⟨t, ht⟩) hrcb hPP hpp' hidx hEk hnd σ s a (i &&& ~~~i1)
         (by rw [hov]; omega) (by rw [hov, ht]; nlinarith) σD fi (rel0 σD hD)
         (fun w hw h1 h2 => hzero w hw (by rw [hov] at h1; omega) h2)
-        (by rw [hov, Nat.mul_div_cancel _ (by decide)]; simpa using hK) (L.mem s) (fun _ _ _ => rfl) hE)
+        (by rw [hov, Nat.mul_div_cancel _ (by decide)]; simpa using hK) (L.mem s) (fun _ _ _ => rfl)
+        (LinksKeep.refl _ _) hE)
         (fun res hres => ⟨hNS, hres⟩)
   · -- a device region: the free index 0, nothing zeroed
     simp only [↓reduceIte]
     obtain ⟨σD, hD, hhas⟩ := reset_small hk hwf hidx hg hfi0 hp8 hpb hrcb (Or.inl rfl)
-    obtain ⟨s2, hs2, cs', hk', hwf', hRR2, -, hco2⟩ := spec_exists
+    obtain ⟨s2, hs2, cs', hk', hwf', hRR2, -, hco2, hlk2⟩ := spec_exists
       (reset_set_step (L := L) hP hpp' hidx (rel0 σD hD) hnd 0#u64 (by simp))
     obtain ⟨s2', hs2', hE2⟩ := spec_exists (hEk.2 _ (.Untyped p sb 0#u64 true) hE)
     rw [hs2] at hs2'; cases eq_of_ok_eq hs2'
@@ -525,7 +533,7 @@ theorem reset_untyped_refines (th : TypedHeap) (s : S) (a : A') (σ : Fl4Spec.St
     have e : cs' = cs := by rw [hcsD σD hD] at hk'; cases hk'; rfl
     subst e
     refine (WP.spec_ok _).2 ⟨hNS, setCnodeSlot σD pp.bv rs cs' idx (.untypedCap true p.bv sb.val 0), 0#u64,
-      Or.inl ⟨rfl, rfl, hhas⟩, hRR2, fun h => by simp at h, hco2, hE2⟩
+      Or.inl ⟨rfl, rfl, hhas⟩, hRR2, fun h => by simp at h, hco2, hlk2, hE2⟩
 
 end
 

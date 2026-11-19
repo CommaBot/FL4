@@ -428,8 +428,134 @@ theorem mapMx_cons_one {σ α β : Type} {f : α → Fl4Spec.NonDet σ β} {x : 
 theorem mapMx_nil {σ α β : Type} (f : α → Fl4Spec.NonDet σ β) (s : σ) :
     Fl4Spec.NonDet.mapMx f [] s = ({((), s)}, False) := rfl
 
+/-- **The empty slots after were empty before, with the same link words**
+(the retype writes no link word of a slot it leaves empty; feeds `DelInv.nc`
+across a retype, `RetExp.nkeep`). -/
+def NullKeep (th : TypedHeap) (m m' : U64 → U64) : Prop :=
+  ∀ y, IsSlot th y → capV m' y = .Null → capV m y = .Null ∧ prevOf m' y = prevOf m y ∧ nextOf m' y = nextOf m y
+
+theorem NullKeep.refl (th : TypedHeap) (m : U64 → U64) : NullKeep th m m := fun _ _ h => ⟨h, rfl, rfl⟩
+
+theorem NullKeep.trans {th : TypedHeap} {m1 m2 m3 : U64 → U64} (h1 : NullKeep th m1 m2) (h2 : NullKeep th m2 m3) :
+    NullKeep th m1 m3 := fun y hy h => by
+  obtain ⟨e2, p2, n2⟩ := h2 y hy h
+  obtain ⟨e1, p1, n1⟩ := h1 y hy e2
+  exact ⟨e1, p2.trans p1, n2.trans n1⟩
+
+theorem NullKeep.of_same {th : TypedHeap} {m m' : U64 → U64} (h : SlotsSame th m m') : NullKeep th m m' :=
+  fun y hy e => ⟨by rw [← h.capV hy]; exact e, h.prevOf hy, h.nextOf hy⟩
+
+/-- **The empty slots have clear links** (`DelInv.nc`'s statement on its own,
+carried across a retype by `RetExp.nclr`). -/
+def NullClr (th : TypedHeap) (m : U64 → U64) : Prop :=
+  ∀ y, IsSlot th y → capV m y = .Null → prevOf m y = 0#u64 ∧ nextOf m y = 0#u64
+
+/-- The link words (`+16`, `+24`) of every slot kept. -/
+def LinksKeep (th : TypedHeap) (m m' : U64 → U64) : Prop :=
+  ∀ y, IsSlot th y → m' (wordOf y 16#u64) = m (wordOf y 16#u64) ∧ m' (wordOf y 24#u64) = m (wordOf y 24#u64)
+
+theorem LinksKeep.refl (th : TypedHeap) (m : U64 → U64) : LinksKeep th m m := fun _ _ => ⟨rfl, rfl⟩
+
+theorem LinksKeep.trans {th : TypedHeap} {m1 m2 m3 : U64 → U64} (h1 : LinksKeep th m1 m2)
+    (h2 : LinksKeep th m2 m3) : LinksKeep th m1 m3 := fun y hy =>
+  ⟨(h2 y hy).1.trans (h1 y hy).1, (h2 y hy).2.trans (h1 y hy).2⟩
+
+theorem LinksKeep.of_same {th : TypedHeap} {m m' : U64 → U64} (h : SlotsSame th m m') : LinksKeep th m m' :=
+  fun y hy => ⟨(h y hy).2.2.1, (h y hy).2.2.2⟩
+
+/-- `NullClr` kept when the links are and no slot becomes empty. -/
+theorem NullClr.keep {th : TypedHeap} {m m' : U64 → U64} (hN : NullClr th m) (hL : LinksKeep th m m')
+    (hc : ∀ y, IsSlot th y → capV m' y = .Null → capV m y = .Null) : NullClr th m' := fun y hy e => by
+  obtain ⟨h1, h2⟩ := hN y hy (hc y hy e)
+  refine ⟨?_, ?_⟩
+  · unfold prevOf at h1 ⊢; rw [(hL y hy).1]; exact h1
+  · unfold nextOf at h2 ⊢; rw [(hL y hy).2]; exact h2
+
+theorem NullClr.of_same {th : TypedHeap} {m m' : U64 → U64} (hN : NullClr th m) (h : SlotsSame th m m') :
+    NullClr th m' := hN.keep (LinksKeep.of_same h) (fun y hy e => by rw [← h.capV hy]; exact e)
+
+/-- `NullClr` across the steps of a `NullKeep`. -/
+theorem NullClr.of_keep {th : TypedHeap} {m m' : U64 → U64} (hN : NullClr th m) (h : NullKeep th m m') :
+    NullClr th m' := fun y hy e => by
+  obtain ⟨e0, hp, hn⟩ := h y hy e
+  rw [hp, hn]; exact hN y hy e0
+
+/-- **`NullClr` for a grown typed heap** whose new slots lie in a zero region. -/
+theorem NullClr.grow {th th' : TypedHeap} (hP' : Placed th') {m : U64 → U64} (hN : NullClr th m) {lo hi : Nat}
+    (hZ : ZeroRegion m lo hi) (hnew : ∀ y, IsSlot th' y → ¬ IsSlot th y → lo ≤ y.val ∧ y.val + 32 ≤ hi) :
+    NullClr th' m := fun y hy e => by
+  by_cases ho : IsSlot th y
+  · exact hN y ho e
+  · obtain ⟨h1, h2⟩ := hnew y hy ho
+    have hz : ∀ k : U64, Off k → m (wordOf y k) = 0#u64 := fun k hk => by
+      have hv := slot_word_val hP' hy hk
+      have := hk.lt
+      exact hZ _ (slot_word_aligned hP' hy hk) (by omega) (by omega)
+    refine ⟨hz _ off16, ?_⟩
+    unfold nextOf; rw [hz _ off24]
+    exact congrArg (fun b => (⟨b⟩ : U64)) (sextF_canonical _ canonical_zero)
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
+
+/-- **`insert_new_cap` of a non-null cap into an empty slot keeps `NullKeep`**:
+it writes the destination's words, the source's next link and the old next's
+previous link, all of non-empty slots after. -/
+theorem NullKeep.ins {th : TypedHeap} (hP : Placed th) {s s' : S} {G : MdbGhost} (hM : MdbLinks th (L.mem s) G)
+    {c : capability.Cap} {src dest : U64} (hW : InsNWords (L := L) th s s' c src dest)
+    (hsrc : src ∈ G.chains.flatten) (hd : IsSlot th dest) (hdest : dest ∉ G.chains.flatten)
+    (hcn : c ≠ .Null) (he : EncWf c) : NullKeep th (L.mem s) (L.mem s') := by
+  have hslot : ∀ x, x ∈ G.chains.flatten → IsSlot th x := fun x h => ((hM.members x).1 h).1
+  have hs := hslot src hsrc
+  have hne : src ≠ dest := fun e => hdest (e ▸ hsrc)
+  have hnm : ∀ y, capV (L.mem s) y = .Null → y ∉ G.chains.flatten := fun y h hm => by
+    obtain ⟨-, c0, h0, hn0⟩ := (hM.members y).1 hm
+    rw [capAt_capV, h] at h0; exact hn0 (by simpa using h0.symm)
+  have hNs : nextOf (L.mem s) src ≠ src := by
+    rcases hM.next_mem hsrc with h | ⟨-, h⟩
+    · rw [h]; exact (hs.ne_zero hP).symm
+    · exact h
+  have hNc : Canonical (nextOf (L.mem s) src) := by
+    rcases hM.next_mem hsrc with h | ⟨h, -⟩
+    · rw [h]; exact canonical_zero
+    · exact (hslot _ h).canonical hP
+  intro y hy h
+  have hcap := hW.capAt' hy he
+  have hyd : y ≠ dest := fun e => by
+    subst e; rw [if_pos rfl, capAt_capV, h] at hcap; exact hcn (eq_of_ok_eq hcap).symm
+  rw [if_neg hyd, capAt_capV, capAt_capV, h] at hcap
+  have h0 : capV (L.mem s) y = .Null := (eq_of_ok_eq hcap).symm
+  have hym := hnm y h0
+  have hys : y ≠ src := fun e => hym (e ▸ hsrc)
+  have hyn : ¬ (nextOf (L.mem s) src ≠ 0#u64 ∧ y = nextOf (L.mem s) src) := by
+    rintro ⟨h0', rfl⟩
+    rcases hM.next_mem hsrc with h1 | ⟨h1, -⟩
+    · exact h0' h1
+    · exact hym h1
+  refine ⟨h0, ?_, ?_⟩
+  · rw [hW.prevOf' hy hNs, if_neg hyd, if_neg hyn]
+  · rw [hW.nextOf' hP hy hd hNc, if_neg hyd, if_neg hys]
+
+/-- **`NullClr` for the typed heap grown by new objects over a zero window.** -/
+theorem NullClr.extend {th : TypedHeap} {A k n : Nat} {kd : ObjKind} (hP' : Placed (extendTh th A k n kd))
+    {m : U64 → U64} (hN : NullClr th m) (hsz : objSize kd ≤ k) (hZ : ZeroRegion m A (A + n * k)) :
+    NullClr (extendTh th A k n kd) m := by
+  refine hN.grow hP' hZ (fun y hy ho => ?_)
+  obtain ⟨q, j, hj, rfl⟩ := hy
+  have hv := hj.val hP'
+  obtain ⟨k', hk', hjk⟩ := hj.size
+  by_cases hq : ∃ i, i < n ∧ q.val = A + i * k
+  · rw [extendTh_new hq] at hk'
+    cases hk'
+    obtain ⟨i, hi, hqi⟩ := hq
+    have h1 : (i + 1) * k ≤ n * k := Nat.mul_le_mul_right _ hi
+    rw [Nat.add_mul, Nat.one_mul] at h1
+    rw [hv]; constructor <;> omega
+  · refine absurd ⟨q, j, ?_, rfl⟩ ho
+    have e := extendTh_old (th := th) (kd := kd) hq
+    rcases hj with ⟨r, hr, hjr⟩ | ⟨ht, hjt⟩
+    · exact Or.inl ⟨r, by rw [← e]; exact hr, hjr⟩
+    · exact Or.inr ⟨by rw [← e]; exact ht, hjt⟩
 
 /-- The invariant of `create_new_objects`' loop after `i` objects. -/
 def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap) (σ1 : Fl4Spec.State Unit)
@@ -456,7 +582,8 @@ def LoopInv (th' : TypedHeap) (srcSl : Fl4Spec.CslotPtr) (srcC : capability.Cap)
       ∃ j, j < i ∧ y = dslot j ∧ (x = cslotAddr srcSl ∨ Mdb.Desc G0.par (cslotAddr srcSl) x)) ∧
     (FinM m0 G0 → FinM (L.mem s) Gi) ∧
     (∀ ch ∈ G0.chains, ∃ ch' ∈ Gi.chains, ∀ z ∈ ch, z ∈ ch') ∧
-    (∀ x ∈ G0.chains.flatten, revOf (L.mem s) x = revOf m0 x)
+    (∀ x ∈ G0.chains.flatten, revOf (L.mem s) x = revOf m0 x) ∧
+    NullKeep th' m0 (L.mem s)
 
 /-- The caps a loop over `newCapOf` inserts. -/
 def cjOf (n : Nat) (us : U64) (dev : Bool) (A k : Nat) : Nat → capability.Cap :=
@@ -518,7 +645,7 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
       A (2 ^ zOf nt.val us.val) win (fun j => slotAddr dest.bv (BitVec.ofNat 64 (off + j))) zlo zhi G0 m0
       (cjOf nt.val us dev A (2 ^ zOf nt.val us.val)) s' (i + 1) ⦄ := by
   obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hsrc, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM,
-    hCh, hRv⟩ := hinv
+    hCh, hRv, hNK⟩ := hinv
   set k := 2 ^ zOf nt.val us.val with hkdef
   have hk1 : 1 ≤ k := Nat.one_le_two_pow
   have hik : (i + 1) * k ≤ win * k := Nat.mul_le_mul_right _ hi
@@ -607,8 +734,11 @@ theorem loop_step (th' : TypedHeap) (hP' : Placed th') {pp : U64} {rs : Nat} (hp
   have hcapD : capV (L.mem s') dsl = c := by
     have := hcapW dsl hd; rw [if_pos rfl, capAt_capV] at this; exact eq_of_ok_eq this
   have hslot : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
+  have hNK' : NullKeep th' m0 (L.mem s') :=
+    hNK.trans (NullKeep.ins hP' hM hW ((hM.members src).2 ⟨hs, _, hsrcC, by simp⟩) hd hdestm
+      (newCap_ne_null _ _ _ _) he)
   refine ⟨σ', insG Gi src dsl true, ?_, hR', hV', hM', hC', hI', ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    fun ch hch => ?_, fun x hx => ?_⟩
+    fun ch hch => ?_, fun x hx => ?_, hNK'⟩
   rotate_right
   · -- the revocable bits of the old slots
     have hx' := hT1b x hx

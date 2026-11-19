@@ -45,6 +45,11 @@ structure RetExp (th th' : TypedHeap) (m m' : U64 → U64) (G G' : MdbGhost) (A 
       p0.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ p0.val + 2 ^ sb0.val
   src : ∃ x0 ∈ G.chains.flatten, ∃ p0 sb0 fi0 d0, capV m x0 = .Untyped p0 sb0 fi0 d0 ∧
     p0.val ≤ A ∧ A + w * k ≤ p0.val + 2 ^ sb0.val ∧ (p0.val + fi0.val ≤ A ∨ ∀ y, ¬ Mdb.Desc G.par y x0)
+  /-- The empty slots after have clear links if they did before (`DelInv.nc`
+  across the retype): the new caps' slots, the source and its old next are
+  non-empty after; every other slot's link words are kept; the new objects'
+  slots are zero memory. -/
+  nclr : NullClr th m → NullClr th' m'
   th : ∀ q kd, th' q = some kd → (th q = some kd ∧ (NewQ A k w cj q → objSize kd = 0)) ∨
     (NewQ A k w cj q ∧ objSize kd ≤ k)
   /-- The MDB after: the old slots and the new caps' slots. -/
@@ -69,7 +74,7 @@ the shape of the typed heap after. -/
 theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev A k w dslot cj)
     (hU : UtInv m0 G0) (hMf : MdbLinks th' mf Gf)
     (hth : ∀ q kd, th' q = some kd → (th q = some kd ∧ (NewQ A k w cj q → objSize kd = 0)) ∨
-      (NewQ A k w cj q ∧ objSize kd ≤ k)) :
+      (NewQ A k w cj q ∧ objSize kd ≤ k)) (hnc : NullClr th m0 → NullClr th' mf) :
     RetExp th th' m0 mf G0 Gf A k w dslot cj src := by
   have hsb := capV_ut_sb h.hcs
   have hreg := hU.reg src h.hsrc (by rw [h.hcs]; exact ok_inj (phys_eq _).symm)
@@ -77,7 +82,7 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
   obtain ⟨-, -, hfit⟩ := ut_range hsb hreg
   have hsrcU : isUt (capV m0 src) = true := by rw [h.hcs]; rfl
   refine ⟨h.hk, fun y hy hu => ?_, fun j hj => ?_, fun j hj => h.F2a j hj, h.cphys, h.cbase, h.ctop,
-    fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hth,
+    fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hnc, hth,
     h.F1, fun y hy hu => ?_, ⟨h.hsrc, p, sb, fi, nfi, dev, h.hcs, by rw [h.F2b _ h.hsrc, h.hcs1],
       by have := h.hA; omega, by rw [h.hnfi], h.hAw, Or.inl h.hA,
       fun y hy _ hys => by rw [h.F2b y hy, h.hc1 y hy hys]⟩⟩
@@ -145,7 +150,8 @@ theorem RetExp.same_left {th th' : TypedHeap} {m m0 m' : U64 → U64} {G G' : Md
     {dslot : Nat → U64} {cj : Nat → capability.Cap} (hM : MdbLinks th m G) (hS : SlotsSame th m m0)
     (h : RetExp th th' m0 m' G G' A k w dslot cj xs) : RetExp th th' m m' G G' A k w dslot cj xs := by
   have hc : ∀ x ∈ G.chains.flatten, capV m0 x = capV m x := fun x hx => hS.capV ((hM.members x).1 hx).1
-  refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_, h.th,
+  refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_,
+    fun hN => h.nclr (hN.of_same hS), h.th,
     h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu), ?_⟩
   · rw [← hc y hy] at hu ⊢; exact h.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := h.ut x hx p sb fi d hcx

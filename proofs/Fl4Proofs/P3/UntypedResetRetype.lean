@@ -64,6 +64,18 @@ section
 variable {th th'' : TypedHeap} {m m1 mf : U64 → U64} {G G' : MdbGhost} {x p sb fi f : U64} {dev : Bool}
   {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
 
+/-- `NullClr` across the reset: on the restricted heap, links kept, no slot
+emptied (the untyped cap stays an untyped cap). -/
+theorem NullClr.reset (hN : NullClr th m) (hcv1 : capV m1 x = .Untyped p sb f dev)
+    (hF : ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ x → capV m1 y = capV m y)
+    (hLk : LinksKeep (restrictTh th p.val (p.val + 2 ^ sb.val)) m m1) :
+    NullClr (restrictTh th p.val (p.val + 2 ^ sb.val)) m1 :=
+  (show NullClr (restrictTh th p.val (p.val + 2 ^ sb.val)) m from fun y hy e => hN y hy.of_restrict e).keep hLk
+    (fun y hy e => by
+      by_cases hyx : y = x
+      · subst hyx; rw [hcv1] at e; cases e
+      · rw [← hF y hy hyx]; exact e)
+
 /-- **`RetExp` across the reset before it**: the reset restricts the typed
 heap to off the region, lowers the (childless) untyped cap's free index and
 keeps every other cap. -/
@@ -72,13 +84,14 @@ theorem RetExp.of_reset (hM : MdbLinks th m G) (hP : Placed th) (hN : NoStraddle
     (hcv : capV m x = .Untyped p sb fi dev) (hcv1 : capV m1 x = .Untyped p sb f dev)
     (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
     (hF : ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ x → capV m1 y = capV m y)
-    (hE : RetExp (restrictTh th p.val (p.val + 2 ^ sb.val)) th'' m1 mf G G' A k w dslot cj x) :
+    (hE : RetExp (restrictTh th p.val (p.val + 2 ^ sb.val)) th'' m1 mf G G' A k w dslot cj x)
+    (hLk : LinksKeep (restrictTh th p.val (p.val + 2 ^ sb.val)) m m1) :
     RetExp th th'' m mf G G' A k w dslot cj x := by
   have hsl : ∀ z ∈ G.chains.flatten, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) z := fun z hz =>
     ((hM.members z).1 hz).1.restrict hP hN (hns z hz)
   have hc : ∀ z ∈ G.chains.flatten, z ≠ x → capV m1 z = capV m z := fun z hz hzx => hF z (hsl z hz) hzx
   refine ⟨hE.k1, fun y hy hu => ?_, hE.newm, hE.newc, hE.cphys, hE.cbase, hE.ctop, fun z hz p' sb' fi' d' hcz => ?_,
-    ?_, fun q kd hq => ?_, hE.gmem, fun y hy hu => ?_, ?_⟩
+    ?_, fun hNc => hE.nclr (hNc.reset hcv1 hF hLk), fun q kd hq => ?_, hE.gmem, fun y hy hu => ?_, ?_⟩
   · have hyx : y ≠ x := by rintro rfl; rw [hcv] at hu; cases hu
     rw [← hc y hy hyx] at hu ⊢; exact hE.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := hE.ut z hz p' sb' fi' d' hcz
@@ -108,7 +121,8 @@ theorem RetExp.reset_only (hM : MdbLinks th m G) (hP : Placed th) (hN : NoStradd
     (hns : ∀ a ∈ G.chains.flatten, a.val < p.val ∨ p.val + 2 ^ sb.val ≤ a.val) (hx : x ∈ G.chains.flatten)
     (hcv : capV m x = .Untyped p sb fi dev) (hcv1 : capV m1 x = .Untyped p sb f dev)
     (hnd : ∀ y, ¬ Mdb.Desc G.par y x)
-    (hF : ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ x → capV m1 y = capV m y) :
+    (hF : ∀ y, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) y → y ≠ x → capV m1 y = capV m y)
+    (hLk : LinksKeep (restrictTh th p.val (p.val + 2 ^ sb.val)) m m1) :
     RetExp th (restrictTh th p.val (p.val + 2 ^ sb.val)) m m1 G G p.val 1 0 dslot cj x := by
   have hsl : ∀ z ∈ G.chains.flatten, IsSlot (restrictTh th p.val (p.val + 2 ^ sb.val)) z := fun z hz =>
     ((hM.members z).1 hz).1.restrict hP hN (hns z hz)
@@ -116,6 +130,7 @@ theorem RetExp.reset_only (hM : MdbLinks th m G) (hP : Placed th) (hN : NoStradd
   refine ⟨le_refl _, fun y hy hu => ?_, fun j hj => absurd hj (by omega), fun j hj => absurd hj (by omega),
     fun j hj => absurd hj (by omega), fun j hj => absurd hj (by omega), fun j hj => absurd hj (by omega),
     fun z hz p' sb' fi' d' hcz => ?_, ⟨x, hx, p, sb, fi, dev, hcv, le_refl _, by simp, Or.inr hnd⟩,
+    fun hNc => hNc.reset hcv1 hF hLk,
     fun q kd hq => Or.inl ⟨(restrictTh_some hq).1, fun ⟨j, hj, _⟩ => absurd hj (by omega)⟩,
     fun z hz => Or.inl hz, fun y hy hu => ?_,
     ⟨hx, p, sb, fi, f, dev, hcv, hcv1, le_refl _, by simp, by simp, Or.inr hnd, fun y hy _ hyx => hc y hy hyx⟩⟩
@@ -240,7 +255,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
     | false =>
       obtain ⟨hRz, hzz⟩ := reset_zero_step hP hN hrel0 hxs' p ⟨BitVec.ofNat 64 (2 ^ sb.val)⟩ hp8
         (by rw [hpow]; omega) (le_refl _) (by rw [hpow]) hfit
-      obtain ⟨sc, hsc, cs', hk', hwf', hRc, hfrc, hcoc⟩ := spec_exists
+      obtain ⟨sc, hsc, cs', hk', hwf', hRc, hfrc, hcoc, -⟩ := spec_exists
         (reset_set_step (L := L) hP hpp' hidx hRz hnd 0#u64 (by simp))
       obtain ⟨sc', hsc', hEc⟩ := spec_exists (hEk.2 _ (.Untyped p sb 0#u64 false)
         (hEk.1 s p ⟨BitVec.ofNat 64 (2 ^ sb.val)⟩ hp8 (by rw [hpow]; omega) (le_refl _) (by rw [hpow]) hE))
@@ -260,7 +275,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
         rw [hcoc y hy hyx, hS0.capV hy]
       exact ⟨sc, hRc, fun _ => hZc, hFc, hEc⟩
     | true =>
-      obtain ⟨sc, hsc, cs', hk', hwf', hRc, hfrc, hcoc⟩ := spec_exists
+      obtain ⟨sc, hsc, cs', hk', hwf', hRc, hfrc, hcoc, -⟩ := spec_exists
         (reset_set_step (L := L) hP hpp' hidx hrel0 hnd 0#u64 (by simp))
       obtain ⟨sc', hsc', hEc⟩ := spec_exists (hEk.2 _ (.Untyped p sb 0#u64 true) hE)
       rw [hsc] at hsc'; cases eq_of_ok_eq hsc'
@@ -303,7 +318,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
     rw [← hK.2.2.1]; exact hNO.2 y hy
   -- FL4: the reset, then the retype
   rw [retype_true_eq]
-  obtain ⟨⟨r1, s1, a1⟩, hres, hNSr, σ', f, hcase, hRR, hZ, hF, hE1⟩ := spec_exists
+  obtain ⟨⟨r1, s1, a1⟩, hres, hNSr, σ', f, hcase, hRR, hZ, hF, hLk, hE1⟩ := spec_exists
     (reset_untyped_refines (L := L) arI th s ar σ G hR hV hP hM hC hI hU hpp hidx hcap hfi0 hnd hpal hsb4 hN hns hzero
       hrcb hppS hPP hEk hE)
   rw [hres]
@@ -323,7 +338,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
         ⟨hU'', (hstep _ _ _ hRR (hio _ _ ⟨y, hy, hy1, hy2⟩) hF).trans hSt''⟩,
         fun hFI => hFin (reset_fin_of hFI hM.tree.nodup hsb hfit hg hfi0 ⟨y, hy, rfl⟩ x
           (by rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl) (fun z hz hzx => hF z ((hRR.M.members z).1 hz).1 hzx)),
-        by rw [hks, hEksb _ hE1], ⟨s1, a1, rfl, hX⟩, A, k, w, dslot, cj, hEx.of_reset hM hP hN hns hcv hRR.cap hnd hF, hY⟩⟩
+        by rw [hks, hEksb _ hE1], ⟨s1, a1, rfl, hX⟩, A, k, w, dslot, cj, hEx.of_reset hM hP hN hns hcv hRR.cap hnd hF hLk, hY⟩⟩
       rw [invoke_true_eq]
       apply nhasE_bind
       refine ⟨y, hy, ?_⟩
@@ -337,7 +352,7 @@ theorem retype_reset_gen (ar : A') (th : TypedHeap) (s : S) (σ : Fl4Spec.State 
       hstep _ _ _ hRR (hio _ _ ⟨y, hy, hy1, hy2⟩) hF,
       fun hFI => reset_fin_of hFI hM.tree.nodup hsb hfit hg hfi0 ⟨y, hy, hy2.1⟩ x
         (by rw [hRR.cap, hcv]; exact CapSim.of_shape rfl rfl) (fun z hz hzx => hF z ((hRR.M.members z).1 hz).1 hzx),
-      hEksb _ hE1, rfl, fun dslot cj => RetExp.reset_only hM hP hN hns hxm hcv hRR.cap hnd hF⟩⟩
+      hEksb _ hE1, rfl, fun dslot cj => RetExp.reset_only hM hP hN hns hxm hcv hRR.cap hnd hF hLk⟩⟩
     rw [invoke_true_eq]
     apply nhasE_bind
     refine ⟨y, hy, ?_⟩

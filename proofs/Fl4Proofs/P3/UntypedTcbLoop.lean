@@ -45,7 +45,7 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     (hS : SlotsSame th' (L.mem s) (L.mem s'))
     (hz : ∀ w : U64, P1.Aligned w → zlo ≤ w.val → w.val < zhi → L.mem s' w = L.mem s w) :
     LoopInv (L := L) th' srcSl srcC σ1 f pairs A k win dslot zlo zhi G0 m0 cj s' i := by
-  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM, hCh, hRv⟩ := h
+  obtain ⟨σi, Gi, hchain, hR, hV, hM, hC, hI, hs, hnull, hno, hdd, hzr, hT1, hT1b, hT2a, hT2b, hT3, hFM, hCh, hRv, hNK⟩ := h
   have hcap : ∀ x, IsSlot th' x → capAt (L.mem s') x = capAt (L.mem s) x := fun x hx => hS.capAt hx
   have hsl : ∀ x, x ∈ Gi.chains.flatten → IsSlot th' x := fun x h => ((hM.members x).1 h).1
   refine ⟨σi, Gi, hchain, hR.of_caps hcap, hV.of_caps hcap, hM.of_same hS, hC.of_same hS rfl rfl,
@@ -55,7 +55,7 @@ theorem LoopInv.of_same {th' : TypedHeap} {srcSl : Fl4Spec.CslotPtr} {srcC : cap
     fun j hj => by rw [hS.capV (hdsl j (by omega))]; exact hT2a j hj,
     fun x hx => by rw [hS.capV (hsl x (hT1b x hx))]; exact hT2b x hx, hT3,
     fun h0 => (hFM h0).of_caps hM.tree.nodup (fun x hx => hS.capV (hsl x hx)), hCh,
-    fun x hx => by rw [hS.revOf (hsl x (hT1b x hx))]; exact hRv x hx⟩
+    fun x hx => by rw [hS.revOf (hsl x (hT1b x hx))]; exact hRv x hx, hNK.trans (NullKeep.of_same hS)⟩
   · rw [hS.capV (hsl x hx)] at hp ⊢; exact hno x hx hp
   · rw [hS.capV (hsl y (desc_mem hM hy).1)]; exact hdd y hy
 
@@ -792,7 +792,7 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
       fun j hj => absurd hj (by omega), fun x _ => rfl, fun y x => ⟨Or.inl, by
         rintro (h | ⟨j, hj, -⟩)
         · exact h
-        · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl⟩
+        · omega⟩, fun h => h, fun ch hch => ⟨ch, hch, fun z hz => hz⟩, fun x _ => rfl, NullKeep.refl _ _⟩
     · intro j _ hj
       have hj' : off.val + j < 2 ^ r := by omega
       have hd : IsSlot th (slotAddr dest.bv (BitVec.ofNat 64 (off.val + j))) :=
@@ -868,7 +868,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
   simp only [bind_ok, uncurry_apply_pair]
   rw [WP.spec_ok]
   simp only at ha2 hfin
-  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf⟩ := hfin
+  obtain ⟨σf, Gf, hchain, hRf, hVf, hMf, hCf, hIf, -, -, -, -, hZf, hT1, hT1b, hT2a, hT2b, hT3, hFf, hChf, hRvf,
+    hNKf⟩ := hfin
   have hdrop : ((windowSlots dest r off.val win.val).zip (regionPtrs (BitVec.ofNat 64 aligned.val) win.val
       (2 ^ zOf nt.val us.val))).drop win.val = [] := by
     apply List.drop_of_length_le; simp [windowSlots, regionPtrs]
@@ -938,7 +939,8 @@ theorem retype_full_tcb {A' : Type} (arI : machine.Arch A') (ar : A') (th : Type
     refine WFrame.trans (s2 := s1) ⟨k1.1, k1.2, fun w hw hn => hfr1 w hw (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))
       (fun e => hn (Or.inl ⟨src, hs', by omega, by omega⟩))⟩ hW2
   refine ⟨rfl, ha2, σf, Gf, th', ?_, hP', hRf, hVf, hMf, hCf, hIf, ?_, ?_, fun hFI => ⟨?_, ?_⟩, by rw [hks2],
-    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth', rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1,
+    hW, A, k, win.val, _, _, hRD.toExp hU hMf hth'
+      (fun hN => ((hupd.nullClr hN).extend hP' (by simp [objSize]) hzero4).of_keep hNKf), rfl, rfl, rfl, fun j hj hu => (isUt_newCap (by unfold cjOf at hu; exact hu)).1,
     ⟨fun q => by show extendTh th A 4096 win.val .tcb q = _; simp [extendTh, thKindN, hnt, hk4], hrf⟩, rfl,
     fun j hj => ⟨dest, r, hdest, off.val + j, by omega, rfl⟩⟩
   rotate_right 2
