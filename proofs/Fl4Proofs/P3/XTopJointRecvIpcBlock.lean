@@ -1,24 +1,27 @@
 /-
-P3 (DESIGN.md §9), IPC: **`receive_ipc`'s blocking wait with no reply cap at
-`J`** (KENTRY-PLAN.md item 6 (b), part): the current thread, runnable,
-resumed and in no ready queue, with no bound notification and a null reply
-cap, blocks receiving on an idle or receiving endpoint
-(`JAtZ.recvIpcBlock0J`), from `JAtZ` before to `JAtZ` after. The receive
-analogue of XTopJointSendBlock's `JAtZ.sendBlockJ`.
+P3 (DESIGN.md §9), IPC: **`receive_ipc`'s blocking wait at `J`**
+(KENTRY-PLAN.md item 6 (b)): the current thread, runnable, resumed and in no
+ready queue, with no bound notification, blocks receiving on an idle or
+receiving endpoint (`JAtZ.recvIpcBlockJ`), with a null reply cap or one
+naming a reply object linked to no thread (EpRecv's `ReplyArg`), from `JAtZ`
+before to `JAtZ` after. The receive analogue of XTopJointSendBlock's
+`JAtZ.sendBlockJ`.
 
-* P1's footprint `endpoint.wait_for_sender.foot0` (`Foot`, as
-  `send_block.foot`; the reply word written with 0, no reply object).
-* FL4's side on `IRel`: `wait_for_sender_blockF0` (as `send_ipc_blockF`,
-  the writes of EpRecv's `receive_ipc_block`), footprint `CnW`;
-  `receive_ipc_block0_red` reduces `receive_ipc` to it (EpRecv's
+* P1's footprint `endpoint.wait_for_sender.footR` (`Foot`, as
+  `send_block.foot`; the reply object's `TCB` word is in `Sg`,
+  `blkfoot_footR`).
+* FL4's side on `IRel`: `wait_for_sender_blockF` (as `send_ipc_blockF`,
+  the writes of EpRecv's `receive_ipc_block`, `reply_link_rel`), footprint
+  `CnW`; `receive_ipc_block_red` reduces `receive_ipc` to it (EpRecv's
   `receive_ipc_pre`).
-* The spec's side: `recvIpcBlock0_eq` (the outcome, explicit), the frame
-  `BFrR t e` (`t`'s TCB from a runnable state to `blockedOnReceive e none`,
-  `e`'s endpoint queue grown; copies of XTopJointSendBlock's `BFr` lemmas)
-  and `IK` of the step.
+* The spec's side: `recvIpcBlock_eq` (the outcome, explicit), the frame
+  `BFrR t e r` (`t`'s TCB from a runnable state to `blockedOnReceive e r`,
+  `e`'s endpoint queue grown, the reply `r`'s thread := `t`), `BFrR.ik`.
 * `RRecv` after (`RRecv.frameR`): the only new receive-blocked thread is
-  `t`, and no reply names `t` before (`SchedValid.replyTcb`: a reply's
-  thread is blocked on reply or receiving, `t` is runnable).
+  `t`, no reply names `t` before (`SchedValid.replyTcb`: a reply's thread is
+  blocked on reply or receiving, `t` is runnable), and the reply `r` was free
+  (`RFree`: null links). The endpoint and the reply object leave the dead set
+  (`JCovD.undead`; the reply cap is held, `JRecvIpcHyp`).
 -/
 import Fl4Proofs.P3.XTopJointRecvIpcAct
 open Aeneas Aeneas.Std Result
@@ -121,16 +124,17 @@ section
 variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulStore st]
 variable {th : TypedHeap} {cr : Fl4Spec.Cr3} {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U64}
 
-/-- `receive_ipc` with no bound notification and a null reply cap on an idle
-or receiving endpoint: its blocking wait. -/
-theorem receive_ipc_block0_red {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Bool}
+/-- `receive_ipc` with no bound notification and a reply cap as in
+`ReplyArg` on an idle or receiving endpoint: its blocking wait. -/
+theorem receive_ipc_block_red {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Bool}
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg R (L.mem s) rc rc' rv)
     (hbound : L.mem s (tBoundA t) = 0#u64) (hst : stOf (L.mem s) e = 0#u64 ∨ stOf (L.mem s) e = 2#u64)
     {P : S × A → Prop}
     (h : (do
-      let s3 ← endpoint.wait_for_sender st s t e true 0#u64
+      let s3 ← endpoint.wait_for_sender st s t e true rv
       ok (s3, a)) ⦃ P ⦄) :
-    endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) true .Null ⦃ P ⦄ := by
-  apply receive_ipc_pre (R := ∅) s a t e cb c1 c2 c3 c4 true .Null .nullCap 0#u64 (Or.inl ⟨rfl, rfl, rfl⟩) hbound
+    endpoint.receive_ipc st ar s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ P ⦄ := by
+  apply receive_ipc_pre s a t e cb c1 c2 c3 c4 true rc rc' rv hrc hbound
   refine WP.spec_bind (P1.obj.Ep.state.spec s e) ?_
   rintro v rfl
   rw [epState_eq]
@@ -141,9 +145,9 @@ theorem receive_ipc_block0_red {s : S} {a : A} {t e cb : U64} {c1 c2 c3 c4 : Boo
     exact h
 
 set_option maxHeartbeats 16000000 in
-/-- **The blocking wait with no reply object on `IRel`, with its footprint**
-(module docstring). -/
-theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+/-- **The blocking wait on `IRel`, with its footprint** (module docstring),
+the reply cap as in `ReplyArg`. -/
+theorem wait_for_sender_blockF (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hX : IRel st th cr N T C E R B c s σ)
     {t : U64} (ht : t ∈ T) {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt))
     (hnb : tsCode xt.tcbState ≠ 3 ∧ tsCode xt.tcbState ≠ 4)
@@ -151,11 +155,12 @@ theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : 
     {e : U64} (he : e ∈ E) {x : Fl4Spec.Endpoint} (hk : σ.kheap e.bv = some (.endpoint x))
     (hc : Endp.CanBlock true x)
     (hsort : ∀ xs, QueueRel (L.mem s) T .Ep (qOf (L.mem s) e) xs → PrioSorted (fun y => L.mem s (prioA y)) xs)
-    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
+    (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64}
+    (hrc : ReplyArg R (L.mem s) rc rc' rv) :
     (do
-      let s3 ← endpoint.wait_for_sender st s t e true 0#u64
+      let s3 ← endpoint.wait_for_sender st s t e true rv
       ok (s3, a)) ⦃ r => r.2 = a ∧
-      ∃ σ', Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true .nullCap σ = ({((), σ')}, False) ∧
+      ∃ σ', Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ = ({((), σ')}, False) ∧
         IRel st th cr N T C E R B c r.1 σ' ∧ WritesIn st s r.1 (CnW (st := st) T N C E R c s σ) ⦄ := by
   have hH0 := ipcCore_top (st := st) (th := th) (cr := cr) (N := N) (C := C) (c := c) hP0.e
   have hH := hH0.epHyps hP0
@@ -173,13 +178,12 @@ theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : 
   have hq := not_queued hR ht hkt hnb
   have htq : t.bv ∉ x.epQueue := hq e he x hk
   have hns : ∀ q, x ≠ .sendEP q := fun q h => by subst h; simp [Endp.CanBlock] at hc
-  have hrc : ReplyArg R (L.mem s) .Null .nullCap 0#u64 := Or.inl ⟨rfl, rfl, rfl⟩
   have hspec0 := receiveIpc_noSend b rights true (replyArg_spec hP hR hrc) hkt hbn hk hns
   set x1 : Fl4Spec.Tcb :=
-    { xt with tcbState := .blockedOnReceive e.bv (optRef 0#u64) { receiverCanGrant := false } }
+    { xt with tcbState := .blockedOnReceive e.bv (optRef rv) { receiverCanGrant := false } }
   set σ1 := updK σ t.bv (.tcb x1)
-  set s3 := L.wr (L.wr (L.wr s (tStA t) sched.TS_BLOCKED_ON_RECV) (tBlockA t) e) (tReplyA t) 0#u64
-  obtain ⟨hA3, r1, r2, r3, hW3⟩ := block_recv_writes (L := L) hP s ht e 0#u64
+  set s3 := L.wr (L.wr (L.wr s (tStA t) sched.TS_BLOCKED_ON_RECV) (tBlockA t) e) (tReplyA t) rv
+  obtain ⟨hA3, r1, r2, r3, hW3⟩ := block_recv_writes (L := L) hP s ht e rv
   have v1 := val_st hta; have v2 := val_blk hta; have v3 := val_reply hta
   -- the footprint of the three field writes
   have hF3 : WritesIn st s s3 (CnW (st := st) T N C E R c s σ) := by
@@ -202,7 +206,10 @@ theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : 
       simp only [x1, Fl4Spec.ThreadState.blockedOnReceive.injEq] at h
       obtain ⟨-, rfl, -⟩ := h
       refine ⟨by rw [r3], fun hne => ?_⟩
-      rw [optRef_zero] at hne; exact absurd rfl hne
+      rw [r3]
+      by_cases h0 : rv = 0#u64
+      · rw [h0, optRef_zero] at hne; exact absurd rfl hne
+      · exact (replyArg_ne hP hrc h0).1
     · intro r h; simp [x1] at h
   have hN1 : NtfnStateRel N T (L.mem s3) σ1 := by
     have hxt1 := hN.at_tcb ht hkt
@@ -225,12 +232,12 @@ theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : 
   have hnt : e.bv ≠ t.bv := kheap_ne hk hkt (fun _ h1 h2 => by subst h1; cases h2)
   have hk2 : σ2.kheap e.bv = some (.endpoint x) := by simp [σ2, σ1, stsAct_kheap, hnt, hk]
   have hkt2 : σ2.kheap t.bv = some (.tcb x1) := by simp [σ2, σ1, stsAct_kheap]
-  have hspec : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true .nullCap σ =
-      Fl4Spec.tcbEpAppend t.bv e.bv true σ2 := by
+  have hspec : Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ =
+      (Fl4Spec.NonDet.maybeM (fun r => Fl4Spec.setReplyObjRef Fl4Spec.replyTcbUpdate r (some t.bv)) (optRef rv) >>=
+        fun _ => Fl4Spec.tcbEpAppend t.bv e.bv true) σ2 := by
     rw [hspec0]
     unfold Fl4Spec.receiveIpcBlocked
-    rw [if_pos rfl, nd_bind_one (Notif.setThreadState_eq _ hkt), optRef_zero]
-    exact nd_pure_bind' _ _ _
+    rw [if_pos rfl, nd_bind_one (Notif.setThreadState_eq _ hkt)]
   have hprio3 : ∀ y ∈ T, L.mem s3 (prioA y) = L.mem s (prioA y) := by
     intro y hy
     have hya := hP.tcb y hy
@@ -272,59 +279,99 @@ theorem wait_for_sender_blockF0 (hP0 : IPlaced N T E R B) (s : S) (a : A) (σ : 
     intro y hy
     have hya := hP.tcb y hy
     rw [hf4 _ (a_prio hya).1 (Or.inr (Or.inr (Or.inl ⟨y, hy, Or.inl (a_prio hya).2⟩))), hprio3 y hy]
-  have hsort4 := sorted_transfer hP.tcb hx (hR2.at_ep he hk2) hpr hsort
-  have htst : (L.mem s4 (tStA t)).val = if true = true then 3 else 4 := by
-    rw [hf4 _ (a_st hta).1 (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl (a_st hta).2⟩))), r1]
-    unfold sched.TS_BLOCKED_ON_RECV; rfl
   have htb : L.mem s4 (tBlockA t) = e := by
     rw [hf4 _ (a_blk hta).1 (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl (a_blk hta).2⟩))), r2]
-  simp only [bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
-  apply ok_bind_spec
-  have happ := ep_append_rel hH hP s4 σ2 hR2 hS4 ht hkt2 he hk2 true hc htq htst htb hsort4
-  simp only [↓reduceIte] at happ
-  obtain ⟨xs, hQ, hxs, hB⟩ := (hR2.at_ep he hk2).queue
-  have htxs : t ∉ xs := fun h => htq (by rw [hxs]; exact List.mem_map_of_mem h)
-  have hqa := ep_append_full hP s4 he t obj.EP_RECV xs hQ ht htxs
-  refine WP.spec_bind (WP.spec_and happ hqa) ?_
-  rintro s6 ⟨⟨σ', hσ', hR', hS'⟩, -, -, hQA, hWE⟩
-  have hF6 : WritesIn st s s6 (CnW (st := st) T N C E R c s σ) := by
-    refine hF4.trans (B := CnW (st := st) T N C E R c s σ) ⟨hWE.1, hWE.2.1, fun b hb hn => hQA b hb
-      ⟨fun h => hn (Or.inr (Or.inl ⟨e, he, h⟩)), fun ⟨w, hw, h⟩ => hn ?_⟩⟩ |>.mono fun b hb => hb.elim id id
-    have hwT : w ∈ T := by
+  have hst4 : L.mem s4 (tStA t) = sched.TS_BLOCKED_ON_RECV := by
+    rw [hf4 _ (a_st hta).1 (Or.inr (Or.inr (Or.inl ⟨t, ht, Or.inl (a_st hta).2⟩))), r1]
+  have tail : ∀ (s5 : S) (σ3 : Fl4Spec.State Unit), EpStateRel T E R B (L.mem s5) σ3 →
+      NtfnStateRel N T (L.mem s5) σ3 → SRS st T (SRT st th cr N T C E R B c (SRE st N T C E R B c)) s5 σ3 →
+      σ3.kheap e.bv = some (.endpoint x) → σ3.kheap t.bv = some (.tcb x1) →
+      (∀ y ∈ T, L.mem s5 (prioA y) = L.mem s (prioA y)) →
+      L.mem s5 (tStA t) = sched.TS_BLOCKED_ON_RECV → L.mem s5 (tBlockA t) = e →
+      (Fl4Spec.NonDet.maybeM (fun r => Fl4Spec.setReplyObjRef Fl4Spec.replyTcbUpdate r (some t.bv)) (optRef rv) σ2 =
+        ({((), σ3)}, False)) →
+      WritesIn st s s5 (CnW (st := st) T N C E R c s σ) →
+      (do
+        let s6 ← endpoint.ep_append st s5 e t obj.EP_RECV
+        ok (s6, a)) ⦃ r => r.2 = a ∧
+        ∃ σ', Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ = ({((), σ')}, False) ∧
+          IRel st th cr N T C E R B c r.1 σ' ∧ WritesIn st s r.1 (CnW (st := st) T N C E R c s σ) ⦄ := by
+    intro s5 σ3 hR3 hN3 hS3 hk3 hkt3 hpr5 hst5 hb5 hm hF5
+    have hsort5 := sorted_transfer hP.tcb hx (hR3.at_ep he hk3) hpr5 hsort
+    have htst : (L.mem s5 (tStA t)).val = if true = true then 3 else 4 := by
+      rw [hst5]; unfold sched.TS_BLOCKED_ON_RECV; rfl
+    have happ := ep_append_rel hH hP s5 σ3 hR3 hS3 ht hkt3 he hk3 true hc htq htst hb5 hsort5
+    simp only [↓reduceIte] at happ
+    obtain ⟨xs, hQ, hxs, hB⟩ := (hR3.at_ep he hk3).queue
+    have htxs : t ∉ xs := fun h => htq (by rw [hxs]; exact List.mem_map_of_mem h)
+    have hqa := ep_append_full hP s5 he t obj.EP_RECV xs hQ ht htxs
+    refine WP.spec_bind (WP.spec_and happ hqa) ?_
+    rintro s6 ⟨⟨σ', hσ', hR', hS'⟩, -, -, hQA, hWE⟩
+    have hF6 : WritesIn st s s6 (CnW (st := st) T N C E R c s σ) := by
+      refine hF5.trans (B := CnW (st := st) T N C E R c s σ) ⟨hWE.1, hWE.2.1, fun b hb hn => hQA b hb
+        ⟨fun h => hn (Or.inr (Or.inl ⟨e, he, h⟩)), fun ⟨w, hw, h⟩ => hn ?_⟩⟩ |>.mono fun b hb => hb.elim id id
+      have hwT : w ∈ T := by
+        rcases List.mem_cons.1 hw with rfl | hw
+        · exact ht
+        · exact hQ.mem w hw
+      rcases h with h | h
+      · exact Or.inl (Or.inr ⟨w, hwT, 3496, by omega, by omega, by omega, by omega, by omega, h⟩)
+      · exact Or.inl (Or.inr ⟨w, hwT, 3504, by omega, by omega, by omega, by omega, by omega, h⟩)
+    have hq2 : ∀ y ∈ x.epQueue, ∃ z, σ3.kheap y = some (.tcb z) ∧ z.tcbPriority = Notif.prioOf σ3 y := by
+      intro y hy
+      rw [hxs] at hy
+      obtain ⟨y', hy'x, rfl⟩ := List.mem_map.1 hy
+      obtain ⟨z, hz, -⟩ := hR3.tcb y' (hQ.mem y' hy'x)
+      exact ⟨z, hz, by simp [Notif.prioOf, hz]⟩
+    rw [tcbEpAppend_eq hk3 hkt3 (Notif.prioOf σ3) hq2] at hσ'
+    have hσe : σ' = updK σ3 e.bv (.endpoint (Fl4Spec.updateEpQueue x
+        (specIns x.epQueue (Notif.prioOf σ3) x1.tcbPriority t.bv) true)) := by
+      have := congrArg Prod.fst hσ'
+      simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at this
+      exact this.symm
+    have hkv : Notif.KView σ3 σ' := by
+      rw [hσe]
+      refine ⟨fun p y h => ?_, fun p y h => ⟨y, ?_, rfl, rfl, rfl⟩⟩
+      · have : p ≠ e.bv := by intro h'; rw [h', hk3] at h; cases h
+        simp [this, h]
+      · have : p ≠ e.bv := by intro h'; rw [h', hk3] at h; cases h
+        simp [this, h]
+    have hW : ∀ w ∈ t :: xs, w ∈ T ∧ (L.mem s5 (tStA w)).val ≠ 6 := by
+      intro w hw
       rcases List.mem_cons.1 hw with rfl | hw
-      · exact ht
-      · exact hQ.mem w hw
-    rcases h with h | h
-    · exact Or.inl (Or.inr ⟨w, hwT, 3496, by omega, by omega, by omega, by omega, by omega, h⟩)
-    · exact Or.inl (Or.inr ⟨w, hwT, 3504, by omega, by omega, by omega, by omega, by omega, h⟩)
-  have hq2 : ∀ y ∈ x.epQueue, ∃ z, σ2.kheap y = some (.tcb z) ∧ z.tcbPriority = Notif.prioOf σ2 y := by
-    intro y hy
-    rw [hxs] at hy
-    obtain ⟨y', hy'x, rfl⟩ := List.mem_map.1 hy
-    obtain ⟨z, hz, -⟩ := hR2.tcb y' (hQ.mem y' hy'x)
-    exact ⟨z, hz, by simp [Notif.prioOf, hz]⟩
-  rw [tcbEpAppend_eq hk2 hkt2 (Notif.prioOf σ2) hq2] at hσ'
-  have hσe : σ' = updK σ2 e.bv (.endpoint (Fl4Spec.updateEpQueue x
-      (specIns x.epQueue (Notif.prioOf σ2) x1.tcbPriority t.bv) true)) := by
-    have := congrArg Prod.fst hσ'
-    simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq, true_and] at this
-    exact this.symm
-  have hkv : Notif.KView σ2 σ' := by
-    rw [hσe]
-    refine ⟨fun p y h => ?_, fun p y h => ⟨y, ?_, rfl, rfl, rfl⟩⟩
-    · have : p ≠ e.bv := by intro h'; rw [h', hk2] at h; cases h
-      simp [this, h]
-    · have : p ≠ e.bv := by intro h'; rw [h', hk2] at h; cases h
-      simp [this, h]
-  have hW : ∀ w ∈ t :: xs, w ∈ T ∧ (L.mem s4 (tStA w)).val ≠ 6 := by
-    intro w hw
-    rcases List.mem_cons.1 hw with rfl | hw
-    · exact ⟨ht, by rw [htst]; simp⟩
-    · exact ⟨hQ.mem w hw, by rcases (hB w hw).2 with h | h <;> rw [h] <;> simp⟩
-  have hN3 := ntfn_frame_ep hP0.toC hN2 he hW hQA hkv
-  simp only [WP.spec_ok]
-  exact ⟨by simp, σ', by rw [hspec, tcbEpAppend_eq hk2 hkt2 (Notif.prioOf σ2) hq2, hσe],
-    ⟨IpcRel.of hN3 hR' hS'.2.all, hS'.1⟩, hF6⟩
+      · exact ⟨ht, by rw [htst]; simp⟩
+      · exact ⟨hQ.mem w hw, by rcases (hB w hw).2 with h | h <;> rw [h] <;> simp⟩
+    have hN4 := ntfn_frame_ep hP0.toC hN3 he hW hQA hkv
+    simp only [WP.spec_ok]
+    exact ⟨by simp, σ', by rw [hspec, nd_bind_one hm, tcbEpAppend_eq hk3 hkt3 (Notif.prioOf σ3) hq2, hσe],
+      ⟨IpcRel.of hN4 hR' hS'.2.all, hS'.1⟩, hF6⟩
+  by_cases h0 : rv = 0#u64
+  · simp only [h0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    apply ok_bind_spec
+    exact tail s4 σ2 hR2 hN2 hS4 hk2 hkt2 hpr hst4 htb (by rw [h0, optRef_zero]; rfl) hF4
+  · have hne : (rv != 0#u64) = true := by simp [h0]
+    simp only [hne, ↓reduceIte]
+    obtain ⟨hrR, -⟩ := replyArg_ne hP hrc h0
+    obtain ⟨xr, hkr, -⟩ := hR2.reply rv hrR
+    obtain ⟨e1, hR5, hS5, hA5⟩ := reply_link_rel hH hP s4 σ2 hR2 hS4 hrR hkr hta
+    have hN5 := ntfn_reply_write hP0.toC hN2 hrR hA5 hkr { xr with replyTcb := some t.bv }
+    step as ⟨s6', h6⟩
+    subst h6
+    rw [show P1.rTcbA rv = Endp.rTcbA rv from rfl]
+    have hnr : rv.bv ≠ e.bv := kheap_ne hkr hk2 (fun _ h1 h2 => by subst h1; cases h2)
+    have hnr' : rv.bv ≠ t.bv := kheap_ne hkr hkt2 (fun _ h1 h2 => by subst h1; cases h2)
+    have hdis := hP.rt rv hrR t ht
+    have hra := a_rtcb hP hrR
+    refine tail _ _ hR5 hN5 hS5 (by simp [Ne.symm hnr, hk2]) (by simp [Ne.symm hnr', hkt2]) ?_ ?_ ?_ ?_ ?_
+    · intro y hy
+      have hya := hP.tcb y hy
+      have := hP.rt rv hrR y hy
+      rw [hA5 _ (a_prio hya).1 (by show (prioA y).val ≠ rv.val; rw [val_prio hya]; omega), hpr y hy]
+    · rw [hA5 _ (a_st hta).1 (by show (tStA t).val ≠ rv.val; rw [val_st hta]; omega), hst4]
+    · rw [hA5 _ (a_blk hta).1 (by show (tBlockA t).val ≠ rv.val; rw [val_blk hta]; omega), htb]
+    · rw [Notif.optRef_ne h0]; exact e1
+    · exact hF4.trans (B := CnW (st := st) T N C E R c s σ) ((writesIn_wr hra.1).mono fun b hb => by
+        subst hb; exact Or.inr (Or.inr ⟨rv, hrR, rTcbA_val rv⟩)) |>.mono fun b hb => hb.elim id id
 
 end
 
@@ -441,6 +488,14 @@ theorem BFrR.replyB' (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ'.
     (hr : r ≠ some p) : σ.kheap p = some (.reply x) := by
   obtain ⟨x0, h1, -, h3⟩ := h.replyB hp
   rw [h1, h3 hr]
+
+/-- A reply with no thread after was so before, unchanged. -/
+theorem BFrR.replyB_free (h : BFrR t e r σ σ') {p : ObjRef} {x : Reply} (hp : σ'.kheap p = some (.reply x))
+    (hx : x.replyTcb = none) : σ.kheap p = some (.reply x) := by
+  by_cases hr : r = some p
+  · obtain ⟨x1, -, h2⟩ := h.rq p hr
+    rw [h2] at hp; cases hp; cases hx
+  · exact h.replyB' hp hr
 
 theorem BFrR.ntfnF (h : BFrR t e r σ σ') {p : ObjRef} {x : Notification} (hp : σ.kheap p = some (.notification x)) :
     σ'.kheap p = some (.notification x) :=
@@ -782,10 +837,11 @@ theorem spec_lift_ok {m : Result S} {P : S → Prop} (h : m ⦃ P ⦄) (a : A) :
   WP.spec_bind h fun s3 h3 => (WP.spec_ok _).2 h3
 
 set_option maxHeartbeats 16000000 in
-/-- **The blocking receive with a null reply cap at `J`** (module docstring):
-the current thread `t`, with no bound notification, blocks receiving on the
-idle or receiving endpoint `e`, covered by a cap (`hcov`). -/
-theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+/-- **The blocking receive at `J`** (module docstring): the current thread
+`t`, with no bound notification, blocks receiving on the idle or receiving
+endpoint `e`, covered by a cap (`hcov`), with a null reply cap or one naming
+a reply object linked to no thread, covered by the cap (`hcovR`). -/
+theorem JAtZ.recvIpcBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     {t : U64} (ht : t ∈ Z.T) (hcur : σ.curThread = t.bv) (hni : Entered σ)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     {xt : Fl4Spec.Tcb} (hkt : σ.kheap t.bv = some (.tcb xt)) (hbn : xt.tcbBoundNotification = none)
@@ -793,9 +849,12 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hc : Endp.CanBlock true x)
     (hcov : (∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1)) ∧
       (∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)))
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R (L.mem s) rc rc' rv)
+    (hcovR : rv ≠ 0#u64 → (∀ k, Z.th rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + max (objSize k) 1)) ∧
+      (∀ k, H rv = some k → Covered (L.mem s) Z.G rv.val (rv.val + 2 ^ k.bits)))
     (cb : U64) (c1 c2 c3 c4 : Bool) (b : Fl4Spec.Badge) (rights : Fl4Spec.CapRights) :
-    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true .Null ⦃ r =>
-      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true .nullCap σ).1,
+    endpoint.receive_ipc st arI s a t (.Endpoint e cb c1 c2 c3 c4) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) true rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
@@ -813,7 +872,9 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨z, hz, -⟩ := (J.sv.epQ _ _ hk).2 y hy
     exact ⟨z, hz⟩
   obtain ⟨σ', heq, F, hik, -, hcn, hsrt⟩ :=
-    recvIpcBlock_eq hkt hbn hk hc htq hq hr (J.isorted.1 _ _ hk) b rights (Or.inl ⟨rfl, rfl⟩)
+    recvIpcBlock_eq hkt hbn hk hc htq hq hr (J.isorted.1 _ _ hk) b rights (replyArg_spec J.ip.e hI.1.toE hrc)
+  -- the reply object (if any): in `R`, linked to no thread
+  have hrv : rv ≠ 0#u64 → rv ∈ Z.R ∧ L.mem s (Endp.rTcbA rv) = 0#u64 := fun h0 => replyArg_ne J.ip.e hrc h0
   have hcn' : σ'.schedulerAction = .chooseNewThread := hcn hcur.symm hres
   -- P1's `BlkOK` after and footprint
   have hcb := J.canBlockCur ht hcur hkt hr hni hnq
@@ -828,13 +889,15 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hst0 : L.epState s e = 0#u64 ∨ L.epState s e = 2#u64 := by rw [epState_eq]; exact hst2
   have hbound : L.mem s (tBoundA t) = 0#u64 :=
     optRef_none ((hI.1.toE.at_tcb ht hkt).bound.symm.trans hbn)
-  have p1b := spec_lift_ok (P1.endpoint.wait_for_sender.inv s t e true 0#u64 Q0 R0 h0 hB0 hX0 hS0 hSg0
-    (J.zH.1 t ht) (fun _ => hcb) hHe hst0 (fun h => absurd rfl h)) a
+  have hrH : rv ≠ 0#u64 → rv ∈ P1.Heap.replies H := fun h => J.zH.2.2.1 rv (hrv h).1
+  have p1b := spec_lift_ok (P1.endpoint.wait_for_sender.inv s t e true rv Q0 R0 h0 hB0 hX0 hS0 hSg0
+    (J.zH.1 t ht) (fun _ => hcb) hHe hst0 (fun h => ⟨hrH h, Or.inl (hrv h).2⟩)) a
   have p1f := spec_lift_ok (P1.endpoint.wait_for_sender.footR (Sg := P1.Heap.frame H) (Scs := P1.Heap.scs H)
-    (Z := P1.Heap.scBits H) s t e 0#u64 h0 hcb hHe (fun h => absurd rfl h)) a
-  apply receive_ipc_block0_red hbound hst2
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (wait_for_sender_blockF0 J.ip s a σ hI ht hkt hnb3 hnn hbn he hk hc
-    (J.qsortedE e he) b rights) p1b) p1f) ?_
+    (Z := P1.Heap.scBits H) s t e rv h0 hcb hHe
+    (fun h => ⟨hSg0.sub _ (hX0.1.tcbW (hrH h)), hX0.1.tcbW (hrH h)⟩)) a
+  apply receive_ipc_block_red hrc hbound hst2
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (wait_for_sender_blockF J.ip s a σ hI ht hkt hnb3 hnn hbn he hk hc
+    (J.qsortedE e he) b rights hrc) p1b) p1f) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨ea, σ0, h0eq, hIR, hW⟩, hbk⟩, hfoot⟩
   simp only at ea hbk hfoot hIR hW
   subst a'
@@ -858,21 +921,32 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     intro d hd hfd
     obtain ⟨y, hy, hyt⟩ := hfd
     obtain ⟨e1, e2⟩ := k4 d hd
-    obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB' hy (fun h => by cases h), hyt⟩
+    obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB_free hy hyt, hyt⟩
     exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hAI3 : ActIdle σ' := ⟨fun u hu => (by rw [hcn'] at hu; cases hu), F.idleOK J.act.2⟩
   have hcur3 : σ'.schedulerAction = .chooseNewThread ∨ CurInv σ' := Or.inl hcn'
   have hrun3 : CurRunM σ' := Or.inl (by rw [hcn']; intro h; cases h)
-  -- the dead: the thread is not dead (runnable); the endpoint leaves the dead set
+  -- the dead: the thread is not dead (runnable); the endpoint and the reply leave the dead set
   have htD : ∀ q ∈ D, q.bv ≠ t.bv := J.notDead ht hkt (by rcases runnable_code hr with h | h | h <;> rw [h] <;> decide)
-  have hdead : ∀ q ∈ D \ {e}, DeadP (L := L) H s' q := fun q hq => by
+  set D' : Set U64 := if rv = 0#u64 then D \ {e} else (D \ {e}) \ {rv} with hD'
+  have hD'D : ∀ q ∈ D', q ∈ D \ {e} ∧ Notif.optRef rv ≠ some q.bv := by
+    intro q hq
+    by_cases h0 : rv = 0#u64
+    · rw [hD', if_pos h0] at hq
+      exact ⟨hq, by rw [h0, optRef_zero]; intro h; cases h⟩
+    · rw [hD', if_neg h0] at hq
+      refine ⟨hq.1, fun h => hq.2 ?_⟩
+      rw [Notif.optRef_ne h0] at h
+      exact (P1.eq_of_bv (Option.some.inj h)).symm
+  have hdead : ∀ q ∈ D', DeadP (L := L) H s' q := fun q hq' => by
+    obtain ⟨hq, hqr⟩ := hD'D q hq'
     have hd := J.jcov.dead q hq.1
     have hqt : q.bv ≠ t.bv := htD q hq.1
     have hqe : q.bv ≠ e.bv := fun h => hq.2 (P1.eq_of_bv h)
     refine J.deadP_keep hS3 hIR.1 (fun x hx h0 => ?_) (fun x hx => ?_)
       (fun x hx => ⟨x, F.ntfnF hx, Or.inl rfl, rfl, Or.inl rfl⟩)
-      (fun x hx => ⟨x, F.replyF' hx (fun h => by cases h), rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
+      (fun x hx => ⟨x, F.replyF' hx hqr, rfl⟩) (fun x n hx => ⟨x, F.scF hx, Or.inl rfl, Or.inl rfl⟩)
       (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hW hz hqC hK8 hK) F.sk.idle hAI3.1
       (J.yld.frame k2 F.ykeep) (F.ykeep.dk q.bv) hd
     · obtain ⟨st', hk3, hs'⟩ := F.tcbF hx
@@ -892,18 +966,32 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hkern := J.kern_keep hks hW.2.1 hS3 F.sk.ct F.sk.csc (fun sl h => Or.inl (by rw [← F.sk.orig]; exact h))
     (by rw [F.sk.arch])
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) hDbg
-    (D' := D \ {e})
+    (D' := D')
   -- no reply names the runnable thread (`SchedValid.replyTcb`)
   have hnt : ∀ d ∈ Z.R, ∀ xr, σ.kheap d.bv = some (.reply xr) → xr.replyTcb ≠ some t.bv := by
     intro d _ xr hkr hrt
     obtain ⟨x', hk', hs'⟩ := J.sv.replyTcb _ xr _ hkr hrt
     rw [hkt] at hk'; cases hk'
     rcases hs' with hs' | ⟨ep, dd, hs'⟩ <;> rw [hs'] at hr <;> cases hr
-  have hRR' := J.rrecv.frameR k4 F hnt (fun _ _ h => by cases h)
-  have hjcov : JCovD (L := L) Z.th H Z.G (D \ {e}) Cs s' := by
+  -- the reply (if any) was free, so it has null links
+  have hrq : ∀ d ∈ Z.R, Notif.optRef rv = some d.bv → L.mem s' (rNextA d) = 0#u64 ∧ L.mem s' (rPrevA d) = 0#u64 := by
+    intro d hd hdr
+    have h0 : rv ≠ 0#u64 := fun h => by rw [h, optRef_zero] at hdr; cases hdr
+    rw [Notif.optRef_ne h0] at hdr
+    obtain rfl : rv = d := P1.eq_of_bv (Option.some.inj hdr)
+    obtain ⟨xr, hkr, hxr⟩ := hI.1.toE.reply rv hd
+    obtain ⟨-, h2, h3⟩ := J.rfree rv hd ⟨xr, hkr, by rw [hxr, (hrv h0).2, optRef_zero]⟩
+    obtain ⟨e1, e2⟩ := k4 rv hd
+    exact ⟨by rw [e2]; exact h2, by rw [e1]; exact h3⟩
+  have hRR' := J.rrecv.frameR k4 F hnt hrq
+  have hjcov : JCovD (L := L) Z.th H Z.G D' Cs s' := by
     obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
-    exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
+    have hcv : JCovD (L := L) Z.th H Z.G D' Cs s := by
+      by_cases h0 : rv = 0#u64
+      · rw [hD', if_pos h0]; exact J.jcov.undead hcov.1 hcov.2
+      · rw [hD', if_neg h0]; exact (J.jcov.undead hcov.1 hcov.2).undead (hcovR h0).1 (hcovR h0).2
+    exact hcv.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
@@ -925,7 +1013,7 @@ theorem JAtZ.recvIpcBlock0J (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     have e1 : σ.curSc = q.bv := Option.some.inj (hscc.symm.trans hxs)
     rw [← e1] at hp
     exact hC.active (J.curSc_ne_idle hC hti) y n hp
-  have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst (D \ {e}) s' σ' :=
+  have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D' s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, hjcov, hkern,
       J.cnW_utc hW hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
