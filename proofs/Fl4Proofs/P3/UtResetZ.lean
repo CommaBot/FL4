@@ -361,7 +361,7 @@ theorem JAtZ.jAtPre_pp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
     {σ' : Fl4Spec.State Unit} (hpp : sched.preemption_point st arI s a = ok (.Err .Preempted, s', a'))
     (hsp : (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1) (hR0 : PPR0 σ) :
     JAtPre (L := L) arI AR s' a' σ' :=
-  ⟨s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hR0.1.2, hR0.1.1⟩, hpp, hsp⟩
+  ⟨s, a, σ, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hR0.1.2, hR0⟩, hpp, hsp⟩
 
 end
 

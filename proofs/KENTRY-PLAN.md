@@ -1419,3 +1419,50 @@ removed; JAtZ untouched.
   `if_neg` deprecation warnings). Axioms (axsch6.sh/axsch6.lean, untracked): propext, Classical.choice,
   Quot.sound only for handle_invocation_refinesJ, jat_finishJ2, jat_scheduleFR2, jat_scheduleSR2,
   JAtZ.sch_tailS, JAtZ.ndFJ, ndF_writes, schedStep_dom2, jat_finishJF; SchS.ndF: propext.
+
+## kp11 (branch par/budget7 in FL4-tcbj, on d06a15fe = int/j2 incl. kp10)
+- DONE (2b) step 1, the release-queue hole fact, no [J]: new leaf XTopJointPreemptO. `CurScFree σ := ∀ u xt,
+  σ.kheap u = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc → u ∉ σ.releaseQueue`; `curScFree_of : Inv σ →
+  CurOwnW T C σ → PPR0 σ → CurScFree σ` (consumed > 0: `CurOwn`'s clause, the owner the only bound thread by
+  `Inv.back`; unowned: no bound thread; consumed = 0: `PPR0`'s second clause); `jAtPre_holeO` = `jAtPre_holeTN`
+  + `CurScFree` at the hole. For it `JAtPre`'s base conjunct is now `JAt ∧ Vs.NoSwitch σ0 ∧ PPR0 σ0` (was `… ∧
+  ct ≠ idle`, = `PPR0.1.1`): the five constructors (CnDel cn_del_topJ, WJLRestart, TcbInstall:1116, TcbSsp:855,
+  UtResetZ jAtPre_pp) pass their `PPR0` whole; jAtPre_holeTN reads `hp00.1.1`. l4v counterpart:
+  `cur_sc_not_in_release_q` / `cur_sc_in_release_q_imp_zero_consumed` at the preemption point. Note the
+  unconditional "owner of an active SC ∉ release queue" is false (every queued thread), and so is the form at
+  every `JAtZ` state (the entry's `check_budget_restart` postpones ct at consumed 0): the fact is a hole fact.
+- (2b) rest NOT done; findings (what a `¬CurInv` hole still lacks; `JHole.cur` gives `chooseNewThread` there):
+  (a) ct schedulable, `¬CurInv`: then ct's SC `p ≠ curSc` (p = curSc would give CurInv: tcb/NotIpcBlk from
+      runnable, active and notRel from schedulable). Spec `check_budget` → `end_timeslice` then appends ct or
+      POSTPONES curSc, i.e. release-enqueues curSc's owner (≠ ct, maybe none): Inv.rel can break. Not provable
+      from JAtZ; must be excluded by a carried fact `CtLink σ := ∀ xt, σ.kheap σ.curThread = some (.tcb xt) →
+      xt.tcbSchedContext = some σ.curSc ∨ xt.tcbSchedContext = none` (true from `Entered`/CurInv; deletion only
+      unbinds). Carry it in `PPR0` (first conjunct): `PPK` keeps it (`tcb` keeps every link, `ct`, `csc`);
+      SpecPPR's `TR` needs a new field "ct's link after is the one before or none" proved at the TK leaves
+      (`tk_threadSet`: keeps/clears ✓; `sched_context_donate`/`reply_remove` donee: blocked on the reply, so
+      ≠ ct needs "ct not BlockedOnReply" at the leaf — from `Inv`'s rd/rel? no: add to TR's start condition
+      `ct runnable-or-restart`, kept by deletion); also `PPR0.setCn`, `PPK.updTcbSc` (TcbInstall), UtResetTopJ's
+      `delSt`. With it (a) is vacuous.
+  (b) ct not schedulable, curSc active, `¬CurInv`: charge through the owner. Spec side copy of
+      `charge_head_refinesK` with `u0` for ct: replace `htw`/`hnr` by `(∀ x n, kheap curSc = sc x n → x.scTcb =
+      some u0 ∨ x.scTcb = none)` and `u0 ∉ RQ` (= `CurScFree`; for the unowned case pick any `u0` and note
+      `Inv.refillUpd`'s `hnr` is unused when `scTcb = none` — make a variant without it), drop `TmoKeep`
+      (no timeout at can = false). Tail: ct not schedulable after the head (HeadKeeps keeps ct's TCB, its SC's
+      refill max, the queue), so only `set_consumed 0`; `InvBut σ' u0 → Inv σ'` needs `RelIfBound σ' u0` when
+      u0 is `inClassR`. For u0 = ct: ct not schedulable gives it only with NotIpcBlk of ct (not in JAtZ without
+      CurInv). For u0 ≠ ct: GENUINELY MISSING = l4v `cur_sc_chargeable` (a thread bound to cur_sc is the
+      current thread or not in an `inClassR` state). Proposal: carry `Chg σ := ∀ u xt, kheap u = tcb xt →
+      xt.tcbSchedContext = some curSc → u = curThread ∨ ¬ inClassR xt.tcbState xt.tcbFault` plus ct's
+      NotIpcBlk in `PPR0` (same TR leaves as (a): donate's donee is blocked on reply, so `¬inClassR` ✓).
+      FL4/P1 side: `P1.sched.charge_budget.allF` asks `hcsc1` (ct's SC word ≠ 0 → it is CUR_SC) — with CtLink
+      it holds (link = curSc or none). Then `JHole.mcsPPJU` (copy of JHole.chargeBudgetJ: `hcur'` = Or.inl
+      (action kept), `hown'` = the base's CurOwnW with consumed 0 (clause vacuous) / unowned, `hoff` vacuous)
+      and `JPreemptRestHypK` = `JPreemptRestHypJ` with `CurInv σ ∨ schedulable ct ∨ ¬active` (or delete it once
+      (a) is in).
+- (2c) not started (kp5 (i), unchanged).
+- Builds: kp11-b1 (XTopJointCnDel, UtResetZ, XTopJointWJLRestart, XTopJointTcbInstall, XTopJointTcbSsp, UtRetResetJ
+  green; PreemptO failed on a defeq `exact`, fixed), kp11-b2 (XTopJointPreemptO with its cone PreemptZ/PreemptI/PPH,
+  XTopJointTcb, XTopJointUt, XTopJointEntry: green). scratch/axkp11.lean (untracked): std axioms only for
+  curScFree_of, jAtPre_holeO, jAtPre_holeTN, JAtZ.jAtPre_pp, dispatch_invokeJEPZJ, handle_invocation_refinesJ.
+- Premises: none added, none removed (`JPreemptRestHypJ` [W] unchanged; its (2b) part now needs only the carried
+  `CtLink`/`Chg` facts above, not a release-queue fact).

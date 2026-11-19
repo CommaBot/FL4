@@ -76,7 +76,7 @@ current and idle threads, `pp_err_eq`). -/
 theorem jAtPre_holeTN (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hP : PPPlat arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit} (h : JAtPre (L := L) arI AR s a σ) :
     JHoleAtT (L := L) arI AR s a σ ∧ σ.curThread ≠ σ.idleThread ∧ Vs.NoSwitch σ := by
-  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hns0, hni0⟩, hpp, hσ⟩ := h
+  obtain ⟨s0, a0, σ0, ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hns0, hp00⟩, hpp, hσ⟩ := h
   have h := J.ppJH hAK hA hnd hP
   rw [hpp, WP.spec_ok] at h
   obtain ⟨s1, Ac1, Lst1, Hh⟩ := h rfl σ hσ
@@ -87,7 +87,7 @@ theorem jAtPre_holeTN (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
       consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
   have e := pp_err_eq hE hIq _ hσ rfl
   subst e
-  exact ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, hle0, rfl⟩, hni0, hns0⟩
+  exact ⟨⟨Z, H, Cs, Ac1, Lst1, D, s1, a0, σ0, Hh, hle0, rfl⟩, hp00.1.1, hns0⟩
 
 /-- **Every `JAtPre` state is a `JHole` with `TShift`** (module docstring). -/
 theorem jAtPre_holeT (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)

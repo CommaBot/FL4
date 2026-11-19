@@ -152,12 +152,12 @@ theorem XCap.toP {X XP : S → A → Fl4Spec.State Unit → Prop} {s : S} {ar : 
   · exact Or.inr h
 
 /-- **The post of a preempting preemption point from `JAt`**, no switch
-pending and the current thread not idle there (`PPR0`'s first half, carried
-by the deletion and reset loops from `Entered`): what a preempted invocation
+pending and `PPR0` there (carried by the deletion and reset loops from
+`Entered`; kp11: all of it, for the release-queue fact at the hole): what a preempted invocation
 leaves (module docstring; kp10). -/
 def JAtPre (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
   ∃ (s0 : S) (a0 : A) (σ0 : Fl4Spec.State Unit),
-    (JAt (L := L) arI AR s0 a0 σ0 ∧ Vs.NoSwitch σ0 ∧ σ0.curThread ≠ σ0.idleThread) ∧
+    (JAt (L := L) arI AR s0 a0 σ0 ∧ Vs.NoSwitch σ0 ∧ PPR0 σ0) ∧
     sched.preemption_point st arI s0 a0 = ok (.Err .Preempted, s, a) ∧
     (.error (), σ) ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ0).1
 
@@ -299,7 +299,7 @@ theorem cn_del_topJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.error (), σ'),
         mem_bindE_err hx, ⟨Z.th, G', Or.inr ⟨rfl, rfl⟩, J.xtop.rel.1, hCR', hFI', hDom, hMO⟩, ?_⟩
       simp only [if_true]
-      exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
+      exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00⟩, hpp, hspp⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAt` at the Revoke label** (25): `cnode_revoke_refinesW` at

@@ -147,7 +147,7 @@ theorem cn_del_topJL {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.error (), σ'),
         mem_bindE_err hx, ⟨Z.th, G', Or.inr ⟨rfl, rfl⟩, J.xtop.rel.1, hCR', hFI', hDom, hMO⟩, ?_⟩
       simp only [if_true]
-      exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
+      exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00⟩, hpp, hspp⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`XCap` at `JAt` at the Revoke label** (25): `cnode_revoke_refinesW` at

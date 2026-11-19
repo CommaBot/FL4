@@ -1113,7 +1113,7 @@ theorem top_of_instJ {kb : U64} {W : S → A → Fl4Spec.State Unit → MdbGhost
       ⟨Z.th, G', Or.inr ⟨hr, rfl⟩, J0.xtop.rel.1, hDS'.1, hDS'.2.2, hDom, hMO⟩, ?_⟩
     show if res.1 = .Err .Preempted then _ else _
     rw [if_pos hr]
-    exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
+    exact ⟨s0, a0, σ0, ⟨⟨_, H, Cs, Ac', Lst', D', J0⟩, hns0, hp00⟩, hpp, hspp⟩
 
 end
 

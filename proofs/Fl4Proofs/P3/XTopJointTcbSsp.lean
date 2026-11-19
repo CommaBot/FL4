@@ -852,7 +852,7 @@ theorem ssp_tailJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A → Fl4Spec.
       exact mem_bindE_err hx
     · show if _ = _ then _ else _
       rw [if_pos rfl]
-      exact ⟨s0', a0', σ0', ⟨⟨_, H, Cs, Ac0, Lst0, D0, J0⟩, hns0, hp00.1.1⟩, hpp, hspp⟩
+      exact ⟨s0', a0', σ0', ⟨⟨_, H, Cs, Ac0, Lst0, D0, J0⟩, hns0, hp00⟩, hpp, hspp⟩
   simp only at hr; subst hr
   rw [← he2] at hx
   obtain ⟨V2, Ac2, Lst2, D2, J2, -, hns2, -, -⟩ := (hHp.ins _).wjr _ _ _ _ hW2
