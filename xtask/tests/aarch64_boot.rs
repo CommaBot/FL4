@@ -319,7 +319,7 @@ fn el2_setup_leaves_nothing_trapping_to_el2() {
     assert!(has("ubfx    x10, x10, #56, #4") && has("ubfx    x10, x10, #40, #4") && has("ubfx    x11, x11, #44, #4"));
 }
 
-/// Audit r7 F1: FL4's EL2 vectors pass a synchronous exception from AArch64
+/// Audit r7 F1 (r8 F1 for E2H fixed at 1): FL4's EL2 vectors pass a synchronous exception from AArch64
 /// EL0 on to EL1 as an Undefined Instruction exception, and stop the core
 /// on anything else; nothing at EL2 runs outside the kernel image.
 #[test]
@@ -331,17 +331,13 @@ fn el2_vectors_reflect_el0_traps_and_halt_on_the_rest() {
     assert_eq!(v, [".rept 8", "el2_halt", ".endr", ".balign 128", "b       fl4_el2_reflect", ".rept 7", "el2_halt", ".endr"]);
     assert!(boot.contains(".macro el2_halt\n    .balign 128\n    b       fl4_el2_halt\n.endm"));
     let r = boot_code("fl4_el2_reflect");
-    assert_eq!(&r[..5], ["msr     tpidr_el2, x0", "mrs     x0, spsr_el2", "tst     x0, #0x1f", "b.ne    fl4_el2_halt", "msr     spsr_el1, x0"]);
-    assert_eq!(r.iter().filter(|l| l.starts_with("msr     esr_el1")).count(), 1);
-    assert!(r.contains(&"mov     x0, #(1 << 25)".to_string()));
-    assert_eq!(&r[r.len() - 5..], ["mrs     x0, vbar_el1", "add     x0, x0, #0x400", "msr     elr_el2, x0", "mrs     x0, tpidr_el2", "eret"]);
-    // Only x0 is used, and given back.
-    for l in &r {
-        for op in l.split([' ', ',']).skip(1).filter(|o| !o.is_empty()) {
-            let gpr = op.len() > 1 && (op.starts_with('x') || op.starts_with('w')) && op[1..].chars().all(|c| c.is_ascii_digit());
-            assert!(!(gpr && op[1..] != *"0") && op != "sp" && op != "wsp", "{l} uses {op}");
-        }
-    }
+    assert_eq!(&r[..4], ["msr     tpidr_el2, x0", "mrs     x0, spsr_el2", "tst     x0, #0x1f", "b.ne    fl4_el2_halt"]);
+    // The reflection itself, per HCR_EL2.E2H, is run by aarch64_vhe.rs.
+    assert_eq!(&r[4..], [
+        "mrs     x0, hcr_el2", "tbnz    x0, #34, 13f",
+        "el2_reflect_to sctlr_el1, spsr_el1, elr_el1, esr_el1, vbar_el1",
+        "el2_reflect_to s3_5_c1_c0_0, s3_5_c4_c0_0, s3_5_c4_c0_1, s3_5_c5_c2_0, s3_5_c12_c0_0",
+    ]);
     assert_eq!(boot_code("fl4_el2_halt"), ["wfi", "b       fl4_el2_halt"]);
 }
 

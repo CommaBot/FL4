@@ -152,9 +152,16 @@ fl4_el_setup:
     msr     s3_4_c12_c9_5, x9
     isb
     msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 */
+    /* EL1's SCTLR_EL1, UNKNOWN at reset where EL2 is implemented. With
+     * HCR_EL2.E2H 1 (fixed so without FEAT_E2H0) the name SCTLR_EL1
+     * reaches SCTLR_EL2 at EL2, and only SCTLR_EL12 reaches EL1's. */
 6:  ldr     x9, =SCTLR_EL1_RES1
+    mrs     x10, hcr_el2
+    tbnz    x10, #34, 13f
     msr     sctlr_el1, x9
-    mov     x9, #SPSR_EL1H_MASKED
+    b       14f
+13: msr     s3_5_c1_c0_0, x9        /* SCTLR_EL12 */
+14: mov     x9, #SPSR_EL1H_MASKED
     msr     spsr_el2, x9
     adr     x9, 1f
     msr     elr_el2, x9
@@ -177,6 +184,36 @@ fl4_el_setup:
     b       fl4_el2_halt
 .endm
 
+/* The exception to EL1, through EL1's SCTLR, SPSR, ELR, ESR and VBAR as
+ * named: SPSR_EL1 and ELR_EL1 get the thread's PSTATE and PC, ESR_EL1 an
+ * unknown-reason syndrome, and EL2 returns to VBAR_EL1 + 0x400. Only x0,
+ * restored from TPIDR_EL2. */
+.macro el2_reflect_to sctlr, spsr, elr, esr, vbar
+    mrs     x0, spsr_el2
+    msr     \spsr, x0
+    mrs     x0, elr_el2
+    msr     \elr, x0
+    mov     x0, #(1 << 25)          /* EC 0 (unknown reason), IL */
+    msr     \esr, x0
+    /* PSTATE as an exception to EL1 sets it: EL1h, DAIF masked, and PAN
+     * set when SCTLR_EL1.SPAN is clear, else kept. */
+    mrs     x0, \sctlr
+    tbnz    x0, #23, 11f
+    ldr     x0, =(SPSR_EL1H_MASKED | (1 << 22))
+    b       12f
+11: mrs     x0, \spsr
+    and     x0, x0, #(1 << 22)
+    orr     x0, x0, #0x3c0
+    orr     x0, x0, #0x4
+    orr     x0, x0, #0x1
+12: msr     spsr_el2, x0
+    mrs     x0, \vbar
+    add     x0, x0, #0x400          /* lower EL, AArch64, synchronous */
+    msr     elr_el2, x0
+    mrs     x0, tpidr_el2
+    eret
+.endm
+
 .balign 2048
 fl4_el2_vectors:
     .rept 8
@@ -193,28 +230,12 @@ fl4_el2_reflect:
     mrs     x0, spsr_el2
     tst     x0, #0x1f               /* M[4:0] == 0: AArch64 EL0t */
     b.ne    fl4_el2_halt
-    msr     spsr_el1, x0
-    mrs     x0, elr_el2
-    msr     elr_el1, x0
-    mov     x0, #(1 << 25)          /* EC 0 (unknown reason), IL */
-    msr     esr_el1, x0
-    /* PSTATE as an exception to EL1 sets it: EL1h, DAIF masked, and PAN
-     * set when SCTLR_EL1.SPAN is clear, else kept. */
-    mrs     x0, sctlr_el1
-    tbnz    x0, #23, 11f
-    ldr     x0, =(SPSR_EL1H_MASKED | (1 << 22))
-    b       12f
-11: mrs     x0, spsr_el1
-    and     x0, x0, #(1 << 22)
-    orr     x0, x0, #0x3c0
-    orr     x0, x0, #0x4
-    orr     x0, x0, #0x1
-12: msr     spsr_el2, x0
-    mrs     x0, vbar_el1
-    add     x0, x0, #0x400          /* lower EL, AArch64, synchronous */
-    msr     elr_el2, x0
-    mrs     x0, tpidr_el2
-    eret
+    /* With HCR_EL2.E2H 1, the *_EL1 names reach the EL2 registers at EL2
+     * and EL1's are reached as *_EL12 (UNDEFINED with E2H 0). */
+    mrs     x0, hcr_el2
+    tbnz    x0, #34, 13f
+    el2_reflect_to sctlr_el1, spsr_el1, elr_el1, esr_el1, vbar_el1
+13: el2_reflect_to s3_5_c1_c0_0, s3_5_c4_c0_0, s3_5_c4_c0_1, s3_5_c5_c2_0, s3_5_c12_c0_0
 
 fl4_el2_halt:
     wfi
