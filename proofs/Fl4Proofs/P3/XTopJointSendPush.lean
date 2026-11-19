@@ -528,7 +528,8 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have hidl0 : σ'.idleThread = σ.idleThread := G.idle.trans F.sk.idle
   have hisc0 : σ'.idleSc = σ.idleSc := G.isc.trans F.sk.isc
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q :=
-    J.deadP_dfrCI F hkq hidl0 hS3 hIR.1 hw k3 hAI3.1 ht
+    J.deadP_dfrCI F hkq hidl0 hS3 hIR.1 hw k3 hAI3.1
+      (J.yld.frame k2 (F.ykeep.trans hyk1)) (F.ykeep.trans hyk1) ht
   have hsz : SzKeep σ σ' := fun p y n hp => by
     obtain ⟨y0, hy0⟩ := hsz1 p y n hp
     exact F.szKeep p y0 n hy0

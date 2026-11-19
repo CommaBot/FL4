@@ -257,12 +257,13 @@ theorem JAtZ.deadP_dfrCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {r t 
     (hI3 : IpcRel Z.N Z.T Z.E Z.R Z.B (L.mem s3) σ3)
     (hw : P1.WritesIn st s s3 (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ))
     (k3 : ∀ q ∈ Z.C, L.mem s3 (P1.scReplyA q) = L.mem s (P1.scReplyA q)) (hAS : ActSched σ3)
+    (hY3 : YieldRel Z.T Z.C (L.mem s3) σ3) (hYK : YKeep σ σ3)
     (ht : ∀ q ∈ D, q.bv ≠ t) :
     ∀ q ∈ D, DeadP (L := L) H s3 q := fun q hq => by
   have hd := J.jcov.dead q hq
   refine J.deadP_keep hS3 hI3 (fun x hx h0 => ?_) (fun x hx => ?_) (fun x hx => ?_) (fun x hx => ?_)
     (fun x n hx => ?_) (fun hqC => k3 q hqC) (fun z hz hqC K hK8 hK => J.cnW_scOut hw hz hqC hK8 hK)
-    hidl hAS hd
+    hidl hAS hY3 (hYK.dk q.bv) hd
   · -- a dead TCB: its state, (null) bound notification and SC kept
     rw [hkq q hq]
     obtain ⟨t', ht', e⟩ := J.obj.tcb q.bv x hx
@@ -411,7 +412,8 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have hidl0 : σ'.idleThread = σ.idleThread := G.idle.trans F.sk.idle
   have hisc0 : σ'.idleSc = σ.idleSc := G.isc.trans F.sk.isc
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q :=
-    J.deadP_dfrCI F (fun q hq => ciSt_kh (hcD q hq)) hidl0 hS3 hIR.1 hw k3 hAI3.1 ht
+    J.deadP_dfrCI F (fun q hq => ciSt_kh (hcD q hq)) hidl0 hS3 hIR.1 hw k3 hAI3.1
+      (J.yld.frame k2 (F.ykeep.trans (ciSt_ykeep hkc))) (F.ykeep.trans (ciSt_ykeep hkc)) ht
   have hsz : SzKeep σ σ' := fun p y n hp => by
     obtain ⟨y0, hy0⟩ := ciSt_szKeep (σ := σa) (c := c) (x := xc) p y n hp
     exact F.szKeep p y0 n hy0
