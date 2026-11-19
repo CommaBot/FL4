@@ -208,7 +208,7 @@ theorem JAtZ.stsCurJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : En
         rw [h1] at h2'; cases h2'; exact hr
     · by_cases e : u = t.bv
       · subst e; simp [hσ1, updK] at h2; subst h2
-        exact absurd hc (by intro h; rcases h with h | ⟨_, h⟩ | ⟨_, _, h⟩ | ⟨_, _, _, h⟩ <;> cases h)
+        exact absurd hc (by intro h; rcases h with h | ⟨_, h⟩ | ⟨_, _, h, -⟩ | ⟨_, _, _, h⟩ <;> cases h)
       · have h2' : σ.kheap u = some (.tcb y) := by simpa [hσ1, updK, e] using h2
         exact J.inv.rd u y h2' hc
   have hInv : Inv σ6 := hI1.qchange (qchange_stsAct σ1 t.bv)

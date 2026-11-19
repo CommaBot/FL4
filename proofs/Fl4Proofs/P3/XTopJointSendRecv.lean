@@ -419,7 +419,7 @@ theorem CFr.stsRun {r t : Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit} {y : Fl4Spec
 /-- `IK t` across an update of `t`'s own TCB keeping its SC. -/
 theorem IK.updSelf {t : Fl4Spec.ObjRef} {σ : Fl4Spec.State Unit} {x y : Fl4Spec.Tcb} (hk : σ.kheap t = some (.tcb x))
     (h1 : y.tcbSchedContext = x.tcbSchedContext) : IK t σ (Notif.updK σ t (.tcb y)) :=
-  IK.upd hk ⟨fun x' e => by cases e; exact ⟨y, rfl, h1, fun h => absurd rfl h⟩, fun _ _ e => (by cases e),
+  IK.upd hk ⟨fun x' e => by cases e; exact ⟨y, rfl, h1, fun h => absurd rfl h, fun h => absurd rfl h⟩, fun _ _ e => (by cases e),
     fun _ e => (by cases e), fun _ _ => ⟨x, rfl⟩, fun _ _ e => (by cases e), fun _ e => by cases e⟩
 
 /-- `IK t` across an update of an endpoint or a reply. -/
