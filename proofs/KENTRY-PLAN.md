@@ -595,3 +595,44 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   `JAtZ.chargeBudgetNJ`, `Sched.charge_budget_noTmo`, `handle_invocation_refinesJ`. No premise added or removed.
 - HANDOFF (kp3 stopped for context). Gotcha: `Result` here is ITree-like (`ret`/`vis`), so `cases m` with `ok`/`fail`
   alternatives fails; go through `spec_exists`, and reduce `ok v >>= f` with `simp only [Bind.bind, bind_ok]`.
+## kp4 (branch par/budget in FL4-tcbj, on ba3cf690)
+- DONE (a0) 0846788c, new leaf ScChargeH (std axioms, no premise added): kp3's option (i) in the form "frames from
+  the base". `JHole … s0 a0 σ0 s a σ` (a structure beside `JAtZ`, JAtZ untouched): `JAtZ` at the base
+  `(s0,a0,σ0)` (the entry state), the hole's spec state `{σ0 with machineState := ms, curTime, consumedTime}`
+  (same memory), FL4's writes in the base's `KFoot` (the core's CUR_TIME/CONSUMED), `XTopAt`, `NSC`, `Inv`,
+  `CurInv`-or-reschedule, `ActIdle`, `BlkOK` (same `Ac`) and the node-0 debug word at the hole: everything the
+  charge reads except `OffOK`/`CurOwnW`. No `J.*` lemma reads `J.off` (checked: `sc_frame` takes `hoff` of the end
+  state; `chargeBudgetJ`'s other `J.*` uses are frames from J's own state), so the end is `J0.sc_frame` with the
+  writes composed (ScKFoot's `WritesIn.kfoot_trans`, SzKeepC from the equal kheaps) and the spec steps composed
+  (`ScTKw`/`SOK`/`LK`/`FK` `.trans`).
+  * `JAtZ.timestampJH`: XTopJointPP's `timestampJD` ending at a `JHole` (no `OffOK`/`CurOwnW` asked after).
+  * `JHole.toJ`: `JHole` + `OffOK` + `CurOwnW` at the hole ⇒ `JAtZ` there.
+  * `JHole.chargeBudgetJ` (can = false) / `JHole.chargeBudgetNJ` (can = true, no endpoint timeout handler):
+    `chargeBudgetJ`/`chargeBudgetNJ` from a `JHole`; posts also give `ScTKw (fun _ => False) σ σ'`.
+  * `JHole.checkBudgetF`: FL4 `check_budget` returning `false` at a `JHole` (insufficient head: `sufficient_refines`,
+    then `chargeBudgetNJ` of the CONSUMED word) ⇒ spec `checkBudget σ = {(false, σ')}`, arch kept, `JAtZ` after.
+- DONE (b) d0cda4ad, new leaf XTopJointBudgetF (std axioms): `JAtZ.budgetOkF`: from `JAtZ` + `Entered` + `CurInv`
+  + `hnt` (no endpoint cap as the current thread's timeout handler) + [P] `NowAgree`/`hmrt`/`hmb`/`ARKeep`/
+  `ArchTotal`, one domain: `syscall.budget_ok ⦃ r => r.1 = false → ∃ σ', (updateTimeStamp >>= fun _ =>
+  checkBudgetRestart) σ = {(false, σ')} ∧ ∃ Ac' Lst' D', JAtZ … r.2.1 r.2.2 σ' ⦄` (timestampJH, checkBudgetF, then
+  `set_thread_state Restart` of the still-runnable current thread: `JAtZ.restartRunJ` = XTopJointTcbInstall's
+  `restartJ` from a runnable current thread instead of `Entered`, since a reschedule is pending after the charge;
+  runnability kept through the charge by `OTK.tcb_false`). With `JAtZ.budgetOkJ` (true branch) item 10 is complete
+  for threads without an endpoint timeout handler. No premise added (`hnt` is a case split, not a gap).
+- NOT DONE (a) the current thread's own timeout-fault send (endpoint handler, non-RR SC); (c) item 7. Notes:
+  * (a): `JHole` is the pattern for its start too: the send starts after `charge_head` inside `charge_budget` at a
+    state that is again "the base's spec state + an SC step + consumed := 0"; generalise `JHole.spec` to
+    `ScTKw (fun _ => False) σ0 σ ∧ SOK … ∧ LK … ∧ FK …` (what `sfacts` gives; `JHole.toJ`'s proof only uses those +
+    curRun/bsa, which then need `CurRunM σ`/`BlockedScActive σ` as fields), and `ws` to the base's `TFoot`. Then the
+    send (`faultBlockJ` body from `set_fault` on, kp2's route) is a frame from `J0` with `InvBut σ2 ct` at the hole.
+  * RR SC with a valid handler: FL4/spec `end_timeslice true` take the round-robin path (no fault); a
+    `chargeBudgetRJ` like `chargeBudgetNJ` needs the SC's `scPeriod`/RR flag kept by the head (HeadKeeps lacks it).
+  * (c) unchanged (kp2's note): `JAtPre`'s preempted disjunct needs ppJ-style facts after a preempting
+    `preemption_point`; item 7's schedulable branch can now use `JHole.checkBudgetF` once the preemption point's
+    `update_timestamp` is given as a `JHole` (XTopJointPP's `ppJD` builds on `timestampJ`; a `ppJH` over
+    `timestampJH` is the next step), the active-SC branch `JHole.chargeBudgetJ` (needs `CurInv` at the hole; the
+    unbound-current-SC case of kp1 remains).
+- Builds: kp4-b3 `ScChargeH` (5096 jobs), kp4-b4 `XTopJointBudgetF` (5102), kp4-b5 `XTopJointEntry` (5368, the mirror
+  cone after 77d7a27e's JAtZ change) OK; scratch/axkp4.lean (untracked): std axioms only for timestampJH, JHole.toJ,
+  JHole.chargeBudgetJ/NJ, JHole.checkBudgetF, restartRunJ, budgetOkF, handle_invocation_refinesJ.
+- HANDOFF (kp4 stopped for context after (a0)/(b)): next is (a) (route above) or the `ppJH` step toward (c).
