@@ -162,7 +162,7 @@ theorem Sched.SpecAdd.arch (h : Sched.SpecAdd σ σ' W o) : σ'.archState = σ.a
 
 theorem SchedRel.specAdd {s : S} (hS : Sched.SchedRel st N T C c s σ) (h : Sched.SpecAdd σ σ' W o)
     (hz : Sched.SzKeep σ σ') : Sched.SchedRel st N T C c s σ' := by
-  obtain ⟨hrq, hrel, hct, hact, hcsc, hctime, hcons, hrepr, hcdom, hdtime, hidle⟩ := h.f
+  obtain ⟨hrq, hrel, hct, hact, hcsc, hctime, hcons, hrepr, hcdom, hdtime, hidle, hisc⟩ := h.f
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   refine ⟨hS.placed, hS.nodeNW, hS.domNW, hS.dtNW, Sched.scOut_transfer rfl hz hS.scOut,
     Sched.scDisj_transfer hz hS.scDisj, hS.actW, by rw [hact]; exact hS.act,
@@ -170,12 +170,12 @@ theorem SchedRel.specAdd {s : S} (hS : Sched.SchedRel st N T C c s σ) (h : Sche
   refine ⟨fun p hp => by rw [hrq]; exact hs.rq p hp, fun d p hd => by rw [hrq]; exact hs.rqDom d p hd,
     by rw [hrel]; exact hs.rel, by rw [hct]; exact hs.curThread, by rw [hcsc]; exact hs.curSc,
     by rw [hctime]; exact hs.curTime, by rw [hcons]; exact hs.consumed, by rw [hcdom]; exact hs.curDom,
-    fun t ht => ?_, hs.scMem, fun sc hsc => ?_, hs.idleSc, by rw [hdtime]; exact hs.domTime,
+    fun t ht => ?_, hs.scMem, fun sc hsc => ?_, by rw [hisc]; exact hs.idleSc, by rw [hdtime]; exact hs.domTime,
     by rw [hidle]; exact hs.idleTh⟩
   · obtain ⟨x, hk, h1⟩ := hs.tcb t ht
     exact ⟨x, h.kold hk, h1⟩
   · obtain ⟨x, n, hk, e⟩ := hs.scs sc hsc
-    exact ⟨x, n, h.kold hk, e⟩
+    exact ⟨x, n, h.kold hk, by rw [hisc]; exact e⟩
 
 theorem EpStateRel.specAdd {m : U64 → U64} (hR : Endp.EpStateRel T E R B m σ) (h : Sched.SpecAdd σ σ' W o) :
     Endp.EpStateRel T E R B m σ' := by
