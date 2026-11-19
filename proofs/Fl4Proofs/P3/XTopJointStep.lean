@@ -28,9 +28,8 @@ preservation, in the shape of the SC family's `sched_controlJ_step`).
 * `XCap.jat`: a cap's leaves whose post is not a `Steps` run, with the
   per-op named premise `JPostHyp` (at the decode's post, over the spec's
   outcome: `JAt`), the unchanged states (decode errors) discharged by the
-  start's `JAtZ`. The Thread cap (XTopJointTcb's
-  `decode_invocation_threadJ_step`) takes it only at its labels not yet
-  proved at `JAt` (`TcbJOpen`). (The CNode cap's
+  start's `JAtZ`. (The Thread cap's labels are all proved at `JAt` in
+  XTopJointTcb's `decode_invocation_threadJ_step`, the CNode cap's
   labels are proved at `JAt` in XTopJointCnDel/XTopJointCbs, the IO port
   cap's in XTopJointPortIn.)
 -/

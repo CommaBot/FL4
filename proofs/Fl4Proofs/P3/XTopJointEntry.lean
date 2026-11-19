@@ -471,17 +471,11 @@ structure JThreadPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar 
   hA5 : ArgRel (st := st) s σ ct buf buffer 5
   /-- [J] TcbExt's `GetBpHyp`. -/
   hGb : GetBpHyp (st := st) s ct p
-  /-- [W] XTopTcbRest's `TcbXIpc` (the IPC steps of the Thread cap). -/
-  hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don
   /-- [J] ReadFPU's destination frame (XTopJointReadFpu's `FpuFrameJHyp`: l4v
   `valid_cap`, `pspace_distinct`, `valid_global_refs` for the first extra
   cap's frame, at the start). -/
   hFr : lbl = fl4_abi.label.TCBReadFPU → ∀ x0, Aeneas.Std.Array.index_usize extra 0#usize = ok x0 →
     FpuFrameJHyp (L := L) Z s σ x0
-  /-- [W] the labels still open at `JAt` (`TcbJOpen`): XTopJointStep's
-  `JPostHyp` per label. -/
-  hR : TcbJOpen lbl → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf
-    extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
 
 /-- The IRQ control path [W] (the front end's labels and extra slot). -/
 structure JIrqCPath (Z : XSets) (s : S) (lbl : U64) (slbl : Fl4Spec.Data) (extra : Aeneas.Std.Array obj.Slot 3#usize)
@@ -560,7 +554,7 @@ def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : F
         JVtxScope (L := L) arI AR s ar σ lbl length (.Thread p) blk call don fp buf extra slbl argsU ci sl excaps buffer
           ct) ∧
       (lbl ≠ fl4_abi.label.TCBSetEPTRoot →
-        JThreadPath (L := L) arI AR Z s ar σ lbl length p blk call don fp buf extra slbl argsU ci sl excaps buffer ct)
+        JThreadPath (L := L) AR Z s ar σ lbl length p blk call don fp buf extra slbl argsU ci sl excaps buffer ct)
   | .IoPort first last z =>
       (z = 0#u64 → PortLabel lbl slbl) ∧
       (z ≠ 0#u64 → JVtxScope (L := L) arI AR s ar σ lbl length (.IoPort first last z) blk call don fp buf extra slbl
@@ -624,7 +618,7 @@ on the cap:
 | Reply | `decode_replyDMX`, `replyLeafJ` | `JReplyRestHyp` (the rest after `reply_remove` and the sporadic unblock test outside `ReplyRestNoSc`, `ReplyRestSw`, `ReplyRestPost`) [W] |
 | Endpoint | `decode_endpointDMX`, `sendLeafJ` | `JSendRestHyp` (a blocking send, or one to a receiver) [W] |
 | CNode | `decode_invocation_cnodeJ_steps` | `JCnodePath` (front end) |
-| Thread | `decode_invocation_threadJ_step` | `JThreadPath` (incl. `JPostHyp` at `TcbJOpen`); SetEPTRoot `JVtxScope` [scope] |
+| Thread | `decode_invocation_threadJ_step` | `JThreadPath`; SetEPTRoot `JVtxScope` [scope] |
 | IO port | `decode_invocation_ioportJ` | `PortLabel`; a VT-x port (nonzero `vcpu` field) `JVtxScope` [scope] |
 | IRQ control, IO port control, IRQ handler, Domain | `decode_invocation_{irq_control,ioport_control,irq_handler,domain}J` | `JIrqCPath`, `JIoCPath`, `JIrqHPath`, `JDomPath` |
 | SchedContext (Consumed, Bind, UnbindObject) | `decode_invocation_sched_contextJ` (Consumed's reply by `sc_consumedReplyJ`) | `JSchedCtxPath` |
@@ -691,7 +685,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨hEpt, hN⟩ := hN
     by_cases hn : lbl = fl4_abi.label.TCBSetEPTRoot
     · exact hEpt hn
-    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hI, hFr, hR⟩ := hN hn
+    obtain ⟨hlbl, hext, ⟨x0, x1, x2, hx0, hx1, hx2, hXc, hnc, hnc0, hcapC⟩, hA5, hGb, hFr⟩ := hN hn
     have hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
         q ≠ L.idleW s := by
       -- no cap but a frame cap names the idle thread (`SpecGlob.idle`)
@@ -705,9 +699,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.csG hG.ari hG.tot hG.actReady hG.bufT hG.ipcBufOK
       hG.bufCover hG.bufPlaced hG.flags lbl length p blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl
-      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI
+      hAs hsc excaps buffer hext hE.stall hn hE.cw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb
       (fun h => hFr h x0 hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hG.nd hG.pp hE.rd0 hG.lay hG.timeAg hG.bindDbg
-      hG.instSched hR
+      hG.instSched
   case IoPort first last z =>
     obtain ⟨hz, hOpen⟩ := hN
     by_cases h0 : z = 0#u64

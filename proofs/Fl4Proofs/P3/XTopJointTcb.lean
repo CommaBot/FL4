@@ -3,10 +3,8 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
 (`decode_invocation_threadJ_step`, in the shape of the CNode cap's
 `decode_invocation_cnodeJ_steps`).
 
-* `TcbJOpen`: the Thread cap's labels whose `JAt` step is not yet proved;
-  only for them the per-op named premise `JPostHyp` [W] (XTopJointStep) is
-  still taken, lifted by `XCap.jat` from `decode_invocation_threadJAt`.
-* Every other label through `decode_invocation_threadX` at `X := JAt`: the
+* Every label (no Thread-cap label is left open: no per-op `JPostHyp`, no
+  X-level `TcbXIpc`) through `decode_invocation_threadX` at `X := JAt`: the
   labels of no TCB invocation (and the fast-path flag's decode error) are the
   spec's `IllegalOperation` with the state unchanged (`tcb_illegalX`, `JAt`
   at the start); the labels proved here, each with its decode errors at the
@@ -96,19 +94,6 @@ namespace Fl4Proofs.P3
 open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
 
 noncomputable section
-
-/-- **The Thread cap's labels still open at `JAt`** (their `JPostHyp` [W]
-taken): the TCB invocation labels (3..24) but Suspend (12), Resume (13),
-BindNotification (14), UnbindNotification (15), SetBreakpoint (16), GetBreakpoint (17),
-UnsetBreakpoint (18), ConfigureSingleStepping (19), SetTLSBase (20),
-SetFlags (21), WriteFPU (23), SetTimer (24), SetPriority (6),
-SetMCPriority (7), WriteRegisters (3), CopyRegisters (4), SetTimeoutEndpoint (9), SetSpace (11), SetIPCBuffer (10),
-Configure (5), ReadFPU (22) and SetSchedParams (8). -/
-def TcbJOpen (lbl : U64) : Prop :=
-  3 ≤ lbl.val ∧ lbl.val ≤ 24 ∧ lbl.val ≠ 12 ∧ lbl.val ≠ 14 ∧ lbl.val ≠ 15 ∧ lbl.val ≠ 16 ∧ lbl.val ≠ 17 ∧ lbl.val ≠ 18 ∧
-    lbl.val ≠ 19 ∧ lbl.val ≠ 20 ∧ lbl.val ≠ 21 ∧ lbl.val ≠ 23 ∧ lbl.val ≠ 24 ∧ lbl.val ≠ 6 ∧ lbl.val ≠ 7 ∧
-    lbl.val ≠ 13 ∧ lbl.val ≠ 3 ∧ lbl.val ≠ 4 ∧ lbl.val ≠ 9 ∧ lbl.val ≠ 11 ∧ lbl.val ≠ 10 ∧ lbl.val ≠ 5 ∧
-    lbl.val ≠ 22 ∧ lbl.val ≠ 8
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
@@ -2667,116 +2652,9 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 4000000 in
-/-- **`TcbXOpen3` at a label other than ReadFPU** (XTopTcbFpu's
-`tcbXOpen3_of` without its `FpuFrameXHyp` [W]: only ReadFPU writes the user
-frame). -/
-theorem tcbXOpen3_noRead {AR : A → Fl4Spec.Cr3 → Prop} (hAK : ARKeep arI AR) {Z : XSets} (s : S) (ar : A)
-    (σ : Fl4Spec.State Unit) (hX : XTopAt (L := L) AR Z s ar σ) (hC : CurRun σ)
-    (hTh : ∀ t, Z.th t = some .tcb → t ∈ Z.T) (hDI : DelInv Z.th (L.mem s)) (lbl length : U64) (p : U64)
-    (hp : Z.th p = some .tcb) (blk call don : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
-    (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv)
-    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
-    (argsU : List U64) (hlen : length.val = argsU.length)
-    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
-    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
-    (hact : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
-    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (h22 : lbl ≠ fl4_abi.label.TCBReadFPU)
-    (hO : TcbXOpen1 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
-      don slbl (argsU.map UScalar.bv) ci sl excaps buffer) :
-    TcbXOpen3 (L := L) arI (XTop (L := L) AR) s ar σ lbl p ⟨length, buf, call, cslotAddr sl, extra⟩ blk call
-      don slbl (argsU.map UScalar.bv) ci sl excaps buffer := by
-  refine ⟨fun e => absurd e h22, ?_, hO.setTimer⟩
-  rintro rfl
-  obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .writeFpu by
-    simp [tcbExtOf])
-  exact tcb_fpuX arI hAK s ar σ hX hC hDI p (hTh p hp) false slbl hg he length buf ct hct argsU hlen hargs hcur hact
-    (hstall' p) call _ extra x0 x1 x2 hx0 excaps hXc (fun h => absurd h (by decide)) blk don ci sl buffer
-
 set_option maxHeartbeats 4000000 in
-/-- **XTopJoint's `decode_invocation_threadJAt` at a label other than
-ReadFPU**, without its `FpuFrameXHyp` [W] (`tcbXOpen3_noRead`): for the
-labels of `TcbJOpen`, which no longer include ReadFPU. -/
-theorem decode_invocation_threadJAtNR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
-    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
-    (hA : ∀ s a σ G, WX (L := L) AR Z.th s a σ G → Notif.ActReady σ)
-    (hBT : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → BufWordRel Z'.T (L.mem s') σ')
-    (hOK : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.IpcBufCapOK σ')
-    (hBC : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → Endp.BufCover Z'.T Z'.B σ')
-    (hBPl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
-      Vs.BufPlaced (L := L) Z'.N Z'.C Z'.B Z'.c s' σ')
-    (hFl : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' → FlagsRel Z'.T (L.mem s') σ')
-    (lbl length : U64) (p : U64)
-    (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ct : U64)
-    (hct : sched.cur_thread st s = ok ct)
-    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = tcbLabelOf lbl)
-    (argsU : List U64) (hlen : length.val = argsU.length)
-    (hargs : ∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
-    (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl)
-    (hsc : capV (L.mem s) (cslotAddr sl) = .Thread p)
-    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
-    (hext : Fl4Spec.genInvocationType slbl = .invalidInvocation → Fl4Spec.fl4TcbExtLabelOf slbl = tcbExtOf lbl)
-    (hstall' : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar))
-    (hNative : lbl ≠ fl4_abi.label.TCBSetEPTRoot)
-    (hcw : OutsideObjects Z.th (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD))
-    (hpI : p ≠ L.idleW s)
-    (x0 x1 x2 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
-    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
-    (hx2 : Aeneas.Std.Array.index_usize extra 2#usize = ok x2)
-    (hXc : XcRel Z.th (L.mem s) x0 x1 x2 excaps) (hnc : NcHyp (st := st) s σ x0 x1 x2)
-    (hnc0 : ∀ sl : Fl4Spec.CslotPtr, x0 = cslotAddr sl → isUt (capV (L.mem s) x0) = true →
-      NoChildrenRel (st := st) s σ x0 sl)
-    (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
-    (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
-    (h22 : lbl ≠ fl4_abi.label.TCBReadFPU) :
-    XCap (L := L) arI (XTop (L := L) AR) s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf extra slbl
-      (argsU.map UScalar.bv) ci sl excaps buffer ct := by
-  have hX := J.xtop
-  obtain ⟨hcur, -⟩ := J.curEq hct
-  have hsl0 : x0 ≠ 0#u64 → ∃ sl0, AbsSlot Z.th sl0 ∧ x0 = cslotAddr sl0 := by
-    intro hx
-    have h0 := hXc.2 0 x0 rfl
-    obtain ⟨e, he⟩ : ∃ e, excaps[0]? = some e := by
-      rcases excaps with _ | ⟨e, rest⟩
-      · exact absurd (h0.1.2 (by simp)) hx
-      · exact ⟨e, rfl⟩
-    obtain ⟨hxe, -, ps, hps, hpe⟩ := h0.2 e he
-    exact ⟨e.2, ⟨ps, hpe, Or.inl hps⟩, hxe⟩
-  have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
-    intro hx q hc
-    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
-    exact J.thT q (show CapValid Z.th (.Thread q) from
-      hX.rel.2.1.2.1.abs hA0 (by rw [← hxe, capAt_capV, hc]))
-  have hcapN : x0 ≠ 0#u64 → ∀ q b w r, capV (L.mem s) x0 = .Notification q b w r → q ∈ Z.N := by
-    intro hx q b w r hc
-    obtain ⟨sl0, hA0, hxe⟩ := hsl0 hx
-    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-    exact J.hset.2.1 q ((hJ.typed x0 (hxe ▸ hA0.isSlot)).2.1 q b w r hc).2
-  have hp : Z.th p = some .tcb := (slot_cap_wf hX hAs hsc).2
-  have hpT := J.thT p hp
-  exact decode_invocation_threadXL arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hG.fin hG.pre (hG.postDel arI hARI hT)
-    J.bound hA hBT J.ip lbl length p hp blk call don fp buf extra ct hct hcur slbl hlbl argsU hlen hargs ci sl hAs
-    excaps buffer hext hstall' hNative J.kern.act hcw hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 J.mcp hcapT hcapC J.c0
-    hcapN (fun i hi => hA5 i (by omega)) hI
-    (tcbXOpen_of arI s ar σ hX J.ks (J.curRun.run hni) J.thT J.del hBT J.ip hOK hBC hBPl hFl lbl length p hp blk call don buf
-      extra ct hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act
-      (fun i hi => hA5 i (by omega)) hGb hARI.toARKeep
-      (tcbXOpen4_of arI s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct hct hcur slbl hlbl
-        (argsU.map UScalar.bv) ci sl excaps buffer hext hstall' J.kern.act hA5
-        (tcbXOpen3_noRead arI hARI.toARKeep s ar σ hX (J.curRun.run hni) J.thT J.del lbl length p hp blk call don buf extra ct
-          hct hcur slbl hlbl argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act x0 x1 x2 hx0 hXc h22
-          (tcbXOpen1_of arI s ar σ hX J.ks (J.curRun.run hni) J.del lbl length p blk call don buf extra ct hct hcur slbl hlbl
-            argsU hlen hargs ci sl excaps buffer hext hstall' J.kern.act J.otherTmOK (J.timerIns arI hni hct hpT)))))
-
-set_option maxHeartbeats 4000000 in
-/-- **The Thread cap, `JAt` after** (module docstring): the labels of
-`TcbJOpen` by `decode_invocation_threadJAt` and `XCap.jat` with the per-op
-premise (`JPostHyp` [W], only at those labels); the others proved. -/
+/-- **The Thread cap, `JAt` after** (module docstring): every label proved at
+`J` (no per-op `JPostHyp`, no X-level `TcbXIpc`). -/
 theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hG : CsGlobal (L := L) arI AR Z.th)
     (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
@@ -2809,7 +2687,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       NoChildrenRel (st := st) s σ x0 sl)
     (hcapC : x1 ≠ 0#u64 → ∀ q b, capV (L.mem s) x1 = .SchedContext q b → q ∈ Z.C)
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5) (hGb : GetBpHyp (st := st) s ct p)
-    (hI : TcbXIpc (L := L) arI AR Z.th s ar σ p ct buf argsU blk call don)
     (hFJ : lbl = fl4_abi.label.TCBReadFPU → FpuFrameJHyp (L := L) Z s σ x0)
     (hmb : ∀ a, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hidS : ∀ (sl' : Fl4Spec.CslotPtr) q, AbsSlot Z.th sl' → capV (L.mem s) (cslotAddr sl') = .Thread q →
@@ -2821,17 +2698,10 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hLay : ∀ (Z' : XSets) s' a' σ', Z'.th = Z.th → XTopAt (L := L) AR Z' s' a' σ' →
       IntLayout Z.th (L.ksb s') ∧ IoLayout Z.th (L.ksb s'))
-    (hTA : TimeAgree arI) (hBD : BindDbgP st arI) (hIS : InstSchedHyp)
-    (hR : TcbJOpen lbl → JPostHyp (L := L) arI AR s ar σ lbl length (cslotAddr sl) (.Thread p) blk call don fp buf
-      extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct) :
+    (hTA : TimeAgree arI) (hBD : BindDbgP st arI) (hIS : InstSchedHyp) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hXP : ∀ s a σ, JAt (L := L) arI AR s a σ → JAtPre (L := L) arI AR s a σ := fun _ _ _ h => Or.inl h
-  by_cases hop : TcbJOpen lbl
-  · have h22 : lbl ≠ fl4_abi.label.TCBReadFPU := fun h => by subst h; simp [TcbJOpen] at hop
-    exact (XCap.jat arI (decode_invocation_threadJAtNR arI s ar σ J hni hG hARI hT hA hBT hOK hBC hBPl hFl lbl length p
-      blk call don fp buf extra ct hct slbl hlbl argsU hlen hargs ci sl hAs hsc excaps buffer hext hstall' hNative hcw
-      hpI x0 x1 x2 hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 hGb hI h22) J (hR hop)).toP arI hXP
   have hJ0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
   have hp : Z.th p = some .tcb := (slot_cap_wf J.xtop hAs hsc).2
   have hpT : p ∈ Z.T := J.thT p hp
@@ -2885,13 +2755,6 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     exact xcapP_of_tcb arI s ar σ hJ0 _ length (cslotAddr sl) p blk call don fp buf extra ct hct slbl _ ci sl excaps
       buffer (tcb_configureJ arI s ar σ J hni hsg hP0 hHp hA p hp slbl (by rw [hlbl]; simp [tcbLabelOf]) length buf ct
         hct argsU hlen hargs (hstall' p) call sl hAs extra x0 x1 x2 hx0 hx1 hx2 excaps hXc hnc blk don ci buffer)
-  have no : ∀ l : U64, 3 ≤ l.val → l.val ≤ 24 → l.val ≠ 12 → l.val ≠ 14 → l.val ≠ 15 → l.val ≠ 16 → l.val ≠ 17 →
-      l.val ≠ 18 → l.val ≠ 19 → l.val ≠ 20 → l.val ≠ 21 → l.val ≠ 23 → l.val ≠ 24 → l.val ≠ 6 → l.val ≠ 7 →
-      l.val ≠ 13 → l.val ≠ 3 → l.val ≠ 4 → l.val ≠ 9 → l.val ≠ 11 → l.val ≠ 10 → l.val ≠ 5 → l.val ≠ 22 → l.val ≠ 8 →
-      lbl = l → False :=
-    fun l h1 h2 h3 h14 h4 h5 h5' h6 h7 h8 h9 h123 h124 h6' h7' h13 h3' h4' h9' hx11 hx10 hx5 hx22 hx8 h =>
-      hop (h ▸ ⟨h1, h2, h3, h14, h4, h5, h5', h6, h7, h8, h9, h123, h124, h6', h7', h13, h3', h4', h9', hx11, hx10, hx5,
-        hx22, hx8⟩)
   -- the first extra cap's thread among the TCBs (as `decode_invocation_threadJAt`)
   have hcapT : x0 ≠ 0#u64 → ∀ q, capV (L.mem s) x0 = .Thread q → q ∈ Z.T := by
     intro hx q hc
