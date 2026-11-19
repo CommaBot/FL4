@@ -572,4 +572,5 @@ import Fl4Proofs.P3.XTopJointRecvIpcAct
 import Fl4Proofs.P3.BufCov
 import Fl4Proofs.P3.XTopJointRecvIpcBlock
 import Fl4Proofs.P3.XTopJointRecvIpcBound
+import Fl4Proofs.P3.XTopJointRecvIpcLink
 import Fl4Proofs.P3.XTopJointRecvIpcRet
