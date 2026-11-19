@@ -68,6 +68,8 @@ pub struct BootParams {
 pub enum BootError {
     NoMemory,
     TooManyCaps,
+    /// More untypeds than the BootInfo and the l4h 0047 chunk describe.
+    TooManyUntypeds,
 }
 
 /// Word offsets in seL4_BootInfo.
@@ -97,6 +99,11 @@ struct Boot {
     end: u64,
     /// The root CNode overflowed.
     full: bool,
+    /// l4h 0047: kernel address of the extra untyped chunk's header, after
+    /// the backend's chunks; 0 when there is no room for it.
+    extra_ut: u64,
+    /// An untyped was dropped because neither list had room for it.
+    ut_lost: bool,
 }
 
 fn bi_set<S: Store>(s: &mut S, b: &Boot, word: u64, v: u64) {
@@ -145,6 +152,16 @@ fn n_paging(r: Region, bits: u64) -> u64 {
 
 fn arch_n_paging(r: Region) -> u64 {
     n_paging(r, 21).wrapping_add(n_paging(r, 30)).wrapping_add(n_paging(r, 39))
+}
+
+/// Bytes the extra BootInfo reserves for the l4h 0047 chunk: a header and
+/// `EXTRA_UNTYPEDS` 16-byte descriptors.
+fn extra_ut_reserve() -> u64 {
+    if EXTRA_UNTYPEDS > 0 {
+        16 + 16 * EXTRA_UNTYPEDS
+    } else {
+        0
+    }
 }
 
 fn extra_bi_size_bits(len: u64) -> u64 {
@@ -224,21 +241,37 @@ fn create_untypeds_for_region<S: Store>(s: &mut S, b: &mut Boot, device: bool, r
         }
         if size_bits >= bits::MIN_UNTYPED {
             let i = b.slot_pos.wrapping_sub(first);
+            let paddr = if device { start } else { layout::paddr(start) };
+            let desc = size_bits | (if device { 1 << 8 } else { 0 });
             if i < MAX_BOOTINFO_UNTYPEDS {
-                let paddr = if device { start } else { layout::paddr(start) };
                 bi_set(s, b, bi::UNTYPED_LIST + 2 * i, paddr);
-                bi_set(s, b, bi::UNTYPED_LIST + 2 * i + 1, size_bits | (if device { 1 << 8 } else { 0 }));
-                let ptr = if device { layout::pptr(start) } else { start };
-                // Boot untypeds are clean (l4h 0019): RAM is cleared here so
-                // the free index can start at 0.
-                if !device {
-                    clear_dirty(s, start, 1u64 << (size_bits & 63));
-                }
-                provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device });
+                bi_set(s, b, bi::UNTYPED_LIST + 2 * i + 1, desc);
+                provide_untyped(s, b, device, start, size_bits);
+            } else if b.extra_ut != 0 && i - MAX_BOOTINFO_UNTYPEDS < EXTRA_UNTYPEDS {
+                // l4h 0047: the descriptor goes in the extra chunk, after
+                // its 16-byte header.
+                let e = b.extra_ut.wrapping_add(16).wrapping_add((i - MAX_BOOTINFO_UNTYPEDS).wrapping_mul(16));
+                s.write(e, paddr);
+                s.write(e.wrapping_add(8), desc);
+                provide_untyped(s, b, device, start, size_bits);
+            } else if EXTRA_UNTYPEDS > 0 {
+                b.ut_lost = true;
             }
         }
         start = start.wrapping_add(1u64 << (size_bits & 63));
     }
+}
+
+/// The cap for the untyped at `start` (a kernel address for RAM, physical
+/// for devices).
+fn provide_untyped<S: Store>(s: &mut S, b: &mut Boot, device: bool, start: u64, size_bits: u64) {
+    let ptr = if device { layout::pptr(start) } else { start };
+    // Boot untypeds are clean (l4h 0019): RAM is cleared here so the free
+    // index can start at 0.
+    if !device {
+        clear_dirty(s, start, 1u64 << (size_bits & 63));
+    }
+    provide_cap(s, b, Cap::Untyped { ptr, size_bits, free_index: 0, is_device: device });
 }
 
 /// l4h 0019: clear the pages of [start, start + len) that hold a nonzero
@@ -359,6 +392,9 @@ pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootPar
     if r.b.full {
         return Err(BootError::TooManyCaps);
     }
+    if r.b.ut_lost {
+        return Err(BootError::TooManyUntypeds);
+    }
     Ok(r.tcb)
 }
 
@@ -398,7 +434,8 @@ fn root_layout(p: &BootParams) -> RootLayout {
     let ipcbuf_vptr = ui_v_end;
     let bi_frame_vptr = ipcbuf_vptr.wrapping_add(4096);
     let extra_bi_vptr = bi_frame_vptr.wrapping_add(4096);
-    let ebits = extra_bi_size_bits(p.extra_bi_len);
+    // l4h 0047: room for the extra untyped chunk after the backend's.
+    let ebits = extra_bi_size_bits(p.extra_bi_len.wrapping_add(extra_ut_reserve()));
     let ebytes = if ebits > 0 { 1u64 << (ebits & 63) } else { 0 };
     let it = Region { start: ui_v_start, end: extra_bi_vptr.wrapping_add(ebytes).wrapping_add(4095) & !4095 };
     let cnode_bits = ROOT_CNODE_BITS + bits::SLOT;
@@ -417,8 +454,21 @@ fn rootserver_objects<S: Store>(s: &mut S, p: &mut BootParams) -> Result<Root, B
         Some(x) => x,
         None => return Err(BootError::NoMemory),
     };
-    let mut b = Boot { root_cnode: 0, slot_pos: 0, bi_frame: 0, next: start, end: start.wrapping_add(l.total), full: false };
+    let mut b = Boot {
+        root_cnode: 0,
+        slot_pos: 0,
+        bi_frame: 0,
+        next: start,
+        end: start.wrapping_add(l.total),
+        full: false,
+        extra_ut: 0,
+        ut_lost: false,
+    };
     let extra_bi = alloc_root_objects(s, &mut b, l.ebits, l.cnode_bits);
+    // `Store::write` takes aligned words; `alloc` zeroed the chunk.
+    if EXTRA_UNTYPEDS > 0 && p.extra_bi_len & 7 == 0 {
+        b.extra_ut = extra_bi.wrapping_add(p.extra_bi_len);
+    }
     let pml4 = alloc(s, &mut b, 12, 1);
     let asid_pool = alloc(s, &mut b, 12, 1);
     let ipc_buf = alloc(s, &mut b, 12, 1);
@@ -597,8 +647,19 @@ fn create_untypeds<S: Store>(s: &mut S, b: &mut Boot, p: &BootParams) {
         create_untypeds_for_region(s, b, false, r, first);
         i += 1;
     }
+    // l4h 0047: `untyped` covers the BootInfo's list; the caps described
+    // in the extra chunk follow it, before `empty`.
+    let base_end = first.wrapping_add(MAX_BOOTINFO_UNTYPEDS);
+    let end = if b.slot_pos < base_end { b.slot_pos } else { base_end };
+    let n = if b.slot_pos > base_end { b.slot_pos - base_end } else { 0 };
+    if n > 0 {
+        let len = 16u64.wrapping_add(n.wrapping_mul(16));
+        s.write(b.extra_ut, fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS);
+        s.write(b.extra_ut.wrapping_add(8), len);
+        bi_set(s, b, bi::EXTRA_LEN, p.extra_bi_len.wrapping_add(len));
+    }
     bi_set(s, b, bi::UNTYPED, first);
-    bi_set(s, b, bi::UNTYPED + 1, b.slot_pos);
+    bi_set(s, b, bi::UNTYPED + 1, end);
     bi_set(s, b, bi::EMPTY, b.slot_pos);
     bi_set(s, b, bi::EMPTY + 1, 1u64 << ROOT_CNODE_BITS);
 }

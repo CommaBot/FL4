@@ -388,6 +388,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         let why = match e {
             fl4_core::boot::BootError::NoMemory => "not enough memory",
             fl4_core::boot::BootError::TooManyCaps => "root CNode too small",
+            fl4_core::boot::BootError::TooManyUntypeds => "too many untyped regions",
         };
         kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");

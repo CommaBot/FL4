@@ -1157,6 +1157,13 @@ impl Sim {
     }
 
     fn boot(&mut self) {
+        if self.try_boot(&[]).is_err() {
+            panic!("create_root_task failed");
+        }
+    }
+
+    /// Boot with `more_devices` after the standard device regions.
+    fn try_boot(&mut self, more_devices: &[Region]) -> Result<(), boot::BootError> {
         let image = MEM_BYTES - IMAGE_BYTES;
         let idle_base = pptr(image + (1 << 20));
         let extra = pptr(image + (2 << 20));
@@ -1182,20 +1189,23 @@ impl Sim {
         // A 64-bit BAR far above the kernel window, where physical and
         // pointer alignment differ (GitHub issue #2).
         p.device[1] = Region { start: 0x3800_0000_0000, end: 0x3800_0000_0000 + (1 << 44) };
+        for (i, &r) in more_devices.iter().enumerate() {
+            p.device[2 + i] = r;
+            p.n_device += 1;
+        }
         self.on(0);
         let ks_base = self.s.ks_base;
         self.s.zero(ks_base, ks::SIZE);
         let root = pptr(image + (3 << 20));
         fl4_core::obj::ks_set(&mut self.s, ks::KERNEL_ROOT, root);
-        if boot::create_root_task(&mut self.s, &mut self.a, &mut p).is_err() {
-            panic!("create_root_task failed");
-        }
+        boot::create_root_task(&mut self.s, &mut self.a, &mut p)?;
         sched::schedule(&mut self.s, &mut self.a);
         sched::activate_thread(&mut self.s, &mut self.a);
         let bi = 0x40_0000 + 4 * 4096 + 4096;
         let _ = bi;
         self.next_slot = self.first_empty();
         self.check("boot");
+        Ok(())
     }
 
     /// The first empty slot BootInfo reports (seL4_BootInfo.empty.start).
@@ -2539,6 +2549,101 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Word `w` of the root task's BootInfo frame.
+    fn bi_word(sim: &Sim, w: u64) -> u64 {
+        match sim.root_cnode_slot(rs::BootInfoFrame) {
+            Cap::Frame { ptr, .. } => sim.s.read(ptr + 8 * w),
+            _ => panic!("no BootInfo frame cap"),
+        }
+    }
+
+    /// Kernel address of the extra BootInfo (its first frame).
+    fn extra_bi(sim: &Sim) -> u64 {
+        // seL4_BootInfo.extraBIPages.start
+        match sim.root_cnode_slot(bi_word(sim, 15)) {
+            Cap::Frame { ptr, .. } => ptr,
+            _ => panic!("no extra BootInfo frame"),
+        }
+    }
+
+    /// Device regions that split into many untypeds: `n` regions of
+    /// 256 MiB less 16 bytes at each end, each 46 blocks of 16 B to 64 MiB.
+    fn fragmented(n: u64) -> Vec<Region> {
+        (0..n)
+            .map(|k| {
+                let base = 0x3900_0000_0000 + (k << 30);
+                Region { start: base + 16, end: base + (1 << 28) - 16 }
+            })
+            .collect()
+    }
+
+    /// l4h 0047: untypeds past the BootInfo's 230 keep their caps after
+    /// `untyped.end`, described by an extra BootInfo chunk (ID 10).
+    #[test]
+    fn x86_extra_untypeds_spill_into_extra_bootinfo() {
+        let mut sim = Sim::new(BOOT_SEED, 1);
+        assert!(sim.try_boot(&fragmented(6)).is_ok());
+        // seL4_BootInfo word offsets: extraLen 0, empty 5, untyped 21,
+        // untypedList 23.
+        let (ut_start, ut_end, empty) = (bi_word(&sim, 21), bi_word(&sim, 22), bi_word(&sim, 5));
+        assert_eq!(ut_end - ut_start, boot::MAX_BOOTINFO_UNTYPEDS);
+        let total = (ut_start..).take_while(|&i| matches!(sim.root_cnode_slot(i), Cap::Untyped { .. })).count() as u64;
+        assert!(total > boot::MAX_BOOTINFO_UNTYPEDS && total <= boot::MAX_BOOTINFO_UNTYPEDS + 256, "{total} untypeds");
+        assert_eq!(empty - ut_start, total);
+        let n = total - boot::MAX_BOOTINFO_UNTYPEDS;
+        // The sim's backend has no records, so the chunk is at offset 0.
+        let chunk = extra_bi(&sim);
+        assert_eq!(sim.s.read(chunk), fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS);
+        assert_eq!(sim.s.read(chunk + 8), 16 + 16 * n);
+        assert_eq!(bi_word(&sim, 0), 16 + 16 * n);
+        let mut ram = 0;
+        for j in 0..n {
+            let paddr = sim.s.read(chunk + 16 + 16 * j);
+            let d = sim.s.read(chunk + 24 + 16 * j);
+            match sim.root_cnode_slot(ut_end + j) {
+                Cap::Untyped { ptr, size_bits, is_device, .. } => {
+                    assert_eq!(layout::pptr(paddr), ptr, "descriptor {j}");
+                    assert_eq!(d, size_bits | (is_device as u64) << 8, "descriptor {j}");
+                    if !is_device {
+                        ram += 1;
+                    }
+                }
+                _ => panic!("slot {} is not an untyped", ut_end + j),
+            }
+        }
+        // Device untypeds come first, so the free RAM is all in the spill.
+        assert!(ram > 0);
+        // The base list still describes the first 230.
+        for j in 0..boot::MAX_BOOTINFO_UNTYPEDS {
+            match sim.root_cnode_slot(ut_start + j) {
+                Cap::Untyped { ptr, size_bits, is_device, .. } => {
+                    assert_eq!(layout::pptr(bi_word(&sim, 23 + 2 * j)), ptr);
+                    assert_eq!(bi_word(&sim, 24 + 2 * j), size_bits | (is_device as u64) << 8);
+                }
+                _ => panic!("slot {} is not an untyped", ut_start + j),
+            }
+        }
+    }
+
+    /// More untypeds than both lists hold fail boot.
+    #[test]
+    fn x86_extra_untypeds_overflow_fails_boot() {
+        let mut sim = Sim::new(BOOT_SEED, 1);
+        assert!(matches!(sim.try_boot(&fragmented(12)), Err(boot::BootError::TooManyUntypeds)));
+    }
+
+    /// Without overflow BootInfo is as before: no chunk, `extraLen` 0.
+    #[test]
+    fn x86_extra_untypeds_absent_without_overflow() {
+        let sim = booted(1);
+        let (ut_start, ut_end, empty) = (bi_word(&sim, 21), bi_word(&sim, 22), bi_word(&sim, 5));
+        assert!(ut_end - ut_start < boot::MAX_BOOTINFO_UNTYPEDS);
+        assert_eq!(empty, ut_end);
+        assert_eq!(bi_word(&sim, 0), 0);
+        let chunk = extra_bi(&sim);
+        assert_eq!((sim.s.read(chunk), sim.s.read(chunk + 8)), (0, 0));
+    }
 
     /// GitHub issue #6: an attempt polls an interrupt at a preemption point
     /// and aborts; the rerun reaches no preemption point. The interrupt is
