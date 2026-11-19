@@ -27,7 +27,7 @@ is linked to another thread** (`take_reply`'s `cancel_ipc`, l4v
   ready queues kept by `cancelOther_keep`, the reply free by
   `cancelOther_reply`); `jRecvIpcHypL_of`: XTopJointDispatch's `JRecvIpcHyp`
   from `JRecvSendHyp` alone; `dispatch_recvJL`: the receiving syscalls with
-  it (supersedes XTopJointRecvIpc's `dispatch_recvJR` / `JRecvIpcRestHyp`).
+  it (supersedes the former `dispatch_recvJR` / `JRecvIpcRestHyp`).
 -/
 import Fl4Proofs.P3.XTopJointRecvIpc
 import Fl4Proofs.P3.XTopJointRecvSendRet
@@ -420,7 +420,7 @@ def JRecvSendHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄
 
 set_option maxHeartbeats 4000000 in
-/-- **`receive_ipc` at `J` with a null or free reply** (`jRecvIpcHyp_of`'s
+/-- **`receive_ipc` at `J` with a null or free reply** (the former `jRecvIpcHyp_of`'s
 case split, the waiting sender from `JRecvSendHyp`). -/
 theorem jRecvIpcU_of (hZ : XferHZ L AR Z) (hS : JRecvSendHyp (L := L) arI AR Z.th) (hAT : P0.ArchTotal arI) {s : S} {a : A}
     {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (ht : ct ∈ Z.T)

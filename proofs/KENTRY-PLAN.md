@@ -636,3 +636,37 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   cone after 77d7a27e's JAtZ change) OK; scratch/axkp4.lean (untracked): std axioms only for timestampJH, JHole.toJ,
   JHole.chargeBudgetJ/NJ, JHole.checkBudgetF, restartRunJ, budgetOkF, handle_invocation_refinesJ.
 - HANDOFF (kp4 stopped for context after (a0)/(b)): next is (a) (route above) or the `ppJH` step toward (c).
+## ke12 (branch par/kentry3 in FL4-rb, on 077819cd)
+- (d4') 89ce2da4, new leaf XTopJointXferF: FL4's footprint of the fault transfer uniform in the fault type
+  and the receive buffer (`FW T rw W`; `set_mr_rgW`, `copy_mrs_fault_rgW`, `set_mrs_fault_rgW`,
+  `do_ipc_transfer_fault_rgW`; a timeout only with `scA snd = 0`), `makeFaultMsg_pure` (the spec's message
+  leaves the state unchanged unless timeout-with-SC), `xferFaultStepGJ` = `xferFaultStepJ` for any fault
+  with EpFaultMore's `FaultOK`. `JAtZ.recvSendFJG` / `SendOK` now take any fault with
+  `∀ b, f = .timeout b → xs.tcbSchedContext = none` (RelIfBound for a timeout-faulted sender from its
+  null SC, not `Inv.rd`).
+- (d3, receiver not lending) d36f89fd, new leaf XTopJointRecvSendP: at a resumed entry the receiver has
+  the current SC (`CurInv`), so `reply_push` never donates. `JAtZ.recvSendFPJG` (faulted sender) /
+  `JAtZ.recvSendPJG` (calling, unfaulted; base `Jy` of `xferStepGJ`): FJG/JG up to the fault-word read,
+  then `reply_push_iC` (IRel), P1 `ipc.reply_push.ipc`/`.nd` from the dequeue hole (X = {sender}),
+  `JAtZ.rsfr_postGR` (wake_postGR with `RSFr` as first frame; replies kept by RSFr so no reply fact) at
+  `pushSt σ5 …` where σ5 = the sender-Inactive state of FJG (Inv there as before, `ps_inv`;
+  `updK3_eq` gives pushSt σ3 … = pushSt σ5 …); the reply leaves the dead set first (`JAtZ.undeadC`
+  from `recvCov_of`). Spec: `receiveIpc_sendPush_eq`, `replyPush_don_irrel`. `PushOK`,
+  `JAtZ.recvSendP0X`; XTopJointRecvIpcLink: `RecvSendPushCase`, excluded from `JRecvSendHyp`.
+- Deleted the unused `JRecvIpcRestHyp` / `jRecvIpcHyp_of` / `dispatch_recvJR` (XTopJointRecvIpc).
+- LEFT in `JRecvSendHyp` [W] (l4v receive_ipc send_ep branch):
+  (R1) blocking receiver whose bound ntfn lends it its SC + a pushing sender: after `maybe_return_sc`
+  (XTopJointRecvSendRet's route, J2 has chooseNewThread and the receiver no SC) `reply_push` donates
+  the sender's SC to the CURRENT thread (donor not current: no reschedule; `pushDonJ` assumes the donor
+  is current and the callee Inactive, so a variant `pushDonRJ` is needed; if the sender has no SC or a
+  timeout fault the push does not donate: FPJG/PJG generalised to action = chooseNewThread).
+  (R2) senders with a timeout fault and an SC (Inactive or non-donating push): `xferTmoStepJ` changes
+  the sender's SC consumed word, which RSFr cannot hold; plan as XTopJointFaultTmo's
+  `sendTmoRecvIJ`: a base JAtZ at the state after `update_consumed` (`JAtZ.updConsumedJ`, as
+  `JAtZ.tmoBaseJ` without set_fault), footprints rebased (`writesIn_rebase`), RSFr from that base.
+- Builds: ke12-b2 (d4' cone), ke12-b3 `XTopJointRecvSendP XTopJointRecvIpcLink XTopJointEntry` 5394 jobs OK;
+  scratch/axke12.lean std axioms (handle_invocation_refinesJ, dispatch_recvJL, recvSendFJG, recvSendJX,
+  xferFaultStepGJ, recvSendFPJG, recvSendPJG, recvSendP0X, receiveIpc_sendPush_eq).
+- Station: the FL4-rb mirror had a sync conflict at proofs/Fl4Proofs.lean (ke11's cp workaround left an
+  older copy); fixed by uploading the local file with station_file and cp'ing it into the mirror in a
+  dir-less task, after which dir sync worked.
