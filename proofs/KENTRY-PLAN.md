@@ -504,3 +504,25 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
   (untracked; `AX=<file> sh proofs/scratch/kp1build.sh Mod...` from the mirror root).
 - HANDOFF (kp1 stopped after items 8/9; items 10 and 7 need the current thread's timeout-fault send at J, see
   FINDING above). No premise added; `handle_invocation_refinesJ`'s `hPre` still open (item 7).
+
+## ke11 (branch par/kentry3 in FL4-rb, on 65723946)
+- (d5) blocking receive from a waiting sender whose bound notification lends the receiver its SC: new leaf
+  XTopJointRecvSendRet: spec `receiveIpc_lend_eq` (the receive at σ = the receive at the state after
+  `maybe_return_sc`, a no-op there), `JAtZ.recvSendRetJ` (ke7's route: `receive_ipc_blockR_red`,
+  `JAtZ.maybeReturnJQ` to `J2`, then the sender cases at `J2` on FL4's `recvTail`). For this
+  XTopJointRecvSend's `JAtZ.recvSendJ0` was split into `JAtZ.recvSendJG` (any FL4 program `m` reducing to the
+  endpoint-state switch, `hm`) and `JAtZ.recvPreN` (the reduction for a non-lending bound ntfn).
+- (d4, cap faults, no reply pushed) new leaf XTopJointRecvSendF: `JAtZ.recvSendFJG` (recvSendJG with
+  XTopJointFaultRecv's `xferFaultStepJ` on IRel, frames from σ, `JAtZ.bufRebaseX`, FL4's fault word CapFault
+  takes the call-or-fault branch, sender Inactive); spec `receiveIpc_sendCall_eq` generalised to
+  `call ∨ fault ≠ none` (after the transfer). `SendOK xs rc` (unfaulted as before, or cap-faulted with
+  neither grant right or rc = Null), `JAtZ.recvSendJX` / `recvSendJ0X` dispatch. `RecvSendBasicCase` now:
+  bound none or non-active (any lending), head sender `SendOK`.
+- Builds: ke11-b6/b7 `XTopJointRecvSendRet XTopJointRecvIpcLink XTopJointEntry` 5390 jobs OK; scratch/axke11.lean:
+  std axioms for handle_invocation_refinesJ, dispatch_recvJL, recvSendRetJ, recvSendFJG, recvSendJX,
+  receiveIpc_lend_eq. (station_task `dir` sync wedged this run; workaround: upload files with station_file to
+  `ke11up/` under a prepared key and `cp` them into `FL4-rb/` in a dir-less task.)
+- LEFT in `JRecvSendHyp` [W]: (d3) the head sender pushing a reply (calling or faulted, grant/grant-reply,
+  reply cap non-null: `reply_push sender cur reply can_donate`), and (d4') senders with a fault other than a
+  cap fault (needs footprint lemmas like XTopJointFaultRecv's `do_ipc_transfer_capF_rg/_rgB` for the other
+  fault messages, EpFaultNone/EpFaultMore give the IRel level for all kinds; then `recvSendFJG` generalised).
