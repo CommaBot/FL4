@@ -670,3 +670,43 @@ Lead decisions taken: M3 = Ext defs; M1 = option (a); M4 [P]; M2 out of scope; M
 - Station: the FL4-rb mirror had a sync conflict at proofs/Fl4Proofs.lean (ke11's cp workaround left an
   older copy); fixed by uploading the local file with station_file and cp'ing it into the mirror in a
   dir-less task, after which dir sync worked.
+
+## ke13 (branch par/kentry3 in FL4-rb, on d8ed0bbb = int/r2m ba3cf690 + ke12)
+- (0) 5a8294c3: integration fix. `JAtZ.rsfr_postGR` (XTopJointRecvSendP) takes the second frame's
+  `hfk1 : IpcFrKeep σa σ'` (gl13's `cs_frameI` argument), `F.ipcFr.trans hfk1` at `cs_frameI`, callers
+  pass `ps_ipcFr hkta hkwa hws`. ke13-b1: `XTopJointRecvSendP XTopJointRecvIpcLink XTopJointEntry`
+  5406 jobs OK. No other receive module needed a change.
+- (R1, sender without an SC) 0ee443a2, new leaf XTopJointRecvSendRP: `JAtZ.recvSendRetPJ` = RecvSendRet's
+  route (`maybeReturnJQ`, `receiveIpc_lend_eq`), covers at the state after by `JAtZ.recvCov_ofW` (TFoot
+  of maybe_return_sc), then `recvSendPJG` / `recvSendFPJG` at J2. Those two now take
+  `hni : σ.curThread ≠ σ.idleThread` and `hAct : action = resumeCurThread ∨ (action = chooseNewThread ∧
+  t ∉ releaseQueue ∧ xs.tcbSchedContext = none)` instead of `Entered σ`: no donation from
+  `xs.sc = none ∨ xt.sc ≠ none` (FL4: `can_donate` false from the sender's SC word 0, or the receiver's
+  SC word ≠ 0; `hPush`/`HH` take `cd = false ∨ scA t ≠ 0`); `hna3` by `actionW_ne_of`; CurInv/CurRunM/ActIdle
+  after by cases (`hcur6`, `hrun6`). `replyPush_don_irrel` takes `xt.sc = none ∨ xd.sc ≠ none`.
+  XTopJointRecvIpcLink: `RecvSendRetPushCase` (blocking, bound ntfn inactive and lending, PushOK sender
+  with no SC), excluded from `JRecvSendHyp`. ke13-b3 `XTopJointRecvSendP XTopJointRecvSendRP
+  XTopJointRecvIpcLink XTopJointEntry` 5408 jobs OK; scratch/axke13.lean std axioms
+  (handle_invocation_refinesJ, dispatch_recvJL, recvSendRetPJ, recvSendFPJG, recvSendPJG, rsfr_postGR,
+  replyPush_don_irrel).
+- LEFT in `JRecvSendHyp` [W]:
+  (R1b) blocking receiver whose bound ntfn lends it its SC, PushOK sender WITH an SC (so no timeout
+  fault): the passive-server call. After maybe_return_sc (J2: action chooseNewThread, receiver current,
+  Running, no SC) FL4's `reply_push sd t rv true` donates sd's SC to t. Spec: `schedContextDonate sc t`
+  with from = sd ≠ cur: `testReschedule sd` is a no-op (action chooseNewThread, not switchThread), so
+  the result is the same `dnSt`/`pdSt` as XTopJointPushDon's `donate_curN_eq` (there `t = cur` sets
+  action := chooseNewThread, which J2 already has): generalise `testReschedule_curN`/`donate_curN_eq`
+  to `hct ∨ σ.schedulerAction = .chooseNewThread`. J side: a `JAtZ.pushDonJ` variant with the donor
+  sd blocked on the reply (not current; `hct`/`hcsc` dropped) and the callee t current Running
+  (instead of `Inactive`, `hsd`); check Inv/BlockedScActive/CurRunM for a Running current thread
+  gaining an active SC (CurInv not needed: action chooseNewThread). Then a FPJG/PJG variant whose
+  `reply_push_iC` `hD` branch calls it (as XTopJointSendPushD:544 / XTopJointFaultRecv:2101), P1 by
+  `ipc.push_don.blk` (caller = sd, callee = t; its hypotheses hold: neither queued, actionW ≠ either).
+  (R2) senders with a timeout fault and an SC (Inactive, or non-donating push; any receiver ntfn
+  case): FL4 order is dequeue, `update_consumed` (SC CONSUMED word) + 2 message registers, then
+  `unblock_sporadic sd` (refills of the same SC). Plan unchanged from ke12: base JAtZ after
+  `update_consumed` (`JAtZ.updConsumedJ`, needs `hmax`/`htu` = JEntryGlob.maxTU/tu, so
+  `jRecvIpcU_of`/`dispatch_recvJL` will take them), FL4 footprints rebased (`writesIn_rebase`),
+  spec shadows as XTopJointFaultTmo's `rhoT`, transfer by `xferTmoStepJ`/`doIpcTransfer_tmo_eq`, then
+  RSFr from that base as recvSendFJG / recvSendFPJG.
+- M5/M6/M7: not started.
