@@ -127,7 +127,7 @@ def JRecvIpcRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
-    JHeld (L := L) th s (.Endpoint p b sd true g gr) →
+    JHeld (L := L) th s (.Endpoint p b sd true g gr) → (∀ q g', rc = .Reply q g' → JHeld (L := L) th s rc) →
     ¬ RecvIpcPollCase (L := L) ct blocking s σ p rc → ¬ RecvIpcActCase (L := L) ct s σ rc →
     ¬ RecvIpcBlock0Case ct blocking σ p rc →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
@@ -162,7 +162,7 @@ theorem jRecvIpcHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.St
     (hni : Entered σ) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p) (blocking : Bool)
     (hW : JRecvIpcRestHyp (L := L) arI AR Z.th ct blocking s a σ) :
     JRecvIpcHyp (L := L) arI AR Z.th ct blocking s a σ := by
-  intro p b sd g gr rc rc' hpE hrc hHd
+  intro p b sd g gr rc rc' hpE hrc hHd hHr
   obtain ⟨xe, hke⟩ := hpE
   obtain ⟨e, he, h⟩ := J.obj.ep _ xe hke
   rw [Sched.bv_inj h] at he
@@ -198,7 +198,7 @@ theorem jRecvIpcHyp_of (hAT : P0.ArchTotal arI) {s : S} {a : A} {σ : Fl4Spec.St
       (rightsOf sd true g gr)
   by_cases hc : RecvIpcPollCase (L := L) ct blocking s σ p rc
   swap
-  · exact hW p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hc hca hcb
+  · exact hW p b sd g gr rc rc' ⟨xe, hke⟩ hrc hHd hHr hc hca hcb
   obtain ⟨rfl, hbn, hns, hrr⟩ := hc
   have hI := J.xtop.irelK J.ks J.buf
   obtain ⟨xt, hkt, -⟩ := hI.1.tcb ct ht

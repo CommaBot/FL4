@@ -231,13 +231,13 @@ abbrev RJ (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State 
 
 /-- **`receive_ipc` at `J`** [W] (KENTRY-PLAN.md item 6; IpcLeaves'
 `recv_ipc_leaf` is at `IRel` only): IpcRecvTopH's `RecvLeavesH.ipc` at `RJ`, the
-endpoint cap held in a slot of `th` (`JHeld`). -/
+endpoint cap and the reply cap (if any) held in slots of `th` (`JHeld`). -/
 def JRecvIpcHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (blocking : Bool) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) : Prop :=
   ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
-    JHeld (L := L) th s (.Endpoint p b sd true g gr) →
+    JHeld (L := L) th s (.Endpoint p b sd true g gr) → (∀ q g', rc = .Reply q g' → JHeld (L := L) th s rc) →
     endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄

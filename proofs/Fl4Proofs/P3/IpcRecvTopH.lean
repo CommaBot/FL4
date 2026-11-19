@@ -24,7 +24,7 @@ structure RecvLeavesH (Hd : capability.Cap → Prop) (Rel : S → A → Fl4Spec.
   ipc : ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
     ((rc = .Null ∧ rc' = .nullCap) ∨
       (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
-    Hd (.Endpoint p b sd true g gr) →
+    Hd (.Endpoint p b sd true g gr) → (∀ q g', rc = .Reply q g' → Hd rc) →
     endpoint.receive_ipc st ar s a ct (.Endpoint p b sd true g gr) blocking rc ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) blocking rc' σ).1,
         Rel r.1 r.2 z.2 ⦄
@@ -120,7 +120,8 @@ theorem handle_recv_refinesH (Rel : S → A → Fl4Spec.State Unit → Prop) (Hd
         simp only [↓reduceIte]
         cases canReply
         · simp only [Bool.false_eq_true, ↓reduceIte]
-          refine WP.spec_mono (hLv.ipc p b sd g gr .Null .nullCap (hob _ rfl).1 (Or.inl ⟨rfl, rfl⟩) (hob _ rfl).2) fun r ⟨z, hz, hR⟩ =>
+          refine WP.spec_mono (hLv.ipc p b sd g gr .Null .nullCap (hob _ rfl).1 (Or.inl ⟨rfl, rfl⟩) (hob _ rfl).2
+            (fun _ _ h => by cases h)) fun r ⟨z, hz, hR⟩ =>
             ⟨z, okb z ?_, hR⟩
           unfold hrBody
           refine mem_bindE_ok hcf ?_
@@ -160,7 +161,8 @@ theorem handle_recv_refinesH (Rel : S → A → Fl4Spec.State Unit → Prop) (Hd
             subst hac1
             cases c1
             case Reply rp' g' =>
-              refine WP.spec_mono (hLv.ipc p b sd g gr _ _ (hob _ rfl).1 (Or.inr ⟨hrel1, rp', g', rfl, (hob1 _ rfl).1⟩) (hob _ rfl).2)
+              refine WP.spec_mono (hLv.ipc p b sd g gr _ _ (hob _ rfl).1 (Or.inr ⟨hrel1, rp', g', rfl, (hob1 _ rfl).1⟩) (hob _ rfl).2
+                (fun _ _ _ => (hob1 _ rfl).2))
                 fun r ⟨z, hz, hR⟩ =>
                 ⟨z, okb z ?_, hR⟩
               unfold hrBody
