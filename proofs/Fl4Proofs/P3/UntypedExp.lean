@@ -62,6 +62,10 @@ structure RetExp (th th' : TypedHeap) (m m' : U64 → U64) (G G' : MdbGhost) (A 
     capV m' xs = .Untyped p0 sb0 fi1 d0 ∧ p0.val ≤ A ∧ A + w * k ≤ p0.val + fi1.val ∧
     A + w * k ≤ p0.val + 2 ^ sb0.val ∧ (p0.val + fi0.val ≤ A ∨ ∀ y, ¬ Mdb.Desc G.par y xs) ∧
     ∀ y ∈ G.chains.flatten, isUt (capV m y) = true → y ≠ xs → capV m' y = capV m y
+  /-- The tree after: the old descendants, and the new caps' slots below the
+  source and its descendants (`RetypeDelta.F3`). -/
+  desc : ∀ y x, Mdb.Desc G'.par y x ↔ Mdb.Desc G.par y x ∨
+    ∃ j, j < w ∧ y = dslot j ∧ (x = xs ∨ Mdb.Desc G.par xs x)
 
 theorem isUt_untyped (p sb fi : U64) (d : Bool) : isUt (.Untyped p sb fi d) = true := rfl
 
@@ -85,7 +89,7 @@ theorem RetypeDelta.toExp (h : RetypeDelta th m0 m1 mf G0 Gf src p sb fi nfi dev
     fun x hx p' sb' fi' d' hcx => ?_, ⟨src, h.hsrc, p, sb, fi, dev, h.hcs, by have := h.hA; omega, h.hAw, Or.inl h.hA⟩, hnc, hth,
     h.F1, fun y hy hu => ?_, ⟨h.hsrc, p, sb, fi, nfi, dev, h.hcs, by rw [h.F2b _ h.hsrc, h.hcs1],
       by have := h.hA; omega, by rw [h.hnfi], h.hAw, Or.inl h.hA,
-      fun y hy _ hys => by rw [h.F2b y hy, h.hc1 y hy hys]⟩⟩
+      fun y hy _ hys => by rw [h.F2b y hy, h.hc1 y hy hys]⟩, h.F3⟩
   · have hys : y ≠ src := by rintro rfl; rw [hsrcU] at hu; cases hu
     exact ⟨h.F1b y hy, by rw [h.F2b y hy, h.hc1 y hy hys]⟩
   · exact (desc_mem hMf ((h.F3 _ src).2 (Or.inr ⟨j, hj, rfl, Or.inl rfl⟩))).1
@@ -152,7 +156,7 @@ theorem RetExp.same_left {th th' : TypedHeap} {m m0 m' : U64 → U64} {G G' : Md
   have hc : ∀ x ∈ G.chains.flatten, capV m0 x = capV m x := fun x hx => hS.capV ((hM.members x).1 hx).1
   refine ⟨h.k1, fun y hy hu => ?_, h.newm, h.newc, h.cphys, h.cbase, h.ctop, fun x hx p sb fi d hcx => ?_, ?_,
     fun hN => h.nclr (hN.of_same hS), h.th,
-    h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu), ?_⟩
+    h.gmem, fun y hy hu => h.utk y hy (by rw [hc y hy]; exact hu), ?_, h.desc⟩
   · rw [← hc y hy] at hu ⊢; exact h.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := h.ut x hx p sb fi d hcx
     exact ⟨x0, hx0, p0, sb0, fi0, d0, by rw [← hc x0 hx0]; exact e, h1, h2⟩

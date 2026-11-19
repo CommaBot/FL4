@@ -91,7 +91,7 @@ theorem RetExp.of_reset (hM : MdbLinks th m G) (hP : Placed th) (hN : NoStraddle
     ((hM.members z).1 hz).1.restrict hP hN (hns z hz)
   have hc : ∀ z ∈ G.chains.flatten, z ≠ x → capV m1 z = capV m z := fun z hz hzx => hF z (hsl z hz) hzx
   refine ⟨hE.k1, fun y hy hu => ?_, hE.newm, hE.newc, hE.cphys, hE.cbase, hE.ctop, fun z hz p' sb' fi' d' hcz => ?_,
-    ?_, fun hNc => hE.nclr (hNc.reset hcv1 hF hLk), fun q kd hq => ?_, hE.gmem, fun y hy hu => ?_, ?_⟩
+    ?_, fun hNc => hE.nclr (hNc.reset hcv1 hF hLk), fun q kd hq => ?_, hE.gmem, fun y hy hu => ?_, ?_, hE.desc⟩
   · have hyx : y ≠ x := by rintro rfl; rw [hcv] at hu; cases hu
     rw [← hc y hy hyx] at hu ⊢; exact hE.keep y hy hu
   · obtain ⟨x0, hx0, p0, sb0, fi0, d0, e, h1, h2⟩ := hE.ut z hz p' sb' fi' d' hcz
@@ -133,7 +133,8 @@ theorem RetExp.reset_only (hM : MdbLinks th m G) (hP : Placed th) (hN : NoStradd
     fun hNc => hNc.reset hcv1 hF hLk,
     fun q kd hq => Or.inl ⟨(restrictTh_some hq).1, fun ⟨j, hj, _⟩ => absurd hj (by omega)⟩,
     fun z hz => Or.inl hz, fun y hy hu => ?_,
-    ⟨hx, p, sb, fi, f, dev, hcv, hcv1, le_refl _, by simp, by simp, Or.inr hnd, fun y hy _ hyx => hc y hy hyx⟩⟩
+    ⟨hx, p, sb, fi, f, dev, hcv, hcv1, le_refl _, by simp, by simp, Or.inr hnd, fun y hy _ hyx => hc y hy hyx⟩,
+    fun y z => ⟨Or.inl, fun h => h.elim id (fun ⟨j, hj, _⟩ => absurd hj (by omega))⟩⟩
   · have hyx : y ≠ x := by rintro rfl; rw [hcv] at hu; cases hu
     exact ⟨hy, hc y hy hyx⟩
   · by_cases hzx : z = x
