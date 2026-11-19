@@ -482,6 +482,10 @@ import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtDropSets
 import Fl4Proofs.P3.UtDropSpec
 import Fl4Proofs.P3.UtDropX
+import Fl4Proofs.P3.UtPmAdd
+import Fl4Proofs.P3.UtPmCont
+import Fl4Proofs.P3.UtPmKeep
+import Fl4Proofs.P3.UtPmRet
 import Fl4Proofs.P3.XTopJointSendRecv
 import Fl4Proofs.P3.XTopJointSendBlockG
 import Fl4Proofs.P3.XTopJointSendCall

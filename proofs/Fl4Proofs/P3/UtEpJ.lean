@@ -196,10 +196,11 @@ from `JAtZ` at the decode (no switch pending) and after the restart, a CNode
 slot's RAM untyped cap, the creation's `RetExp` over a window `[A0, A0 + w * k)`
 of objects of type `n` (no TCB; an SC of at least the minimum size: endpoints,
 notifications, replies, SCs, VSpace tables, frames, untypeds; the new caps no
-untyped caps when the type has `H` objects), its slot-word frame and zero window: P1's heap after (`HOut` over
+untyped caps when the type has `H` objects), its frame (slot words, and the window's words when `pml4`: the new PML4s'
+kernel half) and zero window: P1's heap after (`HOut` over
 the window), `BlkOK` and `JCovD` after (the window's objects dead,
 `retype_window_dead`, and unreferenced, `RegionUnrefJ` [J]). -/
-theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.create_noresetW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     {s1 : S} {σ1 : Fl4Spec.State Unit} {Ac1 : Set U64} {Lst1 : U64 → List U64} {D1 : Set U64}
@@ -214,11 +215,11 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G G' A0 k w dslot cj (cslotAddr (pp.bv, idx)))
     {n us : Nat} (hcjU : newKind n us ≠ none → ∀ j, j < w → isUt (cj j) = false)
     (hn : n ≠ 1 ∧ (n = 5 → 7 ≤ us)) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
-    {T pml4 : Prop} (hT : ¬ T) (hP4 : ¬ pml4)
+    {T pml4 : Prop} (hT : ¬ T)
     (hW : WFrame (L := L) s1 s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)
       (L.mem s1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
       (pml4 ∧ A0 ≤ v.val ∧ v.val < A0 + w * k)))
-    (hWZ : WinZero (L.mem s') A0 k w T) (hidl : IdleKeep (L := L) s s') :
+    (hWZ : (∀ z, newKind n us ≠ some (.other z)) → WinZero (L.mem s') A0 k w T) (hidl : IdleKeep (L := L) s s') :
     ∃ (H' : Heap) (Ac' : Set U64),
       BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
         (Heap.ntfns H') (Heap.scBits H') Ac' s' ∧
@@ -295,7 +296,7 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
   have hn1 : n ≠ 1 := hn.1
   have hdbg : DbgLinksOK st H Cs s' A0 (A0 + w * k) A0 k w n := by
     refine dbgLinks_nonTcb hn1 hdrop hTm hW (fun v hv => ?_) (fun y hy => ?_) (fun c hc => ?_)
-    · rcases hv with (⟨hT', -⟩ | hsl) | ⟨hp4', -, -⟩
+    · rcases hv with (⟨hT', -⟩ | hsl) | ⟨-, hv1, hv2⟩
       · exact absurd hT' hT
       · obtain ⟨o1, o2⟩ := hsoff v hsl
         refine ⟨fun y hy _ => o1 y hy, fun c hc e => ?_⟩
@@ -304,7 +305,19 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
         rw [e, hv0] at this
         have : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
         omega
-      · exact absurd hp4' hP4
+      · refine ⟨fun y hy hyD => ?_, fun c hc e => ?_⟩
+        · have hy' : H y = some .tcb := hy
+          have hdn : (dnA y).val = y.val + 3576 := tcb_word J.kern.heap hy (by simp)
+          have hdp : (dpA y).val = y.val + 3584 := tcb_word J.kern.heap hy (by simp)
+          refine ⟨fun e => hyD ?_, fun e => hyD ?_⟩ <;>
+            (unfold RegionD MeetsR; rw [hy']; simp only [Option.elim, HKind.bits, Nat.reducePow]; subst e; omega)
+        · have hv0 := nodeAt_val (hTm.npl c hc) (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
+          have h4 : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
+          have hc2 := hk2 c hc
+          have hnc := hnb c
+          subst e
+          rw [hv0, hnc] at hv1 hv2
+          rcases hc2 with h | h <;> omega
     · have hal := J.kern.heap.align y .tcb hy
       simp only [HKind.bits] at hal
       have hdn : (dnA y).val = y.val + 3576 := tcb_word J.kern.heap hy (by simp)
@@ -322,7 +335,7 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
     fun hne => (hTm.dh _ J.kern.cs0).resolve_left hne
   obtain ⟨H', Ac', hb', hkeep, hshape, hnew, hdead'⟩ := creation_step (n := n) (us := us) hb1
     (fun kd h => (hkd kd h).le) hdrop hRON hdbg hwp hW hP hSC J.kern.cs0 hh0 (fun h => absurd h hT) hfitW
-    (fun _ _ w0 hw0 h1 h2 => Or.inl ((hWZ w0 hw0 h1 h2).resolve_right (fun h => hT h.1))) (fun h => absurd h hn1)
+    (fun _ hz w0 hw0 h1 h2 => Or.inl ((hWZ hz w0 hw0 h1 h2).resolve_right (fun h => hT h.1))) (fun h => absurd h hn1)
   have hout : HOut H H' A0 (A0 + w * k) A0 k w (newKind n us) :=
     hOut_of_steps hk1 le_rfl le_rfl (Or.inl ⟨rfl, rfl, rfl⟩) hkeep hshape hnew
   -- deadness kept by the restart
@@ -357,6 +370,34 @@ theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
       · exact hdead' q (hq'.trans h1.symm) (hdk q kd hHq hd)
       · exact absurd (hnewQ q hna' (by rw [hk'']; simp)) hnq
 
+
+/-- `JAtZ.create_noresetW` for a type other than PML4 (its frame slot words only). -/
+theorem JAtZ.create_noresetG {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    {s1 : S} {σ1 : Fl4Spec.State Unit} {Ac1 : Set U64} {Lst1 : U64 → List U64} {D1 : Set U64}
+    (J1 : JAtZ (L := L) arI AR Z H Cs Ac1 Lst1 D1 s1 ar σ1)
+    (hs1 : sched.set_thread_state st s (L.curW s) sched.TS_RESTART = ok s1)
+    (hct1 : σ1.curThread = σ.curThread) (hcsc1 : σ1.curSc = σ.curSc) (hid1 : σ1.idleThread = σ.idleThread)
+    (hisc1 : σ1.idleSc = σ.idleSc) (hns1 : ∀ u, σ1.schedulerAction = .switchThread u → False)
+    (hRU : RegionUnrefJ (L := L) arI H Cs)
+    {pp : U64} {rs : Nat} {idx : List Bool} (hpp : Z.th pp = some (.cnode rs)) (hidx : idx.length = rs)
+    {p sb fi : U64} (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    {s' : S} {th' : TypedHeap} {G' : MdbGhost} {A0 k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap}
+    (hE : RetExp Z.th th' (L.mem s) (L.mem s') Z.G G' A0 k w dslot cj (cslotAddr (pp.bv, idx)))
+    {n us : Nat} (hcjU : newKind n us ≠ none → ∀ j, j < w → isUt (cj j) = false)
+    (hn : n ≠ 1 ∧ (n = 5 → 7 ≤ us)) (hk : k = 2 ^ zOf n us) (hAk : A0 % k = 0)
+    {T pml4 : Prop} (hT : ¬ T) (_hP4 : ¬ pml4)
+    (hW : WFrame (L := L) s1 s' (fun v => ((T ∧ TcbLoopW Z.th A0 w (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)
+      (L.mem s1 (L.nodeAt s1 0#u64 layout.node.DEBUG_TCBS)) v) ∨ SlotSpan Z.th v) ∨
+      (pml4 ∧ A0 ≤ v.val ∧ v.val < A0 + w * k)))
+    (hWZ : WinZero (L.mem s') A0 k w T) (hidl : IdleKeep (L := L) s s') :
+    ∃ (H' : Heap) (Ac' : Set U64),
+      BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
+        (Heap.ntfns H') (Heap.scBits H') Ac' s' ∧
+      HOut H H' A0 (A0 + w * k) A0 k w (newKind n us) ∧
+      JCovD (L := L) th' H' G' {q | q ∈ D ∧ ¬ NewQ A0 k w cj q} Cs s' :=
+  J.create_noresetW hni J1 hs1 hct1 hcsc1 hid1 hisc1 hns1 hRU hpp hidx hcap hE hcjU hn hk hAk hT hW (fun _ => hWZ) hidl
 
 /-- `JAtZ.create_noresetG` with no new untyped cap. -/
 theorem JAtZ.create_noreset {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
