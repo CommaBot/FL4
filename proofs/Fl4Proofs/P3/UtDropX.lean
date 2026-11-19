@@ -190,9 +190,12 @@ theorem XTopAt.dropB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : 
   rw [restrictTh_out (by rw [← rgOf_iff hsb hfit t, h1]; exact hK.cur.1)]
   exact h2
 
-/-- The IPC-buffer words kept by the detype: their bytes off the region. -/
+/-- The IPC-buffer words kept by the detype: their spec bytes off the
+region, and their FL4 word off it (the reset then clears the region, which
+no kept word reads). -/
 def KBOf (p sb : U64) : U64 × Fl4Spec.Word → Prop :=
-  fun wp => ∀ i ∈ Fl4Spec.intUpto 0 7, ¬ RgOf p sb (wp.2 + (7 - BitVec.ofInt 64 i))
+  fun wp => (∀ i ∈ Fl4Spec.intUpto 0 7, ¬ RgOf p sb (wp.2 + (7 - BitVec.ofInt 64 i))) ∧
+    (wp.1.val + 8 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ wp.1.val)
 
 theorem loadWordAt_off {um um' : Fl4Spec.Word → Fl4Spec.Word8} {p : Fl4Spec.Word}
     (h : ∀ i ∈ Fl4Spec.intUpto 0 7, um' (p + (7 - BitVec.ofInt 64 i)) = um (p + (7 - BitVec.ofInt 64 i))) :
@@ -225,7 +228,7 @@ theorem XTopAt.drop {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a : A
   have hin : ∀ q : U64, p.val ≤ q.val → q.val < p.val + 2 ^ sb.val → RgOf p sb q.bv := fun q h1 h2 =>
     (rgOf_iff hsb hfit q).2 ⟨h1, h2⟩
   exact (hX1'.dropB hsb hfit hD hK hcdt horig hrepr hcdom hdtime hist hinode harch hdl hdsi
-    (fun wp hw => loadWordAt_off fun i hi => hum _ (hw.2 i hi))
+    (fun wp hw => loadWordAt_off fun i hi => hum _ (hw.2.1 i hi))
     (fun q h1 h2 => ⟨fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2),
       fun h => h.2 (hin q h1 h2), fun h => h.2 (hin q h1 h2)⟩)
     hU hx hcx hnd hN hns hXP hX4 hX3 hX2 hX1 hM).1
