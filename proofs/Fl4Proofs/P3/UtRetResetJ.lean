@@ -285,6 +285,27 @@ theorem utEp_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64
   fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU =>
     J.utEpBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
 
+/-- UtScRet's `JAtZ.utScBodyJ` as `UtBodyHyp` (SCs). -/
+theorem utSc_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
+    {r : Nat} {fiv : U64} (hnt : nt.val = 5) :
+    UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
+  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU =>
+    J.utScBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
+
+/-- UtUtRet's `JAtZ.utUtBodyJ` as `UtBodyHyp` (untypeds). -/
+theorem utUt_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
+    {r : Nat} {fiv : U64} (hnt : nt.val = 0) :
+    UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
+  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU =>
+    J.utUtBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
+
+/-- UtPmRet's `JAtZ.utPmBodyJ` as `UtBodyHyp` (PML4s). -/
+theorem utPm_bodyHyp {pp : U64} {idx : List Bool} {p sb nt us dest off win : U64} {t : Fl4Spec.ApiObjectType}
+    {r : Nat} {fiv : U64} (hnt : nt.val = 8) :
+    UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv :=
+  fun _ _ _ _ _ _ _ _ _ J hni _ hpp hidx _ hcap hc0 _ hctx hfiv hBO hAF hRU =>
+    J.utPmBodyJ hni hpp hidx hcap hnt hc0 hctx hfiv hBO hAF hRU
+
 set_option maxHeartbeats 8000000 in
 /-- **The retype with a reset at `J`** (module docstring). -/
 theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -503,6 +524,77 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       fun _ _ _ => ⟨hK _, hK _, hK _, hK _, hK _⟩, fun _ _ => ⟨hK _, hK _, hK _⟩⟩
   exact WP.spec_mono (hB _ _ Cs Ac2 Lst2 D2 s2 a2 σ2 J2 hni2 rs hpp2 hidx 0#u64 hcap2 hc0 true hctx2 hfiv0 hBO2 hAF2
     hRU2) (fun res h => utRetPostJ_of_reset hst1 hmem h)
+
+
+variable (arI) in
+/-- **[W] The retype of a RAM untyped at `J`, outside the proved types**
+(UtEpRet's `JUtRetHypR` narrowed by the reset): asked only of an object type
+other than endpoints, notifications, replies, PDPTs, page tables, page
+directories, frames (UtEpRet's `JAtZ.utEpJ`), untypeds (UtUtRet's
+`JAtZ.utUtJ`), SCs (UtScRet's `JAtZ.utScJ`) and PML4s (UtPmRet's
+`JAtZ.utPmJ`), with or without a reset (`JAtZ.utResetJ`), and CNodes
+without a reset (UtCnRet's `JAtZ.utCnJ`): TCBs (1), CNodes (4) with a reset
+(handoff/utj.md gap K9, par/uttypes) and the VCPU/EPT types
+(14..18, also `JUtPath.vtx` [scope]). l4v: `invoke_untyped_corres` with
+`invoke_untyped_invs`. -/
+def JUtRetHypR2 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (sl : Fl4Spec.CslotPtr) (p sb fi ct : U64) (blk call don : Bool) (argsU : List U64) : Prop :=
+  ∀ (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat) (reset : Bool) (fiv : U64),
+    argsU.head? = some nt → RetCtx (L := L) th s σ sl sb fi false nt us dest off win t r reset fiv →
+    (nt.val ≠ 2 ∧ nt.val ≠ 3 ∧ nt.val ≠ 6 ∧ nt.val ≠ 7 ∧ nt.val ≠ 12 ∧ nt.val ≠ 13 ∧
+      nt.val ≠ 9 ∧ nt.val ≠ 10 ∧ nt.val ≠ 11 ∧ nt.val ≠ 0 ∧ nt.val ≠ 5 ∧ nt.val ≠ 8) →
+    (nt.val = 4 → reset = true) →
+    (do
+      let s2 ← sched.set_thread_state st s ct sched.TS_RESTART
+      untyped.retype st arI s2 ar (cslotAddr sl) reset ⟨Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)⟩ nt us
+        dest off win false) ⦃ res =>
+      UtRetPostJ (L := L) arI AR σ blk call don (.retype sl reset p.bv
+        (Fl4Spec.alignUp (p.bv + fiv.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false)
+        res ⦄
+
+/-- **`JUtRetHypR` from its narrowed form**: the reset retypes of the proved
+types by `JAtZ.utResetJ` with their bodies (`utEp_bodyHyp`, `utUt_bodyHyp`,
+`utSc_bodyHyp`, `utPm_bodyHyp`), the rest `JUtRetHypR2` [W]. Premises of the
+reset: `PPPlat`, `resetChunkBits = 16` [P], `hRd0` [J], `VsReachMiss` [J] at
+the restart's state (no extra roots), `ArchFitHyp`/`RegionUnrefJ` [J]. -/
+theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct) {sl : Fl4Spec.CslotPtr}
+    (hsl : ∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi false))
+    (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefJ (L := L) arI H Cs) (hc0 : Z.c = 0#u64)
+    (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hrcb : Fl4Spec.resetChunkBits = 16)
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+      Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅)
+    {blk call don : Bool} {argsU : List U64}
+    (hR : JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU) :
+    JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU := by
+  intro nt us dest off win t r reset fiv hh hctx hcase
+  by_cases hcov : nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨
+      nt.val = 10 ∨ nt.val = 11 ∨ nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8
+  · have hrs : reset = true := by
+      rcases hcase with h | h
+      · exact h
+      · exfalso; omega
+    subst hrs
+    obtain ⟨sl1, idx⟩ := sl
+    obtain ⟨pp, hp1, hpp⟩ := hsl
+    dsimp only at hp1 hpp
+    subst hp1
+    have hB : UtBodyHyp (L := L) arI AR pp idx p sb nt us dest off win t r fiv := by
+      rcases (show (nt.val = 2 ∨ nt.val = 3 ∨ nt.val = 6 ∨ (nt.val = 7 ∨ nt.val = 12 ∨ nt.val = 13 ∨ nt.val = 9 ∨
+          nt.val = 10 ∨ nt.val = 11)) ∨ nt.val = 0 ∨ nt.val = 5 ∨ nt.val = 8 by omega) with h | h | h | h
+      · exact utEp_bodyHyp h
+      · exact utUt_bodyHyp h
+      · exact utSc_bodyHyp h
+      · exact utPm_bodyHyp h
+    exact J.utResetJ hni hct hpp rfl hcap hc0 hctx hBO hAF hRU hAK hA hnd hPP hrcb hRd0 hVM hB blk call don
+  · refine hR nt us dest off win t r reset fiv hh hctx (by omega) (fun h4 => ?_)
+    rcases hcase with h | h
+    · exact h
+    · exfalso; omega
 
 end Comp
 

@@ -651,6 +651,57 @@ theorem retype_body {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHea
       fun _ => winZero_of_slots hWf hzA hsl _, fun hT => absurd (objTypeOf_tcb (hT ▸ ht)) hn1⟩,
      fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
 
+/-- **The PML4 retype without a reset from any state** (`retype_full_pml4` as
+`RetPostB`; `retype_cont_pml4R` after the restart): the new PML4s' kernel half
+written, the global PML4 a spec PML4 off the region. -/
+theorem retype_body_pml4 {A' : Type} (arI : machine.Arch A') (ar : A') (th : TypedHeap) (s : S)
+    (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) (hP : Placed th)
+    (hM : MdbLinks th (L.mem s) G) (hC : CdtRel th (L.mem s) σ G) (hI : MdbInv (L.mem s) G)
+    (hU : UtInv (L.mem s) G) (horig : ∀ sl, σ.isOriginalCap sl = true → AbsSlot th sl)
+    {pp : U64} {rs : Nat} (hpp : th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
+    {p sb fi : U64}
+    (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb fi false))
+    (hpal : p.val % 2 ^ sb.val = 0) (hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64) (hfi : fi.val ≤ 2 ^ sb.val)
+    (hhigh : 2 ^ 64 - 2 ^ 47 ≤ p.val)
+    (hfree : RegionFree th (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (hzero : ZeroRegion (L.mem s) (p.val + fi.val) (p.val + 2 ^ sb.val))
+    (bitsApi : Fl4Spec.ApiObjectType → Nat → Nat)
+    (nt us dest off win : U64) (t : Fl4Spec.ApiObjectType) (r : Nat)
+    (ht : objTypeOf nt.val = some t) (hn8 : nt.val = 8) (hus : us.val < 64)
+    (hdest : th dest = some (.cnode r)) (hr : r < 64)
+    (hwin : off.val + win.val ≤ 2 ^ r) (hw1 : 1 ≤ win.val)
+    (hmem : win.val ≤ ((1#64 <<< sb.val : BitVec 64) - fi.bv).toNat >>> zOf nt.val us.val)
+    (hempty : ∀ i : Nat, off.val ≤ i → i < off.val + win.val →
+      capAt (L.mem s) (slotAddr dest.bv (BitVec.ofNat 64 i)) = ok .Null)
+    (hb : bitsApi t us.val = zOf nt.val us.val)
+    (hgpm : HasPm σ σ.archState.x64GlobalPml4) (hga : σ.archState.x64GlobalPml4.toNat % 4096 = 0)
+    (hgf : σ.archState.x64GlobalPml4.toNat + 4096 ≤ 2 ^ 64)
+    (hgreg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val)) :
+    untyped.retype st arI s ar (cslotAddr (pp.bv, idx)) false
+      ⟨Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)⟩ nt us dest off win false ⦃ res =>
+      RetPostB (L := L) th (L.mem s) G σ ar arI s bitsApi (L.ksb s) (.retype (pp.bv, idx) false p.bv
+        (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)) t us.val (windowSlots dest r off.val win.val) false) res ⦄ := by
+  have htP : t = .archObject .pml4Obj := by
+    have := ht; rw [hn8] at this; simpa [objTypeOf, Fl4Spec.archDataToObjType] using this.symm
+  have hsb : sb.val < 64 := capAt_untyped_inv hcap
+  have hfull := retype_full_pml4 (L := L) arI ar th s σ G hR hV hP hM hC hI hU horig hpp hidx hcap hpal hpfit
+    hfi hhigh nt us _ ht hn8 hus hdest hr off win hwin hw1 hmem hempty hfree hzero bitsApi (by rw [← htP]; exact hb) hgpm
+    hga hgf hgreg rfl
+  rw [← htP] at hfull
+  have hWA2 : (Fl4Spec.alignUp (p.bv + fi.bv) (zOf nt.val us.val)).toNat % 2 ^ zOf nt.val us.val = 0 :=
+    (retype_region p fi sb.val (zOf nt.val us.val) win.val hsb (by simp [zOf, hn8]) hpal hpfit hfi hw1 hmem).2.1
+  refine WP.spec_mono hfull ?_
+  rintro res ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', ⟨hU', hSt'⟩, -, hFin, hks, hWf, A, k, w,
+    dslot, cj, hE, rfl, rfl, rfl, hnu, hthx, hcjE, hdsC⟩
+  exact ⟨h1, h2, σ', G', th', hrun, hP', hR', hV', hM', hC', hI', hU', hSt', hFin, hks, _, _, _, dslot, cj, hE,
+    ⟨Or.inr ⟨h1, ⟨rfl, by rw [hb], by simp [windowSlots], hWA2⟩, s, th, _, _,
+      Or.inl ⟨rfl, rfl, rfl, rfl, fun h => by cases h⟩, le_rfl, le_rfl, hthx.2, fun a h => h,
+      ⟨nt.val, ht, hthx, us, rfl, hcjE⟩, hdsC,
+      hWf.mono fun v hv => hv.elim (fun h => Or.inl (Or.inr h)) (fun h => Or.inr ⟨htP, h⟩),
+      fun ⟨_, hne⟩ => absurd htP hne, fun hT => absurd (htP.symm.trans hT) (by simp)⟩,
+     fun _ j hj hu => by have h0 := hnu j hj hu; rw [h0] at ht; simpa [objTypeOf] using ht.symm⟩⟩
+
 end
 
 section

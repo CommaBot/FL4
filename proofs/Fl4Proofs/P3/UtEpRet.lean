@@ -26,7 +26,6 @@ set without the new objects.
 import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtPmRet
 import Fl4Proofs.P3.UtCnRet
-import Fl4Proofs.P3.UtBodyJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -74,28 +73,6 @@ theorem objTypeOf_large {n : Nat} (h : objTypeOf n = some (.archObject .largePag
     by_contra hc
     rw [(objTypeOf_none n).2 (by omega)] at h; cases h
   interval_cases n <;> simp_all [objTypeOf, Fl4Spec.archDataToObjType]
-
-variable (arI) in
-/-- **The outcome of a retype body at `J`** (handoff/utj.md Round 13): the
-spec's `invoke_untyped` from `σ` has the single outcome `ok` at `σ'`, FL4's is
-`Ok`, related by the CSpace relations, `DomRel` and `MdbOKV`, `JAt` after.
-`utRetPostJ_of_body`: after the restart, `UtRetPostJ`. -/
-def UtBodyPost (AR : A → Fl4Spec.Cr3 → Prop) (σ : Fl4Spec.State Unit) (inv : Fl4Spec.UntypedInvocation)
-    (res : core.result.Result Unit error.Exc × S × A) : Prop :=
-  ∃ σ', (Fl4Spec.invokeUntypedWith (Z := Unit) Fl4Spec.fl4ObjBitsApi inv).run σ = ({(.ok (), σ')}, False) ∧
-    res.1 = .Ok () ∧
-    (∃ th' G', Placed th' ∧ CRel th' (L.mem res.2.1) σ' G' ∧ FinInv th' (L.mem res.2.1) σ' G' ∧
-      DomRel (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ MdbOKV (L.ksb res.2.1) (L.mem res.2.1) G') ∧
-    JAt (L := L) arI AR res.2.1 res.2.2 σ'
-
-theorem utRetPostJ_of_body {σ σ1 : Fl4Spec.State Unit} {blk call don : Bool} {inv : Fl4Spec.UntypedInvocation}
-    {res : core.result.Result Unit error.Exc × S × A}
-    (hst1 : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False))
-    (h : UtBodyPost (L := L) arI AR σ1 inv res) : UtRetPostJ (L := L) arI AR σ blk call don inv res := by
-  obtain ⟨σ', hrun, hok, ⟨th', G', hrel⟩, hJ⟩ := h
-  refine ⟨σ1, hst1, (.ok [], σ'), perf_ut_mem blk call don hrun, ⟨th', G', Or.inl ⟨hok, rfl⟩, hrel⟩, ?_⟩
-  rw [if_neg (by rw [hok]; simp)]
-  exact hJ
 
 set_option maxHeartbeats 16000000 in
 /-- **The body of `JAtZ.utEpJ`: the retype without a reset from a `JAtZ`

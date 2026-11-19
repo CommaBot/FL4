@@ -73,6 +73,7 @@ import Fl4Proofs.P3.FrontEndLabel
 import Fl4Proofs.P3.XTopJointNoFault
 import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointFaultRecv
+import Fl4Proofs.P3.UtRetResetJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -549,14 +550,25 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A)
   for `JAtZ.utEpJ`. -/
   heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
-  /-- [W] the retype after the decode (UtEpRet's `JUtRetHypR`: XTopJointUt's
-  `JUtRetHyp` without the no-reset retypes proved by `JAtZ.utEpJ`
-  (endpoints, notifications, replies, VSpace tables, frames) and
-  UtScRet's `JAtZ.utScJ` (SCs, the source region 8 bytes off the
-  kernel-state block)), asked on
-  core 0 only (on another core `JAtZ`'s one-core sets do not hold the new
-  core-0 TCBs and SCs, so the statement need not hold there). -/
-  ret : Z.c = 0#u64 → JUtRetHypR (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
+  /-- [J] the reset's `VsReachMiss` (VsDrop; l4v `valid_vs_lookup` with
+  `dead_childless`: no table reachable from the ASID table lies in a childless
+  untyped cap's region), for the cap's region at the restart's state, with no
+  extra roots: UtResetTopJ's `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype
+  with a reset (`JAtZ.utResetJ`). -/
+  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅
+  /-- [P] `CONFIG_RESET_CHUNK_BITS` is FL4's 16 (`untyped::RESET_CHUNK_BITS`):
+  the reset's chunks (`JAtZ.reset_untypedJ`). -/
+  rcb : Fl4Spec.resetChunkBits = 16
+  /-- [W] the retype after the decode (UtRetResetJ's `JUtRetHypR2`: XTopJointUt's
+  `JUtRetHyp` without the retypes proved with or without a reset by
+  `JAtZ.utEpJ`/`JAtZ.utScJ`/`JAtZ.utUtJ`/`JAtZ.utPmJ` and `JAtZ.utResetJ`
+  (endpoints, notifications, replies, VSpace tables, frames, SCs, untypeds,
+  PML4s), and UtCnRet's `JAtZ.utCnJ` (CNodes without a reset): left TCBs (1),
+  CNodes (4) with a reset, and the VT-x types (14..18, also `vtx`)),
+  asked on core 0 only (on another core `JAtZ`'s one-core sets do not hold the
+  new core-0 TCBs and SCs, so the statement need not hold there). -/
+  ret : Z.c = 0#u64 → JUtRetHypR2 (L := L) arI AR Z.th s ar σ sl p sb fi ct blk call don argsU
 
 /-- **Per cap, the premises of its decode path** (`decOK_J`'s table). -/
 def JPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lbl length : U64)
@@ -640,7 +652,7 @@ on the cap:
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `JPoolPath` (the extra cap native [scope]), `JFramePath` (`hno` [J]); labels and extra caps proved (`pt_label` … `frame_label`, `ExtraOK.vsExtra`/`.poolExtra`) |
 | ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra caps and clean regions proved; dirty: the cap [W]) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
-| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0 [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ` [J], `JUtRetHypR` [W]: the retype after the decode (label and extra slot proved) but the no-reset endpoints/notifications, `JAtZ.utEpJ`); VT-x types `JVtxScope` [scope] |
+| Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: the retype of TCBs and of CNodes with a reset; every other native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
@@ -901,7 +913,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         (fun x hx => Classical.byContradiction fun hn => hv ⟨x, hx, by omega, by omega⟩) sl hAs p sb fi hc extra x0
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHyp hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
-          hN.core0 (hN.ret hN.core0))
+          hN.core0 (J.jUtRetHypR_of hni hct hsl hc hN.bufObj (hN.heapH H Cs Ac Lst D J).1
+            (hN.heapH H Cs Ac Lst D J).2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach
+            (hN.ret hN.core0)))
     · exact hDv rfl
   all_goals exact hN
 
