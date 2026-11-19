@@ -75,6 +75,7 @@ import Fl4Proofs.P3.XTopJointFaultEp
 import Fl4Proofs.P3.XTopJointFaultRecv
 import Fl4Proofs.P3.UtRetResetJ
 import Fl4Proofs.P3.XTopJointFaultTmo
+import Fl4Proofs.P3.MpDirtyJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -658,7 +659,7 @@ on the cap:
 | SchedContext Unbind, YieldTo, other labels | `decode_invocation_sched_context_{unbind,yield,other}J` (ScJointUnbind, ScJointYield; at `sc_canon`'s label) | YieldTo's `JSchedYieldPath` [P] |
 | SchedControl | `decode_invocation_sched_controlJ` | `JSchedCPath` |
 | PageTable, PageDirectory, PDPT, PML4, ASID pool, native Frame | `decode_invocation_{page_table,page_directory,pdpt,pml4,asid_pool}JV`, `decode_invocation_frameJS` (XTopJointVsMap: map, unmap, flush, assignment at `J`; XTopJointVsReply: GetAddress, TestAndClearAccessed; XTopJointVsSub: DeriveSubframe) | `JPoolPath` (the extra cap native [scope]), `JFramePath` (`hno` [J]); labels and extra caps proved (`pt_label` … `frame_label`, `ExtraOK.vsExtra`/`.poolExtra`) |
-| ASID control | `decode_invocation_asid_controlJM` (XTopJointMakePool) | `JAsidCPath` (label, extra caps and clean regions proved; dirty: the cap [W]) |
+| ASID control | `decode_invocation_asid_controlJD` (MpDirtyJ; any region: restart, drop, `MakePool`) | `JAsidCPath` (label and extra caps proved; `ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], as `JUtPath`) |
 | VCPU, EPT, EPT-mapped Frame, a frame's EPT-map label, VT-x IO port, TCB SetEPTRoot | — | `JVtxScope` [scope] |
 | Untyped (RAM, native types) | `decode_invocation_untypedJ` (XTopJointUt) | `JUtPath` (fan-out, core 0, reset chunk bits [P], `BufObjHyp`/`ArchFitHyp`/`RegionUnrefJ`/`VsReachMiss` [J], `JUtRetHypR2` [W]: only the VT-x types; every native type proved with or without a reset, `JAtZ.utEpJ`/`utScJ`/`utUtJ`/`utPmJ`/`utCnJ`/`utTcbJ`, `JAtZ.utResetJ`); VT-x types `JVtxScope` [scope] |
 | Untyped (device, losfair/FL4#34) | — | `JCapOpen` [W] |
@@ -909,8 +910,9 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hN : JAsidCPath (L := L) arI AR Z s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer
       ct := hN
     subst hLb
-    exact (decode_invocation_asid_controlJM arI s ar σ J hni lbl lbl.bv (makePool_label lbl) length buf ct hct argsU
-      hlen hargs extra excaps (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer (hN.dirty H Cs Ac Lst D J)).toP arI hPre
+    exact (decode_invocation_asid_controlJD arI s ar σ J hni (hN.heapH H Cs Ac Lst D J).1 (hN.heapH H Cs Ac Lst D J).2
+      lbl lbl.bv (makePool_label lbl) length buf ct hct hN.vsReach argsU hlen hargs extra excaps
+      (ExtraOK.mpExtra hPl hXO) (cslotAddr sl) blk call don fp ci sl buffer).toP arI hPre
   case Untyped p sb fi dev =>
     obtain ⟨hDv, hU⟩ := hN
     cases dev

@@ -33,6 +33,8 @@ XTopJointMakePool; here the shared pieces and the paths' premises.
 import Fl4Proofs.P3.VsThX
 import Fl4Proofs.P3.XTopJointStep
 import Fl4Proofs.P3.FrontEndExtra
+import Fl4Proofs.P3.VsDrop
+import Fl4Proofs.P3.UtEpSets
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -486,24 +488,31 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
     Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x)
 
-/-- The ASID control path: when MakePool's regions are clean (`MpClean`,
-`MpSpecClean`) the cap is proved at `J` (XTopJointMakePool's
-`decode_invocation_asid_controlJM`: the pool's retype, its cap's insertion
-and the ASID-table write); otherwise the cap at `J` (`dirty` [W]: l4v
-`delete_objects` over a region holding dead objects, the detype at `J`,
-which shrinks the sets, `H` and the dead set — the untyped reset's drop
-step). The label and extra caps are proved (`makePool_label`,
-`ExtraOK.mpExtra`); `MpPlacedHyp` and the region facts too
-(`JAtZ.mpPlacedC`, `JAtZ.mpRegionC`). -/
+/-- The ASID control path: the cap is proved at `J` for any region
+(MpDirtyJ's `decode_invocation_asid_controlJD`: FL4's restart, the drop of
+the pool's frame at the restart's state, l4v's `delete_objects`, then the
+clean case's step; the former `dirty` [W] removed, handoff/utj.md Round 15),
+given the drop's premises, as the untyped path's (`JUtPath.heapH`,
+`JUtPath.vsReach`). The label and extra caps are proved (`makePool_label`,
+`ExtraOK.mpExtra`). -/
 structure JAsidCPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  dirty : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ¬ (MpClean (L := L) Z H D s ∧ MpSpecClean (L := L) Z s σ) →
-    XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) .AsidControl blk call don fp buf extra
-      slbl (argsU.map UScalar.bv) ci sl excaps buffer ct
+  /-- [J] `ArchFitHyp` and `RegionUnrefJ` (as `JUtPath.heapH`): the drop's
+  kept references and arch objects (`JAtZ.dropA`). -/
+  heapH : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
+    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → ArchFitHyp H σ ∧ RegionUnrefJ (L := L) arI H Cs
+  /-- [J] the drop's `VsReachMiss` (as `JUtPath.vsReach`; VsDrop, l4v
+  `valid_vs_lookup` with `dead_childless`: no table reachable from the ASID
+  table lies in a childless untyped cap's region), for a childless
+  pool-sized RAM untyped cap's region at the restart's state, with no extra
+  roots. -/
+  vsReach : ∀ (x p fi : U64) (s1 : S), x ∈ Z.G.chains.flatten →
+    capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false → (∀ y, ¬ Mdb.Desc Z.G.par y x) →
+    sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1) ∅ ∅ ∅ ∅ ∅
 
 end
 

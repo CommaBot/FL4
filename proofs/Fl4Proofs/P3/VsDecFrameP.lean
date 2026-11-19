@@ -258,7 +258,7 @@ theorem decode_invocation_asid_controlXP (th : TypedHeap) (hP : Placed th) (s : 
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G) (hU : UtInv (L.mem s) G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G)
     {P L4 L3 L2 L1 : Set U64} {SR : S → A → Fl4Spec.State Unit → Prop}
-    {Q : S → Prop} (hQ : ∀ s' a' σ', SR s' a' σ' → Q s') {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
+    {Q : S → Prop} {RegOK : S → Fl4Spec.State Unit → U64 → Prop}
     (hH : VsMpHyps st A th P L4 L3 L2 L1 SR RegOK) (hS : SR s ar σ)
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (hVP : VsPlaced P (L.ksb s)) (hPP : PtPlaced L4 L3 L2 L1)

@@ -43,7 +43,7 @@ def MpMidB {A : Type} (th0 : TypedHeap) (s0 : S) (rc : capability.Cap) (σ : Fl4
       idx.length = rs ∧ capAt (L.mem s0) (cslotAddr ps) = ok (.Untyped p fl4_abi.consts.bits.ASID_POOL fi0 false) ∧
       ¬ ∃ sl, σ.cdt sl = some ps) ∧
     ∃ (pd : U64) (rd : Nat) (idxd : List Bool), dest = (pd.bv, idxd) ∧ th0 pd = some (.cnode rd) ∧
-      idxd.length = rd ∧ capAt (L.mem s0) (cslotAddr dest) = ok .Null ∧ CnRef th0 (L.mem s0) rc pd
+      idxd.length = rd ∧ capAt (L.mem s0) (cslotAddr dest) = ok .Null
 
 /-- The post of `MakePool`'s perform without the restart (`mp_perform_relB`). -/
 def MpPostB {A : Type} (P L4 L3 L2 L1 : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop)
@@ -95,7 +95,7 @@ theorem mp_perform_relB {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b)
     (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hPV : ∀ b, PtWAll L4 L3 L2 L1 b → ¬ VsWrite P (L.ksb s) b) (hFI : FinInv th (L.mem s) σ G)
-    (hFR : Vs.FrameInv (L.mem s) G) {rc : capability.Cap} (hCn : CnRef th (L.mem s) rc pd) :
+    (hFR : Vs.FrameInv (L.mem s) G) {rc : capability.Cap} :
     (do
       let i1 ← lift (sb &&& 63#u64)
       let i2 ← 1#u64 <<< i1
@@ -620,7 +620,7 @@ theorem mp_perform_relB {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       hcpu5, hW5, fun w hw h1 h2 => by
         rw [hm54 w hw (by rw [hAtv]; rcases hTo with e | e <;> omega), hmemR w hw h1 h2],
       L.mem_wr_same hAt, hMp, hkp, hkhf, hcdtf, horf, ?_, ⟨base, ?_⟩, ?_, hDI, ⟨pp, rs, idx, fi, rfl, hpp, hidx, by rw [← hsb]; exact hcap, hnch⟩,
-      pd, rd, idxd, rfl, hpd, hidxd, hdst, hCn⟩
+      pd, rd, idxd, rfl, hpd, hidxd, hdst⟩
     · show capV (L.mem s5) x = _
       rw [hSS5.capV hxs', hctx.cz hxm, RR3.cap, hsb]
     · show capV (L.mem s5) val = _
