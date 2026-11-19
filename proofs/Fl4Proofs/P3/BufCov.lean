@@ -25,6 +25,11 @@ per-step lemmas, before any `JAtZ` edit.
   part; `freeOut_of_obj`: a word inside a spec object is outside every free
   part (`SpecFree`): the user-memory writes of the IPC code (buffer words of
   live frames).
+* The detype (decision 4): `Endp.IpcBufCapOK.sdrop` (the region's data
+  pages inside it, no kept TCB's buffer word in it); `FrameOffJ` (no slot's
+  frame cap meets the region: `RegionUnrefJ`'s new clause, l4v
+  `untyped_mdb` / `descendants_range`), `JAtZ.bufOffJ` (a TCB's buffer words
+  miss such a region, as `JAtZ.bufWord`), `JAtZ.ipcBufDrop`.
 * `UtZero.zero_at`, `loadWordAt_zero`: the retype's new frame words read 0 in
   the spec (FL4 zeroes them, `UtCapP3.zero`), so `IpcRel.buf` holds at the
   words `B` gains.
@@ -33,6 +38,7 @@ import Fl4Proofs.P3.BufInv
 import Fl4Proofs.P3.XTopJointData
 import Fl4Proofs.P3.UtDropSets
 import Fl4Proofs.P3.UtDropSpec
+import Fl4Proofs.P3.UtDropX
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -216,6 +222,120 @@ theorem UtZero.zero_at (h : UtZero mem G σ) {x : U64} (hx : x ∈ G.chains.flat
   h x hx p sb fi hcx a h1 h2
 
 end Zero
+
+/-! ## The detype: no IPC buffer in the dropped region -/
+
+section Drop
+open Fl4Spec
+
+theorem andNot_bounds (a : Word) (sz : VMPageSize) :
+    (a &&& ~~~(mask (pageBitsForSize sz) : BitVec 64)).toNat ≤ a.toNat ∧
+      a.toNat < (a &&& ~~~(mask (pageBitsForSize sz) : BitVec 64)).toNat + 2 ^ pageBitsForSize sz := by
+  have hn := Endp.and_not_mask_toNat a _ (Endp.pageBits_mem sz)
+  have hpos : 0 < 2 ^ pageBitsForSize sz := by positivity
+  rw [hn]
+  exact ⟨Nat.div_mul_le_self _ _, Nat.lt_div_mul_add hpos⟩
+
+/-- **`IpcBufCapOK` across the detype** (`SDrop`): the region's data pages lie
+in the region (`hpg`, no straddle), and no kept TCB's IPC buffer word lies in
+the region (`hoff`, from `FrameOffJ` by `JAtZ.bufOffJ`). -/
+theorem _root_.Fl4Proofs.P3.Endp.IpcBufCapOK.sdrop {Rg : ObjRef → Prop} {σ σ' : State Unit}
+    (h : Endp.IpcBufCapOK σ) (hD : SDrop Rg σ σ')
+    (hpg : ∀ q vms, σ.kheap q = some (.archObj (.dataPage false vms)) → Rg q → ∀ a : Word, q.toNat ≤ a.toNat →
+      a.toNat < q.toNat + 2 ^ pageBitsForSize vms → Rg a)
+    (hoff : ∀ t x, σ.kheap t = some (.tcb x) → ¬ Rg t → ∀ dev p R mt vms md,
+      x.tcbIpcframe = .archObjectCap (.pageCap dev p R mt vms md) → vmReadOnly ⊆ R → ∀ k, k < 128 →
+        ¬ Rg (Endp.bufAddr (p + (x.tcbIpcBuffer &&& mask (pageBitsForSize vms))) k)) :
+    Endp.IpcBufCapOK σ' := by
+  intro t x hx dev p R mt vms md hf hR
+  by_cases hr : Rg t
+  · rw [hD.kin t hr] at hx; cases hx
+  rw [hD.kout t hr] at hx
+  obtain ⟨h1, h2, h3, h4, h5⟩ := h t x hx dev p R mt vms md hf hR
+  refine ⟨h1, h2, fun k hk => ?_, h4, h5⟩
+  obtain ⟨sz, hsz⟩ := h3 k hk
+  obtain ⟨g1, g2⟩ := andNot_bounds (Endp.bufAddr (p + (x.tcbIpcBuffer &&& mask (pageBitsForSize vms))) k) sz
+  by_cases hb : Rg (Endp.bufAddr (p + (x.tcbIpcBuffer &&& mask (pageBitsForSize vms))) k &&&
+      ~~~(mask (pageBitsForSize sz) : BitVec 64))
+  · exact absurd (hpg _ sz hsz hb _ g1 g2) (hoff t x hx hr dev p R mt vms md hf hR k hk)
+  · exact ⟨sz, by rw [hD.kout _ hb]; exact hsz⟩
+
+end Drop
+
+section DropJ
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+
+/-- **No frame cap of the typed heap's slots meets `[lo, hi)`** (decision 4:
+`RegionUnrefJ`'s new clause at the drop's state; l4v `untyped_mdb` /
+`descendants_range`: a childless untyped cap's region is named by no cap). -/
+def FrameOffJ (th : TypedHeap) (mem : U64 → U64) (lo hi : Nat) : Prop :=
+  ∀ x, IsSlot th x → ∀ q sz r d m ep asid va, capV mem x = .Frame q sz r d m ep asid va →
+    topF (.Frame q sz r d m ep asid va) < lo ∨ hi ≤ baseF (.Frame q sz r d m ep asid va)
+
+set_option maxHeartbeats 8000000 in
+/-- **A TCB's IPC-buffer words miss `[lo, hi)`** under `FrameOffJ` (the
+frame cap in its buffer slot, `StateRel.bufCap`, as `JAtZ.bufWord`). -/
+theorem JAtZ.bufOffJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {lo hi : Nat}
+    (hFO : FrameOffJ Z.th (L.mem s) lo hi) {t : U64} (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb}
+    (hk : σ.kheap t.bv = some (.tcb x)) {dev pb R mt vms md}
+    (he : x.tcbIpcframe = .archObjectCap (.pageCap dev pb R mt vms md))
+    (hpa : pb.toNat % 2 ^ Fl4Spec.pageBitsForSize vms = 0) (ha : x.tcbIpcBuffer.toNat % 1024 = 0)
+    {k : Nat} (hk128 : k < 128) :
+    (Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat + 8 ≤ lo ∨
+      hi ≤ (Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat := by
+  obtain ⟨r1, r2, r3⟩ := buf_frame_rng vms pb x.tcbIpcBuffer k hk128 hpa ha
+  obtain ⟨x', c, hkx, hcap, hcr⟩ := J.xtop.rel.2.1.1.bufCap ht
+  rw [hk] at hkx; cases hkx
+  rw [he] at hcr
+  obtain ⟨-, h2⟩ := hcr
+  cases c <;> try (simp [absCap] at h2; done)
+  case Frame p0 sz r0 d0 m0 ep0 as0 va0 =>
+    simp only [absCap] at h2
+    injection h2 with h2
+    injection h2 with _ hp0 _ _ hsz _
+    have hsl : IsSlot Z.th (slotOf t 2) := ⟨t, 2, Or.inr ⟨ht, by simp [tcbSlots]⟩, rfl⟩
+    have hcv : capV (L.mem s) (slotOf t 2) = .Frame p0 sz r0 d0 m0 ep0 as0 va0 := capV_of_capAt hcap
+    obtain ⟨bs, ts⟩ := frame_range p0 sz r0 d0 m0 as0 va0 ep0
+    have hm := Endp.pageBits_mem vms
+    have hbits : (fbitsF sz).val = Fl4Spec.pageBitsForSize vms := by rw [fbitsF_val, hsz]
+    have hmk : (maskF (fbitsF sz)).val = 2 ^ Fl4Spec.pageBitsForSize vms - 1 := by
+      rw [maskF_val (by rw [hbits]; simp at hm; omega), hbits]
+    have hpv : p0.val = pb.toNat := by rw [← hp0]; rfl
+    have hpos : 0 < 2 ^ Fl4Spec.pageBitsForSize vms := by positivity
+    have htop : topF (.Frame p0 sz r0 d0 m0 ep0 as0 va0) = p0.val + 2 ^ Fl4Spec.pageBitsForSize vms - 1 := by
+      rw [ts]
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits, hmk]
+      omega
+    rcases hFO _ hsl _ _ _ _ _ _ _ _ hcv with e | e
+    · rw [htop] at e; left; omega
+    · rw [bs] at e; right; omega
+
+/-- **`IpcBufCapOK` after the drop of an untyped region at `J`**: `FrameOffJ`
+at the region (decision 4's clause) and the region's data pages inside it
+(`hpg`). -/
+theorem JAtZ.ipcBufDrop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ)
+    {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
+    (hFO : FrameOffJ Z.th (L.mem s) p.val (p.val + 2 ^ sb.val)) {σ' : Fl4Spec.State Unit}
+    (hD : SDrop (RgOf p sb) σ σ')
+    (hpg : ∀ q vms, σ.kheap q = some (.archObj (.dataPage false vms)) → RgOf p sb q → ∀ a : Fl4Spec.Word,
+      q.toNat ≤ a.toNat → a.toNat < q.toNat + 2 ^ Fl4Spec.pageBitsForSize vms → RgOf p sb a) :
+    Endp.IpcBufCapOK σ' := by
+  refine hOK.sdrop hD hpg fun t x hk _ dev pb R mt vms md he hR k hk128 hin => ?_
+  obtain ⟨t', ht', rfl⟩ := J.obj.tcb t x hk
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hth : Z.th t' = some .tcb := (hJ.tcb t').2 (J.zH.1 t' ht')
+  obtain ⟨-, -, -, ha, hpa⟩ := hOK t'.bv x hk dev pb R mt vms md he hR
+  have e := J.bufOffJ hFO hth hk he hpa ha hk128
+  have hr := (rgOf_iff hsb hfit ⟨Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask
+    (Fl4Spec.pageBitsForSize vms))) k⟩).1 hin
+  have hv : (⟨Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k⟩ : U64).val =
+      (Endp.bufAddr (pb + (x.tcbIpcBuffer &&& Fl4Spec.mask (Fl4Spec.pageBitsForSize vms))) k).toNat := rfl
+  rw [hv] at hr
+  omega
+
+end DropJ
 
 /-- **A word of zero bytes reads 0.** -/
 theorem loadWordAt_zero {um : Fl4Spec.Word → Fl4Spec.Word8} {p : Fl4Spec.Word}
