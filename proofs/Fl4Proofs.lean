@@ -648,3 +648,5 @@ import Fl4Proofs.P3.XTopJointJAtZRB
 import Fl4Proofs.P3.XTopJointKEntry4
 import Fl4Proofs.P3.XTopJointIrqZR
 import Fl4Proofs.P3.XTopJointKEntry6
+import Fl4Proofs.P3.XTopJointIrqZI
+import Fl4Proofs.P3.XTopJointKEntry7

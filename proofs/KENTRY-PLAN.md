@@ -2044,3 +2044,77 @@ untouched.
   UtResetTopJ, UtRetResetJ, XTopJointPP, XTopJointWJLRestart, XTopJointDelR, XTopJointTcb, XTopJointEntry,
   XTopJointPreemptQ: green), kp16-b4 (the remaining sinks of the changed modules' cone, XTopJointRecvMid and
   XTopJointKEntry6), kp16-b5 (after renaming the namespace to `PPNQ`: XTopJointPreemptQ, XTopJointRecvMid, XTopJointKEntry6 green). scratch/axkp16.lean (untracked): propext, Classical.choice, Quot.sound only for nq_finaliseCap, ctnq_finaliseCap, qk_rescheduleRequired', qk_cancelAllIpc, nq_ntfnBody, ppr0_finaliseCap, PPR0.of_ppk, jFinPPHyp, JAtZ.ppr0_start, jAtPre_holeQ, jPreemptRestHypEQ_ofC, hPre_ofZQ, dispatch_invokeJPZA, dispatch_invokeJEPZA, handle_invocation_refinesJ. No sorry/admit/native_decide/bv_decide.
+
+## sch12 (branch par/sched12 in FL4-sc, on e8573970 = int/j2 incl. sch11, kp15)
+New leaves XTopJointMidRunS, XTopJointIrqZI, XTopJointKEntry7 (imported from Fl4Proofs.lean). Nothing existing edited;
+JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/Entry untouched.
+- (1) DONE 450f99aa (XTopJointMidRunS, spec side + two J lemmas): `JMidRunHyp` [W] is no longer needed as a premise:
+  `MidRun.jMidRunHyp_of : JMidPerfHyp don cptr σ → JMidRunHyp rep don cptr σ`. sch11's (a)–(f):
+  (a) `syscall_post` (pointwise shell for Syscall_A.syscall: invariant across fault/error phases, final phase from
+  the states it starts in on a run from σ) + `post_bindE`/`post_liftE`; `midF`/`midE` = the fault and decode phases of
+  `fl4HandleInvocationR` (defeq, used as `mF`/`mE`). (b)+(c) one frame `fV ct σ := (ctV ct σ, nV σ)` (`nV` = every
+  notification's `ntfnObj`), `FV`/`FVE` = VsDom's `FK` at `fV`; leaves `fv_asUser` (kf_asUser + `nv_setObject_tcb`: a
+  TCB write keeps notifications by set_object's aType assertion), machine/ext ops, `fv_getCap`, `fve_rab`; the rest by
+  `fv_auto` (auto-unfold of the head spec constant + dk_step0; `maxRecDepth 20000`, the arch sub-decoders one lemma each
+  at 2M heartbeats): getMessageInfo, lookupCapAndSlot, lookupIpcBuffer, lookupExtraCaps, getMrs, decodeFl4IrqControl,
+  decodeIrqHandlerInvocation, fl4DecodeUntypedInvocation, the arch decoders (pdpt/pd/pt/page/port/ioportControl/pml4Flush/
+  testAndClear/deriveSubframe, archDecodeInvocation, fl4ArchDecodeInvocation), `fve_decodeFirst` (first phase: the
+  TCB/Domain/SC/SchedControl/CNode branches throw). So `CtRs ∧ NQ` holds at the perform's start
+  (`pr_setThreadState_run`, `nv_setThreadState` for `ct := Restart`). (d) `okAll_decodeFirst`: `FirstInv` (no
+  TCB/FL4TCB/Domain/SC/SchedControl/CNode invocation). (e) `pr_setThreadState_run` (any runnable state, also at ct).
+  (f) `perf_first`: Endpoint (`pr_sendIpc`, block = call = false), Notification (`pr_sendSignal` with NQ), Reply
+  (`pr_doReplyTransfer`), IRQ control, IRQ ack, every arch invocation but ASID control (KF) keep `CtRs`; the rest is
+  ADDED `MidRun.JMidPerfHyp don cptr σ` [W] := `∀ inv σ1, MidPerfAt cptr σ inv σ1 → PerfW inv → ∀ y ∈
+  ((fl4PerformInvocation false false don inv).run σ1).1, CtRs σ.curThread y.2`, `PerfW` = invokeUntyped,
+  IRQHandler setIRQHandler/clearIRQHandler, arch `.spec (.invokeASIDControl _)`; `MidPerfAt cptr σ inv σ1` = σ1 is
+  where that perform starts on a run of the invocation from σ (getMessageInfo outcome, `midF` ok outcome, `midE` ok
+  outcome `inv`, `setThreadState ct Restart` outcome) — the path from the entry state, never ∀σ (lead decision). l4v:
+  `perform_invocation_not_blocking_not_calling_ct_active` (invoke_untyped: the retyped region is free,
+  valid_untyped_inv; invoke_irq_handler: cap_delete_one's cancel_all_signals restarts only BlockedOnNotification
+  threads; ASID control: delete_objects + retype of a free region). True in reachable states (ct is Restart, its
+  TCB outside the free region).
+  MidEntry at the site: `JAtZ.midEntry J hni hnf : MidEntry σ` (run = `J.curRun.run hni`; nq from
+  `J.xtop.fin.1.1.2.2.1` (NtfnStateRel) + `J.obj` (ObjCover) + `not_in_ntfnQueue` (ScCharge7); `nf` NOT derivable from
+  JAtZ: it is JEntryAt.cnf's [J] (l4v fault_tcbs_valid_states), passed in — at the KDispHypsR.mid site JEntryAt is
+  only in `inv` (InvSys), so the mid dispatch must take a `cnf` fact for MidSys too). `handle_invocation_midJP` =
+  `handle_invocation_midJ` from `JMidPerfHyp` + `Entered` + that `cnf` fact.
+- (2) NOT STARTED (scope/context): KDispHypsR.mid [W] is untouched; `kernel_entryJ7` still takes it (as
+  `KDispHypsRI.mid`, see (3)). What its proof needs, in order: (i) the mid state after `handle_invocation_midJP`
+  (`HIPostMid`: `JMid` = RelTopM ∧ JAt ∧ CurRun ∧ ct ≠ idle at Ok) is not `Entered` (action may be switchThread u /
+  chooseNewThread, sch2/sch8); the receive at J (`dispatch_recvJL` → `dispatch_recvJS`, `jRecvIpcHypL_of`, the
+  receive_signal leaves) takes `hni : Entered σ`, `hnq : ct ∉ readyQueues` and `hvfh` at its own state: hnq/hvfh at
+  the mid state need post facts of the invocation (possibleSwitchTo enqueues only other threads; only TCB installs
+  write the fault handler) — a frame like (1)'s over `readyQueues ∋ ct` and ct's fault-handler field is the cheapest
+  route (FK on `(ctV, ct ∈ readyQueues, tcbFaultHandler at ct)`: possibleSwitchTo/tcbSchedEnqueue need "t ≠ ct", which
+  the woken thread is by the same state-read argument as `pr_sendIpc`); (ii) sch6's ~45 `hni` sites in 14
+  XTopJointRecv* files with CurInv-free variants under switch/choose actions (`JAtZ.recvSigActiveJM`,
+  `JAtZ.canBlockCurM` exist in XTopJointRecvMid); (iii) the post is `JAtZR` (sch9: KDispHypsR's DispPostR), so a
+  receive that blocks ct under a pending switch ends in `JAtZR` not `JAtZ` (sch8's finding) — the block leaves need
+  JAtZR copies; (iv) the ReplyRecv/NBSendRecv/NBSendWait dispatch shell (syscall.rs:351-363 vs Syscall.lean:229-237:
+  invocation, `after_invocation`, then `handle_recv` only on Ok), preempted outcome `PPQCI` via
+  `dispatch_invokeJEPZECI`'s `hPre_ofZECI`.
+- (3) DONE (XTopJointIrqZI, XTopJointKEntry7): KPreFinRestHypC (b) closed for the covered preemption holes.
+  * ADDED `IrqPlatI arI AR` [P] (new structure, IrqPlat untouched): `base : IrqPlat arI AR` and `act : ∀ s a σ, JAt s a
+    σ → arI.take_pending_irq a ⦃ r => ∀ irq ms, doMachineOp (getActiveIRQ true) σ = ({(irq, {σ with machineState :=
+    ms})}, False) → ∀ i, irq = some i → σ.interruptStates i ≠ .irqInactive ⦄`. Stated at JAt states only: sch11's
+    suggested unrestricted ∀σ form would be UNSATISFIABLE (a spec state with every line inactive and a pending line
+    makes it false whenever the platform reports any line) and so vacuous. l4v `valid_irq_masks` (an inactive line is
+    masked) + the platform never raising a masked line (IrqPlat.take already gives `irqMasks i = false` for it).
+    Removal route: a [J] FL4 invariant "irq state word 0 → line masked in the arch state" (not in JAtZ) plus a [P]
+    on `take_pending_irq` never returning a masked line; the arch interface has `mask_irq` but no mask query yet.
+  * `JAtZ.handleIrqJI` (scripted copy of handleIrqJJ: post `inactive ∨ JAt`), `JHole.afterInvJZI`,
+    `afterInv_of_mcsI` (post `PPQJI` := ∃ z ∈ preemptionPath σ1, JAt after: NO spec-failure disjunct), `PPQCI :=
+    PPQJI ∨ (RestE ∧ PPQ)`, `hPre_ofZECI`, `dispatch_invokeJEPZECI`. Finding: on the covered holes the only spec
+    failure was the inactive line (the mcsPP*J paths always succeed), so the charge-failure asserts are not reachable
+    there; they remain only inside RestE holes (kp15's JPreemptRestHypE).
+  * XTopJointKEntry7: `KDispHypsRI` (= KDispHypsR with mid [W] ending in `PPQCI`, slightly stronger post, true as the
+    invoking dispatches now prove it), `dispatch_allRI`, REPLACED `KPreFinRestHypC` [W] by `KPreFinRestHypI` [W] :=
+    `∀ σ1, PreemptedAt c σ σ1 → RestE σ1 → ∀ r, PPQ σ1 r → (¬ ∃ z ∈ (preemptionPath σ1).1, JAt r.1 r.2 z.2) → finish
+    ⦃ same post ⦄` (only RestE holes: KPreFinRestHypC's (a); (b) is gone), `kPreFinHypCI_of`, `kernel_entryJ7` =
+    kernel_entryJ6 with `hIP : IrqPlatI` (was IrqPlat), `hK : … → KDispHypsRI`, `hPR : KPreFinRestHypI`.
+- Builds (tokyo, b.sh): sch12-b1..b3 `XTopJointMidRunS` (b3 OK, 5384 jobs); sch12-b4/b5 `XTopJointIrqZI
+  XTopJointKEntry7` (b5 OK, 5526 jobs). Axioms (axsch12.sh, untracked; sch12-ax1/ax2): propext, Classical.choice,
+  Quot.sound only for kernel_entryJ7, kPreFinHypCI_of, dispatch_allRI, dispatch_invokeJEPZECI, hPre_ofZECI,
+  afterInv_of_mcsI, JHole.afterInvJZI, JAtZ.handleIrqJI, PPQCI.toC, kernel_entryJ6, MidRun.jMidRunHyp_of/midRun_shell/
+  perf_first/okAll_decodeFirst/fve_decodeFirst/fve_midF, JAtZ.midEntry, handle_invocation_midJP; syscall_post: propext.
+  No sorry/admit/native_decide/bv_decide.
