@@ -3709,3 +3709,77 @@ ScCharge*/ScTmoCt* untouched).
   (5654 jobs) on f22e8409, first try, no sorry. Axioms (axsch29.sh, untracked; sch29-b2): propext, Classical.choice,
   Quot.sound only for kernel_entryJ27M, KDispHyps27M.to26M, jMidLeavesHyp17_of, JRecvLeavesRN17.of_ok, jRecvIpcUD,
   jRecvIpcUDD, jRecvIpcLinkDD, JAtZ.pushDonRJW, JAtZ.recvSendFPDJW, JAtZ.recvSendPDJW.
+## fin1 (branch par/fin1 in FL4-tcbj, on f9fa0192 = int/j2 incl. sch29, sch28, mr10)
+Goal: one final top combining the M line (sch29's J27M, no receive premise), sch28's PerfW [J] facts and the
+MachPlat line (mr10's J25P). New leaves XTopJointKEntry28M, XTopJointKEntry26P (hand-written wrappers, imported
+from Fl4Proofs.lean). Nothing existing edited.
+- (1) DONE (XTopJointKEntry28M): `KDispHyps28M` = KDispHyps27M with mid's `JMidPerfHypQ` [W] ∧ `JMidPerfHypB` [W]
+  REPLACED by `MidRun.JPerfRegHyp ∧ MidRun.JPerfIrqSlotHyp` [J]; `.to27M J hni` (CQ ∧ NQ by `JAtZ.midCQ`, then
+  `jMidPerfHypQ_of2` / `jMidPerfHypB_of2`); NEW TOP `kernel_entryJ28M` (wrapper over J27M, Entered σb by
+  `BudgetAt.enteredP hnd hni`). CAVEAT: J28M's `hB` is still the M line's old `KBudget` (from kernel_entryJ9M);
+  its `tmo` is FALSE in reachable states (mr8/budtr finding). Fixing it on the M line means copying J9M's body
+  onto `JAtZ.budgetOkB` (as mr9's J13PB did for the P line); not done, since the P line below already has
+  `KBudgetB` and subsumes the M line's mid results. So J28M is an intermediate, not the final top.
+- (2) DONE (XTopJointKEntry26P): `KDispHypsKV26` = KDispHypsKV25 with mid's `JMidPerfHypQ` [W] and
+  `JMidLeavesHyp14` [W] REMOVED and `JPerfRegHyp ∧ JPerfIrqSlotHyp` [J] ADDED. `.to25 hA hmax htu hmb J hni`:
+  JMidPerfHypQ/B by `jMidPerfHypQ_of2`/`B_of2` (CQ ∧ NQ from JAtZ.midCQ); `CtOK` after the first phase by
+  sch23's `MidRun.jMidChooseFact true true` (CurInv by JAtZ.cur + Entered, Sched.Inv by JAtZ.inv);
+  `JMidLeavesHyp17` by sch29's `jMidLeavesHyp17_of`; then the existing chain `jMidLeavesHyp_of17` → `_of16` →
+  `_of15` gives JMidLeavesHyp14. NEW TOP `kernel_entryJ26P` (wrapper over J25P, Entered σb by
+  BudgetAt.enteredP); `j26P_platform` (= j25P_platform: MachPlat ∧ MRKeepD for modelArch/modelMR, interrupts
+  raised).
+- (3) NOT DONE, `JMidVfhHyp` [J] stays named. It is not derivable cheaply: ct's `tcbFaultHandler` after the
+  first phase is written by the TCB invocations on ct itself (SetSpace / Configure / SetTimeoutEndpoint, guarded
+  by decode's `checkHandlerEp`), and every other cap write of the first phase (cte_insert of a derived cap,
+  IRQ control's handler cap, arch cap updates) misses the TCB's handler field only by `valid_cap` of the looked-up
+  slot (KEntry9M docstring): a frame over every perform plus decode's check, i.e. the l4v `hinv_invs` part for
+  `valid_tcb`'s `valid_fault_handler`. Path-restricted (only the `.ok` outcomes of the first phase from the
+  dispatch state), true in reachable states (l4v invariant).
+- PREMISES of `kernel_entryJ26P` (every hypothesis; bundles with their fields' tags as at their definitions):
+  * `[PlainStore st]` (instance: plain store model, P1).
+  * `J : JAtZ … s a σ` [J] (joint invariant at the entry: l4v invs + state_relation, JointAt.lean).
+  * `hni : Entered σ` [J] (ct_running ∧ scheduler_action = resume_cur_thread).
+  * `hR : MR a σ.machineState` [J] (shared machine_state), `hVI : ValidIrqMasks σ` [J] (valid_irq_masks).
+  * `hn : NativeSys n c` (the statement's own syscall-number relation, not a gap).
+  * `hflag` [S] (∀ ct v: l4h trap mode, TRAP_SYSCALLS clear after the FAULT_IP write; no l4v counterpart).
+  * `hB : ∀ x, kheap ct = tcb x → KBudgetB …`: `now` NowAgree [P] (MachPlat.nowAgree from MR + VMT), `cur`
+    CurInv [J] (ct bound to cur_sc, not IPC-blocked, cur_sc active, ct_not_in_release_q), `off` OffReady [J]
+    (cur_sc_offset_ready), `tmo : NoTmoSend σ0 ∨ ct ∉ readyQueues` [J] (ct_not_in_q).
+  * `hK : ∀ σb, BudgetAt σ σb true → ∀ Z' … a', JAtZ … σb → KDispHypsKV26 …` (path-restricted: only at the budget
+    outcome):
+    - `inv` (invocation path): `JEntryGlobM` (ari ARIface [P], tot ArchTotal [P], delParts: archRef [P], arKeep
+      [P], vt JVtHyps [J] (VT-x placement), thr: obj [S] (native thread's VCPU word zero), ticks [P]; nd
+      numDomains = 1 [P], ppA PPPlatA [P], dom DomConfig [P], portIn PortInVal [P] (∀σ, mr10 FINDING), sigRest
+      SignalRestJHyp [J] (remote RunningVM signal, VT-x), timeAg [P], maxTU/tu [P]); `JEntryAt` (ni, ctnq, sg,
+      flags, epQ, handlers, ports, vfh, cnf, vsTyp, live, fnz, urz, utks [J] (l4v invs + state_relation parts);
+      stall, ioapics, archIrq [P]); `JPathAtM` (per cap kind JPathM: [P] config constants / one core, [J]
+      invariant facts, [S] JVtxScope for VT-x decodes; no [W]); `JVtxHypMU` [S] (VT-x Untyped retype 14..18, no
+      l4v counterpart).
+    - `recv`: ct_not_in_q [J], valid_fault_handler of ct [J] (valid_tcb).
+    - `mid` (ReplyRecv / NBSendRecv / NBSendWait): JEntryGlobM, JEntryAt, JPathAtM as above; `JPerfRegHyp` [J]
+      (CHANGED; l4v invoke_untyped's valid_untyped_inv, perform_asid_control_invocation's valid_aci; only at
+      MidPerfAt states); `JPerfIrqSlotHyp` [J] (CHANGED; l4v valid_irq_node + IRQ handler slots hold null or a
+      notification cap; only at MidPerfAt states); `JMidVfhHyp` [J] (l4v valid_fault_handler kept by
+      handle_invocation; only at the first phase's .ok outcomes); `JVtxHypMU` [S]. REMOVED: `JMidPerfHypQ` [W],
+      `JMidLeavesHyp14` [W].
+  * `hFin : ∀ x ∈ (specFront c σ).1, ∀ …, JAtZR … x.2 → KFinAtR …` (only at the front end's outcomes): hd
+    (domainTime ≠ 0 ∨ NdOK) [J], vt [J], arch/archNd (ArchSwF/ArchNdF) [P], fo FpuOwnOK [J], sni/send
+    (SniHyp/SendHyp) [P], tail (schedule's CR3 tail) [P].
+  * `hARI : ARIface` [P], `hA : P0.ArchTotal` [P], `hnd : numDomains = 1` [P], `hM : MachPlat arI MR` [P],
+    `hKD : MRKeepD arI MR` [P], `hPA : PPPlatA` [P], `hIA : IrqPlatA` [P], `hmrt` (MAX_RELEASE_TIME) [P], `hmb`
+    (MIN_BUDGET) [P], `hT : TimeAgree` [P], `hmax : maxTicksToUs = U64.MAX` [P], `htu` (ticks_to_us) [P].
+  * `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` [S], `hNSR : ∀ …, JAtZR … → NativeScope σ` [S] (VT-x RunningVM out of
+    the native scope).
+- [W] remaining in kernel_entryJ26P: NONE (top-level or inside any bundle; JPathAtM has none since mr9, the mid
+  bundle none since fin1). ∀-over-states hypotheses the operation cannot establish itself: `JEntryGlobM.portIn`
+  [P] (PortInVal, mr10 FINDING: equivalent per-state form not weaker), the [S] scope premises `hNS` / `hNSR`
+  (native scope at every JHoleAt / JAtZR state), `hflag` (∀ ct v, l4h trap mode), and the [S]/[J] VT-x fields
+  quantified over JAtZ states (`delParts.thr.obj` [S], `delParts.vt` [J], `sigRest` [J]); every other bundle is
+  path-restricted (`hK` at the budget outcome, `hFin` at the front end's outcomes, the mid facts at MidPerfAt /
+  first-phase outcomes). No premise is known false in reachable states (KBudget.tmo, the last one, is not in
+  J26P; it remains only in the intermediate M-line tops incl. J28M).
+- Builds (tokyo, scratch/fin1/b.sh; mirror warmed from FL4-audit by cp -cR): fin1-b1 `XTopJointKEntry28M` OK (5664
+  jobs), `XTopJointKEntry26P` OK (5730 jobs) on f9fa0192, first try. Root Fl4Proofs.lean not rebuilt (two leaf
+  imports). Axioms (scratch/fin1/ax.lean, untracked; fin1-b1): propext, Classical.choice, Quot.sound only for
+  kernel_entryJ28M, KDispHyps28M.to27M, kernel_entryJ26P, KDispHypsKV26.to25, j26P_platform. No
+  sorry/admit/native_decide/bv_decide.
