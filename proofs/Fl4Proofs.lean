@@ -710,3 +710,5 @@ import Fl4Proofs.P3.XTopJointKEntry21M
 import Fl4Proofs.P3.MachFieldFamT
 import Fl4Proofs.P3.MachKeepD
 import Fl4Proofs.P3.XTopJointMRDel
+import Fl4Proofs.P3.XTopJointMRCnode
+import Fl4Proofs.P3.XTopJointKEntry17P
