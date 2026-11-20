@@ -873,3 +873,15 @@ import Fl4Proofs.P3.SpecInvUtP3
 import Fl4Proofs.P3.SpecInvUtP4
 import Fl4Proofs.P3.SpecInvUtP5
 import Fl4Proofs.P3.SpecInvUtP6
+import Fl4Proofs.P3.SpecInvSgI1
+import Fl4Proofs.P3.SpecInvSgI2
+import Fl4Proofs.P3.SpecInvSgI3
+import Fl4Proofs.P3.SpecInvSgI4
+import Fl4Proofs.P3.SpecInvSgI5
+import Fl4Proofs.P3.SpecInvSgI6
+import Fl4Proofs.P3.SpecInvSgA
+import Fl4Proofs.P3.SpecInvSgG
+import Fl4Proofs.P3.SpecInvSgC
+import Fl4Proofs.P3.SpecInvSgD
+import Fl4Proofs.P3.SpecInvSgE
+import Fl4Proofs.P3.SpecInvSgBridge

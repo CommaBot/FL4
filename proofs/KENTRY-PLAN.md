@@ -5513,3 +5513,61 @@ Goal (nq2's handoff + lead decisions): G2 per arm, H2/H3 built, NoSR dropped, If
   scripts nq3b.sh (progress every 20 jobs, `VA`/`VBL` error context), nq3ax.sh. nq2's original drafts are superseded by
   the committed modules.
 - No FINDING (no reachable step breaks NtfnQB / EpQB).
+## sg1 (branch par/sg1 in FL4-tcbj, on b3b286b5 = int/j2 incl. ut8) — SpecGlob carried across every event (DONE)
+Goal: invC's SpecGlob paragraph: SpecGlob as a G1 field with whole-entry preservation over SpecGlob ∧ a narrow extra fact,
+`hU : UtInv3 σ` a hypothesis. Done. Spec-only, namespace `Fl4Proofs.P3.SInvG`, modules SpecInvSgI1..I6, A, G, C, D, E
+(outside the JAtZ cone: SpecInvSgE's cone has no JointAt / XTopJoint* module) plus the leaf SpecInvSgBridge (imports
+SpecGlob.lean, which is in the JAtZ cone). Root imports all twelve. Nothing existing edited.
+- Decomposition. SpecGlob = (irq) node slots hold null / ntfn caps, (ref) no non-frame cap names a node CNode, (idle) no
+  non-frame cap names the idle thread. (ref) follows from UtInv3's `IrqOutV` (ut6: no cap's `covR` holds a node CNode;
+  `objRefs ⊆ capRng ⊆ covR`). (idle) follows from the extra carried fact, **`IdleOutV σ := IrqOutV (fun _ => σ.idleThread)
+  (uV σ)` [J]** (l4v `valid_global_refs`: `idle_thread_ptr ∈ global_refs`, outside every cap's `cap_range`, untyped regions
+  included) — exactly the brief's untyped clause ("no untyped region contains the idle thread", ut6's `covR` = `delR` for
+  untyped caps), stated for every cap as l4v does. The IRQ-node half of the brief's clause is already UtInv3's `IrqOutV`.
+  Caveat (same as ut6's IrqOutV): it also covers device-frame / device-untyped ranges (l4v does; SpecGlob.lean left frame caps
+  out because #34's device frames sit at physical addresses). It is preserved by every step (each new cap is covered by an
+  old one, ut6's CD), so it can fail only in a boot state; if FL4's boot device ranges numerically overlap the idle TCB's
+  address, IrqOutV and IdleOutV both need the same device carve-out (to check with the concrete boot state, [S]).
+- Why `IdleOutV` is free: ut7/ut8 prove `IK (P3 K)` for every node map `K` (only `set_irq_handler` reads the state's node,
+  `NodeIs`), so `P3 (fun _ => idle)` = UtInv'' ∧ IdleOutV is kept by the same lemmas. Family **`SV N M w := P3V N w ∧
+  IrqOutV M w ∧ NOV N w`** (`S N M σ`; `s_of`: the first two from ut's `p3_*` at `K = N` and `K = M`), **`NOV N w`** = (irq)
+  on the view (`NtfnOrNull`). Only NOV needed new proofs: a non-null non-ntfn cap is written only at a `NotNode` slot
+  (`notNode_of_destRef` = DestRefV + IrqOutV N; `notNode_of_held` = the slot holds such a cap; `notNode_of_cov`;
+  `notNode_tcb`), `set_irq_handler` writes the decoded notification cap.
+- Modules: **SpecInvSgI1..I6** (ut7's NK family renamed: `IdK t m := IK (IdleIs t) m`, no step writes `idleThread`;
+  `idk_fl4KernelEntrySyscall`, `idk_fl4CallKernel`). **SpecInvSgA** (NOV, NotNode, SV/S, `s_of`, `NulK` (deletion only
+  nulls), `nov_capInsert` / `hv_capInsertS` / `nov_setCap`; `no_recDel` over `NO N := IO N ∧ NOV N` by `hr_lfp` with the
+  call-dependent pre `NPre` (a reduce-zombie call's Zombie is in its slot, so both swapped slots are no node slots);
+  `sg_capDeleteOne`, `sg_recDel_cte/_fin`, `sg_capDelete`, `sg_checkCapAt_ins`, `sg_installTcbCap`, `sg_doNormalTransfer`).
+  **SpecInvSgG** (ut7's generated SpecInvUtO3 renamed `un`→`sg`, `(P3 N)`→`(S N M)`). **SpecInvSgC** (`RotOKN` +
+  `okv_decodeCnodeRot`: a rotate's source / pivot are lookup destinations — ut7's CnOKN did not record it;
+  `sg_invokeCnode`, `hv_insertCtlS`, IRQ control ×3, IO-port control, **`sg_setIRQHandler`**, `sg_performAsidPoolInvocation`).
+  **SpecInvSgD** (`NOVS` leaves `nvk_*`: setCap / capInsert / createCap at NotNode slots, deleteObjects, retype (ut8's
+  `default_null`); `HoldsArch`/`ArchSlN` + `okv_archDecodeSl` / `okv_fl4ArchDecodeSl`: a VSpace map's slot holds an arch cap —
+  ut8's MapOK's RefEq does not exclude a ntfn cap there; `ArchWr`, `nvk_archPerform`, `archWr_notNode`,
+  `nvk_deriveSubframe`, `sg_fl4ArchPerform`, `sg_makePool`, `nvk_resetUntypedCap`, `nvk_invokeUntyped`, **`sg_invokeUntyped`**:
+  source holds an untyped cap, destinations are slots of the CNode named by UtOKN's cap). **SpecInvSgE** (`SgOKN` +
+  `okv_fl4DecodeS`, `sgP_fl4Perform`, `IKS`, `sgN_handleInvocationR` (ut7's shell + ut8's `okv_fl4DecodeG` + `okv_fl4DecodeS`),
+  syscalls, events, `sgN_fl4CallKernel`, `sgN_kentry`, `SpecGlobS` (SpecGlob on `capAt`), `IdleOutV`, tops).
+  **SpecInvSgBridge** (`sg_capAt`, `specGlobS_iff : SpecGlobS σ ↔ SpecGlob σ`, primed tops in SpecGlob.lean's form).
+- STATEMENTS:
+  * **`kentry_specGlob (c) (hG : SpecGlobS σ) (hI : IdleOutV σ) (hU : UtInv3 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1,
+    SpecGlobS y.2 ∧ IdleOutV y.2`**
+  * **`kcall_specGlob (rep ev) (hG) (hI) (hU) : ∀ y ∈ (fl4CallKernel rep ev σ).1, SpecGlobS y.2 ∧ IdleOutV y.2`** (every event)
+  * `kentry_specGlob'` / `kcall_specGlob'` (SpecInvSgBridge): the same with `Fl4Proofs.P3.SpecGlob`.
+  * `boot_specGlob : SpecGlobS initASt ∧ IdleOutV initASt` (non-vacuity only, per the 2026-11-20 decision).
+- Premises: one new carried [J] fact, `IdleOutV` (above); `hU : UtInv3 σ` a hypothesis (ut8's `kentry_utInv2` carries it).
+  No ∀-states hypothesis, no [W].
+- No FINDING: no reachable step writes a non-null non-notification cap into an IRQ-node slot or makes a cap cover the idle
+  thread or a node CNode (retype children lie in the parent's region, copies / derives / moves cover what the source covers).
+- Builds (tokyo, ./sg1.sh untracked = ut8.sh with its own log; mirror warm): sg1-b1 SgI6 (1024 jobs), sg1-b3 SgA (1122) +
+  SgG (1124) + SgC (1126), sg1-b6 SgD (1128) + SgE (1130) (b2: NPre not unfolded through `hrec _`, explicit calls; b4/b5:
+  match on `pageTableUnmap (archObjectCap a)` needs `cases a`; reset timeout fixed by peeling like ut8's `nv_reset`;
+  `hv_bind (R := …)`), sg1-b7 SgBridge (4956 jobs: SpecGlob.lean's JAtZ cone) + axioms (scratch/sg1/ax.lean, untracked): kentry_specGlob,
+  kcall_specGlob, boot_specGlob, kentry_specGlob', kcall_specGlob', specGlobS_iff, sgN_kentry, sgP_fl4Perform, sg_invokeUntyped,
+  sg_makePool, sg_fl4ArchPerform, sg_invokeCnode, sg_setIRQHandler, no_recDel, sg_doNormalTransfer, okv_decodeCnodeRot,
+  okv_fl4ArchDecodeSl, okv_fl4DecodeS, idk_fl4KernelEntrySyscall, idk_fl4CallKernel: propext, Classical.choice, Quot.sound.
+  No sorry/admit/native_decide/bv_decide.
+  Root Fl4Proofs.lean not rebuilt (twelve import lines added).
+- Next: wire into the bundle (JEntryAt.sg / WJ take SpecGlob; `kentry_specGlob'` supplies it from the previous exit);
+  IdleOutV and the boot state with untyped caps stay [S]/[J] as UtInv3's IrqOutV.
