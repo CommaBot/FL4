@@ -20,6 +20,11 @@ and keep `Rdy`** (spec side only, outside the `JAtZ` cone).
   when `p` is not the current SC (the off1 item 6 obligation: from R1 / R2 /
   the idle SC), and `Excl σ p` when `p` is not the current SC: afterwards
   `Rdy`, **`OffReady`** and the current SC is `p`.
+  rd4: the precondition `OffReady ∧ Suff` is generalised to the overrun
+  disjunct `(OffReady ∧ Suff) ∨ (consumed = 0 ∧ (p = cur_sc → OffReady))`
+  (after `charge_budget`'s overrun the head is in the future but the consumed
+  time is 0, so `commit_time` changes no refill: `commit_zero`,
+  `rdy_commitZero`), and `p`'s refills are needed only when `p ≠ cur_sc`.
 -/
 import Fl4Proofs.P3.SpecInvRdA
 open Classical
@@ -178,11 +183,62 @@ theorem rdy_congr {σ σ' : State Unit} (h : Rdy σ) (hk : σ'.kheap = σ.kheap)
       obtain ⟨x, c, y, n, hx, hc, hy, h1⟩ := h5 t (hrq t hm)
       exact ⟨x, c, y, n, by rw [hk]; exact hx, hc, by rw [hk]; exact hy, h1⟩⟩
 
-/-- **`switch_sched_context`** (module docstring). -/
+theorem rvs_congr' {y z : SchedContext} (e1 : z.scRefills = y.scRefills) (e2 : z.scRefillMax = y.scRefillMax)
+    (h : RVs y) : RVs z := by
+  unfold RVs refillHd at *; rw [e1, e2]; exact h
+
+/-- **`commit_time` at zero consumed time** (rd4): only the current SC's
+`scConsumed` changes (refills, refill max, binding kept), consumed time 0. -/
+theorem commit_zero {σ : State Unit} {x : SchedContext} {n : Nat}
+    (hk : σ.kheap σ.curSc = some (.schedContext x n)) (h0 : σ.consumedTime = 0) {r : Unit × State Unit}
+    (hr : r ∈ (commitTime (Z := Unit) σ).1) :
+    ∃ y, r.2 = { Sched.updSc σ σ.curSc y n with consumedTime := 0 } ∧ y.scRefills = x.scRefills ∧
+      y.scRefillMax = x.scRefillMax := by
+  unfold commitTime at hr
+  rw [nd_gets_bind, nd_bind_one (getScActive_eq hk), nd_gets_bind] at hr
+  by_cases hc : scActive x = true ∧ σ.curSc ≠ σ.idleSc
+  · rw [NonDet.when, if_pos hc, nd_bind_assoc', nd_gets_bind, nd_bind_assoc'] at hr
+    have h0' : ¬ (0 < σ.consumedTime) := by rw [h0]; simp
+    rw [NonDet.when, if_neg h0', nd_bind_one (show NonDet.pure (σ := State Unit) () σ = ({((), σ)}, False) from rfl),
+      nd_bind_one (updateSchedContext_eq hk _)] at hr
+    obtain rfl : r = ((), _) := hr
+    exact ⟨_, rfl, rfl, rfl⟩
+  · rw [NonDet.when, if_neg hc, nd_bind_one (show NonDet.pure (σ := State Unit) () σ = ({((), σ)}, False) from rfl)]
+      at hr
+    obtain rfl : r = ((), _) := hr
+    refine ⟨x, ?_, rfl, rfl⟩
+    show _ = { Sched.updSc σ σ.curSc x n with consumedTime := 0 }
+    rw [updSc_self hk]
+
+/-- `Rdy` across `commit_time` at zero consumed time. -/
+theorem rdy_commitZero {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy σ)
+    (hk : σ.kheap σ.curSc = some (.schedContext x n)) {y : SchedContext} (e1 : y.scRefills = x.scRefills)
+    (e2 : y.scRefillMax = x.scRefillMax) :
+    Rdy ({ Sched.updSc σ σ.curSc y n with consumedTime := 0 } : State Unit) := by
+  have hkc : ∀ q, q ≠ σ.curSc → ({ Sched.updSc σ σ.curSc y n with consumedTime := 0 } : State Unit).kheap q =
+      σ.kheap q := fun q hq => by simp [Notif.updK, hq]
+  have hkp : ({ Sched.updSc σ σ.curSc y n with consumedTime := 0 } : State Unit).kheap σ.curSc =
+      some (.schedContext y n) := kh_upd _ _ _ _
+  have hay : scActive y = scActive x := by simp only [scActive, e2]
+  have ehd : refillHd y = refillHd x := by unfold refillHd; rw [e1]
+  refine rdy_frame1 h hkc rfl rfl rfl (fun y0 n0 hy0 ha0 hr0 => ?_) (fun x0 hx0 => by rw [hk] at hx0; cases hx0)
+    (fun x0 hx0 => by rw [hkp] at hx0; cases hx0) (fun z n0 hz hz' => ?_) rfl
+    (fun y0 n0 hy0 ha0 => ⟨y, n, hkp, by rw [hk] at hy0; cases hy0; rw [hay]; exact ha0⟩)
+  · rw [hk] at hy0; cases hy0
+    exact ⟨y, hkp, by rw [hay]; exact ha0, by rw [ehd]; exact hr0⟩
+  · rw [hkp] at hz; cases hz
+    rw [hay] at hz'
+    exact rvs_congr' e1 e2 (h.2.2.2.1 _ x n hk hz')
+
+/-- **`switch_sched_context`** (module docstring; rd4: the overrun case
+`consumed = 0` is allowed, `hOS`, and the new SC's refills are needed only
+when it is not the current SC). -/
 theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : ObjRef} {y : SchedContext} {m : Nat}
-    (h : Rdy σ) (hk : σ.kheap σ.curSc = some (.schedContext x n)) (hO : Sched.OffReady σ) (hS : Suff σ)
+    (h : Rdy σ) (hk : σ.kheap σ.curSc = some (.schedContext x n))
+    (hOS : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady σ)))
     (hne : scActive x = true → x.scRefills ≠ []) (hct : σ.kheap σ.curThread = some (.tcb xt))
-    (hsc : xt.tcbSchedContext = some p) (hp : σ.kheap p = some (.schedContext y m)) (hnp : y.scRefills ≠ [])
+    (hsc : xt.tcbSchedContext = some p) (hp : σ.kheap p = some (.schedContext y m))
+    (hnp : p ≠ σ.curSc → y.scRefills ≠ [])
     (hHR : p ≠ σ.curSc → (refillHd y).rTime.toNat ≤ σ.curTime.toNat) (hX : p ≠ σ.curSc → Excl σ p)
     {r : Unit × State Unit} (hr : r ∈ (switchSchedContext (Z := Unit) σ).1) :
     Rdy r.2 ∧ Sched.OffReady r.2 ∧ r.2.curSc = p := by
@@ -191,7 +247,9 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
     nd_bind_one (show NonDet.assertOpt (some p) σ = ({(p, σ)}, False) from rfl),
     nd_bind_one (getSchedContext_eq hk)] at hr
   -- the tail: reprogram test, commit, the new current SC
-  have tail : ∀ s : State Unit, Rdy s → Sched.OffReady s → Suff s → s.curSc = σ.curSc →
+  have tail : ∀ s : State Unit, Rdy s →
+      ((Sched.OffReady s ∧ Suff s) ∨ (s.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady s))) →
+      s.curSc = σ.curSc →
       s.kheap σ.curSc = some (.schedContext x n) → (s.reprogramTimer = false → s.curSc = p) →
       (∀ z k, s.kheap p = some (.schedContext z k) → p ≠ σ.curSc → (refillHd z).rTime.toNat ≤ s.curTime.toNat) →
       ∀ r ∈ ((do
@@ -199,47 +257,72 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
         NonDet.when reprogram commitTime
         NonDet.modify fun s : State Unit => { s with curSc := p }) s).1,
       Rdy r.2 ∧ Sched.OffReady r.2 ∧ r.2.curSc = p := by
-    intro s hR hO' hS' hcs hks hrp hpz r hr
+    intro s hR hOS' hcs hks hrp hpz r hr
     rw [nd_gets_bind] at hr
     simp only [NonDet.when] at hr
+    have hks' : s.kheap s.curSc = some (.schedContext x n) := by rw [hcs]; exact hks
     split_ifs at hr with hrt
     · obtain ⟨c, hc, hr⟩ := hr
-      have hks' : s.kheap s.curSc = some (.schedContext x n) := by rw [hcs]; exact hks
-      obtain ⟨hR2, hO2, y2, e, -, -, -, -, -, -, -, -, -⟩ := rdy_commitTime hR hks' hO' hS' hne hc
-      obtain rfl : r = ((), _) := hr
-      refine ⟨rdy_congr hR2 rfl rfl rfl rfl fun _ h => h, fun z k hz => ?_, rfl⟩
-      have hz0 : c.2.kheap p = some (.schedContext z k) := hz
-      show (refillHd z).rTime.toNat + c.2.consumedTime.toNat ≤ c.2.curTime.toNat
-      by_cases epc : p = s.curSc
-      · have ec : c.2.curSc = p := by rw [e]; exact epc.symm
-        exact hO2 z k (ec ▸ hz0)
-      · rw [e] at hz0 ⊢
-        have hz' : s.kheap p = some (.schedContext z k) := by simpa [Notif.updK, epc] using hz0
+      rcases hOS' with ⟨hO', hS'⟩ | ⟨h0, hOp⟩
+      · obtain ⟨hR2, hO2, y2, e, -, -, -, -, -, -, -, -, -⟩ := rdy_commitTime hR hks' hO' hS' hne hc
+        obtain rfl : r = ((), _) := hr
+        refine ⟨rdy_congr hR2 rfl rfl rfl rfl fun _ h => h, fun z k hz => ?_, rfl⟩
+        have hz0 : c.2.kheap p = some (.schedContext z k) := hz
+        show (refillHd z).rTime.toNat + c.2.consumedTime.toNat ≤ c.2.curTime.toNat
+        by_cases epc : p = s.curSc
+        · have ec : c.2.curSc = p := by rw [e]; exact epc.symm
+          exact hO2 z k (ec ▸ hz0)
+        · rw [e] at hz0 ⊢
+          have hz' : s.kheap p = some (.schedContext z k) := by simpa [Notif.updK, epc] using hz0
+          show (refillHd z).rTime.toNat + (0 : Ticks).toNat ≤ s.curTime.toNat
+          simpa using hpz z k hz' (by rw [← hcs]; exact epc)
+      · obtain ⟨y2, e, ey1, ey2⟩ := commit_zero hks' h0 hc
+        obtain rfl : r = ((), _) := hr
+        have hR2 : Rdy c.2 := by rw [e]; exact rdy_commitZero hR hks' ey1 ey2
+        refine ⟨rdy_congr hR2 rfl rfl rfl rfl fun _ h => h, fun z k hz => ?_, rfl⟩
+        have hz0 : c.2.kheap p = some (.schedContext z k) := hz
+        show (refillHd z).rTime.toNat + c.2.consumedTime.toNat ≤ c.2.curTime.toNat
+        rw [e] at hz0 ⊢
         show (refillHd z).rTime.toNat + (0 : Ticks).toNat ≤ s.curTime.toNat
-        simpa using hpz z k hz' (by rw [← hcs]; exact epc)
+        by_cases epc : p = s.curSc
+        · rw [epc, kh_upd] at hz0
+          have ehd : refillHd z = refillHd x := by
+            have e3 : y2 = z := by injection hz0 with e; injection e
+            rw [← e3]; unfold refillHd; rw [ey1]
+          have := hOp (epc.trans hcs) x n hks'
+          rw [h0] at this
+          rw [ehd]; simpa using this
+        · have hz' : s.kheap p = some (.schedContext z k) := by simpa [Notif.updK, epc] using hz0
+          simpa using hpz z k hz' (by rw [← hcs]; exact epc)
     · rw [nd_bind_one (show NonDet.pure (σ := State Unit) () s = ({((), s)}, False) from rfl)] at hr
       obtain rfl : r = ((), _) := hr
       have e := hrp (by simpa using hrt)
+      have hO' : Sched.OffReady s := by
+        rcases hOS' with ⟨hO', -⟩ | ⟨-, hOp⟩
+        · exact hO'
+        · exact hOp (by rw [← hcs, e])
       refine ⟨rdy_congr hR rfl rfl rfl rfl fun _ h => h, fun z k hz => ?_, rfl⟩
       exact hO' z k (by rw [e]; exact hz)
   by_cases hpc : p = σ.curSc
   · rw [NonDet.when, if_neg (not_not.2 hpc),
       nd_bind_one (show NonDet.pure (σ := State Unit) () σ = ({((), σ)}, False) from rfl)] at hr
-    exact tail σ h hO hS rfl hk (fun _ => hpc.symm) (fun _ _ _ e => absurd hpc e) r hr
+    exact tail σ h hOS rfl hk (fun _ => hpc.symm) (fun _ _ _ e => absurd hpc e) r hr
   · rw [NonDet.when, if_pos hpc, nd_bind_assoc', SInvV.sv_bind_modify] at hr
     obtain ⟨c, hc, hr⟩ := hr
-    have hpS : σ.kheap p ≠ none := by rw [hp]; simp
     have hpk : ({ σ with reprogramTimer := true } : State Unit).kheap p = some (.schedContext y m) := hp
     have hcne : σ.curSc ≠ p := fun e => hpc e.symm
-    rcases icb_out hpk hnp hc with e | ⟨z, e, hz1, hz2, hz3, hz4, hz5, hz6, hz9⟩
+    have hOSr : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady σ)) := hOS
+    rcases icb_out hpk (hnp hpc) hc with e | ⟨z, e, hz1, hz2, hz3, hz4, hz5, hz6, hz9⟩
     · rw [e] at hr
-      refine tail { σ with reprogramTimer := true } (rdy_congr h rfl rfl rfl rfl fun _ h => h) hO hS rfl hk (fun e => by cases e) (fun z k hz _ => ?_) r hr
+      refine tail { σ with reprogramTimer := true } (rdy_congr h rfl rfl rfl rfl fun _ h => h) hOSr rfl hk
+        (fun e => by cases e) (fun z k hz _ => ?_) r hr
       have hz' : σ.kheap p = some (.schedContext z k) := hz
       rw [hp] at hz'; cases hz'; exact hHR hpc
     · rw [e] at hr
       have hkq : ∀ q, q ≠ p → (updSc { σ with reprogramTimer := true } p z m).kheap q = σ.kheap q :=
         fun q hq => by simp [Notif.updK, hq]
-      refine tail (updSc { σ with reprogramTimer := true } p z m) ?_ ?_ ?_ rfl ((hkq _ hcne).trans hk) (fun e => by cases e) (fun z' k hz _ => ?_) r hr
+      refine tail (updSc { σ with reprogramTimer := true } p z m) ?_ ?_ rfl ((hkq _ hcne).trans hk)
+        (fun e => by cases e) (fun z' k hz _ => ?_) r hr
       · refine rdy_framex h hkq rfl rfl rfl (hX hpc) (fun x0 hx0 => by rw [hp] at hx0; cases hx0)
           (fun x0 hx0 => by
             have hx1 : (updSc { σ with reprogramTimer := true } p z m).kheap p = some (.tcb x0) := hx0
@@ -253,12 +336,11 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
         obtain ⟨w1, w2⟩ := hz9 v3
         refine ⟨by rw [hz4]; exact v1, ?_, by rw [w1]; exact v3⟩
         rw [BitVec.le_def] at v2 ⊢; omega
-      · intro z' k hz
-        have hz' : σ.kheap σ.curSc = some (.schedContext z' k) := (hkq _ hcne).symm.trans hz
-        exact hO z' k hz'
-      · intro z' k hz hz' hz''
-        have hz3 : σ.kheap σ.curSc = some (.schedContext z' k) := (hkq _ hcne).symm.trans hz
-        exact hS z' k hz3 hz' hz''
+      · rcases hOS with ⟨hO, hS⟩ | ⟨h0, -⟩
+        · refine Or.inl ⟨fun z' k hz => ?_, fun z' k hz hz' hz'' => ?_⟩
+          · exact hO z' k ((hkq _ hcne).symm.trans hz)
+          · exact hS z' k ((hkq _ hcne).symm.trans hz) hz' hz''
+        · exact Or.inr ⟨h0, fun e => absurd e hpc⟩
       · have hz0 : (updSc { σ with reprogramTimer := true } p z m).kheap p = some (.schedContext z' k) := hz
         rw [kh_upd] at hz0; cases hz0
         show (refillHd z).rTime.toNat ≤ σ.curTime.toNat

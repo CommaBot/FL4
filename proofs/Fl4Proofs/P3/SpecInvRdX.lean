@@ -38,15 +38,17 @@ theorem offReady_ko {σ σ' : State Unit} (h : Sched.OffReady σ) (hk : σ'.khea
 
 /-- **`sc_and_timer`** (module docstring). -/
 theorem rd_scAndTimer {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : ObjRef} {y : SchedContext}
-    {m : Nat} (h : Rdy σ) (hk : σ.kheap σ.curSc = some (.schedContext x n)) (hO : Sched.OffReady σ)
-    (hS : Suff σ) (hne : scActive x = true → x.scRefills ≠ []) (hct : σ.kheap σ.curThread = some (.tcb xt))
-    (hsc : xt.tcbSchedContext = some p) (hp : σ.kheap p = some (.schedContext y m)) (hnp : y.scRefills ≠ [])
+    {m : Nat} (h : Rdy σ) (hk : σ.kheap σ.curSc = some (.schedContext x n))
+    (hOS : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady σ)))
+    (hne : scActive x = true → x.scRefills ≠ []) (hct : σ.kheap σ.curThread = some (.tcb xt))
+    (hsc : xt.tcbSchedContext = some p) (hp : σ.kheap p = some (.schedContext y m))
+    (hnp : p ≠ σ.curSc → y.scRefills ≠ [])
     (hHR : p ≠ σ.curSc → (refillHd y).rTime.toNat ≤ σ.curTime.toNat) (hX : p ≠ σ.curSc → Excl σ p)
     {r : Unit × State Unit} (hr : r ∈ (scAndTimer (Z := Unit) σ).1) :
     Rdy r.2 ∧ Sched.OffReady r.2 ∧ r.2.curSc = p := by
   unfold scAndTimer at hr
   obtain ⟨z, hz, hr⟩ := hr
-  obtain ⟨z1, z2, z3⟩ := sw_out h hk hO hS hne hct hsc hp hnp hHR hX hz
+  obtain ⟨z1, z2, z3⟩ := sw_out h hk hOS hne hct hsc hp hnp hHR hX hz
   obtain ⟨w, hw, hr⟩ := hr
   rw [Set.mem_singleton_iff.1 hw] at hr
   dsimp only at hr
