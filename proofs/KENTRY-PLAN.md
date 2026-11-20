@@ -3280,3 +3280,69 @@ CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/MidChoos
   JRecvLeavesRN14.toRN13, canBlockCurMN, faultHypJZN/faultRecvJN/sendFaultPJN/sendFaultIJN/faultBlockJN/noFaultJN/stsCurJN,
   jRecvSigHypN_of, recvSigActiveJN, recvSigBlockJN, receive_signal_active_eqN, specRecvTail_noSc, NoDon.wordsR, jRecvIpcUN,
   recvIpcActJN, complete_signal_eqN, completeSignal_noSc, kernel_entryJ22M (midN_of: none). No sorry/admit/native_decide/bv_decide.
+## mr9 (branch par/mr9 in FL4-tcbj, on 001e5ffd = int/j2 incl. mr8)
+New leaves XTopJointKEntry22P (hand-written), XTopJointKEntry23P (generated: scratch/mr9/gen23.py + head23/tail23.lean
+from XTopJointEntry/XTopJointDispatch/KEntry13P/14P/17P/18P/20P/22P), imported from Fl4Proofs.lean. Nothing existing
+edited (XTopJointEntry untouched); sch23/sch23b's modules only imported.
+- GOAL 1 DONE (XTopJointKEntry22P, 3f5b5c8a): the budget premise of the P line was the OLD `KBudget` (mr8 finding:
+  `KBudget.tmo` FALSE in reachable states). `kernel_entryJ13PB` = kernel_entryJ13P with `hB : … → KBudgetB …`; its
+  `hBud` is budtr's `JAtZ.budgetOkB` verbatim (its post is exactly J13P's `hBud` post; it has no PPPlat/IrqPlat
+  inside, and MR is carried beside it by the existing `WP.spec_and … (budget_ok_mr …)` and `budget_mr_at`), with
+  `NativeScope` at the entry from the existing [S] `hNSR … J0.toR`. So the "MachPlat copy of budgetOkB" is
+  budgetOkB itself: no KBudget field is re-derived and no `KBudget.toB` appears at the top (toB only shows the new
+  premise is weaker). `KDispHypsKV21.to13P` (the J14P…J21P wrapper conversions composed: to20, to12, to7, toK with
+  jPreDecHyp_of18/of17, to6, BudgetAt.vmt, KDispHypsK.to with jPreDecHyp_of14, to13P). NEW TOP `kernel_entryJ22P`
+  = J21P with `KBudgetB`; `j22P_platform` (= j21P_platform).
+- GOAL 2 DONE (XTopJointKEntry23P, 93bfd0ab): `JUtPathM` = JUtPath without `ret` (`JUtRetHypR2` [W], VT-x types);
+  `JPathM` = JPath with JUtPathM for RAM Untyped (every other case textually JPath's); `JPathAtM`; `JUtPath.toM`,
+  `JPathM.of`, `JPathAt.toM` (the new path premise is strictly weaker). `JPreDecHypKM`/`JPreDecHypM`/`JVtxHypMU`
+  (= JPreDecHypK/JPreDecHyp/JVtxHypM with JPathM). J13P's dispatch layer re-elaborated at JPathM (decOK_JMU,
+  handle_invocation_entryJMU, invoke_afterJMU, dispatch_invokeJMU, mid_invRecvJMU, dispatch_midJMU,
+  dispatch_invokeJAllMU, KDispHyps13PU, dispatch_all13PU; bodies unchanged: the Untyped case only forwards the path
+  fact to the pre-decode premise), `kernel_entryJ13PU` (= J13PB), `jPreDecHyp_of14U/17U/18U/20U` (bodies unchanged:
+  of14 reads fan/bufObj/heapH/core0/rcb/vsReach, never ret). `KDispHypsKV23` (= KDispHypsKV21 with JPathAtM and
+  JVtxHypMU), `.to13PU`, `KDispHypsKV21.to23` (given JVtxHypMU), NEW TOP `kernel_entryJ23P`, `j23P_platform`.
+  Note: `JVtxHypMU` [S] is asked with the weaker path fact (JPathM), so it is not implied by JVtxHypM; it is the
+  same VT-x scope (the dropped `ret` was itself only about VT-x retypes 14..18).
+- PREMISES of `kernel_entryJ23P` (every hypothesis; bundles with their fields' tags as at their definitions):
+  * `[PlainStore st]` (instance: plain store model, P1).
+  * `J : JAtZ … s a σ` [J] (joint invariant at the entry: l4v invs + state_relation, JointAt.lean).
+  * `hni : Entered σ` [J] (ct_running, resume_cur_thread).
+  * `hR : MR a σ.machineState` [J] (shared machine_state), `hVI : ValidIrqMasks σ` [J] (valid_irq_masks).
+  * `hn : NativeSys n c` (the statement's own syscall-number relation).
+  * `hflag` [S] (l4h trap mode: TRAP_SYSCALLS clear after the FAULT_IP write).
+  * `hB : ∀ x, kheap ct = tcb x → KBudgetB arI a (faultIPSt …)` (CHANGED from KBudget): `now` NowAgree [P] (FL4's
+    clock read agrees with the spec's getCurrentTime at that state; MachPlat.nowAgree from MR + VMT), `cur` CurInv
+    [J] (l4v ct bound to cur_sc, not IPC-blocked, cur_sc active, ct_not_in_release_q), `off` OffReady [J] (l4v
+    cur_sc_offset_ready), `tmo : NoTmoSend σ0 ∨ ∀ d p, ct ∉ readyQueues d p` [J] (l4v ct_not_in_q under
+    resume_cur_thread; true in reachable states, budtr).
+  * `hK : ∀ σb, BudgetAt σ σb true → ∀ Z' H' Cs' Ac' Lst' D' s' a', JAtZ … σb → KDispHypsKV23 …` (asked only at the
+    budget outcome): `inv`: `JEntryGlobM` (ari [P], tot [P], delParts [J]/[P] (archRef [P], arKeep [P], vt [J], thr),
+    nd [P], ppA [P], dom [P], portIn [P] (∀σ PortInVal), sigRest [J], timeAg [P], maxTU/tu [P]); `JEntryAt` (ni,
+    ctnq, sg, rd0, flags, epQ, handlers, ports, vfh, cnf, vsTyp, live, fnz, urz, utks [J]; stall, ioapics, archIrq
+    [P]); `JPathAtM` (CHANGED: per cap kind JPathM, fields tagged as XTopJointEntry's table: [P] config constants /
+    one core, [J] invariant facts, [S] JVtxScope for VT-x decodes; NO [W] field any more: `JUtPath.ret` gone);
+    `JVtxHypMU` [S] (VT-x Untyped retype 14..18, no l4v counterpart). `recv`: ct_not_in_q, valid_fault_handler [J].
+    `mid`: JEntryGlobM, JEntryAt, JPathAtM as above, `MidRun.JMidPerfHypQ` [W], `JMidVfhHyp` [J],
+    `JMidLeavesHyp13` [W] (sch22; sch23/sch23b's line), `JVtxHypMU` [S].
+  * `hFin : ∀ x ∈ (specFront c σ).1, ∀ …, JAtZR … x.2 → KFinAtR …` (asked only at the front end's outcomes): hd
+    (domainTime ≠ 0 ∨ NdOK) [J], vt [J], arch/archNd (ArchSwF/ArchNdF) [P], fo FpuOwnOK [J], sni/send
+    (SniHyp/SendHyp) [P], tail (schedule's CR3 tail) [P].
+  * `hARI : ARIface` [P], `hA : P0.ArchTotal` [P], `hnd : numDomains = 1` [P], `hM : MachPlat arI MR` [P],
+    `hKD : MRKeepD arI MR` [P], `hPA : PPPlatA` [P], `hIA : IrqPlatA` [P], `hmrt` (MAX_RELEASE_TIME) [P], `hmb`
+    (MIN_BUDGET) [P], `hT : TimeAgree` [P], `hmax : maxTicksToUs = U64.MAX` [P], `htu` (ticks_to_us) [P].
+  * `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` [S], `hNSR : ∀ …, JAtZR … → NativeScope σ` [S] (VT-x RunningVM out of
+    the native scope).
+- Check: no premise of kernel_entryJ23P is known false in reachable states (KBudget.tmo, the last one, is gone;
+  KBudgetB.tmo is ct_not_in_q). ∀-over-states hypotheses that the operation cannot establish itself: the [P]
+  `JEntryGlobM.portIn` (PortInVal, ∀σ: a platform/config fact about port I/O, as before) and the [S] scope premises
+  `hNS`/`hNSR` (∀ states satisfying JHoleAt/JAtZR: native scope, no VT-x RunningVM) and `hflag` (∀ ct v, l4h trap
+  mode); `hK`/`hFin` are path-restricted (only at the budget/front-end outcome states). The remaining [W] are
+  `JMidPerfHypQ` and `JMidLeavesHyp13` (mid receive path, the sch23 lines).
+- Builds (tokyo, scratch/mr9/b.sh, warm mirror): mr9-b1 (docstring before `set_option … in`; b.sh grepped mr8's log),
+  mr9-b2 XTopJointKEntry22P OK (5684 jobs), mr9-b3 XTopJointKEntry23P OK (5686 jobs), first try; mr9-b4 both OK after a docstring fix. Root
+  Fl4Proofs.lean not rebuilt (two leaf imports). Axioms (scratch/mr9/chk9.lean, chk23.lean, untracked): propext,
+  Classical.choice, Quot.sound only for kernel_entryJ23P, kernel_entryJ22P, kernel_entryJ13PU, kernel_entryJ13PB,
+  KDispHypsKV23.to13PU, KDispHypsKV21.to23, KDispHypsKV21.to13P, JPathAt.toM, JPathM.of, JUtPath.toM,
+  dispatch_all13PU, decOK_JMU, jPreDecHyp_of14U/17U/18U/20U, j22P_platform, j23P_platform, JAtZ.budgetOkB. No
+  sorry/admit/native_decide/bv_decide.

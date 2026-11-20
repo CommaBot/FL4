@@ -36,7 +36,7 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
 /-- **The RAM Untyped path without the [W] field `ret`** (module docstring):
-`JUtPathM` minus `JUtPathM.ret` (`JUtRetHypR2`, VT-x types only), which the P
+`JUtPath` minus `JUtPath.ret` (`JUtRetHypR2`, VT-x types only), which the P
 line's untyped decode (`decode_invocation_untypedJM`) never reads. Every
 other field as `JUtPathM`, with its tag. -/
 structure JUtPathM (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
