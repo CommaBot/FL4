@@ -2678,3 +2678,51 @@ hole facts (`jAtPre_holeQ` chain) under MachPlat, hence no `hPre_ofZQIM` yet; (2
   MachF.mfk_checkBudget/mfk_chargeBudget, modelArch_mrKeep, gai_active, JAtZ.handleIrqJIA/JJA, jIrqHypJ_ofA,
   afterInv_of_mcsIM, JHole.mcsPPJZM/afterInvJZIM/mcsPPJSM/CM/UM/IM/AM/RM, and the newest top kernel_entryJ12M
   (unchanged). No sorry/admit/native_decide/bv_decide.
+## mr3 (branch par/mr3 in FL4-tcbj, on fbf9f232 = int/j2 incl. mr2, sch17)
+New leaves XTopJointMRHole, XTopJointMRHole2 (imported from Fl4Proofs.lean). Nothing existing edited. Goal: mr2 NEXT
+(a) `hPre_ofZQIM`, then (b) MR through the invocations, (c) kernel_entryJ13P. DONE: (a) fully, plus the loop-side
+interface of (b) (`ppJDMV`). NOT done: (b) per invocation family, (c).
+- DONE (XTopJointMRHole, 14c9b429):
+  * `JAtPreMV AR MR s a σ` = mr1's `JAtPreM` + `ValidIrqMasks σ0` [J] (l4v `valid_irq_masks`) at the preempting
+    preemption point's pre-state; `.toM`, `.toPre`.
+  * `jAtPreMV_holeQ`: the whole jAtPre_holeT/TN/O/K/L/Q chain under `MachPlat` + `PPPlatA` (no PPPlat): hole by
+    `ppJHM`; the spec pp outcome named by `getCurrentTime_eq`/`getActiveIRQ_eq`/`pp_err_eq` (deterministic, no
+    platform needed); TShift's `σ0.curTime ≤ σ.curTime` from `vmt_le_gct` (VMT at the base); `ValidIrqMasks` at the
+    hole by defeq (gctState/gaiState touch only oracle positions/last time). Output adds `MR a σ.ms ∧ VMT σ ∧ VIM σ`.
+  * `jPreemptRestHypEQ_ofIM` (mcsPPJAM/RM + afterInv_of_mcsIM), `hPre_ofZQIM`: every hole of a related `JAtPreMV`
+    state → `r.1 = false ∧ PPQJI` under `MachPlat` [P], `MRKeep` [P], `PPPlatA` [P], `IrqPlatA` [P] (+ the existing
+    hmrt/hmax/htu [P] and hNS [S]). No PPPlat/IrqPlat/IrqPlatI anywhere in its cone.
+- DONE (XTopJointMRHole2, 64b64812):
+  * `irqVF` (masks, interrupt table), `ivk_preemptionPoint : FKE irqVF preemptionPoint` (VsDom's generic FK +
+    dk_step0, leaves ivk_doMachineOp/ivk_gct/ivk_gai/ivk_doExtendedOp), `vim_pp` (every pp outcome keeps VIM).
+  * `JAtZ.ppJDMV`: the preemption point at `JAtZ` + `MR a σ.ms ∧ VMT σ ∧ VIM σ ∧ NoSwitch σ ∧ PPR0 σ`: `∃ r, pp =
+    ok r ∧ ∃ σ', (Ok ∧ spec ok ∧ JAtZ' ∧ PPR0 σ' ∧ NoSwitch σ' ∨ Preempted ∧ spec error ∧ JAtPreMV r σ') ∧ XTopAt ∧
+    MR r.2.2 σ'.ms ∧ VMT σ' ∧ VIM σ'`. This is the drop-in for `J.ppJD arI hAK hA hnd hP hp0` (PPPlat) in the loops:
+    a loop whose invariant carries `MR a σ.ms ∧ VMT σ ∧ VIM σ` beside JAtZ ends in `JAtPreMV` (what hPre_ofZQIM eats).
+- No new premise. JAtPreMV's VIM is a carried per-state fact (not a hypothesis of a top yet).
+- NEXT (handoff):
+  (b) the invocation families still produce `JAtPre` via `ppJD`/`jPreemptHyp_of`/`jPreemptHypL` with `hG.pp`
+      (PPPlat): CnodeRevoke, DelRound, UntypedResetRefine, XTopJointDelR, XTopJointEntry, XTopJointWJLPP/WJLDel/
+      WJLRestart (grep `hG\.pp\|\.ppJD arI\|jPreemptHyp_of\|jPreemptHypL`), and UtResetLoopJ/UtRetResetJ/XTopJointTcb*
+      through them. Per family: extend the loop invariant (e.g. UtResetLoopJ's `loop.spec_decr_nat` inv, WJL's
+      `WJL`/`WJP`) by `MR a σk.ms ∧ VMT σk ∧ VIM σk`; replace the pp step by `ppJDMV`; the non-pp steps keep it:
+      FL4 side store-only steps keep `a` (MR untouched), arch calls by `MK.*` walks (MachKeep, `MRKeep`), `mask_irq`
+      (IRQ handler deletion) by `MachPlat.mask` (and VIM needs the spec's `setIrqState irqInactive` paired with the
+      mask: l4v deleting_irq_handler_valid_irq_masks); spec side `MachF.mfk_*` (MFK keeps msF ⊇ MR fields and
+      interruptStates). Missing spec leaves: clearMemory (UtReset's chunk clear; memory-only, add an `MKF` leaf),
+      maskInterrupt/setIrqState (move msF; need a dedicated pair lemma). Smallest family to start: UtResetLoopJ
+      (clear + pp per chunk). Then a `dispatch_invokeJAllM` needs `invoke_afterJ` with `JAtPreMV` for `JAtPre`
+      (its hPre is applied only at the Preempted outcome's `hX : JAtPre`, so the copy needs TopPostDMXP at XP :=
+      JAtPreMV from `handle_invocation_entryJ` → every decode/perform lemma's XP: that is the bulk).
+  (c) kernel_entryJ13P after (b): MR+VMT+VIM at the entry [J] (l4v shared machine_state, valid_machine_time,
+      valid_irq_masks); budget_ok via `MachPlat.nowAt` (KBudget.now is already per-state); dispatch_all9M's
+      `dispatch_invokeJAll`/`dispatch_midJ` with hPre_ofZQIM; JEntryGlob.pp must be dropped (it is a PPPlat, so any
+      top keeping JEntryGlob stays vacuous). JEntryGlob.portIn (PortInVal ∀σ) stays the remaining ∀σ platform premise
+      (MR has no device part). Non-vacuity of the platform premises: modelArch_machPlat, modelArch_mrKeep,
+      modelArch_take_some (MachRel/MRPath); PPPlatA/IrqPlatA are arch-only.
+- Builds (tokyo, scratch/mr3build.sh, warm mirror): mr3-b1 XTopJointMRHole OK first time (5568 jobs); mr3-b2
+  MRHole2 one error (ivk_doMachineOp: un-beta-reduced `have e`), mr3-b3 XTopJointMRHole2 OK (5570) + XTopJointKEntry15M
+  OK (5586). Root Fl4Proofs.lean not rebuilt (two leaf imports). Axioms (scratch/axmr3.lean, untracked; mr3-b3):
+  propext, Classical.choice, Quot.sound only for jAtPreMV_holeQ, jPreemptRestHypEQ_ofIM, hPre_ofZQIM, JAtPreMV.toPre,
+  ivk_preemptionPoint, vim_pp, JAtZ.ppJDMV, and the newest top kernel_entryJ15M (unchanged). No sorry/admit/
+  native_decide/bv_decide.
