@@ -673,3 +673,5 @@ import Fl4Proofs.P3.XTopJointRecvIpcBlockM
 import Fl4Proofs.P3.XTopJointKEntry11M
 import Fl4Proofs.P3.XTopJointFaultM
 import Fl4Proofs.P3.XTopJointKEntry12M
+import Fl4Proofs.P3.XTopJointRecvSendPM
+import Fl4Proofs.P3.XTopJointKEntry13M
