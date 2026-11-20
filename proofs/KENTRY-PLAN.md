@@ -2819,3 +2819,45 @@ the rest of (b) as ONE path-restricted premise.
   propext, Classical.choice, Quot.sound only for kernel_entryJ13P, dispatch_all13P, dispatch_invokeJAllM,
   dispatch_midJM, handle_invocation_entryJM, decOK_JM, budget_ok_mr, budget_mr_at, MachF.mfk_checkBudgetRestart,
   XCapP.reXP, j13P_platform, JAtZ.reset_loopJM, JAtZ.ppJSM, kernel_entryJ15M. No sorry/admit/native_decide/bv_decide.
+## sch19 (branch par/sched19 in FL4-sc, on 78fc5942 = int/j2 incl. sch18, mr1-mr3)
+New leaves XTopJointFaultDonM, XTopJointKEntry17M (imported from Fl4Proofs.lean). Nothing existing edited; JAtZ,
+ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/XTopJointRecv* untouched.
+- (1) FltDon at a switch DONE (XTopJointFaultDonM). FINDING (corrects the sch18 handoff): no JAtZR copy of
+  sendTailJ's cone is needed. Under `switchThread u` (u ≠ ct) the sender's block on the reply keeps the switch and
+  CurInv (`ps_actN`/`ps_curInv`), so before the donation the state is `JAtZ` with `Or.inr CurInv`; the donation's
+  `test_reschedule` of the current thread is `reschedule_required`, which enqueues u and sets `chooseNewThread` on
+  both sides (FL4's `push_donate_refinesW` and `ipc.push_don.blk` are generic in the action: they only ask that
+  the action word names neither thread). After it the action is `chooseNewThread`, `JAtZ` holds, and sendFaultPDJ's
+  tail (`stsIJ`, `sendTailJ`) is reused unchanged.
+  * spec: `enqRQ`, `pdStS` (= pdSt with u enqueued: `dnSt {bdSt .. with readyQueues := RQ, action := choose}`),
+    `pdS_*` (act/rq/ct/csc/rel/idle/isc/tm/arch/kd/ko/kt/kp), `donate_sw_eq` (donate_curN_eq under a switch:
+    `rescheduleRequired_sched` + `tcbSchedAction_gen`), `pd_eqS` (ActReady after the unbind from ActReady before:
+    u's TCB and SC kept; u's SC ≠ the donated one by `Inv.back`).
+  * `JAtZ.pushDonJS` (pushDonJ under the switch, scripted: action word u ≠ t, d; `dn_*` at the enqueued state with
+    `(σ := σBS)`; BlockedScActive re-packed), `JAtZ.sendFaultPDJM` (sendFaultPDJ with sch18's PJM patches + the
+    switch donation), `JAtZ.faultRecvJM2` (faultRecvJM without `¬ FltDon`, the donating branch by PDJM),
+    `JAtZ.faultHypJZM3` (handle_fault at every switch mid state). Generator sch19gen/{gen.py,hdr.lean} (untracked).
+- XTopJointKEntry17M: `JRecvLeavesRN8` (ipc, sig and flt only under chooseNewThread), `.toRN7`, `JMidLeavesHyp8` [W],
+  `jMidLeavesHyp_of8`, `KDispHyps17M.to16M`, NEW TOP `kernel_entryJ17M`.
+- Premise change at the top (kernel_entryJ17M vs J16M): `JMidLeavesHyp7` [W] NARROWED to `JMidLeavesHyp8` [W] :=
+  JMidLeavesHyp7's premises concluding `JRecvLeavesRN8`: `receive_ipc`, `receive_signal` and the cap fault's
+  `handle_fault` each ONLY under `chooseNewThread`. Same l4v counterpart and truth argument (receive_ipc_corres /
+  receive_signal_corres / handle_fault_corres inside handle_recv_corres under scheduler_act_sane); each case is a
+  case of JMidLeavesHyp7. Nothing added. Every switch mid state is now proved; the residue is exactly the
+  chooseNewThread mid states.
+- NOT DONE (handoff), item 5, what JMidLeavesHyp8 still contains: every receive leaf (ipc, sig, flt) at a
+  chooseNewThread mid state. The first phase is `fl4HandleInvocationR true false false true true cptr`, i.e. ANY
+  invocation's `fl4PerformInvocation` (canDonate, firstPhase), so "chooseNewThread → CurInv ∨ ct SC-less" is a
+  spec theorem over every invocation (a post fact to carry through `fl4PerformInvocation`'s cases, like
+  JMidPerfHypQ), not one lemma. Watch for SchedControl Configure of ct's own SC (l4v postpones it: ct in the
+  release queue with chooseNewThread, so CurInv.notRel fails while ct keeps its SC; CanBlock needs ct ∉ release
+  queue) — check that case first, it may need a weaker disjunct than CurInv. Then per leaf: the SC-less case via
+  the resumed leaves' `hsa` second disjunct (recvIpcBlockJG/recvIpcBlockNJG/recvSendPJG/... already take it;
+  recvSigBlockJ / faultHypJZ take `Entered` and need the same `hsa` generalisation), the CurInv case via MidE-style
+  copies with `chooseNewThread` in place of the switch (post JAtZ by `Or.inl`, so no JAtZR is needed).
+- Builds (tokyo, b.sh): sch19-b1 (Ipc.SKeep vs P3.SKeep, `schedulable` unqualified), sch19-b2 (`rw [if_pos]` on
+  test_reschedule's condition → `split_ifs`; BlockedScActive is a structure, re-packed), sch19-b3
+  `XTopJointFaultDonM XTopJointKEntry17M` OK (5598 jobs), on 78fc5942, no sorry. Axioms (axsch19.sh, untracked;
+  sch19-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ17M, KDispHyps17M.to16M,
+  jMidLeavesHyp_of8, JRecvLeavesRN8.toRN7, JAtZ.faultHypJZM3/faultRecvJM2/sendFaultPDJM/pushDonJS, pd_eqS,
+  donate_sw_eq, kernel_entryJ16M; pdS_ko/kt/kp propext only. No sorry/admit/native_decide/bv_decide.

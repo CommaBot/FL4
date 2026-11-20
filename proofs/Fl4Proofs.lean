@@ -692,3 +692,5 @@ import Fl4Proofs.P3.XTopJointFaultRecvM
 import Fl4Proofs.P3.XTopJointKEntry16M
 import Fl4Proofs.P3.UtResetLoopJM
 import Fl4Proofs.P3.XTopJointKEntry13P
+import Fl4Proofs.P3.XTopJointFaultDonM
+import Fl4Proofs.P3.XTopJointKEntry17M
