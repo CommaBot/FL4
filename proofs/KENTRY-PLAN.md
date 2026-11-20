@@ -2726,3 +2726,44 @@ interface of (b) (`ppJDMV`). NOT done: (b) per invocation family, (c).
   propext, Classical.choice, Quot.sound only for jAtPreMV_holeQ, jPreemptRestHypEQ_ofIM, hPre_ofZQIM, JAtPreMV.toPre,
   ivk_preemptionPoint, vim_pp, JAtZ.ppJDMV, and the newest top kernel_entryJ15M (unchanged). No sorry/admit/
   native_decide/bv_decide.
+
+## sch18 (branch par/sched18 in FL4-sc, on a589b93d = int/j2 incl. sch17, mr1, kfix1)
+New leaves XTopJointJAtZRM, XTopJointRecvSigRetM, XTopJointFaultRecvM, XTopJointKEntry16M (imported from
+Fl4Proofs.lean). Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/
+ScTmoCt*/Entry/Irq*/MR*/XTopJointRecv* untouched.
+- (a) sig SC return at a switch DONE (XTopJointJAtZRM + XTopJointRecvSigRetM): `Sched.maybeReturn_midR`
+  (maybeReturn_mid with CurInvR in/out); scripted JAtZR copies (sch9gen/gen.py root `JAtZ.maybeReturnJQ`,
+  sch18gen/mk.py drops the four already in JAtZRA and patches `JAtZR.sc_frame`'s hcur to CurInvR):
+  sc_frame/sc_buf/sc_apart/sc_jpl/sc_kern/sc_utc/deadY_tcb/ymd/sc_out_keep/deadP_sc_stepQm/Q/G/step/
+  spec_of_words/words_of_spec/maybeReturnJQ. `Sched.recvSigBlockPre_act`, `JAtZ.recvSigBlockPreJM` (post JAtZR,
+  switch kept; recvSigBlockJM's changes), `JAtZ.recvSigRetJM`, `jRecvSigHypM2_of` (every notification receive at a
+  switch mid state).
+- (b) fault send to a waiting receiver at a switch DONE except the donating case (XTopJointFaultRecvM). FINDING:
+  sendTailJ is generic in the action (possible_switch_to under a switch = reschedule_required + enqueue on both
+  sides), and before the tail the faulting ct is Inactive / BlockedOnReply with its SC, so CurInv holds there
+  (NotIpcBlk admits both): `JAtZ` with `Or.inr CurInv` instead of choose. `ciSt_actN/curInv/sched`,
+  `ps_actN/curInv/sched`; `JAtZ.sendFaultIJM`, `JAtZ.sendFaultPJM` (sch18gen/mkf.py patches of sendFaultIJ/PJ:
+  action word = u ≠ ct, receiver (blocked, u schedulable); ct's SC word ∈ Ac from `curScAc` (ct is not `Sch` under a
+  switch); ActIdle by CFr.sched + ciSt/ps_sched), `JAtZ.faultRecvJM` (canBlockCurM; PDJ branch excluded by
+  `FltDon`), `JAtZ.faultHypJZM2`. NOT DONE: `FltDon σ` (grant/grant-reply handler, head receiver with a reply
+  object and no SC: ct donates its SC; `pd_eq` takes "no switch" and after the donation neither CurInv nor choose
+  holds, so needs a JAtZR route through pushDonJ + sendTailJ (gen.py root JAtZ.sendTailJ: 5 new copies
+  switchJ/unblockRJ/sendUnblockJ/sendSwitchJ/sendTailJ beyond JAtZRM's set) and a switch version of pd_eq).
+- XTopJointKEntry16M: `JRecvLeavesRN7` (ipc and sig only under chooseNewThread, flt only under choose ∨ FltDon),
+  `.toRN6`, `JMidLeavesHyp7` [W], `jMidLeavesHyp_of7`, `KDispHyps16M.to15M`, NEW TOP `kernel_entryJ16M`.
+- Premise change at the top (kernel_entryJ16M vs J15M): `JMidLeavesHyp6` [W] NARROWED to `JMidLeavesHyp7` [W] :=
+  JMidLeavesHyp6's premises concluding `JRecvLeavesRN7`: `receive_ipc` and `receive_signal` only under
+  `chooseNewThread`, the cap fault's `handle_fault` only under `chooseNewThread ∨ FltDon`. Same l4v counterpart and
+  truth argument (receive_ipc_corres / receive_signal_corres / handle_fault_corres under scheduler_act_sane); each
+  case is a case of JMidLeavesHyp6. Nothing added. Other premises as J15M.
+- NOT DONE (handoff): (1) FltDon at a switch (above). (2) item 5, chooseNewThread mid states, every leaf: route
+  unchanged (a first-phase post fact "chooseNewThread → CurInv ∨ ct SC-less", then the resumed leaves' `hsa`
+  second disjunct / CurInv copies).
+- Builds (tokyo, b.sh): sch18-b1 `XTopJointJAtZRM` (4 decls already in JAtZRA: dropped 3 more), sch18-b2
+  `JAtZRM` + `RecvSigRetM` OK, `FaultRecvM` (Ipc.SKeep vs P3.SKeep once FaultM is imported; `by cases h,` parsing),
+  sch18-b3 `XTopJointFaultRecvM` + `XTopJointKEntry16M` OK (5594 jobs), all on a589b93d, no sorry. Axioms
+  (axsch18.sh, untracked; sch18-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ16M,
+  KDispHyps16M.to15M, jMidLeavesHyp_of7, JRecvLeavesRN7.toRN6, jRecvSigHypM2_of, JAtZ.recvSigRetJM/recvSigBlockPreJM,
+  Sched.recvSigBlockPre_act/maybeReturn_midR, JAtZR.maybeReturnJQ/sc_frame, JAtZ.faultHypJZM2/faultRecvJM/
+  sendFaultIJM/sendFaultPJM, ciSt_actN/curInv/sched, ps_actN/curInv/sched, kernel_entryJ15M. No sorry/admit/
+  native_decide/bv_decide. Generators sch18gen/{mk.py,mkf.py,hdrf.lean} in the worktree root, untracked.
