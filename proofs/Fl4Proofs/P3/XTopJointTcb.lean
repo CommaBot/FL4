@@ -45,9 +45,10 @@ P3 (DESIGN.md §9), TCB: **the Thread cap at `JAt`, label by label**
   - ReadFPU (`tcb_read_fpuJ`: the same checks, the restart, `fpu_flush`,
     the copy of the FPU image into the frame by XTopJointReadFpu's
     `JAtZ.copyFrameJ`, from `FpuFrameJHyp` [J] at the start: the frame lies
-    in a spec data page and misses the CNodes, FL4's tables and pools and
-    FL4's kernel-global data; the frame missing `H`'s other objects, the
-    TCBs among them, is `JPlaced.cobj`);
+    in a spec data page (its words IPC-buffer words by `FrameCover`); the
+    frame missing `H`'s other objects, the TCBs among them, is
+    `JPlaced.cobj`; the spec's step `fl4FpuToFrame` changes only those
+    2696 bytes of the user memory);
   - SetTimer (`tcb_set_timerJ`: the restart, `timer::insert` by P1's
     `timer.insert.foot` and ScFireJ's `JAtZ.tmw_step`);
   - SetMCPriority (`tcb_set_mcpJ`: the decode's authority MCP by `McpRel`,
@@ -1902,8 +1903,9 @@ the start's `JAtZ`), the work at `J`: the caller's restart
 (`JAtZ.restartJ`), `fpu_flush` (`ARKeep` [P]; `JAtZ.archJ`), the copy of the
 target's FPU image into the frame (XTopJointReadFpu's `JAtZ.copyFrameJ`: the
 frame cap's range misses `H`'s non-`other` objects, `JPlaced.cobj`, hence the
-TCBs; the rest from `FpuFrameJHyp` [J] at the start, carried across the restart), the spec's
-machine state some `ms`. -/
+TCBs; the frame inside a spec data page from `FpuFrameJHyp` [J] at the start, carried across
+the restart), the spec's step `fl4FpuToFrame` at the user memory FL4's copy leaves
+(`fpuToFrame_mem`). -/
 theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hni : Entered σ) (hK : ARKeep arI AR)
     (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
@@ -1955,19 +1957,7 @@ theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
   have hFA : Sched.FrApartH H (.Frame ptr sz r false m ep asid va) := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     have := hJ.cobj x (by rw [hxe]; exact hA0.isSlot); rw [hc] at this; exact this
-  obtain ⟨⟨o, vms, hko, ho1, ho2⟩, hCN, hPT, hgl⟩ := hFJ ptr sz r m ep asid va hc
-  -- the frame misses the VSpace objects: the TCBs by `FrApartH`, the rest by `FpuFrameJHyp`
-  have hVO : ∀ w : U64, ptr.val ≤ w.val → w.val < ptr.val + 2 ^ frameBitsN sz →
-      ¬ VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) w := by
-    intro w g1 g2 hv
-    rcases hv with ⟨q, rr, hq, h1, h2⟩ | ⟨t, ht, h1, h2⟩ | ⟨q, hq, h1, h2⟩ | ⟨h1, h2⟩
-    · rcases hCN q rr hq with e | e <;> omega
-    · obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-      rcases hFA t .tcb ((hJ.tcb t).1 ht) (fun _ e => by cases e) with e | e
-      · rw [hbs] at e; simp only [P1.HKind.bits, Nat.reducePow] at e; omega
-      · rw [hts] at e; omega
-    · rcases hPT q hq with e | e <;> omega
-    · omega
+  obtain ⟨o, vms, hko, ho1, ho2⟩ := hFJ ptr sz r m ep asid va hc
   -- the restart
   obtain ⟨s1', σ1', xt, hrc1, hst1', hkt, -, e1σ, -, -, -, hs1', Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have e1 : s1' = s1 := by
@@ -1978,9 +1968,6 @@ theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
     have h := (Prod.mk.inj (hst1'.symm.trans hst1)).1
     exact congrArg Prod.snd (Set.singleton_eq_singleton_iff.1 h)
   subst e1 e2
-  have hks1 : L.ksb s1' = L.ksb s := by
-    have h := set_thread_state_ksb (L := L) s ct sched.TS_RESTART
-    rw [hs1', WP.spec_ok] at h; exact h
   have hko1 : σ1'.kheap o = some (.archObj (.dataPage false vms)) := by
     have hne : o ≠ ct.bv := fun e => by rw [e, hkt] at hko; cases hko
     rw [e1σ, stsAct_kheap, Notif.updK_kheap, Function.update_of_ne hne]; exact hko
@@ -2018,19 +2005,22 @@ theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
     omega
   refine WP.spec_bind ((J1.archJ ha1).copyFrameJ _ (core.num.U64.wrapping_add ptr offset)
     (by rw [hfv]; omega) (by rw [hfv]; omega) (fun q k hq hk => ?_)
-    ⟨o, _, hko1, by rw [hfv]; omega, by rw [hfv]; show _ ≤ o.toNat + 2 ^ Fl4Spec.pageBitsForSize vms; omega⟩
-    (fun w h1 h2 => by rw [hks1]; exact hVO w (by rw [hfv] at h1; omega) (by rw [hfv] at h2; omega))
-    (by rw [hfv, hks1]; omega)) ?_
+    ⟨o, vms, hko1, by rw [hfv]; omega, by rw [hfv]; omega⟩) ?_
   · rcases hFA q k hq hk with e | e
     · right; rw [hbs] at e; rw [hfv]; omega
     · left; rw [hts] at e; rw [hfv]; omega
-  rintro s2 ⟨ms, J2⟩
+  rintro s2 ⟨um, hag, J2⟩
   try simp only [↓reduceIte]
-  refine (WP.spec_ok _).2 ⟨rfl, { σ1' with machineState := ms }, ?_, ⟨Z, H, Cs, Ac1, Lst1, D1, J2⟩⟩
+  refine (WP.spec_ok _).2 ⟨rfl, Endp.setUm σ1' um, ?_, ⟨Z, H, Cs, Ac1, Lst1, D1, J2⟩⟩
   show _ ∈ ((Fl4Spec.NonDetE.liftE _).run σ1').1
-  refine mem_liftE (x := ([], { σ1' with machineState := ms })) ?_
-  refine mem_bind_nd (x := ((), { σ1' with machineState := ms })) ?_ (Set.mem_singleton_iff.2 rfl)
-  exact dmo_ex _ σ1' (mem_bind_nd (x := (ms, σ1'.machineState)) ⟨trivial, rfl⟩ rfl)
+  refine mem_liftE (x := ([], Endp.setUm σ1' um)) ?_
+  refine mem_bind_nd (x := ((), Endp.setUm σ1' um)) ?_ (Set.mem_singleton_iff.2 rfl)
+  have hfb : (core.num.U64.wrapping_add ptr offset).bv = ptr.bv + offset.bv := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_add]
+    show (core.num.U64.wrapping_add ptr offset).val = (ptr.val + offset.val) % 2 ^ 64
+    rw [hfv]; exact (Nat.mod_eq_of_lt (by omega)).symm
+  exact dmo_ex _ σ1' (fpuToFrame_mem _ σ1'.machineState um fun b hb => hag b (by rw [hfb]; exact hb))
 
 set_option maxHeartbeats 32000000 in
 /-- **The GetBreakpoint label at `JAt`** (as `tcb_get_bpX`): the breakpoint
