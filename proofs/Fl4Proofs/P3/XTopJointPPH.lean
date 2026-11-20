@@ -173,6 +173,11 @@ theorem JAtZ.ppJH {s : S} {a : A} {σ : Fl4Spec.State Unit}
   obtain ⟨Q0, R00, hc0, hs0⟩ := hS0.lists
   have hfin : ∀ σ', (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 → σ' = σ2 :=
     fun σ' h => pp_err_eq hE1 hIq _ h rfl
+  -- FL4's IRQ read (first, in C's and the spec's order)
+  refine WP.spec_bind (Pₘ := fun q => q = (b2, a2)) (by rw [hip, WP.spec_ok]) ?_
+  rintro ⟨b2', a2'⟩ he
+  cases he
+  try dsimp only
   -- FL4's reads
   step with sched.cur_sc.spec' as ⟨sc, hsc⟩
   step with sched.consumed.spec' as ⟨cv, hcv⟩
@@ -192,36 +197,35 @@ theorem JAtZ.ppJH {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hab : b = Fl4Spec.scActive x := by
     rw [hb]; show _ = decide (0 < x.scRefillMax); apply decide_eq_decide.2; rw [← hx.max]; rfl
   subst hab
-  cases hact : Fl4Spec.scActive x
-  · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
-    intro _ σ' hσ'
-    rw [hfin σ' hσ']
-    exact ⟨_, Ac2, Lst2, hK ms a1 hum' id⟩
-  simp only [↓reduceIte]
-  refine WP.spec_bind (sufficient_refines s3 a1 σ2 hS2 hscC hkx hact _ (hP.minBudget a1)) ?_
-  intro ok1 _
-  cases hok : ok1
-  · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    intro _ σ' hσ'
-    rw [hfin σ' hσ']
-    exact ⟨_, Ac2, Lst2, hK ms a1 hum' id⟩
-  simp only [↓reduceIte]
   rw [is_cur_domain_expired_eq]
-  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-  refine WP.spec_bind (Pₘ := fun q => q = (b2, a2)) (by rw [hip, WP.spec_ok]) ?_
-  rintro ⟨b2', a2'⟩ he
-  cases he
-  cases b2
-  · change (if (false = true) then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-      else ok (core.result.Result.Ok (), s3, a2)) ⦃ r => _ ⦄
-    rw [if_neg (by simp), WP.spec_ok]
-    intro h; cases h
-  · change (if (true = true) then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-      else ok (core.result.Result.Ok (), s3, a2)) ⦃ r => _ ⦄
-    rw [if_pos rfl, WP.spec_ok]
+  -- every preempted outcome ends at `(s3, a2)`, the spec's at `σ2`
+  have hErr : (ok ((core.result.Result.Err error.Exc.Preempted : core.result.Result Unit error.Exc), s3, a2) :
+      Result ((core.result.Result Unit error.Exc) × S × A)) ⦃ r =>
+      r.1 = .Err .Preempted → ∀ σ', (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 →
+      ∃ (s0 : S) (Ac0 : Set U64) (Lst0 : U64 → List U64),
+        JHole (L := L) arI AR Z H Cs Ac0 Lst0 D s0 a σ r.2.1 r.2.2 σ' ⦄ := by
+    rw [WP.spec_ok]
     intro _ σ' hσ'
     rw [hfin σ' hσ']
     exact ⟨_, Ac2, Lst2, hK ms a2 hum' (fun _ => hAR2)⟩
+  have hOk : (ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s3, a2) :
+      Result ((core.result.Result Unit error.Exc) × S × A)) ⦃ r =>
+      r.1 = .Err .Preempted → ∀ σ', (.error (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 →
+      ∃ (s0 : S) (Ac0 : Set U64) (Lst0 : U64 → List U64),
+        JHole (L := L) arI AR Z H Cs Ac0 Lst0 D s0 a σ r.2.1 r.2.2 σ' ⦄ := by
+    rw [WP.spec_ok]; intro h; cases h
+  cases hact : Fl4Spec.scActive x
+  · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, ite_self]
+    exact hErr
+  simp only [↓reduceIte]
+  refine WP.spec_bind (sufficient_refines s3 a2 σ2 hS2 hscC hkx hact _ (hP.minBudget a2)) ?_
+  intro ok1 _
+  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+  split
+  · exact hErr
+  split
+  · exact hOk
+  · exact hErr
 
 /-- **Every `JAtPre` state is a `JHole`** (module docstring). -/
 theorem jAtPre_hole (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)

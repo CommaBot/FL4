@@ -2469,3 +2469,34 @@ ScTmoCt*/Entry/Irq*/XTopJointRecv* untouched.
   JRecvLeavesRN2.toRN, jRecvIpcDoneM, JAtZ.recvIpcActJM/recvIpcBlockJGM/recvIpcBlockJM/recvIpcBlockNJGM,
   Sched.recvIpcBlock_eqM/sendIpcBlock_eqM, JAtZ.sc_frameR/stsCurJM/noFaultJM/faultBlockJM/faultHypJZM,
   kernel_entryJ10M. No sorry/admit/native_decide/bv_decide.
+
+## kfix1 (branch par/kfix1 in FL4-rb, on a2a4e3a6 = int/j2 incl. irq1): the preemption point reads the IRQ first
+Kernel fix for irq1's FINDING 2 (lead decision; aligns FL4 with C seL4 and the l4v spec).
+- KERNEL: `sched::preemption_point` reads `a.irq_pending()` right after `update_timestamp` and before the budget and
+  domain tests, then `if irq || is_cur_domain_expired(s) || !ok { Err(Preempted) }` (C c98d70ad
+  src/model/preemption.c: `isIRQPending() || isCurDomainExpired() || !(sc_active && refill_sufficient)`; spec
+  `preemptionPoint`, Fl4Spec/KHeap.lean ~601, always calls `getActiveIRQ`). Outcome unchanged; the line is now read on
+  every expired work count, and `sufficient` reads the arch state after the IRQ read (only `min_budget`).
+  Regression test `preemption_point_reads_the_irq_line_even_without_budget` (fl4-core tests/audit_core.rs).
+- EXTRACTION (Aeneas 0d21a9e): only `sched.preemption_point` changes in Fl4Core/Funs.lean: `let (irq, a2) ←
+  irq_pending a1` after the timestamp, `sufficient … s3 a2 …`, then `if irq … else (expired? … else if ok1 Ok else
+  Err)`; EVERY preempted outcome now returns `a2` (the arch state after the IRQ read; before, the budget/domain
+  outcomes returned `a1`). P0 regenerated: Consts/Auto/status unchanged, 1064/1064.
+- PROOFS: the four FL4-side lemmas that unfold `preemption_point` re-done for the new order, statements unchanged:
+  P1 `sched.preemption_point.pp` (QueueKeeps), P3 `pp_writes` (PPWrites), `JAtZ.ppJD` (XTopJointPP: the FL4 IRQ read
+  is matched with the spec's `getActiveIRQ` sample before the SC reads; every error outcome now ends at the
+  post-IRQ arch state `a2`, so `XTopAt` uses `hX2'` (`ARKeep` with `hP.irqAR`) on all error branches),
+  `JAtZ.ppJH` (XTopJointPPH: every error outcome is the `JHole` at `(s3, a2)`, `σ2`). Every other user goes through
+  these lemmas.
+- Kernel checks (pvg-office-2, Linux x86_64, scratch/kfix1test.sh): `cargo test -p fl4-core` 3+14+3+21 passed (incl.
+  the new test), `--features aarch64` 10+0+3+0 passed (audit_core is x86-only), `cargo test -p fl4-sim` 8 passed,
+  `cargo xtask kernel --release` OK, `cargo build --release -p fl4-kernel-aarch64 --target
+  aarch64-unknown-none-softfloat --features=release-profile` OK.
+- Builds (tokyo, scratch/kfix1build.sh): kfix1-x1 re-extract + gen_p0 (P0 1064/1064, 3604 jobs); kfix1-b2 QueueKeeps,
+  PPWrites, XTopJointPP, XTopJointPPH (5118 jobs) OK first time; kfix1-b3 XTopJointEntry, XTopJointKEntry8B,
+  UtResetLoopJ, CnodeRevoke, QueueDecDel, QueueReset (5562 jobs) OK; kfix1-b4 root Fl4Proofs OK (5609 jobs, no sorry warning). Axioms
+  (scratch/axkfix1.lean, untracked): propext, Classical.choice, Quot.sound for handle_invocation_refinesJ,
+  kernel_entryJ8B, JAtZ.ppJD/ppJ/ppJH, jPreemptHyp_of, pp_writes, P1 sched.preemption_point.pp.
+- NEXT: irq1's handoff (1)–(3) is now unblocked: `preemption_point ⦃ Err → ∃ v a1, now a = ok (v,a1) ∧ irq_pending a1 =
+  ok (true, r.2.2) ⦄` no longer holds (the error can come from the budget or domain test), but every outcome past
+  the work limit has read the line exactly once, like the spec, so MR can be threaded with one `gaiState` step.

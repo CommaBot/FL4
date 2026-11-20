@@ -470,6 +470,11 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
         · exact (hRd.2 h0).2 u.bv xt hk hxs
         · exact hnr (bv_pos h0)
     · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs1.symm⟩, fun x n h => h2 x n (by rw [← hk1, ← hcs1]; exact h)⟩
+  -- FL4's IRQ read (first, in C's and the spec's order)
+  refine WP.spec_bind (Pₘ := fun q => q = (b2, a2)) (by rw [hip, WP.spec_ok]) ?_
+  rintro ⟨b2', a2'⟩ he
+  cases he
+  try dsimp only
   -- FL4's reads
   step with sched.cur_sc.spec' as ⟨sc, hsc⟩
   step with sched.consumed.spec' as ⟨cv, hcv⟩
@@ -486,33 +491,32 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   rw [hPP] at hy
   have hexp : Fl4Spec.isCurDomainExpired σ2 = false := by
     unfold Fl4Spec.isCurDomainExpired; simp [hnd]
+  rw [is_cur_domain_expired_eq]
   cases hact : Fl4Spec.scActive x
-  · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, WP.spec_ok]
-    refine ⟨σ2, Or.inr ⟨by simp, ?_⟩, hX2, fun h => by simp at h⟩
+  · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok, ite_self, WP.spec_ok]
+    refine ⟨σ2, Or.inr ⟨by simp, ?_⟩, hX2', fun h => by simp at h⟩
     rw [if_pos (by simp [hact])] at hy
     exact hy
   simp only [↓reduceIte]
-  refine WP.spec_bind (sufficient_refines s3 a1 σ2 hS2 hscC hkx hact _ (hP.minBudget a1)) ?_
+  refine WP.spec_bind (sufficient_refines s3 a2 σ2 hS2 hscC hkx hact _ (hP.minBudget a2)) ?_
   intro ok1 hsuf
   have hrs : Fl4Spec.readScRefillSufficient (Z := Unit) σ2.curSc σ2.consumedTime σ2 = some ok1 := by
     rw [hs.curSc, hs.consumed]; unfold Fl4Spec.getScRefillSufficient at hsuf; exact getsThe_some hsuf
+  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+  cases b2
+  swap
+  · rw [if_pos rfl, WP.spec_ok]
+    rw [if_pos (Or.inl (hiff.1 rfl))] at hy
+    exact ⟨σ2, Or.inr ⟨by simp, hy⟩, hX2', fun h => by simp at h⟩
+  rw [if_neg (by simp)]
+  have hirq : irq = none := by
+    by_contra h; exact absurd (hiff.2 h) (by simp)
   cases hok : ok1
-  · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
-    refine ⟨σ2, Or.inr ⟨by simp, ?_⟩, hX2, fun h => by simp at h⟩
+  · rw [if_neg (by simp), WP.spec_ok]
+    refine ⟨σ2, Or.inr ⟨by simp, ?_⟩, hX2', fun h => by simp at h⟩
     rw [if_pos (by simp [hrs, hok])] at hy
     exact hy
-  simp only [↓reduceIte]
-  rw [is_cur_domain_expired_eq]
-  simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-  refine WP.spec_bind (Pₘ := fun q => q = (b2, a2)) (by rw [hip, WP.spec_ok]) ?_
-  rintro ⟨b2', a2'⟩ he
-  cases he
-  cases b2
-  · change (if (false = true) then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-      else ok (core.result.Result.Ok (), s3, a2)) ⦃ r => _ ⦄
-    rw [if_neg (by simp), WP.spec_ok]
-    have hirq : irq = none := by
-      by_contra h; exact absurd (hiff.2 h) (by simp)
+  · rw [if_pos rfl, WP.spec_ok]
     rw [if_neg (by simp [hirq, hexp, hact, hrs, hok])] at hy
     have hx' := hx.strong hact
     have hne : x.scRefills ≠ [] := by rw [hx'.refills]; exact refills_ne hx'.wf
@@ -555,11 +559,6 @@ theorem JAtZ.ppJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
             exact hur' (hnr0 (bv_pos h0))
           · rw [hun y' n' hy'] at hyt; cases hyt
     refine ⟨σ2, Or.inl ⟨by simp, hy⟩, hX2', fun _ => ⟨hJ2' hO2 hOw2, hP2⟩⟩
-  · change (if (true = true) then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-      else ok (core.result.Result.Ok (), s3, a2)) ⦃ r => _ ⦄
-    rw [if_pos rfl, WP.spec_ok]
-    rw [if_pos (Or.inl (hiff.1 rfl))] at hy
-    exact ⟨σ2, Or.inr ⟨by simp, hy⟩, hX2', fun h => by simp at h⟩
 
 set_option maxHeartbeats 4000000 in
 /-- `JAtZ.ppJD` with the dead set existential. -/
