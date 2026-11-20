@@ -3835,3 +3835,58 @@ existing edited; root Fl4Proofs.lean imports the six new modules). All in namesp
   (scratch/invB/ax.lean, untracked): propext, Classical.choice, Quot.sound at most for gk_fl4KernelEntrySyscall,
   gk_fl4CallKernel_irq, gk_recDel, gk_capRevoke, readFpu_breaks_vmt/vim, wl_vmt_of, kentry_vmt_of, vim_*,
   boot_*. No sorry/admit/native_decide/bv_decide, no premise tagged.
+## invC (branch par/invC in FL4-tcbj, on 6809c6cd = int/j2, PR #51)
+Goal: INV-PLAN §4 G1 for SpecGlob (sg), EpQAll (epQ), FpuOwnOK (fo), DomListOK (F1's DomListOK half), each as a
+spec-only SInv field with whole-entry preservation, in leaf modules SpecInv* outside the JAtZ cone (checked by an
+import-ancestry script: SpecInvDom's cone has no JointAt/XTopJoint* module; it reaches ScNextDom, the module that
+defines `DomListOK`, which is itself outside the JAtZ cone).
+- DomListOK: DONE. Modules (new leaves, nothing existing edited; root Fl4Proofs.lean imports SpecInvDom):
+  * `SpecInvDomF`: view `dlV σ := (domainList, domainStartIndex, domainIndex)`, `DL m := FK dlV m` (VsDom's
+    projection frame), `dl_auto` (dk_step0 + leaves + `sf_unfold`, a copy of sch12's `fv_unfold`, which lives in
+    XTopJointMidRunS inside the JAtZ cone), `dle_rab`, `dl_zipWithMx`, `dle_returnOk_bind`.
+  * `SpecInvDomL`: CnodeRevoke's `lfp_le_prefixed` verbatim (CnodeRevoke's cone reaches FL4; stated before any
+    `open Fl4Spec`: inside a file that opens Fl4Spec the same text fails to find the lattice instance).
+  * `SpecInvDomG`: 264 `DL` leaves, a scripted copy of the `DK` lemmas of VsDom/VsDomOps/DomRecDel/TcbDom/
+    CnodeDom/AllDom (scratch-invC/genDL.py, untracked: `DK`->`DL`, `dk_auto`->`dl_auto0`), with `rec_del` /
+    `cap_revoke` by the lfp pre-fixed point over `dlV`.
+  * `SpecInvDomE`: `DL` of fl4Awaken (ReflTransGen of send_signal outcomes), fl4SyscallFaultIP, updateTimeStamp,
+    checkBudgetRestart, handleFault/Recv/Yield, preemptionPath, activateThread, the invocation front, the decode
+    (`dle_fl4Decode`, every cap, both phases), every perform but invokeDomain (`dle_fl4Perform`), every
+    non-syscall event (`dle_handleEvent_other`).
+  * `SpecInvDom`: `DP m` (DomListOK kept) with combinators/`dp_auto`; the three writers: `dp_nextDomain` (the new
+    index stays below the final end marker: the start entry is no end marker), `dp_domainSetStart`,
+    `dp_domainScheduleConfigure`, from `DomInvOK σ inv` (the decode's checks, read only from `dlV`);
+    `okd_fl4Decode` (every `.ok` decode outcome satisfies DomInvOK at its end state); the invocation shell
+    `dpe_handleInvocationR` (copy of sch12's `syscall_post`, DomInvOK carried across `set_thread_state Restart` by
+    the frame); `dp_schedule`, `dp_fl4CallKernel` (every event), `dp_fl4KernelEntrySyscall`.
+- STATEMENTS (namespace Fl4Proofs.P3.SInvDom):
+  * (a) `DomListOK` (ScNextDom, existing definition reused; consumer: KFinAtR.hd's `NdOK`).
+  * (b) `kentry_domListOK (hnd : numDomains = 1) (h : DomListOK σ) : ∀ y ∈ (fl4KernelEntrySyscall (Z := Unit) true c σ).1, DomListOK y.2`.
+  * (c) `kirq_domListOK (hnd) (h : DomListOK σ) : ∀ y ∈ (fl4CallKernel (Z := Unit) true .interrupt σ).1, DomListOK y.2`
+    (Fl4Spec's Ext/Entry has no separate interrupt entry; `dp_fl4CallKernel` holds for every event and rep).
+  * (d) `domListOK_init : DomListOK (initASt (Z := Unit))`.
+  * The one hypothesis `hnd : numDomains = 1` [P] (FL4's one-domain configuration, already a top premise of
+    kernel_entryJ26P / JEntryGlob.nd): DomainScheduleConfigure's decode checks `domain < numDomains`, and
+    `DomListOK.dom` asks every entry's domain to be 0. No other premise.
+- Builds (tokyo, ./b.sh untracked; mirror warmed from FL4-audit by cp -cR): invC-9 `SpecInvDomG` OK (1016 jobs),
+  invC-12 `SpecInvDomE` OK, invC-14 `SpecInvDom` OK (4240 jobs: ScNextDom's cone for the definition; the frame
+  modules F/L/G/E alone are 5 P3 modules over Fl4Spec). Axioms (scratch-invC/ax.lean, untracked): propext,
+  Classical.choice, Quot.sound only for kentry_domListOK, kirq_domListOK, dp_fl4CallKernel, domListOK_init. No
+  sorry/admit/native_decide/bv_decide.
+- Consumer wiring (G3, not done here): KFinAtR.hd asks `NdOK` at the front end's outcomes; `dpe_fl4HandleEvent`
+  gives DomListOK at every outcome of the front (`fl4HandleEvent`), and `dp_fl4KernelEntrySyscall` at the exit.
+- SpecGlob / FpuOwnOK / EpQAll: NOT DONE (no module). Each is not inductive on its own, so a whole-entry proof
+  needs other carried facts first (no counterexample in reachable states: each is an l4v invariant slice):
+  * SpecGlob: `objRefs (untypedCap ..) = ∅`, so SpecGlob says nothing about untyped regions, and a retype from an
+    untyped whose region holds an IRQ-node CNode or the idle thread would create caps naming them. Inductive form
+    needs l4v valid_global_refs' cap_range clause for untyped caps (global refs outside every untyped range) plus
+    the retype's region-is-free facts; the rest (copy/mint/move: derived caps name the same objects; IRQ control
+    issue writes an IRQ handler cap, not into the IRQ node; TCB installs copy derived caps) are frames over
+    SpecGlobFK/SpecGlob's SlotK machinery.
+  * FpuOwnOK: writers are `setX64CurrentFpuOwner` (owner a TCB by asUser/archThreadSet's asserts) and the two heap
+    writes that bypass set_object's type assertion: `retypeRegion` (overwrites) and `deleteObjects` (detype). Both
+    need l4v's chain X64 arch_tcb_live (tcb_cur_fpu) -> if_live_then_nonz_cap -> untyped_children_in_mdb ->
+    descendants_range of the retyped/reset untyped. Everything else is a frame over (owner, TCB-ness of every
+    object); the same DL-style generator would give it.
+  * EpQAll (`∀ e, EpQPre σ e`): needs valid_sched slices (released_ipc_queues for MemOKE of queued threads,
+    ScBack = sym_refs SC<->TCB, ActReady): L, the scheduler/IPC writers all over the entry.
