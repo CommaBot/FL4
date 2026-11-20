@@ -738,3 +738,5 @@ import Fl4Proofs.P3.XTopJointKEntry25MD
 import Fl4Proofs.P3.XTopJointPerfU
 import Fl4Proofs.P3.XTopJointPerfW
 import Fl4Proofs.P3.XTopJointKEntry26MD
+import Fl4Proofs.P3.XTopJointPerfI
+import Fl4Proofs.P3.XTopJointPerfK

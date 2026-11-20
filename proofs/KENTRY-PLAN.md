@@ -3632,3 +3632,45 @@ XTopJointRecv*/XTopJointPerf* untouched (KEntry26MD imports XTopJointMachRel for
   JRecvLeavesRN17.toRN16, BudgetAt.entered, JAtZ.recvIpcActDJN, jRecvIpcUDN, jRecvIpcLinkDN,
   Ipc.completeTail_irelD, Sched.donate_kh/donShape_of/specCompleteCheck_eqU/donate_tcb, completeCheck_eq/_of/_of_recv,
   P1.notification.complete_donate_tail.foot, P1.notification.complete_signal.ipcC (not_ctSc_of: none).
+## sch28 (branch par/sched28 in FL4-sc, on effe1c53 = int/j2 incl. sch26, sch25)
+Goal: sch26's handoff: (1) the IRQ handler set/clear family, (2) `JPerfRegHyp` [J] from the J side, (3) a top.
+New leaves XTopJointPerfI, XTopJointPerfK (imported from Fl4Proofs.lean). Nothing existing edited.
+- (1) DONE (XTopJointPerfI): `JPerfIrqHypQ` / `JPerfIrqHypB` [W] are no longer needed. ADDED
+  `MidRun.JPerfIrqSlotHyp cptr σ` [J] := `∀ i σ1, MidPerfAt cptr σ (.invokeIRQHandler i) σ1 → IrqSlotNC σ1`,
+  `IrqSlotNC σ := ∀ irq c σ', (c, σ') ∈ (getCap (σ.interruptIrqNode irq, []) σ).1 → c = .nullCap ∨ ∃ r b rs,
+  c = .notificationCap r b rs` (l4v valid_irq_node + the IRQ handler slots' contents; FL4's `IrqSlotOK`, SpecGlob.irq
+  at the dispatch state; the first phase writes no cap). True in reachable states; only at MidPerfAt states.
+  Proof: `post_capDeleteOne` (null: nothing; notification: `fast_finalise` then `empty_slot _ nullCap`),
+  `irqH_post` (getIrqSlot, cap_delete_one, cap_insert for set). BI: everything is an sV frame (`sck_ntfnFin` from
+  `sck_schedContextMaybeUnbindNtfn` / `sck_unbindMaybeNotification` / `sck_cancelAllSignals` by sck_auto2,
+  `sck_emptySlotN`, `sck_capInsert`). CQ: `pwq_of` (KF + QK + the notification view `nV`) for the two unbinds
+  (`nv_*`: they keep every notification's `ntfnObj`: `nv_updSk_ntfn`, `nv_setObject_nn`, `nv_threadSet`,
+  `nv_updateSchedContext`), so MidRun.NQ (ct waits on no notification, from `midPerfAt_cq`) holds at
+  `cancel_all_signals`, whose restarted threads are therefore `≠ ct` (`cq_cancelAllSignals`,
+  `pq_removeAndRestartNtfnQueuedThread`, `pq_mapMx_mem`). The preemption-point question does not arise here
+  (no preemption point in invoke_irq_handler). Lemmas `jPerfIrqHypQ_of (hs : CQ ct σ) (hq : NQ ct σ) (hIs)`,
+  `jPerfIrqHypB_of (hIs)`, and `jMidPerfHypQ_of2 / jMidPerfHypB_of2 (hs hq) (hR : JPerfRegHyp) (hIs :
+  JPerfIrqSlotHyp)`: JMidPerfHypQ / JMidPerfHypB from the two [J] facts only.
+- (3) DONE (XTopJointPerfK): `BudgetAt.entered (hnd) (hni : Entered σ) : BudgetAt σ σb true → Entered σb`
+  (sch26's missing export: fl4SyscallFaultIP changes only ct's TCB, update_time_stamp the machine state / clock,
+  a `true` check_budget_restart nothing: checkBudgetRestart_true). `KDispHyps25MP` = KDispHyps25M with mid's
+  `JMidPerfHypQ` [W] REPLACED by `JPerfRegHyp ∧ JPerfIrqSlotHyp` [J]; `.to25M J hni` (JAtZ.midCQ for CQ ∧ NQ);
+  NEW TOP `kernel_entryJ25MP` (= kernel_entryJ25M with KDispHyps25MP). JMidPerfHypB is in no top yet (only in
+  sch23's jMidChooseFact): whoever wires jMidChooseFact (sch27) should pass `jMidPerfHypB_of2 hs hq hR hIs`.
+- (2) NOT DONE: `JPerfRegHyp` [J] stays named. Finding: `JAtZ.rgClear_drop` / `RegionD` are not freeness facts:
+  they describe the J state after the region's objects are DROPPED from the kept sets (a TCB in the region would
+  be dropped too), so they do not show ct / bound SCs lie outside it. A proof needs a liveness argument at J:
+  ct ∈ Z.T and every bound SC ∈ Z.C are live objects; a reset untyped has no children (decode's
+  ensure_no_children at the spec, JUtPath at J) and the retype region is free (`descendants_range_in`), so by
+  JCovD (every live object's memory is covered only by its ancestor untypeds' caps with the object as a
+  descendant) no live object lies in it; then transport ct / the bound SCs from Z.T / Z.C to the spec heap
+  (ObjCover, TopSR.cur_mem) and the region from the spec cap at MidPerfAt's σ1 (the first phase keeps caps) to the
+  J cap. Also needs MidPerfAt related to a J run (it is spec-only), e.g. state JPerfRegHyp at J (the J
+  decode's JUtPath / JAsidCPath posts) and carry it to σ1.
+- Builds (tokyo, b26.sh): sch28-b1/b2 (heartbeat timeouts of auto-unfold nv leaves -> hand-written with
+  explicit arguments; perform error type Unit; NonDet.when split), sch28-b3 `XTopJointPerfI XTopJointPerfK` OK
+  (5652 jobs).
+  Axioms (axsch28.sh, untracked; sch28-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ25MP,
+  KDispHyps25MP.to25M, BudgetAt.entered, jPerfIrqHypQ_of, jPerfIrqHypB_of, jMidPerfHypQ_of2, jMidPerfHypB_of2,
+  irqH_post, post_capDeleteOne, cq_cancelAllSignals, cq_ntfnFin, sck_ntfnFin, nv_schedContextMaybeUnbindNtfn,
+  nv_unbindMaybeNotification. No sorry/admit/native_decide/bv_decide.
