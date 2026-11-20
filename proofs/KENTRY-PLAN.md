@@ -6803,3 +6803,64 @@ Spec-only, namespace `Fl4Proofs.P3.SInvL`; root imports SpecInvSlU, SlA, SlC, Sl
   `Fl4Proofs.P3.bitsOf` (write `Fl4Spec.bitsOf`); give `(I := …)` explicitly when the only hypothesis fixing an
   implicit pair is a `rfl` on its second component; `setCap_nnc (c := …)` when the cap is only fixed by a later
   argument.
+## rd3 (branch par/rd3 in FL4-tcbj, on 8f1d0336 = int/j2 incl. rd2, ctq5, sl3) — R4 in Rdy, release queue / scheduler / unbinding writers, the exit's sc_and_timer (NOT finished: no whole-entry carry yet)
+Goal: rd2's handoff 1-5 ending in `kentry_rdy` / `kcall_rdy`, `kentry_offReady` / `kcall_offReady`. Done: lead decision (b)
+(R4 in Rdy), handoff 1 except the mid-entry facts (scheduler body + awaken + release enqueue + the exit's sc_and_timer), the
+R4 writers of handoff 4 (unbind / set-inactive / resume / postpone). Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules
+SpecInvRdA..D (edited), SpecInvRdE, RdS, RdU, RdX (new); root imports all. No JAtZ cone.
+- **R4 (decision (b))** (SpecInvRdA): `ActB σ t` (l4v `active_sc_tcb_at`), `R4 σ := ∀ t ∈ releaseQueue, ActB σ t`,
+  `Rdy := R1 ∧ R2 ∧ R3 ∧ RV ∧ R4`. Frames take the release queue: `rdy_of_view` (`hrq`: new members released or ActB),
+  `rdy_congr` (`hrq`: subset), `rdy_frame1` / `rdy_framex` (`hrq` equality, `hpa`: the rewritten SC stays active),
+  `rdy_later` (`hrq`), `rdy_upd_r`; `actB_frame1`, `actB_of_rdyT`. `rd_tcbReleaseRemove` (filter). RdF1..F5 unchanged,
+  all green (the generated lemmas use only leaves).
+- **SpecInvRdE**: `rd_tcbReleaseEnqueue_p` (target ActB), `rd_postpone_p` (the SC's thread ActB), `rd_postpone_fwd`
+  (sb2's `ScFwd` + active SC), **`rd_schedContextResume`** (no premise: it postpones a thread it read `schedulable`),
+  `rdyT_relHead` / **`rd_tcbReleaseDequeue_p`** / **`rd_awaken`** (premise: sb2's `RNE` at the start — R4 gives the head's
+  SC active, RNE its refills non-empty, so `readReleaseQNonEmptyAndReady` is defined and the guard says ready ⇒ RdyT;
+  `awaken` writes no object, `kt_tcbReleaseDequeue`).
+- **SpecInvRdS**: leaves `rd_switchToThread` / `rd_switchToIdleThread` / `rd_guardedSwitchTo` / `rd_chooseThread` /
+  `rd_scheduleChooseNewThread`. **`CtR σ`**: ct, when runnable ∧ ActB ∧ not released (= `schedulable`), is RdyT — the
+  mid-entry fact schedule's two ct enqueues need. NOT "ActB ∧ not released ⇒ RdyT": after `end_timeslice`'s
+  `handle_timeout ct` the current thread is blocked (timeout fault), bound to `cur_sc`, outside the release queue, with the
+  head in the future (no FINDING: it is not runnable, and schedule tests runnability). `rd_awakenC` (awaken keeps
+  `Rdy ∧ RNE ∧ CtR`: a thread released by awaken is RdyT at its release; `mem_tcbReleaseDequeue`), `ktc_*` frames,
+  `rd_enqCt_p`, **`rd_sstb_p`** (schedule_switch_thread_branch: the candidate is RdyT by R2 at the enqueue state; the
+  ct_prio join point zeta-reduced as in CqT), **`rd_schedule_via (hT : ∀ s, Rdy s → ∀ r ∈ scAndTimer s, Q r.2) σ (hσ : Rdy σ)
+  (hR : RNE σ) (hC : CtR σ) : ∀ r ∈ (schedule σ).1, Q r.2`** (`PostP`, `pp_bind_of`, `pp_gets_bind`).
+- **SpecInvRdU** (R4's writers): `rdy_upd_unbind` / `rd_threadSet_unbind` (unbind a thread in no ready queue, not the switch
+  target, not released), **`rd_schedContextUnbindTcb_p (h1 : T1 σ) (hA : sc's thread ≠ ct → action ≠ switch it)`**
+  (dequeue + release-remove first; ctq's `T1` for "only in its own queue"; reschedule when ct), `rd_schedContextUnbindAllTcbs_p`,
+  `rd_maybeReturnSc_p` (the unbound receiver in no queue, not switch target, not released: ctq5's CtQ / NP / RD at the
+  blocking point), **`rd_schedContextSetInactive_p`** (no TCB bound to the SC — after unbind-all, from sb2's ScSym; the SC
+  becomes inactive so RV is vacuous; `rdy_freeSc`).
+- **SpecInvRdX**: `KO` frame, `ko_setNextInterrupt`, `offReady_ko`, **`rd_scAndTimer`**: rd1's `sw_out` preconditions at
+  sc_and_timer's start ⇒ every outcome has `Rdy ∧ OffReady ∧ cur_sc = p`. This is `kentry_offReady`'s last step.
+- Premises: none added (no [J]/[P]/[W]/[S]). Every precondition is a state fact at that point (RNE / T1 / ScFwd are
+  carried by sb2 / ctq; CtR, NoQ / NP / ∉ release queue, "no TCB bound" are mid-entry facts the shell must supply), none a
+  ∀-states hypothesis.
+- No FINDING.
+- HANDOFF (in order):
+  1. Exit glue: `sw_out`'s preconditions at the state `rd_schedule_via` hands to `hT` — strengthen `rd_schedule_via`'s `hT`
+     premise from `Rdy s` to `Rdy s ∧ SO σ s` where SO records: curSc / its SC / consumed / time / OffReady / Suff unchanged
+     from schedule's start (schedule's body writes no SC: a `KO`-style frame for awaken / checkDomainTime / the branches,
+     only TCB arch + queues + action + ct change), and the new ct: (resume) ct unchanged and bound to curSc (needs the
+     mid-entry `ct bound ⇒ to curSc`), (switch) a thread that was RdyT, now dequeued, action resume, runnable ⇒ Excl via
+     sb2's ScBackS uniqueness, (idle) vi3's idle SC. Then `rd_scAndTimer` ⇒ OffReady at exit.
+  2. The overrun break (rd1 note (3) / decision 3): sw_out needs `OffReady`; after charge_budget's overrun it is false. Carry
+     `OffReady ∨ (consumed = 0 ∧ Excl curSc ∧ ct not schedulable-with-curSc)` and generalise `sw_out` (commit with consumed 0
+     changes no refill; the new SC p ≠ curSc then).
+  3. Mid-entry carry (rd2 handoff 2-4 minus the done writers): `chargeBudget` / `endTimeslice` / `checkBudget(_Restart)` /
+     `preemptionPoint`, ct blocking (`rd_setThreadState_r` + CtR's RdyT ct), woken threads (`rd_possibleSwitchTo_p` with R3),
+     donation, bind (`decodeSchedContextBind` released check), configure (`refillNew` / `refillUpdate`, postpone via
+     `rd_postpone_fwd`), setPriority / yieldTo (ct enqueue from CtR), retype / detype (UtInv3 + IfLiveT). CtR is kept by
+     every writer keeping ct's SC head and ct's schedulability; it is established at the entry from `OffReady ∧ CurScT`
+     (ct's SC = curSc whose head rTime + consumed ≤ curTime) and must be re-proved after charges (Suff ⇒ head ready).
+  4. Shell (fo1's FoS template) and tops `kentry_rdy` / `kcall_rdy` / `kentry_offReady` / `kcall_offReady`.
+- Builds (tokyo, FL4-tcbj mirror; ./rd3s.sh untracked = rd2s.sh with its own log): rd3-b2 RdD + F1..F5 OK (4646..4654 jobs),
+  rd3-b4 RdE OK (4856), rd3-b6 RdS OK (4868), rd3-b7 RdU OK (4870) + axioms, rd3-b9 RdX OK (4872) + axioms
+  (scratch/rd3/ax.lean, untracked): propext, Classical.choice, Quot.sound (rd_tcbReleaseRemove: propext, Classical.choice).
+  No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (four import lines). Lean traps: a
+  `first | …` list continued on the next line inside `repeat'` is a parse error (ctq5's again); RdS needs `import
+  SpecInvRdF5` for the generated leaves, else `rd_auto` spins to a whnf timeout; `chooseThread`'s `if ∀ prio, …` and
+  `scheduleChooseNewThread` by hand, not `rd_auto`; `split at hr` on schedule's action match fails ("discriminants") —
+  work on the goal with `PostP` / `pp_gets_bind`; `schedulable_inv` has 10 components.
