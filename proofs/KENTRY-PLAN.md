@@ -4287,3 +4287,89 @@ SpecInvNativeScopeT (outside the JAtZ cone); root Fl4Proofs.lean imports the eig
   `SpecInvValidIrqHandlers` OK (4608 jobs). Axioms (scratch/vih1/ax.lean, untracked): boot_vih, vimh_ack, hk_setCap,
   final_handler_unique, setCap_null_unique, hk_setIrqState_active/inactive: propext, Classical.choice, Quot.sound.
   No sorry/admit/native_decide/bv_decide; no premise. Root Fl4Proofs.lean not rebuilt (one import line added).
+## ut2 (branch par/ut2 in FL4-tcbj, on a57950a3 = int/j2 incl. ut1) — UtInv' and the CDT writers (not yet the entry)
+Goal (ut1's handoff): `kentry_utInv` / `kcall_utInv` for `UtInv' = UtInv ∧` the carried CDT facts. Spec-only leaves,
+namespace `Fl4Proofs.P3.SInvU`, importing only SpecInvUtR (Fl4Spec); root Fl4Proofs.lean imports the seven new
+modules. Nothing existing edited. NOT reached: the entry/event theorems (see handoff); the writers below are done.
+- Carried facts (SpecInvUtC): `CdtOK` [J] (l4v `mdb_cte_at`, parent half: `cdt c = some p → capAt p` is a non-null
+  cap; so a null slot or a slot of no object has no CDT child — stronger and more robust than ut1's `CdtNull`, which
+  says nothing about slots of absent objects that a retype later recreates), `CdtAcyc` [J] (l4v `no_mloop`; needed
+  by `empty_slot`: with `cdt s = some s` the emptied slot would keep a child). `UtInv' σ := UtInvV (uV σ) ∧ CdtOKV ∧
+  CdtAcycV` (a view predicate: `ik_utInv'_of_uk` makes every generated `UK` frame of SpecInvUtF1..F4 a leaf).
+  `boot_utInv' : UtInv' initASt`.
+- Infrastructure (SpecInvUtC): `HV P Q m` (view Hoare triple; `hv_bind`, `hv_pin`, `hv_gets_bind`,
+  `hv_getCap_bind`, `hv_uk`, `hv_ret`), exact view writers `hv_setCdt`/`hv_setOriginal`/`hv_setCap` (`setCap_at`: the
+  written slot holds the new cap — ut1's `setCap_out` only had "old or new"), `CapShrinkD` (CapShrink with a CDT
+  change that keeps descendant pairs of untyped slots), `vCap_cap`/`vCC_cap`.
+- Writers proved (each an `IK UtInv'` / `HV UtInv'V UtInv'V` or an outcome statement):
+  * `ik_emptySlot' s info : IK UtInv' (emptySlot s info)` (SpecInvUtC; `es_tg_new`/`es_tg_old`: chains through the
+    emptied slot are shortened, never created).
+  * `hv_createCap` + `utInv'_cc` (cap not untyped) / `utInv'_ccU` (new untyped child: region inside the source's,
+    outside its raised free part, no object in it, every other overlapping untyped cap an ancestor of the source
+    whose free part misses the source's region) (SpecInvUtCC; `lu_tg`: a CDT leaf update keeps all other chains).
+  * `invokeUntyped_utInv' (hI : UtInv' σ) (hok : UtRetOK σ (.retype s false base rb ty sz slots dev)) (hdn : DestNull σ
+    (.retype …)) : ∀ y ∈ (ExceptT.run (invokeUntypedWith fl4ObjBitsApi (.retype s false …)) σ).1, UtInv' y.2`
+    (SpecInvUtI: `utInv'_raise`, `utInv'_retype`, `hv_ccLoop`, `hv_ccLoopU` with `ItemU`/`RDisj`, `retPtrs_pw`,
+    `fi_new` — the free-index arithmetic incl. a region ending at 2^64). `DestNull σ ui` = the decode's `ensure_empty`
+    of every destination (`destNull_view`).
+  * `ik_capInsert_nonUt c (hnu : c not untyped) src dest : IK UtInv' (capInsert c src dest)` — no decode fact
+    (cap_insert asserts the destination is null; the new parent is the source by `same_region_as`, non-null, or the
+    source's parent) (SpecInvUtIns). Covers CNode Copy/Mint/Mutate of non-untyped caps, IPC grant, TCB installs,
+    IRQ issue, MakePool's pool cap.
+  * `reset_utInv' (hI) (hDT : DetypeOK σ) (hc : capAt σ src = some (.untypedCap dev b n fi)) (hk : ∀ c, σ.cdt c ≠
+    some src) : ∀ y ∈ (ExceptT.run (resetUntypedCap src) σ).1, PR src dev b n σ.cdt y.2` (finished or preempted;
+    `PR = UtInv' ∧ RSV`, the reset facts: the region is empty, no other free part meets it, every overlapping untyped
+    cap is an ancestor; `rs_setCap`: set_cap of the source with ANY free index ≤ 2^n keeps both — this is what makes
+    the reset's lowering writes and the following retype's write leaves) (SpecInvUtRs).
+  * `invokeUntyped_reset_utInv' (hI) (hDT : DetypeOK σ) (hok : UtRetOK σ (.retype s true …)) (hdn : DestNull σ …) :
+    ∀ y ∈ …, UtInv' y.2` (SpecInvUtRsI).
+  * `utInv'_rename` (UtInv' invariant under a slot involution), `hv_capSwap_same` (cap_swap of the slots' own caps),
+    `ik_capSwapForDelete s1 s2 : IK UtInv' (capSwapForDelete s1 s2)` (SpecInvUtSw).
+- NAMED PREMISE (new): **`DetypeOK σ` [J]** := `∀ u dev b n fi, capAt σ u = some (.untypedCap dev b n fi) → (∀ c,
+  σ.cdt c ≠ some u) → ∀ c p, σ.cdt c = some p → p.1 ∉ delR b n` — no CDT parent slot lies in an object inside the
+  region of a childless untyped cap. Only the detype of the reset (and of MakePool) uses it: it is what keeps
+  `CdtOK` when the objects of the region vanish (a parent slot of a deleted CNode/TCB would otherwise survive as a
+  dangling parent, and a later retype at that address would resurrect it with children). l4v counterpart:
+  `untyped_children_in_mdb` + `if_unsafe_then_cap` + `mdb_cte_at` (an object in a childless untyped's region is
+  referenced by no cap, so its slots are empty, so they are no CDT parents); true in every `invs` state. It is a
+  fact of the invocation's start state, read through the view (`detypeOK_view` carries it across the decode and
+  `set_thread_state`), not a ∀-states hypothesis. Narrower than carrying the l4v chain; discharging it needs that
+  chain (or "slots of objects inside a childless untyped's region hold only null caps", whose preservation runs
+  through finalisation/zombies — L).
+- No FINDING: no writer step from a `UtInv'` state was found to break `UtInv'`.
+- HANDOFF for `kentry_utInv` / `kcall_utInv` (in order):
+  1. Decode → perform facts: `UtRetOK σ ui ∧ DestNull σ ui` from `decodeUntypedInvocationWith fl4ObjBitsApi`'s ok
+     outcomes (cap = the invoked slot's cap via `lookupCapAndSlot`; the checks are listed in UtRetOK's docstring;
+     `ensureNoChildren` → reset clause; `mapMEx ensureEmpty slots` → DestNull), carried across `set_thread_state
+     Restart` by `utRetOK_view`/`destNull_view` (invC's DomInvOK pattern, `okq_fl4Decode`). Same for MakePool:
+     `MakePoolOK` (parent = `untypedCap false frame pageBits fi`, no CDT child, dest null).
+  2. MakePool (`performAsidControlInvocation (.makePool …)`): `deleteObjects frame 12` = the parent's region
+     (DetypeOK, as `reset_utInv'`'s `hz0`, giving `PR`), `setCap (maxFreeIndexUpdate pcap) parent` = `rs_setCap` with
+     f = 2^12, `retypeRegion frame 1 0 asidPool` (`utInv'_retype`, fresh by RSV), `ik_capInsert_nonUt` (pool cap),
+     the ASID-table `modify` (UK).
+  3. `cap_insert` of an UNTYPED copy (CNode Copy/Mint of an untyped cap; `updateCapData` leaves untyped caps alone):
+     carry `derive_cap`'s `ensure_no_children src` decode→perform. Then `set_untyped_cap_as_full` = `utInv'_raise`
+     to 2^n, the copy (`src`'s old cap, same region) becomes a child of src (`should_be_parent_of`: UtOrig, and
+     `same_region_as` from UtWf arithmetic), and UtDesc for the copy follows from UtDesc(src, ·) + no kids exactly as
+     `rsv_mk` (every overlapping cap is an ancestor of src whose free part misses src's region); UtDisj: the copy's
+     free part is src's old one, src's new one is empty. Use `utInv'_ccU`'s proof as template (dest a CDT leaf).
+  4. `cap_move` (CNode Move/Mutate): dest null (decode `ensure_empty`) → leaf; the view is `vRen (sw src dest)` with
+     src then nulled and parentless (src has no child after the move): prove as `utInv'_rename` + a null-slot write.
+     `cap_swap` with transformed caps (CNode Rotate/Swap: `updateCapData` keeps untyped caps): `hv_capSwap_same`
+     needs the written caps to be the stored ones for untyped caps; generalise with "non-untyped written caps".
+  5. `set_cap` of a non-null, non-untyped cap for UtInv' (CdtOK needs non-null): extend ut1's `ik_setCap_nonUt`
+     (zombies, arch cap updates, TCB installs). rec_del's `setCap remainder`: needs finaliseCap's value fact
+     (remainder is null or a zombie; null is removeable, so the written one is a zombie).
+  6. The ancestors (scratch/ut1/anc.txt, 75 functions): invA's gen.py with family `IK UtInv'` (prefix ui, leaves =
+     `ik_utInv'_of_uk` for every UK lemma + the writers above), by hand: rec_del/cap_revoke (`ik_lfp`), the IPC cap
+     transfer loop (`ik_capInsert_nonUt` needs the transferred cap non-untyped or the untyped copy case 3), the
+     perform/shell `fl4HandleInvocationR` with `syscall_post'` carrying UtRetOK/DestNull/MakePoolOK/no-children and
+     `DetypeOK` (as a view fact of the entry state), then `kentry_utInv (hDT : DetypeOK σ) : UtInv' σ → …` and
+     `kcall_utInv` (interrupt/fault/timer paths reach only `empty_slot`/`cap_delete_one`/the frames).
+- Builds (tokyo, ./ut2.sh untracked = ut1's ut.sh with compact error output; mirror warm): ut2-b2 SpecInvUtC (1030
+  jobs) + SpecInvUtCC (1032), ut2-b7 SpecInvUtI (1034), ut2-b8 SpecInvUtIns (1036), ut2-b9 SpecInvUtRs (1038),
+  ut2-b10 SpecInvUtRsI (1040), ut2-b11 SpecInvUtSw (1038) + axioms (scratch/ut2/ax.lean, untracked): boot_utInv',
+  ik_utInv'_of_uk, ik_emptySlot', hv_createCap, utInv'_retype, hv_ccLoop, hv_ccLoopU, invokeUntyped_utInv',
+  ik_capInsert_nonUt, reset_utInv', invokeUntyped_reset_utInv', hv_capSwap_same, ik_capSwapForDelete: propext,
+  Classical.choice, Quot.sound; utInv'_cc, utInv'_ccU, utInv'_raise, rs_setCap: propext, Quot.sound; utInv'_rename:
+  propext. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean imports the seven (root not rebuilt).

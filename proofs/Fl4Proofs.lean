@@ -788,3 +788,10 @@ import Fl4Proofs.P3.SpecInvUtF2
 import Fl4Proofs.P3.SpecInvUtF3
 import Fl4Proofs.P3.SpecInvUtF4
 import Fl4Proofs.P3.SpecInvUtR
+import Fl4Proofs.P3.SpecInvUtC
+import Fl4Proofs.P3.SpecInvUtCC
+import Fl4Proofs.P3.SpecInvUtI
+import Fl4Proofs.P3.SpecInvUtIns
+import Fl4Proofs.P3.SpecInvUtRs
+import Fl4Proofs.P3.SpecInvUtRsI
+import Fl4Proofs.P3.SpecInvUtSw
