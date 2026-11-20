@@ -777,6 +777,8 @@ import Fl4Proofs.P3.SpecInvSbG1
 import Fl4Proofs.P3.SpecInvSbG2
 import Fl4Proofs.P3.SpecInvSbG3
 import Fl4Proofs.P3.SpecInvSbG4
+import Fl4Proofs.P3.SpecInvSbG5
+import Fl4Proofs.P3.SpecInvSbG6
 import Fl4Proofs.P3.SpecInvDom
 import Fl4Proofs.P3.SpecInvNativeScopeK
 import Fl4Proofs.P3.SpecInvNativeScopeT
