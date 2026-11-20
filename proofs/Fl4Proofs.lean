@@ -749,6 +749,7 @@ import Fl4Proofs.P3.SpecInvValidMachineTimeKit
 import Fl4Proofs.P3.SpecInvValidMachineTimeGen
 import Fl4Proofs.P3.SpecInvValidMachineTime
 import Fl4Proofs.P3.SpecInvValidIrqMasks
+import Fl4Proofs.P3.SpecInvValidIrqHandlers
 import Fl4Proofs.P3.SpecInvCtNQR
 import Fl4Proofs.P3.SpecInvOffReady
 import Fl4Proofs.P3.SpecInvDom

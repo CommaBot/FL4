@@ -4237,3 +4237,53 @@ SpecInvNativeScopeT (outside the JAtZ cone); root Fl4Proofs.lean imports the eig
   reset_region_empty, utRet_fresh_after_reset, uk_preemptionPoint, uk_decodeUntypedInvocationWith, uk_schedule:
   propext, Classical.choice, Quot.sound at most. No sorry/admit/native_decide/bv_decide, no named premise. Root
   Fl4Proofs.lean not rebuilt.
+## vih1 (branch par/vih1 in FL4-rb, on 239de0f8 = int/j2 incl. fpu1) — ValidIrqHandlers and the IRQ-ack leaf of ValidIrqMasks
+- DONE (new leaf SpecInvValidIrqHandlers, namespace SInvV, imports SpecInvValidIrqMasks + CnodeOther + DelAbs + SpecCnK,
+  outside the JAtZ cone (ancestry script); root Fl4Proofs.lean imports it):
+  * `ValidIrqHandlers σ := ∀ p cref irq, capOpt (σ.kheap p) cref = some (.irqHandlerCap irq) → σ.interruptStates irq ≠
+    .irqInactive` (l4v valid_irq_handlers; `capOpt` = what `getCap` returns, CnodeOther's `getCap_set_iff`).
+    `boot_vih : ValidIrqHandlers initASt` (no handler cap in initKheap).
+  * Step relation `HK σ σ'` (every line named by a handler cap of σ' is not inactive in σ', or was named in σ and did not
+    become inactive), `HK.refl/trans`, `ValidIrqHandlers.hk`, `HKM m` (HK of every outcome) with `hkm_bind`,
+    `ValidIrqHandlers.hkm`. Leaves: `hk_of_kheap_is` (heap and interruptStates kept), `vih_setCap_out` (SpecGlob's
+    `setCap_capOpt` outside the cone, plus interruptStates kept), `hk_setCap` (written cap not a handler cap, or its line
+    named / not inactive), `hk_setCap_named` (copy of a cap read from a slot of the same state), `hk_setCap_active` (IRQ
+    control issue after its setIrqState IRQSignal), `hk_setIrqState_active`, `hk_setIrqState_inactive` (line named by no
+    slot), `final_handler_unique` (`isFinalCap' (.irqHandlerCap irq)` + the cap at `sl` ⇒ `sl` is the only slot naming
+    irq: gen_obj_refs holds `iRQRef irq`), `setCap_null_unique` (then after `setCap .nullCap sl` no slot names irq).
+  * The ack restated: `vim_ack` (maskInterrupt false irq keeps ValidIrqMasks when the line is not inactive), `hkm_ack`,
+    **`vimh_ack : ValidIrqMasks σ → ValidIrqHandlers σ → HIrq σ irq → ∀ x ∈ (doMachineOp (maskInterrupt false irq) σ).1,
+    ValidIrqMasks x.2 ∧ ValidIrqHandlers x.2`** (replaces invB's false ∀-states `hA`).
+- NOT DONE (handoff, in order):
+  1. Decode→perform carry of `HIrq σ irq` for the ack (invC's DomInvOK pattern): (a) `lookupCapAndSlot` outcome
+     `.ok (cap, slot)` keeps the state and has `capOpt (σ.kheap slot.1) slot.2 = some cap` (getCap_set_iff);
+     (b) `fl4DecodeInvocation fp label args cptr slot cap excaps buf` with an `.ok (.invokeIRQHandler (.aCKIrq irq))`
+     outcome has `cap = .irqHandlerCap irq` (Ext/Invocation.lean:177, the only producer; `decodeIrqHandlerInvocation`);
+     (c) HIrq kept by the decode (reads only; a kheap frame `FK (·.kheap)` over the decode, e.g. a DL-style generated
+     family as SpecInvDomG) and by `setThreadState thread .restart` (TCB state only: tcbCnodeMap unchanged);
+     (d) a copy of the invocation shell (invC's `dpe_handleInvocationR`, sch12's syscall_post) whose perform leaf for
+     `.invokeIRQHandler (.aCKIrq irq)` is `vimh_ack`, the other performs by the GK kit (`gk_auto`) at VIM ∧ VIH; then
+     `kentry_validIrqMasks`/`kirq_validIrqMasks` for `ValidIrqMasks ∧ ValidIrqHandlers` from (2).
+  2. `kentry_vih`/`kirq_vih` (VIH alone, whole entry): an `HKM` family over the ~414 functions of the entry (invA's
+     gen.py/mkns.sh call-graph generator with HKM leaves). Frames: everything keeping capOpt of every slot and
+     interruptStates (most functions; a generated `FK (fun σ => (capOpt-view, σ.interruptStates))` or per-object
+     TCB/CNode cap-field frames: threadSet/archThreadSet/asUser/setThreadState/schedContext/ep/ntfn writes keep
+     tcbCnodeMap). Writers needing pinned (Hoare) provenance at their call sites:
+     - setIrqState: invokeIrqControl / X64 Arch.lean:40,46 / Ext/IrqControl.lean:131 (IRQSignal, `hk_setIrqState_active`);
+       deletedIrqHandler via postCapDeletion (IpcCancel.lean:509) inside emptySlot (IpcCancel.lean:515): needs the
+       slot's cap final (`final_handler_unique`), finality computed in recDel's finaliseSlotCall (CSpace.lean:435) and
+       carried through finaliseCap's `deletingIrqHandler irq` (capDeleteOne of the IRQ-node slot: a notification cap,
+       never a handler cap) to cTEDeleteCall's emptySlot (CSpace.lean:428) / capDeleteOne's emptySlot (only
+       `.nullCap` cleanup there): `setCap_null_unique` then `hk_setIrqState_inactive`. The lfp (rec_del) needs the
+       carried fact as part of the pre-fixed-point predicate (SpecGlob's NSK proof for rec_del is the model).
+     - setCap of a handler cap: capInsert (.irqHandlerCap irq) after setIrqState IRQSignal (`hk_setCap_active`);
+       cteInsert/cteMove/capSwap/rotate and IPC transferCaps/TCB installs of caps read from slots (deriveCap and
+       updateCapData keep a handler cap): `hk_setCap_named` with the source slot's capOpt at the write (the write of
+       the destination precedes the source's clearing in cteMove; decode-time lookups carried to the perform across
+       setThreadState Restart as in 1(c)); zombies/nullCap/retype default caps are not handler caps (`hk_setCap`).
+     - retypeRegion (default objects: empty CNodes, defaultTcb's null slots) and deleteObjects (objects removed):
+       capOpt of the new/removed objects has no handler cap; interruptStates kept.
+- Builds (tokyo, ./fb.sh untracked): vih1-1/2 fixed two proof terms (setIrqState_out, the uniqueness rewrite); vih1-3
+  `SpecInvValidIrqHandlers` OK (4608 jobs). Axioms (scratch/vih1/ax.lean, untracked): boot_vih, vimh_ack, hk_setCap,
+  final_handler_unique, setCap_null_unique, hk_setIrqState_active/inactive: propext, Classical.choice, Quot.sound.
+  No sorry/admit/native_decide/bv_decide; no premise. Root Fl4Proofs.lean not rebuilt (one import line added).
