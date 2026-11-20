@@ -954,3 +954,5 @@ import Fl4Proofs.P3.SpecInvSlF4
 import Fl4Proofs.P3.SpecInvSlF5
 import Fl4Proofs.P3.SpecInvSlF6
 import Fl4Proofs.P3.SpecInvSlT
+import Fl4Proofs.P3.SpecInvSlW
+import Fl4Proofs.P3.SpecInvSlI6
