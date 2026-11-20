@@ -4089,3 +4089,47 @@ Goal: FaultTcbsS (l4v fault_tcbs_valid_states, the strong form) and VfhAll kept 
     the faulting thread is exempt until sendIpc blocks it (BlockedOnSend / BlockedOnReply / Inactive); needs an
     exempt set in `ftlQ` and the thread not BlockedOnReceive (so it is not sendIpc's woken receiver).
 - VfhAll (b)/(c): NOT STARTED this round.
+## fpu1 (branch par/fpu1 in FL4-rb, on be7b67d7 = int/j2 incl. invB, invC) — ReadFPU's spec step narrowed (invB's FINDING)
+- LEAD DECISION implemented: Ext/Tcb `invokeFl4Tcb (.fpuTransfer _ true frame)` = `doMachineOp (fl4FpuToFrame frame)`,
+  `fl4FpuToFrame frame : MachineMonad Unit` (new, Ext/Tcb, FL4 extension with no l4v counterpart): select a new
+  `underlyingMemory` agreeing with the old one at every `a` with `fl4FpuStateSize ≤ (a - frame).toNat` (offset from
+  the frame modulo 2^64 at least 2696), every other machine field kept. Was `select univ >>= modify (fun _ => ms)`.
+- FL4 check (crates/fl4-core tcb.rs `fpu_transfer`, extracted Fl4Core `tcb.fpu_transfer`): `restart_caller` (the
+  spec's setThreadState Restart before the perform), `a.fpu_flush(target)`, `copy_words(target.fpu_addr(), frame,
+  (FPU_STATE_SIZE+7)/8 = 337)` with `wrapping_add` addresses: exactly the bytes frame+0 .. frame+2695 (2696 = 337*8;
+  the brief's "576" is not FL4's x86 size: `FPU_STATE_SIZE` = 2696 on x86, 520 on AArch64). `fpu_flush`
+  (fl4-arch-x86_64 fpu::flush/flush_local) saves the owner's live registers into the TCB image and restores CR0.TS:
+  registers, FPU owner and enable state unchanged, so `fpuEnabled` and `machineStateRest` stay kept (the TCB's FPU
+  image is not in the spec). No IRQ/timer/device effect.
+- Refinement repaired:
+  * XTopTcbFpu: `fpuToFrame_mem` (the spec step's outcome at any agreeing `um`), `fpu_store_other` (an X64
+    `storeWord` at a word of the frame leaves the bytes outside the 2696); `FpuFrameXHyp` [W] now yields
+    `∃ um, agree ∧ XTopAt … (setUm σ um)`; `fpuFrameX_of` from the frame words being `(w, w)` words of `B`
+    (`bufw_inv`); `fpuHypX_of` exhibits the spec outcome by `fpuToFrame_mem`.
+  * XTopJointReadFpu: `JAtZ.copyFrameJ` now writes every frame word as the IPC-buffer word `(w, w)` of `B`
+    (JointAt's `FrameCover`, the frame inside a spec data page) by `JAtZ.userWrJ`, with the agreement carried;
+    its premises `hVR` (VSpace objects) and `hksR` (kernel-global data) are gone. **`FpuFrameJHyp` [J] narrowed**
+    to clause (a) only (the frame cap's range in a spec data page, l4v `valid_cap`); clauses (b) CNodes, (c) FL4
+    tables/pools, (d) kernel-global data removed (they served only words outside `B`). JThreadPath.hFr docstring
+    updated.
+  * XTopJointTcb `tcb_read_fpuJ`: the spec outcome `setUm σ1 um` by `fpuToFrame_mem`.
+- invB kit (SpecInvValidMachineTimeKit): `WL.fpu` removed; `mt_select`, `mt_fl4FpuToFrame` (MaskT: only the user
+  memory changes), added to `mt_auto`; `gk_fpuAny` deleted. SpecInvValidMachineTime: `fpuStep`,
+  `invokeFl4Tcb_readFpu`, `fpuStep_any`, `readFpu_breaks_vmt`, `wl_vmt_of`, `kentry_vmt_of` deleted (the FINDING
+  lemmas are false for the new step); new `wl_vmt : WL ValidMachineTime`, **`kentry_validMachineTime : ValidMachineTime
+  σ → ∀ y ∈ (fl4KernelEntrySyscall (Z := Unit) true c σ).1, ValidMachineTime y.2`** and `kirq_validMachineTime`
+  (`fl4CallKernel true .interrupt`), no side condition.
+- ValidIrqMasks: `readFpu_breaks_vim` deleted; `wl_vim_of (hA : ∀ i, IK ValidIrqMasks (doMachineOp (maskInterrupt
+  false i)))` — every leaf but the IRQ ack. Remaining gap named in the module docstring: the ack
+  (`invokeIrqHandler (.aCKIrq irq)`) needs `σ.interruptStates irq ≠ .irqInactive` at the perform, i.e. a carried
+  `ValidIrqHandlers` invariant (l4v `valid_irq_handlers`: every IRQ handler cap of the CSpace names a line that is
+  not inactive; writers invokeIrqControl, postCapDeletion/deletedIrqHandler (final cap), cap copy/mint/move) and the
+  ack leaf restated at the decode's outcome. `hA` as a ∀-states statement is false; `wl_vim_of` is not a top.
+- Builds (tokyo, ./fb.sh / ./ffull.sh untracked): fpu1-1 caught TcbExt's old-level ReadFPU membership (fixed by
+  `fpuToFrame_mem`, now in TcbExt), fpu1-2/3 an omega/size normalisation in `fpuFrameX_of`; fpu1-4 `XTopTcbFpu
+  SpecInvValidIrqMasks TcbNil SpecNoPre TcbDom SpecInvDomG XTopJointReadFpu XTopJoint` OK (5108 jobs); fpu1-5
+  `XTopJointTcb XTopJointMRTcbL XTopJointEntry XTopJointKEntry26P` OK (5730 jobs); **fpu1-full: full `lake build`
+  OK (5799 jobs)**. Axioms (scratch/fpu1/ax.lean, untracked): kentry_validMachineTime, kirq_validMachineTime,
+  kernel_entryJ26P, tcb_read_fpuJ, JAtZ.copyFrameJ, fpuHypX_of: propext, Classical.choice, Quot.sound; wl_vim_of:
+  propext, Quot.sound; mt_fl4FpuToFrame: none. No sorry/admit/native_decide/bv_decide; no premise added; one [J]
+  premise narrowed (FpuFrameJHyp).
