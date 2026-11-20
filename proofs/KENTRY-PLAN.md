@@ -5090,3 +5090,81 @@ perform dispatch and the shell, hence no `kentry_vfhAll` yet. No premise added a
   b13..b15 A (4666; use `simp only [perform…]` after `cases`, not `unfold`, so matches on literal invocations reduce
   and the do-notation join points are zeta-reduced). Root Fl4Proofs.lean imports C, D, T, G, A (root not rebuilt).
   Axioms: proofs/scratch/vfh2/ax.lean in FL4-invA (untracked), task vfh2-ax1.
+## ut6 (branch par/ut6 in FL4-tcbj, on 2b8e4a9a = int/j2 incl. ut5) — invariant fix (cap ranges), PosOK insert, TCB installs, IRQ node (NOT finished)
+Goal: `kentry_utInv2` / `kcall_utInv2` with no `DetypeOK` premise (ut5 handoff + lead's IRQ-node decision (a)). Done:
+an invariant correction, the IRQ-node fact and its carrier, the TCB installs. NOT reached: decode facts, untyped
+copy, retype/reset/MakePool, setCap-in-place, DeriveSubframe insert, transfer loop, regenerated frames, shell, tops;
+kentry_utInv / kcall_utInv unchanged. Spec-only, namespace `Fl4Proofs.P3.SInvU`; root imports SpecInvUtN7, N8.
+- **Invariant correction (5e8fe650; not a reachable-state FINDING, an inductiveness gap):** ut4's UtCh/CapFree/CapKind
+  spoke of `objRefs`, i.e. only a frame cap's BASE. `performDeriveSubframe` inserts caps to interior 4 KiB pages
+  `p + off + 4096·d` of a large frame `p`; nothing constrained those addresses, so from a UtInv'' state with a large
+  frame in the used part of an untyped whose free index lies inside the frame, DeriveSubframe gives a cap in the free
+  part (CapFree broken; also CapKind for a slot-holding cap at an interior address). Fixed by **`capRng c`** (SpecInvUtN:
+  `acRng` = the whole frame `{x + k | k < 2^pageBitsForSize sz}` for page caps, `objRefs` otherwise; l4v `cap_range`):
+  UtCh, CapFree, CapKind now over `capRng`; ZFinal stays on `objRefs`. `RefRel` now `capRng c ⊆ capRng c0` and
+  `c0` Zombie ⇒ `capRng c = ∅`; `RefEq` gets a last conjunct `capRng c = capRng c0`; `utN_vCapGen` takes `hcr`.
+  Lemmas `objRefs_sub_capRng`, `sRefs_sub_capRng`, `capRng_nn`, `capRng_ut`, `capRng_of_shp` (slot-holding caps cover
+  their object), `objRefs_of_capRng_shp`. N..N6 adapted, all still premise-free.
+- SpecInvUtN7 (efde742b): `utN_leafP` / **`hv_capInsertP c src dest : HV (UtInv''V ∧ (∀ c0, src = c0 → RefRel c0 c)
+  ∧ PosOK w dest) UtInv''V (capInsert c src dest)`** (destination `PosOK` instead of `DestRefV`; `posOK_of_destRef`
+  converts); `refRel_of_sameObj : sameObjectAs c c0 → RefRel c0 c`, `sameObj_thread`; **`ikN_checkCapAt_ins c src t sl
+  n (hn : n < 6) : IK UtInv'' (checkCapAt c src (checkCapAt (threadCap t) sl (capInsert c src (t, tcbCnodeIndex
+  n))))`**, no premise (the two re-reads give RefRel and the thread cap making the slot DestRefV).
+- SpecInvUtN8 (32cce361), the IRQ node (lead decision (a)): `covR c` (untyped: its region `delR b n`; else `capRng`);
+  **`IrqOutV N w := ∀ irq s c, w.2.1 s = some c → N irq ∉ covR c` [J]** (l4v `valid_irq_node` + `valid_global_refs`:
+  IRQ-node CNodes are global refs outside every cap's `cap_range`, untyped ranges included); `posOK_irq : IrqOutV N w
+  → PosOK w (N irq, [])` (SetIRQHandler's insert slot); `boot_irqOut`. Carrier: **cap domination `CD m' m`** (every
+  address a cap of `m'` covers is covered by a cap of `m`; `cd_refl`, `cd_trans`, `irqOut_cd`: IrqOutV antitone),
+  `cd_vCap`, `cd_vCap_null`, `cd_vEs`, `cd_vRen`, `cd_capRel`; `DMV P m` (outcomes dominate the start), `dm_of_uk`,
+  `dm_emptySlot`, `dm_capDeleteOne`, `dm_capInsert` (RefRel cap). **`UtInv3 σ := UtInv'' σ ∧ IrqOutV
+  σ.interruptIrqNode (uV σ)`**, `ik3_of (IK UtInv'') (DMV UtInv''V) (node kept)`, `boot_utInv3`. The node frames
+  exist already: invB's GK family (SpecInvValidMachineTimeGen, namespace SInvV, `GK = Vs.FK gloF`, gloF = (irq node,
+  idle thread)) has a lemma for EVERY function of the syscall entry up to `gk_fl4KernelEntrySyscall`,
+  `gk_fl4CallKernel_sys/_irq`, `gk_handleFault`; no new node frames needed.
+- No FINDING: no reachable step found to break UtInv3.
+- HANDOFF (in order):
+  1. Family shape. Use `P3 N σ := UtInv'' σ ∧ IrqOutV N (uV σ)` with `N` a fixed parameter (NOT σ's node), so
+     every UK frame keeps it (`ik_of_uk`), writers need only HV + CD: write `hvN_of (h : HV P UtInv''V m) (hd : ∀ w, P
+     w → HV (· = w) (CD ·.2.1 w.2.1) m) : HV (P ∧ IrqOutV N) (UtInv''V ∧ IrqOutV N) m`. Tops: `UtInv3 σ = P3
+     σ.interruptIrqNode σ`, node constancy from `gk_*` (import SpecInvValidMachineTimeGen only in the final module).
+     SetIRQHandler is the one perform that reads the node: state its lemma at UtInv3 (inside `invokeIrqHandler` the
+     node is constant: GK of `getIrqSlot`/`capDeleteOne`), insert by `hv_capInsertP` + `posOK_irq`; its cap is
+     `excaps[0]` itself (RefRel c c for a notification cap: capRng ⊆ refl, not Zombie/untyped).
+  2. DM leaves for the remaining writers: `capMove` (`capMove_view` → mvV: `cd_vCap` with RefEq's capRng + `cd_vRen`),
+     `capSwap` (`capSwap_view`), `capSwapForDelete`, rec_del's `setCap remainder` / zombie shrink (Zombie of a final
+     CNode/thread cap: capRng {r} = objRefs of the cap), `recDel` / `capDelete` / `capRevoke` (hr_lfp / ik_lfp at
+     `P3 N`: every write shrinks), `checkCapAt` installs (`cd_capRel` via refRel_of_sameObj).
+  3. Decode facts (ut5 handoff 1, new `InvOKN w inv`): CNode insert/move/rotate dests DestRefV (okv_lookupSlotForCnodeOpN,
+     root = invoked cap / excaps[0]), RefRel/RefEq of mint/copy/move/mutate caps; untyped retype dests; MakePool dest;
+     IRQ control issue / Fl4 IRQ control / IOPort control dest (`lookupTargetSlot` = `lookupSlotForCnodeOp false`,
+     src = the invoked control cap, RefRel trivially: capRng ∅, shp none); DeriveSubframe: src holds the large frame
+     cap `pageCap false p r _ .x64LargePage _`, `base = p + off`, `off % 4096 = 0`, `off + 4096·count ≤ 2^21`, dests
+     `(ptr, natToCref bits i)` of a CNode cap in a slot (excaps[0] or a looked-up slot) and null (ensureEmpty);
+     VSpace map/unmap + ASID pool assign: the written cap is RefEq to the slot's cap at decode (same base/size;
+     `utN_vCapEq` + ut3 `hv_setCap_nn`). These performs leave the generated set G (move to hand-written):
+     invokeIrqControl, archInvokeIrqControl, invokeFl4IrqControl, performIoportControlInvocation,
+     performDeriveSubframe, performAsidPoolInvocation, performPage*Invocation; `performPageInvocationUnmap` is only
+     called from the page perform (X64/Arch.lean:142), give it the decode fact too.
+  4. DeriveSubframe insert loop: `capRng (small page at base + 4096·d) ⊆ capRng (large page p)` from the bounds
+     (BitVec add assoc + toNat bounds), so `RefRel`; each dest stays PosOK (the CNode cap's slot is non-null, never a
+     dest) and src keeps its cap (dests null ≠ src).
+  5. Untyped copy (ut5 handoff 2) and retype/create_cap/reset/MakePool (ut5 handoff 3) for UtNV AND CD: new caps
+     cover parts of the source untyped's region (`covR` ⊆ `delR`), an untyped child's region inside its parent's;
+     CapFree over capRng needs the new object's WHOLE range in [old fi, new fi) (frame/CNode sizes from
+     `fl4ObjBitsApi`); reset/MakePool detype: RegNull + "no cap covers the region" (UtCh over capRng + childless).
+  6. IPC transfer loop (ut3 `ui_transferCapsLoop` pattern): RefRel from `derive_cap` (case split; untyped → ensure_no_children
+     gives copy facts or derive yields null), receive slot DestRefV (`getReceiveSlots`: root from the receiver's ctable
+     slot, okv_lookupSlotForCnodeOpN).
+  7. Regenerate SpecInvUtG as family `IK (P3 N)` (mkui.sh with FAM 'IK' FARG ' (P3 N)', `variable {N}`; leaves:
+     `ik_of_uk` for UK frames, the HV leaves via hvN_of, ikN_checkCapAt_ins with `(by decide)` for n — installTcbCap's
+     generic `n` needs a hand-written lemma with `hn : n < 6`; invokeTcb calls it at 0,1,3,4 (and 2 via
+     installTcbFrameCap)), replay SpecInvUtE with UtInv3 (IKD gone; `detypeOK_of hI.1` where ut2's reset/MakePool
+     lemmas still want DetypeOK), then `kentry_utInv2 (c) (hI : UtInv3 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1,
+     UtInv3 y.2` and `kcall_utInv2` (syscall/irq via gk_fl4CallKernel_sys/_irq; the other events need a GK of
+     `fl4CallKernel rep ev`, assemble from gk_handleFault etc.).
+- Builds (tokyo, ./ut5.sh, mirror warm): ut6-b1 SpecInvUtN..N6 (1058..1068 jobs), ut6-b3 N7 (1070; b2 failed:
+  `fun _ => by cases e,` inside ⟨…⟩ swallows the tuple — parenthesise `(by cases e)`), ut6-b4 N8 (1072), ut6-ax1
+  axioms (scratch/ut6/ax.lean, untracked): detypeOK_of, boot_utInv3, hv_capInsertN, hv_capInsertP, refRel_of_sameObj,
+  ikN_checkCapAt_ins, hv_capMoveN, hv_capSwapN, ikN_capDelete, dm_capInsert, dm_capDeleteOne, ik3_of: propext,
+  Classical.choice, Quot.sound; utN_vCapEq, posOK_irq: propext, Quot.sound. No sorry/admit/native_decide/bv_decide.
+  Root Fl4Proofs.lean not rebuilt (two import lines added).
