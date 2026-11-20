@@ -990,3 +990,5 @@ import Fl4Proofs.P3.SpecInvCqSF4
 import Fl4Proofs.P3.SpecInvCqSF5
 import Fl4Proofs.P3.SpecInvCqT
 import Fl4Proofs.P3.SpecInvCqL
+import Fl4Proofs.P3.SpecInvRdA
+import Fl4Proofs.P3.SpecInvRdB

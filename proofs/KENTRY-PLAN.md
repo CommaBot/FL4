@@ -6442,3 +6442,69 @@ Goal (ctq3's (a)-(d)): TQ across the whole entry with no [J], tops `kentry_tq` /
      intermediate state come from the q4 / vi families' IK lemmas for the event and fl4Awaken, not their tops).
 - Builds (tokyo, ./ctq4.sh untracked; mirror warm): ctq4-b4 SpecInvCqS (4632 jobs), ctq4-b5/b6 SF1..F5, ctq4-b8
   SpecInvCqT SpecInvCqL + axioms (ax4.lean, untracked).
+## rd1 (branch par/rd1 in FL4-tcbj, on 9aaa95ab = int/j2 incl. fo1, sl2, ctq3) — readiness slices R1-R3 + OffReady: the semantic core (NOT finished: no whole-entry carry yet)
+Goal (off1 R1-R3, then OffReady): one carried family `Rdy` with `kentry_rdy` / `kcall_rdy`, then `kentry_offReady` /
+`kcall_offReady`. Done this round: the definitions and the two hard semantic steps of off1's writer list (item 3 the charge
+of curSc, item 6 the SC switch at exit), spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdA / SpecInvRdB
+(imports ScHead + SpecInvOffT + SpecInvSbK: outside the JAtZ cone; root imports both). Nothing existing edited.
+- **Definitions (SpecInvRdA).** `RdyT σ t` (l4v `released_sc_tcb_at` + `budget_sufficient`): TCB bound to an active SC whose
+  head is ready (`refillReady curTime`) and sufficient (`refillSufficient 0`). **R1** every ready-queued thread is RdyT
+  (valid_ready_qs), **R2** the switch target is RdyT (valid_sched_action), **R3** a thread in `BlkR` (blocked on a
+  notification / receive / send without a timeout fault — `Notif.inClassR` minus runnable) bound to an SC is RdyT
+  (released_ipc_queues), **RV** active SC ⇒ `MIN_REFILLS ≤ scRefillMax` (valid_refills part; needed: with `refill_max = 1`
+  `schedule_used` on a full single-refill list moves the head to `rTime + period - (amount - usage)`, i.e. into the
+  future, so commit would break R1). `Rdy := R1 ∧ R2 ∧ R3 ∧ RV`, `boot_rdy`. **`Suff σ`** (l4v
+  `cur_sc_offset_sufficient`): consumed time sufficient for an active non-idle curSc — the intra-entry fact (checkBudget /
+  preemptionPoint establish it), NOT carried.
+- **SpecInvRdA proved:** `rbc_head_mem` (ScHead's `refillBudgetCheck_head` for an arbitrary outcome — the original needs the
+  outcome equation, available only through the FL4 relation; same proof on membership, plus the frame `r.2 = σ ∨ r.2 =
+  updSc σ p z n` with binding / max / period / sporadic kept), `rbc_head` (any spec SC: refill list via `ofR`),
+  `rr_head` (round-robin charge's head), **`commit_cur`** (`commit_time` with OffReady ∧ Suff ∧ RV and refills of an active
+  curSc: outcome `{updSc σ curSc y n with consumedTime := 0}`, head of y ready (`rTime ≤ curTime`, from OffReady: no wrap)
+  and sufficient (raw) when curSc active and ≠ idle, refills unchanged otherwise — `CommitOut`), `rdy_frame1` (Rdy across a
+  rewrite of one SC keeping active+released SCs released), **`rdy_commitTime`** (commit keeps Rdy and gives OffReady, plus
+  CommitOut). So: the queued / blocked threads bound to curSc (ct enqueued by setPriority/yieldTo/endTimeslice before the
+  exit, ct blocked on receive, the donated server) stay released across the exit's commit, given Suff.
+- **SpecInvRdB proved:** `wl_inv` (whileLoop outcome invariant), `ui_merge` / **`ruc_out`** (`refill_unblock_check p`:
+  nothing, or only the SC at p rewritten (reprogram flag set), head at curTime, refills non-empty, binding / max kept),
+  `icb_out` (constant-bandwidth wrapper), `Excl σ p` (no thread bound to p queued / switch target / BlkR), `rdy_framex`,
+  `rdy_congr`, **`sw_out`**: `switch_sched_context` from Rdy ∧ OffReady ∧ Suff, curSc an SC (refills if active), ct bound
+  to p with refills, `p ≠ curSc → head(p).rTime ≤ curTime` (off1 item 6: from R1 / R2 / idle SC at the chosen ct) and
+  `p ≠ curSc → Excl σ p` (the new ct is dequeued, the action is resume, ct runnable; ScSym's uniqueness) ⇒ afterwards
+  **Rdy ∧ OffReady ∧ curSc = p**. This is OffReady's exit step, with no premise beyond those preconditions.
+- No FINDING. Observations for the carrier (each an l4v fact, not a counterexample):
+  (1) decode's bind checks (`decodeSchedContextBind`, threadControlSched's SC arm) test `getScReleased` = active ∧ ready,
+  NOT sufficient: R3's sufficiency for a newly bound blocked thread needs l4v valid_refills' `MIN_BUDGET ≤ head amount` for
+  active SCs (Sched.Inv.refills / RRok have it). Recommended: move sufficiency out of RdyT into RV (RV y := active →
+  MIN_REFILLS ≤ max ∧ MIN_BUDGET ≤ head amount), keeping RdyT = scReleased; commit_cur already yields the head bound.
+  (2) refill_unblock_check's merges add amounts (BitVec): head sufficiency after a wake-up unblock check needs l4v's
+  refill sum bound (`refills_sum < 2^64`, Sched.Inv RefOK's) — another RV conjunct (charges conserve the sum; refillNew /
+  Update set it to the budget ≤ MAX_PERIOD). sw_out avoids it by Excl (the new ct is outside R1-R3).
+  (3) every refill_unblock_check use except the switch tests/asserts `scp ≠ cur_sc` (ifCondRefillUnblockCheck), so curSc is
+  never moved forward with uncommitted consumed time; OffReady mid-entry is broken only by chargeBudget's overrun branch
+  (head into the future, consumed := 0), which always ends in end_timeslice (append iff ready ∧ sufficient, else postpone /
+  timeout) and reschedule, so the exit switches SC (sw_out's p ≠ curSc case) or awaken re-releases ct with a ready head.
+- HANDOFF (in order):
+  1. Restructure RdyT/RV as (1)-(2) above (small edit of SpecInvRdA; commit_cur gives MIN ≤ head already).
+  2. Generated frame family for Rdy (template: ctq4's SA, FL4-q/proofs/scratch/s4/mks4.sh + gen.py; view = TCB state /
+     fault / SC binding, SC refills / max, readyQueues, action, curTime monotone via `uts_off` + ValidMachineTime); skip list
+     = ctq4's skips4 + every refill writer (commit/charge/refill*, unblock checks, configure, schedContextResume, postpone,
+     yieldTo, bind/donate/unbind) — those by hand, using rdy_frame1 / rdy_framex / rdy_commitTime.
+  3. Writers by hand: enqueue sites (possibleSwitchTo of a woken BlkR thread: R3 gives RdyT; schedContextResume /
+     bindTcb enqueue only after resume postponed non-ready; endTimeslice appends only if ready ∧ sufficient; setPriority /
+     yieldTo enqueue ct: RdyT from OffReady + Suff (raw head ready, consumed-sufficient ⇒ raw-sufficient)), ct blocking
+     (BlkR ct needs ct's SC released: same OffReady + Suff argument), chargeBudget's overrun branch (ct postponed: needs
+     ScSym's curSc ↔ ct and CtNQR to show no queued / switch / BlkR thread holds curSc), configure (dequeue + release-remove
+     first; refillNew is ready at curTime), retype/detype (UtInv3 + IfLiveT as ctq3's rqDet_of_live).
+  4. Suff: `checkBudgetRestart = true` ⇒ Suff; preemptionPoint's non-throw branch ⇒ Suff; Suff kept by every op not
+     touching curSc's refills / consumed (frame family).
+  5. Tops: kentry_rdy / kcall_rdy, then kentry_offReady from sw_out at schedule's scAndTimer (p's head ready: chosen from a
+     queue → R1; switch target → R2; idle → vi3's ValidIdle idle-SC part + idle head at 0 ≤ curTime; resume with p = curSc →
+     no unblock), Excl from ctq4's SchedQ (CtQ after switchToThread, action resume) + sb2's ScSym.
+- Premises: none (no [J]/[P]/[W]/[S] added); every lemma's preconditions are stated facts (Rdy, OffReady, Suff, RV, the
+  binding of ct), none a ∀-states hypothesis.
+- Builds (tokyo, FL4-tcbj mirror, ./rd1.sh untracked = fo1.sh with a fuller error filter; module builds only): rd1-b8
+  SpecInvRdA OK (4616 jobs); rd1-b13 SpecInvRdB OK (4618 jobs) + axioms (scratch/rd1/ax.lean, untracked): rbc_head_mem, rbc_head, boot_rdy, commit_cur, rdy_commitTime, ruc_out, icb_out, sw_out: propext, Classical.choice, Quot.sound; rdy_frame1, rdy_framex: propext, Classical.choice. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (two import lines). Lean traps: omega treats
+  `refillHd x` and `the x.scRefills.head?` as different atoms (pass the fact by `exact`); `refine tail _ … rfl …` lets
+  `rfl : ?s.curSc = σ.curSc` assign `?s := σ` — give the state explicitly; `unfold` of an `abbrev` wrapper fails (`change`
+  to the underlying call first); `Fl4Proofs.P3.Sched.specTail` must be qualified (HandleTop has another `specTail`).
