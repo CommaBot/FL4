@@ -946,3 +946,11 @@ import Fl4Proofs.P3.SpecInvCqRF5
 import Fl4Proofs.P3.SpecInvCqJ
 import Fl4Proofs.P3.SpecInvCqU
 import Fl4Proofs.P3.SpecInvCqP
+import Fl4Proofs.P3.SpecInvSlK
+import Fl4Proofs.P3.SpecInvSlF1
+import Fl4Proofs.P3.SpecInvSlF2
+import Fl4Proofs.P3.SpecInvSlF3
+import Fl4Proofs.P3.SpecInvSlF4
+import Fl4Proofs.P3.SpecInvSlF5
+import Fl4Proofs.P3.SpecInvSlF6
+import Fl4Proofs.P3.SpecInvSlT
