@@ -215,7 +215,7 @@ theorem nonfinal_other {σ : State Unit} {c : Cap} {sl : CslotPtr} (hnf : ¬ isF
 /-! ## Replacing a cap: the general form -/
 
 theorem utN_vCapGen {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : w.2.1 sl = some c0)
-    (hn0 : c0 ≠ .nullCap) (ho : objRefs c = objRefs c0) (hsh : shp c = shp c0)
+    (hn0 : c0 ≠ .nullCap) (ho : objRefs c = objRefs c0) (hcr : capRng c = capRng c0) (hsh : shp c = shp c0)
     (hu : ∀ d b n f, c ≠ .untypedCap d b n f)
     (hss : ∀ r, r ∈ sRefs c → ∀ i c', w.2.1 (r, i) = some c' → c' ≠ .nullCap → SlotShape c0 i → SlotShape c i)
     (hz : ∀ r b n, c = .zombie r b n → ∀ s' c', s' ≠ sl → w.2.1 s' = some c' → r ∉ objRefs c') :
@@ -233,12 +233,12 @@ theorem utN_vCapGen {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 :
     · exact h'
   have hin : ∀ q, InUtV (vCap sl c w) q → InUtV w q := fun q ⟨u, d, b, n, f, hu', hr⟩ =>
     ⟨u, d, b, n, f, hut _ _ _ _ _ hu', hr⟩
-  have hpb : ∀ x y, (vCap sl c w).2.1 x = some y → ∃ y0, w.2.1 x = some y0 ∧ objRefs y = objRefs y0 ∧
+  have hpb : ∀ x y, (vCap sl c w).2.1 x = some y → ∃ y0, w.2.1 x = some y0 ∧ (objRefs y = objRefs y0 ∧ capRng y = capRng y0) ∧
       shp y = shp y0 ∧ sRefs y = sRefs y0 ∧ (y ≠ .nullCap → y0 ≠ .nullCap) := by
     intro x y h
     rcases hcap x y h with ⟨rfl, rfl⟩ | ⟨-, h'⟩
-    · exact ⟨c0, h0, ho, hsh, hsr, fun _ => hn0⟩
-    · exact ⟨y, h', rfl, rfl, rfl, id⟩
+    · exact ⟨c0, h0, ⟨ho, hcr⟩, hsh, hsr, fun _ => hn0⟩
+    · exact ⟨y, h', ⟨rfl, rfl⟩, rfl, rfl, id⟩
   have hpf : ∀ x y0, w.2.1 x = some y0 → ∃ y, (vCap sl c w).2.1 x = some y ∧ sRefs y = sRefs y0 ∧
       objRefs y = objRefs y0 := by
     intro x y0 h
@@ -249,7 +249,7 @@ theorem utN_vCapGen {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 :
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro u d b n f hu' s y r hs hr hrd
     obtain ⟨y0, hs0, hoy, -⟩ := hpb s y hs
-    exact hC u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy]; exact hr) hrd
+    exact hC u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy.2]; exact hr) hrd
   · intro p y hp hne hq
     obtain ⟨y0, hp0, -, -, -, hnn⟩ := hpb p y hp
     obtain ⟨s, c', hs, hr⟩ := hU p y0 hp0 (hnn hne) (hin _ hq)
@@ -257,12 +257,12 @@ theorem utN_vCapGen {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 :
     exact ⟨s, y', hs', by rw [hsr']; exact hr⟩
   · intro u d b n f hu' s y r hs hr
     obtain ⟨y0, hs0, hoy, -⟩ := hpb s y hs
-    exact hF u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy]; exact hr)
+    exact hF u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy.2]; exact hr)
   · intro sa ya sb yb r ha hb hra hrb
     obtain ⟨a0, ha0, hoa, hsa, -⟩ := hpb sa ya ha
     obtain ⟨b0, hb0, -, hsb, hsrb, -⟩ := hpb sb yb hb
     rw [hsa, hsb]
-    exact hK sa a0 sb b0 r ha0 hb0 (by rw [← hoa]; exact hra) (by rw [← hsrb]; exact hrb)
+    exact hK sa a0 sb b0 r ha0 hb0 (by rw [← hoa.2]; exact hra) (by rw [← hsrb]; exact hrb)
   · intro sa ya r ha hr i y hi hne
     obtain ⟨y0, hi0, -, -, -, hnn⟩ := hpb (r, i) y hi
     rcases hcap sa ya ha with ⟨rfl, rfl⟩ | ⟨-, ha'⟩
@@ -274,7 +274,7 @@ theorem utN_vCapGen {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 :
     · have hs'' : w.2.1 s' = some y := by rw [← hold s' hne]; exact hs'
       exact hz r b n e.symm s' y hne hs''
     · obtain ⟨y0, hy0, hoy, -⟩ := hpb s' y hs'
-      rw [hoy]; exact hZ s r b n hs0 s' y0 hne hy0
+      rw [hoy.1]; exact hZ s r b n hs0 s' y0 hne hy0
   · intro s y hs bb hbb
     obtain ⟨y0, hy0, -, hsy, -⟩ := hpb s y hs
     exact hB s y0 hy0 bb (by rw [← hsy]; exact hbb)
@@ -287,7 +287,8 @@ theorem utN_zombieW {w : UView} (hI : UtInv'V w) (hN : UtNV w) {s : CslotPtr} {c
     UtInv''V (vCap s (.zombie r b n) w) := by
   have hn0 : c0 ≠ .nullCap := by intro e; subst e; simp [objRefs] at hr
   refine ⟨utInv'_vCap_nn hI ⟨fun e => (by cases e), fun _ _ _ _ e => (by cases e)⟩, ?_⟩
-  refine utN_vCapGen hN h0 hn0 (by rw [hr]; rfl) (by rw [hsh]; rfl) (fun _ _ _ _ e => by cases e)
+  refine utN_vCapGen hN h0 hn0 (by rw [hr]; rfl)
+    (by rw [capRng_of_shp (c := Cap.zombie r b n) (x := b) rfl, capRng_of_shp hsh, hr]; rfl) (by rw [hsh]; rfl) (fun _ _ _ _ e => by cases e)
     (fun _ _ i _ _ _ h => hss i h) ?_
   intro r' b' n' e s' c' hne hs' hr'
   injection e with e1 e2 e3
@@ -408,7 +409,7 @@ theorem safeDel_nonfinal {σ : State Unit} (hI : UtInv'' σ) {s : CslotPtr} {c :
   intro r hr
   obtain ⟨s', c', hne, hs', hr'⟩ := nonfinal_other hnf hc hr
   obtain ⟨x, hx⟩ := shp_of_sRefs hr
-  have hk := hI.2.2.2.2.1 s' c' s c r hs' hc hr' hr
+  have hk := hI.2.2.2.2.1 s' c' s c r hs' hc (objRefs_sub_capRng _ hr') hr
   exact Or.inl ⟨s', c', hne, hs', sRefs_of_shp hr' (hk.trans hx)⟩
 
 /-- A removeable Zombie's slot may be emptied. -/

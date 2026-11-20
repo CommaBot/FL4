@@ -49,7 +49,7 @@ theorem posOK_of_destRef {w : UView} (hN : UtNV w) {x : CslotPtr} (hD : DestRefV
     by_cases es : s1 = s
     · subst es; rw [hs] at hs1; cases hs1; exact hz1 a b n rfl
     · rw [← ha] at hs; exact hZ s x.1 b n hs s1 c1 es hs1 (sRefs_sub c1 hr1)
-  have h0 : shp c1 = shp c' := hK s1 c1 s c' x.1 hs1 hs (sRefs_sub c1 hr1) hr
+  have h0 : shp c1 = shp c' := hK s1 c1 s c' x.1 hs1 hs (sRefs_sub_capRng c1 hr1) hr
   exact slotShape_shp h0 hz1 hzc hsh1 (shp_of_sRefs hr1)
 
 /-! ## Renaming -/
@@ -86,7 +86,7 @@ theorem utN_cut {w : UView} (hN : UtNV w) {s : CslotPtr} (hk : ∀ x, w.2.2.1 x 
   refine ⟨fun u d b n f hu s' c r hs' hr hrd => ?_, hU, hF, hK, hS, hZ, hB⟩
   have hs's : s' ≠ s := fun e => by
     have h' : w.2.1 s' = some c := hs'
-    subst e; rw [hs] at h'; cases h'; exact objRefs_nn hr rfl
+    subst e; rw [hs] at h'; cases h'; exact capRng_nn hr rfl
   exact (lu_tg hk hv hs's).2 (hC u d b n f hu s' c r hs' hr hrd)
 
 theorem utN_vOrig {w : UView} (h : UtNV w) (s : CslotPtr) (v : Bool) : UtNV (vOrig s v w) := h
@@ -96,7 +96,8 @@ theorem utN_vOrig {w : UView} (h : UtNV w) (s : CslotPtr) (v : Bool) : UtNV (vOr
 /-- What `update_cap_data` / `mask_cap` give in place. -/
 def RefEq (c0 c : Cap) : Prop :=
   c = c0 ∨ (c0 ≠ .nullCap ∧ objRefs c = objRefs c0 ∧ shp c = shp c0 ∧ (∀ r b n, c ≠ .zombie r b n) ∧
-    (∀ r b n, c0 ≠ .zombie r b n) ∧ (∀ d b n f, c ≠ .untypedCap d b n f) ∧ (∀ d b n f, c0 ≠ .untypedCap d b n f))
+    (∀ r b n, c0 ≠ .zombie r b n) ∧ (∀ d b n f, c ≠ .untypedCap d b n f) ∧ (∀ d b n f, c0 ≠ .untypedCap d b n f) ∧
+    capRng c = capRng c0)
 
 theorem sRefs_eq {c0 c : Cap} (ho : objRefs c = objRefs c0) (hs : shp c = shp c0) : sRefs c = sRefs c0 := by
   ext r; constructor
@@ -153,7 +154,7 @@ theorem utN_vCapEq {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : 
   rcases hR with rfl | hR'
   · rw [vCap_same h0]; exact hN
   have hR : RefEq c0 c := Or.inr hR'
-  obtain ⟨hn0, ho, hsh, hz, hz0, hu, hu0⟩ := hR'
+  obtain ⟨hn0, ho, hsh, hz, hz0, hu, hu0, hcr⟩ := hR'
   obtain ⟨hC, hU, hF, hK, hS, hZ, hB⟩ := hN
   have hsr := sRefs_eq ho hsh
   have hcap : ∀ x y, (vCap sl c w).2.1 x = some y → (x = sl ∧ y = c) ∨ (x ≠ sl ∧ w.2.1 x = some y) :=
@@ -167,13 +168,13 @@ theorem utN_vCapEq {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : 
     · exact h'
   have hin : ∀ q, InUtV (vCap sl c w) q → InUtV w q := fun q ⟨u, d, b, n, f, hu', hr⟩ =>
     ⟨u, d, b, n, f, hut _ _ _ _ _ hu', hr⟩
-  have hpb : ∀ x y, (vCap sl c w).2.1 x = some y → ∃ y0, w.2.1 x = some y0 ∧ objRefs y = objRefs y0 ∧
+  have hpb : ∀ x y, (vCap sl c w).2.1 x = some y → ∃ y0, w.2.1 x = some y0 ∧ (objRefs y = objRefs y0 ∧ capRng y = capRng y0) ∧
       shp y = shp y0 ∧ sRefs y = sRefs y0 ∧ (y ≠ .nullCap → y0 ≠ .nullCap) ∧
       (∀ i, SlotShape y i ↔ SlotShape y0 i) ∧ ((∃ r b n, y = .zombie r b n) → y = y0) := by
     intro x y h
     rcases hcap x y h with ⟨rfl, rfl⟩ | ⟨-, h'⟩
-    · exact ⟨c0, h0, ho, hsh, hsr, fun _ => hn0, hR.shape, fun ⟨r, b, n, e⟩ => absurd e (hz r b n)⟩
-    · exact ⟨y, h', rfl, rfl, rfl, id, fun _ => Iff.rfl, fun _ => rfl⟩
+    · exact ⟨c0, h0, ⟨ho, hcr⟩, hsh, hsr, fun _ => hn0, hR.shape, fun ⟨r, b, n, e⟩ => absurd e (hz r b n)⟩
+    · exact ⟨y, h', ⟨rfl, rfl⟩, rfl, rfl, id, fun _ => Iff.rfl, fun _ => rfl⟩
   have hpf : ∀ x y0, w.2.1 x = some y0 → ∃ y, (vCap sl c w).2.1 x = some y ∧ sRefs y = sRefs y0 := by
     intro x y0 h
     by_cases e : x = sl
@@ -183,7 +184,7 @@ theorem utN_vCapEq {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : 
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro u d b n f hu' s y r hs hr hrd
     obtain ⟨y0, hs0, hoy, -⟩ := hpb s y hs
-    exact hC u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy]; exact hr) hrd
+    exact hC u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy.2]; exact hr) hrd
   · intro p y hp hne hq
     obtain ⟨y0, hp0, -, -, -, hnn, -⟩ := hpb p y hp
     obtain ⟨s, c', hs, hr⟩ := hU p y0 hp0 (hnn hne) (hin _ hq)
@@ -191,12 +192,12 @@ theorem utN_vCapEq {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : 
     exact ⟨s, y', hs', by rw [hsr']; exact hr⟩
   · intro u d b n f hu' s y r hs hr
     obtain ⟨y0, hs0, hoy, -⟩ := hpb s y hs
-    exact hF u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy]; exact hr)
+    exact hF u d b n f (hut _ _ _ _ _ hu') s y0 r hs0 (by rw [← hoy.2]; exact hr)
   · intro sa ya sb yb r ha hb hra hrb
     obtain ⟨a0, ha0, hoa, hsa, -⟩ := hpb sa ya ha
     obtain ⟨b0, hb0, -, hsb, hsrb, -⟩ := hpb sb yb hb
     rw [hsa, hsb]
-    exact hK sa a0 sb b0 r ha0 hb0 (by rw [← hoa]; exact hra) (by rw [← hsrb]; exact hrb)
+    exact hK sa a0 sb b0 r ha0 hb0 (by rw [← hoa.2]; exact hra) (by rw [← hsrb]; exact hrb)
   · intro sa ya r ha hr i y hi hne
     obtain ⟨a0, ha0, -, -, hsra, -, hsha, -⟩ := hpb sa ya ha
     obtain ⟨y0, hi0, -, -, -, hnn, -⟩ := hpb (r, i) y hi
@@ -206,7 +207,7 @@ theorem utN_vCapEq {w : UView} (hN : UtNV w) {sl : CslotPtr} {c0 c : Cap} (h0 : 
     have e := hzz ⟨r, b, n, rfl⟩
     rw [← e] at hz0
     obtain ⟨y0, hy0, hoy, -⟩ := hpb s' y hs'
-    rw [hoy]; exact hZ s r b n hz0 s' y0 hne hy0
+    rw [hoy.1]; exact hZ s r b n hz0 s' y0 hne hy0
   · intro s y hs bb hbb
     obtain ⟨y0, hy0, -, hsy, -⟩ := hpb s y hs
     exact hB s y0 hy0 bb (by rw [← hsy]; exact hbb)

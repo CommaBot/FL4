@@ -59,6 +59,33 @@ theorem sRefs_sub (c : Cap) : sRefs c ⊆ objRefs c := by
   intro r hr
   cases c <;> simp_all [sRefs, objRefs]
 
+/-- The addresses an arch cap covers (l4v `cap_range` / `obj_refs` of arch caps):
+a frame cap its whole frame, any other its object. -/
+def acRng : ArchCap → Set ObjRef
+  | .pageCap _ x _ _ sz _ => {r | ∃ k, k < 2 ^ pageBitsForSize sz ∧ r = x + BitVec.ofNat 64 k}
+  | a => {r | aobjRef a = some r}
+
+/-- **The addresses a cap covers** (ut6; l4v `cap_range`): `objRefs`, except that a
+frame cap covers its whole frame (`DeriveSubframe` makes caps to interior pages,
+so the region facts must speak of every address of a frame, not only its base). -/
+def capRng : Cap → Set ObjRef
+  | .archObjectCap a => acRng a
+  | c => objRefs c
+
+theorem objRefs_sub_capRng (c : Cap) : objRefs c ⊆ capRng c := by
+  intro r hr
+  cases c with
+  | archObjectCap a =>
+    cases a <;> simp_all [capRng, acRng, objRefs, aobjRef]
+    exact ⟨0, Nat.two_pow_pos _, by simp⟩
+  | _ => simpa [capRng] using hr
+
+theorem capRng_nn {c : Cap} {r : ObjRef} (h : r ∈ capRng c) : c ≠ .nullCap := by
+  rintro rfl; simp [capRng, objRefs] at h
+
+theorem capRng_ut {d : Bool} {b : ObjRef} {n fi : Nat} : capRng (.untypedCap d b n fi) = ∅ := by
+  simp [capRng, objRefs]
+
 /-- The slot range of a slot-holding cap. -/
 def SlotShape : Cap → CnodeIndex → Prop
   | .cnodeCap _ bits _, i => i.length = bits
@@ -73,7 +100,7 @@ def InUtV (w : UView) (q : ObjRef) : Prop :=
 /-- **UtCh [J]** (l4v `untyped_children_in_mdb`). -/
 def UtChV (w : UView) : Prop :=
   ∀ u dev b n fi, w.2.1 u = some (.untypedCap dev b n fi) →
-    ∀ s c r, w.2.1 s = some c → r ∈ objRefs c → r ∈ delR b n → s ∈ descendantsOf u w.2.2.1
+    ∀ s c r, w.2.1 s = some c → r ∈ capRng c → r ∈ delR b n → s ∈ descendantsOf u w.2.2.1
 
 /-- **IfUnsafe [J]** (l4v `if_unsafe_then_cap`, inside untyped regions). -/
 def IfUnsafeV (w : UView) : Prop :=
@@ -82,7 +109,7 @@ def IfUnsafeV (w : UView) : Prop :=
 /-- **CapFree [J]** (l4v `valid_caps` + `valid_untyped`). -/
 def CapFreeV (w : UView) : Prop :=
   ∀ u dev b n fi, w.2.1 u = some (.untypedCap dev b n fi) →
-    ∀ s c r, w.2.1 s = some c → r ∈ objRefs c → r.toNat ∉ utFr b n fi
+    ∀ s c r, w.2.1 s = some c → r ∈ capRng c → r.toNat ∉ utFr b n fi
 
 /-- The shape of a slot-holding cap: a CNode's (or CNode Zombie's) size, `none` for a TCB. -/
 def shp : Cap → Option (Option Nat)
@@ -98,10 +125,20 @@ theorem sRefs_of_shp {c : Cap} {r : ObjRef} (hr : r ∈ objRefs c) {x : Option N
     r ∈ sRefs c := by
   cases c <;> simp_all [sRefs, shp, objRefs]
 
+theorem sRefs_sub_capRng (c : Cap) : sRefs c ⊆ capRng c :=
+  fun _ h => objRefs_sub_capRng c (sRefs_sub c h)
+
+/-- A slot-holding cap covers exactly its object. -/
+theorem capRng_of_shp {c : Cap} {x : Option Nat} (h : shp c = some x) : capRng c = objRefs c := by
+  cases c <;> simp_all [shp, capRng]
+
+theorem objRefs_of_capRng_shp {c : Cap} {r : ObjRef} (hr : r ∈ capRng c) {x : Option Nat} (h : shp c = some x) :
+    r ∈ objRefs c := by rw [← capRng_of_shp h]; exact hr
+
 /-- **CapKind [J]** (l4v `valid_caps`, the typing of references): a cap referencing
 an object that a slot-holding cap references is slot-holding of the same shape. -/
 def CapKindV (w : UView) : Prop :=
-  ∀ s c s' c' r, w.2.1 s = some c → w.2.1 s' = some c' → r ∈ objRefs c → r ∈ sRefs c' → shp c = shp c'
+  ∀ s c s' c' r, w.2.1 s = some c → w.2.1 s' = some c' → r ∈ capRng c → r ∈ sRefs c' → shp c = shp c'
 
 /-- **CnShape [J]** (l4v `valid_cap` sizes, Zombie ranges). -/
 def CnShapeV (w : UView) : Prop :=
@@ -142,7 +179,7 @@ theorem regNull_of {w : UView} (hC : UtChV w) (hU : IfUnsafeV w) : RegNullV w :=
   intro u dev b n fi hu hk p c hp hr
   by_contra hne
   obtain ⟨s, c', hs, hr'⟩ := hU p c hp hne ⟨u, dev, b, n, fi, hu, hr⟩
-  exact desc_noKids hk (hC u dev b n fi hu s c' p.1 hs (sRefs_sub c' hr') hr)
+  exact desc_noKids hk (hC u dev b n fi hu s c' p.1 hs (sRefs_sub_capRng c' hr') hr)
 
 theorem detypeOK_of_V {w : UView} (hO : CdtOKV w) (hR : RegNullV w) :
     ∀ u dev b n fi, w.2.1 u = some (.untypedCap dev b n fi) → (∀ c, w.2.2.1 c ≠ some u) →
@@ -212,7 +249,7 @@ theorem utN_vEs {w : UView} (hI : UtInv'V w) (hN : UtNV w) {s : CslotPtr} {c : C
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro u d b n f hu s' c' r hs' hr hrd
     obtain ⟨hus, hu⟩ := hut u d b n f hu
-    obtain ⟨hss, hs'⟩ := vEs_cap hs' (objRefs_nn hr)
+    obtain ⟨hss, hs'⟩ := vEs_cap hs' (capRng_nn hr)
     exact (es_tg_new hA (hC u d b n f hu s' c' r hs' hr hrd) hus).1 hss
   · intro p c1 hp hne hin
     obtain ⟨hps, hpw⟩ := vEs_cap hp hne
@@ -230,9 +267,9 @@ theorem utN_vEs {w : UView} (hI : UtInv'V w) (hN : UtNV w) {s : CslotPtr} {c : C
       show Function.update _ s _ s0 = _
       rw [Function.update_of_ne e]; exact hs0
   · intro u d b n f hu s' c' r hs' hr
-    exact hF u d b n f (hut u d b n f hu).2 s' c' r (vEs_cap hs' (objRefs_nn hr)).2 hr
+    exact hF u d b n f (hut u d b n f hu).2 s' c' r (vEs_cap hs' (capRng_nn hr)).2 hr
   · intro s1 c1 s2 c2 r h1 h2 hr1 hr2
-    exact hK s1 c1 s2 c2 r (vEs_cap h1 (objRefs_nn hr1)).2 (vEs_cap h2 (sRefs_nn hr2)).2 hr1 hr2
+    exact hK s1 c1 s2 c2 r (vEs_cap h1 (capRng_nn hr1)).2 (vEs_cap h2 (sRefs_nn hr2)).2 hr1 hr2
   · intro s1 c1 r h1 hr i c2 h2 hne
     exact hS s1 c1 r (vEs_cap h1 (sRefs_nn hr)).2 hr i c2 (vEs_cap h2 hne).2 hne
   · intro s1 r b n h1 s' c' hne h2

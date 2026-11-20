@@ -22,8 +22,8 @@ set_option maxHeartbeats 1000000
 /-- What `derive_cap` / `mask_cap` / `update_cap_data` give for a non-untyped
 cap: no new reference, the same shape, no Zombie, and nothing from a Zombie. -/
 def RefRel (c0 c : Cap) : Prop :=
-  objRefs c ⊆ objRefs c0 ∧ shp c = shp c0 ∧ (∀ r b n, c ≠ .zombie r b n) ∧
-    (∀ r b n, c0 = .zombie r b n → objRefs c = ∅) ∧ (∀ d b n f, c ≠ .untypedCap d b n f)
+  capRng c ⊆ capRng c0 ∧ shp c = shp c0 ∧ (∀ r b n, c ≠ .zombie r b n) ∧
+    (∀ r b n, c0 = .zombie r b n → capRng c = ∅) ∧ (∀ d b n f, c ≠ .untypedCap d b n f)
 
 /-- The slot is reached through a non-Zombie slot-holding cap, within its range. -/
 def DestRefV (w : UView) (dest : CslotPtr) : Prop :=
@@ -64,13 +64,13 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
     · exact h'
   have htg : ∀ x y, y ≠ dest → Relation.TransGen (parentOf w.2.2.1) x y →
       Relation.TransGen (parentOf w'.2.2.1) x y := fun x y hy h => by rw [h2]; exact (lu_tg hk hvd hy).2 h
-  have hsd : ∀ r, r ∈ objRefs c → src ≠ dest := by
-    intro r hr e; subst e; rw [hd] at hs; cases hs; exact absurd (hRo hr) (by simp [objRefs])
+  have hsd : ∀ r, r ∈ capRng c → src ≠ dest := by
+    intro r hr e; subst e; rw [hd] at hs; cases hs; exact absurd (hRo hr) (by simp [capRng, objRefs])
   have hsR : ∀ r, r ∈ sRefs c → r ∈ sRefs c0 := by
     intro r hr
     obtain ⟨x, hx⟩ := shp_of_sRefs hr
-    exact sRefs_of_shp (hRo (sRefs_sub c hr)) (hRs ▸ hx)
-  have hz0 : ∀ r, r ∈ objRefs c → ∀ a b n, c0 ≠ .zombie a b n := fun r hr a b n e => by
+    exact sRefs_of_shp (objRefs_of_capRng_shp (hRo (sRefs_sub_capRng c hr)) (hRs ▸ hx)) (hRs ▸ hx)
+  have hz0 : ∀ r, r ∈ capRng c → ∀ a b n, c0 ≠ .zombie a b n := fun r hr a b n e => by
     rw [hRz0 a b n e] at hr; exact hr.elim
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- UtCh
@@ -130,7 +130,7 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
       have hr1' : r ∈ sRefs c1 := by rw [show r = dest.1 by rw [← e]]; exact hr1
       have hsh1' : SlotShape c1 i := by rw [show i = dest.2 by rw [← e]]; exact hsh1
       rcases hcap sa ca ha with ⟨-, rfl⟩ | ⟨-, ha'⟩
-      · have h0 : shp c0 = shp c1 := hK src c0 s1 c1 r hs hs1 (hRo (sRefs_sub _ hr)) hr1'
+      · have h0 : shp c0 = shp c1 := hK src c0 s1 c1 r hs hs1 (hRo (sRefs_sub_capRng _ hr)) hr1'
         exact slotShape_shp (h0.symm.trans hRs.symm) hz1 hRz hsh1' (shp_of_sRefs hr1')
       · have hne1 : sa ≠ s1 ∨ ca = c1 := by
           by_cases e1 : sa = s1
@@ -140,11 +140,11 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
           rcases hne1 with h | rfl
           · exact hcz sa ca hr1' ha' (sRefs_sub _ hr) h
           · exact hz1
-        have h0 : shp ca = shp c1 := hK sa ca s1 c1 r ha' hs1 (sRefs_sub _ hr) hr1'
+        have h0 : shp ca = shp c1 := hK sa ca s1 c1 r ha' hs1 (sRefs_sub_capRng _ hr) hr1'
         exact slotShape_shp h0.symm hz1 hzca hsh1' (shp_of_sRefs hr1')
     · rcases hcap sa ca ha with ⟨-, rfl⟩ | ⟨-, ha'⟩
       · have hr0 := hsR r hr
-        have hz0' := hz0 r (sRefs_sub _ hr)
+        have hz0' := hz0 r (sRefs_sub_capRng _ hr)
         exact slotShape_shp hRs.symm hz0' hRz (hS src c0 r hs hr0 i c' hi' hne) (shp_of_sRefs hr0)
       · exact hS sa ca r ha' hr i c' hi' hne
   · -- ZFinal
@@ -154,8 +154,10 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
     · rcases hcap s' c' hs' with ⟨rfl, rfl⟩ | ⟨-, hs''⟩
       · intro hr
         by_cases e : src = sz
-        · subst e; rw [hz'] at hs; cases hs; exact hz0 r hr r b n rfl
-        · exact hZ sz r b n hz' src c0 e hs (hRo hr)
+        · subst e; rw [hz'] at hs; cases hs; exact hz0 r (objRefs_sub_capRng _ hr) r b n rfl
+        · have hrc : r ∈ capRng c0 := hRo (objRefs_sub_capRng _ hr)
+          have hsh : shp c0 = some b := hK src c0 sz _ r hs hz' hrc (by simp [sRefs])
+          exact hZ sz r b n hz' src c0 e hs (objRefs_of_capRng_shp hrc hsh)
       · exact hZ sz r b n hz' s' c' hne hs''
   · -- CnBits
     intro sa ca ha

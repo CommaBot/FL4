@@ -79,7 +79,7 @@ theorem utN_shrink {w : UView} (hI : UtInv''V w) {s : CslotPtr} {ptr : ObjRef} {
   have hZ := hN.2.2.2.2.2.1
   have hL := zcb_le hN.2.2.2.2.2.2 hs
   refine ⟨utInv'_vCap_nn hI1 ⟨fun e => (by cases e), fun _ _ _ _ e => (by cases e)⟩,
-    utN_vCapGen hN hs (fun e => (by cases e)) rfl rfl (fun _ _ _ _ e => (by cases e)) ?_ ?_⟩
+    utN_vCapGen hN hs (fun e => (by cases e)) rfl rfl rfl (fun _ _ _ _ e => (by cases e)) ?_ ?_⟩
   · intro r hr i c' hi hc' hsh
     obtain ⟨k, hk, hik⟩ := hsh
     have hr' : r = ptr := by simpa [sRefs] using hr
