@@ -735,3 +735,5 @@ import Fl4Proofs.P3.XTopJointChooseF
 import Fl4Proofs.P3.XTopJointChooseB
 import Fl4Proofs.P3.XTopJointRecvSigDonD
 import Fl4Proofs.P3.XTopJointKEntry25MD
+import Fl4Proofs.P3.XTopJointPerfU
+import Fl4Proofs.P3.XTopJointPerfW

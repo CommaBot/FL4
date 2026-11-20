@@ -3533,3 +3533,48 @@ MidChoose*/XTopJointRecv* untouched.
   (axsch25.sh, untracked; sch25-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ25M,
   KDispHyps25M.to24M, jMidLeavesHyp_of16, JRecvLeavesRN16.toRN15, jRecvSigHypDN, JAtZ.recvSigDonJN,
   Ipc.recvTail_irelD, Sched.recv_tailDN, recvCheck_eq, recvCheck_of, P1.notification.recv_donate_tail.foot.
+## sch26 (branch par/sched26 in FL4-sc, on 9c0b6488 = int/j2 incl. sch23, sch24, mr10)
+Goal: the two [W] premises on the first-phase PerfW performs (`JMidPerfHypQ` CQ kept, `JMidPerfHypB` BI kept).
+New leaves XTopJointPerfU, XTopJointPerfW (imported from Fl4Proofs.lean). Nothing existing edited.
+- FINDING: no spec frame alone can prove them. The spec's `retype_region` writes default objects at the addresses
+  the invocation gives and `delete_objects` detypes the whole region, both without a freeness check (l4v keeps the
+  region free by the invariants `valid_untyped` / `descendants_range_in` / `if_live_then_nonz_cap`). From a state
+  where the region holds ct's TCB or an SC some TCB is bound to, CQ / BI break. So a region fact at the perform's
+  start state is genuinely needed; everything else (reset loop incl. the preemption points, which write only the
+  machine/extended state, curTime, consumedTime, domainTime: none in ctV/qV/sV; cap writes; createCap;
+  initArchObjects / copyGlobalMappings; ASID table) is a ctV/qV/sV frame (MidRunK/MidRunQ/ChooseF leaves by
+  `kf_auto2`/`qv_auto2`/`sck_auto2`).
+- XTopJointPerfU: `PW I m` (invariant kept) + combinators, `IStable` (I determined by ctV, qV, sV), `pw_of`;
+  hand steps `pw_deleteObjects` (I kept by `detype (rgn ptr bits)`), `pw_retypeRegionWith` (I kept by writing an
+  object binding no SC, `TPN`, at an address of `rtPtrs`; `tpn_default`); `RegC ct D σ := ct ∉ D ∧ no TCB's SC
+  field points into D`; `IB D := CQ ∧ BI ∧ RegC D`, `IQ D := CQ ∧ ct ∉ D` with `ib_/iq_detype` (R ⊆ D),
+  `ib_/iq_upd` (p ∈ D) via `biv_frame` / `regc_frame`; `reset_post` (resetUntypedCap, region of the cap read at
+  the start), `ut_post` (FL4's invokeUntypedWith fl4ObjBitsApi), `pw_asidControl`; `utD sl σ reset rb ty objSz n`
+  (reset region of every cap at sl at σ if reset, ∪ rtPtrs), `asidD frame` (rgn frame page_bits ∪ {frame}).
+- XTopJointPerfW: ADDED `JPerfRegHyp cptr σ` [J] := `∀ inv σ1, MidPerfAt cptr σ inv σ1 → PerfRegOK σ.curThread inv σ1`,
+  `PerfRegOK`: Untyped `.retype srcSlot reset _ rb ty objSz slots _` ↦ `RegC ct (utD srcSlot σ1 reset rb ty objSz
+  slots.length) σ1`; ASID control `.makePool frame ..` ↦ `RegC ct (asidD frame) σ1`; else True. l4v: invoke_untyped's
+  `valid_untyped_inv` (retyped range free; a reset untyped is childless so by valid_untyped + if_live_then_nonz_cap
+  no live object, not cur_thread, not a bound SC (sym_refs), lies in it), perform_asid_control_invocation's
+  `valid_aci`. True in reachable states. NARROWED residue `JPerfIrqHypQ` / `JPerfIrqHypB` [W]: the old premises
+  for the IRQ handler set/clear performs only. `midPerfAt_cq` (CQ ∧ NQ at σ1 from the dispatch state),
+  `perfU_post`, `perfA_post`, `jMidPerfHypQ_of (hs : CQ ct σ) (hq : NQ ct σ) (hR : JPerfRegHyp) (hIq :
+  JPerfIrqHypQ) : JMidPerfHypQ`, `jMidPerfHypB_of (hs) (hq) (hR) (hIb : JPerfIrqHypB) : JMidPerfHypB`.
+- NOT DONE (handoff): (a) top wrapper: `jMidPerfHypQ_of` needs `CQ ∧ NQ` at the dispatch state, which
+  `JAtZ.midCQ` gives from `Entered σb` + JEntryAt; the *M tops' `hK` gets σb with only `BudgetAt σ σb true` and
+  JAtZ, and no exported lemma gives `Entered σb` from BudgetAt (KEntry.lean:439 derives it inline from the budget
+  check's post). So a KDispHyps26M replacing `JMidPerfHypQ` by `JPerfRegHyp ∧ JPerfIrqHypQ` needs either that
+  lemma or the wiring at dispatch_all*M (where `hni`/`J.midCQ` are in scope, as in dispatch_all9M). (b) IRQ
+  handler family: route = `capDeleteOne irqSlot` with the cap null or a notification cap (needs the [J] fact "the
+  IRQ slot holds null or a notification cap", l4v valid_irq_handlers/valid_irq_node; other caps reach
+  fast_finalise's reply/endpoint branches, `NonDet.fail` for the rest); KF leaves exist (kf_emptySlot',
+  kf_schedContextMaybeUnbindNtfn', kf_unbindMaybeNotification', kf_isFinalCap'), QK via SpecPPRQ's
+  qk_cancelAllSignals/nq_ntfnBody pattern (ct ∉ the queue from MidRun.NQ at σ1 = midPerfAt_cq's NQ, kept by the
+  two unbinds: they keep ntfnObj); SV: sck_tcbNtfnDequeue/sck_possibleSwitchTo/sck_rescheduleRequired/
+  sck_setThreadState exist, SV of the unbinds and ifSporadicCurScAssertRefillUnblockCheck to check.
+  (c) the [J] `JPerfRegHyp` from JAtZ: the J-side reset/retype proofs (UtResetTopJ `JAtZ.rgClear_drop`, UtDropJ2
+  `RegionD`, `JUtPath`) show the region is clear of the sets incl. Z.T/Z.C at the kernel side; transporting that to
+  the spec heap (ct ∈ Z.T, bound SCs ∈ Z.C, ObjCover) is the route.
+- Builds (tokyo, b26.sh = b23.sh with the State-record lines filtered): sch26-b1/b2 (`first` layout; `bitsOf` is
+  shadowed by Fl4Proofs.P3.bitsOf (CapRel) -> `Fl4Spec.bitsOf`; getCap state rewrite), sch26-b3
+  `XTopJointPerfU XTopJointPerfW` OK (5396 jobs). Axioms (axsch26.sh, untracked; sch26-ax1): propext, Classical.choice, Quot.sound only for jMidPerfHypQ_of, jMidPerfHypB_of, perfU_post, perfA_post, midPerfAt_cq, ut_post, reset_post, pw_asidControl, ib_detype, ib_upd, pw_retypeRegionWith. No sorry/admit/native_decide/bv_decide.
