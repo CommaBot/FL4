@@ -688,3 +688,4 @@ import Fl4Proofs.P3.XTopJointKEntry14M
 import Fl4Proofs.P3.XTopJointKEntry15M
 import Fl4Proofs.P3.XTopJointJAtZRM
 import Fl4Proofs.P3.XTopJointRecvSigRetM
+import Fl4Proofs.P3.XTopJointFaultRecvM
