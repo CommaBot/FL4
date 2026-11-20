@@ -5235,3 +5235,50 @@ obligation `PerfGap` (the untyped and arch performs). kentry_utInv / kcall_utInv
   p3_setIRQHandler, p3_invokeFl4IrqControl, p3_performIoportControl, p3_performAsidPoolInvocation,
   nk_fl4KernelEntrySyscall, nk_fl4CallKernel, un_capRevoke: propext, Classical.choice, Quot.sound. No
   sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (twelve import lines added).
+## vfh3 (branch par/vfh3 in FL4-sc, on b0656391 = int/j2 incl. vfh2, ut6): VfhAll ∧ CnDom across the entry (DONE)
+Goal: vfh2's 4-step handoff, ending in `kentry_vfhAll` / `kcall_vfhAll`. Done. Spec-only, namespace
+`Fl4Proofs.P3.SInv` (new names `vfh_*`), modules SpecInvVfhX/R/E (root imports them). Nothing existing edited.
+- Decode carry (SpecInvVfhX, step 1 + 3 decode half; vih3's `OkV σ0` on the cap view `hV`): `DRef σ0 p` (some slot holds a
+  CNode cap to `p`), `RootSl`, `CRoot := CnOk ∧ RootSl`; `vfh_rabR` (resolve_address_bits' from a root in a slot lands in a
+  `DRef` object), `vfh_lookupTargetSlotR` (target slot: not `Bad` and `DRef`), `vfh_okv_nodeCap` / `vfh_okv_subframeNode`,
+  `vfh_natToCref_notBad` (`natToCref r k` has length `min r 64`: slot 3 only for `r = 3`, then index 6 is held).
+  `VArch σ0` (page / table / directory / PDPT map+unmap: invoked slot `cte` not `Bad` (holds an arch cap, `vfh_notBad_old`)
+  and an arch cap; IO port control `VIoC`: target slot; MakePool `VMp`: target slot not `Bad` and `DRef`; DeriveSubframe:
+  every destination), `vfh_okv_archDecode`, `vfh_okv_deriveSubframe`, `vfh_okv_fl4ArchDecode`; `VUt σ0` (every retype
+  destination not `Bad` and `DRef`), `vfh_okv_decodeUntyped`; **`VInv σ0`** (CNode VCn, IRQ control VFl4IrqC, IRQ handler VIh,
+  TCB VTcb, arch VArch, untyped VUt) and **`vfh_okv_fl4Decode (hv : VfhV σ0) (hd : CnDom σ0) (hc : invoked cap in its slot)
+  (hex : every extra cap in its slot) : OkV σ0 (VInv σ0) (fl4DecodeInvocation …)`**.
+- Retype (SpecInvVfhR, step 2), pointwise at the perform state σ, from `UtInv'' σ` (only `UtChV`, `regNull_of`, `UtInv`/`UtWf`):
+  `vfh_noRef` (UtCh + childless: no cap covers the region), `vfh_dref_out` (a `DRef` CNode lies outside it), `vfh_srcOut`
+  (RegNull: the untyped's own slot lies outside it), `vfh_detype` (delete_objects of a region no CNode cap points into keeps
+  `VfhV ∧ CnDom`), `vfh_notBad_detype`; `vfh_retype` (retype_region at fresh addresses keeps `VS a`: default objects hold
+  only null caps (`vfh_default_null`), new CNodes are full (`vfh_emptyCnode_wf`)); `vs_createCap`, `vfh_utMain` (the body
+  after the reset, anchored at `a`), `vfh_reset` (the reset ends in `VS a` with source and destinations not `Bad` at `a`);
+  **`vfh_fl4InvokeUntyped (hv hd) (hU : UtInv'' σ) (hok : UtRetOK σ ui) (hu : VUt σ ui)`**, **`vfh_makePool (hv hd hU)
+  (hok : MpOK σ iv) (hm : VMp σ iv)`**: every outcome `VfhV ∧ CnDom`.
+- Dispatch + shell (SpecInvVfhE, steps 3–4): `VfC := VfhV ∧ CnDom`; **`vfh_fl4Perform (e : hV σ = hV σ0) (hv hd hU)
+  (hok : InvOKV (uV σ) inv) (hi : VInv σ0 inv)`** (retype / MakePool by R, CNode / TCB / IRQ / arch performs by vfh1/vfh2's
+  `vs_*` leaves, the rest by hv_auto with the G leaves); `IKV m` (VfC kept from a state also satisfying `UtInv''`), combinators
+  `ikve_bind_uk` / `ikv_bind_uk` (a step keeping the untyped view `uV` carries `UtInv''`); `vfh_handleInvocationR` (ut3's
+  shell: ut3's `okv_lookupCapAndSlot` / `okv_lookupExtraCaps` give the slot facts, ut3's `okv_fl4Decode` gives `InvOKV`,
+  `vfh_okv_fl4Decode` gives `VInv`, `set_thread_state Restart` keeps both views), `vfh_fl4HandleSyscall`, per-event leaves
+  `vfh_he_*` + `vfh_handleEvent_other`, `vfh_fl4HandleEvent` (ut3's `checkBudgetRestart_true`), `vfh_fl4CallKernel(_other)`.
+  * **`kentry_vfhAll (c) (hV : VfhAll σ) (hC : CnDom σ) (hU : UtInv3 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1,
+    VfhAll y.2 ∧ CnDom y.2`**
+  * **`kcall_vfhAll (rep ev) (hV) (hC) (hU : UtInv3 σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, VfhAll y.2 ∧ CnDom y.2`**
+  * `kcall_vfhAll_other (rep ev) (h : not a syscall) (hV) (hC)` (no `hU`).
+- Premises: none new. `hU : UtInv3 σ` is a hypothesis of the tops, a G1 field (the untyped invariant with the IRQ-node fact;
+  preservation: ut7), read only through `UtInv''` by the untyped retype (reset or not) and MakePool. `CnDom` joins G1 as its own
+  field (boot `boot_cnDom`). No ∀-states hypothesis.
+- No FINDING: every reachable cap write keeps VfhAll ∧ CnDom; the retype's destination CNodes are named by slot caps, so a
+  reset never removes them (UtCh + ensure_no_children), and fresh objects hold only null caps.
+- Lean notes: `capAt`, `bitsOf`, `objRefOf`, `capView` are ambiguous with `Fl4Proofs.P3`'s Aeneas-side names once both
+  namespaces are open (write `SInvU.capAt`, `Fl4Spec.bitsOf`); a generic `(if c then returnOk () else throw) >>= g` lemma
+  inside `first` steals unlessE guards (use a closer after the `repeat'` instead); in a split `if`, the `throwError >>= g`
+  branch needs its own `okv_bind (Q := fun _ => False) (okv_throw _)` alternative; split heavy event-level `hv_auto`s into one
+  lemma per event (8M heartbeats each).
+- Builds (tokyo, FL4-invA mirror, module builds only, `ibe.sh`): vfh3-b1 (warm VfhA 4666 / UtN8 1072), b2..b6 X (4668;
+  b6 green), b7..b8 R (4726), b8..b11 E (4728; b11 green) + axioms (proofs/scratch/vfh3/ax.lean in FL4-invA, untracked):
+  kentry_vfhAll, kcall_vfhAll, kcall_vfhAll_other, vfh_fl4Perform, vfh_handleInvocationR, vfh_fl4InvokeUntyped, vfh_makePool,
+  vfh_reset, vfh_retype, vfh_okv_fl4Decode, vfh_okv_fl4ArchDecode, vfh_okv_decodeUntyped: propext, Classical.choice,
+  Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean imports X, R, E (root not rebuilt).
