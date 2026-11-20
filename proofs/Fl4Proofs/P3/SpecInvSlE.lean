@@ -191,7 +191,7 @@ end J
 
 set_option maxHeartbeats 16000000 in
 theorem sl_fl4HandleInvocationR (hG : SlGap) (I : ObjRef × ObjRef) (N : Irq → ObjRef) (σe : State Unit)
-    (hE : EF N σe) (hI2 : I.2 = σe.idleSc) (ct : ObjRef) (rep calling blocking don fp : Bool) (cptr : CapRef) :
+    (hE : EF N σe) (hI2 : I.2 = σe.idleSc) (hI1 : IrqOutV (fun _ => I.1) (uV σe)) (ct : ObjRef) (rep calling blocking don fp : Bool) (cptr : CapRef) :
     HKE (Js I ct (don = true ∧ calling = false) N σe) (JS I ct fp)
       (fl4HandleInvocationR (Z := Unit) rep calling blocking don fp cptr) := by
   unfold fl4HandleInvocationR
@@ -291,14 +291,14 @@ theorem sl_fl4HandleInvocationR (hG : SlGap) (I : ObjRef × ObjRef) (N : Irq →
       · obtain ⟨r2, s2⟩ := z2
         simp only at hr; subst hr
         have hs2 := sl_fl4PerformInvocation hG I N blocking calling don fp b s1 [ct] [ct]
-          (by rw [hc1]; exact spf_of hJ1 hE hI2) hfp hok1 hnf1 hT1 hNB1 (tcbFh_of hJ1 hE hB1) hDF1 _ hz2
+          (by rw [hc1]; exact spf_of hJ1 hE hI2) (by rw [hJ1.2.2.2.2.2.1]; exact hI1) hfp hok1 hnf1 hT1 hNB1 (tcbFh_of hJ1 hE hB1) hDF1 _ hz2
         refine ⟨⟨(?_ : SLKE I [] _) s2 hs2.1.1 y hy, (?_ : NBKE _) s2 hs2.1.2 y hy⟩,
           fun hf => (?_ : SLKE I [ct] _) s2 (hs2.2 hf) y hy⟩
         · sl_auto
         · nb_auto
         · sl_auto
       · exact sl_fl4PerformInvocation hG I N blocking calling don fp b s1 [ct] [ct]
-          (by rw [hc1]; exact spf_of hJ1 hE hI2) hfp hok1 hnf1 hT1 hNB1 (tcbFh_of hJ1 hE hB1) hDF1 _ hz2
+          (by rw [hc1]; exact spf_of hJ1 hE hI2) (by rw [hJ1.2.2.2.2.2.1]; exact hI1) hfp hok1 hnf1 hT1 hNB1 (tcbFh_of hJ1 hE hB1) hDF1 _ hz2
     · obtain ⟨w, hw, rfl⟩ := ft_mem_liftE hz
       exact js_post (js_sts s' hI w hw)
 

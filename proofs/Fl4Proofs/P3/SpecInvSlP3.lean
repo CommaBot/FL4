@@ -41,7 +41,8 @@ def SlGapInv : Fl4Invocation → Prop
 /-- **The untyped / arch gap** (see the module docstring). -/
 def SlGap : Prop :=
   ∀ (I : ObjRef × ObjRef) (N : Irq → ObjRef) (K L : List ObjRef) (d : Prop) (t : ObjRef) (blk call don : Bool)
-    (inv : Fl4Invocation) (σ : State Unit), SlGapInv inv → SPF I K L d t N σ → DecodedFrom (uV σ) inv →
+    (inv : Fl4Invocation) (σ : State Unit), SlGapInv inv → SPF I K L d t N σ → IrqOutV (fun _ => I.1) (uV σ) →
+      DecodedFrom (uV σ) inv →
       ∀ y ∈ ((fl4PerformInvocation (Z := Unit) blk call don inv).run σ).1, SL I K y.2 ∧ NtfnScB y.2
 
 /-! ## `invoke_sched_context` keeps NtfnScB -/
@@ -67,7 +68,7 @@ set_option maxHeartbeats 8000000 in
 first-phase decode** (given `SlGap`). -/
 theorem sl_fl4PerformInvocation (hG : SlGap) (I : ObjRef × ObjRef) (N : Irq → ObjRef) (bl call don fp : Bool)
     (i : Fl4Invocation) (σ : State Unit) (K L : List ObjRef)
-    (hσ : SPF I K L (don = true ∧ call = false) σ.curThread N σ)
+    (hσ : SPF I K L (don = true ∧ call = false) σ.curThread N σ) (hI1 : IrqOutV (fun _ => I.1) (uV σ))
     (hF : fp = true → NoDelI i) (hok : InvOKN (uV σ) i) (hnf : InvNF (uV σ) i) (hT : SInvI.TgOK (uV σ) i)
     (hB : NBind σ i) (hFh : ∀ ti, i = .invokeTCB ti → TcbFh σ ti) (hD : DecodedFrom (uV σ) i) :
     ∀ y ∈ ((fl4PerformInvocation (Z := Unit) bl call don i).run σ).1,
@@ -83,10 +84,10 @@ theorem sl_fl4PerformInvocation (hG : SlGap) (I : ObjRef × ObjRef) (N : Irq →
   intro y hy
   cases i
   case invokeUntyped ui =>
-    obtain ⟨h1, h2⟩ := hG I N K L _ σ.curThread bl call don (.invokeUntyped ui) σ trivial hσ hD y hy
+    obtain ⟨h1, h2⟩ := hG I N K L _ σ.curThread bl call don (.invokeUntyped ui) σ trivial hσ hI1 hD y hy
     exact fin y h1 h2
   case invokeArchObject ai =>
-    obtain ⟨h1, h2⟩ := hG I N K L _ σ.curThread bl call don (.invokeArchObject ai) σ trivial hσ hD y hy
+    obtain ⟨h1, h2⟩ := hG I N K L _ σ.curThread bl call don (.invokeArchObject ai) σ trivial hσ hI1 hD y hy
     exact fin y h1 h2
   case invokeEndpoint ep bd g gr =>
     simp only [fl4PerformInvocation, withoutPreemption] at hy

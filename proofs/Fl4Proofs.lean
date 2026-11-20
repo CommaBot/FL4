@@ -1011,3 +1011,5 @@ import Fl4Proofs.P3.SpecInvRdF2
 import Fl4Proofs.P3.SpecInvRdF3
 import Fl4Proofs.P3.SpecInvRdF4
 import Fl4Proofs.P3.SpecInvRdF5
+import Fl4Proofs.P3.SpecInvSlU
+import Fl4Proofs.P3.SpecInvSlA
