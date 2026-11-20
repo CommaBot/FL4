@@ -79,7 +79,7 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
          rw [hni.2] at e2; cases e2)
       | cases e
   exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy), hk1, hns1, hsg1,
-    hP0.of_ppk (PPK.restart hk .restart)⟩
+    hP0.of_ppk (PPK.restart hk .restart (Or.inl hcur.symm))⟩
 
 /-- **`PPR0` at the invocation's start**: at a zero consumed time, the
 current SC's head ready when active (`hRd0` [J], l4v `cur_sc_offset_ready 0`
@@ -90,11 +90,17 @@ theorem JAtZ.ppr0_start {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true) : PPR0 σ := by
-  refine ⟨⟨hni.1, fun u e => (by rw [hni.2] at e; cases e), fun xt hx => ?_⟩, fun h0 => ?_⟩
+  refine ⟨⟨hni.1, fun u e => (by rw [hni.2] at e; cases e), fun xt hx => ?_, fun u xt hu hus => ?_⟩, fun h0 => ?_⟩
   · obtain ⟨xc, hkc, hsc, -⟩ := (J.curInv (by rw [hni.2]; exact fun h => by cases h)).tcb
     have e : xt = xc := by rw [hkc] at hx; cases hx; rfl
     subst e
     exact ⟨Or.inl hsc, NotBlk.of_runnable (J.curRun.run hni _ hkc)⟩
+  · obtain ⟨xc, hkc, hsc, -⟩ := (J.curInv (by rw [hni.2]; exact fun h => by cases h)).tcb
+    obtain ⟨y, n, hy, hyt⟩ := J.inv.back u xt _ hu hus
+    obtain ⟨y', n', hy', hyt'⟩ := J.inv.back _ xc _ hkc hsc
+    rw [hy] at hy'; cases hy'
+    rw [hyt] at hyt'; cases hyt'
+    exact Or.inl rfl
   refine ⟨hRd0 h0, fun u xt hu hus hur => ?_⟩
   have hC := J.curInv (by rw [hni.2]; exact fun h => by cases h)
   obtain ⟨xc, hkc, hsc, -⟩ := hC.tcb

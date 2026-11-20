@@ -49,10 +49,23 @@ def CtOK (σ : State Unit) : Prop :=
   ∀ xt, σ.kheap σ.curThread = some (.tcb xt) →
     (xt.tcbSchedContext = some σ.curSc ∨ xt.tcbSchedContext = none) ∧ NotBlk xt.tcbState
 
+/-- **Every thread bound to the current SC is the current thread or
+inactive** (kp13; l4v `cur_sc_chargeable`: a thread bound to `cur_sc` is the
+current thread or in no active/IPC-queued state). True at the invocation's
+start (`CurInv`: the current thread is the current SC's only thread) and
+kept by the deletion: it only clears SC links, donates an SC only to a
+`reply_remove` caller which `reply_unlink_tcb` then makes inactive, and
+restarts only threads queued on a finalised endpoint or notification
+(blocked there, so neither inactive nor, by `Chg`, bound to the current SC);
+XTopJointPreemptL reads it at a preemption hole. -/
+def Chg (σ : State Unit) : Prop :=
+  ∀ u xt, σ.kheap u = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc →
+    u = σ.curThread ∨ xt.tcbState = .inactive
+
 /-- **The preemption point's need at a zero consumed time** (module
 docstring). -/
 def PPR0 (σ : State Unit) : Prop :=
-  (σ.curThread ≠ σ.idleThread ∧ (∀ u, σ.schedulerAction ≠ .switchThread u) ∧ CtOK σ) ∧ (σ.consumedTime = 0 →
+  (σ.curThread ≠ σ.idleThread ∧ (∀ u, σ.schedulerAction ≠ .switchThread u) ∧ CtOK σ ∧ Chg σ) ∧ (σ.consumedTime = 0 →
     (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → scActive y = true →
       refillReady σ.curTime (refillHd y) = true) ∧
     ∀ u xt, σ.kheap u = some (.tcb xt) → xt.tcbSchedContext = some σ.curSc → u ∉ σ.releaseQueue)
@@ -69,13 +82,25 @@ structure PPK (σ σ' : State Unit) : Prop where
   ct : σ'.curThread = σ.curThread
   idle : σ'.idleThread = σ.idleThread
   ns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, σ'.schedulerAction ≠ .switchThread u
+  /-- kp13: an inactive TCB stays inactive, but for the current thread. -/
+  ina : ∀ p x y, σ.kheap p = some (.tcb x) → σ'.kheap p = some (.tcb y) → x.tcbState = .inactive →
+    y.tcbState = .inactive ∨ p = σ.curThread
 
 theorem PPR0.of_ppk {σ σ' : State Unit} (h : PPR0 σ) (hk : PPK σ σ') : PPR0 σ' := by
-  refine ⟨⟨by rw [hk.ct, hk.idle]; exact h.1.1, hk.ns h.1.2.1, fun yt hy => ?_⟩, fun h0 => ?_⟩
+  refine ⟨⟨by rw [hk.ct, hk.idle]; exact h.1.1, hk.ns h.1.2.1, fun yt hy => ?_, fun u yt hy hs => ?_⟩,
+    fun h0 => ?_⟩
   · rw [hk.ct] at hy
     obtain ⟨x, hx, e, hb⟩ := hk.tcb _ yt hy
-    obtain ⟨h1, h2⟩ := h.1.2.2 x hx
+    obtain ⟨h1, h2⟩ := h.1.2.2.1 x hx
     rw [hk.csc, ← e]; exact ⟨h1, hb h2⟩
+  · obtain ⟨x, hx, e, -⟩ := hk.tcb _ yt hy
+    rw [hk.csc, ← e] at hs
+    rw [hk.ct]
+    rcases h.1.2.2.2 u x hx hs with e1 | e1
+    · exact Or.inl e1
+    · rcases hk.ina u x yt hx hy e1 with e2 | e2
+      · exact Or.inr e2
+      · exact Or.inl e2
   rw [hk.cons] at h0
   obtain ⟨h1, h2⟩ := h.2 h0
   refine ⟨fun y n hy ha => ?_, fun u xt hu hs hr => ?_⟩
@@ -101,7 +126,15 @@ theorem PPK.of_cnK {σ σ' : State Unit} (h : Ipc.CnK σ σ') : PPK σ σ' := by
     have := congrArg (fun z : AbstractState => z.idleThread) e; exact this
   have e7 : σ'.schedulerAction = σ.schedulerAction := by
     have := congrArg (fun z : AbstractState => z.schedulerAction) e; exact this
-  refine ⟨e1, e2, e3, fun u hu => ?_, fun p y n hp => ?_, fun p y hp => ?_, e5, e6, fun h => by rw [e7]; exact h⟩
+  refine ⟨e1, e2, e3, fun u hu => ?_, fun p y n hp => ?_, fun p y hp => ?_, e5, e6, fun h => by rw [e7]; exact h,
+    fun p x y hx hp hi => ?_⟩
+  rotate_right
+  · rcases h.2 p with h' | ⟨r, cs, cs', h1, h2⟩ | ⟨x0, y', h1, h2, hc⟩
+    · rw [h', hx] at hp; cases hp; exact Or.inl hi
+    · rw [h2] at hp; cases hp
+    · rw [h2] at hp; cases hp
+      rw [hx] at h1; cases h1
+      exact Or.inl (by rw [hc.1]; exact hi)
   · rw [e4] at hu; exact hu
   · rcases h.2 p with h' | ⟨r, cs, cs', h1, h2⟩ | ⟨x, y', h1, h2, -⟩
     · rw [h'] at hp; exact hp
@@ -116,11 +149,13 @@ theorem PPK.of_cnK {σ σ' : State Unit} (h : Ipc.CnK σ σ') : PPK σ σ' := by
 theorem PPK.of_ksStep {σ σ' : State Unit} (h : KsStep σ σ') : PPK σ σ' :=
   ⟨h.cons, h.ctime, h.csc, fun u hu => by rw [h.rel] at hu; exact hu,
     fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl, id⟩, h.ct, h.idle,
-    fun hn => by rw [h.act]; exact hn⟩
+    fun hn => by rw [h.act]; exact hn, fun p x y hx hp hi => by
+      rw [h.kh, hx] at hp; cases hp; exact Or.inl hi⟩
 
 /-- **The caller's restart is a `PPK` step**: its TCB's state changed, and
 maybe the scheduler action. -/
 theorem PPK.restart {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (ts : ThreadState)
+    (hct : t = σ.curThread ∨ x.tcbState ≠ .inactive)
     (hts : NotBlk ts := by exact ⟨fun _ h => (by cases h), fun _ h => (by cases h), fun _ _ h => (by cases h), fun _ _ _ h => by cases h⟩) :
     PPK σ (Notif.stsAct (Notif.updK σ t (.tcb { x with tcbState := ts })) t) := by
   have e2 : ∀ σ0 : State Unit, (Notif.stsAct σ0 t).consumedTime = σ0.consumedTime ∧
@@ -134,7 +169,16 @@ theorem PPK.restart {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = 
     · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, Or.inl rfl⟩
   obtain ⟨e1, e2', e3, e4, e5, e6, e7⟩ := e2 (Notif.updK σ t (.tcb { x with tcbState := ts }))
   refine ⟨e1, e2', e3, fun u hu => by rw [e4] at hu; exact hu, fun p y n hp => ?_, fun p y hp => ?_, e5, e6,
-    fun hn u hu => ?_⟩
+    fun hn u hu => ?_, fun p x' y hx hp hi => ?_⟩
+  rotate_right
+  · rw [Notif.stsAct_kheap] at hp
+    by_cases e : p = t
+    · subst e
+      rw [hk] at hx; cases hx
+      rcases hct with h | h
+      · exact Or.inr h
+      · exact absurd hi h
+    · simp [Notif.updK, e, hx] at hp; subst hp; exact Or.inl hi
   rotate_right
   · rcases e7 with e | e <;> rw [e] at hu
     · exact hn u hu

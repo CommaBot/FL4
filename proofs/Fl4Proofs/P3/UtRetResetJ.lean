@@ -426,7 +426,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   have hR0 : PPR0 σ := J.ppr0_start arI hni hRd0
   have hR01 : PPR0 σ1 := by
     rw [he1]
-    have h := hR0.of_ppk (PPK.updTcbSc (y := { x1 with tcbState := .restart }) hkx rfl)
+    have h := hR0.of_ppk (PPK.updTcbSc (y := { x1 with tcbState := .restart }) hkx rfl (hi := fun _ => Or.inr hcur.symm))
     unfold Notif.stsAct; split_ifs
     all_goals first | exact h | exact ⟨⟨h.1.1, fun u e => (by cases e), h.1.2.2⟩, h.2⟩
   refine retype_reset_wp arI s1 ar _ _ nt us dest off win false

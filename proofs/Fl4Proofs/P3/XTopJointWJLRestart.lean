@@ -101,7 +101,7 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
   have hDS1 : DState (L := L) Z.th s1 (Notif.stsAct (Notif.updK σ ct.bv
       (.tcb { x with tcbState := .restart })) ct.bv) Z.G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
   obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI (Z := Z) (G := Z.G) (V := Z.vs) (V1 := Z.vs) J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS hDS1 hK
-  exact ⟨⟨Z.vs, Ac, Lst', _, J1, hk1, hns1, hsg1, hP0.of_ppk (PPK.restart hk .restart)⟩, hL1, hDW1, hN1⟩
+  exact ⟨⟨Z.vs, Ac, Lst', _, J1, hk1, hns1, hsg1, hP0.of_ppk (PPK.restart hk .restart (Or.inl hcur.symm))⟩, hL1, hDW1, hN1⟩
 
 /-- **`DelE` and `WJL`** (the deletion's invariant at `WJL`, `JDelHypL`). -/
 abbrev EJL (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)

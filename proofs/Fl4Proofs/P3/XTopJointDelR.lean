@@ -123,6 +123,7 @@ import Fl4Proofs.P3.XTopJointZombie
 import Fl4Proofs.P3.XTopJointLive
 import Fl4Proofs.P3.ScPPR
 import Fl4Proofs.P3.SpecPPR
+import Fl4Proofs.P3.SpecPPRC
 import Fl4Proofs.P3.SpecGlob
 open Aeneas Aeneas.Std Result
 
@@ -231,9 +232,18 @@ def JFinPPHyp (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop :=
       (x, σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) (decide (Fl4Spec.isFinalCap' (absCap c) σ)) σ).1 →
       PPR0 σ → PPR0 σ'
 
+/-- The endpoints' queue facts of a `JAtZ` state (SpecPPRC's `EpQB`). -/
+theorem JAtZ.epQB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : PPS.EpQB σ := by
+  intro e x hk
+  obtain ⟨e', he', rfl⟩ := J.obj.ep _ x hk
+  exact ⟨J.epFinPre.2.2.1 e' he', fun u hu => ep_queue_blocked J.ip (J.xtop.irelK J.ks J.buf) he' hk hu⟩
+
 theorem jFinPPHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JFinPPHyp (L := L) arI AR th :=
   fun _ _ _ _ _ _ _ _ σ _ J _ _ _ _ _ x σ' hx hP => PPS.ppr0_finaliseCap (x := (x, σ')) J.inv hx hP
     ((Vs.dk_finaliseCap _ _).ct hx) ((Vs.gk_finaliseCap _ _).idle hx) (fun hn => Vs.ak_finaliseCap_ns hx hn)
+    (PPS.chg_finaliseCap (x := (x, σ')) J.inv J.bsa J.sv J.epQB hP.1.2.2.2 hx)
 
 /-! ## The named steps -/
 

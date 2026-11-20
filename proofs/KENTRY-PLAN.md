@@ -1648,3 +1648,61 @@ New leaves XTopJointKEntry2, XTopJointRecvMid (imported from Fl4Proofs.lean). No
 - Builds: sch8-b4 `XTopJointJAtZS XTopJointKEntry3` OK (5494 jobs). Axioms (sch8-ax2): std only for kernel_entryJ3,
   dispatch_allS, DispPost.toS, KDispHyps.toS, JAtZ.toS, JAtZS.toJ, JAtZS.toJ_or, JAtS.toJ_or, JAt.toS (+ the earlier
   list). No sorry/admit/native_decide/bv_decide.
+## kp13 (branch par/budget9 in FL4-tcbj, on 6b4a8493 = int/j2 incl. kp12, sch7)
+- DONE (2b) case (b) part 1, no [J]: l4v `cur_sc_chargeable` carried to the preemption hole, spec side, without
+  per-kind J frames for the finalisations that restart no thread.
+  * ScPPR: `Chg σ := ∀ u xt, kheap u = tcb xt → link = some curSc → u = curThread ∨ xt.tcbState = .inactive`;
+    `PPR0`'s first conjunct is `ct ≠ idle ∧ NoSwitch ∧ CtOK ∧ Chg` (`.1.2.2` → `.1.2.2.1` for CtOK,
+    `.1.2.2.2` = Chg). `PPK.ina` (an inactive TCB stays inactive, but for the current thread): `PPK.restart`
+    takes `t = curThread ∨ x.tcbState ≠ .inactive` (callers: `Or.inl hcur.symm`), XTopJointTcbInstall's
+    `PPK.updTcbSc` takes `hi` (autoParam `Or.inl`; UtRetResetJ passes the current thread), UtResetTopJ's
+    `delSt` record. `JAtZ.ppr0_start`: `Chg` from `CurInv` + `Inv.back` (the current SC's only thread).
+  * SpecPPR: `TR E W` (new Prop parameter `W`), field `chg : W → (bound to curSc and not inactive after →
+    E u ∨ so before)`. Leaves: `tk_threadSet` takes `hi : W → inactive ↦ inactive` (tk_leaf: state kept or
+    constant `inactive`), `tk_setThreadState'` takes `hi : W → ts = .inactive` (macro `tk_inact`),
+    `tr_setTcb`/`tka_setObject(_bind)` take `hi` (autoParam). The restart leaves (`restart_thread_if_no_fault`,
+    `remove_and_restart_*_queued_thread`, `cancel_all_ipc`, `cancel_all_signals`) and so `tks_fastFinalise`,
+    `tks_capDeleteOne`, `tks_deletingIrqHandler`, `tks_finaliseCap` are at `W = False`; `TR.unE` takes
+    "`t` inactive at the end" (`endIn_replyRemove`: `reply_remove` ends with `reply_unlink_tcb`'s `Inactive`);
+    `NoRestartCap`, `tks_finaliseCapW` (`W` any, not ep/ntfn/IRQ handler), `Chg.of_tr`, `chg_finaliseCapW`.
+    `PPR0.of_tr` / `ppr0_finaliseCap` take `Chg` after.
+  * New leaf SpecPPRC: `Chg.of_efr` (IpcFinEpInv `EFr`: only threads blocked on the endpoint change state),
+    `Chg.of_nfr` (`NFr`), `EpQB` (queued threads blocked on their endpoint + `EpPre`), `chg_cancelAllIpc`
+    (`inv_cancelAllIpc`), `chg_ntfnBody` (`finNtfn_spec`), `chg_fastFinalise`, `chg_deletingIrqHandler`,
+    `chg_finaliseCap`. XTopJointDelR: `JAtZ.epQB` (`J.obj.ep`, `J.epFinPre`, `ep_queue_blocked`),
+    `jFinPPHyp` passes `chg_finaliseCap … J.sv J.epQB`.
+  * New leaf XTopJointPreemptL: `owner_not_inClassR` (CtOK + CurScFree + Chg + unschedulable ct: every thread
+    bound to the active current SC is not `inClassR`), `jAtPre_holeL` (`jAtPre_holeK` + `Chg`),
+    `JPreemptRestHypL` [W] (= `JPreemptRestHypK` with `Chg σ →`), `jPreemptRestHypL_of`, `hPre_ofZL`,
+    `dispatch_invokeJPZL`, `dispatch_invokeJEPZL` (new top).
+- Premise change: `JPreemptRestHypK` [W] replaced at the top by `JPreemptRestHypL arI AR` [W] := as K with an
+  extra `Chg σ →` (narrower). Left in it: (b) and (2c) as in kp12.
+- (b) part 2 NOT done (handoff, all facts now at the hole): `JHole.mcsPPJU` for FL4's `mcs_preemption_point`
+  branch "ct not schedulable, curSc active" = `charge_budget consumed false` vs spec `preemptionPath`'s
+  `chargeBudget consumed false`. Ingredients: (i) SchedRel-level copy of ScChargeG's
+  `charge_budget_refinesF` (:429) / `charge_head_refinesK` (:190) with the owner `u0` (`hown : scTcb = some u0 ∨
+  none` from `Inv.back`/scTcb, `u0 ∉ RQ` from `CurScFree`) instead of `htw` (the SC's TCB word is ct), `hts`
+  (ct's SC word is CUR_SC: false in (b) when ct is unbound, `CtOK` allows `none`), `hnr`, `hnb`, an unowned variant of
+  `Inv.refillUpd` without `hnr`, no `TmoKeep` (`can_timeout_fault = false`); (ii) the tail: ct stays not
+  schedulable (HeadKeeps: ct's TCB, its SC's refill max, the queue kept), so `endTimeslice` is skipped,
+  `set_consumed 0`; `InvBut σ' u0 → Inv σ'` because `u0` is not `inClassR` (`owner_not_inClassR`, its `rd`
+  vacuous); (iii) FL4 side `P1.sched.charge_budget.allF`'s `hcsc1` (ct's SC word ≠ 0 → it is CUR_SC) from
+  `CtOK`; `hna` (action ≠ ct) from the hole's `cur` (no CurInv ⇒ chooseNewThread); (iv) `JHole.toJ` with
+  `OffOK` vacuous (consumed 0) and `CurOwnW` the base's; `afterInv_of_mcs` then gives PPQ. Then
+  `JPreemptRestHypM` = L with `CurInv σ` instead of the disjunction. Also check FL4's branch when
+  curSc = idleSc in (b) (ActIdle may make it PPCovI).
+- (2c) not started (kp5 (i)).
+- Lead question (switch pending + blocked ct after the preemption path, sch8's JAtZS/SwBlk): not reachable in
+  the spec at PPQ. A hole has no switch pending (`JAtPre`: `NoSwitch`); the only `switchThread` source in the
+  preemption path is `possibleSwitchTo` in the IRQ's signal (Fl4Spec KHeap:484), which sets `switchThread`
+  only when the action is `resumeCurThread`; at a hole that means `CurInv` (`JHole.cur`), ct runnable
+  (`CurRunM`), and every step of the charge that stops ct (end_timeslice's reschedule, handle_timeout's fault
+  send/block via `set_thread_state`'s `stsAct`) first sets `chooseNewThread`. So PPQ's `JAt` needs no JAtS.
+- Builds: kp13-b2 (ScPPR, SpecPPR), kp13-b4 (SpecPPRC, XTopJointCnDel, UtResetZ, UtResetTopJ, XTopJointTcbInsL,
+  XTopJointTcbInstall, UtRetResetJ, XTopJointWJLRestart, XTopJointDelR, XTopJointPP, XTopJointPreemptK/L,
+  XTopJointTcb, XTopJointUt, XTopJointEntry, XTopJointWJLEmpty, XTopJointWJLSwap, XTopJointPost,
+  XTopJointRecvIpcLink, XTopJointSchedR, XTopJointYieldSys: green), kp13-b5 (the other ScPPR dependents
+  XTopJointSchedRF/2/3, XTopJointMidRun, XTopJointKEntry). scratch/axkp13.lean (untracked): std axioms only for
+  chg_finaliseCap, ppr0_finaliseCap, chg_finaliseCapW, endIn_replyRemove, jFinPPHyp, JAtZ.ppr0_start,
+  owner_not_inClassR, jAtPre_holeL, hPre_ofZL, dispatch_invokeJEPZL, dispatch_invokeJEPZK,
+  handle_invocation_refinesJ.
