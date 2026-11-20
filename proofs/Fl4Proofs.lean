@@ -625,3 +625,5 @@ import Fl4Proofs.P3.XTopJointMidRun
 import Fl4Proofs.P3.XTopJointKEntry
 import Fl4Proofs.P3.XTopJointKEntry2
 import Fl4Proofs.P3.XTopJointRecvMid
+import Fl4Proofs.P3.XTopJointJAtZS
+import Fl4Proofs.P3.XTopJointKEntry3

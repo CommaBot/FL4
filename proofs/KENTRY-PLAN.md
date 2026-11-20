@@ -1607,3 +1607,44 @@ New leaves XTopJointKEntry2, XTopJointRecvMid (imported from Fl4Proofs.lean). No
   propext, Classical.choice, Quot.sound only for kernel_entryJ2, dispatch_allK, signalRestJHyp_of_ns, hvm_of_ns,
   KFinAt2.toK, kernel_entryJ, JAtZ.curScAc, JAtZ.canBlockCurM, JAtZ.recvSigActiveJM, JAtZ.midE; MidE.ncn/sa: none.
   No sorry/admit/native_decide/bv_decide.
+- (2) after the lead's decision (option (b), JAtZ not edited), on d8d4fc22:
+  * DONE (XTopJointJAtZS): `SwBlk σ` := ct ≠ idle ∧ ct not runnable ∧ ∃ u, action = switchThread u ∧ u ≠ ct (the
+    target ≠ ct, l4v `scheduler_act_sane`, carried inside). `JAtZS` = JAtZ's fields with `cur : chooseNewThread ∨
+    CurInv ∨ SwBlk` (scripted copy of JointAt's field list); `JAtZ.toS`, `JAtZS.toJ` (given JAtZ.cur),
+    `JAtZS.toJ_or`, `JAtS`, `JAt.toS`, `JAtS.toJ_or`.
+  * DONE (XTopJointKEntry3), step (iii): `DispPostS` (DispPost with `JAtS` at an ok outcome), `DispPost.toS`,
+    `KDispHypsS` (= KDispHyps with `mid : MidSys n c → dispatch ⦃ DispPostS … ⦄`), `KDispHyps.toS`, `dispatch_allS`,
+    `kernel_entryJ3` = kernel_entryJ2 with `hK : … → KDispHypsS` and new `hSw : KFinSwHyp arI AR c σ` [W]:
+    `∀ x ∈ (specFront c σ).1, x.1 = .ok () → ∀ ghosts s' a', JAtZS … s' a' x.2 → SwBlk x.2 → syscall.finish st arI
+    s' a' ⦃ r => ∃ σ', ((), σ') ∈ ((fl4Awaken >>= fun _ => schedule >>= fun _ => activateThread) x.2).1 ∧ RJ r.1 r.2
+    σ' ⦄` (l4v schedule_invs with scheduler_act_sane; true in reachable states: after schedule the action is
+    resume and the chosen thread's CurInv holds). A JAtZ outcome still goes to jat_finishJ2. REPLACED: KDispHyps.mid
+    [W] (false in reachable states) by KDispHypsS.mid [W] (true there) + KFinSwHyp [W].
+  * (i) ANALYSIS for KFinSwHyp's proof (step (ii), not done): `CurInv` is consumed by the SchedRel-level schedule
+    only through `SchedPreW0`'s `cur` (ScNextDomC:26) at `newcur_of`/`newcur_ofF` (ScArchF:185) in the resume
+    branch (ScScheduleF:505 / ScNextDomCF:474; not reached under SwBlk: action is a switch) and in the switch branch
+    (ScScheduleF:593 / ScNextDomCF:566, `hC2w.resolve_left` with the switch action). In the switch branch the spec
+    enqueues ct only `when schedulable ct` (`hwhen`, ScNextDomCF:559: a no-op for a non-runnable ct) and the new
+    current thread is the candidate u ≠ ct, a thread chosen from the ready queues (schedulable), or the idle thread;
+    `newcur_ofF`'s third disjunct (`σ'.curThread = σ.curThread`, the only one needing the old CurInv) is excluded
+    by SwBlk (u ≠ ct; ct, not schedulable, is in no queue). So a `newcur_ofF'` without `hC` for
+    `idle ∨ schedulable` and copies `switch_branch_refines0F`/`schedule_refinesWP0F`/`…WPF` (ScNextDomCF/
+    ScScheduleF) with `SchedPreW0` weakened to `chooseNewThread ∨ CurInv ∨ SwBlk` suffice at SchedRel. The cost is
+    at J BEFORE schedule: FL4's `schedule` first runs `timer.fire` (`JAtZ.fireJ`, ScFireJ:462, over `SignalJHyp`
+    = the whole send_signal cone at J: ScSignalJ/ScSignalBoundJ/ScSignalDonJ, `signalJHyp_of`), all stated for
+    JAtZ; their J.cur use is only the frame `J.cur.imp … F.curInv` (ScFireJ:303, ScSignalJ:136, + 1–2 per leaf),
+    but every leaf takes and builds `JAtZ`, so they need JAtZS copies (a timer signal that wakes a thread under
+    `switchThread u` gives `rescheduleRequired`, i.e. chooseNewThread, so the JAtZS post becomes a JAtZ post there;
+    waking ct itself likewise). Then `jat_scheduleWP0F`/`jat_scheduleFR2` (XTopJointSchedRF2/RF3) from JAtZS, and
+    `sch_tailS` as is (it builds JAtZ after schedule). Suggested leaf XTopJointSchedRF4.
+  * Re-check of the other [W]s for the same defect (a post demanding JAt where only JAtZS holds): KFinAt2's
+    fields are premises at JAtZ outcomes only (applied after `toJ_or`); KPreFinHyp's post is RJ after schedule
+    (resume action, fine) from PPQ (JHoleAt/XTopAt, not JAt); KBudget/KDispHyps.inv/recv are pre facts;
+    JPreemptRestHypK's post is PPQ (JHoleAt/XTopAt). kp12's PPQZ (JAt after the preemption path) is outside this
+    line: a preempted invocation leaves ct running (restart), so JAtZ.cur's CurInv is not obviously broken there,
+    but a preemption after a wake (switch pending) with ct not schedulable should be checked by kp12. The proved
+    Send/NBSend/Call/Recv/Yield dispatches are theorems (their JAt posts are proved). No other false premise found.
+- (3), (4): NOT STARTED.
+- Builds: sch8-b4 `XTopJointJAtZS XTopJointKEntry3` OK (5494 jobs). Axioms (sch8-ax2): std only for kernel_entryJ3,
+  dispatch_allS, DispPost.toS, KDispHyps.toS, JAtZ.toS, JAtZS.toJ, JAtZS.toJ_or, JAtS.toJ_or, JAt.toS (+ the earlier
+  list). No sorry/admit/native_decide/bv_decide.
