@@ -2561,3 +2561,59 @@ MR-keeping of the schedulable branch (`checkBudget` → `chargeBudget _ true`), 
   update_timestamp_mr, MachPlat.irqAtE, pp_err_ms, PPPlat.toA, IrqPlat.toA, Sched.mf_chargeBudgetF,
   MachPlat.mfKeep, JHole.mcsPPJZM_ns, JHole.afterInvJZJM_ns, jAtPreM_hole, and the newest top kernel_entryJ12M
   (unchanged). No sorry/admit/native_decide/bv_decide.
+## sch17 (branch par/sched17 in FL4-sc, on 4b069906 = int/j2 incl. sch16)
+New leaves XTopJointRecvSendPM, XTopJointKEntry13M, XTopJointRecvRetM, XTopJointKEntry14M, XTopJointKEntry15M (imported
+from Fl4Proofs.lean). Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/
+ScTmoCt*/Entry/Irq*/XTopJointRecv* untouched.
+- Item 2, reply-pushing senders, DONE (f832d92a, XTopJointRecvSendPM + KEntry13M). Finding: the push cases do NOT go
+  through `possibleSwitchTo` (the sender blocks on the reply); only `hAct` excluded a switch. Copies
+  `JAtZ.recvSendFPJGM` / `recvSendPJGM` / `recvSendFPTJM` with `hAct : ∃ u, action = switchThread u ∧ u ≠ ct`:
+  CurInv by `J.curInv` (no donation, receiver not released), P1's "action word names neither thread" from u ≠ ct and
+  u ≠ sender (`hswT`: the switch target is schedulable, the sender blocked on send), `ActIdle` after by `RSFr.sched`
+  + `ps_schedM` (u is neither the sender nor the reply), CurRunM first disjunct; post `JAtZ`. Wrappers
+  `recvSendP0XM` (PushOK), `recvSendT0XM` (TmoOK; no push: `recvSendFTJ` reads no action). `IpcDoneM2` / `IpcOpen2`,
+  `JRecvLeavesRN4.toRN3`, `JMidLeavesHyp4` [W], `KDispHyps13M.to12M` (needs hmax/htu, threaded from the top),
+  `kernel_entryJ13M`.
+- Item 3, SC return before an endpoint receive, DONE (26b72856, XTopJointRecvRetM + KEntry14M). Finding:
+  `maybeReturnJQ` already handles a pending switch (spec `maybeReturn_shape`/`whenResched_fields` and FL4's
+  `maybe_return_refines` are generic in the action; it asks only switch target ≠ t), and after it the action is
+  `chooseNewThread`, which the resumed tails already cover. Copies `recvIpcRetJM`, `recvSendRetJM`, `recvSendRetPJM`,
+  `recvSendRetPDJM`, `recvSendRetTJM` with `hni : MidE` (CurInv `J.curInv hni.ncn`, `hni.run`, `canBlockCurM`,
+  `MidE.swNe`). `LendM`, `IpcRetM`, `IpcDoneM3`/`IpcOpen3`, `JRecvLeavesRN5.toRN4`, `JMidLeavesHyp5` [W],
+  `KDispHyps14M.to13M`, `kernel_entryJ14M`.
+- Linked replies + exhaustiveness DONE (a1c16c18, KEntry15M): `ipcDoneM3_of` (every blocking receive with a null or
+  free reply is in IpcDoneM3: jRecvIpcU_of's case split), `jRecvIpcUM`, `jRecvIpcLinkM` (jRecvIpcLink_of at MidE:
+  cancelOther_keep keeps action/ct/queues/other TCBs, so MidE and CurRun hold after the cancel). `JRecvLeavesRN6`
+  asks `receive_ipc` ONLY under `chooseNewThread`; `.toRN5`, `JMidLeavesHyp6` [W], `KDispHyps15M.to14M`, NEW TOP
+  `kernel_entryJ15M`.
+- Premise change at the top (kernel_entryJ15M vs J12M): `JMidLeavesHyp3` [W] NARROWED to `JMidLeavesHyp6` [W] :=
+  JMidLeavesHyp3's premises (ok outcome of the first phase, action ≠ resume, ct in no ready queue, no switch to ct,
+  ct's valid fault handler, RelTopM, CurRun, ct ≠ idle, every JAtZ witness, FL4 cur_thread) concluding
+  `JRecvLeavesRN6`: `receive_ipc` only under `chooseNewThread`, `receive_signal` only under `SigOpen` (choose, or the
+  sig SC return), the cap fault's `handle_fault` only under `FltOpen` (choose, or an endpoint handler with a waiting
+  receiver). l4v as sch15/16 (receive_ipc_corres / receive_signal_corres / handle_fault_corres inside
+  handle_recv_corres under scheduler_act_sane); each case is a case of sch15's JMidLeavesHyp, true in reachable
+  states. Nothing added. kernel_entryJ15M has the same other premises as J12M.
+- NOT DONE (handoff), what JMidLeavesHyp6 still contains:
+  (a) switch, sig SC return (`recvSigRetJ`, SigOpen's second disjunct): the block comes first, so after
+      `recvSigBlockPreJ` ct is blocked with `switchThread u` pending: CurInv fails, `JAtZ` does not hold (`JAtZS`
+      with `SwBlk`, or `JAtZR`, does). Needs a JAtZR (or JAtZS) copy of `recvSigBlockPreJ` (as recvSigBlockJM did
+      for recvSigBlockJ) and of `maybeReturnJQ`'s closure (sc_frame, sc_buf, sc_apart, sc_jpl, sc_kern, sc_utc,
+      deadP_sc_step, words_of_spec; JAtZR.sc_jcov/idleW_keep/kw_dbg/tcbs_eq exist): sch9gen/gen.py with root
+      JAtZ.maybeReturnJQ. maybeReturn_mid's `hcur` is unused when t = ct (result chooseNewThread), so after the
+      return the post is JAtZ again (Or.inl).
+  (b) switch, fault send to a waiting receiver (`faultRecvJ`, FltOpen's second disjunct): sendFaultPJ/PDJ/IJ take
+      `hres : action = resume`; there `possibleSwitchTo w` = `setSchedulerAction (switchThread w)`, under a switch
+      it is `rescheduleRequired; tcbSchedEnqueue w` (KHeap.lean:494): a new J step (FL4's possible_switch_to with
+      a non-resume action: enqueue u then w, action := choose). This is the only remaining sender-waking case.
+  (c) chooseNewThread mid states (item 5): every leaf. Route unchanged (sch15 (b)): a first-phase post fact
+      "chooseNewThread → CurInv ∨ ct SC-less"; with it the resumed leaves' `hsa` second disjunct (choose ∧ sc none)
+      or the CurInv copies (as here) apply.
+- Builds (tokyo, b.sh): sch17-b1 `XTopJointRecvSendPM` OK (5422 jobs), sch17-b2 `+ XTopJointKEntry13M` OK (5580),
+  sch17-b3 `XTopJointRecvRetM` OK (5568), sch17-b4 `+ XTopJointKEntry14M` OK (5584), sch17-b5/b6 KEntry15M (an
+  eq_of_bv direction, a `cases` eliminating a name), sch17-b7 `XTopJointKEntry15M` OK (5586), all on 4b069906.
+  Axioms (axsch17.sh, untracked; sch17-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ15M/14M/13M,
+  KDispHyps15M.to14M/14M.to13M/13M.to12M, jMidLeavesHyp_of6/5/4, JRecvLeavesRN6.toRN5/RN5.toRN4/RN4.toRN3,
+  ipcDoneM3_of, jRecvIpcUM, jRecvIpcLinkM, jRecvIpcDoneM3/M2, JAtZ.recvSendFPJGM/PJGM/FPTJM/P0XM/T0XM, ps_schedM,
+  JAtZ.recvIpcRetJM/recvSendRetJM/RetPJM/RetPDJM/RetTJM, LendM.at (propext); MidE.swNe none. No sorry/admit/
+  native_decide/bv_decide.
