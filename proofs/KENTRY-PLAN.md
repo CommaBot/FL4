@@ -2228,3 +2228,30 @@ JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/En
       `switchThread u`): R copies of the block lemmas with `cur := curInvR` (CurInvR holds: action ≠ resume).
   (iv) `JMid` → `MidE`: the action facts at the mid state (sch8) are a post of the invocation; also needed.
 - Builds (tokyo, b.sh): sch13-b1..b4 (elaboration fixes: getActiveIRQ_masked membership, a name clash with PreemptI's dispatch_invokeJEPZI), sch13-b5 `XTopJointIrqPlat XTopJointIrqZJ XTopJointKEntry8` OK (5558 jobs, on b2c1ab2d). Axioms (axsch13.sh, untracked; sch13-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ8, dispatch_all8, kPreFinHypJI_of, dispatch_midJ, mid_invRecvJ, fl4HandleSyscall_mid, midSysR_of, dispatch_invokeJAll, hPre_ofZQI, jPreemptRestHypEQ_ofI, irqPlatI_of, IrqPlat.noIrq, getActiveIRQ_masked/_eq, handle_invocation_refinesJ. No sorry/admit/native_decide/bv_decide.
+
+## budtr (branch par/budtr in FL4-rb, on 3febf556 = int/j2 incl. sch13)
+New leaves XTopJointBudgetTR, XTopJointKEntry8B (imported from Fl4Proofs.lean). Nothing existing edited.
+- Problem (INV-PLAN §1.2 B4): `KBudget.tmo` = `NoTmoSend σ0 ∨ (ct ∉ RQ ∧ ct Running/Restart ∧ endpoint handler p ∧
+  non-RR SC ∧ ∀ xe, kheap p = ep xe → CanBlock false xe)` is FALSE in reachable states when a receiver waits on the
+  handler endpoint (recvEP) and the SC is not round-robin.
+- DONE `JAtZ.budgetOkTR` (XTopJointBudgetTR): scripted copy of `JAtZ.budgetOkT` with `hkl : ∃ l, kheap p =
+  recvEP l` for `hcb` and kp17's `JHole.checkBudgetTR` (action `Or.inl resumeCurThread`) for `checkBudgetT`; extra
+  [P] `hmax`/`htu` (already top premises of kernel_entryJ8).
+- DONE XTopJointKEntry8B:
+  * `KBudgetB arI a σ0` = KBudget with `tmo : NoTmoSend σ0 ∨ ∀ d p, σ0.curThread ∉ σ0.readyQueues d p` [J]
+    (l4v `ct_not_in_q`: not queued while `scheduler_action = resume_cur_thread`, given by `Entered`; the same fact
+    as `JEntryAt.ctnq` at σb). `KBudget.toB : KBudget → KBudgetB` (strictly weaker premise).
+  * `JAtZ.budgetOkB`: kernel_entryJ8's `hBud` under KBudgetB, every case: NoTmoSend → budgetOkJ+F; else
+    `¬NoTmoSend` gives the endpoint handler (`isEpCap`) and a non-RR SC (`hper` by kheap determinism);
+    Running/Restart from `JAtZ.curRun` (`CurRunM.run` under `Entered`) + `NativeScope` (not RunningVM); then the
+    endpoint state: recvEP → `budgetOkTR`, idle/sendEP/non-endpoint → `budgetOkT` (`CanBlock false`).
+  * NEW TOP `kernel_entryJ8B` = kernel_entryJ8 with `hB : ∀ x, kheap ct = tcb x → KBudgetB arI a (faultIPSt σ ct
+    x)`; `NativeScope` at the entry from the existing [S] `hNSR` applied to `J0.toR`. No other premise changed.
+- Premise change at the top (J8B vs J8): `KBudget.tmo` [J, false in reachable states] REPLACED by `KBudgetB.tmo` =
+  `NoTmoSend σ0 ∨ ct ∉ readyQueues` [J] (true in reachable states). No premise added elsewhere.
+- Removing `KBudgetB.tmo` entirely needs `ct_not_in_q` carried at the entry state (a JAtZ field or a carried
+  bundle beside it; JEntryAt.ctnq is the same fact one step later at σb).
+- Builds (tokyo): budtr-b2 (mirror warmed from FL4-audit's .lake; XTopJointBudgetTR built, KEntry8B one rewrite
+  error: σ0 instantiated unfolded, fixed by `(σ0 := faultIPSt …)`), budtr-b3 `XTopJointBudgetTR XTopJointKEntry8B`
+  OK (5562 jobs). Axioms (scratch/axbudtr.lean, untracked): propext, Classical.choice, Quot.sound only for
+  JAtZ.budgetOkTR, JAtZ.budgetOkB, KBudget.toB, kernel_entryJ8B. No sorry/admit/native_decide/bv_decide.
