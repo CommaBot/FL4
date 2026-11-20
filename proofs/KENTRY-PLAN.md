@@ -5909,3 +5909,69 @@ Goal (sb1 handoff + lead decision on DetypeScOK): build G5/G6 and the shell Spec
   `unbind_from_sc` before its Zombie, a final SC cap by `sched_context_unbind_all_tcbs` (which skips the idle SC: global,
   no cap), non-final caps leave another (il1 item 2, the rec_del skeleton RPre/RPost); (3) detype removes only RegNull
   slots (ut's `regNull_of`: every slot inside a childless untyped's region is null), retype creates unbound objects.
+## vi2 (branch par/vi2 in FL4-tcbj, on 9ca131c9 = int/j2 incl. vi1, sb1, il1, ctq2) — valid_idle across every event, given one obligation `ViGap` (NOT finished: the decode-dependent performs)
+Goal: vi1's handoff steps 1-6. Done except the decode-dependent performs, collected (ut7 `PerfGap` pattern) in ONE named
+obligation `ViGap`. Spec-only, namespace `Fl4Proofs.P3.SInvI`, modules SpecInvViB/C/D (vi1's WIP, now built), ViE, ViR, ViF,
+ViG, ViH; root imports all eight. Nothing outside SpecInvVi* edited.
+- **ViB/C/D** (vi1's WIP): fixes — `vi_maybeM` (keeps `o = some a`; `ik_maybeM` drops it: unbind_from_sc's `scPtrOpt`),
+  `vi_setTcbSc` / `vi_setScTcb` (concrete set_tcb_obj_ref / set_sc_obj_ref leaves with the binding facts), `vi_side2` also
+  unfolds `ScQ`, `runnable`, `receiveBlocked`; own `mem_takeWhile_vi`/`mem_dropWhile_vi` (no `List.mem_of_mem_takeWhile` in
+  this toolchain); `vi_setNtfnObj` (`set_notification (ntfn_obj_update (K o) n)` with `o`'s queue ∌ N).
+- **ViE**: `vh_*` pre/post combinators; **`vh_sendIpc (ht : thread ≠ N) (hT : cd → ¬call → T = thread) : HK (VIT N S T b)
+  (VI N S b) (sendIpc …)`** (cases on ep/block/queue/receiver state first; the donation branch reads the pinned sender's SC:
+  `≠ none` and `≠ some S`, so `the sc ≠ S`); `vi_sendIpc_nd`; `vh_sendFaultIpc`; `vi_handleTimeout`; `vi_handleNoFault`;
+  **`vi_handleFault (ht)`** (`canDonate = sc ≠ none` read at the state: `vit_of_vi` there, no premise).
+- **ViR**: receive_ipc per arm (lead hint / nq3 recipe): `vi_recvSender`, `vi_recvReply`, `vi_recvTail`, **`vi_receiveIpc (ht)`**.
+- **ViF**: `vi_doReplyTransfer` (receiver read BlockedOnReply ⇒ ≠ N), `vi_handleRecv` (b = true), `vi_endTimeslice` (b = true),
+  `vi_ct_when_sched` (a `schedulable ct` guard gives ct ≠ N at that state), `vi_chargeBudget` / `vi_checkBudget(Restart)` /
+  `vi_preemptionPath` / `vi_handleYield` (any b), `vi_activateThread`, `vi_restart`, `vi_suspend`/`vi_setPriority`/
+  `vi_bindNotification (t ≠ N)`, `vi_schedContextYieldTo` (b = true), `vi_fl4Awaken`, `vi_handleInterrupt`, `vi_maybeHandleInterrupt`.
+- **ViG** (deletion): `vi_fastFinalise`, `vi_capDeleteOne`, `vi_deletingIrqHandler`, **`vi_finaliseCap (hc : ¬ thread cap to N)`**;
+  **`VO N S b σ := VI N S b σ ∧ IO (fun _ => N) σ`** (ut7's IrqOutV at the constant map: no cap covers N), `vo_notIdleCap`,
+  **`vo_recDelF`** (ut7's `io_recDelF` + VI per step; the finalised cap is in its slot, so `hc` by IO), `vo_recDel`,
+  `vo_capDelete`, `vo_capRevoke` (ik_lfp), `vo_installTcbCap`, `vo_installTcbFrameCap`.
+- **ViH**: `ViGapInv` (untyped, TCB, SchedContext, ASID control), **`ViGap`** (below), `vi_invokeCnodeO`, `vi_fl4ArchPerform`,
+  **`vi_fl4Perform`** (every perform but the gap; endpoint send with the pinned donor), `W N S T σ0 s` (VIT at s + entry's cap
+  view + entry's ct; nq's CTK family gives ct), `w_step(N)`, **`vi_handleInvocationR`** (ut/sg shell, `syscall_postU`, decode
+  provenance `DecodedFrom` from ut7's okv lookups), `Pinned c` (ReplyRecv / NBSendRecv / NBSendWait), `vi_fl4HandleSyscall`,
+  `vi_cbTrue`/`vi_cbrTrue` (a true budget check changes nothing: the pin survives it), `vi_fl4HandleEvent_sys`,
+  `vi_handleEvent_fault` (b = true), `vi_handleEvent_irq`, `vi_callKernel_of`, `CtSc`, `IdleScOutV`, tops.
+- STATEMENTS:
+  * **`kentry_validIdle_of (hG : ViGap) (c) (hV : ValidIdle σ) (hS : SpecGlobS σ ∧ IdleOutV σ) (hI : IdleScOutV σ)
+    (hU : UtInv3 σ) (ha : ∀ x, σ.kheap σ.curThread = some (.tcb x) → activeSt x.tcbState) (hct : Pinned c → CtSc σ) :
+    ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, ValidIdle y.2 ∧ IdleScOutV y.2`**
+  * **`kcall_validIdle_of (hG) (rep ev) (hV) (hS) (hI) (hU) (ha : … activeSt … ∨ ev = .interrupt) (hct : ∀ c, ev =
+    .syscallEvent c → Pinned c → CtSc σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, ValidIdle y.2 ∧ IdleScOutV y.2`** (every event)
+- Premises: **`CtSc σ := ∀ x, kheap ct = tcb x → x.tcbSchedContext ≠ none` [J]**, only for the Pinned syscalls (lead decision
+  (b)). Not derivable from what is carried: ScInv relates existing bindings only and ct active does not imply bound (a Running /
+  Restart passive thread is unbound); l4v: `cur_sc_tcb_are_bound` + `sym_refs` (valid_sched's `ct_active ⟶ schedulable`); the
+  previous exit establishes it: `schedule` switches only to a `schedulable` thread (bound to an active SC) or idle (not active,
+  so `ha` excludes it); INV-PLAN B2's `CurInv.tcb` is the same fact with the SC named. `IdleScOutV` (lead decision (a)) is NOT a
+  premise of the step: it is carried (kept by sg1's `sgN_kentry` / `sgN_fl4CallKernel` at `M := fun _ => idleSc`, proved in the
+  tops). `ha` as nq3. `hG`/`hS`/`hU` as stated by the brief (ScInv, NtfnQB ∧ EpQB not needed).
+- **ViGap (the remaining obligation, not an invariant premise)**: `∀ N S blk call don inv σ, ViGapInv inv → VI N S true σ →
+  IO (fun _ => N) σ → IrqOutV (fun _ => S) (uV σ) → UtInv'' σ → DecodedFrom (uV σ) inv → ∀ y ∈ perform, VI N S true y.2`.
+  Handoff, per invocation (all believed true; no reachable counterexample found):
+  1. invokeTCB: decode fact "TCB targets / src / dest are `objRefOf` of a thread cap held in a slot" (OkV on
+     `fl4DecodeTcbInvocation`, ut7's okv pattern) ⇒ `≠ N` by IO (`vo_notIdleCap`); then suspend / restart / copy / read /
+     write registers / bind / unbind notification by ViF leaves; threadControlCaps by `vo_installTcbCap`/`vo_installTcbFrameCap`
+     (VO, no premise); threadControlSched: setPriority (target ≠ N), unbind (target's SC ≠ S since target ≠ N), bind
+     (`vi_schedContextBindTcb` needs the decoded SC cap's pointer ≠ S: held ⇒ `IrqOutV (fun _ => S)`).
+  2. invokeSchedContext: SC pointer ≠ S (invoked SC cap held, IrqOutV S), bind/unbind thread targets ≠ N (thread cap held);
+     UnbindAll is guarded; YieldTo by `vi_schedContextYieldTo` (b = true).
+  3. invokeUntyped / ASID control (MakePool): leaves `vi_retypeRegion (ptrs ∌ N, S)` and `vi_deleteObjects (region ∌ N, S)`
+     are still to write (default objects: TCB sc none, SC tcb none, empty queues ⇒ ObjOK at p ∉ {N, S}); the facts: the
+     untyped / frame cap is held so its `covR` (= region) ∌ N, S by IO / IrqOutV S; retype targets lie inside the region
+     (ut8's `GapOKN` / `UtOKN`); the reset deletes the cap's region.
+  Then `kentry_validIdle := kentry_validIdle_of viGap`.
+- No FINDING: no reachable step breaks ValidIdle; the only hazards are the decode-dependent targets above and send_ipc's
+  `the None` (excluded by CtSc).
+- Builds (tokyo, FL4-tcbj mirror, ./vi2.sh untracked = vi1.sh + error list): vi2-b2 ViB (1046), b5 ViD (1050), b6 ViE (1052),
+  b7 ViR + ViF, b9 ViG (1120), b13 ViH (1188, warm; b10 compiled the NtfnQC/SgE/UtO6 imports) + axioms (scratch/vi2/ax.lean,
+  untracked): kentry_validIdle_of, kcall_validIdle_of, vi_handleInvocationR, vi_fl4Perform, vh_sendIpc, vi_receiveIpc,
+  vi_handleFault, vo_recDel, vo_capRevoke, vi_finaliseCap, vi_chargeBudget, vi_doReplyTransfer: propext, Classical.choice,
+  Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (eight import lines added).
+- Lean notes: a `(show IKE P _ by tac)` inside `first | …` logs its errors instead of failing (use `refine vo_of ?_ ?_; focus
+  (tac; done)`); nested `cases … with` inside a `by` in a `cases … with` arm is parsed as outer alternatives (use `case` +
+  `all_goals`); a match with a nested constructor pattern (`.cancelBadgedSendsCall (.endpointCap …)`) only reduces after
+  `cases` on the inner value.
