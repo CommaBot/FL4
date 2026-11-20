@@ -3346,3 +3346,58 @@ edited (XTopJointEntry untouched); sch23/sch23b's modules only imported.
   KDispHypsKV23.to13PU, KDispHypsKV21.to23, KDispHypsKV21.to13P, JPathAt.toM, JPathM.of, JUtPath.toM,
   dispatch_all13PU, decOK_JMU, jPreDecHyp_of14U/17U/18U/20U, j22P_platform, j23P_platform, JAtZ.budgetOkB. No
   sorry/admit/native_decide/bv_decide.
+## mr10 (branch par/mr10 in FL4-tcbj, on 4f1495ba = int/j2 incl. mr9, sch23b)
+New leaves XTopJointPortInM, XTopJointKEntry25P (imported from Fl4Proofs.lean; hand-written). Nothing existing
+edited (XTopJointMachRel, XTopPortIn, KEntry23P/23M untouched); sch23/sch24's modules not touched.
+- GOAL 1 = FINDING (formal: XTopJointPortInM's `MachPortIn` + `MachPortIn.frameAll`), `JEntryGlobM.portIn`
+  (`PortInVal`, ∀σ) KEPT. The per-state form `MachPortIn arI MR` (MR a σ.ms → port_in a p z = ok (v, a') → ∃ ms,
+  memory kept ∧ the spec's `In` at σ returns [v] with machine state ms ∧ MR a' ms: MachPlat.irqPending/take's
+  shape) is NOT weaker in substance: (i) the spec's read is `machineOpLift (inNImpl port); gets inNVal`
+  (Fl4Spec/Machine.lean:868-889), `inNImpl` an opaque nondeterministic op on `machineStateRest`, `inNVal` an opaque
+  function of the whole machine state; (ii) `MachPlat.frame` (MR reads only irqMasks/irqState/timeState/
+  lastMachineTime) is required by the P line: `MachPlat.mfKeep` carries MR over every spec step keeping those four
+  fields, including every `machineOpLift` (MachFieldFam `mkf_machineOpLift`: invalidateASID, writeCR3, FPU ops,
+  out8, …, whose opaque rest outcomes FL4 does not see). Hence `MachPortIn.frameAll`: under MachPlat, MachPortIn at
+  one related ms gives PortInVal's conclusion at EVERY σ agreeing with ms on the four fields (any rest, device
+  state, memory, FPU flag, kernel state): the same ∀-over-states content, restricted only in fields the read does
+  not depend on. Neither form is provably satisfiable (inNVal opaque; `modelArch.port_in` returns 0), so a J24P
+  with MachPortIn would trade one unprovable [P] for an equivalent one; not stated. What would remove it: a second
+  machine relation seeing `machineStateRest` (l4v: the whole machine_state is shared), carried from the entry [J]
+  WITHOUT frame, with every spec machineOpLift matched by an FL4 arch op reproducing its opaque outcome (an arch-
+  backend obligation per machine op; the mfKeep/frame uses, 9 `.frame` sites + the MF family, would need it).
+- GOAL 2 DONE (XTopJointKEntry25P): `KDispHypsKV25` (= KDispHypsKV23 with sch23b's `JMidLeavesHyp14` in `mid`),
+  `.to23` (`jMidLeavesHyp_of14 hA hmax htu`), NEW TOP `kernel_entryJ25P` (wrapper over J23P), `j25P_platform`
+  (= j23P_platform). (J24P left unused: it was reserved for GOAL 1.)
+- Premise change at the top (kernel_entryJ25P vs J23P): `JMidLeavesHyp13` [W] NARROWED to `JMidLeavesHyp14` [W]
+  (sch23b: JMidLeavesHyp13 concluding JRecvLeavesRN14, whose leaves carry one more premise each: cap fault `CtSc σ`;
+  receive_signal `CtSc σ ∨ SigDon σ p`; receive_ipc `CtSc σ ∨ IpcLinked s rc ∨ IpcActDon σ ∨ IpcPushDon σ p rc`;
+  l4v receive_ipc_corres / receive_signal_corres / handle_fault_corres in handle_recv_corres). Nothing added.
+- PREMISES of `kernel_entryJ25P` (every hypothesis; bundles with their fields' tags as at their definitions):
+  * `[PlainStore st]` (instance: plain store model, P1).
+  * `J : JAtZ … s a σ` [J] (joint invariant at the entry: l4v invs + state_relation, JointAt.lean).
+  * `hni : Entered σ` [J] (ct_running, resume_cur_thread).
+  * `hR : MR a σ.machineState` [J] (shared machine_state), `hVI : ValidIrqMasks σ` [J] (valid_irq_masks).
+  * `hn : NativeSys n c` (the statement's own syscall-number relation).
+  * `hflag` [S] (l4h trap mode: TRAP_SYSCALLS clear after the FAULT_IP write).
+  * `hB : ∀ x, kheap ct = tcb x → KBudgetB arI a (faultIPSt …)`: `now` NowAgree [P] (per state; MachPlat.nowAgree
+    from MR + VMT), `cur` CurInv [J], `off` OffReady [J], `tmo : NoTmoSend σ0 ∨ ct ∉ readyQueues` [J] (ct_not_in_q).
+  * `hK : ∀ σb, BudgetAt σ σb true → ∀ Z' H' Cs' Ac' Lst' D' s' a', JAtZ … σb → KDispHypsKV25 …` (asked only at
+    the budget outcome): `inv`: `JEntryGlobM` (ari [P], tot [P], delParts [J]/[P] (archRef [P], arKeep [P], vt [J],
+    thr), nd [P], ppA [P], dom [P], portIn [P] (∀σ PortInVal: kept, GOAL 1 FINDING), sigRest [J], timeAg [P],
+    maxTU/tu [P]); `JEntryAt` (ni, ctnq, sg, rd0, flags, epQ, handlers, ports, vfh, cnf, vsTyp, live, fnz, urz,
+    utks [J]; stall, ioapics, archIrq [P]); `JPathAtM` (per cap kind JPathM: [P] config constants / one core, [J]
+    invariant facts, [S] JVtxScope for VT-x decodes; no [W]); `JVtxHypMU` [S] (VT-x Untyped retype 14..18).
+    `recv`: ct_not_in_q, valid_fault_handler [J]. `mid`: JEntryGlobM, JEntryAt, JPathAtM as above,
+    `MidRun.JMidPerfHypQ` [W], `JMidVfhHyp` [J], `JMidLeavesHyp14` [W] (CHANGED, sch23b), `JVtxHypMU` [S].
+  * `hFin : ∀ x ∈ (specFront c σ).1, ∀ …, JAtZR … x.2 → KFinAtR …` (only at the front end's outcomes): hd
+    (domainTime ≠ 0 ∨ NdOK) [J], vt [J], arch/archNd (ArchSwF/ArchNdF) [P], fo FpuOwnOK [J], sni/send
+    (SniHyp/SendHyp) [P], tail (schedule's CR3 tail) [P].
+  * `hARI : ARIface` [P], `hA : P0.ArchTotal` [P], `hnd : numDomains = 1` [P], `hM : MachPlat arI MR` [P],
+    `hKD : MRKeepD arI MR` [P], `hPA : PPPlatA` [P], `hIA : IrqPlatA` [P], `hmrt` (MAX_RELEASE_TIME) [P], `hmb`
+    (MIN_BUDGET) [P], `hT : TimeAgree` [P], `hmax : maxTicksToUs = U64.MAX` [P], `htu` (ticks_to_us) [P].
+  * `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` [S], `hNSR : ∀ …, JAtZR … → NativeScope σ` [S].
+- Check: no premise known false in reachable states. ∀-over-states hypotheses the operation cannot establish:
+  `JEntryGlobM.portIn` [P] (see FINDING), the [S] `hNS`/`hNSR`/`hflag`. Remaining [W]: `JMidPerfHypQ`,
+  `JMidLeavesHyp14` (sch23 lines).
+
+- Builds (mr10-b1, tokyo): XTopJointPortInM OK (5530 jobs), XTopJointKEntry25P OK (5698 jobs). #print axioms: kernel_entryJ25P, KDispHypsKV25.to23, j25P_platform, MachPortIn.frameAll — propext, Classical.choice, Quot.sound only.

@@ -727,3 +727,5 @@ import Fl4Proofs.P3.XTopJointRecvIpcN
 import Fl4Proofs.P3.XTopJointKEntry23M
 import Fl4Proofs.P3.XTopJointKEntry22P
 import Fl4Proofs.P3.XTopJointKEntry23P
+import Fl4Proofs.P3.XTopJointPortInM
+import Fl4Proofs.P3.XTopJointKEntry25P
