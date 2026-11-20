@@ -3912,25 +3912,29 @@ of the JAtZ cone. Nothing existing edited.
     x.tcbState`, `FaultTcbs σ := TI ftQ σ`; l4v's stronger `FaultTcbsS` (`faultTcbSt`: Inactive / BlockedOnSend /
     BlockedOnReply) with `FaultTcbsS.weak`; `FaultTcbs.ct` (an active ct has no fault = `JEntryAt.cnf`);
     `boot_faultTcbsS`, `boot_faultTcbs`.
-- IN PROGRESS, NOT BUILT (untracked, generated): NativeScope (b)/(c)/(d). `nsQ x := x.tcbState ≠ .runningVM`,
-  `NativeScopeS := TI nsQ` (defeq IpcLeaves' `NativeScope`; bridge `SpecInvNativeScopeBridge`, `nativeScopeS_iff :=
-  Iff.rfl`). The spec writes `runningVM` nowhere (every setThreadState has a literal non-runningVM state; new TCBs
-  are `defaultTcb`, Inactive), so every TCB writer is a `TI` leaf with a side condition closed by `ns_side`; the 414
+- DONE, built: NativeScope (b)/(c)/(d) (SpecInvNativeScopeF1..F6, SpecInvNativeScope, SpecInvNativeScopeBridge).
+  `nsQ x := x.tcbState ≠ .runningVM`, `NativeScopeS := TI nsQ` (defeq IpcLeaves' `NativeScope`:
+  `nativeScopeS_iff : NativeScopeS σ ↔ Endp.NativeScope σ := Iff.rfl`, Bridge, the only module importing the cone).
+  The spec writes `runningVM` nowhere (every setThreadState has a literal non-runningVM state; new TCBs are
+  `defaultTcb`, Inactive), so every TCB writer is a `TI` leaf with a side condition closed by `ns_side`; the 414
   monadic spec functions reachable from `fl4KernelEntrySyscall` get one `NSK`/`NSKE` lemma each, bottom-up
   (`ns_auto` = leaves | `ik_step0` | unfold), generated from the spec's call graph by proofs/scratch/invA/gen.py
-  (+ manual.py: resolveAddressBits' (wf recursion), transferCapsLoop (list recursion), rec_del / cap_revoke (`ik_lfp`),
-  fl4Awaken (ReflTransGen of sendSignal), getExtraCptrs; skip.txt: the leaves, and decodeCopy/Read/WriteRegisters,
-  whose non-thread-cap branch is `undefined` at a monadic type, so they are inlined at their callers).
-  Generated files: SpecInvNativeScopeF1..F6 (lemma chunks), SpecInvNativeScope (`kentry_nativeScope : NativeScopeS σ →
-  ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, NativeScopeS y.2`, `kcall_nativeScope` for `fl4CallKernel rep ev`, every
-  event incl. interrupts/timer, `boot_nativeScope`). Regenerate: `sh proofs/scratch/invA/mkns.sh` (paths inside).
-  Last full check (`lake env lean`, task invA-l4, before the chunking): ~25 failing lemmas, all understood and
-  addressed in the current generator except unverified ones: (i) leaf side conditions must run outside
-  `with_reducible` (now `(with_reducible refine L ?_); ns_side`), (ii) lemmas over monadic parameters take
-  `IK` hypotheses (now generated, `fun _ => ?_` at the leaf), (iii) `undefined` branches (skip list), (iv)
-  `receiveIpc` hit 1M heartbeats (may need a split or more heartbeats), (v) decodeUntypedInvocation(With),
-  doReplyTransfer, invokeFl4Tcb, installTcbFrameCap left goals whose cause was masked by a bad `intro` step (removed).
-  The chunked build (task invA-c1) could not be started: tokyo's sync timed out repeatedly (peer request timed out).
+  (untracked; `sh proofs/scratch/invA/mkns.sh` regenerates F1..F6 and SpecInvNativeScope). By hand (manual.py):
+  resolveAddressBits' (wf recursion), transferCapsLoop (list recursion), rec_del / cap_revoke (`ik_lfp`), fl4Awaken
+  (ReflTransGen of sendSignal), getExtraCptrs, receiveIpc (4M heartbeats), decodeTcbInvocation /
+  fl4DecodeTcbInvocation stated at `.threadCap p` (their register decodes are `undefined` for any other cap;
+  decodeCopy/Read/WriteRegisters are inlined there). Functions over monadic parameters (syscall, withoutPreemption,
+  the *OnFailure wrappers, checkCapAt, orChoiceE, decodeIrqControlInvocationWith) take `NSK`/`NSKE` hypotheses.
+  * `kentry_nativeScope (c) : NativeScopeS σ → ∀ y ∈ ((fl4KernelEntrySyscall (Z := Unit) true c) σ).1,
+    NativeScopeS y.2` (b); `kentry_nativeScope'` the same in IpcLeaves' `NativeScope` (Bridge).
+  * `kcall_nativeScope (rep) (ev : Event) : NativeScopeS σ → ∀ y ∈ ((fl4CallKernel (Z := Unit) rep ev) σ).1,
+    NativeScopeS y.2` (c: every event, interrupts / faults / timer, through l4v's handleEvent and fl4Awaken).
+  * `boot_nativeScope : NativeScopeS initASt` (d).
+  * Consumers: `kernel_entryJ26P`'s `hNS` / `hNSR` [S] become per-state facts once NativeScope is carried in the
+    bundle (G3 wiring): no hypothesis needed.
+  Builds: tasks invA-d5 (mirror FL4-invA, a detached worktree of par/invA used because FL4-sc's mirror sync kept
+  timing out): F1..F6, SpecInvNativeScope (1026 jobs), Bridge (4550 jobs) OK. Root Fl4Proofs.lean imports the 12
+  new leaves (root not rebuilt).
 - VfhAll (b)/(c) and FaultTcbs (b)/(c): NOT DONE. Handoff:
   * VfhAll's only writer is `setCap` into a TCB's slot 3 (`ti_setCap`'s `CapSlotsOK`). Most setCap sites write caps
     of other kinds into slots from lookups (cte_insert/move/swap, retype's defaultCap, IPC cap transfer, arch cap
@@ -3944,4 +3948,7 @@ of the JAtZ cone. Nothing existing edited.
     is none by `FaultTcbsS` and its state), `handleFaultReply`'s clear. Per-call-site Hoare reasoning (l4v's
     fault_tcbs_valid_states lemmas); the `IK`/`TI` frames give every other function.
   * No FINDING: no step of the spec was found to break any of the three fields.
-- Axioms: not checked (no new axioms or sorry in the committed modules; ik_lfp uses only sInf_le).
+- Axioms (proofs/scratch/invA/ax.lean, untracked; task invA-ax1): kentry_nativeScope, kcall_nativeScope,
+  boot_nativeScope, kentry_nativeScope', boot_vfhAll, boot_faultTcbsS, boot_faultTcbs, ik_lfp: propext,
+  Classical.choice, Quot.sound; VfhAll.ct: propext, Classical.choice; FaultTcbs.ct: propext; nativeScopeS_iff: none.
+  No sorry/admit/native_decide/bv_decide in SpecInv*.

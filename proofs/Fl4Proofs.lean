@@ -752,3 +752,15 @@ import Fl4Proofs.P3.SpecInvValidIrqMasks
 import Fl4Proofs.P3.SpecInvCtNQR
 import Fl4Proofs.P3.SpecInvOffReady
 import Fl4Proofs.P3.SpecInvDom
+import Fl4Proofs.P3.SpecInvNativeScopeK
+import Fl4Proofs.P3.SpecInvNativeScopeT
+import Fl4Proofs.P3.SpecInvNativeScopeF1
+import Fl4Proofs.P3.SpecInvNativeScopeF2
+import Fl4Proofs.P3.SpecInvNativeScopeF3
+import Fl4Proofs.P3.SpecInvNativeScopeF4
+import Fl4Proofs.P3.SpecInvNativeScopeF5
+import Fl4Proofs.P3.SpecInvNativeScopeF6
+import Fl4Proofs.P3.SpecInvNativeScope
+import Fl4Proofs.P3.SpecInvNativeScopeBridge
+import Fl4Proofs.P3.SpecInvVfhAll
+import Fl4Proofs.P3.SpecInvFaultTcbs
