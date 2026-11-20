@@ -6916,8 +6916,11 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqY, SpecInvCqYF1..F5 
      `rb_possibleSwitchTo_p` needs t ≠ ct for k = true: every woken thread was read blocked while ct runnable — reuse
      `AN`/`an_of` (an_of with k: blocked ⇒ ≠ ct when ct runnable, CB not needed); (c) postpone sites: `md_maybeDonateSc`
      pattern (AN + BP) for maybe_donate_sc / do_reply_transfer's receiver; end_timeslice's `postpone cur_sc`: CurScT + sb2's
-     ScSym give sc_tcb cur_sc = ct, then `rb_postpone_p` with NP ct ∧ (k → ct ≠ ct fails!) — so end_timeslice must be
-     stated `HK1 (SQ4 ∧ RB) (SQ4 ∧ RBk false)` and followed by `reschedule_required` (hb_rescheduleRequired, CB vacuous);
+     ScSym give sc_tcb cur_sc = ct; postponing ct breaks `CtQ ∧ NP ct` and, under resume, "ct not released", so
+     `rb_postpone_p` does not apply: state end_timeslice's postpone arm as `HK1 (SQ4 ∧ RB) (SQ4 ∧ RDq)` (RDq: ct was in no
+     ready queue (CtQ) after the dequeue and is not the switch target (NP ct)) and prove `rd_rescheduleRequired : HK1 RDq
+     (RBk false) rescheduleRequired` (same proof as hb_rescheduleRequired; after it the action is choose_new, so CB and
+     the resume clause are vacuous) for charge_budget's following reschedule;
      configure / yield_to / bind: carry `Simple` from the perform's start (EX's Simple, kept by the front: update_time_stamp
      reads, check_budget_restart's charge ends in reschedule), so `action ≠ switch t` for every t. The SA hand lemmas for
      ctq3's skip list (ctq4 handoff 2) are the same shell; do SA and RB together per writer (one lemma per arm).
