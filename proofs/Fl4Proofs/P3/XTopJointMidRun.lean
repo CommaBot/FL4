@@ -30,7 +30,7 @@ same rejection) and a safe non-blocking non-calling `perform_invocation` keeps
   scheduler action (l4v requires none; sch2's finding).
 * `HIPostMXP.mid` / `handle_invocation_midJ`: `handle_invocation_refinesJ`'s
   post for `first_phase = true`, `blocking = is_call = false` with
-  `JMidRunHyp`: at `Ok` the mid state is `JMid`.
+  `JMidRunHyp` and `MidEntry` at the entry: at `Ok` the mid state is `JMid`.
 -/
 import Fl4Proofs.P3.XTopJointEntry
 open Aeneas Aeneas.Std Result
@@ -43,13 +43,28 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
+/-- **What the mid-state route reads at the invocation's entry** (all true at a
+system call's entry, l4v `invs and ct_active`; KENTRY-PLAN sch11):
+* `run`: the current thread runnable (`CurRun`, l4v `ct_active`; at J from
+  `Entered` and `JAtZ.cur`'s `CurInv`);
+* `nf`: the current thread has no pending fault (l4v
+  `fault_tcbs_valid_states`: a thread with a fault is blocked or inactive);
+* `nq`: the current thread is in no notification's waiting queue (l4v
+  `valid_ntfn`: the queue's threads are `BlockedOnNotification`). -/
+structure MidEntry (σ : Fl4Spec.State Unit) : Prop where
+  run : CurRun σ
+  nf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none
+  nq : ∀ p n q, σ.kheap p = some (.notification n) → n.ntfnObj = .waitingNtfn q → σ.curThread ∉ q
+
 /-- **[W] The current thread active after a first-phase non-blocking
 non-calling invocation** (l4v
 `handle_invocation_not_blocking_not_calling_first_phase_ct_active`; module
-docstring): at the invocation's entry state `σ`, every successful outcome of
-the spec's invocation has the current thread runnable. -/
+docstring): from an entry state `σ` with `MidEntry` (sch11: the unconditional
+form of sch7 was false, e.g. for a non-runnable current thread whose lookup
+faults), every successful outcome of the spec's invocation has the current
+thread runnable. -/
 def JMidRunHyp (rep don : Bool) (cptr : Fl4Spec.CapRef) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) rep false false don true cptr).run σ).1,
+  MidEntry σ → ∀ y ∈ ((Fl4Spec.fl4HandleInvocationR (Z := Unit) rep false false don true cptr).run σ).1,
     y.1 = .ok () → CurRun y.2
 
 /-- `CurRun` with `IdleOK`: the current thread is not the idle thread. -/
@@ -78,13 +93,13 @@ def HIPostMid (AR : A → Fl4Spec.Cr3 → Prop) (σ : Fl4Spec.State Unit) (don :
 theorem HIPostMXP.mid {AR : A → Fl4Spec.Cr3 → Prop} {σ : Fl4Spec.State Unit} {don : Bool}
     {cptr : Fl4Spec.CapRef} {res : core.result.Result Unit error.Exc × S × A}
     (h : HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) true σ false false don true cptr res)
-    (hM : JMidRunHyp true don cptr σ) : HIPostMid (L := L) arI AR σ don cptr res := by
+    (hM : JMidRunHyp true don cptr σ) (hE : MidEntry σ) : HIPostMid (L := L) arI AR σ don cptr res := by
   obtain ⟨y, hy, hc, hR, hX⟩ := h
   refine ⟨y, hy, ?_⟩
   rcases hc with ⟨h1, h2⟩ | ⟨h1, h2⟩
   · have hJ : JAt (L := L) arI AR res.2.1 res.2.2 y.2 :=
       ifP_X (X := JAt (L := L) arI AR) (XP := JAtPre (L := L) arI AR) (by rw [h1]; intro e; cases e) hX
-    have hC := hM y hy h2
+    have hC := hM hE y hy h2
     obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
     exact Or.inl ⟨h1, h2, hR, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hC, curRun_ne_idle hC J.act.2⟩
   · rw [h1, if_pos rfl] at hX
@@ -110,11 +125,11 @@ theorem handle_invocation_midJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.
     (hmrs : Fl4Spec.getMrs (Z := Unit) ct.bv buffer mi σ = ({(argsU.map UScalar.bv, σ)}, False))
     (hH : JEntryHyps (L := L) arI AR Z H Cs D s ar σ ct false false can_donate true cptr info mi buf buffer
       argsU r2 er)
-    (hM : JMidRunHyp true can_donate (Fl4Spec.toBl cptr.bv) σ) :
+    (hM : JMidRunHyp true can_donate (Fl4Spec.toBl cptr.bv) σ) (hE : MidEntry σ) :
     syscall.handle_invocation st arI s ar false false can_donate true cptr ⦃ res =>
       HIPostMid (L := L) arI AR σ can_donate (Fl4Spec.toBl cptr.bv) res ⦄ :=
   WP.spec_mono (handle_invocation_refinesJ arI s ar σ J ct hct false false can_donate true cptr info hinfo mi hmi
-    buf hbuf buffer hbuffer r2 hr2 er her argsU hmrs hH) fun _ h => h.mid arI hM
+    buf hbuf buffer hbuffer r2 hr2 er her argsU hmrs hH) fun _ h => h.mid arI hM hE
 
 end
 
