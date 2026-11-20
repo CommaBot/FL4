@@ -2255,3 +2255,59 @@ New leaves XTopJointBudgetTR, XTopJointKEntry8B (imported from Fl4Proofs.lean). 
   error: σ0 instantiated unfolded, fixed by `(σ0 := faultIPSt …)`), budtr-b3 `XTopJointBudgetTR XTopJointKEntry8B`
   OK (5562 jobs). Axioms (scratch/axbudtr.lean, untracked): propext, Classical.choice, Quot.sound only for
   JAtZ.budgetOkTR, JAtZ.budgetOkB, KBudget.toB, kernel_entryJ8B. No sorry/admit/native_decide/bv_decide.
+## irq1 (branch par/irq1 in FL4-tcbj, on 3febf556 = int/j2 incl. sch13)
+New leaf XTopJointMachRel (imported from Fl4Proofs.lean). Nothing existing edited.
+- FINDING (formal, `PPPlat.false : PPPlat arI AR → A → False`; inv1's `nowAgree_all_false`): `PPPlat.now : ∀ a σ,
+  NowAgree arI a σ` is FALSE for every platform (at `curTime = allOnes` the spec clock is capped at
+  `-(getCurrentTimeBuffer+1)` < allOnes, `getCurrentTime_buffer_pos`). So every theorem with `hPP : PPPlat` (or
+  `JEntryGlob`, whose `pp` is a PPPlat) and an arch state is vacuous: the preemption path, budget, `dispatch_all*`,
+  `kernel_entryJ*` up to J8. `IrqPlat.take` / `PPPlat.irq` are satisfiable only with "no line ever" (sch13 noIrq).
+- ∀σ platform premises on kernel_entryJ8 (grep of its premises and the bundles they carry):
+  `hPP.now` (false), `hPP.irq` (degenerate), `hIP.take` (degenerate), `JEntryGlob.pp` (= PPPlat, false),
+  `JEntryGlob.portIn` = `PortInVal` (∀ σ ∃ ms, the spec `in8/16/32` at σ returns FL4's value: consistent only via the
+  opaque `inNImpl`, the same shape; needs the device/port part of MR). Arch-only ∀a facts (`irqAR`, `takeAR`,
+  `noIpi`, `ackAR`, `minBudget`, `hmrt/hmb`, `TimeAgree`, `htu`, `ArchIrqRel.map/mapr/mask`) are fine.
+  `KBudget.now` is per-state (derivable: `MachPlat.nowAgree` from MR + `ValidMachineTime` at the entry).
+  ∀-predicates that are not platform reads (`hNS`, `hNSR`, `JEntryGlob.sigRest`, `delParts.vt/thr.obj`) are out of
+  this line.
+- DONE (XTopJointMachRel): `getCurrentTime_eq` / `getActiveIRQ_eq` (the spec reads are deterministic functions
+  `gctVal/gctState`, `gaiLine/gaiState` of the machine state); `MachPlat arI MR` [P] (statement in the module):
+  `now : MR a ms → now a ⦃ r.1.bv = gctVal ms ∧ MR r.2 (gctState ms) ⦄`, `irqPending : MR a ms → irq_pending a ⦃
+  (r.1 ↔ gaiLine true ms ≠ none) ∧ MR r.2 (gaiState ms) ⦄`, `take : MR a ms → take_pending_irq a ⦃ (r.1 = NO_IRQ ↔
+  gaiLine true ms = none) ∧ (∀ i, gaiLine true ms = some i → r.1.val = i.toNat) ∧ MR r.2 (gaiState ms) ⦄`, `mask :
+  MR a ms → w < 256 → mask_irq a w m ⦃ MR a' {ms with irqMasks := update … (w.setWidth 8) m} ⦄`, `ack : MR a ms →
+  ack_irq a w ⦃ MR a' ms ⦄`, `frame` (MR reads only masks, irqState, timeState, lastMachineTime);
+  `ValidMachineTime σ` [J] (l4v valid_machine_time: curTime ≤ lastMachineTime ≤ cap); `MachPlat.nowAgree` (old
+  per-state NowAgree from MR + VMT), `MachPlat.nowAt` (+ MR and VMT after), `MachPlat.irqAt`, `MachPlat.takeAt`
+  (old per-state shapes + MR after); non-vacuity: `modelArch` (arch state = spec machine state, reads run the spec
+  ops) with `modelArch_machPlat`, `modelArch_take_some` (reports the spec's line), `modelArch_noIrq_iff` (never
+  NO_IRQ-only unless the spec oracle never fires), `MachPlat.noIrq_imp`.
+- FINDING 2 (blocks threading MR through the preemption point; code reading): FL4 `sched.preemption_point`
+  (Funs.lean, `if ok1 … irq_pending a1 … else ok (Err Preempted, s3, a1)`) does NOT read the pending line when the
+  budget is insufficient (nor when the domain expired; numDomains = 1), while the spec `preemptionPoint`
+  (Fl4Spec/KHeap.lean:601) samples `getActiveIRQ true` unconditionally. With the oracle position shared (MR), the
+  spec is one IRQ sample ahead after that branch: `after_invocation`'s `take_pending_irq` answers position p+1, the
+  spec's `maybeHandleInterrupt` reads p+2, so the handled lines can differ and the refinement is FALSE for
+  `modelArch` there (the existing proofs hide it: `JHole.msAr` lets the spec machine state be anything). No
+  satisfiable MR can absorb the skip (MR a ms ∧ MR a (gaiState ms) forces the oracle constant). Fix options (lead /
+  owner): (a) spec deviation: sample `getActiveIRQ` in `preemptionPoint` only when `¬exp ∧ active ∧ sufficient`
+  (this is also C seL4's short-circuit order `!(sc_active && refill_sufficient) || isCurDomainExpired() ||
+  isIRQPending()`); (b) kernel change: call `irq_pending` before the budget test. Either makes the reads lockstep.
+- NEXT (handoff), after FINDING 2 is decided:
+  (1) MR transport lemmas, each = an FL4 arch trace + a spec trace, combined with the existing J lemmas by
+      `WP.spec_and` (no copies of the big proofs): `update_timestamp ⦃ ∃ v, arI.now a = ok (v, r.2) ⦄`;
+      `preemption_point ⦃ Err → ∃ v a1, now a = ok (v,a1) ∧ irq_pending a1 = ok (true, r.2.2) ⦄` (after the fix);
+      spec: `preemptionPoint`'s error outcome has `ms = gaiState (gctState σ.ms)` and VMT (from `pp_err_eq`);
+      `mcs_preemption_point` keeps the arch state / `checkBudget`/`chargeBudget` keep the MR fields; then
+      `JAtZ.ppJHM` (ppJH + MR + VMT at the hole) and `JHole.afterInvJZJM` (take via `MachPlat.takeAt`).
+  (2) carry `MR a σ.ms ∧ VMT σ` from the entry ([J], l4v shared machine_state + valid_machine_time) through
+      budget_ok (nowAt) and through every invocation up to its preemption points and `after_invocation`: needs each
+      invocation's post to keep MR (FL4 arch ops other than now/irq/take/mask/ack keep MR [P], ARKeep-style; spec
+      machine ops other than getCurrentTime/getActiveIRQ/maskInterrupt keep the four MR fields: a spec-only
+      `MK`-style lemma family as UtResetSpecJ's `MK`). This is the L-size part (inv1 G0, ~25 use sites).
+  (3) kernel_entryJ9 = J8 with `MachPlat` + `MR a σ.ms` + `ValidMachineTime σ` at the entry for `hPP.now/irq` and
+      `hIP.take`; NOT started (needs (1)–(2); a J9 with PPPlat would still be vacuous).
+- Builds (tokyo, scratch/irq1chk.sh, kp1build.sh): irq1-c1..c4 (elaboration), irq1-b1 `XTopJointMachRel` OK (5528
+  jobs, on 3febf556). Axioms (scratch/axirq1.lean, untracked): propext, Classical.choice, Quot.sound (or fewer) for
+  PPPlat.false, MachPlat.nowAgree/nowAt/irqAt/takeAt/noIrq_imp, modelArch_machPlat, modelArch_take_some,
+  modelArch_noIrq_iff, getCurrentTime_eq, getActiveIRQ_eq, validMachineTime_gct. No sorry/admit/native_decide.
