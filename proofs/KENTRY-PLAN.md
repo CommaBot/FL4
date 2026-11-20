@@ -2907,3 +2907,59 @@ stay, [scope]), (4) vmt gone, the P line rebased onto sch18's receive premise (J
   JAtZ.jUtRetHypM/jUtRetHypDevM/utResetJM/reset_untypedJM, decode_invocation_untypedJM, UtRetPostJ.toM,
   NoPre.noErrAt_retypeDev/noErr_retypeNoReset, budget_vmt_at, BudgetAt.vmt, j14P_platform. No sorry/admit/
   native_decide/bv_decide.
+## sch20 (branch par/sched20 in FL4-sc, on a8ae2275 = int/j2 incl. sch19, mr4)
+New leaves XTopJointRecvSigC, XTopJointFaultC (scripted: sch20gen/gen.py `sig` / `fault`, hdr.lean, hdr2.lean,
+untracked), XTopJointKEntry18M, XTopJointKEntry19M (imported from Fl4Proofs.lean). Nothing existing edited; JAtZ,
+ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/XTopJointRecv* untouched.
+- STEP 1 (is JMidLeavesHyp8 true at chooseNewThread mid states?): NO counterexample; the SchedControl case is
+  unreachable. The first phase is `fl4HandleInvocationR true false false true true cptr` (ReplyRecv / NBSendRecv /
+  NBSendWait) and its decode has `firstPhase = true`: the spec's `fl4DecodeInvocation` (Ext/Invocation.lean:181-203),
+  FL4's `decode_invocation` (crates/fl4-core/src/syscall.rs:119-151, `first_phase`) and C seL4 c98d70ad
+  (src/object/objecttype.c:719-771 `decodeInvocation`, "Cannot invoke ... in the first phase") all reject thread,
+  domain, SchedContext, SchedControl and CNode caps; `okAll_decodeFirst` (XTopJointMidRunS) proves the spec side
+  yields only `FirstInv` invocations. So SchedControl Configure (on ct's own SC or any other) never runs before a
+  mid receive, and l4v's postponement of ct does not arise there. (Even outside the first phase, Configure on ct's
+  own SC does not postpone ct in reachable states: C asserts checkBudget() before commitTime(), so the head refill
+  stays ready (l4v cur_sc_offset_ready) and sufficient (cur_sc_offset_sufficient); refill_update then resets its
+  time to now and keeps >= MIN_BUDGET, and schedContext_resume's guard is false. Not needed here.)
+  Of the FirstInv performs (Untyped, endpoint send, notification signal, reply, IRQ control / handler, arch) none
+  binds an SC to ct, moves ct into the release queue, or changes the current SC; ct stops satisfying CurInv while
+  runnable only by giving its SC away (send donating to a passive receiver, reply returning a donated SC). So at a
+  chooseNewThread mid state "CurInv ∨ ct has no SC" holds in reachable states, and `JAtZ` there is satisfiable
+  (`JAtZ.cur` allows chooseNewThread without CurInv). JMidLeavesHyp8 is true in reachable states.
+- STEP 2, CurInv half, DONE for the notification receive and the cap fault outside a waiting receiver:
+  * `MidC σ` := not idle ∧ CurRun ∧ action = chooseNewThread ∧ CurInv; `JAtZ.canBlockCurMC` (canBlockCurM's
+    switch branch: no switch to ct, ct's SC word in Ac by curScAc).
+  * XTopJointRecvSigC: `JAtZ.recvSigActiveJC/recvSigBlockJC/recvSigBlockPreJC/recvSigRetJC`, `jRecvSigHypC_of`,
+    `jRecvSigHypC2_of` (every receive_signal at a MidC state): copies of the switch-mid M lemmas with
+    `J.curInv hni.ncn` → MidC's CurInv, `canBlockCurM … (hni.sa …)` → `canBlockCurMC … hni`, and the "switch target
+    ≠ ct" steps closed by the action being chooseNewThread. Nothing else changed: the spec and FL4 code are generic
+    in a non-resume action.
+  * XTopJointFaultC: `JAtZ.stsCurJC/noFaultJC/faultBlockJC`, `FltRecv σ` (ct's fault handler an endpoint with a
+    waiting receiver), `JAtZ.faultHypJZC` (handle_fault of a cap fault at a MidC state outside FltRecv).
+  * XTopJointKEntry18M: `JRecvLeavesRN9` (sig only under choose ∧ ¬CurInv), `.toRN8`, `JMidLeavesHyp9` [W],
+    `jMidLeavesHyp_of9`, `KDispHyps18M.to17M`, TOP `kernel_entryJ18M`. XTopJointKEntry19M: `JRecvLeavesRN10` (flt
+    only under choose ∧ (¬CurInv ∨ FltRecv)), `.toRN9`, `JMidLeavesHyp10` [W], `jMidLeavesHyp_of10`,
+    `KDispHyps19M.to18M`, NEW TOP `kernel_entryJ19M`.
+- Premise change at the top (kernel_entryJ19M vs J17M): `JMidLeavesHyp8` [W] NARROWED to `JMidLeavesHyp10` [W] :=
+  JMidLeavesHyp8's premises concluding `JRecvLeavesRN10`: receive_ipc under chooseNewThread (unchanged);
+  receive_signal under chooseNewThread ∧ ¬CurInv; the cap fault's handle_fault under chooseNewThread ∧
+  (¬CurInv ∨ FltRecv). Same l4v counterpart (receive_ipc_corres / receive_signal_corres / handle_fault_corres inside
+  handle_recv_corres); each case is a case of JMidLeavesHyp8, true in reachable states by STEP 1. Nothing added.
+- NOT DONE (handoff), what JMidLeavesHyp10 still contains:
+  (a) receive_ipc at a MidC state: same recipe over the ipc cone (XTopJointRecvIpcBlockM, RecvRetM (hni.sw,
+      MidE.swNe), RecvSendPM, KEntry13M/14M/15M's jRecvIpcDoneM2/M3, ipcDoneM3_of, jRecvIpcUM, jRecvIpcLinkM with
+      `cancelOther_keep`); gen.py needs patches for RecvRetM's `hni.sw`/`MidE.swNe` and the `hni.2.2.resolve` in
+      KEntry13M; the woken sender's possible_switch_to under chooseNewThread is reschedule_required (no enqueue) +
+      enqueue, check the RecvSendPM switch-specific `switchThread` spots (10) against the resumed JG lemmas, whose
+      `hsa` already admits chooseNewThread (with ct SC-less: extend that disjunct to `∨ CurInv`).
+  (b) the cap fault at a MidC state with FltRecv (FaultRecvM sendFaultIJM/PJM, FaultDonM sendFaultPDJM): the action
+      word facts (`hna3`, `hdu0`: action word = u0) need the chooseNewThread encoding instead; under chooseNewThread
+      the donation's test_reschedule enqueues nothing, so the resumed `pd_eq` (no switch) may apply directly.
+  (c) the ¬CurInv half (ct SC-less, chooseNewThread): either the first-phase spec fact "chooseNewThread ∧ ct has an
+      SC → CurInv" over the FirstInv performs (frame over curSc / ct's SC field / release queue, like
+      XTopJointMidRunK/P/Q for CtRs), after which ¬CurInv means SC-less, and then the resumed lemmas' `hsa` second
+      disjunct (choose ∧ SC-less: recvIpcBlockJG/NJG, recvSendPJG, canBlockCurG) with new top dispatchers.
+- Builds (tokyo, b.sh): sch20-b1 `XTopJointRecvSigC` OK, sch20-b2 + `XTopJointKEntry18M` OK (5602 jobs), sch20-b3
+  `XTopJointFaultC` OK, sch20-b4 `XTopJointFaultC XTopJointKEntry18M XTopJointKEntry19M` OK (5606 jobs), all on a8ae2275, first try, no sorry. Axioms
+  (axsch20.sh, untracked; sch20-ax1, sch20-b4): propext, Classical.choice, Quot.sound only.

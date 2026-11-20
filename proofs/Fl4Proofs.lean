@@ -700,3 +700,5 @@ import Fl4Proofs.P3.XTopJointKEntry15P
 import Fl4Proofs.P3.XTopJointKEntry16P
 import Fl4Proofs.P3.XTopJointRecvSigC
 import Fl4Proofs.P3.XTopJointKEntry18M
+import Fl4Proofs.P3.XTopJointFaultC
+import Fl4Proofs.P3.XTopJointKEntry19M
