@@ -831,3 +831,4 @@ import Fl4Proofs.P3.SpecInvUtD
 import Fl4Proofs.P3.SpecInvUtDA
 import Fl4Proofs.P3.SpecInvUtA
 import Fl4Proofs.P3.SpecInvUtG
+import Fl4Proofs.P3.SpecInvUtE
