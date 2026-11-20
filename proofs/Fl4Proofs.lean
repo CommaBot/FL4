@@ -507,6 +507,8 @@ import Fl4Proofs.P3.ScChargeU
 import Fl4Proofs.P3.XTopJointPreemptM
 import Fl4Proofs.P3.XTopJointPreemptS
 import Fl4Proofs.P3.XTopJointPreemptE
+import Fl4Proofs.P3.ScChargeTA
+import Fl4Proofs.P3.XTopJointPreemptA
 import Fl4Proofs.P3.SpecNoPre
 import Fl4Proofs.P3.XTopJointUnblock
 import Fl4Proofs.P3.XTopJointVsMapSpec
