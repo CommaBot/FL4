@@ -3401,3 +3401,44 @@ edited (XTopJointMachRel, XTopPortIn, KEntry23P/23M untouched); sch23/sch24's mo
   `JMidLeavesHyp14` (sch23 lines).
 
 - Builds (mr10-b1, tokyo): XTopJointPortInM OK (5530 jobs), XTopJointKEntry25P OK (5698 jobs). #print axioms: kernel_entryJ25P, KDispHypsKV25.to23, j25P_platform, MachPortIn.frameAll — propext, Classical.choice, Quot.sound only.
+## sch24 (branch par/sched24 in FL4-rb, on f3492a34 = int/j2 incl. sch23b, mr8)
+New leaves XTopJointRecvIpcLinkN, XTopJointKEntry24M (imported from Fl4Proofs.lean; hand-written, no generator).
+Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/
+MidChoose*/XTopJointRecv* untouched.
+- (d3) IpcLinked at MidN DONE (XTopJointRecvIpcLinkN):
+  * `jRecvIpcLinkN`: as sch22's `jRecvIpcLinkC` (`JAtZ.cancelLinkJ` of the linked thread i, `receiveIpc_linked`), MidN
+    after by `cancelOther_keep` (ct's TCB, action, idle), then `jRecvIpcUN` at the state after. Its ¬IpcActDon σ' /
+    ¬IpcPushDon σ' are carried back from σ (`CancelLinkAt` bundles the cancel facts):
+  * `cancelLink_ntfn` (every notification after was the same before) and `cancelLink_sendEP` (a send queue
+    `sendEP (sd :: l)` after was the same before). i blocked on a reply: the spec cancel is `reply_remove_tcb`, which
+    keeps every notification and endpoint: `neV p` (the ntfn/ep object at p) is a projection frame `FK`
+    (`ne_replyRemoveTcb` from `ne_setObject` + `ne_getSimpleKo` + VsDom's `dk_step0`; `cancelReply_ne`). i receiving:
+    IpcSignalBoundSpec's `cancelIpc_recv_cfr` with `r := i` (a TCB, so no notification changes: `cfr_ntfn`); the
+    endpoint i waits on loses i; FINDING: `CFr` does not fix the kind of the dequeued endpoint, so the send-queue
+    case uses FL4's queue codes (`JAtZ.epQ_code`: a send-queue member has tsCode 4, a receive-queue member 3, from
+    `EpObjRel`'s `QueuedOn` + `TcbRelE.st`, l4v valid_ep): i (code 3) is in no send queue, and the head of a send
+    queue after the cancel would have been a receiver before (kept by cancelOther_keep, code 3 ≠ 4) or i (inactive).
+  * `cancelLink_actDon`: ct's TCB by `cancelOther_keep` + `IK` backward, the notification by cancelLink_ntfn, the
+    SC's scTcb by `IK` (`ScIK`); `cancelLink_pushDon`: the head sender is not i (code 4 vs i's 5/3), so its TCB is kept.
+- Top: XTopJointKEntry24M: `JRecvLeavesRN15` (= RN14 with receive_ipc's premise `CtSc σ ∨ IpcActDon σ ∨
+  IpcPushDon σ p rc`), `.toRN14` (the IpcLinked case by `jRecvIpcLinkN`), `JMidLeavesHyp15` [W],
+  `jMidLeavesHyp_of15`, `KDispHyps24M.to23M`, NEW TOP `kernel_entryJ24M`.
+- Premise change at the top (kernel_entryJ24M vs J23M): `JMidLeavesHyp14` [W] NARROWED to `JMidLeavesHyp15` [W]:
+  receive_ipc's disjunct `IpcLinked s rc` is gone (now `CtSc σ ∨ IpcActDon σ ∨ IpcPushDon σ p.bv rc`); signal and
+  fault as JMidLeavesHyp14. Same l4v counterpart (receive_ipc_corres / receive_signal_corres / handle_fault_corres
+  in handle_recv_corres); a case of JMidLeavesHyp14. Nothing added.
+- NOT DONE (handoff), what JMidLeavesHyp15 still contains besides CtSc (= sch23b (d1), (d2)):
+  (d1) `SigDon` / `IpcActDon`: maybeDonateSc to the RUNNING ct (schedContextDonate + schedContextResume: ct may be
+       postponed into the release queue, then the sporadic refill_unblock_check on the SC ≠ curSc). Needs the J-level
+       donate-to-running-thread lemma (models: ScSignalDonJ's signal_waitDJ, IpcSignalDonFr's DWFr, ScDonate /
+       ScDonateRef `maybe_donate_refines`). Not started.
+  (d2) `IpcPushDon`: reply_push donating the head sender's SC to ct (receiver) under chooseNewThread (pushDonJ /
+       XTopJointFaultDonM's pd_eq). Not started.
+  Then a JRecvLeavesRN16 whose receive premise asks only CtSc, and kernel_entryJ25M via .to24M (CtSc is what sch23's
+  jMidChooseFact removes).
+- Builds (tokyo, b.sh; cache warmed from FL4-audit by cp -cR, sch24-w1): sch24-b1 `XTopJointRecvIpcLinkN` failed
+  (3 small errors: getSimpleKo leaf, anonymous-constructor nesting, an exists goal), fixed; sch24-b3
+  `XTopJointRecvIpcLinkN XTopJointKEntry24M` OK (5634 jobs) on f3492a34, no sorry. Axioms (axsch24.sh, untracked;
+  sch24-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ24M, KDispHyps24M.to23M, jMidLeavesHyp_of15,
+  JRecvLeavesRN15.toRN14, jRecvIpcLinkN, cancelLink_actDon/pushDon/sendEP/ntfn, JAtZ.epQ_code, cancelReply_ne,
+  ne_replyRemoveTcb, ne_setObject, neO_of_aType (neO_some: propext; cfr_ntfn: none).
