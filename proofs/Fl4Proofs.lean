@@ -922,3 +922,11 @@ import Fl4Proofs.P3.SpecInvViG3
 import Fl4Proofs.P3.SpecInvViG4
 import Fl4Proofs.P3.SpecInvViG5
 import Fl4Proofs.P3.SpecInvViG6
+import Fl4Proofs.P3.SpecInvViB
+import Fl4Proofs.P3.SpecInvViC
+import Fl4Proofs.P3.SpecInvViD
+import Fl4Proofs.P3.SpecInvViE
+import Fl4Proofs.P3.SpecInvViR
+import Fl4Proofs.P3.SpecInvViF
+import Fl4Proofs.P3.SpecInvViG
+import Fl4Proofs.P3.SpecInvViH
