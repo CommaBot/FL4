@@ -3223,3 +3223,60 @@ edited (JPath / XTopJointEntry untouched, per the lead's decision on mr7's open 
   untracked; mr8-b1): propext, Classical.choice, Quot.sound only for kernel_entryJ21P, j21P_platform,
   KDispHypsKV21.to20, kernel_entryJ20P, j20P_platform, KDispHypsKV20.to12, jPreDecHyp_of20, kernel_entryJ19P. No
   sorry/admit/native_decide/bv_decide.
+## sch23b (branch par/sched23b in FL4-rb, on 331a39e0 = int/j2 incl. sch22, mr6)
+New leaves XTopJointMidN, XTopJointFaultN, XTopJointRecvSigN, XTopJointRecvIpcN, XTopJointKEntry23M (imported from
+Fl4Proofs.lean; FaultN and the copied parts of RecvSigN / RecvIpcN scripted: sch23bgen/{common.py,genf.py,gens.py,
+hdr*.lean,dsig.lean,dipc.lean,k23.lean} in the worktree root, untracked). Nothing existing edited; JAtZ, ScPPR/SpecPPR*/
+CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/MidChoose*/XTopJointRecv* untouched.
+- (c2) SC-less leaves (chooseNewThread ∧ ct SC-less) DONE except the two SC donations to ct and the linked reply.
+  * XTopJointMidN: `MidN σ` := ct ≠ idle ∧ CurRun ∧ action = chooseNewThread ∧ (∀ x, ct's TCB x → x.tcbSchedContext =
+    none); `JAtZ.canBlockCurMN` (= resumed `canBlockCurG` with its `hsa` SC-less disjunct). ct out of the release
+    queue everywhere by sch22's `Sched.Inv.notRel_of_noSc`.
+  * XTopJointFaultN (scripted from XTopJointFaultC / XTopJointFaultRecvC): `stsCurJN`, `noFaultJN`, `faultBlockJN`,
+    `sendFaultIJN`, `sendFaultPJN`, `faultRecvJN`, `faultHypJZN` (EVERY cap-fault `handle_fault` at a MidN state).
+    Patches: CurInv's notRel → notRel_of_noSc; `BlockedScActive` for ct: an SC bound to ct would be ct's SC
+    (`scBack_of`), so `rw [hsc0] at hxs; cases hxs`; ct's SC word ∈ Ac vacuous (word is 0, `optRef_none`); the
+    donation flag is false (`hd0`), so the PDJ (donating) send does not arise.
+  * XTopJointRecvSigN: `recvSigBlockJN` (scripted from recvSigBlockJC; no SC-return case: ntfnSc = ct's SC = none
+    is impossible), `recvSigActiveJN` (an active notification whose SC is none or bound to a thread: FL4
+    `maybe_donate_sched_context` / spec `maybeDonateSc` no-ops by ScDonate's `maybe_donate_nodonate` with
+    `NoDon.wordsR` (NoDon.words from NtfnStateRel + SchedRel instead of IRel); `receive_signal_active_eqN`
+    (FL4: `sc_sporadic(0)` is false), `specRecvTail_noSc` (spec: `ifSporadic… none` is nothing)), `SigDon σ p`,
+    `jRecvSigHypN_of` (every receive_signal at MidN outside SigDon).
+  * XTopJointRecvIpcN: `recvIpcActJN` (scripted from recvIpcActJ; `complete_signal_eqN`, `completeSignal_noSc`),
+    `IpcActDon σ`, `IpcPushDon σ p rc`, `jRecvIpcUN` (every receive_ipc at MidN with a null or free reply outside the
+    two donations): FINDING: no other new copies needed: the blocking receives are the RESUMED `recvIpcBlockJG` /
+    `recvIpcBlockNJG` (their `hsa` second disjunct), the plain head sender `recvSendJ0X` (generic), a reply-pushing
+    sender WITHOUT an SC `recvSendPJGC` / `recvSendFPJGC` (sch21's widened hAct: `xs.sc = none`), the timeout-fault
+    sender `recvSendFPTJ` / `recvSendFTJ` (hAct: chooseNewThread ∧ ct ∉ releaseQueue), and every IpcRetM (SC-return)
+    case is vacuous (`LendM` needs ntfnSc = ct's SC ≠ none).
+- Top: XTopJointKEntry23M: `CtSc σ` (ct has an SC), `midN_of`, `JRecvLeavesRN14`, `.toRN13`, `JMidLeavesHyp14` [W],
+  `jMidLeavesHyp_of14`, `KDispHyps23M.to22M`, NEW TOP `kernel_entryJ23M`.
+- Premise change at the top (kernel_entryJ23M vs J22M): `JMidLeavesHyp13` [W] NARROWED to `JMidLeavesHyp14` [W] :=
+  JMidLeavesHyp13's premises concluding `JRecvLeavesRN14`, whose leaves are JRecvLeavesRN13's with one more premise:
+  cap fault: `CtSc σ`; receive_signal: `CtSc σ ∨ SigDon σ p.bv`; receive_ipc: `CtSc σ ∨ IpcLinked s rc ∨ IpcActDon σ ∨
+  IpcPushDon σ p.bv rc`. Same l4v counterpart (receive_ipc_corres / receive_signal_corres / handle_fault_corres in
+  handle_recv_corres); each case is a case of JMidLeavesHyp13 (true in reachable states, sch20 STEP 1). Nothing added.
+  The CtSc disjunct is exactly what sch23's first-phase fact (jMidChooseFact: chooseNewThread ∧ ct has an SC →
+  CurInv) removes.
+- NOT DONE (handoff), what JMidLeavesHyp14 still contains besides CtSc:
+  (d1) `SigDon` / `IpcActDon`: ct SC-less receives from an active notification (directly or ct's bound one in
+       receive_ipc) whose SC is bound to no thread: `maybeDonateSc` = schedContextDonate (ntfn SC → ct; ct is the
+       RUNNING current thread, unlike ScSignalDonJ's woken blocked thread) + schedContextResume (ct schedulable: if the
+       head refill is not ready/sufficient ct is postponed into the release queue), then the sporadic
+       refill_unblock_check on the SC (≠ curSc). FL4: notification.maybe_donate_sched_context → schedcontext::donate
+       + resume. Needs a J-level donate-to-running-thread lemma (cf. ScSignalDonJ's signal_waitDJ, IpcSignalDonFr's
+       DWFr frame, ScDonate/ScDonateRef `maybe_donate_refines`).
+  (d2) `IpcPushDon`: the head sender (call / fault with reply) has an SC and ct (receiver) has none: reply_push
+       donates the sender's SC to ct (`pushDonJ` / XTopJointFaultDonM's donation, here with the RECEIVER being ct
+       and the action chooseNewThread, so `test_reschedule` enqueues nothing: resumed `pd_eq` may apply).
+  (d3) `IpcLinked` at MidN: as jRecvIpcLinkC (cancel the linked thread i; cancelOther_keep keeps ct's TCB, action,
+       ready queues, so MidN holds after), but jRecvIpcUN at σ' needs ¬IpcActDon σ' / ¬IpcPushDon σ' p rc: transfer
+       from σ through cancelIpc of i (notifications and SC scTcb untouched; endpoint p's queue changes only by
+       removing i, a receiver), or carry the two donation predicates as "at the state after the cancel".
+- Builds (tokyo, b.sh): sch23b-b1 `XTopJointMidN XTopJointFaultN` OK (5624 jobs; cache warmed from FL4-audit by
+  cp -cR), sch23b-b2 `XTopJointRecvSigN` OK, sch23b-b3 `XTopJointRecvIpcN` OK (5626), sch23b-b4
+  `XTopJointKEntry23M` OK (5630 jobs), all on 331a39e0, first try, no sorry. Axioms (axsch23b.sh, untracked): propext, Classical.choice, Quot.sound only for kernel_entryJ23M, KDispHyps23M.to22M, jMidLeavesHyp_of14,
+  JRecvLeavesRN14.toRN13, canBlockCurMN, faultHypJZN/faultRecvJN/sendFaultPJN/sendFaultIJN/faultBlockJN/noFaultJN/stsCurJN,
+  jRecvSigHypN_of, recvSigActiveJN, recvSigBlockJN, receive_signal_active_eqN, specRecvTail_noSc, NoDon.wordsR, jRecvIpcUN,
+  recvIpcActJN, complete_signal_eqN, completeSignal_noSc, kernel_entryJ22M (midN_of: none). No sorry/admit/native_decide/bv_decide.
