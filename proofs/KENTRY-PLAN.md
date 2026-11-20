@@ -6197,3 +6197,51 @@ carrying `ScInv ∧ ScLive`. Spec-only, namespace `Fl4Proofs.P3.SInvL`, modules 
      `scLive_of` replacing sb2's `ScLive [J]`.
 - Scratch (untracked): scratch/sl1/{gen.py, closure.py (il1's), manual_sl.py (il1's texts without MX_capDeleteOne),
   prim.txt, hard.txt, extra.txt, mksl.sh, skipSL.txt, closure.log, bodySL.lean, ax.lean, plan.md}; build script sl1.sh.
+## vi3 (branch par/vi3 in FL4-tcbj, on 6b312dfd = int/j2 incl. vi2, sb2) — `viGap : ViGap`; `kentry_validIdle` / `kcall_validIdle` (DONE)
+Goal: vi2's handoff (the decode-dependent performs). Done; `kentry_validIdle := kentry_validIdle_of viGap`,
+`kcall_validIdle := kcall_validIdle_of viGap`. Spec-only, namespace `Fl4Proofs.P3.SInvI`, modules SpecInvViK / ViL / ViM
+(no JAtZ cone; ViK imports ViH + sb2's SpecInvSbX2 for `OkA`, ViL imports ut8's SpecInvUtP6); root imports all three.
+Nothing existing edited.
+- **SpecInvViK** (decode target facts): `Held w c` (cap held in a slot of view `w`), `TcbTg` (readRegisters / copyRegisters
+  source, suspend / notificationControl target, threadControlSched target held as a thread cap, its new SC held as an SC cap),
+  `ScTg` (Bind / UnbindObject SC held as an SC cap, Bind's object cap held), **`TgOK w inv`**; value-keeping `OkA` steps
+  (`okA_returnOk_bind`, `okA_throw_bind`, `okA_whenE_bind`, `okA_unlessE_bind`), `held_head`, `the_mem`, `the_head_mem`;
+  `tg_auto` (value-keeping steps under `with_reducible`: at default transparency `exact okA_throw _` / `okA_returnOk_bind`
+  tried on an arbitrary bind unfolds the spec and hits maxRecDepth); `tgA_decodeUpdateSc`, `tg_setSchedParams`,
+  `tg_decodeTcb` (one `case h_i` per label; copyRegisters / SetPriority / SetMCPriority by hand: the srcTcb `match` and the
+  `__do_jp` join point after `match authCap`), `tg_scBind`, `tg_scUnbindObj`, `tg_decodeSc`, **`tg_fl4Decode`**, `tgOK_of`
+  (from ut7's `DecodedFrom`).
+- **SpecInvViL** (untyped / MakePool leaves): **`vi_detype`** (a set ∌ N, S keeps `VIT`; `ObjOK` is per object),
+  **`vi_deleteObjects`** (`delR ptr bits ∌ N, S`), `objOK_dflt` (default objects at `p ∉ {N, S}`: unbound TCB / SC, empty
+  queues), `vi_retype_kh`, **`vi_retypeRegionWith_p`** (targets hold no object, so they are neither N nor S — no region
+  fact needed for the retype itself), `vi_resetUntypedCap`, `vi_utBody`, **`vi_invokeUntyped`** (ut1's `utRet_fresh` /
+  `utRet_fresh_after_reset`; the reset's region ∌ N, S given as a hypothesis), **`vi_makePool`** (sb2's skeleton).
+- **SpecInvViM**: `ne_tc` (a held thread cap names no `N`: `IO (fun _ => N)`), `ne_sc` (a held SC cap names no `S`:
+  `IrqOutV (fun _ => S)`), `TcbNe` / `ScNe` + `tcbNe_of` / `scNe_of`; invoke_tcb one lemma per arm (`vi_tcbSuspend`,
+  `vi_tcbResume`, `vo_tcbCaps` (VO), **`vi_tcSched`** (`vi_of_vo_bind`: install at VO, then setMcpriority / setPriority /
+  unbind (`target ≠ N` ⇒ its SC ≠ S, read by `vi_tsc_bind`) / bind (`c ≠ S`, `target ≠ N`) at VI), `vi_tcbCopy`,
+  `vi_tcbRead`, `vi_tcbWrite`, `vi_tcbBindN`, `vi_tcbUnbindN`, `vi_tcbTls`, `vi_tcbFlags`), `vi_invokeTcbG`;
+  invoke_sched_context per arm (`vi_scConsumed`, `vi_scBind`, `vi_scUnbindObj`, `vi_scUnbind`, `vi_scYieldTo`),
+  `vi_invokeSc`; `viGap_arch`; **`viGap : ViGap`** (untyped: ut8's `GapOKN` gives `UtRetOK`, the held untyped's region
+  ∌ N, S by `IO` / `IrqOutV S` since `covR (untypedCap ..) = delR`; MakePool: the parent untyped's region, `frame ∈ delR`
+  by `UtWf.fit`; TCB / SC: `tgOK_of`); tops.
+- STATEMENTS:
+  * **`kentry_validIdle (c) (hV : ValidIdle σ) (hS : SpecGlobS σ ∧ IdleOutV σ) (hI : IdleScOutV σ) (hU : UtInv3 σ)
+    (ha : ∀ x, σ.kheap σ.curThread = some (.tcb x) → activeSt x.tcbState) (hct : Pinned c → CtSc σ) :
+    ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, ValidIdle y.2 ∧ IdleScOutV y.2`**
+  * **`kcall_validIdle (rep ev) (hV) (hS) (hI) (hU) (ha : … ∨ ev = .interrupt) (hct : ∀ c, ev = .syscallEvent c →
+    Pinned c → CtSc σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, ValidIdle y.2 ∧ IdleScOutV y.2`**
+- Premises: unchanged from vi2 minus the gap: `ValidIdle` and `IdleScOutV` (carried here), `SpecGlobS ∧ IdleOutV` (sg1,
+  carried), `UtInv3` (ut8, carried), `ha` (as nq3), **`CtSc` [J]** for the Pinned syscalls only (vi2's justification:
+  l4v `cur_sc_tcb_are_bound` + `sym_refs`; `schedule` switches only to a schedulable thread or idle, `ha` excludes idle).
+  `ViGap` is gone. No new premise.
+- No FINDING: every reachable perform keeps ValidIdle (thread-cap targets ≠ idle, SC-cap pointers ≠ idle SC, deleted
+  regions ∌ idle thread / idle SC, retyped objects fresh and default).
+- Builds (tokyo, FL4-tcbj mirror, ./vi3.sh untracked = vi2.sh with an error-block filter): vi3-b1 (ViK: tg_auto
+  maxRecDepth), b2/b3 (ViK: copy / SetPriority by hand; join point), **b4 ViK (1224 jobs) + ViL (1226) + ViM (1228)**;
+  vi3-ax1 (scratch/vi3/ax.lean, untracked): viGap, kentry_validIdle, kcall_validIdle, tg_fl4Decode, tgOK_of,
+  vi_invokeUntyped, vi_makePool, vi_deleteObjects, vi_retypeRegionWith_p, vi_invokeTcbG, vi_tcSched, vi_invokeSc: propext,
+  Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom/maxHeartbeats raise beyond the ViK decode
+  traversals' 4000000 (sb2's okb_fl4Decode setting). Root Fl4Proofs.lean not rebuilt (three import lines added).
+- Next: carry `ValidIdle ∧ IdleScOutV` in the G1 bundle (the tops above, with sg1 / ut8 tops for their premises); `CtSc` [J]
+  stays until a valid_sched slice (`ct_active ⟶ schedulable`) is carried.
