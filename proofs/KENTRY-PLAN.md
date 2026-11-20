@@ -3483,3 +3483,53 @@ New leaves XTopJointChooseF and XTopJointChooseB (both imported from Fl4Proofs.l
   replyRemove / updateWaitingNtfn, post_liftE needs `Q :=`); sch23-b11 `XTopJointChooseB` OK (5392 jobs), no sorry.
   Axioms (axsch23.sh, untracked; sch23-ax1): jMidChooseFact, midRunB_shell, perf_firstB, bi_donate, pc_sendSignal,
   pc_doReplyTransfer, pc_sendIpc, kernel_entryJ22M (newest top, unchanged): propext, Classical.choice, Quot.sound.
+## sch25 (branch par/sched25 in FL4-rb, on 04f4ee64 = int/j2 incl. sch24, mr10)
+New leaves XTopJointRecvSigDonD, XTopJointKEntry25MD (imported from Fl4Proofs.lean; hand-written, no generator).
+Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/
+MidChoose*/XTopJointRecv* untouched.
+- (d1) signal half DONE (`SigDon`): XTopJointRecvSigDonD. FINDING: the wake machinery of ScSignalDonJ is generic in
+  the donee, so no new frame was needed; ct (running, any runnable state, in no queue at MidN) is the donee:
+  * `recvCheck_eq` / `recvCheck_of`: FL4's check after the donation in `receive_signal` (`rustRecvTail`'s tail:
+    compare with cur_sc, then `sc_sporadic`) equals `notification.unblock_sporadic` (two pure reads swapped).
+  * `P1.notification.recv_donate_tail.foot`: set_state(IDLE) + `rustRecvTail` write inside `KW` (EH H) under
+    `DonCore` (P1's `maybe_donate_sched_context.tinvF`, `unblock_sporadic.kw`; prefix as P1 `receive_signal.ipc`),
+    so core 0's debug word is kept (`wake_postD`'s `hfoot`).
+  * `Sched.recv_tailDN`: `wake_tailD` without `possible_switch_to`: `donate_dfr`, `Inv.donate`, `unblock_frameS`,
+    `Inv.unblockTail`: Inv, BlockedScActive, `DWFr n t`, ActIdle, action kept, CurRunM.
+  * `Ipc.recvTail_irelD`: `donate_irelF` + `unblock_irel` / `unblock_sporadic_kfoot` (FinStep, IFrame).
+  * `JAtZ.recvSigDonJN`: EVERY active-notification receive at MidN (donating or not; no SigDon premise): badge write
+    by `regWrJ` (J1), then `J1.wake_postD` with `(DWFr.ofNFr F1.weak).trans FF` (F1: the idle write, NFr true);
+    BlkOK from P1 `receive_signal.ipc` on the whole call; hRR vacuous (ct runnable), ct not dead.
+  * `jRecvSigHypDN`: every `receive_signal` at MidN (= jRecvSigHypN_of without ¬SigDon).
+- Top: XTopJointKEntry25MD: `JRecvLeavesRN16` (= RN15 with receive_signal's premise `CtSc σ` only), `.toRN15`
+  (jRecvSigHypDN via midN_of), `JMidLeavesHyp16` [W], `jMidLeavesHyp_of16`, `KDispHyps25M.to24M` (takes hmb), NEW TOP
+  `kernel_entryJ25M` (same premises as J24M with KDispHyps25M).
+- Premise change at the top (kernel_entryJ25M vs J24M): `JMidLeavesHyp15` [W] NARROWED to `JMidLeavesHyp16` [W]:
+  receive_signal's disjunct `SigDon σ p.bv` is gone (now `CtSc σ`); receive_ipc (`CtSc σ ∨ IpcActDon σ ∨
+  IpcPushDon σ p.bv rc`) and the cap fault (`CtSc σ`) as JMidLeavesHyp15. Same l4v counterpart (receive_signal_corres
+  / receive_ipc_corres / handle_fault_corres in handle_recv_corres); a case of JMidLeavesHyp15. Nothing added.
+- NOT DONE (handoff), what JMidLeavesHyp16 still contains besides CtSc:
+  (d1') `IpcActDon` (receive_ipc, ct's bound notification active with an unbound SC; FL4 `complete_signal`, spec
+       `completeSignal`). Plan (reuse everything above): `receive_ipc_preA` (XTopJointRecvIpcAct) takes ANY post of
+       `complete_signal`, `receiveIpc_active` reduces the spec to `completeSignal n t σ`. Write
+       `JAtZ.recvIpcActDJN` = recvSigDonJN with complete_signal (is_null t false: `ht0` as recvIpcActJN; `i != ACTIVE`
+       false). The only new parts: the complete tail (`rustCompleteTail`'s check: sporadic, `i1 = ntfn.sc`, cur_sc,
+       unblock_check; spec `specCompleteTail`'s maybeM) equals the recv check at the state after the donation, because
+       there ct's SC is `none` (FL4 word 0, sc_sporadic(0) false on both sides) or the notification's SC (a
+       `maybeDonateSc` shape lemma: t SC-less before ⇒ after, t's SC none, or some p with ntfn n's SC = some p and n's
+       object unchanged; FL4 side from SchedRel/NtfnStateRel at the IRel after `donate_irelF`). Prove
+       `completeCheck_eq` (FL4, under `mem s (scA t) = 0 ∨ mem s (scA t) = mem s (ntfnScA n)`) and
+       `specCompleteCheck_eq` (spec, ScTails' `specCompleteCheck` = `specUnblock` under the shape), a P1 foot copy
+       for the complete tail (or the same `recv_donate_tail.foot` after rewriting by completeCheck_eq). Then
+       `jRecvIpcUDN`: jRecvIpcUN's first case (hca) without `hnd`/`hAD`.
+  (d2) `IpcPushDon`: reply_push donating the head sender's SC to ct (receiver) under chooseNewThread. Not started.
+       NOTE the direction: donor = the blocked sender sd, donee = running ct (XTopJointPushDon's pushDonJ is caller
+       ct → blocked receiver); `schedcontext::donate` from sd (sd ≠ ct, not the action target at chooseNewThread:
+       no reschedule), then ct owns sd's SC; no `resume` in reply_push. Model the spec frame on `DWFr` / `dnSt`.
+  Then JRecvLeavesRN17 with receive_ipc asking only CtSc, kernel_entryJ26M via .to25M.
+- Builds (tokyo, b.sh; cache warmed from FL4-audit by cp -cR, sch25-w1: XTopJointKEntry24M up to date, 5634 jobs):
+  sch25-b1 `XTopJointRecvSigDonD` failed (2 errors: rw of `sc_ne_eq` under a binder, a `by` block swallowing a
+  comma), fixed; sch25-b2 `XTopJointRecvSigDonD XTopJointKEntry25MD` OK (5638 jobs) on 04f4ee64, no sorry. Axioms
+  (axsch25.sh, untracked; sch25-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ25M,
+  KDispHyps25M.to24M, jMidLeavesHyp_of16, JRecvLeavesRN16.toRN15, jRecvSigHypDN, JAtZ.recvSigDonJN,
+  Ipc.recvTail_irelD, Sched.recv_tailDN, recvCheck_eq, recvCheck_of, P1.notification.recv_donate_tail.foot.
