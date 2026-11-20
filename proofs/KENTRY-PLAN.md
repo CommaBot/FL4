@@ -3890,3 +3890,58 @@ defines `DomListOK`, which is itself outside the JAtZ cone).
     object); the same DL-style generator would give it.
   * EpQAll (`∀ e, EpQPre σ e`): needs valid_sched slices (released_ipc_queues for MemOKE of queued threads,
     ScBack = sym_refs SC<->TCB, ActReady): L, the scheduler/IPC writers all over the entry.
+## invA (branch par/invA in FL4-sc, on 6809c6cd = int/j2): invariant line G1, VfhAll / FaultTcbs / NativeScope (spec only)
+Goal (INV-PLAN §2/§4 G1): the three spec-only SInv fields as predicates on `Fl4Spec.State Unit`, kept across the whole
+syscall entry, in leaves `SpecInv*` that import only Fl4Spec (+ Mathlib.Data.Set.Lattice.Order for `NonDet.lfp`), out
+of the JAtZ cone. Nothing existing edited.
+- Infrastructure (SpecInvNativeScopeK, SpecInvNativeScopeT): `IK P m` (every outcome of `m` from a `P` state is `P`;
+  l4v `⦃P⦄ m ⦃λ_. P⦄`), `IKE` (abbrev, the exception monads); combinators mirroring VsDom's `FK` (`ik_step0` =
+  `dk_step0` for IK, plus value-keeping `pure`/`returnOk` binds), `ik_lfp` (rec_del / cap_revoke via CnodeRevoke's
+  pre-fixed-point argument, copied), `ik_unfold`. `TI Q σ` (every TCB satisfies `Q`) with the spec's TCB writers as
+  leaves, each with a side condition on `Q`: `ti_setObject` (new object no TCB or a `Q` TCB), `ti_setSimpleKo` (by
+  the two type assertions never a TCB), `ti_threadSet` / `ti_archThreadSet` / `ti_asUser` / `ti_setMrs` (pinned
+  read of the old TCB: `IKp`, `ik_getsThe_bind`), `ti_setCap` (`CapSlotsOK`: the six TCB slots), `ti_retypeRegion(With)`
+  (default objects), `ti_deleteObjects` (detype). These are generic and reusable by every per-TCB SInv field.
+- DONE, built (tokyo, ib.sh/ibe.sh; mirror warmed by cp -cR from FL4-audit): `SpecInvNativeScopeK`, `SpecInvNativeScopeT`
+  (aa4e154a, 7151c0bc), `SpecInvVfhAll`, `SpecInvFaultTcbs` (7151c0bc), each a few seconds over Fl4Spec (~1010 jobs).
+  * VfhAll (a)+(d): `vfhQ x := validFaultHandler x.tcbFaultHandler`, `VfhAll σ := TI vfhQ σ` (l4v valid_tcb's
+    valid_fault_handler); `VfhAll.ct : VfhAll σ → ∀ x, σ.kheap σ.curThread = some (.tcb x) → validFaultHandler
+    x.tcbFaultHandler` (= `JEntryAt.vfh`, `KDispHyps*.recv`'s ct handler; `JMidVfhHyp` [J] needs it at the first
+    phase's outcomes, i.e. (b)); `boot_vfhAll : VfhAll initASt`.
+  * FaultTcbs (a)+(d): `activeSt` (Running ∨ Restart, l4v `active`), `ftQ x := x.tcbFault ≠ none → ¬ activeSt
+    x.tcbState`, `FaultTcbs σ := TI ftQ σ`; l4v's stronger `FaultTcbsS` (`faultTcbSt`: Inactive / BlockedOnSend /
+    BlockedOnReply) with `FaultTcbsS.weak`; `FaultTcbs.ct` (an active ct has no fault = `JEntryAt.cnf`);
+    `boot_faultTcbsS`, `boot_faultTcbs`.
+- IN PROGRESS, NOT BUILT (untracked, generated): NativeScope (b)/(c)/(d). `nsQ x := x.tcbState ≠ .runningVM`,
+  `NativeScopeS := TI nsQ` (defeq IpcLeaves' `NativeScope`; bridge `SpecInvNativeScopeBridge`, `nativeScopeS_iff :=
+  Iff.rfl`). The spec writes `runningVM` nowhere (every setThreadState has a literal non-runningVM state; new TCBs
+  are `defaultTcb`, Inactive), so every TCB writer is a `TI` leaf with a side condition closed by `ns_side`; the 414
+  monadic spec functions reachable from `fl4KernelEntrySyscall` get one `NSK`/`NSKE` lemma each, bottom-up
+  (`ns_auto` = leaves | `ik_step0` | unfold), generated from the spec's call graph by proofs/scratch/invA/gen.py
+  (+ manual.py: resolveAddressBits' (wf recursion), transferCapsLoop (list recursion), rec_del / cap_revoke (`ik_lfp`),
+  fl4Awaken (ReflTransGen of sendSignal), getExtraCptrs; skip.txt: the leaves, and decodeCopy/Read/WriteRegisters,
+  whose non-thread-cap branch is `undefined` at a monadic type, so they are inlined at their callers).
+  Generated files: SpecInvNativeScopeF1..F6 (lemma chunks), SpecInvNativeScope (`kentry_nativeScope : NativeScopeS σ →
+  ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, NativeScopeS y.2`, `kcall_nativeScope` for `fl4CallKernel rep ev`, every
+  event incl. interrupts/timer, `boot_nativeScope`). Regenerate: `sh proofs/scratch/invA/mkns.sh` (paths inside).
+  Last full check (`lake env lean`, task invA-l4, before the chunking): ~25 failing lemmas, all understood and
+  addressed in the current generator except unverified ones: (i) leaf side conditions must run outside
+  `with_reducible` (now `(with_reducible refine L ?_); ns_side`), (ii) lemmas over monadic parameters take
+  `IK` hypotheses (now generated, `fun _ => ?_` at the leaf), (iii) `undefined` branches (skip list), (iv)
+  `receiveIpc` hit 1M heartbeats (may need a split or more heartbeats), (v) decodeUntypedInvocation(With),
+  doReplyTransfer, invokeFl4Tcb, installTcbFrameCap left goals whose cause was masked by a bad `intro` step (removed).
+  The chunked build (task invA-c1) could not be started: tokyo's sync timed out repeatedly (peer request timed out).
+- VfhAll (b)/(c) and FaultTcbs (b)/(c): NOT DONE. Handoff:
+  * VfhAll's only writer is `setCap` into a TCB's slot 3 (`ti_setCap`'s `CapSlotsOK`). Most setCap sites write caps
+    of other kinds into slots from lookups (cte_insert/move/swap, retype's defaultCap, IPC cap transfer, arch cap
+    updates, untyped free-index updates, deletion's zombies/remainders): the proof needs l4v's facts that the
+    written slot is a CNode slot or already holds a non-handler cap (cte_wp_at / valid_cap), plus `checkHandlerEp` at
+    decode for the TCB installs (ThreadControl, Configure, SetSpace, SetTimeoutEndpoint). A `TI`-pointwise family is
+    not enough; it needs a pinned (Hoare) family at those sites.
+  * FaultTcbs (weak) is not inductive alone (a faulted BlockedOnReceive thread woken to Running would break it);
+    carry `FaultTcbsS`. Its writers: `sendFaultIpc`'s fault write (the faulting thread is active until the send
+    blocks it), every wake-up to Running/Restart (send/receive/reply/restart/cancel paths: the woken thread's fault
+    is none by `FaultTcbsS` and its state), `handleFaultReply`'s clear. Per-call-site Hoare reasoning (l4v's
+    fault_tcbs_valid_states lemmas); the `IK`/`TI` frames give every other function.
+  * No FINDING: no step of the spec was found to break any of the three fields.
+- Axioms: not checked (no new axioms or sorry in the committed modules; ik_lfp uses only sInf_le).
