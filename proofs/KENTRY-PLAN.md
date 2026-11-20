@@ -6594,3 +6594,73 @@ untyped / arch (left as the intermediate definition `SlGap`, il2's `PerfGapIL` p
   `(fun _ h => by cases h)`; `subst e` with `e : s = σ` eliminates `σ` (use `subst s`); after `unfold f at h` a match on a
   constructor stays unreduced (`split at h` then splits the whole match): use `simp only [f] at h`; name clashes across
   opened namespaces (`NSc`, `NK`): qualify or rename.
+## ctq5 (branch par/ctq5 in FL4-q, on 5729a8a9 = int/j2 incl. ctq4, fo1, sl2) — ctq4 handoff 1 done; exit facts carried; the event part designed (NOT finished: handoff 2-3)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqV, SpecInvCqW, SpecInvCqX (root imports the three). Nothing existing edited.
+- **SpecInvCqV (ctq4 handoff 1, DONE)**: `sa_tcbReleaseEnqueue_p` / `sa_postpone_p` (release enqueue of a thread that is a
+  runnable TCB at that state), **`sa_schedContextResume`** (bound thread read runnable at `postpone`'s state; everything
+  before it reads), `sa_maybeDonateSc`, `sa_completeSignal`, **`sa_cancelIpc`** (cases on the read state, one arm per lemma
+  via `SAU t := SA ∧ NP t`: a thread read blocked is neither switch target nor released, kept up to its
+  `set_thread_state t Inactive`, `sau_setThreadState`). `SQ4 := SchedQ ∧ T4`; `sq4_pst` (`possible_switch_to` of a thread
+  `schedulable` just read: runnable, `cur_domain` by T4). **`sq4_sendSignal : IK SQ4 (send_signal n b)`**,
+  **`sq4_fl4Awaken : IK SQ4 fl4Awaken`**, **`sq_tail : HK1 (SQ4 ∧ ValidIdle) SchedQ (fl4Awaken; schedule; activate_thread)`**
+  (vi2's `vi_fl4Awaken` keeps ValidIdle, then ctq4's `aw_of` / `sq_exit`). No premise.
+- **SpecInvCqW (CurScT at every exit, no premise)**: `CS g s := ∀ x, kheap ct = tcb x → x.tcbSchedContext = g cur_sc`,
+  `CurScT := CS some` (l4v `cur_sc_tcb_are_bound`, TCB side). Every branch of `schedule` ends in `sc_and_timer`, whose
+  `switch_sched_context` reads ct's SC (`assert_opt`) and sets `cur_sc` to it; the rest of `sc_and_timer` and
+  `activate_thread` keep `CS` (`cs_auto`: TCB writes keeping `tcb_sched_context`, non-TCB writes, field updates).
+  **`kentry_curScT c σ : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, CurScT y.2`**, **`kcall_curScT rep ev σ`**,
+  **`kentry_ctSc`**: vi2/vi3's `CtSc` [J] (premise `hct` of `kentry_validIdle`) holds at every state an entry leaves, so in
+  the G4 induction it is carried for free (the lead can drop `hct` there: CtSc at the entry = the previous exit's post).
+  With sb2's `ScSym` (ScBackS), `CurScT` gives `sc_tcb cur_sc = ct`, which `end_timeslice`'s `postpone cur_sc` needs.
+- **SpecInvCqX (the exit's scheduler facts)**: `rs_schedule : HK1 True RS schedule` (action `resume_cur_thread` after
+  `schedule`), `simple_activateThread` / `ctq_activateThread` (activate sets at most `choose_new_thread`, writes neither ready
+  queues nor ct), **`ex_exit : HK1 AW EX (schedule; activate_thread)`**, **`sq_tailX : HK1 (SQ4 ∧ ValidIdle) EX (fl4Awaken;
+  schedule; activate_thread)`**, `EX := SchedQ ∧ CtQ ∧ Simple ∧ CurScT` (`CtQ`: ct in no ready queue, unconditionally;
+  `Simple`: no `switch_thread` pending, l4v `simple_sched_action`). These are the entry facts the event part needs.
+- Lean traps (new): (1) a `repeat' (first | exact L | refine post_bind …)` loop over `schedule` hangs (delta unification of
+  `exact L` against every bind; the ctq4 trap again) — state each branch explicitly; (2) one `fr_auto` that unfolds all of
+  `sc_and_timer` (commit_time + refill loops) at once runs out of 300k heartbeats: one lemma per callee (`rs_commitTime`,
+  `rs_unblock`, `rs_setNextInterrupt`, `rs_switchSchedContext`) and `ik_setObject_k` (heap-blind predicates) as a leaf;
+  (3) a `first | …` list split over lines inside `repeat'` is a parse error; (4) `subst e` with `e : z2 = σ` eliminates `σ`
+  (use `subst z2`); (5) `ik_modify (P := SA) fun _ h => h` infers `g := id`: give `g` explicitly. Bisect a stalled module with
+  scratch/ctq5/split.py (untracked): one file per theorem, the others `sorry`-stubbed, `timeout 240 lake env lean` in parallel.
+- **The event part: what a proof needs (no FINDING; every requirement is an l4v `valid_sched` slice).** SchedQ is not
+  stepwise across `fl4HandleEvent`; the ct-specific writers need, at the point they run:
+  * ct-blocking writers (`send_ipc` block / call, `receive_ipc` / `receive_signal` blocked, `handle_fault ct`
+    (`send_fault_ipc`, `handle_no_fault`), `end_timeslice`'s `handle_timeout ct`, `reply_push ct`): `NP ct` (action ≠
+    switch ct: `Simple`; **ct ∉ release queue**) and `CtQ` (TQ: a blocked thread is in no ready queue).
+  * `end_timeslice`'s `postpone cur_sc`: `sc_tcb cur_sc` runnable: `CurScT` + `ScSym` + the `schedulable ct` guard of
+    `charge_budget` (in the preemption path within deletion, `sc_tcb cur_sc ∈ {ct, none}`: deletion only unbinds).
+  * `suspend t` (TCB invocation, finalise of a TCB cap): action ≠ switch t (`Simple` at the perform; every
+    `possible_switch_to` inside deletion is followed by `reschedule_required`: cancel_all_ipc / cancel_all_signals).
+  * ct enqueued without a `schedulable` check: `set_priority ct` (`tptr = cur` branch), `sched_context_yield_to`'s
+    `enqueue ctPtr`, `end_timeslice`'s append: TQ needs ct runnable (Restart in a perform, schedulable at charge), RD
+    below needs ct ∉ release queue. After these ct is queued, so nothing may block ct later in the same entry (firstPhase
+    rejects thread/SC caps for ReplyRecv/NBSendRecv/NBSendWait, ctq3 (c)); the rest needs only SQ4.
+  Design for the next agent: **`EB σ := SQ4 σ ∧ (RnH ct σ.kheap → CtQ σ ∧ NP ct σ)`** — when ct is not runnable the second
+  conjunct follows from SQ4 (`np_of_nr`, `rqd_noQ`), so EB is kept by every heap write SQ4 is kept by, and fails only at
+  the ct-enqueue writers (HK1 EB SQ4, followed by IK SQ4 code). Generate an `eb_` family (scratch/s4/gen.py, skip list =
+  skips4.txt) with leaves `eb_of` (tq/sa/q4 leaf + the conditional part) and hand lemmas for: `setThreadState` (ct: NP from
+  EB; other t: read non-runnable / runnable state), `tcbSchedAction` enqueue (t ≠ ct, or ct not runnable),
+  `possibleSwitchTo_p` (woken t was blocked while ct runnable ⇒ t ≠ ct), `rescheduleRequired` (switch target ≠ ct by NP),
+  `postpone_p` (sc_tcb ≠ ct or ct not runnable), `send_ipc` / `receive_ipc` / `reply_push` / `do_reply_transfer` /
+  `handle_fault` / `charge_budget` / `check_budget(_restart)` by hand (cases first, one lemma per arm).
+- **One more carried fact is required: RD** (l4v `valid_ready_qs` "released" half + `weak_valid_sched_action`'s
+  `not_in_release_q`): `∀ d p t, t ∈ readyQueues d p → t ∉ releaseQueue` and `action = switch t → t ∉ releaseQueue`. Without
+  it ct ∉ release queue cannot be shown at the entry (`schedule` switches to a ready-queue thread or the candidate; TQ/SA say
+  only "runnable"). With RD: the switch target / queued thread is ∉ release queue, idle is ∉ release queue (RR + IdleNR), and
+  the resume branch keeps "RS → ct ∉ release queue" (ct is postponed only by `end_timeslice` (then reschedule), SchedControl
+  configure of ct's SC (`tcbPtr = ct → reschedule_required`), never by `maybe_donate_sc` / bind / restart (target has no SC /
+  is not runnable)). RD's enqueue sites all check `schedulable` / `¬inReleaseQueue` (possible_switch_to, schedule,
+  reschedule_required, setDomain) except `set_priority`'s `tptr ∈ queue ∨ tptr = cur` (RD / ct ∉ RQ) and yield_to's
+  `enqueue ctPtr` (ct ∉ RQ); release enqueue only via `postpone` (dequeues first; target ≠ switch target needs `Simple` or
+  the same-op order: every resume precedes the `possible_switch_to` of the same thread).
+- HANDOFF (in order): 1. RD as `SchedQ'`-companion with boot + an `rd_` family (generator) and `ex_exit` extended to give
+  `ct ∉ releaseQueue` (EX + RD). 2. The `eb_` family + hand lemmas above; the front `update_time_stamp; check_budget_restart`
+  (charge branch: EB → SQ4), `fl4HandleInvocationR` shell (q3/ctq3's shape; `set_thread_state ct Restart` keeps EB), the
+  performs (ctq3's `q3_fl4PerformInvocation` arms with EB), `handle_recv`, `handle_yield` (EB → SQ4), the fault /
+  interrupt events (`.interrupt`: ct may be idle / blocked: SQ4 + EB vacuous). 3. Tops: `kentry_tq (hX : EX σ ∧ RD σ) (h4 :
+  T4 σ) (hV : ValidIdle σ) (hS : ScInv σ) (hN : NtfnQB ∧ EpQB) (hU : UtInv3) (hL : IfLiveT) (ha) : ∀ y ∈ …, EX y.2 ∧ RD
+  y.2` = event ∘ `sq_tailX` (T4 / ValidIdle at the event's end from q4 / vi IK lemmas).
+- Builds (tokyo, ./ctq5.sh untracked = ctq4.sh with a quieter filter): ctq5-b3 SpecInvCqV (4840 jobs), ctq5-b6 SpecInvCqW
+  (4928), ctq5-bis1/bis2 (scratch bisect of CqX), ctq5-b8/b9 SpecInvCqV/W/X + axioms (ax5.lean, untracked).
