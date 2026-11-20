@@ -8,11 +8,15 @@ P3 (DESIGN.md §9), invariant line G1 (sl1): **the typed form gives sb2's
   (any fixed `M`); the idle SC pointer is constant (SpecInvSlI1..I6).
 * **`scLive_of`**: `ScLiveT (idle thread, idle SC) ∧ IdleOutV ∧ IdleScOutV →
   ScLive`.
+* **`kentry_idleScOutV` / `kcall_idleScOutV`**: `IdleScOutV` across the syscall
+  entry / every event, from sg1's family at `M = fun _ => σ.idleSc` (hypotheses
+  `SpecGlobS`, `IdleOutV`, `UtInv3`: each carried by its own line) and `isk_*`.
 * `boot_scLiveT`, `boot_idleScOutV` (non-vacuity only).
 -/
 import Fl4Proofs.P3.SpecInvSlK
 import Fl4Proofs.P3.SpecInvSbE
 import Fl4Proofs.P3.SpecInvSgE
+import Fl4Proofs.P3.SpecInvSlI6
 open Classical
 
 namespace Fl4Proofs.P3.SInvL
@@ -48,6 +52,30 @@ theorem scLive_of {σ : State Unit} (h : ScLiveT (idleP σ) σ) (hI : SInvG.Idle
   · subst h2; exact Or.inr fun s c hc => hS default s c hc
   obtain ⟨s, c, hs, hn⟩ := h p o ho hl h1 h2
   exact Or.inl ⟨s, c, hs, ncap_objRefs hn⟩
+
+theorem s_idleSc {σ : State Unit} (hG : SInvG.SpecGlobS σ) (hI : SInvG.IdleOutV σ) (hU : SInvU.UtInv3 σ)
+    (hS : IdleScOutV σ) : SInvG.S σ.interruptIrqNode (fun _ => σ.idleSc) σ :=
+  ⟨(SInvG.S_of_specGlob hG hI hU).1, hS, (SInvG.S_of_specGlob hG hI hU).2.2⟩
+
+/-- **The idle SC stays outside every cap's range across the syscall entry.** -/
+theorem kentry_idleScOutV (c : Syscall) {σ : State Unit} (hG : SInvG.SpecGlobS σ) (hI : SInvG.IdleOutV σ)
+    (hU : SInvU.UtInv3 σ) (hS : IdleScOutV σ) :
+    ∀ y ∈ ((fl4KernelEntrySyscall (Z := Unit) true c) σ).1, IdleScOutV y.2 := by
+  intro y hy
+  have hT : IdleScIs σ.idleSc y.2 := isk_fl4KernelEntrySyscall true c σ rfl y hy
+  have h := SInvG.sgN_kentry c σ.interruptIrqNode (fun _ => σ.idleSc) σ (s_idleSc hG hI hU hS) rfl y hy
+  have e : y.2.idleSc = σ.idleSc := hT
+  unfold IdleScOutV; rw [e]; exact h.2.1
+
+/-- **… and across every kernel event.** -/
+theorem kcall_idleScOutV (rep : Bool) (ev : Event) {σ : State Unit} (hG : SInvG.SpecGlobS σ)
+    (hI : SInvG.IdleOutV σ) (hU : SInvU.UtInv3 σ) (hS : IdleScOutV σ) :
+    ∀ y ∈ ((fl4CallKernel (Z := Unit) rep ev) σ).1, IdleScOutV y.2 := by
+  intro y hy
+  have hT : IdleScIs σ.idleSc y.2 := isk_fl4CallKernel rep ev σ rfl y hy
+  have h := SInvG.sgN_fl4CallKernel rep ev σ.interruptIrqNode (fun _ => σ.idleSc) σ (s_idleSc hG hI hU hS) rfl y hy
+  have e : y.2.idleSc = σ.idleSc := hT
+  unfold IdleScOutV; rw [e]; exact h.2.1
 
 theorem boot_scLiveT : ScLiveT (idleP (initASt (Z := Unit))) (initASt (Z := Unit)) := by
   intro p o hp hl h1 h2
