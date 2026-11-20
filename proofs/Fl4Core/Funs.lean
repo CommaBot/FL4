@@ -22039,7 +22039,7 @@ def cdt.cap_cyclic_zombie
 def sched.MAX_WORK_UNITS_PER_PREEMPTION : Std.U64 := 100#u64
 
 /-- [fl4_core::sched::preemption_point]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 713:0-727:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 713:0-732:1
     Visibility: public -/
 def sched.preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22054,24 +22054,24 @@ def sched.preemption_point
     let s2 ← obj.ks_set machineStoreInst s1 layout.ks.WORK_UNITS 0#u64
     let (s3, a1) ←
       sched.update_timestamp machineStoreInst machineArchInst s2 a
+    let (irq, a2) ← machineArchInst.irq_pending a1
     let sc ← sched.cur_sc machineStoreInst s3
     let c ← sched.consumed machineStoreInst s3
     let b ← sporadic.sc_active machineStoreInst s3 sc
     let ok1 ←
       if b
-      then sporadic.sufficient machineStoreInst machineArchInst s3 a1 sc c
+      then sporadic.sufficient machineStoreInst machineArchInst s3 a2 sc c
       else ok false
-    if ok1
-    then
+    if irq
+    then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
+    else
       let b1 ← sched.is_cur_domain_expired machineStoreInst s3
       if b1
-      then ok (core.result.Result.Err error.Exc.Preempted, s3, a1)
+      then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
       else
-        let (b2, a2) ← machineArchInst.irq_pending a1
-        if b2
-        then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-        else ok (core.result.Result.Ok (), s3, a2)
-    else ok (core.result.Result.Err error.Exc.Preempted, s3, a1)
+        if ok1
+        then ok (core.result.Result.Ok (), s3, a2)
+        else ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
   else ok (core.result.Result.Ok (), s1, a)
 
 /-- [fl4_core::vcpu::ports]: loop body 0:
@@ -22388,7 +22388,7 @@ def schedcontext.unbind_all_tcbs
   else ok (s, a)
 
 /-- [fl4_core::sched::suspend]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 730:0-740:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 735:0-745:1
     Visibility: public -/
 def sched.suspend
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27616,7 +27616,7 @@ def sched.set_priority
             else obj.Tcb.set_prio machineStoreInst t s prio
 
 /-- [fl4_core::sched::restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 743:0-756:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 748:0-761:1
     Visibility: public -/
 def sched.restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
