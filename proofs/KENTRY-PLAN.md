@@ -3170,3 +3170,56 @@ PreKind), then join the P line to sch21's receive top. DONE both.
   decode_invocation_threadJ_stepM, tcbInsWM_wjl, insWJ_wjlM, BufHypW.mrv, tcb_set_{timeout,space,ipc,sched_params}JM,
   tcb_configureJM, ssp_tailJM, top_of_instJM, thread_control_capsJM, install_fhOkJM. No sorry/admit/native_decide/
   bv_decide.
+## mr8 (branch par/mr8 in FL4-tcbj, on 30875146 = int/j2 incl. mr7, sch22)
+New leaves XTopJointKEntry20P, XTopJointKEntry21P (imported from Fl4Proofs.lean; hand-written). Nothing existing
+edited (JPath / XTopJointEntry untouched, per the lead's decision on mr7's open question); sch23/sch23b's modules
+(XTopJointRecv*/Fault*/Mid*/KEntry2xM) only imported.
+- DONE (XTopJointKEntry20P, 5165a606): `JVtxScopeM AR MR …` [S] = XTopJointEntry's `JVtxScope` with `JAtPreMV MR`
+  as the preempted post (docstring: same DESIGN §9 scope; MachPlat form because a VT-x Untyped retype may run the
+  reset, whose preemption point can preempt, so `XCapP.reXP` cannot bridge from `JAtPre`). `JVtxHypM AR MR Z H Cs D s
+  ar σ ct` [S]: at the dispatch state, with MR/VMT/VIM and exactly the decode facts `JPreDecHypK PreKind18` took,
+  for `capAt … = ok (.Untyped p sb fi dev)` and `argsU.head? = some x`, `14 ≤ x.val < 19`, `JPath … (.Untyped …) →
+  JVtxScopeM …`. `jPreDecHyp_of20 : JVtxHypM → JPreDecHypK PreKind18` (an unfold: cases on the cap, PreKind18 is
+  False off Untyped). `KDispHypsKV20` (KDispHypsKV12 PreKind18 with `JVtxHypM` in inv and mid), `.to12`, NEW TOP
+  `kernel_entryJ20P` (wrapper over J19P), `j20P_platform` (= j19P_platform).
+- DONE (XTopJointKEntry21P, cb7d3ede): `KDispHypsKV21` (KDispHypsKV20 with sch22's `JMidLeavesHyp13`), `.to20`
+  (`jMidLeavesHyp_of13 hA hmax htu`), NEW TOP `kernel_entryJ21P` (wrapper over J20P), `j21P_platform`.
+- Premise change at the top (kernel_entryJ21P vs J19P): `JPreDecHypK PreKind18` [W] REPLACED by `JVtxHypM` [S]
+  (scope, same statement restricted to VT-x Untyped retypes, no l4v counterpart: l4v has no VT-x objects);
+  `JMidLeavesHyp12` [W] NARROWED to `JMidLeavesHyp13` [W]. No [W] invocation premise is left on the P line.
+- PREMISES of `kernel_entryJ21P` (every hypothesis; bundles with their fields' tags as at their definitions):
+  * `[PlainStore st]` (instance: the plain store model, P1).
+  * `J : JAtZ … s a σ` [J] (the joint invariant at the entry: l4v invs + state_relation, JointAt.lean).
+  * `hni : Entered σ` [J] (ct_running, resume_cur_thread).
+  * `hR : MR a σ.machineState` [J] (shared machine_state), `hVI : ValidIrqMasks σ` [J] (valid_irq_masks).
+  * `hn : NativeSys n c` (the syscall number names c: the statement's own relation, not a gap).
+  * `hflag` [S] (l4h trap mode: TRAP_SYSCALLS clear after the FAULT_IP write).
+  * `hB : ∀ x, kheap ct = tcb x → KBudget arI a (faultIPSt …)`: `now` NowAgree [P] (per state; MachPlat.nowAgree from
+    MR + VMT), `cur` CurInv [J], `off` OffReady [J], `tmo` [J] — FINDING: this is the OLD `KBudget.tmo`, which budtr
+    showed FALSE in reachable states (a receiver waiting on the timeout-handler endpoint with a non-RR SC); budtr's
+    fix (`KBudgetB`, `JAtZ.budgetOkB`, J8B) was never carried onto the J9+/M/P lines (XTopJointKEntry13P:876 reads
+    `hBu.tmo` in the old shape). Handoff: a `budget_ok_mr`-level copy of budgetOkB (budgetOkTR for recvEP) and
+    `KBudgetB` at the top (KBudget.toB shows it is strictly weaker).
+  * `hK : ∀ σb, BudgetAt σ σb true → ∀ Z' H' Cs' Ac' Lst' D' s' a', JAtZ … σb → KDispHypsKV21 …`:
+    `inv`: `JEntryGlobM` (ari [P], tot [P], delParts [J]/[P] (archRef [P], arKeep [P], vt [J], thr), nd [P], ppA [P],
+    dom [P], portIn [P] (∀σ PortInVal), sigRest [J], timeAg [P], maxTU/tu [P]); `JEntryAt` (ni, ctnq, sg, rd0, flags,
+    epQ, handlers, ports, vfh, cnf, vsTyp, live, fnz, urz, utks [J]; stall, ioapics, archIrq [P]); `JPathAt` (per cap
+    kind JPath, fields tagged in XTopJointEntry's table: [P] config constants/one core, [J] invariant facts, [S]
+    `JVtxScope` for VT-x decodes, and `JUtPath.ret`: `JUtRetHypR2` [W], only the VT-x types, NOT used by the P
+    line's untyped decode (decode_invocation_untypedJM) but still a field of JPath); `JVtxHypM` [S] (new).
+    `recv`: ct_not_in_q, valid_fault_handler [J]. `mid`: JEntryGlobM, JEntryAt, JPathAt as above,
+    `MidRun.JMidPerfHypQ` [W], `JMidVfhHyp` [J], `JMidLeavesHyp13` [W] (sch22), `JVtxHypM` [S].
+  * `hFin : ∀ x ∈ (specFront c σ).1, ∀ …, JAtZR … x.2 → KFinAtR …`: hd (domainTime ≠ 0 ∨ NdOK) [J], vt [J],
+    arch/archNd (ArchSwF/ArchNdF) [P], fo FpuOwnOK [J], sni/send (SniHyp/SendHyp) [P], tail (schedule's CR3 tail) [P].
+  * `hARI : ARIface` [P], `hA : P0.ArchTotal` [P], `hnd : numDomains = 1` [P], `hM : MachPlat arI MR` [P],
+    `hKD : MRKeepD arI MR` [P], `hPA : PPPlatA` [P], `hIA : IrqPlatA` [P], `hmrt` (MAX_RELEASE_TIME) [P], `hmb`
+    (MIN_BUDGET) [P], `hT : TimeAgree` [P], `hmax : maxTicksToUs = U64.MAX` [P], `htu` (ticks_to_us) [P].
+  * `hNS : ∀ s a σ, JHoleAt … → NativeScope σ` [S], `hNSR : ∀ …, JAtZR … → NativeScope σ` [S] (VT-x RunningVM out of
+    the native scope).
+  Non-vacuity of the platform premises: `j21P_platform` (MachPlat ∧ MRKeepD for modelArch/modelMR, interrupts
+  raised).
+- Builds (tokyo, scratch/mr8/b.sh, warm mirror): mr8-b1 `XTopJointKEntry20P` OK (5672 jobs), `XTopJointKEntry21P` OK
+  (5678 jobs), first try. Root Fl4Proofs.lean not rebuilt (two leaf imports). Axioms (scratch/mr8/chk8.lean,
+  untracked; mr8-b1): propext, Classical.choice, Quot.sound only for kernel_entryJ21P, j21P_platform,
+  KDispHypsKV21.to20, kernel_entryJ20P, j20P_platform, KDispHypsKV20.to12, jPreDecHyp_of20, kernel_entryJ19P. No
+  sorry/admit/native_decide/bv_decide.
