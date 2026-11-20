@@ -334,6 +334,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hrcb : Fl4Spec.resetChunkBits = 16)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
@@ -423,7 +424,7 @@ theorem JAtZ.utResetJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
   obtain ⟨hKR, hDT⟩ := hRU s1 hs1 p.val (p.val + 2 ^ sb.val) (fun q k hq hr =>
     (hRD q k hq (by unfold RegionD MeetsR at hr; rw [hq] at hr; simpa using hr)).1)
   have hres1 : σ1.schedulerAction ≠ .chooseNewThread := by rw [hni1.2]; simp
-  have hR0 : PPR0 σ := J.ppr0_start arI hni hRd0
+  have hR0 : PPR0 σ := J.ppr0_start arI hni hRd0 hnq
   have hR01 : PPR0 σ1 := by
     rw [he1]
     have h := hR0.of_ppk (PPK.updTcbSc (y := { x1 with tcbState := .restart }) hkx rfl (hi := fun _ => Or.inr hcur.symm))
@@ -592,6 +593,7 @@ theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ 
     (hrcb : Fl4Spec.resetChunkBits = 16)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
@@ -623,7 +625,7 @@ theorem JAtZ.jUtRetHypR_of {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ 
       · exact utPm_bodyHyp h
       · exact utCn_bodyHyp h
       · exact utTcb_bodyHyp h
-    exact J.utResetJ hni hct hpp rfl hcap hc0 hctx hBO hAF hRU hAK hA hnd hPP hrcb hRd0 hVM hUZ hUN hB blk call don
+    exact J.utResetJ hni hct hpp rfl hcap hc0 hctx hBO hAF hRU hAK hA hnd hPP hrcb hRd0 hnq hVM hUZ hUN hB blk call don
   · exact hR nt us dest off win t r reset fiv hh hctx (by omega)
 
 end Comp

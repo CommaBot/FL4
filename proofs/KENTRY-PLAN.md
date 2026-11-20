@@ -1992,3 +1992,55 @@ untouched.
   handleTimeout/sendFaultIpc, kf_setThreadState/setCap/asUser/setMrs'/doIpcTransfer'/possibleSwitchTo'/replyRemove'/
   cancelIpc'/lookupCapAndSlot'/sendIpcBlocked'/performPageInvocation, kfe_invokeFl4IrqControl'; propext only:
   curRun_ne_idle, kfe_bind_returnOk', CtRs.of_ctV. No sorry/admit/native_decide/bv_decide.
+## kp16 (branch par/budget12 in FL4-tcbj, on 10f2b48e = int/j2 incl. kp15, sch10)
+- Lead decision done, route (ii): `JHoleCtNQHyp` [J] (kp15) DELETED. The current thread's absence from the
+  ready queues is carried to the hole in `PPR0`, no [J] added.
+  * ScPPR: `CtNQ σ := ∀ d p, σ.curThread ∉ σ.readyQueues d p`; `PPR0`'s first conjunct is now
+    `ct ≠ idle ∧ NoSwitch ∧ CtOK ∧ Chg ∧ CtNQ` (`.1.2.2.2` → `.1.2.2.2.1` for Chg, `.1.2.2.2.2` = CtNQ).
+    `PPK.nq : CtNQ σ → CtNQ σ'` (of_cnK, of_ksStep: queues kept; restart: `stsAct` keeps them);
+    XTopJointTcbInstall `PPK.of_schedK` takes `hq : σ'.readyQueues = σ.readyQueues` (both callers: the tail's
+    `reschedule_required` under `NoSwitch`, `rq_of_resched`), `PPK.updTcbSc` (queues kept).
+  * `JAtZ.ppr0_start` takes `hnq` (JEntryAt's `ctnq`); so do `decode_invocation_threadJ_step`,
+    `decode_invocation_cnodeJ_stepsL`, `JAtZ.utResetJ`, `JAtZ.jUtRetHypR_of` (XTopJointEntry passes `hE.ctnq`;
+    `decOK_J`'s signature unchanged).
+  * SpecPPR: `PPR0.of_tr` / `ppr0_finaliseCap` take `CtNQ` after (as kp13's `Chg`).
+  * New leaf SpecPPRQ (spec side, namespace `PPNQ`): `NQ c σ` (c in no ready queue, no switch to c pending), `QK c m` + combinators
+    + `qk_auto` (copy of SpecNoSwitch's AK machinery); leaves: `qk_tcbSchedAction` (f never adds c), dequeue,
+    enqueue/`possible_switch_to`/switch of t ≠ c, `qk_rescheduleRequired'` (target ≠ c by NQ); the restarts
+    `qk_restartThreadIfNoFault` / `qk_removeAndRestart{Ep,Ntfn}QueuedThread` for t ≠ c; `qk_cancelAllIpc` /
+    `qk_cancelAllSignals` from a state where c is not in that queue (`qk_mapMx_mem`), `nq_ntfnBody` (the queue
+    kept by the unbinds: IpcFinNtfnInv `msu_nfr`/`umn_nfr`), `nq_fastFinalise`, `nq_deletingIrqHandler`,
+    `nq_finaliseCap` (from `NoQ c`: c queued on no endpoint/notification), `noQ_of` (EpQB + SchedValid.ntfnQ +
+    CtOK's NotBlk), `ctnq_finaliseCap` (PPR0 σ → CtNQ after). XTopJointDelR `jFinPPHyp` passes it.
+  * XTopJointPreemptA: `JHoleCtNQHyp`, `jPreemptRestHypE_ofC`, the old `dispatch_invokeJPZA/JEPZA` removed
+    (JHole.mcsPPJA and `JPreemptRestHypC` kept).
+  * New leaf XTopJointPreemptQ: `jAtPre_holeQ` (jAtPre_holeL + CtNQ at the hole: the preemption point keeps the
+    queues), `JPreemptRestHypEQ` [W] (= JPreemptRestHypE with `CtNQ σ →`, narrower; `jPreemptRestHypEQ_of`),
+    `jPreemptRestHypEQ_ofC hARI hA hP hmrt hIP hNS hRC` (no hNQ), `hPre_ofZQ`, `dispatch_invokeJPZA`,
+    `dispatch_invokeJEPZA` (NEW TOP, same names as kp15's: premises as dispatch_invokeJEPZE with
+    `hRC : JPreemptRestHypC` [W] for `hRest`; `hNQ` gone).
+- Premise change at the top: `JHoleCtNQHyp` [J] REMOVED. Left: `JPreemptRestHypC` [W] (unchanged statement).
+- Kernel-entry wiring (sch line's XTopJointKEntry2/3): `dispatch_invokeJEPZA` now takes `hRC` only.
+- (C) `JPreemptRestHypC` [W]: NOT started (context spent on the lead decision; kp15's route (a) stands). Shape of
+  the work, all new leaves, nothing existing edited:
+  1. `JTH.tmoRecvJ` (the core, ~1000–1200 lines, model: XTopJointFaultTmo's `JAtZ.sendTmoRecvIJ` :653 for the
+     `Inactive` tail and `sendTmoRecvPJ` :1270 for the reply push, and ScChargeTA's `JTH.tmoBlockJA` for the
+     JTH plumbing): `faults.handle_timeout` from a `JTH` state with t = ct (Running/Restart), handler endpoint
+     `recvEP (d :: q)`, resume or choose action, ct unqueued (`NotQueued`, now available at the hole from
+     `CtNQ`), ⦃ ∃ z ∈ handleTimeout, ∃ V D', JAtZ (Z.mv Z.G V) … ⦄. FL4 half on `IRel` from the JTH state
+     (`set_fault`, `ep_dequeue_c`, `xferTmoStepJ`, reply unlink, `set_thread_state ct INACTIVE` (sets
+     ChooseNewThread when the action is resume: `stsAct`) or `reply_push`, receiver Running + `possible_switch_to`);
+     JAtZ assembled from `Hj.j0` with the composite frame `ScOnly` (the head) then the send's frame (`CFr` as in
+     sendTmoRecvIJ, but the shadow taken at the hole base σ0: ct's TCB and SC as there); `Inv` after from
+     `InvBut ct` (Hj.inv) since Inactive/BlockedOnReply are not `inClassR` (as tmoBlockJA's `hIt.ik`), the
+     receiver's `rd` from `InvBut` (dest ≠ ct: dest is blocked on receive, ct runnable). Platform facts
+     `hmax`/`htu` (as runTmoP_recv) become premises of the replacement theorem.
+  2. Scripted copies (suffix `R`) of ScChargeTA's `JTH.endTimesliceTmoJA` (:417; the `tmoBlockJA` call at :486
+     replaced by `tmoRecvJ`, `hcb` by `hke : kheap p = recvEP (d :: q)`), `JHole.chargeBudgetTmoJA` (:501),
+     `JHole.checkBudgetTA` (:732), XTopJointPreemptA's `JHole.mcsPPJA` → `mcsPPJR`.
+  3. `jPreemptRestHypC_of hmax htu … : JPreemptRestHypC` (afterInv_of_mcs (mcsPPJR …)); then
+     `dispatch_invokeJEPZR` without `hRC` (taking hmax/htu [P]) — no [W] left on the preemption path.
+- Builds: kp16-b1/b2 (ScPPR, SpecPPR, SpecPPRQ), kp16-b3 (XTopJointCnDel, XTopJointTcbInstall, XTopJointTcbInsL,
+  UtResetTopJ, UtRetResetJ, XTopJointPP, XTopJointWJLRestart, XTopJointDelR, XTopJointTcb, XTopJointEntry,
+  XTopJointPreemptQ: green), kp16-b4 (the remaining sinks of the changed modules' cone, XTopJointRecvMid and
+  XTopJointKEntry6), kp16-b5 (after renaming the namespace to `PPNQ`: XTopJointPreemptQ, XTopJointRecvMid, XTopJointKEntry6 green). scratch/axkp16.lean (untracked): propext, Classical.choice, Quot.sound only for nq_finaliseCap, ctnq_finaliseCap, qk_rescheduleRequired', qk_cancelAllIpc, nq_ntfnBody, ppr0_finaliseCap, PPR0.of_ppk, jFinPPHyp, JAtZ.ppr0_start, jAtPre_holeQ, jPreemptRestHypEQ_ofC, hPre_ofZQ, dispatch_invokeJPZA, dispatch_invokeJEPZA, handle_invocation_refinesJ. No sorry/admit/native_decide/bv_decide.

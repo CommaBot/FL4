@@ -754,7 +754,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
   have hsc : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
   have hni := hE.ni
   have hLv := hE.live H Cs Ac Lst D J
-  have hP0 := J.ppr0_start arI hni hE.rd0
+  have hP0 := J.ppr0_start arI hni hE.rd0 hE.ctnq
   have hPl : Placed Z.th := J.xtop.rel.1
   cases c
   case Null =>
@@ -783,7 +783,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     subst hLb
     obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
     refine XCapP.lbl_congr arI (specDec_cnode p r gs g hd) ?_
-    exact decode_invocation_cnodeJ_stepsL arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 lbl
+    exact decode_invocation_cnodeJ_stepsL arI s ar σ J hni hG.ari hG.tot hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hE.ctnq lbl
       sl' hl' length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra (exAt extra 0) (exAt extra 1)
       (exAt_idx0 extra) (exAt_idx1 extra) excaps (ExtraOK.rel2 hPl hXO) hE.epQ
       blk call don fp ci buffer
@@ -834,7 +834,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hpI : p ≠ L.idleW s := hidS sl p hAs hsc
     exact decode_invocation_threadJ_step arI s ar σ J hni hG.ari hG.tot hE.flags hE.fnz lbl length p blk call don fp buf extra ct hct sl' hlbl argsU hlen hargs ci sl
       hAs hsc excaps buffer hext hE.stall hn J.cwOut hpI _ _ _ hx0 hx1 hx2 hXc hnc hnc0 hcapC hA5 (getBpHyp_of s ct p)
-      (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hG.timeAg
+      (fun h => hFr h _ hx0) hG.pp.minBudget hidS hbuf hl hG.delParts hE.sg hLv hG.nd hG.pp hE.rd0 hE.ctnq hG.timeAg
   case IoPort first last z =>
     have hOpen := hN
     by_cases h0 : z = 0#u64
@@ -1053,7 +1053,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
         hx0 excaps hex hN.fan blk call don fp ci buffer
         (J.jUtRetHyp hni hct hsl hc hN.bufObj hN.heapH.1 hN.heapH.2
           hN.core0 hE.urz hE.utks (J.jUtRetHypR_of hni hct hsl hc hN.bufObj hN.heapH.1
-            hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hN.vsReach hE.urz hE.utks
+            hN.heapH.2 hN.core0 hG.ari.toARKeep hG.tot hG.nd hG.pp hN.rcb hE.rd0 hE.ctnq hN.vsReach hE.urz hE.utks
             (hN.ret hN.core0)))
     · have hN := hDv rfl
       by_cases hv : ∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19

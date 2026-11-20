@@ -459,10 +459,19 @@ end
 
 /-- A scheduler step (`SchedK`) keeps what `PPR0` reads. -/
 theorem PPK.of_schedK {σ σ' : Fl4Spec.State Unit} (h : SchedK σ σ')
-    (hns : ∀ u, σ'.schedulerAction ≠ .switchThread u) : PPK σ σ' :=
+    (hns : ∀ u, σ'.schedulerAction ≠ .switchThread u) (hq : σ'.readyQueues = σ.readyQueues) : PPK σ σ' :=
   ⟨h.cons, h.ctime, h.csc, fun u hu => by rw [h.rel] at hu; exact hu,
     fun p y n hp => by rw [h.kh] at hp; exact hp, fun p y hp => ⟨y, by rw [h.kh] at hp; exact hp, rfl, id⟩, h.ct, h.idle,
-    fun _ => hns, fun p x y hx hp hi => by rw [h.kh, hx] at hp; cases hp; exact Or.inl hi⟩
+    fun _ => hns, fun p x y hx hp hi => by rw [h.kh, hx] at hp; cases hp; exact Or.inl hi,
+    fun h0 => by unfold CtNQ; rw [hq, h.ct]; exact h0⟩
+
+/-- `reschedule_required` without a pending switch keeps the ready queues
+(kp16). -/
+theorem rq_of_resched {σ σ' : Fl4Spec.State Unit} (hn : ∀ t, σ.schedulerAction ≠ .switchThread t)
+    (h : Fl4Spec.rescheduleRequired (Z := Unit) σ = ({((), σ')}, False)) : σ'.readyQueues = σ.readyQueues := by
+  rw [Sched.rescheduleRequired_noswitch hn] at h
+  have e := (Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst h))).2
+  rw [← e]
 
 /-- An update of one TCB keeping its SC keeps what `PPR0` reads. -/
 theorem PPK.updTcbSc {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x y : Fl4Spec.Tcb}
@@ -471,7 +480,7 @@ theorem PPK.updTcbSc {σ : Fl4Spec.State Unit} {t : Fl4Spec.ObjRef} {x y : Fl4Sp
     (hi : x.tcbState = .inactive → y.tcbState = .inactive ∨ t = σ.curThread := by exact fun h => Or.inl h) :
     PPK σ (Notif.updK σ t (.tcb y)) := by
   refine ⟨rfl, rfl, rfl, fun u hu => hu, fun p z n hp => ?_, fun p z hp => ?_, rfl, rfl, fun h => h,
-    fun p x' z hx hp hi' => ?_⟩
+    fun p x' z hx hp hi' => ?_, fun h => h⟩
   rotate_right
   · by_cases e : p = t
     · subst e; rw [hk] at hx; cases hx; simp [Notif.updK] at hp; subst hp; exact hi hi'
@@ -675,7 +684,7 @@ theorem bufHypW_J {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
       refine ⟨rfl, rfl, hX.slotsSame_of hw (fun b hb => sfootI_oobj hc.tcbs hb), σ', ?_, J5.xtop.rel.2.1,
         KSub.of_kheap hK'.kh, V, Ac5, Lst5, D5, J5, by rw [hw.1]; exact hkb,
         (fun u e' => by rw [hact5] at e'; cases e'), hsg.of_eq hK'.kh (congrArg Prod.fst hgk) (congrArg Prod.snd hgk),
-        hp0.of_ppk (PPK.of_schedK hK' fun u e' => by rw [hact5] at e'; cases e')⟩
+        hp0.of_ppk (PPK.of_schedK hK' (fun u e' => by rw [hact5] at e'; cases e') (rq_of_resched hns hres))⟩
       refine mem_bindE_ok (a := σ.curThread) (s' := σ) (mem_liftE_ok (x := (σ.curThread, σ)) rfl) ?_
       have hb : t.bv = σ.curThread := by rw [hcur, e]
       simp only [Fl4Spec.NonDet.when, hb, ↓reduceIte]

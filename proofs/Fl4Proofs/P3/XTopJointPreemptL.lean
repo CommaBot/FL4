@@ -69,7 +69,7 @@ theorem jAtPre_holeL (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
       consumedTime := σ0.consumedTime + (r0.1.bv - σ0.curTime) })
   have e := pp_err_eq hE hIq _ hσ rfl
   subst e
-  exact hp00.1.2.2.2
+  exact hp00.1.2.2.2.1
 
 variable (arI) in
 /-- **The preemption path outside `PPCov ∨ PPCovT ∨ PPCovI` at a hole with

@@ -268,6 +268,7 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
     (hlen : length.val = args.length)
@@ -286,7 +287,7 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
   have hX := J.xtop
   have hJP : ∀ kb, PPHypDW (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) Z.th :=
     fun kb => jPreemptHypL arI hARI.toARKeep hT hnd hPP Z H Cs kb rfl
-  have hP0 := J.ppr0_start arI hni hRd0
+  have hP0 := J.ppr0_start arI hni hRd0 hnq
   have hJD := hJDP.jDelHypL arI hT hnd hPP hARI.toMask
   obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32

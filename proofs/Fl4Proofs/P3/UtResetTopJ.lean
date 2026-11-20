@@ -127,7 +127,7 @@ theorem JAtZ.reset_untypedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hncD : ¬ ∃ y, (delSt p.bv sb.val σ).cdt y = some (pp.bv, idx) := by rw [hcdt]; exact hnc
   have hR0D : PPR0 (delSt p.bv sb.val σ) := by
     refine hR0.of_ppk ⟨hSD.cons, hSD.time, hSD.csc, fun u hu => by rw [hSD.rel] at hu; exact hu,
-      fun q y n hq => ?_, fun q y hq => ?_, rfl, rfl, fun h => h, fun q x y hx hq hi => ?_⟩
+      fun q y n hq => ?_, fun q y hq => ?_, rfl, rfl, fun h => h, fun q x y hx hq hi => ?_, fun h => h⟩
     rotate_right
     · by_cases hr : RgOf p sb q
       · rw [hSD.kin q hr] at hq; cases hq

@@ -1298,8 +1298,8 @@ notification frames for the others, SpecPPRC). -/
 theorem PPR0.of_tr {W : Prop} {σ σ' : State Unit} (hP : PPR0 σ) (h : TR (fun _ => False) W σ σ')
     (hct : σ'.curThread = σ.curThread) (hid : σ'.idleThread = σ.idleThread)
     (hns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, σ'.schedulerAction ≠ .switchThread u)
-    (hC : Chg σ') : PPR0 σ' := by
-  refine ⟨⟨by rw [hct, hid]; exact hP.1.1, hns hP.1.2.1, fun yt hy => ?_, hC⟩, fun h0 => ?_⟩
+    (hC : Chg σ') (hQ : CtNQ σ') : PPR0 σ' := by
+  refine ⟨⟨by rw [hct, hid]; exact hP.1.1, hns hP.1.2.1, fun yt hy => ?_, hC, hQ⟩, fun h0 => ?_⟩
   · rw [hct] at hy
     rcases h.tst _ yt hy with h' | ⟨x, hx, hb⟩
     · exact h'.elim
@@ -1342,8 +1342,8 @@ theorem ppr0_finaliseCap {cp : Cap} {b : Bool} {σ : State Unit} {x : (Cap × Ca
     (hI : Sched.Inv σ) (hx : x ∈ (finaliseCap (Z := Unit) cp b σ).1) (hP : PPR0 σ)
     (hct : x.2.curThread = σ.curThread) (hid : x.2.idleThread = σ.idleThread)
     (hns : (∀ u, σ.schedulerAction ≠ .switchThread u) → ∀ u, x.2.schedulerAction ≠ .switchThread u)
-    (hC : Chg x.2) : PPR0 x.2 :=
-  PPR0.of_tr hP (tks_finaliseCap (E := fun _ => False) cp b σ rfl (rqRun_of_inv hI) x hx) hct hid hns hC
+    (hC : Chg x.2) (hQ : CtNQ x.2) : PPR0 x.2 :=
+  PPR0.of_tr hP (tks_finaliseCap (E := fun _ => False) cp b σ rfl (rqRun_of_inv hI) x hx) hct hid hns hC hQ
 
 /-- **`Chg` after a finalisation that restarts no thread** (kp13). -/
 theorem chg_finaliseCapW {cp : Cap} {b : Bool} {σ : State Unit} {x : (Cap × Cap) × State Unit}

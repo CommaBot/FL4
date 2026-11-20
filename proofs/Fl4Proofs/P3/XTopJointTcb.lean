@@ -2801,6 +2801,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
     (hTA : TimeAgree arI) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPre (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.Thread p)
       blk call don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
@@ -2832,7 +2833,7 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
   -- the cap installs' deletion at `J` (as `decode_invocation_cnodeJ_stepsL`)
   have hHp := tcbInsW_wjl (L := L) (Z := Z) (H := H) (Cs := Cs) arI hT hJDP.archRef hJDP.arKeep hJDP.vt
     hJDP.thr hnd hPP hARI.toMask
-  have hP0 := J.ppr0_start arI hni hRd0
+  have hP0 := J.ppr0_start arI hni hRd0 hnq
   have hR : RestartWJ (st := st) Z s ar σ (WJL (L := L) arI AR Z H Cs (L.ksb s)) :=
     fun _ hct s1 σ1 h1 h2 => WJL.restart arI J hni hsg hP0 hLv hct s1 σ1 h1 h2
   by_cases h9 : lbl = fl4_abi.label.TCBSetTimeoutEndpoint

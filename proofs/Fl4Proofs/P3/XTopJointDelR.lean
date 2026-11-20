@@ -124,6 +124,7 @@ import Fl4Proofs.P3.XTopJointLive
 import Fl4Proofs.P3.ScPPR
 import Fl4Proofs.P3.SpecPPR
 import Fl4Proofs.P3.SpecPPRC
+import Fl4Proofs.P3.SpecPPRQ
 import Fl4Proofs.P3.SpecGlob
 open Aeneas Aeneas.Std Result
 
@@ -243,7 +244,8 @@ theorem JAtZ.epQB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {C
 theorem jFinPPHyp {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} : JFinPPHyp (L := L) arI AR th :=
   fun _ _ _ _ _ _ _ _ σ _ J _ _ _ _ _ x σ' hx hP => PPS.ppr0_finaliseCap (x := (x, σ')) J.inv hx hP
     ((Vs.dk_finaliseCap _ _).ct hx) ((Vs.gk_finaliseCap _ _).idle hx) (fun hn => Vs.ak_finaliseCap_ns hx hn)
-    (PPS.chg_finaliseCap (x := (x, σ')) J.inv J.bsa J.sv J.epQB hP.1.2.2.2 hx)
+    (PPS.chg_finaliseCap (x := (x, σ')) J.inv J.bsa J.sv J.epQB hP.1.2.2.2.1 hx)
+    (PPNQ.ctnq_finaliseCap (x := (x, σ')) J.inv J.sv J.epQB hP hx)
 
 /-! ## The named steps -/
 
