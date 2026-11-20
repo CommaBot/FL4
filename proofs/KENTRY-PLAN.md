@@ -7313,3 +7313,70 @@ Spec-only, namespace `Fl4Proofs.P3.SInvAll`, new module SpecInvAllC (root import
   untracked). kentry_sinvA', kcall_sinvA', kcall_sinvA'_sys, boot_sinvA', kentry_ctExit, kcall_ctExit,
   ctExit_activateThread, boot_onlyIdle, boot_ctExit: propext, Classical.choice, Quot.sound. entryJ_of,
   entryJEv_of: propext. No sorry/admit/native_decide/bv_decide/axiom.
+## epq1 (branch par/epq1 in FL4-rb, on 39d1151b = int/j2 incl. rd3, sl4, ctq6) — EpQAll as a corollary; RPos carried (NOT finished: configure perform, shell, tops)
+Goal (INV-PLAN E7 / G1 epQ): `EpQAll σ := ∀ e, EpQPre σ e` across the entry and every event, no [J]. Spec-only, namespace
+`Fl4Proofs.P3.SInvE`, modules SpecInvEqA, EqK, EqB, EqG1..G6 (generated), EqV (generated, not yet built). Nothing existing edited.
+- **The corollary (SpecInvEqA, DONE).** `epQAll_of (hR : Rdy σ) (hS : ScInv σ) (hE : EpQB σ) (hP : RPos σ) : EpQAll σ`. A queued
+  thread is blocked on that endpoint (nq's EpQB); without a fault it is `BlkR`, so (rd's R3) bound to an active SC with a
+  ready head; RV gives `MIN_BUDGET ≤ head` (⇒ `refillSufficient 0`) and the refill sum; sb2's RNE the non-empty refills;
+  `ScBackS` is `ScBack` verbatim; ActReady from R2 + RV + RNE (`Sched.actReady_iff`). So EpQPre's ScBack / ActReady parts hold
+  wherever `Rdy ∧ ScInv` hold — at every state these are carried at, i.e. the exit of every event (rd4's tops, sb2's tops).
+- **The one missing fact: `RPos` [J]** (l4v `valid_refills`, sporadic part): an active SC with `scPeriod ≠ 0` (not
+  round-robin: `isRoundRobin` is `scPeriod = 0`) has positive refill amounts with `MIN_BUDGET ≤ rsum < 2 ^ 64` (`RPosS`).
+  RefOK needs every amount positive; neither sb2 (ScSym ∧ RNE) nor rd2 (RV: head and sum only) carries it. Round-robin SCs
+  are exempt (their empty tail, `maybe_add_empty_tail` / `refill_reset_rr`, has amount 0). The lower bound (the sum is the
+  configured budget) keeps `head_insufficient_loop` from ever merging a single refill (`the none` would be read).
+  `boot_rpos` (the idle SC has period 0).
+- **SpecInvEqK** (kit): `PZK := IK RPos`; `rpos_update`, `rpos_of_heap`; leaves `pz_setObject` (no SC written),
+  `pz_updateSchedContext` (refills / period / refill max kept; `set_sched_context` has no other caller), `pz_setSimpleKo`,
+  `pz_setCap` (pinned), TCB writers, `pz_retypeRegionWith` (the default SC has refill max 0), `pz_deleteObjects`; `pz_auto`.
+- **SpecInvEqB** (the refill writers, by explicit outcomes): `AtK p n per mx k σ` (RPos at every other SC; the SC at `p` keeps
+  size / period / max; when active ∧ sporadic its refills `LK l k`: positive, `MIN_BUDGET ≤ rsum l + k < 2 ^ 64`, `k` popped
+  and not yet re-added). `atK_upd` (one `updSc` step), `ak_scheduleUsed` (merge / append / full), `ak_pop`,
+  `ak_chargeEntireHeadRefill`, `wl_exit` (loop invariant + failed guard), `ak_handleOverrun`, `ak_mergeNonoverlapping`
+  (guard + lower bound ⇒ a second refill exists), `ak_headInsufficientLoop`, **`ak_refillBudgetCheck`** (AtK of curSc,
+  period ≠ 0) / **`pz_refillBudgetCheck`** (the head after the overrun loop is above `usage'` by the loop's exit test, so
+  `head - usage'` is positive), `ak_mergeOverlapping`, `ak_overlapLoop`, **`pz_refillUnblockCheck`**, round-robin writers
+  (`pz_maybeAddEmptyTail`, `pz_refillResetRr_p`, `pz_rbcRR_p`: period 0, RPos says nothing), `ikp_isRoundRobin`,
+  **`pz_schedContextSetInactive`** (refill max 0 after the second write), **`pz_commitTime`**. All unconditional (only RPos).
+- **SpecInvEqG1..G6** (scratch/epq1/tr.py from sg1's SpecInvSgI1..I6, `idk_`→`pz_`): 381 lemmas `PZK f`, the primitives
+  replaced by EqK's leaves, the refill internals and EqB's writers dropped (EqB's are leaves), `pz_chargeBudget` by hand in
+  place (round-robin branch: `refill_reset_rr` of a period-0 SC), and **the configure path dropped**:
+  `invokeSchedControlConfigureFlags` and its 11 ancestors (fl4PerformInvocation, performInvocation, handleInvocation,
+  fl4HandleInvocationR, handleSend, handleCall, fl4HandleSyscall, handleEvent, fl4HandleEvent, fl4CallKernel,
+  fl4KernelEntrySyscall) — scratch/epq1/cg.py computes both sets (no leak: every path to a refill write passes a hand leaf).
+  `pz_chooseThread` / `pz_scheduleChooseNewThread` by hand (rd3's shape): `pz_auto` on chooseThread's `if ∀ prio, …` does not
+  terminate in reasonable time (b14/b16 stalled in G4; bisected with scratch prefixes; sg1's unconditional family got through).
+- **Why configure is not unconditional (no FINDING):** `refill_new` writes `[budget]` (needs decode's
+  `MIN_BUDGET_US ≤ budget_us ≤ MAX_PERIOD_US` ⇒ `MIN_BUDGET ≤ us_to_ticks budget_us`, platform constants as rd's
+  `minBudget_le_maxPeriod`); `refill_update` keeps the old head and appends `budget - head`, so an active **round-robin** SC
+  turned sporadic needs a non-empty list with a positive head — true in reachable states (RV: `MIN_BUDGET ≤ head`; after
+  the perform's own `commit_time` of a round-robin curSc the head is `head - consumed ≥ MIN_BUDGET` by Suff), but not from
+  RPos alone. Everything else in configure is RPos-only (sporadic old SC: positive by RPos; refill max / period /
+  budget writes are explicit).
+- HANDOFF (in order):
+  1. (done) EqG1..G6 built; root imports EqK, EqB, EqG1..G6 (add EqV, EqC, EqS).
+  2. **SpecInvEqV** (generated by scratch/epq1/tr2.py, header scratch/epq1/headv.lean; not built): `VZK V := IK (VZ V)`,
+     `VZv σ = (scAt σ, curSc, idleSc, consumedTime)`, over the lookups / `fl4DecodeInvocation` / `getThreadState` /
+     `replyFromKernel` cone; leaves exclude SC and CNode writes (`NSC`: a malformed CNode's `aGarbage` type may equal a
+     malformed SC's). Add `tcbReleaseRemove` / `tcbSchedAction` to tr2's roots (configure's first block).
+  3. **SpecInvEqC**: `CfgDec` (decode: `okv_*` from SpecInvUtD over decodeSchedControlInvocationFlags; every other branch
+     returns another constructor), `minBudget_le_usToTicks`, `CfgOK σ p` (the SC at p, when active: refills ≠ [],
+     `MIN_BUDGET ≤ head`, and `p = curSc → p ≠ idleSc → refillSufficient consumed head`), `rpos_refillNew` (explicit four
+     writes, then `pz_maybeAddEmptyTail`), `rpos_refillUpdate` (needs `HP' p`: active ⇒ refills ≠ [] ∧ 0 < head; track
+     `Oth p` + "refills = [h], amount a" through the writes), commit with `CfgOK` ⇒ `HP'` (sporadic: `ak_refillBudgetCheck`;
+     round-robin: Suff ⇒ `head - consumed ≥ MIN_BUDGET`; idle / other SC: untouched), **`pz_configure (hD : CfgDec) (hC :
+     CfgOK σ scPtr)`**.
+  4. **SpecInvEqS** (fo1's FoS / sg1's SgE shape): `fl4PerformInvocation` by cases (configure: pz_configure; others pz_auto),
+     `fl4HandleInvocationR` via `SInvU.syscall_postU` with `I s := RPos s ∧ VZ (VZv s₀) s` (CfgOK is a function of VZv) and the
+     decode fact by `OkV`, `fl4HandleSyscall`, `fl4HandleEvent` (front: `update_time_stamp` keeps RV (rd `rdy_updateTimeStamp`)
+     and RNE (kheap); `check_budget_restart` returning true leaves the state and gives Suff — rd's `suff_checkBudgetRestart`),
+     `handleEvent` for non-syscall events (pz_auto), `fl4CallKernel` (+ `fl4Awaken; schedule; activateThread` from EqG),
+     `fl4KernelEntrySyscall`.
+  5. Tops: `kentry_rpos (c) (hP : RPos σ) (hR : Rdy σ) (hS : ScInv σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, RPos y.2`,
+     `kcall_rpos`; then `kentry_epQAll (hRy : ∀ y ∈ outs, Rdy y.2)` (rd4's kentry_rdy, by name) with sb2's `kentry_scInv` and
+     nq3's `kentry_ntfnQB` (their hypotheses) ⇒ `∀ y ∈ outs, EpQAll y.2 ∧ RPos y.2` via `epQAll_of`; same for kcall.
+- Premises: one new carried [J] fact, `RPos` (above), with boot and (when 1-5 land) whole-entry preservation; none as a premise.
+- Builds (tokyo, FL4-rb mirror, ./epq1.sh untracked = rd3s.sh with its own log; mirror seeded from FL4-audit in b1):
+  epq1-b3 SpecInvEqA OK (4676 jobs), b5 EqK OK (4678), b8..b15 EqB (4680), b15 EqG1 (4682), b16 EqG2 (4684) / G3 (4686),
+  bis1..bis3 (`lake env lean` on scratch prefixes of G4: the stall is `pz_chooseThread`), b17 EqG4 (4688), G5 (4690), G6 (4692).

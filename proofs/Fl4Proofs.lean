@@ -1051,3 +1051,8 @@ import Fl4Proofs.P3.SpecInvEqA
 import Fl4Proofs.P3.SpecInvEqK
 import Fl4Proofs.P3.SpecInvEqB
 import Fl4Proofs.P3.SpecInvEqG1
+import Fl4Proofs.P3.SpecInvEqG2
+import Fl4Proofs.P3.SpecInvEqG3
+import Fl4Proofs.P3.SpecInvEqG4
+import Fl4Proofs.P3.SpecInvEqG5
+import Fl4Proofs.P3.SpecInvEqG6
