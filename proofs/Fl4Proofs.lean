@@ -771,3 +771,10 @@ import Fl4Proofs.P3.SpecInvQDomF3
 import Fl4Proofs.P3.SpecInvQDomF4
 import Fl4Proofs.P3.SpecInvQDomF5
 import Fl4Proofs.P3.SpecInvQDom
+import Fl4Proofs.P3.SpecInvFaultTcbsT
+import Fl4Proofs.P3.SpecInvFaultTcbsF1
+import Fl4Proofs.P3.SpecInvFaultTcbsF2
+import Fl4Proofs.P3.SpecInvFaultTcbsF3
+import Fl4Proofs.P3.SpecInvFaultTcbsF4
+import Fl4Proofs.P3.SpecInvFaultTcbsF5
+import Fl4Proofs.P3.SpecInvFaultTcbsF6
