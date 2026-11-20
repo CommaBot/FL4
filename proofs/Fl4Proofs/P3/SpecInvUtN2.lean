@@ -47,7 +47,7 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
     (h1 : w'.2.1 = Function.update w.2.1 dest (some c)) (h2 : w'.2.2.1 = Function.update w.2.2.1 dest v) :
     UtNV w' := by
   obtain ⟨-, hO, -⟩ := hI
-  obtain ⟨hC, hU, hF, hK, hS, hZ⟩ := hN
+  obtain ⟨hC, hU, hF, hK, hS, hZ, hB⟩ := hN
   obtain ⟨hRo, hRs, hRz, hRz0, hRu⟩ := hR
   obtain ⟨s1, c1, hs1, hr1, hz1, hsh1⟩ := hD
   have hk : ∀ x, w.2.2.1 x ≠ some dest := by
@@ -72,7 +72,7 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
     exact sRefs_of_shp (hRo (sRefs_sub c hr)) (hRs ▸ hx)
   have hz0 : ∀ r, r ∈ objRefs c → ∀ a b n, c0 ≠ .zombie a b n := fun r hr a b n e => by
     rw [hRz0 a b n e] at hr; exact hr.elim
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · -- UtCh
     intro u d b n f hu s' c' r hs' hr hrd
     obtain ⟨hud, hu⟩ := hut u d b n f hu
@@ -157,6 +157,11 @@ theorem utN_leaf {w w' : UView} (hI : UtInv'V w) (hN : UtNV w) {src dest : Cslot
         · subst e; rw [hz'] at hs; cases hs; exact hz0 r hr r b n rfl
         · exact hZ sz r b n hz' src c0 e hs (hRo hr)
       · exact hZ sz r b n hz' s' c' hne hs''
+  · -- CnBits
+    intro sa ca ha
+    rcases hcap sa ca ha with ⟨-, rfl⟩ | ⟨-, ha'⟩
+    · intro b hb; exact hB src c0 hs b (by rw [← hRs]; exact hb)
+    · exact hB sa ca ha'
 
 /-- **`cap_insert` of a derived non-untyped cap keeps `UtInv''`**, given the
 derivation relation to the source's cap and the destination's lookup fact. -/

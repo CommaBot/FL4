@@ -28,9 +28,12 @@ in the narrowest form their preservation needs:
 * `ZFinalV` [J] (l4v `zombies_final`): no other slot references a Zombie's
   object.
 
+* `CnBitsV` [J] (ut5; l4v `valid_cap` sizes): CNode / CNode-Zombie caps have at
+  most 64 radix bits.
+
 `regNull_of`: UtCh + IfUnsafe give **RegNull** (every slot of an object inside a
 childless untyped's region holds a null cap), and `detypeOK_of`: RegNull +
-CdtOK give `DetypeOK`. `UtInv''` = `UtInv'` ∧ the six; `boot_utInv''`.
+CdtOK give `DetypeOK`. `UtInv''` = `UtInv'` ∧ the seven; `boot_utInv''`.
 -/
 import Fl4Proofs.P3.SpecInvUtE
 open Classical
@@ -108,9 +111,18 @@ def CnShapeV (w : UView) : Prop :=
 def ZFinalV (w : UView) : Prop :=
   ∀ s r b n, w.2.1 s = some (.zombie r b n) → ∀ s' c', s' ≠ s → w.2.1 s' = some c' → r ∉ objRefs c'
 
-/-- The six new facts. -/
+/-- The size bound of a slot-holding cap's CNode (`none`: not a CNode / TCB). -/
+def CapBitsOK (c : Cap) : Prop := ∀ b, shp c = some (some b) → b ≤ 64
+
+/-- **CnBits [J]** (l4v `valid_cap` CNodeCap: `cap_table_at bits` with `valid_cs_size`,
+`bits < word_bits - cte_level_bits`; Zombie: `valid_cap` ZombieCap's size): CNode and
+CNode-Zombie caps have at most 64 radix bits (so their slot indices are `natToCref`
+images; ut5). -/
+def CnBitsV (w : UView) : Prop := ∀ s c, w.2.1 s = some c → CapBitsOK c
+
+/-- The seven new facts. -/
 def UtNV (w : UView) : Prop :=
-  UtChV w ∧ IfUnsafeV w ∧ CapFreeV w ∧ CapKindV w ∧ CnShapeV w ∧ ZFinalV w
+  UtChV w ∧ IfUnsafeV w ∧ CapFreeV w ∧ CapKindV w ∧ CnShapeV w ∧ ZFinalV w ∧ CnBitsV w
 
 /-- **The strengthened untyped invariant** `UtInv'' = UtInv' ∧` the six. -/
 def UtInv''V (w : UView) : Prop := UtInv'V w ∧ UtNV w
@@ -153,13 +165,14 @@ theorem ike_utInv''_of_uk {ε α : Type} {m : NonDetE (State Unit) ε α} (h : �
 
 theorem boot_utNV : UtNV (uV (initASt (Z := Unit))) := by
   have h0 : ∀ sl c, (uV (initASt (Z := Unit))).2.1 sl = some c → c = .nullCap := fun _ _ h => init_capAt h
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro u dev b n fi hu; cases h0 _ _ hu
   · intro p c hp hne; exact absurd (h0 _ _ hp) hne
   · intro u dev b n fi hu; cases h0 _ _ hu
   · intro s c s' c' r _ hs' _ hr'; rw [h0 _ _ hs'] at hr'; simp [sRefs] at hr'
   · intro s c r hs hr; rw [h0 _ _ hs] at hr; simp [sRefs] at hr
   · intro s r b n hs; cases h0 _ _ hs
+  · intro s c hs b hb; rw [h0 _ _ hs] at hb; simp [shp] at hb
 
 /-- **(boot)** `UtInv''` holds at `initASt` (a non-vacuity check; G4 starts from any `UtInv''` state). -/
 theorem boot_utInv'' : UtInv'' (initASt (Z := Unit)) := ⟨boot_utInv', boot_utNV⟩
@@ -193,10 +206,10 @@ theorem sRefs_nn {c : Cap} {r : ObjRef} (h : r ∈ sRefs c) : c ≠ .nullCap := 
 theorem utN_vEs {w : UView} (hI : UtInv'V w) (hN : UtNV w) {s : CslotPtr} {c : Cap} (hc : w.2.1 s = some c)
     (hSD : SafeDelV w s c) : UtNV (vEs s w) := by
   obtain ⟨-, -, hA⟩ := hI
-  obtain ⟨hC, hU, hF, hK, hS, hZ⟩ := hN
+  obtain ⟨hC, hU, hF, hK, hS, hZ, hB⟩ := hN
   have hut : ∀ u d b n f, (vEs s w).2.1 u = some (.untypedCap d b n f) → u ≠ s ∧ w.2.1 u = some (.untypedCap d b n f) :=
     fun u d b n f h => vEs_cap h (by intro e; cases e)
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro u d b n f hu s' c' r hs' hr hrd
     obtain ⟨hus, hu⟩ := hut u d b n f hu
     obtain ⟨hss, hs'⟩ := vEs_cap hs' (objRefs_nn hr)
@@ -226,6 +239,10 @@ theorem utN_vEs {w : UView} (hI : UtInv'V w) (hN : UtNV w) {s : CslotPtr} {c : C
     obtain ⟨-, h1⟩ := vEs_cap h1 (by intro e; cases e)
     intro hr
     exact hZ s1 r b n h1 s' c' hne (vEs_cap h2 (objRefs_nn hr)).2 hr
+  · intro s1 c1 h1
+    by_cases hn : c1 = .nullCap
+    · subst hn; intro b hb; simp [shp] at hb
+    · exact hB s1 c1 (vEs_cap h1 hn).2
 
 theorem hv_pre {P P' Q : UView → Prop} {α : Type} {m : NonDet (State Unit) α} (h : HV P Q m)
     (hp : ∀ w, P' w → P w) : HV P' Q m := fun σ hσ y hy => h σ (hp _ hσ) y hy
