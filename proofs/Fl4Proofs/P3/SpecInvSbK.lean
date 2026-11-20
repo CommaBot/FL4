@@ -272,6 +272,14 @@ theorem sb_setObject_p (p : ObjRef) (o : KernelObject) (σ : State Unit)
   have hk' : ObjKeep (σ.kheap p) o := by rw [hk]; exact ho old hk hty
   exact BR.trans hσ (br_update hk')
 
+/-- An arch object written over an object of the same type (by `setObject`'s
+type assertion, an arch object). -/
+theorem sb_setObject_arch (p : ObjRef) (ao : ArchKernelObj) : SBK h0 (setObject (Z := Unit) p (.archObj ao)) :=
+  fun σ => sb_setObject_p p _ σ fun old _ hty => by
+    refine objKeep_other (fun x h => ?_) (fun y n h => ?_) (fun _ h => by cases h) (fun _ _ h => by cases h)
+    · subst h; simp [aType] at hty
+    · subst h; simp only [aType] at hty; split_ifs at hty <;> cases hty
+
 theorem sb_setSimpleKo {α : Type} [Nonempty α] (f : α → KernelObject) (p : ObjRef) (e : α) :
     SBK h0 (setSimpleKo (Z := Unit) f p e) := by
   unfold setSimpleKo
@@ -394,6 +402,7 @@ macro_rules | `(tactic| sb_leaf) => `(tactic| ((with_reducible refine ik_doMachi
 macro_rules | `(tactic| sb_leaf) => `(tactic| ((with_reducible refine ik_doExtendedOp ?_ _); sb_side))
 macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact ik_getObject _)
 macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact sb_setSimpleKo _ _ _)
+macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact sb_setObject_arch _ _)
 macro_rules | `(tactic| sb_leaf) => `(tactic| ((with_reducible refine sb_threadSet _ _ ?_); sb_side))
 macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact sb_archThreadSet _ _)
 macro_rules | `(tactic| sb_leaf) => `(tactic| with_reducible exact sb_asUser _ _)
