@@ -6741,3 +6741,65 @@ modules SpecInvRdA/RdB (edited), SpecInvRdC, SpecInvRdD, SpecInvRdF1..F5 (new); 
   inside an anonymous constructor parses `cases e, rfl` as two targets — parenthesise the `fun`; `rescheduleRequired`'s
   switch arm is `gets >>= fun sched => (when … >>= fun _ => set …)` (the join point inlined): `ikp_gets_bind` before
   `ikp_bind`; `tcbReleaseRemove` sets `reprogramTimer`, so its state is not `σ`.
+## sl4 (branch par/sl4 in FL4-sc, on dd33c643 = int/j2 incl. sl3, rd1, ctq4) — `slGap`, call_kernel, tops (DONE); `ScKind` carry (NOT finished: groundwork only)
+Goal (sl3 handoff 1-4): discharge `SlGap`, finish `fl4CallKernel`, the tops, carry `ScKind` (lead decision: not a [J]).
+Spec-only, namespace `Fl4Proofs.P3.SInvL`; root imports SpecInvSlU, SlA, SlC, SlKR.
+- **`slGap : SlGap`** (SpecInvSlU, SlA; il2's QLU / QLA with `NCap`). `NCF σ0 σ` (no new thread / SC caps), `NNC σ s`
+  (no thread / SC cap in `s`). Detype `sl_detype` (region slots null: names survive), **`noLive_reg`** (no live object
+  in a childless untyped's region: named ⇒ a CDT child by UtCh; idle ⇒ outside every cap's range, the untyped's own
+  included), `nb_detype` (a surviving notification's SC is live, so survives), retype `sln_retype_kh` (defaults not
+  live, null slots, default notification has no SC: `dflt_nl`, `dflt_nsc`), reset family `RSl`, `sl_createCap`,
+  **`sln_invokeUntyped`**, **`sln_makePool`**; arch: **decode fact `MapNC` / `okv_archNC` / `okv_invANC`** (a map's
+  invoked slot holds no thread / SC cap: ut8's `MapOK` only gives `RefEq`, which does not separate an SC cap from an
+  endpoint cap), `sl_reread` / `sl_unmapPre` / `sl_pageUnmapF`, `sl_pt/pd/pdpt/pageInv`, `sl_asidPoolInv`,
+  `sl_archPerform`, `nb_archPerform`.
+  **`SlGap` changed**: it now also takes `IrqOutV (fun _ => I.1) (uV σ)` (the idle thread outside every cap's range,
+  sg1's `IdleOutV` at `I = idleP σ`): NtfnScB across the detype needs it (an SC at `I.1` would otherwise be neither
+  named nor excluded). Threaded as `hI1` through `sl_fl4PerformInvocation`, `sl_fl4HandleInvocationR`, `sl_sendRecv`,
+  `sl_fl4HandleSyscall`, `sl_fl4HandleEvent_sys` (always right after `hI2`).
+- **call_kernel (SpecInvSlC)**: `SAQ I t := SAP I [] [] False t ∧ NQ []` after the handler (SLN from this line, `IL []`
+  il2, `NQ []` nq3, `ScInv` sb2's `sb_fl4HandleEvent`); `saq_preemptionPath` (sl2's `sl_chargeBudget` /
+  `sl_checkBudget`, then `sli_maybeHandleInterrupt`), **`sl_fl4CallKernel_at`** (state-pinned: the four handler
+  posts at one state), `sl_handleEvent_int`, `sl_handleEvent_other` (handle_fault from any thread: `sl_handleFault`
+  needs no pin when `d = False`).
+- **Tops (SpecInvSlC)**: `SlB σ := ScLiveT (idleP σ) σ ∧ IdleScOutV σ ∧ NtfnScB σ ∧ ScInv σ`; `SlE σ` = the other
+  lines' carried facts read here (`ut : UtInv3`, `vfh : VfhAll`, `sg : SpecGlobS ∧ IdleOutV`, `nq : NtfnQB ∧ EpQB`,
+  `il : IfLiveT`, `kind : ScKind`).
+  **`kentry_scLive (c) (h : SlB σ) (hE : SlE σ) (ha : ∃ x, kheap ct = tcb x ∧ activeSt x.tcbState) (hct : Pinned c →
+  CtSc σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, ScLiveT (idleP y.2) y.2 ∧ NtfnScB y.2`**, **`kcall_scLive (rep ev)
+  … (ha : … activeSt ∨ (ev = interrupt ∧ idleThreadState)) (hct : ∀ c, ev = .syscallEvent c → Pinned c → CtSc σ)`**,
+  and the bundle **`kentry_slB` / `kcall_slB : … SlB y.2`** (sl1's `kentry_idleScOutV`, sb2's `kentry_scInv`).
+  `idleP y.2 = idleP σ` by sg1's IdK / sl1's IsK (`idleP_kentry` / `idleP_kcall`). Premises: carried invariants,
+  l4v `ct_active`, vi2's `CtSc` [J] (lead decision, pinned syscalls only) and **`SlE.kind : ScKind σ` — NOT yet
+  carried** (below). No FINDING.
+- **ScKind carry (NOT finished; SpecInvSlKR groundwork)**. The carried form must be the RANGE form **`ScKindR`**
+  (`r ∈ capRng c'` instead of `r ∈ objRefs c'`; `scKind_of_R`): DeriveSubframe makes caps to interior pages of a large
+  frame whose cap names only its base, and ut1's `CapFreeV` (freshness of retyped objects) speaks of `capRng`. Proved
+  leaves: `skr_of_uk`, `skr_of_kheap`, `skr_setCap_g` (general cap write), `skr_setCap_null`, `skr_setCap_fresh`,
+  `KindRel c0 c` (derived cap: SC-ness both ways, `capRng c ⊆ capRng c0`), `skr_setUntypedCapAsFull`,
+  **`skr_capInsert_kr`**.
+  HANDOFF (in order):
+  1. Re-prove sl3's ScKind deletion leaves (`sk_*` in SpecInvSlD/D3, `DX`) for `ScKindR` (same proofs: Zombie /
+     null writes, `sk_perm` for swaps); `sk_capInsert_so` → `KindRel` from `so_facts` + `same_object_as` ranges.
+  2. Decode facts `KindRel` for every inserted cap: CNode copy / mint (`deriveCap` + `maskCap` + `updateCapData`:
+     case split as sl3's `nf_mask` / `nf_upd`, arch caps through `archDeriveCap`), IPC cap transfer
+     (`transferCaps`: derived from a sender's extra cap held in its slot), IRQ handler set (the decoded notification
+     cap held in its slot), TCB installs (sl3's `check_cap_at` guard). Fresh writes: `create_cap` (`skr_setCap_fresh`
+     with ut1's `CapFreeV` / `utRet_fresh`; the reset's untyped writes: `capRng` of an untyped cap is `∅`), MakePool's
+     pool cap (the frame after detype: UtCh + childless), IOPort / IRQ handler caps (`capRng = ∅`). Arch rewrites:
+     maps need "the written cap is an arch cap" (extend `MapNC` with it: `okv_archNC` returns the arch cap), unmaps
+     re-read the slot's arch cap (`updateMapData` keeps `acRng`), the ASID-pool assign rewrites the read PML4 cap.
+  3. The family across the entry: every non-cap writer by `skr_of_uk` (ut3's `uk_*`); the shell exactly as sl3's
+     `Js` (uV is frozen until the perform, so ScKindR holds at every decode state for free), the performs one case each
+     (sl3's `sl_fl4PerformInvocation` layout), `handle_recv` / `do_reply_transfer` / `send_ipc` (the transfer), the
+     call_kernel tail (all `UK`). Then replace `SlE.kind` by `ScKindR` in `SlB` and conclude `ScKindR y.2`.
+- Commits: d7e375d1 (SlU, SlA, SlGap's `hI1` through SlP3 / SlE / SlE3), 0c08276a (SlC), and the commit adding SlKR
+  with this section. Builds (tokyo, FL4-sc mirror warm, ./sl4.sh untracked = sl3.sh): sl4-b2 SlU + SlE + SlE2 + SlE3,
+  b3 SlA (37 s), b6/b7 SlC (13 s, 5024 jobs), b9 SlKR (11 s); sl4-b7 / sl4-ax2 axioms (scratch/sl4/ax.lean, ax2.lean, untracked; ax2: skr_capInsert_kr, skr_setCap_fresh, scKind_of_R): slGap,
+  sln_invokeUntyped, sln_makePool, okv_invANC, sl_fl4CallKernel_at, sl_handleEvent_other, kentry_scLive,
+  kcall_scLive, kentry_slB, kcall_slB: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide,
+  no axiom, heartbeats per declaration at il2's levels (≤ 8M).
+- Lessons: `as` is a token here (`⟨as, va⟩` fails: rename); inside `SInvL` the name `bitsOf` resolves to CapRel's
+  `Fl4Proofs.P3.bitsOf` (write `Fl4Spec.bitsOf`); give `(I := …)` explicitly when the only hypothesis fixing an
+  implicit pair is a `rfl` on its second component; `setCap_nnc (c := …)` when the cap is only fixed by a later
+  argument.
