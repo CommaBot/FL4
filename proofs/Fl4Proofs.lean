@@ -971,3 +971,14 @@ import Fl4Proofs.P3.SpecInvSlS
 import Fl4Proofs.P3.SpecInvSlR
 import Fl4Proofs.P3.SpecInvSlB
 import Fl4Proofs.P3.SpecInvSlQ
+import Fl4Proofs.P3.SpecInvFoG1
+import Fl4Proofs.P3.SpecInvFoG2
+import Fl4Proofs.P3.SpecInvFoG3
+import Fl4Proofs.P3.SpecInvFoG4
+import Fl4Proofs.P3.SpecInvFoG5
+import Fl4Proofs.P3.SpecInvFoG6
+import Fl4Proofs.P3.SpecInvFoA
+import Fl4Proofs.P3.SpecInvFoD
+import Fl4Proofs.P3.SpecInvFoU
+import Fl4Proofs.P3.SpecInvFoP
+import Fl4Proofs.P3.SpecInvFoS

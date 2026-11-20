@@ -6330,3 +6330,65 @@ composite of handoff 1 in the joint form (lead decision 1); the deletion / decod
   `subst e` with `e : s = σ` eliminates σ (use `subst s`); a station_task key runs once (new key per build).
 - Scratch (untracked): scratch/sl2/{gen.py, closure.py (manual_nb.py), manual_nb.py (= sl1's manual_sl.py), prim.txt,
   hard.txt, extra.txt, mknb.sh, skipNB.txt, closure.log, bodyNB.lean, ax.lean}; build script sl2.sh.
+## fo1 (branch par/fo1 in FL4-tcbj, on ed4b9778 = int/j2 incl. vi3, il2, sl1) — FpuOwnOK (F5, l4v valid_cur_fpu) carried across every event (DONE)
+Goal: invC's FpuOwnOK paragraph as a carried G1 field, `kentry_fpuOwnOK` / `kcall_fpuOwnOK` (every event). Spec-only, namespace
+`Fl4Proofs.P3.SInvF`, modules SpecInvFoG1..G6, FoA, FoD, FoU, FoP, FoS (no JAtZ cone; nothing existing edited; root imports all).
+- **The carried fact.** IfLiveT does NOT give "the owner holds a cap": `suspend` sets Inactive and releases nothing, so an
+  Inactive thread can own the FPU (IfLiveT says nothing about it). The narrowest extra fact, l4v's `arch_tcb_live` (tcb_cur_fpu)
+  + `if_live_then_nonz_cap` typed as IfLiveT is: **`FT σ := ∀ t, owner = some t → TcbAt σ t ∧ HasTC σ t`** (the owner is a TCB
+  holding a thread cap). `FpuOwnOK` is its first half (`fpuOwnOK_of_ft`; restated as `FpuOwnOKS`, ScArchF is in the scheduler
+  cone and is not imported: the same definition). `FT` is il2's carried `K` at `oL σ` (the owner as a list): `ILF K := IL K ∧
+  FT`, `FN K := ILN K ∧ FT`, so every il1/il2 lemma stated for all `K` lifts (`fo_ik` / `fo_ikn` / `ilf_pt`: run it at
+  `K := oL σ ++ K`, and the OI frame keeps the owner and its TCB-ness).
+- **SpecInvFoG1..G6** (generated, scratch/fo1/tr.py from sg1's SpecInvSgI1..I6 = ut7's NK family, `idk_`→`oi_`; untracked):
+  `OI q σ := owner = q ∧ (q = some t → TcbAt σ t)`, `OIK q m := IK (OI q) m`; leaf `oi_setObject` (set_object asserts the
+  a_type, so a TCB stays a TCB); the 51 functions reaching an owner write or a retype / detype (scratch/fo1/cg.py) dropped.
+  369 lemmas.
+- **SpecInvFoA**: `FT`, `ILF`, `FN`, `fo_ik`, `fo_ikn`, `fo_leaf` (il leaf + oi leaf); owner writers: `fo_setOwner` (the new
+  owner holds a thread cap before; the last `arch_thread_set` makes it a TCB), `hk_setOwner`, `hk_switchLocal`,
+  `fo_switchLocalFpuOwner`, `fo_fpuRelease`, **`fpuRelease_ne`** (after `fpu_release t`, `t` is not the owner),
+  `fo_lazyFpuRestore` (`HK (ILF (t :: K)) (ILF K)`: the restored thread in `K`), `fo_archSwitchToThread`, `fo_switchToThread`,
+  **`fo_guardedSwitchTo`** (`schedulable` ⇒ runnable ⇒ live ⇒ a thread cap by IfLiveT: `sched_tcb`), `fo_chooseThread`,
+  `fo_scheduleChooseNewThread` (`arch_prepare_next_domain` = switch to none), **`fo_schedule`**, `fo_domainSetStart`.
+- **SpecInvFoD** (il2's LD with the owner): `TcSafe` at `K = oL σ` is exactly what FT needs of a cap removal;
+  `fo_finaliseCap`, **`finThread_owner`** (a FINAL thread cap's `finalise_cap` ends with `prepare_thread_delete` =
+  `fpu_release`, so its thread is not the owner after), `fo_tcs_rem` (the Zombie over it is safe), `fo_tcs_removable`,
+  `fo_emptySlot_ts`, `fo_setCap_p`, `FPre`/`FPost`, `fo_step`, **`fo_recDel`**, **`fou_capDelete`**, **`fou_capRevoke`**
+  (`FU := FN [] ∧ UtInv''`).
+- **SpecInvFoU**: **`owner_out`** (UtInv'''s UtCh: the owner, holding a thread cap, lies outside a childless untyped's region —
+  il2's rqDet_of_live pattern), `oi_deleteObjects_p`, `oi_retypeRegionWith_p` (targets hold no object, ut1's utRet_fresh),
+  `oi_resetUntypedCap`, `oi_utBody`, `oi_invokeUntyped`, **`fo_invokeUntyped`**, `oi_makePool`, **`fo_makePool`** (IL part:
+  il2's `il_invokeUntyped` / `il_makePool` at `K = oL σ ++ K`).
+- **SpecInvFoP**: `FP N K := FN K ∧ P3 N`; `fo_invokeCnode`, `fo_installTcbCap`, `fo_installTcbFrameCap`,
+  **`fo_archPostSetFlags`** (SetFlags without fpuDisabled on the current thread restores its FPU: the current thread is in `K`,
+  the shell's IL [ct]), `fo_invokeTcb` (`hct : curThread ∈ K`), `oi_archPerform`, `fo_fl4ArchPerform`, `fo2_auto`
+  (invoke_fl4_tcb's SetFlags `fpu_release`, invoke_set_domain's `arch_prepare_set_domain`), **`fo_fl4PerformInvocation`**
+  (il2's without PerfGapIL).
+- **SpecInvFoS** (il2's LS with the owner): `JF N ct := Ju N ct ∧ FT`, `juf_of` / `juf_auto`, `il_handleRecvK` (il2's
+  handle_recv at any K ∋ ct), `fo_handleRecv`, **`fo_fl4HandleInvocationR`**, `fo_fl4HandleSyscall`, `fo_fl4HandleEvent_sys`,
+  `fo_handleEvent_int`, `fo_handleEvent_other`, `ilnK_preemptionPath`, `fo_preemptionPath`, **`fo_fl4CallKernel_of`**, tops.
+- STATEMENTS:
+  * **`kentry_fpuOwn (rep c) (ha : ∃ x, kheap ct = tcb x ∧ activeSt x.tcbState) (hN : NtfnQB σ ∧ EpQB σ) (hU : UtInv3 σ)
+    (h : IfLiveT σ) (hF : FT σ) : ∀ y ∈ (fl4KernelEntrySyscall rep c σ).1, IfLiveT y.2 ∧ FT y.2`**
+  * **`kcall_fpuOwn (rep ev) (ha : … activeSt ∨ (ev = interrupt ∧ idle)) (hN) (hU) (h) (hF) : ∀ y ∈ (fl4CallKernel rep ev σ).1,
+    IfLiveT y.2 ∧ FT y.2`** (every event)
+  * **`kentry_fpuOwnOK` / `kcall_fpuOwnOK`**: the same with `FpuOwnOKS y.2 ∧ FT y.2` (FpuOwnOKS = ScArchF's FpuOwnOK).
+  * `boot_ft : FT initASt` (no owner; non-vacuity only, per the 2026-11-20 decision).
+- Premises: none new. `ha` (l4v ct_active, as il2), `NtfnQB ∧ EpQB` (nq3, carried), `UtInv3` (ut8, carried), `IfLiveT` (il2,
+  carried; re-proved here alongside), and the new carried field `FT` itself. ValidIdle not needed. No [J]/[P]/[W]/[S].
+- No FINDING: the owner is set only by `lazy_fpu_restore t` (the schedulable switch target, or SetFlags' current thread: both
+  hold a thread cap) and cleared by `fpu_release` / `arch_prepare_next_domain`; a thread's final thread cap is finalised with
+  `fpu_release` before its Zombie replaces it; a non-final one leaves another thread cap; detype frees only childless untyped
+  regions, which hold no capped object; retype writes fresh addresses.
+- Builds (tokyo, FL4-tcbj mirror, ./fo1.sh untracked = vi3.sh with an error-block filter; module builds only): fo1-b1
+  FoG1..G6 (1014..1024 jobs), fo1-b4 FoA (1196) + FoD (1208; b3 compiled the il1/il2 cone in this mirror), fo1-b6 FoU (1258),
+  fo1-b7 FoP (1262), fo1-b8 FoS (1266) + axioms (scratch/fo1/ax.lean, untracked): kentry_fpuOwn, kcall_fpuOwn,
+  kentry_fpuOwnOK, kcall_fpuOwnOK, boot_ft, fo_schedule, fo_guardedSwitchTo, fo_recDel, fou_capDelete, fou_capRevoke,
+  fo_invokeUntyped, fo_makePool, fo_invokeTcb, fo_fl4PerformInvocation, fo_fl4HandleInvocationR, fpuRelease_ne,
+  finThread_owner, owner_out: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root
+  Fl4Proofs.lean not rebuilt (eleven import lines added).
+- Lean notes: `ilf_pt` / `ft_back` need `(y := x)` when the outcome is a destructured pair (the unifier picks `(.ok x.1, x.2)`);
+  `checkBudgetRestart_true` exists in SInv and SInvU (qualify); do-block `match` + trailing statement in
+  `switch_local_fpu_owner`: `cases n; unfold; dsimp only` first, then a `first | exact final | hk_bind` loop.
+- Next: carry `FT` (with IfLiveT) in the G1 bundle; FpuOwnOK [J] in ScArchF's consumers (ArchSwF / ArchNdF callers, KFinAtR) is
+  now supplied by `kentry_fpuOwnOK` / `kcall_fpuOwnOK` from the previous exit (`FpuOwnOKS` = ScArchF's `FpuOwnOK`, unfold both).
