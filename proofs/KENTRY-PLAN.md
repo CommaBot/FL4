@@ -4788,3 +4788,78 @@ imports SpecInvUtN, SpecInvUtN2.
   `TransGen.cases_tail` name, fixed with `TransGen.tail'_iff` + `reflTransGen_iff_eq_or_transGen`), ut4-ax1 axioms
   (scratch/ut4/ax.lean, untracked): detypeOK_of, regNull_of, boot_utInv'', hv_emptySlotN, ik_capDeleteOneN,
   hv_capInsertN: propext, Classical.choice, Quot.sound; utN_leaf: propext, Quot.sound; utN_vEs: propext. No sorry/admit/native_decide/bv_decide. Root not rebuilt.
+## vfh1 (branch par/vfh1 in FL4-sc, on 9c0fa32d = int/j2 incl. ft3): VfhAll (b)/(c), the cap writers
+Goal: VfhAll (l4v valid_tcb's valid_fault_handler of tcb_fault_handler) kept by the syscall entry and every event.
+- Key idea: restate VfhAll in vih2's cap view so the 341 generated `hv_*` frames (SpecInvValidIrqHandlersF1..F4,
+  `[WLH P] → IKH P f`) keep it for free. `VfhV σ := ∀ p c, capOpt (kheap p) (tcbCnodeIndex 3) = some c →
+  capOpt (kheap p) (tcbCnodeIndex 6) = none → validFaultHandler c` (a TCB has caps exactly at 0..5, a well-formed
+  CNode holding index 3 has radix 3 so holds index 6, other objects none): **`vfhV_iff : VfhV σ ↔ VfhAll σ`**.
+  `validFaultHandler .nullCap` holds (Decode_A: `is_ep_cap ∧ has_handler_rights ∨ NullCap`), so every null write
+  (deletion, moves' sources) is harmless.
+- DONE, built (5e5ca654; tokyo FL4-invA mirror, tasks vfh1-b1..b4; K 4640 jobs (first build rebuilt the vih cone,
+  ~25 min), W 4642, P 4644):
+  * SpecInvVfhK: `vfh_Bad σ sl` (sl.2 = idx 3 ∧ index 6 of sl.1 empty: "a TCB's fault-handler slot" in view terms),
+    `DomK σ σ'` (no slot emptied; Bad is anti-monotone along it, `vfh_Bad.back`), **`VS σ0 σ := VfhV σ ∧ DomK σ0 σ`**
+    (WLH instance; `VK m := ∀ σ0, IK (VS σ0) m`), `vfh_setCap_view` (caps after set_cap), **`vfh_setCap_step`**
+    (`vfh_Bad σ sl → validFaultHandler c` suffices), `vs_setCap` (side condition at the anchor σ0), sources of ¬Bad:
+    `vfh_notBad_old` (slot holds a non-handler, by VfhV), `vfh_notBad_idx` (index ≠ 3), `vfh_notBad_full` (the
+    object holds every index of the slot's length: a CNode slot found through a valid CNode cap); `vs_setCdt`,
+    `vs_setOriginal`, `vs_doExtendedOp`, `vs_setIrqState`, `vs_reanchor` (pinned fact at a mid state).
+  * SpecInvVfhW: pinned combinators (`ikp_getCap_bind`, `ikpE_getCap_bind`, `ikpE_bind`, `ikp_keep_v`);
+    `vs_capInsert src dest (hd : vfh_Bad σ0 dest → vfh newCap)`, `vs_capMove`, `vs_capSwap`, `vs_capSwapForDelete`
+    (both slots not Bad), `vs_setUntypedCapAsFull_p`; deletion uniform (VK/VKE): `vs_emptySlot`, `vs_capDeleteOne`,
+    `vs_deletingIrqHandler`, `vs_finaliseCap`, `vfh_finaliseCap_rem` (the remainder of a valid fault handler is
+    null, so finalise_slot's remainder write into a fault-handler slot is null), `vfh_lfp` (lfp with a
+    call-dependent relation), **`vs_recDel k σ (VfhV σ) (vfhRecPre k σ)`** (`vfhRecPre`: the unexposed
+    reduce-zombie call's slot not Bad, or its cap a valid handler; at the one call site the slot holds the zombie
+    just written: the cap read there was no valid handler since its remainder is a zombie; the swap's other slot
+    is the zombie's first slot, index `replicate _ false` ≠ idx 3), `vs_capDelete`, `vs_capRevoke`.
+  * SpecInvVfhP: **`vs_invokeCnode i (VCn σ0 i)`** (insert/move/rotate/swap targets not Bad at σ0 or the cap a valid
+    handler), `vs_invokeIrqControl (VIrqC)`, `vs_archInvokeIrqControl`, `vs_invokeFl4IrqControl (VFl4IrqC)` (the new
+    handler slot not Bad), `vs_invokeIrqHandler` (uniform: the IRQ node slot index `[]`), `vs_installTcbCap`
+    (`tcbCnodeIndex n = idx 3 → the cap is valid`), `vs_installTcbFrameCap`, **`vs_invokeTcb i (VTcb i)`** (`VTcb`:
+    the fault handler a ThreadControlCaps / ThreadControlSched installs is valid = the decode's check_handler_ep;
+    installs into slots 0,1,2,4 are not Bad by index), `vs_transferCapsLoop (∀ s ∈ slots, ¬ vfh_Bad σ0 s)`.
+  * Root Fl4Proofs.lean imports K, W, P (root not rebuilt). No sorry/admit/native_decide/bv_decide; no premise.
+  * Axioms (proofs/scratch/vfh1/ax.lean in FL4-invA, untracked; task vfh1-ax1): vfhV_iff, vfh_setCap_step, vs_setCap,
+    vs_capInsert/Move/Swap/SwapForDelete, vs_emptySlot, vs_finaliseCap, vfh_finaliseCap_rem, vs_recDel, vs_capDelete,
+    vs_capRevoke, vs_invokeCnode, vs_invokeIrqControl, vs_invokeFl4IrqControl, vs_invokeIrqHandler, vs_installTcbCap,
+    vs_invokeTcb, vs_transferCapsLoop: propext, Classical.choice, Quot.sound.
+- NOT DONE (handoff, in order). Everything composes as `IK (VS σ0)` / `IKE (VS σ0)` with the anchor σ0 = the
+  decode state (facts proved there survive the frames), `hv_*` for the frame functions:
+  1. **The one genuinely missing fact: lookups land in CNode slots.** `resolveAddressBits` returns `(oref, offset)`
+     from a `cnodeCap oref radix _` with `offset.length = radix` and never checks `oref`'s type; a CNode cap to a TCB
+     with radix 3 would make a CNode insert hit the TCB's slot 3 (not reachable in l4v: valid_cap). Needed as
+     **[J] premise at the entry `CnDom σ := ∀ sl p r g, capOpt (σ.kheap sl.1) sl.2 = some (.cnodeCap p r g) → ∀ l :
+     CnodeIndex, l.length = r → capOpt (σ.kheap p) l ≠ none`** (l4v: `caps_of_state_valid` + `valid_cap_def`,
+     CNodeCap ⇒ `cap_table_at r p`, a well-formed CNode of radix r; FL4: the Rust CNode cap's object is a CNode of
+     that size, from the J state relation of the slot caps). It is a view predicate (WLH), so the frames carry it to
+     the decode and IPC states; `vfh_notBad_full` turns it into ¬Bad. To prove: `OkDAt σ (fun s sl => full σ sl)`
+     for `resolveAddressBits'` (wf recursion as invA manual.py; the root is ct's `tcbCtable` = slot (ct, idx 0), or
+     a cap read from a slot), then for `lookupSlotForCnodeOp`/`lookupTargetSlot`/`getReceiveSlots`. CnDom is kept by
+     every cap copy (deriveCap/updateCapData keep a CNode cap's pointer and radix) but not by retype (detype): within
+     one syscall the transfers after a cap write (ReplyRecv's receive after the reply's grant) need CnDom carried
+     through `capInsert` of a derived cap (pinned: the cap came from a slot).
+  2. Decode → perform carry (vih2's `okAck_fl4Decode` pattern, OkDAt over `fl4DecodeInvocation`): `VInv σ0 inv`
+     = `VCn` (targets from `lookupTargetSlot`/`lookupPivotSlot` + CnDom; insert/mint/move/mutate/rotate/swap),
+     `VTcb` (`checkHandlerEp`'s `validFaultHandler` test: decodeSetSpace / decodeSetSchedParams), `VFl4IrqC`
+     (handler slot from lookupTargetSlot), arch (IOPort control / DeriveSubframe dest slots from lookupTargetSlot;
+     in-place cap updates of the invoked cap's slot: ¬Bad by `vfh_notBad_old` since that slot holds an arch cap at
+     σ0 (`okCap_lookupCapAndSlot`)), untyped (below). Then `vs_fl4PerformInvocation (VInv σ0 inv)`.
+  3. IPC: `getReceiveSlots` returns ¬Bad slots under CnDom (1); then `doNormalTransfer`/`doIpcTransfer` (fault
+     transfers write no cap), `sendIpc`, `receiveIpc`, `doReplyTransfer`, `sendFaultIpc`, `handleFault`,
+     `handleTimeout`, `chargeBudget`/`checkBudget(Restart)`/`endTimeslice`/`preemptionPath`/`handleYield` (only via
+     sendIpc) — copy the generated FT/hv bodies with `vs_transferCaps` as the leaf and CnDom as a pinned conjunct
+     (`VS σ0 σ ∧ CnDom σ`, both view predicates).
+  4. Retype (`invokeUntyped(With)`, `fl4InvokeUntyped`, `performAsidControlInvocation`): `retypeRegion` /
+     `deleteObjects` keep VfhAll (`ti_retypeRegionWith`, `ti_deleteObjects` with `vfhQ defaultTcb`: null handler)
+     but break DomK; `createCap`'s destination slots must be not Bad at the write state: they are not Bad at the
+     decode (CnDom) and their CNode is not in the retyped region — ut1's `retype_keeps_old`/`utRet_fresh(_reset)`
+     (UtInv at the entry, carried by SpecInvUtF*) give that every old object is kept, so `DomK` holds from the
+     decode state to the createCap loop; state this as `vs_invokeUntyped (UtInv σ0) (VUt σ0 inv)`.
+  5. The shell (`fl4HandleInvocationR`, `handleRecv`, `fl4HandleSyscall`, `fl4HandleEvent`, `fl4CallKernel`,
+     `fl4KernelEntrySyscall`) as ft3's H9/H10 with `I := VS σ ∧ CnDom` (no ct tracking needed), then
+     `kentry_vfhAll (rep c) (hJ : CnDom σ) (hU : UtInv σ) : VfhAll σ → ∀ y ∈ entry, VfhAll y.2` and `kcall_vfhAll`
+     (every event) by `vfhV_iff`; boot: `boot_vfhAll` (exists).
+- No FINDING: every cap write met keeps VfhAll under the l4v facts above (no reachable counterexample: the only
+  candidate, a lookup through a CNode cap to a TCB, needs a cap l4v's valid_objs excludes).
