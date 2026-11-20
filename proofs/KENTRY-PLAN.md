@@ -2861,3 +2861,49 @@ ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Ir
   sch19-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ17M, KDispHyps17M.to16M,
   jMidLeavesHyp_of8, JRecvLeavesRN8.toRN7, JAtZ.faultHypJZM3/faultRecvJM2/sendFaultPDJM/pushDonJS, pd_eqS,
   donate_sw_eq, kernel_entryJ16M; pdS_ko/kt/kp propext only. No sorry/admit/native_decide/bv_decide.
+## mr5 (branch par/mr5 in FL4-tcbj, on 845eb021 = int/j2 incl. mr4, sch18)
+New leaves UtRetResetJM (generated: scratch/mr5/genU.py + headU/tailU.lean), XTopJointKEntry14P, 15P, 16P (imported
+from Fl4Proofs.lean). Nothing existing edited. Goal: mr4 NEXT (1)–(4). DONE: (1) Untyped out of JPreDecHyp (VT-x types
+stay, [scope]), (4) vmt gone, the P line rebased onto sch18's receive premise (J16P). NOT done: (2) CNode, (3) Thread.
+- DONE (UtRetResetJM, 700de14b): `UtRetPostJM` (UtRetPostJ with `JAtPreMV`), `UtRetPostJ.toM` (spec side has no error
+  outcome after the restart ⇒ FL4 not Preempted ⇒ both posts agree), `NoPre.NoErrAt`/`noErrAt_bind`/
+  `noErrAt_liftE_single`, `noErr_retypeNoReset` (the spec retype without a reset never errs), `noErrAt_resetDev`/
+  `noErrAt_retypeDev` (a device cap's reset, read at the state, never errs: no clear, no preemption point);
+  `JAtZ.reset_untypedJM` (reset_untypedJ under MachPlat + PPPlatA, MR/VMT/VIM at the start; at `delSt` they hold by
+  definition: detype changes only kheap/memory; chunk loop by mr4's reset_loopJM, ends in ResetJPostM);
+  `JAtZ.utResetJM` (utResetJ likewise; the restart keeps machineState, curTime, interruptStates);
+  `JUtRetHypDM`, `JAtZ.jUtRetHypM` (RAM: native type (`hNat`, < 14 with RetCtx.ty) with a reset by utResetJM, without
+  by JAtZ.jUtRetHyp — its residual JUtRetHypR is vacuous there: `reset` is fixed by RetCtx.resetEq — and toM; so
+  UtRetResetJ's JUtRetHypR2 [W] is not used on this path), `JAtZ.jUtRetHypDevM` (jUtRetHypDev + toM, getCap at the
+  restart state via restartJ/restart_dstate), `decode_invocation_untypedJM`.
+- DONE (XTopJointKEntry14P, 700de14b): `JPreDecHypK K` (JPreDecHyp with the cap condition `K c argsU`; JPreDecHyp =
+  JPreDecHypK (fun c _ => NoPreKind c → False) by definition), `PreKind14` (CNode | Thread | Untyped with
+  `∃ x, argsU.head? = some x ∧ 14 ≤ x.val ∧ x.val < 19`), `KDispHypsK K`, `KDispHypsK.to` (family premise converted
+  per dispatch state), `.to13P`, `jPreDecHyp_of14` (the Untyped cap by decode_invocation_untypedJM from its JPath),
+  NEW TOP `kernel_entryJ14P` (= J13P with `KDispHypsK PreKind14`; a wrapper, no body copy), `j14P_platform`.
+- DONE (XTopJointKEntry15P, 30e62373): `budget_vmt_at`/`BudgetAt.vmt`: ValidMachineTime at every dispatch state with
+  NO premise (the time stamp sets curTime = lastMachineTime = gctVal, validMachineTime_gct; a `true`
+  checkBudgetRestart changes nothing, ScEntryRd's checkBudgetRestart_true — the timeout-fault path runs only on
+  `false`), `KDispHypsKV K` (no vmt field), NEW TOP `kernel_entryJ15P`. KDispHyps13P.vmt [J] is GONE.
+- DONE (XTopJointKEntry16P, 66382f12): `KDispHypsKV7` (mid leaves = sch18's JMidLeavesHyp7, `.to6` via jMidLeavesHyp_of7),
+  NEW TOP `kernel_entryJ16P` (the narrowest receive premise, kernel_entryJ16M's, on the P line).
+- Premises now (J16P): JPreDecHypK PreKind14 [W] (narrowed: CNode revoke/delete, Thread installs, Untyped VT-x types
+  14..18 — the last are `JUtPath.vtx` [scope] anyway, stated at JAtPre); vmt removed; nothing added.
+- NEXT (handoff): (2) and (3) are ONE job: both reach the deletion loop through `delHypsJL` (XTopJointWJLDel:
+  CNode revoke/delete via decode_invocation_cnodeJ_stepsL's `JDelParts.jDelHypL`/`jPreemptHypL`, Thread installs via
+  XTopJointTcbInsL `tcbInsW_wjl` and XTopJointTcb:2801's hPP). Plan: W' := `WJL ∧ MR a σ.ms ∧ VMT σ ∧ VIM σ`,
+  Wp' := WJP + JAtPreMV-style MR/VMT/VIM at the pp pre-state; a combinator lifting `DelHypsWRZ W Wp` to W' given
+  per-field "keeps MRV" lemmas (fin, triv, pp, post, zomb, swap, empty: FL4 side MK walks / store-only, pp by
+  ppJDMV (curTime moves only there), post_cap_deletion of an IRQ handler by MachPlat.mask + a spec pair lemma
+  (setIrqState irqInactive with maskInterrupt true keeps VIM, l4v deleting_irq_handler_valid_irq_masks)); spec side
+  MachFieldFam's mfk_* (msF ⊇ MR fields + interruptStates) PLUS a curTime family (msF lacks curTime; VMT needs it
+  at each pp pre-state) — fin's FPU save/switchLocalFpuOwner and VSpace TLB flush leaves are missing in
+  MachFieldFam (skip.txt), add MKF leaves. Then delete_one/revoke loops at W', the CNode decode, the TCB installs,
+  and `PreKind14` loses CNode/Thread (JPreDecHypK with `PreKindV` = VT-x Untyped only, or deleted with JUtPath.vtx).
+- Builds (tokyo, scratch/mr5/b.sh, warm mirror): mr5-b1 (noErrAt_resetDev: returnOk binds), mr5-b2 UtRetResetJM OK
+  (5574 jobs) + XTopJointKEntry14P OK (5618), mr5-b3 XTopJointKEntry15P OK (5620), mr5-b4 XTopJointKEntry16P OK (5630).
+  Root Fl4Proofs.lean not rebuilt (four leaf imports). Axioms (scratch/axmr5*.lean, untracked): propext,
+  Classical.choice, Quot.sound only for kernel_entryJ14P/15P/16P, jPreDecHyp_of14, KDispHypsK.to, KDispHypsKV7.to6,
+  JAtZ.jUtRetHypM/jUtRetHypDevM/utResetJM/reset_untypedJM, decode_invocation_untypedJM, UtRetPostJ.toM,
+  NoPre.noErrAt_retypeDev/noErr_retypeNoReset, budget_vmt_at, BudgetAt.vmt, j14P_platform. No sorry/admit/
+  native_decide/bv_decide.
