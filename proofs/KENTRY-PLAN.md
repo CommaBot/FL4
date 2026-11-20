@@ -7120,3 +7120,60 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqE1..E4 (hand) and Sp
      self-suspend (CopyRegisters src = dest = ct): post `EB false` there.
   5. Performs and shell (ctq6 handoff 2), then tops (ctq6 handoff 3) with carried CtAct (ct Running/Restart/Idle at
      every exit: activate_thread fails otherwise) replacing per-site "ct runnable" facts.
+## rd5 (branch par/rd5 in FL4-tcbj, on d712b91c = int/j2 incl. rd4, sl5, ctq6) — IdleHd carried in Rdy; the spec-only charge (rd4 handoff 1 DONE, handoff 2 started; shell / tops NOT done)
+Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdA..E / RdU / RdY (edited), SpecInvRdG (new; root imports it). No JAtZ cone.
+- **IdleHd in Rdy (handoff 1, lead decision: a carried invariant).** `IdleHd` moved to SpecInvRdA and is now `Rdy`'s sixth
+  conjunct: **`Rdy := R1 ∧ R2 ∧ R3 ∧ RV ∧ R4 ∧ IdleHd`** (`boot_rdy` covers it; `boot_idleHd` in RdY is now its projection).
+  It reads only the idle SC's refills (the `SV` view), `idleSc` and `curTime`, so the generated RdF1..F5 family carries it
+  unchanged (all 282 lemmas green, no regeneration). Frame changes: `rdy_of_view`, `rdy_congr` (`hid` after `ht`), `rdy_later`
+  (`hid` last; `QA` gains the idle SC `I`) take `σ'.idleSc = σ.idleSc` (always `rfl` for record updates: the spec never writes
+  `idleSc`); `rdy_frame1` / `rdy_framex` take `hid` and `hpI : p = σ.idleSc → ∀ z m, σ'.kheap p = SC z m → z.scRefills ≠ [] ∧
+  head.rTime ≤ curTime` (commit: commit_time skips the idle SC, so its refills are unchanged — CommitOut's e8/e6; the exit's
+  SC switch: refill_unblock_check sets the head to the current time — UI's hz1/hz2); `rdy_freeSc` /
+  `rd_schedContextSetInactive_p` take `p ≠ σ.idleSc` (callers: ValidIdle binds the idle thread to the idle SC, so the
+  "no TCB bound" premise already excludes it). `rd_scheduleOff`'s `hIH` is now redundant (`hσ.2.2.2.2.2`); kept for callers.
+- **SpecInvRdG: `refill_budget_check` for any charge, spec only.** charge_budget's charge is the insufficient one, so ScHead's
+  `refillBudgetCheck_head` does not apply and ScBudgetTop's `BudgetPost` exists only through the FL4 relation. New: `wl_inv2`
+  (whileLoop invariant on value and state + exit condition), `LI σ p x n S s` (s = σ with the SC at p = x with a non-empty
+  FL4-list image `rs.map toRefill`, `lsum rs = S`), `lsum_chargeL`, `lsum_mergeL`, `ho_step` / **`ho_out`** (handle_overrun;
+  at the exit the head is not overrun), **`body_out`** (the partial head charge: amount − u ≥ 0 since the loop exit gives
+  u < amount, sum conserved, no wrap), **`hil_out`** (head_insufficient_loop; exit: head ≥ MIN_BUDGET, since a single
+  refill holds the whole sum ≥ MIN_BUDGET, so the merge always has two refills), **`rbc_out`**: with `curSc = p`, the SC
+  an SC with period ≠ 0, refills non-empty, `rsum < 2^64`, `MIN_BUDGET ≤ rsum`: every outcome is `updSc σ p {x with
+  scRefills := zs} n` with `zs ≠ []`, `rsum zs = rsum x.scRefills`, `MIN_BUDGET ≤ head` (l4v refill_budget_check's
+  valid_refills / refills_sum preservation). **`rd_refillBudgetCheck`**: `Rdy` across it, for an active, non-idle, `Excl`
+  current SC with non-empty refills (RVs from RV; `rdy_framex`).
+- Premises: none added (no [J]/[P]/[W]/[S]). Hypotheses of the new lemmas are state facts at the charge (RNE, Excl curSc,
+  curSc ≠ idle (charge_budget's own test), active, period ≠ 0 (refill_budget_check's own assert)).
+- No FINDING. **Observation (invariant gap, not a counterexample):** `refill_reset_rr` (charge_budget's round-robin branch)
+  on a ONE-refill list zeroes the head (`rrResetL [a] = [⟨a.time, 0⟩]`), breaking RV's `MIN_BUDGET ≤ head`. In reachable
+  states a round-robin SC has exactly two refills (refill_new / refill_update end in `maybe_add_empty_tail`, which adds the
+  empty tail iff round robin; round-robin charges keep the length; refill_unblock_check skips round robin), so RV needs one
+  more clause, **`scPeriod = 0 → 2 ≤ scRefills.length`** (l4v valid_refills' round-robin part). That clause reads the
+  period, which `SV` does not: either add the period to `SV` (writers of the period are configure's setScObjRef /
+  refillUpdate, already by hand) or take it as a separate carried fact. Not done here; the RR arm of the charge needs it.
+- HANDOFF (in order):
+  1. RR clause of RV (above), then `rd_refillResetRr` (head := head + tail, no wrap from rsum, tail := 0: RVs kept) and the
+     charge block of charge_budget: `when (csc ≠ isc) (robin ? reset : refill_budget_check consumed; updateSchedContext
+     (consumed +=))` = rd_refillBudgetCheck / rd_refillResetRr ; `rd_updateSchedContext` (refills / max kept), then
+     `consumedTime := 0` (`rdy_congr`).
+  2. end_timeslice: the non-timeout branch is `rd_append_p` (ct RdyT: ready from getScRefillReady of curSc, ct bound to curSc
+     by CurScT, active) or `rd_postpone_p` (ct ActB); then `rd_rescheduleRequired`, `rdy_rpt`. The overrun mid-entry fact
+     (`consumed = 0 ∧ action ≠ resume`) holds after it (reschedule sets choose_new). The timeout branch is handle_timeout ct
+     = send_fault_ipc with `canDonate = false` (Ipc.lean:447): ct becomes blockedOnSend with a timeout fault (exempt from R3:
+     `NB`) or a waiting receiver is woken (R3 ⇒ RdyT, `rd_possibleSwitchTo_p`); needs the send_ipc hand writer, which the
+     invocation paths need anyway. Excl curSc at the entry: ct is the only thread bound to curSc (CurScT + ScBackS), not
+     queued (ctq's CtQ at the previous exit), not the switch target (Simple), running (¬BlkR).
+  3. The rest of rd4 handoff 2 unchanged (check_budget's true branch keeps the state and gives Suff: suff_checkBudget;
+     preemption_point; block / wake: send_ipc / receive_ipc / send_signal (also fl4Awaken's timer signals) / do_reply_transfer;
+     donation / bind / configure; setPriority / yieldTo; retype / detype), then rd4 handoff 3 (wrapper on fo1's
+     `fo_fl4CallKernel_of`: event part ; fl4Awaken ; rd_scheduleOff ; activate_thread, and the four tops). The other lines'
+     facts at schedule's start come from their event-part lemmas (sb2 `sb_fl4HandleEvent`, vi3 `vi_fl4HandleEvent_sys`;
+     SchedQ's event part is ctq7's, not on int/j2).
+- Builds (tokyo, FL4-tcbj mirror; ./rd5s.sh untracked = rd4s.sh with one lake invocation for all targets): rd5-b3 RdY RdU
+  RdF1..F5 RdX (4874 jobs, the whole Rd chain incl. the generated family), rd5-g3 / rd5-g4 RdG (4620) + RdY + axioms
+  (scratch/rd5/ax.lean, untracked). Lean traps: after a 6-component `refine ⟨…, ?_⟩` the new goal is last — `rotate_right`
+  (not `rotate_left`) to treat it first; `sv_some`'s `ey1 : _ = (a, b).1` must be restated before `rw`; `(⟨u⟩ : U64).bv`
+  mixed with `Ticks` in a `-`/`+` fails instance synthesis — take `u : U64` and write `u.bv` (postBody_eq's form); pass
+  `lsum_schedUsedL`'s `nw` explicitly; a failed lemma makes its callers report "declaration uses sorry" (error recovery,
+  not a source sorry).
