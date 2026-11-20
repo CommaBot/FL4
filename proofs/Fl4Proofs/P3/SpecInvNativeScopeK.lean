@@ -14,6 +14,7 @@ Fl4Spec).
   at the head of the goal).
 -/
 import Fl4Spec.Ext.Entry
+import Mathlib.Data.Set.Lattice.Order
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -26,7 +27,7 @@ def IK (P : State Unit → Prop) {α : Type} (m : NonDet (State Unit) α) : Prop
   ∀ σ, P σ → ∀ x, x ∈ (m σ).1 → P x.2
 
 /-- `IK` for the exception monad. -/
-def IKE (P : State Unit → Prop) {ε α : Type} (m : NonDetE (State Unit) ε α) : Prop :=
+abbrev IKE (P : State Unit → Prop) {ε α : Type} (m : NonDetE (State Unit) ε α) : Prop :=
   IK P (ExceptT.run m)
 
 section Comb
@@ -142,6 +143,36 @@ theorem ik_zipWithM {α β γ : Type} {g : α → β → NonDet (State Unit) γ}
   | [], _ => by unfold NonDet.zipWithM; exact ik_pure' _
   | _ :: _, [] => by unfold NonDet.zipWithM; exact ik_pure' _
 
+theorem ik_pure_bind {α γ : Type} {a : α} {g : α → NonDet (State Unit) γ} (h : IK P (g a)) :
+    IK P ((pure a : NonDet (State Unit) α) >>= g) := by
+  intro σ hσ x ⟨y, hy, hx⟩
+  rw [Set.mem_singleton_iff.1 hy] at hx
+  exact h σ hσ x hx
+
+theorem ik_pure_bind' {α γ : Type} {a : α} {g : α → NonDet (State Unit) γ} (h : IK P (g a)) :
+    IK P (NonDet.bind (NonDet.pure a) g) := ik_pure_bind h
+
+/-- CnodeRevoke's `lfp_le_prefixed` (copied: CnodeRevoke is in the JAtZ cone). -/
+theorem ik_lfp_le {σ α ι : Type} (F : (ι → NonDet σ α) → ι → NonDet σ α) (f : ι → NonDet σ α)
+    (hf : ∀ k t, F f k t ≤ f k t) (i : ι) (s : σ) : NonDet.lfp F i s ≤ f i s := by
+  let S := {f : ι → σ → Set (α × σ) × Prop | ∀ k t, F f k t ≤ f k t}
+  have hl : NonDet.lfp F = (sInf S : ι → σ → Set (α × σ) × Prop) := rfl
+  rw [hl]
+  have h2 : sInf S ≤ (f : ι → σ → Set (α × σ) × Prop) :=
+    @sInf_le (ι → σ → Set (α × σ) × Prop) _ S f hf
+  exact h2 i s
+
+/-- The least fixed point (`rec_del`, `cap_revoke`) keeps `P` if every step of
+its functional does, its recursive calls keeping `P`. -/
+theorem ik_lfp {ι α : Type} {F : (ι → NonDet (State Unit) α) → ι → NonDet (State Unit) α}
+    (hF : ∀ f : ι → NonDet (State Unit) α, (∀ k, IK P (f k)) → ∀ k, IK P (F f k)) (i : ι) :
+    IK P (NonDet.lfp F i) := by
+  intro σ hσ x hx
+  let f : ι → NonDet (State Unit) α := fun _ t => ({y | P t → P y.2}, True)
+  have hf : ∀ k t, F f k t ≤ f k t := fun k t =>
+    ⟨fun y hy => fun ht => hF f (fun _ _ ht' _ hz => hz ht') k t ht y hy, fun _ => trivial⟩
+  exact (ik_lfp_le F f hf i σ).1 hx hσ
+
 theorem ik_getObject (p : ObjRef) : IK P (getObject (Z := Unit) p) := ik_getsThe _
 
 end Comb
@@ -164,6 +195,14 @@ theorem ike_returnOk {α : Type} (a : α) : IKE P (NonDetE.returnOk a : NonDetE 
 theorem ike_throw {α : Type} (e : ε) : IKE P (NonDetE.throwError e : NonDetE (State Unit) ε α) := ik_pure _
 
 theorem ike_throw' {α : Type} (e : ε) : IKE P (throw e : NonDetE (State Unit) ε α) := ik_pure _
+
+theorem ike_pure_bind {α γ : Type} {a : α} {g : α → NonDetE (State Unit) ε γ} (h : IKE P (g a)) :
+    IKE P ((pure a : NonDetE (State Unit) ε α) >>= g) := by
+  unfold IKE; rw [ExceptT.run_bind, ExceptT.run_pure]
+  exact ik_pure_bind h
+
+theorem ike_returnOk_bind {α γ : Type} {a : α} {g : α → NonDetE (State Unit) ε γ} (h : IKE P (g a)) :
+    IKE P (NonDetE.returnOk a >>= g) := ike_pure_bind h
 
 theorem ike_liftE {α : Type} {m : NonDet (State Unit) α} (h : IK P m) : IKE P (NonDetE.liftE (ε := ε) m) := by
   unfold IKE NonDetE.liftE; rw [ExceptT.run_lift]
@@ -257,6 +296,8 @@ macro "ik_step0" : tactic => `(tactic| first
   | ((with_reducible apply ik_put_get); intro _ h; exact h)
   | (exact ik_put_get (fun _ h => h))
   | with_reducible exact ik_getObject _
+  | (with_reducible refine ik_pure_bind ?_) | (with_reducible refine ik_pure_bind' ?_)
+  | (with_reducible refine ike_pure_bind ?_) | (with_reducible refine ike_returnOk_bind ?_)
   | (with_reducible refine ik_bind ?_ (fun _ => ?_))
   | (with_reducible refine ik_bind' ?_ (fun _ => ?_))
   | (with_reducible apply ik_ite) | (with_reducible apply ik_when) | (with_reducible apply ik_unless)
