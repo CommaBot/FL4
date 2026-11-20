@@ -429,6 +429,25 @@ theorem rescheduleRequired_cn : PostK (fun s => s.schedulerAction = .chooseNewTh
 theorem sa_rescheduleRequired : HK1 SA SAc (rescheduleRequired (Z := Unit)) :=
   fun σ hσ y hy => ⟨sa_rescheduleRequired' σ hσ y hy, rescheduleRequired_cn σ y hy⟩
 
+/-- **`reply_unlink_tcb`** (it asserts the thread blocked before making it
+Inactive: a blocked thread is neither the switch target nor released). -/
+theorem sa_replyUnlinkTcb (t r : ObjRef) : SAK (replyUnlinkTcb (Z := Unit) t r) := by
+  unfold replyUnlinkTcb
+  refine ik_bind (by sa_auto) fun reply => ?_
+  refine ik_bind (ik_assert _) fun _ => ?_
+  unfold getThreadState
+  refine ikq_threadGet_bind fun σ x hx => ?_
+  intro hσ y ⟨z, hz, hy⟩
+  obtain ⟨hP, rfl⟩ := hz
+  have hr : runnable x.tcbState = false := by
+    rcases hP with h | ⟨ep, d, h⟩ <;> rw [h] <;> rfl
+  have hA : SAK (setReplyObjRef (Z := Unit) replyTcbUpdate r none) := by sa_auto
+  have hB : IK (NP t) (setReplyObjRef (Z := Unit) replyTcbUpdate r none) := by
+    repeat' (first | ik_step0 | ik_unfold)
+  obtain ⟨w, hw, hy⟩ := hy
+  exact sa_setThreadState_p t _ w.2 (Or.inr (hB σ (np_of_tcb_nr hσ hx hr) w hw)) (hA σ hσ w hw) y hy
+macro_rules | `(tactic| sa_leaf) => `(tactic| with_reducible exact sa_replyUnlinkTcb _ _)
+
 /-- The target's domain is the current domain, or the target is not current. -/
 abbrev DomOK (t : ObjRef) (σ : State Unit) : Prop :=
   ∀ x, σ.kheap t = some (.tcb x) → x.tcbDomain = σ.curDomain ∨ t ≠ σ.curThread
