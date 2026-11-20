@@ -795,3 +795,16 @@ import Fl4Proofs.P3.SpecInvUtIns
 import Fl4Proofs.P3.SpecInvUtRs
 import Fl4Proofs.P3.SpecInvUtRsI
 import Fl4Proofs.P3.SpecInvUtSw
+import Fl4Proofs.P3.SpecInvFaultTcbsG
+import Fl4Proofs.P3.SpecInvFaultTcbsG1
+import Fl4Proofs.P3.SpecInvFaultTcbsG2
+import Fl4Proofs.P3.SpecInvFaultTcbsG3
+import Fl4Proofs.P3.SpecInvFaultTcbsG4
+import Fl4Proofs.P3.SpecInvFaultTcbsG5
+import Fl4Proofs.P3.SpecInvFaultTcbsG6
+import Fl4Proofs.P3.SpecInvFaultTcbsG7
+import Fl4Proofs.P3.SpecInvFaultTcbsN
+import Fl4Proofs.P3.SpecInvFaultTcbsH1
+import Fl4Proofs.P3.SpecInvFaultTcbsH2
+import Fl4Proofs.P3.SpecInvFaultTcbsH3
+import Fl4Proofs.P3.SpecInvFaultTcbsH4
