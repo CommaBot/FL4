@@ -10,10 +10,6 @@ noncomputable section
 set_option maxHeartbeats 1000000
 set_option maxErrors 2000
 
-theorem tq_storePde (p : ObjRef) (pde : PDE) : TQK (storePde (Z := Unit) p pde) := by
-  unfold storePde; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_storePde _ _)
-
 theorem tq_setPdpt (ptr : ObjRef) (pt : BitVec 9 → PDPTE) : TQK (setPdpt (Z := Unit) ptr pt) := by
   unfold setPdpt; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_setPdpt _ _)
@@ -272,6 +268,14 @@ theorem tq_checkCapAt (cap : Cap) (slot : CslotPtr) (m : SMonad Unit Unit) (h_m 
   unfold checkCapAt; tq_auto
   all_goals first | exact h_m
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible refine tq_checkCapAt _ _ _ ?_)
+
+theorem tq_getScRefillReady (scPtr : ObjRef) : TQK (getScRefillReady (Z := Unit) scPtr) := by
+  unfold getScRefillReady; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getScRefillReady _)
+
+theorem tq_getScRefillSufficient (scPtr : ObjRef) (usage : Ticks) : TQK (getScRefillSufficient (Z := Unit) scPtr usage) := by
+  unfold getScRefillSufficient; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getScRefillSufficient _ _)
 end
 
 end Fl4Proofs.P3.SInvQ

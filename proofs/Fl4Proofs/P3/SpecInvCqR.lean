@@ -630,6 +630,94 @@ theorem tq_suspend (t : ObjRef) : TQK (suspend (Z := Unit) t) := by
     setThreadState t .inactive) by tq_auto) z1.2 h1 y hy |>.1 |> fun h => ⟨h, trivial⟩
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_suspend _)
 
+/-! ## A thread's state across writes elsewhere -/
+
+/-- `t` is a TCB that is not runnable. -/
+abbrev NRH (t : ObjRef) (kh : ObjRef → Option KernelObject) : Prop :=
+  ∃ x, kh t = some (.tcb x) ∧ runnable x.tcbState = false
+
+/-- A non-TCB `setObject` keeping a heap fact that holds after every write of
+a non-TCB object over an object of the same type. -/
+theorem tqc_setObject_nt {C : (ObjRef → Option KernelObject) → Prop}
+    (hC : ∀ kh p o0 o, C kh → kh p = some o0 → aType o0 = aType o → (∀ y, o ≠ .tcb y) →
+      C (Function.update kh p (some o)))
+    (p : ObjRef) (o : KernelObject) (ho : ∀ y, o = .tcb y → False) : IK (TQC C) (setObject (Z := Unit) p o) := by
+  intro σ hσ y hy
+  refine ⟨tqx_setObject p o ho σ hσ.1 y hy, ?_⟩
+  unfold setObject at hy
+  obtain ⟨z, hz, hy⟩ := hy
+  obtain ⟨hk, hs⟩ := mem_getObject hz
+  obtain ⟨z1, z2⟩ := z
+  simp only at hk hs; subst hs
+  obtain ⟨w, ⟨hty, rfl⟩, hy⟩ := hy
+  obtain ⟨v, hv, hy⟩ := hy
+  rw [Set.mem_singleton_iff.1 hv] at hy
+  rw [Set.mem_singleton_iff.1 hy]
+  exact hC _ p z1 o hσ.2 hk hty fun y e => ho y e
+
+theorem stH_upd {S : ThreadState → Prop} {t : ObjRef} (kh : ObjRef → Option KernelObject) (p : ObjRef)
+    (o0 o : KernelObject) (h : ∃ x, kh t = some (.tcb x) ∧ S x.tcbState) (hp : kh p = some o0)
+    (hty : aType o0 = aType o) (ho : ∀ y, o ≠ .tcb y) :
+    ∃ x, Function.update kh p (some o) t = some (.tcb x) ∧ S x.tcbState := by
+  obtain ⟨x, hx, hs⟩ := h
+  by_cases e : t = p
+  · subst e
+    rw [hx] at hp; cases hp
+    obtain ⟨y, rfl⟩ := q1_aType_tcb hty.symm
+    exact (ho y rfl).elim
+  · exact ⟨x, by rw [Function.update_apply, if_neg e, hx], hs⟩
+
+theorem tqc_setObject_rn (t p : ObjRef) (o : KernelObject) (ho : ∀ y, o = .tcb y → False) :
+    IK (TQC (RnH t)) (setObject (Z := Unit) p o) :=
+  tqc_setObject_nt (fun kh p o0 o h hp hty ho => stH_upd (S := fun s => runnable s = true) kh p o0 o h hp hty ho) p o ho
+
+theorem tqc_setObject_nr (t p : ObjRef) (o : KernelObject) (ho : ∀ y, o = .tcb y → False) :
+    IK (TQC (NRH t)) (setObject (Z := Unit) p o) :=
+  tqc_setObject_nt (fun kh p o0 o h hp hty ho => stH_upd (S := fun s => runnable s = false) kh p o0 o h hp hty ho) p o ho
+
+/-- The outcome of `set_thread_state`. -/
+theorem q3_setThreadState_out {t : ObjRef} {ts : ThreadState} {σ : State Unit} {y : Unit × State Unit}
+    (hy : y ∈ (setThreadState (Z := Unit) t ts σ).1) :
+    ∃ x, σ.kheap t = some (.tcb x) ∧ y.2.kheap t = some (.tcb { x with tcbState := ts }) := by
+  unfold setThreadState at hy
+  obtain ⟨z, hz, hy⟩ := hy
+  obtain ⟨x, hx, e⟩ := q3_threadSet_out hz
+  refine ⟨x, hx, ?_⟩
+  have : IK (fun s => s.kheap t = some (.tcb { x with tcbState := ts })) (setThreadStateAct (Z := Unit) t) := by
+    unfold setThreadStateAct setSchedulerAction; repeat' (first | ik_step0 | ik_unfold)
+  exact this z.2 e y hy
+
+/-- A write of a non-runnable state to a non-runnable thread. -/
+theorem tqc_setThreadState_nr (t : ObjRef) (ts : ThreadState) (h : runnable ts = false) :
+    IK (TQC (NRH t)) (setThreadState (Z := Unit) t ts) := by
+  intro σ hσ y hy
+  obtain ⟨x, hx, hr⟩ := hσ.2
+  refine ⟨tqx_setThreadState_nr t ts σ x hx hr hσ.1 y hy, ?_⟩
+  obtain ⟨x', hx', e⟩ := q3_setThreadState_out hy
+  exact ⟨_, e, h⟩
+
+/-- A runnable state, then the thread is a runnable TCB. -/
+theorem tqc_setThreadState_r (t : ObjRef) (ts : ThreadState) (h : runnable ts = true) (σ : State Unit)
+    (y : Unit × State Unit) (hσ : TQ σ) (hy : y ∈ (setThreadState (Z := Unit) t ts σ).1) : TQC (RnH t) y.2 := by
+  refine ⟨tqx_setThreadState_r t ts h σ hσ y hy, ?_⟩
+  obtain ⟨x', hx', e⟩ := q3_setThreadState_out hy
+  exact ⟨_, e, h⟩
+
+/-- **`reply_unlink_tcb`** (it asserts the thread blocked before making it Inactive). -/
+theorem tq_replyUnlinkTcb (t r : ObjRef) : TQK (replyUnlinkTcb (Z := Unit) t r) := by
+  unfold replyUnlinkTcb
+  refine ik_bind (by tq_auto) fun reply => ?_
+  refine ik_bind (ik_assert _) fun _ => ?_
+  unfold getThreadState
+  refine ikq_threadGet_bind fun σ x hx => ?_
+  intro hσ y ⟨z, hz, hy⟩
+  obtain ⟨hP, rfl⟩ := hz
+  have hr : runnable x.tcbState = false := by
+    rcases hP with h | ⟨ep, d, h⟩ <;> rw [h] <;> rfl
+  refine ((?_ : IK (TQC (NRH t)) _) σ ⟨hσ, x, hx, hr⟩ y hy).1
+  repeat' (first | (with_reducible exact tqc_setThreadState_nr _ _ rfl) | ((with_reducible refine tqc_setObject_nr _ _ _ ?_); intro _ h; cases h) | ik_step0 | ik_unfold)
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_replyUnlinkTcb _ _)
+
 end
 
 end Fl4Proofs.P3.SInvQ

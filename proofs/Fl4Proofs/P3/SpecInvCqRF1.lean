@@ -289,6 +289,10 @@ macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getPte _)
 theorem tq_setPd (ptr : ObjRef) (pd : BitVec 9 → PDE) : TQK (setPd (Z := Unit) ptr pd) := by
   unfold setPd; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_setPd _ _)
+
+theorem tq_storePde (p : ObjRef) (pde : PDE) : TQK (storePde (Z := Unit) p pde) := by
+  unfold storePde; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_storePde _ _)
 end
 
 end Fl4Proofs.P3.SInvQ

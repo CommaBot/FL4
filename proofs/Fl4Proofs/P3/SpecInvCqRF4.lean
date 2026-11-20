@@ -10,18 +10,6 @@ noncomputable section
 set_option maxHeartbeats 1000000
 set_option maxErrors 2000
 
-theorem tq_decodeFl4SetFlags (args : List Data) (t : ObjRef) : TQKE (decodeFl4SetFlags (Z := Unit) args t) := by
-  unfold decodeFl4SetFlags; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4SetFlags _ _)
-
-theorem tq_decodeFl4SetTimer (args : List Data) (t : ObjRef) : TQKE (decodeFl4SetTimer (Z := Unit) args t) := by
-  unfold decodeFl4SetTimer; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4SetTimer _ _)
-
-theorem tq_decodeFl4UnsetBreakpoint (buf : Option ObjRef) (t : ObjRef) : TQKE (decodeFl4UnsetBreakpoint (Z := Unit) buf t) := by
-  unfold decodeFl4UnsetBreakpoint; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4UnsetBreakpoint _ _)
-
 theorem tq_decodeFl4TcbExt (l : Fl4TcbExtLabel) (args : List Data) (t : ObjRef) (excaps : List (Cap × CslotPtr)) (buf : Option ObjRef) : TQKE (decodeFl4TcbExt (Z := Unit) l args t excaps buf) := by
   unfold decodeFl4TcbExt; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4TcbExt _ _ _ _ _)
@@ -285,6 +273,22 @@ macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getMrs _ _
 theorem tq_handleArchFaultReply (_vmf : ArchFault) (_thread : ObjRef) (_x : Data) (_y : List Data) : TQK (handleArchFaultReply (Z := Unit) _vmf _thread _x _y) := by
   unfold handleArchFaultReply; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleArchFaultReply _ _ _ _)
+
+theorem tq_handleFaultReply (a0 : Fault) (a1 : ObjRef) (a2 : Data) (a3 : List Data) : TQK (handleFaultReply (Z := Unit) a0 a1 a2 a3) := by
+  unfold handleFaultReply; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleFaultReply _ _ _ _)
+
+theorem tq_handleHypervisorFault (a0 : Word) (a1 : HypFaultType) : TQK (handleHypervisorFault (Z := Unit) a0 a1) := by
+  unfold handleHypervisorFault; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleHypervisorFault _ _)
+
+theorem tq_handleReservedIrq (_irq : Irq) : TQK (handleReservedIrq (Z := Unit) _irq) := by
+  unfold handleReservedIrq; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleReservedIrq _)
+
+theorem tq_handleSpuriousIrq  : TQK (handleSpuriousIrq (Z := Unit)) := by
+  unfold handleSpuriousIrq; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleSpuriousIrq)
 end
 
 end Fl4Proofs.P3.SInvQ

@@ -10,14 +10,6 @@ noncomputable section
 set_option maxHeartbeats 1000000
 set_option maxErrors 2000
 
-theorem tq_getScRefillReady (scPtr : ObjRef) : TQK (getScRefillReady (Z := Unit) scPtr) := by
-  unfold getScRefillReady; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getScRefillReady _)
-
-theorem tq_getScRefillSufficient (scPtr : ObjRef) (usage : Ticks) : TQK (getScRefillSufficient (Z := Unit) scPtr usage) := by
-  unfold getScRefillSufficient; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getScRefillSufficient _ _)
-
 theorem tq_getTcbQueue (d : Domain) (prio : Priority) : TQK (getTcbQueue (Z := Unit) d prio) := by
   unfold getTcbQueue; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_getTcbQueue _ _)
@@ -271,6 +263,18 @@ macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4I
 theorem tq_decodeFl4SetBreakpoint (buf : Option ObjRef) (t : ObjRef) : TQKE (decodeFl4SetBreakpoint (Z := Unit) buf t) := by
   unfold decodeFl4SetBreakpoint; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4SetBreakpoint _ _)
+
+theorem tq_decodeFl4SetFlags (args : List Data) (t : ObjRef) : TQKE (decodeFl4SetFlags (Z := Unit) args t) := by
+  unfold decodeFl4SetFlags; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4SetFlags _ _)
+
+theorem tq_decodeFl4SetTimer (args : List Data) (t : ObjRef) : TQKE (decodeFl4SetTimer (Z := Unit) args t) := by
+  unfold decodeFl4SetTimer; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4SetTimer _ _)
+
+theorem tq_decodeFl4UnsetBreakpoint (buf : Option ObjRef) (t : ObjRef) : TQKE (decodeFl4UnsetBreakpoint (Z := Unit) buf t) := by
+  unfold decodeFl4UnsetBreakpoint; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_decodeFl4UnsetBreakpoint _ _)
 end
 
 end Fl4Proofs.P3.SInvQ

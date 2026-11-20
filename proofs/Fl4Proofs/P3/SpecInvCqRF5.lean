@@ -10,22 +10,6 @@ noncomputable section
 set_option maxHeartbeats 1000000
 set_option maxErrors 2000
 
-theorem tq_handleFaultReply (a0 : Fault) (a1 : ObjRef) (a2 : Data) (a3 : List Data) : TQK (handleFaultReply (Z := Unit) a0 a1 a2 a3) := by
-  unfold handleFaultReply; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleFaultReply _ _ _ _)
-
-theorem tq_handleHypervisorFault (a0 : Word) (a1 : HypFaultType) : TQK (handleHypervisorFault (Z := Unit) a0 a1) := by
-  unfold handleHypervisorFault; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleHypervisorFault _ _)
-
-theorem tq_handleReservedIrq (_irq : Irq) : TQK (handleReservedIrq (Z := Unit) _irq) := by
-  unfold handleReservedIrq; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleReservedIrq _)
-
-theorem tq_handleSpuriousIrq  : TQK (handleSpuriousIrq (Z := Unit)) := by
-  unfold handleSpuriousIrq; tq_auto
-macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleSpuriousIrq)
-
 theorem tq_handleVmFault (thread : ObjRef) (faultType : VMFaultType) : TQKE (handleVmFault (Z := Unit) thread faultType) := by
   unfold handleVmFault; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_handleVmFault _ _)
@@ -170,6 +154,14 @@ macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_reorderNtf
 theorem tq_replyUnlinkSc (scPtr replyPtr : ObjRef) : TQK (replyUnlinkSc (Z := Unit) scPtr replyPtr) := by
   unfold replyUnlinkSc; tq_auto
 macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_replyUnlinkSc _ _)
+
+theorem tq_replyRemove (caller r : ObjRef) : TQK (replyRemove (Z := Unit) caller r) := by
+  unfold replyRemove; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_replyRemove _ _)
+
+theorem tq_replyRemoveTcb (tptr rptr : ObjRef) : TQK (replyRemoveTcb (Z := Unit) tptr rptr) := by
+  unfold replyRemoveTcb; tq_auto
+macro_rules | `(tactic| tq_leaf) => `(tactic| with_reducible exact tq_replyRemoveTcb _ _)
 
 theorem tq_returnConsumed (scPtr : ObjRef) : TQK (returnConsumed (Z := Unit) scPtr) := by
   unfold returnConsumed; tq_auto
