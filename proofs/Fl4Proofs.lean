@@ -725,3 +725,4 @@ import Fl4Proofs.P3.XTopJointFaultN
 import Fl4Proofs.P3.XTopJointRecvSigN
 import Fl4Proofs.P3.XTopJointRecvIpcN
 import Fl4Proofs.P3.XTopJointKEntry23M
+import Fl4Proofs.P3.XTopJointKEntry22P
