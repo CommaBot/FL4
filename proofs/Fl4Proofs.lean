@@ -992,3 +992,6 @@ import Fl4Proofs.P3.SpecInvCqT
 import Fl4Proofs.P3.SpecInvCqL
 import Fl4Proofs.P3.SpecInvRdA
 import Fl4Proofs.P3.SpecInvRdB
+import Fl4Proofs.P3.SpecInvSlD
+import Fl4Proofs.P3.SpecInvSlD2
+import Fl4Proofs.P3.SpecInvSlD3
