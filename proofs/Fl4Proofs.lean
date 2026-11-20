@@ -745,3 +745,9 @@ import Fl4Proofs.P3.XTopJointRecvIpcPushDonD
 import Fl4Proofs.P3.XTopJointKEntry27MD
 import Fl4Proofs.P3.XTopJointKEntry28M
 import Fl4Proofs.P3.XTopJointKEntry26P
+import Fl4Proofs.P3.SpecInvValidMachineTimeKit
+import Fl4Proofs.P3.SpecInvValidMachineTimeGen
+import Fl4Proofs.P3.SpecInvValidMachineTime
+import Fl4Proofs.P3.SpecInvValidIrqMasks
+import Fl4Proofs.P3.SpecInvCtNQR
+import Fl4Proofs.P3.SpecInvOffReady

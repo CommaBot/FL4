@@ -10,7 +10,9 @@ the `JAtZ` cone).
   the IRQ masks (what `ValidMachineTime` and `ValidIrqMasks` read).
 * `WL P`: the leaves a predicate `P` reading only `vw` must be kept by:
   `updateTimeStamp`, `setIrqState`, machine operations that keep the last
-  machine time and only set IRQ masks (`MaskT`), and the IRQ ack's unmask.
+  machine time and only set IRQ masks (`MaskT`), the IRQ ack's unmask, and
+  the spec's ReadFPU step (`fpu`: Ext/Tcb's `.fpuTransfer _ true _` sets the
+  whole machine state to any value; FINDING in SpecInvValidMachineTime).
   `GK m := ∀ P, WL P → IK P m`: proved once for every spec function of the
   kernel entry (SpecInvValidMachineTimeGen), instantiated per field.
 * Frames: MachFieldFamT's `MTK` family (every spec function not reaching a
