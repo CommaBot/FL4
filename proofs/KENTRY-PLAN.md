@@ -2289,10 +2289,11 @@ New leaf XTopJointMachRel (imported from Fl4Proofs.lean). Nothing existing edite
   spec is one IRQ sample ahead after that branch: `after_invocation`'s `take_pending_irq` answers position p+1, the
   spec's `maybeHandleInterrupt` reads p+2, so the handled lines can differ and the refinement is FALSE for
   `modelArch` there (the existing proofs hide it: `JHole.msAr` lets the spec machine state be anything). No
-  satisfiable MR can absorb the skip (MR a ms ∧ MR a (gaiState ms) forces the oracle constant). Fix options (lead /
-  owner): (a) spec deviation: sample `getActiveIRQ` in `preemptionPoint` only when `¬exp ∧ active ∧ sufficient`
-  (this is also C seL4's short-circuit order `!(sc_active && refill_sufficient) || isCurDomainExpired() ||
-  isIRQPending()`); (b) kernel change: call `irq_pending` before the budget test. Either makes the reads lockstep.
+  satisfiable MR can absorb the skip (MR a ms ∧ MR a (gaiState ms) forces the oracle constant). C seL4 (c98d70ad
+  src/model/preemption.c, MCS) reads first: `if (isIRQPending() || isCurDomainExpired() || !(sc_active(ksCurSC) &&
+  refill_sufficient(…)))`, i.e. it samples unconditionally like the spec; FL4 reordered the test. Fix (owner
+  approval, kernel change + re-extraction): FL4 `preemption_point` calls `irq_pending` right after
+  `update_timestamp`, before the budget/domain tests (C's order). A spec deviation is the wrong direction (spec = C).
 - NEXT (handoff), after FINDING 2 is decided:
   (1) MR transport lemmas, each = an FL4 arch trace + a spec trace, combined with the existing J lemmas by
       `WP.spec_and` (no copies of the big proofs): `update_timestamp ⦃ ∃ v, arI.now a = ok (v, r.2) ⦄`;
