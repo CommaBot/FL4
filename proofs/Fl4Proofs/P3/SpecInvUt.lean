@@ -17,9 +17,10 @@ of the generated frames SpecInvUtF1..F4 keeps them (`ik_utInv_of_uk`):
 * `UtDisj` (l4v `untyped_inc`'s usable-range clause): the free parts of two
   untyped caps in different slots are disjoint (a copy makes its source full,
   `set_untyped_cap_as_full`).
-* `UtDesc` (l4v `untyped_inc`'s descendants clause): if an untyped cap's free
-  part meets another untyped cap's region, its slot is a CDT descendant of the
-  other's. With `ensure_no_children` this makes a reset safe.
+* `UtDesc` (l4v `untyped_inc`): untyped caps in different slots whose regions
+  overlap are CDT ancestor and descendant, and the descendant's region misses
+  the ancestor's free part. With `ensure_no_children` this makes a reset safe
+  (`UtDesc.noKids`: a childless untyped's region meets no other free part).
 * `UtOrig` (l4v `is_original_cap` of untyped caps, `cap_insert` /
   `is_cap_revocable`): every untyped cap is original, so its copies are its
   children.
@@ -76,11 +77,15 @@ def UtDisjV (w : UView) : Prop :=
     w.2.1 s1 = some (.untypedCap d1 b1 n1 f1) → w.2.1 s2 = some (.untypedCap d2 b2 n2 f2) →
     ∀ k, k ∈ utFr b1 n1 f1 → k ∉ utFr b2 n2 f2
 
-/-- `UtDesc` on the view. -/
+/-- `UtDesc` on the view: two untyped caps in different slots whose regions
+overlap are in the CDT ancestor relation, and the descendant's region misses the
+ancestor's free part. -/
 def UtDescV (w : UView) : Prop :=
   ∀ s1 s2 d1 b1 n1 f1 d2 b2 n2 f2, s1 ≠ s2 →
     w.2.1 s1 = some (.untypedCap d1 b1 n1 f1) → w.2.1 s2 = some (.untypedCap d2 b2 n2 f2) →
-    (∃ k, k ∈ utR b1 n1 ∧ k ∈ utFr b2 n2 f2) → s2 ∈ descendantsOf s1 w.2.2.1
+    (∃ k, k ∈ utR b1 n1 ∧ k ∈ utR b2 n2) →
+    (s2 ∈ descendantsOf s1 w.2.2.1 ∧ ∀ k, k ∈ utR b2 n2 → k ∉ utFr b1 n1 f1) ∨
+      (s1 ∈ descendantsOf s2 w.2.2.1 ∧ ∀ k, k ∈ utR b1 n1 → k ∉ utFr b2 n2 f2)
 
 /-- `UtOrig` on the view. -/
 def UtOrigV (w : UView) : Prop :=
@@ -92,7 +97,7 @@ abbrev UtFree (σ : State Unit) : Prop := UtFreeV (uV σ)
 abbrev UtWf (σ : State Unit) : Prop := UtWfV (uV σ)
 /-- **UtDisj [J]** (l4v `untyped_inc`, usable ranges). -/
 abbrev UtDisj (σ : State Unit) : Prop := UtDisjV (uV σ)
-/-- **UtDesc [J]** (l4v `untyped_inc`, descendants). -/
+/-- **UtDesc [J]** (l4v `untyped_inc`: overlapping untyped caps are nested in the CDT). -/
 abbrev UtDesc (σ : State Unit) : Prop := UtDescV (uV σ)
 /-- **UtOrig [J]** (l4v: untyped caps are original). -/
 abbrev UtOrig (σ : State Unit) : Prop := UtOrigV (uV σ)
@@ -105,6 +110,25 @@ abbrev UtInv (σ : State Unit) : Prop := UtInvV (uV σ)
 
 theorem utInv_view {σ σ' : State Unit} (h : uV σ' = uV σ) (hI : UtInv σ) : UtInv σ' := by
   show UtInvV (uV σ'); rw [h]; exact hI
+
+/-- A slot with no CDT child has no descendant. -/
+theorem desc_noKids {t : Cdt} {s s' : CslotPtr} (h : ∀ c, t c ≠ some s) : s' ∉ descendantsOf s t := by
+  intro hd
+  have hd' : Relation.TransGen (parentOf t) s s' := hd
+  obtain ⟨c, hc, -⟩ := Relation.TransGen.head'_iff.1 hd'
+  exact h c hc
+
+/-- **What a reset relies on**: if an untyped slot has no CDT child, no other
+untyped cap's free part meets its region (UtDesc). -/
+theorem UtDesc.noKids {σ : State Unit} (hD : UtDesc σ) {s1 : CslotPtr} {d1 : Bool} {b1 : ObjRef} {n1 f1 : Nat}
+    (hc1 : capAt σ s1 = some (.untypedCap d1 b1 n1 f1)) (hk : ∀ c, σ.cdt c ≠ some s1) {s2 : CslotPtr}
+    (hne : s1 ≠ s2) {d2 : Bool} {b2 : ObjRef} {n2 f2 : Nat} (hc2 : capAt σ s2 = some (.untypedCap d2 b2 n2 f2)) :
+    ∀ k, k ∈ utR b1 n1 → k ∉ utFr b2 n2 f2 := by
+  intro k hk1 hk2
+  rcases hD s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hne hc1 hc2 ⟨k, hk1, ⟨by have := hk2.1; omega, hk2.2⟩⟩ with
+    ⟨hd, -⟩ | ⟨-, hr⟩
+  · exact desc_noKids hk hd
+  · exact hr k hk1 hk2
 
 /-- Every function of the generated frames keeps the untyped invariant. -/
 theorem ik_utInv_of_uk {α : Type} {m : NonDet (State Unit) α} (h : ∀ v, UK v m) : IK UtInv m :=
