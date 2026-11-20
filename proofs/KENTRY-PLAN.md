@@ -2312,3 +2312,54 @@ New leaf XTopJointMachRel (imported from Fl4Proofs.lean). Nothing existing edite
   jobs, on 3febf556). Axioms (scratch/axirq1.lean, untracked): propext, Classical.choice, Quot.sound (or fewer) for
   PPPlat.false, MachPlat.nowAgree/nowAt/irqAt/takeAt/noIrq_imp, modelArch_machPlat, modelArch_take_some,
   modelArch_noIrq_iff, getCurrentTime_eq, getActiveIRQ_eq, validMachineTime_gct. No sorry/admit/native_decide.
+## sch14 (branch par/sched14 in FL4-sc, on 3febf556 = int/j2 incl. sch13, kp17)
+New leaves XTopJointMidRunQ, XTopJointKEntry9M (imported from Fl4Proofs.lean). Nothing existing edited;
+JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq* untouched.
+- (i) DONE for hnq + "no switch to ct" (XTopJointMidRunQ, spec side): `qV σ := (readyQueues, schedulerAction)`,
+  `QV := FK qV` (VsDom frame; leaves scripted from SpecGlobFK's GK lemmas (arch performs, cap ops), AllDom's DK
+  lemmas (lookups, IPC transfer, refills, IRQ control) and XTopJointMidRunS's decode lemmas, `qv_auto2` = auto-unfold
+  as `fv_auto`); `CQ ct σ := CtRs ct σ ∧ PPNQ.NQ ct σ` (SpecPPRQ's NQ: ct in no ready queue, no switch to ct
+  pending), `PQ ct m` (KF + QK together, `pq_of`); `pq_sendIpc` / `pq_sendSignal` / `pq_doReplyTransfer`
+  (+ `pq_handleTimeout`, `pq_sendFaultIpc`): copies of MidRunP's `pr_` lemmas, the woken thread `≠ ct` by the same
+  state reads, so `possible_switch_to` keeps NQ (`qk_possibleSwitchTo`); QK leaves `qk_postponeQ`,
+  `qk_schedContextResumeQ`, `qk_maybeDonateScQ`, `qk_replyPushQ`, `qk_sendIpcBlockedQ`; `perf_firstQ`; ADDED
+  `MidRun.JMidPerfHypQ don cptr σ` [W] := `∀ inv σ1, MidPerfAt cptr σ inv σ1 → PerfW inv → ∀ y ∈
+  ((fl4PerformInvocation false false don inv).run σ1).1, CQ σ.curThread y.2` (sch12's JMidPerfHyp with CQ for
+  CtRs; same path restriction and l4v family: perform_invocation_not_blocking_not_calling_ct_active +
+  ct_not_in_q/scheduler_act_sane for invoke_untyped / invoke_irq_handler set,clear / ASID control),
+  `JMidPerfHypQ.toP`; `midRunQ_shell`: from `CQ ∧ NQ` at the entry every outcome of the first phase is `CQ`.
+  hvfh is NOT a frame (see JMidVfhHyp below).
+- (iv) partly: from `CQ` the mid state has no switch to ct; the resumed case is an `Entered` state.
+- XTopJointKEntry9M:
+  * ADDED `JMidVfhHyp cptr σ` [J] := `∀ y ∈ ((fl4HandleInvocationR true false false true true cptr).run σ).1,
+    y.1 = .ok () → ∀ x, y.2.kheap y.2.curThread = some (.tcb x) → validFaultHandler x.tcbFaultHandler` (l4v
+    valid_objs/valid_tcb `valid_fault_handler`, kept by handle_invocation (hinv_invs); JEntryAt.vfh [J] at the
+    mid state). Why not a frame: the first phase's cap writes (granted-cap cte_insert, IRQ control's handler cap,
+    the arch cap updates) go to slots found by a CSpace lookup; that such a slot is not ct's TCB fault-handler
+    slot (`setCap` on a TCB slot index 3 writes `tcbFaultHandler`) holds only by `valid_cap` (a CNode cap names a
+    CNode). True in reachable states.
+  * ADDED `JMidRecvHypS arI AR cptr cr σ` [W] = JMidRecvHyp restricted to `.ok` outcomes with
+    `y.2.schedulerAction ≠ .resumeCurThread`, and with `∀ d p, y.2.curThread ∉ y.2.readyQueues d p`,
+    `y.2.schedulerAction ≠ .switchThread y.2.curThread` and ct's valid fault handler as premises (l4v
+    handle_recv_corres at a mid state with a pending switch/reschedule). True in reachable states (it is a
+    special case of sch13's JMidRecvHyp).
+  * `jMidRecvHyp_of`: JMidRecvHyp from JMidPerfHypQ + JMidVfhHyp + JMidRecvHypS + `CQ ∧ NQ` at the dispatch
+    state; the resumed case by `handle_recvJ` + `jRecvIpcHypL_of` + `jRecvSigHyp_of` (all proved), `.toR`.
+    `JAtZ.midCQ` (CQ ∧ NQ from Entered + JEntryAt.cnf/ctnq). `KDispHyps9M` (mid: JEntryGlob/JEntryAt/JPathAt,
+    JMidPerfHypQ, JMidVfhHyp, JMidRecvHypS), `dispatch_all9M`, NEW TOP `kernel_entryJ9M` = kernel_entryJ8 with
+    KDispHyps9M for KDispHyps8.
+- Premise changes at the top (kernel_entryJ9M vs J8): `JMidRecvHyp` [W] NARROWED to `JMidRecvHypS` [W] (only the
+  non-resumed mid states) + `JMidVfhHyp` [J]; `JMidPerfHyp` [W] WIDENED to `JMidPerfHypQ` [W] (same three
+  performs, + the ready-queue/action fact).
+- NEXT (handoff) for JMidRecvHypS, unchanged from sch13 (ii)/(iii) but now only for action ≠ resume:
+  (a) switch case (`switchThread u`, u ≠ ct, given by the premise): MidE holds (`⟨ni, CurRun, Or.inr ⟨u, e, hu⟩⟩`,
+      CurRun from JMid); sch6's hni sites → MidE (`J.curInv hni.ncn`, `hni.sa`); blocking leaves need JAtZR
+      copies (ct blocked under a switch: CurInvR holds as the action is not resume).
+  (b) chooseNewThread case: CurInv absent (JAtZ.cur's first disjunct); the leaves' `hsa` second disjunct needs ct
+      SC-less, which is false in general (a reply that rescheduled), so a CurInv-free route is needed.
+- Builds (tokyo, b.sh): sch14-b1..b3 (elaboration: auto-unfold loops on transferCapsLoop, missing QK/QV leaves,
+  setReplyObjRef's type), sch14-b4 `XTopJointMidRunQ XTopJointKEntry9M` OK (5562 jobs, on 3febf556). Axioms
+  (axsch14.sh, untracked; sch14-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ9M,
+  dispatch_all9M, jMidRecvHyp_of, JAtZ.midCQ, MidRun.midRunQ_shell/perf_firstQ/pq_sendIpc/pq_sendSignal/
+  pq_doReplyTransfer/qve_decodeFirst/qve_fl4ArchPerformInvocation/JMidPerfHypQ.toP, kernel_entryJ8. No
+  sorry/admit/native_decide/bv_decide.
