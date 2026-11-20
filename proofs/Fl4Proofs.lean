@@ -666,6 +666,7 @@ import Fl4Proofs.P3.XTopJointMRPP
 import Fl4Proofs.P3.MachFieldKeep
 import Fl4Proofs.P3.XTopJointMRMcs
 import Fl4Proofs.P3.MachKeep
+import Fl4Proofs.P3.XTopJointMRPath
 import Fl4Proofs.P3.XTopJointMidRunQ
 import Fl4Proofs.P3.XTopJointKEntry9M
 import Fl4Proofs.P3.XTopJointRecvSigM
