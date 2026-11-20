@@ -1859,4 +1859,69 @@ XTopJointPreempt*, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/ScCharge*/Entry u
   untracked; sch10-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ6, kPreFinHypC_of, dispatch_allR,
   DispPost.toR, JAt.toRE, dispatch_invokeJEPZEC, hPre_ofZEC, afterInv_of_mcsJ, JHole.afterInvJZJ, jIrqHypJ_of,
   JAtZ.handleIrqJJ, JAtZ.armedJ, armed_schedStep, PPQC.toPPQ, PPQJ.toPPQ, kernel_entryJ5, handle_invocation_refinesJ.
+
+## kp15 (branch par/budget11 in FL4-tcbj, on b629a541 = int/j2 incl. kp14, sch9)
+- DONE 2fd2dad0 (A)/(B), new leaves ScChargeTA, XTopJointPreemptA (nothing existing edited):
+  * ScChargeTA: scripted copies (suffix `A`) of ScChargeT's `JTH.tmoBlockJ`, `JTH.endTimesliceTmoJ`,
+    `JHole.chargeBudgetTmoJ` and XTopJointBudgetT's `JHole.checkBudgetT` with `hres : action = ResumeCurThread ∨
+    action = ChooseNewThread`. Hand changes at the 3 `hres` sites only: P1 `CanBlock`'s "no switch to t"
+    (`actionW_ne_of`), `hact3` (ChooseNewThread after the block: `sendIpcBlock_eq`'s `hact''` for resume, its
+    action disjunction for a pending ChooseNewThread), `hres3` (the action kept by the head charge). FOLD LATER:
+    the originals are the `Or.inl` instances.
+  * XTopJointPreemptA: `JHole.mcsPPJA` (CurInv, non-idle, schedulable, Running/Restart, unqueued, resume or
+    choose, insufficient head, non-RR SC, endpoint handler on an idle/sending endpoint: `checkBudgetTA`; FL4's
+    `true` outcome excluded by `check_budgetT`'s sufficiency; `JAt` after).
+  * FINDING (B): a queued current thread cannot be handled: the timeout fault blocks it and neither side
+    dequeues it (spec `endTimeslice` → `handleTimeout`; FL4 `end_timeslice` → `handle_timeout`), so `Inv.rq`
+    fails after. It is unreachable at a hole: hence the [J] premise below (case (D), handler cap naming no
+    endpoint object, is vacuous: `hcb` quantifies over the endpoint object, `tmoBlockJA` gets it from the cap).
+  * `JHoleCtNQHyp arI AR` [J] (l4v `ct_not_queued`, precondition of MCS `check_budget`/`charge_budget … True`
+    in `preemption_point`) := `∀ s a σ, JHoleAt arI AR s a σ → CurInv σ → schedulable σ.curThread σ = true →
+    ∀ d p, σ.curThread ∉ σ.readyQueues d p`. Why true: `JEntryAt.ctnq` at the invocation; the spec's enqueues
+    of the current thread (`set_priority`/`set_domain`/`yield_to`/`sched_context_bind_tcb` on it,
+    `end_timeslice`'s append) are in no preemptible invocation; the others (`possible_switch_to`,
+    `reschedule_required`'s switch target) name woken/switched-to threads. Removing it needs a hole-level
+    carried fact (e.g. JAtPre/JHole carrying ctnq through the preemptible invocations: CNode delete/revoke,
+    untyped reset, cancel badged sends).
+  * `JPreemptRestHypC arI AR` [W] := `JPreemptRestHypE`'s hypotheses + `∀ d p, ct ∉ RQ d p` + `∀ x n, kheap
+    curSc = sc x n → x.scPeriod ≠ 0` + `∀ xt p bd r q, kheap ct = tcb xt → (Running ∨ Restart) →
+    xt.tcbTimeoutHandler = .endpointCap p bd r → kheap p = some (.endpoint (.recvEP q)) → after_invocation …
+    (Err Preempted) ⦃ PPQ ⦄`. Exactly kp5 (i) (C).
+  * `jPreemptRestHypE_ofC hARI hA hP hmrt hIP hNS hNQ hRC : JPreemptRestHypE` (¬PPCov ⇒ ¬NoTmoSend ⇒ endpoint
+    handler + non-RR; NativeScope ⇒ Running/Restart; NoSwitch ⇒ resume ∨ choose; idle/sending endpoint ⇒
+    `mcsPPJA` + `afterInv_of_mcs`; receiving ⇒ C). `dispatch_invokeJPZA`, `dispatch_invokeJEPZA` (NEW TOP:
+    dispatch_invokeJEPZE's premises with `hNQ : JHoleCtNQHyp` [J] and `hRC : JPreemptRestHypC` [W] for
+    `hRest : JPreemptRestHypE`).
+- Premise change at the top: `JPreemptRestHypE` [W] REMOVED from the top, replaced by `JHoleCtNQHyp` [J] (new)
+  and `JPreemptRestHypC` [W] (narrower than E: receiving handler endpoint only).
+- (C) NOT DONE (handoff). The timeout fault of the CURRENT thread to a receiver waiting on its handler's
+  endpoint, inside `charge_budget` (a `JTH` state, then as `endTimesliceTmoJA`/`chargeBudgetTmoJA` with the
+  `reschedJ`/`reprogramJ` tail; spec `sendIpc`'s `recvEP (dest :: _)` branch: dequeue, `doIpcTransfer` (fault
+  transfer: `update_consumed` of ct's SC, `tmoSt`), reply unlink, then `replyPush ct dest reply false` if
+  (grant ∨ grantReply) ∧ reply, else `setThreadState ct Inactive`; dest Running, refill unblock check,
+  `possibleSwitchTo dest`). XTopJointFaultTmo's `sendTmoRecvIJ` (:653, ~620 lines) / `sendTmoRecvPJ` (:1270,
+  ~750) do this for t ≠ ct from a REAL `JAtZ` base where t is Inactive (`tmoBaseJ`: t with the fault, its SC's
+  consumed cleared), reading the frame base→end on shadows `rhoT` (t's TCB and SC as at the base) and closing
+  with `JAtZ.wake_postD` + `sendTailJ`. The ct-specific uses: `hcr`/`hdc` (receiver ≠ ct; for t = ct it is
+  `htd`), `htc` at `hc3` (:1123, `stsAct_ne` for `setThreadState t Inactive`; for t = ct it sets
+  ChooseNewThread when the action is resume, a no-op otherwise), `htc5` (:1242). Two routes:
+  (a) tmoBlockJA-style: run the FL4 steps on `IRel` from the `JTH` state (copy the FL4/IRel half of
+  sendTmoRecvIJ: `ep_dequeue_c`, `xferTmoStepJ`, reply unlink, `set_thread_state` / `reply_push`, wake), and
+  assemble `JAtZ` from `Hj.j0` with the composite frame `ScOnly` then the send's frame, with the shadow taken
+  at the hole base (ct's TCB and SC as at `σ0`), `Inv` after from `InvBut ct` (Inactive and BlockedOnReply
+  are not `inClassR`) as `tmoBlockJ`'s `hIt.ik`; the receiver's `rd` from `InvBut` (dest ≠ ct).
+  (b) a virtual base: a `JAtZ` at the state "ct Inactive with the fault, its SC charged with consumed 0,
+  ChooseNewThread" built from `JTH` (FL4: ct's state word and the node action word written), then
+  sendTmoRecvIJ/PJ generalised to t = ct under ChooseNewThread. Obstacle for a resume action: the real s7
+  has the resume action word, so FL4's `set_thread_state ct INACTIVE` writes the action word, which the
+  virtual base does not see — (a) avoids this. Expect ~1200–1500 lines either way; builds here are fast
+  (ScChargeTA 10 s), so the cost is context, not CPU. Platform facts needed: `hmax`/`htu` (as
+  runTmoP_recv), so `JPreemptRestHypC`'s replacement theorem takes them.
+- Kernel-entry wiring (sch line's XTopJointKEntry2/3, out of scope here): replace `JPreemptRestHypK` by
+  `JHoleCtNQHyp` + `JPreemptRestHypC` via `jPreemptRestHypE_ofC` and `dispatch_invokeJEPZA` (E from K:
+  `jPreemptRestHypE_of ∘ jPreemptRestHypS_of ∘ jPreemptRestHypM_of ∘ jPreemptRestHypL_of`).
+- Builds: kp15-b1 (ScChargeTA green; XTopJointPreemptA one error), kp15-b2 (XTopJointPreemptA green, 5436
+  jobs), kp15-ax1 (XTopJointEntry up to date). scratch/axkp15.lean (untracked): propext, Classical.choice,
+  Quot.sound only for JTH.tmoBlockJA, JTH.endTimesliceTmoJA, JHole.chargeBudgetTmoJA, JHole.checkBudgetTA,
+  JHole.mcsPPJA, jPreemptRestHypE_ofC, dispatch_invokeJPZA, dispatch_invokeJEPZA, handle_invocation_refinesJ.
   No sorry/admit/native_decide/bv_decide.
