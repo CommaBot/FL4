@@ -6250,3 +6250,83 @@ Nothing existing edited.
   traversals' 4000000 (sb2's okb_fl4Decode setting). Root Fl4Proofs.lean not rebuilt (three import lines added).
 - Next: carry `ValidIdle ∧ IdleScOutV` in the G1 bundle (the tops above, with sg1 / ut8 tops for their premises); `CtSc` [J]
   stays until a valid_sched slice (`ct_active ⟶ schedulable`) is carried.
+## sl2 (branch par/sl2 in FL4-sc, on 996ba48a = int/j2 incl. sl1, il2; + d7600914 doc) — NtfnScB carried; sl1 handoff 1 done (NOT finished: handoff 2-4)
+Goal (sl1 handoff 1-4 + lead decisions): `kentry_scLive` / `kcall_scLive`, then `kentry_scInv` / `kcall_scInv` carrying
+`ScInv ∧ ScLiveT ∧ IdleScOutV` with no ScLive [J]. Done: NtfnScB (lead decision 2) with its family, and every donation
+composite of handoff 1 in the joint form (lead decision 1); the deletion / decode-dependent / shell parts remain.
+- **NtfnScB (SpecInvSlNK)**: `NtfnScB σ := ∀ n ntf c, kheap n = notification ntf → ntf.ntfnSc = some c → ∃ y k, kheap c =
+  schedContext y k ∧ y.scNtfn = some n` (l4v `sym_refs` of `ntfn_sc`/`sc_ntfn`, the half maybe_donate_sc reads). The
+  converse half is NOT carried and not needed: the unbinding writers read the pointer they clear, and this half alone gives
+  uniqueness (`nb_uniq`: two notifications pointing to `c` are both `c`'s notification), which is what
+  sched_context_unbind_ntfn / sched_context_maybe_unbind_ntfn need (`nb_doUnbind`). (Carrying the converse would need a
+  liveness fact for notifications at detype: an SC's notification deleted while the SC survives.) `NBOK o0 o` (`nscO` /
+  `scnO` kept, kinds kept), `nb_update`, `nb_setObject_p`, **`nb_setSimpleKo_p`** (state-pinned: the new notification's SC is
+  the old one's), `nb_setSimpleKo` (constructor never a notification), `nb_updateSkObjRef` (field update keeping `ntfnSc`),
+  TCB / cap / SC-update leaves, read-modify-write writers `nb_tcbNtfnDequeue`, `nb_tcbNtfnAppend`, `nb_reorderNtfn`
+  (`tcbAppend_st`: an ordered insert reads only), `nb_schedContextUnbindNtfn`, `nb_schedContextMaybeUnbindNtfn`; `nb_auto`.
+- **Generated family SpecInvSlN1..N6** (376 lemmas `NBK f`, scratch/sl2/mknb.sh = sl1's gen.py/closure.py; prim.txt = the
+  leaves above; hard.txt = completeSignal, sendSignal, receiveSignal (notification written from a read at an earlier
+  state), schedContextBindNtfn (decode fact needed), retypeRegion(With), deleteObjects, invokeUntyped(With),
+  fl4InvokeUntyped, resetUntypedCap, performAsidControlInvocation, decodeCopy/Read/WriteRegisters (as sl1); extra.txt =
+  fl4Awaken). Covers the whole deletion cone (rec_del, cap_delete, cap_revoke, finalise_cap), IPC, budget, decodes; the
+  caller closure skipped (closure.log): the signal callers, perform/invocation shell, handle_* and the entry.
+- **The joint carriers (SpecInvSlM)**: `PinB t σ` (the thread `t` is bound = vi2's `CtSc` at `t`; kept by sb1's `SBK` frame,
+  `pinB_br`), `SBP I K d t := SL I K ∧ ScInv ∧ (d → PinB t)`, **`SAP I K L d t := SBP I K d t ∧ IL L ∧ NtfnScB`** (il2's
+  `IL L`); steps `sap_ik` (SLK, ILK L, SBK, NBK), `sapF_ik` (pin False: SIK instead of SBK, for the unbinding steps
+  maybe_return_sc / reply_remove), `sap_of_live` / `sbp_of_live` (a thread read live joins K and L by IfLiveT),
+  `sap_step` / `sapf_step`; pre/post combinators `shk_*`.
+- **The composites (post `SL I K`)**: SpecInvSlM **`sl_sendIpc bl call bd g gr cd thread ep : HK (SAP I K L (cd = true ∧
+  call = false) thread) (SL I K) (sendIpc …)`** (receiver read BlockedOnReceive joins K; reply_push by `sl_replyPush` +
+  `ScBackS`; the direct donation `sl_donate`: the pinned sender's SC read `some c`, bound back by ScBackS, so live, joins K),
+  `sl_sendFaultIpc (pin when cd)`, `sl_handleTimeout`, **`sl_handleFault`** (the SC read at that state gives the pin).
+  SpecInvSlS: `nsc_of` (NtfnScB + SL ⇒ sl1's `NSc`), `ntfnAt_asUser`, `SLN := SL ∧ NtfnScB`, `sln_donateCore`,
+  **`sln_completeSignal (t ∈ K)`, `sln_receiveSignal (t ∈ K)`, `sln_updateWaitingNtfn (queue ⊆ K)`, `sln_sendSignal : HK
+  (SLI I K L) (SLN I K)`** (`SLI := SLN ∧ ILN L`: waiting queue named by il2's `il_ntfnQueue`, bound receiver read
+  BlockedOnReceive). SpecInvSlR: `sl_recvSender`, `sl_recvTail`, **`sl_receiveIpc (thread ∈ K) : HK (SAP I K L False t)
+  (SL I K)`**, `sl_drtTail`, **`sl_doReplyTransfer : HK (SAP I K L False t) (SL I K)`** (receiver read BlockedOnReply
+  joins K and L before reply_remove; the timeout tail by sl_handleTimeout). SpecInvSlB: `sl_endTimeslice`,
+  `sl_chargeBudget`, `sl_checkBudget`, `sl_checkBudgetRestart` (pre `SAP … False`). SpecInvSlQ: `sli_ik`,
+  **`sli_sendSignal`, `sli_fl4Awaken`, `sli_handleInterrupt`, `sli_maybeHandleInterrupt : IK (SLI I K L)`**.
+- Premises: none new. The pin is the hypothesis of the composites only (`d → PinB t`); at the tops it is vi2's `CtSc` [J]
+  for `Pinned c` exactly as the lead decided (not yet wired: shell). No FINDING (no reachable step found to break SL or
+  NtfnScB). Checked: suspend / cancel_ipc / reply_remove_tcb never donate (finalise of a final thread cap leaves the TCB
+  unbound after unbind_from_sc), schedContextUnbindAllTcbs skips only the idle SC (exempt, `I.2`).
+- Commits: b95e7dd3 (SlNK, SlN1..N6), 43ad1b6c (SlM), ed13c24d (SlS), 301ab066 (SlR), 35d6eddb (SlB, SlQ). Root
+  Fl4Proofs.lean imports all (root not rebuilt). Builds (tokyo, ./sl2.sh untracked = sl1.sh with `rc=${PIPESTATUS[0]}`,
+  FL4-sc mirror warm): sl2-b4 SlNK + N1..N6 (N5 61 s, N6 38 s); sl2-b6 SlM; sl2-b9 SlS; sl2-b10 SlR; sl2-b12 SlB + SlQ
+  "Build completed successfully (1252 jobs)"; sl2-ax1 axioms (scratch/sl2/ax.lean, untracked).
+- HANDOFF (in order; carriers above):
+  2. **Deletion** (`SL [] ∧ ILN [] ∧ UtInv'' ∧ ScInv ∧ NtfnScB` on ut5's `hr_lfp` RPre/RPost, mirroring il2's SpecInvNtfnQLD
+     with `NSafe` for `TcSafe`, `NCap` for thread caps; NB is generic there: `nb_recDel`, `nb_capDelete`, `nb_capRevoke`
+     exist): thread cap FINAL — `finalise_cap` runs unbind_from_sc (needs ScBackS: the TCB's SC has scTcb = it, so
+     sched_context_unbind_tcb clears it) then suspend (no rebinding), so the `Zombie r none 6` is `NSafe`'s third case
+     (`r ∉ []`, r not live); SC cap FINAL — unbind_all_tcbs (skips the idle SC) / unbind_ntfn / unbind_reply leave it not
+     live (`scLv` false), the null remainder is the third case; NON-final thread / SC caps — `isFinalCap` false gives an
+     overlapping slot, ut4's CapKind / ZFinal make it a cap of the same kind to the same object (il2's `other_threadCap`;
+     an SC-cap analogue is needed); reply caps (final) — `replyRemove tp r` of the BlockedOnReply thread (read live: joins
+     K) or cancel_ipc; every other removal and every Zombie is free (`NSafe` first case); cap_swap / cap_move permute /
+     move NCap (il2's `il_capSwap`, `refEq_tc` for SC caps). Then cap_delete_one, deleting_irq_handler, invoke_irq_handler,
+     fast_finalise (cancel_all_ipc / signals: SL family) and `kentry`'s other deletion callers.
+  3. **Decode-dependent performs**: SC Bind / threadControlSched bind (sb2's DecFrom / BindOK: both caps lie in slots, so
+     HasN, join K: `sl_schedContextBindTcb`), SC BindNtfn (`sl_schedContextBindNtfn` with the invoked SC cap; and NB:
+     **`schedContextBindNtfn sc n` keeps NtfnScB iff `sc.scNtfn = none` (or `= some n`) at that state** — the decode reads
+     `sc.scNtfn = none` and `n.ntfnSc = none`; carry it to the perform with sb2's DecFrom frame (the binding fields of SCs
+     and notifications are kept by the shell prefix)); untyped retype / reset / MakePool: new objects are defaults (not
+     live, `ntfnSc = none`), create_cap at null slots, detype of a childless untyped's region: no NCap removed
+     (`regNull_of`), and for NB no surviving notification points into the region (the pointed SC is live by NtfnScB, so
+     named, so outside the region by sb2's `unb_of_live` argument; the idle SC by IdleScOutV); TCB invocations (il2's
+     `okv_tgI` for restart targets; install caps = deletion + cap_insert), CNode invocations (il2's CnOKN pattern),
+     arch performs (no NCap involved).
+  4. **Shell + tops** (il2's SpecInvNtfnQLS pattern with `Ju`): `SAP I [ct] [ct] (Pinned c) ct` from `ha` (ct active ⇒
+     live ⇒ HasTC by IfLiveT ⇒ HasN) and vi2's `CtSc` [J] for the pinned syscalls (the pin is kept by `SBK` through the
+     shell prefix to the endpoint send, as vi2's `W`), first-phase decodes keep `ct ∈ K` (il2's `JQ ct fp`); events: K = []
+     (sli_* for interrupts/timers, sl_* budget lemmas). Then `kentry_scLive (hU : UtInv3) (hV : VfhAll) (hG : SpecGlobS ∧
+     IdleOutV) (hN : NtfnQB ∧ EpQB) (hL : IfLiveT σ) (ha) (hct : Pinned c → CtSc σ) (h : ScLiveT (idleP σ) σ ∧ IdleScOutV σ ∧
+     NtfnScB σ ∧ ScInv σ)` with sl1's `kentry_idleScOutV` and IsK for the idle pair, and `kentry_scInv` with `scLive_of`
+     for sb2's `ScLive` (which sb2's tops need at the entry state only). The `Pinned` hypothesis is vi2's exactly.
+- Lessons: a do-block `match`/`if` followed by statements is inlined into each arm (state the tail as its own lemma and
+  `shk_bind` into it; for `let x ← if …` the join point appears as `have __do_jp := …`, `dsimp only` first); `split at h`
+  fails on `match ntfn.ntfnObj, ntfn.ntfnBoundTcb` after a read — `rcases ho : a.ntfnObj … <;> simp only [ho] at hy`;
+  `subst e` with `e : s = σ` eliminates σ (use `subst s`); a station_task key runs once (new key per build).
+- Scratch (untracked): scratch/sl2/{gen.py, closure.py (manual_nb.py), manual_nb.py (= sl1's manual_sl.py), prim.txt,
+  hard.txt, extra.txt, mknb.sh, skipNB.txt, closure.log, bodyNB.lean, ax.lean}; build script sl2.sh.
