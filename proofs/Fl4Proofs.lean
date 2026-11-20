@@ -891,3 +891,4 @@ import Fl4Proofs.P3.SpecInvCqF2
 import Fl4Proofs.P3.SpecInvCqF3
 import Fl4Proofs.P3.SpecInvCqF4
 import Fl4Proofs.P3.SpecInvCqF5
+import Fl4Proofs.P3.SpecInvCq
