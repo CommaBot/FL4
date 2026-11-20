@@ -3083,3 +3083,52 @@ PreKind (J17P). NOT done: Thread (PreKind17 = Thread | VT-x Untyped).
   FinObjHypWRcZ.mrv, ZombieHypWZ.mrv, SwapHypWZ.mrv, EmptyHypWR.mrv, mrv_keep, modelArch_mrKeepD,
   MKD.objects_finalise_cap/vcpu_revoke_ports_loop/vspace_delete_asid_pool_loop, MachT.mtk_finaliseCap/emptySlotNull,
   kernel_entryJ16P; setIrqInactive_out propext only. No sorry/admit/native_decide/bv_decide.
+## sch22 (branch par/sched22 in FL4-sc, on 37c70ce1 = int/j2 incl. sch21)
+New leaves XTopJointRecvIpcLinkC, XTopJointKEntry22M (imported from Fl4Proofs.lean; hand-written, no generator).
+Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/
+XTopJointRecv* untouched.
+- (c3) IpcLinked at MidC DONE. FINDING: sch21's worry ("the cancel may hand ct's current SC back via reply_remove")
+  does not arise: the spec's `cancel_ipc` of a thread blocked on a reply calls `replyRemoveTcb`
+  (Fl4Spec/IpcCancel.lean:145), which only trims `scReplies` of the SC the reply is at and unlinks the reply; no SC
+  moves between threads (l4v: that is `reply_remove`, used by do_reply_transfer, not `reply_remove_tcb`). So
+  `CurInv` is kept, no CurInv-keeping variant of cancelReplyJ/cancelRecvJ was needed:
+  * `cancelLink_curInv` (spec only, Sched.SchedValid σ, i ≠ ct blocked on reply q or receiving with q): reply case by
+    `ikm_cancelIpc` (IK i: TCB SC fields, SC refill max, release queue), `cancelOther_keep` (ct, ct's TCB),
+    `rsf_replyRemoveTcb` (curSc, idleSc); receive case by `cancelIpc_recv_cfr … |>.1.curInv`.
+  * `jRecvIpcLinkC`: `jRecvIpcLinkM` with MidC (MidC at the state after by `cancelLink_curInv`) and `jRecvIpcUC`.
+- Top: XTopJointKEntry22M: `JRecvLeavesRN13` (ipc, sig, flt all only under chooseNewThread ∧ ¬CurInv), `.toRN12`
+  (`jRecvIpcLinkC` when CurInv and IpcLinked), `JMidLeavesHyp13` [W], `jMidLeavesHyp_of13`, `KDispHyps22M.to21M`,
+  NEW TOP `kernel_entryJ22M`; also `Sched.Inv.notRel_of_noSc` (an SC-less thread is in no release queue, from
+  `Inv.rel`; for (c2)).
+- Premise change at the top (kernel_entryJ22M vs J21M): `JMidLeavesHyp12` [W] NARROWED to `JMidLeavesHyp13` [W] :=
+  JMidLeavesHyp12's premises concluding `JRecvLeavesRN13`: receive_ipc, receive_signal and the cap fault's
+  handle_fault each only under chooseNewThread ∧ ¬CurInv (the IpcLinked disjunct of receive_ipc is gone). Same l4v
+  counterpart (receive_ipc_corres / receive_signal_corres / handle_fault_corres inside handle_recv_corres); a case of
+  JMidLeavesHyp8, true in reachable states by sch20 STEP 1. Nothing added. Other premises as J21M.
+- NOT DONE (handoff), what JMidLeavesHyp13 still contains (only the ¬CurInv half, = sch21 (c1)+(c2)):
+  (c1) the first-phase spec fact `CtOK y := CurInv y ∨ ct SC-less`. FINDING: it is NOT a pure projection frame
+  (FK view) like MidRunK/Q: SCs other than curSc change (sendSignal / send to a receiver wake threads:
+  schedContextResume / refill_unblock_check / possible donation on the woken thread's SC), and other threads enter
+  the release queue (postpone). The preserved predicate must be invariant-carrying, PQ-style (`PQ ct m`: from a
+  CQ-like state every outcome is CQ-like), with view facts "ct ∉ releaseQueue", "ct's SC field", "curSc/idleSc",
+  "scActive of the SC at curSc" and a side invariant "every written SC is bound (scTcb) to a thread ≠ ct" (from
+  Inv/SchedValid: the woken thread's SC has scTcb = that thread, and curSc's scTcb = ct under CurInv). The two moves
+  to the SC-less disjunct (endpoint send donating ct's SC to a passive receiver; doReplyTransfer returning a donated
+  SC) then need a "SC-less stays SC-less" frame (nothing binds an SC to ct in FirstInv performs, sch20 STEP 1).
+  PerfW (Untyped, IRQ handler, ASID control) via a MidPerfAt-restricted premise like JMidPerfHypQ. Estimate: a
+  MidRunQ-sized scripted module plus hand lemmas for sendIpc/sendSignal/doReplyTransfer.
+  (c2) SC-less leaves (choose ∧ ct SC-less). FINDING: not just copies with `hsa`'s second disjunct: an SC-less ct
+  receiving from an ACTIVE notification with a bound SC is GIVEN that SC (`specRecvTail` → `maybeDonateSc`:
+  schedContextDonate + schedContextResume; FL4 `notification.maybe_donate_sched_context`), then
+  `ifSporadicCurScTestRefillUnblockCheck` on an SC ≠ curSc. Same for receive_ipc's bound-notification path
+  (complete_signal tail `specCompleteTail`). These are new donating cases (cf. the signal-donation proofs of
+  IpcSignalDonSpec / XTopJointRecvSigRet for the donating direction). The rest as sch21 (c2): recvIpcActJ (hscc
+  badge path), recvSigBlockJ / recvSigActiveJ (Entered), faultHypJZ (Entered; with ct SC-less hcA vacuous since ct's
+  SC word is 0, FltDon cannot donate: genf.py's `HCA_N` replacement becomes `fun h0 => absurd (SC word = 0) h0`,
+  and the `hCI` uses go away), and the reply-push sender with an SC donating to ct (pushDonJ). Release-queue fact: done
+  (`Sched.Inv.notRel_of_noSc`).
+  Once (c1) holds, the cleanest top is `JRecvLeavesRN14` (leaves under choose ∧ ct SC-less) with `.toRN13` from the
+  c1 fact at the mid state (y.2), so each SC-less family can be removed one at a time.
+- Builds (tokyo, b.sh): sch22-b1 `XTopJointRecvIpcLinkC` OK (5618 jobs), sch22-b2 `XTopJointRecvIpcLinkC
+  XTopJointKEntry22M` OK (5620 jobs), both on 37c70ce1, first try, no sorry. Axioms (axsch22.sh, untracked;
+  sch22-ax1): propext, Classical.choice, Quot.sound only (Sched.Inv.notRel_of_noSc: propext, Classical.choice).
