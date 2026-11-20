@@ -7210,3 +7210,64 @@ Spec-only, namespace `Fl4Proofs.P3.SInvAll`, modules SpecInvAllV, SpecInvAll (ro
   (5208 jobs) + axioms (scratch/g1a/ax.lean, untracked): kentry_sinvA, kcall_sinvA, kcall_sinvA_sys, boot_sinvA,
   kcall_validMachineTime, gk_fl4CallKernel_all, boot_validIdle, boot_ifLiveT, boot_ntfnScB, boot_curScT: propext,
   Classical.choice, Quot.sound (ctEntryEv_of_J: propext). No sorry/admit/native_decide/bv_decide/axiom.
+## ctq8 (branch par/ctq8 in FL4-q, on 87ed25f2 = int/j2 incl. ctq7, rd4, sl5) — ctq7 handoff 1 done, handoff 2 in part (receive_signal, complete_signal); NOT finished: receive_ipc, handle_recv, reply transfer, deletion, performs, shell, tops
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqB1, SpecInvCqB2 (root imports both). Nothing existing edited.
+- **SpecInvCqB1 (budget path, ctq7 handoff 1, DONE)**: `BC s` (cur_sc bound to ct only = ctq7's `hB`), the frame `BF H C S R`
+  (ct, cur_sc, release queue kept; every object kept except SCs, which keep `sc_tcb` and `scActive`; `KOb`, one leaf
+  `bf_updateSchedContext`, `bf_auto`), `bc_of_bf`, `sched_of_bf` (via Sched.schedulable_congr). **`eb_chargeBudget_p (hB :
+  schedulable ct σ → BC σ) (hN : NQ [] σ) : HKp (EB true) (EB false) σ (charge_budget c cto)`** (refill part: eb_auto / nq_auto /
+  bf_auto; the tail `eb_chargeTail_p` only when ct is schedulable at the tail state, where `NQ [ct]` = `nq_consR` and `BC`
+  from BF). **`eb_checkBudget_p` / `eb_checkBudgetRestart_p`: every outcome `(r, s)` has `EB r s`** (sufficient: state kept;
+  else charged and `false`; the Restart write is runnable). **`eb_handleYield_p`**. Interrupts: `eb_handleInterrupt_p` (the
+  IRQ signal via ctq7's `eb_sendSignal_p`, NtfnQB and the idle state `IdS` at the start), `eb_maybeHandleInterrupt_p`,
+  `EBX N S b := EB false ∧ NQ [] ∧ VI N S b`, `ebx_maybeHandleInterrupt : IK (EBX N S b)`. **`ebx_preemptionPath_p (hB) (hN)
+  (hV) : HKp (EB true) (EBX N S b) σ preemption_path`** (the non-schedulable arm charges a non-schedulable ct: hB vacuous).
+- **SpecInvCqB2 (receive side part 1)**: **`bc_of_curScT (hC : CurScT σ) (hS : SInvB.ScBackS σ) (hs : schedulable ct σ) : BC
+  σ`** (supplies `hB` at the front from carried CurScT and sb2's ScInv), `md_skip` (maybe_donate_sc t n is a no-op when t is a
+  TCB with an SC), **`eb_receiveSignal_ct (hC : CurScT σ) : IKp (EB true) σ (receive_signal ct cap bl)`** (active arm: ct's SC
+  kept by ctq5's `cs_auto` with the constant `g := fun _ => some σ.curSc`, so the donation is skipped; blocking arm:
+  `eb_receiveSignalBlocked_p` with `npq_ct`), **`eb_completeSignal_ct (hD : (∃ c, CS (fun _ => some c) σ) ∨ AN ct σ) : HKp
+  (EB true) (EB false) σ (complete_signal n ct)`** (no SC left: ctq7's `mdk_maybeDonateSc` at k = false).
+- DESIGN NOTE (no FINDING, l4v-consistent): in `receive_ipc ct _ _ (replyCap r)` with r bound to a caller A blocked on reply
+  whose SC ct holds (A called ct, ct passes its own reply), `cancel_ipc A` returns the SC to A (reply_remove →
+  sched_context_donate), so ct is left WITHOUT an SC; `complete_signal` may then donate the bound notification's SC to ct
+  and `sched_context_resume` may postpone ct (ct current, Running, in the release queue). This is sound only because
+  `schedContextDonate`'s `testReschedule fromTptr` (and `maybe_return_sc`'s `when (t = ct) reschedule_required`, and
+  `sched_context_unbind_tcb`) leave `resume_cur_thread` whenever ct loses its SC. So `EB true` cannot be kept there (ct is
+  postponed): post `EB false` (receive_ipc is the event's last step), and the missing fact is l4v's "scheduler action
+  resume_cur_thread ⇒ ct has an SC" (cur_sc_tcb / ct_schedulable at resume). `eb_completeSignal_ct`'s `hD` is exactly
+  this, locally.
+- HANDOFF (in order):
+  1. `hD` after receive_ipc's reply `cancel_ipc (the tptr)` (tptr ≠ ct): state `RS t s := (∃ c, CS (fun _ => some c) s) ∨
+     AN t s` with t = ct and prove `IK (RS ct)` over `cancel_ipc u` (u ≠ ct) by cases on u's state, one lemma per arm: only
+     the BlockedOnReply arm (reply_remove_tcb → reply_remove → sched_context_donate p A) can clear ct's SC, and there
+     `testReschedule ct` sets choose_new_thread (`an_setCn`); the other arms keep ct's TCB SC field (cs_auto) — `an_cancelIpc`
+     already gives the AN half. At receive_ipc's start the left disjunct holds (CurScT from the entry, kept by the front:
+     check_budget_restart returns true only on the unchanged-state branch).
+  2. `receive_ipc ct` arms (EB true → EB false): reply cancel (eb_auto: rb/sa/tq/q4 cancelIpc lemmas exist), the bound
+     active notification (`eb_completeSignal_ct` + item 1), `maybe_return_sc n ct` (generated, eb_auto), the sender arm on
+     the spec's literal text like ctq7's `eb_sendArm` (sender read BlockedOnSend ⇒ ≠ ct by `QE` from nq3's `NQ [ct]`;
+     `do_ipc_transfer` via ctq7's FX family; `reply_push sender` = `eb_replyPush_p` with NPQ sender (`npq_nr`);
+     `possible_switch_to sender` = `eb_possibleSwitchTo_p` with sender ≠ ct), the blocked arm `eb_receiveIpcBlocked_p` with
+     `npq_ct`. NOTE: receive_ipc's `ntfnptr ← getTcbObjRef …; ntfn ← match …` and the first two `match`es are `__do_jp`
+     join points: `dsimp only at hy`, then `cases h : … ; simp only [h] at hy` per arm (never `split` on a match whose
+     discriminant comes from a destructured outcome — B2 hit "Failed to find match-expression discriminants" twice).
+  3. `handle_recv` (lookups: eb_auto; endpoint → item 2; notification → `eb_receiveSignal_ct` with CurScT at the start;
+     fault branch `eb_handleFault_p` with `npq_ct` and `NQ [ct]` by `nq_consR`).
+  4. Then ctq7 handoff 3-5 unchanged (do_reply_transfer, deletion cone, performs / shell / tops). At the front use
+     `eb_checkBudgetRestart_p` with `hB := bc_of_curScT hC hS` (CurScT: ctq5's kentry_curScT at the previous exit, kept by
+     update_time_stamp via cs_auto; ScBackS: sb2's ScInv.sym .1) and `NQ []` (nq3). preemption_path: `ebx_preemptionPath_p`
+     needs `hB` at the preemption state — CurScT may be broken there (an SC of ct unbound by a preempted deletion), but then
+     ct is not schedulable unless rebound; carry "schedulable ct → BC" across the preemptible loops (or prove it from
+     ScSym + "ct's SC = cur_sc or ct has no SC", the l4v cur_sc_tcb fact) — the open obligation of the preemption shell.
+- Premises: none added (no [J]/[P]/[W]/[S]); every hypothesis is a carried invariant (NQ [], VI, CurScT, ScBackS) or a
+  local fact at the stated state (`hB`, `hD`). No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-q mirror warm; ./ctq8.sh untracked = ctq7.sh with filter `SpecInvCqB` and ax8.lean): ctq8-b1..b3
+  SpecInvCqB1 (fixes: `Sched.` qualifiers, `__do_jp` in preemption_path, `first | exact … (by …)` logs instead of failing),
+  ctq8-b4..b6 SpecInvCqB2 (B2 10 s) + axioms (ax8.lean, untracked: eb_chargeBudget_p, eb_checkBudgetRestart_p,
+  eb_handleYield_p, ebx_preemptionPath_p, eb_receiveSignal_ct, bc_of_curScT, eb_completeSignal_ct: propext,
+  Classical.choice, Quot.sound). Root Fl4Proofs.lean not rebuilt (2 import lines).
+- Lean traps (new): (1) `first | exact ikp_of_ik (by eb_auto) σ | skip` does NOT fall through when eb_auto leaves goals
+  ("unsolved goals" is logged, not thrown): state each match arm explicitly; (2) `KO` clashes with SInvR.KO only if
+  SpecInvRdX is imported — named `KOb` anyway; (3) `obtain` straight through `have __do_jp` fails: `dsimp only at hy`
+  first, then `split at hy` on the `if`.
