@@ -50,11 +50,11 @@ theorem actB_of_schedulable {σ : State Unit} {t : ObjRef} (h : schedulable t σ
 /-- A new release queue whose members were released or are `ActB`. -/
 theorem rdy_relq {σ : State Unit} (h : Rdy σ) (L : List ObjRef)
     (hL : ∀ u, u ∈ L → u ∈ σ.releaseQueue ∨ ActB σ u) : Rdy { σ with releaseQueue := L } :=
-  rdy_of_view h (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl
+  rdy_of_view h (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl rfl
     (fun d p t hm => Or.inl hm) (fun t e => Or.inl e) hL
 
 theorem rdy_rpt {σ : State Unit} (h : Rdy σ) (b : Bool) : Rdy { σ with reprogramTimer := b } :=
-  rdy_congr h rfl rfl rfl rfl fun _ h => h
+  rdy_congr h rfl rfl rfl rfl rfl fun _ h => h
 
 /-! ## The release enqueue -/
 
@@ -155,7 +155,7 @@ theorem rdyT_relHead {σ : State Unit} (hσ : Rdy σ) (hR : SInvB.RNE σ)
   cases hq : σ.releaseQueue with
   | nil => rw [Sched.readRQ_nil hq, Sched.the_some] at hc; cases hc
   | cons h rest =>
-    obtain ⟨x, c, y, n, hx, hcs, hy, ha⟩ := hσ.2.2.2.2 h (by rw [hq]; exact List.mem_cons_self ..)
+    obtain ⟨x, c, y, n, hx, hcs, hy, ha⟩ := hσ.2.2.2.2.1 h (by rw [hq]; exact List.mem_cons_self ..)
     have hne : y.scRefills ≠ [] := hR c y n hy (Or.inr ha)
     rw [Sched.readRQ_cons hq hx hcs hy hne, Sched.the_some] at hc
     exact ⟨h, rest, rfl, x, c, y, n, hx, hcs, hy, ha, hc⟩

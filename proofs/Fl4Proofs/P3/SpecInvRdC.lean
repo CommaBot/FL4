@@ -71,7 +71,7 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
       x'.tcbSchedContext = x.tcbSchedContext)
     (hB : ∀ t x', σ'.kheap t = some (.tcb x') → BlkR x'.tcbState x'.tcbFault → x'.tcbSchedContext ≠ none →
       ∃ x, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = x'.tcbSchedContext ∧ BlkR x.tcbState x.tcbFault)
-    (hS : ∀ p, SV (σ'.kheap p) = SV (σ.kheap p)) (ht : σ'.curTime = σ.curTime)
+    (hS : ∀ p, SV (σ'.kheap p) = SV (σ.kheap p)) (ht : σ'.curTime = σ.curTime) (hid : σ'.idleSc = σ.idleSc)
     (hq : ∀ d p t, t ∈ σ'.readyQueues d p → t ∈ σ.readyQueues d p ∨ RdyT σ t)
     (ha : ∀ t, σ'.schedulerAction = .switchThread t → σ.schedulerAction = .switchThread t ∨ RdyT σ t)
     (hrq : ∀ t, t ∈ σ'.releaseQueue → t ∈ σ.releaseQueue ∨ ActB σ t) :
@@ -93,9 +93,16 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
     refine ⟨x', c, y', n', hx', by rw [ex]; exact hc, hy', ?_⟩
     show activeSc y'.scRefillMax = true
     rw [ey2]; exact h1
-  obtain ⟨h1, h2, h3, h4, h5⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   refine ⟨fun d p t hm => ?_, fun t e => ?_, fun t x' c hx' hb hc => ?_, fun q z n hz hz' => ?_,
-    fun t hm => (hrq t hm).elim (fun hm => G (h5 t hm)) G⟩
+    fun t hm => (hrq t hm).elim (fun hm => G (h5 t hm)) G, fun z m hz => ?_⟩
+  rotate_right
+  · rw [hid] at hz
+    have e2 : SV (σ.kheap σ.idleSc) = some (z.scRefills, z.scRefillMax) := by rw [← hS, hz]; rfl
+    obtain ⟨y, k, hy, ey1, -⟩ := sv_some e2
+    have ey : y.scRefills = z.scRefills := ey1
+    have := h6 y k hy
+    rw [ht]; unfold refillHd; rw [← ey]; exact this
   · rcases hq d p t hm with hm | hm
     · exact F (h1 d p t hm)
     · exact F hm
@@ -115,7 +122,7 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
 theorem rdy_upd {σ : State Unit} (h : Rdy σ) (p : ObjRef) (o : KernelObject) (hp : OK1 (σ.kheap p) o) :
     Rdy { σ with kheap := Function.update σ.kheap p (some o) } := by
   obtain ⟨p1, p2, p3⟩ := hp
-  refine rdy_of_view h (fun t x hx => ?_) (fun t x' hx' hb hc => ?_) (fun q => ?_) rfl
+  refine rdy_of_view h (fun t x hx => ?_) (fun t x' hx' hb hc => ?_) (fun q => ?_) rfl rfl
     (fun d q t hm => Or.inl hm) (fun t e => Or.inl e) (fun t hm => Or.inl hm)
   · by_cases e : t = p
     · subst e
@@ -277,7 +284,7 @@ theorem rd_setSchedulerAction_ns (a : SchedulerAction) (h : ∀ t, a ≠ .switch
   unfold setSchedulerAction
   intro σ hσ x hx
   rw [Set.mem_singleton_iff.1 hx]
-  exact rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl
+  exact rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl rfl
     (fun d p t hm => Or.inl hm) (fun t e => absurd e (h t)) (fun t hm => Or.inl hm)
 
 theorem rd_setThreadStateAct (t : ObjRef) : IK Rdy (setThreadStateAct (Z := Unit) t) := by
@@ -296,7 +303,7 @@ theorem rd_tsa_p (act : ObjRef → List ObjRef → List ObjRef) (t : ObjRef) (σ
   intro hσ y hy
   obtain ⟨x, -, e⟩ := q1_tsa_out hy
   rw [e]
-  refine rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl
+  refine rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl rfl
     (fun d p u hm => ?_) (fun t e => Or.inl e) (fun t hm => Or.inl hm)
   dsimp only at hm
   split at hm
@@ -317,7 +324,7 @@ theorem rd_tcbReleaseRemove (t : ObjRef) : IK Rdy (tcbReleaseRemove (Z := Unit) 
   have hz' : Rdy z.2 := by
     unfold NonDet.when at hz
     split at hz
-    · rw [Set.mem_singleton_iff.1 hz]; exact rdy_congr hσ rfl rfl rfl rfl fun _ h => h
+    · rw [Set.mem_singleton_iff.1 hz]; exact rdy_congr hσ rfl rfl rfl rfl rfl fun _ h => h
     · rw [Set.mem_singleton_iff.1 hz]; exact hσ
   obtain ⟨w, hw, hy⟩ := hy
   rw [Set.mem_singleton_iff.1 hw] at hy
@@ -327,7 +334,7 @@ theorem rd_tcbReleaseRemove (t : ObjRef) : IK Rdy (tcbReleaseRemove (Z := Unit) 
     split at hz
     · rw [Set.mem_singleton_iff.1 hz]
     · rw [Set.mem_singleton_iff.1 hz]
-  refine rdy_congr hz' rfl rfl rfl rfl fun u hu => ?_
+  refine rdy_congr hz' rfl rfl rfl rfl rfl fun u hu => ?_
   have hu' : u ∈ tcbSchedDequeue t σ.releaseQueue := hu
   rw [hzq]; exact (List.mem_filter.1 hu').1
 
@@ -542,7 +549,7 @@ theorem rd_possibleSwitchTo_p (t : ObjRef) (σ : State Unit) (hR : RdyT σ t) :
     · unfold setSchedulerAction
       intro hσ y hy
       rw [Set.mem_singleton_iff.1 hy]
-      exact rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl
+      exact rdy_of_view hσ (fun t x hx => ⟨x, hx, rfl⟩) (fun t x hx hb _ => ⟨x, hx, rfl, hb⟩) (fun _ => rfl) rfl rfl
         (fun d p u hm => Or.inl hm) (fun u e => by cases e; exact Or.inr hR) (fun t hm => Or.inl hm)
 
 end

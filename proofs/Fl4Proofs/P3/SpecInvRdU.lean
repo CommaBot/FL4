@@ -46,10 +46,13 @@ theorem rdy_upd_unbind {σ : State Unit} (h : Rdy σ) (p : ObjRef) (x y : Tcb) (
     intro t htp ⟨x0, c, y0, n, hx0, hc, hy0, h1⟩
     have hcp : c ≠ p := by rintro rfl; rw [hx] at hy0; cases hy0
     exact ⟨x0, c, y0, n, by rw [hk t htp]; exact hx0, hc, by rw [hk c hcp]; exact hy0, h1⟩
-  obtain ⟨h1, h2, h3, h4, h5⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   refine ⟨fun d q t hm => F (fun e => hq d q (e ▸ hm)) (h1 d q t hm),
     fun t e => F (fun e' => ha (e' ▸ e)) (h2 t e), fun t x' c hx' hb hc => ?_, fun q z n hz hz' => ?_,
-    fun t hm => G (fun e => hr (e ▸ hm)) (h5 t hm)⟩
+    fun t hm => G (fun e => hr (e ▸ hm)) (h5 t hm), fun z m hz => ?_⟩
+  rotate_right
+  · have e : σ.idleSc ≠ p := by rintro e; rw [← e] at hp; change σ'.kheap σ.idleSc = _ at hz; rw [hp] at hz; cases hz
+    change σ'.kheap σ.idleSc = _ at hz; rw [hk _ e] at hz; exact h6 z m hz
   · by_cases e : t = p
     · subst e; rw [hp] at hx'; cases hx'; rw [hy] at hc; cases hc
     · rw [hk t e] at hx'; exact F e (h3 t x' c hx' hb hc)
@@ -158,7 +161,7 @@ theorem rd_maybeReturnSc_p (nt t : ObjRef) (σ : State Unit) (hq : ∀ d p, t �
 /-- One SC rewritten to an inactive one, no thread bound to it. -/
 theorem rdy_freeSc {σ : State Unit} {p : ObjRef} {y z : SchedContext} {n : Nat} (h : Rdy σ)
     (hn : ∀ t x, σ.kheap t = some (.tcb x) → x.tcbSchedContext ≠ some p)
-    (hk : σ.kheap p = some (.schedContext y n)) (hz : scActive z = false) :
+    (hk : σ.kheap p = some (.schedContext y n)) (hz : scActive z = false) (hI : p ≠ σ.idleSc) :
     Rdy (Sched.updSc σ p z n) := by
   have hkq : ∀ q, q ≠ p → (Sched.updSc σ p z n).kheap q = σ.kheap q := fun q hq => by simp [Notif.updK, hq]
   have hkp : (Sched.updSc σ p z n).kheap p = some (.schedContext z n) := kh_upd _ _ _ _
@@ -172,9 +175,12 @@ theorem rdy_freeSc {σ : State Unit} {p : ObjRef} {y z : SchedContext} {n : Nat}
     intro t ⟨x, c, y0, m, hx, hc, hy0, h1⟩
     have hcp : c ≠ p := fun e => hn t x hx (e ▸ hc)
     exact ⟨x, c, y0, m, by rw [hkq t (htp hx)]; exact hx, hc, by rw [hkq c hcp]; exact hy0, h1⟩
-  obtain ⟨h1, h2, h3, h4, h5⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   refine ⟨fun d q t hm => F (h1 d q t hm), fun t e => F (h2 t e), fun t x c hx hb hc => ?_,
-    fun q w m hw hw' => ?_, fun t hm => G (h5 t hm)⟩
+    fun q w m hw hw' => ?_, fun t hm => G (h5 t hm), fun w m hw => ?_⟩
+  rotate_right
+  · change (Sched.updSc σ p z n).kheap σ.idleSc = _ at hw
+    rw [hkq _ (Ne.symm hI)] at hw; exact h6 w m hw
   · have e : t ≠ p := by rintro rfl; rw [hkp] at hx; cases hx
     rw [hkq t e] at hx; exact F (h3 t x c hx hb hc)
   · by_cases e : q = p
@@ -196,7 +202,7 @@ theorem updateSchedContext_none {σ : State Unit} {p : ObjRef} (hk : ∀ y n, σ
 
 /-- **`sched_context_set_inactive`** of an SC no thread is bound to. -/
 theorem rd_schedContextSetInactive_p (sc : ObjRef) (σ : State Unit)
-    (hn : ∀ t x, σ.kheap t = some (.tcb x) → x.tcbSchedContext ≠ some sc) :
+    (hn : ∀ t x, σ.kheap t = some (.tcb x) → x.tcbSchedContext ≠ some sc) (hI : sc ≠ σ.idleSc) :
     IKp Rdy σ (schedContextSetInactive (Z := Unit) sc) := by
   intro hσ r hr
   unfold schedContextSetInactive at hr
@@ -207,7 +213,7 @@ theorem rd_schedContextSetInactive_p (sc : ObjRef) (σ : State Unit)
       Notif.nd_bind_one (Sched.updateSchedContext_eq (kh_upd _ _ _ _) _), Sched.updSc_updSc,
       Sched.updateSchedContext_eq (kh_upd _ _ _ _), Sched.updSc_updSc] at hr
     rw [Set.mem_singleton_iff.1 hr]
-    exact rdy_freeSc hσ hn hk rfl
+    exact rdy_freeSc hσ hn hk rfl hI
   · exfalso
     obtain ⟨z, hz, -⟩ := hr
     exact updateSchedContext_none (fun y n e => hk ⟨y, n, e⟩) hz

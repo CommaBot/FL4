@@ -355,18 +355,8 @@ theorem ctk_awaken (c : ObjRef) : IK (CTK c) (awaken (Z := Unit)) := by
 
 /-! ## The state at `sc_and_timer` -/
 
-/-- **IdleHd** (module docstring). -/
-def IdleHd (σ : State Unit) : Prop :=
-  ∀ y n, σ.kheap σ.idleSc = some (.schedContext y n) →
-    y.scRefills ≠ [] ∧ (refillHd y).rTime.toNat ≤ σ.curTime.toNat
-
-/-- `IdleHd` at boot (non-vacuity). -/
-theorem boot_idleHd : IdleHd (initASt (Z := Unit)) := by
-  intro y n hy
-  have h : initKheap idleScPtr = some (.schedContext y n) := hy
-  rw [SInvV.initKheap_idleSc] at h
-  cases h
-  exact ⟨by simp, by show (0 : Nat) ≤ _; exact Nat.zero_le _⟩
+/-- `IdleHd` (defined in SpecInvRdA since rd5, `Rdy`'s sixth conjunct) at boot (non-vacuity). -/
+theorem boot_idleHd : IdleHd (initASt (Z := Unit)) := boot_rdy.2.2.2.2.2
 
 /-- **The facts at `sc_and_timer`'s start** (module docstring). -/
 def SE (σ s : State Unit) : Prop :=

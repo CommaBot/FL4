@@ -219,8 +219,16 @@ def ActB (σ : State Unit) (t : ObjRef) : Prop :=
 decision (b)): every thread in the release queue is bound to an active SC. -/
 def R4 (σ : State Unit) : Prop := ∀ t, t ∈ σ.releaseQueue → ActB σ t
 
-/-- **The carried readiness bundle.** -/
-def Rdy (σ : State Unit) : Prop := R1 σ ∧ R2 σ ∧ R3 σ ∧ RV σ ∧ R4 σ
+/-- **IdleHd** (rd4; rd5: a conjunct of `Rdy`): the idle SC has refills and a
+head whose release time has passed (l4v: the idle SC is created with refills at
+time 0; `commit_time` / `charge_budget` skip it, no cap names it; only
+`refill_unblock_check` rewrites its head, to the current time). -/
+def IdleHd (σ : State Unit) : Prop :=
+  ∀ y n, σ.kheap σ.idleSc = some (.schedContext y n) →
+    y.scRefills ≠ [] ∧ (refillHd y).rTime.toNat ≤ σ.curTime.toNat
+
+/-- **The carried readiness bundle** (rd5: with `IdleHd`). -/
+def Rdy (σ : State Unit) : Prop := R1 σ ∧ R2 σ ∧ R3 σ ∧ RV σ ∧ R4 σ ∧ IdleHd σ
 
 theorem actB_of_rdyT {σ : State Unit} {t : ObjRef} (h : RdyT σ t) : ActB σ t := by
   obtain ⟨x, c, y, n, hx, hc, hy, ha, -⟩ := h
@@ -295,7 +303,7 @@ theorem minBudget_le_maxPeriod : MIN_BUDGET ≤ MAX_PERIOD := by
 
 theorem boot_rdy : Rdy (initASt (Z := Unit)) := by
   refine ⟨fun d p t h => by simp [initASt] at h, fun t h => by simp [initASt] at h, fun t x c hx hb _ => ?_,
-    fun p y n hy _ => ?_, fun t h => by simp [initASt] at h⟩
+    fun p y n hy _ => ?_, fun t h => by simp [initASt] at h, fun y n hy => ?_⟩
   · exfalso
     have e := init_tcbSt (u := t) hx
     rcases hb with ⟨_, h⟩ | ⟨_, _, h, _⟩ | ⟨_, _, _, h⟩ <;> rw [e] at h <;> cases h
@@ -311,6 +319,10 @@ theorem boot_rdy : Rdy (initASt (Z := Unit)) := by
       unfold initKheap at hy'
       simp only [Function.update_apply, e, if_false] at hy'
       split_ifs at hy' <;> cases hy'
+  · have h : initKheap idleScPtr = some (.schedContext y n) := hy
+    rw [SInvV.initKheap_idleSc] at h
+    cases h
+    exact ⟨by simp, by show (0 : Nat) ≤ _; exact Nat.zero_le _⟩
 
 /-! ## Refill arithmetic -/
 
@@ -516,12 +528,20 @@ theorem rdy_frame1 {σ σ' : State Unit} {p : ObjRef} (h : Rdy σ) (hk : ∀ q, 
     (hpv : ∀ z n, σ'.kheap p = some (.schedContext z n) → scActive z = true → RVs z)
     (hrq : σ'.releaseQueue = σ.releaseQueue)
     (hpa : ∀ y n, σ.kheap p = some (.schedContext y n) → scActive y = true →
-      ∃ z m, σ'.kheap p = some (.schedContext z m) ∧ scActive z = true) :
+      ∃ z m, σ'.kheap p = some (.schedContext z m) ∧ scActive z = true)
+    (hid : σ'.idleSc = σ.idleSc)
+    (hpI : p = σ.idleSc → ∀ z m, σ'.kheap p = some (.schedContext z m) →
+      z.scRefills ≠ [] ∧ (refillHd z).rTime.toNat ≤ σ.curTime.toNat) :
     Rdy σ' := by
-  obtain ⟨h1, h2, h3, h4, h5⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   have F := fun {t} (h : RdyT σ t) => rdyT_frame hk ht hp hpt h
   refine ⟨fun d q t hm => F (h1 d q t (hq ▸ hm)), fun t e => F (h2 t (ha ▸ e)), fun t x c hx hb hc => ?_,
-    fun q z n hz hz' => ?_, fun t hm => actB_frame1 hk hpt hpa (h5 t (hrq ▸ hm))⟩
+    fun q z n hz hz' => ?_, fun t hm => actB_frame1 hk hpt hpa (h5 t (hrq ▸ hm)), fun z m hz => ?_⟩
+  rotate_right
+  · rw [hid] at hz; rw [ht]
+    by_cases e : σ.idleSc = p
+    · exact hpI e.symm z m (e ▸ hz)
+    · rw [hk _ e] at hz; exact h6 z m hz
   · have htp : t ≠ p := by rintro rfl; exact hpt' x hx
     rw [hk t htp] at hx
     exact F (h3 t x c hx hb hc)
@@ -544,7 +564,11 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
   have hay : scActive y = scActive x := by simp only [scActive, e2]
   refine ⟨rdy_frame1 h hkc rfl rfl rfl (fun y0 n0 hy0 ha0 hr0 => ?_) (fun x0 hx0 => by rw [hk] at hx0; cases hx0)
     (fun x0 hx0 => by rw [hkp] at hx0; cases hx0) (fun z n0 hz hz' => ?_) rfl
-    (fun y0 n0 hy0 ha0 => ⟨y, n, hkp, by rw [hk] at hy0; cases hy0; rw [hay]; exact ha0⟩), fun z m hz => ?_,
+    (fun y0 n0 hy0 ha0 => ⟨y, n, hkp, by rw [hk] at hy0; cases hy0; rw [hay]; exact ha0⟩) rfl
+    (fun eI z0 m0 hz0 => by
+      rw [hkp] at hz0; cases hz0
+      refine ⟨?_, e6⟩
+      rw [e8 (fun hc => hc.2 eI)]; exact (h.2.2.2.2.2 x n (by rw [← eI]; exact hk)).1), fun z m hz => ?_,
     ⟨y, rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩⟩
   · rw [hk] at hy0; cases hy0
     refine ⟨y, hkp, by rw [hay]; exact ha0, ?_⟩
