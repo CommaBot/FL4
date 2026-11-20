@@ -885,3 +885,9 @@ import Fl4Proofs.P3.SpecInvSgC
 import Fl4Proofs.P3.SpecInvSgD
 import Fl4Proofs.P3.SpecInvSgE
 import Fl4Proofs.P3.SpecInvSgBridge
+import Fl4Proofs.P3.SpecInvCqK
+import Fl4Proofs.P3.SpecInvCqF1
+import Fl4Proofs.P3.SpecInvCqF2
+import Fl4Proofs.P3.SpecInvCqF3
+import Fl4Proofs.P3.SpecInvCqF4
+import Fl4Proofs.P3.SpecInvCqF5
