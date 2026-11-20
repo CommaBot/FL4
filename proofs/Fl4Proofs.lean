@@ -740,3 +740,6 @@ import Fl4Proofs.P3.XTopJointPerfW
 import Fl4Proofs.P3.XTopJointKEntry26MD
 import Fl4Proofs.P3.XTopJointPerfI
 import Fl4Proofs.P3.XTopJointPerfK
+import Fl4Proofs.P3.XTopJointRecvSendPDD
+import Fl4Proofs.P3.XTopJointRecvIpcPushDonD
+import Fl4Proofs.P3.XTopJointKEntry27MD

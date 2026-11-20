@@ -3674,3 +3674,38 @@ New leaves XTopJointPerfI, XTopJointPerfK (imported from Fl4Proofs.lean). Nothin
   KDispHyps25MP.to25M, BudgetAt.entered, jPerfIrqHypQ_of, jPerfIrqHypB_of, jMidPerfHypQ_of2, jMidPerfHypB_of2,
   irqH_post, post_capDeleteOne, cq_cancelAllSignals, cq_ntfnFin, sck_ntfnFin, nv_schedContextMaybeUnbindNtfn,
   nv_unbindMaybeNotification. No sorry/admit/native_decide/bv_decide.
+## sch29 (branch par/sched29 in FL4-rb, on f22e8409 = int/j2 incl. sch27, sch26)
+Goal: sch27's handoff (2), the last receive case `IpcPushDon`, and the mid premise on the receive leaves gone.
+New leaves XTopJointRecvSendPDD (scripted: sch29gen/gen.py, untracked), XTopJointRecvIpcPushDonD (scripted:
+sch29gen/gen2.py, untracked), XTopJointKEntry27MD (hand-written), imported from Fl4Proofs.lean. Nothing existing
+edited (JAtZ, XTopJointRecv*, XTopJointPerf*, PP*/Preempt*/ScPPR/SpecPPR*/UtReset*/Tcb*/WJL*/CnDel/Entry/Irq*/
+ScCharge*/ScTmoCt* untouched).
+- FINDING: the reverse-direction donation already existed: XTopJointRecvSendRD (passive server after
+  `maybe_return_sc`) has `testReschedule_cnN` / `donate_cnN_eq` / `pd_eqN` (donor not current, a reschedule
+  pending: `test_reschedule` is a no-op), `JAtZ.pushDonRJ` and the donating copies `JAtZ.recvSendFPDJ` /
+  `JAtZ.recvSendPDJ` of recvSendFPJG / recvSendPJG (SC released at the block by `Inv.rd` / `Inv.scRef`). Their only
+  extra premise is "the current SC is in Z.C and bound to no thread" (`hcsC`, `hcsx`, `hk0`, `hcsF`), which is FALSE
+  at reachable MidN states (ReplyRecv: the reply returns the passive server's SC to the caller, who then owns the
+  current SC while ct receives SC-less). So instead of new donating copies, sch29 removes that premise:
+  * `JAtZ.pushDonRJW`: CurOwnW / OffOK after the donation from `JAtZ.own` / `JAtZ.off` in all cases: the donated SC
+    is the current one (its new owner is the receiver d: `dn_kp`, d in no queue, refills unchanged); another current
+    SC owned by u (u ≠ donor, whose SC is the donated one; u ≠ d, SC-less), untouched; the current SC unbound (as
+    before). The current SC's object from `Inv.back` (owned) or `SchedSpec.scs` (unbound).
+  * `JAtZ.recvSendFPDJW`, `JAtZ.recvSendPDJW`: recvSendFPDJ / recvSendPDJ with the four premises and their
+    current-SC blocks removed, calling pushDonRJW.
+  * `jRecvIpcUD` (gen2 from jRecvIpcN's `jRecvIpcUN` without ¬IpcPushDon): the pushing head sender WITH an SC
+    (PushOK: call, or a fault that is not a timeout) by recvSendPDJW / recvSendFPDJW; its SC word nonzero, in Z.C by
+    `SchedSpec.scMem`; ct SC-less, out of the release queue, chooseNewThread from MidN.
+  * `jRecvIpcUDD`, `jRecvIpcLinkDD`: jRecvIpcUDN / jRecvIpcLinkDN without ¬IpcPushDon.
+- Top (XTopJointKEntry27MD): `JRecvLeavesRN17.of_ok` (RN17 from CtOK alone = sch27's "JRecvLeavesRN18 = {}"),
+  `jMidLeavesHyp17_of` (JMidLeavesHyp17 from jMidChooseFact's conclusion), `KDispHyps27M` (mid: entry facts,
+  `JMidPerfHypQ` [W], `JMidPerfHypB` [W], `JMidVfhHyp` [J]; NO JMidLeavesHyp), `.to26M` (jMidChooseFact from the
+  dispatch state as KDispHyps26M.to25M), NEW TOP `kernel_entryJ27M` (same premises as J26M with KDispHyps27M).
+- Premise change at the top (kernel_entryJ27M vs J26M): `JMidLeavesHyp17` [W] REMOVED (proved). Nothing added.
+  The mid bundle keeps `JMidPerfHypQ` / `JMidPerfHypB` [W] (sch26's jMidPerfHypQ_of / jMidPerfHypB_of on
+  FL4-sc narrow them to JPerfRegHyp [J] + JPerfIrqHypQ/B [W]; wiring is sch28's) and `JMidVfhHyp` [J] (unchanged).
+- Builds (tokyo, b2.sh; cache warmed from FL4-audit by cp -cR, sch29-w1: KEntry26MD up to date, 5648 jobs):
+  sch29-b1 `XTopJointRecvSendPDD XTopJointRecvIpcPushDonD` OK (5640 jobs), sch29-b2 + `XTopJointKEntry27MD` OK
+  (5654 jobs) on f22e8409, first try, no sorry. Axioms (axsch29.sh, untracked; sch29-b2): propext, Classical.choice,
+  Quot.sound only for kernel_entryJ27M, KDispHyps27M.to26M, jMidLeavesHyp17_of, JRecvLeavesRN17.of_ok, jRecvIpcUD,
+  jRecvIpcUDD, jRecvIpcLinkDD, JAtZ.pushDonRJW, JAtZ.recvSendFPDJW, JAtZ.recvSendPDJW.
