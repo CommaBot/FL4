@@ -698,3 +698,5 @@ import Fl4Proofs.P3.UtRetResetJM
 import Fl4Proofs.P3.XTopJointKEntry14P
 import Fl4Proofs.P3.XTopJointKEntry15P
 import Fl4Proofs.P3.XTopJointKEntry16P
+import Fl4Proofs.P3.XTopJointRecvSigC
+import Fl4Proofs.P3.XTopJointKEntry18M
