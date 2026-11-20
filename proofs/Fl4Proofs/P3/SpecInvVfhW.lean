@@ -121,6 +121,9 @@ end Pin
 
 /-! ## Leaves -/
 
+theorem vfh_maxFree_nc {c : Cap} (h : isUntypedCap c = true) : ∀ p r g, maxFreeIndexUpdate c ≠ .cnodeCap p r g := by
+  cases c <;> simp_all [isUntypedCap, maxFreeIndexUpdate, freeIndexUpdate]
+
 /-- `set_untyped_cap_as_full` with the source cap in its slot. -/
 theorem vs_setUntypedCapAsFull_p {σ0 σ : State Unit} {srcCap newCap : Cap} {src : CslotPtr}
     (hc : capOpt (σ.kheap src.1) src.2 = some srcCap) :
@@ -129,7 +132,8 @@ theorem vs_setUntypedCapAsFull_p {σ0 σ : State Unit} {srcCap newCap : Cap} {sr
   unfold setUntypedCapAsFull at hx
   split at hx
   · rename_i h
-    exact hσ.trans (vfh_setCap_step hσ.1 (fun hb => absurd hb (vfh_notBad_old hσ.1 hc (vfh_not_untyped h.1))) x hx)
+    exact hσ.trans (vfh_setCap_step hσ.1 hσ.2.2 (fun hb => absurd hb (vfh_notBad_old hσ.1 hc (vfh_not_untyped h.1)))
+      (cnOk_of_nc (vfh_maxFree_nc h.1)) x hx)
   · rw [Set.mem_singleton_iff.1 hx]; exact hσ
 
 macro "vs_tail" : tactic => `(tactic| repeat' (first
@@ -140,7 +144,8 @@ macro "vs_tail" : tactic => `(tactic| repeat' (first
 
 /-- **`cap_insert`** (destination not `Bad` at the anchor, or a valid fault handler). -/
 theorem vs_capInsert {σ0 : State Unit} {newCap : Cap} (src dest : CslotPtr)
-    (hd : vfh_Bad σ0 dest → validFaultHandler newCap) : IK (VS σ0) (capInsert (Z := Unit) newCap src dest) := by
+    (hd : vfh_Bad σ0 dest → validFaultHandler newCap) (hk : CnOk σ0 newCap) :
+    IK (VS σ0) (capInsert (Z := Unit) newCap src dest) := by
   unfold capInsert
   intro σ
   refine ikp_getCap_bind fun srcCap hsc => ?_
@@ -148,22 +153,24 @@ theorem vs_capInsert {σ0 : State Unit} {newCap : Cap} (src dest : CslotPtr)
   refine ikp_getCap_bind fun _ _ => ?_
   refine ikp_keep (fun y hy => by rw [hy.2]) fun _ => ?_
   refine ikp_bind (vs_setUntypedCapAsFull_p hsc) fun _ => ?_
-  refine ik_bind (vs_setCap hd) fun _ => ?_
+  refine ik_bind (vs_setCap hd hk) fun _ => ?_
   vs_tail
 
 /-- **`cap_move`**. -/
 theorem vs_capMove {σ0 : State Unit} {newCap : Cap} (src dest : CslotPtr)
-    (hd : vfh_Bad σ0 dest → validFaultHandler newCap) : IK (VS σ0) (capMove (Z := Unit) newCap src dest) := by
+    (hd : vfh_Bad σ0 dest → validFaultHandler newCap) (hk : CnOk σ0 newCap) :
+    IK (VS σ0) (capMove (Z := Unit) newCap src dest) := by
   unfold capMove
-  refine ik_bind (vs_setCap hd) fun _ => ?_
+  refine ik_bind (vs_setCap hd hk) fun _ => ?_
   vs_tail
 
 /-- **`cap_swap`**. -/
 theorem vs_capSwap {σ0 : State Unit} {c1 c2 : Cap} (s1 s2 : CslotPtr) (h1 : vfh_Bad σ0 s1 → validFaultHandler c2)
-    (h2 : vfh_Bad σ0 s2 → validFaultHandler c1) : IK (VS σ0) (capSwap (Z := Unit) c1 s1 c2 s2) := by
+    (h2 : vfh_Bad σ0 s2 → validFaultHandler c1) (k1 : CnOk σ0 c2) (k2 : CnOk σ0 c1) :
+    IK (VS σ0) (capSwap (Z := Unit) c1 s1 c2 s2) := by
   unfold capSwap
-  refine ik_bind (vs_setCap h1) fun _ => ?_
-  refine ik_bind (vs_setCap h2) fun _ => ?_
+  refine ik_bind (vs_setCap h1 k1) fun _ => ?_
+  refine ik_bind (vs_setCap h2 k2) fun _ => ?_
   vs_tail
 
 /-- **`cap_swap_for_delete`** of two slots that are no fault-handler slots. -/
@@ -171,8 +178,11 @@ theorem vs_capSwapForDelete {σ0 : State Unit} (s1 s2 : CslotPtr) (h1 : ¬ vfh_B
     IK (VS σ0) (capSwapForDelete (Z := Unit) s1 s2) := by
   unfold capSwapForDelete
   refine ik_when _ ?_
-  refine ik_bind (hv_getCap _) fun _ => ik_bind (hv_getCap _) fun _ => ?_
-  exact vs_capSwap _ _ (fun h => (h1 h).elim) (fun h => (h2 h).elim)
+  intro σ
+  refine ikp_getCap_bind fun c1 hc1 => ikp_getCap_bind fun c2 hc2 => ?_
+  intro hσ x hx
+  exact vs_pin hσ (vs_capSwap _ _ (fun h => (h1 (h.back hσ.2.1)).elim) (fun h => (h2 (h.back hσ.2.1)).elim)
+    (hσ.cnOk hc2) (hσ.cnOk hc1)) x hx
 
 /-! ## Deletion -/
 
@@ -206,6 +216,52 @@ theorem vfh_finaliseCap_rem {c : Cap} (hc : validFaultHandler c) (b : Bool) {σ 
     obtain ⟨y, -, hx⟩ := hx
     rw [Set.mem_singleton_iff.1 hx]
 
+/-- Every outcome's value satisfies `Q` (ut3's `OV`). -/
+def VOV {α : Type} (Q : α → Prop) (m : NonDet (State Unit) α) : Prop := ∀ σ x, x ∈ (m σ).1 → Q x.1
+
+section VOVc
+variable {α β : Type} {Q : β → Prop}
+
+theorem vov_bind {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β} (h : ∀ a, VOV Q (g a)) :
+    VOV Q (m >>= g) := by
+  rintro σ x ⟨y, -, hx⟩; exact h y.1 y.2 x hx
+
+theorem vov_bind' {m : NonDet (State Unit) α} {g : α → NonDet (State Unit) β} (h : ∀ a, VOV Q (g a)) :
+    VOV Q (NonDet.bind m g) := vov_bind h
+
+theorem vov_pure {b : β} (h : Q b) : VOV Q (pure b : NonDet (State Unit) β) := by
+  intro σ x hx; rw [Set.mem_singleton_iff.1 hx]; exact h
+
+theorem vov_pure' {b : β} (h : Q b) : VOV Q (NonDet.pure b : NonDet (State Unit) β) := vov_pure h
+
+theorem vov_liftM {f : α → β} {m : NonDet (State Unit) α} (h : ∀ a, Q (f a)) : VOV Q (NonDet.liftM f m) :=
+  vov_bind' fun a => vov_pure' (h a)
+
+theorem vov_fail : VOV Q (NonDet.fail : NonDet (State Unit) β) := fun _ _ hx => hx.elim
+
+theorem vov_ite {c : Prop} [Decidable c] {m1 m2 : NonDet (State Unit) β} (h1 : VOV Q m1) (h2 : VOV Q m2) :
+    VOV Q (if c then m1 else m2) := by
+  split <;> assumption
+
+end VOVc
+
+/-- The remainder is no CNode cap. -/
+def VRemNC (p : Cap × Cap) : Prop := ∀ q r g, p.1 ≠ .cnodeCap q r g
+
+macro "vov_auto" : tactic => `(tactic| repeat' (first
+  | (refine vov_bind fun _ => ?_) | (refine vov_bind' fun _ => ?_)
+  | (refine vov_liftM fun _ => ?_)
+  | exact vov_fail
+  | (refine vov_pure ?_) | (refine vov_pure' ?_)
+  | (refine vov_ite ?_ ?_)
+  | (show VRemNC _; intro _ _ _ h; first | cases h | (split at h <;> cases h))
+  | split))
+
+/-- **`finalise_cap`'s remainder is never a CNode cap** (a final CNode cap
+becomes a Zombie, a non-final one null). -/
+theorem vfh_finaliseCap_nc (c : Cap) (fin : Bool) : VOV VRemNC (finaliseCap (Z := Unit) c fin) := by
+  cases c <;> simp only [finaliseCap, archFinaliseCap] <;> vov_auto
+
 /-- `lfp` with a call-dependent relation (`ik_lfp` generalised). -/
 theorem vfh_lfp {ι α : Type} {F : (ι → NonDet (State Unit) α) → ι → NonDet (State Unit) α}
     (R : ι → State Unit → State Unit → Prop)
@@ -224,14 +280,14 @@ def vfhRecPre : RecDelCall → State Unit → Prop
   | .reduceZombieCall c sl false, σ => ¬ vfh_Bad σ sl ∨ validFaultHandler c
   | _, _ => True
 
-def vfhRecR (k : RecDelCall) (σ σ' : State Unit) : Prop := VfhV σ → vfhRecPre k σ → VS σ σ'
+def vfhRecR (k : RecDelCall) (σ σ' : State Unit) : Prop := VfhV σ ∧ CnDom σ → vfhRecPre k σ → VS σ σ'
 
 theorem vs_recDelF {f : RecDelCall → NonDet (State Unit) (Except Unit (Bool × Cap))}
-    (hrec : ∀ k σ x, x ∈ (f k σ).1 → vfhRecR k σ x.2) (k : RecDelCall) (σ : State Unit) (hσ : VfhV σ)
+    (hrec : ∀ k σ x, x ∈ (f k σ).1 → vfhRecR k σ x.2) (k : RecDelCall) (σ : State Unit) (hσ : VfhV σ ∧ CnDom σ)
     (hpre : vfhRecPre k σ) : ∀ x ∈ ((recDelF (Z := Unit) f k).run σ).1, VS σ x.2 := by
   -- the recursive calls without precondition keep any anchor
   have hu : ∀ k, (∀ σ, vfhRecPre k σ) → ∀ σ0, IKE (ε := Unit) (VS σ0) (f k : NonDetE (State Unit) Unit (Bool × Cap)) :=
-    fun k hk σ0 s hs x hx => hs.trans (hrec k s x hx hs.1 (hk s))
+    fun k hk σ0 s hs x hx => hs.trans (hrec k s x hx hs.cur (hk s))
   have hu1 : ∀ sl e σ0, IKE (ε := Unit) (VS σ0) (f (.cTEDeleteCall sl e) : NonDetE (State Unit) Unit (Bool × Cap)) :=
     fun sl e => hu _ fun _ => trivial
   have hu2 : ∀ sl e σ0, IKE (ε := Unit) (VS σ0) (f (.finaliseSlotCall sl e) : NonDetE (State Unit) Unit (Bool × Cap)) :=
@@ -257,27 +313,28 @@ theorem vs_recDelF {f : RecDelCall → NonDet (State Unit) (Except Unit (Bool ×
     obtain ⟨y, hy, hx⟩ := vfh_run_liftE_bind_mem hx
     have hy1 := vs_finaliseCap cap fin σ s hs y hy
     have hrem : vfh_Bad σ sl → validFaultHandler y.1.1 := fun hb => by
-      have := hσ _ _ (hb.1 ▸ hcap) hb.2
+      have := hσ.1 _ _ (hb.1 ▸ hcap) hb.2
       rw [vfh_finaliseCap_rem this fin hy]; exact vfh_null
+    have hremk : CnOk σ y.1.1 := cnOk_of_nc (vfh_finaliseCap_nc cap fin s y hy)
     obtain ⟨⟨rem, ci⟩, s1⟩ := y
-    dsimp only at hx hrem hy1
+    dsimp only at hx hrem hy1 hremk
     refine (?_ : IKE (VS σ) _) s1 hy1 x hx
     refine ike_ite _ (ike_returnOk _) (ike_ite _ ?_ ?_)
-    · exact ike_bind (ike_liftE (vs_setCap hrem)) fun _ => ike_returnOk _
+    · exact ike_bind (ike_liftE (vs_setCap hrem hremk)) fun _ => ike_returnOk _
     · intro s2 hs2 x hx
       obtain ⟨⟨u, s3⟩, h3, hx⟩ := vfh_run_liftE_bind_mem hx
-      have hs3 := vs_setCap hrem s2 hs2 ⟨u, s3⟩ h3
+      have hs3 := vs_setCap hrem hremk s2 hs2 ⟨u, s3⟩ h3
       dsimp only at hx
       -- the reduce-zombie call: its slot is not `Bad` unless the remainder is a valid fault handler
       have hpre3 : vfhRecPre (.reduceZombieCall rem sl e) s3 := by
         cases e
         · by_cases hb : vfh_Bad s3 sl
-          · exact Or.inr (hrem (hb.back hs3.2))
+          · exact Or.inr (hrem (hb.back hs3.2.1))
           · exact Or.inl hb
         · trivial
       rw [ExceptT.run_bind] at hx
       obtain ⟨⟨r4, s4⟩, h4, hx⟩ := hx
-      have hs4 : VS σ s4 := hs3.trans (hrec _ s3 _ h4 hs3.1 hpre3)
+      have hs4 : VS σ s4 := hs3.trans (hrec _ s3 _ h4 hs3.cur hpre3)
       cases r4 with
       | error e' =>
         simp only [ExceptT.bindCont] at hx
@@ -314,7 +371,8 @@ theorem vs_recDelF {f : RecDelCall → NonDet (State Unit) (Except Unit (Bool ×
           · rw [if_pos hz]; subst hz
             refine ikpE_bind ?_ (fun _ => ike_returnOk _)
             intro hs' x hx
-            exact vs_reanchor hs' (ike_liftE (vs_setCap_nb (vfh_notBad_old hs'.1 hnc (vfh_not_zombie _ _ _))) s) x hx
+            exact vs_reanchor hs' (ike_liftE (vs_setCap_nb (vfh_notBad_old hs'.1 hnc (vfh_not_zombie _ _ _))
+              (cnOk_zombie _ _ _)) s) x hx
           · rw [if_neg hz]; exact ikp_of_ik (ike_bind (ike_assertE _) fun _ => ike_returnOk _) s
         exact this σ (VS.refl hσ)
     · have e1 : recDelF (Z := Unit) f (.reduceZombieCall c sl e) = NonDetE.liftE NonDet.fail := by
@@ -328,7 +386,7 @@ theorem vs_recDelF {f : RecDelCall → NonDet (State Unit) (Except Unit (Bool ×
       exact h.elim
 
 /-- **`rec_del`** keeps `VfhV` (and every slot) for every call satisfying `vfhRecPre`. -/
-theorem vs_recDel (k : RecDelCall) (σ : State Unit) (hσ : VfhV σ) (hpre : vfhRecPre k σ) :
+theorem vs_recDel (k : RecDelCall) (σ : State Unit) (hσ : VfhV σ ∧ CnDom σ) (hpre : vfhRecPre k σ) :
     ∀ x ∈ ((recDel (Z := Unit) k) σ).1, VS σ x.2 := by
   intro x hx
   unfold recDel at hx
@@ -337,7 +395,7 @@ theorem vs_recDel (k : RecDelCall) (σ : State Unit) (hσ : VfhV σ) (hpre : vfh
 theorem vs_capDelete (sl : CslotPtr) : VKE (capDelete (Z := Unit) sl) := by
   intro σ0
   unfold capDelete
-  refine ike_bind (fun σ hσ x hx => hσ.trans (vs_recDel (.cTEDeleteCall sl true) σ hσ.1 trivial x hx)) fun _ => ike_returnOk _
+  refine ike_bind (fun σ hσ x hx => hσ.trans (vs_recDel (.cTEDeleteCall sl true) σ hσ.cur trivial x hx)) fun _ => ike_returnOk _
 
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact vs_capDelete _ _)
 

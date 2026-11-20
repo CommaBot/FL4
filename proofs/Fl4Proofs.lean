@@ -778,6 +778,11 @@ import Fl4Proofs.P3.SpecInvVfhAll
 import Fl4Proofs.P3.SpecInvVfhK
 import Fl4Proofs.P3.SpecInvVfhW
 import Fl4Proofs.P3.SpecInvVfhP
+import Fl4Proofs.P3.SpecInvVfhC
+import Fl4Proofs.P3.SpecInvVfhD
+import Fl4Proofs.P3.SpecInvVfhT
+import Fl4Proofs.P3.SpecInvVfhG
+import Fl4Proofs.P3.SpecInvVfhA
 import Fl4Proofs.P3.SpecInvFaultTcbs
 import Fl4Proofs.P3.SpecInvQDomK
 import Fl4Proofs.P3.SpecInvQDomF1

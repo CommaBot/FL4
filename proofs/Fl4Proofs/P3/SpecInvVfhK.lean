@@ -124,12 +124,89 @@ theorem vfh_notBad_full {σ : State Unit} {sl : CslotPtr}
   rintro ⟨e, h6⟩
   exact h (tcbCnodeIndex 6) (by rw [e, vfh_len6, vfh_len3]) h6
 
-/-- The working predicate: `VfhV` now, no slot of the anchor emptied. -/
-def VS (σ0 σ : State Unit) : Prop := VfhV σ ∧ DomK σ0 σ
+/-! ## CnDom: every CNode cap names a full CNode (carried, vfh2) -/
 
-theorem VS.refl {σ : State Unit} (h : VfhV σ) : VS σ σ := ⟨h, DomK.refl σ⟩
+/-- The object `p` holds every slot of length `r` (view form of l4v's
+`cap_table_at r p`). -/
+def CnFull (σ : State Unit) (p : ObjRef) (r : Nat) : Prop :=
+  ∀ l : CnodeIndex, l.length = r → capOpt (σ.kheap p) l ≠ none
+
+/-- A cap that is a CNode cap names a full CNode of its radix. -/
+def CnOk (σ : State Unit) (c : Cap) : Prop := ∀ p r g, c = .cnodeCap p r g → CnFull σ p r
+
+/-- **CnDom** (l4v `valid_objs`/`caps_of_state_valid` + `valid_cap_def`'s
+`CNodeCap ⇒ cap_table_at`, view form): every CNode cap in a slot names an
+object holding every slot of the cap's radix. A carried invariant (not a
+premise): boot (`boot_cnDom`), the frames (a `WLH` predicate), the cap
+writers (each written cap `CnOk`: copied / derived from a slot cap, which
+keeps a CNode cap's object and radix (`CnSame`), or a fresh CNode's cap). -/
+abbrev CnDom (σ : State Unit) : Prop := ∀ (sl : CslotPtr) (c : Cap), capOpt (σ.kheap sl.1) sl.2 = some c → CnOk σ c
+
+theorem CnFull.mono {σ σ' : State Unit} (hd : DomK σ σ') {p : ObjRef} {r : Nat} (h : CnFull σ p r) :
+    CnFull σ' p r := fun l hl e => h l hl (hd _ _ e)
+
+theorem CnOk.mono {σ σ' : State Unit} (hd : DomK σ σ') {c : Cap} (h : CnOk σ c) : CnOk σ' c :=
+  fun p r g e => (h p r g e).mono hd
+
+theorem cnOk_of_nc {σ : State Unit} {c : Cap} (h : ∀ p r g, c ≠ .cnodeCap p r g) : CnOk σ c :=
+  fun p r g e => (h p r g e).elim
+
+theorem cnOk_null {σ : State Unit} : CnOk σ .nullCap := cnOk_of_nc fun _ _ _ h => by cases h
+
+theorem cnOk_zombie {σ : State Unit} (r : ObjRef) (b : Option Nat) (n : Nat) : CnOk σ (.zombie r b n) :=
+  cnOk_of_nc fun _ _ _ h => by cases h
+
+/-- `c'` is no CNode cap or a CNode cap of `c`'s object and radix. -/
+def CnSame (c c' : Cap) : Prop := ∀ p r g, c' = .cnodeCap p r g → ∃ g', c = .cnodeCap p r g'
+
+theorem CnOk.same {σ : State Unit} {c c' : Cap} (h : CnOk σ c) (hs : CnSame c c') : CnOk σ c' := by
+  intro p r g e
+  obtain ⟨g', e'⟩ := hs p r g e
+  exact h p r g' e'
+
+theorem cnSame_refl (c : Cap) : CnSame c c := fun p r g e => ⟨g, e⟩
+
+theorem cnSame_nc {c c' : Cap} (h : ∀ p r g, c' ≠ .cnodeCap p r g) : CnSame c c' :=
+  fun p r g e => (h p r g e).elim
+
+theorem cnDom_of_caps {σ σ' : State Unit} (e : ∀ p l, capOpt (σ'.kheap p) l = capOpt (σ.kheap p) l)
+    (h : CnDom σ) : CnDom σ' := by
+  intro sl c hc p r g hpr l hl
+  rw [e]
+  rw [e] at hc
+  exact h sl c hc p r g hpr l hl
+
+theorem cnDom_view {σ σ' : State Unit} (e : hV σ' = hV σ) (h : CnDom σ) : CnDom σ' :=
+  cnDom_of_caps (fun p l => hV_cap e p l) h
+
+instance : WLH CnDom := wlh_of_hV fun _ _ e h => cnDom_view e h
+
+/-- **CnDom at boot**: every cap of `initASt` is null. -/
+theorem boot_cnDom : CnDom (initASt (Z := Unit)) := by
+  intro sl c hc p r g e
+  subst e
+  exfalso
+  obtain ⟨o, l⟩ := sl
+  dsimp only at hc
+  simp only [initASt, initKheap, Function.update_apply] at hc
+  split_ifs at hc <;>
+    first
+    | (simp [capOpt] at hc; done)
+    | (simp only [capOpt] at hc; done)
+    | (simp only [capOpt, emptyCnode] at hc; split_ifs at hc <;> simp_all; done)
+    | (simp only [capOpt, tcbCnodeMap, Function.update_apply] at hc; split_ifs at hc <;> simp_all; done)
+
+/-- The working predicate: `VfhV` and `CnDom` now, no slot of the anchor emptied. -/
+def VS (σ0 σ : State Unit) : Prop := VfhV σ ∧ DomK σ0 σ ∧ CnDom σ
+
+theorem VS.refl {σ : State Unit} (h : VfhV σ ∧ CnDom σ) : VS σ σ := ⟨h.1, DomK.refl σ, h.2⟩
 theorem VS.trans {σ1 σ2 σ3 : State Unit} (h1 : VS σ1 σ2) (h2 : VS σ2 σ3) : VS σ1 σ3 :=
-  ⟨h2.1, h1.2.trans h2.2⟩
+  ⟨h2.1, h1.2.1.trans h2.2.1, h2.2.2⟩
+theorem VS.cur {σ0 σ : State Unit} (h : VS σ0 σ) : VfhV σ ∧ CnDom σ := ⟨h.1, h.2.2⟩
+
+/-- A cap read from a slot is `CnOk`. -/
+theorem VS.cnOk {σ0 σ : State Unit} (h : VS σ0 σ) {sl : CslotPtr} {c : Cap}
+    (hc : capOpt (σ.kheap sl.1) sl.2 = some c) : CnOk σ c := h.2.2 sl c hc
 
 theorem vfhV_view {σ σ' : State Unit} (e : hV σ' = hV σ) (h : VfhV σ) : VfhV σ' := by
   intro p c h3 h6; rw [hV_cap e] at h3 h6; exact h p c h3 h6
@@ -140,20 +217,20 @@ theorem domK_view {σ σ' : State Unit} (e : hV σ' = hV σ) : DomK σ σ' := by
 instance : WLH VfhV := wlh_of_hV fun _ _ e h => vfhV_view e h
 
 instance (σ0 : State Unit) : WLH (VS σ0) :=
-  wlh_of_hV fun _ _ e h => ⟨vfhV_view e h.1, h.2.trans (domK_view e)⟩
+  wlh_of_hV fun _ _ e h => ⟨vfhV_view e h.1, h.2.1.trans (domK_view e), cnDom_view e h.2.2⟩
 
 /-- Everything a frame function of the family keeps. -/
 abbrev VK {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ σ0, IK (VS σ0) m
 abbrev VKE {ε α : Type} (m : NonDetE (State Unit) ε α) : Prop := ∀ σ0, IKE (VS σ0) m
 
 /-- A `VK` step from a `VfhV` state. -/
-theorem VK.step {α : Type} {m : NonDet (State Unit) α} (h : VK m) {σ : State Unit} (hσ : VfhV σ) :
+theorem VK.step {α : Type} {m : NonDet (State Unit) α} (h : VK m) {σ : State Unit} (hσ : VfhV σ ∧ CnDom σ) :
     ∀ x ∈ (m σ).1, VS σ x.2 := fun x hx => h σ σ (VS.refl hσ) x hx
 
 /-- Re-anchoring: a pinned proof at the current state lifts to any anchor. -/
 theorem vs_reanchor {α : Type} {m : NonDet (State Unit) α} {σ0 σ : State Unit} (h0 : VS σ0 σ)
     (h : IKp (VS σ) σ m) : ∀ x ∈ (m σ).1, VS σ0 x.2 :=
-  fun x hx => h0.trans (h (VS.refl h0.1) x hx)
+  fun x hx => h0.trans (h (VS.refl h0.cur) x hx)
 
 /-! ## `set_cap` -/
 
@@ -218,43 +295,54 @@ theorem vfh_setCap_domK {c : Cap} {sl : CslotPtr} {σ : State Unit} {x : Unit ×
   · cases h
   · exact h
 
-/-- **`set_cap` keeps `VfhV`** when the slot is no fault-handler slot or the cap
-is a valid fault handler. -/
-theorem vfh_setCap_step {c : Cap} {sl : CslotPtr} {σ : State Unit} (h : VfhV σ)
-    (hc : vfh_Bad σ sl → validFaultHandler c) : ∀ x ∈ (setCap (Z := Unit) c sl σ).1, VS σ x.2 := by
+/-- **`set_cap` keeps `VfhV` and `CnDom`** when the slot is no fault-handler
+slot or the cap is a valid fault handler, and the cap is `CnOk`. -/
+theorem vfh_setCap_step {c : Cap} {sl : CslotPtr} {σ : State Unit} (h : VfhV σ) (hd : CnDom σ)
+    (hc : vfh_Bad σ sl → validFaultHandler c) (hk : CnOk σ c) : ∀ x ∈ (setCap (Z := Unit) c sl σ).1, VS σ x.2 := by
   obtain ⟨o, r⟩ := sl
   intro x hx
-  refine ⟨fun p c' h3 h6 => ?_, vfh_setCap_domK hx⟩
-  have h6' := vfh_setCap_domK hx p _ h6
-  rw [vfh_setCap_view hx p] at h3
-  split at h3
-  · rename_i e
-    obtain ⟨rfl, rfl⟩ := e
-    cases h3
-    exact hc ⟨rfl, h6'⟩
-  · exact h p c' h3 h6'
+  have dk := vfh_setCap_domK hx
+  refine ⟨fun p c' h3 h6 => ?_, dk, fun sl' c' h' => ?_⟩
+  · have h6' := dk p _ h6
+    rw [vfh_setCap_view hx p] at h3
+    split at h3
+    · rename_i e
+      obtain ⟨rfl, rfl⟩ := e
+      cases h3
+      exact hc ⟨rfl, h6'⟩
+    · exact h p c' h3 h6'
+  · obtain ⟨p, l⟩ := sl'
+    rw [vfh_setCap_view hx p l] at h'
+    split at h'
+    · cases h'; exact hk.mono dk
+    · exact (hd (p, l) _ h').mono dk
 
-/-- `set_cap` as a `VS` leaf, the side condition at the anchor. -/
-theorem vs_setCap {σ0 : State Unit} {c : Cap} {sl : CslotPtr} (hc : vfh_Bad σ0 sl → validFaultHandler c) :
-    IK (VS σ0) (setCap (Z := Unit) c sl) := fun σ hσ x hx =>
-  hσ.trans (vfh_setCap_step hσ.1 (fun hb => hc (hb.back hσ.2)) x hx)
+/-- `set_cap` as a `VS` leaf, the side conditions at the anchor. -/
+theorem vs_setCap {σ0 : State Unit} {c : Cap} {sl : CslotPtr} (hc : vfh_Bad σ0 sl → validFaultHandler c)
+    (hk : CnOk σ0 c) : IK (VS σ0) (setCap (Z := Unit) c sl) := fun σ hσ x hx =>
+  hσ.trans (vfh_setCap_step hσ.1 hσ.2.2 (fun hb => hc (hb.back hσ.2.1)) (hk.mono hσ.2.1) x hx)
 
-theorem vs_setCap_vfh {σ0 : State Unit} {c : Cap} (sl : CslotPtr) (hc : validFaultHandler c) :
-    IK (VS σ0) (setCap (Z := Unit) c sl) := vs_setCap fun _ => hc
+theorem vs_setCap_vfh {σ0 : State Unit} {c : Cap} (sl : CslotPtr) (hc : validFaultHandler c) (hk : CnOk σ0 c) :
+    IK (VS σ0) (setCap (Z := Unit) c sl) := vs_setCap (fun _ => hc) hk
 
 theorem vfh_null : validFaultHandler .nullCap := Or.inr rfl
 
 theorem vs_setCap_null {σ0 : State Unit} (sl : CslotPtr) : IK (VS σ0) (setCap (Z := Unit) .nullCap sl) :=
-  vs_setCap_vfh sl vfh_null
+  vs_setCap_vfh sl vfh_null cnOk_null
 
 /-- `set_cap` at a slot not `Bad` at the anchor. -/
-theorem vs_setCap_nb {σ0 : State Unit} {c : Cap} {sl : CslotPtr} (h : ¬ vfh_Bad σ0 sl) :
-    IK (VS σ0) (setCap (Z := Unit) c sl) := vs_setCap fun hb => (h hb).elim
+theorem vs_setCap_nb {σ0 : State Unit} {c : Cap} {sl : CslotPtr} (h : ¬ vfh_Bad σ0 sl) (hk : CnOk σ0 c) :
+    IK (VS σ0) (setCap (Z := Unit) c sl) := vs_setCap (fun hb => (h hb).elim) hk
+
+/-- A pinned proof from the current state, re-anchored. -/
+theorem vs_pin {α : Type} {m : NonDet (State Unit) α} {σ0 σ : State Unit} (h0 : VS σ0 σ) (h : IK (VS σ) m) :
+    ∀ x ∈ (m σ).1, VS σ0 x.2 :=
+  fun x hx => h0.trans (h σ (VS.refl h0.cur) x hx)
 
 /-! ## State fields `VS` does not read -/
 
 theorem vs_of_kheap {σ0 σ σ' : State Unit} (hk : σ'.kheap = σ.kheap) (h : VS σ0 σ) : VS σ0 σ' := by
-  refine ⟨fun p c h3 h6 => ?_, fun p l hl => h.2 p l ?_⟩
+  refine ⟨fun p c h3 h6 => ?_, fun p l hl => h.2.1 p l ?_, cnDom_of_caps (fun p l => by rw [hk]) h.2.2⟩
   · rw [hk] at h3 h6; exact h.1 p c h3 h6
   · rw [hk] at hl; exact hl
 

@@ -5005,3 +5005,88 @@ steps 2, 3, 6, 7 and the decode half of step 1; kentry_utInv / kcall_utInv uncha
 - Builds (tokyo, ./ut5.sh untracked: ut3.sh printing error excerpts; mirror warm): ut5-b1 SpecInvUtN (1058) + N2
   (1060), ut5-b2 N3 (1062), ut5-b5 N4 (1064), ut5-b8 N5 (1066) + N6 (1068); ut5-ax1 axioms (scratch/ut5/ax.lean,
   untracked). No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (four import lines added).
+## vfh2 (branch par/vfh2 in FL4-sc, on 2b62d91d = int/j2 incl. vfh1): VfhAll with CnDom carried (NOT finished)
+Goal: vfh1's handoff, ending in `kentry_vfhAll` / `kcall_vfhAll`. Lead decision: CnDom is a CARRIED view invariant
+(l4v `valid_cap`'s `cap_table_at` of every CNode cap), not a [J] premise. Done: CnDom carried through every writer
+vfh1 built, the lookups, the decode carry (CNode / TCB / IRQ), the IPC transfer and the generated IPC / fault /
+budget family, the arch performs. NOT reached: the arch decode carry, the retype performs (Untyped, MakePool), the
+perform dispatch and the shell, hence no `kentry_vfhAll` yet. No premise added anywhere.
+- The invariant (SpecInvVfhK): `CnFull σ p r` (p holds every index of length r, view form), `CnOk σ c` (a CNode cap
+  names a full CNode of its radix), **`CnDom σ := ∀ sl c, capOpt … sl = some c → CnOk σ c`** (a `WLH` predicate, so
+  vih2's 341 frames keep it), `boot_cnDom` (non-vacuity only). `CnSame c c'` (c' no CNode cap or one of c's object and
+  radix). **`VS σ0 σ := VfhV σ ∧ DomK σ0 σ ∧ CnDom σ`** (was `VfhV ∧ DomK`): `CnOk` is monotone along `DomK`
+  (`CnOk.mono`), so a cap shown `CnOk` at the anchor stays so. `vfh_setCap_step` / `vs_setCap` now also take `CnOk` of
+  the written cap; `VS.refl` takes `VfhV σ ∧ CnDom σ`, `VS.cur`, `VS.cnOk` (a slot cap is `CnOk`), `vs_pin`
+  (re-anchor a proof at the current state), `VS.view` (SpecInvVfhT).
+- Writers re-proved with CnDom (SpecInvVfhW/P): `vs_capInsert/Move/Swap` take `CnOk σ0` of their caps; `vs_capSwapForDelete`
+  re-reads both slots (pinned, no new hypothesis); `vfh_finaliseCap_nc` (finalise_cap's remainder is never a CNode cap:
+  zombie / null / arch) so rec_del's remainder write needs nothing; `VCn` adds `CnOk` of inserted/moved/rotated caps;
+  `VIh σ0 i` (set-handler cap `CnOk`) for `vs_invokeIrqHandler`; **`vs_checkCapAt_ins`** (TCB installs re-read the
+  source slot: `same_object_as` makes a CNode cap the slot cap's object and radix, `vfh_sameObj_cn`), so `vs_installTcbCap`
+  / `vs_installTcbFrameCap` / `vs_invokeTcb` need no new hypothesis; `vs_transferCapsLoop` takes `∀ c ∈ caps, CnOk σ0 c.1`
+  (`vfh_deriveCap_cn`: derive_cap keeps CNode caps).
+- Lookups (SpecInvVfhC): **`vfh_rab`** (resolve_address_bits' from a `CnOk` root returns `(oref, offset)` with
+  `CnFull σ0 oref offset.length`; wf recursion), `vfh_lookupSlotForCnodeOp`, `vfh_lookupSlotForThread` (root = the
+  thread's slot 0), `vfh_lookupCap`, `vfh_lookupCapAndSlot`; `vfh_notBad_cnFull` (a full slot is no fault-handler slot).
+  OkV combinators (vih3's OkV): `vfh_okv_whenE_bind`, `vfh_okv_handleE` (lookup_error_on_failure / unify_failure /
+  cap_fault_on_failure), `vfh_okv_getCap`.
+- Decode carry (SpecInvVfhD): `cnSame_maskCap`, `cnSame_updateCapData`, `vfh_okv_deriveCap`, **`vfh_okv_decodeCnode (hd :
+  CnDom σ0) (hc : CnOk σ0 cap) (hex : ∀ c ∈ excaps, CnOk σ0 c) : OkV σ0 (VCn σ0) (decodeCnodeInvocation …)`**,
+  `vfh_okd_checkHandlerEp`, **`vfh_okd_decodeTcb : OkDAt σ (fun _ i => VTcb i) (decodeTcbInvocation …)`** (check_handler_ep),
+  **`vfh_okv_decodeIrqControl`** (`VFl4IrqC`: the handler slot is a target slot; spec / arch IOAPIC+MSI / FL4 remapped),
+  `vfh_okd_decodeIrqHandler` (`VIh`: a notification cap).
+- IPC (SpecInvVfhT): `vfh_okv_lookupExtraCaps` (extra caps `CnOk`), **`vfh_getReceiveSlots`** (the receive slot is a target
+  slot of a looked-up cap: full), `vs_transferCaps`, **`vs_doNormalTransfer : VK (doNormalTransfer …)`** (no outside fact:
+  lookups and inserts in the same transfer, every step between keeps `hV`).
+- Generated (SpecInvVfhG, `sh proofs/scratch/vfh2/mkvfh.sh`, untracked; vih3's gen.py with the spec path switched,
+  targets.txt, family `IK (VS σ0)` with `variable {σ0}`): `vfhg_doIpcTransfer`, `sendIpc`, `receiveIpc`, `sendFaultIpc`,
+  `handleTimeout`, `endTimeslice`, `chargeBudget`, `checkBudget`, `checkBudgetRestart`, `doReplyTransfer`, `handleFault`,
+  `handleRecv`, `handleYield`, `preemptionPath` (each registered as an `hv_leaf`).
+- Arch performs (SpecInvVfhA): `vs_performPageInvocation`, `…PageTable…`, `…PageDirectory…`, `…Pdpt…` (map: `¬ Bad σ0
+  ctSlot ∧ CnOk σ0 cap`; unmap: `¬ Bad σ0 ctSlot`), `vs_performIoportControlInvocation` (dest not Bad),
+  `vs_performDeriveSubframe` (every dest not Bad), `vs_performAsidPoolInvocation` (re-reads its slot, writes only over a
+  PML4 cap: no hypothesis).
+- No FINDING: every cap write met keeps VfhAll ∧ CnDom (CNode caps are only copied/derived from slot caps, keeping object
+  and radix, or created by retype for a fresh CNode of that radix).
+- HANDOFF (in order; everything is `IK (VS σ0)` / `OkV σ0` with the anchor σ0 = the decode state):
+  1. Arch decode carry: `VArch σ0 : Fl4ArchInvocation → Prop` (map: `¬ vfh_Bad σ0 ctSlot ∧ CnOk σ0 cap`; unmap:
+     `¬ vfh_Bad σ0 ctSlot`; IO port control: dest; DeriveSubframe: every dest; else True) and `OkV σ0 (VArch σ0)
+     (fl4ArchDecodeInvocation label args xSlot cte cap ex)` from `VfhV σ0`, `CnDom σ0`, `capOpt σ0 cte = some
+     (.archObjectCap cap)` (okCap_front: the invoked slot; `vfh_notBad_old … (vfh_not_arch _)` gives `¬ Bad σ0 cte`)
+     and `∀ p ∈ ex, CnOk σ0 p.1`. The map caps are literal `.archObjectCap …` (`vfh_arch_ok`). IO port control: target
+     slot of `the extraCaps[0]?` (`vfh_lookupSlotForCnodeOp`). DeriveSubframe: `subframeNode` returns the root or a slot
+     cap (CnOk), `nc = cnodeCap ptr bits _` gives `CnFull σ0 ptr bits`; dest `(ptr, natToCref bits i)`: natToCref's
+     length is `min bits 64`, so it equals `tcbCnodeIndex 3` only if bits = 3 and then index 6 (length 3) is held.
+     Same automation as `vfh_okv_decodeIrqControl` (closers: nested `by` blocks inside `first` alternatives log
+     errors instead of failing over: use term-only closers / named lemmas, as `vfh_vtcb_some`).
+  2. Retype (`fl4InvokeUntyped` / `invokeUntypedWith`, MakePool `performAsidControlInvocation`): srcSlot / parent
+     slot hold the untyped cap at σ0 (`vfh_notBad_old`, untyped no handler); `retypeRegionWith` keeps VS σ0 when
+     every written address held no object (ut1's `retype_keeps_old` / `utRet_fresh` from `UtInv` and `UtRetOK`):
+     default objects hold only null caps (TCB handler null, CNode `emptyCnode`), so VfhV / CnDom of new objects hold
+     and old objects are unchanged (DomK); createCap's dest slots are target slots (full at σ0, decode) and its cap
+     `defaultCap` is `CnOk` because the fresh CNode at `oref` is `emptyCnode sz` (well formed: every index of length
+     sz). The reset (`resetUntypedCap`, `deleteObjects`) and MakePool's detype REMOVE objects: CnDom after it needs
+     that no slot outside the region holds a CNode cap into the region, and the dest / src slots' objects must lie
+     outside the region (else a later retype could put a TCB there and createCap would write into its slot 3: not
+     reachable in l4v). Both follow from ut4's `UtChV` (untyped_children_in_mdb) + the decode's ensure_no_children
+     (childless ⇒ no cap references the region). Plan: take `UtInv'' σ` (ut4, a carried invariant of the bundle, not
+     a premise) at the entry, carry it to the perform as ut3 carries `DetypeOK` (every pre-perform step keeps `uV`:
+     SpecInvUtE's `IKD` plumbing with `DetypeOK` replaced by any uV-predicate), and use `UtInv'' → UtInv` for
+     freshness, `UtChV` for the detype. Generalise DomK across the detype as "kept or removed" (`∀ p, σ.kheap p =
+     σ0.kheap p ∨ σ.kheap p = none` until the retype) so the dest-slot facts survive.
+  3. `VInv σ0 : Fl4Invocation → Prop` (CNode `VCn`, IRQ control `VFl4IrqC`, IRQ handler `VIh`, TCB `VTcb`, arch
+     `VArch`, untyped item 2) with `okv_vfhFl4Decode` (OkV over fl4DecodeInvocation: `vfh_okv_decodeCnode` with the
+     invoked cap's `CnOk` from its slot, `vfh_okd_decodeTcb` via `okdAt_liftME`, …), then `vs_fl4Perform (h : VInv σ0
+     inv) : IKE (VS σ0) (fl4PerformInvocation blk call don inv)` (endpoint / notification / reply / domain / SC / SC
+     control: hv_auto with the G leaves; TCB: `vs_invokeTcb`; Fl4 TCB ext: frames).
+  4. The shell: copy SpecInvValidIrqHandlersS's `vi_handleInvocationR` … `vi_fl4KernelEntrySyscall` with `VI`
+     replaced by `fun σ => VfhV σ ∧ CnDom σ` and the decode state as anchor (okCap_front gives the invoked slot, the
+     frames carry `hV` from decode to perform across `setThreadState Restart`), then **`kentry_vfhAll (hV : VfhAll σ)
+     (hC : CnDom σ) (hU : UtInv'' σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, VfhAll y.2 ∧ CnDom y.2`** and
+     `kcall_vfhAll` (every event) by `vfhV_iff`. CnDom joins the G1 bundle as its own field (boot `boot_cnDom`).
+- Builds (tokyo, FL4-invA mirror, module builds only): vfh2-b1..b4 K (4640 jobs) / W (4642); b5 P (4644), C (4660);
+  b6..b10 D (closers: nested `by` blocks inside `first` alternatives log errors instead of failing over; replaced by
+  named lemmas `vfh_vtcb_some/none` and a manual IRQ-handler proof); b11..b12 T (4664), G (4666, generated);
+  b13..b15 A (4666; use `simp only [perform…]` after `cases`, not `unfold`, so matches on literal invocations reduce
+  and the do-notation join points are zeta-reduced). Root Fl4Proofs.lean imports C, D, T, G, A (root not rebuilt).
+  Axioms: proofs/scratch/vfh2/ax.lean in FL4-invA (untracked), task vfh2-ax1.
