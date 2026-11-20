@@ -4635,3 +4635,82 @@ Goal (ft2 handoff 1-7): FaultTcbsS (l4v fault_tcbs_valid_states) with NQB kept b
   `check_cap_at`, or issued after `set_irq_state IRQSignal`; the page maps fail on a non-arch cap).
 - Handoff: G3 wiring of `ValidIrqMasks ∧ ValidIrqHandlers` into the SInv bundle (consumer XTopJointMRPath's
   `ValidIrqMasks`); `boot_vih` / `boot_vim` give the initial state.
+## ut3 (branch par/ut3 in FL4-tcbj, on c24106cd = int/j2 incl. ut2) — `kentry_utInv` / `kcall_utInv`
+Goal (ut2's handoff, steps 1–6): UtInv' (= UtInv ∧ CdtOK ∧ CdtAcyc) kept by the syscall entry and every event. DONE.
+Spec-only leaves, namespace `Fl4Proofs.P3.SInvU`, importing only SpecInvUtSw/SpecInvUtRsI (Fl4Spec); root Fl4Proofs.lean
+imports the eight new modules. Nothing existing edited.
+- Writers (SpecInvUtMv, step 3–5): `NNU c` (non-null, not untyped), `hv_setCap_nn` / `ik_setCap_nn` (no decode fact);
+  `CapRel c0 c` (both non-null, `c = c0` or neither untyped: what `mask_cap` / `update_cap_data` / `derive_cap` give);
+  `utInv'_vCap_rel`, `utInv'_cut` (cut a null childless slot from its parent), `utInv'_vOrig`; `utInv'_ccG`
+  (= ut2's `utInv'_ccU` with any free index); `sameRegionAs_self` (UtWf arithmetic); `CIOK w c src` (c untyped ⇒ it is
+  src's cap and src has no CDT child) and **`hv_capInsert c src dest : HV (UtInv'V ∧ CIOK · c src) UtInv'V`** (untyped
+  copy: `set_untyped_cap_as_full` empties src's free part, the copy is src's CDT child); **`hv_capMove`** (CapRel cap to
+  a null destination: renamed view + destination overwritten + null source cut; post also gives the slots' caps, so
+  Rotate's two moves chain); **`hv_capSwap`** (CapRel caps; Rotate with src = dest).
+- MakePool (SpecInvUtMp, step 2): `detype_PR` (reset_utInv's detype half), `MpOK σ (makePool frame slot parent base)` :=
+  `∃ dev fi, capAt σ parent = some (untypedCap dev frame page_bits fi) ∧ ∀ c, σ.cdt c ≠ some parent`;
+  **`makePool_utInv' (hI : UtInv' σ) (hDT : DetypeOK σ) (hm : MpOK σ a) : ∀ y ∈ (performAsidControlInvocation a σ).1,
+  UtInv' y.2`** (detype, `ik_PR_setCap` to 2^12, `utInv'_retype` at `frame` fresh by RSV, `ik_capInsert_nonUt`).
+- Decode facts (SpecInvUtD, SpecInvUtDA, step 1): `OkV w P m` (every `.ok` outcome from a state of view `w` satisfies
+  `P`; every decode function is a `UK` frame, so a check made on the start view holds at the end and, across
+  `set_thread_state Restart`, at the perform); leaves `okv_ensureEmpty`, `okv_ensureNoChildren`,
+  `okv_mapMEx_ensureEmpty`, `okv_reset_bind` (const_on_failure), `okv_deriveCap` (`UtKeep`), `okv_lookupCapAndSlot`,
+  `okv_lookupExtraCaps`; `utKeep_mask` / `utKeep_upd` (mask_cap / update_cap_data keep untyped caps and make none).
+  `InvOKV w : Fl4Invocation → Prop`: untyped `UtRetOKV ∧ DestNullV` (= ut1/ut2's UtRetOK/DestNull on the view,
+  `utRetOK_of_V`), CNode `CnOKV` (insert: CIOK; move: src cap c0 with CapRel, null dest, src ≠ dest; rotate: CapRel for
+  both, pivot ≠ src/dest, dest null unless src = dest), MakePool `MpOKV`, SetIRQHandler's cap not untyped (`isNtfnCap`),
+  else True. `okv_decodeUntyped` (all of UtRetOK's clauses incl. NotEnoughMemory and the reset's
+  ensure_no_children), `okv_decodeCnode`, `okv_decodeIrqHandler`, `okv_archDecode` (MakePool; no other arch decode
+  yields a MakePool: `okv_noasid` traversal), **`okv_fl4Decode (hc : w.2.1 sl = some cap) (hex : ∀ p ∈ ex, w.2.1 p.2 =
+  some p.1) : OkV w (InvOKV w) (fl4DecodeInvocation fp label args ci sl cap ex buf)`**.
+- Hand-written leaves (SpecInvUtA): the VSpace map performs (`setCap cap` then a match that fails unless `cap` is the
+  matching arch cap: no outcome for a null/untyped cap, `ik_of_empty`), `ik_checkCapAt_ins` (TCB installs:
+  `same_object_as (UntypedCap ..) _ = False`, so an untyped newCap is never inserted), `finaliseCap_nu` (remainder never
+  untyped; with `cap_removeable NullCap` it makes rec_del's `set_cap remainder` an NNU write), `getReceiveSlots_len`
+  (≤ 1 slot), `ui_transferCapsLoop` / `ui_transferCaps` / **`ui_doNormalTransfer : IK UtInv' (doNormalTransfer …)`**
+  (the extra caps are still in their slots when derived; derive_cap of an untyped cap ran ensure_no_children).
+- Generated frames (SpecInvUtG, step 6; proofs/scratch/ut3/mkui.sh, untracked: ut1's gen.py, family `IK UtInv'`, prefix
+  ui, skipui.txt = every reachable function but the 28 non-conditional ancestors and the combinators with monadic
+  parameters; manual.py: rec_del (finaliseSlot case by `ike_bind_v` + `finaliseCap_nu`) and cap_revoke by `ik_lfp`,
+  receiveIpc). 39 lemmas: capDeleteOne, deletingIrqHandler, finaliseCap, recDel, capDelete, capRevoke, doIpcTransfer,
+  sendIpc, sendFaultIpc, handleTimeout, endTimeslice, chargeBudget, checkBudget(Restart), doReplyTransfer, handleFault,
+  receiveIpc, handleRecv, handleYield, installTcbCap, installTcbFrameCap, invokeIrqControl, invokeFl4IrqControl,
+  archInvokeIrqControl, invokeTcb, performAsidPoolInvocation, performDeriveSubframe, performIoportControlInvocation,
+  performPageInvocationUnmap, preemptionPath, withoutPreemption, capFaultOnFailure, constOnFailure, emptyOnFailure,
+  lookupErrorOnFailure, orChoiceE, unifyFailure.
+- Entries (SpecInvUtE): `uiP_invokeCnode`, `uiP_fl4Perform (hI) (hD : DetypeOK σ) (hok : InvOKV (uV σ) inv)`,
+  `syscall_postU` (invC's shell), `IKD` (UtInv' kept from UtInv' ∧ DetypeOK), `uiD_handleInvocationR`,
+  `uiD_fl4HandleSyscall`, `checkBudget_true` / `checkBudgetRestart_true` (the budget check keeps the view whenever it
+  returns True, i.e. whenever the syscall runs), `uiD_fl4HandleEvent`, `ui_handleEvent_other`, `uiD_fl4CallKernel`.
+  * **`kentry_utInv (c : Syscall) (hI : UtInv' σ) (hDT : DetypeOK σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1,
+    UtInv' y.2`**
+  * **`kcall_utInv (rep) (ev : Event) (hI : UtInv' σ) (hDT : DetypeOK σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, UtInv' y.2`**
+  * **`kcall_utInv_other (rep) (ev) (h : ∀ c, ev ≠ .syscallEvent c) (hI : UtInv' σ) : …`** (interrupts, faults, unknown
+    syscalls, timer: no premise).
+- PREMISE: only ut2's **`DetypeOK σ` [J]** (l4v `untyped_children_in_mdb` + `if_unsafe_then_cap` + `mdb_cte_at`), now
+  of the ENTRY state (not of the perform's): every step before the perform keeps the view (`fl4SyscallFaultIP`,
+  `updateTimeStamp`, the lookups, the decode, `set_thread_state Restart`; `checkBudgetRestart` whenever it lets the
+  syscall run). Used only by the untyped reset and MakePool's detype. Per the lead's note this is a [J] stepping stone,
+  not a carried invariant (G4 cannot use it yet). No other premise; no ∀-states hypothesis.
+- DetypeOK is NOT inductive on its own (nor with UtInv'): from a state with a CNode object X inside a childless
+  untyped's region whose slots hold caps but have no CDT links (UtInv' ∧ DetypeOK hold), CNode Copy from a slot of X
+  makes that slot a CDT parent inside the region. What its preservation needs (handoff, L): carry l4v's
+  `untyped_children_in_mdb` on the view — `UtChildren σ : ∀ u dev b n fi sl c, capAt σ u = some (untypedCap dev b n fi)
+  → capAt σ sl = some c → (objRefs c ∩ region(b,n) ≠ ∅) → sl ∈ descendantsOf u σ.cdt` (needs a spec `objRefs`/obj-range
+  per cap: zombies, arch frame/table caps, reply, sc caps) — plus `RegNull`: every slot of an object inside a childless
+  untyped's region holds a null cap (l4v gets it from `if_unsafe_then_cap` + `valid_objs`). Then `DetypeOK` follows from
+  RegNull + CdtOK (a CDT parent holds a non-null cap). Writers: cap_insert / copies (the new cap has the source's refs;
+  its CDT parent is src or src's parent, a descendant of u whenever src is), cap_move/swap (rename), create_cap (child of
+  the source untyped), empty_slot (children reparented: descendants of u stay descendants), rec_del's zombies (same
+  refs), retype (new objects in u's region: default objects, null slots, and u gains children), the reset/MakePool
+  detype (objects removed), and every cap lookup that writes into a slot (the slot's object is referenced by a cap, so
+  its untyped has a descendant, so RegNull does not constrain it). The generated `IK` frames carry it once the leaves
+  exist (same shape as SpecInvUtG). No counterexample in reachable states.
+- No FINDING: no reachable step breaks UtInv'.
+- Builds (tokyo, ./ut3.sh untracked: ut2.sh with the full log brought back; mirror warm): ut3-b3 SpecInvUtMv (1040 jobs),
+  ut3-b5 SpecInvUtMp (1046), ut3-b12 SpecInvUtD (1048), ut3-b13 SpecInvUtDA (1050), ut3-t1 SpecInvUtA (1052),
+  ut3-b17 SpecInvUtG (1054, ~8 min), ut3-b19 SpecInvUtE (1056) + axioms (scratch/ut3/ax.lean, untracked):
+  kentry_utInv, kcall_utInv, kcall_utInv_other, uiP_fl4Perform, uiD_handleInvocationR, okv_fl4Decode,
+  makePool_utInv', hv_capInsert, hv_capMove, hv_capSwap, hv_setCap_nn, ui_doNormalTransfer, ui_recDel, ui_capRevoke,
+  finaliseCap_nu, checkBudgetRestart_true: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide.
+  Root Fl4Proofs.lean not rebuilt (eight import lines added).
