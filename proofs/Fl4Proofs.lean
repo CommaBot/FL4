@@ -662,6 +662,8 @@ import Fl4Proofs.P3.XTopJointKEntry8
 import Fl4Proofs.P3.XTopJointBudgetTR
 import Fl4Proofs.P3.XTopJointKEntry8B
 import Fl4Proofs.P3.XTopJointMachRel
+import Fl4Proofs.P3.XTopJointMRPP
+import Fl4Proofs.P3.MachFieldKeep
 import Fl4Proofs.P3.XTopJointMidRunQ
 import Fl4Proofs.P3.XTopJointKEntry9M
 import Fl4Proofs.P3.XTopJointRecvSigM
