@@ -639,3 +639,5 @@ import Fl4Proofs.P3.ScNextDomCFR
 import Fl4Proofs.P3.XTopJointJAtZRA
 import Fl4Proofs.P3.XTopJointJAtZRB
 import Fl4Proofs.P3.XTopJointKEntry4
+import Fl4Proofs.P3.XTopJointIrqZR
+import Fl4Proofs.P3.XTopJointKEntry6
