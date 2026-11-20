@@ -3952,3 +3952,42 @@ of the JAtZ cone. Nothing existing edited.
   boot_nativeScope, kentry_nativeScope', boot_vfhAll, boot_faultTcbsS, boot_faultTcbs, ik_lfp: propext,
   Classical.choice, Quot.sound; VfhAll.ct: propext, Classical.choice; FaultTcbs.ct: propext; nativeScopeS_iff: none.
   No sorry/admit/native_decide/bv_decide in SpecInv*.
+## invC2 (branch par/invC2 in FL4-tcbj, on 3cd6199c = int/j2 incl. invA/invB/invC) — CtNQR (b)/(c)
+Goal: `kentry_ctNQR : CtNQR σ → ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, CtNQR y.2` and the `.interrupt` form
+(SpecInvCtNQR, invB). NOT PROVED; no module added. Analysis of what a proof needs (all l4v `valid_sched` /
+`invs` pieces; no counterexample found in reachable states):
+- Shape. The entry ends with `schedule; activateThread`, and every outcome of `schedule` has action =
+  resumeCurThread (resume branch keeps it; chooseNew/switch branches end in `setSchedulerAction .resumeCurThread`).
+  `activateThread` (completeYieldTo, setThreadState ct running) at most sets chooseNew (CtNQR vacuous) and
+  enqueues nothing else. So the exit's CtNQR is "ct ∉ any ready queue after schedule", by schedule's branch:
+  * chooseNew / switchThread: ct := the chosen thread, which `switchToThread` removes from the queue
+    (tcbDomain t, tcbPriority t) only (`tcbSchedDequeue` = filter on that one queue). Needs
+    T1 `∀ d p t, t ∈ readyQueues d p → kheap t = tcb x ∧ x.tcbDomain = d ∧ x.tcbPriority = p`
+    (l4v valid_queues' domain/priority half), kept by `archSwitchToThread` (setVmRoot, lazyFpuRestore: arch
+    fields only) and by schedule's own enqueues (ct's, the candidate's: own queue). `switchToIdleThread` needs
+    T2 `idleThread ∉ readyQueues d p` (l4v `valid_idle` + not_queued idle).
+  * resume branch: needs CtNQR at schedule's start after `awaken` and `checkDomainTime`. `awaken` releases the
+    release-queue head through `possibleSwitchTo` (enqueue or switch); under resume it may enqueue only if the
+    head is not ct: T3 `action = resume → ct ∉ releaseQueue` (l4v ct_not_in_release_q; CurInv carries it at the
+    entry only), kept by awaken (removes only).
+- The front (`fl4HandleEvent` + preemption path + `fl4Awaken`) must keep CtNQR. Stepwise it does not
+  (invB's note): every `tcbSchedEnqueue`/`tcbSchedAppend` of a thread t under resume needs t ≠ ct. Callers and
+  the fact each needs (l4v's per-op ct_not_in_q lemmas):
+  * `possibleSwitchTo t` (IPC wake-ups, signal, reply, cancel_all_ipc/signals restarts, restart, SC resume,
+    awaken): its only enqueue-under-resume branch is `tcbDomain t ≠ curDomain`; with FL4's one domain this is
+    vacuous given T4 `∀ t x, kheap t = tcb x → x.tcbDomain = curDomain` (DomListOK.dom gives curDomain's entry 0;
+    setDomain's decode checks `< numDomains = 1`) — then possibleSwitchTo never enqueues under resume.
+  * direct `tcbSchedAction tcbSchedEnqueue t` with action possibly resume: `setPriority`/`setDomain`/
+    `setSchedParams` (dequeue, write, enqueue if schedulable, then `rescheduleRequired` if t = ct: compound op
+    keeps CtNQR), `schedContextResume`/`schedContextBindTcb`/`restart` (t runnable and ≠ ct needs ct's state:
+    ct is Restart during a perform, set by fl4HandleInvocationR, and these enqueue only a thread that is
+    schedulable and not ct, or ct followed by rescheduleRequired), `handleYield` (append ct then
+    rescheduleRequired: compound), `rescheduleRequired` itself (enqueues the pending switch target, action :=
+    chooseNew). Each needs a compound-op lemma "outcome action ≠ resume, or ct ∉ rq"; the ct-identity facts come
+    from ct's thread state (running/restart at the perform) and l4v valid_queues' "queued ⇒ runnable"
+    (to exclude enqueueing ct as a woken blocked thread).
+- Missing, by name (to define with boot and preservation): T1 (valid_queues prio/domain), T2 (idle not queued),
+  T3 (ct_not_in_release_q under resume), T4 (one-domain uniformity), plus the compound-op lemmas over the whole
+  front. Size L (l4v: DetSchedSchedule_AI's ct_not_in_q family). invA's IK combinators and invB's GK kit give the
+  frames for every op that touches neither readyQueues, schedulerAction, curThread, releaseQueue nor a TCB's
+  domain/priority/state.
