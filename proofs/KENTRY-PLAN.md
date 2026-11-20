@@ -3442,3 +3442,42 @@ MidChoose*/XTopJointRecv* untouched.
   sch24-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ24M, KDispHyps24M.to23M, jMidLeavesHyp_of15,
   JRecvLeavesRN15.toRN14, jRecvIpcLinkN, cancelLink_actDon/pushDon/sendEP/ntfn, JAtZ.epQ_code, cancelReply_ne,
   ne_replyRemoveTcb, ne_setObject, neO_of_aType (neO_some: propext; cfr_ntfn: none).
+## sch23 (branch par/sched23 in FL4-sc, on 331a39e0 = int/j2 incl. sch22)
+Goal (c1) only: `jMidChooseFact`, every outcome of the first phase satisfies `CtOK := CurInv ∨ ct SC-less`.
+New leaves XTopJointChooseF (committed, imported from Fl4Proofs.lean) and XTopJointChooseB (WIP, uncommitted in the
+worktree, NOT imported yet). Generator: sch23gen/{genA.py, hdrA.lean, tailA.lean, setmrs.lean, mkA.sh, fixB*.py}
+(untracked; `bash sch23gen/mkA.sh` regenerates XTopJointChooseF from MidRunQ). Nothing existing edited.
+- DESIGN (no new premise except one [W] restricted to PerfW paths):
+  * View `sV σ := (curSc, idleSc, releaseQueue, mV σ)`, `mV σ p := (TCB SC field at p, (scTcb, scRefillMax) of the SC
+    at p)`; `SV m := FK sV m`. FINDING: every SC write in the FirstInv cone except the SC/TCB binding writes goes
+    through `updateSchedContext` with a refill / reply-stack / consumed update (keeps scTcb and refill max, hence
+    scActive), every TCB write keeps the SC field, so the whole cone is an SV frame except `schedContextDonate`
+    (sendIpc's donation to a passive receiver, replyPush, replyRemove, maybeDonateSc) and the release-queue writes
+    (`tcbReleaseRemove` in the donation, `tcbReleaseEnqueue` in `postpone` / `schedContextResume`). setObject trap: a
+    CNode with an ill-formed table and an SC with an invalid size share `aGarbage`, so the generic setObject leaf
+    excludes CNodes and `setCap` is proved from the object it reads.
+  * `BIV ct c i rq M` (XTopJointChooseB): ct holds a TCB; its SC field is none, or `c` which is an SC, active unless
+    `c = i`, with ct ∉ rq; `back` (every TCB's SC is an SC bound back to it, Inv.back); no reference both TCB and SC.
+    `BI ct σ := BIV ct` of `sV σ`, kept by every SV frame (`BI.of_sV`). From CurInv + Inv.back at the dispatch state
+    (`bi_of`); CQ ∧ BI give CtOK (`ctOK_of`).
+  * Hand lemmas: `biv_donate`/`bi_donate` (donation of sc to t ≠ ct: the old holder's SC field is cleared, so ct
+    either keeps curSc or becomes SC-less; back kept), `pcp_postpone`/`pcp_resume` (the enqueued thread is sc's
+    scTcb = the TCB holding sc ≠ ct, by back), `pc_maybeDonateSc`, `pc_replyRemove`, `pc_replyPush`,
+    `pc_sendIpc(_recv)`, `pc_sendFaultIpc`, `pc_handleTimeout`, `pc_drt_tail`, `pc_doReplyTransfer`, `pc_sendSignal`
+    (PQ-style `PCP ct P m`: from CQ ∧ BI (∧ P) every outcome is CQ ∧ BI); `perf_firstB`, `midRunB_shell`,
+    `jMidChooseFact (rep don cptr σ) (hs : CQ ct σ) (hq : NQ ct σ) (hC : CurInv σ) (hI : Sched.Inv σ)
+    (hW : JMidPerfHypQ don cptr σ) (hWB : JMidPerfHypB don cptr σ) : ∀ y ∈ first phase, CtOK y.2`.
+  * NEW premise (residue) `JMidPerfHypB don cptr σ` [W] := ∀ inv σ1, MidPerfAt cptr σ inv σ1 → PerfW inv →
+    BI σ.curThread σ1 → ∀ y ∈ perform inv from σ1, BI σ.curThread y.2 (Untyped, IRQ handler set/clear, ASID control
+    only, only at the states where they start on a run from the dispatch state; l4v invoke_untyped /
+    invoke_irq_handler / perform_asid_control_invocation keep sym_refs of the SC/TCB binding, cur_sc_tcb_are_bound,
+    cur_sc_active, ct_not_in_release_q). Same shape as JMidPerfHypQ.
+- Builds (tokyo, b23.sh): sch23-b1..b4 XTopJointChooseF iterations (sv_leaf name clash with IpcSV -> sck_ prefix;
+  setSimpleKo / setMrs / setCap leaves); sch23-b5 `XTopJointChooseF XTopJointChooseB`: ChooseF OK (5cc00c40),
+  ChooseB first-try errors (keyword `to`, subst direction, join points of replyRemove / updateWaitingNtfn, post_liftE
+  unification) fixed by sch23gen/fixB2.py; sch23-b6 (ChooseB after the fixes) started but the station stopped
+  answering (every station unanswered for >30 min), result unknown.
+- NOT DONE (handoff): build ChooseB (`bash b23.sh XTopJointChooseB`), fix the remaining errors, add
+  `import Fl4Proofs.P3.XTopJointChooseB` to Fl4Proofs.lean, commit, #print axioms jMidChooseFact. Likely spots: the
+  `pc_step`/`pc_auto` steps of pc_sendIpc_recv and pc_replyRemove (join-point shapes), pcp_resume's step count,
+  heartbeats of pc_step on large blocks.
