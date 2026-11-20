@@ -266,12 +266,21 @@ impl Arch for PhysArch {
     }
 
     fn cache_op(&mut self, op: u64, root: u64, asid: u64, vaddr: u64, len: u64, paddr: u64) {
-        // Invalidation, and anything through the user mapping, only on
-        // the committed state (`cache_rule::needs_gate`).
-        if in_tx()
-            && crate::cache_rule::needs_gate(op == fl4_core::vspace::CACHE_INVALIDATE, crate::mmu::in_window(paddr, len))
-        {
-            return serial_needed();
+        // Invalidation, anything through the user mapping and large
+        // ranges only on the committed state; nothing once doomed
+        // (`cache_rule::in_tx`).
+        if in_tx() {
+            use crate::cache_rule::InTx;
+            match crate::cache_rule::in_tx(
+                fl4_store::tx::doomed(percpu::cpu_index() as u64),
+                op == fl4_core::vspace::CACHE_INVALIDATE,
+                crate::mmu::in_window(paddr, len),
+                len,
+            ) {
+                InTx::Run => {}
+                InTx::Skip => return,
+                InTx::Serial => return serial_needed(),
+            }
         }
         crate::mmu::cache_op(op, root, asid, vaddr, len, paddr)
     }
