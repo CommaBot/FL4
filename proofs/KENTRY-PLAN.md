@@ -5641,3 +5641,70 @@ imports only SpecInvNativeScopeT (Fl4Spec); root imports the seven. Nothing exis
   boot_t1: propext, Classical.choice, Quot.sound; q1_tcbSchedAction, q1_dequeue_hk: propext; q1_of_keep: none. No
   sorry/admit/native_decide/bv_decide, no premise tagged (hR is a pre-condition of a hand lemma, not a top premise).
   Root Fl4Proofs.lean not rebuilt (seven import lines added).
+## il1 (branch par/il1 in FL4-rb, on 4c7a88b3 = int/j2 incl. nq3, ut8) — IfLiveT (l4v if_live_then_nonz_cap at TCBs): the family and the first manual writers (NOT finished)
+Goal (nq3's handoff): carry `IfLiveT` across the entry (`kentry_ifLiveT` / `kcall_ifLiveT`), then the nq3 tops over it.
+- **The invariant (SpecInvNtfnQL), narrowed to what is inductive with the cheapest writers**:
+  `liveSt s` (not Inactive, not IdleThreadState), `HasTC σ t := ∃ s, capAt σ s = some (.threadCap t)`,
+  **`IfLiveT σ := ∀ t y, kheap t = tcb y → liveSt y.tcbState → HasTC σ t`** — every live TCB holds a THREAD cap
+  (l4v: some cap with `t ∈ obj_refs`, by `valid_cap` a ThreadCap or a Zombie). Zombies are not counted: finalise_cap
+  suspends the thread (Inactive) before its final thread cap is replaced by `Zombie t none 6`, and nothing makes an
+  Inactive thread live without a thread cap to it (resume / Copy/WriteRegisters decode a thread cap). Typing the cap
+  makes every cap removal other than a thread cap's free (no CapKind/UtInv3 needed there) and Zombie removal free.
+  Not restricted to `InUtV` (the restriction only adds obligations at untyped-cap writes; it is implied anyway).
+  `ifLiveT_objRefs` (untyped form), **`ifLiveB_of : IfLiveT σ → IfLiveB σ`** (SpecInvNtfnQLT).
+  Carried form `IL K σ := IfLiveT σ ∧ ∀ t ∈ K, HasTC σ t` (K: threads read live, or named by a decoded thread cap).
+  `IL` reads only the heap. Unlike `NQ K`, `IL K` is kept by blocking (no post forgets K); only cap removals can.
+- Leaves (SpecInvNtfnQL): `il_update`/`ILOK`, `il_of_frame` (ut1's `UK` frame + a `TP` state frame, so the TCB
+  writers reuse `uk_*`/`tp_*`), setObject / set_simple_ko / thread_set / arch_thread_set / as_user / set_mrs /
+  `il_setThreadState (liveSt ts → t ∈ K)` / option_update_thread; **`il_setCap_p`** with `TcSafe K σ sl c` (old cap
+  no thread cap, or the same, or another slot holds it, or its thread not live and not in K); **`il_capInsert`**
+  (dest asserted null, set_untyped_cap_as_full rewrites an untyped cap: no premise); `il_emptySlot_p` (slot holding no
+  thread cap); `il_rds` (a live state read adds the thread to K; liveness checked by `liveSt_eq hs True.intro`, a
+  term, so `first` falls back — a `by` block there is elaborated late and its failure escapes `first`).
+- Generated family SpecInvNtfnQL1..L6 (scratch/il1/mkil.sh: gen.py with prim.txt = leaves, hard.txt = manual/hand-off
+  seeds, the caller closure skipped, hyp.json = thread-in-K hypotheses, auto2.txt = il2_auto users). HYP: the
+  blocking writers (receive/send_ipc_blocked, receive_signal_blocked, reply_push caller), restart (the resumed
+  thread), restart_thread_if_no_fault / remove_and_restart_{ep_queued,badged,ntfn_queued}_thread (the queued thread).
+- SpecInvNtfnQLM: `il_sendIpc` / `il_sendFaultIpc` / `il_handleTimeout` / `il_handleFault` / `il_receiveIpc` (thread ∈ K),
+  the budget `il_endTimeslice_p` (ct runnable ⇒ live ⇒ K), `il_chargeBudget`, `il_checkBudget`, `il_checkBudgetRestart`.
+- DONE, built (tokyo, FL4-rb mirror, ./il1b.sh, tasks il1-b1..b12; il1-b12: SpecInvNtfnQL, L1..L6, LM, LT, 1180 jobs,
+  "Build completed successfully"): 7c4195fb. Root imports SpecInvNtfnQLT (root not rebuilt). `#print axioms`
+  (scratch/il1/ax.lean, untracked, task il1-ax1): il_update, il_setCap_p, il_capInsert, il_emptySlot_p,
+  il_setThreadState, il_sendIpc, il_receiveIpc, il_chargeBudget, il_checkBudgetRestart, il_schedule, il_restart,
+  ifLiveB_of, kentry_ntfnQB_liveT, kcall_ntfnQB_liveT: propext, Classical.choice, Quot.sound. No sorry/admit/
+  native_decide/bv_decide/axiom. `kentry/kcall_ntfnQB_liveT` = nq3's `_live` tops with `hL : IfLiveT σ` (still a premise).
+- No FINDING (no reachable step found to break IfLiveT; every gap below holds in l4v `invs` states).
+- NOT carried yet (no `kentry_ifLiveT`). HANDOFF, in order (scratch/il1/hard.txt lists what is skipped; its caller
+  closure is skipped too, see closure.log):
+  1. Queue wake-ups with no state read need NtfnQB/EpQB at the read (a queued thread is BoN/BoS/BoR, so live, so
+     HasTC): `cancelAllSignals`, `cancelAllIpc`, `cancelBadgedSends` (iterate the queue snapshot `q`: from
+     `IL K ∧ NQ []` at the read get `IL (q ++ K)`, then the generated `il_removeAndRestart*Thread (t ∈ K)` per item
+     via ik_mapMx), `updateWaitingNtfn` / `sendSignal` (dest = head of the read queue). State them
+     `HK (fun σ => IL K σ ∧ NQ [] σ) (IL K)`; prefixes keep NQ by nq1/nq2's `NQK` lemmas. Then `fastFinalise`,
+     `capDeleteOne` (text ready: scratch/il1/manual_il.py `MX_capDeleteOne`, needs `hp := il_postCapDeletion _` and the
+     NQ pre), deletingIrqHandler, invokeIrqHandler, handleInterrupt, timer events (fl4Awaken/fl4TimerSignal).
+  2. Deletion (rec_del / finalise_cap / cap_delete / cap_revoke, IL [] posts): finalise of a FINAL thread cap: suspend
+     ⇒ Inactive before the `Zombie r none 6` remainder is written (`il_setCap_p`, TcSafe third case, K = []);
+     NON-final thread cap: `isFinalCap` false gives another slot overlapping, CapKind + ZFinal (UtInv''/UtInv3) make
+     it a thread cap (TcSafe second case) — so this part needs UtInv'' at the intermediate states: run it as
+     `IL [] ∧ UtInv''` on ut5's `hr_recDel` skeleton (RPre/RPost), Zombie removal and non-thread-cap removal free
+     (`il_emptySlot_p`). capSwapForDelete / capSwap / capMove need a combined lemma (two setCaps; the moved cap keeps
+     its thread-cap-ness: RefEq from ut5's decode facts, or `newCap = srcCap` for the swap-for-delete).
+  3. Decode-dependent writers: invoke_tcb resume / Copy/WriteRegisters' `restart dest` (`il_restart` needs
+     `thread ∈ K`: the invoked cap is `threadCap t` held in the looked-up slot — ut3's `okv_lookupCapAndSlot`
+     gives `capAt slot = cap`, i.e. `HasTC t`); TCB installs (cap_delete + check_cap_at + cap_insert); invokeCnode
+     (move/mutate/rotate/delete/revoke/cancelBadgedSends); untyped retype (createCap at null dests: ut8's ItemN/
+     DestRefV null; new TCBs are `defaultTcb`, Inactive; detype removes only null slots by `regNull_of`) and MakePool;
+     arch performs (`setCap` over the invoked arch slot: ut8's ArchOKN / RefEq ⇒ old cap no thread cap);
+     performAsidPoolInvocation (re-reads a pml4 cap). Carry the facts as nq3's NqDec / ut8's GapOKN.
+  4. doReplyTransfer (skipped via the closure: it calls a hard function), handleRecv/handleSend/handleCall/
+     handleYield, the shells and events: replay nq3's H3 with `IL [ct]` from `ha` (ct active ⇒ live ⇒ HasTC), then
+     `kentry_ifLiveT (hU : UtInv3 σ) (hN : NtfnQB σ ∧ EpQB σ) (ha) (h : IfLiveT σ)` / `kcall_ifLiveT` and the tops
+     carrying `NtfnQB ∧ EpQB ∧ IfLiveT`.
+- Lessons: a `by` block passed to `refine` inside `first` is elaborated late, so its failure is not caught by
+  `first` (use a term: `liveSt_eq hs True.intro`); manual_il.py must keep nq2's decodeTcbInvocation /
+  fl4DecodeTcbInvocation texts (thread-cap-only statements; the generic one hits the spec's `choice` for other caps);
+  il2_auto (with state reads) only where a read thread is written live (activateThread), elsewhere it splits
+  join points needlessly.
+- Scratch (untracked): scratch/il1/{gen.py (AUTO2 support), closure.py, mkil.sh, prim.txt, hard.txt, hyp.json,
+  auto2.txt, manual_il.py, ax.lean}; build scripts il1b.sh (= nq3b.sh), il1err.sh (errors with their theorem).
