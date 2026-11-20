@@ -2363,3 +2363,60 @@ JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/En
   dispatch_all9M, jMidRecvHyp_of, JAtZ.midCQ, MidRun.midRunQ_shell/perf_firstQ/pq_sendIpc/pq_sendSignal/
   pq_doReplyTransfer/qve_decodeFirst/qve_fl4ArchPerformInvocation/JMidPerfHypQ.toP, kernel_entryJ8. No
   sorry/admit/native_decide/bv_decide.
+
+## sch15 (branch par/sched15 in FL4-sc, on 866bc7ed = int/j2 incl. sch14, irq1 MachPlat, budtr)
+New leaves XTopJointRecvSigM, XTopJointKEntry10M (imported from Fl4Proofs.lean). Nothing existing edited;
+JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/XTopJointRecv* untouched.
+- (1) DONE: `JMidRecvHypS` [W] (the whole `handle_recv` at a non-resumed mid state) is no longer a premise.
+  * `handle_recvJR` (XTopJointKEntry10M): `handle_recvJ`'s proof with `Rel := RJR` (`RelTopM ∧ ∃ ghosts, JAtZR`) and
+    WITHOUT `hni`/`hnq`/`hvfh`: the registers, `lookup_cap_refines`/`lookup_cap_held`, the caps' objects and
+    `recv_bound_leaf` read only `JAtZ` (only the fault leaf `faultHypJZ` read `hni`). Leaves: `JRecvLeavesR`
+    (ipc / sig / flt of `RecvLeavesH`, blocking = true, post `RJR`, held caps `JHeld`).
+  * ADDED `JMidLeavesHyp arI AR cptr σ` [W] := `∀ y ∈ ((fl4HandleInvocationR true false false true true cptr).run
+    σ).1, y.1 = .ok () → y.2.schedulerAction ≠ .resumeCurThread → (∀ d p, ct ∉ readyQueues d p) →
+    y.2.schedulerAction ≠ .switchThread ct → (ct's fault handler valid) → ∀ s1 a1, RelTopM s1 y.2 → CurRun y.2 →
+    ct ≠ idle → ∀ Z H Cs Ac Lst D, JAtZ … s1 a1 y.2 → ∀ ct', sched.cur_thread st s1 = ok ct' → JRecvLeavesRN …
+    Z.th ct' s1 a1 y.2` (ct := y.2.curThread). `JRecvLeavesRN` = `JRecvLeavesR` with `sig` asked only under
+    `SigOpen y.2 p` := `chooseNewThread ∨ ∃ x, kheap p = notification x ∧ x not active ∧ x.ntfnSc = some curSc`.
+    l4v: receive_ipc_corres / receive_signal_corres / handle_fault_corres inside handle_recv_corres under
+    scheduler_act_sane. True in reachable states (each leaf is a part of JMidRecvHypS's receive, which sch13/14
+    argued true; the leaves are exactly what handle_recv_refinesH asks besides the proved lookups).
+  * `JRecvLeavesRN.full` (the switch mid state's notification receives outside SigOpen by `jRecvSigHypM_of`;
+    MidE built from CurRun, ct ≠ idle, action = switchThread u with u ≠ ct), `jMidRecvHypS_of`, `KDispHyps10M`
+    (mid with JMidLeavesHyp for JMidRecvHypS), `KDispHyps10M.to9M`, NEW TOP `kernel_entryJ10M` = kernel_entryJ9M
+    with KDispHyps10M (proof: kernel_entryJ9M through `.to9M`).
+- (2) DONE (XTopJointRecvSigM), the first blocking receive leaf under a pending switch (template for the rest):
+  * `Sched.recvSigBlock_act`: the spec's blocking notification receive keeps a non-resume action.
+  * `JAtZ.recvSigBlockJM`: `JAtZ.recvSigBlockJ` from `MidE` + action ≠ resume, ending in `RJR`. Changes from the
+    resumed copy: CurInv by `J.curInv hni.ncn`; CanBlock by `canBlockCurM`; `ActIdle` after by
+    `ActIdle.keepE (E := {ct})` (TKeepE from BFrN.tcbF/scF; the switch target ≠ ct by MidE); `CurInvR` after
+    vacuous (action stays switchThread u), `CurRunM` by its first disjunct; `JRestR` + `J.toR.cs_frameI`.
+  * `jRecvSigHypM_of`: receive_signal (blocking) at a switch mid state for every notification except the SC
+    return (non-active, ntfnSc = curSc): active by `recvSigActiveJM` (sch8) + `.toR`, idle/waiting by
+    `recvSigBlockJM`.
+- (3) JMidVfhHyp [J]: NOT derived (not cheap: needs l4v valid_cap for the first phase's CSpace-found slots, sch14's
+  reason); kept path-restricted as in sch14.
+- Premise changes at the top (kernel_entryJ10M vs J9M): `JMidRecvHypS` [W] REPLACED by `JMidLeavesHyp` [W]
+  (receive leaves only; the switch-state notification receive except the SC return proved).
+- NEXT (handoff) to remove JMidLeavesHyp, leaf by leaf, as recvSigBlockJM:
+  (a) switch case (MidE + action ≠ resume, CurInv available via J.curInv hni.ncn):
+      - sig SC return (`recvSigRetJ`): after the block (action stays switch u) `maybeReturnSc` unbinds ct's SC
+        and, ct being current, `rescheduleRequired` enqueues u and sets chooseNewThread; needs JAtZR (not JAtZ)
+        copies of `recvSigBlockPreJ`/`maybeReturnJ(Q)` plus the J-level rescheduleRequired-with-enqueue step
+        (the timer cone's signal leaves under a switch do this; see sch9 ZRA/ZRB `wake_specBR`).
+      - ipc blocking leaves (`recvIpcBlockJG`/`recvIpcBlockNJG`/`recvSendPJG`/`recvSendFPJG`/`recvSendFPTJ`):
+        add the switch disjunct to `hsa`, then exactly recvSigBlockJM's changes (an `recvIpcBlock_eq` action
+        lemma like recvSigBlock_act).
+      - ipc non-blocking leaves that wake a sender (`recvSendRetJ`, `recvSendP0X`, `recvSendRet(P|PD|T)J`,
+        `recvSendT0X`): `possibleSwitchTo sender` under a switch is `rescheduleRequired; tcbSchedEnqueue sender`
+        (Fl4Spec KHeap.lean:494), not `setSchedulerAction`: new J proofs of that tail (u and the sender enqueued).
+      - flt (`faultHypJZ`'s noFaultJ / faultRecvJ / faultBlockJ): MidE copies ending in JAtZR.
+  (b) chooseNewThread case: CurInv may be absent (reply SC return leaves ct SC-less); the leaves' `hsa` second
+      disjunct already covers `chooseNewThread ∧ sc = none`; with an SC (e.g. cancelAllSignals' reschedule) CurInv
+      may hold but is not in JAtZ (JAtZ.cur's first disjunct). Route: a mid-state post fact "chooseNewThread →
+      CurInv ∨ ct SC-less" from the first phase, then the two sub-cases.
+- Builds (tokyo, b.sh): sch15-b1 `XTopJointKEntry10M` OK (5564 jobs; first form, 4e6987e9), sch15-b2 (RecvSigM: missing
+  XTopJointRecvMid import), sch15-b3/b4 `XTopJointRecvSigM XTopJointKEntry10M` OK (5568 jobs, on 866bc7ed). Axioms
+  (axsch15.sh, untracked; sch15-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ10M,
+  KDispHyps10M.to9M, jMidRecvHypS_of, JRecvLeavesRN.full, handle_recvJR, JAtZ.recvSigBlockJM, jRecvSigHypM_of,
+  Sched.recvSigBlock_act, kernel_entryJ9M. No sorry/admit/native_decide/bv_decide.

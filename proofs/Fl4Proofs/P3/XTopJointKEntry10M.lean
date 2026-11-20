@@ -9,7 +9,7 @@ and the bound TCB of a notification are read from `JAtZ` alone (they never
 used `hni`); only the three leaves are named (`JRecvLeavesR`: `receive_ipc`,
 `receive_signal`, `handle_fault` of a cap fault, each ending in `RJR`).
 
-* `JMidLeavesHyp` [W] (narrows `JMidRecvHypS`): `JRecvLeavesR` at the `.ok`
+* `JMidLeavesHyp` [W] (narrows `JMidRecvHypS`): `JRecvLeavesRN` at the `.ok`
   outcomes of the first phase from the dispatch state whose action is not
   `resumeCurThread`, at every `JAtZ` witness of the mid state, given `hnq`,
   "no switch to ct", `hvfh`, `CurRun` and ct not idle there. l4v:
@@ -20,11 +20,15 @@ used `hni`); only the three leaves are named (`JRecvLeavesR`: `receive_ipc`,
   lookups). Removal: per leaf, the KENTRY-PLAN sch15 handoff (switch case
   via `MidE` and `JAtZR` copies of the blocking leaves; chooseNewThread case
   CurInv-free).
+* `JRecvLeavesRN`: the leaves `JMidLeavesHyp` asks, with the notification
+  receive only under `SigOpen` (a pending reschedule, or the SC return):
+  at a switch mid state the other notification receives are proved
+  (XTopJointRecvSigM's `jRecvSigHypM_of`; `JRecvLeavesRN.full`).
 * `jMidRecvHypS_of : JMidLeavesHyp → JMidRecvHypS`, `KDispHyps10M` (mid with
   `JMidLeavesHyp` for `JMidRecvHypS`), `KDispHyps10M.to9M`, NEW TOP
   `kernel_entryJ10M` = `kernel_entryJ9M` with `KDispHyps10M`.
 -/
-import Fl4Proofs.P3.XTopJointKEntry9M
+import Fl4Proofs.P3.XTopJointRecvSigM
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -34,11 +38,6 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
-
-/-- The relation a receive at a mid state ends in: `RelTopM` and `JAtZR`. -/
-abbrev RJR (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
-  RelTopM (L := L) s σ ∧ ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ
 
 /-- **The three leaves of a blocking `handle_recv` ending in `RJR`**
 (module docstring; `RecvLeavesH` without the proved `bound`, the held caps
@@ -61,6 +60,33 @@ structure JRecvLeavesR (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : 
       ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) true lf') σ).1,
         RJR (L := L) arI AR r.1 r.2 z.2 ⦄
 
+/-- The notification receives `JRecvLeavesRN` still asks: under a pending
+reschedule, or the SC return (a non-active notification whose SC is the
+current SC); the rest of a switch mid state is `jRecvSigHypM_of`. -/
+def SigOpen (σ : Fl4Spec.State Unit) (p : U64) : Prop :=
+  σ.schedulerAction = .chooseNewThread ∨ ∃ x, σ.kheap p.bv = some (.notification x) ∧
+    (∀ b', x.ntfnObj ≠ .activeNtfn b') ∧ x.ntfnSc = some σ.curSc
+
+/-- **`JRecvLeavesR` with the notification receive narrowed to `SigOpen`**
+(module docstring). -/
+structure JRecvLeavesRN (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (ct : U64) (s : S) (a : A)
+    (σ : Fl4Spec.State Unit) : Prop where
+  ipc : ∀ p b sd g gr rc rc', (∃ x, σ.kheap p.bv = some (.endpoint x)) →
+    ((rc = .Null ∧ rc' = .nullCap) ∨
+      (CapRel rc rc' ∧ ∃ q g', rc = .Reply q g' ∧ ∃ x, σ.kheap q.bv = some (.reply x))) →
+    JHeld (L := L) th s (.Endpoint p b sd true g gr) → (∀ q g', rc = .Reply q g' → JHeld (L := L) th s rc) →
+    endpoint.receive_ipc st arI s a ct (.Endpoint p b sd true g gr) true rc ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) ct.bv (absCap (.Endpoint p b sd true g gr)) true rc' σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄
+  sig : ∀ p b w rd ac, CapRel (.Notification p b w rd) ac → (∃ x, σ.kheap p.bv = some (.notification x)) →
+    JHeld (L := L) th s (.Notification p b w rd) → SigOpen σ p →
+    notification.receive_signal st arI s a ct p true ⦃ r =>
+      ∃ z ∈ (Fl4Spec.receiveSignal (Z := Unit) ct.bv ac true σ).1, RJR (L := L) arI AR r.1 r.2 z.2 ⦄
+  flt : ∀ cptr lf lf', LookupFaultRel lf lf' →
+    faults.handle_fault st arI s a ct (.Cap cptr true lf) ⦃ r =>
+      ∃ z ∈ (Fl4Spec.handleFault (Z := Unit) ct.bv (.capFault (Fl4Spec.ofBl (Fl4Spec.toBl cptr.bv)) true lf') σ).1,
+        RJR (L := L) arI AR r.1 r.2 z.2 ⦄
+
 /-- **[W] The receive leaves at a mid state with a pending switch or
 reschedule** (module docstring). -/
 def JMidLeavesHyp (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (σ : Fl4Spec.State Unit) : Prop :=
@@ -71,7 +97,7 @@ def JMidLeavesHyp (AR : A → Fl4Spec.Cr3 → Prop) (cptr : Fl4Spec.CapRef) (σ 
     ∀ (s1 : S) (a1 : A), RelTopM (L := L) s1 y.2 → CurRun y.2 → y.2.curThread ≠ y.2.idleThread →
     ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s1 a1 y.2 → ∀ ct, sched.cur_thread st s1 = ok ct →
-        JRecvLeavesR (L := L) arI AR Z.th ct s1 a1 y.2
+        JRecvLeavesRN (L := L) arI AR Z.th ct s1 a1 y.2
 
 end
 
@@ -116,13 +142,38 @@ theorem handle_recvJR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     exact ⟨xn, hkn⟩
   | _ => trivial
 
+/-- **The full leaves from the narrowed ones** at a non-resumed mid state
+(a switch to another thread or a reschedule): `jRecvSigHypM_of` for the
+notification receives outside `SigOpen`. -/
+theorem JRecvLeavesRN.full (hAT : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    (hni1 : σ.curThread ≠ σ.idleThread) (hrun : CurRun σ) (hsw : σ.schedulerAction ≠ .resumeCurThread)
+    (hsc : σ.schedulerAction ≠ .switchThread σ.curThread) (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (h : JRecvLeavesRN (L := L) arI AR Z.th ct s a σ) : JRecvLeavesR (L := L) arI AR Z.th ct s a σ where
+  ipc := h.ipc
+  flt := h.flt
+  sig := fun p b w rd ac hcr hex hHd => by
+    by_cases ho : SigOpen σ p
+    · exact h.sig p b w rd ac hcr hex hHd ho
+    · obtain ⟨hcur, -⟩ := J.curEq hct
+      have hctT : ct ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
+      have hE : MidE σ := by
+        refine ⟨hni1, hrun, Or.inr ?_⟩
+        cases e : σ.schedulerAction with
+        | resumeCurThread => exact absurd e hsw
+        | chooseNewThread => exact absurd (Or.inl e) ho
+        | switchThread u => exact ⟨u, rfl, fun hu => hsc (by rw [e, hu])⟩
+      exact jRecvSigHypM_of hAT J hctT hcur hE hsw hnq p b w rd ac hcr hex hHd fun hx => ho (Or.inr hx)
+
 /-- **`JMidRecvHypS` from `JMidLeavesHyp`** (module docstring). -/
-theorem jMidRecvHypS_of {cptr : Fl4Spec.CapRef} {cr : Bool} {σ : Fl4Spec.State Unit}
+theorem jMidRecvHypS_of (hAT : P0.ArchTotal arI) {cptr : Fl4Spec.CapRef} {cr : Bool} {σ : Fl4Spec.State Unit}
     (hL : JMidLeavesHyp (L := L) arI AR cptr σ) : JMidRecvHypS (L := L) arI AR cptr cr σ := by
   intro y hy hok ha hnq hsw hvf s1 a1 hM
   obtain ⟨hR, ⟨Z, H, Cs, Ac, Lst, D, J⟩, hrun, hni1⟩ := hM
   have hct := cur_thread_eq (L := L) s1
-  exact handle_recvJR s1 a1 y.2 J hct cr (hL y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J _ hct)
+  exact handle_recvJR s1 a1 y.2 J hct cr ((hL y hy hok ha hnq hsw hvf s1 a1 hR hrun hni1 Z H Cs Ac Lst D J _ hct).full
+    hAT J hct hni1 hrun ha hsw hnq)
 
 end
 
@@ -147,14 +198,14 @@ structure KDispHyps10M (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Hea
 
 variable {arI}
 
-theorem KDispHyps10M.to9M {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {a : A}
+theorem KDispHyps10M.to9M (hAT : P0.ArchTotal arI) {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {a : A}
     {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall} (h : KDispHyps10M (L := L) arI AR Z H Cs D s a σ n c) :
     KDispHyps9M (L := L) arI AR Z H Cs D s a σ n c where
   inv := h.inv
   recv := h.recv
   mid := fun ct rg sr cr hct hm => by
     obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h.mid ct rg sr cr hct hm
-    exact ⟨h1, h2, h3, h4, h5, jMidRecvHypS_of h6⟩
+    exact ⟨h1, h2, h3, h4, h5, jMidRecvHypS_of hAT h6⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **The kernel entry for a native system call at `J`**, `kernel_entryJ9M`
@@ -185,7 +236,7 @@ theorem kernel_entryJ10M [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ9M s a σ J hni n c hn hflag hB
-    (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' => (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to9M)
+    (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' => (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to9M hA)
     hFin hARI hA hnd hPP hmrt hmb hIP hNS hNSR hT hmax htu
 
 end
