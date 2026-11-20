@@ -3991,3 +3991,66 @@ Goal: `kentry_ctNQR : CtNQR σ → ∀ y ∈ (fl4KernelEntrySyscall true c σ).1
   front. Size L (l4v: DetSchedSchedule_AI's ct_not_in_q family). invA's IK combinators and invB's GK kit give the
   frames for every op that touches neither readyQueues, schedulerAction, curThread, releaseQueue nor a TCB's
   domain/priority/state.
+## ctnq1 (branch par/invC2 in FL4-tcbj, on e189d612 = int/j2 incl. invC2) — CtNQR's auxiliaries, T4 first
+Goal (invC2's plan): `kentry_ctNQR` / the event form / boot, for `I` = CtNQR ∧ T1..T4 (+ "queued ⇒ runnable").
+Done: **T4** (one domain), modules SpecInvQDomK, SpecInvQDomF1..F5 (generated), SpecInvQDom; namespace
+`Fl4Proofs.P3.SInvQ`; imports only SpecInvNativeScopeT (Fl4Spec) and, for the last module, invC's SpecInvDom
+(ScNextDom's cone, outside JAtZ). Root Fl4Proofs.lean imports the seven. Nothing existing edited.
+- `T4 σ := DLOK σ.domainList σ.domainStartIndex σ.domainIndex ∧ σ.curDomain = 0 ∧ TI dom0 σ` (`dom0 x :=
+  x.tcbDomain = 0`; `DLOK` = ScNextDom's `DomListOK` restated over the three fields, `dlok_of` /
+  `T4.domListOK` convert; a structure on the state is not definitionally kept by a `modify` of another field,
+  so the generated `ik_step0` frames need the field form). DomListOK is part of T4 because `next_domain` sets
+  `curDomain := (the domainList[index']?).1` and `the none` is `undefined`: the index must stay in range.
+- Leaves (SpecInvQDomK): copies of invA's `ti_*` keeping the two heap-free conjuncts (`q4_setObject` …
+  `q4_deleteObjects`), `q4_retypeRegionWith` (a new TCB is `defaultTcb curDomain`, read at the same state),
+  `q4_nextDomain`, `q4_setThreadState`, `q4_optionUpdateThread`, `q4_side`/`q4_leaf`/`q4_auto`.
+- Generated (proofs/scratch/q4/mkq4.sh, untracked: invA's gen.py/manual.py with prefix q4, family Q4K, skip
+  list skipq4.txt = invA's + the Domain invocation (threadSetDomain, setDomain, invokeSetDomain, invokeDomain,
+  domainSetStart, domainScheduleConfigure, nextDomain), the perform/shell (fl4PerformInvocation,
+  fl4HandleInvocationR), l4v's syscall path (performInvocation, handleInvocation, handleCall, handleSend,
+  handleEvent) and the entries): 396 lemmas in F1..F5.
+- By hand (SpecInvQDom): `q4_setDomain0`, `q4_domainSetStart`, `q4_domainScheduleConfigure`, `q4_invokeDomain`
+  from invC's `DomInvOK` and the new `SetDom0` (`decode_domain_set` checks `domain < numDomains`;
+  `okq_fl4Decode`); `q4_fl4PerformND` (every other perform), `q4_perform`, the shell `q4_handleInvocationR`
+  (invC's `syscall_post'`; DomInvOK carried across `set_thread_state Restart` by the DL frame, SetDom0 is
+  state-free), `q4_handleEvent_other`, `q4_fl4HandleSyscall`, `q4_fl4HandleEvent`, `q4_fl4CallKernel`,
+  `q4_fl4KernelEntrySyscall`.
+- STATEMENTS:
+  * (b) `kentry_t4 (hnd : numDomains = 1) (h : T4 σ) : ∀ y ∈ (fl4KernelEntrySyscall (Z := Unit) true c σ).1, T4 y.2`
+  * (c) `kcall_t4 (hnd) (rep) (ev : Event) (h : T4 σ) : ∀ y ∈ (fl4CallKernel (Z := Unit) rep ev σ).1, T4 y.2`
+    (every event; `.interrupt` included)
+  * (d) `boot_t4 : T4 (initASt (Z := Unit))`
+  * premise: only `hnd : numDomains = 1` [P] (FL4's configuration, = invC's / JEntryGlob.nd).
+- Builds (tokyo, ./b.sh untracked; mirror warmed from FL4-audit by cp -cR): ctnq-b2 `SpecInvQDomK SpecInvQDomF1..F5
+  SpecInvQDom` OK (F1..F5 ≈ 1016..1024 jobs over Fl4Spec; SpecInvQDom 4258 jobs, SpecInvDom's cone). Under load
+  (loadavg ~30) F4/F5 took ~35/~90 min each: build them alone. Axioms (scratch/q4/ax.lean, untracked; task ctnq-ax1): kentry_t4, kcall_t4, boot_t4, q4_fl4CallKernel: propext, Classical.choice, Quot.sound; T4.domListOK: propext. No sorry/admit/native_decide/bv_decide.
+- NOT DONE: T2, T1, T3, CtNQR (b)/(c). What the reading of the spec showed (handoff, sharper than invC2's list):
+  * T2 (`∀ d p, idleThread ∉ readyQueues d p`) is NOT a cheap frame. Its writers are every `tcbSchedAction
+    tcbSchedEnqueue/Append t`; each needs `t ≠ idleThread` at that point:
+    - guarded by `schedulable t` (schedule's ct enqueue, setDomain, setPriority/setMCP's tcb_sched path,
+      schedContextBindTcb/Resume, yieldTo's tcbPtr, rescheduleRequired's switchThread target): need l4v
+      `valid_idle` (idle's `tcbState = idleThreadState`, so `runnable` false); restart already skips the idle state;
+    - `possibleSwitchTo t` (a woken thread: its old state was blocked, so `≠ idle` by valid_idle) and schedule's
+      switch branch (`switchThread candidate`): need T2' `schedulerAction = switchThread t → t ≠ idleThread`;
+    - ct appends (handleYield, yieldTo's `enqueue ctPtr`, Ipc's endTimeslice `tcbSchedAppend ct`): need ct ≠ idle.
+      At the syscall entry this is l4v's `ct_active` precondition of handle_event (not an invariant: an exit may
+      leave ct = idle), i.e. a per-state premise of the syscall entry [P]-style; for the interrupt path's
+      checkBudget/endTimeslice it must come from the charge path's own guard (to check).
+    - valid_idle's own preservation needs: no thread-state write reaches idle — TCB caps never name idle (l4v
+      valid_global_refs = SpecGlob, invC: not inductive alone, untyped-range clause missing), endpoint /
+      notification / reply queues never hold idle (valid_objs' ep queue facts), ct ≠ idle at the invocation.
+    So T2 sits on SpecGlob's idle clause + queue facts; size L, not M.
+  * T1 (queued ⇒ TCB with that domain/priority): `tcbSchedAction` itself is a pinned leaf (reads the thread's
+    domain/priority at the same state, so an enqueue lands in its own queue); setPriority/setDomain/setSchedParams
+    dequeue-write-enqueue (hand lemma: by T1 t is only in its own queue, so after the dequeue it is in none);
+    every other TCB write keeps domain/priority (invA's TI leaves). Two obstacles: `retypeRegion` overwrites its
+    pointers without a freeness check (a new defaultTcb over a queued TCB breaks T1) and `deleteObjects` removes
+    objects (weaken T1 to `t ∈ rq d p → ∀ x, kheap t = some (.tcb x) → …` for detype; retype still needs l4v's
+    descendants_range / untyped_children chain: a queued thread is live, so it lies outside a free untyped — the
+    same chain invC names for FpuOwnOK).
+  * T3 / CtNQR: as invC2. With T4 in hand, `possibleSwitchTo`'s `targetDom ≠ curDom` branch is dead
+    (`T4.2.2` + `T4.2.1`), so it never enqueues under resume; its other enqueue is after rescheduleRequired
+    (action := chooseNew, CtNQR vacuous).
+  * Infrastructure for the next family: SpecInvQDomK is a template (copy, swap `dom0`/`DLOK`); invA's gen.py
+    with a skip list and manual top (SpecInvQDom's shell) carries over; the shell needs only the decode facts the
+    family's writers read (here SetDom0 / DomInvOK).

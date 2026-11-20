@@ -764,3 +764,10 @@ import Fl4Proofs.P3.SpecInvNativeScope
 import Fl4Proofs.P3.SpecInvNativeScopeBridge
 import Fl4Proofs.P3.SpecInvVfhAll
 import Fl4Proofs.P3.SpecInvFaultTcbs
+import Fl4Proofs.P3.SpecInvQDomK
+import Fl4Proofs.P3.SpecInvQDomF1
+import Fl4Proofs.P3.SpecInvQDomF2
+import Fl4Proofs.P3.SpecInvQDomF3
+import Fl4Proofs.P3.SpecInvQDomF4
+import Fl4Proofs.P3.SpecInvQDomF5
+import Fl4Proofs.P3.SpecInvQDom
