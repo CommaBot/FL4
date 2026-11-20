@@ -1925,3 +1925,70 @@ XTopJointPreempt*, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/ScCharge*/Entry u
   Quot.sound only for JTH.tmoBlockJA, JTH.endTimesliceTmoJA, JHole.chargeBudgetTmoJA, JHole.checkBudgetTA,
   JHole.mcsPPJA, jPreemptRestHypE_ofC, dispatch_invokeJPZA, dispatch_invokeJEPZA, handle_invocation_refinesJ.
   No sorry/admit/native_decide/bv_decide.
+
+## sch11 (branch par/sched11 in FL4-sc, on 4c7388c7 = int/j2 incl. sch10)
+New leaves XTopJointMidRunK, XTopJointMidRunP (spec only, imported from Fl4Proofs.lean); XTopJointMidRun edited (its
+only theorem users are in the file itself). JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/Entry
+untouched.
+- (1) restatement DONE a1e93add (lead decision): `JMidRunHyp rep don cptr σ` [W] := `MidEntry σ → ∀ y ∈
+  (fl4HandleInvocationR rep false false don true cptr).run σ, y.1 = .ok () → CurRun y.2`, `MidEntry σ` = `run : CurRun σ`
+  (l4v ct_active), `nf : ct's tcbFault = none` (l4v fault_tcbs_valid_states: a faulted thread is blocked/inactive),
+  `nq : ct ∉ any waiting notification queue` (l4v valid_ntfn). `HIPostMXP.mid` / `handle_invocation_midJ` take
+  `(hM : JMidRunHyp …) (hE : MidEntry σ)`. All three fields are true at a syscall entry; deriving them from
+  `JAtZ`+`Entered` at the KDispHypsR.mid site is NOT done (run: `J.curRun.run hni`; nf: look for JEntryAt.vfh /
+  NoFault-at-J facts; nq: NtfnStateRel puts only BlockedOnNotification threads in queues, ct is running).
+- (1) frames DONE ebd9a47a (no premise added anywhere):
+  * XTopJointMidRunK: `ctV ct σ` = (curThread, state and fault of the TCB at ct); `KF ct m` := `FK (ctV ct) m`
+    (VsDom's projection frame, so dk_step0 is reused). Hand leaves: `kf_setObject_nt` (set_object's aType assertion:
+    a TCB is never replaced by another kind), `kf_threadSet` (f keeps state+fault), `kf_threadSet_ne`/
+    `kf_setThreadState` (t ≠ ct), `kf_archThreadSet`, `kf_asUser`, `kf_setCap` (`kf_get_set`/`kf_getObject_bind`),
+    `kf_setSimpleKo` (simple type ⇒ not a TCB), `kf_setMrs'`, `kfe_bind_returnOk'`, machine/ext ops. ~200 per-function
+    lemmas GENERATED from VsDomOps/DomRecDel/TcbDom/AllDom's DK lemmas (sch11gen/gen.py + head.lean + skip.txt/
+    hyp.txt, untracked; `bash sch11gen/mk.sh` regenerates after fixing the paths in it), with `(h_ne : t ≠ ct)` for
+    replyUnlinkTcb/cancelIpc/replyRemove/replyPush/sendIpcBlocked. Covered: all lookups (kf_lookupCapAndSlot',
+    kf_lookupExtraCaps', kf_lookupIpcBuffer', kf_getMrs', kf_getMessageInfo'), doIpcTransfer/transferCaps,
+    possibleSwitchTo/reschedule, donation, postpone, IRQ control (kfe_invokeFl4IrqControl'), every arch perform but
+    ASID control (kf_performPage*/PageTable/PageDirectory/Pdpt/AsidPool/IoPort/IoportControl/DeriveSubframe/
+    TestAndClearAccessed/Pml4Flush). SKIPPED (false unconditionally or need dynamic facts): retypeRegion/deleteObjects/
+    reset/invokeUntyped, ASID control, fastFinalise/capDeleteOne/finaliseCap/cancelAllIpc/cancelAllSignals (queue
+    members set Restart), sendIpc/sendSignal/doReplyTransfer/updateWaitingNtfn/handleTimeout/sendFaultIpc (→ P).
+  * XTopJointMidRunP: `CtRs ct σ` := curThread = ct ∧ ct's TCB (if any) runnable with no fault; `PR ct m` (CtRs kept);
+    `pr_of_kf`, `pr_bind`, read-binds `pr_threadGet_bind`/`pr_gts_bind` (a thread whose state is read as blocked is
+    ≠ ct). PROVED: `pr_sendIpc` (sender ≠ ct, or block = call = false: the receiver is read BlockedOnReceive; ct's
+    fault is read none so the call/fault branch is not taken), `pr_sendFaultIpc`, `pr_handleTimeout` (thread ≠ ct),
+    `pr_doReplyTransfer` (receiver read BlockedOnReply; the timeout tail via pr_handleTimeout), `pr_sendSignal`
+    (bound TCB read receive_blocked; the waiting-queue head ≠ ct from `NQ ct σ`).
+- (1) NOT DONE — the shell `MidEntry σ → JMidRunHyp` (handoff, ~300 lines):
+  (a) decomposition of `fl4HandleInvocationR … true` (syscall: fault / error / perform; with blocking = calling = false
+      the fault and error handlers are `when false` = pure). Suggested: `HTE P Q m` (every outcome of `run m` from P is
+      Q) with a value-aware bind (`hte_bind'`, ExceptT bind = NonDet.bind run m (bindCont f)); draft in
+      sch11gen/XTopJointMidRunS.wip.lean (untracked).
+  (b) the decode frame: `KFE ct (fl4DecodeInvocation true …)`; no DK lemmas exist for decoders (DomFrame used DecOut).
+      The WIP's auto-unfolding `ro_unfold` (unfold the head spec constant) + `dk_step0` hit maxRecDepth at
+      lookupCapAndSlot (raise maxRecDepth or go one lemma per decoder); its `hkV` (curThread, kheap) projection is
+      WRONG for this cone: `asUser t getRegister` rewrites the TCB object (use ctV, i.e. KF, which kf_asUser covers).
+  (c) `NQ` at the perform's start: not in ctV. Needs "the lookups/decode and setThreadState ct Restart keep
+      notification objects" (they write only TCBs via asUser/setThreadState, which by aType cannot hit a
+      notification): a second frame (projection: the notification view of kheap) or fold NQ into a KF variant.
+  (d) okAll for the first-phase decode: decoded invocation ∈ {Endpoint, Notification, Reply, IRQControl,
+      IRQHandler, Untyped, Arch} (pattern: AllDom okAll_decode_notDom).
+  (e) `setThreadState ct Restart` / `ct Running` keep CtRs (runnable states; one setObject_out lemma).
+  (f) remaining perform cases, to name as [W] AT THE TRAJECTORY (not ∀σ: for an arbitrary CtRs state an untyped retype
+      can create a TCB at ct): Untyped (retype region disjoint from ct's TCB, l4v invoke_untyped/valid_untyped_inv),
+      ASID control (deleteObjects+retype of a free region), IRQ handler set/clear (cap_delete_one of a notification cap:
+      cancel_all_signals restarts only BlockedOnNotification threads, ≠ ct by valid_ntfn). Everything else is proved
+      above (Endpoint = pr_sendIpc with block = call = false, Notification = pr_sendSignal, Reply = pr_doReplyTransfer,
+      IRQ control and non-ASID arch by KF).
+- (2) NOT STARTED (receive leaves from JMid / MidE, ReplyRecv/NBSendRecv/NBSendWait dispatch → KDispHypsR.mid).
+- (3) NOT STARTED: KPreFinRestHypC (b). Note for the IrqPlat field: `IrqPlat` lives in XTopJointPreempt (out of this
+  line's scope), so the [P] field must go into a new structure (e.g. `IrqPlatA := IrqPlat ∧ inactive-line field`) taken
+  by kernel_entryJ7; stated over the spec state the existing `take` field quantifies (`getActiveIRQ` returns `some i`
+  with `σ.interruptStates i ≠ .irqInactive`), justified by l4v valid_irq_masks (inactive lines masked) + the platform
+  never raising a masked line. kernel_entryJ7 not written; the newest top theorem is still kernel_entryJ6.
+- Builds (tokyo, b.sh): sch11-b1 XTopJointMidRun OK; b2–b8 MidRunK/MidRunP iterations (generator fixes); b9 the
+  S draft (failed, moved out of the tree); sch11-b10 `XTopJointMidRunP XTopJointKEntry6` OK (5526 jobs, incl. the
+  KEntry chain over the edited XTopJointMidRun). Axioms (axsch11.sh, untracked, in sch11-b10): propext, Classical.choice,
+  Quot.sound only for handle_invocation_midJ, HIPostMXP.mid, kernel_entryJ6, pr_sendIpc/sendSignal/doReplyTransfer/
+  handleTimeout/sendFaultIpc, kf_setThreadState/setCap/asUser/setMrs'/doIpcTransfer'/possibleSwitchTo'/replyRemove'/
+  cancelIpc'/lookupCapAndSlot'/sendIpcBlocked'/performPageInvocation, kfe_invokeFl4IrqControl'; propext only:
+  curRun_ne_idle, kfe_bind_returnOk', CtRs.of_ctV. No sorry/admit/native_decide/bv_decide.
