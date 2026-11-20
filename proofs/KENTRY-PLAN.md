@@ -1706,3 +1706,44 @@ New leaves XTopJointKEntry2, XTopJointRecvMid (imported from Fl4Proofs.lean). No
   chg_finaliseCap, ppr0_finaliseCap, chg_finaliseCapW, endIn_replyRemove, jFinPPHyp, JAtZ.ppr0_start,
   owner_not_inClassR, jAtPre_holeL, hPre_ofZL, dispatch_invokeJEPZL, dispatch_invokeJEPZK,
   handle_invocation_refinesJ.
+## sch9 (branch par/sched9 in FL4-sc, on dfbc145a = int/j2 incl. sch8)
+New leaves XTopJointJAtZR, XTopJointJAtZRS, ScNextDomCFR, XTopJointJAtZRA, XTopJointJAtZRB, XTopJointKEntry4 (imported
+from Fl4Proofs.lean). Nothing existing edited; JAtZ, JAtZS and ScPPR/PP*/Preempt*/Tcb*/CnDel/WJL* untouched.
+- (1) DONE 2da09ef2: `KFinSwHyp` [W] removed (`kernel_entryJ4`).
+  * FINDING (why not sch8's JAtZS route): `JAtZS.cur`'s `SwBlk` (ct not runnable) is NOT kept by FL4's timers: a timer
+    signal may wake ct (e.g. ct blocked receiving with a bound notification) while a switch to u is pending;
+    `possibleSwitchTo ct` then gives `chooseNewThread` only if ct has an SC outside the release queue. Instead:
+  * `CurInvR σ := schedulerAction = resumeCurThread → CurInv σ` (XTopJointJAtZR); `JAtZR` = JAtZ with `cur : CurInvR`;
+    `JAtZ.toR`, `JAtZS.toR`, `JAtZR.toJ` (given JAtZ.cur), `JRestR`/`JRest.toR`. Kept by every signal/timer step
+    (no step sets `resumeCurThread`, and `CurInv` frames unconditionally: `NFr/CFr/DWFr.curInv`), and enough for the
+    spec `schedule`: resume branch reads `CurInv` (from CurInvR), switch/choose branches end at idle or a schedulable
+    thread (`newcur_of2F`), so the old current thread's CurInv is never needed under a switch.
+  * ScNextDomCFR: `SchedPreW0R`, `awaken_refinesW0R` (awaken's `hnr`), `schedule_refinesWP0FR` (switch branch via
+    newcur_of2F instead of newcur_ofF). XTopJointJAtZRS: `wake_specBR`, `wake_tailDR`, `wake_specGR` (spec wakes with
+    CurInvR in/out).
+  * XTopJointJAtZRA/B: SCRIPTED COPIES (sch9gen/gen.py + split.py in the worktree root, untracked): the transitive
+    closure of JAtZ-taking lemmas used by `JAtZ.fireJ`, `signalJHyp_of`, `jat_scheduleWP0F/FR2/SR2`, `JAtZ.ndFJ/
+    ndOK_fire/sch_tailS`, `jowes_sched`, `kwApartJ`, `recvReplyHyp_holds` (~80 decls, ~3800 lines), `JAtZ`->`JAtZR`,
+    `JRest`->`JRestR`, other names suffixed `ZR`; hand changes (in split.py) only at the 9 `cur` frame sites. FOLD
+    LATER: if JAtZ.cur is ever weakened to CurInvR in JointAt, all of A/B collapse onto the originals.
+  * XTopJointKEntry4: `jat_finishJR` (jat_finishJ2 from JAtZR; JAtZ again after schedule via `toJ` + CurInv σ'),
+    `KFinAtR` (= KFinAt2 with `vt` [J] quantified over JAtZR states; same statement, not read from `cur`),
+    `signalRestJHypZR_of_ns`, `kernel_entryJ4` = kernel_entryJ3 with `hFin : ∀ x ∈ specFront, ∀ ghosts, JAtZR … x.2 →
+    KFinAtR …` (was JAtZ → KFinAt2), new `hNSR : ∀ Z H Cs Ac Lst D s a σ, JAtZR … s a σ → NativeScope σ` [S] (VT-x out
+    of the native scope, as `hNS`), no `hSw`. REMOVED: KFinSwHyp [W]. ADDED: hNSR [S].
+- (3) DONE 820efe30: `KPreFinRestHyp` [W] = KPreFinHyp restricted to PPQ states with
+  `¬ ∃ z ∈ (preemptionPath σ1).1, JAt r.1 r.2 z.2`; `kPreFinHyp_of` proves KPreFinHyp from it (JAt case: jat_finishJR
+  with kernel_entryJ4's hFin at the front outcome `(ok z.1, z.2)`); `kernel_entryJ5` = kernel_entryJ4 with
+  `hPR : KPreFinRestHyp` for `hPF`. What is left in KPreFinRestHyp: (a) JHoleAt-not-JAt (kp's PPQZ gives JAt where
+  covered; the dispatch still produces PPQ until JPreemptRestHypK/afterInv produce PPQZ — kp line), (b) the IRQ case
+  (bare `XTopAt` from `JIrqHyp`): needs `JIrqHyp`'s post strengthened to `JAt`/`JAtZR` (l4v handle_interrupt_invs), then
+  `jat_finishJR` closes it exactly as above, (c) a failing spec preemption path (FL4 finish must still return).
+- (2) NOT STARTED (JMidRunHyp): route unchanged from sch7 (C) step 1 (an FK-style "ct stays runnable" frame over the
+  first-phase perform cone + the syscall shell). Note for whoever does it: KDispHypsS.mid's post could now be relaxed
+  from JAtS to JAtZR (kernel_entryJ4 only uses `.toR` of it).
+- Builds (tokyo, b.sh): sch9-b1..b4 (A/S/CFR/B; 3 rounds of cur-site fixes), sch9-b5 `XTopJointKEntry4` OK (5506 jobs),
+  sch9-b6/b7 (kPreFinHyp_of, kernel_entryJ5) OK. Axioms (axsch9.sh, untracked): propext, Classical.choice, Quot.sound
+  only for kernel_entryJ5, kPreFinHyp_of, kernel_entryJ4, jat_finishJR, signalRestJHypZR_of_ns, jat_scheduleSR2ZR,
+  jat_scheduleFR2ZR, jat_scheduleWP0FZR, JAtZR.fireJ, signalJHyp_ofZR, JAtZR.sch_tailS, JAtZR.toJ, JAtZ.toR, JAtZS.toR,
+  Sched.schedule_refinesWP0FR, Sched.awaken_refinesW0R, Sched.wake_specBR/GR, Sched.wake_tailDR, kernel_entryJ3.
+  No sorry/admit/native_decide/bv_decide.
