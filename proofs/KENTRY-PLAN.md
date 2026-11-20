@@ -2963,3 +2963,68 @@ ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Ir
 - Builds (tokyo, b.sh): sch20-b1 `XTopJointRecvSigC` OK, sch20-b2 + `XTopJointKEntry18M` OK (5602 jobs), sch20-b3
   `XTopJointFaultC` OK, sch20-b4 `XTopJointFaultC XTopJointKEntry18M XTopJointKEntry19M` OK (5606 jobs), all on a8ae2275, first try, no sorry. Axioms
   (axsch20.sh, untracked; sch20-ax1, sch20-b4): propext, Classical.choice, Quot.sound only.
+## sch21 (branch par/sched21 in FL4-sc, on 6683b87a = int/j2 incl. sch20, mr5)
+New leaves XTopJointRecvSendPC, XTopJointRecvIpcC, XTopJointKEntry20M, XTopJointFaultRecvC, XTopJointKEntry21M
+(imported from Fl4Proofs.lean; scripted: sch21gen/{gen.py `pc`/`c`, genf.py, hdr*.lean, mid.lean, tail.lean},
+untracked). Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/
+Entry/Irq*/MR*/XTopJointRecv* untouched.
+- (a) receive_ipc at a MidC state (chooseNewThread ∧ CurInv) with a null or free reply DONE.
+  * FINDING: RecvSendPM (the switch copies of the reply-pushing senders) is not needed. The resumed
+    `recvSendPJG`/`FPJG` read the sender's SC under chooseNewThread only for "the push does not donate" (`hnd`:
+    sender SC-less or receiver with an SC); XTopJointRecvSendPC's `recvSendPJGC`/`FPJGC` widen hAct's reschedule
+    branch to `xs.sc = none ∨ xt.sc ≠ none` (two-line patch), and under CurInv the receiver has the current SC.
+    The timeout-fault sender with an SC: the resumed `recvSendFPTJ`'s hAct already admits chooseNewThread ∧ notRel.
+  * XTopJointRecvIpcC: copies of the switch-mid leaves with MidC (`recvIpcActJC`, `recvIpcBlockJGC/JC/NJGC`,
+    `recvIpcRetJC`, `recvSendRetJC/RetPJC/RetPDJC/RetTJC`; patches: `J.curInv hni.ncn` → `hni.2.2.2`,
+    `canBlockCurM … (hni.sa hcur)` → `canBlockCurMC … hni`, `hni.swNe` / the switch-target rcases closed by the
+    action being chooseNewThread), hand-written `recvSendP0XC`/`T0XC`, dispatchers `jRecvIpcDoneC/C2/C3` and
+    `jRecvIpcUC` (`ipcDoneM3_of` is state-only, reused).
+  * NOT DONE in (a): a reply linked to another thread at MidC (`IpcLinked`). `cancelOther_keep` keeps ct's TCB,
+    the action and the ready queues, but `JAtZ.cancelLinkJ` (via `cancelReplyJ`/`cancelRecvJ`) returns only
+    `chooseNewThread ∨ CurInv` at the state after, so MidC there is not available. Route: a variant of
+    cancelReplyJ's `hcur` (XTopJointCancelReply:465, inline via `J.curInv h0`) / of the receive cancel giving
+    `CurInv σ → CurInv σ'` (the reply_remove_tcb SC writes keep the current SC an active SC; release queue kept
+    by `ikm_cancelIpc`), then `jRecvIpcUC` at σ' exactly as `jRecvIpcLinkM` does for MidE.
+- (b) the cap fault at a MidC state with a waiting receiver (FltRecv) DONE (XTopJointFaultRecvC). FINDING: copy
+  the RESUMED sends, not the switch-mid ones: a resumed entry becomes chooseNewThread when ct blocks, so
+  `sendFaultIJ/PJ/PDJ` already reason about a chooseNewThread state after that step; at MidC the action is
+  chooseNewThread throughout. Patches: `hres` → `hcn0` + `CurInv σ` premise; the action word is 1 (P1's
+  chooseNewThread encoding) below every TCB (`P1.notT_small`) instead of 0; ct's SC word ∈ Ac by `curScAc`
+  (sch18 patch) instead of `BoundInv.sact`; `ciSt_act`/`ps_act` → `ciSt_actN`/`ps_actN`. The donation
+  (`sendFaultPDJC`) is the resumed `pd_eq`/`pushDonJ` unchanged (no switch, so `test_reschedule` enqueues
+  nothing). `faultRecvJC` (CurInv at σf after set_fault: only ct's fault field written), `faultHypJZC2` (every
+  handle_fault at MidC).
+- Tops: XTopJointKEntry20M: `IpcLinked`, `JRecvLeavesRN11` (ipc only under choose ∧ (¬CurInv ∨ IpcLinked)),
+  `.toRN10`, `JMidLeavesHyp11` [W], `jMidLeavesHyp_of11`, `KDispHyps20M.to19M`, TOP `kernel_entryJ20M`.
+  XTopJointKEntry21M: `JRecvLeavesRN12` (flt only under choose ∧ ¬CurInv), `.toRN11`, `JMidLeavesHyp12` [W],
+  `jMidLeavesHyp_of12`, `KDispHyps21M.to20M`, NEW TOP `kernel_entryJ21M`.
+- Premise change at the top (kernel_entryJ21M vs J19M): `JMidLeavesHyp10` [W] NARROWED to `JMidLeavesHyp12` [W]
+  := JMidLeavesHyp10's premises concluding `JRecvLeavesRN12`: receive_ipc under chooseNewThread ∧ (¬CurInv ∨
+  IpcLinked); receive_signal under chooseNewThread ∧ ¬CurInv; the cap fault's handle_fault under
+  chooseNewThread ∧ ¬CurInv. Same l4v counterpart (receive_ipc_corres / receive_signal_corres /
+  handle_fault_corres inside handle_recv_corres); every case is a case of JMidLeavesHyp8, true in reachable
+  states by sch20 STEP 1. Nothing added. Other premises as J19M.
+- NOT DONE (handoff), what JMidLeavesHyp12 still contains:
+  (c1) the first-phase spec fact. Shape: from the entry state σ (Entered, CurInv σ by JAtZ.cur, Inv σ, CQ/NQ as
+       in XTopJointMidRunQ), every outcome y of `fl4HandleInvocationR true false false true true cptr` satisfies
+       `CtOK y := CurInv y ∨ (∃ x, y.kheap y.curThread = some (.tcb x) ∧ x.tcbSchedContext = none)`. Then ¬CurInv
+       at the mid state means ct SC-less. Recipe as XTopJointMidRunK/P/Q (FK frames, scripted kf_ lemmas): view
+       `cV σ := (curThread, curSc, idleSc, ct ∈ releaseQueue, ct's TCB SC field and NotIpcBlk, the SC object at
+       curSc up to scActive)`; most leaves keep cV exactly (decode/lookup/arch/IRQ, other TCBs, non-curSc SCs:
+       needs "the SC written ≠ curSc", from Inv.back and the written SC being bound to another thread); the
+       two moves of ct's SC: endpoint send donating to a passive receiver (ct SC → none) and doReplyTransfer
+       returning a donated SC (ct SC → none), both landing in the second disjunct, which every later step keeps
+       (nothing binds an SC to ct in FirstInv performs: sch20 STEP 1). PerfW (Untyped, IRQ handler, ASID control)
+       via a MidPerfAt-restricted premise like JMidPerfHypQ if not provable directly.
+  (c2) SC-less leaves (choose ∧ ct SC-less): the resumed lemmas' `hsa` second disjunct already exists for
+       recvIpcBlockJG/NJG, recvSendPJG/FPJG (sender SC-less; with a sender holding an SC the push DONATES to ct:
+       a new case, cf. pushDonJ), recvSendFPTJ; to do: recvIpcActJ (uses CurInv's hscc for the badge path),
+       the bound-SC return (LendM gives ct an SC, so it is the CurInv side under CtOK), receive_signal
+       (recvSigBlockJ / recvSigActiveJ take Entered), handle_fault (faultHypJZ takes Entered; with ct SC-less
+       `hcA` is vacuous since ct's SC word is 0, and FltDon cannot donate). "SC-less ct not in the release
+       queue" needs an invariant fact (release-queue threads have SCs; check Inv).
+  (c3) IpcLinked at MidC (above).
+- Builds (tokyo, b.sh): sch21-b1 `XTopJointRecvSendPC` OK, sch21-b2 (`rTcbA` ambiguous with P1 open → `Endp.rTcbA`),
+  sch21-b3 `XTopJointRecvIpcC XTopJointKEntry20M` OK (5612 jobs), sch21-b4 (`SKeep σ` ambiguous → `Ipc.SKeep`,
+  as sch19), sch21-b5 `XTopJointFaultRecvC XTopJointKEntry21M` OK (5616 jobs), all on 6683b87a, no sorry. Axioms (axsch21.sh,
+  untracked; sch21-ax1, sch21-ax2): propext, Classical.choice, Quot.sound only.
