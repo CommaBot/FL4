@@ -5168,3 +5168,70 @@ kentry_utInv / kcall_utInv unchanged. Spec-only, namespace `Fl4Proofs.P3.SInvU`;
   ikN_checkCapAt_ins, hv_capMoveN, hv_capSwapN, ikN_capDelete, dm_capInsert, dm_capDeleteOne, ik3_of: propext,
   Classical.choice, Quot.sound; utN_vCapEq, posOK_irq: propext, Quot.sound. No sorry/admit/native_decide/bv_decide.
   Root Fl4Proofs.lean not rebuilt (two import lines added).
+## ut7 (branch par/ut7 in FL4-tcbj, on b0656391 = int/j2 incl. ut6) — UtInv3 at the entry, reduced to the untyped / arch performs (NOT finished)
+Goal: `kentry_utInv2` / `kcall_utInv2` over `UtInv3` with no `DetypeOK` premise (ut6 handoff steps 1-7). Done: steps
+1, 2, 6, 7 and the CNode / IRQ / IO-port / ASID-pool parts of 3; the shell and the tops, over one named remaining
+obligation `PerfGap` (the untyped and arch performs). kentry_utInv / kcall_utInv unchanged. Spec-only, namespace
+`Fl4Proofs.P3.SInvU`; root imports SpecInvUtO1..O6, SpecInvUtNK1..NK6.
+- SpecInvUtO1: `IO N σ := IrqOutV N (uV σ)` kept with NO premise by `empty_slot`, `cap_delete_one`,
+  `cap_swap_for_delete` (`dm_capSwapForDelete`), `finalise_cap` (`io_finaliseCap`; `finaliseCap_keepAt`: the cap stays
+  in its slot; `finaliseCap_cov`: the remainder covers nothing the cap does not), the whole of `rec_del` / `cap_delete`
+  (`io_recDelF` / `io_recDel` by `ik_lfp`, pre = post = IO: the remainder / the shrunk Zombie is covered by the cap it
+  replaces), `cap_insert` of a cap covered by the source's cap (`hv_capInsertIO`; `set_untyped_cap_as_full` keeps the
+  region), the TCB installs' checked insert (`io_checkCapAt_ins`). `CovBy`, `cd_upd`, `irqOut_vCap`.
+- SpecInvUtO2: **`P3 N σ := UtInv'' σ ∧ IrqOutV N (uV σ)`** (`N` a fixed parameter; `UtInv3 σ ↔ P3 σ.interruptIrqNode σ`).
+  `utN_utCopy` / **`hv_capInsertN_ut`** (ut5 step 2: the untyped copy keeps UtInv''; the childless source's region is
+  covered by no cap, by UtCh), `CI3` and **`hv_capInsert3`** (any `cap_insert` of the source's childless untyped cap or a
+  `RefRel` cap into a `PosOK` slot keeps P3), `okv_deriveCapR`, `okv_lookupCap`, `okv_unifyFailure`,
+  `getReceiveSlots_dest` (receive slot `DestRefV`), **`p3_doNormalTransfer`** (ut6 step 6, no premise), family leaves
+  `p3_of`, `p3_of_uk`, `p3_capDeleteOne`, `p3_recDel_cte/_fin`, `p3_capDelete`, `p3_checkCapAt_ins`, `p3_installTcbCap`.
+- SpecInvUtO3 (generated, proofs/scratch/ut7/mkun.sh, untracked: ut3's gen.py reading manual_un.py, family `IK (P3 N)`,
+  prefix un, skipun.txt from mkskip.py): 27 lemmas, the decode-free cap-writing ancestors (cap_revoke, IPC, faults,
+  timeouts, budget, TCB invocations, combinators).
+- SpecInvUtNK1..NK6: **no spec step writes the IRQ node**: `NodeIs N σ := σ.interruptIrqNode = N`, `NK N m := IK
+  (NodeIs N) m` for every function reachable from the syscall entry (invA's SpecInvNativeScopeF1..F6 scripts renamed
+  `ns_`→`nk_`, leaves by get/modify, `nk0_auto`). NOTE: ut6's claim that invB's GK family gives node constancy is
+  wrong (SInvV's `GK` quantifies over predicates of `vw` = times/IRQ states/masks, not the node; Vs.GK = FK gloF exists
+  only for the deletion functions). Needed for UtInv3 at the tops and for SetIRQHandler.
+- SpecInvUtO4: `refEq_mask`, `refEq_upd`, `refEq_trans`, `refRel_of_eq_rel`, `covR_of_refEq`; `CnOKN` (insert: CI3 +
+  dest DestRefV; move/rotate: RefEq caps, dests DestRefV) and **`okv_decodeCnodeN`**; `hv_capMove3`, `hv_capSwap3`,
+  **`p3_invokeCnode`**.
+- SpecInvUtO5: issue inserts (`hv_insertCtl`, `refRel_irq`, `refRel_ioport`), `IrqCOKN`/`ArchIrqOKN`/`Fl4IrqCOKN`/
+  `IoCOKN` with decodes `okv_decodeIrqControlN`, `okv_archDecodeIrqControlN`, `okv_decodeIrqControlRemappedN`,
+  `okv_decodeFl4IrqControlN`, `okv_decodeIoportControlN`; performs `p3_invokeIrqControl`, `p3_archInvokeIrqControl`,
+  `p3_invokeFl4IrqControl`, `p3_performIoportControl`; `okv_lookupSlotForThreadN` / `okv_lookupExtraCapsN` (every
+  extra cap's slot is a CSpace lookup), `IrqHOKN` / `okv_decodeIrqHandlerN`, **`p3_setIRQHandler`** (the extra cap's slot
+  is not the node slot by IrqOutV; node slot PosOK by `posOK_irq`; needs the state's node = N);
+  **`p3_performAsidPoolInvocation`** (no decode fact).
+- SpecInvUtO6: `InvOKN`, `okv_fl4DecodeN`, `DecodedFrom w inv` (inv an ok outcome of `fl4DecodeInvocation` from a state of
+  view w, invoked/extra slots holding their caps, extra slots DestRefV), `GapInv` (untyped, arch), **`PerfGap`** :=
+  `∀ N blk call don inv σ, GapInv inv → P3 N σ → NodeIs N σ → DecodedFrom (uV σ) inv → ∀ y ∈ perform, P3 N y.2`;
+  `p3P_fl4Perform`, `IKN`, `p3N_handleInvocationR`, `p3N_fl4HandleSyscall`, `p3N_fl4HandleEvent`, `p3N_fl4CallKernel`;
+  **`kentry_utInv2_of (hG : PerfGap) (c) (hI : UtInv3 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, UtInv3 y.2`**,
+  **`kcall_utInv2_of (hG : PerfGap) rep ev`**, **`kcall_utInv2_other`** (non-syscall events: NO premise).
+- `PerfGap` is NOT an invariant premise: it is the remaining proof obligation (true in every state if the perform
+  lemmas hold; l4v `invoke_untyped_invs`, `perform_asid_control_invocation_invs`, `arch_perform_invocation_invs`).
+  `kentry_utInv2 := kentry_utInv2_of perfGap` once `perfGap : PerfGap` is proved.
+- No FINDING: no reachable step found to break UtInv3.
+- HANDOFF (prove `perfGap : PerfGap`; per arch/untyped invocation, from `DecodedFrom` by its decode lemma):
+  1. Arch: case on `Fl4ArchInvocation`. IO-port control (`p3_performIoportControl` + `okv_decodeIoportControlN`; other
+     arch decodes never produce `invokeIOPortControl`: `okv_noasid`-style traversal of `archDecodeInvocation`), ASID pool
+     (`p3_performAsidPoolInvocation`, no fact), IO port / pml4Flush / testAndClear (UK, `p3_of_uk`), page / PT / PD /
+     PDPT map: the decoded cap is `RefEq` to the invoked slot's cap (same base / size, `updateMapData`) and the written
+     slot is the invoked `cte` (`utN_vCapEq` + `hv_setCap_nn` + `irqOut_vCap`); unmap: the slot holds the matching arch
+     cap (decode) so `updateMapData (theArchCap c0)` is RefEq; DeriveSubframe (ut6 handoff 4: RefRel of the 4 KiB caps
+     inside the large frame, dests DestRefV via okv_lookupSlotForCnodeOpN, src kept, dests stay PosOK under inserts of
+     non-slot-holding caps); MakePool (ut2/ut3 `makePool_utInv'` + UtNV for detype/raise/retype/pool-cap insert: ut5
+     handoff 3).
+  2. Untyped retype / reset (ut5 handoff 3, the big one): `invokeUntyped_utInv'` / `invokeUntyped_reset_utInv'` give
+     UtInv' (with `detypeOK_of hI.1.1`); UtNV and IrqOut for raise (CapFree shrinks, covR kept), `retypeRegion` (new
+     slots null), `createCap` (new caps cover parts of the source's region; CapFree needs the WHOLE new object in
+     [old fi, new fi)), detype (no cap covers a childless untyped's region by UtCh: RegNull + the region's objects
+     unreferenced); dests DestRefV from `decodeUntypedInvocation`'s `lookupTargetSlot` (add to the decode lemma).
+- Builds (tokyo, ./ut7.sh untracked = ut5.sh with its own log; mirror warm): ut7-b1 SpecInvUtN8 + O1 (1074 jobs), ut7-b3
+  O2 (1076) + O3 (1078), ut7-b4 NK1..NK6 (1014..1024), ut7-b6 O4 (1080), ut7-b8 O5 (1082), ut7-b10 O6 (1096); ut7-ax1
+  axioms (scratch/ut7/ax.lean, untracked): kentry_utInv2_of, kcall_utInv2_of, kcall_utInv2_other, p3P_fl4Perform,
+  okv_fl4DecodeN, p3_doNormalTransfer, hv_capInsertN_ut, hv_capInsert3, io_recDel, p3_invokeCnode, okv_decodeCnodeN,
+  p3_setIRQHandler, p3_invokeFl4IrqControl, p3_performIoportControl, p3_performAsidPoolInvocation,
+  nk_fl4KernelEntrySyscall, nk_fl4CallKernel, un_capRevoke: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (twelve import lines added).
