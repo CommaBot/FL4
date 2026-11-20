@@ -49,25 +49,39 @@ theorem wl_inv {α : Type} {C : α → State Unit → Prop} {B : α → NonDet (
 /-- The merge invariant of `refill_unblock_check` from `σ2`, SC `p`, head time `T`. -/
 def UI (σ2 : State Unit) (p : ObjRef) (n : Nat) (T : Time) (y0 : SchedContext) (s : State Unit) : Prop :=
   ∃ z, s = updSc σ2 p z n ∧ z.scRefills ≠ [] ∧ (refillHd z).rTime = T ∧ z.scTcb = y0.scTcb ∧
-    z.scRefillMax = y0.scRefillMax ∧ z.scSporadic = y0.scSporadic ∧ z.scPeriod = y0.scPeriod
+    z.scRefillMax = y0.scRefillMax ∧ z.scSporadic = y0.scSporadic ∧ z.scPeriod = y0.scPeriod ∧
+    (rsum y0.scRefills < 2 ^ 64 → rsum z.scRefills = rsum y0.scRefills ∧
+      (refillHd y0).rAmount.toNat ≤ (refillHd z).rAmount.toNat)
 
 theorem ui_merge {σ2 : State Unit} {p : ObjRef} {n : Nat} {T : Time} {y0 : SchedContext} (a : Unit)
     (s : State Unit) (hs : UI σ2 p n T y0 s) (hc : the (refillHeadOverlapping (Z := Unit) p s) = true) :
     ∀ y ∈ (mergeOverlappingRefills (Z := Unit) p s).1, UI σ2 p n T y0 y.2 := by
-  obtain ⟨z, rfl, hz1, hz2, hz3, hz4, hz5, hz6⟩ := hs
+  obtain ⟨z, rfl, hz1, hz2, hz3, hz4, hz5, hz6, hz9⟩ := hs
   rw [refillHeadOverlapping_eq (kh_upd _ _ _ _)] at hc
   have hlen : z.scRefills.length > 1 := by
     simp only [Sched.the_some, decide_eq_true_eq] at hc; exact hc.1
+  obtain ⟨a, b, rest, hab⟩ : ∃ a b rest, z.scRefills = a :: b :: rest := by
+    rcases hz : z.scRefills with _ | ⟨a, _ | ⟨b, rest⟩⟩
+    · rw [hz] at hlen; simp at hlen
+    · rw [hz] at hlen; simp at hlen
+    · exact ⟨a, b, rest, rfl⟩
   intro y hy
   unfold mergeOverlappingRefills at hy
   rw [nd_bind_one (refillPopHead_eq (kh_upd _ _ _ _) hz1), updateRefillHd_eq (kh_upd _ _ _ _), updSc_updSc,
     updSc_updSc] at hy
   obtain rfl : y = ((), _) := hy
-  refine ⟨_, rfl, by simp, ?_, hz3, hz4, hz5, hz6⟩
-  show (refillHd { z with scRefills := mergeRefill (refillHd z) (the z.scRefills.tail.head?) ::
-    z.scRefills.tail.tail }).rTime = T
-  simp only [refillHd, List.head?_cons, Sched.the_some, mergeRefill]
-  exact hz2
+  refine ⟨_, rfl, by simp, ?_, hz3, hz4, hz5, hz6, fun hs0 => ?_⟩
+  · show (refillHd { z with scRefills := mergeRefill (refillHd z) (the z.scRefills.tail.head?) ::
+      z.scRefills.tail.tail }).rTime = T
+    simp only [refillHd, List.head?_cons, Sched.the_some, mergeRefill]
+    exact hz2
+  · obtain ⟨hz7, hz8⟩ := hz9 hs0
+    show rsum (mergeRefill (refillHd z) (the z.scRefills.tail.head?) :: z.scRefills.tail.tail) = _ ∧
+      _ ≤ (refillHd { z with scRefills := mergeRefill (refillHd z) (the z.scRefills.tail.head?) ::
+        z.scRefills.tail.tail }).rAmount.toNat
+    simp only [refillHd, hab, List.head?_cons, Sched.the_some, List.tail_cons, mergeRefill, rsum_cons] at hz7 hz8 ⊢
+    rw [BitVec.toNat_add, Nat.mod_eq_of_lt (by omega)]
+    omega
 
 /-- **`refill_unblock_check`** (module docstring). -/
 theorem ruc_out {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Nat}
@@ -84,8 +98,14 @@ theorem ruc_out {σ : State Unit} {p : ObjRef} {y : SchedContext} {n : Nat}
     refine wl_inv (UI { σ with reprogramTimer := true } p n σ.curTime y) (fun a s hs hc' => ui_merge a s hs hc')
       ?_ hr
     refine ⟨{ y with scRefills := { (the y.scRefills.head?) with rTime := σ.curTime } :: y.scRefills.tail }, rfl,
-      by simp, ?_, rfl, rfl, rfl, rfl⟩
-    simp only [refillHd, List.head?_cons, Sched.the_some]
+      by simp, ?_, rfl, rfl, rfl, rfl, fun _ => ⟨?_, ?_⟩⟩
+    · simp only [refillHd, List.head?_cons, Sched.the_some]
+    · obtain ⟨h0, t0, e⟩ := List.exists_cons_of_ne_nil hne
+      show rsum (({ (the y.scRefills.head?) with rTime := σ.curTime } : Refill) :: y.scRefills.tail) = _
+      rw [e]; simp only [List.head?_cons, Sched.the_some, List.tail_cons, rsum_cons]
+    · show _ ≤ (refillHd { y with scRefills := { (the y.scRefills.head?) with rTime := σ.curTime } ::
+        y.scRefills.tail }).rAmount.toNat
+      simp only [refillHd, List.head?_cons, Sched.the_some]; exact le_refl _
   · left
     obtain rfl : r = ((), σ) := hr
     rfl
@@ -115,17 +135,17 @@ def Excl (σ : State Unit) (p : ObjRef) : Prop :=
 theorem rdyT_keep {σ σ' : State Unit} {p : ObjRef} (hk : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q)
     (ht : σ'.curTime = σ.curTime) (hpt : ∀ x, σ.kheap p ≠ some (.tcb x)) {t : ObjRef} (h : RdyT σ t)
     (hn : ∀ x, σ.kheap t = some (.tcb x) → x.tcbSchedContext ≠ some p) : RdyT σ' t := by
-  obtain ⟨x, c, y, n, hx, hc, hy, ha, hr, hs⟩ := h
+  obtain ⟨x, c, y, n, hx, hc, hy, ha, hr⟩ := h
   have htp : t ≠ p := by rintro rfl; exact hpt x hx
   have hcp : c ≠ p := by rintro rfl; exact hn x hx hc
-  exact ⟨x, c, y, n, by rw [hk t htp]; exact hx, hc, by rw [hk c hcp]; exact hy, ha, by rw [ht]; exact hr, hs⟩
+  exact ⟨x, c, y, n, by rw [hk t htp]; exact hx, hc, by rw [hk c hcp]; exact hy, ha, by rw [ht]; exact hr⟩
 
 /-- **`Rdy` across a rewrite of an `Excl` SC.** -/
 theorem rdy_framex {σ σ' : State Unit} {p : ObjRef} (h : Rdy σ) (hk : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q)
     (ht : σ'.curTime = σ.curTime) (hq : σ'.readyQueues = σ.readyQueues)
     (ha : σ'.schedulerAction = σ.schedulerAction) (hX : Excl σ p)
     (hpt : ∀ x, σ.kheap p ≠ some (.tcb x)) (hpt' : ∀ x, σ'.kheap p ≠ some (.tcb x))
-    (hpv : ∀ z n, σ'.kheap p = some (.schedContext z n) → scActive z = true → MIN_REFILLS ≤ z.scRefillMax) :
+    (hpv : ∀ z n, σ'.kheap p = some (.schedContext z n) → scActive z = true → RVs z) :
     Rdy σ' := by
   obtain ⟨h1, h2, h3, h4⟩ := h
   refine ⟨fun d q t hm => ?_, fun t e => ?_, fun t x c hx hb hc => ?_, fun q z n hz hz' => ?_⟩
@@ -144,8 +164,8 @@ theorem rdy_framex {σ σ' : State Unit} {p : ObjRef} (h : Rdy σ) (hk : ∀ q, 
 /-- `Rdy` reads only the heap, the queues, the action and the time. -/
 theorem rdy_congr {σ σ' : State Unit} (h : Rdy σ) (hk : σ'.kheap = σ.kheap) (ht : σ'.curTime = σ.curTime)
     (hq : σ'.readyQueues = σ.readyQueues) (ha : σ'.schedulerAction = σ.schedulerAction) : Rdy σ' := by
-  have F : ∀ {t}, RdyT σ t → RdyT σ' t := fun {t} ⟨x, c, y, n, hx, hc, hy, h1, h2, h3⟩ =>
-    ⟨x, c, y, n, by rw [hk]; exact hx, hc, by rw [hk]; exact hy, h1, by rw [ht]; exact h2, h3⟩
+  have F : ∀ {t}, RdyT σ t → RdyT σ' t := fun {t} ⟨x, c, y, n, hx, hc, hy, h1, h2⟩ =>
+    ⟨x, c, y, n, by rw [hk]; exact hx, hc, by rw [hk]; exact hy, h1, by rw [ht]; exact h2⟩
   obtain ⟨h1, h2, h3, h4⟩ := h
   exact ⟨fun d q t hm => F (h1 d q t (hq ▸ hm)), fun t e => F (h2 t (ha ▸ e)),
     fun t x c hx hb hc => F (h3 t x c (hk ▸ hx) hb hc), fun q z n hz hz' => h4 q z n (hk ▸ hz) hz'⟩
@@ -177,7 +197,7 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
     split_ifs at hr with hrt
     · obtain ⟨c, hc, hr⟩ := hr
       have hks' : s.kheap s.curSc = some (.schedContext x n) := by rw [hcs]; exact hks
-      obtain ⟨hR2, hO2, y2, e, -, -, -, -, -, -, -, -⟩ := rdy_commitTime hR hks' hO' hS' hne hc
+      obtain ⟨hR2, hO2, y2, e, -, -, -, -, -, -, -, -, -⟩ := rdy_commitTime hR hks' hO' hS' hne hc
       obtain rfl : r = ((), _) := hr
       refine ⟨rdy_congr hR2 rfl rfl rfl rfl, fun z k hz => ?_, rfl⟩
       have hz0 : c.2.kheap p = some (.schedContext z k) := hz
@@ -203,7 +223,7 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
     have hpS : σ.kheap p ≠ none := by rw [hp]; simp
     have hpk : ({ σ with reprogramTimer := true } : State Unit).kheap p = some (.schedContext y m) := hp
     have hcne : σ.curSc ≠ p := fun e => hpc e.symm
-    rcases icb_out hpk hnp hc with e | ⟨z, e, hz1, hz2, hz3, hz4, hz5, hz6⟩
+    rcases icb_out hpk hnp hc with e | ⟨z, e, hz1, hz2, hz3, hz4, hz5, hz6, hz9⟩
     · rw [e] at hr
       refine tail { σ with reprogramTimer := true } (rdy_congr h rfl rfl rfl rfl) hO hS rfl hk (fun e => by cases e) (fun z k hz _ => ?_) r hr
       have hz' : σ.kheap p = some (.schedContext z k) := hz
@@ -219,7 +239,10 @@ theorem sw_out {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : Ob
         have hz0 : (updSc { σ with reprogramTimer := true } p z m).kheap p = some (.schedContext z' k) := hz
         rw [kh_upd] at hz0; cases hz0
         have ha : scActive y = true := by simpa only [scActive, hz4] using hz'
-        rw [hz4]; exact h.2.2.2 p y m hp ha
+        obtain ⟨v1, v2, v3⟩ := h.2.2.2 p y m hp ha
+        obtain ⟨w1, w2⟩ := hz9 v3
+        refine ⟨by rw [hz4]; exact v1, ?_, by rw [w1]; exact v3⟩
+        rw [BitVec.le_def] at v2 ⊢; omega
       · intro z' k hz
         have hz' : σ.kheap σ.curSc = some (.schedContext z' k) := (hkq _ hcne).symm.trans hz
         exact hO z' k hz'
