@@ -4516,3 +4516,65 @@ Goal (invA2 handoff): FaultTcbsS kept by the syscall entry and every event, with
   vih_mem_getCap, okCap_lookupCapAndSlot, okAck_fl4Decode, capOpt_of_ikh, vimh_invokeIrqHandler_ack: propext,
   Classical.choice, Quot.sound; okdAt_capFault: propext. No sorry/admit/native_decide/bv_decide; no premise.
 - No FINDING: no step was found to break either invariant (the writers above are the l4v ones).
+## ft3 (branch par/ft3 in FL4-sc, on 769f55eb = int/j2 incl. ft2): FaultTcbsS (b)/(c) finished
+Goal (ft2 handoff 1-7): FaultTcbsS (l4v fault_tcbs_valid_states) with NQB kept by the syscall entry and every event.
+- DONE, built (tokyo, FL4-invA mirror as sync vehicle, tasks ft3-b1..b12, ft3-ax1; each module ~1058..1068 jobs over
+  Fl4Spec, seconds to ~3 min):
+  * f1e0f6e6 SpecInvFaultTcbsH5 (ft2's H5wip fixed): `b_endTimeslice`, `b_chargeBudget n cto c (c ∈ K) (c ∈ E → c ∈ L) :
+    HK (B L E K (· = c)) (B (L.filter (· ≠ c)) E K (· = c))`.
+  * 794c0c0a SpecInvFaultTcbsH6: `b_setPriority t p : BK L E K C` (each state case explicitly; BlockedOnNotification:
+    no fault, not BoS/BoReply, not in K, `TT t` kept by the frame, then `b_reorderNtfn`); `b_receiveIpc t … (t ∈ L)
+    (t ∉ E)` (`b_auto3`: `ik_fail_bind` closes the 12 non-BoS sender-state branches at once, `if` branches whose condition
+    simplifies to False closed by `simp at`); `b_doReplyTransfer s r g : HK (B L E K C ∧ NoRpl L) (B L E K C)`
+    (receiver read BoReply joins K and is not in L since `NoRpl L`; after its state write `fqC receiver`
+    (active or fault state, frame-kept) so a runnable read is active and `b_addE` exempts it for `handle_timeout`;
+    `b_replyTail`).
+  * a5e7a742 SpecInvFaultTcbsH7: `b_checkBudget c (c ∈ K) (c ∈ E → c ∈ L)` (`true` result ⇒ state unchanged; post
+    `B (L.filter (· ≠ c)) E K`), `b_checkBudgetRestart c (c ∈ L) (c ∈ K) (c ∉ E)` from `B L (c :: E) K` (a runnable c
+    after the charge has no fault since not exempt, so the Restart write is allowed); 16 generated uniform `BK L E K C`
+    callers (fastFinalise, capDeleteOne, deletingIrqHandler, finaliseCap, recDel(F), capDelete, capRevoke(F),
+    installTcbCap(Frame), invokeCnode, invokeIrqHandler, invokeTcb, handleInterrupt, maybeHandleInterrupt;
+    proofs/scratch/ft3/gen.py with `ONLY=…`, family `BK ' L E K C'`, tactic `b_autoE`: `b_auto`'s plain
+    `show IK _ (ite …)` rule dropped the `ExceptT.run` of exception goals, so the `ike_ite`/`ike_whenE` rules go first).
+  * 8c131ef1 SpecInvFaultTcbsH8: exception pre/posts (`HKE`, result-dependent `HKR` with `okErr ok err`, `hk_catch`,
+    `ft_syscall_post` = SpecInvDom's `syscall_post'` copied, that module being outside this closure);
+    `b_chargeBudget_nil` / `b_checkBudget_nil` (L = [] makes the charge an IK; b_leaf rules), `b_preemptionPath ct` /
+    `b_handleYield ct : BK [] [] [ct] (· = ct)`, `b_fl4PerformInvocation ct : HKE (B [ct] [ct] [ct] (· = ct) ∧ NoRpl [ct])
+    (B [ct] [ct] [ct] (· = ct))` (send: ct the sender, exempt twice by `b_addE`; reply: `b_doReplyTransfer`; the rest
+    uniform or frame).
+  * ad9f82ef SpecInvFaultTcbsH9 / H10: `b_fl4HandleInvocationR ct … : HKE (B [ct] [ct] [ct] (· = ct)) (fun s => B [ct] [ct]
+    [ct] (· = ct) s ∨ (blocking = true ∧ B [] [] [ct] (· = ct) s))` (lookups/decode frame; lookup fault:
+    `b_handleFault ct` with E = []; perform after `set_thread_state ct Restart`, which gives `NoRpl [ct]`);
+    `b_handleRecv ct : HK (B [ct] [ct] [ct] (· = ct)) (B [] [] [] (· = ct))` (receive with ct's exemption ended, for a
+    notification also K = []; lookup fault `b_handleFault ct`); `b_fl4HandleSyscall`, `b_fl4HandleEvent_sys` (via
+    `b_checkBudgetRestart`'s "true ⇒ unchanged"), `b_evShell` / `b_fl4HandleEvent_user` (user faults), `b_fl4HandleEvent_irq`
+    (from `B [] [] [ct]`), `b_fl4CallKernel` (errors = preemption, from `B [] [] [ct]` into `preemption_path`; ok ends in
+    `B [] [] [] (· = ct)`; fl4Awaken; schedule at C := ⊤; activate_thread at E = []).
+- Shell invariant: `B [ct] [ct] [ct] (· = ct)` (ct no fault, exempt = active or in a fault state, in no queue and not
+  BoN, ct current). It needs no premise inside the syscall; every fault on ct (handleFault, the charge's
+  handle_timeout) is taken with E = [] so ct ends in a fault state with no exemption left, and the syscall ends there.
+- **Tops** (SpecInvFaultTcbsH10, namespace Fl4Proofs.P3.SInv):
+  * `kentry_faultTcbsS (rep) (c : Syscall) (hJ : CtEntry σ) (h : FaultTcbsS σ ∧ NQB σ) : ∀ y ∈
+    ((fl4KernelEntrySyscall (Z := Unit) rep c) σ).1, FaultTcbsS y.2 ∧ NQB y.2`.
+  * `kcall_faultTcbsS (rep) (ev : Event) (hJ : CtEntryEv ev σ) (h : FaultTcbsS σ ∧ NQB σ) : ∀ y ∈ ((fl4CallKernel (Z :=
+    Unit) rep ev) σ).1, FaultTcbsS y.2 ∧ NQB y.2` (every event).
+  * weak form: `kentry_faultTcbs`, `kcall_faultTcbs` (… → FaultTcbs y.2, by `FaultTcbsS.weak`); boot:
+    `boot_faultTcbsS_nqb` (= `boot_faultTcbsS`, `boot_nqb`).
+- **Premise [J] `CtEntry σ`** := `(∀ x, σ.kheap σ.curThread = some (.tcb x) → activeSt x.tcbState) ∧ ¬ queued σ
+  σ.curThread` (l4v `ct_active` + `valid_ntfn`'s queue states: queued threads are BlockedOnNotification); for
+  interrupts `CtEntryI` (active or `idleThreadState`, l4v `ct_running ∨ ct_idle`), `CtEntryEv ev := if ev = .interrupt
+  then CtEntryI else CtEntry`. True at every entry from user mode (the trapping thread runs; a running thread is in no
+  notification queue). Discharge at G4: the active part from the J layer's entry facts (`Entered` + `JAtZ.curRun` give
+  `CurRun`: ct Running); the queue part needs a carried spec invariant "every queued thread is BlockedOnNotification"
+  (l4v valid_ntfn's ntfn_q part) — not NQB, which is weaker by design (ft2: the strong form breaks at TCB retype
+  without the untyped-freshness chain), so either a new SInv field `QueuedBoN` (its own preservation: queue additions
+  are BoN writers (`receive_signal_blocked`; `reorder_ntfn` of a thread read BoN); BoN is left only through the
+  dequeue in cancel/wake paths; retype needs the fresh-object fact) or JAtZ's notification-queue relation (IpcQP/IpcRel
+  queue lists are BoN threads) projected to the spec state at entry.
+- No sorry/admit/native_decide/bv_decide; no new axioms. `#print axioms` (scratch/ft3/ax.lean, task ft3-ax1):
+  kentry_faultTcbsS, kcall_faultTcbsS, kentry_faultTcbs, kcall_faultTcbs, boot_faultTcbsS_nqb, b_fl4CallKernel,
+  b_fl4HandleSyscall, b_fl4HandleInvocationR, b_handleRecv, b_fl4PerformInvocation, b_doReplyTransfer, b_receiveIpc,
+  b_setPriority, b_chargeBudget, b_checkBudgetRestart, b_invokeTcb, b_recDel, b_capRevoke: propext, Classical.choice,
+  Quot.sound. Root Fl4Proofs.lean imports H5..H10 (root not rebuilt).
+- No FINDING: no reachable-state counterexample met.
+- Left: discharging `CtEntry` (above); VfhAll (b)/(c) (invA handoff, not started).
