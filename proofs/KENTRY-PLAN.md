@@ -2118,3 +2118,44 @@ JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/Entry untou
   afterInv_of_mcsI, JHole.afterInvJZI, JAtZ.handleIrqJI, PPQCI.toC, kernel_entryJ6, MidRun.jMidRunHyp_of/midRun_shell/
   perf_first/okAll_decodeFirst/fve_decodeFirst/fve_midF, JAtZ.midEntry, handle_invocation_midJP; syscall_post: propext.
   No sorry/admit/native_decide/bv_decide.
+## kp17 (branch par/budget13 in FL4-tcbj, on 17b1b692 = int/j2 incl. kp16, sch11)
+- DONE: `JPreemptRestHypC` [W] (kp15) PROVED; no premise added (the platform facts `hmax`/`htu` [P] come from
+  `JEntryGlob.maxTU`/`tu` at the top). kp16's (C) plan, route (b) "virtual base" (kp15's obstacle there, the
+  resume action word, is not one: `writesIn_rebase` only needs the base's writes inside the end's footprint, and
+  the base includes the thread's own `set_thread_state`). New leaves, nothing existing edited:
+  * ScTmoCtBase (da70455f): `JTH.tmoBaseCtJ` — `JAtZ (Z.mv Z.G V) … D sB a (tmoCtSt σ t sc x y n b)` at a VIRTUAL
+    state from a `JTH` hole: FL4 `set_fault` (4 words) + `set_thread_state t INACTIVE` (state + action word) +
+    the SC's CONSUMED word; spec `tmoCtSt` = `tmoSt (stsAct (updK (updK σ t xF) t xT) t)` (ChooseNewThread). JAtZ
+    assembled as tmoBlockJA from the hole's base with the composite frame ScOnly (head) → BFrT (t to a fake
+    blockedOnSend + fault) → KFr (to Inactive, stsAct) → ScOnly/QKY (the SC step; `ScOnly.updC`); Inv by
+    `InvBut.ik` (Inactive is not `inClassR`). Also exports `WritesIn s sB (CnW s σ)` / `(KW s ∨ False)`.
+  * ScTmoCtRecvI / ScTmoCtRecvP (41feed63): `JAtZ.sendTmoRecvCtIJ` / `sendTmoRecvCtPJ` — scripted copies
+    (scratch/kp17/genI.py, genP.py, untracked) of XTopJointFaultTmo's `sendTmoRecvIJ`/`PJ` for t = curThread:
+    the base `J0` a parameter linked to the pre-state by `hk0`/`hk0t`/`hk0s`/`hsk0 : Sk σ σ0`/`hrq0`; shadow
+    frames start from `Fr0`/`IK0`/`SK0` (rhoT σf has σ0's kheap, the action may differ); receiver ≠ ct by
+    t ≠ d; the end read on the shadow up to the action (`cfr_congrK`/`ik_congrK`/`skeep_congrK`); after the
+    sender's `set_thread_state`/`reply_push` the action is ChooseNewThread (`stsAct_cur`), giving ActIdle,
+    CurRunM, cur. Post `∃ V Lst', JAtZ (Z.mv Z.G V) H Cs Ac Lst' D …` (not just `JAt`). `ipcBufCapOK_tr`,
+    `bufCover_tr` (buffer facts from the base).
+  * ScTmoCtRecv (b3e31191): `JTH.tmoRecvJ` — `handle_timeout` of ct at a JTH state, handler endpoint
+    `∃ l, recvEP l`: tmoBlockJA's head (handler cap, set_fault), `tmoBaseCtJ`, then CtPJ/CtIJ as
+    `runTmoRecvJ`. `tmoCtSt_kh/kt/ksc/sk/rq`.
+  * ScChargeTR (1e8ca8c0): scripted copies (scratch/kp17/genC.py) `JTH.endTimesliceTmoJR`,
+    `JHole.chargeBudgetTmoJR`, `JHole.checkBudgetTR`, `JHole.mcsPPJR` (`hkl : ∃ l, kheap p = recvEP l` for
+    `hcb`, `hmax`/`htu` added).
+  * XTopJointPreemptR (this commit): `jPreemptRestHypC_of hARI hA hP hmrt hIP hNS hmax htu : JPreemptRestHypC` (resume/choose
+    from NoSwitch, `mcsPPJR`, `afterInv_of_mcs`); `dispatch_invokeJPZR`, `dispatch_invokeJEPZR` (NEW TOP: premises
+    of dispatch_invokeJEPZA without `hRC`; `jPreemptRestHypC_of … hG.maxTU hG.tu`).
+- Premise change at the top: `JPreemptRestHypC` [W] REMOVED. The preemption path (`hPre`) has no named premise
+  left; what remains there are the platform/arch facts it already took (hARI, hA, hnd, hPP, hmrt, hIP) and `hNS`.
+- FOLD LATER: ScChargeTA's A-lemmas and ScChargeTR's R-lemmas differ only in the send; XTopJointFaultTmo's
+  sendTmoRecvIJ/PJ are the t ≠ ct instances of a common core (the base as parameter, as here).
+- Kernel-entry wiring (sch line's XTopJointKEntry2/3/4, out of scope): they still take `JPreemptRestHypK`;
+  switching to `dispatch_invokeJEPZR` drops it (no replacement premise).
+- Builds: kp17-c1..c10 (single-file checks, scratch/kp17err.sh), kp17-ax1 (ScTmoCtBase, ScTmoCtRecvI,
+  ScTmoCtRecvP, ScTmoCtRecv, ScChargeTR, XTopJointPreemptR, XTopJointEntry; scratch/axkp17.lean untracked).
+- Axioms (kp17-ax1): propext, Classical.choice, Quot.sound only (ScOnly.updC: propext; ipcBufCapOK_tr: propext,
+  Quot.sound) for ScOnly.updC, JTH.tmoBaseCtJ, ipcBufCapOK_tr, bufCover_tr, JAtZ.sendTmoRecvCtIJ/CtPJ,
+  JTH.tmoRecvJ, JTH.endTimesliceTmoJR, JHole.chargeBudgetTmoJR, JHole.checkBudgetTR, JHole.mcsPPJR,
+  jPreemptRestHypC_of, dispatch_invokeJPZR, dispatch_invokeJEPZR, handle_invocation_refinesJ. No
+  sorry/admit/native_decide/bv_decide.
