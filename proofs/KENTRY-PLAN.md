@@ -4932,3 +4932,76 @@ Goal (ft3's handoff): a carried spec invariant giving ft3's per-entry [J] `CtEnt
   nq1-ax1): ctEntry_of / ctEntryI_of / ctEntryEv_of: propext; boot_ntfnQB, nq_update, nq_tcbNtfnDequeue_post,
   nq_cancelIpc_post, nq_suspend, nq_setPriority, nq_receiveSignal(Blocked), nq_tcbNtfnAppend_p, nq_reorderNtfn_p,
   ct_fl4HandleInvocationR, ct_checkBudgetRestart: propext, Classical.choice, Quot.sound.
+## ut5 (branch par/ut5 in FL4-tcbj, on d1938150 = int/j2 incl. ut4) — `UtInv''` writers: move/swap, rec_del, lookups (NOT finished)
+Goal: `kentry_utInv2` / `kcall_utInv2` over `UtInv''` with no `DetypeOK` premise (ut4 handoff steps 1–7). Done: steps 4
+and 5 (move/swap, the whole of rec_del / cap_delete), the lookup half of step 1, and an invariant fix. NOT reached:
+steps 2, 3, 6, 7 and the decode half of step 1; kentry_utInv / kcall_utInv unchanged. Spec-only, namespace
+`Fl4Proofs.P3.SInvU`; root imports SpecInvUtN3..N6.
+- Invariant change (SpecInvUtN, N2 adapted): **`CnBitsV` [J]** (l4v `valid_cap` CNodeCap `valid_cs_size`, Zombie
+  size): `CapBitsOK c := ∀ b, shp c = some (some b) → b ≤ 64` for every cap. `UtNV` now has SEVEN facts
+  (`UtCh ∧ IfUnsafe ∧ CapFree ∧ CapKind ∧ CnShape ∧ ZFinal ∧ CnBits`). Needed so a Zombie's index-0 slot
+  `natToCref L 0` is its first slot `replicate L false` and a CNode slot of length `bits` is a `natToCref bits k`.
+  Projections: `hN.2.2.2.2.1` CnShape, `.2.2.2.2.2.1` ZFinal, `.2.2.2.2.2.2` CnBits, `.2.2.2.1` CapKind.
+- SpecInvUtN3 (step 4): `PosOK w x` (position may hold a non-null cap: IfUnsafe + CnShape for that slot),
+  `posOK_of_nn`, `posOK_of_destRef`; `utN_ren` (the seven facts are invariant under a slot involution when every
+  non-null cap lands on a `PosOK` position); `utN_cut`, `utN_vOrig`; `RefEq c0 c` (`c = c0`, or both non-Zombie,
+  non-untyped, same `objRefs` and `shp`, `c0` non-null: what `update_cap_data` / `mask_cap` do in place),
+  `utN_vCapEq`; exact views `capMove_view` / `capSwap_view`; **`hv_capMoveN (hI) (hs : src = c0) (hd : dest null)
+  (CapRel c0 c) (RefEq c0 c) (PosOK w dest) (src ≠ dest)`** (post as ut3's hv_capMove), `posOK_move` (Rotate's
+  second move), **`hv_capSwapN`** (CapRel + RefEq caps), **`hv_capSwapForDeleteN s1 s2`** (pre: each non-null
+  cap's target position `PosOK`).
+- SpecInvUtN4 (step 5 pieces): `ubits`/`bval`, `natToCref_zero`, `natToCref_of_len`, `tcb_natToCref`;
+  `getCap_set_capAt`, `final_unique`, `nonfinal_other`; `utN_vCapGen` (cap replaced by one with the same refs/shape,
+  slot range growing only over non-null slots, a Zombie only as sole reference), `utN_zombieW`; `emptySlot_view`,
+  `hv_emptySlotN0` (post: slot null), `capDeleteOne_keep`, `capDeleteOne_irq`; `finaliseCap_null`,
+  `uk_finaliseCap_nonIrq`, `ik_finaliseCap_irq`; `safeDel_nonfinal`, `safeDel_zombie`; **`fin_step`** (finalise_cap
+  at a slot: UtInv'' kept, slot still holds the cap, removeable remainder ⇒ `SafeDelV`, else the remainder may be
+  written back); `posOK_firstSlot`.
+- SpecInvUtN5 (step 5): `HR P Q m` (result-dependent post), **`hr_lfp`** (ik_lfp with call-dependent pre/post),
+  `RPre`/`RPost` (l4v rec_del_call specs: CTEDelete — unexposed ⇒ slot null or a cyclic Zombie `CycZ`;
+  FinaliseSlot — `true` ⇒ `SafeDelV`, `false` ⇒ unexposed and cyclic Zombie; ReduceZombie — pre: cap in slot, not
+  removeable, cyclic ⇒ exposed), `utN_shrink` (exposed reduction: the end slot is null, or is the Zombie's own
+  slot — another cyclic Zombie would break ZFinal), `rd_step`, **`hr_recDel`**, **`ikN_recDel_cte` /
+  `ikN_recDel_fin` / `ikN_capDelete : IKE UtInv'' (…)`**, NO premise.
+- SpecInvUtN6 (step 1, lookup half): `okv_resolveN`, `okv_lookupErrorOnFailure`, **`okv_lookupSlotForCnodeOpN (hroot
+  : ∃ s, w.2.1 s = some croot) : OkV w (DestRefV w) (lookupSlotForCnodeOp …)`**.
+- No FINDING: no writer found to break `UtInv''` in a reachable state.
+- NEW GAP found (needed for step 7): **the IRQ node**. `SetIRQHandler`'s perform does `cap_insert c sl
+  (interruptIrqNode irq, [])`: inserting into the IRQ-node slot needs `PosOK w (node irq, [])` (node outside every
+  untyped region, or slot-held; every slot-holding cap to it in range). l4v gets it from `valid_global_refs` /
+  `valid_irq_node`. `interruptIrqNode` is a state field outside the view `uV`, so the generated UK frames do not
+  carry it. Options: (a) carry `IrqNodeV σ := ∀ irq, ¬ InUtV (uV σ) (σ.interruptIrqNode irq) ∧ ∀ s c, capAt σ s =
+  some c → σ.interruptIrqNode irq ∉ objRefs c` (gives PosOK) in `UtInv''` and generate a field frame family
+  `FK (·.interruptIrqNode)` for the ~400 entry functions (no spec function writes it; gen.py with family FK, leaves
+  `ik_modify` by rfl); (b) a narrow [J] premise at the entry. (a) is the honest one.
+- HANDOFF (in order):
+  1. Decode half of step 1: extend `InvOKV` (new `InvOKN w`) with `DestRefV w` for every destination — CNode
+     insert/move dest (`okv_lookupSlotForCnodeOpN`, root = invoked cap `hc` or `excaps[0]` via `hex`), Rotate's s3,
+     untyped retype slots (`decodeUntypedInvocation`'s `lookupTargetSlot` on the root CNode), MakePool dest, IRQ
+     control issue dest, TCB installs (`(target, tcbCnodeIndex k)`: `DestRefV` from the invoked `threadCap target` in
+     `sl`, SlotShape k<6), IPC receive slot (inside `getReceiveSlots`: root from `lookupCap thread ct.root`, a cap
+     read from a slot); and `RefRel`/`RefEq` from the decode: `RefEq c0 (updateCapData true x (maskCap allRights c0))`
+     for Move/Mutate/Rotate (cases on c0; arch: `archUpdateCapData` identity, `acapRightsUpdate` keeps `aobjRef`),
+     `RefRel c0 (deriveCap … (maskCap r (updateCapData false x c0)))` for Copy/Mint (zombie derives null — decode
+     rejects null; untyped separately), for the transfer loop and TCB installs (`checkCapAt` re-read).
+  2. Untyped copy insert for UtNV (ut3 `hv_capInsert_ut` + UtNV): the copy has `objRefs = ∅`; UtCh for the copy as
+     ancestor needs "no cap references src's region" = UtCh(src) + `ensure_no_children src`; CapFree: copy's free part
+     = src's old one; dest via `PosOK` (DestRefV).
+  3. Retype / create_cap / reset / MakePool for UtNV (ut2 SpecInvUtI/UtRs/UtMp + UtNV): raise fi (`CapFree` shrinks),
+     `retypeRegion` (new slots none→null: UtNV untouched — prove "caps only appear as null"), `createCap` (new cap to a
+     fresh object in src's old free part: UtCh via src + UtDesc ancestors, CapFree via raised fi + UtDisj, CapKind/
+     CnShape vacuous for fresh objects with null slots, CnBits from the decode's object-size bound, dest PosOK);
+     detype at reset/MakePool removes only null slots (RegNull from `regNull_of`) and objects no cap references;
+     lowering fi needs CapFree from "no cap in the region" (UtCh + childless). MakePool's pool cap insert is a
+     create_cap-like insert (pool cap's ref inside the parent's region, parent untyped), NOT `hv_capInsertN`.
+  4. Step 6: `setCap` of an updated cap in an occupied slot (VSpace map/unmap performs, ASID pool assign): `RefEq`
+     via `utN_vCapEq`; UtInv' part via ut3 `hv_setCap_nn`.
+  5. IRQ node (above), then step 7: regenerate SpecInvUtG as family `IK UtInv''` (scratch/ut3/mkui.sh, new prefix
+     e.g. `un`; leaves `ik_utInv''_of_uk`, `ik_capDeleteOneN`, `ikN_capDelete`/`ikN_recDel_cte` (recDel no longer via
+     manual.py's `ik_lfp`; capRevoke stays `ik_lfp` with `ikN_capDelete` as leaf), `hv_emptySlotN` only through
+     capDeleteOne/rec_del, the insert/move/swap leaves with their decode facts carried as in SpecInvUtA), replay
+     SpecInvUtE with `UtInv''` (`IKD` disappears; `detypeOK_of` at the perform for the reused ut2 lemmas), then
+     `kentry_utInv2` / `kcall_utInv2`.
+- Builds (tokyo, ./ut5.sh untracked: ut3.sh printing error excerpts; mirror warm): ut5-b1 SpecInvUtN (1058) + N2
+  (1060), ut5-b2 N3 (1062), ut5-b5 N4 (1064), ut5-b8 N5 (1066) + N6 (1068); ut5-ax1 axioms (scratch/ut5/ax.lean,
+  untracked). No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (four import lines added).
