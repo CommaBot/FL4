@@ -4450,3 +4450,69 @@ Goal (invA2 handoff): FaultTcbsS kept by the syscall entry and every event, with
      It gives `B [ct] [ct] [ct] (· = ct) σ` (`b_cons` from active + FaultTcbsS, `b_addE`, K). The event form
      (kcall_faultTcbsS) needs `CtEntry'` := ct active or idle, in no queue. FaultTcbs (weak) by `FaultTcbsS.weak`.
 - No FINDING: no reachable-state counterexample met.
+## vih2 (branch par/vih2 in FL4-rb, on b2f74572 = vih1) — ValidIrqHandlers frames and the ack's decode carry
+- DONE, built (new leaves, namespace SInvV, outside the JAtZ cone; root Fl4Proofs.lean imports all six):
+  * `SpecInvValidIrqHandlersK`: view `hV σ := (fun sl => capOpt (σ.kheap sl.1) sl.2, σ.interruptStates)`;
+    **class `WLH P`** (P reads only `hV` and invB's `vw`; kept by `updateTimeStamp` and by `MaskT` machine ops).
+    Instances: `hV · = v`, `ValidIrqMasks` (vim_view/uts/msk), `ValidIrqHandlers`, `HK σ0 ·`, any predicate of
+    `hV` alone (`wlh_of_hV`), conjunctions. `hkm_of_ikh : (∀ σ0, IKH (HK σ0 ·) m) → HKM m`. Leaves (ut1's UtK,
+    adapted to an abstract `P`): setObject of an object with the same `capOpt` (`hv_noCap`: the `aType` assertion,
+    garbage CNodes included), setSimpleKo, threadSet (cap fields kept), archThreadSet, asUser, setMrs,
+    setThreadState, optionUpdateThread; `hv_auto` with the modify / extended-op / machine-op leaves
+    (`WLH.view _ _ (by rfl) (by rfl)`, `WLH.msk` + invB's `mt_auto`, `WLH.uts`).
+  * `SpecInvValidIrqHandlersF1..F4` (generated: `sh proofs/scratch/vih2/mkhv.sh`, invA's gen.py/manual.py via ut1,
+    skip list skiphv.txt = ut1's skipuk + setIrqState, deletedIrqHandler, postCapDeletion, archInvokeIrqHandler,
+    updateTimeStamp): **`hv_f : [WLH P] → IKH P (f …)` for the 341 spec functions reachable from
+    fl4KernelEntrySyscall that write no cap, CDT link, original flag, heap address or IRQ state and do not ack**
+    (incl. the whole decode `hv_fl4DecodeInvocation`, lookups, IPC without cap transfer, scheduler, timer,
+    VSpace ops without cap writes, fl4Awaken; not receiveIpc/sendIpc, which may transfer caps). One family gives at once: `HKM` (via `HK σ0 ·`),
+    `ValidIrqMasks ∧ ValidIrqHandlers` (no ack inside), and pinned facts of the caps (a slot's cap, `HIrq`).
+  * `SpecInvValidIrqHandlersD` (the ack's carry, vih1 handoff step 1(a)-(c)): `vih_mem_getCap`,
+    `okCap_lookupCapAndSlot` (every `.ok (cap, slot)` has `capOpt slot = some cap` at its state),
+    `okdAt_capFault`, `okdAt_mono`, `okAck_decodeIrqHandler`, **`okAck_fl4Decode`** (a decoded
+    `.invokeIRQHandler (.aCKIrq i)` comes only from `cap = .irqHandlerCap i`), `capOpt_of_ikh` / `hIrq_of_hV`
+    (the slot's cap survives lookupIpcBuffer / lookupExtraCaps / getMrs / the decode / setThreadState Restart),
+    **`vimh_invokeIrqHandler_ack`** (the perform of the ack keeps `ValidIrqMasks ∧ ValidIrqHandlers` from `HIrq`).
+- NOT DONE (handoff, in order; everything below composes with the family above, `IKH P` for `P := ValidIrqMasks ∧
+  ValidIrqHandlers` (+ pinned conjuncts), all as `WLH` instances):
+  1. Writer leaves (new module, e.g. SpecInvValidIrqHandlersW): `CapAct c σ := ∀ irq, c = .irqHandlerCap irq →
+     σ.interruptStates irq ≠ .irqInactive` (a `WLH` instance by `wlh_of_hV`); `ca_of_slot` (VIH + cap in a slot);
+     `setCap c` keeps `VIM ∧ VIH` from `CapAct c` (vih1's `hk_setCap`, plus `vw` kept: setCap is a setObject);
+     `setCdt`/`setOriginal`/`updateCdt` keep every `WLH` predicate (no cap, no vw); `setIrqState` keeps VIM
+     (`vim_sis`) and VIH when the state is not inactive (`hk_setIrqState_active`) or the line is unnamed
+     (`hk_setIrqState_inactive`). Then pinned compositions `IKH (fun σ => J σ ∧ CapAct c σ)` for capInsert /
+     cteInsert (setUntypedCapAsFull writes an untyped cap: CapAct trivially), capMove, capSwap /
+     capSwapForDelete (both caps CapAct), createCap / retypeRegion (default caps, heap: retype's new objects hold
+     only null caps — VIH needs `capOpt` of new objects: emptyCnode / defaultTcb give null caps; `hV` changes so
+     not a frame), deleteObjects (removes objects: a `capOpt` of `none` names nothing).
+  2. Decode → perform carry for all cap writes (DomInvOK pattern, generalising `okAck_fl4Decode`): `InvCA σ inv`
+     := every cap the invocation will write is `CapAct` at σ (cnode insert/move/rotate/swap caps, TCB install caps
+     (`checkCapAt` re-reads them at the perform: use that read), IRQ setNotification cap (a notification cap:
+     CapAct trivially), untyped/arch/IO-port caps (not handler caps: CapAct trivially)), proved by an `OkDAt`
+     traversal of `fl4DecodeInvocation` with leaves: `deriveCap` / `updateCapData` / `maskCapRights` map a
+     handler cap only from a handler cap of the same line, and caps read by `getCap`/`lookupCapAndSlot`/
+     `lookupExtraCaps` are `CapAct` by VIH at the reading state (`okCap_lookupCapAndSlot` + `ca_of_slot`),
+     carried by the frame family (`CapAct` is `WLH`). IPC `transferCaps`: the extra caps are looked up inside
+     `doNormalTransfer` at the same state as the transfer starts (CapAct carried through transferCapsLoop's own
+     writes, which write only CapAct caps into empty slots).
+  3. Deletion (the only IRQ-state inactivation): `deletedIrqHandler` via `postCapDeletion` inside `emptySlot`:
+     needs the emptied slot's cap final (`isFinalCap'`) for `final_handler_unique` + `setCap_null_unique` +
+     `hk_setIrqState_inactive`. Finality is computed in recDel's `finaliseSlotCall` (CSpace.lean:435) and must be
+     carried (as a pinned conjunct of the `ik_lfp` pre-fixed-point predicate, SpecInvNativeScopeK's `ik_lfp`) to
+     `cTEDeleteCall`'s emptySlot (CSpace.lean:428); `capDeleteOne`'s emptySlot (invokeIrqHandler set/clear,
+     deletingIrqHandler) computes finality itself (`isFinalCap` read before `finaliseCap`). Also invokeIrqControl /
+     archInvokeIrqControl / Ext IrqControl issue: setIrqState IRQSignal then capInsert of the new handler cap
+     (`hk_setCap_active`).
+  4. The shell: copy invC's `dpe_handleInvocationR` (SpecInvDom) with `I := VIM ∧ VIH`; front by the family;
+     at the perform state `HIrq` from `okCap_lookupCapAndSlot` (through `okdAt_capFault`, `capOpt_of_ikh` over
+     lookupIpcBuffer / lookupExtraCaps / getMrs / setThreadState) and `okAck_fl4Decode`; perform: ack →
+     `vimh_invokeIrqHandler_ack`, others by 1–3. Then `kentry_validIrqMasks` / `kirq_validIrqMasks` for
+     `ValidIrqMasks ∧ ValidIrqHandlers` and `kentry_vih` / `kirq_vih` (corollaries, or via `hkm_of_ikh`).
+- Builds (tokyo, ./fb.sh): vih2-2 (HV-equality version) OK; vih2-3/5/6/7/8 fixed the WLH leaves (`(by rfl)` for
+  the view equalities, fl4Awaken's reprogramTimer step via `WLH.view`, portIn/portOut by hand with `MaskT f`),
+  getCap's membership and the decode traversal (`nomatch`); **vih2-9 `SpecInvValidIrqHandlersD` OK (4636 jobs;
+  K, F1..F4 built in vih2-7)**. Root Fl4Proofs.lean imports K, F1..F4, D (root not rebuilt). Axioms
+  (scratch/vih2/ax.lean, untracked; ./vax2.sh): hkm_of_ikh, wlh_of_hV, hv_fl4DecodeInvocation, hv_lookupExtraCaps,
+  vih_mem_getCap, okCap_lookupCapAndSlot, okAck_fl4Decode, capOpt_of_ikh, vimh_invokeIrqHandler_ack: propext,
+  Classical.choice, Quot.sound; okdAt_capFault: propext. No sorry/admit/native_decide/bv_decide; no premise.
+- No FINDING: no step was found to break either invariant (the writers above are the l4v ones).
