@@ -1001,3 +1001,4 @@ import Fl4Proofs.P3.SpecInvSlP3
 import Fl4Proofs.P3.SpecInvSlE
 import Fl4Proofs.P3.SpecInvSlE2
 import Fl4Proofs.P3.SpecInvSlE3
+import Fl4Proofs.P3.SpecInvCqV
