@@ -756,6 +756,11 @@ import Fl4Proofs.P3.SpecInvValidIrqHandlersF2
 import Fl4Proofs.P3.SpecInvValidIrqHandlersF3
 import Fl4Proofs.P3.SpecInvValidIrqHandlersF4
 import Fl4Proofs.P3.SpecInvValidIrqHandlersD
+import Fl4Proofs.P3.SpecInvValidIrqHandlersW
+import Fl4Proofs.P3.SpecInvValidIrqHandlersX
+import Fl4Proofs.P3.SpecInvValidIrqHandlersY
+import Fl4Proofs.P3.SpecInvValidIrqHandlersG
+import Fl4Proofs.P3.SpecInvValidIrqHandlersS
 import Fl4Proofs.P3.SpecInvCtNQR
 import Fl4Proofs.P3.SpecInvOffReady
 import Fl4Proofs.P3.SpecInvDom
