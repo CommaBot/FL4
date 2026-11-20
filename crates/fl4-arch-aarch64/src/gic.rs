@@ -10,6 +10,7 @@ const PRIO: u32 = 0xa0;
 static VERSION: AtomicU64 = AtomicU64::new(0);
 static GICD: AtomicU64 = AtomicU64::new(0);
 static GICC: AtomicU64 = AtomicU64::new(0);
+static GICH: AtomicU64 = AtomicU64::new(0);
 static LINES: AtomicU64 = AtomicU64::new(32);
 /// GICv3: some core started has Aff0 16 or more, so every core must be
 /// able to send SGIs with the range selector.
@@ -68,6 +69,49 @@ pub fn lines() -> u64 {
 
 pub fn max_spi() -> u64 {
     (lines() - 1).min(1019)
+}
+
+/// Record the GICv2 hypervisor control interface (GICH) kernel virtual address.
+pub fn set_gich(va: u64) {
+    GICH.store(va, Ordering::Relaxed);
+}
+
+/// The GICv2 GICH kernel virtual address (0 if none / GICv3).
+pub fn gich() -> u64 {
+    GICH.load(Ordering::Relaxed)
+}
+
+/// VGIC type register: `ICH_VTR_EL2` on GICv3, `GICH_VTR` (`gich + 0x4`) on
+/// GICv2. Returns 0 when not at EL2 or VGIC is unavailable.
+pub fn vgic_vtr() -> u64 {
+    if !cpu::is_el2() {
+        return 0;
+    }
+    if version() == 3 {
+        if !cpu::has_gic_sysregs() {
+            return 0;
+        }
+        let v: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_4_c12_c11_1", out(reg) v, options(nomem, nostack, preserves_flags)) };
+        v
+    } else {
+        let h = GICH.load(Ordering::Relaxed);
+        if h == 0 {
+            0
+        } else {
+            rd(h + 0x4) as u64
+        }
+    }
+}
+
+/// Number of VGIC list registers (0 when VGIC is unavailable).
+pub fn vgic_num_lrs() -> u8 {
+    let vtr = vgic_vtr();
+    if vtr == 0 {
+        0
+    } else {
+        ((vtr & 0x1f) + 1) as u8
+    }
 }
 
 fn v3_wait_rwp(base: u64) {
@@ -219,8 +263,9 @@ pub fn init_cpu(gicr: u64) {
     // The kernel owns these banked interrupts on every online core.
     use fl4_core::layout::irq;
     let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
+    let timer_id = crate::timer::timer_irq_id();
     wr(bank + GICD_ISENABLER,
-       (1 << irq::TIMER_ID) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
+       (1 << timer_id) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
     cpu::dsb_sy();
 }
 

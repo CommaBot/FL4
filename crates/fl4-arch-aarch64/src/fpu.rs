@@ -21,8 +21,14 @@ fn use_count(t: u64) -> *mut u8 {
     (t + tcb::FPU_USE) as *mut u8
 }
 
+fn cpacr_val(on: bool) -> u64 {
+    let v = if on { FPEN_NONE } else { FPEN_EL0_TRAP };
+    // Under HCR_EL2.E2H = 1, CPACR_EL1 aliases CPTR_EL2 where bit 30 is TAM.
+    if crate::cpu::is_el2() { v | (1 << 30) } else { v }
+}
+
 pub fn init() {
-    crate::msr!("cpacr_el1", FPEN_EL0_TRAP);
+    crate::msr!("cpacr_el1", cpacr_val(false));
     crate::cpu::isb();
     percpu::get().fp_enabled.set(false);
 }
@@ -30,7 +36,7 @@ pub fn init() {
 fn set_enabled(on: bool) {
     let pc = percpu::get();
     if pc.fp_enabled.get() != on {
-        crate::msr!("cpacr_el1", if on { FPEN_NONE } else { FPEN_EL0_TRAP });
+        crate::msr!("cpacr_el1", cpacr_val(on));
         crate::cpu::isb();
         pc.fp_enabled.set(on);
     }

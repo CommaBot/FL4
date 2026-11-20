@@ -173,7 +173,7 @@ fn take_irq() -> Option<u64> {
         return None;
     }
     percpu::get().iar.set(raw);
-    if id == irq::TIMER_ID {
+    if id == timer::timer_irq_id() {
         // A stale timer interrupt (l4h 0012): the deadline it was for has
         // been replaced by a later one.
         if timer::early() {

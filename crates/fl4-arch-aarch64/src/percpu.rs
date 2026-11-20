@@ -107,10 +107,19 @@ pub struct Stacks(pub UnsafeCell<[[u8; KSTACK_SIZE]; MAX_CPUS]>);
 unsafe impl Sync for Stacks {}
 pub static KSTACKS: Stacks = Stacks(UnsafeCell::new([[0; KSTACK_SIZE]; MAX_CPUS]));
 
-/// The calling core's index (TPIDR_EL1 points at its `PerCpu`).
+#[inline]
+fn read_tpidr() -> u64 {
+    if crate::cpu::is_el2() {
+        crate::mrs!("tpidr_el2")
+    } else {
+        crate::mrs!("tpidr_el1")
+    }
+}
+
+/// The calling core's index (TPIDR_EL2 in EL2, TPIDR_EL1 in EL1).
 #[inline]
 pub fn cpu_index() -> usize {
-    let p = crate::mrs!("tpidr_el1");
+    let p = read_tpidr();
     if p == 0 {
         0
     } else {
@@ -121,7 +130,7 @@ pub fn cpu_index() -> usize {
 /// This core's state. Callers run with interrupts disabled.
 #[inline]
 pub fn get() -> &'static PerCpu {
-    let p = crate::mrs!("tpidr_el1");
+    let p = read_tpidr();
     if p == 0 {
         &PERCPU.0[0]
     } else {
@@ -140,12 +149,17 @@ pub fn init_stack(i: usize) -> u64 {
     top
 }
 
-/// On core `i`: set up its state and point TPIDR_EL1 at it; returns its
-/// kernel stack top.
+/// On core `i`: set up its state and point TPIDR_EL2 (EL2) or TPIDR_EL1
+/// (EL1) at it; returns its kernel stack top.
 pub fn init(i: usize) -> u64 {
     let top = init_stack(i);
     set_mpidr(i, crate::cpu::mpidr());
-    crate::msr!("tpidr_el1", &PERCPU.0[i] as *const PerCpu as u64);
+    let ptr = &PERCPU.0[i] as *const PerCpu as u64;
+    if crate::cpu::is_el2() {
+        crate::msr!("tpidr_el2", ptr);
+    } else {
+        crate::msr!("tpidr_el1", ptr);
+    }
     top
 }
 

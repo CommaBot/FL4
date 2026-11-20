@@ -249,10 +249,20 @@ fn el0_debug_channel_and_trace_registers_trap() {
 
 /// Audit F5: a core runs beside the boot core only with 16-bit ASIDs and
 /// the boot core's access-flag management, PAN, at least its physical
-/// address size, and its counter frequency.
+/// address size, its counter frequency, and its EL2/VHE/VGIC capabilities.
 #[test]
 fn an_application_processor_must_match_the_boot_core() {
-    let bsp = ap_caps::Caps { asid16: true, hw_af: true, pan: true, pa_bits: 40, cntfrq: 62_500_000 };
+    let bsp = ap_caps::Caps {
+        asid16: true,
+        hw_af: true,
+        pan: true,
+        pa_bits: 40,
+        cntfrq: 62_500_000,
+        el2: false,
+        vhe: false,
+        vmid16: false,
+        vgic_lrs: 0,
+    };
     assert!(ap_caps::ap_matches(&bsp, &bsp));
     assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
     for ap in [
@@ -262,8 +272,24 @@ fn an_application_processor_must_match_the_boot_core() {
         ap_caps::Caps { pa_bits: 36, ..bsp },
         ap_caps::Caps { cntfrq: 24_000_000, ..bsp },
         ap_caps::Caps { cntfrq: 0, ..bsp },
+        ap_caps::Caps { el2: true, ..bsp },
+        ap_caps::Caps { vhe: true, ..bsp },
+        ap_caps::Caps { vmid16: true, ..bsp },
+        ap_caps::Caps { vgic_lrs: 4, ..bsp },
     ] {
         assert!(!ap_caps::ap_matches(&bsp, &ap), "{ap:?}");
+    }
+    // EL2 VHE mode: every AP must match EL2, VHE, VMID16 and VGIC LR count.
+    let el2_bsp = ap_caps::Caps { el2: true, vhe: true, vmid16: true, vgic_lrs: 4, ..bsp };
+    assert!(ap_caps::ap_matches(&el2_bsp, &el2_bsp));
+    for ap in [
+        ap_caps::Caps { el2: false, ..el2_bsp },
+        ap_caps::Caps { vhe: false, ..el2_bsp },
+        ap_caps::Caps { vmid16: false, ..el2_bsp },
+        ap_caps::Caps { vgic_lrs: 3, ..el2_bsp },
+        ap_caps::Caps { vgic_lrs: 0, ..el2_bsp },
+    ] {
+        assert!(!ap_caps::ap_matches(&el2_bsp, &ap), "el2 {ap:?}");
     }
     // Nor a core with what the boot core lacks: the kernel set up neither.
     let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
@@ -1160,6 +1186,97 @@ fn a_gicv2_cpu_interface_is_kept_whole() {
 }
 
 #[test]
+fn acpi_and_dt_parse_virt_fields() {
+    // ACPI: MADT GICC with GICV (off 40), GICH (off 48), VGIC maintenance
+    // (off 56) + GTDT with vtimer (off 64) and hyptimer (off 72).
+    let mut gicc_e = gicc(0, 0);
+    gicc_e[32..40].copy_from_slice(&0x801_0000u64.to_le_bytes()); // GICC
+    gicc_e[40..48].copy_from_slice(&0x804_0000u64.to_le_bytes()); // GICV
+    gicc_e[48..56].copy_from_slice(&0x803_0000u64.to_le_bytes()); // GICH
+    gicc_e[56..60].copy_from_slice(&25u32.to_le_bytes()); // VGIC maint
+    let mut gicd_e = gicd();
+    gicd_e[20] = 2; // GICv2
+    let madt_entries = madt(&[gicd_e, gicc_e]);
+    let madt_len = 44 + madt_entries.len();
+    let gtdt_len = 80usize;
+    let mut mem = vec![0u8; BASE as usize + 512];
+    let buf = &mut mem[BASE as usize..];
+    // RSDP at 0, XSDT at 64 (2 entries = 52 bytes), MADT at 128, GTDT at 320.
+    let madt_off = 128usize;
+    let gtdt_off = 320usize;
+    buf[madt_off..madt_off + 4].copy_from_slice(b"APIC");
+    buf[madt_off + 4..madt_off + 8].copy_from_slice(&(madt_len as u32).to_le_bytes());
+    buf[madt_off + 44..madt_off + madt_len].copy_from_slice(&madt_entries);
+    checksum(&mut buf[madt_off..madt_off + madt_len], 9);
+    buf[gtdt_off..gtdt_off + 4].copy_from_slice(b"GTDT");
+    buf[gtdt_off + 4..gtdt_off + 8].copy_from_slice(&(gtdt_len as u32).to_le_bytes());
+    buf[gtdt_off + 64..gtdt_off + 68].copy_from_slice(&27u32.to_le_bytes());
+    buf[gtdt_off + 72..gtdt_off + 76].copy_from_slice(&26u32.to_le_bytes());
+    checksum(&mut buf[gtdt_off..gtdt_off + gtdt_len], 9);
+    let xsdt_len = 36 + 16;
+    buf[64..68].copy_from_slice(b"XSDT");
+    buf[68..72].copy_from_slice(&(xsdt_len as u32).to_le_bytes());
+    buf[64 + 36..64 + 44].copy_from_slice(&(BASE + madt_off as u64).to_le_bytes());
+    buf[64 + 44..64 + 52].copy_from_slice(&(BASE + gtdt_off as u64).to_le_bytes());
+    checksum(&mut buf[64..64 + xsdt_len], 9);
+    buf[..8].copy_from_slice(b"RSD PTR ");
+    buf[15] = 2;
+    buf[20..24].copy_from_slice(&36u32.to_le_bytes());
+    buf[24..32].copy_from_slice(&(BASE + 64).to_le_bytes());
+    checksum(&mut buf[..20], 8);
+    checksum(&mut buf[..36], 32);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(BASE, 0).expect("ACPI virt");
+    layout::MEMORY.set((0, 0));
+    assert_eq!(h.gic_version, 2);
+    assert_eq!(h.gich, 0x803_0000);
+    assert_eq!(h.gicv, 0x804_0000);
+    assert_eq!(h.vgic_maint, 25);
+    assert_eq!(h.vtimer, 27);
+    assert_eq!(h.hyptimer, 26);
+
+    // DT: GICv2 with GICD, GICC, GICH, GICV + maintenance PPI 25, and timer
+    // node with vtimer PPI 27 and hyptimer PPI 26.
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,cortex-a15-gic");
+    d.prop("reg", &reg2(&[
+        (0x800_0000, 0x1_0000),
+        (0x801_0000, 0x1_0000),
+        (0x803_0000, 0x1_0000),
+        (0x804_0000, 0x1_0000),
+    ]));
+    // PPI 9 -> 16 + 9 = 25
+    let maint: Vec<u8> = [1u32, 9, 4].iter().flat_map(|w| w.to_be_bytes()).collect();
+    d.prop("interrupts", &maint);
+    d.end();
+    d.begin("timer");
+    // sec=13, nonsec=14, virt=11 (27), hyp=10 (26)
+    let timers: Vec<u8> = [1u32, 13, 4, 1, 14, 4, 1, 11, 4, 1, 10, 4]
+        .iter()
+        .flat_map(|w| w.to_be_bytes())
+        .collect();
+    d.prop("interrupts", &timers);
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut dt_mem = vec![0u8; BASE as usize + blob.len()];
+    dt_mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((dt_mem.as_ptr() as u64, dt_mem.len() as u64));
+    let h = hw::discover(0, BASE).expect("DT virt");
+    layout::MEMORY.set((0, 0));
+    assert_eq!(h.gic_version, 2);
+    assert_eq!((h.gich, h.gich_len), (0x803_0000, 0x1_0000));
+    assert_eq!((h.gicv, h.gicv_len), (0x804_0000, 0x1_0000));
+    assert_eq!(h.vgic_maint, 25);
+    assert_eq!(h.vtimer, 27);
+    assert_eq!(h.hyptimer, 26);
+}
+
+#[test]
 fn kernel_device_ranges_are_kept_in_whole_pages() {
     assert_eq!(bootmem::pages_covering(0x800_0000, 0x801_0000), (0x800_0000, 0x801_0000));
     assert_eq!(bootmem::pages_covering(0x800_0800, 0x801_0800), (0x800_0000, 0x801_1000));
@@ -1362,7 +1479,22 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                 let size = 4096 + ((dtb_len + 16 + 4096) & !4095);
                 let mut buf = vec![0xaau8; size];
                 let mods = &all_mods[..n_mods];
-                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, mods, &dtb).expect(&what);
+                let vi = extra_bi::VirtInfo {
+                    flags: 0x7,
+                    ipa_bits: 40,
+                    gic_version: 3,
+                    vgic_vtr: 0x9000_0003,
+                    gicv_paddr: 0x804_0000,
+                    gicv_size: 0x1_0000,
+                    midr_el1: 0x410f_d083,
+                    ctr_el0: 0x8444_c004,
+                    id_aa64mmfr0_el1: 0x10_1122,
+                    id_aa64mmfr1_el1: 0x220,
+                    id_aa64mmfr2_el1: 0x10,
+                    id_aa64dfr0_el1: 0x1030_5106,
+                    id_aa64dfr1_el1: 0,
+                };
+                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, &dtb).expect(&what);
                 assert_eq!(len % 8, 0, "{what}");
                 assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
                 let recs = bi_records(&buf, len);
@@ -1371,6 +1503,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                     want.push(id::X86_ACPI_RSDP);
                 }
                 want.push(id::AARCH64_ID_REGS);
+                want.push(id::AARCH64_VIRT_INFO);
                 if n_mods != 0 {
                     want.push(id::X86_BOOT_MODULES);
                 }
@@ -1388,6 +1521,11 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                         id::AARCH64_ID_REGS => {
                             let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
                             assert_eq!(got, regs, "{what}");
+                        }
+                        id::AARCH64_VIRT_INFO => {
+                            assert_eq!(l, 16 + 13 * 8, "{what}");
+                            let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                            assert_eq!(got, vi.to_words(), "{what}");
                         }
                         id::X86_BOOT_MODULES => {
                             assert_eq!(l, 16 + 8 + 80 * n_mods, "{what}");
@@ -1418,7 +1556,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
     }
     // Too small a buffer is refused, not overrun.
     let mut small = [0u8; 64];
-    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, &[], &[]), None);
+    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, None, &[], &[]), None);
     let mut small = vec![0u8; 4096];
-    assert_eq!(extra_bi::build(&mut small, None, &regs, &[], &[1u8; 4096]), None);
+    assert_eq!(extra_bi::build(&mut small, None, &regs, None, &[], &[1u8; 4096]), None);
 }

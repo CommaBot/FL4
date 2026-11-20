@@ -10,8 +10,19 @@
 //! core's banked interrupt on GICv2, a remote call) send the entry to the
 //! serial gate.
 use crate::{gic, percpu, serial, smp, timer};
+use core::sync::atomic::{AtomicBool, Ordering};
 use fl4_core::layout::irq;
 use fl4_core::machine::Arch;
+
+static VIRT_READY: AtomicBool = AtomicBool::new(false);
+
+pub fn set_virt_ready(v: bool) {
+    VIRT_READY.store(v, Ordering::Relaxed);
+}
+
+pub fn virt_ready() -> bool {
+    VIRT_READY.load(Ordering::Relaxed)
+}
 
 pub struct PhysArch;
 
@@ -110,7 +121,7 @@ pub fn poll_irq() -> u64 {
         gic::eoi(raw);
         return fl4_core::syscall::NO_IRQ;
     }
-    if id == irq::TIMER_ID {
+    if id == timer::timer_irq_id() {
         timer::quiesce();
     }
     percpu::get().iar.set(raw);
@@ -118,6 +129,9 @@ pub fn poll_irq() -> u64 {
 }
 
 impl Arch for PhysArch {
+    fn virtualization(&self) -> u64 {
+        if virt_ready() { 1 } else { 0 }
+    }
     fn now(&mut self) -> u64 {
         timer::now()
     }

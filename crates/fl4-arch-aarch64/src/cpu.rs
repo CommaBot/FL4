@@ -1,5 +1,6 @@
 //! AArch64 system registers, barriers and cache maintenance.
 use core::arch::asm;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 /// Read a system register by name.
 #[macro_export]
@@ -18,6 +19,28 @@ macro_rules! msr {
         let v: u64 = $v;
         unsafe { core::arch::asm!(concat!("msr ", $r, ", {}"), in(reg) v, options(nostack, preserves_flags)) };
     }};
+}
+
+/// Whether the kernel is running in EL2 (VHE host mode). Initialized once
+/// on the boot core from `CurrentEL`.
+static EL2_HOST: AtomicBool = AtomicBool::new(false);
+
+/// Current exception level (0..=3).
+#[inline]
+pub fn current_el() -> u64 {
+    (mrs!("CurrentEL") >> 2) & 0x3
+}
+
+/// Record whether the kernel booted and stayed at EL2. Call once at boot
+/// before `percpu::init`.
+pub fn init_el_mode() {
+    EL2_HOST.store(current_el() == 2, Ordering::Relaxed);
+}
+
+/// Whether the kernel runs in EL2 VHE host mode.
+#[inline]
+pub fn is_el2() -> bool {
+    EL2_HOST.load(Ordering::Relaxed)
 }
 
 #[inline(always)]
@@ -154,13 +177,33 @@ pub fn has_gic_sysregs() -> bool {
     (mrs!("id_aa64pfr0_el1") >> 24) & 0xf != 0
 }
 
+/// Virtualization Host Extensions (ID_AA64MMFR1_EL1.VH).
+pub fn has_vhe() -> bool {
+    (mrs!("id_aa64mmfr1_el1") >> 8) & 0xf != 0
+}
+
+/// 16-bit VMIDs (ID_AA64MMFR1_EL1.VMIDBits == 2).
+pub fn vmid16() -> bool {
+    (mrs!("id_aa64mmfr1_el1") >> 4) & 0xf == 2
+}
+
+/// FEAT_CLRBHB (ID_AA64ISAR2_EL1.CLRBHB, bits [31:28]).
+pub fn has_clrbhb() -> bool {
+    (mrs!("s3_0_c0_c6_2") >> 28) & 0xf != 0
+}
+
 /// This core's `ap_caps::Caps`.
 pub fn caps() -> crate::ap_caps::Caps {
+    let el2 = current_el() == 2;
     crate::ap_caps::Caps {
         asid16: has_asid16(),
         hw_af: has_hw_af(),
         pan: has_pan(),
         pa_bits: pa_bits(),
         cntfrq: mrs!("cntfrq_el0") & 0xffff_ffff,
+        el2,
+        vhe: el2 && has_vhe(),
+        vmid16: el2 && vmid16(),
+        vgic_lrs: if el2 { crate::gic::vgic_num_lrs() } else { 0 },
     }
 }

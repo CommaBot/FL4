@@ -213,4 +213,6 @@ pub mod bootinfo_header {
     /// l4h 0047: untyped descriptors past the BootInfo's 230, whose caps
     /// follow `untyped.end`.
     pub const X86_EXTRA_UNTYPEDS: u64 = 10;
+    /// AArch64 EL2/VHE virtualization capabilities and GIC/ID metadata.
+    pub const AARCH64_VIRT_INFO: u64 = 11;
 }

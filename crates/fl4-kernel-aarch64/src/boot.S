@@ -55,7 +55,17 @@ fl4_el_setup:
     adr     x9, fl4_el2_vectors
     msr     vbar_el2, x9
     isb
-    mov     x9, #(1 << 31)          /* HCR_EL2.RW: EL1 is AArch64 */
+    /* Stay at EL2 with VHE when FEAT_VHE is present and PARange >= 40-bit;
+     * otherwise drop to EL1 below (Armv8.0 cores such as Cortex-A57). */
+    mrs     x10, id_aa64mmfr1_el1
+    ubfx    x10, x10, #8, #4        /* VH */
+    cbz     x10, 16f
+    mrs     x10, id_aa64mmfr0_el1
+    and     x10, x10, #0xf          /* PARange */
+    cmp     x10, #2
+    b.lo    16f
+    b       fl4_el2_vhe_setup
+16: mov     x9, #(1 << 31)          /* HCR_EL2.RW: EL1 is AArch64 */
     /* Pointer authentication (any of APA, API, GPA, GPI, APA3, GPA3):
      * HCR_EL2.API, or PACGA, which no SCTLR_EL1 bit enables, traps from
      * EL0 to EL2; HCR_EL2.APK, or EL1's key registers trap to EL2. The
@@ -257,6 +267,105 @@ fl4_el2_reflect:
 fl4_el2_halt:
     wfi
     b       fl4_el2_halt
+
+/* Stay at EL2 with VHE (HCR_EL2.E2H=1, TGE=1, RW=1). Keeps x19-x21;
+ * returns at EL2 so fl4_mmu_on enables the EL2&0 stage-1 MMU. */
+fl4_el2_vhe_setup:
+    adr     x9, fl4_el2_vectors
+    msr     vbar_el2, x9
+    isb
+    /* HCR_EL2 = E2H | TGE | RW; temporarily add APK | API while clearing
+     * pointer authentication keys if FEAT_PAuth is present. */
+    ldr     x9, =((1 << 34) | (1 << 31) | (1 << 27))
+    mrs     x10, id_aa64isar1_el1
+    mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 */
+    and     x10, x10, #0xff0        /* APA, API */
+    and     x11, x11, #0xf000       /* APA3 */
+    orr     x12, x10, x11
+    cbz     x12, 1f
+    orr     x9, x9, #(3 << 40)      /* HCR_EL2.APK, HCR_EL2.API */
+1:  msr     hcr_el2, x9
+    isb
+    /* Fine-grained traps (FEAT_FGT, FEAT_FGT2, FEAT_AMU) and HCRX_EL2. */
+    mrs     x10, id_aa64mmfr0_el1
+    ubfx    x10, x10, #56, #4
+    cbz     x10, 3f
+    msr     s3_4_c1_c1_4, xzr       /* HFGRTR_EL2 */
+    msr     s3_4_c1_c1_5, xzr       /* HFGWTR_EL2 */
+    msr     s3_4_c1_c1_6, xzr       /* HFGITR_EL2 */
+    msr     s3_4_c3_c1_4, xzr       /* HDFGRTR_EL2 */
+    msr     s3_4_c3_c1_5, xzr       /* HDFGWTR_EL2 */
+    mrs     x11, id_aa64pfr0_el1
+    ubfx    x11, x11, #44, #4       /* AMU */
+    cbz     x11, 2f
+    msr     s3_4_c3_c1_6, xzr       /* HAFGRTR_EL2 */
+2:  cmp     x10, #2
+    b.lo    3f
+    msr     s3_4_c3_c1_0, xzr       /* HDFGRTR2_EL2 */
+    msr     s3_4_c3_c1_1, xzr       /* HDFGWTR2_EL2 */
+    msr     s3_4_c3_c1_2, xzr       /* HFGRTR2_EL2 */
+    msr     s3_4_c3_c1_3, xzr       /* HFGWTR2_EL2 */
+    msr     s3_4_c3_c1_7, xzr       /* HFGITR2_EL2 */
+3:  mrs     x10, id_aa64mmfr1_el1
+    ubfx    x10, x10, #40, #4       /* HCX */
+    cbz     x10, 4f
+    msr     s3_4_c1_c2_2, xzr       /* HCRX_EL2 */
+4:  isb
+    msr     hstr_el2, xzr
+    msr     vttbr_el2, xzr
+    msr     cntvoff_el2, xzr
+    mrs     x9, midr_el1
+    msr     vpidr_el2, x9
+    mrs     x9, mpidr_el1
+    msr     vmpidr_el2, x9
+    /* CPTR_EL2 (E2H1): FPEN = 0b01 (EL0 traps, EL2 does not), TTA = 1,
+     * TAM = 1 (trap AMU), ZEN = 0, SMEN = 0. */
+    ldr     x9, =((1 << 30) | (1 << 28) | (1 << 20))
+    msr     cptr_el2, x9
+    /* CNTHCTL_EL2 (E2H1): EL1PCTEN = 1 (bit 10), EL1PTEN = 0 (bit 11),
+     * EL0VCTEN = 1 (bit 1). */
+    mov     x9, #((1 << 10) | (1 << 1))
+    msr     cnthctl_el2, x9
+    /* MDCR_EL2: trap debug/PMU from EL0/guest; do not expose host PMU. */
+    mov     x9, #0xf00              /* TDE | TDA | TDOSA | TDRA */
+    mrs     x10, id_aa64dfr0_el1
+    ubfx    x10, x10, #8, #4        /* PMUVer */
+    cbz     x10, 5f
+    cmp     x10, #0xf
+    b.eq    5f
+    orr     x9, x9, #0x60           /* TPMCR | TPM */
+5:  msr     mdcr_el2, x9
+    /* GICv3 system registers at EL2. */
+    mrs     x9, id_aa64pfr0_el1
+    ubfx    x9, x9, #24, #4         /* GIC */
+    cbz     x9, 6f
+    mrs     x9, s3_4_c12_c9_5       /* ICC_SRE_EL2 */
+    mov     x10, #0x9               /* SRE | Enable */
+    orr     x9, x9, x10
+    msr     s3_4_c12_c9_5, x9
+    isb
+    msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 */
+6:  msr     daifset, #0xf
+    ldr     x9, =SCTLR_EL1_RES1
+    msr     sctlr_el1, x9           /* E2H=1 redirects to SCTLR_EL2 */
+    isb
+    cbz     x12, 7f
+    msr     s3_0_c2_c1_0, xzr       /* APIAKeyLo_EL1 */
+    msr     s3_0_c2_c1_1, xzr       /* APIAKeyHi_EL1 */
+    msr     s3_0_c2_c1_2, xzr       /* APIBKeyLo_EL1 */
+    msr     s3_0_c2_c1_3, xzr       /* APIBKeyHi_EL1 */
+    msr     s3_0_c2_c2_0, xzr       /* APDAKeyLo_EL1 */
+    msr     s3_0_c2_c2_1, xzr       /* APDAKeyHi_EL1 */
+    msr     s3_0_c2_c2_2, xzr       /* APDBKeyLo_EL1 */
+    msr     s3_0_c2_c2_3, xzr       /* APDBKeyHi_EL1 */
+    msr     s3_0_c2_c3_0, xzr       /* APGAKeyLo_EL1 */
+    msr     s3_0_c2_c3_1, xzr       /* APGAKeyHi_EL1 */
+    isb
+    /* Clear APK and API back to 0 (keep E2H | RW | TGE). */
+    ldr     x9, =((1 << 34) | (1 << 31) | (1 << 27))
+    msr     hcr_el2, x9
+    isb
+7:  ret
 
 /* Turn the EL1 MMU on with TTBR0 = x0 (an identity map of the kernel
  * region) and TTBR1 = x1. */

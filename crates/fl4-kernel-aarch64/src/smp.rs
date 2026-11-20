@@ -12,6 +12,7 @@ extern "C" {
     static _ap_start: u8;
     static fl4_ap_params: u8;
     static fl4_vectors: u8;
+    static fl4_vectors_el2: u8;
 }
 
 static BOOT_DONE: AtomicBool = AtomicBool::new(false);
@@ -21,7 +22,17 @@ static AP_REJECTED: AtomicU8 = AtomicU8::new(0);
 const REJECT_CAPS: u8 = 1;
 const REJECT_GIC: u8 = 2;
 /// The boot core's capabilities, for the other cores to match.
-static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps { asid16: false, hw_af: false, pan: false, pa_bits: 0, cntfrq: 0 };
+static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps {
+    asid16: false,
+    hw_af: false,
+    pan: false,
+    pa_bits: 0,
+    cntfrq: 0,
+    el2: false,
+    vhe: false,
+    vmid16: false,
+    vgic_lrs: 0,
+};
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -59,7 +70,12 @@ pub fn set_gicr(ranges: &[(u64, u64)]) {
 
 /// Per-core register state every core sets the same way.
 pub fn init_core_regs() {
-    fl4_arch_aarch64::msr!("vbar_el1", unsafe { &fl4_vectors as *const u8 as u64 });
+    let vecs = if cpu::is_el2() {
+        unsafe { &fl4_vectors_el2 as *const u8 as u64 }
+    } else {
+        unsafe { &fl4_vectors as *const u8 as u64 }
+    };
+    fl4_arch_aarch64::msr!("vbar_el1", vecs);
     let mut tcr = fl4_arch_aarch64::mrs!("tcr_el1");
     if cpu::has_hw_af() {
         tcr |= 1 << 39;

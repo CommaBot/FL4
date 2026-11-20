@@ -78,7 +78,8 @@ pub fn fail(msg: &str) -> ! {
 }
 
 /// The extra BootInfo records (`extra_bi::build`): the ACPI RSDP, the
-/// boot core's ID registers, the boot modules and the device tree.
+/// boot core's ID registers, virtualization info, the boot modules and the
+/// device tree.
 fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl4_bootinfo::Module]) -> usize {
     let regs = [
         fl4_arch_aarch64::mrs!("id_aa64isar0_el1"),
@@ -87,9 +88,40 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl
         fl4_arch_aarch64::mrs!("id_aa64pfr0_el1"),
         fl4_arch_aarch64::mrs!("id_aa64pfr1_el1"),
     ];
+    let el2 = cpu::is_el2();
+    let mut flags = 0u64;
+    if fl4_arch_aarch64::arch::virt_ready() {
+        flags |= 1 << 0;
+    }
+    if el2 {
+        flags |= 1 << 1;
+        if cpu::vmid16() {
+            flags |= 1 << 2;
+        }
+    }
+    let gicv_size = if h.gicv != 0 {
+        if h.gicv_len != 0 { h.gicv_len } else { 0x2000 }
+    } else {
+        0
+    };
+    let virt_info = extra_bi::VirtInfo {
+        flags,
+        ipa_bits: cpu::pa_bits(),
+        gic_version: h.gic_version,
+        vgic_vtr: gic::vgic_vtr(),
+        gicv_paddr: h.gicv,
+        gicv_size,
+        midr_el1: fl4_arch_aarch64::mrs!("midr_el1"),
+        ctr_el0: fl4_arch_aarch64::mrs!("ctr_el0"),
+        id_aa64mmfr0_el1: fl4_arch_aarch64::mrs!("id_aa64mmfr0_el1"),
+        id_aa64mmfr1_el1: fl4_arch_aarch64::mrs!("id_aa64mmfr1_el1"),
+        id_aa64mmfr2_el1: fl4_arch_aarch64::mrs!("s3_0_c0_c7_2"),
+        id_aa64dfr0_el1: fl4_arch_aarch64::mrs!("id_aa64dfr0_el1"),
+        id_aa64dfr1_el1: fl4_arch_aarch64::mrs!("id_aa64dfr1_el1"),
+    };
     let src: &[u8] = if dtb_len != 0 { unsafe { core::slice::from_raw_parts(pptr(dtb) as *const u8, dtb_len as usize) } } else { &[] };
     let rsdp = if h.has_rsdp { Some(&h.rsdp[..]) } else { None };
-    match extra_bi::build(buf, rsdp, &regs, mods, src) {
+    match extra_bi::build(buf, rsdp, &regs, Some(&virt_info), mods, src) {
         Some(len) => len,
         None => fail("extra BootInfo too large"),
     }
@@ -110,6 +142,7 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     if bi.magic != MAGIC || bi.version != fl4_bootinfo::VERSION {
         cpu::halt_forever();
     }
+    cpu::init_el_mode();
     let pa_top = (1u64 << cpu::pa_bits()).min(PADDR_USER_DEVICE_TOP);
 
     // RAM in the window: everything the memory map calls write-back memory.
@@ -158,7 +191,11 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     if !cpu::has_asid16() {
         fail("16-bit ASIDs are required (l4h 0016)");
     }
-    if h.vtimer != 0 && h.vtimer != fl4_core::layout::irq::TIMER_ID {
+    if cpu::is_el2() {
+        if h.hyptimer != 0 && h.hyptimer != fl4_core::layout::irq::HYP_TIMER_ID {
+            fail("the EL2 physical timer is not PPI 26");
+        }
+    } else if h.vtimer != 0 && h.vtimer != fl4_core::layout::irq::TIMER_ID {
         fail("the EL1 virtual timer is not PPI 27");
     }
     if h.gicd == 0 {
@@ -218,6 +255,12 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         // The tables may give more than the two pages the kernel maps
         // (64 KiB-spaced aliases of the CPU interface).
         keep(&mut dev_used, h.gicc, h.gicc.saturating_add(h.gicc_len.max(0x2000)));
+        if cpu::is_el2() && h.gich != 0 {
+            let gich_len = h.gich_len.max(0x2000);
+            let gich_va = device(h.gich, gich_len, "GIC hypervisor interface not mappable");
+            keep(&mut dev_used, h.gich, h.gich.saturating_add(gich_len));
+            gic::set_gich(gich_va);
+        }
         device(h.gicc, 0x2000, "GIC CPU interface not mappable")
     };
     gic::init_dist(h.gic_version, gicd, gicc);
@@ -227,6 +270,22 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
     }
     fpu::init();
     fl4_arch_aarch64::smp::set_psci(h.psci);
+    let virt_ready = cpu::is_el2()
+        && !has_option(bi, b"novirt")
+        && ((h.gic_version == 3 && cpu::has_gic_sysregs())
+            || (h.gic_version == 2 && gic::gich() != 0 && h.gicv != 0))
+        && (h.n_cpus <= 1 || h.psci != fl4_arch_aarch64::smp::PSCI_HVC);
+    fl4_arch_aarch64::arch::set_virt_ready(virt_ready);
+    if cpu::is_el2() {
+        kprintln!(
+            "FL4: EL2 (VHE), virt {}, GICv{} VGIC ({} LRs)",
+            if virt_ready { "ready" } else { "disabled" },
+            h.gic_version,
+            gic::vgic_num_lrs(),
+        );
+    } else {
+        kprintln!("FL4: EL1 (native)");
+    }
     kprintln!("FL4: timer at {} Hz, {} SPIs, PSCI {}", timer::freq(), gic::max_spi() - 31,
         match h.psci { 1 => "SMC", 2 => "HVC", _ => "absent" });
 
@@ -366,6 +425,18 @@ pub extern "C" fn fl4_boot(off: u64) -> ! {
         };
         kprintln!("FL4: creating the root task failed: {}", why);
         fail("root task");
+    }
+    if cpu::is_el2() {
+        use fl4_core::interrupt::{IRQ_RESERVED, IRQ_TIMER};
+        use fl4_core::layout::irq;
+        for c in 0..irq::BANKED_CORES {
+            let hyp = irq::of(irq::HYP_TIMER_ID, c);
+            let vtm = irq::of(irq::TIMER_ID, c);
+            let vgic = irq::of(irq::VGIC_MAINT_ID, c);
+            ks_set(&mut s, ks::IRQ_STATE + hyp * 8, IRQ_TIMER);
+            ks_set(&mut s, ks::IRQ_STATE + vtm * 8, IRQ_RESERVED);
+            ks_set(&mut s, ks::IRQ_STATE + vgic * 8, IRQ_RESERVED);
+        }
     }
     kprintln!("FL4: starting the root task at {:#x}", root.entry);
     // With kernel printing disabled, the root task owns the UART page.
