@@ -6939,3 +6939,62 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqY, SpecInvCqYF1..F5 
   `rename_i` after `split` on a two-discriminant match names discriminant values AND both equations (4 names); `intro …
   ⟨hne, rfl⟩` cannot eliminate a pair variable bound in the same pattern (obtain, then `subst`); after `rw [ew] at hy` a
   `when` may appear beta-unreduced (`dsimp only at hy` before `split`).
+## rd4 (branch par/rd4 in FL4-tcbj, on 1483b4a5 = int/j2 incl. rd3, sl4) — exit glue + overrun (rd3 handoff 1-2 DONE); mid-entry writers / shell / tops NOT done
+Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdB / RdX (edited), SpecInvRdY (new; root imports it). No JAtZ cone.
+- **Overrun (lead decision, handoff 2), SpecInvRdB.** The mid-entry disjunct, stated precisely at `schedule`'s start σ:
+  **`(OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ resume_cur_thread)`**. It is a mid-entry fact the
+  entry must prove (charge_budget's overrun branch sets consumed := 0 and always ends in end_timeslice + reschedule_required,
+  so the action is not resume afterwards; schedule is the only writer of resume); never an entry premise. "No other thread
+  depends on cur_sc" is NOT a separate premise: with consumed = 0, OffReady is exactly "cur_sc's head is ready", so when it
+  fails no `RdyT` thread (queue head by R1, switch target by R2) is bound to cur_sc, and the idle SC (IdleHd) is ready —
+  the SC switch at the exit therefore changes SC. `sw_out` / `rd_scAndTimer` now take
+  `hOS : (OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → OffReady σ))` and `hnp : p ≠ σ.curSc → refills ≠ []`;
+  new `commit_zero` (commit_time at consumed 0 rewrites only scConsumed), `rdy_commitZero`, `rvs_congr'`.
+- **Exit glue (handoff 1), SpecInvRdY.**
+  * `HV` / `hvK` / `hvT` (heap view with TCB arch fields erased), **`FK K c u T I S`** (view, cur_sc, consumed, time, idle
+    thread / SC fixed), leaves `fk_setTcb`, `fk_archThreadSet`, `fk_asUser`, macro `fk_auto`; frames `fk_archSwitchToThread`,
+    `fk_archSwitchToIdleThread`, `fk_archPrepareNextDomain`, `fk_nextDomain`, `fk_tcbSchedAction`, `fk_rescheduleRequired`,
+    `fk_possibleSwitchTo`, `fk_tcbReleaseRemove`, `fk_awaken`, `fk_checkDomainTime`, `fk_switchToThread`,
+    `fk_switchToIdleThread`, `fk_guardedSwitchTo`, `fk_chooseThread`, `fk_scheduleChooseNewThread`, `fk_sstb`.
+  * `NR` (action ≠ resume) kept by awaken / check_domain_time (`nr_*`), `ctk_awaken`; `ct_switchToThread` /
+    `ct_guardedSwitchTo` / `ct_switchToIdleThread`; `mneq_ne` (max_non_empty_queue of a non-empty family is non-empty);
+    `rdyT_hv`, `rnH_hv`; `se_chooseNew` (schedule_choose_new_thread: ct idle, or a queue head RdyT ∧ runnable; action resume);
+    `ac_chooseAfter`, **`ac_sstb`** (switch branch, incl. guarded_switch_to of the candidate: R2 + RA), `sq_sstb`
+    (`sq_schedule`'s switch arm as HKp), `pp_keep`.
+  * **`IdleHd σ := ∀ y n, kheap idleSc = SC y n → y.scRefills ≠ [] ∧ (refillHd y).rTime ≤ curTime`** (state fact; l4v: the
+    idle SC is created with refills at time 0, commit_time / charge_budget skip it, nothing caps it; `boot_idleHd`). NOT
+    implied by ValidIdle (vi3's ObjOK says nothing of the idle SC's refills) — it must be carried (see handoff 1).
+  * **`SE σ s`** (facts at sc_and_timer's start), **`rd_exitSE`**, **`rd_scheduleSE (hT : ∀ s, SE σ s → ∀ r ∈ scAndTimer s, Q r.2)
+    σ (hσ : Rdy σ) (hRN : RNE σ) (hC : CtR σ) (hAW : AW σ)`**, and
+  * **`rd_scheduleOff σ (hσ : Rdy σ) (hRN : RNE σ) (hC : CtR σ) (hAW : AW σ) (hk0 : kheap curSc = SC x n)
+    (hOS0 : (OffReady σ ∧ Suff σ) ∨ (consumed = 0 ∧ action ≠ resume)) (hB : ScBackS σ) (hV : ValidIdle σ) (hIH : IdleHd σ)
+    (hRC : action = resume → ∀ x, kheap ct = tcb x → x.tcbSchedContext = some curSc) :
+    ∀ r ∈ (schedule σ).1, Rdy r.2 ∧ OffReady r.2`** — the exit step of kentry_offReady, all hypotheses state facts at
+    schedule's start (no ∀-states hypothesis).
+- Premises: none added (no [J]/[P]/[W]/[S]). The hypotheses of rd_scheduleOff are mid-entry facts at schedule's start:
+  Rdy / RNE / CtR (rd3's carry), AW = SchedQ ∧ DomEq ∧ IdleNR (ctq's sq_schedule premise), ScBackS / RNE (sb2's ScInv),
+  ValidIdle (vi3), IdleHd (new, true at boot; carry below), hk0 (cur_sc an SC: SpecGlob / ScBack of CurScT), the overrun
+  disjunct and hRC (ct bound to cur_sc while the action is resume: CurScT at the entry, kept until something changes ct's SC
+  binding, each such writer (unbind / donate / bind / configure of ct) calls reschedule_required).
+- No FINDING. Checked: every branch of schedule writes only TCB arch fields (lazy_fpu_restore / as_user / FPU owner flags),
+  queues, action, ct and domain fields (FK); resume at the branch ⇒ resume at schedule's start (awaken / check_domain_time
+  set only switch / choose); the chosen thread is RdyT ∧ runnable (R1 + RQd at the dequeue state; R2 + RA for the switch
+  target) or idle; the new ct is the only thread bound to its SC (ScBackS), dequeued (CtNQR at resume), runnable ⇒ ¬BlkR.
+- HANDOFF (in order):
+  1. Carry `IdleHd` (writers of the idle SC's refills: none except refill_unblock_check (head := cur_time, still ≤) and
+     update_time_stamp (time grows: ValidMachineTime); retype/detype never touch it (no cap; UtInv3 region facts); configure
+     needs a cap to the idle SC — none exists (ValidIdle / IfLiveT)). Simplest: an `RV`-style extra conjunct carried by the
+     RdF family (the generated lemmas keep SV = refills/max of every SC, so IdleHd rides along with rdy_of_view-style frames).
+  2. rd3 handoff 3 (mid-entry writers): unchanged list; each must establish at schedule's start `hOS0` (charge_budget's
+     non-overrun branch: OffReady ∧ Suff via suff_checkBudget(_Restart) / rd2's preemption point; overrun: consumed = 0 and
+     end_timeslice's reschedule_required ⇒ action ≠ resume, kept to schedule since nothing sets resume) and `hRC`.
+  3. Shell + tops (fo1's SpecInvFoS template): `kentry_rdy` / `kcall_rdy`, then `kentry_offReady` = event part ∘
+     `rd_scheduleOff` (the exit's activate_thread keeps Rdy ∧ OffReady: heap TCB state only, rdy_setThreadState + KO-style).
+- Builds (tokyo, FL4-tcbj mirror; ./rd4s.sh untracked = rd3s.sh with its own log, stale log removed first): rd4-b3 RdB
+  (4618 jobs) + RdX (4872, RdC..RdU chain rebuilt), rd4-b7 / rd4-b8 RdY (4874) + axioms (scratch/rd4/ax.lean, untracked):
+  sw_out, commit_zero, rd_scAndTimer, rd_exitSE, rd_scheduleSE, rd_scheduleOff, se_chooseNew, ac_sstb, fk_awaken,
+  boot_idleHd: propext, Classical.choice, Quot.sound (rdy_commitZero: propext, Classical.choice). No
+  sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (one import line). Lean traps: `subst hs` in a
+  setObject leaf eliminates the start state `σ` (keep it out of later `show`s: `try dsimp only`); `Fintype (BitVec 8)` is not
+  available here (max over `Finset.range 256` by `toNat`); SInv and SInvQ both define `HKp` / `the_head_mem` (qualify);
+  `congrArg Tcb.f h` against an expected `x'.f = x.f` elaborates `h : x' = x` (go through `have`).
