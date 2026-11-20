@@ -5571,3 +5571,73 @@ SpecGlob.lean, which is in the JAtZ cone). Root imports all twelve. Nothing exis
   Root Fl4Proofs.lean not rebuilt (twelve import lines added).
 - Next: wire into the bundle (JEntryAt.sg / WJ take SpecGlob; `kentry_specGlob'` supplies it from the previous exit);
   IdleOutV and the boot state with untyped caps stay [S]/[J] as UtInv3's IrqOutV.
+## ctq2 (branch par/ctq2 in FL4-q, on af865d16 = int/j2 incl. off1) — T1 carried: family + hand shell; tops for the no-invocation events (NOT finished for invoking syscalls)
+Goal (ctnq1's handoff): T1 as a carried field (`kentry_t1` / `kcall_t1`), then T3 / CtNQR. Spec-only, namespace
+`Fl4Proofs.P3.SInvQ` (prefix `q1_`, no clash with SpecInvQDom's `q4_`), modules SpecInvCqK, SpecInvCqF1..F5, SpecInvCq,
+imports only SpecInvNativeScopeT (Fl4Spec); root imports the seven. Nothing existing edited.
+- **`T1 σ := ∀ d p t, t ∈ readyQueues d p → ∃ x, kheap t = tcb x ∧ x.tcbDomain = d ∧ x.tcbPriority = p`** [J] (l4v
+  `valid_ready_qs`, the etcb half; no distinctness needed: dequeue is a filter). `boot_t1`.
+- SpecInvCqK (leaves, SpecInvQDomK's template): `q1_update`; `q1_setObject_p` uses `set_object`'s `aType` assertion
+  (a non-TCB write hits no queued pointer, since T1 makes every queued pointer a TCB; a TCB write must keep the old
+  TCB's domain/priority); `q1_setSimpleKo`, `q1_threadSet` (side: `(f x)` keeps domain and priority, closed by
+  `⟨rfl, rfl⟩` at every call site except `thread_set_priority` / `thread_set_domain`), `q1_archThreadSet`, `q1_asUser`,
+  `q1_setMrs`, `q1_setCap`, `q1_setThreadState`, `q1_optionUpdateThread`, **`q1_tcbSchedAction`** (any action whose new
+  queue holds old members and the thread: domain/priority read at the same state, so enqueue/append land in the
+  thread's own queue; `q1_enq`/`q1_app`/`q1_deq`), `q1_detype` (region holding no queued thread).
+- SpecInvCqF1..F5: 388 generated lemmas (proofs/scratch/q1/mkq1.sh, untracked: invA's gen.py/manual.py, family Q1K,
+  skip list skipq1.txt = invA's leaves + tcbSchedAction/setTcbQueue + threadSetPriority/threadSetDomain and their
+  ancestors (setPriority, setDomain, invokeSetDomain, invokeDomain, invokeTcb) + retypeRegion(With)/deleteObjects and
+  their ancestors (invokeUntyped(With), resetUntypedCap, fl4InvokeUntyped, performAsidControlInvocation,
+  archPerformInvocation, fl4ArchPerformInvocation) + the perform/entry shell). Covered: schedule (chooseThread,
+  switchToThread, the switch branch), possibleSwitchTo, rescheduleRequired, every IPC/signal/reply/cancel path,
+  rec_del, cap_revoke, SC/refill ops, budget charge, preemption path, fl4Awaken, handleInterrupt, activateThread.
+- SpecInvCq (hand): `HK1` pre/post; `q1_tsa_out` (tcb_sched_action's outcome); **`q1_dequeue_hk : HK1 T1 (NQ1 t)
+  (tcbSchedAction tcbSchedDequeue t)`** (by T1 the thread's only queue is its own, which the filter clears);
+  `q1_threadSet_nq` (any thread_set of an unqueued thread); **`q1_setDomain`**, `q1_invokeSetDomain`, `q1_invokeDomain`
+  (no premise); **`q1_setPriority_p t prio σ (hR : T1 σ → ∀ x, kheap t = tcb x → runnable x.tcbState = false → ∀ d p,
+  t ∉ readyQueues d p) : IKp T1 σ (setPriority t prio)`** (both runnable branches need nothing: dequeue first, or
+  "not in its own queue" + T1 = in no queue); `q1_of_keep` (queues kept, every existing object kept ⇒ T1: with ut1's
+  `retype_keeps_old` this is the no-reset untyped retype). Tops, no premise:
+  * **`kentry_t1_noInv (hc : NoInvSys c) (h : T1 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, T1 y.2`** —
+    `NoInvSys` = Recv, Wait, NBRecv, NBWait, Yield;
+  * **`kcall_t1_noInv rep (hev : NoInvEv ev) (h : T1 σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, T1 y.2`** — every
+    non-syscall event (interrupt/timer, unknown syscall, user/VM/hypervisor faults) and the NoInvSys syscalls.
+- **Why T1 alone is not inductive (no FINDING: needs a state l4v excludes).** `set_priority`'s non-runnable branch
+  (`thread_set_priority`, then reorder_ep/ntfn) writes the priority WITHOUT a dequeue, so a queued non-runnable thread
+  would end in a queue of the wrong priority. Excluding it needs l4v `valid_ready_qs`' runnable half, **R: `t ∈
+  readyQueues d p → runnable t`** — `hR` above. R is not cheap: its writers are every non-runnable
+  `set_thread_state` of a possibly queued thread: (i) threads read blocked at the same point (reply_unlink_tcb asserts
+  it; cancel_signal / blocked_cancel_ipc via cancel_ipc's state read; restart_thread_if_no_fault and receive_ipc's
+  `sender := Inactive` on endpoint-queue members, which needs nq2's EpQB), fine by R itself; (ii) suspend (dequeues
+  first); (iii) **ct blocking** (send/receive/signal/reply-push blocking, send_ipc's `Inactive`, handle_no_fault,
+  the fault/timeout paths) — needs ct ∉ ready queues at that point, i.e. CtNQR at the entry (`Entered`: action =
+  resume) and the front never enqueueing ct before the block: exactly invC2/nq2's compound-op problem (nq2's `NQ K`
+  protected list is the template). Checked while looking for a counterexample: a self-`SetPriority` (ct enqueued by
+  set_priority's `tptr = cur` branch, then blocked by the receive half of NBSendRecv/ReplyRecv/NBSendWait) is
+  impossible because `fl4DecodeInvocation firstPhase` rejects thread/domain/SC/SchedControl/CNode caps; seL4 C MCS's
+  setPriority has the same shape (SCHED_ENQUEUE of ct), so the firstPhase restriction is what keeps ct unqueued.
+  (iv) enqueues of a non-runnable thread: possibleSwitchTo after a state write to Running/Restart (local), the
+  schedulable-guarded ones (local), ct appends (needs ct's state).
+- **Retype / detype** (ctnq1's obstacles): no-reset `retype_region` keeps every existing object by ut1's UtFree
+  (`retype_keeps_old`), so `q1_of_keep` gives T1 — not yet wired through `invokeUntyped` (needs ut3/ut8's decode
+  facts `UtRetOK` at the perform state, as `p3_invokeUntyped` does). Reset (`delete_objects` of a childless untyped's
+  region) and MakePool's detype need "no queued thread in a childless untyped's region": the ready-queue analogue of
+  nq2's `NqDet` (`nqDet_of_live` from UtInv'' + [J] `IfLiveB`), i.e. l4v `if_live_then_nonz_cap` at queued (runnable)
+  threads. Not carried; I did not edit FL4-rb.
+- HANDOFF (in order):
+  1. `q1_fl4PerformND`: every perform but invokeTcb / invokeUntyped / MakePool by `q1_auto` (all callees are leaves now);
+     invokeTcb's arms but ThreadControlSched likewise; ThreadControlSched with `q1_setPriority_p` → needs R at the
+     perform's state.
+  2. R (with T1, as one family `T1 ∧ R` with nq2-style `K` lists for ct) or carry it per the ct-blocking sites; then
+     `kentry_t1` / `kcall_t1` for every event.
+  3. invokeUntyped: no reset via `q1_of_keep` + ut1/ut8's `retype_keeps_old`; reset/MakePool via an `RqDet`
+     (`nqDet_of_live`'s analogue) [J] `IfLive` at queued threads.
+  4. T3 / CtNQR (ctnq1's plan) on top of T1 + R + T4; T2 as SpecGlob's idle clause.
+- Builds (tokyo, ./ctq2.sh untracked, mirror seeded once from FL4-audit by cp -cR): ctq2-b2 `SpecInvCqK SpecInvCqF1`
+  OK (1016 jobs), ctq2-b3 F2..F5 OK (F5 1024 jobs, ~2.5 min in all; load was low), ctq2-b4/b5/b6 `SpecInvCq` OK
+  (1026 jobs). Axioms (ax.lean, untracked; in ctq2-b5/b6): kentry_t1_noInv, kcall_t1_noInv, q1_fl4CallKernel_noInv,
+  q1_handleEvent_other, q1_setPriority_p, q1_setDomain, q1_invokeDomain, q1_threadSet_nq, q1_detype,
+  q1_schedule, q1_switchToThread, q1_receiveIpc, q1_sendIpc, q1_handleRecv, q1_fl4Awaken, q1_recDel, q1_capRevoke,
+  boot_t1: propext, Classical.choice, Quot.sound; q1_tcbSchedAction, q1_dequeue_hk: propext; q1_of_keep: none. No
+  sorry/admit/native_decide/bv_decide, no premise tagged (hR is a pre-condition of a hand lemma, not a top premise).
+  Root Fl4Proofs.lean not rebuilt (seven import lines added).

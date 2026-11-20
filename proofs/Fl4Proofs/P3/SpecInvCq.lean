@@ -159,6 +159,19 @@ theorem q1_setPriority_p (t : ObjRef) (prio : Priority) (σ : State Unit)
     exact (hk1_bind (q1_threadSet_nq _ t) fun _ => hk1_of_ik (by q1_auto)) σ
       ⟨hσ, hR hσ x hx (by simpa using hrun)⟩ y hy
 
+/-! ## Retype: a step that keeps every existing object -/
+
+/-- **A step keeping the ready queues and every existing object keeps T1**
+(new objects land only at empty addresses, which T1 shows are not queued).
+With ut1's `retype_keeps_old` (UtFree: no object in an untyped's free part)
+this is the no-reset `retype_region` of an Untyped invocation. -/
+theorem q1_of_keep {σ σ' : State Unit} (h : T1 σ) (hq : σ'.readyQueues = σ.readyQueues)
+    (hk : ∀ q, σ.kheap q ≠ none → σ'.kheap q = σ.kheap q) : T1 σ' := by
+  intro d p t ht
+  rw [hq] at ht
+  obtain ⟨x, hx, h1, h2⟩ := h d p t ht
+  exact ⟨x, by rw [hk t (by rw [hx]; exact Option.some_ne_none _), hx], h1, h2⟩
+
 /-! ## The entry shell for the events that invoke nothing -/
 
 /-- The syscalls that perform no invocation (receive, wait, yield): the others
