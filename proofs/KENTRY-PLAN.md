@@ -3578,3 +3578,57 @@ New leaves XTopJointPerfU, XTopJointPerfW (imported from Fl4Proofs.lean). Nothin
 - Builds (tokyo, b26.sh = b23.sh with the State-record lines filtered): sch26-b1/b2 (`first` layout; `bitsOf` is
   shadowed by Fl4Proofs.P3.bitsOf (CapRel) -> `Fl4Spec.bitsOf`; getCap state rewrite), sch26-b3
   `XTopJointPerfU XTopJointPerfW` OK (5396 jobs). Axioms (axsch26.sh, untracked; sch26-ax1): propext, Classical.choice, Quot.sound only for jMidPerfHypQ_of, jMidPerfHypB_of, perfU_post, perfA_post, midPerfAt_cq, ut_post, reset_post, pw_asidControl, ib_detype, ib_upd, pw_retypeRegionWith. No sorry/admit/native_decide/bv_decide.
+## sch27 (branch par/sched27 in FL4-rb, on a67f50b6 = int/j2 incl. sch25, sch23)
+New leaves XTopJointRecvIpcActDonD, XTopJointKEntry26MD (imported from Fl4Proofs.lean; hand-written, no generator).
+Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry/Irq*/MR*/
+XTopJointRecv*/XTopJointPerf* untouched (KEntry26MD imports XTopJointMachRel for `doMachineOp_single`).
+- (1) IpcActDon DONE (XTopJointRecvIpcActDonD), sch25's handoff plan:
+  * spec: `Sched.donate_kh` (`maybeDonateSc t n` for an SC-less `t` in no queue keeps the heap or is `donSt` of the
+    notification's SC; donate_dfr's case split), `donShape_of` / `DonShape` (after it ct's SC is none or the
+    notification's), `donate_tcb`, `specCompleteCheck_eqU` (ScTails' `specCompleteCheck` = `specUnblock` under
+    DonShape).
+  * FL4: `completeCheck_eq` (complete_signal's check = receive_signal's check under `scA t = 0 ∨ scA t = nScA n`),
+    `completeCheck_of_recv`, `completeCheck_of` (no shape: nothing, or what `unblock_sporadic` does);
+    P1 `notification.complete_donate_tail.foot` (recv_donate_tail.foot for `rustCompleteTail`),
+    P1 `notification.complete_signal.ipcC` (complete_signal.ipc from CanBlock); `Ipc.completeTail_irelD`
+    (recvTail_irelD for rustCompleteTail; the FL4 shape from DonShape through SchedRel.tcb / NtfnRel1.sc).
+  * `JAtZ.recvIpcActDJN`: every active-bound-notification receive_ipc at MidN, donating or not (recvSigDonJN
+    with `receive_ipc_preA` + `receiveIpc_active` + the complete_signal prefix); `jRecvIpcUDN` (jRecvIpcUN
+    without ¬IpcActDon); `jRecvIpcLinkDN` (sch24's jRecvIpcLinkN without ¬IpcActDon, via jRecvIpcUDN).
+- (3) jMidChooseFact WIRED (XTopJointKEntry26MD): `BudgetAt.entered` (the dispatch state is Entered: faultIPSt
+  changes one TCB, updateTimeStamp the clock fields, checkBudgetRestart `true` nothing), `not_ctSc_of`
+  (CtOK ∧ ¬CurInv → ¬CtSc), `JRecvLeavesRN17` (receive_ipc only, premise `IpcPushDon σ p.bv rc`; no sig / flt
+  fields), `.toRN16` (CtSc contradicts CtOK; IpcActDon or anything not IpcPushDon at MidN by jRecvIpcUDN /
+  jRecvIpcLinkDN), `JMidLeavesHyp17` [W], `jMidLeavesHyp_of17` (from jMidChooseFact's conclusion),
+  `KDispHyps26M` (mid adds `MidRun.JMidPerfHypB true cptr σ`), `.to25M` (jMidChooseFact's own premises all from
+  the dispatch state: CQ ∧ NQ by `JAtZ.midCQ` (Entered + JEntryAt), CurInv by `JAtZ.cur` + Entered, Sched.Inv by
+  `JAtZ.inv`, JMidPerfHypQ/B from KDispHyps26M.mid; nothing left unstated), NEW TOP `kernel_entryJ26M`.
+- Premise change at the top (kernel_entryJ26M vs J25M): `JMidLeavesHyp16` [W] NARROWED to `JMidLeavesHyp17` [W]:
+  the notification receive and the cap fault are GONE from the mid premise (their only premise was CtSc, which
+  jMidChooseFact excludes at ¬CurInv), receive_ipc's `CtSc σ ∨ IpcActDon σ ∨ IpcPushDon σ p.bv rc` is now
+  `IpcPushDon σ p.bv rc` only (chooseNewThread ∧ ¬CurInv still in the leaf). Same l4v counterpart
+  (receive_ipc_corres inside handle_recv_corres); a case of JMidLeavesHyp16, true in reachable states.
+  ADDED at the mid: sch23's `JMidPerfHypB` [W] (existing definition, XTopJointChooseB; PerfW performs keep BI on
+  MidPerfAt paths; l4v invoke_untyped / invoke_irq_handler / perform_asid_control_invocation keep sym_refs of
+  the SC/TCB binding, cur_sc_tcb_are_bound, cur_sc_active, ct_not_in_release_q). sch26 (FL4-sc) proves
+  JMidPerfHypQ/B; once in, both go.
+- NOT DONE (handoff), what JMidLeavesHyp17 still contains: (2) `IpcPushDon` — receive_ipc at MidN whose head
+  sender sd (call, or fault with a reply, with grant / grant-reply and a reply cap) HAS an SC: reply_push(sd, ct,
+  r, can_donate) donates sd's SC to ct (spec replyPush's guard `xt.sc ≠ none ∧ xd.sc = none ∧ b`, see
+  XTopJointRecvSendP's `replyPush_don_irrel`). Needed: donating copies of XTopJointRecvSendP's
+  `JAtZ.recvSendPJG` / `recvSendFPJG` (scripted, ~1000 lines each; the push stage currently goes through
+  `receiveIpc_sendPush_eq` + `replyPush_don_irrel`), with the donation part from XTopJointPushDon's
+  machinery in the reverse direction: donor = blocked sender sd (≠ ct, not the action target at
+  chooseNewThread), donee = running SC-less ct (cf. `push_donate_refinesW`, `bdSt`/`pdSt`, `JAtZ.pushDonJ`;
+  `pd_eq`'s `testReschedule_curN` does not apply since the donor is not ct: test_reschedule on sd's SC, sd not
+  current; then ct owns sd's SC: CurInv-like facts for ct after). Then JRecvLeavesRN18 = {} and the mid premise
+  disappears (kernel_entryJ27M with JMidPerfHypQ/B only).
+- Builds (tokyo, b2.sh = b.sh with longer error context, untracked; cache warmed from FL4-audit by cp -cR, sch27-w2:
+  KEntry25MD + ChooseB up to date, 5642 jobs): sch27-b1..b4 fixes (a `rfl` after a closing simp, the sporadic
+  branch of specCompleteCheck_eqU, a `rw` into an unreduced match after spec_bind -> completeCheck_of_recv,
+  ambiguous rTcbA, doMachineOp_single from XTopJointMachRel); sch27-b5 `XTopJointRecvIpcActDonD
+  XTopJointKEntry26MD` OK (5648 jobs) on a67f50b6, no sorry. Axioms (axsch27.sh, untracked; sch27-b5): propext,
+  Classical.choice, Quot.sound only for kernel_entryJ26M, KDispHyps26M.to25M, jMidLeavesHyp_of17,
+  JRecvLeavesRN17.toRN16, BudgetAt.entered, JAtZ.recvIpcActDJN, jRecvIpcUDN, jRecvIpcLinkDN,
+  Ipc.completeTail_irelD, Sched.donate_kh/donShape_of/specCompleteCheck_eqU/donate_tcb, completeCheck_eq/_of/_of_recv,
+  P1.notification.complete_donate_tail.foot, P1.notification.complete_signal.ipcC (not_ctSc_of: none).
