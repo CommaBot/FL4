@@ -1772,10 +1772,44 @@ from Fl4Proofs.lean). Nothing existing edited; JAtZ, JAtZS and ScPPR/PP*/Preempt
     `dispatch_invokeJPZM`, `dispatch_invokeJEPZM` (new top). JPreemptRestHypL has no user left besides
     `jPreemptRestHypM_of`. XTopJointKEntry2/3 (sch line) still take `JPreemptRestHypK`; switching them to
     `JPreemptRestHypM` + `dispatch_invokeJEPZM` is a mechanical change there (not done: out of scope).
-- Left in JPreemptRestHypM: only kp5 (i) = (2c): `CurInv`, ¬`NoTmoSend` (endpoint timeout handler, non-RR),
-  ¬`PPCovT` (so the handler endpoint has waiting receivers, or ct is not Running/Restart, queued, or the action
-  is not resumeCurThread). NOT started (context): the `sendTmoRecvIJ`/`PJ` analogue from a `JTH` (kp5 (i)).
-- Builds: kp14-b1..b3, kp14-ax1 (scratch/kp5build.sh: ScChargeU, XTopJointPreemptM, XTopJointEntry green).
+- DONE (2c) parts, no premise added (both commits after ab7bec1a):
+  * New leaf XTopJointPreemptS: `JHole.mcsPPJC` — with `CurInv` and an UNSCHEDULABLE current thread the
+    preemption path charges with `can_timeout_fault = false` on both sides, so `NoTmoSend` is not needed
+    (XTopJointPreempt's `mcsPPJ` asked `PPCov` for both branches; its charge branch only uses CurInv, non-idle,
+    no switch to ct): ScChargeH `JHole.chargeBudgetJ`, `JAt` after. `JPreemptRestHypS` [W] := M with an extra
+    `Fl4Spec.schedulable σ.curThread σ = true →` (`jPreemptRestHypS_of`), `hPre_ofZS`, `dispatch_invokeJPZS/JEPZS`.
+  * New leaf XTopJointPreemptE: `check_budget_suffT` (FL4's `check_budget` returns true at a sufficient head:
+    `sufficient_refines` + `getScRefillSufficient_eq` exclude the other branch), `JHole.mcsPPJS` (schedulable,
+    `CurInv`, non-idle, sufficient head: no charge on either side, whatever the timeout handler; `JAt` by
+    `offOK_suff` (needs the hole's `TShift`) + `toJ`). `JPreemptRestHypE arI AR` [W] := S with an extra
+    `¬ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.refillSufficient σ.consumedTime
+    (Fl4Spec.refillHd y) = true) →` (`jPreemptRestHypE_of`), `hPre_ofZE`, `dispatch_invokeJPZE`,
+    `dispatch_invokeJEPZE` (NEW TOP; premises as dispatch_invokeJEPZL with `JPreemptRestHypE` for
+    `JPreemptRestHypL`).
+- Premise at the top now: `JPreemptRestHypE` [W] = `∀ s a σ, JHoleAt arI AR s a σ → NativeScope σ → ct ≠ idle →
+  Vs.NoSwitch σ → CurScFree σ → CtOK σ → Chg σ → CurInv σ → schedulable ct σ = true → ¬ (head sufficient) →
+  ¬ (PPCov σ ∨ PPCovT σ ∨ PPCovI σ) → after_invocation s a (.Err .Preempted) ⦃ PPQ ⦄`. JPreemptRestHypL /
+  M / S are its weaker predecessors (only used through the `_of` lemmas). This is exactly kp5 (i): FL4
+  `check_budget` → `charge_budget consumed true` → `end_timeslice` with `can_timeout_fault` → `handle_timeout`
+  at an endpoint handler (`¬NoTmoSend`: handler is an endpoint cap, current SC not RR), with `¬PPCovT`, i.e.
+  (schedulable ⇒ Running/Restart, NativeScope excludes RunningVM, NoSwitch excludes a switch) one of:
+  (A) the action is `chooseNewThread` (reschedule pending), (B) ct is in a ready queue, (C) the handler
+  endpoint has waiting receivers (`¬ CanBlock false`), (D) the handler cap's endpoint is no endpoint
+  object (check: `isValidTimeoutHandler` should then be false/impossible by the cap invariant).
+- HANDOFF for the rest (not started, context): (C) is kp5's `sendTmoRecvIJ`/`PJ` analogue from a `JTH`
+  (XTopJointFaultTmo; base by ScChargeT's `JTH` frames ScOnly-then-CFr as in `JTH.tmoBlockJ`; two cases
+  Inactive / reply push; ~1200 lines). (A)/(B): `JTH.tmoBlockJ` asks `hres` (resumeCurThread) and `hnq` (not
+  queued); l4v's `handle_timeout` → `send_fault_ipc` → `block` path is the same with chooseNewThread (the
+  `set_thread_state` keeps it) and with a queued ct (`tcb_sched_dequeue` inside `set_thread_state`'s
+  reschedule? check FL4 `block_on_send`/`set_thread_state` dequeue vs spec `setThreadState` → `scheduleTcb`;
+  generalising `tmoBlockJ`/`checkBudgetT`'s `hres`/`hnq` is the likely cheap part, then `PPCovT` loses those
+  conjuncts). Kernel-entry wiring: XTopJointKEntry2/3 (sch line's files) still take `JPreemptRestHypK`;
+  switching them to `JPreemptRestHypE` + `dispatch_invokeJEPZE` is mechanical (`jPreemptRestHypE_of ∘ … ∘
+  jPreemptRestHypM_of ∘ jPreemptRestHypL_of` gives E from K).
+- Builds: kp14-b1..b6, kp14-ax1 (scratch/kp5build.sh: ScChargeU, XTopJointPreemptM, XTopJointEntry,
+  XTopJointPreemptS, XTopJointPreemptE green; the new leaves have no dependents but Fl4Proofs.lean).
   scratch/axkp14.lean (untracked): std axioms only for schedulable_headKeeps, charge_head_refinesU,
   charge_budget_refinesU, JHole.curSc_in, JHole.chargeBudgetUJ, JHole.mcsPPJU, jPreemptRestHypM_of,
-  hPre_ofZM, dispatch_invokeJPZM, dispatch_invokeJEPZM, handle_invocation_refinesJ.
+  hPre_ofZM, dispatch_invokeJPZM, dispatch_invokeJEPZM, JHole.mcsPPJC, jPreemptRestHypS_of, hPre_ofZS,
+  dispatch_invokeJPZS, dispatch_invokeJEPZS, check_budget_suffT, JHole.mcsPPJS, jPreemptRestHypE_of,
+  hPre_ofZE, dispatch_invokeJPZE, dispatch_invokeJEPZE, handle_invocation_refinesJ.
