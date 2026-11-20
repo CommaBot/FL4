@@ -873,6 +873,7 @@ import Fl4Proofs.P3.SpecInvNtfnQC4
 import Fl4Proofs.P3.SpecInvNtfnQH3
 import Fl4Proofs.P3.SpecInvNtfnQLT
 import Fl4Proofs.P3.SpecInvNtfnQLW
+import Fl4Proofs.P3.SpecInvNtfnQLD
 import Fl4Proofs.P3.SpecInvUtN3
 import Fl4Proofs.P3.SpecInvUtN4
 import Fl4Proofs.P3.SpecInvUtN5
