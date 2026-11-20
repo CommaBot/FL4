@@ -6864,3 +6864,75 @@ SpecInvRdA..D (edited), SpecInvRdE, RdS, RdU, RdX (new); root imports all. No JA
   SpecInvRdF5` for the generated leaves, else `rd_auto` spins to a whnf timeout; `chooseThread`'s `if ∀ prio, …` and
   `scheduleChooseNewThread` by hand, not `rd_auto`; `split at hr` on schedule's action match fails ("discriminants") —
   work on the goal with `PostP` / `pp_gets_bind`; `schedulable_inv` has 10 components.
+## ctq6 (branch par/ctq6 in FL4-q, on 0ce6b4ab = int/j2 incl. ctq5, sl3, rd1) — ctq5 handoff 1 done (RD carried, exit + tail); handoff 2-3 NOT finished (the event part, tops)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqY, SpecInvCqYF1..F5 (generated), SpecInvCqZ, SpecInvCqZA (root imports all). Nothing existing edited.
+- **Bundle (SpecInvCqY).** `RDq σ` = ctq5's RD (no ready-queued thread and not the switch target is released; l4v
+  `valid_ready_qs` not-in-release-q half + `weak_valid_sched_action`'s `not_in_release_q`). `CB σ`: under
+  `resume_cur_thread` ct is a runnable TCB or idle (l4v `ct_in_state activatable` at resume; every ct-blocking write
+  runs `set_thread_state_act`, which leaves resume). `HB k σ := RDq ∧ (k → CtQ ∧ NP ct) ∧ (resume → ct ∉ release
+  queue)`, **`RBk k := HB k ∧ CB`**, **`RB := RBk true`**. ctq5's `EB = SQ4 ∧ RB` exactly: its conditional `RnH ct →
+  CtQ ∧ NP ct` is unconditional given SchedQ (`cn_of_cond`). `RBk false` is the weak form the exit needs (valid after a
+  ct enqueue, and across FL4's timer step, which may wake and postpone a blocked ct). Every lemma is stated for both k.
+  `boot_rb`, `rbk_weak`.
+- Leaves (any k): heap writes keeping runnable TCBs runnable, dequeue, `tcb_release_remove`, `set_scheduler_action cn`,
+  **`rb_setThreadState` (ANY thread, ANY state: act leaves resume when ct stops being schedulable)**,
+  `hb_rescheduleRequired` (from the heap-blind part only, so usable after a ct block: target enqueued after
+  `schedulable` (∉ release q), ≠ ct by `NP ct`), **`rb_possibleSwitchTo_p (hc : k → t ≠ ct)`** (no premise for
+  k = false: its switch arm runs only under resume and needs only `t ∉ release q`, which it checks),
+  `rb_tcbReleaseEnqueue_p` / **`rb_postpone_p`** (thread in no ready queue after the dequeue (TQ), not the switch target,
+  ≠ ct when k or under resume), `rbe_enq`/`hbe_enq` (enqueue of a thread ∉ release q, ≠ ct when k).
+- **SpecInvCqYF1..F5**: 326 generated `rb_*` lemmas `RBK k f` (proofs/scratch/y/mky.sh, untracked; gen.py with FARG
+  " k" and `variable {k : Bool}`; skip list scratch/y/skipy.txt = primitives + the ancestors (anc2.py) of
+  {possibleSwitchTo, postpone, tcbReleaseEnqueue, retypeRegion(With), deleteObjects, schedule, setPriority, setDomain,
+  schedContextYieldTo, endTimeslice, schedContextBindTcb, switchToThread, switchToIdleThread}: 84 functions, i.e. the
+  event shell — exactly ctq3's skip list cone). Built first try (F4 38 s).
+- **SpecInvCqZ (the exit, no premise)**: `IR` (idle not released; `ir_of_aw`: RR + IdleNR), `ax_awaken`,
+  `ct_switchToThread` (queued thread: TQ runnable + RD not released at the post-arch state; or the switch target: RA +
+  RD), `ct_switchToIdleThread`, `setMax_mem8` (set_max of a nonempty priority set is in it), `ct_chooseThread`,
+  `rbf_scheduleChooseNewThread`, **`rbf_schedule : HK1 AX (RBk false) schedule`** (`AX := AW ∧ RBk false ∧ IR`;
+  schedule's switch arm as in sq_schedule, join point zeta-reduced), `rb_of_rs`, **`rb_exit : HK1 (AW ∧ RBk false) RB
+  (schedule; activate_thread)`**, **`exR_exit : HK1 (AW ∧ RBk false) (EX ∧ RB) (…)`**. So the exit gives `CtQ ∧ NP ct`:
+  ct ∉ release queue and no switch to ct — what the ct-blocking writers of the next event need.
+- **SpecInvCqZA (the tail, no premise beyond carried invariants)**: `AN t` (t not the switch target, ≠ ct under resume;
+  `an_of`: a TCB read blocked and not in the idle state, from SA + CB + ValidIdle's idle state), `an_auto` /
+  `an_cancelIpc` / … (writes set at most `choose_new_thread`), `MD t := RBk false ∧ TQ ∧ AN t`, `BP t p` (every thread
+  bound to p is t), **`bp_donate`** (`sched_context_donate p t` binds p to t), `rbf_schedContextResume_p` (the postponed
+  thread is the bound one), **`md_maybeDonateSc`**, `md_wake`, **`rbf_sendSignal`** (bound receive-blocked thread, or the
+  head of the waiting queue — blocked on the notification by nq1's NtfnQB), `tw_fl4Awaken` (`TW := SQ4 ∧ RBk false ∧ NQ
+  [] ∧ VI`), **`rb_tail : HK1 (SQ4 ∧ ValidIdle ∧ NQ [] ∧ RBk false) (EX ∧ RB) (fl4Awaken; schedule; activate_thread)`**.
+- Design notes (no FINDING): (1) RD's clause 2 (switch target not released) IS needed: schedule enqueues/appends the
+  candidate without a check. Its only threat is `postpone` of the switch target; every postpone site postpones a thread
+  read blocked earlier in the same operation (`AN`, wake-ups / reply transfer), ct (end_timeslice: `NP ct` from RB), or the
+  bound thread of a configured / yielded-to / bound SC — for those the perform starts under a `Simple` action (EX at the
+  entry, the front only reschedules), so no switch target exists until that perform's own possible_switch_to. (2) The
+  exit's "ct not released" in the non-resume branches comes from RD (queued / switch target) and IR, not from
+  guarded_switch_to's assert. (3) A blocked ct woken by FL4's timer may be postponed in the tail (ct ∈ release q, not
+  current at the next exit): harmless, the tail only needs `RBk false`.
+- HANDOFF (in order):
+  1. The event: `EB := SQ4 ∧ RB` across `fl4HandleEvent` (k = true), dropping to `SQ4 ∧ RBk false` after a ct enqueue
+     (set_priority ct, yield_to's `enqueue ctPtr`, end_timeslice's append) — nothing blocks ct after it (ctq3 (c)). Key
+     facts already available: (a) any `set_thread_state` keeps RB (`rb_setThreadState`); with RB, `set_thread_state ct
+     Blocked*` keeps SQ4 (SA: `NP ct` ∈ RB; TQ: `CtQ` ∈ RB gives TQU ct) — write `eb_setThreadState_ct`; (b)
+     `rb_possibleSwitchTo_p` needs t ≠ ct for k = true: every woken thread was read blocked while ct runnable — reuse
+     `AN`/`an_of` (an_of with k: blocked ⇒ ≠ ct when ct runnable, CB not needed); (c) postpone sites: `md_maybeDonateSc`
+     pattern (AN + BP) for maybe_donate_sc / do_reply_transfer's receiver; end_timeslice's `postpone cur_sc`: CurScT + sb2's
+     ScSym give sc_tcb cur_sc = ct, then `rb_postpone_p` with NP ct ∧ (k → ct ≠ ct fails!) — so end_timeslice must be
+     stated `HK1 (SQ4 ∧ RB) (SQ4 ∧ RBk false)` and followed by `reschedule_required` (hb_rescheduleRequired, CB vacuous);
+     configure / yield_to / bind: carry `Simple` from the perform's start (EX's Simple, kept by the front: update_time_stamp
+     reads, check_budget_restart's charge ends in reschedule), so `action ≠ switch t` for every t. The SA hand lemmas for
+     ctq3's skip list (ctq4 handoff 2) are the same shell; do SA and RB together per writer (one lemma per arm).
+  2. Shell: front (`update_time_stamp; check_budget_restart`), `fl4HandleInvocationR` (q3/sl3 shape; `set_thread_state ct
+     Restart` keeps EB), performs (ctq3's `q3_fl4PerformInvocation` arms), `handle_recv`, `handle_yield`, faults,
+     interrupts (`.interrupt`: k = false suffices for the tail).
+  3. Tops: `kentry_tq (hX : EX σ ∧ RB σ) (h4 : T4 σ) (hV : ValidIdle σ) (hN : NQ [] σ) (hS : ScInv σ) (hU : UtInv3 σ)
+     (hL : IfLiveT σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, EX y.2 ∧ RB y.2` = event ∘ `rb_tail` (NQ [] at the
+     event's end from nq3's IK lemmas, ValidIdle from vi3's, T4 from q4's).
+- Premises: none added (no [J]/[P]/[W]/[S]); every lemma's preconditions are carried invariants (SQ4, ValidIdle, NQ [],
+  RBk) or stated local facts. No ∀-states hypothesis.
+- Builds (tokyo FL4-q mirror warm, ./ctq6.sh untracked = ctq5.sh with an `error` filter and ax6.lean): ctq6-b1..b2
+  SpecInvCqY, b3..b4 SpecInvCqY + YF1..F5 (4942 jobs), b5..b6 SpecInvCqZ, b7..b11 SpecInvCqZA + axioms (ax6.lean: boot_rb, rb_setThreadState, rb_rescheduleRequired, rb_possibleSwitchTo_p, rb_postpone_p, rb_cancelIpc, rb_activateThread, rbf_schedule, rb_exit, exR_exit, bp_donate, md_maybeDonateSc, rbf_sendSignal, tw_fl4Awaken, rb_tail: propext, Classical.choice, Quot.sound;
+  untracked). Root Fl4Proofs.lean not rebuilt (8 import lines).
+- Lean traps: the `by tac, …` comma trap bit five times (`fun e => by cases e⟩, x` — wrap in parentheses);
+  `rename_i` after `split` on a two-discriminant match names discriminant values AND both equations (4 names); `intro …
+  ⟨hne, rfl⟩` cannot eliminate a pair variable bound in the same pattern (obtain, then `subst`); after `rw [ew] at hy` a
+  `when` may appear beta-unreduced (`dsimp only at hy` before `split`).

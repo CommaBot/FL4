@@ -1019,3 +1019,11 @@ import Fl4Proofs.P3.SpecInvRdE
 import Fl4Proofs.P3.SpecInvRdS
 import Fl4Proofs.P3.SpecInvRdU
 import Fl4Proofs.P3.SpecInvRdX
+import Fl4Proofs.P3.SpecInvCqY
+import Fl4Proofs.P3.SpecInvCqYF1
+import Fl4Proofs.P3.SpecInvCqYF2
+import Fl4Proofs.P3.SpecInvCqYF3
+import Fl4Proofs.P3.SpecInvCqYF4
+import Fl4Proofs.P3.SpecInvCqYF5
+import Fl4Proofs.P3.SpecInvCqZ
+import Fl4Proofs.P3.SpecInvCqZA
