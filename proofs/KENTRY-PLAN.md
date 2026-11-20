@@ -5766,3 +5766,83 @@ which are ONE named remaining obligation `ScGap` (as ut7's PerfGap); one new nar
   sikp_schedContextBindTcb, sik_sendIpc, sik_replyRemove, si_finaliseCap, si_checkBudgetRestart, si_fl4Awaken: propext,
   Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide. Root imports SbK, SbR, SbF1..F4, SbW, SbP, SbI,
   SbG1..G4 (root not rebuilt).
+## vi1 (branch par/vi1 in FL4-tcbj, on b124f3fa = int/j2 incl. sg1, nq3) — valid_idle as a carried G1 field (NOT finished: frame layer + leaves)
+Goal: l4v MCS `valid_idle` (with `idle_sc_at`) carried across every event, for ctnq1's T2 and off1's R6. Spec-only, namespace
+`Fl4Proofs.P3.SInvI`, modules SpecInvVi*.lean (outside the JAtZ cone: SpecInvViA imports SpecInvFaultTcbsW only).
+- **Statement (SpecInvViA)**. `ObjOK N S T p o` per object: TCB at `N`: state IdleThreadState, no bound ntfn, `sc = some S`,
+  no yield-to; any other TCB: `sc ≠ some S`; TCB at `T`: `sc ≠ none`; SC at `S`: `scTcb = some N`, `scReplies = []`, valid size;
+  any other SC: `scTcb ≠ some N`; endpoint / notification: `N ∉ queue`. **`VIT N S T b σ`** := `idleThread = N ∧ idleSc = S ∧
+  (b → curThread ≠ N) ∧ N is a TCB ∧ S is an SC ∧ ∀ p o, ObjOK N S T p o`; `VI N S b := VIT N S N b`;
+  **`ValidIdle σ := VI σ.idleThread σ.idleSc false σ`**. l4v: `valid_idle` (rt Invariants_AI: idle_tcb_at_proj (idle st, ntfn None,
+  sc = Some idle_sc_ptr, yt None) + idle_sc_at: SchedContext sc 0, sc_tcb = Some idle, sc_ntfn/yield_from None, sc_replies [],
+  period/badge 0, MIN_REFILLS). Kept: sc_tcb, sc_replies (reply_remove's `sc_with_reply` reads it); left out (no consumer reads
+  them): period, refill_max, badge, sc_ntfn, sc_yield_from, size 0 (replaced by "valid size": set_object's type check keeps S an SC).
+  The reference conjuncts are l4v's `sym_refs` (TCB↔SC binding) / `idle_only_sc_refs` / `valid_objs`' queue states, restricted to
+  N and S. `b` = ct not idle (l4v `ct_active` at a syscall); `T` = one pinned thread bound to an SC (needed by send_ipc's non-call
+  donation `sched_context_donate (the sender_sc) dest`: with sender_sc = None, `the None` is an arbitrary SC that may be S).
+- Consequences proved: **`vi_not_schedulable : VIT N S T b σ → schedulable N σ = false`** (ctnq1 T2: a schedulable / ready-queue /
+  switchThread target is not idle: `vi_ne_of_schedulable`), `vi_idle` / `vi_idleSc` (the l4v shape), `vi_ne` (N ≠ S),
+  `vi_ne_of_st` (a thread not in IdleThreadState is not N).
+- Leaves (SpecInvViA): `vi_put` (type-preserving object write with ObjOK), `mem_setObject'`, `vi_setObject(_p)`, pinned reads
+  `vi_gobj_bind` / `vi_gtcb_bind`, `vi_threadSet` (+`_same` for writes keeping state/ntfn/sc/yield-to), `vi_archThreadSet`,
+  `vi_asUser`, `vi_setMrs`, **`vi_setCap`** (membership proof per object arm, the lead's hint: concrete written object),
+  `vi_setThreadState (t = N → ts = idle)`, `vi_updateSchedContext(_same)`, `vi_setSimpleKo (ObjOK of the new object)`,
+  `vi_updateSkObjRef`, `vi_auto` / `vi_side`.
+- Generated frames SpecInvViG1..G6 (scratch/vi1/tr.py, untracked: sg1's SpecInvSgI1..I6 renamed `idk_`→`vi_`, the 111
+  idle-relevant functions (scratch/vi1/cg.py: every function reaching a thread-state / TCB-binding / SC tcb-replies / ep-ntfn queue /
+  retype / detype write) dropped, primitives replaced by ViA's leaves; the scheduler cone (switchToThread, guardedSwitchTo,
+  switchToIdleThread, chooseThread, scheduleChooseNewThread, schedule) at `b = false` via `vi_setCurThread`): 315 lemmas.
+- Pinned reads and hand lemmas: SpecInvViB (`vi_bindQ`; reads of thread state / TCB sc / yield-to / bound ntfn / SC / SC tcb /
+  SC replies / endpoint / notification / ct / idleSc / idleThread / schedulable / sc_with_reply with their facts; `vi_side2`;
+  cancel-yield-to, unbind notification, unbind yield-from / reply, reply_unlink_tcb, **sc unbind / donate / bind / maybe_return /
+  maybe_donate with `p ≠ S` / `t ≠ N`**); SpecInvViC (queues: `tcbAppend_sub`, ep/ntfn append (t ≠ N), dequeue (`vi_epDeq_bind`:
+  a dequeued thread is not N), reorder, cancel_signal, blocked_cancel_ipc, reply_remove_tcb, cancel_ipc, restart_thread_if_no_fault,
+  cancel_all_ipc, cancel_badged_sends, cancel_all_signals: no premise); SpecInvViD (assert / assertOpt binds, `vi_of_vit` /
+  `vit_of_vi`, send/receive blocking, signals, update_waiting_ntfn, bind_sc_reply, reply_push, reply_unlink_sc, reply_remove).
+- STATUS: committed and built: SpecInvViA (952d92e9), SpecInvViG1..G6 (52d0d4ec, 83cec8d7, f2df44d1, 7e2ddaa9, 9ce5bcab; tasks
+  vi1-b7..b10, ~1032..1044 jobs over Fl4Spec; G2/G4/G5 take ~20-40 min each: the `simp_all [ObjOK]` side attempts). SpecInvViB/C/D
+  are WIP in the worktree (not committed; last build vi1-b11): ViB's first build failed on (i) an un-annotated `⟨…⟩` in
+  `vi_tsc_bind` (fixed: explicit `Q`) and (ii) the sc-writer lemmas' side goals (`ObjOK … (tcbSchedContextUpdate …)`): `vi_side2`'s
+  `simp_all` now unfolds the `*Update` record functions (vi1-b11), (iii) assert / assertOpt facts missing in ViB (the bind rules
+  were in ViD; moved to ViB, vi1-b12), (iv) vi1-b12: **`ik_step0`'s `ik_when` / `ik_ite` drop the condition**, so guarded writes
+  (schedContextUnbindAllTcbs' `scPtr ≠ isc`, ...) lose their guard: added `vi_when` / `vi_ite` leaf rules (condition kept as a
+  hypothesis) to ViB, NOT yet built. Next build: `sh vi1.sh SpecInvViB SpecInvViC SpecInvViD` (G1..G6 cached). Root Fl4Proofs.lean NOT yet updated (add
+  the Vi modules when they are committed). No sorry/admit/native_decide/bv_decide, no axiom, no premise so far.
+- NOT DONE (handoff, in order; each item states what the next proof needs):
+  1. **send_ipc** (`vi_sendIpc`): pre/post `HK (VIT N S (if cd ∧ ¬call then thread else N) b) (VI N S b)`. The non-donating case is
+     `IK (VI N S b)` by `vi_auto` (the donation branch is dead: `¬(call ∨ fault)` with `¬(cd ∧ ¬call)`); the donating case keeps
+     `VIT N S thread` over the prefix (getEndpoint, tcbEpDequeue (`tcbEpDequeue_ne`), getThreadState, doIpcTransfer (generated,
+     general T), replyUnlinkTcb (general T), the sc / fault reads), reads `threadSc` with `thread = T → threadSc ≠ none` and
+     `thread ≠ N → threadSc ≠ some S`, so `the threadSc ≠ S`, then switches to VI (`vi_of_vit`) for `schedContextDonate`.
+     Do-block join points: zeta (`simp only [letFun]`) and `cases` on the matched values first (nq3's recipe), no `bind_assoc`.
+  2. receive_ipc (`ht : thread ≠ N`; sender from the queue (`vi_epDeq_bind`), replyPush sender thread), do_reply_transfer
+     (receiver read BlockedOnReply ⇒ ≠ N; replyRemove, handleTimeout receiver), send_fault_ipc / handle_timeout / handle_fault /
+     handle_no_fault: handle_fault's `canDonate = (threadSc ≠ none)` read gives `VIT N S thread` at that state (`vit_of_vi`),
+     handle_timeout donates nothing.
+  3. Budget / scheduler / TCB: `chargeBudget` (manual: after `ct ← gets curThread; sched ← gets (schedulable ct)`, `sched` gives
+     `curThread ≠ N` at that state, so run `endTimeslice` at `VIT … true` and weaken), `endTimeslice` / `handleYield` /
+     `schedContextYieldTo` at `b = true` (they read ct and write its yield-to / time out ct), checkBudget(Restart) (runnable guard),
+     preemptionPath, activateThread (state guard), restart (`¬idle` guard), suspend / setPriority / bindNotification (`t ≠ N`),
+     fl4Awaken (sg1's SgI6 shape over `sendSignal`), handleInterrupt / maybeHandleInterrupt.
+  4. Deletion with the cap fact: `finaliseCap c fin (hc : N ∉ objRefs c)` (only the thread-cap arm needs it: unbind_from_sc /
+     suspend; the SC arm is guarded by `scPtr ≠ idle_sc` in sched_context_unbind_all_tcbs, the reply arm by the state read).
+     rec_del needs `IO (fun _ => N)` (ut's IrqOutV) at the finalise state: copy `io_recDelF` (SpecInvUtO1) with `VIT ∧ IO` (every
+     step's VI from these lemmas, `IO` from the io lemmas; the read cap is in its slot, so `N ∉ objRefs` by `notIn_objRefs`),
+     then capDelete, capRevoke (ik_lfp), installTcbCap / installTcbFrameCap, invokeCnode delete / revoke.
+  5. Decode facts at the perform (sg1's shell shape, `S node (fun _ => N)` and `S node (fun _ => S)` from sg1's family): TCB
+     invocation targets ≠ N (thread cap held: IdleOutV), SC invocation / TCB sc argument ≠ S — **needs `IdleScOutV σ := IrqOutV
+     (fun _ => σ.idleSc) (uV σ)` [J]** (l4v `valid_global_refs`: idle_sc_ptr ∈ global_refs), carried for free by sg1's
+     `sgN_kentry` / `sgN_fl4CallKernel` at `M := fun _ => σ.idleSc` (and `VI`'s `idleSc = S` for the post), plus retype / detype:
+     `deleteObjects` region ∌ N, S (the untyped cap held + IdleOutV / IdleScOutV: `covR` of an untyped = its region), retype
+     targets fresh (ut1's `utRet_fresh`) or inside the region, new objects default (TCB sc none, SC tcb none, empty queues).
+  6. Shell and tops: syscalls at `b = true` (premise `ha`: ct active, as nq3; `VI` then gives `ct ≠ N`), plus **[J] `CtSc`: the
+     current thread is bound to an SC at a syscall entry** (l4v `cur_sc_tcb` + `sym_refs`), only for the canDonate sends
+     (NBSendRecv / ReplyRecv / NBSendWait non-call sends, `VIT N S ct`); the end (`fl4Awaken`, `schedule` (generated at b = false),
+     `activateThread`) at `b = false`. Targets: `kentry_validIdle (c) (hV : ValidIdle σ) (hG : SpecGlobS σ ∧ IdleOutV σ)
+     (hS : IdleScOutV σ) (hU : UtInv3 σ) (ha …) (hct : CtSc σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, ValidIdle y.2 ∧
+     IdleScOutV y.2`, `kcall_validIdle` (every event; interrupts at b = false need no ct fact), `boot_validIdle` (initKheap: idle TCB
+     at idleThreadPtr bound to idleScPtr, idle SC with scTcb = idle, replies [], size 0 valid; IRQ CNodes / arch objects trivial).
+- ctnq1's T2 consequence is in place: `vi_not_schedulable` / `vi_ne_of_schedulable` (any `schedulable t` target, hence every
+  ready-queue enqueue guarded by `schedulable` and the `switchThread` target chosen as schedulable, is not idle).
+- No FINDING: no reachable step met writes idle's state / binding, idle SC's tcb / replies, or puts idle in a queue; the one
+  spec-level hazard is send_ipc's `the sender_sc` with an unbound sender (unreachable for ct by l4v's cur_sc_tcb: [J] CtSc above).
