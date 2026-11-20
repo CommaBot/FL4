@@ -5381,3 +5381,72 @@ gets `UtInv'` from ut2/ut3's existing lemmas (`detypeOK_of`) and proves `NV N` o
   sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (six import lines added).
 - Next: kentry_utInv / kcall_utInv (the DetypeOK versions) can be retired in favour of the UtInv3 tops; the
   non-vacuity boot state with untyped caps stays [S] (INV-PLAN lead decision).
+## off1 (branch par/off1 in FL4-sc, on b3b286b5 = int/j2 incl. ut8) — OffReady as a carried G1 field: STOPPED EARLY (needs valid_sched slices)
+Goal: `kentry_offReady` / `kcall_offReady` for ScCur's `Sched.OffReady` (l4v `cur_sc_offset_ready`: head rTime +
+consumed ≤ curTime of the SC at `curSc`, any SC, no activity guard) over arbitrary SInv states. Result: the
+narrowest carried set that makes it inductive is the ready-queue / scheduler-action / blocked-thread readiness part
+of l4v `valid_sched` plus invs slices (below), so per the brief I stopped after the writer analysis and the one
+local writer. No FINDING: no reachable-state counterexample met (every break below needs a state l4v's valid_sched
+excludes).
+- DONE, proved (module `SpecInvOffT`, namespace `Fl4Proofs.P3.SInvO`, imports only SpecInvOffReady (Fl4Spec +
+  SpecInvValidMachineTime, outside JAtZ); root imports it):
+  * `uts_off : x ∈ (updateTimeStamp σ).1 → x.2.kheap = σ.kheap ∧ x.2.curSc = σ.curSc ∧ x.2.curTime = ofNat (gctN
+    σ.machineState) ∧ x.2.consumedTime = σ.consumedTime + (ofNat (gctN σ.machineState) - σ.curTime)`.
+  * `offReady_updateTimeStamp (hv : ValidMachineTime σ) (h : Sched.OffReady σ) (hx : x ∈ (updateTimeStamp σ).1) :
+    Sched.OffReady x.2` (clock monotone by ValidMachineTime, now carried with no premise by invB/fpu1's
+    `kentry_validMachineTime`; no wrap since head + consumed + (now - prev) ≤ now < 2^64). Also covers the
+    preemption point's time stamp (`preemptionPoint`). No premise.
+- Writer list (spec, every write of curTime / consumedTime / curSc / a refill list):
+  1. `updateTimeStamp` (syscall entry, `preemptionPoint`): DONE above.
+  2. `consumedTime := 0`: `commitTime`, `chargeBudget`, `preemptionPath` (inactive SC), Syscall.lean:290. Harmless
+     for OffReady iff the head is ready afterwards (`rTime ≤ curTime`).
+  3. Refills of `curSc` charged: `chargeBudget` (`refillBudgetCheck` / `refillResetRr`), `commitTime`
+     (`refillBudgetCheck(RoundRobin)`). With consumed sufficient (l4v `cur_sc_offset_sufficient`, a MID-entry fact
+     from `checkBudget`/`checkBudgetRestart`/`preemptionPoint`'s sufficiency test, not a carried one): no overrun,
+     no `headInsufficientLoop` merge, new head rTime = old + consumed ≤ curTime, so ready. Without sufficiency
+     `handleOverrun` / `headInsufficientLoop` (`mergeNonoverlappingHeadRefill`: rTime := next.rTime - amount) can
+     move the head into the future: then OffReady holds only because ct is postponed/requeued and the exit
+     switches SC (item 6), which needs the facts below.
+  4. SC configure (`invokeSchedControlConfigureFlags`): on `curSc` it commits first (needs 3's sufficiency, the
+     spec's own comment), then `refillNew` (head := curTime: ready) or `refillUpdate` (head := curTime only if
+     ready). On any other SC: rTime := curTime (refillNew) — kept, but the bound thread's readiness matters for
+     item 6 (it is dequeued/release-removed first, then `schedContextResume` postpones if not ready).
+  5. `refillUnblockCheck` (all `ifSporadic*` wrappers in Ipc/IpcCancel/Tcb/SchedContext and switchSchedContext's
+     `ifConstantBandwidthRefillUnblockCheck`): only when ready, sets head := curTime and merges (rTime of the head
+     kept by `mergeRefill`): keeps readiness, never creates it.
+  6. **`switchSchedContext` (schedule's `scAndTimer`)**: `curSc := scp`, scp = the TCB SC of the new ct; if scp ≠
+     curSc, `commitTime` on the old SC (consumed := 0) and an unblock check only for a NON-sporadic scp. So at exit
+     OffReady needs **scp's head ready (rTime ≤ curTime)**. guardedSwitchTo asserts only `schedulable` (runnable,
+     active SC, not in the release queue) — no readiness assert in the spec's `chooseThread`/`guardedSwitchTo`/
+     `possibleSwitchTo`/`tcbSchedEnqueue`. So readiness must come from carried facts, by the new ct:
+     (a) chosen from a ready queue → every queued thread's SC head ready;
+     (b) the `switchThread t` candidate → t's SC head ready;
+     (c) the idle thread → idle's SC = idleSc and idleSc's head ready;
+     (d) the old ct under `resumeCurThread` → ct still bound to curSc (scp = curSc; head kept ready by 3/4).
+- The carried set this needs (each an l4v slice; each needs its own whole-entry preservation):
+  * **R1 ReadyQ** = `valid_ready_qs`' readiness half: `t ∈ readyQueues d p → kheap t = tcb x ∧ x.tcbSchedContext =
+    some q ∧ SC q active ∧ (refillHd).rTime ≤ curTime`. Writers: every `tcbSchedEnqueue/Append` (possibleSwitchTo
+    after every wake-up, schedContextResume, bind, restart, setPriority/MCP/SchedParams, yieldTo, endTimeslice,
+    awaken's release, schedule's ct enqueue) and every refill write on an SC bound to a queued thread.
+  * **R2 SwReady** = `valid_sched_action`'s target half (switchThread t → t's SC active and ready).
+  * **R3 BlockedReady** = `released_ipc_queues` (+ the notification and reply-blocked analogues, `active_reply_scs`
+    for SCs handed back by replies): a thread woken by IPC/signal/reply/cancel is enqueued by `possibleSwitchTo`
+    without a readiness test, so its SC must already be ready (refills of a blocked thread's SC are written only by
+    configure, which uses refillNew → ready).
+  * **R4 CtNQ** = `ct_not_in_q` (CtNQR, NOT proved: invC2/ctnq1, needs T1–T3) and **R5 ScBack** = sym_refs of the
+    SC↔TCB binding + `cur_sc_tcb` (CurInv.tcb, also not carried yet): the entry's charge of curSc (item 3) touches
+    a queued thread's SC only if curSc is bound to a queued thread.
+  * **R6 IdleSc** = `valid_idle`'s SC part (idle bound to idleSc) + idleSc's head ready + no cap / binding naming
+    idleSc (`valid_global_refs`, SpecGlob's idle clause: invC says not inductive alone).
+  * **R7** ValidMachineTime (have it) and the untyped freshness chain (UtInv3/ut8, have it) for retype/detype over
+    queued TCBs and their SCs.
+  That is valid_sched minus valid_release_q / ready_or_release / ct_in_cur_domain (one domain, T4) / valid_blocked,
+  plus invs' sym_refs/valid_idle/valid_global_refs. Per the brief this is "the whole valid_sched": stopped.
+- Suggested order if the lead takes it on: R4 (CtNQR, ctnq1's T1–T3) and R5 first (they also serve CurInv /
+  KBudget.cur), then R1+R2+R3 as ONE generated family (they share every writer: enqueue sites and refill writes;
+  invA/ctnq1's IK/TI generator with a pinned leaf for `tcbSchedAction`), R6 with SpecGlob. OffReady itself then
+  follows from 1–6 with the mid-entry sufficiency fact.
+- Builds (tokyo, ./off1.sh untracked; FL4-sc mirror seeded from FL4-audit by cp -cR): off1-b2 `SpecInvOffT` OK
+  (4614 jobs, the module 9.4 s). Axioms (offax.lean, untracked): uts_off: propext, Quot.sound;
+  offReady_updateTimeStamp, boot_offReady: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/
+  bv_decide, no premise. Root Fl4Proofs.lean imports SpecInvOffT (root not rebuilt).

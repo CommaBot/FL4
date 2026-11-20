@@ -763,6 +763,7 @@ import Fl4Proofs.P3.SpecInvValidIrqHandlersG
 import Fl4Proofs.P3.SpecInvValidIrqHandlersS
 import Fl4Proofs.P3.SpecInvCtNQR
 import Fl4Proofs.P3.SpecInvOffReady
+import Fl4Proofs.P3.SpecInvOffT
 import Fl4Proofs.P3.SpecInvDom
 import Fl4Proofs.P3.SpecInvNativeScopeK
 import Fl4Proofs.P3.SpecInvNativeScopeT
