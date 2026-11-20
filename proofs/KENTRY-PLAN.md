@@ -3444,8 +3444,7 @@ MidChoose*/XTopJointRecv* untouched.
   ne_replyRemoveTcb, ne_setObject, neO_of_aType (neO_some: propext; cfr_ntfn: none).
 ## sch23 (branch par/sched23 in FL4-sc, on 331a39e0 = int/j2 incl. sch22)
 Goal (c1) only: `jMidChooseFact`, every outcome of the first phase satisfies `CtOK := CurInv ∨ ct SC-less`.
-New leaves XTopJointChooseF (committed, imported from Fl4Proofs.lean) and XTopJointChooseB (WIP, uncommitted in the
-worktree, NOT imported yet). Generator: sch23gen/{genA.py, hdrA.lean, tailA.lean, setmrs.lean, mkA.sh, fixB*.py}
+New leaves XTopJointChooseF and XTopJointChooseB (both imported from Fl4Proofs.lean). Generator: sch23gen/{genA.py, hdrA.lean, tailA.lean, setmrs.lean, mkA.sh, fixB*.py}
 (untracked; `bash sch23gen/mkA.sh` regenerates XTopJointChooseF from MidRunQ). Nothing existing edited.
 - DESIGN (no new premise except one [W] restricted to PerfW paths):
   * View `sV σ := (curSc, idleSc, releaseQueue, mV σ)`, `mV σ p := (TCB SC field at p, (scTcb, scRefillMax) of the SC
@@ -3472,12 +3471,15 @@ worktree, NOT imported yet). Generator: sch23gen/{genA.py, hdrA.lean, tailA.lean
     only, only at the states where they start on a run from the dispatch state; l4v invoke_untyped /
     invoke_irq_handler / perform_asid_control_invocation keep sym_refs of the SC/TCB binding, cur_sc_tcb_are_bound,
     cur_sc_active, ct_not_in_release_q). Same shape as JMidPerfHypQ.
+- DONE: `jMidChooseFact` (XTopJointChooseB) proved, standalone (not wired into a top; the lead combines it with
+  sch23b's SC-less leaves (c2): ¬CurInv at a mid state then means ct SC-less). Its premises: `CQ ct σ`, `NQ ct σ`
+  (as XTopJointMidRunQ), `CurInv σ` (JAtZ.cur at the dispatch state), `Sched.Inv σ`, `JMidPerfHypQ` [W] (existing)
+  and the NEW `JMidPerfHypB` [W] above. FINDING (Lean): a `by` block nested in `exact` inside `first` LOGS its unsolved
+  goals instead of failing, so `first | exact f (by tac) | …` never falls through; `pc_step` uses
+  `refine …; case h2 => (tac; done)` to make the alternative fail.
 - Builds (tokyo, b23.sh): sch23-b1..b4 XTopJointChooseF iterations (sv_leaf name clash with IpcSV -> sck_ prefix;
-  setSimpleKo / setMrs / setCap leaves); sch23-b5 `XTopJointChooseF XTopJointChooseB`: ChooseF OK (5cc00c40),
-  ChooseB first-try errors (keyword `to`, subst direction, join points of replyRemove / updateWaitingNtfn, post_liftE
-  unification) fixed by sch23gen/fixB2.py; sch23-b6 (ChooseB after the fixes) started but the station stopped
-  answering (every station unanswered for >30 min), result unknown.
-- NOT DONE (handoff): build ChooseB (`bash b23.sh XTopJointChooseB`), fix the remaining errors, add
-  `import Fl4Proofs.P3.XTopJointChooseB` to Fl4Proofs.lean, commit, #print axioms jMidChooseFact. Likely spots: the
-  `pc_step`/`pc_auto` steps of pc_sendIpc_recv and pc_replyRemove (join-point shapes), pcp_resume's step count,
-  heartbeats of pc_step on large blocks.
+  setSimpleKo / setMrs / setCap leaves); sch23-b5 ChooseF OK (5cc00c40), ChooseB errors; sch23-b6/b7 lost (station
+  unreachable); sch23-b8..b10 ChooseB fixes (subst direction, `to` keyword, join points of sendIpc's receive branch /
+  replyRemove / updateWaitingNtfn, post_liftE needs `Q :=`); sch23-b11 `XTopJointChooseB` OK (5392 jobs), no sorry.
+  Axioms (axsch23.sh, untracked; sch23-ax1): jMidChooseFact, midRunB_shell, perf_firstB, bi_donate, pc_sendSignal,
+  pc_doReplyTransfer, pc_sendIpc, kernel_entryJ22M (newest top, unchanged): propext, Classical.choice, Quot.sound.
