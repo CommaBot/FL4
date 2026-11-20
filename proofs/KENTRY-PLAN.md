@@ -7056,3 +7056,67 @@ Spec-only, namespace `Fl4Proofs.P3.SInvL`, modules SpecInvSlKA/KB/KG/KD/KU/KE/KT
   anchor must move. `first | … | exact okdAt_returnOk (lemma)` alternatives must be term-only; a `| exact …` on a new
   line inside `cases … with` is parsed as an alternative; `rfl` inside an argument can assign a pending metavariable
   of the written cap (pin it with `(a' := …)`).
+## ctq7 (branch par/ctq7 in FL4-q, on 39d1151b = int/j2 incl. ctq6, rd3, sl4) — ctq6 handoff 1 in part: EB across the IPC / fault / signal / budget writers (NOT finished: receive side, reply transfer, deletion, performs, shell, tops)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqE1..E4 (hand) and SpecInvCqFX (generated); root imports all. Nothing existing edited.
+- **SpecInvCqE1 (bundle + scheduler leaves)**: `EB k := SQ4 ∧ RBk k` (ctq5's EB = `EB true`), `eb_of` / `eb_auto` (a
+  function with TQ, SA, T4 and RB lemmas: the generated q3/s4/q4/y families), `NPQ t := NP t ∧ NoQ t` ("neither switch
+  target nor released, in no ready queue"), `npq_ct` (`EB true` gives `NPQ ct`), `npq_nr` (non-runnable thread).
+  `eb_setThreadState_p` (runnable state or `NPQ t`), **`eb_setThreadState_ct`** (ct, any state, under `EB true`),
+  `eb_setThreadState_nr`, `eb_possibleSwitchTo_p` (target runnable, ≠ ct when k), `eb_pst_p`, `eb_rescheduleRequired`,
+  **`rq_rescheduleRequired : HK1 RDq (RBk false)`** (named so as not to clash with SInvR), `rr_rescheduleRequired :
+  HK1 RR SAc`, `ET := TQ ∧ RR ∧ T4 ∧ RDq` and **`et_rescheduleRequired : HK1 ET (EB false)`**, `rdq_postpone_p`,
+  `eb_postpone_p`, `ikp_bind_q`, blocking leaves `eb_sendIpcBlocked_p` / `eb_receiveIpcBlocked_p` /
+  `eb_receiveSignalBlocked_p` / `eb_replyPush_p` (blocked thread with `NPQ`).
+- **SpecInvCqFX (generated, 48 lemmas)**: `FX A R Q C` = scheduler action, release queue, ready queues, current thread
+  unchanged, over the cone of `do_ipc_transfer` (proofs/scratch/ctq7/mkfx.sh, untracked: ctq4's gen.py with skip = R \
+  cone(roots) + doMachineOp/doExtendedOp/getObject as leaves; `bash mkfx.sh <roots…>` regenerates for other cones).
+  Needed because one `repeat' ik_step0/ik_unfold` over `do_ipc_transfer` hits max recursion depth.
+- **SpecInvCqE2 (`send_ipc`)**: `NC t C := NPQ t ∧ ct = C` (kept by the dequeue, `do_ipc_transfer` via FX,
+  `reply_unlink_tcb`), `CTh C` frames, `eb_wakeDest` (Running; ScTK's `nkt_ifCondRefillUnblockCheck` keeps "runnable"
+  and ct; `possible_switch_to`), `eb_sendArm` (the receiver arm, stated on the spec's literal do-text so the join points
+  match by defeq, proved forward on the membership: peel, `dsimp only`, `split at hy`), **`eb_sendIpc_p (hT : NPQ
+  thread σ) (hd : k = true → ct in no queue of this endpoint)`**.
+- **SpecInvCqE3**: `QE k := k → ¬ queuedE ct`, `qe_of_nq` (nq3's `NQ K`, ct ∈ K), `eb_threadSet` / `npq_threadSet`
+  (general in `f`), **`eb_sendFaultIpc_p` / `eb_handleTimeout_p` / `eb_handleFault_p` (hT : NPQ thread) (hN : NQ K)
+  (hc : ct ∈ K)** (`sfi_false`: no handler ⇒ no state change, then `handle_no_fault`); `send_signal` for both k:
+  `AK k t := AN t ∧ (k → t ≠ ct)`, `ak_of` (woken thread read blocked, ct a runnable TCB when k), `mdk_maybeDonateSc`,
+  `rb_schedContextResume_p`, `mdk_wake`, `rb_wakeTail_p`, `rb_sendSignal_p`, **`eb_sendSignal_p (hN : NtfnQB) (hI :
+  idle in its idle state) (hk : k → RnH ct)`**.
+- **SpecInvCqE4**: `hkp_keep`, **`et_endTimeslice_p : HKp (EB true) ET σ (end_timeslice cto)`** given `RnH ct`, `hB`
+  (cur_sc is bound to ct only), `NQ K`, ct ∈ K; **`eb_chargeTail_p : HKp (EB true) (EB false) σ (when (schedulable ct
+  σ) (end_timeslice; reschedule_required; reprogram))`**.
+- Premises: none added (no [J]/[P]/[W]/[S]); every hypothesis is a local fact at the stated state or a carried
+  invariant (NQ K from nq3, NtfnQB, ValidIdle's idle state). No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-q mirror warm, ./ctq7.sh untracked = ctq6.sh with filter `SpecInvCqE`, ax7.lean): ctq7-b1 E1,
+  ctq7-t1 (scratch: the FX test that hit max recursion), b2/b3 FX, b4 E2, b5..b8 E3 (fixes below), b9 E4 + axioms
+  (ax7.lean, untracked: eb_setThreadState_ct, rq_rescheduleRequired, et_rescheduleRequired, eb_postpone_p,
+  eb_replyPush_p, fx_doIpcTransfer, eb_sendIpc_p, eb_handleFault_p, eb_handleTimeout_p, mdk_maybeDonateSc,
+  eb_sendSignal_p, et_endTimeslice_p, eb_chargeTail_p: propext, Classical.choice, Quot.sound). Each module < 10 s.
+- Lean traps (new): (1) an explicit side proof `(fun _ => rfl)` next to an `_` function argument (e.g.
+  `nq_threadSet _ t (fun _ => rfl) σ h z hz`) makes Lean solve `f := id` before `hz` is seen: write `(fun _ => by rfl)`;
+  (2) `let x ← if c then pure a else m` IS a join point (end_timeslice's `valid`): `dsimp only`, `split`, then the shared
+  body under `all_goals`; (3) restating a spec monad term with `{ tcb with … }` is fine, but prefer leaf lemmas general
+  in the function argument so the term is taken from the membership hypothesis.
+- HANDOFF (in order; everything for `EB k`, one lemma per arm):
+  1. `charge_budget` / `check_budget` / `check_budget_restart` / `preemption_path` / `handle_yield`: the refill part
+     before `eb_chargeTail_p` by `eb_auto` (zeta its `if robin` join point first); `hB` at the tail state needs a
+     frame "cur_sc's `sc_tcb` and ct unchanged" across `refill_reset_rr` / `refill_budget_check` /
+     `update_sched_context (consumed)` — generate it with mkfx.sh-style ONLY-cone family (setObject leaf with a side
+     condition: an SC write keeps `scTcb`) or derive hB from CurScT + sb2's ScSym at that state (CurScT frame across
+     refills: TCBs untouched). `NQ K` there: nq3's `nq_*` refill lemmas. check_budget_restart: `set_thread_state ct
+     Restart` is `eb_setThreadState_r`. preemption_path's `charge_budget` runs only when ct is NOT schedulable, so its
+     `end_timeslice` is dead (`eb_weak` suffices).
+  2. Receive side: `receive_signal` (blocked: `eb_receiveSignalBlocked_p` with `npq_ct`; active: `maybe_donate_sc ct`
+     — ct has an SC (CurScT), so the donation is skipped: show `when` false or use `mdk_maybeDonateSc` with `AK` of ct
+     only for k = false), `receive_ipc` (state the sender arm on the spec's literal text like `eb_sendArm`; sender read
+     BoS ⇒ ≠ ct by `QE`; reply-cap `cancel_ipc` of the reply's TCB: rb/sa/tq/q4 leaves; `maybe_return_sc` ct:
+     generated), `complete_signal` (RB missing: `mdk_maybeDonateSc`), `handle_recv` (lookups: eb_auto; fault branch:
+     `eb_handleFault_p` with `npq_ct`).
+  3. `do_reply_transfer` (receiver read BlockedOnReply ⇒ `npq_nr`, `AK` by ct's state: Restart at invokeReply;
+     timeout branch `eb_handleTimeout_p receiver` with NPQ receiver carried by `NC`-style frames across Running /
+     refill check; `possible_switch_to receiver` ≠ ct).
+  4. Deletion (`cancel_all_ipc` / `cancel_all_signals` / `cancel_badged_sends` / `suspend` / finalise / rec_del /
+     revoke): woken queue members ≠ ct by `NQ [ct]` (jq_* keep NQ K ∧ TQ); `restart t` may enqueue ct only after a
+     self-suspend (CopyRegisters src = dest = ct): post `EB false` there.
+  5. Performs and shell (ctq6 handoff 2), then tops (ctq6 handoff 3) with carried CtAct (ct Running/Restart/Idle at
+     every exit: activate_thread fails otherwise) replacing per-site "ct runnable" facts.
