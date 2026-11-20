@@ -401,3 +401,18 @@ spec's init state. It can start as a named [P]/[W] `BootJ` premise of `jreach_in
    cannot discharge them.
 6. **SInv over the whole spec `callKernel`** is l4v-AInvs-sized. Use sch12's `syscall_post`/`fv_auto` frames so
    only the writers of each field need real proofs.
+
+## Lead decision (2026-11-20, after ut1): the boot state and G4
+
+ut1 found that the spec's boot state `initASt` holds only null caps, so no
+state reachable from it has an untyped cap and every Untyped / AsidControl
+MakePool invocation fails at the cap lookup. Reachability from `initASt` is
+therefore too weak a base for G4 (it would make the Untyped paths vacuous).
+Decision, following l4v (whose invariant proofs are stated over `invs`, with
+the initial state an assumption): G4's induction starts from ANY spec state
+satisfying the carried invariants `SInv` (plus `JExt` at J), not from
+`initASt`. The `boot_*` lemmas against `initASt` stay as non-vacuity checks
+of each field, nothing more. Every G1 field must be stated and proved for
+arbitrary states (as ut1 did), never using facts that hold only because no
+untyped caps exist. A concrete FL4 boot state (root task with its untyped
+caps) satisfying `SInv` is a later non-vacuity task, [S] until then.
