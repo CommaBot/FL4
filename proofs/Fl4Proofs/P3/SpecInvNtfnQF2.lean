@@ -237,22 +237,18 @@ theorem nq_setThreadStateAct (tcbPtr : ObjRef) : NQK Kq (setThreadStateAct (Z :=
   unfold setThreadStateAct; nq_auto
 macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_setThreadStateAct _)
 
-/-- `reply_unlink_tcb`: the thread is read BlockedOnReply / BlockedOnReceive, so in no queue. -/
-theorem nq_replyUnlinkTcb (t r : ObjRef) : NQK Kq (replyUnlinkTcb (Z := Unit) t r) := by
-  unfold replyUnlinkTcb
-  refine ik_bind (by nq_auto) fun _ => ik_bind (ik_assert _) fun _ => ?_
-  unfold getThreadState
-  refine ik_threadGet_bind fun σ x hx => ?_
-  intro hσ y ⟨z, ⟨hts, hz⟩, hy⟩
-  subst hz
-  have hb : ¬ isBoN x.tcbState := by rcases hts with h | ⟨_, _, h⟩ <;> rw [h] <;> exact fun h => h
-  refine nq_tail ((?_ : NQK (t :: Kq) _) _ (nq_consR hσ hx hb) y hy)
-  nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_replyUnlinkTcb _ _)
+/-- `reply_unlink_tcb` of a thread of `K` (read BlockedOnReply, or dequeued from its endpoint). -/
+theorem nq_replyUnlinkTcb (t r : ObjRef) (ht : t ∈ Kq) : NQK Kq (replyUnlinkTcb (Z := Unit) t r) := by
+  unfold replyUnlinkTcb; nq_auto
+macro_rules | `(tactic| nq_leaf) => `(tactic| ((with_reducible refine nq_replyUnlinkTcb _ _ ?_); nq_mem))
 
-theorem nq_tcbEpDequeue (tptr epPtr : ObjRef) : NQK Kq (tcbEpDequeue (Z := Unit) tptr epPtr) := by
-  unfold tcbEpDequeue; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_tcbEpDequeue _ _)
+/-- `blocked_cancel_ipc`: the thread is dequeued from its endpoint (so joins `K`, by EpQB) before its state is written. -/
+theorem nq_blockedCancelIpc_post (st : ThreadState) (t : ObjRef) (r : Option ObjRef) :
+    HK (NQ Kq) (NQ (t :: Kq)) (blockedCancelIpc (Z := Unit) st t r) := by
+  unfold blockedCancelIpc getBlockingObject
+  refine hk_bind (hk_of_ik (by nq_auto)) fun ep => ?_
+  refine hk_bind (nq_tcbEpDequeue_post t ep) fun _ => hk_of_ik ?_
+  nq_auto
 end
 
 end Fl4Proofs.P3.SInv

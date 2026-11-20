@@ -12,11 +12,10 @@ set_option maxErrors 2000
 
 variable {Kq : List ObjRef}
 
-/-- `blocked_cancel_ipc` of a thread in no queue (its state was read BlockedOnSend / BlockedOnReceive). -/
-theorem nq_blockedCancelIpc (st : ThreadState) (t : ObjRef) (r : Option ObjRef) (ht : t ∈ Kq) :
-    NQK Kq (blockedCancelIpc (Z := Unit) st t r) := by
-  unfold blockedCancelIpc; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| ((with_reducible refine nq_blockedCancelIpc _ _ _ ?_); nq_mem))
+theorem nq_blockedCancelIpc (st : ThreadState) (t : ObjRef) (r : Option ObjRef) :
+    NQK Kq (blockedCancelIpc (Z := Unit) st t r) :=
+  fun σ hσ y hy => nq_tail (nq_blockedCancelIpc_post st t r σ hσ y hy)
+macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_blockedCancelIpc _ _ _)
 
 /-- `cancel_signal`: the dequeued thread is in no queue when it becomes Inactive. -/
 theorem nq_cancelSignal_post (t n : ObjRef) : HK (NQ Kq) (NQ (t :: Kq)) (cancelSignal (Z := Unit) t n) := by
@@ -31,9 +30,9 @@ theorem nq_getSkObjRef {α : Type} [Nonempty α] (C : α → KernelObject) (f : 
   unfold getSkObjRef; nq_auto
 macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_getSkObjRef _ _ _)
 
-theorem nq_replyRemoveTcb (tptr rptr : ObjRef) : NQK Kq (replyRemoveTcb (Z := Unit) tptr rptr) := by
+theorem nq_replyRemoveTcb (tptr rptr : ObjRef) (hk_tptr : tptr ∈ Kq) : NQK Kq (replyRemoveTcb (Z := Unit) tptr rptr) := by
   unfold replyRemoveTcb; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_replyRemoveTcb _ _)
+macro_rules | `(tactic| nq_leaf) => `(tactic| ((with_reducible refine nq_replyRemoveTcb _ _ ?_) <;> nq_mem))
 
 /-- `cancel_ipc`: afterwards the thread is in no queue. -/
 theorem nq_cancelIpc_post (t : ObjRef) : HK (NQ Kq) (NQ (t :: Kq)) (cancelIpc (Z := Unit) t) := by
@@ -47,9 +46,16 @@ theorem nq_cancelIpc_post (t : ObjRef) : HK (NQ Kq) (NQ (t :: Kq)) (cancelIpc (Z
     obtain ⟨w, hw, hy⟩ := hy
     have h1 : NQ Kq w.2 := nq_threadSet (fun tcb => { tcb with tcbFault := none }) t (fun _ => rfl) σ hσ w hw
     exact nq_cancelSignal_post t n w.2 h1 y hy
+  case blockedOnSend ep d =>
+    obtain ⟨w, hw, hy⟩ := hy
+    exact nq_blockedCancelIpc_post _ t none w.2 (nq_threadSet (fun tcb => { tcb with tcbFault := none }) t (fun _ => rfl) σ hσ w hw) y hy
+  case blockedOnReceive ep r d =>
+    obtain ⟨w, hw, hy⟩ := hy
+    exact nq_blockedCancelIpc_post _ t r w.2 (nq_threadSet (fun tcb => { tcb with tcbFault := none }) t (fun _ => rfl) σ hσ w hw) y hy
   all_goals
     have hb : ¬ isBoN x.tcbState := by rw [hs]; exact fun h => h
-    refine (?_ : NQK (t :: Kq) _) σ (nq_consR hσ hx hb) y hy
+    have he : epBlocked x.tcbState = none := by rw [hs]; rfl
+    refine (?_ : NQK (t :: Kq) _) σ (nq_consR hσ hx hb he) y hy
     nq_auto
 
 theorem nq_cancelIpc (t : ObjRef) : NQK Kq (cancelIpc (Z := Unit) t) :=

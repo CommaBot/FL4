@@ -173,21 +173,13 @@ theorem nq_refillResetRr (cscPtr : ObjRef) : NQK Kq (refillResetRr (Z := Unit) c
   unfold refillResetRr; nq_auto
 macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_refillResetRr _)
 
-theorem nq_tcbAppend (tptr : ObjRef) (qs : List ObjRef) : NQK Kq (tcbAppend (Z := Unit) tptr qs) := by
-  unfold tcbAppend; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_tcbAppend _ _)
-
-theorem nq_reorderEp (epPtr tptr : ObjRef) : NQK Kq (reorderEp (Z := Unit) epPtr tptr) := by
-  unfold reorderEp; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_reorderEp _ _)
-
 theorem nq_replyUnlinkSc (scPtr replyPtr : ObjRef) : NQK Kq (replyUnlinkSc (Z := Unit) scPtr replyPtr) := by
   unfold replyUnlinkSc; nq_auto
 macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_replyUnlinkSc _ _)
 
-theorem nq_replyRemove (caller r : ObjRef) : NQK Kq (replyRemove (Z := Unit) caller r) := by
+theorem nq_replyRemove (caller r : ObjRef) (hk_caller : caller ∈ Kq) : NQK Kq (replyRemove (Z := Unit) caller r) := by
   unfold replyRemove; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_replyRemove _ _)
+macro_rules | `(tactic| nq_leaf) => `(tactic| ((with_reducible refine nq_replyRemove _ _ ?_) <;> nq_mem))
 
 theorem nq_schedContextMaybeUnbindNtfn (ntfnPtr : ObjRef) : NQK Kq (schedContextMaybeUnbindNtfn (Z := Unit) ntfnPtr) := by
   unfold schedContextMaybeUnbindNtfn; nq_auto
@@ -224,9 +216,9 @@ theorem nq_syscall {α β γ : Type} (mFault : FMonad Unit α) (hFault : Fault �
   all_goals first | exact h_mFault | exact h_hFault _ | exact h_mError _ | exact h_hError _ | exact h_mFinalise _
 macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible refine nq_syscall _ _ _ _ _ ?_ (fun _ => ?_) (fun _ => ?_) (fun _ => ?_) (fun _ => ?_))
 
-theorem nq_tcbEpAppend (tptr epPtr : ObjRef) (isRecv : Bool) : NQK Kq (tcbEpAppend (Z := Unit) tptr epPtr isRecv) := by
-  unfold tcbEpAppend; nq_auto
-macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_tcbEpAppend _ _ _)
+theorem nq_tcbAppend (tptr : ObjRef) (qs : List ObjRef) : NQK Kq (tcbAppend (Z := Unit) tptr qs) := by
+  unfold tcbAppend; nq_auto
+macro_rules | `(tactic| nq_leaf) => `(tactic| with_reducible exact nq_tcbAppend _ _)
 
 theorem nq_testPossibleSwitchTo (tcbPtr : ObjRef) : NQK Kq (testPossibleSwitchTo (Z := Unit) tcbPtr) := by
   unfold testPossibleSwitchTo; nq_auto
