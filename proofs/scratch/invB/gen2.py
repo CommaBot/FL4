@@ -78,5 +78,5 @@ print(len(res))
 hdr=open(S+'hdr.lean').read()
 for t in ['fl4HandleEvent','fl4CallKernel']: res.append(open(S+'man/'+t+'.lean').read())
 R=S+'../../Fl4Proofs/P3/SpecInvValidMachineTimeGen.lean'
-open(R,'w').write(hdr+'\n'.join(res)+'\nend\n\nend Fl4Proofs.P3.SInv\n')
+open(R,'w').write(hdr+'\n'.join(res)+'\nend\n\nend Fl4Proofs.P3.SInvV\n')
 s=open(R).read(); s=s.replace("theorem gk_receiveIpc ","set_option maxHeartbeats 4000000 in\ntheorem gk_receiveIpc "); open(R,'w').write(s)

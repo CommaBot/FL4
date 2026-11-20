@@ -13,7 +13,7 @@ import Fl4Proofs.P3.SpecInvValidMachineTime
 
 open Classical
 
-namespace Fl4Proofs.P3.SInv
+namespace Fl4Proofs.P3.SInvV
 open Fl4Spec
 
 noncomputable section
@@ -39,4 +39,4 @@ theorem boot_offReady : Sched.OffReady (initASt (Z := Unit)) := by
 
 end
 
-end Fl4Proofs.P3.SInv
+end Fl4Proofs.P3.SInvV

@@ -33,7 +33,7 @@ import Fl4Proofs.P3.SpecInvValidMachineTimeGen
 
 open Classical
 
-namespace Fl4Proofs.P3.SInv
+namespace Fl4Proofs.P3.SInvV
 open Fl4Spec Fl4Proofs.P3.Vs
 
 noncomputable section
@@ -237,4 +237,4 @@ theorem boot_vmt : ValidMachineTime (initASt (Z := Unit)) :=
 
 end
 
-end Fl4Proofs.P3.SInv
+end Fl4Proofs.P3.SInvV

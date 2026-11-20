@@ -29,7 +29,7 @@ import Fl4Proofs.P3.SpecInvValidMachineTime
 
 open Classical
 
-namespace Fl4Proofs.P3.SInv
+namespace Fl4Proofs.P3.SInvV
 open Fl4Spec Fl4Proofs.P3.Vs
 
 noncomputable section
@@ -101,4 +101,4 @@ theorem boot_vim : ValidIrqMasks (initASt (Z := Unit)) := fun _ _ => rfl
 
 end
 
-end Fl4Proofs.P3.SInv
+end Fl4Proofs.P3.SInvV

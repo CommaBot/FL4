@@ -18,7 +18,7 @@ import Fl4Proofs.P3.SpecInvValidMachineTimeKit
 
 open Classical
 
-namespace Fl4Proofs.P3.SInv
+namespace Fl4Proofs.P3.SInvV
 open Fl4Spec Fl4Proofs.P3.Vs Fl4Proofs.P3.MachF Fl4Proofs.P3.MachT
 
 noncomputable section
