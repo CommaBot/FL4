@@ -6998,3 +6998,61 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdB / RdX (edited), Sp
   setObject leaf eliminates the start state `σ` (keep it out of later `show`s: `try dsimp only`); `Fintype (BitVec 8)` is not
   available here (max over `Finset.range 256` by `toNat`); SInv and SInvQ both define `HKp` / `the_head_mem` (qualify);
   `congrArg Tcb.f h` against an expected `x'.f = x.f` elaborates `h : x' = x` (go through `have`).
+## sl5 (branch par/sl5 in FL4-sc, on e4e9e440 = int/j2 incl. sl4, rd2) — `ScKindR` carried across the entry; tops without `SlE.kind` (DONE)
+Goal (sl4 handoff 1-3): remove sl4's `SlE.kind : ScKind σ` from the tops by carrying the range form `ScKindR`.
+Spec-only, namespace `Fl4Proofs.P3.SInvL`, modules SpecInvSlKA/KB/KG/KD/KU/KE/KT/KV (root imports all).
+- **Design (one anchored predicate instead of per-writer `ScKindR` leaves)** (SpecInvSlKA). `KD c0 c` (the exact cap
+  condition carrying ScKindR over a derived cap: an SC cap comes from an SC cap to its object; every address of `c`'s
+  range is `c`'s own SC object or lies in `c0`'s range with `c0` not the SC cap to it; a preorder, implied by sl4's
+  `KindRel` and by every cap with empty range that is no SC cap). `KOk σ0 c` (KD w.r.t. "the SC caps of σ0").
+  **`KS σ0 σ` := every cap of σ is `KOk σ0`**: `KS.cur : KS σ0 σ → ScKindR σ`, `KS.refl : ScKindR σ → KS σ σ`; it
+  reads only vih2's `hV`, so it is a `WLH` predicate and the 341 generated frames (ValidIrqHandlersF1..F4) carry it;
+  **a cap write keeps `KS σ0` iff the cap is `KOk σ0`, whatever the slot** (`ks_setCap`). So sl3's deletion leaves
+  (handoff 1) became one family with no hypotheses: `ks_capInsert/Move/Swap` (`KOk` caps), `ks_capSwapForDelete`
+  (re-read), `ks_emptySlot`, `ks_capDeleteOne`, `ks_finaliseCap`, `kd_finaliseCap` (remainder null or a Zombie of the
+  object), **`ks_recDel`** (no call precondition), `ks_capDelete`, `ks_capRevoke` (all `KK m := ∀ σ0, IK (KS σ0) m`).
+- Performs and decode facts (handoff 2). SpecInvSlKB: `KCn` / `ks_invokeCnode`, IRQ control (handler caps: empty
+  range), `KIh` / `ks_invokeIrqHandler`, **TCB installs need no decode fact**: `check_cap_at` re-reads the source and
+  `kd_of_so` (`same_object_as nc c' → KD c' nc`: sl3's `so_facts` + page caps of equal base / size); `kd_deriveCap`,
+  `ks_transferCapsLoop`, `ks_transferCaps`, **`ks_doNormalTransfer : KK`** (the extra caps are looked up in the same
+  transfer). SpecInvSlKG: the IPC / fault / budget / preemption family, generated = SpecInvVfhG with `VS σ0` → `KS σ0`.
+  SpecInvSlKD: `kd_mask`, `kd_upd` (`kd_cnode_ite` for the CNode mint arm), **`okv_cnK`** (sl3's `okv_cnNF` with `KD`,
+  plus copy / mint through `derive_cap`), `OkDAt` traversals `kr_okd_archDecode` (map caps = the invoked cap with
+  mapping data, same range) / `kr_okd_decodeIrqHandler`, **`KInv σd`** and **`kr_okv_fl4Decode`** (at a ScKindR
+  decode state σd). DeriveSubframe's caps: ut8's `DsOKN` + `refRel_sub` range containment at the perform.
+- Shell (handoff 3, SpecInvSlKE): arch performs on ut8's view algebra (`KSV`, `ksv_setCap`, `ksv_reread`: the unmaps
+  re-read their slot; the slot fact is ut8's `ArchSpecOKN`), ASID pool (re-read), **`ks_fl4Perform`** (anchored at
+  the decode state σd, `uV σ = uV σd`; `KInv σd` + ut8's `GapOKN`), `IKK` (ScKindR kept from a state with `UtInv''`,
+  vfh3's `IKV` pattern), **`ks_handleInvocationR`** (vfh3's shell), syscalls, events, **`ks_fl4CallKernel`**,
+  `kentry_scKindR_of` / `kcall_scKindR_of` (given `KrGap`: the reset retype and MakePool, an intermediate definition).
+- Retype (SpecInvSlKU, SlKV): `skrV_fresh` (sl4's `skr_setCap_fresh` on the view), `skrV_of_sub`, **`skr_ccLoop`**
+  (create_cap over windows met by no cap's range: ItemN's range half), **`skr_tail`** (ut8's `nv_tail` pruned),
+  `skr_invokeUntyped0` (no reset; `CapFreeV` gives the window freshness); `ks_retype`, **`skr_makePool`** (anchored:
+  the pool cap is `KOk σ` since no cap of σ covers the frame, `clear_of_childless`), `RK` (hV-only: every non-null cap
+  the source's or an old one, the source an untyped cap) with **`rk_reset`** (what ut8's `RNV` gave, without `NV N`:
+  the shell carries only `UtInv''`), `skr_invokeUntyped1` (reset; ut2's `RSV` heap fact), **`krGap : KrGap`**.
+- **Tops (SpecInvSlKV / SlKT)**: `SlB2 σ := SlB σ ∧ ScKindR σ`, `SlE2` = sl4's `SlE` without `kind` (`SlE2.toSlE` reads
+  ScKind off ScKindR by `scKind_of_R`); **`kentry_slB2 (c) (h : SlB2 σ) (hE : SlE2 σ) (ha) (hct) : ∀ y ∈
+  (fl4KernelEntrySyscall true c σ).1, SlB2 y.2`**, **`kcall_slB2 (rep ev)`** (ha / hct as sl4's `kcall_slB`),
+  **`kentry_scLive2` / `kcall_scLive2`** (ScLiveT ∧ NtfnScB), **`kentry_scKindR (c) (hK : ScKindR σ) (hU : UtInv3 σ)`**
+  / **`kcall_scKindR`**; `boot_scKindR`. sl4's tops are kept. Premises of the new tops: the carried invariants
+  (SlB2, SlE2's fields), l4v `ct_active` (`ha`), vi2's `CtSc` [J] for pinned syscalls (unchanged lead decision).
+  **`SlE.kind` / ScKind is gone. No new premise.** The `_of` forms take `KrGap`, now proved (`krGap`).
+- No FINDING: every reachable cap write is derived from a slot cap of the same entry (moves / copies / mint / rotate
+  through mask / update / derive, IPC transfer, TCB installs by re-read, arch updates of the invoked or re-read cap,
+  zombies of the finalised object), harmless (null, untyped, IRQ, IO port), or fresh (create_cap into a window no cap
+  covers; the MakePool pool cap over a frame no cap covers).
+- Builds (tokyo, FL4-sc mirror warm, ./sl5.sh untracked = sl4.sh; module builds only): sl5-b1..b2 KA (ambiguous `IK`:
+  open SInvV only selectively), b3 KA ok, b4..b7 KB (`OkDAt` lives in SInvDom; derive_cap's page arm `kd_pageUnmap`),
+  b7 KB + KG ok, b8..b11 KD (`kd_cnode_ite`; `okv_returnOk (P := …)`), b12..b14 KE (arch unmaps re-read the slot: view
+  algebra; `intro ⟨…, -⟩` rejected; `SInvU.checkBudgetRestart_true`), b14 KU + KE + KT ok (5098 jobs), b15 KV + axioms.
+  Axioms (scratch/sl5/ax.lean, ax2.lean, untracked; tasks sl5-ax1, sl5-b15): kentry_slB2, kcall_slB2, kentry_scLive2,
+  kcall_scLive2, kentry_scKindR, kcall_scKindR, krGap, boot_scKindR, ks_fl4Perform, ks_handleInvocationR, ks_recDel,
+  ks_capRevoke, ks_invokeTcb, ks_doNormalTransfer, kr_okv_fl4Decode, okv_cnK, skr_invokeUntyped0/1, skr_makePool,
+  rk_reset, skr_tail, skr_ccLoop, KS.cur, KS.refl, kd_of_so: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide/axiom; heartbeats per declaration ≤ 16M (the arch decode), no raise as a fix.
+- Lessons: an `IK`-style family over an ANCHORED predicate (`KS σ0`, facts about σ0 only) makes decode facts stable
+  (they speak of σ0, never of the current state) and removes slot side conditions; fresh writes are the only place the
+  anchor must move. `first | … | exact okdAt_returnOk (lemma)` alternatives must be term-only; a `| exact …` on a new
+  line inside `cases … with` is parsed as an alternative; `rfl` inside an argument can assign a pending metavariable
+  of the written cap (pin it with `(a' := …)`).

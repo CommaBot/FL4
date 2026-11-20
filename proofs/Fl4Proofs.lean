@@ -1035,3 +1035,4 @@ import Fl4Proofs.P3.SpecInvSlKD
 import Fl4Proofs.P3.SpecInvSlKU
 import Fl4Proofs.P3.SpecInvSlKE
 import Fl4Proofs.P3.SpecInvSlKT
+import Fl4Proofs.P3.SpecInvSlKV
