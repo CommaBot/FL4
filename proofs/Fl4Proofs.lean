@@ -1048,3 +1048,6 @@ import Fl4Proofs.P3.SpecInvCqB1
 import Fl4Proofs.P3.SpecInvCqB2
 import Fl4Proofs.P3.SpecInvAllC
 import Fl4Proofs.P3.SpecInvEqA
+import Fl4Proofs.P3.SpecInvEqK
+import Fl4Proofs.P3.SpecInvEqB
+import Fl4Proofs.P3.SpecInvEqG1

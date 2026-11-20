@@ -10,7 +10,9 @@ and sporadic), plus `ScBack` and `ActReady`.
 * `RPosS y` / **`RPos σ` [J]** (l4v `valid_refills` of a sporadic SC, the part
   `RefOK` needs beyond rd's `RV`): an active SC with a non-zero period (not
   round-robin: `isRoundRobin` is `scPeriod = 0`) has only positive refill
-  amounts, summing below `2 ^ 64`. Round-robin SCs are exempt: their empty
+  amounts, summing below `2 ^ 64` and to at least `MIN_BUDGET` (the budget;
+  the lower bound keeps `head_insufficient_loop` from merging a single
+  refill). Round-robin SCs are exempt: their empty
   tail (`maybe_add_empty_tail`, `refill_reset_rr`) has amount 0.
 * **`epQAll_of`**: `Rdy ∧ ScInv ∧ EpQB ∧ RPos ⇒ EpQAll`. A queued thread is
   blocked on the endpoint (EpQB); without a fault it is `BlkR`, so bound to an
@@ -32,10 +34,13 @@ noncomputable section
 
 /-- The refill facts of one active sporadic SC. -/
 def RPosS (y : SchedContext) : Prop :=
-  scActive y = true → y.scPeriod ≠ 0 → (∀ r ∈ y.scRefills, 0 < r.rAmount.toNat) ∧ rsum y.scRefills < 2 ^ 64
+  scActive y = true → y.scPeriod ≠ 0 → (∀ r ∈ y.scRefills, 0 < r.rAmount.toNat) ∧ rsum y.scRefills < 2 ^ 64 ∧
+    MIN_BUDGET.toNat ≤ rsum y.scRefills
 
 /-- **RPos [J]** (l4v `valid_refills`, sporadic part): every active sporadic
-SC has positive refill amounts summing below `2 ^ 64`. -/
+SC has positive refill amounts summing below `2 ^ 64` and to at least
+`MIN_BUDGET` (the sum is the configured budget: charges and merges conserve
+it, `refill_new` / `refill_update` set it to a decoded budget). -/
 def RPos (σ : State Unit) : Prop := ∀ p y n, σ.kheap p = some (.schedContext y n) → RPosS y
 
 /-- **EpQAll** (INV-PLAN E7, the CNode decode's `hQ`). -/
@@ -63,7 +68,7 @@ theorem scOK_clauses {σ : State Unit} {c : ObjRef} {y : SchedContext} {k : Nat}
     (scActive y = true → y.scPeriod ≠ 0 → Sched.RefOK y) := by
   have hne := hN c y k hk
   refine ⟨hne, fun ha => ⟨hrd ha, suff0_of (hV c y k hk ha).2.1⟩, fun ha hp => ?_⟩
-  obtain ⟨hpos, hsum⟩ := hP c y k hk ha hp
+  obtain ⟨hpos, hsum, -⟩ := hP c y k hk ha hp
   exact ⟨hne (Or.inr ha), hpos, hsum, (hV c y k hk ha).2.1⟩
 
 /-- **The corollary.** -/
