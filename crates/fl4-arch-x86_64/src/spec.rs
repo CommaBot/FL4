@@ -176,6 +176,13 @@ fn native_only_needs_no_smt(safe_ret: bool, all_safe_ret: bool) -> bool {
     safe_ret && all_safe_ret
 }
 
+/// Whether this core's native entries skip IBPB (`allowed`: its
+/// capabilities permit it, `native_entry_without_ibpb`): as for Safe RET,
+/// only with a plan or a native-only rejection for buffer clearing alone.
+fn entry_without_ibpb(allowed: bool, plan: &Result<Plan, Rejected>) -> bool {
+    allowed && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode))
+}
+
 /// Probe and initialize each logical CPU after its GDT/IDT is installed,
 /// before VMX/SVM is enabled. BSP rejection leaves virtualization unavailable;
 /// available native mitigations are still applied. Incompatible AP capabilities
@@ -219,6 +226,7 @@ pub fn init_core(bsp: bool) -> bool {
         wrmsr(0xc001_1029, de_cfg);
     }
     let plan = select(&c);
+    let no_entry_ibpb = entry_without_ibpb(native_entry_without_ibpb(&c), &plan);
     if bsp {
         BOOT_PLAN.store(plan.is_ok(), Ordering::Relaxed);
     } else if !ap_admissible(SKIM.load(Ordering::Relaxed), needs_skim(c.vendor, hygon(), c.arch),
@@ -231,7 +239,7 @@ pub fn init_core(bsp: bool) -> bool {
     let mut entry = 0;
     let mut spec_ctrl = 0;
     let mut auto = false;
-    let safe_ret = native_safe_ret(&c) && !crate::sev::snp::active()
+    let safe_ret = native_safe_ret(&c)
         && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode));
     let needs_no_smt = match plan {
         Ok(p) => p.no_smt,
@@ -256,6 +264,9 @@ pub fn init_core(bsp: bool) -> bool {
             if c.vendor == Vendor::Amd && c.amd8 & (1 << 30) == 0 {
                 entry |= RSB;
             }
+        }
+        if no_entry_ibpb {
+            entry &= !IBPB;
         }
         if c.vendor == Vendor::Intel && c.leaf7_edx & (1 << 26) != 0 {
             spec_ctrl = 1;
@@ -350,7 +361,11 @@ impl fmt::Display for Status {
         let Some(p) = self.0 else {
             return f.write_str("not initialized");
         };
-        write!(f, "IBPB on kernel entry and VM exit")?;
+        f.write_str(if p.entry & IBPB != 0 {
+            "IBPB on kernel entry and VM exit"
+        } else {
+            "IBPB on VM exit"
+        })?;
         if p.auto_ibrs {
             f.write_str(", AutoIBRS")?;
         }
@@ -452,6 +467,47 @@ mod tests {
         assert_eq!(smt_admission(false, true, true), Some(true));
         assert_eq!(smt_admission(false, false, false), Some(false));
         assert_eq!(smt_admission(false, false, true), Some(false));
+    }
+
+    #[test]
+    fn entry_ibpb_is_kept_for_other_rejections() {
+        let p = Plan {
+            entry: 0,
+            vmexit: IBPB,
+            buffers: true,
+            spec_ctrl: 2,
+            auto_ibrs: true,
+            no_smt: false,
+            disable_tsx: false,
+        };
+        assert!(entry_without_ibpb(true, &Ok(p)));
+        assert!(entry_without_ibpb(true, &Err(Rejected::BufferMicrocode)));
+        assert!(!entry_without_ibpb(false, &Ok(p)));
+        assert!(!entry_without_ibpb(false, &Err(Rejected::BufferMicrocode)));
+        for e in [Rejected::SrsoMicrocode, Rejected::Lfence, Rejected::Ibpb] {
+            assert!(!entry_without_ibpb(true, &Err(e)));
+        }
+    }
+
+    #[test]
+    fn status_names_the_entry_ibpb_only_when_used() {
+        extern crate std;
+        use std::format;
+        let p = Plan {
+            entry: 0,
+            vmexit: IBPB,
+            buffers: false,
+            spec_ctrl: 0,
+            auto_ibrs: true,
+            no_smt: false,
+            disable_tsx: false,
+        };
+        assert_eq!(format!("{}", Status(Some(p), None)), "IBPB on VM exit, AutoIBRS");
+        let p = Plan { entry: IBPB, ..p };
+        assert_eq!(
+            format!("{}", Status(Some(p), None)),
+            "IBPB on kernel entry and VM exit, AutoIBRS"
+        );
     }
 
     #[test]

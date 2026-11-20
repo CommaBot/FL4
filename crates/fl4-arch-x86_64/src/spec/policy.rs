@@ -30,6 +30,7 @@ const VERW_CLEAR: u32 = 1 << 5;
 pub const AUTO_IBRS: u32 = 1 << 8;
 const IBPB_BRTYPE: u32 = 1 << 28;
 const SRSO_NO: u32 = 1 << 29;
+const SRSO_USER_KERNEL_NO: u32 = 1 << 30;
 // AMD TSA guidance rev. 3.0 (November 2026), section 6, Fn8000_0021 ECX.
 const TSA_SQ_NO: u32 = 1 << 1;
 const TSA_L1_NO: u32 = 1 << 2;
@@ -166,6 +167,15 @@ pub fn native_safe_ret(c: &Caps) -> bool {
         && c.smep
         && c.amd8 & AMD_STIBP != 0
         && c.amd21 & (LFENCE_SERIAL | AUTO_IBRS) == (LFENCE_SERIAL | AUTO_IBRS)
+}
+
+/// AutoIBRS protects indirect calls/jumps; a CPU reporting SRSO_NO or
+/// SRSO_USER_KERNEL_NO needs no return barrier at a native kernel entry.
+pub fn native_entry_without_ibpb(c: &Caps) -> bool {
+    c.vendor == Vendor::Amd
+        && c.smep
+        && c.amd21 & AUTO_IBRS != 0
+        && c.amd21 & (SRSO_NO | SRSO_USER_KERNEL_NO) != 0
 }
 
 pub fn select(c: &Caps) -> Result<Plan, Rejected> {
@@ -309,6 +319,10 @@ pub fn select(c: &Caps) -> Result<Plan, Rejected> {
                 if c.amd21 & AUTO_IBRS == 0 {
                     p.vmexit |= RSB;
                 }
+            }
+            // VM exits keep IBPB: it also protects the userspace VMM.
+            if native_entry_without_ibpb(c) {
+                p.entry &= !IBPB;
             }
             p.auto_ibrs = c.amd21 & AUTO_IBRS != 0;
             if c.amd8 & AMD_STIBP != 0 {
@@ -627,6 +641,65 @@ mod tests {
             c.amd21_ecx |= TSA_FILL_NO;
             assert!(!select(&c).unwrap().buffers);
         }
+    }
+
+    #[test]
+    fn zen5_with_srso_user_kernel_no_drops_only_the_entry_ibpb() {
+        let mut c = amd();
+        c.family = 0x1a;
+        c.amd8 = AMD_IBPB | AMD_STIBP | AMD_IBPB_RET;
+        c.amd21 =
+            LFENCE_SERIAL | AUTO_IBRS | IBPB_BRTYPE | VERW_CLEAR | SRSO_USER_KERNEL_NO;
+        let p = select(&c).unwrap();
+        assert_eq!(p.entry & IBPB, 0);
+        assert_eq!(p.vmexit, IBPB);
+        // Without AMD_IBPB_RET the entry RSB fill stays.
+        c.amd8 &= !AMD_IBPB_RET;
+        let p = select(&c).unwrap();
+        assert_eq!(p.entry, RSB);
+        assert_eq!(p.vmexit, IBPB);
+    }
+
+    /// Nested EPYC 9B45 (Zen 5), as measured.
+    #[test]
+    fn measured_nested_zen5_is_native_only_without_entry_ibpb() {
+        let c = Caps {
+            vendor: Vendor::Amd,
+            family: 0x1a,
+            model: 2,
+            stepping: 1,
+            hypervisor: true,
+            microcode: 0,
+            arch: 0,
+            leaf7_edx: 0,
+            leaf7_2_edx: 0,
+            smep: true,
+            rtm: false,
+            amd8: 0x711ed205,
+            amd21: 0x593ddd47,
+            amd21_ecx: 6,
+        };
+        assert_eq!(select(&c), Err(Rejected::BufferMicrocode));
+        assert!(native_entry_without_ibpb(&c));
+        assert!(!native_safe_ret(&c));
+    }
+
+    #[test]
+    fn native_entry_without_ibpb_needs_auto_ibrs_smep_and_an_srso_bit() {
+        let mut c = amd();
+        c.family = 0x1a;
+        c.amd21 |= AUTO_IBRS | SRSO_USER_KERNEL_NO;
+        assert!(native_entry_without_ibpb(&c));
+        assert!(!native_entry_without_ibpb(&Caps { amd21: c.amd21 & !AUTO_IBRS, ..c }));
+        assert!(!native_entry_without_ibpb(&Caps { smep: false, ..c }));
+        assert!(!native_entry_without_ibpb(&Caps {
+            amd21: c.amd21 & !SRSO_USER_KERNEL_NO,
+            ..c
+        }));
+        assert!(!native_entry_without_ibpb(&Caps { vendor: Vendor::Intel, ..c }));
+        let srso_no = Caps { amd21: LFENCE_SERIAL | AUTO_IBRS | SRSO_NO, ..c };
+        assert!(native_entry_without_ibpb(&srso_no));
+        assert!(!native_entry_without_ibpb(&Caps { amd21: SRSO_NO, ..c }));
     }
 
     #[test]
