@@ -411,10 +411,10 @@ endpoint (the post forgets `K`): a pre/post leaf, the whole remainder by
 `nq2_auto`, a prefix by `nq2_auto`, or a split. -/
 macro "nqh_auto" : tactic => `(tactic| repeat' (first
   | nqh_leaf
-  | (exact hk_post (hk_of_ik (by nq2_auto)) nq_weak_nil)
   | (refine hk_bind (hk_of_ik (by nq2_auto)) fun _ => ?_)
   | (unfold NonDet.when)
-  | split))
+  | split
+  | (exact hk_post (hk_of_ik (by nq2_auto)) nq_weak_nil)))
 
 end
 
