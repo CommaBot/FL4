@@ -5975,3 +5975,65 @@ ViG, ViH; root imports all eight. Nothing outside SpecInvVi* edited.
   (tac; done)`); nested `cases … with` inside a `by` in a `cases … with` arm is parsed as outer alternatives (use `case` +
   `all_goals`); a match with a nested constructor pattern (`.cancelBadgedSendsCall (.endpointCap …)`) only reduces after
   `cases` on the inner value.
+## ctq3 (branch par/ctq3 in FL4-q, on ce15d0d8 = int/j2 incl. ctq2, sg1, nq3) — TQ (T1 + "queued ⇒ runnable"); T1 across every perform (NOT finished: shell / tops)
+Goal (ctq2's handoff 1-3): `kentry_t1` / `kcall_t1` for every syscall and event. Spec-only, namespace `Fl4Proofs.P3.SInvQ`,
+modules SpecInvCqR, SpecInvCqRF1..F5 (generated), SpecInvCqJ, SpecInvCqU, SpecInvCqP; root imports the nine. Nothing existing edited.
+- **`TQ σ := RQd σ ∧ TT σ.readyQueues`**, `RQd σ := ∀ d p t, t ∈ readyQueues d p → ∃ x, kheap t = tcb x ∧ x.tcbDomain = d ∧
+  x.tcbPriority = p ∧ runnable x.tcbState` [J] (l4v `valid_ready_qs`: etcb half = ctq2's T1, plus `st_tcb_at runnable`).
+  `TQX X` carries an extra fact on the ready queues only (`TQU t`: t in no queue), `TQC C` an extra heap fact (`RnH t`, `NRH t`).
+  Release queue and scheduler action are frames for TQ (not part of it). `boot_tq`, `tq_t1`.
+- SpecInvCqR (hand, all no premise): heap leaves (`tqx_setObject_p`: a TCB write keeps domain/priority and a queued TCB stays
+  runnable), `tqx_setThreadState_p` (runnable state, or thread in no queue), `tqx_tcbSchedAction_p` (enqueue only a thread
+  runnable at that state), retype/detype under "no queued thread there"; **`tq_setPriority : TQK (setPriority t prio)`** (the
+  non-runnable branch: not runnable ⇒ in no queue, so ctq2's `hR` is now a consequence of the carried invariant),
+  `tq_setDomain`, `tqc_rescheduleRequired` (target enqueued after `schedulable` read it), `tqc_possibleSwitchTo` /
+  `tq_possibleSwitchTo_p` (target runnable at that state), `tq_cancelIpc`, `tq_suspend` (dequeues first), `tq_replyUnlinkTcb`
+  (its own state assertion), `q3_threadSet_out`, `q3_setThreadState_out`.
+- SpecInvCqRF1..F5: 327 generated lemmas (proofs/scratch/q3/mkq3.sh, untracked; skip list skipq3.txt = the functions below and
+  their ancestors).
+- SpecInvCqJ: **the joint `JQ K := NQ K ∧ TQ`** (nq2/nq3's NQ). `cancel_all_ipc` makes Inactive (`restart_thread_if_no_fault`)
+  threads of an endpoint queue: safe for TQ because `tcb_ep_dequeue` asserts membership and EpQB makes the member BoS/BoR
+  (`jq_removeAndRestartEpQueuedThread`). `tq_restartThreadIfNoFault_u` (from TQU t), `tq_unblock_pst` (the sporadic unblock check
+  keeps TCB states: sch's `Sched.nkt_ifCondRefillUnblockCheck` → `rnH_of_tkw`), `tq_removeAndRestartNtfnQueuedThread`,
+  `tq_cancelAllSignals`; jq family by `jq_auto` (`ik_and` of an `nq_*` and a `tq_*` leaf): `jq_cancelAllIpc`,
+  `jq_fastFinalise`, `jq_capDeleteOne`, `jq_deletingIrqHandler`, `jq_finaliseCap`, `jq_recDelF/jq_recDel`, `jq_capDelete`,
+  **`jq_installTcbCap : IKE (JQ K) (installTcbCap …)`**.
+- SpecInvCqU: `IfLiveTN` = nq3's IfLiveT statement verbatim (il1's IfLiveT, uncommitted in FL4-rb, implies it), **`rqDet_of_live
+  (hU : UtInv'') (hL : IfLiveTN) (hR : RQd) : childless untyped cap ⇒ no queued thread in its region`** (queued ⇒ runnable ⇒ live ⇒
+  named by a cap ⇒ CDT descendant, ut4's UtCh); `tq_resetUntypedCap`, `tq_utBody`, **`tq_invokeUntyped`** (no reset: ut1's
+  `utRet_fresh`; reset: `utRet_fresh_after_reset` + rqDet), **`tq_makePool`**, `rqMp_of` (nq3's NqDec MakePool fact).
+- SpecInvCqP: **`q3_fl4PerformInvocation bl call don i : HKE (PQ i) T1 (fl4PerformInvocation bl call don i)`**, EVERY invocation,
+  `PQ i σ := JQ [] σ ∧ NqDec σ i ∧ UtInv'' σ ∧ IfLiveTN σ` (ThreadControlSched with a priority: `jq_installTcbCap`, joint
+  set_mcpriority, `tq_setPriority`; untyped / MakePool: SpecInvCqU; the rest ctq2's T1 family).
+- **Why TQ is not yet carried across the whole entry (no FINDING: each needs a fact l4v has).** TQ's writers not covered:
+  (a) `schedule`'s switch branch enqueues the `switchThread` candidate without a runnable check (l4v `weak_valid_sched_action`:
+  RA "switch target runnable"; RA's writers: suspend of a switch target needs l4v `simple_sched_action` in the deletion cone);
+  (b) `awaken`'s `possible_switch_to` of the release-queue head (l4v `valid_release_q`: RR "released ⇒ runnable"; RR's writer
+  `postpone` enqueues the SC's `scTcb`, which at `end_timeslice` / `do_reply_transfer` needs SC/TCB `sym_refs` and
+  `cur_sc`'s TCB = ct); (c) the ct-blocking writers (send/receive/signal/reply-push blocking, `handle_no_fault`, the fault /
+  timeout paths, `end_timeslice`'s `handle_timeout ct`) need ct in no ready queue — the nq2/nq3 protected-list `K` with ct,
+  dropped where ct may be enqueued (set_priority/set_domain/yield_to of ct, `end_timeslice`'s append; firstPhase rejects
+  thread/SC caps so none precede a block in one entry); (d) `do_reply_transfer`'s `handle_timeout receiver` (receiver read
+  BlockedOnReply joins `K`), `sched_context_yield_to`'s `enqueue ctPtr` (ct Restart during the perform: nq3's PJ-style frame).
+  None is needed for T1 itself: after `perform_invocation` only T1 is read, so the T1 top needs TQ only up to the perform.
+- HANDOFF (in order):
+  1. Shell `q3_fl4HandleInvocationR : HKE (fun σ => JQ [ct] σ ∧ UtInv'' σ ∧ IfLiveTN σ) T1 (fl4HandleInvocationR …)`: front
+     reads by `jq_auto` (lookups, decode; `getMessageInfo`), the fault branch / error reply / post-shell by ctq2's family,
+     `set_thread_state ct Restart` (NQ: ct ∈ K; TQ: runnable state), `NqDec` at the perform from nq3's `nqDecW`, `UtInv''`
+     from ut's front frames (as nq3's `Iu`), then `q3_fl4PerformInvocation`. **`IfLiveTN` at the perform needs il1's IfLiveT
+     family (the lead wires it)**; front: `checkBudgetRestart` keeps the state when it returns true (its charge branch
+     returns false, then only T1 is needed).
+  2. Tops `kentry_t1 (h : T1 σ ∧ RQd σ) (hN : NtfnQB σ ∧ EpQB σ) (ha : ct active) (hc : ct in no ready queue) (hU) (hL)` —
+     the TQ part is a per-entry premise [J] until (a)-(d) are carried (l4v `valid_ready_qs` + `ct_not_in_q`), post T1.
+  3. Carry TQ (then T3 / CtNQR): RA + RR + the ct-`K` (list above), the SC binding facts for `postpone`.
+- Premises: none at the lemma level beyond the stated preconditions; `IfLiveTN` [J] (l4v `if_live_then_nonz_cap`, nq3's
+  statement; il1 carries the stronger IfLiveT). No ∀-states hypothesis.
+- Builds (tokyo, ./ctq3.sh untracked; mirror warm): ctq3-b5 SpecInvCqR (1032 jobs), ctq3-b6 / b11 F1..F5 (1042), ctq3-b12/b13
+  SpecInvCqJ (3858: imports nq3's SpecInvNtfnQG and sch's ScTK, both spec-side), ctq3-b14 SpecInvCqU, ctq3-b15 SpecInvCqP
+  (3922 jobs, "Build completed successfully") + axioms (ax3.lean, untracked): q3_fl4PerformInvocation, tq_setPriority,
+  tq_setDomain, tq_suspend, tq_cancelIpc, tq_replyUnlinkTcb, tq_rescheduleRequired, tq_possibleSwitchTo_p, jq_installTcbCap,
+  jq_cancelAllIpc, jq_recDel, tq_invokeUntyped, tq_makePool, rqDet_of_live, boot_tq, tq_cancelAllSignals: propext,
+  Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (nine import lines).
+  Lean traps met: `macro_rules | … =>` with the right-hand side on the next line, and a `first | …` alternative list split
+  over lines, are parse errors; `TQX ?X` does not unify with `TQX (fun _ => True)` under `with_reducible` (hence the constant
+  `TT`); unfolding the whole sporadic unblock check in one `repeat'` runs out of heartbeats (use sch's `nkt_*` frames).

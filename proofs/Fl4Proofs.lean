@@ -930,3 +930,12 @@ import Fl4Proofs.P3.SpecInvViR
 import Fl4Proofs.P3.SpecInvViF
 import Fl4Proofs.P3.SpecInvViG
 import Fl4Proofs.P3.SpecInvViH
+import Fl4Proofs.P3.SpecInvCqR
+import Fl4Proofs.P3.SpecInvCqRF1
+import Fl4Proofs.P3.SpecInvCqRF2
+import Fl4Proofs.P3.SpecInvCqRF3
+import Fl4Proofs.P3.SpecInvCqRF4
+import Fl4Proofs.P3.SpecInvCqRF5
+import Fl4Proofs.P3.SpecInvCqJ
+import Fl4Proofs.P3.SpecInvCqU
+import Fl4Proofs.P3.SpecInvCqP
