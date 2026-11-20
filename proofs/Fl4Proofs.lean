@@ -781,6 +781,9 @@ import Fl4Proofs.P3.SpecInvSbG5
 import Fl4Proofs.P3.SpecInvSbG6
 import Fl4Proofs.P3.SpecInvSbX1
 import Fl4Proofs.P3.SpecInvSbX2
+import Fl4Proofs.P3.SpecInvSbN
+import Fl4Proofs.P3.SpecInvSbE
+import Fl4Proofs.P3.SpecInvSbX3
 import Fl4Proofs.P3.SpecInvDom
 import Fl4Proofs.P3.SpecInvNativeScopeK
 import Fl4Proofs.P3.SpecInvNativeScopeT
