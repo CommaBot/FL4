@@ -7177,3 +7177,36 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdA..E / RdU / RdY (ed
   mixed with `Ticks` in a `-`/`+` fails instance synthesis — take `u : U64` and write `u.bv` (postBody_eq's form); pass
   `lsum_schedUsedL`'s `nw` explicitly; a failed lemma makes its callers report "declaration uses sorry" (error recovery,
   not a source sorry).
+## g1a (branch par/g1a in FL4-sc, on d712b91c = int/j2 incl. sl5, rd4, ctq6) — INV-PLAN §4 G1 assembly for the finished fields (DONE)
+Spec-only, namespace `Fl4Proofs.P3.SInvAll`, modules SpecInvAllV, SpecInvAll (root imports both). Nothing existing edited.
+- **`SInvA σ`** (one structure, 19 fields): `VfhAll`, `CnDom` (vfh3), `FaultTcbsS`, `NQB` (ft3), `NativeScopeS` (invA),
+  `SpecGlobS`, `IdleOutV` (sg1), `DomListOK` (invC), `ValidIrqMasks`, `ValidIrqHandlers` (vih3), `ValidMachineTime` (invB),
+  `UtInv3` (ut8), `NtfnQB`, `EpQB`, `IfLiveT` (nq3 / il2), `ValidIdle` (vi3), `FT` (fo1; `FpuOwnOKS` = `SInvA.fo`),
+  `SlB2` (sl5; contains sb2's `ScInv` = `SInvA.scInv` and sl's `IdleScOutV`), `CurScT` (ctq5). Projections: `SInvA.idleSc`
+  (vi3's `IdleScOutV` = sl's, `idleSc_L_I` is the identity), `SInvA.ctSc` (vi2's `CtSc` by ctq5's `ctSc_of_curScT`),
+  `SInvA.slE` (sl5's `SlE2`).
+- **`EntryJ σ`** = one field `ctAct : ∃ x, kheap ct = tcb x ∧ activeSt x.tcbState` [J] (l4v `ct_active` + `cur_tcb`);
+  **`EntryJEv ev σ`**: the same with `∨ (ev = .interrupt ∧ tcbState = IdleThreadState)` (l4v `ct_running ∨ ct_idle` at
+  an interrupt). Bridges: `act_all` (∃ → ∀ form for vi3 / nq1), `ctEntry_of_J` (ft3's `CtEntry` = nq1's `ctEntry_of`
+  with `NtfnQB`), `ctEntryEv_of_J` (`CtEntryEv`: `ctEntryI_of` at the interrupt), `EntryJ.toEv`.
+- **Tops**: `kentry_sinvA (hnd : numDomains = 1) (c) (h : SInvA σ) (hJ : EntryJ σ) : ∀ y ∈ (fl4KernelEntrySyscall true c
+  σ).1, SInvA y.2`; `kcall_sinvA hnd rep ev h (hJ : EntryJEv ev σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, SInvA y.2`;
+  `kcall_sinvA_sys`; `boot_sinvA : SInvA initASt` (non-vacuity; new: `boot_validIdle`, `boot_ifLiveT`, `boot_ntfnScB`,
+  `boot_curScT`). vi3 / sl5's `hct` (CtSc for pinned syscalls) is gone: carried `CurScT`.
+- **The one non-J premise: `hnd : numDomains = 1` [P]** (invC's `kentry_domListOK` / `dp_fl4CallKernel`; `kernelConfig`
+  is opaque, so neither SInvA nor EntryJ can supply it; the same constant as `JEntryGlob.nd` / INV-PLAN T11 / `PlatJ`).
+  No other top hypothesis is left unsupplied.
+- **Bridging for the event form** (SpecInvAllV): invB proved `ValidMachineTime` only for the syscall entry and the
+  interrupt (`gk_fl4CallKernel_sys/irq`); `gk_fl4HandleEvent_all` / `gk_fl4CallKernel_all` compose the fault events
+  from invB's leaves by `gk_auto` plus one new leaf `gk_handleVmFault` (getFaultAddress is an MTK leaf; the syscall
+  generator never reached handle_vm_fault), giving `kcall_validMachineTime rep ev`. vih3's event form is `vi_fl4CallKernel`
+  (no `kcall_` top existed), invC's is `dp_fl4CallKernel`.
+- **Slot (NOT premises)**: OffReady / Rdy (rd5), SchedQ / CtNQR (ctq7), EpQAll (epq1): add as fields of `SInvA` (or a
+  successor bundle) once their whole-entry tops exist; their extra hypotheses must again be projections of the
+  bundle or of `EntryJ` (ctq5's design reads `ScInv`, `NtfnQB ∧ EpQB`, `UtInv3`, `IfLiveT`, `ValidIdle`: all in SInvA).
+- Namespace hygiene: the module opens only `Fl4Spec` and qualifies every SInv* name (no IK / HKp clashes).
+- Builds (tokyo, FL4-sc mirror warm, ./g1a.sh untracked = sl5.sh with the SpecInvAll filter; module builds only):
+  g1a-b1 (no GK leaf for `handleVmFault`), g1a-b2 (`unfold` must name the `VI` abbrev), g1a-b3 SpecInvAllV + SpecInvAll ok
+  (5208 jobs) + axioms (scratch/g1a/ax.lean, untracked): kentry_sinvA, kcall_sinvA, kcall_sinvA_sys, boot_sinvA,
+  kcall_validMachineTime, gk_fl4CallKernel_all, boot_validIdle, boot_ifLiveT, boot_ntfnScB, boot_curScT: propext,
+  Classical.choice, Quot.sound (ctEntryEv_of_J: propext). No sorry/admit/native_decide/bv_decide/axiom.
