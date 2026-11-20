@@ -906,3 +906,10 @@ import Fl4Proofs.P3.SpecInvCqF3
 import Fl4Proofs.P3.SpecInvCqF4
 import Fl4Proofs.P3.SpecInvCqF5
 import Fl4Proofs.P3.SpecInvCq
+import Fl4Proofs.P3.SpecInvViA
+import Fl4Proofs.P3.SpecInvViG1
+import Fl4Proofs.P3.SpecInvViG2
+import Fl4Proofs.P3.SpecInvViG3
+import Fl4Proofs.P3.SpecInvViG4
+import Fl4Proofs.P3.SpecInvViG5
+import Fl4Proofs.P3.SpecInvViG6
