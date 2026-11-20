@@ -29,9 +29,12 @@ below. FL4 does not install firmware/microcode updates.
 * On compatible AMD family 19h CPUs, native entries use AutoIBRS for
   indirect calls and jumps, and the Zen 3/4 Safe RET thunk for returns.
   This path requires AutoIBRS, SMEP, STIBP and dispatch-serializing LFENCE
-  on every online CPU. It is disabled under SNP. Native-only boots rejected
+  on every online CPU. Native-only boots rejected
   solely for buffer-clearing capability can still use Safe RET with STIBP
-  and one thread per physical core. Other native AMD entries retain IBPB
+  and one thread per physical core. Otherwise, AMD CPUs with AutoIBRS and
+  SMEP that report SRSO_NO or SRSO_USER_KERNEL_NO (no SRSO across the
+  user/kernel boundary) skip the native entry IBPB.
+  Other native AMD entries retain IBPB
   plus 32 nonzero-displacement CALLs where IBPB leaves return predictions
   live. Every AMD VM exit retains IBPB and omits the CALLs when AutoIBRS
   provides return protection. An AMD bare-metal boot explicitly makes
