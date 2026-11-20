@@ -4578,3 +4578,60 @@ Goal (ft2 handoff 1-7): FaultTcbsS (l4v fault_tcbs_valid_states) with NQB kept b
   Quot.sound. Root Fl4Proofs.lean imports H5..H10 (root not rebuilt).
 - No FINDING: no reachable-state counterexample met.
 - Left: discharging `CtEntry` (above); VfhAll (b)/(c) (invA handoff, not started).
+## vih3 (branch par/vih3 in FL4-rb, on 3017a034 = int/j2 incl. vih2) — kentry_validIrqMasks / kentry_vih (vih2 handoff steps 1-4)
+- DONE (new leaves, namespace SInvV, spec only, outside the JAtZ cone; root Fl4Proofs.lean imports all five):
+  * `SpecInvValidIrqHandlersW` (step 1): `CA c is` (a handler cap names a non-inactive line), `ca_of_slot`,
+    `VH R σ := ValidIrqMasks σ ∧ ValidIrqHandlers σ ∧ R σ.interruptStates` (`WLH` instance, so vih2's frames keep
+    it), `VI := VH (fun _ => True)`, `RM R`. Leaves: `vh_setCap` (CA cap; machine fields by MachFieldFamT's
+    `mtk_setCap`), `hv_setCdt`/`hv_updateCdt`/`hv_setOriginal` (every WLH), `vh_setUntypedCapAsFull`,
+    `vh_capInsert`/`vh_capMove`/`vh_capSwap` (CA caps from `R`), `vh_capSwapForDelete` (caps read from slots),
+    `vh_createCap` (default caps), `vh_retypeRegion(With)` (default objects hold no handler cap; ut1's
+    `retypeRegionWith_out`), `vh_deleteObjects`, `vh_setIrqState_active` (`RM R`).
+  * `SpecInvValidIrqHandlersX` (step 3, deletion): `Uniq irq sl σ` (only `sl` names irq, WLH), Hoare triples with
+    results `HT`, **`ht_lfp`** (pre-fixed point with a result-dependent post), `RV` (result values),
+    `rv_finaliseCap` (remainder never a handler cap; a handler cleanup cap only from the finalised handler cap),
+    `vi_emptySlot_p` (cleanup cap's line named only by the emptied slot → `setCap_null_unique` +
+    `hk_setIrqState_inactive`), `vi_capDeleteOne_u` (cleanup NullCap: keeps `VI ∧ U` for every WLH `U` closed under
+    `setCap NullCap`, e.g. `Uniq`), `vi_deletingIrqHandler_uniq`, `vi_finaliseCap`; **`vi_recDel : HT VI (RDPost k)
+    (recDel k)`** where `RDPost k r s := VI s ∧ (k = FinaliseSlotCall sl _ → r = ok (_, IRQHandlerCap irq) →
+    Uniq irq sl s)`: finality read by `isFinalCap` in finaliseSlotCall (`final_handler_unique`), kept through
+    `deleting_irq_handler`, consumed by cTEDeleteCall's `emptySlot`; `vi_capDelete`, `vi_capRevoke`.
+  * `SpecInvValidIrqHandlersY` (steps 1-2): `OkV σ0 Pr m` (ok outcomes keep `hV` and satisfy `Pr`), `okv_mapME`,
+    `okv_lookupCap` / `okv_lookupExtraCaps` (looked-up caps CA by VIH at the lookup), `okv_deriveCap`;
+    `vh_transferCapsLoop` / `vh_transferCaps` (R = every transferred cap CA), `vi_doNormalTransfer` (extra caps
+    looked up in the same transfer), `vi_irqIssue` (set_irq_state IRQSignal; cap_insert IRQHandlerCap: IRQ control,
+    arch IOAPIC/MSI, FL4 remapped IOAPIC), `vi_checkCapAt_ins` (TCB installs: `check_cap_at` re-reads the source
+    slot; `sameObjectAs (IRQHandlerCap i) c → c = IRQHandlerCap i`), `vi_setCap_bind_dead` + page / PT / PD / PDPT
+    maps (the continuation fails unless the cap is an arch cap), `vi_performAsidControlInvocation` (parent cap
+    re-read), `vh_invokeCnode` (`CnCA`), `vi_invokeIrqHandler` (`IhCA`: ack's `HIrq` → vih1's `vimh_ack`; set-handler
+    cap CA kept across `capDeleteOne`).
+  * `SpecInvValidIrqHandlersG` (generated: `sh proofs/scratch/vih3/mkvi.sh`, targets.txt / skipvi.txt, invA's gen.py
+    with a target filter; untracked like vih2's scripts): `IKH VI` for 29 functions (IRQ control, arch / untyped
+    performs, TCB installs, invokeTcb, IPC with cap transfer, fault/timeout paths, budget, preemption path).
+  * `SpecInvValidIrqHandlersS` (step 2 decode carry + step 4 shell): `InvCAd is inv` (CNode insert/move/rotate caps
+    and the set-handler cap CA); `okv_decodeCnode` (get_cap + mask_cap / update_cap_data / derive_cap keep CA:
+    `ca_maskCap`, `ca_updateCapData`), `okd_decodeIrqHandler`, `okd_fl4Decode`; `vi_fl4Perform` (from `InvCAd` and
+    the ack's `HIrq`, which comes from vih2's `okAck_fl4Decode` + the invoked cap's slot `okCap_front`, carried by the
+    frames across getMRs/decode/setThreadState); `vi_handleInvocationR` (invC's shell), `vi_fl4HandleSyscall`,
+    `vi_handleEvent_other`, `vi_fl4HandleEvent`, `vi_fl4CallKernel` (every event), `vi_fl4KernelEntrySyscall`.
+- STATEMENTS (no premise): **`kentry_validIrqMasks (hm : ValidIrqMasks σ) (hh : ValidIrqHandlers σ) : ∀ y ∈
+  (fl4KernelEntrySyscall true c σ).1, ValidIrqMasks y.2 ∧ ValidIrqHandlers y.2`**, **`kirq_validIrqMasks`** (same for
+  `fl4CallKernel true .interrupt`), `kentry_vih` / `kirq_vih` (their second conjunct). `vi_fl4CallKernel rep ev`
+  holds for every event and `rep`.
+- Builds (tokyo, ./vb.sh untracked: module build, compact error output): vih3-3 W OK; vih3-4..7 X (rv closers,
+  ESQ instance, spurious `split` branches of recDelF's / postCapDeletion's matches) OK at vih3-7; vih3-8..10 Y
+  (`as` keyword, do-join points of doNormalTransfer's `if`, the page map's matched entry); vih3-11 G (ASID control
+  re-writes the parent cap read from its slot: moved to Y by hand); **vih3-12: W, X, Y, G OK; vih3-13
+  `SpecInvValidIrqHandlersS` OK (4650 jobs)**. Root Fl4Proofs.lean imports W, X, Y, G, S (root not rebuilt).
+  Axioms (scratch/vih3/ax.lean, ./vax3.sh untracked, task vih3-ax2): kentry_validIrqMasks, kirq_validIrqMasks,
+  kentry_vih, kirq_vih, vi_fl4CallKernel, vi_recDel, vi_handleInvocationR, okd_fl4Decode, vi_doNormalTransfer,
+  vh_setCap: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom in the new files;
+  no named premise.
+- Notes: `kentry_vih` keeps the joint hypothesis `ValidIrqMasks σ` (it is the second conjunct of the joint
+  theorem; ValidIrqHandlers alone would need its own copy of the shell over `VH` without VIM — not needed since both
+  are G1 fields). The reachable-only route through l4v's `handleEvent` syscall branches is not used: non-syscall
+  events go through `fl4HandleEvent_other` (as invC). No FINDING: every writer is l4v's (deletion inactivates a line
+  only after emptying its final handler cap's only slot; every handler cap written is read from a slot, re-read by
+  `check_cap_at`, or issued after `set_irq_state IRQSignal`; the page maps fail on a non-arch cap).
+- Handoff: G3 wiring of `ValidIrqMasks ∧ ValidIrqHandlers` into the SInv bundle (consumer XTopJointMRPath's
+  `ValidIrqMasks`); `boot_vih` / `boot_vim` give the initial state.
