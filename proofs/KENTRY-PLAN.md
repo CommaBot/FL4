@@ -5342,3 +5342,42 @@ Goal (nq1's handoff): `kentry_ntfnQB` / `kcall_ntfnQB` with the queue half of l4
 - `#print axioms` (scratch/nq2/ax.lean, task nq2-ax1): boot_epQB, nq_update, nq_tcbEpDequeue_post, nq_cancelIpc_post,
   nq_blockedCancelIpc_post, nq_setPriority, nq_tcbEpAppend_p, nq_reorderEp_p, nq_sendIpcBlocked,
   nq_receiveIpcBlocked, nq_receiveSignal: propext, Classical.choice, Quot.sound.
+## ut8 (branch par/ut8 in FL4-tcbj, on 8dcf5646 = int/j2 incl. ut7) — `perfGap : PerfGap`; `kentry_utInv2` / `kcall_utInv2` with no premise (DONE)
+Goal: ut7's remaining obligation `PerfGap` (untyped and arch performs keep `P3 N` from a decoded invocation). Done in
+full; `kentry_utInv2 := kentry_utInv2_of perfGap`, `kcall_utInv2 := kcall_utInv2_of perfGap`, no premise. Spec-only,
+namespace `Fl4Proofs.P3.SInvU`; root imports SpecInvUtP1..P6. `NV N w := UtNV w ∧ IrqOutV N w`; every perform proof
+gets `UtInv'` from ut2/ut3's existing lemmas (`detypeOK_of`) and proves `NV N` on the same chain.
+- SpecInvUtP1 (arch but MakePool): decode facts `ArchSpecOKN` / `ArchOKN` and `okv_archDecodeN` / `okv_fl4ArchDecodeN`
+  (map: written cap `RefEq` to the invoked slot's cap, `MapOK`; unmap: the invoked slot holds the decoded VSpace cap;
+  IO-port control `IoCOKN`; MakePool `MpOKN` = MpOKV + destination `DestRefV` + null; DeriveSubframe `DsOKN`: source
+  holds a RAM large frame `p`, `base = p + off`, `off + 4096·count ≤ 2 MiB`, destinations are null slots
+  `(ptr, natToCref bits i)` of a CNode cap held in a slot). `hv_setCapRE` (a `RefEq` write keeps P3),
+  `hv_reread` (the unmap tail `liftM theArchCap (getCap sl) >>= setCap (updateMapData …)`: lead hint, a view lemma,
+  never unfold `setCap`), `p3_performPage*/PageTable/PageDirectory/PdptInvocation`, `refRel_sub` (a 4 KiB page cap
+  inside the large frame is `RefRel`), `hv_capInsert_keep` (a non-untyped insert keeps every other slot),
+  **`p3_performDeriveSubframe`**, `p3_archPerform`, **`p3_fl4ArchPerform`** (every arch invocation but MakePool).
+- SpecInvUtP2: `nv_sameNN` (same non-null caps and CDT: retype_region, delete_objects of a region with null slots),
+  `nv_setUt` (rewrite an untyped's free index when no cap covers the new free part), `nv_cc` / `nv_ccU` (`create_cap`
+  of a new non-untyped / untyped cap at a null CDT-leaf `DestRefV` slot, for an object no cap covers, inside the
+  source's region below its free index, every other overlapping untyped an ancestor of the source).
+- SpecInvUtP3: **`p3_makePool`** (`nv_makePool`: detype by RegNull, `max_free_index_update`, pool retype adds no cap,
+  `hv_capInsertPool`: `should_be_parent_of` holds (UtOrig + `sameRegion_poolU`), the pool cap is the untyped's child,
+  no cap covers `frame` by UtCh + childless).
+- SpecInvUtP4: the `create_cap` loop: `ItemN` (per item: null leaf `DestRefV` dest, no cap covers the object's range
+  `utR p o`, slots inside the range null / absent for untyped children, overlapping untypeds are ancestors),
+  `capRng_default`, `itemN_step`, **`nv_ccLoop`** (`UtFitV` for untyped sizes).
+- SpecInvUtP5: untyped decode destinations `UtOKN` / `okv_decodeUntypedN` (CNode cap held in a slot, window inside
+  `2^bits`; `okv_ite'` keeps the `isCnodeCap` condition: lead hint), `utDest_of` (`DestRefV`, `Nodup` by
+  `natToCref_inj`), `default_null`, **`nv_tail`** (raise, retype_region, init_arch_objects, loop).
+- SpecInvUtP6: reset family `RNV` (`rnv_setCap`, **`nv_reset`**), **`p3_invokeUntyped`** (no reset: CapFree / UtFree /
+  UtDesc give `nv_tail`'s facts; reset: `RNV` + ut2's `RSV` at the reset's outcome), `GapOKN` / `okv_fl4DecodeG`,
+  **`perfGap : PerfGap`**, **`kentry_utInv2 (c) (hI : UtInv3 σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, UtInv3 y.2`**,
+  **`kcall_utInv2 (rep ev) (hI : UtInv3 σ) : ∀ y ∈ (fl4CallKernel rep ev σ).1, UtInv3 y.2`**.
+- No new premise, no FINDING (no reachable step found to break UtInv3).
+- Builds (tokyo, ./ut8.sh untracked = ut7.sh with goal-line excerpts; mirror warm): ut8-b9 P1 (1098) + P2 (1100),
+  ut8-b10 P3 (1102), ut8-b11 P4 (1104), ut8-b13 P5 (1106) + P6 (1108); ut8-ax1 axioms (scratch/ut8/ax.lean,
+  untracked): perfGap, kentry_utInv2, kcall_utInv2, p3_invokeUntyped, p3_makePool, p3_fl4ArchPerform,
+  p3_performDeriveSubframe, okv_fl4DecodeG, nv_tail, nv_reset: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (six import lines added).
+- Next: kentry_utInv / kcall_utInv (the DetypeOK versions) can be retired in favour of the UtInv3 tops; the
+  non-vacuity boot state with untyped caps stays [S] (INV-PLAN lead decision).
