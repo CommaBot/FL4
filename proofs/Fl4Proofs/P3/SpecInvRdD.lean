@@ -99,20 +99,23 @@ theorem suff_checkBudgetRestart {σ : State Unit} {r : Bool × State Unit}
 /-- `Rdy` across a later time (same heap, queues, action). -/
 theorem rdy_later {σ σ' : State Unit} (h : Rdy σ) (hk : σ'.kheap = σ.kheap)
     (hq : σ'.readyQueues = σ.readyQueues) (ha : σ'.schedulerAction = σ.schedulerAction)
-    (ht : σ.curTime.toNat ≤ σ'.curTime.toNat) : Rdy σ' := by
+    (ht : σ.curTime.toNat ≤ σ'.curTime.toNat) (hrq : σ'.releaseQueue = σ.releaseQueue) : Rdy σ' := by
   have F : ∀ {t}, RdyT σ t → RdyT σ' t := fun {t} ⟨x, c, y, n, hx, hc, hy, h1, h2⟩ =>
     ⟨x, c, y, n, by rw [hk]; exact hx, hc, by rw [hk]; exact hy, h1,
       ready_of_nat (Nat.le_trans (nat_of_ready h2) ht)⟩
-  obtain ⟨h1, h2, h3, h4⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5⟩ := h
   exact ⟨fun d q t hm => F (h1 d q t (hq ▸ hm)), fun t e => F (h2 t (ha ▸ e)),
-    fun t x c hx hb hc => F (h3 t x c (hk ▸ hx) hb hc), fun q z n hz hz' => h4 q z n (hk ▸ hz) hz'⟩
+    fun t x c hx hb hc => F (h3 t x c (hk ▸ hx) hb hc), fun q z n hz hz' => h4 q z n (hk ▸ hz) hz',
+    fun t hm => by
+      obtain ⟨x, c, y, n, hx, hc, hy, h1⟩ := h5 t (hrq ▸ hm)
+      exact ⟨x, c, y, n, by rw [hk]; exact hx, hc, by rw [hk]; exact hy, h1⟩⟩
 
 /-- The queues and the action, fixed. -/
-abbrev QA (Q : Domain → Priority → List ObjRef) (A : SchedulerAction) (σ : State Unit) : Prop :=
-  σ.readyQueues = Q ∧ σ.schedulerAction = A
+abbrev QA (Q : Domain → Priority → List ObjRef) (A : SchedulerAction) (R : List ObjRef) (σ : State Unit) : Prop :=
+  σ.readyQueues = Q ∧ σ.schedulerAction = A ∧ σ.releaseQueue = R
 
-theorem qa_updateTimeStamp (Q : Domain → Priority → List ObjRef) (A : SchedulerAction) :
-    IK (QA Q A) (updateTimeStamp (Z := Unit)) := by
+theorem qa_updateTimeStamp (Q : Domain → Priority → List ObjRef) (A : SchedulerAction) (R : List ObjRef) :
+    IK (QA Q A R) (updateTimeStamp (Z := Unit)) := by
   unfold updateTimeStamp
   repeat' (first | (with_reducible exact ik_doMachineOp (fun _ _ h => h) _) | ik_step0 | ik_unfold)
 
@@ -121,8 +124,8 @@ theorem qa_updateTimeStamp (Q : Domain → Priority → List ObjRef) (A : Schedu
 theorem rdy_updateTimeStamp {σ : State Unit} (hv : SInvV.ValidMachineTime σ) (h : Rdy σ)
     {x : Unit × State Unit} (hx : x ∈ (updateTimeStamp (Z := Unit) σ).1) : Rdy x.2 := by
   obtain ⟨ek, -, et, -⟩ := SInvO.uts_off hx
-  obtain ⟨eq, ea⟩ := qa_updateTimeStamp σ.readyQueues σ.schedulerAction σ ⟨rfl, rfl⟩ x hx
-  refine rdy_later h ek eq ea ?_
+  obtain ⟨eq, ea, er⟩ := qa_updateTimeStamp σ.readyQueues σ.schedulerAction σ.releaseQueue σ ⟨rfl, rfl, rfl⟩ x hx
+  refine rdy_later h ek eq ea ?_ er
   have a1 : σ.curTime.toNat ≤ σ.machineState.lastMachineTime.toNat := BitVec.le_def.mp hv.1
   have a2 : σ.machineState.lastMachineTime.toNat ≤ SInvV.gctN σ.machineState := by
     unfold SInvV.gctN; exact le_min hv.2 (Nat.le_add_right _ _)
@@ -155,9 +158,17 @@ theorem rdy_upd_r {σ : State Unit} (h : Rdy σ) (p : ObjRef) (x y : Tcb) (hx : 
       rw [hx] at hx0; cases hx0
       exact ⟨y, c, y0, n, hp, by rw [hy]; exact hc, by rw [hk c hcp]; exact hy0, h1, h2⟩
     · exact ⟨x0, c, y0, n, by rw [hk t e]; exact hx0, hc, by rw [hk c hcp]; exact hy0, h1, h2⟩
-  obtain ⟨h1, h2, h3, h4⟩ := h
+  have G : ∀ {t}, ActB σ t → ActB σ' t := by
+    intro t ⟨x0, c, y0, n, hx0, hc, hy0, h1⟩
+    have hcp : c ≠ p := by rintro rfl; rw [hx] at hy0; cases hy0
+    by_cases e : t = p
+    · subst e
+      rw [hx] at hx0; cases hx0
+      exact ⟨y, c, y0, n, hp, by rw [hy]; exact hc, by rw [hk c hcp]; exact hy0, h1⟩
+    · exact ⟨x0, c, y0, n, by rw [hk t e]; exact hx0, hc, by rw [hk c hcp]; exact hy0, h1⟩
+  obtain ⟨h1, h2, h3, h4, h5⟩ := h
   refine ⟨fun d q t hm => F (h1 d q t hm), fun t e => F (h2 t e), fun t x' c hx' hb hc => ?_,
-    fun q z n hz hz' => ?_⟩
+    fun q z n hz hz' => ?_, fun t hm => G (h5 t hm)⟩
   · by_cases e : t = p
     · subst e; exact F hR
     · rw [hk t e] at hx'; exact F (h3 t x' c hx' hb hc)

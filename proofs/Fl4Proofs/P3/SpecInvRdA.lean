@@ -21,7 +21,10 @@ only, outside the `JAtZ` cone).
   below `2 ^ 64` (`rsum`; charges and merges conserve the sum, so
   `refill_unblock_check`'s merges never wrap the head's amount).
   `minBudget_le_maxPeriod` (platform constants only) gives it at boot.
-* `Rdy := R1 ∧ R2 ∧ R3 ∧ RV`; `boot_rdy`.
+* `R4` (l4v `valid_release_q`, its `active_sc_tcb_at` half; rd3, lead
+  decision (b)): every released thread is `ActB` (a TCB bound to an active SC),
+  so the head `awaken` reads ready is `RdyT`.
+* `Rdy := R1 ∧ R2 ∧ R3 ∧ RV ∧ R4`; `boot_rdy`.
 * `Suff σ` (l4v `cur_sc_offset_sufficient`, an intra-entry fact): the consumed
   time is sufficient for the current SC's head, when that SC is active and
   not the idle SC. Established by `check_budget` / `preemption_point`, not
@@ -207,8 +210,35 @@ two refills, a head of at least `MIN_BUDGET`, and refill amounts summing below
 def RV (σ : State Unit) : Prop :=
   ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → RVs y
 
+/-- A TCB bound to an active SC (l4v `active_sc_tcb_at`). -/
+def ActB (σ : State Unit) (t : ObjRef) : Prop :=
+  ∃ x c y n, σ.kheap t = some (.tcb x) ∧ x.tcbSchedContext = some c ∧ σ.kheap c = some (.schedContext y n) ∧
+    scActive y = true
+
+/-- **R4 [J]** (l4v `valid_release_q`, its `active_sc_tcb_at` half; rd3, lead
+decision (b)): every thread in the release queue is bound to an active SC. -/
+def R4 (σ : State Unit) : Prop := ∀ t, t ∈ σ.releaseQueue → ActB σ t
+
 /-- **The carried readiness bundle.** -/
-def Rdy (σ : State Unit) : Prop := R1 σ ∧ R2 σ ∧ R3 σ ∧ RV σ
+def Rdy (σ : State Unit) : Prop := R1 σ ∧ R2 σ ∧ R3 σ ∧ RV σ ∧ R4 σ
+
+theorem actB_of_rdyT {σ : State Unit} {t : ObjRef} (h : RdyT σ t) : ActB σ t := by
+  obtain ⟨x, c, y, n, hx, hc, hy, ha, -⟩ := h
+  exact ⟨x, c, y, n, hx, hc, hy, ha⟩
+
+/-- `ActB` across a rewrite of one non-TCB object keeping an active SC active. -/
+theorem actB_frame1 {σ σ' : State Unit} {p : ObjRef} (hk : ∀ q, q ≠ p → σ'.kheap q = σ.kheap q)
+    (hpt : ∀ x, σ.kheap p ≠ some (.tcb x))
+    (hpa : ∀ y n, σ.kheap p = some (.schedContext y n) → scActive y = true →
+      ∃ z m, σ'.kheap p = some (.schedContext z m) ∧ scActive z = true) {t : ObjRef} (h : ActB σ t) :
+    ActB σ' t := by
+  obtain ⟨x, c, y, n, hx, hc, hy, ha⟩ := h
+  have htp : t ≠ p := by rintro rfl; exact hpt x hx
+  by_cases e : c = p
+  · subst e
+    obtain ⟨z, m, hz, hz'⟩ := hpa y n hy ha
+    exact ⟨x, c, z, m, by rw [hk t htp]; exact hx, hc, hz, hz'⟩
+  · exact ⟨x, c, y, n, by rw [hk t htp]; exact hx, hc, by rw [hk c e]; exact hy, ha⟩
 
 /-- **The intra-entry sufficiency** (l4v `cur_sc_offset_sufficient`). -/
 def Suff (σ : State Unit) : Prop :=
@@ -265,7 +295,7 @@ theorem minBudget_le_maxPeriod : MIN_BUDGET ≤ MAX_PERIOD := by
 
 theorem boot_rdy : Rdy (initASt (Z := Unit)) := by
   refine ⟨fun d p t h => by simp [initASt] at h, fun t h => by simp [initASt] at h, fun t x c hx hb _ => ?_,
-    fun p y n hy _ => ?_⟩
+    fun p y n hy _ => ?_, fun t h => by simp [initASt] at h⟩
   · exfalso
     have e := init_tcbSt (u := t) hx
     rcases hb with ⟨_, h⟩ | ⟨_, _, h, _⟩ | ⟨_, _, _, h⟩ <;> rw [e] at h <;> cases h
@@ -483,12 +513,15 @@ theorem rdy_frame1 {σ σ' : State Unit} {p : ObjRef} (h : Rdy σ) (hk : ∀ q, 
       refillReady σ.curTime (refillHd y) = true →
       ∃ z, σ'.kheap p = some (.schedContext z n) ∧ scActive z = true ∧ refillReady σ.curTime (refillHd z) = true)
     (hpt : ∀ x, σ.kheap p ≠ some (.tcb x)) (hpt' : ∀ x, σ'.kheap p ≠ some (.tcb x))
-    (hpv : ∀ z n, σ'.kheap p = some (.schedContext z n) → scActive z = true → RVs z) :
+    (hpv : ∀ z n, σ'.kheap p = some (.schedContext z n) → scActive z = true → RVs z)
+    (hrq : σ'.releaseQueue = σ.releaseQueue)
+    (hpa : ∀ y n, σ.kheap p = some (.schedContext y n) → scActive y = true →
+      ∃ z m, σ'.kheap p = some (.schedContext z m) ∧ scActive z = true) :
     Rdy σ' := by
-  obtain ⟨h1, h2, h3, h4⟩ := h
+  obtain ⟨h1, h2, h3, h4, h5⟩ := h
   have F := fun {t} (h : RdyT σ t) => rdyT_frame hk ht hp hpt h
   refine ⟨fun d q t hm => F (h1 d q t (hq ▸ hm)), fun t e => F (h2 t (ha ▸ e)), fun t x c hx hb hc => ?_,
-    fun q z n hz hz' => ?_⟩
+    fun q z n hz hz' => ?_, fun t hm => actB_frame1 hk hpt hpa (h5 t (hrq ▸ hm))⟩
   · have htp : t ≠ p := by rintro rfl; exact hpt' x hx
     rw [hk t htp] at hx
     exact F (h3 t x c hx hb hc)
@@ -502,7 +535,7 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
     (hk : σ.kheap σ.curSc = some (.schedContext x n)) (hO : Sched.OffReady σ) (hS : Suff σ)
     (hne : scActive x = true → x.scRefills ≠ []) {r : Unit × State Unit}
     (hr : r ∈ (commitTime (Z := Unit) σ).1) : Rdy r.2 ∧ Sched.OffReady r.2 ∧ CommitOut σ x n r.2 := by
-  obtain ⟨y, e, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := commit_cur hk hO hS h.2.2.2 hne hr
+  obtain ⟨y, e, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := commit_cur hk hO hS h.2.2.2.1 hne hr
   rw [e]
   have hkc : ∀ q, q ≠ σ.curSc → ({ Sched.updSc σ σ.curSc y n with consumedTime := 0 } : State Unit).kheap q =
       σ.kheap q := fun q hq => by simp [Notif.updK, hq]
@@ -510,7 +543,8 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
       some (.schedContext y n) := kh_upd _ _ _ _
   have hay : scActive y = scActive x := by simp only [scActive, e2]
   refine ⟨rdy_frame1 h hkc rfl rfl rfl (fun y0 n0 hy0 ha0 hr0 => ?_) (fun x0 hx0 => by rw [hk] at hx0; cases hx0)
-    (fun x0 hx0 => by rw [hkp] at hx0; cases hx0) (fun z n0 hz hz' => ?_), fun z m hz => ?_,
+    (fun x0 hx0 => by rw [hkp] at hx0; cases hx0) (fun z n0 hz hz' => ?_) rfl
+    (fun y0 n0 hy0 ha0 => ⟨y, n, hkp, by rw [hk] at hy0; cases hy0; rw [hay]; exact ha0⟩), fun z m hz => ?_,
     ⟨y, rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩⟩
   · rw [hk] at hy0; cases hy0
     refine ⟨y, hkp, by rw [hay]; exact ha0, ?_⟩
@@ -521,7 +555,7 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
       rw [eh]; exact hr0
   · rw [hkp] at hz; cases hz
     rw [hay] at hz'
-    obtain ⟨v1, v2, v3⟩ := h.2.2.2 _ x n hk hz'
+    obtain ⟨v1, v2, v3⟩ := h.2.2.2.1 _ x n hk hz'
     refine ⟨by rw [e2]; exact v1, ?_, by rw [e9]; exact v3⟩
     by_cases hc : scActive x = true ∧ σ.curSc ≠ σ.idleSc
     · exact min_le_of_suff (e7 hc.1 hc.2)
