@@ -7271,3 +7271,45 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqB1, SpecInvCqB2 (roo
   ("unsolved goals" is logged, not thrown): state each match arm explicitly; (2) `KO` clashes with SInvR.KO only if
   SpecInvRdX is imported — named `KOb` anyway; (3) `obtain` straight through `have __do_jp` fails: `dsimp only at hy`
   first, then `split at hy` on the `if`.
+
+## g1b (branch par/g1b in FL4-sc, on 30348e35 = int/j2 incl. g1a, rd5, ctq7) — g1a's `EntryJ` [J] from a carried exit fact (DONE, with one FINDING)
+Spec-only, namespace `Fl4Proofs.P3.SInvAll`, new module SpecInvAllC (root imports it). Nothing existing edited.
+- **`CtExit σ := ∃ x, kheap ct = tcb x ∧ (tcbState = Running ∨ tcbState = IdleThreadState)`**. The exit's
+  `activate_thread` alone gives it, with no premise (`ctExit_activateThread : PostK CtExit activateThread`):
+  `complete_yield_to` keeps `cur_thread` (nq's `ct_completeYieldTo`). Running returns. Restart does two `as_user` writes
+  (`ct_asUser`) and then `set_thread_state ct Running` (`ctExit_setThreadState_running`: the TCB write via
+  `SInvB.mem_threadSet`, then `set_thread_state_act`, which only writes the scheduler action). IdleThreadState
+  runs `arch_activate_idle_thread` = `return ()`. Every other state fails. Tops: `kentry_ctExit c σ`,
+  `kcall_ctExit rep ev σ` (every event), both with no premise.
+- **FINDING (the brief's `entryJ_of … → ValidIdle σ → EntryJ σ` is not provable):** vi1's carried `ValidIdle`
+  (`ObjOK` .tcb) only says the idle thread is in IdleThreadState. It has no l4v `only_idle` part, and the spec's
+  `schedule` has no `assert (sched ∨ ct = idle)` at `resume_cur_thread` (it is `pure ()`, Schedule.lean:233).
+  Counterexample state: ct = t ≠ idle_thread, with t's TCB in IdleThreadState and t's SC ≠ idle_sc. It satisfies
+  `CtExit`, `ValidIdle` and `ct ≠ idle`, but not `ct_active`. Such a state is not reachable: the spec writes
+  IdleThreadState only in `initKheap` (grep Fl4Spec: Init.lean:97). Every `set_thread_state` takes another
+  literal, a new TCB is `defaultTcb` (Inactive), and `idle_thread` is never written. So the missing fact is l4v
+  **`only_idle`**, defined here as `OnlyIdle σ := ∀ t x, kheap t = tcb x → tcbState = IdleThreadState →
+  t = idle_thread`, with `boot_onlyIdle`. It is NOT carried yet: that is a new field proof (invA's NativeScope
+  pattern `TI nsQ`, but with the idle pointer exempt, since `TI` takes a pointer-free `Q`). The work is one
+  pointer-exempt variant of SpecInvNativeScopeT's writer leaves plus a regeneration of F1..F6 (invA's gen.py),
+  with side condition "the written state ≠ IdleThreadState". Out of g1b's scope ("no new field proofs beyond
+  CtExit"), so it is a per-state [J] premise of the tops below. It is true in every reachable state and is not a
+  ∀-over-states hypothesis.
+- **`entryJ_of (he : CtExit σ) (hct : ct ≠ idle) (hoi : OnlyIdle σ) : EntryJ σ`**;
+  **`entryJEv_of (he : CtExit σ) (hev : ev ≠ .interrupt → ct ≠ idle) (hoi : OnlyIdle σ) : EntryJEv ev σ`**. An
+  interrupt in IdleThreadState is g1a's `ct_idle` disjunct. Any other event needs `ct ≠ idle` ([S]: traps and faults
+  come from a user thread).
+- **`SInvA' σ := SInvA σ ∧ CtExit σ`** (abbrev). Tops: **`kentry_sinvA' (hnd : numDomains = 1) c (h : SInvA' σ)
+  (hct : σ.curThread ≠ σ.idleThread) (hoi : OnlyIdle σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, SInvA' y.2`**;
+  **`kcall_sinvA' hnd rep ev h (hev : ev ≠ .interrupt → σ.curThread ≠ σ.idleThread) hoi`** (every event);
+  `kcall_sinvA'_sys`; **`boot_sinvA'`** (+ `boot_ctExit`). `EntryJ` / `EntryJEv` are no longer premises. Left:
+  `hnd` [P] (g1a), `hct` (`JReach.step` has it) and `hoi` [J] `only_idle`.
+- **Next (handoff):** carry `OnlyIdle` as a G1 field and add it to the bundle (`SInvA'' := SInvA' ∧ OnlyIdle`). Its
+  tops then need no premise, and `kentry_sinvA''` takes only `hnd` and `hct`. A cheaper alternative was ruled out:
+  strengthening `CtExit` to "Running ∨ ct = idle" needs the same frame (resume path: ct's state across the whole
+  syscall).
+- Builds (tokyo, FL4-sc mirror warm, ./g1b.sh untracked = g1a.sh; module builds only): g1b-b1 (`Or.inl rfl` after
+  `cases hs :`, the goal keeps `x.tcbState`), g1b-b2 SpecInvAllC ok (5210 jobs) + axioms (scratch/g1b/ax.lean,
+  untracked). kentry_sinvA', kcall_sinvA', kcall_sinvA'_sys, boot_sinvA', kentry_ctExit, kcall_ctExit,
+  ctExit_activateThread, boot_onlyIdle, boot_ctExit: propext, Classical.choice, Quot.sound. entryJ_of,
+  entryJEv_of: propext. No sorry/admit/native_decide/bv_decide/axiom.
