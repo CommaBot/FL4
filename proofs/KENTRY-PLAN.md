@@ -2420,3 +2420,52 @@ JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/En
   (axsch15.sh, untracked; sch15-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ10M,
   KDispHyps10M.to9M, jMidRecvHypS_of, JRecvLeavesRN.full, handle_recvJR, JAtZ.recvSigBlockJM, jRecvSigHypM_of,
   Sched.recvSigBlock_act, kernel_entryJ9M. No sorry/admit/native_decide/bv_decide.
+
+## sch16 (branch par/sched16 in FL4-sc, on f6b23fa2 = int/j2 incl. sch15)
+New leaves XTopJointRecvIpcBlockM, XTopJointKEntry11M, XTopJointFaultM, XTopJointKEntry12M (imported from
+Fl4Proofs.lean). Nothing existing edited; JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/
+ScTmoCt*/Entry/Irq*/XTopJointRecv* untouched.
+- Item 1 DONE (8a1f2013, XTopJointRecvIpcBlockM): the blocking endpoint receive at a switch mid state (`MidE`, action
+  ≠ resume) ending in `JAtZR`: `Sched.recvIpcBlock_eqM` (recvIpcBlock_eq + "action ≠ resume → action kept"),
+  `JAtZ.recvIpcBlockJGM` (recvIpcBlockJG with recvSigBlockJM's changes: CurInv by `J.curInv hni.ncn`,
+  `canBlockCurM`, `ActIdle.keepE (E := {ct})`, CurInvR vacuous, CurRunM first disjunct, JRestR,
+  `J.toR.cs_frameI`), `recvIpcBlockJM` (no bound notification), `recvIpcBlockNJGM` (bound idle/waiting
+  notification whose SC is not ct's).
+- Also DONE (4336f55f, XTopJointKEntry11M): `JAtZ.recvIpcActJM` (active bound notification from MidE, post JAtZ →
+  `.toR`), the basic head sender (`RecvSendBasicCase`, no SC return: `recvSendJ0X` reads no action);
+  `IpcDoneM` (Act ∨ Block ∨ Bound∧NoRetM ∨ unlinked∧Basic∧NoRetM), `jRecvIpcDoneM`. `IpcOpen ct s σ p rc :=
+  chooseNewThread ∨ ¬ IpcDoneM`; `JRecvLeavesRN2` (ipc only under IpcOpen), `.toRN`, `JMidLeavesHyp2` [W],
+  `jMidLeavesHyp_of2`, `KDispHyps11M.to10M`, TOP `kernel_entryJ11M`.
+- Item 4 PARTLY DONE (32b916b2, XTopJointFaultM + XTopJointKEntry12M): the cap-fault leaf at a switch mid state for a
+  null handler and an endpoint handler with no waiting receiver: `Sched.sendIpcBlock_eqM`, `JAtZ.sc_frameR`
+  (ScJointFrame's sc_frame with `CurInvR` after, concluding JAtZR; JAtZR has JAtZ's fields in order),
+  `JAtZ.stsCurJM`/`noFaultJM` (ct Inactive, action stays switch u), `JAtZ.faultBlockJM` (faultBlockJ: CanBlock by
+  canBlockCurM instead of the `actionW = 0` derivation, sendIpcBlock_eqM, JRestR), `JAtZ.faultHypJZM` outside
+  `FltOpen σ := chooseNewThread ∨ ct's fault handler is an endpoint cap whose endpoint is recvEP`.
+  `JRecvLeavesRN3` (flt only under FltOpen), `.toRN2` (uses ct's valid fault handler, already a JMidLeavesHyp
+  premise), `JMidLeavesHyp3` [W], `jMidLeavesHyp_of3`, `KDispHyps12M.to11M`, NEW TOP `kernel_entryJ12M`.
+- Premise change at the top (kernel_entryJ12M vs J10M): `JMidLeavesHyp` [W] NARROWED to `JMidLeavesHyp3` [W] :=
+  JMidLeavesHyp's premises (ok outcome of the first phase, action ≠ resume, ct in no ready queue, no switch to ct,
+  ct's valid fault handler, RelTopM, CurRun, ct ≠ idle, every JAtZ witness, FL4 cur_thread) concluding
+  `JRecvLeavesRN3`: `receive_ipc` only under `IpcOpen`, `receive_signal` only under `SigOpen` (sch15), the cap
+  fault's `handle_fault` only under `FltOpen`. Same l4v counterpart and truth argument as sch15 (each remaining
+  case is a case of JMidLeavesHyp). Nothing added.
+- NOT DONE (handoff), what IpcOpen/SigOpen/FltOpen still contain:
+  (a) chooseNewThread mid states (item 5): every leaf (CurInv absent from JAtZ there). Route as sch15 (b).
+  (b) switch, SC return (item 3): `recvSigRetJ` (SigOpen's second disjunct), `recvIpcRetJ` (RecvIpcBoundCase ∧ ¬
+      NoRetM), `recvSendRetJ` (Basic ∧ ¬NoRetM), `recvSendRetPJ`/`RetPDJ`/`RetTJ`: after the block/transfer,
+      `maybeReturnSc` unbinds ct's SC and ct being current, `rescheduleRequired` enqueues u, action := choose.
+      Needs JAtZR copies of maybeReturnJ(Q) + a J-level rescheduleRequired-with-enqueue of u.
+  (c) switch, sender-waking (item 2): `recvSendP0X` (PushCase), the T cases (`recvSendT0X`), and faultRecvJ
+      (FltOpen's second disjunct; the fault send to a waiting receiver): `possibleSwitchTo w` under a switch is
+      `rescheduleRequired; tcbSchedEnqueue w` (KHeap.lean:494).
+  (d) linked replies (any switch case with rc = Reply q, rTcb q ≠ 0): `jRecvIpcLink_of` with MidE is cheap once
+      the unlinked cases are complete (cancelOther_keep keeps action/curThread/queues, so MidE survives the
+      cancel), but the residue after the cancel is evaluated at the post-cancel state; do it as a final step.
+- Builds (tokyo, b.sh): sch16-b1 `XTopJointRecvIpcBlockM` OK (5568 jobs), sch16-b2 `XTopJointKEntry11M` OK (5572),
+  sch16-b3 `XTopJointFaultM` OK (5574), sch16-b4 `XTopJointKEntry12M` OK (5576), all on f6b23fa2, no sorry.
+  Axioms (axsch16.sh, untracked; sch16-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ12M,
+  kernel_entryJ11M, KDispHyps12M.to11M, KDispHyps11M.to10M, jMidLeavesHyp_of3/of2, JRecvLeavesRN3.toRN2,
+  JRecvLeavesRN2.toRN, jRecvIpcDoneM, JAtZ.recvIpcActJM/recvIpcBlockJGM/recvIpcBlockJM/recvIpcBlockNJGM,
+  Sched.recvIpcBlock_eqM/sendIpcBlock_eqM, JAtZ.sc_frameR/stsCurJM/noFaultJM/faultBlockJM/faultHypJZM,
+  kernel_entryJ10M. No sorry/admit/native_decide/bv_decide.
