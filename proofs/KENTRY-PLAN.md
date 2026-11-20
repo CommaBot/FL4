@@ -5640,7 +5640,7 @@ imports only SpecInvNativeScopeT (Fl4Spec); root imports the seven. Nothing exis
   q1_schedule, q1_switchToThread, q1_receiveIpc, q1_sendIpc, q1_handleRecv, q1_fl4Awaken, q1_recDel, q1_capRevoke,
   boot_t1: propext, Classical.choice, Quot.sound; q1_tcbSchedAction, q1_dequeue_hk: propext; q1_of_keep: none. No
   sorry/admit/native_decide/bv_decide, no premise tagged (hR is a pre-condition of a hand lemma, not a top premise).
-  Root Fl4Proofs.lean not rebuilt (seven import lines added).
+  Root Fl4Proofs.lean not rebuilt (eight import lines added).
 ## il1 (branch par/il1 in FL4-rb, on 4c7a88b3 = int/j2 incl. nq3, ut8) — IfLiveT (l4v if_live_then_nonz_cap at TCBs): the family and the first manual writers (NOT finished)
 Goal (nq3's handoff): carry `IfLiveT` across the entry (`kentry_ifLiveT` / `kcall_ifLiveT`), then the nq3 tops over it.
 - **The invariant (SpecInvNtfnQL), narrowed to what is inductive with the cheapest writers**:
@@ -6037,3 +6037,73 @@ modules SpecInvCqR, SpecInvCqRF1..F5 (generated), SpecInvCqJ, SpecInvCqU, SpecIn
   Lean traps met: `macro_rules | … =>` with the right-hand side on the next line, and a `first | …` alternative list split
   over lines, are parse errors; `TQX ?X` does not unify with `TQX (fun _ => True)` under `with_reducible` (hence the constant
   `TT`); unfolding the whole sporadic unblock check in one `repeat'` runs out of heartbeats (use sch's `nkt_*` frames).
+## il2 (branch par/il2 in FL4-rb, on 087e01db = int/j2 incl. il1, sg1, ctq2) — IfLiveT carried across the entry (il1 handoff 1-4)
+Goal (il1 handoff): `kentry_ifLiveT` / `kcall_ifLiveT` and the tops carrying `NtfnQB ∧ EpQB ∧ IfLiveT`, premises only `ha`
+(l4v `ct_active`) and the carried `UtInv3`.
+- **Step 1, the queue wake-ups (SpecInvNtfnQLW)**: `ILN K σ := IL K σ ∧ NQ [] σ` (IfLiveT with nq1/nq2's NtfnQB ∧ EpQB);
+  `iln_ik` (an IL lemma + an NQ lemma), `iln_of` (`HK (ILN K) (IL K)` + NQ). At the read of a notification / endpoint
+  the whole queue joins `K` (`il_ntfnQueue`, `il_epQueue`: a queued thread is BoN/BoS/BoR, so live, so holds a thread
+  cap), then il1's `il_removeAndRestart*Thread (t ∈ K)` per item: `il_cancelAllSignals`, `il_cancelAllIpc`,
+  `il_cancelBadgedSends`, `il_updateWaitingNtfn` (queue ⊆ K), `il_sendSignal`; callers `iln_fastFinalise`,
+  `iln_capDeleteOne` (il1's MX_capDeleteOne text), `iln_deletingIrqHandler`, `iln_invokeIrqHandler`,
+  `iln_handleInterrupt`, `iln_maybeHandleInterrupt`, `iln_fl4Awaken`.
+- **Step 2, deletion (SpecInvNtfnQLD)**: ut5's `hr_lfp` with `LPre k := RPre k ∧ ILN []` and `LPost` = `RPost` ∧
+  `ILN []` ∧ (FinaliseSlot: a `true` result makes emptying the slot `TcSafe [] σ s nullCap`); `ld_step` replays ut5's
+  `rd_step`. Thread caps: NON-final → `other_threadCap` (isFinalCap' false gives an overlapping slot; ut4's CapKind
+  makes it a thread cap or a TCB Zombie, ZFinal excludes the Zombie), `finThread_false_eq` (finalise_cap _ false
+  writes nothing); FINAL → `hk_finThread_dead` (`hk_suspend_dead`: suspend ends with set_thread_state Inactive;
+  `tp_prepareThreadDelete_d`), so the Zombie over it is `TcSafe`'s third case (`tcs_rem`, `tcs_removable`); other caps
+  by ut5's `fin_step` (slot still holds its cap). `il_emptySlot_ts`, `il_capSwap` / `il_capSwapForDelete` (thread caps
+  permuted, ut5's `capSwap_view`). Tops `ld_recDel`, **`ilu_capDelete`, `ilu_capRevoke : IKE ILU`** (`ILU := ILN [] ∧
+  UtInv''`).
+- **Step 3, the performs (SpecInvNtfnQLP, LU, LA)**: `ILP N K := ILN K ∧ P3 N` (ut7's P3 = UtInv3 at node N, kept by
+  ut7's `un_` family). `il_doReplyTransfer` (receiver read BlockedOnReply joins K; `cases fault` before il2_auto, the
+  join point), `il_capMove` / `il_capSwapR` (ut5's `RefEq` keeps thread-cap-ness: `refEq_tc`), **`il_invokeCnode`**
+  (ut7's `CnOKN`), `ilp_installTcbCap` / `ilp_installTcbFrameCap`, **`il_invokeTcb`** (restart targets `tcbRT` in K),
+  decode facts `okv_tgI` (a TCB invocation's restart target is the invoked thread cap's thread; `okv_tcbDec` runs the
+  OkV automation through every TCB sub-decoder, 40M heartbeats) and `okv_fpI` (a first-phase decode never yields a
+  CNode / TCB invocation), **`il_fl4PerformInvocation hG`**: post `IL []`, and `IL K` after a first-phase decode.
+  Untyped (LU): `TCF` (no new thread caps), `NTC` (slot holds none), `il_detype` / `il_deleteObjects_p` (region slots
+  null: `regNull_of`), `il_retype_kh` / `il_retypeRegionWith_p` (fresh addresses, `default_null`, `dflt_live`),
+  `il_resetUntypedCap` (`ri_auto`), `il_createCap` / `il_ccLoop` (distinct null destinations: ut8's `utDest_of`),
+  **`il_invokeUntyped`** from ut8's `UtGapOK`. Arch (LA): maps write the `RefEq` cap first (`tcs_refEq`), unmaps
+  re-read the slot's arch cap after cap-keeping prefixes (`il_unmapGen`, `il_pageUnmapF`), ASID pool assign over the
+  read PML4 cap, MakePool (`il_makePool`: detype of the childless parent's region, retype at the freed frame,
+  cap_insert); one declaration per arch invocation (`il_ptInv`, `il_pdInv`, `il_pdptInv`, `il_pageInv`,
+  `il_asidPoolInv`, `*Unmap_fail` for non-matching caps), `il_archPerform` dispatches (lead hint: no heartbeat
+  raise); **`perfGapILA`**, **`perfGapIL : PerfGapIL`** (no premise).
+- **Step 4, the shell (SpecInvNtfnQLS)**: `Ju N ct := IL [ct] ∧ NQ [ct] ∧ ct current ∧ P3 N ∧ NodeIs N` (`ju_auto`:
+  il1's IL family, nq1's NQ family, CTK, UK, NK); `il_fl4HandleInvocationR` (post `JQ ct fp := IL [] ∧ (fp → IL
+  [ct])`; decode facts from ut7's `okv_fl4DecodeN` / `DecodedFrom` and LP's `okv_tgI` / `okv_fpI`), `il_handleRecv`
+  (needs `IL [ct]`: receive_ipc may block ct), `il_fl4HandleSyscall` (ReplyRecv / NBSendRecv / NBSendWait: the send
+  phase is first-phase, so ct keeps its thread cap), `il_fl4HandleEvent_sys`, `il_handleEvent_int` (K = [], ct may be
+  idle), `il_handleEvent_other`, `iln_preemptionPath`, `il_fl4CallKernel_of` (the preemption path and the timer need
+  NtfnQB ∧ EpQB after the handler: nq3's `nq_fl4HandleEvent_*` on the same run, with nq3's `Iu` from `UtInv3` and
+  `nqDet_of_live hU.1 (ifLiveB_of h)`).
+- **Tops (SpecInvNtfnQLX)**: `kentry_ifLiveT (rep c) (ha : ∃ x, kheap ct = tcb x ∧ activeSt x.tcbState) (hN : NtfnQB σ ∧
+  EpQB σ) (hU : UtInv3 σ) (h : IfLiveT σ) : ∀ y ∈ (fl4KernelEntrySyscall rep c σ).1, IfLiveT y.2`; `kcall_ifLiveT (rep
+  ev) (ha : ∃ x, … ∧ (activeSt ∨ (ev = interrupt ∧ idle)))`; **`kentry_nqIL` / `kcall_nqIL`: `NtfnQB y ∧ EpQB y ∧
+  IfLiveT y`**. `ha` is l4v's `ct_active` (st_tcb_at: ct is a TCB), stronger than nq3's conditional form (needed: IL
+  [ct] asks for a thread cap of ct). nq3's `kentry_ntfnQB_live`'s [J] IfLiveB is now discharged (IfLiveT carried).
+- Premises: none beyond `ha` (l4v `ct_active`) and the carried `NtfnQB ∧ EpQB`, `UtInv3`, `IfLiveT`. `PerfGapIL` /
+  `PerfGapILA` are intermediate definitions, discharged by `perfGapIL`. No FINDING: no reachable step found to break
+  IfLiveT. Checked in particular ReplyRecv / NBSendRecv / NBSendWait: their send phase is decoded first-phase, which
+  rejects CNode / TCB / domain / SC caps, so it removes no thread cap and the following `handle_recv` may block the
+  current thread with its thread cap intact (`okv_fpI`, `JQ`).
+- Modules (namespace Fl4Proofs.P3.SInv, root imports all): SpecInvNtfnQLW, LD, LP, LS, LU, LA, LX. Commits: 5c9120a5
+  (LW), 105be393 (LD), b3cd3542 (LP), 493c495e (LS, LU, LX with PerfGapILA), and the LA commit (PerfGapILA proved,
+  premise-free tops).
+- Builds (tokyo, FL4-rb mirror, ./il2b.sh / ./il2ax.sh untracked; tasks il2-b1..b18): il2-b18 builds every il2 module
+  ("Build completed successfully") and runs scratch/il2/ax.lean (untracked): every listed top (kentry/kcall_ifLiveT,
+  kentry/kcall_nqIL, perfGapIL, ld_recDel, ilu_capDelete/Revoke, il_fl4PerformInvocation, il_invokeUntyped,
+  il_archPerform, il_makePool, …) depends on propext, Classical.choice, Quot.sound only; no sorryAx. No
+  sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (eight import lines added).
+- Lessons: a do-block `match`/`if` followed by statements is a join point — `cases` the discriminant first, then
+  destructure the bind (`obtain ⟨z, hz, hx⟩ := hx`) rather than unify against a lemma's bind shape (`dsimp` may fold
+  `pure () >>= k`, and the jp is inlined into each arm, so a "prefix" is only the first statement: chain
+  `il_unmapPre`); `split` cannot split a `match` applied to the state — `intro` + `cases` the constructor instead;
+  for catch-all arms prove `f (…) = NonDet.fail` by `unfold; split` on the equation (`*Unmap_fail`); `simp only [f]`
+  makes no progress on catch-all arms (use `unfold` + `show False from h`); `exact h.elim` on a membership fails (dot
+  notation on `Membership.mem`), use `(show False from h).elim`.
+- Next: none for IfLiveT. The tops can feed nq3's consumers (`kentry_ntfnQB_live`'s [J] IfLiveB is gone) and the G4
+  SInv bundle.
