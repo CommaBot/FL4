@@ -959,3 +959,10 @@ import Fl4Proofs.P3.SpecInvSlI6
 import Fl4Proofs.P3.SpecInvViK
 import Fl4Proofs.P3.SpecInvViL
 import Fl4Proofs.P3.SpecInvViM
+import Fl4Proofs.P3.SpecInvSlNK
+import Fl4Proofs.P3.SpecInvSlN1
+import Fl4Proofs.P3.SpecInvSlN2
+import Fl4Proofs.P3.SpecInvSlN3
+import Fl4Proofs.P3.SpecInvSlN4
+import Fl4Proofs.P3.SpecInvSlN5
+import Fl4Proofs.P3.SpecInvSlN6
