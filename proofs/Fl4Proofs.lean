@@ -997,3 +997,4 @@ import Fl4Proofs.P3.SpecInvSlD2
 import Fl4Proofs.P3.SpecInvSlD3
 import Fl4Proofs.P3.SpecInvSlP
 import Fl4Proofs.P3.SpecInvSlP2
+import Fl4Proofs.P3.SpecInvSlP3
