@@ -6161,7 +6161,8 @@ carrying `ScInv ∧ ScLive`. Spec-only, namespace `Fl4Proofs.P3.SInvL`, modules 
      BlockedOnNotification / bound TCB; do_reply_transfer and finalise of a reply cap: reply_remove's caller,
      BlockedOnReply). Its thread cap comes only from l4v `if_live_then_nonz_cap` at THAT state, so the composites carry
      `SL I K ∧ IL K'` (il1/il2's `IL`), joining the target to `K` at the read (`sl_cons` with `hasN_of_tc`). il1's ILK
-     lemmas cover the IPC/budget prefixes; deletion prefixes need il2's (FL4-rb 105be393 LPre/LPost, b3cd3542).
+     lemmas cover the IPC/budget prefixes; deletion prefixes use il2's (DONE, on int/j2 at 6a68bc0a: LPre/LPost,
+     SpecInvNtfnQLX `kentry_ifLiveT` / `kcall_ifLiveT` / `kentry_nqIL` / `kcall_nqIL`; rebase sl1 onto it first).
   2. **NtfnScB** (l4v `sym_refs` of `ntfn_sc`/`sc_ntfn`): `maybe_donate_sc` donates the notification's SC, which may be
      bound to no TCB; it is live (`scNtfn ≠ none`) only if the back pointer holds. Not carried by any line yet; the
      lemma takes it as `NSc I n σ` (the notification's SC named). Writers: sched_context_bind_ntfn / unbind_ntfn /
@@ -6192,7 +6193,11 @@ carrying `ScInv ∧ ScLive`. Spec-only, namespace `Fl4Proofs.P3.SInvL`, modules 
      (no removal); reset / MakePool detype: slots in a childless untyped's region are null (`regNull_of`), so no cap
      is lost, and deleting objects makes nothing live.
   4. Shell + tops: sb2's SpecInvSbE shell with `I := SL (idleP σe) [] ∧ …`; `kentry_scLive (hU : UtInv3) (hV : VfhAll)
-     (hG : SpecGlobS ∧ IdleOutV) (hN : NtfnQB ∧ EpQB) (hL : IfLiveT) (ha) (h : ScLiveT (idleP σ) σ ∧ IdleScOutV σ)`
+     (hG : SpecGlobS ∧ IdleOutV) (hN : NtfnQB ∧ EpQB) (hL : IfLiveT σ) (ha) (h : ScLiveT (idleP σ) σ ∧ IdleScOutV σ)`,
+     IfLiveT kept as a hypothesis (lead wires il2's carrier) and `ha` in il2's existential form, exactly:
+     kentry `(ha : ∃ x, σ.kheap σ.curThread = some (.tcb x) ∧ activeSt x.tcbState)`, kcall
+     `(ha : ∃ x, σ.kheap σ.curThread = some (.tcb x) ∧ (activeSt x.tcbState ∨ (ev = .interrupt ∧ x.tcbState =
+     .idleThreadState)))` (ct ∈ K from ha + IfLiveT at the entry),
      with IsK / sg1's IdK for the idle pair, then `kentry_scInv` carrying `ScInv ∧ ScLiveT ∧ IdleScOutV` and
      `scLive_of` replacing sb2's `ScLive [J]`.
 - Scratch (untracked): scratch/sl1/{gen.py, closure.py (il1's), manual_sl.py (il1's texts without MX_capDeleteOne),
