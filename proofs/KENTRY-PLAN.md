@@ -2500,3 +2500,64 @@ Kernel fix for irq1's FINDING 2 (lead decision; aligns FL4 with C seL4 and the l
 - NEXT: irq1's handoff (1)–(3) is now unblocked: `preemption_point ⦃ Err → ∃ v a1, now a = ok (v,a1) ∧ irq_pending a1 =
   ok (true, r.2.2) ⦄` no longer holds (the error can come from the budget or domain test), but every outcome past
   the work limit has read the line exactly once, like the spec, so MR can be threaded with one `gaiState` step.
+## mr1 (branch par/mr1 in FL4-tcbj, on 4ca9647e = int/j2 incl. kfix1, sch16)
+New leaves XTopJointMRPP, MachFieldKeep, XTopJointMRMcs (imported from Fl4Proofs.lean). Nothing existing edited.
+Goal (irq1 NEXT (1)-(3) with kfix1's correction): move the top off `PPPlat`/`IrqPlat` onto `MachPlat`. Done: (1)
+for the preemption point, the hole and the IRQ take, and the non-schedulable preemption-path branch; NOT done: the
+MR-keeping of the schedulable branch (`checkBudget` → `chargeBudget _ true`), (2), (3).
+- DONE (XTopJointMRPP):
+  * `PPPlatA arI AR` [P] (`irqAR`, `minBudget`) / `IrqPlatA arI AR` [P] (`takeAR`, `noIpi`, `ackAR`): the arch-only
+    (∀a, no spec state) parts of PPPlat / IrqPlat; `PPPlat.toA`, `IrqPlat.toA`.
+  * `update_timestamp_mr : MR a ms → update_timestamp ⦃ MR r.2 (gctState ms) ⦄` (one clock read).
+  * `MachPlat.irqAtE`: `irq_pending` at a related state = the spec's `getActiveIRQ true` sample, MR after, memory
+    and last machine time kept.
+  * `pp_err_ms` (spec): every `error` outcome σ' of `preemptionPoint` σ has `σ'.ms = gaiState (gctState σ.ms)` and
+    `ValidMachineTime σ'`.
+  * `JAtZ.ppJDM` / `JAtZ.ppJHM`: ppJD / ppJH with `(hM : MachPlat arI MR) (hPA : PPPlatA arI AR) (hR : MR a σ.ms)
+    (hV : ValidMachineTime σ)` for `hP : PPPlat`, and `MR r.2.2 σ'.ms ∧ ValidMachineTime σ'` added to every
+    outcome (below the work limit σ' = σ, a kept; past it every outcome, incl. the budget/domain error with the line
+    false, is at the post-IRQ `(a2, σ2)`, one gctState + one gaiState step: kfix1's order). These are adapted
+    COPIES, not spec_and combinations: the originals take the false `PPPlat`, so they cannot be instantiated; the
+    copies differ only at the two read points (`hM.nowAgree hR hV`, `hM.irqAtE` at the post-timestamp MR).
+  * `afterInv_of_mcsJM`: afterInv_of_mcsJ with `MR r.2 σ'.ms` in the mcs hypothesis, `MachPlat.takeAt` for
+    `IrqPlat.take`, `IrqPlatA` for the rest. `JIrqHypJ` stays a hypothesis (as before).
+- DONE (MachFieldKeep): `Sched.MF σ σ'` (the four fields MR reads: irqMasks, irqState, timeState,
+  lastMachineTime), `MFA`, the full FK-style combinator/leaf/tactic clone of ScFieldKeep (`mf_step`, `mf_unf`,
+  `mf_auto`), `mf_chargeBudgetF : MFA (chargeBudget u false)`, `MachPlat.mfKeep` (MR along an MF step).
+- DONE (XTopJointMRMcs): `JHole.mcsPPJZM_ns` (mcsPPJZ for a non-schedulable ct: `charge_budget c false`, FL4 keeps
+  `a` (`chargeBudgetJ`), spec `mf_chargeBudgetF`, so `MR r.2 σ'.ms` after); `JHole.afterInvJZJM_ns` (the whole
+  `after_invocation (Err)` from such a covered hole under MachPlat + MR, ending in PPQJ, no IrqPlat.take);
+  `JAtPreM AR MR s a σ` (= JAtPre with `MR a0 σ0.ms ∧ ValidMachineTime σ0` at the pp's pre-state), `JAtPreM.toPre`,
+  `jAtPreM_hole` (JHole ∧ MR a σ.ms ∧ VMT σ, by ppJHM).
+- No new premise anywhere: MachPlat [P] and ValidMachineTime [J] are irq1's; PPPlatA/IrqPlatA are field subsets of
+  the existing [P] PPPlat/IrqPlat (arch-only ∀a facts, satisfiable: no spec state in them).
+- NEXT (handoff):
+  (a) schedulable branch of the preemption path: `mf_chargeBudget u true` (reaches `handleTimeout` → the fault IPC;
+      the clone needs an `mf_doMachineOp` leaf for loadWord/storeWord (memory-only machine ops) plus the fault-path
+      unfolds) and copies of mcsPPJZ's checkBudgetF/checkBudgetT branches exposing `a' = a` (both lemmas prove it
+      but hide it) or, FL4-side, an `MRKeep` [P] for `fpu_flush`/`fpu_release`/`remote_stall` (the only state-
+      returning arch ops reachable from `mcs_preemption_point`, scripted call-graph check) with an ARKeep-style walk.
+      Then `JHole.afterInvJZJM` (all covered cases) and the PPCovI / RestE / PreemptK,Q,L,O branches (each uses
+      `hP.now a0 σ0` / `hP.irq` only to name the spec outcome: replace by `pp_err_ms`).
+  (b) `jIrqHypJ_of`, `JAtZ.handleIrqJJ`, `JHole.handleIrqJ`, `jIrqHypZ_of` take `IrqPlat` but use only `ackAR`:
+      generalise them to `IrqPlatA` (edit in place, callers pass `hIP.toA`; cone = IrqZR and below) or copy.
+  (c) (2) the invocations: `JPreemptHyp` (∀ WJR states, from `jPreemptHyp_of hP`) must become MR-relative: WJR (or a
+      bundle carried beside it, never in JAtZ) needs `MR a σ.ms ∧ VMT σ`, `jPreemptHyp_ofM` from ppJDM, and every
+      invocation's post must produce `JAtPreM` (not JAtPre) at its preempting outcome, plus MR at its non-preempted
+      outcome: ~25 use sites (inv1 G0: `grep -n 'hP.now\|hPP.now\|\.irq a\|hIP.take\|hIP.base.take'`, and every
+      `JEntryGlob.pp` consumer: UtResetLoopJ/UtResetTopJ/UtRetResetJ, XTopJointTcb/TcbInsL, WJLPP/WJLDel/WJLRestart).
+      Spec side: `mf_*` for each invocation's spec (memory-only machine ops; getActiveIRQ/getCurrentTime only inside
+      preemptionPoint, maskInterrupt in IRQ control: there MR moves by `MachPlat.mask`).
+  (d) (3) kernel_entryJ13P: needs (a)–(c) through kernel_entryJ9M's body (`dispatch_all9M`, `dispatch_invokeJAll`,
+      `mid_invRecvJ`/`hPre_ofZQI`): at the entry `MR a σ.ms ∧ VMT σ` [J]; budget_ok by `MachPlat.nowAt` (KBudget.now
+      is per-state already); a J13P that still takes PPPlat anywhere would be vacuous, so it was not stated.
+  `JEntryGlob.portIn` (PortInVal, ∀σ) is untouched: it is the remaining ∀σ platform premise (MR has no device part
+      yet; `modelArch.port_in` returns 0, so a per-state PortInVal needs a device field in MR).
+- Builds (tokyo, scratch/mr1build.sh, mirror seeded from FL4-rb's .lake): mr1-b1 (warm, MachRel/PPH/IrqZR/KEntry12M
+  OK), mr1-b2/b3 (name errors, then pp_err_ms rewrite), mr1-b4 XTopJointMRPP OK (5530 jobs; MachFieldKeep one name
+  error), mr1-b5 XTopJointMRPP + MachFieldKeep OK, mr1-b6 XTopJointMRMcs OK (5534), mr1-b7 (term-mode `let` pattern with `-`), mr1-b8 MRMcs + JAtPreM OK
+  (5534 jobs; root Fl4Proofs.lean not rebuilt: only three leaf imports added). Axioms
+  (scratch/axmr1.lean, untracked): propext, Classical.choice, Quot.sound only for ppJDM, ppJHM, afterInv_of_mcsJM,
+  update_timestamp_mr, MachPlat.irqAtE, pp_err_ms, PPPlat.toA, IrqPlat.toA, Sched.mf_chargeBudgetF,
+  MachPlat.mfKeep, JHole.mcsPPJZM_ns, JHole.afterInvJZJM_ns, jAtPreM_hole, and the newest top kernel_entryJ12M
+  (unchanged). No sorry/admit/native_decide/bv_decide.
