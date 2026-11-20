@@ -778,3 +778,4 @@ import Fl4Proofs.P3.SpecInvFaultTcbsF3
 import Fl4Proofs.P3.SpecInvFaultTcbsF4
 import Fl4Proofs.P3.SpecInvFaultTcbsF5
 import Fl4Proofs.P3.SpecInvFaultTcbsF6
+import Fl4Proofs.P3.SpecInvFaultTcbsW
