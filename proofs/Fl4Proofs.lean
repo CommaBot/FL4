@@ -779,3 +779,11 @@ import Fl4Proofs.P3.SpecInvFaultTcbsF4
 import Fl4Proofs.P3.SpecInvFaultTcbsF5
 import Fl4Proofs.P3.SpecInvFaultTcbsF6
 import Fl4Proofs.P3.SpecInvFaultTcbsW
+import Fl4Proofs.P3.SpecInvUtK
+import Fl4Proofs.P3.SpecInvUt
+import Fl4Proofs.P3.SpecInvUtW
+import Fl4Proofs.P3.SpecInvUtF1
+import Fl4Proofs.P3.SpecInvUtF2
+import Fl4Proofs.P3.SpecInvUtF3
+import Fl4Proofs.P3.SpecInvUtF4
+import Fl4Proofs.P3.SpecInvUtR

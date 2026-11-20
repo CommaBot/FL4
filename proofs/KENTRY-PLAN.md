@@ -4133,3 +4133,107 @@ Goal: FaultTcbsS (l4v fault_tcbs_valid_states, the strong form) and VfhAll kept 
   kernel_entryJ26P, tcb_read_fpuJ, JAtZ.copyFrameJ, fpuHypX_of: propext, Classical.choice, Quot.sound; wl_vim_of:
   propext, Quot.sound; mt_fl4FpuToFrame: none. No sorry/admit/native_decide/bv_decide; no premise added; one [J]
   premise narrowed (FpuFrameJHyp).
+## ut1 (branch par/ut1 in FL4-tcbj, on aea8be68 = int/j2 incl. ctnq1) — untyped free-region invariant (UtFree and its carried facts)
+Goal: the l4v untyped facts that make `retype_region` / `delete_objects` safe for per-object invariants
+(SpecGlob, FpuOwnOK, ctnq1's T1/T2). Spec-only leaves, namespace `Fl4Proofs.P3.SInvU`, imports only Fl4Spec via
+SpecInvNativeScopeT (outside the JAtZ cone); root Fl4Proofs.lean imports the eight. Nothing existing edited.
+- View and frame (SpecInvUtK): `capView o` (the caps `get_cap` reads: a well-formed CNode's slots, a TCB's six,
+  nothing else), `capAt σ sl` (l4v `caps_of_state`), `uV σ := (heap addresses in use, capAt σ, cdt,
+  isOriginalCap)`, `UK v m := IK (uV · = v) m`. Leaves: `setObject` with the old object's caps (the `aType`
+  assertion makes every non-CNode/TCB write cap-free, `cv_noCap`), `threadSet`/`optionUpdateThread` with
+  `tcbCnodeMap (f x) = tcbCnodeMap x` (closed by `rfl` at every call site), `archThreadSet`, `asUser`,
+  `setMrs`, `setSimpleKo`, `setThreadState`, machine/extended ops. `ik_of_uk`: a predicate that reads only the
+  view is kept by every `UK` function.
+- Generated frames (SpecInvUtF1..F4, 346 lemmas `uk_<f> : UK uvw (f …)` / `UKE`; proofs/scratch/ut1/mkut.sh,
+  untracked: invA's gen.py/manual.py, prefix uk, skip list skipuk.txt = the leaves + every ancestor of
+  `setCap`/`setCdt`/`updateCdt`/`setOriginal`/`retypeRegion(With)`/`deleteObjects` (scratch/ut1/anc.txt, 75
+  functions: cap insert/move/swap/delete, rec_del, cap_revoke, IPC cap transfer and everything above it — the
+  receive/fault/timeout paths, the perform/entry shell). Covered: every decode (all caps, both phases, incl.
+  `decodeUntypedInvocation(With)`, `ensureNoChildren`, `lookupTargetSlot`), the scheduler, IPC without cap
+  transfer, signals, SC/refill ops, VSpace map/unmap, IRQ state, `preemptionPoint`, `fl4Awaken`.
+- Invariants (SpecInvUt), each a predicate on the view (`UtInvV`, so every UK function keeps it,
+  `ik_utInv_of_uk`):
+  * `UtFree` [J] (l4v `valid_untyped`, base-pointer form): no heap address lies in `utFr b n fi = [b+fi, b+2^n)`
+    of any untyped cap `(dev,b,n,fi)` in any slot.
+  * `UtWf` [J] (l4v `valid_cap` UntypedCap): `n ≤ 47`, `b` aligned to `2^n`, `fi ≤ 2^n` (so the region does not
+    wrap, `UtWf.fit`).
+  * `UtDisj` [J] (l4v `untyped_inc`, usable ranges): free parts of untyped caps in different slots are disjoint.
+  * `UtDesc` [J] (l4v `untyped_inc`): two untyped caps in different slots whose regions overlap are CDT
+    ancestor/descendant, and the descendant's region misses the ancestor's free part. `UtDesc.noKids`: a
+    childless untyped's region meets no other free part — with `ensure_no_children` this is what makes a reset
+    safe. (The weaker "free part meets region ⇒ descendant" is not kept by a reset, which grows the free part:
+    a parent's full-index child must already be a descendant; hence l4v's form.)
+  * `UtOrig` [J] (l4v: untyped caps are original, `is_cap_revocable`): needed for `cap_insert` of an untyped copy
+    to make the copy a child (`should_be_parent_of`).
+  * `UtInv` = the five. (d) `boot_utInv : UtInv initASt`.
+- FINDING (vacuity, not a counterexample): `initASt` has only null caps (`init_capAt`), and only a retype from an
+  untyped cap creates an untyped cap, so Fl4Spec's reachable states have no untyped cap: every Untyped
+  invocation and AsidControl MakePool fails at the cap lookup in the spec's reachable states. The invariants
+  are stated for arbitrary states; a boot state with untyped caps (FL4's root task) needs `UtInv` there.
+- Consequences (SpecInvUt, SpecInvUtR):
+  * (i) `retypeRegionWith_out` (the outcome: old state, or the heap `retKh` with default objects at
+    `retPtrs rb n o`), `retPtrs_fresh` / `retype_keeps_old (hF : UtFree σ) (hc : capAt σ sl = some (untypedCap
+    dev b bits fi)) (hfit) (h1 : b+fi ≤ rb) (h2 : rb + n·2^o ≤ b+2^bits) : y ∈ retypeRegionWith … σ → ∀ q,
+    σ.kheap q ≠ none → y.2.kheap q = σ.kheap q`. At the decode's region: `UtRetOK σ ui` (the decode's checks:
+    source cap, object size ≤ 47, window ≥ 1, `rb = alignUp (getFreeRef base F) o`, NotEnoughMemory, reset ⇒ no
+    CDT child), `utRetOK_view` (reads only the view, so it crosses `set_thread_state Restart`), `utRet_region`
+    (space accounting, `ut_region` = UntypedRetype's `retype_region` over spec words),
+    `utRet_fresh (hI : UtInv σ) (hok : UtRetOK σ (.retype s false …)) : ∀ q ∈ retPtrs …, σ.kheap q = none`,
+    `utRet_fresh_after_reset (hI) (hok : UtRetOK σ (.retype s true …)) : ∀ y ∈ resetUntypedCap s σ, ∀ q ∈ retPtrs …,
+    y.2.kheap q = none`.
+  * (ii) `deleteObjects_kheap` (exactly the objects of `delR ptr bits` go, cdt/orig/curDomain kept),
+    `deleteObjects_range` (at an untyped's region, UtWf: the Nat range `utR b n`), `deleteObjects_empty`;
+    `reset_region_empty (hI) (hc) : ∀ y ∈ resetUntypedCap s σ, ∀ q, q ∈ utR b n → y.2.kheap q = none`.
+- Writer leaves (SpecInvUtW): `CapShrink w' w` / `utInvV_shrink` (UtInv is downward closed: fewer untyped caps,
+  larger free indices up to the size, fewer heap addresses, new addresses outside every free part, same CDT,
+  more original flags). `ik_setCap_nonUt` (every `set_cap` of a non-untyped cap), `ikp_setCap_raise`
+  (`invoke_untyped`'s free-index write, `set_untyped_cap_as_full`), `ik_deleteObjects_utInv`,
+  `ik_setOriginal_true`, `ikp_retype_utInv` (fresh addresses outside every free part), `utRet_new` (for a
+  decoded non-reset retype: the new addresses are fresh, below the raised free index, and outside every other
+  slot's free part by UtDisj). `setCap_out` (the outcome of `set_cap`: addresses, CDT, flags kept; other slots
+  kept; the slot holds its old or the new cap).
+- NOT DONE: (b) `kentry_utInv` / (c) `kcall_utInv`. What each remaining writer needs (all l4v `valid_mdb` /
+  `untyped_inc` / `invs` pieces; no counterexample found):
+  * `invoke_untyped`, non-reset: the chain is `ikp_setCap_raise` (new fi = `rb + len·2^o - base`, `utRet_new`) →
+    `ikp_retype_utInv` (`utRet_new`) → `initArchObjects` (`uk_initArchObjects`) → `mapMx (createCap …)`.
+    `createCap` writes `cdt dest := src`, `isOriginal dest := true`, `defaultCap` at `dest`. For a non-untyped
+    type: UtFree/UtWf/UtDisj/UtOrig by `ik_setCap_nonUt`/`ik_setOriginal_true`; UtDesc needs that the old CDT
+    has no child of `dest` (then no chain between untyped slots passes through `dest`): l4v `mdb_cte_at` for the
+    empty slot `dest` (`ensureEmpty` at decode; carry `CdtNull σ : capAt σ sl = some nullCap → (∀ c, cdt c ≠ some
+    sl) ∧ cdt sl = none` as a sixth fact). For an untyped child: the new cap `(dev, p, sz, 0)` has region
+    `[p, p+2^sz) ⊆ [rb, rb+len·2^o)` (below the parent's raised fi): UtFree from `retPtrs_fresh`-style freshness
+    (the retype wrote nothing, `type = untyped`), UtDisj from the parent's old free part (UtDisj) and sibling
+    disjointness, UtDesc: `dest` is a child of `src`, and every cap whose free part meets the child's region
+    is `src` itself (raised) or a descendant of `src` — needs UtDesc at `src` plus the new edge.
+  * `invoke_untyped`, reset: after `reset_region_empty` the region is empty; `UtDesc.noKids` +
+    `ensure_no_children` (`UtRetOK`'s last clause) give that no other untyped cap's free part meets the region,
+    so the reset's `set_cap (untypedCap dev b n i·chunk)` keeps UtFree/UtDisj, and UtDesc's pairs with the
+    source keep their clause (the source is never the ancestor: no children). Missing for `kentry`: that
+    `set_cap` of a lower free index is not a `CapShrink` (state it as its own leaf with these facts), and the reset's other
+    fact — every CDT link into a slot of a deleted CNode/TCB — needs `CdtNull` for detype: l4v gets it from
+    `untyped_children_in_mdb` + `if_unsafe_then_cap` (objects in a childless untyped have no caps pointing to
+    them, so their slots are empty). Same chain for AsidControl MakePool (`delete_objects frame 12`,
+    `set_cap (max_free_index_update)` = `ikp_setCap_raise` with fi' = 2^n, `retype_region` one pool, `cap_insert`
+    of the pool cap).
+  * `cap_insert` (CNode Copy/Mint, IPC grant, TCB installs via `check_cap_at`/`cap_insert`, IRQ issue, MakePool):
+    non-untyped `newCap`: `set_untyped_cap_as_full` is a no-op, `set_cap` non-untyped, CDT edge at the asserted-
+    null `dest` (CdtNull). Untyped copy (`derive_cap` ran `ensure_no_children src`): `set_untyped_cap_as_full`
+    = `ikp_setCap_raise` to 2^n (src's free part becomes empty, so UtDisj holds for the copy), the copy is a
+    child of src (UtOrig + `should_be_parent_of`: `sameRegionAs` holds under UtWf), and UtDesc for the copy
+    as `s1` needs "no other free part meets src's region" — from UtDesc + no children of src, which must be
+    carried from the decode to the perform (`set_thread_state` keeps the CDT: `UtRetOK`-style view predicate).
+  * `cap_move` / `cap_swap` (CNode Move/Mutate/Rotate, `cap_swap_for_delete`): rename slots in caps and CDT
+    (UtDesc under the renaming; `dest` empty needs CdtNull).
+  * `empty_slot` (all deletions): removes a cap and reparents its children to its parent: UtDesc by "a chain
+    through the deleted slot is shortened" (TransGen induction), the rest `ik_setCap_nonUt`.
+  * Everything else: the generated frames. The shell (fl4KernelEntrySyscall, fl4HandleInvocationR, the
+    receive/fault/timeout paths through `do_ipc_transfer`'s cap transfer) is invA's `syscall_post'` shape with
+    the writer lemmas above as leaves.
+- Builds (tokyo, ./ut.sh untracked; FL4-tcbj mirror warm): ut1-b3 SpecInvUtK (1014 jobs), ut1-b6 SpecInvUtF1,
+  ut1-b7 SpecInvUtF2..F4 (1018/1020/1022 jobs; F4 ~6 min under load ~22), ut1-b8 SpecInvUt (1016) + SpecInvUtW
+  (1018), ut1-b13 SpecInvUtR (1028) + axioms (scratch/ut1/ax.lean, untracked): boot_utInv, ik_utInv_of_uk,
+  retype_keeps_old, utRet_region, utRet_fresh(_reset), deleteObjects_kheap/_range, UtDesc.noKids,
+  ik_setCap_nonUt, ikp_setCap_raise, ik_deleteObjects_utInv, ik_setOriginal_true, ikp_retype_utInv, utRet_new,
+  reset_region_empty, utRet_fresh_after_reset, uk_preemptionPoint, uk_decodeUntypedInvocationWith, uk_schedule:
+  propext, Classical.choice, Quot.sound at most. No sorry/admit/native_decide/bv_decide, no named premise. Root
+  Fl4Proofs.lean not rebuilt.
