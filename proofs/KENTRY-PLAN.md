@@ -4714,3 +4714,77 @@ imports the eight new modules. Nothing existing edited.
   makePool_utInv', hv_capInsert, hv_capMove, hv_capSwap, hv_setCap_nn, ui_doNormalTransfer, ui_recDel, ui_capRevoke,
   finaliseCap_nu, checkBudgetRestart_true: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide.
   Root Fl4Proofs.lean not rebuilt (eight import lines added).
+## ut4 (branch par/ut4 in FL4-tcbj, on 202e731c = int/j2 incl. ut3) — removing `DetypeOK` from the entry (NOT finished)
+Goal: `kentry_utInv2` / `kcall_utInv2` over `UtInv''` with no `DetypeOK` premise. Done: the invariant, the derivation
+of `DetypeOK`, boot, and the first writers. NOT reached: the remaining writers (rec_del above all), the regenerated
+frames and the entry theorems. kentry_utInv / kcall_utInv unchanged. Spec-only, namespace `Fl4Proofs.P3.SInvU`; root
+imports SpecInvUtN, SpecInvUtN2.
+- The invariant (SpecInvUtN), all on the view `uV` (so every generated `UK` frame keeps it: `ik_utInv''_of_uk`):
+  `UtInv'' σ := UtInv' σ ∧ UtNV (uV σ)`, `UtNV` = six facts, each [J] with its l4v counterpart:
+  * `UtChV` (l4v `untyped_children_in_mdb`): `capAt u = untypedCap dev b n fi → capAt s = c → r ∈ objRefs c →
+    r ∈ delR b n → s ∈ descendantsOf u cdt`.
+  * `IfUnsafeV` (l4v `if_unsafe_then_cap`, only for objects inside some untyped region, `InUtV`; l4v's
+    `valid_global_refs` keeps the IRQ node / kernel objects out of every untyped range): a non-null slot `p` with
+    `InUtV w p.1` has a cap `c'` somewhere with `p.1 ∈ sRefs c'` (`sRefs` = the object of a CNode / thread / Zombie
+    cap, l4v `cte_refs`).
+  * `CapFreeV` (l4v `valid_caps` + `valid_untyped`): no `objRefs` of any cap lies in an untyped's free part (what a
+    new untyped child's region needs for UtCh).
+  * `CapKindV` (l4v `valid_caps` typing): `r ∈ objRefs c → r ∈ sRefs c' → shp c = shp c'` (`shp`: CNode bits / TCB /
+    Zombie's `Option Nat`). Makes a NON-final CNode/thread cap's other reference slot-holding (an endpoint cap to a
+    CNode would otherwise let `finalise_cap` drop the last slot reference).
+  * `CnShapeV` (l4v `valid_cap` sizes + Zombie ranges): non-null slots `(r,i)` of an object `r ∈ sRefs c` satisfy
+    `SlotShape c i` (CNode: `i.length = bits`; TCB: `i = tcbCnodeIndex k`, k<6; Zombie `r b n`: `i = natToCref
+    (zombieCteBits b) k`, k<n). With n=0 / cyclic n=1 this is what makes a removeable Zombie safe to empty.
+  * `ZFinalV` (l4v `zombies_final`): no other slot's cap has a Zombie's object in its `objRefs`.
+- Derivation: `regNull_of : UtChV w → IfUnsafeV w → RegNullV w` (RegNull: every slot of an object inside a childless
+  untyped's region is null), **`detypeOK_of : UtInv'' σ → DetypeOK σ`** (RegNull + CdtOK). So `kentry_utInv` /
+  `kcall_utInv` already give `UtInv'` from `UtInv''` with no premise; what is missing is `UtInv''` → `UtInv''`.
+  `boot_utInv'' : UtInv'' initASt` (vacuous: only null caps; non-vacuity only, per the 2026-11-20 decision).
+- Writers proved:
+  * `SafeDelV w s c` (removing `c` from `s` keeps IfUnsafe: every `r ∈ sRefs c` keeps another slot-holding reference,
+    or has no non-null slot besides `s`); `utN_vEs`, **`hv_emptySlotN s info : HV (UtInv''V ∧ ∀ c, cap s = c →
+    SafeDelV w s c) UtInv''V (emptySlot s info)`** (SpecInvUtN).
+  * **`ik_capDeleteOneN sl : IK UtInv'' (capDeleteOne sl)`**, no premise (`fastFinalise` has no outcome for a
+    slot-holding cap, `fastFinalise_sRefs`, so `SafeDelV` is trivial).
+  * `RefRel c0 c` (derived cap: `objRefs c ⊆ objRefs c0`, same `shp`, not a Zombie, nothing derived from a Zombie, not
+    untyped), `DestRefV w dest` (a non-Zombie slot-holding cap references `dest.1` with `SlotShape c1 dest.2`: the
+    lookup that found `dest`); `utN_leaf` (any null slot made a CDT leaf under `src` or `src`'s parent),
+    **`hv_capInsertN c src dest : HV (UtInv''V ∧ (∀ c0, cap src = c0 → RefRel c0 c) ∧ DestRefV w dest) UtInv''V
+    (capInsert c src dest)`** (SpecInvUtN2).
+- No FINDING: no writer found to break `UtInv''` in a reachable state (all six hold in every l4v `invs` state; the
+  rec_del reasoning below is l4v's `rec_del_invs`).
+- HANDOFF (in order; every item is an HV/IK lemma for `UtInv''`, then the ut3 shell is replayed):
+  1. Lookup facts → `DestRefV`: `resolveAddressBits` / `lookupSlotForCNodeOp` / `lookupTargetSlot` / the receive
+     slot of `getReceiveSlots` return slots `(r,i)` with `r ∈ sRefs c1` of a CNode cap c1 in some slot and `i.length =
+     bits` (an `OkV` leaf like ut3's `okv_lookupCapAndSlot`; the root is the thread's `tcbCtable`, itself a slot);
+     TCB installs: `dest = (t, tcbCnodeIndex k)` with the invoked `threadCap t` in its slot. Add `DestRefV` for every
+     destination to `InvOKV` (SpecInvUtD) and to ut3's transfer loop.
+  2. `RefRel` from `derive_cap` / `mask_cap` / `update_cap_data` (`utKeep_mask` / `utKeep_upd` pattern, case split on
+     the cap; arch caps: `aobjRef` kept). The untyped copy (ut3's `hv_capInsert_ut`): new cap has `objRefs = ∅`; UtCh
+     for the copy needs that caps referencing the region are descendants of the copy — the copy is a fresh leaf, so
+     this needs RegNull-style "src childless ⇒ no cap references its region" (UtCh + childless: true).
+  3. `create_cap` / retype (ut2's `utInv'_cc(U)`, `hv_ccLoop(U)`): new objects fresh (no cap references them:
+     CapFree), default objects have only null slots (IfUnsafe/CnShape vacuous), `defaultCap` references the new object
+     with its own shape; UtCh by `dest` child of the source untyped + UtDesc (other untyped caps covering the object
+     are ancestors). `DestRefV` for `create_cap`'s destinations (decode, item 1). MakePool / reset: detype removes only
+     objects no cap references (UtCh + childless), lowering the free index needs CapFree from the same fact.
+  4. `cap_move` / `cap_swap` / `cap_swap_for_delete` (rename: all six are invariant under ut2's slot involution; move's
+     destination needs `DestRefV`).
+  5. rec_del (the hard part): generalise ut1's `ht_lfp` to a call-dependent PRE (`Pre k σ`), and prove l4v's
+     `rec_del_call_spec`: `finaliseSlotCall slot e` ends with `(true, _)` only when `SafeDelV w slot (cap slot)` holds
+     (non-final cap: `isFinalCap'` false gives another overlapping slot, `CapKindV` makes it slot-holding; final
+     CNode/thread → Zombie written (same `sRefs`, `CnShapeV` gives the Zombie range from the CNode bits / TCB indices,
+     `ZFinalV` from finality); removeable Zombie: `CnShapeV` with n=0 / cyclic n=1); `reduceZombieCall`: after
+     `cTEDeleteCall (ptr, n) false` the end slot is null or the Zombie changed (finaliseCap's `assert final` kills the
+     cyclic-not-exposed branch while the outer Zombie still references `ptr`); the swap for `exposed = false` keeps
+     CnShape (the Zombie lands at index 0 < n). Lemma needed: `natToCref bits (ofBl i) = i` for `i.length = bits ≤ 64`.
+  6. setCap of a non-null cap in an occupied slot (rec_del's remainder: Zombie of the same object, `sRefs` kept;
+     arch-cap updates and untyped free-index writes: `sRefs = ∅`, objRefs kept).
+  7. Regenerate SpecInvUtG with family `IK UtInv''` (scratch/ut3/mkui.sh, leaves = `ik_utInv''_of_uk` + the above),
+     replay SpecInvUtE with `UtInv''` (the `IKD` / `DetypeOK` plumbing disappears: use `detypeOK_of` at the perform),
+     then `kentry_utInv2 (c) (hI : UtInv'' σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, UtInv'' y.2` and
+     `kcall_utInv2`.
+- Builds (tokyo, ./ut3.sh, mirror warm): ut4-b3 SpecInvUtN (1058 jobs), ut4-b7 SpecInvUtN2 (1060) (b4–b6: the
+  `TransGen.cases_tail` name, fixed with `TransGen.tail'_iff` + `reflTransGen_iff_eq_or_transGen`), ut4-ax1 axioms
+  (scratch/ut4/ax.lean, untracked): detypeOK_of, regNull_of, boot_utInv'', hv_emptySlotN, ik_capDeleteOneN,
+  hv_capInsertN: propext, Classical.choice, Quot.sound; utN_leaf: propext, Quot.sound; utN_vEs: propext. No sorry/admit/native_decide/bv_decide. Root not rebuilt.
