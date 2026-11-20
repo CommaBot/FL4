@@ -6508,3 +6508,89 @@ of curSc, item 6 the SC switch at exit), spec-only, namespace `Fl4Proofs.P3.SInv
   `refillHd x` and `the x.scRefills.head?` as different atoms (pass the fact by `exact`); `refine tail _ … rfl …` lets
   `rfl : ?s.curSc = σ.curSc` assign `?s := σ` — give the state explicitly; `unfold` of an `abbrev` wrapper fails (`change`
   to the underlying call first); `Fl4Proofs.P3.Sched.specTail` must be qualified (HandleTop has another `specTail`).
+## sl3 (branch par/sl3 in FL4-sc, on 6c2a0e11 = int/j2 incl. sl2, vi3) — deletion, the performs, handle_invocation / handle_syscall (NOT finished: SlGap, call_kernel, tops)
+Goal (sl2 handoff 2-4): deletion, the decode-dependent performs, the shell and `kentry_scLive` / `kcall_scLive` with
+`kentry_scInv` / `kcall_scInv` carrying `ScInv ∧ ScLiveT ∧ IdleScOutV ∧ NtfnScB`. Done: deletion, every perform but
+untyped / arch (left as the intermediate definition `SlGap`, il2's `PerfGapIL` pattern), `handle_invocation`
+(given `SlGap`), `handle_recv`. Spec-only, namespace `Fl4Proofs.P3.SInvL`, root imports every new module.
+- **FINDING-free new premise `ScKind` [J]** (SpecInvSlD): `ScKindV w := ∀ s r b s' c', w s = scCap r b → w s' = c' →
+  r ∈ objRefs c' → ∃ b', c' = scCap r b'` (l4v `valid_caps` with the object typing of `obj_refs`: a cap naming the
+  object an SC cap names is an SC cap). Needed because a NON-final SC cap's deletion empties its slot and
+  `is_final_cap` only gives another cap overlapping it in `gen_obj_refs`; ut4's `CapKind` types slot-holding caps only,
+  so nothing excludes an endpoint / frame cap at the SC's address. True in reachable states (l4v: objects disjoint and
+  typed, frames contain no kernel objects, device untypeds none). View-only (reads the caps), kept by every deletion
+  step (`sk_*`) and by `check_cap_at`-guarded `cap_insert` (`so_facts`: `same_object_as` keeps SC-ness and `obj_refs`);
+  NOT yet carried across the whole entry (an entry hypothesis for now; its carrier is a cap-writer family like ut4's
+  for `CapKind`: insert / move / swap / IPC transfer / retype / arch cap updates).
+- **Deletion (SpecInvSlD, D2, D3)**: `sl_capSwap`, `sl_emptySlot_ns` (`NSafe`), `sl_finaliseCap` / `sl_fastFinalise` /
+  `sl_capDeleteOne` / `sl_deletingIrqHandler` (pre `SLI0 I K := SL I K ∧ IL []`: a final reply cap's
+  `reply_remove` donates to the BlockedOnReply caller, named by IfLiveT; `fast_finalise` fails on thread / SC caps, so
+  `cap_delete_one` empties no `NCap`); **`tunb_finThread`** (final thread cap: `unbind_from_sc` clears the thread's
+  binding — its SC is bound back by sb1's `ScBackS` — and `suspend` / `prepare_thread_delete` keep it by sb1's `BR`);
+  **`scd_finSc`** (final SC cap: no TCB unless the idle SC, no notification, no replies, kept by `_yield_from` /
+  `set_inactive`; frame family `ScB`/`scb_auto`); **`other_scCap`** (non-final SC cap → another SC cap, `ScKind`);
+  `DX I := SL I [] ∧ ScInv ∧ IdleScIs I.2 ∧ ScKind`, `DPre`/`DPost` on il2's `LPre`/`LPost`, **`sd_step`** (replays
+  `ld_step`), `sd_recDel`, **`sdu_capDelete`, `sdu_capRevoke : IKE (SDU I)`** (`SDU I := ILU ∧ DX I`).
+- **Performs (SpecInvSlP, P2, P3)**: `okv_cnNF` / `okv_invNF` (the CNode decode's moved caps name what the read caps
+  named, `NF`; ut5's `RefEq` does not separate an SC cap from an endpoint cap), `sl_capMove`, `sl_capSwapR`,
+  **`sl_invokeCnode`**, `sl_invokeIrqHandler`, **`sl_invokeSchedContext`** (vi3's `ScTg`: both bind ends held),
+  **`nb_bindNtfn`** (the SC-notification bind keeps NtfnScB when the SC has no notification) with the decode fact
+  `dec_nBind` / `decS_nBind` (`NBind`, at the decode's end state: the SC decode reads only); `sk_capInsert_so`,
+  `sdp_installTcbCap` / `sdp_installTcbFrameCap` (`SDP I N := ILP N [] ∧ DX I`), `slk_capDelete_fh` (deleting a
+  null / endpoint slot keeps `SL I K` for any `K`), `sl_tcSched` (the fault-handler install keeps the bind's ends named;
+  `TcbFh` from sb2's `BindOK` + the entry's `VfhAll`), **`sl_invokeTcb`**; `SPF I K L d t N` (perform state), **`SlGap`**
+  (untyped / arch performs keep `SL I K ∧ NtfnScB`, intermediate definition), **`sl_fl4PerformInvocation hG`**: post
+  `(SL I [] ∧ NtfnScB) ∧ (fp → SL I K)`.
+- **Shell (SpecInvSlE, E2)**: `Js I ct d N σe s` (SAP with the pin, `NQ [ct]`, ct, `NodeIs N`, `IdleScIs`, `uV s = uV σe`,
+  `BR σe s`), `EF N σe := P3 N σe ∧ ScKind σe ∧ IdleScOutV σe ∧ VfhAll σe`, `js_auto` (nine families), `spf_of`,
+  `tcbFh_of`, **`sl_fl4HandleInvocationR hG I N σe (hE : EF N σe) (hI2 : I.2 = σe.idleSc) ct rep calling blocking don fp
+  cptr : HKE (Js I ct (don = true ∧ calling = false) N σe) (JS I ct fp) _`** (`JS := (SL I [] ∧ NtfnScB) ∧ (fp → SL I
+  [ct])`); NtfnScB on the receive side `nb_completeSignal`, `nb_receiveSignal`, `nb_receiveIpc`; **`sl_handleRecv ct :
+  HK (SAP I [ct] [ct] False ct ∧ ct current) (SLN I []) (handle_recv _ _)`**.
+- Premises: no new one in the proved lemmas beyond **`ScKind` [J]** (above; only the deletion / install lemmas and the shell's
+  `EF` take it). `SlGap` is an intermediate definition (the untyped / arch performs), not an invariant premise: every lemma
+  above it is stated `(hG : SlGap) → …`. The pin is the perform's `don = true ∧ calling = false`, implied by vi2's
+  `Pinned c` (`js_weak`); at the tops it is vi2's `CtSc` [J] for `Pinned c` (lead decision; not yet wired). No FINDING:
+  no reachable step found to break SL or NtfnScB. Checked: a final thread cap's TCB is unbound before its Zombie is
+  written; a final SC cap's SC keeps only the idle SC's TCB; `cap_delete_one` never empties a thread / SC cap; the
+  CNode moves keep thread / SC caps' kind (`mask_cap` / `update_cap_data`); the SC-notification bind decode reads
+  `sc_ntfn = none` at the decode's state, which `set_thread_state` keeps.
+- Commits: 9523d421 (SlD, D2, D3), c2318482 (SlP, P2), ee125b9b (SlP3), 74b5594c (SlE), ae931bbb (SlE2), and the commit
+  adding SlE3 with this section. Root Fl4Proofs.lean imports all (root not rebuilt). Builds (tokyo, FL4-sc mirror warm, ./sl3.sh untracked = sl2.sh
+  with an error filter printing each error with its goal line): sl3-b2 SlD, b3 SlD2, b5 SlD3, b10 SlP2 (incl. SlP), b13 SlP3,
+  b16 SlE (17 s), b17 SlE2 (34 s), b20 SlE3 (sl_fl4HandleSyscall, sl_fl4HandleEvent_sys; 5014 jobs); sl3-ax1/ax2 (scratch/sl3/ax.lean, untracked): sd_recDel, sdu_capDelete, sdu_capRevoke,
+  sl_finaliseCap, sl_capDeleteOne, tunb_finThread, scd_finSc, other_scCap, sl_invokeCnode, okv_cnNF, nb_bindNtfn,
+  dec_nBind, decS_nBind, so_facts, sk_capInsert_so, sdp_installTcbCap, slk_capDelete_fh, sl_invokeTcb,
+  sl_invokeSchedContext, sl_fl4PerformInvocation, sl_fl4HandleInvocationR (ax1); sl_handleRecv, nb_receiveIpc,
+  sl_fl4HandleSyscall, sl_fl4HandleEvent_sys (ax2): propext, Classical.choice, Quot.sound.
+  No sorry/admit/native_decide/bv_decide/axiom; heartbeat options only per-declaration `set_option … in` at il2's levels
+  (8M for the shells, 16M for `so_facts` / `sl_fl4HandleInvocationR`).
+- HANDOFF (in order):
+  1. **`SlGap`** (SpecInvSlU): il2's SpecInvNtfnQLU / QLA with `NCap` for thread caps — detype of a childless untyped's
+     region (`regNull_of`: its slots are null, so no name is lost; deleted objects are not live), `retype_region` at fresh
+     addresses (`defaultObject` not live: `scLv` false, TCB unbound), `create_cap` into null slots, the reset's
+     `set_cap` of untyped caps, MakePool (detype + retype + `cap_insert`), the arch performs (their cap writes replace arch
+     caps: no `NCap` removed; il2's `il_unmapGen` / `il_pageUnmapF` / `tcs_refEq` pattern). NtfnScB there: no surviving
+     notification points into the detyped region (its SC is live, so named or idle; named ⇒ outside the region by
+     sb2's `unb_of_live` argument (UtCh/CapFree), idle ⇒ by `IdleScOutV`), defaults have `ntfnSc = none` / `scNtfn =
+     none`; `SPF` carries everything needed (`P3 N` incl. UtInv'', `IdleScOutV`, the decode's `DecodedFrom` → ut8's
+     `GapOKN` as in sb2's `scGap`).
+  2. The rest of the shell (`sl_fl4HandleSyscall` / `sl_fl4HandleEvent_sys` are DONE, SpecInvSlE3: one arm per syscall,
+     the send-receive syscalls by `sl_sendRecv`): `fl4CallKernel` (handler post SLN from this line + il2's `il_fl4HandleEvent_sys` (IL []), nq3's
+     `nq_fl4HandleEvent_sys` (NQ []), sb2's `sb_fl4HandleEvent` (ScInv); the preemption path: `sl_chargeBudget` /
+     `sl_checkBudget` (pre `SAP … False`) then `sli_maybeHandleInterrupt`; then `sli_fl4Awaken`, `schedule` /
+     `activate_thread` by the SL family), the other events (il2's `il_handleEvent_other` pattern; K = [] for interrupts).
+  3. Tops: `kentry_scLive_of (hG : SlGap) (c) (hU : UtInv3 σ) (hV : VfhAll σ) (hG : SpecGlobS σ ∧ IdleOutV σ) (hN : NtfnQB σ
+     ∧ EpQB σ) (hL : IfLiveT σ) (ha : ∃ x, kheap ct = tcb x ∧ activeSt x.tcbState) (hct : Pinned c → CtSc σ) (hK : ScKind σ)
+     (h : ScLiveT (idleP σ) σ ∧ IdleScOutV σ ∧ NtfnScB σ ∧ ScInv σ) : ∀ y ∈ …, ScLiveT (idleP y.2) y.2 ∧ NtfnScB y.2`:
+     `Js (idleP σ) ct (Pinned c) N σ σ` from `ha` (IfLiveT names ct), `hct` (the pin: vi2's `CtSc`), `EF N σ`
+     (`UtInv3`'s node, `hK`, `IdleScOutV`, `VfhAll`), `EntryOK σ` (ScLive by sl1's `scLive_of`); `idleP y.2 = idleP σ` by
+     sg1's IdK and sl1's IsK families; then `kentry_scInv` with `scLive_of` for sb2's `ScLive`, sl1's
+     `kentry_idleScOutV`. `kcall_*` with il2's `ha` form.
+  4. Carry `ScKind` (a cap-writer family: copies of SC caps by `cap_insert` / IPC transfer are `same_object_as`-related
+     or derived; retype's new caps name fresh objects of their type; arch / Zombie writes name no SC) to remove it from the
+     entry.
+- Lessons: `by tac` inside `⟨…, fun _ h => by cases h, …⟩` swallows the following comma (`cases h, x` = two targets): wrap
+  `(fun _ h => by cases h)`; `subst e` with `e : s = σ` eliminates `σ` (use `subst s`); after `unfold f at h` a match on a
+  constructor stays unreduced (`split at h` then splits the whole match): use `simp only [f] at h`; name clashes across
+  opened namespaces (`NSc`, `NK`): qualify or rename.
