@@ -10,9 +10,10 @@ the `JAtZ` cone).
   the IRQ masks (what `ValidMachineTime` and `ValidIrqMasks` read).
 * `WL P`: the leaves a predicate `P` reading only `vw` must be kept by:
   `updateTimeStamp`, `setIrqState`, machine operations that keep the last
-  machine time and only set IRQ masks (`MaskT`), the IRQ ack's unmask, and
-  the spec's ReadFPU step (`fpu`: Ext/Tcb's `.fpuTransfer _ true _` sets the
-  whole machine state to any value; FINDING in SpecInvValidMachineTime).
+  machine time and only set IRQ masks (`MaskT`, among them the spec's
+  ReadFPU step `fl4FpuToFrame`, which changes only the user memory since
+  fpu1; before, it set the whole machine state: invB's FINDING), and the
+  IRQ ack's unmask.
   `GK m := ∀ P, WL P → IK P m`: proved once for every spec function of the
   kernel entry (SpecInvValidMachineTimeGen), instantiated per field.
 * Frames: MachFieldFamT's `MTK` family (every spec function not reaching a
@@ -58,8 +59,6 @@ structure WL (P : State Unit → Prop) : Prop where
   sis : ∀ st i, IK P (setIrqState (Z := Unit) st i)
   msk : ∀ {α : Type} (mop : NonDet MachineState α), MaskT mop → IK P (doMachineOp (Z := Unit) mop)
   ack : ∀ i, IK P (doMachineOp (Z := Unit) (maskInterrupt false i))
-  fpu : IK P (doMachineOp (Z := Unit) (NonDet.select (Set.univ : Set MachineState) >>= fun ms =>
-    NonDet.modify fun _ => ms))
 
 /-- Kept by every predicate with the leaves. -/
 def GK {α : Type} (m : NonDet (State Unit) α) : Prop := ∀ P, WL P → IK P m
@@ -307,6 +306,16 @@ theorem mt_modify {g : MachineState → MachineState}
       ∀ j, (g ms).irqMasks j = ms.irqMasks j ∨ (g ms).irqMasks j = true) : MaskT (NonDet.modify g) := by
   intro ms x hx; rw [Set.mem_singleton_iff.1 hx]; exact hg ms
 
+theorem mt_select {α : Type} (A : Set α) : MaskT (NonDet.select A : NonDet MachineState α) := by
+  intro ms x hx; rw [hx.2]; exact ⟨rfl, fun _ => Or.inl rfl⟩
+
+/-- The spec's ReadFPU machine step (Ext/Tcb `fl4FpuToFrame`, fpu1): only the
+user memory changes. -/
+theorem mt_fl4FpuToFrame (f : Word) : MaskT (fl4FpuToFrame f) := by
+  unfold fl4FpuToFrame
+  exact mt_bind (mt_gets _) fun _ => mt_bind (mt_select _) fun _ =>
+    mt_modify fun _ => ⟨rfl, fun _ => Or.inl rfl⟩
+
 theorem mt_ite {α : Type} (Q : Prop) [Decidable Q] {m1 m2 : NonDet MachineState α} (h1 : MaskT m1)
     (h2 : MaskT m2) : MaskT (if Q then m1 else m2) := by
   split <;> assumption
@@ -374,10 +383,6 @@ theorem gk_setIrqState (st : IrqState) (i : Irq) : GK (setIrqState (Z := Unit) s
 
 theorem gk_ack (i : Irq) : GK (doMachineOp (Z := Unit) (maskInterrupt false i)) := fun _ L => L.ack i
 
-/-- The spec's ReadFPU machine step (Ext/Tcb `invokeFl4Tcb` `.fpuTransfer _ true _`): any machine state. -/
-theorem gk_fpuAny : GK (doMachineOp (Z := Unit) (NonDet.select (Set.univ : Set MachineState) >>= fun ms =>
-    NonDet.modify fun _ => ms)) := fun _ L => L.fpu
-
 /-- A `MaskT` goal by the machine leaves. -/
 macro "mt_auto" : tactic => `(tactic| repeat' (first
   | with_reducible exact mt_maskInterrupt_true _ | with_reducible exact mt_getActiveIRQ _ | with_reducible exact mt_ackInterrupt _
@@ -387,7 +392,7 @@ macro "mt_auto" : tactic => `(tactic| repeat' (first
   | with_reducible exact mt_of_mkf (mkf_invalidateLocalPageStructureCacheASID _ _)
   | with_reducible exact mt_of_mkf mkf_readFpuState | with_reducible exact mt_of_mkf (mkf_writeFpuState _)
   | with_reducible exact mt_of_mkf mkf_enableFpu | with_reducible exact mt_of_mkf mkf_disableFpu | with_reducible exact mt_of_mkf mkf_isFpuEnable
-  | with_reducible exact mt_of_mkf mkf_getFaultAddress
+  | with_reducible exact mt_of_mkf mkf_getFaultAddress | with_reducible exact mt_fl4FpuToFrame _
   | with_reducible exact mt_pure _ | with_reducible exact mt_pure' _ | with_reducible exact mt_gets _
   | with_reducible exact mt_setDeadline _ | with_reducible exact mt_ackDeadlineIRQ
   | with_reducible exact mt_in8 _ | with_reducible exact mt_in16 _ | with_reducible exact mt_in32 _
@@ -410,7 +415,7 @@ macro "gk_step0" : tactic => `(tactic| first
   | (exact gk_get_put (fun _ => rfl))
   | with_reducible exact gk_getObject _
   | with_reducible exact gk_updateTimeStamp | with_reducible exact gk_setIrqState _ _
-  | with_reducible exact gk_ack _ | with_reducible exact gk_fpuAny
+  | with_reducible exact gk_ack _
   | with_reducible exact gk_of_mtk (mtk_performPml4Flush _)
   | ((with_reducible refine gk_doMachineOp ?_); mt_auto; done)
   | (with_reducible refine gk_bind ?_ (fun _ => ?_))

@@ -10,23 +10,19 @@ is kept by the syscall entry** (spec side only; outside the `JAtZ` cone).
 * `uts_out`: `updateTimeStamp` sets the current time and the last machine time
   to the clock value (`getCurrentTime` returns the new last machine time) and
   keeps the interrupt table and the masks.
-* **FINDING** `readFpu_breaks_vmt`: the spec's ReadFPU (Ext/Tcb `invokeFl4Tcb`
-  `.fpuTransfer _ true _`, `invokeFl4Tcb_readFpu`) sets the WHOLE machine state
-  to any value (`fpuStep`), so it can set the last machine time above the
-  clock's cap (and below the current time). Trace: a thread holding a TCB cap
-  and a writable non-device frame cap (64-aligned offset, room for the 576-byte
-  image) calls ReadFPU (label `fl4TcbExtLabelNum .readFpu`); decode
-  (`decodeFl4FpuTransfer true`) succeeds and the perform is `fpuStep`;
-  `fl4Awaken`/`schedule`/`activateThread` never call `getCurrentTime`, so the
-  entry's outcome has `lastMachineTime = allOnes`. FL4's ReadFPU writes only
-  the frame (and the FPU), so this is a spec modelling gap: the step should
-  change only `underlyingMemory` (and the FPU state). Stopped on this field.
-* `wl_vmt_of` / `kentry_vmt_of`: the reduction, every leaf but ReadFPU's
-  (`setIrqState`, the masking machine operations and the ack keep both
-  times; `updateTimeStamp` by `uts_out`), so with a ReadFPU keeping the last
-  machine time the whole syscall entry keeps `ValidMachineTime`
-  (SpecInvValidMachineTimeGen's `gk_fl4KernelEntrySyscall`). Its hypothesis is
-  FALSE in the current spec; not a top theorem.
+* `wl_vmt`: every leaf (`setIrqState`, the masking machine operations and
+  the ack keep both times; `updateTimeStamp` by `uts_out`).
+* `kentry_validMachineTime` / `kirq_validMachineTime`: the whole syscall
+  entry and the interrupt entry keep `ValidMachineTime`
+  (SpecInvValidMachineTimeGen's `gk_fl4KernelEntrySyscall`,
+  `gk_fl4CallKernel_irq`), with no side condition.
+* History (invB's FINDING, fixed by fpu1): the spec's ReadFPU used to set the
+  WHOLE machine state to any value (`doMachineOp (select univ >>= modify
+  (fun _ => ms))`), so it could set the last machine time above the clock's
+  cap (`readFpu_breaks_vmt`, deleted with that step). FL4 writes only the
+  frame's 2696 bytes, and the spec's step is now Ext/Tcb's `fl4FpuToFrame`
+  (only the user memory, only those bytes), a masking machine operation
+  (`mt_fl4FpuToFrame`).
 * `boot_vmt`: the spec's initial state (`Init.initASt`).
 -/
 import Fl4Proofs.P3.SpecInvValidMachineTimeGen
@@ -152,21 +148,6 @@ theorem mask_lmt (m : Bool) (i : Irq) : ∀ ms x, x ∈ (maskInterrupt m i ms).1
     x.2.lastMachineTime = ms.lastMachineTime := by
   intro ms x hx; unfold maskInterrupt at hx; rw [Set.mem_singleton_iff.1 hx]
 
-/-- The spec's ReadFPU machine step (Ext/Tcb `invokeFl4Tcb`, `.fpuTransfer _ true _`): any machine state. -/
-abbrev fpuStep : NonDet (State Unit) Unit :=
-  doMachineOp (Z := Unit) (NonDet.select (Set.univ : Set MachineState) >>= fun ms => NonDet.modify fun _ => ms)
-
-/-- ReadFPU's perform is `fpuStep` (by definition). -/
-theorem invokeFl4Tcb_readFpu (t f : ObjRef) :
-    invokeFl4Tcb (Z := Unit) (.fpuTransfer t true f) = NonDetE.liftE (do fpuStep; return []) := rfl
-
-/-- Every machine state is an outcome of `fpuStep`. -/
-theorem fpuStep_any (σ : State Unit) (ms : MachineState) : ((), { σ with machineState := ms }) ∈ (fpuStep σ).1 := by
-  show _ ∈ (doMachineOp (Z := Unit) _ σ).1
-  unfold doMachineOp
-  exact ⟨(σ.machineState, σ), rfl, (((), ms), σ), ⟨⟨(ms, σ.machineState), ⟨trivial, rfl⟩, rfl⟩, rfl⟩,
-    ((), { σ with machineState := ms }), rfl, rfl⟩
-
 /-- The cap is below `allOnes` (`getCurrentTime_buffer_pos`). -/
 theorem timeCapS_lt : timeCapS < 2 ^ 64 - 1 := by
   have hb : getCurrentTimeBuffer ≠ 0 := by
@@ -187,27 +168,11 @@ theorem timeCapS_lt : timeCapS < 2 ^ 64 - 1 := by
   have hlt : timeCapS < 2 ^ 64 := (-(getCurrentTimeBuffer + 1)).isLt
   omega
 
-/-- **FINDING (invB): the spec's ReadFPU breaks `ValidMachineTime`.** From
-every state, `fpuStep` (ReadFPU's perform, `invokeFl4Tcb_readFpu`) has an
-outcome whose last machine time is `allOnes`, above the clock's cap. The
-rest of the syscall (`fl4Awaken`, `schedule`, `activateThread`) never calls
-`getCurrentTime`, so the entry's outcome keeps it (module docstring of
-SpecInvValidMachineTimeKit: every other step keeps the last machine time
-or sets it to a capped clock value). -/
-theorem readFpu_breaks_vmt (σ : State Unit) : ∃ y ∈ (fpuStep σ).1, ¬ ValidMachineTime y.2 := by
-  refine ⟨_, fpuStep_any σ { σ.machineState with lastMachineTime := BitVec.allOnes 64 }, ?_⟩
-  rintro ⟨-, h⟩
-  have h' : (BitVec.allOnes 64).toNat ≤ timeCapS := h
-  rw [BitVec.toNat_allOnes] at h'
-  have := timeCapS_lt
-  omega
-
-/-- **The leaves of `ValidMachineTime` but ReadFPU's** (the reduction: with a
-ReadFPU that keeps the last machine time, e.g. one writing only the frame's
-memory, `hF` holds by `fk_tl_dmo` and `kentry_vmt_of` is the entry theorem).
-`hF` itself is FALSE in the current spec (`readFpu_breaks_vmt`); this is not a
-top theorem. -/
-theorem wl_vmt_of (hF : IK ValidMachineTime fpuStep) : WL ValidMachineTime where
+/-- **The leaves of `ValidMachineTime`**: `updateTimeStamp` by `uts_out`,
+`setIrqState`, the masking machine operations (the spec's ReadFPU step
+`fl4FpuToFrame` among them since fpu1: `mt_fl4FpuToFrame`) and the IRQ ack
+keep both times. -/
+theorem wl_vmt : WL ValidMachineTime where
   view σ σ' e h := by
     refine vmt_tl σ σ' ?_ h
     unfold vw at e; simp only [Prod.mk.injEq] at e
@@ -223,13 +188,19 @@ theorem wl_vmt_of (hF : IK ValidMachineTime fpuStep) : WL ValidMachineTime where
     exact dk_bind (dk_modify fun _ => rfl) fun _ => fk_tl_dmo (mask_lmt _ i)
   msk mop h := ik_of_tl vmt_tl (fk_tl_dmo fun ms x hx => (h ms x hx).1)
   ack i := ik_of_tl vmt_tl (fk_tl_dmo (mask_lmt false i))
-  fpu := hF
 
-/-- The reduction at the syscall entry (see `wl_vmt_of`: `hF` is false today). -/
-theorem kentry_vmt_of (hF : IK ValidMachineTime fpuStep) (c : Syscall) {σ : State Unit}
-    (h : ValidMachineTime σ) :
+/-- **`ValidMachineTime` is kept by the spec's syscall entry** (no side
+condition). -/
+theorem kentry_validMachineTime {c : Syscall} {σ : State Unit} (h : ValidMachineTime σ) :
     ∀ y ∈ ((fl4KernelEntrySyscall (Z := Unit) true c) σ).1, ValidMachineTime y.2 :=
-  gk_fl4KernelEntrySyscall true c _ (wl_vmt_of hF) σ h
+  gk_fl4KernelEntrySyscall true c _ wl_vmt σ h
+
+/-- **`ValidMachineTime` is kept by the spec's interrupt entry**
+(`fl4CallKernel true .interrupt`; Ext/Entry's step relation has only the
+syscall entry). -/
+theorem kirq_validMachineTime {σ : State Unit} (h : ValidMachineTime σ) :
+    ∀ y ∈ ((fl4CallKernel (Z := Unit) true .interrupt) σ).1, ValidMachineTime y.2 :=
+  gk_fl4CallKernel_irq true _ wl_vmt σ h
 
 /-- **`ValidMachineTime` at boot** (`initASt`: both times 0). -/
 theorem boot_vmt : ValidMachineTime (initASt (Z := Unit)) :=

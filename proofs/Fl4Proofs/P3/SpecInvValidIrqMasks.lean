@@ -12,17 +12,32 @@ P3 (DESIGN.md §9), the invariant line (INV-PLAN §4 G1, invB): **`ValidIrqMasks
   `maskInterrupt`), and the machine operations of the kernel entry only mask
   (`MaskT`: `getActiveIRQ`, `maskInterrupt true`, the timer/port/memory
   operations).
-* **FINDING** `readFpu_breaks_vim`: the spec's ReadFPU (`fpuStep`,
-  SpecInvValidMachineTime) sets the whole machine state, so it can unmask an
-  inactive line; the rest of the entry only masks. Trace as
-  `readFpu_breaks_vmt`, from any state with an inactive line (most lines are
-  never issued). Stopped on this field.
-* A second gap, independent of ReadFPU: the IRQ ack (`archInvokeIrqHandler
-  (.aCKIrq irq)`, `maskInterrupt false`) unmasks without reading the line's
-  state. l4v keeps `valid_irq_masks` there from `valid_irq_handlers` (every
-  `IRQHandlerCap irq` in the CSpace has `irq` issued) and decode's lookup of
-  the cap in the current state; neither is carried yet (`WL.ack` is not
-  provable for `ValidIrqMasks` alone).
+* ReadFPU (invB's FINDING `readFpu_breaks_vim`, deleted by fpu1): the spec's
+  step used to set the whole machine state, so it could unmask an inactive
+  line; since fpu1 it is Ext/Tcb's `fl4FpuToFrame`, a `MaskT` operation
+  (`mt_fl4FpuToFrame`), so `vim_msk` covers it.
+* `wl_vim_of`: every leaf but the ack, so the entry theorem is
+  `gk_fl4KernelEntrySyscall true c _ (wl_vim_of hA)` once the ack leaf `hA`
+  is replaced.
+* The remaining gap (`hA`): the IRQ ack. Its only caller is
+  `invokeIrqHandler (.aCKIrq irq)` = `archInvokeIrqHandler (.aCKIrq irq)` =
+  `doMachineOp (maskInterrupt false irq)` (Fl4Spec Interrupt.lean), reached
+  after `decodeIrqHandlerInvocation` returned `.aCKIrq irq` for an
+  `irqHandlerCap irq` invoked by the caller (Decode.lean). It unmasks without
+  reading the line's state, so it keeps `ValidIrqMasks` only when
+  `σ.interruptStates irq ≠ .irqInactive` at the perform's state; `hA` as
+  stated (every state) is false. l4v gets the fact from `valid_irq_handlers`
+  (every `IRQHandlerCap irq` in the CSpace has `irq` not inactive) and the
+  decode's `cte_wp_at` of the invoked cap, carried to the perform. Needed:
+  `ValidIrqHandlers σ` (every IRQ handler cap of the CSpace names a line that
+  is not inactive) as a second invariant kept by the entry (writers:
+  `invokeIrqControl` sets `irqSignal` before `capInsert`ing the handler cap;
+  `postCapDeletion (.irqHandlerCap irq)` = `deletedIrqHandler` sets
+  `irqInactive`, which l4v justifies by the deleted cap being final, i.e.
+  no other handler cap for `irq`; cap copy/mint/move/derive of an IRQ handler
+  cap name the same line), and the ack leaf restated at the decode's outcome
+  instead of ∀-states (the `GK` kit's `WL.ack` would take the handler-cap
+  fact as an argument). Stopped there.
 * `boot_vim`: the spec's initial state (every line inactive and masked).
 -/
 import Fl4Proofs.P3.SpecInvValidMachineTime
@@ -87,14 +102,18 @@ theorem vim_msk {α : Type} (mop : NonDet MachineState α) (hm : MaskT mop) :
   · exact e.trans (h j hj)
   · exact e
 
-/-- **FINDING (invB): the spec's ReadFPU breaks `ValidIrqMasks`.** From a
-state with an inactive line `i` (at boot every line is), `fpuStep` (ReadFPU's
-perform) has an outcome with every IRQ mask cleared (module docstring). -/
-theorem readFpu_breaks_vim (σ : State Unit) (i : Irq) (hi : σ.interruptStates i = .irqInactive) :
-    ∃ y ∈ (fpuStep σ).1, ¬ ValidIrqMasks y.2 := by
-  refine ⟨_, fpuStep_any σ { σ.machineState with irqMasks := fun _ => false }, fun h => ?_⟩
-  have := h i hi
-  cases this
+/-- **`ValidIrqMasks` kept by every leaf but the IRQ ack**, as a reduction:
+given the ack leaf `hA` (the gap, module docstring: FALSE as a ∀-over-states
+statement, since an ack of an inactive line unmasks it; l4v proves the ack
+case from `valid_irq_handlers` at the decode's state), `WL ValidIrqMasks`.
+Not a top theorem. -/
+theorem wl_vim_of (hA : ∀ i, IK ValidIrqMasks (doMachineOp (Z := Unit) (maskInterrupt false i))) :
+    WL ValidIrqMasks where
+  view := vim_view
+  uts := vim_uts
+  sis := vim_sis
+  msk := vim_msk
+  ack := hA
 
 /-- **`ValidIrqMasks` at boot** (`initIrqMasks`: every line masked). -/
 theorem boot_vim : ValidIrqMasks (initASt (Z := Unit)) := fun _ _ => rfl
