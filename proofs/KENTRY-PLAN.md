@@ -5708,3 +5708,61 @@ Goal (nq3's handoff): carry `IfLiveT` across the entry (`kentry_ifLiveT` / `kcal
   join points needlessly.
 - Scratch (untracked): scratch/il1/{gen.py (AUTO2 support), closure.py, mkil.sh, prim.txt, hard.txt, hyp.json,
   auto2.txt, manual_il.py, ax.lean}; build scripts il1b.sh (= nq3b.sh), il1err.sh (errors with their theorem).
+## sb1 (branch par/sb1 in FL4-sc, on af865d16 = int/j2 incl. off1) — the SC↔TCB binding (off1's R5) as a carried G1 field
+Goal: `ScSym σ := ScBack σ ∧` its converse (l4v `sym_refs` of `tcb_sched_context`/`sc_tcb` with `valid_objs`' existence),
+kept by the syscall entry and every event over arbitrary states. Spec-only, namespace `Fl4Proofs.P3.SInvB`, modules
+SpecInvSb*.lean (root imports them). Result: kept with no premise for every spec function but the decode-dependent performs,
+which are ONE named remaining obligation `ScGap` (as ut7's PerfGap); one new narrow [J] entry fact `DetypeScOK`.
+- Definitions (SpecInvSbK): `ScBackS` (= SpecFinOut's `Sched.ScBack`, restated over Fl4Spec only: every TCB's SC exists, is bound
+  back, has refills when sporadic/active), `ScFwd` (converse: `scTcb = some u` → u a TCB with `tcbSchedContext = some p`),
+  `ScSym := ScBackS ∧ ScFwd`, **`RNE` [J]** (l4v `valid_sched_context`/`valid_refills`: every sporadic or active SC has a refill;
+  carried because bind / donation of an unbound SC would otherwise create a ScBack binding to a refill-less SC),
+  **`ScInv := ScSym ∧ RNE`** (the carried field). cur_sc_tcb is NOT needed: every writer reads the pair it rewrites.
+- Frame family: `BR h h'` (same TCB/SC addresses, same `tcbSchedContext`/`scTcb`, refills kept non-empty, refill clause kept),
+  `scInv_of_br`; `SBK h0 m := IK (BRs h0) m`; leaves `sb_setObject_p` (state-pinned), `sb_setSimpleKo`, `sb_threadSet`
+  (update keeping `tcbSchedContext`), `sb_updateSchedContext` (`scKeep`), `sb_setCap`, `sb_asUser`, `sb_setMrs`,
+  `sb_archThreadSet`, `sb_setObject_arch`, `sb_setThreadState`, `sb_optionUpdateThread`.
+- SpecInvSbR: the refill writers kept only as a whole (`refill_pop_head` can empty a list; `refill_new` raises the max first):
+  `sb_mergeOverlappingRefills`, `sb_mergeNonoverlappingHeadRefill`, `sb_chargeEntireHeadRefill`, `sb_refillNew`, `sb_refillUpdate`
+  (`RO`/`NE`/`HK`, `br_of_ro_ne`).
+- SpecInvSbF1..F4 (generated, proofs/scratch/sb1/mksb.sh = q4's gen.py, skip list skipsb.txt): 343 `SBK` lemmas, every spec
+  function reachable from `fl4KernelEntrySyscall` that writes no binding and retypes/detypes nothing.
+- SpecInvSbW: binding view `bv`/`SymB`, `scInv_iff`, `bv_of_br`; writers `sik_schedContextUnbindTcb`, `sik_maybeReturnSc`,
+  `sik_schedContextSetInactive` (no premise), `sikp_schedContextDonate` (target TCB unbound or already this SC's: l4v
+  `sched_context_donate`'s `bound_sc_tcb_at ((=) None) dest`), `sikp_schedContextBindTcb` (both unbound or bound to each other).
+- SpecInvSbP: every donation site discharges the donate precondition from its own guard with no premise: `sik_replyPush`,
+  `sik_replyRemove`, `sik_maybeDonateSc`, `sik_sendIpc`, `sik_receiveIpc_send`. SpecInvSbI: `si_auto`.
+- SpecInvSbG1..G6 (generated, scratch/sb1/mksi.sh, tgt_si.txt): the 35 ancestors of the writers below the invocation shell
+  (finalise/rec_del/cap_revoke/cap_delete, budget/timeout/fault paths, signals, fl4Awaken, receive (hand: manual.py)).
+- NOT BUILT (left in the worktree, untracked, not imported): SpecInvSbG5/G6 (generated) and the shell SpecInvSbE.
+  * G5 errors (b14/b15, the same twice; stopped per the 3-build rule): (1) `si_receiveIpc` (hand text in scratch/sb1/manual.py):
+    `receiveIpc` elaborates into join points (`let (epptr,_) ← match cap`, `let reply ← match replyCap`, `let ntfn ← match`),
+    so `obtain` on `hx` fails at line 17; do it the nq3 way: `cases cap`, `cases replyCap`, `cases ep`, `dsimp only` the join
+    points away, one lemma per arm (the sendEP arm is already proved: `sik_receiveIpc_send`, SpecInvSbP), then
+    `si_completeSignal` / `sik_maybeReturnSc` / `sik_fin`. (2) `si_handleRecv`: whnf heartbeat timeout at the declaration
+    (join point over the whole body): skip it and prove by hand, cases first. (3) `si_installTcbCap`: `setCap` reached as an
+    unfolded `NonDet.put {kheap := update … (.cnode sz (update cn i (some c)))}`: add a CNode-write leaf (lead hint
+    `brs_put_cnode`: the old object at the address is a CNode read just before, so `ObjKeep` holds; NOT a type-only leaf:
+    an invalid-size SC and a malformed CNode share `aGarbage` types).
+  * SpecInvSbE (written, never compiled): `DetypeScOK` [J], `EntryOK` (ScInv ∧ UtInv3 ∧ DetypeScOK ∧ VfhAll), `Rel`, `GapInv`
+    (untyped, arch, SC bind, TCB threadControlSched, SchedControl configure), `DecFrom`, **`ScGap`** (the remaining
+    obligation: those performs keep ScInv from a state related by cap view + binding frame to an EntryOK state, for an
+    invocation decoded from such a state), `si_performNG`, the shell `sb_handleInvocationR` (ut7's p3N shell with
+    `I := ScInv ∧ Rel σe`), `sb_fl4HandleSyscall`, `checkBudgetRestart_true_eq` (a `true` budget check changes nothing, so
+    EntryOK is taken after `updateTimeStamp`), `sb_fl4HandleEvent`, `sb_fl4CallKernel`, tops `kentry_scInv_of` /
+    `kcall_scInv_of` / `kentry_scSym_of` / `kcall_scSym_of (hG : ScGap) … (hE : EntryOK σ)`, boot `boot_scInv`,
+    `boot_scSym`, `boot_detypeScOK`, `boot_entryOK`.
+  * After that: discharge `ScGap` per invocation: SC bind (decode Decode.lean:923 `sc.scTcb ≠ none → throw` + the TCB
+    side → `sikp_schedContextBindTcb`), TCB sched bind (Decode.lean:740 test; install_tcb_cap of slot 3 finalises only a
+    VfhAll-valid cap: no donation), configure (`refill_new`/`refill_update` leave refills non-empty, BR keeps it, the
+    `sc_sporadic` write is then `scKeep_ne`), untyped retype (ut's `utRet_fresh`: fresh addresses, default TCB/SC unbound,
+    default SC inactive non-sporadic), reset/MakePool detype (`DetypeScOK` + UtWf/`deleteObjects_range`).
+- Premises: `RNE` (carried, l4v valid_refills), `DetypeScOK` [J] (entry fact, l4v if_live_then_nonz_cap +
+  untyped_children_in_mdb; vacuous at boot), and `ScGap` (obligation). No FINDING: every donation site tests the target's SC
+  (send_ipc, reply_push, reply_remove, maybe_donate_sc), every unbind reads the pair it clears; nothing reachable breaks ScSym.
+- Builds (tokyo, ./sb1.sh untracked, FL4-sc mirror warm): sb1-b3 SbK (1014 jobs), b6 SbR+F1..F4 (1024), b9 SbW, b13/b14
+  SbP+SbI+G1..G4 (1038); b14/b15 G5 FAILED (above). Axioms (scratch/sb1/ax.lean, task sb1-ax1): scInv_of_br none; scInv_iff
+  propext, Quot.sound; sb_refillNew, sb_chargeEntireHeadRefill, sik_schedContextUnbindTcb, sikp_schedContextDonate,
+  sikp_schedContextBindTcb, sik_sendIpc, sik_replyRemove, si_finaliseCap, si_checkBudgetRestart, si_fl4Awaken: propext,
+  Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide. Root imports SbK, SbR, SbF1..F4, SbW, SbP, SbI,
+  SbG1..G4 (root not rebuilt).
