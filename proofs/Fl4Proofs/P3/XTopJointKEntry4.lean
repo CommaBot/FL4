@@ -18,6 +18,10 @@ again and `JAtZ.activateJ`).
   ASID, read from `JPlaced`/`VsSlotsW`, not from `cur`).
 * `kernel_entryJ4`: `kernel_entryJ3` with `hFin : … JAtZR … → KFinAtR`,
   `hNSR` [S], and no `hSw`. REMOVED: `KFinSwHyp` [W].
+* `KPreFinRestHyp` [W], `kPreFinHyp_of`, `kernel_entryJ5` (sch9 (3)):
+  `KPreFinHyp` [W] narrowed to the preemption states where `JAt` fails
+  (`JHoleAt` without `JAt`, the IRQ case's bare `XTopAt`, a failing spec
+  preemption path); where `JAt` holds the finish is `jat_finishJR`.
 -/
 import Fl4Proofs.P3.XTopJointKEntry3
 import Fl4Proofs.P3.XTopJointJAtZRB
@@ -240,6 +244,89 @@ theorem kernel_entryJ4 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → 
       · have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
           mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
         exact Or.inr ⟨σ', mem_kentry hx hmem, hRJ⟩
+
+
+variable (arI) in
+/-- **[W] `finish` after a preempted invocation, but where `JAt` holds**
+(sch9 (3)): `KPreFinHyp` [W] restricted to the `PPQ` states with no outcome
+`z` of `preemption_path σ1` at which `JAt` holds. What is left: (a) a
+`JHoleAt` state that is not `JAt` (`JAtZ.off`/`curRun` lost by the time
+update; kp's `PPQZ` gives `JAt` in the covered cases, `JPreemptRestHypK` for the
+rest), (b) the IRQ case `∃ Z', XTopAt` (`JIrqHyp`'s post: `handle_interrupt`
+is not at `J`; closing it needs `JIrqHyp` with a `JAt`/`JAtZR` post, l4v
+`handle_interrupt_invs`; then `jat_finishJR` applies as below), (c) a
+failing spec preemption path (FL4's `finish` must still return; l4v excludes
+it by `valid_irq_masks`/`invs`). The `JAt` case is proved:
+`kPreFinHyp_of`. -/
+def KPreFinRestHyp (AR : A → Fl4Spec.Cr3 → Prop) (c : Fl4Spec.Syscall) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ σ1, PreemptedAt c σ σ1 → ∀ r : S × A, PPQ (L := L) arI AR σ1 r →
+    (¬ ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, JAt (L := L) arI AR r.1 r.2 z.2) →
+    syscall.finish st arI r.1 r.2 ⦃ r' => (Fl4Spec.preemptionPath (Z := Unit) σ1).2 ∨
+      ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, ∃ σ',
+        ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) z.2).1 ∧
+        RJ (L := L) arI AR r'.1 r'.2 σ' ⦄
+
+/-- **`KPreFinHyp` from its non-`JAt` part** (sch9 (3)): at a preemption
+outcome `z` where `JAt` holds, `jat_finishJR` (from `JAtZ.toR`) with
+`kernel_entryJ4`'s `hFin` at the front's outcome `(ok z.1, z.2)`. -/
+theorem kPreFinHyp_of {c : Fl4Spec.Syscall} {σ : Fl4Spec.State Unit}
+    (hR : KPreFinRestHyp (L := L) arI AR c σ)
+    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
+      (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+        KFinAtR (L := L) arI AR Z' H' Cs' s' a' x.2)
+    (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hNSR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+      (σ : Fl4Spec.State Unit), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → NativeScope σ)
+    (hT : TimeAgree arI) (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    KPreFinHyp (L := L) arI AR c σ := by
+  intro σ1 hPA r hQ
+  by_cases hJ : ∃ z ∈ (Fl4Spec.preemptionPath (Z := Unit) σ1).1, JAt (L := L) arI AR r.1 r.2 z.2
+  · obtain ⟨z, hz, Zm, Hm, Csm, Acm, Lstm, Dm, Jm⟩ := hJ
+    obtain ⟨σb, ⟨σ0, hF, hb⟩, hy⟩ := hPA
+    have hx : ((.ok z.1, z.2) : Except Unit Unit × Fl4Spec.State Unit) ∈ (specFront c σ).1 :=
+      mem_specFront hF (mem_handleE_err (mem_fl4HandleEvent hb (mem_whenE_true hy)) (mem_liftE hz))
+    have F := hFin _ hx Zm Hm Csm Acm Lstm Dm r.1 r.2 Jm.toR
+    exact WP.spec_mono (jat_finishJR r.1 r.2 z.2 Jm.toR F.hd hnd hA F.vt (signalRestJHypZR_of_ns hNSR Hm Csm) hmb
+      F.arch F.archNd F.fo F.sni F.send hT F.tail hmax htu (hvm_of_ns hNS))
+      fun r' ⟨_, σ', _, _, hmem, hRJ, _⟩ => Or.inr ⟨z, hz, σ', hmem, hRJ⟩
+  · exact hR σ1 hPA r hQ hJ
+
+
+set_option maxHeartbeats 4000000 in
+/-- **`kernel_entryJ4` with `KPreFinHyp` [W] narrowed to `KPreFinRestHyp`
+[W]** (sch9 (3), `kPreFinHyp_of`): the finish after a preempted invocation
+is proved where `JAt` holds after the preemption path. -/
+theorem kernel_entryJ5 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
+    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ) (n : I64) (c : Fl4Spec.Syscall)
+    (hn : NativeSys n c)
+    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
+    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → KBudget arI a (faultIPSt σ σ.curThread x))
+    (hK : ∀ σb, BudgetAt σ σb true → ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
+      (D' : Set U64) (s' : S) (a' : A), JAtZ (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' σb →
+        KDispHypsS (L := L) arI AR Z' H' Cs' D' s' a' σb n c)
+    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
+      (D' : Set U64) (s' : S) (a' : A), JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+        KFinAtR (L := L) arI AR Z' H' Cs' s' a' x.2)
+    (hPR : KPreFinRestHyp (L := L) arI AR c σ)
+    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hIP : IrqPlat arI AR)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    (hNSR : ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A)
+      (σ : Fl4Spec.State Unit), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → NativeScope σ)
+    (hRest : JPreemptRestHypK (L := L) arI AR) (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
+  kernel_entryJ4 s a σ J hni n c hn hflag hB hK hFin
+    (kPreFinHyp_of hPR hFin hA hnd hmb hNS hNSR hT hmax htu)
+    hARI hA hnd hPP hmrt hmb hIP hNS hNSR hRest hT hmax htu
 
 end
 
