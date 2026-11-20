@@ -6392,3 +6392,53 @@ Goal: invC's FpuOwnOK paragraph as a carried G1 field, `kentry_fpuOwnOK` / `kcal
   `switch_local_fpu_owner`: `cases n; unfold; dsimp only` first, then a `first | exact final | hk_bind` loop.
 - Next: carry `FT` (with IfLiveT) in the G1 bundle; FpuOwnOK [J] in ScArchF's consumers (ArchSwF / ArchNdF callers, KFinAtR) is
   now supplied by `kentry_fpuOwnOK` / `kcall_fpuOwnOK` from the previous exit (`FpuOwnOKS` = ScArchF's `FpuOwnOK`, unfold both).
+
+## ctq4 (branch par/ctq4 in FL4-q, on 6903bded = int/j2 incl. ctq3, vi2, sb2, il1) — SchedQ: the scheduler slices, the kernel exit (NOT finished: the event part)
+Goal (ctq3's (a)-(d)): TQ across the whole entry with no [J], tops `kentry_tq` / `kcall_tq`. Spec-only, namespace
+`Fl4Proofs.P3.SInvQ`, modules SpecInvCqS, SpecInvCqSF1..F5 (generated), SpecInvCqT, SpecInvCqL. Nothing existing edited.
+- **Bundle `SchedQ σ := TQ σ ∧ SA σ`, `SA := RA ∧ RR ∧ CtNQR`**: `RA` switch target is a runnable TCB (l4v
+  `weak_valid_sched_action`, runnable half), `RR` every released thread is a runnable TCB (`valid_release_q`, runnable
+  half), `CtNQR` invB's `ct_not_in_q`. `SA` reads the heap only through "runnable TCB", so it is independent of TQ's
+  domain/priority facts: a TCB write keeping runnable TCBs runnable keeps it (`sa_setObject_p`), a write at a thread that
+  is neither switch target nor released (`NP`) keeps it (`sa_upd_np`), and a non-runnable thread is `NP` (`np_of_nr`):
+  so `set_thread_state` of a BLOCKED thread to anything keeps SA (`sa_setThreadState_nr`); an enqueue keeps CtNQR off
+  `resume_cur_thread` or for a non-current thread (`sa_tsa_p`). `boot_sa`, `boot_schedQ`.
+- SpecInvCqS (hand): leaves + `sa_auto`; `sa_setSchedulerAction_cn`, `sa_rescheduleRequired` (HK1 SA SAc: ends at
+  choose_new; by cases on the action, its `do` has a join point), `sa_possibleSwitchTo_p` (target runnable and `DomOK`:
+  its other-domain enqueue adds ct only if target = ct), `sq_possibleSwitchTo_p`, `sa_tcbReleaseRemove`,
+  `sa_replyUnlinkTcb` (its own BlockedOnReply/Receive assertion).
+- SpecInvCqSF1..F5: 314 generated `sa_*` lemmas (proofs/scratch/s4/mks4.sh, untracked; skip list skips4.txt = ctq3's
+  skipq3 + setSchedulerAction, rescheduleRequired, tcbReleaseRemove (pinned leaves), chooseThread, guardedSwitchTo,
+  switchToThread, switchToIdleThread, scheduleChooseNewThread, completeSignal, maybeDonateSc, postpone,
+  schedContextResume, tcbReleaseEnqueue, invokeSetDomain; `anc.py` computes ancestors).
+- SpecInvCqT (hand): **`sq_schedule : HK1 AW SchedQ schedule`**, **`sq_exit : HK1 AW SchedQ (schedule >>= fun _ =>
+  activate_thread)`**, `AW σ := SchedQ σ ∧ DomEq σ ∧ IdleNR σ` (every TCB of cur_domain; idle TCB not runnable).
+  `aw_awaken` (released head runnable by RR, of cur_domain by DomEq so possible_switch_to's other-domain enqueue is dead;
+  heap/domain/idle kept: `KH` frames), `aw_checkDomainTime`; switch branch with `P1 c` (action = switch_thread c, so c
+  runnable by RA when enqueued/appended), choose_new / switch arms through `sq_scheduleChooseNewThread : HK1 SQI SchedQ`
+  (SQn = SchedQ off resume; `IQ` idle in no queue, from IdleNR + queued⇒runnable, kept across arch_prepare_next_domain /
+  next_domain / arch_switch_to_idle_thread by `FF` frames), `sqc_switchToThread` (dequeue: in no queue after, T1) and
+  `sqc_switchToIdleThread` give `CtQ` before `set_scheduler_action resume`. ct enqueued only after `schedulable` read it.
+  Lean trap: schedule's switch arm has a `have __do_jp` (ct_prio read); `dsimp only` it, then the same tail in both arms;
+  never `refine`/`first` a loop of bind lemmas against it (delta unification of spec functions made b7 run >13 min).
+- SpecInvCqL: **`ifLiveTN_of_ifLiveT : IfLiveT σ → IfLiveTN σ`** (il1/il2's carried IfLiveT replaces ctq3's [J]
+  IfLiveTN), **`aw_of (hq : SchedQ σ) (h4 : T4 σ) (hv : ValidIdle σ) : AW σ`** (ctnq1's T4, vi2's ValidIdle).
+- Premises: none at lemma level beyond stated preconditions; no ∀-states hypothesis. No FINDING so far.
+- NOT DONE (handoff, in order):
+  1. `fl4Awaken` (fl4TimerFires: send_signal then reprogram flag): `SchedQ` across `send_signal` (TQ has no
+     `tq_sendSignal` either). The woken thread was blocked: `cancel_ipc` on it is `NP` (np_of_nr), `possible_switch_to`
+     needs DomOK (DomEq). Then `sq_tail : HK1 (AW) SchedQ (fl4Awaken >>= schedule >>= activate)` with DomEq/IdleNR kept
+     by awaken (KH-style frame over send_signal: heap changes, so carry DomEq via T4's q4 family and IdleNR via vi's).
+  2. The event (`fl4HandleEvent`): hand SA lemmas for ctq3's skip list (the same writers TQ needed by hand, SpecInvCqR/J/U/P),
+     plus: `set_domain` / `set_priority` (enqueue t, then reschedule if t = ct: CtNQR broken in between → carry
+     `fun s => SA' s` with ct exempt until the reschedule), `end_timeslice` (append ct, then charge_budget's
+     reschedule; postpone of cur_sc: RR needs scTcb(cur_sc) = ct runnable: sb2's ScSym + `cur_sc = ct's sc`, true after
+     schedule's switch_sched_context — carry `CurScT` in the post of sq_exit), `do_reply_transfer` (postpone of the
+     receiver's SC: receiver just Running, ScSym gives scTcb = receiver), sched_context_resume (runnable checked at the same
+     state), ct-blocking writers: `set_thread_state ct Blocked*` needs `NP ct`: action ≠ switch_thread ct (l4v
+     scheduler_act_sane: carry entry-locally; possible_switch_to targets were blocked, hence ≠ ct while ct runnable) and
+     ct ∉ release queue (schedulable at schedule's switch; carry with CtQ-style post of sq_exit).
+  3. Tops `kentry_tq` / `kcall_tq` = event ∘ sq_tail, with `aw_of` at the schedule entry (T4 and ValidIdle at that
+     intermediate state come from the q4 / vi families' IK lemmas for the event and fl4Awaken, not their tops).
+- Builds (tokyo, ./ctq4.sh untracked; mirror warm): ctq4-b4 SpecInvCqS (4632 jobs), ctq4-b5/b6 SF1..F5, ctq4-b8
+  SpecInvCqT SpecInvCqL + axioms (ax4.lean, untracked).

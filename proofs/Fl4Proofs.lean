@@ -982,3 +982,11 @@ import Fl4Proofs.P3.SpecInvFoD
 import Fl4Proofs.P3.SpecInvFoU
 import Fl4Proofs.P3.SpecInvFoP
 import Fl4Proofs.P3.SpecInvFoS
+import Fl4Proofs.P3.SpecInvCqS
+import Fl4Proofs.P3.SpecInvCqSF1
+import Fl4Proofs.P3.SpecInvCqSF2
+import Fl4Proofs.P3.SpecInvCqSF3
+import Fl4Proofs.P3.SpecInvCqSF4
+import Fl4Proofs.P3.SpecInvCqSF5
+import Fl4Proofs.P3.SpecInvCqT
+import Fl4Proofs.P3.SpecInvCqL
