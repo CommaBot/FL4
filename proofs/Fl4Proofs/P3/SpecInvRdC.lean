@@ -41,17 +41,17 @@ set_option maxHeartbeats 1000000
 abbrev RdK {α : Type} (m : NonDet (State Unit) α) : Prop := IK Rdy m
 abbrev RdKE {ε α : Type} (m : NonDetE (State Unit) ε α) : Prop := IKE Rdy m
 
-/-- The SC view: refills and refill max. -/
-def SV (o : Option KernelObject) : Option (List Refill × Nat) :=
+/-- The SC view: refills, refill max and (rd6, for `RV`'s round-robin clause) period. -/
+def SV (o : Option KernelObject) : Option (List Refill × Nat × Ticks) :=
   match o with
-  | some (.schedContext y _) => some (y.scRefills, y.scRefillMax)
+  | some (.schedContext y _) => some (y.scRefills, y.scRefillMax, y.scPeriod)
   | _ => none
 
-theorem sv_some {o : Option KernelObject} {a : List Refill × Nat} (h : SV o = some a) :
-    ∃ y n, o = some (.schedContext y n) ∧ y.scRefills = a.1 ∧ y.scRefillMax = a.2 := by
+theorem sv_some {o : Option KernelObject} {a : List Refill × Nat × Ticks} (h : SV o = some a) :
+    ∃ y n, o = some (.schedContext y n) ∧ y.scRefills = a.1 ∧ y.scRefillMax = a.2.1 ∧ y.scPeriod = a.2.2 := by
   unfold SV at h
   split at h
-  · cases h; exact ⟨_, _, rfl, rfl, rfl⟩
+  · cases h; exact ⟨_, _, rfl, rfl, rfl, rfl⟩
   · cases h
 
 /-- Writing `o` over `old` keeps what `Rdy` reads. -/
@@ -62,8 +62,8 @@ def OK1 (old : Option KernelObject) (o : KernelObject) : Prop :=
   SV (some o) = SV old
 
 theorem rvs_congr {y z : SchedContext} (e1 : z.scRefills = y.scRefills) (e2 : z.scRefillMax = y.scRefillMax)
-    (h : RVs y) : RVs z := by
-  unfold RVs refillHd at *; rw [e1, e2]; exact h
+    (e3 : z.scPeriod = y.scPeriod) (h : RVs y) : RVs z := by
+  unfold RVs refillHd at *; rw [e1, e2, e3]; exact h
 
 /-- **`Rdy` across a view-keeping change** (new queue members / switch target `RdyT`). -/
 theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
@@ -79,8 +79,8 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
   have F : ∀ {t}, RdyT σ t → RdyT σ' t := by
     intro t ⟨x, c, y, n, hx, hc, hy, h1, h2⟩
     obtain ⟨x', hx', ex⟩ := hT t x hx
-    have e2 : SV (σ'.kheap c) = some (y.scRefills, y.scRefillMax) := by rw [hS c, hy]; rfl
-    obtain ⟨y', n', hy', ey1, ey2⟩ := sv_some e2
+    have e2 : SV (σ'.kheap c) = some (y.scRefills, y.scRefillMax, y.scPeriod) := by rw [hS c, hy]; rfl
+    obtain ⟨y', n', hy', ey1, ey2, -⟩ := sv_some e2
     refine ⟨x', c, y', n', hx', by rw [ex]; exact hc, hy', ?_, ?_⟩
     · show activeSc y'.scRefillMax = true
       rw [ey2]; exact h1
@@ -88,8 +88,8 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
   have G : ∀ {t}, ActB σ t → ActB σ' t := by
     intro t ⟨x, c, y, n, hx, hc, hy, h1⟩
     obtain ⟨x', hx', ex⟩ := hT t x hx
-    have e2 : SV (σ'.kheap c) = some (y.scRefills, y.scRefillMax) := by rw [hS c, hy]; rfl
-    obtain ⟨y', n', hy', -, ey2⟩ := sv_some e2
+    have e2 : SV (σ'.kheap c) = some (y.scRefills, y.scRefillMax, y.scPeriod) := by rw [hS c, hy]; rfl
+    obtain ⟨y', n', hy', -, ey2, -⟩ := sv_some e2
     refine ⟨x', c, y', n', hx', by rw [ex]; exact hc, hy', ?_⟩
     show activeSc y'.scRefillMax = true
     rw [ey2]; exact h1
@@ -98,8 +98,8 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
     fun t hm => (hrq t hm).elim (fun hm => G (h5 t hm)) G, fun z m hz => ?_⟩
   rotate_right
   · rw [hid] at hz
-    have e2 : SV (σ.kheap σ.idleSc) = some (z.scRefills, z.scRefillMax) := by rw [← hS, hz]; rfl
-    obtain ⟨y, k, hy, ey1, -⟩ := sv_some e2
+    have e2 : SV (σ.kheap σ.idleSc) = some (z.scRefills, z.scRefillMax, z.scPeriod) := by rw [← hS, hz]; rfl
+    obtain ⟨y, k, hy, ey1, -, -⟩ := sv_some e2
     have ey : y.scRefills = z.scRefills := ey1
     have := h6 y k hy
     rw [ht]; unfold refillHd; rw [← ey]; exact this
@@ -111,12 +111,12 @@ theorem rdy_of_view {σ σ' : State Unit} (h : Rdy σ)
     · exact F e
   · obtain ⟨x, hx, ex, hbx⟩ := hB t x' hx' hb (by rw [hc]; exact Option.some_ne_none c)
     exact F (h3 t x c hx hbx (by rw [ex]; exact hc))
-  · have e2 : SV (σ.kheap q) = some (z.scRefills, z.scRefillMax) := by rw [← hS q, hz]; rfl
-    obtain ⟨y, m, hy, ey1, ey2⟩ := sv_some e2
+  · have e2 : SV (σ.kheap q) = some (z.scRefills, z.scRefillMax, z.scPeriod) := by rw [← hS q, hz]; rfl
+    obtain ⟨y, m, hy, ey1, ey2, ey3⟩ := sv_some e2
     have ha' : scActive y = true := by
       show activeSc y.scRefillMax = true
       rw [ey2]; exact hz'
-    exact rvs_congr ey1.symm ey2.symm (h4 q y m hy ha')
+    exact rvs_congr ey1.symm ey2.symm ey3.symm (h4 q y m hy ha')
 
 /-- **`Rdy` across one `OK1` heap write.** -/
 theorem rdy_upd {σ : State Unit} (h : Rdy σ) (p : ObjRef) (o : KernelObject) (hp : OK1 (σ.kheap p) o) :
@@ -398,7 +398,7 @@ theorem rd_optionUpdateThread {α : Type} (t : ObjRef) (fn : α → Tcb → Tcb)
   · exact rd_threadSet _ _ (h _)
 
 theorem rd_updateSchedContext (p : ObjRef) (f : SchedContext → SchedContext)
-    (hf : ∀ y, (f y).scRefills = y.scRefills ∧ (f y).scRefillMax = y.scRefillMax) :
+    (hf : ∀ y, (f y).scRefills = y.scRefills ∧ (f y).scRefillMax = y.scRefillMax ∧ (f y).scPeriod = y.scPeriod) :
     IK Rdy (updateSchedContext (Z := Unit) p f) := by
   unfold updateSchedContext
   intro σ hσ x ⟨y, hy, hx⟩
@@ -411,8 +411,8 @@ theorem rd_updateSchedContext (p : ObjRef) (f : SchedContext → SchedContext)
     refine rd_setObject_p _ _ _ ?_ hσ x hx
     rw [hk]
     refine ⟨(fun _ e => by cases e), (fun _ e => by cases e), ?_⟩
-    show some ((f sc).scRefills, (f sc).scRefillMax) = some (sc.scRefills, sc.scRefillMax)
-    rw [(hf sc).1, (hf sc).2]
+    show some ((f sc).scRefills, (f sc).scRefillMax, (f sc).scPeriod) = some (sc.scRefills, sc.scRefillMax, sc.scPeriod)
+    rw [(hf sc).1, (hf sc).2.1, (hf sc).2.2]
   · exact hx.elim
 
 /-! ## `rd_auto` -/

@@ -202,11 +202,17 @@ def R3 (σ : State Unit) : Prop :=
 
 /-- The refill clauses of `RV` for one SC. -/
 def RVs (y : SchedContext) : Prop :=
-  MIN_REFILLS ≤ y.scRefillMax ∧ MIN_BUDGET ≤ (refillHd y).rAmount ∧ rsum y.scRefills < 2 ^ 64
+  MIN_REFILLS ≤ y.scRefillMax ∧ MIN_BUDGET ≤ (refillHd y).rAmount ∧ rsum y.scRefills < 2 ^ 64 ∧
+    (y.scPeriod = 0 → 2 ≤ y.scRefills.length)
 
 /-- **RV [J]** (l4v `valid_refills` / `refills_sum`): an active SC has room for
 two refills, a head of at least `MIN_BUDGET`, and refill amounts summing below
-`2 ^ 64` (charges and merges conserve the sum, so they never wrap). -/
+`2 ^ 64` (charges and merges conserve the sum, so they never wrap); rd6 (lead
+decision): a round-robin SC (`scPeriod = 0`) has at least two refills (l4v
+`valid_refills`' round-robin part: `refill_new` / `refill_update` end in
+`maybe_add_empty_tail`, round-robin charges keep the length,
+`refill_unblock_check` skips round robin), so `refill_reset_rr` never zeroes
+the head. -/
 def RV (σ : State Unit) : Prop :=
   ∀ p y n, σ.kheap p = some (.schedContext y n) → scActive y = true → RVs y
 
@@ -312,7 +318,7 @@ theorem boot_rdy : Rdy (initASt (Z := Unit)) := by
     · subst e
       rw [SInvV.initKheap_idleSc] at hy'
       cases hy'
-      refine ⟨le_refl _, minBudget_le_maxPeriod, ?_⟩
+      refine ⟨le_refl _, minBudget_le_maxPeriod, ?_, fun _ => by simp⟩
       have := MAX_PERIOD.isLt
       simp [rsum]; omega
     · exfalso
@@ -407,6 +413,11 @@ theorem rr_sum (L : List Refill) (hne : L ≠ []) (c : Ticks) (hc : c.toNat ≤ 
   simp only [rsum, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil] at hM hs ⊢
   rw [hadd]; omega
 
+/-- The round-robin charge keeps the list's length. -/
+theorem rr_len (L : List Refill) (hne : L ≠ []) (a b : Refill) : ((a :: L.tail).dropLast ++ [b]).length = L.length := by
+  obtain ⟨c, t, rfl⟩ := List.exists_cons_of_ne_nil hne
+  simp
+
 /-! ## `commit_time` with a sufficient consumed time -/
 
 theorem kh_upd (σ : State Unit) (p : ObjRef) (y : SchedContext) (n : Nat) :
@@ -419,7 +430,7 @@ def CommitOut (σ : State Unit) (x : SchedContext) (n : Nat) (σ' : State Unit) 
     (x.scRefills ≠ [] → y.scRefills ≠ []) ∧ (refillHd y).rTime.toNat ≤ σ.curTime.toNat ∧
     (scActive x = true → σ.curSc ≠ σ.idleSc → refillSufficient 0 (refillHd y) = true) ∧
     (¬ (scActive x = true ∧ σ.curSc ≠ σ.idleSc) → y.scRefills = x.scRefills) ∧
-    rsum y.scRefills = rsum x.scRefills
+    rsum y.scRefills = rsum x.scRefills ∧ (x.scPeriod = 0 → y.scRefills.length = x.scRefills.length)
 
 /-- **`commit_time` with a sufficient consumed time** (module docstring). -/
 theorem commit_cur {σ : State Unit} {x : SchedContext} {n : Nat}
@@ -435,7 +446,7 @@ theorem commit_cur {σ : State Unit} {x : SchedContext} {n : Nat}
     have hne' := hne hact
     have hsuf := hS x n hk hact hni
     have hm2 : 2 ≤ x.scRefillMax := (hV _ x n hk hact).1
-    have hsum : rsum x.scRefills < 2 ^ 64 := (hV _ x n hk hact).2.2
+    have hsum : rsum x.scRefills < 2 ^ 64 := (hV _ x n hk hact).2.2.1
     by_cases h0 : 0 < σ.consumedTime
     · rw [NonDet.when, if_pos h0, nd_bind_assoc', nd_bind_one (isRoundRobin_eq hk)] at hr
       by_cases hrr : x.scPeriod = 0
@@ -446,7 +457,8 @@ theorem commit_cur {σ : State Unit} {x : SchedContext} {n : Nat}
           nd_bind_one (updateSchedContext_eq (kh_upd _ _ _ _) _), updSc_updSc] at hr
         obtain rfl : r = ((), _) := hr
         obtain ⟨ht, ha⟩ := rr_head x.scRefills hne' σ.consumedTime
-        refine ⟨_, rfl, rfl, rfl, rfl, rfl, fun _ => by simp, ?_, fun _ _ => ?_, fun h => absurd ⟨hact, hni⟩ h, ?_⟩
+        refine ⟨_, rfl, rfl, rfl, rfl, rfl, fun _ => by simp, ?_, fun _ _ => ?_, fun h => absurd ⟨hact, hni⟩ h, ?_,
+          fun _ => rr_len x.scRefills hne' _ _⟩
         · show (the (_ : List Refill).head?).rTime.toNat ≤ _
           rw [ht]; exact Nat.le_trans (Nat.le_add_right _ _) hoff
         · apply suff0_of
@@ -477,11 +489,13 @@ theorem commit_cur {σ : State Unit} {x : SchedContext} {n : Nat}
         · rw [e, nd_bind_one (updateSchedContext_eq hk _)] at hr
           obtain rfl : r = ((), _) := hr
           obtain ⟨hz1, hz2, -⟩ := hnat x n (by rw [e]; exact hk)
-          exact ⟨_, rfl, rfl, rfl, rfl, rfl, fun h => h, hz1, fun _ _ => hz2, fun h => absurd ⟨hact, hni⟩ h, rfl⟩
+          exact ⟨_, rfl, rfl, rfl, rfl, rfl, fun h => h, hz1, fun _ _ => hz2, fun h => absurd ⟨hact, hni⟩ h, rfl,
+            fun _ => rfl⟩
         · rw [e, nd_bind_one (updateSchedContext_eq (kh_upd _ _ _ _) _), updSc_updSc] at hr
           obtain rfl : r = ((), _) := hr
           obtain ⟨hz1, hz2, hz3⟩ := hnat z n (by rw [e]; exact kh_upd _ _ _ _)
-          exact ⟨_, rfl, ez2, ez1, ez4, ez3, fun _ => ez5, hz1, fun _ _ => hz2, fun h => absurd ⟨hact, hni⟩ h, hz3⟩
+          exact ⟨_, rfl, ez2, ez1, ez4, ez3, fun _ => ez5, hz1, fun _ _ => hz2, fun h => absurd ⟨hact, hni⟩ h, hz3,
+            fun h => absurd h hrr⟩
     · rw [NonDet.when, if_neg h0, nd_bind_one (show NonDet.pure (σ := State Unit) () σ = ({((), σ)}, False) from rfl),
         nd_bind_one (updateSchedContext_eq hk _)] at hr
       obtain rfl : r = ((), _) := hr
@@ -490,13 +504,13 @@ theorem commit_cur {σ : State Unit} {x : SchedContext} {n : Nat}
           have : σ.consumedTime.toNat ≠ 0 := fun e => hz (BitVec.eq_of_toNat_eq (by simpa using e))
           simp; omega))
       refine ⟨_, rfl, rfl, rfl, rfl, rfl, fun h => h, Nat.le_trans (Nat.le_add_right _ _) hoff, fun _ _ => ?_,
-        fun h => absurd ⟨hact, hni⟩ h, rfl⟩
+        fun h => absurd ⟨hact, hni⟩ h, rfl, fun _ => rfl⟩
       have := hsuf; rw [hc0] at this; exact this
   · rw [NonDet.when, if_neg hc, nd_bind_one (show NonDet.pure (σ := State Unit) () σ = ({((), σ)}, False) from rfl)]
       at hr
     obtain rfl : r = ((), _) := hr
     refine ⟨x, ?_, rfl, rfl, rfl, rfl, fun h => h, Nat.le_trans (Nat.le_add_right _ _) hoff,
-      fun h1 h2 => absurd ⟨h1, h2⟩ hc, fun _ => rfl, rfl⟩
+      fun h1 h2 => absurd ⟨h1, h2⟩ hc, fun _ => rfl, rfl, fun _ => rfl⟩
     show _ = { Sched.updSc σ σ.curSc x n with consumedTime := 0 }
     rw [updSc_self hk]
 
@@ -555,7 +569,7 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
     (hk : σ.kheap σ.curSc = some (.schedContext x n)) (hO : Sched.OffReady σ) (hS : Suff σ)
     (hne : scActive x = true → x.scRefills ≠ []) {r : Unit × State Unit}
     (hr : r ∈ (commitTime (Z := Unit) σ).1) : Rdy r.2 ∧ Sched.OffReady r.2 ∧ CommitOut σ x n r.2 := by
-  obtain ⟨y, e, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := commit_cur hk hO hS h.2.2.2.1 hne hr
+  obtain ⟨y, e, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩ := commit_cur hk hO hS h.2.2.2.1 hne hr
   rw [e]
   have hkc : ∀ q, q ≠ σ.curSc → ({ Sched.updSc σ σ.curSc y n with consumedTime := 0 } : State Unit).kheap q =
       σ.kheap q := fun q hq => by simp [Notif.updK, hq]
@@ -569,7 +583,7 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
       rw [hkp] at hz0; cases hz0
       refine ⟨?_, e6⟩
       rw [e8 (fun hc => hc.2 eI)]; exact (h.2.2.2.2.2 x n (by rw [← eI]; exact hk)).1), fun z m hz => ?_,
-    ⟨y, rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩⟩
+    ⟨y, rfl, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10⟩⟩
   · rw [hk] at hy0; cases hy0
     refine ⟨y, hkp, by rw [hay]; exact ha0, ?_⟩
     by_cases hc : scActive x = true ∧ σ.curSc ≠ σ.idleSc
@@ -579,8 +593,11 @@ theorem rdy_commitTime {σ : State Unit} {x : SchedContext} {n : Nat} (h : Rdy �
       rw [eh]; exact hr0
   · rw [hkp] at hz; cases hz
     rw [hay] at hz'
-    obtain ⟨v1, v2, v3⟩ := h.2.2.2.1 _ x n hk hz'
-    refine ⟨by rw [e2]; exact v1, ?_, by rw [e9]; exact v3⟩
+    obtain ⟨v1, v2, v3, v4⟩ := h.2.2.2.1 _ x n hk hz'
+    refine ⟨by rw [e2]; exact v1, ?_, by rw [e9]; exact v3, fun hp => ?_⟩
+    rotate_left
+    · have hx0 : x.scPeriod = 0 := by rw [← e4]; exact hp
+      rw [e10 hx0]; exact v4 hx0
     by_cases hc : scActive x = true ∧ σ.curSc ≠ σ.idleSc
     · exact min_le_of_suff (e7 hc.1 hc.2)
     · have eh : refillHd y = refillHd x := by unfold refillHd; rw [e8 hc]

@@ -239,7 +239,7 @@ theorem rd_refillBudgetCheck {σ : State Unit} {x : SchedContext} {n : Nat} (h :
     (hp0 : x.scPeriod ≠ 0) (hne : x.scRefills ≠ []) (ha : scActive x = true) (u : Ticks)
     {r : Unit × State Unit} (hr : r ∈ (refillBudgetCheck (Z := Unit) u σ).1) :
     Rdy r.2 ∧ ∃ zs, r.2 = updSc σ σ.curSc { x with scRefills := zs } n ∧ zs ≠ [] := by
-  obtain ⟨v1, v2, v3⟩ := h.2.2.2.1 _ x n hk ha
+  obtain ⟨v1, v2, v3, -⟩ := h.2.2.2.1 _ x n hk ha
   have hmin : MIN_BUDGET.toNat ≤ rsum x.scRefills := by
     obtain ⟨a, l, e⟩ := List.exists_cons_of_ne_nil hne
     have e2 : (refillHd x).rAmount = a.rAmount := by unfold refillHd; rw [e]; rfl
@@ -255,7 +255,7 @@ theorem rd_refillBudgetCheck {σ : State Unit} {x : SchedContext} {n : Nat} (h :
     (fun x0 hx0 => by rw [hkp] at hx0; cases hx0) (fun z m hz _ => ?_) rfl
     (fun y0 n0 hy0 ha0 => ⟨_, n, hkp, by rw [hk] at hy0; cases hy0; exact ha0⟩) rfl (fun e => absurd e hI)
   rw [hkp] at hz; cases hz
-  exact ⟨v1, hm, by rw [hs]; exact v3⟩
+  exact ⟨v1, hm, by rw [hs]; exact v3, fun h0 => absurd h0 hp0⟩
 
 end
 

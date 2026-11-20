@@ -131,7 +131,7 @@ theorem rd_schedContextUnbindTcb_p (sc : ObjRef) (σ : State Unit) (h1 : T1 σ)
   obtain ⟨s, hs, hr⟩ := hr
   have s1 := rd_threadSet_unbind t u.2 (fun d p hm => v3 d p (by rw [eq] at hm; exact hm))
     (by rw [ea]; exact v4) (by rw [er]; intro hm; simp [tcbSchedDequeue] at hm) u1 s hs
-  exact rd_updateSchedContext sc (scTcbUpdate fun _ => none) (fun y => ⟨rfl, rfl⟩) s.2 s1 r hr
+  exact rd_updateSchedContext sc (scTcbUpdate fun _ => none) (fun y => ⟨rfl, rfl, rfl⟩) s.2 s1 r hr
 
 theorem rd_schedContextUnbindAllTcbs_p (sc : ObjRef) (σ : State Unit) (h1 : T1 σ)
     (hA : ∀ y n t, σ.kheap sc = some (.schedContext y n) → y.scTcb = some t → t ≠ σ.curThread →
@@ -152,7 +152,7 @@ theorem rd_maybeReturnSc_p (nt t : ObjRef) (σ : State Unit) (hq : ∀ d p, t �
   refine ikp_when _ fun _ => ?_
   refine ikp_keep (fun y hy => cq5_ro (fun _ => by repeat' ik_step0) hy) fun _ => ?_
   refine ikp_bind (rd_threadSet_unbind t σ hq ha hr) fun _ => ?_
-  refine ik_bind (rd_updateSchedContext _ (scTcbUpdate fun _ => none) fun y => ⟨rfl, rfl⟩) fun _ => ?_
+  refine ik_bind (rd_updateSchedContext _ (scTcbUpdate fun _ => none) fun y => ⟨rfl, rfl, rfl⟩) fun _ => ?_
   refine ik_gets_bind fun s => ikp_of_ik ?_ s
   exact ik_when _ rd_rescheduleRequired
 

@@ -1029,6 +1029,7 @@ import Fl4Proofs.P3.SpecInvCqZ
 import Fl4Proofs.P3.SpecInvCqZA
 import Fl4Proofs.P3.SpecInvRdY
 import Fl4Proofs.P3.SpecInvRdG
+import Fl4Proofs.P3.SpecInvRdH
 import Fl4Proofs.P3.SpecInvSlKA
 import Fl4Proofs.P3.SpecInvSlKB
 import Fl4Proofs.P3.SpecInvSlKG
