@@ -1004,3 +1004,10 @@ import Fl4Proofs.P3.SpecInvSlE3
 import Fl4Proofs.P3.SpecInvCqV
 import Fl4Proofs.P3.SpecInvCqW
 import Fl4Proofs.P3.SpecInvCqX
+import Fl4Proofs.P3.SpecInvRdC
+import Fl4Proofs.P3.SpecInvRdD
+import Fl4Proofs.P3.SpecInvRdF1
+import Fl4Proofs.P3.SpecInvRdF2
+import Fl4Proofs.P3.SpecInvRdF3
+import Fl4Proofs.P3.SpecInvRdF4
+import Fl4Proofs.P3.SpecInvRdF5

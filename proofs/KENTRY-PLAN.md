@@ -6664,3 +6664,80 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqV, SpecInvCqW, SpecI
   y.2` = event ∘ `sq_tailX` (T4 / ValidIdle at the event's end from q4 / vi IK lemmas).
 - Builds (tokyo, ./ctq5.sh untracked = ctq4.sh with a quieter filter): ctq5-b3 SpecInvCqV (4840 jobs), ctq5-b6 SpecInvCqW
   (4928), ctq5-bis1/bis2 (scratch bisect of CqX), ctq5-b8/b9 SpecInvCqV/W/X + axioms (ax5.lean, untracked).
+## rd2 (branch par/rd2 in FL4-tcbj, on 3e4c721d = int/j2 incl. rd1, ctq4) — Rdy restructured (lead decisions 1-2), its frame family, the first hand writers (NOT finished: no whole-entry carry yet)
+Goal: rd1's handoff 1-5 ending in `kentry_rdy` / `kcall_rdy` and `kentry_offReady` / `kcall_offReady`. Done: handoff 1
+(restructure, decision 1 incl. the refill sum), handoff 2 (generated frame family), handoff 4 (Suff from check_budget /
+check_budget_restart, decision 2), and the first hand writers of handoff 3. Spec-only, namespace `Fl4Proofs.P3.SInvR`,
+modules SpecInvRdA/RdB (edited), SpecInvRdC, SpecInvRdD, SpecInvRdF1..F5 (new); root imports all. No JAtZ cone.
+- **Definitions now (SpecInvRdA).** `RdyT σ t` = l4v `released_sc_tcb_at` = bound to an active SC whose head is ready
+  (`refillReady curTime`; the sufficiency conjunct is gone). `RVs y := MIN_REFILLS ≤ max ∧ MIN_BUDGET ≤ head amount ∧
+  rsum refills < 2^64`, **`RV σ`** := every active SC is `RVs` (l4v valid_refills / refills_sum; `rsum` = Σ toNat of the
+  amounts, unbounded). R1/R2/R3/Rdy/Suff unchanged otherwise. `boot_rdy` via `minBudget_le_maxPeriod : MIN_BUDGET ≤
+  MAX_PERIOD` (platform constants only: MIN_BUDGET_le_MAX_PERIOD, MIN_BUDGET_bound, getCurrentTime_buffer_bound).
+- **Sum conservation.** `rbc_head_mem` / `rbc_head` (sufficient sporadic charge) now also return `rsum y = rsum x`
+  (`lsum_schedUsedL`, `rsum_map`), given `rsum < 2^64`; `rr_sum` (round-robin charge: head − c, tail + c); `CommitOut` has
+  a new last conjunct `rsum y.scRefills = rsum x.scRefills`; `rdy_frame1`'s SC clause is `RVs`; `rdy_commitTime` proves
+  RVs of the committed SC (MIN_BUDGET ≤ head from the raw sufficiency `e7`, or the refills unchanged). SpecInvRdB: `UI`
+  (refill_unblock_check's merge invariant) carries `rsum y0 < 2^64 → rsum z = rsum y0 ∧ head y0 ≤ head z` (merges add
+  amounts without wrap), so `sw_out`'s switched SC keeps `RVs` (rd1 note (2) settled by the sum bound).
+- **SpecInvRdC (the frame kit).** `Rdy` reads (a) TCB existence + binding, (b) state/fault of a BlkR bound TCB, (c) the SC
+  view `SV` (refills, refill max), queues, action, time. `OK1 old o` (a write keeping (a)-(c)), **`rdy_of_view`** (new queue
+  members / a new switch target allowed when RdyT), `rdy_upd`. Leaves: `rd_setObject_p` (pinned), `rd_setObject` (`NTS o`:
+  no TCB/SC/CNode, the old object pinned by `aType`: `nts_old`), `rd_setSimpleKo` (`simple_old`), `rd_threadSet` (state,
+  fault, binding kept), `rd_threadSet_nb` / **`rd_setThreadState`** (to a non-BlkR state `NB`), `rd_archThreadSet`,
+  `rd_asUser`, `rd_setMrs`, `rd_setCap`, `rd_optionUpdateThread`, `rd_updateSchedContext` (refills / max kept),
+  `rd_tsa_p` (a queue action adding only an RdyT thread), `rd_dequeue`, `rd_setSchedulerAction_ns`,
+  `rd_setThreadStateAct`, `rd_tcbReleaseRemove`; `rd_side` / `rd_leaf` / `rd_auto`. By hand:
+  **`rd_rescheduleRequired`** (no premise: it enqueues the switch target only after its own asserts — schedulable,
+  sufficient ∧ ready — so the target is RdyT without R2; `mem_getScRefillReady` / `mem_getScRefillSufficient`),
+  **`rd_possibleSwitchTo_p`** (target RdyT at that state; `kt_rescheduleRequired` keeps heap and time).
+- **SpecInvRdF1..F5** (generated, proofs/scratch/rd2/mkrd.sh = ctq4's gen.py with `rd`, untracked; skip list
+  scratch/rd2/skiprd.txt = ctq4's skips4 + updateSchedContext, possibleSwitchTo, maybeReturnSc, schedContextSetInactive,
+  plus extra.txt = the 36 ancestors of the refill / time / SC-switch writers): **282 lemmas, all green** (the two failures
+  of the first run, maybeReturnSc (unbinds a TCB) and schedContextSetInactive (clears refills), are genuine writers).
+- **SpecInvRdD.** `mem_getScRefillSufficient'`, **`suff_checkBudget`** / **`suff_checkBudgetRestart`** (an outcome
+  returning `true` leaves the state unchanged and `Suff` holds, unconditionally), `rdy_later`, `qa_updateTimeStamp`,
+  **`rdy_updateTimeStamp`** (`ValidMachineTime`: the clock only moves forward, below 2^64), RdyT-pinned writers
+  **`rd_enqueue_p`**, **`rd_append_p`**, `rdy_upd_r`, `rd_threadSet_r`, **`rd_setThreadState_r`** (any state, a BlkR one
+  included, for a thread RdyT at that state: l4v released_ipc_queues for a thread blocking with a released SC).
+- No FINDING. Checked: R3's strong form (bound ⇒ RdyT, not l4v's `released_if_bound` guard "active ∧ not released") is
+  consistent with the binding sites — decodeSchedContextBind refuses `ipcQueuedThreadState st ∧ ¬released` (ipcQueued
+  includes notification / reply blocking); `schedContextSetInactive` runs only after `schedContextUnbindAllTcbs`; a
+  thread bound to an inactive SC is never schedulable, so it cannot block itself.
+- Premises: none added (no [J]/[P]/[W]/[S]); every lemma's preconditions are state facts (RdyT at that state, NB, Rdy,
+  ValidMachineTime), none a ∀-states hypothesis.
+- HANDOFF (in order; the by-hand list is skipall.txt ∩ reachable, 156 names, minus the leaves above):
+  1. Scheduler / exit: `schedule` (ct enqueue under `schedulable`: RdyT ct from OffReady + `CtSc` + ct's SC active),
+     `chooseThread` / `switchToThread` / `switchToIdleThread` / `guardedSwitchTo` (dequeues: generated-style),
+     `scAndTimer` = `sw_out` (+ setNextInterrupt), `awaken` / `tcbReleaseDequeue`: the loop guard
+     `readReleaseQNonEmptyAndReady` gives the head's SC ready, but RdyT also needs it **active**: l4v valid_release_q's
+     `active_sc_tcb_at` half — extend SchedQ's RR (runnable) or Rdy with "released ⇒ bound to an active SC"
+     (writers: tcbReleaseEnqueue = postpone; configure dequeues first).
+  2. Budget: `chargeBudget` (non-overrun branch: rdy_commitTime-style with Suff; the overrun branch is the mid-entry
+     break of OffReady, decision 3: state the carried form `Rdy ∧ (OffReady ∨ (ct not queued/switch/BlkR ∧ Excl curSc))`
+     re-established by endTimeslice (`rd_append_p` with its own ready ∧ sufficient test — needs ct's SC = curSc, i.e.
+     vi3's `CtSc` [J] or a carried `cur_sc_tcb`) + `rd_rescheduleRequired` before sw_out), `endTimeslice`, `commitTime`
+     (rdy_commitTime), `refillResetRr`, `handleOverrun` / `headInsufficientLoop` (sum + head ≥ MIN_BUDGET: the sum is
+     conserved and Σ ≥ old head ≥ MIN_BUDGET, merges stop at a sufficient head), `refillNew` / `refillUpdate` (configure),
+     the `ifSporadic*RefillUnblockCheck` wrappers (`ruc_out`: head := curTime only when ready, stays RdyT), `maybeAddEmptyTail`
+     (head and sum kept), `preemptionPoint` (Suff in the non-throw branch: as suff_checkBudget; `rdy_updateTimeStamp`).
+  3. Blocking / waking: ct blocking (`sendIpc`/`receiveIpc`/`receiveSignal` blocked arms: `rd_setThreadState_r` with RdyT ct
+     from OffReady (head.rTime ≤ curTime) + Suff-free activity of ct's SC + `CtSc`), woken threads
+     (`rd_possibleSwitchTo_p` with RdyT from R3 at the woken thread, its state BlkR before the wake-up), donation
+     (`schedContextDonate` / `maybeDonateSc` / `replyPush` / `replyRemove`: the SC moves with its readiness),
+     `cancelIpc` / `blockedCancelIpc` / `cancelAll*` / `restart*` / `suspend` (Inactive is NB; restart enqueues via
+     possibleSwitchTo of a thread whose SC must be released: schedContextResume postpones otherwise).
+  4. SC / TCB invocations: `schedContextBindTcb` (decode's released check: `okb_fl4Decode`-style carry of the decode
+     state), `schedContextUnbindTcb` / `unbindFromSc` / `schedContextUnbindAllTcbs` / `maybeReturnSc` (dequeue +
+     release-remove first; unbound ⇒ outside R1/R3; R2: reschedule), `schedContextResume`, `postpone`,
+     `schedContextYieldTo`, `setPriority` / `setDomain` / `threadSetPriority` / `threadSetDomain` (re-enqueue of a
+     queued thread: RdyT by R1), `invokeSchedControlConfigureFlags`, `schedContextSetInactive` (only after unbind-all:
+     no RdyT reads it; RV holds vacuously for an inactive SC).
+  5. Untyped retype / detype (UtInv3 + IfLiveT / ScLive: ctq3's rqDet_of_live pattern), then the shell and tops
+     `kentry_rdy` / `kcall_rdy`, `kentry_offReady` from sw_out at scAndTimer (p's head ready: R1 / R2 / idle SC / p = curSc).
+- Builds (tokyo, FL4-tcbj mirror warm; ./rd2.sh and ./rd2s.sh untracked, rd2s streams lake progress): rd2-b2 RdA + RdB
+  OK (4616 / 4618 jobs); rd2-b5/b6 RdC (4644), RdD, RdF1 OK; rd2-b7 RdD, F2, F3, F4 OK, F5 2 errors (the two writers);
+  rd2-b8 RdD (pinned writers) + F5 OK + axioms (scratch/rd2/ax.lean, untracked). Lean traps: `fun _ e => by cases e, rfl⟩`
+  inside an anonymous constructor parses `cases e, rfl` as two targets — parenthesise the `fun`; `rescheduleRequired`'s
+  switch arm is `gets >>= fun sched => (when … >>= fun _ => set …)` (the join point inlined): `ikp_gets_bind` before
+  `ikp_bind`; `tcbReleaseRemove` sets `reprogramTimer`, so its state is not `σ`.
