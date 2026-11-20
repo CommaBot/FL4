@@ -1813,3 +1813,50 @@ from Fl4Proofs.lean). Nothing existing edited; JAtZ, JAtZS and ScPPR/PP*/Preempt
   hPre_ofZM, dispatch_invokeJPZM, dispatch_invokeJEPZM, JHole.mcsPPJC, jPreemptRestHypS_of, hPre_ofZS,
   dispatch_invokeJPZS, dispatch_invokeJEPZS, check_budget_suffT, JHole.mcsPPJS, jPreemptRestHypE_of,
   hPre_ofZE, dispatch_invokeJPZE, dispatch_invokeJEPZE, handle_invocation_refinesJ.
+## sch10 (branch par/sched10 in FL4-sc, on b629a541 = int/j2 incl. sch9, kp14)
+New leaves XTopJointIrqZR, XTopJointKEntry6 (imported from Fl4Proofs.lean). Nothing existing edited; JAtZ, XTopJointIrq,
+XTopJointPreempt*, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/ScCharge*/Entry untouched.
+- (2) DONE: the IRQ case of `KPreFinRestHyp` [W] closed for every covered preemption hole.
+  * XTopJointIrqZR: `armed_schedStep` (FL4's node `ARMED` write with the spec unchanged is a `SchedStep`:
+    `SchedRel.set_armed`, offset 80 ∈ `SFootI` so `domSame_of_sfootI` keeps DomRelW, P1 `nodew_bxc` for BlkOK),
+    `JAtZ.armedJ` (by `JAtZ.schedJ`); `JAtZ.handleIrqJJ` = XTopJointIrq's `JHole.handleIrqJ` from a `JAtZ` state
+    with `JAt` after in every branch (big line / signal mask by `JAtZ.msArJ`; signal by `signalJHyp_of`, already
+    `JAtZ`; timer by `JAtZ.reprogramJ` + `armedJ`; reserved: unchanged; inactive: spec fails), l4v
+    `handle_interrupt_invs`. `JIrqHypJ` / `jIrqHypJ_of` (same premises as `jIrqHypZ_of`: ARIface, ArchTotal,
+    IrqPlat, MIN_BUDGET [P], hNS [S]). `PPQJ` (spec failure or `JAt` after the path), `JHole.afterInvJZJ` /
+    `afterInv_of_mcsJ` (copies of afterInvJZ / afterInv_of_mcs with `JIrqHypJ`, post `PPQJ`), `RestE σ` (the holes
+    JPreemptRestHypE covers: ¬(PPCov ∨ PPCovT ∨ PPCovI) ∧ CurInv ∧ ct schedulable ∧ head insufficient), `PPQC :=
+    PPQJ ∨ (RestE σ1 ∧ PPQ)`, `hPre_ofZEC` (kp14's hPre_ofZE with every covered branch through afterInvJZJ /
+    afterInv_of_mcsJ), `dispatch_invokeJEPZEC`.
+  * XTopJointKEntry6: `DispPostR` (DispPost with `JAtZR` at ok), `KDispHypsR` (= KDispHypsS with `mid` [W] ending in
+    `DispPostR … PPQC`: ok outcome relaxed from JAtS to JAtZR (sch9's note), preempted outcome PPQC, which every
+    invocation + after_invocation gives through `hPre_ofZEC`), `dispatch_allR`, `KPreFinRestHypC` [W] (=
+    KPreFinRestHyp over PPQC states), `kPreFinHypC_of`, `kernel_entryJ6` = kernel_entryJ5 with `hK : … →
+    KDispHypsR`, `hPR : KPreFinRestHypC`, `hRest : JPreemptRestHypE` (kp14, via dispatch_invokeJEPZEC).
+  * What is left in `KPreFinRestHypC` (PPQC states without JAt after the path): (a) a `RestE` hole, i.e. exactly
+    JPreemptRestHypE's output `PPQ` (JHoleAt-not-JAt or the IRQ's bare XTopAt; closes when kp's line gives that
+    branch a PPQJ/JAt post — then KPreFinRestHypC's (a) disappears with no change here but a PPQC variant without
+    the RestE disjunct), (b) a failing spec preemption path (spec checkBudget/chargeBudget failure inside
+    mcsPP*'s `hmf`, or an inactive IRQ line: `fail_hi_inactive`).
+  * For (3), (b) route (not started): an inactive line cannot be pending if inactive lines are masked (l4v
+    `valid_irq_masks`, a [J] invariant over `interruptStates`/`irqMasks`) — but IrqPlat.take returns a fresh
+    machine state `ms`, so the invariant must be stated about it (an IrqPlat field "the pending line is not
+    inactive" [P] would be the cheaper form); the spec charge failures need the asserts of checkBudget/chargeBudget
+    shown unreachable from JHole (ScCharge* posts carry the success case only). Neither proved.
+- (1) NOT DONE (scope): JMidRunHyp needs a conditional frame, not an FK/DK frame: ct's state is set to Restart and
+  back, and every `setThreadState t` in the first-phase cone must be shown to have t ≠ ct dynamically (t blocked on
+  an endpoint/notification/reply, ct Restart), which needs the queue-state invariants that live only in the J
+  relation (NtfnStateRel/EpRel), and untyped retype/reset need ct's TCB outside the region (JCovD). Plan: (i) state
+  `JMidRunHyp` from `CurRun σ` (as stated it is false for a non-runnable entry ct: the fault/error branches leave
+  the state); (ii) shell lemma: lookups/decode are `RO` (ScCancelFrame's RO) and first-phase decode yields only
+  Endpoint/Notification/Reply/IRQ/Untyped/Arch invocations, so JMidRunHyp ⇐ `JPerfRunHyp` (per perform case, from
+  ct Restart: ct ends Restart or runnable); (iii) per case, better at J than in the spec: each perform's J leaf
+  already knows the woken thread's queue (sendIpc to receiver, sendSignal, doReplyTransfer), so adding a "ct's
+  TCB state kept" conjunct to those posts (with t ≠ ct from `NotIpcBlk`-style facts) is local; arch / IRQ /
+  untyped performs touch no TCB state (DK-style frame over `tcbState` at ct with ct ∉ retype region from JCovD).
+  KDispHypsR.mid's proof also still needs (C) step 2 (the receive from JMid, sch6's ~45-site list).
+- Builds (tokyo, b.sh): sch10-b2 `XTopJointIrqZR XTopJointKEntry6` OK (5522 jobs, on b629a541). Axioms (axsch10.sh,
+  untracked; sch10-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ6, kPreFinHypC_of, dispatch_allR,
+  DispPost.toR, JAt.toRE, dispatch_invokeJEPZEC, hPre_ofZEC, afterInv_of_mcsJ, JHole.afterInvJZJ, jIrqHypJ_of,
+  JAtZ.handleIrqJJ, JAtZ.armedJ, armed_schedStep, PPQC.toPPQ, PPQJ.toPPQ, kernel_entryJ5, handle_invocation_refinesJ.
+  No sorry/admit/native_decide/bv_decide.
