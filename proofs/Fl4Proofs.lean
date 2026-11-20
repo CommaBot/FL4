@@ -720,3 +720,5 @@ import Fl4Proofs.P3.XTopJointKEntry18P
 import Fl4Proofs.P3.XTopJointKEntry19P
 import Fl4Proofs.P3.XTopJointKEntry20P
 import Fl4Proofs.P3.XTopJointKEntry21P
+import Fl4Proofs.P3.XTopJointMidN
+import Fl4Proofs.P3.XTopJointFaultN
