@@ -1747,3 +1747,35 @@ from Fl4Proofs.lean). Nothing existing edited; JAtZ, JAtZS and ScPPR/PP*/Preempt
   jat_scheduleFR2ZR, jat_scheduleWP0FZR, JAtZR.fireJ, signalJHyp_ofZR, JAtZR.sch_tailS, JAtZR.toJ, JAtZ.toR, JAtZS.toR,
   Sched.schedule_refinesWP0FR, Sched.awaken_refinesW0R, Sched.wake_specBR/GR, Sched.wake_tailDR, kernel_entryJ3.
   No sorry/admit/native_decide/bv_decide.
+
+## kp14 (branch par/budget10 in FL4-tcbj, on 3be72de5 = int/j2 incl. kp13, sch8)
+- DONE (2b) case (b) second half, no premise added: the preemption path's charge of the current SC at a hole
+  without `CurInv` (current thread not schedulable, current SC active; l4v `preemption_path`'s
+  `charge_budget consumed False` under `cur_sc_chargeable`).
+  * New leaf ScChargeU (SchedRel level): `charge_head_refinesU` (= ScChargeG's `charge_head_refinesK` with the
+    owner `u0` as a parameter: `hown : scTcb = some u0 ∨ none`, `hnr : u0 ∉ RQ`; `InvBut σ2 u0` after;
+    `Inv.refillUpd` and `budget_check_refines_inv` were already owner-parametrised; no `TmoKeep`),
+    `schedulable_headKeeps` (an unschedulable thread stays so across a `HeadKeeps` step: the SC's TCB/refill
+    max kept), `charge_budget_refinesU` (whole `charge_budget used false` for an unschedulable current thread:
+    FL4's `is_schedulable` after the head is false, so the tail is only `set_consumed 0` on both sides;
+    `Inv` after from `InvBut σ' u0` + `hnin` (u0 in no `inClassR` state)).
+  * New leaf XTopJointPreemptM: `JHole.curSc_in`; `JHole.chargeBudgetUJ` (ScChargeH's `chargeBudgetJ` without
+    `CurInv`: `u0` from the BASE's `CurOwnW` — bound: the SC's TCB, `∉ RQ` by `CurScFree`, not `inClassR` by
+    `owner_not_inClassR`; unbound: `u0 := curSc`, no TCB, not in RQ by `Inv.rel`; P1 `charge_budget.allF` with
+    `hcsc1` from `CtOK` (link = curSc or none), `hna` from the hole's `chooseNewThread`, `hcA` with
+    CUR_SC ≠ 0 from `JAtZ.cover.sc0`; after: `CurOwnW` from the base's (SC's TCB kept), `OffOK` vacuous,
+    `CurRunM` by `act_cn_nr`); `JHole.mcsPPJU` (FL4's branch, `JAt` after; `mem_pp_charge`/`fail_pp_charge`).
+    curSc = idleSc is covered (the head is skipped on both sides; the tail is the same).
+  * `JPreemptRestHypM arI AR` [W] := `JPreemptRestHypL` with `CurInv σ →` in place of
+    `CurInv σ ∨ schedulable σ.curThread σ = false →` (narrower; `jPreemptRestHypM_of`), `hPre_ofZM`
+    (¬CurInv ⇒ ct not schedulable by `curInv_of_sched`; inactive SC ⇒ PPCovI; else `mcsPPJU`),
+    `dispatch_invokeJPZM`, `dispatch_invokeJEPZM` (new top). JPreemptRestHypL has no user left besides
+    `jPreemptRestHypM_of`. XTopJointKEntry2/3 (sch line) still take `JPreemptRestHypK`; switching them to
+    `JPreemptRestHypM` + `dispatch_invokeJEPZM` is a mechanical change there (not done: out of scope).
+- Left in JPreemptRestHypM: only kp5 (i) = (2c): `CurInv`, ¬`NoTmoSend` (endpoint timeout handler, non-RR),
+  ¬`PPCovT` (so the handler endpoint has waiting receivers, or ct is not Running/Restart, queued, or the action
+  is not resumeCurThread). NOT started (context): the `sendTmoRecvIJ`/`PJ` analogue from a `JTH` (kp5 (i)).
+- Builds: kp14-b1..b3, kp14-ax1 (scratch/kp5build.sh: ScChargeU, XTopJointPreemptM, XTopJointEntry green).
+  scratch/axkp14.lean (untracked): std axioms only for schedulable_headKeeps, charge_head_refinesU,
+  charge_budget_refinesU, JHole.curSc_in, JHole.chargeBudgetUJ, JHole.mcsPPJU, jPreemptRestHypM_of,
+  hPre_ofZM, dispatch_invokeJPZM, dispatch_invokeJEPZM, handle_invocation_refinesJ.
