@@ -651,3 +651,5 @@ import Fl4Proofs.P3.XTopJointKEntry6
 import Fl4Proofs.P3.XTopJointIrqZI
 import Fl4Proofs.P3.XTopJointKEntry7
 import Fl4Proofs.P3.ScTmoCtBase
+import Fl4Proofs.P3.ScTmoCtRecvI
+import Fl4Proofs.P3.ScTmoCtRecvP
