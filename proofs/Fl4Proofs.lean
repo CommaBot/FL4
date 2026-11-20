@@ -865,3 +865,9 @@ import Fl4Proofs.P3.SpecInvUtNK4
 import Fl4Proofs.P3.SpecInvUtNK5
 import Fl4Proofs.P3.SpecInvUtNK6
 import Fl4Proofs.P3.SpecInvUtO6
+import Fl4Proofs.P3.SpecInvUtP1
+import Fl4Proofs.P3.SpecInvUtP2
+import Fl4Proofs.P3.SpecInvUtP3
+import Fl4Proofs.P3.SpecInvUtP4
+import Fl4Proofs.P3.SpecInvUtP5
+import Fl4Proofs.P3.SpecInvUtP6
