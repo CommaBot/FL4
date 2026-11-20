@@ -6,7 +6,7 @@ avoids ct and every bound SC) and `MidRun.JPerfIrqSlotHyp` (XTopJointPerfI:
 the IRQ node slots hold null or notification caps), both at the `MidPerfAt`
 states only.
 
-* `BudgetAt.entered`: the dispatch state `σb` of the entry is `Entered` when
+* `BudgetAt.enteredP`: the dispatch state `σb` of the entry is `Entered` when
   the entry state is (the `FaultIP` write changes only ct's TCB, the time
   stamp only the machine state and the clock, and a `check_budget_restart`
   answering `true` nothing: ScEntryRd's `checkBudgetRestart_true`). This is
@@ -29,7 +29,7 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 noncomputable section
 
 /-- **The entry's dispatch state is `Entered`** (module docstring). -/
-theorem BudgetAt.entered (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.State Unit} (hni : Entered σ)
+theorem BudgetAt.enteredP (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.State Unit} (hni : Entered σ)
     (h : BudgetAt σ σb true) : Entered σb := by
   obtain ⟨σ0, h0, hb⟩ := h
   have e0 : σ0.curThread = σ.curThread ∧ σ0.idleThread = σ.idleThread ∧
@@ -127,7 +127,7 @@ theorem kernel_entryJ25MP [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ25M s a σ J hni n c hn hflag hB
     (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' =>
-      (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to25M J' (hBA.entered hnd hni))
+      (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to25M J' (hBA.enteredP hnd hni))
     hFin hARI hA hnd hPP hmrt hmb hIP hNS hNSR hT hmax htu
 
 end
