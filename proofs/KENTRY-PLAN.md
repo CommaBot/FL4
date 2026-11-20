@@ -5846,3 +5846,66 @@ Goal: l4v MCS `valid_idle` (with `idle_sc_at`) carried across every event, for c
   ready-queue enqueue guarded by `schedulable` and the `switchThread` target chosen as schedulable, is not idle).
 - No FINDING: no reachable step met writes idle's state / binding, idle SC's tcb / replies, or puts idle in a queue; the one
   spec-level hazard is send_ipc's `the sender_sc` with an unbound sender (unreachable for ct by l4v's cur_sc_tcb: [J] CtSc above).
+## sb2 (branch par/sb2 in FL4-sc, on 1c849432 = int/j2 incl. sb1, il1, ctq2, sg1) — ScInv across the entry: G5/G6, the shell, ScGap discharged
+Goal (sb1 handoff + lead decision on DetypeScOK): build G5/G6 and the shell SpecInvSbE, discharge `ScGap`, tops
+`kentry_scInv` / `kcall_scInv` with no gap; DetypeScOK not a per-entry [J] premise.
+- SpecInvSbG5/G6 (sb1's generated drafts, rewritten by hand, cases first): `si_recvTail` (receive_ipc's `if` on its literal
+  term) + `si_receiveIpc` (cases cap / replyCap / ntfnptr, nq3's recipe), `si_handleRecv` (split the epCap / rights /
+  canReply join points, no automation over the body), `si_installTcbCap` / `si_installTcbFrameCap` (WHY sb1's failed: inside
+  `si_auto`, an `SBK` subgoal produced by `sb_checkCapAt ?_` is not an SIK goal, so `si_leaf` fails and `ik_unfold` unfolds
+  capInsert down to the CNode `put`; fix: give the whole `check_cap_at (check_cap_at (cap_insert ..))` as one SBK term),
+  `si_invokeCnode`, `si_invokeIrqHandler`, `si_maybeHandleInterrupt`, `si_preemptionPath` (join point: cases sched/active),
+  `si_handleYield`. Built in 3.1 s / 1.3 s (sb1's si_auto versions ran > 10 min).
+- SpecInvSbN (lead hint): one lemma per constructor, each after `cases` + `simp only` of the dispatcher at the arm:
+  `invoke_sched_context` arms, `invoke_tcb` arms (`si_invokeTcbNS`), `perform_invocation` arms `si_pf*`, the non-syscall
+  events `si_ev*` / `si_handleEvent_other`. (si_auto over the whole `fl4PerformInvocation` / `handleEvent` match hit whnf
+  timeouts and recursion depth; `withoutPreemption` wrappers are discharged by `ike_liftE` of the arm's SIK lemma.)
+- SpecInvSbX1: `SN p := ScInv ∧ NE p` (the SC at p has refills), `ik_sn_of_sbk`, `ik_sn_upd`, `hk_rn_refillNew/Update`;
+  **`si_invokeSchedControlConfigureFlags`** (no premise; the sc_sporadic write after refill_new/refill_update finds refills);
+  `FhC` (null / endpoint cap), **`sbp_capDelete_fh`** (cap_delete of a slot holding a null or endpoint cap keeps `BR`:
+  `hr_lfp` over rec_del with `FPre` (cTEDelete / finaliseSlot: the slot's cap is FhC; reduceZombie: False), finalise of an
+  endpoint cap = cancel_all_ipc, remainder null so no Zombie).
+- SpecInvSbX2: **`BindOK b inv`** (SC Bind to a TCB, and threadControlSched with `some (some c)`: both ends unbound in the
+  decode state's binding view); `OkB` (outcome facts from a binding view, steps `SBKE`) and frame-free `OkA`;
+  `okb_decodeSchedContextBind`, `okb_decodeUpdateSc` (`UscOK`), `okb_decodeSetSchedParams`, `okb_decodeTcbInvocation`,
+  **`okb_fl4Decode`**.
+- SpecInvSbE (sb1's shell, compiled): **`ScLive` [J]** replaces sb1's `DetypeScOK`: `ScLive σ := ∀ p, Bound (bv σ.kheap p)
+  → (∃ s c, capAt σ s = some c ∧ p ∈ objRefs c) ∨ (∀ s c, capAt σ s = some c → p ∉ covR c)` (l4v `if_live_then_nonz_cap`
+  at bound TCBs / SCs — l4v `live` covers `tcb_sched_context ≠ None` and `sc_tcb ≠ None` — and `valid_global_refs` for the
+  idle thread / idle SC, which are bound and named by no cap). EntryOK = ScInv ∧ UtInv3 ∧ VfhAll ∧ ScLive; `DecFrom`
+  now carries the decode state (Rel to σe), the invoked cap in its slot and the extra caps (ut7's DecodedFrom with the
+  binding frame); `GapInv` = untyped, arch, SC Bind, threadControlSched (configure left the gap); `si_performNG` by hand
+  per constructor (`si_invokeTcbNS`, `si_invokeSchedContextNB`); shell, syscalls, events, `kentry_scInv_of` /
+  `kcall_scInv_of`; boot `boot_scLive`, `boot_entryOK`.
+- WHY not DetypeScOK from IfLiveT: il1's IfLiveT counts only thread-state liveness; a suspended (Inactive) TCB keeps its
+  SC (l4v suspend does not unbind), so a bound Inactive TCB has no IfLiveT fact, and neither does an SC. The SC half has
+  no route via ScSym (a cap naming t does not cover c). Both halves need l4v's if_live at bound objects: ScLive.
+- SpecInvSbX3: `bindOK_of`, **`sg_scBind`**, `BQ` (ScInv with a fixed bv), `capAt_fh`, `bq_installTcbCap3`,
+  **`sg_tcSched`**.
+- SpecInvSbX4: `symB_of_unb`, `sc_detype`, `sc_deleteObjects_p`, **`unb_of_live`** (ScLive + UtCh: a childless untyped's
+  region holds no bound object), `dflt_unb`, `sc_retype_kh`, `sc_retypeRegionWith_p`, `sc_resetUntypedCap`, `sc_utBody`,
+  **`sc_invokeUntyped`**, **`sc_makePool`**, `si_archNonMP`.
+- SpecInvSbT: `gapOK_of`, `si_tcSched_nb`, **`scGap : ScGap`**, tops **`kentry_scInv (c) (hI : ScInv σ) (hU : UtInv3 σ)
+  (hV : VfhAll σ) (hL : ScLive σ) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, ScInv y.2`**, **`kcall_scInv (rep ev) ...`**,
+  `kentry_scSym`, `kcall_scSym`.
+- Premises of the tops: `ScInv` (carried here), `UtInv3` (ut8 carried), `VfhAll` (vfh3 carried), **`ScLive` [J]**
+  (NOT carried yet). No other premise; `ScGap` and sb1's `DetypeScOK` are gone. No FINDING (no reachable step found to
+  break ScInv; every bind/donation site reads both ends unbound, every unbind reads the pair it clears).
+- Builds (tokyo, ./sb2.sh untracked = sb1.sh streaming progress; FL4-sc mirror warm): sb2-b4 G5 (3.1 s) + G6 (1.3 s);
+  sb2-b6 X1; sb2-b7 X2 (16 s); sb2-b12 N + E (13 s) + X3; sb2-b13 X4 (12 s) + T, "Build completed successfully (4752
+  jobs)". Root Fl4Proofs.lean imports G5, G6, X1, X2, N, E, X3, X4, T (root not rebuilt). `#print axioms`
+  (scratch/sb2/ax.lean, untracked, task sb2-ax1): kentry_scInv, kcall_scInv, kentry_scSym, kcall_scSym, scGap,
+  sc_invokeUntyped, sc_makePool, sg_tcSched, sg_scBind, okb_fl4Decode, si_invokeSchedControlConfigureFlags,
+  sbp_capDelete_fh, si_receiveIpc, si_handleRecv, boot_entryOK: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide/axiom. (X2 keeps two `maxHeartbeats 4000000` on the decode traversals, as built.)
+- HANDOFF: carry `ScLive` (kentry_scLive / kcall_scLive), then the tops take ScLive from the carrier. Suggested carried form,
+  il1-style (typed caps make every other cap removal free): bound TCB `t` (≠ idle thread) holds a THREAD cap (`HasTC`),
+  bound SC `c` (≠ idle SC) holds an SC cap, the idle thread / idle SC lie outside every cap's range (sg1's IdleOutV for
+  the thread; the same `IrqOutV (fun _ => σ.idleSc)` is kept by sg1's IKS family for any fixed M, given `idleSc` is
+  never written — an IdleIs-like frame for `idleSc` is needed); typed ⇒ ScLive. Writers: (1) new bindings: SC Bind /
+  threadControlSched bind (the decode's caps: invoked cap in its slot, extra caps in theirs — DecFrom), donations
+  (send_ipc / reply_push / reply_remove / maybe_donate_sc: the SC stays bound, its new TCB is a live thread so IfLiveT
+  gives its thread cap — needs il2's carried IfLiveT); (2) cap removal: a final thread cap is finalised by
+  `unbind_from_sc` before its Zombie, a final SC cap by `sched_context_unbind_all_tcbs` (which skips the idle SC: global,
+  no cap), non-final caps leave another (il1 item 2, the rec_del skeleton RPre/RPost); (3) detype removes only RegNull
+  slots (ut's `regNull_of`: every slot inside a childless untyped's region is null), retype creates unbound objects.
