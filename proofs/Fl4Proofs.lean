@@ -775,6 +775,9 @@ import Fl4Proofs.P3.SpecInvNativeScopeF6
 import Fl4Proofs.P3.SpecInvNativeScope
 import Fl4Proofs.P3.SpecInvNativeScopeBridge
 import Fl4Proofs.P3.SpecInvVfhAll
+import Fl4Proofs.P3.SpecInvVfhK
+import Fl4Proofs.P3.SpecInvVfhW
+import Fl4Proofs.P3.SpecInvVfhP
 import Fl4Proofs.P3.SpecInvFaultTcbs
 import Fl4Proofs.P3.SpecInvQDomK
 import Fl4Proofs.P3.SpecInvQDomF1
