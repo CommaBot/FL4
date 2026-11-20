@@ -2159,3 +2159,72 @@ JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/Entry untou
   JTH.tmoRecvJ, JTH.endTimesliceTmoJR, JHole.chargeBudgetTmoJR, JHole.checkBudgetTR, JHole.mcsPPJR,
   jPreemptRestHypC_of, dispatch_invokeJPZR, dispatch_invokeJEPZR, handle_invocation_refinesJ. No
   sorry/admit/native_decide/bv_decide.
+
+## sch13 (branch par/sched13 in FL4-sc, on b2c1ab2d = int/j2 incl. sch12, kp17)
+New leaves XTopJointIrqPlat, XTopJointIrqZJ, XTopJointKEntry8 (imported from Fl4Proofs.lean). Nothing existing edited;
+JAtZ, ScPPR/SpecPPR*/CnDel/WJL*/Tcb*/UtReset*/PP*/Preempt*/ScCharge*/ScTmoCt*/Entry untouched.
+- (0) lead check of sch12's `IrqPlatI.act` [P] (XTopJointIrqPlat):
+  * `JAt` does NOT imply l4v `valid_irq_masks`: `JAtZ.msArJ` gives `JAt` at `{σ with machineState := ms}` for ANY
+    `ms` with the same memory, so the spec's `irqMasks` are unconstrained by `JAt`.
+  * But `act` is IMPLIED by `IrqPlat` (`irqPlatI_of : IrqPlat arI AR → IrqPlatI arI AR`), for a worse reason:
+    `IrqPlat.take` (XTopJointPreempt, kp line) is `∀ a σ, take_pending_irq a ⦃ r => ∃ irq ms, doMachineOp
+    (getActiveIRQ true) σ = ({(irq, …)}, False) ∧ (r.1 = NO_IRQ ↔ irq = none) ∧ … ⦄`, quantified over EVERY spec
+    state while `take_pending_irq a` does not depend on σ. At the all-masked copy of any state the spec reports
+    `none` (`getActiveIRQ_masked`/`_eq`), so `IrqPlat.noIrq : IrqPlat arI AR → ∀ σ a, take_pending_irq a ⦃ r =>
+    r.1 = NO_IRQ ⦄`. FINDING (lead decision; `IrqPlat` is in XTopJointPreempt, out of this line's scope): `IrqPlat`
+    is satisfiable only by a platform that never reports an interrupt, so every theorem taking it covers only the
+    `NO_IRQ` branch of `check_interrupt`; the `handle_interrupt` work under it (handleIrqJI etc.) is dead there.
+    Fix shape: tie the spec machine state to the platform (l4v shares `machine_state` between the levels): a
+    platform relation `MR a σ.machineState` carried in the joint relation from the entry (arch ops keep it with
+    their machine-op counterparts; `JAtZ.msArJ`'s arbitrary `ms` would then be constrained), `take` stated under
+    `MR a σ.machineState` (+ `MR` after). Then `act` needs `valid_irq_masks` [J] (∀ i, interruptStates i =
+    IRQInactive → irqMasks i) at the hole state on the path, carried from the entry through the invocation and the
+    preemption point (spec `setIRQState` masks iff inactive, DelPost/IntRel already show the update), and the
+    platform half "no masked line reported" is `take`'s existing `irqMasks i = false` conjunct.
+  * No theorem below takes `IrqPlatI` any more (kernel_entryJ8 takes `IrqPlat`; `act` is derived).
+- (lead note, kp17) `KPreFinRestHypI` [W] DELETED; `JPreemptRestHypE` gone from the top (XTopJointIrqZJ): kp17's
+  `RestE` holes are `JHole.mcsPPJA` (blocking handler endpoint) and `JHole.mcsPPJR` (receiving), both of
+  `afterInv_of_mcsI`'s form, so `jPreemptRestHypEQ_ofI` ends in `r.1 = false ∧ PPQJI` (JAt after the path, no spec
+  failure); `hPre_ofZQI` (hPre_ofZQ ending in `r.1 = false ∧ PPQJI` at every hole of a related `JAtPre` state),
+  `dispatch_invokeJAll` (dispatch_invokeJEPZR ending in `PPQJI`).
+- (2)(iv) DONE: the ReplyRecv / NBSendRecv / NBSendWait dispatch shell (XTopJointKEntry8). `KDispHypsRI.mid` [W]
+  (the whole mid dispatch) is replaced by:
+  * the entry facts for the mid invocation, as `inv` has them: `JEntryGlob`, `JEntryAt` (incl. `cnf`, used for
+    `MidEntry` at the dispatch state = the entry's own [J] fact, `J.midEntry hni hE.cnf`), `JPathAt … ct false false
+    true true (L.mem s (regA ct rg))` (rg = REPLY or NBSEND_RECV_DEST);
+  * `MidRun.JMidPerfHyp true cptr σ` [W] (sch12, unchanged);
+  * ADDED `JMidRecvHyp arI AR cptr cr σ` [W] := `∀ y ∈ ((fl4HandleInvocationR true false false true true cptr).run
+    σ).1, y.1 = .ok () → ∀ s1 a1, JMid s1 a1 y.2 → handle_recv s1 a1 true cr ⦃ r => ∃ z ∈ (handleRecv true cr
+    y.2).1, RelTopM r.1 z.2 ∧ ∃ Z H Cs Ac Lst D, JAtZR … r.1 r.2 z.2 ⦄` — only the receive, only at `.ok` outcomes
+    of the first phase from the dispatch state (path, not ∀σ). l4v `handle_recv_corres` after
+    `handle_invocation_corres` in `handleReplyRecv`. True in reachable states (it is the receive refinement at the
+    mid state, which sch12 (2) (i)–(iii) will prove).
+  * `MidSysR n c rg sr cr`, `midSysR_of`, `MidSysR.reg` (`regIdx sr = rg`), `regIdx_nbsendRecvDest`, `DispMid`,
+    `fl4HandleSyscall_mid` (rfl per case), `mid_invRecvJ` (handle_invocation_entryJ + `HIPostMXP.mid` with
+    `jMidRunHyp_of`; Ok → `JMidRecvHyp`; Err .Preempted → `hPre_ofZQI`, `r.1 = false` skips the receive),
+    `dispatch_midJ` (FL4's number chain; NBSendRecv's extra register read).
+  * `KDispHyps8` (`inv`, `recv` as KDispHypsRI; `mid` as above), `dispatch_all8` (every native dispatch ends in
+    `DispPostR` with `PPQJI`), `KPreFinHypJI`/`kPreFinHypJI_of` (kPreFinHypCI_of's JAt case only), NEW TOP
+    `kernel_entryJ8` = kernel_entryJ7 with `hIP : IrqPlat` (was IrqPlatI), no `hRest` (JPreemptRestHypE), no `hPR`
+    (KPreFinRestHypI), `hK : … → KDispHyps8`.
+- Premise changes at the top (kernel_entryJ8 vs J7): REMOVED `KPreFinRestHypI` [W], `JPreemptRestHypE` [W]
+  (kp17), `IrqPlatI.act` [P] (derived; see the IrqPlat finding); `KDispHypsRI.mid` [W] NARROWED to `KDispHyps8.mid`
+  = entry facts ([J], as `inv`) + `JMidPerfHyp` [W] (existing) + `JMidRecvHyp` [W] (new, receive only).
+- NEXT (handoff) for `JMidRecvHyp`, sch12 (2)'s order:
+  (i) hnq/hvfh at `y.2`: `ct ∉ readyQueues` and ct's `tcbFaultHandler` valid, from the entry's `ctnq`/`vfh` across
+      the first phase. Route: a second projection frame next to MidRunS's `fV` (`(ctV, nV)`): add `qV ct σ := (∀ d p,
+      ct ∉ readyQueues d p)` is not a projection (enqueues of other threads change the queues) — use a PR-style
+      predicate as MidRunP's `CtRs` (`QR ct m`: kept by every leaf; `tcbSchedEnqueue t`/`possibleSwitchTo t` need
+      `t ≠ ct`, given by the same state reads as `pr_sendIpc`: the woken thread is read BlockedOn*, ct is runnable);
+      the fault handler: extend `ctV` with `tcbFaultHandler` (regenerate sch11gen with the extra field; threadSet
+      leaves keep it except TCB installs, which are not first-phase: FirstInv). The PerfW cases need `JMidPerfHyp`
+      widened to these two facts (same [W], same l4v lemma family).
+  (ii) the receive leaves from `MidE` (resume or `switchThread u`, u ≠ ct) instead of `Entered`: under `MidE`,
+      `CurInv` is available (`J.curInv hni.ncn`, as `JAtZ.recvSigActiveJM`), so most of sch6's ~45 `hni` sites are
+      `hni.2 ▸` → `hni.ncn`, `Or.inl hni.2` → `hni.sa`, `hni.1` → `hni.1`; no-pending-switch-to-ct from `MidE`'s
+      `u ≠ ct`. A `chooseNewThread` mid state (possible: a reply/send's `rescheduleRequired`) needs its own case
+      (CurInv absent; the blocking leaves' `hsa` allows `chooseNewThread ∧ sc = none` only).
+  (iii) the blocking leaves ending in `JAtZR` under a pending switch (`JAtZ.cur` fails: ct blocked, action
+      `switchThread u`): R copies of the block lemmas with `cur := curInvR` (CurInvR holds: action ≠ resume).
+  (iv) `JMid` → `MidE`: the action facts at the mid state (sch8) are a post of the invocation; also needed.
+- Builds (tokyo, b.sh): sch13-b1..b4 (elaboration fixes: getActiveIRQ_masked membership, a name clash with PreemptI's dispatch_invokeJEPZI), sch13-b5 `XTopJointIrqPlat XTopJointIrqZJ XTopJointKEntry8` OK (5558 jobs, on b2c1ab2d). Axioms (axsch13.sh, untracked; sch13-ax1): propext, Classical.choice, Quot.sound only for kernel_entryJ8, dispatch_all8, kPreFinHypJI_of, dispatch_midJ, mid_invRecvJ, fl4HandleSyscall_mid, midSysR_of, dispatch_invokeJAll, hPre_ofZQI, jPreemptRestHypEQ_ofI, irqPlatI_of, IrqPlat.noIrq, getActiveIRQ_masked/_eq, handle_invocation_refinesJ. No sorry/admit/native_decide/bv_decide.
