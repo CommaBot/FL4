@@ -702,3 +702,8 @@ import Fl4Proofs.P3.XTopJointRecvSigC
 import Fl4Proofs.P3.XTopJointKEntry18M
 import Fl4Proofs.P3.XTopJointFaultC
 import Fl4Proofs.P3.XTopJointKEntry19M
+import Fl4Proofs.P3.XTopJointRecvSendPC
+import Fl4Proofs.P3.XTopJointRecvIpcC
+import Fl4Proofs.P3.XTopJointKEntry20M
+import Fl4Proofs.P3.XTopJointFaultRecvC
+import Fl4Proofs.P3.XTopJointKEntry21M
