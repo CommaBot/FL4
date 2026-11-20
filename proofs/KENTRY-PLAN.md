@@ -3028,3 +3028,58 @@ Entry/Irq*/MR*/XTopJointRecv* untouched.
   sch21-b3 `XTopJointRecvIpcC XTopJointKEntry20M` OK (5612 jobs), sch21-b4 (`SKeep σ` ambiguous → `Ipc.SKeep`,
   as sch19), sch21-b5 `XTopJointFaultRecvC XTopJointKEntry21M` OK (5616 jobs), all on 6683b87a, no sorry. Axioms (axsch21.sh,
   untracked; sch21-ax1, sch21-ax2): propext, Classical.choice, Quot.sound only.
+## mr6 (branch par/mr6 in FL4-tcbj, on 6a51cd48 = int/j2 incl. mr5, sch19)
+New leaves MachFieldFamT, MachKeepD, XTopJointMRDel, XTopJointMRCnode, XTopJointKEntry17P (imported from
+Fl4Proofs.lean; generated parts by scratch/mr6/{mtgen.py,mk.sh}, {mkdgen.py,mkD.sh,cg.py,topo.py}, gencn.py). Nothing
+existing edited; sch20's modules untouched. Goal: mr5 NEXT (2)+(3). DONE: the deletion loop at MachPlat, CNode out of
+PreKind (J17P). NOT done: Thread (PreKind17 = Thread | VT-x Untyped).
+- DONE (MachFieldFamT, 336b8411): `msFT σ` = (MachFieldFam's msF σ, σ.curTime), `MTK m := FK msFT m`; MKF leaves
+  for the TLB flushes (invalidateASID, invalidateTranslationSingleASID, invalidateLocalPageStructureCacheASID) and the
+  FPU ops (readFpuState, writeFpuState, enableFpu, disableFpu, isFpuEnable), getFaultAddress, ackInterrupt; 227 `mtk_*`
+  lemmas (DK family renamed, skip: portIn, setIrqState, preemptionPoint, invokeSchedContext and the time/IRQ/port/
+  memory-clearing ops). FINDING: `finaliseCap` reaches `setIrqState` only syntactically: the IRQ handler's
+  `deletingIrqHandler` → `capDeleteOne` empties with a NULL cleanup (`mtk_emptySlotNull`: postCapDeletion nullCap does
+  nothing), so `mtk_finaliseCap` holds with no premise (generator cuts capDeleteOne's call edge).
+- DONE (MachKeepD, 595172cb): `MRKeepD arI AR` [P] = MRKeep's fields + invalidate_ept/page/asid/page_structures,
+  set_vspace, dma_frame, irq_free (each keeps AR at every 2nd arg; with AR := MR: no IRQ mask, pending line or clock
+  changes; l4v machine_op_lifts outside irq_masks/irq_state/time_state/last_machine_time; irq_free/dma_frame are FL4
+  IOAPIC/IOMMU bookkeeping with no spec machine field). Arch-only; `MRKeepD.toK`; `modelArch_mrKeepD` (in
+  XTopJointMRDel: MachKeepD must not import P1-level modules). `MKD.*`: 32 walks over finalise_cap's arch-threading
+  call graph (scripted), the two fuel loops by loop.spec_decr_nat with AR as invariant, `MKD.cdt_empty_slot` for a
+  Null cleanup only (mask_irq is reached only through the cleanup's post_cap_deletion). Top `MKD.objects_finalise_cap`.
+- DONE (XTopJointMRDel, 6f2c21aa): `MRV MR a σ` := MR a σ.ms ∧ ValidMachineTime σ ∧ ValidIrqMasks σ [J] (carried),
+  `WMR MR W` := W ∧ MRV; `mrv_keep` (msFT kept ⇒ MRV kept at the same a). Generic lifts for ANY W: `ZombieHypWZ.mrv`,
+  `SwapHypWZ.mrv`, `EmptyHypWR.mrv`, `RdTrivHyp.mrv`, `FinObjHypWRcZ.mrv` (MKD walk + mtk_finaliseCap),
+  `PostDelHypW.mrv` from `post_mrv` (IRQ handler: FL4 mask_irq irq true by `MachPlat.mask`, irq_free by MRKeepD;
+  spec `setIrqState irqInactive` has the one outcome `setIrqSt` (`setIrqInactive_out`), line inactive and masked, so
+  VIM after; the masks agree by `BitVec.ofNat_toNat`; IO port: FL4 keeps a, spec `mtk_archPostCapDeletion'`).
+  `WJPM` := WJP ∧ JAtPreMV; `jPreemptHypLM` (jPreemptHypL with ppJDMV, MachPlat + PPPlatA, no PPPlat);
+  `delHypsJLM : DelHypsWRZ (WMR MR WJL) WJPM RdLO RzJ`; `JDelHypLM`, `JDelParts.jDelHypLM` (delHyp_fullWRZ).
+- DONE (XTopJointMRCnode + XTopJointKEntry17P, 025a842e): scripted copies `EJLM`/`EJPM`, `EJLM.restart` (MRV through
+  the restart's setThreadState: mtk_setThreadState'), `cn_del_topJLM` (preempted branch reads JAtPreMV off WJPM),
+  `decode_invocation_cnode_{revoke,delete}JLM`, `decode_invocation_cnodeJ_stepsLM` (XCapP JAt (JAtPreMV MR) from
+  `hmv : MRV MR ar σ`, MachPlat, MRKeepD, PPPlatA). `PreKind17` (Thread | Untyped with a VT-x type 14..18),
+  `KDispHypsKV7.toK`, `jPreDecHyp_of17` (CNode case as decOK_J's, by stepsLM with MRV from JPreDecHypK's own
+  MR/VMT/VIM premises), NEW TOP `kernel_entryJ17P`.
+- Premise change at the top (kernel_entryJ17P vs J16P): `KDispHypsKV7 PreKind14` NARROWED to `KDispHypsKV7 PreKind17`
+  (the [W] JPreDecHypK no longer asked for CNode caps); `MRKeep arI MR` [P] WIDENED to `MRKeepD arI MR` [P] (seven more
+  arch-op fields, same arch-only shape, satisfied by modelArch: `modelArch_mrKeepD`). Nothing else.
+- NEXT (handoff): Thread out of PreKind. The installs go through XTopJointTcbInstall/TcbSsp/TcbInsL whose structures
+  hard-wire the preempted invariant: `TcbInsW.del : DelHypsWRZ (W kb) (WJP ..)`, `InstPostWP W (WJP ..)`,
+  `top_of_instJ` (WJP → JAtPre), ~50 occurrences (grep `WJP\|JAtPre` in XTopJointTcbInstall/TcbSsp/Tcb). Route: a
+  scripted copy (gencn.py style) of the install chain with `WJP (L := L) arI AR Z H Cs kb` → `WJPM .. MR ..`,
+  `JAtPre` → `JAtPreMV MR`, W := `WMR MR (WJL ..)`; `InsWJ` at WMR needs the cap insert to keep MRV (FL4 store-only,
+  a kept; spec capInsert keeps msFT: MachFieldFamT's `mtk_capInsert`); TcbInsL's
+  `tcbInsW_wjl` → `delHypsJLM`; XTopJointTcb:2790's decode (hPP used for `jPreemptHyp`/`tcbInsW_wjl` and
+  `hPP.minBudget` = `PPPlatA.minBudget`) with `hmv` and the restart via `EJLM.restart`-style MRV; then PreKind = VT-x
+  Untyped only (or JPreDecHypK replaced by JUtPath.vtx's scope premise).
+- Builds (tokyo, scratch/mr6/b.sh, warm mirror): mr6-b1 (b.sh grep typo), b2 (multi-line macro_rules), b3
+  MachFieldFamT OK (4594 jobs); b4–b6 MachKeepD (tail arch op, delete_asid simp recursion → mkd_walk', leftover ok),
+  b7 MachKeepD OK (3612); b8 (bullet lost in the pp copy), b9 XTopJointMRDel OK (5576); b10 (hM shadowed, segment
+  cut a docstring), b11 XTopJointMRCnode OK (5578); b12 XTopJointKEntry17P OK (5640). Root Fl4Proofs.lean not rebuilt
+  (five leaf imports). Axioms (scratch/mr6/chk6.lean, untracked; mr6-ax1): propext, Classical.choice, Quot.sound only
+  for kernel_entryJ17P, jPreDecHyp_of17, KDispHypsKV7.toK, decode_invocation_cnodeJ_stepsLM/revokeJLM/deleteJLM,
+  cn_del_topJLM, EJLM.restart, JDelParts.jDelHypLM, delHypsJLM, jPreemptHypLM, post_mrv, PostDelHypW.mrv,
+  FinObjHypWRcZ.mrv, ZombieHypWZ.mrv, SwapHypWZ.mrv, EmptyHypWR.mrv, mrv_keep, modelArch_mrKeepD,
+  MKD.objects_finalise_cap/vcpu_revoke_ports_loop/vspace_delete_asid_pool_loop, MachT.mtk_finaliseCap/emptySlotNull,
+  kernel_entryJ16P; setIrqInactive_out propext only. No sorry/admit/native_decide/bv_decide.
