@@ -83,7 +83,6 @@ structure RRReads (t rptr ep u usc : U64) (X1 X2 X6 X7 X8 X11 X12 X15 : S) (a2 :
         (L.rhead X15 (L.mem X15 (scA (L.mem X15 (L.nodeAt X15 (L.cpu X15) layout.node.RELEASE_HEAD)))))).time ≤
       L.curTime X15)
   act15 : sched.action st X15 = ok u
-  u0 : (u != sched.ACTION_RESUME_CURRENT) = true
   ucn : ¬ u = sched.ACTION_CHOOSE_NEW
   ct15 : sched.cur_thread st X15 = ok t
   ns15 : sched.is_schedulable st X15 t = ok false
@@ -171,7 +170,14 @@ theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok 
   have hrecv := handle_recv_rr st ar (a := a2) R.ct8 hj1 hlk1 hj hlk2 R.rt8 hbn hnc R.ep8 e9 e10 e11
     (schedule_tcb_nr (L := L) X11 t R.act11) R.r0 e12 hap
   have hdisp := rr_sync_of st ar hct hi1 hi hinv hrecv
-  have hsch := schedule_sw ar X15 a2 R.T15 R.R15 R.act15 R.u0 R.ucn R.ct15 R.ns15 R.hp15
+  have hu0 : (u != sched.ACTION_RESUME_CURRENT) = true := by
+    obtain ⟨b, hb, hbn⟩ := hC.u0
+    unfold obj.Tcb.is_null at hb
+    have e := ok_inj_ff hb
+    subst e
+    unfold sched.ACTION_RESUME_CURRENT
+    simpa using hbn
+  have hsch := schedule_sw ar X15 a2 R.T15 R.R15 R.act15 hu0 R.ucn R.ct15 R.ns15 R.hp15
   exact ⟨X15, a2, hdisp, finish_rr ar e16 hsch R.dq15⟩
 
 omit L in
