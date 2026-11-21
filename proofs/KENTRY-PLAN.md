@@ -12195,3 +12195,103 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
 - Lean notes: (1) `macro_rules` for a leaf syntax are tried newest first, so a cheap primitive leaf that must win
   (here `thread_set`) belongs in a macro tried before the generated `*_leaf`; (2) `obtain ⟨-, -, h⟩` on `∃ x, A ∧ B x`
   drops `h` (its type mentions the cleared witness): use `⟨_, -, h⟩`.
+
+## m57 (branch par/m57 in FL4-m56, on 3c4c2251 = int/j2 incl. m56 phase 1, rebased onto 550d49c6 = int/j2 incl. g2j, rd14h) — m56's phase 2: (1) decline lemmas DONE, `FastAgree` shrunk to the accepted case at both tops (`FastAcc` at P1, `FastRR` at J33); (2) accepted fault fast path and (3) accepted ReplyRecv NOT proved: traced against the general path (no FINDING), split into named sub-obligations below; (4) not on any proved statement (skipped)
+- **P1 FastDecline (new; imported by QueueEntryGaps4, XTopJointKEntry33, root).** Structural, no store law beyond P0 totality.
+  `fault_decline`, `reply_recv_found_decline`, `reply_recv_decline`: `= ok (false, s', a')` ⇒ `s' = s ∧ a' = a` (every `false`
+  exit of the extraction is literally `ok (false, s, a)` at the entry state; the walk `spec_bind_imp` / `spec_ite_imp` / `split`
+  reaches every leaf, the `true` leaves are absurd). `usf_decline` (`unknown_syscall_fault … true` ending `false` = the run with
+  `false`), `hus_decline` (same for `handle_unknown_syscall`), **`syscall_decline`**: `syscall … true = ok (false, s', a')` ⇒
+  `syscall … false = ok (false, s', a')`. **`FastAcc st ar s a n P`** [P] := `handle_syscall_general ⦃P⦄ → ∀ s' a',
+  handle_syscall_fast … = ok (true, s', a') → P (s', a')` (FastAgree asked only where a fast path answered).
+  **`FastAgree.of_acc`** (P0 `StoreTotal`, `ArchTotal`): `FastAcc → FastAgree` (the fast entry is total by P0
+  `handle_syscall_fast.p0`; a `false` run is the general run by `syscall_decline`). Helpers `spec_bind_inv`, `spec_bind_imp(')`,
+  `spec_ite_imp`, `uncurry_eta_fd` (the extraction's tuple binds continue with `uncurry`), `spec_ex_fd`, `eq_of_spec_fd`,
+  `spec_of_eq_fd`.
+- **P1 top `kernel_entry.entry_of4`**: `hF` narrowed from `FastAgree` to **`FastAcc`** (same quantifier `∀ n ≠ VMEnter`, same
+  post); the proof goes through `FastAgree.of_acc LawfulStore.total hA`.
+- **P3 `kernel_entryJ33` and `kernel_entryJ34`** (J34 passes `hFast` through): `hFast` narrowed from `n = SysReplyRecv → P1.FastAgree …` to **`n = SysReplyRecv → FastRR …`**:
+  `FastRR s a n P := ∀ s2 a2 s' a', KFrontB s a s2 a2 → fastpath.reply_recv st arI s2 a2 = ok (true, s', a') →
+  handle_syscall_general st arI s a n ⦃P⦄ → P (s', a')` — only runs of `fastpath.reply_recv` that answer, from a dispatch
+  state (the `FAULT_IP` write then a passing `budget_ok`). **`FastRR.acc`** (with J33's `hflag` and `NativeSys.range`): a run of
+  `handle_syscall_fast` for `SysReplyRecv` that ends `true` is such a run, so `FastRR → P1.FastAcc`.
+- **Premises.** Removed: none outright. Narrowed: P1 `hF` (FastAgree → FastAcc), J33 `hFast` (FastAgree → FastRR). Added:
+  none. Both remain [P] (fastpath.rs's intended theorem), true wherever the fast paths are correct; they now say nothing about
+  declined runs (proved) and, at J33, nothing about the entry front (proved).
+- **Why (2)/(3) are not discharged here.** `FastAcc` is per postcondition `P`, and the fast paths make the general path's writes
+  in another order: their end state equals the general one in `L.mem` / `ksb` / `cpu` (and the same Arch value, the Arch calls
+  being the same calls in the same order), not as a term of the abstract `S`. A discharge needs (a) a P-free memory agreement
+  `FastSame` (accepted fast run ⇒ the general run ends `ok r` with `∀ x, L.mem s' x = L.mem r.1 x`, equal ksb / cpu, `a' =
+  r.2`) — the real kernel theorem, the symbolic execution of `handle_fault` + `finish` (fault) and of `dispatch_syscall`
+  ReplyRecv (decode, `do_reply_transfer`, `handle_recv`) + `finish` (ReplyRecv) under the sub-obligations below — and (b)
+  `MemResp P` (P reads the state through memory only) for KPost / EntryInvs, which holds by construction of `RJ` /
+  `EntryInvs` but needs a congruence lemma over every extracted function they mention. Neither is in this session's reach.
+- **(2) Accepted fault fast path vs `handle_fault` + `finish` (trace, no difference found).** General: `set_fault`;
+  `send_ipc` (blocking, not a call) with the endpoint in Recv: `ep_dequeue` of the head `dest`, `do_fault_transfer`
+  (`lookup_ipc_buffer`, `set_mrs_fault`, `set_msg_info`, `BADGE`), `reply_unlink` (`r.tcb := 0`, `dest` Inactive,
+  `schedule_tcb dest`), `reply_push` (`r.tcb := t`, `set_blocked_on_reply t` makes the action CHOOSE_NEW; no donation since
+  `dest.sc ≠ 0`), `dest` Running, `unblock_sporadic dest`, `possible_switch_to dest` (local, CHOOSE_NEW ⇒
+  `reschedule_required` (no enqueue) + `enqueue dest` at the head of its queue); `finish`: `awaken` (timers / release queue:
+  nothing due), `check_domain_time` (not expired), CHOOSE_NEW ⇒ `t` not schedulable (BlockedOnReply), `choose_thread` takes
+  `dest` (highest priority by `is_highest_prio` before the enqueue, prepended), `switch_to_thread` (`set_vm_root`, `dequeue
+  dest`, `set_cur_thread`), RESUME, `switch_sched_context`, reprogram, `send_pending`, `activate_thread`. Sub-obligations
+  (each true in reachable states):
+  F1 [J] `dest ≠ t`: the current thread is in no endpoint queue (l4v `ct_in_state active`, `valid_ep`: queued threads blocked);
+  F2 [J] endpoint queue well formed: head's `ep_prev = 0`, `tail = head` ⇔ `head.ep_next = 0` (`ep_dequeue`'s `is_empty`
+  agrees with `tail = dest`; l4v `valid_ep`, `sym_refs` of the EP queue);
+  F3 [J] ready queues / bitmaps: an empty queue is `(0, 0)` with its L2 bit clear, a nonempty queue's head has `sched_prev = 0`
+  (so `enqueue dest` + `dequeue dest` restore every queue word and bitmap word, and leave `dest`'s sched links 0 and its
+  QUEUED flag clear; l4v `valid_queues`, `valid_bitmaps`);
+  F4 [J] the release head's SC is not `dest.sc` (an SC is bound to one TCB; l4v `sc_tcb_sc_at` injective), so
+  `unblock_check dest.sc` cannot make `awaken` move a thread the fast path's pre-check saw not ready;
+  F5 [J] object disjointness: the writes before `finish` (dest's / t's TCB words, the reply and endpoint words, dest's SC
+  refills, node REPROGRAM) do not alias the words the fast path's pre-checks read and the general path re-reads later (TIMER_MIN,
+  RELEASE_HEAD, CUR_TIME, CUR_DOMAIN / DOMAIN_TIME, bitmaps, dest's affinity / domain / prio / in_queues) (l4v
+  `pspace_distinct`, `valid_objs`);
+  F6 (proved by structure, to formalise) `remote_queue_update dest` is a no-op (`dest.affinity = cur_cpu`, checked); with
+  `NUM_DOMAINS = 1`, `choose_thread`'s domain 0 and `is_highest_prio`'s `cur_domain` address the same bitmap (`bitmap_dom`,
+  `rq_index` ignore the domain).
+- **(3) Accepted ReplyRecv vs `dispatch_syscall SysReplyRecv` + `finish` (trace, no difference found).** General:
+  `handle_invocation` (not a call, not blocking, first phase, cptr = REPLY): `lookup_slot` gives the Reply cap `rptr`
+  (`reply_caps`' first lookup), `lookup_ipc_buffer`, `lookup_extra_caps` (0 extra caps: no reads that matter), Reply decode:
+  `set_thread_state t Restart` (t schedulable ⇒ the action stays), `do_reply_transfer`: `u = r.tcb` BlockedOnReply,
+  `reply_remove` (not a call-stack head: unlink branch), `unblock_check u.sc` (sporadic, not the CUR_SC), fault ≠ Null ⇒
+  `handle_fault_reply` (UnknownSyscall: `copy_mrs_fault_reply`, restart = label 0), `clear_fault`, `u` Restart, then
+  `ready ∧ sufficient(·, 0)` ⇒ `possible_switch_to u` (local, RESUME ⇒ action `u`); `t` Restart ⇒ Running; `after_invocation
+  Ok` ⇒ `handle_recv` (CAP lookup: the receive endpoint, REPLY lookup: the Reply cap — `reply_caps`' lookups, at a state whose
+  CSpace and registers of `t` the transfer did not touch), `receive_ipc`: `take_reply` (`r.tcb = 0` after `reply_remove`: no
+  cancel), bound notification not active and its SC not `t`'s (`maybe_return_sched_context` no-op), endpoint Idle ⇒
+  `wait_for_sender` (BlockedOnRecv, block_obj, reply_obj, `r.tcb := t`, `ep_append` on an empty queue); `finish`: `awaken`,
+  `check_domain_time` nothing, action `u` ⇒ `t` not schedulable, `fastfail` / `is_highest_prio` as the fast path checked ⇒
+  `switch_to_thread u` (`dequeue u` no-op: not queued), RESUME, `switch_sched_context`, …, `activate_thread` (u Restart ⇒
+  NEXT_IP := FAULT_IP, Running). Sub-obligations:
+  R1 (structural, to formalise) `u ≠ t` (u BlockedOnReply, t runnable);
+  R2 [J] an Idle endpoint's queue is `(0, 0)` (l4v `valid_ep`: IdleEP has no queue), so `ep_append` writes exactly
+  `t.ep_next = t.ep_prev = 0`, queue `(t, t, Recv)`;
+  R3 [J] restart: `handle_fault_reply` returns true (the label read at the start is 0 and `t`'s MSG_INFO register is not
+  written by `reply_remove` / `unblock_check`: disjointness as F5). With restart false the fast path would still switch to the
+  (then Inactive) `u` while the general path would not (`do_reply_transfer` only switches to a runnable receiver): this is the
+  one place where correctness rests on the label check, and it holds;
+  R4 [J] `unblock_check` keeps `ready ∧ sufficient(·, 0)` of `u.sc` (head time := now; merging adds amounts — needs no
+  wrap-around of the refill sum, l4v `valid_refills` / `refills_sum ≤ budget`);
+  R5 [J] as F4 for `u.sc` (the release head's SC is not `u.sc`);
+  R6 [J] disjointness: `do_reply_transfer`'s writes (u's TCB words and registers, the reply objects of `reply_remove`, u's SC
+  refills, node REPROGRAM) do not alias `t`'s registers (MSG_INFO, CAP, REPLY), the CNode slots `reply_caps` resolved, the
+  endpoint, the bound notification, or the scheduler words the pre-checks read (l4v `pspace_distinct`, `valid_objs`);
+  R7 [P] none: the Arch calls are the same (`sufficient` reads `min_budget a` on the same `a`; `set_vm_root`,
+  `commit_time`, `set_next_interrupt`, `send_pending` in the same order).
+- **(4) `handle_syscall_local` / `handle_ioport_local`**: not on any proved statement (only their P0 totality lemmas mention
+  them; no P1 / P3 theorem speaks of the local entries), so not done.
+- **FINDING: none.** No trace where a fast path's effect differs from the general path was found (R3 is the closest call:
+  correct because `reply_recv_found` declines on a nonzero label).
+- **Builds (tokyo, mirror FL4-m56, keys m57-*; `.lake` seeded from FL4-audit).** Module builds of FastDecline (b1–b7: the
+  walk needed `Std.bind`-shaped lemmas, `uncurry` tuple continuations, goal-directed `spec_bind_imp` (an `obtain` inside
+  `first` logs errors instead of failing, which looped), `repeat'` (plain `repeat` only walks the first goal), `spec_ite_imp`
+  for the large `reply_recv_found`); b8: FastDecline + QueueEntryGaps4 green, J33 a named-argument slip. Full build after the
+  rebase onto 550d49c6 (m57-full1): **"Build completed successfully (6967 jobs)"**, 0 sorry, 37 min under load. Axioms
+  (scratch/axm57.lean, untracked): kernel_entryJ33, kernel_entryJ34, kernel_entryJ33G, FastRR.acc, P1 kernel_entry.entry_of4,
+  fault_decline, reply_recv_found_decline, reply_recv_decline, usf_decline, hus_decline, syscall_decline, FastAgree.of_acc,
+  FastAcc.of_same, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW: propext, Classical.choice,
+  Quot.sound.
+- HANDOFF: `FastSame` (P-free memory agreement) for the fault path (F1–F6) then ReplyRecv (R1–R6); `MemResp` for `KPost` and
+  `∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`; then `FastAcc.of_same` closes `hF` / `hFast`.
