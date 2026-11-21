@@ -13193,3 +13193,107 @@ the syscall carry `kentry_sinvX` already passes the same write) — not a findin
   entry state for `UserException` / `VMFault` messages (today only `CapFaultCorr` at mid states).
 - `SInvXFip`: a standalone `sinvX_fip : SInvX σ → ∀ w ∈ fl4SyscallFaultIP σ.curThread σ, SInvX w.2` (spec-only).
 - Still open from g4b / g4a: `JDispMRI`, the (d) bundles of hK / hFin.
+
+## g4f (branch par/g4f in FL4-q, on 3f144df1 = int/j2 incl. g4e) — g4e's handoff: (1) `sinvX_fip` DONE (`SInvXFip` discharged); (2) `JEvRef` for the interrupt entry DONE from a non-idle thread (one [P] hardware fact `IrqHw`, MR across `handle_interrupt` proved); (3) user-exception / VM-fault entries: budget check and finish DONE, the fault branch stays one narrowed [W] `JFltHyp`; unknown-syscall / `int $N` NOT done; (4) `JReachE2` / `jreach_invE2` / `kernel_entry_reachE2` DONE
+New leaves only: SpecInvG4f (spec side), XTopJointKEntryEv2 (root imports after XTopJointKEntryEv). Nothing existing edited.
+
+### (1) `SInvX` across the FaultIP write (SpecInvG4f)
+- **`sinvWR_fip`**: `SInvW σ ∧ RPos σ → ∀ w ∈ (fl4SyscallFaultIP t σ).1, SInvW w.2 ∧ RPos w.2` for any `t`. Every one of the
+  ~40 fields from its family's `fl4SyscallFaultIP` kit: the cap view `uV` (`uk_`: `IdleOutV`, `UtInv3`, `ScKindR`,
+  `IdleScOutV`, `SpecGlobS` / `HasTC` through `capAt = uV.2.1`), the IRQ node (`nk_`), the idle pair (`fld_arch`), the binding
+  frame `BR` (`sb_` + `scInv_of_br`), `vfc_auto` (`VfhAll ∧ CnDom`), `b_of_gf` + `fg_` (`FaultTcbsS ∧ NQB`), the `IK` leaves
+  (`ns_ dl_ hv_ gk_ nq_ il_ vi_ oi_ sl_ nb_ tq_ sa_ q4_ rb_ ba_ ve_ rd_ pz_`, P19's `ctExit/ctQ/simple/curScT`), and three by
+  `ik_arch_fip` (`RS`, `OffReady`, `CAx`: they read no `tcbArch`).
+- **`sinvX_fip : SInvX σ → SInvXFip σ`** (XTopJointKEntryEv2). `SInvXFip` [W] is gone from every statement below.
+
+### (2) The interrupt entry (XTopJointKEntryEv2)
+- **`JAtZ.utCheckB`**: FL4's `update_timestamp; check_budget` at an `Entered` `JAtZ` state under `KBudgetB`, every outcome:
+  an outcome z of the spec's `updateTimeStamp; checkBudget` with the same flag and `JAtZ` at z (budgetOkB's cases without the
+  restart: `timestampJ` + `check_budgetT` for a sufficient head, `timestampJH` + the hole's `checkBudgetF` / `checkBudgetT` /
+  `checkBudgetTR` for the charge, every timeout-handler endpoint state).
+- **`JAtZ.handleIrqJIM`**: MRPath's `handleIrqJIAN` with `MR a σ.ms` in and `MR r.2 z.2.ms` at the chosen outcome (FL4's
+  masks are the spec's by `MachPlat.mask`, `w.bv.setWidth 8 = i`; acks by `MachPlat.ack`; `send_signal` by MachKeep's
+  `MK.notification_send_signal`, the spec's `sendSignal` keeping `msF`). Needs `w < 256`. (Also usable for the preemption
+  path's MR carry, which today sits inside g4b's `JDispMR` [W].)
+- **`IrqHw AR MR a a' σ w`** [P] (the one new premise, asked at the entry state of the step): the line `w` the hardware took is
+  the spec's `gaiLine false σ.ms` line, `w < 256`, `w ≠ 126, 127` (FL4's IPI vectors, one core [S]), `MR a' (gaiState σ.ms)`
+  for the arch state `a'` the entry runs at (the IRQ oracle advanced once, as `MachPlat.take` does), `AR a c → AR a' c`.
+- **`jEvRef_irq`**: from `JAtZ` at (s,a,σ), `SInvX σ`, `ct ≠ idle`, `IrqHw a a' σ w`, the syscall top's [P] bundle and
+  `hFin` (`KFinAtR31` at the pre-finish states of this run, FL4 states pinned by `KFrontI`, as the syscall top's `hFin`):
+  `handle_interrupt_entry s a' w ⦃ ∃ σ', EvOut false .interrupt σ σ' ∧ RJ ∧ MR ⦄`. The clock read by `nowAgree_gai`, MR across
+  `update_timestamp; check_budget` (`ut_cb_mr`) and the spec's (`mfk_checkBudget`), the spec's IRQ read at the budget-checked
+  state reports `i` (`gaiLine_congr`, masks / IRQ position kept), the inactive-line case refuted by `ValidIrqMasks`
+  (`msF_vim`, `gaiLine_unmasked`), `NativeScope` / `FpuOwnOK` at the pre-finish state by `ns_handleEvent` /
+  `fo_handleEvent_int`, then `jat_finishJRNM`.
+
+### (3) Fault entries
+- **`jEvRef_flt`** (generic): an entry `budget_ok; if b then B; finish` whose spec event is
+  `withoutPreemption (updateTimeStamp; checkBudgetRestart; when restart G)`: `budgetOkB` (both outcomes), MR by
+  `budget_ok_mr` / `budget_mr_at`, the finish as in (2), `FpuOwnOK` by `fo_handleEvent_other`. Its one open input:
+- **`JFltHyp AR MR Z H Cs B G s a σ`** [W]: at every budget-checked state of this run (`budget_ok s a = ok (true, s1, a1)`,
+  the spec's check at σb, `JAtZ` at the entry ghosts Z H Cs, `MR`), `B s1 a1 ⦃ ∃ z ∈ G σb, JAtZR ∧ MR ⦄`. l4v:
+  `handle_fault_corres` for these fault kinds. Missing because the joint `handle_fault` exists only for cap faults
+  (`JAtZ.faultHypJZ` with `CapFaultCorr`; `set_fault_cap_eq` / `fault_set_ipc7` are cap-fault specific): for
+  `UserException` / `VMFault` a `set_fault` correspondence of the other fault words is needed (L, it reuses
+  faultRecvJ / faultBlockJ / noFaultJ once their `CapFaultCorr` argument is generalised).
+- **`jEvRef_user n c`** = `jEvRef_flt` with B = cur_thread; `handle_fault (UserException n c)`, G = `handleFault ct
+  (userException (n &&& mask 32) (c &&& mask 28))`. **`jEvRef_vmf ad c ft`** with B = FL4's `vm_fault ad c instr` then
+  `handle_fault`, G = `catch (handleVmFault ct ft) (handleFault ct)` (the hardware CR2 / error code vs the spec's
+  `getFaultAddress` / ErrorRegister read is inside `JFltHyp`: FL4's entry writes `reg::ERROR := error` before the call,
+  entry.rs:138).
+- Unknown syscall (`sysU`) / `int $N` (`trap`): NOT done. `handle_syscall`'s non-native arm is the FaultIP write, the
+  `TRAP_SYSCALLS` check and `handle_unknown_syscall` (debug / TLS / `SysVMEnter` arms before the
+  `unknown_syscall_fault`), and needs the same `handle_fault` generalisation (`UnknownSyscall`). They keep `JEvRef`.
+
+### (4) The induction
+- **`JReachE2`**: `start`, `step` (as `JReachE`), **`irq w`** (`IrqHw a a1 σ w`, `handle_interrupt_entry s a1 w = ok`,
+  `EvOut false .interrupt`, `RJM`), `event` (`JReachE.event` without `SInvXFip`). `JReachE.toE2`.
+- **`jreach_invE2`**: `JAtZ ∧ SInvX ∧ MR` at every `JReachE2` state (`kentry_sinvX`, `kcall_sinvX`, `sinvX_evOut` with
+  `sinvX_fip`).
+- **`kernel_entry_reachE2`** (the [P] bundle of J37, `hRef`, `hPI`): at a reachable state, at the ghosts the invariant
+  gives, (i) the syscall entry (J37N's per-state premises); (ii) the interrupt entry from a non-idle thread given `IrqHw`
+  and `KFinEv .interrupt (KFrontI …)` — no `JEvRef`; (iii) / (iv) the user-exception / VM-fault entries from a non-idle
+  thread given `JFltHyp` and `KFinEv` — no `JEvRef`; (v) any event with `JEvRef` (needed only for `sysU`, `trap` and an
+  interrupt in the idle thread) — no `SInvXFip`. Each ends related with `SInvX`, `MR`, and `JReachE2` again.
+
+### (5) Remaining premises (exactly)
+- Syscall steps: unchanged from g4e (4).
+- Interrupt from a non-idle thread: `IrqHw` [P] (entry state), `KFinEv .interrupt` = `KFinAtR31` (F1 hd, F3/F4 arch,
+  F6 sni, F7 send, F8 tail) at the pre-finish states, the [P] bundle (`ARIface`, `ArchTotal`, `numDomains = 1`,
+  `MachPlat`, `MRKeepD`, `IrqPlatA`, `hmrt`, `hmb`, `TimeAgree`, `hmax`, `htu`).
+- User exception / VM fault from a non-idle thread: `JFltHyp` [W] (fault branch at the budget-checked states), `KFinEv`
+  at the pre-finish states, the [P] bundle.
+- `JEvRef` [W] only for: `sysU`, `trap`, and `.irq` when the current thread is the idle thread (budget check of the idle
+  SC and `CurInv` there are not covered by `utCheckB`, which needs `Entered`). `SInvXFip`: none.
+
+### (6) Reachability check of the new premises
+- `IrqHw`: for the model platform (arch state = machine state, MachRel's `modelArch`) the hardware's take is
+  `a' = gaiState σ.ms`, the line is the oracle's, `w = i.toNat < 256`; it fails only for a line 126 / 127 (an IPI vector:
+  single core [S]) or a masked / 0xFF oracle value (no interrupt delivered: no step). Asked at one state, in a conditional
+  clause; not a statement over all states.
+- `JFltHyp`: l4v-shaped and expected true in reachable runs given the hardware argument ranges: FL4 sends `number`/`code`
+  (resp. `fsr`) unmasked where the spec masks to 32/28 (resp. 5) bits; x86 vectors are < 32 and exception / page-fault
+  error codes fit those masks with PKE / CET off. A run with a wider error code would make the premise (of that clause)
+  false, never assumed elsewhere.
+- `KFinEv`: the same bundle the syscall top asks at its pre-finish states (g4a (d)).
+
+### (7) Findings
+None.
+
+### (8) Builds and axioms
+- tokyo, FL4-q mirror (./g4f.sh untracked = g4e.sh with its own log; scratch/g4f/{c1,ax}.lean untracked). g4f-b0 re-warmed the
+  cache at 3f144df1 ("Build completed successfully (6914 jobs)"); module builds g4f-b1..b8 (8 iterations, all errors local
+  elaboration fixes). **g4f-full1** (full `lake build Fl4Proofs` at 717dada2): "Build completed successfully (7001 jobs)",
+  0 `declaration uses 'sorry'`; no sorry / admit / native_decide / bv_decide / new axioms.
+- Axioms (g4f-full1): sinvWR_fip, sinvX_fip, JAtZ.utCheckB, JAtZ.handleIrqJIM, jEvRef_irq, jEvRef_flt, jEvRef_user,
+  jEvRef_vmf, JReachE.toE2, jreach_invE2, kernel_entry_reachE2: propext, Classical.choice, Quot.sound.
+
+### (9) Next (handoff)
+- `JFltHyp`: generalise the cap-fault `handle_fault` at J (`faultHypJZ` / `faultRecvJ` / `faultBlockJ` / `noFaultJ`) from
+  `CapFaultCorr` to a `FaultCorr` over every FL4 fault kind (`set_fault`'s words for `UserException` / `VMFault` /
+  `UnknownSyscall` against l4v's `thread_set tcbFault` and `make_fault_msg`), at a budget-checked `Entered` state; then
+  `JFltHyp` for user / VM faults is a theorem, and the same gives the unknown-syscall entry (with the FaultIP write and
+  `handle_unknown_syscall`'s non-fault arms).
+- The idle-thread interrupt: `utCheckB` for `ct = idle` (the idle SC's budget check; `CurInv` / `OffReady` for the idle
+  thread), then `jEvRef_irq` without `ct ≠ idle`.
+- `handleIrqJIM` can replace the `handle_interrupt` part of g4b's `JDispMR` [W] for the preemption path.
