@@ -10369,3 +10369,83 @@ edited. No JAtZ cone (scratch/rd8n/anc.py on SpecInvRd8nC: 955 modules, no Joint
   boot_vb, sched_kz, vb_kz, qv_invF, qv_invE, vb_restart, perfInN_of, rd_fl4HandleInvocationRV, qv_fl4DecodeInvocation): propext,
   Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (four import
   lines). Commits df9dadd0 (A, B), then Q + C, then this section.
+## g2b (branch par/g2b in FL4-sc, on ad9e86d8 = int/j2 incl. g2a) — G2 second step: `JExt.vw` (every TCB's VCPU word 0); `JThreadFinHypsU.obj` proved; `kernel_entryJ32` (DONE); `live`: NOT done; JExt boot obligation stated
+Goal (INV-PLAN §4 G2, Top risk 3; g2a handoff (3)/(6)): `JDelPartsN.thr.obj` [S] (∀-JAtZ: a slot's `Thread p` has `mem (p+3664) = 0`)
+as a theorem of a carried fact; `live` at the carried ghosts if cheap; JExt's boot obligation as a [W] for G4.
+
+### (1) P1-level fact: NOT feasible (checked)
+- FL4 writes the TCB VCPU word (`layout::tcb::VCPU` = `NAME + NAME_LEN` = 3664) in exactly two places (crates/fl4-core/src/vcpu.rs):
+  `vcpu::detach` (line ~701, writes 0) and the `X86VCPUSetTCB` arm of the VCPU invocation (line ~822, writes the VCPU pointer `v`).
+  TCB creation (`objects::create_object` TCB arm: `init_context`, `init_fpu`, `debug::init_context`, `set_domain`,
+  `set_child_name` (name bytes [3600, 3664)), `debug_append`) never writes it.
+- P1 covers VT-x: `X86VCPUSetTCB` is a P1-reachable step and writes a non-zero word, so "every TCB's VCPU word is 0" is FALSE as a
+  P1 invariant. P1's `KW` footprint (QueueFoot) and `BlkOK` treat 3664 as a plain TCB word (`plainW_all`); the native scope
+  (no Vcpu cap) exists only at J (`JExt.nat`), which P1 does not see. A P1 version would have to be "VCPU word ≠ 0 → it names a
+  live VCPU object bound back" plus "no VCPU objects", i.e. a BlkOK field re-proved across every P1 step and an H-vs-caps link
+  (if_live_then_nonz_cap for VCPUs) that nothing carries: not feasible here.
+- So the field is J-level, with the finer footprints g2a sized.
+
+### (2) `JExt.vw` and the frames (JointAt)
+- `JExt.vw : ∀ t, th t = some .tcb → L.mem s (tVcpuA t) = 0` [S] (`tVcpuA t = t + 3664`, ScKFoot). `VKeep th s s'` (every TCB's
+  VCPU word kept); `JExt.of_eq` / `step` / `ss` now take `hv : VKeep`; `JExt.vkeep`, `JExt.mem`, `VKeep.of_writes` (from a
+  `WritesIn` footprint missing every `tVcpuA`), `JAtZ.inSlot_nv` / `vkeep_slot` (slot words, `SlotsApart`), `JAtZ.ks_nv` /
+  `ksW_nv` (the kernel-state block, P1 `ksOut`).
+- Footprint vocabulary refined (no premise anywhere):
+  * `Ipc.FinW` (IpcCancelSignals): the TCB clause's `K ≠ 3512` became `(K ≠ 3512 ∧ K ≠ 3664)` (producers prove it by `omega` on
+    literal offsets; consumers use `.1`); `FinW.nv`.
+  * `Sched.KFoot.ne_vcpu` (ScKeep; `SOffL` has no 3664), `tVcpuA_val` / `_aligned` / `tVcpuA_ne`.
+  * `InT` (UntypedFrameBase, TCB creation words): the clause `t+3600 ≤ w` became `t+3600 ≤ w ∧ w ≠ t+3664` (every producer is an
+    exact-offset write; the name loop stays below t+3656); `winZero_vcpu` (UtTcbRel): a new TCB's VCPU word is 0.
+- Wrappers: `JAtZ.cs_frameI` / `cs_frameIS` / `JAtZR.cs_frameI` take `hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ tVcpuA t` beside `hWO`
+  (44 callers scripted: `Ipc.CnW.oobj` → `J.cnW_nv`, `Ipc.FinW.oobj` → `Ipc.FinW.nv`, `RmW.oobj` → `J.rmW_nv`; two WideW callers
+  pass their exact one-word footprint); `JAtZ.cs_frame` / `JAtZR.cs_frame` / `JAtZ.sc_frameS` take `hv : VKeep`; `JAtZ.sc_frame`,
+  `sch_frame`, `sc_frameR`, `JAtZR.sc_frame` / `sch_frame` derive it (`VKeep.of_tfoot`).
+- Per-site keeps: restart (`JAtZ.vkeep_sts`, set_thread_state's `SFoot`), scheduler step (`schW_nv`), kernel-state steps (`ksW_nv`),
+  debug list (`dbgWc_nv`), timer (`tmw_ne_tcb`), slot steps of the deletion loop / insert / grant / VSpace sub / TCB install
+  (`vkeep_slot`), user / IPC-buffer / FPU / VSpace / VT-x frames (their existing `tcbK`), untyped zeroing (`hAp`), the eight retypes
+  (old TCBs: slot footprint or window apart, `hWT`; UtCnRet: `thT_grow`; UtTcbRet: new TCBs by `winZero_vcpu`).
+
+### (3) What became theorems
+- `jThrObj_ofExt` (XTopJointKEntry32): `JThreadFinHypsU.obj` with NO premise (a slot's `Thread p` is valid, `SlotsValid.abs`, so
+  `Z.th p = tcb`; then `J.ext.vw`).
+- NEW TOP `kernel_entryJ32` = `kernel_entryJ31` with `hK : … → KDispHypsKV32` (`JEntryGlobM32.delParts : JDelPartsN32` =
+  archRef / arKeep / ticks, all [P]). Wrappers `JDelPartsN32.toN`, `JEntryGlobM32.to31`, `KDispHypsKV32.to31`. J31 kept.
+- So `JEntryGlobM32` holds no ∀-JAtZ premise any more (g3e (6)'s last two: `vt` g2a, `thr.obj` g2b).
+
+### (4) `live` at the carried ghosts: NOT done (not cheap)
+- `JEntryAt*.live` (INV-PLAN E15, ∀ H Cs Ac Lst D) is read in 22 files (all WJL deletions and installs) and its per-state form
+  needs `LiveDN` carried across every step (INV-PLAN's L item, no machinery outside the deletion loop's WJL). Re-scoping only the
+  quantifier would need the carried ghosts as parameters of `JEntryAtR2` and of the whole dispatch chain. Not cheap: left as is
+  ([J] ∀-ghosts), next line's work.
+
+### (5) JExt's boot obligation ([W] for G4)
+- For the initial joint state (s0, a0, σ0) with ghosts Z0: `JExt Z0.th s0` =
+  (nat) every slot of `Z0.th` holds a `Vs.NativeCap`: no `Vcpu`, no `Ept`, no `Frame` with mapped ∧ EPT flag, no `IoPort` with
+  owner ≠ 0; and (vw) every TCB of `Z0.th` has its VCPU word `mem (t + 3664) = 0`.
+  Following the 2026-11-20 lead decision (G4 starts from any state satisfying the carried invariants), this is part of the
+  `BootJ` premise of `jreach_inv`; for a concrete FL4 boot state it holds because the boot code creates no VT-x object and every TCB
+  is created zeroed (`InT`/`winZero_vcpu` for retyped TCBs; the root task's TCB from zeroed memory).
+
+### (6) Findings
+- No premise false in reachable native states was added. `JExt.vw` is preserved by every native step of the cone (no new premise).
+- [scope, as g2a] a successful VT-x step (`X86VCPUSetTCB`) breaks `vw` (it writes a non-zero word); it is already outside the scope
+  (`JExt.nat`: no Vcpu cap, so the invocation cannot be reached at J).
+- The footprints were coarser than the kernel: P3's `FinW` / `InT` admitted the VCPU word although no native code writes it;
+  refining them cost no proof beyond `omega` (the writes are at literal offsets). P1's `KW` still admits it (left unchanged: the
+  J-level frames do not need it).
+
+### (7) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2b.sh (= g2a.sh). Targets: the 20 maximal modules of the downstream closure of the edited files
+  (954 modules): DomAll IdleCovered IpcRS IpcReplyAll KsHeap Sc SpecInvEqT SpecInvNativeScopeBridge SpecInvRd12bD SpecInvRd8cD
+  SpecInvRd8fC SpecInvRd8gG SpecInvSgBridge SpecInvVfhG TcbPlace TopMCaps XTopJointKEntry28M XTopJointKEntry30D XTopJointKEntry32
+  XTopJointPortInM.
+- b1 (~23 min): everything upstream of XTopJointStep OK; 2 errors (explicit `arI` section variable). b2: 2 errors (an anonymous
+  `JExt` in UtDropJ2; SendBlockG's local restatement of `FinW`'s clause, same in 11 files). b3: 2 errors (`JAtZR.cnW_nv` missing).
+  b4: "Build completed successfully (6712 jobs)". No sorry / admit / native_decide / bv_decide in the diff. Root Fl4Proofs.lean
+  (one import line) not rebuilt.
+- Axioms (scratch/g2b/ax.lean, untracked; task g2b-ax1): kernel_entryJ32, kernel_entryJ31, kernel_entryJ30, jThrObj_ofExt,
+  JDelPartsN32.toN, KDispHypsKV32.to31, JExt.step, VKeep.of_writes, VKeep.of_tfoot, JAtZ.cs_frameI, Ipc.FinW.nv, winZero_vcpu,
+  JAtZ.mp_vkeep: propext, Classical.choice, Quot.sound.
+
+### (8) Next (handoff)
+- `live` at the carried ghosts (INV-PLAN E15), then the other G2 joint (b) fields in the same `JExt`.
