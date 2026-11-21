@@ -1279,6 +1279,7 @@ import Fl4Proofs.P3.XTopJointKEntry32
 import Fl4Proofs.P3.SpecInvRd8pA
 import Fl4Proofs.P3.SpecInvRd8pB
 import Fl4Proofs.P3.XTopJointKEntry33
+import Fl4Proofs.P3.XTopJointKEntryRR
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL
