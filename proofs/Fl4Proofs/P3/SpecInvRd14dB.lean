@@ -230,26 +230,6 @@ theorem bind_br {t c : ObjRef} {u s : State Unit} (hb : SInvB.BR u.kheap s.kheap
 
 /-! ## Configure of an SC other than cur_sc -/
 
-/-- σ0's `cfS` and `CW`. -/
-abbrev KC (σ0 q : State Unit) : Prop := cfS q = cfS σ0 ∧ A8.CW σ0.curSc σ0 q
-
-theorem kc_ik {σ0 : State Unit} {α : Type} {m : NonDet (State Unit) α} (h1 : CFK m)
-    (h2 : IK (A8.CP σ0 σ0.curSc) m) : IK (KC σ0) m := by
-  intro s hs y hy
-  obtain ⟨-, hw⟩ := h2 s ⟨cf_curSc hs.1, hs.2⟩ y hy
-  exact ⟨(h1 s y hy).trans hs.1, hw⟩
-
-theorem kc_commitGuard {σ0 : State Unit} {p : ObjRef} (hp : p ≠ σ0.curSc) :
-    IK (KC σ0) (do
-      let cs ← NonDet.gets (fun s : State Unit => s.curSc)
-      NonDet.when (cs = p) (commitTime (Z := Unit))) := by
-  refine ik_gets_bind fun s hs y hy => ?_
-  have e : s.curSc = σ0.curSc := cf_curSc hs.1
-  try dsimp only at hy
-  unfold NonDet.when at hy
-  rw [if_neg (by rw [e]; exact fun h => hp h.symm)] at hy
-  rw [Set.mem_singleton_iff.1 hy]; exact hs
-
 theorem cp_refillNew_ne (p : ObjRef) (mr : Nat) (b per : Ticks) {c : ObjRef} (hp : p ≠ c) (σ0 : State Unit) :
     IK (A8.CP σ0 c) (refillNew (Z := Unit) p mr b per) := by
   unfold refillNew maybeAddEmptyTail isRoundRobin getRefillHead refillAddTail
