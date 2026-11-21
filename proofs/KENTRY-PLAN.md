@@ -13401,3 +13401,131 @@ None.
 - The idle-thread interrupt: `utCheckB` for `ct = idle` (the idle SC's budget check; `CurInv` / `OffReady` for the idle
   thread), then `jEvRef_irq` without `ct ≠ idle`.
 - `handleIrqJIM` can replace the `handle_interrupt` part of g4b's `JDispMR` [W] for the preemption path.
+
+## m64 (branch par/m64 in FL4-m56, on 91ffe5ef = par/m63) — m63's handoff: (d3') DONE (`FaultEnt` derived at the fast-path entry state; `AsidOff` moved to the kernel entry state; top `kernel_entry.entry_of7` = `entry_of6` with `hFP : FastFaultPre` replaced by `AsidOff Ω Sg s`); ReplyRecv (R) in part: the inversion of an accepted `fastpath.reply_recv` (`RRChecks` + the write part `rrTail`, `RCaps`), the general path's ReplyRecv branch (`dispatch_rr`) and the two `schedule_tcb` no-op cases; the meeting-point lemma, `FastRRP`, P3 `FastRR`, `kernel_entryJ33F` / `J34F` NOT done; no FINDING
+- **P1 FastFaultEnt (new; imported by the root).**
+  * **`faultEntAt_of`** (d3'): at a state with `BXI` and `XG` (where `fastpath.fault` is entered: `budget_ok.bxc`), for the
+    current thread `t` and `AsidOff` there, m63's `FaultEntAt` (every accepted `FaultChecks` gives `r ∈ Rp` and m61's
+    `FaultEnt`). Sources, field by field: the handler cap is typed by **`EntryHyps0.tmoOK`** (the `SLOT_FAULT_HANDLER`
+    clause, i.e. Hyps4's `P3Place.tmoOK`, the same fact the general `faults.handle_fault.bxi` consumes) ⇒ `H ptr = some .ep`
+    ⇒ `ptr ∈ E` of `SchedQueuesInv.eps`'s `EpsWit` ⇒ `hE` / `hEN` / `hq` (the queue is nonempty: an empty queue's endpoint
+    is in state 0 by `EpTy`, here it is RECV; its head is the `head` read) / `hEΩ`; `hst` / `hact` / `hrep` / `hcur` are the
+    reads; `hdt` (`dest ≠ t`): `dest` is a queue member, hence `Blocked` (`EpsWit`), `t` is not (`CanBlock.nb` from the same
+    `tmoOK`); `dest` blocked on receive (`EpTy`: send ⇒ state 1, ntfn ⇒ 1, here 2), so `r ∈ Rp` (`ReplyInv0.recv`, `r ≠ 0`
+    read) and `rTcbA r ∈ Sg ⊆ Ω` (`ObjsOK.rpW` / `rp`, `SgOK.sub`); `hU` from `tmoOK`'s `UserOK`; `hbuf` from
+    **`XferHyps.buf`** (Hyps4's `P3Place.xfer`) at the same state (`XI` = `BXI` + `UserOK`); `hT` / `ht` / `hN` / `hcC` / `hΩ`
+    from `SchedQueuesInv`; `hsc` from `here_facts`.
+  * **`AsidOff.ent`**: `AsidOff` survives the entry prefix (`Ent`: the `FAULT_IP` register of the current thread and the
+    current node's words; the table and pool words are `Ω` words, outside TCBs and nodes by `SchedQueuesInv.omega`).
+  * **`FastFaultPre.of_asid`**: `EntryHyps0`, `XferHyps`, `P3Ok s`, `EntryInv s`, `AsidOff Ω Sg s` ⇒ `FastFaultPre … s a n`
+    (both routes: `reg_entry` + `budget_ok.bxc` / `budget_ok.fr` for `BXI`, `XG`, `Ent s s2`; the out-of-range route
+    through `EntryHyps0.debug` + `debug_syscall.same`).
+  * **Top `kernel_entry.entry_of7`** = `entry_of6` with `hFP : ∀ n ≠ VMEnter, FastFaultPre …` replaced by
+    `hAs : AsidOff (L := L) Ω Sg s` (kernel entry state); `XferHyps` from `(GF _ hσ).1.xfer`. `entry_of6` kept.
+- **P1 FastRR (new; imported by the root).**
+  * **`rrTail`** (the write part of an accepted `reply_recv_found`, verbatim), **`RRChecks`** (every check, in the raw
+    form the extraction reads them: action RESUME, `t` schedulable, `extra_caps = 0`, `label = 0`, `u = r.tcb ≠ 0`
+    BlockedOnReply with an UnknownSyscall fault, `r` not a call-stack head, `usc = u.sc ≠ 0` ready and sufficient,
+    `schedulable_here u`, the bound-notification cases, the endpoint IDLE, `fastfail → is_highest_prio`),
+    **`reply_recv_found_acc`** (accepted run ⇒ `RRChecks` ∧ `rrTail … = ok (true, s', a')`), **`reply_recv_acc`**
+    (`reply_recv` ⇒ `cur_thread`, `reply_caps = some (rptr, ep)`, `reply_recv_found`), **`RCaps`** /
+    **`reply_caps_some`** (the CSpace root, the `REPLY` register resolving to a Reply cap on `rptr`, the `CAP` register to an
+    Endpoint cap on `ep` with the receive right).
+  * General side: **`dispatch_rr`** (`dispatch_syscall … SysReplyRecv` = `handle_invocation … false false true true reply`,
+    `after_invocation`, `handle_recv … true true`), **`schedule_tcb_nr`** (no write while the action is not RESUME: the
+    general path's `set_thread_state t Running` after `possible_switch_to u`, `wait_for_sender`'s `schedule_tcb`),
+    **`schedule_tcb_sch`** (no write for a schedulable thread: the Reply decode's `set_thread_state t Restart`),
+    **`hfr_us`** (R3 / R7: `handle_fault_reply` on an UnknownSyscall fault with the sender's label 0 returns
+    `restart = true` and the Arch value unchanged), **`reply_remove_a`** (R7: off a call-stack head, `reply_remove` is the
+    unlink branch and returns the Arch value unchanged).
+  * Lean note: the acceptance walk over the 1900-line `reply_recv_found` (12 copies of the write part) must be
+    goal-directed (`revert h`; `refine eq_bind_imp (fun _ _ => ?_)` / `eq_ite_imp`, as FastDecline's decline walk) with a
+    syntactic guard for the write part (`rr_at_tail`, an `elab` checking that the bind's computation is
+    `obj.Tcb.set_state`): `split at h` / `obtain … := bind_eq_ok h` on the hypothesis, or trying `refine ⟨_, _, ?_, h⟩`
+    (defeq against `rrTail`) at every step, ran for minutes (stopped); the goal-directed walk takes seconds. The checks are
+    then closed by `‹_›` against the walk's anonymous hypotheses, so `RRChecks` states them in the extraction's raw form.
+- **The ReplyRecv trace re-checked against the extraction (no FINDING).** The general path from the dispatch state makes
+  the fast path's writes in the same order (not reordered as in the fault path): decode (`lookup_slot` = `reply_caps`'
+  first resolve, `lookup_ipc_buffer`, `lookup_extra_caps` with no extra caps, the Reply cap ⇒ `set_thread_state t Restart`
+  (`schedule_tcb_sch`) then `do_reply_transfer`), `reply_remove` (not a call-stack head: the unlink branch, same call),
+  `unblock_check` (same guard), `handle_fault_reply` / `clear_fault` (same calls), `set_thread_state u Restart`
+  (`schedule_tcb_other`: `u ≠ t`), `possible_switch_to u` from RESUME (= the fast path's `set_action u`), `t` Restart ⇒
+  `set_thread_state t Running` (`schedule_tcb_nr`), `after_invocation Ok` = true, `handle_recv`: the two lookups again,
+  `take_reply` (`r.tcb = 0` after `reply_remove`: no cancel), the bound notification as checked, the endpoint IDLE ⇒
+  `wait_for_sender`: `t` BlockedOnRecv, block object, reply object, `schedule_tcb` (`schedule_tcb_nr`), `r.tcb := t`,
+  `ep_append` on the empty queue = `prepend` (ep_next 0, ep_prev 0, queue `(t, t, RECV)`: the fast path's order). Then
+  `finish`: `schedule` with action `u` (`t` not schedulable, `fastfail` / `is_highest_prio` as the fast path checked,
+  `switch_to_thread u` with `dequeue u` a no-op) + `activate_thread` = the fast path's `switch_to u`.
+  Obligations met on the way (each true in reachable states):
+  R1 `u ≠ t` (u BlockedOnReply, t schedulable: structural);
+  R2 the IDLE endpoint's queue is empty — derivable as in `faultEntAt_of` (`EpsWit`: members are `Blocked` ⇒ state 1 / 2),
+     once the endpoint cap is typed (`EntryHyps0.recvOK`'s `lookup_cap` typing at the `XG` / `BXI` dispatch state);
+  R3 `handle_fault_reply` returns `restart = true` (UnknownSyscall: `label = 0` read from `t`'s MSG_INFO, unchanged since
+     the check — `reply_remove` / `unblock_check` do not write `t`'s registers). With restart false the fast path would
+     still set the action to an Inactive `u` while `do_reply_transfer` would not: correctness rests on the label check;
+  R4 `ready ∧ sufficient(usc, 0)` survive `unblock_check` (head time := now; merging adds amounts). **Not derivable from
+     P1 as it stands**: `RefillsWF` bounds the ring indices, not the refill sum, so an `amount` sum wrapping past 2^64
+     would make `sufficient` false after the merge while it was true before (then the general path postpones or raises a
+     timeout fault and the fast path's switch would differ). l4v: `valid_refills` / `refills_sum = budget ≤ MAX_PERIOD`
+     — needs a P1 refill-sum invariant (or a narrow [J] premise: no wrap in `unblock_check`'s merges for the receiver's SC);
+     not a kernel bug (configure bounds the budget);
+  R5 the release head's SC is not `usc` (`rel_head` as in m63, `u` not released: `schedulable_here`);
+  R6 footprints: the decode / `do_reply_transfer` writes (t's and u's state words, the reply objects of `reply_remove`, u's
+     SC ring, node REPROGRAM, u's registers by `handle_fault_reply`, u's fault words) miss `t`'s CAP / REPLY / MSG_INFO
+     registers, the CNode slots the lookups resolve, the endpoint and the bound notification words, u's SC word and the
+     scheduler words `schedule` reads (`FinKeep`-style, from `ipc.do_reply_transfer.foot` / `faults.handle_fault_reply.rg`);
+  R7 the Arch value: `reply_remove` (unlink branch) and an UnknownSyscall `handle_fault_reply` return the Arch value
+     unchanged, so `sufficient`'s `min_budget` (`kernel_wcet_ticks a`) is read on the same `a` (DONE: `reply_remove_a`,
+     `hfr_us`; R3's restart flag DONE as `hfr_us` given the label read at the state `handle_fault_reply` runs at).
+- **Reachability of every bundle added or kept.**
+  * `faultEntAt_of`'s inputs: `BXI` / `XG` are what `budget_ok.bxc` establishes at exactly the state where
+    `fastpath.fault` runs; `EntryHyps0.tmoOK` and `XferHyps.buf` are existing Hyps4 fields (from `P3Place`), stated for every
+    `XG ∧ BXI` state, and the fast-path entry state is one; nothing new is assumed. `AsidOff` is m63's premise, now asked at
+    the kernel entry state (an `EntryInv` / `P3Ok` state): the same placement (ASID table right after the nodes, pools as
+    separate `Ω` objects), and the entry prefix provably keeps it (`AsidOff.ent`).
+  * `RRChecks` / `RCaps` are not premises: they are derived from an accepted run.
+  * m60's vacuous-bundle lesson re-checked for R4: a premise "ready and sufficient after `unblock_check`" would be false only
+    in a state with a wrapping refill sum, which configure / the refill invariants of l4v exclude; it is NOT added here.
+- **Premises.** Removed: `FastFaultPre` from the P1 top (`entry_of7`'s `hFP` gone; its content derived). Narrowed: none
+  else. Kept: `AsidOff` [J] (now at the kernel entry state, `entry_of7`'s `hAs`), `StoreExt` [P], `FastRRP` [P] (ReplyRecv
+  half). Added: none. P3 tops unchanged (`kernel_entryJ33` / `J34` keep `hFast : FastRR`).
+- **FINDING: none** (kernel). One proof gap identified ahead of the ReplyRecv proof: R4 needs a refill-sum bound that P1
+  does not carry.
+- **Builds (tokyo, mirror FL4-m56, keys m64-*; `.lake` warm from m63).** b1 FastFaultEnt (a duplicate name `ep_recv_val`,
+  two `ok_inj_ff` directions); **b2 FastFaultEnt green (3814 jobs)**, committed 00024e86; b3–b5 FastRR with the
+  hypothesis-side walk (`split at h` / `bind_eq_ok h`; with and without the `rr_at_tail` guard): ran for minutes, stopped
+  (not failures; replaced); b6 the goal-directed walk: only `dispatch_rr`'s `if True` left; **b7 FastRR green (3816
+  jobs)**, committed 66a18f5b; b8 `hfr_us` (`if True` again); **b9 green (3816 jobs)**, committed de06a7cb; **b10** cone
+  FastFaultEnt, FastRR, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC, SpecInvRd8wB: **"Build completed successfully (6912 jobs)"**, 0 sorry, axioms below (b10). No full `lake build`
+  (the lead runs it; the root gains `import Fl4Proofs.P1.FastFaultEnt` and `import Fl4Proofs.P1.FastRR`, both leaves).
+- **Axioms** (scratch/axm64.lean, untracked; b7/b9): kernel_entryJ33, kernel_entryJ34, A14h.kcall_rdyOff9 /
+  kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, P1 kernel_entry.entry_of6, **kernel_entry.entry_of7**,
+  FastFaultPre.of_asid, faultEntAt_of, AsidOff.ent, reply_recv_found_acc, reply_recv_acc, reply_caps_some, dispatch_rr,
+  schedule_tcb_nr, schedule_tcb_sch, hfr_us, reply_remove_a: propext, Classical.choice, Quot.sound.
+- HANDOFF (in order).
+  (R-a) **The meeting-point lemma `rr_sync`** at the dispatch state `s2` (an `XG` ∧ `BXI` state, `budget_ok.bxc`): with
+  `RRChecks` / `RCaps` (from `reply_recv_found_acc` / `reply_caps_some`), `dispatch_rr` then `handle_invocation`
+  (cur_thread; `lookup_slot` = `RCaps.root`'s first resolve; `lookup_ipc_buffer`; `lookup_extra_caps` with `extra_caps = 0`
+  returns `NO_EXTRA_CAPS` on both branches (`buf = 0` / the loop with count 0: a lemma); the `length` if is irrelevant;
+  `decode_invocation` on `Cap.Reply` = `set_thread_state t Restart` (`schedule_tcb_sch`, needs `is_schedulable` after the
+  state write: t's SC / refill_max / in-queues words are not its state word — `SchedQueuesInv`/`ObjsOK` placement) then
+  `do_reply_transfer` (its reads re-read past the Restart write; `reply_remove` the same call; `u.sc` re-read past it:
+  `ipc.reply_remove` footprint (`QueueReplyX` / `QueueIpcFoot`) misses `scA u`; fault type ≠ Null; `handle_fault_reply` /
+  `clear_fault` the same calls; `set_thread_state u` = `set_state` by `schedule_tcb_other`; `restart` by `hfr_us` (t's
+  MSG_INFO register unchanged since `s2`: R6); `is_runnable u` (Restart); R4 `ready` / `sufficient` after `unblock_check`;
+  `possible_switch_to u` from RESUME = `set_action u` (a lemma: local, same domain, `HereF`)), `t`'s state Restart ⇒
+  `set_thread_state t Running` (`schedule_tcb_nr`, action = `u` ≠ RESUME), `after_invocation (Ok ())` = `true`,
+  `handle_recv` (the two lookups re-read: R6 for the CNode slots, the root cap, t's CAP / REPLY registers; `receive_ipc`:
+  `take_reply` with `r.tcb = 0`, `bound_ntfn` as checked, `maybe_return_sched_context` no-op, the endpoint IDLE ⇒
+  `wait_for_sender` = the fast path's writes with `schedule_tcb_nr` and `ep_append` = `prepend` on the empty queue, R2) —
+  the meeting state is the fast path's `s15` (before `switch_to u`), with both paths there in the same state (no
+  reordering, so equality of states, not `StoreExt`, up to here).
+  (R-b) `finish` from action `u` = `fastpath.switch_to u` (m60's `schedTail_act` pattern: `schedule` with a switch-to
+  candidate: `awaken_none` (NoDue re-read: m63's `NoDue.agree`), `check_domain_time_one`, `t` not schedulable
+  (BlockedOnRecv), `fastfail` / `is_highest_prio` as `RRChecks.hp` (bitmap unchanged: `is_hp_of_le`),
+  `switch_to_thread u` with `dequeue u` a no-op (`HereF.nq`), `set_vm_root` reads (`vmOff_of` / `AsidOff`)).
+  (R-c) R4 needs a refill-sum bound (above): add it to P1's SC invariant (l4v `valid_refills`) or carry the narrow [J]
+  premise "`unblock_check` of the receiver's SC does not wrap" at the dispatch state; check reachability first.
+  (R-d) `FastRRP` from `rr_sync` + (R-b) + `StoreExt` / `MemResp` (as `FastAcc.of_ext`), P1 top `entry_of8` without `hRR`;
+  P3 `FastRR` from the same (`FastRR.acc`'s direction reversed) and `kernel_entryJ33F` / `J34F` in a new P3 module (not
+  XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2).
