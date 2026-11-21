@@ -13128,3 +13128,104 @@ the leaf XTopJointKEntry37E (root imports). No existing module edited (only proo
   premise there either.
 - `FlagsRel` / `LargeFrOK` carry and `SpecUtZ` per (3); with them `JReachIP.step` loses `SpecUtZ σ'` and `kernel_entry_reachIP`
   loses its two per-state entry premises.
+
+## g5d (branch par/g5d in FL4-rb, on 79496589 = par/g5c) — g5c's handoff (1) DONE: `FlagsRel` carried (inside `JAtZ.mcp`, across every syscall and every event); (3) DONE for `FlagsRel`: top `kernel_entryJ38E`, `kernel_entry_reachIF` (no `FlagsRel` premise); (2) `LargeFrOK` NOT done (sized, plan below); (4) `SpecUtZ` NOT started (L, plan below)
+
+### (1) `FlagsRel` carried: the route taken
+- Not g5c's literal route (widen `VKeep`, a new field beside `BufWordRel`): every `JRest` producer builds `mcp` as
+  `J.mcp.frame k1 X.mcpKeep` with `k1` from a footprint *keeps* lemma, so the flags were folded into **`Sched.McpRel`**
+  itself (no new field in `JAtZ` / `JRest` / `JAtZR` / `JAtZS` / `ScXProd`, no positional constructor changed):
+  * `McpRel T m σ` (ScDecodeSc) = every `t ∈ T` has a spec TCB `x` with the MCP word = `tcb_mcpriority` **and**
+    `wordToTcbFlags (m (flagsA t)) = x.tcbFlags` (`flagsA t = t + 3456`, `layout::tcb::FLAGS`; l4v `tcb_relation`).
+    `FlagsRel.of_mcp` (XTopTcbData), `JAtZ.flagsRel` (XTopJointKEntry38E): `FlagsRel Z.T (L.mem s) σ` at every `JAtZ`.
+  * Spec half: `McpKeep σ σ'` keeps the pair `(tcb_mcpriority, tcb_flags)` (as a pair, so every `⟨_, hp, rfl⟩` proof of a
+    record update stands); `ScPres.PK`'s TCB clause the same pair (so `SOK.mcpKeep` stands); `CapsOnly.mcpF`; the
+    `hso`-style proofs (XTopJointRemove / CancelReply) by `congrArg` of the pair.
+  * FL4 half: `McpRel.frame` takes `∀ t ∈ T, m' (mcpA t) = m (mcpA t) ∧ m' (flagsA t) = m (flagsA t)`; every keeps lemma's
+    first conjunct became that pair (ScKeep `KFoot/TFoot/TFootR/RFoot.keep`, `cnW_keeps`, `finW_keeps`, `rmW_keeps`,
+    `inSlotW_keeps`, `inSlotTW_keeps`, MakePool's, JAtZRA / JAtZRB / Rest `ksW` / `schW` / `tw` keeps, and the eleven local
+    `have k1`). New footprint facts: `KFoot.ne_flags` (3456 is no `SOffL` offset), `YW.ne_flags`, `RegW.ne_flags`,
+    `Ipc.FinW.nf`, `JAtZ.cnW_nf`. **Footprint refinement**: `Ipc.FinW`'s TCB clause now also excludes 3456
+    (`(K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456)`, all producers by `omega`, 13 restatements updated); no native step but SetFlags
+    writes the flags word, and SetFlags no longer goes through `FinW`.
+  * Writers: SetFlags — `JAtZ.flagsWrJM` (XTopJointTcbSched, `mcpWrJ` at offset 3456: `QKM.flags`, `McpRel.setF`,
+    `bufKeep_flags`), XTopJointTcb's `JAtZ.flagsWrJ` now takes `hv : wordToTcbFlags w = nf` (its caller had it, `hW2`) and
+    is `flagsWrJM`; `reg_frameG` lost its flags-word disjunct; `QKY` no longer lets a TCB's flags change (only SetFlags did).
+    SetMCP — `McpRel.set` keeps the flags word (3440 ≠ 3456). TCB retype — `McpRel.addT` asks both words zero
+    (`winZero_tcbF` at 3456, in `InT`'s zero window), `w2f_zero` (`wordToTcbFlags 0 = ∅ = defaultTcb`'s flags).
+    TcbHypsX `setFlagsSpecHyp_of`: the spec's `set_flags` is no `SOK` step any more (PK keeps the flags); the CSpace
+    relation across it by `crel_updTcb`, then `SOK` of `fpu_release`.
+  * Events: no separate proof needed — every `JAtZ` / `JAtZR` producer (timer, IRQ, fault, schedule paths) keeps `McpRel`,
+    so `FlagsRel` holds at every `JAtZ` state whatever produced it.
+  * Boot: `FlagsRel` is now part of `JAtZ`'s `mcp` field, i.e. of the `start` premise of `JReachIP` (2026-11-20 lead
+    decision: any state with the invariants). Non-vacuity observation (not a FINDING, no premise is false at a reachable
+    state): FL4's boot sets the idle thread's flags word to `FPU_DISABLED` (crates/fl4-core/src/boot.rs
+    `create_idle_thread`), while Fl4Spec's `initKheap` gives the idle TCB `tcbFlags := ∅`; so the pair (FL4 boot, `initASt`)
+    would not satisfy `McpRel` if the idle thread is in `Z.T`. This was already so for the old per-state `hFl`; the concrete
+    boot-state task (INV-PLAN lead decision, [S]) must pair FL4's boot with a spec state whose idle TCB has
+    `{fpuDisabled}` (or the spec's init must be changed).
+
+### (3) The tops (new leaf XTopJointKEntry38E, root import)
+- **`kernel_entryJ38E`** = `kernel_entryJ37E` without `hFl : FlagsRel Z.T (L.mem s) σ` (supplied by `J.flagsRel`).
+  Premises exactly: PlainStore, `J : JAtZ`, `hct` [S], `hR : MR`, `hX : SInvX σ`, `hI : SInvIP σ` [J] spec,
+  `hLF : LargeFrOK Z.G (L.mem s)` [J] FL4, `hn` [S], `hflag` [S], `hK` → `KDispHypsKV36E`, `hDM : JDispMRI` [W],
+  `hFin` → `KFinAtR31`, the [P] bundle `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI`, `hFast` [P]. Post as J37E.
+- **`kernel_entry_reachIF`** (induction `JReachIP` unchanged — its step never asked `FlagsRel`; I did not add a renamed
+  copy `JReachIF`): at every `JReachIP` state, ghosts with `JAtZ ∧ SInvX ∧ SInvIP ∧ MR ∧ FlagsRel`, and for every native
+  syscall, given **`LargeFrOK`**, `hflag`, `hK`, `hDM`, `hFin`, `hFast` (no `FlagsRel`), the entry refines and every exit has
+  `RJ ∧ SInvX ∧ MR ∧ SpecIoP ∧ IoNoOverlap` and `SpecUtZ σ' → JReachIP`.
+
+### (2) `LargeFrOK` — NOT done; sizing and plan
+`LargeFrOK G m`: every MDB large non-device frame cap `y` against every MDB cap `x`: `Disj x y ∨ (x frame ∧ ¬revocable) ∨
+Within y x`. Checked against what is carried:
+- non-frame, non-untyped `x` (CNode/TCB/EP/ntfn/reply/SC/tables/pools): their FL4 ranges are objects of `H`, apart from user
+  frames — derivable (JPlaced / FrameCover), S.
+- untyped `x` (region `U`, `y`'s page `R`): spec `CapFreeV` puts `R` outside `U`'s free part and `UtChV` makes `y` a CDT
+  descendant of `x` when they meet; aligned power-of-two blocks are nested or disjoint, so the only open case is `U ⊊ R`
+  (a full untyped inside a 2 MiB page). Excluding it needs l4v `descendants_range_in` (a child's range inside its untyped
+  parent's) — **not carried** (new spec field, carried through retype / insert / derive).
+- frame `x`: inside a spec data page `Q` (`JAtZ.fcap`); `Q ≠ P` needs data pages pairwise apart (l4v `pspace_distinct`,
+  not carried spec-side for data pages); `Q = P` with `x` original needs "an original frame cap covers exactly its object"
+  (l4v: only `create_cap` makes original page caps; `is_cap_revocable` of a page copy is False; `insert_subframes` children
+  non-original) — **not carried**; device frames vs RAM pages need the same distinctness.
+- So the spec route = three new spec fields (`OrigFrObj`, `DescRangeIn`, data-page distinctness), each over every cap
+  writer (insert / copy / mint / move / swap / derive-subframe / retype / delete): a generated family like g5c's `HI`
+  for the cap half plus hand leaves for retype / detype. Size L (≈ vih2 + ut3 scale). The `JExt` route (LargeFrOK over
+  `IsSlot Z.th` slots, kept at every FL4 cap producer via `VsSlotsT` + the retype's `UtCapP3.free`) is no cheaper: every
+  copy needs the revocable bit of the new cap (`VsSlotsT` does not state it) and the retype needs the region-free fact at
+  FL4 level. Recommendation: spec route, `OrigFrObj` first (it is also what `vsTyp` / `SpecFrPg` want).
+
+### (4) `SpecUtZ` (l4v `untyped_ranges_zero`) — NOT started; plan (refines g5c (3))
+- Spec writers of `underlyingMemory` (Fl4Spec): `storeWord` (only via `storeWordOffs`, TcbAcc.lean:24, IPC-buffer words,
+  asserts `inUserFrame`), `clearMemory` / `freeMemory` (only zeros: retype of frames, reset, `delete_objects`), and
+  `fl4FpuToFrame` (Ext/Tcb.lean:96, `frame + k`, k < 2696). Every other op keeps it (generated `MemK` family, IoK-style).
+- Cap half: free parts only shrink or are zeroed first: `set_untyped_cap_as_full` / retype raise `fi`; a new untyped child
+  `(b, n, 0)` lies in the parent's free part (zero); copies keep `(b, n, fi)`; the reset zeroes `[b + fi', b + 2^n)` before
+  lowering `fi` to `fi'` (chunk order top-down; each chunk's `clearMemory` precedes its `set_cap`); deletion removes caps.
+- Memory half needs a **range** invariant `UtFreeR` (no object's whole range meets a non-device untyped's free part; today
+  `UtFree` is base-pointer only) so that `inUserFrame`'s page and `fl4FpuToFrame`'s frame miss every free part; carried
+  through retype (new objects exactly fill the raised part) and reset / detype.
+- Size L: `UtFreeR`'s carry (ut3-scale) + the `MemK` family (generated) + the reset / retype hand leaves.
+
+### (5) Findings
+- None. Every changed premise is a strengthening of a carried relation by a fact true in reachable states (FL4 writes the
+  flags word only in SetFlags, `decode_set_flags`, and at boot; the spec writes `tcb_flags` only in `set_flags` and in a
+  new TCB). Observation only: the boot pairing's idle-thread flags (above).
+
+### (6) Builds and axioms
+- tokyo, FL4-rb mirror (warm, 1710 oleans; ./g5d.sh untracked = g5c.sh + a `ROOT` target; scratch/g5d/ax.lean, ./g5dax.sh
+  untracked). Low modules first (g5d-b1, b2), then the root target `lake build Fl4Proofs` (the cone is the whole P3 above
+  ScDecodeSc): g5d-b3 failed only at TcbHypsX:304 (`set_flags` no `SOK` step), g5d-b4 only at XTopJointTcbSsp:1172 (an
+  `McpRel` reader), **g5d-b5: "Build completed successfully (7019 jobs)"**, 0 `error`, 0 `declaration uses 'sorry'`.
+  No sorry / admit / native_decide / bv_decide / axiom in the diff. Commit 53ba7160.
+- `#print axioms` (g5d-ax1, after g5d-b5): kernel_entryJ38E, kernel_entry_reachIF, JAtZ.flagsRel, FlagsRel.of_mcp,
+  JAtZ.flagsWrJM, JAtZ.flagsWrJ, McpRel.setF / set / frame / addT, w2f_zero, Ipc.FinW.nf, JAtZ.cnW_nf, JAtZ.cnW_keeps,
+  JAtZ.finW_keeps, KFoot.ne_flags, setFlagsSpecHyp_of, and (rebuilt) kernel_entryJ37E, kernel_entry_reachIP:
+  [propext, Classical.choice, Quot.sound].
+
+### (7) Handoff
+- (2) `LargeFrOK` by the spec route above (`OrigFrObj`, `DescRangeIn`, data-page distinctness), then drop `hLF`.
+- (4) `SpecUtZ` with `UtFreeR` and the `MemK` family, then drop `SpecUtZ σ'` from `JReachIP.step`.
+- Rebase note: the cone edit touches 55 modules (mostly one-line `k1`/`McpKeep` edits); conflicts with other lines are
+  likely only where they add new `JRest` producers: such a producer now needs the flags word in its `k1` (the footprint's
+  `_nf` lemma) and `McpKeep` as a pair (`rfl` for record updates not touching `tcbMcpriority` / `tcbFlags`).
