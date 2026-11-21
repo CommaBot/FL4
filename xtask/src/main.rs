@@ -655,12 +655,6 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
         name += "-";
         name.extend(r.chars().filter(|c| c.is_ascii_alphanumeric()));
     }
-    // FL4_SERIAL_GATE=1: the test-only build where every entry takes the
-    // serial gate.
-    let serial_gate = env::var_os("FL4_SERIAL_GATE").is_some();
-    if serial_gate {
-        name += "-serialgate";
-    }
     let b = ws.join(&name);
     if !b.join("build.ninja").exists() {
         fs::create_dir_all(&b).unwrap();
@@ -684,9 +678,6 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
             c.arg(format!("-DNUM_NODES={}", o.smp));
         }
         c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| SEL4TEST_REGEX.into())));
-        if serial_gate {
-            c.arg("-DFL4_SERIAL_GATE=ON");
-        }
         if upstream() {
             // seL4 refuses to boot without PCIDs or FSGSBASE unless built
             // without them; kvm-reduced has neither.
@@ -958,91 +949,45 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
 /// Deterministic simulation (DESIGN.md §10). Each campaign replays
 /// crates/fl4-sim/regressions first, then runs --seeds seeds (default 200)
 /// on --smp cores (default 4): serially, 20000 steps each; with the cores'
-/// kernel entries interleaved (transactions, 8000 steps), under the random
-/// scheduler and under PCT; and interleaved again with every entry under
-/// the serial gate.
+/// kernel entries interleaved (the serial gate and the local paths beside
+/// it), under the random, PCT and x86-TSO schedulers; the fast paths
+/// against the general path; and the bounded exhaustive search.
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
-    // The same campaign with every entry under the serial gate, the
-    // test-only differential configuration.
-    let dir = r.join("target/serial-gate");
-    run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim", "--features", "serial-gate", "--target-dir"]).arg(&dir));
     let cores = if o.smp > 1 { o.smp } else { 4 };
     let (seeds, cores) = (o.seeds.to_string(), cores.to_string());
-    let base = ["--seeds", seeds.as_str(), "--cores", cores.as_str()];
-    // Both at once: each runs its seeds in child processes, one per host
-    // CPU, so together they keep the host busy until both are done.
-    let mut gate = Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]).spawn().unwrap();
-    // Without transactions, guest syscall fast paths also run beside the
-    // gate on several cores (fl4_sync::run_syscall), as on x86_64.
-    let quarter = (o.seeds / 4).max(1).to_string();
-    let local = ["--seeds", quarter.as_str(), "--cores", cores.as_str(), "--steps", "20000", "--scenario", "guest"];
-    let mut local_conc = Command::new(dir.join("release/fl4-sim")).args(local).arg("--conc").spawn().unwrap();
-    let mut local_tso = Command::new(dir.join("release/fl4-sim")).args(local).arg("--tso").spawn().unwrap();
-    // Every campaign of DESIGN.md §10: random, PCT and x86-TSO schedules,
-    // the targeted endpoint and notification races, and the bounded
-    // exhaustive search.
-    let suite = Command::new(r.join("target/release/fl4-sim")).args(base).arg("--suite").status().unwrap();
-    let gate = gate.wait().unwrap();
-    let local_ok = local_conc.wait().unwrap().success() && local_tso.wait().unwrap().success();
-    if !suite.success() || !gate.success() || !local_ok {
+    let suite = Command::new(r.join("target/release/fl4-sim")).args(["--seeds", seeds.as_str(), "--cores", cores.as_str(), "--suite"]).status().unwrap();
+    if !suite.success() {
         fail("the simulator found failures");
     }
 }
 
 /// Mutation testing (DESIGN.md §10): each known-broken runtime must fail
-/// seeds of a 100-seed concurrent campaign under at least one of the
-/// schedulers (random, PCT, random on the x86-TSO store-buffer model); the
-/// catch rate of each is reported.
+/// seeds of a 100-seed (or 400-seed) concurrent campaign with an l4h vCPU's syscall
+/// pattern on every core (the local paths beside the gate) under at least
+/// one of the schedulers (random, PCT, random on the x86-TSO store-buffer
+/// model); the catch rate of each is reported.
 fn mutants() {
     let r = root();
     let mut ok = true;
-    // A clear_free without validation needs two cores resetting the same
-    // untyped, which the simulated workload (one root task) never does:
-    // fl4-store's own concurrent test must catch it.
-    let caught = !Command::new("cargo")
-        .current_dir(&r)
-        .args(["test", "--quiet", "-p", "fl4-store", "--features", "mutant-clear-no-validate", "clear_free"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .unwrap()
-        .success();
-    eprintln!("xtask: mutant-clear-no-validate (fl4-store test): {}", if caught { "caught" } else { "survived" });
-    ok &= caught;
-    for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait", "mutant-gate-release"] {
+    for m in ["mutant-gate-no-wait", "mutant-gate-release", "mutant-local-no-active", "mutant-local-no-lock"] {
         let dir = r.join("target").join(m);
         run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features", m, "--target-dir"]).arg(&dir));
+        // The weakened handshake shows only under TSO, on about 2% of
+        // seeds: 400 make a miss unlikely (about 0.1%).
+        let seeds = if m == "mutant-gate-release" { 400 } else { 100 };
         let mut caught = false;
         for sched in [&["--conc"][..], &["--conc", "--pct", "3"][..], &["--tso"][..]] {
             let out = Command::new(dir.join("release/fl4-sim"))
-                .args(["--seeds", "100", "--cores", "4", "--steps", "4000", "--timeout", "60", "--no-shrink"])
+                .args(["--seeds", &seeds.to_string(), "--cores", "4", "--steps", "20000", "--scenario", "guest", "--timeout", "60", "--no-shrink"])
                 .args(sched)
                 .output()
                 .unwrap();
             let text = String::from_utf8_lossy(&out.stdout);
             let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
             let name = sched[1..].first().map_or(if sched[0] == "--tso" { "TSO" } else { "random" }, |_| "PCT");
-            eprintln!("xtask: {m} ({name}): {failed}/100 seeds fail");
-            caught |= failed > 0;
-        }
-        ok &= caught;
-    }
-    // The syscall fast paths beside the gate run only without transactions:
-    // the serial-gate build, an l4h guest's pattern on every core.
-    for m in ["mutant-local-no-active", "mutant-local-no-lock"] {
-        let dir = r.join("target").join(m);
-        run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features"]).arg(format!("serial-gate,{m}")).arg("--target-dir").arg(&dir));
-        let mut caught = false;
-        for sched in ["--conc", "--tso"] {
-            let out = Command::new(dir.join("release/fl4-sim"))
-                .args(["--seeds", "100", "--cores", "4", "--steps", "20000", "--scenario", "guest", "--timeout", "60", "--no-shrink", sched])
-                .output()
-                .unwrap();
-            let text = String::from_utf8_lossy(&out.stdout);
-            let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
-            eprintln!("xtask: {m} ({}): {failed}/100 seeds fail", if sched == "--tso" { "TSO" } else { "random" });
+            eprintln!("xtask: {m} ({name}): {failed}/{seeds} seeds fail");
             caught |= failed > 0;
         }
         ok &= caught;
