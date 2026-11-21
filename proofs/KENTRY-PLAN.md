@@ -7390,3 +7390,54 @@ Goal (INV-PLAN E7 / G1 epQ): `EpQAll σ := ∀ e, EpQPre σ e` across the entry 
   rpos_refillNew, vz_setSimpleKo, vz_fl4DecodeInvocation: propext, Classical.choice, Quot.sound; minBudget_le_usToTicks,
   vz_lookupCapAndSlot: propext, Quot.sound.
   No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (import lines only).
+## ctq9 (branch par/ctq9 in FL4-q, on 8955ef83 = int/j2 incl. ctq8, rd5, g1a) — ctq8 handoff 1-3 DONE (cancel_ipc, receive_ipc, handle_recv); NOT finished: reply transfer, deletion, performs, shell, tops, preemption hB
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, module SpecInvCqB3 (imports SpecInvCqB2 and SpecInvFaultTcbsH8 for `hk_catch` /
+`hkr_*`; root imports it). Nothing existing edited.
+- **Item 1 (simpler than ctq8 expected)**: **`cs_cancelIpc g u : IK (CS g) (cancel_ipc u)` for every u** (cs_auto). This spec's
+  cancel_ipc never writes a TCB's SC field: its BlockedOnReply arm is `reply_remove_tcb` (updates the SC's reply list and the
+  reply, then `reply_unlink_tcb`), exactly l4v's `reply_remove_tcb`; there is no `sched_context_donate` on this path.
+  CORRECTION to ctq8's design note: the donation-back it describes is `reply_remove` (do_reply_transfer, the deletion cone),
+  not cancel_ipc; in receive_ipc the current thread keeps its SC across the reply cancel, so `eb_completeSignal_ct`'s `hD`
+  is its left disjunct outright. `rs_cancelIpc : IK (RSq t) (cancel_ipc u)` states ctq8's `RS` (named `RSq`: `RS` exists).
+- **Item 2**: `RV C c := EB true ∧ ct = C ∧ CS (fun _ => some c)` (kept by the reply cancel and the reads; `rv_of`),
+  `ETq C := EB true ∧ ct = C` after `maybe_return_sc` (which may clear ct's SC). The sender arm **`eb_recvSender : HK1 (EB
+  false) (EB false)`** on the spec text: the sender is read BlockedOnSend, so `NPQ sender` by `npq_nr`; `ES t := EB false ∧ NPQ
+  t` is kept by `do_ipc_transfer` (`npq_doIpcTransfer` from ctq7's NC/FX), the reads and the refill unblock check
+  (`npq_refillCheck`: it writes only SC refills and reprogram_timer); reply_push / Inactive by `NPQ sender`; Running then
+  `possible_switch_to sender` at k = false (no "sender ≠ ct" needed, so no NQ in receive_ipc). Blocked arms: `npq_ct`, then
+  `eb_weak`. **`eb_receiveIpc_rv C c … : HK1 (RV C c) (EB false) (receive_ipc C cap b rc)`** and **`eb_receiveIpc_ct (hC :
+  CurScT σ) : HKp (EB true) (EB false) σ (receive_ipc ct cap b rc)`**.
+- **Item 3**: `pk_resolveAddressBits'` / `pk_lookupCap` / `pk_capFaultLookupCap : IKE P …` for EVERY `P` (the lookups are reads;
+  FX's well-founded proof copied; the generic `repeat' (ik_step0 | ik_unfold)` times out on resolveAddressBits — use these).
+  `lookupReply` is not read-only (asUser writes the TCB back): `hr_lookupReply`. `HR C c := RV C c ∧ NQ [C] ∧ cur_sc = c`,
+  `hr_asUser` (any thread / register). **`eb_handleRecv_ct (hC : CurScT σ) (hN : NQ [ct] σ) : HKp (EB true) (EB false) σ
+  (handle_recv b r)`** (shape of nq3's `nq_handleRecv`; fault branch = `eb_handleFault_p (k := true)` with `npq_ct`, `NQ
+  [ct]`). The shell supplies hC (CurScT at the event start, see ctq8 handoff 4) and hN (`nq_consR` from nq3's NQ [] with ct
+  Running).
+- HANDOFF (in order):
+  1. `do_reply_transfer sender reply grant` must keep **EB true** (ReplyRecv runs handle_recv after it). Facts gathered:
+     `replyRemove` has tq/sa/q4/rb leaves (`eb_auto` keeps EB k; its donate's `testReschedule ct` sets choose_new_thread,
+     dequeues/releases ct only). Needed beyond eb_auto: (a) `receiver ≠ ct` for `possible_switch_to receiver` at k = true:
+     the receiver was read BlockedOnReply, so it suffices that ct is runnable at the event start — EntryJ's `ct_active`
+     [J] (g1a) or CB under resume_cur_thread; take it as a local `RnH ct σ` at handle_reply's start, never as a ∀-state
+     premise; (b) `NPQ receiver` after replyRemove / handle_fault_reply / the fault-clearing threadSet, for the Inactive
+     write (fault arm with restart = false) and for `handle_timeout receiver` (`eb_handleTimeout_p` takes NPQ): prove an
+     `ES`-style carry (`NPQ receiver` from its BlockedOnReply read via `npq_nr`, kept by replyRemove because it sets at most
+     choose_new_thread and only dequeues / release-removes: need `npq_*` lemmas for tcbSchedDequeue / tcbReleaseRemove /
+     testReschedule, not npq_frame); after `set_thread_state receiver Running/Restart` NPQ still holds (no enqueue);
+     (c) `postpone scPtr` (`eb_postpone_p`): the SC's bound thread is the receiver (runnable, ≠ ct by (a), not switch
+     target by (b)): needs sb2's ScBack/ScSym at that state (receiver's SC field = scPtr ⇒ scTcb = receiver) — carry
+     ScInv alongside or read it from SInvA at the entry and frame it through replyRemove (sb2 has the writers).
+  2. handle_reply / ReplyRecv / the deletion cone / performs / shell / tops: ctq7 handoff 3-5 and ctq8 handoff 4 unchanged.
+     The receive leaves of this module are the last step of the Recv / ReplyRecv / NBRecv events (post EB false).
+  3. preemption_path's `hB` (ctq8 handoff 4 last item) untouched.
+- Premises: none added (no [J]/[P]/[W]/[S]); hypotheses are carried invariants (CurScT, nq3's NQ [ct]) at the stated state.
+  No ∀-states hypothesis. No FINDING (the ctq8 design note's cancel_ipc path does not exist; see item 1).
+- Builds (tokyo FL4-q mirror warm, task keys ctq9-b1..b6, module SpecInvCqB3 only, ~15 s each): b1 name clashes (`RS`, `ET`
+  exist in SInvQ); b2 stopped (SpecInvNtfnQH3 is not in the cache: import SpecInvFaultTcbsH8 instead); b3 heartbeat timeout
+  on the generic read tactic over `lookupCap` (→ pk_*); b4 lookupReply not read-only (→ hr_lookupReply); b5 parse error;
+  b6 OK + axioms (ax9.lean untracked): cs_cancelIpc, rs_cancelIpc, eb_recvSender, eb_receiveIpc_rv, eb_receiveIpc_ct,
+  eb_handleRecv_hr, eb_handleRecv_ct: propext, Classical.choice, Quot.sound; pk_capFaultLookupCap: propext, Quot.sound.
+  Root Fl4Proofs.lean not rebuilt (one import line).
+- Lean traps (new): a line break inside `repeat' (first | a | b` … `| c)` is a parse error — keep the alternatives on one
+  line; `IKE P` for an arbitrary `P` is the cheap way to state "this is a read" (fails loudly at any write).
