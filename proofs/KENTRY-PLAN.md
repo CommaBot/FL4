@@ -13635,3 +13635,101 @@ None.
 - HANDOFF: (1) prove `P3Place.vmchk` (P1: `vcpu.report` keeps `EntryInv` through `Cur0` — `vcpu.report.cur0` exists — and
   the notification made idle; then `EntryHyps.of` loses the argument); (2) discharge `FaultNvm` with the rest of
   `FastFaultOK` (m60 handoff (d)); (3) phase 2 per the inventory, after the owner decides.
+## g5c (branch par/g5c in FL4-rb, on 5df96c34 = int/j2 incl. g5b) — g5b's handoff (1) DONE: `SpecIoP` carried with l4v `ioports_no_overlap` (`IoNoOverlap`) across every syscall entry and every event, boot lemma; (3) DONE for `SpecIoP`: top `kernel_entryJ37E`, induction `JReachIP` / `jreach_invIP` / `kernel_entry_reachIP` whose step asks only `SpecUtZ` of the exit; (2) `FlagsRel` / `LargeFrOK` carry NOT done (they stay per-state premises at the entry, sized below); (4) `SpecUtZ` NOT started (plan below)
+New spec-only leaves (namespace `Fl4Proofs.P3.SInvIo`, outside the `JAtZ` cone) SpecInvIoK1..K6, SpecInvIoPortsW / Y / G / X / S, and
+the leaf XTopJointKEntry37E (root imports). No existing module edited (only proofs/Fl4Proofs.lean's imports).
+
+### (1) `SpecIoP ∧ IoNoOverlap` across the kernel (SpecInvIoPorts*)
+- **Invariant** `IOI σ := GoodS (Has σ) (ioA σ)`: every IO-port cap's range is well formed (`f ≤ l`) and allocated, and two
+  IO-port caps whose ranges overlap have equal ranges. `ioi_iff : IOI σ ↔ SpecIoP σ ∧ IoNoOverlap σ` (`IoNoOverlap` stated on
+  `SInvU.capAt`, l4v `ioports_no_overlap`). `SpecIoP` alone is not inductive (g5b (3)): the deletion of a final IO-port cap frees
+  its whole range while finality compares only the first port; with `IoNoOverlap` a remaining cap overlapping the freed range
+  would equal the deleted one and so start at the same port, which finality excludes (`final_io_unique`, `ioi_tail`).
+- **Split** (the design that kept this off vih2's/vih3's size): `HI S σ` ("every IO-port cap of σ is in S") reads only the caps,
+  so it is a `WLH` predicate and vih2's generated frames F1..F4 (341 functions) keep it unchanged; the allocated ports are kept by
+  the new `IoK` family; `ik_vs` / `ik_ioi` combine them (`VS S := HI S ∧ GoodS S (ioA ·)`, `ik_ioi_of_vs`). The facts a cap write
+  needs are pure (`IoIn S c`: an IO-port cap's range is in `S`), so they survive every step (vih3 had to carry `CA` facts).
+  * SpecInvIoK1..K6: `IoK N m := IK (σ.archState.x64AllocatedIoPorts = N) m`, sg1's idle-pointer family SpecInvSgI1..I6
+    renamed by proofs/scratch/g5c/mkiok.py, minus the 32 functions reaching `set_ioport_mask` (vih2's deps.py closure).
+  * SpecInvIoPortsW: definitions, the split, `HI S` leaves as `hv_leaf` rules (`set_cap` of an `IoIn S` cap, `cap_insert` /
+    `cap_move` / `cap_swap`, `cap_swap_for_delete`, `set_untyped_cap_as_full`, `create_cap`, `retype_region`, `delete_objects`);
+    `IoK` of `cap_delete_one` / `deleting_irq_handler` / `finalise_cap` (cleanup `NullCap`: no port freed).
+  * SpecInvIoPortsY: `set_irq_state`, the ack's machine op, IPC cap transfer (`hi_transferCapsLoop` / `hi_doNormalTransfer`: the
+    extra caps are looked up in slots, `derive_cap` keeps `IoIn`), `hi_checkCapAt_ins` (TCB installs re-read the source slot;
+    `same_object_as` of an IO-port cap is that cap), the page maps (dead continuation for an IO-port cap), **the unmaps**
+    (`hi_unmapTail`: `update_map_data` of the re-read slot cap is `undefined` — `Classical.choice`, possibly an IO-port cap —
+    unless the slot holds a page / table cap, so the unmaps need the decode fact `AtSl` "the invoked slot holds the invoked cap";
+    vih3 did not need it since no arch cap is a handler cap), ASID control (parent re-read).
+  * SpecInvIoPortsG (generated, proofs/scratch/g5c/mkhi.sh, vih3's gen.py with targets.txt): `IKH (HI S)` for 22 cap writers.
+  * SpecInvIoPortsX: `ioi_auto`; `ioi_emptySlot_p` (cleanup cap `ClOk`), `rv_finaliseCap_io`, **`ioi_recDel : HT IOI (RDPostIo
+    k) (rec_del k)`** (`ht_lfp`, finality read in `FinaliseSlotCall`, consumed by `CTEDeleteCall`'s `empty_slot`),
+    `ioi_capDelete`, `ioi_capRevoke`.
+  * SpecInvIoPortsS: the decode carry `InvIo σ inv` (CNode caps and the set-handler cap `IoIn (Has σ)`; unmaps `AtSl`; the IO
+    port control issue's range well formed (`whenE (f > l)`) and free (`is_ioport_range_free`), `okd_ioCtl`), `okd_fl4Decode_io`,
+    `invIo_of` (across `set_thread_state Restart`); `ioi_ioCtl` (`set_ioport_mask f l True` then `cap_insert (IOPortCap f l)`:
+    the new range was free, so it overlaps no allocated cap); `ioi_archPerform`, `ioi_invokeCnode`, `ioi_invokeIrqHandler`,
+    `ioi_fl4Perform`, the shell `ioi_handleInvocationR`, `ioi_fl4HandleSyscall`, `ioi_fl4HandleEvent`, `ioi_fl4CallKernel`.
+- **Statements** (no premise): `kentry_ioi : SpecIoP σ ∧ IoNoOverlap σ → ∀ y ∈ (fl4KernelEntrySyscall rep c σ).1, SpecIoP y.2 ∧
+  IoNoOverlap y.2`; `kcall_ioi` (same for `fl4CallKernel rep ev`, every event); `boot_ioi` (the spec's initial state holds no
+  IO-port cap; non-vacuity check per the 2026-11-20 lead decision).
+
+### (2) The tops (XTopJointKEntry37E)
+- `SInvIP σ` = `SpecIoP ∧ IoNoOverlap ∧ SpecUtZ` (`.toIR` gives g5b's `SInvIR`).
+- **`kernel_entryJ37E`**: `kernel_entryJ36E`'s premises with `hI : SInvIR σ` → `hI : SInvIP σ`; post = J36E's `KPostXM` plus
+  `SpecIoP σ' ∧ IoNoOverlap σ'` at the related exit (`kentry_ioi`).
+- **`JReachIP`**: `start` from `JAtZ ∧ SInvX ∧ SInvIP ∧ MR`; `step` along `RJM` and **`SpecUtZ σ'`** only (no `SpecIoP`).
+  `JReachIP.toM`, `JReachIP.sinv` (SInvIP at every reachable state: `kentry_ioi` along the step), **`jreach_invIP`**,
+  **`kernel_entry_reachIP`**: at a reachable state, for every native syscall, given the per-state `FlagsRel`, `LargeFrOK`, `hflag`,
+  `hK` (KV36E), `hDM`, `hFin`, `hFast`, the entry refines and every exit has `RJ ∧ SInvX ∧ MR ∧ SpecIoP ∧ IoNoOverlap` and
+  `SpecUtZ σ' → JReachIP`.
+
+### (3) Not done
+- **`FlagsRel` / `LargeFrOK` carried** (brief (2)): not started; both are joint/FL4 facts, so neither has a spec-only route.
+  * `FlagsRel Z.T mem σ` (flags word `t+3456` vs `tcb_flags`): g5a (3)'s route — widen g2b's `VKeep` ("VCPU word kept") to "VCPU
+    and flags words kept" so every existing `hWV` proof (field-offset case split, one more offset) gives it, carry the spec half
+    (`tcbFlags` kept) beside `BufWordRel` in the IPC posts, and prove SetFlags (`FlagsRel.set`) and the TCB retype (both 0).
+    It touches the JAtZ cone (the ~42 `cs_frameI` callers, `sc_frame`): a JExt field, one cone rebuild. Across an event the same
+    frames apply (the event paths write no flags word). Boot: every TCB's flags 0 on both sides at `initASt` / FL4 boot.
+  * `LargeFrOK G mem` (every MDB large non-device frame cap against every MDB cap: disjoint, a non-revocable frame cap, or
+    containing it): a JExt field kept at every cap producer (insert/copy/mint/move/swap/delete/revoke/retype/subframe), or a
+    spec invariant over `isOriginalCap` + `cdt` read through `CdtRel`. The spec route is the cheaper one and fits this
+    session's machinery: "an original (revocable) page cap is the only original cap of its page, every other page cap inside it
+    is a non-original copy or a DeriveSubframe child" — writers are exactly `cap_insert` (original flag from
+    `is_cap_revocable`), retype (`create_cap` sets original), `insert_subframes`, deletion (flags cleared with the cap). Then
+    `LargeFrOK` at a `JAtZ` state follows through `CdtRel` / `StateRel.abs_cap` (as g5a turned `urz` / `ports` into spec facts).
+    Not started.
+- **`SpecUtZ`** (brief (4)): not started. Plan (g5b (3), refined): a range form "no object meets an untyped's free part"
+  (`UtFreeR`: for every non-device untyped cap `(p, sz, fi)`, no object's footprint and no frame cap's range meets
+  `[p+fi, p+2^sz)`) carried as a spec field beside `UtInv'` (ut3's family covers the cap / heap writers), plus a
+  memory-write frame family `MemK m` ("`underlyingMemory` outside the user frames' bytes kept") generated like `IoK` (writers:
+  `storeWordOffs` — asserts `inUserFrame`, so the byte is in a data page, which `UtFreeR` puts outside every free part —,
+  `fl4FpuToFrame`, `clearMemory` / reset (zeroes exactly the part the new free index exposes), `freeMemory` at detype).
+  The carry then splits like `IOI`: a `WLH`-like cap half (free parts only shrink: retype grows `fi`, reset zeroes before
+  lowering `fi`) and the memory half. Size L (a new memory family + the range field's carry through retype / detype / reset).
+
+### (4) Findings
+- None. Checked while proving: deletion frees a range only for a final cap (finality = first port), the IO port control issue
+  checks `f ≤ l` and freedom, `derive_cap` / `update_cap_data` / `mask_cap` never turn a cap into an IO-port cap, and the unmaps'
+  `update_map_data` is only ever applied to the invoked (page / table) cap (decode). Observation (not a finding): the spec's
+  `update_map_data` / `the_arch_cap` return `undefined` (`Classical.choice`) outside their domain, so a perform reached without the
+  decode's slot fact could write an arbitrary cap; every reachable unmap has it (`okd_fl4Decode_io`).
+
+### (5) Builds and axioms
+- tokyo, FL4-rb mirror (warm, 1697..1707 oleans; ./g5c.sh untracked = g5b.sh; scratch/g5c/{mkiok.py,mkhi.sh,gen.py,targets.txt,
+  ax.lean,t1.lean,t2.lean} untracked). g5c-b2: IoK1..K6 green; b3: W green; b5..b8: Y (the unmaps' `undefined` caps → `AtSl`
+  pinning, `QH` frames), G green; b8/b9: X green; b9..b17: S — the CNode decode traversal failed ~5 times on the same goal; the
+  cause was two-fold (`okv_deriveCap_io`'s `S` left as an unassigned mvar, and SpecInvG5's imports shadowing names the
+  traversal uses), found with scratch probes (t2.lean, `lake env lean`), fixed by `(S := S)` and moving the `SpecIoP` bridge to
+  XTopJointKEntry37E; b17: SpecInvIoPortsS + XTopJointKEntry37E "Build completed successfully (6940 jobs)". Commits d43fe369
+  (K, W, Y, G, X), 69fe4f9c (S, 37E, root imports).
+- **g5c-full1** (full `lake build` of proofs/ at 69fe4f9c): "Build completed successfully (7017 jobs)", 0 `error`, 0 `declaration uses
+  'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new files; no existing module edited.
+- `#print axioms` (scratch/g5c/ax.lean after g5c-full1): kernel_entryJ37E, kernel_entry_reachIP, jreach_invIP, JReachIP.sinv,
+  JReachIP.toM, kentry_ioi, kcall_ioi, boot_ioi, ioi_iff, ioi_fl4CallKernel, ioi_handleInvocationR, ioi_recDel, ioi_ioCtl,
+  okd_fl4Decode_io, ioi_tail, final_io_unique, ik_ioi, iok_fl4Awaken, hi_receiveIpc: [propext, Classical.choice, Quot.sound].
+
+### (6) Handoff
+- Wire `kcall_ioi` into whichever induction gets non-syscall events (g4e's XTopJointKEntryEv): `SpecIoP ∧ IoNoOverlap` needs no
+  premise there either.
+- `FlagsRel` / `LargeFrOK` carry and `SpecUtZ` per (3); with them `JReachIP.step` loses `SpecUtZ σ'` and `kernel_entry_reachIP`
+  loses its two per-state entry premises.
