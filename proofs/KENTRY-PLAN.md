@@ -8390,3 +8390,72 @@ all spec-only). (Resumed after a station restart: the stopped agent had left onl
      (A1's CP kit: SVM ∧ CFK leaves) — a generated `cp_*` family over the MTK set minus those writers is the natural next step.
   4. `hX`: wire sb2 (`sb_fl4HandleEvent` + `si_fl4Awaken`), vi3 (`vi_fl4HandleEvent_sys` + an awaken carry), ctq's event part
      (`aw_of` after `tw_fl4Awaken`, as `rb_tail`), and "cur_sc an SC" (ScBackS of the ct binding under resume, or SpecGlob).
+## ctq14 (branch par/ctq14 in FL4-q, on 0f8279e0 = int/j2 incl. ctq11, ctq12, rd7, epq2, g3a) — item 4b DONE (ctq12's four deletion-cone hypotheses proved); item 5 (a) DONE (CK over the deletion cone); item 5 (b)-(d) and the event assembly NOT done
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.R14`, modules SpecInvCqH1 / H2 / H3 (item 4b) and SpecInvCqHK, HF1, HF2
+(generated), HC (item 5 (a)); root imports H3 and HC. Nothing existing edited.
+- **Item 4b. `DK C := EB true ∧ ct = C ∧ Simple ∧ NQ [C]` is a plain state invariant of the whole cone** (every
+  outcome, errors from a preemption point included), so ctq12's result-sensitive `HKEr (DK C) (DK C)` follows
+  (`dz_hker`). The only conjunct-breaking writers are the wake-ups (their `possible_switch_to` may leave a switch
+  pending): each loop runs under `DZJ C := EB true ∧ ct = C ∧ NQ [C]` and ends in `reschedule_required`
+  (`dz_rescheduleRequired`: `Simple` again).
+  - SpecInvCqH1: a woken thread is `≠ C` **at its own step**: `tcb_ep_dequeue` / `tcb_ntfn_dequeue` assert it is in the
+    queue at that state and `NQ [C]` says `C` is in none (`dz_epDequeued`; no distinctness of the read list needed);
+    `restart_thread_if_no_fault`'s Inactive arm gets `NPQ t` from nq2's EpQB at the dequeue (blocked ⇒ `npq_nr`),
+    carried by `DZW t C` (np / tq leaves) to the write. `dz_removeAndRestartEpQueuedThread`, `…BadgedThread`,
+    `…NtfnQueuedThread`, **`dz_cancelAllIpc`**, **`dz_cancelBadgedSends`**, **`dz_cancelAllSignals`**; the reply arm of
+    `fast_finalise` (`dz_replyRemove_p`: the caller read BlockedOnReply joins `K` by nq3's `nq_consR`, because
+    `nq_replyRemove` needs the caller in `K`), **`dz_fastFinalise`**, **`dz_capDeleteOne`**, **`ebCapDeleteOneH :
+    EbCapDeleteOneH`**, **`ebCancelBadgedSendsH : EbCancelBadgedSendsH`**.
+  - SpecInvCqH2: `dz_suspend` (ct's own TCB cap may be deleted: `eb_suspend_p` needs only `NSw t`, from `Simple`),
+    **`dz_finaliseCap`** (every cap kind), `dz_preemptionPoint` (IKE), **`dz_recDel`** (`ik_lfp`), **`dz_capDelete`**,
+    **`dz_capRevoke`**, **`ebCapDeleteH : EbCapDeleteH`**, **`ebCapRevokeH : EbCapRevokeH`**.
+  - SpecInvCqH3: ctq12's arms without the hypotheses: **`eb_perfCnodeD`**, **`eb_perfIrqHandlerD`**,
+    **`eb_perfTcbCapsD`**, `dk_installTcbCapD`, `dk_installTcbFrameCapD`.
+- **Item 5 (a): `CKN s := ∀ x, kheap ct = tcb x → (SC = none ∨ SC = some cur_sc) ∧ ¬ BlockedOnReply`** (ctq11's `CK`
+  and "ct is not BlockedOnReply"; `ckn_ck : CKN → CK`). In the cone `cur_sc` / `cur_thread` are never written (only
+  `switch_sched_context` / `switch_to_thread`, in `schedule`), and a TCB's SC field only by unbind / maybe_return_sc
+  (to none) and `sched_context_donate`, reached only from `reply_remove` (fast_finalise / finalise_cap reply arms;
+  `cancel_ipc` uses `reply_remove_tcb`, no donation) whose caller is read BlockedOnReply, hence `≠ ct` by CKN.
+  - SpecInvCqHK: leaves after ctq11's SpecInvCqG (`ck_upd`, `ck_setObject(_p)`, `ck_setTcb_keep` / `_ne`,
+    `ck_setSimpleKo`, `ck_threadSet` (SC kept or none, state kept or non-reply), `ck_threadSet_ne`, `ck_asUser`,
+    `ck_setMrs`, `ck_setCap`, `ck_optionUpdateThread`, `ck_setThreadState` (non-reply state)), `ck_auto`.
+  - SpecInvCqHF1/HF2: generated (proofs/scratch/ck/mkck.sh = ctq11's gen.py with root `capDelete capRevoke
+    capDeleteOne cancelBadgedSends`, skip = primitives + the reply_remove / donate / rec_del chain; 127 lemmas, untracked
+    generator as before).
+  - SpecInvCqHC: `CKC C := CKN ∧ ct = C`; **`ck_schedContextDonate_p` / `ck_replyRemove_p` (target `≠ C`)**,
+    `ck_replyRemove_r` (target read BlockedOnReply), **`ck_fastFinalise`**, **`ck_capDeleteOne`**, **`ck_finaliseCap`**,
+    **`ck_recDel`**, **`ck_capDelete`**, **`ck_capRevoke`** (`IKE (CKC C)`: every outcome).
+- HANDOFF (item 5, in order; ctq11's four-part plan):
+  1. (a) rest: CK over `reset_untyped_cap` (detype / retype: a fresh TCB has SC none, so `ck_upd` with `hty` from the
+     aType assert covers retype; deleteObjects removes objects: CKN is vacuous if ct's TCB goes) and over
+     `install_tcb_cap` (cap_delete = `ck_capDelete`, then checked inserts: add `capInsert` / `checkCapAt` to a second
+     generated file after HC, or `ck_auto` with `unfold capInsert`). Extend scratch/ck/gen.py's root list, keep
+     HF1/HF2 byte-identical by generating into a new HF3 after HC (filter out the names already generated).
+  2. (b) per perform arm "every error outcome has CKN": liftE arms never error; CNode (`ck_capDelete` /
+     `ck_capRevoke`; the other arms are cap writes + `cancel_badged_sends` = generated `ck_cancelBadgedSends`), Untyped
+     (reset: item 1), ThreadControlCaps (item 1; its binding writer is after the last preemption point), IRQ handler
+     (`ck_capDeleteOne`, liftE). State it as ctq12's `HKEr`-style result-sensitive triple with CKN at error outcomes.
+  3. (c) CKN at the perform from CurScT (`ck_of_curScT` gives CK; ct is Restart after the shell's write, so not
+     BlockedOnReply): the front (decode reads, `check_budget_restart` true on the unchanged state, Restart write keeps
+     the SC field: `ck_setThreadState`).
+  4. (d) ScBackS at the error outcome from sb2's sb_handleInvocationR (check it states all outcomes), then
+     `bc_of_ck (ckn_ck …) hS hs` → ctq8's `ebx_preemptionPath_p` hB. Note `ebx_preemptionPath_p` starts from `EB true`
+     at the preemption state: the deletion cone now gives `DK` (EB true) on error outcomes too (`dz_capDelete` etc. are
+     `IKE (DK C)`), which is stronger than ctq12's `HKEr` (EB false at errors) — use the IKE forms there.
+- Premises: none added (no [J]/[P]/[W]/[S]); the four ctq12 hypotheses are now theorems. No ∀-states hypothesis. No
+  FINDING (every reachable cone step keeps EB true / NQ [ct] / CKN).
+- Builds (tokyo FL4-q mirror warm; ./ctq14.sh untracked = ctq11.sh with filter SpecInvCq[HC], ax14.lean): b1 H1 (5
+  errors: EB projection depth, a substituted `z`, unreduced beta before `split`, `nq_replyRemove`'s membership
+  premise); b2 one left (`when` re-folded by `dsimp`); b3 H1 ok (8 s), H2 parse error (multi-line `first |` in a
+  tactic); b4 H2 ok (10 s); b5 H3 ok + axioms; b6 HK (missing GB import, two projection-shape rewrites); b7 HK / HF1 /
+  HF2 ok, HC timeouts (`ckc_leaf`'s `ck_auto` fallback ran over whole bind terms); b8 HC ok (6.6 s); b9 H3 + HC +
+  axioms. Axioms (ax14.lean): dz_removeAndRestartEpQueuedThread, dz_removeAndRestartBadgedThread,
+  dz_removeAndRestartNtfnQueuedThread, dz_cancelAllIpc, dz_cancelAllSignals, dz_fastFinalise, dz_finaliseCap,
+  dz_recDel, dz_capRevoke, ebCapDeleteH, ebCapRevokeH, ebCapDeleteOneH, ebCancelBadgedSendsH, eb_perfCnodeD,
+  eb_perfIrqHandlerD, eb_perfTcbCapsD, ck_schedContextDonate_p, ck_replyRemove_p, ck_fastFinalise, ck_capDeleteOne,
+  ck_finaliseCap, ck_recDel, ck_capDelete, ck_capRevoke, ck_cancelBadgedSends, ck_suspend: propext, Classical.choice,
+  Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (two import lines).
+- Lean traps (new): (1) a `match` in a lemma statement elaborates to its own matcher, so `exact lemma` against the
+  spec's match fails: state the arm as a macro (`dz_reply_arm` / `ck_reply_arm`: `ikq_threadGet_bind`, `cases hs :
+  x.tcbState <;> dsimp only`); (2) in a joint-family leaf macro never fall back to the generic `*_auto` (it runs over
+  the whole remaining bind and times out): require a registered leaf on the first family.
