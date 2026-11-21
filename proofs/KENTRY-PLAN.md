@@ -11412,3 +11412,72 @@ XTopJointLiveSt; root imports it). No existing module edited, no premise added t
   decode_invocation_ioport_inJL, decode_invocation_ioportJ_stepsL, IrqSteps.jatL, decode_invocation_irq_handlerJLL,
   decode_invocation_irq_controlJ_stepL, decode_invocation_ioport_controlJ_stepL, decode_invocation_domainJ_stepL:
   propext, Classical.choice, Quot.sound.
+## rd14d (branch par/rd14d in FL4-q, on c745e573 = int/j2 incl. rd14c, rd8t, rd8s, g2f) — rd14c handoff (1) in part: the end cases of obstacles (a), (c), (e) DONE as lemmas (`TT`, `TW`, `TZ`, `perfA_end`); (2) in part: every SchedContext arm, CNode cancelBadgedSends, SchedControl configure DONE (three arm interfaces `ArmA` / `ArmAK` / `ArmAKB`, tops over each); NOT done: Reply, IRQ handler set / clear, CNode revoke / delete, ThreadControlCaps / ThreadControlSched, Untyped, ASID control, every new arm's PerfF, so no `*rdyOff9`
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14d`, modules SpecInvRd14dA / B / C / D (new; root imports them). Nothing
+existing edited. Keys rd14d-1..7 (./rd14ds.sh untracked = rd14cs.sh with its own log; proofs/scratch/rd14d/ax.lean untracked).
+- **SpecInvRd14dA (SchedContext arms but bind-TCB, cancelBadgedSends; ~20 s).** `EC σ0 q` (σ0's `cfS` / `CW` at cur_sc and
+  rd14b's `EB ct cur_sc`): `ec_of_tb`, `tbu_of_ec` (EC ⇒ rd13b's `TBN` or rd14b's `TU`), `ec_svcf`, `ec_ik`, **`perfA_liftEC`**
+  (lifted perform keeping EC ⇒ PerfA via `perfA_tbn3`), `perfA_ikeTB` (IKE TB ∧ NoErr ⇒ PerfA). **`eb_schedContextUnbindTcb`**
+  (unbinding the TCB `tp` of any SC from EB ct c ends in EB ct c: if tp = ct it is rescheduled first, so ct ends unbound with
+  no resume; no ScSym needed), `ec_schedContextUnbindTcb` / `…AllTcbs`. **`perfA_schedContext`** (Consumed, Bind of a
+  notification, UnbindObject (TCB / notification), Unbind, YieldTo: SVM ∧ CFK or EC). CNode cancelBadgedSends:
+  **`cp_ifCondAssert`** (the `if_sporadic_cur_sc_assert` guard skips cur_sc), `nks_ifCondG` (any `ifCondRefillUnblockCheck` is
+  rd14b's NKS), `tb_cancelBadgedSends` (rd14c's `tb_ik`), **`perfA_cancelBadged`**. `CovSc`, `CovD`, **`armA_covD`**,
+  `C14d := C14c ∨ CovD`, **`armA_c14d`**.
+- **SpecInvRd14dB (SchedControl configure; obstacle (e)).** **`ArmAK C`** (PerfA at the Restart outcome of a `KZ σ0` state:
+  every TCB view and SC object σ0's, more than rd14c's `RF`), `armAK_of`, `ArmAK.or`, **`perfR_ofK`**, **`invR_ofK`**, tops
+  **`kcall_rdyOffK`** / **`kentry_rdyOffK`**. `scT_restart` (at the Restart outcome cur_sc's sc_tcb is ct: σ0's CurScT + ScBack
+  through KZ's scO and the Restart write). Sixth end case **`TZ σ0 q`** (ct σ0's, consumedTime 0, no resume, `CtR`): **`ss4_tz`**
+  (OS by its second disjunct, RCA / HRC vacuous), `ctR_sv'`, `kf_tcb`, `rq_whenReply` / `rq_setThreadState` /
+  `rq_rescheduleRequired` (release queue kept), **`tz_post`**, `perfA_tbz`, `mem_liftE_ret`. Configure of `p ≠ cur_sc`:
+  **`tb_configure_ne`** (TB: `tb_commitGuard` — the commit guard is dead —, `cp_refillNew_ne` / `cp_refillUpdate_ne`,
+  `bl_refillNew` / `bl_refillUpdate`, rd14c's `tb_ik`, the rest SVM ∧ CFK). Configure of cur_sc: **`tz_configure`** (commit_time
+  clears the consumed time and keeps ct / cur_sc / the binding frame: `commit_pc` from ScCharge8's `commitTime_eq`, MidRun's
+  `kf_commitTime'`, SInvQ's `cs_commitTime`, sb2's `sb_commitTime`; the refill writes keep `PC` (ct, cur_sc, sb2's `BR` from
+  the Restart state) by CFK + SBK; rd's `sr_schedContextResume` makes ct released when schedulable; ct is the SC's TCB so
+  reschedule_required runs: no resume; the badge / sporadic writes keep TZ: `tz_updSc`). No decode fact: refill max 0 is
+  covered (CtR then vacuous). **`perfA_configure`**, `CovCfg`, `armAK_cfg`, `C14dB := C14d ∨ CovCfg`, **`armAK_c14dB`**.
+- **SpecInvRd14dC (SC bind of a TCB).** **`ArmAKB C`** (ArmAK plus sb2's decode fact `BindOK (bv h0) b` and the binding frame
+  `BR h0 s.kheap` from the decode's start heap), `armAKB_of`, `ArmAKB.or`, **`bindOK_invE`** (every ok outcome of the shell's
+  `invE` gives both: sb2's `okb_fl4Decode`, `sb_fl4DecodeInvocation`), **`perfR_ofKB`**, **`invR_ofKB`**, tops
+  **`kcall_rdyOffKB`** / **`kentry_rdyOffKB`**. `unb_of_bindOK`, **`perfA_scBindTcb`** (the TCB is unbound, ct is bound to
+  cur_sc, so t ≠ ct: TB). `CovB`, `armAKB_bind`, `C14dC := C14dB ∨ CovB`, **`armAKB_c14dC`** (every SchedContext arm covered).
+- **SpecInvRd14dD (end cases (a), (c)).** `CWw` (CW with refill max kept or 0), **`TW σ0 q`** (TU with CWw), **`ss4_tw`**,
+  `tw_svcf`, **`tw_post`**; **`TT σ0 q`** (cur_sc / ct / idle kept, consumedTime and curTime advanced by the same amount (Nat),
+  CW, ct bound, cur_sc an SC, Suff), `tt_of_tb`, `offReady_tt`, **`ss4_tt`**, `tt_svcf`, **`tt_post`**; **`EndA`** (TBN ∨ TU ∨ TW
+  ∨ TZ ∨ TT) and **`perfA_end`**.
+- **Covered set now** (`C14dC`, interface `ArmAKB`): rd14b's `Cov` (Notification, Endpoint, Domain, rd13b's frame arms), rd14c's
+  TCB suspend / resume / register arms, EVERY SchedContext arm, CNode cancelBadgedSends, SchedControl configure. OPEN: Reply,
+  IRQ handler set / clear, CNode revoke / delete, TCB ThreadControlCaps / ThreadControlSched, Untyped, ASID control (MakePool).
+- **Remaining named hypotheses (exactly):** `hP : InvRc C c σ` in `kcall_rdyOffK*` / `kentry_rdyOffK*` (PerfA only outside the
+  covered set; instantiate `C := C14dC` with `armAKB_c14dC`); rd14b's `InvF` in rd14c's B tops (PerfF NOT extended this round:
+  the new arms are outside rd14c's `CovC`). No [J]/[P]/[W]/[S] premise added; no ∀-states hypothesis. The decode fact is
+  produced (`bindOK_invE`), not assumed.
+- No FINDING: nothing traced breaks Rdy / OffReady / RV / CAx / FPO. Configure of cur_sc (bound to ct) clears the consumed time
+  and reschedules (TZ), also with refill max 0 (ct then inactive-bound: CtR vacuous); configure of another SC keeps TB; SC
+  unbind of ct's SC leaves ct unbound and rescheduled (TU); SC bind finds the TCB unbound (decode), so never ct.
+- Lessons: (1) the configure body has a do-notation join point (`have __do_jp`); `dsimp only` zeta-reduces it and DUPLICATES the
+  tail into every refill branch — walk the branches explicitly (`split at hx`) and apply one tail lemma (ScMidCur's pattern); a
+  `repeat' (first | exact tail | …)` search was replaced. (2) A generic `refine kc_ik ?_ ?_ <;> …` rule tried at every bind of a
+  big body hit 4M heartbeats; put explicit leaf rules first and the generic rule last. (3) sb2's `sb_auto` leaves
+  `¬ (scSporadicUpdate …).scRefills = []` open on the sporadic flag write (no whole-configure SBK; TB for p ≠ cur_sc is a direct
+  walk). (4) `mkw_commitTime` (ScMidCur) is in the JAtZ cone: `commit_pc` re-derives it from ScCharge8's `commitTime_eq`.
+  (5) `ctR_sr` lives in SpecInvRd14aA (not in this cone): restated as `ctR_sr'`.
+- Builds (tokyo, FL4-q mirror warm, ~20-40 s each): rd14d-1 A (4 errors: stray rewrite, no `tcbEpDequeue` sv leaf); rd14d-2 A
+  green (5590 jobs); rd14d-3 B (configure walk 4M timeout, join point, sb sporadic gap, `ctR_sr`); rd14d-4 B (getScActive leaf,
+  same sb gap, `when` already `if` after dsimp); rd14d-5 B (`mkw_commitTime` unknown: JAtZ cone); rd14d-6 B + C green, D 2
+  errors; rd14d-7 A + B + C + D "Build completed successfully (5596 jobs)" + axioms (scratch/rd14d/ax.lean, 37 declarations
+  incl. every top: propext, Classical.choice, Quot.sound or a subset; ec_of_tb / tbu_of_ec none). No `declaration uses sorry`;
+  no sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (four import lines).
+- HANDOFF (in order): (1) the remaining arms through `perfA_end` / `perfA_liftEC` and `ArmAKB C'` + `armAKB_c14dC.or`:
+  ThreadControlSched (`installTcbCap` slot 3 = a cap deletion, then setMcpriority / setPriority (TB), SC unbind of the target
+  (EC, as `eb_schedContextUnbindTcb`) or bind (BindOK gives the target unbound ⇒ ≠ ct, as `perfA_scBindTcb`)); ThreadControlCaps
+  (installTcbCap ×5: deletion); Reply (do_reply_transfer: ct the replier; reply_remove may return the caller's SC from ct ⇒ EC
+  via rd14b's `eb_donate`-style lemma); IRQ handler set / clear (needs valid_irq_handlers at the Restart state: `ArmAKB`'s
+  interface has no cap fact — extend it with σ0's IRQ-slot view carried from the entry; `KZ` has no cap view); CNode revoke /
+  delete (deletion cone + preemption: produce `TT` at non-preempting points — needs ValidMachineTime at the point
+  (SpecInvOffT's `offReady_updateTimeStamp` hypothesis) and the point's sufficiency check for `TT.suff` — and `TW` when
+  cur_sc's last cap is deleted); Untyped retype / reset (rd8n's facts; reset = preemption ⇒ TT); ASID control (MakePool).
+  When `C'` covers every arm, `InvRc C'` is vacuous: `kcall_rdyOff9` / `kentry_rdyOff9` := `kcall_rdyOffKB armAKB_all` without
+  `hP`. (2) PerfF for the new arms (rd14c's QT family; `fpo_tu` for the unbinding arms, TZ / configure: RT / CBa of ct from
+  the resume), then rd14c's B tops lose `InvF`.
