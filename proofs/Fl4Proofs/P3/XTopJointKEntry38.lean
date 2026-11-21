@@ -6,18 +6,38 @@ P3 (DESIGN.md §9), invariant line G4 (g4d, KENTRY-PLAN g4d; g4b's handoff):
 * `JAtM` := `JAt ∧ MR` at the spec outcome. `TopPostDMXP.mr` / `XCapP.mr`:
   a decode's `XCapP X XP` gives `XCapP (X ∧ MR) XP` when FL4's decode keeps
   `MR` at the dispatch state's machine state (MachKeepG4d's
-  `MKD.decode_quiet`) and the spec's decode yields only `QInv` invocations,
-  whose perform (and the reply tail) keep the four machine fields
-  (MachFieldFamI): every related outcome then has `MR` (`MachPlat.frame`).
+  `MKD.decode_quiet`, `MKD.decode_cnode_nrd`) and the spec's decode yields
+  only `QInv` invocations, whose perform (and the reply tail) keep the four
+  machine fields (MachFieldFamI): every related outcome then has `MR`
+  (`MachPlat.frame`).
+* CNode Revoke / Delete: the deletion loop's invariant `EJLM` already carries
+  `MRV` (mr6), so `cn_del_topJLMM` keeps it at the ok exit
+  (`decode_invocation_cnode_{revoke,delete}JLMM`, `decode_invocation_cnodeJ_RDM`).
 * `decOK_JMM`: the decode of every cap at `JAtM`: the quiet kinds (`QuietF`)
-  by `XCapP.mr` on `decOK_JMU`; the rest (CNode, Thread, Untyped,
-  IrqControl, IrqHandler, IoPort, all native) from `JDecMRL` [W] (below).
+  and CNode at the other labels by `XCapP.mr` on `decOK_JMU`; CNode Revoke /
+  Delete by `decode_invocation_cnodeJ_RDM`; Vcpu / Ept refuted by `J.ext.nat`;
+  the loud kinds (`LoudF`: Thread, Untyped, IrqControl, IrqHandler, IoPort)
+  from `JDecMRL` [W] (below).
 * `handle_invocation_entryJMUM`: `handle_invocation_entryJMU` at `JAtM`
   (`handle_invocation_refinesMXP` is generic in `X`): the lookup fault and
   the extra caps' fault (`handle_fault`: `MKD.faults_handle_fault`,
   `mtk_handleFaultG`), the success tail (`flTail` writes no arch state,
   `mtk_specTailG`), the error reply (arch state kept,
   `mtk_fl4ReplyFromKernelErrorG`).
+* The preemption path to `PPQJIM`: `JAtZ.handleIrqJIANM` (`handleIrqJIAN` with
+  `MR`: the mask by `MachPlat.mask`, `mask_mr`; the acknowledgement by
+  `MachPlat.ack`; the signal by `MKD.notification_send_signal` and
+  `mtk_sendSignal'`), `afterInv_of_mcsIMNM`, `jPreemptRestHypEQ_ofIMM`,
+  `hPre_ofZQIMNM` (every branch of `hPre_ofZQIMN` ends in `PPQJIM`).
+* The dispatch: `invoke_afterJMUNM`, `dispatch_invokeJMUNM`,
+  `dispatch_invokeJAllMUNM` (Send / NBSend / Call), `hiPostMid_M`,
+  `mid_invRecvJMUNM`, `dispatch_midJMUNM` (ReplyRecv / NBSendRecv /
+  NBSendWait: the receive by `MKD.syscall_handle_recv`, `mtk_handleRecvG`),
+  `dispatch_all13PUNM` (every native syscall, `DispPostRM`).
+* NEW TOPS `kernel_entryJ13PUGMD`, **`kernel_entryJ38`** = `kernel_entryJ37`
+  without `hDM` (`JDispMRI`), with `hDL : JDecMRL` [W] at the same dispatch
+  states; **`kernel_entry_reachMD`** = `kernel_entry_reachMI` with `hDL` for
+  `hDM`.
 -/
 import Fl4Proofs.P3.XTopJointKEntry37
 import Fl4Proofs.P3.MachKeepG4d
@@ -56,7 +76,7 @@ def JDecMRL (AR : A → Fl4Spec.Cr3 → Prop)
     (∀ (i : U64) x, argsU[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x) →
     msg.lookup_ipc_buffer st s false ct = ok buf → argsU.length ≤ 120 →
     ∀ (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
-    ∀ (c : capability.Cap), capAt (L.mem s) (cslotAddr sl) = ok c → (¬ QuietF c ∧ Vs.NativeCap c) →
+    ∀ (c : capability.Cap), capAt (L.mem s) (cslotAddr sl) = ok c → (LoudF c ∧ Vs.NativeCap c) →
     ∀ (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef),
     ExtraOK Z.th (L.mem s) extra excaps → ExtraNamed Z.th (L.mem s) extra → lbl.bv = slbl →
     ArgRel (st := st) s σ ct buf buffer 5 →
@@ -147,6 +167,184 @@ theorem spec_mrz (hM : MachPlat arI MR) {α β : Type} {m : Result α} {M : Set 
 
 end
 
+/-! ## CNode Revoke / Delete at `JAtM` (the loop invariant carries `MRV`) -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+variable {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+  {Lst : U64 → List U64} {D : Set U64}
+
+set_option maxHeartbeats 4000000 in
+/-- **A Delete's or Revoke's outcome at `EJL`** (`cn_del_topJ` at `EJL`). -/
+theorem cn_del_topJLMM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hR : MR ar σ.machineState)
+    {kb : U64} {K : Nat} {blk call don : Bool}
+    {m : Fl4Spec.SEMonad Unit Fl4Spec.CnodeInvocation} {res : core.result.Result Unit error.Exc × S × A}
+    (hq : PInvPostW (L := L) Z.th σ Z.G m (EJLM (L := L) arI AR MR Z H Cs kb K) (EJPM (L := L) arI AR MR Z H Cs kb K) s ar
+      res) :
+    TopPostDMXP (L := L) (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) σ blk call don
+      (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeCNode m) s res := by
+  obtain ⟨r, s', a'⟩ := res
+  rcases hq with ⟨e, rfl, rfl, rfl, e', h1, h2⟩ |
+    ⟨inv, hrun, σ1, hst, σ', G', hcase, hCR', hFI', -, hE'⟩
+  · have hne : e ≠ .Preempted := by rintro rfl; cases e' <;> exact h2.elim
+    refine Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, Or.inl h2⟩, ?_⟩
+    simp only [core.result.Result.Err.injEq, hne, if_false]
+    exact ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hR⟩
+  · rcases hcase with ⟨rfl, hx⟩ | ⟨rfl, hx⟩
+    · obtain ⟨-, ⟨⟨V, Ac', Lst', D', J', -⟩, -⟩, hmv'⟩ := hE'
+      have hX' := J'.xtop
+      refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+        mem_bindE_ok hx (Set.mem_singleton _), ⟨Z.th, G', Or.inl ⟨rfl, rfl⟩, hX'.rel.1, hX'.rel.2.1,
+          hX'.rel.2.2.1, hX'.rel.2.2.2.1, hX'.rel.2.2.2.2.1⟩, ?_⟩
+      simp only [reduceCtorEq, if_false]
+      exact ⟨⟨_, H, Cs, Ac', Lst', D', J'⟩, hmv'.1⟩
+    · obtain ⟨-, ⟨-, -, -, -, -, -, hDom, hMO⟩, hPre⟩ := hE'
+      refine Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.error (), σ'),
+        mem_bindE_err hx, ⟨Z.th, G', Or.inr ⟨rfl, rfl⟩, J.xtop.rel.1, hCR', hFI', hDom, hMO⟩, ?_⟩
+      simp only [if_true]
+      exact hPre
+
+set_option maxHeartbeats 4000000 in
+/-- **`XCap` at `JAt` at the Revoke label** (25): `cnode_revoke_refinesW` at
+`EJL` (`JDelHypL`, `rppHyp_fullW` of `jPreemptHypL`, `EJL.restart`), then
+`cn_del_topJL`. -/
+theorem decode_invocation_cnode_revokeJLMM (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (hMP : MachPlat arI MR) (hmv : MRV MR ar σ) (hJD : JDelHypLM (L := L) arI AR MR Z.th)
+    (hJP : ∀ kb, PPHypDW (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb) Z.th)
+    (hsg : SpecGlob σ) (hP0 : PPR0 σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeRevoke)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCapP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.CNodeRevoke length slot (.CNode p r gs g) blk call
+      don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨K, hK, hK6, hDE⟩ := J.delE
+  obtain ⟨⟨hR, hV, hM, hCd, hI⟩, -⟩ := And.intro hX.rel.2.1 hX.rel.2.2.1
+  have htcb := (hX.curTcb hcur).1
+  have hP := hX.rel.1
+  have hfew : psiD (L.mem s) Z.G < 2 ^ 64 - 1 := by
+    have := hDE.2.1 Z.G hM
+    omega
+  unfold XCapP
+  left
+  unfold DecOKDMXP syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact WP.spec_mono (cnode_revoke_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI J.kern.act hcur htcb (EJLM (L := L) arI AR MR Z H Cs (L.ksb s) K)
+      (EJPM (L := L) arI AR MR Z H Cs (L.ksb s) K)
+      psiD psiD_slotsSame (hJD Z H Cs (L.ksb s) K rfl hK hK6)
+      (rppHyp_fullW arI (WMR MR (WJL (L := L) arI AR Z H Cs (L.ksb s))) (WJPM (L := L) arI AR MR Z H Cs (L.ksb s)) Z.th K
+        (hJP (L.ksb s)))
+      (EJLM.restart arI J hni hMP hmv hsg hP0 hLv hDE hct)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩) hfew)
+      fun res h => cn_del_topJLMM arI J hmv.1 h
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    refine Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ?_⟩
+    show if _ = _ then _ else _
+    rw [if_neg (by simp)]
+    exact ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hmv.1⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **`XCap` at `JAt` at the Delete label** (26), for any cap: as
+`decode_invocation_cnode_revokeJL`, by `cnode_delete_refinesW` at `EJL`. -/
+theorem decode_invocation_cnode_deleteJLMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (hMP : MachPlat arI MR) (hmv : MRV MR ar σ) (hJD : JDelHypLM (L := L) arI AR MR Z.th) (hsg : SpecGlob σ) (hP0 : PPR0 σ)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = .cnodeDelete)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (p r gs g : U64) (hwf : CapWf (.CNode p r gs g)) (hcv : CapValid Z.th (.CNode p r gs g))
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (slot : U64) (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (sl : Fl4Spec.CslotPtr)
+    (buffer : Option Fl4Spec.ObjRef) :
+    XCapP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ fl4_abi.label.CNodeDelete length slot (.CNode p r gs g) blk call
+      don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  have hX := J.xtop
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  obtain ⟨K, hK, hK6, hDE⟩ := J.delE
+  obtain ⟨⟨hR, hV, hM, hCd, hI⟩, -⟩ := And.intro hX.rel.2.1 hX.rel.2.2.1
+  have htcb := (hX.curTcb hcur).1
+  have hP := hX.rel.1
+  unfold XCapP
+  left
+  unfold DecOKDMXP syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  cases fp
+  · simp only [Bool.false_eq_true, ↓reduceIte]
+    exact WP.spec_mono (cnode_delete_refinesW arI Z.th s ar σ Z.G hR hV hP hM hCd slbl hlbl length buf ct hct
+      args hlen hargs _ _ ⟨hwf, rfl⟩ hcv extra _ hI J.kern.act hcur htcb (EJLM (L := L) arI AR MR Z H Cs (L.ksb s) K)
+      (EJPM (L := L) arI AR MR Z H Cs (L.ksb s) K)
+      psiD (hJD Z H Cs (L.ksb s) K rfl hK hK6) (EJLM.restart arI J hni hMP hmv hsg hP0 hLv hDE hct)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩)
+      (fun _ _ _ G1 hCR hE1 => ⟨hE1.1.2.2.1, hE1.1.2.2.2 G1 hCR.2.2.1⟩))
+      fun res h => cn_del_topJLMM arI J hmv.1 h
+  · simp only [↓reduceIte]
+    rw [WP.spec_ok]
+    refine Or.inl ⟨_, rfl, rfl, ⟨_, rfl, Or.inr ⟨0#u64, rfl, rfl⟩⟩, ?_⟩
+    show if _ = _ then _ else _
+    rw [if_neg (by simp)]
+    exact ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hmv.1⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **`decode_invocation_cnodeJ_stepsLM` at Revoke / Delete with `JAtM`
+after** (the deletion loop's invariant `EJLM` carries `MRV`). -/
+theorem decode_invocation_cnodeJ_RDM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
+    (hARI : ARIface arI AR) (hT : P0.ArchTotal arI)
+    (hJDP : JDelParts (L := L) arI AR Z.th)
+    (hsg : SpecGlob σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    (hnd : Fl4Spec.numDomains = 1) (hMP : MachPlat arI MR) (hKD : MRKeepD arI MR)
+    (hPA : PPPlatA arI AR) (hmv : MRV MR ar σ)
+    (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
+      Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
+    (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : Fl4Spec.genInvocationType slbl = cnodeLabelOf lbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (p r gs g : U64)
+    (hsc : capV (L.mem s) (cslotAddr sl) = .CNode p r gs g)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 x1 : U64)
+    (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (hx1 : Aeneas.Std.Array.index_usize extra 1#usize = ok x1)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel2 Z.th (L.mem s) x0 x1 (excaps.map Prod.fst))
+    (hQ : ∀ e, Sched.EpQPre σ e)
+    (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
+    (hrd : 25 ≤ lbl.val ∧ lbl.val ≤ 26) :
+    XCapP (L := L) arI (JAtM (L := L) arI AR MR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl)
+      (.CNode p r gs g) blk call don fp buf extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
+  have hJ : JStepHyps (L := L) arI AR Z.th := jStepHyps arI
+  have hX := J.xtop
+  have hJP : ∀ kb, PPHypDW (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb) Z.th :=
+    fun kb => jPreemptHypLM arI hARI.toARKeep hT hnd hMP hPA Z H Cs kb rfl
+  have hP0 := J.ppr0_start arI hni hRd0 hnq
+  have hJD := hJDP.jDelHypLM arI hT hnd hMP hKD hPA hARI.toMask
+  obtain ⟨hwf, hcv⟩ := slot_cap_wf hX hAs hsc
+  rcases (show lbl.val = 25 ∨ lbl.val = 26 by omega) with h | h
+  · have e : lbl = fl4_abi.label.CNodeRevoke := UScalar.eq_of_val_eq (by rw [h, lbl_revoke_val])
+    subst e
+    exact decode_invocation_cnode_revokeJLMM arI s ar σ J hni hMP hmv hJD hJP hsg hP0 hLv slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
+  · have e : lbl = fl4_abi.label.CNodeDelete := UScalar.eq_of_val_eq (by rw [h, lbl_delete_val])
+    subst e
+    exact decode_invocation_cnode_deleteJLMM arI s ar σ J hni hMP hmv hJD hsg hP0 hLv slbl (by rw [hlbl]; simp [cnodeLabelOf])
+      length buf ct hct args hlen hargs p r gs g hwf hcv extra excaps (cslotAddr sl) blk call don fp ci sl buffer
+
+end
+
 /-! ## The decode of every cap at `JAtM` -/
 
 section
@@ -181,13 +379,41 @@ theorem decOK_JMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     have hx : IsSlot Z.th (cslotAddr sl) := AbsSlot.isSlot ⟨p, h1', Or.inl h2'⟩
     have := J.ext.nat _ hx
     rwa [capV_of_capAt hc] at this
+  have hX0 := decOK_JMU arI s ar σ J hG hE ct hct lbl length blk call don fp buf extra slbl argsU hlen hargs
+    hbuf hl ci sl hsl c hc excaps buffer hXO hXN hLb hA5 hN hPD hR hVT hVI hNs
   by_cases hq : QuietF c
-  · exact XCapP.mr hM (decOK_JMU arI s ar σ J hG hE ct hct lbl length blk call don fp buf extra slbl argsU hlen hargs
-      hbuf hl ci sl hsl c hc excaps buffer hXO hXN hLb hA5 hN hPD hR hVT hVI hNs)
-      (MKD.decode_quiet L.total hA hKD hq hR)
+  · exact XCapP.mr hM hX0 (MKD.decode_quiet L.total hA hKD hq hR)
       (fun inv hd => MachT.dec_quiet fp slbl _ ci sl (absCap c) excaps buffer (quietS_of hq) σ _ hd.1 inv rfl)
-  · exact hDL hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc ⟨hq, hNat⟩
+  by_cases hlo : LoudF c
+  · exact hDL hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc ⟨hlo, hNat⟩
       excaps buffer hXO hXN hLb hA5 hN
+  have hAs : AbsSlot Z.th sl := by
+    obtain ⟨p', hp, hth⟩ := hsl; exact ⟨p', hp, Or.inl hth⟩
+  have hPl : Placed Z.th := J.xtop.rel.1
+  cases c <;> simp only [QuietF, LoudF, not_true_eq_false, not_false_eq_true] at hq hlo
+  case Vcpu p => exact absurd hNat (by simp [Vs.NativeCap])
+  case Ept p l m asid va => exact absurd hNat (by simp [Vs.NativeCap])
+  case CNode p r gs g =>
+    have hsc : capV (L.mem s) (cslotAddr sl) = .CNode p r gs g := capV_of_capAt hc
+    subst hLb
+    obtain ⟨sl', hl', hd⟩ := cnode_canon lbl
+    refine XCapP.lbl_congr arI (specDec_cnode p r gs g hd) ?_
+    by_cases hrd : 25 ≤ lbl.val ∧ lbl.val ≤ 26
+    · exact decode_invocation_cnodeJ_RDM arI s ar σ J hE.ni hG.ari hG.tot hG.delParts hE.sg hE.live hG.nd hM hKD
+        hG.ppA ⟨hR, hVT, hVI⟩ hE.rd0 hE.ctnq lbl sl' hl' length buf ct hct argsU hlen hargs sl hAs p r gs g hsc extra
+        (exAt extra 0) (exAt extra 1) (exAt_idx0 extra) (exAt_idx1 extra) excaps (ExtraOK.rel2 hPl hXO) hE.epQ
+        blk call don fp ci buffer hrd
+    · have hr : lbl ≠ fl4_abi.label.CNodeRevoke := fun e => hrd (by subst e; simp)
+      have hd' : lbl ≠ fl4_abi.label.CNodeDelete := fun e => hrd (by subst e; simp)
+      have hsr : Fl4Spec.genInvocationType sl' ≠ .cnodeRevoke := by
+        rw [hl']; unfold cnodeLabelOf
+        split_ifs <;> first | (intro e; cases e; done) | exact absurd (by omega) hrd
+      have hsd : Fl4Spec.genInvocationType sl' ≠ .cnodeDelete := by
+        rw [hl']; unfold cnodeLabelOf
+        split_ifs <;> first | (intro e; cases e; done) | exact absurd (by omega) hrd
+      exact XCapP.mr hM (XCapP.lbl_congr arI (specDec_cnode p r gs g hd).symm hX0)
+        (MKD.decode_cnode_nrd L.total hA hKD hr hd' hR)
+        (fun inv hdc => MachT.dec_cnode_q fp sl' _ ci sl _ _ _ excaps buffer hsr hsd σ _ hdc.1 inv rfl)
 
 end
 

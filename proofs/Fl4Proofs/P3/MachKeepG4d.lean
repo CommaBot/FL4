@@ -9,7 +9,10 @@ Every arch operation reached is a field of `MRKeepD` or a query returning no
 arch state (`virtualization`, `private_device_frame`, `kernel_wcet_ticks`,
 `ticks_to_us`, `us_to_ticks`, `max_us`). `MKD.decode_quiet`: FL4's
 `decode_invocation` of a cap of a quiet kind (`QuietF`: not CNode, Thread,
-Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept) keeps `MR`.
+Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept) keeps `MR`;
+`MKD.decode_cnode_nrd`: a CNode cap's decode at a label other than Revoke /
+Delete keeps the arch state. `LoudF`: the kinds left (Thread, Untyped,
+IrqControl, IrqHandler, IoPort).
 -/
 import Fl4Proofs.P3.MachKeepF
 open Aeneas Aeneas.Std Result
@@ -29,6 +32,16 @@ def QuietF : capability.Cap → Prop
   | .Vcpu _ => False
   | .Ept .. => False
   | _ => True
+
+/-- **The loud FL4 cap kinds** (the decoders that reach a clock, interrupt or
+port operation; CNode only at Revoke / Delete, handled apart). -/
+def LoudF : capability.Cap → Prop
+  | .Thread _ => True
+  | .Untyped .. => True
+  | .IrqControl => True
+  | .IrqHandler _ => True
+  | .IoPort .. => True
+  | _ => False
 
 section
 variable {S A C : Type} {st : machine.Store S} {arI : machine.Arch A} {AR : A → C → Prop}
@@ -139,6 +152,18 @@ theorem MKD.decode_quiet {s : S} {a : A} {lbl length : Std.U64} {slot : obj.Slot
     {blk call don fp : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (hq : QuietF c) (h : AR a c₀) :
     syscall.decode_invocation st arI s a lbl length slot c blk call don fp buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
   cases c <;> simp only [QuietF] at hq <;> unfold syscall.decode_invocation <;> mkd_walk
+
+set_option maxHeartbeats 4000000 in
+/-- **FL4's CNode decode at a label other than Revoke and Delete keeps the arch
+state** (its other branches return the arch state they are given). -/
+theorem MKD.decode_cnode_nrd {s : S} {a : A} {lbl length : Std.U64} {slot : obj.Slot} {p r gs g : Std.U64}
+    {blk call don fp : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize}
+    (hr : lbl ≠ fl4_abi.label.CNodeRevoke) (hd : lbl ≠ fl4_abi.label.CNodeDelete) (h : AR a c₀) :
+    syscall.decode_invocation st arI s a lbl length slot (.CNode p r gs g) blk call don fp buf extra ⦃ r =>
+      AR r.2.2 c₀ ⦄ := by
+  unfold syscall.decode_invocation cnode.decode
+  mkd_walk
+  all_goals first | exact absurd ‹lbl = fl4_abi.label.CNodeRevoke› hr | exact absurd ‹lbl = fl4_abi.label.CNodeDelete› hd
 
 end
 

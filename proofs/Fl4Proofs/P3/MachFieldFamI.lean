@@ -11,7 +11,10 @@ SchedControl or arch cap decodes to (`QInv`), and by `freeMemory` (a
 * `QuietS` (the spec cap kinds other than CNode, Untyped, Thread,
   IrqControl, IrqHandler) and `dec_quiet`: every `ok` outcome of a quiet
   cap's `fl4DecodeInvocation` is a `QInv` invocation.
-* `mtk_specTailG` the reply tail of `handle_invocation`.
+* `dec_cnode_q`: a CNode cap at a label other than Revoke / Delete decodes to a
+  `QInv` invocation (CNode copy / mint / move / mutate / rotate / cancel).
+* `mtk_specTailG`, `mtk_fl4ReplyFromKernelErrorG`: the reply tails of
+  `handle_invocation`.
 -/
 import Fl4Proofs.P3.MachFieldFamS
 import Fl4Proofs.P3.SpecNoPre
@@ -131,6 +134,9 @@ theorem mtk_fl4ReplyFromKernelErrorG (r : Bool) (t : ObjRef) (x : Data × List D
 
 /-- **The invocations of the quiet cap kinds** (module docstring). -/
 def QInv : Fl4Invocation → Prop
+  | .invokeCNode (.revokeCall _) => False
+  | .invokeCNode (.deleteCall _) => False
+  | .invokeCNode _ => True
   | .invokeEndpoint .. => True
   | .invokeNotification .. => True
   | .invokeReply .. => True
@@ -152,7 +158,11 @@ theorem mtk_withoutPreemptionE {α : Type} {m : SMonad Unit α} (h : MTK m) :
 /-- **A `QInv` invocation's perform keeps `msFT`** (module docstring). -/
 theorem qInv_perform (b c d : Bool) (inv : Fl4Invocation) (h : QInv inv) :
     MTKE (fl4PerformInvocation (Z := Unit) b c d inv) := by
-  cases inv <;> simp only [QInv] at h <;> unfold fl4PerformInvocation <;> mtk_auto
+  cases inv with
+  | invokeCNode i =>
+    cases i <;> simp only [QInv] at h <;> simp only [fl4PerformInvocation, invokeCnode] <;> mtk_auto
+    all_goals (rename_i heq; cases heq)
+  | _ => simp only [QInv] at h <;> unfold fl4PerformInvocation <;> mtk_auto
 
 /-- **The quiet spec cap kinds** (module docstring). -/
 def QuietS : Cap → Prop
@@ -173,6 +183,19 @@ theorem dec_quiet (fp : Bool) (lbl : Data) (args : List Data) (ci : CapRef) (sl 
     | exact NoPre.okP_liftME fun _ => trivial
     | exact NoPre.okP_pure trivial
     | (split <;> first | exact NoPre.okP_throw | exact NoPre.okP_pure trivial | exact NoPre.okP_liftME fun _ => trivial)
+
+set_option maxHeartbeats 2000000 in
+/-- **A CNode cap at a label other than Revoke and Delete decodes to a `QInv`
+invocation.** -/
+theorem dec_cnode_q (fp : Bool) (lbl : Data) (args : List Data) (ci : CapRef) (sl : CslotPtr) (p : ObjRef)
+    (b : Nat) (g : List Bool) (ex : List (Cap × CslotPtr)) (buf : Option ObjRef)
+    (hr : genInvocationType lbl ≠ .cnodeRevoke) (hd : genInvocationType lbl ≠ .cnodeDelete) :
+    NoPre.OkP QInv (fl4DecodeInvocation (Z := Unit) fp lbl args ci sl (.cnodeCap p b g) ex buf) := by
+  simp only [fl4DecodeInvocation, NonDetE.throwError]
+  split
+  · exact NoPre.okP_throw
+  · exact NoPre.okP_liftME' (NoPre.dec_cnode_noPre lbl args _ _ hr hd) fun i h => by
+      cases i <;> simp_all [NoPre.PreInv, QInv]
 
 end
 
