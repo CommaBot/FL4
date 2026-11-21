@@ -738,7 +738,7 @@ theorem decode_invocation_sched_context_yieldJ (s : S) (a : A) (σ : Fl4Spec.Sta
   have : b1 = false := Bool.eq_false_iff.2 (fun h => hte (hb1.1 h))
   simp only [this, Bool.false_eq_true, ↓reduceIte]
   have hne' : t.bv ≠ ct.bv := bv_ne hte
-  obtain ⟨xm, hkm, hmc⟩ := J.mcp ct hctT
+  obtain ⟨xm, hkm, hmc, -⟩ := J.mcp ct hctT
   rw [hkc] at hkm; cases hkm
   obtain ⟨xy, hky, hyc⟩ := J.yld.tcb ct hctT
   rw [hkc] at hky; cases hky

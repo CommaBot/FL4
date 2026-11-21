@@ -70,6 +70,21 @@ theorem bufKeep_mcp {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = 
   · subst e; rw [hk] at hp; cases hp; exact ⟨{ x with tcbMcpriority := m }, by simp [updK], rfl⟩
   · exact ⟨x', by simp [updK, e, hp], rfl⟩
 
+/-- The flags update of one TCB is a `QKM` step. -/
+theorem QKM.flags {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (f : TcbFlags) :
+    QKM σ (updK σ t (.tcb { x with tcbFlags := f })) := by
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
+  by_cases e1 : q = t
+  · subst e1; exact Or.inr (Or.inl ⟨x, { x with tcbFlags := f }, hk, by simp [updK], rfl⟩)
+  · exact Or.inl (by simp [updK, e1])
+
+theorem bufKeep_flags {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (f : TcbFlags) :
+    ∀ p x', σ.kheap p = some (.tcb x') → ∃ y, (updK σ t (.tcb { x with tcbFlags := f })).kheap p =
+      some (.tcb y) ∧ y.tcbIpcBuffer = x'.tcbIpcBuffer := fun p x' hp => by
+  by_cases e : p = t
+  · subst e; rw [hk] at hp; cases hp; exact ⟨{ x with tcbFlags := f }, by simp [updK], rfl⟩
+  · exact ⟨x', by simp [updK, e, hp], rfl⟩
+
 /-- The IPC-buffer update of one TCB keeps the MCPs. -/
 theorem mcpKeep_buf {σ : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x)) (b : VSpaceRef) :
     McpKeep σ (updK σ t (.tcb { x with tcbIpcBuffer := b })) := fun p x' hp => by
@@ -583,6 +598,126 @@ theorem JAtZ.mcpWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => WideW.oobj (st := st) (T := Z.T) (N := Z.N) (C := Z.C) (c := Z.c) (σ := σ)
       (Or.inl ⟨t, ht, by rw [hb, hKt]; omega, by rw [hb, hKt]; omega⟩))
       (fun b hb u hu => Sched.tVcpuA_ne (K := 3440) hT ht hu (by rw [hb, hKt]) (by omega) (by omega)) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback (IpcFrKeep.of_updTcb hk rfl rfl) hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
+
+
+set_option maxHeartbeats 8000000 in
+/-- **A TCB's flags word at `J`** (SetFlags; `JAtZ.mcpWrJ` at offset 3456,
+KENTRY-PLAN g5d): FL4's flags word (P1's `BlkOK` by `plainW_all`), the spec's
+`tcb_flags` (`XTopAt.bufSpec`, a `QKM` step), `McpRel` by `McpRel.setF`; the other fields
+as `JAtZ.reg_frameF` (the write a `WideW` word). -/
+theorem JAtZ.flagsWrJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (v : U64) (f : Fl4Spec.TcbFlags) (hv : Fl4Spec.wordToTcbFlags v.bv = f) :
+    ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D (L.wr s (flagsA t) v) a
+      (updK σ t.bv (.tcb { x with tcbFlags := f })) := by
+  have hT : TcbPlaced Z.T := J.ip.e.tcb
+  have hta := hT t ht
+  have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
+  have hKt : (flagsA t).val = t.val + 3456 := flagsA_val hT ht
+  have hwa : P1.Aligned (flagsA t) := flagsA_aligned hT ht
+  set s' := L.wr s (flagsA t) v with hs'
+  set σ' := updK σ t.bv (.tcb { x with tcbFlags := f }) with hσ'
+  have hw : P1.WritesIn st s s' (· = flagsA t) := P1.writesIn_wr hwa
+  obtain ⟨hblk, hfoot0, -⟩ := P1.plainW_all (K := 3456#u64) (v := v) J.blk htH (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+  have hfoot : P1.WritesIn st s (L.wr s (flagsA t) v) (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
+      (P1.Heap.scBits H) ∅ s) := hfoot0
+  have hA : QKM σ σ' := QKM.flags hk f
+  have hX' : XTopAt (L := L) AR Z s' a σ' :=
+    (J.xtop.tcbWr ht 3456#u64 (Or.inr (Or.inr (Or.inr rfl))) v).bufSpec (tcbFlagsStep_upd hk f)
+  have hks : L.ksb s' = L.ksb s := hw.1
+  have hS := J.xtop.fin.1.1.1
+  obtain ⟨Q, R0, hc, hs⟩ := hS.lists
+  have hwW : P1.WritesIn st s s' (WideW (st := st) Z.T Z.N Z.C Z.c s σ) :=
+    hw.mono fun b hb => Or.inl ⟨t, ht, by rw [hb, hKt]; omega, by rw [hb, hKt]; omega⟩
+  -- the words other than `t`'s flags kept
+  have keep : ∀ b, P1.Aligned b → b ≠ flagsA t → L.mem s' b = L.mem s b := fun b hb hne =>
+    hw.mem_eq hb hne
+  have hBW : BufWordRel Z.T (L.mem s') σ' := by
+    refine J.buf.frame (fun u hu => keep _ (tIpcBufA_aligned (hT u hu)) fun e => ?_) (bufKeep_flags hk f)
+    have h1 := tIpcBufA_val (hT u hu)
+    rw [e, hKt] at h1
+    have a1 := (hT t ht).align; have a2 := (hT u hu).align
+    by_cases eu : u = t
+    · subst eu; omega
+    · have := val_ne_of_ne eu; omega
+  have hI3 := hX'.irelK (by rw [hks]; exact J.ks) hBW
+  have hI := J.xtop.irelK J.ks J.buf
+  have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hw fun b hb =>
+    Or.inr (Or.inr (Or.inl ⟨t, ht, by rw [hb, hKt]; omega, by rw [hb, hKt]; omega⟩))
+  have hck : Fl4Proofs.P3.CKeep σ σ' := hA.ckeepP
+  have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
+  obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hI3 hAR hF.1 hck.cdt hck.orig hck.ks hF.2
+  have hwF0 : P1.WritesIn st s s (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) :=
+    ⟨rfl, rfl, fun _ _ _ => rfl⟩
+  -- the yield, SC-reply and reply-link words: not `t`'s flags word
+  have k2 : ∀ u ∈ Z.T, L.mem s' (yieldA u) = L.mem s (yieldA u) := fun u hu =>
+    keep _ (yieldA_aligned hT hu) fun e => by
+      have h1 := yieldA_val hT hu
+      rw [e, hKt] at h1
+      have a1 := (hT t ht).align; have a2 := (hT u hu).align
+      by_cases eu : u = t
+      · subst eu; omega
+      · have := val_ne_of_ne eu; omega
+  have k3 : ∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q) := fun q hq =>
+    keep _ (sc_reply_word hS hq).1 fun e => by
+      obtain ⟨y, n, hky, -⟩ := hs.scs q hq
+      obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+      have hHq := (hJ.sc q y n (J.c0 q hq) hky).2
+      have hz := J.kern.heap.scmin q _ hHq
+      have h128 : 2 ^ 7 ≤ 2 ^ (n + Fl4Spec.minSchedContextBits) := Nat.pow_le_pow_right (by norm_num) hz
+      have hv := (sc_reply_word hS hq).2.1
+      rw [e, hKt] at hv
+      have hne : q ≠ t := fun e' => by rw [e', J.zH.1 t ht] at hHq; cases hHq
+      have := J.kern.heap.disj q _ t _ hHq (J.zH.1 t ht) hne
+      simp only [P1.HKind.bits] at this
+      omega
+  have k4 : ∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r) := by
+    intro r hr
+    have hal := J.rp.align r hr
+    have h8 := rPrevA_val hal
+    have h16 := rNextA_val hal
+    have k : ∀ a' : U64, (a'.val = r.val + 8 ∨ a'.val = r.val + 16) → L.mem s' a' = L.mem s a' := fun a' ha =>
+      keep _ (J.rp.aligned hr ha) fun e => by
+        have := J.rp.tcb r hr t ht; rw [e, hKt] at ha; omega
+    exact ⟨k _ (Or.inl h8), k _ (Or.inr h16)⟩
+  have ck := hA.callKeep
+  obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
+  have hRF' := RFree.carry J.rfree J.call k4 ck
+  have hRR' := J.rrecv.frame k4 hA.khrb
+  have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
+  have hKd := J.kw_dbgKeep (hfoot.mono fun b hb => kw_empty_mono hb _)
+  have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
+  have hAI3 : ActIdle σ' := hA.actIdle J.act
+  have hyk : YKeep σ σ' := by
+    refine ⟨fun q y hq => ?_, fun q y n hq => ?_, fun q y n hq => ?_⟩
+    · by_cases e : q = t.bv
+      · subst e; rw [hk] at hq; cases hq; exact ⟨{ x with tcbFlags := f }, by simp [hσ', updK], rfl⟩
+      · exact ⟨y, by simp [hσ', updK, e, hq], rfl⟩
+    · by_cases e : q = t.bv
+      · subst e; rw [hk] at hq; cases hq
+      · exact ⟨y, by simp [hσ', updK, e, hq], rfl⟩
+    · by_cases e : q = t.bv
+      · subst e; simp [hσ', updK] at hq
+      · exact ⟨y, by simpa [hσ', updK, e] using hq, rfl⟩
+  have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qm hA hS3 hI3.1 hwW k3 hAI3.1 (J.yld.frame k2 hyk) hyk
+  have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => hA.szKeep q.bv y n hq) hks (J.wideW_irq hwW)
+      (J.idleW_keep hS3 hA.idle hA.isc).2⟩
+  have hkern := J.kern_keep hks hwW.2.1 hS3 hA.ct hA.csc (fun sl h => Or.inl (by rw [← hA.orig]; exact h))
+    (by rw [hA.arch])
+    (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hDbg
+    (D' := D)
+  have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.setF hT ht hk hv, hBW, hRP',
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
+      J.wideW_utc hwW hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, J.inv.updSame hk rfl rfl (Or.inl rfl), hA.cur J.cur,
+      hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
+  have hC0 := JCs.same J hF.1 hA.ksz
+  have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => WideW.oobj (st := st) (T := Z.T) (N := Z.N) (C := Z.C) (c := Z.c) (σ := σ)
+      (Or.inl ⟨t, ht, by rw [hb, hKt]; omega, by rw [hb, hKt]; omega⟩))
+      (fun b hb u hu => Sched.tVcpuA_ne (K := 3456) hT ht hu (by rw [hb, hKt]) (by omega) (by omega)) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback (IpcFrKeep.of_updTcb hk rfl rfl) hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
 
 end
 

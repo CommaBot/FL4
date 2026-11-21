@@ -189,7 +189,7 @@ theorem JTH.tmoBlockJA {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
         (writesIn_wr (v := b) (a_fw0 hta).1)).trans (writesIn_wr (v := 0#u64) (a_fw1 hta).1)).trans
         (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
       refine w.mono fun w0 hw0 => ?_
-      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664) ∧ w0.val = t.val + K := by
+      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
         rcases hw0 with ((h | h) | h) | h <;> subst h
         · exact ⟨3376, by omega, by omega, by omega, by omega, by omega, val_fault hta⟩
         · exact ⟨3384, by omega, by omega, by omega, by omega, by omega, val_fw0 hta⟩

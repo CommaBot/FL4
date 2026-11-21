@@ -77,9 +77,17 @@ def mcpA (t : U64) : U64 := core.num.U64.wrapping_add t 3440#u64
 theorem obj.Tcb.mcp.spec' (s : S) (t : obj.Tcb) : obj.Tcb.mcp st t s ⦃ v => v = L.mem s (mcpA t) ⦄ := by
   unfold obj.Tcb.mcp; step*; simp_all [mcpA, layout.tcb.MCP, layout.tcb.F]
 
-/-- **The MCP relation**: each TCB's `MCP` word is its `tcb_mcpriority`. -/
+/-- The flags word of the TCB at `t` (`layout::tcb::FLAGS`, offset 3456). -/
+def flagsA (t : U64) : U64 := core.num.U64.wrapping_add t 3456#u64
+
+/-- **The MCP and flags relation**: each TCB's `MCP` word is its
+`tcb_mcpriority`, and its flags word (`flagsA`) gives its `tcb_flags`
+(l4v `tcb_relation`'s flags part, KENTRY-PLAN g5d: carried here with the MCP
+word, so every step that keeps `McpRel` keeps the flags; both words are
+written only by SetMCPriority / SetFlags and zeroed at a TCB retype). -/
 def McpRel (T : Set U64) (m : U64 → U64) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ (m (mcpA t)).val = x.tcbMcpriority.toNat
+  ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ (m (mcpA t)).val = x.tcbMcpriority.toNat ∧
+    Fl4Spec.wordToTcbFlags (m (flagsA t)).bv = x.tcbFlags
 
 theorem w8_gt_iff {p q : U64} {x y : Fl4Spec.Priority} (hp : p.val = x.toNat) (hq : q.val = y.toNat) :
     p > q ↔ x > y := by
@@ -216,7 +224,7 @@ theorem yieldto_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ :
   have : b1 = false := by rw [hb1]; simpa using hte
   simp only [this, Bool.false_eq_true, ↓reduceIte]
   have hne' : t.bv ≠ ct.bv := bv_ne hte
-  obtain ⟨xm, hkm, hmc⟩ := hM ct hct
+  obtain ⟨xm, hkm, hmc, -⟩ := hM ct hct
   rw [hkc] at hkm; cases hkm
   obtain ⟨xy, hky, hyc⟩ := hY.tcb ct hct
   rw [hkc] at hky; cases hky

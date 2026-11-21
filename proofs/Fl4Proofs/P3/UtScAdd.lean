@@ -418,7 +418,7 @@ theorem cnYKeep (hC : CnStep σ σ') : YKeep σ σ' :=
 
 theorem addS_McpKeep (h : SpecAdd σ σ' (SWc Wc) (fun _ => .schedContext defaultSchedContext n)) (hC : CnStep σ' σ'') :
     McpKeep σ σ'' :=
-  fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF (h.kold hp); ⟨y, hy, hc.mcp⟩
+  fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF (h.kold hp); ⟨y, hy, hc.mcpF⟩
 
 theorem addS_BufKeep (h : SpecAdd σ σ' (SWc Wc) (fun _ => .schedContext defaultSchedContext n)) (hC : CnStep σ' σ'') :
     ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ''.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer :=

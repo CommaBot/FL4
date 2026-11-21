@@ -97,7 +97,7 @@ theorem jowes_slotDFH {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcpF⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 hC.toHStep.khrb
