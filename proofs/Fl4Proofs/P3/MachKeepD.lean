@@ -26,6 +26,7 @@ topo.py): the TLB and EPT invalidations, `set_vspace`, `dma_frame`,
   `loop.spec_decr_nat` with `AR` as the invariant; top `MKD.objects_finalise_cap`.
 -/
 import Fl4Proofs.P3.MachKeep
+import Fl4Proofs.P1.SyscallGen
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -176,7 +177,7 @@ theorem MKD.objects_retire_dma_frame {s : S} {a : A} {ptr : Std.U64} {size : cap
 
 theorem MKD.sched_suspend {s : S} {a : A} {t : obj.Tcb} (h : AR a c₀) :
     sched.suspend st arI s a t ⦃ r => AR r.2 c₀ ⦄ := by
-  unfold sched.suspend; mkd_walk
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old; mkd_walk
 
 theorem MKD.schedcontext_complete_yield_to {s : S} {a : A} {yielder : obj.Tcb} (h : AR a c₀) :
     schedcontext.complete_yield_to st arI s a yielder ⦃ r => AR r.2 c₀ ⦄ := by
