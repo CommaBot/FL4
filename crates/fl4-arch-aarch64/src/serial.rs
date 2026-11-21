@@ -63,9 +63,11 @@ fn uwr(r: u64, v: u32) {
 }
 
 pub fn putc(c: u8) {
-    let b = BASE.load(Ordering::Relaxed);
+    // BASE, SHIFT and WIDE only after KIND's acquire (init publishes
+    // them with its release).
     match KIND.load(Ordering::Acquire) {
         KIND_PL011 => {
+            let b = BASE.load(Ordering::Relaxed);
             let mut n = 0u32;
             while rd32(b + PL011_FR) & FR_TXFF != 0 && n < 1_000_000 {
                 core::hint::spin_loop();
@@ -86,9 +88,11 @@ pub fn putc(c: u8) {
 }
 
 pub fn getc() -> Option<u8> {
-    let b = BASE.load(Ordering::Relaxed);
+    // BASE, SHIFT and WIDE only after KIND's acquire (init publishes
+    // them with its release).
     match KIND.load(Ordering::Acquire) {
         KIND_PL011 => {
+            let b = BASE.load(Ordering::Relaxed);
             if rd32(b + PL011_FR) & FR_RXFE != 0 {
                 None
             } else {

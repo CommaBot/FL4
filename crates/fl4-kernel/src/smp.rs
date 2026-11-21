@@ -81,32 +81,36 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     let len = unsafe { &fl4_ap_trampoline_end as *const u8 as usize } - tramp as usize;
     let data_off = unsafe { &fl4_ap_data as *const u8 as usize } - tramp as usize;
     let boot_root = if snp_guest { 0 } else { paging::ap_boot_root() };
-    let mut next = 1;
-    for (i, &id) in apic_ids.iter().enumerate() {
-        if next >= max || !crate::acpi::first_listing(apic_ids, i) || !fl4_arch_x86_64::spec::allow_ap(
+    let mut aps = [(0usize, 0u32); percpu::MAX_CPUS];
+    let n = crate::ap_order::select(apic_ids, max, |i, id| {
+        if !crate::acpi::first_listing(apic_ids, i) || !fl4_arch_x86_64::spec::allow_ap(
             id, bsp, smt_shift, fl4_arch_x86_64::spec::no_smt()) {
-            continue;
+            return false;
         }
         // An ID this APIC mode cannot name (an x2APIC entry above 0xfe in
         // xAPIC mode would be truncated to another core's), or the
         // broadcast ID, which would reset every core.
         if !apic::valid_physical_dest(id, apic::is_x2apic()) {
             kprintln!("FL4: skipping core with APIC id {:#x}: not addressable in this APIC mode", id);
-            continue;
+            return false;
         }
-        let c = next;
-        let stack_top = percpu::stack_top(c);
+        true
+    }, &mut aps);
+    let entry = fl4_ap_main as *const () as u64;
+    crate::ap_order::bring_up(&aps[..n], snp_guest, |c, _| {
+        crate::snp::prepare_ap(c, percpu::stack_top(c), entry);
+    }, |c, id| {
         let before = smp::num_online();
         if snp_guest {
-            crate::snp::start_ap(c, id, stack_top, fl4_ap_main as *const () as u64);
+            crate::snp::start_ap(c, id);
         } else {
             unsafe {
                 core::ptr::copy_nonoverlapping(tramp, pptr(AP_BASE) as *mut u8, len);
                 let d = (pptr(AP_BASE) as usize + data_off) as *mut u64;
                 d.write_volatile(boot_root);
                 d.add(1).write_volatile((1 << 8) | if f.efer_nx { 1 << 11 } else { 0 });
-                d.add(2).write_volatile(stack_top);
-                d.add(3).write_volatile(fl4_ap_main as *const () as u64);
+                d.add(2).write_volatile(percpu::stack_top(c));
+                d.add(3).write_volatile(entry);
                 d.add(4).write_volatile(c as u64);
             }
             // INIT, then two STARTUPs with the trampoline's page number.
@@ -143,8 +147,7 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             // or release userspace before its capabilities are known.
             crate::fail("AP startup timed out; refusing to start userspace");
         }
-        next += 1;
-    }
+    });
     smp::num_online() as usize
 }
 

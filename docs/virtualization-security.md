@@ -10,7 +10,9 @@ The selector in `spec/policy.rs` is pure and tested against capability and
 firmware combinations. Every logical CPU is probed before VM initialization.
 Missing requirements on the boot processor leave VCPU/EPT allocation unavailable
 and produce a boot diagnostic. Native-only boot still applies available
-mitigations and reports the incomplete protection. Incompatible AP capabilities
+mitigations (the native entry barriers, STIBP, BHI controls and TSX disabling
+`select` would choose, as far as the CPU provides them) and reports the
+incomplete protection. Incompatible AP capabilities
 or an enabled AP's startup timeout halt boot before userspace; see the SMP policy
 below. FL4 does not install firmware/microcode updates.
 
