@@ -7740,3 +7740,73 @@ Goal: RPos carried across the syscall entry and every event, and EpQAll at every
   `getRefillHead_eq` with `List.cons_ne_nil` cannot elaborate before the state is known: use `mem_getScRefillReady` /
   `mem_getRefillHead`.
 - Next: when rd6 lands `kentry_rdy` / `kcall_rdy`, pass them as `hRy`; carry `RPos` (and EpQAll) in the G1 bundle.
+## rd7 (branch par/rd7 in FL4-tcbj, on ffc921a4 = int/j2 incl. rd6, ctq9, epq1, g1b) — the syscall front carries OS; the cur_sc-active gap closed by a new carried fact; send_signal keeps Rdy (NOT finished: handoff 1 rest, 2, 3)
+Spec-only, namespace `Fl4Proofs.P3.SInvR`, new modules SpecInvRdP / RdK / RdL (root imports them). Nothing existing edited. No JAtZ cone.
+- **SpecInvRdP (generated, scratch/rd7/mkp.py, untracked).** `cfS σ := (consumedTime, curSc, curThread, idleThread, idleSc,
+  curTime)`, `CFK m := Vs.FK cfS m`: MachFieldFamT's MTK family (scratch/mr6) with the projection replaced, `cfk_doMachineOp`
+  for any `mop`; left out: `commit_time` (consumed := 0) and `invoke_sched_control_configure_flags` (commits when the
+  configured SC is cur_sc) — the only writers of these fields in the MTK set. ~260 lemmas, first build green.
+- **SpecInvRdK (handoff 1, the syscall front).** `OS σ := (OffReady ∧ Suff) ∨ (consumed = 0 ∧ action ≠ resume)` (rd4's hOS0 as
+  a predicate), `OSF` / `os_frame` (cfS kept, refills / max of the SC at cur_sc kept, resume not set), `os_setThreadState`.
+  `checkBudget_cases` (a check_budget outcome is the start state with Suff — sufficient, possibly domain-expired, value
+  false — or a charge_budget outcome with value false), `checkBudgetRestart_cases`, `cfk_endTimeslice`, `cbTail_cf`
+  (charge_budget's tail keeps cfS and is the identity when ct is not schedulable), `excl_entry`.
+  **`rd_cbr`** / **`rd_front`**: `(hR : Rdy σ) (hO : OffReady σ) (hv : ValidMachineTime σ) (hS : ScInv σ) (hcs : CurScT σ)
+  (hct : kheap ct = tcb xt) (hst : Running ∨ IdleThreadState) (hQ : CtQ σ) (hSi : Simple σ) (hCB : SInvQ.CB σ)
+  (hHB : resume → ct ∉ releaseQueue) (hCA : CAx σ) (hni : ct ≠ idle)`: every outcome r of `update_time_stamp ;
+  check_budget_restart` has `Rdy r.2 ∧ OS r.2 ∧ (r.1 = true → r.2 is an update_time_stamp outcome with Suff)`.
+  Charged branch: consumed = 0 (cbTail_cf); action ≠ resume because either it was not resume at the entry (nothing in
+  charge_budget sets resume) or ct is schedulable after the charge (CB: runnable; HB: not released; CAx + CurScT: cur_sc
+  active, the charge keeps max) and the tail sets choose_new (rd_cbTail').
+- **LEAD-DECISION GAP ("cur_sc active at check_budget"): not derivable, so carried.** No fact in SInvA', Rdy, OffReady,
+  CurScT or ctq's EX / RB reads the activity of the current thread's SC, and the spec's `schedule` has no
+  `assert (ct_schedulable ∨ ct = idle)` at resume_cur_thread (g1b's FINDING), so a state with ct bound to an inactive cur_sc
+  satisfies every carried fact. Narrowest fact: **`CAx σ := ct ≠ idle_thread → ActB σ ct`** (l4v: the schedule assert /
+  active_sc_tcb_at ct). `boot_cAx` done. Preservation (handoff 1b below): exit — schedule's switch / choose-new targets are
+  RdyT (R1 / R2) or idle, the resume branch keeps ct and its binding (FK), so CAx after schedule needs the mid-entry
+  `resume → CAx` at schedule's start; its writers under resume are exactly those that change ct's binding or its SC's
+  max (unbind / donate from ct / configure / set-inactive), each followed or preceded by reschedule_required. True in every
+  reachable state; not a premise (an entry hypothesis of rd_front carried as a G1 field, like OffReady).
+- **SpecInvRdL (handoff 2, signals).** `rdy_upd_bind` (bind a running thread outside the queues / switch / release queue),
+  `free_of_rdy` (unbound ⇒ outside all three, by R1 / R2 / R4), `rd_schedContextDonate_free` (an SC bound to no TCB to an
+  unbound non-BlkR thread: Rdy and the mutual binding afterwards), `SR t s := schedulable t s → RdyT s t`,
+  `t_mem_orderedInsert`, `rq_tcbReleaseEnqueue`, `rq_postpone`, **`sr_schedContextResume`** (resume postpones t unless its
+  head is ready), **`rd_maybeDonateSc_sr`**, `tcb_setThreadState`, **`rd_wake`** (the wake tail: set Running, badge, maybe
+  donate, possible_switch_to under the schedulable guard — RdyT by SR —, sporadic unblock check by rd_ifCond),
+  `rs_blockedCancelIpc` / **`rs_cancelIpc_recv`** (cancel_ipc of a receive-blocked thread: Rdy and SVS),
+  `sv_tcbEpDequeue` / `sv_tcbNtfnDequeue`, `rdyT_blk` (a BlkR bound thread is RdyT, carried along SVS),
+  `rd_updateWaitingNtfn`, **`rd_sendSignal (hR : Rdy σ) (hN : NtfnQB σ) : ∀ y ∈ send_signal n b σ, Rdy y.2`**.
+- Premises: none added (no [J]/[P]/[W]/[S]). New carried fact CAx (boot only; preservation is handoff 1b). Entry
+  hypotheses of rd_front: SInvA' fields (ScInv, CurScT, VMT, CtExit's Running ∨ IdleThreadState), Rdy / OffReady
+  (this line's carried facts), ctq's exit facts CtQ / Simple (EX) and CB / HB's resume clause (RB) — EX ∧ RB hold at every
+  exit by ctq's `rb_tail`; their event part is ctq10's (FL4-q), so at the tops they are the hypothesis `hEX : EX σ ∧ RB σ`
+  named after ctq's eventual `kentry_rb` / `kcall_rb`.
+- No FINDING. Checked: check_budget returns false without charging when the domain expired (state kept, OS's first
+  disjunct); check_budget_restart's `set_thread_state ct Restart` keeps OS (set_thread_state_act sets only choose_new);
+  send_signal's donated SC has no thread, so the woken thread was outside every scheduler set; resume postpones whenever the
+  head is not ready ∧ sufficient, so a schedulable woken thread is released.
+- HANDOFF (in order):
+  1. (a) OS ∧ Rdy across fl4Awaken: `rd_sendSignal` for Rdy (NtfnQB at each intermediate state: nq's `nq_sendSignal`), OS
+     via `cfk_sendSignal'` + "send_signal keeps refills / max of the SC at cur_sc" (its SC writes: donate writes scTcb only,
+     refill_unblock_check only for scp ≠ cur_sc, postpone none) — prove that as `OSF σ y.2` per arm reusing RdL's walk;
+     then the ReflTransGen induction for `fl4TimerFires`. (b) CAx's carry: the exit lemma (schedule ; activate_thread)
+     from `resume → CAx` at schedule's start, and the mid-entry form across the event part (frame: TCB binding of ct + SC
+     max, i.e. rd's SV view, so the RdF family's leaves give it; hand writers = the binding / max writers above).
+     (c) The non-overrun branch: OS's first disjunct across the syscall body (frames: CFK for the scalars + the SC at cur_sc
+     unchanged; writers: handle_yield's charge (rd_chargeBudget + cbTail_cf, as rd_cbr), preemption_point (time stamp +
+     Suff from its own test: rd2's), configure of cur_sc (commit then refill_new: OffReady with consumed 0 iff the new head
+     is ready — refill_new sets it at cur_time), set-inactive of cur_sc (Suff vacuous, OffReady: head of []). (d) CtR and hRC
+     at schedule's start (CtR: from OS + CurScT when resume; after the charge: end_timeslice's three arms).
+  2. rd6 handoff 2 rest: receive_ipc, send_ipc with donation, reply transfer, bind / configure (refill_new / refill_update by
+     hand), setPriority / yieldTo, retype / detype — reuse RdL's `rdy_upd_bind`, `rd_schedContextDonate_free`,
+     `sr_schedContextResume`, `rd_wake`'s shape.
+  3. Wrapper on fo1's fo_fl4CallKernel_of and the four tops (kentry_rdy / kcall_rdy / kentry_offReady / kcall_offReady):
+     front = rd_front, tail = rd_scheduleOff with `hAW` from ctq's sq lemmas (hypothesis named after ctq's eventual
+     event-part lemma) and OS from 1(a).
+- Builds (tokyo, FL4-tcbj mirror; ./rd7s.sh untracked = rd6s.sh with its own log + a sorry grep): rd7-b1 RdP (4596 jobs),
+  rd7-b2..b4 RdK (4978), rd7-b5 RdP+RdK + axioms (scratch/rd7/ax.lean), rd7-b6/b7 RdL (4980), rd7-b8 axioms
+  (scratch/rd7/ax2.lean). All: propext, Classical.choice, Quot.sound (os_frame, rdy_upd_bind: propext, Classical.choice; excl_entry:
+  propext, Quot.sound). No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three import lines).
+  Lean traps (again): `subst e` with `e : w = σ` eliminates σ (use `subst w`); `hvT_st` / `hvT_sc` need `(x := …)` when the
+  view is of a record update; a do-block `match` + trailing statement is a `have __do_jp` join point (`dsimp only`, then
+  `cases`); `simpa using hsch` normalises `schedulable` away — use `Bool.eq_false_iff.mpr`.
