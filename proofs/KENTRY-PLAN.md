@@ -10121,3 +10121,52 @@ untracked = rd13as.sh with its own log; proofs/scratch/rd14a/ax.lean untracked).
   refill_new / refill_update as above; suspend of ct: Inactive) — best done inside rd14b's PerfA (add `RT ct ∧ ¬BlkR ct` to its ok
   outcomes). (2) Then `kcall_rdyOff8` = `kcall_rdyOff7` with `RecvTB` discharged: only InvR, hRdB, hRdF. (3) rd8j: the
   `Simple`-free receive walk (FINDING above).
+
+## rd15a (branch par/rd15a in FL4-tcbj, on 4adaecd6 = int/j2 incl. rd14a, rd8j, rd8k, rd13a) — rd14a handoff (1) DONE for `Rdy` and `ScInv` (from carries), (2) DONE as `kcall_rdyOff8` / `kentry_rdyOff8`; `RT ct ∧ ¬BlkR ct` stays one pinned per-arm hypothesis `RecvTC` (rd14b's PerfA has not added it)
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A15a`, module SpecInvRd15aA (new; root imports it). Nothing existing edited. No
+JAtZ cone (scratch/rd13a/anc.py: SpecInvRd15aA clean). Key rd15a-1 (./rd15as.sh untracked = rd14as.sh with its own log;
+proofs/scratch/rd15a/ax.lean untracked).
+- **`Rdy` (goal 1).** `rdy_first (A8.EF σ) (T1 σ) (EB true σ) (IO (fun _ => σ.idleSc) σ) (VfhAll σ) rep (B8j.InvIn r true σ) hv ht
+  hg : ∀ t ∈ fl4HandleInvocationR rep false false true true g.1 at g.2, Rdy t.2` — EVERY outcome (not only `ok`), by rd8j's
+  `front_facts` (RB ct idleSc ∧ RdyT ct ∧ OffReady ∧ Suff ∧ FhAll after a true front) and `rd_shellAt` (rd8j's
+  `rd_fl4HandleInvocationR` after get_cap_reg). The only input is rd8j's pinned `PerfIn` (via `InvIn r true`), taken by name:
+  `InvP1 c σ := ∀ r cr, A12b.srArgs c = some (r, cr) → B8j.InvIn r true σ`. At the tops the entry facts come from the existing
+  hypotheses: T1 = `tq_t1` of the TQ in EB true, EB true = ⟨⟨hX.1, h4⟩, hR⟩ (inside EvP's DK), IdleScOutV = `hX10.isc`, VfhAll =
+  `hX10.eo.vfh`.
+- **`ScInv` (goal 2).** No new shell was needed: sb2's `SInvB.sb_handleInvocationR scGap` already carries ScInv over the whole
+  `fl4HandleInvocationR` from any state with ScInv and `Rel σe` (same cap view, binding frame) to an `EntryOK σe` state (rd14a's
+  "no sb2 carry over fl4HandleInvocationR" was an oversight). **`sc_first (EntryOK σe) (EvP C N S I d Nq σe s) … : ∀ t ∈
+  fl4HandleInvocationR … s, ScInv t.2`**: ScInv from EvP's SH, `Rel σe s` from EvP's sl3 `Js` (uV ∧ BR fields). EVERY outcome.
+- **`RT ct ∧ ¬BlkR ct` (goal 3): one named hypothesis, pinned to the run.** `RecvTC rep c σ`: at every `ok` first-phase outcome
+  (same quantifier prefix as rd14a's `RecvTB`), `(∃ x, kheap ct = tcb x ∧ ∀ f, ¬ BlkR x.tcbState f) ∧ B8d.RT t ct`. No existing
+  family carries ct's thread state or ct's SC readiness across the perform arms (checked: CKX / CKN / CK / DK / HB / CtQ / ctq's
+  R11.RT — the latter is only "resume ⇒ ct bound", not readiness); rd14b's PerfA (FL4-q par/rd14b, SpecInvRd12bC) is unchanged.
+  Not a [J]/[P]/[W]/[S] premise: a per-arm obligation like InvR. l4v: `invoke_*_valid_sched` + ct_active after a non-blocking
+  invocation.
+- **`recvTB_of (A8.EF σ) (EvP … σe σ) (IO idleSc σ) (VfhAll σ) (EntryOK σe) (InvP1 c σ) (RecvTC rep c σ) : A14a.RecvTB rep c σ`**;
+  `fip_eo` (EntryOK, IdleScOutV, VfhAll at the FaultIP outcome; rd13a's fip_evp preamble).
+- **STATEMENT (tops).** `kcall_rdyOff8 hnd rep ev σ hEF hEFI hX10 hX hR h4 hCX ha hN hS hRdB (hP : syscall c → A12b.InvR c σ) (hInv
+  : syscall c → InvP1 c σ) (hC : syscall c → RecvTC rep c σ) hRdF : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`;
+  `kentry_rdyOff8 … (hW : ∀ w ∈ fl4SyscallFaultIP ct σ, A9.RdBody rep c w.2 ∧ A12b.InvR c w.2 ∧ InvP1 c w.2 ∧ RecvTC rep c w.2)`.
+  vs rd14a's `*rdyOff7`: `RecvTB` (Rdy ∧ ScInv ∧ ct ¬BlkR ∧ RT ct) → `InvP1` (rd8j's PerfIn) + `RecvTC` (ct ¬BlkR ∧ RT ct).
+- **Remaining named hypotheses (exactly):** `hRdB` (RdBody, rd8j: PerfIn / PreR inside), `hP` (InvR, rd14b), `hInv` (rd8j's PerfIn
+  at the first phase: Untyped / ASIDControl Rdy, Reply BlockedScActive, DomainSet SR), `hC` (`RecvTC`), `hRdF` (rd8j); the rest are
+  carried entry facts (EF, EV10, EX, RB, T4, CtExit, NQ, SysF, ha). None [J]/[P]/[W]/[S] added.
+- **Why `RecvTC` holds in reachable states (checked on paper):** at entry ct is bound to cur_sc (CurScT; vi3's CtSc for the
+  pinned syscalls) with a ready head (OffReady), time does not advance inside the kernel. First phase = non-blocking,
+  non-calling: ct ends Running (invPost) / Restart, or Inactive (it suspended itself: suspend keeps the binding and refills), never
+  BlockedOn*; ct stays a TCB (detype needs a childless untyped, impossible in the same invocation that would delete ct's caps).
+  ct unbound at the outcome (reply_remove's donation back to the caller, NBSendRecv donating to a passive receiver, SC unbind /
+  SC cap deletion) ⇒ RT vacuous; ct still bound to cur_sc: refills untouched (ready head) except SchedControl configure of
+  cur_sc (commit_time then refill_new / refill_update: head at cur_time, ready); ct cannot be re-bound (bind needs an unbound TCB,
+  ct is bound at entry). No FINDING: nothing traced breaks Rdy / OffReady / RV / CAx.
+- Builds (tokyo, FL4-tcbj mirror; rd8j's cone compiled on the way): rd15a-1 SpecInvRd15aA green first try ("Build completed
+  successfully (5510 jobs)", ~80 s) + axioms (scratch/rd15a/ax.lean): rdy_first, sc_first, recvTB_of, fip_eo, kcall_rdyOff8,
+  kentry_rdyOff8: propext, Classical.choice, Quot.sound. No `declaration uses sorry`; no sorry / admit / native_decide /
+  bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (one import line).
+- HANDOFF (in order): (1) `RecvTC`: best inside rd14b's PerfA (add `(∃ x, ct tcb x ∧ ∀ f, ¬BlkR) ∧ B8d.RT ct` to its ok outcomes;
+  `recvTB_of` then takes it from InvR, and `*rdyOff8` lose `hC`). Arms: rd11a-frame arms give RdyT ct from OffReady at the body
+  start via KP; donation / unbind / SC-cap deletion arms leave ct unbound; configure of cur_sc via commit_time / refill_new /
+  refill_update; TCB suspend of ct: Inactive. The ¬BlkR half alone is a ct-state family over fl4PerformInvocation at blocking =
+  calling = false (the only BlockedOn* writes to ct are send_ipc blocking / receive_ipc / receive_signal). (2) rd8j's PerfIn (`hInv`,
+  also inside `hRdB`): Untyped / ASIDControl Rdy (retype / detype / MakePool), Reply BlockedScActive (rd8k's carry), DomainSet SR.
