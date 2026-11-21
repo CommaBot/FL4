@@ -11345,3 +11345,70 @@ XTopJointLiveCn); root imports both. No premise added to any existing theorem; n
   jowes_cn, jowes_sched, JAtZ.schW_notDbg, LiveDN.wstep, stepClosed_jatL, Steps.jatL, JAtZ.zNoBlk, JAtZ.cancelBadgedJL,
   cn_cancel_topJL, decode_invocation_cnode_cancelJL, decode_invocation_cnode_illegalXG, decode_invocation_cnodeJ_stepsLML:
   propext, Classical.choice, Quot.sound.
+## g2h (branch par/g2h in FL4-sc, on 3e814483 = int/j2 incl. g2g, rd8v, rd14c) — G2 eighth step: (d1) DONE (every `Steps`-based cap leaf ends in `LiveDN`, IO port `In` included, no `JStepHyps` / `JReplyHyp`); (b') (c) (e) (a') (d2) (f) NOT done: one structural blocker found and measured (hidden dead sets), plan below
+Goal: g2g "What remains" in the order (d1), (b'), (c), (e), (a'), (d2), then start (f). Commit d56b1033 (new leaf
+XTopJointLiveSt; root imports it). No existing module edited, no premise added to any existing theorem, no new axiom.
+
+### (1) (d1) the `Steps`-based leaves (commit d56b1033, leaf XTopJointLiveSt)
+- Each `…XS` lemma is generic in its post `X`, so the L versions instantiate `X := JAtL` directly (start `⟨…, J, hLv⟩`,
+  steps by `Steps.jatL` with `ZNoBlk` from `JAtZ.zNoBlk hsg`, `XTop` by `JAt.xtop (JAtL.toJAt h)`). Statements = the `JAt`
+  versions with the post `JAtL`, `hsg : SpecGlob σ` and `hLv : LiveDN Z.th H Cs Z.G s σ` added, `hJ : JStepHyps` (and
+  `hRep : JReplyHyp`) dropped (`Steps.jatL` needs no step premise):
+  `decode_invocation_irq_controlJ_stepL`, `decode_invocation_ioport_controlJ_stepL` (also drops the unused `hT`),
+  `decode_invocation_domainJ_stepL`, `decode_invocation_irq_handlerJLL` (already had hsg / hP0 / hLv),
+  `decode_invocation_ioportJ_stepsL`. The 9 `Steps.jat` uses of g2g (4) are covered: the two CNode ones
+  (MRCnode, WJLRestart) by g2g's `…stepsLML`, the other seven here.
+- IRQ handler (`IrqSteps.jatL`): primitive steps by `Steps.jatL`; on the deletion branch `WJL` after `delete_oneJL` IS
+  `WJR ∧ LiveDN` (LiveDN is the abbrev `LiveJ ∧ DbgWF ∧ NullOrig`), and `WJR` carries `SpecGlob`, so the steps after the
+  deletion run `Steps.jatL` from `J4` with `J4.zNoBlk hsg4`.
+- IO port `In` (labels 64..66): not only `Steps` — its tail is `reply1` (registers when called, then `Running`), which
+  went through `JReplyHyp`. New: `JAtZ.runJD` (XTopJointReply's `runJ`, same proof, the post names the dead set `D` and
+  adds SlotsSame (`tfoot_oobj`) and DbgKeep (`running_blk`'s `Foot`)); `JAtZ.regWrSD` (one register write: SlotsSame by
+  `tcb_oobj`, offset 256..447; DbgKeep by `foot_field`); `JAtZ.reply1JL` (`reply1J` from `J.addDeadSet hL.1.ztcb`,
+  `LiveDN.of_jstep` at the end, original bits by `orig_eq_of_slots`, idle by `stsAct`); `portInTail_jatL`,
+  `decode_invocation_ioport_inJL` (copies of the PortIn chain at `JAtL`). I copied `runJ` into the leaf instead of
+  re-stating it in place because XTopJointReply has 246 downstream modules; folding `runJD` back (runJ as its corollary)
+  belongs to the next cone batch.
+
+### (2) FINDING (structural, not a reachability problem): the J-level posts hide the dead set
+- `LiveDN.of_jstep` needs `ZTcb Z.th s ⊆ D'` for the `JAtZ … D' s' σ'` after the step (the TCB zombies' TCBs dead, read
+  from `J'.jcov.dead`). Every carry so far gets it by starting from `J.addDeadSet hL.1.ztcb` and using a step lemma whose
+  post keeps the dead set (`jowes_*D`, `regWrJ`, `cancelBadgedJ`, now `runJD`).
+- Measured on this branch (theorem statements with a `⦃ … ⦄` post mentioning `JAtZ`): **129 lemmas in 87 files hide
+  the dead set (`∃ … (D' : Set U64)`), 162 keep `D`.** The hiding ones include every lemma the remaining families end in:
+  finish (`jat_scheduleSR2ZRP`, `JAtZ.activateJ`, `jat_finishJRP` — (e)), the IPC send / receive family that
+  `xferStepGJ` feeds (XTopJointSend*, XTopJointRecvSend*: 18 modules, ~17.4k lines; `wake_postD`, `sendUnblockJ`,
+  `sendTailJ`, `bufRebaseX` — (b')), the hole rebuilds of `hPre_ofZQIMN` ((a')), the retype / reset leaves ((c)), and the
+  SC / SchedControl / TCB configure / VSpace J leaves ((d2)). In every case I read, the proof itself constructs the
+  final `JAtZ` with the incoming `D` (as `runJ` did: `exact ⟨Lst', D, J.sc_frame …⟩`), so exposing it is a statement
+  change plus `⟨Lst', J', …⟩` destructurings at the callers — but a cone change, and the posts compose (a lemma keeps
+  `D` only if all its sub-lemmas do).
+- No step found that breaks `LiveDN` in native scope; no premise false in reachable states was added (none was added at
+  all).
+
+### (3) What remains, and the plan I recommend (exact)
+- (b'), (c), (e), (a'), (d2) are each blocked first by (2), then by their own slot / debug-list facts (grant insert:
+  `LiveDN.wstep` / `insC` at `xferStepGJ`'s base `(y, σy)`, whose `JAtZ` keeps `D`; retype: g2f's debug-list loop
+  invariant; the rest are frames). A `…L` copy per family would duplicate the 129 lemmas' chains.
+- Recommended order (changes g2g's (f) recommendation): do (f) as the FIELD route, not the generic-post route. Adding
+  `live : LiveDN Z.th H Cs Z.G s σ` to `JAtZ` (or `JExt`) moves every obligation to a construction site, where the
+  incoming `J`, its `D` and the step's frames are in scope: `LiveDN.of_jstep J J.live J' … (J.addDeadSet …)` closes the
+  frame sites, `LiveDN.wstep` / `insC` the slot writers, and only the debug-list writers (retype's `debug_append`, (c))
+  need new proofs. The hidden `D'` then no longer matters (each construction proves its own `live`). Counts from g2g (4)
+  stand: 224 `ext := ` record constructions in 80 files, 5 frame constructors `JAtZ.cs_frame{,B,I,IS,V}` with 102 call
+  sites in 70 files. The generic-post route would still need every leaf to carry `LiveDN` past those 129 lemmas, i.e.
+  the same per-construction work done twice (once to expose `D`, once for `LiveDN`).
+- Prerequisite batch (one cone rebuild): (i) re-state `runJ` as `runJD`'s corollary (XTopJointReply) and drop the leaf
+  copy; (ii) the field with its frame lemma; (iii) `cs_frame*` take `live` as an argument. Then per family a leaf batch.
+  `kernel_entryJ34` without `hLv` (J33 kept) once the field is built; `LiveBootW` [W] stays the boot obligation.
+
+### (4) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2h.sh (= g2g.sh reading g2h.files, untracked). g2h-b1: two errors (`rw [heq]` against
+  the unfolded `reply1` body → `show vspace.reply1 … = ok s3 from heq`; my slice of `reply1J` took the section's `end`);
+  g2h-b2: "Build completed successfully (5602 jobs)"; g2h-b2c: "Built Fl4Proofs.P3.XTopJointLiveSt (7.9s)", success, plus
+  axioms. No sorry / admit / native_decide / bv_decide in XTopJointLiveSt. Root Fl4Proofs.lean (one import line) not
+  rebuilt.
+- Axioms (scratch/g2h/ax1.lean, untracked; task g2h-b2c): JAtZ.regWrSD, JAtZ.runJD, JAtZ.reply1JL, portInTail_jatL,
+  decode_invocation_ioport_inJL, decode_invocation_ioportJ_stepsL, IrqSteps.jatL, decode_invocation_irq_handlerJLL,
+  decode_invocation_irq_controlJ_stepL, decode_invocation_ioport_controlJ_stepL, decode_invocation_domainJ_stepL:
+  propext, Classical.choice, Quot.sound.
