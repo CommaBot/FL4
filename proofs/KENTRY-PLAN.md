@@ -10170,3 +10170,75 @@ proofs/scratch/rd15a/ax.lean untracked).
   refill_update; TCB suspend of ct: Inactive. The ¬BlkR half alone is a ct-state family over fl4PerformInvocation at blocking =
   calling = false (the only BlockedOn* writes to ct are send_ipc blocking / receive_ipc / receive_signal). (2) rd8j's PerfIn (`hInv`,
   also inside `hRdB`): Untyped / ASIDControl Rdy (retype / detype / MakePool), Reply BlockedScActive (rd8k's carry), DomainSet SR.
+## rd8m (branch par/rd8m in FL4-r3, on 1f88d1ed = int/j2 incl. rd8j, rd8k, rd13a, rd12a/b, rd13b) — rd8j handoff 1 DONE up to one pinned input (`RcvIn`: rd14a's `RecvTB` without `Rdy`), `Simple`-free receive walk (lead's note on rd14a's FINDING) DONE, RdBody for every syscall (`rdBody_all`); 2 (PreR) answered, NOT proved; 3 checked, NOT done; 4 DONE as far as (1)-(2) allow (`kcall_rdyOff6m`)
+Spec-only, new names under `Fl4Proofs.P3.SInvR.B8m`, modules SpecInvRd8mA / B / C / D / E (root imports them). Nothing existing edited.
+No JAtZ cone (scratch/rd8h/anc.py on SpecInvRd8mD: 965 modules, no JointAt / XTopJointDelR / JAtZ). Keys rd8m-1..N (./rd8ms.sh
+untracked = rd8js.sh with its own log; proofs/scratch/rd8m/ untracked: the extraction texts of the generated copies, ax.lean).
+- **SpecInvRd8mA (handoff 1(a): an unbound faulting thread).** `rd_threadSet_rt` (TCB write keeping SC and `SV` at an `RT` thread),
+  `fh_factsT`; `rd_sendArm_dT` / **`rd_sendIpc_dT`** (rd8d's send with an `RT` sender, `RdyT` only when `canDonate`: handle_fault
+  passes canDonate = sender bound, so RT gives it); `HBT`, `rd_sendFaultIpcT`, **`rd_hfT`**; `RHT`, `rd_handleRecvT` (still with
+  rd8e's `RcvS` ∋ `Simple`: superseded by C for the send-receive tails, kept for states where `Simple` holds).
+- **SpecInvRd8mB (the donation chain without `Simple`).** rd8c's `rd_schedContextDonate_rel` reads `Simple` only for "the SC's
+  holder is not the switch target". `NSwP p s` (no TCB bound to `p` is the switch target), `NSwT t s` (NSwP of t's SC),
+  `nswP_svs` / `nswT_svs` (along SVS steps), **`nswT_of (ScInv s) (NSw t s) : NSwT t s`** (sb2's ScBackS: the holder is unique),
+  `nswT_upd`; `rd_schedContextDonate_relN` / `_relTN`, `rd_replyPush_dN`, `rd_sendArm_dN`, **`rd_sendIpc_dN`** (generated from
+  rd8c / rd8d / A by text substitution, `Simple` ↦ `NSwT`), `HBN t := Rdy ∧ RT t ∧ T1 ∧ NSwT t ∧ ScInv`, `rd_sendFaultIpcN`,
+  **`rd_hfN`** (handle_fault: thread possibly unbound, no Simple).
+- **SpecInvRd8mC (handle_recv without `Simple`).** `RcvN s t` = rd8e's `RcvS` with `Simple` ↦ `NSw t ∧ SA` (ctq's scheduler slices,
+  `sa_*` leaves); `rd_recvSenderN` (SA / ScInv over do_ipc_transfer and the unblock check; the sender is BlockedOnSend, ctq's RA makes
+  the switch target runnable, so `np_of_nr` gives NSw sender, `nswT_of` NSwT sender), `rd_recvTailN`, `rd_recvRestN`,
+  `rcvN_cancelIpc`, `rcvN_when`, **`rd_receiveIpcN`**, `rd_receiveSignalBlockedN`, **`rd_receiveSignalN`** (NSw ct only);
+  `RHN C := RcvN C ∧ RBk true ∧ ct = C` (no RdyT C, no Simple), **`rd_handleRecvN C blk cr : HK (RHN C) Rdy (handle_recv blk cr)`**
+  (lookup fault: `rd_hfN` with NSwT ct from NSw ct ∧ ScInv), **`rhn_of (Rdy s) (ScInv s) (ct a TCB not BlkR) (RT ct) (EB true s) :
+  RHN ct s`** (T1 / SA / CtQ / NP ct / RBk from ctq's EB true).
+- **SpecInvRd8mD (RdBody).** `sr_core`; `RcvIn rep c σ` (pinned: at every ok first-phase invocation outcome of the shell's run from
+  every true front outcome, `ScInv ∧ ct a TCB not BlkR ∧ RT ct`); **`rdBody_sr hnd rep c (srArgs c = some (r, cr)) σ hEF h1 hEB hIO hV
+  (hσ : EvP ct N S I d Nq σe σ) (hCN : ct ≠ N) (hP : InvIn r true σ) (hPre : PreR rep c σ) (hRc : RcvIn rep c σ) : RdBody rep c σ`**
+  (Rdy at the invocation outcomes: rd8j's `rd_shellAt` with fp = true; EB true there: ctq's `eb_fl4HandleInvocationR` from EvP;
+  then `rhn_of` + `rd_handleRecvN`); **`rdBody_yield rep σ (A8.EF σ)`** (no input: rd's `rd_chargeBudget` from rd10's BS, then the
+  sc_consumed write); **`rdBody_all hnd rep c σ hEF h1 hEB hIO hV hσ hCN (hRS : action = resume) hPs hPr hPre hRc : RdBody rep c σ`**
+  (Send / NBSend / Call: rd8j's `rdBody_send`; Recv / Wait / NBWait / NBRecv: rd8h's `rdBody_recv`; Yield; the three send-receive).
+- **Remaining inputs (exactly, all pinned to the given entry's run, none ∀-states, none [J]/[P]/[W]/[S] added):** rd8j's `InvIn`
+  (= `PerfRest`: Untyped / ASIDControl Rdy (rd8n), Reply BlockedScActive (rd8l), DomainSet `SR t`), rd8j's `PreR`, this line's
+  `RcvIn` (ScInv / ¬BlkR ct / RT ct at the first-phase outcomes: a per-arm carry, rd14a handoff (1)).
+- **Item 2 (PreR) — answer, no FINDING.** Yes: a preemptible deletion can unbind ct's own SC before a preemption point. Trace: ct
+  invokes CNode Revoke / Delete (or a TCB cap install's cap_delete) on a CNode holding the last cap to cur_sc; finalise_cap
+  (SchedContextCap, final) runs sched_context_unbind_all_tcbs (ct unbound, reschedule_required) and sched_context_set_inactive
+  (cur_sc: refills [], refill_max 0); cap_revoke's / rec_del's next preemption point fires and the syscall returns an error. The
+  spec's `preemption_path` handles exactly this: ct is not `schedulable` (unbound), so it reads `sc_active cur_sc` = false and only
+  sets consumed_time := 0 (no charge), then `maybe_handle_interrupt` — Rdy is not read there (no refill touched, no thread
+  enqueued). The other error-outcome shapes: ct still schedulable (bound to cur_sc, never rebound by a deletion; cur_sc's refills
+  untouched unless finalised, which unbinds ct) → check_budget / charge_budget with rd's `rd_chargeBudget` facts; ct not
+  schedulable but cur_sc active (ct suspended / ct's TCB finalised, SC kept active) → charge_budget of an active cur_sc with no
+  enqueue. So PreR needs, at the error outcomes: `schedulable ct → (cur_sc active with refills ∧ ct bound to cur_sc ∧ Excl ∧ ScFwd)`
+  and `sc_active cur_sc → RV / Excl facts for charge_budget` plus Rdy across maybe_handle_interrupt (rd10's interrupt event);
+  carrying "ct bound ⇒ to cur_sc" (weak CurScT) and cur_sc's refills over the deletion cone is the open work (NOT done).
+- **Item 3 (rd8j's duplicated shell pieces).** anc.py: SpecInvRd12bA (936 modules) and SpecInvRd12bF (714) reach no JointAt now, so
+  the duplicates are droppable: every SpecInvRd8jK name except `kz_act` / `kz_time` / `kz_cfS` / `svs_kz` exists in A12b (A or C).
+  Not done here (it edits three committed modules and rebuilds rd8j's / this line's cone; mechanical: delete the copies, `open
+  A12b` in Rd8jK / B / C, `B8j.srArgs` / `sendArgs` → `A12b.` in SpecInvRd8mD).
+- **SpecInvRd8mE (item 4, top).** **`kcall_rdyOff6m hnd rep ev σ hEF hEFI hX10 hX hR h4 hCX ha hN hS (hIO : IdleScOutV σ) (hRS :
+  action = resume) hPs hPr hPre hRc hP hRA hRdF : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`** = rd13a's `kcall_rdyOff6` with
+  `hRdB` discharged by `rdBody_all` (EF; T1 = `tq_t1` of EX's TQ; EB true = ⟨⟨EX's SchedQ, T4⟩, RB⟩; VfhAll = EntryOK.vfh; EvP and
+  ct ≠ idle as rd13a's `key`). New carried facts taken by name: `hIO` (ut7 / vi3's IdleScOutV) and `hRS` (ctq20's RS, carried at every
+  exit; rd8h's `rdBody_recv` needs it). Pinned inputs: `hPs` / `hPr` (rd8j's `InvIn`), `hPre` (rd8j's `PreR`), `hRc` (`RcvIn`). Kept
+  from rd13a: `hP` (InvR, rd14b), `hRA` (RecvTA, rd14a: on int/j2 rd14a's `kcall_rdyOff7` replaces it by `RecvTB` — the same
+  one-line wrapper applies there), `hRdF` (proved by rd8h's `rd_handleFault` from EF and T1; left as in rd13a). The syscall entry
+  (`kentry_rdyOff6`) is not re-wrapped (its `hW` at the FaultIP outcome needs the same facts there: `fip_evp` gives EvP; RS / IO /
+  InvIn / PreR / RcvIn at the FaultIP outcome).
+- Checks: no reachable step breaks Rdy / OffReady / RV / CAx (no FINDING). The lead's note (rd14a: `Simple` false at first-phase
+  outcomes) is honoured: no lemma used on the send-receive tails asks `Simple` (RcvN / RHN / HBN ask only `NSw ct`, ctq's NP ct, and
+  ctq's SA); the receive sender arm's donor is BlockedOnSend, hence not the (runnable) switch target.
+- HANDOFF (in order): (1) `RcvIn` (= rd14a's RecvTB minus Rdy): ScInv / ct ¬BlkR / RT ct at the first-phase outcomes — best inside
+  rd14b's PerfA (add them to its ok outcomes; sb2's sik_* leaves for ScInv). (2) `PreR` per the answer above: carry "ct bound ⇒ to
+  cur_sc" and cur_sc's refill facts over the deletion cone (rd8f's rdCapDeleteH skeleton), then a `rd_preemptionPath` from those
+  facts (three branches: schedulable → check_budget / rd_chargeBudget; ¬schedulable ∧ active → charge_budget without enqueue;
+  inactive → consumed_time := 0) and rd10's interrupt Rdy for maybe_handle_interrupt. (3) Item 3's mechanical de-duplication.
+  (4) `kentry_rdyOff6m` / a `kcall_rdyOff7m` on rd14a's `kcall_rdyOff7` (same wrapper). (5) `RS` / `IdleScOutV` into the top's
+  carried bundle.
+- Builds (tokyo, FL4-r3 mirror, warm): rd8m-1 A green first try (5466 jobs); rd8m-2 B failed (one name eliminated by `cases`);
+  rd8m-3 B green, C failed (`State` unqualified in `RcvN`); rd8m-4 C + D green (5512 jobs; rd12b / rd13a modules compiled into this
+  mirror); rd8m-5 axioms over A-D (scratch/rd8m/ax.lean): every theorem propext, Classical.choice, Quot.sound or a subset
+  (fh_factsT: Classical.choice; nswP_svs / nswT_svs: propext; nswT_of / nswT_upd: none; rhn_of: propext, Classical.choice);
+  rd8m-6 E green (5514 jobs) + axioms (kcall_rdyOff6m: propext, Classical.choice, Quot.sound). No `declaration uses sorry`; no sorry / admit /
+  native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (five import lines).
