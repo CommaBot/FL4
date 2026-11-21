@@ -63,7 +63,7 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
   have h := XTopAt.restart J.xtop hcur hk hrun
   rw [hs1, WP.spec_ok] at h
   obtain ⟨hX1, hSS, hk1⟩ := h
-  obtain ⟨Ac1, Lst', J1⟩ := J.restartJ (jStepHyps arI) hcur hk htcb hrun hs1
+  obtain ⟨Ac1, Lst', J1⟩ := J.restartSJ (jStepHyps arI) hcur hk htcb hrun hs1
   have hns1 : Vs.NoSwitch (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
     intro u e
     unfold Notif.stsAct at e

@@ -595,7 +595,11 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
       hAI3, F.bsa J.bsa, F.isorted J.isorted, F.curRunM J.curRun, hblk0⟩
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') (L.wr (L.wr s (nBoundA n) t) (P1.boundA t) n) σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, D', J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.arch (fun q ao h => (F.oth (fun _ e => by cases e) (fun _ e => by cases e)).2 h) F.szKeep hF.1 F.kback F.ipcFr hC R hKd hck.orig hidl.1 J.zD⟩
+  exact ⟨Z.vs, D', J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.arch (fun q ao h => (F.oth (fun _ e => by cases e) (fun _ e => by cases e)).2 h) F.szKeep hF.1 F.kback F.ipcFr hC R hKd hck.orig hidl.1
+    (fun p hp => ⟨J.zD p hp, fun e => J.not_ztcb hxT (fun _ _ _ h => by rw [capV_of_capAt hcT] at h; cases h)
+      (by rw [capV_of_capAt hcT, e]; simp [absCap, Fl4Spec.objRefs]) hp, fun e => by
+        have h1 : H p = some .tcb := J.zH.1 p (J.thT p (J.ztcb_tcb hp))
+        rw [e, J.zH.2.2.2 n hn] at h1; cases h1⟩)⟩
 
 end
 

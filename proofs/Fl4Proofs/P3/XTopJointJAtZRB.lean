@@ -1655,7 +1655,9 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hC0 := JCs.sameZR J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R⟩
+  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
+    (dbgKeep_of_writes J.blk hW fun b hb => nwrite_notDbgB J.blk J.ip.e.tcb J.tcbs_eq.1 J.kern.heap J.zH.1 J.zH.2.2.2
+      J.kern.hnd hb) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
 
 
 variable (arI) in

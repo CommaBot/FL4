@@ -961,6 +961,7 @@ theorem JAtZ.recvSigBlockPreJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J3 := J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
     (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
+    (J.rbw_dbgKeep hRB) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) (J.zD_diffN hn)
   exact ⟨σ', hspec, hbk.2.2.2.2.2.1, hkt3, hkn3, hcn', F.sk.ct, F.sk.idle, _, J3⟩
 
 

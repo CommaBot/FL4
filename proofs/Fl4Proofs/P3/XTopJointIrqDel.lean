@@ -49,7 +49,7 @@ theorem WJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
   obtain ⟨hX1, hSS, hk1⟩ := h
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Ac', Lst', J1⟩ := J.restartJ hJ hcur hk htcb hrun hs1
+  obtain ⟨Ac', Lst', J1⟩ := J.restartSJ hJ hcur hk htcb hrun hs1
   have hns1 : Vs.NoSwitch (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
     intro u e
     unfold Notif.stsAct at e

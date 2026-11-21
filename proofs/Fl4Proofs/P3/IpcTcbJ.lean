@@ -46,7 +46,7 @@ theorem jat_restart {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     rw [Notif.setThreadState_eq .restart hk] at hst
     exact ((Prod.mk.inj (Set.singleton_eq_singleton_iff.1 (congrArg Prod.fst hst))).2).symm
   subst hσ1
-  obtain ⟨Ac', Lst', J1⟩ := J.restartJ hJS hcur hk htcb hrun hs1
+  obtain ⟨Ac', Lst', J1⟩ := J.restartSJ hJS hcur hk htcb hrun hs1
   exact ⟨Ac', Lst', D, J1⟩
 
 set_option maxHeartbeats 4000000 in

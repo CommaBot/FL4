@@ -460,7 +460,7 @@ set_option maxHeartbeats 4000000 in
 /-- **The caller's restart at `J`** (`JStepHyps.restart` at the dead set
 before, `cs_frame`; `JAtZ.live` by `liveX`: the slots kept, the debug words by
 P1's `set_thread_state` footprint, the original bits by `orig_eq_of_slots`). -/
-theorem JAtZ.restartJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+theorem JAtZ.restartSJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hJ : JStepHyps (L := L) arI AR Z.th)
     {ct : U64} {x : Fl4Spec.Tcb} {s1 : S} (hcur : σ.curThread = ct.bv) (hk : σ.kheap ct.bv = some (.tcb x))
@@ -520,7 +520,7 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     have h := XTopAt.restart J.xtop hcur hk hrun
     rw [hs1, WP.spec_ok] at h
     obtain ⟨-, hSS, hk1⟩ := h
-    obtain ⟨Ac', Lst', J1⟩ := J.restartJ hJ hcur hk htcb hrun hs1
+    obtain ⟨Ac', Lst', J1⟩ := J.restartSJ hJ hcur hk htcb hrun hs1
     exact ⟨Z.G, Z.vs, Ac', Lst', D, J1, hZ.of_same hSS hk1⟩
   · -- a kernel-state step: the kernel-state block's words
     subst hth

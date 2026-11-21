@@ -72,7 +72,7 @@ theorem JAtZ.restartRunJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct :
   obtain ⟨hX1, hSS, hk1⟩ := h
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Ac', Lst', J1⟩ := J.restartJ (jStepHyps arI) hcur hk htcb hrun hs1
+  obtain ⟨Ac', Lst', J1⟩ := J.restartSJ (jStepHyps arI) hcur hk htcb hrun hs1
   refine ⟨s1, σ1, hst1, e, hs1, Ac', Lst', D, ?_⟩
   subst e
   exact J1

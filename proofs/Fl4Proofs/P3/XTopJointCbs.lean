@@ -552,7 +552,7 @@ theorem cn_cancel_topJ (hAM : ARMask arI AR) (hJ : JStepHyps (L := L) arI AR Z.t
       simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and] at this
       simpa using this.symm
     -- the caller's restart at `J`
-    obtain ⟨Ac1, Lst1, J1⟩ := J.restartJ hJ hcur hk htcb hrn hs2
+    obtain ⟨Ac1, Lst1, J1⟩ := J.restartSJ hJ hcur hk htcb hrn hs2
     rw [← hσ1] at J1
     by_cases hb : b = 0#u64
     · subst hb

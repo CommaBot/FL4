@@ -95,6 +95,24 @@ theorem dbgKeep_cancel {T Cs : Set U64} {s s2 s6 : S} (h1 : P1.DbgKeep st T Cs s
     have hb' := P1.DbgW.ksb h1.1 hb
     rw [h2.2 b hb', h1.2 b hb']⟩
 
+/-- **The TCB zombies' TCBs stay in the dead set without a notification** (a
+TCB zombie's object is a TCB, `JAtZ.ztcb_tcb`). -/
+theorem JAtZ.zD_diffN (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.N) :
+    ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D \ {n} := fun p hp =>
+  ⟨J.zD p hp, fun e => by
+    have h1 : H p = some .tcb := J.zH.1 p (J.thT p (J.ztcb_tcb hp))
+    rw [Set.mem_singleton_iff.1 e, J.zH.2.2.2 n hn] at h1
+    cases h1⟩
+
+/-- **The TCB zombies' TCBs stay in the dead set without an endpoint** (a
+TCB zombie's object is a TCB, `JAtZ.ztcb_tcb`). -/
+theorem JAtZ.zD_diffE (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n : U64} (hn : n ∈ Z.E) :
+    ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D \ {n} := fun p hp =>
+  ⟨J.zD p hp, fun e => by
+    have h1 : H p = some .tcb := J.zH.1 p (J.thT p (J.ztcb_tcb hp))
+    rw [Set.mem_singleton_iff.1 e, J.zH.2.1 n hn] at h1
+    cases h1⟩
+
 /-- **Writes avoiding the debug words keep them.** -/
 theorem dbgKeep_of_writes {T Cs Ω : Set U64} {H : P1.Heap} {Sg Rp Scs Nt : Set U64} {Zb : U64 → Nat}
     {Ac : Set U64} {s s' : S} (h : P1.BlkOK st T Cs Ω H Sg Rp Scs Nt Zb Ac s) {B : U64 → Prop}
@@ -239,6 +257,99 @@ theorem JAtZ.nwrite_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit}
       rw [← e] at hnv
       have hd88 : layout.node.DEBUG_TCBS.val = 88 := P1.debug_val
       rcases hv with e' | e' | e' | e' | e' | e' <;> omega
+
+/-! ### The debug-word exclusions from P1's `BlkOK` alone (for `JAtZR` and the like) -/
+
+theorem notDbgB' {Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : P1.Heap} {Zb : U64 → Nat} {s : S}
+    (hB : P1.BlkOK st (P1.Heap.tcbs H) Cs Ω H Sg Rp Scs Nt Zb Ac s)
+    {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
+    (hnode : ∀ c ∈ Cs, b.val ≠ L.nodeBase s c + 88) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := hB
+  have hT := hq.tcbs
+  have e12 : (2 : Nat) ^ P1.HKind.bits .tcb = 4096 := rfl
+  rintro (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
+  · have h1 := hobj y hy
+    rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hT y hy) (by simp), e12]
+      at h1
+    have : (3576#u64 : U64).val = 3576 := by simp
+    omega
+  · have h1 := hobj y hy
+    rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hT y hy) (by simp), e12]
+      at h1
+    have : (3584#u64 : U64).val = 3584 := by simp
+    omega
+  · have h1 := hnode c hc
+    rw [e, P1.nodeAt_val (hq.nodes c hc) (by simp [P1.debug_val]), P1.debug_val] at h1
+    exact h1 rfl
+
+theorem notDbg_twB {Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : P1.Heap} {Zb : U64 → Nat} {s : S}
+    (hB : P1.BlkOK st (P1.Heap.tcbs H) Cs Ω H Sg Rp Scs Nt Zb Ac s) {T : Set U64} (hTe : T = P1.Heap.tcbs H)
+    {b : U64} (htcb : ∀ y ∈ T, ∀ (w : U64) (K : Nat), w.val = y.val + K → 3576 ≤ K → K < 4096 → b ≠ w)
+    (hnode : ∀ c ∈ Cs, b ≠ L.nodeAt s c layout.node.DEBUG_TCBS) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := hB
+  have hT := hq.tcbs
+  rintro (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
+  · have h3 : (3576#u64 : U64).val = 3576 := by simp
+    exact htcb y (by rw [hTe]; exact hy) _ 3576
+      (by rw [show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hT y hy) (by simp), h3])
+      le_rfl (by norm_num) e
+  · have h3 : (3584#u64 : U64).val = 3584 := by simp
+    exact htcb y (by rw [hTe]; exact hy) _ 3584
+      (by rw [show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hT y hy) (by simp), h3])
+      (by norm_num) (by norm_num) e
+  · exact hnode c hc e
+
+/-- **A notification step's word is no debug word**, from `BlkOK` and the
+placement facts (`JAtZ.nwrite_notDbg`'s proof). -/
+theorem nwrite_notDbgB {N T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : P1.Heap} {Zb : U64 → Nat} {s : S}
+    (hB : P1.BlkOK st (P1.Heap.tcbs H) Cs Ω H Sg Rp Scs Nt Zb Ac s) (hT : P1.TcbPlaced T)
+    (hTe : T = P1.Heap.tcbs H) (hH : P1.HeapOK H) (hzT : ∀ t ∈ T, H t = some .tcb)
+    (hzN : ∀ n ∈ N, H n = some .ntfn)
+    (hnd : ∀ p k, H p = some k → ∀ c ∈ Cs, p.val + 2 ^ k.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val)
+    {b : U64} (hb : Notif.NWrite N T b) : ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  rcases hb with ⟨n, hn, g1, g2⟩ | ⟨t, ht, h⟩
+  · have hHn : H n = some .ntfn := hzN n hn
+    refine notDbgB' hB (fun p hp => ?_) (fun c hc => ?_)
+    · have hpn : p ≠ n := fun e => by rw [e, hHn] at hp; cases hp
+      have e := hH.disj p _ n _ hp hHn hpn
+      simp only [P1.HKind.bits] at e ⊢
+      omega
+    · have := hnd n _ hHn c hc
+      simp only [P1.HKind.bits] at this
+      omega
+  · have hv := nfootT_val (hT t ht) (b := b) (by
+      rcases h with h | h | h | h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+      · exact Or.inr (Or.inr (Or.inl h))
+      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
+      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h)))))
+    refine notDbg_twB hB hTe (fun y hy w K hwv h1 h2 => ?_) (fun c hc => ?_)
+    · rcases hv with e | e | e | e | e | e <;> exact tcbOff_ne hT ht hy e hwv (by omega) (by omega) (by omega)
+    · intro e
+      have hN : P1.NodePlaced st (P1.Heap.tcbs H) s c := P1.TInv.nodes hB c hc
+      have hnv := P1.nodeAt_val hN (off := layout.node.DEBUG_TCBS) (by simp)
+      have := hnd t _ (hzT t ht) c hc
+      simp only [P1.HKind.bits] at this
+      rw [← e] at hnv
+      have hd88 : layout.node.DEBUG_TCBS.val = 88 := P1.debug_val
+      rcases hv with e' | e' | e' | e' | e' | e' <;> omega
+
+/-- **A TCB word below the debug links is no debug word.** -/
+theorem JAtZ.tcbw_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {t : U64} (ht : t ∈ Z.T) {b : U64} {K : Nat} (hb : b.val = t.val + K) (hK : K < 3576) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b :=
+  J.notDbg_tw (fun y hy w K' hwv h1 h2 => tcbOff_ne J.ip.e.tcb ht hy hb hwv (by omega) (by omega) (by omega))
+    (fun c hc e => by
+      have hN : P1.NodePlaced st Z.T s c := by rw [J.tcbs_eq.1]; exact P1.TInv.nodes J.blk c hc
+      have hnv := P1.nodeAt_val hN (off := layout.node.DEBUG_TCBS) (by simp)
+      have := J.kern.hnd t _ (J.zH.1 t ht) c hc
+      simp only [P1.HKind.bits] at this
+      rw [← e] at hnv
+      have hd88 : layout.node.DEBUG_TCBS.val = 88 := P1.debug_val
+      omega)
 
 /-- A kernel-state word (`KsW`) is no debug word: below the nodes, outside
 the TCBs (`ksOut`). -/
@@ -421,6 +532,221 @@ theorem LiveDN.wstepX {s : S} {a : A} {σ : Fl4Spec.State Unit}
         · exact absurd hm hsW
   · obtain ⟨y0, hy0, hz0⟩ := hZ y hy p zt n hz
     rw [hks]; exact hZB y0 hy0 p zt n hz0
+
+
+/-- **The CNode `pd` named by a CNode cap of a slot** (`DestLive`'s left
+disjunct). -/
+def DestCap (th : TypedHeap) (mem : U64 → U64) (pd : U64) : Prop :=
+  ∃ y r gs g, IsSlot th y ∧ capV mem y = .CNode pd r gs g
+
+set_option maxHeartbeats 4000000 in
+/-- **A step writing slot words at the slots `W` keeps `LiveDN` and
+`ZNoBlk`** (XTopJointLiveStep's `LiveDN.wstep`, with the `XTopAt` after
+and the TCB zombies' TCBs dead after). -/
+theorem LiveDN.wstepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    {G' : MdbGhost} {V' : XVs} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p)
+    (hid : σ'.idleThread = σ.idleThread) (hw : P1.WritesIn st s s' (InSlot Z.th))
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧
+      DestCap Z.th (L.mem s) p)
+    (hcW : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → capV (L.mem s') y = capV (L.mem s) y)
+    (hoW : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W)
+    (hNO : ∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false)
+    (hZ : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n)
+    (hK2 : ∀ y0, IsSlot Z.th y0 → capV (L.mem s) y0 ≠ .Null →
+      ∃ y, IsSlot Z.th y ∧ capV (L.mem s') y ≠ .Null ∧ shape (capV (L.mem s') y) = shape (capV (L.mem s) y0)) :
+    LiveDN (L := L) Z.th H Cs G' s' σ' := by
+  obtain ⟨hL, ⟨lst, hDW⟩, hN⟩ := hLv
+  have hP : Placed Z.th := J.xtop.rel.1
+  have hM := J.xtop.rel.2.1.2.2.1
+  have hM' := hX'.rel.2.1.2.2.1
+  have hFI := J.xtop.rel.2.2.1
+  have hks : L.ksb s' = L.ksb s := hw.1
+  have hmemS : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((hM.members y).1 hy).1
+  have hmemN : ∀ y ∈ Z.G.chains.flatten, capV (L.mem s) y ≠ .Null := fun y hy => by
+    obtain ⟨-, c0, h0, hn0⟩ := (hM.members y).1 hy
+    rw [capV_of_capAt h0]; exact hn0
+  have hinG' : ∀ y, IsSlot Z.th y → capV (L.mem s') y ≠ .Null → y ∈ G'.chains.flatten := fun y hy hn =>
+    (hM'.members y).2 ⟨hy, _, capAt_capV _ _, hn⟩
+  -- the written slots
+  have hWat : ∀ sl ∈ W, ∃ p r i, Z.th p = some (.cnode r) ∧ IsSlotAt Z.th p i ∧ cslotAddr sl = slotOf p i ∧
+      AbsSlot Z.th sl ∧ DestCap Z.th (L.mem s) p := fun sl hsl => by
+    obtain ⟨p, r, h1, hp, hl, hDL⟩ := hW sl hsl
+    have hA : AbsSlot Z.th sl := ⟨p, h1, Or.inl (by rw [hl]; exact hp)⟩
+    obtain ⟨p', i, hpi, h1', hxe⟩ := hA.at
+    have e : p' = p := P1.eq_of_bv (h1'.symm.trans h1)
+    subst e
+    exact ⟨p', r, i, hp, hpi, hxe, hA, hDL⟩
+  -- a live container stays covered
+  have hcov : ∀ p r i, Z.th p = some (.cnode r) → IsSlotAt Z.th p i → DestCap Z.th (L.mem s) p →
+      (∃ y ∈ G'.chains.flatten, RefsObj p (capV (L.mem s') y)) ∨ KsSlot (L.ksb s') (slotOf p i) := by
+    intro p r i hp hpi hDL
+    obtain ⟨y, r', gs, g, hy, hc⟩ := hDL
+    obtain ⟨y', hy', hn', hsh⟩ := hK2 y hy (by rw [hc]; exact fun h => by cases h)
+    exact Or.inl ⟨y', hinG' y' hy' hn', (shape_refs hsh p).2 (by rw [hc]; rfl)⟩
+  -- no zombie names a live container
+  have hnz : ∀ p r, Z.th p = some (.cnode r) → DestCap Z.th (L.mem s) p →
+      ∀ y, IsSlot Z.th y → ∀ zt n, capV (L.mem s) y ≠ .Zombie p zt n := by
+    intro p r hp hDL y hy zt n hz
+    obtain ⟨y1, r', gs, g, hy1, hc⟩ := hDL
+    have hne : y1 ≠ y := fun e => by rw [e, hz] at hc; cases hc
+    exact FinInv.zombie_alone hFI hM hy hz y1 hy1 hne (refsObj_objRefs (by rw [hc]; rfl))
+  -- a slot off `W` in use after was in use before
+  have hU : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → InUse (L.mem s') σ' y → InUse (L.mem s) σ y := by
+    intro y hy hyW hu
+    rcases hu with hu | ⟨x, hx, ho⟩
+    · exact Or.inl (by rw [← hcW y hy hyW]; exact hu)
+    · rcases hoW x ho with ho' | hxW
+      · exact Or.inr ⟨x, hx, ho'⟩
+      · exact (hyW x hxW hx.symm).elim
+  -- the debug words
+  have hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb
+  have hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s := ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩
+  have hc0 : 0#u64 ∈ Cs := J.kern.cs0
+  have hhd : dbgHead (L := L) s' = dbgHead (L := L) s := by
+    unfold dbgHead
+    rw [nodeAt_of_ksb hdk.1]
+    exact hdk.2 _ (Or.inr ⟨0#u64, hc0, rfl⟩)
+  have hNt : ∀ k, dbgNth (L.mem s') k (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) :=
+    fun k => by
+      rw [hhd]
+      exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
+        (hTz.dh _ hc0)
+  have hL' : LiveJ (L := L) Z.th H G' s' σ' := by
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p zt n hz i hpi hni hu => ?_,
+      fun y hy p zt n hz hzt => ?_⟩
+    · by_cases hyW : ∀ sl ∈ W, slotOf q i ≠ cslotAddr sl
+      · rcases hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hyW hu) with ⟨y, hy, hr⟩ | hb
+        · obtain ⟨y', hy', hn', hsh⟩ := hK2 y (hmemS y hy) (hmemN y hy)
+          exact Or.inl ⟨y', hinG' y' hy' hn', (shape_refs hsh q).2 hr⟩
+        · exact Or.inr (by rw [hks]; exact hb)
+      · push_neg at hyW
+        obtain ⟨sl, hsl, e⟩ := hyW
+        obtain ⟨p, r, i', hp, hpi, hxe, -, hDL⟩ := hWat sl hsl
+        obtain ⟨e1, e2⟩ := slotOf_inj hP hqi hpi (e.trans hxe)
+        subst e1; subst e2
+        exact hcov q r i hp hqi hDL
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← hid]; exact hki)
+      obtain ⟨y', hy', hn', hsh⟩ := hK2 y (hmemS y hy) (hmemN y hy)
+      rw [hr] at hsh
+      have hsh' : shape (capV (L.mem s') y') = .Thread (dbgNth (L.mem s) k (dbgHead (L := L) s)) := hsh
+      exact ⟨y', hinG' y' hy' hn', (shape_thread _ _).1 hsh'⟩
+    · obtain ⟨y0, hy0, hz0⟩ := hZ y hy p zt n hz
+      by_cases hyW : ∀ sl ∈ W, slotOf p i ≠ cslotAddr sl
+      · exact hL.zslots y0 hy0 p zt n hz0 i hpi hni (hU _ ⟨p, i, hpi, rfl⟩ hyW hu)
+      · push_neg at hyW
+        obtain ⟨sl, hsl, e⟩ := hyW
+        obtain ⟨p', r, i', hp, hpi', hxe, -, hDL⟩ := hWat sl hsl
+        obtain ⟨e1, -⟩ := slotOf_inj hP hpi hpi' (e.trans hxe)
+        subst e1
+        exact hnz p r hp hDL y0 hy0 zt n hz0
+    · obtain ⟨y0, hy0, hz0⟩ := hZ y hy p zt n hz
+      exact hdead p ⟨y0, hy0, zt, n, hz0, hzt⟩
+  refine ⟨hL', ⟨lst, hDW.of_keep hdk fun y hy => by
+      obtain ⟨Q0, R0, hc0, -⟩ := J.xtop.fin.1.1.1.lists
+      obtain ⟨Q1, R1, hc1, -⟩ := hX'.fin.1.1.1.lists
+      rw [hc1.aff y (by rw [← J.tcbs_eq.1] at hy; exact hy), hc0.aff y (by rw [← J.tcbs_eq.1] at hy; exact hy)]; try rfl⟩, fun sl hA h => ?_⟩
+  by_cases hsW : sl ∈ W
+  · exact hNO sl hsW h
+  · have hne : ∀ sl' ∈ W, cslotAddr sl ≠ cslotAddr sl' := fun sl' hsl' e => by
+      obtain ⟨-, -, -, -, -, -, hA', -⟩ := hWat sl' hsl'
+      exact hsW (by rw [cslotAddr_inj hP hA hA' e]; exact hsl')
+    have h0 : capV (L.mem s) (cslotAddr sl) = .Null := by rw [← hcW _ hA.isSlot hne]; exact h
+    cases ho : σ'.isOriginalCap sl
+    · rfl
+    · rcases hoW sl ho with ho' | hm
+      · rw [hN sl hA h0] at ho'; cases ho'
+      · exact absurd hm hsW
+
+
+/-- **Two caps alike for the liveness bundle**: the same null-ness, containers
+named, thread and zombie caps. -/
+def LSim (c' c : capability.Cap) : Prop :=
+  (c' = .Null ↔ c = .Null) ∧ (∀ q, RefsObj q c' ↔ RefsObj q c) ∧ (∀ w, c' = .Thread w ↔ c = .Thread w) ∧
+    ∀ p zt n, c' = .Zombie p zt n ↔ c = .Zombie p zt n
+
+theorem LSim.rfl' (c : capability.Cap) : LSim c c := ⟨Iff.rfl, fun _ => Iff.rfl, fun _ => Iff.rfl, fun _ _ _ => Iff.rfl⟩
+
+theorem shape_null' (c : capability.Cap) : shape c = .Null ↔ c = .Null := by
+  cases c <;> simp [shape]
+
+/-- Caps of the same `shape` are alike for the liveness bundle. -/
+theorem LSim.of_shape {c' c : capability.Cap} (h : shape c' = shape c) : LSim c' c :=
+  ⟨by rw [← shape_null' c', h, shape_null'], shape_refs h,
+    fun w => by rw [← shape_thread c' w, h, shape_thread],
+    fun p zt n => by rw [← shape_zombie c' p zt n, h, shape_zombie]⟩
+
+set_option maxHeartbeats 4000000 in
+/-- **`LiveDN` across a step changing slots only up to `LSim`** (a frame cap's
+mapping, an untyped cap's free index; KENTRY-PLAN g2i): the debug words, the
+original bits and the spec's idle thread kept, the TCB zombies' TCBs dead
+after. -/
+theorem LiveDN.simX {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    {Z' : XSets} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR Z' s' a' σ')
+    (hth : Z'.th = Z.th) (hT : Z'.T = Z.T) (hc : Z'.c = Z.c)
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p)
+    (hid : σ'.idleThread = σ.idleThread) (hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true)
+    (hsim : ∀ y, IsSlot Z.th y → LSim (capV (L.mem s') y) (capV (L.mem s) y)) :
+    LiveDN (L := L) Z.th H Cs Z'.G s' σ' ∧ ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ ZTcb (L := L) Z.th s := by
+  obtain ⟨hL, ⟨lst, hDW⟩, hN⟩ := hLv
+  have hM := J.xtop.rel.2.1.2.2.1
+  have hM' : MdbLinks Z.th (L.mem s') Z'.G := by rw [← hth]; exact hX'.rel.2.1.2.2.1
+  have hks : L.ksb s' = L.ksb s := hdk.1
+  have hmemS : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((hM.members y).1 hy).1
+  have hmemN : ∀ y ∈ Z.G.chains.flatten, capV (L.mem s) y ≠ .Null := fun y hy => by
+    obtain ⟨-, c0, h0, hn0⟩ := (hM.members y).1 hy
+    rw [capV_of_capAt h0]; exact hn0
+  have hinG' : ∀ y, IsSlot Z.th y → capV (L.mem s') y ≠ .Null → y ∈ Z'.G.chains.flatten := fun y hy hn =>
+    (hM'.members y).2 ⟨hy, _, capAt_capV _ _, hn⟩
+  have hU : ∀ y, IsSlot Z.th y → InUse (L.mem s') σ' y → InUse (L.mem s) σ y := by
+    intro y hy hu
+    rcases hu with hu | ⟨x, hx, ho⟩
+    · exact Or.inl fun h => hu (((hsim y hy).1).2 h)
+    · exact Or.inr ⟨x, hx, horig x ho⟩
+  have hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s := ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩
+  have hc0 : 0#u64 ∈ Cs := J.kern.cs0
+  have hhd : dbgHead (L := L) s' = dbgHead (L := L) s := by
+    unfold dbgHead
+    rw [nodeAt_of_ksb hdk.1]
+    exact hdk.2 _ (Or.inr ⟨0#u64, hc0, rfl⟩)
+  have hNt : ∀ k, dbgNth (L.mem s') k (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) :=
+    fun k => by
+      rw [hhd]
+      exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
+        (hTz.dh _ hc0)
+  have hZ : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n → capV (L.mem s) y = .Zombie p zt n :=
+    fun y hy p zt n h => ((hsim y hy).2.2.2 p zt n).1 h
+  have hL' : LiveJ (L := L) Z.th H Z'.G s' σ' := by
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p zt n hz i hpi hni hu => ?_,
+      fun y hy p zt n hz hzt => ?_⟩
+    · rcases hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hu) with ⟨y, hy, hr⟩ | hb
+      · have hyS := hmemS y hy
+        exact Or.inl ⟨y, hinG' y hyS (fun h => hmemN y hy (((hsim y hyS).1).1 h)), ((hsim y hyS).2.1 q).2 hr⟩
+      · exact Or.inr (by rw [hks]; exact hb)
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← hid]; exact hki)
+      have hyS := hmemS y hy
+      exact ⟨y, hinG' y hyS (fun h => hmemN y hy (((hsim y hyS).1).1 h)), ((hsim y hyS).2.2.1 _).2 hr⟩
+    · exact hL.zslots y hy p zt n (hZ y hy p zt n hz) i hpi hni (hU _ ⟨p, i, hpi, rfl⟩ hu)
+    · exact hdead p ⟨y, hy, zt, n, hZ y hy p zt n hz, hzt⟩
+  refine ⟨⟨hL', ⟨lst, ?_⟩, fun sl hA h => ?_⟩, fun p ⟨y, hy, zt, n, hz, h65⟩ => ⟨y, hy, zt, n, hZ y hy p zt n hz, h65⟩⟩
+  · obtain ⟨Q0, R0, hc0', -⟩ := J.xtop.fin.1.1.1.lists
+    obtain ⟨Q1, R1, hc1, -⟩ := hX'.fin.1.1.1.lists
+    have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
+    refine hDW.of_keep hdk fun y hy => ?_
+    rw [hc1.aff y (by rw [hT, hTe]; exact hy), hc0'.aff y (by rw [hTe]; exact hy), hc]
+  · cases ho : σ'.isOriginalCap sl
+    · rfl
+    · have h1 := horig sl ho
+      rw [hN sl hA (((hsim _ hA.isSlot).1).1 h)] at h1
+      cases h1
 
 end
 

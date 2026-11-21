@@ -452,7 +452,8 @@ theorem JTH.tmoBaseCtJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
   have hC0 := JCs.same J hF.1 hkszc
   have hCs : JCs (L := L) (Z.mv Z.G V') sB σB := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) e_arch haoc hszc
-    hF.1 hkbc hfkc hCs R⟩
+    hF.1 hkbc hfkc hCs R (Hj.dbgK.trans (P1.Foot.dbgKeep Hj.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot)) e_orig
+    (XTopAt.idleW_eqS J.xtop hX3 e_idle) J.zD⟩
 
 end
 
