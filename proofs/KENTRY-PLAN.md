@@ -10875,3 +10875,67 @@ untracked). Resumed from a rate-limited predecessor whose uncommitted A/B/D were
   Inactive" (TP over tcbState; generate it like the SVE / CFKE families, with `AK`-style generic leaves, NOT `ik_unfold` walks);
   Notification / Endpoint via `bl_*` / `eb_*` plus that family; arms that unbind ct give RT / CBa vacuously. (3) Then the
   consumers lose their pinned inputs: rd15a's `hC` (RecvTC), rd8m's `RcvIn` (with sc_first), rd8l's `RP`.
+
+## rd8r (branch par/rd8r in FL4-r3, on 12c0e32a = int/j2 incl. rd8p, rd8n, rd8l, g2b; + lead fix ac5f9833 as ee993929) — rd8p handoff 1 DONE (`CurHold` at every error outcome of the syscall event, from carried entry facts) and 2 DONE (`preR_of2`, top `kcall_rdyOff6p` without the `PreR` input)
+Spec-only, new names under `Fl4Proofs.P3.SInvR.B8r`, modules SpecInvRd8rK / F1 / F2 / F3 (generated) / C / S; root imports S. Nothing existing
+edited. No JAtZ cone (scratch/rd8h/anc.py: S 981 modules, C 912, no JointAt / XTopJointDelR / JAtZ; XTopJointMidRunK is already an ancestor
+of rd8p's B / rd8m's E). Keys rd8r-1..5 (./rd8rs.sh untracked = rd8ps.sh with its own log; proofs/scratch/rd8r/ untracked: gen3.py (ctq16's,
+spec path = FL4-r3), manual3.py, skipck.txt, mkho.sh, upper.py, ax.lean, this text).
+- **SpecInvRd8rK (`HO`, leaves).** `HS b ts` (holder state: not BlockedOnReceive / Send / Notification; running / runningVM / restart only
+  if `b`; enumerated without a wildcard, see Lean notes), `HOT c b y := y.SC = some c → HS b y.state`, **`HO s := ∀ t x, kheap t = tcb x →
+  HOT cur_sc (t = ct) x`** (the stepwise form of rd8p's `CurHold`: it does not read the fault, so cancel_ipc's fault clear of a timeout-faulted
+  sender, rd8f's one-step `BlkR`, keeps it), **`curHold_of_ho : HO s → CurHold s`**, `NH t s` (t not bound to cur_sc). Leaves as ctq14's
+  SpecInvCqHK: `ho_upd`, `ho_setObject(_p)`, `ho_setTcb_keep`, `ho_setSimpleKo`, `ho_threadSet` (SC kept or none; state kept or quiet = `HS
+  False`), `ho_threadSet_nh` (thread not bound to cur_sc, SC kept), `ho_threadSet_ct` (ct, SC kept, state allowed for ct), `ho_archThreadSet`,
+  `ho_asUser`, `ho_setMrs`, `ho_setCap`, `ho_optionUpdateThread`, `ho_detype` / `ho_deleteObjects`, `ho_setThreadState` (quiet) /
+  `_nh` / `_ct`; `ho_auto`.
+- **SpecInvRd8rF1-F3 (generated, 222 `ho_` lemmas)**: proofs/scratch/rd8r/mkho.sh = ctq16's mkck3.sh with roots capDelete capRevoke
+  capDeleteOne cancelBadgedSends resetUntypedCap capInsert checkCapAt + the invocation front (as ctq16) + the restart tail / dequeues /
+  reply_unlink_tcb; skip = ctq14's primitives / reply_remove-donate-rec_del chain + deleteObjects + the restart tier (restartThreadIfNoFault,
+  removeAndRestart* x3, cancelAllIpc, cancelBadgedSends, cancelAllSignals: the functions that reach a Restart write; found by upper.py). Register
+  decodes at `.threadCap p` as ctq16. First build green.
+- **SpecInvRd8rC (hand tier, `HQ := HO ∧ NQ []`).** `hq_of` (generated `ho_` + nq2's `nq_` with Kq = []), `hq_leaf` / `hq_auto`.
+  **Restart helpers** `hq_removeAndRestartEpQueuedThread` / `…BadgedThread` / `…NtfnQueuedThread`: the dequeue asserts the thread is in the
+  queue, nq2's EpQB / NtfnQB give an endpoint / notification block there, so `HO` gives `NH t` (`nh_of_blk`); `NH t` rides along the dequeue and
+  `reply_unlink_tcb` (`nh_of_cf`: SVS keeps the TCB's SC, CFK keeps cur_sc) to the Restart write (`ho_restartTail`,
+  `ho_restartThreadIfNoFault`; the fault-not-none arm is Inactive, quiet). Loops `hq_cancelAllIpc` / `hq_cancelBadgedSends` /
+  `hq_cancelAllSignals`. **Donation**: `QT t` (t's state quiet), `HQT t := HO ∧ QT t`; the caller keeps its state across `reply_unlink_sc` and
+  the donation's prefix by IpcStK's backward state frame `OSK p` (`p` the SC: the caller is a TCB at the same state as `scWithReply`'s SC, so
+  `t ≠ p`); new STK leaves `st_threadSet_keepR`, `st_rescheduleRequiredR`, `st_testRescheduleR`, `st_getScObjRefR`, `st_schedContextDonateR`,
+  `st_donatePre`, `st_replyUnlinkScR` (copies of XTopJointIpcJ's, which is in the JAtZ cone); `ho_threadSet_q`; **`hqt_schedContextDonate`**.
+  **`hq_replyRemove_r`** (caller read BlockedOnReply; NQ by nq3's `nq_consR` + `nq_replyRemove (Kq := [t])`; the match's `__do_jp` join point
+  zeta-reduced). Then HC's chain with `HQ`: `hq_fastFinalise`, `hq_capDeleteOne`, `hq_deletingIrqHandler`, `hq_finaliseCap`, `hq_recDelF` /
+  **`hq_recDel`** (`ik_lfp`), **`hq_capDelete`**, `hq_capRevokeF` / **`hq_capRevoke`**, `hq_checkCapAt`, **`hq_installTcbCap`**,
+  **`hq_installTcbFrameCap`** (IKE: every outcome). Triple `HQX m` (from HQ, HO at every error outcome), **`hqx_fl4PerformInvocation`**
+  (ctq16's arm split: Untyped = `ho_resetUntypedCap` alone, ThreadControlCaps / Sched and CNode Revoke / Delete by the HQ lemmas, every other arm
+  ctq16's `NE`).
+- **SpecInvRd8rS (walk, PreR, top).** `HXR P m`, `JH := R18.JE ∧ HO` (`jh_auto` = ctq18's `je_auto` + `ho_auto`);
+  **`hxr_fl4HandleInvocationR`** (ctq18's ebr walk; at the perform `HO` by `ho_setThreadState_ct` (Js: ct = cur_thread) and `NQ []` from Js's
+  `NQ [ct]`), `hxr_fl4HandleSyscall`, **`hxr_fl4HandleEvent`**; **`ho_entry (CtExit) (CurScT) (ScBackS) : HO σ`** (two holders of cur_sc have
+  the same SC back pointer, so the only holder is ct; ct running / idle); **`preR_of2 rep c σ hEF h1 hEB hIO hV hE hPs hPr (hF : SysF I d Nq σ)
+  (hJ : JE I ct d Nq σ σ) : B8j.PreR rep c σ`** = rd8p's `preR_of` with `hEN` from ctq18's `ebr_fl4HandleEvent` + nq3's `nq_fl4HandleEvent_sys`
+  (`Iu` in SysF) and `hH` from `curHold_of_ho (hxr_fl4HandleEvent … ⟨hJ, ho_entry hEF.ct hEF.cs hE.sc.back⟩)`; **`kcall_rdyOff6p`** = rd8m's
+  `kcall_rdyOff6m` with exactly its hypotheses minus `hPre` (JE from ctq17's `evp_start` as `kcall_tq_sys` does, SysF from `hS`).
+- Premises: none added, none left for `PreR` ([J]/[P]/[W]/[S]: none new). Every input of `preR_of2` is a carried entry fact the top already has
+  (EF, T1, EB true, IdleScOutV, VfhAll, EntryOK, SysF, ctq17's EvP) or rd8j's pinned `InvIn` (unchanged). No ∀-states hypothesis. Remaining
+  named inputs of `kcall_rdyOff6p` = rd8m's minus `PreR`: `InvIn` (rd8j), `RcvIn` (rd8m), `InvR` (rd14b), `RecvTA` (rd14a), `RdF` (rd8h).
+- No FINDING: no reachable step breaks `HO` (hence CurHold), Rdy, OffReady, RV or CAx. Checked writers: the only Restart writes in the cone are
+  the two restart helpers (threads blocked at their dequeue, so never bound to cur_sc); the only SC binding is reply_remove's donation to a caller
+  that is BlockedOnReply (quiet) and becomes Inactive at the next step; unbinding / Inactive / fault writes keep HO; detype only removes objects;
+  cur_sc / cur_thread are not written before the event's error outcome.
+- Not done: a kentry analog (`kentry_rdyOff6` takes `RdBody` at the FaultIP outcomes as one input `hW`; rd8m made no kentry analog of
+  `rdBody_all` either — next step: `rdBody_all` at `w ∈ fl4SyscallFaultIP` with `preR_of2` there, its inputs via `fip_evp` / `A8.ef_fip`);
+  rd8m's handoff 1, 4, 5 (rd8p's item 3).
+- Builds (tokyo FL4-r3 mirror): rd8r-1 K+F (the mirror recompiled ~100 stale upstream modules, 22 min; K failed: 3 whnf heartbeat timeouts on
+  `simp [HS]` with a wildcard `HS`); rd8r-2 K + F1-F3 green, C 2 errors (identity update function inferred for `ho_threadSet_q`; replyRemove's
+  join point); rd8r-3 C errors from a botched local splice (fixed); rd8r-4 C + S green (5544 jobs); rd8r-5 S + axioms (scratch/rd8r/ax.lean):
+  ho_threadSet, ho_deleteObjects, ho_fl4DecodeInvocation, ho_resetUntypedCap, hq_removeAndRestartEpQueuedThread / BadgedThread /
+  NtfnQueuedThread, hqt_schedContextDonate, hq_replyRemove_r, hq_fastFinalise, hq_finaliseCap, hq_recDel, hq_capDelete, hq_capRevoke,
+  hq_installTcbCap, hq_installTcbFrameCap, hqx_fl4PerformInvocation, hxr_fl4HandleInvocationR, hxr_fl4HandleEvent, preR_of2, kcall_rdyOff6p:
+  propext, Classical.choice, Quot.sound; curHold_of_ho, ho_entry: none. 0 `declaration uses sorry`; no sorry / admit / native_decide /
+  bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (one import line). Commits: f68ea81a (K, F1-F3), 176a6a7d (C, S, root import), this section.
+- Lean notes: (1) a `def` by `match` with a wildcard over ThreadState (9 constructors with payloads) made `simp [HS]` time out at whnf
+  (equation-lemma generation): enumerate every constructor and close cases by `exact trivial` / `False.elim h` / `rfl`; (2) `h.elim` on
+  `h : HS …` looks up `HS.elim`: use `False.elim h`; (3) passing `_` for a frame lemma's update function elaborated to `fun x => x` (the brief's
+  lesson): pass `tcbSchedContextUpdate fun _ => some p`; (4) replyRemove's `match` is followed by a `__do_jp` join point: `dsimp only` (zeta)
+  before splitting on `scWithReply`.
