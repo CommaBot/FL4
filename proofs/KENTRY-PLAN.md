@@ -8366,3 +8366,27 @@ all spec-only). (Resumed after a station restart: the stopped agent had left onl
 - Lean traps: a generic `exact f (by t1) (by t2)` leaf rule LOGS the nested `by` failure instead of backtracking — use
   `refine f ?_ ?_ <;> first | (t1; done) | (t2; done)`; `fk_asUser` takes K c u T I S explicitly; `unfold` cannot see through an
   `abbrev` wrapper (`dsimp only [evRun]` first); `updSc` is `Sched.updSc` (open Sched).
+- **SpecInvRd8A4 (1d, narrowing `hCtRc`).** `NRun`, `CQ t s := RdyT s t ∨ t ∈ releaseQueue ∨ NRun t s`, `ctR_of_cq`, `ctR_unsched`,
+  `ktr_rescheduleRequired` (= RdS's `ktc_rescheduleRequired`; duplicate, harmless), `cq_ktc`, `mem_append`, **`cq_endTimeslice`**
+  (timeout arm: `TmoNR`; append arm: R1 at the append state via RdD's `rd_append_p`; postpone arm: RdL's `rq_postpone` with
+  ScBackS's `sc_tcb cur_sc = ct`), `cq_cbTail`, **`ctR_charge`**, **`hCtRc_of (h : EF σ) (hT : TmoNR)`** (A3's `hCtRc`), and
+  **`kcall_rdyOff'` / `kentry_rdyOff'`** (the A3 tops with `TmoNR` in place of `hCtRc`).
+  **`TmoNR := ∀ s t b, (t a runnable TCB at s) → ∀ w ∈ handle_timeout t (timeout b) s, t not runnable at w.2`** is the one remaining
+  fact of 1(d): send_fault_ipc (after is_valid_timeout_handler's endpoint-cap assert) sets the fault, then send_ipc (block, not call)
+  leaves the sender BlockedOnSend (no receiver) or BlockedOnReply / Inactive (a receiver waits: `fault ≠ none` takes the call arm);
+  the receiver is BlockedOnReceive at its dequeue while t is runnable, so it is not t, and the remaining steps (set_thread_state of
+  the receiver, the unblock check, possible_switch_to) write no other TCB state. True in every state (no premise needed).
+  Build r-13 (4998 jobs).
+- HANDOFF (in order):
+  1. `TmoNR` (above): a ct-state walk through send_ipc (the reply_push arm: BlockedOnReply).
+  2. `hAw`: `IK (RO ∧ RCA ∧ CtR ∧ HRC) fl4Awaken` from a send_signal lemma: resume after ⇒ resume before (A1's CW); for the woken t:
+     t ≠ ct ⇒ ct's TCB, its SC's refills / max and ct's release-queue membership are untouched (cancel_ipc / donation / wake write
+     t, eps, replies, the donated SC; the unblock check keeps every RdyT, RdJ's UK) ⇒ RCA / HRC / CtR kept; t = ct ⇒ ct was BlkR, so
+     bound ⇒ no donation (binding / max kept: RCA / HRC), and CtR from RdL's `SR t` after maybe_donate_sc (kept by
+     possible_switch_to / the unblock check).
+  3. The body (`hBody` / `hEvO`): rd8b's Rdy per-writer lemmas + this line's OS / RCA / CtR / HRC across fl4HandleSyscall and the
+     preemption path (rd7 handoff 1(b) event part, 1(c)): the writers of cur_sc's refills / max / binding of ct (handle_yield's
+     charge, preemption_point, configure / set-inactive / unbind / donate of cur_sc or ct) by hand, the rest by a family keeping CW
+     (A1's CP kit: SVM ∧ CFK leaves) — a generated `cp_*` family over the MTK set minus those writers is the natural next step.
+  4. `hX`: wire sb2 (`sb_fl4HandleEvent` + `si_fl4Awaken`), vi3 (`vi_fl4HandleEvent_sys` + an awaken carry), ctq's event part
+     (`aw_of` after `tw_fl4Awaken`, as `rb_tail`), and "cur_sc an SC" (ScBackS of the ct binding under resume, or SpecGlob).
