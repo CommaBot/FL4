@@ -9026,3 +9026,75 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ.P19`, modules SpecInvCqP1, P2, P3; root
   sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (three import lines).
 - HANDOFF: add `EX ∧ RB ∧ T4` to SInvB (or beside it) with `boot_tq`, `kentry_tqB` / `kcall_tqB` and `kentry_t4` / `kcall_t4`;
   nothing else is open in this bundle.
+
+## rd10 (branch par/rd10 in FL4-tcbj, on 87fd10e7 = int/j2 incl. rd9, rd8d, ctq14-16) — rd9 handoff 3 (hCS) DONE, 4 (hSc / hVI) DONE, hAW narrowed to ctq's SQ4; 1 (OsBody) in part (Yield arm); 2 (hEvO) in part (interrupt event); NOT finished: OsBody for the IPC / invocation syscalls, hEvO for the fault events
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A10` (every new name), modules SpecInvRd10A1..A3 (new; root imports them). Nothing
+existing edited. No JAtZ cone. Keys rd10-1..10 (./rd10s.sh untracked = rd9s.sh with its own log; scratch/rd10/ax.lean untracked).
+- **SpecInvRd10A1 (handoff 3, 4): `hCS` needs no fact.** `switch_sched_context` (inside `sc_and_timer`) runs
+  `get_sched_context cur_sc`, which fails (empty outcome set) unless `cur_sc` is an SC: **`sat_curSc`** (outcome-side twin
+  of RdY's `sat_bound`); `schedule` keeps the heap view and `cur_sc` up to `sc_and_timer` (RdY's `SE`/`FK`), so rd4's `hk0`
+  is read off any outcome: `rd_exitSE10`, `rd_scheduleOff10`, `XS10` (rd8a's `XS` without "cur_sc an SC"), `exit_top10`,
+  `kcall_of_ev10`, `kcall_rdyOff10a` (= rd9's `kcall_rdyOff9b` with `XS10`). Partial correctness only, like every `.1`
+  statement here (no new carried fact, no premise; the lead decision's "derive" branch).
+  `hSc`: **`sc_evRun`** (sb2's `sb_fl4HandleEvent scGap` + `si_preemptionPath` over the event part, from `EntryOK`),
+  `entryOK_fip`. `hVI`: **`vi_ev` / `vi_evSys` / `vi_evRun`** (vi3's `vi_fl4HandleEvent_sys viGap` from vi3's `W` with
+  the pinned thread = ct, `CtSc` from ctq5's `CurScT` (`ctSc_of`); the other events as vi3's `kcall_validIdle_of`).
+  `hAW` → **`hQ4 : SQ4` at the event part's outcomes**: ctq's `sq4_fl4Awaken` (no premise) + `aw_of` with ValidIdle after
+  fl4Awaken (`xs10_of`). `EV10 σ` = sb2 `EntryOK` ∧ vi3 `ValidIdle` ∧ sg1 `IdleOutV` ∧ vi3 `IdleScOutV` (all carried).
+  Tops `kcall_rdyOff10` (event-part facts as hypotheses), `kcall_rdyOff3a`, `kentry_rdyOff3a`.
+- **SpecInvRd10A2 (handoff 1, the Yield arm).** `SS4 := OS ∧ RCA ∧ CtR ∧ HRC` (rd8a's `SS` without Rdy); `BS` (body-start
+  facts = rd8a's `EF` without the machine time), `bs_uts`, **`bs_front`** (a `true` front outcome: BS ∧ Suff),
+  `ss4_of_bs`; frames `suff_svcf`, `os_svcf`, `ctR_sv`, **`ss4_updSc q f hf`** (SC update keeping refills / max / TCB;
+  called with the real `scConsumedUpdate` write); `cq_cbTail'` (rd8a's `cq_cbTail` for either `canTimeout`), **`charge_ss4
+  (h : BS s) u c`** (charge_budget of any amount: consumed 0, the action not resume (nr_charge's argument), CtR (ctR_charge's
+  argument with `A9.tmoNR`)); **`ss4_handleYield`**, `mem_handleE_wp`, **`osBody_yield : A9.OsBody rep .sysYield σ`** from
+  rd8a's `EF` (NQ by nq3's `nq_handleYield`); `osBody_of`; tops **`kcall_rdyOff3` / `kentry_rdyOff3`** (OsBody only for
+  `c ≠ .sysYield`).
+- **SpecInvRd10A3 (handoff 2, the interrupt event).** `aw9_sendSignal` (rd9's AW9 step), `aw9_doMachineOp`,
+  **`aw9_handleInterrupt` / `aw9_maybeHandleInterrupt`** (signal IRQ: send_signal; timer: ack + reprogram_timer write;
+  inactive: fail; reserved / spurious: return), `charge_rdy`, **`cb_idle`** (charge_budget on the idle SC with ct not
+  schedulable only zeroes consumed_time), `EFI` (rd8a's `EF` without `ct ≠ idle`, with ValidIdle; `efi_of`), **`aw9_cb`**
+  (AW9 after update_time_stamp ; check_budget, ct idle (cur_sc = idle SC by CurScT + ValidIdle; OffReady with consumed 0;
+  RCA / CtR vacuous) or not (BS, `ss4_of_bs` / `charge_ss4` / `charge_rdy`)), **`ev_irq`** (`SS ∧ NQ []` at every outcome
+  of the interrupt event's part, no premise), top **`kcall_rdyOff3i`** (`hEvO` only for the fault events).
+- **STATEMENT (current tops):**
+  `kentry_rdyOff3 rep c σ (h : A8.EF σ) (hX : EV10 σ) (hW : ∀ w ∈ fl4SyscallFaultIP ct σ, A9.RdBody rep c w.2 ∧
+   (c ≠ .sysYield → A9.OsBody rep c w.2) ∧ ∀ y ∈ evRun rep (.syscallEvent c) w.2, SQ4 y.2) : ∀ r ∈ fl4KernelEntrySyscall
+   rep c σ, Rdy r.2 ∧ OffReady r.2 ∧ CAx r.2`;
+  `kcall_rdyOff3i rep ev σ hEF (hEFI : ev = .interrupt → EFI σ) (hX : EV10 σ) (hni : ev ≠ .interrupt → ct ≠ idle) hRdB
+   (hOsB : syscalls ≠ Yield) (hEvO : non-syscall, non-interrupt events) hQ4`.
+  Remaining hypotheses (none [J]/[P]/[W]/[S]; each pinned to the given entry's outcomes): `hRdB` (rd8e/f's Rdy at the body
+  outcomes, unchanged from rd9), `hOsB` for Send / NBSend / Call / Recv / Wait / NBWait / NBRecv / ReplyRecv / NBSendRecv /
+  NBSendWait (this line), `hEvO` for unknown-syscall / user-level / VM / hypervisor fault events (this line for SS4; its Rdy
+  part needs a Rdy-writer lemma for handle_fault, rd8e/f's), `hQ4` (ctq17/18's SQ4 carry over the event part). The entry
+  facts `EF`, `EV10`, `EFI` are all carried by named lines (rd8a / sb2 / vi3 / sg1 / ctq5 / nq3).
+- No FINDING. Checked: only `schedule` sets `resume_cur_thread` (Schedule.lean:186/222), so a resume outcome of the body
+  had resume throughout; handle_yield's charge always leaves the action not resume and consumed 0 (ct running, bound to the
+  active cur_sc, outside the release queue under resume by HB), and its `sc_consumed` write touches no refill / max / TCB;
+  at an interrupt with ct = idle, cur_sc is the idle SC and check_budget only zeroes consumed_time.
+- Builds (tokyo, FL4-tcbj mirror warm): rd10-1 A1 (5048 jobs), -2 A1 + axioms, -3/-4 A2 errors (a `rw` on a cfS projection;
+  a missing `beta_reduce`; then `ss4_updSc`'s update unified to the identity through `rfl` — REJECTED by Lean (type
+  mismatch), fixed by passing the real `scConsumedUpdate fun _ => …`), -5 A2 (5056), -6 A2 tops + axioms, -7 stopped (an
+  extra import of SpecInvValidIrqHandlersW, dropped), -8 A3 error (do-notation join point in handle_interrupt: `dsimp only`
+  first), -9 A3 (5058), -10 A1-A3 + axioms: every name above: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three import lines).
+- HANDOFF (in order):
+  1. OsBody for `handle_recv` (Recv / Wait / NBWait / NBRecv; also the tail of ReplyRecv / NBSendRecv / NBSendWait):
+     from `BS ∧ Suff` at the body's start. Plan: the pinned frame "cfS kept, cur_sc's refills / max kept (rd8a A1's CW),
+     resume ⇒ ct bound to cur_sc" (rd8a's CP kit: `ik_cp` for SVM ∧ CFK steps) over receive_ipc / receive_signal /
+     handle_fault; CtR: ct bound to cur_sc ⇒ `ctR_of_off`; ct unbound (reply_remove donating back) ⇒ vacuous; ct
+     receiving a donated SC only after giving its own away (the ReplyRecv tail) ⇒ rd8d's `rd_recvSender` argument (the
+     sender's SC is released, R3).
+  2. OsBody for the invocation syscalls (fl4HandleInvocationR with the preemption path): the decode prefix by an
+     SVM ∧ CFK family (CFK exists, RdP; SVM covers IPC only — extend it over the lookups / decodes like rd8c's BK view
+     family), the performs by one lemma per cur_sc-refill / ct-binding writer (configure of cur_sc: commit_time ⇒ consumed 0
+     and reschedule ⇒ not resume; SC unbind / donate of ct: testReschedule ⇒ not resume; deletion: sched_context_set_inactive
+     of cur_sc); the preemption path from SS4 at the error state via `charge_ss4`-style lemmas (needs BS-like facts at the
+     preemption point: ctq16's CKN gives ct's binding there).
+  3. hEvO for the fault events: front then handle_fault ct (`charge_ss4` / `ss4_of_bs` for the front as in `aw9_cb`;
+     send_fault_ipc: rd9's `no_sendIpc` shows ct ends not runnable, so CtR vacuous; the donation of ct's SC to the handler
+     reschedules (not resume); OS from cur_sc's refills kept: rd9's VW kit), plus a Rdy fact for handle_fault from rd8e/f.
+  4. hQ4 when ctq17/18 land.
+- Lean traps: a do-block `match` with a continuation compiles to `have __do_jp := …; match …` — `dsimp only` before
+  `split`; a frame lemma `f (fun _ => ⟨rfl, rfl, rfl⟩)` with `f := _` lets Lean pick the identity for the update (write
+  it explicitly); `rw [congrArg Prod.fst hc]` on a cfS projection fails (state the field equation with a type ascription).
