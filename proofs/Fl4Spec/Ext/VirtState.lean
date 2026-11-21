@@ -2,27 +2,20 @@
 FL4 differences (PORTING.md, "FL4 differences"): **x86 virtualization,
 the abstract VCPU state** (proofs/VIRT-PLAN.md §3).
 
-A VCPU is (l4v ARM_HYP `Arch_Structs_A.vcpu` for the shape: `vcpu_tcb`,
-`vcpu_regs`):
+The VCPU's types (`VField`, `ExitRecord`, `VcpuState`) are in
+`Ext/VirtObj`; a VCPU is the heap object `.archObj (.vcpu st)` (decision
+Q1 of 2026-11-21, l4v ARM_HYP `VCPU vcpu`). This module gives the
+field access through canonical places, FL4's initial VCPU
+(`vcpu::init`), the heap access (`vcpuAt`, the binding `tcbVcpuOf`, l4v
+ARM_HYP `get_vcpu`/`set_vcpu`/`vcpu_update`), VMEnter's staging
+(`VcpuState.enter`) and its report (`vmenterReport`).
 
-* `tcb`: the bound thread (FL4 word `vcpu::TCB`; the TCB's `tl::VCPU` word
-  is the other half of the binding, `VirtExt.tcbVcpu`);
-* `fields`: the backend's field table (`Ext/VirtFields`), indexed by
-  canonical fields only;
-* `exit`: the pending-exit record, the 30 VMEnter message registers of
-  libsel4 `sel4/arch/vmenter.h` (one layout for both backends), with the
-  flags `valid` (the last entry reached the guest and exited; FL4 word
-  `VALID`) and `pending` (an exit for the VMM not yet reported; `PENDING`);
-* `ioDenied`: the VT-x I/O bitmap (FL4 `vcpu::IO`, a set bit traps the
-  port; SDM Vol. 3C §25.6.4). SVM uses one shared all-intercepting I/O
-  permission map, so the bitmap is VMX-only.
-
-The extension state `VirtExt` holds the VCPUs by object reference and the
-TCB → VCPU binding; `VState Z` pairs it with the ported `State Z`. The
-kernel heap keeps the ported `.archObj (.vcpu _)` object as the type
-marker of the VCPU's memory (retype, detype, `obj_bits`); its words are not
-read by the extension (VIRT-PLAN.md §3.3: the shape change that would
-put `VcpuState` there instead).
+There is no extension state: every part of the abstract VCPU is in the
+object, and the TCB → VCPU direction of the binding (FL4 `tl::VCPU`) is
+the inverse of `VcpuState.tcb` (`tcbVcpuOf`), unique by `VcpuBindingInv`
+(l4v ARM_HYP's `sym_refs` of `vcpu_tcb`/`tcb_vcpu`, an invariant of the
+proofs). FL4's VCPU list (`ks::VCPU_HEAD`, `NEXT`/`PREV`) is the set of
+VCPU objects (refinement relation only, VIRT-PLAN.md §3.4).
 
 The ported modules are not changed.
 -/
@@ -50,19 +43,6 @@ def vmenterMrCr3 : Fin 30 := 9
 /-- MR 10 + i is GPR i (EAX, EBX, ECX, EDX, ESI, EDI, EBP, R8..R15). -/
 def vmenterMrGpr (i : Fin 15) : Fin 30 := ⟨10 + i.val, by omega⟩
 def vmenterMrCr2 : Fin 30 := 29
-
-/-- The pending-exit record (module docstring). -/
-structure ExitRecord where
-  valid : Bool
-  pending : Bool
-  mrs : Fin 30 → Word
-
-/-- The abstract VCPU (module docstring). -/
-structure VcpuState where
-  tcb : Option ObjRef
-  fields : VField → Word
-  exit : ExitRecord
-  ioDenied : BitVec 16 → Bool
 
 namespace VcpuState
 
@@ -140,20 +120,72 @@ def initVcpu (k : VirtKind) : VcpuState where
   exit := ⟨false, false, fun _ => 0⟩
   ioDenied := fun _ => true
 
-/-- The extension state (module docstring). -/
-structure VirtExt where
-  vcpus : ObjRef → Option VcpuState
-  /-- The TCB's VCPU (FL4 `tl::VCPU`; l4v ARM_HYP `tcb_vcpu` of
-  `arch_tcb`). -/
-  tcbVcpu : ObjRef → Option ObjRef
+/-! ## The VCPUs in the heap -/
 
-/-- The state with no VCPUs. -/
-def VirtExt.empty : VirtExt := ⟨fun _ => none, fun _ => none⟩
+/-- The VCPU at `v`, if the heap holds one there. -/
+def vcpuAt {Z : Type} (σ : State Z) (v : ObjRef) : Option VcpuState :=
+  match σ.kheap v with
+  | some (.archObj (.vcpu st)) => some st
+  | _ => none
 
-/-- The ported state with the virtualization extension. -/
-structure VState (Z : Type) where
-  base : State Z
-  virt : VirtExt
+/-- The VCPU bound to thread `t` (FL4 `vcpu::bound`, the TCB word
+`tl::VCPU`; l4v ARM_HYP `tcb_vcpu`): the VCPU whose `tcb` is `t`. Unique
+under `VcpuBindingInv`; otherwise some such VCPU. -/
+def tcbVcpuOf {Z : Type} (σ : State Z) (t : ObjRef) : Option ObjRef :=
+  if h : ∃ v st, vcpuAt σ v = some st ∧ st.tcb = some t then some (Classical.choose h) else none
+
+/-- The binding invariant (for the proofs; l4v ARM_HYP `sym_refs` of the
+VCPU/TCB references): at most one VCPU per thread, and a VCPU's thread
+is a TCB. -/
+def VcpuBindingInv {Z : Type} (σ : State Z) : Prop :=
+  (∀ v w sv sw t, vcpuAt σ v = some sv → vcpuAt σ w = some sw → sv.tcb = some t → sw.tcb = some t →
+    v = w) ∧
+  ∀ v sv t, vcpuAt σ v = some sv → sv.tcb = some t → ∃ tcb, σ.kheap t = some (.tcb tcb)
+
+theorem tcbVcpuOf_some {Z : Type} {σ : State Z} {t v : ObjRef} (h : tcbVcpuOf σ t = some v) :
+    ∃ st, vcpuAt σ v = some st ∧ st.tcb = some t := by
+  unfold tcbVcpuOf at h
+  split at h
+  · rename_i hx; cases h; exact Classical.choose_spec hx
+  · cases h
+
+theorem tcbVcpuOf_none {Z : Type} {σ : State Z} {t : ObjRef} :
+    tcbVcpuOf σ t = none ↔ ∀ v st, vcpuAt σ v = some st → st.tcb ≠ some t := by
+  unfold tcbVcpuOf
+  split
+  · rename_i hx
+    simp only [reduceCtorEq, false_iff]
+    intro hn
+    obtain ⟨v, st, h1, h2⟩ := hx
+    exact hn v st h1 h2
+  · rename_i hx
+    simp only [true_iff]
+    intro v st h1 h2
+    exact hx ⟨v, st, h1, h2⟩
+
+section
+variable {Z : Type} [StateExt Z]
+
+/-- l4v ARM_HYP: VCPU_A/ArchVSpaceAcc_A `get_vcpu` (fails unless the
+object is a VCPU). -/
+def getVcpu (v : ObjRef) : SMonad Z VcpuState := do
+  let kobj ← getObject v
+  match kobj with
+  | .archObj (.vcpu st) => return st
+  | _ => NonDet.fail
+
+/-- l4v ARM_HYP `set_vcpu`. -/
+def setVcpu (v : ObjRef) (st : VcpuState) : SMonad Z Unit := setObject v (.archObj (.vcpu st))
+
+/-- l4v ARM_HYP `vcpu_update`. -/
+def vcpuUpdate (v : ObjRef) (f : VcpuState → VcpuState) : SMonad Z Unit := do
+  let st ← getVcpu v
+  setVcpu v (f st)
+
+/-- FL4 `vcpu::bound` as an operation. -/
+def getTcbVcpu (t : ObjRef) : SMonad Z (Option ObjRef) := NonDet.gets fun σ : State Z => tcbVcpuOf σ t
+
+end
 
 /-- FL4 `vcpu::enter`'s staging of a VMEnter request (MR0..2: guest RIP,
 primary controls / SVM vector-3 intercepts, event injection), sanitized,

@@ -36,6 +36,9 @@ words `NEXT`/`PREV`, `VALID`/`PENDING` as words (they are the exit
 record's flags), `SVM_CPU` (SVM ASID retention), the VMCB clean bits
 (0x0c0) and ASID word (0x058), the physical pointers the trusted layer
 writes into the VMCB (0x040, 0x048, 0x0b0), per-core VMCS caches.
+The VMCB clean bits and ASID word read as 0 in the spec
+(`Svm.hiddenRead`, decision Q4 of 2026-11-21; FL4 code differs until
+FINDING V3 is fixed).
 
 The ported modules are not changed.
 -/
@@ -46,13 +49,7 @@ namespace Fl4Spec
 noncomputable section
 open Classical
 
-/-- A VCPU field (module docstring). -/
-inductive VField where
-  | vmcs (enc : Word)
-  | vmcb (off : Word)
-  | gpr (i : Fin 15)
-  | msr (m : Word)
-deriving DecidableEq, Inhabited
+-- `VField` itself is in `Ext/VirtObj` (the heap object needs it).
 
 namespace Vmx
 /-- `GUEST_ES_SELECTOR` (SDM Vol. 3D App. B). -/
@@ -496,6 +493,12 @@ def hidden (f : Word) : Bool :=
 lets ReadVMCB return them (VIRT-PLAN.md FINDING V3); the spec leaves
 their value unspecified (`Ext/VirtState`). -/
 def hostCache (f : Word) : Bool := f = asid || f = clean
+
+/-- What ReadVMCB returns 0 for: the hidden words and the host-cache
+words (decision Q4 of 2026-11-21: FL4 should hide 0x058 and 0x0c0 as
+well). -- FL4 code differs until V3 (`vcpu::vmcb_hidden` lacks 0x058,
+0x0c0). -/
+def hiddenRead (f : Word) : Bool := hidden f || hostCache f
 
 /-- Readable on SVM: FL4 `vcpu::decode` ReadVMCB, `f & 7 == 0 && f < END`. -/
 def readable (f : Word) : Bool := f &&& 7 = 0 && f < svmEnd

@@ -441,17 +441,39 @@ details.
   `FaultIP` (`getRestartPC`). FL4's `TRAP_SYSCALLS` flag (l4h) and its
   debug/TLS syscalls (`handle_unknown_syscall`) have no branch here yet.
 - **`Ext/Virt*`: x86 virtualization** (VT-x and AMD-V, one spec with the
-  backend `virtKind` as a platform constant; design and proof plan in
-  `proofs/VIRT-PLAN.md`). `VirtBackend`: the backend and the
-  underspecified capability words; `VirtFields`: per-backend VCPU field
-  tables with readable / writable / guest-changed classes; `VirtSanitize`:
-  FL4's sanitize policy as pure functions; `VirtState`: the abstract VCPU
-  (`VcpuState`), the extension state `VirtExt` and `VState Z`, VCPU
-  initialisation, VMEnter staging and its report; `VirtEpt`: the guest
-  page-table entry format and walk; `VirtGuest`: the guest-execution
-  oracle `GuestStep` (l4v `do_user_op` style), the trusted layer's [P]
-  contract shapes and the P3x statement shape. The invocations follow in
-  later modules.
+  backend `virtKind` as a platform constant; design, decisions and proof
+  plan in `proofs/VIRT-PLAN.md`). `VirtObj`: the abstract VCPU's types
+  (`VcpuState`, held by the FL4 constructor `ArchKernelObj.vcpu`, l4v
+  ARM_HYP style; `X64/Structs` imports this module for it); `VirtBackend`:
+  the backend and the underspecified capability words; `VirtFields`:
+  per-backend VCPU field tables with readable / writable / guest-changed
+  classes; `VirtSanitize`: FL4's sanitize policy as pure functions;
+  `VirtState`: field access, VCPU initialisation, the heap access and the
+  derived TCB → VCPU binding (`tcbVcpuOf`), VMEnter staging and its report;
+  `VirtEpt`: the guest page-table entry format and walk; `VirtGuest`: the
+  guest-execution oracle `GuestStep` (l4v `do_user_op` style), the trusted
+  layer's [P] contract shapes and `NoVirtObjects`; `VirtVcpu`: the VCPU
+  invocations; `VirtEptInv`: the guest page-table, EPT frame and guest
+  ASID invocations; `VirtFinalise`: finalisation hooks (with the
+  extension's copies of `rec_del`, `cap_delete`, `cap_revoke`,
+  `invoke_cnode`, `invoke_tcb`), the VT-x retype gate and VCPU init,
+  TCBSetEPTRoot; `VirtEntry`: VMEnter, the VCPU check, `sendSignalV`,
+  interrupts and timers through it, `activateThreadV`; `VirtDispatch`: the
+  extended dispatcher around `fl4DecodeInvocation` /
+  `fl4PerformInvocation`; `VirtKernel`: `fl4CallKernelV` and the VM-exit
+  entry `fl4VcpuExitV`; `VirtP3x`: the P3x parts proved so far.
+  Where the owner decided (2026-11-21) that FL4 should follow seL4 and the
+  kernel does not yet, the spec states seL4's behaviour and the place is
+  marked `-- FL4 code differs until V1/V2/V3` (VIRT-PLAN.md §12).
+- **`runningVM` and timeout faults** (FL4 `sched.rs` `end_timeslice`,
+  VIRT-PLAN.md FINDING V8, kept by the owner's decision of 2026-11-21): a
+  thread whose budget expires while `runningVM` gets no timeout fault; it
+  is requeued or postponed. seL4's `endTimeslice` has no such exception.
+  This difference is inside the ported `endTimeslice` (`Ipc.lean`, `let
+  valid ← if ts = .runningVM then pure false else ...`, added with the
+  VT-x port in #9), not in an Ext module; l4v's `end_timeslice` reads
+  `valid ← is_valid_timeout_handler ct`. Without `runningVM` threads the two
+  agree.
 - **Invocation label numbers** (a deliberate deviation from l4v). l4v's
   `invocation_type` numbers labels by the Haskell `Enum` of
   `invocation_label` (l4v's labels only, generic then arch). FL4's ABI
