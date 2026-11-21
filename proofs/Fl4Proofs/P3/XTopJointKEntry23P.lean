@@ -220,7 +220,7 @@ theorem decOK_JMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5)
     (hN : JPathM (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState) (hVT : ValidMachineTime σ)
-    (hVI : ValidIrqMasks σ) :
+    (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
@@ -249,8 +249,8 @@ theorem decOK_JMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
         hX0)) (specDec_noPreK (by trivial))
   case Notification p b sd rv =>
     exact XCap.toPN arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs)
-        hG.ppA.minBudget J hni hct hAs hc hst hX0)) (specDec_noPreK (by trivial))
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJN hG.tot hG.ppA.minBudget J hNs
+        hni hct hAs hc hst hX0)) (specDec_noPreK (by trivial))
   case Reply p g =>
     exact XCap.toPN arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
       excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.ppA.minBudget J hni hct hAs hc hst
@@ -480,7 +480,7 @@ theorem handle_invocation_entryJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) :
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
       HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) true σ is_call blocking can_donate
         first_phase (Fl4Spec.toBl cptr.bv) res ⦄ := by
@@ -530,7 +530,7 @@ theorem handle_invocation_entryJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   exact decOK_JMU arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
     (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2)
-    hPD hR hVT hVI
+    hPD hR hVT hVI hNs
 
 end
 
@@ -546,7 +546,7 @@ theorem invoke_afterJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
@@ -569,7 +569,7 @@ theorem invoke_afterJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       (Fl4Spec.toBl (L.mem s (regA ct layout.reg.CAP)).bv)).run σ).1 → y ∈ ((DispInv call bl don).run σ).1 :=
     fun y hy => mem_bindE_ok (mem_liftE (ε := Unit) hreg) hy
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
-  refine WP.spec_bind (handle_invocation_entryJMU arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI) ?_
+  refine WP.spec_bind (handle_invocation_entryJMU arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI hNs) ?_
   rintro ⟨r, s1, a1⟩ ⟨y, hy, hres, hrel, hX⟩
   rcases hres with ⟨rfl, hy1⟩ | ⟨rfl, hy1⟩
   · show (do
@@ -593,13 +593,13 @@ theorem dispatch_invokeJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
     syscall.dispatch_syscall st arI s ar number ⦃ r => DispPost (L := L) arI AR Q (DispInv call bl don) σ r ⦄ := by
-  have h := invoke_afterJMU arI s ar σ J ct hct call bl don hG hE hP hPD hR hVT hVI Q hPre
+  have h := invoke_afterJMU arI s ar σ J ct hct call bl don hG hE hP hPD hR hVT hVI hNs Q hPre
   unfold syscall.dispatch_syscall
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.CAP) ?_
@@ -657,7 +657,7 @@ theorem mid_invRecvJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   rw [hcp] at hreg
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
   refine WP.spec_bind (WP.spec_mono (handle_invocation_entryJMU arI s ar σ J ct hct false false true true _ hG hE hP
-    hPD hR0 hVT hVI)
+    hPD hR0 hVT hVI (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩))
     fun res h => And.intro (h.toPreMV.mid arI (MidRun.jMidRunHyp_of hW) (J.midEntry hni hE.cnf)) h) ?_
   rintro ⟨r, s1, a1⟩ ⟨⟨⟨y1, σm⟩, hy, ⟨hr1, hy1, hM⟩ | ⟨hr1, hy1, hrel, hX⟩⟩, hMV⟩
   · dsimp only at hr1 hy1 hM
@@ -745,7 +745,8 @@ theorem dispatch_invokeJAllMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     syscall.dispatch_syscall st arI s ar number ⦃ r =>
       DispPost (L := L) arI AR (PPQJI (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ := by
   rw [fl4HandleSyscall_inv hn]
-  exact dispatch_invokeJMU arI s ar σ J ct hct number call bl don hn hG hE hP hPD hR hVT hVI _
+  exact dispatch_invokeJMU arI s ar σ J ct hct number call bl don hn hG hE hP hPD hR hVT hVI
+    (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩) _
     fun s1 a1 σ1 h1 h2 => WP.spec_mono (hPre_ofZQIM hARI hA hnd hM hMK hPA hIA hmrt hNS hG.maxTU hG.tu s1 a1 σ1 h1 h2)
       fun _ h => h.2
 

@@ -156,11 +156,6 @@ structure JEntryGlobM (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop 
   dom : DomConfig
   /-- [P] the port-in values (`PortInVal`, the IO port decode for a call). -/
   portIn : PortInVal arI
-  /-- [J] ScSignalJ's `SignalRestJHyp` (a notification's bound thread
-  `RunningVM`: FL4's remote stall, VT-x, outside the spec model), at every
-  `P1.Heap` and set of cores: the notification cap's
-  `send_signal` (`notifLeafJ`). -/
-  sigRest : ∀ (H : P1.Heap) (Cs : Set U64), SignalRestJHyp (L := L) arI AR H Cs
   /-- [P] the platform's timer agreement (`TimeAgree`; the Thread cap's
   SetSchedParams, `bind_tcb_refines`). -/
   timeAg : TimeAgree arI
@@ -196,6 +191,37 @@ def JPreDecHyp (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineStat
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
+variable {arI} in
+set_option maxHeartbeats 4000000 in
+/-- **The notification cap's leaf at `J` with `NativeScope` at the invocation's
+state** (g3e): `notifLeafJ` with no `SignalRestJHyp`. The spec's restart writes
+`Restart` (`SInv.ns_setThreadState`), so `NativeScope` holds at the restart
+state, where `JAtZ.signal_atN` (g3b) signals. -/
+theorem notifLeafJN (hAT : P0.ArchTotal arI)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    {s : S} {ar : A} {σ σ1 : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
+    (hN : NativeScope σ) (hni : Entered σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
+    {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl) {p b : U64} {w r : Bool}
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Notification p b w r))
+    (hst : Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False)) :
+    XLeaf (L := L) (JAt (L := L) arI AR) s ar σ (do
+        let s1 ← sched.set_thread_state st s ct sched.TS_RESTART
+        let (s2, a1) ← notification.send_signal st arI s1 ar p b
+        ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a1))
+      (Fl4Spec.sendSignal (Z := Unit) p.bv b.bv σ1) := by
+  intro _
+  have hpN := (J.slotN hA hc).1
+  obtain ⟨s1, σ1', x, -, hst1, -, -, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  have hN1 := SInv.ns_setThreadState σ.curThread .restart (by intro e; cases e) σ hN _
+    (by rw [hst1]; exact Set.mem_singleton _)
+  obtain rfl := restart_out_eq hst1 hst
+  rw [hs1]
+  simp only [bind_ok]
+  refine WP.spec_bind (J1.signal_atN hAT hmb hN1 p b hpN) ?_
+  rintro ⟨s2, a1⟩ ⟨σ', V', Ac', Lst', D', hsp, -, J'⟩
+  apply (WP.spec_ok _).2
+  refine ⟨rfl, ((), σ'), by rw [hsp]; exact Set.mem_singleton _, J'.xtop.relTop, _, _, _, _, _, _, J'⟩
+
 set_option maxHeartbeats 4000000 in
 theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
@@ -212,7 +238,7 @@ theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     (hA5 : ArgRel (st := st) s σ ct buf buffer 5)
     (hN : JPath (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c)
     (hPD : JPreDecHyp (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState) (hVT : ValidMachineTime σ)
-    (hVI : ValidIrqMasks σ) :
+    (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
     XCapP (L := L) arI (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) s ar σ lbl length (cslotAddr sl) c blk call
       don fp buf extra slbl (argsU.map UScalar.bv) ci sl excaps buffer ct := by
   have hX0 : JAt (L := L) arI AR s ar σ := ⟨Z, H, Cs, Ac, Lst, D, J⟩
@@ -241,8 +267,8 @@ theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
         hX0)) (specDec_noPreK (by trivial))
   case Notification p b sd rv =>
     exact XCap.toPN arI (Or.inl (decode_notificationDMX arI _ s ar σ lbl length _ p b sd rv blk call don fp buf extra
-      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJ hG.tot (hG.sigRest H Cs)
-        hG.ppA.minBudget J hni hct hAs hc hst hX0)) (specDec_noPreK (by trivial))
+      slbl _ ci sl excaps buffer ct hct hX0 hst fun _ => notifLeafJN hG.tot hG.ppA.minBudget J hNs
+        hni hct hAs hc hst hX0)) (specDec_noPreK (by trivial))
   case Reply p g =>
     exact XCap.toPN arI (Or.inl (decode_replyDMX arI _ s ar σ lbl length _ p g blk call don fp buf extra slbl _ ci sl
       excaps buffer ct hct hst (replyLeafJ hG.tot hG.maxTU hG.tu hG.ppA.minBudget J hni hct hAs hc hst
@@ -472,7 +498,7 @@ theorem handle_invocation_entryJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHyp (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) :
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
     syscall.handle_invocation st arI s ar is_call blocking can_donate first_phase cptr ⦃ res =>
       HIPostMXP (L := L) (JAt (L := L) arI AR) (JAtPreMV (L := L) arI AR MR) true σ is_call blocking can_donate
         first_phase (Fl4Spec.toBl cptr.bv) res ⦄ := by
@@ -522,7 +548,7 @@ theorem handle_invocation_entryJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   exact decOK_JM arI s ar σ J hG hE ct hct info.label (msgLen info buf) blocking is_call can_donate first_phase
     buf e mi.miLabel argsU hLen hArgs hbuf hl (Fl4Spec.toBl cptr.bv) sl hsl c hc exs buffer
     (hXO e exs h1 h2) hXN hLb hA5 (hP info mi buf buffer r2 er argsU hinfo hmi hbuf hbuffer hr2 her hmrs sl c e exs hsl hc hget h1 h2)
-    hPD hR hVT hVI
+    hPD hR hVT hVI hNs
 
 end
 
@@ -538,7 +564,7 @@ theorem invoke_afterJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHyp (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
@@ -561,7 +587,7 @@ theorem invoke_afterJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       (Fl4Spec.toBl (L.mem s (regA ct layout.reg.CAP)).bv)).run σ).1 → y ∈ ((DispInv call bl don).run σ).1 :=
     fun y hy => mem_bindE_ok (mem_liftE (ε := Unit) hreg) hy
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
-  refine WP.spec_bind (handle_invocation_entryJM arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI) ?_
+  refine WP.spec_bind (handle_invocation_entryJM arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI hNs) ?_
   rintro ⟨r, s1, a1⟩ ⟨y, hy, hres, hrel, hX⟩
   rcases hres with ⟨rfl, hy1⟩ | ⟨rfl, hy1⟩
   · show (do
@@ -585,13 +611,13 @@ theorem dispatch_invokeJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
     (hP : JPathAt (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHyp (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
-    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
+    (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
     (Q : Fl4Spec.State Unit → S × A → Prop)
     (hPre : ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
       JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r => Q σ1 (r.2.1, r.2.2) ⦄) :
     syscall.dispatch_syscall st arI s ar number ⦃ r => DispPost (L := L) arI AR Q (DispInv call bl don) σ r ⦄ := by
-  have h := invoke_afterJM arI s ar σ J ct hct call bl don hG hE hP hPD hR hVT hVI Q hPre
+  have h := invoke_afterJM arI s ar σ J ct hct call bl don hG hE hP hPD hR hVT hVI hNs Q hPre
   unfold syscall.dispatch_syscall
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.CAP) ?_
@@ -649,7 +675,7 @@ theorem mid_invRecvJM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   rw [hcp] at hreg
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
   refine WP.spec_bind (WP.spec_mono (handle_invocation_entryJM arI s ar σ J ct hct false false true true _ hG hE hP
-    hPD hR0 hVT hVI)
+    hPD hR0 hVT hVI (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩))
     fun res h => And.intro (h.toPreMV.mid arI (MidRun.jMidRunHyp_of hW) (J.midEntry hni hE.cnf)) h) ?_
   rintro ⟨r, s1, a1⟩ ⟨⟨⟨y1, σm⟩, hy, ⟨hr1, hy1, hM⟩ | ⟨hr1, hy1, hrel, hX⟩⟩, hMV⟩
   · dsimp only at hr1 hy1 hM
@@ -737,7 +763,8 @@ theorem dispatch_invokeJAllM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     syscall.dispatch_syscall st arI s ar number ⦃ r =>
       DispPost (L := L) arI AR (PPQJI (L := L) arI AR) (Fl4Spec.fl4HandleSyscall true (invSysOf call bl)) σ r ⦄ := by
   rw [fl4HandleSyscall_inv hn]
-  exact dispatch_invokeJM arI s ar σ J ct hct number call bl don hn hG hE hP hPD hR hVT hVI _
+  exact dispatch_invokeJM arI s ar σ J ct hct number call bl don hn hG hE hP hPD hR hVT hVI
+    (hNS s ar σ ⟨Z, H, Cs, Ac, Lst, D, s, ar, σ, J.toHole⟩) _
     fun s1 a1 σ1 h1 h2 => WP.spec_mono (hPre_ofZQIM hARI hA hnd hM hMK hPA hIA hmrt hNS hG.maxTU hG.tu s1 a1 σ1 h1 h2)
       fun _ h => h.2
 

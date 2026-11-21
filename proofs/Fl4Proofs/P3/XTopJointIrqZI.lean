@@ -45,11 +45,11 @@ structure IrqPlatI (AR : A → Fl4Spec.Cr3 → Prop) : Prop where
 set_option maxHeartbeats 16000000 in
 /-- **`JAtZ.handleIrqJJ` with the inactive-line case named**: the spec fails
 only on an inactive line, so the post is `JAt` after or that line inactive. -/
-theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+theorem JAtZ.handleIrqJIN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hN : NativeScope σ)
     (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       σ.interruptStates i = .irqInactive ∨
@@ -168,11 +168,7 @@ theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
             intro σ1 h; unfold Fl4Spec.NonDet.when; rw [if_pos hP, hobj, hbd]; exact h
           have hA : AbsSlot Z.th ((nodeA (L.ksb s) w).bv, []) := ⟨_, rfl, Or.inl hnode⟩
           have hpN := (J.slotN hA (by rw [cslotAddr_nil]; exact hcap)).1
-          have hW : SignalRestJHyp (L := L) arI AR H Cs := by
-            intro Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ _ hb
-            obtain ⟨-, t, tcb, -, hkt, hvm⟩ := hb
-            exact absurd hvm (hNS s1 a1 σ1 ⟨Z1, H, Cs, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole⟩ t tcb hkt)
-          refine WP.spec_bind (signalJHyp_of hAT hW hmb Z Ac Lst D s a σ p b J hpN) ?_
+          refine WP.spec_bind (J.signal_atN hAT hmb hN p b hpN) ?_
           rintro ⟨s2, a2⟩ ⟨σ', V', Ac', Lst'', D', hsp, -, J'⟩
           exact hmask s2 a2 σ' (hwhen σ' (by rw [hsp]; rfl)) ⟨_, H, Cs, Ac', Lst'', D', J'⟩
       | _ =>
@@ -212,6 +208,19 @@ theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
         rw [hst]; unfold irqSt; simp [h0, h1, h2]
       simp only [h0, ↓reduceIte, bind_ok, WP.spec_ok]
       exact Or.inr ⟨_, mem_hi_reserved hle hres, Z, H, Cs, Ac, Lst, D, J⟩
+
+
+/-- `JAtZ.handleIrqJIN` from the ∀-form `hNS` (the pre-g3e statement). -/
+theorem JAtZ.handleIrqJI (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
+    interrupt.handle_interrupt st arI s a w ⦃ r =>
+      σ.interruptStates i = .irqInactive ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  J.handleIrqJIN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
 
 
 variable (arI) in
@@ -313,6 +322,55 @@ theorem afterInv_of_mcsI {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [e]
     simp only [↓reduceIte]
     refine WP.spec_bind (J2.handleIrqJI hARI hAT hIP.base hmbA hNS w i hwi h126 h127) ?_
+    rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
+    · exact absurd hf (hact _ ms hIq i rfl)
+    · exact (WP.spec_ok _).2 ⟨rfl, ⟨z, hm _ (mem_maybeHandle_some hIq hz), hJ⟩⟩
+
+set_option maxHeartbeats 16000000 in
+/-- **`afterInv_of_mcsI` with `NativeScope` at the state after the MCS part**
+(g3e): `hmcs` gives it beside `JAt` (as g3b's `afterInv_of_mcsIMN`), so no
+∀-form `NativeScope` premise; the handler is `JAtZ.handleIrqJIN`. -/
+theorem afterInv_of_mcsIN {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hmcs : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
+      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
+      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ NativeScope σ' ⦄)
+    (hIP : IrqPlatI (L := L) arI AR) (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI)
+    (hmbA : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (e : error.Exc) :
+    syscall.after_invocation st arI s a (.Err e) ⦃ r => r.1 = false ∧ PPQJI (L := L) arI AR σ (r.2.1, r.2.2) ⦄ := by
+  unfold syscall.after_invocation
+  refine WP.spec_bind hmcs ?_
+  rintro ⟨s1, a1⟩ ⟨σ', hm, hmf, ⟨Z', H', Cs', Ac', Lst', D', J'⟩, hN'⟩
+  have hAR1 : AR a1 σ'.archState.x64CurrentCr3 := J'.xtop.fin.1.1.2.2.2.2.2.2
+  refine WP.spec_bind (WP.spec_and (WP.spec_and (WP.spec_and (hIP.base.take a1 σ') (hIP.base.takeAR a1 _ hAR1))
+    (hIP.base.noIpi a1)) (hIP.act s1 a1 σ' ⟨Z', H', Cs', Ac', Lst', D', J'⟩)) ?_
+  rintro ⟨w, a2⟩ ⟨⟨⟨⟨irq, ms, hIq, hnone, hsome, hum⟩, hAR2⟩, h126, h127⟩, hact⟩
+  obtain ⟨Lst2, J2⟩ := J'.msArJ ms a2 hum (fun _ => hAR2)
+  unfold syscall.check_interrupt
+  by_cases hw : w = syscall.NO_IRQ
+  · have hirq : irq = none := hnone.1 hw
+    subst hirq
+    have e : (w != syscall.NO_IRQ) = false := by simp [hw]
+    show (do
+      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
+      ok (false, s2, a3)) ⦃ _ ⦄
+    rw [e]
+    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
+    refine (WP.spec_ok _).2 ⟨rfl, ⟨((), { σ' with machineState := ms }),
+      hm _ (mem_maybeHandle_none hIq), ⟨Z', H', Cs', Ac', Lst2, D', J2⟩⟩⟩
+  · obtain ⟨i, rfl⟩ : ∃ i, irq = some i := by
+      cases irq with
+      | none => exact absurd (hnone.2 rfl) hw
+      | some i => exact ⟨i, rfl⟩
+    obtain ⟨hwi, hmask⟩ := hsome i rfl
+    have e : (w != syscall.NO_IRQ) = true := by simpa using hw
+    show (do
+      let (s2, a3) ← (if (w != syscall.NO_IRQ) = true then interrupt.handle_interrupt st arI s1 a2 w else ok (s1, a2))
+      ok (false, s2, a3)) ⦃ _ ⦄
+    rw [e]
+    simp only [↓reduceIte]
+    refine WP.spec_bind (J2.handleIrqJIN hARI hAT hIP.base hmbA (fun p x h => hN' p x h) w i hwi h126 h127) ?_
     rintro ⟨s2, a3⟩ (hf | ⟨z, hz, hJ⟩)
     · exact absurd hf (hact _ ms hIq i rfl)
     · exact (WP.spec_ok _).2 ⟨rfl, ⟨z, hm _ (mem_maybeHandle_some hIq hz), hJ⟩⟩

@@ -86,11 +86,11 @@ def JIrqHypJ (AR : A → Fl4Spec.Cr3 → Prop) : Prop :=
 set_option maxHeartbeats 16000000 in
 /-- **`handle_interrupt` from a `JAtZ` state** (module docstring; the
 branches of XTopJointIrq's `JHole.handleIrqJ` at `JAtZ`). -/
-theorem JAtZ.handleIrqJJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+theorem JAtZ.handleIrqJJN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hN : NativeScope σ)
     (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
     interrupt.handle_interrupt st arI s a w ⦃ r =>
       (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
@@ -209,11 +209,7 @@ theorem JAtZ.handleIrqJJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
             intro σ1 h; unfold Fl4Spec.NonDet.when; rw [if_pos hP, hobj, hbd]; exact h
           have hA : AbsSlot Z.th ((nodeA (L.ksb s) w).bv, []) := ⟨_, rfl, Or.inl hnode⟩
           have hpN := (J.slotN hA (by rw [cslotAddr_nil]; exact hcap)).1
-          have hW : SignalRestJHyp (L := L) arI AR H Cs := by
-            intro Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ _ hb
-            obtain ⟨-, t, tcb, -, hkt, hvm⟩ := hb
-            exact absurd hvm (hNS s1 a1 σ1 ⟨Z1, H, Cs, Ac1, Lst1, D1, s1, a1, σ1, J1.toHole⟩ t tcb hkt)
-          refine WP.spec_bind (signalJHyp_of hAT hW hmb Z Ac Lst D s a σ p b J hpN) ?_
+          refine WP.spec_bind (J.signal_atN hAT hmb hN p b hpN) ?_
           rintro ⟨s2, a2⟩ ⟨σ', V', Ac', Lst'', D', hsp, -, J'⟩
           exact hmask s2 a2 σ' (hwhen σ' (by rw [hsp]; rfl)) ⟨_, H, Cs, Ac', Lst'', D', J'⟩
       | _ =>
@@ -254,6 +250,19 @@ theorem JAtZ.handleIrqJJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP :
       simp only [h0, ↓reduceIte, bind_ok, WP.spec_ok]
       exact Or.inr ⟨_, mem_hi_reserved hle hres, Z, H, Cs, Ac, Lst, D, J⟩
 
+/-- `JAtZ.handleIrqJJN` from the ∀-form `hNS` (the pre-g3e statement). -/
+theorem JAtZ.handleIrqJJ (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (w : U64) (i : Fl4Spec.Irq) (hwi : w.val = i.toNat) (h126 : w.val ≠ 126) (h127 : w.val ≠ 127) :
+    interrupt.handle_interrupt st arI s a w ⦃ r =>
+      (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ :=
+  J.handleIrqJJN hARI hAT hIP hmb (hNS s a σ ⟨Z, H, Cs, Ac, Lst, D, s, a, σ, J.toHole⟩) w i hwi h126 h127
+
+
 /-- **`JIrqHypJ` from the platform facts alone** (module docstring). -/
 theorem jIrqHypJ_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
@@ -262,6 +271,20 @@ theorem jIrqHypJ_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
   intro s a σ w i hJ hwi _ h126 h127
   obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
   exact J.handleIrqJJ hARI hAT hIP hmb hNS w i hwi h126 h127
+
+/-- **`JIrqHypJ` per state** (g3e): at every `JAt` state with `NativeScope`
+there, no ∀-form `hNS`. -/
+theorem jIrqHypJ_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
+    JAt (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
+    w.val ≠ 126 → w.val ≠ 127 →
+    interrupt.handle_interrupt st arI s a w ⦃ r =>
+      (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, JAt (L := L) arI AR r.1 r.2 z.2 ⦄ := by
+  intro s a σ w i hJ hN hwi _ h126 h127
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
+  exact J.handleIrqJJN hARI hAT hIP hmb hN w i hwi h126 h127
 
 variable (arI) in
 /-- What the covered preemption path ends in, `JAt` in every branch: a spec

@@ -135,7 +135,7 @@ theorem invoke_afterJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
       (Fl4Spec.toBl (L.mem s (regA ct layout.reg.CAP)).bv)).run σ).1 → y ∈ ((DispInv call bl don).run σ).1 :=
     fun y hy => mem_bindE_ok (mem_liftE (ε := Unit) hreg) hy
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
-  refine WP.spec_bind (handle_invocation_entryJMU arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI) ?_
+  refine WP.spec_bind (handle_invocation_entryJMU arI s ar σ J ct hct call bl don false _ hG hE hP hPD hR hVT hVI hN) ?_
   rintro ⟨r, s1, a1⟩ ⟨y, hy, hres, hrel, hX⟩
   rcases hres with ⟨rfl, hy1⟩ | ⟨rfl, hy1⟩
   · show (do
@@ -222,7 +222,7 @@ theorem mid_invRecvJMUN [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
   rw [hcp] at hreg
   have hok : ∀ {α : Type} {x : α} {P : α → Prop}, P x → ok x ⦃ P ⦄ := fun h => by rw [WP.spec_ok]; exact h
   refine WP.spec_bind (WP.spec_mono (handle_invocation_entryJMU arI s ar σ J ct hct false false true true _ hG hE hP
-    hPD hR0 hVT hVI)
+    hPD hR0 hVT hVI hN)
     fun res h => And.intro (h.toPreMV.mid arI (MidRun.jMidRunHyp_of hW) (J.midEntry hni hE.cnf)) h) ?_
   rintro ⟨r, s1, a1⟩ ⟨⟨⟨y1, σm⟩, hy, ⟨hr1, hy1, hM⟩ | ⟨hr1, hy1, hrel, hX⟩⟩, hMV⟩
   · dsimp only at hr1 hy1 hM

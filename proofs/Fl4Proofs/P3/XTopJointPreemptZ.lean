@@ -246,6 +246,20 @@ theorem jIrqHypZ_of (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqP
   obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
   exact J.toHole.handleIrqJ hARI hAT hIP hmb hNS (fun hO => absurd ⟨J.off, J.own⟩ hO) w i hwi h126 h127
 
+/-- **`JIrqHypZ` per state** (g3e): at every `JAt` state with `NativeScope`
+there, no ∀-form `hNS`. -/
+theorem jIrqHypZ_ofN (hARI : ARIface arI AR) (hAT : P0.ArchTotal arI) (hIP : IrqPlat arI AR)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
+    ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit) (w : U64) (i : Fl4Spec.Irq),
+    JAt (L := L) arI AR s a σ → NativeScope σ → w.val = i.toNat → σ.machineState.irqMasks i = false →
+    w.val ≠ 126 → w.val ≠ 127 →
+    interrupt.handle_interrupt st arI s a w ⦃ r =>
+      (Fl4Spec.handleInterrupt (Z := Unit) i σ).2 ∨
+        ∃ z ∈ (Fl4Spec.handleInterrupt (Z := Unit) i σ).1, ∃ Z', XTopAt (L := L) AR Z' r.1 r.2 z.2 ⦄ := by
+  intro s a σ w i hJ hN hwi _ h126 h127
+  obtain ⟨Z, H, Cs, Ac, Lst, D, J⟩ := hJ
+  exact J.toHole.handleIrqJN hARI hAT hIP hmb hN (fun hO => absurd ⟨J.off, J.own⟩ hO) w i hwi h126 h127
+
 variable (arI) in
 /-- What the covered preemption path ends in: a spec failure, or an outcome
 of `preemption_path` from `σ1` with `JAt` after (no line pending) or `XTopAt`
