@@ -13029,3 +13029,86 @@ XTopJointKEntry36E (root import).
 - `kentry_sinvIR` per (3) (spec-only; first `IoNoOverlap` + the ioport frame family, then the memory family with the range field), then
   drop `SInvIR σ'` from `JReachI.step`.
 - `vsTyp` (g5a (3)), and `FlagsRel` / `LargeFrOK` as carried facts.
+
+## m61 (branch par/m61 in FL4-m56, on 53035417 = par/m60) — (d) in part: m60's read bundle was false in reachable states in three places (fixed, 377b8584); the general fault path's m58 reads (`FaultReads`) DERIVED from entry-state facts (`FaultEnt`), with the run's footprint and keep-lemmas to the meeting state and the inversion of `schedulable_here`; m59's `UsOff` DERIVED (`usOff_of`, from the SC placement at the entry state); `FinReads`, `FaultEnt` from `EntryInv`, `entry_of6`, ReplyRecv R1–R7, `kernel_entryJ33F` / `J34F` NOT done; no kernel FINDING
+- **Proof-side finding (m60's bundle, not fastpath.rs): `FastFaultOK` (hence `entry_of5`'s `hFt`) was false in every
+  reachable state where `fastpath.fault` accepts.** Three of its read conditions asked more than the general path reads:
+  (i) `TabOff` quantified over every `hi` / `lo : U64`; `atAF ksb hi` / `peAF p lo` then range over every word congruent to
+  `ksb` / `p` mod 8, so `TabOff s A` (and `VmOff`, `FinCommon.hvn`) was false for every aligned `A`. Fixed: `hi < 2048`,
+  `lo < 512` (what `find_asid` reads: `hi &&& 2047`, `asid &&& 511`; `and2047_lt`, `and511_lt`), as P3 `VsRel.table` /
+  `pool` already state it. (ii) `FinCommon.htm` / `hrl` asked TIMER_MIN = 0 and RELEASE_HEAD = 0; `schedulable_here`
+  accepts with a timeout pending but not due and with a release queue whose head is not ready. Replaced by **`NoDue`** (the
+  disjunctions `awaken_none` / `schedule_cn` take) at the enqueued state, inside each `FinReads` case (`∀ v1 v2` for the
+  empty-queue case's bitmap words). (iii) `UsOff.wf` asked `RefillsWF` of the handler's SC whenever it is nonzero; a bound
+  SC that was never configured (`REFILL_MAX = 0`) passes `schedulable_here` (it checks `sc ≠ 0` only), and its refills
+  need not be well formed. Now only for a sporadic SC (where `unblock_check` runs: `SCsOK.spor` ⇒ active ⇒ `SCA`'s
+  `RefillsWF`), the `SPORADIC` word read with its own alignment / distinctness (`UsOff.sp`). `unblock_sporadic_wr`,
+  `fault_fin_gen`, `fault_fin` adapted; `entry_of5`'s statement unchanged (it was vacuous on those runs before).
+- **P1 FastFaultInv (new; imported by the root).**
+  * Footprint of the fault message: `set_reg_rgU`, `buf_set_rgU`, `set_mr_rgU`, `copy_mrs_fault_loop0_rgU` /
+    `loop1_rgU`, `copy_mrs_fault_rgU`, **`set_mrs_fault_rgU`** (an UnknownSyscall fault message writes only
+    `XferRegW T U`: the receiver's registers and IPC-buffer words), `set_msg_info_rgU`, **`xfer_foot_S8`** (from the
+    dequeued state to `S8`).
+  * Addresses: `rTcbA_val0`, `tcbw_ne`, `tcbw_notRegW`, `node_notRegW`; frames of the explicit writes `sfW_mem`,
+    `epFast_mem`, `ksb_/cpu_sfW`, `ksb_/cpu_epFast`, `curA_of`, `actA_of`; the receive buffer's lookup `ibA`, `sbA`,
+    `ipc_buffer_ok`, `sbA_val`, **`lookup_buf_agree`** (it reads three words).
+  * **`FaultEnt T Cs Ω U s t ptr dest r rest`**: the entry-state facts (TCBs / node / endpoint placed, the endpoint
+    queue `dest :: rest` in state RECV, `dest ≠ t`, user words outside the objects and `Ω`, `Ω` outside TCBs / nodes /
+    the endpoint, the reply word in `Ω`, current thread `t`, action RESUME, the receive buffer user memory at `s`,
+    `dest`'s reply word `r`, `dest`'s SC nonzero). **`faultReads_of`**: `FaultEnt` + the run's `lookup_ipc_buffer` /
+    `set_mrs_fault` / `set_msg_info` / `BADGE` ⇒ m58's **`FaultReads`**, the footprint **`WritesIn s (fS14 …)
+    (FaultW …)`** and **`FaultKeep`** (node words, TCB words above the user context other than state / reply / fault /
+    Ep links, `Ω` words other than the reply's TCB word are those of `s` at the meeting state).
+  * `schedulable_here` inversion: `cur_time_ok`, `cur_domain_ok`, `cde_one`, `*_ok` read equations, **`HereF`** /
+    **`here_facts`** (an accepted check gives `NoDue s`, DOMAIN_TIME ≠ 0, affinity = this core, domain = current, SC ≠ 0,
+    not in the release queue, not queued).
+  * **(d1) `usOff_of`**: `UsOff X dest (actA X) sb` at any state `X` with `FaultKeep T Ω s X r` (so at `fS14`), from
+    the handler's SC at the entry state: its aligned words in `Ω` (`ObjsOK.scW`), its SPORADIC word in `Ω`
+    (`SCsOK.spSg` + `sub`), `RefillsWF` if sporadic (`SCsOK.spor` ⇒ active ⇒ `SCA.1`; carried by `RefillsWF.agree`
+    through `FaultKeep.omg`), apart from the reply object (`ObjsOK.rpSc`), `7 ≤ Z` and fits (`ObjsOK.sc`);
+    `node_outside_sc` (a node word is outside every SC made of `Ω` words).
+  * Lean notes: in a goal with many placement disjunctions `omega` splits on all of them (b5 ran for minutes); keep
+    them behind `HidF` and unfold one at a time (`omh`). A `by` block in a `rw [lemma _ (by tac)]` argument runs
+    before `_` is unified: give the address explicitly. `simp at h'; done` inside `first` (else a non-closing `simp`
+    succeeds). `exact Eq.symm ‹_›` hits max recursion: `apply Eq.symm; assumption`.
+- **Premises.** Removed / narrowed on tops: none (`entry_of5`'s `hFt : FastFaultOK` still a hypothesis bundle; now
+  satisfiable). Building-block bundles changed: `TabOff` (narrowed to the words read), `FinCommon` (−`htm` −`hrl`),
+  `FinReads` (+`NoDue` per case), `UsOff` (`wf` only for sporadic SCs, +`sp`). New: `FaultEnt` (entry-state facts only).
+- **FINDING (kernel): none.** Re-read `schedulable_here` and the fault path's writes while deriving the reads; the three
+  false conditions above were the proof's, not fastpath.rs's.
+- HANDOFF (in order; each piece reads through `FaultKeep` / the footprints above, so it is a placement argument per word):
+  (d1) DONE as `usOff_of`; at the entry its hypotheses come from `sc ∈ Scs` (`ScExtra0.bound`), `ObjsOK.sc` / `scW` /
+  `rpSc` (`r ∈ Rp` by `ReplyInv0.recv`), `SCsOK.spSg` / `sub` / `spor` / `act` / `all`.
+  (d2) **`FinReads` at `s15`** (after `unblock_sporadic` at `fS14`): `sporadic.unblock_check.fr` (ring ∨ REPROGRAM)
+  composed with `FaultKeep` keeps the node queue / bitmap / TIMER_MIN / RELEASE_HEAD / CUR_TIME words and the TCB words
+  `FinCommon` / `EnqNE` / `EnqE` read (prio 3448, affinity 3520, domain 3432, in_queues 3592, sched links 3480 / 3488,
+  timer deadline 3528); `ReadyQueues` / `EnqNE` / `EnqE` from `SchedQueuesInv` at `s` (`ready`, `inQ`, `queued`; `dest`
+  not queued by `here_facts.nq`; a nonempty queue's head has `sched_prev = 0` by `QueueRel`; an empty queue's bits by
+  `BitmapOK`); `is_highest_prio` re-read (bitmap words kept); `NoDue` at the enqueued state from `here_facts.nd` (F4:
+  the release head's SC is not `dest`'s, by `ScExtra0.bound`'s `scTcbA` back pointer, so `unblock_check` does not touch
+  it); `hns` (`t` BlockedOnReply after `fS13`); `hdt` / `hdom` (ks words, in `Ω` by `SgOK.ksΩ`, kept by
+  `FaultKeep.omg`); **`VmOff` needs the ASID table / pool placement, not a P1 fact**: P3 `VsRel.tmem` / `pool` (pools
+  are `ASIDPool` objects of the spec heap, hence apart from TCBs by the state relation) — add `AsidOff T Cs s` [J]
+  (table words `ksb + 288000 + 8 hi`, `hi < 2048`, and the pool words of nonzero entries, `lo < 512`, outside the TCBs
+  and nodes; l4v `valid_asid_table`, `pspace_distinct`) as an `entry_of6` premise unless it is made an invariant.
+  (d3) **`FaultEnt` at the entry**: `FastFaultOK` is stated after the FAULT_IP write and a passing `budget_ok`
+  (`syscall.budget_ok.bxc`: `BXI` and `XG` there); the queue from `EpsWit` (the handler cap is typed, Hyps4's cap
+  typing), `dest ≠ t` from `CanBlock` (Hyps4 `blkU`: `t` not Blocked, queue members Blocked), `UserOK` (`blkU`), the
+  receive buffer by `XferHyps.buf` (at `s2`: `XG` and `XI`), `r ∈ Rp` and `rTcbA r ∈ Sg ⊆ Ω` (`ReplyInv0.recv`,
+  `ObjsOK.rpW`), `here_facts.sc`; `HusOK`'s `debug_syscall … = ok (false, …)` state.
+  (d4) **`entry_of6`** = `entry_of5` with `hFt` derived (+ `AsidOff` [J] if not an invariant).
+  Then ReplyRecv R1–R7 (m57 (3)) in the same style: `faults.handle_fault_reply.rg` and `ipc.do_reply_transfer.foot`
+  (QueueIpcFoot) give R6's footprints; `unblock_check_wr` R4; `set_vm_root_wrs`, `schedTail_act` the tail; then
+  `FastRRP` (P1), `FastRR` (P3) and `kernel_entryJ33F` / `J34F` in a new module.
+- **Builds (tokyo, mirror FL4-m56, keys m61-*; `.lake` warm from m60).** b1 FastFin + FastEntry (TabOff / NoDue) green
+  (3808 jobs); b2 + FastSched (UsOff.sp) green (3808 jobs), committed 377b8584; b3–b8 FastFaultInv iterations
+  (implicit footprint argument, macro parse, `omega` over all placement disjunctions, alignment of node words); **b9**
+  FastFaultInv green (3810 jobs), committed 2e837974; b10–b14 `here_facts` (split_ifs + generic closers hit max
+  recursion: replaced by one `by_contra` + `simp [h0, ite_self]` per field) and `FaultKeep`; **b15** green (3810
+  jobs), committed 693c8c4c; **b16** cone FastFaultInv, FastEntry, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC,
+  SpecInvRd8wB: "Build completed successfully (6906 jobs)", 0 sorry, axioms below; **b17** `usOff_of` green (3810 jobs),
+  committed dacb792e. No full `lake build` (the lead runs it; the root gains `import Fl4Proofs.P1.FastFaultInv`).
+- **Axioms** (scratch/axm61.lean, untracked; b16/b18): kernel_entryJ33, kernel_entryJ34, P1 kernel_entry.entry_of4 /
+  entry_of5, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, fault_same, fault_fin,
+  fault_fin_gen, unblock_sporadic_wr, find_asid_wr, set_vm_root_wr, set_mrs_fault_rgU, xfer_foot_S8, lookup_buf_agree,
+  sfW_mem, epFast_mem, tcbw_ne, faultReads_of, here_facts, usOff_of: propext, Classical.choice, Quot.sound.

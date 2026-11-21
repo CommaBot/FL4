@@ -253,7 +253,12 @@ structure UsOff (s : S) (d : obj.Tcb) (A : U64) (sb : Nat) : Prop where
   AscA : A ≠ scA d
   csc : Aligned (L.nodeA s layout.node.CUR_SC)
   Acsc : A ≠ L.nodeA s layout.node.CUR_SC
-  wf : L.mem s (scA d) ≠ 0#u64 → RefillsWF st s (L.mem s (scA d)) sb
+  /-- The SC's `SPORADIC` word (read before `unblock_check` is decided). -/
+  sp : Aligned (sporA (L.mem s (scA d))) ∧ A ≠ sporA (L.mem s (scA d))
+  /-- Refills well formed where `unblock_check` runs: a sporadic SC (active,
+  l4v `valid_refills` under `sc_active`; m61: m60 asked it of every nonzero SC,
+  false for a bound SC that was never configured). -/
+  wf : L.mem s (scA d) ≠ 0#u64 → L.mem s (sporA (L.mem s (scA d))) ≠ 0#u64 → RefillsWF st s (L.mem s (scA d)) sb
   out : Outside A (L.mem s (scA d)) sb
   ct : Aligned (L.nodeA s layout.node.CUR_TIME)
   Act : A ≠ L.nodeA s layout.node.CUR_TIME
@@ -271,16 +276,13 @@ theorem unblock_sporadic_wr {s : S} {d : obj.Tcb} {A v : U64} (hX : StoreExt st)
   rw [sc_sporadic_eq, sc_sporadic_eq]; simp only [bind_ok, bind_tc_ok]
   by_cases h0 : L.mem s (scA d) = 0#u64
   · simp only [h0, ↓reduceIte, Bool.false_eq_true]; simp only [bind_ok, bind_tc_ok]
-  have hW := h.wf h0
-  obtain ⟨h8, hm, hfit⟩ := hW.bounds
-  have := hW.min_le; simp at this
   have hsp : L.mem (L.wr s A v) (sporA (L.mem s (scA d))) = L.mem s (sporA (L.mem s (scA d))) :=
-    mem_wr_outside h.hA h.out (by simp [sporA, layout.sc.SPORADIC]; addr)
-      (by simp [sporA, layout.sc.SPORADIC]; addr) (by simp [sporA, layout.sc.SPORADIC]; addr)
+    L.mem_wr_ne h.hA h.sp.1 (ne_val h.sp.2)
   simp only [h0, ↓reduceIte, hsp]
   by_cases h1 : (L.mem s (sporA (L.mem s (scA d))) != 0#u64) = true
   swap
   · simp only [h1, Bool.false_eq_true, ↓reduceIte]; simp only [bind_ok, bind_tc_ok]
+  have hW := h.wf h0 (bne_iff_ne.1 h1)
   simp only [h1, ↓reduceIte]
   rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) (L.wr s A v)), eq_of_spec_fd (sched.cur_sc.spec (L := L) s),
     nodeA_wr, L.mem_wr_ne h.hA h.csc (ne_val h.Acsc)]
