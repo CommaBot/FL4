@@ -8459,3 +8459,98 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ.R14`, modules SpecInvCqH1 / H2 / H3 (it
   spec's match fails: state the arm as a macro (`dz_reply_arm` / `ck_reply_arm`: `ikq_threadGet_bind`, `cases hs :
   x.tcbState <;> dsimp only`); (2) in a joint-family leaf macro never fall back to the generic `*_auto` (it runs over
   the whole remaining bind and times out): require a registered leaf on the first family.
+
+## g3e (branch par/g3e in FL4-sc, on 95b71de6 = int/j2 incl. g3d, ctq13, rd8b) — `JEntryGlobM.sigRest` deleted; `kernel_entryJ30`; per-state IRQ handlers (DONE; JDelParts.vt / thr.obj: proposal)
+Goal (g3b handoff, g3d proposal (A), lead note): remove the ∀-over-states premises false for an instance with a RunningVM thread.
+First cut was on 65977148 with a parallel sigRest-free bundle; replaced, per the lead's note, by deleting the field on 95b71de6.
+
+### (1) `JEntryGlobM.sigRest` (DELETED)
+- What it said: `∀ H Cs, SignalRestJHyp arI AR H Cs` = at EVERY `JAtZ` state (any ghosts, any FL4 state) whose notification is idle
+  with a `RunningVM` bound thread, FL4's `send_signal` refines the spec's. False in general (JAtZ admits a RunningVM bound thread; the
+  spec does not model the remote stall). Readers: only the Notification cases of `decOK_JM` (KEntry13P) and `decOK_JMU` (KEntry23P)
+  (g3d's inventory missed `decOK_JM`: it reads `JEntryGlobM.sigRest`, not the old `JEntryGlob.sigRest`).
+- Now: `notifLeafJN (hAT) (hmb) (J) (hN : NativeScope σ) …` (KEntry13P) = `notifLeafJ` with `JAtZ.signal_atN` at the restart state;
+  `NativeScope` there by `SInv.ns_setThreadState σ.curThread .restart` (restart ≠ RunningVM). `decOK_JM(U)`,
+  `handle_invocation_entryJM(U)`, `invoke_afterJM(U)`, `dispatch_invokeJM(U)` take `(hNs : NativeScope σ)` at the dispatch state;
+  `dispatch_invokeJAllM(U)` / `mid_invRecvJM(U)` (which hold the old tops' ∀ `hNS`) supply `hNS s ar σ ⟨…, J.toHole⟩`; J28's
+  `invoke_afterJMUN` / `mid_invRecvJMUN` pass their `hN` (g3b: `ns_of_kheap` of the FaultIP state). The field is gone from the
+  structure (no anonymous constructor existed). Every top over `JEntryGlobM` (J13P … J29G) loses the premise with no new one.
+- `JAtZ.signal_atN` moved unchanged from XTopJointMRPath to the new module ScSignalJN (imports ScSignalJ, IpcLeaves) so that
+  KEntry13P and the older IRQ handlers (upstream of MRPath) can use it; ScSignalJ itself untouched.
+- Left: `JEntryGlob.sigRest` (XTopJointEntry:324, the pre-MachPlat line; reader XTopJointEntry:776, tops J2 … J9M).
+
+### (2) `JDelParts.vt` / `JDelParts.thr.obj`: what they quantify over; proposal (not re-scoped)
+- `vt : JVtHyps arI AR th` (XTopJointFinVtJ:91), four fields, each `∀ Z H Cs Ac Lst D s a σ, Z.th = th → JAtZ … s a σ → P`:
+  `io` (P = `VtIoPlace Z H Cs s σ`, the VCPU list's placement as P1's IoPortPlaceAt; read by `JAtZ.frVtJ`'s owned IO-port
+  `revoke_ports`), `ept` (P = `VtEptPlace Z H Cs s σ`, the EPT walks' placement; `ept_unmap_vt` in `frVtJ` / `finEptJ`),
+  `eptFr` (P = every slot's EPT-mapped Frame cap's ASID has no spec VSpace, `findVspaceForAsid` errors; `frVtJ`), `vcpu`
+  (P = a slot's Vcpu cap's VCPU is placed, `VtVcpuPlace`; `finVcpuJ`). So: every JAtZ state at the entry's typed heap `th` —
+  any ghosts, any FL4 memory `s` — not only the states the run visits. `thr.obj` (XTopJointDelR:420): same ∀, P = for every slot
+  `x` holding `Thread p`, the TCB's VCPU word `mem (p + 3664) = 0`; read by the thread cap's finalisation.
+- Where read: once each, at the JAtZ state of one finalisation step inside the deletion loop (`WJL` states built by the loop
+  itself), via `delHypsJLM` (XTopJointMRDel:266, CNode / IRQ-handler deletions) and `tcbInsWM_wjl` (XTopJointMRTcbL:142,
+  Thread-cap installs). Those states are FL4-memory states produced mid-deletion; nothing carried reaches them.
+- Why not re-scoped here: all five are FL4-memory facts (VCPU / EPT objects, IO-port list, TCB VCPU word), so invA's spec NSK
+  family cannot supply them per state (unlike sigRest). A per-state form must be carried by the deletion loop: `WJL` (XTopJointWJL*)
+  would gain `VtAt Z H Cs s σ := VtIoPlace ∧ VtEptPlace ∧ EptFrNoVs ∧ VcpuPlaced ∧ VcpuWord0`, and every finalisation /
+  cap-move / slot-clear step's post would keep it (FL4 frames of each step on the VT-x objects): an edit of XTopJointDelR,
+  XTopJointWJL*, XTopJointFin* and their cone, L.
+- Proposal (as g3d (B), INV-PLAN G2): a `JExt.nativeScopeX` field carried with JAtZ: (i) no slot holds a `Vcpu`, `Ept` or
+  EPT-mapped `Frame` cap and every TCB's VCPU word is 0 (then `eptFr`, `vcpu`, `ept` and `thr.obj` are (a) at every JAtZ:
+  their hypotheses are vacuous or their conclusion is the field); (ii) `io` is not VT-x-only (owned IO-port caps are native):
+  carry `VtIoPlace` itself as a JExt field (kept by IO-port control issue / revoke / retype). Then `JDelParts.vt` / `thr`
+  become theorems of `J.ext` and the ∀ disappears. Until G2, both stay as named [J] / [S] ∀ premises (false at a JAtZ state
+  with misplaced VT-x objects; true in reachable states of a native-only system).
+
+### (3) Off the syscall path: the IRQ handlers per state
+- `JHole.handleIrqJN` (XTopJointIrq), `JAtZ.handleIrqJIN` (XTopJointIrqZI), `JAtZ.handleIrqJJN` (XTopJointIrqZR),
+  `JAtZ.handleIrqJJAN` (XTopJointMRPath): the handlers with `(hN : NativeScope σ)` at their own state in place of the ∀ `hNS`; the
+  signal line by `J.signal_atN hAT hmb hN` (the ∀ `SignalRestJHyp` built from hNS is gone). Old names kept as one-line wrappers
+  (`hNS s a σ ⟨…, J.toHole⟩`), same statements.
+- Per-state forms of the ∀-JAt IRQ hypotheses (each = the old def's body with `NativeScope σ →`, no premise but the platform):
+  `jIrqHyp_ofN` (JIrqHyp, JHoleAt, with `JIrqSigHyp`), `jIrqHypZ_ofN` (JIrqHypZ), `jIrqHypJ_ofN` (JIrqHypJ), `jIrqHypJ_ofAN`
+  (JIrqHypJ from `IrqPlatA`); `afterInv_of_mcsIN` (XTopJointIrqZI): `afterInv_of_mcsI` with `NativeScope σ'` in `hmcs`'s post
+  (as g3b's `afterInv_of_mcsIMN`).
+- Not converted (exact reason): every remaining lemma with the ∀ `hNS` — `hPre_ofI`, `hPre_ofZ`/`ZE`/`ZI`/`ZJ`/`ZK`/`ZL`/`ZM`/
+  `ZQ`/`ZS`, `hPre_ofZEC`/`ZECI`/`ZQI`, `jPreemptRestHypEQ_ofC`/`_ofI`, `jPreemptRestHypC_of`, every `dispatch_invokeJ(E)P*`,
+  `dispatch_invokeJAll` (XTopJointIrqZJ), and the old tops J2 … J9M — also takes `hP : PPPlat` (or `JEntryGlob.pp`), which is
+  uninhabited (INV-PLAN §0: `PPPlat.now` is false at every arch), so they are vacuous whatever `hNS` says. Their per-state
+  versions would need the non-M `mcsPPJ{S,C,U,I,A,R}` posts (XTopJointPreempt*) to carry `NativeScope σ → NativeScope σ'`, the
+  copy of g3b's MRPath2-4 edit for the M posts. The live line (MachPlat) is already per state: g3b's `hPre_ofZQIMN`,
+  `afterInvJZIMN`, `afterInv_of_mcsIMN`, `handleIrqJIAN`. `jPreemptRestHyp_of` only converts the per-state `JPreemptRestHypN`
+  (already per state) into the old ∀ form. `JHole.afterInvJZI` (non-M) still uses ∀ hNS through `afterInv_of_mcsI` (its posts
+  have no NativeScope); its only users are the PPPlat holes above.
+
+### (4) Statements
+- NEW TOP **`kernel_entryJ30`** (XTopJointKEntry30, leaf): premises exactly `kernel_entryJ29G`'s (PlainStore, J, hni, hR, hS : SInvB σ,
+  hE : EpQAll σ, hQ, hn, hflag, hB, hK (KFrontB, carried ghosts, `KDispHypsKV27b`), hFin (KFrontF, `KFinAtR27`), hARI, hA, hnd,
+  hM, hKD, hPA, hIA, hmrt, hmb, hT, hmax, htu); body `kernel_entryJ29G`. What changed is inside hK: `JEntryGlobM` has no `sigRest`, so
+  the [J] ∀-state premise is gone from J30 (and from J13P … J29G, whose statements read the same but mean less). No premise added.
+- Edited (cone; statements of every old top unchanged in text): XTopJointKEntry13P (`JEntryGlobM` − sigRest, `notifLeafJN`, `hNs`
+  through decOK_JM / handle_invocation_entryJM / invoke_afterJM / dispatch_invokeJM), XTopJointKEntry23P (same for the U line),
+  XTopJointKEntry28 (two call sites pass `hN`), XTopJointMRPath (signal_atN moved out; `handleIrqJJAN`, `jIrqHypJ_ofAN`),
+  XTopJointIrq (`JHole.handleIrqJN`, `jIrqHyp_ofN`), XTopJointIrqZI (`handleIrqJIN`, `afterInv_of_mcsIN`), XTopJointIrqZR
+  (`handleIrqJJN`, `jIrqHypJ_ofN`), XTopJointPreemptZ (`jIrqHypZ_ofN`). New: ScSignalJN, XTopJointKEntry30; root imports both.
+  Signatures changed without wrapper (no users outside their module): `decOK_JM(U)`, `handle_invocation_entryJM(U)`,
+  `invoke_afterJM(U)`, `dispatch_invokeJM(U)` (+ `hNs`). Not edited: ScSignalJ, XTopJointEntry (`JEntryGlob`), every KEntry2 … 27b / 29.
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror warm. ./g3e.sh (untracked) = g3b.sh, with the sorry grep over the ten touched files. Targets: the three
+  maximal modules of the edited set's downstream closure (103 modules: XTopJointKEntry30, XTopJointKEntry28M, XTopJointPortInM),
+  so every module importing an edited one was rebuilt.
+- g3e-b1 (before afterInv_of_mcsIN): OK first try, 6386 jobs, 118 s wall. g3e-b2 (+ afterInv_of_mcsIN, docstring): OK, 6386 jobs,
+  84 s. No sorry / admit / native_decide / bv_decide. Root Fl4Proofs.lean not rebuilt (two import lines).
+- Axioms (scratch/g3e/ax.lean, untracked): kernel_entryJ30, kernel_entryJ29G, kernel_entryJ29, kernel_entryJ28, kernel_entryJ27b,
+  kernel_entryJ23P, kernel_entryJ13PU, kernel_entryJ13P, notifLeafJN, decOK_JM, decOK_JMU, handle_invocation_entryJMU,
+  JAtZ.signal_atN, JHole.handleIrqJN, JHole.handleIrqJ, JAtZ.handleIrqJIN, JAtZ.handleIrqJI, JAtZ.handleIrqJJN, JAtZ.handleIrqJJ,
+  JAtZ.handleIrqJJAN, JAtZ.handleIrqJJA, jIrqHyp_ofN, jIrqHypZ_ofN, jIrqHypJ_ofN, jIrqHypJ_ofAN, jIrqHypJ_ofA, afterInv_of_mcsIN,
+  afterInv_of_mcsI: propext, Classical.choice, Quot.sound.
+
+### (6) Next (handoff)
+- (2) above: `JDelParts.vt` / `thr.obj` → G2 `JExt.nativeScopeX` (+ `VtIoPlace` as its own carried field). Until then they are
+  the only ∀-JAtZ [J]/[S] premises left inside `JEntryGlobM`. The others there are `portIn` [P] ∀σ (G0 MR) and `delParts.archRef`
+  / `arKeep` / `thr.ticks` [P].
+- The old line's `JEntryGlob.sigRest` (XTopJointEntry, tops J2 … J9M, which are PPPlat-vacuous anyway): the same edit with
+  `notifLeafJN` if those tops are kept.
+- Non-M preemption holes: per-state only after the non-M `mcsPPJ*` posts carry NativeScope (3); low value while PPPlat is
+  uninhabited.
