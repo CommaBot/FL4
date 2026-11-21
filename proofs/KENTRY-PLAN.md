@@ -8739,3 +8739,67 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ.R16`, modules SpecInvCqHL, HF3 (generat
 - Lean notes: a generated leaf for a function with a monadic-argument hypothesis (`checkCapAt`) cannot be used through
   `ckc_leaf` (its `?_` goal lands before the CT half): write a small hand wrapper (`ckc_checkCapAt`) or split `ckc_ofE`
   and run `ck_auto` / `ct_auto` separately.
+
+## rd8d (branch par/rd8d in FL4-r2, on ba3993d9 = int/j2 incl. rd8c, rd8a, ctq14, g3e) — rd8c handoff 1 in part: send_ipc with donation DONE, receive_ipc's sender arm (its donation) DONE, reply_remove's donation DONE; NOT finished: receive_ipc's prefix (reply cancel, complete_signal, maybe_return_sc, blocked arm), do_reply_transfer's tail, items 2-4 (deletion cone, invoke_tcb, retype / detype, rd_fl4PerformInvocation)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8d` (new names only there), modules SpecInvRd8dA / T / B / C (root imports them). Nothing existing edited. No JAtZ cone (T imports Rd8cV; all spec-only).
+- **SpecInvRd8dA (send).** `RT s t` (t `RdyT` if bound), `rT_of_rdyT`, `rT_svs`, `simple_svs`, `rel_of_rdyT`; `rd_sendTail`
+  (set_thread_state dest Running ; unblock check ; possible_switch_to dest from `RT dest`); **`rd_schedContextDonate_relT`** (rd8c's
+  donation, plus `RdyT t` afterwards); `rd_setReplyObjRef'` / `sv_` / `q1_` (updateSkObjRef leaves); **`rd_replyPush_d caller callee r cd s
+  (hR) (T1) (Simple) (ScFwd) (hc : cd = true → RT s caller) : Rdy y.2 ∧ (RT s callee → RT y.2 callee)`** (the head writes are SVS ∧ T1; the
+  guarded `bind_sc_reply ; sched_context_donate` gives the caller's SC, released by `RT caller`, to the unbound callee);
+  `rd_sendArm_d` (the transfer to a receiver: doIpcTransfer / reply_unlink_tcb are SVS ∧ T1 steps, so T1 / Simple / ScFwd / the
+  sender's RdyT ride along; call / fault arm by rd_replyPush_d, non-call donation by rd_schedContextDonate_relT with the sender's SC
+  read at that state); **`rd_sendIpc_d block call badge cg cgr cd thread ep σ (hct : RdyT σ thread) (h1 : T1 σ) (hA : Simple σ) (hF :
+  ScFwd σ) : IKp Rdy σ (send_ipc …)`** (any canDonate; the blocking arms by rd_setThreadState_r; the receiver `RT` at the dequeue
+  state from R3 (it is BlockedOnReceive)). At a perform: thread = ct, `Restart`, so rd8b's CtRdy (rd8c's `ctRdy_of`) gives `hct`.
+- **SpecInvRd8dT (generated: scratch/rd8d/mkt.py over ctq2's SpecInvCqF1-F3, untracked).** `TVv σ q := tcbV (kheap q)` (rd8c's tcbV:
+  state, fault, SC of every TCB), `TV V σ := TVv σ = V`, `TVK V m := IK (TV V) m`; hand leaves `tv_setObject_p` (non-TCB, or a TCB
+  keeping the three fields; a_type pins the old kind), `tv_setTcb_p`, `tv_threadSet`, `tv_archThreadSet`, `tv_asUser`, `tv_setMrs`,
+  `tv_setCap`; 44 generated lemmas over do_ipc_transfer's subtree (lookups, transfer_caps, cap_insert, make_fault_msg incl. its SC
+  write, copy_mrs). Top: **`tv_doIpcTransfer`**. First build green.
+- **SpecInvRd8dB (receive_ipc's sender arm).** `fwd_upd`, `SF σ σ'` (Simple, ScFwd, every TCB kept), `sf_ruc`, **`sf_ifCond`**
+  (if_cond_refill_unblock_check: by RdB's `ruc_out`, the outcome is σ or one SC rewritten with its scTcb kept);
+  **`rd_recvSender sender thread ep e reply data s (Rdy) (T1) (Simple) (ScFwd) (hx : kheap sender = tcb x) (hxs : x.state =
+  BlockedOnSend e data) : Rdy after doIpcTransfer ; unblock check ; the call / donate / wake arms`**. Key point: R3 exempts a
+  send-blocked thread with a timeout fault, so the sender's readiness is read at the fault-read state: TV (do_ipc_transfer) and SF
+  (the unblock check) keep it BlockedOnSend there, and the spec's guards (`donate = senderSc ≠ none ∧ ¬ timeout fault`; the wake
+  arm only when `fault = none`) make it BlkR there, so R3 gives RdyT exactly where needed (no fault frame needed).
+- **SpecInvRd8dC (reply_remove).** `tv_replyUnlinkSc`; **`rd_schedContextDonate_g`** (rd8c's donation with `hrel` only under
+  `BlkR` of the receiver); **`rd_replyRemove caller r σ (Rdy) (T1) (Simple) (ScFwd) (hst : caller not BlkR) : Rdy`** (the SC whose
+  reply stack starts with r goes back to the unbound BlockedOnReply caller: SVS ∧ T1 ∧ TV across reply_unlink_sc keep the caller
+  unbound and not BlkR, so no release is needed).
+- Premises: none named ([J]/[P]/[W]/[S]: none). Entry hypotheses only, each a carried fact at its state: RdyT sender (CtRdy at a
+  perform), T1 / Simple (ctq), ScFwd (sb2's ScInv), the sender's / caller's state (read by the function itself just before).
+  No FINDING. Checked: send_ipc's non-call donation reads the sender's SC after the transfer (SVS keeps it = cur_sc's binding);
+  receive_ipc never donates a timeout-fault sender's (possibly unreleased) SC — the spec's `¬ isTimeoutFault` guard; reply_remove
+  donates to a BlockedOnReply caller, which R3 does not cover, so an unreleased SC is fine there.
+- HANDOFF (in order; goal items of rd8d's brief not reached are 1-rest, 2, 3, 4):
+  1. receive_ipc whole (`rd_receiveIpc`): the prefix needs Rdy across `cancel_ipc (the tptr)` of the reply's old TCB (no Rdy
+     lemma for general cancel_ipc exists: rd7 has rs_cancelIpc_recv for a receive-blocked thread only; blocked_cancel_ipc /
+     cancel_signal / reply_remove_tcb arms set Inactive: rd_setThreadState NB + RdF leaves), `complete_signal` (asUser,
+     set_notification, maybe_donate_sc: rd7's rd_maybeDonateSc_sr / rd_schedContextDonate_free shape, refill_unblock_check: rd_ifCond),
+     `maybe_return_sc` (RdU's rd_maybeReturnSc_p needs thread ∉ ready queues: ct, ctq's CtQ at the entry; carried across the reply
+     cancel by ctq's TQU / NoQ family); then T1 (q1_cancelIpc, q1_maybeReturnSc), Simple (ctq's `nsw_cancelIpc` for every t, or DK's
+     Simple; maybe_return_sc only sets choose_new), ScFwd (sb2's SIK family: sik_maybeReturnSc, the SBK cancel lemmas) to the dequeue
+     state; the sendEP arm is `rd_recvSender` (sender read BlockedOnSend after tcb_ep_dequeue: TV over tcbEpDequeue, or read the state
+     after the dequeue as the spec does); the blocked arm `receive_ipc_blocked` needs `RT σ thread` (rd_setThreadState_r when bound;
+     an unbound thread needs a small rdy lemma: free_of_rdy + R3 vacuous).
+  2. do_reply_transfer: replyRemove is `rd_replyRemove` (caller read BlockedOnReply r: not BlkR); then rd_ifCond, doIpcTransfer /
+     fault reply (handle_fault_reply: asUser; `threadSet fault := none` of an Inactive receiver: a not-BlkR TCB write keeping its SC —
+     write `rd_threadSet_nb'` from rdy_upd_r's proof), set_thread_state, and the tail `when (sc ≠ none ∧ runnable)`: its
+     `possible_switch_to receiver` is guarded only by `refill_ready ∧ refill_sufficient 0` of the head, not by activity. RdyT needs
+     `scActive`; true if every inactive SC has no refills (sched_context_set_inactive sets refills := [], a fresh SC has [];
+     refillHd [] has amount 0 < MIN_BUDGET, so not sufficient) — this is a NEW carried fact to add (`scActive y = false →
+     y.scRefills = []`, l4v valid_refills' inactive part / `sc_refill_max = 0 → refills = []`); check its writers
+     (refill_new / refill_update set max ≥ MIN_REFILLS, configure, set_inactive, retype) before relying on it. Else-branch:
+     handle_timeout (rd_handleTimeout_p) / postpone (rd7's rq_postpone + Rdy: rd_postpone if present).
+  3. Deletion cone (rdCapDeleteH), invoke_tcb (RdD extension for decode_update_sc), retype / detype, rd_fl4PerformInvocation /
+     rd_handleInvocationR: unchanged from rd8c's handoff 2-4. For rd9's syscall-body hypothesis, the send arm of the perform is
+     `rd_sendIpc_d … (ctRdy_of …)` at the perform's start (σ.curThread, after set_thread_state ct Restart: ctRdy gives RdyT ct).
+- Builds (tokyo, FL4-r2 mirror warm; ./rd8ds.sh untracked = rd8cs.sh with its own log): rd8d-a1 (Rd8dA: 2 errors), a2 (Rd8dT
+  green first try, Rd8dA 1 error), a3 Rd8dA (5004 jobs), b1 / b2 (Rd8dB green in b2), c1 Rd8dC (5018 jobs), ax1 axioms
+  (scratch/rd8d/ax.lean, untracked): every listed lemma (rd_sendTail, rd_schedContextDonate_relT, rd_replyPush_d, rd_sendArm_d, rd_sendIpc_d, tv_doIpcTransfer, sf_ifCond, rd_recvSender, tv_replyUnlinkSc, rd_schedContextDonate_g, rd_replyRemove): propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (four import
+  lines). Lean traps: a bare `setReplyObjRef` is not reached by `rd_auto` (use rd_updateSkObjRef / sv_updateSkObjRef' with
+  `so_reply` / q1_updateSkObjRef); `split` cannot find the match of a do-block `match … ; stmt` after `dsimp only` (use `rcases hw :
+  discr` + `simp only [hw] at hy`); `obtain ⟨x, hx, rfl⟩ := q1_mem_threadGet h` eliminates the pair (later refer to the state, not
+  `z.2`); a do-block's last statement is not a bind to peel.
