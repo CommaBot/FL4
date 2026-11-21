@@ -11615,3 +11615,93 @@ added to any committed theorem, no new axiom.
   next step restates that chain with `DestCap` (as done for XTopJointVsSub). XTopJointSendBlock (:832) fixed after c13.
 - Builds: g2i-c8 (through DelR), c9–c11b, c12/c13 (LiveFrame with wstepR / DbgWFL.sub compiled; frontier: XTopJointUtEp
   add_frame / add_frameB, XTopJointGrant insDJ). Axioms not yet checked for the WIP (no green tree).
+
+## g2j (branch par/g2j in FL4-sc, on 4a7b4ed3 = g2i's WIP head) — G2 tenth step: g2i's field route finished. `JAtZ.live` / `JAtZ.zD` are constructed at every site; the whole cone builds; `kernel_entryJ34` (= `kernel_entryJ33` without `hLv`, `hLv := J.live`) holds; full `lake build` and axioms below
+Goal (lead decisions in force): LiveDN a field of JAtZ / JExt (`live`, `zD`); DelR's WJR chain retired (g2i (8)); the ZNoBlk / hZB premise
+of `Steps.jat` and the decode lemmas accepted (from SpecGlob at every dispatcher); no top-level theorem loses a conclusion or gains a
+premise. Commits 01cb540b, 2e3d9664, ebfe4163 (+ this section).
+
+### (1) The cone of 4a7b4ed3 (g2j-c1)
+- g2i's SendBlock:832 fix confirmed (no error there); the frontier was XTopJointUtEp `add_frame` / `add_frameB`, XTopJointGrant
+  `insDJ` and one more `zD` minus an endpoint at XTopJointSendBlockG:799.
+
+### (2) The cap grant at `DestCap` (commit 01cb540b)
+- SlotLive: `DestCap` moved here from LiveFrame (full name unchanged), `DestCap.live` (DestLive's left disjunct), `DestCap.same`,
+  `DestCap.of_cnRef` (a CNode reached by a lookup from a root held in a slot is named by a CNode cap of a slot).
+- XTopJointGrant `get_receive_slot_live`, `ExtraLive`, `lookup_extra_live`, `destLive_of`, `transfer_loopJ`, `transfer_capsJ`,
+  `JAtZ.insDJ`; IpcGrantTr's `transfer_caps_topG` (its `hGL`); XTopJointXferG's transfer facts: the receive slot's and the
+  extra caps' CNodes are stated `DestCap` (every producer already went through `of_cnRef`, whose second disjunct never fired).
+- `JAtZ.insDJ` builds `LiveDN` after by LiveFrame's `LiveDN.wstepC` (both written slots in CNodes named by CNode caps; the source's
+  `set_untyped_cap_as_full` is `CapSimL`, moved from XTopJointLiveIns to LiveFrame; the destination's cap non-null, not a zombie,
+  `shape` = the source's) and `zD` after by `ZTcb.of_zombies`.
+
+### (3) The retype family (commits 01cb540b, 2e3d9664)
+- `add_frame` / `add_frameB` (XTopJointUtEp), `add_frameC` (UtScAdd), `add_frameT` (UtCnAdd) take `LiveDN` and `zD` after.
+- New module **UtRetLive** (imported by the retype sites):
+  - `createCap_cdt`, `cdt_mapMx_createCap`, `invokeUntyped_cdt_slots`: after the spec's `invoke_untyped` retype every destination
+    slot's CDT parent is the source slot (each `create_cap` sets it; a later one at the same slot sets the same value: no
+    nodup needed). With `CdtRel` after this makes every window slot an MDB member after, so non-null (the null-and-original case of
+    `NullOrig` cannot arise).
+  - `tcbs_hout` (P1's heap after a creation of no TCB has the same TCBs: no TCB of `H` meets the window, `RegionFree` + `JPlaced`),
+    `not_newQ_of_off`, `newKind_ne_tcb`.
+  - `NewEmpty`, `NewEmpty.refl`, `NewEmpty.isSlot`, `not_absSlot_new`, `MdbLinks.restrictE`, `LiveDN.extendE`, `ZTcb.of_extendE`
+    (the container retypes: a typed heap grown by objects whose slots are empty and not original).
+  - `JAtZ.ret_liveN`: `LiveDN` and `zD` after a retype from LiveFrame's `LiveDN.wstepR` (now taking `MdbLinks` after instead of an
+    `XTopAt` at `Z.mv`: the sites' `XTopAt` is at enlarged sets).
+- Supplied at UtUtRet, UtEpRet, UtDevUt, UtDevRet, UtScRet, UtPmRet (the PML4 window's words no debug word: no TCB of `H` and no
+  node in the window), UtCnRet (new CNodes: `NewEmpty` from `newSlot_null`, not original: not an abstract slot before and off the
+  window), XTopJointMakePool `mpStepJ` (directly by `wstepR`; the pool region / ASID-table word no debug word; `mpStepJ` now takes
+  `DestCap` for the destination, both callers — XTopJointMakePool and MpDirtyJ — supply it from `DestCap.of_cnRef`).
+- **The TCB retype** (g2f's "retype loop invariant", `debug_append` before the thread caps' insert), new module **UtTcbLive**:
+  `newL` (the new TCBs `bT A (w-1) … bT A 0` in list order) with `nextIn_newL`, `prevA_newL`, `prevA_newL_append`,
+  `nextIn_append_not_mem`; `DbgWFL.prepend` (fresh TCBs prepended to one core's debug list, every other list and link kept);
+  `LiveDN.wstepRD` / `JAtZ.ret_liveND` (`wstepR` / `ret_liveN` with `DbgWF` after and the debug walk's thread caps given in place
+  of `DbgKeep`, which the append breaks). UtTcbRet `utTcbBodyJ`: `DbgWF` after from UtTcbLoopC's `TcbC` (the two debug-word writes
+  `DW` and the old head's `DEBUG_PREV`; every other debug word kept: `DbgApart`, the window holds no TCB of `H` and no node); P1's
+  TCBs after = before ∪ the window (`HOut`); the affinities by the `XTopAt`s' lists (the new TCBs' core 0); the walk's new members
+  have the new thread caps (`RetExp.newc` / `newm`), old members keep theirs; the new TCBs' slots empty (`newSlot_nullT`).
+- The untyped drop (UtDropJ2 `dropA`, UtDevDrop `dropAD`, found by the compiler): same memory and ghost tree, typed heap and `H`
+  restricted; `DbgWFL.restrictT` (the list members stay TCBs: P1's `DbgTz` after the drop).
+
+### (4) What the compiler listed next (commits 2e3d9664, ebfe4163)
+- `zD` into `D \ {e}` / `D \ {e} \ {rv}` (a TCB zombie's object is a TCB, not the endpoint / reply): XTopJointSendBlockG, FaultEp,
+  FaultC, FaultN, FaultM, RecvIpcBlock, RecvIpcBlockM, RecvIpcC.
+- `cs_frameI`'s original-bit frame through the GK step (`G.orig.trans F.sk.orig`; the WIP passed `F.sk.orig`, never compiled):
+  XTopJointSendCall, SendDon, SendPush, RecvSendP.
+- `SchTailHyps.dbgK` at the fake `next_domain` pre-state (`ndF` writes the kernel-state words +16/+24/+40 only, no debug word):
+  XTopJointSchedRF3 and XTopJointJAtZRB.
+- XTopJointJAtZRB: LiveFrame's `notDbg'`, `notDbg_tw`, `ksW_notDbg`, `schW_notDbg` restated at `JAtZR`; the timer, scheduler and
+  kernel-state steps build `live` by `JAtZR.liveX`. XTopJointJAtZRA: `JOwesZR` keeps the dead set (`∃ Ac' Lst'`, its one proof
+  `jowes_schedZR` already returned `D`), so `zD` carries.
+- XTopJointVsSub: `DestCap.same` takes no kernel-state base.
+
+### (5) Deleted theorems; premises
+- No theorem deleted (besides g2i (8)'s three WJR slot edits). Moved unchanged: `DestCap` (LiveFrame → SlotLive), `CapSimL` and its
+  five lemmas (XTopJointLiveIns → LiveFrame).
+- No top-level theorem gained a premise or lost a conclusion. Internal statements strengthened in their inputs and discharged at
+  every caller: `JAtZ.insDJ`, the transfer chain and `mpStepJ` (`DestCap` for `DestLive`), `LiveDN.wstepR` (`MdbLinks` after for
+  `XTopAt`), `JOwesZR` (dead set fixed), `not_newQ_of_off` (new).
+- `kernel_entryJ34` (XTopJointKEntry33): `kernel_entryJ33`'s premises without `hLv` (E15 of INV-PLAN §1.3, `JEntryAt.live`, gone
+  from the entry's interface: `LiveDN` is carried in `JAtZ`). Remaining premises of J34 unchanged from J33 (`hR` MR, `hS` SInvB, `hE`
+  EpQAll, `hQ`, `hn`, `hflag`, `hB`, `hK` KDispHypsKV33, `hFin` KFinAtR31, the [P] platform bundle). `LiveBootW` [W] (g2e (4)) is now
+  part of `JAtZ`'s boot obligation (the field at the boot state).
+
+### (6) Findings
+- None that breaks `LiveDN`; no premise false in reachable states found. Every construction proves `live` / `zD` from facts in scope.
+
+### (7) Builds and axioms
+- g2j-c1 (4a7b4ed3, cone targets SpecInvSgBridge XTopJointKEntry28M XTopJointKEntry30D XTopJointKEntry33 XTopJointLiveFalse
+  XTopJointLiveSt XTopJointPortInM): failed at the frontier of (1). g2j-c2 … c11: each stopped at the next layer ((2)–(4)).
+- **g2j-c12** (commit ebfe4163's tree, the cone targets): "Build completed successfully (6632 jobs)".
+- **g2j-full1** (the same tree, full `lake build` of `proofs/`): "Build completed successfully (6905 jobs)".
+- Axioms (scratch/g2j/ax.lean, untracked; task g2j-full1): kernel_entryJ34, kernel_entryJ33, jStepHyps, cn_del_topJLML,
+  decode_invocation_cnodeJ_stepsLML, Steps.jatL, DestCap.of_cnRef, JAtZ.insDJ, createCap_cdt, cdt_mapMx_createCap,
+  invokeUntyped_cdt_slots, tcbs_hout, LiveDN.extendE, MdbLinks.restrictE, not_absSlot_new, JAtZ.ret_liveN, DbgWFL.prepend,
+  DbgWFL.restrictT, LiveDN.wstepRD, JAtZ.ret_liveND, nextIn_newL, prevA_newL, LiveDN.wstepR, JAtZ.utTcbBodyJ, JAtZ.utUtBodyJ,
+  JAtZ.utEpBodyJ, JAtZ.mpStepJ, JAtZ.dropA, JAtZ.add_frame: propext, Classical.choice, Quot.sound; not_newQ_of_off: propext,
+  Quot.sound; newKind_ne_tcb: propext. No sorry / admit / native_decide / bv_decide in the touched files.
+
+### (8) Next (handoff)
+- The branch is a WIP line (g2i's four WIP commits + g2j's three) on 4a7b4ed3 / int/j2 9f508a65; it needs the lead's rebase onto
+  the current int/j2. The full tree builds at ebfe4163.
+- `LiveBootW` [W] (JAtZ's boot state holds `live`) is the remaining LiveDN obligation, unchanged from g2e (4).
