@@ -277,15 +277,14 @@ names a reply object (so `rptr ≠ 0` and its thread `u ≠ 0` is a TCB,
 `ReplyInv.back`; its TCB word is a frame word, `ObjsOK.rpW`), the `CAP` cap a
 heap endpoint (placed, `EpsOK`), `t`'s SC an SC whose `REFILL_MAX` word is
 among `Ω` (`ScExtra.bound`, `ObjsOK.scW`). -/
-theorem rrEnt_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
-    (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+theorem rrEnt_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
     {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
+    (et : sched.cur_thread st s = ok t)
     (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
     RREnt (L := L) T s t rptr ep u := by
   have et' : t = L.curW s := by
     rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
-  obtain ⟨hlk, -⟩ := E0.recvOK Ac s hG hI
   obtain ⟨⟨Q, R, hSQ⟩, hB, hX, hSg, hS⟩ := hI
   obtain ⟨⟨sl, root, hsl, hroot, ⟨i, found, g, hi, hr, hc⟩, ⟨i1, found1, b0, b1, b3, b4, hi1, hr1, hc1⟩⟩⟩ :=
     reply_caps_some st hrc
@@ -319,6 +318,15 @@ theorem rrEnt_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → N
   obtain ⟨hal, h1, h2⟩ := maxA_facts hX.1 hcS
   have oM := hSQ.omega _ (hX.1.scW _ hcS _ hal ⟨h1, h2⟩)
   exact ⟨oM.1, oM.2.1⟩
+
+/-- `rrEnt_lk` with the cap typing from `EntryHyps0.recvOK` at an `XG` state. -/
+theorem rrEnt_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
+    (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
+    RREnt (L := L) T s t rptr ep u :=
+  rrEnt_lk ar hI (E0.recvOK Ac s hG hI).1 et hrc C
 
 /-- **The ReplyRecv read bundle after the first batch** (m67): m66's `RRPre`
 with `RRReads2` (seven reads fewer) in place of `RRReads`. -/

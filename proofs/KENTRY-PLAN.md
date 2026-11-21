@@ -14702,3 +14702,48 @@ None. (g4g's debug-syscall FINDING is closed by the [S] scope `NoDbgSys`, as dec
   on the J line), and `StoreExt` as for the syscall top.
 - `ct ≠ idle` [S] for user / VM-fault / `int $N` / unknown-syscall entries is real scope (the idle thread runs no user code).
 - Still open from the other lines: the syscall top's per-state bundles (hK / hFin, `JDecMRLK`, `FastRR`).
+## m69 (branch par/m69 in FL4-m67, on 86cf7856 = #51 head with m68) — m68's handoff (b) DONE: P3 tops `kernel_entryJ33F` / `kernel_entryJ34F` = `J33R` / `J34R` with `hRP : P1.RRPreAt` replaced by `hRV : SInvR.RV σ` [J] (one spec state, the entry) + m67's `nvm` (`hRP5 : P1.RRPreAt5`, kept); `kernel_entryJ34FW` takes both `hS` and `hRV` from the carried `SInvW`; m68's `RRSumAt` [J] and `CnOffAt` [J] are NOT on these tops (derived at the dispatch state); no FINDING
+- **Route.** m68's composition needs, at each dispatch state (the entry's own `NEXT_IP` read / `FAULT_IP` write, a passing
+  `budget_ok`), only: `BXI`, the receive-side cap typing (`EntryHyps0.recvOK`'s first half — the only field of
+  `EntryHyps0` that `rrEnt_of` / `rrPl_of` read; `XG` was read only to call it), `∀ n ∈ Nt, H n = ntfn`, `RRSum`, `CnOff`,
+  `RRPre5`. The P1 entry bundles `EntryInv` / `EntryHyps0` are NOT read off `JAtZ` (JAtZ carries `BlkOK`, not `TimerOK`
+  nor the P1 hypothesis bundle `EntryHyps0`); instead `JAtZ` is carried to the dispatch state and each fact read there.
+- **P1 (edited in place, statements kept).** `FastRREnt.rrEnt_lk` / `FastRRFoot.rrPl_lk`: the bodies of `rrEnt_of` /
+  `rrPl_of` with `E0 : EntryHyps0` + `hG : XG` replaced by `hlk` (every `lookup_cap` of the current thread returns a
+  `CapTyped H Rp Nt` cap); `rrEnt_of` / `rrPl_of` are now one-line wrappers (`(E0.recvOK Ac s hG hI).1`).
+- **P3 XTopJointKEntryRRF (new, root import).**
+  * `JAtZ.rrDisp`: `kernel_entryJ13PUN`'s prefix as a lemma — from `J`, `hni`, `hR`, `hS`, `hQ`, `hB` (J33R's own premises)
+    and the run's equations, `JAtZ (Z.mv Z.G V0) H Cs Ac' Lst' D' s2 a2 σb` with `σb.kheap = (faultIPSt σ ct x).kheap`
+    (`regWrJ`, `JAtZ.budgetOkB` with `KBudgetB` as J28 builds it).
+  * `JAtZ.bxi` (`blk` reordered), **`JAtZ.lkTyped`** (`lookup_cap_held` + `JPlaced.typed`), **`JAtZ.rrSum`** (a sporadic SC
+    of `H` is in `Z.C` by `hscC`, `SchedSpec.scs` + `ScRelW.strongS` give `ScRel1` with its refills, `active_of_rmax` /
+    `spor` make it `scActive`, so `RV`'s `rsum < 2 ^ 64` is `amtSum`: `rsum_map`, `amtSum_eq_lsum`), **`JAtZ.cnOff`**
+    (`C p r := Z.th p = cnode r.val`: the root by `StateRel.ctable`'s `CapValid`, closure by `SlotsValid.cnode` at the
+    indexed slot, `cnSlot_eq` + `andMask_lt_pow` (`x &&& mask r < 2 ^ r`, both radix cases); `JAtZ.capSW`: a CNode
+    slot's two words are words of the `other (r+5)` object `JPlaced.cnode` gives, so in `Heap.omega H`, hence
+    `OutsideObjs` by `SchedQueuesInv.omega`, and not frame words by `HeapOK.disj`).
+  * `rv_faultIP` (the kheap after the front differs at the current TCB only), `rrPre_of_lk` (m68's
+    `RRPre.of2 ∘ RRPre2.of3 ∘ RRPre3.of5` with `rrEnt_lk` / `rrPl_lk`), **`JAtZ.rrPreAt`** (`P1.RRPreAt` from all of it).
+  * Tops **`kernel_entryJ33F`**, **`kernel_entryJ34F`** (no `hLv`), **`kernel_entryJ34FW`** (`hSW : SInvW σ` in place of
+    `hS : SInvB σ` and `hRV`; `SInvW.rv`). J33R / J34R kept.
+- **Premises.** Removed (relative to J33R / J34R): `hRP : n = SysReplyRecv → P1.RRPreAt arI s a` (the whole bundle at every
+  dispatch state). Added: `hRV : SInvR.RV σ` [J] (l4v `valid_refills` / `refills_sum`; asked at the entry spec state
+  only; it is `Rdy`'s conjunct inside `SInvW`, which the readiness line carries across every entry, `kentry_rdyOffW`;
+  J34FW asks `SInvW` itself, so no new spec premise there; not derivable from `SInvB`, m66). Kept named:
+  `hRP5 : n = SysReplyRecv → P1.RRPreAt5 arI s a` (m67's `nvm`: the fast run's end thread is not `TS_RUNNING_VM`).
+  m68's `RRSumAt` / `CnOffAt` [J] remain only on the P1 tops `entry_of8` / `entry_of9` (P1 alone has no spec relation /
+  CNode typing); at P3 they are theorems.
+- **Reachability.** `RV` at the entry: as m66 / the readiness line (charges and merges conserve the sum; carried by
+  `kentry_rdyOffW`); only the receiver's SC is read. `nvm`: m67 (unchanged). Nothing new is asked of any other state.
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m67, keys m69-*; m69b.sh untracked).** b1 (`cnSlot_eq` rewrite, `cases` on a `Result`
+  equation, omega after `simp only [HKind.bits]` unfolded a general kind), b2 (`bv_eq_ofNat` rewrote `p.bv` too; the same
+  omega), **b3 P1.FastRRLk + P3.XTopJointKEntryRRF green (6880 jobs)**, committed a7c3c8b1.
+- **full1 (full `lake build` of a7c3c8b1): "Build completed successfully (7113 jobs)", 0 errors, 0 `declaration uses 'sorry'`.**
+- **Axioms** (scratch/axm69.lean, untracked, run by full1): kernel_entryJ33F, kernel_entryJ34F, kernel_entryJ34FW,
+  JAtZ.rrPreAt, JAtZ.rrDisp, JAtZ.cnOff, JAtZ.rrSum, JAtZ.lkTyped, rrPre_of_lk, P1 rrEnt_lk, rrPl_lk,
+  kernel_entry.entry_of9, kernel_entryJ34R: propext, Classical.choice, Quot.sound (each).
+- HANDOFF: (a) `nvm` (`RRPreAt5`) and `FaultNvmPre` — m67's fast-run invariant carry through `fastTail` (unchanged);
+  (b) the readiness line's `SInvW` into the P3 induction (`JReach*`) so `J34FW`'s `hSW` is carried, not asked;
+  (c) P1-only `RRSumAt` / `CnOffAt` stay on `entry_of8` / `entry_of9` (dropping them there needs a P1 ring-sum carry and
+  CNode typing in `ObjsOK`; at P3 they are discharged by `JAtZ.rrSum` / `JAtZ.cnOff`).

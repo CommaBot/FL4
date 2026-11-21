@@ -1278,16 +1278,16 @@ set_option maxHeartbeats 1600000 in
 /-- **`RRPl` at the dispatch state** from `BXI` / `XG` there, the receive-side
 cap typing (`EntryHyps0.recvOK`, as `rrEnt_of`) and the notifications being
 the heap's (`hNt`, the entry hypotheses' `∀ n ∈ Nt, H n = some .ntfn`). -/
-theorem rrPl_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
-    (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+theorem rrPl_lk {T Cs Ω Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hlk : ∀ cptr, cspace.lookup_cap st s (L.curW s) cptr ⦃ r => ∀ c, r = .Ok c → CapTyped H Rp Nt c ⦄)
+    (et : sched.cur_thread st s = ok t)
     (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
     RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc := by
-  have EE := rrEnt_of ar E0 hI hG et hrc C
+  have EE := rrEnt_lk ar hI hlk et hrc C
   have et' : t = L.curW s := by
     rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
-  obtain ⟨hlk, -⟩ := E0.recvOK Ac s hG hI
   obtain ⟨⟨Q, R, hSQ⟩, hB, hX, hSg, hS⟩ := hI
   have hX0 := hX.2.2.toScExtra0
   obtain ⟨⟨sl, root, hsl, hroot, ⟨i, found, g, hi, hr, hc⟩, ⟨i1, found1, c0, c1, c3, c4, hi1, hr1, hc1⟩⟩⟩ :=
@@ -1395,6 +1395,15 @@ theorem rrPl_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Na
       obtain ⟨a1, a2, -⟩ := w1 _ hnE
       exact ⟨hn, a1, a2, w3 _ hnE⟩,
     hTM := hX0.tm.min _ hSQ.cur, hRel := hRel, hBM := ⟨_, (hSQ.ready _ hSQ.cur).2⟩ }
+
+/-- `rrPl_lk` with the cap typing from `EntryHyps0.recvOK` at an `XG` state. -/
+theorem rrPl_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
+    (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} {t rptr ep u usc : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hrc : fastpath.reply_caps st s t = ok (some (rptr, ep))) (C : RRChecks st ar s a t rptr ep u usc) :
+    RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z s t rptr ep u usc :=
+  rrPl_lk ar hNt hI (E0.recvOK Ac s hG hI).1 et hrc C
 
 end plof
 
