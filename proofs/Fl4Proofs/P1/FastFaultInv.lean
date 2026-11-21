@@ -341,6 +341,30 @@ structure FaultEnt (T Cs Ω U : Set U64) (s : S) (t : obj.Tcb) (ptr dest r : U64
   hrep : L.mem s (replyA dest) = r
   hsc : L.mem s (scA dest) ≠ 0#u64
 
+/-- The words the general fault path writes from the entry state to the
+meeting state `fS14` (m58): `set_fault`'s four words of `t`, the endpoint's
+two words, Ep links, the transfer's words (`XferRegW`), the reply's TCB word,
+the two threads' state words and `t`'s reply word. -/
+def FaultW (T U : Set U64) (t ptr dest r : U64) (b : U64) : Prop :=
+  b = faultA t ∨ b = core.num.U64.wrapping_add t 3384#u64 ∨ b = core.num.U64.wrapping_add t 3392#u64 ∨
+  b = core.num.U64.wrapping_add t 3400#u64 ∨ b = epHeadA ptr ∨ b = epTSA ptr ∨
+  (∃ y ∈ T, b = nextA .Ep y ∨ b = prevA .Ep y) ∨ XferRegW T U b ∨ b = rTcbA r ∨ b = stA dest ∨ b = stA t ∨
+  b = replyA t
+
+/-- **What the fault run keeps up to `fS14`**: the core's node words, the
+TCB words above the user context other than the state, reply, fault and Ep
+link words, and the other kernel objects' words except the reply's TCB word
+(for the reads of `UsOff` / `FinReads`). -/
+structure FaultKeep (T Ω : Set U64) (s X : S) (r : U64) : Prop where
+  ksb : L.ksb X = L.ksb s
+  cpu : L.cpu X = L.cpu s
+  node : ∀ off : U64, off.val < 4288 → off.val % 8 = 0 →
+    L.mem X (L.nodeAt s (L.cpu s) off) = L.mem s (L.nodeAt s (L.cpu s) off)
+  tcb : ∀ y ∈ T, ∀ K : U64, 3328 < K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3360 → K.val ≠ 3376 →
+    K.val ≠ 3384 → K.val ≠ 3392 → K.val ≠ 3400 → K.val ≠ 3496 → K.val ≠ 3504 →
+    L.mem X (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K)
+  omg : ∀ b ∈ Ω, b ≠ rTcbA r → L.mem X b = L.mem s b
+
 /-- A fact kept out of `omega`'s sight (a placement disjunction, unfolded
 only where it is needed, so `omega` does not split on all of them). -/
 def HidF (p : Prop) : Prop := p
@@ -374,7 +398,8 @@ local macro "al" : tactic => `(tactic| (
   all_goals omega))
 
 set_option maxHeartbeats 1600000 in
-/-- **m58's `FaultReads` from the entry state.** -/
+/-- **m58's `FaultReads` from the entry state**, with the run's footprint up
+to the meeting state `fS14` (for the later reads: `UsOff`, `FinReads`). -/
 theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr dest r : U64} {rest : List U64}
     (E : FaultEnt (L := L) T Cs Ω U s t ptr dest r rest) {rb sent : U64} {S6 S7 S8 : S} {mi : msginfo.MessageInfo}
     {badge : U64}
@@ -382,7 +407,9 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
     (hmrs : faults.set_mrs_fault st ar (epFast (L := L) (sfW (L := L) s t n) ptr dest) a t dest rb = ok (sent, S6))
     (hS7 : msg.set_msg_info st S6 dest mi = ok S7)
     (hS8 : obj.Tcb.set_reg st dest S7 layout.reg.BADGE badge = ok S8) :
-    FaultReads (L := L) T s t n ptr dest r rest S6 S8 := by
+    FaultReads (L := L) T s t n ptr dest r rest S6 S8 ∧
+      WritesIn st s (fS14 (L := L) S8 t dest r) (FaultW T U t ptr dest r) ∧
+      FaultKeep (L := L) T Ω s (fS14 (L := L) S8 t dest r) r := by
   have hT := E.hT
   have ht' := hT t E.ht
   have hdT : dest ∈ T := E.hq.mem dest (by simp)
@@ -569,8 +596,110 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
   have hsA : Aligned (stA dest) := by al
   have haA : Aligned (actA (L := L) s) := by al
   have hcA : Aligned (curA (L := L) s) := by al
-  refine ⟨hT, E.hE, hq1, hst1, hR5, hR6, hR8, E.hdt, ?_, ?_, ?_, ?_, eC, ?_, ?_, ?_, by rw [hA8]; exact haA, hsA,
-    by rw [hA8]; ane⟩
+  -- the footprint
+  have w1 : WritesIn st s (sfW (L := L) s t n) (fun b => b = faultA t ∨ b = core.num.U64.wrapping_add t 3384#u64 ∨
+      b = core.num.U64.wrapping_add t 3392#u64 ∨ b = core.num.U64.wrapping_add t 3400#u64) :=
+    ⟨k1, c1, fun b hb hn => m1 b hb (fun e => hn (Or.inl e.symm)) (fun e => hn (Or.inr (Or.inl e.symm)))
+      (fun e => hn (Or.inr (Or.inr (Or.inl e.symm)))) (fun e => hn (Or.inr (Or.inr (Or.inr e.symm))))⟩
+  have w2 : WritesIn st (sfW (L := L) s t n) (epFast (L := L) (sfW (L := L) s t n) ptr dest)
+      (fun b => b = epHeadA ptr ∨ b = epTSA ptr ∨ ∃ y ∈ T, b = nextA .Ep y ∨ b = prevA .Ep y) :=
+    ⟨by rw [ksb_epFast], by rw [cpu_epFast], fun b hb hn => m2 b hb (fun e => hn (Or.inl e.symm))
+      (fun e => hn (Or.inr (Or.inl e.symm))) (fun e => hn (Or.inr (Or.inr ⟨dest, hdT, Or.inl e.symm⟩)))
+      (fun e => hn (Or.inr (Or.inr ⟨dest, hdT, Or.inr e.symm⟩)))
+      (fun y hy e => hn (Or.inr (Or.inr ⟨y, hy, Or.inr (UScalar.eq_of_val_eq e).symm⟩)))⟩
+  have w14 : WritesIn st S8 (fS14 (L := L) S8 t dest r)
+      (fun b => b = rTcbA r ∨ b = stA dest ∨ b = stA t ∨ b = replyA t) := by
+    unfold fS14 fS13 fS10
+    refine ⟨by simp, by simp, fun b hb hn => ?_⟩
+    rw [mem_wr_ne' hsA hb (fun e => hn (Or.inr (Or.inl e.symm))),
+      mem_wr_ne' (by al) hb (fun e => hn (Or.inr (Or.inr (Or.inr e.symm)))),
+      mem_wr_ne' (by al) hb (fun e => hn (Or.inr (Or.inr (Or.inl e.symm)))),
+      mem_wr_ne' (by al) hb (fun e => hn (Or.inl e.symm)),
+      mem_wr_ne' hsA hb (fun e => hn (Or.inr (Or.inl e.symm))),
+      mem_wr_ne' (by al) hb (fun e => hn (Or.inl e.symm))]
+  have wF : WritesIn st s (fS14 (L := L) S8 t dest r) (FaultW T U t ptr dest r) :=
+    (((w1.trans w2).trans w8).trans w14).mono fun b hb => by
+      unfold FaultW
+      rcases hb with ((h1 | h2) | h3) | h4
+      · rcases h1 with h | h | h | h
+        · exact Or.inl h
+        · exact Or.inr (Or.inl h)
+        · exact Or.inr (Or.inr (Or.inl h))
+        · exact Or.inr (Or.inr (Or.inr (Or.inl h)))
+      · rcases h2 with h | h | h
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))
+      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h3)))))))
+      · rcases h4 with h | h | h | h
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))))
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))))))
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))))))))
+        · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr h))))))))))
+  have keepN : ∀ off : U64, off.val < 4288 → off.val % 8 = 0 →
+      L.mem (fS14 (L := L) S8 t dest r) (L.nodeAt s (L.cpu s) off) = L.mem s (L.nodeAt s (L.cpu s) off) := by
+    intro off ho h8
+    have vb := nodeAt_val E.hN ho
+    refine wF.2.2 _ (nodeAt_aligned E.hN ho h8) ?_
+    unfold FaultW
+    rintro (h | h | h | h | h | h | ⟨y, hy, h | h⟩ | h | h | h | h | h)
+    all_goals first
+      | exact node_notRegW hT E.hN E.hcC ho hUo h
+      | (have e' := congrArg UScalar.val h
+         try simp only [vb, vF, v84, v92, v00, vEh, vEt, vR, vsd, vst, vrt] at e'
+         all_goals omh)
+      | (have hy' := hT y hy
+         have := E.hN.disj y hy
+         have e' := congrArg UScalar.val h
+         first | rw [nextA_val hy'] at e' | rw [prevA_val hy'] at e'
+         rw [vb] at e'; simp [nextOff, prevOff] at e'; omega)
+  have keepT : ∀ y ∈ T, ∀ K : U64, 3328 < K.val → K.val < 4096 → K.val % 8 = 0 → K.val ≠ 3360 → K.val ≠ 3376 →
+      K.val ≠ 3384 → K.val ≠ 3392 → K.val ≠ 3400 → K.val ≠ 3496 → K.val ≠ 3504 →
+      L.mem (fS14 (L := L) S8 t dest r) (core.num.U64.wrapping_add y K) =
+        L.mem s (core.num.U64.wrapping_add y K) := by
+    intro y hy K h1 h2 h3 k1 k2 k3 k4 k5 k6 k7
+    have hy' := hT y hy
+    have vb := tcb_wadd_val hy' h2
+    have ya := hy'.align; have yf := hy'.fits
+    have p1 := E.hE.disj y hy
+    have p2 := (E.hΩ _ E.hrΩ).2.1 y hy
+    refine wF.2.2 _ (by show _ % 8 = 0; rw [vb]; omega) ?_
+    unfold FaultW
+    rintro (h | h | h | h | h | h | ⟨z, hz, h | h⟩ | h | h | h | h | h)
+    all_goals first
+      | exact tcbw_notRegW hT hy (by omega) h2 hUo h
+      | (have e' := congrArg UScalar.val h
+         try simp only [vb, vF, v84, v92, v00, vEh, vEt, vR, vsd, vst, vrt] at e'
+         all_goals omega)
+      | (have hz' := hT z hz
+         have za := hz'.align
+         have e' := congrArg UScalar.val h
+         first | rw [nextA_val hz'] at e' | rw [prevA_val hz'] at e'
+         rw [vb] at e'; simp [nextOff, prevOff] at e'; omega)
+  have keepO : ∀ b ∈ Ω, b ≠ rTcbA r → L.mem (fS14 (L := L) S8 t dest r) b = L.mem s b := by
+    intro b hb hbr
+    obtain ⟨ba, bT, bN⟩ := E.hΩ b hb
+    have bE := E.hEΩ b hb
+    have bt := bT t E.ht; have bd := bT dest hdT
+    refine wF.2.2 b ba ?_
+    unfold FaultW
+    rintro (h | h | h | h | h | h | ⟨z, hz, h | h⟩ | (⟨z, hz, K, -, hK, -, h⟩ | h) | h | h | h | h)
+    all_goals first
+      | (have e' := congrArg UScalar.val h
+         try simp only [vF, v84, v92, v00, vEh, vEt, vR, vsd, vst, vrt] at e'
+         all_goals omega)
+      | (have hz' := hT z hz
+         have bz := bT z hz
+         have e' := congrArg UScalar.val h
+         first | rw [nextA_val hz'] at e' | rw [prevA_val hz'] at e' | rw [tcb_wadd_val hz' (by omega)] at e'
+         try simp [nextOff, prevOff] at e'
+         all_goals omega)
+      | exact hbr h
+      | exact absurd hb (E.hU b h).2
+  have hk14 : L.ksb (fS14 (L := L) S8 t dest r) = L.ksb s := wF.1
+  have hc14 : L.cpu (fS14 (L := L) S8 t dest r) = L.cpu s := wF.2.1
+  refine ⟨⟨hT, E.hE, hq1, hst1, hR5, hR6, hR8, E.hdt, ?_, ?_, ?_, ?_, eC, ?_, ?_, ?_, by rw [hA8]; exact haA, hsA,
+    by rw [hA8]; ane⟩, wF, ⟨hk14, hc14, keepN, keepT, keepO⟩⟩
   · rw [hC8]; exact eC0
   · rw [R10 (faultA t) (by al) (by ane) (by ane)]; exact hF8
   · show L.mem _ (actA (L := L) (fS10 (L := L) S8 dest r)) = _
@@ -590,6 +719,68 @@ theorem faultReads_of {T Cs Ω U : Set U64} {s : S} {a : A} {t : obj.Tcb} {n ptr
       mem_wr_ne' (a := actA (L := L) s) (b := curA (L := L) s) haA hcA (by ane)]
     rw [← hC8]; exact eC
 
+end
+
+/-! ## What `schedulable_here` checked -/
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+
+theorem cur_time_ok (s : S) :
+    sched.cur_time st s = ok (L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME)) := by
+  unfold sched.cur_time; rw [L.cur_cpu_eq]; simp only [bind_ok]
+  exact eq_of_spec_fd (obj.node_get.spec (L := L) s _ _)
+
+theorem cur_domain_ok (s : S) :
+    sched.cur_domain st s = ok (L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN)) := by
+  unfold sched.cur_domain obj.ks_get; simp only [L.ks_base_eq, bind_ok, lift, L.read_eq]
+
+theorem cde_one (s : S) : sched.is_cur_domain_expired st s = ok false := by
+  unfold sched.is_cur_domain_expired; rw [if_neg num_domains_one]
+
+theorem node_get_ok (s : S) (c o : U64) : obj.node_get st s c o = ok (L.mem s (L.nodeAt s c o)) :=
+  eq_of_spec_fd (obj.node_get.spec s c o)
+theorem is_null_ok (t : U64) : obj.Tcb.is_null t = ok (decide (t = 0#u64)) := eq_of_spec_fd (obj.Tcb.is_null.spec t)
+theorem tcb_sc_ok (s : S) (t : U64) : obj.Tcb.sc st t s = ok (L.mem s (scA t)) := eq_of_spec_fd (obj.Tcb.sc.spec s t)
+theorem ready_ok (s : S) (c : U64) :
+    sporadic.ready st s c = ok (decide ((L.refill s c (L.rhead s c)).time ≤ L.curTime s)) :=
+  eq_of_spec_fd (sporadic.ready.spec s c)
+theorem td_ok (s : S) (t : U64) : obj.Tcb.timer_deadline st t s = ok (L.mem s (tdA t)) :=
+  eq_of_spec_fd (obj.Tcb.timer_deadline.val s t)
+theorem aff_ok (s : S) (t : U64) : obj.Tcb.affinity st t s = ok (L.mem s (affA t)) :=
+  eq_of_spec_fd (obj.Tcb.affinity.spec s t)
+theorem dom_ok (s : S) (t : U64) : obj.Tcb.domain st t s = ok (L.mem s (domA t)) :=
+  eq_of_spec_fd (obj.Tcb.domain.spec s t)
+theorem inrel_ok (s : S) (t : U64) :
+    sched.in_release_queue st s t = ok (decide ((L.mem s (inqA t) &&& sched.Q_RELEASE) ≠ 0#u64)) :=
+  eq_of_spec_fd (sched.in_release_queue.spec s t)
+theorem queued_ok (s : S) (t : U64) :
+    sched.queued st s t = ok (decide ((L.mem s (inqA t) &&& sched.Q_QUEUED) ≠ 0#u64)) :=
+  eq_of_spec_fd (sched.queued.spec s t)
+
+/-- **What an accepted `schedulable_here s d` checked.** -/
+structure HereF (s : S) (d : U64) : Prop where
+  nd : NoDue (L := L) s
+  dt : L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME) ≠ 0#u64
+  aff : L.mem s (affA d) = L.cpu s
+  dom : L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) = L.mem s (domA d)
+  sc : L.mem s (scA d) ≠ 0#u64
+  nr : (L.mem s (inqA d) &&& sched.Q_RELEASE) = 0#u64
+  nq : (L.mem s (inqA d) &&& sched.Q_QUEUED) = 0#u64
+
+theorem here_facts {s : S} {d : U64} (h : fastpath.schedulable_here st s d = ok true) : HereF (L := L) s d := by
+  unfold fastpath.schedulable_here at h
+  simp only [L.cur_cpu_eq, cur_time_ok, cde_one, domain_time_eq, cur_domain_ok, node_get_ok, is_null_ok,
+    tcb_sc_ok, ready_ok, td_ok, aff_ok, dom_ok, inrel_ok, queued_ok, bind_ok, decide_eq_true_eq,
+    Bool.false_eq_true, ↓reduceIte] at h
+  refine ⟨⟨?_, ?_⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  all_goals
+    by_contra h0
+    try push_neg at h0
+    first
+      | (simp [h0, ite_self] at h <;> exact absurd (ok_inj_ff h) (by decide))
+      | (have h1 := Ne.symm h0
+         simp [h1, ite_self] at h <;> exact absurd (ok_inj_ff h) (by decide))
 end
 
 end Fl4Proofs.P1
