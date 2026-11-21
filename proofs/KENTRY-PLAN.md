@@ -8974,3 +8974,55 @@ proofs/scratch/sm/.)
   importing both ambiguous where the tactic is written: reuse the existing family; a combined frame (`sh_of`, one generated
   family per conjunct, ScInv through sb2's `BRs h0` with `h0 := σ.kheap` and `BR.refl`) keeps each auto on its own leaves; the
   result-sensitive post (`RQ`) is cheaper than splitting ok / error with two walks.
+## ctq19 (branch par/ctq19 in FL4-c2, on e1cf4197 = int/j2 incl. ctq17, ctq18, ctq16, rd9) — ctq17 handoff 1-2 DONE (every event: `kcall_tq`; the syscall entry: `kentry_tq`); boot DONE (`boot_tq`); SInvB-level tops `kentry_tqB` / `kcall_tqB` (DONE)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.P19`, modules SpecInvCqP1, P2, P3; root imports P1..P3. Nothing existing edited.
+- **SpecInvCqP1 (handoff 1).** `EvO C N S := EB true ∧ CTh C ∧ NQ [C] ∧ ScInv ∧ VI N S false ∧ CKN` (what the non-syscall
+  events read), `evo_updateTimeStamp` (eb / ct / nq2 / sb (BRs) / vi / ck autos), `hb_of_evo` (ctq8's hB as ctq17's hb_of_evp).
+  `eb_faultArm` (update_time_stamp; check_budget_restart: no restart ⇒ `EB false` by `eb_checkBudgetRestart_p`, restart ⇒ state
+  unchanged; then the handler on ct), `eb_handleFault_c` (`eb_handleFault_p`, NPQ ct from EB true, NQ [ct]), `fv_handleVmFault`
+  (EB true ∧ NQ [C] ∧ ct to the error, then the catch's handle_fault: `hk_catch`), **`eb_handleEvent_fault`** (unknownSyscall,
+  userLevelFault, vmFaultEvent, hypervisorEvent (x64 no-op)), **`ebx_handleEvent_irq`** (check_budget: `eb_checkBudget_p`,
+  `nq_checkBudget`, `vi_checkBudget`; then `ebx_maybeHandleInterrupt`; ct may be idle), `ok_other` (non-syscall events are
+  withoutPreemption: no error outcome, the preemption handler never runs), **`ebx_handleE_other`** (EBX: NQ by nq3's
+  `nq_fl4HandleEvent_other`, VI by vi3's `vi_handleEvent_fault` / the irq one), **`kcall_tq_other`** (ctq6's `rb_tail`), `SysF`,
+  **`kcall_tq`**.
+- **FINDING (in my own first cut, fixed before the handoff, commit a2fd9d71 → 2cac07b1):** reusing ctq17's `EvP` for the
+  non-syscall events made `kcall_tq` take `IL [ct]` and `Js … ct …` for every event. `IL [ct]` needs a thread cap to ct
+  (`HasTC`), and no cap covers the idle thread (IdleOutV), so for an interrupt arriving in the idle thread (a reachable state)
+  the premise is false and the theorem vacuous there. Now the non-syscall path reads only `EvO`, and the syscall shell facts
+  are asked only for a syscall event (`hS`). No reachable step breaks the bundle.
+- **SpecInvCqP2 (handoff 2).** `ik_arch` / `ik_arch_fip`: an `as_user` only replaces one TCB's `tcbArch`, so every predicate
+  closed under that is kept (`ctExit_arch`, `act_arch`, `ctSc_arch`, `ctQ_arch`, `simple_arch`, `fld_arch` (idleThread,
+  idleSc, curThread), `curScT_fip` (cs_asUser), `vfh_fip` (ti_asUser)); `js_rebase` (sl3's `Js` reads its entry state only
+  through `uV` and `BR`, so `Js … σe s → Js … s s`); **`kentry_tq`**: each premise of `kcall_tq_sys` carried to the FaultIP
+  post-state `w` (tq / sa / q4 / rb / vi_fl4SyscallFaultIP / sb2 `entryOK_keep` (as `kentry_scInv_of`) / iu_auto / il / js_auto
+  + js_rebase / the uV frame `uk_fl4SyscallFaultIP` for P3, ScKind and the IrqOutV facts), then `kcall_tq_sys` at `w`.
+- **SpecInvCqP3.** `boot_curScT'` (SpecInvAll's, re-proved to keep SpecInvAll out of P1/P2), **`boot_ex`**, **`boot_tq : EX
+  initASt ∧ RB initASt ∧ T4 initASt`** (boot_schedQ, boot_rb true, boot_t4). `slE_of` (sl4's SlE from SInvB), **`kentry_tqB`** /
+  **`kcall_tqB`** (below).
+- **Premises (for adding the bundle to SInvB).** The bundle to add: `EX ∧ RB ∧ T4` (boot: `boot_tq`; kept: `kentry_tqB` /
+  `kcall_tqB` for EX ∧ RB, SpecInvQDom's `kentry_t4` / `kcall_t4` for T4).
+  * `kentry_tqB hnd c (h : SInvB σ) (hct : ct ≠ idle) (hX : EX σ) (hR : RB σ) (h4 : T4 σ) : ∀ y ∈ fl4KernelEntrySyscall true c
+    σ, EX y.2 ∧ RB y.2` — `hnd : numDomains = 1` [P] (SpecInvQDom, unchanged); `h` carried-in-SInvB; `hct` per-entry [J]
+    (SInvB's own, the same as `kentry_sinvB`: a syscall comes from a user thread, l4v `ct_active`); `hX` / `hR` / `h4` the bundle
+    (carried, to be added).
+  * `kcall_tqB hnd rep ev (h : SInvB σ) (hev : ev ≠ .interrupt → ct ≠ idle) (hX) (hR) (h4) : ∀ y ∈ fl4CallKernel rep ev σ, EX
+    y.2 ∧ RB y.2` — `hev` per-entry [J] (SInvB's own, as `kcall_sinvB`); the rest as above.
+  * Where the inner premises come from (all derived inside, no new premise): ValidIdle (`SInvA.vi`), CtExit (`SInvA'`), ct
+    active from `SInvB.entryJ` / `entryJEv` (CtExit + OnlyIdle + hct), Js / EF / EntryOK / Iu from sl4's `sl_entryFacts`
+    (SlB2.1 + SlE: ut, vfh, sg, idleOut, nq, epq, live, ScKindR), IL [ct] = Js's SAP, `NQ [ct]` from NtfnQB / EpQB and ct's
+    state (as sl4's `kcall_scLive`), IdleOutV (`SInvA.idleOut`), IdleScOutV (SlB), `I = idleP σ`, `Nq = interruptIrqNode`,
+    `d = Pinned c` (kcall: `∃ c, ev = .syscallEvent c ∧ Pinned c`, `js_weak`), vi3's `CtSc` [J] removed (`ctSc_of_curScT` from
+    EX's CurScT).
+  * The raw tops for reference: `kentry_tq hnd c hX hR h4 hV hEO hCX ha hIu hIL hJ hE hI2 hI1 hO hI` (every one a carried entry
+    fact; `ha` = ct active [J], from EntryJ) and `kcall_tq hnd rep ev hX hR h4 hV hEO hCX ha hN hO hI hS` (`ha : active ∨ ev =
+    interrupt` [J] from EntryJEv; `hN : NQ [ct]`; `hS` the syscall shell facts, asked only for `ev = .syscallEvent c`).
+  * No [J]/[P]/[W]/[S] premise added; vi3's `CtSc` [J] removed from this line's tops. No ∀-states hypothesis.
+- Builds (tokyo FL4-c2 mirror, warm; ./ctq19.sh = ctq17.sh with filter SpecInvCqP and ax19.lean, both untracked; keys
+  ctq19-*): 1 P1 20 s ok (first try); 2 P2 14 s ok (first try); 3 P3 failed (anonymous constructor not flattening through the
+  `EX` abbrev: nest explicitly); 4 P1 (EvO rework) 9.4 s + P2 8.6 s + P3 2.6 s ok (5368 jobs) + axioms. Axioms (ax19.lean):
+  eb_faultArm, eb_handleEvent_fault, ebx_handleEvent_irq, ok_other, ebx_handleE_other, kcall_tq_other, kcall_tq, ik_arch,
+  js_rebase, kentry_tq, boot_ex, boot_tq, slE_of, kentry_tqB, kcall_tqB: propext, Classical.choice, Quot.sound. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (three import lines).
+- HANDOFF: add `EX ∧ RB ∧ T4` to SInvB (or beside it) with `boot_tq`, `kentry_tqB` / `kcall_tqB` and `kentry_t4` / `kcall_t4`;
+  nothing else is open in this bundle.
