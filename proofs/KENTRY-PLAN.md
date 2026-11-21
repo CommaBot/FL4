@@ -9560,7 +9560,16 @@ premises inside the top's bundles into theorems of it. Resumed once (predecessor
   lemmas for every step that writes memory (not only caps): `JExt.of_eq` / `step` / `ss` would need the TCB word kept too, so
   every producer site needs a TCB-word frame (most steps' P1 footprints `WritesIn` give it; TCB retype zeroes it, `UtTcbInit`;
   only VCPU bind writes it, which is VT-x). Plan: add `vw` with `JExt.of_eq'` taking `hw : ∀ t, … m' (t+3664) = m (t+3664)`, and
-  derive `hw` from the step's footprint at each site (one batch over the same 78 modules).
+  derive `hw` from the step's footprint at each site.
+  Sizing (measured after 023cd448): the JExt uses funnel through generic rebuilds (38 explicit `J.ext.*` uses in 27 files), but
+  their callers differ in what they know of FL4 memory: `JAtZ.sc_frame` (ScJointFrame; callers in 92 files) has
+  `WritesIn (TFoot …)`, field-specific (`KFoot` = `SFoot ∨ NW ∨ SW`, plus `YW`), so `hw` can be proved INSIDE sc_frame (show
+  t+3664 ∉ TFoot) with no caller change. `JAtZ.cs_frameI` (callers in 42 files) and `cs_frame` / `cs_frameB` / `cs_frameV` /
+  `cs_frameIS` (~38 files) only know that FL4 wrote `OObj` words (VsTop `OObj` contains every TCB word in [t+256, t+4096), hence
+  t+3664), so each IPC caller (XTopJoint{Send*,Recv*,Fault*,PushDon,...}, Ipc*) needs a finer footprint (e.g. `OObj` minus the
+  VCPU word, proved from its P1 `WritesIn`). That is the bulk of the work: one cone batch for `vw` + sc_frame, then IPC caller
+  batches. Alternative to consider first: a P1-level carried fact (P1's BlkOK / Cur0 family) that the TCB VCPU word is 0 for
+  every TCB of `H.tcbs` (it already threads `plainW_all` per write), which would give `hw` uniformly from P1 posts.
 - `live` at the carried ghosts: left for g2b (as the brief allowed).
 - Boot: no lemma establishes `JAtZ` at an initial state in the tree, so `JExt`'s boot obligation is [W] for G4: the initial
   CSpace holds no VT-x cap (no Vcpu / Ept / EPT-mapped Frame / owned IoPort cap).
