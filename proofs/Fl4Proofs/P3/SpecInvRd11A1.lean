@@ -10,12 +10,14 @@ P3 (DESIGN.md §9), invariant line G1 (rd11a, KENTRY-PLAN rd10 handoff 1):
 * Kit: `kp_step` (one step from its three facts), **`ik_kp`** (any
   `SVM ∧ CFK` step), `kp_leaf` / `kp_auto` (rd8a's `cp_leaf` shape),
   hand leaves `kp_possibleSwitchTo`, `kp_maybeReturnSc` (the thread is
-  `σ0.curThread`), `sv_cancelIpc` / `kp_cancelIpc`.
+  `σ0.curThread`), `kp_cancelIpc` (rd8e's `sv_cancelIpc'`; rd13a: the
+  duplicate `sv_cancelIpc` dropped, `rescheduleRequired_cnA` (ScAwaken) in
+  place of ScMidCur's, so this module is outside the JointAt cone).
 * The end: **`offReady_kp`**, **`ss4_of_kp`** (`BS σ0 ∧ Suff σ0 ∧ KP σ0 s ∧
   CtR s ⇒ SS4 s`), **`ctR_kp`** (ct unbound or bound to cur_sc ⇒ CtR).
 -/
 import Fl4Proofs.P3.SpecInvRd10A3
-import Fl4Proofs.P3.ScMidCur
+import Fl4Proofs.P3.SpecInvRd8eA
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.A11
@@ -80,16 +82,8 @@ theorem kp_possibleSwitchTo (t : ObjRef) (σ0 : State Unit) : IK (KP σ0) (possi
   exact kp_step hs (by refine (?_ : CFK _) s y hy; cfk_auto) (cw_of_cp (A8.cp_possibleSwitchTo t) hy) fun _ => by rw [ek]; exact ⟨rfl, rfl⟩
 macro_rules | `(tactic| kp_leaf) => `(tactic| with_reducible exact kp_possibleSwitchTo _ _)
 
-theorem sv_cancelIpc (t : ObjRef) : SVK.SVM (cancelIpc (Z := Unit) t) := by
-  unfold cancelIpc blockedCancelIpc cancelSignal replyRemoveTcb getBlockingObject
-  sv_auto
-  all_goals first
-    | exact sv_tcbEpDequeue _ _
-    | exact sv_tcbNtfnDequeue _ _
-    | exact SVK.sv_replyUnlinkTcb _ _
-
 theorem kp_cancelIpc (t : ObjRef) (σ0 : State Unit) : IK (KP σ0) (cancelIpc (Z := Unit) t) :=
-  ik_kp (sv_cancelIpc t) (by cfk_leaf) σ0
+  ik_kp (B8e.sv_cancelIpc' t) (by cfk_leaf) σ0
 macro_rules | `(tactic| kp_leaf) => `(tactic| with_reducible exact kp_cancelIpc _ _)
 
 theorem cfk_maybeReturnSc (n t : ObjRef) : CFK (maybeReturnSc (Z := Unit) n t) := by
@@ -126,7 +120,7 @@ theorem kp_maybeReturnSc (n : ObjRef) (σ0 : State Unit) :
     have et : z5.2.curThread = σ0.curThread := by
       have := congrArg (fun p => p.2.2.1) ((c5.trans c4).trans (c3.trans hs.1)); exact this
     rw [if_pos et.symm] at hy
-    have := rescheduleRequired_cn hy
+    have := rescheduleRequired_cnA hy
     rw [this] at hres; cases hres
   · obtain rfl := Set.mem_singleton_iff.1 hy; exact ⟨rfl, rfl⟩
 
