@@ -12295,3 +12295,83 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   Quot.sound.
 - HANDOFF: `FastSame` (P-free memory agreement) for the fault path (F1–F6) then ReplyRecv (R1–R6); `MemResp` for `KPost` and
   `∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`; then `FastAcc.of_same` closes `hF` / `hFast`.
+
+## m58 (branch par/m58 in FL4-m56, on 91b89347 = int/j2 incl. m57) — m57's handoff: (1) MemResp DONE for every postcondition (KPost, EntryInvs included) under one [P] store premise `StoreExt`; (2) the accepted fault fast path in part: F6 DONE by structure, F2 DONE (proved from `QueueRel`), F1 / F5 carried as read facts; the general `handle_fault` proved equal to the fast path's writes up to the handler `Running` (the two paths meet at `fault_sync`), the scheduler half (unblock_check, possible_switch_to, schedule) NOT done, so `FastSame` (fault) and the fault half of P1's `hF` are NOT discharged; (3) ReplyRecv NOT started; no FINDING
+- **P1 FastDecline (changed).** `MemAg` now compares *aligned* words only (`LawfulStore.mem_wr` pins `mem` after a write
+  only at aligned addresses, so no reordering of writes can be shown to agree elsewhere — m57's `∀ x` form was not
+  provable). **`StoreExt st` [P]** := two states with the same aligned words, `ksb` and `cpu` are equal (the store is its
+  aligned memory; l4v compares `Fastpath_C`'s states by equality). **`MemAg.eq`**, **`MemResp.of_ext`** (every `P` reads the
+  state through memory: in particular `KPost` and `∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`), **`FastAcc.of_ext`** (`FastSame` +
+  `StoreExt` ⇒ `FastAcc` for every post). Why a premise: without it `MemResp` is not derivable — `LawfulStore` leaves
+  `mem (wr s a v) b` open at unaligned `b` and `frame_masks` open, and `EntryInvs` / `RJ` contain store operations at the state
+  (`BlkOK st … s`, `RPlaced st … s`, `XTopAt … s`); a congruence over all of them is the only alternative. Narrowest
+  form: a field of `LawfulStore` (or of `PlainStore`) once the platform instance exists; true of the physical store.
+- **P1 FastFault (new; imported by the root).**
+  * Write algebra under `StoreExt`: `wr_comm` (distinct aligned words commute), `wr_wr`, `wr_mem`, `wr_eq_self`.
+  * **F6 by structure**: `remote_queue_update_local` (affinity = this core ⇒ no write), `num_domains_one`, `bitmap_dom_one`,
+    `rq_index_one`, `rq_head_off_dom`, `is_highest_prio_dom`, `highest_prio_dom` (with one domain `choose_thread`'s domain 0
+    and `is_highest_prio`'s `cur_domain` read the same bitmap and queue words).
+  * **`fault_acc`**: an accepted `fastpath.fault` run gives `FaultChecks` at the entry state (action RESUME, the
+    handler cap an Endpoint with grant ∨ grant_reply, endpoint Recv, `dest` = head, `r` = dest's reply ≠ 0,
+    `schedulable_here`, `is_highest_prio`) and the run is `faultTail` (the write part, verbatim).
+  * `sfW` / `set_fault_us` (set_fault's four writes), `epW` / `epFast` (the fast dequeue), `obj.Ep.tail.ok`,
+    `obj.Ep.set_queue.ok`, `obj.Tcb.set_ep_next.ok` / `set_ep_prev.ok` / `ep_next.ok`, `tcbqueue.remove.ok`, `ep_ne_links`,
+    `epW_comm`. **`ep_dequeue_head` (F2 proved)**: with the endpoint's queue `QueueRel … (dest :: rest)` and state Recv,
+    the general `ep_dequeue` of the head is exactly `epFast` (tail = head iff alone; otherwise the successor is a nonzero
+    TCB; the endpoint words commute past dest's link words).
+  * `faultTail_eq` / `faultTail2_eq`: the fast run is `set_fault`; `epFast`; the same `lookup_ipc_buffer`,
+    `set_mrs_fault`, `set_msg_info`, BADGE; `fS10` (reply TCB 0, dest Inactive); `fS13` (reply TCB t, t BlockedOnReply,
+    t's reply); dest Running; then `faultTail3` (SC check, `unblock_check`, dest's sched links 0, `switch_to`).
+  * `fault_type_ok`, `schedule_tcb_other`, `is_schedulable_not`, `schedule_tcb_block`, **`reply_push_fault`** (no donation:
+    the handler has an SC; `schedule_tcb` of the blocked current thread writes `CHOOSE_NEW`).
+  * **`handle_fault_pre`**: the general `handle_fault … (UnknownSyscall n)` = `unblock_sporadic (X14) dest >>=
+    possible_switch_to dest` with X14 = the fast state after dest Running plus the action word CHOOSE_NEW (same calls of
+    `lookup_ipc_buffer` / `set_mrs_fault` at the same states). **`FaultReads`** (the reads the general path makes at its
+    intermediate states: QueueRel/Recv at `sfW`, t's fault type UnknownSyscall after the dequeue and after
+    `set_mrs_fault` and after `fS10`, dest's reply word = r at S8, current thread = t and action RESUME at `fS10` / `fS13`,
+    t BlockedOnReply at `fS13`, dest's SC ≠ 0, F1 `dest ≠ t`, the action and dest's state words aligned and distinct).
+    **`possible_switch_to_cn`** (from CHOOSE_NEW: `enqueue`).
+    **`fault_sync`**: accepted fault run + `FaultChecks` + `FaultReads` ⇒ ∃ S14, `faultTail3 S14 = ok (true, sF, aF)` and
+    `handle_fault = unblock_sporadic (wr S14 ACT CHOOSE_NEW) dest >>= possible_switch_to dest`.
+- **Premises.** Added: `StoreExt` [P] (on `MemAg.eq`, `MemResp.of_ext`, `FastAcc.of_ext`, the FastFault write algebra; on no
+  top). `FaultReads` is the hypothesis bundle of the new building block `fault_sync` (not on any top). Removed / narrowed on
+  tops: none — `kernel_entryJ33` / `J34` (`hFast : FastRR`) and P1 `entry_of4` (`hF : FastAcc`) are unchanged.
+- **Why the fault half of `hF` is not discharged.** Left after `fault_sync` (each true in reachable states, none refuted):
+  (a) **unblock_check commutes with the action-word write** (`unblock_check` reads / writes only dsc's SC words,
+  CUR_TIME, REPROGRAM; needs dsc's refill indices bounded by `RefillsWF` so the refill words miss the node, an induction on
+  `unblock_check_loop`); (b) DONE as `possible_switch_to_cn` (from CHOOSE_NEW it is `enqueue dest`; inside `enqueue`,
+  `remote_queue_update_local`); (c) `finish`: `timer.fire` / `awaken_loop` no-ops from the
+  `schedulable_here` facts (F4: the release head's SC ≠ dsc, re-read after `unblock_check`), `check_domain_time` (one
+  domain), `schedule_choose_new_thread` → `choose_thread` picks dest (`highest_prio` after `add_to_bitmap` = dest's prio,
+  from `is_highest_prio` before and F3 `valid_bitmaps`; P1 QueueChoose's `highest_prio.spec`), `switch_to_thread`:
+  `set_vm_root` (store kept, `set_vm_root_same`; its Arch result must be shown equal on the two states — they differ only
+  in the queue / bitmap / dest-link / in_queues / action words, which `set_vm_root` does not read: a read-congruence
+  lemma over `Slot.cap` and `find_vspace_for_asid`), `dequeue dest` after `enqueue dest` = dest's links 0 (F3: old head's
+  `sched_prev` = 0, empty queue `(0,0)` with its bitmap bits clear); then both paths run the identical tail (`set_cur_thread`,
+  RESUME, `switch_sched_context`, reprogram, `send_pending`, `activate_thread`) from equal states (`StoreExt`); (d) the
+  `FaultReads` facts from the entry state's P1 placement (`TcbPlaced`, `EpPlaced`, `NodePlaced`, the receive buffer
+  outside the kernel objects: `set_mrs_fault`'s footprint, `QueueXferFoot`'s `XferFoot` / `faults.set_mrs_fault.xsf`), the
+  endpoint queue `QueueRel` and F1 from P1's `SchedQueuesInv` / `EpQ`; (e) wiring: P1 `entry_of4`'s `hF` split into a fault
+  half (`fault_sync` + (a)–(d) ⇒ `FastSame` ⇒ `FastAcc.of_ext`) and the ReplyRecv half.
+- **(3) ReplyRecv**: not started (R1–R7 as in m57). The same shape applies: `reply_recv_found` inversion, the
+  `handle_invocation` → Reply decode → `do_reply_transfer` → `handle_recv` prefix to a meeting state (the action word
+  there is `u` in both paths; the general path additionally re-looks-up the two caps, R6), then `finish` with no
+  enqueue (`dequeue u` a no-op, `sched.dequeue.noop`).
+- **FINDING: none.** Re-traced the fault path against the extraction while formalising (send_ipc's Recv branch, the
+  `do_call = false` fault branch with grant / grant_reply, reply_push without donation, schedule_tcb of the current
+  thread, possible_switch_to from CHOOSE_NEW, choose_thread with one domain): no difference beyond the reorderings above.
+- **Builds (tokyo, mirror FL4-m56, keys m58-*; `.lake` warm from m57).** b1 FastDecline + QueueEntryGaps4 green (3800
+  jobs); b2–b12 FastFault iterations (Result's `ret`/`vis` constructors, `bne` normal forms, tuple-`let` matches under
+  `rw` — solved by stating the step under `spec` and `rintro ⟨q1, s1⟩`, constant ifs `2#u64 = 0#u64` decided by
+  `decide`); b12 green (3690 jobs). **b13**: FastFault, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC,
+  SpecInvRd8wB (the whole cone below them rebuilt, FastDecline being upstream of QueueEntryGaps4): **"Build completed
+  successfully (6898 jobs)"**, 0 sorry. b14–b15: FastFault with `possible_switch_to_cn` green (3690 jobs). No full
+  `lake build` of the root (the lead runs it; the root only gains `import Fl4Proofs.P1.FastFault`).
+- **Axioms** (scratch/axm58.lean, axm58b.lean, untracked): kernel_entryJ33, kernel_entryJ34, P1 kernel_entry.entry_of4,
+  A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, MemAg.eq, MemResp.of_ext, FastAcc.of_ext,
+  wr_comm, remote_queue_update_local, is_highest_prio_dom, highest_prio_dom, fault_acc, ep_dequeue_head, faultTail_eq,
+  faultTail2_eq, reply_push_fault, handle_fault_pre, fault_sync, possible_switch_to_cn: propext, Classical.choice,
+  Quot.sound.
+- HANDOFF: (a)–(e) above in that order, then ReplyRecv. The meeting-point style (`fault_sync`: prove the general program
+  equal to a continuation applied at the fast path's state, with reads as hypotheses at the states where they occur) worked
+  with `step*` only for single getters; keep it.
