@@ -1101,6 +1101,8 @@ import Fl4Proofs.P3.SpecInvRd13bA
 import Fl4Proofs.P3.SpecInvRd13bB
 import Fl4Proofs.P3.SpecInvRd13bC
 import Fl4Proofs.P3.SpecInvRd13aA
+import Fl4Proofs.P3.SpecInvRd14aA
+import Fl4Proofs.P3.SpecInvRd14aB
 import Fl4Proofs.P3.SpecInvRd12aA
 import Fl4Proofs.P3.SpecInvRd12aB
 import Fl4Proofs.P3.SpecInvRd12aC
