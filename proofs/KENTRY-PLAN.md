@@ -12958,3 +12958,87 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   `entry_of8` = `entry_of7` with `hRR` replaced by `RRSum Scs s`; P3 `FastRR` the same way and `kernel_entryJ33F` / `J34F`
   in a new P3 module (not XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2/Ev3), with `RRSum` discharged from P3's `RV` through the
   SC relation if cheap there.
+
+## m66 (branch par/m66 in FL4-m56, on fe29c212 = par/m65) — m65's handoff: (R-d) DONE as a narrowing: `rr_same` (the accepted ReplyRecv fast path ends exactly where `dispatch_syscall SysReplyRecv` + `finish` end) proved from m65's sync lemmas, P1 top `entry_of7r` (`hRR : FastRRP` [P] → `hRP : RRPreAt`), P3 tops `kernel_entryJ33R` / `J34R` (`hFast : FastRR` [P] → `hRP : RRPreAt`); (R-a') NOT done (the reads stay one bundle, `RRReads`, each field checked reachable below); `RRSum` not on a top; no FINDING
+- **P1 FastRRSame (new; imported by the root).**
+  * **`RRR3`** (`u`'s fault type and `t`'s label at `X3`, read before the restart flag is known), **`RRReads`** (the
+    general path's reads at `X1 … X15` that are not the fast path's own checks at `X0`: `sch1` `rt1` `us1` `sc2` `sch6`
+    `sc6` `run6` `rdy6` `suf6` `pst` `st7` `act8` `ct8` `lk8` `rt8` `ntfn8` `ep8` `act11` `r0` `q12` `T15` `R15` `act15`
+    `ucn` `ct15` `ns15` `hp15` `dq15`), **`RRPre X0 a`** (for every accepted run's `RRChecks` / `reply_caps` result and its
+    states: `RRR3` and, with restart = true, `RRReads`), **`RRPreAt s a`** (`RRPre` at every dispatch state of the entry).
+  * Derived inside `rr_same` (not in the bundle): `hct` / `hmi` / `hex` / `hls` / `hcap` / the `CAP` / `REPLY` registers at
+    `X0` (`RRChecks.info`, `RCaps`, `lookup_slot` unfolded), `is_null u` / `is_null usc` / `u ≠ RESUME` (`RRChecks.u0` /
+    `sc0`), the restart flag (`hfr_us` from `RRR3`), `lookup_ipc_buffer` / `prio` (P0 totality), the three `schedule_tcb`
+    no-ops (`schedule_tcb_sch` from `sch1`, `schedule_tcb_nr` from `act8` / `act11`), `ep_append` (`ep_append_empty`).
+  * **`rr_same`**: `fastpath.reply_recv X0 a = ok (true, s', a')` + `RRPre X0 a` ⇒
+    `∃ X a'', dispatch_syscall X0 a SysReplyRecv = ok (X, a'') ∧ finish X a'' = ok (s', a')` (equality of states).
+  * **`syscall_rr_general`**: the general `syscall … false` from the kernel entry state on the fast entry's ReplyRecv route
+    (FAULT_IP write, trap flag clear, native number, passing `budget_ok`, then dispatch + finish).
+  * **`FastAcc.of_split_rr`**: `of_split` with the ReplyRecv half proved (`rr_same`, `syscall_rr_general`) from `RRPreAt`.
+  * **Top `kernel_entry.entry_of7r`** = `entry_of7` with `hRR : ∀ n ≠ VMEnter, FastRRP …` [P] replaced by
+    `hRP : RRPreAt (L := L) ar s a`. `entry_of7` kept. (`entry_of8` with `RRSum` is left for the version where `RRReads` is
+    derived.)
+- **P3 XTopJointKEntryRR (new; imported by the root).** `FastAcc.of_rrpre` (trap flag clear, native number,
+  `n = SysReplyRecv`, `P1.RRPreAt` ⇒ `P1.FastAcc` for every `P`: an accepted fast entry is `fastpath.reply_recv` from the
+  real dispatch state, `rr_same` + `syscall_rr_general` make the general run end in the same state), **`kernel_entryJ33R`**
+  (`kernel_entryJ33` with `hFast` replaced by `hRP : n = SysReplyRecv → P1.RRPreAt (L := L) arI s a`), **`kernel_entryJ34R`**
+  (the same without `hLv`, `J.live`). J33 / J34 kept.
+  * Proof-side observation (not a kernel FINDING): `FastRR` is not provable by the equality route as stated: it quantifies
+    over `KFrontB s a s2 a2`, whose `FAULT_IP` value `v` is arbitrary, while the general path writes the real
+    `wrapping_sub NEXT_IP 2`; so the tops bypass `FastRR` and prove `P1.FastAcc` directly. `RRPreAt` is stated with the
+    real value (the entry's own `NEXT_IP` read and `set_reg`).
+- **Reachability of every `RRReads` / `RRR3` field** (re-checked against fastpath.rs / ipc.rs / endpoint.rs / sched.rs
+  extraction; X0 an accepted run's dispatch state, `t` current, `u = r.tcb`): `sch1` (`t` was schedulable at `X0`, only its
+  state word written, Restart runnable; `is_schedulable` reads state / sc / `sc_active` / release-queue membership);
+  `rt1` / `us1` (the Restart write is `t`'s state word; reply word and `u`'s state are other words, `u ≠ t`: `u`
+  BlockedOnReply, `t` schedulable); `sc2` (`reply_remove`'s unlink branch writes the reply's / neighbours' link words,
+  `r.tcb` and `u`'s state; with `next ≠ 0` not a head, `next` is a reply object in reachable states); `ft3` / `lbl3`
+  (`unblock_check` writes the ring and REPROGRAM only); `sch6` (`schedule_tcb` acts only on the current thread, `u ≠ t`);
+  `sc6` / `run6` (`handle_fault_reply` UnknownSyscall writes `u`'s registers only, `XferRegW T ∅`; `clear_fault` `u`'s fault
+  words; `u`'s state = the Restart just written); `rdy6` / `suf6` (R4: `unblock_check_r4` under the ring-sum bound, true
+  in reachable states, `RRSum`); `pst` (`possible_switch_to u`: `u.sc ≠ 0`, `u` not released, domain / affinity current
+  (`schedulable_here`), action still RESUME ⇒ exactly `set_action u`); `st7`; `act8` / `act11` / `act15` (action `u`,
+  only TCB / reply / endpoint words written after it; `u ≠ 0`); `ct8` / `ct15` (CUR_THREAD not written); `lk8` (the run
+  writes TCB state / link / register / fault words, reply words, the SC ring, node words: no cap slot, no CNode slot);
+  `rt8` (`reply_unlink` wrote 0, nothing writes it again before `X12`); `ntfn8` (`RRChecks.ntfn` re-read;
+  `maybe_return_sched_context` is a no-op exactly when the notification's SC is 0 or not `t`'s); `ep8` (`RRChecks.ep`
+  re-read); `r0` (a Reply cap names a Reply object, cap typing); `q12` (an IDLE endpoint's queue is empty, `EpsWit`, and
+  it is first written at `X15`); `T15` / `R15` (`here_facts`' `NoDue` at `X0`, the release head's SC is not `usc`,
+  CUR_TIME not written); `ucn` (`u` a TCB pointer, aligned, ≠ 1); `ns15` (`t` BlockedOnRecv); `hp15` (`RRChecks.hp`
+  re-read: idle thread, prios, domain, bitmap not written); `dq15` (`u` not queued, `HereF.nq`, no enqueue on this route).
+  None asks a word the general path does not read; none is false in a reachable accepted run.
+- **RRSum at P3** (asked): derivable from `SInvR.RV` (`rsum y.scRefills < 2 ^ 64` for active SCs) through the joint SC
+  relation (`ScRel.refills : x.scRefills = (L.refills s sc).map toRefill`, `rsum_map`, plus a bridge
+  `lsum (L.refills s sc) = L.amtSum s sc` and P1 `sporA c ≠ 0` ⇒ spec `scActive`), but NOT from J33 / J34's own premises:
+  their `hS : SInvB σ` does not contain `RV` (SpecInvAllQ: `RV` is a conjunct of `Rdy`, carried only in the readiness
+  line's `SInvW` = `SInvCRBV ∧ RdL`, `RdL ⊇ Rdy ⊇ RV`), and it is needed at the dispatch state (after the spec front,
+  whose charge conserves the sum — the `RV` preservation the rdyOff9 line proves). So a P3 top without a new premise
+  needs `SInvW` (an existing carried bundle) at the entry instead of `SInvB`, plus the front carry of `RV`; not done.
+- **Premises.** Removed on the new tops: P1 `FastRRP` [P] (`entry_of7r`), P3 `FastRR` [P] (`J33R` / `J34R`). Added
+  (replacing them): `RRPreAt` (the general path's reads along an accepted ReplyRecv run; each field true in reachable
+  states, list above). Kept: `StoreExt` [P] (fault half), `AsidOff` [J]; `RRSum` [J] still not on a top.
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m56, keys m66-*; `.lake` warm).** b1 FastRRSame (`extra_caps` coercion); b2 (`omit` after a
+  docstring); **b3 FastRRSame + XTopJointKEntryRR green (6426 jobs)**, committed d4ea2c5b / 61e9ebab; **b4** cone
+  FastRRSame, XTopJointKEntryRR, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC, SpecInvRd8wB: **"Build completed
+  successfully (6920 jobs)"**, 0 sorry; **b5** `u ≠ RESUME` derived (field `u0` dropped) green (6426 jobs). No full
+  `lake build` (the lead runs it; the root gains `import Fl4Proofs.P1.FastRRSame` and
+  `import Fl4Proofs.P3.XTopJointKEntryRR`, both leaves).
+- **Axioms** (scratch/axm66.lean, untracked; b4/b5): kernel_entryJ33, kernel_entryJ34, **kernel_entryJ33R**,
+  **kernel_entryJ34R**, FastAcc.of_rrpre, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, P1
+  kernel_entry.entry_of7, **kernel_entry.entry_of7r**, rr_same, syscall_rr_general, FastAcc.of_split_rr: propext,
+  Classical.choice, Quot.sound.
+- Rebase note: on the integration branch with m62's re-extraction (`finish` ends with `vcpu.check`, `suspend` calls
+  `cancel_run`), only m65's `finish_rr` needs adapting (one more no-op bind after `activate_thread`); FastRRSame /
+  XTopJointKEntryRR use `finish` only through it.
+- HANDOFF (in order).
+  (R-a') Derive `RRR3` / `RRReads` (field by field, list above) from facts at `X0`: `BXI` / `XG` there (`budget_ok.bxc`),
+  `RRChecks` / `RCaps`, the cap typing (`EntryHyps0` Hyps4 `P3Place` cap clauses: the `CAP` cap is an Endpoint in `E`, the
+  `REPLY` cap a Reply in `Rp`, so `r0` and `rTcbA rptr ∈ Sg`), `u ∈ T` (`ReplyInv0`: a reply's nonzero TCB is a TCB), and
+  one keep-lemma per state in m61's `FaultKeep` / m63's `FinKeep` style over the footprints `ipc.reply_remove` (unlink
+  branch: reply link words, `r.tcb`, `u`'s state), `sporadic.unblock_check.fr`, `faults.handle_fault_reply.rg`
+  (`XferRegW T ∅`), `clear_fault`, and the explicit writes. The cap lookups at `X8` (`lk8`) need a read-congruence lemma for
+  `resolve_address_bits` (none exists at P1: it reads the root cap and CNode slot words only; prove it by the loop's
+  fuel induction under "every cap-slot word agrees"). Then `RRPreAt` from `EntryInv` + `RRSum` + `AsidOff` and the top
+  `entry_of8` (no `hRP`; `RRSum` [J] in its place), and at P3 `J33F` / `J34F` with `RRSum` from `SInvW`'s `RV` (above) or
+  as the narrow [J] premise.
