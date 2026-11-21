@@ -9863,3 +9863,54 @@ Resumed from a cut-off predecessor (its untracked A, one failing proof); keys rd
   import lines).
 - Lean traps: `obtain … := hy` clears `hy` — copy it first when a later `no_bind` needs the whole membership; a doc comment cannot
   precede `section`; `ike_returnOk` is ambiguous across opened namespaces (use `ik_pure _`).
+
+## rd13a (branch par/rd13a in FL4-tcbj, on 9cf5a663 = int/j2 incl. rd12a, rd12b, rd13b, rd8h, rd8i, g2a) — rd12a handoff 1 DONE (`RcvB` discharged), rd12b's `hOsR` DONE, `RecvT` narrowed (bound-ct tail proved, the rest a pinned open disjunct), tops `kcall_rdyOff6` / `kentry_rdyOff6`, import hygiene DONE
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A13a`, module SpecInvRd13aA (new; root imports it). Edited: SpecInvRd11A1 (imports
+only). No JAtZ cone. Keys rd13a-1, rd13a-2 (./rd13as.sh untracked = rd12s.sh with its own log; proofs/scratch/rd13a/{ax.lean,anc.py}
+untracked).
+- **Import hygiene (goal 4).** SpecInvRd11A1 no longer imports ScMidCur: `rescheduleRequired_cnA` (ScAwaken, already in Rd10A3's
+  closure) replaces ScMidCur's `rescheduleRequired_cn`; rd11a's duplicate `sv_cancelIpc` deleted, `kp_cancelIpc` uses rd8e's
+  `B8e.sv_cancelIpc'` (A1 now imports SpecInvRd8eA, outside the cone). `scratch/rd13a/anc.py` (import-closure script): all 173
+  SpecInvRd* / SpecInvCq* modules and SpecInvRd13aA are outside the JointAt closure (before: A1 and everything on it).
+- **SpecInvRd13aA.**
+  * `rt_of_bs` (rd8d's `RT ct` from `BS`: CAx + CurScT + OffReady), **`rcvS_of_bs`** (rd8e's `RcvS ct` from `BS` and ctq's `EB
+    true`: T1 = `tq_t1` of the TQ inside SQ4, `ct ∉ releaseQueue` = the `NP` inside `RBk true`, ¬BlkR from ct Running / idle).
+  * `evp_uts`, `evp_getCapReg` (`evp_auto`), **`evp_front`** (ctq17's `EvP` at a `true` front outcome: over update_time_stamp,
+    `SInvB.checkBudgetRestart_true_eq`), **`rcvB_of (A8.EF σ) (EvP … σ) : A12a.RcvB σ`** — rd12a's pinned hypothesis gone.
+  * **`ss4_handleRecvK blk cr σ0 s (BS σ0) (Suff σ0) (KP σ0 s) (CtB s) (RcvS s ct) (EB true s) (NQ [ct] s) : ∀ y ∈ handle_recv,
+    SS4 y.2`**: rd12a's `ss4_handleRecv` re-anchored (invariant `· = s`, rd11a's frame from the body start σ0; the lookup-fault
+    branch by `ss4_end` with OS at s from `ss4_of_kp` + `ctR_rt`, NB0 from RcvS's ¬BlkR, ct ≠ idle from cfS).
+  * `RcvR s` (Rdy, ScInv, Simple, ct ¬BlkR, RT ct: the part of RcvS that ctq's EB true does not give), `rcvS_of_r`; **`RecvA σ0 cr
+    t := (KP σ0 t ∧ CtB t ∧ RcvR t) ∨ (∀ y ∈ handle_recv true cr t, CB → SS4)`**, `RecvTA rep c σ` (RecvA at every `ok` outcome of
+    the first-phase fl4HandleInvocationR of the shell's run from every `true` front outcome; σ0 = the body start); **`recvT_of :
+    RecvTA ⇒ A12b.RecvT`** (EB true at the invocation outcome by ctq's `eb_fl4HandleInvocationR` (fp = true), `NQ [ct]` by
+    `nq_fl4HandleInvocationR`, ct by `ct_fl4HandleInvocationR`, all from `EvP` at the shell start).
+  * `fip_evp` (rd12b's `ebx_fip` preamble returning `EvP` and ct ≠ idle at the FaultIP outcome).
+- **STATEMENT (tops).** `kcall_rdyOff6 hnd rep ev σ hEF hEFI hX10 hX hR h4 hCX ha hN hS hRdB (hP : syscall c → A12b.InvR c σ)
+  (hRA : syscall c → RecvTA rep c σ) hRdF : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`; `kentry_rdyOff6 … (hW : ∀ w ∈
+  fl4SyscallFaultIP ct σ, A9.RdBody rep c w.2 ∧ A12b.InvR c w.2 ∧ RecvTA rep c w.2)`. vs rd12b's `*rdyOff4r`: `hOsR` gone
+  (rd12a's `osBody_recv` + `rcvB_of`), `RecvT` → `RecvTA`.
+- **Remaining named hypotheses (exactly):** `hRdB` (`RdBody`, rd8e/f/h → rd8j), `hRdF` (rd8e/f → rd8j), `InvR` (perform arms,
+  rd14b), `RecvTA` (this line, below). None [J]/[P]/[W]/[S] added.
+- **Why `RecvT` is not discharged from "BS / Suff / EB / RcvS after the invocation" (the brief's plan):** BS is FALSE at reachable
+  invocation outcomes, so it cannot be a premise: ReplyRecv by a passive server (ct running on the caller's donated SC):
+  do_reply_transfer → reply_remove → `schedContextDonate scPtr caller` (callerSc = none) unbinds ct (`setTcbObjRef … fromTptr
+  none`, `testReschedule`), so `BS.cs` (CurScT) and `BS.ca` (CAx) fail at the outcome; likewise NBSendRecv donating ct's SC to a
+  passive receiver, and SchedControl configure of cur_sc breaks `KP`'s CW (refills rewritten). `RecvA`'s first disjunct covers the
+  outcomes that keep rd11a's frame with ct bound (proved: `ss4_handleRecvK`); the second disjunct is the open part (true in
+  reachable states: it is RecvQ at that outcome).
+- No FINDING: nothing traced breaks Rdy / OffReady / RV / CAx (checked on paper: the passive-server tail keeps cfS and cur_sc's
+  refills, action ≠ resume after the donation's test_reschedule, ct ends NRun / RT / unbound).
+- HANDOFF (in order): (1) shrink `RecvA`'s open disjunct: (a) CX-generalise rd12a's receive walk — `kr_recvTail` uses `hb` (ct
+  bound) only to build `CX ct` and for `ke_completeSignal`; `kr_when` / `kr_recvRest` / `kr_receiveIpc` / `ke_receiveSignal` pass it
+  through (swap for `CX` via `cx_svcf`); the new piece is complete_signal of an UNBOUND ct (maybe_donate_sc donates the
+  notification's SC, `scTcb = none` so ≠ cur_sc, then schedContextResume: CtR at the end needs RdyT ct or ct ∈ releaseQueue, and RS
+  / HRC under resume after the donation) — then RecvA's first disjunct can be `KP σ0 t ∧ CX ct t ∧ RcvR t` (covers the passive
+  server); (b) a re-anchored variant at t itself (σ0 := t with BS-like facts) for outcomes leaving rd11a's frame with ct bound
+  (configure of cur_sc), needing OS / RCA / HRC at t (rd14b's PerfA second option gives `CB → SS4` after the post). (2) RcvR at the
+  invocation outcome from the carried lines (Rdy: rd8h's rd_fl4PerformInvocation; ScInv / Simple / RT: their invocation carries).
+- Builds (tokyo, FL4-tcbj mirror): rd13a-1 (A1 swap; leaves SpecInvRd12aC + SpecInvRd13bC; cone recompile ~32 min) green, 5474
+  jobs; rd13a-2 SpecInvRd13aA green first try (5468) + axioms (scratch/rd13a/ax.lean): rt_of_bs, rcvS_of_r: propext,
+  Classical.choice; rcvS_of_bs, ss4_handleRecvK, evp_uts, evp_getCapReg, evp_front, rcvB_of, recvT_of, fip_evp, kcall_rdyOff6,
+  kentry_rdyOff6, A11.kp_cancelIpc, A11.kp_maybeReturnSc: propext, Classical.choice, Quot.sound. No `declaration uses sorry`; no
+  sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (one import line).
