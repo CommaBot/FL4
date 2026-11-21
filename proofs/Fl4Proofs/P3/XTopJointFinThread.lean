@@ -249,7 +249,7 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
       hAI3, F.bsa J.bsa, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`unbind_notification` of a bound thread at `J`**: FL4's two writes
@@ -359,6 +359,16 @@ theorem JAtZ.dbgw_ne_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : 
     (hwv : w.val = t.val + K) (hK : K < 3576 ∨ (3592 ≤ K ∧ K < 4096)) : b ≠ w := fun e => by
   subst e
   have := J.dbgw_obj hb (J.zH.1 t ht) (by simp only [P1.HKind.bits]; omega)
+  omega
+
+/-- A debug-list word (`DbgWc`) is no TCB's VCPU word (KENTRY-PLAN g2b). -/
+theorem JAtZ.dbgWc_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : DbgWc (L := L) Z.T Z.c s b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  intro t ht e
+  have hv := Sched.tVcpuA_val J.ip.e.tcb ht
+  have e12 : (2 : Nat) ^ P1.HKind.bits .tcb = 4096 := rfl
+  have g := J.dbgw_obj hb (J.zH.1 t ht) ⟨by rw [e, hv]; omega, by rw [e, hv, e12]; omega⟩
+  rw [e, hv] at g
   omega
 
 /-- `SlotsSame` across debug-list writes (as `tmw_slots`). -/
@@ -560,7 +570,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' rfl rfl), hkern,
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.dbgWc_nv hb)
 
 /-- **A debug-list head after `debug_remove t`**: unchanged, or it was `t`
 and is now `t`'s old successor (the other writes are TCB debug links). -/

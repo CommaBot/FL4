@@ -77,7 +77,7 @@ theorem JAtZ.restartRunJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct :
   subst e
   exact J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans
     (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R
-    (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+    (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_sts (J.thT ct htcb) hs1)
 
 set_option maxHeartbeats 16000000 in
 /-- **`budget_ok` at `J`, when it stops the system call** (KENTRY-PLAN item 10,

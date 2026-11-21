@@ -189,7 +189,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         show slotAddr q.bv (Fl4Spec.ofBl _) = _
         rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
       rw [← he2, capAt_capV, capAt_capV, hcap _ hAq.isSlot hne]
-  exact ⟨Ac, Lst, D, J.cs_frameV hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT) (J.ext.step hvT)⟩
+  exact ⟨Ac, Lst, D, J.cs_frameV hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`IpcBufCapOK` after SetIPCBuffer/Configure's frame insert** (decision 2
@@ -626,7 +626,9 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
       hA.own J.own, hA.off J.off, hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameIS hks hX3 hwW (fun b hb => WideW.oobj hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback (J.bfK (IpcFrKeep.of_nullFrame hk hnf) (Vs.VsSlotsT.of_eq fun y hy => hF.1.capV hy)) hC R⟩
+  exact ⟨Z.vs, J.cs_frameIS hks hX3 hw (fun b hb => WideW.oobj (st := st) (T := Z.T) (N := Z.N) (C := Z.C) (c := Z.c) (σ := σ)
+      (Or.inl ⟨t, ht, by rw [hb, hKt]; omega, by rw [hb, hKt]; omega⟩))
+      (fun b hb u hu => Sched.tVcpuA_ne (K := 3512) hT ht hu (by rw [hb, hKt]) (by omega) (by omega)) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback (J.bfK (IpcFrKeep.of_nullFrame hk hnf) (Vs.VsSlotsT.of_eq fun y hy => hF.1.capV hy)) hC R⟩
 
 end
 
@@ -1187,7 +1189,7 @@ theorem JAtZ.restartJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : 
       | cases e
   · subst e; unfold Notif.stsAct; split_ifs <;> rfl
   · subst e; exact (stsAct_fields _ _).2.1
-  · subst e; exact J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+  · subst e; exact J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_sts (J.thT ct htcb) hs1)
 
 
 end

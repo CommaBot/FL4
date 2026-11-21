@@ -574,7 +574,7 @@ theorem JAtZ.runTmoJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
         (writesIn_wr (v := b) (a_fw0 hta).1)).trans (writesIn_wr (v := 0#u64) (a_fw1 hta).1)).trans
         (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
       refine w.mono fun w0 hw0 => ?_
-      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ K ≠ 3512 ∧ w0.val = t.val + K := by
+      have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664) ∧ w0.val = t.val + K := by
         rcases hw0 with ((h | h) | h) | h <;> subst h
         · exact ⟨3376, by omega, by omega, by omega, by omega, by omega, val_fault hta⟩
         · exact ⟨3384, by omega, by omega, by omega, by omega, by omega, val_fw0 hta⟩
@@ -795,7 +795,7 @@ theorem JAtZ.runTmoJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
         hrun3, hblk⟩
     have hC0 := JCs.same J hF.1 F.ksz
     have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R⟩
+    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R⟩
   all_goals simp [absCap] at habs6
 
 end

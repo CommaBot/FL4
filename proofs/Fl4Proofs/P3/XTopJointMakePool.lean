@@ -166,6 +166,26 @@ theorem JAtZ.mp_keeps {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   · obtain ⟨hal, hv, hf⟩ := J.scW_in hq hK8 hK
     exact scw q z hq _ hal (by omega) (by omega)
 
+
+/-- **`MakePool` keeps every TCB's VCPU word** (KENTRY-PLAN g2b; as
+`mp_keeps`'s TCB words). -/
+theorem JAtZ.mp_vkeep {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {s' : S} {p hi : U64} (hh : hi.val < 2048)
+    (hw : ∀ b, P1.Aligned b → ¬ MpW Z.th p (L.ksb s) hi b → L.mem s' b = L.mem s b)
+    (hHo : ∀ q k, H q = some k → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 4096 ≤ q.val) :
+    VKeep (L := L) Z.th s s' := by
+  have hP := J.xtop.rel.1
+  have hA := J.apart
+  have hT : P1.TcbPlaced Z.T := J.ip.e.tcb
+  intro t htt
+  have ht := J.thT t htt
+  have hv := Sched.tVcpuA_val hT ht
+  have hHt : H t = some .tcb := J.zH.1 t ht
+  refine mp_keep hP hw (Sched.tVcpuA_aligned hT ht) (fun x hx => by rcases (hA x hx).1 t ht with h | h <;> omega) ?_ ?_
+  · have := hHo t _ hHt; simp only [P1.HKind.bits] at this; omega
+  · intro e
+    have := J.atab_obj hh hHt (fun _ e => by cases e)
+    rw [← e] at this; simp only [P1.HKind.bits] at this; omega
 end
 
 
@@ -954,7 +974,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       · rw [e1, hsrc]; trivial
       by_cases e2 : y = cslotAddr (pd.bv, idxd)
       · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
-      · rw [hcap y hy e1 e2]; exact J.ext.nat y hy⟩
+      · rw [hcap y hy e1 e2]; exact J.ext.nat y hy, J.ext.vkeep (J.mp_vkeep hh hw.2.2 hHo)⟩
 
 
 end

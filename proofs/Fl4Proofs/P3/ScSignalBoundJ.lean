@@ -84,6 +84,19 @@ theorem JAtZ.cnW_cases (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U6
     (h : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) :
     FinW (st := st) Z.T Z.N Z.C Z.c s σ b ∨ CnX Z.E Z.R b := h.imp_right id
 
+/-- **A `CnW` word is no TCB's VCPU word** (KENTRY-PLAN g2b). -/
+theorem JAtZ.cnW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  have hS := J.xtop.fin.1.1.1
+  intro t ht
+  rcases hb with hb | hx
+  · exact FinW.nv hS hb t ht
+  · rintro rfl
+    obtain ⟨Q, R0, hc, -⟩ := hS.lists
+    have hv : (tVcpuA t).val = t.val + 3664 := tfield_val (hc.tcbs t ht) (K := 3664#u64) (by simp)
+    exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
+      (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
+
 /-- **The frame words a `CnW` step keeps** (`finW_keeps`). -/
 theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
@@ -440,7 +453,7 @@ theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
 
 set_option maxHeartbeats 8000000 in

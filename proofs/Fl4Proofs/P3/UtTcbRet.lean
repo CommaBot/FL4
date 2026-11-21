@@ -1149,7 +1149,19 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · exact Or.inl (J.thT t0 h)
       · exact Or.inr h)
     (thk_grow hThX hksk J.thk) (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _)⟩
+    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), fun t0 ht0 => by
+      rcases hThX.casesI ht0 with h | ⟨⟨i, hi, hq⟩, -⟩
+      · exact J.ext.vkeep (J.vkeep_of hwT fun b hb u hu e => by
+          rcases hb with hb | hb
+          · exact J.inSlot_nv hb u hu e
+          · have hv := Sched.tVcpuA_val J.ip.e.tcb hu
+            rcases hWT b hb u hu with h' | h' | h' <;> rw [e, hv] at h' <;> omega) t0 h
+      · try simp only [hk4] at hq
+        have e : t0 = bT Aw i := UScalar.eq_of_val_eq (by rw [bT_v hi hfitW]; omega)
+        subst e
+        have hv : (tVcpuA (bT Aw i)).val = (bT Aw i).val + 3664 := Notif.tfield_val (hTB i hi) (by simp)
+        have a := (hTB i hi).align
+        exact winZero_vcpu hWZ4 hfitW hi _ (by show _ % 8 = 0; rw [hv]; omega) hv⟩
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

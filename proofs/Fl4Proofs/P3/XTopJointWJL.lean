@@ -113,7 +113,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) fun y _ e _ => by rw [e, hz]; trivial
   exact ⟨V, Ac', Lst', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT) (J.ext.step hvT), hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+    (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb))), hks, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A zombie written over a cap alike it keeps `WJL`** (module docstring). -/

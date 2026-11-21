@@ -205,6 +205,24 @@ theorem JAtZ.tcbs_eq {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
   exact ⟨Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩,
     Set.ext fun r => ⟨fun h => J.zH.2.2.1 r h, fun h => J.hset.2.2 r h⟩⟩
 
+/-- `VKeep` across a `TFoot` step, from the scheduler relation alone (for
+`JAtZ` / `JAtZR` alike). -/
+theorem VKeep.of_tfoot {th : TypedHeap} {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : Sched.SchedRel st N T C c s σ) (hth : ∀ t, th t = some .tcb → t ∈ T)
+    (hw : P1.WritesIn st s s' (Sched.TFoot st T N C c s σ)) : VKeep (L := L) th s s' :=
+  VKeep.of_writes hS.placed.tcb hth hw fun b hb u hu => by
+    rcases hb with hb | ⟨y, hy, rfl⟩
+    · exact Sched.KFoot.ne_vcpu hS hb hu
+    · exact Sched.tVcpuA_ne (K := 3472) hS.placed.tcb hy hu (Sched.yieldA_val hS.placed.tcb hy) (by omega) (by omega)
+
+/-- **A `TFoot` step keeps every TCB's VCPU word** (KENTRY-PLAN g2b): the
+scheduler's offsets (`KFoot.ne_vcpu`) and the `YIELD_TO` words (3472). -/
+theorem JAtZ.tfoot_vkeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) : VKeep (L := L) Z.th s s' :=
+  VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` across an SC step** (module docstring). -/
 theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -244,7 +262,7 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk, by rw [hks]; exact J.intL,
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
-    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS⟩
+    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS (J.tfoot_vkeep hw)⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

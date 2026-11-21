@@ -667,7 +667,8 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     hvc ⟨fun y hy => by
       by_cases e : y = x
       · subst e; exact (J.ext.nat _ hy).of_vtF hvf
-      · rw [hcap y hy e]; exact J.ext.nat y hy⟩
+      · rw [hcap y hy e]; exact J.ext.nat y hy,
+      J.ext.vkeep (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/

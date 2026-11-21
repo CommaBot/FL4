@@ -532,7 +532,7 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) (fun y _ e _ _ => by rw [e, hx0]; trivial) fun y _ e _ => by rw [e, hx0]; trivial
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
+    (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb))), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
 
 /-- **An endpoint cap's slot is ready once the endpoint is dead** (as
 XTopJointEmpty's `JAtZ.ntfn_ready`). -/
@@ -1081,7 +1081,7 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) fun y _ e _ => by rw [e, hz]; trivial
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+    (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb))), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 /-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
 `XTopAt` after, `JAtZ.swapJCore`, `cs_frameV`). -/
@@ -1123,7 +1123,7 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
       · exact h _ hA.isSlot
       · exact h y hy
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
+    (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb))), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
 
 end
 

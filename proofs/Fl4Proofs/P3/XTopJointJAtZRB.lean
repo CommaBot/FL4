@@ -34,6 +34,29 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
+
+/-- **A `CnW` word is no TCB's VCPU word** (`JAtZ.cnW_nv` at `JAtZR`;
+KENTRY-PLAN g2b). -/
+theorem JAtZR.cnW_nv {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  have hS := J.xtop.fin.1.1.1
+  have hH := J.kern.heap
+  intro t ht
+  have hv := Sched.tVcpuA_val J.ip.e.tcb ht
+  have hHt : H t = some .tcb := J.zH.1 t ht
+  rcases hb with hb | ⟨e, he, h⟩ | ⟨r, hr, h⟩
+  · exact FinW.nv hS hb t ht
+  · rintro rfl
+    have hHe : H e = some .ep := J.zH.2.1 e he
+    have hne : e ≠ t := fun h' => by rw [h', hHt] at hHe; cases hHe
+    have := hH.disj e _ t _ hHe hHt hne
+    unfold EW at h; simp only [P1.HKind.bits] at this; omega
+  · rintro rfl
+    have hHr : H r = some .reply := J.zH.2.2.1 r hr
+    have hne : r ≠ t := fun h' => by rw [h', hHt] at hHr; cases hHr
+    have := hH.disj r _ t _ hHr hHt hne
+    simp only [P1.HKind.bits] at this; omega
+
 /-- **A timer word, by value**: a TCB's timer fields (offsets 3528..3576), or
 a timer-tree or `REPROGRAM` word of a core's node. -/
 theorem JAtZR.tw_word {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
@@ -294,7 +317,7 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
       fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
       hAI, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
 
 
 
@@ -882,7 +905,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
 
 
@@ -1007,7 +1030,7 @@ theorem JAtZR.schedJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s ar σ) {s' : S
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
   obtain ⟨Ac', Lst', D', R⟩ := jowes_schedZR arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D', J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)⟩
+  exact ⟨Ac', Lst', D', J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)⟩
 
 
 end
@@ -1075,7 +1098,7 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksDZR arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)⟩
+  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)⟩
 
 
 end
@@ -1360,7 +1383,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
       (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
 
 
@@ -1630,7 +1653,7 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hC0 := JCs.sameZR J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R⟩
+  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R⟩
 
 
 variable (arI) in

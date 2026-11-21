@@ -81,7 +81,7 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
       | cases e
   have J1 := J0.cs_frame (G' := Z.G) hk1 hX1 hkb
     ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap])))
-    (JCs.same J0 hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+    (JCs.same J0 hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J0.vkeep_sts (J0.thT ct htcb) hs1)
   -- the debug words: P1's footprint of the restart
   have hT : ct ∈ Z.T := J.thT ct htcb
   have hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := by

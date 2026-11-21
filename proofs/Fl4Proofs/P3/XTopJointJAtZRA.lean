@@ -304,6 +304,36 @@ theorem JAtZR.bfK {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {C
   ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, J.fcap.keepU hT hfk.page⟩
 
 
+/-- `JAtZ.ks_nv` at `JAtZR` (KENTRY-PLAN g2b). -/
+theorem JAtZR.ks_nv {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
+    (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  intro t ht e
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hv := Sched.tVcpuA_val J.ip.e.tcb ht
+  rw [e] at h1 h2
+  rcases hq.ksOut t (J.zH.1 t ht) with h | h <;> omega
+
+theorem JAtZR.ksW_nv {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : KsW (L.ksb s) b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  obtain ⟨K, h1, h2, -, e, -⟩ := hb
+  exact J.ks_nv (by omega) (by omega)
+
+theorem JAtZR.schW_nv {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h : SchW (L := L) Z.T Z.c s b) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  have hT : P1.TcbPlaced Z.T := J.ip.e.tcb
+  intro u hu
+  rcases h with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
+  · exact Sched.tVcpuA_ne (K := 3480) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.tVcpuA_ne (K := 3488) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.tVcpuA_ne (K := 3592) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.KFoot.ne_vcpu J.xtop.fin.1.1.1 (Sched.KFoot.of_sfoot (Or.inr ⟨h.1, h.2.1⟩)) hu
+  · have := domKW_val h
+    exact J.ks_nv (by omega) (by omega) u hu
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZR` across a CSpace-shaped step** (module docstring). -/
 theorem JAtZR.cs_frameV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -330,9 +360,9 @@ theorem JAtZR.cs_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     {Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} (hks : L.ksb s' = L.ksb s)
     (hX : XTopAt (L := L) AR { Z with G := G' } s' a' σ') (hkb : KBack σ σ') (hfk : IpcFrKeep σ σ')
     (hC : JCs (L := L) { Z with G := G' } s' σ') (R : JRestR (L := L) arI { Z with G := G' } H Cs Ac' Lst' D' s' σ')
-    (hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s')) :
+    (hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s')) (hv : VKeep (L := L) Z.th s s') :
     JAtZR (L := L) arI AR { Z with G := G' } H Cs Ac' Lst' D' s' a' σ' :=
-  J.cs_frameV (V' := Z.vs) hks hX hkb (J.bfK hfk hvT) hC R (J.vsc.step hvT) (J.ext.step hvT)
+  J.cs_frameV (V' := Z.vs) hks hX hkb (J.bfK hfk hvT) hC R (J.vsc.step hvT) (J.ext.step hvT hv)
 
 
 /-- **`cs_frameV` with the VSpace sets put back** (`XTopAt` at `Z`'s sets
@@ -360,14 +390,14 @@ theorem JAtZR.cs_frameI {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {G' : MdbGhost} {V' : XVs} {s' : S} {a' : A}
     {σ' : Fl4Spec.State Unit} {Ac' : Set U64} {Lst' : U64 → List U64} {D' : Set U64} (hks : L.ksb s' = L.ksb s)
     (hX : XTopAt (L := L) AR (Z.mv G' V') s' a' σ') {W : U64 → Prop} (hW : P1.WritesIn st s s' W)
-    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b)
+    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) (hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ tVcpuA t)
     (har : σ'.archState = σ.archState)
     (hao : ∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao)) (hsz : Sched.SzKeep σ σ')
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hkb : KBack σ σ') (hfk : IpcFrKeep σ σ')
     (hC : JCs (L := L) (Z.mv G' V') s' σ') (R : JRestR (L := L) arI (Z.mv G' V') H Cs Ac' Lst' D' s' σ') :
     JAtZR (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' s' a' σ' :=
   J.cs_frameB hks (J.xtop.vs_backO hX hW hWO har hao hsz) hkb (J.bfK hfk (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy))
-    hC R (J.vsc.of_eq fun y hy => hSS.capV hy) (J.ext.ss hSS)
+    hC R (J.vsc.of_eq fun y hy => hSS.capV hy) (J.ext.ss hSS (VKeep.of_writes J.ip.e.tcb J.thT hW hWV))
 
 
 /-- **The CSpace fields across a step keeping every slot and the objects'
@@ -1125,7 +1155,8 @@ theorem JAtZR.sch_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     J.c0, hbsa, hsv, hsrt, hsl, hcr, hblk, by rw [hks]; exact J.intL,
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
-    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS⟩
+    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
+    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw)⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

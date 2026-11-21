@@ -234,7 +234,7 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
   exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hcap']; exact Vs.vcapW_ut rfl)
-      (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial))
+      (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
 
 /-- **The `H` objects meeting a childless device cap's range are dead**
 (module docstring). -/

@@ -315,7 +315,13 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
+    obtain ⟨-, h1, h2⟩ := hb
+    have hv := Sched.tVcpuA_val J.ip.e.tcb hu'
+    have := hAp u .tcb (J.zH.1 u hu') (fun z h => by cases h)
+    rw [e] at h1 h2
+    simp only [P1.HKind.bits] at this
+    omega)
 
 end
 

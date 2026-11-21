@@ -374,7 +374,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R
-      (J.vsc.step hvT) (J.ext.step hvT)⟩
+      (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))⟩
 
 
 /-! ## The transfer loop at `J` -/

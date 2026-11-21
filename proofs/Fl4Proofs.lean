@@ -1209,3 +1209,4 @@ import Fl4Proofs.P3.SpecInvRd8mB
 import Fl4Proofs.P3.SpecInvRd8mC
 import Fl4Proofs.P3.SpecInvRd8mD
 import Fl4Proofs.P3.SpecInvRd8mE
+import Fl4Proofs.P3.XTopJointKEntry32

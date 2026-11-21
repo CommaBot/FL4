@@ -303,7 +303,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap]
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
-      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT)⟩
+      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))⟩
 
 end
 

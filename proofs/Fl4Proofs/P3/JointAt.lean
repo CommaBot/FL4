@@ -130,21 +130,53 @@ one component to `JAtZ`'s anonymous constructions. Field so far:
   VCPU). Kept by every native step: slots kept (`of_eq`), stepped
   (`Vs.VsSlotsT`'s third part: emptied slots, copies of a native cap, native
   new caps), or a retype's new native caps. A VT-x invocation (`JVtxScope`)
-  breaks it: its statement then asks `JAt` after a step outside the scope. -/
+  breaks it: its statement then asks `JAt` after a step outside the scope.
+* `vw` [S] (G2 `nativeScopeX`, KENTRY-PLAN g2b; l4v: no counterpart, the
+  spec has no TCB–VCPU binding): every TCB of the typed heap has its VCPU
+  word (`tVcpuA t`, offset 3664) zero. FL4 writes that word only in
+  `vcpu::detach` (writes 0) and the `X86VCPUSetTCB` invocation of a Vcpu cap
+  (excluded by `nat`); a TCB retype zeroes it. So every native step keeps it:
+  the frames below take `VKeep` (the word of every TCB kept), proved from
+  each step's footprint (`TFoot` / `FinW` / `WideW` exclude it). -/
 structure JExt (th : TypedHeap) (s : S) : Prop where
   nat : Vs.VsNat th (L.mem s)
+  vw : ∀ t, th t = some .tcb → L.mem s (tVcpuA t) = 0#u64
+
+/-- The VCPU words of the typed heap's TCBs kept from `s` to `s'`. -/
+def VKeep (th : TypedHeap) (s s' : S) : Prop :=
+  ∀ t, th t = some .tcb → L.mem s' (tVcpuA t) = L.mem s (tVcpuA t)
+
+theorem VKeep.rfl' {th : TypedHeap} {s : S} : VKeep (L := L) th s s := fun _ _ => rfl
+
+theorem VKeep.trans {th : TypedHeap} {s s1 s2 : S} (h1 : VKeep (L := L) th s s1) (h2 : VKeep (L := L) th s1 s2) :
+    VKeep (L := L) th s s2 := fun t ht => (h2 t ht).trans (h1 t ht)
+
+/-- `VKeep` from a `WritesIn` footprint missing every TCB's VCPU word. -/
+theorem VKeep.of_writes {th : TypedHeap} {T : Set U64} (hT : P1.TcbPlaced T) (hth : ∀ t, th t = some .tcb → t ∈ T)
+    {s s' : S} {W : U64 → Prop} (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ T, b ≠ tVcpuA t) :
+    VKeep (L := L) th s s' := fun t ht =>
+  hW.mem_eq (Sched.tVcpuA_aligned hT (hth t ht)) fun hb => hWV _ hb t (hth t ht) rfl
+
+theorem JExt.vkeep {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s) (hv : VKeep (L := L) th s s') :
+    ∀ t, th t = some .tcb → L.mem s' (tVcpuA t) = 0#u64 := fun t ht => (hv t ht).trans (E.vw t ht)
 
 theorem JExt.of_eq {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
-    (hc : ∀ y, IsSlot th y → capV (L.mem s') y = capV (L.mem s) y) : JExt (L := L) th s' :=
-  ⟨E.nat.of_eq hc⟩
+    (hc : ∀ y, IsSlot th y → capV (L.mem s') y = capV (L.mem s) y) (hv : VKeep (L := L) th s s') :
+    JExt (L := L) th s' :=
+  ⟨E.nat.of_eq hc, E.vkeep hv⟩
 
 theorem JExt.step {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
-    (hT : Vs.VsSlotsT th (L.mem s) (L.mem s')) : JExt (L := L) th s' :=
-  ⟨E.nat.step hT⟩
+    (hT : Vs.VsSlotsT th (L.mem s) (L.mem s')) (hv : VKeep (L := L) th s s') : JExt (L := L) th s' :=
+  ⟨E.nat.step hT, E.vkeep hv⟩
 
 theorem JExt.ss {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
-    (hSS : SlotsSame th (L.mem s) (L.mem s')) : JExt (L := L) th s' :=
-  E.of_eq fun _ hy => hSS.capV hy
+    (hSS : SlotsSame th (L.mem s) (L.mem s')) (hv : VKeep (L := L) th s s') : JExt (L := L) th s' :=
+  E.of_eq (fun _ hy => hSS.capV hy) hv
+
+/-- `JExt` at the same memory. -/
+theorem JExt.mem {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s) (h : L.mem s' = L.mem s) :
+    JExt (L := L) th s' :=
+  E.of_eq (fun y _ => by rw [h]) fun t _ => by rw [h]
 
 /-- **The joint invariant at the ghosts** (module docstring; plan §1). -/
 structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
@@ -475,6 +507,35 @@ theorem mpPlaced (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hD : D = ∅
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   obtain ⟨-, ⟨-, -, -, -, hI⟩, -⟩ := J.xtop.rel
   exact mpPlacedHyp_of hJC hJ J.ut hI hc J.zH.1 J.zH.2.1 J.zH.2.2.1 J.zH.2.2.2 J.c0 hB
+
+/-- **A slot word is no TCB's VCPU word** (KENTRY-PLAN g2b; `SlotsApart`:
+a TCB's own slots lie below its offset 256). -/
+theorem inSlot_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+    ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  obtain ⟨x, hx, h1, h2⟩ := hb
+  intro t ht e
+  have h3 := (J.apart x hx).1 t ht
+  rw [e, Sched.tVcpuA_val J.ip.e.tcb ht] at h1 h2
+  omega
+
+/-- **A step writing slot words only keeps the VCPU words.** -/
+theorem vkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) : VKeep (L := L) Z.th s s' :=
+  VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.inSlot_nv hb
+
+/-- **A kernel-state block word is no TCB's VCPU word** (P1's `ksOut`). -/
+theorem ks_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
+    (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  intro t ht e
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hv := Sched.tVcpuA_val J.ip.e.tcb ht
+  rw [e] at h1 h2
+  rcases hq.ksOut t (J.zH.1 t ht) with h | h <;> omega
+
+theorem ksW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : KsW (L.ksb s) b) :
+    ∀ t ∈ Z.T, b ≠ tVcpuA t := by
+  obtain ⟨K, h1, h2, -, e, -⟩ := hb
+  exact J.ks_nv (by omega) (by omega)
 
 end JAtZ
 

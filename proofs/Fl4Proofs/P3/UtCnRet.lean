@@ -715,7 +715,7 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G' }) rfl rfl hwI.1 hX' hCs hJR
     hKs' (fun t0 ht0 => J.thT t0 (thT_grow hThX hksk hn1 ht0)) (thk_grow hThX hksk J.thk)
     (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _)⟩
+    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), fun t0 ht0 => J.ext.vkeep (J.vkeep_slot hwI) t0 (thT_grow hThX hksk hn1 ht0)⟩
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
