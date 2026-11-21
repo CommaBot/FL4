@@ -8678,3 +8678,64 @@ SpecInvCqL / SpecInvCqGU, M5 SpecInvCqGS.
   eb_perfMakePool, okd_fp, okd_tcbP, okd_sc, eb_fl4PerformInvocation, pf_restart, eb_restartPerform: propext,
   Classical.choice, Quot.sound; scD_of_br: propext. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt
   (five import lines).
+## ctq16 (branch par/ctq16 in FL4-q, on 2961c236 = int/j2 incl. ctq14, ctq13, rd8a/b, g3b-d) — ctq14 handoff item 5 (b)-(d) DONE: ctq8's `hB` at every preemption outcome of the event; `ebx_preemptionPath_q`; the event-level bundle carry NOT done (EB true / NQ [] at the error outcome)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.R16`, modules SpecInvCqHL, HF3 (generated), HP, HS; root imports HS. Nothing existing edited
+(HF1/HF2 byte-identical).
+- **Error outcomes come from three perform arms only.** `PMonad`'s error is the preemption; every other arm (and
+  `syscall`'s fault / error handlers, the reply after the perform, `handle_recv` of ReplyRecv / NBSendRecv / NBSendWait,
+  every non-syscall event) is `liftE` / `withoutPreemption` / `returnOk`: `NE m` ("no outcome is an error"). The three:
+  Untyped (`reset_untyped_cap`), TCB ThreadControlCaps / ThreadControlSched (`install_tcb_cap` /
+  `install_tcb_frame_cap`: `cap_delete`, then checked `cap_insert`s), CNode Revoke / Delete. ThreadControlSched's
+  binding writers (set_mcpriority / set_priority / SC bind or unbind of the target) are inside `liftE` after its last
+  preemption point, so they never reach an error outcome; NBSendRecv's donation is in `handle_recv` after the perform.
+  `CKN` is NOT stepwise across the event (as ctq11 said); the result-sensitive triple avoids needing it.
+- **`CKX C m`**: from `CKC C` (ctq14: `CKN ∧ ct = C`), every error outcome has `CKN`. `ckx_of_ne`, `ckx_of_ike`,
+  `ckx_bind_ike` (an `IKE (CKC C)` prefix), `ckx_bind_ne` (a tail that never errors), `ckc_ofE` (the two halves).
+- SpecInvCqHL: `ck_detype` / **`ck_deleteObjects`** (detype only removes objects: ct's TCB, if it survives, is unchanged).
+- SpecInvCqHF3 (generated; proofs/scratch/ck/mkck3.sh + gen3.py + manual3.py, untracked like the others: ctq14's gen.py with
+  a root list in `CKROOTS` and the names already in HK/HF1/HF2/HC filtered out via `CKDONE`): 101 `ck_` lemmas over
+  `reset_untyped_cap`, `cap_insert` and the invocation front (`get_cap_reg`, `update_time_stamp`, message info, cap / IPC
+  buffer / extra-cap lookups, `get_mrs`, `fl4_decode_invocation` and every decode). Hand templates: rt's
+  `resolveAddressBits'` (well-founded) and `getExtraCptrs`; the register decodes / `decode_tcb_invocation` /
+  `fl4_decode_tcb_invocation` are stated at `.threadCap p` (as ctq5's ct_ / gk_ forms: their non-thread arm is
+  `undefined` = `choice`, no frame), patched in by mkck3.sh.
+- SpecInvCqHP: `ne_*` (liftE, withoutPreemption, returnOk, bind, ite, `invokeFl4Tcb`, `invokeFl4IrqControl`,
+  `fl4ArchPerformInvocation`; `ne_auto`), `ckc_checkCapAt`, **`ckc_installTcbCap`**, **`ckc_installTcbFrameCap`**
+  (ctq14's `ck_capDelete` + checked inserts; every outcome), `ckc_resetUntypedCap`, `ckx_fl4InvokeUntyped`,
+  **`ckx_invokeTcb`**, **`ckx_invokeCnode`** (ctq14's `ck_capRevoke` / `ck_capDelete`), **`ckx_fl4PerformInvocation
+  (C) (blk call don) (inv) : CKX C (fl4PerformInvocation blk call don inv)`** (every arm, no hypothesis).
+- SpecInvCqHS: `ckx_syscall`, **`ckx_fl4HandleInvocationR`** (front `IKE (CKC C)` by `ck_auto` / `ct_auto`, the
+  Restart write by `ck_setThreadState`), **`ckx_fl4HandleSyscall`**, **`ckx_fl4HandleEvent C rep ev : CKX C
+  (fl4HandleEvent rep ev)`** (`check_budget_restart` true ⇒ state unchanged: sb2's `checkBudgetRestart_true_eq`),
+  `ckn_of_exit (hX : CtExit σ) (hC : CurScT σ) : CKN σ`,
+  **`hb_fl4HandleEvent rep ev σ (hE : SInvB.EntryOK σ) (hX : SInvAll.CtExit σ) (hC : CurScT σ) : ∀ y ∈
+  ((fl4HandleEvent rep ev).run σ).1, ∀ e, y.1 = .error e → schedulable y.2.curThread y.2 = true → BC y.2`** (= ctq8's
+  hB at the preemption state; ScBackS from sb2's `sb_fl4HandleEvent SInvB.scGap`, which states every outcome, then
+  ctq11's `bc_of_ck (ckn_ck …)`), **`ebx_preemptionPath_q N S b σ (hK : CKN σ) (hS : SInvB.ScBackS σ) (hN : NQ [] σ)
+  (hV : SInvI.VI N S b σ) : HKp (EB true) (EBX N S b) σ preemptionPath`**, **`ebx_fl4HandleEvent_preempt`** (the
+  preemption handler of `call_kernel` from an error outcome of the event: needs only `NQ []`, `VI` and `EB true` there).
+- HANDOFF (the event-level carry of the bundle through the preemption handler, in order):
+  1. `EB true` at the error outcome. `ebx_fl4HandleEvent_preempt` needs `EB true` / `NQ []` / `VI` at the error state;
+     `NQ []` follows from `NQ [C]` (`nq_weak_nil`), VI from vi3. For EB: the same three arms, with ctq14's `DK C` (IKE
+     forms `dz_capDelete` / `dz_capRevoke`) for CNode and installTcbCap (+ `cap_insert` under DK, ctq12's
+     `p12_dk_auto`), and a NEW `DK` carry over `reset_untyped_cap` (detype: SQ4 / RBk need "no queued / bound TCB in a
+     childless untyped's region", sl4's `noLive_reg` as in ctq11's `rt_detype`; so the untyped arm takes slGap's
+     facts SPF / IrqOutV / DecodedFrom as `rt_invokeUntyped` does). State it as a `DKX C` = `CKX` with `DK C` at the
+     error outcome; the front needs `DK C` at the perform (check what ctq12 / ctq13 state at the perform start for `EB true`,
+     `Simple` and `NQ [C]`; not verified by ctq16).
+  2. Then `call_kernel` up to `fl4_awaken`: ok outcomes by ctq12/13's HKEr chain, error outcomes by
+     `ebx_fl4HandleEvent_preempt`.
+- Premises: none added (no [J]/[P]/[W]/[S]); `EntryOK` / `CtExit` / `CurScT` are carried entry facts (sb2 / g1c / ctq6), no
+  ∀-states hypothesis. No FINDING: every reachable error outcome has CKN (ct's SC is cur_sc or none; ct not
+  BlockedOnReply).
+- Builds (tokyo FL4-q mirror warm; ./ctq16.sh untracked = ctq14.sh with filter SpecInvCqH*, ax16.lean): b1 HL ok, HF3
+  7 errors (generated install_tcb_cap / install_tcb_frame_cap / invoke_cnode need the CKC-form cap_delete / cap_revoke:
+  moved to hand lemmas; register decodes' `undefined` arm; `getExtraCptrs` recursion depth: rt's template); b2 HF3 (60 s)
+  + HP (2.1 s) ok; b3 HS (3.2 s) + axioms. Axioms (ax16.lean): ck_deleteObjects, ck_resetUntypedCap,
+  ck_fl4DecodeInvocation, ckc_installTcbCap, ckc_installTcbFrameCap, ckx_invokeTcb, ckx_invokeCnode,
+  ckx_fl4PerformInvocation, ckx_fl4HandleInvocationR, ckx_fl4HandleSyscall, ckx_fl4HandleEvent, hb_fl4HandleEvent,
+  ebx_preemptionPath_q, ebx_fl4HandleEvent_preempt: propext, Classical.choice, Quot.sound; ckn_of_exit: none. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (one import line).
+- Lean notes: a generated leaf for a function with a monadic-argument hypothesis (`checkCapAt`) cannot be used through
+  `ckc_leaf` (its `?_` goal lands before the CT half): write a small hand wrapper (`ckc_checkCapAt`) or split `ckc_ofE`
+  and run `ck_auto` / `ct_auto` separately.
