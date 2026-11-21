@@ -16,6 +16,7 @@ typedef seL4_CPtr seL4_ARM_PageDirectory;
 typedef seL4_CPtr seL4_ARM_ASIDControl;
 typedef seL4_CPtr seL4_ARM_ASIDPool;
 typedef seL4_CPtr seL4_ARM_VCPU;
+typedef seL4_CPtr seL4_ARM_Stage2VSpace;
 typedef seL4_CPtr seL4_ARM_IOSpace;
 typedef seL4_CPtr seL4_ARM_IOPageTable;
 typedef seL4_CPtr seL4_ARM_SIDControl;

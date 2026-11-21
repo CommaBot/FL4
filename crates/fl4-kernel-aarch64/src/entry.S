@@ -37,7 +37,30 @@ fl4_vectors:
     ventry  fl4_vec_invalid
     ventry  fl4_vec_invalid
 
-.macro user_entry kind
+.balign 2048
+.global fl4_vectors_el2
+fl4_vectors_el2:
+    ventry  fl4_vec_invalid         /* EL2t sync */
+    ventry  fl4_vec_invalid         /* EL2t IRQ */
+    ventry  fl4_vec_invalid         /* EL2t FIQ */
+    ventry  fl4_vec_invalid         /* EL2t SError */
+    ventry  fl4_kernel_sync         /* EL2h sync */
+    ventry  fl4_kernel_irq_entry_el2 /* EL2h IRQ: the idle loop */
+    ventry  fl4_vec_invalid         /* EL2h FIQ */
+    ventry  fl4_kernel_serror       /* EL2h SError */
+    ventry  fl4_user_sync_el2       /* Lower EL AArch64 sync */
+    ventry  fl4_user_irq_el2        /* Lower EL AArch64 IRQ */
+    ventry  fl4_vec_invalid         /* Lower EL AArch64 FIQ */
+    ventry  fl4_user_serror_el2     /* Lower EL AArch64 SError */
+    ventry  fl4_vec_invalid         /* Lower EL AArch32 */
+    ventry  fl4_vec_invalid
+    ventry  fl4_vec_invalid
+    ventry  fl4_vec_invalid
+
+.macro user_entry kind, tpidr, is_el2
+    .if \is_el2
+    hint    #22                         /* clrbhb (NOP without FEAT_CLRBHB) */
+    .endif
     stp     x0,  x1,  [sp, #16 * 0]
     stp     x2,  x3,  [sp, #16 * 1]
     stp     x4,  x5,  [sp, #16 * 2]
@@ -57,32 +80,53 @@ fl4_vectors:
     stp     x30, x21, [sp, #8 * 30]     /* X30, SP_EL0 */
     mrs     x22, elr_el1
     mrs     x23, spsr_el1
-    stp     x22, x23, [sp, #8 * 32]     /* ELR_EL1, SPSR_EL1 */
+    stp     x22, x23, [sp, #8 * 32]     /* ELR_EL1/EL2, SPSR_EL1/EL2 */
     mrs     x21, tpidr_el0
     str     x21, [sp, #8 * 35]          /* TPIDR_EL0 */
-    mrs     x0, tpidr_el1
+    mrs     x0, \tpidr
     ldr     x1, [x0]
     mov     sp, x1
     mov     x0, #\kind
     mrs     x1, esr_el1
     mrs     x2, far_el1
+    .if \is_el2
+    mrs     x3, hpfar_el2
+    .else
+    mov     x3, #0
+    .endif
     bl      fl4_entry
     b       fl4_vec_invalid
 .endm
 
 .section .text
 fl4_user_sync:
-    user_entry KIND_SYNC
+    user_entry KIND_SYNC, tpidr_el1, 0
 
 fl4_user_irq:
-    user_entry KIND_IRQ
+    user_entry KIND_IRQ, tpidr_el1, 0
 
 fl4_user_serror:
-    user_entry KIND_SERROR
+    user_entry KIND_SERROR, tpidr_el1, 0
+
+fl4_user_sync_el2:
+    user_entry KIND_SYNC, tpidr_el2, 1
+
+fl4_user_irq_el2:
+    user_entry KIND_IRQ, tpidr_el2, 1
+
+fl4_user_serror_el2:
+    user_entry KIND_SERROR, tpidr_el2, 1
 
 /* An interrupt while the core idles: the idle loop keeps no state. */
 fl4_kernel_irq_entry:
     mrs     x0, tpidr_el1
+    ldr     x1, [x0]
+    mov     sp, x1
+    bl      fl4_kernel_irq
+    b       fl4_vec_invalid
+
+fl4_kernel_irq_entry_el2:
+    mrs     x0, tpidr_el2
     ldr     x1, [x0]
     mov     sp, x1
     bl      fl4_kernel_irq
@@ -151,3 +195,19 @@ fl4_idle:
     msr     daifclr, #2
 1:  wfi
     b       1b
+
+/* fl4_nvhe_enter_guest(regs_pa, vcpu_pa, vttbr, hcr_nvhe, trap_fp, stack_top) -> !
+ * Switch to the core's kernel stack, invoke HVC_VCPU_RUN (x0 = 1) into the
+ * EL2 nVHE stub, and dispatch the returned (kind, esr, far, hpfar) to fl4_entry. */
+.global fl4_nvhe_enter_guest
+fl4_nvhe_enter_guest:
+    mov     sp, x5
+    mov     x5, x4
+    mov     x4, x3
+    mov     x3, x2
+    mov     x2, x1
+    mov     x1, x0
+    mov     x0, #1                  /* HVC_VCPU_RUN */
+    hvc     #0
+    bl      fl4_entry
+    b       fl4_vec_invalid

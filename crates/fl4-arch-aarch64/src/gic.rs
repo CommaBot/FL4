@@ -10,10 +10,15 @@ const PRIO: u32 = 0xa0;
 static VERSION: AtomicU64 = AtomicU64::new(0);
 static GICD: AtomicU64 = AtomicU64::new(0);
 static GICC: AtomicU64 = AtomicU64::new(0);
+static GICH: AtomicU64 = AtomicU64::new(0);
 static LINES: AtomicU64 = AtomicU64::new(32);
 /// GICv3: some core started has Aff0 16 or more, so every core must be
 /// able to send SGIs with the range selector.
 static NEED_RSS: AtomicBool = AtomicBool::new(false);
+/// ICC_SRE_EL1.SRE reads back as set: the GICv3 system register interface
+/// works even where ID_AA64PFR0_EL1.GIC says 0 (QEMU HVF on Apple silicon),
+/// as Linux's gic_enable_sre() finds it.
+static GICV3_SRE: AtomicBool = AtomicBool::new(false);
 
 const GICD_CTLR: u64 = 0x0;
 const GICD_TYPER: u64 = 0x4;
@@ -68,6 +73,57 @@ pub fn lines() -> u64 {
 
 pub fn max_spi() -> u64 {
     (lines() - 1).min(1019)
+}
+
+/// Record the GICv2 hypervisor control interface (GICH) kernel virtual address.
+pub fn set_gich(va: u64) {
+    GICH.store(va, Ordering::Relaxed);
+}
+
+/// The GICv2 GICH kernel virtual address (0 if none / GICv3).
+pub fn gich() -> u64 {
+    GICH.load(Ordering::Relaxed)
+}
+
+/// The GICv3 system register interface: ID_AA64PFR0_EL1.GIC, or SRE set.
+pub fn has_sysregs() -> bool {
+    cpu::has_gic_sysregs() || GICV3_SRE.load(Ordering::Relaxed)
+}
+
+/// VGIC type register: `ICH_VTR_EL2` on GICv3, `GICH_VTR` (`gich + 0x4`) on
+/// GICv2. Returns 0 when EL2 is unavailable or VGIC is unavailable.
+pub fn vgic_vtr() -> u64 {
+    if !cpu::has_el2() {
+        return 0;
+    }
+    if version() == 3 {
+        if !has_sysregs() {
+            return 0;
+        }
+        if cpu::is_el2_nvhe() {
+            return crate::hyp_nvhe::vgic_vtr();
+        }
+        let v: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_4_c12_c11_1", out(reg) v, options(nomem, nostack, preserves_flags)) };
+        v
+    } else {
+        let h = GICH.load(Ordering::Relaxed);
+        if h == 0 {
+            0
+        } else {
+            rd(h + 0x4) as u64
+        }
+    }
+}
+
+/// Number of VGIC list registers (0 when VGIC is unavailable).
+pub fn vgic_num_lrs() -> u8 {
+    let vtr = vgic_vtr();
+    if vtr == 0 {
+        0
+    } else {
+        ((vtr & 0x1f) + 1) as u8
+    }
 }
 
 fn v3_wait_rwp(base: u64) {
@@ -194,6 +250,11 @@ pub fn init_cpu(gicr: u64) {
         // System registers: SRE, priority mask, group 1 enable.
         msr_s("s3_0_c12_c12_5", 0x7);
         cpu::isb();
+        let sre: u64;
+        unsafe { core::arch::asm!("mrs {}, s3_0_c12_c12_5", out(reg) sre) };
+        if sre & 1 != 0 {
+            GICV3_SRE.store(true, Ordering::Relaxed);
+        }
         msr_s("s3_0_c4_c6_0", 0xff);
         msr_s("s3_0_c12_c12_3", 0);
         msr_s("s3_0_c12_c12_4", 0);
@@ -219,8 +280,9 @@ pub fn init_cpu(gicr: u64) {
     // The kernel owns these banked interrupts on every online core.
     use fl4_core::layout::irq;
     let bank = if version() == 3 { gicr + GICR_SGI } else { gicd() };
+    let timer_id = crate::timer::timer_irq_id();
     wr(bank + GICD_ISENABLER,
-       (1 << irq::TIMER_ID) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
+       (1 << timer_id) | (1 << irq::REMOTE_CALL_ID) | (1 << irq::RESCHEDULE_ID));
     cpu::dsb_sy();
 }
 

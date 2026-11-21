@@ -2,7 +2,7 @@
 //! current TCB; dispatch to fl4-core, then run whichever thread is current.
 use crate::kprintln;
 use fl4_arch_aarch64::arch::PhysArch;
-use fl4_arch_aarch64::{fpu, gic, mmu, percpu, smp, timer};
+use fl4_arch_aarch64::{cpu, fpu, gic, mmu, percpu, smp, timer, vcpu};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -15,10 +15,12 @@ core::arch::global_asm!(include_str!("entry.S"));
 extern "C" {
     fn fl4_restore_user(regs: u64) -> !;
     fn fl4_idle(stack_top: u64) -> !;
+    fn fl4_nvhe_enter_guest(regs_pa: u64, vcpu_pa: u64, vttbr: u64, hcr_nvhe: u64, trap_fp: u64, stack_top: u64) -> !;
 }
 
 const KIND_SYNC: u64 = 0;
 const KIND_IRQ: u64 = 1;
+const KIND_RETRY: u64 = 3;
 
 /// ESR_EL1 exception classes from EL0.
 const EC_UNKNOWN: u64 = 0x00;
@@ -109,27 +111,69 @@ fn run_entry(irq: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool
     fl4_sync::run_entry(&KernelEnv, &GATE, irq, body)
 }
 
-fn cur_regs() -> u64 {
-    let s = store();
-    sched::cur_thread(&s).0 + tl::REGS
-}
-
 /// Back to the interrupted thread without a kernel entry.
 fn resume() -> ! {
+    let s = store();
+    let ct = sched::cur_thread(&s);
+    let run_v = if ct.state(&s) == sched::TS_RUNNING_VM {
+        s.read(ct.0 + tl::RUN_VCPU)
+    } else {
+        0
+    };
+    let (v, target) = if run_v != 0 {
+        (run_v, Tcb(s.read(run_v + fl4_core::vcpu::TCB)))
+    } else {
+        (fl4_core::vcpu::bound(&s, ct), ct)
+    };
+    if v != 0 && cpu::is_el2_nvhe() {
+        vcpu::nvhe_prepare_guest(v);
+        mmu::publish_tables();
+        let pc = percpu::get();
+        let me = percpu::cpu_index();
+        unsafe {
+            fl4_nvhe_enter_guest(
+                fl4_core::layout::paddr(target.0 + tl::REGS),
+                fl4_core::layout::paddr(v),
+                percpu::vttbr(me),
+                vcpu::nvhe_guest_hcr(v),
+                pc.guest_fp_trap.get() as u64,
+                pc.stack_top.load(core::sync::atomic::Ordering::Relaxed),
+            )
+        }
+    }
+    if v != 0 {
+        vcpu::enter_guest_hcr(v);
+    }
     mmu::publish_tables();
-    unsafe { fl4_restore_user(cur_regs()) }
+    unsafe { fl4_restore_user(target.0 + tl::REGS) }
 }
 
-/// Acknowledge an interrupt; returns its IRQ and whether it needs a
-/// kernel entry at all.
-fn take_irq() -> Option<u64> {
+enum TakenIrq {
+    Normal(u64),
+    VgicMaint(u64),
+    Vppi(u64),
+}
+
+/// Acknowledge an interrupt; returns what kind of kernel entry it needs.
+fn take_irq() -> Option<TakenIrq> {
     let raw = gic::ack();
     let id = raw & 0x3ff;
     if raw == gic::SPURIOUS || id >= 1020 {
         return None;
     }
     percpu::get().iar.set(raw);
-    if id == irq::TIMER_ID {
+    if cpu::has_el2() && id == irq::VGIC_MAINT_ID {
+        let eisr = vcpu::read_vgic_eisr();
+        vcpu::mask_ppi_vgic();
+        gic::eoi(raw);
+        return Some(TakenIrq::VgicMaint(eisr));
+    }
+    if cpu::has_el2() && id == irq::TIMER_ID {
+        vcpu::mask_ppi_vtimer();
+        gic::eoi(raw);
+        return Some(TakenIrq::Vppi(irq::TIMER_ID));
+    }
+    if id == timer::timer_irq_id() {
         // A stale timer interrupt (l4h 0012): the deadline it was for has
         // been replaced by a later one.
         if timer::early() {
@@ -141,27 +185,173 @@ fn take_irq() -> Option<u64> {
     if id == irq::REMOTE_CALL_ID {
         service_remote();
     }
-    Some(irq::of(id, percpu::cpu_index() as u64))
+    Some(TakenIrq::Normal(irq::of(id, percpu::cpu_index() as u64)))
 }
 
-/// Called by entry.S for every exception from EL0.
+/// Handle an exception/IRQ from a guest entered via `ARMVCPURun` (caller `t`
+/// stays in `TS_RUNNING_VM` with its own `FAULT_IP` untouched).
+#[allow(clippy::too_many_arguments)]
+fn fl4_entry_vcpu_run(
+    s: &mut PhysStore,
+    run_v: u64,
+    guest_tcb: Tcb,
+    kind: u64,
+    esr: u64,
+    far: u64,
+    s2_ipa: u64,
+    eff_hpfar: u64,
+) -> ! {
+    use fl4_abi::consts::vcpu_run_stop;
+    let ec = esr >> 26;
+    if kind == KIND_IRQ {
+        let (quiesce_cntv, quiesce_vgic) = if cpu::is_el2_nvhe() {
+            vcpu::nvhe_irq_quiesce_flags(run_v)
+        } else {
+            (false, false)
+        };
+        let taken = take_irq();
+        if cpu::is_el2_nvhe() {
+            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, quiesce_vgic);
+        }
+        match taken {
+            None => resume(),
+            Some(TakenIrq::VgicMaint(eisr)) => {
+                run_entry(true, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VGIC_MAINT, eisr, 0, 0));
+            }
+            Some(TakenIrq::Vppi(irq_id)) => {
+                run_entry(true, |s, a| syscall::handle_vcpu_run_vppi(s, a, irq_id));
+            }
+            Some(TakenIrq::Normal(irq)) => {
+                run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
+            }
+        }
+        exit()
+    }
+    if kind != KIND_SYNC {
+        vcpu::record_exit_regs(run_v, far, eff_hpfar, esr);
+        run_entry(false, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VCPUFAULT, esr, far, eff_hpfar));
+        exit()
+    }
+    if ec == EC_FP && guest_tcb.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED == 0 {
+        fpu::lazy_load(guest_tcb.0);
+        resume()
+    }
+    vcpu::record_exit_regs(run_v, far, eff_hpfar, esr);
+    if ec == EC_IABT_LOW || ec == EC_DABT_LOW {
+        run_entry(false, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VMFAULT, esr, s2_ipa, far));
+    } else {
+        run_entry(false, |s, a| syscall::handle_vcpu_run_exit(s, a, vcpu_run_stop::VCPUFAULT, esr, far, eff_hpfar));
+    }
+    exit()
+}
+
+/// Called by entry.S for every exception from EL0 or a guest EL1/EL0.
 #[no_mangle]
-extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64) -> ! {
+extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
     let s = &mut store();
     let t = sched::cur_thread(s);
-    let elr = t.reg(s, reg::ELR_EL1);
+    let run_v = if t.state(s) == sched::TS_RUNNING_VM {
+        s.read(t.0 + tl::RUN_VCPU)
+    } else {
+        0
+    };
+    let bound_v = if run_v == 0 { fl4_core::vcpu::bound(s, t) } else { 0 };
+    let eff_v = if run_v != 0 { run_v } else { bound_v };
+    let guest_tcb = if run_v != 0 {
+        Tcb(s.read(run_v + fl4_core::vcpu::TCB))
+    } else {
+        t
+    };
+    let elr = guest_tcb.reg(s, reg::ELR_EL1);
     let ec = esr >> 26;
+    let mut s2_ipa = 0u64;
+    let mut eff_hpfar = hpfar;
+    if eff_v != 0 {
+        if cpu::is_el2_nvhe() {
+            vcpu::nvhe_post_exit(eff_v, kind);
+            if kind == KIND_RETRY {
+                resume();
+            }
+            // Stage-2 permission faults were already resolved in EL2 via AT S1E1R.
+            s2_ipa = ((hpfar & 0x0000_0fff_ffff_fff0) << 8) | (far & 0xfff);
+        } else {
+            // Stage-2 permission fault (not S1PTW): resolve VA->IPA via AT S1E1R
+            // while HCR_EL2.TGE is still 0.
+            if kind == KIND_SYNC
+                && (ec == EC_IABT_LOW || ec == EC_DABT_LOW)
+                && (esr & 0x3c) == 0x0c
+                && (esr & (1 << 7)) == 0
+            {
+                match vcpu::resolve_s2_perm_ipa(far) {
+                    Some(ipa) => {
+                        s2_ipa = ipa;
+                        eff_hpfar = (ipa >> 8) & 0x0000_0fff_ffff_fff0;
+                    }
+                    None => resume(),
+                }
+            } else {
+                s2_ipa = ((hpfar & 0x0000_0fff_ffff_fff0) << 8) | (far & 0xfff);
+            }
+            vcpu::set_host_hcr();
+        }
+    }
+    if run_v != 0 {
+        fl4_entry_vcpu_run(s, run_v, guest_tcb, kind, esr, far, s2_ipa, eff_hpfar);
+    }
+    let v = bound_v;
     if kind == KIND_IRQ {
         // The restart PC first: taking a remote-call SGI services a stall,
         // and once that is acknowledged the calling core may restart,
         // rewrite or delete `t` (and retype its memory). Not a word of `t`
         // after `take_irq`. Harmless when the interrupt needs no entry.
         t.set_reg(s, reg::FAULT_IP, elr);
-        let irq = match take_irq() {
-            Some(i) => i,
-            None => resume(),
+        let (quiesce_cntv, quiesce_vgic) = if cpu::is_el2_nvhe() && v != 0 {
+            vcpu::nvhe_irq_quiesce_flags(v)
+        } else {
+            (false, false)
         };
-        run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
+        let taken = take_irq();
+        if cpu::is_el2_nvhe() && v != 0 {
+            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, quiesce_vgic);
+        }
+        match taken {
+            None => resume(),
+            Some(TakenIrq::VgicMaint(eisr)) => {
+                run_entry(true, |s, a| syscall::handle_vgic_maintenance_entry(s, a, eisr));
+            }
+            Some(TakenIrq::Vppi(irq_id)) => {
+                run_entry(true, |s, a| syscall::handle_vppi_event_entry(s, a, irq_id));
+            }
+            Some(TakenIrq::Normal(irq)) => {
+                run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
+            }
+        }
+        exit()
+    }
+    if v != 0 {
+        if kind != KIND_SYNC {
+            t.set_reg(s, reg::FAULT_IP, elr);
+            vcpu::record_exit_regs(v, far, hpfar, esr);
+            run_entry(false, |s, a| syscall::handle_vcpu_fault(s, a, esr));
+            exit()
+        }
+        if ec == EC_FP {
+            if t.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED == 0 {
+                fpu::lazy_load(t.0);
+                resume()
+            }
+        }
+        // HVC (EC=0x16) advances ELR_EL2 past the instruction like SVC: record
+        // FAULT_IP as elr - 4 so MCS budget exhaustion or a remote stall
+        // restarts the HVC instead of silently skipping it.
+        const EC_HVC64: u64 = 0x16;
+        t.set_reg(s, reg::FAULT_IP, if ec == EC_HVC64 { elr.wrapping_sub(4) } else { elr });
+        vcpu::record_exit_regs(v, far, eff_hpfar, esr);
+        if ec == EC_IABT_LOW || ec == EC_DABT_LOW {
+            run_entry(false, |s, a| syscall::handle_vm_fault(s, a, s2_ipa, esr));
+        } else {
+            run_entry(false, |s, a| syscall::handle_vcpu_fault(s, a, esr));
+        }
         exit()
     }
     if kind != KIND_SYNC {
@@ -242,7 +432,7 @@ fn dispatch_handler<S: Store>(s: &mut S, a: &mut PhysArch, ec: u64, esr: u64, fa
 #[no_mangle]
 extern "C" fn fl4_kernel_irq() -> ! {
     percpu::get().idle.set(false);
-    if let Some(irq) = take_irq() {
+    if let Some(TakenIrq::Normal(irq)) = take_irq() {
         run_entry(true, |s, a| syscall::handle_interrupt_entry(s, a, irq));
     }
     exit()
@@ -289,10 +479,68 @@ pub fn exit() -> ! {
         mmu::publish_tables();
         unlock();
         if idle {
+            vcpu::switch_to(0);
+            vcpu::set_host_hcr();
             pc.idle.set(true);
             unsafe { fl4_idle(pc.stack_top.load(core::sync::atomic::Ordering::Relaxed)) }
         }
-        fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0);
+        if ct.state(s) == sched::TS_RUNNING_VM {
+            let n = fl4_core::obj::Ntfn(ct.bound_ntfn(s));
+            if n.0 != 0 && n.state(s) == fl4_core::obj::NTFN_ACTIVE {
+                run_entry(false, |s, a| fl4_core::vcpu::check(s, a, sched::cur_thread(s)));
+                continue;
+            }
+            let run_v = s.read(ct.0 + tl::RUN_VCPU);
+            if run_v != 0 {
+                let guest_ptr = s.read(run_v + fl4_core::vcpu::TCB);
+                if guest_ptr != 0 {
+                    let guest = Tcb(guest_ptr);
+                    fpu::switch_to(guest.0, guest.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0, true);
+                    vcpu::switch_to(run_v);
+                    if cpu::is_el2_nvhe() {
+                        vcpu::nvhe_prepare_guest(run_v);
+                        mmu::publish_tables();
+                        let me = percpu::cpu_index();
+                        unsafe {
+                            fl4_nvhe_enter_guest(
+                                fl4_core::layout::paddr(guest.0 + tl::REGS),
+                                fl4_core::layout::paddr(run_v),
+                                percpu::vttbr(me),
+                                vcpu::nvhe_guest_hcr(run_v),
+                                pc.guest_fp_trap.get() as u64,
+                                pc.stack_top.load(core::sync::atomic::Ordering::Relaxed),
+                            )
+                        }
+                    }
+                    vcpu::enter_guest_hcr(run_v);
+                    mmu::publish_tables();
+                    unsafe { fl4_restore_user(guest.0 + tl::REGS) }
+                }
+            }
+        }
+        let v = fl4_core::vcpu::bound(s, ct);
+        fpu::switch_to(ct.0, ct.flags(s) & fl4_abi::consts::tcb_flag::FPU_DISABLED != 0, v != 0);
+        vcpu::switch_to(v);
+        if v != 0 && cpu::is_el2_nvhe() {
+            vcpu::nvhe_prepare_guest(v);
+            mmu::publish_tables();
+            let me = percpu::cpu_index();
+            unsafe {
+                fl4_nvhe_enter_guest(
+                    fl4_core::layout::paddr(ct.0 + tl::REGS),
+                    fl4_core::layout::paddr(v),
+                    percpu::vttbr(me),
+                    vcpu::nvhe_guest_hcr(v),
+                    pc.guest_fp_trap.get() as u64,
+                    pc.stack_top.load(core::sync::atomic::Ordering::Relaxed),
+                )
+            }
+        }
+        if v != 0 {
+            vcpu::enter_guest_hcr(v);
+        } else {
+            vcpu::set_host_hcr();
+        }
         mmu::publish_tables();
         unsafe { fl4_restore_user(ct.0 + tl::REGS) }
     }

@@ -16,16 +16,64 @@ fn hdr(buf: &mut [u8], off: &mut usize, id: u64, len: u64) -> Option<()> {
     put(buf, off, &len.to_le_bytes())
 }
 
+/// AArch64 EL2/VHE virtualization capabilities and GIC/ID metadata
+/// (`bootinfo_header::AARCH64_VIRT_INFO`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VirtInfo {
+    /// bit 0 = virt_ready, bit 1 = el2_vhe, bit 2 = vmid16.
+    pub flags: u64,
+    pub ipa_bits: u64,
+    pub gic_version: u64,
+    pub vgic_vtr: u64,
+    pub gicv_paddr: u64,
+    pub gicv_size: u64,
+    pub midr_el1: u64,
+    pub ctr_el0: u64,
+    pub id_aa64mmfr0_el1: u64,
+    pub id_aa64mmfr1_el1: u64,
+    pub id_aa64mmfr2_el1: u64,
+    pub id_aa64dfr0_el1: u64,
+    pub id_aa64dfr1_el1: u64,
+}
+
+impl VirtInfo {
+    pub fn to_words(&self) -> [u64; 13] {
+        [
+            self.flags,
+            self.ipa_bits,
+            self.gic_version,
+            self.vgic_vtr,
+            self.gicv_paddr,
+            self.gicv_size,
+            self.midr_el1,
+            self.ctr_el0,
+            self.id_aa64mmfr0_el1,
+            self.id_aa64mmfr1_el1,
+            self.id_aa64mmfr2_el1,
+            self.id_aa64dfr0_el1,
+            self.id_aa64dfr1_el1,
+        ]
+    }
+}
+
 /// Write the records into `buf`: the ACPI RSDP, the boot core's ID
-/// registers (l4h 0018), the boot modules (l4h 0021) and the device tree.
-/// Returns their length, a multiple of 8 (a padding record ends the
-/// chain if needed, as on x86_64); none if `buf` is too small.
+/// registers (l4h 0018), optional virtualization info, the boot modules
+/// (l4h 0021) and the device tree. Returns their length, a multiple of 8
+/// (a padding record ends the chain if needed, as on x86_64); none if
+/// `buf` is too small.
 ///
 /// All of `buf` is cleared first: it is free RAM with whatever the
 /// firmware left there, and the root task gets every byte up to the
 /// length rounded up to 8, the device tree record's padding included.
 /// Each record is exactly as long as its header says.
-pub fn build(buf: &mut [u8], rsdp: Option<&[u8]>, id_regs: &[u64; 5], mods: &[Module], dtb: &[u8]) -> Option<usize> {
+pub fn build(
+    buf: &mut [u8],
+    rsdp: Option<&[u8]>,
+    id_regs: &[u64; 5],
+    virt_info: Option<&VirtInfo>,
+    mods: &[Module],
+    dtb: &[u8],
+) -> Option<usize> {
     buf.fill(0);
     let mut off = 0;
     if let Some(rsdp) = rsdp {
@@ -35,6 +83,13 @@ pub fn build(buf: &mut [u8], rsdp: Option<&[u8]>, id_regs: &[u64; 5], mods: &[Mo
     hdr(buf, &mut off, id::AARCH64_ID_REGS, 16 + 8 * id_regs.len() as u64)?;
     for r in id_regs {
         put(buf, &mut off, &r.to_le_bytes())?;
+    }
+    if let Some(vi) = virt_info {
+        let words = vi.to_words();
+        hdr(buf, &mut off, id::AARCH64_VIRT_INFO, 16 + 8 * words.len() as u64)?;
+        for w in words {
+            put(buf, &mut off, &w.to_le_bytes())?;
+        }
     }
     if !mods.is_empty() {
         hdr(buf, &mut off, id::X86_BOOT_MODULES, 16 + 8 + 80 * mods.len() as u64)?;

@@ -1,5 +1,6 @@
 //! AArch64 system registers, barriers and cache maintenance.
 use core::arch::asm;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 /// Read a system register by name.
 #[macro_export]
@@ -18,6 +19,70 @@ macro_rules! msr {
         let v: u64 = $v;
         unsafe { core::arch::asm!(concat!("msr ", $r, ", {}"), in(reg) v, options(nostack, preserves_flags)) };
     }};
+}
+
+/// Kernel exception-level execution mode, decided in `boot.S` (`fl4_el_setup`)
+/// and passed to `fl4_boot(off, el_mode)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ElMode {
+    /// Booted at EL1, or booted at EL2 with `PARange < 40` (no virtualization).
+    El1 = 0,
+    /// Booted at EL2 with `FEAT_VHE` and `PARange >= 40`: kernel runs at EL2.
+    El2Vhe = 1,
+    /// Booted at EL2 without `FEAT_VHE` and `PARange >= 40`: kernel runs at EL1
+    /// with an identity-mapped EL2 Hyp switch stub.
+    El2Nvhe = 2,
+}
+
+impl ElMode {
+    #[inline]
+    pub const fn from_raw(v: u64) -> ElMode {
+        match v {
+            1 => ElMode::El2Vhe,
+            2 => ElMode::El2Nvhe,
+            _ => ElMode::El1,
+        }
+    }
+}
+
+/// Execution mode recorded once on the boot core before `percpu::init`.
+static EL_MODE: AtomicU8 = AtomicU8::new(0);
+
+/// Current exception level (0..=3).
+#[inline]
+pub fn current_el() -> u64 {
+    (mrs!("CurrentEL") >> 2) & 0x3
+}
+
+/// Record the kernel's EL execution mode (`0=El1`, `1=El2Vhe`, `2=El2Nvhe`).
+/// Call once on the boot core before `percpu::init`.
+pub fn init_el_mode(raw: u64) {
+    EL_MODE.store(ElMode::from_raw(raw) as u8, Ordering::Relaxed);
+}
+
+/// The kernel's EL execution mode.
+#[inline]
+pub fn el_mode() -> ElMode {
+    ElMode::from_raw(EL_MODE.load(Ordering::Relaxed) as u64)
+}
+
+/// Whether the kernel runs at EL2 in VHE host mode.
+#[inline]
+pub fn is_el2_vhe() -> bool {
+    el_mode() == ElMode::El2Vhe
+}
+
+/// Whether the kernel runs at EL1 with an EL2 nVHE Hyp switch stub.
+#[inline]
+pub fn is_el2_nvhe() -> bool {
+    el_mode() == ElMode::El2Nvhe
+}
+
+/// Whether the kernel owns EL2 (either VHE or nVHE) and can run guests.
+#[inline]
+pub fn has_el2() -> bool {
+    el_mode() != ElMode::El1
 }
 
 #[inline(always)]
@@ -154,13 +219,39 @@ pub fn has_gic_sysregs() -> bool {
     (mrs!("id_aa64pfr0_el1") >> 24) & 0xf != 0
 }
 
-/// This core's `ap_caps::Caps`.
-pub fn caps() -> crate::ap_caps::Caps {
+/// Virtualization Host Extensions (ID_AA64MMFR1_EL1.VH).
+pub fn has_vhe() -> bool {
+    (mrs!("id_aa64mmfr1_el1") >> 8) & 0xf != 0
+}
+
+/// 16-bit VMIDs (ID_AA64MMFR1_EL1.VMIDBits == 2).
+pub fn vmid16() -> bool {
+    (mrs!("id_aa64mmfr1_el1") >> 4) & 0xf == 2
+}
+
+/// FEAT_CLRBHB (ID_AA64ISAR2_EL1.CLRBHB, bits [31:28]).
+pub fn has_clrbhb() -> bool {
+    (mrs!("s3_0_c0_c6_2") >> 28) & 0xf != 0
+}
+
+/// This core's `ap_caps::Caps` for the given `ElMode`.
+pub fn caps_for(mode: ElMode) -> crate::ap_caps::Caps {
+    let el2 = mode != ElMode::El1;
+    let vhe = mode == ElMode::El2Vhe;
     crate::ap_caps::Caps {
         asid16: has_asid16(),
         hw_af: has_hw_af(),
         pan: has_pan(),
         pa_bits: pa_bits(),
         cntfrq: mrs!("cntfrq_el0") & 0xffff_ffff,
+        el2,
+        vhe: vhe && has_vhe(),
+        vmid16: el2 && vmid16(),
+        vgic_lrs: if el2 { crate::gic::vgic_num_lrs() } else { 0 },
     }
+}
+
+/// This core's `ap_caps::Caps`.
+pub fn caps() -> crate::ap_caps::Caps {
+    caps_for(el_mode())
 }

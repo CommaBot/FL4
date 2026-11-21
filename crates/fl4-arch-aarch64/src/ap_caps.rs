@@ -18,10 +18,26 @@ pub struct Caps {
     pub pa_bits: u64,
     /// CNTFRQ_EL0: the rate every scheduling budget is converted at.
     pub cntfrq: u64,
+    /// Running at EL2 (VHE host mode).
+    pub el2: bool,
+    /// Virtualization Host Extensions (ID_AA64MMFR1_EL1.VH), only when `el2`.
+    pub vhe: bool,
+    /// 16-bit VMIDs (ID_AA64MMFR1_EL1.VMIDBits == 2), only when `el2`.
+    pub vmid16: bool,
+    /// Number of VGIC list registers, only when `el2` (0 in EL1).
+    pub vgic_lrs: u8,
 }
 
 /// Whether a core with `ap` may run beside a boot core with `bsp`.
 pub fn ap_matches(bsp: &Caps, ap: &Caps) -> bool {
-    ap.asid16 && ap.hw_af == bsp.hw_af && ap.pan == bsp.pan && ap.pa_bits >= bsp.pa_bits && bsp.cntfrq != 0
+    ap.asid16
+        && ap.hw_af == bsp.hw_af
+        && ap.pan == bsp.pan
+        && ap.pa_bits >= bsp.pa_bits
+        && bsp.cntfrq != 0
         && ap.cntfrq == bsp.cntfrq
+        && ap.el2 == bsp.el2
+        && ap.vhe == bsp.vhe
+        && ap.vmid16 == bsp.vmid16
+        && ap.vgic_lrs == bsp.vgic_lrs
 }

@@ -223,7 +223,7 @@ fn copy_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, src: Tcb, 
         while i < N_FRAME {
             let r = FRAME_REGISTERS[i as usize];
             let v = src.reg(s, r);
-            dest.set_reg(s, r, regs::sanitise(r, v));
+            dest.set_reg(s, r, sanitise_reg!(s, dest, r, v));
             i += 1;
         }
         let pc = dest.reg(s, reg::FAULT_IP);
@@ -234,7 +234,7 @@ fn copy_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, src: Tcb, 
         while i < N_GP {
             let r = GP_REGISTERS[i as usize];
             let v = src.reg(s, r);
-            dest.set_reg(s, r, regs::sanitise(r, v));
+            dest.set_reg(s, r, sanitise_reg!(s, dest, r, v));
             i += 1;
         }
     }
@@ -292,14 +292,14 @@ fn write_registers<S: Store, A: Arch>(s: &mut S, a: &mut A, dest: Tcb, resume: b
     while i < N_FRAME && i < n {
         let r = FRAME_REGISTERS[i as usize];
         let v = msg::syscall_arg(s, ct, buf, i + 2);
-        dest.set_reg(s, r, regs::sanitise(r, v));
+        dest.set_reg(s, r, sanitise_reg!(s, dest, r, v));
         i += 1;
     }
     let mut k = 0;
     while k < N_GP && k + N_FRAME < n {
         let r = GP_REGISTERS[k as usize];
         let v = msg::syscall_arg(s, ct, buf, k + N_FRAME + 2);
-        dest.set_reg(s, r, regs::sanitise(r, v));
+        dest.set_reg(s, r, sanitise_reg!(s, dest, r, v));
         k += 1;
     }
     let pc = dest.reg(s, reg::FAULT_IP);

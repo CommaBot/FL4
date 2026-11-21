@@ -497,6 +497,149 @@
     </interface>
     <interface name="seL4_ARM_VCPU" manual_name="VCPU"
         cap_description="Capability to the VCPU being operated on.">
+        <method id="ARMVCPUSetTCB" name="SetTCB" manual_name="Set TCB">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>
+                Bind a TCB to a virtual CPU.
+            </brief>
+            <description>
+                There is a 1:1 relationship between a virtual CPU and a TCB. If either (or both) of them is
+                associated with another one, they will be dissociated, and then associated to the
+                ones called in this system calls.
+            </description>
+            <param dir="in" name="tcb" type="seL4_TCB"
+            description="Capability to TCB to bind to a virtual CPU"/>
+            <error name="seL4_IllegalOperation">
+                <description>
+                    The <texttt text="_service"/> or <texttt text="tcb"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_InvalidCapability">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+        </method>
+        <method id="ARMVCPUInjectIRQ" name="InjectIRQ" manual_name="Inject IRQ">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>
+                Inject an IRQ to a virtual CPU.
+            </brief>
+            <description>
+                Used to queue IRQs towards the VCPU.
+            </description>
+            <param dir="in" name="virq" type="seL4_Uint16"
+            description="Virtual IRQ ID"/>
+            <param dir="in" name="priority" type="seL4_Uint8"
+            description="Priority of the IRQ to be injected"/>
+            <param dir="in" name="group" type="seL4_Uint8"
+            description="IRQ group"/>
+            <param dir="in" name="index" type="seL4_Uint8"
+            description="VGIC list register"/>
+            <error name="seL4_DeleteFirst">
+                <description>
+                    The <texttt text="index"/> is in use and not yet handled by the guest.
+                </description>
+            </error>
+            <error name="seL4_IllegalOperation">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_InvalidCapability">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_RangeError">
+                <description>
+                    The <texttt text="virq"/>, <texttt text="priority"/>, <texttt text="group"/>, or <texttt text="index"/> is invalid.
+                </description>
+            </error>
+        </method>
+        <method id="ARMVCPUReadReg" name="ReadRegs" manual_name="Read Registers">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>
+                Read a virtual CPU register.
+            </brief>
+            <description>
+                Provides a way to read EL1 system registers, hypervisor and VGIC state.
+            </description>
+            <param dir="in" name="field" type="seL4_VCPUReg"
+            description="Register to read from a VCPU"/>
+            <param dir="out" name="value" type="seL4_Word"
+            description="Returned value of the VCPU register"/>
+            <error name="seL4_IllegalOperation">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_InvalidArgument">
+                <description>
+                    The <texttt text="field"/> is invalid.
+                </description>
+            </error>
+            <error name="seL4_InvalidCapability">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+        </method>
+        <method id="ARMVCPUWriteReg" name="WriteRegs" manual_name="Write Registers">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>
+                Write a virtual CPU register.
+            </brief>
+            <description>
+                Provides a way to write EL1 system registers, hypervisor and VGIC state.
+            </description>
+            <param dir="in" name="field" type="seL4_VCPUReg"
+            description="Register ID to write to a VCPU"/>
+            <param dir="in" name="value" type="seL4_Word"
+            description="Value to be written to the VCPU register"/>
+            <error name="seL4_IllegalOperation">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_InvalidArgument">
+                <description>
+                    The <texttt text="field"/> is invalid.
+                </description>
+            </error>
+            <error name="seL4_InvalidCapability">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+        </method>
+        <method id="ARMVCPUAckVPPI" name="AckVPPI" manual_name="Acknowledge Virtual PPI IRQ">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>
+                Acknowledge a PPI IRQ previously forwarded from a VPPIEvent fault.
+            </brief>
+            <description>
+                Acknowledge and unmask the PPI interrupt so that further interrupts can be forwarded
+                through VPPIEvent faults.
+            </description>
+            <param dir="in" name="irq" type="seL4_Word"
+            description="irq to ack."/>
+            <error name="seL4_IllegalOperation">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+            <error name="seL4_InvalidArgument">
+                <description>
+                    The <texttt text="irq"/> is invalid.
+                </description>
+            </error>
+            <error name="seL4_InvalidCapability">
+                <description>
+                    The <texttt text="_service"/> is a CPtr to a capability of the wrong type.
+                </description>
+            </error>
+        </method>
     </interface>
    <interface name="seL4_IRQControl" manual_name="IRQ Control" cap_description="An IRQControl capability. This gives you the authority to make this call.">
 
@@ -678,5 +821,32 @@
     <interface name="seL4_ARM_CBControl" manual_name="CB Control" cap_description="A CBControl capability. This gives you the authority to make this call.">
     </interface>
     <interface name="seL4_ARM_CB" manual_name="CB" cap_description="A CB capability. This gives you the authority to make this call.">
+    </interface>
+    <interface name="seL4_ARM_VCPU" manual_name="VCPU" cap_description="Capability to the VCPU being operated on.">
+        <method id="ARMVCPUReadState" name="ReadState" manual_name="Read Bulk VCPU State">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Copy selected VCPU state blocks into a RAM frame.</brief>
+            <param dir="in" name="frame" type="seL4_ARM_Page" description="Writable RAM frame receiving seL4_ARM_VCPUState"/>
+            <param dir="in" name="offset" type="seL4_Word" description="64-byte aligned byte offset in frame"/>
+            <param dir="in" name="mask" type="seL4_Word" description="Bitmask of seL4_ARM_VCPUState_* groups"/>
+        </method>
+        <method id="ARMVCPUWriteState" name="WriteState" manual_name="Write Bulk VCPU State">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Copy selected VCPU state blocks from a RAM frame into the VCPU.</brief>
+            <param dir="in" name="frame" type="seL4_ARM_Page" description="Readable RAM frame containing seL4_ARM_VCPUState"/>
+            <param dir="in" name="offset" type="seL4_Word" description="64-byte aligned byte offset in frame"/>
+            <param dir="in" name="mask" type="seL4_Word" description="Bitmask of seL4_ARM_VCPUState_* groups"/>
+        </method>
+        <method id="ARMVCPURun" name="Run" manual_name="Run VCPU">
+            <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
+            <brief>Sync selected VCPU state from the caller's IPC buffer frame, enter guest mode on the calling thread, and sync selected state back on exit.</brief>
+            <param dir="in" name="offset" type="seL4_Word" description="64-byte aligned byte offset in caller's IPC buffer frame"/>
+            <param dir="in" name="in_mask" type="seL4_Word" description="Bitmask of seL4_ARM_VCPUState_* groups to load before entry"/>
+            <param dir="in" name="out_mask" type="seL4_Word" description="Bitmask of seL4_ARM_VCPUState_* groups to save on exit"/>
+            <param dir="out" name="stop" type="seL4_Word" description="Exit reason (0=Interrupt, 1=VMFault, 2=VCPUFault, 3=VGICMaint, 4=VPPI)"/>
+            <param dir="out" name="w1" type="seL4_Word" description="Exit word 1 (badge / esr / eisr / irq)"/>
+            <param dir="out" name="w2" type="seL4_Word" description="Exit word 2 (ipa / far)"/>
+            <param dir="out" name="w3" type="seL4_Word" description="Exit word 3 (far / hpfar)"/>
+        </method>
     </interface>
 </api>

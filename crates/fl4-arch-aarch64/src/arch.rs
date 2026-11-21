@@ -2,8 +2,19 @@
 //! once: kernel entries run under the serial gate, or are local paths
 //! beside it whose operations concern their own core (DESIGN.md §7).
 use crate::{gic, percpu, serial, smp, timer};
+use core::sync::atomic::{AtomicBool, Ordering};
 use fl4_core::layout::irq;
 use fl4_core::machine::Arch;
+
+static VIRT_READY: AtomicBool = AtomicBool::new(false);
+
+pub fn set_virt_ready(v: bool) {
+    VIRT_READY.store(v, Ordering::Relaxed);
+}
+
+pub fn virt_ready() -> bool {
+    VIRT_READY.load(Ordering::Relaxed)
+}
 
 pub struct PhysArch;
 
@@ -18,8 +29,6 @@ fn mask(irq: u64, m: bool) {
 fn remote_gic(kind: u64, id: u64, core: u64, v: bool) {
     smp::remote_call(kind, id, v as u64, 1u64 << (core & 63));
 }
-
-
 
 /// The raw acknowledge value to end `irq` with.
 fn eoi_value(irq: u64) -> u64 {
@@ -49,7 +58,7 @@ pub fn poll_irq() -> u64 {
         gic::eoi(raw);
         return fl4_core::syscall::NO_IRQ;
     }
-    if id == irq::TIMER_ID {
+    if id == timer::timer_irq_id() {
         timer::quiesce();
     }
     percpu::get().iar.set(raw);
@@ -57,6 +66,9 @@ pub fn poll_irq() -> u64 {
 }
 
 impl Arch for PhysArch {
+    fn virtualization(&self) -> u64 {
+        if virt_ready() { 1 } else { 0 }
+    }
     fn now(&mut self) -> u64 {
         timer::now()
     }
@@ -162,6 +174,30 @@ impl Arch for PhysArch {
             return remote_gic(smp::CALL_GIC_CONFIG, irq::id(irq), core, edge);
         }
         gic::configure(irq::id(irq), core, edge);
+    }
+    fn s2_ipa_bits(&self) -> u64 {
+        crate::mmu::s2_ipa_bits()
+    }
+    fn set_stage2_vspace(&mut self, root: u64, asid: u64) {
+        crate::mmu::switch_stage2(root, asid)
+    }
+    fn invalidate_stage2_page(&mut self, asid: u64, ipa: u64) {
+        crate::mmu::invalidate_stage2_page(asid, ipa)
+    }
+    fn invalidate_stage2_vmid(&mut self, asid: u64) {
+        crate::mmu::invalidate_stage2_vmid(asid)
+    }
+    fn vcpu_flush(&mut self, vcpu: u64) {
+        crate::vcpu::flush(vcpu)
+    }
+    fn vcpu_vgic_vtr(&self) -> u64 {
+        gic::vgic_vtr()
+    }
+    fn vcpu_gic_version(&self) -> u64 {
+        gic::version()
+    }
+    fn vcpu_midr(&self) -> u64 {
+        crate::mrs!("midr_el1")
     }
 
     fn putc(&mut self, c: u64) {

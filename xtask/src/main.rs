@@ -120,11 +120,15 @@ fn qemu_cmd_aarch64(setup: &str, smp: u32, esp: &Path) -> Command {
         "tcg" => ("tcg", "max", "virt,acpi=off"),
         "tcg-gicv3" => ("tcg", "max", "virt,acpi=off,gic-version=3"),
         "tcg-el2" => ("tcg", "max", "virt,acpi=off,gic-version=3,virtualization=on"),
+        "tcg-el2-gicv2" => ("tcg", "max", "virt,acpi=off,gic-version=2,virtualization=on"),
+        "tcg-el2-acpi" => ("tcg", "max", "virt,acpi=on,gic-version=3,virtualization=on"),
         "tcg-a57" => ("tcg", "cortex-a57", "virt,acpi=off"),
+        "tcg-a57-el2" => ("tcg", "cortex-a57", "virt,acpi=off,virtualization=on"),
+        "tcg-a57-el2-gicv3" => ("tcg", "cortex-a57", "virt,acpi=off,gic-version=3,virtualization=on"),
         "tcg-acpi" => ("tcg", "max", "virt,acpi=on,gic-version=3"),
         "kvm" => ("kvm", "host", "virt,acpi=off,gic-version=host"),
         "hvf" => ("hvf", "host", "virt,acpi=off"),
-        s => fail(&format!("unknown AArch64 setup {s} (tcg, tcg-gicv3, tcg-el2, tcg-a57, tcg-acpi, kvm, hvf)")),
+        s => fail(&format!("unknown AArch64 setup {s} (tcg, tcg-gicv3, tcg-el2, tcg-el2-gicv2, tcg-el2-acpi, tcg-a57, tcg-a57-el2, tcg-a57-el2-gicv3, tcg-acpi, kvm, hvf)")),
     };
     c.args(["-accel", accel, "-machine", machine, "-cpu", cpu, "-m", "2G", "-smp"]).arg(smp.to_string());
     c.args(["-display", "none", "-serial", "stdio", "-no-reboot", "-monitor", "none", "-net", "none", "-bios"]).arg(aarch64_firmware());
@@ -145,9 +149,8 @@ fn aarch64_esp(image: &Path, dir: &Path) -> PathBuf {
     esp
 }
 
-/// Build the AArch64 kernel and fl4-efi with `root` built in; returns the
-/// UEFI image.
-fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
+/// Build the standalone AArch64 kernel ELF.
+fn build_aarch64_kernel(o: &Opts) -> PathBuf {
     let r = root();
     let mut c = Command::new("cargo");
     c.current_dir(&r).args(["build", "--release", "-p", "fl4-kernel-aarch64", "--target", "aarch64-unknown-none-softfloat"]);
@@ -166,6 +169,14 @@ fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
     run(Command::new(lld).args(["-flavor", "gnu", "-n", "-static", "--gc-sections", "--build-id=none", "--strip-debug", "-u", "fl4_boot", "-T"])
         .arg(r.join("crates/fl4-kernel-aarch64/linker.ld")).arg("--whole-archive")
         .arg(r.join("target/aarch64-unknown-none-softfloat/release/libfl4_kernel_aarch64.a")).arg("-o").arg(&elf));
+    elf
+}
+
+/// Build the AArch64 kernel and fl4-efi with `root` built in; returns the
+/// UEFI image.
+fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
+    let r = root();
+    let elf = build_aarch64_kernel(o);
     run(Command::new("cargo").current_dir(&r).env("FL4_KERNEL_ELF", &elf).env("FL4_ROOTSERVER_ELF", root_elf)
         .args(["build", "--release", "-p", "fl4-efi", "--target", "aarch64-unknown-uefi"]));
     r.join("target/aarch64-unknown-uefi/release/fl4-efi.efi")
@@ -1086,6 +1097,9 @@ fn main() {
     let cmd = args.first().cloned().unwrap_or_default();
     let o = parse(&args[1.min(args.len())..]);
     match cmd.as_str() {
+        "kernel" if aarch64(&o) => {
+            build_aarch64_kernel(&o);
+        }
         "kernel" => {
             build_kernel(&o);
         }

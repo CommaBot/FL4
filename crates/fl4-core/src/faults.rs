@@ -9,7 +9,6 @@ use crate::layout::{reg, tcb as tl};
 use crate::machine::{Arch, Store};
 use crate::msg::{self, N_MSG_REGISTERS};
 use crate::obj::{Sc, Tcb};
-use crate::regs;
 use crate::sched;
 use crate::schedcontext;
 use fl4_abi::consts::fault as ft;
@@ -37,6 +36,12 @@ pub fn set_fault<S: Store>(s: &mut S, t: Tcb, f: Fault) {
         Fault::Debug { reason, addr, bp } => (ft::DebugException, reason, addr, bp),
         Fault::Timeout { badge } => (ft::Timeout, badge, 0, 0),
         Fault::VmFault { addr, fsr, instruction } => (ft::VMFault, addr, fsr, if instruction { 1 } else { 0 }),
+        #[cfg(feature = "aarch64")]
+        Fault::VcpuFault { hsr } => (ft::VCPUFault, hsr, 0, 0),
+        #[cfg(feature = "aarch64")]
+        Fault::VgicMaintenance { idx, idx_valid } => (ft::VGICMaintenance, idx, if idx_valid { 1 } else { 0 }, 0),
+        #[cfg(feature = "aarch64")]
+        Fault::VppiEvent { irq } => (ft::VPPIEvent, irq, 0, 0),
     };
     t.set_fault_type(s, ty);
     t.set_fault_w0(s, w0);
@@ -176,6 +181,16 @@ pub fn set_mrs_fault<S: Store, A: Arch>(s: &mut S, a: &A, sender: Tcb, receiver:
         msg::set_mr(s, receiver, buf, 2, w2);
         msg::set_mr(s, receiver, buf, 3, w1)
     } else {
+        #[cfg(feature = "aarch64")]
+        {
+            if ty == ft::VCPUFault {
+                return msg::set_mr(s, receiver, buf, 0, w0);
+            } else if ty == ft::VGICMaintenance {
+                return if w1 != 0 { msg::set_mr(s, receiver, buf, 0, w0) } else { 0 };
+            } else if ty == ft::VPPIEvent {
+                return msg::set_mr(s, receiver, buf, 0, w0);
+            }
+        }
         0
     }
 }
@@ -187,7 +202,7 @@ fn copy_mrs_fault_reply<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_li
     while i < n && i < regs_list.len() && (i as u64) < N_MSG_REGISTERS {
         let r = regs_list[i];
         let v = sender.reg(s, msg::msg_register(i as u64));
-        receiver.set_reg(s, r, regs::sanitise(r, v));
+        receiver.set_reg(s, r, sanitise_reg!(s, receiver, r, v));
         i += 1;
     }
     if i < n {
@@ -196,7 +211,7 @@ fn copy_mrs_fault_reply<S: Store>(s: &mut S, sender: Tcb, receiver: Tcb, regs_li
             while i < n && i < regs_list.len() {
                 let r = regs_list[i];
                 let v = msg::buf_get(s, buf, (i as u64).wrapping_add(1));
-                receiver.set_reg(s, r, regs::sanitise(r, v));
+                receiver.set_reg(s, r, sanitise_reg!(s, receiver, r, v));
                 i += 1;
             }
         }
