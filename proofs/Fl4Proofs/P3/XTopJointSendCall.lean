@@ -455,7 +455,7 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch) (fun q ao h => by
       have h1 := F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
         (fun _ e => by cases e) (fun _ e => by cases e)
-      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R hKd F.sk.orig (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
+      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **A call to a waiting receiver at `J` where the caller gets no reply**

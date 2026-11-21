@@ -141,7 +141,7 @@ theorem DbgWFL.prepend {T Cs : Set U64} {m m' hd : U64 → U64} {lst : U64 → L
       cases e : lst c0 with
       | nil => rw [e] at hx; simp at hx
       | cons a r =>
-        rw [e] at hh hx ⊢
+        rw [e] at hh hx
         have hax : a ≠ x := fun h => hh (by simp [h])
         -- the accumulator does not matter at a non-head member
         have key : ∀ (q : U64) (u : List U64), x ∉ u → prevA q (u ++ a :: r) x = prevA 0#u64 (a :: r) x := by
