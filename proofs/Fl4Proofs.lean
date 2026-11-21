@@ -5,6 +5,7 @@ import Fl4Proofs.P1.FastDecline
 import Fl4Proofs.P1.FastFault
 import Fl4Proofs.P1.FastSched
 import Fl4Proofs.P1.FastFin
+import Fl4Proofs.P1.FastEntry
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
