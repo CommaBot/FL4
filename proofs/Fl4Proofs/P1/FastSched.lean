@@ -751,4 +751,83 @@ theorem dequeue_enq_ne (hX : StoreExt st) {T : Set U64} {X : S} {d p : U64} (E :
 end
 
 
+/-! ## `schedule` from `CHOOSE_NEW` after the fault (m58 handoff (c)) -/
+
+section
+variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) [L : LawfulStore st]
+
+/-- `schedule` after the new thread is switched to: the action back to
+`RESUME_CURRENT`, `switch_sched_context`, the reprogram check, `send_pending`
+(the same calls as the end of `fastpath.switch_to`). -/
+def schedTail (s3 : S) (a2 : A) : Result (S × A) := do
+  let s4 ← sched.set_action st s3 sched.ACTION_RESUME_CURRENT
+  let (s5, a3) ← sched.switch_sched_context st ar s4 a2
+  let c ← st.cur_cpu s5
+  let i ← obj.node_get st s5 c layout.node.REPROGRAM
+  let (s6, a4) ←
+    if i != 0#u64
+    then
+      do
+      let (s7, a5) ← sched.set_next_interrupt st ar s5 a3
+      let s8 ← obj.node_set st s7 c layout.node.REPROGRAM 0#u64
+      ok (s8, a5)
+    else ok (s5, a3)
+  smp.send_pending st ar s6 a4
+
+theorem cn_bne_resume : (sched.ACTION_CHOOSE_NEW != sched.ACTION_RESUME_CURRENT) = true := by
+  unfold sched.ACTION_CHOOSE_NEW sched.ACTION_RESUME_CURRENT; decide
+
+/-- **`schedule` with the action `CHOOSE_NEW`** (after the fault's
+`reply_push`): nothing due (`awaken_none`), one domain
+(`check_domain_time_one`), the current thread not schedulable (it is
+BlockedOnReply), the domain time not exhausted: `choose_thread`, then
+`schedTail`. -/
+theorem schedule_cn (s : S) (a : A)
+    (hT : L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN) = 0#u64 ∨
+      L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) <
+        L.mem s (tdA (L.mem s (L.nodeAt s (L.cpu s) layout.node.TIMER_MIN))))
+    (hR : L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD) = 0#u64 ∨
+      ¬ ((L.refill s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD))))
+          (L.rhead s (L.mem s (scA (L.mem s (L.nodeAt s (L.cpu s) layout.node.RELEASE_HEAD)))))).time ≤
+        L.curTime s))
+    (ha : L.actionW s = sched.ACTION_CHOOSE_NEW)
+    (hns : sched.is_schedulable st s (L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD)) = ok false)
+    {v : U64} (hdt : sched.domain_time st s = ok v) (hv : v ≠ 0#u64) :
+    sched.schedule st ar s a =
+      (do
+        let (s3, a2) ← sched.choose_thread st ar s a
+        schedTail (st := st) ar s3 a2) := by
+  unfold sched.schedule
+  rw [awaken_none ar s a hT hR]; simp only [bind_ok, uncurry_apply_pair]
+  rw [check_domain_time_one]; simp only [bind_ok]
+  rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
+  simp only [bind_ok, cn_bne_resume, ↓reduceIte]
+  rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)]; simp only [bind_ok]
+  rw [hns]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+  unfold sched.schedule_choose_new_thread
+  rw [hdt]; simp only [bind_ok, hv, ↓reduceIte]
+  rfl
+
+/-- **`choose_thread` picks the head of the highest nonempty queue** (one
+domain): with the L1 word nonzero and `highest_prio` = `p`, it is
+`switch_to_thread` of the head word of queue `p`. -/
+theorem choose_thread_eq_pick (s : S) (a : A) {p : U64} (hp : p.val < 256)
+    (hl1 : L.l1W s (L.cpu s) ≠ 0#u64) (hhp : sched.highest_prio st s 0#u64 = ok p) :
+    sched.choose_thread st ar s a =
+      sched.switch_to_thread st ar s a (L.mem s (L.nodeAt s (L.cpu s) (rqOff p))) := by
+  unfold sched.choose_thread
+  rw [if_neg num_domains_one]; simp only [bind_ok]
+  rw [L.cur_cpu_eq]; simp only [bind_ok]
+  rw [bitmap_dom_one]; simp only [bind_ok]
+  rw [eq_of_spec_fd l1_off_zero]; simp only [bind_ok]
+  rw [eq_of_spec_fd (obj.node_get.spec (L := L) s _ _)]; simp only [bind_ok]
+  have h1 : (L.mem s (L.nodeAt s (L.cpu s) l1Off) != 0#u64) = true := bne_iff_ne.2 hl1
+  simp only [h1, ↓reduceIte]
+  rw [hhp]; simp only [bind_ok]
+  obtain ⟨off, hoff, ho1, -⟩ := spec_ex_fd (sched.rq_head_off.spec 0#u64 p hp)
+  rw [hoff]; simp only [bind_ok]; subst ho1
+  rw [eq_of_spec_fd (sched.q_get.spec (L := L) s _ _)]; simp only [bind_ok]
+
+end
+
 end Fl4Proofs.P1
