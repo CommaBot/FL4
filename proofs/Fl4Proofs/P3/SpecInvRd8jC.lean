@@ -67,7 +67,7 @@ theorem body_rdy {m : PMonad Unit Unit} {s : State Unit} (h : ∀ z ∈ (m.run s
     ∀ y ∈ (ExceptT.run (NonDetE.handleE m fun _ => withoutPreemption (Z := Unit) preemptionPath) s).1,
       Rdy y.2 := by
   intro y hy
-  obtain ⟨z, hz, ⟨a, ha, rfl⟩ | ⟨e, he, hy⟩⟩ := mem_handleE_cases hy
+  obtain ⟨z, hz, ⟨a, ha, rfl⟩ | ⟨e, he, hy⟩⟩ := A12b.mem_handleE_cases hy
   · exact h z hz
   · unfold withoutPreemption at hy
     obtain ⟨w, hw, rfl⟩ := ft_mem_liftE hy
@@ -79,7 +79,7 @@ theorem rd_shellAt {s0 : State Unit} {I : ObjRef} (hRB : B8f.RB s0.curThread I s
     {g : CapRef × State Unit} (hg : g ∈ (getCapReg (Z := Unit) r s0).1) (hP : PerfIn fp g.1 g.2) :
     ∀ z ∈ ((fl4HandleInvocationR (Z := Unit) rep cl bl dn fp g.1).run g.2).1, Rdy z.2 := by
   have hJ : JS s0.curThread I s0 g.2 := js_getCapReg r s0 ⟨rfl, rfl, hRB⟩ g hg
-  have ect : g.2.curThread = s0.curThread := kz_curThread hJ.1
+  have ect : g.2.curThread = s0.curThread := A12b.kz_curThread hJ.1
   have hS1 := svs_kz hJ.1
   have hc1 := kz_cfS hJ.1
   exact rd_fl4HandleInvocationR rep cl bl dn fp g.1 I g.2 (by rw [ect]; exact hJ.2.2)
@@ -96,7 +96,7 @@ def PreR (rep : Bool) (c : Syscall) (σ : State Unit) : Prop :=
 
 /-- **rd9's `RdBody` for Send / NBSend / Call** (module docstring). -/
 theorem rdBody_send (rep : Bool) (c : Syscall) {r : Register} {calling blocking don : Bool}
-    (hc : sendArgs c = some (r, calling, blocking, don)) (σ : State Unit) (hEF : A8.EF σ) (h1 : SInvQ.T1 σ)
+    (hc : A12b.sendArgs c = some (r, calling, blocking, don)) (σ : State Unit) (hEF : A8.EF σ) (h1 : SInvQ.T1 σ)
     (hEB : SInvQ.EB true σ) (hIO : SInvU.IO (fun _ => σ.idleSc) σ) (hV : VfhAll σ) (hP : InvIn r false σ)
     (hPre : PreR rep c σ) : A9.RdBody rep c σ := by
   intro v hv ht y hy
@@ -105,7 +105,7 @@ theorem rdBody_send (rep : Bool) (c : Syscall) {r : Register} {calling blocking 
   have hsh : ∀ g ∈ (getCapReg (Z := Unit) r v.2).1,
       ∀ z ∈ ((fl4HandleInvocationR (Z := Unit) rep calling blocking don false g.1).run g.2).1, Rdy z.2 :=
     fun g hg => rd_shellAt hRB hRT hO hS hF rep calling blocking don false r hg (hP v hv ht g hg)
-  cases c <;> simp only [sendArgs, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hc <;>
+  cases c <;> simp only [A12b.sendArgs, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hc <;>
     obtain ⟨rfl, rfl, rfl, rfl⟩ := hc <;> simp only [fl4HandleSyscall] at hz <;>
     · obtain ⟨u, hu, ⟨a, ha, hz⟩ | ⟨e, he, -⟩⟩ := ft_mem_bindE hz
       swap

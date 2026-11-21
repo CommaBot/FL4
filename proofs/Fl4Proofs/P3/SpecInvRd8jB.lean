@@ -53,8 +53,8 @@ theorem js_of {α : Type} {m : NonDet (State Unit) α} (hR : IK Rdy m) (hT : SIn
   obtain ⟨hz, hu, hR0, ⟨hE, hct, hsi, hnq⟩, h1, hsc, hvm, hio, his⟩ := h
   have hz' : A12b.KZ σ y.2 := hZ σ σ rfl y hy
   have hu' : SInvU.uV y.2 = SInvU.uV σ := hU (SInvU.uV σ) σ rfl y hy
-  refine ⟨kz_trans hz hz', hu'.trans hu, hR σ hR0 y hy,
-    ⟨SInvQ.eb_of hT hA h4 hB σ hE y hy, (kz_curThread hz').trans hct,
+  refine ⟨A12b.kz_trans hz hz', hu'.trans hu, hR σ hR0 y hy,
+    ⟨SInvQ.eb_of hT hA h4 hB σ hE y hy, (A12b.kz_curThread hz').trans hct,
       fun t => by rw [kz_act hz']; exact hsi t, hN σ hnq y hy⟩,
     hQ σ h1 y hy, SInvB.sik_of_sbk hS σ hsc y hy, hG _ SInvV.wl_vmt σ hvm y hy, ?_, hI σ his y hy⟩
   show SInvU.IrqOutV (fun _ => I) (SInvU.uV y.2)
@@ -71,130 +71,130 @@ theorem js_getCapReg (r : Register) : IK (JS C I σ0) (getCapReg (Z := Unit) r) 
     (SInvQ.rb_getCapReg r) (nq_getCapReg r) (SInvQ.q1_getCapReg r) (fun _ => SInvB.sb_getCapReg r)
     (SInvV.gk_getCapReg r) (fun _ => SInvU.uk_getCapReg r) (SInvL.isk_getCapReg r) (fun _ => A12b.kz_getCapReg r)
 
-/-- `invF` from its three leaves (no whnf of the shell). -/
+/-- `A12b.invF` from its three leaves (no whnf of the shell). -/
 theorem ike_invF {P : State Unit → Prop} (t : ObjRef) (cptr : CapRef) (info : MessageInfo)
     (h1 : IKE P (capFaultOnFailure (Z := Unit) (ofBl cptr) false (lookupCapAndSlot t cptr)))
     (h2 : IK P (lookupIpcBuffer (Z := Unit) false t)) (h3 : ∀ b, IKE P (lookupExtraCaps (Z := Unit) t b info)) :
-    IKE P (invF t cptr info) := by
-  unfold invF
+    IKE P (A12b.invF t cptr info) := by
+  unfold A12b.invF
   refine ike_bind h1 fun x => ?_
   obtain ⟨cap, slot⟩ := x
   (try dsimp only)
   exact ike_bind (ike_liftE h2) fun b => ike_bind (h3 b) fun _ => ike_returnOk _
 
-/-- `invE` from `get_mrs` and the decode. -/
+/-- `A12b.invE` from `get_mrs` and the decode. -/
 theorem ike_invE {P : State Unit → Prop} (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
     (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) (h1 : ∀ b, IK P (getMrs (Z := Unit) t b info))
     (h2 : ∀ args sl cap ex buf, IKE P (fl4DecodeInvocation (Z := Unit) fp info.miLabel args cptr sl cap ex buf)) :
-    IKE P (invE fp cptr t info a) := by
+    IKE P (A12b.invE fp cptr t info a) := by
   obtain ⟨sl, cap, ex, buf⟩ := a
-  unfold invE
+  unfold A12b.invE
   (try dsimp only)
   exact ike_bind (ike_liftE (h1 buf)) fun args => h2 args sl cap ex buf
 
-theorem rd_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : RdKE (invF t cptr info) :=
+theorem rd_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : RdKE (A12b.invF t cptr info) :=
   ike_invF t cptr info (rd_capFaultOnFailure _ _ _ (rd_lookupCapAndSlot _ _)) (rd_lookupIpcBuffer _ _)
     (fun _ => rd_lookupExtraCaps _ _ _)
 
 theorem rd_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : RdKE (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : RdKE (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => rd_getMrs _ _ _) (fun _ _ _ _ _ => rd_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem tq_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.TQKE (invF t cptr info) :=
+theorem tq_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.TQKE (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvQ.tq_capFaultOnFailure _ _ _ (SInvQ.tq_lookupCapAndSlot _ _)) (SInvQ.tq_lookupIpcBuffer _ _)
     (fun _ => SInvQ.tq_lookupExtraCaps _ _ _)
 
 theorem tq_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.TQKE (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.TQKE (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvQ.tq_getMrs _ _ _) (fun _ _ _ _ _ => SInvQ.tq_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem sa_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.SAKE (invF t cptr info) :=
+theorem sa_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.SAKE (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvQ.sa_capFaultOnFailure _ _ _ (SInvQ.sa_lookupCapAndSlot _ _)) (SInvQ.sa_lookupIpcBuffer _ _)
     (fun _ => SInvQ.sa_lookupExtraCaps _ _ _)
 
 theorem sa_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.SAKE (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.SAKE (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvQ.sa_getMrs _ _ _) (fun _ _ _ _ _ => SInvQ.sa_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem q4_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.Q4KE (invF t cptr info) :=
+theorem q4_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.Q4KE (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvQ.q4_capFaultOnFailure _ _ _ (SInvQ.q4_lookupCapAndSlot _ _)) (SInvQ.q4_lookupIpcBuffer _ _)
     (fun _ => SInvQ.q4_lookupExtraCaps _ _ _)
 
 theorem q4_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.Q4KE (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.Q4KE (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvQ.q4_getMrs _ _ _) (fun _ _ _ _ _ => SInvQ.q4_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem rb_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.RBKE true (invF t cptr info) :=
+theorem rb_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.RBKE true (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvQ.rb_capFaultOnFailure _ _ _ (SInvQ.rb_lookupCapAndSlot _ _)) (SInvQ.rb_lookupIpcBuffer _ _)
     (fun _ => SInvQ.rb_lookupExtraCaps _ _ _)
 
 theorem rb_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.RBKE true (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.RBKE true (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvQ.rb_getMrs _ _ _) (fun _ _ _ _ _ => SInvQ.rb_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem nq_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : NQKE [C] (invF t cptr info) :=
+theorem nq_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : NQKE [C] (A12b.invF t cptr info) :=
   ike_invF t cptr info (nq_capFaultOnFailure _ _ _ (nq_lookupCapAndSlot _ _)) (nq_lookupIpcBuffer _ _)
     (fun _ => nq_lookupExtraCaps _ _ _)
 
 theorem nq_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : NQKE [C] (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : NQKE [C] (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => nq_getMrs _ _ _) (fun _ _ _ _ _ => nq_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem q1_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.Q1KE (invF t cptr info) :=
+theorem q1_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvQ.Q1KE (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvQ.q1_capFaultOnFailure _ _ _ (SInvQ.q1_lookupCapAndSlot _ _)) (SInvQ.q1_lookupIpcBuffer _ _)
     (fun _ => SInvQ.q1_lookupExtraCaps _ _ _)
 
 theorem q1_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.Q1KE (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvQ.Q1KE (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvQ.q1_getMrs _ _ _) (fun _ _ _ _ _ => SInvQ.q1_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem sb_invF (h0 : KHeap) (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvB.SBKE h0 (invF t cptr info) :=
+theorem sb_invF (h0 : KHeap) (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvB.SBKE h0 (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvB.sb_capFaultOnFailure _ _ _ (SInvB.sb_lookupCapAndSlot _ _)) (SInvB.sb_lookupIpcBuffer _ _)
     (fun _ => SInvB.sb_lookupExtraCaps _ _ _)
 
 theorem sb_invE (h0 : KHeap) (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvB.SBKE h0 (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvB.SBKE h0 (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvB.sb_getMrs _ _ _) (fun _ _ _ _ _ => SInvB.sb_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem uk_invF (v : SInvU.UView) (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvU.UKE v (invF t cptr info) :=
+theorem uk_invF (v : SInvU.UView) (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvU.UKE v (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvU.uk_capFaultOnFailure _ _ _ (SInvU.uk_lookupCapAndSlot _ _)) (SInvU.uk_lookupIpcBuffer _ _)
     (fun _ => SInvU.uk_lookupExtraCaps _ _ _)
 
 theorem uk_invE (v : SInvU.UView) (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvU.UKE v (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvU.UKE v (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvU.uk_getMrs _ _ _) (fun _ _ _ _ _ => SInvU.uk_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem isk_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvL.IsKE I (invF t cptr info) :=
+theorem isk_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvL.IsKE I (A12b.invF t cptr info) :=
   ike_invF t cptr info (SInvL.isk_capFaultOnFailure _ _ _ (SInvL.isk_lookupCapAndSlot _ _)) (SInvL.isk_lookupIpcBuffer _ _)
     (fun _ => SInvL.isk_lookupExtraCaps _ _ _)
 
 theorem isk_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvL.IsKE I (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvL.IsKE I (A12b.invE fp cptr t info a) :=
   ike_invE fp cptr t info a (fun _ => SInvL.isk_getMrs _ _ _) (fun _ _ _ _ _ => SInvL.isk_fl4DecodeInvocation _ _ _ _ _ _ _ _)
 
-theorem gk_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvV.GKE (invF t cptr info) := by
+theorem gk_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : SInvV.GKE (A12b.invF t cptr info) := by
   intro P hP
   exact ike_invF t cptr info
     (SInvV.gk_of_mtk (MachT.mtke_capFaultOnFailure' _ _ (MachT.mtk_lookupCapAndSlot' _ _)) P hP)
     (SInvV.gk_of_mtk (MachT.mtk_lookupIpcBuffer' _ _) P hP) (fun b => SInvV.gk_of_mtk (MachT.mtk_lookupExtraCaps' _ b _) P hP)
 
 theorem gk_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvV.GKE (invE fp cptr t info a) := by
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : SInvV.GKE (A12b.invE fp cptr t info a) := by
   intro P hP
   exact ike_invE fp cptr t info a (fun b => SInvV.gk_of_mtk (MachT.mtk_getMrs' _ b _) P hP)
     (fun _ _ _ _ _ => SInvV.gk_fl4DecodeInvocation _ _ _ _ _ _ _ _ P hP)
 
-theorem js_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : IKE (JS C I σ0) (invF t cptr info) :=
+theorem js_invF (t : ObjRef) (cptr : CapRef) (info : MessageInfo) : IKE (JS C I σ0) (A12b.invF t cptr info) :=
   js_of (rd_invF t cptr info) (tq_invF t cptr info) (sa_invF t cptr info) (q4_invF t cptr info)
     (rb_invF t cptr info) (nq_invF t cptr info) (q1_invF t cptr info) (fun h0 => sb_invF h0 t cptr info)
-    (gk_invF t cptr info) (fun v => uk_invF v t cptr info) (isk_invF t cptr info) (fun _ => kz_invF t cptr info)
+    (gk_invF t cptr info) (fun v => uk_invF v t cptr info) (isk_invF t cptr info) (fun _ => A12b.kz_invF t cptr info)
 
 theorem js_invE (fp : Bool) (cptr : CapRef) (t : ObjRef) (info : MessageInfo)
-    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : IKE (JS C I σ0) (invE fp cptr t info a) :=
+    (a : CslotPtr × Cap × List (Cap × CslotPtr) × Option ObjRef) : IKE (JS C I σ0) (A12b.invE fp cptr t info a) :=
   js_of (rd_invE fp cptr t info a) (tq_invE fp cptr t info a) (sa_invE fp cptr t info a)
     (q4_invE fp cptr t info a) (rb_invE fp cptr t info a) (nq_invE fp cptr t info a) (q1_invE fp cptr t info a)
     (fun h0 => sb_invE h0 fp cptr t info a) (gk_invE fp cptr t info a) (fun v => uk_invE v fp cptr t info a)
-    (isk_invE fp cptr t info a) (fun _ => kz_invE fp cptr t info a)
+    (isk_invE fp cptr t info a) (fun _ => A12b.kz_invE fp cptr t info a)
 
 /-! ## The Restart write and the perform-level facts -/
 
@@ -330,7 +330,7 @@ theorem perfOK_of {σ sd s' : State Unit} (hJd : JS σ.curThread I σ sd) (hF : 
 /-! ## The post -/
 
 theorem rd_invPost (calling : Bool) (t : ObjRef) (reply : List Data) (s : State Unit) (hR : Rdy s) :
-    ∀ y ∈ (invPost calling t reply s).1, Rdy y.2 := by
+    ∀ y ∈ (A12b.invPost calling t reply s).1, Rdy y.2 := by
   intro y hy
   obtain ⟨w, hw, hy⟩ := hy
   obtain ⟨x, -, rfl⟩ := SInvQ.q1_mem_threadGet (by unfold getThreadState at hw; exact hw)
@@ -355,8 +355,8 @@ every Restart state reached through the lookups' and the decode's `ok`
 outcomes. -/
 def PerfIn (fp : Bool) (cptr : CapRef) (σ : State Unit) : Prop :=
   ∀ w0 ∈ (getMessageInfo (Z := Unit) σ.curThread σ).1, ∀ a s b s',
-    (.ok a, s) ∈ ((invF σ.curThread cptr w0.1).run w0.2).1 →
-    (.ok b, s') ∈ ((invE fp cptr σ.curThread w0.1 a).run s).1 →
+    (.ok a, s) ∈ ((A12b.invF σ.curThread cptr w0.1).run w0.2).1 →
+    (.ok b, s') ∈ ((A12b.invE fp cptr σ.curThread w0.1 a).run s).1 →
     ∀ u ∈ (setThreadState (Z := Unit) σ.curThread .restart s').1, PerfRest u.2 b
 
 set_option maxHeartbeats 4000000 in
@@ -365,7 +365,7 @@ theorem rd_fl4HandleInvocationR (rep calling blocking don fp : Bool) (cptr : Cap
     (σ : State Unit) (hRB : B8f.RB σ.curThread I σ) (hRT : RdyT σ σ.curThread) (hO : Sched.OffReady σ)
     (hS : Suff σ) (hF : FhAll σ) (hP : PerfIn fp cptr σ) :
     ∀ y ∈ ((fl4HandleInvocationR (Z := Unit) rep calling blocking don fp cptr).run σ).1, Rdy y.2 := by
-  rw [fl4HandleInvocationR_eq]
+  rw [A12b.fl4HandleInvocationR_eq]
   intro y hy
   obtain ⟨z, hz1, ⟨a, ha, hy⟩ | ⟨e, he, -⟩⟩ := ft_mem_bindE hy
   swap
@@ -405,7 +405,7 @@ theorem rd_fl4HandleInvocationR (rep calling blocking don fp : Bool) (cptr : Cap
     obtain ⟨sl, cap, ex, buf⟩ := a
     -- split get_mrs from the decode
     have hbs' := hbs
-    unfold invE at hbs'
+    unfold A12b.invE at hbs'
     obtain ⟨z0, hz0, ⟨args, ha0, hb0⟩ | ⟨e0, -, he0⟩⟩ := ft_mem_bindE hbs'
     swap
     · simp at he0
@@ -418,7 +418,7 @@ theorem rd_fl4HandleInvocationR (rep calling blocking don fp : Bool) (cptr : Cap
       (SInvQ.rb_getMrs _ _ _) (nq_getMrs _ _ _) (SInvQ.q1_getMrs _ _ _) (fun _ => SInvB.sb_getMrs _ _ _)
       (SInvV.gk_of_mtk (MachT.mtk_getMrs' _ _ _)) (fun _ => SInvU.uk_getMrs _ _ _) (SInvL.isk_getMrs _ _ _)
       (fun _ => A12b.kz_getMrs _ _ _) s hJs x0 hx0
-    unfold invFin at hy
+    unfold A12b.invFin at hy
     obtain ⟨z, hz, ⟨u0, -, hy⟩ | ⟨e, he, -⟩⟩ := ft_mem_bindE hy
     swap
     · unfold withoutPreemption at hz; obtain ⟨w, -, rfl⟩ := ft_mem_liftE hz; cases he

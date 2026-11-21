@@ -59,7 +59,7 @@ theorem sr_core {s : State Unit} {r : Register} {cr rep : Bool}
 /-- The facts at the first-phase invocation outcomes not carried here (rd14a's
 `RecvTB` without `Rdy`), pinned to the entry's run. -/
 def RcvIn (rep : Bool) (c : Syscall) (σ : State Unit) : Prop :=
-  ∀ v ∈ (A8.front σ).1, v.1 = true → ∀ r cr, B8j.srArgs c = some (r, cr) →
+  ∀ v ∈ (A8.front σ).1, v.1 = true → ∀ r cr, A12b.srArgs c = some (r, cr) →
     ∀ g ∈ (getCapReg (Z := Unit) r v.2).1,
       ∀ t ∈ ((fl4HandleInvocationR (Z := Unit) rep false false true true g.1).run g.2).1, t.1 = .ok () →
         SInvB.ScInv t.2 ∧ (∃ x, t.2.kheap t.2.curThread = some (.tcb x) ∧ ∀ f, ¬ BlkR x.tcbState f) ∧
@@ -67,7 +67,7 @@ def RcvIn (rep : Bool) (c : Syscall) (σ : State Unit) : Prop :=
 
 /-- **rd9's `RdBody` for ReplyRecv / NBSendRecv / NBSendWait** (module docstring). -/
 theorem rdBody_sr (hnd : numDomains = 1) (rep : Bool) (c : Syscall) {r : Register} {cr : Bool}
-    (hc : B8j.srArgs c = some (r, cr)) (σ : State Unit) {N S : ObjRef} {I : ObjRef × ObjRef} {d : Prop}
+    (hc : A12b.srArgs c = some (r, cr)) (σ : State Unit) {N S : ObjRef} {I : ObjRef × ObjRef} {d : Prop}
     {Nq : Irq → ObjRef} {σe : State Unit}
     (hEF : A8.EF σ) (h1 : SInvQ.T1 σ) (hEB : SInvQ.EB true σ) (hIO : SInvU.IO (fun _ => σ.idleSc) σ)
     (hV : VfhAll σ) (hσ : SInvQ.P17.EvP σ.curThread N S I d Nq σe σ) (hCN : σ.curThread ≠ N)
@@ -89,7 +89,7 @@ theorem rdBody_sr (hnd : numDomains = 1) (rep : Bool) (c : Syscall) {r : Registe
         g.2 hg'.1 t ht').2 () hok
     obtain ⟨hI, hb, hT⟩ := hRc v hv ht r cr hc g hg t ht' hok
     exact rhn_of (hsh g hg t ht') hI hb hT hE1
-  cases c <;> simp only [B8j.srArgs, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hc <;>
+  cases c <;> simp only [A12b.srArgs, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hc <;>
     obtain ⟨rfl, rfl⟩ := hc <;> exact sr_core hsh hrc z hz
 
 /-- **rd9's `RdBody` for Yield** from rd8a's `EF` (no input). -/
@@ -129,23 +129,23 @@ theorem rdBody_all (hnd : numDomains = 1) (rep : Bool) (c : Syscall) (σ : State
     (hEF : A8.EF σ) (h1 : SInvQ.T1 σ) (hEB : SInvQ.EB true σ) (hIO : SInvU.IO (fun _ => σ.idleSc) σ)
     (hV : VfhAll σ) (hσ : SInvQ.P17.EvP σ.curThread N S I d Nq σe σ) (hCN : σ.curThread ≠ N)
     (hRS : σ.schedulerAction = .resumeCurThread)
-    (hPs : ∀ r cl bl dn, B8j.sendArgs c = some (r, cl, bl, dn) → B8j.InvIn r false σ)
-    (hPr : ∀ r cr, B8j.srArgs c = some (r, cr) → B8j.InvIn r true σ)
+    (hPs : ∀ r cl bl dn, A12b.sendArgs c = some (r, cl, bl, dn) → B8j.InvIn r false σ)
+    (hPr : ∀ r cr, A12b.srArgs c = some (r, cr) → B8j.InvIn r true σ)
     (hPre : B8j.PreR rep c σ) (hRc : RcvIn rep c σ) : A9.RdBody rep c σ := by
-  cases hcs : B8j.sendArgs c with
+  cases hcs : A12b.sendArgs c with
   | some a =>
     obtain ⟨r, cl, bl, dn⟩ := a
     exact B8j.rdBody_send rep c hcs σ hEF h1 hEB hIO hV (hPs r cl bl dn hcs) hPre
   | none =>
-  cases hcr : B8j.srArgs c with
+  cases hcr : A12b.srArgs c with
   | some a =>
     obtain ⟨r, cr⟩ := a
     exact rdBody_sr hnd rep c hcr σ hEF h1 hEB hIO hV hσ hCN (hPr r cr hcr) hPre hRc
   | none =>
     cases c
     all_goals first
-      | (simp [B8j.sendArgs] at hcs; done)
-      | (simp [B8j.srArgs] at hcr; done)
+      | (simp [A12b.sendArgs] at hcs; done)
+      | (simp [A12b.srArgs] at hcr; done)
       | exact rdBody_yield rep σ hEF
       | exact B8h.rdBody_recv rep _ (by simp) σ hEF h1 hEB.2 hRS
 
