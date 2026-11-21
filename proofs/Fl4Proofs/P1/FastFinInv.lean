@@ -846,4 +846,159 @@ theorem finReads_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 �
 
 end
 
+/-! ## (d3) The fault half's reads from one state, (d4) `entry_of6` -/
+
+section
+variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) [L : LawfulStore st]
+
+/-- **The fault fast path's placement facts at the state where
+`fastpath.fault` is entered**, for the current thread `t`: the ASID placement
+`AsidOff` [J] and, for every accepted check (`FaultChecks`), m61's
+`FaultEnt` (the endpoint placed with its queue headed by the handler, the
+handler not `t`, the user words and the receive buffer, the reply word among
+`Ω`) with the handler's reply object among `Rp` (l4v `valid_ep`,
+`sym_refs`, `valid_reply`; KENTRY-PLAN m61 (d3) lists the P1 facts each part
+comes from). -/
+def FaultEntAt (T Cs Ω U Sg Rp : Set U64) (s : S) (t : obj.Tcb) : Prop :=
+  AsidOff (L := L) Ω Sg s ∧ ∀ ptr badge dest r, FaultChecks st s t ptr badge dest r →
+    r ∈ Rp ∧ ∃ rest, FaultEnt (L := L) T Cs Ω U s t ptr dest r rest
+
+/-- **m60's `FaultOK` from one state**: the P1 invariants where the fast path
+is entered (`BXI`, what `budget_ok` leaves) and `FaultEntAt` there give the
+general fault path's reads at every state it reaches (m58 `FaultReads`, m59
+`UsOff`, m60 `FinReads`). -/
+theorem faultOK_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {s : S} {a : A}
+    {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultOK (L := L) ar s a t n := by
+  obtain ⟨⟨Q, R, hSQ⟩, hB, ⟨hO, -, hXE⟩, -, hS⟩ := hI
+  have hX0 : ScExtra0 st T Cs Scs Nt s := hXE.toScExtra0
+  intro ptr badge dest r hc rb sent S6 S7 S8 mi hbuf hmrs hmi hS7 hS8
+  obtain ⟨hr, rest, E⟩ := hF.2 ptr badge dest r hc
+  obtain ⟨FR, -, K⟩ := faultReads_of ar E hbuf hmrs hS7 hS8
+  have HF := here_facts (L := L) hc.here
+  obtain ⟨d, p, -, hp, hhp⟩ := hc.prio
+  have hp' : p = L.mem s (prioA dest) := by
+    rw [eq_of_spec_fd (obj.Tcb.prio.spec (L := L) s dest)] at hp; exact (ok_inj_ff hp).symm
+  have hhi : sched.is_highest_prio st s 0#u64 (L.mem s (prioA dest)) = ok true := by
+    rw [← hp', is_highest_prio_dom s 0#u64 d]; exact hhp
+  have hT := E.hT
+  have hdT : dest ∈ T := E.hq.mem dest (by simp)
+  have hd' := hT dest hdT
+  have ht' := hT t E.ht
+  have hdsc : L.mem s (scA dest) ∈ Scs := (hX0.bound dest hdT HF.sc).1
+  obtain ⟨hPl, hZ7⟩ := hO.sc _ hdsc
+  have scW : ∀ b, Aligned b → InSC (L.mem s (scA dest)) (Z (L.mem s (scA dest))) b → b ∈ Ω :=
+    fun b hb h => hS.sub _ ((hS.all _ hdsc).2.2 b hb h)
+  have spWF : L.mem s (sporA (L.mem s (scA dest))) ≠ 0#u64 →
+      RefillsWF st s (L.mem s (scA dest)) (Z (L.mem s (scA dest))) :=
+    fun h => (hS.all _ hdsc).1 ((hS.act _ hdsc).1 (hS.spor _ hdsc h))
+  have hU := usOff_of E K scW (hS.sub _ (hS.spSg _ hdsc)) spWF (hO.rpSc r hr _ hdsc) hZ7 hPl.fits
+  have aS : Aligned (stA t) := by
+    show _ % 8 = 0; rw [stA_eq, tcb_wadd_val ht' (by decide)]; have := ht'.align; simp; omega
+  have hne : stA dest ≠ stA t := by
+    rw [stA_eq, stA_eq]; exact tcbw_ne hd' ht' (by decide) (by decide) (Or.inl E.hdt)
+  have hst : L.mem (fS14 (L := L) S8 t dest r) (stA t) = sched.TS_BLOCKED_ON_REPLY := by
+    unfold fS14
+    rw [mem_wr_ne' FR.hsA aS hne]; exact FR.hR13s
+  exact ⟨T, rest, Z (L.mem s (scA dest)), FR, hU, fun s15 h15 =>
+    finReads_of E HF hhi hSQ hB hS hX0 hO hr hF.1 K hst h15⟩
+
+/-- **The fault half of the entry's fast-path premise, at the states where
+`fastpath.fault` is entered** (m63 (d4)): after the `FAULT_IP` write and a
+passing `budget_ok` (the trap route), and after a declined `debug_syscall`
+then a passing `budget_ok` (the out-of-range route), `FaultEntAt` of the
+current thread. Replaces m60's `FastFaultOK` (the general path's reads at the
+five states it reaches) by facts at one state. -/
+def FastFaultPre (T Cs Ω U Sg Rp : Set U64) (s : S) (a : A) (n : I64) : Prop :=
+  ∀ t nx s1, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
+    obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
+    (∀ s2 a2 t2, syscall.budget_ok st ar s1 a = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
+      FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2) ∧
+    (∀ t1 s3 a3, sched.cur_thread st s1 = ok t1 → syscall.debug_syscall st ar s1 a t1 n = ok (false, s3, a3) →
+      ∀ s2 a2 t2, syscall.budget_ok st ar s3 a3 = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
+        FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2)
+
+/-- **`FastFaultOK` from `FastFaultPre`** at an entry state (`EntryInv`, a
+`P3Ok` state): the invariants where `fastpath.fault` is entered come from
+`budget_ok.bxc` (after `reg_entry` for the `FAULT_IP` write and, on the
+out-of-range route, `EntryHyps0.debug`). -/
+theorem FastFaultOK.of_pre {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    {P3Ok : S → Prop} (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    {s : S} {a : A} {n : I64} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hFP : FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a n) : FastFaultOK (L := L) ar s a n := by
+  intro t nx s1 et enx es1
+  obtain ⟨hF1, hF2⟩ := hFP t nx s1 et enx es1
+  have et' : t = L.curW s := by
+    rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
+  have htT : t ∈ T := by rw [et']; exact h.1.choose_spec.choose_spec.curT
+  have h1 : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s1 := by
+    have := reg_entry (r := layout.reg.FAULT_IP) (v := core.num.U64.wrapping_sub nx 2#u64) h htT
+      (by simp [layout.reg.FAULT_IP])
+    rw [es1, WP.spec_ok] at this; exact this
+  have hW := obj.Tcb.set_reg.wrK (L := L) s t layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64)
+    (h.1.choose_spec.choose_spec.tcbs t htT) (by simp [layout.reg.FAULT_IP])
+  rw [es1, WP.spec_ok] at hW
+  obtain ⟨K, hK, e1⟩ := hW
+  have hal : Aligned (core.num.U64.wrapping_add (L.curW s) K) := by
+    rw [← et']; exact field_aligned (h.1.choose_spec.choose_spec.tcbs t htT)
+      (by rw [hK]; simp [layout.reg.FAULT_IP]) (by rw [hK]; simp [layout.reg.FAULT_IP])
+  have he1 : EntAt st P3Ok s1 := ⟨s, hP, Ent.prefix hK hal (by rw [e1, et']) (WritesIn.refl _ _)⟩
+  refine ⟨fun s2 a2 t2 hb et2 => ?_, fun t1 s3 a3 et1 hd => ?_⟩
+  · have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
+    rw [hb, WP.spec_ok] at hx
+    exact faultOK_of ar hx.1 (hF1 s2 a2 t2 hb et2)
+  · intro s2 a2 t2 hb et2
+    have et1' : t1 = L.curW s1 := by
+      rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s1)] at et1; exact (ok_inj_ff et1).symm
+    have hd' := hd
+    rw [et1'] at hd'
+    have hdi := E0.debug Ac s1 a n he1 h1
+    rw [hd', WP.spec_ok] at hdi
+    obtain ⟨Ac3, h3⟩ := hdi
+    have hsame := syscall.debug_syscall.same (L := L) hA s1 a (L.curW s1) n
+    rw [hd', WP.spec_ok] at hsame
+    have e3 : s3 = s1 := hsame rfl
+    have hG3 : XG st T Cs Ω H Sg Scs Z P3Ok s3 := by rw [e3]; exact he1.xg
+    have hx := syscall.budget_ok.bxc hA E0 s3 a3 h3 hG3
+    rw [hb, WP.spec_ok] at hx
+    exact faultOK_of ar hx.1 (hF2 t1 s3 a3 et1 hd s2 a2 t2 hb et2)
+
+end
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
+variable {P3Ok : S → Prop}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
+
+/-- **Native kernel entries keep `EntryInv`**, `entry_of5` with the fault
+half's reads `FastFaultOK` (m60, a bundle over five intermediate states)
+replaced by `FastFaultPre` (m63 (d4)): placement facts at the state where
+`fastpath.fault` is entered — the ASID placement `AsidOff` [J] and m61's
+`FaultEnt` for the accepted checks (to be derived from that state's P1
+invariants and Hyps4's cap typing, KENTRY-PLAN m63 (d3) handoff). The P1
+invariants there come from `budget_ok.bxc`. `StoreExt` [P] and the
+ReplyRecv half `FastRRP` [P] unchanged. -/
+theorem kernel_entry.entry_of6 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
+    (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
+    (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
+    (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hX : StoreExt st)
+    (hFP : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
+      FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a number)
+    (hRR : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
+      FastRRP (st := st) ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
+    (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
+      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
+    (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
+      ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) := by
+  have E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
+    have G3 : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok := by
+      obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
+      exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
+    exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
+  exact kernel_entry.entry_of5 hA GF hσ s a hP h hX
+    (fun number hN => FastFaultOK.of_pre ar hA E0 hP h (hFP number hN)) hRR
+
+end
+
 end Fl4Proofs.P1
