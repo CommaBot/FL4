@@ -11639,3 +11639,76 @@ proofs/scratch/rd14e/ax.lean untracked. No premise, no hypothesis added anywhere
   which contains SS4.
 - Untyped retype / ASID control: rd8n's `UF` + `UtRetOK` / `MpOKN` at the Restart state (a further interface, as rd8n's `perfIn_of`);
   their writes are fresh objects / cap writes, so `EC σ0` (rd14d) should follow by SVS frames once `UF` gives the region facts.
+
+## rd14f (branch par/rd14f in FL4-q, on e56b3608 = int/j2 incl. rd14e A–C, rd14e-2, rd14e-3) — rd14e-3's design DONE for (1) the preemption path with ct in Restart, (2) the deletion walk invariant `DW` through cap_delete / rec_del / finalise_cap (every cap kind) / empty_slot / preemption_point, (3) CNode delete / revoke, (4) ThreadControlCaps / ThreadControlSched, with a new arm interface `ArmAKD` and SInvW tops; NOT done: (5) Untyped retype / reset and ASID control, (6) PerfF for the new arms (and for rd14b / rd14d's arms), so no `*rdyOff9`
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14f`, modules SpecInvRd14fB–H (new; root imports them). Nothing existing edited.
+./rd14fs.sh untracked (= rd14es.sh, own log); proofs/scratch/rd14f/ax.lean untracked. No premise, no hypothesis added anywhere.
+- **SpecInvRd14fB (preemption path, item 1).** `charge_ss4X` (rd10's `charge_ss4` with its facts explicit and `Excl` given:
+  `charge_ss4` read ct's state only through `excl_entry`), `ss4_mhi`, **`ss4_preemptionPath`**: from rd8p's facts at the preempted
+  state (Rdy, NQ [], ScInv, CKN, EB true, CurHold), ct ≠ idle, and two facts the walk carries (ct bound to cur_sc ⇒ cur_sc active ∧
+  OffReady; ct unbound ⇒ no resume): every outcome of `preemption_path` has SS4 (branches as rd8p's `rd_preemptionPath`, each ends in
+  rd9's AW9, which `maybe_handle_interrupt` keeps). `CB` at the end is not even needed.
+- **SpecInvRd14fC (`DW`).** `Mx0 c s` (refill max 0), **`DW σ0 q`**: cur_sc / ct / idle thread / idle SC σ0's, cur_sc ≠ idle_sc,
+  rd14b's `EB ct cur_sc`, and `(CW σ0 cur_sc ∧ OffReady) ∨ (Mx0 cur_sc ∧ EBN ct)`; `DWS := DW ∧ Suff`. Differs from rd14e-3's
+  sketch: `DW` carries `OffReady` itself instead of rd14d's `TT.adv` (no word arithmetic at the time stamps: SInvO's
+  `offReady_updateTimeStamp`), and the max-0 case keeps rd14e's `EBN` (so a later step cannot re-bind ct to an inactive cur_sc).
+  Kit: `offReady_cw`, `suff_cw`, **`dw_step`** (rd14d's `EC s` facts at the outcome + EBN kept), `dws_of`, `dws_pt`, `nres_of_cp`
+  (rd8a's `CP` keeps "no resume"), `ebn_of`, `qn_of_svm`, **`dws_gen`** (CFK + CP + BL + QN walks), `dws_svcf`; `PF` (the point's
+  frame), `pf_preemptionPoint`, `mem_liftE_bind`, `readSuff_some`, **`suff_preemptionPoint`** (every ok outcome of
+  `preemption_point` has `Suff`: the point's own check, or no time stamp), **`dw_preemptionPoint`**.
+- **SpecInvRd14fD (`finalise_cap`).** `DSt m` (EC σ1 ∀σ1, EBN t ∀t) and combinators; `qn14f_auto`; `dst_cancelAllIpc` /
+  `dst_cancelAllSignals` / `dst_ffNtfn`; `et_unbindTcb` / `et_unbindFromSc` / `dst_unbindFromSc`; `sv14f_setVmRoot` /
+  `sv14f_deleteAsid(Pool)` / `sv14f_archFinaliseCap` (with rd13b's VSpace sv leaves); `ebn_replyRemove` (caller ≠ ct: rd14e's
+  `ebn_donate`), `ebn_ffReply`, **`dws_ffReply`** (ct not BlockedOnReply: ctq14's CKN); SC arm: `ebn_unbindTcb_self`,
+  **`ebn_unbindAll_cur`** (finalising cur_sc: if ct is bound to it, sb2's ScBack makes ct its TCB and cur_sc ≠ idle_sc, so
+  `unbind_all_tcbs` reschedules and unbinds ct; else ct is already unbound with no resume, by CKN, ctq's CB and EB),
+  `mx0_updSc`, **`mx0_setInactive`**, `ebn_updSc`, `ebn_setInactive`, `cp_updSc_ne`, `eb_updSc`, `ec_setInactive_ne`;
+  `dws_fastFinalise`, **`dws_capDeleteOne`**, **`dws_finaliseCap`** (from DWS, CKN, ScInv, CB, ct ≠ idle; every cap kind).
+- **SpecInvRd14fE (the walk, item 2).** `J σ0 I := RB ct I ∧ CKC ct ∧ DW σ0`, `JS := J ∧ Suff`, **`HJ σ0 I m`** (from JS every
+  outcome J, every ok outcome Suff: the error outcomes are points that threw after a time stamp), `hj_bind`, `hj_lift`, `hj_ret`,
+  `hj_whenE`, **`hj_lfp`** (ik_lfp_le with the outcome-dependent post); leaves `sv14f_postCapDeletion` / `sv14f_emptySlot` /
+  `sv14f_capSwapForDelete` (+ cfk), `j_ro`, `j_getCap`, `j_of`, `j_emptySlot`, `j_capSwapForDelete`, `j_setCap_cov`,
+  `j_finaliseCap`, **`hj_preemptionPoint`**; **`hj_recDelF`** (rd8f's skeleton), **`hj_recDel`**, **`hj_capDelete`**,
+  `hj_capRevokeF`, **`hj_capRevoke`**.
+- **SpecInvRd14fF (end, CNode, interface, item 3).** `dws_svs`, **`dws_post`**, `act_cw`, **`ss4_dws`** (DWS ∧ CB ⇒ SS4: OS by its
+  first disjunct while cur_sc's refills are σ0's, by rd14e-2's OI at max 0), `pre_of_dw`, **`perfA_hj`**; `js_rf` (RF ∧ RB at the
+  Restart state ⇒ JS), `ho_rf` (ct the only holder of cur_sc), `hq_rf`; **`perfA_cnodeDelete`**, **`perfA_cnodeRevoke`**, `CovDR`.
+  **`ArmAKD C`** (rd14f A's ArmAKV + rd8f's `RB ct I` at the decode's outcome), `armAKD_of`, `ArmAKD.or`, `armAKD_covDR`,
+  **`perfR_ofKD`** (rd8j's JS walk carries RB from the shell start), **`invR_ofKD`** (rd8j's `front_facts`), `QD C c σ := InvRc C c
+  σ ∧ cur_sc ≠ idle_sc ∧ T1 ∧ EB true ∧ IdleScOutV ∧ VfhAll`, **`brR_kd : BrR (QD C)`**, `C14f1 := C14e2 ∨ CovDR`, `armAKD_c14f1`.
+- **SpecInvRd14fG (ThreadControl*, item 4).** `sv14f_ins` / `cfk14f_ins`, **`hj_installTcbCap`**, **`hj_installTcbFrameCap`** (RB at ok
+  outcomes by rd8h's `ro_install*`, CKC by ctq's `ckc_install*`); `HK` (ok ⇒ DWS, error ⇒ J), `hk_of_hj`, `hk_bind`, **`perfA_hk`**;
+  `sv14f_setPriority` / `cfk14f_setPriority`, `cp_bindTcb`, `qn_bindTcb`, `bl_bindTcb`, **`dws_bindTcb`** (target ≠ ct),
+  `dst_unbindTcb`; **`perfA_tcCaps`**, **`perfA_tcSched`** (the bind's target ≠ ct: sb2's BindOK finds it unbound, ct is bound),
+  `CovTC`, `armAKD_covTC`, `C14f2 := C14f1 ∨ CovTC`, **`armAKD_c14f2`**.
+- **SpecInvRd14fH (tops).** `curSc_ne_idleSc` (ValidIdle), **`qd_ofW`** / **`qd_fip`** (QD from SInvW: T1 / EB true by
+  `evp_start` / `fip_evp`, IdleScOutV / VfhAll from EV10 / `fip_eo`), **`kcall_rdyOffD`** / **`kentry_rdyOffD`** (rd8w's tops over
+  any `ArmAKD C`: run-pinned inputs only `InvRc C` and rd8w's `QF` with its bridge), **`kcall_rdyOff14f`** / **`kentry_rdyOff14f`**
+  (`C := C14f2`).
+- **Covered set now** (`C14f2`, interface ArmAKD): everything but **Untyped** (retype / reset) and **ASID control** (MakePool).
+- **Remaining named inputs (exactly):** `InvRc C14f2` (PerfA for Untyped and ASIDControl only) and rd8w's `QF` (today
+  `InvFc CF14e`: PerfF only for rd14c's TCB arms, Reply, IRQ handler). No [J]/[P]/[W]/[S] premise added; no ∀-states hypothesis.
+- No FINDING. Checked: the deletion cone never binds ct (reply_remove donates to a BlockedOnReply caller, ct is not — CKN — and the
+  unbinders only write `none`), so once cur_sc's max is 0, ct stays unbound with no resume until the end or the next preemption
+  point (which then throws: cur_sc inactive); the idle SC is never finalised (IdleScOutV, rd8f); ThreadControlSched's bind target is
+  never ct (BindOK) — no invariant beyond the carried ones is used.
+- **HANDOFF (in order).** (a) Untyped: rd8n's `RF` relation gives `DW` across detype / retype (ct bound to cur_sc throughout: bound pairs
+  kept by `bnd_pair`, retype only at empty addresses); the arm is ct-bound all the way, so a stronger ct-bound invariant
+  (DW's first case with ct's TCB existing) avoids `EBN`; the reset's chunk loop needs `HT` over `mapMEx` with `preemption_point`
+  (as `hj_preemptionPoint`) and the error facts from the existing whole-perform lemmas (`rd_fl4InvokeUntyped`, `ebr_`/`ckx_`/`hqx_`/
+  `nq_fl4PerformInvocation`, sb2's si_); the interface needs rd8n's `UF` and the decode's `GapOKN` / `UtRetOK` at the Restart state
+  (rd8n's `perfIn_of` shows where they come from; the bridge's Q gets `UF`). (b) ASID control (MakePool): the same with `MpOKN`.
+  (c) PerfF: the QT family (rd14c/e: `qt_capDeleteOne`, `qt_suspend`, …) needs `qt_finaliseCap` (arch arm: a TCB-state frame) and an
+  lfp walk for rec_del / cap_revoke; then `fpo_dws` (DWS ∧ ct Running/Inactive ⇒ FPO), an `ArmFD` interface with RB (as ArmAKD) and a
+  `BrF` bridge; and PerfF for rd14b's `Cov`, rd14d's SchedContext / cancelBadged / configure / bind arms (never done). With (a)–(c),
+  `kcall_rdyOff9` / `kentry_rdyOff9` := `kcall_rdyOffD` with `C := fun _ => True` and rd8w's `invRc_true` / `invFc_true`.
+- **Builds** (tokyo-mac-studio-0, FL4-q mirror warm, ~20–60 s each; keys rd14f-1..14): -1 (A, warm check), -2 B green, -3 C green, -4
+  D (16 errors: names, `unfold` of an absent constant, the `update` function inferred as identity, `AK` form), -5 D (3), -6/-7 D + E
+  green (5790 jobs), -8 F (an inaccessible hypothesis `_` captured by `case … i`), -9 F green, -10/-11 G (types `Word8 × ObjRef`,
+  reorderEp / reorderNtfn leaves, threadSet's update inferred as identity), -12 G green, -13 H green (5796 jobs), -14 H +
+  `#print axioms` (scratch/rd14f/ax.lean, 46 declarations incl. every top): all ⊆ {propext, Classical.choice, Quot.sound}. No
+  sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (seven import lines).
+- Lean notes: (1) `intro … _ _ …` hypotheses are inaccessible, and a later `case ctor x =>` after `cases b` renames the LAST
+  inaccessible hypothesis, not the constructor argument — name every intro'd hypothesis; (2) `unfold a b c` fails when one of the
+  constants does not occur (inside `try` it silently does nothing); (3) for `threadSet f t` goals use `dws_svcf (by sv_auto)
+  (by cfk_auto)` (the goal fixes `f`), not `SVK.sv_threadSet' _ …` (identity inferred).
