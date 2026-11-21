@@ -1082,3 +1082,5 @@ import Fl4Proofs.P3.SpecInvEqS
 import Fl4Proofs.P3.SpecInvEqT
 import Fl4Proofs.P3.SpecInvCqC1
 import Fl4Proofs.P3.SpecInvCqC2
+import Fl4Proofs.P3.SpecInvCqC3
+import Fl4Proofs.P3.SpecInvCqC4
