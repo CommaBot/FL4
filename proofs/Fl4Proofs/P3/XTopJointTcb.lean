@@ -133,7 +133,7 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
     {Ac' : Set U64}
     (hI3 : IRel st Z.th σ.archState.x64CurrentCr3 Z.N Z.T Z.C Z.E Z.R Z.B Z.c s' σ')
     (hw : P1.WritesIn st s s' (fun b => RegFW Z.T Z.C b ∨ ∃ y ∈ Z.T,
-      (y.val + 448 ≤ b.val ∧ b.val < y.val + 512) ∨ b.val = y.val + 3456)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
+      y.val + 448 ≤ b.val ∧ b.val < y.val + 512)) (hA : QKY σ σ') (hyk : YKeep σ σ') (hInv : Inv σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
     (hfoot : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H)
@@ -144,7 +144,7 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R0, hc, hs⟩ := hS.lists
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hw fun b hb => by
-    rcases hb with ((hb | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩) | ⟨y, hy, ⟨h1, h2⟩ | h1⟩
+    rcases hb with ((hb | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩) | ⟨y, hy, h1, h2⟩
     · obtain ⟨y, hy, h1, h2⟩ := hb
       exact Or.inr (Or.inr (Or.inl ⟨y, hy, h1, by omega⟩))
     · obtain ⟨x0, n0, hk0, hx0⟩ := hs.scs q hq
@@ -152,14 +152,12 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
         ⟨q, hq, x0, n0, hk0, hx0.in_obj (hx0.hdr (K := 8#u64) (by simp) (by simp)).2⟩))))))
     · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
     · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
-    · exact Or.inr (Or.inr (Or.inl ⟨y, hy, by omega, by omega⟩))
   have hwF : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) := hw.mono fun b hb => by
-    rcases hb with ((⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩) | ⟨y, hy, ⟨k1, k2⟩ | k1⟩
+    rcases hb with ((⟨y, hy, k1, k2⟩ | ⟨q, hq, rfl⟩) | ⟨y, hy, hb⟩) | ⟨y, hy, k1, k2⟩
     · exact Or.inr ⟨y, hy, b.val - y.val, by omega, by omega, by omega, by omega, by omega, by omega⟩
     · exact Or.inl (KFoot.of_sw (sw_hdr hS hq (K := 8#u64) (by simp) (by simp) (by decide)))
     · exact Or.inr ⟨y, hy, 3376, by omega, by omega, by omega, by omega, by omega, hb⟩
     · exact Or.inr ⟨y, hy, b.val - y.val, by omega, by omega, by omega, by omega, by omega, by omega⟩
-    · exact Or.inr ⟨y, hy, 3456, by omega, by omega, by omega, by omega, by omega, by omega⟩
   have hck : Fl4Proofs.P3.CKeep σ σ' := hA.ckeepP
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hI3 hAR hF.1 hck.cdt hck.orig hck.ks hF.2
@@ -225,54 +223,18 @@ theorem JAtZ.dbgWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hA : QKY σ σ := ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun p => Or.inl rfl⟩
   have hBW : BufWordRel Z.T (L.mem (L.wr s (core.num.U64.wrapping_add t K) v)) σ := J.buf.frame kb hA.bufKeep
   have hI3 := hX'.irelK (by rw [hks]; exact J.ks) hBW
-  exact J.reg_frameG hI3 (hw.mono fun b hb => Or.inr ⟨t, ht, Or.inl ⟨by rw [hb, hKt, hKv]; omega,
-    by rw [hb, hKt, hKv]; omega⟩⟩) hA (YKeep.of_kheap rfl) J.inv hblk hfoot
+  exact J.reg_frameG hI3 (hw.mono fun b hb => Or.inr ⟨t, ht, by rw [hb, hKt, hKv]; omega,
+    by rw [hb, hKt, hKv]; omega⟩) hA (YKeep.of_kheap rfl) J.inv hblk hfoot
 
-open Fl4Proofs.P1 in
-set_option maxHeartbeats 8000000 in
-/-- **A TCB's flags at `J`** (SetFlags' write): FL4's flags word (offset 3456,
-read by no relation of `JAtZ`; P1's `BlkOK` by `plainW_all`) and the spec's
-`tcb_flags` (`XTopAt.bufSpec`, a quiet step `QKY`), by `JAtZ.reg_frameG`. -/
+/-- **A TCB's flags at `J`** (SetFlags' write): FL4's flags word (offset
+3456) and the spec's `tcb_flags`, related by `McpRel` (KENTRY-PLAN g5d), by
+`JAtZ.flagsWrJM`. -/
 theorem JAtZ.flagsWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
-    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (w : U64) (nf : Fl4Spec.TcbFlags) :
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (w : U64) (nf : Fl4Spec.TcbFlags)
+    (hv : Fl4Spec.wordToTcbFlags w.bv = nf) :
     ∃ V, JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac Lst D (L.wr s (core.num.U64.wrapping_add t 3456#u64) w) a
-      (updK σ t.bv (.tcb { x with tcbFlags := nf })) := by
-  have hT : TcbPlaced Z.T := J.ip.e.tcb
-  have hta := hT t ht
-  have htH : t ∈ P1.Heap.tcbs H := J.zH.1 t ht
-  have hKt : (core.num.U64.wrapping_add t 3456#u64).val = t.val + 3456 := Notif.tfield_val hta (by decide)
-  have hwa : P1.Aligned (core.num.U64.wrapping_add t 3456#u64) := P1.field_aligned hta (by decide) (by decide)
-  have hw : P1.WritesIn st s (L.wr s (core.num.U64.wrapping_add t 3456#u64) w)
-      (· = core.num.U64.wrapping_add t 3456#u64) := P1.writesIn_wr hwa
-  obtain ⟨hblk, hfoot, -⟩ := P1.plainW_all (K := 3456#u64) (v := w) J.blk htH (by decide) (by decide) (by decide)
-    (by decide) (by decide) (by decide) (by decide)
-  have hX' := (J.xtop.tcbWrA ht _ 3456 (Or.inr (Or.inr (Or.inr rfl))) hKt w).bufSpec (tcbFlagsStep_upd hk nf)
-  have hks : L.ksb (L.wr s (core.num.U64.wrapping_add t 3456#u64) w) = L.ksb s := hw.1
-  have hwF : P1.WritesIn st s (L.wr s (core.num.U64.wrapping_add t 3456#u64) w)
-      (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ) :=
-    hw.mono fun b hb => Or.inr ⟨t, ht, 3456, by omega, by omega, by omega, by omega, by omega, by rw [hb, hKt]⟩
-  obtain ⟨-, -, kb, -, -⟩ := J.finW_keeps hwF
-  have hA : QKY σ (updK σ t.bv (.tcb { x with tcbFlags := nf })) := by
-    refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
-    by_cases e : q = t.bv
-    · subst e; exact Or.inr (Or.inl ⟨x, { x with tcbFlags := nf }, hk, by simp [updK], rfl⟩)
-    · exact Or.inl (by simp [updK, e])
-  have hyk : YKeep σ (updK σ t.bv (.tcb { x with tcbFlags := nf })) := by
-    refine ⟨fun q y hq => ?_, fun q y n hq => ?_, fun q y n hq => ?_⟩
-    · by_cases e : q = t.bv
-      · subst e; rw [hk] at hq; cases hq; exact ⟨{ x with tcbFlags := nf }, by simp [updK], rfl⟩
-      · exact ⟨y, by simp [updK, e, hq], rfl⟩
-    · by_cases e : q = t.bv
-      · subst e; rw [hk] at hq; cases hq
-      · exact ⟨y, by simp [updK, e, hq], rfl⟩
-    · by_cases e : q = t.bv
-      · subst e; simp [updK] at hq
-      · exact ⟨y, by simpa [updK, e] using hq, rfl⟩
-  have hBW : BufWordRel Z.T (L.mem (L.wr s (core.num.U64.wrapping_add t 3456#u64) w))
-      (updK σ t.bv (.tcb { x with tcbFlags := nf })) := J.buf.frame kb hA.bufKeep
-  have hI3 := hX'.irelK (by rw [hks]; exact J.ks) hBW
-  exact J.reg_frameG hI3 (hw.mono fun b hb => Or.inr ⟨t, ht, Or.inr (by rw [hb, hKt])⟩) hA hyk
-    (J.inv.updSame hk rfl rfl (Or.inl rfl)) hblk hfoot
+      (updK σ t.bv (.tcb { x with tcbFlags := nf })) :=
+  J.flagsWrJM ht hk w nf hv
 
 set_option maxHeartbeats 8000000 in
 /-- **`JAtZ.fpuReleaseJ` with the facts the reply tail reads**: the current
@@ -1411,7 +1373,7 @@ theorem tcb_set_flagsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   have hW2 : Fl4Spec.wordToTcbFlags f2.bv = nf := by
     rw [hnf, ← hfp, hf2, flags_mask_eq, UScalar.bv_or, UScalar.bv_and, UScalar.bv_and, UScalar.bv_not]
     exact flags_new _ _ _
-  obtain ⟨V2, J2⟩ := J1.flagsWrJ hpT hkp f2 nf
+  obtain ⟨V2, J2⟩ := J1.flagsWrJ hpT hkp f2 nf hW2
   set s2 := L.wr s1 (core.num.U64.wrapping_add p 3456#u64) f2
   set σ2 := Notif.updK σ1 p.bv (.tcb { xp with tcbFlags := nf })
   have hts : Fl4Spec.setFlags (Z := Unit) p.bv nf σ1 = ({((), σ2)}, False) := Notif.threadSet_eq _ hkp
@@ -2366,7 +2328,7 @@ theorem tcb_set_mcpJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := 
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -2505,7 +2467,7 @@ theorem tcb_set_prioJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega

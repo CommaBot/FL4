@@ -130,7 +130,7 @@ frame offsets, none at the VCPU word (3664, `tVcpuA`; KENTRY-PLAN g2b: no
 native step writes it). -/
 def FinW (T N C : Set U64) (c : U64) (s : S) (σ : Fl4Spec.State Unit) (b : U64) : Prop :=
   KFoot st T N C c s σ b ∨
-    ∃ y ∈ T, ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664) ∧ b.val = y.val + K
+    ∃ y ∈ T, ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ b.val = y.val + K
 
 /-- `FinW`'s words are words of the other objects (`OObj`). -/
 theorem FinW.oobj {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) {b : U64}
@@ -179,7 +179,18 @@ theorem FinW.nv {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ
   · intro hb
     have hT := hS.placed.tcb
     have hv : b.val = t.val + 3664 := by rw [hb]; exact tfield_val (hT t ht) (K := 3664#u64) (by simp)
-    exact tw_ne hT hy ht e h2 (by decide) h5.2 hv
+    exact tw_ne hT hy ht e h2 (by decide) h5.2.1 hv
+
+/-- **A `FinW` word is no TCB's flags word** (KENTRY-PLAN g5d). -/
+theorem FinW.nf {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ) {b : U64}
+    (h : FinW (st := st) T N C c s σ b) : ∀ t ∈ T, b ≠ Sched.flagsA t := by
+  intro t ht
+  rcases h with h | ⟨y, hy, K, h1, h2, h3, h4, h5, e⟩
+  · exact KFoot.ne_flags hS h ht
+  · intro hb
+    have hT := hS.placed.tcb
+    have hv : b.val = t.val + 3456 := by rw [hb]; exact tfield_val (hT t ht) (K := 3456#u64) (by simp)
+    exact tw_ne hT hy ht e h2 (by decide) h5.2.2 hv
 
 theorem NWrite.finW {s : S} {σ : Fl4Spec.State Unit} (hT : TcbPlaced T) {b : U64} (hb : NWrite N T b) :
     FinW (st := st) T N C c s σ b := by

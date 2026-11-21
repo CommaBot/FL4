@@ -24,9 +24,30 @@ noncomputable section
 section Spec
 open Fl4Spec
 
-/-- The spec's `tcb_mcpriority` of every TCB is kept. -/
+/-- The spec's `tcb_mcpriority` and `tcb_flags` of every TCB are kept (as a
+pair, so a TCB replaced by a record update touching neither keeps it by
+`rfl`; KENTRY-PLAN g5d). -/
 def McpKeep (σ σ' : State Unit) : Prop :=
-  ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbMcpriority = x.tcbMcpriority
+  ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧
+    (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags)
+
+theorem McpKeep.mk' {σ σ' : State Unit}
+    (h : ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ'.kheap p = some (.tcb y) ∧ y.tcbMcpriority = x.tcbMcpriority ∧
+      y.tcbFlags = x.tcbFlags) : McpKeep σ σ' := fun p x hp => by
+  obtain ⟨y, hy, e1, e2⟩ := h p x hp; exact ⟨y, hy, by rw [e1, e2]⟩
+
+/-- The flags of the zero word: none (a new TCB's, `defaultTcb`'s). -/
+theorem w2f_zero : Fl4Spec.wordToTcbFlags (0#u64).bv = ∅ := by
+  ext f; cases f <;> simp [Fl4Spec.wordToTcbFlags]
+
+theorem mcpPair_mcp {x y : Tcb} (e : (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags)) :
+    y.tcbMcpriority = x.tcbMcpriority := congrArg Prod.fst e
+
+theorem mcpPair_flags {x y : Tcb} (e : (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags)) :
+    y.tcbFlags = x.tcbFlags := congrArg Prod.snd e
+
+theorem mcpPair {x y : Tcb} (e1 : y.tcbMcpriority = x.tcbMcpriority) (e2 : y.tcbFlags = x.tcbFlags) :
+    (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags) := by rw [e1, e2]
 
 theorem McpKeep.of_kheap {σ σ' : State Unit} (h : σ'.kheap = σ.kheap) : McpKeep σ σ' :=
   fun p x hp => ⟨x, by rw [h]; exact hp, rfl⟩
@@ -39,7 +60,7 @@ theorem McpKeep.trans {σ σ1 σ2 : State Unit} (h1 : McpKeep σ σ1) (h2 : McpK
 
 /-- Replacing a TCB by one with the same `tcb_mcpriority`. -/
 theorem McpKeep.updTcb {σ : State Unit} {p : ObjRef} {x x' : Tcb} (hk : σ.kheap p = some (.tcb x))
-    (e : x'.tcbMcpriority = x.tcbMcpriority) : McpKeep σ (updK σ p (.tcb x')) := by
+    (e : (x'.tcbMcpriority, x'.tcbFlags) = (x.tcbMcpriority, x.tcbFlags)) : McpKeep σ (updK σ p (.tcb x')) := by
   intro q y hq
   by_cases h : q = p
   · subst h; rw [hk] at hq; cases hq; exact ⟨x', by simp [updK], e⟩
@@ -77,21 +98,28 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 theorem mcpA_aligned {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : Aligned (mcpA t) :=
   field_aligned (hT t ht) (K := 3440#u64) (by simp) (by simp)
 
+theorem flagsA_aligned {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : Aligned (flagsA t) :=
+  field_aligned (hT t ht) (K := 3456#u64) (by simp) (by simp)
+
+theorem flagsA_val {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : (flagsA t).val = t.val + 3456 :=
+  tfield_val (hT t ht) (K := 3456#u64) (by simp)
+
 /-- **`McpRel` across a step** that keeps the `MCP` words and the spec's
 `tcb_mcpriority`. -/
 theorem McpRel.frame {T : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} (h : McpRel T m σ)
-    (hm : ∀ t ∈ T, m' (mcpA t) = m (mcpA t)) (hk : McpKeep σ σ') : McpRel T m' σ' := by
+    (hm : ∀ t ∈ T, m' (mcpA t) = m (mcpA t) ∧ m' (flagsA t) = m (flagsA t))
+    (hk : McpKeep σ σ') : McpRel T m' σ' := by
   intro t ht
-  obtain ⟨x, hx, e⟩ := h t ht
+  obtain ⟨x, hx, e, ef⟩ := h t ht
   obtain ⟨y, hy, e'⟩ := hk _ x hx
-  exact ⟨y, hy, by rw [hm t ht, e, e']⟩
+  exact ⟨y, hy, by rw [(hm t ht).1, e, mcpPair_mcp e'], by rw [(hm t ht).2, ef, mcpPair_flags e']⟩
 
 /-- `McpRel` across a step whose writes avoid the `MCP` words (`WritesIn`
 with a footprint that misses them). -/
 theorem McpRel.writes {T : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit} {P : U64 → Prop}
     (h : McpRel T (L.mem s) σ) (hT : TcbPlaced T) (hw : WritesIn st s s' P) (hP : ∀ t ∈ T, ¬ P (mcpA t))
-    (hk : McpKeep σ σ') : McpRel T (L.mem s') σ' :=
-  h.frame (fun t ht => hw.mem_eq (mcpA_aligned hT ht) (hP t ht)) hk
+    (hPf : ∀ t ∈ T, ¬ P (flagsA t)) (hk : McpKeep σ σ') : McpRel T (L.mem s') σ' :=
+  h.frame (fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) (hP t ht), hw.mem_eq (flagsA_aligned hT ht) (hPf t ht)⟩) hk
 
 /-- **Writing a TCB's `MCP` word** with the spec's `tcb_mcpriority := p`. -/
 theorem McpRel.set {T : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : McpRel T (L.mem s) σ)
@@ -99,11 +127,18 @@ theorem McpRel.set {T : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : McpRel T
     {v : U64} {p : Fl4Spec.Priority} (hv : v.val = p.toNat) :
     McpRel T (L.mem (L.wr s (mcpA t) v)) (updK σ t.bv (.tcb { x with tcbMcpriority := p })) := by
   intro u hu
+  have hfw : ∀ w ∈ T, L.mem (L.wr s (mcpA t) v) (flagsA w) = L.mem s (flagsA w) := fun w hw =>
+    rd_wr_ne (mcpA_aligned hT ht) (flagsA_aligned hT hw) (fun e' => by
+      have := (tt_eq_iff (hT t ht) (hT w hw) (K1 := 3440#u64) (K2 := 3456#u64) (by simp) (by simp)).1 e'
+      exact absurd this.2 (by decide))
   by_cases e : u = t
   · subst e
-    exact ⟨{ x with tcbMcpriority := p }, by simp [updK], by rw [rd_wr_eq (mcpA_aligned hT ht)]; exact hv⟩
-  · obtain ⟨y, hy, ey⟩ := h u hu
-    refine ⟨y, by simp [updK, bv_ne e, hy], ?_⟩
+    obtain ⟨y, hy, -, ef⟩ := h u hu
+    rw [hk] at hy; cases hy
+    exact ⟨{ x with tcbMcpriority := p }, by simp [updK], by rw [rd_wr_eq (mcpA_aligned hT ht)]; exact hv,
+      by rw [hfw u hu]; exact ef⟩
+  · obtain ⟨y, hy, ey, ef⟩ := h u hu
+    refine ⟨y, by simp [updK, bv_ne e, hy], ?_, by rw [hfw u hu]; exact ef⟩
     rw [rd_wr_ne (mcpA_aligned hT ht) (mcpA_aligned hT hu) (fun e' => e ?_)]
     · exact ey
     · have := (tt_eq_iff (hT t ht) (hT u hu) (K1 := 3440#u64) (K2 := 3440#u64) (by simp) (by simp)).1 e'
@@ -123,6 +158,30 @@ theorem hback_of_tsc {Scs T : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : TS
   rw [scTcbA_eq] at e
   exact ⟨(hT h0).1, e, (hT h0).2⟩
 
+/-- **Writing a TCB's flags word** with the spec's `tcb_flags := f`
+(SetFlags; KENTRY-PLAN g5d). -/
+theorem McpRel.setF {T : Set U64} {s : S} {σ : Fl4Spec.State Unit} (h : McpRel T (L.mem s) σ)
+    (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x))
+    {v : U64} {f : Fl4Spec.TcbFlags} (hv : Fl4Spec.wordToTcbFlags v.bv = f) :
+    McpRel T (L.mem (L.wr s (flagsA t) v)) (updK σ t.bv (.tcb { x with tcbFlags := f })) := by
+  intro u hu
+  have hmw : ∀ w ∈ T, L.mem (L.wr s (flagsA t) v) (mcpA w) = L.mem s (mcpA w) := fun w hw =>
+    rd_wr_ne (flagsA_aligned hT ht) (mcpA_aligned hT hw) (fun e' => by
+      have := (tt_eq_iff (hT t ht) (hT w hw) (K1 := 3456#u64) (K2 := 3440#u64) (by simp) (by simp)).1 e'
+      exact absurd this.2 (by decide))
+  by_cases e : u = t
+  · subst e
+    obtain ⟨y, hy, em, -⟩ := h u hu
+    rw [hk] at hy; cases hy
+    exact ⟨{ x with tcbFlags := f }, by simp [updK], by rw [hmw u hu]; exact em,
+      by rw [rd_wr_eq (flagsA_aligned hT ht)]; exact hv⟩
+  · obtain ⟨y, hy, em, ef⟩ := h u hu
+    refine ⟨y, by simp [updK, bv_ne e, hy], by rw [hmw u hu]; exact em, ?_⟩
+    rw [rd_wr_ne (flagsA_aligned hT ht) (flagsA_aligned hT hu) (fun e' => e ?_)]
+    · exact ef
+    · have := (tt_eq_iff (hT t ht) (hT u hu) (K1 := 3456#u64) (K2 := 3456#u64) (by simp) (by simp)).1 e'
+      exact this.1.symm
+
 /-- **`Tcb::set_mcp` refines l4v `set_mcpriority`**, keeping every relation
 of the SchedContext decode. -/
 theorem set_mcp_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec.State Unit) {Lst : U64 → List U64}
@@ -137,7 +196,7 @@ theorem set_mcp_refines {N T C R : Set U64} {c : U64} (s : S) (σ : Fl4Spec.Stat
   refine WP.spec_mono (obj.Tcb.set_mcp.wr s t v) fun s' e => ?_
   obtain ⟨Q, Rq, hc, hs⟩ := hS.lists
   have hT := hc.tcbs
-  obtain ⟨x, hk, -⟩ := hM t ht
+  obtain ⟨x, hk, -, -⟩ := hM t ht
   set x' := { x with tcbMcpriority := p }
   have hA := mcpA_aligned hT ht
   obtain ⟨hS', hF, hV⟩ := hS.set_tw ht hk (K := 3440#u64) (by simp) (by simp) (by simp [SchedField])

@@ -76,7 +76,7 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' := by
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s) := SlotsSame.refl _ _
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) := fun _ _ => rfl
+  have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) ∧ L.mem s (flagsA t) = L.mem s (flagsA t) := fun _ _ => ⟨rfl, rfl⟩
   have k2 : ∀ t ∈ Z.T, L.mem s (P1.yieldA t) = L.mem s (P1.yieldA t) := fun _ _ => rfl
   have kb : ∀ t ∈ Z.T, L.mem s (tIpcBufA t) = L.mem s (tIpcBufA t) := fun _ _ => rfl
   have k3 : ∀ q ∈ Z.C, L.mem s (P1.scReplyA q) = L.mem s (P1.scReplyA q) := fun _ _ => rfl

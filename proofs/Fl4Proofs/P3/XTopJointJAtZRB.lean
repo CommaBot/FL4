@@ -345,8 +345,9 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hH := J.kern.heap
   -- the frame words
-  have k1 : ∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) := fun t ht =>
-    hw.mem_eq (mcpA_aligned hT ht) fun hb => J.tmw_ne_tcb hb ht (mcpA_val hT ht) (by omega) rfl
+  have k1 : ∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t) := fun t ht =>
+    ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => J.tmw_ne_tcb hb ht (mcpA_val hT ht) (by omega) rfl,
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => J.tmw_ne_tcb hb ht (flagsA_val hT ht) (by omega) rfl⟩
   have k2 : ∀ t ∈ Z.T, L.mem s' (P1.yieldA t) = L.mem s (P1.yieldA t) := fun t ht =>
     hw.mem_eq (yieldA_aligned hT ht) fun hb => J.tmw_ne_tcb hb ht (yieldA_val hT ht) (by omega) rfl
   have kb : ∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t) := fun t ht =>
@@ -661,7 +662,7 @@ theorem JAtZR.cnX_not (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U6
 /-- **The frame words a `CnW` step keeps** (`finW_keeps`). -/
 theorem JAtZR.cnW_keeps (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
-    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
     (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
     (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
@@ -674,7 +675,12 @@ theorem JAtZR.cnW_keeps (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' :
       ¬ CnX Z.E Z.R b := fun t ht b hv hx =>
     J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) fun hb => ?_,
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => ?_,
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => by
+        rcases hb with hb | hb
+        · exact FinW.nf hS hb t ht rfl
+        · exact J.cnX_not hb (J.zH.1 t ht) (by rw [flagsA_val hT ht]; omega)
+            (by simp only [P1.HKind.bits]; rw [flagsA_val hT ht]; omega) (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)⟩,
     fun t ht => hw.mem_eq (yieldA_aligned hT ht) fun hb => ?_,
     fun t ht => hw.mem_eq (tIpcBufA_aligned (hT t ht)) fun hb => ?_,
     fun q hq => hw.mem_eq (sc_reply_word hS hq).1 fun hb => ?_, fun r hr => ?_⟩

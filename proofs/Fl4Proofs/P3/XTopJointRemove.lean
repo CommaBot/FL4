@@ -281,7 +281,7 @@ theorem JAtZ.rmW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
 /-- **The frame words an `RmW` step keeps** (`cnW_keeps`). -/
 theorem JAtZ.rmW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (RmW (st := st) Z.T Z.N Z.C Z.R Z.c s σ)) :
-    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) := by
   have hS := J.xtop.fin.1.1.1
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
@@ -290,7 +290,11 @@ theorem JAtZ.rmW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S
   have tcbX : ∀ t ∈ Z.T, ∀ b : U64, (b.val = t.val + 3440 ∨ b.val = t.val + 3472 ∨ b.val = t.val + 3512) →
       ¬ RmX Z.R Z.C σ b := fun t ht b hv hx => by
     have := J.rmX_tcb hx t ht; omega
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) fun hb => ?_,
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => ?_,
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => by
+        rcases hb with hb | hb
+        · exact FinW.nf hS hb t ht rfl
+        · have := J.rmX_tcb hb t ht; rw [flagsA_val hT ht] at this; omega⟩,
     fun t ht => hw.mem_eq (yieldA_aligned hT ht) fun hb => ?_,
     fun t ht => hw.mem_eq (tIpcBufA_aligned (hT t ht)) fun hb => ?_⟩
   · rcases hb with hb | hb
@@ -847,10 +851,10 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
   obtain ⟨k1, k2, kb⟩ := J.rmW_keeps hw
   have hyk : YKeep σ σ' := (YK.yk_replyRemove' t.bv r.bv σ ((), σ') hmem).ykeep
   have hso : ∀ p x0, σ.kheap p = some (.tcb x0) → ∃ x', σ'.kheap p = some (.tcb x') ∧
-      x'.tcbMcpriority = x0.tcbMcpriority ∧ x'.tcbIpcBuffer = x0.tcbIpcBuffer := by
+      (x'.tcbMcpriority, x'.tcbFlags) = (x0.tcbMcpriority, x0.tcbFlags) ∧ x'.tcbIpcBuffer = x0.tcbIpcBuffer := by
     intro p x0 hp
     obtain ⟨x1, hx1, hso1, -⟩ := hK.tcb hp
-    have e1 := congrArg Fl4Spec.Tcb.tcbMcpriority hso1
+    have e1 := congrArg (fun y : Fl4Spec.Tcb => (y.tcbMcpriority, y.tcbFlags)) hso1
     have e2 := congrArg Fl4Spec.Tcb.tcbIpcBuffer hso1
     by_cases hpt : p = t.bv
     · subst hpt

@@ -1168,7 +1168,7 @@ theorem tcb_set_sched_paramsJ [Fl4Proofs.P1.PlainStore st] {W : U64 → S → A 
   rw [retOk_bind] at hspec0
   have hcp0 := checkPrio_run hM hqT y0.bv
   have hcp1 := checkPrio_run hM hqT y1.bv
-  obtain ⟨xq, hkq, hmq⟩ := hM q hqT
+  obtain ⟨xq, hkq, hmq, -⟩ := hM q hqT
   have hmq8 : (L.mem s (mcpA q)).val < 256 := by rw [hmq]; exact xq.tcbMcpriority.isLt
   by_cases hg0 : y0 > L.mem s (mcpA q)
   · rw [ite_eq_left hg0]

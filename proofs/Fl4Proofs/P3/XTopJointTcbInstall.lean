@@ -684,14 +684,21 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   obtain ⟨V', hX3⟩ := XTopAt.irel_same J.xtop hI3 hAR hF.1 hck.cdt hck.orig hck.ks hF.2
   -- the MCP, yield, SC-reply and reply-link words: not `t`'s IPC-buffer word
-  have k1 : ∀ u ∈ Z.T, L.mem s' (mcpA u) = L.mem s (mcpA u) := fun u hu =>
-    keep _ (mcpA_aligned hT hu) fun e => by
+  have k1 : ∀ u ∈ Z.T, L.mem s' (mcpA u) = L.mem s (mcpA u) ∧ L.mem s' (flagsA u) = L.mem s (flagsA u) := fun u hu =>
+    ⟨keep _ (mcpA_aligned hT hu) fun e => by
       have h1 := mcpA_val hT hu
       rw [e, hKt] at h1
       have a1 := (hT t ht).align; have a2 := (hT u hu).align
       by_cases eu : u = t
       · subst eu; omega
-      · have := val_ne_of_ne eu; omega
+      · have := val_ne_of_ne eu; omega,
+    keep _ (flagsA_aligned hT hu) fun e => by
+      have h1 := flagsA_val hT hu
+      rw [e, hKt] at h1
+      have a1 := (hT t ht).align; have a2 := (hT u hu).align
+      by_cases eu : u = t
+      · subst eu; omega
+      · have := val_ne_of_ne eu; omega⟩
   have k2 : ∀ u ∈ Z.T, L.mem s' (yieldA u) = L.mem s (yieldA u) := fun u hu =>
     keep _ (yieldA_aligned hT hu) fun e => by
       have h1 := yieldA_val hT hu

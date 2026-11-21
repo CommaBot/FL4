@@ -101,7 +101,7 @@ theorem tcb_set_mcpX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar :
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -578,7 +578,7 @@ theorem tcb_set_prioX {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} (s : S) (ar 
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -1394,7 +1394,7 @@ theorem tcb_set_sched_paramsX [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
   rw [retOk_bind] at hspec0
   have hcp0 := checkPrio_run hM hqT y0.bv
   have hcp1 := checkPrio_run hM hqT y1.bv
-  obtain ⟨xq, hkq, hmq⟩ := hM q hqT
+  obtain ⟨xq, hkq, hmq, -⟩ := hM q hqT
   have hmq8 : (L.mem s (mcpA q)).val < 256 := by rw [hmq]; exact xq.tcbMcpriority.isLt
   by_cases hg0 : y0 > L.mem s (mcpA q)
   · rw [ite_eq_left hg0]

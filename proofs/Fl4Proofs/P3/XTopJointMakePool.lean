@@ -126,7 +126,7 @@ theorem JAtZ.mp_keeps {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     {s' : S} {p hi : U64} (hh : hi.val < 2048)
     (hw : ∀ b, P1.Aligned b → ¬ MpW Z.th p (L.ksb s) hi b → L.mem s' b = L.mem s b)
     (hHo : ∀ q k, H q = some k → q.val + 2 ^ k.bits ≤ p.val ∨ p.val + 4096 ≤ q.val) :
-    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (P1.yieldA t) = L.mem s (P1.yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ Z.T, L.mem s' (P1.yieldA t) = L.mem s (P1.yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
     (∀ q ∈ Z.C, L.mem s' (P1.scReplyA q) = L.mem s (P1.scReplyA q)) ∧
     (∀ r ∈ Z.R, L.mem s' (P1.rPrevA r) = L.mem s (P1.rPrevA r) ∧ L.mem s' (P1.rNextA r) = L.mem s (P1.rNextA r)) ∧
@@ -150,7 +150,8 @@ theorem JAtZ.mp_keeps {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have scw : ∀ q z, H q = some (.sc z) → ∀ w : U64, P1.Aligned w → q.val ≤ w.val → w.val < q.val + 2 ^ z →
       L.mem s' w = L.mem s w := fun q z hq w hal g1 g2 =>
     J.mp_objK hh hw hHo hq (fun _ e => by cases e) (fun e => by cases e) hal g1 (by simpa only [P1.HKind.bits] using g2)
-  refine ⟨fun t ht => tw t ht _ (mcpA_aligned hT ht) (by rw [mcpA_val hT ht]; omega) (by rw [mcpA_val hT ht]; omega),
+  refine ⟨fun t ht => ⟨tw t ht _ (mcpA_aligned hT ht) (by rw [mcpA_val hT ht]; omega) (by rw [mcpA_val hT ht]; omega),
+      tw t ht _ (flagsA_aligned hT ht) (by rw [flagsA_val hT ht]; omega) (by rw [flagsA_val hT ht]; omega)⟩,
     fun t ht => tw t ht _ (yieldA_aligned hT ht) (by rw [yieldA_val hT ht]; omega) (by rw [yieldA_val hT ht]; omega),
     fun t ht => tw t ht _ (tIpcBufA_aligned (hT t ht)) (by rw [tIpcBufA_val (hT t ht)]; omega)
       (by rw [tIpcBufA_val (hT t ht)]; omega), fun q hq => ?_, fun r hr => ?_, fun q z hq K hK8 hK => ?_⟩
@@ -794,7 +795,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     fun p x n hp => ⟨x, F.sc.1 hp⟩⟩
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, F.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, F.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.mcp⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := F.tcbF hp; ⟨y, hy, hc.mcpF⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hks ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' : Sched.RRecv (L.mem s') Z.R σ' := fun d hd hr => by
