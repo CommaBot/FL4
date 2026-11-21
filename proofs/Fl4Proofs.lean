@@ -14,6 +14,7 @@ import Fl4Proofs.P1.FastRR
 import Fl4Proofs.P1.FastRRSum
 import Fl4Proofs.P1.FastRRSync
 import Fl4Proofs.P1.FastRRSame
+import Fl4Proofs.P1.RabCongr
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
