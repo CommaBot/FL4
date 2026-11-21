@@ -63,10 +63,6 @@ theorem capSimL_fullF (c d : capability.Cap) : CapSimL ((fullF c d).getD c) c :=
     · exact Or.inl rfl
   · exact Or.inl rfl
 
-/-- **A cap naming a container names it as an object.** -/
-theorem refsObj_objRefs {q : U64} {c : capability.Cap} (h : RefsObj q c) : q.bv ∈ Fl4Spec.objRefs (absCap c) := by
-  cases c <;> simp only [RefsObj] at h <;> subst h <;> simp [absCap, Fl4Spec.objRefs]
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64}

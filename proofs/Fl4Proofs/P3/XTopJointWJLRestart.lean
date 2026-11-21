@@ -22,6 +22,7 @@ Delete and Revoke labels with the deletion at `WJL` (XTopJointWJLDel's
 -/
 import Fl4Proofs.P3.XTopJointWJLDel
 import Fl4Proofs.P3.XTopJointIrqDel
+import Fl4Proofs.P3.ZNoBlkJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3

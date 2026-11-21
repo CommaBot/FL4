@@ -52,12 +52,6 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
-/-- The spec's idle thread kept by every outcome of a deletion step (the
-`GK` family) or a `CnK` step. -/
-theorem _root_.Fl4Proofs.P3.Ipc.CnK.idle {σ σ' : Fl4Spec.State Unit} (h : Ipc.CnK σ σ') :
-    σ'.idleThread = σ.idleThread :=
-  by have e := congrArg Fl4Spec.AbstractState.idleThread h.1; exact e
-
 /-- **The emptied slot's liveness readiness** (module docstring). -/
 def ReadyLive (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) : Prop :=
   (∀ y, IsSlot th y → y ≠ x → InUse (L.mem s) σ y → SlotLiveAt (L.mem s) G (L.ksb s) x y) ∧

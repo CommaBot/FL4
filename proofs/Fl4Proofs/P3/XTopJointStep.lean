@@ -35,6 +35,7 @@ preservation, in the shape of the SC family's `sched_controlJ_step`).
 import Fl4Proofs.P3.XTopJoint
 import Fl4Proofs.P3.ScJointFrame
 import Fl4Proofs.P3.IpcSlotsSameZ
+import Fl4Proofs.P3.LiveFrame
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
