@@ -335,7 +335,7 @@ structure vspace.PtSlot where
   shift : Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 447:0-456:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 473:0-482:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize

@@ -1758,6 +1758,16 @@ def boot.next_table
     Visibility: public -/
 @[global_simps, irreducible] def capability.VM_READ_WRITE : Std.U64 := 3#u64
 
+/-- [fl4_core::vspace::exec_never]:
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 143:0-151:1 -/
+def vspace.exec_never (attr : Std.U64) (cap_read : Bool) : Result Bool := do
+  let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.EXECUTE_NEVER)
+  if i != 0#u64
+  then ok true
+  else if cap_read
+       then ok false
+       else ok true
+
 /-- [fl4_core::capability::VM_READ_ONLY]
     Source: 'crates/fl4-core/src/capability.rs', lines 40:0-40:32
     Visibility: public -/
@@ -1835,52 +1845,49 @@ def vspace.D_TABLE_OR_PAGE : Result Std.U64 := 1#u64 <<< 1#i32
 def vspace.D_VALID : Result Std.U64 := 1#u64 <<< 0#i32
 
 /-- [fl4_core::vspace::make_user_page]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 140:0-153:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 166:0-179:1 -/
 def vspace.make_user_page
   (paddr : Std.U64) (rights : Std.U64) (cap_read : Bool) (attr : Std.U64)
   (shift : Std.U64) :
   Result Std.U64
   := do
-  let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.EXECUTE_NEVER)
-  let xn ← if i != 0#u64
-             then ok true
-             else ok (¬ cap_read)
-  let i1 ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
+  let xn ← vspace.exec_never attr cap_read
+  let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
   let (idx, sh) ←
-    if i1 != 0#u64
+    if i != 0#u64
     then do
-         let i2 ← vspace.D_SH_INNER
-         ok (vspace.ATTR_NORMAL, i2)
+         let i1 ← vspace.D_SH_INNER
+         ok (vspace.ATTR_NORMAL, i1)
     else ok (vspace.ATTR_DEVICE_NGNRNE, 0#u64)
-  let i2 ← lift (paddr &&& vspace.ADDR_MASK)
-  let i3 ←
+  let i1 ← lift (paddr &&& vspace.ADDR_MASK)
+  let i2 ←
     if shift = vspace.PAGE_BITS
     then
       do
-      let i4 ← vspace.D_VALID
-      let i5 ← vspace.D_TABLE_OR_PAGE
-      ok (i4 ||| i5)
+      let i3 ← vspace.D_VALID
+      let i4 ← vspace.D_TABLE_OR_PAGE
+      ok (i3 ||| i4)
     else vspace.D_VALID
-  let i4 ← lift (i2 ||| i3)
-  let i5 ← idx <<< vspace.D_ATTR_SHIFT
-  let i6 ← lift (i4 ||| i5)
-  let i7 ← vspace.ap_bits rights
-  let i8 ← i7 <<< vspace.D_AP_SHIFT
-  let i9 ← lift (i6 ||| i8)
-  let i10 ← lift (i9 ||| sh)
-  let i11 ← vspace.D_AF
-  let i12 ← lift (i10 ||| i11)
-  let i13 ← vspace.D_NG
-  let i14 ← lift (i12 ||| i13)
-  let i15 ← vspace.D_PXN
-  let i16 ← lift (i14 ||| i15)
-  let i17 ← if xn
+  let i3 ← lift (i1 ||| i2)
+  let i4 ← idx <<< vspace.D_ATTR_SHIFT
+  let i5 ← lift (i3 ||| i4)
+  let i6 ← vspace.ap_bits rights
+  let i7 ← i6 <<< vspace.D_AP_SHIFT
+  let i8 ← lift (i5 ||| i7)
+  let i9 ← lift (i8 ||| sh)
+  let i10 ← vspace.D_AF
+  let i11 ← lift (i9 ||| i10)
+  let i12 ← vspace.D_NG
+  let i13 ← lift (i11 ||| i12)
+  let i14 ← vspace.D_PXN
+  let i15 ← lift (i13 ||| i14)
+  let i16 ← if xn
               then vspace.D_UXN
               else ok 0#u64
-  ok (i16 ||| i17)
+  ok (i15 ||| i16)
 
 /-- [fl4_core::vspace::it_page_entry]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 161:0-163:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 187:0-189:1
     Visibility: public -/
 def vspace.it_page_entry (paddr : Std.U64) : Result Std.U64 := do
   vspace.make_user_page paddr capability.VM_READ_WRITE true
@@ -2339,7 +2346,7 @@ def boot.bi_set
 def vspace.D_PXN_TABLE : Result Std.U64 := 1#u64 <<< 59#i32
 
 /-- [fl4_core::vspace::make_user_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 155:0-157:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 181:0-183:1 -/
 def vspace.make_user_table (paddr : Std.U64) : Result Std.U64 := do
   let i ← lift (paddr &&& vspace.ADDR_MASK)
   let i1 ← vspace.D_PXN_TABLE
@@ -2350,7 +2357,7 @@ def vspace.make_user_table (paddr : Std.U64) : Result Std.U64 := do
   ok (i4 ||| i5)
 
 /-- [fl4_core::vspace::it_table_entry]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 166:0-168:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 192:0-194:1
     Visibility: public -/
 def vspace.it_table_entry (paddr : Std.U64) : Result Std.U64 := do
   vspace.make_user_table paddr
@@ -3087,78 +3094,72 @@ def ept.make_s2_leaf
   if rights = capability.VM_READ_WRITE
   then
     let ap ← ept.S2_AP_RW
-    let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.EXECUTE_NEVER)
-    let xn ← if i != 0#u64
-               then ok true
-               else ok (¬ cap_read)
-    let i1 ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
+    let xn ← vspace.exec_never attr cap_read
+    let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
     let (memattr, sh) ←
-      if i1 != 0#u64
+      if i != 0#u64
       then
         do
-        let i2 ← ept.S2_MEMATTR_NORMAL_WB
-        let i3 ← ept.S2_SH_INNER
-        ok (i2, i3)
+        let i1 ← ept.S2_MEMATTR_NORMAL_WB
+        let i2 ← ept.S2_SH_INNER
+        ok (i1, i2)
       else do
-           let i2 ← ept.S2_MEMATTR_DEVICE
-           ok (i2, 0#u64)
-    let i2 ← lift (paddr &&& ept.ADDR_MASK)
-    let i3 ←
+           let i1 ← ept.S2_MEMATTR_DEVICE
+           ok (i1, 0#u64)
+    let i1 ← lift (paddr &&& ept.ADDR_MASK)
+    let i2 ←
       if shift = ept.PAGE_BITS
       then
         do
-        let i4 ← ept.D_VALID
-        let i5 ← ept.D_TABLE_OR_PAGE
-        ok (i4 ||| i5)
+        let i3 ← ept.D_VALID
+        let i4 ← ept.D_TABLE_OR_PAGE
+        ok (i3 ||| i4)
       else ept.D_VALID
-    let i4 ← lift (i2 ||| i3)
-    let i5 ← lift (i4 ||| memattr)
-    let i6 ← lift (i5 ||| ap)
-    let i7 ← lift (i6 ||| sh)
-    let i8 ← ept.S2_AF
-    let i9 ← lift (i7 ||| i8)
-    let i10 ← if xn
-                then ept.S2_XN
-                else ok 0#u64
-    ok (i9 ||| i10)
+    let i3 ← lift (i1 ||| i2)
+    let i4 ← lift (i3 ||| memattr)
+    let i5 ← lift (i4 ||| ap)
+    let i6 ← lift (i5 ||| sh)
+    let i7 ← ept.S2_AF
+    let i8 ← lift (i6 ||| i7)
+    let i9 ← if xn
+               then ept.S2_XN
+               else ok 0#u64
+    ok (i8 ||| i9)
   else
     if rights = capability.VM_READ_ONLY
     then
       let ap ← ept.S2_AP_RO
-      let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.EXECUTE_NEVER)
-      let xn ← if i != 0#u64
-                 then ok true
-                 else ok (¬ cap_read)
-      let i1 ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
+      let xn ← vspace.exec_never attr cap_read
+      let i ← lift (attr &&& fl4_abi.consts.arm_vm_attr.PAGE_CACHEABLE)
       let (memattr, sh) ←
-        if i1 != 0#u64
+        if i != 0#u64
         then
           do
-          let i2 ← ept.S2_MEMATTR_NORMAL_WB
-          let i3 ← ept.S2_SH_INNER
-          ok (i2, i3)
+          let i1 ← ept.S2_MEMATTR_NORMAL_WB
+          let i2 ← ept.S2_SH_INNER
+          ok (i1, i2)
         else do
-             let i2 ← ept.S2_MEMATTR_DEVICE
-             ok (i2, 0#u64)
-      let i2 ← lift (paddr &&& ept.ADDR_MASK)
-      let i3 ←
+             let i1 ← ept.S2_MEMATTR_DEVICE
+             ok (i1, 0#u64)
+      let i1 ← lift (paddr &&& ept.ADDR_MASK)
+      let i2 ←
         if shift = ept.PAGE_BITS
         then
           do
-          let i4 ← ept.D_VALID
-          let i5 ← ept.D_TABLE_OR_PAGE
-          ok (i4 ||| i5)
+          let i3 ← ept.D_VALID
+          let i4 ← ept.D_TABLE_OR_PAGE
+          ok (i3 ||| i4)
         else ept.D_VALID
-      let i4 ← lift (i2 ||| i3)
-      let i5 ← lift (i4 ||| memattr)
-      let i6 ← lift (i5 ||| ap)
-      let i7 ← lift (i6 ||| sh)
-      let i8 ← ept.S2_AF
-      let i9 ← lift (i7 ||| i8)
-      let i10 ← if xn
-                  then ept.S2_XN
-                  else ok 0#u64
-      ok (i9 ||| i10)
+      let i3 ← lift (i1 ||| i2)
+      let i4 ← lift (i3 ||| memattr)
+      let i5 ← lift (i4 ||| ap)
+      let i6 ← lift (i5 ||| sh)
+      let i7 ← ept.S2_AF
+      let i8 ← lift (i6 ||| i7)
+      let i9 ← if xn
+                 then ept.S2_XN
+                 else ok 0#u64
+      ok (i8 ||| i9)
     else ok 0#u64
 
 /-- [fl4_core::ept::{impl core::clone::Clone for fl4_core::ept::S2Slot}::clone]:
@@ -3383,7 +3384,7 @@ def vspace.N_ASID_POOLS : Result Std.U64 :=
   1#u64 <<< fl4_abi.consts.bits.NUM_ASID_POOLS
 
 /-- [fl4_core::vspace::asid_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 176:0-178:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 202:0-204:1 -/
 def vspace.asid_table
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (high : Std.U64) :
   Result Std.U64
@@ -3407,7 +3408,7 @@ def vspace.asid_table
 @[global_simps, irreducible] def vspace.ASID_LOW_BITS : Std.U64 := 9#u64
 
 /-- [fl4_core::vspace::find_asid_raw]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 185:0-198:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 211:0-224:1
     Visibility: public -/
 def vspace.find_asid_raw
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) :
@@ -3775,7 +3776,7 @@ def obj.Tcb.state
 @[global_simps, irreducible] def layout.ks.KERNEL_ROOT : Std.U64 := 48#u64
 
 /-- [fl4_core::vspace::kernel_root]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 237:0-239:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 263:0-265:1
     Visibility: public -/
 def vspace.kernel_root
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
@@ -3784,7 +3785,7 @@ def vspace.kernel_root
   obj.ks_get machineStoreInst s layout.ks.KERNEL_ROOT
 
 /-- [fl4_core::vspace::set_kernel_vm_root]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 282:0-285:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 308:0-311:1
     Visibility: public -/
 def vspace.set_kernel_vm_root
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -3801,7 +3802,7 @@ def vspace.set_kernel_vm_root
 @[global_simps, irreducible] def layout.tcb.SLOT_VTABLE : Std.U64 := 1#u64
 
 /-- [fl4_core::vspace::set_stage2_root]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 243:0-251:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 269:0-277:1
     Visibility: public -/
 def vspace.set_stage2_root
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -3906,7 +3907,7 @@ def vspace.set_stage2_root
     ok (s, a1)
 
 /-- [fl4_core::vspace::find_asid]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 201:0-207:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 227:0-233:1
     Visibility: public -/
 def vspace.find_asid
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) :
@@ -3925,7 +3926,7 @@ def vspace.find_asid
       Std.U64 (core.convert.FromSame error.LookupFault) residual
 
 /-- [fl4_core::vspace::find_vspace_for_asid]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 209:0-211:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 235:0-237:1
     Visibility: public -/
 def vspace.find_vspace_for_asid
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) :
@@ -3977,7 +3978,7 @@ def layout.tcb.RUN_VCPU : Result Std.U64 := do
   i + 8#u64
 
 /-- [fl4_core::vspace::set_vm_root]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 258:0-280:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 284:0-306:1
     Visibility: public -/
 def vspace.set_vm_root
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -4074,7 +4075,7 @@ def vspace.set_vm_root
     else ok (s2, a1)
 
 /-- [fl4_core::vspace::delete_asid]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 361:0-377:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 387:0-403:1
     Visibility: public -/
 def vspace.delete_asid
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -4500,6 +4501,15 @@ def capability.FrameSize.bits
   | capability.FrameSize.Large => ok 21#u64
   | capability.FrameSize.Huge => ok 30#u64
 
+/-- [fl4_core::vspace::rights_readable]:
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 155:0-163:1 -/
+def vspace.rights_readable (rights : Std.U64) : Result Bool := do
+  if rights = capability.VM_READ_ONLY
+  then ok true
+  else if rights = capability.VM_READ_WRITE
+       then ok true
+       else ok false
+
 /-- [fl4_core::vspace::CACHE_CLEAN_INVALIDATE]
     Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 56:0-56:42
     Visibility: public -/
@@ -4635,10 +4645,7 @@ def ept.map_frame
               (error.SysError.FailedLookup false
               (error.LookupFault.MissingCapability lu.shift))), s, a)
           else
-            let cap_read ←
-              if rights = capability.VM_READ_ONLY
-              then ok true
-              else ok (rights = capability.VM_READ_WRITE)
+            let cap_read ← vspace.rights_readable rights
             let i4 ← layout.paddr ptr
             let e ← ept.make_s2_leaf i4 vm cap_read attr shift
             let ct ← sched.cur_thread machineStoreInst s
@@ -4706,10 +4713,7 @@ def ept.map_frame
               (error.SysError.FailedLookup false
               (error.LookupFault.MissingCapability lu.shift))), s, a)
           else
-            let cap_read ←
-              if rights = capability.VM_READ_ONLY
-              then ok true
-              else ok (rights = capability.VM_READ_WRITE)
+            let cap_read ← vspace.rights_readable rights
             let i8 ← layout.paddr ptr
             let e ← ept.make_s2_leaf i8 vm cap_read attr shift
             let ct ← sched.cur_thread machineStoreInst s
@@ -6270,10 +6274,10 @@ def cdt.ensure_empty_slot
 /-- [fl4_core::layout::irq::of]:
     Source: 'crates/fl4-core/src/arch/aarch64/layout.rs', lines 157:4-163:5
     Visibility: public -/
-def layout.irq.of (id : Std.U64) (core : Std.U64) : Result Std.U64 := do
+def layout.irq.of (id : Std.U64) (cpu : Std.U64) : Result Std.U64 := do
   if id < layout.irq.NUM_BANKED
   then
-    let i ← core % layout.irq.BANKED_CORES
+    let i ← cpu % layout.irq.BANKED_CORES
     let i1 ← lift (core.num.U64.wrapping_mul i layout.irq.NUM_BANKED)
     let i2 ← lift (core.num.U64.wrapping_add layout.irq.BANKED_BASE i1)
     ok (core.num.U64.wrapping_add i2 id)
@@ -6324,7 +6328,7 @@ def interrupt.decode_irq_control
               then ok (d &&& 255#u64)
               else ok d
             ok (i != 0#u64, i1, i2)
-        let core ←
+        let cpu ←
           if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
           then msg.syscall_arg machineStoreInst s ct buf 4#u64
           else ok 0#u64
@@ -6336,14 +6340,14 @@ def interrupt.decode_irq_control
           if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
           then
             let i ← obj.ks_get machineStoreInst s layout.ks.NUM_NODES
-            if core >= i
+            if cpu >= i
             then
               ok (core.result.Result.Err (error.Exc.Sys
                 (error.SysError.InvalidArgument 4#u64)), s, a)
             else
               if lbl = fl4_abi.label.IRQIssueIRQHandler
               then
-                let irq ← layout.irq.of irq_w core
+                let irq ← layout.irq.of irq_w cpu
                 let b ← interrupt.is_irq_active machineStoreInst s irq
                 if b
                 then
@@ -6365,7 +6369,7 @@ def interrupt.decode_irq_control
                       let a1 ←
                         if lbl = fl4_abi.label.IRQIssueIRQHandler
                         then ok a
-                        else machineArchInst.configure_irq a irq edge core
+                        else machineArchInst.configure_irq a irq edge cpu
                       let (s2, a2) ←
                         interrupt.invoke_irq_control machineStoreInst
                           machineArchInst s1 a1 irq val src
@@ -6383,7 +6387,7 @@ def interrupt.decode_irq_control
               else
                 if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
                 then
-                  let irq ← layout.irq.of irq_w core
+                  let irq ← layout.irq.of irq_w cpu
                   let b ← interrupt.is_irq_active machineStoreInst s irq
                   if b
                   then
@@ -6406,7 +6410,7 @@ def interrupt.decode_irq_control
                         let a1 ←
                           if lbl = fl4_abi.label.IRQIssueIRQHandler
                           then ok a
-                          else machineArchInst.configure_irq a irq edge core
+                          else machineArchInst.configure_irq a irq edge cpu
                         let (s2, a2) ←
                           interrupt.invoke_irq_control machineStoreInst
                             machineArchInst s1 a1 irq val src
@@ -6428,7 +6432,7 @@ def interrupt.decode_irq_control
                     then let r ← error.illegal Unit
                          ok (r, s, a)
                     else
-                      let irq ← layout.irq.of irq_w core
+                      let irq ← layout.irq.of irq_w cpu
                       let b ← interrupt.is_irq_active machineStoreInst s irq
                       if b
                       then
@@ -6453,8 +6457,7 @@ def interrupt.decode_irq_control
                             let a1 ←
                               if lbl = fl4_abi.label.IRQIssueIRQHandler
                               then ok a
-                              else
-                                machineArchInst.configure_irq a irq edge core
+                              else machineArchInst.configure_irq a irq edge cpu
                             let (s2, a2) ←
                               interrupt.invoke_irq_control machineStoreInst
                                 machineArchInst s1 a1 irq val src
@@ -6470,7 +6473,7 @@ def interrupt.decode_irq_control
                               Unit (core.convert.FromSame error.Exc) residual
                           ok (r1, s, a)
                   else
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -6494,7 +6497,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -6512,7 +6515,7 @@ def interrupt.decode_irq_control
           else
             if lbl = fl4_abi.label.IRQIssueIRQHandler
             then
-              let irq ← layout.irq.of irq_w core
+              let irq ← layout.irq.of irq_w cpu
               let b ← interrupt.is_irq_active machineStoreInst s irq
               if b
               then
@@ -6534,7 +6537,7 @@ def interrupt.decode_irq_control
                     let a1 ←
                       if lbl = fl4_abi.label.IRQIssueIRQHandler
                       then ok a
-                      else machineArchInst.configure_irq a irq edge core
+                      else machineArchInst.configure_irq a irq edge cpu
                     let (s2, a2) ←
                       interrupt.invoke_irq_control machineStoreInst
                         machineArchInst s1 a1 irq val src
@@ -6552,7 +6555,7 @@ def interrupt.decode_irq_control
             else
               if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
               then
-                let irq ← layout.irq.of irq_w core
+                let irq ← layout.irq.of irq_w cpu
                 let b ← interrupt.is_irq_active machineStoreInst s irq
                 if b
                 then
@@ -6574,7 +6577,7 @@ def interrupt.decode_irq_control
                       let a1 ←
                         if lbl = fl4_abi.label.IRQIssueIRQHandler
                         then ok a
-                        else machineArchInst.configure_irq a irq edge core
+                        else machineArchInst.configure_irq a irq edge cpu
                       let (s2, a2) ←
                         interrupt.invoke_irq_control machineStoreInst
                           machineArchInst s1 a1 irq val src
@@ -6596,7 +6599,7 @@ def interrupt.decode_irq_control
                   then let r ← error.illegal Unit
                        ok (r, s, a)
                   else
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -6620,7 +6623,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -6636,7 +6639,7 @@ def interrupt.decode_irq_control
                             Unit (core.convert.FromSame error.Exc) residual
                         ok (r1, s, a)
                 else
-                  let irq ← layout.irq.of irq_w core
+                  let irq ← layout.irq.of irq_w cpu
                   let b ← interrupt.is_irq_active machineStoreInst s irq
                   if b
                   then
@@ -6659,7 +6662,7 @@ def interrupt.decode_irq_control
                         let a1 ←
                           if lbl = fl4_abi.label.IRQIssueIRQHandler
                           then ok a
-                          else machineArchInst.configure_irq a irq edge core
+                          else machineArchInst.configure_irq a irq edge cpu
                         let (s2, a2) ←
                           interrupt.invoke_irq_control machineStoreInst
                             machineArchInst s1 a1 irq val src
@@ -6711,7 +6714,7 @@ def interrupt.decode_irq_control
                 then ok (d &&& 255#u64)
                 else ok d
               ok (i != 0#u64, i1, i2)
-          let core ←
+          let cpu ←
             if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
             then msg.syscall_arg machineStoreInst s ct buf 4#u64
             else ok 0#u64
@@ -6723,14 +6726,14 @@ def interrupt.decode_irq_control
             if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
             then
               let i ← obj.ks_get machineStoreInst s layout.ks.NUM_NODES
-              if core >= i
+              if cpu >= i
               then
                 ok (core.result.Result.Err (error.Exc.Sys
                   (error.SysError.InvalidArgument 4#u64)), s, a)
               else
                 if lbl = fl4_abi.label.IRQIssueIRQHandler
                 then
-                  let irq ← layout.irq.of irq_w core
+                  let irq ← layout.irq.of irq_w cpu
                   let b ← interrupt.is_irq_active machineStoreInst s irq
                   if b
                   then
@@ -6753,7 +6756,7 @@ def interrupt.decode_irq_control
                         let a1 ←
                           if lbl = fl4_abi.label.IRQIssueIRQHandler
                           then ok a
-                          else machineArchInst.configure_irq a irq edge core
+                          else machineArchInst.configure_irq a irq edge cpu
                         let (s2, a2) ←
                           interrupt.invoke_irq_control machineStoreInst
                             machineArchInst s1 a1 irq val src
@@ -6771,7 +6774,7 @@ def interrupt.decode_irq_control
                 else
                   if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
                   then
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -6795,7 +6798,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -6817,7 +6820,7 @@ def interrupt.decode_irq_control
                       then let r ← error.illegal Unit
                            ok (r, s, a)
                       else
-                        let irq ← layout.irq.of irq_w core
+                        let irq ← layout.irq.of irq_w cpu
                         let b ←
                           interrupt.is_irq_active machineStoreInst s irq
                         if b
@@ -6845,7 +6848,7 @@ def interrupt.decode_irq_control
                                 if lbl = fl4_abi.label.IRQIssueIRQHandler
                                 then ok a
                                 else
-                                  machineArchInst.configure_irq a irq edge core
+                                  machineArchInst.configure_irq a irq edge cpu
                               let (s2, a2) ←
                                 interrupt.invoke_irq_control machineStoreInst
                                   machineArchInst s1 a1 irq val src
@@ -6863,7 +6866,7 @@ def interrupt.decode_irq_control
                                 Unit (core.convert.FromSame error.Exc) residual
                             ok (r1, s, a)
                     else
-                      let irq ← layout.irq.of irq_w core
+                      let irq ← layout.irq.of irq_w cpu
                       let b ← interrupt.is_irq_active machineStoreInst s irq
                       if b
                       then
@@ -6888,8 +6891,7 @@ def interrupt.decode_irq_control
                             let a1 ←
                               if lbl = fl4_abi.label.IRQIssueIRQHandler
                               then ok a
-                              else
-                                machineArchInst.configure_irq a irq edge core
+                              else machineArchInst.configure_irq a irq edge cpu
                             let (s2, a2) ←
                               interrupt.invoke_irq_control machineStoreInst
                                 machineArchInst s1 a1 irq val src
@@ -6907,7 +6909,7 @@ def interrupt.decode_irq_control
             else
               if lbl = fl4_abi.label.IRQIssueIRQHandler
               then
-                let irq ← layout.irq.of irq_w core
+                let irq ← layout.irq.of irq_w cpu
                 let b ← interrupt.is_irq_active machineStoreInst s irq
                 if b
                 then
@@ -6929,7 +6931,7 @@ def interrupt.decode_irq_control
                       let a1 ←
                         if lbl = fl4_abi.label.IRQIssueIRQHandler
                         then ok a
-                        else machineArchInst.configure_irq a irq edge core
+                        else machineArchInst.configure_irq a irq edge cpu
                       let (s2, a2) ←
                         interrupt.invoke_irq_control machineStoreInst
                           machineArchInst s1 a1 irq val src
@@ -6947,7 +6949,7 @@ def interrupt.decode_irq_control
               else
                 if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
                 then
-                  let irq ← layout.irq.of irq_w core
+                  let irq ← layout.irq.of irq_w cpu
                   let b ← interrupt.is_irq_active machineStoreInst s irq
                   if b
                   then
@@ -6970,7 +6972,7 @@ def interrupt.decode_irq_control
                         let a1 ←
                           if lbl = fl4_abi.label.IRQIssueIRQHandler
                           then ok a
-                          else machineArchInst.configure_irq a irq edge core
+                          else machineArchInst.configure_irq a irq edge cpu
                         let (s2, a2) ←
                           interrupt.invoke_irq_control machineStoreInst
                             machineArchInst s1 a1 irq val src
@@ -6992,7 +6994,7 @@ def interrupt.decode_irq_control
                     then let r ← error.illegal Unit
                          ok (r, s, a)
                     else
-                      let irq ← layout.irq.of irq_w core
+                      let irq ← layout.irq.of irq_w cpu
                       let b ← interrupt.is_irq_active machineStoreInst s irq
                       if b
                       then
@@ -7017,8 +7019,7 @@ def interrupt.decode_irq_control
                             let a1 ←
                               if lbl = fl4_abi.label.IRQIssueIRQHandler
                               then ok a
-                              else
-                                machineArchInst.configure_irq a irq edge core
+                              else machineArchInst.configure_irq a irq edge cpu
                             let (s2, a2) ←
                               interrupt.invoke_irq_control machineStoreInst
                                 machineArchInst s1 a1 irq val src
@@ -7034,7 +7035,7 @@ def interrupt.decode_irq_control
                               Unit (core.convert.FromSame error.Exc) residual
                           ok (r1, s, a)
                   else
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -7058,7 +7059,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -7112,7 +7113,7 @@ def interrupt.decode_irq_control
                   then ok (d &&& 255#u64)
                   else ok d
                 ok (i != 0#u64, i1, i2)
-            let core ←
+            let cpu ←
               if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
               then msg.syscall_arg machineStoreInst s ct buf 4#u64
               else ok 0#u64
@@ -7124,14 +7125,14 @@ def interrupt.decode_irq_control
               if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
               then
                 let i ← obj.ks_get machineStoreInst s layout.ks.NUM_NODES
-                if core >= i
+                if cpu >= i
                 then
                   ok (core.result.Result.Err (error.Exc.Sys
                     (error.SysError.InvalidArgument 4#u64)), s, a)
                 else
                   if lbl = fl4_abi.label.IRQIssueIRQHandler
                   then
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -7155,7 +7156,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -7173,7 +7174,7 @@ def interrupt.decode_irq_control
                   else
                     if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
                     then
-                      let irq ← layout.irq.of irq_w core
+                      let irq ← layout.irq.of irq_w cpu
                       let b ← interrupt.is_irq_active machineStoreInst s irq
                       if b
                       then
@@ -7198,8 +7199,7 @@ def interrupt.decode_irq_control
                             let a1 ←
                               if lbl = fl4_abi.label.IRQIssueIRQHandler
                               then ok a
-                              else
-                                machineArchInst.configure_irq a irq edge core
+                              else machineArchInst.configure_irq a irq edge cpu
                             let (s2, a2) ←
                               interrupt.invoke_irq_control machineStoreInst
                                 machineArchInst s1 a1 irq val src
@@ -7221,7 +7221,7 @@ def interrupt.decode_irq_control
                         then let r ← error.illegal Unit
                              ok (r, s, a)
                         else
-                          let irq ← layout.irq.of irq_w core
+                          let irq ← layout.irq.of irq_w cpu
                           let b ←
                             interrupt.is_irq_active machineStoreInst s irq
                           if b
@@ -7250,7 +7250,7 @@ def interrupt.decode_irq_control
                                   then ok a
                                   else
                                     machineArchInst.configure_irq a irq edge
-                                      core
+                                      cpu
                                 let (s2, a2) ←
                                   interrupt.invoke_irq_control machineStoreInst
                                     machineArchInst s1 a1 irq val src
@@ -7270,7 +7270,7 @@ def interrupt.decode_irq_control
                                   residual
                               ok (r1, s, a)
                       else
-                        let irq ← layout.irq.of irq_w core
+                        let irq ← layout.irq.of irq_w cpu
                         let b ←
                           interrupt.is_irq_active machineStoreInst s irq
                         if b
@@ -7298,7 +7298,7 @@ def interrupt.decode_irq_control
                                 if lbl = fl4_abi.label.IRQIssueIRQHandler
                                 then ok a
                                 else
-                                  machineArchInst.configure_irq a irq edge core
+                                  machineArchInst.configure_irq a irq edge cpu
                               let (s2, a2) ←
                                 interrupt.invoke_irq_control machineStoreInst
                                   machineArchInst s1 a1 irq val src
@@ -7318,7 +7318,7 @@ def interrupt.decode_irq_control
               else
                 if lbl = fl4_abi.label.IRQIssueIRQHandler
                 then
-                  let irq ← layout.irq.of irq_w core
+                  let irq ← layout.irq.of irq_w cpu
                   let b ← interrupt.is_irq_active machineStoreInst s irq
                   if b
                   then
@@ -7341,7 +7341,7 @@ def interrupt.decode_irq_control
                         let a1 ←
                           if lbl = fl4_abi.label.IRQIssueIRQHandler
                           then ok a
-                          else machineArchInst.configure_irq a irq edge core
+                          else machineArchInst.configure_irq a irq edge cpu
                         let (s2, a2) ←
                           interrupt.invoke_irq_control machineStoreInst
                             machineArchInst s1 a1 irq val src
@@ -7359,7 +7359,7 @@ def interrupt.decode_irq_control
                 else
                   if lbl = fl4_abi.label.ARMIRQIssueIRQHandlerTriggerCore
                   then
-                    let irq ← layout.irq.of irq_w core
+                    let irq ← layout.irq.of irq_w cpu
                     let b ← interrupt.is_irq_active machineStoreInst s irq
                     if b
                     then
@@ -7383,7 +7383,7 @@ def interrupt.decode_irq_control
                           let a1 ←
                             if lbl = fl4_abi.label.IRQIssueIRQHandler
                             then ok a
-                            else machineArchInst.configure_irq a irq edge core
+                            else machineArchInst.configure_irq a irq edge cpu
                           let (s2, a2) ←
                             interrupt.invoke_irq_control machineStoreInst
                               machineArchInst s1 a1 irq val src
@@ -7405,7 +7405,7 @@ def interrupt.decode_irq_control
                       then let r ← error.illegal Unit
                            ok (r, s, a)
                       else
-                        let irq ← layout.irq.of irq_w core
+                        let irq ← layout.irq.of irq_w cpu
                         let b ←
                           interrupt.is_irq_active machineStoreInst s irq
                         if b
@@ -7433,7 +7433,7 @@ def interrupt.decode_irq_control
                                 if lbl = fl4_abi.label.IRQIssueIRQHandler
                                 then ok a
                                 else
-                                  machineArchInst.configure_irq a irq edge core
+                                  machineArchInst.configure_irq a irq edge cpu
                               let (s2, a2) ←
                                 interrupt.invoke_irq_control machineStoreInst
                                   machineArchInst s1 a1 irq val src
@@ -7451,7 +7451,7 @@ def interrupt.decode_irq_control
                                 Unit (core.convert.FromSame error.Exc) residual
                             ok (r1, s, a)
                     else
-                      let irq ← layout.irq.of irq_w core
+                      let irq ← layout.irq.of irq_w cpu
                       let b ← interrupt.is_irq_active machineStoreInst s irq
                       if b
                       then
@@ -7476,8 +7476,7 @@ def interrupt.decode_irq_control
                             let a1 ←
                               if lbl = fl4_abi.label.IRQIssueIRQHandler
                               then ok a
-                              else
-                                machineArchInst.configure_irq a irq edge core
+                              else machineArchInst.configure_irq a irq edge cpu
                             let (s2, a2) ←
                               interrupt.invoke_irq_control machineStoreInst
                                 machineArchInst s1 a1 irq val src
@@ -7934,8 +7933,8 @@ def vcpu.num_lrs
 /-- [fl4_core::vcpu::reg_addr]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 92:0-94:1
     Visibility: public -/
-def vcpu.reg_addr (vcpu : Std.U64) (idx : Std.U64) : Result Std.U64 := do
-  let i ← lift (core.num.U64.wrapping_add vcpu vcpu.REGS)
+def vcpu.reg_addr (vc : Std.U64) (idx : Std.U64) : Result Std.U64 := do
+  let i ← lift (core.num.U64.wrapping_add vc vcpu.REGS)
   let i1 ← lift (core.num.U64.wrapping_mul idx 8#u64)
   ok (core.num.U64.wrapping_add i i1)
 
@@ -7943,29 +7942,29 @@ def vcpu.reg_addr (vcpu : Std.U64) (idx : Std.U64) : Result Std.U64 := do
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 100:0-102:1
     Visibility: public -/
 def vcpu.reg_set
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (idx : Std.U64) (val : Std.U64) :
   Result S
   := do
-  let i ← vcpu.reg_addr vcpu idx
+  let i ← vcpu.reg_addr vc idx
   machineStoreInst.write s i val
 
 /-- [fl4_core::vcpu::reg_get]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 96:0-98:1
     Visibility: public -/
 def vcpu.reg_get
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (idx : Std.U64) :
   Result Std.U64
   := do
-  let i ← vcpu.reg_addr vcpu idx
+  let i ← vcpu.reg_addr vc idx
   machineStoreInst.read s i
 
 /-- [fl4_core::vcpu::sync_vgic_status]: loop body 0:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 202:4-220:5 -/
 @[rust_loop_body]
 def vcpu.sync_vgic_status_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (lrs : Std.U64) (gic_v3 : Bool) (elrsr : Std.U64) (eisr : Std.U64)
   (valid_lrs : Std.U64) (has_pend : Bool) (i : Std.U64) :
   Result (ControlFlow (Std.U64 × Std.U64 × Std.U64 × Bool × Std.U64)
@@ -7975,7 +7974,7 @@ def vcpu.sync_vgic_status_loop.body
   then
     let i1 ←
       lift (core.num.U64.wrapping_add fl4_abi.consts.vcpu_reg.VGIC_LR0 i)
-    let lr ← vcpu.reg_get machineStoreInst s vcpu i1
+    let lr ← vcpu.reg_get machineStoreInst s vc i1
     let (state, hw, eoi) ←
       if gic_v3
       then
@@ -8090,31 +8089,31 @@ def vcpu.sync_vgic_status_loop.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 202:4-220:5 -/
 @[rust_loop]
 def vcpu.sync_vgic_status_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (lrs : Std.U64) (gic_v3 : Bool) (elrsr : Std.U64) (eisr : Std.U64)
   (valid_lrs : Std.U64) (has_pend : Bool) (i : Std.U64) :
   Result (Std.U64 × Std.U64 × Std.U64 × Bool)
   := do
   loop
     (fun (elrsr1, eisr1, valid_lrs1, has_pend1, i1) =>
-      vcpu.sync_vgic_status_loop.body machineStoreInst s vcpu lrs gic_v3 elrsr1
+      vcpu.sync_vgic_status_loop.body machineStoreInst s vc lrs gic_v3 elrsr1
       eisr1 valid_lrs1 has_pend1 i1)
     (elrsr, eisr, valid_lrs, has_pend, i)
 
 /-- [fl4_core::vcpu::sync_vgic_status]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 196:0-251:1 -/
 def vcpu.sync_vgic_status
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (lrs : Std.U64) (gic_v3 : Bool) :
   Result S
   := do
   let (elrsr, eisr, valid_lrs, has_pend) ←
-    vcpu.sync_vgic_status_loop machineStoreInst s vcpu lrs gic_v3 0#u64 0#u64
+    vcpu.sync_vgic_status_loop machineStoreInst s vc lrs gic_v3 0#u64 0#u64
       0#u64 false 0#u64
   let hcr ←
-    vcpu.reg_get machineStoreInst s vcpu fl4_abi.consts.vcpu_reg.VGIC_HCR
+    vcpu.reg_get machineStoreInst s vc fl4_abi.consts.vcpu_reg.VGIC_HCR
   let vmcr ←
-    vcpu.reg_get machineStoreInst s vcpu fl4_abi.consts.vcpu_reg.VGIC_VMCR
+    vcpu.reg_get machineStoreInst s vc fl4_abi.consts.vcpu_reg.VGIC_VMCR
   let misr ←
     if eisr != 0#u64
     then do
@@ -8196,12 +8195,10 @@ def vcpu.sync_vgic_status
       else ok misr6
     else ok misr6
   let s1 ←
-    vcpu.reg_set machineStoreInst s vcpu fl4_abi.consts.vcpu_reg.VGIC_ELRSR
-      elrsr
+    vcpu.reg_set machineStoreInst s vc fl4_abi.consts.vcpu_reg.VGIC_ELRSR elrsr
   let s2 ←
-    vcpu.reg_set machineStoreInst s1 vcpu fl4_abi.consts.vcpu_reg.VGIC_EISR
-      eisr
-  vcpu.reg_set machineStoreInst s2 vcpu fl4_abi.consts.vcpu_reg.VGIC_MISR misr7
+    vcpu.reg_set machineStoreInst s1 vc fl4_abi.consts.vcpu_reg.VGIC_EISR eisr
+  vcpu.reg_set machineStoreInst s2 vc fl4_abi.consts.vcpu_reg.VGIC_MISR misr7
 
 /-- [fl4_core::vcpu::abi_vgic_vtr]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 168:0-178:1 -/
@@ -8294,47 +8291,47 @@ def vcpu.SCTLR_EL1_DEFAULT : Std.U64 := 818939904#u64
     Visibility: public -/
 def vcpu.init
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64) :
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) :
   Result S
   := do
-  let i ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+  let i ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
   let s1 ← machineStoreInst.write s i 0#u64
-  let i1 ← lift (core.num.U64.wrapping_add vcpu vcpu.OWNER_CPU)
+  let i1 ← lift (core.num.U64.wrapping_add vc vcpu.OWNER_CPU)
   let s2 ← machineStoreInst.write s1 i1 0#u64
-  let i2 ← lift (core.num.U64.wrapping_add vcpu vcpu.VPPI_MASKED)
+  let i2 ← lift (core.num.U64.wrapping_add vc vcpu.VPPI_MASKED)
   let s3 ← machineStoreInst.write s2 i2 0#u64
-  let i3 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_CALLER)
+  let i3 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
   let s4 ← machineStoreInst.write s3 i3 0#u64
-  let i4 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_OFFSET)
+  let i4 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_OFFSET)
   let s5 ← machineStoreInst.write s4 i4 0#u64
-  let i5 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_OUT_MASK)
+  let i5 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_OUT_MASK)
   let s6 ← machineStoreInst.write s5 i5 0#u64
   let s7 ←
-    vcpu.reg_set machineStoreInst s6 vcpu fl4_abi.consts.vcpu_reg.SCTLR
+    vcpu.reg_set machineStoreInst s6 vc fl4_abi.consts.vcpu_reg.SCTLR
       vcpu.SCTLR_EL1_DEFAULT
   let s8 ←
-    vcpu.reg_set machineStoreInst s7 vcpu fl4_abi.consts.vcpu_reg.VMPIDR_EL2
+    vcpu.reg_set machineStoreInst s7 vc fl4_abi.consts.vcpu_reg.VMPIDR_EL2
       vcpu.VMPIDR_DEFAULT
   let i6 ← machineArchInst.vcpu_midr a
   let s9 ←
-    vcpu.reg_set machineStoreInst s8 vcpu fl4_abi.consts.vcpu_reg.VPIDR_EL2 i6
+    vcpu.reg_set machineStoreInst s8 vc fl4_abi.consts.vcpu_reg.VPIDR_EL2 i6
   let i7 ← vcpu.HCR_FORCED_1
   let s10 ←
-    vcpu.reg_set machineStoreInst s9 vcpu fl4_abi.consts.vcpu_reg.HCR_EL2 i7
+    vcpu.reg_set machineStoreInst s9 vc fl4_abi.consts.vcpu_reg.HCR_EL2 i7
   let i8 ← machineArchInst.vcpu_gic_version a
   let i9 ← if i8 = 3#u64
              then 1#u64 <<< 11#i32
              else ok 0#u64
   let vgic_hcr ← lift (1#u64 ||| i9)
   let s11 ←
-    vcpu.reg_set machineStoreInst s10 vcpu fl4_abi.consts.vcpu_reg.VGIC_HCR
+    vcpu.reg_set machineStoreInst s10 vc fl4_abi.consts.vcpu_reg.VGIC_HCR
       vgic_hcr
   let i10 ← machineArchInst.vcpu_vgic_vtr a
   let i11 ← vcpu.abi_vgic_vtr i10 (i8 = 3#u64)
   let s12 ←
-    vcpu.reg_set machineStoreInst s11 vcpu fl4_abi.consts.vcpu_reg.VGIC_VTR i11
+    vcpu.reg_set machineStoreInst s11 vc fl4_abi.consts.vcpu_reg.VGIC_VTR i11
   let i12 ← vcpu.num_lrs machineArchInst a
-  vcpu.sync_vgic_status machineStoreInst s12 vcpu i12 (i8 = 3#u64)
+  vcpu.sync_vgic_status machineStoreInst s12 vc i12 (i8 = 3#u64)
 
 /-- [fl4_core::objects::create_arch_object]:
     Source: 'crates/fl4-core/src/arch/aarch64/objects.rs', lines 44:0-64:1 -/
@@ -13157,7 +13154,7 @@ def sched.schedule
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 540:4-543:5 -/
 @[rust_loop_body]
 def vcpu.copy_reg_range_to_frame_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (end_incl : Std.U64) (s : S) (r : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -13165,7 +13162,7 @@ def vcpu.copy_reg_range_to_frame_loop.body
   then
     let i ← r * 8#u64
     let i1 ← lift (core.num.U64.wrapping_add frame i)
-    let i2 ← vcpu.reg_get machineStoreInst s vcpu r
+    let i2 ← vcpu.reg_get machineStoreInst s vc r
     let s1 ← machineStoreInst.write s i1 i2
     let r1 ← r + 1#u64
     ok (cont (s1, r1))
@@ -13175,31 +13172,30 @@ def vcpu.copy_reg_range_to_frame_loop.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 540:4-543:5 -/
 @[rust_loop]
 def vcpu.copy_reg_range_to_frame_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (end_incl : Std.U64) (r : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, r1) => vcpu.copy_reg_range_to_frame_loop.body machineStoreInst
-      vcpu frame end_incl s1 r1)
+    (fun (s1, r1) => vcpu.copy_reg_range_to_frame_loop.body machineStoreInst vc
+      frame end_incl s1 r1)
     (s, r)
 
 /-- [fl4_core::vcpu::copy_reg_range_to_frame]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 538:0-544:1 -/
 @[reducible]
 def vcpu.copy_reg_range_to_frame
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (start : Std.U64) (end_incl : Std.U64) :
   Result S
   := do
-  vcpu.copy_reg_range_to_frame_loop machineStoreInst s vcpu frame end_incl
-    start
+  vcpu.copy_reg_range_to_frame_loop machineStoreInst s vc frame end_incl start
 
 /-- [fl4_core::vcpu::read_state_to_frame]: loop body 0:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 581:8-585:9 -/
 @[rust_loop_body]
 def vcpu.read_state_to_frame_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (gic_v3 : Bool) (s : S) (r : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -13207,7 +13203,7 @@ def vcpu.read_state_to_frame_loop0.body
   then
     let val ←
       if gic_v3
-      then vcpu.reg_get machineStoreInst s vcpu r
+      then vcpu.reg_get machineStoreInst s vc r
       else ok 0#u64
     let i ← r * 8#u64
     let i1 ← lift (core.num.U64.wrapping_add frame i)
@@ -13220,12 +13216,12 @@ def vcpu.read_state_to_frame_loop0.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 581:8-585:9 -/
 @[rust_loop]
 def vcpu.read_state_to_frame_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (gic_v3 : Bool) (r : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, r1) => vcpu.read_state_to_frame_loop0.body machineStoreInst vcpu
+    (fun (s1, r1) => vcpu.read_state_to_frame_loop0.body machineStoreInst vc
       frame gic_v3 s1 r1)
     (s, r)
 
@@ -13233,7 +13229,7 @@ def vcpu.read_state_to_frame_loop0
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 587:8-592:9 -/
 @[rust_loop_body]
 def vcpu.read_state_to_frame_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (s : S) (i : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -13243,7 +13239,7 @@ def vcpu.read_state_to_frame_loop1.body
       lift (core.num.U64.wrapping_add fl4_abi.consts.vcpu_reg.VGIC_LR0 i)
     let val ←
       if i < lrs
-      then vcpu.reg_get machineStoreInst s vcpu r
+      then vcpu.reg_get machineStoreInst s vc r
       else ok 0#u64
     let i1 ← r * 8#u64
     let i2 ← lift (core.num.U64.wrapping_add frame i1)
@@ -13256,12 +13252,12 @@ def vcpu.read_state_to_frame_loop1.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 587:8-592:9 -/
 @[rust_loop]
 def vcpu.read_state_to_frame_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (i : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, i1) => vcpu.read_state_to_frame_loop1.body machineStoreInst vcpu
+    (fun (s1, i1) => vcpu.read_state_to_frame_loop1.body machineStoreInst vc
       frame lrs s1 i1)
     (s, i)
 
@@ -13303,7 +13299,7 @@ def vcpu.read_state_to_frame_loop2
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 598:8-603:9 -/
 @[rust_loop_body]
 def vcpu.read_state_to_frame_loop3.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (s : S) (i : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -13313,7 +13309,7 @@ def vcpu.read_state_to_frame_loop3.body
       lift (core.num.U64.wrapping_add fl4_abi.consts.vcpu_reg.VGIC_LR0 i)
     let val ←
       if i < lrs
-      then vcpu.reg_get machineStoreInst s vcpu r
+      then vcpu.reg_get machineStoreInst s vc r
       else ok 0#u64
     let i1 ← r * 8#u64
     let i2 ← lift (core.num.U64.wrapping_add frame i1)
@@ -13326,12 +13322,12 @@ def vcpu.read_state_to_frame_loop3.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 598:8-603:9 -/
 @[rust_loop]
 def vcpu.read_state_to_frame_loop3
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (i : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, i1) => vcpu.read_state_to_frame_loop3.body machineStoreInst vcpu
+    (fun (s1, i1) => vcpu.read_state_to_frame_loop3.body machineStoreInst vc
       frame lrs s1 i1)
     (s, i)
 
@@ -13407,7 +13403,7 @@ def vcpu.read_state_to_frame_loop5
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 556:0-615:1 -/
 def vcpu.read_state_to_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (frame : Std.U64) (mask : Std.U64) :
   Result S
   := do
@@ -13421,9 +13417,9 @@ def vcpu.read_state_to_frame
       then
         do
         let s2 ←
-          vcpu.copy_reg_range_to_frame machineStoreInst s vcpu frame 0#u64
+          vcpu.copy_reg_range_to_frame machineStoreInst s vc frame 0#u64
             fl4_abi.consts.vcpu_reg.CSSELR_EL1
-        vcpu.copy_reg_range_to_frame machineStoreInst s2 vcpu frame
+        vcpu.copy_reg_range_to_frame machineStoreInst s2 vc frame
           fl4_abi.consts.vcpu_reg.ACTLR_EL1 fl4_abi.consts.vcpu_reg.MDCCINT_EL1
       else ok s
     let i2 ← fl4_abi.consts.vcpu_state_mask.HYP
@@ -13435,19 +13431,18 @@ def vcpu.read_state_to_frame
         let i4 ← fl4_abi.consts.vcpu_reg.VMPIDR_EL2 * 8#u64
         let i5 ← lift (core.num.U64.wrapping_add frame i4)
         let i6 ←
-          vcpu.reg_get machineStoreInst s1 vcpu
+          vcpu.reg_get machineStoreInst s1 vc
             fl4_abi.consts.vcpu_reg.VMPIDR_EL2
         let s3 ← machineStoreInst.write s1 i5 i6
         let i7 ← fl4_abi.consts.vcpu_reg.VDISR_EL2 * 8#u64
         let i8 ← lift (core.num.U64.wrapping_add frame i7)
         let i9 ←
-          vcpu.reg_get machineStoreInst s3 vcpu
-            fl4_abi.consts.vcpu_reg.VDISR_EL2
+          vcpu.reg_get machineStoreInst s3 vc fl4_abi.consts.vcpu_reg.VDISR_EL2
         let s4 ← machineStoreInst.write s3 i8 i9
         let s5 ←
-          vcpu.copy_reg_range_to_frame machineStoreInst s4 vcpu frame
+          vcpu.copy_reg_range_to_frame machineStoreInst s4 vc frame
             fl4_abi.consts.vcpu_reg.VPIDR_EL2 fl4_abi.consts.vcpu_reg.VSESR_EL2
-        vcpu.copy_reg_range_to_frame machineStoreInst s5 vcpu frame
+        vcpu.copy_reg_range_to_frame machineStoreInst s5 vc frame
           fl4_abi.consts.vcpu_reg.FAR_EL2 fl4_abi.consts.vcpu_reg.ESR_EL2
       else ok s1
     let i4 ← fl4_abi.consts.vcpu_state_mask.TIMER
@@ -13457,13 +13452,13 @@ def vcpu.read_state_to_frame
       then
         do
         let s4 ←
-          vcpu.copy_reg_range_to_frame machineStoreInst s2 vcpu frame
+          vcpu.copy_reg_range_to_frame machineStoreInst s2 vc frame
             fl4_abi.consts.vcpu_reg.CNTV_CTL
             fl4_abi.consts.vcpu_reg.CNTKCTL_EL1
         let i6 ← 64#u64 + 37#u64
         let i7 ← i6 * 8#u64
         let vppi_addr ← lift (core.num.U64.wrapping_add frame i7)
-        let i8 ← lift (core.num.U64.wrapping_add vcpu vcpu.VPPI_MASKED)
+        let i8 ← lift (core.num.U64.wrapping_add vc vcpu.VPPI_MASKED)
         let i9 ← machineStoreInst.read s4 i8
         machineStoreInst.write s4 vppi_addr i9
       else ok s2
@@ -13479,20 +13474,20 @@ def vcpu.read_state_to_frame
       let i12 ← vcpu.abi_vgic_vtr i11 (i8 = 3#u64)
       let s4 ← machineStoreInst.write s3 i10 i12
       let s5 ←
-        vcpu.copy_reg_range_to_frame machineStoreInst s4 vcpu frame
+        vcpu.copy_reg_range_to_frame machineStoreInst s4 vc frame
           fl4_abi.consts.vcpu_reg.VGIC_HCR fl4_abi.consts.vcpu_reg.VGIC_AP0R3
       let s6 ←
-        vcpu.read_state_to_frame_loop0 machineStoreInst s5 vcpu frame (i8 =
+        vcpu.read_state_to_frame_loop0 machineStoreInst s5 vc frame (i8 =
           3#u64) fl4_abi.consts.vcpu_reg.VGIC_AP1R0
       let s7 ←
-        vcpu.read_state_to_frame_loop1 machineStoreInst s6 vcpu frame lrs 0#u64
+        vcpu.read_state_to_frame_loop1 machineStoreInst s6 vc frame lrs 0#u64
       let i13 ← fl4_abi.consts.vcpu_state_mask.GPRS
       let i14 ← lift (mask &&& i13)
       if i14 != 0#u64
       then
         let i15 ← 64#u64 * 8#u64
         let gprs_base ← lift (core.num.U64.wrapping_add frame i15)
-        let i16 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+        let i16 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
         let t_ptr ← machineStoreInst.read s7 i16
         vcpu.read_state_to_frame_loop2 machineStoreInst s7 gprs_base t_ptr
           0#u64
@@ -13506,25 +13501,23 @@ def vcpu.read_state_to_frame
         let i10 ← fl4_abi.consts.vcpu_reg.VGIC_HCR * 8#u64
         let i11 ← lift (core.num.U64.wrapping_add frame i10)
         let i12 ←
-          vcpu.reg_get machineStoreInst s3 vcpu
-            fl4_abi.consts.vcpu_reg.VGIC_HCR
+          vcpu.reg_get machineStoreInst s3 vc fl4_abi.consts.vcpu_reg.VGIC_HCR
         let s4 ← machineStoreInst.write s3 i11 i12
         let i13 ← fl4_abi.consts.vcpu_reg.VGIC_ELRSR * 8#u64
         let i14 ← lift (core.num.U64.wrapping_add frame i13)
         let i15 ←
-          vcpu.reg_get machineStoreInst s4 vcpu
+          vcpu.reg_get machineStoreInst s4 vc
             fl4_abi.consts.vcpu_reg.VGIC_ELRSR
         let s5 ← machineStoreInst.write s4 i14 i15
         let s6 ←
-          vcpu.read_state_to_frame_loop3 machineStoreInst s5 vcpu frame lrs
-            0#u64
+          vcpu.read_state_to_frame_loop3 machineStoreInst s5 vc frame lrs 0#u64
         let i16 ← fl4_abi.consts.vcpu_state_mask.GPRS
         let i17 ← lift (mask &&& i16)
         if i17 != 0#u64
         then
           let i18 ← 64#u64 * 8#u64
           let gprs_base ← lift (core.num.U64.wrapping_add frame i18)
-          let i19 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+          let i19 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
           let t_ptr ← machineStoreInst.read s6 i19
           vcpu.read_state_to_frame_loop4 machineStoreInst s6 gprs_base t_ptr
             0#u64
@@ -13536,7 +13529,7 @@ def vcpu.read_state_to_frame
         then
           let i12 ← 64#u64 * 8#u64
           let gprs_base ← lift (core.num.U64.wrapping_add frame i12)
-          let i13 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+          let i13 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
           let t_ptr ← machineStoreInst.read s3 i13
           vcpu.read_state_to_frame_loop5 machineStoreInst s3 gprs_base t_ptr
             0#u64
@@ -13553,15 +13546,15 @@ def vcpu.complete_run
   := do
   let i ← layout.tcb.RUN_VCPU
   let i1 ← lift (core.num.U64.wrapping_add ct i)
-  let vcpu ← machineStoreInst.read s i1
-  if vcpu = 0#u64
+  let vc ← machineStoreInst.read s i1
+  if vc = 0#u64
   then ok (s, a)
   else
-    let i2 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_OFFSET)
+    let i2 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_OFFSET)
     let offset ← machineStoreInst.read s i2
-    let i3 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_OUT_MASK)
+    let i3 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_OUT_MASK)
     let out_mask ← machineStoreInst.read s i3
-    let a1 ← machineArchInst.vcpu_flush_state a vcpu out_mask
+    let a1 ← machineArchInst.vcpu_flush_state a vc out_mask
     let s1 ←
       if out_mask != 0#u64
       then
@@ -13601,7 +13594,7 @@ def vcpu.complete_run
                   then
                     let i8 ← lift (core.num.U64.wrapping_add ptr offset)
                     vcpu.read_state_to_frame machineStoreInst machineArchInst s
-                      a1 vcpu i8 out_mask
+                      a1 vc i8 out_mask
                   else ok s
                 else ok s
               else ok s
@@ -13617,7 +13610,7 @@ def vcpu.complete_run
         | capability.Cap.IoPortControl => ok s
         | capability.Cap.IoPort _ _ _ => ok s
       else ok s
-    let i4 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_CALLER)
+    let i4 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
     let s2 ← machineStoreInst.write s1 i4 0#u64
     let i5 ← lift (core.num.U64.wrapping_add ct i)
     let s3 ← machineStoreInst.write s2 i5 0#u64
@@ -16589,12 +16582,12 @@ def vcpu.sanitize_vgic_lr
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 108:0-110:1 -/
 def vcpu.set_bound
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (vcpu : Std.U64) :
+  (vc : Std.U64) :
   Result S
   := do
   let i ← layout.tcb.VCPU
   let i1 ← lift (core.num.U64.wrapping_add t i)
-  machineStoreInst.write s i1 vcpu
+  machineStoreInst.write s i1 vc
 
 /-- [fl4_core::vcpu::enter]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 113:0-113:67
@@ -16683,32 +16676,32 @@ def vcpu.is_readonly_reg (r : Std.U64) : Result Bool := do
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 271:0-281:1 -/
 def vcpu.stall_vcpu
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64) :
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) :
   Result (S × A)
   := do
-  let i ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+  let i ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
   let t ← machineStoreInst.read s i
   let (s1, a1) ←
     if t != 0#u64
     then smp.remote_tcb_stall machineStoreInst machineArchInst s a t
     else ok (s, a)
-  let i1 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_CALLER)
+  let i1 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
   let caller ← machineStoreInst.read s1 i1
   let (s2, a2) ←
     if caller != 0#u64
     then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 caller
     else ok (s1, a1)
-  let a3 ← machineArchInst.vcpu_flush a2 vcpu
+  let a3 ← machineArchInst.vcpu_flush a2 vc
   ok (s2, a3)
 
 /-- [fl4_core::vcpu::unbind]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 283:0-311:1 -/
 def vcpu.unbind
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64) :
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) :
   Result (S × A)
   := do
-  let i ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_CALLER)
+  let i ← lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
   let caller_ptr ← machineStoreInst.read s i
   let (s1, a1) ←
     if caller_ptr != 0#u64
@@ -16722,24 +16715,24 @@ def vcpu.unbind
         vcpu.complete_run machineStoreInst machineArchInst s2 a2 caller_ptr
           fl4_abi.consts.vcpu_run_stop.INTERRUPT 0#u64 0#u64 0#u64
       else
-        let i2 ← lift (core.num.U64.wrapping_add vcpu vcpu.RUN_CALLER)
+        let i2 ← lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
         let s3 ← machineStoreInst.write s2 i2 0#u64
         let i3 ← layout.tcb.RUN_VCPU
         let i4 ← lift (core.num.U64.wrapping_add caller_ptr i3)
         let s4 ← machineStoreInst.write s3 i4 0#u64
         ok (s4, a2)
     else ok (s, a)
-  let i1 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+  let i1 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
   let t_ptr ← machineStoreInst.read s1 i1
   if t_ptr = 0#u64
   then ok (s1, a1)
   else
     let (s2, a2) ←
       smp.remote_tcb_stall machineStoreInst machineArchInst s1 a1 t_ptr
-    let a3 ← machineArchInst.vcpu_flush a2 vcpu
-    let i2 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+    let a3 ← machineArchInst.vcpu_flush a2 vc
+    let i2 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
     let s3 ← machineStoreInst.write s2 i2 0#u64
-    let i3 ← lift (core.num.U64.wrapping_add vcpu vcpu.OWNER_CPU)
+    let i3 ← lift (core.num.U64.wrapping_add vc vcpu.OWNER_CPU)
     let s4 ← machineStoreInst.write s3 i3 0#u64
     let s5 ← vcpu.set_bound machineStoreInst s4 t_ptr 0#u64
     let old_spsr ← obj.Tcb.reg machineStoreInst t_ptr s5 layout.reg.SPSR_EL1
@@ -16770,11 +16763,11 @@ def vcpu.detach
     Visibility: public -/
 def vcpu.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64) :
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) :
   Result (S × A)
   := do
-  let (s1, a1) ← vcpu.unbind machineStoreInst machineArchInst s a vcpu
-  let a2 ← machineArchInst.vcpu_flush a1 vcpu
+  let (s1, a1) ← vcpu.unbind machineStoreInst machineArchInst s a vc
+  let a2 ← machineArchInst.vcpu_flush a1 vc
   ok (s1, a2)
 
 /-- [fl4_core::vcpu::reply1]:
@@ -16800,7 +16793,7 @@ def vcpu.reply1
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 367:0-389:1 -/
 def vcpu.decode_set_tcb
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (ex : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -16830,7 +16823,7 @@ def vcpu.decode_set_tcb
     | capability.Cap.Thread ptr =>
       let ct ← sched.cur_thread machineStoreInst s
       let s2 ← sched.set_thread_state machineStoreInst s ct sched.TS_RESTART
-      let (s3, a1) ← vcpu.unbind machineStoreInst machineArchInst s2 a vcpu
+      let (s3, a1) ← vcpu.unbind machineStoreInst machineArchInst s2 a vc
       let old_v ← vcpu.bound machineStoreInst s3 ptr
       let (s4, a2) ←
         if old_v != 0#u64
@@ -16838,9 +16831,9 @@ def vcpu.decode_set_tcb
         else ok (s3, a1)
       let (s5, a3) ←
         smp.remote_tcb_stall machineStoreInst machineArchInst s4 a2 ptr
-      let i ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+      let i ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
       let s6 ← machineStoreInst.write s5 i ptr
-      let s7 ← vcpu.set_bound machineStoreInst s6 ptr vcpu
+      let s7 ← vcpu.set_bound machineStoreInst s6 ptr vc
       let t ← sched.cur_thread machineStoreInst s7
       let b1 ← obj.Tcb.Insts.CoreCmpPartialEqTcb.eq ptr t
       if b1
@@ -16893,7 +16886,7 @@ def vcpu.decode_set_tcb
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 391:0-428:1 -/
 def vcpu.decode_inject_irq
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (buf : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -16929,11 +16922,11 @@ def vcpu.decode_inject_irq
             if virq >= 8192#u64
             then
               let (s1, a1) ←
-                vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+                vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
               let lr_reg ←
                 lift (core.num.U64.wrapping_add
                   fl4_abi.consts.vcpu_reg.VGIC_LR0 index)
-              let cur ← vcpu.reg_get machineStoreInst s1 vcpu lr_reg
+              let cur ← vcpu.reg_get machineStoreInst s1 vc lr_reg
               let b ← vcpu.lr_is_empty cur (i3 = 3#u64)
               if b
               then
@@ -16967,10 +16960,9 @@ def vcpu.decode_inject_irq
                 let s2 ←
                   sched.set_thread_state machineStoreInst s1 ct
                     sched.TS_RESTART
-                let s3 ← vcpu.reg_set machineStoreInst s2 vcpu lr_reg lr
+                let s3 ← vcpu.reg_set machineStoreInst s2 vc lr_reg lr
                 let s4 ←
-                  vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i3 =
-                    3#u64)
+                  vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i3 = 3#u64)
                 ok (core.result.Result.Ok (), s4, a1)
               else
                 ok (core.result.Result.Err (error.Exc.Sys
@@ -16981,11 +16973,11 @@ def vcpu.decode_inject_irq
                ok (r, s, a)
         else
           let (s1, a1) ←
-            vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+            vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
           let lr_reg ←
             lift (core.num.U64.wrapping_add fl4_abi.consts.vcpu_reg.VGIC_LR0
               index)
-          let cur ← vcpu.reg_get machineStoreInst s1 vcpu lr_reg
+          let cur ← vcpu.reg_get machineStoreInst s1 vc lr_reg
           let b ← vcpu.lr_is_empty cur (i3 = 3#u64)
           if b
           then
@@ -17018,9 +17010,9 @@ def vcpu.decode_inject_irq
                 ok (i12 ||| i13)
             let s2 ←
               sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
-            let s3 ← vcpu.reg_set machineStoreInst s2 vcpu lr_reg lr
+            let s3 ← vcpu.reg_set machineStoreInst s2 vc lr_reg lr
             let s4 ←
-              vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i3 = 3#u64)
+              vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i3 = 3#u64)
             ok (core.result.Result.Ok (), s4, a1)
           else
             ok (core.result.Result.Err (error.Exc.Sys
@@ -17037,7 +17029,7 @@ def vcpu.is_vgic_ap1r (field : Std.U64) : Result Bool := do
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 430:0-455:1 -/
 def vcpu.decode_read_reg
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (call : Bool) (buf : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -17060,7 +17052,7 @@ def vcpu.decode_read_reg
              ok (r, s, a)
         else
           let (s1, a1) ←
-            vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+            vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
           let i1 ← machineArchInst.vcpu_gic_version a1
           let val ←
             if field = fl4_abi.consts.vcpu_reg.VGIC_VTR
@@ -17070,20 +17062,20 @@ def vcpu.decode_read_reg
               vcpu.abi_vgic_vtr i2 (i1 = 3#u64)
             else
               if i1 = 3#u64
-              then vcpu.reg_get machineStoreInst s1 vcpu field
+              then vcpu.reg_get machineStoreInst s1 vc field
               else
                 do
                 let b ← vcpu.is_vgic_ap1r field
                 if b
                 then ok 0#u64
-                else vcpu.reg_get machineStoreInst s1 vcpu field
+                else vcpu.reg_get machineStoreInst s1 vc field
           let s2 ←
             sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
           let s3 ← vcpu.reply1 machineStoreInst s2 ct call val
           ok (core.result.Result.Ok (), s3, a1)
       else
         let (s1, a1) ←
-          vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+          vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
         let i ← machineArchInst.vcpu_gic_version a1
         let val ←
           if field = fl4_abi.consts.vcpu_reg.VGIC_VTR
@@ -17093,13 +17085,13 @@ def vcpu.decode_read_reg
             vcpu.abi_vgic_vtr i1 (i = 3#u64)
           else
             if i = 3#u64
-            then vcpu.reg_get machineStoreInst s1 vcpu field
+            then vcpu.reg_get machineStoreInst s1 vc field
             else
               do
               let b ← vcpu.is_vgic_ap1r field
               if b
               then ok 0#u64
-              else vcpu.reg_get machineStoreInst s1 vcpu field
+              else vcpu.reg_get machineStoreInst s1 vc field
         let s2 ←
           sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
         let s3 ← vcpu.reply1 machineStoreInst s2 ct call val
@@ -17109,7 +17101,7 @@ def vcpu.decode_read_reg
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 465:0-507:1 -/
 def vcpu.decode_write_reg
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (buf : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -17144,16 +17136,16 @@ def vcpu.decode_write_reg
                       ok (r, s, a)
             | some san =>
               let (s1, a1) ←
-                vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+                vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
               let s2 ←
                 sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
-              let s3 ← vcpu.reg_set machineStoreInst s2 vcpu field san
+              let s3 ← vcpu.reg_set machineStoreInst s2 vc field san
               let s4 ←
-                vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i = 3#u64)
+                vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i = 3#u64)
               ok (core.result.Result.Ok (), s4, a1)
         else
           let (s1, a1) ←
-            vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+            vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
           let s2 ←
             sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
           if i = 3#u64
@@ -17165,18 +17157,17 @@ def vcpu.decode_write_reg
                 if field = fl4_abi.consts.vcpu_reg.VGIC_HCR
                 then vcpu.sanitize_vgic_hcr val (i = 3#u64)
                 else ok val
-            let s3 ← vcpu.reg_set machineStoreInst s2 vcpu field v
+            let s3 ← vcpu.reg_set machineStoreInst s2 vc field v
             if field = fl4_abi.consts.vcpu_reg.VGIC_HCR
             then
               let s4 ←
-                vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i = 3#u64)
+                vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i = 3#u64)
               ok (core.result.Result.Ok (), s4, a1)
             else
               if field = fl4_abi.consts.vcpu_reg.VGIC_VMCR
               then
                 let s4 ←
-                  vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i =
-                    3#u64)
+                  vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i = 3#u64)
                 ok (core.result.Result.Ok (), s4, a1)
               else ok (core.result.Result.Ok (), s3, a1)
           else
@@ -17191,18 +17182,17 @@ def vcpu.decode_write_reg
                   if field = fl4_abi.consts.vcpu_reg.VGIC_HCR
                   then vcpu.sanitize_vgic_hcr val (i = 3#u64)
                   else ok val
-              let s3 ← vcpu.reg_set machineStoreInst s2 vcpu field v
+              let s3 ← vcpu.reg_set machineStoreInst s2 vc field v
               if field = fl4_abi.consts.vcpu_reg.VGIC_HCR
               then
                 let s4 ←
-                  vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i =
-                    3#u64)
+                  vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i = 3#u64)
                 ok (core.result.Result.Ok (), s4, a1)
               else
                 if field = fl4_abi.consts.vcpu_reg.VGIC_VMCR
                 then
                   let s4 ←
-                    vcpu.sync_vgic_status machineStoreInst s3 vcpu lrs (i =
+                    vcpu.sync_vgic_status machineStoreInst s3 vc lrs (i =
                       3#u64)
                   ok (core.result.Result.Ok (), s4, a1)
                 else ok (core.result.Result.Ok (), s3, a1)
@@ -17211,7 +17201,7 @@ def vcpu.decode_write_reg
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 509:0-523:1 -/
 def vcpu.decode_ack_vppi
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (buf : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -17225,12 +17215,11 @@ def vcpu.decode_ack_vppi
     then let r ← error.invalid_arg Unit 0#u64
          ok (r, s, a)
     else
-      let (s1, a1) ←
-        vcpu.stall_vcpu machineStoreInst machineArchInst s a vcpu
+      let (s1, a1) ← vcpu.stall_vcpu machineStoreInst machineArchInst s a vc
       let s2 ← sched.set_thread_state machineStoreInst s1 ct sched.TS_RESTART
-      let i ← lift (core.num.U64.wrapping_add vcpu vcpu.VPPI_MASKED)
+      let i ← lift (core.num.U64.wrapping_add vc vcpu.VPPI_MASKED)
       let masked ← machineStoreInst.read s2 i
-      let i1 ← lift (core.num.U64.wrapping_add vcpu vcpu.VPPI_MASKED)
+      let i1 ← lift (core.num.U64.wrapping_add vc vcpu.VPPI_MASKED)
       let i2 ← lift (~~~ 1#u64)
       let i3 ← lift (masked &&& i2)
       let s3 ← machineStoreInst.write s2 i1 i3
@@ -17286,7 +17275,7 @@ def vcpu.validate_vgic_lrs
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 548:4-552:5 -/
 @[rust_loop_body]
 def vcpu.copy_reg_range_from_frame_loop.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (end_incl : Std.U64) (s : S) (r : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -17295,7 +17284,7 @@ def vcpu.copy_reg_range_from_frame_loop.body
     let i ← r * 8#u64
     let i1 ← lift (core.num.U64.wrapping_add frame i)
     let val ← machineStoreInst.read s i1
-    let s1 ← vcpu.reg_set machineStoreInst s vcpu r val
+    let s1 ← vcpu.reg_set machineStoreInst s vc r val
     let r1 ← r + 1#u64
     ok (cont (s1, r1))
   else ok (done s)
@@ -17304,31 +17293,31 @@ def vcpu.copy_reg_range_from_frame_loop.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 548:4-552:5 -/
 @[rust_loop]
 def vcpu.copy_reg_range_from_frame_loop
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (end_incl : Std.U64) (r : Std.U64) :
   Result S
   := do
   loop
     (fun (s1, r1) => vcpu.copy_reg_range_from_frame_loop.body machineStoreInst
-      vcpu frame end_incl s1 r1)
+      vc frame end_incl s1 r1)
     (s, r)
 
 /-- [fl4_core::vcpu::copy_reg_range_from_frame]:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 546:0-553:1 -/
 @[reducible]
 def vcpu.copy_reg_range_from_frame
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (start : Std.U64) (end_incl : Std.U64) :
   Result S
   := do
-  vcpu.copy_reg_range_from_frame_loop machineStoreInst s vcpu frame end_incl
+  vcpu.copy_reg_range_from_frame_loop machineStoreInst s vc frame end_incl
     start
 
 /-- [fl4_core::vcpu::write_state_from_frame]: loop body 0:
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 650:8-657:9 -/
 @[rust_loop_body]
 def vcpu.write_state_from_frame_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (s : S) (i : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -17343,7 +17332,7 @@ def vcpu.write_state_from_frame_loop0.body
     let s1 ←
       match o with
       | none => ok s
-      | some san => vcpu.reg_set machineStoreInst s vcpu r san
+      | some san => vcpu.reg_set machineStoreInst s vc r san
     let i3 ← i + 1#u64
     ok (cont (s1, i3))
   else ok (done s)
@@ -17352,13 +17341,13 @@ def vcpu.write_state_from_frame_loop0.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 650:8-657:9 -/
 @[rust_loop]
 def vcpu.write_state_from_frame_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (i : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, i1) => vcpu.write_state_from_frame_loop0.body machineStoreInst
-      vcpu frame lrs gic_v3 s1 i1)
+    (fun (s1, i1) => vcpu.write_state_from_frame_loop0.body machineStoreInst vc
+      frame lrs gic_v3 s1 i1)
     (s, i)
 
 /-- [fl4_core::vcpu::write_state_from_frame]: loop body 1:
@@ -17400,7 +17389,7 @@ def vcpu.write_state_from_frame_loop1
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 664:8-671:9 -/
 @[rust_loop_body]
 def vcpu.write_state_from_frame_loop2.body
-  {S : Type _} (machineStoreInst : machine.Store S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (s : S) (i : Std.U64) :
   Result (ControlFlow (S × Std.U64) S)
   := do
@@ -17415,7 +17404,7 @@ def vcpu.write_state_from_frame_loop2.body
     let s1 ←
       match o with
       | none => ok s
-      | some san => vcpu.reg_set machineStoreInst s vcpu r san
+      | some san => vcpu.reg_set machineStoreInst s vc r san
     let i3 ← i + 1#u64
     ok (cont (s1, i3))
   else ok (done s)
@@ -17424,13 +17413,13 @@ def vcpu.write_state_from_frame_loop2.body
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 664:8-671:9 -/
 @[rust_loop]
 def vcpu.write_state_from_frame_loop2
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vcpu : Std.U64)
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64)
   (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (i : Std.U64) :
   Result S
   := do
   loop
-    (fun (s1, i1) => vcpu.write_state_from_frame_loop2.body machineStoreInst
-      vcpu frame lrs gic_v3 s1 i1)
+    (fun (s1, i1) => vcpu.write_state_from_frame_loop2.body machineStoreInst vc
+      frame lrs gic_v3 s1 i1)
     (s, i)
 
 /-- [fl4_core::vcpu::write_state_from_frame]: loop body 3:
@@ -17507,7 +17496,7 @@ def vcpu.write_state_from_frame_loop4
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 619:0-690:1 -/
 def vcpu.write_state_from_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (frame : Std.U64) (mask : Std.U64) :
   Result S
   := do
@@ -17521,9 +17510,9 @@ def vcpu.write_state_from_frame
       then
         do
         let s2 ←
-          vcpu.copy_reg_range_from_frame machineStoreInst s vcpu frame 0#u64
+          vcpu.copy_reg_range_from_frame machineStoreInst s vc frame 0#u64
             fl4_abi.consts.vcpu_reg.CSSELR_EL1
-        vcpu.copy_reg_range_from_frame machineStoreInst s2 vcpu frame
+        vcpu.copy_reg_range_from_frame machineStoreInst s2 vc frame
           fl4_abi.consts.vcpu_reg.ACTLR_EL1 fl4_abi.consts.vcpu_reg.MDCCINT_EL1
       else ok s
     let i2 ← fl4_abi.consts.vcpu_state_mask.HYP
@@ -17536,31 +17525,31 @@ def vcpu.write_state_from_frame
         let i5 ← lift (core.num.U64.wrapping_add frame i4)
         let i6 ← machineStoreInst.read s1 i5
         let s3 ←
-          vcpu.reg_set machineStoreInst s1 vcpu
+          vcpu.reg_set machineStoreInst s1 vc
             fl4_abi.consts.vcpu_reg.VMPIDR_EL2 i6
         let i7 ← fl4_abi.consts.vcpu_reg.VDISR_EL2 * 8#u64
         let i8 ← lift (core.num.U64.wrapping_add frame i7)
         let i9 ← machineStoreInst.read s3 i8
         let s4 ←
-          vcpu.reg_set machineStoreInst s3 vcpu
-            fl4_abi.consts.vcpu_reg.VDISR_EL2 i9
+          vcpu.reg_set machineStoreInst s3 vc fl4_abi.consts.vcpu_reg.VDISR_EL2
+            i9
         let i10 ← fl4_abi.consts.vcpu_reg.VPIDR_EL2 * 8#u64
         let i11 ← lift (core.num.U64.wrapping_add frame i10)
         let i12 ← machineStoreInst.read s4 i11
         let s5 ←
-          vcpu.reg_set machineStoreInst s4 vcpu
-            fl4_abi.consts.vcpu_reg.VPIDR_EL2 i12
+          vcpu.reg_set machineStoreInst s4 vc fl4_abi.consts.vcpu_reg.VPIDR_EL2
+            i12
         let i13 ← fl4_abi.consts.vcpu_reg.HCR_EL2 * 8#u64
         let i14 ← lift (core.num.U64.wrapping_add frame i13)
         let i15 ← machineStoreInst.read s5 i14
         let i16 ← vcpu.sanitize_hcr i15
         let s6 ←
-          vcpu.reg_set machineStoreInst s5 vcpu fl4_abi.consts.vcpu_reg.HCR_EL2
+          vcpu.reg_set machineStoreInst s5 vc fl4_abi.consts.vcpu_reg.HCR_EL2
             i16
         let i17 ← fl4_abi.consts.vcpu_reg.VSESR_EL2 * 8#u64
         let i18 ← lift (core.num.U64.wrapping_add frame i17)
         let i19 ← machineStoreInst.read s6 i18
-        vcpu.reg_set machineStoreInst s6 vcpu fl4_abi.consts.vcpu_reg.VSESR_EL2
+        vcpu.reg_set machineStoreInst s6 vc fl4_abi.consts.vcpu_reg.VSESR_EL2
           i19
       else ok s1
     let i4 ← fl4_abi.consts.vcpu_state_mask.TIMER
@@ -17570,7 +17559,7 @@ def vcpu.write_state_from_frame
       then
         do
         let s4 ←
-          vcpu.copy_reg_range_from_frame machineStoreInst s2 vcpu frame
+          vcpu.copy_reg_range_from_frame machineStoreInst s2 vc frame
             fl4_abi.consts.vcpu_reg.CNTV_CTL
             fl4_abi.consts.vcpu_reg.CNTKCTL_EL1
         let i6 ← 64#u64 + 37#u64
@@ -17578,7 +17567,7 @@ def vcpu.write_state_from_frame
         let vppi_addr ← lift (core.num.U64.wrapping_add frame i7)
         let i8 ← machineStoreInst.read s4 vppi_addr
         let m ← lift (i8 &&& 1#u64)
-        let i9 ← lift (core.num.U64.wrapping_add vcpu vcpu.VPPI_MASKED)
+        let i9 ← lift (core.num.U64.wrapping_add vc vcpu.VPPI_MASKED)
         machineStoreInst.write s4 i9 m
       else ok s2
     let i6 ← fl4_abi.consts.vcpu_state_mask.VGIC
@@ -17592,36 +17581,35 @@ def vcpu.write_state_from_frame
       let i11 ← machineStoreInst.read s3 i10
       let i12 ← vcpu.sanitize_vgic_hcr i11 (i8 = 3#u64)
       let s4 ←
-        vcpu.reg_set machineStoreInst s3 vcpu fl4_abi.consts.vcpu_reg.VGIC_HCR
+        vcpu.reg_set machineStoreInst s3 vc fl4_abi.consts.vcpu_reg.VGIC_HCR
           i12
       let i13 ← fl4_abi.consts.vcpu_reg.VGIC_VMCR * 8#u64
       let i14 ← lift (core.num.U64.wrapping_add frame i13)
       let i15 ← machineStoreInst.read s4 i14
       let s5 ←
-        vcpu.reg_set machineStoreInst s4 vcpu fl4_abi.consts.vcpu_reg.VGIC_VMCR
+        vcpu.reg_set machineStoreInst s4 vc fl4_abi.consts.vcpu_reg.VGIC_VMCR
           i15
       let s6 ←
-        vcpu.copy_reg_range_from_frame machineStoreInst s5 vcpu frame
+        vcpu.copy_reg_range_from_frame machineStoreInst s5 vc frame
           fl4_abi.consts.vcpu_reg.VGIC_AP0R0 fl4_abi.consts.vcpu_reg.VGIC_AP0R3
       let s7 ←
         if i8 = 3#u64
         then
-          vcpu.copy_reg_range_from_frame machineStoreInst s6 vcpu frame
+          vcpu.copy_reg_range_from_frame machineStoreInst s6 vc frame
             fl4_abi.consts.vcpu_reg.VGIC_AP1R0
             fl4_abi.consts.vcpu_reg.VGIC_AP1R3
         else ok s6
       let s8 ←
-        vcpu.write_state_from_frame_loop0 machineStoreInst s7 vcpu frame lrs
-          (i8 = 3#u64) 0#u64
-      let s9 ←
-        vcpu.sync_vgic_status machineStoreInst s8 vcpu lrs (i8 = 3#u64)
+        vcpu.write_state_from_frame_loop0 machineStoreInst s7 vc frame lrs (i8
+          = 3#u64) 0#u64
+      let s9 ← vcpu.sync_vgic_status machineStoreInst s8 vc lrs (i8 = 3#u64)
       let i16 ← fl4_abi.consts.vcpu_state_mask.GPRS
       let i17 ← lift (mask &&& i16)
       if i17 != 0#u64
       then
         let i18 ← 64#u64 * 8#u64
         let gprs_base ← lift (core.num.U64.wrapping_add frame i18)
-        let i19 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+        let i19 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
         let t_ptr ← machineStoreInst.read s9 i19
         if t_ptr != 0#u64
         then
@@ -17644,20 +17632,20 @@ def vcpu.write_state_from_frame
         let i13 ← machineStoreInst.read s3 i12
         let i14 ← vcpu.sanitize_vgic_hcr i13 (i10 = 3#u64)
         let s4 ←
-          vcpu.reg_set machineStoreInst s3 vcpu
-            fl4_abi.consts.vcpu_reg.VGIC_HCR i14
+          vcpu.reg_set machineStoreInst s3 vc fl4_abi.consts.vcpu_reg.VGIC_HCR
+            i14
         let s5 ←
-          vcpu.write_state_from_frame_loop2 machineStoreInst s4 vcpu frame lrs
+          vcpu.write_state_from_frame_loop2 machineStoreInst s4 vc frame lrs
             (i10 = 3#u64) 0#u64
         let s6 ←
-          vcpu.sync_vgic_status machineStoreInst s5 vcpu lrs (i10 = 3#u64)
+          vcpu.sync_vgic_status machineStoreInst s5 vc lrs (i10 = 3#u64)
         let i15 ← fl4_abi.consts.vcpu_state_mask.GPRS
         let i16 ← lift (mask &&& i15)
         if i16 != 0#u64
         then
           let i17 ← 64#u64 * 8#u64
           let gprs_base ← lift (core.num.U64.wrapping_add frame i17)
-          let i18 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+          let i18 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
           let t_ptr ← machineStoreInst.read s6 i18
           if t_ptr != 0#u64
           then
@@ -17675,7 +17663,7 @@ def vcpu.write_state_from_frame
         then
           let i12 ← 64#u64 * 8#u64
           let gprs_base ← lift (core.num.U64.wrapping_add frame i12)
-          let i13 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+          let i13 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
           let t_ptr ← machineStoreInst.read s3 i13
           if t_ptr != 0#u64
           then
@@ -17691,7 +17679,7 @@ def vcpu.write_state_from_frame
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 692:0-737:1 -/
 def vcpu.decode_state_transfer
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (buf : Std.U64) (ex : Array obj.Slot 3#usize)
   (to_frame : Bool) :
   Result ((core.result.Result Unit error.Exc) × S × A)
@@ -17797,7 +17785,7 @@ def vcpu.decode_state_transfer
                         then
                           let (s2, a1) ←
                             vcpu.stall_vcpu machineStoreInst machineArchInst s
-                              a vcpu
+                              a vc
                           let s3 ←
                             sched.set_thread_state machineStoreInst s2 ct
                               sched.TS_RESTART
@@ -17805,12 +17793,12 @@ def vcpu.decode_state_transfer
                           then
                             let s4 ←
                               vcpu.read_state_to_frame machineStoreInst
-                                machineArchInst s3 a1 vcpu frame mask
+                                machineArchInst s3 a1 vc frame mask
                             ok (core.result.Result.Ok (), s4, a1)
                           else
                             let s4 ←
                               vcpu.write_state_from_frame machineStoreInst
-                                machineArchInst s3 a1 vcpu frame mask
+                                machineArchInst s3 a1 vc frame mask
                             ok (core.result.Result.Ok (), s4, a1)
                         else
                           let i8 ← fl4_abi.consts.vcpu_state_mask.VGIC
@@ -17826,7 +17814,7 @@ def vcpu.decode_state_transfer
                             then
                               let (s2, a1) ←
                                 vcpu.stall_vcpu machineStoreInst
-                                  machineArchInst s a vcpu
+                                  machineArchInst s a vc
                               let s3 ←
                                 sched.set_thread_state machineStoreInst s2 ct
                                   sched.TS_RESTART
@@ -17834,12 +17822,12 @@ def vcpu.decode_state_transfer
                               then
                                 let s4 ←
                                   vcpu.read_state_to_frame machineStoreInst
-                                    machineArchInst s3 a1 vcpu frame mask
+                                    machineArchInst s3 a1 vc frame mask
                                 ok (core.result.Result.Ok (), s4, a1)
                               else
                                 let s4 ←
                                   vcpu.write_state_from_frame machineStoreInst
-                                    machineArchInst s3 a1 vcpu frame mask
+                                    machineArchInst s3 a1 vc frame mask
                                 ok (core.result.Result.Ok (), s4, a1)
                             else
                               let r ← error.invalid_arg Unit 1#u64
@@ -17847,7 +17835,7 @@ def vcpu.decode_state_transfer
                           else
                             let (s2, a1) ←
                               vcpu.stall_vcpu machineStoreInst machineArchInst
-                                s a vcpu
+                                s a vc
                             let s3 ←
                               sched.set_thread_state machineStoreInst s2 ct
                                 sched.TS_RESTART
@@ -17855,12 +17843,12 @@ def vcpu.decode_state_transfer
                             then
                               let s4 ←
                                 vcpu.read_state_to_frame machineStoreInst
-                                  machineArchInst s3 a1 vcpu frame mask
+                                  machineArchInst s3 a1 vc frame mask
                               ok (core.result.Result.Ok (), s4, a1)
                             else
                               let s4 ←
                                 vcpu.write_state_from_frame machineStoreInst
-                                  machineArchInst s3 a1 vcpu frame mask
+                                  machineArchInst s3 a1 vc frame mask
                               ok (core.result.Result.Ok (), s4, a1)
               else
                 let i3 ← capability.FrameSize.bits size
@@ -17887,7 +17875,7 @@ def vcpu.decode_state_transfer
                       then
                         let (s2, a1) ←
                           vcpu.stall_vcpu machineStoreInst machineArchInst s a
-                            vcpu
+                            vc
                         let s3 ←
                           sched.set_thread_state machineStoreInst s2 ct
                             sched.TS_RESTART
@@ -17895,12 +17883,12 @@ def vcpu.decode_state_transfer
                         then
                           let s4 ←
                             vcpu.read_state_to_frame machineStoreInst
-                              machineArchInst s3 a1 vcpu frame mask
+                              machineArchInst s3 a1 vc frame mask
                           ok (core.result.Result.Ok (), s4, a1)
                         else
                           let s4 ←
                             vcpu.write_state_from_frame machineStoreInst
-                              machineArchInst s3 a1 vcpu frame mask
+                              machineArchInst s3 a1 vc frame mask
                           ok (core.result.Result.Ok (), s4, a1)
                       else
                         let i8 ← fl4_abi.consts.vcpu_state_mask.VGIC
@@ -17916,7 +17904,7 @@ def vcpu.decode_state_transfer
                           then
                             let (s2, a1) ←
                               vcpu.stall_vcpu machineStoreInst machineArchInst
-                                s a vcpu
+                                s a vc
                             let s3 ←
                               sched.set_thread_state machineStoreInst s2 ct
                                 sched.TS_RESTART
@@ -17924,12 +17912,12 @@ def vcpu.decode_state_transfer
                             then
                               let s4 ←
                                 vcpu.read_state_to_frame machineStoreInst
-                                  machineArchInst s3 a1 vcpu frame mask
+                                  machineArchInst s3 a1 vc frame mask
                               ok (core.result.Result.Ok (), s4, a1)
                             else
                               let s4 ←
                                 vcpu.write_state_from_frame machineStoreInst
-                                  machineArchInst s3 a1 vcpu frame mask
+                                  machineArchInst s3 a1 vc frame mask
                               ok (core.result.Result.Ok (), s4, a1)
                           else
                             let r ← error.invalid_arg Unit 1#u64
@@ -17937,7 +17925,7 @@ def vcpu.decode_state_transfer
                         else
                           let (s2, a1) ←
                             vcpu.stall_vcpu machineStoreInst machineArchInst s
-                              a vcpu
+                              a vc
                           let s3 ←
                             sched.set_thread_state machineStoreInst s2 ct
                               sched.TS_RESTART
@@ -17945,12 +17933,12 @@ def vcpu.decode_state_transfer
                           then
                             let s4 ←
                               vcpu.read_state_to_frame machineStoreInst
-                                machineArchInst s3 a1 vcpu frame mask
+                                machineArchInst s3 a1 vc frame mask
                             ok (core.result.Result.Ok (), s4, a1)
                           else
                             let s4 ←
                               vcpu.write_state_from_frame machineStoreInst
-                                machineArchInst s3 a1 vcpu frame mask
+                                machineArchInst s3 a1 vc frame mask
                             ok (core.result.Result.Ok (), s4, a1)
         | capability.Cap.PageTable _ _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
@@ -17987,7 +17975,7 @@ def vcpu.decode_state_transfer
     Source: 'crates/fl4-core/src/arch/aarch64/vcpu.rs', lines 776:0-845:1 -/
 def vcpu.decode_run
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (vcpu : Std.U64)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64)
   (length : Std.U64) (call : Bool) (buf : Std.U64) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
@@ -18080,7 +18068,7 @@ def vcpu.decode_run
                     then let r ← error.invalid_arg Unit 0#u64
                          ok (r, s, a)
                     else
-                      let i9 ← lift (core.num.U64.wrapping_add vcpu vcpu.TCB)
+                      let i9 ← lift (core.num.U64.wrapping_add vc vcpu.TCB)
                       let v_tcb ← machineStoreInst.read s i9
                       if v_tcb = 0#u64
                       then let r ← error.illegal Unit
@@ -18091,8 +18079,7 @@ def vcpu.decode_run
                              ok (r, s, a)
                         else
                           let i10 ←
-                            lift (core.num.U64.wrapping_add vcpu
-                              vcpu.RUN_CALLER)
+                            lift (core.num.U64.wrapping_add vc vcpu.RUN_CALLER)
                           let i11 ← machineStoreInst.read s i10
                           if i11 != 0#u64
                           then
@@ -18121,7 +18108,7 @@ def vcpu.decode_run
                                 let me ←
                                   lift (core.num.U64.wrapping_add i17 1#u64)
                                 let i18 ←
-                                  lift (core.num.U64.wrapping_add vcpu
+                                  lift (core.num.U64.wrapping_add vc
                                     vcpu.OWNER_CPU)
                                 let prev ← machineStoreInst.read s2 i18
                                 let a2 ←
@@ -18131,7 +18118,7 @@ def vcpu.decode_run
                                     then
                                       do
                                       let a3 ←
-                                        machineArchInst.vcpu_flush a1 vcpu
+                                        machineArchInst.vcpu_flush a1 vc
                                       let a4 ←
                                         machineArchInst.fpu_flush a3 v_tcb
                                       machineArchInst.fpu_release a4 v_tcb
@@ -18163,7 +18150,7 @@ def vcpu.decode_run
                                             else ok in_mask
                                           else ok in_mask
                                         else ok in_mask
-                                      machineArchInst.vcpu_flush_state a1 vcpu
+                                      machineArchInst.vcpu_flush_state a1 vc
                                         flush_in
                                   else
                                     do
@@ -18193,32 +18180,32 @@ def vcpu.decode_run
                                           else ok in_mask
                                         else ok in_mask
                                       else ok in_mask
-                                    machineArchInst.vcpu_flush_state a1 vcpu
+                                    machineArchInst.vcpu_flush_state a1 vc
                                       flush_in
                                 let i19 ←
-                                  lift (core.num.U64.wrapping_add vcpu
+                                  lift (core.num.U64.wrapping_add vc
                                     vcpu.OWNER_CPU)
                                 let s3 ← machineStoreInst.write s2 i19 me
                                 let s4 ←
                                   vcpu.write_state_from_frame machineStoreInst
-                                    machineArchInst s3 a2 vcpu frame in_mask
+                                    machineArchInst s3 a2 vc frame in_mask
                                 let i20 ←
-                                  lift (core.num.U64.wrapping_add vcpu
+                                  lift (core.num.U64.wrapping_add vc
                                     vcpu.RUN_CALLER)
                                 let s5 ← machineStoreInst.write s4 i20 ct
                                 let i21 ←
-                                  lift (core.num.U64.wrapping_add vcpu
+                                  lift (core.num.U64.wrapping_add vc
                                     vcpu.RUN_OFFSET)
                                 let s6 ← machineStoreInst.write s5 i21 offset
                                 let i22 ←
-                                  lift (core.num.U64.wrapping_add vcpu
+                                  lift (core.num.U64.wrapping_add vc
                                     vcpu.RUN_OUT_MASK)
                                 let s7 ←
                                   machineStoreInst.write s6 i22 out_mask
                                 let i23 ← layout.tcb.RUN_VCPU
                                 let i24 ←
                                   lift (core.num.U64.wrapping_add ct i23)
-                                let s8 ← machineStoreInst.write s7 i24 vcpu
+                                let s8 ← machineStoreInst.write s7 i24 vc
                                 let (s9, a3) ←
                                   vspace.set_stage2_root machineStoreInst
                                     machineArchInst s8 a2 v_tcb
@@ -18240,7 +18227,7 @@ def vcpu.decode_run
                               let me ←
                                 lift (core.num.U64.wrapping_add i17 1#u64)
                               let i18 ←
-                                lift (core.num.U64.wrapping_add vcpu
+                                lift (core.num.U64.wrapping_add vc
                                   vcpu.OWNER_CPU)
                               let prev ← machineStoreInst.read s2 i18
                               let a2 ←
@@ -18249,8 +18236,7 @@ def vcpu.decode_run
                                   if prev != me
                                   then
                                     do
-                                    let a3 ←
-                                      machineArchInst.vcpu_flush a1 vcpu
+                                    let a3 ← machineArchInst.vcpu_flush a1 vc
                                     let a4 ←
                                       machineArchInst.fpu_flush a3 v_tcb
                                     machineArchInst.fpu_release a4 v_tcb
@@ -18282,7 +18268,7 @@ def vcpu.decode_run
                                           else ok in_mask
                                         else ok in_mask
                                       else ok in_mask
-                                    machineArchInst.vcpu_flush_state a1 vcpu
+                                    machineArchInst.vcpu_flush_state a1 vc
                                       flush_in
                                 else
                                   do
@@ -18311,31 +18297,31 @@ def vcpu.decode_run
                                         else ok in_mask
                                       else ok in_mask
                                     else ok in_mask
-                                  machineArchInst.vcpu_flush_state a1 vcpu
+                                  machineArchInst.vcpu_flush_state a1 vc
                                     flush_in
                               let i19 ←
-                                lift (core.num.U64.wrapping_add vcpu
+                                lift (core.num.U64.wrapping_add vc
                                   vcpu.OWNER_CPU)
                               let s3 ← machineStoreInst.write s2 i19 me
                               let s4 ←
                                 vcpu.write_state_from_frame machineStoreInst
-                                  machineArchInst s3 a2 vcpu frame in_mask
+                                  machineArchInst s3 a2 vc frame in_mask
                               let i20 ←
-                                lift (core.num.U64.wrapping_add vcpu
+                                lift (core.num.U64.wrapping_add vc
                                   vcpu.RUN_CALLER)
                               let s5 ← machineStoreInst.write s4 i20 ct
                               let i21 ←
-                                lift (core.num.U64.wrapping_add vcpu
+                                lift (core.num.U64.wrapping_add vc
                                   vcpu.RUN_OFFSET)
                               let s6 ← machineStoreInst.write s5 i21 offset
                               let i22 ←
-                                lift (core.num.U64.wrapping_add vcpu
+                                lift (core.num.U64.wrapping_add vc
                                   vcpu.RUN_OUT_MASK)
                               let s7 ← machineStoreInst.write s6 i22 out_mask
                               let i23 ← layout.tcb.RUN_VCPU
                               let i24 ←
                                 lift (core.num.U64.wrapping_add ct i23)
-                              let s8 ← machineStoreInst.write s7 i24 vcpu
+                              let s8 ← machineStoreInst.write s7 i24 vc
                               let (s9, a3) ←
                                 vspace.set_stage2_root machineStoreInst
                                   machineArchInst s8 a2 v_tcb
@@ -18384,46 +18370,45 @@ def vcpu.decode_run
 def vcpu.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
-  (length : Std.U64) (vcpu : Std.U64) (call : Bool) (buf : Std.U64)
+  (length : Std.U64) (vc : Std.U64) (call : Bool) (buf : Std.U64)
   (ex : Array obj.Slot 3#usize) :
   Result ((core.result.Result Unit error.Exc) × S × A)
   := do
   if lbl = fl4_abi.label.ARMVCPUSetTCB
-  then vcpu.decode_set_tcb machineStoreInst machineArchInst s a vcpu ex
+  then vcpu.decode_set_tcb machineStoreInst machineArchInst s a vc ex
   else
     if lbl = fl4_abi.label.ARMVCPUInjectIRQ
     then
-      vcpu.decode_inject_irq machineStoreInst machineArchInst s a vcpu length
-        buf
+      vcpu.decode_inject_irq machineStoreInst machineArchInst s a vc length buf
     else
       if lbl = fl4_abi.label.ARMVCPUReadReg
       then
-        vcpu.decode_read_reg machineStoreInst machineArchInst s a vcpu length
+        vcpu.decode_read_reg machineStoreInst machineArchInst s a vc length
           call buf
       else
         if lbl = fl4_abi.label.ARMVCPUWriteReg
         then
-          vcpu.decode_write_reg machineStoreInst machineArchInst s a vcpu
-            length buf
+          vcpu.decode_write_reg machineStoreInst machineArchInst s a vc length
+            buf
         else
           if lbl = fl4_abi.label.ARMVCPUAckVPPI
           then
-            vcpu.decode_ack_vppi machineStoreInst machineArchInst s a vcpu
-              length buf
+            vcpu.decode_ack_vppi machineStoreInst machineArchInst s a vc length
+              buf
           else
             if lbl = fl4_abi.label.ARMVCPUReadState
             then
               vcpu.decode_state_transfer machineStoreInst machineArchInst s a
-                vcpu length buf ex true
+                vc length buf ex true
             else
               if lbl = fl4_abi.label.ARMVCPUWriteState
               then
                 vcpu.decode_state_transfer machineStoreInst machineArchInst s a
-                  vcpu length buf ex false
+                  vc length buf ex false
               else
                 if lbl = fl4_abi.label.ARMVCPURun
                 then
-                  vcpu.decode_run machineStoreInst machineArchInst s a vcpu
+                  vcpu.decode_run machineStoreInst machineArchInst s a vc
                     length call buf
                 else let r ← error.illegal Unit
                      ok (r, s, a)
@@ -18606,12 +18591,12 @@ def vspace.rights_of (e : Std.U64) : Result Std.U64 := do
     else ok capability.VM_KERNEL_ONLY
 
 /-- [fl4_core::vspace::page_shift]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 170:0-172:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 196:0-198:1 -/
 def vspace.page_shift (size : capability.FrameSize) : Result Std.U64 := do
   capability.FrameSize.bits size
 
 /-- [fl4_core::vspace::set_asid_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 180:0-182:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 206:0-208:1 -/
 def vspace.set_asid_table
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (high : Std.U64)
   (pool : Std.U64) :
@@ -18626,7 +18611,7 @@ def vspace.set_asid_table
   obj.ks_set machineStoreInst s i5 pool
 
 /-- [fl4_core::vspace::is_valid_vtable_root]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 213:0-215:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 239:0-241:1
     Visibility: public -/
 def vspace.is_valid_vtable_root (c : capability.Cap) : Result Bool := do
   match c with
@@ -18663,7 +18648,7 @@ def vspace.is_valid_vtable_root (c : capability.Cap) : Result Bool := do
   | capability.Cap.IoPort _ _ _ => ok false
 
 /-- [fl4_core::vspace::check_valid_ipc_buffer]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 218:0-231:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 244:0-257:1
     Visibility: public -/
 def vspace.check_valid_ipc_buffer
   (vptr : Std.U64) (c : capability.Cap) :
@@ -18707,7 +18692,7 @@ def vspace.check_valid_ipc_buffer
   | capability.Cap.IoPort _ _ _ => error.illegal Unit
 
 /-- [fl4_core::vspace::copy_global_mappings]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 288:0-290:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 314:0-316:1
     Visibility: public -/
 def vspace.copy_global_mappings
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -18717,7 +18702,7 @@ def vspace.copy_global_mappings
   ok s
 
 /-- [fl4_core::vspace::unmap_page]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 295:0-310:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 321:0-336:1
     Visibility: public -/
 def vspace.unmap_page
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18750,7 +18735,7 @@ def vspace.unmap_page
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vspace::unmap_page_table]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 331:4-344:5
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 357:4-370:5
     Visibility: public -/
 @[rust_loop_body]
 def vspace.unmap_page_table_loop.body
@@ -18776,7 +18761,7 @@ def vspace.unmap_page_table_loop.body
   else ok (done none)
 
 /-- [fl4_core::vspace::unmap_page_table]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 331:4-344:5
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 357:4-370:5
     Visibility: public -/
 @[rust_loop]
 def vspace.unmap_page_table_loop
@@ -18790,7 +18775,7 @@ def vspace.unmap_page_table_loop
     (table, shift, level)
 
 /-- [fl4_core::vspace::unmap_page_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 314:0-349:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 340:0-375:1
     Visibility: public -/
 def vspace.unmap_page_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18817,7 +18802,7 @@ def vspace.unmap_page_table
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vspace::unmap_page_directory]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 352:0-354:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 378:0-380:1
     Visibility: public -/
 def vspace.unmap_page_directory
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18828,7 +18813,7 @@ def vspace.unmap_page_directory
   vspace.unmap_page_table machineStoreInst machineArchInst s a asid vaddr pd
 
 /-- [fl4_core::vspace::unmap_pdpt]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 356:0-358:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 382:0-384:1
     Visibility: public -/
 def vspace.unmap_pdpt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18839,7 +18824,7 @@ def vspace.unmap_pdpt
   vspace.unmap_page_table machineStoreInst machineArchInst s a asid vaddr pdpt
 
 /-- [fl4_core::vspace::delete_asid_pool]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 385:4-393:5
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 411:4-419:5
     Visibility: public -/
 @[rust_loop_body]
 def vspace.delete_asid_pool_loop.body
@@ -18872,7 +18857,7 @@ def vspace.delete_asid_pool_loop.body
   else ok (done a)
 
 /-- [fl4_core::vspace::delete_asid_pool]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 385:4-393:5
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 411:4-419:5
     Visibility: public -/
 @[rust_loop]
 def vspace.delete_asid_pool_loop
@@ -18887,7 +18872,7 @@ def vspace.delete_asid_pool_loop
     (a, i)
 
 /-- [fl4_core::vspace::delete_asid_pool]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 380:0-397:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 406:0-423:1
     Visibility: public -/
 def vspace.delete_asid_pool
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -18909,7 +18894,7 @@ def vspace.delete_asid_pool
     vspace.set_vm_root machineStoreInst machineArchInst s1 a1 ct
 
 /-- [fl4_core::vspace::vm_fault]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 403:0-405:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 429:0-431:1
     Visibility: public -/
 def vspace.vm_fault
   (addr : Std.U64) (code : Std.U64) (instruction : Bool) :
@@ -18918,7 +18903,7 @@ def vspace.vm_fault
   ok (error.Fault.VmFault addr code instruction)
 
 /-- [fl4_core::vspace::extra]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 409:0-415:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 435:0-441:1 -/
 def vspace.extra
   (extra : Array obj.Slot 3#usize) (i : Std.Usize) :
   Result (Option obj.Slot)
@@ -18933,7 +18918,7 @@ def vspace.extra
     else ok (some s)
 
 /-- [fl4_core::vspace::check_vspace]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 418:0-433:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 444:0-459:1 -/
 def vspace.check_vspace
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (vcap : capability.Cap) (cap_arg : Std.U64) :
@@ -18995,7 +18980,7 @@ def vspace.check_vspace
     error.invalid_cap (Std.U64 × Std.U64) cap_arg
 
 /-- [fl4_core::vspace::reply1]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 435:0-443:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 461:0-469:1 -/
 def vspace.reply1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (call : Bool) (v : Std.U64) :
@@ -19014,14 +18999,14 @@ def vspace.reply1
   sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}::clone]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 446:9-446:14
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 472:9-472:14
     Visibility: public -/
 def vspace.FrameCap.Insts.CoreCloneClone.clone
   (self : vspace.FrameCap) : Result vspace.FrameCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}]
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 446:9-446:14 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 472:9-472:14 -/
 @[reducible]
 def vspace.FrameCap.Insts.CoreCloneClone : core.clone.Clone vspace.FrameCap
   := {
@@ -19029,7 +19014,7 @@ def vspace.FrameCap.Insts.CoreCloneClone : core.clone.Clone vspace.FrameCap
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::FrameCap}]
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 446:16-446:20 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 472:16-472:20 -/
 @[reducible]
 def vspace.FrameCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.FrameCap
   := {
@@ -19037,7 +19022,7 @@ def vspace.FrameCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.FrameCap
 }
 
 /-- [fl4_core::vspace::as_frame]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 458:0-465:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 484:0-491:1 -/
 def vspace.as_frame
   (c : capability.Cap) : Result (Option vspace.FrameCap) := do
   match c with
@@ -19068,13 +19053,13 @@ def vspace.as_frame
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::unmapped_frame]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 467:0-469:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 493:0-495:1 -/
 def vspace.unmapped_frame (f : vspace.FrameCap) : Result capability.Cap := do
   ok (capability.Cap.Frame f.ptr f.size f.rights f.is_device false false 0#u64
     0#u64)
 
 /-- [fl4_core::vspace::is_cache_label]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 471:0-476:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 497:0-502:1 -/
 def vspace.is_cache_label (lbl : Std.U64) : Result Bool := do
   if lbl = fl4_abi.label.ARMPageClean_Data
   then ok true
@@ -19087,7 +19072,7 @@ def vspace.is_cache_label (lbl : Std.U64) : Result Bool := do
       else ok (lbl = fl4_abi.label.ARMPageUnify_Instruction)
 
 /-- [fl4_core::vspace::page_cache_op]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 478:0-488:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 504:0-514:1 -/
 def vspace.page_cache_op (lbl : Std.U64) : Result Std.U64 := do
   if lbl = fl4_abi.label.ARMPageClean_Data
   then ok vspace.CACHE_CLEAN
@@ -19109,7 +19094,7 @@ def vspace.page_cache_op (lbl : Std.U64) : Result Std.U64 := do
             else ok vspace.CACHE_UNIFY
 
 /-- [fl4_core::vspace::is_invalidate]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 490:0-492:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 516:0-518:1 -/
 def vspace.is_invalidate (lbl : Std.U64) : Result Bool := do
   if lbl = fl4_abi.label.ARMPageInvalidate_Data
   then ok true
@@ -19162,7 +19147,7 @@ def capability.Rights.from_word (w : Std.U64) : Result capability.Rights := do
     }
 
 /-- [fl4_core::vspace::insert_subframes]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 829:4-842:5 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 855:4-868:5 -/
 @[rust_loop_body]
 def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
@@ -19184,7 +19169,7 @@ def vspace.insert_subframes_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::insert_subframes]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 829:4-842:5 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 855:4-868:5 -/
 @[rust_loop]
 def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -19198,7 +19183,7 @@ def vspace.insert_subframes_loop
     (s, i)
 
 /-- [fl4_core::vspace::insert_subframes]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 827:0-843:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 853:0-869:1 -/
 @[reducible]
 def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -19210,7 +19195,7 @@ def vspace.insert_subframes
     0#u64
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 820:4-825:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 846:4-851:1 -/
 @[rust_loop_body]
 def vspace.ensure_empty_run_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -19235,7 +19220,7 @@ def vspace.ensure_empty_run_loop.body
   else ok (done (core.result.Result.Ok ()))
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 820:4-825:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 846:4-851:1 -/
 @[rust_loop]
 def vspace.ensure_empty_run_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -19248,7 +19233,7 @@ def vspace.ensure_empty_run_loop
     i
 
 /-- [fl4_core::vspace::ensure_empty_run]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 818:0-825:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 844:0-851:1 -/
 @[reducible]
 def vspace.ensure_empty_run
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -19258,7 +19243,7 @@ def vspace.ensure_empty_run
   vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
 /-- [fl4_core::vspace::failed_lookup]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 763:0-765:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 789:0-791:1 -/
 def vspace.failed_lookup
   (T : Type _) (lf : error.LookupFault) :
   Result (core.result.Result T error.Exc)
@@ -19267,7 +19252,7 @@ def vspace.failed_lookup
     lf)))
 
 /-- [fl4_core::vspace::cnode_of]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 756:0-761:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 782:0-787:1 -/
 def vspace.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -19297,7 +19282,7 @@ def vspace.cnode_of
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::subframe_dest]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 799:0-816:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 825:0-842:1 -/
 def vspace.subframe_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -19362,7 +19347,7 @@ def vspace.subframe_dest
         else ok (core.result.Result.Ok dest)
 
 /-- [fl4_core::vspace::large_ram_frame]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 748:0-753:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 774:0-779:1 -/
 def vspace.large_ram_frame
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -19399,7 +19384,7 @@ def vspace.large_ram_frame
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 768:0-797:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 794:0-823:1 -/
 def vspace.derive_subframe
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (length : Std.U64)
   (src : obj.Slot) (cap : capability.Cap) (buf : Std.U64)
@@ -19483,7 +19468,7 @@ def vspace.derive_subframe
          ok (r, s)
 
 /-- [fl4_core::vspace::mapped_entry]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 631:0-638:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 657:0-664:1 -/
 def vspace.mapped_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (root : Std.U64) :
@@ -19506,7 +19491,7 @@ def vspace.mapped_entry
     else ok none
 
 /-- [fl4_core::vspace::decode_test_and_clear_accessed]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 728:0-745:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 754:0-771:1 -/
 def vspace.decode_test_and_clear_accessed
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (f : vspace.FrameCap)
@@ -19567,7 +19552,7 @@ def vspace.decode_test_and_clear_accessed
            ok (r, s, a)
 
 /-- [fl4_core::vspace::decode_page_flush]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 642:0-677:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 668:0-703:1 -/
 def vspace.decode_page_flush
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -19652,7 +19637,7 @@ def vspace.decode_page_flush
                   (error.SysError.FailedLookup false lf)), s, a)
 
 /-- [fl4_core::vspace::install_page]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 612:0-627:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 638:0-653:1 -/
 def vspace.install_page
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lu : vspace.PtSlot)
@@ -19710,7 +19695,7 @@ def vspace.install_page
     ok (s1, a1)
 
 /-- [fl4_core::vspace::decode_page_map]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 539:0-590:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 565:0-616:1 -/
 def vspace.decode_page_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -19823,10 +19808,7 @@ def vspace.decode_page_map
                           (error.LookupFault.MissingCapability lu.shift))), s,
                           a)
                       else
-                        let cap_read ←
-                          if f.rights = capability.VM_READ_ONLY
-                          then ok true
-                          else ok (f.rights = capability.VM_READ_WRITE)
+                        let cap_read ← vspace.rights_readable f.rights
                         let i4 ← layout.paddr f.ptr
                         let e ←
                           vspace.make_user_page i4 vm cap_read attr shift
@@ -19863,10 +19845,7 @@ def vspace.decode_page_map
                           (error.LookupFault.MissingCapability lu.shift))), s,
                           a)
                       else
-                        let cap_read ←
-                          if f.rights = capability.VM_READ_ONLY
-                          then ok true
-                          else ok (f.rights = capability.VM_READ_WRITE)
+                        let cap_read ← vspace.rights_readable f.rights
                         let i7 ← layout.paddr f.ptr
                         let e ←
                           vspace.make_user_page i7 vm cap_read attr shift
@@ -19920,10 +19899,7 @@ def vspace.decode_page_map
                         (error.SysError.FailedLookup false
                         (error.LookupFault.MissingCapability lu.shift))), s, a)
                     else
-                      let cap_read ←
-                        if f.rights = capability.VM_READ_ONLY
-                        then ok true
-                        else ok (f.rights = capability.VM_READ_WRITE)
+                      let cap_read ← vspace.rights_readable f.rights
                       let i4 ← layout.paddr f.ptr
                       let e ← vspace.make_user_page i4 vm cap_read attr shift
                       let s1 ←
@@ -19958,10 +19934,7 @@ def vspace.decode_page_map
                         (error.SysError.FailedLookup false
                         (error.LookupFault.MissingCapability lu.shift))), s, a)
                     else
-                      let cap_read ←
-                        if f.rights = capability.VM_READ_ONLY
-                        then ok true
-                        else ok (f.rights = capability.VM_READ_WRITE)
+                      let cap_read ← vspace.rights_readable f.rights
                       let i7 ← layout.paddr f.ptr
                       let e ← vspace.make_user_page i7 vm cap_read attr shift
                       let s1 ←
@@ -19984,7 +19957,7 @@ def vspace.decode_page_map
          ok (r, s, a)
 
 /-- [fl4_core::vspace::decode_frame]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 495:0-537:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 521:0-563:1 -/
 def vspace.decode_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -20056,7 +20029,7 @@ def vspace.decode_frame
                    ok (r, s, a)
 
 /-- [fl4_core::vspace::decode_vspace_flush]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 681:0-724:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 707:0-750:1 -/
 def vspace.decode_vspace_flush
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -20380,7 +20353,7 @@ def cdt.is_final_capability
   cdt.is_final_capability_with_cap machineStoreInst s slot cap
 
 /-- [fl4_core::vspace::decode_page_table]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 847:0-897:1 -/
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 873:0-923:1 -/
 def vspace.decode_page_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -20578,7 +20551,7 @@ def vspace.decode_page_table
                                    ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 940:12-942:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 966:12-968:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -20596,7 +20569,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 940:12-942:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 966:12-968:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -20608,7 +20581,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 984:12-986:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1010:12-1012:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -20633,7 +20606,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 984:12-986:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1010:12-1012:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -20646,7 +20619,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 984:12-986:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1010:12-1012:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -20671,7 +20644,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 984:12-986:13
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 1010:12-1012:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -20684,7 +20657,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 901:0-1003:1
+    Source: 'crates/fl4-core/src/arch/aarch64/vspace.rs', lines 927:0-1029:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -30518,11 +30491,11 @@ def machine.Arch.vcpu_flush.default
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_flush_state.default
-  {Self : Type _} (ArchInst : machine.Arch Self) (self : Self) (vcpu : Std.U64)
+  {Self : Type _} (ArchInst : machine.Arch Self) (self : Self) (vc : Std.U64)
   (_mask : Std.U64) :
   Result Self
   := do
-  ArchInst.vcpu_flush self vcpu
+  ArchInst.vcpu_flush self vc
 
 /-- [fl4_core::machine::Arch::vcpu_vgic_vtr]:
     Source: 'crates/fl4-core/src/arch/aarch64/machine.rs', lines 30:8-30:44; this code is generated from a macro invocation at: 'crates/fl4-core/src/machine.rs', lines 121:4-121:27

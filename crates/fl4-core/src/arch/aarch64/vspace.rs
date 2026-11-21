@@ -136,9 +136,35 @@ fn rights_of(e: u64) -> u64 {
     }
 }
 
+/// Whether a mapping with attributes `attr` from a frame cap with read
+/// right `cap_read` is execute-never. (Written as `if`s: a stored `||`,
+/// `!` or `==` becomes a Lean `Prop` in the Aeneas output, not a `Bool`.)
+#[allow(clippy::needless_bool)]
+pub(crate) fn exec_never(attr: u64, cap_read: bool) -> bool {
+    if attr & arm_vm_attr::EXECUTE_NEVER != 0 {
+        true
+    } else if cap_read {
+        false
+    } else {
+        true
+    }
+}
+
+/// Whether frame-cap rights `rights` include read (seL4 `CapRights` read).
+#[allow(clippy::needless_bool, clippy::if_same_then_else)]
+pub(crate) fn rights_readable(rights: u64) -> bool {
+    if rights == VM_READ_ONLY {
+        true
+    } else if rights == VM_READ_WRITE {
+        true
+    } else {
+        false
+    }
+}
+
 /// seL4 `makeUserPagePTE`. The kernel never executes user pages (PXN).
 fn make_user_page(paddr: u64, rights: u64, cap_read: bool, attr: u64, shift: u64) -> u64 {
-    let xn = attr & arm_vm_attr::EXECUTE_NEVER != 0 || !cap_read;
+    let xn = exec_never(attr, cap_read);
     let cacheable = attr & arm_vm_attr::PAGE_CACHEABLE != 0;
     let (idx, sh) = if cacheable { (ATTR_NORMAL, D_SH_INNER) } else { (ATTR_DEVICE_NGNRNE, 0) };
     (paddr & ADDR_MASK)
@@ -581,7 +607,7 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     if lu.shift != shift {
         return Err(Exc::Sys(SysError::FailedLookup { source: false, lf: LookupFault::MissingCapability { bits_left: lu.shift } }));
     }
-    let cap_read = f.rights == VM_READ_ONLY || f.rights == VM_READ_WRITE;
+    let cap_read = rights_readable(f.rights);
     let e = make_user_page(layout::paddr(f.ptr), vm, cap_read, attr, shift);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     slot.set_cap(s, Cap::Frame { ptr: f.ptr, size: f.size, rights: f.rights, is_device: f.is_device, mapped: true, is_ept: false, asid, vaddr });
@@ -1363,5 +1389,23 @@ mod tests {
         }
         let mut w = world(FrameSize::Small, 0);
         assert_eq!(unmap_pt(&mut w, ASID, layout::pptr(0x10_4000)), (vec![], vec![]));
+    }
+
+    /// `exec_never` and `rights_readable` agree with the expressions they
+    /// replace (`attr & EXECUTE_NEVER != 0 || !cap_read`, `rights ==
+    /// VM_READ_ONLY || rights == VM_READ_WRITE`).
+    #[test]
+    fn exec_never_and_rights_readable_match_the_boolean_expressions() {
+        for attr in [0, arm_vm_attr::EXECUTE_NEVER, arm_vm_attr::PAGE_CACHEABLE, u64::MAX] {
+            for cap_read in [false, true] {
+                assert_eq!(exec_never(attr, cap_read), attr & arm_vm_attr::EXECUTE_NEVER != 0 || !cap_read, "{attr:#x} {cap_read}");
+            }
+        }
+        for rights in 0..8 {
+            assert_eq!(rights_readable(rights), rights == VM_READ_ONLY || rights == VM_READ_WRITE, "{rights}");
+        }
+        // And through the descriptors: no read right means execute-never.
+        assert_ne!(make_user_page(FRAME, VM_READ_WRITE, false, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
+        assert_eq!(make_user_page(FRAME, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, 12) & D_UXN, 0);
     }
 }

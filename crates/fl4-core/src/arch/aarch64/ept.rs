@@ -104,7 +104,7 @@ pub fn make_s2_leaf(paddr: u64, rights: u64, cap_read: bool, attr: u64, shift: u
     } else {
         return 0;
     };
-    let xn = attr & arm_vm_attr::EXECUTE_NEVER != 0 || !cap_read;
+    let xn = vspace::exec_never(attr, cap_read);
     let cacheable = attr & arm_vm_attr::PAGE_CACHEABLE != 0;
     let (memattr, sh) = if cacheable {
         (S2_MEMATTR_NORMAL_WB, S2_SH_INNER)
@@ -274,7 +274,7 @@ pub fn map_frame<S: Store, A: Arch>(
             lf: LookupFault::MissingCapability { bits_left: lu.shift },
         }));
     }
-    let cap_read = rights == VM_READ_ONLY || rights == VM_READ_WRITE;
+    let cap_read = vspace::rights_readable(rights);
     let e = make_s2_leaf(layout::paddr(ptr), vm, cap_read, attr, shift);
     let ct = sched::cur_thread(s);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
