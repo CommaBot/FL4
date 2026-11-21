@@ -1283,6 +1283,8 @@ import Fl4Proofs.P3.XTopJointKEntry35E
 import Fl4Proofs.P3.XTopJointKEntryNF
 import Fl4Proofs.P3.XTopJointKEntry36E
 import Fl4Proofs.P3.XTopJointKEntryEv
+import Fl4Proofs.P3.SpecInvG4f
+import Fl4Proofs.P3.XTopJointKEntryEv2
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL
