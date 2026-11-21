@@ -283,9 +283,12 @@ Arch value: the same calls in the same order), not as terms of `S`.
 of `P` — and `MemResp P` says that `P` reads the state through memory only;
 together they give `FastAcc` (`FastAcc.of_same`). -/
 
-/-- Two results agree in memory, kernel-state base, CPU and Arch. -/
+/-- Two results agree in every aligned memory word, kernel-state base, CPU
+and Arch (m58: aligned words only — `LawfulStore` pins `mem` after a write
+only at aligned addresses, `mem_wr`, so two write orders can be shown to
+agree only there). -/
 def MemAg [L : LawfulStore st] (r r' : S × A) : Prop :=
-  (∀ x, L.mem r.1 x = L.mem r'.1 x) ∧ L.ksb r.1 = L.ksb r'.1 ∧ L.cpu r.1 = L.cpu r'.1 ∧ r.2 = r'.2
+  (∀ x, Aligned x → L.mem r.1 x = L.mem r'.1 x) ∧ L.ksb r.1 = L.ksb r'.1 ∧ L.cpu r.1 = L.cpu r'.1 ∧ r.2 = r'.2
 
 /-- **[P] The fast paths' effect, free of a postcondition**: a run of
 `handle_syscall_fast` that a fast path answered ends in memory where the
@@ -298,12 +301,46 @@ def FastSame [LawfulStore st] (s : S) (a : A) (n : Std.I64) : Prop :=
 def MemResp [LawfulStore st] (P : S × A → Prop) : Prop :=
   ∀ r r', MemAg st (A := A) r r' → P r' → P r
 
+/-- **[P] The store is its memory** (m58): two states with the same aligned
+words, kernel-state base and CPU are the same state. The platform's store is
+physical memory read and written by aligned words (the kernel's only
+accesses, `LawfulStore.mem_wr`), with `frame_masks` constant (`PlainStore`)
+or itself in memory; an unaligned read is a function of the aligned words
+around it. Without it `MemResp` is not derivable for the P1 / P3 posts:
+`LawfulStore` leaves `mem (wr s a v) b` open at unaligned `b` and
+`frame_masks` open, and `EntryInvs` / `RJ` mention store operations at the
+state (`BlkOK st … s`, `RPlaced st … s`, `XTopAt … s`), so two states equal
+in their aligned words need not satisfy the same such propositions.
+l4v: the `machine_state`/`kheap` of `Fastpath_C` are total maps compared by
+equality (`fastpath_corres` ends in `ccorres` on equal states). -/
+def StoreExt [L : LawfulStore st] : Prop :=
+  ∀ s s' : S, (∀ x, Aligned x → L.mem s x = L.mem s' x) → L.ksb s = L.ksb s' → L.cpu s = L.cpu s' → s = s'
+
+/-- With `StoreExt` agreeing results are equal. -/
+theorem MemAg.eq [L : LawfulStore st] (hX : StoreExt st) {r r' : S × A} (h : MemAg st r r') : r = r' := by
+  obtain ⟨hm, hk, hc, ha⟩ := h
+  obtain ⟨s, a⟩ := r; obtain ⟨s', a'⟩ := r'
+  simp only at hm hk hc ha
+  rw [hX s s' hm hk hc, ha]
+
+/-- **Every postcondition reads the state through memory only** under
+`StoreExt` (in particular P3's `KPost` and P1's
+`∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`). -/
+theorem MemResp.of_ext [LawfulStore st] (hX : StoreExt st) (P : S × A → Prop) : MemResp st P := by
+  intro r r' h hp
+  rw [MemAg.eq st hX h]; exact hp
+
 theorem FastAcc.of_same [LawfulStore st] {s : S} {a : A} {n : Std.I64} {P : S × A → Prop}
     (h : FastSame st ar s a n) (hP : MemResp st P) : FastAcc st ar s a n P := by
   intro hg s' a' e
   obtain ⟨r, er, hm⟩ := h s' a' e
   rw [er, WP.spec_ok] at hg
   exact hP _ _ hm hg
+
+/-- `FastSame` and `StoreExt` give `FastAcc` for every postcondition. -/
+theorem FastAcc.of_ext [LawfulStore st] {s : S} {a : A} {n : Std.I64} {P : S × A → Prop}
+    (hX : StoreExt st) (h : FastSame st ar s a n) : FastAcc st ar s a n P :=
+  FastAcc.of_same st ar h (MemResp.of_ext st hX P)
 
 end
 end Fl4Proofs.P1
