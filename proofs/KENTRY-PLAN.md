@@ -12609,3 +12609,108 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   entry_of5, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, fault_same, fault_fin,
   fault_fin_gen, unblock_sporadic_wr, find_asid_wr, set_vm_root_wr, set_mrs_fault_rgU, xfer_foot_S8, lookup_buf_agree,
   sfW_mem, epFast_mem, tcbw_ne, faultReads_of, here_facts, usOff_of: propext, Classical.choice, Quot.sound.
+
+## m63 (branch par/m63 in FL4-m56, on 521d8b85 = par/m61) — m61's handoff: (d2) DONE (`finReads_of`: m60's `FinReads` at the state after `unblock_sporadic` from entry-state facts; `VmOff` under one narrow [J] `AsidOff`); (d3) in part (`faultOK_of`: m60's whole `FaultOK` from the P1 invariants where `fastpath.fault` is entered plus one bundle at that state, `FaultEntAt`; `FaultEnt` itself NOT derived there); (d4) DONE as a narrowing (top `kernel_entry.entry_of6`: `hFt : FastFaultOK`, reads over five intermediate states, replaced by `hFP : FastFaultPre`, facts at the fast-path entry state; the invariants there derived); ReplyRecv R1–R7, `FastRRP` / P3 `FastRR`, `kernel_entryJ33F` / `J34F` NOT started; no FINDING
+- **P1 FastFinInv (new; imported by the root).**
+  * `is_hp_unfold`, **`is_hp_of_le`** / **`le_of_is_hp`**: `is_highest_prio p` is "the bitmap marks nothing above `p`"
+    (QueueChoose's `highest_prio.spec`), so the fast path's check at the entry state is re-read at the meeting state from
+    `BitmapOK` alone (no read-congruence of the extraction needed).
+  * **`unblock_sporadic_fr`**: `unblock_sporadic` writes only the handler's SC ring (`InRing`) and the core's `REPROGRAM`
+    (from `UsOff.wf` / `rp` and `sporadic.unblock_check.fr`).
+  * **`FinKeep T Ω s Y r dsc sb`** (what the run keeps from the entry state: node words but `SCHED_ACTION` / `REPROGRAM`,
+    TCB words above the user context but state / reply / fault / Ep links, `Ω` words but the reply's TCB word and the
+    handler's ring), **`finKeep15`** (m61's `FaultKeep` at `fS14` + the footprint above), `FinKeep.wr_act` (past the
+    `CHOOSE_NEW` write), `FinKeep.tw`.
+  * **`NoDue.agree`** (`NoDue` reads seven words), **`ReadyQueues.keep`** (queue words, members' links, bitmap words),
+    `QW` (a word `enqueue` / `dequeue` may write: node word at offset ≥ 128, a TCB's sched link / in-queues word) with
+    `QW.ne_node` / `ne_tcb` / `ne_omg` / `aligned` / `nodeOrTcb`, `mem_wrs_qw`, **`noDue_wrs`** (`NoDue` at both
+    enqueued states from `NoDue` at the entry state: TIMER_MIN null or a TCB, `TimerOK.min`).
+  * **`rel_head` (F4)**: the release head is a TCB; its SC is in `Scs` (`ScExtra0.bound`), active (released ⇒ `Sch` ⇒
+    `BoundInv.sact`), so `RefillsWF` (`SCsOK.act` / `all`), its words `Sg ⊆ Ω` words apart from the reply object
+    (`ObjsOK.rpSc`) and from the handler's SC (`scDisj`: the SCs differ because each names its TCB back and the handler
+    is not released, `HereF.nr`).
+  * **`AsidOff Ω Sg s` [J]** (exact): `∀ hi < 2048, atAF (ksb s) hi ∈ Ω ∧ ∉ Sg ∧ (entry ≠ 0 → ∀ lo < 512, peAF entry lo ∈ Ω ∧
+    ∉ Sg)`. l4v counterpart `valid_global_objs` / `valid_asid_table` + `pspace_distinct` (the table is kernel-global state
+    right after the 64 nodes at `ksb + 288000`, each entry an `ASIDPool` object, disjoint from TCB / SC / reply /
+    notification objects). Why a premise: P1 places no ASID object (P3 `VsRel.tmem` / `pool` do, through the state
+    relation); Hyps4's `aset` already assumes the same placement for MakePool's table write (`set_asid_table` writes `Ω \ Sg`
+    words). `vtA_val`, `NodeOrTcb`, **`vmOff_of`** (`VmOff U d w` for any node word or TCB word above the user context, at a
+    state with `FinKeep`; the table / pool words kept because they are `Ω \ Sg` and the reply word / handler's ring are `Sg`).
+  * **`finReads_of` (d2)**: `FinReads s15 dest` (and `actA s15 = actA fS14`) from `FaultEnt`, `HereF`, the fast path's
+    `is_highest_prio` at the entry state, `SchedQueuesInv` / `BoundInv` / `SCsOK` / `ScExtra0` / `ObjsOK`, `r ∈ Rp`,
+    `AsidOff`, m61's `FaultKeep` at `fS14`, `t` blocked on reply there, and the `unblock_sporadic` run. Both queue cases:
+    an empty queue gives `EnqE` (head / tail 0 and the bitmap bits from `BitmapOK` at the meeting state), a nonempty one
+    `EnqNE` (head ≠ 0 a TCB with `sched_prev = 0` by `Seg`, head and tail not the handler since it is in no ready queue:
+    `queued` / `inQ` + `HereF.nq`); `hns` from `t` BlockedOnReply; `hdom` / `hdt` from ks words (`Ω \ Sg`, `SgOK.ks`).
+  * **`FaultEntAt T Cs Ω U Sg Rp s t`** := `AsidOff Ω Sg s ∧ ∀ ptr badge dest r, FaultChecks st s t ptr badge dest r →
+    r ∈ Rp ∧ ∃ rest, FaultEnt T Cs Ω U s t ptr dest r rest`. **`faultOK_of` (d3)**: `BXI … s` + `FaultEntAt … s t` ⇒
+    m60's `FaultOK ar s a t n` (m61's `faultReads_of`, `usOff_of` with `sb = Z dsc` from `ObjsOK.sc` / `scW`, `SCsOK.spSg` /
+    `spor` / `act` / `all`, `ObjsOK.rpSc`; `here_facts`; `is_highest_prio_dom`; then `finReads_of`).
+  * **`FastFaultPre ar T Cs Ω U Sg Rp s a n`**: `FaultEntAt` of the current thread at each state where
+    `handle_syscall_fast` enters `fastpath.fault` (after the `FAULT_IP` write and a passing `budget_ok`; after a declined
+    `debug_syscall` and a passing `budget_ok`). **`FastFaultOK.of_pre`**: with `EntryHyps0`, `P3Ok s`, `EntryInv s`:
+    `FastFaultPre ⇒ FastFaultOK` (`reg_entry` for the `FAULT_IP` write, `EntAt` by `Ent.prefix`, `EntryHyps0.debug` +
+    `debug_syscall.same` on the out-of-range route, `budget_ok.bxc` gives `BXI` where the fast path is entered).
+  * **Top `kernel_entry.entry_of6`** = `entry_of5` with `hFt : ∀ n ≠ VMEnter, FastFaultOK …` replaced by
+    `hFP : ∀ n ≠ VMEnter, FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a n`; `EntryHyps0` from `GF` / `hσ`
+    (`InvGaps4.gaps3`, `InvGaps3.gaps`, `EntryHyps.of_gaps`). `hX : StoreExt` [P] and `hRR : FastRRP` [P] unchanged;
+    `entry_of5` / `entry_of4` kept.
+- **Reachability of every bundle added or kept** (m61's lesson; each checked against the code):
+  * `finReads_of`'s inputs: `HereF` and `is_highest_prio` are what an accepted `schedulable_here` / the fast path's
+    priority check established (derived, `here_facts`, `is_highest_prio_dom`); the five invariants are `BXI`'s parts,
+    which `budget_ok.bxc` establishes at exactly the state where `fastpath.fault` runs; `r ∈ Rp` holds for a receiver
+    blocked on an endpoint with a nonzero reply word (`ReplyInv0.recv`; the fast path checked `r ≠ 0`); `FaultKeep` and
+    `t` BlockedOnReply at `fS14` are derived (`faultReads_of`, `hR13s`). Nothing is asked of a word the code does not
+    read: `NoDue` only where `awaken` reads (re-read word by word), the release head's refill only at its head index
+    (inside the ring by `RefillsWF.head_lt`), `TabOff` only over `hi < 2048` / `lo < 512` (m61).
+  * `AsidOff`: holds whenever `Ω` contains the ASID table and the pools — compatible with every other use of `Ω` (`Ω`
+    must lie outside TCBs and nodes: the table is at `[ksb + 288000, ksb + 304384)`, past the last node
+    `ksb + 13568 + 64·4288 = ksb + 288000`; pools are separate 4 KiB objects; user buffer words are outside `Ω`, and a pool
+    is never a user frame) and with `Sg` (SC / reply / notification words). Not refuted by any trace; it is a choice of the
+    ghost sets the P3 relation already makes for VSpace (`VsRel`).
+  * `FaultEntAt`'s `FaultEnt` part: m61 checked each field reachable (its docstring); `r ∈ Rp` as above.
+  * `FastFaultPre`: only `FaultEntAt` at states the fast entry reaches; holds wherever the two parts above hold.
+- **Premises.** Added: `AsidOff` [J] (inside `FaultEntAt`, so inside `entry_of6`'s `hFP`). Narrowed: P1 entry top
+  `entry_of5`'s `hFt : FastFaultOK` (five read bundles at five intermediate states: m58 `FaultReads`, m59 `UsOff`, m60
+  `FinReads`) → `entry_of6`'s `hFP : FastFaultPre` (one bundle at the state where `fastpath.fault` is entered: m61's
+  `FaultEnt` + `r ∈ Rp` + `AsidOff`). Removed: none outright (the reads are now derived, but `FaultEnt` at the fast entry
+  state remains a premise). Unchanged: `StoreExt` [P], `FastRRP` [P], P3 `kernel_entryJ33` / `J34` (`hFast : FastRR`).
+- **FINDING: none.** Re-read `unblock_sporadic`, `schedule` / `awaken` / `choose_thread` reads, the release queue and the
+  bitmap against fastpath.rs's `schedulable_here` / `is_highest_prio` while deriving the reads: every read of the general
+  path at `s15` is either a word the fault run does not write (the footprint above) or re-derived from an invariant.
+- **Lean notes.** In an anonymous constructor of a structure whose fields mention `L.wr U (actA U) v`, a goal
+  generalised to a variable `X` is not seen through: build the structure in a `have … := by subst hX; exact ⟨…⟩`.
+  `wrs X ?l` does not unify with `enqNE X …` (it is stuck on the list): give `noDue_wrs` the write list explicitly.
+  `rw [l1Off_val]` may close a numeral goal by `rfl`: use `rw [...] <;> omega`. `obj.Tcb.set_reg.wrK` /
+  `debug_syscall.same` need `(L := L)` when the store instance is not otherwise determined.
+- **Builds (tokyo, mirror FL4-m56, keys m63-*; `.lake` warm from m61).** b1 FastFaultInv warm check green (3810 jobs);
+  b2–b5 FastFinInv iterations (irreducible layout constants under `rfl`, `rw` closing numerals, a stuck `rw [← hX]` in a
+  constructor, an unknown write list); **b6 FastFinInv green (3812 jobs)**, committed 3e5ce0d9; b7–b8 two stuck
+  `LawfulStore ?m` instances; **b9 FastFinInv with `faultOK_of` / `FastFaultOK.of_pre` / `entry_of6` green (3812 jobs)**,
+  committed c029b2f5; **b10** cone FastFinInv, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC, SpecInvRd8wB:
+  **"Build completed successfully (6908 jobs)"**, 0 sorry. No full `lake build` (the lead runs it; the root gains
+  `import Fl4Proofs.P1.FastFinInv`; FastFinInv is a leaf, nothing else imports it).
+- **Axioms** (scratch/axm63.lean, untracked; b10): kernel_entryJ33, kernel_entryJ34, P1 kernel_entry.entry_of5,
+  **kernel_entry.entry_of6**, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, finReads_of,
+  faultOK_of, FastFaultOK.of_pre, unblock_sporadic_fr, finKeep15, is_hp_of_le, le_of_is_hp, NoDue.agree, noDue_wrs,
+  ReadyQueues.keep, rel_head, vmOff_of: propext, Classical.choice, Quot.sound.
+- HANDOFF (in order).
+  (d3') **`FaultEnt` at the fast-path entry state `s2`** (what is left of `hFP`, besides `AsidOff`): from `BXI s2` and
+  `XG s2` (both at hand in `FastFaultOK.of_pre`): `hT`, `ht`, `hN`, `hcC`, `hΩ` from `SchedQueuesInv`; `hcur` (= `curW`),
+  `hact` (`FaultChecks.act`), `hrep` (`FaultChecks.reply`), `hsc` (`here_facts`) are reads; `hrΩ` by `ObjsOK.rpW` once
+  `r ∈ Rp` (`ReplyInv0.recv`: `dest` is blocked on receive — the `EpsWit` members of a RECV endpoint, `EpTy`); the
+  endpoint facts `hE` / `hEN` / `hq` / `hEΩ` from `EpsWit` once `ptr ∈ E` — this needs the handler cap's object typed
+  (`H ptr = some .ep` for the cap in t's `SLOT_FAULT_HANDLER`; P3's cap relation via `EntAt` / `P3Ok`, or a Hyps4-level
+  cap-typing field, the same one the general `send_ipc` fault path uses: grep `faultEp` / `FaultEpHypJ`); `hdt` from
+  `t` current and runnable (`BoundInv.resume` / action RESUME ⇒ `t` Running) while queue members are `Blocked`; `hU` /
+  `hbuf` from `XferHyps.buf` (Hyps4's `P.xfer`) at `s2`. Then `AsidOff` at `s2` from `AsidOff` at the entry state (the
+  `FAULT_IP` register word and `budget_ok`'s node words are not `Ω` words) and an `entry_of7` whose `hFP` is
+  `AsidOff Ω Sg s` alone.
+  (R) ReplyRecv R1–R7 (m57 (3)) in the meeting-point style, unchanged from m61's plan: `reply_recv_found` inversion
+  (FastDecline's walk), the `handle_invocation` → Reply decode → `do_reply_transfer` → `handle_recv` prefix to a meeting
+  state where the action word is `u` on both paths (R1 `u ≠ t`, R2 idle endpoint queue `(0, 0)` from `EpsWit`, R3 the
+  label-0 restart, R6 footprints `faults.handle_fault_reply.rg` / `ipc.do_reply_transfer.foot`), `unblock_check_wr` for R4
+  and this module's `rel_head` for R5, then `finish` with no enqueue (`dequeue u` a no-op) via `schedTail_act` /
+  `set_vm_root_wrs`; the reads re-derived with this module's tools (`FinKeep`-style keep from the run's footprint,
+  `NoDue.agree`, `is_hp_of_le`, `vmOff_of`). That gives P1 `FastRRP`, P3 `FastRR` (`FastRR.acc` direction reversed:
+  from the meeting-point equality and `StoreExt`), and `kernel_entryJ33F` / `J34F` without `hFast` in a new P3 module.
