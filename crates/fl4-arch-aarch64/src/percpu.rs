@@ -24,10 +24,22 @@ pub struct PerCpu {
     pub index: AtomicU64,
     /// The core is in the idle loop.
     pub idle: Cell<bool>,
-    /// EL0 may use FP/SIMD (CPACR_EL1.FPEN), as last written.
-    pub fp_enabled: Cell<bool>,
+    /// FP/SIMD trap mode: 0 = trap EL0 (FPEN=01), 1 = trap EL1+EL0 (FPEN=00),
+    /// 2 = enabled (FPEN=11).
+    pub fp_mode: Cell<u8>,
+    /// In EL2 nVHE mode, whether to trap guest FP/SIMD via `CPTR_EL2.TFP`.
+    pub guest_fp_trap: Cell<bool>,
     /// `mmu::ASID_GEN` when this core last flushed its TLB for it.
     pub asid_gen: Cell<u64>,
+    /// `mmu::VMID_GEN` when this core last flushed its Stage-2 TLB for it.
+    pub vmid_gen: Cell<u64>,
+    /// Whether the lazily owned `vcpu_owner` is currently active in hardware
+    /// (false when suspended for a native/idle thread).
+    pub vcpu_active: Cell<bool>,
+    /// Cached GIC mask state of PPI 25 (VGIC maintenance) on this core (true = masked).
+    pub ppi_vgic_masked: Cell<bool>,
+    /// Cached GIC mask state of PPI 27 (guest vTimer) on this core (true = masked).
+    pub ppi_vtimer_masked: Cell<bool>,
     /// Another core invalidated the ASID this core runs: the exit checks
     /// that it still names the current thread's VSpace (`mmu::retired`).
     pub vspace_stale: Cell<bool>,
@@ -48,8 +60,13 @@ impl PerCpu {
             stack_top: AtomicU64::new(0),
             index: AtomicU64::new(0),
             idle: Cell::new(false),
-            fp_enabled: Cell::new(true),
+            fp_mode: Cell::new(2),
+            guest_fp_trap: Cell::new(true),
             asid_gen: Cell::new(0),
+            vmid_gen: Cell::new(0),
+            vcpu_active: Cell::new(false),
+            ppi_vgic_masked: Cell::new(true),
+            ppi_vtimer_masked: Cell::new(true),
             vspace_stale: Cell::new(false),
             gate_held: Cell::new(false),
             armed: Cell::new(0),
@@ -68,8 +85,14 @@ static PERCPU: Locals = Locals([const { PerCpu::new() }; MAX_CPUS]);
 struct Shared {
     /// TCB whose FP/SIMD state is live in this core's registers (0 = none).
     fpu_owner: AtomicU64,
+    /// VCPU whose EL1/VGIC state is live in this core's registers (0 = none).
+    vcpu_owner: AtomicU64,
     /// The user address space this core runs (TTBR0_EL1 value).
     ttbr0: AtomicU64,
+    /// The Stage-2 root+VMID this core runs (VTTBR_EL2 value).
+    vttbr: AtomicU64,
+    /// The logical Stage-2 ASID currently loaded on this core (0 = empty).
+    s2_asid: AtomicU64,
     /// MPIDR_EL1 affinity of this core.
     mpidr: AtomicU64,
     /// GICv3: this core's redistributor (kernel virtual address). GICv2:
@@ -81,7 +104,10 @@ struct Shared {
 static SHARED: [Shared; MAX_CPUS] = [const {
     Shared {
         fpu_owner: AtomicU64::new(0),
+        vcpu_owner: AtomicU64::new(0),
         ttbr0: AtomicU64::new(0),
+        vttbr: AtomicU64::new(0),
+        s2_asid: AtomicU64::new(0),
         mpidr: AtomicU64::new(0),
         gicr: AtomicU64::new(0),
         gic_cpu: AtomicU64::new(0),
@@ -93,10 +119,19 @@ pub struct Stacks(pub UnsafeCell<[[u8; KSTACK_SIZE]; MAX_CPUS]>);
 unsafe impl Sync for Stacks {}
 pub static KSTACKS: Stacks = Stacks(UnsafeCell::new([[0; KSTACK_SIZE]; MAX_CPUS]));
 
-/// The calling core's index (TPIDR_EL1 points at its `PerCpu`).
+#[inline]
+fn read_tpidr() -> u64 {
+    if crate::cpu::is_el2_vhe() {
+        crate::mrs!("tpidr_el2")
+    } else {
+        crate::mrs!("tpidr_el1")
+    }
+}
+
+/// The calling core's index (TPIDR_EL2 in EL2, TPIDR_EL1 in EL1).
 #[inline]
 pub fn cpu_index() -> usize {
-    let p = crate::mrs!("tpidr_el1");
+    let p = read_tpidr();
     if p == 0 {
         0
     } else {
@@ -107,7 +142,7 @@ pub fn cpu_index() -> usize {
 /// This core's state. Callers run with interrupts disabled.
 #[inline]
 pub fn get() -> &'static PerCpu {
-    let p = crate::mrs!("tpidr_el1");
+    let p = read_tpidr();
     if p == 0 {
         &PERCPU.0[0]
     } else {
@@ -126,12 +161,17 @@ pub fn init_stack(i: usize) -> u64 {
     top
 }
 
-/// On core `i`: set up its state and point TPIDR_EL1 at it; returns its
-/// kernel stack top.
+/// On core `i`: set up its state and point TPIDR_EL2 (EL2) or TPIDR_EL1
+/// (EL1) at it; returns its kernel stack top.
 pub fn init(i: usize) -> u64 {
     let top = init_stack(i);
     set_mpidr(i, crate::cpu::mpidr());
-    crate::msr!("tpidr_el1", &PERCPU.0[i] as *const PerCpu as u64);
+    let ptr = &PERCPU.0[i] as *const PerCpu as u64;
+    if crate::cpu::is_el2_vhe() {
+        crate::msr!("tpidr_el2", ptr);
+    } else {
+        crate::msr!("tpidr_el1", ptr);
+    }
     top
 }
 
@@ -152,6 +192,15 @@ pub fn set_fpu_owner(t: u64) {
     SHARED[cpu_index()].fpu_owner.store(t, Ordering::Release);
 }
 
+/// The VCPU whose EL1/VGIC state core `c` currently holds (0 = none).
+pub fn vcpu_owner(c: usize) -> u64 {
+    SHARED[c].vcpu_owner.load(Ordering::Acquire)
+}
+
+pub fn set_vcpu_owner(v: u64) {
+    SHARED[cpu_index()].vcpu_owner.store(v, Ordering::Release);
+}
+
 /// The TTBR0_EL1 value core `c` runs (mmu.rs: sequentially consistent,
 /// half of the switch/invalidation handshake).
 pub fn ttbr0(c: usize) -> u64 {
@@ -160,6 +209,24 @@ pub fn ttbr0(c: usize) -> u64 {
 
 pub fn set_ttbr0(v: u64) {
     SHARED[cpu_index()].ttbr0.store(v, Ordering::SeqCst);
+}
+
+/// The VTTBR_EL2 value core `c` runs (mmu.rs: sequentially consistent).
+pub fn vttbr(c: usize) -> u64 {
+    SHARED[c].vttbr.load(Ordering::SeqCst)
+}
+
+pub fn set_vttbr(v: u64) {
+    SHARED[cpu_index()].vttbr.store(v, Ordering::SeqCst);
+}
+
+/// Logical Stage-2 ASID core `c` runs (0 = empty Stage-2 root).
+pub fn s2_asid(c: usize) -> u64 {
+    SHARED[c].s2_asid.load(Ordering::SeqCst)
+}
+
+pub fn set_s2_asid(v: u64) {
+    SHARED[cpu_index()].s2_asid.store(v, Ordering::SeqCst);
 }
 
 /// Set before core `c` is started or on core `c` itself; read by other

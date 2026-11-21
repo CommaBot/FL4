@@ -21,7 +21,7 @@ tagged_union seL4_Fault seL4_FaultType {
     -- arch specific faults
     tag VMFault 6
 
-#ifdef CONFIG_ARM_HYPERVISOR_SUPPORT
+#if defined(CONFIG_ARM_HYPERVISOR_SUPPORT) || defined(CONFIG_ARCH_AARCH64)
     tag VGICMaintenance 7
     tag VCPUFault 8
     tag VPPIEvent 9
@@ -30,7 +30,7 @@ tagged_union seL4_Fault seL4_FaultType {
     -- arch specific faults
     tag VMFault 5
 
-#ifdef CONFIG_ARM_HYPERVISOR_SUPPORT
+#if defined(CONFIG_ARM_HYPERVISOR_SUPPORT) || defined(CONFIG_ARCH_AARCH64)
     tag VGICMaintenance 6
     tag VCPUFault 7
     tag VPPIEvent 8

@@ -23,3 +23,12 @@ typedef struct seL4_ARM_SMCContext_ {
     /* register arguments */
     seL4_Word x0, x1, x2, x3, x4, x5, x6, x7;
 } seL4_ARM_SMCContext;
+
+/* Bulk VCPU state transfer layout (1024 bytes, 64-byte aligned).
+ * `gprs[37]` order: X0..X30, SP_EL0, ELR_EL1 (PC), SPSR_EL1, FAULT_IP, TPIDR_EL0, TPIDRRO_EL0. */
+typedef struct seL4_ARM_VCPUState_ {
+    seL4_Word regs[64];
+    seL4_Word gprs[37];
+    seL4_Word vppi_masked;
+    seL4_Word reserved[26];
+} seL4_ARM_VCPUState;

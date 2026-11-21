@@ -8,8 +8,13 @@ use crate::percpu;
 use fl4_core::layout::tcb;
 
 const EAGER_AFTER: u8 = 3;
-/// CPACR_EL1.FPEN: EL0 traps (EL1 does not), or nothing traps; trace
-/// register access always traps (`el0_access`).
+/// CPACR_EL1 / CPTR_EL2.FPEN modes:
+/// 0 = trap EL0 (FPEN=0b01), 1 = trap EL1+EL0 (FPEN=0b00, VCPU), 2 = enabled (FPEN=0b11).
+const FP_MODE_TRAP_EL0: u8 = 0;
+const FP_MODE_TRAP_EL10: u8 = 1;
+const FP_MODE_ENABLED: u8 = 2;
+
+const FPEN_EL10_TRAP: u64 = crate::el0_access::CPACR_TTA;
 const FPEN_EL0_TRAP: u64 = crate::el0_access::CPACR_FP_EL0_TRAP;
 const FPEN_NONE: u64 = crate::el0_access::CPACR_FP_NONE;
 
@@ -21,22 +26,37 @@ fn use_count(t: u64) -> *mut u8 {
     (t + tcb::FPU_USE) as *mut u8
 }
 
-pub fn init() {
-    crate::msr!("cpacr_el1", FPEN_EL0_TRAP);
-    crate::cpu::isb();
-    percpu::get().fp_enabled.set(false);
+fn cpacr_val(mode: u8) -> u64 {
+    let v = match mode {
+        FP_MODE_ENABLED => FPEN_NONE,
+        FP_MODE_TRAP_EL10 => FPEN_EL10_TRAP,
+        _ => FPEN_EL0_TRAP,
+    };
+    // Under HCR_EL2.E2H = 1, CPACR_EL1 aliases CPTR_EL2 where bit 30 is TAM.
+    if crate::cpu::is_el2_vhe() { v | (1 << 30) } else { v }
 }
 
-fn set_enabled(on: bool) {
+pub fn init() {
+    crate::msr!("cpacr_el1", cpacr_val(FP_MODE_TRAP_EL0));
+    crate::cpu::isb();
+    percpu::get().fp_mode.set(FP_MODE_TRAP_EL0);
+}
+
+fn set_mode(mode: u8) {
     let pc = percpu::get();
-    if pc.fp_enabled.get() != on {
-        crate::msr!("cpacr_el1", if on { FPEN_NONE } else { FPEN_EL0_TRAP });
+    if pc.fp_mode.get() != mode {
+        crate::msr!("cpacr_el1", cpacr_val(mode));
         crate::cpu::isb();
-        pc.fp_enabled.set(on);
+        pc.fp_mode.set(mode);
     }
 }
 
 fn save(t: u64) {
+    // Ensure FP/SIMD is accessible at EL2 (FPEN=0b00 traps EL2 too!).
+    let prev = percpu::get().fp_mode.get();
+    if prev == FP_MODE_TRAP_EL10 {
+        set_mode(FP_MODE_ENABLED);
+    }
     let p = image(t);
     unsafe {
         core::arch::asm!(
@@ -68,9 +88,16 @@ fn save(t: u64) {
             options(nostack)
         );
     }
+    if prev == FP_MODE_TRAP_EL10 {
+        set_mode(prev);
+    }
 }
 
 fn restore(t: u64) {
+    let prev = percpu::get().fp_mode.get();
+    if prev == FP_MODE_TRAP_EL10 {
+        set_mode(FP_MODE_ENABLED);
+    }
     let p = image(t);
     unsafe {
         core::arch::asm!(
@@ -102,25 +129,61 @@ fn restore(t: u64) {
             options(nostack)
         );
     }
+    if prev == FP_MODE_TRAP_EL10 {
+        set_mode(prev);
+    }
 }
 
-/// Exit path: make FP/SIMD right for thread `t`.
-pub fn switch_to(t: u64, fpu_disabled: bool) {
+/// Exit path: make FP/SIMD right for thread `t`. For VCPU-bound threads
+/// (`is_vcpu == true`) at EL2 VHE, trapping uses `FPEN = 0b00` so guest EL1
+/// cannot touch another thread's live FP/SIMD state. In EL2 nVHE, host
+/// `CPACR_EL1` stays at `FP_MODE_TRAP_EL0` / `FP_MODE_ENABLED` and guest
+/// trapping is controlled via `percpu::get().guest_fp_trap` (`CPTR_EL2.TFP`).
+pub fn switch_to(t: u64, fpu_disabled: bool, is_vcpu: bool) {
+    if is_vcpu && crate::cpu::is_el2_nvhe() {
+        let pc = percpu::get();
+        if fpu_disabled {
+            set_mode(FP_MODE_TRAP_EL0);
+            pc.guest_fp_trap.set(true);
+            return;
+        }
+        if owner() == t {
+            set_mode(FP_MODE_ENABLED);
+            pc.guest_fp_trap.set(false);
+            return;
+        }
+        let n = unsafe { core::ptr::read_volatile(use_count(t)) };
+        if n < EAGER_AFTER {
+            set_mode(FP_MODE_TRAP_EL0);
+            pc.guest_fp_trap.set(true);
+            return;
+        }
+        unsafe { core::ptr::write_volatile(use_count(t), n.wrapping_add(1)) };
+        set_mode(FP_MODE_ENABLED);
+        load(t);
+        pc.guest_fp_trap.set(false);
+        return;
+    }
+    let trap_mode = if is_vcpu && crate::cpu::is_el2_vhe() {
+        FP_MODE_TRAP_EL10
+    } else {
+        FP_MODE_TRAP_EL0
+    };
     if fpu_disabled {
-        set_enabled(false);
+        set_mode(trap_mode);
         return;
     }
     if owner() == t {
-        set_enabled(true);
+        set_mode(FP_MODE_ENABLED);
         return;
     }
     let n = unsafe { core::ptr::read_volatile(use_count(t)) };
     if n < EAGER_AFTER {
-        set_enabled(false);
+        set_mode(trap_mode);
         return;
     }
     unsafe { core::ptr::write_volatile(use_count(t), n.wrapping_add(1)) };
-    set_enabled(true);
+    set_mode(FP_MODE_ENABLED);
     load(t);
 }
 
@@ -148,10 +211,11 @@ pub fn lazy_load(t: u64) {
         let n = core::ptr::read_volatile(use_count(t));
         core::ptr::write_volatile(use_count(t), n.saturating_add(1).max(1));
     }
-    set_enabled(true);
+    set_mode(FP_MODE_ENABLED);
     if owner() != t {
         load(t);
     }
+    percpu::get().guest_fp_trap.set(false);
 }
 
 /// Write `t`'s state back to its TCB if it is live on this core.
@@ -178,7 +242,7 @@ pub fn release_local(t: u64) {
     if owner() == t {
         save(t);
         percpu::set_fpu_owner(0);
-        set_enabled(false);
+        set_mode(FP_MODE_TRAP_EL0);
     }
 }
 

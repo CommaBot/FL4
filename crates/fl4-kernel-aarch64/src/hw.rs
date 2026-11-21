@@ -38,6 +38,18 @@ pub struct Hw {
     pub psci: u64,
     /// The EL1 virtual timer's interrupt ID (0 if not described).
     pub vtimer: u64,
+    /// The EL1 non-secure physical timer's interrupt ID (0 if not described).
+    pub ptimer: u64,
+    /// The EL2 physical timer's interrupt ID (0 if not described).
+    pub hyptimer: u64,
+    /// The VGIC maintenance interrupt ID (0 if not described).
+    pub vgic_maint: u64,
+    /// GICv2 hypervisor control interface (GICH).
+    pub gich: u64,
+    pub gich_len: u64,
+    /// GICv2 virtual CPU interface (GICV).
+    pub gicv: u64,
+    pub gicv_len: u64,
     pub rsdp: [u8; RSDP_LEN],
     pub has_rsdp: bool,
 }
@@ -61,6 +73,13 @@ impl Hw {
             uart_wide: false,
             psci: smp::PSCI_NONE,
             vtimer: 0,
+            ptimer: 0,
+            hyptimer: 0,
+            vgic_maint: 0,
+            gich: 0,
+            gich_len: 0,
+            gicv: 0,
+            gicv_len: 0,
             rsdp: [0; RSDP_LEN],
             has_rsdp: false,
         }
@@ -200,6 +219,15 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
                             if hw.gicc == 0 {
                                 hw.gicc = rd64(e + 32);
                             }
+                            if hw.gicv == 0 {
+                                hw.gicv = rd64(e + 40);
+                            }
+                            if hw.gich == 0 {
+                                hw.gich = rd64(e + 48);
+                            }
+                            if hw.vgic_maint == 0 {
+                                hw.vgic_maint = rd32(e + 56) as u64;
+                            }
                             // A core's RD and SGI frames; GICv4 VLPI frames
                             // after them are found at boot (`gic::redistributor_span`).
                             let r = rd64(e + 60);
@@ -219,7 +247,11 @@ fn parse_acpi(rsdp_p: u64, hw: &mut Hw) -> bool {
             }
         }
         b"GTDT" if len >= 72 => {
+            hw.ptimer = rd32(t + 48) as u64;
             hw.vtimer = rd32(t + 64) as u64;
+            if len >= 76 {
+                hw.hyptimer = rd32(t + 72) as u64;
+            }
         }
         b"SPCR" if len >= 52 => {
             let ty = rd8(t + 36);
@@ -431,10 +463,19 @@ struct Node {
     reg_bad: bool,
     /// GICv3 `#redistributor-regions` (the binding's default is 1).
     redist_regions: u64,
+    /// VGIC maintenance interrupt PPI from the GIC node's `interrupts`.
+    vgic_maint: u64,
 }
 
 impl Node {
-    const EMPTY: Node = Node { kind: 0, reg: [(0, 0); NODE_REGS], n_reg: 0, reg_bad: false, redist_regions: 1 };
+    const EMPTY: Node = Node {
+        kind: 0,
+        reg: [(0, 0); NODE_REGS],
+        n_reg: 0,
+        reg_bad: false,
+        redist_regions: 1,
+        vgic_maint: 0,
+    };
 }
 
 const N_GICV3: u8 = 1;
@@ -496,6 +537,9 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
                 for &r in &n.reg[1..1 + want.min(have) as usize] {
                     hw.add_gicr(r.0, r.1);
                 }
+                if n.vgic_maint != 0 {
+                    hw.vgic_maint = n.vgic_maint;
+                }
             }
             N_GICV2 => {
                 hw.gic_version = 2;
@@ -503,6 +547,17 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
                 if n.n_reg > 1 {
                     hw.gicc = n.reg[1].0;
                     hw.gicc_len = n.reg[1].1;
+                }
+                if n.n_reg > 2 {
+                    hw.gich = n.reg[2].0;
+                    hw.gich_len = n.reg[2].1;
+                }
+                if n.n_reg > 3 {
+                    hw.gicv = n.reg[3].0;
+                    hw.gicv_len = n.reg[3].1;
+                }
+                if n.vgic_maint != 0 {
+                    hw.vgic_maint = n.vgic_maint;
                 }
             }
             N_PL011 | N_16550 => {
@@ -558,7 +613,13 @@ fn parse_dt(dtb: u64, hw: &mut Hw) -> bool {
         if p.name == b"interrupts" && p.len >= 12 * 3 && p.node == b"timer" {
             // (type, number, flags) for the secure, non-secure, virtual
             // and hypervisor timers; PPIs number from 16.
+            hw.ptimer = be32(p.val + 12 + 4) as u64 + 16;
             hw.vtimer = be32(p.val + 24 + 4) as u64 + 16;
+            if p.len >= 12 * 4 {
+                hw.hyptimer = be32(p.val + 36 + 4) as u64 + 16;
+            }
+        } else if p.name == b"interrupts" && p.len >= 12 && be32(p.val) == 1 {
+            cur.vgic_maint = be32(p.val + 4) as u64 + 16;
         }
     });
     flush(hw, cur_name, &cur, &mut uart_any, &mut uart_stdout);

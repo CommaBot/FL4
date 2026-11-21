@@ -1033,6 +1033,9 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     check(s, a, t);
 }
 /// Run before every hardware re-entry, under the serial gate.
+pub fn cancel_run<S: Store, A: Arch>(_s: &mut S, _a: &mut A, _t: Tcb) {}
+
+/// Run before every hardware re-entry, under the serial gate.
 pub fn check<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     if t.state(s) != sched::TS_RUNNING_VM {
         return;

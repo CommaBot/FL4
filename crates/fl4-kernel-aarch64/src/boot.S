@@ -42,8 +42,10 @@ _ap_start:
 /* Leave EL2 for EL1 with EL1 given the timers, FP/SIMD and the GIC
  * system registers, and nothing left that traps EL0 or EL1 to EL2; then,
  * at EL1 on either path, mask interrupts, reset SCTLR_EL1 and clear the
- * pointer authentication keys. Keeps x19-x21; returns at EL1. */
+ * pointer authentication keys. Keeps x19-x21; returns el_mode in x22
+ * (0 = El1, 1 = El2Vhe, 2 = El2Nvhe). */
 fl4_el_setup:
+    mov     x22, #0
     mrs     x9, CurrentEL
     lsr     x9, x9, #2
     cmp     x9, #2
@@ -55,7 +57,23 @@ fl4_el_setup:
     adr     x9, fl4_el2_vectors
     msr     vbar_el2, x9
     isb
-    mov     x9, #(1 << 31)          /* HCR_EL2.RW: EL1 is AArch64 */
+    /* Require PARange >= 40-bit (PARange >= 2) for virtualization; below
+     * that, drop to EL1 with x22 = 0 (El1). */
+    mrs     x10, id_aa64mmfr0_el1
+    and     x10, x10, #0xf          /* PARange */
+    cmp     x10, #2
+    b.lo    16f
+    /* Stay at EL2 with VHE when FEAT_VHE is present; otherwise run EL2 nVHE
+     * (x22 = 2) with a lightweight identity-mapped EL2 Hyp switch stub. */
+    mrs     x10, id_aa64mmfr1_el1
+    ubfx    x10, x10, #8, #4        /* VH */
+    cbz     x10, 17f
+    b       fl4_el2_vhe_setup
+17: adr     x9, fl4_hyp_boot_vectors
+    msr     vbar_el2, x9
+    isb
+    mov     x22, #2
+16: mov     x9, #(1 << 31)          /* HCR_EL2.RW: EL1 is AArch64 */
     /* Pointer authentication (any of APA, API, GPA, GPI, APA3, GPA3):
      * HCR_EL2.API, or PACGA, which no SCTLR_EL1 bit enables, traps from
      * EL0 to EL2; HCR_EL2.APK, or EL1's key registers trap to EL2. The
@@ -258,6 +276,106 @@ fl4_el2_halt:
     wfi
     b       fl4_el2_halt
 
+/* Stay at EL2 with VHE (HCR_EL2.E2H=1, TGE=1, RW=1). Keeps x19-x21;
+ * returns at EL2 so fl4_mmu_on enables the EL2&0 stage-1 MMU. */
+fl4_el2_vhe_setup:
+    adr     x9, fl4_el2_vectors
+    msr     vbar_el2, x9
+    isb
+    /* HCR_EL2 = E2H | TGE | RW; temporarily add APK | API while clearing
+     * pointer authentication keys if FEAT_PAuth is present. */
+    ldr     x9, =((1 << 34) | (1 << 31) | (1 << 27))
+    mrs     x10, id_aa64isar1_el1
+    mrs     x11, s3_0_c0_c6_2       /* ID_AA64ISAR2_EL1 */
+    and     x10, x10, #0xff0        /* APA, API */
+    and     x11, x11, #0xf000       /* APA3 */
+    orr     x12, x10, x11
+    cbz     x12, 1f
+    orr     x9, x9, #(3 << 40)      /* HCR_EL2.APK, HCR_EL2.API */
+1:  msr     hcr_el2, x9
+    isb
+    /* Fine-grained traps (FEAT_FGT, FEAT_FGT2, FEAT_AMU) and HCRX_EL2. */
+    mrs     x10, id_aa64mmfr0_el1
+    ubfx    x10, x10, #56, #4
+    cbz     x10, 3f
+    msr     s3_4_c1_c1_4, xzr       /* HFGRTR_EL2 */
+    msr     s3_4_c1_c1_5, xzr       /* HFGWTR_EL2 */
+    msr     s3_4_c1_c1_6, xzr       /* HFGITR_EL2 */
+    msr     s3_4_c3_c1_4, xzr       /* HDFGRTR_EL2 */
+    msr     s3_4_c3_c1_5, xzr       /* HDFGWTR_EL2 */
+    mrs     x11, id_aa64pfr0_el1
+    ubfx    x11, x11, #44, #4       /* AMU */
+    cbz     x11, 2f
+    msr     s3_4_c3_c1_6, xzr       /* HAFGRTR_EL2 */
+2:  cmp     x10, #2
+    b.lo    3f
+    msr     s3_4_c3_c1_0, xzr       /* HDFGRTR2_EL2 */
+    msr     s3_4_c3_c1_1, xzr       /* HDFGWTR2_EL2 */
+    msr     s3_4_c3_c1_2, xzr       /* HFGRTR2_EL2 */
+    msr     s3_4_c3_c1_3, xzr       /* HFGWTR2_EL2 */
+    msr     s3_4_c3_c1_7, xzr       /* HFGITR2_EL2 */
+3:  mrs     x10, id_aa64mmfr1_el1
+    ubfx    x10, x10, #40, #4       /* HCX */
+    cbz     x10, 4f
+    msr     s3_4_c1_c2_2, xzr       /* HCRX_EL2 */
+4:  isb
+    msr     hstr_el2, xzr
+    msr     vttbr_el2, xzr
+    msr     cntvoff_el2, xzr
+    mrs     x9, midr_el1
+    msr     vpidr_el2, x9
+    mrs     x9, mpidr_el1
+    msr     vmpidr_el2, x9
+    /* CPTR_EL2 (E2H1): FPEN = 0b01 (EL0 traps, EL2 does not), TTA = 1,
+     * TAM = 1 (trap AMU), ZEN = 0, SMEN = 0. */
+    ldr     x9, =((1 << 30) | (1 << 28) | (1 << 20))
+    msr     cptr_el2, x9
+    /* CNTHCTL_EL2 (E2H1): EL1PCTEN = 1 (bit 10), EL1PTEN = 0 (bit 11),
+     * EL0VCTEN = 1 (bit 1). */
+    mov     x9, #((1 << 10) | (1 << 1))
+    msr     cnthctl_el2, x9
+    /* MDCR_EL2: trap debug/PMU from EL0/guest; do not expose host PMU. */
+    mov     x9, #0xf00              /* TDE | TDA | TDOSA | TDRA */
+    mrs     x10, id_aa64dfr0_el1
+    ubfx    x10, x10, #8, #4        /* PMUVer */
+    cbz     x10, 5f
+    cmp     x10, #0xf
+    b.eq    5f
+    orr     x9, x9, #0x60           /* TPMCR | TPM */
+5:  msr     mdcr_el2, x9
+    /* GICv3 system registers at EL2. */
+    mrs     x9, id_aa64pfr0_el1
+    ubfx    x9, x9, #24, #4         /* GIC */
+    cbz     x9, 6f
+    mrs     x9, s3_4_c12_c9_5       /* ICC_SRE_EL2 */
+    mov     x10, #0x9               /* SRE | Enable */
+    orr     x9, x9, x10
+    msr     s3_4_c12_c9_5, x9
+    isb
+    msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 */
+6:  msr     daifset, #0xf
+    ldr     x9, =SCTLR_EL1_RES1
+    msr     sctlr_el1, x9           /* E2H=1 redirects to SCTLR_EL2 */
+    isb
+    cbz     x12, 7f
+    msr     s3_0_c2_c1_0, xzr       /* APIAKeyLo_EL1 */
+    msr     s3_0_c2_c1_1, xzr       /* APIAKeyHi_EL1 */
+    msr     s3_0_c2_c1_2, xzr       /* APIBKeyLo_EL1 */
+    msr     s3_0_c2_c1_3, xzr       /* APIBKeyHi_EL1 */
+    msr     s3_0_c2_c2_0, xzr       /* APDAKeyLo_EL1 */
+    msr     s3_0_c2_c2_1, xzr       /* APDAKeyHi_EL1 */
+    msr     s3_0_c2_c2_2, xzr       /* APDBKeyLo_EL1 */
+    msr     s3_0_c2_c2_3, xzr       /* APDBKeyHi_EL1 */
+    msr     s3_0_c2_c3_0, xzr       /* APGAKeyLo_EL1 */
+    msr     s3_0_c2_c3_1, xzr       /* APGAKeyHi_EL1 */
+    isb
+    /* Clear APK and API back to 0 (keep E2H | RW | TGE). */
+    ldr     x9, =((1 << 34) | (1 << 31) | (1 << 27))
+    msr     hcr_el2, x9
+    isb
+7:  mov     x22, #1
+    ret
+
 /* Turn the EL1 MMU on with TTBR0 = x0 (an identity map of the kernel
  * region) and TTBR1 = x1. */
 fl4_mmu_on:
@@ -289,6 +407,60 @@ fl4_mmu_on:
     isb
     ret
 
+/* EL2 nVHE boot-time vector table (physical address, MMU off): handles only
+ * HVC_HYP_ENABLE_MMU (x0=0, x1=hyp_ttbr0, x2=hyp_vectors_pa, x3=hyp_cpu_pa)
+ * to turn on the identity-mapped EL2 MMU and install fl4_hyp_vectors. */
+.balign 2048
+fl4_hyp_boot_vectors:
+    .rept 8
+    el2_halt                        /* from EL2 */
+    .endr
+    .balign 128
+    b       fl4_hyp_boot_sync       /* lower EL, AArch64, synchronous */
+    .rept 7
+    el2_halt                        /* IRQ, FIQ, SError, AArch32 */
+    .endr
+
+fl4_hyp_boot_sync:
+    mrs     x9, esr_el2
+    lsr     x9, x9, #26
+    cmp     x9, #0x16               /* EC_HVC64 */
+    b.ne    fl4_el2_halt
+    cbnz    x0, fl4_el2_halt        /* HVC_HYP_ENABLE_MMU == 0 */
+    tlbi    alle2
+    dsb     nsh
+    isb
+    ldr     x9, =FL4_MAIR
+    msr     mair_el2, x9
+    mrs     x9, id_aa64mmfr0_el1
+    and     x9, x9, #0xf
+    cmp     x9, #5
+    mov     x10, #5
+    csel    x9, x9, x10, ls
+    lsl     x9, x9, #16             /* PS[18:16] */
+    ldr     x10, =0x80803510        /* RES1(31,23) | SH0=IS | ORGN0=WB | IRGN0=WB | T0SZ=16 */
+    orr     x9, x9, x10
+    msr     tcr_el2, x9
+    msr     ttbr0_el2, x1
+    mov     sp, x3                  /* SP_EL2 = hyp_cpu_pa */
+    msr     vbar_el2, x2            /* VBAR_EL2 = fl4_hyp_vectors (PA) */
+    isb
+    ldr     x9, =0x30c51835         /* SCTLR_EL2: M | C | I + RES1 (E2H=0) */
+    msr     sctlr_el2, x9
+    isb
+    ic      iallu
+    dsb     nsh
+    isb
+    /* Record host HCR_EL2 and MDCR_EL2 in HypCpu (now mapped coherent WB). */
+    mrs     x9, hcr_el2
+    mrs     x10, mdcr_el2
+    stp     x9, x10, [sp, #0x18]    /* HypCpu.host_hcr_el2, host_mdcr_el2 */
+    mov     x9, #1                  /* EL1PCTEN=1, EL1PCEN=0 permanently in nVHE */
+    msr     cnthctl_el2, x9
+    isb
+    mov     x0, #0
+    eret
+
 .ltorg
 
 /* Written by the boot core through the kernel window and cleaned to the
@@ -308,6 +480,7 @@ fl4_boot_high:
     ldr     x9, =fl4_boot_stack_top
     mov     sp, x9
     mov     x0, x19
+    mov     x1, x22
     bl      fl4_boot
 1:  wfi
     b       1b
@@ -317,6 +490,7 @@ fl4_ap_high:
     ldr     x9, [x9, #16]
     mov     sp, x9
     mov     x0, x19
+    mov     x1, x22
     bl      fl4_ap_main
 1:  wfi
     b       1b

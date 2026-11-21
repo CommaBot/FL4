@@ -37,6 +37,7 @@ fn budget_ok<S: Store, A: Arch>(s: &mut S, a: &mut A) -> bool {
 fn finish<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     sched::schedule(s, a);
     sched::activate_thread(s, a);
+    crate::vcpu::check(s, a, sched::cur_thread(s));
 }
 
 /// seL4 `replyFromKernel_error` with `setMRs_syscall_error`.

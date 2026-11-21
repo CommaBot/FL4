@@ -71,7 +71,8 @@ pub mod tcb {
     pub const NAME: u64 = F + 272;
     pub const NAME_LEN: u64 = 64;
     pub const VCPU: u64 = NAME + NAME_LEN;
-    pub const END: u64 = VCPU + 8;
+    pub const RUN_VCPU: u64 = VCPU + 8;
+    pub const END: u64 = RUN_VCPU + 8;
 }
 
 /// Register indices into `tcb::REGS` (seL4's AArch64 `enum _register`).
@@ -138,8 +139,14 @@ pub mod irq {
     pub const BANKED_BASE: u64 = 1024;
     /// Cores with banked interrupt state (the backend's core limit).
     pub const BANKED_CORES: u64 = 16;
-    /// The EL1 virtual timer's PPI (SBSA), the kernel timer.
+    /// The VGIC maintenance interrupt PPI (SBSA).
+    pub const VGIC_MAINT_ID: u64 = 25;
+    /// The EL2 physical timer's PPI (SBSA), the kernel timer in EL2 VHE mode.
+    pub const HYP_TIMER_ID: u64 = 26;
+    /// The EL1 virtual timer's PPI (SBSA), the kernel timer in EL1 mode.
     pub const TIMER_ID: u64 = 27;
+    /// The EL1 non-secure physical timer's PPI (SBSA), the kernel timer in EL2 nVHE mode.
+    pub const PHYS_TIMER_ID: u64 = 30;
     /// SGIs the kernel sends between cores.
     pub const REMOTE_CALL_ID: u64 = 0;
     pub const RESCHEDULE_ID: u64 = 1;

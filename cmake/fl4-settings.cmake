@@ -99,7 +99,11 @@ if(NOT DEFINED KernelDebugBuild)
 endif()
 # -DReleasePrinting=ON keeps seL4_DebugPutChar in a release build, for
 # benchmarks whose user-space output must reach the serial port.
-if(ReleasePrinting)
+# -DNoKernelPrinting=ON keeps KernelPrinting off in a debug build, so
+# the root task owns the console UART page (e.g. l4h-logd on AArch64).
+if(NoKernelPrinting)
+  fl4_force(KernelPrinting OFF)
+elseif(ReleasePrinting)
   fl4_force(KernelPrinting ON)
 else()
   fl4_force(KernelPrinting ${KernelDebugBuild})
@@ -110,5 +114,5 @@ if(FL4_AARCH64)
 else()
   fl4_force(HardwareDebugAPI ${KernelDebugBuild})
 endif()
-fl4_force(KernelInvocationReportErrorIPC ${KernelDebugBuild})
-fl4_force(KernelIRQReporting ${KernelDebugBuild})
+fl4_force(KernelInvocationReportErrorIPC ${KernelPrinting})
+fl4_force(KernelIRQReporting ${KernelPrinting})
