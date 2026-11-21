@@ -11246,3 +11246,102 @@ edited. No JAtZ cone (scratch/rd8v/anc.py: SpecInvRd8lD 991 / SpecInvRd8tA 1031 
   okv_default: Classical.choice; uts_idle: propext, Quot.sound; hte_handleE: none). No sorry / admit / native_decide / bv_decide / axiom;
   0 `declaration uses sorry`. Root Fl4Proofs.lean not rebuilt (four import lines). Commits 686f9b8f (A, B), ee6a7593 (C, D, root
   imports), then this section.
+
+## g2g (branch par/g2g in FL4-sc, on 445dd0a2 = int/j2 incl. g2f, rd14b, rd8r) — G2 seventh step: (a') the CNode copy family and CancelBadgedSends end in `LiveDN` (DONE: every CNode label, `decode_invocation_cnodeJ_stepsLML`), through a `Steps`-level carry that also covers every other `Steps` leaf; (a') preempted consumer, (b')–(e) NOT done (handoff below)
+Goal: g2f "What remains" (a')–(e), then plan (f). Commits ce3e9d72 (cone batch + leaf XTopJointLiveStep), 125498e0 (leaf
+XTopJointLiveCn); root imports both. No premise added to any existing theorem; no new axiom.
+
+### (1) Why a cone edit (and which one)
+- Copy / Mint / Move / Mutate / Rotate, IRQ control issue, IO port control issue, IRQ handler set, DomainSet and IO port in/out
+  reach `JAt` only through StepSem's impredicative `Steps` (`∀ Q, StepClosed Q → Q …`; `Steps.jat`). A `StepClosed` instance for
+  `JAtZ ∧ LiveDN` is the cheapest carry for all of them at once, but the old `slot` / `cslot` premises do not pin the written
+  caps: a `slot` step allows inserting a null or zombie cap, a `cslot` step any caps at `W` — both break `LiveDN` (a zombie with
+  live slots, a null original slot), so no instance existed. Only four producers build such steps (`Steps.insert` ×3:
+  IoControl, IrqControl, IrqHandler; `Steps.cnTrace`: the copy family), and two instances consume them (QX, QJ).
+- StepSem: `slot` gains `capV mem' dest ≠ .Null` and `∀ p zt n, capV mem' dest ≠ .Zombie p zt n`; `cslot` gains
+  `CnLive (L.mem s) (L.mem s') W` and `∀ sl ∈ W, capV mem' sl = .Null → σ'.isOriginalCap sl = false`.
+- CnodeCopy: `CnLive m m' W` (every written non-null cap has the `shape` of a non-null cap of `W` before; every non-null cap of
+  `W` before survives up to `shape`), `NullSrc inv sl` (a move's source; a rotate's first slot when ≠ third), `shape_fullF`,
+  `fullF_ne_null`, `cnLive_{ins,mov,swap,rot}`, `nullSrc_{ins,mov,swap,rot}`; `CnTrace` gains `CnLive … (invSlots inv) ∧
+  (null written slot → NullSrc inv sl)` (and its `CoverKept ∧ UtKept` is parenthesised). Proved in the four branches from
+  `insert_trace` / `move_trace` / `swap_trace` and `copied_shape` / `update_shape`.
+- XTopCnode: `capMove_orig_src` (spec `cap_move` clears the source's original bit), `invoke_nullOrig`; `Steps.cnTrace` takes the
+  two `CnTrace` facts. `Steps.insert` takes the two slot facts (callers: the inserted cap is concrete).
+- XTopJointRest: `JOwesD` / `JOwesCsD` (`JOwes` / `JOwesCs` at the dead set before, `.toOwes` / `.toCs`); `jowes_ins`, `jowes_cn`,
+  `jowes_sched` (and `jowes_slotOf`) restated at the dead set they already kept; `jStepHyps` unchanged through the wrappers;
+  XTopJointCopyRegs adjusted (one obtain).
+
+### (2) The step closure (leaf XTopJointLiveStep, ce3e9d72)
+- `refs_shape`, `shape_refs`, `shape_thread`, `shape_zombie`: `shape` keeps `RefsObj`, thread and zombie caps.
+- `ZNoBlk th m kb` [J]: no zombie names an object inside the kernel-state block `[kb, kb+13568)`. Needed where the destination
+  CNode is in the block (`DestLive`'s right disjunct: IRQHandler's insert into an IRQ node slot): "no zombie names the
+  destination" comes from `FinInv.zombie_alone` for a CNode named by a CNode cap, and from `ZNoBlk` in the block. True in
+  reachable states (l4v `valid_global_refs`); derived from `SpecGlob` in (3).
+- `JAtZ.schW_notDbg`: a `SchW` word is no debug word (`notDbgW_field`, `Sched.KFoot.ne_tcbw`, node arithmetic, `domKW_val`).
+- `LiveDN.wstep`: a step writing slot words at `W` (each in a `DestLive` CNode) keeps `LiveDN` and `ZNoBlk`, given every zombie
+  after was one before, every non-null cap before survives up to `shape`, original bits off `W` kept, `W`'s null slots
+  unoriginal, the dead set after ⊇ the TCB zombies' TCBs.
+- `QL` / `stepClosed_jatL (hAM : ARMask)`: `JAtZ ∧ LiveDN ∧ ZNoBlk` closed under the six step kinds, each started from
+  `J.addDeadSet hL.1.ztcb` and taken at that dead set (`jowes_restartD`, `jowes_ksD`, `jowes_ins`/`cn`/`sched` at `D`); restart /
+  ks / sched by g2f's `LiveDN.of_jstep` (debug words: `P1.Foot.dbgKeep`, `ksW_notDbg`, `schW_notDbg`; original bits:
+  `orig_eq_of_slots` or `KsStep.orig`); insert / CNode-only by `LiveDN.wstep`.
+- `Steps.jatL`: after any `Steps` run from `JAtZ ∧ LiveDN ∧ ZNoBlk`, the same at the end (cf. `Steps.jat`).
+
+### (3) Every CNode label (leaf XTopJointLiveCn, 125498e0)
+- `JAtZ.zNoBlk : JAtZ → SpecGlob σ → ZNoBlk Z.th (L.mem s) (L.ksb s)`: a zombie's object is a TCB (off the block, `JKern.hks`) or a
+  CNode (`DelInv.zwf`); a CNode in the block has slot 0 in the IRQ node part (`IpcApart.ks`), so equals `nodeA kb i`
+  (`Placed.disj`, `nodeA_val`), whose spec ref is `interruptIrqNode i` (`IrqRel.node`), which `SpecGlob.ref` says no non-frame cap
+  names.
+- `JAtZ.cancelBadgedJL` (`cancel_badged_sends` keeps `LiveDN`: XTopJointCbs's `cancelBadgedJ` from `J.addDeadSet`, debug words by
+  P1's `blkF` foot, original bits by `orig_eq_of_slots`, idle thread by `inv_cancelBadgedSends`'s `F.sk.idle`), `cn_cancel_topJL`,
+  `decode_invocation_cnode_cancelJL` (restart by `stepClosed_jatL`).
+- `decode_invocation_cnode_illegalXG` (invalid labels at any post holding at the decode's state).
+- `JAtZLB` (`JAtZ ∧ LiveDN ∧ ZNoBlk`, `.toL`), `decode_invocation_cnodeJ_stepsLML`: statement = XTopJointMRCnode's
+  `decode_invocation_cnodeJ_stepsLM` with post `XCapP (JAtL) (JAtPreMVL MR)`; SAME premises (J, hni, hARI, hT, hJDP, hsg, hLv, hnd,
+  hMP, hKD, hPA, hmv, hRd0, hnq, label/args/slot/extra data, hQ). Copy family by `decode_invocation_cnode_copyXS` at `JAtZLB`
+  (`Steps.jatL`, `XCap.imp`), Revoke / Delete by g2f's `…JLML`, CancelBadgedSends and the invalid labels as above.
+
+### (4) What remains (exact)
+- (a') preempted consumer: mr3's `hPre_ofZQIMN` ends in `PPQJI … JAt` through six hole branches (`afterInvJZIMN`, `mcsPPJ{A,R,I,S,C,U}M`
+  → `afterInv_of_mcsIMN`), each rebuilding `JAt` from a `JHole` whose base is the `JAtPreMVL` state. Carrying `LiveDN` needs, per
+  branch, the slot / debug / original-bit / idle frame from the hole's base to the rebuilt `JAt` (charge / end-timeslice /
+  timeout-fault send / schedule write no slot; the timeout fault send may block or wake threads: scheduler words) — i.e. a
+  `JHole`-level `LiveDN` carry (`JHoleL`) plus six branch lemmas, or the (f) field. Not started.
+- (b') IpcGrantTr / XTopJointXferG: `LiveDN.insC` (g2f) for the left `DestLive` disjunct; the block case now has `ZNoBlk`
+  (`LiveDN.wstep` already handles both disjuncts; an insert into a receive slot is `wstep` with `W = [dest]`, exactly as in
+  `stepClosed_jatL`'s slot case). Wiring: the posts of `xferStepGJ` / IpcGrantTr are `JAt`; a `…L` copy of the grant chain or (f).
+- (c) retype / reset: unchanged from g2f (debug-list loop invariant). Not started.
+- (d) the `Steps` leaves (IRQ control, IO port control, IRQ handler set/ack/clear, DomainSet, IO port in/out): each now gets
+  `LiveDN` by replacing `Steps.jat` with `Steps.jatL` in its `…J_step` wrapper (`decode_invocation_irq_controlJ_step`,
+  `…ioport_controlJ_step`, `…ioportJ_steps`, `…domainJ_step`, `…irq_handlerJL`; 9 `Steps.jat` uses in 5 files), with `ZNoBlk` from
+  `JAtZ.zNoBlk hsg` (each must take `hsg`, which the dispatch has). Not written (mechanical). The non-`Steps` (d) families (VSpace,
+  SC / SchedControl, TCB configure): `LiveDN.of_jstep` with their frames. Not started.
+- (e) finish: as g2f. Not started.
+- (f) plan (exact counts on this branch): a `JAtZ` field `live` needs every construction to supply it: 224 `ext := ` record
+  constructions in 80 files, plus the 5 frame constructors `JAtZ.cs_frame{,B,I,IS,V}` (XTopJointStep) whose 102 call sites in 70
+  files would take one more argument (`.ext.` occurrences overall: 276 in 108 files). Alternative (JAtL wrapper threaded through
+  the dispatch): 28 files state 56 `XCap`/`XCapP … (JAt …)` posts (decOK_J*, handle_invocation_entryJ*, invoke_afterJ*,
+  dispatch_invokeJ*, the per-cap `…J` leaves); each needs a `JAtL` copy or a generalisation over the post (`XCapP` / `TopPostDMXP`
+  are already post-generic, so generalising the chain lemmas over `X` with `X → JAt` and a per-leaf `X`-proof is the
+  smaller route: the leaves that do not keep `LiveDN` yet (preempted path, grant, retype, finish) block it either way).
+  Recommendation: generalise the dispatch chain over the post (one cone batch), instantiate at `JAtL` leaf by leaf, keep
+  `JAt` instances as wrappers; do not add the field until (c)/(e) exist.
+
+### (5) Findings
+- None: no step found that breaks `LiveDN` in native scope. The old `StepClosed.slot` / `cslot` premises were too weak to prove
+  it (they allow inserting null / zombie caps), but every producer satisfies the strengthened premises.
+
+### (6) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2g.sh (= g2f.sh reading g2g.files, untracked). g2g-t1: `capMove_orig_src` probe against Fl4Spec
+  (`lake env lean`, clean). g2g-b1: CnodeCopy (components after `coverUt_ins` misaligned: `CoverKept ∧ UtKept` is one term) →
+  parenthesised; g2g-b2: CnodeCopy OK, CnodeRotate (two-move branch gives the pair as two terms) → wrapped; stopped by me after
+  the error (lake keeps finished modules). g2g-b3: CnodeRotate IoControl IrqControl IrqHandler XTopCnode XTopCaps XTopJointStep
+  XTopJointRest XTopJointCopyRegs XTopJointLiveStep XTopJointLiveCn: "Build completed successfully (5600 jobs)" (~14 min).
+  No sorry / admit / native_decide / bv_decide in the 13 files. Root Fl4Proofs.lean (two import lines) not rebuilt; the
+  downstream closure of StepSem beyond these targets not rebuilt (no other user of the changed statements: StepClosed
+  instances QX/QJ, `Steps.insert`/`cnTrace` callers, `CnTrace` destructurings, `jowes_*` users all in the targets).
+- Axioms (scratch/g2g/ax.lean, untracked; task g2g-ax1): cnLive_{ins,mov,swap,rot}, cnode_copy_refines, cnode_rotate_refines,
+  capMove_orig_src, invoke_nullOrig, Steps.cnTrace, Steps.insert, stepClosed_jat, stepClosed_xtop, jStepHyps, jowes_ins,
+  jowes_cn, jowes_sched, JAtZ.schW_notDbg, LiveDN.wstep, stepClosed_jatL, Steps.jatL, JAtZ.zNoBlk, JAtZ.cancelBadgedJL,
+  cn_cancel_topJL, decode_invocation_cnode_cancelJL, decode_invocation_cnode_illegalXG, decode_invocation_cnodeJ_stepsLML:
+  propext, Classical.choice, Quot.sound.
