@@ -799,9 +799,10 @@ VirtVcpu, VirtEptInv, VirtFinalise, VirtEntry, VirtDispatch, VirtKernel,
 VirtP3x. Builds: `sh v2.sh Fl4Spec.Ext.VirtP3x` (1010 jobs, no sorry,
 axioms of the theorems and top definitions: propext, Classical.choice,
 Quot.sound); the `X64/Structs` change rebuilds the whole spec and every
-proof, checked here only for the three P3 modules that unfold
-`defaultArchObject` (UntypedSpec, UtEpRet, UtDevRet); the lead's full
-build checks the rest.
+proof. A module build of the three P3 modules that unfold
+`defaultArchObject` (UntypedSpec, UtEpRet, UtDevRet) rebuilt their cone
+to job 4931 of 5208 with no error, then was stopped (station load ~40, disk
+below 4 GB free); the lead's full build checks the whole cone.
 
 Next: (1) the §3.3.1 `ioPortCap` owner change once g5c's IO-port
 invariants are merged (call-site list there); (2) P3x R7 (§10 "Remaining");
