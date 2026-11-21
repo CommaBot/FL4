@@ -415,9 +415,9 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
   refine ⟨fun s1 a1 σ1 s2 a2 σ2 s3 a3 σ3 h1 h2 Z H Cs Ac Lst D hth J => ?_,
     fun s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D hth J => ?_,
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl hVT Z H Cs Ac Lst D hth J => ?_,
+    fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl hVT _ _ Z H Cs Ac Lst D hth J => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J => ?_,
-    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT Z H Cs Ac Lst D hth J => ?_⟩
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT _ _ Z H Cs Ac Lst D hth J => ?_⟩
   · obtain ⟨G1, V1, Ac1, Lst1, D1, J1⟩ := h1 Z H Cs Ac Lst D hth J
     obtain ⟨G2, V2, Ac2, Lst2, D2, J2⟩ := h2 (Z.mv G1 V1) H Cs Ac1 Lst1 D1 hth J1
     exact ⟨G2, V2, Ac2, Lst2, D2, J2⟩
