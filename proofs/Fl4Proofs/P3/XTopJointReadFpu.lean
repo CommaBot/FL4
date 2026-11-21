@@ -53,9 +53,13 @@ docstring): the non-device frame cap at `x` lies in a spec data page (l4v
 other non-`other` objects of `H` is `JPlaced.cobj`'s `FrApartH`; since the
 spec's ReadFPU step writes only the frame's bytes, which `FrameCover` makes
 IPC-buffer words, nothing else is asked: the former clauses (b)–(d), the
-CNodes, FL4's VSpace tables and the kernel-global data, are gone.) -/
+CNodes, FL4's VSpace tables and the kernel-global data, are gone.) Asked
+only when `x` is a slot of the typed heap (KENTRY-PLAN g5a: the extra-cap
+array pads with slot 0, whose word nothing constrains; the consumer
+`tcb_read_fpuJ` has the slot from `XcRel`). `JAtZ.fpuFrameJ`
+(XTopJointKEntry35E) derives it from the spec-only `SpecFrPg`. -/
 def FpuFrameJHyp (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) (x : U64) : Prop :=
-  ∀ (p : U64) (sz : capability.FrameSize) (r : U64) (m ep : Bool) (asid va : U64),
+  ∀ sl0 : Fl4Spec.CslotPtr, AbsSlot Z.th sl0 → x = cslotAddr sl0 → ∀ (p : U64) (sz : capability.FrameSize) (r : U64) (m ep : Bool) (asid va : U64),
     capV (L.mem s) x = .Frame p sz r false m ep asid va →
     ∃ (o : Fl4Spec.ObjRef) (vms : Fl4Spec.VMPageSize), σ.kheap o = some (.archObj (.dataPage false vms)) ∧
       o.toNat ≤ p.val ∧ p.val + 2 ^ frameBitsN sz ≤ o.toNat + 2 ^ Fl4Spec.pageBitsForSize vms

@@ -46,7 +46,7 @@ theorem JAtZ.rgClear_drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl 
   obtain ⟨-, ⟨-, -, hML, -, -⟩, -⟩ := J.xtop.rel
   have hx : cslotAddr sl ∈ Z.G.chains.flatten := (hML.members _).2 ⟨hsl.isSlot, _, hcap, by simp⟩
   obtain ⟨hks, hnd, has⟩ := J.jcov.ks (cslotAddr sl) hx p sb fi (capV_of_capAt hcap)
-  refine ⟨fun r k hr => ?_, fun x hx => ?_, fun wp hw => hw.2.2, hks, fun c hc => hnd c hc, has⟩
+  refine ⟨fun r k hr => ?_, fun x hx => ?_, fun wp hw => hw.2.2, hks, fun c hc => hnd c hc, UtKsApart.asidOf has⟩
   · rw [P1.Heap.drop_eq_some] at hr
     obtain ⟨hnr, hr⟩ := hr
     unfold P1.RegionD P1.MeetsR at hnr
