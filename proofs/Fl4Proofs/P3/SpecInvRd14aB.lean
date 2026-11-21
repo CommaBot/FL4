@@ -3,9 +3,10 @@ P3 (DESIGN.md §9), invariant line G1 (rd14a, KENTRY-PLAN rd13a handoff 1-2):
 **rd13a's `RecvTA` without its open disjunct; tops `kcall_rdyOff7` /
 `kentry_rdyOff7`** (spec side only).
 
-* `RecvTB rep c σ`: rd13a's `RcvR` (Rdy, ScInv, Simple, ct not `BlkR`, rd8d's
-  `RT ct`) at every `ok` first-phase invocation outcome of the given entry —
-  carried facts only, no frame and no `SS4` content.
+* `RcvR'` (rd13a's `RcvR` without `Simple`: Rdy, ScInv, ct not `BlkR`, rd8d's
+  `RT ct`), `rcvW_of`; `RecvTB rep c σ`: `RcvR'` at every `ok` first-phase
+  invocation outcome of the given entry — carried facts only, no frame and
+  no `SS4` content.
 * **`ss4_inv`**: `SS4` at such an outcome from rd12b's `InvR` (its shell
   `bq_shell` / `perfH_of`) and ctq's `CB` (inside `EB true`).
 * **`recvT_of7`**: `InvR ∧ RecvTB ⇒` rd12b's `RecvT`, through
@@ -26,17 +27,29 @@ noncomputable section
 
 set_option maxHeartbeats 1000000
 
-/-- **rd13a's `RcvR` at every `ok` first-phase invocation outcome** of the
-given entry (pinned: the shell's actual run from every `true` front outcome).
-Carried facts only (Rdy: rd8h's invocation carry; ScInv: sb2; Simple: ctq;
-ct not blocked on receive / notification / send and `RT ct`: the first phase
-is non-blocking, and ct is unbound, or bound to cur_sc whose head refill is
-ready, or released). -/
+/-- rd13a's `RcvR` without `Simple` (false after a send half that woke a
+thread: possible_switch_to sets `switch_thread`). -/
+def RcvR' (s : State Unit) : Prop :=
+  Rdy s ∧ SInvB.ScInv s ∧ (∃ x, s.kheap s.curThread = some (.tcb x) ∧ ∀ f, ¬ BlkR x.tcbState f) ∧
+    B8d.RT s s.curThread
+
+theorem rcvW_of {s : State Unit} (h : RcvR' s) (hE : SInvQ.EB true s) : RcvW s s.curThread :=
+  ⟨h.1, h.2.1, (hE.2.1.2.1 rfl).2.1, (hE.2.1.2.1 rfl).1, (hE.2.1.2.1 rfl).2.2, h.2.2.1, h.2.2.2⟩
+
+/-- **`RcvR'` at every `ok` first-phase invocation outcome** of the given
+entry (pinned: the shell's actual run from every `true` front outcome).
+Carried facts only, true in reachable states: `Rdy` (rd8h's invocation
+carry, rd8j), `ScInv` (sb2), ct not blocked on receive / notification /
+send (the first phase is non-blocking; a suspended ct is Inactive), `RT ct`
+(ct unbound — passive server after the reply, donation —, or bound to
+cur_sc whose head is ready: kept by rd11a's frame, or after configure of
+cur_sc refilled at the current time by refill_new / refill_update after
+commit_time). -/
 def RecvTB (rep : Bool) (c : Syscall) (σ : State Unit) : Prop :=
   ∀ v ∈ (A8.front σ).1, v.1 = true → ∀ r cr, A12b.srArgs c = some (r, cr) →
     ∀ g ∈ (getCapReg (Z := Unit) r v.2).1,
       ∀ t ∈ ((fl4HandleInvocationR (Z := Unit) rep false false true true g.1).run g.2).1, t.1 = .ok () →
-        RcvR t.2
+        RcvR' t.2
 
 section P
 open Fl4Proofs.P3.SInvQ Fl4Proofs.P3.SInvU Fl4Proofs.P3.SInvL Fl4Proofs.P3.SInvQ.P12 Fl4Proofs.P3.SInvQ.P13
@@ -71,7 +84,7 @@ theorem recvT_of7 (hnd : numDomains = 1) {rep : Bool} {c : Syscall} {σ : State 
     (A12b.bq_shell hB hSf rep false false true true g.1 hz
       (A12b.perfH_of hB hSf hz ((hP v hv ht).2 r cr hc g hg)) t ht').1 () hok hE1.2.2
   have hR := hA v hv ht r cr hc g hg t ht' hok
-  exact ss4_handleRecvT true cr t.2 hS4 (rcvS_of_r hR hE1) hE1 hN hni y hy
+  exact ss4_handleRecvT true cr t.2 hS4 (rcvW_of hR hE1) hE1 hN hni y hy
 
 end P
 

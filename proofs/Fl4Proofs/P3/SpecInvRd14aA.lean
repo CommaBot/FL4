@@ -7,7 +7,7 @@ rd11a's frame `KP σ0 t` from the body start σ0 with ct still bound to cur_sc,
 or (the open disjunct) the receive tail's `CB → SS4` directly. Here the tail
 is anchored at `t` itself (rd11a's frame `KP t ·`), so it needs only `SS4 t`
 (which rd12b's shell gives at every `ok` outcome from `InvR`, with ctq's `CB`)
-and the carried facts `RcvR t`; ct may be unbound (passive server after
+and carried facts (`Rdy`, `ScInv`, ct not blocked, `RT ct`); ct may be unbound (passive server after
 ReplyRecv's reply, NBSendRecv's donation) or bound to any SC.
 
 * `B0R σ0` (under resume σ0's ct is a TCB bound to cur_sc: from `HRC σ0`);
@@ -24,10 +24,14 @@ ReplyRecv's reply, NBSendRecv's donation) or bound to any SC.
   sched_context_resume: rd's `rd_maybeDonateSc_sr` gives `SR ct`; no resume
   since ct is unbound) or bound (no donation; the sporadic unblock check of
   ct's SC keeps `SR` by `sr_ruc` / rd9's `sr_ifCond`).
-* `kt_rcvBlocked`, `kt_recvTail`, `kt_recvRest`, `kt_when`,
-  **`kt_receiveIpc`** (rd8e's `RcvS` carried, RT of ct along the walk).
-* **`ss4_handleRecvT`**: from `SS4 t`, rd8e's `RcvS t ct`, ctq's `EB true
-  t`, `NQ [ct] t`, ct ≠ idle: every `handle_recv` outcome has `SS4`.
+* `kt_rcvBlocked`, `kt_recvTail`, `kt_recvRest`, **`kt_receiveIpc`**
+  (`RcvW` carried, RT of ct along the walk).
+* `RcvW` (rd8e's `RcvS` without `Simple` / `T1`: `Simple` is false after a
+  send half that woke a thread — possible_switch_to sets `switch_thread`),
+  `rcvW_cancelIpc` / `rcvW_when`, `rdyT_donate` / `rt_replyPush` (rd8d's
+  donation, `RT` half only: needs `ScFwd`, not `Rdy` / `T1` / `Simple`).
+* **`ss4_handleRecvT`**: from `SS4 t`, `RcvW t ct`, ctq's `EB true t`,
+  `NQ [ct] t`, ct ≠ idle: every `handle_recv` outcome has `SS4`.
 -/
 import Fl4Proofs.P3.SpecInvRd13aA
 open Classical
@@ -265,10 +269,151 @@ theorem rt_maybeReturnSc (n t : ObjRef) (s : State Unit) (hT : B8d.RT s t) {y : 
   · obtain rfl := Set.mem_singleton_iff.1 hy
     exact hT
 
+/-! ## The receiver's facts without `Simple` -/
+
+/-- rd8e's `RcvS` without `Simple` and `T1`: after a send half that woke a
+thread the action can be `switch_thread` (possible_switch_to), so `Simple` is
+false there; only "the receiver is not the switch target" (ctq's `NP ct`) is
+used. -/
+def RcvW (s : State Unit) (thread : ObjRef) : Prop :=
+  Rdy s ∧ SInvB.ScInv s ∧ s.schedulerAction ≠ .switchThread thread ∧ (∀ d p, thread ∉ s.readyQueues d p) ∧
+    thread ∉ s.releaseQueue ∧ (∃ x, s.kheap thread = some (.tcb x) ∧ ∀ f, ¬ BlkR x.tcbState f) ∧
+    B8d.RT s thread
+
+/-- The receiver's facts across `cancel_ipc` of another thread (rd8e's
+`rcvS_cancelIpc` without `Simple`). -/
+theorem rcvW_cancelIpc (u thread : ObjRef) (s : State Unit) (hS : RcvW s thread) (hRB : SInvQ.RBk true s)
+    (hct : s.curThread = thread) (hut : u ≠ thread) {y : Unit × State Unit}
+    (hy : y ∈ (cancelIpc (Z := Unit) u s).1) : RcvW y.2 thread := by
+  obtain ⟨hR, hI, hA, -, hrq, ⟨x, hx, hnb⟩, hT⟩ := hS
+  have hB := SInvQ.rb_cancelIpc u s hRB y hy
+  have hO := StK.st_cancelIpc (t0 := u) s y hy
+  have hV := B8e.sv_cancelIpc' u s y hy
+  have hct' : y.2.curThread = thread := hO.2.trans hct
+  have e := hV.1 thread
+  rw [hx] at e
+  obtain ⟨x', hx', -⟩ := SVK.sv_tcb (o := y.2.kheap thread) e
+  obtain ⟨y0, hy0, es⟩ := hO.1 thread x' (Ne.symm hut) hx'
+  rw [hx] at hy0; cases hy0
+  refine ⟨B8e.rd_cancelIpc u s hR y hy, SInvB.sik_of_sbk (fun _ => SInvB.sb_cancelIpc u) s hI y hy,
+    SInvQ.P12.nsw_cancelIpc thread u s hA y hy, fun d p => ?_,
+    fun h => hrq (B8e.rq_cancelIpc' u s y hy thread h), ⟨x', hx', fun f => by rw [es]; exact hnb f⟩,
+    B8d.rT_svs hT hV⟩
+  have hq := ((hB.1.2.1 rfl).1 d p)
+  rw [hct'] at hq
+  exact hq
+
+theorem rcvW_when (tptr : Option ObjRef) (thread : ObjRef) (σ : State Unit) (hS : RcvW σ thread)
+    (hRB : SInvQ.RBk true σ) (hct : σ.curThread = thread) {z : Unit × State Unit}
+    (hz : z ∈ (NonDet.when (tptr ≠ none ∧ the tptr ≠ thread) (cancelIpc (Z := Unit) (the tptr)) σ).1) :
+    RcvW z.2 thread := by
+  unfold NonDet.when at hz
+  split at hz
+  · rename_i hc
+    exact rcvW_cancelIpc _ thread σ hS hRB hct hc.2 hz
+  · obtain rfl := Set.mem_singleton_iff.1 hz
+    exact hS
+
+/-- **`sched_context_donate p t`** of a released SC to an unbound `t`: `t`
+ends `RdyT` (rd8d's `rd_schedContextDonate_relT`, its `RdyT` half: only
+`ScFwd` is needed). -/
+theorem rdyT_donate (p t : ObjRef) (σ : State Unit) (hF : SInvB.ScFwd σ) {x : Tcb}
+    (hx : σ.kheap t = some (.tcb x)) (hn : x.tcbSchedContext = none)
+    (hrel : ∀ y n, σ.kheap p = some (.schedContext y n) →
+      scActive y = true ∧ refillReady σ.curTime (refillHd y) = true)
+    {r : Unit × State Unit} (hr : r ∈ (schedContextDonate (Z := Unit) p t σ).1) : RdyT r.2 t := by
+  unfold schedContextDonate at hr
+  obtain ⟨z, hz, hr⟩ := hr
+  obtain ⟨e, sc, n, hk, hv⟩ := SInvQ.cq5_mem_getScObjRef hz
+  obtain ⟨z1, z2⟩ := z
+  simp only at e hv; subst z2
+  obtain ⟨w, hw, hr⟩ := hr
+  have hW : w.2.kheap p = some (.schedContext sc n) ∧ w.2.kheap t = some (.tcb x) ∧
+      w.2.curTime = σ.curTime := by
+    unfold NonDet.when at hw
+    split at hw
+    · obtain ⟨a, ha, hw⟩ := hw
+      obtain ⟨ha1, ha2⟩ := SInvQ.cq5_mem_assertOpt ha
+      obtain ⟨u, a2⟩ := a
+      simp only at ha1 ha2; subst a2
+      have hsu : sc.scTcb = some u := hv.symm.trans ha1
+      obtain ⟨xu, hxu, hxup⟩ := hF p sc n u hk hsu
+      have hup : u ≠ p := by rintro rfl; rw [hk] at hxu; cases hxu
+      have hut : u ≠ t := by rintro rfl; rw [hx] at hxu; cases hxu; rw [hn] at hxup; cases hxup
+      obtain ⟨v, hv1, hw⟩ := hw
+      obtain ⟨xv, -, ev⟩ := SInvQ.q1_tsa_out hv1
+      obtain ⟨u', hu', hw⟩ := hw
+      obtain ⟨ek, et, -, er⟩ := mem_tcbReleaseRemove hu'
+      obtain ⟨s, hs, hw⟩ := hw
+      obtain ⟨xs, -, es⟩ := SInv.mem_threadSet hs
+      have hkw := B8c.kt_testReschedule s.2.kheap s.2.curTime u s.2 ⟨rfl, rfl⟩ w hw
+      refine ⟨?_, ?_, ?_⟩
+      · rw [hkw.1, es]
+        show Function.update u'.2.kheap u _ p = _
+        rw [Function.update_of_ne (Ne.symm hup), ek, ev]; exact hk
+      · rw [hkw.1, es]
+        show Function.update u'.2.kheap u _ t = _
+        rw [Function.update_of_ne (Ne.symm hut), ek, ev]; exact hx
+      · rw [hkw.2, es]
+        show u'.2.curTime = _
+        rw [et, ev]
+    · obtain rfl := Set.mem_singleton_iff.1 hw
+      exact ⟨hk, hx, rfl⟩
+  obtain ⟨hkw, hxw, htw⟩ := hW
+  obtain ⟨w2, hw2, hr⟩ := hr
+  obtain ⟨y2, n2, hk2, e2⟩ := SInvB.mem_updateSchedContext hw2
+  rw [hkw] at hk2; cases hk2
+  have hpt : p ≠ t := fun e => by rw [e, hx] at hk; cases hk
+  have hx2 : w2.2.kheap t = some (.tcb x) := by rw [e2]; simp [Function.update_of_ne (Ne.symm hpt), hxw]
+  have hkp2 : w2.2.kheap p = some (.schedContext (scTcbUpdate (fun _ => some t) sc) n) := by rw [e2]; simp
+  have ht2 : w2.2.curTime = σ.curTime := by rw [e2]; exact htw
+  obtain ⟨x3, hx3, e3⟩ := SInv.mem_threadSet hr
+  rw [hx2] at hx3; cases hx3
+  obtain ⟨hya, hyr⟩ := hrel sc n hk
+  rw [e3]
+  refine ⟨_, p, scTcbUpdate (fun _ => some t) sc, n, Function.update_self .., rfl, ?_, hya, ?_⟩
+  · show Function.update w2.2.kheap t _ p = _
+    rw [Function.update_of_ne hpt, hkp2]
+  · show refillReady w2.2.curTime _ = true
+    rw [ht2]; exact hyr
+
+/-- **`reply_push caller callee`** keeps `RT callee` (rd8d's `rd_replyPush_d`,
+its `RT` half: no `Rdy`, `T1` or `Simple`). -/
+theorem rt_replyPush (caller callee rp : ObjRef) (cd : Bool) (s : State Unit) (hF : SInvB.ScFwd s)
+    (hc : cd = true → B8d.RT s caller) (hT : B8d.RT s callee) {y : Unit × State Unit}
+    (hy : y ∈ (replyPush (Z := Unit) caller callee rp cd s).1) : B8d.RT y.2 callee := by
+  unfold replyPush at hy
+  obtain ⟨z1, hz1, hy⟩ := hy
+  obtain ⟨xc, hxc, rfl⟩ := SInvQ.q1_mem_threadGet hz1
+  obtain ⟨z2, hz2, hy⟩ := hy
+  obtain ⟨xe, hxe, rfl⟩ := SInvQ.q1_mem_threadGet hz2
+  dsimp only at hy
+  obtain ⟨z3, hz3, hy⟩ := hy
+  have v3 : SVK.SVS s z3.2 := B8d.sv_setReplyObjRef' _ _ _ s z3 hz3
+  obtain ⟨z4, hz4, hy⟩ := hy
+  have v4 : SVK.SVS s z4.2 := v3.trans (SVK.sv_setThreadState' caller _ z3.2 z4 hz4)
+  unfold NonDet.when at hy
+  split at hy
+  · rename_i hg
+    obtain ⟨c, hcc⟩ := Option.ne_none_iff_exists'.mp hg.1
+    rw [hcc] at hy
+    obtain ⟨z5, hz5, hy⟩ := hy
+    have v5 : SVK.SVS s z5.2 := v4.trans (SVK.sv_bindScReply' c rp z4.2 z5 hz5)
+    have hxe5 := v5.1 callee
+    rw [hxe] at hxe5
+    obtain ⟨xe5, hk5, hb5⟩ := SVK.sv_tcb (o := z5.2.kheap callee) hxe5
+    have hxc5 := v5.1 caller
+    rw [hxc] at hxc5
+    obtain ⟨xc5, hkc5, hbc5⟩ := SVK.sv_tcb (o := z5.2.kheap caller) hxc5
+    exact B8d.rT_of_rdyT (rdyT_donate c callee z5.2 (fwd_svs hF v5) hk5 (hb5.trans hg.2.1)
+      (B8d.rel_of_rdyT (rdyT_svs (hc hg.2.2 xc c hxc hcc) v5) hkc5 (hbc5.trans hcc)) hy)
+  · obtain rfl := Set.mem_singleton_iff.1 hy
+    exact B8d.rT_svs hT v4
+
 /-- **`receive_ipc`'s sender arm** (rd12a's `ce_recvSender` walk) from the
 dequeue state carries rd8d's `RT` of the receiver. -/
 theorem rt_recvSender (sender thread epptr e : ObjRef) (reply : Option ObjRef) (data : SenderPayload)
-    (s : State Unit) (hs : Rdy s) (h1 : SInvQ.T1 s) (hA : SInvQ.Simple s) (hF : SInvB.ScFwd s)
+    (s : State Unit) (hs : Rdy s) (hF : SInvB.ScFwd s)
     {x : Tcb} (hx : s.kheap sender = some (.tcb x)) (hxs : x.tcbState = .blockedOnSend e data)
     (hT : B8d.RT s thread) (y : Unit × State Unit)
     (hy : y ∈ ((do
@@ -289,7 +434,6 @@ theorem rt_recvSender (sender thread epptr e : ObjRef) (reply : Option ObjRef) (
         possibleSwitchTo (Z := Unit) sender) s).1) : B8d.RT y.2 thread := by
   obtain ⟨z3, h3, hy⟩ := hy
   have e3 : Rdy z3.2 := rd_doIpcTransfer sender (some epptr) _ _ thread s hs z3 h3
-  have q3 : SInvQ.T1 z3.2 := SInvQ.q1_doIpcTransfer sender (some epptr) _ _ thread s h1 z3 h3
   have v3 : SVK.SVS s z3.2 := SVK.sv_doIpcTransfer' sender (some epptr) _ _ thread s z3 h3
   have t3 : B8d.TV (B8d.TVv s) z3.2 := B8d.tv_doIpcTransfer sender (some epptr) _ _ thread s rfl z3 h3
   have T3 : B8d.RT z3.2 thread := B8d.rT_svs hT v3
@@ -313,8 +457,6 @@ theorem rt_recvSender (sender thread epptr e : ObjRef) (reply : Option ObjRef) (
   have U5 := rd_ifCond x4.tcbSchedContext (some false) (some true) z3.2 e3 h5
   have e5 : Rdy z5.2 := U5.1
   have f5 := B8d.sf_ifCond x4.tcbSchedContext (some false) (some true) z3.2 h5
-  have q5 : SInvQ.T1 z5.2 := SInvQ.q1_ifCondRefillUnblockCheck _ _ _ z3.2 q3 z5 h5
-  have hA5 := f5.1 (B8d.simple_svs hA v3)
   have hF5 := f5.2.1 (fwd_svs hF v3)
   have hx5 := f5.2.2 sender x3 hx3
   have T5 : B8d.RT z5.2 thread := rt_uk T3 U5
@@ -333,7 +475,7 @@ theorem rt_recvSender (sender thread epptr e : ObjRef) (reply : Option ObjRef) (
       obtain ⟨z8, h8, hy⟩ := hy
       obtain rfl := Set.mem_singleton_iff.1 h8
       dsimp only at hy
-      refine (B8d.rd_replyPush_d sender thread _ _ z5.2 e5 q5 hA5 hF5 (fun hd => hRT fun b hb => ?_) hy).2 T5
+      refine rt_replyPush sender thread _ _ z5.2 hF5 (fun hd => hRT fun b hb => ?_) T5 hy
       have hd' := of_decide_eq_true hd
       apply hd'.2
       rw [hb]; rfl
@@ -533,7 +675,7 @@ theorem kt_rcvBlocked (σ0 : State Unit) (blk : Bool) (epptr : ObjRef) (reply : 
 /-- **`receive_ipc` of ct after the endpoint and notification reads**, any binding. -/
 theorem kt_recvTail (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocking : Bool)
     (reply ntfnptr : Option ObjRef) (ntfn : Notification) (ep : Endpoint) (s : State Unit) (hK : KP σ0 s)
-    (hS : B8e.RcvS s σ0.curThread) {y : Unit × State Unit}
+    (hS : RcvW s σ0.curThread) {y : Unit × State Unit}
     (hy : y ∈ ((if ntfnptr ≠ none ∧ isActive ntfn
     then
       completeSignal (the ntfnptr) σ0.curThread
@@ -566,22 +708,19 @@ theorem kt_recvTail (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocki
           setThreadState sender .running
           possibleSwitchTo sender
       | _ => receiveIpcBlocked isBlocking σ0.curThread epptr reply) s).1) : KT σ0 y.2 := by
-  obtain ⟨hR, h1, hI, hA, hq, hrq, ⟨x, hx, hbk⟩, hT⟩ := hS
+  obtain ⟨hR, hI, hA, hq, hrq, ⟨x, hx, hbk⟩, hT⟩ := hS
   split_ifs at hy with hc
   · obtain ⟨ky, sy⟩ := kt_completeSignal σ0 h0 _ s hK hR hx (hbk x.tcbFault) hT hy
     exact ⟨ky, Or.inl (by rw [kp_curThread ky]; exact sy)⟩
   · obtain ⟨z4, h4, hy⟩ := hy
-    have F4 : KP σ0 z4.2 ∧ B8d.RT z4.2 σ0.curThread ∧ Rdy z4.2 ∧ SInvQ.T1 z4.2 ∧ SInvB.ScInv z4.2 ∧
-        SInvQ.Simple z4.2 := by
+    have F4 : KP σ0 z4.2 ∧ B8d.RT z4.2 σ0.curThread ∧ Rdy z4.2 ∧ SInvB.ScInv z4.2 := by
       unfold NonDet.when at h4
       split at h4
       · exact ⟨kp_maybeReturnSc _ σ0 s hK z4 h4, rt_maybeReturnSc _ _ s hT h4,
-          rd_maybeReturnSc_p _ _ s hq (hA _) hrq hR z4 h4,
-          SInvQ.q1_maybeReturnSc _ _ s h1 z4 h4, SInvB.sik_maybeReturnSc _ _ s hI z4 h4,
-          B8e.simple_of_nsw (fun t => B8e.nsw_maybeReturnSc t _ _) s hA z4 h4⟩
+          rd_maybeReturnSc_p _ _ s hq hA hrq hR z4 h4, SInvB.sik_maybeReturnSc _ _ s hI z4 h4⟩
       · obtain rfl := Set.mem_singleton_iff.1 h4
-        exact ⟨hK, hT, hR, h1, hI, hA⟩
-    obtain ⟨k4, T4, e4, q4, i4, a4⟩ := F4
+        exact ⟨hK, hT, hR, hI⟩
+    obtain ⟨k4, T4, e4, i4⟩ := F4
     cases ep
     case sendEP q =>
       dsimp only at hy
@@ -592,9 +731,7 @@ theorem kt_recvTail (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocki
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 h6)
       obtain ⟨z7, h7, hy⟩ := hy
       have e7 : Rdy z7.2 := rd_tcbEpDequeue _ epptr z4.2 e4 z7 h7
-      have q7 : SInvQ.T1 z7.2 := SInvQ.q1_tcbEpDequeue _ epptr z4.2 q4 z7 h7
       have i7 : SInvB.ScInv z7.2 := SInvB.sik_of_sbk (fun _ => SInvB.sb_tcbEpDequeue _ epptr) z4.2 i4 z7 h7
-      have a7 : SInvQ.Simple z7.2 := B8e.simple_of_nsw (fun t => B8e.nsw_tcbEpDequeue t _ epptr) z4.2 a4 z7 h7
       have v7 := sv_tcbEpDequeue _ epptr z4.2 z7 h7
       have k7 : KP σ0 z7.2 := ik_kp (sv_tcbEpDequeue _ epptr) (cfk_tcbEpDequeue' _ epptr) σ0 z4.2 k4 z7 h7
       have T7 : B8d.RT z7.2 σ0.curThread := B8d.rT_svs T4 v7
@@ -612,13 +749,13 @@ theorem kt_recvTail (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocki
       obtain ⟨⟨d', s9⟩, h9, hy⟩ := hy
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 h9)
       have hKy := kp_recvSender' h0 _ epptr reply _ z7.2 k7 y hy
-      have hTy := rt_recvSender _ σ0.curThread epptr e reply _ z7.2 e7 q7 a7 i7.fwd hx8 hst T7 y hy
+      have hTy := rt_recvSender _ σ0.curThread epptr e reply _ z7.2 e7 i7.fwd hx8 hst T7 y hy
       exact ⟨hKy, Or.inl (by rw [kp_curThread hKy]; exact sr_of_rt hTy)⟩
     all_goals (dsimp only at hy; exact kt_rcvBlocked σ0 isBlocking epptr reply z4.2 k4 T4 hy)
 
 /-- **`receive_ipc` of ct from the endpoint read on.** -/
 theorem kt_recvRest (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocking : Bool) (reply : Option ObjRef)
-    (s : State Unit) (hK : KP σ0 s) (hS : B8e.RcvS s σ0.curThread) {y : Unit × State Unit}
+    (s : State Unit) (hK : KP σ0 s) (hS : RcvW s σ0.curThread) {y : Unit × State Unit}
     (hy : y ∈ ((do
       let ep ← getEndpoint (Z := Unit) epptr
       let ntfnptr ← getTcbObjRef Tcb.tcbBoundNotification σ0.curThread
@@ -679,7 +816,7 @@ theorem kt_recvRest (σ0 : State Unit) (h0 : B0R σ0) (epptr : ObjRef) (isBlocki
 /-- **`receive_ipc ct cap blk replyCap`** from `KP σ0 s`, rd8e's `RcvS` and
 ctq's `RBk true` at `s` (ct's binding arbitrary): every outcome is `KT σ0`. -/
 theorem kt_receiveIpc (σ0 : State Unit) (h0 : B0R σ0) (cap : Cap) (isBlocking : Bool) (replyCap : Cap)
-    (s : State Unit) (hK : KP σ0 s) (hS : B8e.RcvS s σ0.curThread) (hRB : SInvQ.RBk true s)
+    (s : State Unit) (hK : KP σ0 s) (hS : RcvW s σ0.curThread) (hRB : SInvQ.RBk true s)
     {y : Unit × State Unit}
     (hy : y ∈ (receiveIpc (Z := Unit) σ0.curThread cap isBlocking replyCap s).1) : KT σ0 y.2 := by
   unfold receiveIpc at hy
@@ -697,7 +834,7 @@ theorem kt_receiveIpc (σ0 : State Unit) (h0 : B0R σ0) (cap : Cap) (isBlocking 
       subst s2
       try dsimp only at hy
       obtain ⟨z4, h4, hy⟩ := hy
-      have S4 := B8e.rcv_when tptr σ0.curThread s hS hRB (kp_curThread hK) h4
+      have S4 := rcvW_when tptr σ0.curThread s hS hRB (kp_curThread hK) h4
       have k4 : KP σ0 z4.2 := by
         unfold NonDet.when at h4
         split at h4
@@ -721,10 +858,10 @@ theorem kt_receiveIpc (σ0 : State Unit) (h0 : B0R σ0) (cap : Cap) (isBlocking 
 
 /-- **`SS4` after `handle_recv` from `SS4` at its start** (ct's binding
 arbitrary): rd13a's `ss4_handleRecvK` anchored at `t` itself. -/
-theorem ss4_handleRecvT (blk cr : Bool) (t : State Unit) (hS4 : A10.SS4 t) (hS : B8e.RcvS t t.curThread)
+theorem ss4_handleRecvT (blk cr : Bool) (t : State Unit) (hS4 : A10.SS4 t) (hS : RcvW t t.curThread)
     (hE : SInvQ.EB true t) (hN : NQ [t.curThread] t) (hni : t.curThread ≠ t.idleThread) :
     ∀ y ∈ (handleRecv (Z := Unit) blk cr t).1, A10.SS4 y.2 := by
-  obtain ⟨xt, hxt, hbk⟩ := hS.2.2.2.2.2.2.1
+  obtain ⟨xt, hxt, hbk⟩ := hS.2.2.2.2.2.1
   have h0 : B0R t := fun hr => ⟨xt, hxt, hS4.2.2.2 hr xt hxt⟩
   have hOS : OS t := hS4.1
   have hNB : TP (A11b.NB0 t.curThread) t := by
@@ -740,7 +877,7 @@ theorem ss4_handleRecvT (blk cr : Bool) (t : State Unit) (hS4 : A10.SS4 t) (hS :
     intro cp s' hs' y hy
     rw [hs'] at hy
     exact ss4_of_kt hS4 h0 hni
-      (kt_receiveSignal t h0 cp blk t (KP.refl t) hS.1 hxt (hbk xt.tcbFault) hS.2.2.2.2.2.2.2 hy)
+      (kt_receiveSignal t h0 cp blk t (KP.refl t) hS.1 hxt (hbk xt.tcbFault) hS.2.2.2.2.2.2 hy)
   have hHF : ∀ e, HK (fun s' => s' = t) A10.SS4 (handleFault (Z := Unit) t.curThread e) := by
     intro e s' hs' z hz
     rw [hs'] at hz

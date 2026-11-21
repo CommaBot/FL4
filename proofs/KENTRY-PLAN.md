@@ -10059,3 +10059,65 @@ of importing them.
   rd_invPost, rd_fl4HandleInvocationR, front_facts, rd_shellAt, rdBody_send: propext, Classical.choice, Quot.sound;
   tcbOK_bind_of, tcbOK_tcb_of: propext, Classical.choice; kz_sv: propext. No sorry / admit / native_decide / bv_decide / axiom.
   Root Fl4Proofs.lean not rebuilt (import lines only).
+## rd14a (branch par/rd14a in FL4-tcbj, on b58eb3ed = int/j2 incl. rd13a, rd12a, rd12b, rd13b) — rd13a handoff (1)(a)+(b) DONE in one stroke (the receive tail anchored at the invocation outcome: `RecvTA`'s open disjunct gone, ct unbound / bound to any SC, cur_sc reconfigured all covered); (2) NOT done: the carried facts at the outcome stay one pinned hypothesis `RecvTB` (narrowed: no `Simple`, no frame, no `SS4`); tops `kcall_rdyOff7` / `kentry_rdyOff7`
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14a`, modules SpecInvRd14aA / SpecInvRd14aB (new; root imports them). Nothing
+existing edited. No JAtZ cone (import-closure check: neither JointAt nor XTopJointDelR reached). Keys rd14a-1..3 (./rd14as.sh
+untracked = rd13as.sh with its own log; proofs/scratch/rd14a/ax.lean untracked).
+- **Design change vs the handoff.** Instead of CX-generalising the walk from the body start σ0 (which still needs rd11a's `KP σ0 t`
+  at the outcome — only rd12b's PerfA first option gives it) plus a separate re-anchored variant for configure of cur_sc, the
+  whole receive tail is anchored at the first-phase outcome `t` (σ0 := t). It needs `SS4 t`, which rd12b's shell gives at every
+  `ok` outcome from `InvR` (`bq_shell` + `perfH_of`, both PerfA options) with ctq's `CB` (inside `EB true t`), plus carried facts.
+  rd12a's `B0 σ0` (σ0's ct bound to cur_sc) is needed only under resume, where `HRC t` gives it (`B0R`). The end of an arm is
+  `KT t y := KP t y ∧ (SR ct y ∨ NRun ct y)` (`SR t s := schedulable t s → RdyT s t`, rd7's); `RT ct` is carried along the walk
+  in place of rd12a's `CX` (so a ct bound to cur_sc needs no OffReady at the anchor: `RT` gives `RdyT`).
+- **SpecInvRd14aA.** `B0R`, `nores'`, `kp_ruc'`, `kp_ifCondA'`, **`kp_ifCondT'`** (receive_signal's test form), `kp_replyPush'`,
+  `kp_recvSender'` (rd12a's leaves: resume case = rd12a's lemma, else CW alone); `KT`, `ctR_sr`, `kp_bind'`, **`ss4_of_kt
+  (SS4 σ0) (B0R σ0) (ct ≠ idle) (KT σ0 s) : SS4 s`**; `rt_kt`, `sr_of_rt`, `rt_uk`, `mb_ruc`, **`sr_ruc`** (SR across
+  refill_unblock_check, rd9's `sr_ifCond` for the bare check), `rt_maybeReturnSc`; `RcvW` (rd8e's `RcvS` without `Simple` / `T1`),
+  `rcvW_cancelIpc` / `rcvW_when`, **`rdyT_donate`** / **`rt_replyPush`** (rd8d's donation, its RT half: needs `ScFwd` only),
+  **`rt_recvSender`** (rd12a's `ce_recvSender` walk carrying RT of the receiver); `pre_sig` (badge + notification writes),
+  `kt_maybeDonateSc` (bound: `md_ro`; unbound: no resume by `nores'`, CW by `cp_maybeDonateSc`; SR by rd7's
+  `rd_maybeDonateSc_sr` = donation + sched_context_resume, postponed or released), **`kt_completeSignal`** (handoff (1)(a)'s new
+  proof: ct unbound OR bound to any SC; the sporadic check of ct's SC `scp ≠ cur_sc` by `kp_ruc'` / `sr_ruc`), `kt_rsBlocked`,
+  **`kt_receiveSignal`** (active arm for any binding: `kp_ifCondT'` + `sr_ifCond`), `kt_rcvBlocked`, `kt_recvTail`,
+  `kt_recvRest`, **`kt_receiveIpc`**, **`ss4_handleRecvT blk cr t (SS4 t) (RcvW t ct) (EB true t) (NQ [ct] t) (ct ≠ idle) : ∀ y ∈
+  handle_recv blk cr t, SS4 y.2`** (no CB needed; lookup-fault branch as rd13a's, OS from `SS4 t`).
+- **SpecInvRd14aB.** `RcvR' s := Rdy ∧ ScInv ∧ ct a TCB not BlkR ∧ RT ct` (rd13a's `RcvR` without `Simple`), `rcvW_of` (ct not the
+  switch target / not queued / not released from ctq's `RBk true` = CtQ ∧ NP ct), **`RecvTB rep c σ`** (`RcvR'` at every `ok`
+  first-phase fl4HandleInvocationR outcome of the shell's run from every `true` front outcome), **`recvT_of7 (InvR c σ) (RecvTB …)
+  : A12b.RecvT rep c σ`** (`SS4 t` from `bq_shell` / `perfH_of` / ctq's CB; ct ≠ idle at t by `ct_fl4HandleInvocationR` /
+  sg1's `idk_fl4HandleInvocationR` / `kz_getCapReg`).
+- **STATEMENT (tops).** `kcall_rdyOff7 hnd rep ev σ hEF hEFI hX10 hX hR h4 hCX ha hN hS hRdB (hP : syscall c → A12b.InvR c σ)
+  (hRA : syscall c → RecvTB rep c σ) hRdF : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`; `kentry_rdyOff7 … (hW : ∀ w ∈
+  fl4SyscallFaultIP ct σ, A9.RdBody rep c w.2 ∧ A12b.InvR c w.2 ∧ RecvTB rep c w.2)`. vs rd13a's `*rdyOff6`: `RecvTA` (frame
+  from the body start or the open `CB → SS4` tail) → `RecvTB` (carried facts only).
+- **Remaining named hypotheses (exactly):** `hRdB` (RdBody, rd8j), `hP` (InvR, rd14b), `hRdF` (rd8j), and `hRA` = `RecvTB`: at
+  the first-phase invocation outcomes of ReplyRecv / NBSendRecv / NBSendWait, `Rdy` (rd8h's rd_fl4HandleInvocationR carry, not done:
+  rd8h handoff 2), `ScInv` (no sb2 carry over fl4HandleInvocationR exists yet: sb2's sik_* family over the perform arms), ct not
+  BlkR and `RT ct` (no carry exists: per perform arm). None [J]/[P]/[W]/[S] added.
+- **Why `RecvTB` holds in reachable states (checked on paper):** the first phase is non-blocking (blocking = calling = false), so
+  ct is Running / Restart or Inactive (TCB suspend of itself): not BlkR. `RT ct`: ct unbound (passive server after
+  do_reply_transfer's reply_remove, NBSendRecv donating ct's SC to a passive receiver, SC unbind / deletion of its own SC) is
+  vacuous; ct still bound to cur_sc with rd11a's frame has a ready head (OffReady at the body start); configure of cur_sc runs
+  commit_time first (Suff + OffReady: refill_budget_check moves the head by the consumed time, still ready and ≥ MIN_BUDGET), then
+  refill_new (head at cur_time) or refill_update (ready head moved to cur_time), so sched_context_resume does not postpone and ct is
+  `RdyT`; ct cannot get bound to another SC in one invocation (bind needs an unbound TCB).
+- **FINDING (proof-shape, not a kernel bug): `Simple` is FALSE at reachable first-phase outcomes.** NBSendRecv / ReplyRecv whose
+  send half wakes a thread (send_ipc to a waiting receiver, send_signal, do_reply_transfer's caller) runs possible_switch_to under
+  resume_cur_thread, which sets `switch_thread target`. So rd13a's `RcvR` (and rd8e's `RcvS`, which contains `Simple`) cannot be
+  a premise at the outcome; rd14a uses `RcvW` (only "ct is not the switch target", from ctq's `NP ct`). Consequence for rd8j (Rdy
+  across the ReplyRecv tails): rd8e's `rd_receiveIpc` / `rcv_when` need `RcvS ∋ Simple`; the uses are rd8d's
+  `rd_schedContextDonate_relT` (R2 when the donor is the switch target) and `simple_of_nsw` carries — the donor in receive_ipc's
+  sender arm is BlockedOnSend, hence not the (runnable, ctq's SchedQ) switch target, so a `Simple`-free variant of rd8e's walk is
+  needed there ("switch target ≠ donor"). Nothing traced breaks Rdy / OffReady / RV / CAx.
+- Builds (tokyo, FL4-tcbj mirror, warm, ~20 s each): rd14a-1 A failed (one error: `np` eliminated by `obtain ⟨rfl, _⟩`), rd14a-2
+  A + B green (5472 jobs) + axioms, rd14a-3 A + B green after the `Simple`-free rework (5472 jobs) + axioms (scratch/rd14a/ax.lean):
+  every A14a theorem listed above propext, Classical.choice, Quot.sound (rcvW_of: propext, Classical.choice). No `declaration
+  uses sorry`; no sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (two import lines).
+- HANDOFF (in order): (1) `RecvTB` from carries over fl4HandleInvocationR at `fp = true, blocking = calling = false`: `Rdy` =
+  rd8h handoff 2 (`rd_fl4HandleInvocationR`, ctq18's `ebr_fl4HandleInvocationR` skeleton); `ScInv` = an sb2 shell over the perform
+  (sik_* leaves exist per writer); `RT ct ∧ ¬BlkR ct` = a per-arm walk (shape of rd13b's `TBN`: arms keeping rd11a's frame give
+  RdyT ct from OffReady at the body start via `KP`; arms unbinding ct are vacuous; configure of cur_sc via commit_time /
+  refill_new / refill_update as above; suspend of ct: Inactive) — best done inside rd14b's PerfA (add `RT ct ∧ ¬BlkR ct` to its ok
+  outcomes). (2) Then `kcall_rdyOff8` = `kcall_rdyOff7` with `RecvTB` discharged: only InvR, hRdB, hRdF. (3) rd8j: the
+  `Simple`-free receive walk (FINDING above).
