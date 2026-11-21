@@ -9098,3 +9098,48 @@ existing edited. No JAtZ cone. Keys rd10-1..10 (./rd10s.sh untracked = rd9s.sh w
 - Lean traps: a do-block `match` with a continuation compiles to `have __do_jp := …; match …` — `dsimp only` before
   `split`; a frame lemma `f (fun _ => ⟨rfl, rfl, rfl⟩)` with `f := _` lets Lean pick the identity for the update (write
   it explicitly); `rw [congrArg Prod.fst hc]` on a cfS projection fails (state the field equation with a type ascription).
+## g1d (branch par/g1d in FL4-c2, on b19f1158 = int/j2 incl. ctq19, ctq17, rd9, g3e) — `SInvCQ` / `SInvC` (SInvB + the ready-queue bundle + RPos); `kernel_entryJ30C` without `hQ` (DONE for SInvCQ; RPos carry: FINDING, waits on rd)
+Spec bundle in namespace `Fl4Proofs.P3.SInvAll`, new module **SpecInvAllQ** (the brief's name `SpecInvAllC` is taken by g1a's
+`SInvA'` module, which must not be edited); new leaf **XTopJointKEntry30C** (imports XTopJointKEntry30 and SpecInvAllQ); root
+imports both. Nothing existing edited, no cone edit, no new premise.
+- **Bundle.** `SInvCQ σ := SInvB σ ∧ EX σ ∧ RB σ ∧ T4 σ`; `SInvC σ := SInvCQ σ ∧ RPos σ` (abbrevs). `SInvCQ.ctQ` / `SInvC.ctQ :
+  ∀ d p, ct ∉ readyQueues d p` (l4v `ct_not_in_q`) is EX's `CtQ` (second conjunct), a projection.
+- **Tops (composed only, nothing re-proved).**
+  * `kentry_sinvCQ (hnd : numDomains = 1) c (h : SInvCQ σ) (hct : ct ≠ idle) : ∀ y ∈ (fl4KernelEntrySyscall true c σ).1, SInvCQ y.2`
+    = `kentry_sinvB` + ctq19's `kentry_tqB` + `kentry_t4`.
+  * `kcall_sinvCQ hnd rep ev h (hev : ev ≠ .interrupt → ct ≠ idle) : ∀ y ∈ (fl4CallKernel rep ev σ).1, SInvCQ y.2`
+    = `kcall_sinvB` + `kcall_tqB` + `kcall_t4`.
+  * `boot_sinvCQ : SInvCQ initASt` (`boot_sinvB`, `boot_tq`); `boot_sinvC : SInvC initASt` (+ `boot_rpos`).
+  * Premises exactly `hnd` [P] and SInvB's own `ct ≠ idle` (`hct` / `hev`, [S] event scope, l4v `ct_active`), as asked.
+- **FINDING (RPos is not carried by SInvC alone).** epq2's `kentry_rpos` / `kcall_rpos` take `hR : SInvR.Rdy σ` and read only its
+  `RV` (`hR.2.2.2.1`, l4v `valid_refills` / `refills_sum`: an active SC has a head ≥ MIN_BUDGET, room for two refills, a
+  round-robin SC two refills). `RV` is defined only inside rd's `Rdy` (SpecInvRdA), carried only by the rd line's tops; nothing in
+  SInvB (ScInv = ScSym ∧ RNE), EX, RB or T4 implies it. Per the brief no premise was added to the bundle tops: there is **no
+  `kentry_sinvC` / `kcall_sinvC`**. Instead `kentry_sinvC_ofRdy` / `kcall_sinvC_ofRdy` (same premises + `hRd : SInvR.Rdy σ`) show
+  that Rdy at the entry is the only thing missing (`kentry_sinvCQ` + `kentry_rpos … h.1.1.1.1.scInv`). When the rd line lands
+  `Rdy` (or `RV` alone) as a carried field, they become `kentry_sinvC` / `kcall_sinvC` with no extra premise.
+- **`kernel_entryJ30C`** (XTopJointKEntry30C): `kernel_entryJ30` with `hS : SInvB σ` → `hS : SInvCQ σ`, `hQ` dropped (`hS.ctQ`);
+  body `kernel_entryJ30 … hS.1 hE hS.ctQ …`. `kernel_entryJ30CR`: the same with `hS : SInvC σ` (RPos not read; the brief's form).
+  * Premises GONE (by g3d's inventory classes): `hQ : ∀ d p, ct ∉ readyQueues d p` (**spec**; now from EX's CtQ). `hS` is
+    strengthened from SInvB to SInvCQ (carried). Nothing else in J30 is ready-queue dependent: `KBudget.tmo` (g3a) already read
+    `hQ` inside, `hB`'s OffReady is the rd line, the rest is J / [P] / [S] / ∀.
+  * Premises REMAINING, exactly: PlainStore, `J : JAtZ` (J, G4), `hni : Entered σ` ([S] ct ≠ idle; spec `action =
+    resumeCurThread`), `hR : MR a σ.machineState` ([P]/J, G0), `hS : SInvCQ σ` (carried), `hE : EpQAll σ` (spec), `hn`
+    (statement), `hflag` ([S]), `hB : OffReady (faultIPSt σ ct x)` (spec), `hK` (KFrontB-scoped ∀, J), `hFin` (KFrontF-scoped,
+    J), `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu` ([P], PlatJ).
+- **What waits on the rd line (Rdy / OffReady / EpQAll at entry).**
+  * `hB : OffReady (faultIPSt σ ct x)`: rd's OffReady (INV-PLAN B3) at the entry, then the one-register FaultIP frame. rd line.
+  * `hE : EpQAll σ`: epq2's `kentry_epQAll` / `kcall_epQAll` carry `EpQAll ∧ RPos` given `Rdy` at the exits (`hRy`, rd6/rd8's
+    `kentry_rdy` / `kcall_rdy`), plus UtInv3 / VfhAll / ScLive / NtfnQB ∧ EpQB / IfLiveT / ct active, all in SInvB. rd line.
+  * RPos in the bundle (`kentry_sinvC_ofRdy`'s `hRd`): rd's `Rdy` (only `RV`). rd line.
+  * NOT the rd line: `hni.2` (`action = resumeCurThread`, ctq's `RS` at the previous exit: `ex_exit` proves the exit half, no
+    whole-entry top carries `RS` across the entry yet). `hni.1` (ct ≠ idle) stays the [S] entry fact.
+- Builds (tokyo FL4-c2 mirror, warm; ./g1d.sh untracked = ctq19.sh with the sorry grep over the two new files and axg1d.lean,
+  both untracked; keys g1d-*): g1d-b1 `g1d.sh SpecInvAllQ XTopJointKEntry30C` OK first try (6538 jobs, ~2 min wall incl. the
+  rd9 / g3e cone; SpecInvAllQ 2.3 s, XTopJointKEntry30C 2.4 s). No sorry/admit/native_decide/bv_decide. Axioms (axg1d.lean):
+  SInvCQ.ctQ, kentry_sinvCQ, kcall_sinvCQ, boot_sinvCQ, boot_sinvC, kentry_sinvC_ofRdy, kcall_sinvC_ofRdy, kernel_entryJ30C,
+  kernel_entryJ30CR: propext, Classical.choice, Quot.sound. Root Fl4Proofs.lean not rebuilt (two import lines).
+- HANDOFF: (1) when rd lands a carried `Rdy` (or `RV`), add it to the bundle and turn `k*_sinvC_ofRdy` into `kentry_sinvC` /
+  `kcall_sinvC`; then `hE` from epq2's `kentry_epQAll` (add `EpQAll` as a field, `hRy` from `kentry_rdy`) and `hB` from
+  `OffReady σ` + the FaultIP frame drop out of J30C the same way `hQ` did. (2) `hni.2`: carry ctq's `RS` across the entry (exit
+  half `ex_exit` exists) and add it to the bundle.
