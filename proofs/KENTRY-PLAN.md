@@ -12867,3 +12867,85 @@ root import after `XTopJointKEntry35`. Old tops (`kernel_entryJ35`, `kernel_entr
   6973 jobs, no sorry. After rebasing onto int/j2 857ac23e (m59: new P1 module FastSched only): g4c-b3 full
   `lake build Fl4Proofs` green, 6975 jobs. `#print axioms` on all six new theorems: `[propext, Classical.choice, Quot.sound]`.
 - `fl4CallKernel` for other events: not done (JReach has syscall steps only).
+
+## g4e (branch par/g4e in FL4-q, on d4d7d09b = int/j2 incl. g4b, g5a, g4c) — g4c's handoff (`fl4CallKernel` for the other events): inventory of the non-syscall entries; `JReachE` / `jreach_invE` / `kernel_entry_reachE` with syscall AND event steps; the combined syscall top `kernel_entryJ37N` (g4c's no-fail post with g4b's `MR` carry)
+New leaf only (XTopJointKEntryEv; root import after XTopJointKEntryNF). Nothing existing edited.
+
+### (1) Inventory: joint refinement of the non-syscall FL4 entries (before proving)
+FL4's entries (crates/fl4-core/src/syscall.rs, arch/x86_64/syscall.rs; called from fl4-kernel/src/entry.rs) and the spec event of
+`fl4CallKernel` each one corresponds to:
+| FL4 entry | body | spec event | joint top at the entry | joint pieces that exist (and what they assume) |
+|---|---|---|---|---|
+| `handle_interrupt_entry s a irq` | `update_timestamp; check_budget; handle_interrupt irq; finish` | `.interrupt` (`updateTimeStamp; checkBudget; maybeHandleInterrupt`) | **none** (no theorem mentions `syscall.handle_interrupt_entry` in P3; only P1 queue lemmas and ScEntry's Sched-level `entry_check_budget_refines` at `SchedRel`/`Inv`, not JAtZ) | `JAtZ.handleIrqJIN` (XTopJointIrqZI: `handle_interrupt` at `JAtZ`, post "line inactive ∨ JAt after"; premises `IrqPlat` [P], `NativeScope σ`, the line number `w = i`, `w ≠ 126, 127`); `check_budget` at J only inside the preemption path (`JHole.afterInvJZI` etc., XTopJointPreempt*); `jat_finishJRNM` (finish from `JAtZR` with `MR`). Missing: `update_timestamp; check_budget` at a `JAtZ` entry state ending in `JAtZ`/`JAtZR`, the FL4 `irq` argument vs the spec's `getActiveIRQ` (a [P] fact on `MR`'s oracle position), the composition |
+| `handle_user_exception s a number code` | `if budget_ok then handle_fault ct (UserException number code); finish` | `.userLevelFault w1 w2` (`withoutPreemption`: `updateTimeStamp; checkBudgetRestart; when … handleFault ct (userException …)`) | **none** | `JAtZ.budgetOkB` (syscall front's budget check, used by `kernel_entryJ13PUG*`); `handle_fault` at J only for cap faults (`JAtZ.faultHypJZ{C,N,M}`, `CapFaultCorr f f'`, at mid states `MidC/MidN/MidE` with `schedulerAction ≠ resume`); no `UserException` message correspondence at J; `jat_finishJRNM` |
+| `handle_vm_fault s a addr code` | `if budget_ok then handle_fault ct (vm_fault addr code instr); finish` | `.vmFaultEvent ft` (`handleVmFault` reads the fault address from the machine, then `handleFault`) | **none** | as the user exception; the spec's `getFaultAddr` vs FL4's `addr` is a [P] machine fact |
+| `handle_syscall s a n`, `n` outside `[SYSCALL_MIN, SYSCALL_MAX]` or `TRAP_SYSCALLS` set | `FAULT_IP` write, then `handle_unknown_syscall` (debug / TLS / `SysVMEnter` arms, else `unknown_syscall_fault`) | FaultIP write, then `.unknownSyscall m` | **none** (`kernel_entryJ*` take `hn : NativeSys n c` and `hflag`) | the FaultIP write at J (`JAtZ.regWrJ`, inside `kernel_entryJ13PUG*`); `budget_ok` at J; no unknown-syscall fault at J |
+| `handle_trap_syscall s a vector` (x86 `int $N`) | `FAULT_IP` write, then the unknown syscall (or #GP user exception under `TRAP_SYSCALLS`) | FaultIP write, then `.unknownSyscall m` or `.userLevelFault 13 _` | **none** | as above |
+| `handle_debug_exception` | debug API | no spec event | — | [S]: the hardware debug API is not in the spec |
+| `handle_vcpu_exit` | VT-x | `.hypervisorEvent` | — | [S] VT-x out of scope |
+So no non-syscall event has a joint refinement theorem; every one becomes the per-step premise `JEvRef` below (no KPostXS-style
+post was available to reuse).
+
+### (2) The pieces (XTopJointKEntryEv)
+- **`KPostMS` / `KPostXMS`**: `KPostM` / `KPostXM` without the spec-fails disjunct (∃ σ' outcome, `RJ`, `MR`, and `SInvX σ'`).
+  `KPostMS.toM`, `KPostXMS.toXM`, `KPostXMS.toXS` (to g4c's `KPostXS`).
+- **`kPreFinAtGMS`, `kernel_entryJ13PUGMS`**: g4b's `kPreFinAtGM` / `kernel_entryJ13PUGM` with the post `KPostMS` (same bodies; the
+  fail disjunct came only from `kPreFinAtGM`'s left disjunct, never produced — g4c's observation for `kernel_entryJ13PUG`).
+- **`kernel_entryJ37N`**: `kernel_entryJ37`'s premises exactly (incl. `hDM : JDispMRI` [W]); `hFast` [P] now at `KPostMS`
+  (m57's `FastRR` shape, the post changed as g4c did); post **`KPostXMS`**: an outcome σ' of `fl4KernelEntrySyscall true c σ` with
+  `RJ`, `MR r.2 σ'.ms` and `SInvX σ'`. No spec-fails disjunct, no `MR →`.
+- Events: **`KEv`** (`irq w | user number code | vmf addr code | sysU n | trap vector`), `KEv.run` (the FL4 function of each),
+  **`KEvSpec e fip ev`** (the spec event, `fip = true` for `sysU` / `trap`: the FaultIP write comes first; `KEvSpec.not_sys`),
+  **`EvOut fip ev σ σ'`** (σ' an outcome of `fl4CallKernel true ev` at σ, or at a FaultIP outcome of σ when `fip`),
+  `sinvX_evOut` (`SInvX` at every `EvOut` outcome: `kcall_sinvX`, across the FaultIP write by `SInvXFip`, with `cfk_fip` for
+  ct / idle).
+- **`JEvRef e fip ev s a σ`** [W] (the named per-step premise of an event, at that event's entry state): `e.run st arI s a ⦃ r =>
+  ∃ σ', EvOut fip ev σ σ' ∧ RJM r.1 r.2 σ' ⦄` (KPostXS-style: returns, related, `MR`, no spec-fails disjunct). Its [P] part is the
+  argument agreement (pending line, fault address / kind with the spec's machine reads).
+- **`SInvXFip σ`** [W] (only for the two `fip` entries, at their entry state): `∀ w ∈ (fl4SyscallFaultIP σ.curThread σ).1, SInvX
+  w.2`. `kentry_sinvX` carries the FaultIP prefix only inside the syscall proof (rd8w's `kentry_rdyOffW` with per-field `*_fip`
+  lemmas), not as a standalone `SInvW` lemma; a standalone `sinvW_fip` (every SInvW field across one register write of ct) would
+  discharge it (spec-only, S–M: the `*_fip` / `IK` kits exist per field).
+
+### (3) The induction
+- **`JReachE arI AR MR`**: `start` (any `JAtZ` at some ghosts ∧ `SInvX` ∧ `MR`), `step n c` (as `JReachM.step`: native syscall,
+  ct ≠ idle [S], `handle_syscall = ok (s', a')`, σ' ∈ the spec entry, `RJM`), `event e fip ev` (`KEvSpec e fip ev`, `ev ≠ .interrupt
+  → ct ≠ idle` [S], `fip = true → SInvXFip σ` [W], `e.run = ok (s', a')`, `EvOut fip ev σ σ'`, `RJM s' a' σ'`). `JReachM.toE`.
+- **`jreach_invE (hnd)`**: `JReachE s a σ → (∃ ghosts, JAtZ) ∧ SInvX σ ∧ MR a σ.ms` (`kentry_sinvX`, `sinvX_evOut`).
+- **`kernel_entry_reachE`** (the [P] bundle of J37, `hRef`, `hPI`, `hnd`): `JReachE s a σ → ∃ ghosts, JAtZ ∧ SInvX ∧ MR ∧`
+  (i) `∀ n c, ct ≠ idle → NativeSys n c → hflag → hK → hDM (JDispMRI) → hFin → hFast (KPostMS) → handle_syscall ⦃ r => ∃ σ' ∈
+  entry, RJ ∧ SInvX σ' ∧ MR ∧ JReachE r.1 r.2 σ' ⦄` and (ii) `∀ e fip ev, KEvSpec e fip ev → (ev ≠ interrupt → ct ≠ idle) → (fip →
+  SInvXFip σ) → JEvRef e fip ev s a σ → e.run ⦃ r => ∃ σ', EvOut fip ev σ σ' ∧ RJ ∧ SInvX σ' ∧ MR ∧ JReachE r.1 r.2 σ' ⦄`.
+  One induction for `JAtZ ∧ SInvX ∧ MR`, no spec-fails case, no `MR` premise in any step.
+
+### (4) Remaining premises (exactly)
+- Syscall steps: as g4b (4) minus (G-a): the [P] platform (`PlainStore`, `hARI hA hM hKD hPA hIA hmrt hmb hT hmax htu`, `hRef`,
+  `hPI`, `hFast` now for `KPostMS`, the [P] fields of hK / hFin), the [S] scope (ct ≠ idle, `NativeSys`, `hflag`, `numDomains = 1`,
+  the VT-x cases of hK), the (d) bundles hK (E4–E10, P1, P7, P9, P10, Untyped / device [J]) and hFin (F1, F6) at the reachable
+  state's ghosts, and `hDM : JDispMRI` [W] at the dispatch states.
+- Event steps: **`JEvRef`** [W] per event at its entry state (five FL4 entries, (1)); **`SInvXFip`** [W] for `sysU` / `trap` at the
+  entry state; the [S] `ev ≠ interrupt → ct ≠ idle`. Out of the induction ([S]): `handle_debug_exception`, `handle_vcpu_exit`.
+
+### (5) Findings
+None. Checked: `JEvRef` is asked per FL4 entry and argument at one state (never ∀ states), and is l4v-shaped (the corres of
+`handle_event`/`call_kernel` per event); its instance for arguments that disagree with the spec's machine reads (a line that is
+not pending, a wrong fault address) is false, but such an instance is never assumed by any step: it is the hypothesis of a
+conditional clause of `kernel_entry_reachE` and of nothing else. `SInvXFip` is expected true at every `SInvX` state (only ct's FaultIP register changes; not proved here,
+the syscall carry `kentry_sinvX` already passes the same write) — not a finding, a missing standalone lemma.
+
+### (6) Builds and axioms
+- tokyo, FL4-q mirror (./g4e.sh untracked = g4c.sh with its own log name; scratch/g4e/ax.lean untracked). The mirror's cache was
+  warm (1691 oleans) but from g4c's tree, so g4e-b1 rebuilt the cone touched by the int/j2 merges (~300 modules) and then the new
+  module: "Build completed successfully (6914 jobs)", first try, no sorry / admit / native_decide / bv_decide. **g4e-full1** (full `lake build Fl4Proofs` at 370adcb4): "Build completed successfully (6989 jobs)", 0 `declaration uses sorry`.
+- Axioms (g4e-b1, repeated after g4e-full1 with the same result): kernel_entryJ37N, kernel_entryJ13PUGMS, kPreFinAtGMS, jreach_invE, kernel_entry_reachE, JReachM.toE,
+  sinvX_evOut, KPostXMS.toXS: propext, Classical.choice, Quot.sound; KEvSpec.not_sys: none.
+
+### (7) Next (handoff)
+- `JEvRef` for the interrupt entry first (most pieces exist): `update_timestamp; check_budget` at a `JAtZ` entry state (the
+  preemption path's J-level `check_budget` proofs, lifted from `JHole` to `JAtZ`), `JAtZ.handleIrqJIN` (its inactive-line disjunct
+  closed by `SInvX`'s `ValidIrqMasks` with the pending line), `jat_finishJRNM`, and a [P] fact that the hardware `irq` is the line
+  the spec's `getActiveIRQ` returns at `MR`'s oracle position.
+- `JEvRef` for user exceptions / VM faults: `budget_ok` at J exists (`JAtZ.budgetOkB`); needs `handle_fault` at a budget-checked
+  entry state for `UserException` / `VMFault` messages (today only `CapFaultCorr` at mid states).
+- `SInvXFip`: a standalone `sinvX_fip : SInvX σ → ∀ w ∈ fl4SyscallFaultIP σ.curThread σ, SInvX w.2` (spec-only).
+- Still open from g4b / g4a: `JDispMRI`, the (d) bundles of hK / hFin.
