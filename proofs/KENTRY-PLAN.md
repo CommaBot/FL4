@@ -9334,3 +9334,58 @@ scratch/rd11b/ax.lean untracked).
 - Lean notes: rd8a's generic `cp_leaf` (ik_cp + sv_auto / cfk_auto) covers most writers but not `orderedInsert` (no SVM leaf:
   RdL's `t_mem_orderedInsert` says the state is kept) nor tcbEpDequeue / bindScReply / replyUnlinkTcb / tcbEpAppend (SVM
   lemmas exist but are not `sv_leaf`s); `sv_step0` is a global macro (no namespace prefix).
+
+## rd11a (branch par/rd11a in FL4-tcbj, on 146a5b76 = int/j2 incl. rd10, ctq19, g3e) — rd10 handoff 1 in part: the pinned body frame `KP` and its kit, the SS4 / CtR end lemmas, receive_signal of ct DONE; NOT finished: receive_ipc, handle_fault, the handle_recv top / OsBody for Recv / Wait / NBWait / NBRecv, the ReplyRecv tails, handoff 2 (invocations)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A11` (every new name), modules SpecInvRd11A1 / A2 (new; root imports them). Nothing
+existing edited. No JAtZ cone. Keys rd11a-1..6 (./rd11s.sh untracked = rd10s.sh with its own log; scratch/rd11a/ax.lean untracked).
+- **Design (why a pinned frame, not per-component families).** `SS4 = OS ∧ RCA ∧ CtR ∧ HRC` at a body outcome, from `BS σ0 ∧ Suff σ0`
+  at the body's start σ0, factors as **`KP σ0 s := cfS s = cfS σ0 ∧ A8.CW σ0.curSc σ0 s ∧ RS σ0 s`** with **`RS σ0 s := resume s →
+  sv (s.kheap ct0) = sv (σ0.kheap ct0) ∧ sv (s.kheap c0) = sv (σ0.kheap c0)`** (ct0 / c0 = σ0's ct / cur_sc, `SVK.sv` = rd's scheduler
+  view) plus CtR at the end. OS by `os_frame` (cfS + CW); HRC / RCA because under resume ct0's and c0's views are σ0's (ct0 bound
+  to c0 by CurScT, c0 active by CAx); CtR per arm: ct unbound or bound to cur_sc (`ctR_kp`: OffReady by `offReady_kp`), ct not
+  runnable (`ctR_nrun`), or (receive_ipc's donated sender SC, not done) `RT` at the end.
+  Every writer of ct's binding / cur_sc's TCB in handle_recv's cone reschedules first or is guarded off cur_sc: maybe_return_sc of ct
+  (`when (tcbPtr = ct) reschedule_required`), the donation of ct's SC in send_fault_ipc (from = ct ⇒ test_reschedule), every
+  refill_unblock_check (`scp ≠ cur_sc` tests), maybe_donate_sc of a bound thread (reads only).
+- **SpecInvRd11A1 (the kit).** `KP.refl`, `kp_curSc` / `kp_curThread`, **`kp_step`** (one step from cfS, `CW s.curSc s s'` and the
+  resume-view clause), `cw_of_cp` (CW from any rd8a CP lemma), **`ik_kp`** (any `SVM ∧ CFK` step), `kp_leaf` / `kp_auto` (rd8a's
+  `cp_leaf` shape), hand leaves `kp_possibleSwitchTo` (heap kept: RdS's `ktc_possibleSwitchTo`), `sv_cancelIpc` (= rd8e's
+  `sv_cancelIpc'`, duplicated here since rd8e is not on this base; drop one at merge) / `kp_cancelIpc`, `cfk_maybeReturnSc`,
+  **`kp_maybeReturnSc n σ0`** (thread = σ0.curThread; the branch that unbinds ends with `rescheduleRequired_cn`); the end:
+  **`offReady_kp`**, `kp_bind`, **`ss4_of_kp (BS σ0) (Suff σ0) (KP σ0 s) (CtR s) : SS4 s`**, **`ctR_kp`**, `ctR_nrun`.
+- **SpecInvRd11A2 (receive_signal).** `CB0` (ct unbound or bound to cur_sc), **`KE σ0 s := KP σ0 s ∧ (CB0 s ∨ NRun ct s)`**,
+  **`ss4_of_ke`**, `ke_svs` (an `SVS ∧ cfS` run from ct bound to cur_sc), `md_ro` (maybe_donate_sc of a bound thread reads only),
+  `ifc_cur` (the `scp ≠ cur_sc`-tested unblock check of cur_sc is a no-op), `kp_tcbNtfnAppend`, `ke_rsBlocked` (blocking: ct
+  BlockedOnNotification by rd9's `no_sts` and the `fg_*` family over tcb_ntfn_append / maybe_return_sc; non-blocking: SVS),
+  **`ke_receiveSignal σ0 cap blk s (KP σ0 s) (ct bound to cur_sc at s) : ∀ y ∈ receive_signal ct cap blk s, KE σ0 y.2`**.
+- Premises: none (no [J]/[P]/[W]/[S]; no new hypothesis on the tops — the tops are unchanged, `hOsB` still covers every non-Yield
+  syscall). No FINDING. Checked: receive_signal / complete_signal / receive_ipc / send_ipc never write cur_sc's refills or max
+  (every refill_unblock_check in the cone tests `scp ≠ cur_sc`); maybe_return_sc of ct always reschedules after unbinding.
+- HANDOFF (in order; rd10 handoff items 1-2 unchanged otherwise):
+  1. `ke_completeSignal` (ct bound: asUser / setNotification SVS, `md_ro`, the sporadic test reads `scOpt = some cur_sc` so its inner
+     `scp ≠ cur_sc` test fails: same shape as A2's active arm, plus the extra `getSchedContext` / `when sporadic` binds).
+  2. receive_ipc (`ke_receiveIpc`): prefix `kp_cancelIpc` (ct's binding kept: `sv_cancelIpc`), then complete_signal (item 1), or
+     `kp_maybeReturnSc` (CB0 after: none or kept) followed by: the blocked arm (setThreadState ct BlockedOnReceive: `no_sts` + fg
+     over setReplyObjRef / tcbEpAppend; KP by kp_auto), the nb arm (asUser: SVS), and the **sender arm**: KP over doIpcTransfer
+     (SVM) / ifCond (cp_ifCondTest-style: needs a `kp_ifCondTest` with RS — the unblock check of an SC ≠ c0 leaves c0's view, and
+     ct0's (a TCB under resume) view, alone: RdB's `ruc_out`) / replyPush (donation to ct only when ct unbound ⇒ maybe_return_sc
+     rescheduled ⇒ RS vacuous) / setThreadState / possibleSwitchTo; CtR from **`RT y ct`**: an `rt_` variant of rd8d's
+     `rd_recvSender` concluding `RT s thread → RT y.2 thread` (rd_replyPush_d already gives the callee's RT; the other arms are SVS
+     for thread), with `RT s ct` at the dequeue state from `offReady_kp` (bound to cur_sc) or vacuous (unbound), and its
+     `Rdy` / T1 / Simple / ScFwd at the dequeue state — `Rdy` across the prefix needs rd8e's `rd_cancelIpc` (FL4-r2 par/rd8e
+     f66f842f, RdK, no premise; NOT on this base) and RdU's `rd_maybeReturnSc_p` (CtQ of ct carried, as rd8e's `rcvS_cancelIpc`).
+     Build on rd8e's branch or take `∀ t, RdK (cancelIpc t)` as an explicit parameter to be discharged by `B8e.rd_cancelIpc`.
+  3. handle_fault ct (lookup failures): CtR by ct not runnable — rd9's `no_sendIpc` generalised to any `canDonate` (its proof only
+     uses `no_replyPush`, which already takes any flag; the non-call arm is excluded by `QF ct`); RCA / HRC vacuous since the
+     setThreadState that makes ct not runnable resets resume (set_thread_state_act) and nothing sets it again (CW); OS by KP
+     (cp_auto / cfk_auto over send_fault_ipc: `cfk_sendFaultIpc'` exists). This is also rd10 handoff 3's core (rd11b's line).
+  4. The handle_recv top: `asUser getRegister` and the lookups read only (IpcRecvTop's `Endp.asUser_getRegister_eq`), then
+     receive_ipc / receive_signal from `KP σ0 σ0` with ct bound to cur_sc (CurScT); `ss4_of_ke`; NQ by nq3's `nq_handleRecv`
+     (needs `NQ [ct]` at the start from `NQ []` and ct running: ct is in no notification queue); then `osBody_recv` for Recv / Wait /
+     NBWait / NBRecv through `A10.mem_handleE_wp`, and the tops with `hOsB` narrowed to the six invocation syscalls.
+- Builds (tokyo, FL4-tcbj mirror warm): rd11a-1 A1 errors (`A8.cp_auto` is a global macro: `cp_auto`; a cfS fact needed the
+  `refine (?_ : CFK _) …; cfk_auto` form), -2 A1 one error (a `when` already unfolded), -3 A1 green, A2 errors (beta_reduce before
+  `nd_gets_bind`; `tcbAppend` / `orderedInsert` unfolded for kp_auto; do-block `match` on `ntfnObj`: `cases hob : …` + `simp only
+  [hob] at hy`), -4 / -5 A2 one error each (`np` eliminated by an `rfl` pattern; nested `when` gives three split_ifs goals), -6 A1 + A2 green (5248 jobs) + axioms (scratch/rd11a/ax.lean): every name above: propext, Classical.choice, Quot.sound (subsets). No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (two import lines).
+- Lean traps: the station mirror syncs untracked scratch files, so `AX=scratch/…` works; `obtain ⟨rfl, e⟩ := Prod.mk.inj …` on a
+  `pure` bind renames the cap's field variable (refer to it by `_`).
