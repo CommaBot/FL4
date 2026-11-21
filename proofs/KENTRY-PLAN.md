@@ -7441,3 +7441,72 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ`, module SpecInvCqB3 (imports SpecInvCq
   Root Fl4Proofs.lean not rebuilt (one import line).
 - Lean traps (new): a line break inside `repeat' (first | a | b` … `| c)` is a parse error — keep the alternatives on one
   line; `IKE P` for an arbitrary `P` is the cheap way to state "this is a read" (fails loudly at any write).
+## rd6 (branch par/rd6 in FL4-tcbj, on 081c811a = int/j2 incl. rd5, ctq7, sl5) — RV's round-robin clause; the whole charge_budget (rd5 handoff 1-2 DONE); handoff 3 / shell / tops NOT done
+Spec-only, namespace `Fl4Proofs.P3.SInvR`, modules SpecInvRdA / RdB / RdC / RdG / RdU (edited), SpecInvRdH / RdI / RdJ (new; root imports them). No JAtZ cone (IpcSV, used for SVK's `SVS`, is already in RdI's cone and outside JointAt's).
+- **RV's round-robin clause (lead decision).** `RVs y := MIN_REFILLS ≤ max ∧ MIN_BUDGET ≤ head ∧ rsum < 2^64 ∧
+  (y.scPeriod = 0 → 2 ≤ y.scRefills.length)` (l4v valid_refills' round-robin part). The view `SV` is now
+  `(refills, refill max, period)` (`sv_some` gives three equations; `rdy_of_view` / `rvs_congr` / `rvs_congr'` take the period;
+  `rd_updateSchedContext`'s `hf` has a third conjunct, which `rd_side`'s existing `⟨rfl, rfl, rfl⟩` alternative closes): the
+  generated RdF1..F5 family builds unchanged (no regeneration). Hand writers: `boot_rdy` (the idle SC is round robin with two
+  refills), `commit_cur` / `CommitOut` gain `x.scPeriod = 0 → length kept` (`rr_len`: the round-robin charge rewrites head and
+  tail only), `commit_zero` / `rdy_commitZero` keep the period, `ruc_out` / `icb_out`'s merge disjunct is now
+  `y.scPeriod ≠ 0 ∧ UI …` (refill_unblock_check runs only when `ready ∧ ¬robin`; its merges shrink the list), `sw_out` and
+  `rd_refillBudgetCheck` (period ≠ 0) discharge the clause vacuously. Writers of the period in the spec: only
+  `refill_new` / `refill_update` (`setScObjRef scPeriodUpdate`, configure) and retype's `defaultSchedContext` (period 0, max 0:
+  inactive, RV vacuous); no Rd lemma covers configure yet (handoff 2): both end in `maybe_add_empty_tail` (robin ⇒ 2 refills)
+  or `refill_add_tail` (2 refills), so the clause holds after them; their intermediate states break RV (prove them by hand).
+- **SpecInvRdH (handoff 1).** `rrr_list` (refill_reset_rr's list step on `a :: b :: t`: head := a + last, no wrap, sum and
+  length kept), **`rd_refillResetRr`** (`Rdy` across refill_reset_rr of an active round-robin SC; head time kept, so
+  `rdy_frame1`, no `Excl`), `cbTail c` (what charge_budget runs after `consumed_time := 0`), `ChargeOut σ x n s1`
+  (`s1 = {updSc σ curSc z n with consumedTime := 0}`, z keeps scTcb / max / period / sporadic / badge, refills non-empty),
+  **`rd_chargeBudget_head`** (every outcome of `charge_budget u c` is a `cbTail c` outcome from an `s1` with `Rdy s1 ∧ ChargeOut`;
+  hypotheses at the charge: cur SC an SC; if not idle: active, refills non-empty, `Excl` when sporadic).
+- **SpecInvRdI / RdJ (handoff 2).** **`rd_endTimeslice_p`** (append of ct: `RdyT` from the head end_timeslice itself reads
+  ready; `postpone cur_sc`: `rd_postpone_fwd` with sb2's ScFwd), **`rd_cbTail`** / **`rd_cbTail'`** (Rdy kept; when
+  `schedulable ct` the action ends at `choose_new_thread` — the overrun case of hOS0), and the timeout arm, discharged:
+  `ruc_ne`, **`rd_refillUnblockCheck`** / **`rd_ifCond`** (every `if_cond_refill_unblock_check` guard: `Rdy` kept, every `RdyT`
+  kept, no TCB written: `UK`), `rdyT_svs` (RdyT along SVK's `SVS`), `rd_possibleSwitchTo_q` (target `RdyT` when bound),
+  `rd_threadSet_tmo` / `tmo_threadSet` (setting a timeout fault keeps Rdy: a BlkR state with a timeout fault is a
+  notification / receive wait), `rd_setThreadState_tmo` / `rd_sendIpcBlocked_tmo` (blocking on send with a timeout fault:
+  exempt from R3), `rd_replyUnlinkTcb`, `rd_replyPush_nd` / `sv_replyPush_nd` (no donation), **`rd_sendArm_nd`** (the receiver
+  was BlkR at the dequeue state, so RdyT if bound by R3; SVS carries it through do_ipc_transfer / reply_unlink_tcb /
+  reply_push / set_thread_state, `rd_ifCond` through the unblock check), **`rd_sendIpc_nd`** (send_ipc, `canDonate = false`,
+  sender holding a timeout fault), **`rd_handleTimeout_p : IKp Rdy σ (handle_timeout t (timeout b))`** for every σ,
+  `rd_endTimeslice` (no hTO), and **`rd_chargeBudget`**: from `Rdy σ`, cur SC an active SC with refills (`Excl` when sporadic and
+  not idle), ct a TCB bound to cur_sc, `ScFwd σ`: every outcome has `Rdy` and, with `s1` the post-charge state (`ChargeOut`),
+  `schedulable ct s1 → action = choose_new_thread` (`fwd_chargeOut`: ScFwd at s1).
+- Premises: none added (no [J]/[P]/[W]/[S]). All hypotheses are state facts at the step's start (Rdy, RNE-style refills,
+  ScFwd = sb2, ct bound to cur_sc = ctq5's kentry_curScT, Excl = CurScT + ScBackS + ctq's CtQ / Simple + running).
+- No FINDING. Checked while proving: charge_budget skips the idle SC (its refills are untouched, IdleHd kept); the round-robin
+  reset needs two refills (now RV); possible_switch_to enqueues without a readiness test, so its target must be RdyT (R3 at the
+  dequeue + SVS); refill_unblock_check only moves the head to the current time and merges, keeping max / period / sum.
+- Observation for the wrapper (not a counterexample): charge_budget's `when (schedulable ct)` means the overrun case of hOS0
+  (`consumed = 0 ∧ action ≠ resume`) needs ct schedulable after the charge. At check_budget (entry start) ct is running, bound to
+  cur_sc (CurScT), not released (ctq's release-queue facts) and cur_sc active (l4v cur_sc_active / ct_active ⇒ active_sc_tcb_at
+  ct): carry "cur_sc active" (sb2 / ScKind or a new conjunct) or derive it; for the idle thread the charge is skipped and
+  consumed = 0 with the idle SC ready gives OffReady, and Suff excludes the idle SC (first disjunct).
+- HANDOFF (in order):
+  1. hOS0 at schedule's start: `consumed = 0` and `action ≠ resume` must survive from charge_budget to schedule (the rest of
+     handle_event after a false check_budget, fl4Awaken): a small family (consumed time kept; nothing but schedule sets
+     resume — rd4's `NR` / `nr_*` in RdY is the start) plus the non-overrun branch `OffReady ∧ Suff` via suff_checkBudget(_Restart)
+     (RdD) and rd2's preemption point. Use `rd_chargeBudget` for the false branch of check_budget (charge_budget consumed true).
+  2. rd4 handoff 2 rest: block / wake (send_ipc with donation (schedContextDonate: the donor ct's SC moves to the receiver,
+     which becomes RdyT iff the SC is ready — l4v: the donated SC is cur_sc, ready by OffReady at the entry), receive_ipc,
+     send_signal + fl4Awaken's timer signals, do_reply_transfer: reuse `rdyT_svs` / `rd_ifCond` / `rd_possibleSwitchTo_q` /
+     `rd_sendArm_nd`'s shape), bind / configure (refill_new / refill_update by hand: RV incl. the RR clause at the end),
+     setPriority / yieldTo, retype / detype.
+  3. Wrapper on fo1's `fo_fl4CallKernel_of` (event part ; fl4Awaken ; rd_scheduleOff ; activate_thread) and the four tops
+     `kentry_rdy` / `kcall_rdy` / `kentry_offReady` / `kcall_offReady`. SchedQ / AW at schedule's start: hypothesis of the wrapper
+     named after ctq's eventual event-part lemma (ctq8, FL4-q).
+- Builds (tokyo, FL4-tcbj mirror; ./rd6s.sh untracked = rd5s.sh with its own log): rd6-b1 RdG + RdY (4876 jobs: RdA..RdY incl.
+  RdF1..F5 rebuilt with the new SV / RV), rd6-b5 RdH (4878), rd6-b7 RdI (4880), rd6-b10 / rd6-b11 RdJ (4882) + axioms
+  (scratch/rd6/ax.lean, untracked): rd_refillResetRr, rd_chargeBudget_head, rd_endTimeslice_p, rd_cbTail, rd_cbTail',
+  rd_handleTimeout_p, rd_sendIpc_nd, rd_ifCond, rd_chargeBudget, rd_scheduleOff, rdy_commitTime, sw_out, boot_rdy: propext,
+  Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three import
+  lines). Lean traps: a frame lemma's update function given as `_` next to a `fun _ => ⟨rfl, rfl, rfl⟩` side proof elaborates
+  to the identity — pass the real update (`rd_updateSchedContext σ.curSc (fun sc => …)`); `if robin` arms of a do block share a
+  `have __do_jp` join point (no bind association: `dsimp only` then split per arm with a shared continuation); `refillReady`
+  unfolds to `refillReady'` (go through `ready_of_nat` / `nat_of_ready`); `getsThe`'s membership needs
+  `change w ∈ (NonDet.assertOpt (getTcb t σ) σ).1` before rewriting; `SMonad` has no `LawfulMonad` (no `bind_pure`: simp the
+  `when false` away and run rd_auto / sv_auto); SpecInvSbW (`SInvB.mem_getSchedContext'`) is not in the Rd cone — use
+  `SInvI.mem_getSchedContext_vi`; finished `station_task` keys do not rerun (new key per build).
