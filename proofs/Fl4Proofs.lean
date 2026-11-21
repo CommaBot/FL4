@@ -1128,3 +1128,4 @@ import Fl4Proofs.P3.SpecInvCqM4
 import Fl4Proofs.P3.SpecInvCqM5
 import Fl4Proofs.P3.SpecInvCqHS
 import Fl4Proofs.P3.SpecInvCqEr2
+import Fl4Proofs.P3.SpecInvCqN2
