@@ -9914,3 +9914,73 @@ untracked).
   Classical.choice; rcvS_of_bs, ss4_handleRecvK, evp_uts, evp_getCapReg, evp_front, rcvB_of, recvT_of, fip_evp, kcall_rdyOff6,
   kentry_rdyOff6, A11.kp_cancelIpc, A11.kp_maybeReturnSc: propext, Classical.choice, Quot.sound. No `declaration uses sorry`; no
   sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (one import line).
+## rd8k (branch par/rd8k in FL4-r2, on fb762ca3 = int/j2 incl. rd8i, rd8h, g2a, rd12b) — rd8i handoff 1 DONE (do_reply_transfer), 2 DONE (handle_recv), 3 DONE up to one per-arm input (ThreadControlSched binding a new SC), 4 in part (retype / detype / MakePool DONE, hypothesis-free); NOT done: the shell (fl4HandleInvocationR, syscall / event), tops `kentry_bsa` / `kcall_bsa`, the SInvCR-style bundle extension
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8k` (every new name), modules SpecInvRd8kA / B / C / D / E (root imports all five). Nothing
+existing edited. No JAtZ cone (imports only SpecInvRd8iD, SpecInvRd8hR, SpecInvRd8fC, SpecInvRd8cD, SpecInvRd8hP, all spec-only per their
+own sections). Commits 3a810718 (A), 8cc8253a (B, C, E), aa23e4de (D).
+- **SpecInvRd8kA (handoff 1-2).** `abo_ifCond'`: rd8e's `ABo t` across if_cond_refill_unblock_check WITHOUT `Rdy`, from its write
+  shape (rd8d's `sf_ifCond`: every TCB kept; rd8's `A8.ab_ifCond`: ActB kept), given t a TCB; `cba_of_abo`; **`ba_replyTail`** (ScFwd,
+  ABo receiver; handle_timeout's `TA receiver` = rd8i's `ta_of_fwd`); **`ba_doReplyTransfer sender reply grant σ (hI : ScInv σ) : IKp BSA
+  σ (do_reply_transfer …)`** (rd8e's walk; ABo after reply_remove by `abo_replyRemove` from BSA + ScBackS). `RK C s := BSA ∧ ScInv ∧
+  NotQ C ∧ CBa C ∧ ct = C`, `rk_asUser`, `rk_lookupReply`, **`ba_handleRecv C blk cr : HK (RK C) BSA (handle_recv blk cr)`** (rd8h's
+  skeleton: endpoint → `ba_receiveIpc_p`, notification → `ba_receiveSignal_p`, lookup fault → `ba_handleFault_p`; TA C = ta_of_fwd).
+- **SpecInvRd8kB (deletion cone).** **`ba_finSc`** (final SC cap, p ≠ idle SC: sl3's `scd1_unbindAllTcbs` / `scd2` / `scd3` + `scb_auto`
+  for the yield unbind give `scTcb = none ∨ p = idleSc` and an empty stack, then rd8i's `ba_schedContextSetInactive_p`; NO ScInv
+  needed), **`ba_finaliseCap c fin σ (hI : SC cap ⇒ ≠ idle SC)`** (other arms: generated family via `ba_auto`). **`KD I s := BSA s ∧
+  SInvU.IO (fun _ => I) s ∧ s.idleSc = I`** (vi3 / ut7's IdleScOutV; rd8f's argument that a held cap never covers the idle SC),
+  `kd_of`, `kd_ro`, `kd_getCap`, `kd_emptySlot`, `kd_capSwapForDelete`, `kd_setCap_cov`, `kd_finaliseCap`, `kd_preemptionPoint`,
+  **`kd_recDelF` / `kd_recDel` / `kd_capDelete` / `kd_capRevokeF` / `kd_capRevoke`** (rd8fC's skeleton, RB → KD).
+- **SpecInvRd8kC (SC bind decode fact).** rd8c's `BindRel` speaks of BlkR (excludes BlockedOnReply), insufficient for BSA. **`BQ σ p t`**
+  (t an ipc-queued TCB ⇒ p released), `nqpa_of_bq : BQ ⇒ NotQ t ∨ PA p` (released = active ∧ ready), `RqS` / `RqD`,
+  `okp_decodeSchedContextBindQ` (the decode's `¬ (ipc_queued ∧ ¬ released)`), `okp_decodeSchedContextInvocationQ`,
+  **`okp_fl4DecodeRqD`**, `bq_bk`, `bq_setThreadState`, **`bq_perform`** (to the perform, after set_thread_state ct Restart).
+- **SpecInvRd8kE (retype / detype; hypothesis-free).** `Fresh o`, **`bsa_fresh`** (a non-TCB/non-SC object, a non-ipc-queued TCB, or an
+  unbound SC with an empty stack written ANYWHERE: rd8g's OKB lacked this case), **`bsa_detype`** (removing objects only drops
+  hypotheses), `fresh_default` (defaultObject for ty ≠ untyped), `bsa_foldr`, leaves **`ba_retypeRegionWith` / `ba_retypeRegion` /
+  `ba_deleteObjects`**, then `ba_resetUntypedCap`, **`ba_invokeUntypedWith` / `ba_fl4InvokeUntyped`**,
+  **`ba_performAsidControlInvocation`** by `ba_auto`.
+- **SpecInvRd8kD (performs).** `ba_seqRet` / `ba_lift`, **`kd_installTcbCap` / `kd_installTcbFrameCap`** (rd8h's io_install*, sl's
+  isk_install*), **`ba_invokeCnode`** (KD), **`ba_tcSchedNB`** (ThreadControlSched with sc = none / some none), **`ba_invokeTcbK i σ (KD)
+  (TcbB σ i)`**, **`ba_invokeSchedContext i σ (RqS σ i)`**, `ba_archPerf` (no input), `PerfB`, **`ba_fl4PerformInvocation bl call don iv I
+  σ (hK : KD I σ) (hI : ScInv σ) (hC : CBa σ.curThread σ) (hD : call = false → don = true → Bd σ.curThread σ) (hOK : PerfB σ iv)`**:
+  PerfB = `TcbB` (TCB), `RqS` (SchedContext: from `bq_perform`), `CfgD` (SchedControl: rd8c's `okv_fl4DecodeCfgD`), True otherwise
+  (Untyped / ASIDControl discharged by E; Reply by `ba_doReplyTransfer`, no BSA input any more).
+- **Inputs left (lemma hypotheses at the given state, none ∀-states; no development premise):**
+  * `TcbB σ (.threadControlSched t sl fh mcp prio (some (some c)))` = BSA at every outcome of that invoke_tcb from σ. Why not
+    proved: the bind needs `NotQ t ∨ PA c` AFTER installTcbCap slot 3 (a cap_delete) and the priority writes; the decode gives `BQ`
+    at the decode state. `released c` survives by rd8h's `MF.rel` (mf_installTcbCap3, needs VfhAll's slot-3 FhC), but the `NotQ t`
+    half needs a "no thread becomes ipc-queued" frame across that deletion, which MF does not carry (MF.tcb is about BlkR only).
+    Discharge: copy rd8hA's mf_step / hr_recDel_mf / mf_capDelete_fh with `MF` extended by `∀ q x', s'.kheap q = tcb x' →
+    ipc_queued x' → ∃ x, s.kheap q = tcb x ∧ ipc_queued x` (leaves: BK view, heap-and-time frames, set_thread_state to Restart /
+    Inactive, refill writes), then a decodeUpdateSc version of `okp_decodeSchedContextBindQ` (decode_update_sc runs the same
+    `is_blocked ∧ ¬ released` check; sb2's okb_decodeUpdateSc is the branch map) carried by `bq_bk` / `bq_setThreadState`; MF also
+    across set_mcpriority / set_priority (rd8h's mfk_setPriority / mfk_setMcpriority).
+  * At the perform (for the shell to supply): `KD ct-independent I` (BSA carried; IdleScOutV: vi3 carried; idleSc), `ScInv` (sb2),
+    `CBa ct` (rd7's CAx + ctq5's curScT at entry; update_time_stamp keeps the heap; check_budget_restart reaches the perform only on
+    its read-only branch; the decode reads; set_thread_state ct Restart keeps ct's SC — cba_threadSet / SVS), `Bd ct` when
+    `call = false ∧ canDonate` (ct bound: CAx), `RqS` (bq_perform with sb2's RNE at the decode state), `CfgD` (okv_fl4DecodeCfgD).
+- Premises: none ([J]/[P]/[W]/[S]: none added). No FINDING: no reachable writer breaks BlockedScActive. Checked: (a) a final SC cap of
+  the idle SC would be finalised with its TCB still bound (unbind_all_tcbs skips it) — excluded by IdleScOutV (as rd8f), so KD
+  carries it; (b) retype may overwrite any object in its region (detype first), harmless for BSA since fresh SCs are unbound with
+  empty stacks and fresh TCBs Inactive; (c) do_reply_transfer's unblock check of the receiver's SC only rewrites refills (max kept),
+  so ABo needs no Rdy; (d) decode_sched_context_bind's check covers BlockedOnReply (ipc_queued), so BQ, not BindRel, is the fact.
+- HANDOFF (in order; all new names in SInvR.B8k):
+  1. Shell `ba_fl4HandleInvocationR` (rd12b's `invF` / `invE` / `invFin` split with `fl4HandleInvocationR_eq`, or rd8h handoff 2's
+     plan): carry `KD I ∧ ScInv ∧ CBa ct` across getMessageInfo / the lookups / getMrs / the decode (ba_ family + SInvB.sik_ +
+     SInvU.io_ + SInvL.isk_ families; CBa by rd12b's `kz_fl4DecodeInvocation` BK view or SVS), the fault branch by
+     `ba_handleFault_p ct` (TA = ta_of_fwd), the error reply / Running write / reply_from_kernel by BAK leaves, the perform by
+     `ba_fl4PerformInvocation` with PerfB from `bq_perform` / `okv_fl4DecodeCfgD` and `TcbB` (input above).
+  2. fl4HandleSyscall arms: Send / NBSend / Call (shell), Recv / Wait / NBWait / NBRecv (`ba_handleRecv` with RK ct from CAx /
+     ScFwd / ct Running ⇒ NotQ ct), ReplyRecv / NBSendRecv / NBSendWait (shell then ba_handleRecv: RK ct needs CBa ct after the reply
+     phase — ct may be unbound then, CBa is vacuous for an unbound ct, so carry CBa ct through the shell outcome), Yield (rd8i's
+     `ba_handleYield_p`), the budget front (`ba_checkBudgetRestart_p`), interrupts / faults (rd8i C / G); then tops `kentry_bsa` /
+     `kcall_bsa` with premises = carried facts only: BSA, ScInv (+ sb2's premises for its mid-entry carry), CAx (rd7), IdleScOutV
+     (vi3), and TcbB until (3); `boot_bsa` (rd8e) for non-vacuity.
+  3. Discharge TcbB (above), then the SInvCR-style extension `SInvCR ∧ BlockedScActive` composing the tops, which discharges rd8e's
+     `rd_doReplyTransfer` and rd8h's PerfOK Reply input.
+- Builds (tokyo, FL4-r2 mirror; ./rd8ks.sh untracked = rd8is.sh with its own log): rd8k-a1 (A green first try; the JExt cone
+  recompiled once: 5498 jobs, 31 min), b1 (C: `Bool.and_eq_true` is an Eq, not an iff; E: multi-line `first |` does not parse), b2
+  (B / C / E green; D: `cases … | none => skip` alternatives must close their goals), d1 (D green, 5512 jobs) + axioms
+  (scratch/rd8k/ax.lean, untracked): all 38 listed lemmas propext, Classical.choice, Quot.sound or a subset (bq_bk: propext,
+  Classical.choice; fresh_default: Classical.choice; bsa_fresh, bsa_foldr: none). No sorry/admit/native_decide/bv_decide/axiom. Root
+  Fl4Proofs.lean not rebuilt (five import lines).
