@@ -13,6 +13,7 @@ import Fl4Proofs.P1.FastFaultEnt
 import Fl4Proofs.P1.FastRR
 import Fl4Proofs.P1.FastRRSum
 import Fl4Proofs.P1.FastRRSync
+import Fl4Proofs.P1.FastRRSame
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
@@ -1306,6 +1307,7 @@ import Fl4Proofs.P3.SpecInvIoPortsG
 import Fl4Proofs.P3.SpecInvIoPortsX
 import Fl4Proofs.P3.SpecInvIoPortsS
 import Fl4Proofs.P3.XTopJointKEntry37E
+import Fl4Proofs.P3.XTopJointKEntryRR
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL
