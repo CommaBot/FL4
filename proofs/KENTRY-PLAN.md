@@ -10939,3 +10939,75 @@ spec path = FL4-r3), manual3.py, skipck.txt, mkho.sh, upper.py, ax.lean, this te
   `h : HS …` looks up `HS.elim`: use `False.elim h`; (3) passing `_` for a frame lemma's update function elaborated to `fun x => x` (the brief's
   lesson): pass `tcbSchedContextUpdate fun _ => some p`; (4) replyRemove's `match` is followed by a `__do_jp` join point: `dsimp only` (zeta)
   before splitting on `scWithReply`.
+## g2f (branch par/g2f in FL4-sc, on 869c2306 = int/j2 incl. g2e, g2d, g2c) — G2 sixth step: g2e's part (2) (a) DONE (the preempted state keeps `LiveDN`; CNode Delete / Revoke end in `LiveDN` on every branch), (b) DONE (grant insert into a CNode receive slot), generic J-step frame for (d)/(e) DONE; (c)–(f) NOT done (handoff, exact list below)
+Goal: g2e (3) (a)–(f). New leaves only (XTopJointWJPL, XTopJointLiveIns; root imports both); no existing module edited, no premise added.
+
+### (1) (a) the preempted state (commit 74f49c79, new leaf XTopJointWJPL)
+- `JAtZ.ppw_tcbWord` / `JAtZ.ppw_nodeWord`: P1's `PPW` (`WORK_UNITS` = ksb+40, the current node's `CUR_TIME` (48) /
+  `CONSUMED` (40)) misses every TCB word (`ksOut`, `node_ne_field`) and every other word of the current node.
+- `JAtZ.deadP_ppw`: a dead TCB stays dead across `PPW` (state, SC, bound, yield words; action / idle words). Only TCBs are
+  needed: `zdead` asks `DeadP` of a TCB zombie's object, a TCB by `DelInv.zwf`.
+- `JAtZ.liveDN_ppw`: `LiveDN Z.th H Cs G` at the preempted state from `LiveDN` before, with no `JAtZ` after (`OffOK` may fail
+  there): slots (`SlotsSame`), original bits (UtResetSpecJ's `pp_ksm'`: every outcome of the spec's preemption point keeps
+  `isOriginalCap`; this is the "spec frame" g2e asked for, it already existed), idle thread (`gke_preemptionPoint'`), debug
+  words (`JAtZ.ppDbg`), affinities (`ppw_tcbWord`), zombie TCBs dead (`deadP_ppw`).
+- `JAtPreMVL AR MR s a σ` = `JAtPreMV` whose pre-preemption `JAtZ` (ghosts `Z H Cs …` exposed, no longer hidden in `JAt`) comes
+  with `LiveDN Z.th H Cs Z.G` at the preempted state (`.toMV`). `WJPML := WJP ∧ JAtPreMVL ∧ LiveDN` (`.toM : WJPM`).
+  g2e named it `WJPL := WJP ∧ LiveDN`; I built it on MRDel's `WJPM` because that is the instance the
+  MachPlat chain (MRCnode, KEntry ≥ 28M) uses, and I put the ghost-linked `JAtPreMVL` in it so the preempted post names the ghosts
+  its `LiveDN` is at.
+- `jPreemptHypLML : PPHypDW (WMR MR WJL) WJPML` = `jPreemptHypLM` + `liveDN_ppw` on the preempted branch (same premises:
+  ARKeep, ArchTotal, numDomains = 1, MachPlat, PPPlatA).
+- `delHypsJLML` (DelHypsWRZ with `pp` replaced), `JDelHypLML`, `JDelParts.jDelHypLML` (same premises as the M versions).
+- `JAtL AR s a σ` := `∃ Z H Cs Ac Lst D, JAtZ … ∧ LiveDN Z.th H Cs Z.G s σ` (`.toJAt`). `cn_del_topJLML` (+ `hLv` at the entry
+  state for the error branch), `decode_invocation_cnode_revokeJLML` / `deleteJLML`: XCapP at `JAtL` / `JAtPreMVL`, i.e. `LiveDN`
+  at the outcome on the error, completed (WJL's own LiveJ/DbgWF/NullOrig, previously discarded) and preempted branches.
+  Premises: those of the `…JLM` versions with `JDelHypLML` / `PPHypDW … WJPML` for `JDelHypLM` / `PPHypDW … WJPM`.
+- NOT done here: `decode_invocation_cnodeJ_stepsLML` (all CNode labels): Copy/Mint/Move/Mutate/Rotate (family (d)) and
+  CancelBadgedSends (IPC, family (d)/(ii)) have `JAt` posts; and the consumer of `JAtPreMVL` (mr3's `hPre_ofZQIM`: charge +
+  schedule from the preempted state) carrying `LiveDN` to its `JAt` — with `LiveDN.of_jstep` (below) once it starts its hole
+  from `J.addDeadSet hL.1.ztcb`.
+
+### (2) (b) the grant insert (commit 7bb6fd01, new leaf XTopJointLiveIns)
+- `CapSimL c' c` (equal, or untyped caps of one region / device bit: `cdt::insert` may set the source's free index, Insert's
+  `fullF`), `capSimL_fullF`, `CapSimL.null/refs/thread/zombie`; `refsObj_objRefs`.
+- `LiveDN.insG`: `LiveDN.insT` generalised: any destination slot `sl` = slot `i` of a container `q` named by a NON-zombie cap of a
+  slot, every other slot kept up to `CapSimL`, the new cap non-null and no zombie; no zombie names `q` by `FinInv.zombie_alone`.
+- `LiveDN.insC`: the instance at `JAtZ.insDJ`'s post for a destination CNode `pd` named by a CNode cap (DestLive's left
+  disjunct): source slot `(fullF srcC cc).getD srcC`, other slots kept, `cc` no zombie from `isZb cc = false`.
+- NOT done: DestLive's right disjunct (destination CNode inside the kernel-state block): `slots` is fine (KsSlot), `zslots`
+  needs "no zombie names a block CNode" (from SpecGlob.ref, which says no non-frame cap names an IRQ node CNode); and the
+  wiring into IpcGrantTr / XTopJointXferG (their posts are `JAt`).
+- `LiveDN.of_jstep` (generic frame for (d)/(e)): `LiveDN` across any `JAtZ → JAtZ` step keeping slots, debug words, original
+  bits, idle thread, with `ZTcb Z.th s ⊆ D'` (start from `J.addDeadSet hL.1.ztcb`, carry the dead set); no per-word TCB frame
+  (unlike KEntry33's `LiveDN.of_keep`).
+
+### (3) What remains (exact)
+- (c) retype / reset: new objects' slots null; a retyped TCB's `debug_append` makes `dbg` false until the thread cap is
+  inserted (the invariant holds after the retype loop only): a loop invariant "every debug-listed TCB but those appended in this
+  loop is named; the appended ones get their caps at the loop's insert" over UtRetJ / UtCnRet / UtRetypeP3. Not started.
+- (d) VSpace map/unmap/pool, CNode copy/mint/move/mutate/rotate, IRQ / IO control, SC / SchedControl, TCB configure: the
+  slot-writing ones (CNode ops, IRQ control issue, IO port issue) need insG-style / move lemmas (copy = insG with a
+  `RefsObj`-alike source; move = swap of a slot pair: WJLSwap's argument outside the loop); the others `LiveDN.of_jstep`
+  (frames already in their J lemmas: SlotsSame, DbgKeep, orig, idle). Not started.
+- (e) finish (schedule, activate_thread, timer / release): `LiveDN.of_jstep` once the finish lemmas expose SlotsSame /
+  DbgKeep / orig / idle and carry a dead set ⊇ ZTcb (jat_finishJR builds a fresh `JAt`). Not started.
+- (f) LiveDN as a `JAtZ` field (`live : LiveDN Z.th H Cs Z.G s σ`): every `JAtZ` construction must supply it; today ~276
+  `ext` uses in ~108 files mark the construction / frame sites (`grep -o '\.ext\.[a-z_]*\|ext := '`). For frame sites,
+  `LiveDN.of_jstep` / `of_keep` close it; the slot writers and the debug-list writers need (b)/(c)/(d) first. So (f) is
+  the WHOLE carry, one cone rebuild plus one leaf batch per family, and it cannot be landed alone. Then `kernel_entryJ34`
+  without `hLv` (J33 kept as a wrapper), and LiveBootW [W] stays the boot obligation (g2e (2)).
+
+### (4) Findings
+- None: no step found that breaks LiveDN in native scope. All new lemmas take only facts their callers already have; no
+  named premise added.
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2f.sh (= g2e.sh reading g2f.files, untracked). g2f-b1: two parse errors (a `by` block
+  swallowing the next `⟨…⟩` field); b2: XTopJointWJPL + XTopJointLiveIns "Build completed successfully (5596 jobs)";
+  b3 (with `of_jstep`): "Built Fl4Proofs.P3.XTopJointLiveIns (8.6s)", WJPL replayed, success. ~15 s per build (leaves only).
+  No sorry / admit / native_decide / bv_decide. Root Fl4Proofs.lean (two import lines) not rebuilt.
+- Axioms (scratch/g2f/ax.lean, untracked; task g2f-b3): JAtZ.ppw_tcbWord, JAtZ.ppw_nodeWord, JAtZ.deadP_ppw,
+  JAtZ.liveDN_ppw, JAtPreMVL.toMV, WJPML.toM, jPreemptHypLML, delHypsJLML, JDelParts.jDelHypLML, JAtL.toJAt, cn_del_topJLML,
+  decode_invocation_cnode_revokeJLML, decode_invocation_cnode_deleteJLML, LiveDN.insG, LiveDN.insC, LiveDN.of_jstep: propext,
+  Classical.choice, Quot.sound; capSimL_fullF, refsObj_objRefs: propext.
