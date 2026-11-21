@@ -627,4 +627,128 @@ macro "mdisch" : tactic => `(tactic| first
 
 end
 
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+
+/-- **`enqueue d` on a nonempty ready queue** (the handler, F3 facts in
+`EnqNE`): `d` becomes the head. The memory reads are proved on explicit
+terms first and rewritten in (`simp (disch := assumption)` over the named facts of `EnqNE.facts`: the default discharger does not close the `Aligned` side conditions). -/
+theorem enqueue_ne {T : Set U64} {X : S} {d p : U64} (E : EnqNE (L := L) T X d p) :
+    sched.enqueue st X d = ok (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) := by
+  obtain ⟨n1, n2, n3, v1, v2, n6, n7, n8, n9, al1, al2, f1, f2, hdh, dj1, dj2, ba, hp⟩ := E.vals
+  obtain ⟨q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20, q21, q22, q23, q24, q25, q26, q27, q28, q29, q30, q31, q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63, q64, q65, q66, q67, q68, q69, q70, q71, q72, q73, q74, q75, q76, q77, q78, q79, q80⟩ := E.facts
+  have hI : L.mem (L.wr (L.wr (L.wr (L.wr (L.wr X (nextA .Sched d) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (prevA .Sched d) 0#u64) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) d) (L.nodeAt X (L.cpu X) (rqOff p)) d) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) = L.mem X (inqA d) := by simp (disch := assumption) only [mem_wr_ne']
+  have hA : L.mem (L.wr (L.wr (L.wr (L.wr (L.wr (L.wr X (nextA .Sched d) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (prevA .Sched d) 0#u64) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) d) (L.nodeAt X (L.cpu X) (rqOff p)) d) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) (L.mem X (inqA d) ||| sched.Q_QUEUED)) (affA d) =
+      L.cpu (L.wr (L.wr (L.wr (L.wr (L.wr (L.wr X (nextA .Sched d) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (prevA .Sched d) 0#u64) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) d) (L.nodeAt X (L.cpu X) (rqOff p)) d) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) (L.mem X (inqA d) ||| sched.Q_QUEUED)) := by
+    simp (disch := assumption) only [mem_wr_ne', L.cpu_wr]; exact E.haff
+  apply eq_of_spec_fd
+  unfold sched.enqueue
+  rw [eq_of_spec_fd (sched.queued.spec (L := L) X d), E.hq]
+  simp only [ne_eq, eq_self_iff_true, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte,
+    bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) X d), E.haff]; simp only [bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.domain.spec (L := L) X d)]; simp only [bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.prio.spec (L := L) X d), E.hpr]; simp only [bind_ok, bind_tc_ok]
+  obtain ⟨off, hoff, ho1, ho2⟩ := spec_ex_fd (sched.rq_head_off.spec (L.mem X (domA d)) p hp)
+  rw [hoff]; simp only [bind_ok, bind_tc_ok]; subst ho1
+  rw [eq_of_spec_fd (sched.q_get.spec (L := L) X _ _), ho2]; simp only [bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (tcbqueue.Queue.is_empty.spec _)]
+  simp only [bind_ok, bind_tc_ok, E.hh0, decide_false, Bool.false_eq_true, ↓reduceIte]
+  refine WP.spec_bind (spec_of_eq_fd (prepend_ne (L := L) X .Sched _ d E.hh0)) ?_
+  rintro ⟨q1, s2⟩ hpp
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hpp
+  refine WP.spec_bind (sched.q_set.spec (L := L) _ _ _ _) ?_
+  rintro s3 hs3
+  have e3 : s3 = (L.wr (L.wr (L.wr (L.wr (L.wr X (nextA .Sched d) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (prevA .Sched d) 0#u64) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) d) (L.nodeAt X (L.cpu X) (rqOff p)) d) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) := by
+    simp only [nodeAt_wr] at hs3; rw [hs3, ho2]; all_goals rfl
+  subst e3
+  refine WP.spec_bind (sched.set_flag.spec (L := L) _ d _ true) ?_
+  rintro s4 hs4
+  have e4 : s4 = L.wr (L.wr (L.wr (L.wr (L.wr (L.wr X (nextA .Sched d) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (prevA .Sched d) 0#u64) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) d) (L.nodeAt X (L.cpu X) (rqOff p)) d) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) (L.mem X (inqA d) ||| sched.Q_QUEUED) := by
+    rw [hs4, hI]; all_goals rfl
+  subst e4
+  rw [remote_queue_update_local (L := L) _ d hA]
+  exact (WP.spec_ok _).2 rfl
+
+/-- **`dequeue d` after `enqueue d` on a nonempty ready queue** restores every
+queue word, the old head's `sched_prev` (F3: it was 0) and `d`'s `in_queues`
+word (QUEUED was clear), and leaves `d`'s scheduler links 0. -/
+theorem dequeue_enq_ne (hX : StoreExt st) {T : Set U64} {X : S} {d p : U64} (E : EnqNE (L := L) T X d p) :
+    sched.dequeue st (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) d = ok (L.wr (L.wr X (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64) := by
+  obtain ⟨n1, n2, n3, v1, v2, n6, n7, n8, n9, al1, al2, f1, f2, hdh, dj1, dj2, ba, hp⟩ := E.vals
+  obtain ⟨q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20, q21, q22, q23, q24, q25, q26, q27, q28, q29, q30, q31, q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63, q64, q65, q66, q67, q68, q69, q70, q71, q72, q73, q74, q75, q76, q77, q78, q79, q80⟩ := E.facts
+  have yI : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (inqA d) = L.mem X (inqA d) ||| sched.Q_QUEUED := by
+    unfold enqNE; simp (disch := assumption) only [LawfulStore.mem_wr_same]
+  have yA : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (affA d) = L.cpu X := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne']; exact E.haff
+  have yD : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (domA d) = L.mem X (domA d) := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne']
+  have yP : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prioA d) = p := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne']; exact E.hpr
+  have yC : L.cpu (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) = L.cpu X := by unfold enqNE; simp only [L.cpu_wr]
+  have yN : ∀ o, L.nodeAt (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (L.cpu X) o = L.nodeAt X (L.cpu X) o := by intro o; unfold enqNE; simp only [nodeAt_wr]
+  have yH : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (L.nodeAt X (L.cpu X) (rqOff p)) = d := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+  have yE : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (L.nodeAt X (L.cpu X) (rqTailOff p)) = L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)) := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+  have yPd : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched d) = 0#u64 := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+  have yNd : L.mem (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (nextA .Sched d) = (L.mem X (L.nodeAt X (L.cpu X) (rqOff p))) := by unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+  have hrm : removeF st (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) .Sched ⟨d, L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p))⟩ d = (⟨(L.mem X (L.nodeAt X (L.cpu X) (rqOff p))), L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p))⟩, (L.wr (L.wr (L.wr (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) 0#u64) (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64)) := by
+    unfold removeF; simp only [yNd, E.hed, and_false, ↓reduceIte]
+  have zI : L.mem (L.wr (L.wr (L.wr (L.wr (L.wr (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) 0#u64) (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64) (L.nodeAt X (L.cpu X) (rqOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) = L.mem X (inqA d) ||| sched.Q_QUEUED := by
+    unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+  have hfin : L.wr (L.wr (L.wr (L.wr (L.wr (L.wr (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) 0#u64) (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64) (L.nodeAt X (L.cpu X) (rqOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) (L.mem X (inqA d)) = L.wr (L.wr X (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64 := by
+    unfold enqNE
+    apply hX
+    · intro x hx
+      by_cases e0 : x = inqA d
+      · subst e0; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+      by_cases e1 : x = (L.nodeAt X (L.cpu X) (rqTailOff p))
+      · subst e1; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+      by_cases e2 : x = (L.nodeAt X (L.cpu X) (rqOff p))
+      · subst e2; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+      by_cases e3 : x = prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))
+      · subst e3; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same, E.hhp]
+      by_cases e4 : x = nextA .Sched d
+      · subst e4; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+      by_cases e5 : x = prevA .Sched d
+      · subst e5; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
+      have e0' := Ne.symm e0
+      have e1' := Ne.symm e1
+      have e2' := Ne.symm e2
+      have e3' := Ne.symm e3
+      have e4' := Ne.symm e4
+      have e5' := Ne.symm e5
+      simp (disch := assumption) only [mem_wr_ne']
+    · simp
+    · simp
+  have hQ : (decide ((L.mem X (inqA d) ||| sched.Q_QUEUED) &&& sched.Q_QUEUED ≠ 0#u64)) = true := by
+    rw [or_qq_qq]; simp [qq_ne]
+  apply eq_of_spec_fd
+  unfold sched.dequeue
+  rw [eq_of_spec_fd (sched.queued.spec (L := L) _ d), yI, hQ]
+  simp only [↓reduceIte, bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) _ d), yA]; simp only [bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.domain.spec (L := L) _ d), yD]; simp only [bind_ok, bind_tc_ok]
+  rw [eq_of_spec_fd (obj.Tcb.prio.spec (L := L) _ d), yP]; simp only [bind_ok, bind_tc_ok]
+  obtain ⟨off, hoff, ho1, ho2⟩ := spec_ex_fd (sched.rq_head_off.spec (L.mem X (domA d)) p hp)
+  rw [hoff]; simp only [bind_ok, bind_tc_ok]; subst ho1
+  rw [eq_of_spec_fd (sched.q_get.spec (L := L) _ _ _), ho2, yN, yN, yH, yE]; simp only [bind_ok, bind_tc_ok]
+  refine WP.spec_bind (spec_of_eq_fd (tcbqueue.remove.ok (L := L) _ .Sched _ d)) ?_
+  rintro ⟨q1, s1⟩ hpp
+  rw [hrm] at hpp
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hpp.symm
+  refine WP.spec_bind (sched.q_set.spec (L := L) _ _ _ _) ?_
+  rintro s2 hs2
+  have e2 : s2 = (L.wr (L.wr (L.wr (L.wr (L.wr (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) 0#u64) (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64) (L.nodeAt X (L.cpu X) (rqOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) := by
+    simp only [nodeAt_wr, yN] at hs2; rw [hs2, ho2]; all_goals rfl
+  subst e2
+  refine WP.spec_bind (sched.set_flag.spec (L := L) _ d _ false) ?_
+  rintro s3 hs3
+  have e3 : s3 = L.wr (L.wr (L.wr (L.wr (L.wr (L.wr (enqNE (L := L) X d (L.nodeAt X (L.cpu X) (rqOff p)) (L.nodeAt X (L.cpu X) (rqTailOff p))) (prevA .Sched (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) 0#u64) (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64) (L.nodeAt X (L.cpu X) (rqOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqOff p)))) (L.nodeAt X (L.cpu X) (rqTailOff p)) (L.mem X (L.nodeAt X (L.cpu X) (rqTailOff p)))) (inqA d) (L.mem X (inqA d)) := by
+    rw [hs3, zI, or_andn_qq _ E.hq]; all_goals rfl
+  subst e3
+  refine WP.spec_bind (tcbqueue.Queue.is_empty.spec _) ?_
+  rintro b rfl
+  have hb : decide ((L.mem X (L.nodeAt X (L.cpu X) (rqOff p))) = 0#u64) = false := by simp [E.hh0]
+  rw [hb]
+  exact (WP.spec_ok _).2 hfin
+end
+
+
 end Fl4Proofs.P1
