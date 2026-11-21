@@ -12393,3 +12393,27 @@ the MR carry (T4).
   the [S] scope per step (ct ≠ idle, NativeSys, hflag, numDomains = 1, the VT-x cases P2 P6 P8 P25 P31 V1), the (d) bundles hK
   (E4–E10, P1, P7, P9, P10, the Untyped / device [J] fields) and hFin (F1, F6) asked at each reachable state's ghosts, and the two
   induction gaps (G-a) spec no-fail, (G-b) the MR carry to the exit.
+
+### (4) Findings
+- No premise of J34 / J35 found false in a reachable state. Checked: every (a) projection is a field of a bundle carried by a
+  whole-entry top (rd14h, epq2); the known [S] `JVtxHypMU` (g2a (4): false for a system that retypes VT-x objects) is unchanged.
+- Not a premise, but recorded as induction gaps: (G-a) the spec-failure disjunct of `KPost` (no successor state; needs a spec
+  `no_fail` lemma under `SInvX`), (G-b) `MR` at the exit (asked by `JReach.step`).
+
+### (5) Builds and axioms
+- Rebased onto 91b89347 (m57) mid-line (lead note): `hFast` now `FastRR` in J35 and `kernel_entry_reach`; KENTRY-PLAN conflict
+  was two appended sections (both kept).
+- tokyo, FL4-sc mirror (./g4a.sh untracked = g2j.sh; scratch/g4a/ax.lean untracked). g4a-b1 (550d49c6 tree, cold spec cone,
+  ~46 min): one error (`setReg` is `Notif.setReg`). g4a-b2 (91b89347 tree, XTopJointKEntry35): "Build completed successfully
+  (6902 jobs)". **g4a-full1** (full `lake build` of proofs/ at 18e33126): "Build completed successfully (6969 jobs)". No sorry /
+  admit / native_decide / bv_decide.
+- Axioms (g4a-full1): kernel_entryJ35, jreach_inv, kernel_entry_reach, JPathAtM35.toM, KDispHypsKV35.to33, jEntryGlobM32_of,
+  SInvR.G4.kentry_sinvX, kcall_sinvX, SInvX.epQAll, boot_sinvX: propext, Classical.choice, Quot.sound; offReady_faultIPSt:
+  Classical.choice.
+
+### (6) Next (handoff)
+- (G-b) MR to the exit: extend RJ / KPost with `MR r.2 σ'.machineState` (the MachPlat chain already threads MR through the
+  holes; the finish / schedule / activate posts need it), then drop it from `JReach.step`.
+- (G-a) spec `kentry_nofail` under `SInvX` (spec-only line, outside the cone).
+- The 23 (d) premises, in G2 / G3 order: JEntryAtR3's seven joint fields as JExt fields, the JPath [J] fields (heapH /
+  vsReach / devApart … are L), `KFinAtR31.hd` / `tail`.
