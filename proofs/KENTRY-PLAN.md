@@ -10736,3 +10736,80 @@ every FL4 system reaches:
   Root Fl4Proofs.lean (one import line) not rebuilt.
 - Axioms (scratch/g2d/ax.lean, untracked; task g2d-b1): liveDN_idle_off, liveDN_irqNode_free,
   not_liveDN_of_irqNode, not_liveDN_of_idle: propext, Classical.choice, Quot.sound.
+
+## g2e (branch par/g2e in FL4-sc, on 5e5197da = int/j2 incl. g2d, g2c, kernel_entryJ33) — G2 fifth step: `LiveJ` re-scoped (lead decision: the idle thread exempt in `dbg`, the kernel-state block accepted in `slots`), the deletion cone rebuilt; g2d's refutations no longer apply; corrected boot obligation `LiveBootW` [W] (DONE); g2d's "What remains" (a)–(f) NOT done (handoff)
+Goal: g2d (2) (the re-scope, priority) then g2d (3) (a)–(f).
+
+### (1) Re-scope of `LiveJ` (commit 46383948; XTopJointLive and 16 cone files, one batch)
+- `LiveJ.slots`: `IsSlotAt th q i → InUse … (slotOf q i) → (∃ y ∈ G…, RefsObj q (capV y)) ∨ KsSlot (L.ksb s) (slotOf q i)`,
+  `KsSlot kb y := kb.val ≤ y.val ∧ y.val < kb.val + 13568` (new abbrev = `SlotLiveAt`'s right disjunct). l4v: an IRQ node slot
+  is covered by the IRQ state / handler cap (`cte_refs (IRQHandlerCap irq)`), not by a CNode cap.
+- `LiveJ.dbg`: `dbgNth … ≠ 0 → (dbgNth …).bv ≠ σ.idleThread → ∃ thread cap` (l4v `if_live_then_nonz_cap`: the idle thread is
+  not `live`). Exemption by the SPEC idle thread, not the FL4 idle word: at a `JAtZ` state they are the same
+  (`JAtZ.idleThread_bv`, a local copy of DelR's `idleThread_eq`; `JAtZ.bv_ne_idleThread`), and the carry then needs only
+  `σ'.idleThread = σ.idleThread`, which every deletion step gives for free (SpecGlobFK's `GK` family; `gk_idle`, new in
+  XTopJointWJL) or `CnK` (`Ipc.CnK.idle`, new in XTopJointLive), instead of `IdleKeep` from two `JAtZ` + SchedRel
+  (`JAtZ.idleW_keep`). The head consumers still use the FL4 word and `JCovD.idleOut` as planned.
+- Consumers:
+  - `ReadyLive`'s second part: `dbgHead ≠ 0 → dbgHead ≠ L.idleW s → OtherCov …`; `JAtZ.readyLive` (block case `Or.inr`,
+    idle via `bv_ne_idleThread`).
+  - `JAtZ.delUtFact_of` (XTopJointEmptyUt): `hdbg` asks `head ≠ idleW`; the idle head is outside every RAM untyped region by
+    `J.jcov.idleOut` (left disjunct of `IdleAt`). The block case of `hlive` was already handled.
+  - `LiveOther` (XTopJointWJL) got both exemptions; `LiveJ.liveOther` propagates them; `emptyHypJL` rebuilds `LiveJ`.
+  - XTopJointFinThreadU: `DbgSuccCov T G w s` asks the successor `≠ w`; `dbgSuccCov_of_live` gives it at `w = L.idleW s`;
+    new `JAtZ.dbgRemoveJI` (copy of XTopJointFinThread's `dbgRemoveJ`, left untouched to keep it out of the cone) handles the
+    idle successor by `idleOut` (debug_append pushes at the head, so the idle thread is the LAST entry of core 0's list and
+    can be the removed head's successor); `finThreadJU` transports `L.idleW s6 = L.idleW s` (σ6 after `suspend`:
+    `gk_suspend'`, `JAtZ.idleThread_bv` at both ends).
+- Carry sites (the 17 field reads in 10 files of g2d (2), plus their callers): `LiveJ.of_same` / `of_sameZ` take
+  `hid : σ'.idleThread = σ.idleThread` (the block case by `DbgKeep.1`: ksb kept); `LiveJ.of_sameDbg` takes `hid` and
+  `hks`; `wjl_keep` takes `hid` (callers: `gk_finaliseCap` at the finaliser's spec outcome, `rfl` for the VT-x finalisers
+  and the IPC-buffer write, `stsAct` by `split <;> rfl` for the restart); zombie write (`gk_setCap`), empty
+  (`hnk.idle`), swap (`hnk.idle`), insert `LiveDN.insT` (`hcn.idle`); preemption point (`gke_preemptionPoint'`, WJLPP and
+  MRDel), post deletion (`KsStep.idle`), TCB install's reschedule (`gk_rescheduleRequired'`); `LiveDN.of_keep` takes
+  `hid`, `liveDN_front` gives it by `BudgetAt.shape27`.
+- No premise added anywhere; every changed lemma's inputs are facts the call sites already had.
+
+### (2) The refutations no longer apply (XTopJointLiveFalse rewritten; root import unchanged)
+- `liveJ_dbg_idle`: at a `JAtZ` state, `dbg`'s premise fails at a debug-list entry equal to the idle word.
+- `irqNode_ksSlot`: every IRQ node slot `slotOf (nodeA kb i) 0` is an `IsSlotAt` slot inside the block (`nodeA_val`), so
+  `slots` holds there with no cap.
+- `LiveJ.of_l4v`: `LiveJ` from l4v-shaped facts silent on the idle thread and the IRQ node: a cap for every slot in use whose
+  container is no IRQ node CNode, a thread cap for every debug-listed TCB other than the idle word, the zombie facts. So
+  `LiveJ` holds with core 0's idle thread on the debug list and with any IRQ node slots in use.
+- Corrected boot obligation [W] for G4 (replaces g2c (4)): `LiveBootW s σ` = the inputs of `of_l4v` + `DbgWF` +
+  `NullOrig`; `liveDN_of_boot : JAtZ → LiveBootW → LiveDN`. At FL4's boot: the root CNode / root TCB named by the root
+  caps; the idle threads (every core's, on their lists) exempt; IRQ node slots null (no handler at boot) but exempt anyway;
+  no zombie; no null original slot.
+- g2d's `liveDN_idle_off` / `liveDN_irqNode_free` / `not_liveDN_of_*` are gone (their statements are false now; the three
+  lemmas above are the checks that the exemptions are needed and suffice).
+- One-core note [S]: the exemption is the spec's (= the current core's) idle thread; `dbg` reads core 0's list, so on a
+  core `c ≠ 0` core 0's idle thread would still be uncovered. FL4's native scope is one core (`Z.c = 0` is already a [P]
+  path premise, INV-PLAN P7/P12), so no premise false in native-scope states.
+
+### (3) What remains (g2d (3) (a)–(f), unchanged; NOT started here)
+- (a) `WJP` drops LiveDN at the preempted branch. Missing pieces found: at the preempted state there is no `JAtZ`, so
+  `orig_eq_of_slots` (needs `kern.orig` there) and `J'.jcov.dead` are unavailable; needed instead: a spec frame
+  `σ'.isOriginalCap = σ.isOriginalCap` for every outcome of `preemptionPoint` (an `FKE isOriginalCap` lemma in the style of
+  `SpecGlob.pp`'s `FKE kheap`), `DeadP` kept over P1's `PPW` footprint (work units, CUR_TIME, CONSUMED: no TCB word, no
+  action / idle word), `DbgWFL.of_keep` with `JAtZ.ppDbg` and the affinities kept. Plan: a WJL-level preempted invariant `WJPL := WJP ∧ LiveDN` (s, σ, G) and
+  `jPreemptHypLL : PPHypDW (WJL) (WJPL)` (the preemption point writes time words only; `LiveJ.of_sameZ` with
+  `gke_preemptionPoint'` as in `jPreemptHypL`'s non-preempted branch), then instantiate `decode_invocation_cnode_*JL` /
+  MRCnode with `WJPL`. Useful only together with (f) (the posts are `JAt`).
+- (b) `LiveDN.insT` for a CNode receive slot (IPC grant): the new slot's container named by the receiver's CNode cap
+  (`DestLive` left disjunct); the block disjunct now available for the right one.
+- (c)–(e) as g2c (3)(iii)–(v); generic frame: `LiveDN.of_keep` (now with `hid`).
+- (f) LiveDN as a `JAtZ` / `JExt` field and `kernel_entryJ34` without `hLv`: as g2c (7).
+
+### (4) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2e.sh (= g2d.sh reading g2e.files, untracked); targets the maximal modules of the
+  278-module downstream closure of XTopJointEmptyUt + XTopJointLive (XTopJointLiveFalse XTopJointWJLFinT XTopJointKEntry33
+  XTopJointKEntry28M XTopJointKEntry30D XTopJointPortInM). g2e-b1: omega in delUtFact_of's idle case (a stray `rw`);
+  b2: `CnK.idle` needed the defeq through `abs0` spelled out; b3: name clash `JAtZ.ne_idle` (XTopJointTcb has one; renamed
+  `JAtZ.bv_ne_idleThread`), stopped; b4: "Build completed successfully (6610 jobs)" (~6.5 min, warm mirror).
+  No sorry / admit / native_decide / bv_decide in the 17 files. Root Fl4Proofs.lean unchanged (imports XTopJointLiveFalse
+  as before), not rebuilt.
+- Axioms (scratch/g2e/ax.lean, untracked; task g2e-ax1): liveJ_dbg_idle, irqNode_ksSlot, LiveJ.of_l4v,
+  liveDN_of_boot, JAtZ.readyLive, JAtZ.delUtFact_of, JAtZ.dbgRemoveJI, JAtZ.finThreadJL, LiveJ.of_sameZ, LiveDN.insT,
+  LiveDN.of_keep, liveDN_front, jZombieHypL, emptyHypJL, jFinAtL_thread, jPreemptHypL, kernel_entryJ33: propext,
+  Classical.choice, Quot.sound.
