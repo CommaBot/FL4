@@ -12497,3 +12497,110 @@ the MR carry (T4).
 - (G-a) spec `kentry_nofail` under `SInvX` (spec-only line, outside the cone).
 - The 23 (d) premises, in G2 / G3 order: JEntryAtR3's seven joint fields as JExt fields, the JPath [J] fields (heapH /
   vsReach / devApart … are L), `KFinAtR31.hd` / `tail`.
+
+
+## g5a (branch par/g5a in FL4-rb, on 607bd090 = int/j2 incl. g4a) — JEntryAtR3's seven joint premises: five DONE without a `JExt` field (`fnz`, `utks` theorems of `JAtZ`; `handlers`, `ports`, `urz` spec-only, asked once at the entry); `flags`, `vsTyp` NOT done (sizing below); P1 `hFr` DONE (spec-only `SpecFrPg` + `JAtZ.fpuFrameJ`); P7 `hno` NOT done (sizing below); top `kernel_entryJ35E`
+Goal (brief): the seven `JEntryAtR3` joint fields (flags, handlers, ports, vsTyp, fnz, urz, utks) as `JExt` fields with keep lemmas
+at every producer, then `kernel_entryJ35E` whose `hK` no longer asks them. Before adding fields I checked each against what `JAtZ`
+already carries and against INV-PLAN §2's spec-only / joint split; five need no field.
+
+### (1) What each of the seven became
+| field | before | now | how |
+|---|---|---|---|
+| `fnz` (FrNZ) | [J] at σb | theorem `JAtZ.fnzJ` | `fcap` (every non-device frame cap's bytes in `UFr σ`) at byte 0 gives a spec data page at 0 (`0 &&& ~~~mask = 0`), hence `H ⟨0⟩ = other n` (`SpecCover.arch`), contradicting `JKern.h0` |
+| `utks` (UtNodesJ) | [J] at σb | theorem `JAtZ.utksJ` (`utNodesJ_of_ks`) | **cone edit**: `UtKsApart`'s third part (ScPlaceUt) strengthened from "misses the ASID table `[ksb+288000, +16384)`" to "misses `[ksb+13568, ksb+304384)`" (all 64 nodes and the ASID table; with part one, the whole static area after the kernel-state base). Carried exactly as before: `UtKsApart.keep` copies it, the retype's children (`JCovD.retypeS`) get it by the same `omega` from the source's; `UtKsApart.asidOf` gives the old shape where a consumer needs it (UtResetTopJ). True in reachable states: the static kernel-state block (ks + `MAX_NODES` = 64 nodes + ASID table) is kernel-image data, never in a RAM untyped (l4v `valid_global_refs` / `kernel_window`; the same justification `UtNodesJ`'s docstring gave) |
+| `handlers` (HandlersActive) | [J] joint at σb | [J] spec `SpecIrqH σ` at the entry | `JAtZ.handlersJ` = IntInv's `handlersActive_of_spec` with `StateRel`, `MdbLinks` (`xtop.rel`) and `IrqRel` (`xtop.fin`) |
+| `ports` (IoPortsAlloc) | [J] joint at σb | [J] spec `SpecIoP σ` at the entry | `JAtZ.portsJ` = `ioPortsAlloc_of_spec` with `IoRel` |
+| `urz` (UtZero) | [J] joint at σb | [J] spec `SpecUtZ σ` at the entry | `JAtZ.urzJ`: an MDB slot's RAM untyped cap is the spec's `untypedCap false p sb fi` there (`StateRel.abs_cap`, `absCap`) |
+| `flags` (FlagsRel) | [J] joint | unchanged [J] joint | (3) |
+| `vsTyp` (OffTabOK) | [J] joint | unchanged [J] joint | (3) |
+| P1 `hFr` (`JThreadPath`, FpuFrameJHyp) | [J] joint at σb, at `extra[0]` | [J] spec `SpecFrPg σ` at the entry | `JAtZ.fpuFrameJ` (1b) |
+
+Why spec-only and not `JExt` for handlers / ports / urz: at a `JAtZ` state each is equivalent (through `StateRel` / `IrqRel` /
+`IoRel`, which every `JAtZ` carries) to a predicate on the spec state alone — l4v's `valid_irq_handlers`, `valid_ioports`,
+`untyped_ranges_zero`, which l4v carries on the abstract side. As `JExt` fields every one of the ~80 `JAtZ` producers would
+re-prove a spec fact through FL4 footprints (the IRQ-state words, the IO bitmap, every spec memory store); on the spec side the
+keep lemma is one spec-only theorem per field over the syscall (INV-PLAN §4 G1 shape, off the cone).
+
+New spec-only module **SpecInvG5** (namespace `SInvR.G5`; imports SpecInvUtR / SpecInvVfhR only): `SpecIrqH`, `SpecIoP`,
+`SpecUtZ`, `SpecFrPg` (on `SInvU.capAt`, l4v `caps_of_state`), the bundle `SInvI`, `SInvI.frame` (caps, interrupt states,
+allocated IO ports, memory and arch objects kept), `capAt_updTcb` (a TCB replaced by one with the same caps), `archObj_updTcb`.
+
+### (1b) P1 `hFr` (the Thread path's `JThreadPath`, ReadFPU's destination frame)
+- `FpuFrameJHyp Z s σ x` (XTopJointReadFpu) is now asked only when `x` is a slot of the typed heap
+  (`∀ sl0, AbsSlot Z.th sl0 → x = cslotAddr sl0 → …`). Before, `JThreadPath.hFr` asked it at `extra[0]` whatever that was; with
+  no extra cap the array pads with slot 0 (`NO_EXTRA_CAPS`), so the old premise constrained the word at address 0, which nothing
+  else does (observation, not a finding: no trace that the word decodes to a RAM frame cap; the guard removes the question).
+  The one consumer `tcb_read_fpuJ` already had the slot (`XcRel` gives `x0 = cslotAddr sl0`, `AbsSlot`); one-line change. Cone
+  edit: everything downstream of XTopJointReadFpu rebuilt.
+- New spec-only invariant `SpecFrPg σ` (fourth field `SInvI.frP`): every non-device spec `pageCap` lies in one non-device spec
+  data page (l4v `valid_cap` of a `PageCap`, `typ_at (AArch (AUserData sz)) p`, weakened to "inside" for FL4's DeriveSubframe
+  aliases, which are 4 KiB caps inside a 2 MiB page). Carried to σb by `sinvI_disp` (the FaultIP write replaces only the current
+  TCB: `archObj_updTcb`).
+- `JAtZ.fpuFrameJ J hS x : FpuFrameJHyp Z s σ x` (`StateRel.abs_cap` at the slot: the spec's cap is `absCap` of the FL4 frame
+  cap, a `pageCap false p.bv … (frameSizeOf sz) …`; `pageBitsForSize (frameSizeOf sz) = frameBitsN sz`).
+- `JPathME` = `JPathM` whose Thread case drops `JThreadPath` (wildcard to `JPathM` for every other cap); `JPathME.toM J hS`;
+  `JPathAtM35E` = `JPathAtM35` with `JPathME`, `.to35`. `KDispHypsKV35E` asks `JPathAtM35E`.
+
+### (2) The top (leaf XTopJointKEntry35E; root import; XTopJointKEntry35 not edited)
+- `sinvI_disp`: `SInvI σ → BudgetAt σ σb true → SInvI σb` (`BudgetAt.shape27` + `updateTimeStamp_eq'`: the FaultIP write keeps
+  every cap, `update_time_stamp` keeps interrupt states, IO ports, memory). This is the FAULT_IP + budget_ok frame of the brief,
+  on the spec side (the two joint facts get theirs from `J'` at σb directly, which `hK` already hands over).
+- `JEntryAtR5` = `JEntryAtR3` without fnz / utks / handlers / ports / urz: `stall`, `ioapics`, `archIrq` [P], `flags`, `vsTyp`
+  [J]. `JEntryAtR5.toR3 J hI`. `KDispHypsKV35E` (= KV35 with `JEntryAtR5`), `.to35 J hI`.
+- **`kernel_entryJ35E`** premises, exactly: `kernel_entryJ35`'s (PlainStore, `J`, `hct` [S], `hR` MR, `hX : SInvX σ`, `hn` [S],
+  `hflag` [S], `hFin` → `KFinAtR31`, the [P] bundle `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI`, `hFast` [P]) with
+  `hK` → `KDispHypsKV35E` (fields: `JEntryAtR5`'s five, `JPathAtM35E` = `JPathAtM35` without the Thread path's `JThreadPath`,
+  `JVtxHypMU`, unchanged otherwise), plus **`hI : SInvI σ`** [J] spec at the entry (four l4v invariants: `valid_irq_handlers`,
+  `valid_ioports`, `untyped_ranges_zero`, `valid_cap` of page caps). Post `KPostX` (as J35). `SInvI` is not yet carried to the exit (no
+  `kentry_sinvI`), so `JReach` is unchanged (it would need `SInvI` in `start` and a `kentry_sinvI` in `jreach_inv`).
+
+### (3) Not done: `flags`, `vsTyp` and P7 `hno`, with sizing
+- `flags` (`FlagsRel Z.T mem σ`: FL4's flags word `t+3456` vs the spec's `tcb_flags`) is genuinely joint and has no relation in
+  `XTopAt` to come from (no TCB relation reads `tcbFlags`). As a field it needs `JExt` to take `Z.T` (or `th`) and `σ`, and at
+  every producer: (i) the flags words of `Z.T` unwritten — exactly g2b's `VKeep` problem one word lower (3456 is inside every
+  coarse TCB footprint `OObj`/`TFoot`/`FinW`), i.e. a second `hWV`-style footprint fact at the ~42 `cs_frameI` callers and inside
+  `sc_frame`; (ii) every spec TCB's `tcbFlags` kept (a spec frame the sites do not state today; the parallel `BufWordRel`
+  threads through `IpcXTop`'s posts, 46 files); (iii) SetFlags (`XTopTcbData`'s `FlagsRel.set`) and the TCB retype (both words 0).
+  Size: g2b-sized (one cone batch + IPC caller batches). Cheapest route found: widen `VKeep` to "VCPU and flags words kept" so
+  (i) reuses every existing `hWV` proof (each proves `b ≠ t+3664` from a field-offset case split; 3456 is one more offset), and
+  carry the spec half as a field of the post bundles beside `buf`.
+- `vsTyp` (`OffTabOK`): its spec half (a mapped PT/PD/PDPT cap names a spec table of that kind, l4v `valid_cap` typ_at) is
+  spec-only; its FL4 half `OffFrame` (the table's 4 KiB miss every `OObj` / `VObj` / typed-heap word) is NOT derivable from
+  `JAtZ`: `OObj` contains the IPC-buffer words `B`, which nothing ties to spec objects (that is the open `BufObjHyp` [J], INV-PLAN
+  P13), and the `other` objects of `H` may lie inside the kernel-state block (`JKern.hksIn`). With `BufObjHyp` carried and a
+  "no spec table inside the ks block" fact, `OffFrame` follows from `H`'s disjointness (`HeapOK`) and `SpecCover.arch`; until then
+  it stays [J] (L, as INV-PLAN rated it).
+- P7 `hno` (`JFramePath`, DeriveSubframe on a large RAM frame: every MDB cap is disjoint from the frame, a non-revocable frame
+  cap, or contains it): argued true in reachable states, not checked in Lean (only the retype makes a revocable frame cap, one per page; copies and
+  `insert_subframes` children are non-revocable, `is_cap_revocable`; untyped caps containing the frame contain it, others miss
+  it; CNode / TCB / table objects miss frames, `FrApartH`). It is a statement over all caps, not a spec-only fact (it reads
+  FL4's `revocable` bit, whose spec image is `isOriginalCap`), so it is a `JExt` field: keep at every cap-writing producer
+  (insert/copy/mint/move/swap/delete/revoke/retype/subframe: every `CdtRel`/MDB producer; not counted), or a spec-only
+  invariant over `isOriginalCap` + `cdt` with the `CdtRel` reading. Not started.
+
+### (4) Findings
+- No premise found false in a reachable state. The strengthened `UtKsApart` part is the old `UtNodesJ` [J] premise moved into
+  the carried invariant (same justification).
+- Observation, not a finding: `SpecUtZ` / `UtZero` read the spec's `underlyingMemory`, which the spec writes at IPC transfers into
+  user frames; its spec-side preservation needs `SpecFree` (no object in a free part, already in `JCs.sfree` / `UtCapP3`) on the
+  spec side too (BufDefs' `UtZero.umIn` is the joint form of that argument).
+
+### (5) Builds and axioms
+- Commit 583160cb (on 607bd090): ScPlaceUt (`UtKsApart` third part), UtResetTopJ / XTopJointVsCap (the old shape by `asidOf` /
+  `omega`), XTopJointReadFpu (`FpuFrameJHyp` guard), XTopJointTcb (one line), new SpecInvG5 and XTopJointKEntry35E (root imports).
+  XTopJointKEntry35 not edited.
+- Module build `lake build Fl4Proofs.P3.XTopJointKEntry35E` green (g5a-b3 rebuilt the cone after the ScPlaceUt / ReadFpu edits;
+  g5a-b4 the leaf), then the full `lake build` on 583160cb: **Build completed successfully (6975 jobs)**, no `error`, no
+  `declaration uses 'sorry'` (g5a-full1). No sorry / admit / native_decide / bv_decide / new axiom in the changed files.
+- `#print axioms` (scratch file, not committed) after the full build: `kernel_entryJ35E`, `KDispHypsKV35E.to35`,
+  `JEntryAtR5.toR3`, `JAtZ.fnzJ`, `JAtZ.utksJ`, `utNodesJ_of_ks`, `JAtZ.handlersJ`, `JAtZ.portsJ`, `JAtZ.urzJ`, `sinvI_disp`,
+  `SInvI.frame`, `capAt_updTcb`, `JAtZ.fpuFrameJ`, `JPathME.toM`, `JPathAtM35E.to35`, `tcb_read_fpuJ`, and (unchanged statements,
+  rebuilt) `kernel_entryJ35`, `kernel_entry_reach`: [propext, Classical.choice, Quot.sound]; `Sched.UtKsApart.asidOf`: [propext,
+  Quot.sound]; `archObj_updTcb`: none.
+
+### (6) Handoff
+- `kernel_entryJ35E` does not supersede `kernel_entry_reach` yet: carrying `SInvI` over a whole syscall (`kentry_sinvI`, spec-only,
+  INV-PLAN §4 G1 shape) and adding it to `JReach` is the next step; for `SpecUtZ` it needs the spec-side `SpecFree` (above), for
+  `SpecFrPg` that retype creates pages with their caps and detype removes both.
+- Then `flags` (route in (3)), `vsTyp` (after `BufObjHyp`), P7 `hno` (a `JExt` field or a spec `isOriginalCap` invariant).
