@@ -1284,6 +1284,9 @@ import Fl4Proofs.P3.XTopJointKEntry33
 import Fl4Proofs.P3.XTopJointKEntry35
 import Fl4Proofs.P3.XTopJointKEntry36
 import Fl4Proofs.P3.XTopJointKEntry37
+import Fl4Proofs.P3.XTopJointKEntry38
+import Fl4Proofs.P3.MachKeepG4d
+import Fl4Proofs.P3.MachFieldFamI
 import Fl4Proofs.P3.SpecInvG5
 import Fl4Proofs.P3.XTopJointKEntry35E
 import Fl4Proofs.P3.XTopJointKEntryNF

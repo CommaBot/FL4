@@ -13848,3 +13848,90 @@ the leaf XTopJointKEntry37E (root imports). No existing module edited (only proo
   `entry_of8` = `entry_of7` with `hRR` replaced by `RRSum Scs s`; P3 `FastRR` the same way and `kernel_entryJ33F` / `J34F`
   in a new P3 module (not XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2/Ev3), with `RRSum` discharged from P3's `RV` through the
   SC relation if cheap there.
+## g4d (branch par/g4d in FL4-sc, on d4d7d09b = int/j2 incl. g4b, g5a, g4c, m59) — g4b's handoff: `JDispMRI` [W] DISCHARGED for every cap kind but five; `kernel_entryJ38` (= `kernel_entryJ37` without `hDM`) and `kernel_entry_reachMD` (no `JDispMR` input); the one narrowed carry left is `JDecMRL` [W] (the loud cap kinds' decode with `MR` at the chosen outcome, at the dispatch states)
+New leaves only (MachKeepG4d, MachFieldFamI, XTopJointKEntry38; root imports). Nothing existing edited.
+
+### (1) How `MR` reaches the chosen outcome
+`JDispMR` asked, at the dispatch state, that every `DispPostR`-related run also be related to an outcome with `MR`. That
+outcome is fixed inside the joint proofs (the spec chooses freely at `preemptionPoint`'s work-unit test, g4b (2)), so `MR`
+has to ride along in their posts. `handle_invocation_refinesMXP` (and `XCapP` / `HIPostMXP`) are generic in the post `X`,
+so the whole invocation layer was re-run at **`JAtM := JAt ∧ MR`** (the spec outcome's machine state), the preempted
+branch at `JAtPreMV` (already MR-carrying), and the preemption path was re-run to **`PPQJIM`**:
+- **Quiet decodes** (`XCapP.mr`, `TopPostDMXP.mr`, `TopPostRMX.mr`): an existing `XCapP X XP` becomes `XCapP (X ∧ MR) XP`
+  given (FL4) `decode_invocation … ⦃ MR r.2.2 σ.ms ⦄` and (spec) every `DecOut` invocation is `QInv`: the restart, the
+  perform and the reply tail then keep `msF`, so every related outcome has `MR` (`MachPlat.frame`). FL4 side:
+  `MKD.decode_quiet` (`QuietF`: Null, Zombie, Endpoint, Notification, Reply, Domain, SchedContext, SchedControl, Frame,
+  PT, PD, PDPT, PML4, AsidControl, AsidPool, IoPortControl), from MachKeepG4d's walks of `domain.decode`,
+  `schedcontext.decode(_sched_control)`, `vspace.decode` (incl. `ept.map_frame`, `vspace.derive_subframe`, …),
+  `ioport.decode_control`, `ipc.do_reply_transfer` (scripted: scratch/mr6/topo.py + mkdgen.py on scratch/g4d/dec_order.txt;
+  every arch op reached is an `MRKeepD` field or a query). Spec side (MachFieldFamI): `qInv_perform` (`QInv` = endpoint,
+  notification, reply, domain, SchedContext, SchedControl, arch-object and CNode-other-than-Revoke/Delete invocations; new
+  leaves `freeMemory` (ASID control's `deleteObjects`), `in8/16/32`, `portIn`/`portOut`, `invokeDomain`, `invokeSchedContext`,
+  `invokeSchedControlConfigureFlags`, `archPerformInvocation`, …), `dec_quiet` / `dec_cnode_q` (the decode's `ok` outcomes
+  are `QInv`), `mtk_specTailG`, `mtk_fl4ReplyFromKernelErrorG`.
+- **CNode**: at labels other than Revoke / Delete FL4's `cnode.decode` returns the arch state it is given
+  (`MKD.decode_cnode_nrd`), the spec decodes to `QInv` (`dec_cnode_q`), so `XCapP.mr`. At Revoke / Delete the deletion
+  loop's invariant `EJLM` (mr6) already carries `MRV`: `cn_del_topJLMM` keeps it at the ok exit
+  (`decode_invocation_cnode_{revoke,delete}JLMM`, `decode_invocation_cnodeJ_RDM`).
+- Vcpu / Ept: refuted by `J.ext.nat` at the invoked slot.
+- **`handle_invocation_entryJMUM`**: the lookup / extra-caps faults (`MKD.faults_handle_fault`, `mtk_handleFaultG`, by
+  `spec_mrz`), the success tail (`MKD.fl_tail`: `flTail` writes no arch state; `mtk_specTailG`), the error reply
+  (`MKD.reply_err_tail`; `mtk_fl4ReplyFromKernelErrorG`), the decode `decOK_JMM`.
+- **The preemption path with `MR`** (`PPQJIM`): every branch of mr3's `hPre_ofZQIMN` goes through `afterInv_of_mcsIMN`,
+  whose MCS posts already carry `MR`; the IRQ take moves it (`MachPlat.takeAt`); `JAtZ.handleIrqJIANM` = `handleIrqJIAN` with
+  `MR` at the outcome it names (mask: `MachPlat.mask` against the spec's `maskMs` (`mask_mr`), ack: `MachPlat.ack`, the
+  signal line's `send_signal`: `MKD.notification_send_signal` + `mtk_sendSignal'`; timer / reserved: machine state kept).
+  Copies: `afterInv_of_mcsIMNM`, `jPreemptRestHypEQ_ofIMM`, `hPre_ofZQIMNM` (scripted text copies, scratch/g4d/*.py).
+- Dispatch: `invoke_afterJMUNM`, `dispatch_invokeJMUNM`, `dispatch_invokeJAllMUNM` (Send / NBSend / Call → `DispPostRM`),
+  `hiPostMid_M` (the mid state and `MR` at the same outcome), `mid_invRecvJMUNM`, `dispatch_midJMUNM` (ReplyRecv /
+  NBSendRecv / NBSendWait: the receive by `MKD.syscall_handle_recv` + `mtk_handleRecvG`), `dispatch_all13PUNM` (every
+  native syscall; Recv / Yield by g4b's `JDispMR.of_keep`).
+
+### (2) New tops
+- **`kernel_entryJ13PUGMD`**: `kernel_entryJ13PUGM` with the dispatch by `dispatch_all13PUNM` (no `hDM`).
+- **`kernel_entryJ38`** = `kernel_entryJ37` with `hDM : … → JDispMRI` replaced by **`hDL : … → ∀ ct', cur_thread s' = ok ct'
+  → JDecMRL … s' a' σb ct'`**, asked at exactly the states `hK` is asked at (σb after FaultIP + a passing budget check,
+  `KFrontB`, `JAtZ (Z.mv Z.G V') …`). Post `KPostXM` (unchanged).
+- **`kernel_entry_reachMD`** = `kernel_entry_reachMI` with `hDL` for `hDM`: every related exit is again `JReachM`.
+
+### (3) Remaining premises (exactly)
+g4b (4)'s list with `hDM : JDispMRI` [W] replaced by **`hDL : JDecMRL` [W]**:
+`JDecMRL AR MR Z H Cs D s ar σ ct` := `MR ar σ.ms → ValidMachineTime σ → ValidIrqMasks σ →` for every decode at the front
+end's own values (the hypotheses of `JPreDecHypKM`, same shape) of a cap `c` with **`LoudF c ∧ NativeCap c`** (Thread,
+Untyped, IrqControl, IrqHandler, IoPort with owner 0): `XCapP (JAtM) (JAtPreMV MR) …`, i.e. the decode with `MR` at the chosen
+outcome of a non-preempted invocation. l4v: `invoke_tcb_corres`, `invoke_untyped_corres`, `invoke_irq_control_corres`,
+`invoke_irq_handler_corres`, the IO port invocation `corres`, with the machine state shared. Why each is left:
+- Thread, Untyped: the installs (`cap_delete` loops) / the reset loop preempt; their MR-copies (mr7's MRTcb / MRTcbL, mr4's
+  UtResetLoopJM) carry `MRV` in the loop invariant (`WMR`), so the same `cn_del_topJLMM` treatment applies to their final
+  steps (`top_of_instJM`, `ssp_tailJM`, the reset tail) — scripted copies, not done (size: the MRTcb family is ~2000 lines).
+  Non-installing Thread labels and the non-reset Untyped retype would go through `XCapP.mr` with a label-restricted FL4 walk.
+- IrqControl (`mask_irq` + `ioapic_map*`), IrqHandler (Ack: `mask_irq false`; Set / Clear: `cap_delete_one`): `MR` moves by
+  `MachPlat.mask` exactly as the spec's `setIrqState` / `maskInterrupt` do; needs the mask tracked through
+  `decode_invocation_irq_controlJ` / `decode_invocation_irq_handlerJL` (and an [P] fact that `ioapic_map` keeps `MR`).
+- IoPort: `port_in` / `port_out` are not `MRKeepD` fields; with an arch-only [P] "the port operations keep `MR`" (l4v
+  `in8`/`out8` are `machine_op_lift`s; the spec side is already done: `mtk_performIoPortInvocationG`) it is `XCapP.mr`.
+Everything else of g4b (4) unchanged: the [P] platform, the [S] scope per step, the (d) bundles hK / hFin, (G-a).
+
+### (4) Findings
+None. `JDecMRL` is existential in the outcome (the l4v corres shape), asked at the dispatch states only, never ∀ states.
+No premise of J38 found false in a reachable state.
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror (./g4d.sh untracked = g4b.sh; scratch/g4d/ax.lean untracked). g4d-b0/b2: the merged base cone
+  (first run hit g4d.sh's 3000 s timeout, resumed). b2–b9: MachFieldFamI leaves (`portIn`/`in8`, `setDomain`,
+  `performPml4Flush` …), MachKeepG4d's `ept.map_frame` (needs maxHeartbeats 40M / maxRecDepth 200000 and a closing
+  `rw [WP.spec_ok]`), `MKD.fl_tail` (name clash with `flTail`; needs `LawfulStore`); b9 green. b10–b13: CNode
+  (`invokeCnode`'s impossible match branches closed by `cases heq`); b13 green. **g4d-full1** (full `lake build` of
+  proofs/ at 73bb623d): "Build completed successfully (6993 jobs)", no sorry / admit / native_decide / bv_decide.
+- Axioms (g4d-full1): kernel_entryJ38, kernel_entry_reachMD, kernel_entryJ13PUGMD, dispatch_all13PUNM,
+  dispatch_invokeJAllMUNM, dispatch_midJMUNM, invoke_afterJMUNM, mid_invRecvJMUNM, handle_invocation_entryJMUM, decOK_JMM,
+  decode_invocation_cnodeJ_RDM, XCapP.mr, hPre_ofZQIMNM, afterInv_of_mcsIMNM, JAtZ.handleIrqJIANM, MKD.decode_quiet,
+  MKD.decode_cnode_nrd, MachT.qInv_perform, MachT.dec_quiet, MachT.dec_cnode_q: propext, Classical.choice, Quot.sound.
+
+### (6) Next (handoff)
+- `JDecMRL` kind by kind, each moving the kind into the proved part of `decOK_JMM`: IoPort (add an arch-only [P]
+  `port_in` / `port_out` keep `MR`, then `XCapP.mr` with a hand walk of `ioport.decode`); IrqHandler / IrqControl (track
+  the mask: FL4 `mask_irq` vs spec `setIrqState` / `maskInterrupt` by `MachPlat.mask`, as `handleIrqJIANM` does; IOAPIC map
+  needs an [P] keep); Thread / Untyped (the MR-copies' loop invariants carry `MRV`: re-run mr7's MRTcb/MRTcbL and mr4's
+  reset tail at `JAtM`, as `cn_del_topJLMM`; the non-installing Thread labels and the non-reset retype by `XCapP.mr` with
+  label-restricted walks).
