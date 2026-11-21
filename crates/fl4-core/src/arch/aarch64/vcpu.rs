@@ -444,7 +444,7 @@ fn decode_read_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: u
     let gic_v3 = a.vcpu_gic_version() == 3;
     let val = if field == vr::VGIC_VTR {
         abi_vgic_vtr(a.vcpu_vgic_vtr(), gic_v3)
-    } else if !gic_v3 && (vr::VGIC_AP1R0..=vr::VGIC_AP1R3).contains(&field) {
+    } else if !gic_v3 && is_vgic_ap1r(field) {
         0
     } else {
         reg_get(s, vcpu, field)
@@ -452,6 +452,14 @@ fn decode_read_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: u
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     reply1(s, ct, call, val);
     Ok(())
+}
+
+/// One of GICv3's ICH_AP1R<n>_EL2 fields, which a GICv2 VCPU does not
+/// have. (Compared by hand: `RangeInclusive::contains` has no model in
+/// Aeneas's Lean library.)
+#[allow(clippy::manual_range_contains)]
+fn is_vgic_ap1r(field: u64) -> bool {
+    field >= vr::VGIC_AP1R0 && field <= vr::VGIC_AP1R3
 }
 
 fn decode_write_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: u64, buf: u64) -> KResult<()> {
@@ -481,7 +489,7 @@ fn decode_write_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: 
     }
     stall_vcpu(s, a, vcpu);
     sched::set_thread_state(s, ct, sched::TS_RESTART);
-    if !gic_v3 && (vr::VGIC_AP1R0..=vr::VGIC_AP1R3).contains(&field) {
+    if !gic_v3 && is_vgic_ap1r(field) {
         return Ok(());
     }
     let v = if field == vr::HCR_EL2 {
@@ -920,6 +928,14 @@ mod tests {
         fn putc(&mut self, _: u64) {}
         fn get_char(&mut self) -> u64 { 0 }
         fn halt(&mut self) {}
+    }
+
+    /// The GICv3-only AP1R fields are exactly AP1R0..=AP1R3.
+    #[test]
+    fn vgic_ap1r_fields_are_ap1r0_to_ap1r3() {
+        for f in 0..vr::NUM + 2 {
+            assert_eq!(is_vgic_ap1r(f), (vr::VGIC_AP1R0..=vr::VGIC_AP1R3).contains(&f), "field {f}");
+        }
     }
 
     #[test]

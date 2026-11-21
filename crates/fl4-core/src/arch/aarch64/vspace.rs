@@ -324,20 +324,27 @@ pub fn unmap_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, vadd
     let mut table = root;
     let mut shift = TOP_LEVEL_SHIFT;
     let mut level: u64 = 0;
+    // The slot that points to `pt`, if the walk reaches it before an entry
+    // that is not a table descriptor. (The loop ends with `break` rather
+    // than `return`: Aeneas cannot extract an early return from a loop.)
+    let mut found = None;
     while level < 3 {
         let slot = entry_addr(table, vaddr, shift);
         let e = s.read(slot);
         if !is_table(e, shift) {
-            return;
+            break;
         }
         if table_of(e) == pt {
-            s.write(slot, 0);
-            a.invalidate_asid(asid);
-            return;
+            found = Some(slot);
+            break;
         }
         table = table_of(e);
         shift = shift.wrapping_sub(9);
         level += 1;
+    }
+    if let Some(slot) = found {
+        s.write(slot, 0);
+        a.invalidate_asid(asid);
     }
 }
 
@@ -1014,6 +1021,8 @@ mod tests {
     enum Ev {
         Write(u64, u64),
         InvalidatePage(u64, u64),
+        InvalidateAsid(u64),
+        InvalidateVmid(u64),
         CacheOp { op: u64, asid: u64, vaddr: u64, len: u64, paddr: u64 },
     }
 
@@ -1069,7 +1078,12 @@ mod tests {
         fn invalidate_page(&mut self, asid: u64, vaddr: u64) {
             self.log.borrow_mut().push(Ev::InvalidatePage(asid, vaddr));
         }
-        fn invalidate_asid(&mut self, _: u64) { panic!("unexpected invalidate_asid") }
+        fn invalidate_asid(&mut self, asid: u64) {
+            self.log.borrow_mut().push(Ev::InvalidateAsid(asid));
+        }
+        fn invalidate_stage2_vmid(&mut self, asid: u64) {
+            self.log.borrow_mut().push(Ev::InvalidateVmid(asid));
+        }
         fn invalidate_page_structures(&mut self, _: u64) { panic!("unexpected invalidate_page_structures") }
         fn ioapic_map(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
         fn ioapic_map_remapped(&mut self, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> bool { false }
@@ -1299,5 +1313,55 @@ mod tests {
                 assert_eq!(ev, vec![Ev::Write(w.pte, e), Ev::InvalidatePage(ASID, VADDR)], "attr {attr} old {old:#x}");
             }
         }
+    }
+
+    /// Run `unmap_page_table(asid, VADDR, pt)`: the words it changed
+    /// (address, new value) and the machine events.
+    fn unmap_pt(w: &mut World, asid: u64, pt: u64) -> (Vec<(u64, u64)>, Vec<Ev>) {
+        let before = w.s.words.clone();
+        w.log.borrow_mut().clear();
+        unmap_page_table(&mut w.s, &mut w.a, asid, VADDR, pt);
+        let changed = w.s.words.iter().filter(|&(k, v)| before.get(k).unwrap_or(&0) != v).map(|(&k, &v)| (k, v)).collect();
+        let ev = w.log.borrow().clone();
+        (changed, ev)
+    }
+
+    /// The slots on the walk to `VADDR` that hold ROOT -> L1 -> L2 -> L3.
+    fn walk_slots() -> [u64; 3] {
+        [
+            entry_addr(layout::pptr(ROOT), VADDR, TOP_LEVEL_SHIFT),
+            entry_addr(layout::pptr(L1), VADDR, 30),
+            entry_addr(layout::pptr(L2), VADDR, 21),
+        ]
+    }
+
+    /// The walk reaches the table at each level: that slot alone is
+    /// cleared, then the ASID is flushed.
+    #[test]
+    fn unmap_page_table_clears_the_slot_pointing_to_the_table() {
+        for (i, pt) in [L1, L2, L3].into_iter().enumerate() {
+            let mut w = world(FrameSize::Small, 0);
+            let (changed, ev) = unmap_pt(&mut w, ASID, layout::pptr(pt));
+            assert_eq!(changed, vec![(walk_slots()[i], 0)], "level {i}");
+            assert_eq!(ev, vec![Ev::InvalidateAsid(ASID)], "level {i}");
+        }
+    }
+
+    /// Every other exit changes nothing and flushes nothing: an ASID with
+    /// no VSpace, a walk that meets an entry that is not a table descriptor
+    /// (invalid, or a block) before the table, and a walk that runs through
+    /// all three table levels without meeting it.
+    #[test]
+    fn unmap_page_table_without_the_table_on_the_walk_changes_nothing() {
+        let mut w = world(FrameSize::Small, 0);
+        assert_eq!(unmap_pt(&mut w, ASID + 1, layout::pptr(L1)), (vec![], vec![]));
+        let block = make_user_page(OTHER, VM_READ_WRITE, true, arm_vm_attr::PAGE_CACHEABLE, 30);
+        for e in [0, block] {
+            let mut w = world(FrameSize::Small, 0);
+            w.s.write(walk_slots()[1], e);
+            assert_eq!(unmap_pt(&mut w, ASID, layout::pptr(L3)), (vec![], vec![]), "entry {e:#x}");
+        }
+        let mut w = world(FrameSize::Small, 0);
+        assert_eq!(unmap_pt(&mut w, ASID, layout::pptr(0x10_4000)), (vec![], vec![]));
     }
 }
