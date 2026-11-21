@@ -8127,3 +8127,60 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR.B8` (new names only there), modules Spe
   an update function next to `fun _ => ⟨rfl, rfl, rfl⟩` lets Lean solve it as the identity — pass it explicitly; after
   `cases hx'` with `hx' : some (.tcb y) = some (.tcb x')` the name x' is gone (use y); `split` needs `dsimp only` on a
   beta-redex continuation; `split <;> first | exact h | rfl | (simp_all [scXUpdate…] <;> rfl)` for the record-update goals.
+## ctq13 (branch par/ctq13 in FL4-c2, on d1b43691 = int/j2 incl. ctq12, rd7, epq2, g3a) — EB across the performs, continued (ctq12 handoff 1-3 and the SchedControl half of 4); NOT finished: YieldTo, Untyped / MakePool, decode lemmas, fl4HandleInvocationR
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.P13`, modules SpecInvCqD1..D3 (D1 also imports SpecInvSgI3, D2 SpecInvSgI6 for sg1's
+idle-thread frame `IdK`); root imports D1..D3. Nothing existing edited. All these arms run only with `firstPhase = false`, so
+each gives `EB false`.
+- SpecInvCqD1 (handoff 1): **`RPq := EB false ∧ Simple ∧ ScInv ∧ ct ≠ idle`** (the shell's Restart write makes ct runnable
+  while vi3 keeps idle in its idle state, so ct ≠ idle at the perform). **`eb_restart_p t σ (hS : Simple σ) (hI : ScInv σ)
+  (hci : ct ≠ idle)`**: inside the `¬runnable ∧ ¬idle` guard, `AN t` follows from `Simple` and `CB` (under resume ct is a
+  runnable TCB or idle, so not `t`): no need for `t ≠ ct` from the caller, and no `AK`. `RA t h0 := EB false ∧ AN t ∧ BRs h0`
+  is kept by cancel_ipc / set_thread_state Restart / the refill check (generated leaves, `an_cancelIpc`,
+  `an_setThreadState`, new `an_ifCondRefillUnblockCheck`, sb2's `sb_*`); at `sched_context_resume sc` (sc = t's SC read at
+  the start) ScBackS at σ gives `sc_tcb sc = t` and `BR.sc` carries it, so ctq8's `rbf_schedContextResume_p`;
+  test_possible_switch_to = `eb_possibleSwitchTo_p` (k = false). `rp_asUser`, `rp_archPostModifyRegisters`, `nsw_suspend`,
+  `rp_suspend` (CopyRegisters' source suspend: `eb_suspend_p` with `Simple`), **`eb_perfResume`**,
+  **`eb_perfWriteRegisters`**, **`eb_perfCopyRegisters`** (all `HKE RPq (EB false)`).
+- SpecInvCqD2 (handoff 2-3): `an_threadSet'`, `an_updateSchedContext`, `bp_of_br` (ctq8's `BP t p` kept along sb2's `BR`),
+  **`eb_schedContextBindTcb sc t σ (hA : AN t σ) : IKp (EB false)`** (TCB/SC writes by `eb_threadSet` with the real update
+  `tcbSchedContextUpdate fun _ => some sc` and the updateSchedContext leaves; `bp_updTcb` after the sc_tcb write; resume by
+  `rbf`; the `schedulable` enqueue leaves `ET` (`tq_enq_p`, RR unchanged, `q4_tcbSchedAction`, `rde_enq` with "not released"
+  from `schedulable`), then `et_rescheduleRequired`; so no `tq_schedContextBindTcb` was needed). **`an_of_resSc (hS : Simple)
+  (hR : ResSc) (t's TCB has tcbSchedContext = none) : AN t`**, **`eb_perfScBind`** (`HKE (EB false ∧ ∀ t, c = threadCap t → AN
+  t) (EB false)`; the notification / other caps by `eb_auto`). ThreadControlSched: `G C N := EB true ∧ ct = C ∧ Simple ∧ idle =
+  N`, `g_setMcpriority`, `nsw_setPriority`, `an_setPriority`, **`y_setPriority C N (hCN : C ≠ N) : HK (G C N) (Y t)`** with `Y t
+  := EB false ∧ Simple ∧ (resume → t ≠ ct)` (if resume and t = ct at the start, ct is a runnable non-idle TCB (CB), so
+  set_priority takes the `t = cur` branch ending in reschedule_required: action choose_new; otherwise AN t is kept),
+  `rescheduleRequired_cn'` (ScMidCur's, outside this closure), `hker_and`, `hk_tcsSc`, **`eb_perfTcbSched hD C N hCN … (hP :
+  sc ≠ none → prio ≠ none) : HKEr (DK C ∧ idle = N) (EB false)`**.
+- SpecInvCqD3 (handoff 4, SchedControl half): `rdq_schedContextResume_s` (RDq across the resume with no switch pending),
+  `KC C h0 := EB false ∧ Simple ∧ ct = C ∧ BRs h0` with `kc_of` (ct by ScTK's `NKT`), `kc_refillNew`, `kc_refillUpdate`,
+  `kc_front`, `eb_configureTail`, **`eb_schedControlConfigure … σ (hS : Simple σ)`**, **`eb_perfSchedControl : HKEr (EB false ∧
+  Simple) (EB false)`**. The bound thread `t` may be ct (configuring the current thread's own SC under resume_cur_thread):
+  then sched_context_resume may postpone ct and break HB's resume clause until the `reschedule_required` right after, so that
+  branch carries only `SQ4 ∧ RDq` (= `ET`) through the resume; `t ≠ ct` goes through `AN t` / `rbf` / `possible_switch_to`.
+- Decode facts the shell must supply (none is a premise of a top yet): `ResSc` and "target has no SC" for SC Bind
+  (decode_sched_context_bind); `hP` for ThreadControlSched (decode_set_sched_params is the only decode with an SC argument,
+  and it always has a priority); `C ≠ N` (ct ≠ idle) at the perform.
+- HANDOFF (in order):
+  1. **YieldTo** (`schedContextYieldTo sc`): completeYieldTo has tq/sa/q4/rb leaves (keeps `EB true`), then
+     `schedContextResume sc` needs `AK true u` for the SC's TCB u: decode_sched_context_yield_to checks `sc_tcb ≠ none` and
+     `≠ some ct`, carried by `BP` along `BRs` (as D3); then the `prios < ctPrios` branch is dequeue + enqueue of u (`sa_enq_p`
+     with u ≠ ct, `tq_enq_p` from `schedulable`, `rbe_enq`), the other branch writes ct's tcbYieldTo / the SC's yieldFrom
+     (`eb_threadSet` / updateSchedContext leaves), dequeues u, enqueues ct and u, then `reschedule_required`: carry `ET` with
+     ct ∉ releaseQueue from `NP ct` (EB true at the perform) and ct runnable (`tq_enq_p` needs it: carry `RnH C` — completeYieldTo
+     writes user memory, so ScTK's NKT does not apply; use a `tqc`-style heap frame or the state field read before), then
+     `et_rescheduleRequired`; `returnConsumed` by `eb_auto`.
+  2. Untyped / MakePool (ctq12 handoff 5, unchanged), keeping `EB k`.
+  3. Decode lemmas and `fl4HandleInvocationR` (ctq12 handoff 6), now also supplying D1-D3's decode facts above.
+- Premises: none added ([J]/[P]/[W]/[S]); ctq12's four `Eb*H` still only as named hypotheses (`eb_perfTcbSched` takes
+  `EbCapDeleteH`). No ∀-states hypothesis. No FINDING (the configure-own-SC case does break HB transiently, but the
+  reschedule right after restores EB false: not a reachable violation at a step boundary that needs EB).
+- Builds (tokyo FL4-c2 mirror, warm; ./ctq13.sh = ctq12.sh with the D filter and ax13.lean, both untracked; keys ctq13-*): 1 D1
+  9.9 s; 2 D2 failed (eb_threadSet unified with the identity update: pass the real function; Sched.rescheduleRequired_cn not
+  imported; prio-none branch missed the SC step); 3 D2 13 s; 4 D3 failed (`__do_jp` join point after the refill `if`:
+  `dsimp only at hy`, tail factored as `eb_configureTail`); 5 D3 failed (a second `unfold NonDet.when` after the first had
+  unfolded both); 6 D3 9.6 s, 5024 jobs. Axioms (ax13.lean): eb_restart_p, eb_perfResume, eb_perfWriteRegisters,
+  eb_perfCopyRegisters, eb_schedContextBindTcb, eb_perfScBind, y_setPriority, eb_perfTcbSched, eb_schedControlConfigure,
+  eb_perfSchedControl: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not
+  rebuilt (three import lines).
