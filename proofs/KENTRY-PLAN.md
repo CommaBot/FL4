@@ -11576,3 +11576,42 @@ added to any committed theorem, no new axiom.
   LiveDN.wstepX, LiveDN.wstep, JAtZ.nwrite_notDbg, JAtZ.notDbg_tw, dbgWFL_step, dbgKeep_cancel, XTopAt.idleW_eqS,
   ZTcb.of_zombies, JAtZ.zNoBlk, Steps.jatL, kernel_entryJ33: propext, Classical.choice, Quot.sound; tcbOff_ne: propext,
   Quot.sound.
+
+### (8) g2i continuation 2 (lead: retire WJR, route via WJL; commit green layers)
+- **Deleted (F5, lead decision):** XTopJointDelR `emptyHypJ`, `jZombieHyp`, `jSwapHyp` (the `WJR` slot edits of the deletion
+  loop; no external users — the `WJL` chain's `emptyHypJL` / `jZombieHypL` / `jSwapHypL` replace them). No other theorem deleted.
+- WIP commits (each a compiled layer, the whole tree not yet green): fa074a71 (through the g2i-c7 frontier), 2bdbec2e, cdf65e9b
+  (through XTopJointTcbInstall / XTopJointTcbSsp, g2i-c11b).
+- New / changed in these layers (all sites now build to the retype frontier, g2i-c11b):
+  - step closure helper renamed `JAtZ.restartSJ` (XTopJointTcbInstall's own `JAtZ.restartJ` kept);
+  - signal family: `JAtZ.rbw_dbgKeep`, `JAtZ.zD_diffN` / `zD_diffE`, `nwrite_notDbgB` (BlkOK-only, for `JAtZR`); the six
+    receive-signal `cs_frameI` sites, `JAtZR.signal_badge_post`;
+  - `JTH.dbgK` (every debug word kept from the base; built from `JHole.dbgK` and P1's charge footprint); ScChargeT / TA /
+    ScTmoCtBase sites;
+  - `JAtZ.tcbw_notDbg` (a TCB word below the debug links), `LiveDN.insTX` (XTopJointWJLIns' `insT` with the `XTopAt`
+    after, in XTopJointTcbInstall), `JAtZ.insTJ` gains `hnn` (the inserted cap non-null; all six callers supply it from their
+    own facts) — `insTJ` is no top-level theorem;
+  - `LiveDN.simX` (slots changed up to `LSim`: a frame cap's mapping, an untyped cap's free index), used by XTopJointVsMap,
+    UtResetJ `setFiJ`, UtDevReset `setFiJD`; `LSim.of_shape`;
+  - `DestCap` (DestLive's left disjunct) and `LiveDN.wstepC` (wstepX without `ZNoBlk`, the destination CNode named by a cap):
+    XTopJointVsSub `subInsJ` / `insert_subframesJ` / `subframe_dest_live` now state `DestCap` (they always proved it);
+  - XTopJointWJL `JAtZ.zombieWD` returns a builder (`LiveDN after → zD after → JAtZ after`) so `jZombieHypL` proves the
+    liveness first; XTopJointWJLEmpty / WJLSwap likewise;
+  - Post / PP / CopyRegs / TcbMisc `bindNJ` / UtResetZ `zeroJ` / WJLPP by `cs_frameK` or the dead-set shrink;
+  - **batch 3 written**: XTopJointKEntry33 `kernel_entryJ34` = `kernel_entryJ33` without `hLv` (`hLv := J.live`); J33 kept.
+- **Remaining: the retype family** (g2f's retype invariant; g2i-c11b frontier): XTopJointUtEp `JAtZ.add_frame` /
+  `add_frameB` (and UtCnAdd `add_frameT`, UtScAdd) must take `LiveDN` / `zD` after, supplied at each retype: UtEpRet:1117,
+  UtUtRet:726, UtDevUt:538, UtPmRet:745, XTopJointMakePool:962, UtDevRet:823, the CNode, SC and TCB retypes (UtCnRet, UtScRet,
+  UtTcbRet; the TCB retype also `debug_append`). Tools in place (LiveFrame): `LiveDN.wstepR` (the window slots `W` written
+  into a `DestCap` CNode, every other slot changed up to `LSim` — the source untyped's free index —, `P1.DbgKeep`, the heap
+  `H → H'` with `DbgWF` after given) and `DbgWFL.sub` (the window's dead TCBs removed from `H`: every list member still a TCB,
+  by `RegionUnrefJ`). Per non-container retype the instance needs: `hdead` from `hjc'` (a TCB zombie's TCB is no new object:
+  `NewQ` needs a non-untyped `cj`, and the object is a spec object, so outside the free window), `hoW` from `horgK`, `hNO`
+  from `newc`/`cphys`, `hZ`/`hK2` from `hcapK` and `RetExp.usrc`. Container retypes (CNode, TCB) add the new objects' null,
+  unoriginal slots and, for TCBs, the appended debug-list members' new Thread caps.
+- Also open at g2i-c13 (frontier beside the retype): XTopJointGrant `JAtZ.insDJ` (:375, the cap grant's insert): `LiveDN`
+  after needs "no zombie names the destination CNode" — immediate from `DestCap` (`wstepC`), but `insDJ` takes `DestLive`
+  (left or IRQ-node disjunct) from XTopJointXferG / the receive-slot lookups, which always resolve through a CNode cap; the
+  next step restates that chain with `DestCap` (as done for XTopJointVsSub). XTopJointSendBlock (:832) fixed after c13.
+- Builds: g2i-c8 (through DelR), c9–c11b, c12/c13 (LiveFrame with wstepR / DbgWFL.sub compiled; frontier: XTopJointUtEp
+  add_frame / add_frameB, XTopJointGrant insDJ). Axioms not yet checked for the WIP (no green tree).

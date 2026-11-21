@@ -78,6 +78,17 @@ theorem dbgWFL_step {Z Z' : XSets} {H : P1.Heap} {Cs : Set U64} {s s' : S} {a a'
   refine hW.of_keep hK fun y hy => ?_
   rw [hc1.aff y (by rw [hT, hTe]; exact hy), hc0.aff y (by rw [hTe]; exact hy), hc]
 
+/-- **`DbgWFL` at fewer TCBs** (the debug words kept, every list member still a
+TCB): a retype removing dead TCBs of its window. -/
+theorem DbgWFL.sub {T T' Cs : Set U64} {s s' : S} {lst : U64 → List U64}
+    (hW : DbgWFL T Cs (L.mem s) (dbgHd (L := L) s) lst) (hK : P1.DbgKeep st T Cs s s')
+    (haff : ∀ y ∈ T, L.mem s' (P1.affA y) = L.mem s (P1.affA y)) (hTT : T' ⊆ T)
+    (hmem : ∀ c ∈ Cs, ∀ x ∈ lst c, x ∈ T') :
+    DbgWFL T' Cs (L.mem s') (dbgHd (L := L) s') lst := by
+  have h1 := hW.of_keep hK haff
+  exact ⟨h1.head, h1.next, h1.prev, h1.nodup, h1.zero, fun c hc x hx => ⟨hmem c hc x hx, (h1.mem c hc x hx).2⟩,
+    fun y hy hn => h1.off y (hTT hy) hn⟩
+
 /-- **The TCB zombies after were TCB zombies before** when every zombie after
 was one before. -/
 theorem ZTcb.of_zombies {th : TypedHeap} {s s' : S}
@@ -534,6 +545,23 @@ theorem LiveDN.wstepX {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rw [hks]; exact hZB y0 hy0 p zt n hz0
 
 
+/-- **Two caps alike for the liveness bundle**: the same null-ness, containers
+named, thread and zombie caps. -/
+def LSim (c' c : capability.Cap) : Prop :=
+  (c' = .Null ↔ c = .Null) ∧ (∀ q, RefsObj q c' ↔ RefsObj q c) ∧ (∀ w, c' = .Thread w ↔ c = .Thread w) ∧
+    ∀ p zt n, c' = .Zombie p zt n ↔ c = .Zombie p zt n
+
+theorem LSim.rfl' (c : capability.Cap) : LSim c c := ⟨Iff.rfl, fun _ => Iff.rfl, fun _ => Iff.rfl, fun _ _ _ => Iff.rfl⟩
+
+theorem shape_null' (c : capability.Cap) : shape c = .Null ↔ c = .Null := by
+  cases c <;> simp [shape]
+
+/-- Caps of the same `shape` are alike for the liveness bundle. -/
+theorem LSim.of_shape {c' c : capability.Cap} (h : shape c' = shape c) : LSim c' c :=
+  ⟨by rw [← shape_null' c', h, shape_null'], shape_refs h,
+    fun w => by rw [← shape_thread c' w, h, shape_thread],
+    fun p zt n => by rw [← shape_zombie c' p zt n, h, shape_zombie]⟩
+
 /-- **The CNode `pd` named by a CNode cap of a slot** (`DestLive`'s left
 disjunct). -/
 def DestCap (th : TypedHeap) (mem : U64 → U64) (pd : U64) : Prop :=
@@ -664,22 +692,127 @@ theorem LiveDN.wstepC {s : S} {a : A} {σ : Fl4Spec.State Unit}
       · exact absurd hm hsW
 
 
-/-- **Two caps alike for the liveness bundle**: the same null-ness, containers
-named, thread and zombie caps. -/
-def LSim (c' c : capability.Cap) : Prop :=
-  (c' = .Null ↔ c = .Null) ∧ (∀ q, RefsObj q c' ↔ RefsObj q c) ∧ (∀ w, c' = .Thread w ↔ c = .Thread w) ∧
-    ∀ p zt n, c' = .Zombie p zt n ↔ c = .Zombie p zt n
+set_option maxHeartbeats 4000000 in
+/-- **A step writing slot words at the slots `W` keeps `LiveDN` and
+`ZNoBlk`** (XTopJointLiveStep's `LiveDN.wstep`, with the `XTopAt` after
+and the TCB zombies' TCBs dead after). -/
+theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    {G' : MdbGhost} {V' : XVs} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
+    (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
+    (hid : σ'.idleThread = σ.idleThread) (hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
+    (W : List Fl4Spec.CslotPtr)
+    (hW : ∀ sl ∈ W, ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧ sl.2.length = r ∧
+      DestCap Z.th (L.mem s) p)
+    (hcW : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → LSim (capV (L.mem s') y) (capV (L.mem s) y))
+    (hoW : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ sl ∈ W)
+    (hNO : ∀ sl ∈ W, capV (L.mem s') (cslotAddr sl) = .Null → σ'.isOriginalCap sl = false)
+    (hZ : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n)
+    (hK2 : ∀ y0, IsSlot Z.th y0 → capV (L.mem s) y0 ≠ .Null →
+      ∃ y, IsSlot Z.th y ∧ capV (L.mem s') y ≠ .Null ∧ shape (capV (L.mem s') y) = shape (capV (L.mem s) y0)) :
+    LiveDN (L := L) Z.th H' Cs G' s' σ' := by
+  obtain ⟨hL, ⟨lst, hDW⟩, hN⟩ := hLv
+  have hP : Placed Z.th := J.xtop.rel.1
+  have hM := J.xtop.rel.2.1.2.2.1
+  have hM' := hX'.rel.2.1.2.2.1
+  have hFI := J.xtop.rel.2.2.1
+  have hks : L.ksb s' = L.ksb s := hdk.1
+  have hmemS : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((hM.members y).1 hy).1
+  have hmemN : ∀ y ∈ Z.G.chains.flatten, capV (L.mem s) y ≠ .Null := fun y hy => by
+    obtain ⟨-, c0, h0, hn0⟩ := (hM.members y).1 hy
+    rw [capV_of_capAt h0]; exact hn0
+  have hinG' : ∀ y, IsSlot Z.th y → capV (L.mem s') y ≠ .Null → y ∈ G'.chains.flatten := fun y hy hn =>
+    (hM'.members y).2 ⟨hy, _, capAt_capV _ _, hn⟩
+  -- the written slots
+  have hWat : ∀ sl ∈ W, ∃ p r i, Z.th p = some (.cnode r) ∧ IsSlotAt Z.th p i ∧ cslotAddr sl = slotOf p i ∧
+      AbsSlot Z.th sl ∧ DestCap Z.th (L.mem s) p := fun sl hsl => by
+    obtain ⟨p, r, h1, hp, hl, hDL⟩ := hW sl hsl
+    have hA : AbsSlot Z.th sl := ⟨p, h1, Or.inl (by rw [hl]; exact hp)⟩
+    obtain ⟨p', i, hpi, h1', hxe⟩ := hA.at
+    have e : p' = p := P1.eq_of_bv (h1'.symm.trans h1)
+    subst e
+    exact ⟨p', r, i, hp, hpi, hxe, hA, hDL⟩
+  -- a live container stays covered
+  have hcov : ∀ p r i, Z.th p = some (.cnode r) → IsSlotAt Z.th p i → DestCap Z.th (L.mem s) p →
+      (∃ y ∈ G'.chains.flatten, RefsObj p (capV (L.mem s') y)) ∨ KsSlot (L.ksb s') (slotOf p i) := by
+    intro p r i hp hpi hDL
+    obtain ⟨y, r', gs, g, hy, hc⟩ := hDL
+    obtain ⟨y', hy', hn', hsh⟩ := hK2 y hy (by rw [hc]; exact fun h => by cases h)
+    exact Or.inl ⟨y', hinG' y' hy' hn', (shape_refs hsh p).2 (by rw [hc]; rfl)⟩
+  -- no zombie names a live container
+  have hnz : ∀ p r, Z.th p = some (.cnode r) → DestCap Z.th (L.mem s) p →
+      ∀ y, IsSlot Z.th y → ∀ zt n, capV (L.mem s) y ≠ .Zombie p zt n := by
+    intro p r hp hDL y hy zt n hz
+    obtain ⟨y1, r', gs, g, hy1, hc⟩ := hDL
+    have hne : y1 ≠ y := fun e => by rw [e, hz] at hc; cases hc
+    exact FinInv.zombie_alone hFI hM hy hz y1 hy1 hne (refsObj_objRefs (by rw [hc]; rfl))
+  -- a slot off `W` in use after was in use before
+  have hU : ∀ y, IsSlot Z.th y → (∀ sl ∈ W, y ≠ cslotAddr sl) → InUse (L.mem s') σ' y → InUse (L.mem s) σ y := by
+    intro y hy hyW hu
+    rcases hu with hu | ⟨x, hx, ho⟩
+    · exact Or.inl fun h => hu (((hcW y hy hyW).1).2 h)
+    · rcases hoW x ho with ho' | hxW
+      · exact Or.inr ⟨x, hx, ho'⟩
+      · exact (hyW x hxW hx.symm).elim
+  -- the debug words
+  have hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s := ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩
+  have hc0 : 0#u64 ∈ Cs := J.kern.cs0
+  have hhd : dbgHead (L := L) s' = dbgHead (L := L) s := by
+    unfold dbgHead
+    rw [nodeAt_of_ksb hdk.1]
+    exact hdk.2 _ (Or.inr ⟨0#u64, hc0, rfl⟩)
+  have hNt : ∀ k, dbgNth (L.mem s') k (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) :=
+    fun k => by
+      rw [hhd]
+      exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
+        (hTz.dh _ hc0)
+  have hL' : LiveJ (L := L) Z.th H' G' s' σ' := by
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p zt n hz i hpi hni hu => ?_,
+      fun y hy p zt n hz hzt => ?_⟩
+    · by_cases hyW : ∀ sl ∈ W, slotOf q i ≠ cslotAddr sl
+      · rcases hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hyW hu) with ⟨y, hy, hr⟩ | hb
+        · obtain ⟨y', hy', hn', hsh⟩ := hK2 y (hmemS y hy) (hmemN y hy)
+          exact Or.inl ⟨y', hinG' y' hy' hn', (shape_refs hsh q).2 hr⟩
+        · exact Or.inr (by rw [hks]; exact hb)
+      · push_neg at hyW
+        obtain ⟨sl, hsl, e⟩ := hyW
+        obtain ⟨p, r, i', hp, hpi, hxe, -, hDL⟩ := hWat sl hsl
+        obtain ⟨e1, e2⟩ := slotOf_inj hP hqi hpi (e.trans hxe)
+        subst e1; subst e2
+        exact hcov q r i hp hqi hDL
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← hid]; exact hki)
+      obtain ⟨y', hy', hn', hsh⟩ := hK2 y (hmemS y hy) (hmemN y hy)
+      rw [hr] at hsh
+      have hsh' : shape (capV (L.mem s') y') = .Thread (dbgNth (L.mem s) k (dbgHead (L := L) s)) := hsh
+      exact ⟨y', hinG' y' hy' hn', (shape_thread _ _).1 hsh'⟩
+    · obtain ⟨y0, hy0, hz0⟩ := hZ y hy p zt n hz
+      by_cases hyW : ∀ sl ∈ W, slotOf p i ≠ cslotAddr sl
+      · exact hL.zslots y0 hy0 p zt n hz0 i hpi hni (hU _ ⟨p, i, hpi, rfl⟩ hyW hu)
+      · push_neg at hyW
+        obtain ⟨sl, hsl, e⟩ := hyW
+        obtain ⟨p', r, i', hp, hpi', hxe, -, hDL⟩ := hWat sl hsl
+        obtain ⟨e1, -⟩ := slotOf_inj hP hpi hpi' (e.trans hxe)
+        subst e1
+        exact hnz p r hp hDL y0 hy0 zt n hz0
+    · obtain ⟨y0, hy0, hz0⟩ := hZ y hy p zt n hz
+      exact hdead p ⟨y0, hy0, zt, n, hz0, hzt⟩
+  refine ⟨hL', hDW', fun sl hA h => ?_⟩
+  by_cases hsW : sl ∈ W
+  · exact hNO sl hsW h
+  · have hne : ∀ sl' ∈ W, cslotAddr sl ≠ cslotAddr sl' := fun sl' hsl' e => by
+      obtain ⟨-, -, -, -, -, -, hA', -⟩ := hWat sl' hsl'
+      exact hsW (by rw [cslotAddr_inj hP hA hA' e]; exact hsl')
+    have h0 : capV (L.mem s) (cslotAddr sl) = .Null := ((hcW _ hA.isSlot hne).1).1 h
+    cases ho : σ'.isOriginalCap sl
+    · rfl
+    · rcases hoW sl ho with ho' | hm
+      · rw [hN sl hA h0] at ho'; cases ho'
+      · exact absurd hm hsW
 
-theorem LSim.rfl' (c : capability.Cap) : LSim c c := ⟨Iff.rfl, fun _ => Iff.rfl, fun _ => Iff.rfl, fun _ _ _ => Iff.rfl⟩
-
-theorem shape_null' (c : capability.Cap) : shape c = .Null ↔ c = .Null := by
-  cases c <;> simp [shape]
-
-/-- Caps of the same `shape` are alike for the liveness bundle. -/
-theorem LSim.of_shape {c' c : capability.Cap} (h : shape c' = shape c) : LSim c' c :=
-  ⟨by rw [← shape_null' c', h, shape_null'], shape_refs h,
-    fun w => by rw [← shape_thread c' w, h, shape_thread],
-    fun p zt n => by rw [← shape_zombie c' p zt n, h, shape_zombie]⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`LiveDN` across a step changing slots only up to `LSim`** (a frame cap's
