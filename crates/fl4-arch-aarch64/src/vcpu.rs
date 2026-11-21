@@ -145,13 +145,13 @@ pub fn nvhe_irq_quiesce_flags(vcpu: u64) -> (bool, bool) {
     (rd_vcpu(vcpu, vr::CNTV_CTL) != 0, rd_vcpu(vcpu, vr::VGIC_HCR) != 0)
 }
 
-/// Quiesce guest vTimer (`CNTV_CTL_EL0`) and VGIC (`ICH_HCR_EL2` / `GICH_HCR`),
-/// and mask PPI 25 and PPI 27 after `take_irq()` completes on an nVHE IRQ exit.
+/// Quiesce guest vTimer (`CNTV_CTL_EL0`) and VGIC (`ICH_HCR_EL2` / `GICH_HCR`)
+/// after `take_irq()` completes on an nVHE IRQ exit.
 pub fn nvhe_quiesce_after_irq(quiesce_cntv: bool, quiesce_vgic: bool) {
-    let me = percpu::cpu_index() as u64;
     if quiesce_cntv {
+        let me = percpu::cpu_index();
         crate::msr!("cntv_ctl_el0", 0);
-        crate::hyp_nvhe::set_cur_cntv_ctl(me as usize, 0);
+        crate::hyp_nvhe::set_cur_cntv_ctl(me, 0);
     }
     if quiesce_vgic {
         if gic::version() == 3 {
@@ -161,9 +161,7 @@ pub fn nvhe_quiesce_after_irq(quiesce_cntv: bool, quiesce_vgic: bool) {
             cpu::dsb_sy();
         }
     }
-    let c1 = set_ppi_vgic_masked(me, true);
-    let c2 = set_ppi_vtimer_masked(me, true);
-    if c1 || c2 || quiesce_cntv {
+    if quiesce_cntv {
         cpu::isb();
     }
 }
@@ -325,6 +323,8 @@ fn wr_gich(off: u64, v: u32) {
 }
 
 /// Read VGIC EISR (End-of-Interrupt Status Register) for maintenance fault.
+/// In nVHE mode, also quiesces `ICH_HCR_EL2` / `GICH_HCR` to deassert PPI 25
+/// before `gic::eoi()`.
 pub fn read_vgic_eisr() -> u64 {
     if !cpu::has_el2() {
         return 0;
@@ -336,7 +336,12 @@ pub fn read_vgic_eisr() -> u64 {
             crate::mrs!("s3_4_c12_c11_3") // ICH_EISR_EL2
         }
     } else {
-        rd_gich(0x20) as u64 // GICH_EISR0
+        let eisr = rd_gich(0x20) as u64; // GICH_EISR0
+        if cpu::is_el2_nvhe() {
+            wr_gich(0x0, 0);
+            cpu::dsb_sy();
+        }
+        eisr
     }
 }
 
@@ -435,9 +440,6 @@ fn restore_vgic(vcpu: u64) {
 /// execution (`CNTV_CTL`, `CNTVOFF`, `MDSCR_EL1`, `VGIC_HCR`), keeping the
 /// remaining EL1 & VGIC state live in hardware under `vcpu_owner`.
 fn suspend(vcpu: u64) {
-    let me = percpu::cpu_index() as u64;
-    set_ppi_vgic_masked(me, true);
-    set_ppi_vtimer_masked(me, true);
     wr_vcpu(vcpu, vr::CNTV_CTL, crate::mrs!("s3_5_c14_c3_1"));
     wr_vcpu(vcpu, vr::CNTVOFF, crate::mrs!("cntvoff_el2"));
     wr_vcpu(vcpu, vr::MDSCR_EL1, crate::mrs!("mdscr_el1"));
@@ -502,9 +504,6 @@ fn save(vcpu: u64, active: bool) {
         crate::msr!("s3_5_c14_c3_1", 0); // CNTV_CTL_EL02 = 0
         crate::msr!("cntvoff_el2", 0);
         crate::msr!("mdscr_el1", crate::el0_access::MDSCR_EL1);
-        let me = percpu::cpu_index() as u64;
-        set_ppi_vtimer_masked(me, true);
-        set_ppi_vgic_masked(me, true);
     }
     save_vgic(vcpu, active);
     cpu::isb();
@@ -556,13 +555,6 @@ pub fn switch_to(vcpu: u64) {
         return;
     }
     if cpu::is_el2_nvhe() {
-        // In nVHE mode, guest state is always saved back on exit; only ensure
-        // guest PPIs stay masked when switching to native/idle.
-        if vcpu == 0 {
-            let me = percpu::cpu_index() as u64;
-            set_ppi_vgic_masked(me, true);
-            set_ppi_vtimer_masked(me, true);
-        }
         return;
     }
     let me = percpu::cpu_index();
@@ -599,26 +591,43 @@ pub fn switch_to(vcpu: u64) {
 
 /// Save and release `vcpu` if it is live on this core (`CALL_VCPU_FLUSH` / local).
 pub fn flush_local(vcpu: u64) {
-    if !cpu::is_el2_vhe() {
+    if vcpu == 0 {
         return;
     }
-    let me = percpu::cpu_index();
-    if percpu::vcpu_owner(me) == vcpu && vcpu != 0 {
-        let active = percpu::get().vcpu_active.get();
-        save(vcpu, active);
-        percpu::set_vcpu_owner(0);
-        percpu::get().vcpu_active.set(false);
+    if cpu::is_el2_vhe() {
+        let me = percpu::cpu_index();
+        if percpu::vcpu_owner(me) == vcpu {
+            let active = percpu::get().vcpu_active.get();
+            save(vcpu, active);
+            percpu::set_vcpu_owner(0);
+            percpu::get().vcpu_active.set(false);
+        }
+    } else if cpu::is_el2_nvhe() && gic::version() == 3 {
+        let me = percpu::cpu_index();
+        if crate::hyp_nvhe::vgic_owner(me) == fl4_core::layout::paddr(vcpu) {
+            crate::hyp_nvhe::flush_vgic();
+        }
     }
 }
 
 fn owner_core(vcpu: u64) -> Option<usize> {
-    (0..percpu::MAX_CPUS).find(|&c| percpu::vcpu_owner(c) == vcpu)
+    if cpu::is_el2_vhe() {
+        (0..percpu::MAX_CPUS).find(|&c| percpu::vcpu_owner(c) == vcpu)
+    } else if cpu::is_el2_nvhe() && gic::version() == 3 {
+        let pa = fl4_core::layout::paddr(vcpu);
+        (0..percpu::MAX_CPUS).find(|&c| crate::hyp_nvhe::vgic_owner(c) == pa)
+    } else {
+        None
+    }
 }
 
 /// Flush `vcpu`'s live hardware state on whichever core owns it, and release
 /// ownership. Caller holds the serial gate when another core owns it.
 pub fn flush(vcpu: u64) {
-    if !cpu::is_el2_vhe() || vcpu == 0 {
+    if vcpu == 0 || !cpu::has_el2() {
+        return;
+    }
+    if !cpu::is_el2_vhe() && !(cpu::is_el2_nvhe() && gic::version() == 3) {
         return;
     }
     match owner_core(vcpu) {

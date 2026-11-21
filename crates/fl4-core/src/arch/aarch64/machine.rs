@@ -22,6 +22,10 @@ macro_rules! arch_machine_methods {
         fn invalidate_stage2_vmid(&mut self, _asid: u64) {}
         /// AArch64: flush a VCPU's live hardware state back into its object and release ownership.
         fn vcpu_flush(&mut self, _vcpu: u64) {}
+        /// AArch64: flush a VCPU's live hardware state needed for `mask` (subset of `vcpu_state_mask`).
+        fn vcpu_flush_state(&mut self, vcpu: u64, _mask: u64) {
+            self.vcpu_flush(vcpu);
+        }
         /// AArch64: hardware VGIC type register (`ICH_VTR_EL2` / `GICH_VTR`).
         fn vcpu_vgic_vtr(&self) -> u64 { 0 }
         /// AArch64: GIC version (2 or 3).

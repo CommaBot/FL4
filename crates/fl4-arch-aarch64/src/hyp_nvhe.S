@@ -46,6 +46,7 @@
 .equ HYP_CUR_CNTV_CVAL,    0x160
 .equ HYP_CUR_CSSELR,       0x168
 .equ HYP_CUR_MDSCR,        0x170
+.equ HYP_VGIC_OWNER,       0x178
 
 .equ HYP_KIND_SYNC,        0
 .equ HYP_KIND_IRQ,         1
@@ -92,7 +93,13 @@
 
 .macro vgic_save_lr idx, sysreg
     tbz     x14, #\idx, 200\@f
+    tbnz    x12, #\idx, 201\@f
     mrs     x11, \sysreg
+    str     x11, [x10, #8 * (48 + \idx)]
+    b       200\@f
+201\@:
+    ldr     x11, [x10, #8 * (48 + \idx)]
+    bic     x11, x11, #(3 << 62)
     str     x11, [x10, #8 * (48 + \idx)]
 200\@:
 .endm
@@ -129,7 +136,20 @@ fl4_hyp_sync:
     msr     tpidr_el2, x0
     ldr     x0, [sp, #HYP_IN_GUEST]
     cbnz    x0, fl4_hyp_guest_sync
-    /* Host EL0/EL1 synchronous exception to EL2. */
+    /* Host EL0/EL1 synchronous exception to EL2.
+     * Check EC == 0x07 (FP/SIMD trap from lazy CPTR_EL2.TFP=1 left after
+     * guest exit) before EL0 reflection or EL1 HVC dispatch. */
+    mrs     x0, esr_el2
+    lsr     x0, x0, #26
+    cmp     x0, #0x07
+    b.ne    1f
+    mov     x0, #0x33ff
+    msr     cptr_el2, x0
+    str     x0, [sp, #HYP_CUR_CPTR]
+    isb
+    mrs     x0, tpidr_el2
+    eret
+1:
     mrs     x0, spsr_el2
     tst     x0, #0x1f               /* M[4:0] == 0: AArch64 EL0t */
     b.eq    fl4_hyp_reflect_el0
@@ -159,6 +179,8 @@ fl4_hyp_sync:
     b.eq    fl4_hyp_save_host_regs
     cmp     x0, #10
     b.eq    fl4_hyp_set_cntp
+    cmp     x0, #11
+    b.eq    fl4_hyp_flush_vgic
     b       fl4_hyp_halt
 
 fl4_hyp_sync_a32:
@@ -306,6 +328,54 @@ fl4_hyp_quiesce_vgic:
 
 fl4_hyp_read_vgic_eisr:
     mrs     x0, s3_4_c12_c11_3      /* ICH_EISR_EL2 */
+    msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 = 0 (deassert PPI 25) */
+    str     xzr, [sp, #HYP_VGIC_LIVE]
+    isb
+    eret
+
+fl4_hyp_flush_vgic:
+    ldr     x9, [sp, #HYP_VGIC_OWNER]
+    cbz     x9, 1f
+    add     x9, x9, #0x40
+    mrs     x11, s3_4_c12_c11_7     /* ICH_VMCR_EL2 */
+    str     x11, [x9, #8 * 36]
+    str     x11, [sp, #HYP_CUR_VMCR]
+    mrs     x11, s3_4_c12_c11_2     /* ICH_MISR_EL2 */
+    mrs     x12, s3_4_c12_c11_3     /* ICH_EISR_EL2 */
+    stp     x11, x12, [x9, #8 * 37]
+    ldr     x10, [sp, #HYP_VGIC_N_APR]
+    cbz     x10, 2f
+    mrs     x11, s3_4_c12_c8_0
+    mrs     x12, s3_4_c12_c9_0
+    str     x11, [x9, #8 * 40]
+    str     x12, [x9, #8 * 44]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 0)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 0)]
+    cmp     x10, #2
+    b.lo    2f
+    mrs     x11, s3_4_c12_c8_1
+    mrs     x12, s3_4_c12_c9_1
+    str     x11, [x9, #8 * 41]
+    str     x12, [x9, #8 * 45]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 1)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 1)]
+    cmp     x10, #4
+    b.lo    2f
+    mrs     x11, s3_4_c12_c8_2
+    mrs     x12, s3_4_c12_c9_2
+    str     x11, [x9, #8 * 42]
+    str     x12, [x9, #8 * 46]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 2)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 2)]
+    mrs     x11, s3_4_c12_c8_3
+    mrs     x12, s3_4_c12_c9_3
+    str     x11, [x9, #8 * 43]
+    str     x12, [x9, #8 * 47]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 3)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 3)]
+2:  dsb     ishst
+    str     xzr, [sp, #HYP_VGIC_OWNER]
+1:  mov     x0, #0
     eret
 
 /* ---- HVC_VCPU_RUN: Host EL1 -> Guest EL1/EL0 ------------------------------ */
@@ -464,19 +534,48 @@ fl4_hyp_vcpu_run:
     str     xzr, [sp, #HYP_GUEST_MDCCINT_NZ]
 26:
 
-    /* Sparse / lazy GICv3 ICH_* restore. */
+    /* Sparse / lazy GICv3 ICH_* restore with per-core VMCR/AP*R ownership. */
     ldr     x9, [sp, #HYP_GIC_V3]
     cbz     x9, 4f
-    ldr     x13, [x10, #8 * 35]     /* VGIC_HCR */
-    cbnz    x13, 28f
-    ldr     x9, [sp, #HYP_VGIC_LIVE]
-    cbz     x9, 4f
-    msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 = 0 */
-    str     xzr, [sp, #HYP_VGIC_LIVE]
-    b       4f
-28:
-    mov     x9, #1
-    str     x9, [sp, #HYP_VGIC_LIVE]
+    ldr     x9, [sp, #HYP_VGIC_OWNER]
+    cmp     x9, x2
+    b.eq    27f
+    cbz     x9, 270f
+    add     x9, x9, #0x40
+    mrs     x11, s3_4_c12_c11_7     /* ICH_VMCR_EL2 */
+    str     x11, [x9, #8 * 36]
+    str     x11, [sp, #HYP_CUR_VMCR]
+    ldr     x13, [sp, #HYP_VGIC_N_APR]
+    cbz     x13, 270f
+    mrs     x11, s3_4_c12_c8_0
+    mrs     x12, s3_4_c12_c9_0
+    str     x11, [x9, #8 * 40]
+    str     x12, [x9, #8 * 44]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 0)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 0)]
+    cmp     x13, #2
+    b.lo    270f
+    mrs     x11, s3_4_c12_c8_1
+    mrs     x12, s3_4_c12_c9_1
+    str     x11, [x9, #8 * 41]
+    str     x12, [x9, #8 * 45]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 1)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 1)]
+    cmp     x13, #4
+    b.lo    270f
+    mrs     x11, s3_4_c12_c8_2
+    mrs     x12, s3_4_c12_c9_2
+    str     x11, [x9, #8 * 42]
+    str     x12, [x9, #8 * 46]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 2)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 2)]
+    mrs     x11, s3_4_c12_c8_3
+    mrs     x12, s3_4_c12_c9_3
+    str     x11, [x9, #8 * 43]
+    str     x12, [x9, #8 * 47]
+    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 3)]
+    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 3)]
+270:
     ldr     x11, [x10, #8 * 36]     /* VGIC_VMCR */
     ldr     x9, [sp, #HYP_CUR_VMCR]
     cmp     x11, x9
@@ -495,6 +594,18 @@ fl4_hyp_vcpu_run:
     vgic_load_apr 2, s3_4_c12_c8_2, s3_4_c12_c9_2
     vgic_load_apr 3, s3_4_c12_c8_3, s3_4_c12_c9_3
 3:
+    str     x2, [sp, #HYP_VGIC_OWNER]
+27:
+    ldr     x13, [x10, #8 * 35]     /* VGIC_HCR */
+    cbnz    x13, 28f
+    ldr     x9, [sp, #HYP_VGIC_LIVE]
+    cbz     x9, 4f
+    msr     s3_4_c12_c11_0, xzr     /* ICH_HCR_EL2 = 0 */
+    str     xzr, [sp, #HYP_VGIC_LIVE]
+    b       4f
+28:
+    mov     x9, #1
+    str     x9, [sp, #HYP_VGIC_LIVE]
     ldr     x9, [sp, #HYP_VGIC_LRS]
     ldr     x14, [sp, #HYP_VGIC_LR_MASK]
     mov     x15, #0
@@ -670,51 +781,15 @@ fl4_hyp_guest_exit_common:
     b       6f
 52: mov     x19, #HYP_KIND_RETRY
 6:
-    /* Sparse / lazy GICv3 ICH_* save. */
+    /* Sparse / lazy GICv3 ICH_* save (VMCR/MISR/EISR/AP*R stay lazily owned). */
     ldr     x9, [sp, #HYP_GIC_V3]
     cbz     x9, 8f
     ldr     x9, [sp, #HYP_VGIC_LIVE]
     cbz     x9, 8f
     mrs     x11, s3_4_c12_c11_0     /* ICH_HCR_EL2 */
-    mrs     x12, s3_4_c12_c11_7     /* ICH_VMCR_EL2 */
-    stp     x11, x12, [x10, #8 * 35]
-    str     x12, [sp, #HYP_CUR_VMCR]
-    mrs     x11, s3_4_c12_c11_2     /* ICH_MISR_EL2 */
-    mrs     x12, s3_4_c12_c11_3     /* ICH_EISR_EL2 */
-    stp     x11, x12, [x10, #8 * 37]
-    mrs     x11, s3_4_c12_c11_5     /* ICH_ELRSR_EL2 */
-    str     x11, [x10, #8 * 39]
-    ldr     x9, [sp, #HYP_VGIC_N_APR]
-    cbz     x9, 7f
-    mrs     x11, s3_4_c12_c8_0
-    mrs     x12, s3_4_c12_c9_0
-    str     x11, [x10, #8 * 40]
-    str     x12, [x10, #8 * 44]
-    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 0)]
-    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 0)]
-    cmp     x9, #2
-    b.lo    7f
-    mrs     x11, s3_4_c12_c8_1
-    mrs     x12, s3_4_c12_c9_1
-    str     x11, [x10, #8 * 41]
-    str     x12, [x10, #8 * 45]
-    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 1)]
-    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 1)]
-    cmp     x9, #4
-    b.lo    7f
-    mrs     x11, s3_4_c12_c8_2
-    mrs     x12, s3_4_c12_c9_2
-    str     x11, [x10, #8 * 42]
-    str     x12, [x10, #8 * 46]
-    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 2)]
-    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 2)]
-    mrs     x11, s3_4_c12_c8_3
-    mrs     x12, s3_4_c12_c9_3
-    str     x11, [x10, #8 * 43]
-    str     x12, [x10, #8 * 47]
-    str     x11, [sp, #(HYP_CUR_AP0R + 8 * 3)]
-    str     x12, [sp, #(HYP_CUR_AP1R + 8 * 3)]
-7:
+    str     x11, [x10, #8 * 35]
+    mrs     x12, s3_4_c12_c11_5     /* ICH_ELRSR_EL2 */
+    str     x12, [x10, #8 * 39]
     ldr     x14, [sp, #HYP_VGIC_LR_MASK]
     cbz     x14, 70f
     vgic_save_lr 0,  s3_4_c12_c12_0
@@ -762,18 +837,12 @@ fl4_hyp_guest_exit_common:
 91:
     str     xzr, [sp, #HYP_IN_GUEST]
 
-    /* Restore host EL2 controls and host EL1/EL2 registers. */
+    /* Restore host EL2 controls and host EL1/EL2 registers.
+     * CPTR_EL2 is kept as-is and restored lazily on host EC == 0x07 trap. */
     ldr     x9, [sp, #HYP_HOST_HCR]
     msr     hcr_el2, x9
     ldr     x9, [sp, #HYP_HOST_MDCR]
     msr     mdcr_el2, x9
-    mov     x9, #0x33ff
-    ldr     x10, [sp, #HYP_CUR_CPTR]
-    cmp     x9, x10
-    b.eq    93f
-    msr     cptr_el2, x9
-    str     x9, [sp, #HYP_CUR_CPTR]
-93:
 
     ldp     x9, x10, [sp, #HYP_HOST_SCTLR]
     msr     sctlr_el1, x9

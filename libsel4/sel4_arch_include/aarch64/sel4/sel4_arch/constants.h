@@ -165,7 +165,8 @@ typedef enum {
 #define seL4_ARM_VCPUState_TIMER       (1ul << 2)
 #define seL4_ARM_VCPUState_VGIC        (1ul << 3)
 #define seL4_ARM_VCPUState_GPRS        (1ul << 4)
-#define seL4_ARM_VCPUState_ALL         0x1ful
+#define seL4_ARM_VCPUState_VGIC_LR     (1ul << 5)
+#define seL4_ARM_VCPUState_ALL         0x3ful
 
 #define seL4_ARM_VCPURunStop_Interrupt 0ul
 #define seL4_ARM_VCPURunStop_VMFault   1ul

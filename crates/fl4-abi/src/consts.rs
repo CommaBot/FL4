@@ -211,7 +211,8 @@ pub mod vcpu_state_mask {
     pub const TIMER: u64 = 1 << 2;
     pub const VGIC: u64 = 1 << 3;
     pub const GPRS: u64 = 1 << 4;
-    pub const ALL: u64 = 0x1f;
+    pub const VGIC_LR: u64 = 1 << 5;
+    pub const ALL: u64 = EL1_SYSREGS | HYP | TIMER | VGIC | GPRS | VGIC_LR;
     pub const SIZE: u64 = 1024;
 }
 

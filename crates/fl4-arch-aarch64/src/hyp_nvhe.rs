@@ -22,6 +22,7 @@ pub const HVC_QUIESCE_VGIC: u64 = 7;
 pub const HVC_READ_VGIC_EISR: u64 = 8;
 pub const HVC_HYP_SAVE_HOST_REGS: u64 = 9;
 pub const HVC_SET_CNTP: u64 = 10;
+pub const HVC_FLUSH_VGIC: u64 = 11;
 
 /// Per-core EL2 Hyp state. Its physical address is permanently held in `SP_EL2`
 /// once `HVC_HYP_ENABLE_MMU` runs. EL1 and EL2 share coherent Normal Write-Back
@@ -72,6 +73,7 @@ pub struct HypCpu {
     pub cur_cntv_cval: u64,
     pub cur_csselr: u64,
     pub cur_mdscr: u64,
+    pub vgic_owner: u64,
 }
 
 impl HypCpu {
@@ -118,6 +120,7 @@ impl HypCpu {
             cur_cntv_cval: u64::MAX,
             cur_csselr: u64::MAX,
             cur_mdscr: u64::MAX,
+            vgic_owner: 0,
         }
     }
 }
@@ -164,6 +167,7 @@ const _: () = assert!(offset_of!(HypCpu, cur_cntv_ctl) == 0x158);
 const _: () = assert!(offset_of!(HypCpu, cur_cntv_cval) == 0x160);
 const _: () = assert!(offset_of!(HypCpu, cur_csselr) == 0x168);
 const _: () = assert!(offset_of!(HypCpu, cur_mdscr) == 0x170);
+const _: () = assert!(offset_of!(HypCpu, vgic_owner) == 0x178);
 
 const _: () = assert!(fl4_core::vcpu::REGS == 0x40);
 const _: () = assert!(vr::SCTLR == 0);
@@ -204,6 +208,8 @@ fn hvc(fid: u64, a1: u64, a2: u64, a3: u64) -> u64 {
             inout("x3") a3 => _,
             out("x9") _,
             out("x10") _,
+            out("x11") _,
+            out("x12") _,
             options(nostack),
         );
     }
@@ -285,4 +291,15 @@ pub fn set_cur_cntv_ctl(core: usize, val: u64) {
         (*HYP_CPUS.0.get())[core].cur_cntv_ctl = val;
     }
     crate::cpu::dsb_ishst();
+}
+
+/// Physical address of the VCPU whose GICv3 `ICH_VMCR`/`ICH_AP*R` are
+/// currently lazily owned on `core`, or 0 if none.
+pub fn vgic_owner(core: usize) -> u64 {
+    unsafe { core::ptr::read_volatile(&(*HYP_CPUS.0.get())[core].vgic_owner) }
+}
+
+/// Save and release this core's lazily owned GICv3 `ICH_VMCR`/`ICH_AP*R`.
+pub fn flush_vgic() {
+    let _ = hvc(HVC_FLUSH_VGIC, 0, 0, 0);
 }

@@ -164,7 +164,9 @@ fn take_irq() -> Option<TakenIrq> {
     percpu::get().iar.set(raw);
     if cpu::has_el2() && id == irq::VGIC_MAINT_ID {
         let eisr = vcpu::read_vgic_eisr();
-        vcpu::mask_ppi_vgic();
+        if !cpu::is_el2_nvhe() {
+            vcpu::mask_ppi_vgic();
+        }
         gic::eoi(raw);
         return Some(TakenIrq::VgicMaint(eisr));
     }
@@ -211,7 +213,8 @@ fn fl4_entry_vcpu_run(
         };
         let taken = take_irq();
         if cpu::is_el2_nvhe() {
-            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, quiesce_vgic);
+            let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
+            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
         }
         match taken {
             None => resume(),
@@ -312,7 +315,8 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
         };
         let taken = take_irq();
         if cpu::is_el2_nvhe() && v != 0 {
-            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, quiesce_vgic);
+            let q_vgic = quiesce_vgic && !matches!(taken, Some(TakenIrq::VgicMaint(_)));
+            vcpu::nvhe_quiesce_after_irq(quiesce_cntv, q_vgic);
         }
         match taken {
             None => resume(),

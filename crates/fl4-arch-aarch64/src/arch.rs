@@ -190,6 +190,18 @@ impl Arch for PhysArch {
     fn vcpu_flush(&mut self, vcpu: u64) {
         crate::vcpu::flush(vcpu)
     }
+    fn vcpu_flush_state(&mut self, vcpu: u64, mask: u64) {
+        if mask == 0 {
+            return;
+        }
+        if crate::cpu::is_el2_nvhe() {
+            if mask & fl4_abi::consts::vcpu_state_mask::VGIC != 0 {
+                crate::vcpu::flush(vcpu);
+            }
+        } else {
+            crate::vcpu::flush(vcpu);
+        }
+    }
     fn vcpu_vgic_vtr(&self) -> u64 {
         gic::vgic_vtr()
     }
