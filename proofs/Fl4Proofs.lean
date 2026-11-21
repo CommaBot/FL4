@@ -1168,6 +1168,12 @@ import Fl4Proofs.P3.SpecInvRd14gC
 import Fl4Proofs.P3.SpecInvRd14gD
 import Fl4Proofs.P3.SpecInvRd14gE
 import Fl4Proofs.P3.SpecInvRd14gF
+import Fl4Proofs.P3.SpecInvRd14hQ
+import Fl4Proofs.P3.SpecInvRd14hQ1
+import Fl4Proofs.P3.SpecInvRd14hQ2
+import Fl4Proofs.P3.SpecInvRd14hA
+import Fl4Proofs.P3.SpecInvRd14hB
+import Fl4Proofs.P3.SpecInvRd14hC
 import Fl4Proofs.P3.SpecInvSlKA
 import Fl4Proofs.P3.SpecInvSlKB
 import Fl4Proofs.P3.SpecInvSlKG
