@@ -28,6 +28,23 @@ open fl4_core Fl4Proofs.P0.Consts
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
 
+/-- **`RRSum` [J]** (l4v `valid_refills` / `refills_sum`; FL4 P3 `SInvR.RV` /
+`SInvE.RPos` on the spec side): every sporadic SC among `Scs` has ring amounts
+summing below `2 ^ 64`. Asked at the kernel entry state, read by R4 for the
+receiver's SC only (`unblock_check` runs on a sporadic SC alone). Why a
+premise: P1's SC invariant (`SCsOK` / `SCA`) carries `RefillsWF` (ring
+indices) but no sum; adding the sum to `SCA` means re-proving it at every ring
+writer (configure's `refill_new` / `refill_update`, `budget_check`'s two loops
+and `schedule_used`, `unblock_check`), which is the l4v `valid_refills`
+preservation effort. Reachability: the sum is the configured budget
+(`refill_new` / `refill_update` set it from a decoded budget below
+`MAX_PERIOD`; charges and merges conserve it), and P3's `RV` states exactly
+`rsum < 2 ^ 64` for every active SC of the related spec state, the refills
+related one to one (`L.refills … map toRefill`); a sporadic SC is active
+(`SCsOK.spor`). -/
+def RRSum (Scs : Set U64) (s : S) : Prop :=
+  ∀ c ∈ Scs, L.mem s (sporA c) ≠ 0#u64 → L.amtSum s c < 2 ^ 64
+
 /-- The merge loop's invariant for R4: a well-formed ring whose head starts at
 `now`, holds at least `A`, and whose amounts sum below `2 ^ 64`. -/
 def UbHead (s : S) (sc : obj.Sc) (sb : Nat) (now : U64) (A : Nat) : Prop :=
