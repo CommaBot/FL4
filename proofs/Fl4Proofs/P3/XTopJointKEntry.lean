@@ -349,7 +349,7 @@ theorem kernel_entryJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → P
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hvm : ∀ s1 a1 σ1, JAt (L := L) arI AR s1 a1 σ1 → ∀ x, σ1.kheap σ1.curThread = some (.tcb x) →
       x.tcbState ≠ .runningVM) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
   have hct := cur_thread_eq (L := L) s
   generalize L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) = ct at hct
   obtain ⟨hcur, -⟩ := J.curEq hct
@@ -359,7 +359,7 @@ theorem kernel_entryJ [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → P
   have hxs := hI.1.toE.at_tcb hctT hk
   have hk' : σ.kheap σ.curThread = some (.tcb x) := by rw [hcur]; exact hk
   -- the FaultIP write
-  unfold syscall.handle_syscall
+  unfold syscall.handle_syscall_old
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.NEXT_IP) ?_
   rintro nx hnx

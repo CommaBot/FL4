@@ -320,11 +320,44 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {MR : A → Fl4Spec.MachineState → Prop}
 
+/-- **No fast path off `SysReplyRecv`** (FL4 #56): with the trap flag clear
+after the FaultIP write and a number in the native range, `handle_syscall`
+can take a fast path only for `SysReplyRecv` (`fastpath.fault` sits behind
+the trap flag and the out-of-range numbers), so elsewhere it is the general
+path. -/
+theorem handle_syscall_eq_general_of {s : S} {a : A} {n : I64}
+    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
+    (hr : ¬ n < fl4_abi.syscall.SYSCALL_MIN ∧ ¬ n > fl4_abi.syscall.SYSCALL_MAX)
+    (hrr : n ≠ fl4_abi.syscall.SysReplyRecv) :
+    syscall.handle_syscall st arI s a n = syscall.handle_syscall_general st arI s a n := by
+  unfold syscall.handle_syscall syscall.handle_syscall_general syscall.syscall
+  have hct := cur_thread_eq (L := L) s
+  generalize L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) = ct at hct
+  rw [hct]; simp only [bind_ok]
+  obtain ⟨nx, hnx, -⟩ := spec_exists (Endp.obj.Tcb.reg.spec (L := L) s ct layout.reg.NEXT_IP)
+  rw [hnx]; simp only [lift, bind_ok]
+  obtain ⟨s1, hs1, rfl⟩ := spec_exists (Endp.obj.Tcb.set_reg.spec (L := L) s ct layout.reg.FAULT_IP
+    (core.num.U64.wrapping_sub nx 2#u64))
+  rw [hs1]; simp only [bind_ok]
+  obtain ⟨f, hf, hf0⟩ := spec_exists (hflag ct (core.num.U64.wrapping_sub nx 2#u64) hct)
+  rw [hf]; simp only [bind_ok, hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+  simp only [if_neg hr.1, if_neg hr.2]
+  simp only [Std.bind_assoc]
+  refine congrArg (Std.bind _) (funext fun r => ?_)
+  obtain ⟨b, s2, a1⟩ := r
+  cases b <;> (try simp only [uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte, if_neg hrr, Std.bind_assoc,
+    bind_ok]) <;> (try rfl)
+
 set_option maxHeartbeats 4000000 in
-/-- **The newest top** (module docstring): `kernel_entryJ32`'s premises, with
-the bundles inside `hK` (`KDispHypsKV33`) free of `JEntryAt.live`, which is
-asked once, at the entry state and its carried ghosts (`hLv` [J]). -/
-theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
+/-- **The newest top on the general path** (module docstring):
+`kernel_entryJ32`'s premises, with the bundles inside `hK`
+(`KDispHypsKV33`) free of `JEntryAt.live`, which is asked once, at the entry
+state and its carried ghosts (`hLv` [J]). It speaks of
+`handle_syscall_old`, the pre-#56 entry, which is `handle_syscall_general`
+(`P1.handle_syscall_general_eq`); `kernel_entryJ33` below is the entry
+itself. -/
+theorem kernel_entryJ33G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
     (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
@@ -349,11 +382,52 @@ theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ32 s a σ J hni hR hS hE hQ n c hn hflag hB
     (fun σb hBA V' Ac' Lst' D' s' a' hF J' => (hK σb hBA V' Ac' Lst' D' s' a' hF J').to32
       (liveDN_front hnd J hLv hS hARI.toARKeep hA hF hBA))
     hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu
+
+set_option maxHeartbeats 4000000 in
+/-- **The newest top** (module docstring; since FL4 #56 about the entry
+`handle_syscall`, which may take a fast path): `kernel_entryJ33G`'s
+premises and one more, `hFast` [P]: for `SysReplyRecv` only (the one native
+number whose entry has a fast path, `handle_syscall_eq_general_of`), the
+fast path keeps what the general path guarantees (`P1.FastAgree`, the
+refinement fastpath.rs states as intended). -/
+theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
+    {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
+    (hR : MR a σ.machineState) (hS : SInvAll.SInvB σ) (hE : SInvE.EpQAll σ)
+    (hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (n : I64) (c : Fl4Spec.Syscall)
+    (hn : NativeSys n c)
+    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
+    (hB : ∀ x, σ.kheap σ.curThread = some (.tcb x) → OffReady (faultIPSt σ σ.curThread x))
+    (hK : ∀ σb, BudgetAt σ σb true → ∀ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64)
+      (s' : S) (a' : A), KFrontB (L := L) arI s a s' a' →
+        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' s' a' σb →
+        KDispHypsKV33 (L := L) arI AR MR (Z.mv Z.G V') H Cs D' s' a' σb n c)
+    (hFin : ∀ x ∈ (specFront c σ).1, ∀ (Z' : XSets) (H' : P1.Heap) (Cs' Ac' : Set U64) (Lst' : U64 → List U64)
+      (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
+        JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
+        KFinAtR31 (L := L) arI AR Z' H' Cs' s' a' x.2)
+    (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
+    (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hT : TimeAgree arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hFast : n = fl4_abi.syscall.SysReplyRecv →
+      P1.FastAgree st arI s a n (fun r => KPost (L := L) arI AR c σ r)) :
+    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
+  have hG := kernel_entryJ33G s a σ J hni hR hS hE hQ hLv n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA
+    hmrt hmb hT hmax htu
+  by_cases hrr : n = fl4_abi.syscall.SysReplyRecv
+  · exact P1.FastAgree.spec st arI (hFast hrr) hG
+  · rw [handle_syscall_eq_general_of hflag hn.range hrr, P1.handle_syscall_general_eq]; exact hG
 
 end
 

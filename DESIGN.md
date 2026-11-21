@@ -83,7 +83,7 @@ seL4 has over a hundred `Kernel*` build options, and many of them just tell the 
 | `KernelFSGSBase`                                                                                       | CPUID.07H:EBX\[0\]. FSGSBASE instructions when present, the MSRs otherwise                                                                                                                                                                                                                       |
 | `KernelFPU`, `KernelXSave`, `KernelXSaveFeatureSet`, `KernelXSaveSize`                                 | CPUID 0DH. Best save instruction available (XSAVES, XSAVEC, XSAVEOPT, XSAVE, then FXSAVE). XCR0 enables every user state component the CPU has except AMX tile data (8 KiB), which stays off. The 4 KiB TCB (§2) holds the largest remaining area, 2,432 bytes with AVX-512           |
 | `KernelX86MicroArch`                                                                                   | CPUID family and model, for errata only                                                                                                                                                                                                                                                          |
-| `KernelSkimWindow`, `KernelX86IBRSMode`, `KernelX86IBPBOnContextSwitch`, `KernelX86RSBOnContextSwitch` | The skim window remains for native Intel boots without `RDCL_NO`; virtualization requires Meltdown immunity on Intel or Zen 2+ on AMD, plus the mitigation capabilities/microcode in [the security policy](docs/virtualization-security.md). Each core is probed before VM initialization. IBPB runs on native kernel entry and every VM exit; legacy IBRS, return-stack stuffing, PBRSB, BHI controls/clearing, VERW and SMT restrictions are selected as required. eIBRS/AutoIBRS remain enabled when available. No additional context-switch IBPB is used (§15). |
+| `KernelSkimWindow`, `KernelX86IBRSMode`, `KernelX86IBPBOnContextSwitch`, `KernelX86RSBOnContextSwitch` | The skim window remains for native Intel boots without `RDCL_NO`; virtualization requires Meltdown immunity on Intel or Zen 2+ on AMD, plus the mitigation capabilities/microcode in [the security policy](docs/virtualization-security.md). Each core is probed before VM initialization. Every VM exit uses IBPB. Native kernel entry uses IBPB, AutoIBRS with Safe RET on eligible AMD CPUs, or AutoIBRS alone on AMD CPUs reporting SRSO_NO or SRSO_USER_KERNEL_NO. Legacy IBRS, return-stack stuffing, PBRSB, BHI controls/clearing, VERW and SMT restrictions are selected as required. eIBRS/AutoIBRS remain enabled when available. No additional context-switch IBPB is used (§15). |
 | `KernelMaxNumNodes` (as a hardware count)                                                              | Enabled processors in the MADT. See the last group for the upper bound                                                                                                                                                                                                                           |
 | `KernelCacheLnSz`                                                                                      | CPUID.01H:EBX for flush loops. Data layout always aligns to 64 bytes                                                                                                                                                                                                                             |
 | `KernelMultiboot1Header`, `KernelMultiboot2Header`, `KernelMultibootGFX*`                              | Both headers are always present. The multiboot2 header asks, as an optional request, for a linear framebuffer with no preferred size. FL4's x86_64 UEFI loader passes the firmware's current GOP mode in the same tag when it is 32-bit RGB, except in SEV guests                                |
@@ -269,6 +269,84 @@ The core is written as a serial kernel: one entry point per kind of kernel entry
 
 Objects are typed handles over this memory (`Tcb`, `Ep`, `Slot`, …) with field accessors, so every kernel decision is a function of what the store returns. That is what makes one core serve every execution mode: on one core the store is plain memory, on several it is a transaction (§7), and the proofs, which are about the serial core, apply to each committed entry.
 
+### Fast paths
+
+An l4h guest syscall is two kernel entries: the user context's trapped
+syscall, delivered as an UnknownSyscall fault to the vCPU's kernel thread
+waiting on its endpoint, and that thread's ReplyRecv, which answers it and
+waits again (l4h DESIGN §5.4). `fastpath.rs` handles each in one flat
+function: after the same prefix as the general path (`FAULT_IP`, the
+budget check) it checks, with reads only, that the general path would
+take its common course (a receiver waiting with a reply object and its own
+scheduling context; a reply through an undonated reply object to a thread
+that can run at once; an idle endpoint with nothing signalled; the other
+thread chosen next, nothing to wake, the domain not over), then makes the
+same writes and Arch calls and switches directly. A declined fast path has
+changed nothing, and the general path runs as before. It skips the
+decoding, the second reply-cap lookup, the possible-switch, enqueue and
+dequeue pair that leaves the ready queues as they were, and the
+scheduler's search, and keeps out-of-line calls (each a mispredicted return
+under Safe RET) to `commit_time` and `set_next_interrupt`.
+
+The intended theorem is `fast s = (true, s') → handle_syscall_general s =
+s'`, in the style of seL4's fastpath proofs; it is not proved yet.
+`fl4-sim --fastpath-diff` checks it: each serial syscall runs through the
+general path, is undone from a store log, and runs again through
+`handle_syscall`, and every word either wrote and the simulated machine
+(time, RNG, deadlines, effects, loaded address space) must end the same.
+`--scenario guest` sets up an l4h vCPU's handler and trapping thread on
+one core, among the random workload; `cargo xtask sim` runs it with the
+check, and among transactions under the random and TSO schedulers.
+
+Without transactions (x86_64, §7), the fast paths also run beside the
+serial gate, on several cores at once (`fl4_sync::run_syscall`,
+`handle_syscall_local`). What they write is this core's scheduler state,
+threads and scheduling contexts on this core (checked before any write),
+the endpoint and reply object involved, and a receiver's IPC buffer; every
+other kernel word they read changes only under the gate. So the core marks
+itself active like a transaction, which a serial entry drains, and the
+endpoint and reply object, which threads on several cores may share, are
+locked through lock bits of the version table, which nothing else uses
+without transactions (`tx::try_lock_object`, hashed so that neighbouring
+objects use different lines). A fast path that cannot take them or
+declines leaves the entry to the gate, having written only `FAULT_IP` and
+the timestamp, which the general path repeats (with one domain, two
+timestamp updates equal the later one). IPC buffers are user memory: a
+frame two threads on different cores share is the user's race, as it is
+on one core.
+
+I/O port invocations (`SysCall` or `SysSend` on an IoPort cap) run beside
+the gate too (`handle_ioport_local`), as the general path's own code: once
+reads show a valid access, budget left, and no reschedule pending or due on
+this core (`schedulable_here`), that code writes only the caller, this
+core's scheduler state and the port, and takes no lock. The host's logger
+writes the serial port one byte per invocation, each with a trap to the
+hypervisor; under the gate, a guest's boot log slowed the syscalls of every
+other core by about 25% for half a second.
+
+Admission: only trapped syscalls, ReplyRecv and I/O port invocations (by
+their label) try this. While the gate is
+closed, a core waits for it to open (servicing remote calls) rather than
+take a ticket, since queued syscalls would keep it closed for each other;
+but only if its last such syscall ran a fast path, beside the gate or
+under it (or was an I/O port access), and only for `LOCAL_WAIT_SPINS`: serial
+entries queued back to back keep the gate closed, and the core would wait
+out of FIFO order. One whose fast path then declined would have waited for
+the gate twice, which cost fork-heavy loads up to 11%. A reply object
+taken beside the gate must have no neighbours on a call stack
+(`reply_remove` would write them unlocked).
+
+The differential check runs this composition on every other syscall, and
+the simulator's root task reads and writes an IoPort cap (in and out of its
+range); the workload arms no TCB timers, so the timer condition of the I/O
+port path goes unexercised. The
+simulator's serial-gate build runs the guest scenario (half the runs share
+one endpoint among all vCPUs) concurrently and on the TSO model; a queue
+oracle requires that every thread blocked on an endpoint or notification
+is on its queue. `cargo xtask mutants` runs two more mutants there: no
+active mark (`mutant-local-no-active`) and no object locks
+(`mutant-local-no-lock`).
+
 ### Footprints
 
 A kernel entry's footprint is the set of objects it reads and writes. FL4 does not state footprints in the core: the transactional store records them as the entry runs, exactly, and locks what was written. What needs proving is then a property of the runtime, not of each entry point: that a committed transaction saw a consistent snapshot and that commits are serializable (P2 in §9).
@@ -294,7 +372,7 @@ Each kernel entry, and each chunk of a preemptible operation, runs as follows:
 flowchart LR
   E[Kernel entry] --> H{known serial entry?}
   H -->|yes| S[serial gate]
-  H -->|no| P{at most two tickets and probe allowed?}
+  H -->|no| P{queue within the bound and probe allowed?}
   P -->|yes: reserve, await turn, close, no active transactions| Q[run directly, release gate, exit]
   P -->|no: back off probes on contention| B[begin: mark core active, read clock]
   B --> R[run the core entry on the transactional store]
@@ -318,7 +396,8 @@ flowchart LR
   Aligned power-of-two regions of 16 bytes through 8 KiB map to a contiguous stripe interval under the stripe hash, so the runtime enumerates that interval directly in lock order. Other regions retain sorting and deduplication. Saved versions occupy one slot per held stripe, with binary search for read-set validation, instead of an array as large as the global table. The physical backend uses a bulk zero while holding every covering stripe; the simulator retains individual word stores through `Mem::clear`, including their TSO buffering and version history.
 - **The serial gate.** Transactions mark their core active while they run. A core that needs the gate takes it, waits for active transactions to drain, runs the entry directly on memory, and releases it; new transactions wait while it is held. Rare hardware-global operations (IRQ routing, TLB and ASID invalidation) also use it. With one core there are no transactions and no gate: the store is plain memory.
 - **Known serial entries.** `VMEnter` requests serial admission directly when virtualization is available and the current thread has a bound VCPU without syscall trapping: its VCPU barrier would reject a transaction. Other calls retain ordinary probe/transaction admission. The hint skips speculation, not syscall validation, remote-stall handling or accepted interrupts. The simulator mixes hinted entries with transactions through the same runner. VCPU lifecycle barriers and the gate protocol are unchanged.
-- **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS when at most two tickets are outstanding. The bounded queue lets short overlapping entries use direct execution. A successor services remote calls while waiting; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe inherits a drained gate or closes it with a SeqCst store and scans the transaction-active flags. If another core is active, it releases its ticket and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during a fresh probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
+- **No transactions on x86_64.** The x86_64 kernel runs every entry under the serial gate (`EntryEnv::tx_attempts` is 0), except guest syscall fast paths, which run beside it (§6). A transaction there costs several times the same entry run directly (below), and the gate's ticket words sit on their own cache lines (`next`; `serving` with `closed`; the active flags; `owner`). Simulator campaigns keep transactions (with the probe bound below) and run the serial-gate build with the fast paths.
+- **Opportunistic gate probes.** Before starting a transaction, a core may reserve the next serial ticket with a CAS while at most a bound of tickets are outstanding; a CAS lost to another prober retries while the queue is still within it. The environment sets the bound (`EntryEnv::probe_successors`). The simulator and the AArch64 kernel use two, so transactions keep overlapping serial entries, and two more simulator campaigns let a probe queue behind every other core (15, `DEEP_PROBE_SUCCESSORS`). The x86_64 kernel runs no transactions (above), so it does not probe: there, a transaction costs about 4,000–5,000 TSC cycles against 650–750 for the body of an l4h guest syscall's fault or reply run directly, mostly per-access bookkeeping and Safe RET returns. The bounded queue lets short overlapping entries use direct execution. A successor services remote calls while waiting; a remote stall cancels a non-interrupt entry before it runs. Once served, the probe inherits a drained gate or closes it with a SeqCst store and scans the transaction-active flags. If another core is active, it releases its ticket and uses STM; otherwise it runs the same core entry directly under the gate. A transaction arriving during a fresh probe either publishes its active flag early enough to make the probe fail or observes the closed gate and waits. A failed probe has no memory effects beyond the gate protocol and remote-call servicing.
 - **Serial handoff.** The closed word distinguishes open (0), closing/draining (1), and closed with transaction bodies excluded (2). After a successful drain, it stays at 2 while serial tickets are queued. A successor acquires the predecessor's release of the serving ticket, then can reuse that exclusion without another locked close or full flag scan. If release opens the gate, the successor must perform the complete handshake again. A failed probe leaves state 1, so it cannot pass an exclusion certificate while a transaction still runs. A transaction that announces itself late must still observe the continuously closed gate before running its body. The flag array matches the transaction runtime's 16 supported participants, instead of scanning 64 flags.
 - **Contention restores concurrency.** A failed probe or a transaction waiting for a closed gate advances a contention generation. Each core observing a new generation sends its next entry through STM, without the previous extra 256-entry cooldown. The bounded ticket queue and active-transaction check still reject probes under contention; mandatory serial entries retain FIFO tickets and IPI servicing. The generation is only an admission hint. Exclusion depends on the ticket handoff and SeqCst handshake even with stale policy reads. The shorter deferral avoids spending hundreds of short entries in STM after a transient collision; performance across workloads remains an empirical property.
 - **Store specialization.** Once the runtime has selected direct or transactional execution, x86 entry dispatch uses the corresponding `EntryStore<TX>` implementation of the same `Store` interface. The exit path also uses the direct specialization, including VM entry/exit bookkeeping under its existing synchronization. Both forward through the existing `PhysStore` implementation with a constant mode, removing a mode branch from each word access. Kernel logic, capability checks, scheduler semantics, and extracted proof definitions are unchanged. Runtime statistics remain enabled in debug builds; release builds avoid updating their otherwise unused shared counters.
@@ -739,6 +818,60 @@ unmodified base because it expected a transaction on a quiet core, where
 opportunistic admission now runs serially. Its setup now enters policy
 backoff first, ensuring that the test actually exercises an aborted attempt.
 
+**Guest syscall fast paths (§6, 2026-11-21).** Same host and guest as
+below, with deep probes in both kernels, `getppid` loops with one thread
+pinned per vCPU (2.5–3 s each, after boot settles): 1 thread 716 → 654 ns
+per call, total throughput with 2, 4 and 6 threads 2.30 → 2.74, 1.77 → 2.21
+and 1.52 → 1.64 M calls/s. The kernel part of an entry (the body run under
+the gate) averages 623 TSC cycles without the fast paths and 503 with them;
+the CR3 load (no PCIDs here) is about 140 of either. A measurement build
+counted both fast paths running the same number of times (1,940 and 1,932
+in a 50 ms loop). Most of the rest of a 2,500-cycle round
+trip is entry and exit: CR0.TS set on the switch to the kernel thread
+(the FPU is switched lazily), the CR3 loads, and the gate.
+
+**Guest syscall fast paths beside the gate (§6, §7, 2026-11-21).** Same
+loops: 1 thread 655 → 675 ns per call against the gated fast paths (715
+without them); total throughput with 2, 4 and 6 threads 2.66 → 2.76, 2.27 →
+5.20 and 1.66 → 7.11 M calls/s, so per-thread latency stays within 25% of
+one thread's at six. `run-smpbench.py` with l4h #209's harness (divisor 4,
+three boots each, alternating with main before these changes): getpid 1.43
+→ 1.52 M at 1 vCPU, 1.01 → 5.12 M at 4 and 1.06 → 7.27 M at 6; pipe and
+futex round trips within 2%; fork_wait 8% lower at 1 vCPU, 17% higher at
+4 and 10% lower at 6, fault_4k 6% lower at 1 vCPU (turning off
+transactions accounts for 1–3% of the fork losses). The older harness
+measured while l4h-logd was still writing the guest's boot log, which
+slows syscalls by 20–25% for half a second after boot (I/O port
+invocations, §6); a kernel that ran the first phases sooner measured more
+of its IPC phases inside that window, and showed pipe and futex round
+trips up to 19% slower.
+
+**Deep gate probes (x86_64, 2026-11-20).** With the probe bound at two, a
+third concurrent core's entries ran as transactions, and an l4h guest's
+syscall throughput fell as vCPUs were added. Raw `getppid` loops pinned one
+per vCPU in a 6-vCPU guest (Ryzen 7 7700, QEMU/KVM, 6 host cores): 1.13 M
+calls/s with one thread, 2.2 M with two, then 0.75 M with four and 1.12 M
+with six (per-call latency 5.3 µs). Letting probes queue behind every other
+core (§7) gives 1.65 M and 1.53 M, with one and two threads unchanged.
+`run-smpbench.py`, divisor 4, medians of three interleaved boots (higher is
+better):
+
+| Linux vCPUs | Metric | seL4 | FL4 base | Deep probes |
+| ---: | --- | ---: | ---: | ---: |
+| 4 | getpid (calls/s) | 1.20 M | 0.95 M | 1.41 M |
+| 4 | fault_4k (faults/s) | 502 k | 425 k | 473 k |
+| 4 | fork_wait (cycles/s) | 11.6 k | 7.0 k | 8.6 k |
+| 6 | getpid | 1.22 M | 1.06 M | 1.32 M |
+| 6 | fault_4k | 605 k | 491 k | 561 k |
+| 6 | fork_wait | 11.1 k | 8.8 k | 8.5 k |
+
+The other metrics (pipes, futexes, 1 vCPU) are within ±7%. At divisor 4 the
+6-vCPU compute phase reads 8–10% lower with deep probes; at full length
+(divisor 1) both give 5.18 G ops/s, and a two-second pinned compute loop shows
+the same per-vCPU rate, so that is a few milliseconds of fixed start or end
+skew in a short phase, not lost throughput. A full-length 6-vCPU boot gives
+getpid 1.09 M → 1.51 M, fault_4k 562 k → 672 k, fork_wait 9.39 k → 8.84 k.
+
 **Fork serial-gate follow-up (same base).** The gate changes in §7 recover
 direct execution promptly after transient contention, reuse exclusion
 between queued serial tickets, and scan the runtime's 16 supported cores.
@@ -819,6 +952,6 @@ Settled on 2026-11-12.
 | Fastpaths                   | None for now. Only the general, verified IPC path.                                                                                        | §1, §3                  |
 | Test hardware               | Only inside QEMU/KVM guests on the development machine. FL4 never boots on that machine's hardware.                                       | §12                              |
 | Fine-grained locking        | A transactional store (TL2 style) under the unchanged serial core, not a prepare/perform split of every operation. Decided 2026-11-13. | §6, §7, §9, §13 |
-| IBPB on context switch      | No separate context-switch barrier. Native kernel entry and every VM exit now issue IBPB to protect the kernel and userspace VMM. General user-to-user side-channel isolation remains outside the model. Revised 2026-11-17; see [the security policy](docs/virtualization-security.md). | §3 |
+| IBPB on context switch      | No separate context-switch barrier. Native kernel entry uses IBPB or Safe RET to protect the kernel, or neither on AMD CPUs with AutoIBRS that report SRSO_NO or SRSO_USER_KERNEL_NO. Every VM exit issues IBPB to protect the kernel and userspace VMM. General user-to-user side-channel isolation remains outside the model. Revised 2026-11-17; see [the security policy](docs/virtualization-security.md). | §3 |
 
 VT-x and AMD-V support precede the AArch64 port. P0 covers the virtualization policy; P1/P3 use the expanded capability and TCB layouts, with native semantic scope as described in §9.

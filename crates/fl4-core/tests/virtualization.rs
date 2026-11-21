@@ -373,6 +373,20 @@ fn svm_restricts_addresses_intercepts_and_pat() {
     assert!(vcpu::sanitize_vmcb(&a, 0x620, 0, 0x800000000000).is_err());
     assert!(vcpu::sanitize_vmcb(&a, 0x668, 0, 0x0202020202020202).is_err());
 }
+/// Audit r11 F1: guest INVLPGB and TLBSYNC (broadcast invalidation,
+/// tagged with the ASID every FL4 VCPU shares) raise #UD unless VMCB
+/// 0x090 bit 7 enables them. FL4 sets that word once, to nested paging
+/// only, and the VMM cannot write it.
+#[test]
+fn svm_guests_cannot_enable_broadcast_tlb_invalidation() {
+    let (s, _, _, v) = fixture(2);
+    assert_eq!(vcpu::get(&s, v, vcpu::svm::NESTED_CTL), 1);
+    let a = Machine { backend: 2, ..Default::default() };
+    for val in [1 << 7, 0x81, u64::MAX] {
+        assert!(vcpu::sanitize_vmcb(&a, vcpu::svm::NESTED_CTL, 1, val).is_err());
+    }
+}
+
 #[test]
 fn xcr0_groups_and_canonical_width_match_hardware_rules() {
     for x in [0, 4, 5, 0x21, 0x81, 0xe3, 0x20001, 0x40001] {

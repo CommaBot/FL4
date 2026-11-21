@@ -279,7 +279,7 @@ theorem kernel_entryJ27 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
   have hct : σ.curThread ≠ σ.idleThread := hni.1
   have hC : CurInv σ := J.cur.resolve_left (by rw [hni.2]; intro e; cases e)
   exact kernel_entryJ26P s a σ J hni hR hS.1.1.vim n c hn hflag

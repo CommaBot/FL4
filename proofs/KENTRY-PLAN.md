@@ -11712,3 +11712,49 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14f`, modules SpecInvRd14fB–H 
   inaccessible hypothesis, not the constructor argument — name every intro'd hypothesis; (2) `unfold a b c` fails when one of the
   constants does not occur (inside `try` it silently does nothing); (3) for `threadSet f t` goals use `dws_svcf (by sv_auto)
   (by cfk_auto)` (the goal fixes `f`), not `SVK.sv_threadSet' _ …` (identity inferred).
+
+## m56 (branch par/m56 in FL4-m56, on cee16d24 + merge of main 6d1355e9: #52 untyped reset read-back, #54 #[inline], #56 fast paths) — phase 1 DONE (re-extraction, every P0/P1/P3 break fixed, full build green, no sorry); phase 2 (fastpath refinement lemmas) NOT done: the fast paths enter through one named premise, narrowed to `SysReplyRecv` at the P3 top
+- **Extraction.** Aeneas nightly-2026.11.14-0d21a9e, no error. Fl4Core: new `fastpath.*` (switch_to, schedulable_here, fault,
+  reply_caps, reply_recv_found, reply_recv), `ioport.is_port_label` / `invocation_ok`, `syscall.syscall s a n fast`
+  (`handle_syscall` = fast true, `handle_syscall_general` / `handle_syscall_fast`), `handle_syscall_local`,
+  `handle_ioport_local`; `unknown_syscall_fault` / `handle_unknown_syscall` take `fast` and return `(Bool × S × A)`;
+  `untyped.reset_untyped_loop.body` reads the cap back after writing it and ends `Preempted` on `as_untyped = none`.
+  `handle_trap_syscall` calls `handle_unknown_syscall … false`. P0: Manual.lean.in `handle_unknown_syscall.p0` takes `fast`,
+  `reset_untyped_loop.p0` splits the read-back `if` (`p0_ite_head`); gen_p0 1077/1077 proved, 0 sorry (the six new
+  fastpath / syscall functions fall to `p0_split` / `p0_structural` in rounds 1-4).
+- **P1 (SyscallGen, new; imported by Store).** The pre-#56 bodies verbatim (`unknown_syscall_fault_old`,
+  `handle_unknown_syscall_old`, `handle_syscall_old`) and `unknown_syscall_fault_false`, `handle_unknown_syscall_false`,
+  `syscall_false`, **`handle_syscall_general_eq : handle_syscall_general = handle_syscall_old`**. Every P1 / P3 reference to
+  the three old functions is renamed to `_old` (92 occurrences, 57 files; proofs unchanged), so each such lemma is a lemma
+  about the general path. **`FastAgree st ar s a n P` [P]** := `handle_syscall_general ⦃P⦄ → handle_syscall ⦃P⦄` (fastpath.rs's
+  intended theorem, for one postcondition: the fast paths reorder writes with equal values, so the end states agree in
+  memory, not as terms of an abstract `S`; an equation of results would be false for non-extensional stores).
+  `FastAgree.of_eq`, `FastAgree.spec`. P1 top **`kernel_entry.entry_of4`** keeps its statement (about `handle_syscall`) with one
+  new premise `hF : ∀ n ≠ VMEnter, FastAgree … (EntryInvs …)`; `entry_of4G` is the previous top on the general path.
+  QueueReset `reset_untyped_loop.rinv`: the read-back branch.
+- **P3.** `UntypedResetRefine.reset_loop`, `UtResetLoopJ`, `UtResetLoopJM`, `UntypedFrame`: the read-back branch (the cap just written is the
+  untyped cap, `ResetRel.cap` / `hcap2`, so `none` is not taken; in the frame lemma both branches are covered).
+  **`handle_syscall_eq_general_of`**: with the trap flag clear after the FaultIP write (`hflag`, already a premise) and a
+  native number (`NativeSys.range`), `handle_syscall = handle_syscall_general` unless `n = SysReplyRecv` (fastpath.fault sits
+  behind the trap flag / out-of-range numbers). **`kernel_entryJ33`** (the newest top) keeps its statement with one new premise
+  **`hFast : n = SysReplyRecv → P1.FastAgree st arI s a n (KPost …)`** [P]; `kernel_entryJ33G` is the previous top (general path).
+  Earlier tops (`kernel_entryJ4`…`J32`) now speak of `handle_syscall_old` = the general path.
+- **Premises.** Added: `hFast` (J33, only SysReplyRecv's fast path), `hF` (P1 entry_of4, every fast path). Removed: none.
+  Both are true wherever the fast paths are correct (the kernel's own claim, fl4-sim `--fastpath-diff`), never in conflict
+  with a reachable state; phase 2 discharges them.
+- **Phase 2 NOT done.** Plan: (a) decline lemmas — every `false` exit of `fastpath.fault` / `reply_recv_found` is syntactically
+  `ok (false, s, a)` (checked in Funs.lean), so `fast = (false, s', a') → (s', a') = (s, a)` is a structural lemma; with it,
+  `FastAgree` reduces to the accepted case; (b) `reply_recv_found` accepted ⇒ same `L.mem` / Arch effects as the general
+  ReplyRecv (decode, do_reply_transfer, receive on an idle endpoint, schedule choosing `u`): l4v `Fastpath_C`-sized work.
+  No FINDING (no trace where a fast path differs was found; none was looked for beyond the code reading above).
+- **Builds (tokyo, mirror FL4-m56; m56-regen.sh untracked, seeding `.lake` from FL4-audit; keys m56-*).** regen1: extraction
+  OK, gen_p0 stopped on the two manual proofs (Auto with p0 failures, UntypedResetRefine). regen2: extraction + gen_p0
+  (1077/1077) + full build: only UntypedFrame. build3-7 (plain `lake build`, incremental): UntypedFrame (P0 lemmas not in
+  its cone: `slot_cap_eq` instead), UtResetLoopJ, UtResetLoopJM, XTopJointKEntry33 (twice: implicit store, `Result` has
+  constructors ret / vis, `rw [if_neg]` rewrites one instance). **build8: "Build completed successfully (6909 jobs)"**, 0
+  sorry. Axioms (axm56.lean, untracked): kernel_entryJ33, kernel_entryJ33G, handle_syscall_eq_general_of, kcall_rdyOffW,
+  kentry_rdyOffW (spec-level, untouched), P1 handle_syscall_general_eq, syscall_false, FastAgree.spec, kernel_entry.entry_of4,
+  untyped.reset_untyped_loop.rinv, P3 reset_loop, P0 untyped.reset_untyped_loop.p0: propext, Classical.choice, Quot.sound.
+- Commits: 5b6d50a7 (merge), 3c747351 (P0), b0bad0f4 (P1), 2d63844d (P3), this section.
+- HANDOFF: phase 2 above; then `hFast` / `hF` go (decline lemma + accepted-case refinement of `reply_recv_found` for J33;
+  `fastpath.fault` too for the P1 top, which quantifies over trap-flagged threads).

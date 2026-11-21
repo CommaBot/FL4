@@ -75,6 +75,7 @@ pub fn remote_reschedule<S: Store, A: Arch>(s: &mut S, a: &mut A, cpu: u64) {
 /// seL4 `remoteQueueUpdate`: `t` was queued on another core; that core
 /// must reschedule if it is idle, runs a lower priority, or must reprogram
 /// its timer.
+#[inline(always)]
 pub fn remote_queue_update<S: Store>(s: &mut S, t: Tcb) {
     let cpu = t.affinity(s);
     if cpu == s.cur_cpu() || t.domain(s) != sched::cur_domain(s) {
@@ -90,6 +91,7 @@ pub fn remote_queue_update<S: Store>(s: &mut S, t: Tcb) {
 }
 
 /// Send the reschedule IPIs this entry asked for.
+#[inline(always)]
 pub fn send_pending<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     let c = s.cur_cpu();
     let m = node_get(s, c, node::IPI_PENDING);

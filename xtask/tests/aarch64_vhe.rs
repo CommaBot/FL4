@@ -392,7 +392,7 @@ fn el1_sctlr_is_set_before_leaving_el2_with_e2h_fixed_at_one() {
 
 /// Between `fl4_el_setup`'s EL check and its `eret`, every EL1 register
 /// written is one that E2H does not redirect (the pointer authentication
-/// keys, which have no EL2 counterparts). SCTLR_EL1, written on one path
+/// keys are written after the `eret`, at EL1). SCTLR_EL1, written on one path
 /// per E2H value, is checked by running the code instead.
 #[test]
 fn el2_setup_writes_no_redirected_el1_register_unguarded() {

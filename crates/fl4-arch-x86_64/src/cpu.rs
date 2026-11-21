@@ -73,6 +73,24 @@ pub fn cpuid(leaf: u32, sub: u32) -> Cpuid {
     Cpuid { eax: r.eax, ebx: r.ebx, ecx: r.ecx, edx: r.edx }
 }
 
+/// Serialize instruction fetch after a code patch. Under SNP CPUID takes
+/// #VC, which the kernel's `vc()` does not emulate (fl4-kernel/src/snp.rs),
+/// so SNP uses IRET instead: itself serializing, and not intercepted into
+/// #VC.
+#[inline]
+pub fn serialize_instructions() {
+    if crate::sev::snp::active() {
+        return iret_to_self();
+    }
+    // The assembly also acts as a compiler memory barrier. LLVM reserves
+    // RBX, so save and restore it here.
+    unsafe {
+        asm!("push rbx", "cpuid", "pop rbx",
+            inout("eax") 0u32 => _, inout("ecx") 0u32 => _, lateout("edx") _,
+            options(preserves_flags));
+    }
+}
+
 #[inline]
 pub fn rdmsr(msr: u32) -> u64 {
     let (lo, hi): (u32, u32);
