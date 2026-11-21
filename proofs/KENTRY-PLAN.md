@@ -9271,3 +9271,66 @@ Spec module **SpecInvAllR** (helpers in `Fl4Proofs.P3.SInvQ.P20`, bundle in `Fl4
 - HANDOFF: when rd lands `Rdy` / its exit facts as carried fields (or proves its open body hypotheses), `CAx` at every exit
   follows from rd10's tops. `kentry_sinvCR_ofRd` / `kcall_sinvCR_ofRd` then become `kentry_sinvCR` / `kcall_sinvCR`, with no
   change here. Alternatively, add `CAx` to the bundle: rd's tops already conclude it at every exit.
+## rd11b (branch par/rd11b in FL4-q, on 146a5b76 = int/j2 incl. rd10, ctq19, g3e) — rd10 handoff 3 (hEvO for the fault events) DONE up to a named Rdy hypothesis; 4 (hQ4) DONE
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A11b` (every new name), modules SpecInvRd11bA, SpecInvRd11bB (new; root imports them).
+Nothing existing edited. No JAtZ cone. Keys rd11b-1..5 (./rd11bs.sh untracked = FL4-tcbj's rd10s.sh with its own log;
+scratch/rd11b/ax.lean untracked).
+- **SpecInvRd11bA (handle_fault of ct).** `NB0 t` (t not receive-blocked), `QS t` (rd9's `QR` with "not receive-blocked" in
+  place of "runnable": all `no_sendIpc` needs is dest ≠ t, and ct may be `idleThreadState` in `BS`), `qs_tcbEpDequeue`;
+  **`no_sendIpcD`** (rd9's `no_sendIpc` for any `canDonate`: the donating arm is the no-fault non-call one, absurd once the
+  fault is set; `reply_push` donates after its BlockedOnReply write); `sfi_no`; **`nr_handleFault`** (`TP (NB0 t)` ⇒ t not
+  runnable after `handle_fault t`: endpoint cap ⇒ `no_sendIpcD`; null cap ⇒ `handle_no_fault` Inactive; other caps fail).
+  CP leaves `sv_orderedInsert` (RdL's `t_mem_orderedInsert`), `sv_tcbEpAppend`, `cp_tcbEpAppend` / `cp_tcbEpDequeue` /
+  `cp_bindScReply` / `cp_replyUnlinkTcb`, `cp_replyPush` (any d), **`cp_sendIpc`** (any block / call / donate; tactic
+  `cp11b_auto` = rd8a's `cp_auto` + these leaves + `cp_ifCondTest` + `ik_maybeM` + `split`), `cp_sendFaultIpc`,
+  **`cp_handleFault`**, `cfk_handleFault`. `PV σ0 t` (CP ∧ cfS ∧ `TP (NB0 t)`), `mem_hvf` (handle_vm_fault: machine read,
+  register read, always throws), **`pv_handleVmFault`**.
+- **SpecInvRd11bB (hEvO fault part, hQ4, tops).** `FH ev t` (the handler after a `true` front: handle_fault for unknown
+  syscall / user-level fault, `catch (handle_vm_fault) handle_fault`, the x64 hypervisor no-op); `mem_arm`, **`mem_faultEv`**
+  (outcome = `false` front outcome, or an FH outcome after a `true` one); `nb0_of_bs`; **`hf_ev`** (from `BS s`: FH outcome
+  = s, or CP s cur_sc ∧ cfS kept ∧ ct NRun); **`ss4_end`** (OS by `os_frame`; CtR vacuous (ct NRun); RCA / HRC vacuous:
+  ctq's `CB` at the outcome (resume ⇒ ct runnable or idle) with ct NRun and ct ≠ idle rules out resume); `RdF ev σ`;
+  **`ev_fault`** (`SS ∧ NQ []` at every fault-event outcome: `false` front by rd8a's `front_false` with its `hCtRc` from
+  rd10's `charge_ss4 ∘ bs_uts`; `true` front by `bs_front` + `hf_ev` + `ss4_end`; `CB` and `NQ []` from ctq's EBX at the
+  outcome). hQ4: **`ebx_other`** (ctq19's `kcall_tq_other` stopped at the event part), **`ebx_sys`** (ctq17's
+  `kcall_tq_sys` likewise), **`sq4_ev`** (every event), **`sq4_fip`** (ctq19's `kentry_tq` carry to the FaultIP state, any
+  `rep`, then `ebx_sys`).
+- **STATEMENT (tops).**
+  `kcall_rdyOff3j hnd rep ev σ (hEF : ev ≠ .interrupt → A8.EF σ) (hEFI : ev = .interrupt → EFI σ) (hX10 : EV10 σ) (hX : EX
+   σ) (hR : RB σ) (h4 : T4 σ) (hCX : CtExit σ) (ha : ct active ∨ ev = .interrupt) (hN : NQ [ct] σ) (hS : syscall → SysF I d
+   Nq σ) hRdB (hOsB : syscalls ≠ Yield) (hRdF : fault events → RdF ev σ) : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧
+   CAx`;
+  `kentry_rdyOff3j hnd rep c σ (h : A8.EF σ) hX10 hX hR h4 hCX (ha : ct active) hIu hIL hJ hE hI2 hI1 (hW : ∀ w ∈
+   fl4SyscallFaultIP ct σ, RdBody rep c w.2 ∧ (c ≠ .sysYield → OsBody rep c w.2)) : ∀ r ∈ fl4KernelEntrySyscall rep c σ, Rdy
+   ∧ OffReady ∧ CAx`.
+  vs rd10's `kcall_rdyOff3i`: `hEvO` and `hQ4` gone, `hni` gone (derived: ct active + ValidIdle + CtExit,
+  `ne_idle_of_active`); `hEF` asked for every non-interrupt event (was: syscalls) — the same carried rd8a `EF`, whose
+  only event-dependent field `ni` holds off the interrupt; ctq19's `kcall_tq` premises added (all carried: ctq19's
+  `kcall_tqB` derives each from SInvB + the bundle `EX ∧ RB ∧ T4`). vs rd10's `kentry_rdyOff3`: `hW`'s SQ4 part gone;
+  ctq19's `kentry_tq` premises added (carried).
+- **Premises.** None [J]/[P]/[W]/[S] added; `hnd : numDomains = 1` is SpecInvQDom's [P] (via ctq17/19, unchanged). Named
+  hypotheses left, each pinned to the given entry's outcomes (no ∀-states):
+  * `hRdF : RdF ev σ` = `∀ v ∈ front σ, v.1 = true → ∀ z ∈ FH ev v.2.curThread v.2, Rdy z.2` — **for rd8e/f's eventual
+    `rd_handleFault`** (Rdy across handle_fault / the caught handle_vm_fault from `rd_front`'s facts at the `true`
+    outcome; l4v: `handle_fault` keeps the release-queue / ready-queue readiness invariants, `valid_sched`); true in
+    reachable states as an instance of the Rdy carry. (The hypervisor case is the no-op: Rdy from `BS.rdy`.)
+  * `hRdB` (rd8e/f, unchanged), `hOsB` / `hW`'s OsBody (rd11a, syscalls other than Yield).
+- No FINDING. Checked: every `handle_fault` outcome leaves ct not runnable (BlockedOnSend / BlockedOnReply / Inactive;
+  the receiver is BlockedOnReceive so never ct), keeps cfS and cur_sc's refills / max (the donation in reply_push only
+  moves cur_sc's `sc_tcb`; the unblock check runs only on `scp ≠ cur_sc`), and never sets resume; with ct not runnable,
+  resume is excluded at the outcome (ctq's CB), so RCA / HRC hold vacuously. A ct ≠ idle in `idleThreadState` (not
+  excluded by ValidIdle) is handled: the argument only needs "not receive-blocked".
+- Builds (tokyo, FL4-q mirror warm): rd11b-1 SpecInvRd10A3 + SpecInvCqP2 (warm-up, 5412 jobs, 3 min: the rd8-10 modules were
+  not yet built in this mirror); -2 A failed (CP leaves missing: bindScReply, tcbEpAppend, replyUnlinkTcb); -3 A failed (SVM
+  of orderedInsert inside tcbAppend, CP of tcbEpDequeue); -4 A + B ok (5416 jobs, ~40 s; B first try); -5 A + B + source
+  grep + axioms (scratch/rd11b/ax.lean): no_sendIpcD, sfi_no, nr_handleFault, cp_replyPush, cp_sendIpc, cp_sendFaultIpc,
+  cp_handleFault, cfk_handleFault, sv_tcbEpAppend, mem_hvf, pv_handleVmFault, mem_arm, mem_faultEv, hf_ev, ev_fault,
+  ebx_other, ebx_sys, sq4_ev, sq4_fip, kcall_rdyOff3j, kentry_rdyOff3j: propext, Classical.choice, Quot.sound; ss4_end:
+  propext, Classical.choice. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (two import lines).
+- HANDOFF: (1) rd8e/f: prove `RdF` (Rdy across `FH ev ct` from `rd_front`'s facts at a `true` front outcome; the CP / NRun
+  kit here gives the scheduler-side frame: cur_sc refills kept, ct not runnable, no resume); (2) rd11a's OsBody then
+  removes `hOsB` / `hW`'s OsBody; (3) with ctq19's bundle in SInvB, an SInvB-level top (as ctq19's `kcall_tqB`) can read
+  `hX hR h4 hCX ha hN hS` and EF / EFI / EV10 from the carried fields.
+- Lean notes: rd8a's generic `cp_leaf` (ik_cp + sv_auto / cfk_auto) covers most writers but not `orderedInsert` (no SVM leaf:
+  RdL's `t_mem_orderedInsert` says the state is kept) nor tcbEpDequeue / bindScReply / replyUnlinkTcb / tcbEpAppend (SVM
+  lemmas exist but are not `sv_leaf`s); `sv_step0` is a global macro (no namespace prefix).
