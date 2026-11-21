@@ -12,6 +12,7 @@ P3 (DESIGN.md §9), invariant line G1 (rd14b, KENTRY-PLAN rd13b handoff 1):
   error outcome), so `PerfA`.
 -/
 import Fl4Proofs.P3.SpecInvRd14bA
+import Fl4Proofs.P3.SpecInvRd8eA
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.A14b
