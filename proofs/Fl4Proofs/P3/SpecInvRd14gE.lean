@@ -12,7 +12,11 @@ only).
 * The arms: Domain, IRQ control, IRQ ack, FL4 TCB, CNode insert / move /
   rotate, TCB setTLSBase / setFlags / notificationControl / register arms
   without suspend / resume, every l4v arch arm but ASID control, PML4 flush,
-  DeriveSubframe, TestAndClearAccessed; `CovFF`, **`armFU_covFF`**.
+  DeriveSubframe, TestAndClearAccessed; `CovFF`, **`armF_covFF`**.
+* Notification: rd14b's `bl_sendSignal` / `cp_sendSignalU` give `TB`, `qt_sendSignal`
+  (`qt14g_auto`: only Running / Restart / Inactive writes); **`perfF_notification`**, `CovN`.
+* `CF14g2 := CF14g ∨ CovFF ∨ CovN`, `armFU_cf14g2`; tops **`kcall_rdyOffG2`** /
+  **`kentry_rdyOffG2`** (no PerfA input; PerfF asked only outside `CF14g2`).
 -/
 import Fl4Proofs.P3.SpecInvRd14gD
 open Classical
@@ -296,6 +300,19 @@ theorem armF_covN : ArmF CovN := by
 def CF14g2 (b : Fl4Invocation) : Prop := CF14g b ∨ CovFF b ∨ CovN b
 
 theorem armFU_cf14g2 : ArmFU CF14g2 := armFU_cf14g.or ((armFU_of armF_covFF).or (armFU_of armF_covN))
+
+/-- **Today's tops**: no `PerfA` input; `PerfF` asked only outside `CF14g2` (Endpoint, SchedControl
+configure, CNode delete / revoke, ThreadControlCaps / ThreadControlSched). -/
+theorem kcall_rdyOffG2 {σ : State Unit} (hnd : numDomains = 1) (rep : Bool) (ev : Event) (h : B8w.SInvW σ)
+    (hev : ev ≠ .interrupt → σ.curThread ≠ σ.idleThread) (hF : ∀ c, ev = .syscallEvent c → InvFc CF14g2 c σ) :
+    ∀ y ∈ ((fl4CallKernel (Z := Unit) rep ev) σ).1, B8w.SInvW y.2 :=
+  kcall_rdyOffF armAKU_all armFU_cf14g2 hnd rep ev h hev (fun c _ => invRc_all c σ) hF
+
+theorem kentry_rdyOffG2 {σ : State Unit} (hnd : numDomains = 1) (c : Syscall) (h : B8w.SInvW σ)
+    (hct : σ.curThread ≠ σ.idleThread)
+    (hW : ∀ w ∈ (fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1, InvFc CF14g2 c w.2) :
+    ∀ y ∈ ((fl4KernelEntrySyscall (Z := Unit) true c) σ).1, B8w.SInvW y.2 :=
+  kentry_rdyOffF armAKU_all armFU_cf14g2 hnd c h hct fun w hw => ⟨invRc_all c w.2, hW w hw⟩
 
 end
 
