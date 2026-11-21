@@ -11011,3 +11011,44 @@ Goal: g2e (3) (a)–(f). New leaves only (XTopJointWJPL, XTopJointLiveIns; root 
   JAtZ.liveDN_ppw, JAtPreMVL.toMV, WJPML.toM, jPreemptHypLML, delHypsJLML, JDelParts.jDelHypLML, JAtL.toJAt, cn_del_topJLML,
   decode_invocation_cnode_revokeJLML, decode_invocation_cnode_deleteJLML, LiveDN.insG, LiveDN.insC, LiveDN.of_jstep: propext,
   Classical.choice, Quot.sound; capSimL_fullF, refsObj_objRefs: propext.
+## rd8t (branch par/rd8t in FL4-r3, on dd3a1c65 = int/j2 incl. rd8r, rd14b, rd8q, g2e; + lead fixes 70b5071f / d9889bf3 / 54ce3493 as 5fa45b55 / 92fbeef2 / bd5fb04e) — rd8r's "Not done" DONE (`kentry_rdyOff6p`); rd8m handoff 1 DONE up to rd15a's `RecvTC` (`RcvIn` = `RecvTC` + ScInv), 4 DONE (superseded by stronger tops), 5 DONE; goal 3 DONE (`kcall_rdyOffT` / `kentry_rdyOffT`: the latest line in one statement)
+Spec-only, new names under `Fl4Proofs.P3.SInvR.B8t`, module SpecInvRd8tA (root imports it). Nothing existing edited (apart from the lead's three
+cherry-picked import fixes to SpecInvRd14bA / A2). No JAtZ cone (scratch/rd8h/anc.py on SpecInvRd8tA: 993 modules, no JointAt / XTopJointDelR /
+JAtZ). Keys rd8t-1..4 (./rd8ts.sh untracked = rd8rs.sh with its own log; proofs/scratch/rd8t/ax.lean untracked).
+- **`rcvIn_of (EntryOK σe) (EvP C N S I d Nq σe σ) (A15a.RecvTC rep c σ) : B8m.RcvIn rep c σ`** (rd8m handoff 1). rd8m's `RcvIn` = ScInv ∧ ct
+  ¬BlkR ∧ RT ct at the ok first-phase outcomes; the last two conjuncts are exactly rd15a's `RecvTC` (same quantifier prefix), ScInv is rd15a's
+  `sc_first` (sb2's `sb_handleInvocationR` from EvP's SH / Js) at `evp_getCapReg (evp_front …)`. So rd8m's `RcvIn` and rd15a's `RecvTC` are one
+  pinned input; `RecvTC` itself stays open (per-arm, inside rd14b / rd14c's PerfA: not this line's scope).
+- **`rdBody_p hnd rep c σ (A8.EF σ) (IO idleSc σ) (EntryOK σ) (EvP ct idle idleSc I d Nq σ σ) (ct ≠ idle) (SInvQ.RS σ) (SysF I d Nq σ) hPs hPr
+  (RcvIn) : A9.RdBody rep c σ`** = rd8m's `rdBody_all` with rd8r's `preR_of2` (EB true = EvP.1.1.1, T1 = `tq_t1` of it, VfhAll = EntryOK.vfh,
+  JE = ⟨EvP's Js, EB, Simple⟩ as in `kcall_rdyOff6p`); **`rdBody_c`** = the same with `RecvTC` (via `rcvIn_of`).
+- **`fip_sys (RS σ) hIu hIL hJ (EF Nq σ) hI2 hI1 : ∀ w ∈ fl4SyscallFaultIP ct σ, SysF I d Nq w.2 ∧ RS w.2`** (ctq19's `kentry_tq` preamble; RS
+  by `ik_arch_fip`: as_user only replaces one TCB's arch state, scheduler_action untouched).
+- **`kentry_rdyOff6p hnd rep c σ h hX10 hX hR h4 hCX ha hIu hIL hJ hE hI2 hI1 (hRS : SInvQ.RS σ) (hW : ∀ w ∈ FaultIP, InvIn(send) ∧ InvIn(sr) ∧
+  RcvIn ∧ InvR ∧ RecvTA at w.2) : ∀ r ∈ fl4KernelEntrySyscall rep c σ, Rdy ∧ OffReady ∧ CAx`** (goal 1) = rd13a's `kentry_rdyOff6` with `RdBody`
+  at every FaultIP outcome by `rdBody_p` there: EF by rd8a's `ef_fip`, EvP / ct ≠ idle by rd13a's `fip_evp`, EntryOK / IO / VfhAll by rd15a's
+  `fip_eo` (IdleScOutV from `hX10.isc`), SysF / RS by `fip_sys`. No `RdBody` / `PreR` input any more; it subsumes rd8m's item 4
+  `kentry_rdyOff6m` (which would still take PreR).
+- **`kcall_rdyOffT hnd rep ev σ hEF hEFI hX10 hX hR h4 hCX ha hN hS (hRS : SInvQ.RS σ) (hPs : syscall c → ∀ r cl bl dn, sendArgs c = some … →
+  InvIn r false σ) (hPr : syscall c → ∀ r cr, srArgs c = some (r, cr) → InvIn r true σ) (hC : syscall c → A15a.RecvTC rep c σ) (hP : syscall c →
+  A14b.InvRo c σ) : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`** and **`kentry_rdyOffT … hI1 (hRS) (hW : ∀ w ∈ FaultIP, InvIn(send) ∧
+  InvIn(sr) ∧ RecvTC ∧ InvRo at w.2)`** (goal 3; rd8m item 4's `kcall_rdyOff7m` is this, stronger) = rd14a's `kcall_rdyOff7` / `kentry_rdyOff7`
+  with: `hRdB` by `rdBody_c`; `InvR` by rd14b's `invR_of` from `InvRo` (rd14b's rdyOff5 line); `RecvTB` by rd15a's `recvTB_of` (InvP1 = hPr, RecvTC;
+  rd15a's rdyOff8 line); `RdF` by rd8h's `rd_handleFault` (EF, T1 = `tq_t1 hX.1.1.1`) — no longer an input; `hIO` dropped (EV10.isc); `RS` is
+  ctq20's `SInvQ.RS` = `SInvCR`'s second component (rd8m item 5: carried at every exit by ctq20).
+- **Named inputs still open (exactly; all pinned to the given entry's run, none ∀-states, none [J]/[P]/[W]/[S] added):** rd8j's `InvIn` (=
+  `PerfIn`: Untyped / ASIDControl Rdy (rd8n), Reply BlockedScActive (rd8l), DomainSet `SR t` (rd8n's VB, rd8s)) for the send arms and the
+  first phase; rd15a's `RecvTC` (ct a TCB ¬BlkR ∧ RT ct at the ok first-phase outcomes; rd14c's PerfA scope); rd14b's `InvRo` (`PerfRo` for the
+  arms outside rd14b's `Cov`; rd14c). Everything else in the statement is a carried entry fact (EF / EFI, EV10, EX, RB, T4, CtExit, ha, NQ,
+  SysF, RS).
+- No FINDING: this line only composes proved pieces; no new reachable-step reasoning. The paper checks of rd8r (HO / CurHold), rd8p (PreR
+  branches) and rd15a (RecvTC) still apply; nothing traced breaks Rdy / OffReady / RV / CAx / CurHold.
+- Builds (tokyo, FL4-r3 mirror): rd8t-1 failed upstream in SpecInvRd14bA (Ipc.NKS / ScOnlyK unknown: rd13a's import cut; lead fix
+  70b5071f); rd8t-2 failed in SpecInvRd14bA2 (A11.sv_cancelIpc; lead fixes d9889bf3 + 54ce3493); rd8t-3 stopped (superseded); rd8t-4
+  SpecInvRd8tA + SpecInvRd14bE green ("Build completed successfully (5666 jobs)"; SpecInvRd8tA compiled first try) + axioms
+  (scratch/rd8t/ax.lean): rcvIn_of, rdBody_p, rdBody_c, fip_sys, kentry_rdyOff6p, kcall_rdyOffT, kentry_rdyOffT: propext, Classical.choice,
+  Quot.sound. 0 `declaration uses sorry`; no sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (one import
+  line). Commits: 5fa45b55 / 92fbeef2 / bd5fb04e (lead's import fixes), dc6bd03f (SpecInvRd8tA + root import), this section.
+- HANDOFF: (1) `RecvTC` and `InvRo` inside rd14b / rd14c's PerfA (add `(∃ x, ct tcb x ∧ ∀ f, ¬BlkR) ∧ RT ct` to its ok outcomes; then
+  `kcall_rdyOffT` loses `hC`). (2) rd8j's `PerfIn` (`hPs` / `hPr`): rd8n's Untyped / ASIDControl, rd8l's BSA carry for Reply, DomainSet's SR
+  via VB (rd8s). (3) Wire `kcall_rdyOffT` / `kentry_rdyOffT` into the SInvCR-level top (its RS / EV10 come from the bundle).
