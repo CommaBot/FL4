@@ -49,49 +49,14 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
-/-- The cap names the CNode or TCB `q` as a container (module docstring). -/
-def RefsObj (q : U64) : capability.Cap → Prop
-  | .CNode p _ _ _ => p = q
-  | .Thread p => p = q
-  | .Zombie p _ _ => p = q
-  | _ => False
-
-/-- The slot `y` holds a cap or an original bit. -/
-def InUse (m : U64 → U64) (σ : Fl4Spec.State Unit) (y : U64) : Prop :=
-  capV m y ≠ .Null ∨ ∃ x, cslotAddr x = y ∧ σ.isOriginalCap x = true
-
-/-- The `n`-th TCB of the debug list from `h` (`0` past its end). -/
-def dbgNth (m : U64 → U64) : Nat → U64 → U64
-  | 0, h => h
-  | n + 1, h => if h = 0#u64 then 0#u64 else dbgNth m n (m (P1.dnA h))
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-
-/-- **A slot inside the kernel-state block** `[kb, kb + 13568)` (the IRQ
-node's one-slot CNodes, `IntLayout.node`; `SlotLiveAt`'s right disjunct). -/
-abbrev KsSlot (kb y : U64) : Prop := kb.val ≤ y.val ∧ y.val < kb.val + 13568
 
 /-- The spec's idle thread kept by every outcome of a deletion step (the
 `GK` family) or a `CnK` step. -/
 theorem _root_.Fl4Proofs.P3.Ipc.CnK.idle {σ σ' : Fl4Spec.State Unit} (h : Ipc.CnK σ σ') :
     σ'.idleThread = σ.idleThread :=
   by have e := congrArg Fl4Spec.AbstractState.idleThread h.1; exact e
-
-/-- Core 0's debug-list head. -/
-abbrev dbgHead (s : S) : U64 := L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)
-
-/-- **The liveness invariant of FL4's caps** [J] (module docstring). -/
-structure LiveJ (th : TypedHeap) (H : P1.Heap) (G : MdbGhost) (s : S) (σ : Fl4Spec.State Unit) : Prop where
-  slots : ∀ q i, IsSlotAt th q i → InUse (L.mem s) σ (slotOf q i) →
-    (∃ y ∈ G.chains.flatten, RefsObj q (capV (L.mem s) y)) ∨ KsSlot (L.ksb s) (slotOf q i)
-  dbg : ∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ 0#u64 →
-    (dbgNth (L.mem s) n (dbgHead (L := L) s)).bv ≠ σ.idleThread →
-    ∃ y ∈ G.chains.flatten, capV (L.mem s) y = .Thread (dbgNth (L.mem s) n (dbgHead (L := L) s))
-  zslots : ∀ y, IsSlot th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n →
-    ∀ i, IsSlotAt th p i → n.val ≤ i → ¬ InUse (L.mem s) σ (slotOf p i)
-  zdead : ∀ y, IsSlot th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n → zt.val = 65 →
-    DeadP (L := L) H s p
 
 /-- **The emptied slot's liveness readiness** (module docstring). -/
 def ReadyLive (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) : Prop :=

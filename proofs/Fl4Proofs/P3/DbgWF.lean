@@ -27,16 +27,6 @@ open fl4_core Fl4Proofs.P1
 
 /-! ## Successor and predecessor in a list -/
 
-/-- The successor of `x` in `l` (`0` past the end or if absent). -/
-def nextIn : List U64 → U64 → U64
-  | [], _ => 0#u64
-  | a :: r, x => if a = x then r.headD 0#u64 else nextIn r x
-
-/-- The predecessor of `x` in `l`, `q` before the first. -/
-def prevA : U64 → List U64 → U64 → U64
-  | _, [], _ => 0#u64
-  | q, a :: r, x => if a = x then q else prevA a r x
-
 theorem nextIn_mem (l : List U64) (x : U64) : nextIn l x = 0#u64 ∨ nextIn l x ∈ l := by
   induction l with
   | nil => exact Or.inl rfl
@@ -214,19 +204,6 @@ theorem prevA_head {l : List U64} {t q : U64} (h : l.headD 0#u64 = t) : prevA q 
   | cons a r => simp only [List.headD_cons] at h; subst h; simp [prevA]
 
 /-! ## The invariant -/
-
-/-- **The debug lists' shape** (module docstring), with the lists given. -/
-structure DbgWFL (T Cs : Set U64) (m : U64 → U64) (hd : U64 → U64) (lst : U64 → List U64) : Prop where
-  head : ∀ c ∈ Cs, m (hd c) = (lst c).headD 0#u64
-  next : ∀ c ∈ Cs, ∀ x ∈ lst c, m (dnA x) = nextIn (lst c) x
-  prev : ∀ c ∈ Cs, ∀ x ∈ lst c, m (dpA x) = prevA 0#u64 (lst c) x
-  nodup : ∀ c ∈ Cs, (lst c).Nodup
-  zero : ∀ c ∈ Cs, 0#u64 ∉ lst c
-  mem : ∀ c ∈ Cs, ∀ x ∈ lst c, x ∈ T ∧ m (affA x) = c
-  off : ∀ y ∈ T, (∀ c ∈ Cs, y ∉ lst c) → m (dnA y) = 0#u64 ∧ m (dpA y) = 0#u64
-
-/-- **The debug lists are well formed** [J] (module docstring). -/
-def DbgWF (T Cs : Set U64) (m : U64 → U64) (hd : U64 → U64) : Prop := ∃ lst, DbgWFL T Cs m hd lst
 
 /-- The lists of different cores are disjoint. -/
 theorem DbgWFL.disj {T Cs : Set U64} {m hd : U64 → U64} {lst : U64 → List U64} (h : DbgWFL T Cs m hd lst)
@@ -488,26 +465,8 @@ theorem dbgRm_wf {T Cs : Set U64} {hd m : U64 → U64} {lst : U64 → List U64} 
       rw [if_neg c1, if_neg c2]
       exact hz
 
-/-- `DbgWFL` reads the TCBs' debug and affinity words and the cores' head
-words only. -/
-theorem DbgWFL.congr {T Cs : Set U64} {m m' hd hd' : U64 → U64} {lst : U64 → List U64} (h : DbgWFL T Cs m hd lst)
-    (hy : ∀ y ∈ T, m' (dnA y) = m (dnA y) ∧ m' (dpA y) = m (dpA y) ∧ m' (affA y) = m (affA y))
-    (hh : ∀ c ∈ Cs, m' (hd' c) = m (hd c)) : DbgWFL T Cs m' hd' lst :=
-  ⟨fun c hc => (hh c hc).trans (h.head c hc),
-    fun c hc x hx => ((hy x (h.mem c hc x hx).1).1).trans (h.next c hc x hx),
-    fun c hc x hx => ((hy x (h.mem c hc x hx).1).2.1).trans (h.prev c hc x hx),
-    h.nodup, h.zero,
-    fun c hc x hx => ⟨(h.mem c hc x hx).1, ((hy x (h.mem c hc x hx).1).2.2).trans (h.mem c hc x hx).2⟩,
-    fun y hyT hn => ⟨((hy y hyT).1).trans (h.off y hyT hn).1, ((hy y hyT).2.1).trans (h.off y hyT hn).2⟩⟩
-
 section Store
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
-
-/-- The cores' debug-list head words. -/
-abbrev dbgHd (s : S) : U64 → U64 := fun c => L.nodeAt s c layout.node.DEBUG_TCBS
-
-/-- **The debug lists of a state are well formed** [J] (module docstring). -/
-abbrev DbgWFs (T Cs : Set U64) (s : S) : Prop := DbgWF T Cs (L.mem s) (dbgHd (L := L) s)
 
 /-- The debug words apart, from the TCBs' and the nodes' placement. -/
 theorem dbgApart_of {T Cs : Set U64} {s : S} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c) :
@@ -530,9 +489,6 @@ theorem dbgApart_of {T Cs : Set U64} {s : S} (hT : TcbPlaced T) (hN : ∀ c ∈ 
     fun y hy y' hy' => hne2 (K1 := 3520#u64) (K2 := 3576#u64) hy hy' (by simp) (by simp) (by simp),
     fun y hy y' hy' => hne2 (K1 := 3520#u64) (K2 := 3584#u64) hy hy' (by simp) (by simp) (by simp),
     fun y hy c hc e => hnd (K := 3520#u64) hc hy (by simp) e.symm⟩
-
-theorem dbgHd_of_ksb {s s' : S} (h : L.ksb s' = L.ksb s) : dbgHd (L := L) s' = dbgHd (L := L) s := by
-  funext c; unfold dbgHd LawfulStore.nodeAt; rw [h]
 
 /-- **FL4's `debug_remove t`, word by word** (`dbgRmM`, every aligned word;
 the kernel-state base kept). -/

@@ -38,6 +38,7 @@ import Fl4Proofs.P3.ScIpcSorted
 import Fl4Proofs.P3.ScRecvLinks
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.BufDefs
+import Fl4Proofs.P3.LiveDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3

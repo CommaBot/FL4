@@ -107,13 +107,15 @@ theorem JAtZ.regWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
     (J.inv.updSame (y := setReg x r v.bv) hk rfl rfl (Or.inl rfl)) hblk hfoot
 
 set_option maxHeartbeats 16000000 in
-/-- **`set_thread_state Running` of a `Restart` thread at `J`** (module
-docstring). -/
-theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+/-- **`set_thread_state Running` of a `Restart` thread at `J`, the dead set
+kept** (XTopJointReply's `JAtZ.runJ`, same proof; the post names the dead
+set `D` and adds the slot and debug-word frames). -/
+theorem JAtZ.runJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .restart) :
-    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 => ∃ (Lst' : U64 → List U64) (D' : Set U64),
-      JAtZ (L := L) arI AR Z H Cs Ac Lst' D' s6 a
-        (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ⦄ := by
+    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 => ∃ (Lst' : U64 → List U64),
+      JAtZ (L := L) arI AR Z H Cs Ac Lst' D s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ∧
+      SlotsSame Z.th (L.mem s) (L.mem s6) ∧ P1.DbgKeep st (P1.Heap.tcbs H) Cs s s6 ⦄ := by
   have hP0 := J.ip
   have hI := J.xtop.irelK J.ks J.buf
   have hS := J.xtop.fin.1.1.1
@@ -295,12 +297,22 @@ theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (h
     J.deadP_sc_stepG hX' hW hK (fun p x' hp hk' h0 y hy => by
         subst hp; rw [hk] at hk'; cases hk'; rw [hrs] at h0; simp [tsCode] at h0)
       hlk hfk hAI.1 hY' (hYK6.dk q.bv) (fun h => h) (J.jcov.dead q hq)
-  exact ⟨Lst', D, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
+  exact ⟨Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2)) (J.sc_kern hW hK hfk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk,
+    J.xtop.slotsSame_of hW (fun b hb => tfoot_oobj hS hb), P1.Foot.dbgKeep J.blk (fun _ h => h) hfoot⟩
+
+/-- **`set_thread_state Running` of a `Restart` thread at `J`** (module
+docstring; `runJD` with the dead set hidden). -/
+theorem JAtZ.runJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T)
+    {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) (hrs : x.tcbState = .restart) :
+    sched.set_thread_state st s t sched.TS_RUNNING ⦃ s6 => ∃ (Lst' : U64 → List U64) (D' : Set U64),
+      JAtZ (L := L) arI AR Z H Cs Ac Lst' D' s6 a
+        (stsAct (updK σ t.bv (.tcb { x with tcbState := .running })) t.bv) ⦄ :=
+  WP.spec_mono (J.runJD ht hk hrs) fun _ ⟨Lst', J', _⟩ => ⟨Lst', D, J'⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`reply1` at `J`** (module docstring): every outcome of the spec's
