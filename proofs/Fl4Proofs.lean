@@ -1070,3 +1070,5 @@ import Fl4Proofs.P3.SpecInvAllO5
 import Fl4Proofs.P3.SpecInvAllO6
 import Fl4Proofs.P3.SpecInvAllO
 import Fl4Proofs.P3.SpecInvAllB
+import Fl4Proofs.P3.SpecInvCqB4
+import Fl4Proofs.P3.SpecInvCqB5
