@@ -11518,3 +11518,61 @@ added to any committed theorem, no new axiom.
 - The batch (2) WIP (field + patched sites, 77 files on 2d11464d) was never built: it cannot build before every construction site
   supplies the field. Saved as proofs/scratch/g2i/B-wip.patch (untracked; `git apply` on 2d11464d); the census script
   /private/tmp/claude-502/g2i/census.py (station scratch) regenerates the list above from it.
+
+### (7) g2i continuation (after the lead's "continue batch 2"): batch 2 driven by the compiler; commit 0180033c (field-free part)
+- Commit 0180033c (built, task g2i-a3): new module **LiveFrame** (imported by XTopJointStep) with the frame lemmas the step closure
+  and the construction sites need, moved unchanged from XTopJointDbgKeep (`dbgKeep_of_writes`, `JAtZ.notDbg'`, `notDbg`,
+  `slot_node`, `inSlot_notDbg`, `ksW_notDbg`), XTopJointLiveStep (`refs_shape`, `shape_refs`, `shape_thread`, `shape_zombie`,
+  `ZNoBlk`, `ZNoBlk.of_same`, `JAtZ.schW_notDbg`), XTopJointLiveIns (`refsObj_objRefs`), XTopJointLive (`Ipc.CnK.idle`), plus new:
+  `LiveDN.wstepX` (XTopJointLiveStep's `LiveDN.wstep` with the `XTopAt` after and the TCB zombies' TCBs dead after in place
+  of a `JAtZ` after; `wstep` is now its wrapper), `dbgWFL_step`, `XTopAt.idleW_eqS`, `ZTcb.of_zombies`, `dbgKeep_cancel`,
+  `JAtZ.notDbg_tw`, `tcbOff_ne`, `JAtZ.nwrite_notDbg` (a notification step's word is no debug word). New module **ZNoBlkJ**
+  (imported by XTopJointWJLRestart): `JAtZ.zNoBlk` moved from XTopJointLiveCn. No statement changed, no premise added.
+- Batch 2 WIP on 0180033c (`proofs/scratch/g2i/B-wip.patch`, 104 files on 0180033c; never fully built: it cannot build before every
+  construction site supplies the field). Builds g2i-c1 … c7 each stopped at the next layer of sites (errors cut the cone, so
+  each costs 2–5 min, not 30). Done in the WIP and compiled (each layer's modules built in a later task):
+  - XTopJointStep: `JStepHyps`'s fields at the dead set before (`JOwesD` / `JOwesCsD`, moved from XTopJointRest; `jStepHyps`
+    unchanged in content: `jowes_restartD`, `jowes_ksD`, `jowes_ins`, `jowes_sched`, `jowes_cn`); `QJ` = `JAtZ ∧ ZNoBlk`;
+    `stepClosed_jat` builds `JAtZ.live` (restart / ks / sched by `liveX`, insert / CNode-only by `wstepX`): the former
+    leaf `stepClosed_jatL` is gone, `Steps.jatL` is a corollary of the new `Steps.jatZ`; `JAtZ.restartJ` (the caller's
+    restart at `J`, used by IpcTcbJ, XTopJointCnDel, XTopJointIrqDel, XTopJointCbs, XTopJointBudgetF, XTopJointTcbInstall,
+    XTopJointWJLRestart); `JAtZ.cs_frameK` (`cs_frame` for a slot-keeping step at the same dead set; the step owes only P1's
+    `DbgKeep` and the spec's idle thread): XTopJointData, XTopJointReadFpu, XTopJointFpu, XTopJointFinVs, XTopJointFinVt (×2),
+    ScFireJ.
+  - `Steps.jat` takes `ZNoBlk` [J] (true in reachable states: l4v `valid_global_refs`, from `SpecGlob`): the callers with
+    `SpecGlob` pass `J.zNoBlk hsg` (XTopJointIrqL, XTopJointMRCnode, XTopJointWJLRestart, the KEntry13P/23P and Entry
+    dispatchers); `decode_invocation_{irq_control,ioport_control,domain}J_step`, `…{irq_control,ioport_control,domain}J`
+    (XTopJointDelLive), `portInTail_jat`, `decode_invocation_ioport_inJ`, `…ioportJ_steps`, `…ioportJ` take it as a premise
+    `hZB`, supplied by every dispatcher from `hE.sg`.
+  - SC Bind (ScJointStep) and TCB SetSpace bind (XTopJointTcbSsp): the dead set shrinks by the bound pair; `zD` after since
+    each of the pair is named by a non-zombie cap of a slot (`JAtZ.not_ztcb`).
+  - Continuations widened from the core-0 head word to `DbgKeep` (F2): `JAtZ.suspendScJ` / `suspendJD` (XTopJointSuspend; also
+    `restartPcJ`'s post), `JAtZ.restartTailJ` / `restartTcbJD` (XTopJointRestart): P1's `KW` footprint gives `DbgKeep`
+    (`kw_dbgKeep`), a middle state's by `dbgKeep_cancel`.
+  - `debug_remove` (XTopJointFinThread, the one J-level step writing debug words): `JAtZ.dbgw_step` takes the walk fact and
+    `DbgWF` after, `JAtZ.dbgRemove_live` proves both (DbgWF's `debug_remove_wf`; `LiveJ.of_sameDbg` and the walk lemmas
+    moved from XTopJointWJLFinT into DbgWF, whose import is now LiveDefs instead of XTopJointFinThread).
+  - Signal paths: `ScSignalJ.signal_badge_post` (`nwrite_notDbg`), XTopJointRecvSigBlock `JAtZ.rbw_dbgKeep` (written, its
+    users not yet patched).
+  - Deletion loop at `WJL`: XTopJointWJLEmpty `emptyHypJL`, XTopJointWJLSwap `jSwapHypL` restated so that `LiveDN` after is
+    proved before the `JAtZ` after is built (from `R.jcov.dead`, `dbgWFL_step`), then passed to `cs_frameB` (not yet compiled).
+- **(F5) FINDING — the WJR deletion chain cannot carry the field.** g2i-c7 stops at XTopJointDelR's `emptyHypJ` (:534),
+  `jZombieHyp` (:1083), `jSwapHyp` (:1125): the `WJR` (liveness-free) versions of the deletion loop's slot edits. Their
+  hypotheses carry `RdL` only; `LiveDN` after an empty / zombie write / swap needs the `LiveOther` / `RdLO` readiness that
+  only the `WJL` chain carries (XTopJointWJLEmpty / WJL / WJLSwap prove exactly that). So with `JAtZ.live` the `WJR` chain has
+  no proof; the `WJL` chain is its replacement (WJL = WJR ∧ LiveDN, now WJR alone). Not a false premise and not a step that
+  breaks `LiveDN`; a restructuring decision: retire DelR's `WJR` loop (`emptyHypJ`, `jZombieHyp`, `jSwapHyp`, `JDelParts`'s
+  WJR users: XTopJointCnDel, XTopJointMRDel, XTopJointEntry, XTopJointKEntry13P/31/32, XTopJointTcb / TcbInsL / MRTcbL,
+  XTopJointFinVs / FinVtJ / Fpu / FinThread(U) where they read `JDelParts`) in favour of `WJL`, i.e. make every deletion go
+  through `WJL` (g2h already routes Revoke / Delete there).
+- Remaining after F5 (static census, not yet reached by the compiler): `cs_frameI` in the receive-signal / SC timeout family
+  (ScChargeT:752, ScChargeTA:407, ScTmoCtBase:454, XTopJointJAtZRB:1658, XTopJointRecvSigBlock:874, XTopJointRecvSigC:315/517,
+  XTopJointRecvSigM:255, XTopJointRecvSigN:349, XTopJointRecvSigRet:962, XTopJointRecvSigRetM:246: `rbw_dbgKeep` + `zD` minus
+  the notification), `JTH` (ScChargeT/TA/TR), `cs_frame` at UtDevReset:234 / UtResetJ:286 / UtResetZ:318 (retype, with g2f's
+  loop invariant), XTopJointTcbInstall:1193 / cs_frameIS 630, XTopJointWJLPP:94, XTopJointVsMap:666 / VsSub:16 (`cs_frameV`),
+  then the anonymous constructions the compiler lists. Batch 3 (`kernel_entryJ34`) is then `hLv := J.live`.
+- Builds (continuation): g2i-c1 … c7 (batch 2 WIP; each failed at the next layer, listed above); **g2i-a3** (commit
+  0180033c's tree, same cone targets): "Build completed successfully (6628 jobs)". Axioms (scratch/g2i/ax3.lean, task g2i-a3):
+  LiveDN.wstepX, LiveDN.wstep, JAtZ.nwrite_notDbg, JAtZ.notDbg_tw, dbgWFL_step, dbgKeep_cancel, XTopAt.idleW_eqS,
+  ZTcb.of_zombies, JAtZ.zNoBlk, Steps.jatL, kernel_entryJ33: propext, Classical.choice, Quot.sound; tcbOff_ne: propext,
+  Quot.sound.
