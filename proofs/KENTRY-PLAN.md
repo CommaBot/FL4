@@ -11712,3 +11712,94 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14f`, modules SpecInvRd14fB–H 
   inaccessible hypothesis, not the constructor argument — name every intro'd hypothesis; (2) `unfold a b c` fails when one of the
   constants does not occur (inside `try` it silently does nothing); (3) for `threadSet f t` goals use `dws_svcf (by sv_auto)
   (by cfk_auto)` (the goal fixes `f`), not `SVK.sv_threadSet' _ …` (identity inferred).
+
+## rd14g (branch par/rd14g in FL4-q, on 22589102 = int/j2 incl. rd14f A–H) — rd14f handoff (a) DONE (Untyped retype / reset PerfA, interface `ArmAKU` with its bridge), (b) DONE (ASID control), (d) DONE for PerfA (every invocation covered: tops with no `PerfA` input); (c) PerfF in part (Untyped, ASID control, every SchedContext arm, CNode cancelBadgedSends, rd13b's frame arms, Notification, Endpoint; interfaces `ArmFU` / `ArmFV` with their bridges); NOT done: PerfF for SchedControl configure, CNode delete / revoke, ThreadControlCaps / ThreadControlSched, so `kcall_rdyOff9` is stated only as `kcall_rdyOff9_ofV (ArmFV fun _ => True)`
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14g`, modules SpecInvRd14gA–F (new; root imports them). Nothing existing edited.
+./rd14gs.sh untracked (= rd14fs.sh, own log); proofs/scratch/rd14g/ax.lean untracked. No premise, no hypothesis added anywhere.
+- **SpecInvRd14gA (the ct-bound walk, (a)/(b)).** `DU σ0 q` (rd14f's `DW` first case with ct's TCB and cur_sc's SC present: cur_sc / ct /
+  idle pointers σ0's, ct bound to cur_sc, `CW σ0 cur_sc`, `OffReady`), `DU.dw`, `DS := DU ∧ Suff`; **`ds_sv`** (DU and Suff from the
+  scheduler view `SVK.sv` at ct and cur_sc, `cfS` and the action — one lemma for every step kind), `ds_svs` / `ds_svcf`; `UD := DU ∧
+  ValidMachineTime`, `UDS`, leaves `uds_svcf` / `uds_setCap` / `uds_dmo`; detype: `kh_detype`, **`ds_deleteObjects`** /
+  `uds_deleteObjects` (region holding neither ct nor cur_sc); retype: `retype_mem`, **`ds_retype`** (addresses holding no object);
+  the triple **`HU σ0 m`** (from UD ∧ Suff: every outcome UD, every ok outcome Suff) with `hu_bind` / `hu_lift` / `hu_ret` /
+  `hu_pure` / `hu_ite` / **`hu_mapMEx`**, **`hu_preemptionPoint`** (rd14f C's `pf_preemptionPoint` / `suff_preemptionPoint`),
+  **`hu_resetUntypedCap`** (the chunk loop), `sv14g_copyGlobalMappings` / `sv14g_initArchObjects` / `sv14g_createCap`,
+  **`ds_utBody`**, **`du_fl4InvokeUntyped`** (ct / cur_sc outside the reset's region by rd8n's `bnd_pair`; retype addresses empty
+  by ut1's `utRet_fresh*`), **`ds_makePool`**. No `EBN` / max-0 case: the Untyped / MakePool arms never unbind ct (handoff note).
+- **SpecInvRd14gB (arms, interface, PerfA end target).** `live_of_bound`, `uds_rf`; **`perfA_untyped`** (ok outcomes: rd14f F's
+  `ss4_dws` after the post; error outcomes (the reset's preemption points): rd14f B's `ss4_preemptionPath` with Rdy from rd8n's
+  `rd_fl4InvokeUntyped`, `NQ []` from nq3's `nq_invokeUntyped` (`NqDet` from IfLiveT), ScInv from sb2's `sc_invokeUntyped`
+  (no bound TCB / SC in the region: rd8n's `bnd_out`), CKN from ctq16's `ckx_fl4InvokeUntyped`, `EB true` from ctq's
+  `eb_fl4InvokeUntyped`, CurHold from rd8r's `hqx_fl4InvokeUntyped`, the bound / unbound facts from `DU.dw`),
+  **`perfA_asidControl`** (never errors), `CovU`. **`ArmAKU C`** (rd14f F's `ArmAKD` + rd8n's `UF` + `SInv.IL [ct]` (IfLiveT with ct
+  holding a thread cap) + ut8's `GapOKN` at the decode's outcome), `armAKU_of`, `ArmAKU.or`, **`armAKU_covU`** (the Restart write:
+  `uf_restart`, il1's `il_setThreadState` (Restart is live only at ct), `uk_setThreadState`). Bridge: `il_view` / `il_js` (IL along
+  rd8j's `JS`: TCB states by `KZ`'s `tcbV`, caps by the view), `il_front`, **`gapOKN_of`** (rd8n's `perfIn_of` derivation as a
+  lemma), **`perfR_ofKU`**, **`invR_ofKU`**, `QU C := QD C ∧ UF ∧ IL [ct]`, **`brR_ku`**. `C14g := C14f2 ∨ CovU`, **`c14g_all`**
+  (every `Fl4Invocation` is in `C14g`, by cases), **`armAKU_all : ArmAKU (fun _ => True)`**, `invRc_all`. Tops: `il_ofW`
+  (SInvA.live; ct Running / Restart by `EntryJ`), `qu_ofW`, `qu_fip` (il1's `il_asUser`, rd8v's `uf_fip`), **`kcall_rdyOffU`** /
+  **`kentry_rdyOffU`** (any `ArmAKU C`), **`kcall_rdyOffP`** / **`kentry_rdyOffP`**: rd8w's tops with NO `PerfA` input (only rd8w's
+  `QF` / `BrF`).
+- **SpecInvRd14gC (PerfF kit, interface, Untyped / ASID PerfF).** **`rtc_of`** (ct's SC, if any, is cur_sc with σ0's refills and a
+  head not after the time ⇒ rd8d's `RT ct` ∧ rd8i's `CBa ct`), **`rtc_dw`**, **`rtc_ec`**; `post_svs`, **`perfF_q`** (ct σ0's, rd14c's
+  `QT ct`, `RT ct`, `CBa ct` at every ok outcome ⇒ PerfF). **`ArmFU C`** (ArmAKU's facts ⇒ `PerfF` at the Restart state), `armFU_of`
+  (rd14c's `ArmF`), `ArmFU.or`, **`perfFR_ofKU`**, **`invF_ofKU`**, `QFU C` (rd14c's `InvFc C` + the QU entry facts), **`brF_ku`**.
+  `QT ct` walks: `qt_deleteObjects`, `qt_retype`, `kh_uts` / `kh_preemptionPoint` / `qt_preemptionPoint`, `qt_dmo`,
+  **`qt_resetUntypedCap`**, `qt_copyGlobalMappings`, `qt_createCap`, `qt_utBody`, **`qt_fl4InvokeUntyped`**, **`qt_makePool`**;
+  **`perfF_untyped`**, **`perfF_asidControl`**, **`armFU_covU`**.
+- **SpecInvRd14gD (PerfF for SchedContext / cancelBadged; tops).** `ec_invokeSchedContext`, `qt_returnConsumed`,
+  `qt_completeYieldTo`, `qt14g_auto` (rd14e's `qt14e_auto` + the yield-to leaves: NOT nested inside it — rd14e's loop hazard),
+  **`qt_invokeSchedContext`**, **`perfF_schedContext`** (rd14e's `perfF_ecq`), **`perfF_scBindTcb`** (TB; the target unbound by
+  BindOK, so ≠ ct), `qt_cancelBadgedSends`, **`perfF_cancelBadged`** (rd14c's `perfF_tbq`), `CovFD`, **`armFU_covFD`**,
+  `CF14g := CF14e ∨ CovU ∨ CovFD`, **`armFU_cf14g`**. Tops: `qfu_ofW` / `qfu_fip`, **`kcall_rdyOffF`** / **`kentry_rdyOffF`** (any
+  `ArmAKU CR`, `ArmFU CF`), **`kcall_rdyOffG`** / **`kentry_rdyOffG`** (no PerfA input, `InvFc CF14g` the only input),
+  **`kcall_rdyOff9_of`** / **`kentry_rdyOff9_of`** (with `ArmFU (fun _ => True)`: no input at all — the end target once (c) is done).
+- **SpecInvRd14gE (rd13b's frame arms, Notification).** **`perfF_sve`** / **`perfF_svm`** (an `SVS ∧ cfS` perform keeping
+  `QT ct`: RT / CBa carried by SVS from the Restart state's `rtc_ec`), arms `perfF_domain`, `perfF_irqControl`, `perfF_irqAck`,
+  `perfF_fl4Tcb`, `perfF_cnodeInsert` / `Move` / `Rotate`, `perfF_tlsBase`, `perfF_tcbFlags`, `perfF_ntfnControl`,
+  `perfF_read` / `write` / `copyRegisters` (false flags), `perfF_deriveSubframe`, `perfF_testAndClear`, `perfF_pml4Flush`,
+  **`perfF_archSpec`** (QT by rd8d's `TV` family: `qt_of_tv` + `tv_auto` closed every arm, VSpace included), `CovFF`,
+  **`armF_covFF`**; `qt_sendSignal`, **`perfF_notification`** (TB by rd14b's `bl_sendSignal` / `cp_sendSignalU`), `CovN`;
+  `CF14g2 := CF14g ∨ CovFF ∨ CovN`, `armFU_cf14g2`, tops **`kcall_rdyOffG2`** / **`kentry_rdyOffG2`**.
+- **SpecInvRd14gF (Endpoint; interface with ct's fault).** `NF t` (t's TCB has no fault), `nf_of_tv`, `nf_threadSet`,
+  `nf_setThreadState`, `nf_kz`, `nf_maybeUnlink`; `qt_schedContextDonate`, `qt_wakeTail`; **`ep_sendIpcF`** (rd14b's
+  `ep_sendIpc` for blocking = call = false with `NF ct`: the `call ∨ fault ≠ none` branch is dead, every outcome `EB ct cur_sc ∧ QT
+  ct`), **`perfF_endpoint`**, `CovE`. **`ArmFV C`** (ArmFU + `NF ct` at the front state), `armFV_of`, `ArmFV.or`, **`armFV_covE`**,
+  `nf_front`, **`perfFR_ofKV`**, **`invF_ofKV`**, `QFV C := QFU C ∧ NF ct`, **`brF_kv`**; `CF14g3 := CF14g2 ∨ CovE`,
+  `armFV_cf14g3`; tops: `nf_ofW` (SInvA's `FaultTcbsS`: ct Running / Restart ⇒ no fault, l4v `fault_tcb_states`), **`kcall_rdyOffH`**
+  / **`kentry_rdyOffH`** (any `ArmAKU CR`, `ArmFV CF`; NF across the FaultIP write by `TV`), **`kcall_rdyOffG3`** /
+  **`kentry_rdyOffG3`**, **`kcall_rdyOff9_ofV`** / **`kentry_rdyOff9_ofV`** (`ArmFV (fun _ => True)` ⇒ no input).
+- **Remaining named inputs (exactly):** `InvFc CF14g3 c σ` in `kcall_rdyOffG3` / `kentry_rdyOffG3` = PerfF for the arms outside
+  CF14g3: SchedControl configure, CNode delete / revoke, ThreadControlCaps / ThreadControlSched. `PerfA` has NO
+  remaining input. No [J]/[P]/[W]/[S] premise added; no ∀-states hypothesis.
+- No FINDING. Checked: (1) Untyped's reset never detypes ct or cur_sc (bound pair, ScLiveT + UtInv''), the retype writes only empty
+  addresses, the chunk loop's preemption points only move the clock, so ct stays bound to an unchanged cur_sc (no max-0 case);
+  MakePool likewise without preemption. (2) Configure of cur_sc via an NBSendRecv / ReplyRecv first phase (traced for PerfF's
+  `RT ct`): `commit_time` with `Suff` at the Restart state never overruns or merges the head (head amount − consumed ≥ MIN_BUDGET),
+  `OffReady` keeps it ready, so `refill_update` takes its ready branch (head time := cur_time) and the decode passes
+  `extra_refills + MIN_REFILLS ≥ 2` refills (Decode.lean:1012), so cur_sc ends active with a ready head: `RT ct ∧ CBa ct` should hold
+  — a proof, not a finding (not done).
+- **HANDOFF (PerfF, in order).** (1) Deletion arms (CovDR, CovTC): the end facts are rd14f's `DW` (HJ at ok outcomes; `rtc_dw` gives
+  RT ∧ CBa), the missing piece is `QT ct` (TCB existence AND a Restart / Running / Inactive state) across `rec_del` / `cap_delete` /
+  `cap_revoke` (two lfp walks, as rd14f E's `hj_lfp`) and `finalise_cap` of every cap kind — thread (qt_suspend, unbind writes the SC
+  field: qt_threadSet), SC (unbind_all / set_inactive: SC writes), endpoint / notification / reply (rd14e's qt_cancelAll* /
+  qt_replyRemove / qt_cancelIpc), IRQ handler (qt_capDeleteOne), arch caps (VSpace setObject of non-TCB objects: qt_setObject; dmo:
+  rd14g C's qt_dmo; arch-state modifies) — then installTcbCap / set_mcpriority / set_priority / SC bind (BindOK: target ≠ ct) for
+  ThreadControl*. No carried family gives ct's TCB existence across that cone today (PJ / NQ [ct] / CKN only constrain an existing
+  TCB), so QT is the family to build — the cleanest route is a generated family as nq3's PJ (proofs/scratch/nq3/mkpj.sh in
+  FL4-rb: same cone, `qt_leaf` leaves = rd14c / rd14e's qt_setThreadState (GS states) / qt_threadSet / qt_setObject /
+  qt_setSimpleKo / qt_of_fk / qt_of_nks, rd14g C's qt_dmo / qt_preemptionPoint, rd8d's TV leaves). (2) Endpoint: DONE (SpecInvRd14gF, route (a)). (3) Configure: the trace above, through ScCharge8's `commitTime_eq` and the refill_update ready branch. With (1) and (3),
+  `ArmFV (fun _ => True)` from `armFV_cf14g3` and a `cf_all` (as `c14g_all`), and `kcall_rdyOff9 := kcall_rdyOff9_ofV`.
+- **Builds** (tokyo-mac-studio-0, FL4-q mirror warm, 20–80 s each; keys rd14g-1..15): -1..-3 A (deprecated multi-line `first |`
+  continuation lines do not parse; an `ite` whose tail the do-notation pushed into both branches; `as` is a keyword in a match
+  pattern), -4 A green + B (a `fun … => by …` swallowing the following anonymous-constructor field; `activeSt` is a match, not an
+  `Or`), -5 B green (5800 jobs), -6/-7 C (names in A14e not opened; a multi-line `first`) then green, -8 D (qt14e_auto nested in
+  YieldTo's walk hit 1M heartbeats: the rd14e nested-`repeat'` hazard; fixed by `qt14g_auto` with explicit leaves), -9 D green
+  (5804), -10/-11 E green (5806; the VSpace arms' QT closed by `qt_of_tv` + `tv_auto` first try), -12 E + `#print axioms` (55
+  declarations), -13/-14 F (a `rw` against a definitional `TVv`), then green (5808), -15 F + `#print axioms` (71 declarations,
+  every top): all ⊆ {propext, Classical.choice, Quot.sound} (`c14g_all` only propext). No sorry / admit / native_decide /
+  bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (six import lines).
+- Lean notes: (1) a structure-valued invariant (`DU`) is not defeq across `{s with machineState := ms}` (rebuild it field by
+  field; a `def`-valued one is); (2) `fun a h => by cases h, …` inside `⟨…⟩` swallows the rest — parenthesise; (3) `qt14e_auto` /
+  any `repeat'` macro must not appear as an alternative inside another `repeat' (first …)`: copy its alternatives into a new
+  macro (`qt14g_auto`).
