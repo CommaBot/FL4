@@ -9984,3 +9984,78 @@ own sections). Commits 3a810718 (A), 8cc8253a (B, C, E), aa23e4de (D).
   (scratch/rd8k/ax.lean, untracked): all 38 listed lemmas propext, Classical.choice, Quot.sound or a subset (bq_bk: propext,
   Classical.choice; fresh_default: Classical.choice; bsa_fresh, bsa_foldr: none). No sorry/admit/native_decide/bv_decide/axiom. Root
   Fl4Proofs.lean not rebuilt (five import lines).
+
+## rd8j (branch par/rd8j in FL4-r3, on 280c5652 = int/j2 incl. rd8h, g2a, rd12b, rd8g) — rd8h handoff 1 DONE (decode_update_sc in the decode facts), 2 DONE up to two pinned inputs (the shell `rd_fl4HandleInvocationR`, RdBody for Send / NBSend / Call); 3 (ReplyRecv / NBSendRecv / NBSendWait), 4 (retype / detype / MakePool), 5 (SR carry) NOT done
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8j` (every new name), modules SpecInvRd8jA / K / B / C (root imports them). Nothing
+existing edited. No JAtZ cone (scratch/rd8h/anc.py on SpecInvRd8jC: 952 modules, no JointAt). NOTE: rd12b's SpecInvRd12bA / C and
+rd11's SpecInvRd11A1 DO reach `Fl4Proofs.P3.JointAt` (anc.py), so rd8j restates the shell pieces it needs (SpecInvRd8jK) instead
+of importing them.
+- **SpecInvRd8jA (handoff 1).** `okp_bind`, `okp_bind_pin`, `pin_checkPrio` (check_prio's ok outcomes keep the state);
+  **`okp_decodeUpdateSc σ (RNE σ) cap slot scCap`**: every ok outcome has `objRefOf cap` a TCB and, when it is `some (some c)`,
+  rd8b's `BindRel σ c (objRefOf cap)` (tcb_sched_context = none ∧ sc_tcb = none from the `tcbSc ≠ some c ∧ (tcbSc ≠ none ∨ scTcb ≠
+  none)` check, ¬(ipc_queued ∧ ¬released) ⇒ BlkR ⇒ released; RNE for the released read). `RdTi σ i` (ThreadControlSched with a
+  handler: target a TCB ∧ BindRel for a new SC; without: BindRel for a new SC), `RdT σ iv`, `okp_decodeSetSchedParams`,
+  `okp_decodeTcbInvocation`, **`okp_fl4DecodeRdT`**, **`rdTi_perform`** (along the decode's BK view and the Restart write),
+  `tcbOK_bind_of`, `tcbOK_tcb_of`.
+- **SpecInvRd8jK (cone-free restatements).** `scO` / `svOf` / `kz_sv`, `kz_trans`, `kz_act`, `kz_time`, `kz_cfS`, `kz_curThread`,
+  `svs_kz`; `invF` / `invE` / `invFin` / `invPost` with `fl4HandleInvocationR_eq` (rfl), `kz_invF` / `kz_invE`,
+  `mem_handleE_cases`, `sendArgs` / `srArgs` (copies of rd12b's, under B8j).
+- **SpecInvRd8jB (the shell).** `JS C I σ0 s := KZ σ0 s ∧ uV s = uV σ0 ∧ RB C I s`; `js_of` (from the rd / tq / sa / q4 / rb / nq /
+  q1 / sb / gk / uk / isk / kz families; ct and Simple from KZ, IrqOutV from the cap view), `js_getMessageInfo`, `js_getCapReg`,
+  `js_invF`, `js_invE` (per-family `X_invF` / `X_invE` from the leaves through the generic `ike_invF` / `ike_invE`: the
+  rd_auto / tq_auto macros time out on invF / invE, and a second, naive `rd_auto` exists in SpecInvSbR; GK via `gk_of_mtk` and
+  MachT's `mtk_*` leaves); **`rb_restart`** (set_thread_state C Restart keeps RB C I); `offReady_svcf` / `suff_svcf` (SVS ∧ cfS
+  transport); `PFacts` and **`pfacts_restart`** (RB ct I ∧ RdyT ct ∧ OffReady ∧ Suff ∧ NtfnQB at the perform); `FhAll σ` (slot 3 of
+  every TCB holds a null / endpoint cap), `fhAll_of_vfh` (VfhAll ⇒ FhAll), `fhAll_svu`, `fhAll_js`; `PerfRest σ iv` (the inputs
+  left, below); **`perfOK_of`** (rd8h's PerfOK at the perform: TCB from `rdTi_perform` + FhAll, SC bind from rd8c's
+  `bindRel_perform`, SchedControl from `okv_fl4DecodeCfgD`, the rest from PerfRest); `rd_invPost`; `PerfIn fp cptr σ` (PerfRest
+  at every Restart state of the run); **`rd_fl4HandleInvocationR rep calling blocking don fp cptr I σ (hRB : RB ct I σ) (hRT : RdyT
+  σ ct) (hO : OffReady σ) (hS : Suff σ) (hF : FhAll σ) (hP : PerfIn fp cptr σ) : ∀ y ∈ fl4HandleInvocationR …, Rdy y.2`** (fault
+  branch rd8h's `rd_hf` with HB ct from JS; error reply `rd_fl4ReplyFromKernelError`; perform rd8h's `rd_fl4PerformInvocation`).
+- **SpecInvRd8jC (RdBody, Send / NBSend / Call).** **`front_facts`** (after a true front: RB ct idleSc ∧ RdyT ct ∧ OffReady ∧ Suff ∧
+  FhAll, from EF, T1, EB true, IdleScOutV, VfhAll at the entry; NQ [ct] from BS.nq with ct Running / idle), `body_rdy`,
+  `rd_shellAt`, `InvIn`, `PreR`, **`rdBody_send rep c (hc : sendArgs c = some …) σ (hEF : A8.EF σ) (h1 : T1 σ) (hEB : EB true σ)
+  (hIO : IO (fun _ => σ.idleSc) σ) (hV : VfhAll σ) (hP : InvIn r false σ) (hPre : PreR rep c σ) : A9.RdBody rep c σ`**.
+- **Named inputs (hypotheses pinned to the given entry's run; no ∀-states; no axiom-level premise added):**
+  * `PerfRest` (inside `PerfIn` / `InvIn`): Untyped `∀ y ∈ fl4InvokeUntyped i, Rdy` and ArchOK ASIDControl (goal item 4: retype /
+    detype / MakePool), Reply `BlockedScActive` (rd8i), DomainSet `SR t` (goal item 5: valid_blocked carry). Everything else of
+    rd8h's PerfOK is now discharged (TcbOK both halves, ScIvOK, CfgD).
+  * `PreR rep c σ`: Rdy after `preemption_path` at the error outcomes of the syscall (the perform's preemption points: untyped
+    reset, cap delete / revoke incl. TCB cap installs). Needs: at a preemption error outcome, either `schedulable ct` and
+    check_budget's / charge_budget's facts (rd_chargeBudget: cur_sc an active SC with refills, ct a TCB bound to it, ScFwd,
+    `Excl`), or not schedulable and the charge of an active cur_sc; then `handle_interrupt` / `handle_spurious_irq` (rd10's
+    interrupt-event Rdy). The RB bundle is available there (rd8f's rdCapDeleteH: RB at every outcome incl. errors); cur_sc's
+    binding to ct across a deletion is the open point (l4v: cur_sc is never freed while ct runs on it — sched_context finalise of
+    cur_sc does not happen in a preemptible deletion of ct's own SC? to check).
+  * Entry facts of rdBody_send (carried state invariants): EF (rd8a), T1 (ctq), EB true (ctq SQ4 + RBk), IdleScOutV (ut7 / vi3),
+    VfhAll (invA, kcall_vfhAll).
+- Checks: no reachable step found breaking Rdy / OffReady / RV / CAx (no FINDING). The Restart write keeps every RB member
+  (Restart is runnable and not BlockedOn*); a ThreadControlSched with a handler always passes decode_update_sc's TCB read, so
+  its target is a TCB at the perform (which gives the slot-3 `FhC` from VfhAll); `SR` (DomainSet) is still not derivable from
+  Rdy (rd8h (a)).
+- HANDOFF (in order):
+  1. ReplyRecv / NBSendRecv / NBSendWait (rd8h handoff 3): first phase = `rd_shellAt` with fp = true (perform arms reachable
+     with firstPhase: endpoint send, notification, reply, IRQ control / handler, arch spec arms), then `B8h.rd_handleRecv` from
+     `RH ct` at the ok outcome. Needed: (a) generalise `B8h.rd_hf` / `rd_sendFaultIpc` to an `RT` faulting thread (send_ipc with
+     an unbound sender: the BlockedOnSend write by `rd_setThreadState_rt`); (b) carry `RcvS` (Rdy, T1, ScInv, Simple, QC ct, ct
+     not BlkR, RT ct) and `RBk true` across the first phase's perform arms (each arm: send_ipc non-blocking, send_signal,
+     do_reply_transfer with ct the replier, irq arms): a `PerfRcv` per arm, shape of rd8h's `rd_fl4PerformInvocation`.
+  2. `PreR` (Rdy after preemption_path at the error outcomes): the error outcomes come only from preemption points inside
+     cap_delete / cap_revoke / untyped reset; RB holds there (rd8f rdCapDeleteH / rb_capRevoke). Needed in addition: cur_sc an
+     active SC with refills, ct a TCB bound to cur_sc (or the charge branch's facts) at those outcomes (`rd_chargeBudget`'s
+     hypotheses, rd's `Excl`), then handle_interrupt / handle_spurious_irq's Rdy (rd10's interrupt event). Open question: can a
+     preemptible deletion remove ct's own SC binding before the preemption point (sched_context_unbind_tcb of cur_sc)?
+  3. `PerfRest`: Untyped / ASIDControl (rd8h item 2: ctq15's `rnDet_of_live` / `eb_fl4InvokeUntyped`, ctq11's `rt_detype`);
+     Reply's `BlockedScActive` (rd8i); DomainSet's `SR t` (a carried valid_blocked: schedulable ∧ ≠ ct ∧ not switch target ⇒
+     queued, with boot and writers).
+  4. Wire `rdBody_send` / `rdBody_recv` into rd9 / rd10's `hRdB` at the tops (the entry facts EF, T1, EB true, IdleScOutV,
+     VfhAll are carried invariants: rd8a, ctq, ut7 / vi3, invA's kcall_vfhAll).
+- Builds (tokyo, FL4-r3 mirror; ./rd8js.sh untracked = rd8hs.sh with its own log): rd8j-r1 wrong module name; r2 stopped (cone
+  recompile, batched into r3); r3 A failed (whenE's else is `pure ()`, not returnOk), cone recompiled (~24 min); r4 A + K green,
+  B failed (missing gk leaves, whnf timeouts in the rd_auto / tq_auto proofs of invF / invE, NB implicit, stale name); r5 B
+  timeouts in rd_invF / tq_invF (per-family split alone not enough); r6 B green (leaf-built `ike_invF` / `ike_invE`), C failed
+  (`T1` is `SInvQ.T1`); r7 A + K + B + C green (5486 jobs, 0 sorry); r8 axioms (scratch/rd8j/ax1.lean, untracked):
+  okp_decodeUpdateSc, okp_fl4DecodeRdT, rdTi_perform, js_invF, js_invE, rb_restart, pfacts_restart, fhAll_of_vfh, perfOK_of,
+  rd_invPost, rd_fl4HandleInvocationR, front_facts, rd_shellAt, rdBody_send: propext, Classical.choice, Quot.sound;
+  tcbOK_bind_of, tcbOK_tcb_of: propext, Classical.choice; kz_sv: propext. No sorry / admit / native_decide / bv_decide / axiom.
+  Root Fl4Proofs.lean not rebuilt (import lines only).
