@@ -7870,3 +7870,10 @@ C4 broken; the resumed agent fixed C4 and added C5.)
 - Premises: none added ([J]/[P]/[W]/[S]): the four `Eb*H` are hypotheses named for ctq11's deletion-cone lemmas (each true:
   woken queue members ≠ ct by NQ [ct]; every possible_switch_to in the cone is followed by reschedule_required; suspend runs
   with no switch pending); `DomInvOK` / `SetDom0` are decode facts. No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-c2 mirror, seeded by the first agent; ./ctq12.sh untracked, keys ctq12-r-*): r-1 C3 built, C4 failed
+  (`p12_dk_auto` cannot walk check_cap_at / cap_insert / unlessE in one sweep); r-4 C4 with per-step lemmas (3.9 s); r-5/r-6 C5
+  (sa_threadSet's `f` must be given explicitly after `unfold threadSetPriority`; q4 Domain lemmas need SpecInvQDom); r-7 C5
+  13 s, 5018 jobs; r-8 axioms (ax10.lean untracked): eb_perfFl4Tcb, eb_perfArchNoPool, eb_perfSuspend, eb_perfReadRegisters,
+  eb_perfCnode, eb_perfIrqHandler, eb_perfEndpoint, eb_perfNtfn, eb_perfReply, eb_perfTcbCaps, sa_setPriority,
+  rb_setPriority_p, eb_setPriority_t, sa_setDomain, rb_setDomain, eb_invokeDomain, eb_perfDomain: propext, Classical.choice,
+  Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (five import lines).
