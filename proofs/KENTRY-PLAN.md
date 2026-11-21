@@ -8554,3 +8554,69 @@ First cut was on 65977148 with a parallel sigRest-free bundle; replaced, per the
   `notifLeafJN` if those tops are kept.
 - Non-M preemption holes: per-state only after the non-M `mcsPPJ*` posts carry NativeScope (3); low value while PPPlat is
   uninhabited.
+## rd8c (branch par/rd8c in FL4-r2, on ece37144 = int/j2 incl. rd8b, g3b, g3c, ctq11, ctq12) — rd8b handoff 1 DONE (configure), 2 DONE for configure / bind / CtRdy, 3 in part (the donation of a released SC); NOT finished: receive_ipc / send_ipc / do_reply_transfer compositions, invoke_tcb, retype / detype, deletion cone, rd_fl4PerformInvocation / rd_handleInvocationR
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8c` (new names only there), modules SpecInvRd8cA / B / V / D / E (root imports them). Nothing existing edited. No JAtZ cone (Rd8cB adds SpecInvEqC, Rd8cV SpecInvEqV, Rd8cD SpecInvSbX2: all spec-only).
+- **SpecInvRd8cA (handoff 1).** `trr_out` / `deq_out` (the front keeps the heap and `cfS`; with `T1` the dequeued thread is in no
+  ready queue), `offReady_congr` / `suff_congr`, `FrontOut` + **`cfg_front`** (commit_time under OffReady ∧ Suff when the SC is
+  cur_sc, via rd's `rdy_commitTime` / `CommitOut`), `not_blkR`, **`excl_front`** (rd8b's `Excl` after the front: the only TCB
+  bound to the SC is its sc_tcb by `ScBackS`, dequeued (T1), not the switch target (Simple, action kept), runnable by the branch
+  guard), **`rd_possibleSwitchTo_r`** (rd6's possible_switch_to lemma with the guard's release-queue test: `RdyT` needed only
+  for a bound target outside the release queue), `TailOK` / **`rd_cfgTail`** (resume with rd7's `sr_schedContextResume`;
+  `reschedule_required` for ct; else, runnable, possible_switch_to: bound to the SC (SVS of resume) + active (MIN_REFILLS ≤ max)
+  + runnable + not released-queued = `schedulable`, so `SR` gives RdyT; badge / sporadic by rd_updateSchedContext),
+  `tailOK_mid`, **`rd_configure p b per mr badge flag σ (hO : OffReady σ) (hS : Suff σ) (hSy : ScSym σ) (hN : RNE σ)
+  (h1 : T1 σ) (hA : Simple σ) (hb : MIN_BUDGET ≤ b) (hm : MIN_REFILLS ≤ mr) : IKp Rdy σ (invoke_sched_control_configure_flags …)`**
+  (all three refill arms: refill_new MIN_REFILLS (period = budget), refill_update (active ∧ bound ∧ runnable, `Excl`),
+  refill_new mr).
+- **SpecInvRd8cB (handoff 2).** `CfgD` (configure: `MIN_BUDGET ≤ b ∧ MIN_REFILLS ≤ mr`, the decode returns
+  `unat extra + MIN_REFILLS`), `okv_decodeSchedControlFlagsD` / **`okv_fl4DecodeCfgD`** (every decode outcome; state-free, so it
+  holds at the perform), `rd_configure_d` (rd_configure from CfgD); **`ctRdy_of (hC : CtR σ) (hA : CAx σ) (hq : ct ∉ releaseQueue)
+  (hI : ct = idle → ct not runnable) : CtRdy σ`**; **`bindRel_setThreadState`** (BindRel across the shell's
+  `set_thread_state ct Restart`: a Restart thread is not BlkR, the bound ends untouched).
+- **SpecInvRd8cV (generated: proofs/scratch/rd8c/mkv.sh + head.lean, untracked).** The view `BKv σ := (tcbV of every object
+  (a TCB's state, fault, SC), epq1's scAt, cur_time)`, family `BKK V m := IK (BK V) m`: epq1's VZ family (SpecInvEqV, the
+  lookups and fl4DecodeInvocation, 133 lemmas) with the view replaced by sed; hand leaves `bkv_put`, `bk_setObject` (neither TCB
+  nor SC / CNode), `bk_setTcb`, `bk_threadSet` (keeping the three fields), `bk_archThreadSet`, `bk_asUser`, `bk_setMrs`,
+  `bk_setSimpleKo` (vz_setThreadState / vz_optionUpdateThread dropped: no member calls them). Top: `bk_fl4DecodeInvocation`.
+- **SpecInvRd8cD (handoff 2, bind).** `OkP σ P m` (pinned `.ok` outcomes; combinators returnOk / throw / whenE / liftE-read /
+  ite / liftME / of_okA), `RdS` / **`RdD σ inv`** (an SC-to-TCB bind satisfies BindRel at σ), `blkR_ipcQueued`,
+  `okp_decodeSchedContextBind` (decode_sched_context_bind's `sc_tcb = None`, `tcb_sched_context = None` and
+  `¬ (ipc_queued_thread_state ∧ ¬ sc_released)`; RNE for the released read), `okp_decodeSchedContextInvocation`,
+  **`okp_fl4DecodeRdD (hN : RNE σ) … : OkP σ (RdD σ) (fl4DecodeInvocation …)`**, `scAt_iff`, `tcbV_some`, `bindRel_bk`,
+  **`bindRel_perform (hN : RNE σ) (h : (.ok (.invokeSchedContext (.invokeSchedContextBind p (.threadCap t))), s) ∈
+  (fl4DecodeInvocation … ).run σ) (c) (hy : y ∈ setThreadState c .restart s) : BindRel y.2 p t`**: rd8b's
+  `rd_invokeSchedContext` hypothesis `ScIvOK` is now discharged from the decode (σ = the decode's start state, RNE from sb2's ScInv).
+- **SpecInvRd8cE (handoff 3, donation).** `kt_testReschedule`, **`rd_schedContextDonate_rel p t σ (hR : Rdy σ) (h1 : T1 σ)
+  (hA : Simple σ) (hF : ScFwd σ) (hx : kheap t = tcb x) (hn : x.sc = none) (hrel : p active ∧ head ready)`**: Rdy after
+  sched_context_donate and the mutual binding (the holder dequeued / release-removed / unbound by donate itself, rd3's
+  rd_threadSet_unbind; the receiver may be BlkR: rd8b's rdy_upd_bind' with the released SC). At a syscall p = ct's SC = cur_sc
+  (ctq5's curScT), active (CAx), head ready (OffReady: head + consumed ≤ cur_time).
+- Premises: none named ([J]/[P]/[W]/[S]: none). Entry hypotheses only, each true at a perform and a function of carried facts:
+  OffReady ∧ Suff (rd7's OS first disjunct — at a perform the front's check_budget_restart returned true, so OS's first
+  disjunct holds; rd7 handoff 1(c) carries it to the perform), ScSym / RNE / ScFwd (sb2's ScInv), T1 / Simple (ctq), CfgD /
+  RdD (decode, proved here), CtR / CAx / ct ∉ releaseQueue (rd, rd7, ctq's RB). No FINDING. Checked: configure's
+  possible_switch_to may see its target postponed by resume (release-queued and not ready): the guard's release test excludes it
+  (rd_possibleSwitchTo_r); refill_update's head may move to the future, so Excl is needed and holds (the SC's only thread was just
+  dequeued); configure's unconditional `commit_time` when the SC is cur_sc needs Suff (the l4v assert's check_budget-true).
+- HANDOFF (in order):
+  1. send_ipc with donation (the `call ∨ fault` else-branch): after doIpcTransfer / reply_unlink_tcb, `rd_schedContextDonate_rel
+     (ct's SC) dest` needs at that state: T1, Simple, ScFwd (carry along the IPC writers: ctq's q1 family, SVS for the binding),
+     dest unbound (the branch guard `scOpt = none`), ct's SC released (OffReady/CAx at the perform, carried by SVS + cfS (rd8b's W)
+     across doIpcTransfer — its SC writes: none); then setThreadState dest Running, ifSporadicCurScTestRefillUnblockCheck (rd_ifCond),
+     possible_switch_to dest (rd6's rd_possibleSwitchTo_p: RdyT dest from the donation). receive_ipc (donation from a sender in
+     the send queue via reply_push / maybe_donate) and do_reply_transfer (reply's SC returned: rd7's rd_schedContextDonate_free or
+     _rel) with the same lemma.
+  2. invoke_tcb: threadControlSched's install (cap deletion: hypothesis `RdCapDeleteH σ` named for the deletion cone's eventual
+     `rd_capDelete`), rd_setPriority (CtRdy: ctRdy_of), rd_schedContextBindTcb with BindRel (extend `RdD` with
+     `.invokeTCB (.threadControlSched t … (some (some c)))` ⇒ BindRel σ c t: decode_update_sc's checks, the okp walk of
+     okp_decodeSchedContextBind; sb2's okb_decodeUpdateSc shows the branch structure).
+  3. retype / detype, deletion cone (finalise TCB / SC caps).
+  4. rd_fl4PerformInvocation / rd_handleInvocationR through epq2's pz_handleInvocationR shell: RdD from okp_fl4DecodeRdD at the
+     decode's start state and bindRel_perform; CfgD from okv_fl4DecodeCfgD.
+- Builds (tokyo, FL4-r2 mirror; ./rd8cs.sh untracked = rd8bs.sh with its own log): rd8c-a1..a4 Rd8cA (5000 jobs), a5 axioms
+  (scratch/rd8c/ax.lean), b1 Rd8cB (5004), v1/v2 Rd8cV (5008), d1/d2 Rd8cD (5036), ax2 A+B+V+D with axioms
+  (scratch/rd8c/ax2.lean), e1/e2 Rd8cE. All: propext, Classical.choice, Quot.sound (ctRdy_of: Classical.choice). No
+  sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (import lines only). Lean traps: an implicit
+  argument fixed by a later `⟨rfl, rfl, rfl⟩` is unified with the wrong object — put the membership hypothesis first
+  (bk_setTcb); `Function.update_of_ne` takes `a ≠ a'` for `update f a' v a`; `obtain … := hF` consumes hF (use `id hF`);
+  `unfold NonDet.when` once unfolds every occurrence.
