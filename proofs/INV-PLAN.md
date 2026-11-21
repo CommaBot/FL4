@@ -89,6 +89,10 @@ means three things:
 | T16 | `hNSR` | `∀ ghosts s a σ, JAtZR … → NativeScope σ` | [S], ∀-pred | | `signalRestJHypZR_of_ns` in finish |
 | T17 | `hT` | `TimeAgree` (max_period, us_to_ticks, wcet, timerUnit = 1) | [P] | constants | finish |
 | T18 | `hmax`, `htu` | `maxTicksToUs = U64.MAX`, `ticks_to_us a v = ticksToUs v` | [P] | constants | |
+| T19 | `hU` (g4i, sysU event) | `UnkSys n s`: `n < SYSCALL_MIN ∨ n > SYSCALL_MAX ∨` the current thread's flags after the FaultIP write have `TRAP_SYSCALLS` (XTopJointKEntryEv5) | [S] event (complement of T3/T4) | — | `jEvRef_sysU`, `JReachE4.sysU` |
+| T20 | `hD` (g4i, sysU event) | `NoDbgSys arI n s a`: `n` is none of FL4's debug / TLS syscalls `SysDebugPutChar` … `SysSetTLSBase` (-12 … -20), and `n = SysVMEnter` (-23) only if `virtualization a = ok 0` or the current thread's VCPU word after the FaultIP write is 0 (XTopJointKEntryEv5) | **[S] scope, lead decision (g4i)**: FL4's extracted build has PRINTING / DEBUG_BUILD / SET_TLS_BASE_SELF on, where these numbers return without a fault (KENTRY-PLAN g4g (7) FINDING); excluded as l4v excludes them | l4v verifies the configuration without `CONFIG_PRINTING` / debug syscalls and without VT-x | `handle_unknown_syscall_nd`, `jEvRef_sysU`, `JReachE4.sysU` |
+| T21 | `hFF` (g4i, sysU event) | `P1.FastFaultOK arI s a n` at the entry state: the general fault path's reads where `handle_syscall` enters `fastpath::fault` | [J] (P1: `fastFaultOK_of_p1` from `EntryInv` + `AsidOff` [J] + `FaultNvmPre` [J], the route of `entry_of7`) | `Fastpath_C` fastpath_corres preconditions | `syscall_unk_gen`, `handle_syscall_unk_eq` |
+| T22 | `hSX` (g4i) | `P1.StoreExt st` (the store is its aligned memory) | [P] (as P1 `entry_of5`+) | `Fastpath_C` compares states by equality | `P1.usf_same` / `hus_same` |
 | — | `hRest` | `JPreemptRestHypE` | REMOVED via `dispatch_invokeJEPZR` route | | |
 
 ### 1.2 `KBudget arI a σ0` (XTopJointKEntry.lean:214), at `σ0 = faultIPSt σ ct x`

@@ -14609,3 +14609,96 @@ states; `hDL` unchanged (asked at the dispatch states, at the decode's values, e
   `J33R` / `J34R`'s `P1.RRPreAt` from `RRPreAt.of2 ∘ RRPreAt2.of5` (needs P1 `EntryInv` / `EntryHyps0` / `hNt` at the P3
   entry state), `RRSumAt` from `SInvR.RV`, `CnOffAt` from the CNode relation; (c) `RRSumAt` / `CnOffAt` as P1
   invariants (`refills_sum` carry; CNode typing in `ObjsOK`) to drop them.
+
+## g4i (branch par/g4i in FL4-q, on 86cf7856 = #51 head) — g4g's handoff (9): (1) the unknown-syscall entry through `handle_syscall` at J DONE (`jEvRef_sysU`: the fast fault path by the m-line's equivalence, the debug / TLS numbers excluded by the lead-decided [S] `NoDbgSys`); (2) the interrupt in the idle thread DONE (`jEvRef_irqI` / `jEvRef_irqA`: `jEvRef_irq` without `ct ≠ idle`); (3) `JReachE4` / `jreach_invE4` / `kernel_entry_reachE4` DONE: no event clause takes `JEvRef`
+New leaves only: XTopJointKEntryEv5, XTopJointKEntryEv6, XTopJointKEntryEv7 (root imports after XTopJointKEntryEv4). Nothing existing
+edited (INV-PLAN §1.1 gains rows T19–T22). Old tops kept.
+
+### (1) Unknown syscall via `handle_syscall` (XTopJointKEntryEv5)
+- FL4: `handle_syscall n` = `syscall n true`: FaultIP write, flags; a `TRAP_SYSCALLS` thread or an out-of-range number goes to
+  `unknown_syscall_fault (hcast n) true` / `handle_unknown_syscall n true`, which first run `fastpath::fault`.
+- **Fast path** (the m-line as it stands): **`syscall_unk_gen`**: `syscall n true = ok (b, s', a') → syscall n false = ok (false,
+  s', a')` under `StoreExt` [P] and `FastFaultOK` [J] at the entry state (`P1.syscall_decline` for b = false; `P1.usf_same` for
+  the trap route, `P1.hus_same` for the out-of-range route; the `reply_recv` route is refuted by `UnkSys`). **`handle_syscall_unk_eq`**:
+  `handle_syscall = handle_syscall_general` on such a number (P0 totality of `handle_syscall_fast`).
+  **`fastFaultOK_of_p1`**: `FastFaultOK` from P1's `EntryInv` (with `Hyps4` admissibility), `AsidOff` [J], `FaultNvmPre` [J]
+  (`FastFaultPre.of_asid` + `FastFaultOK.of_pre`, the route of `kernel_entry.entry_of7`): the premise holds in P1-reachable states.
+- **`UnkSys n s`** [S] (event): `n < SYSCALL_MIN ∨ n > SYSCALL_MAX ∨` TRAP set after the FaultIP write (the complement of the native
+  step's `NativeSys` range / `hflag`).
+- **`NoDbgSys arI n s a`** [S] (the lead-decided scope premise, g4g (7) FINDING): `n` is none of -12 … -20 (`SysDebugPutChar`,
+  `DumpScheduler`, `Halt`, `Snapshot`, `CapIdentify`, `NameThread`, `GetThreadAffinity`, `SendIPI`, `SetTLSBase`), and
+  `n = SysVMEnter` (-23) only with `virtualization a = ok 0` or a zero VCPU word of the current thread after the FaultIP write.
+  A predicate on the number at the entry state; l4v verifies the configuration without `CONFIG_PRINTING` / debug syscalls and
+  without VT-x. Documented in INV-PLAN §1.1 (T20). **`handle_unknown_syscall_nd`**: under it `handle_unknown_syscall n f =
+  unknown_syscall_fault (hcast n) f` (any `f`).
+- **`jEvRef_sysU`**: from `JAtZ`, `SInvX`, `ct ≠ idle`, `MR` at the entry state, `UnkSys`, `NoDbgSys`, `StoreExt`, `FastFaultOK`,
+  `hFin : KFinEv` at the FaultIP states (FL4 states pinned by `KFrontSysU`) and the [P] bundle: `handle_syscall s a n ⦃ ∃ ev σ',
+  KEvSpec (.sysU n) true ev ∧ EvOut true ev σ σ' ∧ RJM ⦄` (spec event `.unknownSyscall (hcast n).val`). Proof: `fip_pre`, the
+  current thread kept across the write (`JAtZ.curEq`), then both routes reach `unknown_syscall_fault … false` (`usf_spec` = `usf_eq`
+  as a WP rule) and g4f's `jEvRef_flt` with g4g's `jFltHyp_unk`.
+
+### (2) Interrupt in the idle thread (XTopJointKEntryEv6)
+- In the idle thread the current SC is the idle SC (`JHole.curSc_idle`: `CurInv.tcb` and `IdleOK`). When its head is
+  insufficient both sides charge the idle SC as l4v / FL4 `charge_budget` do: no refill and no SC write (`curSc = idleSc`), the
+  consumed time reset, and the idle thread is not schedulable (`idleThreadState`), so no `end_timeslice` (no timeout fault):
+  **`chargeHead_idle`**, **`schedulable_idle`**, **`chargeBudget_idle`** (spec: `chargeBudget u tf σ = {{σ with consumedTime := 0}}`),
+  **`charge_budget_idle`** (FL4 at `SchedRel`: `charge_budget s a u tf = ok (wr CONSUMED 0, a)`, via `schedulable_eq` at the
+  reset state), both for either `can_timeout_fault`.
+- **`JHole.chargeBudgetJ0`**: ScChargeH's `JHole.chargeBudgetJ` without `ct ≠ idle` (that premise only gave the current SC's
+  activity; the idle SC is active by its refill max, `ScRel.idle`). **`JHole.chargeBudgetIJ`** (flag `true` in the idle thread),
+  **`JHole.checkBudgetFI`** (`checkBudgetF` for `ct = idle`, no `NoTmoSend`).
+- **`JAtZ.utCheckBI`**: `JAtZ.utCheckB` with `ct = idle` and `schedulerAction = resumeCurThread` (from `SInvX`'s `SInvCR`) in place
+  of `Entered`; the sufficient branch unchanged (it never used `ct ≠ idle`), the charge by `checkBudgetFI`.
+- **`jEvRef_irqI`**: g4f's `jEvRef_irq` in the idle thread (same premises: `IrqHw` [P], `hFin`, the [P] bundle); **`jEvRef_irqA`**:
+  the interrupt entry from any current thread (case split on `ct = idle`). `jEvRef_irq` keeps `ct ≠ idle` (unchanged).
+
+### (3) The induction (XTopJointKEntryEv7)
+- **`JReachE4`**: `start`, `step`, `irq` (no `ct ≠ idle`, as before), `user`, `vmf`, and in place of the generic `event` step
+  **`trap`** (`ct ≠ idle`, `v < 256`) and **`sysU`** (`ct ≠ idle`, `UnkSys`, `NoDbgSys`). `JReachE4.toE3`, **`jreach_invE4`**.
+- **`kernel_entry_reachE4`** (the [P] bundle of E3 + `StoreExt` [P]): at every `JReachE4` state, at the ghosts the invariant gives:
+  (i) the native syscall (J37N's per-state premises, unchanged); (ii) the interrupt from **any** current thread (`IrqHw`, `KFinEv`);
+  (iii) / (iv) user exception / VM fault from a non-idle thread (`UserHw` / `VmfHw`, `KFinEv`); (v) `int $N` (`v < 256`, `KFinEv` at
+  the FaultIP states); (vi) the unknown syscall via `handle_syscall` (`UnkSys`, `NoDbgSys`, `FastFaultOK`, `KFinEv` at the FaultIP
+  states). Each ends related (`RJ`), with `SInvX`, `MR`, and `JReachE4` again. **No clause takes `JEvRef`**; `JEvRef` is no longer on
+  the newest top. Old tops (`kernel_entry_reachE3`, `E3T`, `jEvRef_irq`) kept.
+
+### (4) Remaining premises (exactly)
+- Syscall steps: unchanged (g4e (4) / g4g (5)).
+- Interrupt (any current thread): `IrqHw` [P] (entry state), `KFinEv .interrupt` (`KFinAtR31` at the pre-finish states), the [P] bundle.
+- User exception / VM fault (ct ≠ idle [S]): `UserHw` / `VmfHw` [P], `KFinEv`, the [P] bundle.
+- `int $N` (ct ≠ idle [S]): `v < 256` [P], `KFinEv` at the FaultIP states, the [P] bundle.
+- Unknown syscall via `handle_syscall` (ct ≠ idle [S]): **`UnkSys`** [S] (event), **`NoDbgSys`** [S] (scope), **`FastFaultOK`** [J]
+  (entry state; P1-derived by `fastFaultOK_of_p1`), **`StoreExt`** [P] (as P1's `entry_of5`+), `KFinEv` at the FaultIP states,
+  the [P] bundle.
+- `JEvRef`: none. Out of the induction ([S]): `handle_debug_exception`, `handle_vcpu_exit` (as g4e).
+
+### (5) Reachability check of the new premises
+- `UnkSys`: the definition of the event (asked of the entry that is the unknown syscall); never assumed of another entry.
+- `NoDbgSys`: false exactly for the debug / TLS numbers (and SysVMEnter with virtualization and a bound VCPU), which are the excluded
+  scope; a run that executes them is outside the statement (no clause or constructor claims anything about it).
+- `FastFaultOK`: the m-line's read bundle, derived from P1's invariants at the entry state (`fastFaultOK_of_p1`; P1 checked `AsidOff` /
+  `FaultNvmPre` reachable, m63/m64/m67). Asked at one state per step.
+- `StoreExt`: the existing [P] store fact (m58); not new.
+- The idle case adds no premise (`IdleOK`, `CurInv` and the resumed action come from `JHole` / `JAtZ` / `SInvX`).
+
+### (6) Findings
+None. (g4g's debug-syscall FINDING is closed by the [S] scope `NoDbgSys`, as decided by the lead.)
+
+### (7) Builds and axioms
+- tokyo, FL4-q mirror (cold: seeded with `cp -cR ../FL4-m67/proofs/.lake/{build,packages}`, 1758 oleans; ./g4i.sh untracked = g4g.sh
+  with its own log; scratch/g4i/ax.lean untracked). g4i-b1: XTopJointKEntryEv4 up to date (6928 jobs). Ev5: g4i-b2..b4 (3rd green,
+  6944 jobs; fixes: `uncurry_apply_pair` for the tuple bind, a term-mode `by_contra`, the `Result` injectivity via `WP.spec_ok`).
+  Ev6 + Ev7: g4i-b5..b6 (2nd green, 6948 jobs; fix: `schedulable_idle` via `schedulable_inv`). No sorry / admit / native_decide /
+  bv_decide / new axioms.
+- Commits: 0d3002ba (Ev5), 9dc76f1b (Ev6), e92f1991 (Ev7), + this section and INV-PLAN §1.1 rows.
+- **g4i-full1** (full `lake build Fl4Proofs` at e92f1991): "Build completed successfully (7117 jobs)", 0 `declaration uses 'sorry'`.
+- Axioms (g4i-full1): handle_unknown_syscall_nd, syscall_unk_gen, handle_syscall_unk_eq, fastFaultOK_of_p1, usf_spec, jEvRef_sysU,
+  Sched.chargeHead_idle, Sched.schedulable_idle, Sched.chargeBudget_idle, Sched.charge_budget_idle, JHole.chargeBudgetJ0,
+  JHole.curSc_idle, JHole.chargeBudgetIJ, JHole.checkBudgetFI, JAtZ.utCheckBI, jEvRef_irqI, jEvRef_irqA, JReachE4.toE3, jreach_invE4,
+  kernel_entry_reachE4: propext, Classical.choice, Quot.sound.
+
+### (8) Next (handoff)
+- `FastFaultOK` at J from `JAtZ` directly (today P1-derived; a bridge `JAtZ → P1.EntryInv` at the entry state would make it a theorem
+  on the J line), and `StoreExt` as for the syscall top.
+- `ct ≠ idle` [S] for user / VM-fault / `int $N` / unknown-syscall entries is real scope (the idle thread runs no user code).
+- Still open from the other lines: the syscall top's per-state bundles (hK / hFin, `JDecMRLK`, `FastRR`).
