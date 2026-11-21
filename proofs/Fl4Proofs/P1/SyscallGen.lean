@@ -645,6 +645,39 @@ def syscall.handle_syscall_old
           else ok (s2, a1)
         syscall.finish machineStoreInst machineArchInst s3 a2
 
+/-- The pre-#57 body of `sched.suspend` (main 6d1355e), verbatim: #57 added a
+`vcpu.cancel_run` call in front, a no-op on x86_64 (`suspend_eq_old`). -/
+def sched.suspend_old
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
+  Result (S × A)
+  := do
+  let (s1, a1) ← ipc.cancel_ipc machineStoreInst machineArchInst s a t
+  let i ← obj.Tcb.state machineStoreInst t s1
+  let s2 ←
+    if i = sched.TS_RUNNING
+    then
+      do
+      let ip ← obj.Tcb.reg machineStoreInst t s1 layout.reg.NEXT_IP
+      obj.Tcb.set_reg machineStoreInst t s1 layout.reg.FAULT_IP ip
+    else ok s1
+  let s3 ← sched.dequeue machineStoreInst s2 t
+  let s4 ← sched.release_remove machineStoreInst s3 t
+  let s5 ← schedcontext.cancel_yield_to machineStoreInst s4 t
+  let s6 ← sched.set_thread_state machineStoreInst s5 t sched.TS_INACTIVE
+  ok (s6, a1)
+
+/-- The pre-#57 body of `syscall.finish` (main 6d1355e), verbatim: #57 added
+`vcpu.check (cur_thread)` after `activate_thread` (`finish_eq_old`; a no-op
+unless the current thread is `TS_RUNNING_VM`, P1 `VcpuHooks`). -/
+def syscall.finish_old
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (S × A)
+  := do
+  let (s1, a1) ← sched.schedule machineStoreInst machineArchInst s a
+  sched.activate_thread machineStoreInst machineArchInst s1 a1
+
 end fl4_core
 
 namespace Fl4Proofs.P1
@@ -812,6 +845,25 @@ theorem FastAgree.spec {s : S} {a : A} {n : Std.I64} {P : S × A → Prop}
     (hF : FastAgree st ar s a n P) (h : syscall.handle_syscall_old st ar s a n ⦃ P ⦄) :
     syscall.handle_syscall st ar s a n ⦃ P ⦄ :=
   hF (by rw [handle_syscall_general_eq]; exact h)
+
+/-- **#57's `cancel_run` hook is a no-op on x86_64**: `suspend` is its pre-#57
+body. -/
+theorem suspend_eq_old (s : S) (a : A) (t : obj.Tcb) :
+    sched.suspend st ar s a t = sched.suspend_old st ar s a t := by
+  unfold sched.suspend sched.suspend_old vcpu.cancel_run
+  res_rfl
+
+/-- **#57's `finish`** is the pre-#57 body followed by `vcpu.check` of the
+current thread. -/
+theorem finish_eq_old (s : S) (a : A) :
+    syscall.finish st ar s a = (do
+      let (s2, a2) ← syscall.finish_old st ar s a
+      let t ← sched.cur_thread st s2
+      vcpu.check st ar s2 a2 t) := by
+  unfold syscall.finish syscall.finish_old
+  rcase_res sched.schedule st ar s a as r
+  all_goals obtain ⟨s1, a1⟩ := r
+  res_rfl
 
 end
 end Fl4Proofs.P1

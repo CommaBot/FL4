@@ -89,6 +89,12 @@ theorem MKD.sched_schedule {s : S} {a : A}  (h : AR a c₀) :
     sched.schedule st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold sched.schedule; mkd_walk
 
+/-- #57's `vcpu.check` at `finish`'s end: it returns the arch value it was
+given (`report` takes it read-only). -/
+theorem MKD.vcpu_check {s : S} {a : A} {t : obj.Tcb} (h : AR a c₀) :
+    vcpu.check st arI s a t ⦃ r => AR r.2 c₀ ⦄ := by
+  unfold vcpu.check; mkd_walk
+
 theorem MKD.syscall_finish {s : S} {a : A}  (h : AR a c₀) :
     syscall.finish st arI s a ⦃ r => AR r.2 c₀ ⦄ := by
   unfold syscall.finish; mkd_walk

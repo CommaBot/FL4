@@ -13529,3 +13529,109 @@ None.
   (R-d) `FastRRP` from `rr_sync` + (R-b) + `StoreExt` / `MemResp` (as `FastAcc.of_ext`), P1 top `entry_of8` without `hRR`;
   P3 `FastRR` from the same (`FastRR.acc`'s direction reversed) and `kernel_entryJ33F` / `J34F` in a new P3 module (not
   XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2).
+
+## m62 (branch par/m62 in FL4-m62, on bfab7c0e = int/j2 + merge of main 991586ba: #59 transactional runtime removed, #57 AArch64 EL2 virtualization, #60/#61/#62) — phase 1 DONE (re-extraction, every P0/P1/P3 break fixed, full build green, no sorry; two narrow new premises, no top statement changed); phase 2 = inventory below (nothing proved for AArch64); no FINDING
+- **What reaches the extraction.** `cargo xtask extract` runs `charon cargo --preset=aeneas --include fl4_abi` in
+  crates/fl4-core with default features: `aarch64` is off, so `lib.rs`'s `select_arch!` takes arch/x86_64 plus the shared
+  `ept.rs` / `vcpu.rs`, and every `#[cfg(feature = "aarch64")]` item (error.rs's three ARM faults, faults.rs's ARM
+  `set_mrs_fault` arms, objects.rs's Stage-2 size, smp.rs's VCPU flush, untyped.rs's ARM VCPU guard, `sanitise_reg!`'s
+  `sanitise_for_tcb`) is absent. #59 changes only comments in fl4-core. #60/#61/#62 touch nothing under crates/fl4-core.
+- **Extraction** (Aeneas nightly-2026.11.14-0d21a9e, no error). Semantic diff of Fl4Core (definition bodies, comments
+  stripped): new `vcpu.cancel_run` (= `ok (s, a)`); `sched.suspend` calls it first; `syscall.finish` =
+  `schedule; activate_thread; vcpu.check (cur_thread)`. Everything else is reordering (ept / vcpu now come through the
+  arch selection) and source line numbers; Types.lean only moves `obj.Ntfn`; gen_const_specs 132 constants (reordered);
+  gen_p0 1078/1078 proved (17 by hand), 0 sorry, Manual.lean.in unchanged.
+- **x86 behaviour.** `cancel_run` is a no-op on x86_64 (proved: `suspend_eq_old`). `vcpu.check t` returns at once unless
+  `t`'s state word is `TS_RUNNING_VM` (proved: `check_of_ne`); on `TS_RUNNING_VM` it completes the thread's VMEnter
+  (`report` of a pending exit, or of a bound active notification's badge, the notification made idle). So on every state
+  without a `RunningVM` current thread `finish` is the pre-#57 `finish`. The proofs' scope already excludes
+  `RunningVM` (P3: `NativeScope` / `hvm` [S]; P1: the top leaves `SysVMEnter` out), so the new code is never taken in a
+  state the P3 tops speak about; no x86 invariant changes; no FINDING. (Before #57 the x86 kernel ran the same check in
+  fl4-kernel's entry.rs before re-entering a guest; #57 moved it into `finish`, outside the proofs' native scope.)
+- **P1.** SyscallGen: `sched.suspend_old`, `syscall.finish_old` (pre-#57 bodies, verbatim), **`suspend_eq_old`**,
+  **`finish_eq_old`** (finish = finish_old, then `vcpu.check` of `cur_thread`). New module **VcpuHooks** (root import):
+  `check_of_ne`, `cur_thread_ok`, **`finish_of_old`** (a triple about `finish_old` whose post also says the current
+  thread's state word is not `TS_RUNNING_VM` gives the triple about `finish`), **`finish_ok_of_old`** (the same as an
+  equation). The eight `unfold sched.suspend` sites (QueueCancel, QueueSuspend, QueueFinThr, QueueFinFr, QueueFinal,
+  P3 IpcSuspendJ, XTopJointSuspend, MachKeepD) become `rw [suspend_eq_old]; unfold sched.suspend_old` (proofs
+  unchanged). `syscall.finish.entry` (QueueEntry): `finish_old` as before, then `vcpu.check`: off `TS_RUNNING_VM` by
+  `check_of_ne`, on it by the new `EntryHyps0.vmchk`. FastFin: `fault_fin_tail` / `fault_fin_gen` / `fault_fin` are
+  stated for `finish_old`; `fault_same` (statement about `finish` kept) takes `FaultNvm` and closes with
+  `finish_ok_of_old`; FastEntry's `UsfOK` carries `FaultNvm` beside `FaultOK`.
+- **P3.** XTopJointSchedR: `nd_one_inj`, **`actRest_nvm`** (spec: a successful `actRest` keeps the current thread and
+  leaves its thread not `RunningVM`), **`JAtZ.activateJV`** (`activateJ` plus: the current thread at `σ'` is not
+  `RunningVM`; `activateJ` is now its corollary, statement unchanged), **`JAtZ.cur_not_vm`** (at a `JAtZ` state whose
+  current thread is not `RunningVM`, FL4's current thread's state word is not `TS_RUNNING_VM`, from `TcbRel1.st`).
+  The four `finish` proofs (`jat_finishJ` SchedR, SchedRF, SchedRF3, `jat_finishJRP` KEntry4) go through
+  `finish_of_old` + `activateJV` + `cur_not_vm`; statements unchanged, no new premise. MachKeepF: `MKD.vcpu_check`
+  (`check` returns the arch value it got), so `MKD.syscall_finish` walks unchanged; MachKeepD imports SyscallGen.
+- **Premises.** Added (both narrow, named, true in every reachable state where the VCPU code is correct; neither
+  reaches a P3 top):
+  - `P3Place.vmchk` [P] (= `EntryHyps0.vmchk`, `EntryHyps.of` takes it): `EntryInv s → L.mem s (stA (L.curW s)) =
+    TS_RUNNING_VM → vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv … s' ⦄`. VT-x / SVM VMEnter completion, no l4v
+    counterpart (the l4v-derived spec has no `RunningVM` entry); P1 proves `vcpu.report.cur0` (the report keeps `Cur0`),
+    not yet `EntryInv` through `check`. Feeds the P1 tops `kernel_entry.entry_of*` (P3Place is their hypothesis bundle).
+  - `FaultNvm` [J] (in `UsfOK`, so inside `FastFaultOK` [J] at `kernel_entry.entry_of5`): the thread an accepted
+    `fastpath.fault` switches to (the handler, which the fast path makes `TS_RUNNING`) is not `TS_RUNNING_VM` at the
+    fast path's end. A read of the general path's end state like `FaultOK`'s; discharged with the rest of
+    `FastFaultOK` (m60 handoff (d)): `stA dest` is written `TS_RUNNING` in `fS14` and none of `unblock_sporadic` /
+    `fastFin`'s writes hits it.
+  Removed: none. Narrowed: none.
+- **Builds** (tokyo, mirror FL4-m62, `.lake` seeded from FL4-audit; m62-regen.sh / m62-mod.sh untracked, keys m62-*).
+  ex1: no deps found by the old search (the script now downloads/links them like m56's). **ex2: extraction + gen_const_specs +
+  gen_p0 (3604 jobs) OK.** mod1: SyscallGen OK, VcpuHooks (alternative names of the coinductive `Result`, a
+  `let (s2, a2) := …` left by the bind). mod2/mod3: VcpuHooks (`do` in `show` at the wrong universe; `uncurry` needs
+  `uncurry_apply_pair`). **mod4: every P1 module and the P3 finish / suspend modules built (5542 jobs), only MachKeepD
+  failed (no SyscallGen import).** **full1 (m62-regen.sh MODE=build, full `lake build`): "Build completed successfully (6993
+  jobs)", 0 errors, 0 `declaration uses 'sorry'`.** No sorry / admit / native_decide / bv_decide added; no axiom added.
+- **Axioms** (axm62.lean at the worktree root, untracked, run by full1): kernel_entryJ33, kernel_entryJ33G, kernel_entryJ34, kernel_entryJ36,
+  kernel_entryJ37, kernel_entry_reachMI, B8w.kcall_rdyOffW / kentry_rdyOffW / kcall_rdyOffW_all / kentry_rdyOffW_all,
+  P1 kernel_entry.entry_of4 / entry_of5, fault_same, usf_same, suspend_eq_old, finish_eq_old, check_of_ne,
+  finish_of_old, finish_ok_of_old, syscall.finish.entry, EntryHyps.of, P3 JAtZ.activateJV, JAtZ.activateJ,
+  JAtZ.cur_not_vm, actRest_nvm, jat_finishJ, jat_finishJRP, MKD.vcpu_check, MKD.syscall_finish, MKD.sched_suspend,
+  P0 vcpu.cancel_run.p0 / syscall.finish.p0 / sched.suspend.p0: propext, Classical.choice, Quot.sound (each).
+- Commits: 57466d2d (merge of main 991586ba), 632ed589 (P0), edcd876a (P1), 7b80eb7c (P3), this section.
+- **Phase 2: AArch64 (#57) inventory** (nothing proved; probe m62-a64 = m62-a64.sh, untracked: charon with
+  `-- --features aarch64` into build/llbc-a64, Aeneas into m62logs/a64, proofs/ untouched).
+  - *Extractable?* Not as is. charon accepts the feature (it is passed through to cargo; the xtask has no switch for it
+    yet). Aeneas: **2 unique errors, both "Early returns inside of loops are not supported yet"**, in
+    `vspace::unmap_page_table` (arch/aarch64/vspace.rs:314) and `ept::unmap_table` (arch/aarch64/ept.rs:200): their
+    level walks `return` from inside the `while`. Aeneas then writes a partial Funs.lean (1499 definitions, the two bodies
+    dropped). The x86 versions have no such return, which is why the x86 extraction passes. A kernel change (a
+    `found`/`done` flag or a loop-free walk helper, as x86's) makes them extractable; not done (crates/ untouched).
+  - *What differs from x86.* Of the 1268 definitions both extractions share by name, 147 have a different body: fl4_abi
+    constants 49, vspace 27, debug 8, vcpu 8, boot 7, faults 7 (`set_fault` / `set_mrs_fault`'s ARM arms,
+    `copy_mrs_fault_reply` through `sanitise_for_tcb`), tcb 7 (register copy loops, `fpu_transfer`,
+    `post_modify_registers`), layout 6 (`PPTR_BASE` / `PPTR_TOP`, `reg.TLS_BASE` = TPIDR_EL0, `NBSEND_RECV_DEST` = X8,
+    `irq.MAX`, `tcb.END`), objects 5, regs 4, syscall 4, untyped 3 (`decode`'s VCPU guard, `shared_frame_spec`), smp 2,
+    `msg.msg_register` (X4/X5), `decode_irq_control`; 231 definitions exist only on AArch64 (vcpu 66, vspace 35, ept 31,
+    fl4_abi 76, machine 9, …), 318 only on x86 (VT-x/SVM vcpu 189, x86 vspace 43, debug 13, …). **The bodies of sched,
+    ipc, endpoint, cnode, cdt, sporadic, schedcontext, notification are identical** in the two extractions; TCB fields
+    after `F = 0xd00` keep their offsets, the register file / FPU / DEBUG offsets and PPTR differ.
+  - *Layers.* P0: gen_p0 / gen_const_specs apply mechanically (expect a few hand proofs for the new loops: VCPU
+    register copies, VGIC list registers, Stage-2 walks). P1: the invariants of the identical shared code carry over in
+    substance, but every P1 statement names `fl4_core.*` of one extraction; the two builds collide by name, so AArch64
+    needs its own package (say `Fl4CoreA64`) and either a copy of P1 re-checked against it (mechanical where proofs use
+    constants by name; the register-number and FPU-size places, 71 P1 files with literal offsets, need a look) or a
+    refactor that states P1 over a signature both extractions instantiate. New P1: VCPU objects and invocations
+    (SetTCB, InjectIRQ, Read/WriteReg, AckVPPI, state transfer, ARMVCPURun's exit check / `cancel_run`, VGIC
+    maintenance, VPPI events), Stage-2 VSpace (ept.rs), AArch64 page tables (vspace.rs); x86's counterparts are
+    QueueVcpu / QueueDecVcpu / QueueDecEpt / QueueDecVs / QueueVsFin (3.1k lines): estimate 4-6k lines. P3: the spec
+    is X64 only (Fl4Spec/X64: Arch, Structs, VSpace, 1.4k lines; `Fl4Spec.State`'s arch objects are X64's), so
+    AArch64 needs an arch spec ported from l4v's AARCH64 (Arch_A, VSpace_A, VCPU_A / VGIC, 3-5k lines; ARMVCPURun and the
+    fast exits are FL4 extensions without an l4v counterpart, like VMEnter on x86). The non-arch refinement (IPC, CNode,
+    scheduler, untyped: most of P3's 559k lines) is stated against the X64 spec and the x86 extraction; reusing it
+    needs the spec's arch part abstracted (Fl4Spec + the P3 relations) or a second copy. Arch-specific P3: x86's
+    VSpace / ASID / pool / frame modules are ~200 files / ~80k lines (upper bound by name); the AArch64 VSpace + Stage-2
+    counterpart is of the same order. VCPU *runs* would stay outside the scope as on x86 (`NativeScope`: no `RunningVM`
+    thread); VCPU object management would be in it.
+  - *Free from x86.* The pipeline and P0 automation; P1's store-law library (`LawfulStore`, `WritesIn`, queue / CDT /
+    SC lemmas) wherever it depends only on the identical shared code; the arch-independent spec (Fl4Spec outside X64,
+    7.7k lines) and the J-layer method; this round's #57 hooks (`cancel_run` / `check` stated once, both arches).
+  - *Size.* Extraction + P0: days (after the two-function kernel change and an xtask `--arch aarch64` switch with its
+    own output package). P1: weeks (copy or functorise, plus 4-6k new lines). P3: a project of months, comparable to
+    the x86 arch work plus the spec port and the arch abstraction. Order if started: kernel change → extraction/P0 →
+    P1 shared re-instantiation → P1 arch → spec port → P3.
+- HANDOFF: (1) prove `P3Place.vmchk` (P1: `vcpu.report` keeps `EntryInv` through `Cur0` — `vcpu.report.cur0` exists — and
+  the notification made idle; then `EntryHyps.of` loses the argument); (2) discharge `FaultNvm` with the rest of
+  `FastFaultOK` (m60 handoff (d)); (3) phase 2 per the inventory, after the owner decides.

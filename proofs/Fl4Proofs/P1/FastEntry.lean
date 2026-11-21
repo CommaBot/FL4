@@ -30,7 +30,7 @@ variable {S : Type _} {A : Type _} {st : machine.Store S} (ar : machine.Arch A) 
 after a passing `budget_ok`, where `fastpath.fault` is entered). -/
 def UsfOK (s : S) (a : A) (n : U64) : Prop :=
   ∀ s1 a1 t, syscall.budget_ok st ar s a = ok (true, s1, a1) → sched.cur_thread st s1 = ok t →
-    FaultOK (L := L) ar s1 a1 t n
+    FaultOK (L := L) ar s1 a1 t n ∧ FaultNvm (L := L) ar s1 a1 t n
 
 /-- **`unknown_syscall_fault` where the fault fast path answered is the general
 one.** -/
@@ -64,7 +64,7 @@ theorem usf_same (hX : StoreExt st) {s : S} {a : A} {n : U64} {s' : S} {a' : A} 
     · simp only [↓reduceIte, WP.spec_ok] at h'
       simp only [Prod.mk.injEq, true_and] at h'
       obtain ⟨rfl, rfl⟩ := h'
-      have hs := fault_same ar hX e2 (hF s1 a1 t e et)
+      have hs := fault_same ar hX e2 (hF s1 a1 t e et).1 (hF s1 a1 t e et).2
       obtain ⟨⟨p1, p2⟩, ehf, hs⟩ := bind_eq_ok hs
       try simp only [uncurry_apply_pair] at hs
       rw [ehf]; simp only [bind_ok, uncurry_apply_pair]

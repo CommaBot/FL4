@@ -748,6 +748,7 @@ pub fn preemption_point<S: Store, A: Arch>(s: &mut S, a: &mut A) -> KResult<()> 
 
 /// seL4 `suspend` (MCS).
 pub fn suspend<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
+    crate::vcpu::cancel_run(s, a, t);
     crate::ipc::cancel_ipc(s, a, t);
     if t.state(s) == TS_RUNNING {
         let ip = t.reg(s, crate::layout::reg::NEXT_IP);

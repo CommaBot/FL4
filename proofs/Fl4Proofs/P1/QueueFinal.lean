@@ -871,7 +871,7 @@ theorem sched.suspend.kw {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t :
   have hreply : L.mem s (stA t) = sched.TS_BLOCKED_ON_REPLY → ReplyT st Rp Scs s t := fun hs => by
     obtain ⟨h1, h2⟩ := hR.reply t ht hs
     exact ⟨h1, h2, hR.next _ h1, hR.prev _ h1⟩
-  unfold sched.suspend
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
   refine WP.spec_bind (WP.spec_and (ipc.cancel_ipc.all s a t Q R h ht hB ⟨hO, hR, hE⟩ hsub)
     (ipc.cancel_ipc.kw (Sg := Sg) (Scs := Scs) (Z := Z) s a t h ht hO hsub hreply (fun h1 h2 => (hR.recv t ht h1 h2).1))) ?_
   rintro ⟨s1, a1⟩ ⟨⟨h1, -, hX1, -, -, -, k1, -⟩, fw1⟩

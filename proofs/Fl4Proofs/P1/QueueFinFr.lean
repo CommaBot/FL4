@@ -48,7 +48,7 @@ theorem sched.suspend.keepF {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (
   have hT := h0.tcbs
   have hta := hT t ht
   obtain ⟨hO, hR, hE⟩ := hX
-  unfold sched.suspend
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
   refine WP.spec_bind (ipc.cancel_ipc.all s a t Q R h0 ht hB ⟨hO, hR, hE⟩ hsub) ?_
   rintro ⟨s1, a1⟩ ⟨h1, -, hX1, -, -, -, k1, -⟩
   try simp only [WP.uncurry'_pair]

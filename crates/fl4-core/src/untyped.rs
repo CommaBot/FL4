@@ -39,7 +39,10 @@ pub fn decode<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: u64, sl
     let node_depth = msg::syscall_arg(s, ct, buf, 3);
     let node_offset = msg::syscall_arg(s, ct, buf, 4);
     let node_window = msg::syscall_arg(s, ct, buf, 5);
+    #[cfg(not(feature = "aarch64"))]
     if new_type >= ot::X86Vcpu && new_type < ot::Count && a.virtualization() == 0 { return invalid_arg(0); }
+    #[cfg(feature = "aarch64")]
+    if (new_type == ot::ArmVcpu || new_type == ot::ArmStage2VSpace) && a.virtualization() == 0 { return invalid_arg(0); }
     let obj_size = retype_size(new_type, user_size)?;
     let dest = retype_dest(s, extra[0], node_index, node_depth, node_offset, node_window)?;
     ensure_empty_slots(s, dest, node_offset, node_offset.wrapping_add(node_window))?;
@@ -245,9 +248,11 @@ fn reset_untyped<S: Store, A: Arch>(s: &mut S, a: &mut A, slot: Slot) -> KResult
         if offset == 0 {
             return Ok(());
         }
-        // The cap just written reads back, except in a doomed transaction
-        // (DESIGN.md §7: reads return 0 there). Its preemption point would
-        // never count up, so give up the rest here: the entry reruns.
+        // The cap just written reads back. (It did not in a doomed
+        // transaction, which read 0, before the transactional runtime
+        // went: its preemption point never counted up, so this gave up
+        // the rest and the entry reran. Removing the check changes the
+        // extracted code, so it waits for the proofs.)
         if as_untyped(slot.cap(s)).is_none() {
             return Err(Exc::Preempted);
         }
@@ -286,16 +291,17 @@ fn retype<S: Store, A: Arch>(
 
 #[cfg(all(test, not(feature = "aarch64")))]
 mod tests {
-    //! `reset_untyped` inside a doomed transaction (DESIGN.md §7): reads
-    //! return 0 and writes are dropped, so the preemption point never
-    //! counts up and cannot end the loop.
+    //! `reset_untyped` on a store whose reads return 0 and whose writes
+    //! are dropped, as a doomed transaction's were before the
+    //! transactional runtime went: the preemption point never counts up
+    //! and cannot end the loop, and the read-back check must.
     extern crate std;
     use super::*;
     use std::collections::BTreeMap;
 
-    /// A store that behaves like a transaction: a `clear_free` larger
-    /// than `limit` dooms it (fl4-store's `MAX_TX_CLEAR`), after which
-    /// every read is 0 and every write is lost.
+    /// A store that behaves as a transaction did: a `clear_free` larger
+    /// than `limit` dooms it (fl4-store's former `MAX_TX_CLEAR`), after
+    /// which every read is 0 and every write is lost.
     struct TxMem {
         words: BTreeMap<u64, u64>,
         limit: u64,
@@ -377,10 +383,9 @@ mod tests {
         s
     }
 
-    /// Audit r11 F2: the first 64 KiB chunk dooms the transaction; the
-    /// reset must give up at once rather than walk the remaining chunks
-    /// (a 64 GiB untyped: about a million rounds with interrupts off,
-    /// holding off the serial gate).
+    /// Audit r11 F2: the first 64 KiB chunk dooms the store; the reset
+    /// must give up at once rather than walk the remaining chunks (a
+    /// 64 GiB untyped: about a million rounds with interrupts off).
     #[test]
     fn doomed_reset_stops_after_the_first_chunk() {
         let mut s = untyped(64 << 20, 8192);
@@ -390,8 +395,8 @@ mod tests {
         assert!(r.is_err());
     }
 
-    /// Outside a transaction the reset is unchanged: every chunk, top
-    /// down, and the cap ends with a free index of 0.
+    /// On a plain store the reset clears every chunk, top down, and the
+    /// cap ends with a free index of 0.
     #[test]
     fn serial_reset_clears_every_chunk() {
         let chunks = 64;

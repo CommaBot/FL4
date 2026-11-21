@@ -32,6 +32,7 @@ import Fl4Proofs.P3.XTopJointDispatch
 import Fl4Proofs.P3.XTopJointYield
 import Fl4Proofs.P3.XTopJointReply
 import Fl4Proofs.P3.ScJointYield
+import Fl4Proofs.P1.VcpuHooks
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -202,6 +203,47 @@ theorem activateThread_eq {σ : State Unit} {x : Tcb} (hk : σ.kheap σ.curThrea
   rw [Notif.nd_bind_one (Endp.getTcbObjRef_eq _ hk)]
   rfl
 
+/-- A single outcome equals another only with the same state. -/
+theorem nd_one_inj {α β : Type} {a a' : α} {s s' : β}
+    (h : (({(a, s)} : Set (α × β)), False) = ({(a', s')}, False)) : s = s' := by
+  have h1 := congrArg Prod.fst h
+  simp only [Set.singleton_eq_singleton_iff, Prod.mk.injEq] at h1
+  exact h1.2
+
+/-- **#57: `actRest` leaves its thread not `RunningVM`** when it succeeds
+(a `RunningVM` thread makes it fail; `running` and idle stay, `restart`
+becomes `running`), and keeps the current thread. -/
+theorem actRest_nvm {σ σ' : State Unit} {t : ObjRef} {x : Tcb} (hk : σ.kheap t = some (.tcb x))
+    (he : actRest t σ = ({((), σ')}, False)) :
+    σ'.curThread = σ.curThread ∧ ∀ y, σ'.kheap t = some (.tcb y) → y.tcbState ≠ .runningVM := by
+  unfold actRest at he
+  rw [Notif.nd_bind_one (getThreadState_eq hk)] at he
+  cases hs : x.tcbState <;> rw [hs] at he <;> dsimp only at he
+  case running =>
+    have e := nd_one_inj he; subst e
+    refine ⟨rfl, fun y hy => ?_⟩
+    rw [hk] at hy; cases hy; rw [hs]; intro h; cases h
+  case idleThreadState =>
+    have e := nd_one_inj he; subst e
+    refine ⟨rfl, fun y hy => ?_⟩
+    rw [hk] at hy; cases hy; rw [hs]; intro h; cases h
+  case restart =>
+    change (asUser t (getRegister .faultIP) >>= fun pc => asUser t (setRegister .nextIP pc) >>= fun _ =>
+      setThreadState t .running) σ = _ at he
+    rw [Notif.nd_bind_one (asUser_getRegister_eq hk .faultIP),
+      Notif.nd_bind_one (asUser_setRegister_eq .nextIP _ hk)] at he
+    have hk2 : (updK σ t (.tcb (setReg x Fl4Spec.Register.nextIP (x.tcbArch.tcbContext.userRegs .faultIP)))).kheap t =
+        some (.tcb (setReg x Fl4Spec.Register.nextIP (x.tcbArch.tcbContext.userRegs .faultIP))) := by simp [updK]
+    rw [setThreadState_eq' hk2] at he
+    have e := nd_one_inj he; subst e
+    have hK : ∀ (τ : State Unit), (Notif.stsAct τ t).kheap = τ.kheap ∧ (Notif.stsAct τ t).curThread = τ.curThread := by
+      intro τ; unfold Notif.stsAct; split <;> exact ⟨rfl, rfl⟩
+    refine ⟨by rw [(hK _).2]; rfl, fun y hy => ?_⟩
+    rw [(hK _).1] at hy
+    simp [Notif.updK] at hy
+    subst hy; simp
+  all_goals exact absurd (congrArg Prod.snd he) (by simp [NonDet.fail])
+
 end Spec
 
 section
@@ -298,13 +340,14 @@ scope, IpcLeaves' `NativeScope`, DESIGN §9; seL4's C `activateThread` treats
 `ThreadState_RunningVM` as `Running` under `CONFIG_VTX`, the ported
 `activateThread` has no such branch and fails), and the platform's
 `ticks_to_us`/`getMaxTicksToUs` [P] (`hmax`, `htu`, as `completeYieldJ`). -/
-theorem JAtZ.activateJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
+theorem JAtZ.activateJV (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hcr : CurRunW σ) (hvm : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbState ≠ .runningVM) :
     sched.activate_thread st arI s a ⦃ r => ∃ σ', Fl4Spec.activateThread (Z := Unit) σ = ({((), σ')}, False) ∧
       RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ∧
+        ∀ y, σ'.kheap σ'.curThread = some (.tcb y) → y.tcbState ≠ .runningVM ⦄ := by
   unfold sched.activate_thread
   step with Sched.sched.cur_thread.spec' as ⟨ct, ect⟩
   have hct : sched.cur_thread st s = ok ct := by rw [ect]; exact cur_thread_eq s
@@ -352,7 +395,44 @@ theorem JAtZ.activateJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : 
   rw [Notif.nd_bind_one hw1] at hspec
   refine WP.spec_mono (J1.actRestJ hctT hcur1 hcr1 hvm1) ?_
   rintro r ⟨σ', he, hRJ, V2, Ac2, Lst2, D2, J2⟩
-  exact ⟨σ', hspec.trans he, hRJ.1, hRJ.2, V2, Ac2, Lst2, D2, J2⟩
+  refine ⟨σ', hspec.trans he, hRJ.1, hRJ.2, V2, Ac2, Lst2, D2, J2, fun y hy => ?_⟩
+  obtain ⟨x1, hk1, -⟩ := J1.yld.tcb ct hctT
+  obtain ⟨hc', hnv⟩ := actRest_nvm hk1 he
+  rw [hc', hcur1] at hy
+  exact hnv y hy
+
+/-- **FL4's `activate_thread` refines the spec's at `J`**: `activateJV`
+without its `RunningVM` conjunct (the pre-#57 statement). -/
+theorem JAtZ.activateJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P0.ArchTotal arI)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hcr : CurRunW σ) (hvm : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbState ≠ .runningVM) :
+    sched.activate_thread st arI s a ⦃ r => ∃ σ', Fl4Spec.activateThread (Z := Unit) σ = ({((), σ')}, False) ∧
+      RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ :=
+  WP.spec_mono (J.activateJV hAT hmax htu hcr hvm) fun _ ⟨σ', h1, h2, V, Ac', Lst', D', J', _⟩ =>
+    ⟨σ', h1, h2, V, Ac', Lst', D', J'⟩
+
+/-- **#57: at a `JAtZ` state whose current thread is not `RunningVM`, FL4's
+current thread's state word is not `TS_RUNNING_VM`**, so `finish`'s
+`vcpu.check` returns at once (P1 `VcpuHooks.finish_of_old`). -/
+theorem JAtZ.cur_not_vm (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hvm : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbState ≠ .runningVM) :
+    L.mem s (P1.stA (L.curW s)) ≠ sched.TS_RUNNING_VM := by
+  have hct : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
+  obtain ⟨hcur, -⟩ := J.curEq hct
+  have hctT : L.curW s ∈ Z.T := TopSR.cur_mem J.xtop.fin.1 hcur.symm
+  have hI := J.xtop.irelK J.ks J.buf
+  obtain ⟨x, hk, hTR⟩ := hI.1.tcb _ hctT
+  have hst : (L.mem s (tStA (L.curW s))).val = tsCode x.tcbState := hTR.st
+  have hx := hvm x (by rw [hcur]; exact hk)
+  intro e
+  have e8 : (L.mem s (tStA (L.curW s))).val = 8 := by
+    rw [show L.mem s (tStA (L.curW s)) = L.mem s (P1.stA (L.curW s)) from rfl, e]
+    unfold sched.TS_RUNNING_VM; rfl
+  rw [e8] at hst
+  apply hx
+  revert hst; generalize x.tcbState = ts; cases ts <;> simp [tsCode]
 
 /-- P3's `Fires` (ScAwaken) is Ext/Timer's `fl4TimerFires` (the definitions
 are the same; ScAwaken's is kept to avoid rebuilding its cone). -/
@@ -399,11 +479,13 @@ theorem jat_finishJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) σ).1 ∧
       RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
-  unfold syscall.finish
+  refine P1.finish_of_old arI ?_
+  unfold syscall.finish_old
   refine WP.spec_bind (jat_scheduleSR s a σ J hd hnd hAT hVt hW hmb hA hsni hsend hT hTail) ?_
   rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1⟩, -, hcr⟩
-  refine WP.spec_mono (J1.activateJ hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
-  rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2⟩
+  refine WP.spec_mono (J1.activateJV hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
+  rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2, hnv⟩
+  refine ⟨?_, J2.cur_not_vm hnv⟩
   have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by
     rw [Notif.nd_bind_one hsc]; exact ha
   refine ⟨σ1, σ', mem_fl4Awaken_of hF, hsa, ⟨((), σ1), mem_fl4Awaken_of hF, ?_⟩, hRJ, V2, Ac2, Lst2, D2, J2⟩

@@ -115,9 +115,64 @@ typedef enum {
     seL4_VCPUReg_CNTVOFF,
     seL4_VCPUReg_CNTKCTL_EL1,
 
-    seL4_VCPUReg_Num,
+    /* FL4 extensions (25..=63): hypervisor, debug and VGIC registers */
+    seL4_VCPUReg_VPIDR_EL2 = 25,
+    seL4_VCPUReg_HCR_EL2 = 26,
+    seL4_VCPUReg_VSESR_EL2 = 27,
+    seL4_VCPUReg_ACTLR_EL1 = 28,
+    seL4_VCPUReg_MDSCR_EL1 = 29,
+    seL4_VCPUReg_MDCCINT_EL1 = 30,
+    seL4_VCPUReg_FAR_EL2 = 31,
+    seL4_VCPUReg_HPFAR_EL2 = 32,
+    seL4_VCPUReg_ESR_EL2 = 33,
+    seL4_VCPUReg_VGIC_VTR = 34,
+    seL4_VCPUReg_VGIC_HCR = 35,
+    seL4_VCPUReg_VGIC_VMCR = 36,
+    seL4_VCPUReg_VGIC_MISR = 37,
+    seL4_VCPUReg_VGIC_EISR = 38,
+    seL4_VCPUReg_VGIC_ELRSR = 39,
+    seL4_VCPUReg_VGIC_AP0R0 = 40,
+    seL4_VCPUReg_VGIC_AP0R1 = 41,
+    seL4_VCPUReg_VGIC_AP0R2 = 42,
+    seL4_VCPUReg_VGIC_AP0R3 = 43,
+    seL4_VCPUReg_VGIC_AP1R0 = 44,
+    seL4_VCPUReg_VGIC_AP1R1 = 45,
+    seL4_VCPUReg_VGIC_AP1R2 = 46,
+    seL4_VCPUReg_VGIC_AP1R3 = 47,
+    seL4_VCPUReg_VGIC_LR0 = 48,
+    seL4_VCPUReg_VGIC_LR1 = 49,
+    seL4_VCPUReg_VGIC_LR2 = 50,
+    seL4_VCPUReg_VGIC_LR3 = 51,
+    seL4_VCPUReg_VGIC_LR4 = 52,
+    seL4_VCPUReg_VGIC_LR5 = 53,
+    seL4_VCPUReg_VGIC_LR6 = 54,
+    seL4_VCPUReg_VGIC_LR7 = 55,
+    seL4_VCPUReg_VGIC_LR8 = 56,
+    seL4_VCPUReg_VGIC_LR9 = 57,
+    seL4_VCPUReg_VGIC_LR10 = 58,
+    seL4_VCPUReg_VGIC_LR11 = 59,
+    seL4_VCPUReg_VGIC_LR12 = 60,
+    seL4_VCPUReg_VGIC_LR13 = 61,
+    seL4_VCPUReg_VGIC_LR14 = 62,
+    seL4_VCPUReg_VGIC_LR15 = 63,
+
+    seL4_VCPUReg_Num = 64,
     SEL4_FORCE_LONG_ENUM(seL4_VCPUReg),
 } seL4_VCPUReg;
+
+#define seL4_ARM_VCPUState_EL1_SYSREGS (1ul << 0)
+#define seL4_ARM_VCPUState_HYP         (1ul << 1)
+#define seL4_ARM_VCPUState_TIMER       (1ul << 2)
+#define seL4_ARM_VCPUState_VGIC        (1ul << 3)
+#define seL4_ARM_VCPUState_GPRS        (1ul << 4)
+#define seL4_ARM_VCPUState_VGIC_LR     (1ul << 5)
+#define seL4_ARM_VCPUState_ALL         0x3ful
+
+#define seL4_ARM_VCPURunStop_Interrupt 0ul
+#define seL4_ARM_VCPURunStop_VMFault   1ul
+#define seL4_ARM_VCPURunStop_VCPUFault 2ul
+#define seL4_ARM_VCPURunStop_VGICMaint 3ul
+#define seL4_ARM_VCPURunStop_VPPI      4ul
 
 #ifdef CONFIG_KERNEL_MCS
 typedef enum {
@@ -209,8 +264,9 @@ typedef enum {
 #define seL4_VSpaceIndexBits 9
 #endif
 
-#define seL4_ARM_VCPUBits   12
-#define seL4_VCPUBits       12
+#define seL4_ARM_VCPUBits          12
+#define seL4_VCPUBits              12
+#define seL4_ARM_Stage2VSpaceBits  13
 
 /* word size */
 #define seL4_WordBits (sizeof(seL4_Word) * 8)

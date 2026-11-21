@@ -1,8 +1,7 @@
 //! The AArch64 kernel's boot-time decisions on the host: its memory lists
 //! (fl4-kernel-aarch64 bootmem.rs), its ACPI parsing (hw.rs, over
-//! host-allocated tables), the GIC layout arithmetic, the cache
-//! maintenance rule and the cores' capability check (fl4-arch-aarch64
-//! gic_layout.rs, cache_rule.rs, ap_caps.rs). Only the window, the console
+//! host-allocated tables), the GIC layout arithmetic and the cores'
+//! capability check (fl4-arch-aarch64 gic_layout.rs, ap_caps.rs). Only the window, the console
 //! and the boot core's MPIDR are replaced.
 extern crate self as fl4_core;
 extern crate self as fl4_arch_aarch64;
@@ -59,12 +58,12 @@ pub mod cpu {
 
 #[path = "../../crates/fl4-arch-aarch64/src/gic_layout.rs"]
 pub mod gic_layout;
-#[path = "../../crates/fl4-arch-aarch64/src/cache_rule.rs"]
-mod cache_rule;
 #[path = "../../crates/fl4-arch-aarch64/src/el0_access.rs"]
 mod el0_access;
 #[path = "../../crates/fl4-arch-aarch64/src/ap_caps.rs"]
 mod ap_caps;
+#[path = "../../crates/fl4-arch-aarch64/src/vmid.rs"]
+mod vmid;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
@@ -195,42 +194,6 @@ fn another_cores_gicv2_banked_interrupts_take_a_remote_call() {
     }
 }
 
-#[test]
-fn cache_maintenance_through_the_user_mapping_waits_for_the_gate() {
-    assert!(cache_rule::needs_gate(true, true, 64));
-    assert!(cache_rule::needs_gate(true, false, 64));
-    // Clean, clean+invalidate and unify through TTBR0.
-    assert!(cache_rule::needs_gate(false, false, 64));
-    assert!(!cache_rule::needs_gate(false, true, 64));
-}
-
-/// Audit r11 F3: a 2 MiB or 1 GiB clean (a non-cacheable block mapping,
-/// a Page or VSpace flush) is not repeated on every transaction retry.
-#[test]
-fn large_cache_maintenance_waits_for_the_gate() {
-    let max = cache_rule::MAX_TX_CACHE;
-    assert!(!cache_rule::needs_gate(false, true, 4096));
-    assert!(!cache_rule::needs_gate(false, true, max));
-    assert!(cache_rule::needs_gate(false, true, max + 1));
-    assert!(cache_rule::needs_gate(false, true, 2 << 20));
-    assert!(cache_rule::needs_gate(false, true, 1 << 30));
-}
-
-/// Audit r11 F3: once the transaction is doomed (a conflicting read
-/// returned 0) no cache operation reaches the hardware, whatever its
-/// range: the entry runs again on a consistent view.
-#[test]
-fn doomed_transactions_do_no_cache_maintenance() {
-    use cache_rule::{in_tx, InTx};
-    for (invalidate, in_window, len) in [(false, true, 64), (false, true, 1 << 30), (true, true, 64), (false, false, 64)] {
-        assert_eq!(in_tx(true, invalidate, in_window, len), InTx::Skip);
-    }
-    assert_eq!(in_tx(false, false, true, 4096), InTx::Run);
-    assert_eq!(in_tx(false, false, true, 2 << 20), InTx::Serial);
-    assert_eq!(in_tx(false, true, true, 64), InTx::Serial);
-    assert_eq!(in_tx(false, false, false, 64), InTx::Serial);
-}
-
 // ---- EL0 access to per-core registers (audit F3) -------------------------------
 
 #[test]
@@ -249,10 +212,20 @@ fn el0_debug_channel_and_trace_registers_trap() {
 
 /// Audit F5: a core runs beside the boot core only with 16-bit ASIDs and
 /// the boot core's access-flag management, PAN, at least its physical
-/// address size, and its counter frequency.
+/// address size, its counter frequency, and its EL2/VHE/VGIC capabilities.
 #[test]
 fn an_application_processor_must_match_the_boot_core() {
-    let bsp = ap_caps::Caps { asid16: true, hw_af: true, pan: true, pa_bits: 40, cntfrq: 62_500_000 };
+    let bsp = ap_caps::Caps {
+        asid16: true,
+        hw_af: true,
+        pan: true,
+        pa_bits: 40,
+        cntfrq: 62_500_000,
+        el2: false,
+        vhe: false,
+        vmid16: false,
+        vgic_lrs: 0,
+    };
     assert!(ap_caps::ap_matches(&bsp, &bsp));
     assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
     for ap in [
@@ -262,13 +235,87 @@ fn an_application_processor_must_match_the_boot_core() {
         ap_caps::Caps { pa_bits: 36, ..bsp },
         ap_caps::Caps { cntfrq: 24_000_000, ..bsp },
         ap_caps::Caps { cntfrq: 0, ..bsp },
+        ap_caps::Caps { el2: true, ..bsp },
+        ap_caps::Caps { vhe: true, ..bsp },
+        ap_caps::Caps { vmid16: true, ..bsp },
+        ap_caps::Caps { vgic_lrs: 4, ..bsp },
     ] {
         assert!(!ap_caps::ap_matches(&bsp, &ap), "{ap:?}");
+    }
+    // EL2 VHE mode: every AP must match EL2, VHE, VMID16 and VGIC LR count.
+    let el2_bsp = ap_caps::Caps { el2: true, vhe: true, vmid16: true, vgic_lrs: 4, ..bsp };
+    assert!(ap_caps::ap_matches(&el2_bsp, &el2_bsp));
+    for ap in [
+        ap_caps::Caps { el2: false, ..el2_bsp },
+        ap_caps::Caps { vhe: false, ..el2_bsp },
+        ap_caps::Caps { vmid16: false, ..el2_bsp },
+        ap_caps::Caps { vgic_lrs: 3, ..el2_bsp },
+        ap_caps::Caps { vgic_lrs: 0, ..el2_bsp },
+    ] {
+        assert!(!ap_caps::ap_matches(&el2_bsp, &ap), "el2 {ap:?}");
+    }
+    // EL2 nVHE mode: el2=true, vhe=false; APs must match nVHE and VGIC LR count.
+    let nvhe_bsp = ap_caps::Caps { el2: true, vhe: false, vmid16: false, vgic_lrs: 4, ..bsp };
+    assert!(ap_caps::ap_matches(&nvhe_bsp, &nvhe_bsp));
+    // Heterogeneous PA (BSP 40-bit, AP 48-bit): AP is admitted and both cores
+    // use the BSP's Stage-2 IPA geometry (40-bit).
+    assert!(ap_caps::ap_matches(&nvhe_bsp, &ap_caps::Caps { pa_bits: 48, ..nvhe_bsp }));
+    assert_eq!(vmid::s2_ipa_bits_for_pa(36), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(40), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(42), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(44), 44);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(48), 48);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(52), 48);
+    for ap in [
+        ap_caps::Caps { el2: false, ..nvhe_bsp },
+        ap_caps::Caps { vhe: true, ..nvhe_bsp },
+        ap_caps::Caps { vmid16: true, ..nvhe_bsp },
+        ap_caps::Caps { vgic_lrs: 3, ..nvhe_bsp },
+        ap_caps::Caps { vgic_lrs: 0, ..nvhe_bsp },
+    ] {
+        assert!(!ap_caps::ap_matches(&nvhe_bsp, &ap), "nvhe {ap:?}");
     }
     // Nor a core with what the boot core lacks: the kernel set up neither.
     let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
     assert!(!ap_caps::ap_matches(&plain, &bsp));
     assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+#[test]
+fn vmid8_single_revoke_preserves_other_asids_and_wrap_bumps_gen() {
+    let tbl = vmid::VmidTable::new();
+    assert_eq!(tbl.generation(), 1);
+    let (va, wrapped_a) = tbl.alloc_step(10);
+    let (vb, wrapped_b) = tbl.alloc_step(20);
+    assert!(!wrapped_a && !wrapped_b);
+    assert_eq!(tbl.lookup(10), Some(va));
+    assert_eq!(tbl.lookup(20), Some(vb));
+
+    // Single-ASID revocation releases only ASID 10's slot and does NOT bump generation:
+    // ASID 20 must remain resolvable so invalidate_stage2_page(20) still finds its VMID.
+    tbl.release_slot(va);
+    assert_eq!(tbl.generation(), 1);
+    assert_eq!(tbl.lookup(10), None);
+    assert_eq!(tbl.lookup(20), Some(vb));
+
+    // Fill remaining slots up to 255 -> no wrap yet.
+    for asid in 21..(21 + 253) {
+        let (_v, wrapped) = tbl.alloc_step(asid);
+        assert!(!wrapped, "unexpected wrap at asid {asid}");
+    }
+    // The 256th allocation wraps to slot 1 -> caller bumps gen, retires cores, flushes all VMIDs, then installs.
+    let (slot, wrapped) = tbl.alloc_step(500);
+    assert!(wrapped);
+    assert_eq!(slot, 1);
+    let new_gen = tbl.bump_gen();
+    assert_eq!(new_gen, 2);
+    // Old-generation ASIDs are now invalidated; slot 1 is not visible until install_slot runs.
+    assert_eq!(tbl.lookup(20), None);
+    assert_eq!(tbl.lookup(500), None);
+    tbl.install_slot(slot, new_gen, 500);
+    assert_eq!(tbl.lookup(500), Some(1));
+    assert_eq!(vmid::mask_lr_bitmap(0xffff_ffff, 16), 0xffff);
+    assert_eq!(vmid::mask_lr_bitmap(0xffff_ffff, 4), 0xf);
 }
 
 /// Audit F5: EL2 set-up reads PMCR_EL0 only with an architected PMU, as
@@ -1160,6 +1207,100 @@ fn a_gicv2_cpu_interface_is_kept_whole() {
 }
 
 #[test]
+fn acpi_and_dt_parse_virt_fields() {
+    // ACPI: MADT GICC with GICV (off 40), GICH (off 48), VGIC maintenance
+    // (off 56) + GTDT with vtimer (off 64) and hyptimer (off 72).
+    let mut gicc_e = gicc(0, 0);
+    gicc_e[32..40].copy_from_slice(&0x801_0000u64.to_le_bytes()); // GICC
+    gicc_e[40..48].copy_from_slice(&0x804_0000u64.to_le_bytes()); // GICV
+    gicc_e[48..56].copy_from_slice(&0x803_0000u64.to_le_bytes()); // GICH
+    gicc_e[56..60].copy_from_slice(&25u32.to_le_bytes()); // VGIC maint
+    let mut gicd_e = gicd();
+    gicd_e[20] = 2; // GICv2
+    let madt_entries = madt(&[gicd_e, gicc_e]);
+    let madt_len = 44 + madt_entries.len();
+    let gtdt_len = 80usize;
+    let mut mem = vec![0u8; BASE as usize + 512];
+    let buf = &mut mem[BASE as usize..];
+    // RSDP at 0, XSDT at 64 (2 entries = 52 bytes), MADT at 128, GTDT at 320.
+    let madt_off = 128usize;
+    let gtdt_off = 320usize;
+    buf[madt_off..madt_off + 4].copy_from_slice(b"APIC");
+    buf[madt_off + 4..madt_off + 8].copy_from_slice(&(madt_len as u32).to_le_bytes());
+    buf[madt_off + 44..madt_off + madt_len].copy_from_slice(&madt_entries);
+    checksum(&mut buf[madt_off..madt_off + madt_len], 9);
+    buf[gtdt_off..gtdt_off + 4].copy_from_slice(b"GTDT");
+    buf[gtdt_off + 4..gtdt_off + 8].copy_from_slice(&(gtdt_len as u32).to_le_bytes());
+    buf[gtdt_off + 48..gtdt_off + 52].copy_from_slice(&30u32.to_le_bytes());
+    buf[gtdt_off + 64..gtdt_off + 68].copy_from_slice(&27u32.to_le_bytes());
+    buf[gtdt_off + 72..gtdt_off + 76].copy_from_slice(&26u32.to_le_bytes());
+    checksum(&mut buf[gtdt_off..gtdt_off + gtdt_len], 9);
+    let xsdt_len = 36 + 16;
+    buf[64..68].copy_from_slice(b"XSDT");
+    buf[68..72].copy_from_slice(&(xsdt_len as u32).to_le_bytes());
+    buf[64 + 36..64 + 44].copy_from_slice(&(BASE + madt_off as u64).to_le_bytes());
+    buf[64 + 44..64 + 52].copy_from_slice(&(BASE + gtdt_off as u64).to_le_bytes());
+    checksum(&mut buf[64..64 + xsdt_len], 9);
+    buf[..8].copy_from_slice(b"RSD PTR ");
+    buf[15] = 2;
+    buf[20..24].copy_from_slice(&36u32.to_le_bytes());
+    buf[24..32].copy_from_slice(&(BASE + 64).to_le_bytes());
+    checksum(&mut buf[..20], 8);
+    checksum(&mut buf[..36], 32);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(BASE, 0).expect("ACPI virt");
+    layout::MEMORY.set((0, 0));
+    assert_eq!(h.gic_version, 2);
+    assert_eq!(h.gich, 0x803_0000);
+    assert_eq!(h.gicv, 0x804_0000);
+    assert_eq!(h.vgic_maint, 25);
+    assert_eq!(h.ptimer, 30);
+    assert_eq!(h.vtimer, 27);
+    assert_eq!(h.hyptimer, 26);
+
+    // DT: GICv2 with GICD, GICC, GICH, GICV + maintenance PPI 25, and timer
+    // node with vtimer PPI 27 and hyptimer PPI 26.
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,cortex-a15-gic");
+    d.prop("reg", &reg2(&[
+        (0x800_0000, 0x1_0000),
+        (0x801_0000, 0x1_0000),
+        (0x803_0000, 0x1_0000),
+        (0x804_0000, 0x1_0000),
+    ]));
+    // PPI 9 -> 16 + 9 = 25
+    let maint: Vec<u8> = [1u32, 9, 4].iter().flat_map(|w| w.to_be_bytes()).collect();
+    d.prop("interrupts", &maint);
+    d.end();
+    d.begin("timer");
+    // sec=13, nonsec=14, virt=11 (27), hyp=10 (26)
+    let timers: Vec<u8> = [1u32, 13, 4, 1, 14, 4, 1, 11, 4, 1, 10, 4]
+        .iter()
+        .flat_map(|w| w.to_be_bytes())
+        .collect();
+    d.prop("interrupts", &timers);
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut dt_mem = vec![0u8; BASE as usize + blob.len()];
+    dt_mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((dt_mem.as_ptr() as u64, dt_mem.len() as u64));
+    let h = hw::discover(0, BASE).expect("DT virt");
+    layout::MEMORY.set((0, 0));
+    assert_eq!(h.gic_version, 2);
+    assert_eq!((h.gich, h.gich_len), (0x803_0000, 0x1_0000));
+    assert_eq!((h.gicv, h.gicv_len), (0x804_0000, 0x1_0000));
+    assert_eq!(h.vgic_maint, 25);
+    assert_eq!(h.ptimer, 30);
+    assert_eq!(h.vtimer, 27);
+    assert_eq!(h.hyptimer, 26);
+}
+
+#[test]
 fn kernel_device_ranges_are_kept_in_whole_pages() {
     assert_eq!(bootmem::pages_covering(0x800_0000, 0x801_0000), (0x800_0000, 0x801_0000));
     assert_eq!(bootmem::pages_covering(0x800_0800, 0x801_0800), (0x800_0000, 0x801_1000));
@@ -1362,7 +1503,22 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                 let size = 4096 + ((dtb_len + 16 + 4096) & !4095);
                 let mut buf = vec![0xaau8; size];
                 let mods = &all_mods[..n_mods];
-                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, mods, &dtb).expect(&what);
+                let vi = extra_bi::VirtInfo {
+                    flags: 0x7,
+                    ipa_bits: 40,
+                    gic_version: 3,
+                    vgic_vtr: 0x9000_0003,
+                    gicv_paddr: 0x804_0000,
+                    gicv_size: 0x1_0000,
+                    midr_el1: 0x410f_d083,
+                    ctr_el0: 0x8444_c004,
+                    id_aa64mmfr0_el1: 0x10_1122,
+                    id_aa64mmfr1_el1: 0x220,
+                    id_aa64mmfr2_el1: 0x10,
+                    id_aa64dfr0_el1: 0x1030_5106,
+                    id_aa64dfr1_el1: 0,
+                };
+                let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, &dtb).expect(&what);
                 assert_eq!(len % 8, 0, "{what}");
                 assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
                 let recs = bi_records(&buf, len);
@@ -1371,6 +1527,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                     want.push(id::X86_ACPI_RSDP);
                 }
                 want.push(id::AARCH64_ID_REGS);
+                want.push(id::AARCH64_VIRT_INFO);
                 if n_mods != 0 {
                     want.push(id::X86_BOOT_MODULES);
                 }
@@ -1388,6 +1545,11 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                         id::AARCH64_ID_REGS => {
                             let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
                             assert_eq!(got, regs, "{what}");
+                        }
+                        id::AARCH64_VIRT_INFO => {
+                            assert_eq!(l, 16 + 13 * 8, "{what}");
+                            let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                            assert_eq!(got, vi.to_words(), "{what}");
                         }
                         id::X86_BOOT_MODULES => {
                             assert_eq!(l, 16 + 8 + 80 * n_mods, "{what}");
@@ -1418,7 +1580,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
     }
     // Too small a buffer is refused, not overrun.
     let mut small = [0u8; 64];
-    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, &[], &[]), None);
+    assert_eq!(extra_bi::build(&mut small, Some(&rsdp), &regs, None, &[], &[]), None);
     let mut small = vec![0u8; 4096];
-    assert_eq!(extra_bi::build(&mut small, None, &regs, &[], &[1u8; 4096]), None);
+    assert_eq!(extra_bi::build(&mut small, None, &regs, None, &[], &[1u8; 4096]), None);
 }

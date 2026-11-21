@@ -23,6 +23,7 @@ KENTRY-PLAN m59's open list (c1)–(c4):
   under `StoreExt`, given the general path's reads `FaultOK`).
 -/
 import Fl4Proofs.P1.FastSched
+import Fl4Proofs.P1.VcpuHooks
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -767,7 +768,7 @@ theorem fault_fin_tail (hX : StoreExt st) (U Y : S) (a : A) (d : obj.Tcb) (lY : 
     (h3 : actA (L := L) U ≠ curA (L := L) U) :
     (do
       let s7 ← sched.possible_switch_to st (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d
-      syscall.finish st ar s7 a) = ok (sF, aF) := by
+      syscall.finish_old st ar s7 a) = ok (sF, aF) := by
   -- the fast side
   unfold fastFin at hfast
   rw [obj.Tcb.set_sched_next.ok] at hfast
@@ -797,7 +798,7 @@ theorem fault_fin_tail (hX : StoreExt st) (U Y : S) (a : A) (d : obj.Tcb) (lY : 
   rw [set_action_ok] at hsw; simp only [bind_ok, uncurry_apply_pair] at hsw
   -- the general side
   rw [hpst, hY]; simp only [bind_ok]
-  unfold syscall.finish
+  unfold syscall.finish_old
   rw [hsch]
   unfold sched.switch_to_thread
   rw [hYw, set_vm_root_wrs ar a d lY _ U hvY, hv]
@@ -912,7 +913,7 @@ theorem fault_fin_gen (hX : StoreExt st) {T : Set U64} (U X Y : S) (a : A) (d p 
     (h3 : actA (L := L) U ≠ curA (L := L) U) :
     (do
       let s7 ← sched.possible_switch_to st (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d
-      syscall.finish st ar s7 a) = ok (sF, aF) := by
+      syscall.finish_old st ar s7 a) = ok (sF, aF) := by
   subst hXd
   have hrdW : ∀ r ∈ schedRd (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW), Aligned r ∧ ∀ x ∈ lW, Aligned x.1 ∧ x.1 ≠ r := fun r hr =>
     ⟨(hrd r hr).1, fun x hx => (hrd r hr).2 x.1 (hlA ▸ List.mem_map.2 ⟨x, hx, rfl⟩)⟩
@@ -994,7 +995,7 @@ theorem fault_fin (hX : StoreExt st) (U : S) (a : A) (d : U64) {sF : S} {aF : A}
     (hfast : fastFin (st := st) ar U a d = ok (true, sF, aF)) (R : FinReads (L := L) U d) :
     (do
       let s7 ← sched.possible_switch_to st (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d
-      syscall.finish st ar s7 a) = ok (sF, aF) := by
+      syscall.finish_old st ar s7 a) = ok (sF, aF) := by
   obtain ⟨T, p, Q, C, hc⟩ := R
   rcases hc with ⟨E, hnd, hrd, hvm⟩ | ⟨E, hnd, hrd, hvm⟩
   · obtain ⟨q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20, q21, q22, q23, q24, q25, q26, q27, q28, q29, q30, q31, q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63, q64, q65, q66, q67, q68, q69, q70, q71, q72, q73, q74, q75, q76, q77, q78, q79, q80⟩ := E.facts
@@ -1043,12 +1044,22 @@ def FaultOK (s : S) (a : A) (t : obj.Tcb) (n : U64) : Prop :=
       ∀ s15, endpoint.unblock_sporadic st (fS14 (L := L) S8 t dest r) dest = ok s15 →
         actA (L := L) s15 = actA (L := L) (fS14 (L := L) S8 t dest r) ∧ FinReads (L := L) s15 dest
 
+/-- **(#57) The thread an accepted fault fast path switches to is not
+`TS_RUNNING_VM`** (it is the fault handler, which the fast path makes
+`TS_RUNNING`), so the general path's `finish` ends with a `vcpu.check` that
+does nothing (`finish_ok_of_old`). A read of the general path's end state, as
+`FaultOK`'s (part of `FastFaultOK` [J] at the P1 top). -/
+def FaultNvm (s : S) (a : A) (t : obj.Tcb) (n : U64) : Prop :=
+  ∀ sF aF, fastpath.fault st ar s a t n = ok (true, sF, aF) →
+    L.mem sF (stA (L.curW sF)) ≠ sched.TS_RUNNING_VM
+
 /-- **(c4) `FastSame` for the fault fast path**: an accepted `fastpath.fault`
 run ends exactly where the general `handle_fault` + `finish` ends (under
 `StoreExt`, as states; the Arch value the same), given the general path's reads
-(`FaultOK`). -/
+(`FaultOK`, and since #57 `FaultNvm`). -/
 theorem fault_same (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {n : U64} {sF : S} {aF : A}
-    (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) (hR : FaultOK (L := L) ar s a t n) :
+    (h : fastpath.fault st ar s a t n = ok (true, sF, aF)) (hR : FaultOK (L := L) ar s a t n)
+    (hV : FaultNvm (L := L) ar s a t n) :
     (do
       let (s2, a2) ← faults.handle_fault st ar s a t (error.Fault.UnknownSyscall n)
       syscall.finish st ar s2 a2) = ok (sF, aF) := by
@@ -1079,7 +1090,9 @@ theorem fault_same (hX : StoreExt st) {s : S} {a : A} {t : obj.Tcb} {n : U64} {s
   rw [hW, unblock_sporadic_wr hX hU, h15']
   simp only [bind_ok, bind_tc_eq, Std.bind_assoc, uncurry_apply_pair]
   rw [← hA15]
-  exact fault_fin ar hX s15 a dest hfin FR
+  obtain ⟨s7, h7, hf7⟩ := bind_eq_ok (fault_fin ar hX s15 a dest hfin FR)
+  rw [h7]; simp only [bind_ok]
+  exact finish_ok_of_old ar hf7 (hV sF aF h)
 
 end
 

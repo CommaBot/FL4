@@ -67,7 +67,7 @@ block UserException {
     field seL4_FaultType 4
 }
 
-#ifdef CONFIG_ARM_HYPERVISOR_SUPPORT
+#if defined(CONFIG_ARM_HYPERVISOR_SUPPORT) || defined(CONFIG_ARCH_AARCH64)
 block VGICMaintenance {
     padding 768
     field IDX 64

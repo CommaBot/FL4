@@ -181,8 +181,8 @@ fn set_asid_table<S: Store>(s: &mut S, high: u64, pool: u64) {
     ks_set(s, ks::ASID_TABLE.wrapping_add((high & (N_ASID_POOLS - 1)).wrapping_mul(8)), pool)
 }
 
-/// seL4 `findVSpaceForASID`.
-pub fn find_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
+/// Raw ASID pool entry (bit 0 = 1 for Stage-2 VSpace, bit 0 = 0 for Stage-1).
+pub fn find_asid_raw<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     if asid >> ASID_BITS != 0 {
         return Err(LookupFault::InvalidRoot);
     }
@@ -197,12 +197,21 @@ pub fn find_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     Ok(root)
 }
 
+/// seL4 `findVSpaceForASID` (Stage-1 only: rejects Stage-2 roots with bit 0 = 1).
+pub fn find_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
+    let root = find_asid_raw(s, asid)?;
+    if root & 1 != 0 {
+        return Err(LookupFault::InvalidRoot);
+    }
+    Ok(root)
+}
+
 pub fn find_vspace_for_asid<S: Store>(s: &S, asid: u64) -> Result<u64, LookupFault> {
     find_asid(s, asid)
 }
 
 pub fn is_valid_vtable_root(c: Cap) -> bool {
-    matches!(c, Cap::Pml4 { mapped: true, .. })
+    matches!(c, Cap::Pml4 { mapped: true, .. } | Cap::Ept { level: 0, mapped: true, .. })
 }
 
 /// seL4 `checkValidIPCBuffer`.
@@ -229,15 +238,44 @@ pub fn kernel_root<S: Store>(s: &S) -> u64 {
     ks_get(s, ks::KERNEL_ROOT)
 }
 
-/// seL4 `setVMRoot`.
+/// Install `t`'s Stage-2 VSpace root (`Cap::Ept`) into `VTTBR_EL2` (or the
+/// empty Stage-2 root if `t` has no valid mapped Stage-2 root).
+pub fn set_stage2_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
+    match t.slot(tl::SLOT_VTABLE).cap(s) {
+        Cap::Ept { ptr, level: 0, mapped: true, asid, .. } => match crate::ept::find(s, asid) {
+            Ok(r) if r == ptr => a.set_stage2_vspace(ptr, asid),
+            _ => a.set_stage2_vspace(0, 0),
+        },
+        _ => a.set_stage2_vspace(0, 0),
+    }
+}
+
+/// seL4 `setVMRoot`: VCPU threads install Stage-2 (`Cap::Ept`) in VTTBR_EL2
+/// while keeping TTBR0_EL2 on the empty kernel root; native threads install
+/// Stage-1 (`Cap::Pml4`) in TTBR0_EL2, plus the guest's Stage-2 root while
+/// running a VCPU via `ARMVCPURun`.
 #[inline(always)]
 pub fn set_vm_root<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
+    if crate::vcpu::bound(s, t) != 0 {
+        set_kernel_vm_root(s, a);
+        set_stage2_root(s, a, t);
+        return;
+    }
     match t.slot(tl::SLOT_VTABLE).cap(s) {
         Cap::Pml4 { ptr, mapped: true, asid } => match find_vspace_for_asid(s, asid) {
             Ok(r) if r == ptr => a.set_vspace(ptr, asid),
             _ => set_kernel_vm_root(s, a),
         },
         _ => set_kernel_vm_root(s, a),
+    }
+    if t.state(s) == sched::TS_RUNNING_VM {
+        let run_v = s.read(t.0.wrapping_add(tl::RUN_VCPU));
+        if run_v != 0 {
+            let guest_tcb = s.read(run_v.wrapping_add(crate::vcpu::TCB));
+            if guest_tcb != 0 {
+                set_stage2_root(s, a, Tcb(guest_tcb));
+            }
+        }
     }
 }
 
@@ -272,12 +310,17 @@ pub fn unmap_page<S: Store, A: Arch>(s: &mut S, a: &mut A, size: FrameSize, asid
 }
 
 /// seL4 `unmapPageTable`: find the slot that points to `pt` on the walk to
-/// `vaddr`.
+/// `vaddr` (dispatches to Stage-2 when the ASID pool entry has bit 0 = 1).
 pub fn unmap_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, vaddr: u64, pt: u64) {
-    let root = match find_vspace_for_asid(s, asid) {
+    let raw = match find_asid_raw(s, asid) {
         Ok(r) => r,
         Err(_) => return,
     };
+    if raw & 1 != 0 {
+        crate::ept::unmap_table(s, a, asid, vaddr, pt);
+        return;
+    }
+    let root = raw;
     let mut table = root;
     let mut shift = TOP_LEVEL_SHIFT;
     let mut level: u64 = 0;
@@ -315,7 +358,11 @@ pub fn delete_asid<S: Store, A: Arch>(s: &mut S, a: &mut A, asid: u64, root: u64
     }
     let e = pool.wrapping_add((asid & 511).wrapping_mul(8));
     if s.read(e) == root {
-        a.invalidate_asid(asid);
+        if root & 1 != 0 {
+            a.invalidate_stage2_vmid(asid);
+        } else {
+            a.invalidate_asid(asid);
+        }
         s.write(e, 0);
         let ct = sched::cur_thread(s);
         set_vm_root(s, a, ct);
@@ -329,7 +376,10 @@ pub fn delete_asid_pool<S: Store, A: Arch>(s: &mut S, a: &mut A, base: u64, pool
     }
     let mut i = 0;
     while i < 512 {
-        if s.read(pool.wrapping_add(i * 8)) != 0 {
+        let r = s.read(pool.wrapping_add(i * 8));
+        if r & 1 != 0 {
+            a.invalidate_stage2_vmid(base.wrapping_add(i));
+        } else if r != 0 {
             a.invalidate_asid(base.wrapping_add(i));
         }
         i += 1;
@@ -393,13 +443,16 @@ struct FrameCap {
     rights: u64,
     is_device: bool,
     mapped: bool,
+    is_ept: bool,
     asid: u64,
     vaddr: u64,
 }
 
 fn as_frame(c: Cap) -> Option<FrameCap> {
     match c {
-        Cap::Frame { ptr, size, rights, is_device, mapped, asid, vaddr, .. } => Some(FrameCap { ptr, size, rights, is_device, mapped, asid, vaddr }),
+        Cap::Frame { ptr, size, rights, is_device, mapped, is_ept, asid, vaddr } => {
+            Some(FrameCap { ptr, size, rights, is_device, mapped, is_ept, asid, vaddr })
+        }
         _ => None,
     }
 }
@@ -453,7 +506,11 @@ fn decode_frame<S: Store, A: Arch>(
     } else if lbl == label::ARMPageUnmap {
         sched::set_thread_state(s, ct, sched::TS_RESTART);
         if f.mapped && f.asid != 0 {
-            unmap_page(s, a, f.size, f.asid, f.vaddr, f.ptr);
+            if f.is_ept {
+                crate::ept::unmap(s, a, f.asid, f.vaddr, f.ptr, f.size.bits(), false);
+            } else {
+                unmap_page(s, a, f.size, f.asid, f.vaddr, f.ptr);
+            }
         }
         slot.set_cap(s, unmapped_frame(f));
         Ok(())
@@ -482,7 +539,20 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     let rights_mask = msg::syscall_arg(s, ct, buf, 1);
     let attr = msg::syscall_arg(s, ct, buf, 2);
     let vm = mask_vm_rights(f.rights, Rights::from_word(rights_mask));
-    let (root, asid) = check_vspace(s, vslot.cap(s), 1)?;
+    let vcap = vslot.cap(s);
+    if matches!(vcap, Cap::Ept { .. }) {
+        let (root, asid) = crate::ept::root(s, vcap, 1)?;
+        if f.asid != 0 && !f.is_ept {
+            return invalid_cap(1);
+        }
+        return crate::ept::map_frame(
+            s, a, root, asid, vaddr, vm, attr, f.ptr, f.size, f.rights, f.is_device, f.asid, f.vaddr, slot,
+        );
+    }
+    if f.asid != 0 && f.is_ept {
+        return invalid_cap(1);
+    }
+    let (root, asid) = check_vspace(s, vcap, 1)?;
     let shift = page_shift(f.size);
     if vaddr & (1u64 << (shift & 63)).wrapping_sub(1) != 0 {
         return Err(Exc::Sys(SysError::AlignmentError));
@@ -570,10 +640,6 @@ fn decode_page_flush<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     if f.asid == 0 {
         return illegal();
     }
-    let root = match find_vspace_for_asid(s, f.asid) {
-        Ok(r) => r,
-        Err(lf) => return Err(Exc::Sys(SysError::FailedLookup { source: false, lf })),
-    };
     let start = msg::syscall_arg(s, ct, buf, 0);
     let end = msg::syscall_arg(s, ct, buf, 1);
     if end <= start {
@@ -583,6 +649,13 @@ fn decode_page_flush<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     if start >= size || end > size {
         return invalid_arg(0);
     }
+    if f.is_ept {
+        return crate::ept::flush_frame(s, a, page_cache_op(lbl), is_invalidate(lbl), f.asid, f.vaddr, f.ptr, f.size, f.is_device, start, end);
+    }
+    let root = match find_vspace_for_asid(s, f.asid) {
+        Ok(r) => r,
+        Err(lf) => return Err(Exc::Sys(SysError::FailedLookup { source: false, lf })),
+    };
     let lu = match mapped_entry(s, f, root) {
         Some(x) => x,
         None => return invalid_cap(0),
@@ -646,7 +719,7 @@ fn decode_vspace_flush<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length
 /// l4h 0023: report and clear the access flag of a mapped frame. The
 /// flag is only set again by hardware access-flag management.
 fn decode_test_and_clear_accessed<S: Store, A: Arch>(s: &mut S, a: &mut A, f: FrameCap, call: bool) -> KResult<()> {
-    if matches!(f.size, FrameSize::Huge) || !f.mapped || f.asid == 0 || !a.hw_access_flag() {
+    if f.is_ept || matches!(f.size, FrameSize::Huge) || !f.mapped || f.asid == 0 || !a.hw_access_flag() {
         return illegal();
     }
     let root = match find_vspace_for_asid(s, f.asid) {
@@ -797,6 +870,10 @@ fn decode_page_table<S: Store, A: Arch>(s: &mut S, a: &mut A, lbl: u64, length: 
     if !is_valid_vtable_root(vcap) {
         return invalid_cap(1);
     }
+    if matches!(vcap, Cap::Ept { .. }) {
+        let (root, asid) = crate::ept::root(s, vcap, 1)?;
+        return crate::ept::map_table(s, a, root, asid, vaddr, ptr, slot);
+    }
     if vaddr > USER_TOP {
         return invalid_arg(0);
     }
@@ -884,8 +961,9 @@ pub fn decode<S: Store, A: Arch>(
                 Some(x) => x,
                 None => return truncated(),
             };
-            let vroot = match vslot.cap(s) {
-                Cap::Pml4 { ptr, mapped: false, .. } => ptr,
+            let (vroot, is_s2) = match vslot.cap(s) {
+                Cap::Pml4 { ptr, mapped: false, .. } => (ptr, false),
+                Cap::Ept { ptr, level: 0, mapped: false, .. } => (ptr, true),
                 _ => return invalid_cap(1),
             };
             let pool = asid_table(s, asid_base >> ASID_LOW_BITS);
@@ -904,8 +982,13 @@ pub fn decode<S: Store, A: Arch>(
             }
             let asid = asid_base.wrapping_add(i);
             sched::set_thread_state(s, ct, sched::TS_RESTART);
-            vslot.set_cap(s, Cap::Pml4 { ptr: vroot, mapped: true, asid });
-            s.write(pool.wrapping_add((asid & 511) * 8), vroot);
+            if is_s2 {
+                vslot.set_cap(s, Cap::Ept { ptr: vroot, level: 0, mapped: true, asid, vaddr: 0 });
+                s.write(pool.wrapping_add((asid & 511) * 8), vroot | 1);
+            } else {
+                vslot.set_cap(s, Cap::Pml4 { ptr: vroot, mapped: true, asid });
+                s.write(pool.wrapping_add((asid & 511) * 8), vroot);
+            }
             Ok(())
         }
         _ => invalid_cap(0),
@@ -1077,6 +1160,7 @@ mod tests {
             rights: VM_READ_WRITE,
             is_device,
             mapped,
+            is_ept: false,
             asid: if mapped { ASID } else { 0 },
             vaddr: if mapped { VADDR } else { 0 },
         }

@@ -36,7 +36,10 @@ pub fn cap_size_bits(c: Cap) -> u64 {
         Cap::Frame { size, .. } => size.bits(),
         Cap::PageTable { .. } | Cap::PageDirectory { .. } | Cap::Pdpt { .. } | Cap::Pml4 { .. } => 12,
         Cap::Vcpu { .. } => bits::VCPU,
+        #[cfg(not(feature = "aarch64"))]
         Cap::Ept { .. } => 12,
+        #[cfg(feature = "aarch64")]
+        Cap::Ept { .. } => bits::STAGE2_VSPACE,
         Cap::AsidPool { .. } => bits::ASID_POOL,
         _ => 0,
     }

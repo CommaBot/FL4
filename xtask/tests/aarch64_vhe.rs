@@ -424,3 +424,76 @@ fn el2_reflect_uses_only_x0() {
         }
     }
 }
+
+/// Phase 1: `fl4_el2_vhe_setup` stays at EL2 with VHE (E2H|RW|TGE), clears
+/// fine-grained traps / HCRX / PAuth keys (clearing APK|API back to 0),
+/// sets CPTR_EL2, CNTHCTL_EL2, MDCR_EL2, ICC_SRE_EL2, ICH_HCR_EL2 and
+/// SCTLR_EL2, and returns at EL2 without an `eret`.
+#[test]
+fn el2_vhe_setup_stays_at_el2_and_initializes_host_state() {
+    let vhe = code("\nfl4_el2_vhe_setup:\n", "\nfl4_mmu_on:\n");
+    assert!(!vhe.iter().any(|l| l == "eret"), "fl4_el2_vhe_setup must stay at EL2");
+    assert_eq!(vhe.last().map(String::as_str), Some("ret"));
+    let has = |s: &str| vhe.iter().any(|l| l == s);
+    // HCR_EL2 = E2H | RW | TGE, and APK/API cleared back after PAuth keys.
+    assert_eq!(
+        vhe.iter().filter(|l| *l == "ldr x9, =((1 << 34) | (1 << 31) | (1 << 27))").count(),
+        2,
+        "HCR_EL2 base value must be loaded before and after PAuth key clearing"
+    );
+    assert!(has("orr x9, x9, #(3 << 40)"));
+    assert!(has("msr hstr_el2, xzr"));
+    assert!(has("msr vttbr_el2, xzr"));
+    assert!(has("msr cntvoff_el2, xzr"));
+    assert!(has("msr vpidr_el2, x9"));
+    assert!(has("msr vmpidr_el2, x9"));
+    assert!(has("ldr x9, =((1 << 30) | (1 << 28) | (1 << 20))"));
+    assert!(has("msr cptr_el2, x9"));
+    assert!(has("mov x9, #((1 << 10) | (1 << 1))"));
+    assert!(has("msr cnthctl_el2, x9"));
+    assert!(has("msr mdcr_el2, x9"));
+    assert!(has("msr s3_4_c12_c9_5, x9"));
+    assert!(has("msr s3_4_c12_c11_0, xzr"));
+    assert!(has("msr sctlr_el1, x9"));
+    for r in [
+        "s3_4_c1_c1_4", "s3_4_c1_c1_5", "s3_4_c1_c1_6", "s3_4_c3_c1_4", "s3_4_c3_c1_5", "s3_4_c3_c1_6",
+        "s3_4_c3_c1_0", "s3_4_c3_c1_1", "s3_4_c3_c1_2", "s3_4_c3_c1_3", "s3_4_c3_c1_7", "s3_4_c1_c2_2",
+        "s3_0_c2_c1_0", "s3_0_c2_c1_1", "s3_0_c2_c1_2", "s3_0_c2_c1_3", "s3_0_c2_c2_0", "s3_0_c2_c2_1",
+        "s3_0_c2_c2_2", "s3_0_c2_c2_3", "s3_0_c2_c3_0", "s3_0_c2_c3_1",
+    ] {
+        assert!(has(&format!("msr {r}, xzr")), "{r} not cleared in fl4_el2_vhe_setup");
+    }
+    // Dispatch in fl4_el_setup checks VH (ID_AA64MMFR1_EL1[11:8]) and
+    // PARange >= 2 (ID_AA64MMFR0_EL1[3:0]) before branching to fl4_el2_vhe_setup.
+    let dispatch = code("\nfl4_el_setup:\n", "\n16:");
+    assert!(dispatch.iter().any(|l| l == "ubfx x10, x10, #8, #4"));
+    assert!(dispatch.iter().any(|l| l == "cmp x10, #2"));
+    assert!(dispatch.iter().any(|l| l == "b fl4_el2_vhe_setup"));
+}
+
+/// EL2 nVHE boot path: when PARange >= 40-bit and VH == 0, `fl4_el_setup`
+/// installs `fl4_hyp_boot_vectors`, sets `x22 = 2` (El2Nvhe), drops to EL1,
+/// and `fl4_hyp_boot_sync` enables the identity-mapped EL2 MMU on
+/// `HVC_HYP_ENABLE_MMU`.
+#[test]
+fn el2_nvhe_boot_vectors_and_mmu_enable() {
+    let dispatch = code("\nfl4_el_setup:\n", "\n16:");
+    assert!(dispatch.iter().any(|l| l == "cbz x10, 17f"));
+    assert!(dispatch.iter().any(|l| l == "adr x9, fl4_hyp_boot_vectors"));
+    assert!(dispatch.iter().any(|l| l == "mov x22, #2"));
+    let at = BOOT.find("fl4_hyp_boot_vectors:").expect("fl4_hyp_boot_vectors");
+    assert_eq!(BOOT[..at].lines().next_back().unwrap().trim(), ".balign 2048");
+    let sync = code("\nfl4_hyp_boot_sync:\n", "\n.ltorg");
+    let has = |s: &str| sync.iter().any(|l| l == s);
+    assert!(has("cmp x9, #0x16"));
+    assert!(has("cbnz x0, fl4_el2_halt"));
+    assert!(has("msr mair_el2, x9"));
+    assert!(has("msr tcr_el2, x9"));
+    assert!(has("msr ttbr0_el2, x1"));
+    assert!(has("mov sp, x3"));
+    assert!(has("msr vbar_el2, x2"));
+    assert!(has("ldr x9, =0x30c51835"));
+    assert!(has("msr sctlr_el2, x9"));
+    assert!(has("stp x9, x10, [sp, #0x18]"));
+    assert_eq!(sync.last().map(String::as_str), Some("eret"));
+}

@@ -278,7 +278,7 @@ theorem suspend_irelY (hP0 : IPlaced N T E R B) {P : S → Fl4Spec.State Unit �
   obtain ⟨x, hk, -⟩ := hX.1.tcb t ht
   obtain ⟨⟨Q1, R1, h0⟩, hBd, hXI, -, hSg⟩ := hB
   have hT : TcbPlaced T := hP0.e.tcb
-  unfold sched.suspend
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
   refine WP.spec_bind (WP.spec_and (cancel_ipc_irelP hP0 hRT s a σ hX ht hk hSV hOC hInv (hPf x hk))
     (Fl4Proofs.P1.ipc.cancel_ipc.all s a t Q1 R1 h0 ht hBd hXI hSg.sub)) ?_
   rintro ⟨s1, a1⟩ ⟨⟨rfl, σ1, x1, hc1, hX1, hk1, hs1⟩, hP1⟩

@@ -19,6 +19,8 @@ SECTIONS
     __kernel_start = .;
     .text : {
         KEEP(*(.boot.text))
+        . = ALIGN(2048);
+        KEEP(*(.hyp.text))
         . = ALIGN(4096);
         KEEP(*(.boot.data))
         . = ALIGN(2048);

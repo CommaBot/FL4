@@ -33,6 +33,12 @@ pub enum Fault {
     Debug { reason: u64, addr: u64, bp: u64 },
     Timeout { badge: u64 },
     VmFault { addr: u64, fsr: u64, instruction: bool },
+    #[cfg(feature = "aarch64")]
+    VcpuFault { hsr: u64 },
+    #[cfg(feature = "aarch64")]
+    VgicMaintenance { idx: u64, idx_valid: bool },
+    #[cfg(feature = "aarch64")]
+    VppiEvent { irq: u64 },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

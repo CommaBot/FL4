@@ -448,7 +448,7 @@ theorem sched.suspend.all {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
   have hT := h.tcbs
   have hta := hT t ht
   have hsub := hSg.sub
-  unfold sched.suspend
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
   refine WP.spec_bind (ipc.cancel_ipc.all s a t Q R h ht hB hX hsub) ?_
   rintro ⟨s1, a1⟩ ⟨h1, hB1, hX1, nb1, nr1, hst1, k1, -⟩
   try simp only [WP.uncurry'_pair]

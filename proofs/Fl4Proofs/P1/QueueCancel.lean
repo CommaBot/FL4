@@ -1598,7 +1598,7 @@ theorem sched.suspend.inv {A : Type _} {ar : machine.Arch A} (s : S) (a : A) (t 
     sched.suspend st ar s a t ⦃ s' _ => ∃ Q' R', SchedQueuesInv st T Cs Ω H s' Q' R' ⦄ := by
   have hT := h.tcbs
   have hta := hT t ht
-  unfold sched.suspend
+  rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
   refine WP.spec_bind (ipc.cancel_ipc.inv s a t Q R h ht hO hsub hrecv hreply hhd hnx) ?_
   rintro ⟨s1, a1⟩ ⟨h1, nb1, -, hst1, k1, -⟩
   try simp only [WP.uncurry'_pair]

@@ -1,6 +1,7 @@
 import Fl4Proofs.P0.MsgInfo
 import Fl4Proofs.P0.Auto
 import Fl4Proofs.P1.SyscallGen
+import Fl4Proofs.P1.VcpuHooks
 import Fl4Proofs.P1.FastDecline
 import Fl4Proofs.P1.FastFault
 import Fl4Proofs.P1.FastSched

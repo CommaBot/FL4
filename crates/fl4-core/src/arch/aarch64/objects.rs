@@ -20,6 +20,10 @@ pub fn object_size(t: u64, user_size: u64) -> Option<u64> {
         Some(30)
     } else if t == ot::ArmPageTable || t == ot::ArmVSpace {
         Some(12)
+    } else if t == ot::ArmVcpu {
+        Some(bits::VCPU)
+    } else if t == ot::ArmStage2VSpace {
+        Some(bits::STAGE2_VSPACE)
     } else {
         None
     }
@@ -34,13 +38,19 @@ fn init_fpu<S: Store>(s: &mut S, t: Tcb) {
     let _ = (s, t);
 }
 
-/// seL4 `Arch_createObject` (AArch64): VSpaces are `Cap::Pml4`, page
-/// tables of every level `Cap::PageTable`.
-fn create_arch_object<S: Store, A: Arch>(_s: &mut S, _a: &mut A, t: u64, base: u64, device: bool) -> Cap {
+/// seL4 `Arch_createObject` (AArch64): VSpaces are `Cap::Pml4`, Stage-2
+/// VSpaces are `Cap::Ept { level: 0 }`, page tables of every level
+/// `Cap::PageTable`, VCPUs `Cap::Vcpu`.
+fn create_arch_object<S: Store, A: Arch>(s: &mut S, a: &mut A, t: u64, base: u64, device: bool) -> Cap {
     if t == ot::ArmPageTable {
         Cap::PageTable { ptr: base, mapped: false, asid: 0, vaddr: 0 }
     } else if t == ot::ArmVSpace {
         Cap::Pml4 { ptr: base, mapped: false, asid: 0 }
+    } else if t == ot::ArmVcpu {
+        crate::vcpu::init(s, a, base);
+        Cap::Vcpu { ptr: base }
+    } else if t == ot::ArmStage2VSpace {
+        Cap::Ept { ptr: base, level: 0, mapped: false, asid: 0, vaddr: 0 }
     } else {
         let size = if t == ot::ArmSmallPage {
             FrameSize::Small

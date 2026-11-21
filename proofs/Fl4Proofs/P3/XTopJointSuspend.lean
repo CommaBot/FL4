@@ -564,7 +564,7 @@ theorem JAtZ.suspendJD
       r.2 = a ∧ ∃ σ', Fl4Spec.suspend (Z := Unit) t.bv σ = ({((), σ')}, False) ∧
         ∃ (V : XVs) (Ac' : Set U64) (Lst' : U64 → List U64),
           JAtZ (L := L) arI AR (Z.mv Z.G V) H Cs Ac' Lst' D r.1 r.2 σ' ⦄ := by
-    unfold sched.suspend
+    rw [Fl4Proofs.P1.suspend_eq_old]; unfold sched.suspend_old
     refine WP.spec_bind (WP.spec_and hcan hkwc) ?_
     rintro ⟨s1, a1⟩ ⟨⟨h1, σ1, hc1, x1, hk1, hf1, hsa1, hid1, V1, Ac1, Lst1, J1⟩, hks1, hd1⟩
     simp only at h1 hks1 hd1
