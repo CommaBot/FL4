@@ -11122,3 +11122,73 @@ existing edited. No JAtZ cone (scratch/rd8s/anc.py: SpecInvRd8sD's ancestry has 
   ve_checkBudgetRestart, ht_invokeSchedControlConfigureFlags) propext, Classical.choice, Quot.sound (bu_br: none). No sorry / admit /
   native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (four import lines). Commits 18ef33b0 (A), b7fd91c6 (B),
   37253547 (C), then D and this section.
+## rd14c (branch par/rd14c in FL4-q, on c4f4aea8 = int/j2 incl. rd14b, rd8p, rd8q, g2c-e) — rd14b handoff (1) in part: TCB suspend / resume / every register arm DONE (one generic `TB` walk), `Cov`-parametric shell and tops; (2) in part: `PerfF` for the same arms DONE (`QT` family, `fpo_tb`), `Cov`-parametric `InvFc`; (3) DONE: the bridges to rd15a's `RecvTC`, rd8m's `RcvIn`, rd8l's `RP` (with the getCapReg adaptation), tops with `InvF` in their place; NOT done: the remaining perform arms, so no `*rdyOff9` / no `InvF`-free tops
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14c`, modules SpecInvRd14cA / B / C (new; root imports them). Nothing existing
+edited. Lead fixes taken first (cherry-picks from FL4-audit): e7c2662f (= 70b5071f, SpecInvRd14bA imports IpcSchedLift / VsDom),
+2d88c4fc (= d9889bf3, SpecInvRd14bA2 imports SpecInvRd8eA), c7678d4f (= 54ce3493, SpecInvRd14bA2 uses B8e.sv_cancelIpc'). No
+further missing import found in rd14b's B / D / E (all rebuilt green under my modules). Keys rd14c-1 (stopped: stale sync),
+rd14c-2..6. ./rd14cs.sh untracked (= rd14bs.sh with its own log); proofs/scratch/rd14c/ax.lean untracked.
+- **SpecInvRd14cA (item 1, 17 s).** `tb_ik`: rd13b's end case `TB σ0` is an `IK` of every computation keeping `cfS` (RdP's CFK),
+  rd8a's `CP σ0 cur_sc` and rd14b's `BL ct cur_sc` — three existing families, no new scheduler walk. Leaves `sv14_suspend` (suspend
+  is SVS: rd8e's `sv_cancelIpc'`, queue removals, yield-to cancel), `cfk14_restart`, `cp14_restart` (`cp_ifCondTest`,
+  `cp_schedContextResume`, `cp_possibleSwitchTo`), `bl14_restart` (`bl_ifCond`, `bl_possibleSwitchTo`); `perfA_liftTB` (a lifted
+  perform keeping TB has PerfA via rd13b's `perfA_tbn`); arms **`perfA_suspend`**, **`perfA_resume`**, **`perfA_readRegistersG` /
+  `perfA_writeRegistersG` / `perfA_copyRegistersG`** (every suspend / resume flag; rd13b's flag-false versions subsumed). ct's
+  binding is never rewritten by suspend / restart, so TB holds at every outcome, also when ct suspends itself (Inactive, still
+  bound, CW by SVS). `RF σ0 u` (Restart-state facts incl. ct a TCB; `rf_restart`), **`ArmA C`**, `armA_cov` (rd14b's Cov),
+  `armA_covC`, `ArmA.or`, `C14c := Cov ∨ CovC`; **`PerfRc C` / `InvRc C`** (rd14b's PerfRo / InvRo over any C), `perfR_ofC`,
+  **`invR_ofC`**, tops **`kcall_rdyOffC` / `kentry_rdyOffC`** (any C with `ArmA C`) and **`kcall_rdyOff5c` / `kentry_rdyOff5c`**
+  (C14c). Later arms only need `ArmA C'` and `armA_c14c.or`.
+- **SpecInvRd14cB (item 3).** **`recvTC_of`** (`RecvF ⇒` rd15a's RecvTC), **`rcvIn_of`** (with rd15a's `sc_first` from ctq17's EvP
+  and EntryOK ⇒ rd8m's RcvIn), **`rrF_of`**. getCapReg adaptation: rd8l's `RR` was asked at EVERY `update_time_stamp` outcome,
+  which `RecvF` cannot give (the body runs only on the front's `true` outcomes, where sb2's `checkBudgetRestart_true_eq` says
+  the state is unchanged); `RRF rep c σ := ∀ v ∈ front σ, v.1 → RR rep v.2 c` and rd8l's `ba_fl4HandleEvent_sys` /
+  `ba_fl4CallKernel` / `kcall_bsa` / `kentry_bsa` restated with it, same proofs (`*F`). Tops with rd14b's `InvF` in place of the
+  pinned inputs: **`kcall_rdyOff8f` / `kentry_rdyOff8f`** (rd15a's `hC` gone), **`kcall_rdyOff6f`** (rd8m's `hRc` gone),
+  **`kcall_bsaI` / `kentry_bsaI`**, **`kcall_sinvCRBI` / `kentry_sinvCRBI`** (rd8l's `RR` gone; they take rd8a's `EF` at the
+  entry, which every combined bundle has).
+- **SpecInvRd14cC (item 2, ~30 s).** `QT t` (t a TCB in Restart / Running / Inactive): an IK family with AK-style generic leaves —
+  rd4's heap-view family FK by transfer (`qt_of_fk`: asUser, queue writers, possibleSwitchTo, rescheduleRequired; the view erases
+  only the arch field), IpcSchedLift's NKS (`qt_of_nks`: refill callees, schedContextResume), type-asserted `qt_setObject` /
+  `qt_setSimpleKo`, `qt_threadSet` (state-respecting), `qt_setThreadState` (Restart / Running / Inactive write, any thread);
+  **`qt_cancelIpc` without a walk** (SVS keeps the TCB, rd's `StK.st_cancelIpc` the other threads' states; for p = t the read state
+  is good so only the fault is cleared), `qt_cancelYieldTo`, `qt_suspend`, `qt_restart`. **`fpo_tb`** (TB σ0 and ct Running /
+  Inactive ⇒ FPO: RT / CBa of ct from σ0's CAx and OffReady through CW), **`perfF_tbq`**, `perfF_liftTQ`, **`perfF_covC`**;
+  **`ArmF C`**, `armF_covC`, `ArmF.or`, **`PerfFRc C` / `InvFc C`**, `perfFR_ofC`, **`invF_ofC`** (InvFc C ⇒ rd14b's InvF given
+  `ArmF C`; composes with B's tops).
+- **Remaining named hypotheses (exactly):** `hP : InvRc C14c c σ` (PerfA only outside C14c) in `*rdyOff5c`; `InvF c σ` (or
+  `InvFc CovC c σ` through `invF_ofC armF_covC`) in B's tops. No [J]/[P]/[W]/[S] premise added; no ∀-states hypothesis.
+- No FINDING: nothing traced breaks Rdy / OffReady / RV / CAx / FPO. TCB suspend of ct leaves ct Inactive but bound to cur_sc
+  (so TB, not NRun); resume never writes a running ct (guard ¬runnable); copyRegisters suspend+resume of ct ends Restart, bound.
+- **Obstacles found for the remaining arms (for the next round).** (a) Preemptible arms (CNode revoke / delete, Untyped reset):
+  a NON-preempting `preemptionPoint` (work-unit limit reached, no IRQ, cur_sc active ∧ sufficient) runs `updateTimeStamp`, so
+  `curTime` / `consumedTime` move and every existing end case (`TB`, `TBN`'s second case, `TU`: all `cfS q = cfS σ0`) fails at
+  their `ok` outcomes. Needed: a fifth end case `TT σ0 q` with `cfS` replaced by "curSc / curThread / idle fixed, consumedTime and
+  curTime advanced by the same amount, sufficiency checked" (OffReady is invariant under equal advances; Suff from the check;
+  RCA / CtR via the TB argument), or carry rd10's `charge_ss4`-style facts through the ok branch. (b) IRQ handler set / clear:
+  `capDeleteOne` of the IRQ slot finalises whatever cap is there; at the Restart state no fact says it is a notification cap,
+  so the finalise of ct's TCB / cur_sc's SC cannot be excluded from `RF` alone. Extend `RF` with valid_irq_handlers' view
+  (SpecInvValidIrqHandlers `hV`), carried from the entry through the lookups / decode (read-only on caps) and the Restart write
+  (`setThreadState` keeps caps), then the arm is TB via the notification finalise (cancel_all_signals: Restart writes + possible
+  switch, ct not in the queue). (c) CNode delete of cur_sc's last cap: `sched_context_unbind_all_tcbs` unbinds ct (reschedule
+  required) and `sched_context_zero_refill_max` drops cur_sc's refill max — CW breaks, so `TU` does not apply as stated; a `TU`
+  variant with CW weakened to "refills unchanged, refill max unchanged or 0" gives SS4 (OS: OffReady reads only the head, Suff
+  vacuous at max 0; RCA / HRC vacuous; CtR vacuous: ct unbound). (d) Reply: do_reply_transfer's reply_remove may donate the
+  caller's SC back from ct (ct unbound, test_reschedule): `TU`-shape, needs `cp_` / `bl_`-style lemmas over do_reply_transfer
+  (rd8k's facts are Rdy-only). (e) SchedControl configure of cur_sc: commit_time (consumedTime := 0) + rescheduleRequired: OS by
+  its second disjunct; needs a sixth end case (consumedTime = 0 ∧ action ≠ resume ∧ CtR). (f) SchedContext / ThreadControlSched /
+  Untyped / ASID control: TB or NRun via rd8b/c/n's facts, plus (a) for Untyped reset.
+- Builds (tokyo, FL4-q mirror; the first build recompiled g2e's part of the cone once, ~27 min under load): rd14c-1 stopped
+  (synced before the lead's second / third fixes); rd14c-2: A green (17 s), B unknown names (rd8l's files open B8c/e/g/i/k
+  locally), C 4 errors; rd14c-3: B green, C (aType split for SC, the `fk_*` leaves take K c u T I S explicitly, `with_reducible`
+  on the `refine` leaves — the non-reducible refine unification caused whnf timeouts, fpo_tb obtain order); rd14c-4: C one goal
+  (yield-to cancel's setTcbObjRef: own lemma `qt_cancelYieldTo`); rd14c-5: C green "Build completed successfully (5584 jobs)";
+  rd14c-6: A + B + C "Build completed successfully (5704 jobs)" + axioms (scratch/rd14c/ax.lean, 47 declarations incl. every top: propext, Classical.choice, Quot.sound or a subset; tb_ik none, fpo_tb propext + Classical.choice). No `declaration uses sorry`; no sorry / admit / native_decide / bv_decide / axiom. Root
+  Fl4Proofs.lean not rebuilt (three import lines).
+- HANDOFF (in order): (1) the end cases of (a), (c), (e) as lemmas `ss4_*` next to rd13b's `ss4_tb` / rd14b's `ss4_tu`, and
+  `perfA_tbn` extended to them; (2) arms via `ArmA C'` + `armA_c14c.or`: Reply (d), IRQ handler set / clear (b, RF extension),
+  SchedContext / SchedControl (e) / ThreadControlCaps / ThreadControlSched, CNode revoke / delete / cancelBadgedSends (a, c;
+  Rdy at preemption errors from rd8f's rdCapDeleteH), Untyped, ASID control; when `C'` covers everything, `InvRc` is vacuous
+  and `kcall_rdyOff9` / `kentry_rdyOff9` = `kcall_rdyOffC armA_all` without `hP`. (3) PerfF the same way: `ArmF C'`, the QT
+  family extends by leaves (setThreadState of a good state is already generic; finalise / deletion writes Inactive); arms that
+  unbind ct give RT / CBa vacuously (prove an `fpo_tu` next to `fpo_tb`); then B's tops lose `InvF` via `invF_ofC armF_all`.
