@@ -14539,3 +14539,73 @@ states; `hDL` unchanged (asked at the dispatch states, at the decode's values, e
   0 `declaration uses 'sorry'`. Axioms (axg5m.lean): kernel_entryJ38E, kernel_entry_reachIF, kernel_entryJ39,
   kernel_entry_reachE3T, kernel_entryJ33R, P1 entry_of7r, fl4CallKernelV, kernel_entryJ40, kernel_entryJ41,
   kernel_entryJ41V, kernel_entry_reachMD4V, P1 kernel_entry.entry_of7r2: propext, Classical.choice, Quot.sound. No FINDING.
+
+## m68 (branch par/m68 in FL4-m67, on 5b2ae931 = int/j2 = #51 head with m67) — m67's handoff (1)–(3) DONE: the X1→X15 footprint and every `RRReads2` read but m67's `nvm` derived from the P1 invariants at the dispatch state, under two narrow [J] premises at the dispatch states (`RRSumAt`: m65's ring-sum bound, `CnOffAt`: CNode slots placed); P1 tops `kernel_entry.entry_of8` / `entry_of9`; (4) P3 `J33F` / `J34F` NOT done (residue below); no FINDING
+- **P1 FastRRFoot (new, root import).**
+  * `rr_remove_foot`: `reply_remove`'s unlink branch (the fast path checked "no stack head") writes only reply link
+    words of replies (`RpLW Rp`: the reply's own `PREV` / `NEXT` and its neighbours', replies by `ReplyInv0.next` /
+    `prev`), the reply's `TCB` word (to 0) and `u`'s state; Arch value kept; its `schedule_tcb u` is a no-op
+    (`schedule_tcb_ne`: `u` is not current).
+  * `RRW` (the run's footprint to `X8`: `t`'s / `u`'s state, `u`'s fault word, `XferRegW T ∅`, `RpLW`, the reply's
+    `TCB` word, `u`'s SC ring, the core's `REPROGRAM` and `SCHED_ACTION`), `RΩ Ω Rp` (`Ω` without reply link words),
+    **`finKeep_rrw`** (a footprint inside `RRW` gives m63's `FinKeep` over `RΩ`).
+  * `head_agree`, `amtSum_agree` (a well-formed ring read through an agreement on the SC's words).
+  * **`RRPl`** (placement at the dispatch state: TCBs / node / `Ω` / `SgOK` / `ObjsOK`, `rptr ∈ Rp` and its links,
+    `u ≠ t`, `usc = u.sc ≠ 0`, `usc ∈ Scs` with `RefillsWF` (`u` BlockedOnReply ⇒ `BoundInv.sact` ⇒ active ⇒ `SCA`),
+    the endpoint placed, IDLE with an empty queue (`EpTy`), the bound notification a placed queue object
+    (`ScExtra0.bnd` + `H n = ntfn` + `EpsWit`), `TimerOK.min`, the release head as `rel_head` with `RΩ`, the bitmap);
+    **`rrPl_of`** (from `BXI` / `XG`, `EntryHyps0.recvOK`, `∀ n ∈ Nt, H n = some .ntfn`).
+  * **`rr_x3`** (X0→X3: footprint, reply `TCB` word 0, R4: `unblock_check_r4` on `usc`'s ring under the bound
+    `RRSum`; non-sporadic / current-SC cases keep the ring), **`rr_r3`** (`RRR3`: `ft3`, `lbl3`), **`rr_x8`**
+    (`a2 = a`, `FinKeep` at `X2` / `X6` / `X8`, the action word kept to `X6`, `t`'s words below the state kept to
+    `X8` via `handle_fault_reply.rg` at `T := {u}`, and `sc2 sch6 sc6 rdy6 suf6 pst st7 act8 ct8 rt8 ntfn8 ep8`),
+    **`rr_x15`** (`act11 q12 T15 R15 act15 ct15 hp15 dq15`: `NoDue.agree` from `here_facts`, `le_of_is_hp` /
+    `is_hp_of_le` with the bitmap kept, `u` not queued).
+  * `RRReads2.of_pl` (all of m67's `RRReads2` from `RRPl`, `RRSum` and `RRReads4` = `lk8` + `nvm`), `RRPre3`,
+    `RRPre2.of3`, `RRPreAt3`, **`RRSumAt` [J]**, `RRPreAt2.of3`, top **`kernel_entry.entry_of8`** = `entry_of7r2` with
+    `hRP : RRPreAt2` (22 reads) replaced by `hSum : RRSumAt` + `hRP : RRPreAt3` (2 reads).
+- **P1 FastRRLk (new, root import).** `rab_body_congr2` / `rab_body_cont2` / `rab_body_done2` (m67's loop lemmas on
+  the slots the walk indexes, `x &&& mask r`), `rab_loop_congr2`, `rab_loop_slot` (the found slot is an indexed slot of
+  a closure CNode), `CapSW`, **`CnOff` [J]**, `rrw_capw`, **`lk8_of`** (both lookups at `X8` from the fast path's at
+  `X0`: registers and the `CTABLE` slot are `t`'s words below the state, kept; CNode slots by `CnOff`), `RRReads5`
+  (`nvm` only), `RRPre5`, `RRPre3.of5`, `RRPreAt5`, **`CnOffAt` [J]**, `RRPreAt2.of5`, top
+  **`kernel_entry.entry_of9`** = `entry_of8` with `hRP : RRPreAt3` replaced by `hCn : CnOffAt` + `hRP : RRPreAt5`.
+- **Premises.** Removed (on `entry_of9`, relative to `entry_of7r2`): every `RRReads2` field but `nvm` (`sc2`, `RRR3`'s
+  `ft3` / `lbl3`, `sch6`, `sc6`, `rdy6`, `suf6`, `pst`, `st7`, `act8`, `ct8`, `lk8`, `rt8`, `ntfn8`, `ep8`, `act11`,
+  `q12`, `T15`, `R15`, `act15`, `ct15`, `hp15`, `dq15`). Added: `RRSumAt Scs s a` [J] (m65's `RRSum` at each dispatch
+  state of the entry; m65 had it at the entry state, not on a top), `CnOffAt T Cs Sg s a` [J]. Kept: `RRReads5.nvm`
+  (m67, `RRPreAt5`), `FaultNvmPre`, `AsidOff` [J], `StoreExt` [P].
+- **Reachability of the bundles.**
+  * `RRSumAt`: every sporadic SC's ring sums to its configured budget (`refill_new` / `refill_update` from a decoded
+    budget below `MAX_PERIOD < 2 ^ 64`); `budget_ok`'s charge (`refill_budget_check`, `schedule_used`) and merges
+    conserve the sum (l4v `valid_refills` / `refills_sum`; P3 `SInvR.RV`). Only the receiver's SC is read.
+  * `CnOff`: a CNode cap names a CNode object of `2 ^ radix` 32-byte slots (l4v `valid_cap` / `cap_table_at`, radix
+    below 64 so `x &&& mask r < 2 ^ r` stays inside), closed under the CNode caps stored in it (`valid_objs`); kernel
+    objects are distinct (`pspace_distinct`), and TCBs, the per-core nodes (kernel globals), SCs, replies,
+    notifications are other objects, so both words of each indexed slot are outside the TCBs and nodes and not frame
+    words. Only `t`'s CSpace walk at the dispatch state is asked.
+  * `RRPl`: derived (not a premise). `RRReads5.nvm`: m67's argument (unchanged).
+  * Checked against the extracted code while deriving: `reply_remove`'s unlink branch writes exactly the five words
+    listed (the head-pop branch is excluded by the fast path's check); `reply_unlink`'s `set_thread_state u INACTIVE`
+    schedules `u`, not current (`u` BlockedOnReply, `t` schedulable); `handle_fault_reply`'s UnknownSyscall copy writes
+    only the receiver `u`'s registers; `unblock_check` writes `usc`'s ring and `REPROGRAM`; `possible_switch_to u` at `X6`
+    takes the `set_action` branch (`here_facts` and the action word kept to `X6`).
+- **(4) residue.** `entry_of9` keeps `nvm` (m67: needs the P1 invariants through `fastTail`, as `FaultNvmPre`). P3
+  `J33F` / `J34F` not done: `J33R` / `J34R` take `P1.RRPreAt` at the entry; `RRPreAt.of2 ∘ RRPreAt2.of5` gives it from
+  `EntryInv`, `EntryHyps0`, `∀ n ∈ Nt, H n = ntfn` at the P1 entry state plus `RRSumAt`, `CnOffAt`, `RRPreAt5`; the P3
+  tops carry `JAtZ`, not those P1 entry bundles, so J33F needs the P1 `EntryInv` / `EntryHyps0` read off `JAtZ` (or
+  the P3 entry carrying them) — next. `RRSumAt` at P3: from `SInvR.RV` via `ScRel.refills` (m66's note), `CnOffAt` from
+  the CNode relation (`CNodeRel` / `cte_wp_at` placement).
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m67, keys m68-*; m68b.sh untracked).** b1–b10 FastRRFoot (b10 green, 3828 jobs,
+  committed 2a3ccb7b); b11–b14 FastRRLk (`cspace.mask.p0` is `P0.`, `intro N` before `induction`, `CapW` name clash →
+  `CapSW`, heartbeats for the loop-body lemmas; b14 green, 3832 jobs, committed d096c5ca); merge of 79d84e13 (#51:
+  g4j, g4k, g5d + g5e) = 057048b3 (no P1 file changed, the m68 modules read no `McpRel` / `FinW`); **full1 (full
+  `lake build` of 057048b3): "Build completed successfully (7111 jobs)", 0 errors, 0 `declaration uses 'sorry'`.**
+- **Axioms** (scratch/axm68.lean, untracked, run by full1): m67's list plus kernel_entry.entry_of8, entry_of9,
+  RRPreAt2.of5, RRPre3.of5, lk8_of, rab_loop_congr2, rab_loop_slot, RRReads2.of_pl, rrPl_of, rr_x8, rr_x15: propext,
+  Classical.choice, Quot.sound (each).
+- HANDOFF: (a) `nvm` / `FaultNvmPre` (m67: carry the P1 invariants through `fastTail`); (b) P3 `J33F` / `J34F`: give
+  `J33R` / `J34R`'s `P1.RRPreAt` from `RRPreAt.of2 ∘ RRPreAt2.of5` (needs P1 `EntryInv` / `EntryHyps0` / `hNt` at the P3
+  entry state), `RRSumAt` from `SInvR.RV`, `CnOffAt` from the CNode relation; (c) `RRSumAt` / `CnOffAt` as P1
+  invariants (`refills_sum` carry; CNode typing in `ObjsOK`) to drop them.
