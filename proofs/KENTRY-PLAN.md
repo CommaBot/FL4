@@ -7545,3 +7545,53 @@ SpecInvAllB (bundle); root imports all eight. Nothing existing edited. Lead deci
   untracked): kentry_sinvB, kcall_sinvB, kcall_sinvB_sys, boot_sinvB, kentry_onlyIdle, kcall_onlyIdle,
   SInvB.entryJ, SInvB.entryJEv, oi_setThreadState: propext, Classical.choice, Quot.sound; oi_defaultTcb: propext;
   onlyIdle_iff: none. No sorry/admit/native_decide/bv_decide/axiom (g1c.sh grep over SpecInvAll*).
+
+## ctq10 (branch par/ctq10 in FL4-q, on 95e650e0 = int/j2 incl. ctq9, epq1, g1b) — ctq9 handoff 1 DONE (do_reply_transfer keeps EB true); the receive side from `RSq ct`; NOT finished: ResSc carry, deletion cone, performs, shell, tops, preemption hB
+Spec-only, namespace `Fl4Proofs.P3.SInvQ`, modules SpecInvCqB4 (imports SpecInvCqB3 + SpecInvSbG4 for sb2's SBK leaves) and
+SpecInvCqB5 (imports SpecInvCqB3); root imports both. Nothing existing edited.
+- **SpecInvCqB4, item 4a: `eb_doReplyTransfer C sender reply grant : HK (D0 C) (EB true) (do_reply_transfer …)`**, `D0 C :=
+  EB true ∧ ct = C ∧ NQ [C] ∧ ScInv ∧ RnH C` (and `eb_doReplyTransfer_ct`). "ct runnable" is LOCAL, not from CtExit/EntryJ:
+  `fl4HandleInvocationR` runs `set_thread_state ct Restart` right before `perform_invocation`, and the reply perform's sender is
+  ct. The receiver r is read BlockedOnReply, hence `r ≠ C` and `NQ [r, C]` (nq3 `nq_consR`). `dr_replyRemove : IK (DR r C)`
+  (`DR := EB true ∧ ct = C ∧ NQ [r, C] ∧ ScInv`; generated tq/sa/q4/rb leaves, nq3 `nq_replyRemove`, sb2 `sik_replyRemove`);
+  **no npq lemmas for dequeue / release-remove were needed**: `post_replyRemove` (reply_remove ends in reply_unlink_tcb, so r
+  is Inactive) gives `NPQ r` by `npq_nr`. Then `DN r C := DR r C ∧ NPQ r` through the refill check, do_ipc_transfer, the
+  fault-reply reads, handle_fault_reply, the fault-clearing threadSet and `set_thread_state r _` (one lemma each from the
+  generated leaves: `dn_refill`, `dn_doIpcTransfer`, `dn_getMessageInfo`, `dn_lookupIpcBuffer`, `dn_getMrs`,
+  `dn_handleFaultReply`, `dn_threadSetFault`, `dn_setThreadState`; NPQ and ct via ctq7's FX). `dn_tail`: possible_switch_to r
+  (read runnable, ≠ ct), handle_timeout r (`eb_handleTimeout_p` with `NPQ r`, `NQ [r, C]`), postpone scPtr (`eb_postpone_p`:
+  sb2's ScBackS turns "r's SC = scPtr" into "sc_tcb scPtr = r"; r runnable, ≠ ct, not the switch target by NPQ r).
+- **SpecInvCqB5 (receive side from ctq8's `RSq ct := (∃ c, ct's SC = some c) ∨ AN ct`)**: ReplyRecv's handle_recv runs after
+  do_reply_transfer, whose reply_remove may return ct's SC to its caller (sched_context_donate; also NBSendRecv's send may
+  donate ct's SC): CurScT is then false, so ctq9's `eb_handleRecv_ct` does not apply. Every CurScT use on the receive side is
+  a `maybe_donate_sc ct`, which is safe from `RSq ct`: **`eb_receiveSignal_rs`**, `eb_recvTail_rs`, **`eb_receiveIpc_rs`**,
+  `hrs_lookupReply`, **`eb_handleRecv_rs (hD : RSq ct σ) (hN : NQ [ct] σ)`** (EB true → EB false), `rsq_of_curScT`.
+  **`ResSc s := action = resume_cur_thread → ct's TCB has an SC`**, `resSc_of_curScT`, **`rsq_of_resSc : EB true → ResSc →
+  RSq ct`** (EB true already gives action ≠ switch ct), **`eb_handleRecv_res (hR : ResSc σ) (hN : NQ [ct] σ)`**.
+- HANDOFF (in order):
+  1. **Carry `ResSc` across the event** (it is not carried yet; it is what ReplyRecv / NBSendRecv / NBSendWait need at
+     handle_recv). It is a stepwise invariant with no local hypothesis: only `schedule` sets resume_cur_thread (grep Fl4Spec:
+     Schedule.lean:186/222, Init.lean:138), only switch_to(_idle)_thread writes cur_thread, and the writers of a TCB's SC field
+     are sched_context_donate (strips `from`, then `test_reschedule from` → choose_new when from = ct), sched_context_unbind_tcb
+     (`when (tptr = cur) reschedule_required` first), maybe_return_sc (reschedules when t = ct), sched_context_bind_tcb (sets
+     some), retype (fresh TCBs: needs UtInv3 freshness, as sb2/sl did). Generate an `rs_*` family (scratch/y/mky.sh pattern,
+     gen.py with skip = primitives + those writers + the schedule cone) with leaves: setObject of a non-TCB / threadSet keeping
+     `tcbSchedContext` (copy cs_auto's leaves from SpecInvCqW), `setSchedulerAction a` for a ≠ resume, and hand lemmas for the
+     four SC-binding writers. At the event start ResSc follows from CurScT (`resSc_of_curScT`), kept by the front.
+  2. The invokeReply perform arm = `eb_doReplyTransfer_ct` with ct Restart (`RnH` from the shell's Restart write), NQ [ct]
+     (nq3's NqI at the perform), ScInv (sb2 at the perform state: sb2's shell carries it).
+  3. Unchanged from ctq9 handoff 2-3 / ctq7 handoff 4-5: deletion cone, the other performs, the shell (front, fl4HandleInvocationR
+     with `set_thread_state ct Restart` = `eb_setThreadState_ct`, ReplyRecv = perform then `eb_handleRecv_res`), tops,
+     preemption_path's hB.
+- Premises: none added (no [J]/[P]/[W]/[S]); every hypothesis is a carried invariant (NQ, ScInv) or a local fact at the
+  stated state (ct runnable after the shell's Restart write; RSq / ResSc at handle_recv). No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-q mirror warm; ./ctq10.sh untracked = ctq8.sh with a tighter filter, ax10.lean): b1 parse error (`-`
+  inside an `intro` anonymous pattern); b2 stopped after ~8 min: one theorem running `eb_auto`/`fx_auto`/`nq2_auto`/`si_auto`
+  over do_ipc_transfer etc. inside it is far too slow — b3 with one small lemma per step from the generated leaves: B4 7.5 s,
+  B5 9.3 s; b4 B5 + ResSc bridge. Axioms (ax10.lean): eb_doReplyTransfer, eb_doReplyTransfer_ct, eb_receiveSignal_rs,
+  eb_receiveIpc_rs, eb_handleRecv_rs, rsq_of_resSc, eb_handleRecv_res: propext, Classical.choice, Quot.sound. Root
+  Fl4Proofs.lean not rebuilt (two import lines).
+- Lean traps (new): (1) never run the generic `*_auto` tactics inside a big hand walk: state a per-callee lemma from the
+  generated leaves (`eb_of (tq_f …) (sa_f …) (q4_f …) (rb_f …)`, `nq_f`, `SInvB.sik_of_sbk fun _ => SInvB.sb_f …`); (2)
+  `hk_gts` (getThreadState then `cases ts`, `dsimp only`) is the clean way into a `match state with` arm; (3) a constant fact
+  (`r ≠ C`) is best obtained by `by_cases` before the walk, the impossible case closed from the precondition.
