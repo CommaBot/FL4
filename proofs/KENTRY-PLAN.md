@@ -14361,3 +14361,66 @@ No new premise is quantified over states.
   `JAtZ.reset_untypedJM` (its small-region branches: spec clear touches `underlyingMemory` only) and `JAtZ.utResetJM` (the body
   after the reset by `MKD.untyped_retype_nr` + `perf_ut_nr`, as `jUtRetHypDMM_of`).
 - `VtxK` stays [scope] with the other VT-x decodes.
+## g4k (branch par/g4k in FL4-sc, on 230e1576 = int/j2 incl. g4j, m67) — g4j's handoff: `JUtResetHyp` [W] DISCHARGED (RAM and device caps); tops `kernel_entryJ41` / `kernel_entry_reachMD4` (hDL : `JDecMRLK VtxK` only); (4) answered: `VtxK` is NOT a restatement of the carried `JVtxHypMU` (it is stronger), the converse holds, so tops `kernel_entryJ41V` / `kernel_entry_reachMD4V` drop `JVtxHypMU`
+New leaves only (UtResetMR, XTopJointKEntry41, XTopJointKEntry41V; root imports). Nothing existing edited.
+
+### (1) Device caps (UtResetMR, tail)
+- FL4 `MKD.reset_untyped_dev`: with the slot's cap read as a device untyped at the state, `reset_untyped` takes the
+  `is_device` branch (slot write only) and returns the arch state; so `set_thread_state; untyped.retype … true …` keeps
+  `MR ar σ.ms` (`retype_reset_wp` + `MKD.untyped_retype_nr`), the cap read at the restart's state (`restart_dstate`).
+- Spec: at-state combinators `NoPre.MsAt` / `msAt_of_fke` / `msAt_bind` / `msAt_liftE_single` (as UtRetResetJM's
+  `NoErrAt`), `msAt_resetDev` (getCap single at the state, the device branch: `deleteObjects`, `unless true clearMemory`,
+  `setCap`; new leaf `mtk_clearMemoryG4k`), `msAt_retypeDev` (the whole perform).
+- `JAtZ.jUtResetMRDev`: `JAtZ.jUtRetHypDevM`'s run (`UtRetPostJM`) + the two keeps by `UtRetPostJM.mrK`.
+
+### (2) RAM caps (UtResetMR, scratch/g4k/gen.py from UtResetLoopJM / UtRetResetJM + head.lean / tail.lean)
+- `ResetJPostMM` = `ResetJPostM` with `MR res.2.2 σ'.machineState` at the done outcome. `JAtZ.reset_loopJMM`: the loop
+  invariant already had `MR a1 σk.ms`; at the last chunk the result's arch is the iteration's and `σk2 = setCnodeSlot σk …`
+  (same machine state), so `hMR` closes it by defeq. `JAtZ.reset_untypedJMM`: small region by `MachPlat.frame` (the spec's
+  `delete_objects` / slot write change only memory), chunked by `reset_loopJMM`.
+- `JAtZ.utResetJMM` (+ `hKD : MRKeepD`): post `UtRetPostJMM`; after the reset (and in the unused-cap branch, from σ1) the body
+  by `WP.spec_and` of `UtBodyHyp`'s run with `MKD.untyped_retype_nr` (FL4 keeps `MR` of the reset's exit) and spec
+  `inv_ut_nr` / `msF_ut_nr` (the retype without a reset keeps `msFT`), joined by `utRetPostJMM_of_body` /
+  `utRetPostJMM_of_reset`; preempted exit `utRetPostJMM_of_preempt` (`JAtPreMV`, unchanged).
+- `JAtZ.jUtResetMRM`: `JUtResetMR` (RAM) with exactly `JAtZ.jUtRetHypM`'s inputs (+ `hKD`), body per native type as there.
+
+### (3) Tops (XTopJointKEntry41; scratch/g4k/gentops.py + head41.lean from XTopJointKEntry40)
+- `jUtResetHyp_of`: `JUtResetHyp` at a dispatch state from `JAtZ`, `JEntryGlobM`, `JEntryAt`, `MachPlat`, `MRKeepD` and the
+  `JPathM` Untyped / device fields (the ones `jDecMRLK_ofU` uses).
+- `dispatch_all13PUNM4`, `kernel_entryJ13PUGMD4`, **`kernel_entryJ41`**, **`kernel_entry_reachMD4`** = NM3 / GMD3 / J40 / MD3
+  with `hDL : … → ∀ ct', cur_thread s' = ok ct' → JDecMRLK VtxK … ct'` (same states as before). J40 / MD3 kept.
+
+### (4) `JDecMRLK VtxK` vs the carried VT-x scope (XTopJointKEntry41V)
+- NOT a restatement. The top already carries, inside `hK : KDispHypsKV35`, `JVtxHypMU` (an Untyped cap retyping 14..18:
+  `XCapP (JAt) (JAtPreMV MR)`) and, inside `JPathAtM35`'s Thread path, SetEPTRoot's `JVtxScope` (`XCapP (JAt) (JAtPre)`).
+  `VtxK` asks `XCapP (JAtM) (JAtPreMV MR)`: `MR` at the non-preempted outcome. It cannot be derived from them: a VT-x retype
+  with a reset runs preemption points (clock reads on both sides), so `MR` at a `JAt` outcome is not a consequence of `JAt`
+  and the run's keeps (the joint outcome is existential); SetEPTRoot would need an FL4 VMCS/EPT walk plus a spec `PerfF`.
+- The converse holds: `jVtxHypMU_of` (`XCapP.monoX`, `JAtM → JAt`). So `KDispHypsKV41` = `KDispHypsKV35` without the
+  `JVtxHypMU` conjuncts, `KDispHypsKV41.to35` (with `hDL` at the same state), NEW TOPS **`kernel_entryJ41V`** /
+  **`kernel_entry_reachMD4V`** (= J41 / MD4 with `hK : … → KDispHypsKV41 …`): the Untyped VT-x retype enters the top once,
+  as `hDL`. SetEPTRoot's `JVtxScope` inside `JPathAtM35` stays (also implied by `VtxK`, but nested in the path structures;
+  removing it means copying JPathAtM35/JPathM/JThreadPath — not done).
+
+### (5) Remaining premises (exactly), for kernel_entryJ41V / kernel_entry_reachMD4V
+g4j (4)'s list with `JUtResetHyp` [W] removed (proved), and `hK : KDispHypsKV41` (KDispHypsKV35 minus `JVtxHypMU`):
+- **`hDL : JDecMRLK VtxK`** [scope] (statement in g4j (4); the only VT-x Untyped premise; also SetEPTRoot with `MR`).
+- everything else unchanged: the [P] platform (`MachPlat`, `MRKeepD`, `MRKeepIo`, `MRKeepIoapic`, `PPPlatA`, `IrqPlatA`,
+  `ARIface`, `ArchTotal`, `ArchRefines`, `PortInVal`, constants hmrt/hmb/hT/hmax/htu, numDomains = 1), the [S] scope per step
+  (ct ≠ idle, NativeSys, hflag), the (d) bundles hK (`KDispHypsKV41`) and hFin (`KFinAtR31`), `hFast` (FastRR), (G-a).
+For kernel_entryJ41 / MD4: the same with `hK : KDispHypsKV35` (so `JVtxHypMU` carried too).
+
+### (6) Reachability / findings
+No FINDING. No premise added; `JUtResetHyp` removed; `KDispHypsKV41` is a weakening of `KDispHypsKV35` asked at the same
+states; `hDL` unchanged (asked at the dispatch states, at the decode's values, existential in the outcome, never ∀ states).
+
+### (7) Builds and axioms
+- tokyo, FL4-sc mirror (warm at g4j; ./g4k.sh untracked = g4j.sh with the g4k file list). g4k-b1 (unused-cap branch:
+  `MKD.untyped_retype_nr`'s `c₀` not inferred; `clearMemory` leaf missing under `unless true`), g4k-b2 green, g4k-b3 green
+  (+ KEntry41V, "Build completed successfully (6940 jobs)"). No sorry / admit / native_decide / bv_decide in the three files.
+- **g4k-full1** (full `lake build` of proofs/ at de1e9dad): "Build completed successfully (7105 jobs)".
+- Axioms (g4k-full1, scratch/g4k/ax.lean): kernel_entryJ41V, kernel_entry_reachMD4V, kernel_entryJ41, kernel_entry_reachMD4,
+  kernel_entryJ13PUGMD4, dispatch_all13PUNM4, jUtResetHyp_of, JAtZ.jUtResetMRM, JAtZ.jUtResetMRDev, JAtZ.utResetJMM,
+  JAtZ.reset_untypedJMM, JAtZ.reset_loopJMM, MKD.reset_untyped_dev, NoPre.msAt_retypeDev, NoPre.msAt_resetDev, inv_ut_nr,
+  utRetPostJMM_of_body, utRetPostJMM_of_reset, XCapP.monoX, jVtxHypMU_of, KDispHypsKV41.to35: propext, Classical.choice,
+  Quot.sound.
