@@ -8803,3 +8803,71 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR.B8d` (new names only there), modules Sp
   `so_reply` / q1_updateSkObjRef); `split` cannot find the match of a do-block `match … ; stmt` after `dsimp only` (use `rcases hw :
   discr` + `simp only [hw] at hy`); `obtain ⟨x, hx, rfl⟩ := q1_mem_threadGet h` eliminates the pair (later refer to the state, not
   `z.2`); a do-block's last statement is not a bind to peel.
+
+## rd9 (branch par/rd9 in FL4-tcbj, on a1bfee76 = int/j2 incl. rd8a, rd8b, ctq11-13, g3b-d) — rd8a handoff 1 (TmoNR) and 2 (hAw) DONE, 4 (hX) in part; 3 (the body carry) NOT done (split into named hypotheses)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A9` (every new name), modules SpecInvRd9A1..A4 (new; root imports them). Nothing
+existing edited. No JAtZ cone. Keys rd9-1..9 (./rd9s.sh untracked = rd8as.sh with its own log; scratch/rd9/ax.lean untracked).
+- **SpecInvRd9A1 (handoff 1): `tmoNR : A8.TmoNR`, no premise.** `nrF t` (FaultTcbs `FQ` instance `p = t → ¬ runnable`;
+  closed under fault clears / Inactive writes / fresh TCBs) so `NO t := OPG (nrF t) univ _` is carried by every generated
+  `fg_*` lemma; `no_sts` (a non-runnable state write gives `NO`); a `TP` walk (`tq_auto`: asUser / setMrs / setSimpleKo /
+  setObject of non-TCBs) for `QF t` (t's fault set) and `QR t` (fault set ∧ runnable); `qf_doIpcTransfer` (the sender's
+  fault is set, so the fault arm; the none arm is absurd); **`no_sendIpc`** (blocking, non-call, non-donating send of a
+  faulted runnable sender: BlockedOnSend; or the receiver, read BlockedOnReceive after the dequeue while `t` is runnable,
+  is not `t`, the fault read after the transfer is `some`, so the call arm: reply_push (BlockedOnReply) or Inactive; the
+  receiver's Running write is allowed since it is not `t`); `mem_isValidTimeoutHandler` + SInvU's `getCap_capAt` (the
+  assert's cap is the cap sent to: endpoint arm). Tops **`kcall_rdyOff9` / `kentry_rdyOff9`** (rd8a's `'` tops without
+  `TmoNR`).
+- **SpecInvRd9A2 / A3 (handoff 2): `aw_fl4Awaken : IK AW9 fl4Awaken`, `AW9 := RO ∧ ScInv ∧ RCA ∧ CtR ∧ HRC`; no premise.**
+  A2: views `tvw` (a TCB's SC) / `rvw` (an SC's refills, max, TCB); the pinned **`VW u c v r R0 T0`** (u's binding view,
+  c's refill view, `R0` released, time) with leaves `vw_of` (SVM + release queue kept), `vw_ktc` (possible_switch_to,
+  RdS's `ktc_possibleSwitchTo`), `vw_updSc` (SC write away from `c`, or `c` no SC), `vw_schedContextResume`
+  (`rqs_orderedInsert`: ordered_insert keeps the old members, via `mapM_length`), **`vw_md`** (maybe_donate_sc: the woken
+  thread is unbound so not a bound `u`; the donated SC has no TCB so it is not a bound `c`; keeps `NB t c`),
+  **`vw_ifCond`** (the unblock check on an SC ≠ `c`); release-queue walks `rq_walk_*`. A3: `vw_wake` (send_signal's wake
+  tail `WT`), `rnF u Q` / `RN` (FQ instance: `u` runnable only if `Q`; `rn_wake` for `t ≠ u`), `of_sched` (schedulable ⇒
+  its parts), `sr_ktc`, `MB` / `mb_ifCond` (SC max backwards), `rq_ifCond`, `sr_ifCond`, **`sr_wake`** (the woken thread
+  ends `SR`: rd_wake's walk), `CtRf`, **`core`** (one wake: `t = u` ⇒ `SR u` ⇒ CtR, and under resume `u` was bound (HRC)
+  so its binding view is kept; `t ≠ u` ⇒ VW with `c1` = u's SC (ScBackS: `c1`'s TCB is `u`, so `NB t c1`) + `RN` ⇒ CtR
+  transfers from CtR σ), `aw_simple` (setNotification arms), `rh_fin` (RCA / HRC: resume after ⇒ resume before (A1's
+  `CW`), u's binding kept, cur_sc an SC after by ScBackS (sb's `si_sendSignal`) with its max kept (CW)),
+  `rq_cancelIpc_recv`, **`aw_sendSignal`** (Rdy, NtfnQB, ScInv, RCA, CtR, HRC ⇒ RCA ∧ CtR ∧ HRC), **`aw_fl4Awaken`**.
+  Tops **`kcall_rdyOff9b` / `kentry_rdyOff9b`**: rd8a's tops with `TmoNR` and `hAw` gone; `hAw` replaced by
+  `hSc : ScInv` at the event-part outcomes (sb2's carry, needed by aw_sendSignal's ScBackS steps and by hX anyway).
+- **SpecInvRd9A4 (handoff 4 in part, 3 as named hypotheses).** `vi_awaken : IK ValidIdle fl4Awaken` (vi2's `vi_fl4Awaken`
+  + `validIdle_of`); `xs_of` (XS from ScInv / ValidIdle / AW / cur_sc an SC); `RdBody rep c σ` (Rdy at every body outcome
+  after a true front) and `OsBody rep c σ` (OS ∧ RCA ∧ CtR ∧ HRC ∧ NQ [] there).
+  **STATEMENT** `kcall_rdyOff2 rep ev σ hEF hRdB hOsB hEvO hSc hVI hAW hCS : ∀ r ∈ fl4CallKernel rep ev σ, Rdy ∧ OffReady ∧ CAx`;
+  `kentry_rdyOff2 rep c σ (h : EF σ) (hW : ∀ w ∈ fl4SyscallFaultIP ct σ, RdBody ∧ OsBody ∧ ScInv-after-event ∧
+  ValidIdle-after-event ∧ AW-after-awaken ∧ cur_sc-SC-after-awaken)`.
+  **Remaining hypotheses (none a [J]/[P]/[W]/[S] premise; each pinned to the given entry's outcomes):**
+  * `hEF : EF σ` (rd8a; carried entry facts, unchanged).
+  * `hRdB` = **rd8c's** eventual `rd_fl4HandleSyscall`-style lemma: `Rdy` at every outcome of `bodyRun rep c v.2`
+    (fl4HandleSyscall with the preemption path) for every `true` front outcome `v` (rd8b/rd8c per-writer lemmas; rd8c
+    in FL4-r2 is composing rd_fl4PerformInvocation / rd_handleInvocationR).
+  * `hOsB` = **this line's** remaining body carry (rd8a handoff 3, NOT done): OS / RCA / CtR / HRC across the same
+    outcomes; NQ [] part is nq3's `nq_fl4HandleSyscall` family (exists, not wired).
+  * `hEvO` (kcall only, the non-syscall events): `SS ∧ NQ []` after handle_event of the other events (rd8b + this line).
+  * `hSc` = sb2's ScInv after the event part (`sb_fl4HandleEvent` has the `ScGap` premise on int/j2).
+  * `hVI` = vi3's ValidIdle after the event part (`vi_fl4HandleEvent_sys`, `ViGap` premise on int/j2).
+  * `hAW` = ctq's `AW` after fl4Awaken (ctq14/15's ready-queue bundle: `aw_of (SchedQ) (T4) (ValidIdle)` there, as
+    `rb_tail` does).
+  * `hCS` = cur_sc an SC after fl4Awaken (no carried fact found on int/j2 for mid-entry states; l4v's
+    `cur_sc_tcb`-style fact; under resume it follows from HRC + ScBackS, but rd_scheduleOff reads it unconditionally).
+- No FINDING. Checked: in handle_timeout the valid-handler assert and the send read the same slot (endpoint arm always);
+  send_ipc's fault read after do_ipc_transfer is the timeout fault (no TCB write of the transfer touches a fault), so a
+  timed-out runnable thread always blocks / becomes BlockedOnReply / Inactive; send_signal's donation only targets the
+  unbound woken thread with an SC bound to no TCB, its unblock check only runs on `scp ≠ cur_sc`, and the release queue
+  only grows (ordered_insert keeps members) — so RCA / CtR / HRC survive every timer signal.
+- HANDOFF (in order):
+  1. `OsBody` (rd8a handoff 3): OS / RCA / CtR / HRC across fl4HandleSyscall + preemption path. Plan unchanged from rd8a
+     (cur_sc's refills / max / ct's binding writers by hand; the rest by a generated CP-style family). This line's VW
+     kit (A2) is the natural frame for CtR on writers that touch neither ct nor ct's SC.
+  2. `hEvO` (other events), same kit.
+  3. `hCS`: find / add a carried "cur_sc is an SC" fact for mid-entry states (or show the SC at cur_sc is never deleted
+     before schedule).
+  4. Wire `hSc` / `hVI` / `hAW` when sb2's ScGap, vi3's ViGap and ctq14/15's bundle land on int/j2.
+- Lean traps: `structure`-valued pinned predicates break `ik_modify` leaves (`exact h` needs defeq across state updates)
+  — use an `abbrev` conjunction; `rcases h : e` does not rewrite occurrences under binders of the goal (use the equation);
+  in a `ReflTransGen` induction name the implicit states (`| @tail b c _ hst ih`); pass outcome states explicitly when the
+  goal's state is a `{σ with …}` update (else `_` unifies with the goal's state); `intro` patterns reject `-`;
+  do-notation duplicates the continuation into both branches of an `if` (split at the membership, not after the bind).
