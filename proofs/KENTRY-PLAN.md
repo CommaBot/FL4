@@ -9216,3 +9216,58 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR.B8f` (new names only there), modules Sp
   2. retype / detype / MakePool: Rdy reads only TCBs' SC binding, BlkR TCBs, SC views, queues, action, time. retype_region writes fresh default objects (default TCB unbound and Inactive, default SC inactive): `OK1` from an empty slot / non-TCB non-SC old object (ctq15's `rnDet_of_live`, ut1's `utRet_fresh`); detype / delete_objects removes objects in an untyped region: needs no TCB/SC in the region that Rdy reads as live (queued / switch target / release-queued / bound) — ctq11's `rt_detype` and ctq15's `eb_fl4InvokeUntyped` give the region-liveness facts (IfLiveT / ScLive); MakePool: sb2's skeleton + the reset as above.
   3. rd_fl4PerformInvocation over every arm: CNode delete / revoke = `rb_capDelete` / `rb_capRevoke` (RB at the perform: DK from ctq16's front, T1 / Simple / ScInv / VMT / IdleScOutV carried; C = ct, I = idleSc), cancel_badged_sends = `rdq_cancelBadgedSends`, IRQ handler clear = `rb_capDeleteOne`; send / call = rd8d's `rd_sendIpc_d … (ctRdy_of …)`; SC / SchedControl = rd8b / rd8c (`okp_fl4DecodeRdD`, `bindRel_perform`, `okv_fl4DecodeCfgD`); receive / reply-transfer arms as hypotheses named for rd8e's `rd_receiveIpc` / `rd_doReplyTransfer`.
 - Builds (tokyo, FL4-r3 mirror seeded from FL4-audit in rd8f-s1; ./rd8fs.sh untracked = rd8ds.sh with its own log): s1 (seed + deps cached, 5156 jobs), a1-a3 Rd8fA (nested `{ {x with} with }` parse, multi-line field values need parentheses, `rd_auto`'s NB side goal for `.inactive` fails — explicit `rd_setThreadState _ .inactive trivial`), ab1 / ab2 (`dsimp` turns `match none` join points into the next statement; `congr 1` does not split a nested structure instance: use `rdy_congr`), abc1 / bc1 / bc2 (B: `rdf_threadGet_bind` instead of an `obtain rfl` peel inside a macro; `P12.NSw`), c2 (C: multi-line `first |` inside `repeat'` does not parse), c3 Rd8fC (5162 jobs) + axioms (scratch/rd8f/ax.lean, untracked): rdq_removeAndRestartEpQueuedThread, rdq_removeAndRestartBadgedThread, rdq_removeAndRestartNtfnQueuedThread, rdq_cancelAllIpc, rdq_cancelBadgedSends, rdq_cancelAllSignals, rd_restartThreadIfNoFault, rd_cancelIpc_send, rd_cancelIpc, rd_suspend, rdf_fastFinalise, rdf_capDeleteOne, rd_unbindFromSc, rd_finSc, rdf_finaliseCap, rdy_preemptionPoint, rb_finaliseCap, rb_preemptionPoint, rb_recDelF, rb_recDel, rb_capDelete, rdCapDeleteH, rb_capRevoke, rb_capDeleteOne: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three import lines).
+
+## ctq20 (branch par/ctq20 in FL4-c2, on 4721804e = int/j2 incl. g1d, ctq19, rd10) — g1d handoff (2): `RS` at every exit, `SInvCR := SInvCQ ∧ RS`, `kernel_entryJ30D` (DONE up to one rd fact taken by name: FINDING)
+Spec module **SpecInvAllR** (helpers in `Fl4Proofs.P3.SInvQ.P20`, bundle in `Fl4Proofs.P3.SInvAll`), leaf
+**XTopJointKEntry30D**; root imports both. Nothing existing edited, no cone edit.
+- **Boot.** `initASt.schedulerAction = .resumeCurThread` (Init.lean), so `boot_rs : RS initASt := rfl`; neither boot nor the
+  first entry has to fix anything. `boot_sinvCR`.
+- **FINDING (the brief's "activate_thread keeps it" holds only conditionally).** `schedule` ends at `resume_cur_thread` with no
+  premise (ctq5's `rs_schedule`). But `activate_thread` on a `Restart` ct runs `set_thread_state ct Running`, and its
+  `set_thread_state_act` sets `choose_new_thread` when ct is not `schedulable` (runnable ∧ bound to an active SC ∧ not
+  released). ct is `Restart` after `schedule` in reachable states (e.g. a restarted thread chosen from a ready queue). l4v gets
+  schedulability there from `valid_sched` (`valid_ready_qs` / `valid_sched_action`: active SC, not in the release queue).
+  This spec's `schedule` also has no `assert (sched ∨ ct = idle)` in the resume branch (g1b). In this repo the "active SC"
+  half is rd's (R1 / R2 / RCA ⇒ `cax_schedule`).
+- **What is proved (`P20`, no premise).** `rs_setRun`, then `act_rs`: from `RS`, every outcome of `activate_thread` has `RS`,
+  or ct is a `Running` TCB that is not schedulable there. Then **`rs_exit`** (`schedule ; activate_thread`), with
+  `kcall_rs_exit` / `kentry_rs_exit`: at every outcome `r`, `RS r` follows from three facts *at `r` itself*. The write between
+  the schedulability check and the exit only changes the action, so the exit state decides it:
+  (a) `SInvR.CAx r` (ct ≠ idle → ct bound to an active SC; l4v `active_sc_tcb_at ct`), (b) ct ∉ release queue,
+  (c) the idle thread in `IdleThreadState` (it can never take the Restart arm).
+  * (b) = **`SInvCQ.notRel`**: ctq6's `RB` = `HB true`, whose `k → CtQ ∧ NP ct` half is unconditional.
+  * (c) = **`SInvCQ.idleSt`**: vi3's `ValidIdle` in SInvB.
+  * Both hold at every exit by `kentry_sinvCQ` / `kcall_sinvCQ`.
+  * (a) is **not** in SInvCQ (CurScT only binds ct to `cur_sc`; no carried field says that SC is active). It is the third
+    conjunct of rd10's `kentry_rdyOff3` / `kcall_rdyOff3i`.
+  * `RS` at the entry is not read (`schedule` re-establishes it).
+- **Tops (composed only).**
+  * `kentry_rs_ofCA hnd c (h : SInvCQ σ) (hct : ct ≠ idle) (hCA : ∀ r ∈ (fl4KernelEntrySyscall true c σ).1, CAx r.2) : ∀ r ∈ …,
+    RS r.2` and `kcall_rs_ofCA hnd rep ev h (hev : ev ≠ interrupt → ct ≠ idle) hCA`.
+  * `hCA` is the open gap by name, as g1d's `_ofRdy`. It is about this operation's outcomes only, and rd's tops prove exactly
+    it. It is not a bundle field.
+  * `kentry_rs_ofRd hnd c h hct hEF hX hW` / `kcall_rs_ofRd hnd rep ev h hev hEF hEFI hX hRdB hOsB hEvO hQ4`: `hCA` from
+    rd10's tops. The remaining hypotheses are exactly rd10's open ones (`hRdB`, `hOsB` except Yield, `hEvO` for the fault
+    events, `hQ4`) plus its carried `EF` / `EV10` / `EFI`.
+  * `SInvCR σ := SInvCQ σ ∧ RS σ` (abbrev); `kentry_sinvCR_ofCA` / `kcall_sinvCR_ofCA` / `kentry_sinvCR_ofRd` /
+    `kcall_sinvCR_ofRd` (`kentry_sinvCQ` + the RS top).
+  * No `kentry_sinvCR` / `kcall_sinvCR` without `hCA` yet: same convention as g1d.
+- **`kernel_entryJ30D`** (XTopJointKEntry30D): `kernel_entryJ30C` with `hS : SInvCQ σ` → `hS : SInvCR σ` and `hni : Entered σ`
+  → `hct : σ.curThread ≠ σ.idleThread` ([S], l4v `ct_active`: a syscall comes from a user thread). The body is
+  `kernel_entryJ30C … (SInvCR.entered hS hct) … hS.1 …`, where `SInvCR.entered : SInvCR σ → ct ≠ idle → Entered σ`.
+  * Premise GONE: `hni.2` (`action = resumeCurThread`, spec), now carried in SInvCR.
+  * Premises REMAINING: as J30C (PlainStore, `J`, `hct` [S], `hR`, `hS`, `hE : EpQAll σ` (rd), `hn`, `hflag` [S],
+    `hB : OffReady …` (rd), `hK` / `hFin` (scoped ∀, J), the [P] PlatJ list).
+- No [J]/[P]/[W]/[S] premise added; no ∀-states hypothesis. `hCA` is a named open gap owned by the rd line.
+- Builds (tokyo FL4-c2 mirror, warm; ./ctq20.sh = g1d.sh with the sorry grep over the two new files and ax20.lean, both
+  untracked; keys ctq20-*):
+  * b1 failed: one error in `rs_setRun`, an unreduced beta-redex before `nd_gets_bind`; fixed with `dsimp only at hy`.
+  * b2 OK: SpecInvAllR 2.5 s, XTopJointKEntry30D 3.0 s, 6598 jobs.
+  * No sorry/admit/native_decide/bv_decide.
+  * Axioms (ax20.lean): rs_setRun, act_rs, rs_exit, kcall_rs_exit, kentry_rs_exit, SInvCQ.notRel, SInvCQ.idleSt, boot_rs,
+    kentry/kcall_rs_ofCA, kentry/kcall_rs_ofRd, boot_sinvCR, kentry/kcall_sinvCR_ofCA, kentry/kcall_sinvCR_ofRd,
+    SInvCR.entered, kernel_entryJ30D: propext, Classical.choice, Quot.sound.
+  * Root Fl4Proofs.lean not rebuilt (two import lines).
+- HANDOFF: when rd lands `Rdy` / its exit facts as carried fields (or proves its open body hypotheses), `CAx` at every exit
+  follows from rd10's tops. `kentry_sinvCR_ofRd` / `kcall_sinvCR_ofRd` then become `kentry_sinvCR` / `kcall_sinvCR`, with no
+  change here. Alternatively, add `CAx` to the bundle: rd's tops already conclude it at every exit.
