@@ -3,6 +3,7 @@ import Fl4Proofs.P0.Auto
 import Fl4Proofs.P1.SyscallGen
 import Fl4Proofs.P1.FastDecline
 import Fl4Proofs.P1.FastFault
+import Fl4Proofs.P1.FastSched
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio

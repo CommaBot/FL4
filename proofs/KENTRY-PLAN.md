@@ -12497,3 +12497,70 @@ the MR carry (T4).
 - (G-a) spec `kentry_nofail` under `SInvX` (spec-only line, outside the cone).
 - The 23 (d) premises, in G2 / G3 order: JEntryAtR3's seven joint fields as JExt fields, the JPath [J] fields (heapH /
   vsReach / devApart … are L), `KFinAtR31.hd` / `tail`.
+
+## m59 (branch par/m59 in FL4-m56, on 52aa0f05 = par/m58) — m58's handoff (a)–(e): (a) DONE; (c) in part (the no-op parts of `finish`, enqueue-then-dequeue on a nonempty ready queue, `schedule` from CHOOSE_NEW to `choose_thread` → `switch_to_thread`); `set_vm_root` read-congruence, `highest_prio` after the enqueue, the empty-queue case, `FastSame` (fault), (d), (e) and ReplyRecv NOT done; no top changed; no FINDING
+- **P1 FastSched (new; imported by the root).** All in the meeting-point style of m58 (the general program shown equal to a
+  continuation at a named state, reads as hypotheses where they occur).
+  * **(a) `unblock_check_wr`**: `refill_unblock_check sc` commutes with a write to an aligned word outside the SC (`Outside A
+    sc sb`) that is neither the current core's CUR_TIME nor REPROGRAM (REPROGRAM itself outside the SC), under `StoreExt` and
+    `RefillsWF st s sc sb`. Proof: `SCView` (every SC read is the same after the write: header, period, head / tail indices,
+    refills at indices `< max ≤ sb`), `putS_wr` / `wr_head_wr` (the head-refill update commutes), `ucLoop_wr` (induction on
+    the fuel of `unblock_check_loop`, `RefillsWF.ucStep` keeping the bounds, `ucStepS_wr` per merge step). **`UsOff`** /
+    **`unblock_sporadic_wr`**: the same for `unblock_sporadic dest` (also reads dest's SC word, the SC's SPORADIC word and
+    the node's CUR_SC). **`fault_sync2`**: from `fault_sync`'s `S14` both paths run the same `unblock_sporadic S14 dest`; the
+    general path then writes the action CHOOSE_NEW and runs `possible_switch_to`, the fast path clears dest's sched links and
+    runs `switch_to` (`faultTail3_eq`), given `UsOff S14 dest (actA S14)`.
+  * **(c) no-op parts of `finish`**: `check_domain_time_one` (one domain), `timer_fire_none` / `awaken_loop_none` /
+    `awaken_none` (TIMER_MIN empty or later than CUR_TIME; release queue empty or its head's SC not ready — what
+    `schedulable_here` checked, F4 to be re-read after `unblock_check`).
+  * **(c) F3, nonempty queue**: `EnqNE T X d p` (d ∈ T not QUEUED, prio p < 256, affinity = this core, `NodePlaced`, the
+    queue head h ≠ 0, h ∈ T, h ≠ d, h.sched_prev = 0, tail ≠ d), `EnqNE.vals` (the touched addresses as numbers),
+    `EnqNE.facts` (alignment and pairwise distinctness of the nine words), `prepend_ne`, `or_andn_qq`, **`enqueue_ne`**
+    (`enqueue d` = the write sequence `enqNE`: d at the head), **`dequeue_enq_ne`** (`dequeue d` after it = X with d's two
+    sched links 0, under `StoreExt`: every queue word, h's sched_prev and d's in_queues word restored).
+  * **(c) `schedule`**: `schedTail` (set_action RESUME, `switch_sched_context`, reprogram, `send_pending` — the same calls
+    as the end of `fastpath.switch_to`), **`schedule_cn`** (action CHOOSE_NEW, nothing due, current thread not schedulable,
+    domain time ≠ 0 ⇒ `schedule = choose_thread >>= schedTail`), **`choose_thread_eq_pick`** (L1 word ≠ 0 and
+    `highest_prio = p` ⇒ `choose_thread = switch_to_thread` of queue p's head word; QueueChoose's `choose_thread_pick` gives
+    p maximal under `SchedQueuesInv`).
+- **Lean note (the error m59's first process looped on).** `simp only [mem_wr_ne', F]` with `F` a conjunction of `Aligned`
+  / `≠` facts makes no progress: `Aligned` is an `abbrev` (`a.val % 8 = 0`), so simp turns the hypothesis into a rewrite of
+  `a.val % 8` and its default discharger then fails on the side goal `Aligned a` (trace: `mem_wr_ne' discharge ❌ Aligned
+  (inqA d)`); the "not type-correct under implicit transparency … decide (0 ≤ UScalar.cMax …)" note printed with it is a
+  red herring (generalizing the `0#u64` literals changes nothing). Fix: name the facts (`obtain ⟨q0, …, q80⟩ := E.facts`)
+  and use `simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]`; an explicit `rw [mem_wr_ne' ha hb hab]`
+  chain also works. For a whole-state equality (`StoreExt`) split on the written addresses (`by_cases x = a`, `subst`)
+  instead of `simp [L.mem_wr_val]` + `split_ifs` (max steps).
+- **Premises.** Added on building blocks only (none on a top): `StoreExt` [P] (as in m58) on `unblock_check_wr`,
+  `unblock_sporadic_wr`, `fault_sync2`, `dequeue_enq_ne`; `EnqNE` / `UsOff` and the read hypotheses of `schedule_cn` /
+  `choose_thread_eq_pick` are hypothesis bundles of the new lemmas (each true in reachable states, from P1 placement /
+  `RefillsWF` / `SchedQueuesInv`; their derivation is (d)). Removed / narrowed on tops: none — `kernel_entryJ33` / `J34`
+  (`hFast : FastRR`) and P1 `entry_of4` (`hF : FastAcc`) unchanged, no `entry_of5`.
+- **Left (in order).** (c1) `set_vm_root` read-congruence: the general path calls it at `enqNE`-state + CHOOSE_NEW (dest
+  linked at the head), the fast path at the state with dest's links 0; both states differ only in dest's / h's sched links,
+  the queue words, dest's in_queues word and the action word, none of which `set_vm_root` reads (the VTABLE slot cap,
+  `find_vspace_for_asid`, the ASID table) — needs a congruence lemma over `Slot.cap` and the ASID walk, then the Arch value
+  is the same; (c2) `highest_prio` after `enqueue d` = d's prio (from `is_highest_prio` before and `BitmapOK`; QueueChoose's
+  `highest_prio.spec`), L1 ≠ 0; (c3) the empty-queue case of F3 (`enqueue` sets the L1/L2 bits, `dequeue` clears them; empty
+  queue `(0,0)` with clear bits); (c4) assemble `FastSame` for an accepted fault run (`fault_sync2` + `possible_switch_to_cn`
+  + `enqueue_ne` + `schedule_cn` + `choose_thread_eq_pick` + `dequeue_enq_ne` + `wr_comm` for the CUR_THREAD / action / link
+  writes, then equal tails); (d) the `FaultReads` / `UsOff` / `EnqNE` facts from the entry state's P1 placement; (e) split P1
+  `hF`; then ReplyRecv R1–R7.
+- **FINDING: none.** Re-read the scheduler half of both paths while formalising (`unblock_sporadic` inlined in
+  fastpath.rs's `fault`, `possible_switch_to` from CHOOSE_NEW, `schedule` / `schedule_choose_new_thread` / `choose_thread` /
+  `switch_to_thread` vs `fastpath.switch_to`): the only differences are the order of the dest-link / CUR_THREAD / action writes
+  and the enqueue + dequeue pair, which the lemmas above show cancel (nonempty queue) or reduce to (c1)–(c3).
+- **Builds (tokyo, mirror FL4-m56, keys m59-*; `.lake` warm from m58).** The first process: b1–b11 FastSched iterations
+  (b11: everything up to `EnqNE.facts` green, the enqueue / dequeue reads failing as above). After the restart: b12
+  FastSched without the enqueue / dequeue lemmas green (3692 jobs, committed b239f5cb); b13–b15 scratch experiments
+  (`lake env lean`, untracked `scratch/m59x.lean`) isolating the discharger issue; b16 FastSched with `enqueue_ne` /
+  `dequeue_enq_ne` green (3692 jobs, dbf7a626); b17 implicit-`st` / name clash; b18 green (3692 jobs, 1b4d8051); **b19**:
+  FastSched, QueueEntryGaps4, XTopJointKEntry33, SpecInvRd14hC, SpecInvRd8wB: **"Build completed successfully (6900
+  jobs)"**, 0 sorry. No full `lake build` of the root (the root only gains `import Fl4Proofs.P1.FastSched`).
+- **Axioms** (scratch/axm59.lean, untracked): kernel_entryJ33, kernel_entryJ34, P1 kernel_entry.entry_of4,
+  A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, unblock_check_wr, unblock_sporadic_wr,
+  faultTail3_eq, fault_sync2, check_domain_time_one, timer_fire_none, awaken_loop_none, awaken_none, or_andn_qq,
+  prepend_ne, EnqNE.vals, EnqNE.facts, enqueue_ne, dequeue_enq_ne, schedule_cn, choose_thread_eq_pick: propext,
+  Classical.choice, Quot.sound.
+- HANDOFF: (c1)–(c4), (d), (e) above in that order, then ReplyRecv (R1–R7; the same pieces apply: `unblock_check_wr` for
+  R4's `unblock_check u.sc`, `schedule` from action `u` instead of CHOOSE_NEW, `dequeue u` a no-op).
