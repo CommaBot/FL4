@@ -7,19 +7,19 @@ only, outside the JAtZ cone).
   `rb_capDelete`, cancel_badged_sends by `rq_cancelBadgedSends` with `NQ []`
   from `fh_of`, the moves / swaps / inserts by rd's leaves),
   `rd_invokeIrqHandler` (`rb_capDeleteOne`, `rd_capInsert`), `rd_archPerf`
-  (every arch arm but ASIDControl by rd's leaves), `rd_invokeDomain` (the
-  schedule set-start / configure arms).
+  (every arch arm but ASIDControl by rd's leaves), the domain
+  schedule set-start / configure arms by rd's leaves, DomainSet by Rd8hD.
 * `PerfOK σ iv`: the per-arm facts at the perform — ThreadControl* (Rd8hC's
   `TcbOK`), SchedContext (rd8b's `ScIvOK`), SchedControl (rd8c's `CfgD`),
   Reply (`Sched.BlockedScActive`, rd8e's `rd_doReplyTransfer` input: rd8i's
-  `kentry_bsa` / `kcall_bsa`), and three arms taken as `Rdy`-at-the-outcomes
+  `kentry_bsa` / `kcall_bsa`), and two arms taken as `Rdy`-at-the-outcomes
   hypotheses: Untyped and ASIDControl (retype / detype / MakePool, goal item
-  3) and DomainSet (l4v `valid_blocked`, see KENTRY-PLAN rd8h).
+  3); DomainSet takes rd's `SR t` at the perform (l4v `valid_blocked`, Rd8hD).
 * **`rd_fl4PerformInvocation`**: `Rdy` at every outcome of
   `fl4PerformInvocation` from rd8f's `RB ct I`, the current thread `RdyT`,
   `OffReady`, `Suff`, nq2's `NtfnQB` and `PerfOK`.
 -/
-import Fl4Proofs.P3.SpecInvRd8hC
+import Fl4Proofs.P3.SpecInvRd8hD
 import Fl4Proofs.P3.SpecInvRd8eC
 import Fl4Proofs.P3.SpecInvRd8cB
 open Classical
@@ -126,7 +126,7 @@ theorem rd_archPerf (i : Fl4ArchInvocation) (σ : State Unit) (hR : Rdy σ) (hOK
 def PerfOK (σ : State Unit) : Fl4Invocation → Prop
   | .invokeUntyped i => ∀ y ∈ ((fl4InvokeUntyped (Z := Unit) i).run σ).1, Rdy y.2
   | .invokeTCB i => TcbOK σ i
-  | .invokeDomain (.invokeDomainSet t d) => ∀ y ∈ (invokeSetDomain (Z := Unit) t d σ).1, Rdy y.2
+  | .invokeDomain (.invokeDomainSet t _) => SR t σ
   | .invokeReply _ _ => Sched.BlockedScActive σ
   | .invokeSchedContext i => ScIvOK σ i
   | .invokeSchedControl i => CfgD (.invokeSchedControl i)
@@ -164,7 +164,7 @@ theorem rd_fl4PerformInvocation (bl call don : Bool) (iv : Fl4Invocation) (I : O
     obtain ⟨z, hz, hx⟩ := hx
     rw [Set.mem_singleton_iff.1 hx]
     cases d with
-    | invokeDomainSet t dd => exact hOK z hz
+    | invokeDomainSet t dd => exact rd_invokeSetDomain t dd σ hR hOK z hz
     | invokeDomainScheduleSetStart k =>
       simp only [invokeDomain] at hz
       exact (show IK Rdy _ by rda_auto) σ hR z hz
