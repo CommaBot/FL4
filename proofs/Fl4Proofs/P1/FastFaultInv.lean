@@ -783,4 +783,96 @@ theorem here_facts {s : S} {d : U64} (h : fastpath.schedulable_here st s d = ok 
          simp [h1, ite_self] at h <;> exact absurd (ok_inj_ff h) (by decide))
 end
 
+/-! ## (d1) `UsOff` at a state that keeps the entry state's words -/
+
+section
+variable {S : Type _} {st : machine.Store S} [L : LawfulStore st]
+
+/-- A node word is outside every SC whose words are `Ω` words. -/
+theorem node_outside_sc {T Cs Ω : Set U64} {s : S} {sc : U64} {sb : Nat} {off : U64}
+    (hN : NodePlaced st T s (L.cpu s)) (hcC : L.cpu s ∈ Cs) (hΩ : ∀ a ∈ Ω, OutsideObjs st T Cs s a)
+    (scW : ∀ b, Aligned b → InSC sc sb b → b ∈ Ω) (ho : off.val < 4288) (h8 : off.val % 8 = 0) :
+    Outside (L.nodeAt s (L.cpu s) off) sc sb := by
+  by_contra hc
+  unfold Outside at hc
+  have hm := scW _ (nodeAt_aligned hN ho h8) ⟨by omega, by omega⟩
+  have := (hΩ _ hm).2.2 _ hcC
+  rw [nodeAt_val hN ho] at this hc
+  omega
+
+/-- **(d1) `UsOff` from the entry state** at any state `X` that keeps the
+entry state's node, TCB and `Ω` words (`FaultKeep`; `fS14` by
+`faultReads_of`), given the handler's SC placed at the entry state: its words
+`Ω` words (`ObjsOK.scW`), its `SPORADIC` word in `Ω` (`SCsOK.spSg`, `sub`),
+well formed if sporadic (`SCsOK.spor` ⇒ active ⇒ `SCA`), apart from the reply
+object (`ObjsOK.rpSc`), at least 128 bytes (`ObjsOK.sc`). -/
+theorem usOff_of {T Cs Ω U : Set U64} {s X : S} {t : obj.Tcb} {ptr dest r : U64} {rest : List U64} {sb : Nat}
+    (E : FaultEnt (L := L) T Cs Ω U s t ptr dest r rest) (K : FaultKeep (L := L) T Ω s X r)
+    (scW : ∀ b, Aligned b → InSC (L.mem s (scA dest)) sb b → b ∈ Ω)
+    (spΩ : sporA (L.mem s (scA dest)) ∈ Ω)
+    (spWF : L.mem s (sporA (L.mem s (scA dest))) ≠ 0#u64 → RefillsWF st s (L.mem s (scA dest)) sb)
+    (rpSc : r.val + 32 ≤ (L.mem s (scA dest)).val ∨ (L.mem s (scA dest)).val + 2 ^ sb ≤ r.val)
+    (sb7 : 7 ≤ sb) (fits : (L.mem s (scA dest)).val + 2 ^ sb ≤ 2 ^ 64) :
+    UsOff (L := L) X dest (actA (L := L) X) sb := by
+  have hdT : dest ∈ T := E.hq.mem dest (by simp)
+  have hd' := E.hT dest hdT
+  have eA : actA (L := L) X = actA (L := L) s := actA_of K.ksb K.cpu
+  have eN : ∀ off, L.nodeA X off = L.nodeAt s (L.cpu s) off := fun off => by
+    unfold LawfulStore.nodeA; rw [K.cpu, nodeAt_of_ksb K.ksb]
+  have esc : L.mem X (scA dest) = L.mem s (scA dest) :=
+    K.tcb dest hdT 3464#u64 (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp) (by simp)
+      (by simp) (by simp)
+  have vsc : (scA dest).val = dest.val + 3464 := by
+    have := tcb_wadd_val hd' (o := 3464#u64) (by simp); simpa [scA] using this
+  have da := hd'.align
+  have nd := E.hN.disj dest hdT
+  have nal := E.hN.align
+  have vA : (actA (L := L) s).val = L.nodeBase s (L.cpu s) + 16 := by
+    have := nodeAt_val E.hN (off := layout.node.SCHED_ACTION) (by simp [layout.node.SCHED_ACTION])
+    rw [act_val] at this; simpa [actA] using this
+  have vN : ∀ off : U64, off.val < 4288 → (L.nodeAt s (L.cpu s) off).val = L.nodeBase s (L.cpu s) + off.val :=
+    fun off ho => nodeAt_val E.hN ho
+  have hsp := E.hΩ _ spΩ
+  have hspN := hsp.2.2 _ E.hcC
+  have p7 : 128 ≤ 2 ^ sb := le_trans (by norm_num) (Nat.pow_le_pow_right (by norm_num) sb7)
+  have vsp : (sporA (L.mem s (scA dest))).val = (L.mem s (scA dest)).val + 64 := by
+    unfold sporA layout.sc.SPORADIC
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+  have haA : Aligned (actA (L := L) s) := by show _ % 8 = 0; rw [vA]; omega
+  rw [eA]
+  refine ⟨haA, by show _ % 8 = 0; rw [vsc]; omega, fun e => by
+      have := congrArg UScalar.val e; rw [vA, vsc] at this; omega,
+    by rw [eN]; exact nodeAt_aligned E.hN (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC]),
+    fun e => by
+      rw [eN] at e; have := congrArg UScalar.val e
+      rw [vA, vN _ (by simp [layout.node.CUR_SC])] at this; simp [layout.node.CUR_SC] at this,
+    ?_, ?_, ?_,
+    by rw [eN]; exact nodeAt_aligned E.hN (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]),
+    fun e => by
+      rw [eN] at e; have := congrArg UScalar.val e
+      rw [vA, vN _ (by simp [layout.node.CUR_TIME])] at this; simp [layout.node.CUR_TIME] at this,
+    ?_,
+    fun e => by
+      rw [eN] at e; have := congrArg UScalar.val e
+      rw [vA, vN _ (by simp [layout.node.REPROGRAM])] at this; simp [layout.node.REPROGRAM] at this⟩
+  · rw [esc]
+    refine ⟨hsp.1, fun e => ?_⟩
+    have := congrArg UScalar.val e; rw [vA] at this; rw [← this] at hspN; omega
+  · rw [esc]; intro _ h1
+    have espX : L.mem X (sporA (L.mem s (scA dest))) = L.mem s (sporA (L.mem s (scA dest))) := by
+      refine K.omg _ spΩ fun e => ?_
+      have := congrArg UScalar.val e; rw [vsp, rTcbA_val0] at this; omega
+    rw [espX] at h1
+    refine (spWF h1).agree fun b hb hin => K.omg b (scW b hb hin) fun e => ?_
+    subst e; unfold InSC at hin; rw [rTcbA_val0] at hin; obtain ⟨h1, h2⟩ := hin; omega
+  · rw [esc]
+    have := node_outside_sc (sb := sb) (off := layout.node.SCHED_ACTION) E.hN E.hcC E.hΩ scW
+      (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])
+    exact this
+  · rw [esc, eN]
+    exact ⟨nodeAt_aligned E.hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]),
+      node_outside_sc E.hN E.hcC E.hΩ scW (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM])⟩
+
+end
+
 end Fl4Proofs.P1
