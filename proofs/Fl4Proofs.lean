@@ -1068,6 +1068,14 @@ import Fl4Proofs.P3.SpecInvRd11bA
 import Fl4Proofs.P3.SpecInvRd11bB
 import Fl4Proofs.P3.SpecInvRd11A1
 import Fl4Proofs.P3.SpecInvRd11A2
+import Fl4Proofs.P3.SpecInvRd8gA
+import Fl4Proofs.P3.SpecInvRd8gF1
+import Fl4Proofs.P3.SpecInvRd8gF2
+import Fl4Proofs.P3.SpecInvRd8gF3
+import Fl4Proofs.P3.SpecInvRd8gF4
+import Fl4Proofs.P3.SpecInvRd8gF5
+import Fl4Proofs.P3.SpecInvRd8gB
+import Fl4Proofs.P3.SpecInvRd8gG
 import Fl4Proofs.P3.SpecInvSlKA
 import Fl4Proofs.P3.SpecInvSlKB
 import Fl4Proofs.P3.SpecInvSlKG
