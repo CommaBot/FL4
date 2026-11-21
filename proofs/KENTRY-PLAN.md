@@ -10242,3 +10242,64 @@ untracked = rd8js.sh with its own log; proofs/scratch/rd8m/ untracked: the extra
   (fh_factsT: Classical.choice; nswP_svs / nswT_svs: propext; nswT_of / nswT_upd: none; rhn_of: propext, Classical.choice);
   rd8m-6 E green (5514 jobs) + axioms (kcall_rdyOff6m: propext, Classical.choice, Quot.sound). No `declaration uses sorry`; no sorry / admit /
   native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (five import lines).
+## rd8l (branch par/rd8l in FL4-r2, on 805e30a3 = int/j2 incl. rd8k, rd13a, rd12a/b, rd13b) — rd8k handoff 1-3: TcbB discharged (no input), the invocation shell, every syscall arm / event / the entry, tops `kentry_bsa` / `kcall_bsa`, the bundle `SInvCRB := SInvCR ∧ BSA` (DONE up to one pinned input of the three ReplyRecv-type arms, `RP`)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8l` (every new name), modules SpecInvRd8lA / B / C / D (root imports all four). Nothing
+existing edited. No JAtZ cone (scratch/rd8l/anc.py = rd13a's script: Rd8lA..C, SpecInvAllR, SpecInvSbT clean). rd8j's
+`okp_decodeUpdateSc` (par/rd8j, BindRel) not duplicated: rd8l's is the `BQ` (ipc-queued) version, combinators renamed `okpl_*`.
+- **SpecInvRd8lA (TcbB; rd8k input 1 gone).** `MQ s s'` (every ipc-queued TCB of s' was an ipc-queued TCB of s), `MFQ := B8h.MF ∧
+  MQ` (rd8h's MF not edited), MQ leaves (BK view, heap-and-time, set_thread_state to a non-ipc-queued state, if_cond by rd8h's
+  `mfk_ifCond` + rd8d's `sf_ifCond`), `mq_auto`, `mqk_cancelAllIpc`, `mfq_step` / `hr_recDel_mfq` / **`mfq_capDelete_fh`** /
+  **`mfq_installTcbCap3`** (rd8hA's skeleton), **`bq_mfq`**, `FhAt`, `fhAt_of` (VfhAll + target a TCB), **`ba_tcSchedB`**
+  (ThreadControlSched with `some (some c)` from `KD I σ`, slot-3 `FhAt`, `BQ σ c t`: install by `kd_installTcbCap`, MFQ along
+  install / set_mcpriority / set_priority, bind by `ba_schedContextBindTcb_p` with `nqpa_of_bq (bq_mfq …)`); decode:
+  **`okpl_decodeUpdateSc`** (BQ + target a TCB), `RqTi` / `RqT` / `rqTi_tcs` / `rqTi_tcs_inv`, `okpl_decodeSetSchedParams`,
+  `okpl_decodeTcbInvocation`, **`okp_fl4DecodeRqT`**, **`rqTi_perform`**; **`tcbB_of i σ (KD I σ) (VfhAll σ) (RqTi σ i) : TcbB σ
+  i`**, `rqD_perform`, **`perfB_perform`** (rd8k's whole `PerfB` at the Restart state from RNE at the decode state + KD / VfhAll
+  at the perform).
+- **SpecInvRd8lB (the shell).** `SJ C I D s := KD I s ∧ ScInv s ∧ CBa C s ∧ ct = C ∧ VfC s ∧ (D → Bd C s)`, `bd_sv`, `svs_of_kz`,
+  `WS`, `ws_of_kz`, **`sj_of` / `sje_of`** (BSA ba_ / ScInv sb_ via `sik_of_sbk` / IO uk_ via `io_of_uk` / idleSc isk_ / rd12b's KZ
+  or SVS ∧ cfS / vfc), `sj_getMessageInfo`, `sj_invF`, `sj_getMrs`, `sj_setThreadState`; **`ba_fl4HandleInvocationR rep calling
+  blocking don fp cptr I σ (hJ : SJ σ.curThread I (calling = false ∧ don = true) σ)`** (rd12b's `fl4HandleInvocationR_eq` +
+  `P17.syscall_r`; fault branch `ba_handleFault_p` with `ta_of_fwd`, error reply `ba_auto`, perform `ba_fl4PerformInvocation` with
+  `perfB_perform`, post `ba_auto`). Green first try.
+- **SpecInvRd8lC (arms, events, tops).** `B0 I s := KD I s ∧ ScInv s ∧ CBa ct s ∧ VfC s ∧ NotQ ct s ∧ Bd ct s`, `nq_kz`, `cnb_heap`,
+  `kc_updateTimeStamp`, `b0_getCapReg`; `ba_sysInv` (Send / NBSend / Call), **`RP`** (pinned, below), `ba_sysInvRecv` (shell, then
+  rd8k's `ba_handleRecv` from `RK ct`: BSA by the shell, ScInv by sb2's `sb_handleInvocationR scGap` with `Rel`, NotQ / CBa by
+  `RP`), `ba_recvArm`, `RR`, **`ba_fl4HandleSyscall`**, **`ba_fl4HandleEvent_sys`** (sb2's `entryOK_keep` over update_time_stamp,
+  `checkBudgetRestart_true_eq`, false branch `ba_checkBudgetRestart_p`), `HF` (abbrev), `hf_handleVmFault`, `ba_utsCbr`, `ba_hf`,
+  **`ba_handleEvent_other`** (unknown syscall / user fault / vm fault (catch) / hypervisor / interrupt), **`ba_fl4CallKernel`**
+  (error outcomes: `ba_preemptionPath_p` with sb2's `sb_fl4HandleEvent` ScInv there), tops **`kcall_bsa`**, **`kentry_bsa`**.
+- **SpecInvRd8lD (bundle).** **`bsa_restart`** (BSA at every Restart state of the shell's run from `SJ`: exactly rd8h's
+  `PerfOK σ (.invokeReply _ _)` / rd8e's `rd_doReplyTransfer` input at the perform; the rd side composes it where it builds
+  PerfOK), `nq_st`, `nq_of_ev`, **`SInvCRB σ := SInvAll.SInvCR σ ∧ BSA σ`**, **`boot_sinvCRB`** (boot_sinvCR, rd8e's boot_bsa),
+  **`kentry_sinvCRB`** / **`kcall_sinvCRB`** (ctq20's `kentry_sinvCR_ofCA` / `kcall_sinvCR_ofCA` + kentry_bsa / kcall_bsa).
+- **STATEMENT (tops).** `kcall_bsa rep ev (hB : BSA σ) (hE : SInvB.EntryOK σ) (hO : SInvU.IO (fun _ => σ.idleSc) σ) (hCD : CnDom σ)
+  (hA : CAx σ) (hNQ : NotQ σ.curThread σ) (hni : ev ≠ .interrupt → ct ≠ idle) (hR : ∀ c, ev = .syscallEvent c → ∀ z ∈
+  updateTimeStamp σ, RR rep z.2 c) : ∀ y ∈ fl4CallKernel rep ev σ, BSA y.2`; `kentry_bsa c` same with `hni : ct ≠ idle` and `hR`
+  pinned at the FaultIP outcome. `kentry_sinvCRB hnd c (h : SInvCRB σ) hct hCA hI hL hO hA hR`, `kcall_sinvCRB … hev hCA hI hL hO
+  hA hR` (UtInv3 / VfhAll / CnDom from SInvA, NotQ ct from `SInvB.entryJEv`).
+- **Premises / inputs (exactly).** No [J]/[P]/[W]/[S] premise added. Carried: BSA (this line), sb2's `EntryOK` = ScInv, UtInv3
+  (ut8), VfhAll (vfh), **ScLive [J]** (sb2's existing premise, only for the ScInv carry at the ReplyRecv first phase / the
+  preemption path), IdleScOutV (vi3 / ut7), CnDom, rd7's CAx; entry facts: NotQ ct (rd8a `EF.ct`, SInvAll `EntryJ(Ev).ctAct`), ct ≠
+  idle for non-interrupt events (rd8a `EF.ni`, ctq20's `hev`). Pinned (not a carried fact, the one open input): **`RP rep cl bl dn
+  fp r s`** for ReplyRecv / NBSendRecv / NBSendWait: `NotQ ct ∧ CBa ct` at every `ok` outcome of the non-blocking first-phase
+  fl4HandleInvocationR from every getCapReg outcome at the body start (l4v: `ct_active` and `active_sc_tcb_at ct` after a
+  non-blocking `handle_invocation`). True in reachable states (paper): blocking = false, so no handle_fault and send_ipc never
+  blocks ct; Suspend of ct gives Inactive; ct's SC is either kept (configure keeps it active: refill_new with max ≥ MIN_REFILLS),
+  unbound (SC unbind / deletion / passive-server reply return — CBa vacuous) or never newly bound (binds need ct unbound, ct
+  running is bound by CAx).
+- No FINDING: no reachable writer breaks BlockedScActive. Checked: ThreadControlSched's slot-3 deletion finalises at most an
+  endpoint (VfhAll), cancel_all_ipc only restarts threads (MQ), set_priority / set_mcpriority keep states, so the decode's BQ
+  reaches the bind; the decode reads BQ through `is_blocked` = ipc_queued (BlockedOnReply included); fault events need CBa ct only
+  when ct ≠ idle (interrupts read none).
+- HANDOFF (in order): (1) discharge `RP`: carry `NotQ ct ∧ CBa ct` across the non-blocking shell (SJ-style: the perform arms with
+  blocking = false — rd8i's writers already prove BSA arm by arm; CBa ct needs the SC writers of ct's own SC: configure
+  (`ba_invokeSchedControlConfigureFlags`'s refill_new), unbind / deletion (unbound), donation in reply_remove (unbound caller side));
+  then `kcall_bsa` has only carried premises. (2) The rd side: rd8h's PerfOK Reply input from `bsa_restart` (needs `SJ` at the
+  shell start: KD / ScInv / CBa ct / VfC / Bd ct, all from `B0` by `b0_getCapReg`), and rd8e's `rd_doReplyTransfer` input the same
+  way. (3) ScInv / ScLive / IdleScOutV are not SInvCR fields: when the lead adds them to the bundle, `kentry_sinvCRB`'s hI / hL /
+  hO become projections.
+- Builds (tokyo, FL4-r2 mirror warm; ./rd8ls.sh untracked = rd8ks.sh with its own log): rd8l-a1 (A: `cases e` direction, `bq_mfq`
+  needs the size, `RqTi` must reduce to True on non-binding decodes), a2 A green (5514 jobs); b1 B green first try (5524); c1 (C:
+  BlockedScActive is a structure, so the machine-state step rebuilds it; `split` after `NonDet.when` needs `dsimp only`), c2 C green
+  (5526); d1 C (NotQ premise) + D green (5566 jobs: SpecInvAllR cone recompiled) + axioms (scratch/rd8l/ax.lean, untracked): all 31 listed lemmas propext, Classical.choice, Quot.sound or a subset (bq_mfq: Classical.choice; nq_of_ev: propext). No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (four import lines).

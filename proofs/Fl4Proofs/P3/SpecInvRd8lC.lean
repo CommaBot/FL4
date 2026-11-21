@@ -320,21 +320,17 @@ theorem ba_fl4CallKernel (rep : Bool) (ev : Event) (σ : State Unit) (hB : BSA �
 
 /-- **`BlockedScActive` across every kernel event.** Premises (all carried or
 entry facts): BSA (this line), sb2's `EntryOK` (ScInv, UtInv3, VfhAll,
-ScLive [J]), IdleScOutV (vi3 / ut7), CnDom (vfh), rd7's `CAx`; ct's state
-running or idle and ct ≠ idle for a non-interrupt event (l4v `call_kernel`'s
-`ct_running s ∨ (ev = Interrupt ∧ ct_idle s)`; rd8a's `EF.ct` / `EF.ni`); and
+ScLive [J]), IdleScOutV (vi3 / ut7), CnDom (vfh), rd7's `CAx`; ct not
+ipc-queued (from rd8a's `EF.ct` or SInvAll's `EntryJ.ctAct`: Running / Restart /
+idle) and ct ≠ idle for a non-interrupt event (l4v `call_kernel`'s
+`ct_running s ∨ (ev = Interrupt ∧ ct_idle s)`; rd8a's `EF.ni`); and
 the pinned `RR` of a ReplyRecv / NBSendRecv / NBSendWait syscall. -/
 theorem kcall_bsa (rep : Bool) (ev : Event) {σ : State Unit} (hB : BSA σ) (hE : SInvB.EntryOK σ)
     (hO : SInvU.IO (fun _ => σ.idleSc) σ) (hCD : CnDom σ) (hA : CAx σ)
-    (hct : ∃ x, σ.kheap σ.curThread = some (.tcb x) ∧ (x.tcbState = .running ∨ x.tcbState = .idleThreadState))
+    (hNQ : NotQ σ.curThread σ)
     (hni : ev ≠ .interrupt → σ.curThread ≠ σ.idleThread)
     (hR : ∀ c, ev = .syscallEvent c → ∀ z ∈ (updateTimeStamp (Z := Unit) σ).1, RR rep z.2 c) :
     ∀ y ∈ ((fl4CallKernel (Z := Unit) rep ev) σ).1, BSA y.2 := by
-  have hNQ : NotQ σ.curThread σ := by
-    obtain ⟨x, hx, hs⟩ := hct
-    intro x' hx'
-    rw [hx] at hx'; cases hx'
-    rcases hs with hs | hs <;> simp only [hs, ipcQueuedThreadState]
   refine ba_fl4CallKernel rep ev σ hB hE hO ⟨(vfhV_iff σ).2 hE.vfh, hCD⟩
     (fun h => cba_of_actB (hA (hni h))) (fun c e => ⟨hNQ, ?_⟩) hR
   obtain ⟨x, c', y, n, hx, hc, -, -⟩ := hA (hni (by rw [e]; intro h; cases h))
@@ -346,7 +342,7 @@ the syscall event); premises as `kcall_bsa` with ct ≠ idle, `RR` pinned at the
 FaultIP outcome. -/
 theorem kentry_bsa (c : Syscall) {σ : State Unit} (hB : BSA σ) (hE : SInvB.EntryOK σ)
     (hO : SInvU.IO (fun _ => σ.idleSc) σ) (hCD : CnDom σ) (hA : CAx σ)
-    (hct : ∃ x, σ.kheap σ.curThread = some (.tcb x) ∧ (x.tcbState = .running ∨ x.tcbState = .idleThreadState))
+    (hNQ : NotQ σ.curThread σ)
     (hni : σ.curThread ≠ σ.idleThread)
     (hR : ∀ w ∈ (fl4SyscallFaultIP (Z := Unit) σ.curThread σ).1, ∀ z ∈ (updateTimeStamp (Z := Unit) w.2).1,
       RR true z.2 c) :
@@ -364,11 +360,6 @@ theorem kentry_bsa (c : Syscall) {σ : State Unit} (hB : BSA σ) (hE : SInvB.Ent
   have hz : A12b.KZ σ w.2 := (show A12b.KZK σ (fl4SyscallFaultIP (Z := Unit) σ.curThread) by
     unfold fl4SyscallFaultIP; exact A12b.kz_asUser _ _) σ rfl w hw
   have hctw : w.2.curThread = σ.curThread := A12b.kz_curThread hz
-  have hNQ : NotQ σ.curThread σ := by
-    obtain ⟨x, hx, hs⟩ := hct
-    intro x' hx'
-    rw [hx] at hx'; cases hx'
-    rcases hs with hs | hs <;> simp only [hs, ipcQueuedThreadState]
   obtain ⟨x, c', y0, n, hx, hc, hy0, ha⟩ := hA hni
   have hSV := svs_of_kz hz
   have hidle : w.2.idleSc = σ.idleSc := congrArg (fun x => x.2.2.2.2.1) (A12b.kz_parts hz).2.2.1
