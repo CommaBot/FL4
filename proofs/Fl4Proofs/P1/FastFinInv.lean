@@ -913,10 +913,35 @@ def FastFaultPre (T Cs Ω U Sg Rp : Set U64) (s : S) (a : A) (n : I64) : Prop :=
   ∀ t nx s1, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
     obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
     (∀ s2 a2 t2, syscall.budget_ok st ar s1 a = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
-      FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2) ∧
+      FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2 ∧ FaultNvm (L := L) ar s2 a2 t2 (IScalar.hcast .U64 n)) ∧
     (∀ t1 s3 a3, sched.cur_thread st s1 = ok t1 → syscall.debug_syscall st ar s1 a t1 n = ok (false, s3, a3) →
       ∀ s2 a2 t2, syscall.budget_ok st ar s3 a3 = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
-        FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2)
+        FaultEntAt (L := L) T Cs Ω U Sg Rp s2 t2 ∧ FaultNvm (L := L) ar s2 a2 t2 (IScalar.hcast .U64 n))
+
+/-- **[J] (#57) The handler an accepted fault fast path switches to is not
+`TS_RUNNING_VM` at the run's end** (m62's `FaultNvm`), asked at the states
+where `fastpath.fault` is entered (the trap route and the out-of-range route,
+as `FastFaultPre`). m64's `FastFaultPre` predates m62's `FaultNvm`, which
+`UsfOK` / `FastFaultOK` ask beside `FaultOK`; m67 carries it here. True in
+every reachable run: `fS14` writes the handler's state word `TS_RUNNING`;
+`unblock_sporadic` writes only the handler's SC ring and `REPROGRAM`
+(`unblock_sporadic_fr`); `fastFin` writes the handler's scheduler links,
+`CUR_THREAD` := handler and the action word, and its tail
+(`switch_sched_context`, `set_next_interrupt`, `send_pending`,
+`activate_thread`: `complete_yield_to` keeps every thread's state word,
+`complete_yield_to.keepF`; a `TS_RESTART` thread becomes `TS_RUNNING`) writes
+no `CUR_THREAD` word and never `TS_RUNNING_VM`. Not derived here: the tail's
+footprints need the P1 invariants at the fast run's intermediate states (not
+established along the fast run). No l4v counterpart (no `RunningVM` in the
+l4v-derived spec). -/
+def FaultNvmPre (s : S) (a : A) (n : I64) : Prop :=
+  ∀ t nx s1, sched.cur_thread st s = ok t → obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
+    obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
+    (∀ s2 a2 t2, syscall.budget_ok st ar s1 a = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
+      FaultNvm (L := L) ar s2 a2 t2 (IScalar.hcast .U64 n)) ∧
+    (∀ t1 s3 a3, sched.cur_thread st s1 = ok t1 → syscall.debug_syscall st ar s1 a t1 n = ok (false, s3, a3) →
+      ∀ s2 a2 t2, syscall.budget_ok st ar s3 a3 = ok (true, s2, a2) → sched.cur_thread st s2 = ok t2 →
+        FaultNvm (L := L) ar s2 a2 t2 (IScalar.hcast .U64 n))
 
 /-- **`FastFaultOK` from `FastFaultPre`** at an entry state (`EntryInv`, a
 `P3Ok` state): the invariants where `fastpath.fault` is entered come from
@@ -946,7 +971,7 @@ theorem FastFaultOK.of_pre {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z :
   refine ⟨fun s2 a2 t2 hb et2 => ?_, fun t1 s3 a3 et1 hd => ?_⟩
   · have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
     rw [hb, WP.spec_ok] at hx
-    exact faultOK_of ar hx.1 (hF1 s2 a2 t2 hb et2)
+    exact ⟨faultOK_of ar hx.1 (hF1 s2 a2 t2 hb et2).1, (hF1 s2 a2 t2 hb et2).2⟩
   · intro s2 a2 t2 hb et2
     have et1' : t1 = L.curW s1 := by
       rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s1)] at et1; exact (ok_inj_ff et1).symm
@@ -961,7 +986,7 @@ theorem FastFaultOK.of_pre {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z :
     have hG3 : XG st T Cs Ω H Sg Scs Z P3Ok s3 := by rw [e3]; exact he1.xg
     have hx := syscall.budget_ok.bxc hA E0 s3 a3 h3 hG3
     rw [hb, WP.spec_ok] at hx
-    exact faultOK_of ar hx.1 (hF2 t1 s3 a3 et1 hd s2 a2 t2 hb et2)
+    exact ⟨faultOK_of ar hx.1 (hF2 t1 s3 a3 et1 hd s2 a2 t2 hb et2).1, (hF2 t1 s3 a3 et1 hd s2 a2 t2 hb et2).2⟩
 
 end
 
