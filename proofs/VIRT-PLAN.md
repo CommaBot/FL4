@@ -1,9 +1,13 @@
 # VIRT-PLAN: the x86 virtualization extension spec
 
-Status (2026-11-22, branch `par/v1`): spec design (this file) and the first
-batch of Lean modules `Fl4Spec/Ext/Virt*.lean` (§2). Invocation
-definitions (§5 as Lean) and every refinement proof are not written yet
-(§11, §14). No refinement proof is in this batch.
+Status (2026-11-22, branch `par/v2`): the spec is complete as definitions
+(§2): state, sanitize policy, guest tables, the oracle and the [P]
+contract shapes (batch 1, `par/v1`), and in batch 2 (`par/v2`) the owner's
+decisions of 2026-11-21 (§15) applied, every invocation, the finalisation
+and retype hooks, VMEnter / check / report with the notification and
+scheduler interaction, the extended dispatcher and kernel entry, and the
+P3x parts at the dispatcher and the hooks (proved, §10). No refinement
+proof yet (§11).
 
 Sources: the owner's decision of 2026-11-21 (one extension spec for VT-x
 and AMD-V, backend as a parameter, per-backend field tables, the full
@@ -37,30 +41,44 @@ for the architectural reasons; upstream `main`'s
 
 | Module | Defines |
 |---|---|
+| `Ext/VirtObj` | `VField`, `ExitRecord`, `VcpuState`, `VcpuState.blank` (imported by `X64/Structs` for `ArchKernelObj.vcpu (st : VcpuState)`) |
 | `Ext/VirtBackend` | `VirtKind` (`none`, `vmx`, `svm`, `armEl2` reserved), `VirtPlatform` and the opaque `virtPlatform`; `virtKind`, `vcpuCapability`, `hostXcr0`, `canonWidth`, `virtEnabled` |
-| `Ext/VirtFields` | `VField` (`vmcs enc`, `vmcb off`, `gpr i`, `msr m`), the VMX tables `Vmx.vmxWriteFields` (73) / `Vmx.vmxReadFields` (84) and the 86 field names (`Vmx.*`), the SVM offsets (`Svm.*`), `Svm.writeRule` (50 rows), `Svm.hidden`, `Svm.hostCache`, the MSR list `vcpuMsrs`; `VField.canon` (one place per value), `VField.valid/readable/writable/guestChanged` |
-| `Ext/VirtSanitize` | the masks (`cr4Allowed`, `cr0Owned`, `debugctlAllowed`, `pinAllowed`, `primaryAllowed/Forced`, `secondaryAllowed`, `exitForced`, `vcpuExceptions`), `canonical`, `validXcr0`, `validPat`, `vmxControls`, `vmxWidthMask`, `sanitizeVmcs`, `sanitizeVmcb`, `checkMsrWrite`, `vmxEnterPrimary`, `svmEnterIntercepts` |
-| `Ext/VirtState` | `ExitRecord`, `VcpuState` (`tcb`, `fields`, `exit`, `ioDenied`), `get`/`set` through `canon`, `svmResetValue`/`svmReset`, `svmInitFields`, `vmxInitFields`, `initVcpu`, `VirtExt` (`vcpus`, `tcbVcpu`), `VState Z`, `VcpuState.enter`, `entryIp/Ctl/Intr`, `VmenterResult`, `vmenterReport`, `reported`, the VMEnter MR indices |
+| `Ext/VirtFields` | the VMX tables `Vmx.vmxWriteFields` (73) / `Vmx.vmxReadFields` (84) and the 86 field names (`Vmx.*`), the SVM offsets (`Svm.*`), `Svm.writeRule` (50 rows), `Svm.hidden`, `Svm.hostCache`, `Svm.hiddenRead`, the MSR list `vcpuMsrs`; `VField.canon`, `VField.valid/readable/writable/guestChanged` |
+| `Ext/VirtSanitize` | the masks, `canonical`, `validXcr0`, `validPat`, `vmxControls`, `vmxWidthMask`, `sanitizeVmcs`, `sanitizeVmcb`, `checkMsrWrite`, `vmxEnterPrimary`, `svmEnterIntercepts` |
+| `Ext/VirtState` | `get`/`set` through `canon`, `svmResetValue`/`svmReset`, `svmInitFields`, `vmxInitFields`, `initVcpu`; `vcpuAt`, `tcbVcpuOf` (the derived TCB → VCPU binding), `VcpuBindingInv`, `getVcpu`/`setVcpu`/`vcpuUpdate`/`getTcbVcpu`; `VcpuState.enter`, `entryIp/Ctl/Intr`, `VmenterResult`, `vmenterReport`, `reported`, the VMEnter MR indices |
 | `Ext/VirtEpt` | `GuestGeom`, `x86GuestGeom`, `guestMemoryType`, `GuestPte` with `encode` (per backend) and `decode`, `guestIndex`, `guestTableAt`, `guestWalk`, `guestRootOf`, `GuestWritableByte`, `GuestReadableByte` |
-| `Ext/VirtGuest` | `GuestOutcome`, `VcpuFrame`, `GuestStep` (the oracle), `VmRunContract` [P], `VmRunFrame` [P], `NoVirtObjects`, `P3xVirt` (statement shape), `GuestStep.not_noVirt`, `GuestStep.frame` |
-| `Ext/VirtVcpu` (next batch) | `decodeVcpuInvocation`, `VcpuInvocation`, `performVcpuInvocation` (§5.1) |
-| `Ext/VirtEptInv` (next batch) | X86PageMapEPT, EPT table map/unmap, guest-root ASID assign, `TCBSetEPTRoot` (§5.2) |
-| `Ext/VirtRetype`, `Ext/VirtFinalise` (next batch) | retype of VCPU/EPT objects, finalisation hooks (§5.4, §5.5) |
-| `Ext/VirtEntry` (next batch) | `fl4VmEnter`, `vmCheck`, `vmReport` as monadic operations on `VState`, the notification hook, `fl4CallKernelV` (§5.3) |
-| `Ext/VirtP3x` (next batch) | the P3x theorem (§10) |
+| `Ext/VirtGuest` | `GuestOutcome`, `VcpuFrame`, `GuestStep` (the oracle, on `State`), `VmRunContract` [P], `VmRunFrame` [P], `NoVirtObjects`, `P3xVirt` (shape), `GuestStep.not_noVirt`, `GuestStep.frame` |
+| `Ext/VirtVcpu` | `VcpuLabel` (FL4 numbers), `ioPortOwner` (the Q2 adapter), `VcpuInvocation`, `vmReport`, `vcpuDetach`, `associateVcpuTcb`, `ioPortRevoke`, `decodeVcpuInvocation`, `performVcpuInvocation` (§5.1) |
+| `Ext/VirtEptInv` | the EPT labels, `EptInvocation`, `getEpt`, `storeGuestEntry`, `findGuestRoot`, `eptCapRoot`, `guestLookupSlot`, `guestUnmap`, `decodeEptInvocation`, `decodePageMapEpt`, `decodeEptAsidPoolAssign`, `performEptInvocation` (§5.2) |
+| `Ext/VirtFinalise` | `finaliseCapV` and the extension's `recDelFV`/`recDelV`, `capDeleteV`, `capRevokeFV`/`capRevokeV`, `invokeCnodeV`, `installTcbCapV`, `installTcbFrameCapV`, `invokeTcbV`; TCBSetEPTRoot (`decodeSetEptRoot`, `invokeSetEptRoot`); `untypedVtxGate`, `fl4DecodeUntypedInvocationV`, `fl4InvokeUntypedV` (§5.2, §5.4, §5.5) |
+| `Ext/VirtEntry` | `vmNotifyComplete`, `sendSignalV`, `handleInterruptV`, `maybeHandleInterruptV`, `fl4AwakenV`, `vmEnter`, `vmCheck`, `activateThreadV` (§5.3) |
+| `Ext/VirtDispatch` | `Fl4InvocationV`, `fl4DecodeInvocationV`, `fl4PerformInvocationV`, `fl4HandleInvocationV` |
+| `Ext/VirtKernel` | `fl4HandleSyscallV`, `fl4HandleEventV` (SysVMEnter), `preemptionPathV`, `fl4KernelExitV`, `fl4CallKernelV`, `fl4KernelEntrySyscallV`, `fl4VcpuExitV` (§5.3, §7) |
+| `Ext/VirtP3x` | `IsVirtCap`, `NoVirtCaps`, `VirtRoute`, `PerformSubst`, `FinaliseHooked`; proved: `fl4DecodeInvocationV_base`, `fl4PerformInvocationV_base`, `finaliseCapV_eq`, `vcpuDetach_noVirt`, `finaliseCapV_thread_noVirt`, `vmCheck_not_runningVM`, `ioPortRevoke_eq`, `VirtRoute.cases` (§10) |
 
-Dependencies: VirtBackend → VirtFields → VirtSanitize → VirtState →
-VirtEpt → VirtGuest; all import `Fl4Spec` (the port) only.
+Dependencies: VirtObj (imported by the port's `X64/Structs`);
+VirtBackend → VirtFields → VirtSanitize → VirtState → VirtEpt →
+VirtGuest → VirtVcpu → VirtEptInv → VirtFinalise (+ `Ext/Invocation`) →
+VirtEntry (+ `Ext/Timer`) → VirtDispatch (+ `Ext/ReplyError`) →
+VirtKernel (+ `Ext/Entry`) → VirtP3x. `Fl4Proofs.lean` imports VirtP3x,
+so the default target builds all of them.
 
 ## 3. Abstract state
 
 ### 3.1 The state
 
-`VState Z = { base : State Z, virt : VirtExt }`, `VirtExt = { vcpus :
-ObjRef → Option VcpuState, tcbVcpu : ObjRef → Option ObjRef }`. The
-ported heap still holds `.archObj (.vcpu _)` at a VCPU's address (type,
-size, detype, `obj_bits`), and guest tables as `.archObj (.ept level
-entries)`; `vcpus` holds the abstract VCPU.
+(Decision Q1, 2026-11-21.) There is no extension state: the spec runs on
+the ported `State Z`. A VCPU is the heap object `.archObj (.vcpu st)` with
+`st : VcpuState` (l4v ARM_HYP `VCPU vcpu`); a retype creates
+`VcpuState.blank` (zeroed memory) and FL4's `vcpu::init` (`initVcpu`, the
+retype hook) fills it. Guest tables are `.archObj (.ept level entries)`.
+The TCB → VCPU direction (FL4 `tl::VCPU`, l4v ARM_HYP `tcb_vcpu`) is not
+stored: `tcbVcpuOf σ t` is the VCPU whose `tcb` is `t` (classical choice),
+unique under `VcpuBindingInv` (an invariant for the proofs, R0). Storing it
+would change the ported `Tcb` record, which the decision does not allow;
+deriving it costs only the uniqueness invariant, which the stored version
+needs as well (sym_refs). FL4's VCPU list is the set of VCPU objects
+(relation only).
 
 `VcpuState`:
 
@@ -71,9 +89,10 @@ entries)`; `vcpus` holds the abstract VCPU.
 | `exit : ExitRecord` | `valid`, `pending`, `mrs : Fin 30 → Word` | `VALID`, `PENDING`, `EXIT` (30 words) |
 | `ioDenied : BitVec 16 → Bool` | VT-x I/O bitmap, set = trap | `IO` (1024 words) |
 
-Binding invariant (for the proofs, l4v ARM_HYP `sym_refs` of
-`vcpu_tcb`/`tcb_vcpu`): `vcpus v = some vs ∧ vs.tcb = some t ↔
-tcbVcpu t = some v`.
+Binding invariant (`VcpuBindingInv`, for the proofs, l4v ARM_HYP
+`sym_refs` of `vcpu_tcb`/`tcb_vcpu`): at most one VCPU per thread, and a
+VCPU's thread is a TCB. The relation (R0) then says `tl::VCPU t = v ↔
+tcbVcpuOf σ t = some v`.
 
 ### 3.2 Field tables
 
@@ -194,13 +213,14 @@ cleared on exit or an interrupted event reinjected; `..._EXCEPTION_ERROR_CODE`,
 reinjection). Control fields read back by `vm::run` are **not** G: the
 [P] contract (§8) says they are unchanged.
 
-#### SVM: 221 VMCB words (50 W, 221 R of which 9 hidden + 2 host-cache, 103 G)
+#### SVM: 221 VMCB words (50 W, 221 R of which 11 read 0: 9 hidden + 2 host-cache, 103 G)
 
 R: every 8-aligned offset below `svm::END` = 0x6e8 (`Svm.readable`);
 hidden ones (`vmcb_hidden`: 0x040 IOPM_BASE, 0x048 MSRPM_BASE, 0x098 AVIC
 BAR, 0x0a0 GHCB, 0x0b0 N_CR3, 0x0e0/0x0f0/0x0f8 AVIC tables, 0x108 VMSA) read
 0; the host-cache words 0x058 (ASID, with FL4's flush request in bits 39:32)
-and 0x0c0 (clean bits) read an unspecified value in the spec (FINDING V3).
+and 0x0c0 (clean bits) read 0 as well (`Svm.hiddenRead`, decision Q4 of
+2026-11-21; FL4 code differs until V3 is fixed).
 W (`Svm.writeRule`, FL4 `sanitize_vmcb`; stored = `(old & ~mask) | (value
 & mask) | forced`, CR0 then `& ~cr0Owned`):
 
@@ -245,44 +265,65 @@ by a guest step in the spec; the trusted layer's rewrites of 0x040, 0x048,
 Counts: VMX 86 + 15 + 7 = 108 fields; SVM 221 + 15 + 1 (XCR0; the other six
 MSRs are VMCB words) = 237.
 
-### 3.3 Shape changes in `X64/Structs.lean` (listed, not made)
+### 3.3 Shape changes in `X64/Structs.lean`
 
-1. `ArchCap.ioPortCap first last` has no owner. FL4's `Cap::IoPort`
-   carries `vcpu` (the VCPU its range was granted to, seL4
-   `capIOPortVPID`): EnableIOPort writes it, every finalisation of the cap
-   (final or not, seL4 `clearVPIDIOPortMappings`) revokes the grant on
-   it, and derive keeps it (seL4 `Arch_deriveCap` returns the cap). The
-   owner moves with the cap through the ported CNode operations, so it
-   cannot live in `VirtExt`. **Change:** `ioPortCap (first last : IoPort)
-   (vcpu : Option ObjRef)`. Ported users: `arch_finalise_cap`
-   (`.ioPortCap f l, true`), `arch_same_region_as`/`same_object_as`
-   (ignore the owner), decode of IOPortControl Issue (`none`). Blocks:
-   EnableIOPort's spec and the IO-port finalisation hook.
-2. `ArchKernelObj.vcpu (words : Word → Word)` is the raw image. The
-   decision makes the abstract VCPU a field table. This batch keeps the
-   ported constructor as a type marker and holds `VcpuState` in
-   `VirtExt.vcpus` (no change needed). **Optional change**, cleaner and
-   what l4v ARM_HYP does (`VCPU vcpu` in `arch_kernel_obj`): `vcpu (st :
-   VcpuState)` with `VcpuState` moved below `Structs` (it needs only
-   `Word`, `ObjRef`, `VField`). It would remove the `vcpus`/kheap
-   agreement invariant from the proofs. Recommended, owner to decide (Q1).
-3. `ArchKernelObj.ept level (entries : BitVec 9 → Word)`: raw words. They
-   are kept: `GuestPte.decode` is the hardware reading and FL4's tables
-   hold exactly these words except FL4's per-core lifetime bitmap in the
-   high halves of root entries 510/511 (above the 2^47 limit, never
-   present; a refinement detail). No change needed.
+1. **`ArchCap.ioPortCap` owner (decided Q2, scheduled after g5c's IO-port
+   invariant work; NOT made in batch 2).** FL4's `Cap::IoPort` carries
+   `vcpu` (seL4 `capIOPortVPID`): EnableIOPort writes it, every
+   finalisation of the cap (final or not, seL4 `clearVPIDIOPortMappings`)
+   revokes the grant on it, derive keeps it. Until the change the spec
+   reads the owner through the adapter `ioPortOwner : ArchCap → Option
+   ObjRef := fun _ => none` (`Ext/VirtVcpu`), so EnableIOPort neither
+   revokes the previous grant nor records the new owner, and finalisation
+   revokes nothing (`ioPortRevoke_eq`). **The change:**
+   `ioPortCap (acapIoPortFirstPort acapIoPortLastPort : IoPort)
+   (acapIoPortVcpu : Option ObjRef)`. Call sites it touches:
+   - `Fl4Spec/X64/Structs.lean`: the constructor (l.127), the selectors
+     `acapIoPortFirstPort`/`LastPort` (l.147, 151), `archObjSize` (296),
+     `archCapIsDevice` (309), `aobjRef` (353): add a `_`.
+   - `Fl4Spec/Retype.lean` l.67 (`freeIoportRange f l`), 81 (gen obj
+     refs), 87 (`arch_cap_cleanup_opt` / the returned cap: keep the owner).
+   - `Fl4Spec/Decode.lean` l.133 (`decodePortInvocation`'s match), 453
+     (`archDecodeInvocation`'s `.ioPortCap f l` arm: pass the cap through).
+   - `Fl4Spec/X64/VSpace.lean` l.395 (`archDeriveCap`: keep the owner, as
+     seL4), 437 (`archFinaliseCap`: the returned cleanup cap), 502, 523
+     (`archSameRegionAs`/`sameAobjectAs`: ignore the owner), 524, 535, 540
+     (`isIoPortControlDescendant`-style tests: add `_`).
+   - `Fl4Spec/X64/Arch.lean` l.242-243 (IOPortControl Issue: owner `none`).
+   - `Ext/VirtVcpu`: `ioPortOwner` becomes the projection; `performVcpuInvocation`
+     `.enableIoPort` adds `setCap (.archObjectCap (.ioPortCap f l (some v))) slot`
+     after the revoke; `Ext/VirtFinalise` `finaliseCapV`'s pattern;
+     `Ext/VirtP3x` `ioPortRevoke_eq` becomes "no live owner ⇒ nothing" and
+     `FinaliseHooked`'s pattern.
+   - Proofs matching `ioPortCap` (20 files, all in `Fl4Proofs/P3`):
+     SpecInvSgD, SpecInvSlKE, SpecInvSlA, SpecInvUtP1, PerformNil,
+     IoPortDecode, IntInv, SpecInvG5, XTopJointPortIn, TopMCaps, TopFCaps,
+     XTopIoPort, XTopPortIn, CapRel (the cap relation must then relate
+     FL4's `vcpu` word to the owner), XTopJointMRDel, HandleTop,
+     SpecInvUtO5, IoPortTop, TopM, XTopJointLiveSt. Most are a pattern
+     with one more `_`; CapRel and the IO-port decode/finalise proofs gain
+     the owner.
+2. **`ArchKernelObj.vcpu (st : VcpuState)` (decided Q1, made in batch 2).**
+   `VcpuState` and its parts live in `Ext/VirtObj`, which `X64/Structs`
+   imports; `default_arch_object VCPUObj` is `.vcpu VcpuState.blank`.
+   Users of the old constructor: none in the proofs (checked by grep:
+   `Fl4Proofs` never matches `.vcpu` with an argument; `UntypedSpec`,
+   `UtEpRet`, `UtDevRet` unfold `defaultArchObject` with `simp`).
+3. `ArchKernelObj.ept level (entries : BitVec 9 → Word)`: raw words, kept
+   (`GuestPte.decode` is the hardware reading; FL4's per-core lifetime
+   bitmap in the high halves of root entries 510/511 is a refinement
+   detail).
 4. `ArchCap.eptCap ref level (mapped : Option (Asid × VSpaceRef))`: fits
-   (root: `(asid, 0)`; table: `(asid, gpa)`). No change.
-5. `tcbEpt` (sixth TCB slot): fits. No change.
-6. The TCB → VCPU link: l4v ARM_HYP has `tcb_vcpu` in `arch_tcb`; the
-   ported X64 `ArchTcb` has none. Kept in `VirtExt.tcbVcpu` (no change).
+   (root: `(asid, 0)`; table: `(asid, gpa)`).
+5. `tcbEpt` (sixth TCB slot): fits.
+6. The TCB → VCPU link: derived (`tcbVcpuOf`, §3.1); `ArchTcb` unchanged.
 
 ### 3.4 Not in the spec (refinement relation only)
 
 VMCS caches and the per-core retained VMCS, `VMRESUME`/launched state;
 VMCB clean bits (0x0c0) and ASID word (0x058) and `SVM_CPU` (SVM ASID
 retention); the VCPU list `NEXT`/`PREV` and `ks::VCPU_HEAD` (the relation:
-list = `dom vcpus`); the physical pointers the trusted layer writes (VMCB
+list = the VCPU objects); the physical pointers the trusted layer writes (VMCB
 0x040, 0x048, 0x0b0; VMX I/O and MSR bitmap addresses, EPTP, MSR lists,
 host state); the EPT root's core bitmap; `vcpu_barrier`, stalls and IPIs;
 guest-linear translations and TLBs (FlushTLB has no abstract effect);
@@ -346,7 +387,7 @@ on SVM: `IllegalOperation` (checked before the length checks, as FL4
 does). With `virtKind = none` no VCPU/EPT object exists (retype refuses
 the types), so no invocation reaches them.
 
-## 5. Invocations (spec for the next batch, from FL4's code)
+## 5. Invocations (from FL4's code; Lean in Ext/VirtVcpu, VirtEptInv, VirtFinalise, VirtEntry, VirtKernel)
 
 Notation: `f` = MR0 if `length > 0` else 0, `x` = MR1 if `length > 1` else
 0 (`syscall_arg`, FL4 reads them whatever the label); "reply v" = if the
@@ -370,12 +411,13 @@ abstract effect: the thread's guest state is already saved, §8).
 | `X86VCPUWriteVMCB` | VMX: `IllegalOperation`; `length < 2`: `TruncatedMessage`; `sanitizeVmcb f old x` errors (`old` = the field, 0 if `f` not 8-aligned or ≥ END) | field := sanitized (RAX: GPR 0); reply sanitized |
 | `X86VCPUReadMSR` | `length < 1`: `IllegalOperation`; `f = 0x485`: reply (VMX: `vcpu_capability 0x485`, SVM: 0); `f ∉ vcpuMsrs`: `IllegalOperation` | reply the field |
 | `X86VCPUWriteMSR` | `length < 2`: `IllegalOperation`; `checkMsrWrite f x` | field := x; reply x |
-| `X86VCPUEnableIOPort` | SVM: `IllegalOperation`; `length < 2`: `TruncatedMessage`; `lo = f & 0xffff > hi = x & 0xffff`: `InvalidArgument 0`; extra cap absent: `TruncatedMessage`; not an IO port cap: `IllegalOperation`; `[lo, hi] ⊄ [first, last]`: `InvalidArgument 0` | if the cap's owner is a live VCPU: deny `[first, last]` there; cap owner := v (needs §3.3.1); allow `[lo, hi]` on v; restart |
+| `X86VCPUEnableIOPort` | SVM: `IllegalOperation`; `length < 2`: `TruncatedMessage`; `lo = f & 0xffff > hi = x & 0xffff`: `InvalidArgument 0`; extra cap absent: `TruncatedMessage`; not an IO port cap: `IllegalOperation`; `[lo, hi] ⊄ [first, last]`: `InvalidArgument 0` | if the cap's owner is a live VCPU: deny `[first, last]` there; cap owner := v (both through the Q2 adapter `ioPortOwner`, inert until §3.3.1); allow `[lo, hi]` on v; restart |
 | `X86VCPUDisableIOPort` | SVM: `IllegalOperation`; `length < 2`: `TruncatedMessage`; `lo > hi`: `InvalidArgument 0` | deny `[lo, hi]` on v (no cap needed, as seL4); restart |
 | other | `IllegalOperation` | |
 
-`detach t` (FL4 `vcpu::detach`): if `tcbVcpu t = some w`: if `t` is
-`runningVM`, `vmReport t 0`; `w.tcb := none`, `tcbVcpu t := none`.
+`vcpuDetach t` (FL4 `vcpu::detach`, l4v ARM_HYP `dissociate_vcpu_tcb`):
+if `tcbVcpuOf t = some w`: if `t` is `runningVM`, `vmReport t 0`; then
+`w.tcb := none` (which also ends `tcbVcpuOf t`).
 
 ### 5.2 Guest page tables, guest roots, SetEPTRoot
 
@@ -392,54 +434,79 @@ abstract effect: the thread's guest state is already saved, §8).
 
 ### 5.3 VMEnter, check, report; notifications and the scheduler
 
-- **`SysVMEnter`** (FL4 `handle_unknown_syscall`): if `virtKind = none` or
-  the caller has no VCPU, l4v's unknown-syscall fault (as seL4's
-  `c_traps.c`, which falls through). Otherwise, after FL4's MCS budget
-  check (`budget_ok`: `update_timestamp`, `check_budget`; if the budget is
-  exhausted nothing else happens), **enter**: MR0..2 (in registers, even
-  without an IPC buffer) staged by `VcpuState.enter` (sanitized), the exit
-  record emptied, state := `runningVM`, then **check**.
-- **`vmCheck t`** (FL4 `vcpu::check`, run before every hardware re-entry
-  under the serial gate and after every VM exit): nothing unless `t` is
-  `runningVM`. A pending exit: `vmReport t 0`. Else, the bound
-  notification active: it becomes idle and `vmReport t badge` (l4v
-  `complete_signal`). Else, no VCPU: `vmReport t 0`. Else the thread
-  stays `runningVM` (the guest runs: §7).
-- **`vmReport t badge`**: `vmenterReport` (`Ext/VirtState`): the 30 MRs
-  (`set_mr`: registers, then the IPC buffer if any), msginfo 1 for a VMM
-  exit / 0 for a notification, badge register; `pending := false`; state
-  := `Running`.
-- **Notifications** (FL4 `send_signal`, idle notification bound to a
-  `runningVM` thread): the notification becomes active (badge OR-ed) and
-  the thread's core is stalled; the next `vmCheck` delivers it. (seL4
-  completes the VMEnter at once on the same core: FINDING V1.)
-- **Scheduler**: `runningVM` is `runnable` (the ported `runnable` already
-  says so); `end_timeslice` never raises a timeout fault for a
-  `runningVM` thread (FL4 `sched.rs:483`: `valid` requires the state not
-  `TS_RUNNING_VM`; seL4's `endTimeslice` has no such exception: FINDING V8) — an Ext hook on the ported
-  `end_timeslice`/`handle_timeout` path; `set_priority`, `possible_switch_to`
-  treat it as runnable. A remote stall moves a `runningVM` thread back to
-  the ready queue with its state unchanged (the guest is re-entered when
-  it is scheduled again): `smp::stall` only turns `Running` into
-  `Restart`. A guest runs only as the current thread (§7).
-- **Exit** (FL4 `handle_vcpu_exit`, after the trusted layer's `vm::run`,
-  §8): unless the thread was stalled, `update_timestamp`, `vmCheck ct`,
-  `check_budget`; then the accepted host IRQ (`handle_interrupt`), then
-  the ported scheduler (`fl4CallKernel`'s tail).
+(Decisions Q3/Q5 of 2026-11-21: the spec follows seL4 for V1 and V2; FL4's
+code is to be changed. Each such place carries `-- FL4 code differs until
+V1/V2`; §12 lists them.)
+
+- **`SysVMEnter`** (`fl4HandleEventV`, FL4 `handle_unknown_syscall`): if
+  `virtKind = none` or the caller has no VCPU, l4v's unknown-syscall fault
+  (as seL4's `c_traps.c`, which falls through). Otherwise FL4's MCS budget
+  check (`update_timestamp`, `check_budget_restart`; nothing else if it
+  fails; seL4 charges nothing here: FINDING V9), then **`vmEnter`**: MR0..2
+  from the message registers staged by `VcpuState.enter` (sanitized), the
+  exit record emptied; then, as seL4's `c_handle_syscall`, an *active*
+  bound notification completes the VMEnter at once: `completeSignal`
+  (badge, idle, MCS donation and sporadic check), message info 0, the
+  caller's message registers untouched; otherwise state := `runningVM`.
+- **`vmCheck t`** (FL4 `vcpu::check`; run at every kernel exit on the
+  current thread, `fl4KernelExitV`, and after every VM exit,
+  `fl4VcpuExitV`): nothing unless `runningVM`. A pending exit:
+  `vmReport t 0`. Else an active bound notification (only possible when
+  it was signalled from another core): idle, then `vmNotifyComplete t badge`
+  (seL4 `VMCheckBoundNotification`), and `possibleSwitchTo t` unless `t`
+  is current. Else, no VCPU: `vmReport t 0`. Else the guest runs (§7).
+- **`vmReport t badge`** (FL4 `vcpu::report`, for exits and lost VCPUs):
+  `vmenterReport`'s 30 MRs (`set_mrs`), `pending := false`, message-info
+  register 1 for a VMM exit / 0, badge register, state := `Running`.
+- **`vmNotifyComplete t badge`** (seL4 `Arch_leaveVMAsyncTransfer`):
+  `Running`, the badge, MR0..2 := the guest's current RIP / entry controls
+  / event injection (`entryIp/Ctl/Intr` of the VCPU's fields), message
+  info 0; the other MRs untouched.
+- **Notifications** (`sendSignalV onCore`): an idle notification bound to
+  a `runningVM` thread on this core completes the VMEnter at once
+  (`vmNotifyComplete`, then `maybeDonateSc`, `possibleSwitchTo` if
+  schedulable, the sporadic `refillUnblockCheck` as seL4); bound to a
+  thread on another core, it becomes active (the ported `sendSignal`) and
+  that core's next `vmCheck` delivers it. The spec has no affinity: the
+  extended kernel takes `onCore : ObjRef → Bool` as a parameter of the
+  entry (the refinement instantiates it with FL4's `affinity = cur_cpu`;
+  on one core `fun _ => true`). Every signal of the extended kernel goes
+  through `sendSignalV` (notification invocation, interrupts, the
+  preemption path, TCB timers).
+- **Scheduler**: `runningVM` is `runnable` (ported). The ported
+  `end_timeslice` raises no timeout fault for a `runningVM` thread (FL4
+  `sched.rs` `end_timeslice`; this FL4 difference sits in the ported
+  `Ipc.lean` since #9; decision Q7: kept, documented in PORTING.md). The
+  ported `activate_thread` fails on `runningVM` (l4v X64 has no such state
+  in that match); `activateThreadV` adds seL4 C's case (nothing to do). A
+  remote stall moves a `runningVM` thread back to the ready queue with its
+  state unchanged (no abstract effect in this per-core spec).
+- **Exit** (`fl4VcpuExitV onCore irq stalled`, FL4 `handle_vcpu_exit`
+  after `vm::run`, §8): unless stalled, `update_timestamp`, `vmCheck ct`,
+  `check_budget`; then the accepted host IRQ (`handleInterruptV`); then
+  `fl4KernelExitV` (TCB timers, `schedule`, `activateThreadV`, `vmCheck`
+  of the new current thread).
 
 ### 5.4 Retype
 
 `UntypedRetype` of `X86_VCPUObject` (15 bits) or the four EPT types (12
 bits): `InvalidArgument 0` if `virtKind = none` (FL4 `untyped.rs:42`,
-before the other checks). Otherwise the ported `retype_region` creates
-`.archObj (.vcpu 0)` / `.archObj (.ept level 0)` (already in `Structs`),
-and the extension adds `vcpus v := initVcpu virtKind` (FL4 `vcpu::init`,
-which also links the VCPU list) for each VCPU.
+after the length / extra-cap checks and before the type decode;
+`untypedVtxGate`, `fl4DecodeUntypedInvocationV`). Otherwise the ported
+`retype_region` creates `.archObj (.vcpu VcpuState.blank)` /
+`.archObj (.ept level 0)`, and `fl4InvokeUntypedV` then sets each new
+VCPU to `initVcpu virtKind` (FL4 `vcpu::init`, which also links the VCPU
+list).
 
 ### 5.5 Finalisation
 
-- final `vcpuCap v` (FL4 `vcpu::finalise`): `detach (v.tcb)` (with
-  `vmReport` of a `runningVM` thread), `vcpus v := none`.
+All in `finaliseCapV` (`Ext/VirtFinalise`), used by the extension's own
+copies of `rec_del`, `cap_delete`, `cap_revoke`, `invoke_cnode` and
+`invoke_tcb` (the ported ones call `finalise_cap` directly).
+
+- final `vcpuCap v` (FL4 `vcpu::finalise`): `vcpuDetach` of its thread
+  (with `vmReport` of a `runningVM` thread); the object goes with the
+  ported detype.
 - final `threadCap t`: `detach t` before the ported thread finalisation
   (FL4 `objects.rs:336`).
 - `eptCap` mapped level 0: the ported `deleteAsid` (clears the guest
@@ -448,8 +515,9 @@ which also links the VCPU list) for each VCPU.
   `arch_finalise_cap` does nothing here: Ext hook).
 - EPT-mapped frame: `guestUnmap` (the ported `unmapPage` finds no native
   root for the guest-tagged ASID and does nothing: Ext hook).
-- `ioPortCap` (final or not): if its owner is a live VCPU, deny its
-  `[first, last]` there (needs §3.3.1), then the ported behaviour.
+- `ioPortCap` (final or not): `ioPortRevoke` (if its owner is a live VCPU,
+  deny its `[first, last]` there; inert through the Q2 adapter until
+  §3.3.1), then the ported behaviour.
 - ASID pool deletion with guest entries: the ported behaviour (the
   invalidations have no abstract effect).
 
@@ -463,7 +531,7 @@ NPT `paddr ∣ P ∣ W? ∣ U ∣ PS? ∣ PAT bits` (PWT bit 3, PCD bit 4, PAT b
 write, bit 7 large, bits 51:12 address. `guestWalk` follows tables in the
 heap; `guestRootOf t` is the root of `t`'s `tcbEpt` cap when its ASID's
 pool entry is the guest-tagged root, else none (FL4's empty root).
-`guestUnmap asid gpa ptr level` (next batch): find the root by the guest
+`guestUnmap asid gpa ptr level table` (`Ext/VirtEptInv`): find the root by the guest
 entry (none: nothing), walk to the level (missing: nothing), clear the
 entry iff it is present, of the right kind (large or table) and names
 `ptr` (FL4 `ept::unmap`'s check), and the invalidation (no abstract
@@ -482,7 +550,7 @@ frames `GuestWritableByte σ (guestRootOf σ t)`. Proved:
 starts in (no TLB): an unmap that has returned is final for every later
 step, on every core.
 
-In the kernel step relation (next batch): when the current thread is
+In the kernel step relation (`Ext/VirtKernel`): when the current thread is
 `runningVM` after `vmCheck` at kernel exit, the machine performs a
 `GuestStep` and the kernel is re-entered with `handle_vcpu_exit` (§5.3).
 One step suffices: FL4's VMX/SVM exit always enters the kernel.
@@ -520,20 +588,43 @@ ARM_HYP style), I/O bitmaps, VMCS/VMCB fields.
 
 ## 10. P3x for virtualization
 
-Statement (`Ext/VirtGuest.P3xVirt` shape): for every state with
-`NoVirtObjects` (no VCPU, no binding, no `.vcpu`/`.ept` object; then no
-VCPU/EPT cap, no EPT-mapped frame and no guest pool entry exist either,
-by the cap/object invariants), every kernel step of the extended spec
-(`fl4CallKernelV`) is a step of the ported FL4 spec (`fl4CallKernel`)
-with `virt` unchanged, and conversely. Plus preservation: the ported
-steps keep `NoVirtObjects` except a retype of the five VT-x types, which
-is exactly where the extension starts. With `virtKind = none` the
-retype is refused, so every reachable state satisfies `NoVirtObjects`
-and FL4 is seL4 there (DESIGN.md §2 superset rule). Proof: each Ext hook
-is the identity when its object kind is absent (`detach` of a thread
-without VCPU, `vmCheck` of a thread not `runningVM` (unreachable without
-VMEnter, which faults without a VCPU), the IO-port revoke with no live
-owner, the frame unmap of a non-EPT frame).
+**Claim** (DESIGN.md §2 superset rule): on a state with `NoVirtObjects`
+(no `.vcpu`/`.ept` object, hence no binding) and `NoVirtCaps` (no VCPU cap,
+EPT cap or EPT-mapped frame cap anywhere; implied by the cap/object
+invariants, and an EPT-tagged pool entry needs an EPT object), every step
+of `fl4CallKernelV onCore rep ev` is a step of `fl4CallKernel rep ev`, and
+conversely, **except** for three FL4-only inputs that exist without any
+virtualization object: label 60 (`X86PageMapEPT`) on a frame cap, label 88
+(`TCBSetEPTRoot`) on a thread cap (both: FL4's error by its checks vs.
+l4v's `IllegalOperation`; no state change but the error reply), and an
+`UntypedRetype` of a VT-x type with `virtKind = none` (FL4:
+`InvalidArgument 0`; the ported spec creates the objects, which the
+current P3 already excludes by the [scope] premise `JVtxHypM`). With
+`virtKind = none` no VCPU/EPT object can be created, so every reachable
+state satisfies `NoVirtObjects ∧ NoVirtCaps`.
+
+**Proved in batch 2** (`Ext/VirtP3x`, axioms propext/choice/Quot.sound):
+- `fl4DecodeInvocationV_base`: off `VirtRoute` the extended decoder is
+  `liftME .base` of the ported one; `VirtRoute.cases`: a route needs a
+  virtualization cap (as the invoked cap or the first extra cap) or one of
+  the three exceptions above.
+- `fl4PerformInvocationV_base`: every ported invocation but untyped,
+  notification send, TCB and CNode is performed by the ported code.
+- `finaliseCapV_eq` (unhooked caps), `finaliseCapV_thread_noVirt`,
+  `vcpuDetach_noVirt`, `vmCheck_not_runningVM`, `ioPortRevoke_eq`.
+
+**Remaining (R7):** (a) `sendSignalV = sendSignal` when the bound thread is
+not `runningVM` (unfolding, as `vmCheck_not_runningVM`); (b) `recDelV =
+recDel` and `capRevokeV = capRevoke` on `NoVirtObjects ∧ NoVirtCaps`:
+the two least fixed points agree because their functionals agree on every
+state the recursion reaches; needs preservation of `NoVirtObjects ∧
+NoVirtCaps` by the ported finalisation steps (they create no VCPU/EPT
+object or cap) — the real work; (c) `fl4InvokeUntypedV = fl4InvokeUntyped`
+for non-VCPU types (`NonDet.when false`); (d) no thread is `runningVM`
+(only `vmEnter` sets it, and it needs a VCPU), so `activateThreadV`,
+`fl4KernelExitV`'s `vmCheck` and `fl4VcpuExitV` reduce to the ported
+behaviour; (e) compose through `fl4HandleEventV` (`isVmEnterCall` is false
+without VCPUs) and `fl4CallKernelV`.
 
 ## 11. Proof plan
 
@@ -548,9 +639,14 @@ owner, the frame unmap of a non-EPT frame).
   `.vmcb` field but hidden and host-cache ones; `gpr 0 ↔ REGS` **and**
   the agreement `mem (v + 0x5f8) = mem (v + REGS)` at kernel exit (FL4
   writes both; the trusted layer reads `REGS`); XCR0; exit record; `tcb`.
-- `VirtRel`: `dom vcpus` = the VCPU list from `ks::VCPU_HEAD` (P1's
-  `VtIoPlace` placement); `tcbVcpu t = some v ↔ mem (t + tl::VCPU) = v ≠ 0`;
-  guest tables equal word for word but root entries 510/511's high halves.
+- `VirtRel`: the VCPU objects (`vcpuAt σ v ≠ none`) = the VCPU list from
+  `ks::VCPU_HEAD` (P1's `VtIoPlace` placement), each related by
+  `VcpuRelVmx`/`VcpuRelSvm`; `tcbVcpuOf σ t = some v ↔ mem (t + tl::VCPU) =
+  v ≠ 0` (needs `VcpuBindingInv`); guest tables equal word for word but
+  root entries 510/511's high halves.
+- Spec/code gaps the refinement hits until the kernel follows the
+  decisions (§12, "Spec ahead of the code"): R2's ReadVMCB, R5's
+  `sendSignalV`, `vmEnter`, `vmCheck`.
 - The capability agreement: `Arch::vcpu_capability = vcpuCapability`,
   `Arch::virtualization() = virtKind.code` (a [P] premise of the
   platform, like the time constants).
@@ -630,6 +726,42 @@ start first; R3/R4 touch the J-layer frames (`JAtZ`), R5 the kernel entry
   fault on seL4 and is only postponed or re-queued on FL4. Possibly
   deliberate (a fault would abandon the VMEnter), but undocumented in
   DESIGN.md §4; the spec states FL4's rule (Q7).
+- **V9 (compatibility, informational)** `syscall.rs:512`
+  (`handle_unknown_syscall`): FL4 runs `budget_ok` (`update_timestamp`,
+  `check_budget_restart`) before `vcpu::enter`, so a VMEnter with an
+  exhausted budget does nothing but charge and reschedule; seL4's
+  `c_handle_syscall` (`CONFIG_VTX`) enters without touching the MCS
+  budget. FL4's choice is the MCS-consistent one; the spec states it. To
+  list in DESIGN.md's differences.
+- **V10 (compatibility, informational)** `vcpu.rs` `enter`: FL4 stages
+  MR0..2 from the message registers even without an IPC buffer; seL4's
+  `vcpu_update_state_sysvmenter` returns early without a buffer and enters
+  with the previous RIP/controls/injection. FL4's is the sensible one.
+- **V11 (spec hygiene, low)** `Fl4Spec/Ipc.lean:515` `endTimeslice`: the
+  FL4 rule of V8 was put into the *ported* l4v definition by #9, without a
+  note; PORTING.md now lists it under FL4 differences. Moving it to an Ext
+  wrapper would touch the P3 proofs of `end_timeslice`; not done.
+- **V12 (spec, low)** `Fl4Spec/Tcb.lean:74` `activateThread`: the ported
+  l4v X64 definition fails on `runningVM` (seL4 C's `activateThread`
+  accepts it). Any refinement of an exit where the current thread is
+  `runningVM` needs `activateThreadV` (`Ext/VirtEntry`); the current P3
+  never reaches it because VMEnter is excluded (`NativeSys`).
+- **Spec ahead of the code (decisions of 2026-11-21; the refinement fails
+  here until the kernel changes):**
+  - V1: `Ext/VirtEntry` `sendSignalV` (same-core `runningVM` branch); FL4
+    `notification.rs:94-101` always sets the notification active and
+    stalls.
+  - V2: `Ext/VirtEntry` `vmEnter` (active notification at entry:
+    `completeSignal`, message info 0, MRs untouched) and `vmCheck` /
+    `vmNotifyComplete` (MR0..2 only); FL4 `vcpu.rs` `check` → `report`
+    writes 30 MRs (and at entry first enters `runningVM`).
+  - V3: `Ext/VirtFields` `Svm.hiddenRead`, `Ext/VirtVcpu`
+    `performVcpuInvocation .readVmcb`; FL4 `vcpu.rs` `vmcb_hidden` lacks
+    0x058 and 0x0c0.
+  - Q2 (not a code gap, a spec gap): EnableIOPort's owner update and the
+    IO-port revocation are inert in the spec until §3.3.1 (FL4 does
+    them); a refinement of EnableIOPort or of finalising an owned IO-port
+    cap needs the shape change first.
 - **Reviewed, no finding**: the forced control bits are required at boot
   (`init_vmx` rejects a CPU whose allowed-1 lacks `PIN_ALLOWED`,
   `PRIMARY_FORCED`, `EXIT_FORCED`), so `controls()` never silently drops
@@ -643,33 +775,61 @@ start first; R3/R4 touch the J-layer frames (`JAtZ`), R5 the kernel entry
 
 ## 13. Questions for the owner
 
-- Q1: move `VcpuState` into `ArchKernelObj.vcpu` (§3.3.2) now, or keep it
-  in `VirtExt` (this batch)? Keeping it costs one agreement invariant.
-- Q2: approve the `ioPortCap` owner field (§3.3.1)? EnableIOPort and the
-  IO-port finalisation cannot be specified faithfully without it.
-- Q3: V1/V2: keep FL4's notification-to-VM semantics (the spec states
-  them) or follow seL4's same-core immediate completion?
-- Q4: V3: hide the SVM ASID/clean words from ReadVMCB (kernel change), so
-  the spec can make ReadVMCB deterministic?
-- Q5: V5: force "load IA32_PAT/EFER/debug controls" on VMX entry?
-- Q7: V8: keep the timeout-fault exemption for `runningVM` threads (and
-  document it as an FL4 difference), or follow seL4?
-- Q6: is the exit-path [P] (`VmRunContract` + `VmRunFrame`) the right
-  trust boundary, or should `vm::run`'s Rust part (everything but the
-  assembly) be extracted and proved against `VmRunFrame`?
+Settled 2026-11-21 (§15): Q1-Q7. Open:
+
+- Q8: V9/V10 (VMEnter charges the budget; stages MR0..2 without an IPC
+  buffer): keep FL4's behaviour and list them in DESIGN.md's differences?
+  (The spec states FL4's.)
+- Q9: V11: move the `runningVM` exception of `end_timeslice` out of the
+  ported `Ipc.lean` into an Ext wrapper (restoring l4v's text; touches the
+  P3 `end_timeslice` proofs), or leave it documented where it is?
+- Q10: the affinity parameter `onCore` of the extended kernel (§5.3): fine
+  as an entry parameter, or should the spec state carry per-thread
+  affinity (an extension field the ported operations would not maintain)?
 
 ## 14. Handoff
 
-Done in this batch: §1–§4 and §6–§10 as design; Lean modules VirtBackend,
-VirtFields, VirtSanitize, VirtState, VirtEpt, VirtGuest (build: `sh v1.sh
-Fl4Spec.Ext.Virt...`, 978 jobs, no sorry; axioms of the definitions and
-theorems: propext, Classical.choice, Quot.sound at most).
+Batch 1 (`par/v1`, 17d5e2b0): §1-§4, §6-§10 as design; VirtBackend,
+VirtFields, VirtSanitize, VirtState, VirtEpt, VirtGuest.
 
-Next: (1) `Ext/VirtVcpu`: `VcpuInvocation`, `decodeVcpuInvocation` and
-`performVcpuInvocation` from the table of §5.1, as `SEMonad`/`SMonad` on
-`VState Z` (lift the ported `setThreadState`, `setMR`, `lookupIpcBuffer`
-through `VState.base`); (2) `Ext/VirtEptInv` (§5.2, `guestUnmap`);
-(3) `Ext/VirtEntry` (§5.3); (4) retype/finalise hooks (§5.4/§5.5) and the
-extended dispatcher `fl4DecodeInvocationV` (the ported dispatcher's
-`.vcpuCap/.eptCap → fail` replaced); (5) P3x (§10). Q1/Q2 decide the
-shape of (1) and (4).
+Batch 2 (`par/v2`): the decisions of §15 applied (Q1 made: `VcpuState` in
+`ArchKernelObj.vcpu`, no extension state; Q2 adapter; Q3/Q4/Q5 seL4
+semantics with the gap markers; Q7 documented); modules VirtObj,
+VirtVcpu, VirtEptInv, VirtFinalise, VirtEntry, VirtDispatch, VirtKernel,
+VirtP3x. Builds: `sh v2.sh Fl4Spec.Ext.VirtP3x` (1010 jobs, no sorry,
+axioms of the theorems and top definitions: propext, Classical.choice,
+Quot.sound); the `X64/Structs` change rebuilds the whole spec and every
+proof, checked here only for the three P3 modules that unfold
+`defaultArchObject` (UntypedSpec, UtEpRet, UtDevRet); the lead's full
+build checks the rest.
+
+Next: (1) the §3.3.1 `ioPortCap` owner change once g5c's IO-port
+invariants are merged (call-site list there); (2) P3x R7 (§10 "Remaining");
+(3) the refinement steps R0-R6 (§11), starting with R1 (pure sanitize
+functions) and R2 (VCPU invocations), which do not depend on the J layer;
+(4) the kernel changes for V1/V2/V3, after which the gap markers go.
+
+## 15. Decisions (owner, 2026-11-21)
+
+- Q1: the abstract VCPU goes into the object, `ArchKernelObj.vcpu (st :
+  VcpuState)` (l4v ARM_HYP style). Done in batch 2; the TCB → VCPU
+  direction is derived (`tcbVcpuOf`), so no extension state remains.
+- Q2: `ArchCap.ioPortCap` gets an owner-VCPU field, but not in batch 2
+  (another agent edits the IO-port invariants): the spec uses the adapter
+  `ioPortOwner` (= none); §3.3.1 lists the change and its call sites.
+- Q3/Q5 (V1/V2): FL4 follows seL4 (a signal to a same-core `runningVM`
+  thread completes the VMEnter at once; a notification-ended VMEnter
+  leaves the caller's MR0..2 / reports only MR0..2 as seL4). Kernel change
+  by the owner; the spec states seL4's behaviour, marked.
+- Q4 (V3): hide VMCB 0x058/0x0c0 from ReadVMCB. Kernel change by the
+  owner; the spec reads them as 0, marked.
+- Q7 (V8): keep FL4's behaviour (no timeout fault for a `runningVM`
+  thread); listed in PORTING.md "FL4 differences".
+- Q6: the trusted boundary stays `VmRunContract` + `VmRunFrame`.
+- Q5 of batch 1 (V5, forcing the PAT/EFER/debug entry controls): not
+  decided separately; the spec keeps FL4's allowed set.
+
+One choice of batch 2 not covered by the decisions: the VCPU / EPT
+invocations follow l4v's decode/perform split (FL4 decodes and performs in
+one function; every FL4 check precedes its first write, so the split is
+exact), and replies go through l4v's `handle_invocation` tail.
