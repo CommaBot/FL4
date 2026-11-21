@@ -3,6 +3,7 @@
 #![no_std]
 
 mod acpi;
+mod ap_order;
 mod bootmem;
 mod dangerous_msr;
 mod elf;

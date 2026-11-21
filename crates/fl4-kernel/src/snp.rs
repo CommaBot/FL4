@@ -183,21 +183,30 @@ static mut APS: [ApMemory; fl4_arch_x86_64::percpu::MAX_CPUS - 1] = [const {
 };
     fl4_arch_x86_64::percpu::MAX_CPUS - 1];
 
-/// Build a VMPL0 VMSA directly in long mode. The guest controls its
-/// initial entry point, stack and descriptor tables without a SIPI.
-pub fn start_ap(cpu_index: usize, apic: u32, stack: u64, entry: u64) {
+fn ap_memory(cpu_index: usize) -> *mut ApMemory {
+    assert!((1..fl4_arch_x86_64::percpu::MAX_CPUS).contains(&cpu_index));
+    unsafe { core::ptr::addr_of_mut!(APS).cast::<ApMemory>().add(cpu_index - 1) }
+}
+
+/// Make an AP's GHCB page shared and build its VMPL0 VMSA directly in long
+/// mode: the guest controls its initial entry point, stack and descriptor
+/// tables without a SIPI. Every AP's page-state changes run before the
+/// first AP starts (ap_order::bring_up), while only the boot core can hold
+/// TLB entries for these pages; this core drops each alias it may hold.
+pub fn prepare_ap(cpu_index: usize, stack: u64, entry: u64) {
     extern "C" {
         static fl4_efi_gdt: u8;
     }
-    let ap = unsafe {
-        core::ptr::addr_of_mut!(APS)
-            .cast::<ApMemory>()
-            .add(cpu_index - 1)
-    };
+    let ap = ap_memory(cpu_index);
     let ghcb = unsafe { core::ptr::addr_of_mut!((*ap).ghcb) as u64 };
     let vmsa = unsafe { &mut (*ap).vmsa.0 };
     let gpa = crate::paging::image_paddr(vmsa.as_ptr() as u64);
+    // prepare_cpu invalidates the physical windows' aliases before and
+    // after the state change; do the same for the image alias (private,
+    // 4 KiB, global), which is never used for this page again.
+    cpu::invlpg(ghcb);
     unsafe { snp::prepare_cpu(cpu_index, crate::paging::image_paddr(ghcb)) };
+    cpu::invlpg(ghcb);
 
     let features = cpu::rdmsr(0xc001_0131) >> 2;
     let mut put = |off: usize, value: u64| vmsa[off..off + 8].copy_from_slice(&value.to_le_bytes());
@@ -238,5 +247,16 @@ pub fn start_ap(cpu_index: usize, apic: u32, stack: u64, entry: u64) {
     if result != 0 {
         crate::fail("SNP AP VMSA setup failed");
     }
-    snp::start_cpu(apic, gpa, features);
+    // Nothing writes the VMSA from here on; drop this core's writable
+    // translations of it (the image and the private window).
+    cpu::invlpg(addr);
+    cpu::invlpg(pptr(gpa));
+}
+
+/// Start an AP whose memory `prepare_ap` set up. Changes no page state.
+pub fn start_ap(cpu_index: usize, apic: u32) {
+    let ap = ap_memory(cpu_index);
+    let vmsa = unsafe { core::ptr::addr_of!((*ap).vmsa) as u64 };
+    let features = cpu::rdmsr(0xc001_0131) >> 2;
+    snp::start_cpu(apic, crate::paging::image_paddr(vmsa), features);
 }

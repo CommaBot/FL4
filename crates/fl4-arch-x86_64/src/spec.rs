@@ -236,9 +236,6 @@ pub fn init_core(bsp: bool) -> bool {
     let pc = percpu::get();
     pc.spec_plan.set(plan.ok());
     pc.spec_rejected.set(plan.err());
-    let mut entry = 0;
-    let mut spec_ctrl = 0;
-    let mut auto = false;
     let safe_ret = native_safe_ret(&c)
         && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode));
     let needs_no_smt = match plan {
@@ -248,44 +245,22 @@ pub fn init_core(bsp: bool) -> bool {
     let Some(needs_no_smt) = smt_admission(bsp, needs_no_smt, NO_SMT.load(Ordering::Relaxed)) else {
         return false;
     };
-    if let Ok(p) = plan {
-        entry = p.entry;
-        spec_ctrl = p.spec_ctrl;
-        auto = p.auto_ibrs;
+    let (entry, spec_ctrl, auto, disable_tsx) = if let Ok(p) = plan {
         FL4_SPEC_BUFFERS.fetch_or(u32::from(p.buffers), Ordering::Relaxed);
-        if p.disable_tsx {
-            wrmsr(0x122, rdmsr(0x122) | 3);
-        }
+        (p.entry, p.spec_ctrl, p.auto_ibrs, p.disable_tsx)
     } else {
         // Native-only boots get available mitigations, reported as
         // incomplete. This path never authorizes guest execution.
-        if ibpb {
-            entry = IBPB;
-            if c.vendor == Vendor::Amd && c.amd8 & (1 << 30) == 0 {
-                entry |= RSB;
-            }
-        }
-        if no_entry_ibpb {
-            entry &= !IBPB;
-        }
-        if c.vendor == Vendor::Intel && c.leaf7_edx & (1 << 26) != 0 {
-            spec_ctrl = 1;
-            entry |= if c.arch & IBRS_ALL != 0 {
-                PBRSB
-            } else {
-                LEGACY_IBRS | RSB
-            };
-        }
-        if c.vendor == Vendor::Amd {
-            auto = c.amd21 & AUTO_IBRS != 0;
-        }
         FL4_SPEC_BUFFERS.store(1, Ordering::Relaxed);
+        let n = native_only(&c, no_entry_ibpb);
+        (n.entry, n.spec_ctrl, n.auto_ibrs, n.disable_tsx)
+    };
+    if disable_tsx {
+        wrmsr(0x122, rdmsr(0x122) | 3);
     }
+    // `native_only` enables STIBP on every core that can use Safe RET
+    // (native_safe_ret requires it).
     ALL_SAFE_RET.fetch_and(safe_ret, Ordering::Relaxed);
-    if safe_ret && plan.is_err() {
-        // A native-only boot still needs cross-thread predictor isolation.
-        spec_ctrl |= 2;
-    }
     NO_SMT.fetch_or(needs_no_smt, Ordering::Relaxed);
     if spec_ctrl != 0 {
         wrmsr(0x48, rdmsr(0x48) | spec_ctrl);

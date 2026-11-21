@@ -178,6 +178,71 @@ pub fn native_entry_without_ibpb(c: &Caps) -> bool {
         && c.amd21 & (SRSO_NO | SRSO_USER_KERNEL_NO) != 0
 }
 
+/// What a core without a plan (`select` rejected it) still enables at
+/// native entries. Such a boot never runs guests (`spec::init_core`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeOnly {
+    pub entry: u32,
+    pub spec_ctrl: u64,
+    pub auto_ibrs: bool,
+    pub disable_tsx: bool,
+}
+
+/// The mitigations `select` would choose for native entries, as far as
+/// this CPU provides them. `no_entry_ibpb` is `spec::entry_without_ibpb`.
+/// STIBP does not depend on Safe RET: AutoIBRS and IBRS separate
+/// privilege levels on one thread, STIBP separates concurrently running
+/// SMT siblings, and both vendors' plans enable it whenever it is
+/// advertised. On Intel, SPEC_CTRL is written only with CPUID.7.EDX[26]:
+/// a nested host masking it may not implement the MSR even if it still
+/// reports STIBP or BHI_DIS_S, so BHI then uses the software sequence.
+pub fn native_only(c: &Caps, no_entry_ibpb: bool) -> NativeOnly {
+    let mut n = NativeOnly { entry: 0, spec_ctrl: 0, auto_ibrs: false, disable_tsx: false };
+    match c.vendor {
+        Vendor::Other => {}
+        Vendor::Amd => {
+            if c.amd8 & AMD_IBPB != 0 {
+                n.entry = IBPB;
+                if c.amd8 & AMD_IBPB_RET == 0 {
+                    n.entry |= RSB;
+                }
+            }
+            if no_entry_ibpb {
+                n.entry &= !IBPB;
+            }
+            n.auto_ibrs = c.amd21 & AUTO_IBRS != 0;
+            if c.amd8 & AMD_STIBP != 0 {
+                n.spec_ctrl |= 2;
+            }
+        }
+        Vendor::Intel => {
+            if c.leaf7_edx & (1 << 26) != 0 {
+                n.entry = IBPB;
+                n.spec_ctrl = 1;
+                if c.arch & IBRS_ALL == 0 {
+                    n.entry |= LEGACY_IBRS | RSB;
+                } else if c.arch & PBRSB_NO == 0 {
+                    n.entry |= PBRSB;
+                }
+            }
+            let msr = c.leaf7_edx & (1 << 26) != 0;
+            if msr && c.leaf7_edx & (1 << 27) != 0 {
+                n.spec_ctrl |= 2;
+            }
+            if c.arch & BHI_NO == 0 {
+                if msr && c.leaf7_2_edx & (1 << 4) != 0 {
+                    n.spec_ctrl |= 1 << 10;
+                } else {
+                    n.entry |= BHB;
+                }
+                n.entry |= IBHF;
+            }
+            n.disable_tsx = c.rtm && c.arch & TAA_NO == 0 && c.arch & TSX_CTRL != 0;
+        }
+    }
+    n
+}
+
 pub fn select(c: &Caps) -> Result<Plan, Rejected> {
     let mut p = Plan {
         entry: IBPB,
@@ -663,22 +728,7 @@ mod tests {
     /// Nested EPYC 9B45 (Zen 5), as measured.
     #[test]
     fn measured_nested_zen5_is_native_only_without_entry_ibpb() {
-        let c = Caps {
-            vendor: Vendor::Amd,
-            family: 0x1a,
-            model: 2,
-            stepping: 1,
-            hypervisor: true,
-            microcode: 0,
-            arch: 0,
-            leaf7_edx: 0,
-            leaf7_2_edx: 0,
-            smep: true,
-            rtm: false,
-            amd8: 0x711ed205,
-            amd21: 0x593ddd47,
-            amd21_ecx: 6,
-        };
+        let c = measured_nested_zen5();
         assert_eq!(select(&c), Err(Rejected::BufferMicrocode));
         assert!(native_entry_without_ibpb(&c));
         assert!(!native_safe_ret(&c));
@@ -710,5 +760,120 @@ mod tests {
         c = intel();
         c.leaf7_edx &= !(1 << 26);
         assert_eq!(select(&c), Err(Rejected::Ibpb));
+    }
+
+    /// Nested EPYC 9B45 (Zen 5), as measured (PR #53).
+    fn measured_nested_zen5() -> Caps {
+        Caps {
+            vendor: Vendor::Amd,
+            family: 0x1a,
+            model: 2,
+            stepping: 1,
+            hypervisor: true,
+            microcode: 0,
+            arch: 0,
+            leaf7_edx: 0,
+            leaf7_2_edx: 0,
+            smep: true,
+            rtm: false,
+            amd8: 0x711ed205,
+            amd21: 0x593ddd47,
+            amd21_ecx: 6,
+        }
+    }
+
+    /// Audit r12 F1: the measured nested Zen 5 (PR #53) boots native-only
+    /// without the entry IBPB and with SMT; its advertised STIBP must still
+    /// be enabled, as on every AMD path `select` accepts.
+    #[test]
+    fn native_only_enables_advertised_stibp_without_safe_ret() {
+        let c = measured_nested_zen5();
+        assert_ne!(c.amd8 & AMD_STIBP, 0);
+        assert!(!native_safe_ret(&c));
+        let n = native_only(&c, true);
+        assert_eq!(n.entry & IBPB, 0);
+        assert!(n.auto_ibrs);
+        assert_ne!(n.spec_ctrl & 2, 0);
+        // Zen 2/3/4 rejected for SRSO microcode or nested LFENCE keep the
+        // entry IBPB and need STIBP just the same.
+        let mut c = amd();
+        c.hypervisor = true;
+        assert_eq!(select(&c), Err(Rejected::SrsoMicrocode));
+        let n = native_only(&c, false);
+        assert_eq!(n.entry, IBPB | RSB);
+        assert_eq!(n.spec_ctrl, 2);
+        c.family = 0x19;
+        c.amd21 = AUTO_IBRS;
+        assert_eq!(select(&c), Err(Rejected::Lfence));
+        assert_eq!(native_only(&c, false).spec_ctrl, 2);
+        // No STIBP advertised: SPEC_CTRL is left alone.
+        c.amd8 &= !AMD_STIBP;
+        assert_eq!(native_only(&c, false).spec_ctrl, 0);
+    }
+
+    /// Safe RET's BTB rule needs STIBP: every native-only core that can use
+    /// it still gets it.
+    #[test]
+    fn native_only_safe_ret_cores_keep_stibp() {
+        let mut c = amd();
+        c.family = 0x19;
+        c.hypervisor = true;
+        c.amd21 |= AUTO_IBRS | IBPB_BRTYPE;
+        assert_eq!(select(&c), Err(Rejected::BufferMicrocode));
+        assert!(native_safe_ret(&c));
+        assert_ne!(native_only(&c, false).spec_ctrl & 2, 0);
+    }
+
+    /// Audit r12 F1: an Intel native-only boot (e.g. no RDCL_NO, or a
+    /// buffer-clearing rejection) applies the same STIBP, BHI, PBRSB and
+    /// TSX choices `select` makes, not a subset.
+    #[test]
+    fn intel_native_only_matches_selects_native_entry_choices() {
+        let mut c = intel();
+        c.arch &= !RDCL_NO;
+        assert_eq!(select(&c), Err(Rejected::Meltdown));
+        let n = native_only(&c, false);
+        assert_eq!(n.spec_ctrl, 1 | 2 | (1 << 10));
+        assert_eq!(n.entry, IBPB | PBRSB | IBHF);
+        c.arch |= PBRSB_NO;
+        assert_eq!(native_only(&c, false).entry, IBPB | IBHF);
+        c.leaf7_2_edx = 0;
+        let n = native_only(&c, false);
+        assert_eq!(n.entry, IBPB | BHB | IBHF);
+        assert_eq!(n.spec_ctrl, 1 | 2);
+        c.arch |= BHI_NO;
+        assert_eq!(native_only(&c, false).entry, IBPB);
+        // Legacy IBRS: reasserted on entry with the RSB fill, plus STIBP.
+        c.arch &= !IBRS_ALL;
+        let n = native_only(&c, false);
+        assert_eq!(n.entry, IBPB | LEGACY_IBRS | RSB);
+        assert_eq!(n.spec_ctrl, 1 | 2);
+        // TAA with a TSX control: TSX is disabled, as on the plan path.
+        let mut c = intel();
+        c.rtm = true;
+        c.arch &= !(TAA_NO | RDCL_NO);
+        c.arch |= TSX_CTRL;
+        assert!(native_only(&c, false).disable_tsx);
+        c.arch |= RDCL_NO;
+        assert!(select(&c).unwrap().disable_tsx);
+        c.arch &= !TSX_CTRL;
+        assert!(!native_only(&c, false).disable_tsx);
+        // Without IBRS/IBPB enumerated, SPEC_CTRL is never written, even
+        // if STIBP or BHI_DIS_S is still reported; BHI uses the sequence.
+        let c = Caps { arch: 0, leaf7_edx: 1 << 27, leaf7_2_edx: 1 << 4, ..intel() };
+        let n = native_only(&c, false);
+        assert_eq!((n.entry, n.spec_ctrl), (BHB | IBHF, 0));
+        // Every native-only entry choice equals the plan's for an
+        // accepted CPU (the plan adds only VM-exit actions), except that
+        // native-only legacy IBRS keeps its entry RSB fill.
+        for arch in [IBRS_ALL, IBRS_ALL | PBRSB_NO, IBRS_ALL | BHI_NO, 0] {
+            for l72 in [0, 1 << 4] {
+                let c = Caps { arch: RDCL_NO | MDS_NO | TAA_NO | MMIO_NO | RFDS_NO | arch, leaf7_2_edx: l72, ..intel() };
+                let p = select(&c).unwrap();
+                let n = native_only(&c, false);
+                let rsb = if arch & IBRS_ALL == 0 { RSB } else { 0 };
+                assert_eq!((n.entry, n.spec_ctrl), (p.entry | rsb, p.spec_ctrl), "arch {arch:#x} l72 {l72:#x}");
+            }
+        }
     }
 }
