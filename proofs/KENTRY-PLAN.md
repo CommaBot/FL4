@@ -11530,3 +11530,57 @@ cone (imports SpecInvRd8vD / SpecInvRd14cB / SpecInvRd14cC only).
 - HANDOFF: (1) rd14d / rd14e: instantiate `kcall_rdyOffW` / `kentry_rdyOffW` with their bridge (`invR_ofK` / `invR_ofKB` as
   `BrR`); when the covered sets are everything, `kcall_rdyOffW_all` (or its K-interface analogue) is the input-free top.
   (2) Lead: `SInvW` is the bundle to carry (it includes SInvCRBV); `hev` / `hnd` are the only non-bundle entry premises.
+## rd14e (branch par/rd14e in FL4-q, on 5b2058e7 = int/j2 incl. rd14d, rd8v, g2g, g2h) — rd14d handoff (1) in part: Reply DONE, IRQ handler set / clear DONE (no slot fact needed); (6) PerfF DONE for both; bridges in rd8w's `BrR` / `BrF` shape; FINDING: deleting cur_sc's last cap makes `OffReady` (hence rd4's `OS`) unprovable, which blocks every deletion arm (ThreadControlCaps / Sched, CNode revoke / delete, Untyped reset via revoke) against the current `PerfA`; Untyped retype / ASID control NOT done
+
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14e`, modules SpecInvRd14eA / B / C (new; root imports them). Existing edit: SpecInvRd14dB
+loses its unused `KC` / `kc_ik` / `kc_commitGuard` (20 lines; nothing referenced them). ./rd14es.sh untracked (= rd14ds.sh, own log);
+proofs/scratch/rd14e/ax.lean untracked. No premise, no hypothesis added anywhere.
+- **SpecInvRd14eA (Reply).** `ET t c` (rd14b's `EB` with ct pinned), `et_svcf`, `et_of`; `EBN` (EB's unbound case), **`ebn_donate`**
+  (donating any SC to `u ≠ t` keeps `t` unbound with no resume: every step SVS but the two binding writes), **`et_donate`** (bound
+  case: rd14b's `eb_donate`); `sv_isValidTimeoutHandler` / `cfk_` / `cp_`, `sv_postpone` (with rd11b's `sv_orderedInsert`);
+  **`eb_sendIpcND`** (send_ipc with can_donate = false, any sender: no binding written), **`eb_handleTimeout`**;
+  **`et_replyRemove`** (caller ≠ ct), **`et_doReplyTransfer`** (the receiver is BlockedOnReply, ct is in Restart, so receiver ≠ ct:
+  the reply removal may hand cur_sc back from ct → ct unbound and test_reschedule'd), **`cp_doReplyTransfer`** (rd8a's CP walk,
+  rd11b's `cp_sendFaultIpc` / `cp_replyUnlinkTcb`), **`ec_doReplyTransfer`**, **`perfA_reply`** (EC σ0 ⇒ TBN / TU by rd14d's
+  `tbu_of_ec`), `CovR`, `armA_covR`, `C14e1 := C14dC ∨ CovR`, **`armAKB_c14e1`**.
+- **SpecInvRd14eB (IRQ handler set / clear / ack).** rd14c's obstacle (b) does not arise: `cap_delete_one` finalises through
+  `fast_finalise`, which FAILS on every cap but null / reply / endpoint / notification, so no outcome finalises a TCB or SC and no
+  IRQ-slot fact is needed (ArmAKB's interface suffices). `tb_cancelAllIpc`, `tb_cancelAllSignals`, `tb_ffNtfn` (rd14c's `tb_ik`, rd14d's
+  cancelBadgedSends walks plus reply_unlink_tcb / tcb_ntfn_dequeue leaves), `cp_ffReply`, **`ec_ffReply`** (a reply cap: reply_remove of
+  a BlockedOnReply thread — not ct — may hand cur_sc back; else cancel_ipc), **`ec_fastFinalise`**, `sv_emptySlotNull`,
+  **`ec_capDeleteOne`** (TB σ0 ∧ ct not BlockedOnReply ⇒ EC σ0), **`ec_invokeIrqHandler`**, **`perfA_irqHandler`**, `CovI`, `armA_covI`,
+  `C14e2 := C14e1 ∨ CovI`, **`armAKB_c14e2`**.
+- **SpecInvRd14eC (PerfF; bridges).** `post_st`, **`fpo_tu`** (TU and ct Running / Inactive ⇒ FPO: RT / CBa vacuous), **`perfF_ecq`**
+  (EC σ0 ∧ QT ct at every ok outcome ⇒ PerfF), `qt_threadSet_ne`, `qt_setThreadState_ne`, **`qt_of_tv`** (rd8d's `TV` family carries
+  `QT`: do_ipc_transfer, get_cap / set_cap / cap_insert, empty_slot), the walk `qt14e_auto` (rd14c's `qt_auto` steps INLINED: nesting
+  `qt_auto` — a `repeat'` that succeeds without progress — inside another `repeat' (first …)` loops to max recursion / heartbeats; same
+  hazard for any `repeat'` macro used as a `first` alternative), `qt_replyRemove`, `qt_handleTimeout`, **`qt_doReplyTransfer`**,
+  `qt_cancelAllIpc`, `qt_cancelAllSignals`, `qt_fastFinalise`, `qt_emptySlotNull`, `qt_capDeleteOne`, `qt_invokeIrqHandler`,
+  **`perfF_reply`**, **`perfF_irqHandler`**, `CovRI`, `armF_covRI`, `CF14e := CovC ∨ CovRI`, **`armF_c14e`**.
+  Bridges for rd8w's tops (lead note): **`brR_c14e : ∀ c σ, A8.EF σ → InvRc C14e2 c σ → InvR c σ`** (= rd8w's `BrR (InvRc C14e2)`) and
+  **`brF_c14e : ∀ c σ, A8.EF σ → InvFc CF14e c σ → InvF c σ`** (= `BrF (InvFc CF14e)`); only `A8.EF` at the state is needed (the
+  KZ / Restart facts come from `bs_front` / `kz_getCapReg` inside `invR_ofKB` / `invF_ofC`). Once the covered sets are everything,
+  `InvRc C` / `InvFc C` are trivially true and rd8w's `hP` / `hF` go.
+- **FINDING (reachable; breaks `OffReady`, so rd4's `OS` / rd10's `SS4` and every deletion arm's `PerfA`).** Trace: ct bound to cur_sc
+  holds the only cap to cur_sc and invokes CNode Delete on it (or any deletion reaching it: CNode Revoke, ThreadControl* installTcbCap
+  deleting a CNode cap whose zombie recursion reaches it, Untyped reset's revoke). `finaliseCap (.schedContextCap cur_sc _) true`:
+  `schedContextUnbindAllTcbs` (ct unbound, reschedule_required: action ≠ resume) … `schedContextSetInactive cur_sc` writes
+  `scRefills := []` and `scRefillMax := 0` (Fl4Spec/SchedContext.lean:303). Then `refillHd y = the [].head? = undefined`
+  (Machine.lean `the none = Classical.choice …`), and `Sched.OffReady q` (ScCur.lean:185, NOT guarded by `scActive`) states
+  `undefined.rTime + consumedTime ≤ curTime`: unprovable. `consumedTime` is σ0's (generally ≠ 0), so `OS`'s second disjunct fails too;
+  `KE σ0` fails (CW at cur_sc broken). Hence no `PerfA` for these arms as stated; rd14d's `TW` (`CWw`: refills KEPT) does not cover
+  this, its intended case. Nothing downstream needs the value: with action ≠ resume `schedule` runs `switchSchedContext`, whose
+  `commitTime` skips an inactive cur_sc (`when (active ∧ csc ≠ isc)`, SchedContext.lean:341) and zeroes consumedTime. Suggested fix
+  (lead decision): weaken `OS` with a third disjunct `scActive cur_sc = false ∧ action ≠ resume` (or guard `OffReady` by `scActive`)
+  and re-check rd4's `hOS0` consumers; then `TW` with `CWw` replaced by "refills/max kept, or max 0" closes the case.
+- **Remaining for the uncovered arms (exactly):** CNode revoke / delete, ThreadControlCaps / ThreadControlSched (installTcbCap's
+  `capDelete`), Untyped (reset: revoke + preemption points; retype), ASID control (MakePool). Besides the FINDING, every preemptible
+  arm needs an SS4 lemma for `preemptionPath` at a preempted state with ct in Restart: the schedulable branch's `checkBudget` true
+  outcome is `TT` (ss4_tt); its false outcome runs `chargeBudget consumed true`, and rd10's `charge_ss4` needs `BS` (ct Running) —
+  a variant with ct Restart needs `Rdy`, `Excl cur_sc` and `ScFwd` at the point (carried by rd8f's `RB` / rd8n's `UB`). Untyped /
+  ASID need rd8n's `UF` + `UtRetOK` / `MpOKN` at the Restart state: a new arm interface (ArmAKB plus UF from the entry and the
+  decode's gap facts, as rd8n's `perfIn_of`). Hence no `kentry_rdyOff9` / `kcall_rdyOff9` without `InvRc` / `InvFc` yet.
+- **Builds** (tokyo-mac-studio-0, keys rd14e-1..12): rd14e-1 (cold cone rebuild after the station restart, ~30 min, A's walk gaps),
+  rd14e-2..4 (A green), rd14e-5..7 (B green), rd14e-8..10 (C: the nested-`repeat'` loop, then green, C ~1.5 min whole module),
+  rd14e-11 (A, B, C green + `#print axioms` of 23 tops: all ⊆ {propext, Classical.choice, Quot.sound}; `qt_of_tv` only propext,
+  `fpo_tu` only Classical.choice), rd14e-12 (C after a docstring edit). No sorry / admit / native_decide / bv_decide, no axiom.
