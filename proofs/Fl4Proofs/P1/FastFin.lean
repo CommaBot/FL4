@@ -60,11 +60,20 @@ theorem asid_table_eq (s : S) (hi : U64) :
   apply UScalar.eq_of_val_eq
   simp_all [UScalar.val_and]
 
-/-- The ASID table and pool words are aligned and not `A`. -/
+/-- The ASID table and pool words are aligned and not `A` (only the words
+`find_asid` can read: table word `hi < 2048`, pool word `lo < 512`; m61: the
+m60 form quantified over every `hi` / `lo`, which covers every aligned
+address and so made `TabOff` false for every aligned `A`). -/
 def TabOff (s : S) (A : U64) : Prop :=
-  ∀ hi : U64, (Aligned (atAF (L.ksb s) hi) ∧ A ≠ atAF (L.ksb s) hi) ∧
-    ∀ lo : U64, L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
+  ∀ hi : U64, hi.val < 2048 → (Aligned (atAF (L.ksb s) hi) ∧ A ≠ atAF (L.ksb s) hi) ∧
+    ∀ lo : U64, lo.val < 512 → L.mem s (atAF (L.ksb s) hi) ≠ 0#u64 →
       Aligned (peAF (L.mem s (atAF (L.ksb s) hi)) lo) ∧ A ≠ peAF (L.mem s (atAF (L.ksb s) hi)) lo
+
+theorem and2047_lt (i : U64) : (i &&& 2047#u64).val < 2048 := by
+  rw [UScalar.val_and]; exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
+
+theorem and511_lt (i : U64) : (i &&& 511#u64).val < 512 := by
+  rw [UScalar.val_and]; exact Nat.lt_of_le_of_lt Nat.and_le_right (by decide)
 
 /-- **What `set_vm_root t` reads is not the word `A`** (aligned words only:
 the VTABLE slot's two words, the kernel root, the ASID table and pools). -/
@@ -80,12 +89,12 @@ theorem find_asid_wr {s : S} {A v : U64} (hA : Aligned A) (hT : TabOff (L := L) 
   unfold vspace.find_asid
   congr 1; funext i
   rw [asid_table_eq, asid_table_eq, L.ksb_wr]
-  obtain ⟨⟨h1, h2⟩, h3⟩ := hT (i &&& 2047#u64)
+  obtain ⟨⟨h1, h2⟩, h3⟩ := hT (i &&& 2047#u64) (and2047_lt i)
   rw [mem_wr_ne' hA h1 h2]
   by_cases hp : L.mem s (atAF (L.ksb s) (i &&& 2047#u64)) = 0#u64
   · simp only [hp, bind_ok, ↓reduceIte]
   · simp only [hp, bind_ok, ↓reduceIte, lift, L.read_eq]
-    obtain ⟨h4, h5⟩ := h3 (asid &&& 511#u64) hp
+    obtain ⟨h4, h5⟩ := h3 (asid &&& 511#u64) (and511_lt asid) hp
     unfold peAF at h4 h5
     rw [mem_wr_ne' hA h4 h5]
 
@@ -146,11 +155,11 @@ theorem set_vm_root_wr {s : S} {X v : U64} (a : A) (t : U64) (h : VmOff (L := L)
 
 theorem VmOff.wr {s : S} {t X B w : U64} (hX : VmOff (L := L) s t X) (hB : VmOff (L := L) s t B) :
     VmOff (L := L) (L.wr s B w) t X := by
-  refine ⟨hX.hA, hX.sl0, hX.sl1, by unfold krA; rw [L.ksb_wr]; exact hX.kr, fun hi => ?_⟩
+  refine ⟨hX.hA, hX.sl0, hX.sl1, by unfold krA; rw [L.ksb_wr]; exact hX.kr, fun hi hhi => ?_⟩
   rw [L.ksb_wr]
-  obtain ⟨⟨b1, b2⟩, -⟩ := hB.tab hi
+  obtain ⟨⟨b1, b2⟩, -⟩ := hB.tab hi hhi
   rw [mem_wr_ne' hB.hA b1 b2]
-  exact hX.tab hi
+  exact hX.tab hi hhi
 
 /-- A sequence of writes. -/
 def wrs (s : S) : List (U64 × U64) → S
@@ -851,12 +860,25 @@ theorem domain_time_eq (s : S) :
   simp only [L.ks_base_eq, bind_ok, lift, L.read_eq]
 
 /-- The words `schedule` reads from `CHOOSE_NEW` before it switches (one
-domain, nothing due): TIMER_MIN, RELEASE_HEAD, the action word, the current
-thread word, the current thread's state, DOMAIN_TIME. -/
+domain), besides `awaken`'s (`NoDue`): the action word, the current thread
+word, the current thread's state, DOMAIN_TIME. -/
 def schedRd (X : S) : List U64 :=
-  [L.nodeAt X (L.cpu X) layout.node.TIMER_MIN, L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD,
-   actA (L := L) X, curA (L := L) X, stA (L.mem X (curA (L := L) X)),
+  [actA (L := L) X, curA (L := L) X, stA (L.mem X (curA (L := L) X)),
    core.num.U64.wrapping_add (L.ksb X) layout.ks.DOMAIN_TIME]
+
+/-- **Nothing due at `Y`** (what `awaken` reads, `schedule_cn`'s `hT` / `hR`):
+the earliest timer is empty or later than `CUR_TIME`, the release queue is
+empty or its head's SC not ready — what `schedulable_here` checked at the
+entry (m61: m60 asked for TIMER_MIN = RELEASE_HEAD = 0, false wherever the
+fast path accepts with a timer pending or a release queue nonempty). -/
+def NoDue (Y : S) : Prop :=
+  (L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.TIMER_MIN) = 0#u64 ∨
+      L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.CUR_TIME) <
+        L.mem Y (tdA (L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.TIMER_MIN)))) ∧
+  (L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.RELEASE_HEAD) = 0#u64 ∨
+      ¬ ((L.refill Y (L.mem Y (scA (L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.RELEASE_HEAD))))
+          (L.rhead Y (L.mem Y (scA (L.mem Y (L.nodeAt Y (L.cpu Y) layout.node.RELEASE_HEAD)))))).time ≤
+        L.curTime Y))
 
 /-- **(c4) `finish` after the fault, for an enqueue made of the writes `lW`**
 (the general form of both queue cases): the reads `possible_switch_to`,
@@ -876,8 +898,7 @@ theorem fault_fin_gen (hX : StoreExt st) {T : Set U64} (U X Y : S) (a : A) (d p 
     (hY : sched.enqueue st X d = ok Y) (hYw : Y = wrs (L := L) X lW)
     (hD : sched.dequeue st Y d = ok (L.wr (L.wr X (nextA .Sched d) 0#u64) (prevA .Sched d) 0#u64))
     (hH : L.mem Y (L.nodeAt X (L.cpu X) (rqOff p)) = d)
-    (htm : L.mem X (L.nodeAt X (L.cpu X) layout.node.TIMER_MIN) = 0#u64)
-    (hrl : L.mem X (L.nodeAt X (L.cpu X) layout.node.RELEASE_HEAD) = 0#u64)
+    (hND : NoDue (L := L) Y)
     (hns : ¬ (L.mem X (stA (L.mem X (curA (L := L) X))) = sched.TS_RUNNING ∨
       L.mem X (stA (L.mem X (curA (L := L) X))) = sched.TS_RESTART ∨
       L.mem X (stA (L.mem X (curA (L := L) X))) = sched.TS_RUNNING_VM))
@@ -909,15 +930,13 @@ theorem fault_fin_gen (hX : StoreExt st) {T : Set U64} (U X Y : S) (a : A) (d p 
   obtain ⟨hhp, hl1⟩ := highest_prio_enq (L := L) hT hd hpr hp hN haff hRQ hnq hdq hhi hY
     (by rw [hYw]; exact NodePlaced.wrs lW _ hN) (by rw [hYw, cpu_wrs])
   have m := fun r hr => rdY r hr
-  have rT := m (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) layout.node.TIMER_MIN) (by simp [schedRd])
-  have rR := m (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) layout.node.RELEASE_HEAD) (by simp [schedRd])
   have rA := m (actA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (by simp [schedRd])
   have rC := m (curA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (by simp [schedRd])
   have rS := m (stA (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (curA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)))) (by simp [schedRd])
   have rD := m (core.num.U64.wrapping_add (L.ksb (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) layout.ks.DOMAIN_TIME) (by simp [schedRd])
   have hsch : sched.schedule st ar Y a =
       (do let (s3, a2) ← sched.switch_to_thread st ar Y a d; schedTail (st := st) ar s3 a2) := by
-    rw [schedule_cn ar Y a (Or.inl (by rw [eN]; rw [rT]; exact htm)) (Or.inl (by rw [eN, rR]; exact hrl))
+    rw [schedule_cn ar Y a hND.1 hND.2
       (by show L.mem Y (L.nodeAt Y (L.cpu Y) _) = _; rw [eN]; exact rA.trans haX)
       (is_schedulable_not Y _ (by rw [eN]; rw [rC, rS]; exact hns))
       (domain_time_eq Y) (by rw [eK, rD]; exact hdt)]
@@ -945,8 +964,6 @@ structure FinCommon (T : Set U64) (U : S) (d p : U64) (Q : U64 → List U64) : P
   hRQ : ReadyQueues st T (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) Q
   hdq : ∀ p' : U64, p'.val < 256 → d ∉ Q p'
   hhi : sched.is_highest_prio st (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) 0#u64 p = ok true
-  htm : L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) layout.node.TIMER_MIN) = 0#u64
-  hrl : L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) layout.node.RELEASE_HEAD) = 0#u64
   hns : ¬ (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (stA (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (curA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)))) = sched.TS_RUNNING ∨
       L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (stA (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (curA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)))) = sched.TS_RESTART ∨
       L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (stA (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (curA (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)))) = sched.TS_RUNNING_VM)
@@ -963,9 +980,11 @@ structure FinCommon (T : Set U64) (U : S) (d p : U64) (Q : U64 → List U64) : P
 def FinReads (U : S) (d : U64) : Prop :=
   ∃ (T : Set U64) (p : U64) (Q : U64 → List U64), FinCommon (L := L) T U d p Q ∧
     ((EnqNE (L := L) T (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d p ∧
+        NoDue (L := L) (enqNE (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p))) ∧
         (∀ r ∈ schedRd (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW), Aligned r ∧ ∀ w ∈ [nextA .Sched d, prevA .Sched d, prevA .Sched (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p))), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), inqA d], Aligned w ∧ w ≠ r) ∧
         ∀ w ∈ actA (L := L) U :: [nextA .Sched d, prevA .Sched d, prevA .Sched (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p))), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), inqA d], VmOff (L := L) U d w) ∨
      (EnqE (L := L) T (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d p ∧
+        (∀ v1 v2 : U64, NoDue (L := L) (enqE (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d p v1 v2)) ∧
         (∀ r ∈ schedRd (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW), Aligned r ∧ ∀ w ∈ [(L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) l1Off), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (l2Off (p.val / 64))), nextA .Sched d, prevA .Sched d, (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), inqA d], Aligned w ∧ w ≠ r) ∧
         ∀ w ∈ actA (L := L) U :: [(L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) l1Off), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (l2Off (p.val / 64))), nextA .Sched d, prevA .Sched d, (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), inqA d], VmOff (L := L) U d w))
 
@@ -977,7 +996,7 @@ theorem fault_fin (hX : StoreExt st) (U : S) (a : A) (d : U64) {sF : S} {aF : A}
       let s7 ← sched.possible_switch_to st (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d
       syscall.finish st ar s7 a) = ok (sF, aF) := by
   obtain ⟨T, p, Q, C, hc⟩ := R
-  rcases hc with ⟨E, hrd, hvm⟩ | ⟨E, hrd, hvm⟩
+  rcases hc with ⟨E, hnd, hrd, hvm⟩ | ⟨E, hnd, hrd, hvm⟩
   · obtain ⟨q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20, q21, q22, q23, q24, q25, q26, q27, q28, q29, q30, q31, q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63, q64, q65, q66, q67, q68, q69, q70, q71, q72, q73, q74, q75, q76, q77, q78, q79, q80⟩ := E.facts
     have hH : L.mem (enqNE (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p))) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)) = d := by
       unfold enqNE; simp (disch := assumption) only [mem_wr_ne', LawfulStore.mem_wr_same]
@@ -985,7 +1004,7 @@ theorem fault_fin (hX : StoreExt st) (U : S) (a : A) (d : U64) {sF : S} {aF : A}
       [(nextA .Sched d, L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p))), (prevA .Sched d, 0#u64), (prevA .Sched (L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p))), d), ((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), d),
         ((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p))), (inqA d, L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (inqA d) ||| sched.Q_QUEUED)] _ rfl
       hfast rfl C.hsc C.hrq C.hdom E.haff E.hT E.hd E.hpr E.hp E.hN C.hRQ E.hq C.hdq C.hhi (enqueue_ne E) rfl
-      (dequeue_enq_ne hX E) hH C.htm C.hrl C.hns C.hdt hrd hvm C.hvn C.hvp C.haA q0 q1 C.hcA C.h1 C.h2 C.h3
+      (dequeue_enq_ne hX E) hH hnd C.hns C.hdt hrd hvm C.hvn C.hvp C.haA q0 q1 C.hcA C.h1 C.h2 C.h3
   · obtain ⟨q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14, q15, q16, q17, q18, q19, q20, q21, q22, q23, q24, q25, q26, q27, q28, q29, q30, q31, q32, q33, q34, q35, q36, q37, q38, q39, q40, q41, q42, q43, q44, q45, q46, q47, q48, q49, q50, q51, q52, q53, q54, q55, q56, q57, q58, q59, q60, q61, q62, q63, q64, q65, q66, q67, q68, q69, q70, q71, q72, q73, q74, q75, q76, q77, q78, q79, q80, q81, q82, q83, q84, q85, q86, q87, q88, q89, q90, q91, q92, q93, q94, q95, q96, q97, q98, q99⟩ := E.facts
     obtain ⟨v1, v2, hv1, hv2, hY⟩ := enqueue_e E
     have hH : L.mem (enqE (L := L) (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) d p v1 v2) (L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)) = d := by
@@ -994,7 +1013,7 @@ theorem fault_fin (hX : StoreExt st) (U : S) (a : A) (d : U64) {sF : S} {aF : A}
       [((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) l1Off), v1), ((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (l2Off (p.val / 64))), v2), (nextA .Sched d, 0#u64), (prevA .Sched d, 0#u64), ((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqOff p)), d), ((L.nodeAt (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (L.cpu (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW)) (rqTailOff p)), d),
         (inqA d, L.mem (L.wr U (actA (L := L) U) sched.ACTION_CHOOSE_NEW) (inqA d) ||| sched.Q_QUEUED)] _ rfl
       hfast rfl C.hsc C.hrq C.hdom E.haff E.hT E.hd E.hpr E.hp E.hN C.hRQ E.hq C.hdq C.hhi hY rfl
-      (dequeue_enq_e hX E hv1 hv2) hH C.htm C.hrl C.hns C.hdt hrd hvm C.hvn C.hvp C.haA q0 q1 C.hcA C.h1 C.h2 C.h3
+      (dequeue_enq_e hX E hv1 hv2) hH (hnd v1 v2) C.hns C.hdt hrd hvm C.hvn C.hvp C.haA q0 q1 C.hcA C.h1 C.h2 C.h3
 
 end
 
