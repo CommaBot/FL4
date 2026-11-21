@@ -9,8 +9,8 @@ import Fl4Proofs.P3.SpecInvCqB5
 import Fl4Proofs.P3.SpecInvCqP
 open Classical
 
-namespace Fl4Proofs.P3.SInvQ
-open Fl4Spec Fl4Proofs.P3.SInv
+namespace Fl4Proofs.P3.SInvQ.P12
+open Fl4Spec Fl4Proofs.P3.SInv Fl4Proofs.P3.SInvQ
 
 noncomputable section
 
@@ -66,4 +66,4 @@ theorem eb_perfArchNoPool (bl call don : Bool) (i : Fl4ArchInvocation)
 
 end
 
-end Fl4Proofs.P3.SInvQ
+end Fl4Proofs.P3.SInvQ.P12
