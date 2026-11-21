@@ -23,6 +23,8 @@ static FL4_SPEC_ENTRY: AtomicU32 = AtomicU32::new(0);
 #[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_SAFE_RET: AtomicBool = AtomicBool::new(false);
 static ALL_SAFE_RET: AtomicBool = AtomicBool::new(true);
+/// Some core's Safe RET has no AutoIBRS: indirect branches need retpolines.
+static RETPOLINE: AtomicBool = AtomicBool::new(false);
 #[no_mangle]
 #[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_SPEC_BUFFERS: AtomicU32 = AtomicU32::new(0);
@@ -112,13 +114,17 @@ fn caps() -> Caps {
 }
 
 /// Enable the native policy after all admitted cores have contributed.
-pub fn finish_native_entry_policy(patch_return_thunk: impl FnOnce()) -> bool {
+/// `patch` switches Rust returns to Safe RET and, if its argument is true,
+/// indirect calls and jumps to the retpoline. Returns whether Safe RET is
+/// on, and whether with retpolines.
+pub fn finish_native_entry_policy(patch: impl FnOnce(bool)) -> Option<bool> {
     if !ALL_SAFE_RET.load(Ordering::Relaxed) {
-        return false;
+        return None;
     }
-    patch_return_thunk();
+    let retpoline = RETPOLINE.load(Ordering::Relaxed);
+    patch(retpoline);
     FL4_SAFE_RET.store(true, Ordering::Release);
-    true
+    Some(retpoline)
 }
 
 /// Whether the kernel needs the skim window (Meltdown, rogue data cache
@@ -168,17 +174,21 @@ fn smt_admission(bsp: bool, needs_no_smt: bool, no_smt: bool) -> Option<bool> {
     Some(needs_no_smt)
 }
 
-/// Whether a native-only core (no `select` plan) needs SMT off for Safe
-/// RET: only if it can use Safe RET (`safe_ret`) and every core so far
-/// can too (`all_safe_ret`). Otherwise Safe RET stays off and SMT
-/// siblings change nothing for it.
-fn native_only_needs_no_smt(safe_ret: bool, all_safe_ret: bool) -> bool {
-    safe_ret && all_safe_ret
+/// Whether a rejected `select` still lets this core's native entries use
+/// Safe RET: rejections for VM support (buffer-clearing microcode, nested
+/// LFENCE, SRSO's IBPB microcode) say nothing about native returns.
+fn native_safe_ret_allowed(plan: &Result<Plan, Rejected>) -> bool {
+    matches!(
+        plan,
+        Ok(_) | Err(Rejected::BufferMicrocode | Rejected::Lfence | Rejected::SrsoMicrocode)
+    )
 }
 
 /// Whether this core's native entries skip IBPB (`allowed`: its
-/// capabilities permit it, `native_entry_without_ibpb`): as for Safe RET,
-/// only with a plan or a native-only rejection for buffer clearing alone.
+/// capabilities permit it, `native_entry_without_ibpb`): only with a plan
+/// or a native-only rejection for buffer clearing alone (Safe RET also
+/// allows the nested-LFENCE and SRSO-microcode rejections,
+/// `native_safe_ret_allowed`).
 fn entry_without_ibpb(allowed: bool, plan: &Result<Plan, Rejected>) -> bool {
     allowed && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode))
 }
@@ -236,56 +246,35 @@ pub fn init_core(bsp: bool) -> bool {
     let pc = percpu::get();
     pc.spec_plan.set(plan.ok());
     pc.spec_rejected.set(plan.err());
-    let mut entry = 0;
-    let mut spec_ctrl = 0;
-    let mut auto = false;
-    let safe_ret = native_safe_ret(&c)
-        && matches!(plan, Ok(_) | Err(Rejected::BufferMicrocode));
+    let safe_ret = native_safe_ret(&c) && native_safe_ret_allowed(&plan);
+    // A native-only boot keeps SMT siblings, with Safe RET too: STIBP
+    // (which `native_safe_ret` requires, and `native_only` sets) isolates
+    // them, as in Linux on Zen 3/4. Only VM-capable plans park them on
+    // SRSO-affected parts.
     let needs_no_smt = match plan {
         Ok(p) => p.no_smt,
-        Err(_) => native_only_needs_no_smt(safe_ret, ALL_SAFE_RET.load(Ordering::Relaxed)),
+        Err(_) => false,
     };
     let Some(needs_no_smt) = smt_admission(bsp, needs_no_smt, NO_SMT.load(Ordering::Relaxed)) else {
         return false;
     };
-    if let Ok(p) = plan {
-        entry = p.entry;
-        spec_ctrl = p.spec_ctrl;
-        auto = p.auto_ibrs;
+    let (entry, spec_ctrl, auto, disable_tsx) = if let Ok(p) = plan {
         FL4_SPEC_BUFFERS.fetch_or(u32::from(p.buffers), Ordering::Relaxed);
-        if p.disable_tsx {
-            wrmsr(0x122, rdmsr(0x122) | 3);
-        }
+        (p.entry, p.spec_ctrl, p.auto_ibrs, p.disable_tsx)
     } else {
         // Native-only boots get available mitigations, reported as
         // incomplete. This path never authorizes guest execution.
-        if ibpb {
-            entry = IBPB;
-            if c.vendor == Vendor::Amd && c.amd8 & (1 << 30) == 0 {
-                entry |= RSB;
-            }
-        }
-        if no_entry_ibpb {
-            entry &= !IBPB;
-        }
-        if c.vendor == Vendor::Intel && c.leaf7_edx & (1 << 26) != 0 {
-            spec_ctrl = 1;
-            entry |= if c.arch & IBRS_ALL != 0 {
-                PBRSB
-            } else {
-                LEGACY_IBRS | RSB
-            };
-        }
-        if c.vendor == Vendor::Amd {
-            auto = c.amd21 & AUTO_IBRS != 0;
-        }
         FL4_SPEC_BUFFERS.store(1, Ordering::Relaxed);
+        let n = native_only(&c, no_entry_ibpb);
+        (n.entry, n.spec_ctrl, n.auto_ibrs, n.disable_tsx)
+    };
+    if disable_tsx {
+        wrmsr(0x122, rdmsr(0x122) | 3);
     }
+    // `native_only` enables STIBP on every core that can use Safe RET
+    // (native_safe_ret requires it).
     ALL_SAFE_RET.fetch_and(safe_ret, Ordering::Relaxed);
-    if safe_ret && plan.is_err() {
-        // A native-only boot still needs cross-thread predictor isolation.
-        spec_ctrl |= 2;
-    }
+    RETPOLINE.fetch_or(safe_ret && native_retpoline(&c), Ordering::Relaxed);
     NO_SMT.fetch_or(needs_no_smt, Ordering::Relaxed);
     if spec_ctrl != 0 {
         wrmsr(0x48, rdmsr(0x48) | spec_ctrl);
@@ -438,20 +427,17 @@ mod tests {
         assert!(ap_admissible(false, false, false, true));
     }
 
-    /// Audit r11 F4: a native-only AP that could use Safe RET joins a
-    /// boot whose earlier cores already ruled Safe RET out (and may have
-    /// started SMT siblings). It must neither be refused for a no-SMT
-    /// need that no longer exists nor turn `NO_SMT` on halfway through AP
-    /// startup, which would skip the remaining cores' siblings.
+    /// Native-only boots (Safe RET or not) keep SMT siblings, so an AP
+    /// never turns `NO_SMT` on halfway through AP startup (audit r11 F4).
     #[test]
-    fn native_only_safe_ret_needs_no_smt_only_while_safe_ret_is_possible() {
-        assert!(native_only_needs_no_smt(true, true));
-        assert!(!native_only_needs_no_smt(true, false));
-        assert!(!native_only_needs_no_smt(false, true));
-        // The F4 case: BSP rejected for SRSO microcode (no Safe RET, SMT
-        // kept), AP rejected only for buffer clearing.
-        let need = native_only_needs_no_smt(true, false);
-        assert_eq!(smt_admission(false, need, false), Some(false));
+    fn native_only_safe_ret_rejections_cover_vm_support_only() {
+        for e in [Rejected::BufferMicrocode, Rejected::Lfence, Rejected::SrsoMicrocode] {
+            assert!(native_safe_ret_allowed(&Err(e)));
+        }
+        for e in [Rejected::Vendor, Rejected::Meltdown, Rejected::Smep, Rejected::BeforeZen2,
+                  Rejected::Ibpb, Rejected::ItsMicrocode] {
+            assert!(!native_safe_ret_allowed(&Err(e)));
+        }
     }
 
     /// Both policy paths share the stricter-AP rule: no core turns SMT

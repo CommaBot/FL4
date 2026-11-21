@@ -162,9 +162,37 @@ require(fallback[0][0] + 2 - 52 == safe_thunk[0][0]
         and [op for _, op, _ in safe_thunk[:2]] == ["call", "ud2"]
         and safe_thunk[0][2].endswith("<fl4_safe_ret>"),
         "the patched short jump must land at the Safe RET thunk")
+# Rust's indirect calls and jumps all go through the R11 thunk
+# (-Zretpoline-external-thunk); boot may patch it into the retpoline. Only
+# the identity-mapped boot code, which runs before any user code, has
+# another indirect branch.
+def is_indirect(op, arg):
+    # Size suffixes and prefixes (notrack, bnd, cs) as objdump prints them.
+    words = (op + " " + arg).split()
+    while words and words[0] in ("notrack", "bnd", "cs", "ds"):
+        words = words[1:]
+    return (len(words) >= 2 and words[0] in ("call", "callq", "jmp", "jmpq")
+            and words[1].startswith("*"))
+indirect = [(name, a) for name, insns in functions.items() for a, op, arg in insns
+            if is_indirect(op, arg)]
+require(all(name == "__x86_indirect_thunk_r11" or a < 0xffffffff80000000
+            for name, a in indirect),
+        f"indirect branch outside the retpoline thunk: {indirect}")
+require(sum(name == "__x86_indirect_thunk_r11" for name, _ in indirect) == 1,
+        "the retpoline thunk must hold exactly one indirect jump")
+thunk = functions["__x86_indirect_thunk_r11"]
+retpoline = functions["fl4_retpoline_r11"]
+require([(op, arg) for _, op, arg in thunk[:2]] == [("jmp", "*%r11"), ("int3", "")]
+        and thunk[1][0] == thunk[0][0] + 3
+        and 0 < retpoline[0][0] - (thunk[0][0] + 2) < 128,
+        "indirect thunk must be a 3-byte JMP *%r11 within a short jump of the retpoline")
+require([(op, arg) for _, op, arg in retpoline[:3]][0] == ("push", "%r11")
+        and retpoline[1][1] == "jmp" and retpoline[1][2].endswith("<fl4_safe_ret_thunk>")
+        and retpoline[2][1] == "int3",
+        "retpoline must push R11 and return to it through the Safe RET thunk")
 untrain_call = next(i for i, (_, op, arg) in enumerate(native)
                     if op == "call" and arg.endswith("<fl4_untrain_ret>"))
 require(native[untrain_call - 1][1] == "lfence",
         "untraining call must be behind a fenced policy guard")
 
-print("VM assembly: RFLAGS cleared on IDT entries, entry/exit barriers, fenced guards, RAP/PBRSB, BHB, Safe RET, VERW and GIF ordering verified")
+print("VM assembly: RFLAGS cleared on IDT entries, entry/exit barriers, fenced guards, RAP/PBRSB, BHB, Safe RET, retpoline, VERW and GIF ordering verified")

@@ -10,7 +10,9 @@ The selector in `spec/policy.rs` is pure and tested against capability and
 firmware combinations. Every logical CPU is probed before VM initialization.
 Missing requirements on the boot processor leave VCPU/EPT allocation unavailable
 and produce a boot diagnostic. Native-only boot still applies available
-mitigations and reports the incomplete protection. Incompatible AP capabilities
+mitigations (the native entry barriers, STIBP, BHI controls and TSX disabling
+`select` would choose, as far as the CPU provides them) and reports the
+incomplete protection. Incompatible AP capabilities
 or an enabled AP's startup timeout halt boot before userspace; see the SMP policy
 below. FL4 does not install firmware/microcode updates.
 
@@ -25,13 +27,26 @@ below. FL4 does not install firmware/microcode updates.
   fresh WRMSR at each boundary, even if already set, and VM exit fills the RSB.
   Affected eIBRS CPUs use the PBRSB CALL/stack-adjust/LFENCE sequence.
   Intel also requires SMEP for native return protection; nested hosts must
-  expose it as well.
-* On compatible AMD family 19h CPUs, native entries use AutoIBRS for
-  indirect calls and jumps, and the Zen 3/4 Safe RET thunk for returns.
-  This path requires AutoIBRS, SMEP, STIBP and dispatch-serializing LFENCE
-  on every online CPU. Native-only boots rejected
-  solely for buffer-clearing capability can still use Safe RET with STIBP
-  and one thread per physical core. Otherwise, AMD CPUs with AutoIBRS and
+  expose it as well. With eIBRS and SMEP, native entries skip IBPB, as Linux
+  does: eIBRS keeps user-mode training out of supervisor indirect and
+  alternate return predictions, and SMEP keeps supervisor returns off the
+  user-mode targets of user RSB entries. ITS-affected parts keep it: ITS_NO
+  or BHI_CTRL (which no affected part has) rule ITS out, and otherwise the
+  model, on bare metal only, since a hypervisor may report a compatibility
+  model of an affected host (as Linux's `vulnerable_to_its`). VM exits keep IBPB. On GCE N4 the entry IBPB was half of a guest
+  syscall round trip (1.97 to 1.00 us).
+* On AMD family 19h CPUs (Zen 3/4) with SMEP and STIBP, native entries use
+  the Zen 3/4 Safe RET thunk for returns, and AutoIBRS (Zen 4) or, without
+  it (Zen 3), retpolines for indirect calls and jumps: Linux's choice on
+  Zen 3 (Spectre v2: Retpolines; SRSO: Safe RET). On GCE N2D (Milan) the
+  IBPB it replaces cost about 2.4 us per guest syscall round trip, most of
+  it in the cold predictors it leaves. Bare metal makes LFENCE
+  dispatch-serializing itself; a guest relies on its hypervisor for it, as
+  its native-only entry guards already do. Native-only boots rejected for
+  VM support alone (buffer-clearing capability, nested LFENCE, SRSO
+  microcode) still use Safe RET, and keep SMT siblings with STIBP, as
+  Linux does there (under SEV-SNP the STIBP write goes through the GHCB, so
+  it is the hypervisor's to honour). Otherwise, AMD CPUs with AutoIBRS and
   SMEP that report SRSO_NO or SRSO_USER_KERNEL_NO (no SRSO across the
   user/kernel boundary) skip the native entry IBPB.
   Other native AMD entries retain IBPB
@@ -58,7 +73,13 @@ return in the hardware frame before resuming it. This follows the
 and its [interrupt recovery](https://www.amd.com/en/resources/product-security/bulletin/amd-sb-7061.html).
 
 The x86 kernel builds its Rust libraries from source with external return
-thunks, using the Rust toolchain's `rust-src` component.
+thunks and external retpoline thunks (`-Zretpoline-external-thunk`: every
+indirect call and jump goes through `__x86_indirect_thunk_r11`, and no
+jump tables are emitted), using the Rust toolchain's `rust-src` component.
+The indirect thunk starts as `JMP *%r11`; boots that use Safe RET without
+AutoIBRS change it into a short jump to the retpoline with the return
+thunk patch. The linked-image check rejects any other indirect branch
+outside the identity-mapped boot code.
 The linked-image check rejects unexpected plain returns. The image starts
 with a plain RET followed by INT3 in the thunk. On eligible boots the
 boot core changes the RET opcode into a short jump, using the INT3 byte
@@ -84,6 +105,12 @@ them grows the image more than it saves.
   guest/host isolation is unaffected. Nested Intel relies on L0 implementing
   the advertised IBPB contract: a guest BIOS-signature MSR is not a physical
   host firmware revision.
+* Outside SEV/SEV-SNP the hypervisor is trusted: on Intel, MMIO stale data
+  and RFDS are judged by the reported model, as on bare metal, when the
+  immunity bits are missing (GCE N4 reports no RFDS_NO although RFDS affects
+  Atom cores only). RFDS_CLEAR without RFDS_NO still selects VERW on any
+  model: it is how a VMM asks for it. The MMIO list includes the
+  pre-RDCL_NO models a compatibility CPUID could present.
 * Zen 2's IBPB intrinsically has the branch-type behavior needed for SRSO.
   The bare-metal Zen 2 path also applies the Zenbleed software workaround
   unless the model/stepping has a known fixed microcode revision.
@@ -115,8 +142,9 @@ flags](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html#p
 FL4 does not support CPU hotplug; these disabled slots are ignored and do not
 consume the boot CPU limit or trigger startup timeouts.
 
-SRSO-affected AMD and MDS/MMIO-affected Intel use one logical processor per
-physical core. STIBP is enabled when available; an otherwise eligible CPU
+With a VM-capable plan, SRSO-affected AMD and MDS/MMIO-affected Intel use
+one logical processor per physical core; native-only boots, Safe RET
+included, keep SMT siblings with STIBP (Predictor boundaries above). STIBP is enabled when available; an otherwise eligible CPU
 without adequate cross-thread branch protection also uses one thread per core.
 Unknown topology under this restriction uses only the boot processor. The BSP
 is retained even if firmware started it on a secondary thread.

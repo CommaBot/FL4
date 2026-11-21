@@ -16,8 +16,11 @@ typedef enum _object {
     seL4_ARM_SuperSectionObject,
 #endif
     seL4_ARM_PageTableObject,
-#ifdef CONFIG_ARM_HYPERVISOR_SUPPORT
+#if defined(CONFIG_ARM_HYPERVISOR_SUPPORT) || defined(CONFIG_ARCH_AARCH64)
     seL4_ARM_VCPUObject,
+#endif
+#ifdef CONFIG_ARCH_AARCH64
+    seL4_ARM_Stage2VSpaceObject,
 #endif
 #ifdef CONFIG_TK1_SMMU
     seL4_ARM_IOPageTableObject,
@@ -27,7 +30,7 @@ typedef enum _object {
 
 typedef seL4_Word object_t;
 
-#ifndef CONFIG_ARM_HYPERVISOR_SUPPORT
+#if !defined(CONFIG_ARM_HYPERVISOR_SUPPORT) && !defined(CONFIG_ARCH_AARCH64)
 #define seL4_ARM_VCPUObject 0xfffe
 #endif
 

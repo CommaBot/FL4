@@ -120,11 +120,15 @@ fn qemu_cmd_aarch64(setup: &str, smp: u32, esp: &Path) -> Command {
         "tcg" => ("tcg", "max", "virt,acpi=off"),
         "tcg-gicv3" => ("tcg", "max", "virt,acpi=off,gic-version=3"),
         "tcg-el2" => ("tcg", "max", "virt,acpi=off,gic-version=3,virtualization=on"),
+        "tcg-el2-gicv2" => ("tcg", "max", "virt,acpi=off,gic-version=2,virtualization=on"),
+        "tcg-el2-acpi" => ("tcg", "max", "virt,acpi=on,gic-version=3,virtualization=on"),
         "tcg-a57" => ("tcg", "cortex-a57", "virt,acpi=off"),
+        "tcg-a57-el2" => ("tcg", "cortex-a57", "virt,acpi=off,virtualization=on"),
+        "tcg-a57-el2-gicv3" => ("tcg", "cortex-a57", "virt,acpi=off,gic-version=3,virtualization=on"),
         "tcg-acpi" => ("tcg", "max", "virt,acpi=on,gic-version=3"),
         "kvm" => ("kvm", "host", "virt,acpi=off,gic-version=host"),
         "hvf" => ("hvf", "host", "virt,acpi=off"),
-        s => fail(&format!("unknown AArch64 setup {s} (tcg, tcg-gicv3, tcg-el2, tcg-a57, tcg-acpi, kvm, hvf)")),
+        s => fail(&format!("unknown AArch64 setup {s} (tcg, tcg-gicv3, tcg-el2, tcg-el2-gicv2, tcg-el2-acpi, tcg-a57, tcg-a57-el2, tcg-a57-el2-gicv3, tcg-acpi, kvm, hvf)")),
     };
     c.args(["-accel", accel, "-machine", machine, "-cpu", cpu, "-m", "2G", "-smp"]).arg(smp.to_string());
     c.args(["-display", "none", "-serial", "stdio", "-no-reboot", "-monitor", "none", "-net", "none", "-bios"]).arg(aarch64_firmware());
@@ -145,9 +149,8 @@ fn aarch64_esp(image: &Path, dir: &Path) -> PathBuf {
     esp
 }
 
-/// Build the AArch64 kernel and fl4-efi with `root` built in; returns the
-/// UEFI image.
-fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
+/// Build the standalone AArch64 kernel ELF.
+fn build_aarch64_kernel(o: &Opts) -> PathBuf {
     let r = root();
     let mut c = Command::new("cargo");
     c.current_dir(&r).args(["build", "--release", "-p", "fl4-kernel-aarch64", "--target", "aarch64-unknown-none-softfloat"]);
@@ -166,6 +169,14 @@ fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
     run(Command::new(lld).args(["-flavor", "gnu", "-n", "-static", "--gc-sections", "--build-id=none", "--strip-debug", "-u", "fl4_boot", "-T"])
         .arg(r.join("crates/fl4-kernel-aarch64/linker.ld")).arg("--whole-archive")
         .arg(r.join("target/aarch64-unknown-none-softfloat/release/libfl4_kernel_aarch64.a")).arg("-o").arg(&elf));
+    elf
+}
+
+/// Build the AArch64 kernel and fl4-efi with `root` built in; returns the
+/// UEFI image.
+fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
+    let r = root();
+    let elf = build_aarch64_kernel(o);
     run(Command::new("cargo").current_dir(&r).env("FL4_KERNEL_ELF", &elf).env("FL4_ROOTSERVER_ELF", root_elf)
         .args(["build", "--release", "-p", "fl4-efi", "--target", "aarch64-unknown-uefi"]));
     r.join("target/aarch64-unknown-uefi/release/fl4-efi.efi")
@@ -655,12 +666,6 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
         name += "-";
         name.extend(r.chars().filter(|c| c.is_ascii_alphanumeric()));
     }
-    // FL4_SERIAL_GATE=1: the test-only build where every entry takes the
-    // serial gate.
-    let serial_gate = env::var_os("FL4_SERIAL_GATE").is_some();
-    if serial_gate {
-        name += "-serialgate";
-    }
     let b = ws.join(&name);
     if !b.join("build.ninja").exists() {
         fs::create_dir_all(&b).unwrap();
@@ -684,9 +689,6 @@ fn sel4test_build(o: &Opts, fl4test: bool) -> PathBuf {
             c.arg(format!("-DNUM_NODES={}", o.smp));
         }
         c.arg(format!("-DLibSel4TestPrinterRegex={}", only.clone().unwrap_or_else(|| SEL4TEST_REGEX.into())));
-        if serial_gate {
-            c.arg("-DFL4_SERIAL_GATE=ON");
-        }
         if upstream() {
             // seL4 refuses to boot without PCIDs or FSGSBASE unless built
             // without them; kvm-reduced has neither.
@@ -880,7 +882,16 @@ fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
         let i = b.join("images/sel4test-driver-image-x86_64-pc99");
         run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log)
     };
-    if let Ok(expected) = env::var("FL4_EXPECT_VM") {
+    let default_el2_expect = fl4test
+        && aarch64(o)
+        && matches!(
+            o.setup.as_str(),
+            "tcg-el2" | "tcg-el2-gicv2" | "tcg-el2-acpi" | "tcg-a57-el2" | "tcg-a57-el2-gicv3"
+        );
+    let expected = env::var("FL4_EXPECT_VM")
+        .ok()
+        .or_else(|| if default_el2_expect { Some("present".to_string()) } else { None });
+    if let Some(expected) = expected {
         if !vm_expectation_ok(&out, &expected) {
             eprintln!("xtask: expected virtualization {expected}; inspect the CPU mitigation diagnostic in {}", log.display());
             return Err(Vec::new());
@@ -911,12 +922,21 @@ fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
 
 /// Explicitly distinguish guest execution from an unavailable-backend skip.
 fn vm_expectation_ok(out: &str, expected: &str) -> bool {
+    let has_virt = out.contains("FL4: virtualization AMD-V")
+        || out.contains("FL4: virtualization VT-x")
+        || out.contains("FL4: EL2 (VHE), virt ready")
+        || out.contains("FL4: EL2 (nVHE), virt ready");
     match expected {
-        "present" => (out.contains("FL4: virtualization AMD-V") || out.contains("FL4: virtualization VT-x"))
-            && !out.contains("Virtualization unavailable; skipping guest execution"),
-        "absent" => out.contains("FL4: virtualization unavailable"),
-        "ap-rejected" => (out.contains("FL4: virtualization AMD-V") || out.contains("FL4: virtualization VT-x"))
-            && out.contains("FL4: rejecting AP with APIC id ")
+        "present" => has_virt
+            && !out.contains("Virtualization unavailable; skipping guest execution")
+            && !out.contains("AArch64 virtualization unavailable; skipping guest execution"),
+        "absent" => !has_virt
+            && (out.contains("FL4: virtualization unavailable")
+                || out.contains("AArch64 virtualization unavailable; skipping guest execution")
+                || out.contains("FL4: EL1 (native)")
+                || out.contains("virt disabled")),
+        "ap-rejected" => has_virt
+            && (out.contains("FL4: rejecting AP with APIC id ") || out.contains("FL4: rejecting core "))
             && out.contains("FL4 boot failed: incompatible AP capabilities; refusing to start userspace")
             && !out.contains("FL4: starting the root task"),
         _ => false,
@@ -958,91 +978,45 @@ fn sel4test_results(out: &str) -> (usize, Vec<String>) {
 /// Deterministic simulation (DESIGN.md §10). Each campaign replays
 /// crates/fl4-sim/regressions first, then runs --seeds seeds (default 200)
 /// on --smp cores (default 4): serially, 20000 steps each; with the cores'
-/// kernel entries interleaved (transactions, 8000 steps), under the random
-/// scheduler and under PCT; and interleaved again with every entry under
-/// the serial gate.
+/// kernel entries interleaved (the serial gate and the local paths beside
+/// it), under the random, PCT and x86-TSO schedulers; the fast paths
+/// against the general path; and the bounded exhaustive search.
 fn sim(o: &Opts) {
     let r = root();
     run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim"]));
-    // The same campaign with every entry under the serial gate, the
-    // test-only differential configuration.
-    let dir = r.join("target/serial-gate");
-    run(Command::new("cargo").current_dir(&r).args(["build", "--release", "-p", "fl4-sim", "--features", "serial-gate", "--target-dir"]).arg(&dir));
     let cores = if o.smp > 1 { o.smp } else { 4 };
     let (seeds, cores) = (o.seeds.to_string(), cores.to_string());
-    let base = ["--seeds", seeds.as_str(), "--cores", cores.as_str()];
-    // Both at once: each runs its seeds in child processes, one per host
-    // CPU, so together they keep the host busy until both are done.
-    let mut gate = Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]).spawn().unwrap();
-    // Without transactions, guest syscall fast paths also run beside the
-    // gate on several cores (fl4_sync::run_syscall), as on x86_64.
-    let quarter = (o.seeds / 4).max(1).to_string();
-    let local = ["--seeds", quarter.as_str(), "--cores", cores.as_str(), "--steps", "20000", "--scenario", "guest"];
-    let mut local_conc = Command::new(dir.join("release/fl4-sim")).args(local).arg("--conc").spawn().unwrap();
-    let mut local_tso = Command::new(dir.join("release/fl4-sim")).args(local).arg("--tso").spawn().unwrap();
-    // Every campaign of DESIGN.md §10: random, PCT and x86-TSO schedules,
-    // the targeted endpoint and notification races, and the bounded
-    // exhaustive search.
-    let suite = Command::new(r.join("target/release/fl4-sim")).args(base).arg("--suite").status().unwrap();
-    let gate = gate.wait().unwrap();
-    let local_ok = local_conc.wait().unwrap().success() && local_tso.wait().unwrap().success();
-    if !suite.success() || !gate.success() || !local_ok {
+    let suite = Command::new(r.join("target/release/fl4-sim")).args(["--seeds", seeds.as_str(), "--cores", cores.as_str(), "--suite"]).status().unwrap();
+    if !suite.success() {
         fail("the simulator found failures");
     }
 }
 
 /// Mutation testing (DESIGN.md §10): each known-broken runtime must fail
-/// seeds of a 100-seed concurrent campaign under at least one of the
-/// schedulers (random, PCT, random on the x86-TSO store-buffer model); the
-/// catch rate of each is reported.
+/// seeds of a 100-seed (or 400-seed) concurrent campaign with an l4h vCPU's syscall
+/// pattern on every core (the local paths beside the gate) under at least
+/// one of the schedulers (random, PCT, random on the x86-TSO store-buffer
+/// model); the catch rate of each is reported.
 fn mutants() {
     let r = root();
     let mut ok = true;
-    // A clear_free without validation needs two cores resetting the same
-    // untyped, which the simulated workload (one root task) never does:
-    // fl4-store's own concurrent test must catch it.
-    let caught = !Command::new("cargo")
-        .current_dir(&r)
-        .args(["test", "--quiet", "-p", "fl4-store", "--features", "mutant-clear-no-validate", "clear_free"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .unwrap()
-        .success();
-    eprintln!("xtask: mutant-clear-no-validate (fl4-store test): {}", if caught { "caught" } else { "survived" });
-    ok &= caught;
-    for m in ["mutant-skip-validation", "mutant-no-publish", "mutant-gate-no-wait", "mutant-gate-release"] {
+    for m in ["mutant-gate-no-wait", "mutant-gate-release", "mutant-local-no-active", "mutant-local-no-lock"] {
         let dir = r.join("target").join(m);
         run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features", m, "--target-dir"]).arg(&dir));
+        // The weakened handshake shows only under TSO, on about 2% of
+        // seeds: 400 make a miss unlikely (about 0.1%).
+        let seeds = if m == "mutant-gate-release" { 400 } else { 100 };
         let mut caught = false;
         for sched in [&["--conc"][..], &["--conc", "--pct", "3"][..], &["--tso"][..]] {
             let out = Command::new(dir.join("release/fl4-sim"))
-                .args(["--seeds", "100", "--cores", "4", "--steps", "4000", "--timeout", "60", "--no-shrink"])
+                .args(["--seeds", &seeds.to_string(), "--cores", "4", "--steps", "20000", "--scenario", "guest", "--timeout", "60", "--no-shrink"])
                 .args(sched)
                 .output()
                 .unwrap();
             let text = String::from_utf8_lossy(&out.stdout);
             let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
             let name = sched[1..].first().map_or(if sched[0] == "--tso" { "TSO" } else { "random" }, |_| "PCT");
-            eprintln!("xtask: {m} ({name}): {failed}/100 seeds fail");
-            caught |= failed > 0;
-        }
-        ok &= caught;
-    }
-    // The syscall fast paths beside the gate run only without transactions:
-    // the serial-gate build, an l4h guest's pattern on every core.
-    for m in ["mutant-local-no-active", "mutant-local-no-lock"] {
-        let dir = r.join("target").join(m);
-        run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features"]).arg(format!("serial-gate,{m}")).arg("--target-dir").arg(&dir));
-        let mut caught = false;
-        for sched in ["--conc", "--tso"] {
-            let out = Command::new(dir.join("release/fl4-sim"))
-                .args(["--seeds", "100", "--cores", "4", "--steps", "20000", "--scenario", "guest", "--timeout", "60", "--no-shrink", sched])
-                .output()
-                .unwrap();
-            let text = String::from_utf8_lossy(&out.stdout);
-            let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
-            eprintln!("xtask: {m} ({}): {failed}/100 seeds fail", if sched == "--tso" { "TSO" } else { "random" });
+            eprintln!("xtask: {m} ({name}): {failed}/{seeds} seeds fail");
             caught |= failed > 0;
         }
         ok &= caught;
@@ -1141,6 +1115,9 @@ fn main() {
     let cmd = args.first().cloned().unwrap_or_default();
     let o = parse(&args[1.min(args.len())..]);
     match cmd.as_str() {
+        "kernel" if aarch64(&o) => {
+            build_aarch64_kernel(&o);
+        }
         "kernel" => {
             build_kernel(&o);
         }
@@ -1191,6 +1168,19 @@ mod tests {
         assert!(vm_expectation_ok(absent, "absent"));
         assert!(!vm_expectation_ok(present, "absent"));
         assert!(!vm_expectation_ok(present, "typo"));
+
+        // AArch64 EL2 present / absent / contradictory logs.
+        let arm_vhe = "FL4: EL2 (VHE), virt ready, GICv3 VGIC (4 LRs)\nAll is well in the universe\n";
+        let arm_nvhe = "FL4: EL2 (nVHE), virt ready, GICv3 VGIC (4 LRs)\nAll is well in the universe\n";
+        let arm_el1 = "FL4: EL1 (native)\nAArch64 virtualization unavailable; skipping guest execution\n";
+        let arm_contradict = "FL4: EL2 (nVHE), virt ready, GICv3 VGIC (4 LRs)\nAArch64 virtualization unavailable; skipping guest execution\n";
+        assert!(vm_expectation_ok(arm_vhe, "present"));
+        assert!(vm_expectation_ok(arm_nvhe, "present"));
+        assert!(!vm_expectation_ok(arm_el1, "present"));
+        assert!(!vm_expectation_ok(arm_contradict, "present"));
+        assert!(vm_expectation_ok(arm_el1, "absent"));
+        assert!(!vm_expectation_ok(arm_vhe, "absent"));
+        assert!(!vm_expectation_ok(arm_contradict, "absent"));
     }
 
     #[test]

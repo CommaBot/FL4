@@ -12,7 +12,7 @@
 // Select the source directory once. Keeping the items in their original
 // Rust modules also keeps the declaration paths consumed by Aeneas stable.
 macro_rules! select_arch {
-    ($dir:literal, $debug:literal, $regs:literal, $vspace:literal) => {
+    ($dir:literal, $debug:literal, $regs:literal, $vspace:literal, $ept:literal, $vcpu:literal) => {
         macro_rules! arch_items {
             ($file:literal) => {
                 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/", $dir, "/", $file));
@@ -24,12 +24,43 @@ macro_rules! select_arch {
         pub mod regs;
         #[path = $vspace]
         pub mod vspace;
+        #[path = $ept]
+        pub mod ept;
+        #[path = $vcpu]
+        pub mod vcpu;
     };
 }
 #[cfg(feature = "aarch64")]
-select_arch!("arch/aarch64", "arch/aarch64/debug.rs", "arch/aarch64/regs.rs", "arch/aarch64/vspace.rs");
+select_arch!(
+    "arch/aarch64",
+    "arch/aarch64/debug.rs",
+    "arch/aarch64/regs.rs",
+    "arch/aarch64/vspace.rs",
+    "arch/aarch64/ept.rs",
+    "arch/aarch64/vcpu.rs"
+);
 #[cfg(not(feature = "aarch64"))]
-select_arch!("arch/x86_64", "arch/x86_64/debug.rs", "arch/x86_64/regs.rs", "arch/x86_64/vspace.rs");
+select_arch!(
+    "arch/x86_64",
+    "arch/x86_64/debug.rs",
+    "arch/x86_64/regs.rs",
+    "arch/x86_64/vspace.rs",
+    "ept.rs",
+    "vcpu.rs"
+);
+
+#[cfg(feature = "aarch64")]
+macro_rules! sanitise_reg {
+    ($s:expr, $t:expr, $r:expr, $v:expr) => {
+        crate::regs::sanitise_for_tcb($s, $t, $r, $v)
+    };
+}
+#[cfg(not(feature = "aarch64"))]
+macro_rules! sanitise_reg {
+    ($s:expr, $t:expr, $r:expr, $v:expr) => {
+        crate::regs::sanitise($r, $v)
+    };
+}
 
 pub mod boot;
 pub mod capability;
@@ -38,7 +69,6 @@ pub mod cnode;
 pub mod cspace;
 pub mod domain;
 pub mod endpoint;
-pub mod ept;
 pub mod error;
 pub mod fastpath;
 pub mod faults;
@@ -61,4 +91,3 @@ pub mod tcb;
 pub mod tcbqueue;
 pub mod timer;
 pub mod untyped;
-pub mod vcpu;

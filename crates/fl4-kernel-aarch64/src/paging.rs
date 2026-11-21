@@ -10,7 +10,7 @@ use fl4_core::layout::{PPTR_BASE, PPTR_TOP};
 use fl4_core::vspace::{ATTR_DEVICE_NGNRNE, ATTR_NORMAL};
 
 const PAGE: u64 = 4096;
-const POOL_PAGES: usize = 512;
+const POOL_PAGES: usize = 768;
 
 const D_VALID: u64 = 1;
 const D_TABLE: u64 = 1 << 1;
@@ -27,7 +27,7 @@ const ADDR_MASK: u64 = 0x0000_ffff_ffff_f000;
 const DEVICE_BASE: u64 = PPTR_TOP;
 const DEVICE_TOP: u64 = KERNEL_VBASE;
 
-#[repr(C, align(4096))]
+#[repr(C, align(8192))]
 struct Pool(UnsafeCell<[[u64; 512]; POOL_PAGES]>);
 unsafe impl Sync for Pool {}
 static POOL: Pool = Pool(UnsafeCell::new([[0; 512]; POOL_PAGES]));
@@ -39,7 +39,9 @@ struct State {
     region_len: u64,
     root: u64,
     ident: u64,
+    hyp_ident: u64,
     empty: u64,
+    empty_s2: u64,
     next_device: u64,
     /// What the processor can address (and the window's RAM, none of
     /// which is a device).
@@ -48,7 +50,7 @@ struct State {
 
 struct Cell(UnsafeCell<State>);
 unsafe impl Sync for Cell {}
-static ST: Cell = Cell(UnsafeCell::new(State { used: 0, region_pa: 0, region_len: 0, root: 0, ident: 0, empty: 0, next_device: DEVICE_BASE, pa_top: 0 }));
+static ST: Cell = Cell(UnsafeCell::new(State { used: 0, region_pa: 0, region_len: 0, root: 0, ident: 0, hyp_ident: 0, empty: 0, empty_s2: 0, next_device: DEVICE_BASE, pa_top: 0 }));
 
 fn st() -> &'static mut State {
     unsafe { &mut *ST.0.get() }
@@ -163,7 +165,39 @@ pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)], pa_top: u64) ->
     let ident = alloc_table();
     map(ident, region_pa, region_pa, region_len, normal());
     s.ident = ident;
+    // In EL2 nVHE mode, build an identity map for EL2 (TTBR0_EL2, E2H=0):
+    // kernel region executable (XN=0), all other RAM non-executable (XN=1),
+    // all Normal WB Inner-Shareable matching TTBR1_EL1 for cache coherency.
+    if cpu::is_el2_nvhe() {
+        const D_AP_RW_EL2: u64 = 1 << 6;
+        let hyp = alloc_table();
+        let r_start = region_pa;
+        let r_end = region_pa + region_len;
+        map(hyp, r_start, r_start, region_len, normal() | D_AP_RW_EL2);
+        let ram_attr = normal() | D_AP_RW_EL2 | D_UXN;
+        for &(start, end) in ram {
+            if end <= start || end > PPTR_TOP - PPTR_BASE {
+                continue;
+            }
+            if start < r_start {
+                let hi = end.min(r_start);
+                map(hyp, start, start, hi - start, ram_attr);
+            }
+            if end > r_end {
+                let lo = start.max(r_end);
+                map(hyp, lo, lo, end - lo, ram_attr);
+            }
+        }
+        s.hyp_ident = hyp;
+    }
     s.empty = alloc_table();
+    // 8 KiB-aligned empty Stage-2 root (two contiguous zeroed 4 KiB pages).
+    if s.used & 1 != 0 {
+        let _ = alloc_table();
+    }
+    let s2 = alloc_table();
+    let _ = alloc_table();
+    s.empty_s2 = s2;
     cpu::dsb_ishst();
     image_pa(root)
 }
@@ -181,9 +215,19 @@ pub fn ident_ttbr0() -> u64 {
     image_pa(st().ident)
 }
 
+/// TTBR0_EL2 identity map for the EL2 nVHE Hyp switch stub.
+pub fn hyp_ttbr0() -> u64 {
+    image_pa(st().hyp_ident)
+}
+
 /// The empty user table, as a kernel window address (`ks::KERNEL_ROOT`).
 pub fn empty_root() -> u64 {
     PPTR_BASE + image_pa(st().empty)
+}
+
+/// Physical address of the empty 8 KiB Stage-2 root.
+pub fn empty_s2_root_pa() -> u64 {
+    image_pa(st().empty_s2)
 }
 
 /// Map `len` bytes of device registers at `pa`; returns their address.

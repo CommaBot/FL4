@@ -16,6 +16,23 @@ pub fn migrate_tcb<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb, cpu: u64) {
         crate::objects::debug_remove(s, t);
         a.fpu_flush(t.0);
         a.fpu_release(t.0);
+        #[cfg(feature = "aarch64")]
+        {
+            let v = crate::vcpu::bound(s, t);
+            if v != 0 {
+                a.vcpu_flush(v);
+            }
+            let rv = s.read(t.0.wrapping_add(crate::layout::tcb::RUN_VCPU));
+            if rv != 0 {
+                a.vcpu_flush(rv);
+                let gt = s.read(rv.wrapping_add(crate::vcpu::TCB));
+                if gt != 0 {
+                    a.fpu_flush(gt);
+                    a.fpu_release(gt);
+                }
+                s.write(rv.wrapping_add(crate::vcpu::OWNER_CPU), cpu.wrapping_add(1));
+            }
+        }
         t.set_affinity(s, cpu);
         crate::objects::debug_append(s, t);
     }

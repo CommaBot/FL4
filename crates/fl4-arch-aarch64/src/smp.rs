@@ -16,10 +16,10 @@ pub const CALL_ASID: u64 = 7;
 /// unmask it, or set edge (arg1 1) or level triggering (`gic::remote`).
 pub const CALL_GIC_MASK: u64 = 8;
 pub const CALL_GIC_CONFIG: u64 = 9;
-
-pub static TX_COMMITS: AtomicU64 = AtomicU64::new(0);
-pub static TX_ABORTS: AtomicU64 = AtomicU64::new(0);
-pub static SERIAL_ENTRIES: AtomicU64 = AtomicU64::new(0);
+/// Flush and release a live VCPU (arg0) on the core that owns it.
+pub const CALL_VCPU_FLUSH: u64 = 10;
+/// Broadcast Stage-2 VMID generation retirement (8-bit VMID wrap).
+pub const CALL_VMID_RETIRE: u64 = 11;
 
 static ONLINE: AtomicU64 = AtomicU64::new(1);
 static NUM_ONLINE: AtomicU64 = AtomicU64::new(1);
@@ -91,6 +91,8 @@ pub fn service(stall: impl FnOnce()) -> bool {
         CALL_ASID => crate::mmu::retired(a0),
         CALL_GIC_MASK => gic::mask(a0, here, a1 != 0),
         CALL_GIC_CONFIG => gic::configure(a0, here, a1 != 0),
+        CALL_VCPU_FLUSH => crate::vcpu::flush_local(a0),
+        CALL_VMID_RETIRE => crate::mmu::vmid_retired(a0),
         _ => {}
     }
     CALL.pending.fetch_and(!me, Ordering::AcqRel);
