@@ -698,6 +698,8 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
     (e8 : obj.Tcb.set_state st t X7 sched.TS_RUNNING = ok X8) :
     RRR3 (st := st) X3 t u ∧ a2 = a ∧ FinKeep (L := L) T (RΩ Ω Rp) X0 X8 rptr usc (Z usc) ∧
     WritesIn st X0 X8 (RRW (L := L) T Rp X0 t u rptr usc (Z usc)) ∧
+    (∀ K : U64, K.val < 3328 → K.val % 8 = 0 →
+      L.mem X8 (core.num.U64.wrapping_add t K) = L.mem X0 (core.num.U64.wrapping_add t K)) ∧
     obj.Tcb.sc st u X2 = ok usc ∧ sched.schedule_tcb st X6 u = ok X6 ∧ obj.Tcb.sc st u X6 = ok usc ∧
     sporadic.ready st X6 usc = ok true ∧ sporadic.sufficient st ar X6 a2 usc 0#u64 = ok true ∧
     sched.possible_switch_to st X6 u = ok X7 ∧ obj.Tcb.state st t X7 = ok sched.TS_RESTART ∧
@@ -835,7 +837,26 @@ theorem rr_x8 {X0 X1 X2 X3 X4 X5 X6 X7 X8 : S} {a a1 a2 : A} {t rptr ep u usc : 
     · exact Or.inr (Or.inl h)
   have K6 := finKeep_rrw hT P.hN P.hcC P.hΩ P.ht P.hu hRpΩ hrΩ scΩ (w06.mono fun b hb => hb.1)
   have K8 := finKeep_rrw hT P.hN P.hcC P.hΩ P.ht P.hu hRpΩ hrΩ scΩ w08
-  refine ⟨K8, w08, ?_⟩
+  -- `t`'s words below the state (registers, slots) are kept to `X8`
+  have w34u := faults.handle_fault_reply.rg (L := L) (ar := ar) (T := {u}) (s := X3) (a := a) (snd := t)
+    (fun y hy => by rw [Set.mem_singleton_iff.1 hy]; exact hu') (Set.mem_singleton u)
+  rw [e4, WP.spec_ok] at w34u
+  have htw : ∀ K : U64, K.val < 3328 → K.val % 8 = 0 →
+      L.mem X8 (core.num.U64.wrapping_add t K) = L.mem X0 (core.num.U64.wrapping_add t K) := by
+    intro K hK h8
+    have vb := tcb_wadd_val ht' (show K.val < 4096 by omega)
+    have hba : Aligned (core.num.U64.wrapping_add t K) := by show _ % 8 = 0; rw [vb]; have := ht'.align; omega
+    have nut : ∀ K' : U64, K'.val < 4096 → core.num.U64.wrapping_add u K' ≠ core.num.U64.wrapping_add t K :=
+      fun K' hK' => tcbw_ne hu' ht' hK' (by omega) (Or.inl P.hut)
+    rw [x8, mem_wr_ne' aSt hba (by rw [stA_eq]; exact tcbw_ne ht' ht' (by decide) (by omega) (Or.inr (by simp; omega))),
+      x7, mem_wr_ne' aA hba (Ne.symm (tnA t P.ht K (by omega))), x6,
+      mem_wr_ne' aSu hba (by rw [stA_eq]; exact nut _ (by decide)), x5, mem_wr_ne' aF hba (nut _ (by decide))]
+    rw [w34u.2.2 _ hba ?_]
+    · exact tK3 t P.ht K (by omega) h8 (by omega)
+    · rintro (⟨y, hy, K', -, h2, -, e⟩ | h)
+      · rw [Set.mem_singleton_iff.1 hy] at e; exact nut K' (by omega) e.symm
+      · exact absurd h (Set.notMem_empty _)
+  refine ⟨K8, w08, htw, ?_⟩
   -- reads
   have hact0 : L.actionW X0 = sched.ACTION_RESUME_CURRENT := by
     obtain ⟨i, hi, hc⟩ := C.act
@@ -1421,7 +1442,7 @@ theorem RRReads2.of_pl {X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15 : 
     (e15 : obj.Ep.set_queue st ep X14 t t obj.EP_RECV = ok X15)
     (R : RRReads4 (L := L) ar t rptr ep u X8 X15 a2) :
     RRReads2 (L := L) ar t rptr ep u usc X1 X2 X6 X7 X8 X11 X12 X15 a2 := by
-  obtain ⟨-, ha2, K8, w08, hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8, hact8', hct8, hrt8, hntfn, hep8⟩ :=
+  obtain ⟨-, ha2, K8, w08, -, hsc2, hsch6, hsc6, hrdy6, hsuf6, hpst, hst7, hact8, hact8', hct8, hrt8, hntfn, hep8⟩ :=
     rr_x8 ar P C hsum e1 e2 e3s e3 e4 e5 e6 e7 e8
   subst a2
   obtain ⟨hact11, hq12, hND, hact15, hct15, hhp15, hdq15⟩ := rr_x15 ar P C K8 w08 hact8 e9 e10 e11 e12 e13 e14 e15
