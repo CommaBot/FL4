@@ -50,7 +50,7 @@ theorem cp_sendSignalU (n : ObjRef) (b : Badge) (σ0 : State Unit) (c : ObjRef) 
       split at hy
       · obtain ⟨c1, hc1, hy⟩ := hy
         have h1' : A8.CP σ0 c c1.2 :=
-          A8.ik_cp (A11.sv_cancelIpc tcb) (cfk_cancelIpc' tcb) σ0 c s hs c1 hc1
+          A8.ik_cp (B8e.sv_cancelIpc' tcb) (cfk_cancelIpc' tcb) σ0 c s hs c1 hc1
         exact A8.cp_wake tcb n b σ0 c c1.2 h1' y hy
       · exact A8.cp_setNotification n _ σ0 c s hs y hy
   | waitingNtfn queue =>
@@ -88,7 +88,7 @@ macro "bl_auto" : tactic => `(tactic| repeat' (first
   | (with_reducible exact bl_maybeDonateSc _ _ _ _)
   | (with_reducible exact bl_possibleSwitchTo _ _ _)
   | (with_reducible exact bl_ifCond _ _ _)
-  | (with_reducible exact bl_of_svm (A11.sv_cancelIpc _))
+  | (with_reducible exact bl_of_svm (B8e.sv_cancelIpc' _))
   | (with_reducible exact bl_of_svm (SVK.sv_setThreadState' _ _))
   | (with_reducible exact bl_of_svm (SVK.sv_asUser' _ _))
   | (with_reducible exact bl_of_svm (sv_tcbNtfnDequeue _ _))
