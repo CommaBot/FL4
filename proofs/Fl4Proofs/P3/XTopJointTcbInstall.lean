@@ -141,7 +141,7 @@ theorem LiveDN.insTX {G : MdbGhost} {V : XVs} {Ac : Set U64} {Lst : U64 → List
   have hc0 : 0#u64 ∈ Cs := J.kern.cs0
   have hhd : dbgHead (L := L) s' = dbgHead (L := L) s := by
     unfold dbgHead
-    rw [nodeAt_of_ksb hdk.1]
+    rw [P1.nodeAt_of_ksb hdk.1]
     exact hdk.2 _ (Or.inr ⟨0#u64, hc0, rfl⟩)
   have hNt : ∀ k, dbgNth (L.mem s') k (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) :=
     fun k => by
@@ -311,7 +311,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
         rw [slotAddr_ofBl, tcbCnodeIndex_blVal 2 (by decide)]
       rw [← he2, capAt_capV, capAt_capV, hcap _ hAq.isSlot hne]
   have hDS : DState (L := L) Z.th s σ Z.G := ⟨J.xtop.rel.2.1, J.del, J.xtop.rel.2.2.1⟩
-  have hLv' := LiveDN.insTX (G := Z.G) (V := Z.vs) J hDS J.live hX1 hDS' ht hn hci hwS hnull hcap hnn hsh hlive
+  have hLv' := LiveDN.insTX (G := Z.G) (V := Z.vs) J hDS J.live hX1 ⟨hCR', hDl', hFI'⟩ ht hn hci hwS hnull hcap hnn hsh hlive
   have hzD : ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D := fun p hp => J.zD p (ZTcb.of_zombies (fun y hy p zt k hz => by
     by_cases e : y = cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)
     · obtain ⟨y0, hy0, hsh0⟩ := hsh
