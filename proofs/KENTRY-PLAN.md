@@ -9143,3 +9143,65 @@ imports both. Nothing existing edited, no cone edit, no new premise.
   `kcall_sinvC`; then `hE` from epq2's `kentry_epQAll` (add `EpQAll` as a field, `hRy` from `kentry_rdy`) and `hB` from
   `OffReady σ` + the FaultIP frame drop out of J30C the same way `hQ` did. (2) `hni.2`: carry ctq's `RS` across the entry (exit
   half `ex_exit` exists) and add it to the bundle.
+## rd8e (branch par/rd8e in FL4-r2, on ca44a892 = int/j2 incl. rd8d) — rd8d handoff 1 DONE (receive_ipc whole), 2 DONE from `BlockedScActive` at the start (do_reply_transfer whole); NOT finished: `BlockedScActive`'s spec-side carry (boot only), item 3 (handle_recv / the receive syscall arms composed)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8e` (new names only there), modules SpecInvRd8eA / B / C (root imports them). Nothing existing
+edited. No JAtZ cone (A adds IpcRelQ, IpcStK, SpecInvCqC2, SpecInvCqYF2, SpecInvSbW, SpecInvSbP; C adds ScRemoveKeep, SpecInvRd8A2: all
+spec-only, checked with an ancestry script: JointAt / XTopJointDelR not reached).
+- **SpecInvRd8eA.** **`rd_cancelIpc t : RdK (cancel_ipc t)`** (any thread, any state, no hypothesis): the fault clear keeps `BlkR`-ness
+  (or makes t non-BlkR) except for a send-blocked thread holding a timeout fault (R3-exempt, possibly unreleased SC, BlkR for one
+  intermediate state): there the arm is read off its outcome (Sched.tcbEpDequeue_out, two thread_sets) and `rdy_cancelSend` relates the
+  START state to the state where t is Inactive by rdy_of_view; set_thread_state_act finishes. Other arms: rd7's rs_blockedCancelIpc,
+  cancel_signal, rd_replyRemoveTcb. `sv_cancelIpc'` (SVM), `rq_cancelIpc'` (RelQ.RQ: no thread released). `rd_setThreadState_rt` (rd's
+  rd_setThreadState_r for `RT`: an unbound thread may enter any state), **`rd_receiveIpcBlocked … (hT : RT σ thread)`**,
+  `tv_setNotification`, **`rd_completeSignal ntfn tptr σ (Rdy) (hx : TCB) (hnb : ¬ BlkR) (hT : RT σ tptr)`** (as_user / the
+  notification write keep tptr's state, fault, SC (TV) and RT (SVS); rd7's rd_maybeDonateSc_sr; rd_refillUnblockCheck for the receiver's
+  sporadic SC).
+- **SpecInvRd8eB.** `nsw_maybeReturnSc`, `nsw_tcbEpDequeue`, `simple_of_nsw`, `kt_of`, `rt_maybeReturnSc` (it can only unbind its
+  thread); **`RcvS s thread`** := Rdy ∧ T1 ∧ ScInv ∧ Simple ∧ thread in no ready queue ∧ thread ∉ releaseQueue ∧ thread a TCB in a state
+  no fault makes BlkR ∧ RT; `rcvS_cancelIpc` (cancel_ipc of another thread u: CtQ from ctq's rb_cancelIpc with RBk true, curThread and
+  the receiver's state by StK.st_cancelIpc, binding by sv_cancelIpc', release queue by rq_cancelIpc', T1 / ScInv / Simple by q1 / sb /
+  nsw); `rd_recvTail` (after the endpoint and notification reads: complete_signal; or maybe_return_sc (RdU's rd_maybeReturnSc_p) then
+  rd8d's rd_recvSender at the dequeue state (T1 / ScInv / Simple across tcb_ep_dequeue; the sender's state read there) or
+  rd_receiveIpcBlocked), `rd_recvRest`, `rcv_when`, **`rd_receiveIpc thread cap isBlocking replyCap σ (hS : RcvS σ thread) (hRB :
+  SInvQ.RBk true σ) (hct : σ.curThread = thread) : Rdy after receive_ipc`**. Lean: the do-notation flattens the reply-cap match block
+  into the continuation and makes `__do_jp` join points for `let x ← match …` (dsimp only zeta-reduces them; cases the discriminant
+  first); `obtain ⟨rfl, rfl⟩ := Prod.mk.inj …` may eliminate the OUTER state variable — use `obtain ⟨rfl, e⟩ …; subst s1` (subst the
+  fresh variable by name).
+- **SpecInvRd8eC (handoff 2: do_reply_transfer).** The lead's suggested fact "an inactive SC has no refills" is TRUE but USELESS:
+  `refillHd [] = the none = undefined` (Classical.choice), so the tail's guard `refill_ready ∧ refill_sufficient 0` is undetermined on an
+  empty list; both arms (possible_switch_to: R1 / R2; postpone: R4) need the receiver's SC ACTIVE. Not derivable from Rdy / RV / RPos
+  (a BlockedOnReply receiver is outside R3). The fact that gives it already exists as **`Sched.BlockedScActive`** (ScInv.lean, spec-only
+  definition; l4v `active_if_bound_sc_tcb_at` for ipc-queued — incl. BlockedOnReply, `ipcQueuedThreadState (.blockedOnReply _) = true`
+  — threads, and `active_reply_scs`), carried today only in the J layer (`JAtZ.bsa`). Used here as an entry hypothesis (a carried
+  fact, NOT a premise). `boot_bsa` (non-vacuity). `ABo t s` (t, if bound, ActB), `abo_svs`, `abo_ifCond` (rd8a's A8.ab_ifCond + UK),
+  `PA`, **`ab_schedContextDonate`** (an active SC donated: ActB of the receiver), `inact_replyUnlinkTcb`, **`abo_replyRemove`** (from
+  BlockedScActive + ScBackS: the caller's own SC (`.tcb`) or the donated head-of-stack SC (`.replies`, Sched.scWithReply_mem') is
+  active; caller Inactive after), `nsw_replyRemove`, `rdy_setTwice` (the fault-reply arm's two writes of the Inactive receiver),
+  **`rd_replyTail receiver fault s (Rdy) (ScFwd) (ABo receiver)`** (the guard's ready head + ABo = RdyT for possible_switch_to;
+  rd_handleTimeout_p; rd_postpone_fwd), **`rd_doReplyTransfer sender reply grant σ (hR : Rdy σ) (h1 : T1 σ) (hA : Simple σ) (hI : ScInv
+  σ) (hB : Sched.BlockedScActive σ) : Rdy after do_reply_transfer`** (both fault arms).
+- Premises: none named ([J]/[P]/[W]/[S]: none). Entry hypotheses only, each a carried fact at its state: RcvS (Rdy; T1 / Simple: ctq;
+  ScInv: sb2; ct in no ready queue: ctq's CtQ; ct ∉ releaseQueue: ctq's RB third clause under resume_cur_thread; ct's state Running
+  at handle_recv; RT ct: rd8c's ctRdy_of), RBk true (ctq's RB), BlockedScActive (J layer today; spec-side carry handed off, item 1).
+  No FINDING: checked that the spec decode rejects binding an unreleased SC to a BlockedOnReply thread (decode_sched_context_bind /
+  decode_update_sc test `ipcQueuedThreadState`, which includes BlockedOnReply — matches FL4's `sched::is_blocked`), so
+  BlockedScActive is not broken by bind; checked a timeout-faulted send-blocked thread is handled by rd_cancelIpc without a release.
+- HANDOFF (in order):
+  1. **Carry `Sched.BlockedScActive` spec-side** (lead decision: its own carried invariant, boot = `boot_bsa` DONE, every writer, never a
+     premise). Writers to check (the J-layer proofs of `JAtZ.bsa` — ScBsaOps' `BK` / `BKM` family, XTopJointSendDon, ScJointKeep —
+     show the shape; they are in the JAtZ cone, so copy, don't import): set_thread_state to an ipc-queued state of a bound thread (ct:
+     CAx; receive_ipc_blocked after maybe_return_sc), reply_push (the caller becomes BlockedOnReply keeping its SC: ct by CAx, a
+     receive_ipc sender by `.tcb` itself since BlockedOnSend is ipc-queued), bind_sc_reply (the pushed SC: the caller's, active),
+     sched_context_bind_tcb / decode_update_sc (released by the decode), sched_context_donate (to a Running / about-to-run thread),
+     maybe_donate_sc, refill_new / refill_update / configure (active kept), sched_context_set_inactive (after unbind_all_tcbs and
+     unbind_reply: no bound TCB, empty stack — check schedContextUnbindReply clears scReplies), retype (fresh SC: no TCB, no replies;
+     fresh TCB: Inactive) / detype, unbind, the deletion cone. A generated per-field family (FL4-tcbj scratch generators) over a view
+     `(each TCB's state / SC, each SC's refill max / TCB / replies)` with hand leaves for the writers above is the template.
+  2. handle_recv / the receive syscall arms (rd8d handoff item 3): `rd_receiveIpc` at the perform with RcvS from the facts above; the
+     ReplyRecv arm's do_reply_transfer by `rd_doReplyTransfer` (BlockedScActive from item 1); handle_recv's lookup / fault arms by RdF.
+  3. Unchanged from rd8d: deletion cone, invoke_tcb, retype / detype, rd_fl4PerformInvocation / rd_handleInvocationR (rd8f / rd9 lines).
+     `rd_cancelIpc` (no hypothesis) serves suspend / the deletion cone directly.
+- Builds (tokyo, FL4-r2 mirror warm; ./rd8es.sh untracked = rd8ds.sh with its own log): rd8e-a1 / a2 (Rd8eA), b1..b5 (A green in b3,
+  B green in b5: 5084 jobs), ax1 (scratch/rd8e/ax.lean, untracked), c1..c3 (Rd8eC green: 5094 jobs), ax2 (scratch/rd8e/ax2.lean). Every
+  listed lemma: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt
+  (three import lines).
