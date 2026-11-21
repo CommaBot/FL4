@@ -8298,3 +8298,71 @@ and none of these four premises is false in reachable states. Each becomes an SI
 - Next: (a) proposal A (sigRest, S–M cone edit in 13P / 23P plus notifLeafJN); (b) G2 JExt with NativeScopeX, VtAsidJ, LiveDN at the
   carried ghosts (B, C, KFinAtR27.vt), and FL4 frames across FAULT_IP + budget_ok for the JEntryAtR2 fields (then J29G's hK is
   dischargeable from per-state facts at s); (c) hQ / hni.2 / hB / hE into SInvB when ctq's / rd's whole-entry tops land.
+## rd8a (branch par/rd8a in FL4-tcbj, on 00308b01 = int/j2 incl. rd7, epq2, g3a, ctq10) — rd7 handoff 1(a), 1(b) exit, 1(d) in part, 3 (wrapper + four tops with named hypotheses); NOT finished: 1(b) event part / 1(c) (the syscall body), awaken's RCA / CtR / HRC, CtR after a charging check_budget
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A8` (every new name; no clash with rd8b), modules SpecInvRd8A1 / Rd8A2 / Rd8A3 (new;
+root imports them). Nothing existing edited. No JAtZ cone (Rd8A3 imports SpecInvFaultTcbsH8 / NtfnQH2 / NtfnQF5 / F6 / SbF4 / SgI6,
+all spec-only). (Resumed after a station restart: the stopped agent had left only rd8as.sh; keys rd8a-r-*.)
+- **SpecInvRd8A1 (1a): OS ∧ Rdy across fl4Awaken.** `CW c σ σ'` (the SC at the fixed pointer `c` keeps refills / refill max if it is
+  an SC afterwards; resume is not set), `CW.refl` / `.trans`, `cw_of_svs` (SVK's `SVS` ⇒ CW); the pinned predicate `CP σ0 c s :=
+  s.curSc = c ∧ CW c σ0 s` with an IK leaf kit: `ik_cp` (any `SVM ∧ CFK` step; the generic `cp_leaf` rule tries `sv_auto` / `cfk_auto`
+  guarded by `done`), `cp_threadSet`, `cp_setSchedulerAction` (a ≠ resume), `cp_updateSchedContext` (refills / max kept),
+  `cp_updateSchedContext_ne` (q ≠ c), `cp_rescheduleRequired`, `cp_testReschedule`, `cp_tcbNtfnDequeue`, `cp_setNotification`, `cp_postpone`,
+  `cp_schedContextResume`, `cp_schedContextDonate`, `cp_maybeDonateSc`, `cp_possibleSwitchTo`, `cp_refillUnblockCheck_ne`, `cp_ifCondTest`
+  (the `scp ≠ cur_sc` test guards), `cp_wake`, `cp_updateWaitingNtfn`; **`cw_sendSignal (hR : Rdy σ) : ∀ y ∈ send_signal n b σ,
+  CP σ σ.curSc y.2`** (Rdy only for SVS across the cancel_ipc of the receive-blocked bound thread, RdL's `rs_cancelIpc_recv`),
+  **`os_sendSignal`**, `ro_sendSignal`, **`ro_fl4Awaken : IK (Rdy ∧ OS ∧ NQ []) fl4Awaken`** (fl4TimerFires induction; Rdy by
+  RdL's `rd_sendSignal`, NtfnQB at each step by nq's `nq_sendSignal`).
+- **SpecInvRd8A2 (1b, the exit).** Where CAx holds: at every kernel entry and exit, NOT mid-entry (unbind / donate-away / set-inactive
+  of ct's SC break it, each leaves the action ≠ resume); mid-entry the carried form is **`RCA s := action = resume → CAx s`**, which
+  `schedule` turns back into CAx. Kit: `AB t s := ActB s t` with leaves `ab_updateSchedContext` (REFILL_MAX kept), `ab_threadSet`
+  (binding kept), `ab_of_fk` (RdY's heap-view FK), `ab_of_sv` (any SVK `SVM` step; `actB_svs`), one lemma per callee of
+  sc_and_timer / activate_thread (`ab_getSchedContext` … `ab_commitTime`, `ab_refillUnblockCheck`, `ab_ifCond`,
+  `ab_switchSchedContext`, `ab_setNextInterrupt`, `ab_scAndTimer`, `ab_setThreadState`, `ab_completeYieldTo`, `ab_activateThread`);
+  `actB_fk`, `cax_of_ci` (ct / idle kept by ctq's `ct_*` and sg1's `idk_*` families), `cax_scAndTimer`, `cax_activateThread`,
+  `cax_se` (at sc_and_timer's start from RdY's `SE`: the new ct is idle, `RdyT` (R1 / R2 targets), or the old ct under resume ⇒ RCA),
+  **`cax_schedule (σ) (Rdy) (RNE) (CtR) (AW) (RCA σ) : ∀ r ∈ schedule σ, CAx r.2`**, **`cax_exit`** (schedule ; activate_thread).
+- **SpecInvRd8A3 (1d in part, 3).** `HRC` (= rd4's hRC), **`SS s := Rdy ∧ OS ∧ RCA ∧ CtR ∧ HRC`** (this line's facts at schedule's
+  start), **`XS s := RNE ∧ ScBackS ∧ ValidIdle ∧ AW ∧ cur_sc an SC`** (sb2 / vi3 / ctq facts at schedule's start); the OffReady walk
+  `or_updateSchedContext`, `or_threadSet`, `offReady_svcf`, `or_of_svcf`, `or_setThreadState`, `or_completeYieldTo`,
+  **`or_activateThread`**; **`exit_top : SS s → XS s → ∀ r ∈ (schedule ; activate_thread) s, Rdy ∧ OffReady ∧ CAx`**
+  (rd_scheduleOff + rd_activateThread + cax_exit); `evRun rep ev` (= fl4CallKernel's event part: handleE event preemption_path),
+  **`kcall_of_ev`** (the wrapper, fo1's fo_fl4CallKernel_of shape: SS ∧ NQ [] after evRun, ro_fl4Awaken, hAw, hX);
+  `bodyRun`, `front`, `evRun_sys_cases` (an outcome is a false front outcome or a body outcome after a true front), `cbr_cases`
+  (check_budget_restart with the Restart write's runnable guard), `ctR_of_off` (ct bound to cur_sc + OffReady ⇒ CtR), `keep_svcf`
+  (SVS + cfS keep RCA / HRC / the cur_sc binding), `actB_svs_back`, `rq_setThreadState`, **`nr_charge`** (after a charging
+  check_budget the action is not resume: rd_cbr's argument, exported), `EF σ` (the entry facts rd_front reads + NQ []),
+  **`front_false`** (SS ∧ NQ [] at a false front outcome; domain-expired check: RCA from CAx, HRC from CurScT, CtR from OffReady +
+  CurScT, kept by the Restart write; charged check: RCA / HRC vacuous by `nr_charge`, CtR is `hCtRc`), **`ev_sys`**, `ek_fip` / `sv_fip`
+  / `cfk_fip` / `fk_fip`, **`ef_fip`** (EF survives the FaultIP write), and the tops **`kcall_rdyOff` / `kcall_rdy` / `kcall_offReady`**
+  (every event) and **`kentry_rdyOff` / `kentry_rdy` / `kentry_offReady`** (the syscall entry).
+- STATEMENT (kentry; kcall is the same with the hypotheses at σ, `hEF` only for syscalls and `hEvO` for the other events):
+  `kentry_rdyOff rep c σ (h : EF σ) (hW : ∀ w ∈ fl4SyscallFaultIP ct σ, hCtRc w ∧ hBody w ∧ hAw w ∧ hX w) :
+   ∀ r ∈ fl4KernelEntrySyscall rep c σ, Rdy r.2 ∧ OffReady r.2 ∧ CAx r.2`.
+- HYPOTHESES of the tops (none is a [J]/[P]/[W]/[S] premise; each is a statement about outcomes of the given entry, pinned to σ, to
+  be replaced by the named lemma):
+  * `EF σ`: entry facts, all carried: Rdy / OffReady (this line), CAx (new carried field, boot_cAx), ValidMachineTime (invB),
+    ScInv (sb2), CurScT (ctq5 kentry_curScT), ct running / idle-state + ct ≠ idle (CtExit / ValidIdle), CtQ / Simple / CB / HB's resume
+    clause (ctq's exit facts `EX σ ∧ RB σ`, to come from ctq's eventual `kentry_rb` / `kcall_rb`), NQ [] (nq3).
+  * `hBody` (true front ⇒ every outcome of the syscall body with the preemption path has `SS ∧ NQ []`): Rdy part = rd8b's eventual
+    `rd_fl4HandleSyscall` / preemption-path lemma (NOT on int/j2); OS / RCA / CtR / HRC part = this line's eventual body carry (rd7
+    handoff 1(b) event part, 1(c): NOT done); NQ part = nq3's `nq_fl4HandleSyscall` family (exists; not wired).
+  * `hEvO` (kcall, non-syscall events): the same for handle_event of the other events (rd8b + this line; not done).
+  * `hCtRc` (1(d), charged check_budget): CtR after charge_budget. Append arm: R1; postpone arm: `rq_postpone`; the timeout arm needs
+    "after handle_timeout ct, ct is not runnable" (send_fault_ipc sets the fault, send_ipc leaves the sender BlockedOnSend /
+    BlockedOnReply / Inactive). NOT done.
+  * `hAw`: RCA ∧ CtR ∧ HRC across fl4Awaken (send_signal: resume only if resume before (CW), ct's binding / SC max kept unless ct is
+    the woken unbound thread; CtR for the woken ct by RdL's `SR`). NOT done.
+  * `hX`: sb2's ScInv (si_fl4Awaken after sb's event part), vi3's ValidIdle, ctq's AW (from ctq's eventual event-part lemma via
+    `tw_fl4Awaken` / `aw_of`, as `rb_tail` does), cur_sc an SC: at schedule's start.
+- No FINDING. Checked: send_signal's unblock check runs only on `scp ≠ cur_sc`, so cur_sc's refills survive fl4Awaken; a charging
+  check_budget always ends with the action ≠ resume (so RCA / HRC need nothing there); sc_and_timer / activate_thread never change a
+  TCB binding or a REFILL_MAX (CAx at the exit).
+- Builds (tokyo, FL4-tcbj mirror warm; ./rd8as.sh untracked = rd7s.sh with its own log; keys rd8a-r-1..): r-3 Rd8A1 (4982 jobs),
+  r-6 Rd8A2 (4984; r-4 stopped: a generic `ik_unfold` walk over sc_and_timer did not finish in 2 min — replaced by one lemma per
+  callee), r-10 Rd8A3 (4996), r-11 Rd8A3 + axioms (scratch/rd8a/ax.lean, untracked): cw_sendSignal, os_sendSignal, ro_fl4Awaken,
+  cax_schedule, cax_exit, ab_scAndTimer, ab_activateThread, or_activateThread, exit_top, kcall_of_ev, evRun_sys_cases, nr_charge,
+  front_false, ev_sys, ef_fip, kcall_rdyOff, kcall_rdy, kcall_offReady, kentry_rdyOff, kentry_rdy, kentry_offReady: propext,
+  Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three import lines).
+- Lean traps: a generic `exact f (by t1) (by t2)` leaf rule LOGS the nested `by` failure instead of backtracking — use
+  `refine f ?_ ?_ <;> first | (t1; done) | (t2; done)`; `fk_asUser` takes K c u T I S explicitly; `unfold` cannot see through an
+  `abbrev` wrapper (`dsimp only [evRun]` first); `updSc` is `Sched.updSc` (open Sched).
