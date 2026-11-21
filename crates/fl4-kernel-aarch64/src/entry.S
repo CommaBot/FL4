@@ -82,7 +82,8 @@ fl4_vectors_el2:
     mrs     x23, spsr_el1
     stp     x22, x23, [sp, #8 * 32]     /* ELR_EL1/EL2, SPSR_EL1/EL2 */
     mrs     x21, tpidr_el0
-    str     x21, [sp, #8 * 35]          /* TPIDR_EL0 */
+    mrs     x22, tpidrro_el0
+    stp     x21, x22, [sp, #8 * 35]     /* TPIDR_EL0, TPIDRRO_EL0 */
     mrs     x0, \tpidr
     ldr     x1, [x0]
     mov     sp, x1

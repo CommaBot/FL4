@@ -90,9 +90,7 @@ pub fn has_sysregs() -> bool {
     cpu::has_gic_sysregs() || GICV3_SRE.load(Ordering::Relaxed)
 }
 
-/// VGIC type register: `ICH_VTR_EL2` on GICv3, `GICH_VTR` (`gich + 0x4`) on
-/// GICv2. Returns 0 when EL2 is unavailable or VGIC is unavailable.
-pub fn vgic_vtr() -> u64 {
+fn raw_vgic_vtr() -> u64 {
     if !cpu::has_el2() {
         return 0;
     }
@@ -116,14 +114,38 @@ pub fn vgic_vtr() -> u64 {
     }
 }
 
-/// Number of VGIC list registers (0 when VGIC is unavailable).
-pub fn vgic_num_lrs() -> u8 {
-    let vtr = vgic_vtr();
-    if vtr == 0 {
+/// Physical number of VGIC list registers implemented by hardware
+/// (GICv3: 5-bit ListRegs, GICv2: 6-bit ListRegs).
+pub fn vgic_hw_num_lrs() -> u8 {
+    let raw = raw_vgic_vtr();
+    if raw == 0 {
         0
+    } else if version() == 3 {
+        ((raw & 0x1f) + 1) as u8
     } else {
-        ((vtr & 0x1f) + 1) as u8
+        ((raw & 0x3f) + 1) as u8
     }
+}
+
+/// ABI-capped VGIC type register (`ICH_VTR_EL2` on GICv3, `GICH_VTR` on GICv2).
+/// Caps `ListRegs` to <= 15 (16 LRs) so BootInfo, VCPU init and ReadState agree
+/// with the 16-slot `VGIC_LR0..15` ABI. Returns 0 when VGIC is unavailable.
+pub fn vgic_vtr() -> u64 {
+    let raw = raw_vgic_vtr();
+    if raw == 0 {
+        0
+    } else if version() == 2 && (raw & 0x3f) >= 16 {
+        (raw & !0x3f) | 15
+    } else if version() == 3 && (raw & 0x1f) >= 16 {
+        (raw & !0x1f) | 15
+    } else {
+        raw
+    }
+}
+
+/// Number of VGIC list registers exposed by the FL4 ABI (capped at 16; 0 when unavailable).
+pub fn vgic_num_lrs() -> u8 {
+    vgic_hw_num_lrs().min(16)
 }
 
 fn v3_wait_rwp(base: u64) {
@@ -276,6 +298,18 @@ pub fn init_cpu(gicr: u64) {
         wr(c + GICC_PMR, 0xff);
         wr(c + GICC_BPR, 0);
         wr(c + GICC_CTLR, 3);
+        if cpu::has_el2() {
+            let h = GICH.load(Ordering::Relaxed);
+            if h != 0 {
+                // Zero GICH_HCR and every physical GICH_LR so slots above the
+                // 16-LR ABI cap remain permanently invalid.
+                wr(h + 0x0, 0);
+                let hw_lrs = vgic_hw_num_lrs() as u64;
+                for i in 0..hw_lrs {
+                    wr(h + 0x100 + i * 4, 0);
+                }
+            }
+        }
     }
     // The kernel owns these banked interrupts on every online core.
     use fl4_core::layout::irq;

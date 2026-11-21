@@ -41,6 +41,18 @@ pub fn set_host_hcr() {
     }
 }
 
+/// Sync hardware auto-clear of `HCR_EL2.VSE` (bit 8) back into the VCPU object
+/// on VHE guest exit before `set_host_hcr()` overwrites `HCR_EL2`.
+#[inline]
+pub fn sync_exit_hcr(vcpu: u64) {
+    if cpu::is_el2_vhe() && vcpu != 0 {
+        let sw = rd_vcpu(vcpu, vr::HCR_EL2);
+        if sw & (1 << 8) != 0 && crate::mrs!("hcr_el2") & (1 << 8) == 0 {
+            wr_vcpu(vcpu, vr::HCR_EL2, sw & !(1 << 8));
+        }
+    }
+}
+
 #[inline]
 pub fn enter_guest_hcr(vcpu: u64) {
     if cpu::is_el2_vhe() && vcpu != 0 {
@@ -124,8 +136,8 @@ pub fn nvhe_post_exit(vcpu: u64, kind: u64) {
         wr_vcpu(vcpu, vr::VGIC_HCR, rd_gich(0x0) as u64);
         wr_vcpu(vcpu, vr::VGIC_VMCR, rd_gich(0x8) as u64);
         wr_vcpu(vcpu, vr::VGIC_MISR, rd_gich(0x10) as u64);
-        wr_vcpu(vcpu, vr::VGIC_EISR, rd_gich(0x20) as u64);
-        wr_vcpu(vcpu, vr::VGIC_ELRSR, rd_gich(0x30) as u64);
+        wr_vcpu(vcpu, vr::VGIC_EISR, crate::vmid::mask_lr_bitmap(rd_gich(0x20) as u64, lrs));
+        wr_vcpu(vcpu, vr::VGIC_ELRSR, crate::vmid::mask_lr_bitmap(rd_gich(0x30) as u64, lrs));
         wr_vcpu(vcpu, vr::VGIC_AP0R0, rd_gich(0xf0) as u64);
         for i in 0..lrs {
             wr_vcpu(vcpu, vr::VGIC_LR0 + i, rd_gich(0x100 + i * 4) as u64);
@@ -357,6 +369,17 @@ fn rd_vgic_hcr() -> u64 {
 }
 
 #[inline]
+fn rd_vgic_misr() -> u64 {
+    if gic::version() == 3 {
+        crate::mrs!("s3_4_c12_c11_2")
+    } else if gic::gich() != 0 {
+        rd_gich(0x10) as u64
+    } else {
+        0
+    }
+}
+
+#[inline]
 fn wr_vgic_hcr(v: u64) {
     if gic::version() == 3 {
         crate::msr!("s3_4_c12_c11_0", v);
@@ -372,9 +395,9 @@ fn save_vgic(vcpu: u64, active: bool) {
     if gic::version() == 3 {
         if active {
             wr_vcpu(vcpu, vr::VGIC_HCR, crate::mrs!("s3_4_c12_c11_0"));
+            wr_vcpu(vcpu, vr::VGIC_MISR, crate::mrs!("s3_4_c12_c11_2"));
         }
         wr_vcpu(vcpu, vr::VGIC_VMCR, crate::mrs!("s3_4_c12_c11_7"));
-        wr_vcpu(vcpu, vr::VGIC_MISR, crate::mrs!("s3_4_c12_c11_2"));
         wr_vcpu(vcpu, vr::VGIC_EISR, crate::mrs!("s3_4_c12_c11_3"));
         wr_vcpu(vcpu, vr::VGIC_ELRSR, crate::mrs!("s3_4_c12_c11_5"));
         let n_apr = gicv3_n_apr();
@@ -392,11 +415,11 @@ fn save_vgic(vcpu: u64, active: bool) {
     } else if gic::gich() != 0 {
         if active {
             wr_vcpu(vcpu, vr::VGIC_HCR, rd_gich(0x0) as u64);
+            wr_vcpu(vcpu, vr::VGIC_MISR, rd_gich(0x10) as u64);
         }
         wr_vcpu(vcpu, vr::VGIC_VMCR, rd_gich(0x8) as u64);
-        wr_vcpu(vcpu, vr::VGIC_MISR, rd_gich(0x10) as u64);
-        wr_vcpu(vcpu, vr::VGIC_EISR, rd_gich(0x20) as u64);
-        wr_vcpu(vcpu, vr::VGIC_ELRSR, rd_gich(0x30) as u64);
+        wr_vcpu(vcpu, vr::VGIC_EISR, crate::vmid::mask_lr_bitmap(rd_gich(0x20) as u64, lrs));
+        wr_vcpu(vcpu, vr::VGIC_ELRSR, crate::vmid::mask_lr_bitmap(rd_gich(0x30) as u64, lrs));
         wr_vcpu(vcpu, vr::VGIC_AP0R0, rd_gich(0xf0) as u64);
         for i in 0..lrs {
             wr_vcpu(vcpu, vr::VGIC_LR0 + i, rd_gich(0x100 + i * 4) as u64);
@@ -444,6 +467,7 @@ fn suspend(vcpu: u64) {
     wr_vcpu(vcpu, vr::CNTVOFF, crate::mrs!("cntvoff_el2"));
     wr_vcpu(vcpu, vr::MDSCR_EL1, crate::mrs!("mdscr_el1"));
     wr_vcpu(vcpu, vr::VGIC_HCR, rd_vgic_hcr());
+    wr_vcpu(vcpu, vr::VGIC_MISR, rd_vgic_misr());
     crate::msr!("s3_5_c14_c3_1", 0); // CNTV_CTL_EL02 = 0
     crate::msr!("cntvoff_el2", 0);
     crate::msr!("mdscr_el1", crate::el0_access::MDSCR_EL1);

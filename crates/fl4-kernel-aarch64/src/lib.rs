@@ -90,16 +90,16 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl
     ];
     let mut flags = 0u64;
     if fl4_arch_aarch64::arch::virt_ready() {
-        flags |= 1 << 0;
+        flags |= fl4_abi::consts::virt_info_flag::VIRT_READY;
     }
     if cpu::is_el2_vhe() {
-        flags |= 1 << 1;
+        flags |= fl4_abi::consts::virt_info_flag::EL2_VHE;
     }
     if cpu::has_el2() && cpu::vmid16() {
-        flags |= 1 << 2;
+        flags |= fl4_abi::consts::virt_info_flag::VMID16;
     }
     if cpu::is_el2_nvhe() {
-        flags |= 1 << 3;
+        flags |= fl4_abi::consts::virt_info_flag::EL2_NVHE;
     }
     let gicv_size = if h.gicv != 0 {
         if h.gicv_len != 0 { h.gicv_len } else { 0x2000 }
@@ -108,7 +108,7 @@ fn build_extra_bi(buf: &mut [u8], h: &hw::Hw, dtb: u64, dtb_len: u64, mods: &[fl
     };
     let virt_info = extra_bi::VirtInfo {
         flags,
-        ipa_bits: cpu::pa_bits(),
+        ipa_bits: fl4_arch_aarch64::mmu::s2_ipa_bits(),
         gic_version: h.gic_version,
         vgic_vtr: gic::vgic_vtr(),
         gicv_paddr: h.gicv,

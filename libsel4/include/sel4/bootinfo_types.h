@@ -133,8 +133,13 @@ typedef struct seL4_AArch64IdRegs {
 } seL4_AArch64IdRegs;
 
 /* SEL4_BOOTINFO_HEADER_AARCH64_VIRT_INFO: EL2/VHE virtualization metadata. */
+#define seL4_AArch64VirtInfo_VirtReady (1ul << 0)
+#define seL4_AArch64VirtInfo_EL2_VHE   (1ul << 1)
+#define seL4_AArch64VirtInfo_VMID16    (1ul << 2)
+#define seL4_AArch64VirtInfo_EL2_NVHE  (1ul << 3)
+
 typedef struct seL4_AArch64VirtInfo {
-    seL4_Word flags;           /* bit 0 = virt_ready, bit 1 = el2_vhe, bit 2 = vmid16 */
+    seL4_Word flags;           /* bit 0 = virt_ready, bit 1 = el2_vhe, bit 2 = vmid16, bit 3 = el2_nvhe */
     seL4_Word ipa_bits;
     seL4_Word gic_version;
     seL4_Word vgic_vtr;

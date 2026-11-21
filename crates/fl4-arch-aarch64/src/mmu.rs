@@ -161,30 +161,30 @@ pub fn invalidate_all() {
     }
 }
 
-// ---- Stage-2 MMU & VMIDs (EL2 VHE) ----------------------------------------
+// ---- Stage-2 MMU & VMIDs (EL2 VHE / nVHE) ---------------------------------
 
 /// Physical address of the empty 8 KiB Stage-2 root (2 zeroed pages, 8 KiB
 /// aligned), set once at boot.
 static EMPTY_S2_ROOT: AtomicU64 = AtomicU64::new(0);
-/// Generation counter for 8-bit VMID wrap-around.
-static VMID_GEN: AtomicU64 = AtomicU64::new(1);
-/// 8-bit VMID table: slot `i` (1..=255) holds `(gen << 16) | asid`.
-static VMID_SLOTS: [AtomicU64; 256] = [const { AtomicU64::new(0) }; 256];
-static VMID_NEXT: AtomicU64 = AtomicU64::new(1);
+/// Unified Stage-2 IPA width & VTCR_EL2.PS decided once on the boot core so
+/// heterogeneous APs (`ap.pa_bits >= bsp.pa_bits`) program identical Stage-2
+/// geometry and `VTCR_EL2`.
+static S2_IPA_BITS: AtomicU64 = AtomicU64::new(0);
+static S2_PS: AtomicU64 = AtomicU64::new(u64::MAX);
+/// 8-bit VMID table (used when `FEAT_VMID16` is absent).
+static VMID_TABLE: crate::vmid::VmidTable = crate::vmid::VmidTable::new();
 
 pub fn set_empty_s2_root(pa: u64) {
     EMPTY_S2_ROOT.store(pa, Ordering::Relaxed);
 }
 
-/// Stage-2 IPA width supported by this hardware (40, 44, or 48).
+/// Stage-2 IPA width used by all cores (40, 44, or 48), locked on the BSP.
 pub fn s2_ipa_bits() -> u64 {
-    let pb = cpu::pa_bits();
-    if pb <= 42 {
-        40
-    } else if pb == 44 {
-        44
+    let cached = S2_IPA_BITS.load(Ordering::Acquire);
+    if cached != 0 {
+        cached
     } else {
-        48
+        crate::vmid::s2_ipa_bits_for_pa(cpu::pa_bits())
     }
 }
 
@@ -193,13 +193,23 @@ pub fn init_stage2_core() {
     if !cpu::has_el2() {
         return;
     }
-    let ipa = s2_ipa_bits();
+    let (ipa, ps) = {
+        let cached = S2_IPA_BITS.load(Ordering::Acquire);
+        if cached != 0 {
+            (cached, S2_PS.load(Ordering::Relaxed))
+        } else {
+            let ipa = crate::vmid::s2_ipa_bits_for_pa(cpu::pa_bits());
+            let ps = cpu::pa_range(); // capped at 5 (48-bit)
+            S2_PS.store(ps, Ordering::Relaxed);
+            S2_IPA_BITS.store(ipa, Ordering::Release);
+            (ipa, ps)
+        }
+    };
     let (t0sz, sl0) = match ipa {
         40 => (64 - 40, 0b01u64), // 3 levels, L1 concatenated (2 pages = 8 KiB)
         44 => (64 - 44, 0b10u64), // 4 levels, L0
         _ => (64 - 48, 0b10u64),  // 4 levels, L0
     };
-    let ps = cpu::pa_range(); // capped at 5 (48-bit)
     let vs = if cpu::vmid16() { 1u64 << 19 } else { 0 };
     // RES1(31) | VS(19) | PS[18:16] | TG0=4K(0) | SH0=IS(3) | ORGN0=WB(1) | IRGN0=WB(1) | SL0 | T0SZ
     let vtcr = (1u64 << 31) | vs | (ps << 16) | (3 << 12) | (1 << 10) | (1 << 8) | (sl0 << 6) | t0sz;
@@ -210,7 +220,7 @@ pub fn init_stage2_core() {
         crate::msr!("vtcr_el2", vtcr);
         crate::msr!("vttbr_el2", empty);
         cpu::isb();
-        unsafe { core::arch::asm!("tlbi vmalls12e1", "dsb nsh", "isb", options(nostack)) };
+        unsafe { core::arch::asm!("tlbi alle1", "dsb nsh", "isb", options(nostack)) };
     }
     percpu::set_vttbr(empty);
     percpu::set_s2_asid(0);
@@ -224,14 +234,7 @@ pub fn lookup_vmid(asid: u64) -> Option<u64> {
     if cpu::vmid16() {
         return Some(asid & 0xffff);
     }
-    let gen = VMID_GEN.load(Ordering::SeqCst);
-    let tag = (gen << 16) | (asid & 0xffff);
-    for (v, slot) in VMID_SLOTS.iter().enumerate().skip(1) {
-        if slot.load(Ordering::Acquire) == tag {
-            return Some(v as u64);
-        }
-    }
-    None
+    VMID_TABLE.lookup(asid)
 }
 
 /// Allocate or look up the hardware VMID for `asid`. On 8-bit VMID hardware,
@@ -241,29 +244,35 @@ fn hw_vmid_for(asid: u64) -> u64 {
     if let Some(v) = lookup_vmid(asid) {
         return v;
     }
-    let gen = VMID_GEN.load(Ordering::SeqCst);
-    let tag = (gen << 16) | (asid & 0xffff);
-    let next = VMID_NEXT.fetch_add(1, Ordering::AcqRel);
-    let slot = ((next - 1) % 255) + 1;
-    if next > 255 && slot == 1 {
-        let new_gen = VMID_GEN.fetch_add(1, Ordering::SeqCst) + 1;
-        let new_tag = (new_gen << 16) | (asid & 0xffff);
-        VMID_SLOTS[slot as usize].store(new_tag, Ordering::Release);
-        if cpu::is_el2_nvhe() {
-            crate::hyp_nvhe::tlbi_vmalls12_local();
-        } else {
-            unsafe { core::arch::asm!("dsb ishst", "tlbi vmalls12e1is", "dsb ish", "isb", options(nostack)) };
-        }
+    let (slot, wrapped) = VMID_TABLE.alloc_step(asid);
+    if wrapped {
+        let new_gen = VMID_TABLE.bump_gen();
+        // 1. Synchronously retire every remote core from old-generation VMIDs.
         crate::smp::remote_call(crate::smp::CALL_VMID_RETIRE, 0, 0, u64::MAX);
-        return slot;
+        // 2. Retire this core to the empty Stage-2 root as well.
+        let empty = EMPTY_S2_ROOT.load(Ordering::Relaxed);
+        if cpu::is_el2_vhe() {
+            crate::msr!("vttbr_el2", empty);
+            cpu::isb();
+        }
+        percpu::set_vttbr(empty);
+        percpu::set_s2_asid(0);
+        percpu::get().vmid_gen.set(new_gen);
+        // 3. Broadcast-invalidate ALL EL1&0 Stage-1+2 TLB entries across all VMIDs.
+        if cpu::is_el2_nvhe() {
+            crate::hyp_nvhe::tlbi_alle1_is();
+        } else {
+            unsafe { core::arch::asm!("dsb ishst", "tlbi alle1is", "dsb ish", "isb", options(nostack)) };
+        }
+        // 4. Only after every core has left old VMIDs and TLBs are clean, reuse slot 1.
+        VMID_TABLE.install_slot(slot, new_gen, asid);
     }
-    VMID_SLOTS[slot as usize].store(tag, Ordering::Release);
     slot
 }
 
 /// Remote handler for `CALL_VMID_RETIRE`: if `asid == 0` (8-bit VMID wrap) or
 /// this core is running `asid`, switch `VTTBR_EL2` to the empty Stage-2 root,
-/// flush local Stage-1+2 TLB, and mark `vspace_stale` so exit re-evaluates.
+/// flush local Stage-1+2 TLB (all VMIDs on wrap), and mark `vspace_stale`.
 pub fn vmid_retired(asid: u64) {
     if !cpu::has_el2() {
         return;
@@ -272,16 +281,20 @@ pub fn vmid_retired(asid: u64) {
     if asid == 0 || percpu::s2_asid(me) == asid {
         let empty = EMPTY_S2_ROOT.load(Ordering::Relaxed);
         if cpu::is_el2_nvhe() {
-            crate::hyp_nvhe::tlbi_vmalls12_local();
+            if asid == 0 {
+                crate::hyp_nvhe::tlbi_vmalls12_local();
+            }
         } else {
             crate::msr!("vttbr_el2", empty);
             cpu::isb();
-            unsafe { core::arch::asm!("tlbi vmalls12e1", "dsb nsh", "isb", options(nostack)) };
+            if asid == 0 {
+                unsafe { core::arch::asm!("tlbi alle1", "dsb nsh", "isb", options(nostack)) };
+            }
         }
         percpu::set_vttbr(empty);
         percpu::set_s2_asid(0);
         let pc = percpu::get();
-        pc.vmid_gen.set(VMID_GEN.load(Ordering::SeqCst));
+        pc.vmid_gen.set(VMID_TABLE.generation());
         pc.vspace_stale.set(true);
     }
 }
@@ -305,13 +318,13 @@ pub fn switch_stage2(root: u64, asid: u64) {
     // Publish before reading VMID_GEN (symmetric with Stage-1 `switch_to`).
     percpu::set_vttbr(vttbr);
     percpu::set_s2_asid(pub_asid);
-    let g = VMID_GEN.load(Ordering::SeqCst);
+    let g = VMID_TABLE.generation();
     let pc = percpu::get();
     if pc.vmid_gen.get() != g {
         if cpu::is_el2_nvhe() {
             crate::hyp_nvhe::tlbi_vmalls12_local();
         } else {
-            unsafe { core::arch::asm!("tlbi vmalls12e1", "dsb nsh", "isb", options(nostack)) };
+            unsafe { core::arch::asm!("tlbi alle1", "dsb nsh", "isb", options(nostack)) };
         }
         pc.vmid_gen.set(g);
     }
@@ -350,14 +363,38 @@ pub fn invalidate_stage2_page(asid: u64, ipa: u64) {
 }
 
 /// Invalidate all Stage-1 + Stage-2 TLB entries for `asid`'s VMID across all
-/// cores, and retire `VTTBR_EL2` on any remote core still running `asid`.
+/// cores, and retire `VTTBR_EL2` on every core still running `asid`.
 /// Caller holds the serial gate.
 pub fn invalidate_stage2_vmid(asid: u64) {
     if !cpu::has_el2() || asid == 0 {
         return;
     }
-    VMID_GEN.fetch_add(1, Ordering::SeqCst);
-    if let Some(vmid) = lookup_vmid(asid) {
+    let old_vmid = lookup_vmid(asid);
+    // 1. Synchronously retire every core currently running `asid` so no table
+    //    walker can refill from the retiring Stage-2 tables after TLBI.
+    let me = percpu::cpu_index();
+    let online = crate::smp::online_mask();
+    let mut mask = 0u64;
+    for c in 0..percpu::MAX_CPUS {
+        if c != me && online & (1 << c) != 0 && percpu::s2_asid(c) == asid {
+            mask |= 1 << c;
+        }
+    }
+    if mask != 0 {
+        crate::smp::remote_call(crate::smp::CALL_VMID_RETIRE, asid, 0, mask);
+    }
+    if percpu::s2_asid(me) == asid {
+        let empty = EMPTY_S2_ROOT.load(Ordering::Relaxed);
+        if cpu::is_el2_vhe() {
+            crate::msr!("vttbr_el2", empty);
+            cpu::isb();
+        }
+        percpu::set_vttbr(empty);
+        percpu::set_s2_asid(0);
+        percpu::get().vspace_stale.set(true);
+    }
+    // 2. Broadcast TLBI for `old_vmid`, then release its 8-bit slot (if any).
+    if let Some(vmid) = old_vmid {
         if cpu::is_el2_nvhe() {
             crate::hyp_nvhe::tlbi_vmalls12_is(vmid << 48);
         } else {
@@ -371,19 +408,8 @@ pub fn invalidate_stage2_vmid(asid: u64) {
             cpu::isb();
         }
         if !cpu::vmid16() && (1..256).contains(&vmid) {
-            VMID_SLOTS[vmid as usize].store(0, Ordering::Release);
+            VMID_TABLE.release_slot(vmid);
         }
-    }
-    let me = percpu::cpu_index();
-    let online = crate::smp::online_mask();
-    let mut mask = 0u64;
-    for c in 0..percpu::MAX_CPUS {
-        if c != me && online & (1 << c) != 0 && percpu::s2_asid(c) == asid {
-            mask |= 1 << c;
-        }
-    }
-    if mask != 0 {
-        crate::smp::remote_call(crate::smp::CALL_VMID_RETIRE, asid, 0, mask);
     }
 }
 

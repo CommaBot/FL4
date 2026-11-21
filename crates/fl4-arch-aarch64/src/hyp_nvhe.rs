@@ -23,6 +23,7 @@ pub const HVC_READ_VGIC_EISR: u64 = 8;
 pub const HVC_HYP_SAVE_HOST_REGS: u64 = 9;
 pub const HVC_SET_CNTP: u64 = 10;
 pub const HVC_FLUSH_VGIC: u64 = 11;
+pub const HVC_TLBI_ALLE1_IS: u64 = 12;
 
 /// Per-core EL2 Hyp state. Its physical address is permanently held in `SP_EL2`
 /// once `HVC_HYP_ENABLE_MMU` runs. EL1 and EL2 share coherent Normal Write-Back
@@ -171,6 +172,7 @@ const _: () = assert!(offset_of!(HypCpu, vgic_owner) == 0x178);
 
 const _: () = assert!(fl4_core::vcpu::REGS == 0x40);
 const _: () = assert!(vr::SCTLR == 0);
+const _: () = assert!(vr::HCR_EL2 == 26);
 const _: () = assert!(vr::MDCCINT_EL1 == 30);
 const _: () = assert!(vr::VGIC_HCR == 35);
 const _: () = assert!(vr::VGIC_AP0R0 == 40);
@@ -259,6 +261,10 @@ pub fn tlbi_vmalls12_is(vttbr_vmid: u64) {
 
 pub fn tlbi_vmalls12_local() {
     let _ = hvc(HVC_TLBI_VMALLS12_LOCAL, 0, 0, 0);
+}
+
+pub fn tlbi_alle1_is() {
+    let _ = hvc(HVC_TLBI_ALLE1_IS, 0, 0, 0);
 }
 
 pub fn vgic_vtr() -> u64 {

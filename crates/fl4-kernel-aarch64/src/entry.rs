@@ -278,6 +278,9 @@ extern "C" fn fl4_entry(kind: u64, esr: u64, far: u64, hpfar: u64) -> ! {
             // Stage-2 permission faults were already resolved in EL2 via AT S1E1R.
             s2_ipa = ((hpfar & 0x0000_0fff_ffff_fff0) << 8) | (far & 0xfff);
         } else {
+            // Sync hardware auto-clear of HCR_EL2.VSE before any early `resume()`
+            // (e.g. AT S1E1R retry) or `set_host_hcr()` overwrites HCR_EL2.
+            vcpu::sync_exit_hcr(eff_v);
             // Stage-2 permission fault (not S1PTW): resolve VA->IPA via AT S1E1R
             // while HCR_EL2.TGE is still 0.
             if kind == KIND_SYNC

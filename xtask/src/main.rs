@@ -882,7 +882,16 @@ fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
         let i = b.join("images/sel4test-driver-image-x86_64-pc99");
         run_qemu(qemu_cmd(&o.setup, o.smp, &k, Some(&i)), o.timeout, &stop, &log)
     };
-    if let Ok(expected) = env::var("FL4_EXPECT_VM") {
+    let default_el2_expect = fl4test
+        && aarch64(o)
+        && matches!(
+            o.setup.as_str(),
+            "tcg-el2" | "tcg-el2-gicv2" | "tcg-el2-acpi" | "tcg-a57-el2" | "tcg-a57-el2-gicv3"
+        );
+    let expected = env::var("FL4_EXPECT_VM")
+        .ok()
+        .or_else(|| if default_el2_expect { Some("present".to_string()) } else { None });
+    if let Some(expected) = expected {
         if !vm_expectation_ok(&out, &expected) {
             eprintln!("xtask: expected virtualization {expected}; inspect the CPU mitigation diagnostic in {}", log.display());
             return Err(Vec::new());
@@ -913,12 +922,21 @@ fn sel4test_once(o: &Opts, fl4test: bool) -> Result<(), Vec<String>> {
 
 /// Explicitly distinguish guest execution from an unavailable-backend skip.
 fn vm_expectation_ok(out: &str, expected: &str) -> bool {
+    let has_virt = out.contains("FL4: virtualization AMD-V")
+        || out.contains("FL4: virtualization VT-x")
+        || out.contains("FL4: EL2 (VHE), virt ready")
+        || out.contains("FL4: EL2 (nVHE), virt ready");
     match expected {
-        "present" => (out.contains("FL4: virtualization AMD-V") || out.contains("FL4: virtualization VT-x"))
-            && !out.contains("Virtualization unavailable; skipping guest execution"),
-        "absent" => out.contains("FL4: virtualization unavailable"),
-        "ap-rejected" => (out.contains("FL4: virtualization AMD-V") || out.contains("FL4: virtualization VT-x"))
-            && out.contains("FL4: rejecting AP with APIC id ")
+        "present" => has_virt
+            && !out.contains("Virtualization unavailable; skipping guest execution")
+            && !out.contains("AArch64 virtualization unavailable; skipping guest execution"),
+        "absent" => !has_virt
+            && (out.contains("FL4: virtualization unavailable")
+                || out.contains("AArch64 virtualization unavailable; skipping guest execution")
+                || out.contains("FL4: EL1 (native)")
+                || out.contains("virt disabled")),
+        "ap-rejected" => has_virt
+            && (out.contains("FL4: rejecting AP with APIC id ") || out.contains("FL4: rejecting core "))
             && out.contains("FL4 boot failed: incompatible AP capabilities; refusing to start userspace")
             && !out.contains("FL4: starting the root task"),
         _ => false,
@@ -1150,6 +1168,19 @@ mod tests {
         assert!(vm_expectation_ok(absent, "absent"));
         assert!(!vm_expectation_ok(present, "absent"));
         assert!(!vm_expectation_ok(present, "typo"));
+
+        // AArch64 EL2 present / absent / contradictory logs.
+        let arm_vhe = "FL4: EL2 (VHE), virt ready, GICv3 VGIC (4 LRs)\nAll is well in the universe\n";
+        let arm_nvhe = "FL4: EL2 (nVHE), virt ready, GICv3 VGIC (4 LRs)\nAll is well in the universe\n";
+        let arm_el1 = "FL4: EL1 (native)\nAArch64 virtualization unavailable; skipping guest execution\n";
+        let arm_contradict = "FL4: EL2 (nVHE), virt ready, GICv3 VGIC (4 LRs)\nAArch64 virtualization unavailable; skipping guest execution\n";
+        assert!(vm_expectation_ok(arm_vhe, "present"));
+        assert!(vm_expectation_ok(arm_nvhe, "present"));
+        assert!(!vm_expectation_ok(arm_el1, "present"));
+        assert!(!vm_expectation_ok(arm_contradict, "present"));
+        assert!(vm_expectation_ok(arm_el1, "absent"));
+        assert!(!vm_expectation_ok(arm_vhe, "absent"));
+        assert!(!vm_expectation_ok(arm_contradict, "absent"));
     }
 
     #[test]

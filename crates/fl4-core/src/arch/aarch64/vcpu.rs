@@ -159,33 +159,105 @@ pub fn init<S: Store, A: Arch>(s: &mut S, a: &A, vcpu: u64) {
     // ICH_HCR_EL2 / GICH_HCR: En (bit 0) | (GICv3: TALL0 bit 11).
     let vgic_hcr = 1 | if gic_v3 { 1 << 11 } else { 0 };
     reg_set(s, vcpu, vr::VGIC_HCR, vgic_hcr);
-    reg_set(s, vcpu, vr::VGIC_VTR, a.vcpu_vgic_vtr());
-    sync_vgic_elrsr(s, vcpu, num_lrs(a), gic_v3);
+    reg_set(s, vcpu, vr::VGIC_VTR, abi_vgic_vtr(a.vcpu_vgic_vtr(), gic_v3));
+    sync_vgic_status(s, vcpu, num_lrs(a), gic_v3);
 }
 
-/// Recompute the cached `VGIC_ELRSR` empty-LR bitmap from the VCPU's in-memory
-/// list registers so a `ReadState(VGIC)` before the VCPU ever runs on hardware
-/// (e.g. preempted before `switch_to`) never observes a stale `ELRSR`.
-fn sync_vgic_elrsr<S: Store>(s: &mut S, vcpu: u64, lrs: u64, gic_v3: bool) {
+/// Cap hardware `VGIC_VTR` `ListRegs` to <= 15 (16 LRs) so the VCPU ABI
+/// (`VGIC_LR0..15`) stays consistent across BootInfo, init, ReadReg and ReadState.
+fn abi_vgic_vtr(vtr: u64, gic_v3: bool) -> u64 {
+    if vtr == 0 {
+        0
+    } else if gic_v3 {
+        if (vtr & 0x1f) >= 16 { (vtr & !0x1f) | 15 } else { vtr }
+    } else if (vtr & 0x3f) >= 16 {
+        (vtr & !0x3f) | 15
+    } else {
+        vtr
+    }
+}
+
+/// Whether a VGIC list register slot is empty per ARM GICv3 §12.4.4 / GICv2 §5.3.10:
+/// `State == 0` AND (`HW == 1` OR `EOI == 0`). A slot with `HW == 0, State == 0, EOI == 1`
+/// still holds a pending maintenance interrupt and is NOT empty.
+fn lr_is_empty(lr: u64, gic_v3: bool) -> bool {
+    let (state, hw, eoi) = if gic_v3 {
+        ((lr >> 62) & 0x3, (lr >> 61) & 1, (lr >> 41) & 1)
+    } else {
+        ((lr >> 28) & 0x3, (lr >> 31) & 1, (lr >> 19) & 1)
+    };
+    state == 0 && (hw != 0 || eoi == 0)
+}
+
+/// Recompute derived `VGIC_ELRSR`, `VGIC_EISR`, and `VGIC_MISR` from the VCPU's
+/// in-memory `VGIC_HCR`, `VGIC_VMCR`, and `VGIC_LR0..lrs` per ARM GICv3 §12.4.9
+/// and GICv2 §5.3.4 so all software write paths (`WriteState(VGIC)`,
+/// `WriteState(VGIC_LR)`, `WriteRegs`, `InjectIRQ`) stay identical to hardware.
+fn sync_vgic_status<S: Store>(s: &mut S, vcpu: u64, lrs: u64, gic_v3: bool) {
     let mut elrsr = 0u64;
+    let mut eisr = 0u64;
+    let mut valid_lrs = 0u64;
+    let mut has_pend = false;
     let mut i = 0u64;
     while i < lrs {
         let lr = reg_get(s, vcpu, vr::VGIC_LR0.wrapping_add(i));
-        let state = if gic_v3 { (lr >> 62) & 0x3 } else { (lr >> 28) & 0x3 };
-        if state == 0 {
+        let (state, hw, eoi) = if gic_v3 {
+            ((lr >> 62) & 0x3, (lr >> 61) & 1, (lr >> 41) & 1)
+        } else {
+            ((lr >> 28) & 0x3, (lr >> 31) & 1, (lr >> 19) & 1)
+        };
+        if state == 0 && (hw != 0 || eoi == 0) {
             elrsr |= 1u64 << i;
+        } else if state == 0 && hw == 0 && eoi != 0 {
+            eisr |= 1u64 << i;
+        } else {
+            valid_lrs += 1;
+            if state == 1 {
+                has_pend = true;
+            }
         }
         i += 1;
     }
+    let hcr = reg_get(s, vcpu, vr::VGIC_HCR);
+    let vmcr = reg_get(s, vcpu, vr::VGIC_VMCR);
+    let mut misr = 0u64;
+    if eisr != 0 {
+        misr |= 1 << 0; // EOI
+    }
+    if (hcr & (1 << 1)) != 0 && valid_lrs <= 1 {
+        misr |= 1 << 1; // U (Underflow)
+    }
+    if (hcr & (1 << 2)) != 0 && ((hcr >> 27) & 0x1f) != 0 {
+        misr |= 1 << 2; // LRENP
+    }
+    if (hcr & (1 << 3)) != 0 && !has_pend {
+        misr |= 1 << 3; // NP
+    }
+    if (hcr & (1 << 4)) != 0 && (vmcr & (1 << 0)) != 0 {
+        misr |= 1 << 4; // VGrp0E
+    }
+    if (hcr & (1 << 5)) != 0 && (vmcr & (1 << 0)) == 0 {
+        misr |= 1 << 5; // VGrp0D
+    }
+    if (hcr & (1 << 6)) != 0 && (vmcr & (1 << 1)) != 0 {
+        misr |= 1 << 6; // VGrp1E
+    }
+    if (hcr & (1 << 7)) != 0 && (vmcr & (1 << 1)) == 0 {
+        misr |= 1 << 7; // VGrp1D
+    }
     reg_set(s, vcpu, vr::VGIC_ELRSR, elrsr);
+    reg_set(s, vcpu, vr::VGIC_EISR, eisr);
+    reg_set(s, vcpu, vr::VGIC_MISR, misr);
 }
 
 fn num_lrs<A: Arch>(a: &A) -> u64 {
     let vtr = a.vcpu_vgic_vtr();
     if vtr == 0 {
         0
+    } else if a.vcpu_gic_version() == 3 {
+        ((vtr & 0x1f) + 1).min(16)
     } else {
-        (vtr & 0x1f) + 1
+        ((vtr & 0x3f) + 1).min(16)
     }
 }
 
@@ -340,8 +412,7 @@ fn decode_inject_irq<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length:
     stall_vcpu(s, a, vcpu);
     let lr_reg = vr::VGIC_LR0.wrapping_add(index);
     let cur = reg_get(s, vcpu, lr_reg);
-    let active = if gic_v3 { (cur >> 62) & 0x3 != 0 } else { (cur >> 28) & 0x3 != 0 };
-    if active {
+    if !lr_is_empty(cur, gic_v3) {
         return Err(Exc::Sys(SysError::DeleteFirst));
     }
     // Pending (0b01), EOI = 1, HW = 0.
@@ -352,7 +423,7 @@ fn decode_inject_irq<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length:
     };
     sched::set_thread_state(s, ct, sched::TS_RESTART);
     reg_set(s, vcpu, lr_reg, lr);
-    sync_vgic_elrsr(s, vcpu, lrs, gic_v3);
+    sync_vgic_status(s, vcpu, lrs, gic_v3);
     Ok(())
 }
 
@@ -372,7 +443,7 @@ fn decode_read_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: u
     stall_vcpu(s, a, vcpu);
     let gic_v3 = a.vcpu_gic_version() == 3;
     let val = if field == vr::VGIC_VTR {
-        a.vcpu_vgic_vtr()
+        abi_vgic_vtr(a.vcpu_vgic_vtr(), gic_v3)
     } else if !gic_v3 && (vr::VGIC_AP1R0..=vr::VGIC_AP1R3).contains(&field) {
         0
     } else {
@@ -405,7 +476,7 @@ fn decode_write_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: 
         stall_vcpu(s, a, vcpu);
         sched::set_thread_state(s, ct, sched::TS_RESTART);
         reg_set(s, vcpu, field, san);
-        sync_vgic_elrsr(s, vcpu, lrs, gic_v3);
+        sync_vgic_status(s, vcpu, lrs, gic_v3);
         return Ok(());
     }
     stall_vcpu(s, a, vcpu);
@@ -421,6 +492,9 @@ fn decode_write_reg<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: 
         val
     };
     reg_set(s, vcpu, field, v);
+    if field == vr::VGIC_HCR || field == vr::VGIC_VMCR {
+        sync_vgic_status(s, vcpu, lrs, gic_v3);
+    }
     Ok(())
 }
 
@@ -493,7 +567,7 @@ fn read_state_to_frame<S: Store, A: Arch>(s: &mut S, a: &A, vcpu: u64, frame: u6
     if mask & sm::VGIC != 0 {
         let lrs = num_lrs(a);
         let gic_v3 = a.vcpu_gic_version() == 3;
-        s.write(frame.wrapping_add(vr::VGIC_VTR * 8), a.vcpu_vgic_vtr());
+        s.write(frame.wrapping_add(vr::VGIC_VTR * 8), abi_vgic_vtr(a.vcpu_vgic_vtr(), gic_v3));
         copy_reg_range_to_frame(s, vcpu, frame, vr::VGIC_HCR, vr::VGIC_AP0R3);
         let mut r = vr::VGIC_AP1R0;
         while r <= vr::VGIC_AP1R3 {
@@ -573,9 +647,7 @@ fn write_state_from_frame<S: Store, A: Arch>(s: &mut S, a: &A, vcpu: u64, frame:
             }
             i += 1;
         }
-        sync_vgic_elrsr(s, vcpu, lrs, gic_v3);
-        reg_set(s, vcpu, vr::VGIC_EISR, 0);
-        reg_set(s, vcpu, vr::VGIC_MISR, 0);
+        sync_vgic_status(s, vcpu, lrs, gic_v3);
     } else if mask & sm::VGIC_LR != 0 {
         let lrs = num_lrs(a);
         let gic_v3 = a.vcpu_gic_version() == 3;
@@ -589,7 +661,7 @@ fn write_state_from_frame<S: Store, A: Arch>(s: &mut S, a: &A, vcpu: u64, frame:
             }
             i += 1;
         }
-        sync_vgic_elrsr(s, vcpu, lrs, gic_v3);
+        sync_vgic_status(s, vcpu, lrs, gic_v3);
     }
     if mask & sm::GPRS != 0 {
         let gprs_base = frame.wrapping_add(64 * 8);
@@ -743,7 +815,14 @@ fn decode_run<S: Store, A: Arch>(s: &mut S, a: &mut A, vcpu: u64, length: u64, c
         a.fpu_flush(v_tcb);
         a.fpu_release(v_tcb);
     } else {
-        a.vcpu_flush_state(vcpu, in_mask);
+        let mut flush_in = in_mask;
+        if in_mask & sm::VGIC == 0 && in_mask & sm::VGIC_LR != 0 {
+            let new_hcr = sanitize_vgic_hcr(s.read(frame.wrapping_add(vr::VGIC_HCR * 8)), gic_v3);
+            if new_hcr & 0xf0 != 0 {
+                flush_in |= sm::VGIC;
+            }
+        }
+        a.vcpu_flush_state(vcpu, flush_in);
     }
     s.write(vcpu.wrapping_add(OWNER_CPU), me);
     write_state_from_frame(s, a, vcpu, frame, in_mask);
@@ -1313,12 +1392,12 @@ mod tests {
         // Same-core run uses vcpu_flush_state(v, VGIC_LR), NOT full vcpu_flush.
         assert!(a.vcpu_flushed.is_empty());
         assert_eq!(a.vcpu_flushed_state, std::vec![(v, sm::VGIC_LR)]);
-        // VGIC_LR updated HCR/LR/ELRSR without touching VMCR/AP*R/EISR/MISR.
+        // VGIC_LR updated HCR/LR/ELRSR/EISR/MISR without touching VMCR/AP*R.
         assert_eq!(reg_get(&s, v, vr::VGIC_VMCR), 0x1111_2222);
         assert_eq!(reg_get(&s, v, vr::VGIC_AP0R0), 0x3333_4444);
         assert_eq!(reg_get(&s, v, vr::VGIC_AP1R0), 0x5555_6666);
-        assert_eq!(reg_get(&s, v, vr::VGIC_EISR), 0x2);
-        assert_eq!(reg_get(&s, v, vr::VGIC_MISR), 0x4);
+        assert_eq!(reg_get(&s, v, vr::VGIC_EISR), 0);
+        assert_eq!(reg_get(&s, v, vr::VGIC_MISR), 0);
         assert_eq!(reg_get(&s, v, vr::VGIC_LR0), pending_lr);
         assert_eq!(reg_get(&s, v, vr::VGIC_LR0 + 2), pending_lr);
         assert_eq!(reg_get(&s, v, vr::VGIC_ELRSR), 0xa);
@@ -1331,5 +1410,177 @@ mod tests {
         assert_eq!(s.read(sb + vr::VGIC_ELRSR * 8), 0xa);
         assert_eq!(s.read(sb + vr::VGIC_LR0 * 8), pending_lr);
         assert_eq!(s.read(sb + vr::VGIC_VMCR * 8), 0xaaaa_bbbb);
+
+        // Same-core VGIC_LR with UIE (bit 1) only flushes VGIC_LR;
+        // enabling group maintenance bits [7:4] (e.g. VGrp1EIE = bit 6) escalates flush to VGIC_LR | VGIC.
+        a.vcpu_flushed_state.clear();
+        s.write(sb + vr::VGIC_HCR * 8, 0x1 | (1 << 1)); // En | UIE
+        ct.set_reg(&mut s, msg::msg_register(0), state_off);
+        ct.set_reg(&mut s, msg::msg_register(1), sm::VGIC_LR);
+        ct.set_reg(&mut s, msg::msg_register(2), 0);
+        assert!(decode(&mut s, &mut a, label::ARMVCPURun, 3, v, true, 0, &ex).is_ok());
+        assert_eq!(a.vcpu_flushed_state, std::vec![(v, sm::VGIC_LR)]);
+        complete_run(&mut s, &mut a, ct, vcpu_run_stop::VCPUFAULT, 0, 0, 0);
+
+        a.vcpu_flushed_state.clear();
+        s.write(sb + vr::VGIC_HCR * 8, 0x1 | (1 << 6)); // En | VGrp1EIE
+        ct.set_reg(&mut s, msg::msg_register(0), state_off);
+        ct.set_reg(&mut s, msg::msg_register(1), sm::VGIC_LR);
+        ct.set_reg(&mut s, msg::msg_register(2), 0);
+        assert!(decode(&mut s, &mut a, label::ARMVCPURun, 3, v, true, 0, &ex).is_ok());
+        assert_eq!(a.vcpu_flushed_state, std::vec![(v, sm::VGIC_LR | sm::VGIC)]);
+        complete_run(&mut s, &mut a, ct, vcpu_run_stop::VCPUFAULT, 0, 0, 0);
+    }
+
+    #[test]
+    fn vgic_v2_high_lr_cap_and_eoi_empty_semantics() {
+        use crate::capability::FrameSize;
+        use crate::layout::node;
+        use crate::obj::node_set;
+
+        // 1. GICv2 with 32 or 64 physical LRs (6-bit ListRegs = 31 or 63):
+        //    num_lrs caps at 16, abi_vgic_vtr caps [5:0] to 15, and WriteState(VGIC)
+        //    never walks past VGIC_LR15 into the GPRS area (even when gprs[0] has bad vINTID).
+        for hw_lrs in [32u64, 64] {
+            let mut s = Mem(BTreeMap::new());
+            let mut a = VgicArch::new(false, hw_lrs);
+            let ct = Tcb(0x20_0000);
+            node_set(&mut s, 0, node::CUR_THREAD, ct.0);
+            let v = 0x30_0000;
+            let frame = 0x40_0000;
+            let slot = Slot(0x50_0000);
+            slot.set_cap(&mut s, Cap::Frame {
+                ptr: frame,
+                size: FrameSize::Small,
+                rights: VM_READ_WRITE,
+                is_device: false,
+                mapped: false,
+                is_ept: false,
+                asid: 0,
+                vaddr: 0,
+            });
+            let ex = [slot, Slot(0), Slot(0)];
+
+            assert_eq!(num_lrs(&a), 16);
+            assert_eq!(abi_vgic_vtr(a.vcpu_vgic_vtr(), false) & 0x3f, 15);
+            init(&mut s, &a, v);
+            assert_eq!(reg_get(&s, v, vr::VGIC_VTR) & 0x3f, 15);
+            assert_eq!(reg_get(&s, v, vr::VGIC_ELRSR), 0xffff);
+
+            // Put an invalid GICv2 LR value in gprs[0] (word 64): must NOT be treated as LR16.
+            s.write(frame + 64 * 8, (1u64 << 28) | 1020);
+            ct.set_reg(&mut s, msg::msg_register(0), 0);
+            ct.set_reg(&mut s, msg::msg_register(1), sm::VGIC);
+            assert!(decode_state_transfer(&mut s, &mut a, v, 2, 0, &ex, false).is_ok());
+            assert!(decode_state_transfer(&mut s, &mut a, v, 2, 0, &ex, true).is_ok());
+            assert_eq!(s.read(frame + vr::VGIC_VTR * 8) & 0x3f, 15);
+        }
+
+        // 2. Software empty-LR rule (ARM GICv3 §12.4.4 / GICv2 §5.3.10):
+        //    HW=0, State=0, EOI=1 is NOT empty -> ELRSR bit 0 == 0 and InjectIRQ returns DeleteFirst;
+        //    HW=0, State=0, EOI=0 or HW=1, State=0, EOI=1 IS empty -> ELRSR bit 0 == 1 and InjectIRQ succeeds.
+        for gic_v3 in [true, false] {
+            let mut s = Mem(BTreeMap::new());
+            let mut a = VgicArch::new(gic_v3, 4);
+            let ct = Tcb(0x20_0000);
+            node_set(&mut s, 0, node::CUR_THREAD, ct.0);
+            let v = 0x30_0000;
+            init(&mut s, &a, v);
+
+            let eoi_only = if gic_v3 { (1u64 << 41) | 40 } else { (1u64 << 19) | 40 };
+            let hw_eoi = if gic_v3 { (1u64 << 61) | (1u64 << 41) | 40 } else { (1u64 << 31) | (1u64 << 19) | 40 };
+            assert!(!lr_is_empty(eoi_only, gic_v3));
+            assert!(lr_is_empty(hw_eoi, gic_v3));
+            assert!(lr_is_empty(0, gic_v3));
+
+            reg_set(&mut s, v, vr::VGIC_LR0, eoi_only);
+            sync_vgic_status(&mut s, v, 4, gic_v3);
+            assert_eq!(reg_get(&s, v, vr::VGIC_ELRSR), 0xe);
+            assert_eq!(reg_get(&s, v, vr::VGIC_EISR), 0x1);
+            assert_eq!(reg_get(&s, v, vr::VGIC_MISR) & 1, 1);
+
+            let mr0 = 40u64 | (0x10 << 16) | (1 << 24) | (0 << 32);
+            ct.set_reg(&mut s, msg::msg_register(0), mr0);
+            assert!(matches!(decode_inject_irq(&mut s, &mut a, v, 1, 0), Err(Exc::Sys(SysError::DeleteFirst))));
+
+            reg_set(&mut s, v, vr::VGIC_LR0, 0);
+            sync_vgic_status(&mut s, v, 4, gic_v3);
+            assert_eq!(reg_get(&s, v, vr::VGIC_ELRSR), 0xf);
+            assert_eq!(reg_get(&s, v, vr::VGIC_EISR), 0);
+            assert_eq!(reg_get(&s, v, vr::VGIC_MISR) & 1, 0);
+            assert!(decode_inject_irq(&mut s, &mut a, v, 1, 0).is_ok());
+        }
+    }
+
+    #[test]
+    fn vgic_write_paths_agree_on_derived_elrsr_eisr_misr() {
+        use crate::capability::FrameSize;
+        use crate::layout::node;
+        use crate::obj::node_set;
+
+        for gic_v3 in [true, false] {
+            let eoi_lr = if gic_v3 { (1u64 << 41) | 40 } else { (1u64 << 19) | 40 };
+            let hcr_uie = 0x1 | (1 << 1); // En | UIE (0 valid LRs <= 1 -> MISR.U=1, LR2 EOI -> MISR.EOI=1)
+
+            // Compare WriteState(VGIC), WriteState(VGIC_LR), and WriteRegs on identical input.
+            let mut results = std::vec::Vec::new();
+            for mode in 0..3 {
+                let mut s = Mem(BTreeMap::new());
+                let mut a = VgicArch::new(gic_v3, 4);
+                let ct = Tcb(0x20_0000);
+                node_set(&mut s, 0, node::CUR_THREAD, ct.0);
+                let v = 0x30_0000;
+                let frame = 0x40_0000;
+                let slot = Slot(0x50_0000);
+                slot.set_cap(&mut s, Cap::Frame {
+                    ptr: frame,
+                    size: FrameSize::Small,
+                    rights: VM_READ_WRITE,
+                    is_device: false,
+                    mapped: false,
+                    is_ept: false,
+                    asid: 0,
+                    vaddr: 0,
+                });
+                let ex = [slot, Slot(0), Slot(0)];
+                init(&mut s, &a, v);
+
+                if mode == 0 || mode == 1 {
+                    s.write(frame + vr::VGIC_HCR * 8, hcr_uie);
+                    s.write(frame + (vr::VGIC_LR0 + 2) * 8, eoi_lr);
+                    ct.set_reg(&mut s, msg::msg_register(0), 0);
+                    ct.set_reg(&mut s, msg::msg_register(1), if mode == 0 { sm::VGIC } else { sm::VGIC_LR });
+                    assert!(decode_state_transfer(&mut s, &mut a, v, 2, 0, &ex, false).is_ok());
+                } else {
+                    ct.set_reg(&mut s, msg::msg_register(0), vr::VGIC_HCR);
+                    ct.set_reg(&mut s, msg::msg_register(1), hcr_uie);
+                    assert!(decode_write_reg(&mut s, &mut a, v, 2, 0).is_ok());
+                    ct.set_reg(&mut s, msg::msg_register(0), vr::VGIC_LR0 + 2);
+                    ct.set_reg(&mut s, msg::msg_register(1), eoi_lr);
+                    assert!(decode_write_reg(&mut s, &mut a, v, 2, 0).is_ok());
+                }
+                let before = (
+                    reg_get(&s, v, vr::VGIC_ELRSR),
+                    reg_get(&s, v, vr::VGIC_EISR),
+                    reg_get(&s, v, vr::VGIC_MISR),
+                );
+                assert_eq!(before, (0xb, 1 << 2, 0x3), "mode {mode} gic_v3 {gic_v3}");
+
+                // Clearing the last EOI LR via WriteRegs must clear EISR and MISR.EOI (keeping MISR.U=1)
+                // and restore ELRSR = 0xf.
+                ct.set_reg(&mut s, msg::msg_register(0), vr::VGIC_LR0 + 2);
+                ct.set_reg(&mut s, msg::msg_register(1), 0);
+                assert!(decode_write_reg(&mut s, &mut a, v, 2, 0).is_ok());
+                let after = (
+                    reg_get(&s, v, vr::VGIC_ELRSR),
+                    reg_get(&s, v, vr::VGIC_EISR),
+                    reg_get(&s, v, vr::VGIC_MISR),
+                );
+                assert_eq!(after, (0xf, 0, 0x2), "after clear mode {mode} gic_v3 {gic_v3}");
+                results.push((before, after));
+            }
+            assert_eq!(results[0], results[1]);
+            assert_eq!(results[1], results[2]);
+        }
     }
 }

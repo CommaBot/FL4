@@ -16,11 +16,21 @@ fn hdr(buf: &mut [u8], off: &mut usize, id: u64, len: u64) -> Option<()> {
     put(buf, off, &len.to_le_bytes())
 }
 
+/// `VirtInfo::flags` bit definitions.
+#[allow(dead_code)]
+pub const VIRT_READY: u64 = 1 << 0;
+#[allow(dead_code)]
+pub const EL2_VHE: u64 = 1 << 1;
+#[allow(dead_code)]
+pub const VMID16: u64 = 1 << 2;
+#[allow(dead_code)]
+pub const EL2_NVHE: u64 = 1 << 3;
+
 /// AArch64 EL2/VHE virtualization capabilities and GIC/ID metadata
 /// (`bootinfo_header::AARCH64_VIRT_INFO`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VirtInfo {
-    /// bit 0 = virt_ready, bit 1 = el2_vhe, bit 2 = vmid16.
+    /// bit 0 = virt_ready, bit 1 = el2_vhe, bit 2 = vmid16, bit 3 = el2_nvhe.
     pub flags: u64,
     pub ipa_bits: u64,
     pub gic_version: u64,

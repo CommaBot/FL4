@@ -290,6 +290,15 @@ pub mod root_slot {
     pub const NumInitialCaps: u64 = 16;
 }
 
+/// `seL4_AArch64VirtInfo::flags` bits (`bootinfo_header::AARCH64_VIRT_INFO`).
+#[cfg(feature = "aarch64")]
+pub mod virt_info_flag {
+    pub const VIRT_READY: u64 = 1 << 0;
+    pub const EL2_VHE: u64 = 1 << 1;
+    pub const VMID16: u64 = 1 << 2;
+    pub const EL2_NVHE: u64 = 1 << 3;
+}
+
 /// `SEL4_BOOTINFO_HEADER_*`.
 pub mod bootinfo_header {
     pub const PADDING: u64 = 0;

@@ -393,7 +393,7 @@ pub fn decode<S: Store, A: Arch>(
         return invalid_arg(1);
     }
     let ipa_bits = a.s2_ipa_bits();
-    if end > ipa_limit(ipa_bits) {
+    if end - 1 > ipa_limit(ipa_bits) {
         return illegal();
     }
     let (r, asid) = root(s, cap, 0)?;
@@ -570,5 +570,37 @@ mod tests {
             let e_ro = make_s2_leaf(0x40_0000, VM_READ_ONLY, true, arm_vm_attr::PAGE_CACHEABLE, 12);
             assert_eq!(*log.borrow(), vec![Ev::Write(lu.slot, e_ro), Ev::InvS2Page(1, ipa)]);
         }
+    }
+
+    #[test]
+    fn stage2_cache_op_exclusive_end_boundary() {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let mut s = Mem { words: BTreeMap::new(), watch: 0, log: log.clone() };
+        let mut a = Mach { ipa: 40, log: log.clone() };
+        let ct = Tcb(layout::pptr(0x60_0000));
+        sched::set_cur_thread(&mut s, ct);
+
+        let root = layout::pptr(0x10_0000);
+        let asid = 1u64;
+        // Register Stage-2 root in ASID pool (bit 0 == 1 marks Stage-2).
+        let pool = layout::pptr(0x15_0000);
+        crate::obj::ks_set(&mut s, layout::ks::ASID_TABLE, pool);
+        s.write(pool + asid * 8, root | 1);
+        let cap = Cap::Ept { ptr: root, level: 0, mapped: true, asid, vaddr: 0 };
+        let ex = [Slot(0), Slot(0), Slot(0)];
+
+        let lim = ipa_limit(40); // (1 << 40) - 1
+        let last_page = lim - 4095;
+        // Exclusive end == ipa_limit + 1 (entire last page) succeeds.
+        ct.set_reg(&mut s, msg::msg_register(0), last_page);
+        ct.set_reg(&mut s, msg::msg_register(1), lim + 1);
+        assert!(decode(&mut s, &mut a, label::ARMVSpaceClean_Data, 2, cap, Slot(0), 0, &ex).is_ok());
+        // Exclusive end == ipa_limit + 2 (1 byte past limit) fails with IllegalOperation.
+        ct.set_reg(&mut s, msg::msg_register(0), last_page);
+        ct.set_reg(&mut s, msg::msg_register(1), lim + 2);
+        assert!(matches!(
+            decode(&mut s, &mut a, label::ARMVSpaceClean_Data, 2, cap, Slot(0), 0, &ex),
+            Err(Exc::Sys(SysError::IllegalOperation))
+        ));
     }
 }

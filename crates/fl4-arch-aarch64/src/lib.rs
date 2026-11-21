@@ -18,3 +18,4 @@ pub mod serial;
 pub mod smp;
 pub mod timer;
 pub mod vcpu;
+pub mod vmid;

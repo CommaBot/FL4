@@ -181,6 +181,8 @@ fl4_hyp_sync:
     b.eq    fl4_hyp_set_cntp
     cmp     x0, #11
     b.eq    fl4_hyp_flush_vgic
+    cmp     x0, #12
+    b.eq    fl4_hyp_tlbi_alle1_is
     b       fl4_hyp_halt
 
 fl4_hyp_sync_a32:
@@ -315,6 +317,14 @@ fl4_hyp_tlbi_vmalls12_local:
     mov     x0, #0
     eret
 
+fl4_hyp_tlbi_alle1_is:
+    dsb     ishst
+    tlbi    alle1is
+    dsb     ish
+    isb
+    mov     x0, #0
+    eret
+
 fl4_hyp_vgic_vtr:
     mrs     x0, s3_4_c12_c11_1      /* ICH_VTR_EL2 */
     eret
@@ -340,9 +350,6 @@ fl4_hyp_flush_vgic:
     mrs     x11, s3_4_c12_c11_7     /* ICH_VMCR_EL2 */
     str     x11, [x9, #8 * 36]
     str     x11, [sp, #HYP_CUR_VMCR]
-    mrs     x11, s3_4_c12_c11_2     /* ICH_MISR_EL2 */
-    mrs     x12, s3_4_c12_c11_3     /* ICH_EISR_EL2 */
-    stp     x11, x12, [x9, #8 * 37]
     ldr     x10, [sp, #HYP_VGIC_N_APR]
     cbz     x10, 2f
     mrs     x11, s3_4_c12_c8_0
@@ -809,6 +816,10 @@ fl4_hyp_guest_exit_common:
     vgic_save_lr 14, s3_4_c12_c13_6
     vgic_save_lr 15, s3_4_c12_c13_7
 70:
+    /* Capture live ICH_MISR_EL2 and ICH_EISR_EL2 before clearing/modifying ICH_HCR_EL2. */
+    mrs     x11, s3_4_c12_c11_2     /* ICH_MISR_EL2 */
+    mrs     x12, s3_4_c12_c11_3     /* ICH_EISR_EL2 */
+    stp     x11, x12, [x10, #8 * 37]
     /* On IRQ exit, keep En and maintenance IE bits [7:0] live so level-triggered
      * PPI 25 stays asserted until EL1 acks it in take_irq(), but ALWAYS clear
      * trap bits (TC/TALL0/TALL1/TSEI/TDIR) which otherwise trap EL1's own
@@ -837,6 +848,14 @@ fl4_hyp_guest_exit_common:
 91:
     str     xzr, [sp, #HYP_IN_GUEST]
 
+    /* Sync hardware auto-clear of HCR_EL2.VSE (bit 8) when vSError was delivered. */
+    ldr     x11, [x10, #8 * 26]     /* cached guest HCR_EL2 */
+    tbz     x11, #8, 95f            /* fast path: VSE not armed */
+    mrs     x9, hcr_el2
+    tbnz    x9, #8, 95f             /* VSE still pending (masked in guest) */
+    bic     x11, x11, #(1 << 8)     /* hardware delivered vSError -> clear VSE */
+    str     x11, [x10, #8 * 26]
+95:
     /* Restore host EL2 controls and host EL1/EL2 registers.
      * CPTR_EL2 is kept as-is and restored lazily on host EC == 0x07 trap. */
     ldr     x9, [sp, #HYP_HOST_HCR]

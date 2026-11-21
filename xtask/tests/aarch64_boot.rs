@@ -62,6 +62,8 @@ pub mod gic_layout;
 mod el0_access;
 #[path = "../../crates/fl4-arch-aarch64/src/ap_caps.rs"]
 mod ap_caps;
+#[path = "../../crates/fl4-arch-aarch64/src/vmid.rs"]
+mod vmid;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-kernel-aarch64/src/bootmem.rs"]
 mod bootmem;
@@ -255,6 +257,15 @@ fn an_application_processor_must_match_the_boot_core() {
     // EL2 nVHE mode: el2=true, vhe=false; APs must match nVHE and VGIC LR count.
     let nvhe_bsp = ap_caps::Caps { el2: true, vhe: false, vmid16: false, vgic_lrs: 4, ..bsp };
     assert!(ap_caps::ap_matches(&nvhe_bsp, &nvhe_bsp));
+    // Heterogeneous PA (BSP 40-bit, AP 48-bit): AP is admitted and both cores
+    // use the BSP's Stage-2 IPA geometry (40-bit).
+    assert!(ap_caps::ap_matches(&nvhe_bsp, &ap_caps::Caps { pa_bits: 48, ..nvhe_bsp }));
+    assert_eq!(vmid::s2_ipa_bits_for_pa(36), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(40), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(42), 40);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(44), 44);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(48), 48);
+    assert_eq!(vmid::s2_ipa_bits_for_pa(52), 48);
     for ap in [
         ap_caps::Caps { el2: false, ..nvhe_bsp },
         ap_caps::Caps { vhe: true, ..nvhe_bsp },
@@ -268,6 +279,43 @@ fn an_application_processor_must_match_the_boot_core() {
     let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
     assert!(!ap_caps::ap_matches(&plain, &bsp));
     assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+#[test]
+fn vmid8_single_revoke_preserves_other_asids_and_wrap_bumps_gen() {
+    let tbl = vmid::VmidTable::new();
+    assert_eq!(tbl.generation(), 1);
+    let (va, wrapped_a) = tbl.alloc_step(10);
+    let (vb, wrapped_b) = tbl.alloc_step(20);
+    assert!(!wrapped_a && !wrapped_b);
+    assert_eq!(tbl.lookup(10), Some(va));
+    assert_eq!(tbl.lookup(20), Some(vb));
+
+    // Single-ASID revocation releases only ASID 10's slot and does NOT bump generation:
+    // ASID 20 must remain resolvable so invalidate_stage2_page(20) still finds its VMID.
+    tbl.release_slot(va);
+    assert_eq!(tbl.generation(), 1);
+    assert_eq!(tbl.lookup(10), None);
+    assert_eq!(tbl.lookup(20), Some(vb));
+
+    // Fill remaining slots up to 255 -> no wrap yet.
+    for asid in 21..(21 + 253) {
+        let (_v, wrapped) = tbl.alloc_step(asid);
+        assert!(!wrapped, "unexpected wrap at asid {asid}");
+    }
+    // The 256th allocation wraps to slot 1 -> caller bumps gen, retires cores, flushes all VMIDs, then installs.
+    let (slot, wrapped) = tbl.alloc_step(500);
+    assert!(wrapped);
+    assert_eq!(slot, 1);
+    let new_gen = tbl.bump_gen();
+    assert_eq!(new_gen, 2);
+    // Old-generation ASIDs are now invalidated; slot 1 is not visible until install_slot runs.
+    assert_eq!(tbl.lookup(20), None);
+    assert_eq!(tbl.lookup(500), None);
+    tbl.install_slot(slot, new_gen, 500);
+    assert_eq!(tbl.lookup(500), Some(1));
+    assert_eq!(vmid::mask_lr_bitmap(0xffff_ffff, 16), 0xffff);
+    assert_eq!(vmid::mask_lr_bitmap(0xffff_ffff, 4), 0xf);
 }
 
 /// Audit F5: EL2 set-up reads PMCR_EL0 only with an architected PMU, as

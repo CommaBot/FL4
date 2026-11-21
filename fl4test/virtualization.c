@@ -1111,19 +1111,26 @@ static int test_aarch64_vcpu_run(env_t env)
     s2_map_frame(env, s2.cptr, c_code.capPtr, CODE_IPA, seL4_AllRights, seL4_ARM_Default_VMAttributes);
 
     volatile uint64_t *mbox = (volatile uint64_t *)(page_va + 0x100);
-    *mbox = 0;
+    mbox[0] = 0;
+    mbox[1] = 0;
 
     /* Guest EL1 code at CODE_IPA:
-     *  1) add x0, x0, #1; hvc #0x11                    (HVC exit with VGIC_HCR=0)
-     *  2) movz x1, #0x4000, lsl #16; movk x1, #0x2000;
-     *     str x0, [x1]                                 (Stage-2 VMFault at UNM_IPA)
-     *  3) enable VBAR_EL1 = CODE_IPA+0x800, GICv3 ICC (if v3), unmask IRQ, spin
-     *  4) EL1h IRQ vector at VBAR+0x280: ack/EOI vIRQ 40, store 40 to mbox, hvc #0x33
+     *  1) add x0, x0, #1; msr tpidrro_el0, x0; hvc #0x11 (HVC + TPIDRRO_EL0 save)
+     *  2) mrs x0, tpidrro_el0; hvc #0x12                 (TPIDRRO_EL0 preserved across Run)
+     *  3) movz x1, #0x4000, lsl #16; movk x1, #0x2000;
+     *     str x0, [x1]                                   (Stage-2 VMFault at UNM_IPA)
+     *  4) enable VBAR_EL1 = CODE_IPA+0x800, GICv3 ICC (if v3), unmask IRQ, spin
+     *  5) EL1h IRQ vector at VBAR+0x280: ack/EOI vIRQ 40, store 40 to mbox[0], hvc #0x33,
+     *     then unmask SError (daifclr #4; isb), hvc #0x45 (no re-delivery check)
+     *  6) EL1h SError vector at VBAR+0x380: inc mbox[1], hvc #0x44, hvc #0x45
      */
     uint32_t *entry = (uint32_t *)page_va;
     int n = 0;
     entry[n++] = 0x91000400; /* add  x0, x0, #1 */
+    entry[n++] = 0xd51bd060; /* msr  tpidrro_el0, x0 */
     entry[n++] = 0xd4000222; /* hvc  #0x11 */
+    entry[n++] = 0xd53bd060; /* mrs  x0, tpidrro_el0 */
+    entry[n++] = 0xd4000242; /* hvc  #0x12 */
     entry[n++] = 0xd2a80001; /* movz x1, #0x4000, lsl #16 */
     entry[n++] = 0xf2840001; /* movk x1, #0x2000 */
     entry[n++] = 0xf9000020; /* str  x0, [x1] */
@@ -1154,6 +1161,26 @@ static int test_aarch64_vcpu_run(env_t env)
         vec[v_n++] = 0xf9000022; /* str  x2, [x1] */
     }
     vec[v_n++] = 0xd4000662; /* hvc  #0x33 */
+    vec[v_n++] = 0xd50344ff; /* msr  daifclr, #4 (unmask SError A) */
+    vec[v_n++] = 0xd5033fdf; /* isb */
+    vec[v_n++] = 0xd40008a2; /* hvc  #0x45 */
+
+    uint32_t *serr = (uint32_t *)(page_va + 0x800 + 0x380);
+    int s_n = 0;
+    serr[s_n++] = 0xd2a80001; /* movz x1, #0x4000, lsl #16 */
+    serr[s_n++] = 0xf2802101; /* movk x1, #0x0108 (&mbox[1]) */
+    serr[s_n++] = 0xf9400022; /* ldr  x2, [x1] */
+    serr[s_n++] = 0x91000442; /* add  x2, x2, #1 */
+    serr[s_n++] = 0xf9000022; /* str  x2, [x1] */
+    serr[s_n++] = 0xd4000882; /* hvc  #0x44 */
+    serr[s_n++] = 0xd50344ff; /* msr  daifclr, #4 */
+    serr[s_n++] = 0xd5033fdf; /* isb */
+    if (gic_v3) {
+        serr[s_n++] = 0xd2800022; /* movz x2, #1 */
+        serr[s_n++] = 0xd518cce2; /* msr  s3_0_c12_c12_7 (ICC_IGRPEN1_EL1), x2 */
+        serr[s_n++] = 0xd5033fdf; /* isb */
+    }
+    serr[s_n++] = 0xd40008a2; /* hvc  #0x45 */
     test_eq(seL4_ARM_Page_Unify_Instruction(c_code.capPtr, 0, 4096), seL4_NoError);
 
     /* Bind VCPU to a dormant guest TCB (never resumed; ARMVCPURun runs it on env->tcb). */
@@ -1163,17 +1190,27 @@ static int test_aarch64_vcpu_run(env_t env)
     test_eq(seL4_TCB_SetSpace(gtcb, 0, env->cspace_root, seL4_NilData, s2.cptr, seL4_NilData), seL4_NoError);
     test_eq(seL4_ARM_VCPU_SetTCB(v.cptr, gtcb), seL4_NoError);
 
-    /* 1. HVC exit with VGIC_HCR = 0 (exercises lazy VGIC skip in hyp_nvhe.S). */
+    /* 1. HVC exit with VGIC_HCR = 0 + TPIDRRO_EL0 save/restore across Run. */
     test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_VGIC_HCR, 0), seL4_NoError);
     st->gprs[0]  = 41;              /* x0 */
     st->gprs[31] = CODE_IPA + 0x700;/* sp_el0 */
     st->gprs[32] = CODE_IPA;        /* elr */
     st->gprs[33] = 0x3c5;           /* spsr: EL1h, DAIF masked */
+    st->gprs[36] = 0x9999;          /* initial tpidrro_el0 */
     seL4_ARM_VCPU_Run_t r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_GPRS, seL4_ARM_VCPUState_GPRS);
     test_eq(r.error, seL4_NoError);
     test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
     test_eq(r.w1 >> 26, 0x16ul);
     test_eq(r.w1 & 0xfffful, 0x11ul);
+    test_eq(st->gprs[0], 42ul);
+    test_eq(st->gprs[36], 42ul);    /* guest-written TPIDRRO_EL0 saved on VHE & nVHE */
+
+    /* Re-enter with in_mask=0: guest reads TPIDRRO_EL0 back into x0 -> still 42. */
+    st->gprs[0] = 0;
+    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, 0, seL4_ARM_VCPUState_GPRS);
+    test_eq(r.error, seL4_NoError);
+    test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
+    test_eq(r.w1 & 0xfffful, 0x12ul);
     test_eq(st->gprs[0], 42ul);
 
     /* 2. Stage-2 VMFault at UNM_IPA (in_mask = 0, out_mask = GPRS). */
@@ -1184,33 +1221,108 @@ static int test_aarch64_vcpu_run(env_t env)
     test_eq(r.w2, UNM_IPA);         /* ipa */
     test_eq(r.w3, UNM_IPA);         /* far */
 
-    /* Advance guest PC past the faulting str instruction (+4) and inject vIRQ 40 into sparse LR2 (LR0=LR1=0). */
+    /* Advance guest PC past the faulting str instruction (+4) and inject vIRQ 40 into sparse LR2 (LR0=LR1=0).
+     * On GICv3, also arm UIE (bit 1) with a lower-priority pending vIRQ 41 in LR3 so EOI of LR2 drops
+     * valid LRs from 2 -> 1 (<= 1), asserting both MISR.EOI (bit 0) and MISR.U (bit 1) simultaneously. */
     st->gprs[32] += 4;
-    test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_VGIC_HCR, hcr_init), seL4_NoError);
+    test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_VGIC_HCR, gic_v3 ? (hcr_init | (1ul << 1)) : hcr_init), seL4_NoError);
     test_eq(seL4_ARM_VCPU_InjectIRQ(v.cptr, 40, gic_v3 ? 0x80 : 0x10, 1, 2), seL4_NoError);
-    if (!gic_v3) {
+    if (gic_v3) {
+        test_eq(seL4_ARM_VCPU_InjectIRQ(v.cptr, 41, 0x90, 1, 3), seL4_NoError);
+    } else {
         test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_VGIC_VMCR, (0x1ful << 27) | 3ul), seL4_NoError);
     }
 
-    /* 3. Sparse LR2 VGIC IRQ + EOI -> VGICMaint (GICv3) or HVC #0x33 (GICv2). */
-    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_GPRS, seL4_ARM_VCPUState_VGIC);
+    /* 3. Sparse LR2 VGIC IRQ + EOI -> VGICMaint (GICv3) or HVC #0x33 (GICv2).
+     *    On GICv3, exit with out_mask = 0 (covers both VHE lazy suspend() and nVHE
+     *    implicit HYP_VGIC_OWNER switch), run a second VCPU v2 (VGIC_HCR=0), and verify:
+     *    - v2 does NOT inherit v's physical LR2 EOI bit (v2 VGIC_EISR == 0);
+     *    - v preserves VMCR, EISR (1 << 2) and MISR (EOI | U == 0x3) across PPI 25 quiesce & owner switch. */
+    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_GPRS,
+                          gic_v3 ? 0 : seL4_ARM_VCPUState_VGIC);
     test_eq(r.error, seL4_NoError);
     if (gic_v3) {
         test_eq(r.stop, seL4_ARM_VCPURunStop_VGICMaint);
         test_eq(r.w1, 1ul << 2); /* EISR bit 2 for LR2 */
-        /* Clear LR2 via WriteState in the same Run call and finish HVC #0x33. */
+
+        /* Force implicit HYP_VGIC_OWNER switch from v to v2 on this core. */
+        vka_object_t v2;
+        helper_thread_t guest2;
+        test_assert(aarch64_alloc_vcpu(env, &v2));
+        create_helper_thread(env, &guest2);
+        seL4_CPtr gtcb2 = get_helper_tcb(&guest2);
+        test_eq(seL4_TCB_SetSpace(gtcb2, 0, env->cspace_root, seL4_NilData, s2.cptr, seL4_NilData), seL4_NoError);
+        test_eq(seL4_ARM_VCPU_SetTCB(v2.cptr, gtcb2), seL4_NoError);
+        test_eq(seL4_ARM_VCPU_WriteRegs(v2.cptr, seL4_VCPUReg_VGIC_HCR, 0), seL4_NoError);
+        seL4_ARM_VCPUState saved_v = *st;
+        st->gprs[0]  = 10;
+        st->gprs[31] = CODE_IPA + 0x600;
+        st->gprs[32] = CODE_IPA;
+        st->gprs[33] = 0x3c5;
+        seL4_ARM_VCPU_Run_t r2 = seL4_ARM_VCPU_Run(v2.cptr, STATE_OFF, seL4_ARM_VCPUState_GPRS, 0);
+        test_eq(r2.error, seL4_NoError);
+        test_eq(r2.stop, seL4_ARM_VCPURunStop_VCPUFault);
+        test_eq(r2.w1 & 0xfffful, 0x11ul);
+        /* v2 ran with VGIC_HCR=0: must NOT inherit v's LR2 EOI bit into v2's EISR. */
+        test_eq(seL4_ARM_VCPU_ReadRegs(v2.cptr, seL4_VCPUReg_VGIC_EISR).value, 0ul);
+        /* Verify v's VMCR (VPMR=0xf8/0xff per PRIbits, VENG1=1), EISR (bit 2) and MISR (EOI|U) survived. */
+        seL4_Word v_vmcr = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_VGIC_VMCR).value;
+        seL4_Word v_eisr = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_VGIC_EISR).value;
+        seL4_Word v_misr = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_VGIC_MISR).value;
+        test_eq((v_vmcr >> 24) & 0xf0ul, 0xf0ul);
+        test_assert((v_vmcr & (1ul << 1)) != 0);
+        test_eq(v_eisr, 1ul << 2);
+        test_eq(v_misr & 0x3ul, 0x3ul);
+        vka_free_object(&env->vka, &v2);
+        cleanup_helper(env, &guest2);
+        *st = saved_v;
+
+        /* Clear LR2 & LR3 (and drop UIE) via VGIC_LR in the same Run call and arm HCR_EL2.VSE while A is masked. */
+        seL4_Word hcr_v = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_HCR_EL2).value;
+        test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_HCR_EL2, hcr_v | (1ul << 8)), seL4_NoError);
+        st->regs[seL4_VCPUReg_VGIC_HCR] = hcr_init;
         st->regs[seL4_VCPUReg_VGIC_LR0 + 2] = 0;
-        r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_VGIC, 0);
+        st->regs[seL4_VCPUReg_VGIC_LR0 + 3] = 0;
+        r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_VGIC_LR, 0);
         test_eq(r.error, seL4_NoError);
         test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
         test_eq(r.w1 & 0xfffful, 0x33ul);
+        /* Guest had PSTATE.A masked -> HCR_EL2.VSE must still be armed. */
+        test_assert((seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_HCR_EL2).value & (1ul << 8)) != 0);
     } else {
         test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
         test_eq(r.w1 & 0xfffful, 0x33ul);
+        seL4_Word hcr_v = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_HCR_EL2).value;
+        test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_HCR_EL2, hcr_v | (1ul << 8)), seL4_NoError);
     }
-    test_eq(*mbox, 40ULL);
+    test_eq(mbox[0], 40ULL);
 
-    /* 4. Bound notification immediately interrupts ARMVCPURun with badge. */
+    /* 3b. Guest unmasks SError (daifclr #4): HCR_EL2.VSE delivers once -> hvc #0x44,
+     *     hardware auto-clears VSE and kernel syncs it back to 0; next Run hits hvc #0x45
+     *     without re-delivering SError. */
+    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, 0, 0);
+    test_eq(r.error, seL4_NoError);
+    test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
+    test_eq(r.w1 & 0xfffful, 0x44ul);
+    test_eq(mbox[1], 1ULL);
+    test_eq(seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_HCR_EL2).value & (1ul << 8), 0ul);
+
+    if (gic_v3) {
+        /* Clear VENG1 (bit 1) in memory before entering; guest sets ICC_IGRPEN1_EL1=1
+         * before hvc #0x45 (out_mask=0), leaving hardware VENG1=1 while memory has VENG1=0. */
+        seL4_Word vmcr_cur = seL4_ARM_VCPU_ReadRegs(v.cptr, seL4_VCPUReg_VGIC_VMCR).value;
+        test_eq(seL4_ARM_VCPU_WriteRegs(v.cptr, seL4_VCPUReg_VGIC_VMCR, vmcr_cur & ~(1ul << 1)), seL4_NoError);
+    }
+    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, 0, 0);
+    test_eq(r.error, seL4_NoError);
+    test_eq(r.stop, seL4_ARM_VCPURunStop_VCPUFault);
+    test_eq(r.w1 & 0xfffful, 0x45ul);
+    test_eq(mbox[1], 1ULL);
+
+    /* 4. Bound notification immediately interrupts ARMVCPURun with badge.
+     *    On GICv3, arm VGrp1EIE (bit 6) via slim VGIC_LR input with out_mask=VGIC
+     *    and verify decode_run synced hardware VMCR (VENG1=1) so MISR.VGrp1E (bit 6)
+     *    agrees with VMCR.VENG1 even on early notification return. */
     vka_object_t ntfn;
     test_eq(vka_alloc_notification(&env->vka, &ntfn), 0);
     cspacepath_t n_src, n_badged;
@@ -1219,10 +1331,20 @@ static int test_aarch64_vcpu_run(env_t env)
     test_eq(vka_cnode_mint(&n_badged, &n_src, seL4_AllRights, 0x55aaul), seL4_NoError);
     test_eq(seL4_TCB_BindNotification(env->tcb, ntfn.cptr), seL4_NoError);
     seL4_Signal(n_badged.capPtr);
-    r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, 0, 0);
-    test_eq(r.error, seL4_NoError);
-    test_eq(r.stop, seL4_ARM_VCPURunStop_Interrupt);
-    test_eq(r.w1, 0x55aaul);
+    if (gic_v3) {
+        st->regs[seL4_VCPUReg_VGIC_HCR] = hcr_init | (1ul << 6); /* En | VGrp1EIE */
+        r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, seL4_ARM_VCPUState_VGIC_LR, seL4_ARM_VCPUState_VGIC);
+        test_eq(r.error, seL4_NoError);
+        test_eq(r.stop, seL4_ARM_VCPURunStop_Interrupt);
+        test_eq(r.w1, 0x55aaul);
+        test_assert((st->regs[seL4_VCPUReg_VGIC_VMCR] & (1ul << 1)) != 0);
+        test_assert((st->regs[seL4_VCPUReg_VGIC_MISR] & (1ul << 6)) != 0);
+    } else {
+        r = seL4_ARM_VCPU_Run(v.cptr, STATE_OFF, 0, 0);
+        test_eq(r.error, seL4_NoError);
+        test_eq(r.stop, seL4_ARM_VCPURunStop_Interrupt);
+        test_eq(r.w1, 0x55aaul);
+    }
     test_eq(seL4_TCB_UnbindNotification(env->tcb), seL4_NoError);
 
     vka_cnode_delete(&n_badged);
