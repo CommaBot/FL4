@@ -10586,3 +10586,77 @@ Resumed once (predecessor cut off after ~10 min with the re-scope of (1) uncommi
 
 ### (7) Next (handoff)
 - (3)(i)–(v): LiveDN at the exit, then drop `hLv` from the per-call top in favour of the invariant (G4's `jreach_inv`).
+
+## rd8q (branch par/rd8q in FL4-c2, on 9d422936 = int/j2 incl. rd8n, rd8l, rd8m, rd15a, rd14a) — rd8n handoff 1 in part: `VE` (valid_blocked_except_set) frame kit, generated family, hand writers for the scheduler-local / SC-binding / wake-up writers, FL4 timers (DONE); remaining hand writers (IPC / reply / fault / budget / configure / schedule / cancel-all / invocation cones), shells, tops `kentry_vb` / `kcall_vb`, `SInvCRBV`, UF/VB wiring NOT done (handoff)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8q` (every new name), modules SpecInvRd8qA / F1..F4 / W / W2 / W3 (root imports them). Nothing
+existing edited. No JAtZ cone (ancestry of SpecInvRd8nC: 955 modules, none JointAt / XTopJointDelR; Rd8q adds only Rd8q modules).
+(Resumed from an interrupted rd8q agent: its kit had 13 errors from line 383 on; fixed here — the column rule on a multi-line
+structure-instance field, `split_ifs` goal order on `if t ∉ q`, `rescheduleRequired`'s match handled by `rcases` on the action,
+a `by … , by …` anonymous-constructor parse, a metavariable order in `sched_relq`.)
+- **SpecInvRd8qA (kit).** **`VE E σ`** (l4v `valid_blocked_except_set`: VB for threads outside `E`), `vb_ve : VB ↔ VE ⊥`,
+  `ve_mono` / `ve_ins` / `ve_of` / `ve_kh` / **`ve_drop`** (leave the exception set: queued, unschedulable, ct or switch target),
+  `VEA` (no switch-target exemption), `ve_setAction`; **`OKV old o`** (a TCB written runnable and bound was runnable and bound to
+  the same SC; an SC written active was active), `sched_upd(_ne)`, **`ve_upd`**, `ve_upd_tcb`; leaves (`VEK E := IK (VE E)`):
+  setObject / setSimpleKo / TCB rewrites keeping state and keeping-or-clearing the binding / set_thread_state to a non-runnable
+  state / set_thread_state_act / arch_thread_set / as_user / set_mrs / set_cap / option_update_thread / update_sched_context
+  (active only where it was) / enqueue / append; **`ve_rescheduleRequired`**, **`ve_possibleSwitchTo`** (no hypothesis);
+  `HT P Q m` (Hoare triple) with **`ht_threadSet_x` / `ht_setThreadState_x` / `ht_dequeue` / `ht_tcbReleaseRemove`** (`VE E →
+  VE (E ∪ {t})`), **`ht_enqueue_x` / `ht_possibleSwitchTo`** (`VE (E ∪ {t}) → VE E`), `ht_setSchedulerAction` (from VEA); `ve_auto`.
+- **SpecInvRd8qF1..F4 (family).** rd8g's gen.py with view `VEK E` (scratch/rd8q/mk.sh, untracked): 316 lemmas, one per spec
+  function reachable from fl4KernelEntrySyscall outside the writers (scratch/rd8q/w1.txt) and their ancestors (anc1.txt, 90 names).
+- **SpecInvRd8qW.** `ve_tcbReleaseEnqueue` (release queue only grows), **`ht_tcbReleaseEnqueue_x`** (`t` released leaves E),
+  `ve_tcbReleaseDequeue`, `ve_postpone`, **`ht_switchToThread t C` / `ht_switchToIdleThread C`** (`VE E ∧ ct = C → VE (E ∪ {C})`),
+  `ve_setDomain`, `ve_setPriority`.
+- **SpecInvRd8qW2.** **`UB t`** (no TCB or an unbound one at `t`: unschedulable) with frames (`ub_threadSet`, `ub_threadSet_clr`,
+  `ub_updateSchedContext`, `ub_kh`, `kh_testReschedule`), `ht_unbindTail`, **`ve_schedContextUnbindTcb`**, **`ve_schedContextDonate
+  p t (hE : E t)`**, `ve_schedContextResume`, **`ve_schedContextBindTcb`**, **`ve_maybeDonateSc t n (hE : E t)`**, `ve_awaken`.
+- **SpecInvRd8qW3.** `ht_tpst`, `ht_testPossibleSwitchTo`, `ht_wake` (set_thread_state Running; badge; maybe_donate_sc;
+  possible_switch_to), **`ve_updateWaitingNtfn`**, **`ve_sendSignal`**, **`ve_restart`**, FL4 timers **`ve_fl4TimerSignal` /
+  `ve_fl4TimerFire` / `ve_fl4TimerFires` / `ve_fl4Awaken`**.
+- Premises: none added. Every lemma is for arbitrary states (no ∀-states hypothesis); the only side conditions are `E t` on the
+  donation receiver (`ve_schedContextDonate`, `ve_maybeDonateSc`), discharged by `ht_wake` from the preceding set_thread_state.
+- Checks / findings: no reachable writer found breaking VB (no FINDING). Notes: (a) `sched_context_donate` binds the receiver
+  without enqueueing it: VB holds afterwards only because every caller made the receiver runnable just before and calls
+  `possible_switch_to` / `test_possible_switch_to` after (send_signal / update_waiting_ntfn checked here; reply paths not yet);
+  (b) `switch_to_thread` drops the old ct from VB's ct exemption: `schedule`'s choose-new arm enqueues the old ct when schedulable
+  first; carrying that through `schedule_choose_new_thread`'s domain step (arch_prepare_next_domain writes TCB FPU fields) needs
+  the old ct's clause without the ct exemption (handoff 1(b)); (c) refill_new / configure can activate an SC: VB then needs the
+  bound TCB identified (ScBack, sb2) — the configure path is the one writer where a carried fact beyond VE enters.
+- HANDOFF (in order; new names in SInvR.B8q; register each new lemma as a `ve_leaf` macro_rule so composites close by
+  `unfold f; ve_auto`, as W2 / W3 do):
+  1. Remaining hand writers of scratch/rd8q/anc1.txt (90 names; done: tcbReleaseEnqueue / Dequeue / Remove, postpone,
+     switchToThread / IdleThread (HT form), setDomain, setPriority, schedContextUnbindTcb / Donate / Resume / BindTcb, maybeDonateSc,
+     awaken, restart, sendSignal, updateWaitingNtfn, fl4Awaken / TimerFire(s) / TimerSignal; setSchedulerAction only as
+     `ht_setSchedulerAction` from VEA). (a) The wake-up pattern is `ht_wake` / `ht_tpst` / `ht_testPossibleSwitchTo`: use them for
+     completeSignal / receiveSignal / receiveIpc / sendIpc / doReplyTransfer / replyRemove / restartThreadIfNoFault /
+     removeAndRestart* / cancelAllIpc / cancelAllSignals / cancelBadgedSends (each: set_thread_state t runnable → `VE (E ∪ {t})`,
+     then possible_switch_to / tcb_sched_enqueue t). Generic `ht_tpst` takes the Decidable instance as an argument (`inst`) so it
+     unifies with the spec's `when sched` term. (b) `schedule`: the choose-new arm enqueues the old ct C when schedulable, so before
+     `schedule_choose_new_thread` C's VB clause holds WITHOUT the ct exemption; carry it over the domain step (FF frame for the
+     queues: SpecInvCqT `ff_archPrepareNextDomain`; plus a `schedulable C` non-increase frame, e.g. a `UB`-style or OKV-style
+     predicate `∀ u, schedulable u s → schedulable u σ0` for fixed σ0 — any OKV write keeps it, so a second gen.py run over the same
+     leaves gives it cheaply), then `ht_switchToThread` (target dequeued, every other thread keeps its queue) ends at `VE E` once C's
+     clause holds; then `ht_setSchedulerAction` from `vea_nsw` (action = chooseNewThread). Switch arm
+     (`scheduleSwitchThreadBranch`): same with the candidate (it is the switch target, exempt until the action is reset; it is
+     either switched to or enqueued). (c) refill_new / configure (`invokeSchedControlConfigureFlags`): an inactive SC may become
+     active: the bound TCB `sc.scTcb` joins the exception set via ScBack (sb2's `ScBackS`, carried) and leaves it by the
+     configure's own `schedContextResume` + `possible_switch_to` / enqueue; chargeBudget / endTimeslice / checkBudget: ct's
+     dequeue / postpone (VEK) and `rescheduleRequired`. (d) `fl4CallKernel` / `fl4KernelEntrySyscall`: compose with `ve_fl4Awaken`
+     and the schedule lemma; at the exit the action is resumeCurThread (ctq20's RS), so `VE ⊥ = VB` follows.
+  2. Shells / tops `kentry_vb` / `kcall_vb` from `B8n.boot_vb` / carried VB only, then `kentry_sr` / `kcall_sr` via `sr_of_vb` (its
+     Simple / R1 / RdyT ct inputs at the perform start: rd8n's `vb_restart` already uses Simple there).
+  3. `SInvCRBV := SInvCRB ∧ VB` (rd8l's bundle) with boot / entry / event theorems; 4. UF / VB from the entry to the shell start
+     (rd8n handoff 2) to discharge rdBody_send's DomainSet input.
+- Builds (tokyo, FL4-c2 mirror warm; ./rd8qs.sh untracked = rd8ns.sh with the Rd8q filter and a non-linter-warning grep; keys
+  rd8q-r*; the interrupted agent's rd8q-a1 not reused): r1 A (column rule at 383 fixed; one `dsimp` no-progress), r2 A + F1..F3
+  green, F4 one SC-activeness side goal (`ve_side`'s simp alternative did not unfold `scRefillMaxUpdate` and did not have to close),
+  r3 A + F1..F4 green (5502 jobs); r4 W green first try (5504); r5 / r6 W2 (implicit update function not inferable in
+  `ve_threadSet` / `ub_threadSet_clr`; an already-unfolded `when`), r7 stopped early by me (not a failure), r8 W2 green (5506); r9 W3
+  (duplicate `ve_testPossibleSwitchTo`: the family has it), r10 W3 green (5508) + axioms (axrd8q1.lean, untracked): all 31 listed
+  (vb_ve, ve_upd, ve_setCap, ve_updateSchedContext, ve_rescheduleRequired, ht_possibleSwitchTo, ht_setThreadState_x, ht_dequeue,
+  ht_tcbReleaseRemove, ht_enqueue_x, ve_resolveAddressBits', ve_schedContextSetInactive, ve_tcbReleaseEnqueue,
+  ht_tcbReleaseEnqueue_x, ve_tcbReleaseDequeue, ve_postpone, ht_switchToThread, ht_switchToIdleThread, ve_setDomain,
+  ve_setPriority, ve_schedContextUnbindTcb, ve_schedContextDonate, ve_schedContextResume, ve_schedContextBindTcb,
+  ve_maybeDonateSc, ve_awaken, ht_testPossibleSwitchTo, ve_updateWaitingNtfn, ve_sendSignal, ve_restart, ve_fl4Awaken): propext,
+  Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (eight
+  import lines). Commits 063a5705 (A, F1..F4), 726ff9e5 (W), 331ccb45 (W2), b6a5a12c (W3), then this section.
