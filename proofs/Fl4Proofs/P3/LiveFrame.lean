@@ -48,6 +48,40 @@ theorem ZNoBlk.of_same {th : TypedHeap} {m m' : U64 → U64} {kb kb' : U64} (h :
 theorem refsObj_objRefs {q : U64} {c : capability.Cap} (h : RefsObj q c) : q.bv ∈ Fl4Spec.objRefs (absCap c) := by
   cases c <;> simp only [RefsObj] at h <;> subst h <;> simp [absCap, Fl4Spec.objRefs]
 
+/-- **Two caps alike for `LiveJ`** (module docstring). -/
+def CapSimL (c' c : capability.Cap) : Prop :=
+  c' = c ∨ ∃ p b f f' d, c' = .Untyped p b f' d ∧ c = .Untyped p b f d
+
+theorem CapSimL.null {c' c : capability.Cap} (h : CapSimL c' c) : c' = .Null ↔ c = .Null := by
+  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
+  · exact Iff.rfl
+  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
+
+theorem CapSimL.refs {c' c : capability.Cap} (h : CapSimL c' c) (q : U64) : RefsObj q c' ↔ RefsObj q c := by
+  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
+  · exact Iff.rfl
+  · simp [RefsObj]
+
+theorem CapSimL.thread {c' c : capability.Cap} (h : CapSimL c' c) (w : U64) : c' = .Thread w ↔ c = .Thread w := by
+  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
+  · exact Iff.rfl
+  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
+
+theorem CapSimL.zombie {c' c : capability.Cap} (h : CapSimL c' c) (p zt n : U64) :
+    c' = .Zombie p zt n ↔ c = .Zombie p zt n := by
+  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
+  · exact Iff.rfl
+  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
+
+/-- `cdt::insert`'s source cap is alike the old one (Insert's `fullF`). -/
+theorem capSimL_fullF (c d : capability.Cap) : CapSimL ((fullF c d).getD c) c := by
+  unfold fullF
+  split
+  · split
+    · exact Or.inr ⟨_, _, _, _, _, rfl, rfl⟩
+    · exact Or.inl rfl
+  · exact Or.inl rfl
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
   {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
@@ -562,11 +596,6 @@ theorem LSim.of_shape {c' c : capability.Cap} (h : shape c' = shape c) : LSim c'
     fun w => by rw [← shape_thread c' w, h, shape_thread],
     fun p zt n => by rw [← shape_zombie c' p zt n, h, shape_zombie]⟩
 
-/-- **The CNode `pd` named by a CNode cap of a slot** (`DestLive`'s left
-disjunct). -/
-def DestCap (th : TypedHeap) (mem : U64 → U64) (pd : U64) : Prop :=
-  ∃ y r gs g, IsSlot th y ∧ capV mem y = .CNode pd r gs g
-
 set_option maxHeartbeats 4000000 in
 /-- **A step writing slot words at the slots `W` keeps `LiveDN` and
 `ZNoBlk`** (XTopJointLiveStep's `LiveDN.wstep`, with the `XTopAt` after
@@ -698,8 +727,8 @@ set_option maxHeartbeats 4000000 in
 and the TCB zombies' TCBs dead after). -/
 theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ)
-    {G' : MdbGhost} {V' : XVs} {s' : S} {a' : A}
-    {σ' : Fl4Spec.State Unit} (hX' : XTopAt (L := L) AR (Z.mv G' V') s' a' σ')
+    {G' : MdbGhost} {s' : S}
+    {σ' : Fl4Spec.State Unit} (hM' : MdbLinks Z.th (L.mem s') G')
     {H' : P1.Heap} (hDW' : DbgWF (P1.Heap.tcbs H') Cs (L.mem s') (dbgHd (L := L) s'))
     (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H' s' p)
     (hid : σ'.idleThread = σ.idleThread) (hdk : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s')
@@ -717,7 +746,6 @@ theorem LiveDN.wstepR {s : S} {a : A} {σ : Fl4Spec.State Unit}
   obtain ⟨hL, ⟨lst, hDW⟩, hN⟩ := hLv
   have hP : Placed Z.th := J.xtop.rel.1
   have hM := J.xtop.rel.2.1.2.2.1
-  have hM' := hX'.rel.2.1.2.2.1
   have hFI := J.xtop.rel.2.2.1
   have hks : L.ksb s' = L.ksb s := hdk.1
   have hmemS : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((hM.members y).1 hy).1
