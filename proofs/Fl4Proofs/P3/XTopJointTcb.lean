@@ -1958,7 +1958,7 @@ theorem tcb_read_fpuJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :=
   have hFA : Sched.FrApartH H (.Frame ptr sz r false m ep asid va) := by
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     have := hJ.cobj x (by rw [hxe]; exact hA0.isSlot); rw [hc] at this; exact this
-  obtain ⟨o, vms, hko, ho1, ho2⟩ := hFJ ptr sz r m ep asid va hc
+  obtain ⟨o, vms, hko, ho1, ho2⟩ := hFJ sl0 hA0 hxe ptr sz r m ep asid va hc
   -- the restart
   obtain ⟨s1', σ1', xt, hrc1, hst1', hkt, -, e1σ, -, -, -, hs1', Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have e1 : s1' = s1 := by
