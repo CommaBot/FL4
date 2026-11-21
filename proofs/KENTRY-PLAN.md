@@ -14525,3 +14525,17 @@ states; `hDL` unchanged (asked at the dispatch states, at the decode's values, e
   JAtZ.reset_untypedJMM, JAtZ.reset_loopJMM, MKD.reset_untyped_dev, NoPre.msAt_retypeDev, NoPre.msAt_resetDev, inv_ut_nr,
   utRetPostJMM_of_body, utRetPostJMM_of_reset, XCapP.monoX, jVtxHypMU_of, KDispHypsKV41.to35: propext, Classical.choice,
   Quot.sound.
+
+## g5e (branch int/g5d in FL4-g5m, on fbec02aa = int/j2 9f71eb84 merged with par/g5d) — the full build of int/g5d green
+- The only break of the merge: XTopJointMRTcbM:1166 (`tcb_set_sched_paramsJMM`), g4j's scripted copy of XTopJointMRTcb's
+  `tcb_set_sched_paramsJM`, destructured `McpRel`'s old two-field witness. Fix as g5d's in XTopJointMRTcb / XTopJointTcbSsp:
+  `obtain ⟨xq, hkq, hmq, -⟩ := hM q hqT` (the flags half is not needed there). No statement changed, no premise added.
+  Every other new module of int/j2 (g4j / g4k / m67 job 2 incl. XTopJointUtMR, UtResetMR, XTopJointKEntry40 / 41 / 41V,
+  P1 RabCongr / FastRREnt) built unchanged: none reads `McpRel` or builds `McpKeep` / a `JRest` `mcp`.
+- Generator: g4j's scratch/g4j/gentcbm.py copies XTopJointMRTcb's text, which g5d already patched, so a regeneration from
+  the current XTopJointMRTcb picks the fix up; the script itself is not in $W/FL4-sc any more (only scratch/g4k). g4k's
+  gen*.py need nothing.
+- Build g5e-full1 (tokyo, FL4-g5m mirror, `bash g5m-build.sh`): "Build completed successfully (7107 jobs)", 0 errors,
+  0 `declaration uses 'sorry'`. Axioms (axg5m.lean): kernel_entryJ38E, kernel_entry_reachIF, kernel_entryJ39,
+  kernel_entry_reachE3T, kernel_entryJ33R, P1 entry_of7r, fl4CallKernelV, kernel_entryJ40, kernel_entryJ41,
+  kernel_entryJ41V, kernel_entry_reachMD4V, P1 kernel_entry.entry_of7r2: propext, Classical.choice, Quot.sound. No FINDING.
