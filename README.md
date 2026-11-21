@@ -165,6 +165,9 @@ Use `seL4_X86_ASIDPool_Assign` for an EPT root and
 `seL4_VMEnter` and the MR layout in `sel4/arch/vmenter.h` are shared by
 both backends. Intel uses `ReadVMCS`/`WriteVMCS`; AMD uses
 `ReadVMCB`/`WriteVMCB`, with byte offsets from the AMD VMCB layout.
+Physical pointers, the ASID word (0x058) and the clean bits (0x0c0) read
+as 0 and cannot be written: the kernel sets the last two from per-core
+state on every entry.
 The other backend's field operations return `seL4_IllegalOperation`.
 VCPU objects occupy 32 KiB (`seL4_VCPUBits = 15`).
 

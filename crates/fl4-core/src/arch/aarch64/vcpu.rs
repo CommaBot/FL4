@@ -132,6 +132,14 @@ pub fn check<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     }
 }
 
+/// `sendSignal` to a `TS_RUNNING_VM` thread on this core: AArch64 leaves
+/// the signal active for `check` (seL4 has no AArch64 counterpart), so
+/// `report` is never reached from there.
+pub fn signal_completes<S: Store>(_s: &S, _t: Tcb) -> bool {
+    false
+}
+pub fn report<S: Store, A: Arch>(_s: &mut S, _a: &A, _t: Tcb, _badge: u64) {}
+
 /// Clear any active `ARMVCPURun` association when `t` is suspended or deleted.
 pub fn cancel_run<S: Store, A: Arch>(s: &mut S, _a: &mut A, t: Tcb) {
     let v = s.read(t.0.wrapping_add(tl::RUN_VCPU));
