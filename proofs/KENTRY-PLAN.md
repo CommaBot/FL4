@@ -12295,3 +12295,68 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   Quot.sound.
 - HANDOFF: `FastSame` (P-free memory agreement) for the fault path (F1–F6) then ReplyRecv (R1–R6); `MemResp` for `KPost` and
   `∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`; then `FastAcc.of_same` closes `hF` / `hFast`.
+## g4a (branch par/g4a in FL4-sc, on 550d49c6 = int/j2 incl. g2j, rd14h, m56) — G4: inventory of `kernel_entryJ34`; `kernel_entryJ35` (the (a) premises by projection); `JReach` / `jreach_inv` / `kernel_entry_reach` from `JAtZ ∧ SInvX ∧ MR` (no `initASt`)
+New leaf only (XTopJointKEntry35; root import). Nothing existing edited (in particular not XTopJointKEntry33's J33 / J34, m57's file).
+
+### (1) Inventory (written before proving): every premise of `kernel_entryJ34` and of the chain J34 → J33 → J33G → J32 → J31 → J30 → J29G
+Tags: **(a)** a projection of JAtZ / JExt at the state it is asked at, of SInvW / SInvB / SInvA at the entry, or of another
+premise of the same top (a duplicate) — field cited; **(b) [P]** platform; **(c) [S]** scope; **(d)** still open ([J] / [W]),
+with what would discharge it. States: σ = entry, σb = dispatch state (after FaultIP + a passing budget check, where `hK`'s
+bundle is asked, with `JAtZ (Z.mv Z.G V') H Cs … s' a' σb` in hand), x.2 = a `specFront` outcome (where `hFin`'s is asked,
+with `JAtZR` in hand). The chain below J34 adds no premise: J33 → J33G adds `hFast`; J33G's `hLv` is J34's `J.live`; J32's
+`thr.obj` = `jThrObj_ofExt` (J.ext.vw); J31's `JDelParts.vt` = `JVtHyps.ofExt` (J.ext.nat), `KFinAtR27.vt` = `vtAsid_ofR`
+(JAtZR.vsc); J30 / J29G are J13PUG's body with hK / hFin pinned to the run's FL4 states (g3d).
+
+| # | premise (J34 / inside a bundle) | at | class | source / what would discharge it |
+|---|---|---|---|---|
+| T1 | `[PlainStore st]` | — | [P] | P1 store model (statement) |
+| T2 | `J : JAtZ` (incl. `live`, `zD`, `ext`) | σ | carried | G4: `RJ` at the previous exit (`KPost`), `JAt`'s ghosts |
+| T3a | `hni.1 : ct ≠ idle` | σ | (c) [S] | a syscall comes from a user thread (`JReach.step` asks it) |
+| T3b | `hni.2 : action = resumeCurThread` | σ | (a) | SInvW → SInvCR's `RS` (`SInvCR.entered`) |
+| T4 | `hR : MR a σ.machineState` | σ | (d) | start condition; NOT in `KPost` (RJ = RelTopM ∧ JAt): carry MR to the exit through the finish / schedule / activate posts (MachPlat chain: `update_timestamp_mr`, the MRV holes, `set_next_interrupt`) and add it to RJ / KPost |
+| T5 | `hS : SInvB σ` | σ | (a) | `SInvW.sb` |
+| T6 | `hE : EpQAll σ` | σ | (a) with one added field | `epQAll_of` (Rdy = RdL.1, ScInv = SInvA.scInv, EpQB = SInvA.epq, **RPos**). RPos is not in SInvW: added to the carried bundle `SInvX := SInvW ∧ RPos` (spec-only), carried by epq2's `kentry_rpos` / `kcall_rpos` (inputs RPos, Rdy, ScInv: all in SInvX) |
+| T7 | `hQ : ∀ d p, ct ∉ readyQueues d p` | σ | (a) | `SInvCQ.ctQ` (EX's CtQ) |
+| T8 | `hn : NativeSys n c` | — | (c) [S] | native syscall numbers (event scope) |
+| T9 | `hflag` (TRAP_SYSCALLS clear after FAULT_IP write) | σ | (c) [S] | l4h trap mode |
+| T10 | `hB : OffReady (faultIPSt σ ct x)` | σ | (a) | RdL's `OffReady σ` + the FaultIP frame (`offReady_faultIPSt`, new: the write touches ct's TCB only) |
+| T11 | `hARI` ARIface, `hA` ArchTotal, `hM` MachPlat, `hKD` MRKeepD, `hPA` PPPlatA, `hIA` IrqPlatA, `hmrt`, `hmb`, `hT` TimeAgree, `hmax`, `htu` | — | (b) [P] ×11 | arch-only, no ∀-spec-state (G0 done) |
+| T12 | `hnd : numDomains = 1` | — | (c) [S] | config |
+| T13 | `hFast` (`P1.FastAgree` for SysReplyRecv) | σ | (b) [P] | m56 / m57: fastpath refinement (m57 reshaping in parallel) |
+| G1–G10 | hK: `JEntryGlobM32.ari tot delParts.arKeep delParts.ticks nd ppA dom timeAg maxTU tu` | — | (a) ×10 | duplicates of T11 / T12 (`hARI`, `hA`, `hARI.toARKeep`, `⟨hmax, htu⟩`, `hnd`, `hPA`, `DomConfig = ⟨hnd⟩`, `hT`, `hmax`, `htu`) |
+| G11 | hK: `JEntryGlobM32.delParts.archRef` (ArchRefines) | — | (b) [P] | moved to the top (`hRef`) |
+| G12 | hK: `JEntryGlobM32.portIn` (PortInVal, ∀σ) | — | (b) [P] | moved to the top (`hPI`); strong ∀σ form (mr10 / INV-PLAN §0): restate MR-relative (G0) |
+| E1 | hK: `JEntryAtR3.stall` (remote_tcb_stall is a no-op) | σb | (b) [P] | one core |
+| E2–E3 | hK: `JEntryAtR3.ioapics`, `archIrq` | σb | (b) [P] ×2 | arch IRQ tables |
+| E4–E10 | hK: `JEntryAtR3.flags handlers ports vsTyp fnz urz utks` | σb | (d) [J] ×7 | none is a JAtZ / JExt field: add each to `JExt` with its keep lemma at every producer (INV-PLAN G2 list), plus the FAULT_IP + budget_ok frame (as `liveDN_front`) |
+| P1 | hK: JPathAtM Thread `hFr` (ReadFPU frame) | σb | (d) [J] | from `fcap` + `bok` + SpecGlob (INV-PLAN P1), or a JExt field |
+| P2 | hK: JPathAtM Thread SetEPTRoot `JVtxScope` | σb | (c) [S] | label-based VT-x scope (the thread cap is native) |
+| P3 | hK: JPathAtM IoPort with owner ≠ 0 `JVtxScope` | σb | (a) | refuted by `J.ext.nat` at σb (`NativeCap (.IoPort _ _ o) = (o = 0)`; the invoked slot is `AbsSlot.isSlot`) |
+| P4 | hK: JPathAtM Vcpu `JVtxScope` | σb | (a) | refuted by `J.ext.nat` (NativeCap (.Vcpu _) = False) |
+| P5 | hK: JPathAtM Ept `JVtxScope` | σb | (a) | refuted by `J.ext.nat` |
+| P6 | hK: JPathAtM Frame `ep = true ∨ lbl = MapEPT → JVtxScope` | σb | (c) [S] | only the mapped ∧ EPT case is refuted by `nat`; unmapped EPT-flag frames and the EPT-map label stay scope |
+| P7 | hK: JPathAtM Frame `hno` (large frame vs every frame cap) | σb | (d) [J] | frame-cap overlap discipline as a JExt field (INV-PLAN P8) |
+| P8 | hK: JPathAtM AsidPool `native` (extra cap not Ept) | σb | (c) [S] | the extra cap's slot is not in JPathAtM's context (needs `ExtraNamed` there, then (a) by `nat`) |
+| P9–P10 | hK: JPathAtM AsidControl `heapH`, `vsReach` | σb | (d) [J] ×2 | ArchFitHyp / RegionUnrefAt / VsReachMiss carried (INV-PLAN P9 / P10, L) |
+| P11–P17 | hK: JPathAtM SchedContext `tm mb max tu` (dups of T11), `arch` [P], `rest` (∀ ghosts JAtZ → ScStepP1) [P]; YieldTo `mb max tu` (dups) | σb | (b) [P] ×7 groups | `rest` is P1-provable at every BlkOK (INV-PLAN §3); left: the dups sit inside the JPathM case split |
+| P18–P21 | hK: JPathAtM SchedControl `tm mb max tu` (dups), `core` (cpu = Z.c, one core), `arch`, `rest` | σb | (b) [P] ×4 groups | as P11–P17 |
+| P22–P27 | hK: JPathAtM RAM Untyped `fan`, `rcb`, `core0` [P]; `vtx` [S]; `bufObj`, `heapH`, `vsReach` [J] | σb | (b) ×3, (c) ×1, (d) ×3 | INV-PLAN P11–P15 |
+| P28–P35 | hK: JPathAtM device Untyped `fan`, `core0`, `rcb` [P]; `vtx` [S]; `bufObj`, `heapH`, `devApart`, `devFree`, `devGpm`, `vsReach` [J] | σb | (b) ×3, (c) ×1, (d) ×6 | INV-PLAN P17–P20 |
+| V1 | hK: `JVtxHypMU` (Untyped retype to VT-x types 14..18) | σb | (c) [S] | g2a (4): with `nat` it says "no successful VT-x retype" |
+| F1 | hFin: `KFinAtR31.hd` (domainTime ≠ 0 ∨ NdOK) | x.2 | (d) [J] | DomRel from RelTopM, DomListOK from SInvA.dom carried to x.2, the DOM_SCHED_IDX word a JExt field |
+| F2–F5 | hFin: `KFinAtR31.arch archNd sni send` (∀ SchedRel) | — | (b) [P] ×4 | arch switch / next-domain / timer / IPI |
+| F6 | hFin: `KFinAtR31.tail` (CR3 after the switch) | x.2 | (d) [P]+[J] | vtable-to-CR3 relation (INV-PLAN F8, L) |
+
+Counts (by field; a bundle field counts once even when asked by both `inv` and `mid`): **(a) 18** (T3b, T5, T6, T7, T10,
+G1–G10, P3–P5; discharged upstream before J34 and not counted: hLv, thr.obj, JDelParts.vt, KFinAtR27.vt, g3a / g3c's hVI,
+hB.now / cur / tmo, JEntryAt.ni / ctnq / sg / rd0 / vfh / cnf / epQ, KFinAtR.fo, the three mid facts); **(b) [P] 44** (T1, T11 ×11,
+T13, G11, G12, E1–E3, SchedContext ×6 + YieldTo ×3, SchedControl ×7, RAM Untyped fan / rcb / core0, device fan / core0 / rcb,
+F2–F5); **(c) [S] 10** (T3a, T8, T9, T12, P2, P6, P8, RAM / device `vtx`, V1); **(d) open 23** (T4; E4–E10 ×7; P1, P7, P9, P10;
+RAM Untyped bufObj / heapH / vsReach; device bufObj / heapH / devApart / devFree / devGpm / vsReach; F1, F6). None of (d) is a
+∀-over-states premise: each is asked at σ, σb or x.2 of the run (g3d's pinning); hK's `Ac' Lst' D'` and hFin's ghosts stay ∀
+(the producers' posts are existential in them, g3d (3)).
+
+Beyond premises, two gaps of the induction itself (not premises of J34): **(G-a)** `KPost`'s left disjunct (the spec entry
+fails: `(fl4KernelEntrySyscall true c σ).2`) has no successor state; l4v closes it with `no_fail` of the abstract entry under
+`invs` — to discharge: a spec-only `kentry_nofail : SInvX σ → ct ≠ idle → ¬ (fl4KernelEntrySyscall true c σ).2`. **(G-b)**
+the MR carry (T4).
