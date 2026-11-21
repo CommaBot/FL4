@@ -12842,3 +12842,119 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   (R-d) `FastRRP` from `rr_sync` + (R-b) + `StoreExt` / `MemResp` (as `FastAcc.of_ext`), P1 top `entry_of8` without `hRR`;
   P3 `FastRR` from the same (`FastRR.acc`'s direction reversed) and `kernel_entryJ33F` / `J34F` in a new P3 module (not
   XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2).
+
+## m65 (branch par/m65 in FL4-m56, on 437e03fc = par/m64) — m64's handoff: (R-a) DONE as a meeting-point lemma over the fast run's intermediate states (`rr_sync_of` with `handle_invocation_rr` / `do_reply_transfer_rr` / `handle_recv_rr` / `ep_append_empty`, the run split by `rrTail_split`), the general path's reads at those states taken as hypotheses (their derivation from entry-state facts NOT done); (R-b) DONE (`schedule_sw`, `finish_rr`); (R-c) DONE for the ring (`unblock_check_r4`: no wrap given a ring-sum bound) and the bound entered as the named premise `RRSum` [J]; (R-d) `FastRRP` / P1 top without `hRR` / P3 `FastRR` / `kernel_entryJ33F` / `J34F` NOT done; no FINDING
+- **P1 FastRRSum (new; imported by the root).**
+  * **`UbHead`**, **`sporadic.unblock_check_loop.head`**, **`sporadic.unblock_check.head`**: from a `RefillsWF` ring whose
+    amounts sum below `2 ^ 64` (`LawfulStore.amtSum`, l4v `refills_sum`) and whose head is ready, `refill_unblock_check`
+    ends with a well-formed ring whose head's time is `≤` the entry state's `CUR_TIME` and whose head amount is no smaller
+    (each merge adds the next ring entry to the head; the merged entries are distinct, so every partial sum is `≤ amtSum`
+    and `wrapping_add` does not wrap; the round-robin and not-ready branches change nothing). **`unblock_check_r4`** is the
+    same on the physical head (`L.refill s sc (L.rhead s sc)`, as `ready` / `capacity` read it). `u64_sub0`,
+    **`sporadic.ready_of`** (a head starting no later than `CUR_TIME` is ready), **`sporadic.sufficient_mono`**
+    (`sufficient(·, 0)` is monotone in the head amount: `capacity(·, 0)` is the amount, `min_budget` reads only the Arch
+    value) — R4 at the general path's read state `X6` is then a frame argument (`CUR_TIME`, the ring) from these.
+  * **`RRSum Scs s` [J]** (exact): `∀ c ∈ Scs, L.mem s (sporA c) ≠ 0 → L.amtSum s c < 2 ^ 64`. l4v counterpart
+    `valid_refills` / `refills_sum = sc_budget ≤ MAX_PERIOD`; FL4 P3 counterpart `SInvR.RV` / `SInvE.RPos` (spec state:
+    every active SC's `rsum < 2 ^ 64`). Searched first for an existing P1 fact: `RefillsWF` (indices only), `SCA` /
+    `SCsOK` (`RefillsWF` of active SCs, no sum), `UnblockInv.sum` / `unblock_check.ordered` (take the bound as a
+    hypothesis, no caller), P3 `ScBudget` / `SpecInvRdA` (spec-side `lsum` / `rsum` bounds under `RV`). Not added to `SCA`:
+    every ring writer (`refill_new`, `refill_update`, `budget_check`'s two loops and `schedule_used`, `unblock_check`) would
+    have to re-prove it at every P1 entry — the l4v `valid_refills` effort, not cheap. Hence a named premise, asked at the
+    kernel entry state (not yet on a top). Reachability: the ring sum of a sporadic (so active, `SCsOK.spor`) SC is its
+    configured budget (configure decodes budget ≤ `MAX_PERIOD`; charges and merges conserve it), and P3's `RV` says exactly
+    `rsum < 2 ^ 64` for the related spec SC, whose refills are the ring's (`L.refills … map toRefill`), so it holds in every
+    state P3 relates; R4 reads it only for the receiver's SC (`unblock_check` runs only on a sporadic SC).
+- **P1 FastRRSync (new; imported by the root).**
+  * `ite_ok_rr`, `bne_self_rr`, **`lookup_extra_caps_zero`** (with `extra_caps = 0`: `NO_EXTRA_CAPS`, both the `buf = 0` and
+    the loop branch), `after_invocation_ok`, `unknown_ne_null`.
+  * **`do_reply_transfer_rr`** (`X1` → `X7`): the reply's TCB `u`, `u` BlockedOnReply, `reply_remove`, `u.sc` = `usc` re-read
+    at `X2`, the fast path's `unblock_check` branch verbatim, fault type UnknownSyscall at `X3`, `handle_fault_reply` with
+    restart, `clear_fault`, `set_thread_state u Restart` (`set_state` + a no-op `schedule_tcb`), `u.sc` / `is_runnable` /
+    `ready` / `sufficient` at `X6`, `possible_switch_to u` = the action write.
+  * **`handle_invocation_rr`** (`X0` → `X8`, the `REPLY` cptr, not a call, not blocking, first phase): `cur_thread`,
+    `msg_info`, `lookup_slot` + the slot's Reply cap (= `RCaps.root`'s first resolve), `lookup_ipc_buffer`, no extra caps, the
+    `length` if (irrelevant), the Reply decode (`t` Restart with a no-op `schedule_tcb`, `do_reply_transfer`), `t`'s state
+    Restart at `X7` ⇒ `t` Running with a no-op `schedule_tcb`.
+  * **`ep_append_empty`**: `ep_append` on a queue with head 0 = `set_ep_next t 0`, `set_ep_prev t 0`, `Ep.set_queue t t`
+    (the fast path's three writes, same order).
+  * **`handle_recv_rr`** (`X8` → `X15`): the `CAP` / `REPLY` lookups (Endpoint with the receive right, Reply cap),
+    `take_reply` with `r.tcb = 0` (no cancel), the bound notification (none, or not ACTIVE and `maybe_return_sched_context`
+    a no-op), the endpoint IDLE ⇒ `wait_for_sender` (`schedule_tcb` a no-op, `rptr ≠ 0`, the reply's TCB word,
+    `ep_append`).
+  * **`rr_sync_of`**: `dispatch_syscall X0 SysReplyRecv = ok (X15, a2)` from `dispatch_rr`, the two lemmas above and
+    `after_invocation (Ok ())` = continue. **`rrTail_split`**: an accepted `rrTail` is the 16 binds (`X1 … X15`, the restart
+    flag a variable) and `switch_to X15 a2 u = ok (s', a')`.
+  * **(R-b) `schedule_sw`**: `schedule` with the action word `u` (≠ RESUME, ≠ CHOOSE_NEW), nothing due (m59's `awaken_none`
+    inputs), the current thread not schedulable, and the fast path's `hp` check read at that state = `switch_to_thread u`
+    then `schedTail`. **`finish_rr`**: from a run `fastpath.switch_to X a u = ok (s', a')`, `schedule` as above and
+    `dequeue u` a no-op at `X`, `syscall.finish X a = ok (s', a')` (`set_vm_root_ok_s`: the store comes back unchanged, so
+    the dequeue reads `X`; `set_action_ok`; m60's `schedTail_act`). So the general path from `X15` ends exactly at the fast
+    path's result — equality of states, no `StoreExt`, on this half.
+  * Lean notes: in these rewriting proofs each `rw [h]; simp only [bind_ok, uncurry_apply_pair]` must make progress (use
+    `try simp only at h` after a tuple `bind_eq_ok`: the match is sometimes already reduced); `intro` in a `have fin : ∀ v,
+    … → …` introduces `v` first. `set_action_ok` must be applied with `simp only` under the bind (it is under a binder).
+- **Reachability of every bundle added or kept** (each checked against fastpath.rs / ipc.rs / endpoint.rs / syscall.rs):
+  * `RRSum`: above.
+  * The sync lemmas' read hypotheses, in an accepted run from `X0` (an `XG` ∧ `BXI` state, `budget_ok.bxc`): `hct` /
+    `hmi` / `hex` / `hls` / `hcap` and the `X0` cap facts are exactly `RRChecks` / `RCaps` (derived, `reply_recv_found_acc`,
+    `reply_caps_some`); `hbuf` (`lookup_ipc_buffer` returns) is total under `LawfulStore` reads; `hsch1` holds since `t`
+    stays schedulable after Restart (only `t`'s state word is written; `is_schedulable` reads it, Restart is runnable, and
+    `t`'s SC / refill_max / in-queues words); `hrt` / `hus` at `X1`: the reply object and `u`'s state word are not `t`'s
+    state word (`u ≠ t`: `u` BlockedOnReply, `t` schedulable); `hsc2`: `reply_remove`'s unlink branch writes reply words and
+    `u`'s state (`reply_unlink` = `r.tcb := 0` + `set_thread_state u Inactive`), not `u`'s SC word; `hft` / the label at `X3`:
+    `unblock_check` writes the ring and REPROGRAM only (`unblock_check.fr`); `hsch6`: `u ≠` the current thread `t`
+    (`schedule_tcb_other`); `hsc6` / `hrun6`: `handle_fault_reply` (UnknownSyscall: `u`'s registers) and `clear_fault`
+    (`u`'s fault words) miss `u`'s SC word, `u`'s state is the Restart just written; `hrdy6` / `hsuf6`: R4 (`unblock_check_r4`
+    under `RRSum`, then `ready_of` / `sufficient_mono` past the register / fault / state writes, which miss the ring and
+    `CUR_TIME`; the not-sporadic / current-SC branch writes nothing and the fast path checked both at `X0`);
+    `hpst`: `possible_switch_to u` reads `u.sc ≠ 0`, `u` not in the release queue, domain / affinity = current, action
+    RESUME — what `schedulable_here u` and `RRChecks.act` checked at `X0`, none of these words written by then; `hst7`:
+    `do_reply_transfer` writes `t`'s state nowhere (`u ≠ t`); `hsch8`, `hsch11`: action `u` ≠ RESUME (`u ≠ 0`, RESUME = 0;
+    `schedule_tcb_nr`); the `X8` lookups: the CNode slots and the root cap are not written by the run (TCB / reply / SC / node
+    words only); `hrt` at `X8`: `reply_unlink` wrote `r.tcb := 0`; the notification facts are `RRChecks.ntfn` re-read
+    (`t.sc`, the notification words not written); `hep`: `RRChecks.ep` re-read; `hr0` (`rptr ≠ 0`): a Reply cap points to a
+    Reply object (P3 cap relation / l4v `valid_cap`); with `rptr = 0` the general path would skip the reply write that the
+    fast path makes — not reachable, so not a kernel bug, but it is a read fact the derivation must take from the cap
+    typing (`EntryHyps0` / Hyps4 cap typing at the `XG` state, as `faultEntAt_of` does for the fault handler cap); `hq`
+    (queue head 0 at `X12`): R2, `EpsWit` (an IDLE endpoint's queue is empty: members are Blocked, hence state 1 / 2) and
+    the run does not write the endpoint before `X15`; `schedule_sw`'s inputs at `X15`: `NoDue` (m63's `noDue_wrs`
+    pattern), `t` BlockedOnRecv at `X15` (not schedulable), `hp` = `RRChecks.hp` re-read (idle thread, prios, current
+    domain, bitmap not written: `is_hp_of_le`); `hdq`: `u` not queued (`HereF.nq`), so `dequeue u` is a no-op.
+  * Nothing here asks a fact of a word the code does not read; the hypotheses are the general path's reads one by one.
+- **Premises.** Added: `RRSum` [J] (defined, not yet on a top; it will replace nothing and enter `FastRRP`'s derivation).
+  Removed / narrowed on tops: none (`entry_of7`'s `hRR : FastRRP` [P] and P3 `kernel_entryJ33` / `J34`'s `hFast : FastRR`
+  unchanged). Kept: `AsidOff` [J], `StoreExt` [P], `FastRRP` [P].
+- **FINDING: none.** Re-traced while writing the sync: `reply_unlink` clears `r.tcb` (so `take_reply` cancels nothing),
+  `maybe_return_sched_context` is a no-op exactly when the fast path's notification check passes, `ep_append` on the empty
+  queue is the fast path's link / queue writes in the same order, and the general `schedule` from action `u` with `t`
+  blocked takes `switch_to_thread u` in both `fastfail` cases (the fast path checked `is_highest_prio` when `fastfail`).
+  One proof-side point recorded: the R4 agreement needs `RRSum` (the fast path's comment "unblock_check keeps a ready head
+  ready and its amount no smaller" is true only without a wrapping merge, which `RV` excludes).
+- **Builds (tokyo, mirror FL4-m56, keys m65-*; `.lake` warm from m64).** b1 FastRRSum (implicit `sb`); b2 (`h_post`
+  consumed by `subst_vars`); **b3 FastRRSum green (3818 jobs)**, committed 7bb51e29; b4–b8 FastRRSync (Endpoint badge is a
+  `U64`, a missing `bind_ok`, `simp` without progress after a reduced match, a `set_action` rewrite under a binder, `intro`
+  of the `∀ v`); **b9 FastRRSum + FastRRSync green (3820 jobs)**, 0 sorry, committed 57aeb1d1; **b10** cone FastRRSync, QueueEntryGaps4,
+  XTopJointKEntry33, SpecInvRd14hC, SpecInvRd8wB: **"Build completed successfully (6916 jobs)"**, 0 sorry. No full
+  `lake build` (the lead runs it; the root gains `import Fl4Proofs.P1.FastRRSum` and `import Fl4Proofs.P1.FastRRSync`,
+  both leaves).
+- **Axioms** (scratch/axm65.lean, untracked; b10): kernel_entryJ33, kernel_entryJ34, A14h.kcall_rdyOff9 /
+  kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW, P1 kernel_entry.entry_of6 / entry_of7, unblock_check_loop.head,
+  unblock_check.head, unblock_check_r4, ready_of, sufficient_mono, lookup_extra_caps_zero, do_reply_transfer_rr,
+  handle_invocation_rr, ep_append_empty, handle_recv_rr, rr_sync_of, rrTail_split, schedule_sw, finish_rr: propext,
+  Classical.choice, Quot.sound.
+- HANDOFF (in order).
+  (R-a') **Derive the sync lemmas' reads** at `X1 … X15` from `RRChecks` / `RCaps` at `X0`, `BXI` / `XG` there, `RRSum`
+  and the run's footprints, exactly as m61 / m63 did for the fault path (`FaultKeep` / `FinKeep` style: one keep-lemma
+  from `X0` to each read state; footprints `ipc.reply_remove` (QueueReplyX / QueueIpcFoot), `sporadic.unblock_check.fr`,
+  `faults.handle_fault_reply.rg` (UnknownSyscall: `XferRegW`-like register words of `u`), `clear_fault`, the explicit
+  `set_state` / `set_action` / `set_block_obj` / `set_reply_obj` / `Reply.set_tcb` / link writes), and the typing facts
+  `rptr ≠ 0` and the endpoint queue empty (cap typing at `XG`, `EpsWit`). Then one lemma
+  `rr_same : fastpath.reply_recv X0 a = ok (true, s', a') → (entry facts) → (dispatch_syscall X0 SysReplyRecv >>= finish)
+  = ok (s', a')` chaining `reply_recv_acc`, `reply_recv_found_acc`, `rrTail_split`, `hfr_us` (restart = true), the sync
+  lemmas, `schedule_sw` and `finish_rr`.
+  (R-d) `FastRRP` from `rr_same` (the general spec `⦃P⦄` applied to `handle_syscall_general`, which from `s` runs the same
+  prefix as the fast entry — `FastAcc.of_split`'s `hsyn` — so `P (s', a')` with no `StoreExt` needed on this half), P1 top
+  `entry_of8` = `entry_of7` with `hRR` replaced by `RRSum Scs s`; P3 `FastRR` the same way and `kernel_entryJ33F` / `J34F`
+  in a new P3 module (not XTopJointKEntry35*/36*/37*/38/NF/Ev/Ev2/Ev3), with `RRSum` discharged from P3's `RV` through the
+  SC relation if cheap there.
