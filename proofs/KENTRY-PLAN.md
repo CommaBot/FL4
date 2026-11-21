@@ -12746,3 +12746,124 @@ allocated IO ports, memory and arch objects kept), `capAt_updTcb` (a TCB replace
   INV-PLAN §4 G1 shape) and adding it to `JReach` is the next step; for `SpecUtZ` it needs the spec-side `SpecFree` (above), for
   `SpecFrPg` that retype creates pages with their caps and detype removes both.
 - Then `flags` (route in (3)), `vsTyp` (after `BufObjHyp`), P7 `hno` (a `JExt` field or a spec `isOriginalCap` invariant).
+
+## g4c (branch par/g4c in FL4-q, on 607bd090, rebased onto int/j2 857ac23e) — g4a (6) (G-a): spec `kentry_nofail` under `SInvX`. STOPPED on a FINDING: `SInvX` is too weak for no-fail (it has no `valid_objs` typing of cap / TCB / queue references and no `valid_ep` shape), so `kentry_nofail` is false as a statement over `SInvX` states; no Lean change, no new top (`kernel_entryJ36` / `kernel_entry_reachN` NOT stated)
+Documentation only (this section). No proof file edited, nothing built (nothing to build); `g4c.sh` (= rd14hs.sh, renamed logs) untracked.
+
+### (1) What was asked and why it fails
+- Target: `kentry_nofail : SInvX σ → σ.curThread ≠ σ.idleThread → numDomains = 1 → ¬ (fl4KernelEntrySyscall true c σ).2` for every
+  native `c`, then drop `KPostX`'s left disjunct. `NonDet` failure (`Fl4Spec/Monad.lean`) is the Prop `.2`: `fail`, `assert P` with `¬P`,
+  `assertOpt none`, `getsThe` of `none`, `stateAssert`, a `whileLoop` with a failing reachable round **or an infinite run**, and
+  `lfp` (rec_del / cap_revoke) failing at every pre-fixed point. `bind` fails if any reachable continuation fails, so no-fail needs a
+  wp-style precondition at every intermediate state (l4v: `no_fail` + `valid` under `invs`).
+- l4v discharges the abstract entry's asserts with `invs`: mainly `valid_objs` (every cap's / TCB field's / queue's reference names
+  an object of the right type: `valid_cap`, `valid_tcb`, `valid_ep`, `valid_ntfn`, `valid_reply`, `valid_sched_context`), `sym_refs`,
+  `valid_sched` and the refill invariants, plus termination of the loops. **`SInvX` carries only slices of these.** In particular
+  it has no field saying that an endpoint cap names an endpoint:
+  - `CnDom` (SInvA.cnDom) types CNode caps only (`CnOk`: `cnodeCap p r g → CnFull σ p r`);
+  - `UtInv3` (SInvA.ut): `CapKindV` types *slot-holding* caps relative to each other (`shp c = shp c'`), `UtChV` / `CapFreeV` / `UtFreeV`
+    speak about caps inside untyped regions; none says that the object at a non-slot cap's reference exists or has its type;
+  - `ScKindR` (SInvA.sl.2) types SC caps relative to each other; `SpecGlobS` / `IdleOutV` only exclude the IRQ nodes / the idle thread
+    as references; `EpQB` / `NtfnQB` (SInvA.epq / .nq) type the *members* of queues of existing endpoints / notifications.
+- **Counter-scenario** (an `SInvX` state, not a reachable one): any `SInvX` state with `ct ≠ idle` in which some slot of ct's CSpace
+  that ct can name holds `endpointCap p b rights` with `AllowSend ∈ rights`, `p` outside every untyped region, not an IRQ node,
+  not the idle thread, and `σ.kheap p = none` (or a notification). Every `SInvX` field quantifying over caps is satisfied by such a cap
+  (CnDom: not a CNode cap; CapKind / CnShape / IfUnsafe: not slot-holding, not in an untyped region; UtCh / CapFree / UtFree /
+  UtDesc: outside every untyped; ScKindR: not an SC cap and `p` in no SC cap's range; SpecGlobS / IdleOutV: `p` excluded; NativeScopeS:
+  not a VT-x cap; ValidIrqHandlers: not an IRQ handler cap; IfLiveT / ScLiveT: extra caps only add holders; the scheduler, refill,
+  queue and SC-binding fields do not read slots). `sysSend` / `sysNBSend` / `sysCall` with the cap register naming that slot:
+  `fl4HandleInvocationR` → `fl4DecodeInvocation` (`Ext/Invocation.lean:163`, returns `invokeEndpoint p …`) → `performInvocation`
+  (`Syscall.lean:82`) → `sendIpc` → `getEndpoint p` → `getSimpleKo` → `getObject p` = `getsThe none` (KHeap.lean:87) → **fails**.
+  So `kentry_nofail` does not follow from `SInvX`. This is NOT a kernel / spec mismatch: at a `JReach` state the `JAtZ` relation ties the
+  spec cap to an FL4 endpoint object, and l4v's `valid_objs` holds there; the bundle just lacks the fact. (A formal counterexample would
+  need a concrete `SInvX` state with `ct ≠ idle`; none exists in the repo: `boot_sinvX` is at `initASt`, where ct = idle. Not built.)
+- A second independent gap of the same kind: `sendIpc`'s `.recvEP [] => fail` (Ipc.lean:231) and `receiveIpc`'s `assert (q ≠ [])`
+  (Ipc.lean:315) need l4v `valid_ep`'s "a non-idle endpoint has a non-empty queue"; `EpQB` does not give it (`.recvEP []` satisfies
+  `EpQB` vacuously). Likewise the receiver-state match (`| _ => fail`, Ipc.lean:214) needs "every member of a recvEP queue is
+  BlockedOnReceive" (EpQB gives only `epBlocked y.tcbState = some e`, i.e. send *or* receive).
+
+### (2) Inventory of the failure sites (whole spec; every one is on some native-syscall path, the boot-only `Init` has none)
+Class **(a)**: discharged by a cited SInvX field; **(m)**: needs a fact SInvX does not carry (what l4v uses); **(i)**: holds by the
+spec's own control flow (the guarding code establishes it); **(t)**: loop termination / `lfp` (a variant is needed).
+| site (file:line) | what must hold | class / source |
+|---|---|---|
+| asUser / threadGet / threadSet / archThread* / setMrs / makeFaultMsg / lookupSlotForThread `getsThe (getTcb t)` (KHeap 112–127, 569; TcbAcc 33; Ipc 120; CSpace 151) | `t` is a TCB | (a) for ct (`SInvB.entryJ` ctAct) and for queue members (EpQB / NtfnQB), SC-bound threads (`ScSym`, SInvA.scInv), release / ready queue members (`SchedQ`, EX); **(m)** for TCB caps' / reply / yield-to / bound-notification references (valid_cap / valid_tcb / valid_reply typing) |
+| getObject / getSimpleKo / getEndpoint / getNotification / getReply / getSchedContext / updateSchedContext / getAsidPool / getPml4 / getPdpt / getPd / getPt (KHeap 87, 158–161, 223–251, 641–733) | the reference is an object of the type | **(m)** valid_objs typing for every cap kind except CNode (CnDom) and the SC / TCB binding (ScSym); the counter-scenario above |
+| setObject `assert (aType kobj = aType obj)`, setSimpleKo (KHeap 92, 167–168) | same type as before | (i) every writer reads the object first (get-then-set), given the read did not fail |
+| getCap `wellFormedCnodeN` / `assertOpt (caps cref)` / non-CNode `fail` (CSpaceAcc 32–36), setCap (45–61) | a looked-up slot exists in a well-formed CNode / TCB | (a) for CNode caps (`CnDom`, `CnBits`, `CnShapeV` in UtInv3) and resolveAddressBits' own checks; **(m)** `wellFormedCnodeN` (l4v `well_formed_cnode_n` in `valid_objs`) is not carried for every CNode object |
+| resolveAddressBits' `fail` "table broken" (CSpace 120) | the CNode named by a cap holds the slot | (a) `CnDom` |
+| getsThe on SC reads: getScActive, getRefillHead / Tail (`scRefills ≠ []`), getScRefill{Capacity,Sufficient,Ready}, getScReleased (KHeap 276–399) | the pointer is an SC with refills | (a) `RNE` (SInvA.scInv) for active / sporadic SCs and `ScSym` for bound SCs; **(m)** for SCs reached through an SC cap (typing) and inactive non-sporadic SCs' refills |
+| rescheduleRequired `assertOpt scOpt`, `assert (sufficient && ready)` (KHeap 475–478) | a `switchThread t` candidate that is schedulable has an SC that is sufficient and ready | (a) candidate SC from `CurScT` / `RdL` (`Rdy`, l4v `valid_sched_action` = switch thread released + sufficient); to check field by field when proving |
+| switchToThread / guardedSwitchTo (Schedule 25–41) | chosen thread is a TCB, bound, schedulable, in the current domain | (a) `SchedQ` (EX) + `Rdy` + `DomListOK` / `numDomains = 1` |
+| setNextInterrupt `assertOpt` ×2, switchSchedContext `assertOpt` (Schedule 82–104), readTcbRefillReady / readTcbReadyTime (Schedule 124, SchedContext 26) | ct / release-queue head bound to an SC | (a) `CurScT` (SInvA.cs), `SchedQ` / `Rdy` (released threads are bound) |
+| tcbReleaseDequeue `assert (rq ≠ [])` (Schedule 138) | — | (i) awaken's loop condition |
+| awaken `whileLoop` (Schedule 145) | terminates | (t) variant `length releaseQueue` (each round removes the head) |
+| refillHeadOverlappingLoop, headInsufficientLoop, handleOverrun (CSpaceAcc 154, SchedContext 151, 173) | terminate, rounds do not fail | (t) variants: `length scRefills` (merges), usage / refill amounts (`RPos`: positive amounts, finite sum — the reason `RPos` exists) |
+| scheduleUsed `assert (refills ≠ [])`, refillBudgetCheck `assert (¬robin)` (SchedContext 120, 180) | — | (a) `RNE`; (i) call-site guard (`isRoundRobin` tested first) |
+| postpone / schedContextResume `assertOpt scTcb`, `assert (tptr ∉ queue)` (SchedContext 215–236), maybeReturnSc, schedContextUnbindTcb, schedContextDonate, invokeTcb, SchedControl configure `assertOpt sc.scTcb` (SchedContext 333; IpcCancel 57, 78; Tcb 197; Ipc 584–608) | SC bound / thread not yet queued | (a) `ScSym` + call-site guards (`scTcb ≠ none` tested), `SchedQ` / `VB` (valid_blocked) for "not in the release queue" |
+| schedContextYieldTo `assert (scYfOpt = none)`, `assertOpt scTcb` (Schedule 247–251), invokeSchedContext `| _ => fail` (Schedule 281, 286) | yield-to slot free; invocation matches the cap | (i) decode checks; **(m)** yield-to back-reference symmetry (l4v `sym_refs` of `tcb_yield_to`) |
+| replyUnlinkSc / replyUnlinkTcb / replyRemove / replyRemoveTcb asserts (IpcCancel 94–156) | reply ↔ TCB ↔ SC links symmetric, thread state matches | (a) in part by `BSA` / the reply facts carried by rd8 (`RcvS`-style); **(m)** l4v `sym_refs` of reply_tcb / reply_sc and `valid_reply` in general |
+| tcbEpDequeue / tcbNtfnDequeue `assert (tptr ∈ q)`, reorderEp / reorderNtfn asserts, getBlockingObject `assertOpt` (IpcCancel 237–313, 431) | the blocked thread is in its object's queue; object non-idle | **(m)** the converse of EpQB / NtfnQB (l4v `sym_refs` of `tcb_state` ↔ queues) and `valid_ep` / `valid_ntfn` non-emptiness |
+| orderedInsert `getsThe` (IpcCancel 260–261) | queue members are TCBs | (a) EpQB / NtfnQB / SchedQ |
+| sendIpc / receiveIpc / receiveSignal / completeSignal / sendFaultIpc / updateWaitingNtfn shape fails and asserts (Ipc 214–433) | endpoint / notification shapes, receiver state | **(m)** valid_ep / valid_ntfn (non-empty queues; recvEP members receive-blocked) and typing of bound notifications |
+| handleTimeout `assert valid`, doFaultTransfer `none => fail` (Ipc 444, 159) | timeout handler valid; fault present | (a) `VfhAll`-style for the timeout handler (check: the timeout-handler slot is not in VfhAll, which is the fault handler) ; (i) fault set just before |
+| doReplyTransfer `assert (r = reply)`, `assertOpt scOpt`, `getsThe (getTcb receiver)` (Ipc 472–497) | reply's TCB link; receiver typed | **(m)** reply ↔ TCB symmetry (valid_reply / sym_refs) |
+| finaliseCap `assert final`, fastFinalise `fail`, recDelF `assertE`s and reduceZombie `fail`, capRevokeF `assertE (cap ≠ null)`, capInsert `assert (oldCap = null)` (CSpace 237–614) | deletion / insertion preconditions | (i) the callers' checks (isFinalCapability, the empty-slot checks in decode), (a) `ZFinalV` (UtInv3) for zombies; **(m)** l4v `valid_mdb` facts for revoke's descendants |
+| recDel / capRevoke `lfp` (CSpace 468, 520) | a non-failing pre-fixed point exists | (t) l4v's rec_del termination measure (zombie size / descendants count), as a pre-fixed point built from it |
+| invokeCnode `cancelBadgedSendsCall _ => fail` (CSpace 661) | the decoded cap is an endpoint cap | (i) decode |
+| ensurePortOperationAllowed `assertE (first ≤ last)`, `(start ≤ end)`, non-IOPort `fail` (Decode 135–139) | IO port cap well-formed; no wrap | **(m)** valid_cap of IOPortCap (first ≤ last); (i) start ≤ end (16-bit port in 32 bits, size ≤ 4: no wrap); (i) the arch decode passes an IOPort cap |
+| decodeSchedControl `assertE (MIN_REFILLS ≤ maxRefillsCap)` (Decode 1005) | the target SC is large enough | **(m)** valid_cap of SchedContextCap (size bits ≥ the minimum) |
+| decode page / table / pdpt / untyped `| _ => fail`, archDecode `vcpuCap / eptCap => fail` (Decode 281–402, 1152; Ext/TcbSize 117; Ext/VSpace 61, 93) | the cap matches the decoder | (i) dispatch by cap kind; (a) `NativeScopeS` (SInvA.ns) for VT-x caps |
+| performAsidControl / deleteAsidPool `assert (asidLowBitsOf base = 0)`, flushTable alignment, ensureSafeMapping fails, findVspaceForAsid `assertE (asid > 0)`, findVspaceForAsidAssert, perform* `| _ => fail` (X64/Arch 83–213, X64/VSpace 117–281) | ASID / alignment / mapping shapes | (i) decode checks; **(m)** valid_cap of ASID-pool / table caps (aligned bases, mapped asid ≠ 0) and valid_vspace_objs (no huge-page PDE under a mapping) |
+| storeWordOffs `inUserFrame`, loadWord / storeWord alignment (TcbAcc 23; Machine 615–620) | the IPC buffer is a mapped 8-aligned user frame word | **(m)** l4v `valid_ipc_buffer_cap` + `in_user_frame` of the buffer (lookupIPCBuffer's result) |
+| readFpuState / writeFpuState `stateAssert fpuEnabled` (Machine 770–778) | FPU enabled before access | (i) `switchLocalFpuOwner` enables first |
+| activateThread `| _ => fail` (Tcb 86) | ct runnable or idle after schedule | (a) `SchedQ` / `ValidIdle` / `OnlyIdle` (+ `RS`) |
+| handleInterrupt `irqInactive => fail` (Interrupt 81) | an active IRQ is not inactive | (a) `ValidIrqMasks` (SInvA.vim) with `getActiveIRQ`'s mask test |
+| selectExt / orChoice / doExtendedOp (`mkEf`) (Deterministic 280–304) | the ext op has a result | (i) `StateExt Unit`: `wrapExtBool = select univ`, `wrapExtOp = pure ()`, `select` then `assert (x ∈ S)` |
+| fl4Awaken, machineOpLift (`ignoreFailure`) | — | (i) by definition (`False` failure flag) |
+
+Count: about 150 textual sites (`scratchpad/sites.txt` of this agent). Of the distinct obligations: **(a)** ≈ 14 groups (from SInvX),
+**(i)** ≈ 14 groups (control flow), **(t)** 3 groups (awaken, the three refill loops, rec_del / cap_revoke `lfp`), **(m)** ≈ 12 groups:
+cap typing (every cap kind but CNode), TCB-field typing (bound notification, yield-to, reply links), `well_formed_cnode_n`, the queue
+converse and `valid_ep` / `valid_ntfn` shapes, reply symmetry, valid_cap sizes (IOPort, SC, ASID / table caps), `valid_vspace_objs`,
+the IPC-buffer frame fact, `valid_mdb` for revoke.
+
+### (3) Findings
+- **FINDING (bundle, not kernel): `kentry_nofail` is not provable from `SInvX`** (counter-scenario in (1): a dangling endpoint cap;
+  a `recvEP []` endpoint). No assert was found that fails in a *reachable* state: every (m) item is an l4v `invs` conjunct that holds
+  at `JReach` states (the `JAtZ` relation types FL4's objects), so the gap is the carried spec bundle, not FL4 or the spec port.
+- (G-a) is therefore an **L line**, not a closing step: (i) a new carried spec bundle `SInvT` (l4v `valid_objs` + `sym_refs` slices:
+  the (m) list), with boot / whole-entry tops `kentry_sinvT` / `kcall_sinvT` in the usual frame-kit style (every object / cap / queue
+  writer); (ii) a no-fail calculus beside `syscall_post` / `fv_auto` (`NoFail` with a wp precondition: `bind` needs the result-set post,
+  so each no-fail lemma takes the carried facts *at the intermediate state*, i.e. the existing whole-entry tops have to be re-cut into
+  per-step posts); (iii) variants for the (t) loops and a pre-fixed-point construction for `lfp`.
+- Alternative (cheaper, if the lead accepts a joint statement): prove the no-fail at `JAtZ` states, where the (m) typing facts are
+  projections of the joint relation (`JAtZ` relates every spec cap / object to FL4's), keeping only (t) and the spec-only (a) facts.
+
+### (4) Not done
+- `kentry_nofail`, the corollary removing `KPostX`'s left disjunct, `kernel_entryJ36` / `kernel_entry_reachN`: not stated (they would
+  need the (m) facts as premises, i.e. new [J] premises, which the brief did not ask for). `kernel_entryJ35` / `kernel_entry_reach` unchanged.
+- `fl4CallKernel` (other events): the same inventory applies (interrupt path: `handleInterrupt` is (a) by ValidIrqMasks; faults /
+  timer: the same (m) groups); `JReach` has syscall steps only, so it is not needed for g4a's induction.
+
+### (5) g4c, joint route (lead decision 2026-11-21, after (3)): `kentry_nofailJ`, `kernel_entryJ36N`, `kernel_entry_reachN` — DONE
+Module `Fl4Proofs/P3/XTopJointKEntryNF.lean` (new; renamed from a first draft `XTopJointKEntry36` to avoid g4b's module / top names),
+root import after `XTopJointKEntry35`. Old tops (`kernel_entryJ35`, `kernel_entry_reach`, `KPostX`) kept unchanged.
+- **Where `KPost`'s spec-fails disjunct came from.** In the whole chain under `kernel_entryJ35` (J35 → J34 → J33 → J33G → J32 → J31 → J30
+  → J29G → `kernel_entryJ13PUG`) the left disjunct is produced at exactly one place: the preemption branch of `kernel_entryJ13PUG`, from
+  `kPreFinAtG`'s post, whose left disjunct is never produced either (its input `PPQJI` already names an outcome of `preemptionPath`, and
+  `jat_finishJRN` relates an outcome after it). Every other branch (budget stop, dispatch to completion) already ends in an outcome. The
+  joint proofs build the spec outcome step by step from `JAtZ` (its per-kind object / cap relations), so the (m) / (t) sites of (2) on
+  the path they follow are discharged there. **No new [J] premise was needed** (none of the (m) facts had to be assumed).
+- `KPostS` (`KPost` minus the fail disjunct), `kPreFinAtGS`, `kernel_entryJ13PUGS`: same statements / proofs with post `KPostS`.
+  `kentry_genS`: J34's general path at `KPostS` (bundle conversions of J29G … J33G inlined, no new premise).
+- **`kernel_entryJ36N`**: J35's premises; post `KPostXS` = an outcome σ' of `fl4KernelEntrySyscall true c σ` with `RJ` and `SInvX σ'`.
+  The one premise that changes shape: the [P] fast-path premise `hFast` is m57's `FastRR` at post `KPostS` (was `KPost`).
+- **`kentry_nofailJ`**: same premises ⇒ the FL4 entry returns `ok r` and the spec entry has an outcome σ' with `SInvX σ'` and `RJ r σ'`.
+  Scope note: this is "the result set is nonempty" (not stuck), which is what the induction needs; it is NOT l4v `no_fail` (the spec's
+  failure flag `.2` is not shown False — that would need the full spec-only route of (3)).
+- **`kernel_entry_reachN`**: `kernel_entry_reach` with post `KPostXS` (+ `MR` at exit ⇒ `JReach` again).
+- Builds (tokyo, FL4-q): g4c-b1 (module, pre-rename) green, 6904 jobs; g4c-b2 full `lake build Fl4Proofs` + module after rename green,
+  6973 jobs, no sorry. After rebasing onto int/j2 857ac23e (m59: new P1 module FastSched only): g4c-b3 full
+  `lake build Fl4Proofs` green, 6975 jobs. `#print axioms` on all six new theorems: `[propext, Classical.choice, Quot.sound]`.
+- `fl4CallKernel` for other events: not done (JReach has syscall steps only).
