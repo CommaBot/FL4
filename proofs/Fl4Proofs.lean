@@ -1308,6 +1308,9 @@ import Fl4Proofs.P3.SpecInvIoPortsX
 import Fl4Proofs.P3.SpecInvIoPortsS
 import Fl4Proofs.P3.XTopJointKEntry37E
 import Fl4Proofs.P3.XTopJointKEntryRR
+import Fl4Proofs.P3.XTopJointFaultG
+import Fl4Proofs.P3.XTopJointKEntryEv3
+import Fl4Proofs.P3.XTopJointKEntryEv4
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL
