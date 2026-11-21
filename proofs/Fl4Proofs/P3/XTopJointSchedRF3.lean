@@ -188,7 +188,7 @@ theorem JAtZ.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' hik.1 hik.2))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **FL4's `schedule` refines the spec's at `J`, with the domain switch**
@@ -301,9 +301,46 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hdead : ∀ q ∈ D0, Sched.DeadP (L := L) H s' q := fun q hq =>
     J0.deadP_sch_step hX' hwT hK1 hL1 hA' (J0.ymd hS' hY1 ((hSOK0.ykeep rfl).dk q.bv)) (fun h => h)
       (J0.jcov.dead q hq)
+  -- every debug word kept from the fake pre-state (`ndF` writes kernel-state words only)
+  have hdk0 : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s' := by
+    have h1 := P1.dbgKeep_schedW J1.blk J1.kern.ksbFit hkw
+    obtain ⟨⟨Qk, Rk, hqk⟩, -⟩ := J1.blk
+    refine ⟨hkw.1.trans hk0.symm, fun b hb => ?_⟩
+    have hb1 : P1.DbgW st (P1.Heap.tcbs H) Cs rf.1 b := P1.DbgW.ksb hk0 hb
+    rw [h1.2 b hb1]
+    refine (ndF_mem_ne _ _ _ _ hkf1 hka1 (P1.dbgW_aligned J1.blk hb1) fun hn => ?_).symm
+    have h16 := ksW_val (kb := kb) (o := 16#u64) (by simp; omega)
+    have h24 := ksW_val (kb := kb) (o := 24#u64) (by simp; omega)
+    have h40 := ksW_val (kb := kb) (o := 40#u64) (by simp; omega)
+    simp at h16 h24 h40
+    have hbv : b.val = kb.val + 16 ∨ b.val = kb.val + 24 ∨ b.val = kb.val + 40 := by
+      rcases hn with e | e | e <;> rw [e] <;> omega
+    rcases hb1 with ⟨y, hy, e | e⟩ | ⟨c, hc, e⟩
+    · have hv := P1.field_val (hqk.tcbs y hy) (K := 3576#u64) (by simp)
+      have ho := hqk.ksOut y hy
+      rw [← hkb] at ho
+      have h35 : (3576#u64 : U64).val = 3576 := by simp
+      have e' : b.val = y.val + 3576 := by
+        rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, hv, h35]
+      simp only [Nat.reducePow] at ho
+      omega
+    · have hv := P1.field_val (hqk.tcbs y hy) (K := 3584#u64) (by simp)
+      have ho := hqk.ksOut y hy
+      rw [← hkb] at ho
+      have h35 : (3584#u64 : U64).val = 3584 := by simp
+      have e' : b.val = y.val + 3584 := by
+        rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, hv, h35]
+      simp only [Nat.reducePow] at ho
+      omega
+    · have hN := hqk.nodes c hc
+      have hv : b.val = L.nodeBase rf.1 c + 88 := by
+        rw [e, P1.nodeAt_val hN (off := layout.node.DEBUG_TCBS) (by simp), P1.debug_val]
+      have hnb : L.nodeBase rf.1 c = (L.ksb rf.1).val + 13568 + c.val * 4288 := rfl
+      rw [← hkb] at hnb
+      omega
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D0 s0 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
-      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
+      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
   exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',

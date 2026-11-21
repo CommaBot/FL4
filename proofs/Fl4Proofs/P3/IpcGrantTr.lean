@@ -632,7 +632,7 @@ theorem transfer_caps_topG (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGh
       Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv (some rb) σ = ({(slots, σ)}, False) ∧
       DestConf th (L.mem s) caps extra dest slots ⦄)
     (hGL : ∀ rb, rbo = some rb → ipc.get_receive_slot st s receiver rbw ⦃ dest => dest ≠ 0#u64 → ∃ pd idx,
-      dest = cslotAddr (pd.bv, idx) ∧ th pd = some (.cnode idx.length) ∧ DestLive th (L.mem s) (L.ksb s) pd ⦄) :
+      dest = cslotAddr (pd.bv, idx) ∧ th pd = some (.cnode idx.length) ∧ DestCap th (L.mem s) pd ⦄) :
     ipc.transfer_caps st s info extra ep receiver rbw ⦃ r => ∃ σ' mf,
       Fl4Spec.transferCaps (Z := Unit) mi caps (some ep.bv) receiver.bv rbo σ = ({(mf, σ')}, False) ∧
       MiRel r.1 mf ∧ r.1.extra_caps.bv = mf.miExtraCaps ∧ IpcRel N T E R B (L.mem r.2) σ' ∧
@@ -642,7 +642,7 @@ theorem transfer_caps_topG (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGh
       (TrN (L := L) th s σ r.2 σ' ∨ ∃ rb slots, rbo = some rb ∧
         Fl4Spec.getReceiveSlots (Z := Unit) receiver.bv (some rb) σ = ({(slots, σ)}, False) ∧
         TrI (L := L) th caps slots s σ r.2 σ' ∧
-        ∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestLive th (L.mem s) (L.ksb s) pd) ∧
+        ∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestCap th (L.mem s) pd) ∧
       WritesIn st s r.2 (RFoot th rbw) ⦄ := by
   have hmi0 : MiRel { label := info.label, caps_unwrapped := 0#u64, extra_caps := 0#u64, length := info.length }
       ⟨mi.miLength, 0, 0, mi.miLabel⟩ := ⟨hil, rfl, hlb⟩
@@ -693,7 +693,7 @@ theorem transfer_caps_topG (hP0 : IPlaced N T E R B) {th : TypedHeap} {G : MdbGh
       obtain ⟨hmb, hu⟩ := hm rb hrbo
       refine WP.spec_bind (WP.spec_and (hG1 rb hrbo) (hGL rb hrbo)) ?_
       rintro dest ⟨⟨slots, hsl, hD⟩, hL⟩
-      have hDL : ∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestLive th (L.mem s) (L.ksb s) pd := by
+      have hDL : ∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestCap th (L.mem s) pd := by
         intro d hd
         rcases hD with ⟨-, rfl⟩ | ⟨h0, d', rfl, hok⟩
         · simp at hd

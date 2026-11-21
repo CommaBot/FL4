@@ -177,7 +177,7 @@ theorem JHole.msAr {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} 
     xtop_sc_step J.xtop J.ip J.nk hwT (ct := σ0.curThread) (hK.mono fun _ h => h.elim) hS2 hR2
       fun _ => by rw [← earch]; exact hAR hARh
   exact ⟨J, ⟨ms, t, c, hum', by rw [e]⟩, Hh.ws, hX', Hh.nsc, Hh.inv.congr rfl rfl rfl rfl,
-    Hh.cur.imp id fun h => h.congr rfl rfl rfl rfl, Hh.act, Hh.blk, Hh.dbg⟩
+    Hh.cur.imp id fun h => h.congr rfl rfl rfl rfl, Hh.act, Hh.blk, Hh.dbg, Hh.dbgK⟩
 
 variable (arI) in
 /-- Some `JHole` ends at `(s, a, σ)`. -/

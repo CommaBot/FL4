@@ -65,6 +65,7 @@ theorem JAtZ.stsCurJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
   rintro s6 ⟨⟨⟨⟨hR6, hS6r⟩, hw6⟩, hy6⟩, hblk, hfoot⟩
   have hX6 := IpcRel.ofSRN hR6 hS6r
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   set x6 : Fl4Spec.Tcb := { x with tcbState := .inactive } with hx6
   set σ1 := updK σ t.bv (.tcb x6) with hσ1
   set σ6 := stsAct σ1 t.bv with hσ6
@@ -177,7 +178,7 @@ theorem JAtZ.stsCurJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J` under a pending
@@ -456,6 +457,7 @@ theorem JAtZ.faultBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
     obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB hy, hyt⟩
     exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   -- the scheduler: the current thread blocked, a reschedule pending
   have hact' : σ'.schedulerAction = σ.schedulerAction := hactK (by show σf.schedulerAction ≠ _; exact hsw)
@@ -533,7 +535,7 @@ theorem JAtZ.faultBlockJC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J' := J.toR.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 (J.zD_diffE hpE)
   exact ⟨⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
     ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J'⟩⟩
 

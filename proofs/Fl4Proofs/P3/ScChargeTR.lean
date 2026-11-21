@@ -281,7 +281,7 @@ theorem JHole.chargeBudgetTmoJR {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s 
   have Hj : JTH (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s3 a σ3 :=
     { j0 := J, ws := hWK0, xtop := hX3, buf := J.sc_buf hW0 hKc, nsc := hN3,
       inv := by rw [hct3]; exact hI3, act := hAI3, bsa := hbsa3, own := hown3, isorted := hsort3,
-      blk := hblk3, dbg := hDbg3, ksc := hO, ct := hcc2.trans ect0, idle := hid2.trans eidle0,
+      blk := hblk3, dbg := hDbg3, dbgK := Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (fun _ h => h) hG3), ksc := hO, ct := hcc2.trans ect0, idle := hid2.trans eidle0,
       csc := hcs2.trans ecs0, rel := hrel2.trans erel0, cdt := hsokh.cdt.trans ecdt0,
       orig := hsokh.orig.trans eorig0, arch := hKh.arch.trans earch0, isc := hisc2.trans eisc0, cons := rfl }
   -- the tail: the current thread, schedulable

@@ -214,7 +214,7 @@ theorem decode_invocation_cnodeJ_stepsLM [Fl4Proofs.P1.PlainStore st] (s : S) (a
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct
     exact (decode_invocation_cnode_copyXS arI s ar σ hX (J.curRun.run hni) ⟨Z, H, Cs, Ac, Lst, D, J⟩
-      (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
+      (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J (J.zNoBlk hsg)) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
       length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
       excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer).toPN arI
       (cnode_noPre_of hlbl (by omega))

@@ -27,6 +27,101 @@ open Aeneas Aeneas.Std Result
 namespace Fl4Proofs.P3
 open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
 noncomputable section
+section
+open Fl4Proofs.P1
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
+  {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64}
+  {D : Set U64}
+
+/-! LiveFrame's debug-word lemmas at `JAtZR` (KENTRY-PLAN g2j). -/
+
+/-- **A word outside the TCBs and off the nodes' head words is no debug word.** -/
+theorem JAtZR.notDbg' {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hobj : ∀ p, H p = some .tcb → b.val < p.val ∨ p.val + 2 ^ P1.HKind.bits .tcb ≤ b.val)
+    (hnode : ∀ c ∈ Cs, b.val ≠ L.nodeBase s c + 88) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hT := hq.tcbs
+  have e12 : (2 : Nat) ^ P1.HKind.bits .tcb = 4096 := rfl
+  rintro (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
+  · have h1 := hobj y hy
+    rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hT y hy) (by simp), e12]
+      at h1
+    have : (3576#u64 : U64).val = 3576 := by simp
+    omega
+  · have h1 := hobj y hy
+    rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hT y hy) (by simp), e12]
+      at h1
+    have : (3584#u64 : U64).val = 3584 := by simp
+    omega
+  · have h1 := hnode c hc
+    rw [e, P1.nodeAt_val (hq.nodes c hc) (by simp [P1.debug_val]), P1.debug_val] at h1
+    exact h1 rfl
+
+/-- **A word apart from the TCBs' debug links and the nodes' debug heads is no
+debug word** (the links at TCB offsets 3576 and 3584). -/
+theorem JAtZR.notDbg_tw {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (htcb : ∀ y ∈ Z.T, ∀ (w : U64) (K : Nat), w.val = y.val + K → 3576 ≤ K → K < 4096 → b ≠ w)
+    (hnode : ∀ c ∈ Cs, b ≠ L.nodeAt s c layout.node.DEBUG_TCBS) :
+    ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hT := hq.tcbs
+  have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
+  rintro (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
+  · have h3 : (3576#u64 : U64).val = 3576 := by simp
+    exact htcb y (by rw [hTe]; exact hy) _ 3576
+      (by rw [show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, P1.field_val (hT y hy) (by simp), h3])
+      le_rfl (by norm_num) e
+  · have h3 : (3584#u64 : U64).val = 3584 := by simp
+    exact htcb y (by rw [hTe]; exact hy) _ 3584
+      (by rw [show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, P1.field_val (hT y hy) (by simp), h3])
+      (by norm_num) (by norm_num) e
+  · exact hnode c hc e
+
+/-- A kernel-state word (`KsW`) is no debug word: below the nodes, outside
+the TCBs (`ksOut`). -/
+theorem JAtZR.ksW_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : KsW (L.ksb s) b) : ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  obtain ⟨K, h1, h2, -, e, -⟩ := hb
+  refine J.notDbg' (fun p hp => ?_) (fun c _ => ?_)
+  · obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+    have e12 : (2 : Nat) ^ P1.HKind.bits .tcb = 4096 := rfl
+    rw [e12]
+    rcases hq.ksOut p hp with h | h <;> omega
+  · have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+    rw [hnb]; omega
+
+/-- **A scheduler step's word is no debug word** (`SchW`: the TCBs' queue
+words, the current node but its debug head, the domain words). -/
+theorem JAtZR.schW_notDbg {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {b : U64} (hb : SchW (L := L) Z.T Z.c s b) : ¬ P1.DbgW st (P1.Heap.tcbs H) Cs s b := by
+  have hS := J.xtop.fin.1.1.1
+  have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hnb : ∀ c, L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := fun _ => rfl
+  rcases hb with ⟨y, hy, e | e | e⟩ | hn | hd
+  · subst e; exact P1.notDbgW_field hq.tcbs hq.nodes (hTe ▸ hy) (by simp) (by simp)
+  · subst e; exact P1.notDbgW_field hq.tcbs hq.nodes (hTe ▸ hy) (by simp) (by simp)
+  · subst e; exact P1.notDbgW_field hq.tcbs hq.nodes (hTe ▸ hy) (by simp) (by simp)
+  · have hk : Sched.KFoot st Z.T Z.N Z.C Z.c s σ b := Sched.KFoot.of_sfoot (Or.inr ⟨hn.1, hn.2.1⟩)
+    rintro (⟨y, hy, e | e⟩ | ⟨c, hc, e⟩)
+    · exact Sched.KFoot.ne_tcbw hS hk (by rw [hTe]; exact hy) (K := 3576#u64) (by simp)
+        (by unfold Sched.SOff Sched.SOffL; decide) e
+    · exact Sched.KFoot.ne_tcbw hS hk (by rw [hTe]; exact hy) (K := 3584#u64) (by simp)
+        (by unfold Sched.SOff Sched.SOffL; decide) e
+    · obtain ⟨h1, h2, h3⟩ := hn
+      have h4 := congrArg UScalar.val e
+      rw [P1.nodeAt_val (hq.nodes c hc) (by simp [P1.debug_val]), P1.debug_val] at h4
+      rw [hnb] at h1 h2 h3 h4
+      omega
+  · have hv := domKW_val hd
+    refine J.notDbg' (fun p hp => ?_) (fun c _ => ?_)
+    · have e12 : (2 : Nat) ^ P1.HKind.bits .tcb = 4096 := rfl
+      rw [e12]; rcases hq.ksOut p hp with h | h <;> omega
+    · rw [hnb]; omega
+
+end
+
 section Spec
 open Fl4Spec
 end Spec
@@ -317,7 +412,13 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
       fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
       hAI, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun b hb =>
+    J.notDbg_tw (fun y hy w K hwv h1 h2 => J.tmw_ne_tcb hb hy hwv (Or.inr ⟨h1, h2⟩))
+      (fun c hc => J.tmw_ne_node hb hc (by simp [P1.debug_val]) (by simp [P1.debug_val]) (by simp [P1.debug_val])
+        (by simp [P1.debug_val]))
   exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+    (J.liveX hX' rfl rfl rfl hSS hKd F.sk.orig (J.idleW_keep hS' F.sk.idle F.sk.isc).1
+      fun p hp => R.jcov.dead p (J.zD p hp)) (J.zDX hSS J.zD)
 
 
 
@@ -886,6 +987,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_cfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep ht
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
@@ -906,7 +1008,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -1029,8 +1131,12 @@ theorem JAtZR.schedJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s ar σ) {s' : S
   have hW := (hS.2.1 Z.N Z.T Z.C Z.c J.thT hX.fin.1.1.1 hX.fin.1.1.2.2.1).2.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
-  obtain ⟨Ac', Lst', D', R⟩ := jowes_schedZR arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D', J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)⟩
+  obtain ⟨Ac', Lst', R⟩ := jowes_schedZR arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
+  exact ⟨Ac', Lst', D, J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)
+    (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hW fun _ hb => J.schW_notDbg hb)
+      (orig_eq_of_slots J.xtop.rel.2.1.2.2.2.1 hX1.rel.2.1.2.2.2.1 J.kern.orig R.kern.orig hSS)
+      (XTopAt.idleW_eqS hX hX1 hS.1.idle) fun p hp => R.jcov.dead p (J.zD p hp))
+    (J.zDX hSS J.zD)⟩
 
 
 end
@@ -1098,7 +1204,10 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksDZR arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)⟩
+  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)
+    (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl
+      (XTopAt.idleW_eqS hX hX1 rfl) fun p hp => R.jcov.dead p (J.zD p hp))
+    (J.zDX hSS J.zD)⟩
 
 
 end
@@ -1364,6 +1473,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_dfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep ht
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
@@ -1384,7 +1494,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
 
 
 /-- A thread in a state other than `inactive` is not dead. -/
@@ -1653,7 +1763,9 @@ theorem JAtZR.signal_badge_post {s : S} {a : A} {σ : Fl4Spec.State Unit}
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
   have hC0 := JCs.sameZR J hSS F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ3 := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R⟩
+  exact ⟨σ3, Z.vs, hspec, rfl, J.cs_frameI hks hX3 hw (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)) F.szKeep hSS F.kback F.ipcFr hC R
+    (dbgKeep_of_writes J.blk hW fun b hb => nwrite_notDbgB J.blk J.ip.e.tcb J.tcbs_eq.1 J.kern.heap J.zH.1 J.zH.2.2.2
+      J.kern.hnd hb) F.sk.orig (XTopAt.idleW_eqS J.xtop hX3 F.sk.idle) J.zD⟩
 
 
 variable (arI) in
@@ -1937,7 +2049,7 @@ theorem JAtZR.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' hik.1 hik.2))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
 
 set_option maxHeartbeats 4000000 in
@@ -2051,9 +2163,46 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hdead : ∀ q ∈ D0, Sched.DeadP (L := L) H s' q := fun q hq =>
     J0.deadP_sch_step hX' hwT hK1 hL1 hA' (J0.ymd hS' hY1 ((hSOK0.ykeep rfl).dk q.bv)) (fun h => h)
       (J0.jcov.dead q hq)
+  -- every debug word kept from the fake pre-state (`ndF` writes kernel-state words only)
+  have hdk0 : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s' := by
+    have h1 := P1.dbgKeep_schedW J1.blk J1.kern.ksbFit hkw
+    obtain ⟨⟨Qk, Rk, hqk⟩, -⟩ := J1.blk
+    refine ⟨hkw.1.trans hk0.symm, fun b hb => ?_⟩
+    have hb1 : P1.DbgW st (P1.Heap.tcbs H) Cs rf.1 b := P1.DbgW.ksb hk0 hb
+    rw [h1.2 b hb1]
+    refine (ndF_mem_ne _ _ _ _ hkf1 hka1 (P1.dbgW_aligned J1.blk hb1) fun hn => ?_).symm
+    have h16 := ksW_val (kb := kb) (o := 16#u64) (by simp; omega)
+    have h24 := ksW_val (kb := kb) (o := 24#u64) (by simp; omega)
+    have h40 := ksW_val (kb := kb) (o := 40#u64) (by simp; omega)
+    simp at h16 h24 h40
+    have hbv : b.val = kb.val + 16 ∨ b.val = kb.val + 24 ∨ b.val = kb.val + 40 := by
+      rcases hn with e | e | e <;> rw [e] <;> omega
+    rcases hb1 with ⟨y, hy, e | e⟩ | ⟨c, hc, e⟩
+    · have hv := P1.field_val (hqk.tcbs y hy) (K := 3576#u64) (by simp)
+      have ho := hqk.ksOut y hy
+      rw [← hkb] at ho
+      have h35 : (3576#u64 : U64).val = 3576 := by simp
+      have e' : b.val = y.val + 3576 := by
+        rw [e, show P1.dnA y = core.num.U64.wrapping_add y 3576#u64 from rfl, hv, h35]
+      simp only [Nat.reducePow] at ho
+      omega
+    · have hv := P1.field_val (hqk.tcbs y hy) (K := 3584#u64) (by simp)
+      have ho := hqk.ksOut y hy
+      rw [← hkb] at ho
+      have h35 : (3584#u64 : U64).val = 3584 := by simp
+      have e' : b.val = y.val + 3584 := by
+        rw [e, show P1.dpA y = core.num.U64.wrapping_add y 3584#u64 from rfl, hv, h35]
+      simp only [Nat.reducePow] at ho
+      omega
+    · have hN := hqk.nodes c hc
+      have hv : b.val = L.nodeBase rf.1 c + 88 := by
+        rw [e, P1.nodeAt_val hN (off := layout.node.DEBUG_TCBS) (by simp), P1.debug_val]
+      have hnb : L.nodeBase rf.1 c = (L.ksb rf.1).val + 13568 + c.val * 4288 := rfl
+      rw [← hkb] at hnb
+      omega
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D0 s0 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
-      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
+      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, hdk0⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
   exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC')⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',

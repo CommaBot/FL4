@@ -112,9 +112,10 @@ theorem JAtZ.dbgRemoveJI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hNa : ∀ c ∈ Cs, P1.NodePlaced st (P1.Heap.tcbs H) s c := fun c hc' => P1.TInv.nodes J.blk c hc'
   have hDa : P1.DbgTz st (P1.Heap.tcbs H) Cs s := ⟨hTm.dn, hTm.dp, hTm.dh⟩
   have hafa : L.mem s (P1.affA t) ∈ Cs := by rw [hc.aff t ht]; exact hcC
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (P1.objects.debug_remove.frame s t hT hN hD haf htT)
-    (P1.objects.debug_remove.blk s t J.blk htT)) (dbgRemove_head s t hT hNa hDa hafa htT J.kern.cs0)) ?_
-  rintro s' ⟨⟨⟨hw0, -⟩, hblk, -⟩, hhd0⟩
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and (P1.objects.debug_remove.frame s t hT hN hD haf htT)
+    (P1.objects.debug_remove.blk s t J.blk htT)) (dbgRemove_head s t hT hNa hDa hafa htT J.kern.cs0))
+    (J.dbgRemove_live ht)) ?_
+  rintro s' ⟨⟨⟨⟨hw0, -⟩, hblk, -⟩, hhd0⟩, hdbgL, hDWL⟩
   have hw : P1.WritesIn st s s' (DbgWc (L := L) Z.T Z.c s) := hw0.mono fun b hb => by
     rcases hb with h | ⟨c, hc', e⟩
     · left; rw [hTe]; exact h
@@ -125,7 +126,7 @@ theorem JAtZ.dbgRemoveJI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   rw [P1.nodeAt_of_ksb hks] at hdh
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hH := J.kern.heap
-  refine J.dbgw_step hw hblk ?_ ?_
+  refine J.dbgw_step hw hblk ?_ ?_ hdbgL hDWL
   · rcases hdh with h0 | hv
     · exact Or.inl h0
     · right
@@ -366,7 +367,8 @@ theorem JAtZ.addDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
         · exact hd
         · exact J.jcov.dead q hq,
       J.jcov.ks, J.jcov.idleOut⟩
-    kern := { J.kern with } }
+    kern := { J.kern with }
+    zD := fun q hq => Set.mem_insert_of_mem p (J.zD q hq) }
 
 /-- **`finThreadJU` from `LiveJ` at the start** (`dbgSuccCov_of_live`). -/
 theorem JAtZ.finThreadJL (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)

@@ -90,8 +90,8 @@ theorem do_ipc_transfer_grantG (hH : IpcCore st N T E R B (SRT st th cr N T C E 
          SlotsSame th (L.mem s) (L.mem s1) ∧ L.ksb s1 = L.ksb s ∧
          InsRec (L := L) th caps slots s1 (Notif.updK (Endp.setUm σ um0) rcv.bv (.tcb x1)) sk' σc ∧
          σ' = Notif.updK (Endp.setUm σc um) rcv.bv (.tcb x') ∧ SlotsSame th (L.mem sk') (L.mem s') ∧
-         (∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestLive th (L.mem s) (L.ksb s) ps) ∧
-         (∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestLive th (L.mem s) (L.ksb s) pd)) ⦄ := by
+         (∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestCap th (L.mem s) ps) ∧
+         (∀ d ∈ slots, ∃ pd, d.1 = pd.bv ∧ DestCap th (L.mem s) pd)) ⦄ := by
   have hra := hP.tcb rcv hr
   have hxs := hR.at_tcb hs hks
   have hwmi : (L.mem s (regA snd layout.reg.MSG_INFO)).bv = xs.tcbArch.tcbContext.userRegs Fl4Spec.msg_info_register := by
@@ -313,7 +313,7 @@ theorem do_ipc_transfer_grantG (hH : IpcCore st N T E R B (SRT st th cr N T C E 
         have e := cslotAddr_inj hB.1 hA (⟨ps', rfl, Or.inl hth'⟩ : AbsSlot th (ps'.bv, idx')) (hxa.symm.trans he')
         exact ⟨ps', by rw [hsl']; exact congrArg Prod.fst e, hD'⟩
       · obtain ⟨pd, h1, h2⟩ := hDL d hd
-        exact ⟨pd, h1, h2.same (SlotsSame.symm' hS1) hks1.symm⟩
+        exact ⟨pd, h1, h2.same (SlotsSame.symm' hS1)⟩
 
 end GrantG
 
@@ -533,7 +533,7 @@ theorem JAtZ.xferStepGJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       rw [epd] at hDd
       obtain ⟨y, -, ⟨⟨σy, hci', hKCV, hCnK, hksy, -, -, -, G', Jy⟩, hiwy⟩, hwy⟩ := spec_exists
         (WP.spec_and (WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' hca hcv he' hcnn hsh (Or.inl hbd) hut
-          hzb hkey hv htu huc hnat (hDs.same (SlotsSame.symm' hIF.1) hIF.2.symm) (hDd.same (SlotsSame.symm' hIF.1) hIF.2.symm)) (insert_mem hPl s c' _ _ hAs.isSlot hAd.isSlot hsd cv hsrcC hnxS))
+          hzb hkey hv htu huc hnat (hDs.same (SlotsSame.symm' hIF.1)) (hDd.same (SlotsSame.symm' hIF.1))) (insert_mem hPl s c' _ _ hAs.isSlot hAd.isSlot hsd cv hsrcC hnxS))
           (insert_ws hPl s c' _ _ hAs.isSlot hAd.isSlot cv hsrcC hnxW))
       have hSy2 : SlotsSame Z.th (L.mem y) (L.mem s2) :=
         SlotsSame.trans' (insWords_cong hSsk hAs.isSlot hAd.isSlot hiwy hiw) hSSk

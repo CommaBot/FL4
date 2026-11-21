@@ -29,44 +29,6 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
-/-- **Two caps alike for `LiveJ`** (module docstring). -/
-def CapSimL (c' c : capability.Cap) : Prop :=
-  c' = c ∨ ∃ p b f f' d, c' = .Untyped p b f' d ∧ c = .Untyped p b f d
-
-theorem CapSimL.null {c' c : capability.Cap} (h : CapSimL c' c) : c' = .Null ↔ c = .Null := by
-  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
-  · exact Iff.rfl
-  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
-
-theorem CapSimL.refs {c' c : capability.Cap} (h : CapSimL c' c) (q : U64) : RefsObj q c' ↔ RefsObj q c := by
-  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
-  · exact Iff.rfl
-  · simp [RefsObj]
-
-theorem CapSimL.thread {c' c : capability.Cap} (h : CapSimL c' c) (w : U64) : c' = .Thread w ↔ c = .Thread w := by
-  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
-  · exact Iff.rfl
-  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
-
-theorem CapSimL.zombie {c' c : capability.Cap} (h : CapSimL c' c) (p zt n : U64) :
-    c' = .Zombie p zt n ↔ c = .Zombie p zt n := by
-  rcases h with rfl | ⟨p, b, f, f', d, rfl, rfl⟩
-  · exact Iff.rfl
-  · exact ⟨fun h => (by cases h), fun h => (by cases h)⟩
-
-/-- `cdt::insert`'s source cap is alike the old one (Insert's `fullF`). -/
-theorem capSimL_fullF (c d : capability.Cap) : CapSimL ((fullF c d).getD c) c := by
-  unfold fullF
-  split
-  · split
-    · exact Or.inr ⟨_, _, _, _, _, rfl, rfl⟩
-    · exact Or.inl rfl
-  · exact Or.inl rfl
-
-/-- **A cap naming a container names it as an object.** -/
-theorem refsObj_objRefs {q : U64} {c : capability.Cap} (h : RefsObj q c) : q.bv ∈ Fl4Spec.objRefs (absCap c) := by
-  cases c <;> simp only [RefsObj] at h <;> subst h <;> simp [absCap, Fl4Spec.objRefs]
-
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64}

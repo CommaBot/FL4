@@ -97,7 +97,7 @@ theorem install_tcb_capJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
       exact hsg1.insTcb hins hnut hsh ha0
     have hwS := SlotFrame2.writesIn hF
     obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.insTJ (fun e => absurd e hn2) ht hn hins hDS' hst hwS hroot hcap
-      (by rw [hdst]; exact hnut) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
+      (by rw [hdst]; exact hnut) (by rw [hdst]; exact hnn) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
       (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) (fun e => absurd e hn2) ⟨_, hAs.isSlot, hthr⟩
       (fun P L4 L3 L2 L1 h => by
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
@@ -274,7 +274,7 @@ theorem install_bufferJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
           subst hx; exact hbal
         have hbok4 := J2.bokInstall ht hins hDS4.1.1 hcap4 hdst hcF hq0 hcvc hsrcIs hk2 hbuf2
         obtain ⟨Ac4, Lst4, D4, J4⟩ := J2.insTJ (fun _ => hbok4) ht (n := 2) (by decide) hins hDS4 hst4 hwS hnull2 hcap4
-          (by rw [hdst]; exact hnut) ⟨_, hsrcIs, by rw [hdst, hsrc1]; exact hshc⟩
+          (by rw [hdst]; exact hnut) (by rw [hdst, hcF]; exact fun h => by cases h) ⟨_, hsrcIs, by rw [hdst, hsrc1]; exact hshc⟩
           (fun h => absurd h (by decide)) (fun _ => by rw [hdst, hcF]; exact Or.inr ⟨q, sz, rr, m, false, aa, va, rfl⟩)
           ⟨_, hAs.isSlot, hthr⟩
           (fun P L4 L3 L2 L1 h => by
@@ -508,7 +508,7 @@ theorem install_fhJM [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A → Fl
       exact hsg1.insTcb hins hnut hsh ha0
     have hwS := SlotFrame2.writesIn hF
     obtain ⟨Ac2, Lst2, D2, J2⟩ := J1.insTJ (fun e => absurd e hn2) ht hn hins hDS' hst hwS hroot hcap
-      (by rw [hdst]; exact hnut) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
+      (by rw [hdst]; exact hnut) (by rw [hdst]; exact hnn) ⟨_, hAsrc.isSlot, by rw [hdst, hsrc1]; exact hsh⟩
       (fun h3 => by rw [hdst]; exact Or.inr (hep h3 hnn)) (fun e => absurd e hn2) ⟨_, hAs.isSlot, hthr⟩
       (fun P L4 L3 L2 L1 h => by
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))

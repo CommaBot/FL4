@@ -72,12 +72,10 @@ theorem JAtZ.restartRunJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {ct :
   obtain ⟨hX1, hSS, hk1⟩ := h
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Ac', Lst', D', R⟩ := jowes_restart arI s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
-  refine ⟨s1, σ1, hst1, e, hs1, Ac', Lst', D', ?_⟩
+  obtain ⟨Ac', Lst', J1⟩ := J.restartSJ (jStepHyps arI) hcur hk htcb hrun hs1
+  refine ⟨s1, σ1, hst1, e, hs1, Ac', Lst', D, ?_⟩
   subst e
-  exact J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans
-    (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R
-    (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_sts (J.thT ct htcb) hs1)
+  exact J1
 
 set_option maxHeartbeats 16000000 in
 /-- **`budget_ok` at `J`, when it stops the system call** (KENTRY-PLAN item 10,

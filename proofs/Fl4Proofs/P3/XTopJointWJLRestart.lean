@@ -22,6 +22,7 @@ Delete and Revoke labels with the deletion at `WJL` (XTopJointWJLDel's
 -/
 import Fl4Proofs.P3.XTopJointWJLDel
 import Fl4Proofs.P3.XTopJointIrqDel
+import Fl4Proofs.P3.ZNoBlkJ
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -31,11 +32,6 @@ noncomputable section
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
-
-/-- **`LiveJ`, `DbgWF` and `NullOrig` at a state** (module docstring). -/
-abbrev LiveDN (th : TypedHeap) (H : P1.Heap) (Cs : Set U64) (G : MdbGhost) (s : S) (σ : Fl4Spec.State Unit) :
-    Prop :=
-  LiveJ (L := L) th H G s σ ∧ DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s) ∧ NullOrig th (L.mem s) σ
 
 end
 
@@ -64,13 +60,10 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     exact of_eq_true this
   subst e
   obtain ⟨hL, hDW, hN⟩ := hLv
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
   have h := XTopAt.restart J.xtop hcur hk hrun
   rw [hs1, WP.spec_ok] at h
   obtain ⟨hX1, hSS, hk1⟩ := h
-  obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
-    (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Lst', R⟩ := jowes_restartD arI s ar σ ct x s1 hcur hk htcb hrun hs1 J0 hX1
+  obtain ⟨Ac1, Lst', J1⟩ := J.restartSJ (jStepHyps arI) hcur hk htcb hrun hs1
   have hns1 : Vs.NoSwitch (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
     intro u e
     unfold Notif.stsAct at e
@@ -79,9 +72,6 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
       | (have e2 : σ.schedulerAction = .switchThread u := e
          rw [hni.2] at e2; cases e2)
       | cases e
-  have J1 := J0.cs_frame (G' := Z.G) hk1 hX1 hkb
-    ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap])))
-    (JCs.same J0 hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J0.vkeep_sts (J0.thT ct htcb) hs1)
   -- the debug words: P1's footprint of the restart
   have hT : ct ∈ Z.T := J.thT ct htcb
   have hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := by
@@ -100,8 +90,8 @@ theorem WJL.restart {s : S} {ar : A} {σ : Fl4Spec.State Unit}
   have hDS : DState (L := L) Z.th s σ Z.G := ⟨J.xtop.rel.2.1, J.del, J.xtop.rel.2.2.1⟩
   have hDS1 : DState (L := L) Z.th s1 (Notif.stsAct (Notif.updK σ ct.bv
       (.tcb { x with tcbState := .restart })) ct.bv) Z.G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
-  obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI (Z := Z) (G := Z.G) (V := Z.vs) (V1 := Z.vs) J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS hDS1 hK (by unfold Notif.stsAct; split <;> rfl)
-  exact ⟨⟨Z.vs, Ac, Lst', _, J1, hk1, hns1, hsg1, hP0.of_ppk (PPK.restart hk .restart (Or.inl hcur.symm))⟩, hL1, hDW1, hN1⟩
+  obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI (Z := Z) (G := Z.G) (V := Z.vs) (V1 := Z.vs) J hDS hL hDW hN J1 J.zD hSS hDS1 hK (by unfold Notif.stsAct; split <;> rfl)
+  exact ⟨⟨Z.vs, Ac1, Lst', D, J1, hk1, hns1, hsg1, hP0.of_ppk (PPK.restart hk .restart (Or.inl hcur.symm))⟩, hL1, hDW1, hN1⟩
 
 /-- **`DelE` and `WJL`** (the deletion's invariant at `WJL`, `JDelHypL`). -/
 abbrev EJL (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat) (s : S)
@@ -293,7 +283,7 @@ theorem decode_invocation_cnodeJ_stepsL [Fl4Proofs.P1.PlainStore st] (s : S) (ar
   by_cases hcp : 28 ≤ lbl.val ∧ lbl.val ≤ 32
   · obtain ⟨hcur, -⟩ := J.curEq hct
     exact (decode_invocation_cnode_copyXS arI s ar σ hX (J.curRun.run hni) ⟨Z, H, Cs, Ac, Lst, D, J⟩
-      (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
+      (fun _ _ _ h => Steps.jat arI hARI.toMask hJ h rfl J (J.zNoBlk hsg)) (fun _ _ _ h => JAt.xtop arI h) lbl hcp slbl hlbl
       length buf ct hct args hlen hargs p r gs g hwf hcv ⟨cslotAddr sl, hAs.isSlot, hsc⟩ extra x0 x1 hx0 hx1
       excaps hex J.kern.act hcur (cslotAddr sl) blk call don fp ci sl buffer).toPN arI
       (cnode_noPre_of hlbl (by omega))

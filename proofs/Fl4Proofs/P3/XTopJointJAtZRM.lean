@@ -162,7 +162,8 @@ theorem JAtZR.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
     (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRunM σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s') :
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     JAtZR (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
@@ -182,7 +183,8 @@ theorem JAtZR.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
-    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw)⟩
+    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw),
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
@@ -743,11 +745,12 @@ theorem JAtZR.maybeReturnJQ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {
     J.deadP_sc_step hX' hW hK (fun _ _ h => h.elim) hL hF hact'.1 hY'
       ((((pres_maybeReturnSc (true, true) _ _).of_eq he).ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   exact ⟨hW, σ2, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2)
     (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2))
     (J.sc_kern hW hK hF hX' hDbg fun _ h => h)
-    (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk⟩
+    (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff' hact' hB' hcr' hblk hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD⟩
 
 
 end

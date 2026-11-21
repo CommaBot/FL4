@@ -38,6 +38,7 @@ import Fl4Proofs.P3.ScIpcSorted
 import Fl4Proofs.P3.ScRecvLinks
 import Fl4Proofs.P3.VsCapW
 import Fl4Proofs.P3.BufDefs
+import Fl4Proofs.P3.LiveDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -306,6 +307,18 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
   /-- [carried] **The joint extension** (`JExt`, G2). -/
   ext : JExt (L := L) Z.th s
+  /-- [carried] **The liveness bundle at the ghosts** (KENTRY-PLAN g2i; INV-PLAN
+  E15, the former `JEntryAt.live` / `kernel_entryJ33`'s `hLv` [J]): `LiveJ`
+  (l4v `if_unsafe_then_cap`, `if_live_then_nonz_cap`, `zombies_final`; the idle
+  thread and the kernel-state block exempt, KENTRY-PLAN g2e), `DbgWF` (FL4's
+  debug lists) and `NullOrig` (l4v `valid_nullcaps`) at `Z.th`, `H`, `Cs`,
+  `Z.G`. Each construction proves it where its frames are visible
+  (`JAtZ.liveX` for a step keeping the slots). -/
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
+  /-- [carried] **The TCB zombies' TCBs are in the dead set** (so a frame step's
+  dead-set carry keeps `LiveJ.zdead`; every TCB zombie's TCB is `DeadP` by
+  `live`, so `D ∪ ZTcb` is always a dead set: `JAtZ.addDeadSet`). -/
+  zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
@@ -536,6 +549,99 @@ theorem ksW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb :
     ∀ t ∈ Z.T, b ≠ tVcpuA t := by
   obtain ⟨K, h1, h2, -, e, -⟩ := hb
   exact J.ks_nv (by omega) (by omega)
+
+/-! ## The liveness bundle across a step (KENTRY-PLAN g2i) -/
+
+/-- The spec's idle thread is the idle word at an `XTopAt` state. -/
+theorem _root_.Fl4Proofs.P3.XTopAt.idleThread_bv {Z' : XSets} {s' : S} {a' : A} {σ' : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z' s' a' σ') : σ'.idleThread = (L.idleW s').bv := by
+  obtain ⟨Q, R, hc, hs⟩ := hX.fin.1.1.1.lists
+  unfold P1.LawfulStore.idleW
+  have h2 := hs.idleTh
+  unfold Sched.nodeW at h2
+  rw [hc.cur, ← h2]
+
+/-- **`LiveJ` at another MDB tree of the same slots** (the trees' members are
+the slots holding a non-null cap). -/
+theorem _root_.Fl4Proofs.P3.LiveJ.regh {th : TypedHeap} {H : P1.Heap} {G G' : MdbGhost} {s : S}
+    {σ : Fl4Spec.State Unit} (hL : LiveJ (L := L) th H G s σ) (hG : ∀ y ∈ G.chains.flatten, IsSlot th y)
+    (hG' : ∀ y, IsSlot th y → capV (L.mem s) y ≠ .Null → y ∈ G'.chains.flatten) :
+    LiveJ (L := L) th H G' s σ := by
+  refine ⟨fun q i hqi hu => ?_, fun n hn hni => ?_, hL.zslots, hL.zdead⟩
+  · rcases hL.slots q i hqi hu with ⟨y, hy, hr⟩ | hb
+    · refine Or.inl ⟨y, hG' y (hG y hy) fun e => ?_, hr⟩
+      rw [e] at hr; exact hr
+    · exact Or.inr hb
+  · obtain ⟨y, hy, hr⟩ := hL.dbg n hn hni
+    exact ⟨y, hG' y (hG y hy) (by rw [hr]; intro e; cases e), hr⟩
+
+/-- `ZTcb` across a step keeping the slots. -/
+theorem _root_.Fl4Proofs.P3.ZTcb.of_same {th : TypedHeap} {s s' : S} (hSS : SlotsSame th (L.mem s) (L.mem s'))
+    {p : U64} (hp : p ∈ ZTcb (L := L) th s') : p ∈ ZTcb (L := L) th s := by
+  obtain ⟨y, hy, zt, n, hz, h65⟩ := hp
+  exact ⟨y, hy, zt, n, by rw [← hSS.capV hy]; exact hz, h65⟩
+
+/-- **`LiveDN` across a step keeping the slots** (KENTRY-PLAN g2i, the core of
+the construction sites' frame, from the fields `JAtZ` and `JAtZR` share): the
+slots (`SlotsSame`), the debug words (`DbgKeep`), the original bits and the
+idle word kept, the dead set's objects dead after (the TCB zombies' TCBs among
+them), the ghost tree `Z'.G` any tree of the sets after (`XTopAt`). -/
+theorem _root_.Fl4Proofs.P3.liveDN_frame {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {a : A}
+    {σ : Fl4Spec.State Unit} (hX0 : XTopAt (L := L) AR Z s a σ) (hL : LiveDN (L := L) Z.th H Cs Z.G s σ)
+    (hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s) (hcs0 : 0#u64 ∈ Cs)
+    (hTe : Z.T = P1.Heap.tcbs H)
+    {Z' : XSets} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = Z.th) (hT : Z'.T = Z.T)
+    (hc : Z'.c = Z.c) (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hidl : L.idleW s' = L.idleW s) (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p) :
+    LiveDN (L := L) Z.th H Cs Z'.G s' σ' := by
+  obtain ⟨hLJ, ⟨lst, hDW⟩, hN⟩ := hL
+  have hmem : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((hX0.rel.2.1.2.2.1.members y).1 hy).1
+  have hid : σ'.idleThread = σ.idleThread := by
+    rw [XTopAt.idleThread_bv hX, XTopAt.idleThread_bv hX0, hidl]
+  have hM' : MdbLinks Z.th (L.mem s') Z'.G := by rw [← hth]; exact hX.rel.2.1.2.2.1
+  refine ⟨(hLJ.of_sameZ hSS hmem horig hid hK hcs0 hTz hdead).regh hmem
+      fun y hy hne => (hM'.members y).2 ⟨hy, _, capAt_capV _ _, hne⟩, ⟨lst, ?_⟩,
+    hN.of_same (fun y hy => hSS.capV hy) horig⟩
+  obtain ⟨Q0, R0, hc0, -⟩ := hX0.fin.1.1.1.lists
+  obtain ⟨Q1, R1, hc1, -⟩ := hX.fin.1.1.1.lists
+  refine hDW.of_keep hK fun y hy => ?_
+  rw [hc1.aff y (by rw [hT, hTe]; exact hy), hc0.aff y (by rw [hTe]; exact hy), hc]
+
+/-- **`LiveDN` across a step keeping the slots**, at `J` (`liveDN_frame`). -/
+theorem liveX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = Z.th) (hT : Z'.T = Z.T)
+    (hc : Z'.c = Z.c) (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hidl : L.idleW s' = L.idleW s) (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p) :
+    LiveDN (L := L) Z.th H Cs Z'.G s' σ' :=
+  liveDN_frame J.xtop J.live ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩ J.kern.cs0
+    (by obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+        exact Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩)
+    hX hth hT hc hSS hK horig hidl hdead
+
+/-- A TCB zombie's object is a TCB of the typed heap (`DelInv.zwf`). -/
+theorem ztcb_tcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
+    (hp : p ∈ ZTcb (L := L) Z.th s) : Z.th p = some .tcb := by
+  obtain ⟨y, hy, zt, n, hz, h65⟩ := hp
+  rcases J.del.zwf y hy p zt n hz with ⟨-, h, -⟩ | ⟨h, -⟩
+  · exact h
+  · exact absurd h65 h
+
+/-- **An object named by a non-zombie cap of a slot is no TCB zombie's TCB**
+(`FinInv.zombie_alone`). -/
+theorem not_ztcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : IsSlot Z.th x)
+    (hnz : ∀ p zt n, capV (L.mem s) x ≠ .Zombie p zt n) {p : U64}
+    (hp : p.bv ∈ Fl4Spec.objRefs (absCap (capV (L.mem s) x))) : p ∉ ZTcb (L := L) Z.th s := by
+  rintro ⟨y, hy, zt, n, hz, -⟩
+  have hne : x ≠ y := fun e => hnz p zt n (by rw [e, hz])
+  exact FinInv.zombie_alone J.xtop.rel.2.2.1 J.mdbL hy hz x hx hne hp
+
+/-- **`JAtZ.zD` across a step keeping the slots**, the dead set grown. -/
+theorem zDX (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
+    ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' := fun p hp => hDD p (ZTcb.of_same hSS hp)
 
 end JAtZ
 

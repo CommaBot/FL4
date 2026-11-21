@@ -364,6 +364,8 @@ structure JTH (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
   dbg : L.mem s (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = L.mem s0 (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS)
+  /-- Every debug word kept from the base (KENTRY-PLAN g2i). -/
+  dbgK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s
   ksc : ScOnly σ0.curSc σ0 σ
   ct : σ.curThread = σ0.curThread
   idle : σ.idleThread = σ0.idleThread
@@ -750,7 +752,8 @@ theorem JTH.tmoBlockJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : 
     have hC0 := JCs.same J hF.1 hkszc
     have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
     exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) e_arch haoc hszc
-      hF.1 hkbc hfkc hCs R⟩
+      hF.1 hkbc hfkc hCs R (Hj.dbgK.trans (P1.Foot.dbgKeep Hj.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot)) e_orig
+      (XTopAt.idleW_eqS J.xtop hX3 e_idle) (J.zD_diffE hpE)⟩
   all_goals simp [absCap] at habs6
 
 set_option maxHeartbeats 16000000 in
@@ -1007,7 +1010,7 @@ theorem JHole.chargeBudgetTmoJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s :
   have Hj : JTH (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s3 a σ3 :=
     { j0 := J, ws := hWK0, xtop := hX3, buf := J.sc_buf hW0 hKc, nsc := hN3,
       inv := by rw [hct3]; exact hI3, act := hAI3, bsa := hbsa3, own := hown3, isorted := hsort3,
-      blk := hblk3, dbg := hDbg3, ksc := hO, ct := hcc2.trans ect0, idle := hid2.trans eidle0,
+      blk := hblk3, dbg := hDbg3, dbgK := Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (fun _ h => h) hG3), ksc := hO, ct := hcc2.trans ect0, idle := hid2.trans eidle0,
       csc := hcs2.trans ecs0, rel := hrel2.trans erel0, cdt := hsokh.cdt.trans ecdt0,
       orig := hsokh.orig.trans eorig0, arch := hKh.arch.trans earch0, isc := hisc2.trans eisc0, cons := rfl }
   -- the tail: the current thread, schedulable

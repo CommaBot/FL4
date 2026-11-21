@@ -677,26 +677,9 @@ theorem JAtZ.cn_utc {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       fun _ h0 => absurd hch h0,
       fun g => by rw [hna]; exact U.dwReg (B g), fun g => by rw [hgp]; exact U.gReg (B g)⟩
 
-/-- **`JOwes` at the dead set before** (KENTRY-PLAN g2g: the slot and
-scheduler steps keep every dead object dead, so `JRest` holds at the same dead
-set; XTopJointLiveStep's liveness carry reads it). -/
-def JOwesD (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (s : S) (a : A) (σ : Fl4Spec.State Unit) (s' : S) (a' : A)
-    (σ' : Fl4Spec.State Unit) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR Z s' a' σ' →
-    ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JRest (L := L) arI Z H Cs Ac' Lst' D s' σ'
-
 theorem JOwesD.toOwes {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {s s' : S} {a a' : A}
     {σ σ' : Fl4Spec.State Unit} (h : JOwesD (L := L) arI AR th s a σ s' a' σ') : JOwes (L := L) arI AR th s a σ s' a' σ' :=
   fun Z H Cs Ac Lst D hth J hX' => let ⟨Ac', Lst', R⟩ := h Z H Cs Ac Lst D hth J hX'; ⟨Ac', Lst', D, R⟩
-
-/-- **`JOwesCs` at the dead set before** (as `JOwesD`). -/
-def JOwesCsD (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (G' : MdbGhost) (s : S) (a : A) (σ : Fl4Spec.State Unit)
-    (s' : S) (a' : A) (σ' : Fl4Spec.State Unit) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64), Z.th = th →
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ → XTopAt (L := L) AR { Z with G := G' } s' a' σ' →
-    JCs (L := L) { Z with G := G' } s' σ' ∧
-    ∃ (Ac' : Set U64) (Lst' : U64 → List U64), JRest (L := L) arI { Z with G := G' } H Cs Ac' Lst' D s' σ'
 
 theorem JOwesCsD.toCs {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : MdbGhost} {s s' : S} {a a' : A}
     {σ σ' : Fl4Spec.State Unit} (h : JOwesCsD (L := L) arI AR th G' s a σ s' a' σ') :
@@ -1204,13 +1187,16 @@ notification cap's deletion is no primitive step (StepSem; the IRQ handler
 invocations' deletion at `J` in XTopJointIrqL). -/
 theorem jStepHyps {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} :
     JStepHyps (L := L) arI AR th where
-  restart := fun s a σ ct x s1 hcur hk htcb hrun hs1 => jowes_restart arI s a σ ct x s1 hcur hk htcb hrun hs1
-  ks := fun s s' a a' σ σ' hw hO _ _ _ _ _ _ => jowes_ks arI s s' a a' σ σ' hw hO
+  restart := fun s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D hth J hX1 => by
+    subst hth
+    obtain ⟨Lst', R⟩ := jowes_restartD arI s a σ ct x s1 hcur hk htcb hrun hs1 J hX1
+    exact ⟨Ac, Lst', R⟩
+  ks := fun s s' a a' σ σ' hw hO _ _ _ _ _ _ => jowes_ksD arI s s' a a' σ σ' hw hO
   slot := fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw _ hFI hMO _ hTK hT3 hDL hDl =>
-    (jowes_ins arI s s' a σ σ' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hFI hMO hTK hT3 hDL hDl).toCs arI
-  sched := fun s s' a σ σ' hS => (jowes_sched arI s s' a σ σ' hS).toOwes arI
+    (jowes_ins arI s s' a σ σ' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hFI hMO hTK hT3 hDL hDl)
+  sched := fun s s' a σ σ' hS => jowes_sched arI s s' a σ σ' hS
   cslot := fun s s' a σ σ' G' hcn hkc hCK hUK horig hw _ hFI hMO _ hTK hT3 hkz hDl W hW hcW hoW hUS =>
-    (jowes_cn arI s s' a σ σ' hcn hkc hCK hUK horig hw hFI hMO hkz hTK hT3 hDl W hW hcW hoW hUS).toCs arI
+    (jowes_cn arI s s' a σ σ' hcn hkc hCK hUK horig hw hFI hMO hkz hTK hT3 hDl W hW hcW hoW hUS)
 
 end
 

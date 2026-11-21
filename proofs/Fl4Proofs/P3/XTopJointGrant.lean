@@ -69,11 +69,11 @@ theorem lookup_cap_held (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
 
 set_option maxHeartbeats 4000000 in
 /-- **`get_receive_slot`'s slot lies in a live CNode** (`DestLive`: reached
-by `lookup_target_slot` from a root cap held in a slot, `DestLive.of_cnRef`). -/
+by `lookup_target_slot` from a root cap held in a slot, `DestCap.of_cnRef`). -/
 theorem get_receive_slot_live (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) {t : U64} (ht : th t = some .tcb) (rbw : U64) :
     ipc.get_receive_slot st s t rbw ⦃ dest => dest ≠ 0#u64 → ∃ pd idx, dest = cslotAddr (pd.bv, idx) ∧
-      th pd = some (.cnode idx.length) ∧ DestLive th (L.mem s) (L.ksb s) pd ⦄ := by
+      th pd = some (.cnode idx.length) ∧ DestCap th (L.mem s) pd ⦄ := by
   unfold ipc.get_receive_slot
   by_cases hr0 : rbw = 0#u64
   · rw [if_pos hr0, WP.spec_ok]; intro h; exact absurd rfl h
@@ -111,8 +111,8 @@ theorem get_receive_slot_live (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
           rw [slot_cap_eq, hc1]
           simp only [bind_ok]
           have hlive : ∃ pd idx, slot = cslotAddr (pd.bv, idx) ∧ th pd = some (.cnode idx.length) ∧
-              DestLive th (L.mem s) (L.ksb s) pd :=
-            ⟨p, sl.2, by rw [hsl, ← hp1], hp, DestLive.of_cnRef hcr (hheld c0 rfl)⟩
+              DestCap th (L.mem s) pd :=
+            ⟨p, sl.2, by rw [hsl, ← hp1], hp, DestCap.of_cnRef hcr (hheld c0 rfl)⟩
           by_cases hn : c1 = .Null
           · subst hn
             rw [cap_is_null_null, bind_ok, if_pos rfl, WP.spec_ok]
@@ -121,14 +121,14 @@ theorem get_receive_slot_live (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
             intro h; exact absurd rfl h
 
 /-- The extra-cap array's slots lie in live CNodes. -/
-def ExtraLive (th : TypedHeap) (m : U64 → U64) (kb : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) : Prop :=
+def ExtraLive (th : TypedHeap) (m : U64 → U64) (_kb : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize) : Prop :=
   ∀ j, j < 3 → Ipc.exAt extra j ≠ 0#u64 → ∃ ps idx, Ipc.exAt extra j = cslotAddr (ps.bv, idx) ∧
-    th ps = some (.cnode idx.length) ∧ DestLive th m kb ps
+    th ps = some (.cnode idx.length) ∧ DestCap th m ps
 
 set_option maxHeartbeats 4000000 in
 /-- **`lookup_extra_caps`' slots lie in live CNodes** (each reached by
 `lookup_slot` from the thread's CSpace root, held in its TCB slot 0:
-`DestLive.of_cnRef`). -/
+`DestCap.of_cnRef`). -/
 theorem lookup_extra_live (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
     (hR : StateRel th (L.mem s) σ) (hV : SlotsValid th (L.mem s)) {t : U64} (ht : th t = some .tcb) (sbw : U64)
     (info : msginfo.MessageInfo) :
@@ -182,7 +182,7 @@ theorem lookup_extra_live (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit)
             rw [Ipc.exAt_set, Ipc.cast_us_val i hi3'] at hne ⊢
             by_cases hji : i.val = j ∧ j < 3
             · rw [if_pos hji]
-              exact ⟨p, sl.2, by rw [hsl, ← hp1], hp, DestLive.of_cnRef hcr hroot⟩
+              exact ⟨p, sl.2, by rw [hsl, ← hp1], hp, DestCap.of_cnRef hcr hroot⟩
             · rw [if_neg hji] at hne ⊢
               exact hP j hj hne
         | Err lf =>
@@ -278,7 +278,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 cc)
     (htu : Vs.TabUn cc → Vs.TabUn srcC)
     (huc : isUt srcC = true → cc = srcC) (hnat : Vs.NativeCap srcC → Vs.NativeCap cc)
-    (hDs : DestLive Z.th (L.mem s) (L.ksb s) ps) (hDd : DestLive Z.th (L.mem s) (L.ksb s) pd) :
+    (hDs : DestCap Z.th (L.mem s) ps) (hDd : DestCap Z.th (L.mem s) pd) :
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' => ∃ σ',
       Fl4Spec.capInsert (Z := Unit) ac (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
       KeepCV σ σ' ∧ Ipc.CnK σ σ' ∧ L.ksb s' = L.ksb s ∧
@@ -337,11 +337,16 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     utSrc_ins hPl hM hC hC' hAs hsv hdv hdc hsc hoth hsh huc hut hsb hG'
       (fun hu => by rw [huc hu]; exact isPF_ut hI hsm hsv hu _)
   have hW : ∀ sl ∈ [(ps.bv, idxs), (pd.bv, idxd)], ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧
-      sl.2.length = r ∧ DestLive Z.th (L.mem s) (L.ksb s) p := by
+      sl.2.length = r ∧ DestCap Z.th (L.mem s) p := by
     intro sl hsl
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hsl
     rcases hsl with rfl | rfl
     exacts [⟨ps, rs, rfl, hps, hls, hDs⟩, ⟨pd, rd, rfl, hpd, hld, hDd⟩]
+  have hWC := hW
+  replace hW : ∀ sl ∈ [(ps.bv, idxs), (pd.bv, idxd)], ∃ p r, sl.1 = p.bv ∧ Z.th p = some (.cnode r) ∧
+      sl.2.length = r ∧ DestLive Z.th (L.mem s) (L.ksb s) p := fun sl hsl => by
+    obtain ⟨p, r, h1, h2, h3, h4⟩ := hWC sl hsl
+    exact ⟨p, r, h1, h2, h3, h4.live _⟩
   have hcW : ∀ y, IsSlot Z.th y → (∀ sl ∈ [(ps.bv, idxs), (pd.bv, idxd)], y ≠ cslotAddr sl) →
       capV (L.mem s') y = capV (L.mem s) y :=
     fun y hy hne => hoth y hy (hne _ (by simp)) (hne _ (by simp))
@@ -371,10 +376,38 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (let ⟨_, _, hJ⟩ := J.jpl; hJ.bfsT fun t ht => Or.inl (hTS 2 (by decide) t ht)) (hdi J.del) hCU.2 hjc horig hutc
   have hvT := vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
     (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey) (by rw [hsv]; exact hnat)
+  -- `LiveDN` after (LiveFrame's `wstepC`: both written slots in CNodes named by CNode caps)
+  have hsA : CapSimL ((fullF srcC cc).getD srcC) srcC := capSimL_fullF srcC cc
+  have hZf : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n := fun y hy p zt n h => by
+    by_cases eD : y = cslotAddr (pd.bv, idxd)
+    · subst eD; rw [hdc] at h; subst h
+      have := isZb_of_shape hsh; rw [hzb] at this; simp [isZb] at this
+    by_cases eS : y = cslotAddr (ps.bv, idxs)
+    · subst eS; rw [hsc] at h
+      exact ⟨_, hAs.isSlot, by rw [hsv]; exact (hsA.zombie p zt n).1 h⟩
+    · exact ⟨y, hy, by rw [← hoth y hy eS eD]; exact h⟩
+  have hLv' := LiveDN.wstepC J J.live hX1'
+    (fun q hq => J.deadP_slot hX1' hcn hkcT hw (J.jcov.dead q (J.zD q hq))) hcn.idle hw
+    [(ps.bv, idxs), (pd.bv, idxd)] hWC hcW hoW
+    (fun sl hsl h => by
+      exfalso
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hsl
+      rcases hsl with rfl | rfl
+      · rw [hsc] at h; exact hsnn ((hsA.null).1 h)
+      · rw [hdc] at h; exact hcnn h)
+    hZf
+    (fun y0 hy0 hn => by
+      by_cases eD : y0 = cslotAddr (pd.bv, idxd)
+      · subst eD; exact absurd hdv hn
+      by_cases eS : y0 = cslotAddr (ps.bv, idxs)
+      · subst eS
+        exact ⟨_, hAd.isSlot, by rw [hdc]; exact hcnn, by rw [hdc, hsv]; exact hsh⟩
+      · exact ⟨y0, hy0, by rw [hoth y0 hy0 eS eD]; exact hn, by rw [hoth y0 hy0 eS eD]⟩)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R
-      (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))⟩
+      (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw)) hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp))⟩
 
 
 /-! ## The transfer loop at `J` -/
@@ -441,10 +474,10 @@ theorem tc_bodyJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tcb}
     (hrw : rbw.bv = rb) {dest0 : U64} {slots0 : List Fl4Spec.CslotPtr} {mi0 : Fl4Spec.MessageInfo}
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK Z.th (L.mem s0) (exAt extra j) caps[j])
-    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestLive Z.th (L.mem s0) (L.ksb s0) ps)
+    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestCap Z.th (L.mem s0) ps)
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
     (hdest : dest0 ≠ 0#u64 → ∃ d, slots0 = [d] ∧ DestOK Z.th (L.mem s0) dest0 d ∧
-      ∃ pd, d.1 = pd.bv ∧ DestLive Z.th (L.mem s0) (L.ksb s0) pd)
+      ∃ pd, d.1 = pd.bv ∧ DestCap Z.th (L.mem s0) pd)
     (hm : BufMap Z.B rbw rb) (x : S × msginfo.MessageInfo × obj.Slot × U64)
     (hx : TInvJ (L := L) arI AR Z H Cs Ac Lst D a caps extra ep rb s0 σ0 dest0 slots0 mi0 x) :
     ipc.transfer_caps_loop.body st extra ep rbw x.1 x.2.1 x.2.2.1 x.2.2.2 ⦃ r => match r with
@@ -626,8 +659,8 @@ theorem tc_bodyJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tcb}
                   rcases hB.2.1.2.2.1.next_mem hm' with h | ⟨h, -⟩
                   · exact Or.inl h
                   · exact Or.inr ((hB.2.1.2.2.1.members _).1 h).1
-                have hDs : DestLive Z.th (L.mem s) (L.ksb s) ps := hDs0.same hSS hks0
-                have hDd : DestLive Z.th (L.mem s) (L.ksb s) pd := hDd0.same hSS hks0
+                have hDs : DestCap Z.th (L.mem s) ps := hDs0.same hSS
+                have hDd : DestCap Z.th (L.mem s) pd := hDd0.same hSS
                 have hins := WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
                   (hv' Z.th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
                   (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (fun h => (derive_tabun hr h).elim)
@@ -695,12 +728,12 @@ theorem tc_bodyJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tcb}
 
 /-- FL4's receive slot in a live CNode (`get_receive_slot_live`) and as
 `DestConf`, so the destination's CNode is live. -/
-theorem destLive_of {th : TypedHeap} (hP : Placed th) {m : U64 → U64} {kb : U64}
+theorem destLive_of {th : TypedHeap} (hP : Placed th) {m : U64 → U64}
     {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {extra : Aeneas.Std.Array obj.Slot 3#usize} {dest : U64}
     {slots : List Fl4Spec.CslotPtr} (hD : DestConf th m caps extra dest slots)
     (hL : dest ≠ 0#u64 → ∃ pd idx, dest = cslotAddr (pd.bv, idx) ∧ th pd = some (.cnode idx.length) ∧
-      DestLive th m kb pd) :
-    dest ≠ 0#u64 → ∃ d, slots = [d] ∧ DestOK th m dest d ∧ ∃ pd, d.1 = pd.bv ∧ DestLive th m kb pd := by
+      DestCap th m pd) :
+    dest ≠ 0#u64 → ∃ d, slots = [d] ∧ DestOK th m dest d ∧ ∃ pd, d.1 = pd.bv ∧ DestCap th m pd := by
   intro h0
   rcases hD with ⟨h, -⟩ | ⟨-, d, hsl, hok⟩
   · exact absurd h h0
@@ -720,11 +753,11 @@ theorem transfer_loopJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tc
     {mi0 : Fl4Spec.MessageInfo} (out0 : msginfo.MessageInfo) (hmi0 : MiRel out0 mi0)
     (hcu0 : out0.caps_unwrapped.val < 8) (J0 : JM (L := L) arI AR Z H Cs Ac Lst D a s0 σ0) (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK Z.th (L.mem s0) (exAt extra j) caps[j])
-    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestLive Z.th (L.mem s0) (L.ksb s0) ps)
+    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestCap Z.th (L.mem s0) ps)
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
     (hD : DestConf Z.th (L.mem s0) caps extra dest0 slots0)
     (hDL : dest0 ≠ 0#u64 → ∃ pd idx, dest0 = cslotAddr (pd.bv, idx) ∧ Z.th pd = some (.cnode idx.length) ∧
-      DestLive Z.th (L.mem s0) (L.ksb s0) pd)
+      DestCap Z.th (L.mem s0) pd)
     (hm : BufMap Z.B rbw rb) (hu : ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rb k) σ0) :
     ipc.transfer_caps_loop st s0 extra ep rbw out0 dest0 0#u64 ⦃ y =>
       TPostJ (L := L) arI AR Z H Cs Ac Lst D a caps ep rb s0 σ0 slots0 mi0 y ⦄ := by
@@ -759,7 +792,7 @@ theorem transfer_capsJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tc
     {caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {extra : Aeneas.Std.Array obj.Slot 3#usize}
     (hlen : caps.length ≤ 3)
     (hsrc : ∀ j (hj : j < caps.length), SrcOK Z.th (L.mem s) (exAt extra j) caps[j])
-    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestLive Z.th (L.mem s) (L.ksb s) ps)
+    (hsrcL : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧ DestCap Z.th (L.mem s) ps)
     (hnull : ∀ j, caps.length ≤ j → j < 3 → exAt extra j = 0#u64)
     (ep : U64) (rbw : U64) (hrw : rbw.bv = rp) (hr0 : rbw ≠ 0#u64) (hm : BufMap Z.B rbw rp)
     (hu : ∀ k, k < 128 → Fl4Spec.inUserFrame (bufAddr rp k) σ) :
@@ -1070,7 +1103,7 @@ theorem JAtZ.xferGrantJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨hOKc, -, -⟩ := J1.xferH
   have hu1 : ∀ k, k < 128 → Fl4Spec.inUserFrame (Endp.bufAddr rp k) σc := fun k hk => buf_frame_of_ok hOKc hkc hq1 k hk
   have hsrcL1 : ∀ j (hj : j < caps.length), ∃ ps, (caps[j]).2.1 = ps.bv ∧
-      DestLive Z.th (L.mem s1) (L.ksb s1) ps := by
+      DestCap Z.th (L.mem s1) ps := by
     intro j hj
     obtain ⟨ps, rs, idx, cv, hps, hls, hsl, hxa, -⟩ := hok.2.1 j hj
     have hA : AbsSlot Z.th (ps.bv, idx) := ⟨ps, rfl, Or.inl (by simpa [hls] using hps)⟩
@@ -1078,7 +1111,7 @@ theorem JAtZ.xferGrantJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     obtain ⟨ps', idx', he', hth', hD'⟩ := hlive j (by have := hok.1; omega) hne0
     have e := cslotAddr_inj J.xtop.rel.1 hA (⟨ps', rfl, Or.inl hth'⟩ : AbsSlot Z.th (ps'.bv, idx'))
       (hxa.symm.trans he')
-    exact ⟨ps', by rw [hsl]; exact congrArg Prod.fst e, hD'.same hS1 hks1⟩
+    exact ⟨ps', by rw [hsl]; exact congrArg Prod.fst e, hD'.same hS1⟩
   refine WP.spec_bind (transfer_capsJ (Z := Z.mv Z.G V1) (thT rcv hr) J1 hkc hq1 tag (Fl4Spec.dataToMessageInfo w)
     hlenw hlabw hok1.1 hok1.2.1 hsrcL1 hok1.2.2 ep rw hrwv hrwn hmr hu1) ?_
   rintro ⟨out, s2⟩ ⟨σt, mf, htc, hMi, hexc, hcu, he3, hlbt, hKC, hks2, ⟨G2, V2, J2⟩⟩

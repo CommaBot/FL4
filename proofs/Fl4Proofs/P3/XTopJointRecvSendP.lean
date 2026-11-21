@@ -139,13 +139,25 @@ set_option maxHeartbeats 4000000 in
 `JAtZ.undead` from the cover facts). -/
 theorem JAtZ.undeadC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {e : U64}
     (hth : ∀ k, Z.th e = some k → Covered (L.mem s) Z.G e.val (e.val + max (objSize k) 1))
-    (hH : ∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits)) :
+    (hH : ∀ k, H e = some k → Covered (L.mem s) Z.G e.val (e.val + 2 ^ k.bits))
+    (hez : Z.th e ≠ some .tcb) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst (D \ {e}) s a σ := by
   have hw : P1.WritesIn st s s (TFoot st Z.T Z.N Z.C Z.c s σ) := P1.WritesIn.refl _ _
   have hK : ScTKw (fun _ => False) σ σ := ScTKw.refl _ σ
   exact { J with
     jcov := J.jcov.undead hth hH
-    kern := J.sc_kern hw hK (FK.refl σ) J.xtop rfl Set.sdiff_subset }
+    kern := J.sc_kern hw hK (FK.refl σ) J.xtop rfl Set.sdiff_subset
+    zD := fun q hq => ⟨J.zD q hq, fun (eq : q = e) => hez (eq ▸ J.ztcb_tcb hq)⟩ }
+
+/-- The reply argument of a receive is no TCB of the typed heap (null: `H 0`
+is empty; a reply: `H` holds a reply there). -/
+theorem JAtZ.replyArg_ntcb (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {m : U64 → U64}
+    {rc : capability.Cap} {rc' : Fl4Spec.Cap} {rv : U64} (hrc : ReplyArg Z.R m rc rc' rv) :
+    Z.th rv ≠ some .tcb := fun h => by
+  have hT := J.zH.1 rv (J.thT rv h)
+  rcases hrc with ⟨-, -, rfl⟩ | ⟨b, r', -, -, hr, -⟩
+  · rw [J.kern.h0] at hT; cases hT
+  · rw [J.zH.2.2.1 rv hr] at hT; cases hT
 
 set_option maxHeartbeats 4000000 in
 /-- **The dead stay dead across an `RSFr` step and a step keeping them**
@@ -248,6 +260,7 @@ theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB hy', hyt⟩
     exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hidl0 : σ'.idleThread = σ.idleThread := G.idle.trans F.sk.idle
   have hisc0 : σ'.idleSc = σ.idleSc := G.isc.trans F.sk.isc
@@ -284,7 +297,7 @@ theorem JAtZ.rsfr_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch)
     (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)))
-    hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R⟩
+    hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R hKd (G.orig.trans F.sk.orig) (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **`receive_ipc` from a faulted head sender pushing a reply at `J`**
@@ -324,7 +337,7 @@ theorem JAtZ.recvSendFPJG (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e
@@ -883,7 +896,7 @@ theorem JAtZ.recvSendPJG (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H 
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e

@@ -190,7 +190,9 @@ theorem JHole.chargeBudgetUJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S
   exact ⟨Lst', J.sc_frame hW hKc hX' hCR' hRF' hY' hM' (J.sc_buf hW hKc) hRP' (J.sc_apart hW hKc)
     (J.sc_jpl hW hKc hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW)
     (J.sc_kern hW hKc hfkc hX' hDbg fun _ h => h) (J.sc_utc hW hKc hDbg) hN' hI' (Or.inl hcn') hown' hoff hAI'
-    hbsa hcr hblk'⟩
+    hbsa hcr hblk' (Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot))
+    hidW.1 J.zD⟩
+
 
 set_option maxHeartbeats 16000000 in
 /-- **`mcs_preemption_point` at a hole without `CurInv`, current thread not

@@ -382,6 +382,7 @@ theorem JAtZ.pushDonJS (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs
   have hFK : FK σ σ' := ⟨pdS_csc, pdS_idle, pdS_isc⟩
   have hIK := J.idleW_keep hS' pdS_idle pdS_isc
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   -- the bound-before objects at `σB`
   have hktB : σB.kheap t.bv = some (.tcb xt) := bd_oth hky hkw hws hh (fun _ e => by cases e) (Ne.symm hst') hkt
   have hkdB : σB.kheap d.bv = some (.tcb xd) := bd_oth hky hkw hws hh (fun _ e => by cases e) (Ne.symm hsd') hkd
@@ -439,7 +440,7 @@ theorem JAtZ.pushDonJS (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H Cs
     (J.buf.frame kb hK.bufKeep) hRP' (J.apart.sc_frame hks hK.szKeep) hjpl (J.jcov_keep hks hSS hdead hIK)
     (J.sc_kernW hW hK hFK hX' hDbg (subset_refl D))
     (J.rmW_utc hwR hSS hK.cdt hK.orig pdS_arch hDbg) hN' hI' (Or.inl hcn') hown hoff hact hbsa
-    (Or.inl (by rw [hcn']; intro h; cases h)) hblk
+    (Or.inl (by rw [hcn']; intro h; cases h)) hblk hKd hIK.1 J.zD
 set_option maxHeartbeats 64000000 in
 /-- **A call to a waiting receiver at `J` that pushes a reply and donates
 the caller's SC** (module docstring): the caller has the grant or grant-reply

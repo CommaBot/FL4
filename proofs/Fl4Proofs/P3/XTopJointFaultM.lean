@@ -153,7 +153,8 @@ theorem JAtZ.sc_frameR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
     (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRunM σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s') :
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     JAtZR (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
@@ -173,7 +174,8 @@ theorem JAtZ.sc_frameR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
-    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw)⟩
+    J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw),
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS
@@ -240,6 +242,7 @@ theorem JAtZ.stsCurJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
   rintro s6 ⟨⟨⟨⟨hR6, hS6r⟩, hw6⟩, hy6⟩, hblk, hfoot⟩
   have hX6 := IpcRel.ofSRN hR6 hS6r
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   set x6 : Fl4Spec.Tcb := { x with tcbState := .inactive } with hx6
   set σ1 := updK σ t.bv (.tcb x6) with hσ1
   set σ6 := stsAct σ1 t.bv with hσ6
@@ -354,7 +357,7 @@ theorem JAtZ.stsCurJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : M
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`handle_fault` with a null fault handler at `J` under a pending
@@ -650,6 +653,7 @@ theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
     obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB hy, hyt⟩
     exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   -- the scheduler: the current thread blocked, a reschedule pending
   have hact' : σ'.schedulerAction = σ.schedulerAction := hactK (by show σf.schedulerAction ≠ _; exact hsw)
@@ -729,7 +733,7 @@ theorem JAtZ.faultBlockJM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J' := J.toR.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 (J.zD_diffE hpE)
   exact ⟨⟨_, _, J'.xtop.rel.1, J'.xtop.rel.2.1, J'.xtop.rel.2.2.1, J'.xtop.rel.2.2.2.1, J'.xtop.rel.2.2.2.2.1⟩,
     ⟨_, H, Cs, Ac, Lst, D \ {ptr}, J'⟩⟩
 
