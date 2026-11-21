@@ -7935,3 +7935,68 @@ existing edited.
 - Lean trap (new): a generated leaf for an opaque relation-defined monad (`fl4Awaken := fun σ => ({p | fl4TimerFires σ p.2},
   False)`) leaves `RTK fun σ => …` unsolved; if only skipped callers use it, drop it after the split (keeps the other
   generated files byte-identical) rather than regenerating.
+
+## g3c (branch par/g3c in FL4-rb, on f3e8646d = int/j2 incl. g3a, epq2) — g3a's mid-path premises and `JEntryAt.epQ` discharged: `kernel_entryJ27b` (DONE)
+Goal (g3a handoff (c), (d)): JPerfRegHyp, JPerfIrqSlotHyp, JMidVfhHyp and JEntryAt.epQ from per-state facts at the entry
+state σ. New leaves only, namespace `Fl4Proofs.P3` (spec part `Fl4Proofs.P3.SInvK`): XTopJointKEntry27bS (spec-only;
+imports SpecInvAllB, SpecInvEqA, SpecInvRdD), XTopJointKEntry27b (imports XTopJointKEntry27, XTopJointKEntry27bS); root
+imports both. Nothing existing edited; no JAtZ / cone edit. (A first g3c agent was stopped by a station restart before
+writing any proof; this is the resumed run, keys g3c-r-*.)
+- **Dispatch state** (27bS). σb = `update_time_stamp` of `fipSt σ x` (= `faultIPSt σ ct x`, same body). `disp_uv`
+  (ut1's UK: σb's view `uV` = σ's), `disp_node` (ut7's NK), `disp_vfc` (vfh3's family: `VfhV ∧ CnDom` at σb). Top side:
+  `disp27b` (from `BudgetAt σ σb true` by `BudgetAt.shape27` and `fl4SyscallFaultIP_eq`).
+- **(4) JEntryAt.epQ** — `SInvK.epQAll_disp (hS : SInvB σ) (ha : σ.schedulerAction = .resumeCurThread) (hk) (hu) (hE :
+  EpQAll σ) : EpQAll σb`; top `epQPre_of_sinv (hnd) (hS) (hni : Entered σ) (hE : EpQAll σ) (hBA) : ∀ e, EpQPre σb e`.
+  epq2's `EpQAll σ` is literally `∀ e, EpQPre σ e`, so its ScBack / ActReady parts are already in it: σb's heap is σ's with
+  ct's registers changed (same SC binding and fault, so ScBack and every queued thread's MemOKE move over; SCs are
+  untouched), the clock only advances (ValidMachineTime, `ready_of_nat`), and the action is σ's `resume_cur_thread`
+  (Entered), so ActReady σb is vacuous. DEVIATION from the brief: no `Rdy σ` hypothesis is needed (the brief's route via
+  ScInv / R2 would rebuild EpQAll σb from Rdy σb, which needs Rdy across the FaultIP write; the direct transfer avoids it).
+- **(3) JMidVfhHyp** — `SInvK.vfh_mid (hS) (h0) (hu) (cptr)`: vfh3's `vfh_handleInvocationR` from `VfC σb` and
+  `UtInv'' σb` (view), then `vfhV_iff`. Top `jMidVfhHyp_27b`.
+- **First phase** (27bS). `midF'` / `midE'` / `MidAt` = XTopJointMidRunS's `midF` / `midE` / `MidPerfAt` bodies (the top
+  passes `MidPerfAt` as `MidAt` by unfolding). **`midAt_facts (hA : MidAt cptr σ inv σ1) : uV σ1 = uV σ ∧ σ1.node =
+  σ.node ∧ InvOKV (uV σ) inv`** (uk_auto / nk_auto over the phases; ut8's `okv_fl4Decode` with the slot facts of
+  `okv_lookupCapAndSlot` / `okv_lookupExtraCaps`, as in vfh3's shell). Top `midPerfAt_sV`: sch23's SC view `sV` kept to
+  MidPerfAt (`sck_getMessageInfo'`, `scke_midF`, `scke_midE`, `sck_setThreadState`); `bound27b`: a binding `(mV σ1 u).1
+  = some (some p)` is a TCB `u` bound to `p` at σ (the FaultIP write keeps ct's SC field).
+- **(2) JPerfIrqSlotHyp** — `SInvK.irqSlot_of (hG : SpecGlobS σ) (hv : uV σ1 = uV σ) (hn)`: IrqSlotNC's body
+  (`getCap_capAt` + `SpecGlobS.irq`). Top `jPerfIrqSlotHyp_27b (hnd) (hS) (hBA) (cptr)`.
+- **(1) JPerfRegHyp** — `SInvK.Out σ q` (q holds an object, and is named by a cap or lies outside every cap's `covR`);
+  `out_ct` (IfLiveT: the active ct holds a thread cap), `out_bound` (ScBack: the SC exists and is bound back; sl's typed
+  `ScLiveT`, or `IdleOutV` / `IdleScOutV` for the idle pair); `out_not_delR` (vfh3's `vfh_noRef`: an Out object misses a
+  childless untyped's region; the outside case via `covR (untyped) = delR`); `UtSet` (= PerfU's `utD`), **`out_ut`**
+  (reset part: the source cap is UtRetOK's childless untyped; new-object part: fresh by `utRet_fresh` without reset,
+  inside the reset region with it, via `utRet_fresh_reset`); `MpSet` (= `asidD`), **`out_mp`** (MpOKV: a childless
+  page-sized untyped at `frame`; the pool address is `frame`). Top **`jPerfRegHyp_27b (hnd) (hS) (hct : ct ≠ idle) (hBA)
+  (cptr) : JPerfRegHyp cptr σb`**. l4v: `valid_untyped_inv` / `valid_aci` follow from untyped_children_in_mdb (UtInv''),
+  if_live_then_nonz_cap (IfLiveT, ScLiveT), sym_refs (ScInv) and valid_global_refs (IdleOutV, IdleScOutV), all in SInvB.
+- **Top** — `JEntryAtR2` (= JEntryAtR − epQ), `.toR`; `KDispHypsKV27b` (= KDispHypsKV27 with JEntryAtR2 in inv and mid,
+  mid without `JPerfRegHyp ∧ JPerfIrqSlotHyp` and `JMidVfhHyp`), **`KDispHypsKV27b.to27 (hnd) (hS) (hni) (hE) (hBA)`**,
+  **`kernel_entryJ27b`** (wrapper over J27).
+- PREMISES, exactly:
+  * BEFORE (`kernel_entryJ27`): PlainStore, J, hni, hR, hS : SInvB σ, hQ, hn, hflag, hB, **hK → KDispHypsKV27** (inv:
+    JEntryGlobM, JEntryAtR {stall, flags, **epQ**, handlers, ports, ioapics, archIrq, vsTyp, live, fnz, urz, utks},
+    JPathAtM, JVtxHypMU; mid: JEntryGlobM, JEntryAtR, JPathAtM(…true true), **JPerfRegHyp ∧ JPerfIrqSlotHyp**,
+    **JMidVfhHyp**, JVtxHypMU), hFin → KFinAtR27, hARI, hA, hnd, hM, hKD, hPA, hIA, hmrt, hmb, hNS, hNSR, hT, hmax, htu.
+  * AFTER (`kernel_entryJ27b`): PlainStore, J, hni, hR, hS, **hE : SInvE.EpQAll σ**, hQ, hn, hflag, hB, **hK →
+    KDispHypsKV27b** (inv: JEntryGlobM, JEntryAtR2 {stall, flags, handlers, ports, ioapics, archIrq, vsTyp, live, fnz,
+    urz, utks}, JPathAtM, JVtxHypMU; mid: JEntryGlobM, JEntryAtR2, JPathAtM(…true true), JVtxHypMU), hFin → KFinAtR27,
+    hARI, hA, hnd, hM, hKD, hPA, hIA, hmrt, hmb, hNS, hNSR, hT, hmax, htu.
+  * Net: REMOVED JPerfRegHyp [J], JPerfIrqSlotHyp [J], JMidVfhHyp [J] (all three ∀-over-MidPerfAt / first-phase
+    outcomes of the actual run, now proved) and JEntryAt.epQ [J] (in inv and mid). ADDED `hE : EpQAll σ` [J] (l4v
+    `valid_ep` + valid_sched's released-queue / action slices at σ; one per-state fact, true in reachable states: epq2's
+    `kentry_epQAll` / `kcall_epQAll` carry it to every exit, given Rdy there by name; it becomes an SInvB field once Rdy's
+    whole-entry carry (rd line) lands). No [P]/[W]/[S], no ∀-states hypothesis.
+- No FINDING: none of the four premises is false in a reachable state; each follows from SInvB σ (plus EpQAll σ for epQ).
+- Builds (tokyo, FL4-rb mirror; ./g3c.sh untracked = g3a.sh's shape with SEED=1 seeding from FL4-audit and the grep on
+  XTopJointKEntry27b*): g3c-r-1/r-2 probes (mirror lacked SpecInvSlKA / SpecInvRdA; FL4-audit's build had both cones),
+  g3c-r-3 seed + 27bS (errors: `Notif.updK` / `Notif.setReg` unqualified, two `by …, …` anonymous-constructor slips, a
+  `.fit` through a type ascription), g3c-r-4 27bS (7.5 s) + 27b (3.0 s) OK, 6372 jobs; no sorry/admit/native_decide/
+  bv_decide. Axioms (g3c-r-5, scratch/g3c/ax.lean untracked): kernel_entryJ27b, KDispHypsKV27b.to27, JEntryAtR2.toR,
+  jPerfRegHyp_27b, jPerfIrqSlotHyp_27b, jMidVfhHyp_27b, epQPre_of_sinv, disp27b, midPerfAt_sV, SInvK.epQAll_disp,
+  SInvK.midAt_facts, SInvK.vfh_mid, SInvK.irqSlot_of, SInvK.out_ut, SInvK.out_mp, SInvK.out_ct, SInvK.out_bound,
+  SInvK.disp_vfc: propext, Classical.choice, Quot.sound; bound27b: propext. Root Fl4Proofs.lean not rebuilt (two
+  import lines).
+- Next (G3): `EpQAll` into SInvB (with Rdy, once rd's whole-entry tops exist: then `hE` goes); g3a's (a) hNS / hNSR
+  re-scope (g3b), (b) hQ / hB into SInvB, (e) the ∀-ghost scope of hK / hFin.
