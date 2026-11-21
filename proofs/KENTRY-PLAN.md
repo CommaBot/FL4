@@ -14345,3 +14345,183 @@ Within y x`. Checked against what is carried:
 - Rebase note: the cone edit touches 55 modules (mostly one-line `k1`/`McpKeep` edits); conflicts with other lines are
   likely only where they add new `JRest` producers: such a producer now needs the flags word in its `k1` (the footprint's
   `_nf` lemma) and `McpKeep` as a pair (`rfl` for record updates not touching `tcbMcpriority` / `tcbFlags`).
+- **JOB 2 (m66's (R-a')), first batch** (on bfdc30f6 = int/j2 with JOB 1). PARTIAL: the congruence lemma and 7 of the
+  29 `RRReads` fields derived; `entry_of8` / P3 `J33F` / `J34F` NOT done.
+  * **P1 RabCongr (new, root import).** `rabLoop_unfold`, `rab_body_congr` (the body reads only `Slot.cap` of
+    `cnSlot p off` of the CNode cap it walks), `rab_body_cont` (a continuing step read a cap from such a slot and spent
+    one unit of fuel), **`rab_loop_congr`** (fuel induction: for a predicate `C` on CNode pointers true of the walked
+    cap's, closed under the CNode caps read from a `C` CNode's slots at `s`, with `s'` agreeing with `s` on every slot of
+    a `C` CNode, a walk returning `ok res` at `s` returns `ok res` at `s'`), **`rab_congr`** (fuel 65),
+    **`lookup_cap_congr`**. Not yet used: `lk8` needs `C` (the walk's CNodes) to be a set the run does not write, i.e.
+    a CNode-closure fact at `X0` (l4v `valid_objs` / `valid_cap` of CNode caps: every CNode cap in a CNode slot names a
+    CNode object whose slots are cap-slot words `CapW`); P1 has no such invariant (`InvHyps.lookupSlot` covers only
+    the found slot), so it will enter as a narrow [J] at the dispatch state, plus the X1→X8 footprint below.
+  * **P1 FastRREnt (new, root import).** `OutT`, `is_schedulable_congr`, **`RREnt`** (at the dispatch state: TCBs placed,
+    `t`, `u` ∈ `T`, the reply's TCB word and `t`'s SC `REFILL_MAX` word outside the TCBs, the endpoint placed,
+    `rptr ≠ 0`), **`rrEnt_of`** (from `BXI` / `XG` there and `EntryHyps0.recvOK`: the `REPLY` / `CAP` caps typed —
+    `lookup_cap_of_found` from `RCaps` —, `ReplyInv.back`, `ObjsOK.rpW` / `scW`, `ScExtra.bound`, `EpsOK`),
+    **`RRReads.of_ent`** (derives `sch1` / `rt1` / `us1` at `X1`, `run6`, `ns15` through the explicit writes `X9…X15`,
+    `ucn`, `r0`; `u ≠ t` from `u` BlockedOnReply and `t` schedulable), **`RRReads2`** (the other 22 fields),
+    `RRPre2`, `RRPre.of2`, `RRPreAt2`, **`RRPreAt.of2`** (the dispatch state is `BXI` / `XG`: `reg_entry`, `budget_ok.bxc`),
+    top **`kernel_entry.entry_of7r2`** = `entry_of7r` with `hRP : RRPreAt` replaced by `hRP : RRPreAt2`.
+  * Premises: removed from the P1 ReplyRecv bundle: `RRReads.sch1`, `rt1`, `us1`, `run6`, `r0`, `ucn`, `ns15` (on
+    `entry_of7r2`). Added: none (`RREnt` is derived). P3 tops unchanged (`J33R` / `J34R` take m66's `RRPreAt`).
+  * Remaining (handoff, in order): (1) the X1→X6 footprint (`reply_remove`'s unlink branch: `rPrevA` / `rNextA` of the
+    reply and its two neighbours, which `ReplyInv.next` / `prev` make replies, `rTcbA rptr`, `u`'s state, its
+    `schedule_tcb u` a no-op as `u` ≠ the current `t`; `unblock_check.fr` on `usc`'s ring + REPROGRAM; `hfr.rg`
+    `XferRegW T ∅`; `clear_fault` `faultA u`) and with it `sc2`, `ft3` / `lbl3` (`RRR3`), `sch6`, `sc6`, `st7`, `act8`,
+    `ct8`, `ep8`, `rt8`, `act11`, `act15`, `ct15`, `q12` (`EpsWit`: an IDLE endpoint's queue is empty), `pst` (`HereF`),
+    `dq15`, `T15` / `R15` (`noDue_wrs` pattern), `hp15` (`is_hp_of_le`), `ntfn8`; (2) `rdy6` / `suf6` from m65's
+    `unblock_check_r4` under `RRSum`; (3) `lk8` from `lookup_cap_congr` + the CNode-closure [J]; (4) `nvm` /
+    `FaultNvmPre` (need the P1 invariants through `fastTail`); then `entry_of8` (no `hRP`, `RRSum` [J]) and P3
+    `J33F` / `J34F` (P3 needs the P1 entry invariants at the dispatch state to use `RRPreAt.of2`, or carries `RRPreAt2`).
+  * Builds (keys m67-j2*): b1 RabCongr green (first try); b2 FastRREnt (a duplicate `bor_not_runnable`, a `simpa`
+    to a value equation); b3 FastRREnt green (3826 jobs), committed 167b8765 / d5081b2e; **j2full1 (full `lake build`):
+    "Build completed successfully (7091 jobs)", 0 errors, 0 `declaration uses 'sorry'`.** Axioms (scratch/axm67.lean):
+    the JOB 1 list plus entry_of7r2, RRPreAt.of2, rrEnt_of, RRReads.of_ent, rab_loop_congr, lookup_cap_congr: propext,
+    Classical.choice, Quot.sound (each). FINDING: none.
+
+## g4j (branch par/g4j in FL4-sc, on bfdc30f6 = int/j2 incl. g4h, m67) — g4h's handoff: `JDecMRL2` [W] DISCHARGED for the Thread cap (every non-VT-x label) and for the Untyped retypes without a reset; left: `VtxK` [scope] (SetEPTRoot, VT-x retypes, now at `JAtM`) and `JUtResetHyp` [W] (the retypes with a reset); tops `kernel_entryJ40` / `kernel_entry_reachMD3`
+New leaves only (MachKeepG4j, XTopJointMRTcbM, XTopJointUtMR, XTopJointKEntry40; root imports). Nothing existing edited.
+
+### (1) Thread
+- **Installing labels** (SetTimeoutEndpoint, SetSpace, SetIPCBuffer, Configure, SetSchedParams): XTopJointMRTcbM, generated by
+  scratch/g4j/gentcbm.py + headM.lean from XTopJointMRTcb (`top_of_instJM`, `tcb_set_*JM`, `ssp_tailJM`; names `…JMM`), post
+  `JAtM`. The copies take `hmR : MR ar σ.machineState` (error outcomes stay at the start state) and `hWM : W kb s a σ G → MR a σ.ms`
+  (mr7's `WMR MR WJL` carries it: `fun _ _ _ _ _ h => h.2.1`). `top_of_instJMM`: an Ok install ends at `W`'s state. `ssp_tailJMM`:
+  after the fault-handler install `set_mcp` / `set_priority` / `unbind_tcb` keep the arch state, their spec steps keep `msF`
+  (new leaves `MachT.mtk_setMcpriorityG4j`, `mtk_setPriorityG4j`; `mtk_schedContextUnbindTcb'`), `bind_tcb` by
+  `MKD.schedcontext_bind_tcb` + `mtk_schedContextBindTcbG`.
+- **Non-installing labels** (all but the five and SetEPTRoot): `XCapP.mrG (f := id)` on mr7's `decode_invocation_threadJ_stepM`.
+  FL4: MachKeepG4j's `MKD.decode_thread_nonins` (`TcbNonIns lbl`; mkdgen walks of `sched.restart`, `tcb.read/write/copy_registers`,
+  their decodes, `decode_configure_single_stepping`, `decode_set_flags`, `fpu_transfer`; `MKD.tcb_thread_control_sched_nf`:
+  `thread_control_sched` with flags without `SCHED_UPDATE_FAULT` never installs, so SetPriority / SetMCPriority keep `MR`;
+  every arch op reached is an `MRKeepD` field or `kernel_wcet_ticks`). Spec: `perfF_tcbN` (`dec_thread_kind`: a Thread cap decodes
+  to a TCB / FL4-TCB invocation; `thread_noPre_of`: not `NoPre.PreInv`; `qInvT_perform`: such a perform keeps `msFT`, new leaves
+  `mtk_restartG4j`, `mtk_bindNotificationG4j`, `mtk_setFlagsG4j`, `mtk_archPostSetFlagsG4j`, `mtk_fl4FpuToFrameG4j`
+  (`fl4FpuToFrame` writes `underlyingMemory` only)).
+- `decode_invocation_threadJ_stepMM` (scratch/g4j/genstep.py): the Thread decode at `XCapP (JAtM) (JAtPreMV MR)` for every label
+  but SetEPTRoot, same hypotheses as `decode_invocation_threadJ_stepM`.
+- `jDecMRL2_ofT`: `JDecMRLK LoudT → JDecMRL2` at a dispatch state (Thread case = `jPreDecHyp_of18U`'s with `stepMM`).
+
+### (2) Untyped
+- XTopJointUtMR: `UtRetPostJMM` (`UtRetPostJM` at `JAtM`), `UtRetPostJM.mrK`, `perf_ut_nr` (spec retype without reset keeps `msFT`),
+  `JUtRetHypDMM`, `JUtResetMR`, `jUtRetHypDMM_of` (no-reset runs: `JUtRetHypDM` + `MKD.untyped_retype_nr` (MachKeepG4j: walks of
+  `objects.create_object`, `create_arch_object`, the `create_new_objects` loop) + `perf_ut_nr`; reset runs by `JUtResetMR`),
+  `decode_invocation_untypedJMM`.
+- KEntry40: `jDecMRLK_ofU`: `JDecMRLK VtxK → JUtResetHyp → JDecMRLK LoudT` (the Untyped case as `jPreDecHyp_of14U`; RAM by
+  `J.jUtRetHypM`, device by `J.jUtRetHypDevM`, both lifted by `jUtRetHypDMM_of`).
+
+### (3) New tops (XTopJointKEntry40; scratch/g4j/gentops.py copies of KEntry39's)
+- `dispatch_all13PUNM3`, `kernel_entryJ13PUGMD3`, **`kernel_entryJ40`**, **`kernel_entry_reachMD3`** = J39 / MD2 with
+  `hDL : … → ∀ ct', cur_thread s' = ok ct' → JDecMRLK VtxK … ct' ∧ JUtResetHyp … ct'` in place of `… → JDecMRL2 …` (asked at
+  exactly the same states: σb after FaultIP + a passing budget check, `KFrontB`, `JAtZ (Z.mv Z.G V') …`). Post `KPostXM`
+  unchanged; J39 / MD2 kept.
+
+### (4) Remaining premises (exactly)
+g4h (3)'s list with `hDL : JDecMRL2` [W] replaced by:
+- **`JDecMRLK VtxK`** [scope]: `JDecMRL2`'s shape (the decode's front-end facts at the dispatch state, `JPathM`) for a Thread cap
+  at SetEPTRoot or an Untyped cap whose first argument is 14..18, concluding `XCapP (JAtM) (JAtPreMV MR)`. Same scope as
+  XTopJointEntry's `JVtxScope` / KEntry20P's `JVtxHypM` (VT-x objects have no functional refinement, DESIGN §9; l4v has no VT-x),
+  now with `MR` at the outcome.
+- **`JUtResetHyp`** [W]: the same front-end facts for an Untyped cap retyping a native type (`< 14 ∨ ≥ 19`), concluding
+  `JUtResetMR`: every run `set_thread_state; untyped.retype … true …` whose `RetCtx` chose `reset = true` ends in
+  `UtRetPostJMM` (`JAtPreMV` if preempted, `JAtM` otherwise). l4v `invoke_untyped_corres` with `reset_untyped_cap_corres`
+  (`preemption_point`, `do_machine_op clearMemory`) under the shared machine state. Existential in the spec outcome (the l4v corres
+  shape), asked at the dispatch states only.
+Everything else unchanged (the [P] platform incl. `MRKeepIo` / `MRKeepIoapic`, the [S] scope per step, hK, hFin, hFast, (G-a)).
+
+### (5) Reachability check / findings
+No FINDING. Both premises are asked at the dispatch state, at the decode's own values, existential in the outcome, never ∀ states.
+`JUtResetHyp` holds in a reachable run: there `JUtRetHypDM` (proved, `J.jUtRetHypM` / `jUtRetHypDevM`) gives the joint run at
+`UtRetPostJM`, and the missing `MR` at its Ok outcome is carried by the reset loop's invariant (mr4's `JAtZ.reset_loopJM` has
+`MR x.2.1 σk.machineState` in it; at the last chunk FL4 reads no clock and the spec's state is `setCnodeSlot σk …`, same machine
+state), only dropped by `ResetJPostM`'s Ok exit; the device reset reads no clock on either side (`noErrAt_resetDev`'s branch).
+No new premise is quantified over states.
+
+### (6) Builds and axioms
+- tokyo, FL4-sc mirror (./g4j.sh untracked = g4h.sh, seeding from FL4-m67's warm build of the same tree, FL4-audit's being gone;
+  scratch/g4j/{gentcbm.py, headM.lean, genstep.py, gentops.py, mk40.sh, k40*.lean, ax.lean} untracked). g4j-b0 stopped (cold mirror:
+  the old seed source missing; its orphan lake killed by PID). b1/b2 (MachKeepG4j: multi-line `first` alternatives, `end` count),
+  b3/b4 (KEntry40: missing `mtk` leaves `setMcpriority`, `setPriority`, `restart`, `bindNotification`, `setFlags`,
+  `archPostSetFlags`, `fl4FpuToFrame`; `SInvX` namespace), b5 green (Thread), b6 (`step` side goal), b7 green
+  ("Build completed successfully (6934 jobs)").
+- **g4j-full1** (full `lake build` of proofs/ at 17bbd0b5): "Build completed successfully (7095 jobs)". No sorry / admit /
+  native_decide / bv_decide in the four new files; no new axiom.
+- Axioms (g4j-full1, scratch/g4j/ax.lean): kernel_entryJ40, kernel_entry_reachMD3, kernel_entryJ13PUGMD3, dispatch_all13PUNM3,
+  jDecMRL2_ofT, jDecMRLK_ofU, decode_invocation_threadJ_stepMM, perfF_tcbN, qInvT_perform, dec_thread_kind,
+  tcb_set_sched_paramsJMM, ssp_tailJMM, tcb_configureJMM, tcb_set_ipcJMM, tcb_set_spaceJMM, tcb_set_timeoutJMM, top_of_instJMM,
+  MKD.decode_thread_nonins, MKD.tcb_decode_nonins, MKD.untyped_retype_nr, decode_invocation_untypedJMM, jUtRetHypDMM_of,
+  UtRetPostJM.mrK, perf_ut_nr: propext, Classical.choice, Quot.sound.
+
+### (7) Next (handoff)
+- `JUtResetHyp`: (a) device caps: FL4 `reset_untyped` of a device cap returns the arch state (cap read at the restart's state:
+  `is_device` branch), spec `resetUntypedCap` of a device cap keeps `msFT` (needs at-state `msF` combinators like
+  UtRetResetJM's `NoErrAt`), then the whole run keeps `MR` and `UtRetPostJM.mrK` applies. (b) RAM caps: copy mr4's
+  `ResetJPostM` / `JAtZ.reset_loopJM` with `MR res.2.2 σ'.machineState` in the Ok exit (the last chunk: `hMR` by defeq), then
+  `JAtZ.reset_untypedJM` (its small-region branches: spec clear touches `underlyingMemory` only) and `JAtZ.utResetJM` (the body
+  after the reset by `MKD.untyped_retype_nr` + `perf_ut_nr`, as `jUtRetHypDMM_of`).
+- `VtxK` stays [scope] with the other VT-x decodes.
+## g4k (branch par/g4k in FL4-sc, on 230e1576 = int/j2 incl. g4j, m67) — g4j's handoff: `JUtResetHyp` [W] DISCHARGED (RAM and device caps); tops `kernel_entryJ41` / `kernel_entry_reachMD4` (hDL : `JDecMRLK VtxK` only); (4) answered: `VtxK` is NOT a restatement of the carried `JVtxHypMU` (it is stronger), the converse holds, so tops `kernel_entryJ41V` / `kernel_entry_reachMD4V` drop `JVtxHypMU`
+New leaves only (UtResetMR, XTopJointKEntry41, XTopJointKEntry41V; root imports). Nothing existing edited.
+
+### (1) Device caps (UtResetMR, tail)
+- FL4 `MKD.reset_untyped_dev`: with the slot's cap read as a device untyped at the state, `reset_untyped` takes the
+  `is_device` branch (slot write only) and returns the arch state; so `set_thread_state; untyped.retype … true …` keeps
+  `MR ar σ.ms` (`retype_reset_wp` + `MKD.untyped_retype_nr`), the cap read at the restart's state (`restart_dstate`).
+- Spec: at-state combinators `NoPre.MsAt` / `msAt_of_fke` / `msAt_bind` / `msAt_liftE_single` (as UtRetResetJM's
+  `NoErrAt`), `msAt_resetDev` (getCap single at the state, the device branch: `deleteObjects`, `unless true clearMemory`,
+  `setCap`; new leaf `mtk_clearMemoryG4k`), `msAt_retypeDev` (the whole perform).
+- `JAtZ.jUtResetMRDev`: `JAtZ.jUtRetHypDevM`'s run (`UtRetPostJM`) + the two keeps by `UtRetPostJM.mrK`.
+
+### (2) RAM caps (UtResetMR, scratch/g4k/gen.py from UtResetLoopJM / UtRetResetJM + head.lean / tail.lean)
+- `ResetJPostMM` = `ResetJPostM` with `MR res.2.2 σ'.machineState` at the done outcome. `JAtZ.reset_loopJMM`: the loop
+  invariant already had `MR a1 σk.ms`; at the last chunk the result's arch is the iteration's and `σk2 = setCnodeSlot σk …`
+  (same machine state), so `hMR` closes it by defeq. `JAtZ.reset_untypedJMM`: small region by `MachPlat.frame` (the spec's
+  `delete_objects` / slot write change only memory), chunked by `reset_loopJMM`.
+- `JAtZ.utResetJMM` (+ `hKD : MRKeepD`): post `UtRetPostJMM`; after the reset (and in the unused-cap branch, from σ1) the body
+  by `WP.spec_and` of `UtBodyHyp`'s run with `MKD.untyped_retype_nr` (FL4 keeps `MR` of the reset's exit) and spec
+  `inv_ut_nr` / `msF_ut_nr` (the retype without a reset keeps `msFT`), joined by `utRetPostJMM_of_body` /
+  `utRetPostJMM_of_reset`; preempted exit `utRetPostJMM_of_preempt` (`JAtPreMV`, unchanged).
+- `JAtZ.jUtResetMRM`: `JUtResetMR` (RAM) with exactly `JAtZ.jUtRetHypM`'s inputs (+ `hKD`), body per native type as there.
+
+### (3) Tops (XTopJointKEntry41; scratch/g4k/gentops.py + head41.lean from XTopJointKEntry40)
+- `jUtResetHyp_of`: `JUtResetHyp` at a dispatch state from `JAtZ`, `JEntryGlobM`, `JEntryAt`, `MachPlat`, `MRKeepD` and the
+  `JPathM` Untyped / device fields (the ones `jDecMRLK_ofU` uses).
+- `dispatch_all13PUNM4`, `kernel_entryJ13PUGMD4`, **`kernel_entryJ41`**, **`kernel_entry_reachMD4`** = NM3 / GMD3 / J40 / MD3
+  with `hDL : … → ∀ ct', cur_thread s' = ok ct' → JDecMRLK VtxK … ct'` (same states as before). J40 / MD3 kept.
+
+### (4) `JDecMRLK VtxK` vs the carried VT-x scope (XTopJointKEntry41V)
+- NOT a restatement. The top already carries, inside `hK : KDispHypsKV35`, `JVtxHypMU` (an Untyped cap retyping 14..18:
+  `XCapP (JAt) (JAtPreMV MR)`) and, inside `JPathAtM35`'s Thread path, SetEPTRoot's `JVtxScope` (`XCapP (JAt) (JAtPre)`).
+  `VtxK` asks `XCapP (JAtM) (JAtPreMV MR)`: `MR` at the non-preempted outcome. It cannot be derived from them: a VT-x retype
+  with a reset runs preemption points (clock reads on both sides), so `MR` at a `JAt` outcome is not a consequence of `JAt`
+  and the run's keeps (the joint outcome is existential); SetEPTRoot would need an FL4 VMCS/EPT walk plus a spec `PerfF`.
+- The converse holds: `jVtxHypMU_of` (`XCapP.monoX`, `JAtM → JAt`). So `KDispHypsKV41` = `KDispHypsKV35` without the
+  `JVtxHypMU` conjuncts, `KDispHypsKV41.to35` (with `hDL` at the same state), NEW TOPS **`kernel_entryJ41V`** /
+  **`kernel_entry_reachMD4V`** (= J41 / MD4 with `hK : … → KDispHypsKV41 …`): the Untyped VT-x retype enters the top once,
+  as `hDL`. SetEPTRoot's `JVtxScope` inside `JPathAtM35` stays (also implied by `VtxK`, but nested in the path structures;
+  removing it means copying JPathAtM35/JPathM/JThreadPath — not done).
+
+### (5) Remaining premises (exactly), for kernel_entryJ41V / kernel_entry_reachMD4V
+g4j (4)'s list with `JUtResetHyp` [W] removed (proved), and `hK : KDispHypsKV41` (KDispHypsKV35 minus `JVtxHypMU`):
+- **`hDL : JDecMRLK VtxK`** [scope] (statement in g4j (4); the only VT-x Untyped premise; also SetEPTRoot with `MR`).
+- everything else unchanged: the [P] platform (`MachPlat`, `MRKeepD`, `MRKeepIo`, `MRKeepIoapic`, `PPPlatA`, `IrqPlatA`,
+  `ARIface`, `ArchTotal`, `ArchRefines`, `PortInVal`, constants hmrt/hmb/hT/hmax/htu, numDomains = 1), the [S] scope per step
+  (ct ≠ idle, NativeSys, hflag), the (d) bundles hK (`KDispHypsKV41`) and hFin (`KFinAtR31`), `hFast` (FastRR), (G-a).
+For kernel_entryJ41 / MD4: the same with `hK : KDispHypsKV35` (so `JVtxHypMU` carried too).
+
+### (6) Reachability / findings
+No FINDING. No premise added; `JUtResetHyp` removed; `KDispHypsKV41` is a weakening of `KDispHypsKV35` asked at the same
+states; `hDL` unchanged (asked at the dispatch states, at the decode's values, existential in the outcome, never ∀ states).
+
+### (7) Builds and axioms
+- tokyo, FL4-sc mirror (warm at g4j; ./g4k.sh untracked = g4j.sh with the g4k file list). g4k-b1 (unused-cap branch:
+  `MKD.untyped_retype_nr`'s `c₀` not inferred; `clearMemory` leaf missing under `unless true`), g4k-b2 green, g4k-b3 green
+  (+ KEntry41V, "Build completed successfully (6940 jobs)"). No sorry / admit / native_decide / bv_decide in the three files.
+- **g4k-full1** (full `lake build` of proofs/ at de1e9dad): "Build completed successfully (7105 jobs)".
+- Axioms (g4k-full1, scratch/g4k/ax.lean): kernel_entryJ41V, kernel_entry_reachMD4V, kernel_entryJ41, kernel_entry_reachMD4,
+  kernel_entryJ13PUGMD4, dispatch_all13PUNM4, jUtResetHyp_of, JAtZ.jUtResetMRM, JAtZ.jUtResetMRDev, JAtZ.utResetJMM,
+  JAtZ.reset_untypedJMM, JAtZ.reset_loopJMM, MKD.reset_untyped_dev, NoPre.msAt_retypeDev, NoPre.msAt_resetDev, inv_ut_nr,
+  utRetPostJMM_of_body, utRetPostJMM_of_reset, XCapP.monoX, jVtxHypMU_of, KDispHypsKV41.to35: propext, Classical.choice,
+  Quot.sound.
