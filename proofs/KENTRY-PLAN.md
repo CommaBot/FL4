@@ -12951,3 +12951,81 @@ root import after `XTopJointKEntry35`. Old tops (`kernel_entryJ35`, `kernel_entr
   footprint lemmas at `LawfulStore` level and the ASID pools are placed at P1), giving an `entry_of6` with
   `hFt` derived from `EntryInv`; then ReplyRecv R1–R7 (m57 (3)) in the meeting-point style, giving `FastRRP` (P1) and
   `FastRR` (P3) and with them `kernel_entryJ33F` / `J34F` in a new module.
+## g5b (branch par/g5b in FL4-rb, on d4d7d09b = int/j2 incl. g4b, g5a, g4c) — g5a's handoff: `SInvI` shrunk to two fields (`SpecIrqH` from SInvX's `valid_irq_handlers`, `SpecFrPg` replaced by `JAtZ.fcap`); top `kernel_entryJ36E` (J37's MR carry + J35E's bundle, `flags` and Frame `hno` moved to the entry state); induction `JReachI` / `jreach_invI` / `kernel_entry_reachI`; the whole-syscall carry of the two remaining spec fields (`SpecIoP`, `SpecUtZ`) NOT done (sized below)
+Cone edit (XTopJointReadFpu, one-line consumer change in XTopJointTcb, docstring in XTopJointEntry), g5a's leaf XTopJointKEntry35E
+(statements of `JAtZ.fpuFrameJ` / `JPathME.toM` / `JPathAtM35E.to35` lose their `SpecFrPg` argument; `kernel_entryJ35E` unchanged), new leaf
+XTopJointKEntry36E (root import).
+
+### (1) `SInvI`'s four fields
+| field | g5a | now | how |
+|---|---|---|---|
+| `SpecIrqH` (handler caps: `irq ≤ maxIRQ` ∧ not inactive) | [J] spec at the entry | **gone** | the bound was never used: `handlersActive_of_spec` re-derived `i < 128` from it, but FL4's `CapValid` of the handler cap (`hca.1`) already gives `i < 128`. Without the bound it is l4v `valid_irq_handlers`, carried in `SInvX` since vih3 (`SInvA.vih`, `kentry_validIrqMasks` / `vi_fl4CallKernel`). `handlersActive_of_vih`, `JAtZ.handlersJV`; at σb by `vih_disp` (FaultIP keeps every cap, `update_time_stamp` the interrupt states) |
+| `SpecFrPg` (a non-device page cap inside one spec data page) | [J] spec at the entry | **gone** | `FpuFrameJHyp` restated per byte: every byte of the slot's frame cap is in a spec user frame (`UFr`). That is `JAtZ.fcap` at the slot, so `JAtZ.fpuFrameJ J x` needs no spec fact. The consumer `JAtZ.copyFrameJ` needs only one data page per written word (`ufr_word`: an 8-aligned `UFr` word's page, `inUserFrame`'s base, holds all 8 bytes); `tcb_read_fpuJ` carries the per-byte fact across the caller's restart (`UFr.keep`) |
+| `SpecIoP` (l4v `valid_ioports`) | [J] spec at the entry | unchanged, in **`SInvIR`** | not carried over a syscall (3) |
+| `SpecUtZ` (l4v `untyped_ranges_zero`) | [J] spec at the entry | unchanged, in **`SInvIR`** | not carried over a syscall (3) |
+
+### (2) The tops (XTopJointKEntry36E)
+- `JEntryAtR6` = `JEntryAtR5` without `flags` (`stall`, `ioapics`, `archIrq` [P]; `vsTyp` [J]); `JPathME6` / `JPathAtM36E` = `JPathME` /
+  `JPathAtM35E` without the Frame path's `JFramePath` (`hno`); `KDispHypsKV36E` (R6 + M36E + `JVtxHypMU`). Conversions
+  `JEntryAtR6.toR5`, `JPathAtM36E.to35E` (the invoked slot is an MDB member: `MdbLinks.members`), `KDispHypsKV36E.to35E`,
+  `KDispHypsKV35E.to35V` (handlers from `valid_irq_handlers`, ports / urz from `SInvIR`).
+- **`flags` at the entry**: `flags_front` — FL4's front writes only ct's `FAULT_IP` and two node words (`front_writes`), never a flags word
+  `t+3456` (4 KiB-aligned TCBs, the node block apart); the spec's FaultIP write changes only ct's registers.
+- **Frame `hno` at the entry**: `LargeFrOK G mem` [J] FL4 = `JFramePath.hno` for every MDB slot's large non-device frame cap at once (a
+  state fact, no invocation in it); `front_slotsSame` + `LargeFrOK.of_same` carry it to σb (the front writes no slot word, so caps and the
+  revocable bit are kept).
+- **`kernel_entryJ36E`** premises, exactly: `kernel_entryJ37`'s (PlainStore, `J`, `hct` [S], `hR` MR, `hX : SInvX σ`, `hn` [S], `hflag` [S],
+  `hDM : JDispMRI` [W], `hFin` → `KFinAtR31`, the [P] bundle `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu hRef hPI`, `hFast` [P]
+  for `KPostM`) with `hK` → **`KDispHypsKV36E`**, plus at the entry state: **`hI : SInvIR σ`** [J] spec, **`hFl : FlagsRel Z.T (L.mem s) σ`**
+  [J] joint, **`hLF : LargeFrOK Z.G (L.mem s)`** [J] FL4. Post `KPostXM` (spec failure ∨ an outcome with `RJ`, `MR`, `SInvX`).
+- **`JReachI`**: `start` from `JAtZ ∧ SInvX ∧ SInvIR ∧ MR`; `step` along `RJM` (J36E's exit relation) **and `SInvIR` of the exit** (the
+  open carry). `JReachI.toM`, **`jreach_invI`** (`JAtZ ∧ SInvX ∧ SInvIR ∧ MR` at every reachable state), **`kernel_entry_reachI`**: at a
+  reachable state, for every native syscall, given the per-state `FlagsRel`, `LargeFrOK`, `hflag`, `hK` (KV36E), `hDM`, `hFin`, `hFast`,
+  the entry refines and every exit has `RJ ∧ SInvX ∧ MR` and `SInvIR σ' → JReachI` (so the induction is closed up to `SInvIR`'s carry).
+
+### (3) Not done, with sizing
+- **`kentry_sinvIR` / `kcall_sinvIR`** (`SpecIoP`, `SpecUtZ` across every syscall and event): not started in Lean; both are true in
+  reachable states (no FINDING), but neither is a frame of an existing kit:
+  * `SpecIoP` reads `x64AllocatedIoPorts`, which no existing generated family tracks (vih2's `WLH` class reads only `hV` + time / IRQ /
+    mask fields; `setIoportMask` sits inside every generated family as a cap-free function). Needs: (i) a new frame class and a
+    re-generated family (vih2's `mkhv.sh` with `setIoportMask` / `freeIoportRange` / `performIoportControlInvocation` as writers), (ii)
+    an extra field **`IoNoOverlap`** (l4v `ioports_no_overlap`: two IO-port caps with overlapping ranges have equal ranges) — without it
+    `SpecIoP` is not inductive: the deletion of a final IO-port cap frees `[f, l]` (`empty_slot` → `archPostCapDeletion` → `freeIoportRange`) while finality compares
+    only `ioPortRef f` (Retype.lean:81), (iii) a vih3-style decode carry (`isIoportRangeFree` at the decode, the minted / copied caps
+    read from slots) to the perform. Size: vih2 + vih3 (≈ 3–4 k lines, mostly generated).
+  * `SpecUtZ` reads `underlyingMemory`: its writers are `storeWordOffs` (asserts `inUserFrame` of the word: the page must miss every
+    non-device untyped's free part — `UtFree` is base-pointer only, so this needs a **range** form "no object's range meets a free part"
+    as a new carried spec field, the spec side of `JCs.sfree` / `Sched.SpecFree`), `fl4FpuToFrame` (any byte of `[base+off, +2696)` of
+    an extra page cap: `CapFreeV` (UtInv3) if `capRng` of a page cap is its range, carried decode → perform), `clearMemory` / reset (zeroes
+    exactly the part the new free index exposes, chunk order top-down), retype (free index only grows) and untyped cap copies (same free
+    part). Size: L (a new memory frame family over the whole call graph plus the range field's own carry through retype / detype).
+  Alternative (joint): carry `IoPortsAlloc` / `UtZero` as `JExt` fields (every producer re-proves them through FL4 footprints, the
+  cost g5a's (1) avoided). Until one of these, `JReachI.step` asks `SInvIR` of the exit.
+- **`vsTyp`** stays in the dispatch bundle (`JEntryAtR6.vsTyp`, at σb): it cannot be moved to the entry like `flags`, because `hK` is
+  asked at `Z.mv Z.G V'` for every `V'` and `OffTabOK` reads the VSpace sets (`q ∉ Z.L1` …). Its discharge is g5a (3)'s (after
+  `BufObjHyp`, L).
+- **`flags` / `hno` as carried facts** (so the induction would not ask them per state): `flags` by g5a (3)'s route (widen g2b's
+  `VKeep` to the flags word, spec half beside `BufWordRel`); `LargeFrOK` as a `JExt` field kept at every cap producer (or a spec
+  `isOriginalCap` + `cdt` invariant). Not started.
+
+### (4) Findings
+- None. Checked: the dropped `irq ≤ maxIRQ` bound (unused, `hca.1` gives `< 128`); `SpecIoP` / `SpecUtZ` / `FlagsRel` / `LargeFrOK`
+  hold in reachable states (l4v `valid_ioports`, `untyped_ranges_zero`, `tcb_relation` flags, the frame-cap discipline g5a (3) argued);
+  observation: `SpecIoP` alone is not inductive (needs `IoNoOverlap`, (3)), not a premise anywhere.
+
+### (5) Builds and axioms
+- tokyo, FL4-rb mirror (warm, 1690 oleans; ./g5b.sh untracked = g5a.sh; scratch/g5b/ax.lean untracked). g5b-b1
+  (XTopJointReadFpu + downstream cone + XTopJointKEntry36E, ~19 min): the whole cone green (ReadFpu, Tcb, KEntry35E, 36, 37), one error in
+  the new leaf (`JEntryAtR5.toR3V` declared in the wrong namespace for dot notation). g5b-b2/b3: one elaboration-order error
+  (`KDispHypsKV36E.to35E`'s `Z` fixed by `hFl` before `h`; passed `(Z := Z.mv Z.G V')`). g5b-b4: "Build completed successfully (6916
+  jobs)". Commit ba4587a7. **g5b-full1** (full `lake build` of proofs/ at ba4587a7): "Build completed successfully (6989 jobs)", no
+  `error`, 0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / new axiom in the changed files.
+- `#print axioms` (g5b-full1): kernel_entryJ36E, kernel_entry_reachI, jreach_invI, JReachI.toM, handlersActive_of_vih,
+  JAtZ.handlersJV, flags_front, front_slotsSame, LargeFrOK.of_same, JPathAtM36E.to35E, KDispHypsKV36E.to35E, KDispHypsKV35E.to35V,
+  JEntryAtR5.toR3V, sinvIR_disp, vih_disp, JAtZ.fpuFrameJ, ufr_word, JAtZ.copyFrameJ, tcb_read_fpuJ, and (rebuilt) kernel_entryJ35E,
+  kernel_entryJ37: [propext, Classical.choice, Quot.sound].
+
+### (6) Handoff
+- `kentry_sinvIR` per (3) (spec-only; first `IoNoOverlap` + the ioport frame family, then the memory family with the range field), then
+  drop `SInvIR σ'` from `JReachI.step`.
+- `vsTyp` (g5a (3)), and `FlagsRel` / `LargeFrOK` as carried facts.

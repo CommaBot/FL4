@@ -22,8 +22,8 @@ At the dispatch state σb `hK` has `J' : JAtZ … σb` in hand. From it:
   and carried to σb by `sinvI_disp` (the FaultIP write keeps every cap, the
   time stamp keeps the interrupt states, the IO ports and the memory).
 * the Thread path's `hFr` (`JThreadPath`, ReadFPU's destination frame,
-  KENTRY-PLAN g4a P1) is a theorem of `J'` and the spec-only `SpecFrPg`
-  (`JAtZ.fpuFrameJ`; `FpuFrameJHyp` now asked only at slots of the typed heap):
+  KENTRY-PLAN g4a P1) is a theorem of `J'` (`JAtZ.fpuFrameJ`, from `fcap`
+  since g5b; g5a used the spec-only `SpecFrPg`, now unused here):
   the dispatch bundle asks `JPathAtM35E` (`JPathME`: `JPathM` without
   `JThreadPath`), `JPathAtM35E.to35`.
 Left in the dispatch bundle (`JEntryAtR5`): `stall`, `ioapics`, `archIrq`
@@ -99,21 +99,17 @@ theorem JAtZ.urzJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hS : SpecUt
   have hcap := (SInvU.getCap_capAt (x := (_, σ)) (by rw [hg]; exact Set.mem_singleton _)).2
   exact hS ysl p.bv sb.val fi.val hcap w h1 h2
 
-/-- **ReadFPU's destination frame from the spec's `SpecFrPg`** (INV-PLAN P1,
-KENTRY-PLAN g4a P1): the slot's frame cap is the spec's non-device page cap
-there (`StateRel.abs_cap`), whose range lies in a spec data page. -/
-theorem JAtZ.fpuFrameJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hS : SpecFrPg σ) (x : U64) :
+/-- **ReadFPU's destination frame from `JAtZ`** (INV-PLAN P1, KENTRY-PLAN g4a
+P1; g5b): `FpuFrameJHyp` is `JAtZ.fcap` at the slot (every byte of a
+non-device frame cap in a spec user frame). -/
+theorem JAtZ.fpuFrameJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (x : U64) :
     FpuFrameJHyp (L := L) Z s σ x := by
-  intro sl0 hA hx p sz r m ep asid va hc
+  intro sl0 hA hx p sz r m ep asid va hc a h1 h2
   subst hx
-  obtain ⟨c, ac, hc', hca, hg⟩ := J.xtop.rel.2.1.1.abs_cap hA
-  rw [capV_of_capAt hc'] at hc; subst hc
-  rw [hca.abs] at hg
-  have hcap := (SInvU.getCap_capAt (x := (_, σ)) (by rw [hg]; exact Set.mem_singleton _)).2
-  have hb : Fl4Spec.pageBitsForSize (frameSizeOf sz) = frameBitsN sz := by cases sz <;> rfl
-  obtain ⟨o, vms, hk, h1, h2⟩ := hS sl0 p.bv (vmRightsOf r) _ (frameSizeOf sz) _ hcap
-  rw [hb] at h2
-  exact ⟨o, vms, hk, h1, h2⟩
+  have h := J.fcap _ hA.isSlot
+  rw [hc] at h
+  have hfb : (fbitsF sz).val = frameBitsN sz := by rw [fbitsF_val]; cases sz <;> rfl
+  exact h rfl a h1 (by rw [hfb]; exact h2)
 
 end
 
@@ -170,7 +166,7 @@ theorem JEntryAtR5.toR3 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
 variable (arI)
 
 /-- **`JPathM` without the Thread path's `JThreadPath`** (`hFr`, ReadFPU's
-destination frame, from `JAtZ.fpuFrameJ` and `SpecFrPg`); every other cap's
+destination frame, from `JAtZ.fpuFrameJ`); every other cap's
 premise is `JPathM`'s. -/
 def JPathME (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (lbl length : U64)
@@ -207,23 +203,23 @@ variable {arI}
 
 theorem JPathME.toM {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hS : SpecFrPg σ) {lbl length : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {lbl length : U64}
     {blk call don fp : Bool} {buf : U64} {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data}
     {argsU : List U64} {ci : Fl4Spec.CapRef} {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)}
     {buffer : Option Fl4Spec.ObjRef} {ct : U64} {c : capability.Cap}
     (h : JPathME (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c) :
     JPathM (L := L) arI AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct c := by
   cases c
-  case Thread p => exact ⟨h, fun _ => ⟨fun _ x0 _ => J.fpuFrameJ hS x0⟩⟩
+  case Thread p => exact ⟨h, fun _ => ⟨fun _ x0 _ => J.fpuFrameJ x0⟩⟩
   all_goals exact h
 
 theorem JPathAtM35E.to35 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hS : SpecFrPg σ) {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} {ic bl cd fp : Bool} {cptr : U64}
     (h : JPathAtM35E (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr) :
     JPathAtM35 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr :=
   fun info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13 =>
-    (h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13).toM J hS
+    (h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13).toM J
 
 end
 
@@ -259,8 +255,8 @@ theorem KDispHypsKV35E.to35 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spe
     {n : I64} {c : Fl4Spec.Syscall} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hI : SInvI σ)
     (h : KDispHypsKV35E (L := L) arI AR MR Z H Cs D s a σ n c) :
     KDispHypsKV35 (L := L) arI AR MR Z H Cs D s a σ n c :=
-  ⟨fun ct call bl don hct hi => let ⟨e, p, v⟩ := h.inv ct call bl don hct hi; ⟨e.toR3 J hI, p.to35 J hI.frP, v⟩,
-    fun ct rg sr cr hct hm => let ⟨e, p, v⟩ := h.mid ct rg sr cr hct hm; ⟨e.toR3 J hI, p.to35 J hI.frP, v⟩⟩
+  ⟨fun ct call bl don hct hi => let ⟨e, p, v⟩ := h.inv ct call bl don hct hi; ⟨e.toR3 J hI, p.to35 J, v⟩,
+    fun ct rg sr cr hct hm => let ⟨e, p, v⟩ := h.mid ct rg sr cr hct hm; ⟨e.toR3 J hI, p.to35 J, v⟩⟩
 
 end
 
