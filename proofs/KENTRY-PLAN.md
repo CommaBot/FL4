@@ -14244,3 +14244,38 @@ existential in the outcome; never ∀ states.
   Quot.sound (each).
 - HANDOFF: JOB 2 = m66's (R-a') (unchanged), plus `RRReads.nvm` and `FaultNvmPre` to be discharged together with a
   fast-run invariant carry through `fastTail` (or by stating the tail's footprints without invariants).
+- **JOB 2 (m66's (R-a')), first batch** (on bfdc30f6 = int/j2 with JOB 1). PARTIAL: the congruence lemma and 7 of the
+  29 `RRReads` fields derived; `entry_of8` / P3 `J33F` / `J34F` NOT done.
+  * **P1 RabCongr (new, root import).** `rabLoop_unfold`, `rab_body_congr` (the body reads only `Slot.cap` of
+    `cnSlot p off` of the CNode cap it walks), `rab_body_cont` (a continuing step read a cap from such a slot and spent
+    one unit of fuel), **`rab_loop_congr`** (fuel induction: for a predicate `C` on CNode pointers true of the walked
+    cap's, closed under the CNode caps read from a `C` CNode's slots at `s`, with `s'` agreeing with `s` on every slot of
+    a `C` CNode, a walk returning `ok res` at `s` returns `ok res` at `s'`), **`rab_congr`** (fuel 65),
+    **`lookup_cap_congr`**. Not yet used: `lk8` needs `C` (the walk's CNodes) to be a set the run does not write, i.e.
+    a CNode-closure fact at `X0` (l4v `valid_objs` / `valid_cap` of CNode caps: every CNode cap in a CNode slot names a
+    CNode object whose slots are cap-slot words `CapW`); P1 has no such invariant (`InvHyps.lookupSlot` covers only
+    the found slot), so it will enter as a narrow [J] at the dispatch state, plus the X1→X8 footprint below.
+  * **P1 FastRREnt (new, root import).** `OutT`, `is_schedulable_congr`, **`RREnt`** (at the dispatch state: TCBs placed,
+    `t`, `u` ∈ `T`, the reply's TCB word and `t`'s SC `REFILL_MAX` word outside the TCBs, the endpoint placed,
+    `rptr ≠ 0`), **`rrEnt_of`** (from `BXI` / `XG` there and `EntryHyps0.recvOK`: the `REPLY` / `CAP` caps typed —
+    `lookup_cap_of_found` from `RCaps` —, `ReplyInv.back`, `ObjsOK.rpW` / `scW`, `ScExtra.bound`, `EpsOK`),
+    **`RRReads.of_ent`** (derives `sch1` / `rt1` / `us1` at `X1`, `run6`, `ns15` through the explicit writes `X9…X15`,
+    `ucn`, `r0`; `u ≠ t` from `u` BlockedOnReply and `t` schedulable), **`RRReads2`** (the other 22 fields),
+    `RRPre2`, `RRPre.of2`, `RRPreAt2`, **`RRPreAt.of2`** (the dispatch state is `BXI` / `XG`: `reg_entry`, `budget_ok.bxc`),
+    top **`kernel_entry.entry_of7r2`** = `entry_of7r` with `hRP : RRPreAt` replaced by `hRP : RRPreAt2`.
+  * Premises: removed from the P1 ReplyRecv bundle: `RRReads.sch1`, `rt1`, `us1`, `run6`, `r0`, `ucn`, `ns15` (on
+    `entry_of7r2`). Added: none (`RREnt` is derived). P3 tops unchanged (`J33R` / `J34R` take m66's `RRPreAt`).
+  * Remaining (handoff, in order): (1) the X1→X6 footprint (`reply_remove`'s unlink branch: `rPrevA` / `rNextA` of the
+    reply and its two neighbours, which `ReplyInv.next` / `prev` make replies, `rTcbA rptr`, `u`'s state, its
+    `schedule_tcb u` a no-op as `u` ≠ the current `t`; `unblock_check.fr` on `usc`'s ring + REPROGRAM; `hfr.rg`
+    `XferRegW T ∅`; `clear_fault` `faultA u`) and with it `sc2`, `ft3` / `lbl3` (`RRR3`), `sch6`, `sc6`, `st7`, `act8`,
+    `ct8`, `ep8`, `rt8`, `act11`, `act15`, `ct15`, `q12` (`EpsWit`: an IDLE endpoint's queue is empty), `pst` (`HereF`),
+    `dq15`, `T15` / `R15` (`noDue_wrs` pattern), `hp15` (`is_hp_of_le`), `ntfn8`; (2) `rdy6` / `suf6` from m65's
+    `unblock_check_r4` under `RRSum`; (3) `lk8` from `lookup_cap_congr` + the CNode-closure [J]; (4) `nvm` /
+    `FaultNvmPre` (need the P1 invariants through `fastTail`); then `entry_of8` (no `hRP`, `RRSum` [J]) and P3
+    `J33F` / `J34F` (P3 needs the P1 entry invariants at the dispatch state to use `RRPreAt.of2`, or carries `RRPreAt2`).
+  * Builds (keys m67-j2*): b1 RabCongr green (first try); b2 FastRREnt (a duplicate `bor_not_runnable`, a `simpa`
+    to a value equation); b3 FastRREnt green (3826 jobs), committed 167b8765 / d5081b2e; **j2full1 (full `lake build`):
+    "Build completed successfully (7091 jobs)", 0 errors, 0 `declaration uses 'sorry'`.** Axioms (scratch/axm67.lean):
+    the JOB 1 list plus entry_of7r2, RRPreAt.of2, rrEnt_of, RRReads.of_ent, rab_loop_congr, lookup_cap_congr: propext,
+    Classical.choice, Quot.sound (each). FINDING: none.
