@@ -10813,3 +10813,65 @@ Goal: g2d (2) (the re-scope, priority) then g2d (3) (a)–(f).
   liveDN_of_boot, JAtZ.readyLive, JAtZ.delUtFact_of, JAtZ.dbgRemoveJI, JAtZ.finThreadJL, LiveJ.of_sameZ, LiveDN.insT,
   LiveDN.of_keep, liveDN_front, jZombieHypL, emptyHypJL, jFinAtL_thread, jPreemptHypL, kernel_entryJ33: propext,
   Classical.choice, Quot.sound.
+
+## rd14b (branch par/rd14b in FL4-q, on c62d1214 = int/j2 incl. rd13b, rd8h, rd8i, g2a) — rd13b handoff (1) in part: Notification and Endpoint arms DONE (`perfA_notification`, `perfA_endpoint` with a third TBN case `TU` for the donation of ct's SC); (2) `invR_of` DONE over the covered arms (`InvRo`: `PerfA` asked only of the arms outside `Cov`); (3) tops `kcall_rdyOff5` / `kentry_rdyOff5` DONE with `InvRo`; lead's addition (combined first-phase fact for ReplyRecv / NBSendRecv / NBSendWait) DONE as a shell reduction to one per-arm obligation `PerfF`; NOT done: the remaining arms (Reply, CNode revoke / delete / cancelBadgedSends, IRQ handler set / clear, TCB suspend / resume / ThreadControl*, SchedContext, SchedControl, Untyped, ASID control, the register arms with suspend / resume) and every per-arm `PerfF`
+Spec-only, new names under `Fl4Proofs.P3.SInvR.A14b`, modules SpecInvRd14bA / A2 / B / D / E (new; root imports them). Nothing
+existing edited. Keys rd14b-1, rd14b-2 (predecessor, slow A), rd14b-r1..r6 (./rd14bs.sh untracked; proofs/scratch/rd14b/ax.lean
+untracked). Resumed from a rate-limited predecessor whose uncommitted A/B/D were kept and restructured.
+- **Compile-time lesson (A was > 40 min, now seconds).** The predecessor re-walked the scheduler callees (possible_switch_to,
+  the refill checks, sched_context_resume, tcb_sched_action, tcb_release_remove, test_reschedule) for every new predicate with
+  `ik_unfold` walks at 4M heartbeats; an NRes walk over the refill check alone took 849 s and timed out. Replaced by transfers
+  through existing families: rd4's heap view `SInvR.FK` (`ik_of_fk`: `fk_possibleSwitchTo`, `fk_tcbSchedAction`,
+  `fk_tcbReleaseRemove`, `fk_rescheduleRequired`), IpcSchedLift's `ScOnlyK` / `NKS` (`ik_of_nks`, `nks_ifCond`,
+  `nks_schedContextResume`), VsDom's `DK` for ct across the queue writers, VsDom's generic `Vs.FK f` with `f := schedulerAction`
+  (`AK`, `ak_refillUnblockCheck`, an explicit unfold list, no `ik_unfold`). Note: tokyo was at load ~24 during r1/r2.
+- **SpecInvRd14bA.** `QB t c` / `KS c` / `BL`; `qb_auto` / `ks_auto` (small callees only), `ks_setObject`; `tp_hv`, `ks_hv`,
+  `tp_sok`, `ks_sok`, `ik_of_fk`, `ik_of_nks`, `bl_of_fk`, `bl_of_nks`; `nks_ifCond`, `nks_schedContextResume`;
+  `bl_possibleSwitchTo`, `bl_ifCond`, `bl_donate`, **`bl_maybeDonateSc`** (receiver read unbound ⇒ ≠ t; SC's sc_tcb read none ⇒
+  donate's unbind branch dead).
+- **SpecInvRd14bA2.** `cp_sendSignalU` (rd8a's `cw_sendSignal` without Rdy), `tp_svs`, `bl_svs`, `bl_of_svm`, **`bl_sendSignal`**,
+  **`perfA_notification ep bd (BS σ0) (Suff σ0) (KP σ0 s) (ct bound to σ0.curSc at s) (curSc an SC at s) : PerfA σ0 bl call don
+  (.invokeNotification ep bd) s`** (TB at every outcome, no error outcome).
+- **SpecInvRd14bB.** `TU σ0 q` (cfS / CW of σ0, ct unbound, action ≠ resume), **`ss4_tu`**, `tu_post`, **`perfA_tbn3`** (rd13b's
+  `perfA_tbn` + `TU`); `QN`, `QRn`, `NRes`, `EB t c` (bound ∧ SC, or unbound ∧ ¬resume), `eb_svs`, `ik_eb`, `qn_*` / `nres_*`
+  (FK / NKS / AK transfers), `fk_testReschedule`, `eb_wakeTail`, `qnr_testReschedule`, **`eb_donate`** (donation from a bound
+  current t: t stays bound when sc_tcb ≠ t, else unbound and test_reschedule reschedules); `sv_/cfk_maybeUnlink`,
+  **`ep_sendIpc`** (send_ipc of a runnable current t bound to c: t not runnable, or EB), **`perfA_endpoint … (hr : ct Restart at s)
+  : PerfA σ0 bl call don (.invokeEndpoint ep badge g gr) s`** (blocking / call ⇒ NRun; non-blocking send to a passive receiver ⇒ TU).
+- **SpecInvRd14bD.** `Cov` (Notification, Endpoint, Domain, rd13b's frame arms; not ASID control), **`perfA_cov`** (from KP ∧ CB0
+  by `kpc_restart`, ct bound / curSc an SC by **`bdsc_restart`**, ct Restart by `sts_post`), `PerfRo` / `InvRo` (rd12b's PerfR /
+  InvR asking PerfA only outside `Cov`), **`perfR_of`**, **`invR_of (A8.EF σ) (InvRo c σ) : A12b.InvR c σ`**, tops
+  **`kcall_rdyOff5`** / **`kentry_rdyOff5`** = rd12b's `*rdyOff4r` with `hP : syscall c → InvRo c σ` (resp. InvRo at the FaultIP
+  outcome).
+- **SpecInvRd14bE (lead's addition).** `FPO s := ((∃ x, ct tcb x ∧ ∀ f, ¬ BlkR x.tcbState f) ∧ B8d.RT s ct) ∧ (B8i.NotQ ct s ∧
+  B8i.CBa ct s)` — exactly rd15a's `RecvTC` body (= rd8m's `RcvIn` minus ScInv = rd14a's `RecvTB` minus Rdy / ScInv) plus rd8l's
+  `RP` body; `fpo_of`, **`fpo_kz (BS σ0) (KZ σ0 s) : FPO s`**; `PerfF σ0 oper u` (per arm, at the first phase's Restart state:
+  `FPO` after `invPost false` at every ok outcome of `fl4PerformInvocation false false true oper`), `PerfFR` (pinned to the shell
+  run, rd12b's PerfR shape), **`fpo_shell (BS σ0) rep cptr (KZ σ0 σ) (PerfFR σ0 cptr σ) : ∀ y ∈ fl4HandleInvocationR rep false
+  false true true cptr σ, ∀ u, y.1 = .ok u → FPO y.2`** (lookup fault not sent, error reply skipped — both KZ states), `RecvF rep
+  c σ` (the consumers' prefix: front `true` outcome, `srArgs c = some (r, cr)`, getCapReg outcome, ok first-phase outcome ⇒ FPO),
+  `InvF c σ`, **`recvF_of rep (A8.EF σ) (InvF c σ) : RecvF rep c σ`**; `rtcba_restart` (RT ∧ CBa of ct at the Restart state),
+  `QSt`, **`perfF_svs`** (an arm whose ok outcomes are SVS ∧ cfS from the Restart state and leave ct Restart / Running / Inactive
+  has PerfF). Bridges (one line each, after merging the consumer branches): `RecvTC rep c σ` ← `fun … => (RecvF … ).1`;
+  `RcvIn` = ScInv (rd15a's `sc_first`) ∧ that; rd8l's `RP rep false false true true r s` ← `fpo_shell` with `kz_getCapReg` (RP
+  quantifies from getCapReg at the body start, not from the front: use the same proof with that start).
+- **Remaining named hypotheses (exactly):** `hP : InvRo c σ` (PerfA for the arms outside `Cov`, pinned to the shell's run) in
+  `*rdyOff5`; `InvF c σ` (PerfF for every arm at the first phase, pinned) in `recvF_of`. No [J]/[P]/[W]/[S] premise added; no
+  ∀-states hypothesis.
+- No FINDING: nothing traced breaks Rdy / OffReady / RV / CAx. The Notification arm keeps ct bound to cur_sc (maybe_donate_sc
+  binds only an unbound receiver); NBSendRecv's send half may donate ct's SC to a passive receiver (ct unbound, rescheduled — `TU`).
+- Builds (tokyo, FL4-q mirror): r1 stopped (old A, load ~24); r2 (A / A2 green with the profiler; B: `nres_ifCond` 849 s timeout,
+  `cp_sendIpc` unqualified); r3 (`rw` under a beta-redex); r4 (B, D green; E: `rw` under `FPO`); r5 all green "Build completed
+  successfully (5682 jobs)" + axioms (scratch/rd14b/ax.lean: cp_sendSignalU, bl_possibleSwitchTo, bl_ifCond, bl_donate,
+  bl_maybeDonateSc, bl_sendSignal, perfA_notification, ss4_tu, perfA_tbn3, eb_donate, ep_sendIpc, perfA_endpoint, nres_ifCond,
+  perfA_cov, bdsc_restart, perfR_of, invR_of, kcall_rdyOff5, kentry_rdyOff5, fpo_kz, fpo_shell, recvF_of, rtcba_restart,
+  perfF_svs: propext, Classical.choice, Quot.sound or a subset); r6 the same without the profiler options. No `declaration uses
+  sorry`; no sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (five import lines).
+- HANDOFF (in order): (1) PerfA for the remaining arms (extend `Cov`): Reply (TB: ct the replier, binding unchanged); TCB suspend /
+  resume and the register arms using them (suspend of ct ⇒ NRun); CNode revoke / delete / cancelBadgedSends, IRQ handler set /
+  clear, ThreadControlCaps / Sched, SchedContext, SchedControl, Untyped, ASID control (TB or NRun after rd8b/c/f's facts; the
+  preemption error outcomes via rd10's `charge_ss4`, Rdy from rd8f's rdCapDeleteH). (2) PerfF per arm: `perfF_svs` covers every
+  arm whose perform is SVS ∧ cfS and leaves ct's state alone — needs one new per-arm family "ct's tcbState is Restart / Running /
+  Inactive" (TP over tcbState; generate it like the SVE / CFKE families, with `AK`-style generic leaves, NOT `ik_unfold` walks);
+  Notification / Endpoint via `bl_*` / `eb_*` plus that family; arms that unbind ct give RT / CBa vacuously. (3) Then the
+  consumers lose their pinned inputs: rd15a's `hC` (RecvTC), rd8m's `RcvIn` (with sc_first), rd8l's `RP`.
