@@ -440,6 +440,18 @@ details.
   register matters because `activate_thread` restarts a `Restart` thread at
   `FaultIP` (`getRestartPC`). FL4's `TRAP_SYSCALLS` flag (l4h) and its
   debug/TLS syscalls (`handle_unknown_syscall`) have no branch here yet.
+- **`Ext/Virt*`: x86 virtualization** (VT-x and AMD-V, one spec with the
+  backend `virtKind` as a platform constant; design and proof plan in
+  `proofs/VIRT-PLAN.md`). `VirtBackend`: the backend and the
+  underspecified capability words; `VirtFields`: per-backend VCPU field
+  tables with readable / writable / guest-changed classes; `VirtSanitize`:
+  FL4's sanitize policy as pure functions; `VirtState`: the abstract VCPU
+  (`VcpuState`), the extension state `VirtExt` and `VState Z`, VCPU
+  initialisation, VMEnter staging and its report; `VirtEpt`: the guest
+  page-table entry format and walk; `VirtGuest`: the guest-execution
+  oracle `GuestStep` (l4v `do_user_op` style), the trusted layer's [P]
+  contract shapes and the P3x statement shape. The invocations follow in
+  later modules.
 - **Invocation label numbers** (a deliberate deviation from l4v). l4v's
   `invocation_type` numbers labels by the Haskell `Enum` of
   `invocation_label` (l4v's labels only, generic then arch). FL4's ABI
