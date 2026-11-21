@@ -39,7 +39,8 @@ theorem offReady_ko {σ σ' : State Unit} (h : Sched.OffReady σ) (hk : σ'.khea
 /-- **`sc_and_timer`** (module docstring). -/
 theorem rd_scAndTimer {σ : State Unit} {x : SchedContext} {n : Nat} {xt : Tcb} {p : ObjRef} {y : SchedContext}
     {m : Nat} (h : Rdy σ) (hk : σ.kheap σ.curSc = some (.schedContext x n))
-    (hOS : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady σ)))
+    (hOS : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ (p = σ.curSc → Sched.OffReady σ)) ∨
+      (scActive x = false ∧ p ≠ σ.curSc))
     (hne : scActive x = true → x.scRefills ≠ []) (hct : σ.kheap σ.curThread = some (.tcb xt))
     (hsc : xt.tcbSchedContext = some p) (hp : σ.kheap p = some (.schedContext y m))
     (hnp : p ≠ σ.curSc → y.scRefills ≠ [])

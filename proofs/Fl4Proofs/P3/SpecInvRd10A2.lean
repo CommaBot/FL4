@@ -101,13 +101,26 @@ theorem suff_svcf {s s' : State Unit} (hs : Suff s) (hS : SVK.SVS s s') (hc : cf
   unfold refillHd at this ⊢; rw [← r1]; exact this
 
 theorem os_svcf {s s' : State Unit} (hs : OS s) (hS : SVK.SVS s s') (hc : cfS s' = cfS s) : OS s' := by
-  rcases hs with ⟨hO, hSf⟩ | ⟨h0, hn⟩
+  rcases hs with ⟨hO, hSf⟩ | ⟨h0, hn⟩ | ⟨hid, hin, hna⟩
   · exact Or.inl ⟨A8.offReady_svcf hO hS hc, suff_svcf hSf hS hc⟩
   · have eu : s'.consumedTime = s.consumedTime := congrArg (fun p => p.1) hc
-    refine Or.inr ⟨eu.trans h0, ?_⟩
+    refine Or.inr (Or.inl ⟨eu.trans h0, ?_⟩)
     rcases hS.2.2 with e | e
     · rw [e]; exact hn
     · rw [e]; exact fun e => by cases e
+  · have ec : s'.curSc = s.curSc := congrArg (fun p => p.2.1) hc
+    have ei : s'.idleSc = s.idleSc := congrArg (fun p => p.2.2.2.2.1) hc
+    refine Or.inr (Or.inr ⟨by rw [ec, ei]; exact hid, fun z n hz => ?_, ?_⟩)
+    · rw [ec] at hz
+      have e1 := hS.1 s.curSc
+      rw [hz] at e1
+      obtain ⟨y0, h0, -, m1, -⟩ := SVK.sv_sc (o := s.kheap s.curSc) e1.symm
+      have := hin y0 n h0
+      simp only [scActive, m1] at this
+      exact this
+    · rcases hS.2.2 with e | e
+      · rw [e]; exact hna
+      · rw [e]; exact fun e => by cases e
 
 /-- CtR across an `SVS ∧ cfS` step keeping ct's state and the release queue. -/
 theorem ctR_sv {s s' : State Unit} (h : CtR s) (hS : SVK.SVS s s') (hc : cfS s' = cfS s)
@@ -205,7 +218,7 @@ theorem charge_ss4 {s : State Unit} (h : BS s) (u : Ticks) (c : Bool) {z : Unit 
     · have e' := hid (Bool.eq_false_iff.mpr hsch)
       rw [e']
       exact A8.ctR_unsched (Bool.eq_false_iff.mpr hsch)
-  exact ⟨Or.inr ⟨hc0, hnr⟩, fun e => absurd e hnr, hC, fun e => absurd e hnr⟩
+  exact ⟨Or.inr (Or.inl ⟨hc0, hnr⟩), fun e => absurd e hnr, hC, fun e => absurd e hnr⟩
 
 /-! ## `handle_yield` -/
 

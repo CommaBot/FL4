@@ -57,7 +57,7 @@ theorem sat_curSc {s : State Unit} {r : Unit × State Unit} (hr : r ∈ (scAndTi
 
 /-- rd4's `rd_exitSE` without `hk0` (read off the outcome, `sat_curSc`). -/
 theorem rd_exitSE10 {σ s : State Unit} (hS : SE σ s)
-    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread))
+    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread) ∨ OI σ)
     (hB : SInvB.ScBackS σ) (hRN : SInvB.RNE σ) (hV : SInvI.ValidIdle σ) (hIH : IdleHd σ)
     (hRC : σ.schedulerAction = .resumeCurThread → ∀ x, σ.kheap σ.curThread = some (.tcb x) →
       x.tcbSchedContext = some σ.curSc)
@@ -72,7 +72,7 @@ theorem rd_exitSE10 {σ s : State Unit} (hS : SE σ s)
 /-- rd4's `rd_scheduleOff` without `hk0`. -/
 theorem rd_scheduleOff10 (σ : State Unit) (hσ : Rdy σ) (hRN : SInvB.RNE σ)
     (hC : CtR σ) (hAW : AW σ)
-    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread))
+    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread) ∨ OI σ)
     (hB : SInvB.ScBackS σ) (hV : SInvI.ValidIdle σ) (hIH : IdleHd σ)
     (hRC : σ.schedulerAction = .resumeCurThread → ∀ x, σ.kheap σ.curThread = some (.tcb x) →
       x.tcbSchedContext = some σ.curSc) :

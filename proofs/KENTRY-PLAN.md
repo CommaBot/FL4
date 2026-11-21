@@ -11584,3 +11584,30 @@ proofs/scratch/rd14e/ax.lean untracked. No premise, no hypothesis added anywhere
   rd14e-2..4 (A green), rd14e-5..7 (B green), rd14e-8..10 (C: the nested-`repeat'` loop, then green, C ~1.5 min whole module),
   rd14e-11 (A, B, C green + `#print axioms` of 23 tops: all ⊆ {propext, Classical.choice, Quot.sound}; `qt_of_tv` only propext,
   `fpo_tu` only Classical.choice), rd14e-12 (C after a docstring edit). No sorry / admit / native_decide / bv_decide, no axiom.
+
+### rd14e-2 (par/rd14e reset to 4aabd427 = int/j2 incl. rd14e A–C, rd8w) — lead decision on the FINDING, option (a): `OS` gains a third disjunct; `TW` widened; the consumer handles it
+- **`OI σ := cur_sc ≠ idle_sc ∧ (∀ y n, kheap cur_sc = SC y n → scActive y = false) ∧ action ≠ resume`** (SpecInvRdY) and
+  **`OS σ := (OffReady ∧ Suff) ∨ (consumed = 0 ∧ action ≠ resume) ∨ OI σ`** (SpecInvRdK). `OffReady` unchanged. The extra conjunct
+  `cur_sc ≠ idle_sc` is NEEDED (not a weakening elsewhere): if cur_sc were the idle SC and inactive, `schedule` could pick idle,
+  `p = cur_sc`, `switch_sched_context` would not set the reprogram flag, `commit_time` would not run, and the stale consumed time
+  would break `OffReady` at exit. In the deletion scenario it holds (ct ≠ idle is bound to cur_sc; ValidIdle: no non-idle thread is
+  bound to the idle SC) — but it is not in `BS` / `EF` / the arm interfaces, see handoff.
+- **Consumer, proved:** SpecInvRdB **`commit_inactive`** (cur_sc inactive ⇒ `commit_time` only zeroes the consumed time); **`sw_out`**'s
+  precondition gains `∨ (scActive x = false ∧ p ≠ cur_sc)` (p ≠ cur_sc ⇒ the reprogram flag is set ⇒ commit_time runs ⇒ consumed 0 ⇒
+  `OffReady` for the new SC `p` from its ready head); SpecInvRdX `rd_scAndTimer` passes it through; SpecInvRdY **`rd_exitSE`** /
+  `rd_scheduleOff` and SpecInvRd10A1 `rd_exitSE10` / `rd_scheduleOff10` take `hOS0 : … ∨ OI σ`: from `OI`, the new thread's SC
+  `p ≠ cur_sc` (idle target: p = idle_sc ≠ cur_sc; ready target: its SC is active, cur_sc is not; resume excluded). No intermediate
+  `OffReady` needed — the FINDING's stop condition did not trigger.
+- Frames updated: `os_frame` (OSF keeps cur_sc's refill max ⇒ inactivity), `os_setSchedulerAction_cn`, rd10's `os_svcf` (SVS keeps
+  the max), constructor sites `Or.inr (Or.inl …)` (RdK `rd_cbr`, Rd10A2 l.221, Rd14dB `ss4_tz`).
+- **`TW` widened** (SpecInvRd14dD): `CWw c σ σ' := … (refills ∧ max kept) ∨ max = 0` and `TW` gains `σ0.curSc ≠ σ0.idleSc`;
+  `ss4_tw`: max 0 ⇒ `OS` by `OI`, else the first disjunct as before; `tw_of_tu` takes the idle fact; `tw_svcf` / `tw_post` carry it.
+- **Builds:** rd14e-13 failed only at Rd10A2 l.221 (a second-disjunct constructor), rd14e-14 green: SpecInvRd14eC, SpecInvRd8wB (rd8w's tops), SpecInvEqT —
+  every spec leaf of SpecInvRdB's reverse cone (164 modules). The cone's JAtZ leaves XTopJointKEntry33 / KEntry30D were NOT rebuilt
+  (they reference none of the changed names; they only recompile). rd14e-15: `#print axioms` (below).
+- **Handoff for the deletion arms:** an arm ending in the max-0 case must supply `σ0.curSc ≠ σ0.idleSc` to `TW`; it follows from
+  ValidIdle (ct ≠ idle is bound to cur_sc, ObjOK: no non-idle TCB bound to the idle SC) but neither `BS` / `EF` nor `ArmAKB` carry it.
+  Proposed: a new interface `ArmAKV C := ArmAKB C` plus `σ0.curSc ≠ σ0.idleSc` (or `SInvI.ValidIdle σ`), with `armAKV_of`, and a
+  bridge `BrR (fun c σ => InvRc C c σ ∧ σ.curSc ≠ σ.idleSc)` (rd8w's caveat: extra state facts inside `Q`; the tops have
+  `hX10.vi`). Then CNode delete / revoke etc. as in the rd14e section.
+  rd14e-15 axioms: commit_inactive, sw_out, rd_scAndTimer, rd_exitSE, rd_scheduleOff, rd_scheduleOff10, os_frame, os_svcf, ss4_tw, tw_svcf, perfA_end, brR_c14e, B8w.kcall_rdyOffW / kentry_rdyOffW all ⊆ {propext, Classical.choice, Quot.sound}.

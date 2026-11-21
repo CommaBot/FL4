@@ -30,47 +30,64 @@ set_option maxHeartbeats 1000000
 
 /-! ## (c): ct unbound, cur_sc's refill max possibly zeroed -/
 
-/-- rd8a's `CW` weakened: refills kept, refill max kept or zeroed. -/
+/-- rd8a's `CW` weakened (rd14e, lead option (a)): refills and refill max
+kept, or the refill max zeroed (the SC made inactive by its finalisation; the
+refills may then be emptied). -/
 abbrev CWw (c : ObjRef) (σ σ' : State Unit) : Prop :=
   ∀ y n, σ'.kheap c = some (.schedContext y n) → ∃ y0 n0, σ.kheap c = some (.schedContext y0 n0) ∧
-    y.scRefills = y0.scRefills ∧ (y.scRefillMax = y0.scRefillMax ∨ y.scRefillMax = 0)
+    ((y.scRefills = y0.scRefills ∧ y.scRefillMax = y0.scRefillMax) ∨ y.scRefillMax = 0)
 
 theorem cWw_of_cw {c : ObjRef} {σ σ' : State Unit} (h : A8.CW c σ σ') : CWw c σ σ' := fun y n hy => by
   obtain ⟨y0, n0, h0, e1, e2⟩ := h.1 y n hy
-  exact ⟨y0, n0, h0, e1, Or.inl e2⟩
+  exact ⟨y0, n0, h0, Or.inl ⟨e1, e2⟩⟩
 
-/-- rd14b's `TU` with `CWw`. -/
+/-- rd14b's `TU` with `CWw`, and cur_sc not the idle SC. -/
 abbrev TW (σ0 q : State Unit) : Prop :=
   cfS q = cfS σ0 ∧ CWw σ0.curSc σ0 q ∧
     (∀ x, q.kheap σ0.curThread = some (.tcb x) → x.tcbSchedContext = none) ∧
-    q.schedulerAction ≠ .resumeCurThread
+    q.schedulerAction ≠ .resumeCurThread ∧ σ0.curSc ≠ σ0.idleSc
 
-theorem tw_of_tu {σ0 q : State Unit} (h : TU σ0 q) : TW σ0 q := ⟨h.1, cWw_of_cw h.2.1, h.2.2.1, h.2.2.2⟩
+theorem tw_of_tu {σ0 q : State Unit} (h : TU σ0 q) (hid : σ0.curSc ≠ σ0.idleSc) : TW σ0 q :=
+  ⟨h.1, cWw_of_cw h.2.1, h.2.2.1, h.2.2.2, hid⟩
 
-/-- **`TW` gives `SS4`.** -/
+/-- **`TW` gives `SS4`**: `OS` by its first disjunct when cur_sc's refills and
+max are kept, by `OI` (rd14e) when its max is 0. -/
 theorem ss4_tw {σ0 q : State Unit} (hB : A10.BS σ0) (hS : Suff σ0) (h : TW σ0 q) : A10.SS4 q := by
-  obtain ⟨hc, hw, hn, hr⟩ := h
+  obtain ⟨hc, hw, hn, hr, hid⟩ := h
   have hc' := hc
   simp only [cfS, Prod.mk.injEq] at hc'
   obtain ⟨e1, e2, e3, -, e5, e6⟩ := hc'
-  have hO : Sched.OffReady q := by
-    intro y n hy
-    rw [e2] at hy
-    obtain ⟨y0, n0, hy0, er, -⟩ := hw y n hy
-    have hh : refillHd y = refillHd y0 := by simp only [refillHd, er]
-    rw [e1, e6, hh]; exact hB.off y0 n0 hy0
-  have hSf : Suff q := by
-    intro y n hy ha hne
-    rw [e2] at hy hne; rw [e5] at hne; rw [e1]
-    obtain ⟨y0, n0, hy0, er, em⟩ := hw y n hy
-    have ha0 : scActive y0 = true := by
-      rcases em with em | em
-      · simp only [scActive, ← em]; exact ha
-      · simp only [scActive, activeSc, em, lt_self_iff_false, decide_false] at ha; cases ha
-    have := hS y0 n0 hy0 ha0 hne
-    have hh : refillHd y = refillHd y0 := by simp only [refillHd, er]
-    rw [hh]; exact this
-  refine ⟨Or.inl ⟨hO, hSf⟩, fun e => absurd e hr, fun x hx _ hA _ => ?_, fun e => absurd e hr⟩
+  have hOS : OS q := by
+    by_cases hP : ∃ y n, q.kheap q.curSc = some (.schedContext y n) ∧ y.scRefillMax = 0
+    · obtain ⟨y, n, hy, hm⟩ := hP
+      refine Or.inr (Or.inr ⟨by rw [e2, e5]; exact hid, fun y' n' hy' => ?_, hr⟩)
+      rw [hy] at hy'
+      obtain ⟨rfl, -⟩ : y = y' ∧ n = n' := by injection hy' with e; injection e with e7 e8; exact ⟨e7, e8⟩
+      simp only [scActive, activeSc, hm, lt_self_iff_false, decide_false]
+    · have hk : ∀ y n, q.kheap σ0.curSc = some (.schedContext y n) → ∃ y0 n0,
+          σ0.kheap σ0.curSc = some (.schedContext y0 n0) ∧ y.scRefills = y0.scRefills ∧
+            y.scRefillMax = y0.scRefillMax := by
+        intro y n hy
+        obtain ⟨y0, n0, hy0, hcase⟩ := hw y n hy
+        rcases hcase with ⟨er, em⟩ | hm
+        · exact ⟨y0, n0, hy0, er, em⟩
+        · exact absurd ⟨y, n, by rw [e2]; exact hy, hm⟩ hP
+      have hO : Sched.OffReady q := by
+        intro y n hy
+        rw [e2] at hy
+        obtain ⟨y0, n0, hy0, er, -⟩ := hk y n hy
+        have hh : refillHd y = refillHd y0 := by simp only [refillHd, er]
+        rw [e1, e6, hh]; exact hB.off y0 n0 hy0
+      have hSf : Suff q := by
+        intro y n hy ha hne
+        rw [e2] at hy hne; rw [e5] at hne; rw [e1]
+        obtain ⟨y0, n0, hy0, er, em⟩ := hk y n hy
+        have ha0 : scActive y0 = true := by simp only [scActive, ← em]; exact ha
+        have := hS y0 n0 hy0 ha0 hne
+        have hh : refillHd y = refillHd y0 := by simp only [refillHd, er]
+        rw [hh]; exact this
+      exact Or.inl ⟨hO, hSf⟩
+  refine ⟨hOS, fun e => absurd e hr, fun x hx _ hA _ => ?_, fun e => absurd e hr⟩
   obtain ⟨x', c, y, n, h1, h2, -, -⟩ := hA
   rw [e3] at hx h1
   have ex : x' = x := KernelObject.tcb.inj (Option.some.inj (h1.symm.trans hx))
@@ -78,10 +95,13 @@ theorem ss4_tw {σ0 q : State Unit} (hB : A10.BS σ0) (hS : Suff σ0) (h : TW σ
   rw [hn _ hx] at h2; cases h2
 
 theorem tw_svcf {σ0 s s' : State Unit} (h : TW σ0 s) (hS : SVK.SVS s s') (hc : cfS s' = cfS s) : TW σ0 s' := by
-  refine ⟨hc.trans h.1, fun y n hy => ?_, fun x hx => ?_, nres_svs h.2.2.2 hS⟩
+  refine ⟨hc.trans h.1, fun y n hy => ?_, fun x hx => ?_, nres_svs h.2.2.2.1 hS, h.2.2.2.2⟩
   · obtain ⟨y1, n1, hy1, e1, e2⟩ := (A8.cw_of_svs (c := σ0.curSc) hS).1 y n hy
-    obtain ⟨y0, n0, hy0, e3, e4⟩ := h.2.1 y1 n1 hy1
-    exact ⟨y0, n0, hy0, e1.trans e3, by rw [e2]; exact e4⟩
+    obtain ⟨y0, n0, hy0, e4⟩ := h.2.1 y1 n1 hy1
+    refine ⟨y0, n0, hy0, ?_⟩
+    rcases e4 with ⟨e3, e5⟩ | e5
+    · exact Or.inl ⟨e1.trans e3, e2.trans e5⟩
+    · exact Or.inr (e2.trans e5)
   · have e := hS.1 σ0.curThread
     rw [hx] at e
     obtain ⟨y, hy, hys⟩ := SVK.sv_tcb (o := s.kheap σ0.curThread) (a := x.tcbSchedContext) e.symm

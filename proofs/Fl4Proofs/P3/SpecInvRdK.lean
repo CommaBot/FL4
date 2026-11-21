@@ -4,7 +4,8 @@ P3 (DESIGN.md §9), invariant line G1 (rd7): **the syscall front
 disjunct `OS`** (spec side only, outside the JAtZ cone; KENTRY-PLAN rd6
 handoff 1).
 
-* **`OS σ := (OffReady σ ∧ Suff σ) ∨ (consumed = 0 ∧ action ≠ resume)`**:
+* **`OS σ := (OffReady σ ∧ Suff σ) ∨ (consumed = 0 ∧ action ≠ resume) ∨ OI σ`**
+  (rd14e: `OI`, cur_sc inactive and not idle's, no resume — SpecInvRdY):
   rd4's `hOS0` of `rd_scheduleOff`, stated as a predicate. `OSF σ σ'` is a
   step keeping it (`os_frame`): the consumed time, `cur_sc`, `cur_thread`,
   the idle thread / SC and the time kept (`cfS`, SpecInvRdP), the object at
@@ -48,7 +49,7 @@ set_option maxHeartbeats 1000000
 
 /-- **The mid-entry disjunct at `schedule`'s start** (rd4's `hOS0`). -/
 def OS (σ : State Unit) : Prop :=
-  (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread)
+  (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread) ∨ OI σ
 
 /-- **CAx** (module docstring): the current thread, unless idle, is bound to
 an active SC. -/
@@ -67,7 +68,7 @@ theorem os_frame {σ σ' : State Unit} (h : OS σ) (hF : OSF σ σ') : OS σ' :=
   obtain ⟨hc, hk, ha⟩ := hF
   simp only [cfS, Prod.mk.injEq] at hc
   obtain ⟨e1, e2, -, -, e5, e6⟩ := hc
-  rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩
+  rcases h with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2, h3⟩
   · left
     refine ⟨fun y n hy => ?_, fun y n hy hA hI => ?_⟩
     · obtain ⟨y0, n0, hy0, er, -⟩ := hk y n hy
@@ -77,14 +78,20 @@ theorem os_frame {σ σ' : State Unit} (h : OS σ) (hF : OSF σ σ') : OS σ' :=
       have hh : refillHd y = refillHd y0 := by simp only [refillHd, er]
       have hA0 : scActive y0 = true := by simp only [scActive] at hA ⊢; rw [← em]; exact hA
       have := h2 y0 n0 hy0 hA0 (by rw [← e2, ← e5]; exact hI); rw [e1, hh]; exact this
-  · right; exact ⟨by rw [e1]; exact h1, fun e => h2 (ha e)⟩
+  · right; left; exact ⟨by rw [e1]; exact h1, fun e => h2 (ha e)⟩
+  · right; right
+    refine ⟨by rw [e2, e5]; exact h1, fun y n hy => ?_, fun e => h3 (ha e)⟩
+    obtain ⟨y0, n0, hy0, -, em⟩ := hk y n hy
+    have := h2 y0 n0 hy0
+    simp only [scActive] at this ⊢; rw [em]; exact this
 
 theorem os_setSchedulerAction_cn : IK OS (setSchedulerAction (Z := Unit) .chooseNewThread) := by
   unfold setSchedulerAction
   refine ik_modify fun s h => ?_
-  rcases h with h | h
+  rcases h with h | h | h
   · exact Or.inl h
-  · exact Or.inr ⟨h.1, fun e => by cases e⟩
+  · exact Or.inr (Or.inl ⟨h.1, fun e => by cases e⟩)
+  · exact Or.inr (Or.inr ⟨h.1, h.2.1, fun e => by cases e⟩)
 
 theorem os_setThreadStateAct (t : ObjRef) : IK OS (setThreadStateAct (Z := Unit) t) := by
   unfold setThreadStateAct
@@ -232,7 +239,7 @@ theorem rd_cbr {σ : State Unit} (hR : Rdy σ) (hO : Sched.OffReady σ) (hS : SI
       obtain ⟨hcf, hid⟩ := cbTail_cf hr1
       have hc0 : z.2.consumedTime = 0 := by
         simp only [cfS, Prod.mk.injEq] at hcf; rw [hcf.1]
-      refine ⟨hRr, Or.inr ⟨hc0, ?_⟩⟩
+      refine ⟨hRr, Or.inr (Or.inl ⟨hc0, ?_⟩)⟩
       by_cases hres : σ.schedulerAction = .resumeCurThread
       · have hrun : runnable xt.tcbState = true := by
           rcases hCB hres with ⟨x', hx', hr'⟩ | hi

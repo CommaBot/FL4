@@ -89,7 +89,7 @@ structure TZ (σ0 q : State Unit) : Prop where
 
 /-- **`TZ` gives `SS4`.** -/
 theorem ss4_tz {σ0 q : State Unit} (h : TZ σ0 q) : A10.SS4 q :=
-  ⟨Or.inr ⟨h.z, h.nr⟩, fun e => absurd e h.nr, h.ctr, fun e => absurd e h.nr⟩
+  ⟨Or.inr (Or.inl ⟨h.z, h.nr⟩), fun e => absurd e h.nr, h.ctr, fun e => absurd e h.nr⟩
 
 /-- `CtR` across an `SVS ∧ cfS` step keeping the release queue and ct runnable only if it was. -/
 theorem ctR_sv' {s s' : State Unit} (h : CtR s) (hS : SVK.SVS s s') (hc : cfS s' = cfS s)

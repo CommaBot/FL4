@@ -387,6 +387,15 @@ theorem sat_bound {s : State Unit} {r : Unit × State Unit} (hr : r ∈ (scAndTi
   obtain ⟨e, -⟩ := cq5_mem_assertOpt hv
   exact ⟨xt, v.1, hxt, e⟩
 
+/-- **The third mid-entry disjunct** (rd14e's FINDING, lead option (a)): the
+current SC (not the idle SC) is inactive — its last cap was deleted — and the
+action is not resume. `commit_time` then skips it and zeroes the consumed time
+(SpecInvRdB's `commit_inactive`), and the new current thread's SC is another
+one. -/
+def OI (σ : State Unit) : Prop :=
+  σ.curSc ≠ σ.idleSc ∧ (∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → scActive y = false) ∧
+    σ.schedulerAction ≠ .resumeCurThread
+
 theorem offReady_fk {σ s : State Unit} (h : Sched.OffReady σ)
     (hF : FK σ.kheap σ.curSc σ.consumedTime σ.curTime σ.idleThread σ.idleSc s) : Sched.OffReady s := by
   obtain ⟨hk, hc, hu, ht, -, -⟩ := hF
@@ -404,7 +413,7 @@ theorem suff_fk {σ s : State Unit} (h : Suff σ)
 /-- **The exit**: `sc_and_timer` from `SE` (module docstring). -/
 theorem rd_exitSE {σ s : State Unit} {x : SchedContext} {n : Nat} (hS : SE σ s)
     (hk0 : σ.kheap σ.curSc = some (.schedContext x n))
-    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread))
+    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread) ∨ OI σ)
     (hB : SInvB.ScBackS σ) (hRN : SInvB.RNE σ) (hV : SInvI.ValidIdle σ) (hIH : IdleHd σ)
     (hRC : σ.schedulerAction = .resumeCurThread → ∀ x, σ.kheap σ.curThread = some (.tcb x) →
       x.tcbSchedContext = some σ.curSc)
@@ -445,18 +454,37 @@ theorem rd_exitSE {σ s : State Unit} {x : SchedContext} {n : Nat} (hS : SE σ s
       refine ⟨hres, ?_⟩
       have := hRC hres x0 (by rw [← e]; exact hx0)
       rw [hc]; exact Option.some.inj (hsc0.symm.trans this)
-  have hOS : (Sched.OffReady s ∧ Suff s) ∨ (s.consumedTime = 0 ∧ (p = s.curSc → Sched.OffReady s)) := by
+  have hOS : (Sched.OffReady s ∧ Suff s) ∨ (s.consumedTime = 0 ∧ (p = s.curSc → Sched.OffReady s)) ∨
+      (scActive x = false ∧ p ≠ s.curSc) := by
     have hFs : FK σ.kheap σ.curSc σ.consumedTime σ.curTime σ.idleThread σ.idleSc s := ⟨hFk, hc, hu, ht, hI, hIS⟩
-    rcases hOS0 with ⟨hO, hSf⟩ | ⟨h0, hna⟩
+    rcases hOS0 with ⟨hO, hSf⟩ | ⟨h0, hna⟩ | ⟨hid, hin, hna⟩
     · exact Or.inl ⟨offReady_fk hO hFs, suff_fk hSf hFs⟩
     · rcases HP with ⟨hres, -⟩ | ⟨-, hrt, -⟩
       · exact absurd hres hna
-      · refine Or.inr ⟨hu.trans h0, fun e => ?_⟩
+      · refine Or.inr (Or.inl ⟨hu.trans h0, fun e => ?_⟩)
         intro z k hz
         rw [← e, hy] at hz
         cases hz
         rw [hu, h0]
         simpa using hrt
+    · refine Or.inr (Or.inr ⟨hin x n hk0, fun epc => ?_⟩)
+      rcases hN with e | ⟨hT, hrn⟩ | ⟨e, hres⟩
+      · have hob := SInvI.vi_obj hV hx0
+        simp only [SInvI.ObjOK] at hob
+        obtain ⟨-, -, h3, -⟩ := hob.1 (by rw [e, hI])
+        have hp : p = σ.idleSc := Option.some.inj (hsc0.symm.trans h3)
+        exact hid ((hc.symm.trans epc.symm).trans hp)
+      · obtain ⟨x1, c1, y1, n1, hx1, hc1, hy1, ha1, -⟩ := hT
+        rw [hct] at hx1
+        cases hx1
+        have e1 : c1 = p := Option.some.inj (hc1.symm.trans hsc)
+        rw [e1, hy] at hy1
+        cases hy1
+        have e2 : some (KernelObject.schedContext y m) = some (.schedContext x n) := by rw [← hy, epc, hk]
+        have e3 : y = x := by injection e2 with e; injection e
+        rw [e3, hin x n hk0] at ha1
+        exact Bool.false_ne_true ha1
+      · exact hna hres
   have hne : scActive x = true → x.scRefills ≠ [] := fun h => hRN _ x n hk0 (Or.inr h)
   have hnp : p ≠ s.curSc → y.scRefills ≠ [] := fun hpc => by
     rcases HP with ⟨-, e⟩ | ⟨h1, -, -⟩
@@ -628,7 +656,7 @@ theorem rd_scheduleSE {Q : State Unit → Prop} (σ : State Unit)
 /-- **`schedule` ends with `Rdy ∧ OffReady`** (module docstring). -/
 theorem rd_scheduleOff (σ : State Unit) {x : SchedContext} {n : Nat} (hσ : Rdy σ) (hRN : SInvB.RNE σ)
     (hC : CtR σ) (hAW : AW σ) (hk0 : σ.kheap σ.curSc = some (.schedContext x n))
-    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread))
+    (hOS0 : (Sched.OffReady σ ∧ Suff σ) ∨ (σ.consumedTime = 0 ∧ σ.schedulerAction ≠ .resumeCurThread) ∨ OI σ)
     (hB : SInvB.ScBackS σ) (hV : SInvI.ValidIdle σ) (hIH : IdleHd σ)
     (hRC : σ.schedulerAction = .resumeCurThread → ∀ x, σ.kheap σ.curThread = some (.tcb x) →
       x.tcbSchedContext = some σ.curSc) :
