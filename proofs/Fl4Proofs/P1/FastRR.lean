@@ -162,6 +162,57 @@ theorem reply_recv_found_acc {s : S} {a : A} {t : obj.Tcb} {rptr ep_ptr : Std.U6
     | exact ⟨_, _, _, ‹_›, ‹_›, ‹_›, Or.inl ‹_›⟩
     | exact ⟨_, _, _, ‹_›, ‹_›, ‹_›, Or.inr ⟨‹_›, _, _, _, ‹_›, ‹_›, ‹_›, ‹_›⟩⟩
 
+/-! ## R3 / R7: the restart flag and the Arch value -/
+
+/-- **R3 / R7 for `handle_fault_reply`**: replying to an UnknownSyscall fault
+with label 0 restarts the receiver, and the Arch value comes back unchanged
+(so `do_reply_transfer` takes `possible_switch_to`, and its `sufficient` reads
+`min_budget` on the fast path's Arch value). -/
+theorem hfr_us {s : S} {a : A} {rcv snd : obj.Tcb} {restart : Bool} {s4 : S} {a4 : A}
+    (hty : obj.Tcb.fault_type st rcv s = ok fl4_abi.consts.fault.UnknownSyscall)
+    (htag : ∃ tag, msg.msg_info st s snd = ok tag ∧ tag.label = 0#u64)
+    (h : faults.handle_fault_reply st ar s a rcv snd = ok (restart, s4, a4)) : restart = true ∧ a4 = a := by
+  obtain ⟨tag, et, hl⟩ := htag
+  unfold faults.handle_fault_reply at h
+  rw [et, hty] at h
+  simp only [bind_ok] at h
+  have c : fl4_abi.consts.fault.UnknownSyscall ≠ fl4_abi.consts.fault.CapFault := by
+    unfold fl4_abi.consts.fault.UnknownSyscall fl4_abi.consts.fault.CapFault; decide
+  rw [if_neg c, if_pos trivial] at h
+  obtain ⟨s1, -, h⟩ := bind_eq_ok h
+  obtain ⟨s2, -, h⟩ := bind_eq_ok h
+  have e := ok_inj_ff h
+  simp only [Prod.mk.injEq] at e
+  obtain ⟨e1, -, e3⟩ := e
+  exact ⟨by rw [← e1]; simp [hl], e3.symm⟩
+
+/-- **R7 for `reply_remove`**: off the head of a call stack (the fast path's
+check) it is the unlink branch, which returns the Arch value unchanged. -/
+theorem reply_remove_a {s : S} {a : A} {r t : U64} {s' : S} {a' : A}
+    (hn : (∃ i, obj.Reply.next st r s = ok i ∧ ¬ (i != 0#u64) = true) ∨
+      (∃ i, obj.Reply.next st r s = ok i ∧ (i != 0#u64) = true ∧
+        ∃ b, obj.Reply.next_is_head st r s = ok b ∧ ¬ b = true))
+    (h : ipc.reply_remove st ar s a r t = ok (s', a')) : a' = a := by
+  unfold ipc.reply_remove at h
+  rcases hn with ⟨i, hi, hc⟩ | ⟨i, hi, hc, b, hb, hbc⟩
+  · rw [hi] at h; simp only [bind_ok] at h
+    obtain ⟨p, -, h⟩ := bind_eq_ok h
+    rw [if_neg hc] at h
+    revert h
+    repeat' (first
+      | (with_reducible_and_instances refine eq_bind_imp (fun _ _ => ?_))
+      | (with_reducible_and_instances refine eq_bind_imp' (fun _ _ => ?_))
+      | (intro h; exact (congrArg (fun x => x.2) (ok_inj_ff h)).symm))
+  · rw [hi] at h; simp only [bind_ok] at h
+    obtain ⟨p, -, h⟩ := bind_eq_ok h
+    rw [if_pos hc, hb] at h; simp only [bind_ok] at h
+    rw [if_neg hbc] at h
+    revert h
+    repeat' (first
+      | (with_reducible_and_instances refine eq_bind_imp (fun _ _ => ?_))
+      | (with_reducible_and_instances refine eq_bind_imp' (fun _ _ => ?_))
+      | (intro h; exact (congrArg (fun x => x.2) (ok_inj_ff h)).symm))
+
 /-- **Inversion of an accepted `fastpath.reply_recv`**: the current thread's
 `reply_caps` found the reply object and the endpoint, and
 `reply_recv_found` accepted. -/
