@@ -137,7 +137,9 @@ theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     have Hh2 : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0
         (L.wr s (L.nodeAt s Z.c layout.node.CONSUMED) 0#u64) a (cons0 σ) :=
       ⟨J, ⟨ms, t, 0, hum, eσ'⟩, hwK, hX2, Hh.nsc, Hh.inv.congr rfl rfl rfl rfl,
-        Hh.cur.imp id fun h => h.congr rfl rfl rfl rfl, Hh.act, hblk', hDbg⟩
+        Hh.cur.imp id fun h => h.congr rfl rfl rfl rfl, Hh.act, hblk', hDbg,
+        Hh.dbgK_node (by obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists; exact hc.cur ▸ J.kern.cpuCs)
+          (Or.inr rfl) hw1⟩
     have hO : OffOK (cons0 σ) := fun h0 => absurd h0 (by show ¬ (0 : BitVec 64) < 0; decide)
     have hOw : CurOwnW Z.T Z.C (cons0 σ) := by
       rcases J.own with ⟨u, hu, xt, hk1, hxs, hb', -⟩ | ⟨⟨c', hc', hcv'⟩, h2⟩

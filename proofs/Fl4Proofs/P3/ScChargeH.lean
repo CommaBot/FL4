@@ -65,6 +65,10 @@ structure JHole (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   blk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
     (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s
   dbg : L.mem s (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS) = L.mem s0 (L.nodeAt s0 0#u64 layout.node.DEBUG_TCBS)
+  /-- Every debug word kept from the base (KENTRY-PLAN g2i: the `LiveDN` frame
+  of the constructions from the hole; `update_timestamp` writes two time
+  words of the current node). -/
+  dbgK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s
 
 variable {arI}
 
@@ -153,8 +157,29 @@ theorem JAtZ.timestampJH {s : S} {a : A} {σ : Fl4Spec.State Unit}
     rcases hb with hb | hb
     · have := congrArg UScalar.val hb; rw [hd, h1] at this; simp at this; omega
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    ⟨hw.1, fun b hb => hw.mem_eq (P1.dbgW_aligned J.blk hb) fun h' => by
+      rcases h' with rfl | rfl
+      · exact P1.dbgW_not_kw J.blk (Or.inr (Or.inl ⟨L.cpu s, J.kern.cpuCs, layout.node.CUR_TIME,
+          by simp [layout.node.CUR_TIME], by simp [layout.node.CUR_TIME], rfl⟩)) hb
+      · exact P1.dbgW_not_kw J.blk (Or.inr (Or.inl ⟨L.cpu s, J.kern.cpuCs, layout.node.CONSUMED,
+          by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], rfl⟩)) hb⟩
   exact ⟨J, ⟨ms2, nv.bv, σ.consumedTime + (nv.bv - σ.curTime), hum2, rfl⟩, hwK, hX', hN2, hI2,
-    J.cur.imp id hC2, hA2 J.act, hBlk', hDbg⟩
+    J.cur.imp id hC2, hA2 J.act, hBlk', hDbg, hKd⟩
+
+/-- **`JHole.dbgK` across one more time-word write** (the consumed-time reset
+of the preemption path; KENTRY-PLAN g2i). -/
+theorem JHole.dbgK_node {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (Hh : JHole (L := L) arI AR Z H Cs Ac Lst D s0 a0 σ0 s a σ) {c : U64} (hc : c ∈ Cs) {o : U64}
+    (ho : o = layout.node.CUR_TIME ∨ o = layout.node.CONSUMED) {s' : S}
+    (hw : P1.WritesIn st s s' (· = L.nodeAt s c o)) : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s' :=
+  Hh.dbgK.trans ⟨hw.1, fun b hb => hw.mem_eq (P1.dbgW_aligned Hh.blk hb) fun h' => by
+    subst h'
+    rcases ho with rfl | rfl
+    · exact P1.dbgW_not_kw Hh.blk (Or.inr (Or.inl ⟨c, hc, layout.node.CUR_TIME,
+        by simp [layout.node.CUR_TIME], by simp [layout.node.CUR_TIME], rfl⟩)) hb
+    · exact P1.dbgW_not_kw Hh.blk (Or.inr (Or.inl ⟨c, hc, layout.node.CONSUMED,
+        by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], rfl⟩)) hb⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A `JHole` with `OffOK` and `CurOwnW` is a `JAtZ` state** (an SC step

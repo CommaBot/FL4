@@ -7,9 +7,11 @@ port cap (every label), with the posts `JAtL` (XTopJointWJPL) in place of
 `Steps.jatL` (XTopJointLiveStep) needs none, and the reply step is proved
 here.
 
-* `JAtZ.runJD`: XTopJointReply's `JAtZ.runJ` (`set_thread_state Running` of
-  a `Restart` thread) with the dead set `D` named in the post, and the slot
-  (`tfoot_oobj`) and debug-word (`running_blk`'s `Foot`) frames.
+* `JAtZ.runJD` (moved to XTopJointReply in g2i, `runJ` its corollary):
+  `set_thread_state Running` of a `Restart` thread with the dead set `D`
+  named in the post, and the slot (`tfoot_oobj`) and debug-word
+  (`running_blk`'s `Foot`) frames.
+
 * `JAtZ.regWrSD`: one register write of a thread keeps the slots
   (`tcb_oobj`: a TCB word at offset 256..447) and the debug words
   (`foot_field`).

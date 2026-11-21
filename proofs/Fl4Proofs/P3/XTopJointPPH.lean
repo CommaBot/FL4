@@ -131,6 +131,7 @@ theorem JAtZ.toHole {s : S} {a : A} {σ : Fl4Spec.State Unit}
   act := J.act
   blk := J.blk
   dbg := rfl
+  dbgK := P1.DbgKeep.refl s
 
 set_option maxHeartbeats 16000000 in
 /-- **A preempting preemption point from `JAtZ` ends at a `JHole`** (module
