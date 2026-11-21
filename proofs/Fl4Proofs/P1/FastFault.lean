@@ -14,7 +14,15 @@ Groundwork for `FastSame` of `fastpath.fault` (KENTRY-PLAN m57 (2), F1–F6):
   the same words (`is_highest_prio_dom`, `highest_prio_dom`);
 * the inversion of an accepted run (`fault_acc`): every check of the fast
   path held at the entry state, and the run is the write sequence
-  `faultTail` from there.
+  `faultTail` from there;
+* F2: the general `ep_dequeue` of the head is the fast path's dequeue
+  (`ep_dequeue_head`, from the queue's `QueueRel`);
+* the meeting state (`handle_fault_pre`, `fault_sync`): the general
+  `handle_fault` makes the fast path's writes up to the handler `Running`,
+  plus the action word `CHOOSE_NEW`; from there the fast path runs
+  `faultTail3` and the general path `unblock_sporadic`, `possible_switch_to`
+  (`possible_switch_to_cn`: an `enqueue`) and `finish` (KENTRY-PLAN m58,
+  handoff (a)–(e)).
 -/
 import Fl4Proofs.P1.FastDecline
 import Fl4Proofs.P1.QueueSwitch
@@ -826,6 +834,41 @@ theorem fault_sync (hX : StoreExt st) {T : Set U64} {s : S} {a : A} {t : obj.Tcb
         actA (L := L) S8 := by
       unfold fS13 fS10; simp only [actA_wr]
     rw [hA14, wr_comm hX _ _ _ R.haA R.hsA R.hAS]
+
+
+theorem cn_ne_resume : sched.ACTION_CHOOSE_NEW ≠ sched.ACTION_RESUME_CURRENT := by
+  unfold sched.ACTION_CHOOSE_NEW sched.ACTION_RESUME_CURRENT; decide
+
+/-- **`possible_switch_to` from `CHOOSE_NEW`** (m57 (2), after `reply_push`):
+the handler has an SC, is outside the release queue, in the current domain and
+on this core, and the action is already `CHOOSE_NEW`, so `reschedule_required`
+rewrites the action with its own value and the call is `enqueue`. -/
+theorem possible_switch_to_cn (hX : StoreExt st) (s : S) (d : obj.Tcb) (hsc : L.mem s (scA d) ≠ 0#u64)
+    (hrq : (L.mem s (inqA d) &&& sched.Q_RELEASE) = 0#u64)
+    (hdom : L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.CUR_DOMAIN) = L.mem s (domA d))
+    (haff : L.mem s (affA d) = L.cpu s) (ha : L.actionW s = sched.ACTION_CHOOSE_NEW)
+    (hal : Aligned (actA (L := L) s)) :
+    sched.possible_switch_to st s d = sched.enqueue st s d := by
+  unfold sched.possible_switch_to
+  rw [eq_of_spec_fd (obj.Tcb.sc.spec (L := L) s d)]; simp only [bind_ok, hsc, ↓reduceIte]
+  rw [eq_of_spec_fd (sched.in_release_queue.spec (L := L) s d)]
+  simp only [bind_ok, hrq, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
+  unfold sched.cur_domain
+  rw [eq_of_spec_fd (obj.ks_get.spec (L := L) s _), hdom]; simp only [bind_ok]
+  rw [eq_of_spec_fd (obj.Tcb.domain.spec (L := L) s d)]; simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true,
+    ↓reduceIte]
+  rw [eq_of_spec_fd (obj.Tcb.affinity.spec (L := L) s d), haff, L.cur_cpu_eq]
+  simp only [bind_ok, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+  have h1 : (sched.ACTION_CHOOSE_NEW != sched.ACTION_RESUME_CURRENT) = true := by
+    unfold sched.ACTION_CHOOSE_NEW sched.ACTION_RESUME_CURRENT; decide
+  have h2 : (sched.ACTION_CHOOSE_NEW != sched.ACTION_CHOOSE_NEW) = false := bne_self_eq_false _
+  rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
+  simp only [bind_ok, h1, ↓reduceIte]
+  unfold sched.reschedule_required
+  rw [eq_of_spec_fd (sched.action.spec (L := L) s), ha]
+  simp only [bind_ok, h1, h2, Bool.false_eq_true, ↓reduceIte]
+  rw [eq_of_spec_fd (sched.set_action.spec (L := L) s _)]; simp only [bind_ok]
+  rw [wr_eq_self hX s hal ha]
 
 end
 
