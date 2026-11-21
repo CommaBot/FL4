@@ -94,6 +94,12 @@ structure RRReads (t rptr ep u usc : U64) (X1 X2 X6 X7 X8 X11 X12 X15 : S) (a2 :
     (¬ ff = true ∨ (ff = true ∧ ∃ i11 i12 b8, sched.cur_domain st X15 = ok i11 ∧ obj.Tcb.prio st u X15 = ok i12 ∧
       sched.is_highest_prio st X15 i11 i12 = ok b8 ∧ b8 = true))
   dq15 : sched.dequeue st X15 u = ok X15
+  /-- (#57, m67) The thread the accepted run switches to (`u`, made
+  `TS_RESTART` at `X6`, so `activate_thread` makes it `TS_RUNNING`) is not
+  `TS_RUNNING_VM` at the run's end: the general `finish`'s `vcpu.check` is a
+  no-op (`finish_rr`). A read of the end state, as m62's `FaultNvm`. -/
+  nvm : ∀ s' a', fastpath.switch_to st ar X15 a2 u = ok (s', a') →
+    L.mem s' (stA (L.curW s')) ≠ sched.TS_RUNNING_VM
 
 /-- **The ReplyRecv read bundle at a dispatch state `X0`**: for every accepted
 run's checks (`RRChecks`, the `reply_caps` result) and its intermediate states,
@@ -178,7 +184,7 @@ theorem rr_same {X0 s' : S} {a a' : A} (h : fastpath.reply_recv st ar X0 a = ok 
     unfold sched.ACTION_RESUME_CURRENT
     simpa using hbn
   have hsch := schedule_sw ar X15 a2 R.T15 R.R15 R.act15 hu0 R.ucn R.ct15 R.ns15 R.hp15
-  exact ⟨X15, a2, hdisp, finish_rr ar e16 hsch R.dq15⟩
+  exact ⟨X15, a2, hdisp, finish_rr ar e16 hsch R.dq15 (R.nvm _ _ e16)⟩
 
 omit L in
 /-- **The general `syscall` on the fast entry's ReplyRecv route**: the same
@@ -297,13 +303,15 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 path's reads** (m66 (R-d)): `entry_of7` with `hRR : FastRRP` [P] (a "the fast
 path keeps `P`" premise) replaced by `hRP : RRPreAt` (the general path's
 reads along an accepted ReplyRecv run, `rr_same`). `hX : StoreExt` [P] stays
-for the fault half, `hAs : AsidOff` [J] as in `entry_of7`. -/
+for the fault half, `hAs : AsidOff` [J] and `hNv : FaultNvmPre` [J] as in
+`entry_of7`. -/
 theorem kernel_entry.entry_of7r {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
     (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hX : StoreExt st)
     (hAs : AsidOff (L := L) Ω Sg s)
+    (hNv : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FaultNvmPre (L := L) ar s a number)
     (hRP : RRPreAt (L := L) ar s a) :
     (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
@@ -314,9 +322,10 @@ theorem kernel_entry.entry_of7r {A : Type _} {ar : machine.Arch A} {Adm : PSets 
       obtain ⟨P, C, ⟨V, Pd⟩, Pt, G, -⟩ := GF _ hσ
       exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
     exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
-  exact kernel_entry.entry_of4 hA GF hσ s a hP h fun number _ =>
+  exact kernel_entry.entry_of4 hA GF hσ s a hP h fun number hN =>
     FastAcc.of_split_rr ar hX
-      (FastFaultOK.of_pre ar hA E0 hP h (FastFaultPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs)) hRP
+      (FastFaultOK.of_pre ar hA E0 hP h
+        (FastFaultPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs (hNv number hN))) hRP
 
 end
 

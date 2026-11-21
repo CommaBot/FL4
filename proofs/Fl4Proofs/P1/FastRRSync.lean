@@ -377,13 +377,17 @@ theorem schedule_sw (s : S) (a : A) {u c : U64}
 /-- **(R-b) `finish` after the meeting point**: when `schedule` switches to
 `u` and `u`'s dequeue is a no-op, the general `finish` ends where the fast
 path's `switch_to u` ends (`set_vm_root` returns the store unchanged, so the
-dequeue reads the meeting state; then `schedTail_act`). -/
+dequeue reads the meeting state; then `schedTail_act`). Since #57 `finish`
+ends with `vcpu.check` of the current thread: `hnv` (the fast run's end
+thread is not `TS_RUNNING_VM`) makes it a no-op (`finish_ok_of_old`). -/
 theorem finish_rr {X : S} {a : A} {u : U64} {s' : S} {a' : A}
     (hfast : fastpath.switch_to st ar X a u = ok (s', a'))
     (hsch : sched.schedule st ar X a =
       (do let (s3, a2) ← sched.switch_to_thread st ar X a u; schedTail (st := st) ar s3 a2))
-    (hdq : sched.dequeue st X u = ok X) :
+    (hdq : sched.dequeue st X u = ok X)
+    (hnv : L.mem s' (stA (L.curW s')) ≠ sched.TS_RUNNING_VM) :
     syscall.finish st ar X a = ok (s', a') := by
+  refine finish_ok_of_old ar ?_ hnv
   have hf0 := hfast
   unfold fastpath.switch_to at hf0
   obtain ⟨⟨s1, a1⟩, e1, -⟩ := bind_eq_ok hf0
@@ -393,7 +397,7 @@ theorem finish_rr {X : S} {a : A} {u : U64} {s' : S} {a' : A}
   rw [e1] at hfast
   simp only [bind_ok, uncurry_apply_pair, set_action_ok] at hfast
   obtain ⟨s2, e2, hfast⟩ := bind_eq_ok hfast
-  unfold syscall.finish
+  unfold syscall.finish_old
   rw [hsch]; unfold sched.switch_to_thread
   rw [e1]; simp only [bind_ok, uncurry_apply_pair]
   rw [hdq]; simp only [bind_ok]

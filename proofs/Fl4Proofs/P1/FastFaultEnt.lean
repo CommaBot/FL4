@@ -158,8 +158,10 @@ theorem FastFaultPre.of_asid {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     {P3Ok : S → Prop} (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (XH : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     {s : S} {a : A} {n : I64} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hAs : AsidOff (L := L) Ω Sg s) : FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a n := by
+    (hAs : AsidOff (L := L) Ω Sg s) (hNv : FaultNvmPre (L := L) ar s a n) :
+    FastFaultPre (L := L) ar T Cs Ω U Sg Rp s a n := by
   intro t nx s1 et enx es1
+  obtain ⟨hNv1, hNv2⟩ := hNv t nx s1 et enx es1
   have h0 := h.1.choose_spec.choose_spec
   have et' : t = L.curW s := by
     rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s)] at et; exact (ok_inj_ff et).symm
@@ -187,8 +189,9 @@ theorem FastFaultPre.of_asid {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [hb, WP.spec_ok] at hx
     have hf := syscall.budget_ok.fr hA s1 a hN1
     rw [hb, WP.spec_ok] at hf
-    exact faultEntAt_of ar E0 XH hx.1 (hx.2.2 rfl) et2 (hAs2 s2 (hf rfl))
+    exact ⟨faultEntAt_of ar E0 XH hx.1 (hx.2.2 rfl) et2 (hAs2 s2 (hf rfl)), hNv1 s2 a2 t2 hb et2⟩
   · intro s2 a2 t2 hb et2
+    have hNv2' := hNv2 t1 s3 a3 et1 hd s2 a2 t2 hb et2
     have et1' : t1 = L.curW s1 := by
       rw [eq_of_spec_fd (sched.cur_thread.spec (L := L) s1)] at et1; exact (ok_inj_ff et1).symm
     have hd' := hd
@@ -204,7 +207,7 @@ theorem FastFaultPre.of_asid {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z
     rw [hb, WP.spec_ok] at hx
     have hf := syscall.budget_ok.fr hA s3 a3 hN1
     rw [hb, WP.spec_ok] at hf
-    exact faultEntAt_of ar E0 XH hx.1 (hx.2.2 rfl) et2 (hAs2 s2 (hf rfl))
+    exact ⟨faultEntAt_of ar E0 XH hx.1 (hx.2.2 rfl) et2 (hAs2 s2 (hf rfl)), hNv2'⟩
 
 end
 
@@ -217,7 +220,9 @@ variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {U : Set U64}
 half's premise `hFP : FastFaultPre` (facts at the states where
 `fastpath.fault` is entered) replaced by the ASID placement `AsidOff` [J] at
 the kernel entry state (m64 (d3'): `FastFaultPre.of_asid`; the handler cap
-typing and the receive buffer from Hyps4's `P3Place`). `StoreExt` [P] and the
+typing and the receive buffer from Hyps4's `P3Place`), plus (m67) m62's
+`FaultNvm` [J] at the fast-path entry states (`hNv : FaultNvmPre`, which
+m64's version lost when it replaced `FastFaultOK`). `StoreExt` [P] and the
 ReplyRecv half `FastRRP` [P] unchanged; `entry_of6` kept. -/
 theorem kernel_entry.entry_of7 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
@@ -225,6 +230,7 @@ theorem kernel_entry.entry_of7 {A : Type _} {ar : machine.Arch A} {Adm : PSets �
     (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hX : StoreExt st)
     (hAs : AsidOff (L := L) Ω Sg s)
+    (hNv : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → FaultNvmPre (L := L) ar s a number)
     (hRR : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
       FastRRP (st := st) ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
     (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
@@ -237,7 +243,7 @@ theorem kernel_entry.entry_of7 {A : Type _} {ar : machine.Arch A} {Adm : PSets �
       exact (G.gaps3 hA hσ C Pd Pt P.xfer).gaps hA P C
     exact (EntryHyps.of_gaps hA hσ (fun σ'' h'' => (GF σ'' h'').1) (GF _ hσ).1 G3).toEntryHyps0
   exact kernel_entry.entry_of6 hA GF hσ s a hP h hX
-    (fun number _ => FastFaultPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs) hRR
+    (fun number hN => FastFaultPre.of_asid ar hA E0 (GF _ hσ).1.xfer hP h hAs (hNv number hN)) hRR
 
 end
 
