@@ -1092,6 +1092,7 @@ import Fl4Proofs.P3.SpecInvRd8iA
 import Fl4Proofs.P3.SpecInvRd8iB
 import Fl4Proofs.P3.SpecInvRd8iC
 import Fl4Proofs.P3.SpecInvRd8iG
+import Fl4Proofs.P3.SpecInvRd8iD
 import Fl4Proofs.P3.SpecInvSlKA
 import Fl4Proofs.P3.SpecInvSlKB
 import Fl4Proofs.P3.SpecInvSlKG
