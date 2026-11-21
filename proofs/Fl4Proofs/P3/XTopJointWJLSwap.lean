@@ -142,15 +142,16 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
       exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
         (hTz.dh _ hc0)
   have hL' : LiveJ (L := L) Z.th H (renG G e) s' σ' := by
-    refine ⟨fun q i hqi hu => ?_, fun k hk => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
       fun y hy p' zt' n' hz' hzt => ?_⟩
     · rcases hU _ ⟨q, i, hqi, rfl⟩ hu with hu | hu
-      · obtain ⟨y, hy, hr⟩ := hL.slots q i hqi hu
-        exact ⟨e y, hmemG y hy, by rw [hsw_cap y (hmem y hy)]; exact hr⟩
+      · rcases hL.slots q i hqi hu with ⟨y, hy, hr⟩ | hb
+        · exact Or.inl ⟨e y, hmemG y hy, by rw [hsw_cap y (hmem y hy)]; exact hr⟩
+        · exact Or.inr (by rw [hdk.1]; exact hb)
       · obtain ⟨rfl, -⟩ := hatp q i hqi hu
-        exact ⟨q, hmd q hpS (by rw [hzp]; simp), by rw [hzp]; rfl⟩
-    · rw [hNt] at hk ⊢
-      obtain ⟨y, hy, hr⟩ := hL.dbg k hk
+        exact Or.inl ⟨q, hmd q hpS (by rw [hzp]; simp), by rw [hzp]; rfl⟩
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← hnk.idle]; exact hki)
       exact ⟨e y, hmemG y hy, by rw [hsw_cap y (hmem y hy)]; exact hr⟩
     · have hw : capV (L.mem s) (e y) = .Zombie p' zt' n' := by rw [← hcap' y hy]; exact hz'
       rcases hU _ ⟨p', i, hpi, rfl⟩ hu with hu | hu

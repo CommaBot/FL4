@@ -67,7 +67,8 @@ theorem jPreemptHypL (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
     have hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s :=
       ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩
     have hL' : LiveJ (L := L) Z.th H G s' σ' :=
-      hL.of_sameZ hSS hmem horig hK J.kern.cs0 hTz fun p hp => J'.jcov.dead p (Or.inr hp)
+      hL.of_sameZ hSS hmem horig (congrArg Prod.snd (Vs.gke_preemptionPoint' σ _ hm0)) hK J.kern.cs0 hTz
+        fun p hp => J'.jcov.dead p (Or.inr hp)
     exact ⟨⟨V, Ac', Lst', _, J', by rw [hks]; exact hkb, Vs.ake_preemptionPoint'.noSwitch hm0 hns,
       SpecGlob.pp hm0 hsg, hp'⟩, hL', ⟨lst, J.dbgWF_keep J' rfl rfl hDW hK⟩,
       hN.of_same (fun y hy => hSS.capV hy) horig⟩
@@ -98,7 +99,7 @@ theorem jPostDelHypL (hAM : ARMask arI AR)
     have hTz : P1.DbgTz st (P1.Heap.tcbs H) Cs s :=
       ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩
     have hL' : LiveJ (L := L) Z.th H G s' σ' :=
-      hL.of_sameZ hSS hmem horig hK J.kern.cs0 hTz fun p hp => J'.jcov.dead p (Or.inr hp)
+      hL.of_sameZ hSS hmem horig hO.idle hK J.kern.cs0 hTz fun p hp => J'.jcov.dead p (Or.inr hp)
     exact ⟨⟨V, Ac', Lst', _, J', by rw [hw.1]; exact hkb, fun u e => hns u (by rw [← hO.act]; exact e),
       hsg.of_eq hO.kh hO.inode hO.idle, hp0.of_ppk (PPK.of_ksStep hO)⟩, hL',
       ⟨lst, J.dbgWF_keep J' rfl rfl hDW hK⟩, hN.of_same (fun y hy => hSS.capV hy) horig⟩

@@ -30,6 +30,12 @@ open fl4_core Classical Fl4Proofs.P3.Vs Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4
 
 noncomputable section
 
+/-- The spec's idle thread kept by an outcome of a `GK` step (SpecGlobFK:
+every deletion step, `suspend`, `capInsert`, …). -/
+theorem gk_idle {α : Type} {m : Fl4Spec.NonDet (Fl4Spec.State Unit) α} (h : Vs.GK m)
+    {σ : Fl4Spec.State Unit} {x : α × Fl4Spec.State Unit} (hx : x ∈ (m σ).1) : x.2.idleThread = σ.idleThread :=
+  congrArg Prod.snd (h σ x hx)
+
 /-- A zombie alike a cap names the containers the cap names. -/
 theorem refsObj_of_alike {p zt n q : U64} {c : capability.Cap} (hal : CapAlike (.Zombie p zt n) c)
     (hr : RefsObj q c) : RefsObj q (.Zombie p zt n) := by
@@ -57,8 +63,9 @@ abbrev RzJ (H : P1.Heap) : S → A → Fl4Spec.State Unit → MdbGhost → U64 �
 docstring). -/
 def LiveOther (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : MdbGhost) (x : U64) : Prop :=
   (∀ q i, IsSlotAt th q i → slotOf q i ≠ x → InUse (L.mem s) σ (slotOf q i) →
-    ∃ y ∈ G.chains.flatten, y ≠ x ∧ RefsObj q (capV (L.mem s) y)) ∧
+    (∃ y ∈ G.chains.flatten, y ≠ x ∧ RefsObj q (capV (L.mem s) y)) ∨ KsSlot (L.ksb s) (slotOf q i)) ∧
   (∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ 0#u64 →
+    (dbgNth (L.mem s) n (dbgHead (L := L) s)).bv ≠ σ.idleThread →
     ∃ y ∈ G.chains.flatten, y ≠ x ∧ capV (L.mem s) y = .Thread (dbgNth (L.mem s) n (dbgHead (L := L) s)))
 
 variable {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
@@ -155,15 +162,17 @@ theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z
       exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
         (hTz.dh _ hc0)
   have hL' : LiveJ (L := L) Z.th H G s' σ' := by
-    refine ⟨fun q i hqi hu => ?_, fun k hk => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
       fun y hy p' zt' n' hz' hzt => ?_⟩
-    · obtain ⟨y, hy, hr⟩ := hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hu)
-      refine ⟨y, hy, ?_⟩
+    · rcases hL.slots q i hqi (hU _ ⟨q, i, hqi, rfl⟩ hu) with ⟨y, hy, hr⟩ | hb
+      rotate_left
+      · exact Or.inr (by rw [hdk.1]; exact hb)
+      refine Or.inl ⟨y, hy, ?_⟩
       by_cases e : y = cslotAddr sl
       · subst e; rw [hz]; exact refsObj_of_alike hal hr
       · rw [hoth y (hmem y hy) e]; exact hr
-    · rw [hNt] at hk ⊢
-      obtain ⟨y, hy, hr⟩ := hL.dbg k hk
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← gk_idle (Vs.gk_setCap _ _) (mem_of_single hsc)]; exact hki)
       refine ⟨y, hy, ?_⟩
       by_cases e : y = cslotAddr sl
       · subst e; exact absurd rfl ((hRz _ hr).2 k)

@@ -83,7 +83,7 @@ theorem LiveDN.of_keep {s : S} {a : A} {σ : Fl4Spec.State Unit}
       L.mem s' (P1.stA y) = L.mem s (P1.stA y) ∧ L.mem s' (P1.scA y) = L.mem s (P1.scA y) ∧
       L.mem s' (P1.boundA y) = L.mem s (P1.boundA y) ∧ L.mem s' (P1.yieldA y) = L.mem s (P1.yieldA y))
     (hact : L.actionW s' = L.actionW s) (hidle : L.idleW s' = L.idleW s)
-    (horig : σ'.isOriginalCap = σ.isOriginalCap) :
+    (horig : σ'.isOriginalCap = σ.isOriginalCap) (hid : σ'.idleThread = σ.idleThread) :
     LiveDN (L := L) Z.th H Cs Z.G s' σ' := by
   obtain ⟨hLJ, ⟨lst, hDW⟩, hN⟩ := hL
   have hmem : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((J.xtop.rel.2.1.2.2.1.members y).1 hy).1
@@ -103,7 +103,7 @@ theorem LiveDN.of_keep {s : S} {a : A} {σ : Fl4Spec.State Unit}
     refine ⟨fun _ => ⟨e2.trans d1, e3.trans d2, e4.trans d3, hact ▸ d4, hidle ▸ d5, e5.trans d6⟩,
       fun h => ?_, fun h => ?_, fun h => ?_, fun z h => ?_⟩
     all_goals (rw [hHp] at h; cases h)
-  exact ⟨hLJ.of_sameZ hSS hmem horig hK J.kern.cs0 hTz hdead,
+  exact ⟨hLJ.of_sameZ hSS hmem horig hid hK J.kern.cs0 hTz hdead,
     ⟨lst, hDW.of_keep hK fun y hy => (hT y hy).1⟩, hN.of_same (fun y hy => hSS.capV hy) horig⟩
 
 /-- **A passing `budget_ok` writes `CUR_TIME` and `CONSUMED` only** (module
@@ -244,7 +244,7 @@ theorem liveDN_front (hnd : Fl4Spec.numDomains = 1) {s : S} {a : A} {σ : Fl4Spe
     hnode _ (by rw [h16]; omega) (by rw [h16]) (by rw [h16]; omega) (by rw [h16]; omega)
   have hidle : L.idleW s' = L.idleW s :=
     hnode _ (by rw [h8]; omega) (by rw [h8]) (by rw [h8]; omega) (by rw [h8]; omega)
-  exact LiveDN.of_keep J hL hSS hK hT hact hidle horig
+  exact LiveDN.of_keep J hL hSS hK hT hact hidle horig (BudgetAt.shape27 hnd hk hBA).2.2.2.2.1
 
 end
 

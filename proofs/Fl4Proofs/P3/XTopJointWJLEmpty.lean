@@ -106,15 +106,17 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
       exact dbgNth_keep (fun y hy => hdk.2 _ (Or.inl ⟨y, hy, Or.inl rfl⟩)) (fun y hy => hTz.dn y hy) k _
         (hTz.dh _ hc0)
   have hL' : LiveJ (L := L) Z.th H G' s' σ' := by
-    refine ⟨fun q i hqi hu => ?_, fun k hk => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
+    refine ⟨fun q i hqi hu => ?_, fun k hk hki => ?_, fun y hy p' zt' n' hz' i hpi hni hu => ?_,
       fun y hy p' zt' n' hz' hzt => ?_⟩
     · obtain ⟨hne, hu⟩ := hU _ ⟨q, i, hqi, rfl⟩ hu
-      obtain ⟨y, hy, hyx, hr⟩ := hLO.1 q i hqi hne hu
+      rcases hLO.1 q i hqi hne hu with ⟨y, hy, hyx, hr⟩ | hb
+      rotate_left
+      · exact Or.inr (by rw [hdk.1]; exact hb)
       have hn : capV (L.mem s) y ≠ .Null := fun h => by rw [h] at hr; exact hr
       obtain ⟨hy', e⟩ := hkeep y hy hyx hn
-      exact ⟨y, hy', by rw [e]; exact hr⟩
-    · rw [hNt] at hk ⊢
-      obtain ⟨y, hy, hyx, hr⟩ := hLO.2 k hk
+      exact Or.inl ⟨y, hy', by rw [e]; exact hr⟩
+    · rw [hNt] at hk hki ⊢
+      obtain ⟨y, hy, hyx, hr⟩ := hLO.2 k hk (by rw [← hnk.idle]; exact hki)
       obtain ⟨hy', e⟩ := hkeep y hy hyx (by rw [hr]; simp)
       exact ⟨y, hy', by rw [e]; exact hr⟩
     · have hyx : y ≠ x := fun h => by rw [h, hx0] at hz'; cases hz'

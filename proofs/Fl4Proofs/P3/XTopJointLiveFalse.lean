@@ -1,34 +1,43 @@
 /-
-P3 (DESIGN.md §9), invariant line G2 (KENTRY-PLAN g2d): **`LiveDN` is false
-in reachable states** (FINDING). XTopJointWJLRestart's `LiveDN` (`LiveJ` ∧
-`DbgWF` ∧ `NullOrig`), the premise `hLv` of `kernel_entryJ33` [J], is
-refuted at a `JAtZ` state with `SpecGlob` (l4v `valid_global_refs`, carried
-by SInvB) by two situations every FL4 system reaches:
+P3 (DESIGN.md §9), invariant line G2 (KENTRY-PLAN g2d, g2e): **the two
+exemptions of `LiveJ`** and the corrected boot obligation of `LiveDN`.
 
-* `liveDN_idle_off`: `LiveJ.dbg` names every TCB on core 0's debug list by a
-  thread cap of the MDB; no cap names the idle thread (`SpecGlob.idle`); so
-  under `LiveDN` the idle thread is not on core 0's debug list. FL4's boot
-  puts it there and nothing takes it off: `boot.rs` `init_core_state`
-  appends every core's idle thread to that core's debug list when
-  `fl4_abi::config::DEBUG_BUILD` (`true`, Fl4Core/Funs.lean), core 0's idle
-  thread has affinity 0 (`create_idle_thread`); `debug_remove` runs only in a
-  thread cap's finalisation and in `migrate_tcb`, neither reaches the idle
-  thread (no cap names it; it has no SC to rebind). l4v's
-  `if_live_then_nonz_cap` exempts the idle thread (it is not `live`).
-* `liveDN_irqNode_free`: `LiveJ.slots` names the container of every slot in
-  use by a CNode / thread / zombie cap of the MDB; each IRQ node slot is a
-  radix-0 CNode of the typed heap (`IntLayout.node`) that no such cap names
-  (`SpecGlob.ref` with `IrqRel.node`); so under `LiveDN` every IRQ node slot
-  is unused (null cap, original bit clear). The IRQHandler `SetIRQHandler`
-  invocation (`interrupt.rs` `decode_irq_handler`: `cdt::insert` of the
-  notification cap into `irq_slot`; spec `invokeIRQHandler`'s `capInsert`)
-  makes the slot non-null, so every state after a successful
-  `SetIRQHandler` breaks `LiveDN`. l4v's `if_unsafe_then_cap` covers an IRQ
-  node slot by the IRQ handler cap (`cte_refs (IRQHandlerCap irq)`,
-  `appropriate_cte_cap` of a notification cap).
+KENTRY-PLAN g2d found `LiveDN` (`LiveJ` ∧ `DbgWF` ∧ `NullOrig`, the premise
+`hLv` of `kernel_entryJ33` [J]) false in every FL4 state reachable from boot,
+in two situations:
+* the idle thread is on core 0's debug list since boot (`boot.rs`
+  `init_core_state` appends every core's idle thread when
+  `fl4_abi::config::DEBUG_BUILD`), and no cap names it (`SpecGlob.idle`);
+* an IRQ node slot holds a notification cap after `SetIRQHandler`
+  (`interrupt.rs` `decode_irq_handler`, spec `invokeIRQHandler`'s
+  `capInsert`), and no cap names the radix-0 CNode it lies in
+  (`SpecGlob.ref`).
 
-So `LiveDN` needs two exemptions before it can be carried (KENTRY-PLAN g2d):
-the idle thread in `dbg`, the IRQ node CNodes in `slots`.
+g2e re-scoped `LiveJ` (XTopJointLive) as l4v does: `if_live_then_nonz_cap`
+exempts the idle thread (`dbg` asks a thread cap only for a debug-listed TCB
+other than the spec's idle thread), and an IRQ node slot is covered by the
+kernel's IRQ state, not by a cap (`slots` also accepts a slot inside the
+kernel-state block, `KsSlot`). This module checks that the refutations no
+longer apply:
+
+* `liveJ_dbg_idle`: at a `JAtZ` state, `LiveJ.dbg` asks nothing of a debug-list
+  entry that is the idle word (its premise is false, `JAtZ.idleThread_bv`):
+  core 0's idle thread may sit on the list.
+* `irqNode_ksSlot`: every IRQ node slot lies in the kernel-state block, so
+  `LiveJ.slots` holds there without a cap: the slot may hold a cap.
+* `LiveJ.of_l4v`: `LiveJ` from l4v-shaped facts that say nothing about the
+  idle thread nor about the IRQ node slots (a cap for each other slot in use,
+  a thread cap for each other debug-listed TCB, the zombie facts). So `LiveJ`
+  holds at states with the idle thread on the debug list and any IRQ node
+  slots in use, as long as the rest is covered.
+* `LiveBootW` / `liveDN_of_boot`: the corrected boot obligation [W] (for G4's
+  `BootJ`, replacing g2c (4)): every slot in use outside the IRQ node has an
+  MDB cap naming its container (at FL4's boot: the root CNode and the root
+  TCB, named by the root caps; the IRQ node slots null as boot sets no
+  handler, but they need no cover either way), every debug-listed TCB other
+  than the idle thread is named by a thread cap (the root TCB), the zombie
+  facts (no zombie at boot), `DbgWF` (the idle threads and the root TCB on
+  their cores' lists) and `NullOrig`.
 -/
 import Fl4Proofs.P3.XTopJointWJLRestart
 open Aeneas Aeneas.Std Result
@@ -43,62 +52,77 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {a
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64}
 
-/-- **Under `LiveDN` the idle thread is off core 0's debug list** (module
-docstring). -/
-theorem liveDN_idle_off {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hsg : SpecGlob σ)
-    (hL : LiveDN (L := L) Z.th H Cs Z.G s σ) (h0 : L.idleW s ≠ 0#u64) (n : Nat) :
-    dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ L.idleW s := by
-  intro e
-  obtain ⟨y, hy, hc⟩ := hL.1.dbg n (by rw [e]; exact h0)
-  rw [e] at hc
-  have hys : IsSlot Z.th y := ((J.xtop.rel.2.1.2.2.1.members y).1 hy).1
-  obtain ⟨sl, hA, rfl⟩ := hys.abs
-  obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := J.dstate.1.1.abs_cap hA
-  rw [capAt_capV, hc] at hc0; cases eq_of_ok_eq hc0
-  rw [hca0.abs] at hg0
-  have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
-  apply hsg.idle sl.1 sl.2 _ ha0 (by simp [IsPageCap, absCap])
-  rw [JAtZ.idleThread_eq arI J]; simp [absCap, Fl4Spec.objRefs]
+/-- **`LiveJ.dbg` asks nothing of the idle thread** (module docstring): at a
+`JAtZ` state, a debug-list entry equal to the idle word fails `dbg`'s
+premise. -/
+theorem liveJ_dbg_idle {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (n : Nat)
+    (e : dbgNth (L.mem s) n (dbgHead (L := L) s) = L.idleW s) :
+    ¬ (dbgNth (L.mem s) n (dbgHead (L := L) s)).bv ≠ σ.idleThread := by
+  rw [e, J.idleThread_bv]; exact fun h => h rfl
 
-/-- **Under `LiveDN` every IRQ node slot is unused** (module docstring). -/
-theorem liveDN_irqNode_free {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hsg : SpecGlob σ)
-    (hL : LiveDN (L := L) Z.th H Cs Z.G s σ) (i : U64) (hi : i.val < 128) :
-    ¬ InUse (L.mem s) σ (slotOf (nodeA (L.ksb s) i) 0) := by
-  intro hu
+/-- **Every IRQ node slot lies in the kernel-state block** (module
+docstring): `LiveJ.slots` holds there with no cap. -/
+theorem irqNode_ksSlot {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (i : U64) (hi : i.val < 128) :
+    IsSlotAt Z.th (nodeA (L.ksb s) i) 0 ∧ KsSlot (L.ksb s) (slotOf (nodeA (L.ksb s) i) 0) := by
   have hIS : IsSlotAt Z.th (nodeA (L.ksb s) i) 0 := Or.inl ⟨0, J.intL.node i hi, by norm_num⟩
-  obtain ⟨y, hy, hr⟩ := hL.1.slots _ 0 hIS hu
-  have hys : IsSlot Z.th y := ((J.xtop.rel.2.1.2.2.1.members y).1 hy).1
-  obtain ⟨sl, hA, rfl⟩ := hys.abs
-  obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := J.dstate.1.1.abs_cap hA
-  rw [capAt_capV] at hc0; cases eq_of_ok_eq hc0
-  rw [hca0.abs] at hg0
-  have ha0 := (getCap_set_iff σ sl.1 sl.2 _).1 (congrArg Prod.fst hg0)
-  have hnode : σ.interruptIrqNode (BitVec.ofNat 8 i.val) = (nodeA (L.ksb s) i).bv :=
-    J.xtop.fin.1.1.2.2.2.1.node i hi
-  have key : ∀ c : capability.Cap, RefsObj (nodeA (L.ksb s) i) c →
-      (nodeA (L.ksb s) i).bv ∈ Fl4Spec.objRefs (absCap c) ∧ ¬ IsPageCap (absCap c) := by
-    intro c hc
-    cases c <;> simp only [RefsObj] at hc <;> subst hc <;> simp [absCap, Fl4Spec.objRefs, IsPageCap]
-  obtain ⟨hin, hnp⟩ := key _ hr
-  exact hsg.ref sl.1 sl.2 _ ha0 hnp (BitVec.ofNat 8 i.val) (by rw [hnode]; exact hin)
+  refine ⟨hIS, ?_⟩
+  have hv := hIS.val J.xtop.rel.1
+  have hn := nodeA_val J.intL.fit hi
+  show (L.ksb s).val ≤ (slotOf (nodeA (L.ksb s) i) 0).val ∧
+    (slotOf (nodeA (L.ksb s) i) 0).val < (L.ksb s).val + 13568
+  omega
 
-/-- **`LiveDN` refuted by a set IRQ handler**: an IRQ node slot holding a cap
-(what `SetIRQHandler` leaves) contradicts `LiveDN` (module docstring). -/
-theorem not_liveDN_of_irqNode {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hsg : SpecGlob σ) (i : U64) (hi : i.val < 128)
-    (hc : capV (L.mem s) (slotOf (nodeA (L.ksb s) i) 0) ≠ .Null) :
-    ¬ LiveDN (L := L) Z.th H Cs Z.G s σ :=
-  fun hL => liveDN_irqNode_free J hsg hL i hi (Or.inl hc)
+/-- **`LiveJ` from l4v-shaped facts** (module docstring): the IRQ node slots
+and the idle thread need no cover. -/
+theorem LiveJ.of_l4v {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    (hs : ∀ q i, IsSlotAt Z.th q i → InUse (L.mem s) σ (slotOf q i) →
+      (∀ j : U64, j.val < 128 → q ≠ nodeA (L.ksb s) j) →
+      ∃ y ∈ Z.G.chains.flatten, RefsObj q (capV (L.mem s) y))
+    (hd : ∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ 0#u64 →
+      dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ L.idleW s →
+      ∃ y ∈ Z.G.chains.flatten, capV (L.mem s) y = .Thread (dbgNth (L.mem s) n (dbgHead (L := L) s)))
+    (hz : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n →
+      ∀ i, IsSlotAt Z.th p i → n.val ≤ i → ¬ InUse (L.mem s) σ (slotOf p i))
+    (hzd : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n → zt.val = 65 →
+      DeadP (L := L) H s p) :
+    LiveJ (L := L) Z.th H Z.G s σ := by
+  refine ⟨fun q i hqi hu => ?_, fun n hn hni => hd n hn fun e => hni (by rw [e, J.idleThread_bv]), hz, hzd⟩
+  by_cases hq : ∃ j : U64, j.val < 128 ∧ q = nodeA (L.ksb s) j
+  · obtain ⟨j, hj, rfl⟩ := hq
+    have hP := J.xtop.rel.1
+    have h0 : i = 0 := by
+      rcases hqi with ⟨r, hr, hlt⟩ | ⟨ht, -⟩
+      · rw [J.intL.node j hj] at hr; cases hr; simpa using hlt
+      · rw [J.intL.node j hj] at ht; cases ht
+    subst h0
+    exact Or.inr (irqNode_ksSlot J j hj).2
+  · exact Or.inl (hs q i hqi hu fun j hj e => hq ⟨j, hj, e⟩)
 
-/-- **`LiveDN` refuted by the idle thread on core 0's debug list** (what FL4's
-boot leaves; module docstring). -/
-theorem not_liveDN_of_idle {s : S} {a : A} {σ : Fl4Spec.State Unit}
-    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hsg : SpecGlob σ) (h0 : L.idleW s ≠ 0#u64)
-    (hd : ∃ n, dbgNth (L.mem s) n (dbgHead (L := L) s) = L.idleW s) :
-    ¬ LiveDN (L := L) Z.th H Cs Z.G s σ :=
-  fun hL => let ⟨n, hn⟩ := hd; liveDN_idle_off J hsg hL h0 n hn
+/-- **The corrected boot obligation of `LiveDN`** [W] (G4's `BootJ`; module
+docstring; replaces KENTRY-PLAN g2c (4)): the inputs of `LiveJ.of_l4v`, the
+debug lists well formed and no null slot original. -/
+structure LiveBootW (s : S) (σ : Fl4Spec.State Unit) : Prop where
+  slots : ∀ q i, IsSlotAt Z.th q i → InUse (L.mem s) σ (slotOf q i) →
+    (∀ j : U64, j.val < 128 → q ≠ nodeA (L.ksb s) j) →
+    ∃ y ∈ Z.G.chains.flatten, RefsObj q (capV (L.mem s) y)
+  dbg : ∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ 0#u64 →
+    dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ L.idleW s →
+    ∃ y ∈ Z.G.chains.flatten, capV (L.mem s) y = .Thread (dbgNth (L.mem s) n (dbgHead (L := L) s))
+  zslots : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n →
+    ∀ i, IsSlotAt Z.th p i → n.val ≤ i → ¬ InUse (L.mem s) σ (slotOf p i)
+  zdead : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s) y = .Zombie p zt n → zt.val = 65 →
+    DeadP (L := L) H s p
+  dwf : DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s)
+  norig : NullOrig Z.th (L.mem s) σ
+
+/-- **`LiveDN` from the boot obligation** (module docstring). -/
+theorem liveDN_of_boot {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (h : LiveBootW (L := L) (Z := Z) (H := H) (Cs := Cs) s σ) :
+    LiveDN (L := L) Z.th H Cs Z.G s σ :=
+  ⟨LiveJ.of_l4v J h.slots h.dbg h.zslots h.zdead, h.dwf, h.norig⟩
 
 end
 
