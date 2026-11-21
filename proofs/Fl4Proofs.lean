@@ -1196,3 +1196,7 @@ import Fl4Proofs.P3.XTopJointKEntry30C
 import Fl4Proofs.P3.SpecInvAllR
 import Fl4Proofs.P3.XTopJointKEntry30D
 import Fl4Proofs.P3.XTopJointKEntry31
+import Fl4Proofs.P3.SpecInvRd8mA
+import Fl4Proofs.P3.SpecInvRd8mB
+import Fl4Proofs.P3.SpecInvRd8mC
+import Fl4Proofs.P3.SpecInvRd8mD
