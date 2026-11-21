@@ -1117,3 +1117,4 @@ import Fl4Proofs.P3.SpecInvCqM1
 import Fl4Proofs.P3.SpecInvCqM2
 import Fl4Proofs.P3.SpecInvCqM3
 import Fl4Proofs.P3.SpecInvCqM4
+import Fl4Proofs.P3.SpecInvCqM5
