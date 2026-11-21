@@ -7877,3 +7877,61 @@ C4 broken; the resumed agent fixed C4 and added C5.)
   eb_perfCnode, eb_perfIrqHandler, eb_perfEndpoint, eb_perfNtfn, eb_perfReply, eb_perfTcbCaps, sa_setPriority,
   rb_setPriority_p, eb_setPriority_t, sa_setDomain, rb_setDomain, eb_invokeDomain, eb_perfDomain: propext, Classical.choice,
   Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (five import lines).
+
+## ctq11 (branch par/ctq11 in FL4-q, on 9b537d6d = int/j2 incl. ctq10, g1c, rd6, epq1) — ctq10 handoff 1 DONE (`RT` carried across the event); item 5 bridge (`bc_of_ck`); NOT finished: item 5 carry (CK at preemption outcomes), item 4b (deletion cone)
+Resumed after a station restart (the first agent's uncommitted SpecInvCqG / GF1-5 / GU and generator kept; one fix). Spec-only,
+namespace `Fl4Proofs.P3.SInvQ.R11`, modules SpecInvCqG, GF1..GF5 (generated), GU, GP, GS, GB; root imports GU/GP/GS/GB. Nothing
+existing edited.
+- **`RT s := action = resume_cur_thread → ∃ x, kheap ct = tcb x ∧ x's SC ≠ none`** (ctq10's `ResSc` plus "ct is a TCB", which
+  the retype needs; `resSc_of_rt`). SpecInvCqG: leaves (`rt_setObject_p` via the `aType` assert, `rt_setTcb_keep`,
+  `rt_threadSet` for SC-keeping / SC-setting updates, `rt_threadSet_ac` for a thread not current under resume, setSimpleKo,
+  setCap, asUser, setMrs, `rt_setSchedulerAction a ≠ resume`), `KC A C` / `AC t` frames, `cn_rescheduleRequired`,
+  `cn_testReschedule`, `rt_auto`.
+- **SpecInvCqGF1-5** (scratch/rt/mkrt.sh = ctq4's gen.py, skip = primitives, the schedule cone, the untyped / ASID-control /
+  perform / top chain; `fl4Awaken` (FL4's timer relation, exit cone only) dropped after the split): one lemma per spec
+  function; hand lemmas (scratch/rt/manual.py) **`rt_schedContextUnbindTcb`** (reschedule before the strip),
+  **`rt_schedContextDonate`** (donor current ⇒ test_reschedule leaves choose_new), **`rt_maybeReturnSc`** (reschedules after).
+- **SpecInvCqGU**: `rt_detype` (ct's TCB has an SC ⇒ `liveO` ⇒ outside a childless untyped's region, sl4's `noLive_reg`),
+  `rt_retypeRegionWith_p` (targets hold no object, ct's does), `rt_resetUntypedCap`, `rt_utBody`, **`rt_invokeUntyped`**,
+  **`rt_makePool`** (sl4's `sln_invokeUntyped` / `sln_makePool` hypotheses; ut1's `utRet_fresh(_after_reset)`).
+- **SpecInvCqGP `rt_fl4PerformInvocation I N K L d t bl call don inv σ (hR : RT σ) (hσ : SPF I K L d t N σ) (hI1 : IrqOutV
+  (fun _ => I.1) (uV σ)) (hD : DecodedFrom (uV σ) inv)`**: exactly slGap's facts; untyped / MakePool from GU (ut8's
+  `okv_fl4DecodeG` → `GapOKN`), every other arm generated.
+- **SpecInvCqGS**: `JR I ct d N σe := Js I ct d N σe ∧ RT` (sl3's shell invariant, carried only for the perform's facts; any
+  pin `d`; `jr_auto`). **`rt_fl4HandleInvocationR (hE : EF N σe) (hI2 : I.2 = σe.idleSc) (hI1 : IrqOutV (fun _ => I.1) (uV σe))
+  … : HKE (JR I ct d N σe) RT (fl4HandleInvocationR rep calling blocking don fp cptr)`** (decode's `DecodedFrom` as in
+  sl_fl4HandleInvocationR, `spf_of` after `js_sts`), **`rt_fl4HandleSyscall`**, **`rt_fl4HandleEvent`** (all events),
+  **`rt_event`** (the event and `handleE … preemption_path`), **`rt_of_curScT (hX : CtExit σ) (hC : CurScT σ) : RT σ`**.
+  USE (shell writers): ReplyRecv / NBSendRecv / NBSendWait: `rt_fl4HandleInvocationR` at the send phase's end, then
+  `resSc_of_rt` → ctq10's `eb_handleRecv_res`. JR at the event start: sl3's Js (as sl_fl4HandleEvent_sys) and rt_of_curScT.
+- **SpecInvCqGB (item 5 bridge)**: **`CK s := ∀ x, kheap ct = tcb x → SC = none ∨ SC = some cur_sc`**, `ck_of_curScT`,
+  `schedulable_sc`, **`bc_of_ck (hK : CK σ) (hS : ScBackS σ) (hs : schedulable ct σ) : BC σ`** = ctq8's `hB` for
+  `ebx_preemptionPath_p`.
+- HANDOFF (in order):
+  1. Carry `CK` to every ERROR outcome of `fl4HandleEvent` (the preemption state). CK is NOT stepwise across the event
+     (threadControlSched's final `sched_context_bind_tcb`, NBSendRecv's receive `maybe_donate_sc ct`, SC Bind of ct), but
+     every error outcome comes from a preemption point inside a perform, and the binding writers sit after the last
+     preemption point of their perform (threadControlSched: `installTcbCap` first, bind last) or in non-preemptible
+     (liftE) arms/phases. Plan: (a) a CK frame family over the deletion cone + reset + installTcbCap (SC writers there:
+     unbind → none; reply_remove's `sched_context_donate sc caller` with caller BlockedOnReply ≠ ct, ct being Restart at
+     the perform — carry "ct not BlockedOnReply" beside CK; `cur_sc` unwritten in that cone, check with a grep of curSc
+     writers); (b) per perform arm "every error outcome has CK" (liftE arms never error; CNode / untyped / TCB-caps arms
+     from (a)); (c) CK at the perform from CurScT (front: cs_auto, check_budget_restart true on the unchanged state;
+     decode reads; Restart write keeps the SC field); (d) ScBackS at the error outcome from sb2's sb_handleInvocationR
+     (check that it states all outcomes). Then `ebx_preemptionPath_p (bc_of_ck …)`.
+  2. Item 4b unchanged: tq / sa / rb have NO lemmas for recDel / capRevoke / cancelAllIpc / finaliseCap (only q4 / nq do):
+     a joint `EB k ∧ NQ [ct]` walk over rec_del's `ik_lfp` (pattern: manual.py's recDelF / capRevokeF), woken members ≠ ct
+     via NQ [ct], CopyRegisters src = dst = ct → EB false.
+  3. ctq10 handoff 2-3 (invokeReply arm, other performs — ctq12 —, shell, tops).
+- Premises: none added (no [J]/[P]/[W]/[S]); RT's untyped facts are sl4's carried ones (SPF, IrqOutV, DecodedFrom), the event
+  start's CtExit / CurScT are carried exit facts. No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-q mirror warm; ./ctq11.sh untracked = ctq10.sh with filter SpecInvCqG, ax11.lean): first agent's
+  ctq11-b1 (G: two errors, fixed), b2 (G + GF1 ok), b3 (GF2-4 ok, GF5: `fl4Awaken` leaf unprovable by rt_auto — dropped);
+  resumed: ctq11-r-1 GF5 (63 s) + GU, r-2 GP (4.7 s), r-3 GS (5264 jobs), r-4 axioms, r-5 GB (7.2 s) + axioms. Axioms
+  (ax11.lean): rt_schedContextUnbindTcb, rt_schedContextDonate, rt_maybeReturnSc, rt_invokeUntyped, rt_makePool,
+  rt_fl4PerformInvocation, rt_fl4HandleInvocationR, rt_fl4HandleSyscall, rt_fl4HandleEvent, rt_event, schedulable_sc,
+  bc_of_ck: propext, Classical.choice, Quot.sound; rt_of_curScT: propext; resSc_of_rt, ck_of_curScT: none. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (four import lines).
+- Lean trap (new): a generated leaf for an opaque relation-defined monad (`fl4Awaken := fun σ => ({p | fl4TimerFires σ p.2},
+  False)`) leaves `RTK fun σ => …` unsolved; if only skipped callers use it, drop it after the split (keeps the other
+  generated files byte-identical) rather than regenerating.

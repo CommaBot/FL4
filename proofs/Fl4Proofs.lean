@@ -1088,3 +1088,4 @@ import Fl4Proofs.P3.SpecInvCqC5
 import Fl4Proofs.P3.SpecInvCqGU
 import Fl4Proofs.P3.SpecInvCqGP
 import Fl4Proofs.P3.SpecInvCqGS
+import Fl4Proofs.P3.SpecInvCqGB
