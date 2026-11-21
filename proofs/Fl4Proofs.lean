@@ -1145,3 +1145,5 @@ import Fl4Proofs.P3.SpecInvCqP2
 import Fl4Proofs.P3.SpecInvCqP3
 import Fl4Proofs.P3.SpecInvAllQ
 import Fl4Proofs.P3.XTopJointKEntry30C
+import Fl4Proofs.P3.SpecInvAllR
+import Fl4Proofs.P3.XTopJointKEntry30D
