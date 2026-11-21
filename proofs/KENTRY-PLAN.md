@@ -14206,3 +14206,41 @@ existential in the outcome; never ∀ states.
 - `JDecMRL2` [W], Untyped: the non-reset retype by `XCapP.mr` (FL4 `untyped.decode` walk without the reset; spec
   `fl4InvokeUntyped` without `clearMemory`/`freeMemory` keeps `msFT`, needs leaves); the reset by mr4's
   `UtResetLoopJM` (loop invariant carries `MRV`), its tail re-run at `JAtM`.
+
+## m67 (branch par/m67 in FL4-m67, on 905d028a = int/j2, then merge of 1fbaebd7 (g4h)) — JOB 1 DONE: the full build of the integration branch green (m62's #57 hooks met m64's `FastFaultPre` and m65's `finish_rr`); two narrow [J] reads of the fast runs' end states carried, no top statement weakened but `entry_of7` / `entry_of7r` (P1) gain `hNv`; no FINDING. JOB 2 (m66's (R-a')) not started.
+- **Failures and fixes** (all P1; nothing else failed once these built: the m66 / g4g / g4h / v2 modules built unchanged).
+  * `FastFinInv.lean:949/964` (`FastFaultOK.of_pre`): m62's `UsfOK` asks `FaultOK ∧ FaultNvm` [J]; m64's `FastFaultPre`
+    only gave `FaultEntAt`. Each `FastFaultPre` conjunct is now `FaultEntAt … s2 t2 ∧ FaultNvm ar s2 a2 t2 (hcast n)`
+    (asked at the one state where `fastpath.fault` is entered, as m62 did); `of_pre` pairs `faultOK_of` with it.
+  * `FastRRSync.lean:403` (`finish_rr`, m65): `syscall.finish` now ends with `vcpu.check`. `finish_rr` goes through
+    `finish_old` and `finish_ok_of_old`, with a new hypothesis `hnv` (the run's end thread not `TS_RUNNING_VM`);
+    `rr_same` takes it from a new `RRReads` field **`nvm`** (`∀ s' a', fastpath.switch_to … X15 a2 u = ok (s', a') →
+    L.mem s' (stA (L.curW s')) ≠ TS_RUNNING_VM`), so `RRPre` / `RRPreAt` grow by one read; P3 `J33R` / `J34R` /
+    `FastAcc.of_rrpre` unchanged in statement.
+- **Why not derived** (the preferred route): the end state is past the fast path's tail (`switch_sched_context`, the
+  `REPROGRAM` branch with `set_next_interrupt`, `send_pending`, `activate_thread` with `complete_yield_to`). Its
+  footprint lemmas (`switch_sched_context.free`, `complete_yield_to.keepF`) need the P1 invariants (`BlkOK`, `SCq` /
+  `SCin`) at the fast run's intermediate states, which nothing establishes along the fast run (the general path's
+  invariants are proved for the general run only). Not cheap; left as reads like m60's `FaultOK` / m66's `RRReads`.
+- **Premises.** Added: `FaultNvmPre` [J] (FastFinInv; `FaultNvm` at both fault-path entry states, trap route and
+  out-of-range route) on P1 `FastFaultPre.of_asid` and the tops **`kernel_entry.entry_of7`** / **`entry_of7r`** as
+  `hNv : ∀ number ≠ SysVMEnter, FaultNvmPre ar s a number` (m64's version had lost m62's `FaultNvm`, which was inside
+  `FastFaultOK` at `entry_of5`; the obligation is m62's, restored, not new); `FastFaultPre` content grows by
+  `FaultNvm` (`entry_of6`'s `hFP`); `RRReads.nvm` [J] (inside `RRPreAt`). Removed / narrowed: none.
+- **Reachability.** `FaultNvm`: `fS14` writes the handler's state `TS_RUNNING`; `unblock_sporadic` writes the handler's
+  SC ring and `REPROGRAM` only (`unblock_sporadic_fr`); `fastFin` writes the handler's sched links, `CUR_THREAD` :=
+  handler, the action word; the tail writes SC / node / timer words and (`activate_thread`) `TS_RESTART` → `TS_RUNNING`,
+  never `TS_RUNNING_VM`, never `CUR_THREAD`. `RRReads.nvm`: `u` is made `TS_RESTART` at `X6`, no later write of the run
+  touches `u`'s state word (the writes after `X6` are `t`'s, the reply's, the endpoint's), `switch_to u` sets
+  `CUR_THREAD := u`, `activate_thread` makes it `TS_RUNNING`. True in every reachable accepted run.
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m67, keys m67-*, `.lake` seeded from FL4-audit; m67b.sh untracked).** b1: the lead's
+  error reproduced (FastFinInv:949/964). b2: FastFinInv OK, FastRRSync:403 (`finish_rr`). **b3 FastFinInv /
+  FastFaultEnt / FastRRSame green (3824 jobs)**, committed 9afae328; merge of 1fbaebd7 (g4h) = 3b38c61c. **full1
+  (full `lake build` of 3b38c61c): "Build completed successfully (7087 jobs)", 0 errors, 0 `declaration uses 'sorry'`.**
+- **Axioms** (scratch/axm67.lean, untracked, run by full1): kernel_entryJ34, kernel_entryJ33R, kernel_entryJ38,
+  kernel_entry_reachE3T, P1 kernel_entry.entry_of7r / entry_of7, FastFaultOK.of_pre, suspend_eq_old, finish_eq_old,
+  SInvR.G5.kernel_entryJ37E, Fl4Spec.fl4CallKernelV, kernel_entryJ39, kernel_entry_reachMD2: propext, Classical.choice,
+  Quot.sound (each).
+- HANDOFF: JOB 2 = m66's (R-a') (unchanged), plus `RRReads.nvm` and `FaultNvmPre` to be discharged together with a
+  fast-run invariant carry through `fastTail` (or by stating the tail's footprints without invariants).
