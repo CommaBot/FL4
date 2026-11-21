@@ -122,7 +122,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 /-- **`JEntryAt` without the fields `SInvB`, `hQ` and `OffReady` supply** (module
 docstring): `ni`, `ctnq`, `sg`, `rd0`, `vfh`, `cnf` removed; every other field as
 `JEntryAt`'s (same tags). -/
-structure JEntryAtR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
+structure JEntryAtR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
   /-- [P] `JEntryAt.stall`. -/
   stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [J] `JEntryAt.flags`. -/
@@ -140,8 +141,7 @@ structure JEntryAtR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : 
   /-- [J] `JEntryAt.vsTyp`. -/
   vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
   /-- [J] `JEntryAt.live`. -/
-  live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [J] `JEntryAt.fnz`. -/
   fnz : FrNZ Z.th (L.mem s)
   /-- [J] `JEntryAt.urz`. -/
@@ -151,14 +151,14 @@ structure JEntryAtR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : 
 
 variable {arI}
 
-theorem JEntryAtR.toAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (E : JEntryAtR (L := L) arI AR Z s ar σ) (ni : Entered σ) (ctnq : ∀ d q, σ.curThread ∉ σ.readyQueues d q)
+theorem JEntryAtR.toAt {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (E : JEntryAtR (L := L) arI AR Z H Cs s ar σ) (ni : Entered σ) (ctnq : ∀ d q, σ.curThread ∉ σ.readyQueues d q)
     (sg : SpecGlob σ)
     (rd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (vfh : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
     (cnf : ∀ x, σ.kheap σ.curThread = some (.tcb x) → x.tcbFault = none) :
-    JEntryAt (L := L) arI AR Z s ar σ where
+    JEntryAt (L := L) arI AR Z H Cs s ar σ where
   ni := ni
   ctnq := ctnq
   sg := sg
@@ -184,11 +184,11 @@ variable (arI)
 structure KDispHypsKV27 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     (MidRun.JPerfRegHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
       MidRun.JPerfIrqSlotHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ) ∧
@@ -241,7 +241,7 @@ theorem KDispHypsKV27.to26 (hnd : Fl4Spec.numDomains = 1) {σ σb : Fl4Spec.Stat
   have hsg : SpecGlob σb :=
     specGlob_disp (x' := setReg x .faultIP (x.tcbArch.tcbContext.userRegs .nextIP - 2)) hS.1.1.sg hk rfl ek' en ei
   have hq : ∀ d p, σb.curThread ∉ σb.readyQueues d p := by rw [ect, eq]; exact hQ
-  have hE : ∀ E : JEntryAtR (L := L) arI AR Z s a σb, JEntryAt (L := L) arI AR Z s a σb :=
+  have hE : ∀ E : JEntryAtR (L := L) arI AR Z H Cs s a σb, JEntryAt (L := L) arI AR Z H Cs s a σb :=
     fun E => E.toAt (hBA.enteredP hnd hni) hq hsg hOb.rd0 hvfh hcnf
   refine ⟨fun ct call bl don hct' hi => ?_, fun _ _ _ => ⟨hq, hvfh⟩, fun ct rg sr cr hct' hm => ?_⟩
   · obtain ⟨a1, a2, a3, a4⟩ := h.inv ct call bl don hct' hi

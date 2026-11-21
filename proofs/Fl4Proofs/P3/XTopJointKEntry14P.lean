@@ -62,13 +62,13 @@ structure KDispHypsK (K : capability.Cap → List U64 → Prop) (AR : A → Fl4S
     (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAt (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JPreDecHypK (L := L) arI K AR MR Z H Cs D s a σ ct
   recv : ∀ bl cr, RecvSys n bl cr → (∀ d p, σ.curThread ∉ σ.readyQueues d p) ∧
     (∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAt (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     MidRun.JMidPerfHypQ true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
     JMidVfhHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
@@ -84,7 +84,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 at each dispatch state. -/
 theorem KDispHypsK.to {K K' : capability.Cap → List U64 → Prop} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     {n : I64} {c : Fl4Spec.Syscall} (hK : KDispHypsK (L := L) arI K AR MR Z H Cs D s a σ n c)
-    (hc : ∀ ct, sched.cur_thread st s = ok ct → JEntryGlobM (L := L) arI AR Z.th → JEntryAt (L := L) arI AR Z s a σ →
+    (hc : ∀ ct, sched.cur_thread st s = ok ct → JEntryGlobM (L := L) arI AR Z.th → JEntryAt (L := L) arI AR Z H Cs s a σ →
       JPreDecHypK (L := L) arI K AR MR Z H Cs D s a σ ct → JPreDecHypK (L := L) arI K' AR MR Z H Cs D s a σ ct) :
     KDispHypsK (L := L) arI K' AR MR Z H Cs D s a σ n c where
   inv ct call bl don hct hi := by
@@ -105,7 +105,7 @@ set_option maxHeartbeats 4000000 in
 /-- **`JPreDecHyp` without the Untyped invocation** (module docstring). -/
 theorem jPreDecHyp_of14 [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ) (hM : MachPlat arI MR)
+    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hPD : JPreDecHypK (L := L) arI PreKind14 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypK (L := L) arI (fun c _ => NoPreKind c → False) AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hK excaps buffer

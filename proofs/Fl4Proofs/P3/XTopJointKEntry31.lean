@@ -61,11 +61,11 @@ structure JEntryGlobM31 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pro
 structure KDispHypsKV31 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM31 (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
 

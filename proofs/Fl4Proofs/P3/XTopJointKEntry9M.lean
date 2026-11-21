@@ -97,7 +97,7 @@ theorem jMidRecvHyp_of (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs = c
 `JEntryAt.ctnq`). -/
 theorem JAtZ.midCQ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
-    (hE : JEntryAt (L := L) arI AR Z s a σ) : MidRun.CQ σ.curThread σ ∧ MidRun.NQ σ.curThread σ := by
+    (hE : JEntryAt (L := L) arI AR Z H Cs s a σ) : MidRun.CQ σ.curThread σ ∧ MidRun.NQ σ.curThread σ := by
   have hME := J.midEntry hni hE.cnf
   exact ⟨⟨⟨rfl, fun x hx => ⟨hME.run x hx, hME.nf x hx⟩⟩, hE.ctnq, by rw [hni.2]; intro e; cases e⟩, hME.nq⟩
 
@@ -110,12 +110,12 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 structure KDispHyps9M (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A)
     (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlob (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z s a σ ∧
+    JEntryGlob (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAt (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP))
   recv : ∀ bl cr, RecvSys n bl cr → (∀ d p, σ.curThread ∉ σ.readyQueues d p) ∧
     (∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlob (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z s a σ ∧
+    JEntryGlob (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAt (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     MidRun.JMidPerfHypQ true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
     JMidVfhHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧

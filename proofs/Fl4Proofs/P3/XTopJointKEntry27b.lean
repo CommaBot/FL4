@@ -156,7 +156,8 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (a
 
 /-- **`JEntryAtR` without `epQ`** (module docstring); every other field as
 `JEntryAt`'s (same tags). -/
-structure JEntryAtR2 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
+structure JEntryAtR2 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
   /-- [P] `JEntryAt.stall`. -/
   stall : ∀ q, smp.remote_tcb_stall st arI s ar q = ok (s, ar)
   /-- [J] `JEntryAt.flags`. -/
@@ -172,8 +173,7 @@ structure JEntryAtR2 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
   /-- [J] `JEntryAt.vsTyp`. -/
   vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
   /-- [J] `JEntryAt.live`. -/
-  live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [J] `JEntryAt.fnz`. -/
   fnz : FrNZ Z.th (L.mem s)
   /-- [J] `JEntryAt.urz`. -/
@@ -183,9 +183,9 @@ structure JEntryAtR2 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
 
 variable {arI}
 
-theorem JEntryAtR2.toR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
-    (E : JEntryAtR2 (L := L) arI AR Z s ar σ) (epQ : ∀ e, Sched.EpQPre σ e) :
-    JEntryAtR (L := L) arI AR Z s ar σ where
+theorem JEntryAtR2.toR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {ar : A} {σ : Fl4Spec.State Unit}
+    (E : JEntryAtR2 (L := L) arI AR Z H Cs s ar σ) (epQ : ∀ e, Sched.EpQPre σ e) :
+    JEntryAtR (L := L) arI AR Z H Cs s ar σ where
   stall := E.stall
   flags := E.flags
   epQ := epQ
@@ -206,11 +206,11 @@ variable (arI)
 structure KDispHypsKV27b (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z s a σ ∧
+    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
 

@@ -40,7 +40,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`JPreDecHypK` without the Thread invocation** (module docstring). -/
 theorem jPreDecHyp_of18 [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ) (hM : MachPlat arI MR)
+    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hPD : JPreDecHypK (L := L) arI PreKind18 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypK (L := L) arI PreKind17 AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hK excaps buffer
@@ -50,7 +50,7 @@ theorem jPreDecHyp_of18 [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4S
   have hPl : Placed Z.th := J.xtop.rel.1
   have hsc : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
   have hni := hE.ni
-  have hLv := hE.live H Cs Ac Lst D J
+  have hLv := hE.live
   cases c
   case Thread p =>
     obtain ⟨hEpt, hN⟩ := hN

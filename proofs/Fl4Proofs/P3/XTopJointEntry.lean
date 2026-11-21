@@ -335,7 +335,8 @@ structure JEntryGlob (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop w
 /-- **The premises at the entry state**, each exactly as a J decode takes it (the
 kernel-global placement facts `hcw`, `hact2`, `hact3`, `hksO`, `hactK` and
 `DomPlaced` are proved from `JAtZ`: JEntryKs). -/
-structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
+structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U64)
+    (s : S) (ar : A) (σ : Fl4Spec.State Unit) : Prop where
   /-- [J] no reschedule or switch pending at the invocation (`Entered`). -/
   ni : Entered σ
   /-- [J] the current thread in no ready queue at the invocation (l4v
@@ -408,8 +409,7 @@ structure JEntryAt (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar : A
   SetSpace, SetIPCBuffer, Configure and SetSchedParams installs) carries it
   from here across the caller's restart (`WJL.restart`) and the installs'
   inserts (XTopJointWJLIns' `LiveDN.insT`). -/
-  live : ∀ (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
-    JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ → LiveDN (L := L) Z.th H Cs Z.G s σ
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [J] no non-device frame cap names the null pointer (`FrNZ`; l4v
   `pspace_in_kernel_window` / `cap_refs_in_kernel_window`: a non-device frame
   is RAM, in the kernel window; FL4's `UtW` puts RAM untypeds at or above
@@ -733,7 +733,7 @@ on the cap:
 -/
 theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z s ar σ)
+    (hG : JEntryGlob (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (hlen : length.val = argsU.length)
@@ -753,7 +753,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p, hp, hth⟩ := hsl; exact ⟨p, hp, Or.inl hth⟩
   have hsc : capV (L.mem s) (cslotAddr sl) = c := capV_of_capAt hc
   have hni := hE.ni
-  have hLv := hE.live H Cs Ac Lst D J
+  have hLv := hE.live
   have hP0 := J.ppr0_start arI hni hE.rd0 hE.ctnq
   have hPl : Placed Z.th := J.xtop.rel.1
   cases c
@@ -1082,7 +1082,7 @@ structure JEntryHyps (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap)
   /-- `JEntryGlob` ([P]/[J]/[W] per field). -/
   glob : JEntryGlob (L := L) arI AR Z.th
   /-- `JEntryAt` ([J]/[P] per field). -/
-  atE : JEntryAt (L := L) arI AR Z s ar σ
+  atE : JEntryAt (L := L) arI AR Z H Cs s ar σ
   /-- Per cap, its decode path (`JPath`). -/
   path : ∀ (sl : Fl4Spec.CslotPtr) (c : capability.Cap) (e : Aeneas.Std.Array obj.Slot 3#usize)
     (exs : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)), (∃ p, sl.1 = p.bv ∧ Z.th p = some (.cnode sl.2.length)) →
