@@ -7595,3 +7595,97 @@ SpecInvCqB5 (imports SpecInvCqB3); root imports both. Nothing existing edited.
   generated leaves (`eb_of (tq_f …) (sa_f …) (q4_f …) (rb_f …)`, `nq_f`, `SInvB.sik_of_sbk fun _ => SInvB.sb_f …`); (2)
   `hk_gts` (getThreadState then `cases ts`, `dsimp only`) is the clean way into a `match state with` arm; (3) a constant fact
   (`r ≠ C`) is best obtained by `by_cases` before the walk, the impossible case closed from the precondition.
+## g3a (branch par/g3a in FL4-sc, on e3e18ec7 = int/j2 incl. g1c) — INV-PLAN §4 G3 first step: `kernel_entryJ27` reads the per-state spec premises from `SInvB` (DONE for the fields below)
+New leaves only, namespace `Fl4Proofs.P3` (sub-namespaces SInvF / SInvAll for the spec part): XTopJointKEntry27S
+(spec-only, imports SpecInvAllB alone), XTopJointKEntry27 (imports XTopJointKEntry26P, XTopJointKEntry27S,
+SpecInvOffT); root imports both. Nothing existing edited; no JAtZ edit, no G2 / G4 work.
+
+### (1) Inventory: every hypothesis of `kernel_entryJ26P`
+Spec front from the entry state σ (what the states below are): `faultIPSt σ ct x` (the FaultIP write, one register
+of ct) → `update_time_stamp` (curTime / consumedTime / machine state only) → a passing `check_budget_restart` (no
+change) = the dispatch state σb (`BudgetAt.shape27`: σb's heap is faultIPSt's, curThread / IRQ node / idle thread /
+ready queues are σ's) → the handled event = the `specFront c σ` outcomes (where `finish` starts).
+Tags: SInvB = supplied by the carried spec bundle (field named); J = J-side (JAtZ / JExt, INV-PLAN G2) or a joint
+J-layer derivation; [P] platform (PlatJ); [S] scope; ∀ = quantified over states / ghosts beyond the actual path.
+
+| premise (J26P) | at | J27 | source / reason |
+|---|---|---|---|
+| `[PlainStore st]` | — | kept | P1 store model (statement) |
+| `J : JAtZ` | σ | kept | J, carried (G4) |
+| `hni : Entered σ` | σ | kept | ct ≠ idle [S] event scope + `action = resume` [J] (c): an exit post (activateThread / G4), not in SInvB (CtExit gives the TCB state, not the action) |
+| `hR : MR a σ.machineState` | σ | kept | [P]/J machine relation (G0) |
+| `hVI : ValidIrqMasks σ` | σ | REMOVED | SInvB: `SInvA.vim` (same body as SInvV's) |
+| `hn : NativeSys n c` | — | kept | the statement's syscall relation |
+| `hflag` | ∀ ct v | kept | [S] l4h trap mode (TRAP_SYSCALLS clear after the FaultIP write), no l4v counterpart; ∀ v harmless (v is the written value) |
+| `hB.now` (NowAgree) | faultIPSt | REMOVED | [P] `MachPlat.nowAgree` from `hR` and SInvB `SInvA.vmt` (the write keeps machine state and time) |
+| `hB.cur` (CurInv) | faultIPSt | REMOVED | J: `JAtZ.cur` + Entered (as `.to25`), across the write (`curInv_faultIPSt`) |
+| `hB.off` (OffReady) | faultIPSt | kept (now the whole `hB`) | [J] l4v cur_sc_offset_ready: NOT in SInvB (rd line: Rdy / OffReady whole-entry carry not finished, g1a slot) |
+| `hB.tmo` (NoTmoSend ∨ ct ∉ rq) | faultIPSt | REMOVED | right disjunct from the new `hQ` (ready queues unchanged by the write) |
+| `hK`'s ∀ ghosts Z' H' Cs' Ac' Lst' D' s' a' | σb | kept | ∀-ghost: J13P calls it only at budgetOkB's JAtZ (Z, H, Cs fixed, Ac' Lst' D' chosen); re-scoping = editing kernel_entryJ13P's body (cone), so out of leaf scope; listed for G4 |
+| KDispHypsKV26 `inv`/`mid` `JEntryGlobM` | — | kept | ari, tot, delParts.archRef / arKeep / thr.ticks, nd, ppA, dom, timeAg, maxTU, tu [P]; portIn [P] ∀σ (mr10 FINDING); delParts.vt [J] ∀ JAtZ (VT-x placement, G2 NativeScopeX); delParts.thr.obj [S] ∀ JAtZ; sigRest [J] ∀ H Cs ∀ JAtZ (RunningVM bound thread: NativeScope at EVERY JAtZ state, not per state; SInvB's NativeScopeS at σ does not give it) |
+| `JEntryAt.ni` | σb | REMOVED | `BudgetAt.enteredP` (J26P already) |
+| `JEntryAt.ctnq` | σb | REMOVED | `hQ` (σb's ready queues are σ's) |
+| `JEntryAt.sg` (SpecGlob) | σb | REMOVED | SInvB `SInvA.sg` (SpecGlobS) across the write (`specGlob_disp`: every capOpt unchanged; SpecGlobS's capAt = capOpt by `SInv.vfh_capAt`) |
+| `JEntryAt.rd0` | σb | REMOVED | `OffReady σb` from `hB` (OffReady at faultIPSt) + SInvB `SInvA.vmt` by invB's `SInvO.offReady_updateTimeStamp`, then `OffReady.rd0` |
+| `JEntryAt.vfh` | σb | REMOVED | SInvB `SInvA.vfh` (VfhAll; the write keeps the handler) (`SInvAll.sinvB_disp`) |
+| `JEntryAt.cnf` | σb | REMOVED | SInvB `SInvA.fts` (FaultTcbsS) + ct active (`SInvB.entryJ`, ct ≠ idle from `hni`) (`sinvB_disp`) |
+| `JEntryAt.epQ` (EpQPre: queued MemOKE ∧ ScBack ∧ ActReady) | σb | kept | spec, but NOT in SInvB: EpQB is the queue-state part only; ScBack / ActReady are valid_sched slices (rd / ctq lines). Missing: an SInvB field implying `∀ e, EpQPre σ e` (then the σb frame is the same register-write argument) |
+| `JEntryAt.stall`, `ioapics`, `archIrq` | σb | kept | [P] |
+| `JEntryAt.flags`, `handlers`, `ports`, `vsTyp`, `fnz`, `urz`, `utks` | σb | kept | J joint / FL4-memory facts (G2 JExt) |
+| `JEntryAt.live` | σb, ∀ ghosts | kept | J, ∀-ghost (G2: at the carried ghosts) |
+| `JPathAtM` (per cap) | σb | kept | [P] constants / one core, [J] joint (G2), [S] JVtxScope |
+| `JVtxHypMU` | σb | kept | [S] VT-x Untyped retype |
+| `recv.1` (ct ∉ rq) | σb | REMOVED | `hQ` |
+| `recv.2` (ct's handler valid) | σb | REMOVED | SInvB `SInvA.vfh` (`sinvB_disp`) |
+| `mid` `JPerfRegHyp` | MidPerfAt states | kept | [J] l4v valid_untyped_inv / valid_aci at mid-entry states (decode results vs the heap): not a field of SInvB; needs UtInv3 carried across the first phase to MidPerfAt plus the decode's checks (missing lemma: `PerfRegOK` from UtInv3 at MidPerfAt) |
+| `mid` `JPerfIrqSlotHyp` | MidPerfAt states | kept | [J] `IrqSlotNC σ1` (IRQ node slots null / ntfn) at MidPerfAt: = SpecGlobS.irq at σ1. Missing lemma: SpecGlobS across `getMessageInfo`, `midF`, `midE`, `setThreadState ct restart` (sg1's SInvG family has the per-function IK lemmas; the composition to `MidPerfAt` is not written; MidPerfAt is in the J cone, XTopJointMidRunS) |
+| `mid` `JMidVfhHyp` | first-phase .ok outcomes | kept | [J] VfhAll after `fl4HandleInvocationR … cptr` from the dispatch state. Missing lemma: VfhAll across `fl4HandleInvocationR` (vfh3's family `VK` / CnDom: kentry_vfh composes it inside the whole entry; the stand-alone first-phase statement at σb is not exported) |
+| `hFin`'s ∀ ghosts | specFront outcomes | kept | ∀-ghost, as `hK` |
+| `KFinAtR.hd` | outcome | kept | domainTime ≠ 0 ∨ NdOK s σ: NdOK is joint (DOM_SCHED_IDX word, DomRel) — J; SInvB's DomListOK is one conjunct only |
+| `KFinAtR.vt` | ∀ JAtZR | kept | [J] ∀-pred (G2 VtAsidJ) |
+| `KFinAtR.arch`, `archNd`, `sni`, `send` | ∀ SchedRel | kept | [P] |
+| `KFinAtR.fo` (FpuOwnOK) | outcome | REMOVED | SInvB: fo1's FT carried to the handled event (`SInvF.fo_front`, `SInvAll.sinvB_front_fo`; FpuOwnOKS = FpuOwnOK) |
+| `KFinAtR.tail` | outcome | kept | [P]+[J] CR3 tail (G3 L item F8) |
+| `hARI`, `hA`, `hnd`, `hM`, `hKD`, `hPA`, `hIA`, `hmrt`, `hmb`, `hT`, `hmax`, `htu` | — | kept | [P] (PlatJ) |
+| `hNS : ∀ s a σ, JHoleAt → NativeScope σ` | ∀ | kept | [S] ∀-pred, see below |
+| `hNSR : ∀ ghosts s a σ, JAtZR → NativeScope σ` | ∀ | kept | [S] ∀-pred, see below |
+
+**hNS / hNSR not re-scoped (why).** NativeScope IS carried (`SInvA.ns`, invA's NSK family covers every spec function
+incl. the preemption point and the handled event), so at each state where the proof actually needs it, NativeScope
+follows from SInvB σ and the spec steps between. But the consumers inside the cone take the ∀ form and use it at
+states they construct themselves: `hPre_ofZQIM` (XTopJointMRHole) → `JHole.afterInvJZIM`, `afterInv_of_mcsIM`,
+`jPreemptRestHypEQ_ofIM` (preemption holes inside performs), `mid_invRecvJM` / `mid_invRecvJMU`, `kPreFinHypJI_of`,
+and through `hvm_of_ns` (∀ JAt states), `signalRestJHyp_of_ns` / `signalRestJHypZR_of_ns` (∀ JAtZ / JAtZR states: a
+signal to a RunningVM bound thread anywhere). Re-scoping means giving each of these a per-state `NativeScope σ1`
+argument (JHole carrying its spec base) — edits to existing cone modules (XTopJointMRHole, XTopJointKEntry2 / 4 / 8 /
+13P / 23P, ScSignalJ), not leaf wrappers. Exact missing lemmas: per-state forms
+`hvm_of_ns' : NativeScope σ1 → JAt s1 a1 σ1 → …`, `signalRestJHypZR_at` (SignalRestJHypZR restricted to the JAtZR
+states of the finish path, with NativeScope there), and `hPre_ofZQIM'` taking NativeScope at the JAtPreMV state and
+threading it through the hole lemmas by the NSK family. Note (INV-PLAN §3): as ∀ statements hNS / hNSR are false for
+any (arI, AR) that admits a JHoleAt / JAtZR state with a RunningVM TCB (JAtZ admits one), so this is the most important
+G3 item left after this step.
+
+### (2) `kernel_entryJ27` (XTopJointKEntry27) — premises before / after
+- BEFORE (J26P): PlainStore, J, hni, hR, **hVI**, hn, hflag, **hB : ∀ x, … → KBudgetB (now, cur, off, tmo)**,
+  **hK → KDispHypsKV26** (inv/mid with JEntryAt; recv), **hFin → KFinAtR** (with fo), hARI, hA, hnd, hM, hKD, hPA,
+  hIA, hmrt, hmb, hNS, hNSR, hT, hmax, htu.
+- AFTER (J27): PlainStore, J, hni, hR, **hS : SInvAll.SInvB σ**, **hQ : ∀ d p, σ.curThread ∉ σ.readyQueues d p**
+  [J] (l4v ct_not_in_q at σ), hn, hflag, **hB : ∀ x, σ.kheap ct = tcb x → OffReady (faultIPSt σ ct x)** [J],
+  **hK → KDispHypsKV27** (JEntryAtR = JEntryAt − {ni, ctnq, sg, rd0, vfh, cnf}; no recv), **hFin → KFinAtR27**
+  (KFinAtR − fo), hARI, hA, hnd, hM, hKD, hPA, hIA, hmrt, hmb, hNS, hNSR, hT, hmax, htu.
+- Net: removed hVI, hB.now / cur / tmo, JEntryAt.ni / ctnq / sg / rd0 / vfh / cnf (in both inv and mid), recv (both
+  parts), KFinAtR.fo; added hS (carried, G1) and hQ (one per-state [J] fact at σ, true in reachable states; it replaces
+  three path-restricted copies). hQ goes away once ctq's SchedQ / CtNQR is an SInvB field; hB once OffReady (rd line) is.
+- Lemmas: `BudgetAt.shape27`, `curInv_faultIPSt`, `specGlob_disp`, `JEntryAtR.toAt`, `KDispHypsKV27.to26`,
+  `KFinAtR27.toR`; spec leaf: `SInvF.fo_front`, `SInvAll.sinvB_front_fo`, `SInvAll.sinvB_disp`.
+- Builds (tokyo, FL4-sc mirror warm: probe g3a-p1 `lake build --no-build` found XTopJointKEntry26P (5730 jobs) and
+  SpecInvAllB (5226 jobs) up to date; ./g3a.sh untracked = g1c.sh with the grep on XTopJointKEntry27*): g3a-b1
+  XTopJointKEntry27S (35 s) + XTopJointKEntry27 (3.3 s) OK, 6358 jobs, first try; no sorry/admit/native_decide/
+  bv_decide. Axioms (scratch/g3a/ax.lean, untracked): kernel_entryJ27, KDispHypsKV27.to26, KFinAtR27.toR,
+  JEntryAtR.toAt, BudgetAt.shape27, specGlob_disp, SInvAll.sinvB_disp, SInvAll.sinvB_front_fo, SInvF.fo_front:
+  propext, Classical.choice, Quot.sound; curInv_faultIPSt: none. Root Fl4Proofs.lean not rebuilt (two leaf imports).
+- Next (handoff, G3): (a) re-scope hNS / hNSR (the per-state lemmas named above; cone edits, needs the lead's go);
+  (b) hQ and hB into SInvB once ctq (CtNQR / SchedQ) and rd (OffReady) have whole-entry tops; (c) EpQPre at σb from
+  an SInvB field (ScBack, ActReady, MemOKE of queued threads); (d) the three mid facts by first-phase carries of
+  UtInv3 / SpecGlobS / VfhAll (JPerfRegHyp, JPerfIrqSlotHyp, JMidVfhHyp); (e) the ∀-ghost scope of hK / hFin
+  (J13P's body calls them only at budgetOkB's / the dispatch posts' ghosts).

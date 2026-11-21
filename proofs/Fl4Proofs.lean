@@ -1072,3 +1072,5 @@ import Fl4Proofs.P3.SpecInvAllO
 import Fl4Proofs.P3.SpecInvAllB
 import Fl4Proofs.P3.SpecInvCqB4
 import Fl4Proofs.P3.SpecInvCqB5
+import Fl4Proofs.P3.XTopJointKEntry27S
+import Fl4Proofs.P3.XTopJointKEntry27
