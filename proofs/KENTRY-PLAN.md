@@ -10449,3 +10449,69 @@ as a theorem of a carried fact; `live` at the carried ghosts if cheap; JExt's bo
 
 ### (8) Next (handoff)
 - `live` at the carried ghosts (INV-PLAN E15), then the other G2 joint (b) fields in the same `JExt`.
+
+
+## rd8p (branch par/rd8p in FL4-r3, on 7c9617b1 = int/j2 incl. rd8m, rd15a, rd14a, rd8j, rd8k) — rd8m handoff 2 (PreR) DONE up to one narrowed carried fact (`CurHold` at the event's error outcomes); handoff 3 (Rd8jK de-duplication) DONE
+Spec-only, new names under `Fl4Proofs.P3.SInvR.B8p`, modules SpecInvRd8pA / B (root imports them). Edited (item 3 only):
+SpecInvRd8jK / B / C, SpecInvRd8mD / E. No JAtZ cone (scratch/rd8h/anc.py on SpecInvRd8pB: see Builds). Keys rd8p-1..N
+(./rd8ps.sh untracked = rd8ms.sh with its own log; proofs/scratch/rd8p/ untracked: ax.lean, this text).
+- **SpecInvRd8pA (preemption_path).** `rq_sendSignal` / `rq_doMachineOp` / `rq_handleInterrupt`, **`rq_maybeHandleInterrupt b :
+  IK B8f.RQ (maybe_handle_interrupt b)`** (rd8f's `RQ = Rdy ∧ NQ []`; rd10's AW9 walk with RdL's `rd_sendSignal`, which reads
+  only Rdy and NtfnQB). **`CurHold s`** := every TCB bound to `cur_sc` is not `BlkR` and is ct or not runnable (the `cur_sc`
+  half of l4v's `cur_sc_chargeable`). **`excl_of_hold (CurHold s) (EB true s) : Excl s s.curSc`** (ctq's RQd: queued ⇒ runnable;
+  RA: switch target runnable; RBk true: CtQ ∧ NP ct). `bf_chargeOut` (charge_budget's charge as ctq's `BF` frame).
+  **`rd_preemptionPath (Rdy σ) (NQ [] σ) (ScInv σ) (CKN σ) (EB true σ) (CurHold σ) : ∀ y ∈ preemption_path σ, Rdy y.2 ∧
+  NQ [] y.2`**, three branches: (1) ct schedulable → check_budget: unchanged, or RdJ's `rd_chargeBudget` (ct bound to
+  cur_sc by CKN + schedulable; cur_sc active by `actB_of_schedulable`; refills ≠ [] by ScBackS; Excl by excl_of_hold);
+  (2) ct not schedulable, cur_sc active → RdH's `rd_chargeBudget_head` (refills ≠ [] by RNE, Excl by excl_of_hold), the tail
+  is a no-op because the charge keeps ct unschedulable (ctq's `sched_of_bf`, RdK's `cbTail_cf`); (3) cur_sc inactive →
+  consumed_time := 0 (`rdy_consumed0`). Then `rq_maybeHandleInterrupt`. NQ by nq2's `nq_checkBudget` / `nq_chargeBudget`.
+- **SpecInvRd8pB (PreR).** `err_liftE_bind` / `err_wp_bind` / `err_bind_ne`, **`err_syscall`** (an error outcome of
+  `fl4_handle_syscall` is an error outcome of `fl4HandleInvocationR` after `get_cap_reg`, with `A12b.sendArgs` flags or
+  `A12b.srArgs`'s first phase (false false true true); the receive tail and the other syscalls never error: ctq16's NE),
+  **`ev_of_body`** (an outcome of the body after a true front is an outcome of `fl4HandleEvent rep (.syscallEvent c)`),
+  `ErrE rep c σ P` (P at every error outcome of the event), **`preR_of rep c σ (hEF : A8.EF σ) (h1 : T1 σ) (hEB : EB true σ)
+  (hIO : IO (fun _ => σ.idleSc) σ) (hV : VfhAll σ) (hE : SInvB.EntryOK σ) (hPs …InvIn r false) (hPr …InvIn r true)
+  (hEN : ErrE rep c σ (EB true ∧ NQ [])) (hH : ErrE rep c σ CurHold) : B8j.PreR rep c σ`**. At the error outcome:
+  Rdy by rd8j's `rd_shellAt` (same InvIn as rdBody_send / rdBody_sr), ScInv by sb2's `sb_fl4HandleEvent`, CKN by ctq16's
+  `ckx_fl4HandleEvent` (CtExit ∧ CurScT from EF), EB true ∧ NQ [] = `hEN`, CurHold = `hH`.
+- **Inputs of preR_of (exactly):** carried entry facts EF / T1 / EB true / IdleScOutV / VfhAll (as rdBody_send) and sb2's
+  EntryOK; rd8j's InvIn (unchanged pinned per-arm input); `hEN` = ctq18's `eb_fl4HandleEvent_err` (its first two
+  conjuncts; needs ctq's event-start JE / Iu / vi3 premises, which the rd tops do not carry yet: wire it at the top);
+  `hH` (`CurHold` at the event's error outcomes) — the one open fact, a narrowed carried fact, no [J]/[P]/[W]/[S] added.
+- **Item 2 answer (what PreR really needs).** Excl of cur_sc is read only by refill_budget_check (sporadic, non-idle,
+  active cur_sc). Branch (1) gets it from schedulable + CKN + ScSym (the holder is ct, runnable). Branch (2) cannot: after
+  `reply_remove`'s donation (finalising ct's own reply cap when ct runs on its caller's donated SC = cur_sc) cur_sc's holder
+  is the caller, ct is unbound, cur_sc stays active, and a later preemption point of the same deletion charges it. So ctq8's
+  `BC` (cur_sc's holder is ct) is NOT invariant over the deletion cone, and Rdy is still kept there: the caller is
+  BlockedOnReply at the donation and Inactive right after (`replyUnlinkTcb`), hence not queued / switch target / BlkR. That
+  is exactly `CurHold`. No FINDING: no reachable step breaks Rdy / OffReady / RV / CAx.
+- **Item 3 (de-duplication) DONE.** SpecInvRd8jK now imports SpecInvRd12bC and keeps only `kz_act` / `kz_time` / `kz_cfS` /
+  `svs_kz` (svs_kz uses `A12b.kz_sv`); every other copy deleted, uses in Rd8jB / C qualified `A12b.` (invF / invE / invFin /
+  invPost / fl4HandleInvocationR_eq / kz_invF / kz_invE / kz_trans / kz_curThread / mem_handleE_cases / sendArgs / srArgs);
+  Rd8mD / E: `B8j.sendArgs` / `B8j.srArgs` → `A12b.`. anc.py: SpecInvRd12bA 936 / 12bC 938 modules, no JointAt.
+- HANDOFF (in order): (1) carry `CurHold` to the event's error outcomes, JOINTLY with `NQ []` (= NtfnQB ∧ EpQB, already carried
+  there by ctq18's `eb_fl4HandleEvent_err`): `CurHold` alone is not stepwise invariant, because `restart_thread_if_no_fault`
+  (IpcCancel `restartThreadIfNoFault`: Restart, i.e. runnable, plus `possibleSwitchTo`, no state read) and
+  `remove_and_restart_ntfn_queued_thread` (Restart with no fault check) make a non-ct thread runnable. The argument at those
+  writes: the thread is queued, so EpQB / NtfnQB give a blocked state (`epBlocked = some e` / BlockedOnNotification); with
+  fault = none (ep) or unconditionally (ntfn) that is `BlkR`, so by `CurHold` before the write it is not bound to `cur_sc`. The
+  other writers in the cone: front / decode (reads, ct's Restart write); `set_thread_state` to Inactive; unbinding only
+  (`sched_context_unbind_tcb`, `maybe_return_sc`); `reply_remove`'s `schedContextDonate scPtr caller` (caller then holds cur_sc
+  while still BlockedOnReply, neither BlkR nor runnable, then `replyUnlinkTcb` makes it Inactive; no preemption point between);
+  ct's own unbinding; install_tcb_cap's checked inserts (no TCB state / binding writes); untyped reset (detype only removes
+  objects, so `CurHold` only shrinks; ctq16's `ck_deleteObjects` shape). Template: ctq14 / ctq16's CKN family (SpecInvCqHK /
+  HF1-3 / HC / HP / HS, generator FL4-q proofs/scratch/ck/gen3.py, about 2300 lines over 11 modules) with `CKN` replaced by
+  `CurHold ∧ NQ []` (or `CurHold` with `NQ []` as a parallel IK hypothesis, as rd8f carries `RQ`), plus hand leaves for the
+  two restart helpers, `reply_remove` and `schedContextDonate`. Entry: CurScT + ScSym make ct the only holder, and ct is
+  Restart / Running. (2) wire `preR_of` into `rdBody_all` / `kcall_rdyOff6m` (hEN from ctq18 at the top, EntryOK from sb2).
+  (3) rd8m's handoff 1, 4, 5.
+- Builds (tokyo, FL4-r3 mirror): rd8p-1 / rd8p-2 (previous agent: Rd8jK de-duplication, dependents rd8j / rd8m / rd15a green);
+  rd8p-3 A green, B failed (`err_bind_ne`'s conclusion ill-typed: m's result type ≠ f's; the send-receive arms of `err_syscall` fell
+  through to the `NE` alternative); rd8p-r1 A + B green (5514 jobs; fix: `err_bind_ne` for f with m's result type, both Unit at
+  the use; `mem_getScActive` is SInvE's from SpecInvEqD, no new lemma needed); rd8p-r2 B + Rd8mE + Rd15aA green (5538 jobs) + axioms
+  (scratch/rd8p/ax.lean): rq_maybeHandleInterrupt / rd_preemptionPath / err_syscall / ev_of_body / preR_of and rd8j's rd_shellAt /
+  rdBody_send / rd_fl4HandleInvocationR, rd8m's rdBody_all / kcall_rdyOff6m: propext, Classical.choice, Quot.sound; excl_of_hold /
+  bf_chargeOut / svs_kz: propext. No `declaration uses sorry`; no sorry / admit / native_decide / bv_decide / axiom. anc.py:
+  SpecInvRd8pB 966 / SpecInvRd8jK 948 / SpecInvRd8mE 966 modules, no JointAt / XTopJointDelR / JAtZ. Root Fl4Proofs.lean not
+  rebuilt (two import lines). Commits: 3c4f80a8 (item 3), a417a529 (SpecInvRd8pA / B + root imports), this section.
