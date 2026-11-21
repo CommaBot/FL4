@@ -255,6 +255,12 @@ open fl4_core
 @[step] theorem regs.FLAGS_USER_DEFAULT.spec : regs.FLAGS_USER_DEFAULT ⦃ v => v = 514#u64 ⦄ := by
   unfold regs.FLAGS_USER_DEFAULT; step*
 
+@[step] theorem vcpu.svm.CR2.spec : vcpu.svm.CR2 ⦃ v => v = 1600#u64 ⦄ := by
+  unfold vcpu.svm.CR2; simp only [vcpu.svm.SAVE]; step*
+
+@[step] theorem vcpu.svm.CR3.spec : vcpu.svm.CR3 ⦃ v => v = 1360#u64 ⦄ := by
+  unfold vcpu.svm.CR3; simp only [vcpu.svm.SAVE]; step*
+
 @[step] theorem layout.ks.ASID_TABLE.spec : layout.ks.ASID_TABLE ⦃ v => v = 288000#u64 ⦄ := by
   unfold layout.ks.ASID_TABLE; simp only [fl4_abi.config.MAX_NUM_NODES, layout.MAX_NODES]; step*
 
@@ -272,12 +278,6 @@ open fl4_core
 
 @[step] theorem msg.BUF_RECV_DEPTH.spec : msg.BUF_RECV_DEPTH ⦃ v => v = 127#u64 ⦄ := by
   unfold msg.BUF_RECV_DEPTH; step*
-
-@[step] theorem vcpu.svm.CR2.spec : vcpu.svm.CR2 ⦃ v => v = 1600#u64 ⦄ := by
-  unfold vcpu.svm.CR2; simp only [vcpu.svm.SAVE]; step*
-
-@[step] theorem vcpu.svm.CR3.spec : vcpu.svm.CR3 ⦃ v => v = 1360#u64 ⦄ := by
-  unfold vcpu.svm.CR3; simp only [vcpu.svm.SAVE]; step*
 
 @[step] theorem vspace.P_PRESENT.spec : vspace.P_PRESENT ⦃ v => v = 1#u64 ⦄ := by
   unfold vspace.P_PRESENT; step*
@@ -1485,14 +1485,53 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem sched.Q_QUEUED.val_eq : sched.Q_QUEUED.val = 1 := by
   unfold sched.Q_QUEUED; rfl
 
+@[simp, scalar_tac_simps] theorem vcpu.svm.EVENT_INJ.val_eq : vcpu.svm.EVENT_INJ.val = 168 := by
+  unfold vcpu.svm.EVENT_INJ; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.svm.INT_STATE.val_eq : vcpu.svm.INT_STATE.val = 104 := by
+  unfold vcpu.svm.INT_STATE; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.svm.INTERCEPT_EXC.val_eq : vcpu.svm.INTERCEPT_EXC.val = 8 := by
+  unfold vcpu.svm.INTERCEPT_EXC; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
+  unfold vcpu.NUM_MRS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.EXIT.val_eq : vcpu.EXIT.val = 20992 := by
+  unfold vcpu.EXIT; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.REGS.val_eq : vcpu.REGS.val = 20736 := by
+  unfold vcpu.REGS; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.VALID.val_eq : vcpu.VALID.val = 20528 := by
+  unfold vcpu.VALID; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.PENDING.val_eq : vcpu.PENDING.val = 20520 := by
+  unfold vcpu.PENDING; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.CR2.val_eq : vcpu.CR2.val = 20512 := by
+  unfold vcpu.CR2; rfl
+
+@[simp, scalar_tac_simps] theorem capability.VM_READ_ONLY.val_eq : capability.VM_READ_ONLY.val = 2 := by
+  unfold capability.VM_READ_ONLY; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.TAIL_STATE.val_eq : layout.ntfn.TAIL_STATE.val = 8 := by
+  unfold layout.ntfn.TAIL_STATE; rfl
+
+@[simp, scalar_tac_simps] theorem obj.NTFN_ACTIVE.val_eq : obj.NTFN_ACTIVE.val = 2 := by
+  unfold obj.NTFN_ACTIVE; rfl
+
+@[simp, scalar_tac_simps] theorem obj.NTFN_IDLE.val_eq : obj.NTFN_IDLE.val = 0 := by
+  unfold obj.NTFN_IDLE; rfl
+
+@[simp, scalar_tac_simps] theorem layout.ntfn.BADGE.val_eq : layout.ntfn.BADGE.val = 16 := by
+  unfold layout.ntfn.BADGE; rfl
+
 @[simp, scalar_tac_simps] theorem layout.sc.YIELD_FROM.val_eq : layout.sc.YIELD_FROM.val = 56 := by
   unfold layout.sc.YIELD_FROM; rfl
 
 @[simp, scalar_tac_simps] theorem layout.sc.CONSUMED.val_eq : layout.sc.CONSUMED.val = 8 := by
   unfold layout.sc.CONSUMED; rfl
-
-@[simp, scalar_tac_simps] theorem capability.VM_READ_ONLY.val_eq : capability.VM_READ_ONLY.val = 2 := by
-  unfold capability.VM_READ_ONLY; rfl
 
 @[simp, scalar_tac_simps] theorem layout.sc.REFILL_TAIL.val_eq : layout.sc.REFILL_TAIL.val = 88 := by
   unfold layout.sc.REFILL_TAIL; rfl
@@ -1560,17 +1599,8 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem sched.TS_BLOCKED_ON_RECV.val_eq : sched.TS_BLOCKED_ON_RECV.val = 3 := by
   unfold sched.TS_BLOCKED_ON_RECV; rfl
 
-@[simp, scalar_tac_simps] theorem layout.ntfn.TAIL_STATE.val_eq : layout.ntfn.TAIL_STATE.val = 8 := by
-  unfold layout.ntfn.TAIL_STATE; rfl
-
 @[simp, scalar_tac_simps] theorem obj.NTFN_WAITING.val_eq : obj.NTFN_WAITING.val = 1 := by
   unfold obj.NTFN_WAITING; rfl
-
-@[simp, scalar_tac_simps] theorem obj.NTFN_IDLE.val_eq : obj.NTFN_IDLE.val = 0 := by
-  unfold obj.NTFN_IDLE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.BADGE.val_eq : layout.ntfn.BADGE.val = 16 := by
-  unfold layout.ntfn.BADGE; rfl
 
 @[simp, scalar_tac_simps] theorem layout.ntfn.BOUND_TCB.val_eq : layout.ntfn.BOUND_TCB.val = 24 := by
   unfold layout.ntfn.BOUND_TCB; rfl
@@ -1589,9 +1619,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
   unfold layout.ntfn.SC; rfl
-
-@[simp, scalar_tac_simps] theorem obj.NTFN_ACTIVE.val_eq : obj.NTFN_ACTIVE.val = 2 := by
-  unfold obj.NTFN_ACTIVE; rfl
 
 @[simp, scalar_tac_simps] theorem layout.ntfn.HEAD.val_eq : layout.ntfn.HEAD.val = 0 := by
   unfold layout.ntfn.HEAD; rfl
@@ -1655,33 +1682,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem endpoint.FLAG_GRANT.val_eq : endpoint.FLAG_GRANT.val = 1 := by
   unfold endpoint.FLAG_GRANT; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.EVENT_INJ.val_eq : vcpu.svm.EVENT_INJ.val = 168 := by
-  unfold vcpu.svm.EVENT_INJ; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.INT_STATE.val_eq : vcpu.svm.INT_STATE.val = 104 := by
-  unfold vcpu.svm.INT_STATE; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.svm.INTERCEPT_EXC.val_eq : vcpu.svm.INTERCEPT_EXC.val = 8 := by
-  unfold vcpu.svm.INTERCEPT_EXC; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.NUM_MRS.val_eq : vcpu.NUM_MRS.val = 30 := by
-  unfold vcpu.NUM_MRS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.EXIT.val_eq : vcpu.EXIT.val = 20992 := by
-  unfold vcpu.EXIT; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.REGS.val_eq : vcpu.REGS.val = 20736 := by
-  unfold vcpu.REGS; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.VALID.val_eq : vcpu.VALID.val = 20528 := by
-  unfold vcpu.VALID; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.PENDING.val_eq : vcpu.PENDING.val = 20520 := by
-  unfold vcpu.PENDING; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.CR2.val_eq : vcpu.CR2.val = 20512 := by
-  unfold vcpu.CR2; rfl
 
 @[simp, scalar_tac_simps] theorem vcpu.SVM_EVENT.val_eq : vcpu.SVM_EVENT.val = 18446744071562072063 := by
   unfold vcpu.SVM_EVENT; rfl

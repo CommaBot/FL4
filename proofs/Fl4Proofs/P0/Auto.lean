@@ -1087,6 +1087,104 @@ theorem regs.FLAGS_USER_DEFAULT.p0  :
     smp.handle_ipi machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
   unfold smp.handle_ipi; p0_auto
 
+@[step] theorem vcpu.read_vmcs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) (f : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vcpu.read_vmcs machineStoreInst s v f ⦃ _ => True ⦄ := by
+  unfold vcpu.read_vmcs; p0_auto
+
+@[step] theorem vcpu.bound.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    vcpu.bound machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold vcpu.bound; p0_auto
+
+@[step] theorem vcpu.get.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) (offset : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vcpu.get machineStoreInst s v offset ⦃ _ => True ⦄ := by
+  unfold vcpu.get; p0_auto
+
+theorem vcpu.svm.CR2.p0  :
+    vcpu.svm.CR2 ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vcpu.svm.CR2.spec (fun _ _ => trivial)
+
+theorem vcpu.svm.CR3.p0  :
+    vcpu.svm.CR3 ⦃ _ => True ⦄ := by
+  exact WP.spec_mono Consts.vcpu.svm.CR3.spec (fun _ _ => trivial)
+
+@[step] theorem msg.buf_set.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) (i : Std.U64) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    msg.buf_set machineStoreInst s buf i v ⦃ _ => True ⦄ := by
+  unfold msg.buf_set; p0_auto
+
+@[step] theorem msg.set_mr.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (i : Std.U64) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    msg.set_mr machineStoreInst s t buf i v ⦃ _ => True ⦄ := by
+  unfold msg.set_mr; p0_auto
+
+@[step] theorem obj.Tcb.slot.p0 (self : obj.Tcb) (i : Std.U64) :
+    obj.Tcb.slot self i ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.slot; p0_auto
+
+@[step] theorem obj.Tcb.ipc_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.ipc_buffer machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.ipc_buffer; p0_auto
+
+theorem capability.FrameSize.bits.p0 (self : capability.FrameSize) :
+    capability.FrameSize.bits self ⦃ _ => True ⦄ := by
+  unfold capability.FrameSize.bits; p0_auto
+
+@[step] theorem msg.lookup_ipc_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (is_receiver : Bool) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    msg.lookup_ipc_buffer machineStoreInst s is_receiver t ⦃ _ => True ⦄ := by
+  unfold msg.lookup_ipc_buffer; p0_auto
+
+@[step] theorem vcpu.report_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (pending : Bool) (b : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vcpu.report_loop0 machineStoreInst s t v pending b i ⦃ _ => True ⦄ := by
+  unfold vcpu.report_loop0
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => vcpu.NUM_MRS.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.report_loop0.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.report_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (b : Std.U64) (j : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vcpu.report_loop1 machineStoreInst s t v b j ⦃ _ => True ⦄ := by
+  unfold vcpu.report_loop1
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 15 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.report_loop1.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.report machineStoreInst machineArchInst s a t badge ⦃ _ => True ⦄ := by
+  unfold vcpu.report; p0_split
+
+@[step] theorem obj.Ntfn.tail_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.tail_state machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.tail_state; p0_auto
+
+@[step] theorem obj.Ntfn.tail.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.tail machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.tail; p0_auto
+
+@[step] theorem obj.Ntfn.set_tail_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.set_tail_state machineStoreInst self s v ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.set_tail_state; p0_auto
+
+@[step] theorem obj.Ntfn.set_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (state : Std.U64) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.set_state machineStoreInst self s state ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.set_state; p0_auto
+
+@[step] theorem obj.Ntfn.state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.state machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.state; p0_auto
+
+@[step] theorem obj.Ntfn.badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.badge machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.badge; p0_auto
+
+@[step] theorem obj.Tcb.bound_ntfn.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Tcb.bound_ntfn machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Tcb.bound_ntfn; p0_auto
+
+@[step] theorem vcpu.check.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.check machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
+  unfold vcpu.check; p0_auto
+
 @[step] theorem obj.Sc.set_yield_from.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Sc) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
     obj.Sc.set_yield_from machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Sc.set_yield_from; p0_auto
@@ -1126,30 +1224,6 @@ theorem regs.FLAGS_USER_DEFAULT.p0  :
 @[step] theorem msg.set_msg_info.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (m : msginfo.MessageInfo) (hS : StoreTotal machineStoreInst) :
     msg.set_msg_info machineStoreInst s t m ⦃ _ => True ⦄ := by
   unfold msg.set_msg_info; p0_auto
-
-@[step] theorem msg.buf_set.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64) (i : Std.U64) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    msg.buf_set machineStoreInst s buf i v ⦃ _ => True ⦄ := by
-  unfold msg.buf_set; p0_auto
-
-@[step] theorem msg.set_mr.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (buf : Std.U64) (i : Std.U64) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    msg.set_mr machineStoreInst s t buf i v ⦃ _ => True ⦄ := by
-  unfold msg.set_mr; p0_auto
-
-@[step] theorem obj.Tcb.slot.p0 (self : obj.Tcb) (i : Std.U64) :
-    obj.Tcb.slot self i ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.slot; p0_auto
-
-@[step] theorem obj.Tcb.ipc_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.ipc_buffer machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.ipc_buffer; p0_auto
-
-theorem capability.FrameSize.bits.p0 (self : capability.FrameSize) :
-    capability.FrameSize.bits self ⦃ _ => True ⦄ := by
-  unfold capability.FrameSize.bits; p0_auto
-
-@[step] theorem msg.lookup_ipc_buffer.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (is_receiver : Bool) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    msg.lookup_ipc_buffer machineStoreInst s is_receiver t ⦃ _ => True ⦄ := by
-  unfold msg.lookup_ipc_buffer; p0_auto
 
 @[step] theorem schedcontext.set_consumed.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (t : obj.Tcb) (write_msg : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.set_consumed machineStoreInst machineArchInst s a sc t write_msg ⦃ _ => True ⦄ := by
@@ -1627,10 +1701,6 @@ theorem layout.ks.ASID_TABLE.p0  :
     obj.Tcb.timer_badge machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.timer_badge; p0_auto
 
-@[step] theorem obj.Tcb.bound_ntfn.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Tcb.bound_ntfn machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Tcb.bound_ntfn; p0_auto
-
 @[step] theorem smp.remote_reschedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.remote_reschedule machineStoreInst machineArchInst s a cpu ⦃ _ => True ⦄ := by
   unfold smp.remote_reschedule; p0_auto
@@ -1642,18 +1712,6 @@ theorem layout.ks.ASID_TABLE.p0  :
 @[step] theorem sched.possible_switch_to.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     sched.possible_switch_to machineStoreInst s t ⦃ _ => True ⦄ := by
   unfold sched.possible_switch_to; p0_auto
-
-@[step] theorem obj.Ntfn.tail_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.tail_state machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.tail_state; p0_auto
-
-@[step] theorem obj.Ntfn.state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.state machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.state; p0_auto
-
-@[step] theorem obj.Ntfn.badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.badge machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.badge; p0_auto
 
 @[step] theorem obj.Ntfn.bound_tcb.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Ntfn.bound_tcb machineStoreInst self s ⦃ _ => True ⦄ := by
@@ -1779,18 +1837,6 @@ theorem layout.ks.ASID_TABLE.p0  :
 @[step] theorem notification.maybe_donate_sched_context.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (n : obj.Ntfn) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.maybe_donate_sched_context machineStoreInst machineArchInst s a t n ⦃ _ => True ⦄ := by
   unfold notification.maybe_donate_sched_context; p0_auto
-
-@[step] theorem obj.Ntfn.tail.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.tail machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.tail; p0_auto
-
-@[step] theorem obj.Ntfn.set_tail_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (v : Std.U64) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.set_tail_state machineStoreInst self s v ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.set_tail_state; p0_auto
-
-@[step] theorem obj.Ntfn.set_state.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (state : Std.U64) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.set_state machineStoreInst self s state ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.set_state; p0_auto
 
 @[step] theorem notification.set_active.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : obj.Ntfn) (badge : Std.U64) (hS : StoreTotal machineStoreInst) :
     notification.set_active machineStoreInst s n badge ⦃ _ => True ⦄ := by
@@ -2356,52 +2402,6 @@ theorem msg.BUF_RECV_DEPTH.p0  :
 @[step] theorem syscall.handle_user_exception.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) (code : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_user_exception machineStoreInst machineArchInst s a number code ⦃ _ => True ⦄ := by
   unfold syscall.handle_user_exception; p0_split
-
-@[step] theorem vcpu.read_vmcs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) (f : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vcpu.read_vmcs machineStoreInst s v f ⦃ _ => True ⦄ := by
-  unfold vcpu.read_vmcs; p0_auto
-
-@[step] theorem vcpu.bound.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
-    vcpu.bound machineStoreInst s t ⦃ _ => True ⦄ := by
-  unfold vcpu.bound; p0_auto
-
-@[step] theorem vcpu.get.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) (offset : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vcpu.get machineStoreInst s v offset ⦃ _ => True ⦄ := by
-  unfold vcpu.get; p0_auto
-
-theorem vcpu.svm.CR2.p0  :
-    vcpu.svm.CR2 ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.vcpu.svm.CR2.spec (fun _ _ => trivial)
-
-theorem vcpu.svm.CR3.p0  :
-    vcpu.svm.CR3 ⦃ _ => True ⦄ := by
-  exact WP.spec_mono Consts.vcpu.svm.CR3.spec (fun _ _ => trivial)
-
-@[step] theorem vcpu.report_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (pending : Bool) (b : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vcpu.report_loop0 machineStoreInst s t v pending b i ⦃ _ => True ⦄ := by
-  unfold vcpu.report_loop0
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => vcpu.NUM_MRS.val - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold vcpu.report_loop0.body
-    p0_body
-  · trivial
-
-@[step] theorem vcpu.report_loop1.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (b : Std.U64) (j : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vcpu.report_loop1 machineStoreInst s t v b j ⦃ _ => True ⦄ := by
-  unfold vcpu.report_loop1
-  apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => 15 - x1.val) (inv := fun _ => True)
-  · rintro ⟨x0, x1⟩ -
-    unfold vcpu.report_loop1.body
-    p0_body
-  · trivial
-
-@[step] theorem vcpu.report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    vcpu.report machineStoreInst machineArchInst s a t badge ⦃ _ => True ⦄ := by
-  unfold vcpu.report; p0_split
-
-@[step] theorem vcpu.check.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    vcpu.check machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
-  unfold vcpu.check; p0_auto
 
 @[step] theorem vcpu.enter.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vcpu.enter machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
@@ -3410,6 +3410,10 @@ theorem obj.Slot.Insts.CoreCmpPartialEqSlot.eq.p0 (self : obj.Slot) (other : obj
 @[step] theorem schedcontext.unbind_all_tcbs.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.unbind_all_tcbs machineStoreInst machineArchInst s a sc ⦃ _ => True ⦄ := by
   unfold schedcontext.unbind_all_tcbs; p0_auto
+
+@[step] theorem vcpu.cancel_run.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (_s : S) (_a : A) (_t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.cancel_run machineStoreInst machineArchInst _s _a _t ⦃ _ => True ⦄ := by
+  unfold vcpu.cancel_run; p0_auto
 
 @[step] theorem sched.suspend.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     sched.suspend machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by

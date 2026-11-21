@@ -21,7 +21,7 @@ set_option maxRecDepth 2048
 namespace fl4_core
 
 /-- Trait declaration: [fl4_core::machine::Store]
-    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-35:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-33:1
     Visibility: public -/
 structure machine.Store (Self : Type _) where
   frame_masks : Self → Result (Std.U64 × Std.U64)
@@ -131,7 +131,7 @@ structure debug.Breakpoint where
   enabled : Bool
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 45:0-130:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-128:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -185,7 +185,7 @@ inductive error.LookupFault where
 | GuardMismatch : Std.U64 → Std.U64 → Std.U64 → error.LookupFault
 
 /-- [fl4_core::error::Fault]
-    Source: 'crates/fl4-core/src/error.rs', lines 28:0-36:1
+    Source: 'crates/fl4-core/src/error.rs', lines 28:0-42:1
     Visibility: public -/
 @[discriminant isize]
 inductive error.Fault where
@@ -214,7 +214,7 @@ inductive error.SysError where
 | NotEnoughMemory : Std.U64 → error.SysError
 
 /-- [fl4_core::error::Exc]
-    Source: 'crates/fl4-core/src/error.rs', lines 39:0-44:1
+    Source: 'crates/fl4-core/src/error.rs', lines 45:0-50:1
     Visibility: public -/
 @[discriminant isize]
 inductive error.Exc where
@@ -251,6 +251,12 @@ inductive tcbqueue.Link where
 | Sched : tcbqueue.Link
 | Ep : tcbqueue.Link
 
+/-- [fl4_core::obj::Ntfn]
+    Source: 'crates/fl4-core/src/obj.rs', lines 30:0-30:25
+    Visibility: public -/
+@[reducible]
+def obj.Ntfn := Std.U64
+
 /-- [fl4_core::msginfo::MessageInfo]
     Source: 'crates/fl4-core/src/msginfo.rs', lines 5:0-10:1
     Visibility: public -/
@@ -266,12 +272,6 @@ structure msginfo.MessageInfo where
 structure sporadic.Refill where
   time : Std.U64
   amount : Std.U64
-
-/-- [fl4_core::obj::Ntfn]
-    Source: 'crates/fl4-core/src/obj.rs', lines 30:0-30:25
-    Visibility: public -/
-@[reducible]
-def obj.Ntfn := Std.U64
 
 /-- [fl4_core::obj::Reply]
     Source: 'crates/fl4-core/src/obj.rs', lines 32:0-32:26
@@ -412,7 +412,7 @@ def vcpu.msr_addr.closure_1 := Std.U64
 def vcpu.msr_addr.closure := Std.U64
 
 /-- [fl4_core::untyped::UntypedCap]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 189:0-194:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 192:0-197:1 -/
 structure untyped.UntypedCap where
   ptr : Std.U64
   size_bits : Std.U64
