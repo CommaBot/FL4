@@ -25,6 +25,7 @@ decode theorems to discharge.
 import Fl4Proofs.P1.QueueRecv
 import Fl4Proofs.P1.QueueFire
 import Fl4Proofs.P1.QueueBudgetG
+import Fl4Proofs.P1.VcpuHooks
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -436,6 +437,12 @@ structure EntryHyps0 (st : machine.Store S) [L : LawfulStore st] (ar : machine.A
   /-- `activate_thread`, after `schedule`. -/
   act : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
     sched.activate_thread st ar s a ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
+  /-- (#57) `finish`'s `vcpu.check` of a `TS_RUNNING_VM` current thread (the
+  completion of its VMEnter; off `TS_RUNNING_VM` it does nothing,
+  `check_of_ne`). `P3Place.vmchk` [P]. -/
+  vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
+    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
 
 /-- `EntryHyps0` and the invocations (`inv`), over the admissible sets `Adm`. -/
 structure EntryHyps (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (Adm : PSets → Prop)
@@ -694,12 +701,20 @@ theorem syscall.finish.entry (hA : P0.ArchTotal ar) (hNt : ∀ n ∈ Nt, H n = s
     (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) {Ac : Set U64} (s : S) (a : A)
     (h : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     syscall.finish st ar s a ⦃ s' _ => ∃ Ac', EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac' s' ⦄ := by
-  unfold syscall.finish
-  obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
-  refine WP.spec_bind (sched.schedule.entry hA hNt s a Q R h0 hB hS hX hSg) ?_
-  rintro ⟨s1, a1⟩ h1
-  try simp only [WP.uncurry'_pair]
-  exact WP.spec_mono (E.act Ac s1 a1 h1) fun r hr => ⟨Ac, hr⟩
+  rw [finish_eq_old]
+  refine WP.spec_bind (Pₘ := fun r : S × A => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac r.1) ?_ ?_
+  · unfold syscall.finish_old
+    obtain ⟨⟨Q, R, h0⟩, hB, hX, hSg, hS⟩ := h
+    refine WP.spec_bind (sched.schedule.entry hA hNt s a Q R h0 hB hS hX hSg) ?_
+    rintro ⟨s1, a1⟩ h1
+    try simp only [WP.uncurry'_pair]
+    exact WP.spec_mono (E.act Ac s1 a1 h1) fun r hr => by obtain ⟨s', a'⟩ := r; exact hr
+  · rintro ⟨s2, a2⟩ h2
+    show (do let t ← sched.cur_thread st s2; vcpu.check st ar s2 a2 t) ⦃ _ ⦄
+    rw [cur_thread_ok]; simp only [bind_ok]
+    by_cases hv : L.mem s2 (stA (L.curW s2)) = sched.TS_RUNNING_VM
+    · exact WP.spec_mono (E.vmchk Ac s2 a2 h2 hv) fun r hr => by obtain ⟨s', a'⟩ := r; exact ⟨Ac, hr⟩
+    · rw [check_of_ne ar s2 a2 _ hv]; exact (WP.spec_ok _).2 ⟨Ac, h2⟩
 
 /-- `after_invocation`: the preemption point of a preempted invocation, with
 `HCur`, then a pending interrupt. -/

@@ -541,6 +541,19 @@ structure P3Place (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   other than the current one: the reply's caller's timeout fault). -/
   tmoAny : ∀ (Ac : Set U64) (s : S) (t : U64), BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → t ∈ T →
     obj.Tcb.slot t layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl => obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
+  /-- **[P] (#57) `finish`'s `vcpu.check` keeps `EntryInv` on a `TS_RUNNING_VM`
+  current thread**: since #57 every `finish` ends with `vcpu.check` of the
+  current thread, which off `TS_RUNNING_VM` does nothing (`check_of_ne`) and on
+  it completes the thread's VMEnter (`vcpu.report`: its message registers and
+  IPC buffer, the VCPU's `PENDING` word, the thread made running; or a bound
+  active notification made idle first). VT-x / SVM: no l4v counterpart (the
+  l4v-derived spec has no `RunningVM` entry; the P1 top already leaves
+  `SysVMEnter` out, and P3 runs under `NativeScope`, where the case does not
+  arise). True wherever `vcpu.report` keeps the invariants (P1 proves it keeps
+  `Cur0`: `vcpu.report.cur0`). -/
+  vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+    L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
+    vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄
 
 /-- **`EntryHyps` from the decode gaps and the placement facts** (those of
 every admissible tuple, `PF`, for after a retype). -/
@@ -563,6 +576,7 @@ theorem EntryHyps.of_gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Pr
       (fun σ' h' Ac s h => (PF σ' h').blkU Ac s h)
       (fun σ' h' => (PF σ' h').xfer) (fun σ' h' => (PF σ' h').errG) hflt s a call blk don fp cptr he h hcA hcsc)
     P.blkU P.recvOK P.irqcap (fun Ac s a n he h => syscall.debug_syscall.entry hA s a n h (P.dbg Ac s he h)) P.postG
+    P.vmchk
 
 /-- **Native kernel entries keep `EntryInv`, from the decode gaps `InvGaps`
 and the P3 placement facts `P3Place`** of every admissible tuple; the entry
