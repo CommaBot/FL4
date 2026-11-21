@@ -52,7 +52,7 @@ theorem kernel_entryJ30C [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ30 s a σ J hni hR hS.1 hE hS.ctQ n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax
     htu
 
@@ -81,7 +81,7 @@ theorem kernel_entryJ30CR [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ30C s a σ J hni hR hS.1 hE n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu
 
 end

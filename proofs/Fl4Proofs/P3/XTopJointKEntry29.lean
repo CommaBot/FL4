@@ -71,7 +71,7 @@ theorem kernel_entryJ29 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ :=
   kernel_entryJ28 s a σ J hni hR hS hQ n c hn hflag hB
     (fun σb hBA Z' H' Cs' Ac' Lst' D' s' a' J' =>
       (hK σb hBA Z' H' Cs' Ac' Lst' D' s' a' J').to27 hnd hS hni hE hBA)
@@ -158,7 +158,7 @@ theorem kernel_entryJ13PUG [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
   have hct := cur_thread_eq (L := L) s
   generalize L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) = ct at hct
   obtain ⟨hcur, -⟩ := J.curEq hct
@@ -168,7 +168,7 @@ theorem kernel_entryJ13PUG [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 
   have hxs := hI.1.toE.at_tcb hctT hk
   have hk' : σ.kheap σ.curThread = some (.tcb x) := by rw [hcur]; exact hk
   -- the FaultIP write
-  unfold syscall.handle_syscall
+  unfold syscall.handle_syscall_old
   rw [hct]; simp only [bind_ok]
   refine WP.spec_bind (Endp.obj.Tcb.reg.spec s ct layout.reg.NEXT_IP) ?_
   rintro nx hnx
@@ -304,7 +304,7 @@ theorem kernel_entryJ29G [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
-    syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
+    syscall.handle_syscall_old st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
   have hct : σ.curThread ≠ σ.idleThread := hni.1
   have hC : CurInv σ := J.cur.resolve_left (by rw [hni.2]; intro e; cases e)
   exact kernel_entryJ13PUG s a σ J hni hR hS.1.1.vim hS.1.1.ns n c hn hflag

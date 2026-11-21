@@ -230,6 +230,11 @@ theorem JAtZ.reset_loopJM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : F
     · intro w hw h1 h2; exact hZ2 w hw (by omega) h2
   · rw [if_neg ho0]
     have ho0' : o.val ≠ 0 := fun e => ho0 (UScalar.eq_of_val_eq e)
+    -- #52: the cap just written reads back as the untyped cap, so the
+    -- doomed-transaction exit (`as_untyped` = `none`) is not taken.
+    have hcapS : obj.Slot.cap st xs s2 = ok (.Untyped p sb o false) := by rw [slot_cap_eq]; exact hcap2
+    simp only [hcapS, bind_ok, untyped.as_untyped, core.option.Option.is_none, Bool.false_eq_true,
+      ↓reduceIte]
     obtain ⟨⟨r, s3, a2⟩, hp3, σp, hcase, hXp, hRp, hVp, hVIp, hSS3, hks3, -, hfr3⟩ :=
       J2.ppJSM hAK hA hnd hM hPA (MR := MR) hMR hVT hVI hR02
     rw [hp3]
