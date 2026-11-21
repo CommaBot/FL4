@@ -7689,3 +7689,54 @@ G3 item left after this step.
   an SInvB field (ScBack, ActReady, MemOKE of queued threads); (d) the three mid facts by first-phase carries of
   UtInv3 / SpecGlobS / VfhAll (JPerfRegHyp, JPerfIrqSlotHyp, JMidVfhHyp); (e) the ∀-ghost scope of hK / hFin
   (J13P's body calls them only at budgetOkB's / the dispatch posts' ghosts).
+
+## epq2 (branch par/epq2 in FL4-rb, on e84486cc = int/j2 incl. epq1, rd5, ctq8, g1b) — epq1 handoff 3-5: configure, shell, tops (DONE)
+Goal: RPos carried across the syscall entry and every event, and EpQAll at every exit via `epQAll_of`. Spec-only, namespace
+`Fl4Proofs.P3.SInvE`, new modules SpecInvEqD, EqS, EqT (root imports added); nothing existing edited.
+- **SpecInvEqD** (configure). `CfgOK σ p`: the SC at `p`, when active, has refills, `MIN_BUDGET ≤ head`, and, when `p` is the
+  current non-idle SC, `refillSufficient consumedTime head` (a function of epq1's view `VZv`: `cfg_vz`). `HP p σ`: the SC at
+  `p`, when active, has refills and a positive head (`hp_of_cfg`, `hp_vz`, `hp_kheap`, `hp_updSc_keep`; `hp_of_atK`: a
+  sporadic SC after `refill_budget_check`, from epq1's `ak_refillBudgetCheck` / `LK`, since `MIN_BUDGET ≤ rsum` forces a
+  non-empty list). `rr_head` / `hp_rbcRR`: round-robin commit keeps a positive head (two or more refills: by Suff,
+  `head - consumed ≥ MIN_BUDGET`; one refill: `hd - c + c = hd`). **`hp_commitTime`**: `RPos ∧ CfgOK σ curSc ⇒ RPos ∧ HP
+  curSc` after `commit_time`. `mem_getScActive`. **`rpos_refillUpdate`** (`RPos`, SC at `p` with refills and a positive head,
+  `MIN_BUDGET ≤ budget`): explicit states through the four writes, the ready-time update (both branches) and the two tails
+  (`[budget]` + `pz_maybeAddEmptyTail`, or `[h, budget - h]`: `rposS_two`). `cfg_front` (tcbReleaseRemove / dequeue keep
+  `RPos` and `VZv`, then `commit_time` when the SC is current), **`pz_configure (iv) (hD : CfgDec (.invokeSchedControl iv))
+  (σ) (hσ : RPos σ) (hC : ∀ p, CfgOK σ p)`**: the do-level `if period = budget` duplicates the tail into all four refill
+  branches (Lean's join point inlined), each finished with `pz_auto`.
+- **SpecInvEqS** (shell, events). `CfgA σ := ∀ p, CfgOK σ p`; **`cfgA_of (RV) (RNE) (Suff)`**. `CKE m` (keeps `RPos` from
+  `RPos ∧ CfgA`), `cke_of`, `cke_bind_v` (a first step keeping `RPos` and `VZv`), `cke_bind`; `PV V := RPos ∧ VZ V`,
+  `pv_of`. `pz_fl4Perform` (configure: pz_configure; other arms: `pz_auto`), **`pz_handleInvocationR`** (`SInvU.syscall_postU`
+  with `I := PV (VZv σ)`, decode fact `okv_fl4DecodeCfg` at `w := uV` of the post-`getMrs` state, `setThreadState … restart`
+  keeps `PV`), `pz_fl4HandleSyscall`, **`pz_fl4HandleEvent_sys`** (`SInvO.uts_off`: the time stamp keeps the heap, so `RV`,
+  `RNE`; `SInvR.suff_checkBudgetRestart` on `true` gives the state unchanged and `Suff`, so `CfgA`), `pz_handleEvent_other`,
+  `pz_fl4CallKernel`, `vz_fl4SyscallFaultIP'`, tops.
+- **SpecInvEqT**: the EpQAll tops (sb2's `kentry_scInv` / `kcall_scInv`, il2's `kentry_nqIL` / `kcall_nqIL`, `epQAll_of`).
+- STATEMENTS:
+  * **`kentry_rpos (rep c) (hP : RPos σ) (hR : SInvR.Rdy σ) (hS : SInvB.ScInv σ) : ∀ y ∈ (fl4KernelEntrySyscall rep c σ).1,
+    RPos y.2`**; **`kcall_rpos (rep ev)`** (same hypotheses, every event). Only `Rdy`'s `RV` and `ScInv`'s `RNE` are used.
+  * **`kentry_epQAll (c) (hP) (hR) (hS) (hU : UtInv3 σ) (hV : VfhAll σ) (hL : SInvB.ScLive σ) (ha : ∃ x, kheap ct = tcb x ∧
+    activeSt x.tcbState) (hN : NtfnQB σ ∧ EpQB σ) (hLT : IfLiveT σ) (hRy : ∀ y ∈ outs, Rdy y.2) : ∀ y ∈
+    (fl4KernelEntrySyscall true c σ).1, EpQAll y.2 ∧ RPos y.2`**; **`kcall_epQAll (rep ev)`** (ha with the interrupt/idle
+    alternative, `hRy` over `fl4CallKernel rep ev`).
+- Premises: none new. RPos is carried (`boot_rpos`, now preserved). Every other hypothesis is a carried invariant at the entry
+  (g1a's bundle: ut, vfh, sl's ScInv / ScLive, nq / epq, live) or l4v `ct_active` (`ha`, as il2 / fo1 / g1a). `hRy` is
+  Rdy at the exit **by name**, to be discharged by rd6's `kentry_rdy` / `kcall_rdy` (same shape); it is not an assumption
+  about states the operation cannot reach. No [J]/[P]/[W]/[S].
+- No FINDING: configure's `refill_update` is reached only for an active SC with a TCB in a runnable state; at that point the
+  SC's head is positive (sporadic: RPos; round-robin: entry RV + RNE, kept through the decode cone by `VZv`, and through the
+  perform's own `commit_time` by Suff).
+- Builds (tokyo, FL4-rb mirror, ./epq2.sh untracked = epq1.sh with its own log): epq2-b1 (EqG2..G6 replayed; EqD errors),
+  b2 (EqD: the identity-update unification in `hp_updSc_keep`, lead hint: the membership argument now comes first so the
+  update is fixed by it), b3 EqD OK (4760 jobs), b4 EqS (Unit `subst`), b5 EqS OK (4770) + EqT OK (4946), ax1 axioms;
+  b6 the three again without per-theorem `maxHeartbeats` raises (module-level 1000000 as epq1). Axioms (scratch/epq2/ax.lean,
+  untracked): kentry_epQAll, kcall_epQAll, kentry_rpos, kcall_rpos, pz_configure, rpos_refillUpdate, hp_commitTime,
+  pz_handleInvocationR, pz_fl4Perform, pz_fl4CallKernel: propext, Classical.choice, Quot.sound; cfgA_of: propext,
+  Classical.choice. No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (import lines only).
+- Lean notes: a frame lemma whose update `f` is implicit must take the membership before the side condition (`⟨rfl, rfl⟩`
+  otherwise solves `f := id`); a do-level `if` followed by statements is compiled with the tail duplicated into each branch
+  (split first, finish each branch); `simp` turns a `Unit` equation into `True` (no `subst`); `getScRefillReady_eq` /
+  `getRefillHead_eq` with `List.cons_ne_nil` cannot elaborate before the state is known: use `mem_getScRefillReady` /
+  `mem_getRefillHead`.
+- Next: when rd6 lands `kentry_rdy` / `kcall_rdy`, pass them as `hRy`; carry `RPos` (and EpQAll) in the G1 bundle.

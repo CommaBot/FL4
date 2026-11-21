@@ -349,7 +349,6 @@ theorem cfg_front (scPtr : ObjRef) (sc : SchedContext) (σ : State Unit) (hσ : 
     rw [Set.mem_singleton_iff.1 hz]
     exact ⟨hσ, fun h => absurd h hne⟩
 
-set_option maxHeartbeats 4000000 in
 /-- **The configure perform keeps `RPos`**, from its decode fact (a budget of at
 least `MIN_BUDGET`) and the entry fact `CfgOK` at every SC. -/
 theorem pz_configure (iv : SchedControlInvocation) (hD : CfgDec (.invokeSchedControl iv)) (σ : State Unit)
