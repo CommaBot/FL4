@@ -43,6 +43,7 @@ original. Its carry from the dispatch state to the exit (the post of the top)
 is the remaining G2c work (KENTRY-PLAN g2c).
 -/
 import Fl4Proofs.P3.XTopJointKEntry32
+import Fl4Proofs.P1.FastDecline
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -349,6 +350,66 @@ theorem handle_syscall_eq_general_of {s : S} {a : A} {n : I64}
   cases b <;> (try simp only [uncurry_apply_pair, Bool.false_eq_true, ↓reduceIte, if_neg hrr, Std.bind_assoc,
     bind_ok]) <;> (try rfl)
 
+/-- **[P] `SysReplyRecv`'s fast path keeps what the general path guarantees,
+where it answers** (m57; `P1.FastAcc` narrowed for J33): at every dispatch
+state of the entry (`KFrontB`: the `FAULT_IP` write, then a passing
+`budget_ok`), a run of `fastpath.reply_recv` that answers (`true`) ends in a
+state satisfying `P` whenever the general path's runs do. A declined
+`fastpath.reply_recv` changes nothing (`P1.reply_recv_decline`), so it is
+not asked about. l4v: `Fastpath_C` `fastpath_reply_recv` refines the slow
+path where it does not fall back. -/
+def FastRR (s : S) (a : A) (n : I64) (P : S × A → Prop) : Prop :=
+  ∀ s2 a2 s' a', KFrontB (L := L) arI s a s2 a2 → fastpath.reply_recv st arI s2 a2 = ok (true, s', a') →
+    syscall.handle_syscall_general st arI s a n ⦃ P ⦄ → P (s', a')
+
+/-- With the trap flag clear after the `FAULT_IP` write and a native number
+`SysReplyRecv`, a run of `handle_syscall_fast` that a fast path answered is
+a run of `fastpath.reply_recv` from a dispatch state (`KFrontB`), so
+`FastRR` gives `P1.FastAcc`. -/
+theorem FastRR.acc {s : S} {a : A} {n : I64} {P : S × A → Prop}
+    (hflag : ∀ ct v, sched.cur_thread st s = ok ct → obj.Tcb.flags st ct (L.wr s (regA ct layout.reg.FAULT_IP) v)
+      ⦃ f => (f &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS) = 0#u64 ⦄)
+    (hr : ¬ n < fl4_abi.syscall.SYSCALL_MIN ∧ ¬ n > fl4_abi.syscall.SYSCALL_MAX)
+    (hrr : n = fl4_abi.syscall.SysReplyRecv) (h : FastRR (L := L) (arI := arI) s a n P) :
+    P1.FastAcc st arI s a n P := by
+  intro hg s' a' e
+  unfold syscall.handle_syscall_fast syscall.syscall at e
+  have hct := cur_thread_eq (L := L) s
+  generalize L.mem s (L.nodeAt s (L.cpu s) layout.node.CUR_THREAD) = ct at hct
+  rw [hct] at e; simp only [bind_tc_eq, bind_ok] at e
+  obtain ⟨nx, hnx, -⟩ := spec_exists (Endp.obj.Tcb.reg.spec (L := L) s ct layout.reg.NEXT_IP)
+  rw [hnx] at e; simp only [lift, bind_tc_eq, bind_ok] at e
+  obtain ⟨s1, hs1, rfl⟩ := spec_exists (Endp.obj.Tcb.set_reg.spec (L := L) s ct layout.reg.FAULT_IP
+    (core.num.U64.wrapping_sub nx 2#u64))
+  rw [hs1] at e; simp only [bind_tc_eq, bind_ok] at e
+  obtain ⟨f, hf, hf0⟩ := spec_exists (hflag ct (core.num.U64.wrapping_sub nx 2#u64) hct)
+  rw [hf] at e; simp only [bind_tc_eq, bind_ok, hf0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte] at e
+  simp only [if_neg hr.1, if_neg hr.2] at e
+  have e' := P1.spec_of_eq_fd e
+  clear e
+  obtain ⟨⟨b, s2, a1⟩, eb, e'⟩ := P1.spec_bind_inv e'
+  try simp only [uncurry_apply_pair] at e'
+  cases b
+  · simp only [Bool.false_eq_true, ↓reduceIte] at e'
+    obtain ⟨_, -, e'⟩ := P1.spec_bind_inv e'
+    try simp only [P1.uncurry_eta_fd] at e'
+    rw [WP.spec_ok] at e'
+    simp at e'
+  simp only [↓reduceIte, if_pos hrr] at e'
+  obtain ⟨⟨b1, s3, a2⟩, er, e'⟩ := P1.spec_bind_inv e'
+  try simp only [uncurry_apply_pair] at e'
+  cases b1
+  · simp only [Bool.false_eq_true, ↓reduceIte] at e'
+    obtain ⟨_, -, e'⟩ := P1.spec_bind_inv e'
+    try simp only [P1.uncurry_eta_fd] at e'
+    obtain ⟨_, -, e'⟩ := P1.spec_bind_inv e'
+    try simp only [P1.uncurry_eta_fd] at e'
+    rw [WP.spec_ok] at e'
+    simp at e'
+  simp only [↓reduceIte, WP.spec_ok, Prod.mk.injEq, true_and] at e'
+  rw [← e'.1, ← e'.2]
+  exact h s2 a1 s3 a2 ⟨ct, _, hct, eb⟩ er hg
+
 set_option maxHeartbeats 4000000 in
 /-- **The newest top on the general path** (module docstring):
 `kernel_entryJ32`'s premises, with the bundles inside `hK`
@@ -393,8 +454,10 @@ set_option maxHeartbeats 4000000 in
 `handle_syscall`, which may take a fast path): `kernel_entryJ33G`'s
 premises and one more, `hFast` [P]: for `SysReplyRecv` only (the one native
 number whose entry has a fast path, `handle_syscall_eq_general_of`), the
-fast path keeps what the general path guarantees (`P1.FastAgree`, the
-refinement fastpath.rs states as intended). -/
+fast path keeps what the general path guarantees where it answers (`FastRR`:
+only runs of `fastpath.reply_recv` that end `true`, from a dispatch state;
+m57 narrowed it from m56's `P1.FastAgree` with the decline lemmas of
+P1.FastDecline). -/
 theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hni : Entered σ)
@@ -421,12 +484,13 @@ theorem kernel_entryJ33 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
-      P1.FastAgree st arI s a n (fun r => KPost (L := L) arI AR c σ r)) :
+      FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPost (L := L) arI AR c σ r ⦄ := by
   have hG := kernel_entryJ33G s a σ J hni hR hS hE hQ hLv n c hn hflag hB hK hFin hARI hA hnd hM hKD hPA hIA
     hmrt hmb hT hmax htu
   by_cases hrr : n = fl4_abi.syscall.SysReplyRecv
-  · exact P1.FastAgree.spec st arI (hFast hrr) hG
+  · exact P1.FastAgree.spec st arI (P1.FastAgree.of_acc st arI P1.LawfulStore.total hA
+      (FastRR.acc hflag hn.range hrr (hFast hrr))) hG
   · rw [handle_syscall_eq_general_of hflag hn.range hrr, P1.handle_syscall_general_eq]; exact hG
 
 
