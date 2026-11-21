@@ -8620,3 +8620,61 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR.B8c` (new names only there), modules Sp
   argument fixed by a later `⟨rfl, rfl, rfl⟩` is unified with the wrong object — put the membership hypothesis first
   (bk_setTcb); `Function.update_of_ne` takes `a ≠ a'` for `update f a' v a`; `obtain … := hF` consumes hF (use `id hF`);
   `unfold NonDet.when` once unfolds every occurrence.
+## ctq15 (branch par/ctq15 in FL4-c2, on 4e874c81 = int/j2 incl. ctq13, ctq12, ctq11, rd8b, g3b, g3c) — ctq13 handoff 1-3 DONE (YieldTo, Untyped / MakePool, decode facts); every perform arm in one statement and the Restart bridge; NOT finished: the shell walk of fl4HandleInvocationR, tops
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.P15`, modules **SpecInvCqM1..M5** (the H prefix is ctq14's; E1..E4 are ctq7's), root
+imports M1..M5. Nothing existing edited. M1 also imports XTopJointMidRunK (sch11's `KF`, spec-only, no new closure), M2
+SpecInvCqL / SpecInvCqGU, M5 SpecInvCqGS.
+- **SpecInvCqM1 (YieldTo, ctq13 handoff 1)**: `YT C sc k` (the decode's `sc_tcb ≠ some ct`), `yt_of_br` (along sb2's BR),
+  `rnH_tsV` / `rnH_kf` / `ct_kf` (sch11's `KF t` keeps `t`'s state: complete_yield_to's reply writes user memory and
+  registers, so ScTK's NKT does not apply — `KF` does), `rq_threadSet` / `rq_updateSchedContext`, `KY C h0 := EB true ∧
+  Simple ∧ CTh C ∧ BRs h0 ∧ RnH C` with `ky_completeYieldTo`, `ky_yieldFrom`; `UF C u` (ct, both runnable, u not released)
+  with `uf_tsa` / `uf_threadSet` (real update `tcbYieldToUpdate fun _ => some sc`) / `uf_updateSchedContext`, `et_enq`,
+  `eb_yieldToSecond` (ct's yield-to, SC yield-from, dequeue u, enqueue ct (not released by NP ct of EB true) and u under ET,
+  reschedule_required). **`eb_schedContextYieldTo sc σ (hS : Simple) (hR : RnH ct) (hY : YT ct sc σ.kheap) : EB true σ → ∀
+  outcome, EB false`** (resume with k = true: u ≠ ct by YT, not the switch target by Simple; prios < ctPrios branch:
+  dequeue+enqueue of u with u ≠ ct), **`eb_perfScYieldTo`** (`HKE (EB true ∧ Simple ∧ RnH ct ∧ YT) (EB false)`).
+- **SpecInvCqM2 (Untyped / MakePool, ctq12 handoff 5)**: `SR k := SA ∧ RBk k` (heap only via `RnH t`: `sr_keep` =
+  `sa_of_keep` + `rb_of_keep`), **`rnDet_of_live (hU : UtInv'') (hL : IfLiveTN)`**: no runnable TCB in a childless
+  untyped's region (rqDet_of_live's argument), `sr_detype`, `sr_deleteObjects_p`, `sr_retype_kh`, `sr_retypeRegionWith_p`
+  (fresh addresses), `sr_resetUntypedCap`, `sr_utBody`, `sr_invokeUntyped`, `sr_makePool` (tails by sa_auto / rb_auto via
+  `ike_and`); **`eb_fl4InvokeUntyped (hU) (hL) (hok : UtRetOK)`**, **`eb_makePool (hU) (hL) (hok : MpOKN)`** (TQ ctq3's
+  tq_invokeUntyped / tq_makePool, T4 generated), **`eb_perfUntyped k`**, **`eb_perfMakePool k`** (`HKE (EB k ∧ UtInv'' ∧
+  IfLiveTN ∧ decode fact) (EB k)`). IfLiveTN comes from il2's carried IfLiveT (ctq4's `ifLiveTN_of_ifLiveT`).
+- **SpecInvCqM3 (decode facts, ctq13 handoff 3)**, `OkDAt` form of SpecInvQDom's okq_fl4Decode: `FPArm` (Endpoint,
+  Notification, Reply, IRQ control / handler, Untyped, arch), `TcbP` (ThreadControlSched: `sc ≠ none → prio ≠ none`), `ScD s`
+  (YieldTo: `YT ct sc`; SC Bind: a thread target has no SC). **`okd_fp`** (fp = true → FPArm), **`okd_tcbP`** (walks every TCB
+  decode: only decode_set_sched_params has an SC argument and it has a priority), **`okd_sc`** (`okd_yieldTo`, `okd_scBind`,
+  `okd_scInv`), `scD_of_br` (ScD along ct kept + BR). Combinators `okdAt_triv`, `okdAt_liftE_bind_v`, `okdAt_liftE_ro`, `ro_*`.
+- **SpecInvCqM4 (every perform arm)**: `PF C N inv s := PE C s ∧ IdleIs N ∧ C ≠ N ∧ ResSc ∧ UtInv'' ∧ IfLiveTN ∧ TcbP inv ∧ ScD s
+  inv ∧ SetDom0 inv ∧ DomInvOK s inv ∧ GapOKN (uV s) inv`. **`eb_fl4PerformInvocation hD hR hO hB C N fp bl call don inv (hfp
+  : fp = true → FPArm inv) : HKEr (PF C N inv) (EB fp) (fl4PerformInvocation bl call don inv)`**: every outcome EB false, an ok
+  one EB fp (first-phase arms EB true / EB k; the others EB false, fp = false by hfp). `ebk_of_true`, `eb_fin`.
+- **SpecInvCqM5 (the Restart bridge)**: `PD C N inv s` (PF's facts at the decode's outcome state with `IL [C]` for IfLiveTN and
+  ctq11's `RT` for ResSc, ct's runnability not needed), `idleSt_keep` (sch11's KF N, C ≠ N), **`pf_restart : PD → ∀ outcome of
+  set_thread_state C Restart, PF`**, **`eb_restartPerform`** (Restart write then perform).
+- HANDOFF (in order):
+  1. **The shell `eb_fl4HandleInvocationR`** (ctq11's `rt_fl4HandleInvocationR` / SpecInvQDom's `q4_handleInvocationR` walk:
+     `ft_syscall_post` / `syscall_post'`): front (gets, getMessageInfo, lookups, getMrs) keeps PD's state facts (generated
+     leaves of each family; most are reads), fault branch `when blocking (handleFault ct f)` (EB false needed: ctq7's fault
+     writers), error branch (reply only: eb_auto), decode: `okd_fp` / `okd_tcbP` / `okd_sc` / `okq_fl4Decode` (SetDom0) /
+     the QDom shell's DomInvOK lemma / `okv_fl4DecodeG` (GapOKN via DecodedFrom) at the decode's outcome state, then
+     `eb_restartPerform`, then the post: `getThreadState ct`; Restart → reply (eb_auto) + `set_thread_state ct Running`
+     (`eb_setThreadState_r`, keeps EB fp). Statement: `HKEr (shell pre) (EB fp)`; ReplyRecv / NBSendRecv then call ctq10's
+     `eb_handleRecv_res` (ResSc from RT, rt_fl4HandleInvocationR) after an ok first phase.
+  2. Instantiate ctq12's four Eb*H with ctq14's R14 theorems (int/j2 2961c236; `git rebase --onto 2961c236 4e874c81
+     par/ctq15` should be clean: all files are new).
+  3. Tops (`kentry_tq` / `kcall_tq`): the shell's pre at the event start (DK from ctq5's EB, NQ [ct], ScInv, ValidIdle,
+     IdleIs, RT from rt_of_curScT, UtInv'' from UtInv3, IL [ct] from il2).
+- Premises: none added ([J]/[P]/[W]/[S]). IfLiveTN is ctq3's [J]-named statement but discharged by il2's carried IfLiveT
+  (ifLiveTN_of_ifLiveT); the decode facts are proved (M3). ctq12's Eb*H stay named hypotheses (now ctq14 theorems). No
+  ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-c2 mirror, warm; ./ctq15.sh = ctq13.sh with filter SpecInvCqM and ax15.lean, both untracked; keys
+  ctq15-*): 1 H1 failed (rnH_tsV `rfl` for the heap equation; uf_threadSet unified with the identity update — pass
+  `tcbYieldToUpdate fun _ => some sc`; `split` on a beta-redex: `dsimp only` first); renamed H1 → M1 (ctq14 owns H*);
+  2 M1 9.1 s; 3 M2 4.5 s (5162 jobs, the GU closure compiled); 4 M3 failed (okdAt_liftME under an implication needs four
+  binders; a multi-line `unfold` list inside `first`; the SC Bind split's match equation `the ex.head? = .threadCap t`);
+  5 M3 failed (notification branch: whenE condition not inferable — generic walker); 7 M3 22 s + M4 2.4 s; 8 M5 1.9 s (5298
+  jobs). Axioms (ax15.lean): eb_schedContextYieldTo, eb_perfScYieldTo, eb_fl4InvokeUntyped, eb_makePool, eb_perfUntyped,
+  eb_perfMakePool, okd_fp, okd_tcbP, okd_sc, eb_fl4PerformInvocation, pf_restart, eb_restartPerform: propext,
+  Classical.choice, Quot.sound; scD_of_br: propext. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt
+  (five import lines).
