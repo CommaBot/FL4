@@ -11611,3 +11611,31 @@ proofs/scratch/rd14e/ax.lean untracked. No premise, no hypothesis added anywhere
   bridge `BrR (fun c σ => InvRc C c σ ∧ σ.curSc ≠ σ.idleSc)` (rd8w's caveat: extra state facts inside `Q`; the tops have
   `hX10.vi`). Then CNode delete / revoke etc. as in the rd14e section.
   rd14e-15 axioms: commit_inactive, sw_out, rd_scAndTimer, rd_exitSE, rd_scheduleOff, rd_scheduleOff10, os_frame, os_svcf, ss4_tw, tw_svcf, perfA_end, brR_c14e, B8w.kcall_rdyOffW / kentry_rdyOffW all ⊆ {propext, Classical.choice, Quot.sound}.
+
+### rd14e-3 (on b06f672a) — lead decision: ArmAKV accepted; the interface DONE; the deletion arms' walk invariant designed, NOT done (scale handoff)
+- **SpecInvRd14fA** (new, root imports it; `Fl4Proofs.P3.SInvR.A14f`): **`ArmAKV C`** (rd14d's `ArmAKB` + `σ0.curSc ≠ σ0.idleSc`),
+  `armAKV_of`, `ArmAKV.or`, `front_ci` (a `true` front outcome keeps cur_sc and the idle SC), **`perfR_ofKV`**, **`invR_ofKV`**,
+  **`brR_kv : ∀ c σ, A8.EF σ → (InvRc C c σ ∧ σ.curSc ≠ σ.idleSc) → InvR c σ`** (rd8w's `BrR` with the fact inside `Q`; the tops
+  discharge it from `hX10.vi`), `armAKV_c14e2`. Builds rd14e-16 (green), rd14e-17 (`#print axioms`: all ⊆ {propext, Classical.choice, Quot.sound}).
+- **What the remaining arms need (exact design; not started).** Every deletion arm (CNode delete / revoke, ThreadControl* capDelete,
+  Untyped reset's revoke) walks `cap_delete` / `rec_del` / `finalise_cap` / `empty_slot` / `preemption_point` and needs ONE IK family
+  `DW σ0` across that cone (alongside rd8f's `RB C I`, which already carries Rdy / DK / T1 / ScInv / VMT / IO / idle SC through it,
+  errors from preemption points included — `rdCapDeleteH`, `rb_capRevoke`):
+  `DW σ0 s :=` cur_sc / ct / idle thread / idle SC kept; time and consumed advanced together (rd14d's `TT.adv`); and either
+  (i) ct bound to cur_sc, cur_sc's refills / max kept (rd8a's `CW`), `Suff` at the last time stamp, or
+  (ii) ct unbound, action ≠ resume, cur_sc's refills / max kept or max 0 (rd14d's widened `CWw`).
+  Leaves: `finalise_cap` per cap type (thread: suspend + `sched_context_unbind_tcb` ⇒ (i)→(ii) when the thread is ct, frame
+  otherwise; SC: `unbind_all_tcbs` + `set_inactive` ⇒ (ii) with max 0 when it is cur_sc; CNode: zombie, frame; endpoint /
+  notification / reply as rd14e-B's `ec_fastFinalise`; IRQ handler; arch caps: frames); `empty_slot` / cap writes: SVS frames;
+  `preemption_point`'s non-throwing outcome: `TT`'s advance with the check's `Suff` in (i), nothing to show in (ii).
+  End: `DW σ0 y.2` at an `ok` outcome is rd14d's `TT` (case i) or `TW` (case ii, with `ArmAKV`'s idle fact) ⇒ `EndA`.
+- **The preemption-path lemma (ct Restart).** At a throwing `preemption_point` outcome `p` (`DW σ0 p` and rd8f's `RB` at `p`):
+  `preemption_path`: ct schedulable (case i, cur_sc active): `check_budget` — `Suff` ⇒ `p` unchanged, `SS4` by rd14d's `ss4_tt`
+  reasoning; not `Suff` ⇒ `charge_budget consumed true`: rd10's `charge_ss4` needs `BS p`; its only use of ct Running is
+  `excl_entry`'s "not BlkR" (Restart is not BlkR either), so a `charge_ss4'` with `ct ∈ {Running, Restart}` plus `CtQ` / `Simple` /
+  `CB` / `hb` / `CAx` at `p` is the needed variant (those are carried: DK's `Simple`, ctq's T1 ⇒ CtQ; cb / hb / CAx by case i's
+  binding). ct not schedulable: cur_sc active ⇒ `charge_budget consumed false` (same variant); inactive ⇒ consumed := 0 ⇒ OS's
+  second disjunct (case ii: action ≠ resume). Then `maybe_handle_interrupt true` keeps AW9 (rd10's `aw9_maybeHandleInterrupt`),
+  which contains SS4.
+- Untyped retype / ASID control: rd8n's `UF` + `UtRetOK` / `MpOKN` at the Restart state (a further interface, as rd8n's `perfIn_of`);
+  their writes are fresh objects / cap writes, so `EC σ0` (rd14d) should follow by SVS frames once `UF` gives the region facts.
