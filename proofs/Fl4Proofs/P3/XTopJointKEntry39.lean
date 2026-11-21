@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), invariant line G4 (g4h, KENTRY-PLAN g4h; g4d's handoff):
-**`JDecMRL` narrowed: the IO port and IRQ handler caps' decodes with `MR`
-at the chosen outcome proved.**
+**`JDecMRL` narrowed: the IO port, IRQ handler and IRQ control caps' decodes
+with `MR` at the chosen outcome proved.**
 
 * `XCapP.mrG` (`TopPostDMXP.mrG`, `TopPostRMX.mrG`): `XCapP.mr` for a decode
   that moves the machine fields `MR` reads by a fixed `f`: FL4's decode ends
@@ -17,17 +17,22 @@ at the chosen outcome proved.**
   (`dec_irqH_ack`), whose perform is `maskInterrupt false irq`
   (`perf_ack_ms`); at the other labels Set / Clear (`dec_irqH_nack`), which
   keep `msFT` (`perf_irqH_nack`).
-* `LoudR` (Thread, Untyped, IrqControl) and **`JDecMRL2`** [W]: `JDecMRL`
+* IRQ control: `decode_invocation_irq_controlXSM` (XTopCaps' `XS` with
+  IrqCtlMR's `irq_control_decode_refinesM`: `MR` at the outcome, FL4's
+  `mask_irq` against the spec's `setIrqState Signal`; the IOAPIC labels under
+  the new arch-only [P] `MRKeepIoapic`).
+* `LoudR` (Thread, Untyped) and **`JDecMRL2`** [W]: `JDecMRL`
   asked only for `LoudR` caps. `jDecMRL_of`: at a dispatch state with the
   invocation's `JEntryGlobM` / `JEntryAt` / `JPreDecHypM` (what
   `KDispHyps13PU` gives), `JDecMRL2 → JDecMRL`.
-* Copies with `hDL : JDecMRL2` (and `hIo`): `dispatch_all13PUNM2`,
+* Copies with `hDL : JDecMRL2` (and `hIo`, `hIoa`): `dispatch_all13PUNM2`,
   `kernel_entryJ13PUGMD2`, NEW TOPS **`kernel_entryJ39`** (= `kernel_entryJ38`
-  with `JDecMRL2` for `JDecMRL`, plus `hIo` [P]) and
+  with `JDecMRL2` for `JDecMRL`, plus `hIo` / `hIoa` [P]) and
   **`kernel_entry_reachMD2`**.
 -/
 import Fl4Proofs.P3.XTopJointKEntry38
 import Fl4Proofs.P3.MachKeepG4h
+import Fl4Proofs.P3.IrqCtlMR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -207,22 +212,91 @@ theorem perfF_irqH (irq : U64) (hirq : irq.val < 128) (lbl : U64) (σ : Fl4Spec.
 
 end
 
+/-! ## The IRQ control cap with `MR` -/
+
+section
+variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
+variable {MR : A → Fl4Spec.MachineState → Prop}
+
+set_option maxHeartbeats 4000000 in
+/-- **`decode_invocation_irq_controlXS` with `MR`** (IrqCtlMR's
+`irq_control_decode_refinesM`). -/
+theorem decode_invocation_irq_controlXSM {AR : A → Fl4Spec.Cr3 → Prop}
+    (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
+    (hL : IntLayout th (L.ksb s))
+    (hHA : HandlersActive (L.mem s) (L.ksb s) G)
+    (lbl : U64) (slbl : Fl4Spec.Data) (hlbl : IrqCLabel lbl slbl)
+    (hrm : decide (lbl.val = 72) = Fl4Spec.isFl4RemappedLabel slbl)
+    (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
+    (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (hcur : σ.curThread = ct.bv)
+    (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
+    (hact2 : ∀ i : U64, i.val < 128 → L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION ≠ irqStA (L.ksb s) i)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (x0 : U64) (hx0 : Aeneas.Std.Array.index_usize extra 0#usize = ok x0)
+    (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (hex : ExtraRel th (L.mem s) x0 (excaps.map Prod.fst))
+    {ps : U64} {rs : Nat} (hps : th ps = some (.cnode rs)) {idxs : List Bool} (hls : idxs.length = rs)
+    (hsrcC : capAt (L.mem s) (cslotAddr (ps.bv, idxs)) = ok .IrqControl)
+    (nA : U64) (hnum : arI.num_ioapics ar = ok nA) (hnA : nA.bv = σ.archState.x64NumIoapics)
+    (hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a')
+    (hAR : ArchIrqRel arI ar σ) {Z : XSets} (hth : Z.th = th) (hG : Z.G = G) (hX0 : XTopAt (L := L) AR Z s ar σ)
+    (hC : CurRun σ) (X : S → A → Fl4Spec.State Unit → Prop) (hXa : X s ar σ)
+    (hXS : ∀ s' a' σ', Steps (L := L) arI th s ar σ s' a' σ' → X s' a' σ')
+    (hXX : ∀ s a σ, X s a σ → XTop (L := L) AR s a σ) (blk call don fp : Bool) (ci : Fl4Spec.CapRef)
+    (buffer : Option Fl4Spec.ObjRef) (hMk : MaskMR arI MR) (hfr : FrameMR MR) (hR0 : MR ar σ.machineState)
+    (hIoa : MRKeepIoapic arI MR) :
+    XCap (L := L) arI (fun s a σ => X s a σ ∧ MR a σ.machineState) s ar σ lbl length (cslotAddr (ps.bv, idxs)) .IrqControl blk call don fp buf
+      extra slbl (args.map UScalar.bv) ci (ps.bv, idxs) excaps buffer ct := by
+  subst hth hG
+  have hP := hX0.rel.1
+  have hCR := hX0.rel.2.1
+  have hFI := hX0.rel.2.2.1
+  have hFR := hX0.rel.2.2.2.2.1
+  have hIR := hX0.fin.1.1.2.2.2.1
+  have htcb : Z.th ct = some .tcb := by
+    obtain ⟨t, htb, hth, -⟩ := hX0.fin.2.2.2.2
+    rwa [← P1.eq_of_bv (htb.trans hcur)]
+  left
+  unfold DecOKDMX syscall.decode_invocation
+  rw [hct]; simp only [bind_ok]
+  have e : specDec fp slbl (args.map UScalar.bv) ci (ps.bv, idxs) .IrqControl excaps buffer =
+      Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeIRQControl
+        (Fl4Spec.decodeFl4IrqControl (decide (lbl.val = 72)) slbl (args.map UScalar.bv) (ps.bv, idxs)
+          (excaps.map Prod.fst)) := by
+    rw [hrm]; rfl
+  rw [e]
+  refine WP.spec_mono (irq_control_decode_refinesM arI Z.th hP s ar σ Z.G hCR hL hIR hHA hFI hFR lbl slbl hlbl length buf ct
+    hct args hlen hargs hcur htcb hact hact2 extra x0 hx0 _ hex hps hls hsrcC nA hnum hnA hmask hAR hMk hfr hR0 hIoa) ?_
+  rintro ⟨r0, s', a'⟩ hq
+  cases r0 with
+  | Err e =>
+    obtain ⟨rfl, ⟨e', h1, h2⟩, rfl⟩ := hq
+    exact Or.inl ⟨e, rfl, rfl, ⟨e', run_liftME_err h1, h2⟩, hXa, hR0⟩
+  | Ok u =>
+    obtain ⟨inv, hrun, σ1, hst, σ', G', hx, hmr, -, -, -, -, -, -, hstp⟩ := hq
+    have hXp := hXS _ _ _ (hstp hC)
+    obtain ⟨Z', hZ'⟩ := hXX _ _ _ hXp
+    exact Or.inr ⟨_, DecOut.of_eq (run_liftME_ok hrun), σ1, hst, (.ok [], σ'),
+      mem_bindE_ok hx (Set.mem_singleton _), ⟨Z'.th, Z'.G, Or.inl ⟨rfl, rfl⟩, hZ'.rel.1, hZ'.rel.2.1,
+        hZ'.rel.2.2.1, hZ'.rel.2.2.2.1, hZ'.rel.2.2.2.2.1⟩, hXp, hmr⟩
+
+end
+
 /-! ## `JDecMRL` narrowed -/
 
 /-- **The cap kinds whose decode with `MR` is still asked** (module docstring). -/
 def LoudR : capability.Cap → Prop
   | .Thread _ => True
   | .Untyped .. => True
-  | .IrqControl => True
   | _ => False
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **[W] `JDecMRL` for the `LoudR` caps** (Thread, Untyped, IrqControl; module
-docstring): the IO port and IRQ handler caps are proved (`jDecMRL_of`). l4v:
-`invoke_tcb_corres`, `invoke_untyped_corres`, `invoke_irq_control_corres`
-with the machine state shared. -/
+/-- **[W] `JDecMRL` for the `LoudR` caps** (Thread, Untyped; module docstring):
+the IO port, IRQ handler and IRQ control caps are proved (`jDecMRL_of`).
+l4v: `invoke_tcb_corres`, `invoke_untyped_corres` with the machine state
+shared (`preemption_point` in the installs' and the reset's loops). -/
 def JDecMRL2 (AR : A → Fl4Spec.Cr3 → Prop)
     (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets) (H : P1.Heap)
     (Cs D : Set U64) (s : S) (ar : A) (σ : Fl4Spec.State Unit) (ct : U64) : Prop :=
@@ -247,14 +321,15 @@ set_option maxHeartbeats 4000000 in
 /-- **`JDecMRL` from `JDecMRL2`** at a dispatch state (module docstring): the
 IO port cap by `XCapP.mr` (FL4 `MKD.decode_ioport` under `MRKeepIo`, spec
 `dec_quiet`), the IRQ handler cap by `XCapP.mrG` (`MKD.decode_irq_handler_mr`,
-`perfF_irqH`), the rest by `JDecMRL2`. -/
+`perfF_irqH`), the IRQ control cap by `decode_invocation_irq_controlXSM`,
+the rest by `JDecMRL2`. -/
 theorem jDecMRL_of [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hNs : NativeScope σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR)
-    (hDL : JDecMRL2 (L := L) arI AR MR Z H Cs D s ar σ ct) :
+    (hIoa : MRKeepIoapic arI MR) (hDL : JDecMRL2 (L := L) arI AR MR Z H Cs D s ar σ ct) :
     JDecMRL (L := L) arI AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hcl
     excaps buffer hXO hXN hLb hA5 hN
@@ -273,6 +348,22 @@ theorem jDecMRL_of [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.S
     subst hLb
     exact XCapP.mrG (f := fun ms => if lbl = fl4_abi.label.IRQAckIRQ then unmaskMs ms irq else ms) hM hX0 (MKD.decode_irq_handler_mr L.total hA hKD (hM.mask ar irq false _ hR (by omega)) hR)
       (perfF_irqH irq hirq lbl σ blk call don fp _ ci sl excaps buffer)
+  case IrqControl =>
+    subst hLb
+    have hPl : Placed Z.th := J.xtop.rel.1
+    have hex := ExtraOK.rel1 hPl hXO
+    obtain ⟨nA, hnum, hnA⟩ := hE.ioapics
+    obtain ⟨sl1, idxs⟩ := sl
+    obtain ⟨p0, hp0, hth0⟩ := hsl
+    try simp only at hp0 hth0
+    subst hp0
+    obtain ⟨hcur, -⟩ := J.curEq hct
+    exact (decode_invocation_irq_controlXSM arI Z.th s ar σ Z.G J.intL hE.handlers lbl lbl.bv (irqControl_label lbl)
+      (irqControl_remap lbl) length buf ct hct argsU hlen hargs hcur J.kern.act J.act2 extra _ (exAt_idx0 extra) excaps
+      hex hth0 rfl hc nA hnum hnA (maskIrq_total arI hA) hE.archIrq rfl rfl J.xtop (J.curRun.run hE.ni) _
+      ⟨Z, H, Cs, Ac, Lst, D, J⟩
+      (fun _ _ _ h => Steps.jat arI hG.ari.toMask (jStepHyps arI) h rfl J (J.zNoBlk hE.sg)) (fun _ _ _ h => JAt.xtop arI h)
+      blk call don fp ci buffer hM.mask (fun a ms ms' h e => mF_mr hM h e) hR hIoa).toPN arI (specDec_noPreK (by trivial))
   all_goals
     exact hDL hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl _ hc
       ⟨trivial, hNat⟩ excaps buffer hXO hXN hLb hA5 hN
@@ -297,7 +388,7 @@ theorem dispatch_all13PUNM2 [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : F
     (hDL : ∀ ct, sched.cur_thread st s = ok ct → JDecMRL2 (L := L) arI AR MR Z H Cs D s a σ ct)
     (hR : MR a σ.machineState) (hVI : ValidIrqMasks σ) (hN : NativeScope σ)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
@@ -308,7 +399,7 @@ theorem dispatch_all13PUNM2 [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : F
   rcases hn with ⟨call, bl, don, hi, rfl⟩ | ⟨bl, cr, hr, rfl⟩ | ⟨rfl, rfl⟩ | hm
   · obtain ⟨hG, hE, hP, hPD⟩ := hK.inv _ call bl don hct hi
     exact dispatch_invokeJAllMUNM s a σ J _ hct n call bl don hi hG hE hP hPD
-      (jDecMRL_of arI s a σ J hG hE _ hct hPD hN hM hKD hIo (hDL _ hct)) hR hK.vmt hVI hN hARI
+      (jDecMRL_of arI s a σ J hG hE _ hct hPD hN hM hKD hIo hIoa (hDL _ hct)) hR hK.vmt hVI hN hARI
       hA hnd hM hKD hPA hIA hmrt
   · refine WP.spec_mono (WP.spec_and hD (JDispMR.of_keep (L := L) (AR := AR) hM
       (fun hR => dispatch_recv_mr hKD hA hr hR) ?_ hR)) fun _ ⟨h1, h2⟩ => h2 h1
@@ -331,7 +422,7 @@ theorem dispatch_all13PUNM2 [Fl4Proofs.P1.PlainStore st] (s : S) (a : A) (σ : F
         (jMidLeavesHyp_of5 hA hmax htu (jMidLeavesHyp_of6 hA hmax htu hS6)))))
     exact dispatch_midJMUNM s a σ J hni _ hct n c rg sr cr hm' hG hE hP hW.toP
       (jMidRecvHyp_of hA hG.maxTU hG.tu hs hq hW hV hS) hPD
-      (jDecMRL_of arI s a σ J hG hE _ hct hPD hN hM hKD hIo (hDL _ hct)) hR hK.vmt hVI hN hARI hA hnd hM hKD hPA hIA
+      (jDecMRL_of arI s a σ J hG hE _ hct hPD hN hM hKD hIo hIoa (hDL _ hct)) hR hK.vmt hVI hN hARI hA hnd hM hKD hPA hIA
       hmrt
 
 end
@@ -365,7 +456,7 @@ theorem kernel_entryJ13PUGMD2 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
         JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
         KFinAtR (L := L) arI AR Z' H' Cs' s' a' x.2)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
@@ -458,7 +549,7 @@ theorem kernel_entryJ13PUGMD2 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
     have hNSb : NativeScope σb := SInvN.ns_of_kheap ekh (SInv.ns_fl4SyscallFaultIP σ.curThread σ hNS0 _ hF)
     have hfr : KFrontB (L := L) arI s a s2 a1 := ⟨ct, v, hct, hbeq⟩
     refine WP.spec_bind (spec_and_eq (dispatch_all13PUNM2 s2 a1 σb J' hnib n c hn
-      (hK σb hBA V0 _ _ _ s2 a1 hfr J') (hDL σb hBA V0 _ _ _ s2 a1 hfr J') hMRσb hVIσb hNSb hARI hA hnd hM hKD hIo hPA hIA
+      (hK σb hBA V0 _ _ _ s2 a1 hfr J') (hDL σb hBA V0 _ _ _ s2 a1 hfr J') hMRσb hVIσb hNSb hARI hA hnd hM hKD hIo hIoa hPA hIA
       hmrt hmax htu)
       fun _ h => h) ?_
     rintro ⟨s3, a2⟩ ⟨hDMp, hdeq⟩
@@ -521,7 +612,7 @@ theorem kernel_entryJ39 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
         JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
         KFinAtR31 (L := L) arI AR Z' H' Cs' s' a' x.2)
     (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
@@ -551,7 +642,7 @@ theorem kernel_entryJ39 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
       (fun x hx Z' H' Cs' Ac' Lst' D' s' a' hfr J' =>
         (hFin x hx Z' H' Cs' Ac' Lst' D' s' a' hfr J').to27.toR
           (fun o e => SInvAll.sinvB_front_fo true c hS hct x hx o e))
-      hARI hA hnd hM hKD hIo hPA hIA hmrt hmb hT hmax htu
+      hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu
   have hP : syscall.handle_syscall st arI s a n ⦃ r => KPostM (L := L) arI AR MR c σ r ⦄ := by
     by_cases hrr : n = fl4_abi.syscall.SysReplyRecv
     · exact P1.FastAgree.spec st arI (P1.FastAgree.of_acc st arI P1.LawfulStore.total hA
@@ -574,7 +665,7 @@ per-state premises are g4a's (`hflag`, `hK`, `hFin`, `hFast` for `KPostM`)
 and `hDL` [W] (`JDecMRL2` at the dispatch states). -/
 theorem kernel_entry_reachMD2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR)
-    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hKD : MRKeepD arI MR) (hIo : MRKeepIo arI MR) (hIoa : MRKeepIoapic arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
     (hT : TimeAgree arI)
@@ -607,7 +698,7 @@ theorem kernel_entry_reachMD2 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
           JReachM (L := L) arI AR MR r.1 r.2 σ' ⦄ := by
   obtain ⟨⟨Z, H, Cs, Ac, Lst, D, J⟩, hX, hR⟩ := jreach_invM hnd hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hR, fun n c hct hn hflag hK hDL hFin hFast => ?_⟩
-  have hE := kernel_entryJ39 (MR := MR) s a σ J hct hR hX n c hn hflag hK hDL hFin hARI hA hnd hM hKD hIo hPA hIA
+  have hE := kernel_entryJ39 (MR := MR) s a σ J hct hR hX n c hn hflag hK hDL hFin hARI hA hnd hM hKD hIo hIoa hPA hIA
     hmrt hmb hT hmax htu hRef hPI hFast
   obtain ⟨⟨s', a'⟩, hv, hP⟩ := spec_exists hE
   rw [hv, WP.spec_ok]
