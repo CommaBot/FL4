@@ -12564,7 +12564,8 @@ the MR carry (T4).
   Classical.choice, Quot.sound.
 - HANDOFF: (c1)–(c4), (d), (e) above in that order, then ReplyRecv (R1–R7; the same pieces apply: `unblock_check_wr` for
   R4's `unblock_check u.sc`, `schedule` from action `u` instead of CHOOSE_NEW, `dequeue u` a no-op).
-## g4c (branch par/g4c in FL4-q, on 607bd090) — g4a (6) (G-a): spec `kentry_nofail` under `SInvX`. STOPPED on a FINDING: `SInvX` is too weak for no-fail (it has no `valid_objs` typing of cap / TCB / queue references and no `valid_ep` shape), so `kentry_nofail` is false as a statement over `SInvX` states; no Lean change, no new top (`kernel_entryJ36` / `kernel_entry_reachN` NOT stated)
+
+## g4c (branch par/g4c in FL4-q, on 607bd090, rebased onto int/j2 857ac23e) — g4a (6) (G-a): spec `kentry_nofail` under `SInvX`. STOPPED on a FINDING: `SInvX` is too weak for no-fail (it has no `valid_objs` typing of cap / TCB / queue references and no `valid_ep` shape), so `kentry_nofail` is false as a statement over `SInvX` states; no Lean change, no new top (`kernel_entryJ36` / `kernel_entry_reachN` NOT stated)
 Documentation only (this section). No proof file edited, nothing built (nothing to build); `g4c.sh` (= rd14hs.sh, renamed logs) untracked.
 
 ### (1) What was asked and why it fails
@@ -12662,3 +12663,25 @@ the IPC-buffer frame fact, `valid_mdb` for revoke.
   need the (m) facts as premises, i.e. new [J] premises, which the brief did not ask for). `kernel_entryJ35` / `kernel_entry_reach` unchanged.
 - `fl4CallKernel` (other events): the same inventory applies (interrupt path: `handleInterrupt` is (a) by ValidIrqMasks; faults /
   timer: the same (m) groups); `JReach` has syscall steps only, so it is not needed for g4a's induction.
+
+### (5) g4c, joint route (lead decision 2026-11-21, after (3)): `kentry_nofailJ`, `kernel_entryJ36N`, `kernel_entry_reachN` — DONE
+Module `Fl4Proofs/P3/XTopJointKEntryNF.lean` (new; renamed from a first draft `XTopJointKEntry36` to avoid g4b's module / top names),
+root import after `XTopJointKEntry35`. Old tops (`kernel_entryJ35`, `kernel_entry_reach`, `KPostX`) kept unchanged.
+- **Where `KPost`'s spec-fails disjunct came from.** In the whole chain under `kernel_entryJ35` (J35 → J34 → J33 → J33G → J32 → J31 → J30
+  → J29G → `kernel_entryJ13PUG`) the left disjunct is produced at exactly one place: the preemption branch of `kernel_entryJ13PUG`, from
+  `kPreFinAtG`'s post, whose left disjunct is never produced either (its input `PPQJI` already names an outcome of `preemptionPath`, and
+  `jat_finishJRN` relates an outcome after it). Every other branch (budget stop, dispatch to completion) already ends in an outcome. The
+  joint proofs build the spec outcome step by step from `JAtZ` (its per-kind object / cap relations), so the (m) / (t) sites of (2) on
+  the path they follow are discharged there. **No new [J] premise was needed** (none of the (m) facts had to be assumed).
+- `KPostS` (`KPost` minus the fail disjunct), `kPreFinAtGS`, `kernel_entryJ13PUGS`: same statements / proofs with post `KPostS`.
+  `kentry_genS`: J34's general path at `KPostS` (bundle conversions of J29G … J33G inlined, no new premise).
+- **`kernel_entryJ36N`**: J35's premises; post `KPostXS` = an outcome σ' of `fl4KernelEntrySyscall true c σ` with `RJ` and `SInvX σ'`.
+  The one premise that changes shape: the [P] fast-path premise `hFast` is m57's `FastRR` at post `KPostS` (was `KPost`).
+- **`kentry_nofailJ`**: same premises ⇒ the FL4 entry returns `ok r` and the spec entry has an outcome σ' with `SInvX σ'` and `RJ r σ'`.
+  Scope note: this is "the result set is nonempty" (not stuck), which is what the induction needs; it is NOT l4v `no_fail` (the spec's
+  failure flag `.2` is not shown False — that would need the full spec-only route of (3)).
+- **`kernel_entry_reachN`**: `kernel_entry_reach` with post `KPostXS` (+ `MR` at exit ⇒ `JReach` again).
+- Builds (tokyo, FL4-q): g4c-b1 (module, pre-rename) green, 6904 jobs; g4c-b2 full `lake build Fl4Proofs` + module after rename green,
+  6973 jobs, no sorry. After rebasing onto int/j2 857ac23e (m59: new P1 module FastSched only): g4c-b3 full
+  `lake build Fl4Proofs` green, 6975 jobs. `#print axioms` on all six new theorems: `[propext, Classical.choice, Quot.sound]`.
+- `fl4CallKernel` for other events: not done (JReach has syscall steps only).
