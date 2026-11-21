@@ -8000,3 +8000,73 @@ writing any proof; this is the resumed run, keys g3c-r-*.)
   import lines).
 - Next (G3): `EpQAll` into SInvB (with Rdy, once rd's whole-entry tops exist: then `hE` goes); g3a's (a) hNS / hNSR
   re-scope (g3b), (b) hQ / hB into SInvB, (e) the ∀-ghost scope of hK / hFin.
+## g3b (branch par/g3b in FL4-sc, on d61b344c = int/j2 incl. g3a) — G3: `hNS` / `hNSR` removed; `kernel_entryJ28` (DONE)
+Goal (g3a handoff (a), INV-PLAN §3): the two ∀-over-states [S] premises `hNS : ∀ s a σ, JHoleAt → NativeScope σ`
+and `hNSR : ∀ ghosts s a σ, JAtZR → NativeScope σ` are false for any instance with a RunningVM TCB (JAtZ admits one),
+so J27 and every top below were vacuous there. Now every consumer takes `NativeScope` at its own state; the top reads
+it from SInvB at the entry (`SInvA.ns`) and carries it by invA's NSK family (spec only).
+
+### (1) Where `NativeScope` was used, and where it now comes from
+| consumer (old: from hNS / hNSR) | state | now |
+|---|---|---|
+| `JAtZ.budgetOkB` (J13PU: `hNSR … J0.toR`) | the FaultIP state | `ns_fl4SyscallFaultIP` from σ |
+| `dispatch_all13PU` → invocations / mid path (`hNS`) | dispatch state σb | `ns_of_kheap` (σb's heap = FaultIP state's, `ekh`) |
+| `hPre_ofZQIM` (`hNS` at the `JAtPreMV` state) | preemption hole σ1 | `hPre_ofZQIMN`'s new arg, from `ns_fl4HandleInvocationR` (σ1 is the spec's error outcome of `fl4HandleInvocationR` from σb: `invoke_afterJMUN`'s `hy`, `mid_invRecvJMUN`'s `hy'`) |
+| `jPreemptRestHypEQ_ofIM` / `afterInvJZIM` / `afterInv_of_mcsIM` → `handleIrqJIA` → `signalJHyp_of` (RunningVM bound thread of the IRQ ntfn) | state after the MCS part σ' | `mcsPPJ{S,C,U,Z,I,A,R}M` posts gain `NativeScope σ → NativeScope σ'` (at the spec endpoints: `ns_chargeBudget`, `ns_checkBudget`, σ' = σ / `cons0 σ`); `mcsNS` closes it at the hole; `afterInv_of_mcsIMN` reads `NativeScope σ'` from `hmcs`; `handleIrqJIAN` takes `NativeScope σ`; `JAtZ.signal_atN` (pointwise `signalJHyp_of`) |
+| `jat_finishJR`'s `SignalRestJHypZR` (fire loop: RunningVM bound thread of a timer's ntfn) | every state after some fired timers | `jat_finishJRP` / `jat_scheduleSR2ZRP` / `FR2ZR` / `WP0FZR` / `fireJ` / `fire_loopJZR` generalised over `P` with `hP : ∀ σ1, Fires σ σ1 → P σ1` and `SignalJHypZRP P` / `SignalRestJHypZRP P`; at `P := NativeScope`: `ns_fl4Awaken ∘ mem_fl4Awaken_of`; `SignalRestJHypZRP NativeScope` holds outright |
+| `jat_finishJR`'s `hvm` (`hvm_of_ns hNS`: the activated thread not RunningVM) | state after `schedule` | `jat_finishJRP`'s `hvm` asked only at `Fires σ σ1 → schedule σ1 = {σ2}`; `ns_schedule` |
+| `kPreFinHypJI_of` (both, via finish) and J13PU's two finishes | front-end outcome | `ns_front` (XTopJointKEntry28S: NSK of the FaultIP write + handled event + preemption path) |
+
+### (2) Statements
+- NEW TOP `kernel_entryJ28` (XTopJointKEntry28): `kernel_entryJ27`'s premises minus `hNS` / `hNSR`, nothing added:
+  PlainStore, J, hni, hR, hS : SInvB σ, hQ, hn, hflag, hB (OffReady at the FaultIP state), hK → KDispHypsKV27,
+  hFin → KFinAtR27, hARI, hA, hnd, hM, hKD, hPA, hIA, hmrt, hmb, hT, hmax, htu. Body: `kernel_entryJ13PUN` with
+  J27's conversions (`to26` / `to25` / `to23` / `to13PU`, `toR`).
+- `kernel_entryJ13PUN` = J23P's `kernel_entryJ13PU` with `hNS0 : NativeScope σ` for hNS / hNSR; the dispatch layer
+  restated with `NativeScope` at the dispatch state: `invoke_afterJMUN` (hPre takes `NativeScope σ1`),
+  `dispatch_invokeJMUN`, `mid_invRecvJMUN`, `dispatch_midJMUN`, `dispatch_invokeJAllMUN`, `dispatch_all13PUN`;
+  `kPreFinHypJI_ofN`; `jat_finishJRN` (`NativeScope σ`, no `SignalRestJHypZR`, no `hvm`).
+- Spec leaf XTopJointKEntry28S (imports SpecInvNativeScopeF6 only): `SInvN.ns_frontK`, `ns_front`, `ns_of_kheap`.
+
+### (3) Existing modules edited (cone edit; old names kept where they have outside users)
+- XTopJointJAtZRB: new defs `SignalJHypZRP P`, `SignalRestJHypZRP P`; `fire_loopJZR`, `JAtZR.fireJ`,
+  `jat_scheduleWP0FZR`, `jat_scheduleFR2ZR`, `signalJHyp_ofZR` take `P` (+ `hP`) in place (no users outside the
+  module); new `jat_scheduleSR2ZRP`; `jat_scheduleSR2ZR` kept as the `P := True` wrapper.
+- XTopJointKEntry4: new `jat_finishJRP`; `jat_finishJR` kept as wrapper (same statement).
+- XTopJointMRPath: new `JAtZ.signal_atN` (a pointwise copy of ScSignalJ's `signalJHyp_of`, so ScSignalJ's 152-module
+  cone is untouched), `JAtZ.handleIrqJIAN`, `afterInv_of_mcsIMN`; `handleIrqJIA`, `afterInv_of_mcsIM` kept as wrappers.
+- XTopJointMRPath2 (+ import SpecInvNativeScopeF4), XTopJointMRPath3, XTopJointMRPath4: the seven `mcsPPJ*M` (and
+  `mcsPPJZMF`'s key) posts gain `NativeScope σ → NativeScope σ'` (only MRPath2-4 / MRHole use them);
+  `JHole.afterInvJZIMN` new, `afterInvJZIM` kept as wrapper.
+- XTopJointMRHole: `mcsNS`; `jPreemptRestHypEQ_ofIM` loses `hNS` (it had `NativeScope σ` already; only user is
+  hPre); new `hPre_ofZQIMN`; `hPre_ofZQIM` kept as wrapper (users: KEntry13P/23P).
+- Fl4Proofs.lean: imports XTopJointKEntry28S, XTopJointKEntry28.
+Not edited: ScSignalJ, XTopJointKEntry2/8/13P/23P/27 and every older top (they still type-check through the wrappers).
+
+### (4) Builds and axioms
+- tokyo, FL4-sc mirror warm (probe g3b-r-1: `lake build --no-build` of XTopJointKEntry27 + SpecInvNativeScopeBridge
+  up to date, 6360 jobs). ./g3b.sh (untracked) = g3a.sh with the sorry grep over the touched files.
+- g3b-r-2: `XTopJointKEntry28S XTopJointJAtZRB XTopJointKEntry4 XTopJointMRHole XTopJointKEntry28 XTopJointKEntry28M
+  XTopJointPortInM` (the last two are the only dependents of the edited modules outside KEntry28's import closure):
+  OK first try, 6366 jobs, 81 s wall (JAtZRB / MRHole / KEntry28 oleans rewritten). The older tops (KEntry2 … 27,
+  KEntry13P, 23P) rebuilt unchanged through the wrappers. No sorry / admit / native_decide / bv_decide.
+  Root Fl4Proofs.lean not rebuilt (two leaf imports).
+- g3b-r-3, scratch/g3b/ax.lean (untracked): kernel_entryJ28, kernel_entryJ13PUN, dispatch_all13PUN,
+  dispatch_invokeJAllMUN, mid_invRecvJMUN, jat_finishJRN, jat_finishJRP, jat_finishJR, kPreFinHypJI_ofN,
+  hPre_ofZQIMN, hPre_ofZQIM, jPreemptRestHypEQ_ofIM, afterInv_of_mcsIMN, afterInv_of_mcsIM, JAtZ.handleIrqJIAN,
+  JAtZ.handleIrqJIA, JAtZ.signal_atN, JHole.afterInvJZIMN, JHole.mcsPPJAM, JHole.mcsPPJZM, jat_scheduleSR2ZRP,
+  jat_scheduleSR2ZR, signalJHyp_ofZR, fire_loopJZR, SInvN.ns_front, kernel_entryJ27: propext, Classical.choice,
+  Quot.sound; SInvN.ns_of_kheap: none.
+
+### (5) Next (handoff)
+- (e) of g3a, not done (not cheap): the ∀-ghost scope of `hK` / `hFin` (J13PUN calls them only at budgetOkB's
+  ghosts `Z.mv Z.G V0, H, Cs` resp. the dispatch / front posts' ghosts); re-scoping = restating KDispHyps bundles
+  at those ghosts.
+- The same ∀-state RunningVM pattern is left INSIDE the bundles: `JEntryGlobM.sigRest` (`∀ H Cs, SignalRestJHyp`:
+  ∀ JAtZ, INV-PLAN G12, consumed inside the dispatch) and `JDelParts.vt` / `thr.obj`
+  (∀ JAtZ at th, VT-x placement). With the per-state `NativeScope` now threaded to the dispatch state, `sigRest`
+  can go the way of this section: the invocation paths need `NativeScope` at the signal's state (spec: the
+  decode / perform prefix from σb by the NSK family) and `JAtZ.signal_atN` there.
+- Not on the syscall path, still ∀ hNS: `JAtZ.handleIrqJJA` / `jIrqHypJ_ofA` (MRPath) and the older IRQ-event /
+  non-MR preemption lemmas (XTopJointIrq*, PreemptE/I/K/L/M/S/Z). ScSignalJ's `signalJHyp_of` could be restated over
+  `JAtZ.signal_atN`'s pointwise form (left as is to keep its 152-module cone untouched).

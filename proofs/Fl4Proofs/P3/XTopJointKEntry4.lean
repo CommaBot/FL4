@@ -66,7 +66,48 @@ theorem signalRestJHypZR_of_ns
   exact absurd hvm (hNSR _ _ _ _ _ _ _ _ _ J1 t tcb hkt)
 
 /-- **FL4's `finish` from `JAtZR`** (module docstring): `jat_finishJ2` with
-`jat_scheduleSR2ZR`. -/
+`jat_scheduleSR2ZRP`, the signal and `RunningVM` cases only at the states the
+path reaches (g3b): `P` along the fired timers (`hP`), `hvm` at the state
+after `schedule`. -/
+theorem jat_finishJRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
+    (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
+      (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
+        Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
+    (P : Fl4Spec.State Unit → Prop) (hP : ∀ σ1, Fires σ σ1 → P σ1)
+    (hW : SignalRestJHypZRP (L := L) arI P AR H Cs) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
+    (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
+    (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
+      P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
+      SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
+      SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
+    (hvm : ∀ σ1 σ2 s1 a1, Fires σ σ1 → Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ2)}, False) →
+      JAt (L := L) arI AR s1 a1 σ2 → ∀ x, σ2.kheap σ2.curThread = some (.tcb x) → x.tcbState ≠ .runningVM) :
+    syscall.finish st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), ((), σ1) ∈ (Fl4Spec.fl4Awaken (Z := Unit) σ).1 ∧
+      (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) ∧
+      ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) σ).1 ∧
+      RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
+  unfold syscall.finish
+  refine WP.spec_bind (jat_scheduleSR2ZRP s a σ J hd hnd hAT hVt P hP hW hmb hA hAN hFO hsni hsend hT hTail) ?_
+  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1R⟩, hC2, hcr⟩
+  have J1 := J1R.toJ (Or.inr hC2)
+  refine WP.spec_mono (J1.activateJ hAT hmax (htu a1) hcr (hvm σ1 σ2 _ _ hF hsc ⟨_, _, _, _, _, _, J1⟩)) ?_
+  rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2⟩
+  have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by
+    rw [Notif.nd_bind_one hsc]; exact ha
+  refine ⟨σ1, σ', mem_fl4Awaken_of hF, hsa, ⟨((), σ1), mem_fl4Awaken_of hF, ?_⟩, hRJ, V2, Ac2, Lst2, D2, J2⟩
+  show ((), σ') ∈ ((Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1).1
+  rw [hsa]; exact Set.mem_singleton _
+
+/-- **FL4's `finish` from `JAtZR`**: `jat_finishJRP` at `P := True` (the
+pre-g3b statement). -/
 theorem jat_finishJR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
@@ -90,18 +131,10 @@ theorem jat_finishJR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) ∧
       ((), σ') ∈ ((Fl4Spec.fl4Awaken (Z := Unit) >>= fun _ => Fl4Spec.schedule >>= fun _ => Fl4Spec.activateThread) σ).1 ∧
       RJ (L := L) arI AR r.1 r.2 σ' ∧ ∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
-        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ := by
-  unfold syscall.finish
-  refine WP.spec_bind (jat_scheduleSR2ZR s a σ J hd hnd hAT hVt hW hmb hA hAN hFO hsni hsend hT hTail) ?_
-  rintro ⟨s1, a1⟩ ⟨σ1, σ2, hF, hsc, -, ⟨V1, Ac1, Lst1, D1, J1R⟩, hC2, hcr⟩
-  have J1 := J1R.toJ (Or.inr hC2)
-  refine WP.spec_mono (J1.activateJ hAT hmax (htu a1) hcr (hvm _ _ _ ⟨_, _, _, _, _, _, J1⟩)) ?_
-  rintro r ⟨σ', ha, hRJ, V2, Ac2, Lst2, D2, J2⟩
-  have hsa : (Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1 = ({((), σ')}, False) := by
-    rw [Notif.nd_bind_one hsc]; exact ha
-  refine ⟨σ1, σ', mem_fl4Awaken_of hF, hsa, ⟨((), σ1), mem_fl4Awaken_of hF, ?_⟩, hRJ, V2, Ac2, Lst2, D2, J2⟩
-  show ((), σ') ∈ ((Fl4Spec.schedule (Z := Unit) >>= fun _ => Fl4Spec.activateThread) σ1).1
-  rw [hsa]; exact Set.mem_singleton _
+        JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄ :=
+  jat_finishJRP s a σ J hd hnd hAT hVt (fun _ => True) (fun _ _ => trivial)
+    (fun Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ hn hk hb => hW Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 hn hk hb) hmb
+    hA hAN hFO hsni hsend hT hTail hmax htu (fun _ _ s1 a1 _ _ hJ => hvm s1 a1 _ hJ)
 
 
 set_option maxHeartbeats 16000000 in

@@ -315,6 +315,19 @@ def SignalJHypZR (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) 
       Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
       JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
 
+variable (arI) in
+/-- **`SignalJHypZR` at the states satisfying `P`** (g3b): the signal step only
+where the caller has `P` (`P := NativeScope`, carried by the spec along the
+fired timers, for `kernel_entryJ28`; `P := True` is `SignalJHypZR`). -/
+def SignalJHypZRP (P : Fl4Spec.State Unit → Prop) (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) :
+    Prop :=
+  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (n badge : U64), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → P σ → n ∈ Z.N →
+    notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64),
+      Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
+
 
 /-- The loop's invariant: `JAtZR` at fresh VSpace sets after some fired
 timers, the domain time kept. -/
@@ -354,7 +367,8 @@ theorem JAtZR.reprogramJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
 
 set_option maxHeartbeats 8000000 in
 /-- **The TCB timers' loop keeps `FireInvZR`** (module docstring). -/
-theorem fire_loopJZR (hSig : SignalJHypZR (L := L) arI AR H Cs) {σ : Fl4Spec.State Unit} (s : S) (a : A) (now i : U64)
+theorem fire_loopJZR (P : Fl4Spec.State Unit → Prop) {σ : Fl4Spec.State Unit} (hP : ∀ σ1, Fires σ σ1 → P σ1)
+    (hSig : SignalJHypZRP (L := L) arI P AR H Cs) (s : S) (a : A) (now i : U64)
     (h : FireInvZR (L := L) (arI := arI) AR Z H Cs σ s a) :
     timer.fire_loop st arI s a now i ⦃ r => FireInvZR (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ := by
   unfold timer.fire_loop
@@ -434,7 +448,7 @@ theorem fire_loopJZR (hSig : SignalJHypZR (L := L) arI AR H Cs) {σ : Fl4Spec.St
           have hn0' : L.mem s2 (P1.boundA t) ≠ 0#u64 := by rw [← en]; exact P1.bne_ne hn0
           have hnH : n ∈ P1.Heap.ntfns H := by rw [en]; exact h2.2.2.1.2.2.bnd t htT hn0'
           have hnN : n ∈ Z.N := J2'.hset.2.1 n hnH
-          refine WP.spec_mono (hSig _ _ _ _ _ _ _ n bd J2' hnN) ?_
+          refine WP.spec_mono (hSig _ _ _ _ _ _ _ n bd J2' (hP σ1 hF1) hnN) ?_
           rintro r ⟨σ2, V2, Ac2, Lst2, D2, hss, hd2, J3⟩
           exact ⟨σ2, V2, Ac2, Lst2, D2, Or.inr ⟨n.bv, bd.bv, hss⟩, hd2, J3⟩
         · exact (WP.spec_ok _).2 ⟨σ1, V1, Ac1, Lst1, D1, Or.inl rfl, rfl, J2'⟩
@@ -455,13 +469,14 @@ theorem fire_loopJZR (hSig : SignalJHypZR (L := L) arI AR H Cs) {σ : Fl4Spec.St
 
 set_option maxHeartbeats 4000000 in
 /-- **`JAtZR` across FL4's TCB timers** (module docstring). -/
-theorem JAtZR.fireJ (hSig : SignalJHypZR (L := L) arI AR H Cs) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+theorem JAtZR.fireJ (P : Fl4Spec.State Unit → Prop) {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hP : ∀ σ1, Fires σ σ1 → P σ1) (hSig : SignalJHypZRP (L := L) arI P AR H Cs)
     (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     timer.fire st arI s a ⦃ r => FireInvZR (L := L) (arI := arI) AR Z H Cs σ r.1 r.2 ⦄ := by
   unfold timer.fire
   refine WP.spec_bind (L.cur_cpu_spec s) fun c _ => ?_
   refine WP.spec_bind (P1.obj.node_get.spec s c _) fun now _ => ?_
-  exact fire_loopJZR hSig s a now 0#u64 ⟨σ, Z.vs, Ac, Lst, D, Relation.ReflTransGen.refl, rfl, J⟩
+  exact fire_loopJZR P hP hSig s a now 0#u64 ⟨σ, Z.vs, Ac, Lst, D, Relation.ReflTransGen.refl, rfl, J⟩
 
 
 
@@ -1636,13 +1651,28 @@ def SignalRestJHypZR (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U
       Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
       JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
 
+variable (arI) in
+/-- **`SignalRestJHypZR` at the states satisfying `P`** (g3b; `P := True` is
+`SignalRestJHypZR`; at `P := NativeScope` it holds outright). -/
+def SignalRestJHypZRP (P : Fl4Spec.State Unit → Prop) (AR : A → Fl4Spec.Cr3 → Prop) (H : P1.Heap) (Cs : Set U64) : Prop :=
+  ∀ (Z : XSets) (Ac : Set U64) (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (n badge : U64) (x : Fl4Spec.Notification), JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ → P σ → n ∈ Z.N →
+    σ.kheap n.bv = some (.notification x) →
+    (x.ntfnObj = .idleNtfn ∧ ∃ t tcb, x.ntfnBoundTcb = some t ∧
+      σ.kheap t = some (.tcb tcb) ∧ tcb.tcbState = .runningVM) →
+    notification.send_signal st arI s a n badge ⦃ r => ∃ (σ' : Fl4Spec.State Unit) (V' : XVs) (Ac' : Set U64)
+      (Lst' : U64 → List U64) (D' : Set U64),
+      Fl4Spec.sendSignal (Z := Unit) n.bv badge.bv σ = ({((), σ')}, False) ∧ σ'.domainTime = σ.domainTime ∧
+      JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ' ⦄
+
 
 set_option maxHeartbeats 8000000 in
 /-- **`SignalJHypZR` from the waking signals' premise** (module docstring). -/
-theorem signalJHyp_ofZR (hAT : P0.ArchTotal arI) (hW : SignalRestJHypZR (L := L) arI AR H Cs)
+theorem signalJHyp_ofZR (hAT : P0.ArchTotal arI) (P : Fl4Spec.State Unit → Prop)
+    (hW : SignalRestJHypZRP (L := L) arI P AR H Cs)
     (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄) :
-    SignalJHypZR (L := L) arI AR H Cs := by
-  intro Z Ac Lst D s a σ n badge J hn
+    SignalJHypZRP (L := L) arI P AR H Cs := by
+  intro Z Ac Lst D s a σ n badge J hPσ hn
   obtain ⟨x, hk, hx⟩ := J.xtop.ipc.toN.ntfn n hn
   have hNt : ∀ m ∈ P1.Heap.ntfns H, H m = some .ntfn := fun _ h => h
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
@@ -1688,7 +1718,7 @@ theorem signalJHyp_ofZR (hAT : P0.ArchTotal arI) (hW : SignalRestJHypZR (L := L)
           (by rw [hbt]; exact hkt) hrb
           badge
       by_cases hvm : tcb.tcbState = .runningVM
-      · exact hW Z Ac Lst D s a σ n badge x J hn hk ⟨ho, t, tcb, hb, hkt, hvm⟩
+      · exact hW Z Ac Lst D s a σ n badge x J hPσ hn hk ⟨ho, t, tcb, hb, hkt, hvm⟩
       have hrb' : Fl4Spec.receiveBlocked tcb.tcbState = false := by simpa using hrb
       exact post (Fl4Spec.ntfnObjUpdate (fun _ => .activeNtfn badge.bv) x)
         (by rw [ho]; intro l e; cases e) (fun l e => by simp [Fl4Spec.ntfnObjUpdate] at e) rfl rfl
@@ -1794,7 +1824,8 @@ NdOK s σ` (NdOK's [J] facts at the entry), `ArchNdF` [P] and `FpuOwnOK σ`
 theorem jat_scheduleWP0FZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
-    (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI) (hSig : SignalJHypZR (L := L) arI AR H Cs)
+    (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI) (P : Fl4Spec.State Unit → Prop)
+    (hP : ∀ σ1, Fires σ σ1 → P σ1) (hSig : SignalJHypZRP (L := L) arI P AR H Cs)
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI) :
     sched.schedule st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), Fires σ σ1 ∧
@@ -1819,7 +1850,7 @@ theorem jat_scheduleWP0FZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
         ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
           JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 r.1 r.2 σ1) ∧
           timer.fire st arI s a = ok r ∧ L.ksb r.1 = L.ksb s ∧ FpuOwnOK σ1)) ⦄ := by
-    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
+    refine WP.spec_mono (P1.spec_eq' (WP.spec_and (J.fireJ P hP hSig) (P1.timer.fire.kw hAT hNt s a hB))) ?_
     rintro ⟨s1, a1⟩ ⟨hf, ⟨σ1, V1, Ac1, Lst1, D1, h1, hd1, J1⟩, hk⟩
     simp only [WP.uncurry'_pair] at hk
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, ⟨J1.inv, J1.cur, J1.off, J1.act, J1.own⟩,
@@ -1896,7 +1927,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
       (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
         Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
-    (hSig : SignalJHypZR (L := L) arI AR H Cs)
+    (P : Fl4Spec.State Unit → Prop) (hP : ∀ σ1, Fires σ σ1 → P σ1) (hSig : SignalJHypZRP (L := L) arI P AR H Cs)
     (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
     (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
     (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
@@ -1915,7 +1946,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
   refine WP.spec_mono (WP.spec_and (WP.spec_and
-    (jat_scheduleWP0FZR s a σ J hd hnd hAT hSig hA hAN hFO hsni hsend hT)
+    (jat_scheduleWP0FZR s a σ J hd hnd hAT P hP hSig hA hAN hFO hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
       hTail)) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
@@ -2007,7 +2038,31 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
 
 
 /-- **`jat_scheduleFR2ZR` with `SignalJHypZR` reduced to the waking signals**
-(`signalJHyp_ofZR`, as `jat_scheduleSRF`). -/
+(`signalJHyp_ofZR`, as `jat_scheduleSRF`), at the states satisfying `P` (g3b). -/
+theorem jat_scheduleSR2ZRP {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
+    (hnd : Fl4Spec.numDomains = 1) (hAT : P0.ArchTotal arI)
+    (hVt : ∀ (V1 : XVs) (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit) (Ac1 : Set U64) (Lst1 : U64 → List U64)
+      (D1 : Set U64), JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D1 s1 a1 σ1 → ∀ t ∈ Z.T,
+        Z.th t = some .tcb ∧ ∀ p asid, capAt (L.mem s1) (slotOf t 1) = ok (.Pml4 p true asid) → asid ≠ 0#u64)
+    (P : Fl4Spec.State Unit → Prop) (hP : ∀ σ1, Fires σ σ1 → P σ1)
+    (hW : SignalRestJHypZRP (L := L) arI P AR H Cs) (hmb : ∀ a : A, sporadic.min_budget arI a ⦃ mb => mb.bv = Fl4Spec.MIN_BUDGET ⦄)
+    (hA : ArchSwF st arI Z.N Z.T Z.C Z.c) (hAN : ArchNdF st Z.N Z.T Z.C Z.c) (hFO : FpuOwnOK σ)
+    (hsni : SniHyp st arI Z.N Z.T Z.C Z.c) (hsend : SendHyp st arI Z.N Z.T Z.C Z.c) (hT : TimeAgree arI)
+    (hTail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
+      P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
+      SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
+      SchTailHypsR AR Z H D1 r.1 r.2 σ' ⦄) :
+    sched.schedule st arI s a ⦃ r => ∃ (σ1 σ' : Fl4Spec.State Unit), Fires σ σ1 ∧
+      Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧ RJ (L := L) arI AR r.1 r.2 σ' ∧
+      (∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ') ∧ CurInv σ' ∧ CurRunW σ' ⦄ :=
+  jat_scheduleFR2ZR s a σ J hd hnd hAT hVt P hP (signalJHyp_ofZR hAT P hW hmb) hA hAN hFO hsni hsend hT hTail
+
+/-- **`jat_scheduleFR2ZR` with `SignalJHypZR` reduced to the waking signals**
+(`jat_scheduleSR2ZRP` at `P := True`, the pre-g3b statement). -/
 theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) (hd : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ)
@@ -2027,7 +2082,9 @@ theorem jat_scheduleSR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) ∧ RJ (L := L) arI AR r.1 r.2 σ' ∧
       (∃ (V' : XVs) (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZR (L := L) arI AR (Z.mv Z.G V') H Cs Ac' Lst' D' r.1 r.2 σ') ∧ CurInv σ' ∧ CurRunW σ' ⦄ :=
-  jat_scheduleFR2ZR s a σ J hd hnd hAT hVt (signalJHyp_ofZR hAT hW hmb) hA hAN hFO hsni hsend hT hTail
+  jat_scheduleSR2ZRP s a σ J hd hnd hAT hVt (fun _ => True) (fun _ _ => trivial)
+    (fun Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 _ hn hk hb => hW Z1 Ac1 Lst1 D1 s1 a1 σ1 n1 b1 x1 J1 hn hk hb) hmb
+    hA hAN hFO hsni hsend hT hTail
 
 
 end

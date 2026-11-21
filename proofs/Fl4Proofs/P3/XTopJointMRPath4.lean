@@ -28,11 +28,12 @@ theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ⦄ := by
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ∧
+      (NativeScope σ → NativeScope σ') ⦄ := by
   have key : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
         (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
         ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ⦄ := by
+        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ∧ (NativeScope σ → NativeScope σ') ⦄ := by
     obtain ⟨hsch, hin⟩ := hcov
     have J := Hh.j0
     have hS := Hh.xtop.fin.1.1.1
@@ -147,9 +148,9 @@ theorem JHole.mcsPPJIM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
         · rw [← hk, ← hcs]; exact hy
       · exact Or.inr ⟨⟨c', hc', hcv'.trans hcs.symm⟩, fun y m hy => h2 y m (by rw [← hk, ← hcs]; exact hy)⟩
     obtain ⟨Lst', J'⟩ := Hh2.toJ hO hOw
-    exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, rfl⟩
+    exact ⟨cons0 σ, fun y hy => mem_pp_inact hs' hga hy, fun hy => fail_pp_inact hs' hga hy, ⟨Z, H, Cs, Ac, Lst', D, J'⟩, rfl, fun hN => hN⟩
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
-    fun _ ⟨⟨σ', h1, h2, hJ, hF⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF⟩
+    fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJA` with `MR` and `ValidIrqMasks` after (module docstring). -/
@@ -171,11 +172,12 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ⦄ := by
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ∧
+      (NativeScope σ → NativeScope σ') ⦄ := by
   have key : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
         (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
         ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ⦄ := by
+        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ∧ (NativeScope σ → NativeScope σ') ⦄ := by
     have hS := Hh.xtop.fin.1.1.1
     have hR := Hh.xtop.fin.1.1.2.2.1
     obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -197,10 +199,10 @@ theorem JHole.mcsPPJAM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
-    fun _ ⟨⟨σ', h1, h2, hJ, hF⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF⟩
+    fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 set_option maxHeartbeats 16000000 in
 /-- `JHole.mcsPPJR` with `MR` and `ValidIrqMasks` after (module docstring). -/
@@ -223,11 +225,12 @@ theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
       (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
       ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ⦄ := by
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ∧
+      (NativeScope σ → NativeScope σ') ⦄ := by
   have key : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
         (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
         ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
-        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ⦄ := by
+        JAt (L := L) arI AR r.1 r.2 σ' ∧ MachF.msF σ' = MachF.msF σ ∧ (NativeScope σ → NativeScope σ') ⦄ := by
     have hS := Hh.xtop.fin.1.1.1
     have hR := Hh.xtop.fin.1.1.2.2.1
     obtain ⟨Q, R, hc, hs⟩ := hS.lists
@@ -249,10 +252,10 @@ theorem JHole.mcsPPJRM {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
     cases r
     · obtain ⟨z, hz, -, V, Ac', Lst', D', J'⟩ := hF rfl
       exact ⟨z.2, fun y hy => mem_pp_sched hsch hz hy, fun hy => fail_pp_sched hsch hz hy,
-        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz⟩
+        ⟨Z.mv Z.G V, H, Cs, Ac', Lst', D', J'⟩, MachF.mfk_checkBudget σ z hz, fun hN => SInv.ns_checkBudget σ hN z hz⟩
     · exact absurd (hT rfl).2.2 hnsuf
   exact WP.spec_mono (WP.spec_and key (MK.syscall_mcs_preemption_point L.total hAT hK hR))
-    fun _ ⟨⟨σ', h1, h2, hJ, hF⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF⟩
+    fun _ ⟨⟨σ', h1, h2, hJ, hF, hNs⟩, hR'⟩ => ⟨σ', h1, h2, hJ, msF_mr hM hR' hF, msF_vim hV hF, hNs⟩
 
 end
 

@@ -73,12 +73,24 @@ theorem jAtPreMV_holeQ (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4S
   intro i hi
   exact hI0 i hi
 
+/-- An MCS part's post with `NativeScope σ → NativeScope σ'` at a `NativeScope`
+hole (g3b). -/
+theorem mcsNS {s : S} {a : A} {σ : Fl4Spec.State Unit} (hN : NativeScope σ)
+    (h : syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
+      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
+      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ∧ (NativeScope σ → NativeScope σ') ⦄) :
+    syscall.mcs_preemption_point st arI s a ⦃ r => ∃ σ',
+      (∀ y, y ∈ (Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').1 → y ∈ (Fl4Spec.preemptionPath (Z := Unit) σ).1) ∧
+      ((Fl4Spec.maybeHandleInterrupt (Z := Unit) true σ').2 → (Fl4Spec.preemptionPath (Z := Unit) σ).2) ∧
+      JAt (L := L) arI AR r.1 r.2 σ' ∧ MR r.2 σ'.machineState ∧ ValidIrqMasks σ' ∧ NativeScope σ' ⦄ :=
+  WP.spec_mono h fun _ ⟨σ', h1, h2, hJ, hR', hV', hn⟩ => ⟨σ', h1, h2, hJ, hR', hV', hn hN⟩
+
 set_option maxHeartbeats 4000000 in
-/-- **`jPreemptRestHypEQ_ofI` under `MachPlat`** (module docstring). -/
+/-- **`jPreemptRestHypEQ_ofI` under `MachPlat`** (module docstring); `NativeScope` at the hole only (g3b). -/
 theorem jPreemptRestHypEQ_ofIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
-    (hNS : ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
     ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), JHoleAt (L := L) arI AR s a σ → NativeScope σ →
@@ -111,19 +123,60 @@ theorem jPreemptRestHypEQ_ofIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI)
     · exact absurd e (hs u)
     · exact Or.inr rfl
   by_cases hcb : ∀ xe, σ.kheap p = some (.endpoint xe) → Endp.CanBlock false xe
-  · exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJAM hA (hmrt a) (hPA.minBudget a) hC hi hres hnq hsc hnsuf hkt
-      hrr hth hper hcb hM hK hR hV) hM hIA hARI hA hPA.minBudget hNS _) fun _ h => h
+  · exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hn (Hh.mcsPPJAM hA (hmrt a) (hPA.minBudget a) hC hi hres hnq hsc hnsuf hkt
+      hrr hth hper hcb hM hK hR hV)) hM hIA hARI hA hPA.minBudget _) fun _ h => h
   · simp only [not_forall] at hcb
     obtain ⟨xe, hke, hncb⟩ := hcb
     obtain ⟨q, rfl⟩ : ∃ q, xe = .recvEP q := by
       revert hncb; cases xe <;> simp [Endp.CanBlock]
-    exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJRM hA hmax htu (hmrt a) (hPA.minBudget a) hC hi hres hnq hsc
-      hnsuf hkt hrr hth hper ⟨q, hke⟩ hM hK hR hV) hM hIA hARI hA hPA.minBudget hNS _) fun _ h => h
+    exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hn (Hh.mcsPPJRM hA hmax htu (hmrt a) (hPA.minBudget a) hC hi hres hnq hsc
+      hnsuf hkt hrr hth hper ⟨q, hke⟩ hM hK hR hV)) hM hIA hARI hA hPA.minBudget _) fun _ h => h
 
 set_option maxHeartbeats 4000000 in
 /-- **`hPre_ofZQI` under `MachPlat`**: every preemption hole of a related
 `JAtPreMV` state ends in `JAt` after the path with no spec failure, with no
-`PPPlat`/`IrqPlat` (module docstring). -/
+`PPPlat`/`IrqPlat` (module docstring), `NativeScope` at the
+`JAtPreMV` state only (g3b). -/
+theorem hPre_ofZQIMN (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
+    (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
+    (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
+    (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
+    (htu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄) :
+    ∀ (s1 : S) (a1 : A) (σ1 : Fl4Spec.State Unit), RelTopM (L := L) s1 σ1 →
+      JAtPreMV (L := L) arI AR MR s1 a1 σ1 → NativeScope σ1 →
+      syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r =>
+        r.1 = false ∧ PPQJI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
+  intro s1 a1 σ1 _ h hN1
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg, hnq, hR, -, hV⟩ :=
+    jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
+  by_cases hc : PPCov σ1 ∨ PPCovT σ1
+  · exact WP.spec_mono (Hh.afterInvJZIMN hTs hA hnd (hmrt a1) (hPA.minBudget a1) hM hK hIA hARI hPA.minBudget hN1
+      hc hR hV _) fun _ h => h
+  by_cases hi : PPCovI σ1
+  · exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJIM hi hA hM hK hR hV)) hM hIA hARI hA hPA.minBudget _)
+      fun _ h => h
+  by_cases hC : CurInv σ1
+  · cases hsc : Fl4Spec.schedulable σ1.curThread σ1 with
+    | true =>
+      by_cases hsuf : ∀ y n, σ1.kheap σ1.curSc = some (.schedContext y n) →
+          Fl4Spec.refillSufficient σ1.consumedTime (Fl4Spec.refillHd y) = true
+      · exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJSM hTs hA hnd (hPA.minBudget a1) hC hni hsc hsuf hM hK hR hV))
+          hM hIA hARI hA hPA.minBudget _) fun _ h => h
+      · exact jPreemptRestHypEQ_ofIM hARI hA hM hK hPA hIA hmrt hmax htu s1 a1 σ1
+          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
+          hN1 hR hV hni hns hfr hct hcg hnq hC hsc hsuf
+          fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
+    | false =>
+      exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJCM hA (hmrt a1) (hPA.minBudget a1) hC hni hns hsc hM hK hR hV))
+        hM hIA hARI hA hPA.minBudget _) fun _ h => h
+  · have hsch : Fl4Spec.schedulable σ1.curThread σ1 = false := by
+      cases e : Fl4Spec.schedulable σ1.curThread σ1 with
+      | false => rfl
+      | true => exact absurd (curInv_of_sched hct e) hC
+    exact WP.spec_mono (afterInv_of_mcsIMN (mcsNS hN1 (Hh.mcsPPJUM hA (hmrt a1) (hPA.minBudget a1) hC hct hfr hcg hsch hi
+      hM hK hR hV)) hM hIA hARI hA hPA.minBudget _) fun _ h => h
+
+/-- `hPre_ofZQIMN` from the ∀-form `hNS` (the pre-g3b statement). -/
 theorem hPre_ofZQIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1)
     (hM : MachPlat arI MR) (hK : MRKeep arI MR) (hPA : PPPlatA arI AR) (hIA : IrqPlatA arI AR)
     (hmrt : ∀ a, sporadic.max_release_time arI a ⦃ mrt => mrt.bv = Fl4Spec.MAX_RELEASE_TIME ⦄)
@@ -134,35 +187,10 @@ theorem hPre_ofZQIM (hARI : ARIface arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
       JAtPreMV (L := L) arI AR MR s1 a1 σ1 →
       syscall.after_invocation st arI s1 a1 (.Err .Preempted) ⦃ r =>
         r.1 = false ∧ PPQJI (L := L) arI AR σ1 (r.2.1, r.2.2) ⦄ := by
-  intro s1 a1 σ1 _ h
-  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, hTs⟩, hni, hns, hfr, hct, hcg, hnq, hR, -, hV⟩ :=
-    jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
-  by_cases hc : PPCov σ1 ∨ PPCovT σ1
-  · exact WP.spec_mono (Hh.afterInvJZIM hTs hA hnd (hmrt a1) (hPA.minBudget a1) hM hK hIA hARI hPA.minBudget hNS
-      hc hR hV _) fun _ h => h
-  by_cases hi : PPCovI σ1
-  · exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJIM hi hA hM hK hR hV) hM hIA hARI hA hPA.minBudget hNS _)
-      fun _ h => h
-  by_cases hC : CurInv σ1
-  · cases hsc : Fl4Spec.schedulable σ1.curThread σ1 with
-    | true =>
-      by_cases hsuf : ∀ y n, σ1.kheap σ1.curSc = some (.schedContext y n) →
-          Fl4Spec.refillSufficient σ1.consumedTime (Fl4Spec.refillHd y) = true
-      · exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJSM hTs hA hnd (hPA.minBudget a1) hC hni hsc hsuf hM hK hR hV)
-          hM hIA hARI hA hPA.minBudget hNS _) fun _ h => h
-      · exact jPreemptRestHypEQ_ofIM hARI hA hM hK hPA hIA hmrt hNS hmax htu s1 a1 σ1
-          ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩
-          (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩) hR hV hni hns hfr hct hcg hnq hC hsc hsuf
-          fun h' => h'.elim (fun h2 => hc (Or.inl h2)) fun h2 => h2.elim (fun h3 => hc (Or.inr h3)) hi
-    | false =>
-      exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJCM hA (hmrt a1) (hPA.minBudget a1) hC hni hns hsc hM hK hR hV)
-        hM hIA hARI hA hPA.minBudget hNS _) fun _ h => h
-  · have hsch : Fl4Spec.schedulable σ1.curThread σ1 = false := by
-      cases e : Fl4Spec.schedulable σ1.curThread σ1 with
-      | false => rfl
-      | true => exact absurd (curInv_of_sched hct e) hC
-    exact WP.spec_mono (afterInv_of_mcsIM (Hh.mcsPPJUM hA (hmrt a1) (hPA.minBudget a1) hC hct hfr hcg hsch hi
-      hM hK hR hV) hM hIA hARI hA hPA.minBudget hNS _) fun _ h => h
+  intro s1 a1 σ1 hr h
+  obtain ⟨⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh, -⟩, -⟩ := jAtPreMV_holeQ hARI.toARKeep hA hnd hM hPA h
+  exact hPre_ofZQIMN hARI hA hnd hM hK hPA hIA hmrt hmax htu s1 a1 σ1 hr h
+    (hNS s1 a1 σ1 ⟨Z, H, Cs, Ac, Lst, D, s0, a0, σ0, Hh⟩)
 
 end
 
