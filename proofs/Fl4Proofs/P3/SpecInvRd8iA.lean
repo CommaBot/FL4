@@ -364,9 +364,9 @@ theorem ba_bindScReply_p (p r : ObjRef) (σ : State Unit) (hp : PA p σ) :
     obtain ⟨z2, h2, hy⟩ := hy
     exact tail z2.2 (ba_updateSkObjRef _ _ _ _ _ hσ z2 h2) (pa_sv hp (sv_setReplyObjRef' _ _ _ _ z2 h2)) y hy
 
-/-- **`reply_push caller callee r d`**: the caller's SCs active (`TA`), its own SC active (`CBa`). -/
+/-- **`reply_push caller callee r d`**: the caller's SCs active (`TA`), its own SC active (`CBa`) when it may donate. -/
 theorem ba_replyPush_p (caller callee r : ObjRef) (d : Bool) (σ : State Unit) (hT : TA caller σ)
-    (hC : CBa caller σ) : IKp BSA σ (replyPush (Z := Unit) caller callee r d) := by
+    (hC : d = true → CBa caller σ) : IKp BSA σ (replyPush (Z := Unit) caller callee r d) := by
   unfold replyPush
   intro hσ y hy
   obtain ⟨⟨sco, s1⟩, h1, hy⟩ := hy
@@ -384,9 +384,9 @@ theorem ba_replyPush_p (caller callee r : ObjRef) (d : Bool) (σ : State Unit) (
   unfold NonDet.when at hy
   split at hy
   · rename_i hc
-    obtain ⟨hc1, -, -⟩ := hc
+    obtain ⟨hc1, -, hd⟩ := hc
     obtain ⟨c, hcs⟩ := Option.ne_none_iff_exists'.1 hc1
-    have hp0 : PA c σ := hC x1 c hx1 hcs
+    have hp0 : PA c σ := hC hd x1 c hx1 hcs
     rw [hcs] at hy
     obtain ⟨z5, h5, hy⟩ := hy
     have b5 := ba_bindScReply_p c r z4.2 (pa_sv hp0 v4) b4 z5 h5
@@ -491,7 +491,7 @@ theorem sc_sv {t c : ObjRef} {x : Tcb} {s s' : State Unit} (hx : s.kheap t = som
 /-- **`send_ipc`** by `thread`: its SCs active (`TA`), its own SC active (`CBa`),
 and bound when it may donate without a call. -/
 theorem ba_sendIpc_p (block call : Bool) (badge : Badge) (cg cgr cd : Bool) (thread epptr : ObjRef)
-    (σ : State Unit) (hT : TA thread σ) (hC : CBa thread σ)
+    (σ : State Unit) (hT : TA thread σ) (hC : cd = true → CBa thread σ)
     (hD : call = false → cd = true → ∃ x c, σ.kheap thread = some (.tcb x) ∧ x.tcbSchedContext = some c) :
     IKp BSA σ (sendIpc (Z := Unit) block call badge cg cgr cd thread epptr) := by
   unfold sendIpc
@@ -530,7 +530,7 @@ theorem ba_sendIpc_p (block call : Bool) (badge : Badge) (cg cgr cd : Bool) (thr
       split at hy
       · split at hy
         · obtain ⟨z8, h8, hy⟩ := hy
-          have b8 := ba_replyPush_p thread _ _ cd z5.2 (ta_sv hT v) (cba_sv hC v) b5 z8 h8
+          have b8 := ba_replyPush_p thread _ _ cd z5.2 (ta_sv hT v) (fun hd => cba_sv (hC hd) v) b5 z8 h8
           exact (by (try dsimp only); ba_auto : BAK _) z8.2 b8 y hy
         · obtain ⟨z8, h8, hy⟩ := hy
           have b8 := ba_setThreadState thread .inactive rfl z5.2 b5 z8 h8
@@ -552,7 +552,7 @@ theorem ba_sendIpc_p (block call : Bool) (badge : Badge) (cg cgr cd : Bool) (thr
             simp only [Prod.mk.injEq] at e9; obtain ⟨rfl, e9⟩ := e9; subst s9
             rw [hx9] at hx9'; cases hx9'
             rw [hc9] at h8
-            exact ba_schedContextDonate c _ z5.2 (cba_sv hC v x9 c hx9 hc9) b5 z8 h8
+            exact ba_schedContextDonate c _ z5.2 (cba_sv (hC hc.1) v x9 c hx9 hc9) b5 z8 h8
           · obtain rfl := Set.mem_singleton_iff.1 h8; exact b5
         exact (by (try dsimp only); ba_auto : BAK _) z8.2 b8 y hy
     · obtain ⟨z3, h3, -⟩ := hy; exact h3.elim

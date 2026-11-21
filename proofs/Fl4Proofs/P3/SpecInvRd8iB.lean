@@ -154,7 +154,7 @@ theorem ba_recvSender (sender thread epptr e : ObjRef) (reply : Option ObjRef) (
       obtain ⟨x7, -, rfl⟩ := SInvQ.q1_mem_threadGet h7
       obtain ⟨z8, h8, hy⟩ := hy
       obtain rfl := Set.mem_singleton_iff.1 h8
-      exact ba_replyPush_p sender thread _ _ z5.2 (ta_of_q b5 hx5 hq5) (cba_of_q b5 i5.back hx5 hq5) b5 y hy
+      exact ba_replyPush_p sender thread _ _ z5.2 (ta_of_q b5 hx5 hq5) (fun _ => cba_of_q b5 i5.back hx5 hq5) b5 y hy
     · exact ba_setThreadState sender .inactive rfl z5.2 b5 y hy
   · exact (by ba_auto : BAK _) z5.2 b5 y hy
 
