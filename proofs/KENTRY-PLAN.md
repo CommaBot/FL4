@@ -8070,3 +8070,60 @@ Not edited: ScSignalJ, XTopJointKEntry2/8/13P/23P/27 and every older top (they s
 - Not on the syscall path, still ∀ hNS: `JAtZ.handleIrqJJA` / `jIrqHypJ_ofA` (MRPath) and the older IRQ-event /
   non-MR preemption lemmas (XTopJointIrq*, PreemptE/I/K/L/M/S/Z). ScSignalJ's `signalJHyp_of` could be restated over
   `JAtZ.signal_atN`'s pointwise form (left as is to keep its 152-module cone untouched).
+## rd8b (branch par/rd8b in FL4-r2, on 00308b01 = int/j2 incl. rd7, epq2, g3a, ctq10) — rd7 handoff 2 in part: Rdy across set_priority, yield_to, every SchedContext invocation, refill_new / refill_update (NOT finished: configure's wrapper, IPC writers, TCB / untyped / deletion performs, composition)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8` (new names only there), modules SpecInvRd8bA / Rd8bB / Rd8bC (root imports them). Nothing existing edited. No JAtZ cone (Rd8bB adds SpecInvSbF2, Rd8bC SpecInvEqB to the cone: both spec-only).
+- **SpecInvRd8bA.** `W σ0 s := SVS σ0 s ∧ cfS s = cfS σ0` (IpcSV's SVS + rd7's cfS), `ikp_bind_w` (a step with RdK, SVM, CFK lemmas
+  carries W from a pinned start), `rdyT_w` / `rdyT_ct_w`, `fwd_svs` (sb2's ScFwd along SVS), `scTcb_svs`, new SVM leaves
+  `sv_completeYieldTo'`, `sv_schedContextResume'` (registered as sv_leaf). `CtRdy σ := ∀ x, kheap ct = tcb x → runnable → RdyT ct`.
+  **`rd_setPriority t prio σ (hC : CtRdy σ) : IKp Rdy σ (setPriority t prio)`**: FL4's set_priority re-enqueues t when it was
+  queued (R1) or is ct (CtRdy) — l4v re-enqueues only under `schedulable`; the spec enqueues ct unconditionally, so CtRdy is
+  needed (true at a perform: ct Restart, bound to cur_sc by ctq5's curScT, active by rd7's CAx, not released by RB's resume
+  clause, head ready by OffReady — rd's CtR). **`rd_schedContextYieldTo p σ (hF : ScFwd σ) (hct : RdyT σ ct)`**: the spec has
+  no l4v `assert (sufficient ∧ ready)`; `sr_schedContextResume` (the SC's thread bound back by ScFwd, carried along SVS)
+  gives RdyT under the `schedulable` guard; the second arm enqueues ct unconditionally (RdyT ct along W).
+- **SpecInvRd8bB.** `rdy_upd_bind'` (rd7's rdy_upd_bind for a possibly BlkR thread whose new SC is active with a ready head).
+  `BindRel σ p t` := SC p bound to no TCB ∧ (TCB t bound to no SC ∧ (BlkR t → SC p released, `scReleased` = active ∧ ready)) —
+  exactly the decode's checks (`decode_sched_context_bind` / `decode_update_sc`: `whenE (ipcQueuedThreadState st ∧ ¬released)
+  throw`, seL4's "tcb blocked and scheduling context not schedulable"). **`rd_schedContextBindTcb p t σ (hB : BindRel σ p t)`**
+  (bind; back-pointer; `rd_ifCond` with the mutual binding kept by sb2's `sb_ifCondRefillUnblockCheck` (BR/scKeep);
+  `sr_schedContextResume`; enqueue under schedulable). `ScIvOK σ iv` (BindRel for `.invokeSchedContextBind p (.threadCap t)`,
+  True otherwise). **`rd_invokeSchedContext iv σ (h1 : T1 σ) (hA : Simple σ) (hF : ScFwd σ) (hct : RdyT σ ct) (hD : ScIvOK σ iv)`**:
+  every arm (consumed, bind TCB / ntfn, unbind-object TCB (rd3's rd_schedContextUnbindTcb_p, hA from Simple) / ntfn,
+  unbind (all TCBs, ntfn, reply), yield_to).
+- **SpecInvRd8bC.** `updSc_twice`, `updSc_self`, `mae_out` (maybe_add_empty_tail appends (head time, 0) iff period 0),
+  **`refillNew_out`** (r.2 = updSc σ p z n, z keeps scTcb, max = mr, period = per, refills = [(cur_time, b)] ++ [(cur_time, 0)] iff
+  per = 0), **`refillUpdate_out`** (refills ≠ []: head amount = if b ≤ old head then b else old head; head time = cur_time when
+  the old head was ready, else kept; rsum = b; per = 0 → 2 refills). **`rd_refillNew p mr b per σ hR hk (hm : MIN_REFILLS ≤ mr)
+  (hb : MIN_BUDGET ≤ b)`** (rdy_frame1: a released SC stays released, no exclusivity needed; IdleHd: head at cur_time).
+  **`rd_refillUpdate … (hne) (hya : active) (hm) (hb) (hX : Excl σ p)`** (rdy_framex; head ≥ MIN_BUDGET from the cut or RV;
+  IdleHd from the old idle head being ready).
+- Premises: none named ([J]/[P]/[W]/[S]: none). Entry hypotheses only, each true in every reachable state at the perform and
+  a function of carried facts: CtRdy / RdyT ct (CtR ∧ CAx ∧ RB, see above), ScFwd (sb2's ScInv), T1 / Simple (ctq), BindRel
+  (decode). No FINDING. Checked: set_priority's unconditional ct enqueue and yield_to's missing assert do not break Rdy at a
+  perform (both reduce to RdyT ct / resume's postponement).
+- HANDOFF (in order):
+  1. `rd_configure` (invoke_sched_control_configure_flags) from Rdy, ScSym ∧ RNE (sb2), Simple, OffReady ∧ Suff (rd7's OS
+     first disjunct at a perform), `MIN_BUDGET ≤ b` (epq2's CfgDec) and `MIN_REFILLS ≤ mr` (decode: `unat extra + MIN_REFILLS`;
+     extend epq2's okv_decodeSchedControlFlags to `CfgDec ∧ MIN_REFILLS ≤ mr`): front = rd_tcbReleaseRemove, rd_dequeue,
+     rd7's rdy_commitTime when cur_sc = p (OffReady / Suff keep across the two queue steps: kheap / cur_sc / consumed / time
+     fixed); middle = rd_refillNew (both refill_new arms) / rd_refillUpdate with `Excl s p` (the only TCB bound to p is
+     sc_tcb by ScBackS, dequeued, not released, not the switch target by Simple, runnable by the branch guard; kheap t
+     unchanged since every write is to p); tail = rd_schedContextResume + SR t (sr_schedContextResume: z.scTcb = y.scTcb,
+     t's binding unchanged), `possible_switch_to t` needs a release-aware variant of rd6's rd_possibleSwitchTo_q (its guard
+     tests `bound ∧ ¬ in_release_queue`; RdyT from SR and `Sched.schedulable_of` with p active since mr > 0), then
+     rd_updateSchedContext for badge / sporadic.
+  2. Decode carries to the perform: BindRel from decode_sched_context_bind / decode_update_sc (sb2's OkB pattern on a view of
+     thread states, SC activity / head and time; setThreadState ct Restart keeps it: ct is not ipc-queued).
+  3. IPC: receive_ipc, send_ipc with donation (rd6's rd_sendIpc_nd covers no donation), do_reply_transfer — reuse rd7's
+     rd_wake / rd_schedContextDonate_free / rs_cancelIpc_recv shapes.
+  4. invoke_tcb: suspend / restart; threadControlSched = installTcbCap (cap_delete: the deletion cone) ; setMcpriority
+     (rd_setMcpriority, RdF5) ; rd_setPriority (CtRdy at that state: carry RdyT ct along W across the install / set_mcp) ;
+     rd_schedContextBindTcb (BindRel) or rd_schedContextUnbindTcb_p. Retype / detype (UtInv3 freshness; reset regions via
+     IfLiveT / ScLive). Deletion cone (finalise TCB / SC caps: unbind, set-inactive (rd3), release removal).
+  5. rd_fl4PerformInvocation / rd_handleInvocationR through epq2's pz_handleInvocationR shell (syscall_postU, PV-style pinned
+     view) with the per-perform decode facts.
+- Builds (tokyo, FL4-r2 mirror seeded from FL4-audit; ./rd8bs.sh untracked): rd8b-r-2/r-3 Rd8bA (4982 jobs), r-4/r-5 Rd8bB
+  (4990), r-6/r-8/r-9/r-10 Rd8bC (4998), r-11 A+B+C with axioms (scratch/rd8b/ax.lean, untracked). Lean traps: passing `_` for
+  an update function next to `fun _ => ⟨rfl, rfl, rfl⟩` lets Lean solve it as the identity — pass it explicitly; after
+  `cases hx'` with `hx' : some (.tcb y) = some (.tcb x')` the name x' is gone (use y); `split` needs `dsimp only` on a
+  beta-redex continuation; `split <;> first | exact h | rfl | (simp_all [scXUpdate…] <;> rfl)` for the record-update goals.
