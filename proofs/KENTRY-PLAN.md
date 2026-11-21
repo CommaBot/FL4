@@ -11192,3 +11192,57 @@ rd14c-2..6. ./rd14cs.sh untracked (= rd14bs.sh with its own log); proofs/scratch
   and `kcall_rdyOff9` / `kentry_rdyOff9` = `kcall_rdyOffC armA_all` without `hP`. (3) PerfF the same way: `ArmF C'`, the QT
   family extends by leaves (setThreadState of a good state is already generic; finalise / deletion writes Inactive); arms that
   unbind ct give RT / CBa vacuously (prove an `fpo_tu` next to `fpo_tb`); then B's tops lose `InvF` via `invF_ofC armF_all`.
+## rd8v (branch par/rd8v in FL4-c2, on 52d2d63a = int/j2 incl. rd8s, rd8t, rd14b, rd8r, g2f) — rd8s handoff 1-3 DONE (doReplyTransfer, the deletion recursion, every shell); 4 DONE for VB (tops `kcall_vb` / `kentry_vb`, bundle `SInvCRBV`) and in part for the wiring (rd8j's `InvIn` reduced to its Reply part `InvInB`; tops `kcall_rdyOffV` / `kentry_rdyOffV`)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8v` (every new name), modules SpecInvRd8vA / B / C / D (root imports them). Nothing existing
+edited. No JAtZ cone (scratch/rd8v/anc.py: SpecInvRd8lD 991 / SpecInvRd8tA 1031 ancestors, no JointAt / XTopJointDelR).
+- **SpecInvRd8vA (do_reply_transfer, handoff 1).** `VS E := VE E ∧ ScInv`, `si_sts` (sb2's ScInv across any thread-state write),
+  `ht_pair` / `ht_vs` / `ht_fst`, `mem_getScObjRef`, **`ht_postpone_self`** (postpone of an SC whose scTcb is r: dequeue +
+  `ht_tcbReleaseEnqueue_x`), `nsched_of_nr` / `nsched_of_ub`, **`ht_doReplyTransfer : HT (VS E) (VE E)`**: prefix by ve_auto / si_auto,
+  the receiver exempt after its Running / Restart / Inactive write; the final `when`: not taken (unbound or not runnable ⇒ not
+  schedulable), `possible_switch_to r`, `handle_timeout r` by rd9's **`A9.tmoNR`** (no premise; it already contains the "fault of r stays
+  set" frame across tcb_ep_dequeue / do_ipc_transfer / reply_unlink_tcb, `QF` / `QR`, and the destination ≠ r split), `postpone sc` with
+  sc.scTcb = r by sb2's `ScBackS` read at r's binding. No new fault family needed.
+- **SpecInvRd8vB (handoff 2-3).** `HTE` (HT over ExceptT.run), `hte_bind` / `hte_liftE` / `hte_ve` / `hte_and`. rd8q's family had SKIPPED
+  retype / detype: **`ve_retypeRegionWith`** (every written object a `defaultObject`: `okv_default`), **`ve_deleteObjects`** (`ve_detype`:
+  removing objects makes no thread schedulable), `ve_resetUntypedCap`, `ve_invokeUntypedWith` / `ve_invokeUntyped`,
+  `ve_performAsidControlInvocation`, `ve_archPerformInvocation`, `ve_fl4ArchPerformInvocation` (all for every E, no premise). Deletion:
+  **`ve_recDelF` / `ve_recDel`** (ik_lfp over the steps), `ve_capDelete`, **`ve_capRevokeF` / `ve_capRevoke`**, `ve_installTcbCap`,
+  `ve_installTcbFrameCap`, **`ve_invokeCnode`**, **`ve_invokeTcb`**; `ve_gets_ct`, `ve_endpointArm` (send_ipc on ct via `ht_ct`),
+  `ht_replyArm`, **`ht_performInvocation` / `ht_fl4PerformInvocation : HTE (VS E) (VE E)`** (Reply by ht_doReplyTransfer, SchedControl
+  by rd8s's configure, every other arm VEKE E).
+- **SpecInvRd8vC (shells, tops, bundle).** `VSC E c := VE E ∧ ScInv ∧ ct = c`, `vsc_invF` / `vsc_invE` (rd12b's phases; invF's ScInv by
+  `sik_of_sbk` + sb_auto: si_auto times out there), **`ht_invFin`**, **`ht_fl4HandleInvocationR`** (rd12b's eq + `P17.syscall_r`; the fault
+  branch by `ht_ct`), **`ht_fl4HandleSyscall`** (11 arms), **`ht_fl4HandleEvent`** (non-syscall events: handle_fault on ct read just
+  before by `ve_gets_ct` + `ht_ct`), `hte_handleE`, **`ht_fl4CallKernel`**, **`ht_fl4KernelEntrySyscall`**; tops
+  **`kcall_vb rep ev (hV : VB σ) (hI : ScInv σ) : ∀ y ∈ fl4CallKernel rep ev σ, VB y.2`**, **`kentry_vb`** (same for the syscall entry);
+  **`SInvCRBV σ := SInvCRB σ ∧ VB σ`**, **`boot_sinvCRBV`**, **`kentry_sinvCRBV` / `kcall_sinvCRBV`** (exactly rd8l's `kentry_sinvCRB` /
+  `kcall_sinvCRB` premises; VB only from the bundle at the entry state, ScInv = rd8l's existing `hI`).
+- **SpecInvRd8vD (wiring, handoff 4 part 2).** `uts_idle`, **`uf_front`** (rd8n's UF across the true front), **`uf_js`** (UF along rd8j's
+  JS), `uf_fip` (FaultIP write), **`vb_cap`** (VB entry → shell start), **`InvInB r fp σ`** (rd8n's `PerfInB` = Reply's BlockedScActive at
+  the Restart states, pinned to the entry's run), **`invIn_of … (VB σ) (UF σ) (InvInB r fp σ) : B8j.InvIn r fp σ`** (rd8j's front_facts /
+  js_getCapReg, rd8n's perfInN_of — DomainSet's `SR t` by `sr_of_vb` at the perform — and perfIn_of — Untyped / ASIDControl Rdy);
+  tops **`kcall_rdyOffV`** / **`kentry_rdyOffV`** = rd8t's `kcall_rdyOffT` / `kentry_rdyOffT` with `(hVB : VB σ) (hUF : UF σ)` at the entry
+  state and `InvInB` in place of `InvIn` (Untyped / ASIDControl / DomainSet parts of rd8j's PerfIn discharged).
+- **Premises.** None added ([J]/[P]/[W]/[S]: none). Every frame lemma is for arbitrary states; ScInv (sb2, carried) is the only carried
+  fact beyond VE, needed by doReplyTransfer's postpone and configure. Tops take VB only at the entry state. Still open (pinned to the
+  run, as before): `InvInB` (Reply's BlockedScActive at the perform: rd8l's `bsa_restart` from `SJ` — not wired), rd15a's `RecvTC`,
+  rd14b's `InvRo` (rd14c's scope). `UF`'s members are carried by ut8 / sl / sg (not re-proved here).
+- **Checks / findings.** No reachable writer found breaking VB (no FINDING). Notes: (a) rd9's `tmoNR` already is the "fault of r stays
+  set" argument rd8s asked for; (b) retype / detype keep VB with no freshness fact (defaults are unbound / inactive; removal only
+  shrinks schedulability) — unlike Rdy (rd8n); (c) send_ipc of the Endpoint arm keeps ct exempt via ht_ct; (d) rd8s's
+  `ve_activateThread` and `ve_handleRecv` were never registered as `ve_leaf` (used explicitly here); (e) l4v's `handleInvocation` /
+  `handleSend` / `handleCall` / `handleEvent`'s syscall arm are unreachable from fl4KernelEntrySyscall (fl4HandleSyscall /
+  fl4HandleInvocationR replace them) and are not proved; `performInvocation` is. (f) Lesson: a nested `by` inside `repeat (refine …)`
+  logs its error instead of failing, so the loop does not stop (a1); write steps explicitly. `kentry_sr` / `kcall_sr` as separate tops
+  not added: SR is needed at the perform (DomainSet), where `invIn_of` now produces it from VB.
+- HANDOFF: (1) `InvInB` from rd8l's `bsa_restart` (SJ at the shell start: KD / ScInv / CBa ct / VfC / Bd + BSA carried over the front
+  and get_cap_reg) ⇒ tops without `hPs` / `hPr`; (2) wire `kcall_rdyOffV` into the SInvCRBV-level top (VB from the bundle, UF from
+  SInvA's ut / sl / sg fields); (3) RecvTC / InvRo (rd14c).
+- Builds (tokyo, FL4-c2 mirror; ./rd8vs.sh untracked = rd8ss.sh with the Rd8v filter; keys rd8v-*): a1 A (none-arm ve_auto took the whole
+  maybeM; repeat with nested `by` consumed the Running write; `-` patterns), a2 A (bullets closed over open tails), a3 stopped (A: e3
+  orientation; only warming rd8l's cone), a4 A green, B (anonymous-constructor `by …,` parse; Endpoint arm), a5 B green, C (namespace,
+  heartbeats, unregistered leaves), a6 C (invF's si_auto timeout), a7 C + D green ("Build completed successfully (5754 jobs)", D first
+  try); ax1 (axrd8v1.lean, untracked): all 43 listed lemmas propext / Classical.choice / Quot.sound (mem_getScObjRef: propext;
+  okv_default: Classical.choice; uts_idle: propext, Quot.sound; hte_handleE: none). No sorry / admit / native_decide / bv_decide / axiom;
+  0 `declaration uses sorry`. Root Fl4Proofs.lean not rebuilt (four import lines). Commits 686f9b8f (A, B), ee6a7593 (C, D, root
+  imports), then this section.
