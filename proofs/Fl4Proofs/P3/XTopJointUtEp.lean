@@ -198,6 +198,36 @@ theorem Vs.FrSlots.retype {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : 
       exact (h y ((hM.members y).1 hy0).1).mono hU
   · rw [hE.newc j hj]; exact hn j hj
 
+/-- An untyped cap is native. -/
+theorem Vs.nativeCap_ut {c : capability.Cap} (h : isUt c = true) : Vs.NativeCap c := by
+  cases c <;> first | trivial | (simp [isUt] at h)
+
+/-- A retype's new cap is native (`newCapOf` makes no VT-x cap). -/
+theorem Vs.nativeCap_newCapOf (n : Nat) (base us : U64) (dev : Bool) : Vs.NativeCap (newCapOf n base us dev) := by
+  have hf : ∀ sz, Vs.NativeCap (.Frame base sz 3#u64 dev false false 0#u64 0#u64) :=
+    fun _ h => Bool.noConfusion h.1
+  exact newCapOf_ind Vs.NativeCap n base us dev (fun _ => True.intro) (fun _ => True.intro) (fun _ => True.intro)
+    (fun _ => True.intro) (fun _ => True.intro) (fun _ => True.intro) (fun _ => True.intro) (fun _ => True.intro)
+    (fun _ => hf _) (fun _ => hf _) (fun _ => hf _) (fun _ => True.intro) (fun _ => True.intro) True.intro
+
+/-- **`VsNat` across a retype** (`RetExp`; g2a, as `Vs.FrSlots.retype`): an
+old cap kept or an untyped cap, a new cap native by `hn`. -/
+theorem Vs.VsNat.retype {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {A0 k w : Nat}
+    {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (h : Vs.VsNat th m) (hE : RetExp th th' m m' G G' A0 k w dslot cj xs)
+    (hM : MdbLinks th m G) (hM' : MdbLinks th2 m' G')
+    (hn : ∀ j, j < w → Vs.NativeCap (cj j)) : Vs.VsNat th2 m' := by
+  intro y hy
+  by_cases hnull : capV m' y = .Null
+  · rw [hnull]; trivial
+  have hy' : y ∈ G'.chains.flatten := (hM'.members y).2 ⟨hy, _, capAt_capV m' y, hnull⟩
+  rcases hE.gmem y hy' with hy0 | ⟨j, hj, rfl⟩
+  · by_cases hu : isUt (capV m y) = true
+    · exact Vs.nativeCap_ut (hE.utk y hy0 hu)
+    · rw [(hE.keep y hy0 (by simpa using hu)).2]
+      exact h y ((hM.members y).1 hy0).1
+  · rw [hE.newc j hj]; exact hn j hj
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
@@ -554,7 +584,7 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
       (∀ r, H' r = some .reply → r ∈ Z'.R))
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
-    (hbf : JBuf (L := L) Z' s' σ') :
+    (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s') :
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -568,7 +598,7 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext⟩
 
 
 set_option maxHeartbeats 1000000 in
@@ -599,7 +629,7 @@ theorem JAtZ.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       (∀ r, H' r = some .reply → r ∈ Z'.R))
     (hscC : ∀ c z, H' c = some (.sc z) → c ∈ Z'.C)
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
-    (hbf : JBuf (L := L) Z' s' σ') :
+    (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s') :
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -612,7 +642,7 @@ theorem JAtZ.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     R.jpl, hcov, hobj, hzH, hCs.sfree, hset, hscC, R.jcov,
     R.kern, hCs.del, hCs.ut, by rw [hth]; exact J.bound, hCs.finM, R.utc, R.nsc, R.inv, R.cur, R.own, R.off, R.act,
     hc0, R.bsa, schedValid_rebuild hX hTe hRe hobj R.blk hset.1 hset.2.1 R.call R.yld hc0 R.inv hsl, R.isorted, hsl,
-    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2⟩
+    R.curRun, R.blk, by rw [hth, hks]; exact J.intL, hvc, hbf.1, hbf.2.1, hbf.2.2, hext⟩
 
 end
 

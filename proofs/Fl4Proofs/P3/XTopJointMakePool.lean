@@ -949,6 +949,12 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       fun n hn => J.hset.2.1 n ((hk' (fun _ e => by cases e) n).1 hn),
       fun r hr => J.hset.2.2 r ((hk' (fun _ e => by cases e) r).1 hr)⟩
     (fun c z hc => J.hscC c z ((hk' (fun _ e => by cases e) c).1 hc)) hvc hbf
+    ⟨fun y hy => by
+      by_cases e1 : y = cslotAddr (pp.bv, idx)
+      · rw [e1, hsrc]; trivial
+      by_cases e2 : y = cslotAddr (pd.bv, idxd)
+      · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
+      · rw [hcap y hy e1 e2]; exact J.ext.nat y hy⟩
 
 
 end

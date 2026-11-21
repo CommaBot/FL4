@@ -287,7 +287,7 @@ theorem jFinAtL_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps
       (VtPostD (L := L) arI AR (Z.mv G V) H Cs (D ∪ ZTcb (L := L) Z.th s) s σ c true r ∧
         EmptyReady (L := L) H G r.2.1 (cslotAddr sl)) ∧ P1.DbgKeep st (P1.Heap.tcbs H) Cs s r.2.1 ⦄ := by
     rcases hk' with he | hv
-    · exact WP.spec_and (J0.finEptJD (G := G) hAR hV hA hc he) (J.finEptDbg hAR hV he)
+    · exact WP.spec_and (J0.finEptJD (G := G) hAR hV hA hc he) (J.finEptDbg hAR hV hA.isSlot (capV_of_capAt hc) he)
     · exact WP.spec_and (J0.finVcpuJD (G := G) hK hV hA hc hv) (J.finVcpuDbg hK hV hA hc hv)
   refine WP.spec_mono hsp ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨h1, h2, h3, hm, ⟨Ac1, Lst1, J1⟩, hSS, hks⟩, hRd⟩, hK'⟩
@@ -393,7 +393,7 @@ theorem jFrVtL [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : ARK
   subst hth
   have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
   have hcv := capV_of_capAt hc
-  refine WP.spec_mono (WP.spec_and (J0.frVtJD hAR hK hV hDS hA hc hk _) (J.frVtDbg hAR hK hV hk _)) ?_
+  refine WP.spec_mono (WP.spec_and (J0.frVtJD hAR hK hV hDS hA hc hk _) (J.frVtDbg hAR hK hV hA.isSlot (capV_of_capAt hc) hk _)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, hm, ⟨Ac1, Lst1, J1⟩, hSS, hks⟩, hK'⟩
   simp only at h1 h2 h3 hm J1 hSS hks hK' ⊢
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]

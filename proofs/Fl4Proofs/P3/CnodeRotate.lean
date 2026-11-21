@@ -385,7 +385,8 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 (by rw [capV_of_capAt hsc2]; exact update_vcap hns) (by rw [capV_of_capAt hsc2]; exact update_tabun hns)
                 (by rw [capV_of_capAt hpc2]; exact update_vcap hnp) (by rw [capV_of_capAt hpc2]; exact update_tabun hnp)
                 (by rw [capV_of_capAt hsc2]; exact update_okey hns hnsn)
-                (by rw [capV_of_capAt hpc2]; exact update_okey hnp hnpn),
+                (by rw [capV_of_capAt hpc2]; exact update_okey hnp hnpn)
+                (by rw [capV_of_capAt hsc2]; exact update_nat hns) (by rw [capV_of_capAt hpc2]; exact update_nat hnp),
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
                 htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -566,10 +567,12 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                     rw [capV_of_capAt hsc3, ← update_ut hns hu, h]) htr2.2.1),
               (vsSlotsT_move hAp.isSlot htr1.2.1 htr1.2.2.1 htr1.2.2.2 (by rw [capV_of_capAt hpc2]; exact update_vcap hnp)
                 (by rw [capV_of_capAt hpc2]; exact update_tabun hnp)
-                (by rw [capV_of_capAt hpc2]; exact update_okey hnp hnpn)).trans
+                (by rw [capV_of_capAt hpc2]; exact update_okey hnp hnpn)
+                (by rw [capV_of_capAt hpc2]; exact update_nat hnp)).trans
                 (vsSlotsT_move hAs.isSlot htr2.2.1 htr2.2.2.1 htr2.2.2.2 (by rw [capV_of_capAt hsc3]; exact update_vcap hns)
                 (by rw [capV_of_capAt hsc3]; exact update_tabun hns)
-                (by rw [capV_of_capAt hsc3]; exact update_okey hns hnsn)),
+                (by rw [capV_of_capAt hsc3]; exact update_okey hns hnsn)
+                (by rw [capV_of_capAt hsc3]; exact update_nat hns)),
               (coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
                 htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl

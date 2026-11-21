@@ -277,7 +277,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hkey : okey cc = okey srcC)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 cc)
     (htu : Vs.TabUn cc → Vs.TabUn srcC)
-    (huc : isUt srcC = true → cc = srcC)
+    (huc : isUt srcC = true → cc = srcC) (hnat : Vs.NativeCap srcC → Vs.NativeCap cc)
     (hDs : DestLive Z.th (L.mem s) (L.ksb s) ps) (hDd : DestLive Z.th (L.mem s) (L.ksb s) pd) :
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' => ∃ σ',
       Fl4Spec.capInsert (Z := Unit) ac (ps.bv, idxs) (pd.bv, idxd) σ = ({((), σ')}, False) ∧
@@ -370,11 +370,11 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (typedKept_ins hAs.isSlot hsv hoth hdc hsc hsh) hfh'
     (let ⟨_, _, hJ⟩ := J.jpl; hJ.bfsT fun t ht => Or.inl (hTS 2 (by decide) t ht)) (hdi J.del) hCU.2 hjc horig hutc
   have hvT := vsSlotsT_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hsv]; exact hv)
-    (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey)
+    (by rw [hsv]; exact htu) (by rw [hsv]; exact hkey) (by rw [hsv]; exact hnat)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R
-      (J.vsc.step hvT)⟩
+      (J.vsc.step hvT) (J.ext.step hvT)⟩
 
 
 /-! ## The transfer loop at `J` -/
@@ -631,7 +631,7 @@ theorem tc_bodyJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tcb}
                 have hins := WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
                   (hv' Z.th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
                   (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (fun h => (derive_tabun hr h).elim)
-                  (derive_ut hr) hDs hDd)
+                  (derive_ut hr) (derive_nat hr) hDs hDd)
                   (insert_capfr2 hPl s c' _ _ hsI' hAd.isSlot cv hsrcC he0 he' hnx)
                 rw [← hxa, ← hdA] at hins
                 refine WP.spec_bind hins ?_

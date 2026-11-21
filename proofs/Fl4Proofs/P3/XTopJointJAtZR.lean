@@ -169,6 +169,8 @@ structure JAtZR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   move, swap, DeriveSubframe's sub-range), set at the frame retype for the new
   pages, released at the detype by `FrameOffJ`. -/
   fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
+  /-- JAtZ's `ext` (`JExt`, G2). -/
+  ext : JExt (L := L) Z.th s
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -221,6 +223,7 @@ theorem JAtZ.toR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L :=
   bok := J.bok
   fcov := J.fcov
   fcap := J.fcap
+  ext := J.ext
 
 theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ where
   xtop := J.xtop
@@ -270,6 +273,7 @@ theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L 
   bok := J.bok
   fcov := J.fcov
   fcap := J.fcap
+  ext := J.ext
 
 theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -320,6 +324,7 @@ theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
   bok := J.bok
   fcov := J.fcov
   fcap := J.fcap
+  ext := J.ext
 
 end
 

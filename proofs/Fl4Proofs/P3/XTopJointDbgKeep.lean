@@ -135,22 +135,22 @@ set_option maxHeartbeats 4000000 in
 theorem JAtZ.frVtDbg [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hK : ARKeep arI AR) {s : S} {a : A}
     {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : JVtHyps (L := L) arI AR Z.th)
-    {c : capability.Cap} (hk : FrVtK c) (b : Bool) :
+    {c : capability.Cap} {x : U64} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = c) (hk : FrVtK c) (b : Bool) :
     objects.finalise_cap st arI s a c b false ⦃ r => P1.DbgKeep st (P1.Heap.tcbs H) Cs s r.2.1 ⦄ := by
   have har := J.xtop.fin.1.1.2.2.2.2.2.2
-  rcases hk with ⟨p, sz, r, d, asid, va, rfl⟩ | ⟨f, l, o, rfl, -⟩
+  rcases hk with ⟨p, sz, r, d, asid, va, rfl⟩ | ⟨f, l, o, rfl, ho⟩
   · obtain ⟨i, hi⟩ : ∃ i, capability.FrameSize.bits sz = ok i := by cases sz <;> exact ⟨_, rfl⟩
     simp only [objects.finalise_cap, objects.finalise_cap_object, P1.plain_retire, bind_ok, ↓reduceIte, hi,
       ite_self]
     split
     · refine WP.spec_bind (ept_unmap_vt hA a har asid va p i false (X := VtOut (L := L) Z H Cs s σ)
-        (fun x hx => hx.al) (hV.ept Z H Cs Ac Lst D s a σ rfl J asid)) ?_
+        (fun x hx => hx.al) (hV.ept Z H Cs Ac Lst D s a σ rfl J _ hx (by rw [hcv]; simp [Vs.NativeCap]) asid)) ?_
       rintro ⟨s1, a1⟩ ⟨hw, -⟩
       try simp only [uncurry_apply_pair]
       exact (WP.spec_ok _).2 (dbgKeep_of_writes J.blk hw fun b hb => J.vtOut_notDbg hb)
     · try simp only [P1.plain_retire, ite_self, bind_ok, uncurry_apply_pair]
       exact (WP.spec_ok _).2 (P1.DbgKeep.refl s)
-  · have P := hV.io Z H Cs Ac Lst D s a σ rfl J
+  · have P := hV.io Z H Cs Ac Lst D s a σ rfl J _ hx (by rw [hcv]; exact ho)
     simp only [objects.finalise_cap, objects.finalise_cap_object, bind_ok]
     refine WP.spec_bind (revoke_ports_vt hK J P o f l) ?_
     rintro ⟨s1, a1⟩ ⟨hw, -⟩
@@ -167,7 +167,7 @@ set_option maxHeartbeats 4000000 in
 `JAtZ.finEptJ`). -/
 theorem JAtZ.finEptDbg (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hV : JVtHyps (L := L) arI AR Z.th)
-    {c : capability.Cap} (hk : EptK c) :
+    {c : capability.Cap} {x : U64} (hx : IsSlot Z.th x) (hcv : capV (L.mem s) x = c) (hk : EptK c) :
     objects.finalise_cap st arI s a c true false ⦃ r => P1.DbgKeep st (P1.Heap.tcbs H) Cs s r.2.1 ⦄ := by
   obtain ⟨p, lv, m, asid, va, rfl, hnr⟩ := hk
   have har := J.xtop.fin.1.1.2.2.2.2.2.2
@@ -179,7 +179,7 @@ theorem JAtZ.finEptDbg (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.S
   · have hl0 : lv ≠ 0#u64 := fun e => hnr ⟨rfl, e⟩
     simp only [objects.finalise_cap, objects.finalise_cap_object, ept.finalise, bind_ok, ↓reduceIte, hl0]
     refine WP.spec_bind (ept_unmap_vt hA a har asid va p lv true (X := VtOut (L := L) Z H Cs s σ)
-      (fun x hx => hx.al) (hV.ept Z H Cs Ac Lst D s a σ rfl J asid)) ?_
+      (fun x hx => hx.al) (hV.ept Z H Cs Ac Lst D s a σ rfl J _ hx (by rw [hcv]; simp [Vs.NativeCap]) asid)) ?_
     rintro ⟨s1, a1⟩ ⟨hw, -⟩
     try simp only [uncurry_apply_pair]
     exact (WP.spec_ok _).2 (dbgKeep_of_writes J.blk hw fun b hb => J.vtOut_notDbg hb)

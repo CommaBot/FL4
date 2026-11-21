@@ -9520,3 +9520,69 @@ its own log; ./rd12bax*.lean untracked axiom files).
   preemption outcomes (need the Rdy carry, see the note above); (2) discharge `InvR` from the per-arm lemmas over ctq15's arm
   split + `kpc_restart` (`PerfR` at the Restart state: kpc_restart gives KP ∧ CB0 there, the decode's facts from ctq15's OkDAt /
   rd8c's okb); (3) with rd12a's receive OsBody, `RecvT` / `hOsR` go away.
+
+## g2a (branch par/g2a in FL4-sc, on 063b674c = int/j2 incl. g3e, g3d, rd8a, ctq14) — G2 first step: `JAtZ.ext : JExt` (field `nat`, the native scope); `JDelParts.vt` and `KFinAtR27.vt` proved; `kernel_entryJ31` (DONE); `thr.obj`, `live`: NOT done (handoff)
+Goal (INV-PLAN §4 G2, g3e (2) / g3d (B)): carry the joint extension as ONE sub-structure of `JAtZ` and turn the ∀-JAtZ
+premises inside the top's bundles into theorems of it. Resumed once (predecessor cut off mid cone build; builds b1-b12 its, r2 mine).
+
+### (1) `JExt` (JointAt.lean)
+- `structure JExt th s : Prop` with ONE field so far: `nat : Vs.VsNat th (L.mem s)` [S] (G2 `nativeScopeX`; l4v: x64 has no VT-x
+  objects): every slot's cap is `Vs.NativeCap` (VsFoot: no `Vcpu`, no `Ept`, no `Frame` with mapped ∧ EPT flag, no `IoPort` with
+  owner ≠ 0). `JAtZ.ext : JExt Z.th s`; `JAtZR` / `JAtZS` carry it (`ext := J.ext`).
+- Frame lemmas (the brief's `JExt.frame`): `JExt.of_eq` (caps of every slot kept), `JExt.ss` (`SlotsSame`), `JExt.step`
+  (`Vs.VsSlotsT`, whose third conjunct is now `VsNat m → VsNat m'`), `Vs.VsNat.retype` (XTopJointUtEp: a retype's `RetExp`, old caps
+  kept or untyped, new caps `Vs.nativeCap_newCapOf`).
+- `Vs.MdbLike` gained a fourth part `vtF c' = vtF c` (`Vs.vtF`, `nativeCap_iff : NativeCap c ↔ vtF c = false`), so every remap
+  (`VsLike`) keeps nativeness (`NativeCap.of_vtF`). Copies / mints / derives: `CnodeKey.copied_nat`, `MdbStepOps.mask_nat`,
+  `update_nat`, `derive_nat`. IO-port control issue: the new cap has owner 0.
+- 78 cone modules edited, each producer site adding ONE component (`J.ext.step hvT`, `J.ext.of_eq …`, `J.ext.ss hSS`,
+  `⟨J.ext.nat.retype …⟩`, or an extra `VsSlotsT.of_some` argument `hn`). No new premise anywhere in the cone: every native FL4
+  step (deletion loop WJL / WJLSwap / WJLFin / WJLEmpty, retype / reset of every object family, VSpace map / unmap / pool,
+  CNode copy / mint / move / rotate / delete, TCB control / install, IRQ / IO control, IPC grant transfer, fault / reply,
+  scheduler frames) keeps `JExt` already in this commit.
+
+### (2) What became theorems
+- `JVtHyps.ofExt` (XTopJointFinVtJ): `JVtHyps arI AR th` with NO premise. `io` / `ept` now ask for a non-native cap in a slot
+  (they are read only at an owned IO-port / EPT / EPT-mapped frame finalisation, `JAtZ.frVtJ` / `finEptJ`, which pass that
+  slot); `eptFr` / `vcpu` name an EPT-mapped Frame / Vcpu cap. All four refuted by `J.ext.nat`. So the brief's `vtIoPlace`
+  field is NOT needed (its only reader is an owned IO-port cap's finalisation, ruled out by `nat`).
+- `vtAsid_ofR` (XTopJointKEntry31): `KFinAtR27.vt` (∀-JAtZR vtable ASID, INV-PLAN F2) from the EXISTING `JAtZR.vsc`
+  (`VCapOK`'s `.Pml4` clause: a mapped PML4 cap's ASID ≠ 0) and `JAtZR.jpl` / `zH` (a set TCB is the typed heap's). No JExt
+  field needed (brief's (b) `vtAsid`).
+- `kernel_entryJ31` (XTopJointKEntry31) = `kernel_entryJ30` with `hK : … → KDispHypsKV31` (`JEntryGlobM31.delParts :
+  JDelPartsN` = `JDelParts` without `vt`) and `hFin : … → KFinAtR31` (= `KFinAtR27` without `vt`); wrappers `JDelPartsN.toJ`,
+  `JEntryGlobM31.toM`, `KDispHypsKV31.to27b`, `KFinAtR31.to27`. No premise added; J30 kept.
+
+### (3) Remaining premises touched by G2 (not done)
+- `JDelPartsN.thr.obj` [S] (XTopJointDelR `JThreadFinHypsU.obj`, ∀-JAtZ: a Thread cap's TCB has VCPU word `p+3664 = 0`): still
+  assumed. Not derivable from anything JAtZ carries: P1 (QueueVcpu docstring) says the TCB's VCPU word is a plain field no P1
+  invariant reads (`plainW_all`). Needs a JExt field `vw : ∀ x p, IsSlot th x → capV m x = .Thread p → m (p+3664) = 0` with keep
+  lemmas for every step that writes memory (not only caps): `JExt.of_eq` / `step` / `ss` would need the TCB word kept too, so
+  every producer site needs a TCB-word frame (most steps' P1 footprints `WritesIn` give it; TCB retype zeroes it, `UtTcbInit`;
+  only VCPU bind writes it, which is VT-x). Plan: add `vw` with `JExt.of_eq'` taking `hw : ∀ t, … m' (t+3664) = m (t+3664)`, and
+  derive `hw` from the step's footprint at each site (one batch over the same 78 modules).
+- `live` at the carried ghosts: left for g2b (as the brief allowed).
+- Boot: no lemma establishes `JAtZ` at an initial state in the tree, so `JExt`'s boot obligation is [W] for G4: the initial
+  CSpace holds no VT-x cap (no Vcpu / Ept / EPT-mapped Frame / owned IoPort cap).
+
+### (4) Findings
+- [scope] `JVtxHypMU` / `JVtxScope` (an Untyped retype to a VT-x type 14..18; XTopJointKEntry20P / 23P) asks for `JAt` after the
+  step. With `JAtZ.ext.nat` that post is unsatisfiable whenever such a retype succeeds (a Vcpu / Ept cap lands in a slot), so the
+  scope premise now says outright "no successful VT-x retype" (was already out of scope: no spec counterpart). Consistent with G2
+  `nativeScopeX`, but it is a premise false in a reachable state of a system that uses VT-x; the top is a native-only result.
+- `JAtZ.ext` preservation needs NO premise across the native cone: nativeness is a property of the caps alone, and every native
+  cap producer (retype `newCapOf`, IO-port issue, copies / mints / remaps) makes native caps.
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror. ./g2a.sh (= g3e.sh). Targets (maximal modules of the edited cone's downstream closure): CapAlign DomAll
+  IdleCovered IpcRS IpcReplyAll KsHeap Sc SpecInvCqD3 SpecInvCqGS SpecInvCqH3 SpecInvCqHC SpecInvEqT SpecInvNativeScopeBridge
+  SpecInvRd8A4 SpecInvRd8bC SpecInvSgBridge SpecInvVfhG TcbPlace TopMCaps XTopJointKEntry28M XTopJointKEntry31 XTopJointPortInM.
+- b1-b11 iterated module by module; b12 (~18 min) built the whole cone, failing only at XTopJointKEntry31:103 (a `simp` reshaping
+  the `.Pml4` clause); r2 (fix: a definitional ascription) OK, 6590 jobs. No sorry / admit / native_decide / bv_decide in the
+  diff. Root Fl4Proofs.lean (one import line) not rebuilt.
+- Axioms (scratch/g2a/ax.lean, untracked): kernel_entryJ31, kernel_entryJ30, kernel_entryJ29G, JVtHyps.ofExt, vtAsid_ofR,
+  JDelPartsN.toJ, KFinAtR31.to27, JAtZ.frVtJ, Vs.nativeCap_iff: propext, Classical.choice, Quot.sound.
+
+### (6) Next (handoff)
+- `vw` field + TCB-word frames (3) → `thr.obj` a theorem, `kernel_entryJ32` with `JDelPartsN` without `thr.obj`.
+- `live`, then the other G2 joint (b) fields (INV-PLAN §4 list) in the same `JExt`, one cone batch each.

@@ -290,7 +290,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       rw [capV_of_capAt hcap] at h0
       rw [hdc]
       exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
-      fun y _ e U h => by
+      (fun y _ e U h => by
         subst e
         have h0 := h src hs
         rw [capV_of_capAt hcap, hsrcCdef] at h0
@@ -299,10 +299,11 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         have hS : (fbitsF .Small).val = 12 := by rw [fbitsF_val]; rfl
         intro _ x hx1 hx2
         rw [hS] at hx2
-        exact h0 rfl x (by omega) (by rw [hL]; omega)
+        exact h0 rfl x (by omega) (by rw [hL]; omega))
+      fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap]
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
-      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT)⟩
+      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT)⟩
 
 end
 

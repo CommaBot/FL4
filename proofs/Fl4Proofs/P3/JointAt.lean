@@ -121,6 +121,31 @@ structure JKern (H : P1.Heap) (Cs D : Set U64) (th : TypedHeap) (s : S) (σ : Fl
   shrinks). -/
   cs0 : 0#u64 ∈ Cs
 
+/-- **The joint extension** (INV-PLAN §4 G2; KENTRY-PLAN g2a): the facts
+carried with `JAtZ` as one sub-structure `JAtZ.ext`, so that a new fact adds
+one component to `JAtZ`'s anonymous constructions. Field so far:
+* `nat` [S] (G2 `nativeScopeX`, VT-x out of scope; l4v: x64 has no VT-x
+  objects, so no valid VCPU / EPT cap): every slot's cap is `Vs.NativeCap`
+  (no VCPU or EPT cap, no EPT-mapped frame cap, no IO-port cap owned by a
+  VCPU). Kept by every native step: slots kept (`of_eq`), stepped
+  (`Vs.VsSlotsT`'s third part: emptied slots, copies of a native cap, native
+  new caps), or a retype's new native caps. A VT-x invocation (`JVtxScope`)
+  breaks it: its statement then asks `JAt` after a step outside the scope. -/
+structure JExt (th : TypedHeap) (s : S) : Prop where
+  nat : Vs.VsNat th (L.mem s)
+
+theorem JExt.of_eq {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
+    (hc : ∀ y, IsSlot th y → capV (L.mem s') y = capV (L.mem s) y) : JExt (L := L) th s' :=
+  ⟨E.nat.of_eq hc⟩
+
+theorem JExt.step {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
+    (hT : Vs.VsSlotsT th (L.mem s) (L.mem s')) : JExt (L := L) th s' :=
+  ⟨E.nat.step hT⟩
+
+theorem JExt.ss {th : TypedHeap} {s s' : S} (E : JExt (L := L) th s)
+    (hSS : SlotsSame th (L.mem s) (L.mem s')) : JExt (L := L) th s' :=
+  E.of_eq fun _ hy => hSS.capV hy
+
 /-- **The joint invariant at the ghosts** (module docstring; plan §1). -/
 structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64)
     (Lst : U64 → List U64) (D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop where
@@ -247,6 +272,8 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   move, swap, DeriveSubframe's sub-range), set at the frame retype for the new
   pages, released at the detype by `FrameOffJ`. -/
   fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
+  /-- [carried] **The joint extension** (`JExt`, G2). -/
+  ext : JExt (L := L) Z.th s
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=

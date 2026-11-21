@@ -224,7 +224,7 @@ def InsRec (th : TypedHeap) (caps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (slo
     CapRel c' a' ∧ CapValid th c' ∧ EncWf c' ∧ c' ≠ .Null ∧ shape c' = shape cv ∧ badgeF c' = badgeF cv ∧
     (isUt cv = true → ¬ ∃ x, σ0.cdt x = some (ps.bv, idx)) ∧ isZb cv = false ∧ okey c' = okey cv ∧
     (∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 cv → Vs.VCapOK P L4 L3 L2 L1 c') ∧
-    (Vs.TabUn c' → Vs.TabUn cv) ∧ (isUt cv = true → c' = cv) ∧
+    (Vs.TabUn c' → Vs.TabUn cv) ∧ (isUt cv = true → c' = cv) ∧ (Vs.NativeCap cv → Vs.NativeCap c') ∧
     SlotsSame th (L.mem s0) (L.mem sk) ∧
     InsWords (L := L) th sk sk' c' cv (cslotAddr (ps.bv, idx)) (cslotAddr (pd.bv, idxd)) ∧
     WritesIn st sk sk' (Sched.SlotWd th) ∧
@@ -520,7 +520,7 @@ theorem tc_bodyG (hP0 : IPlaced N T E R B) {th : TypedHeap} {caps : List (Fl4Spe
                   exact ⟨cv, c', a', ps, pd, rs, rd, idx, idxd, s, σ, hps, hpd, hls, hld, ⟨i.val, hlt, hsl'⟩, rfl,
                     by rw [← hxa]; exact hcv0, hsnn, by rw [← hdA]; exact hdN, ⟨hw', ha'⟩, hv' th hcvv0, he', hn,
                     hsh, hbd, fun hu0 hx => hnu hu0 (by rw [hcdt, hsl']; exact hx), hzb, derive_okey hr hn,
-                    fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1, fun h => (derive_tabun hr h).elim, derive_ut hr, hSS,
+                    fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1, fun h => (derive_tabun hr h).elim, derive_ut hr, derive_nat hr, hSS,
                     hiw, hW2, ⟨um, hum⟩, hci⟩
                 refine ⟨⟨σ2, mi, [], by rw [hi3v]; omega, hmi, hml, hmlb, fun r σf hr0 => ?_, hR2, hS2, ⟨G2, hB2⟩,
                   fun k hk => hK.inUserFrame (hu k hk), fun j hj hij => ?_, Or.inl ⟨rfl, rfl⟩, hK0.trans hK2,

@@ -530,9 +530,9 @@ theorem emptyHypJ [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   obtain ⟨hC, Ac', Lst', D', R⟩ := hR hU
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
-      (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) (fun y _ e _ _ => by rw [e, hx0]; trivial) fun y _ e _ => by rw [e, hx0]; trivial
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
+    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg⟩
 
 /-- **An endpoint cap's slot is ready once the endpoint is dead** (as
 XTopJointEmpty's `JAtZ.ntfn_ready`). -/
@@ -1079,9 +1079,9 @@ theorem jZombieHyp : JZombieHyp (L := L) arI AR th := by
       · have := hJ.cnode p _ hc; rw [hHp] at this; cases this
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
-      (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) fun y _ e _ _ => by rw [e, hz]; trivial
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hz]; trivial) (fun y _ e _ _ => by rw [e, hz]; trivial) fun y _ e _ => by rw [e, hz]; trivial
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
+    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_setCap' _ _).noSwitch (mem_of_single hsc) hns, hsg2⟩
 
 /-- **A zombie swapped with its first slot keeps `WJ`** (`slotHypW_XZ` for
 `XTopAt` after, `JAtZ.swapJCore`, `cs_frameV`). -/
@@ -1116,14 +1116,14 @@ theorem jSwapHyp : JSwapHyp (L := L) arI AR th := by
     have h := (home_abs (J.del.zwf _ hA.isSlot p zt n hz)).isSlot
     rwa [home_addr] at h
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') := by
-    refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_⟩ <;>
+    refine ⟨fun P L4 L3 L2 L1 h y hy => ?_, fun U h y hy => ?_, fun h y hy => ?_⟩ <;>
     · rw [hcap y hy]
       split_ifs
       · exact h p hpS
       · exact h _ hA.isSlot
       · exact h y hy
   exact ⟨V, Ac', Lst', D', J.cs_frameB hks (J.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J.bfK hfk2 hvT) hC R
-    (J.vsc.step hvT), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
+    (J.vsc.step hvT) (J.ext.step hvT), hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns, hsg2⟩
 
 end
 
