@@ -5,8 +5,8 @@ use fl4_core::capability::{Cap, FrameSize};
 use fl4_core::error::{Exc, SysError};
 use fl4_core::layout::{self, ks, node, reg, tcb};
 use fl4_core::machine::{Arch, Store};
-use fl4_core::obj::{ks_set, node_set, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
-use fl4_core::{ept, notification, objects, sched, vcpu, vspace};
+use fl4_core::obj::{ks_set, node_set, Ntfn, Sc, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
+use fl4_core::{ept, notification, objects, sched, schedcontext, sporadic, vcpu, vspace};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -614,31 +614,41 @@ fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
 /// such an exit is in MR2, so passing MR2 back to VMEnter keeps it.
 #[test]
 fn a_notification_reports_only_the_resume_state() {
-    let (mut s, a, t, v) = fixture(2);
-    s.write(t.0 + tcb::VCPU, v);
-    vcpu::set(&mut s, v, vcpu::TCB, t.0);
-    t.set_state(&mut s, sched::TS_RUNNING_VM);
-    for i in 0..30 {
-        vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
-    }
-    vcpu::set(&mut s, v, vcpu::VALID, 1);
-    vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
-    vcpu::set(&mut s, v, vcpu::svm::EVENT_INJ, 0x8000_0b0e);
-    let ctl = vcpu::get(&s, v, vcpu::svm::INTERCEPT_EXC) >> 32;
-    t.set_reg(&mut s, reg::R15, 0x5555);
-    for i in 4..30 {
-        s.write(0x40000 + 8 + i * 8, 0x1000 + i);
-    }
-    vcpu::report(&mut s, &a, t, 0x42);
-    assert_eq!(t.state(&s), sched::TS_RUNNING);
-    assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
-    assert_eq!(t.reg(&s, reg::BADGE), 0x42);
-    assert_eq!(t.reg(&s, reg::R10), 0x25);
-    assert_eq!(t.reg(&s, reg::R8), ctl);
-    assert_eq!(t.reg(&s, reg::R9), 0x8000_0b0e);
-    assert_eq!(t.reg(&s, reg::R15), 0x5555);
-    for i in 4..30 {
-        assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+    for backend in [1, 2] {
+        let (mut s, a, t, v) = fixture(backend);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        t.set_state(&mut s, sched::TS_RUNNING_VM);
+        for i in 0..30 {
+            vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
+        }
+        vcpu::set(&mut s, v, vcpu::VALID, 1);
+        let ctl = if backend == 2 {
+            vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+            vcpu::set(&mut s, v, vcpu::svm::EVENT_INJ, 0x8000_0b0e);
+            vcpu::get(&s, v, vcpu::svm::INTERCEPT_EXC) >> 32
+        } else {
+            use vcpu::vmx::*;
+            vcpu::write_vmcs(&mut s, v, GUEST_RIP, 0x25);
+            vcpu::write_vmcs(&mut s, v, CONTROL_ENTRY_INTERRUPTION_INFO, 0x8000_0b0e);
+            vcpu::read_vmcs(&s, v, CONTROL_PRIMARY_PROCESSOR_CONTROLS)
+        };
+        assert_ne!(ctl, 0);
+        t.set_reg(&mut s, reg::R15, 0x5555);
+        for i in 4..30 {
+            s.write(0x40000 + 8 + i * 8, 0x1000 + i);
+        }
+        vcpu::report(&mut s, &a, t, 0x42);
+        assert_eq!(t.state(&s), sched::TS_RUNNING);
+        assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+        assert_eq!(t.reg(&s, reg::BADGE), 0x42);
+        assert_eq!(t.reg(&s, reg::R10), 0x25);
+        assert_eq!(t.reg(&s, reg::R8), ctl);
+        assert_eq!(t.reg(&s, reg::R9), 0x8000_0b0e);
+        assert_eq!(t.reg(&s, reg::R15), 0x5555);
+        for i in 4..30 {
+            assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+        }
     }
 }
 
@@ -691,6 +701,47 @@ fn signal_to_a_running_vm_on_this_core_completes_it_at_once() {
             assert_eq!(n.state(&s), NTFN_ACTIVE);
         }
     }
+}
+
+/// The rest of seL4's same-core RunningVM case: a passive thread (no SC)
+/// gets the notification's SC (`maybeDonateSchedContext`), is switched to
+/// (`possibleSwitchTo`), and a sporadic SC has its refills unblocked.
+#[test]
+fn same_core_vm_signal_donates_the_notifications_sc_and_switches_to_it() {
+    let (mut s, mut a, t, v) = fixture(2);
+    s.write(t.0 + tcb::VCPU, v);
+    vcpu::set(&mut s, v, vcpu::TCB, t.0);
+    vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+    t.set_state(&mut s, sched::TS_RUNNING_VM);
+    // Another thread with its own SC runs on this core; `t` is passive.
+    let other = Tcb(0x30000);
+    let other_sc = Sc(0xa0000);
+    other.set_state(&mut s, sched::TS_RUNNING);
+    other.set_sc(&mut s, other_sc.0);
+    node_set(&mut s, 0, node::CUR_THREAD, other.0);
+    node_set(&mut s, 0, node::CUR_SC, other_sc.0);
+    let n = bind_ntfn(&mut s, t);
+    let sc = Sc(0x90000);
+    sporadic::refill_new(&mut s, sc, 2, 1000, 10000);
+    sc.set_sporadic(&mut s, 1);
+    schedcontext::bind_ntfn(&mut s, sc, n);
+    node_set(&mut s, 0, node::CUR_TIME, 500);
+    assert_eq!(t.sc(&s), 0);
+    assert_eq!(sporadic::head(&s, sc).time, 0);
+
+    notification::send_signal(&mut s, &mut a, n.0, 7);
+    assert_eq!(t.state(&s), sched::TS_RUNNING);
+    assert_eq!(t.reg(&s, reg::BADGE), 7);
+    assert_eq!(t.reg(&s, reg::R10), 0x25);
+    assert_eq!(t.sc(&s), sc.0);
+    assert_eq!(sc.tcb(&s), t.0);
+    assert!(sched::is_schedulable(&s, t));
+    assert!(!sched::in_release_queue(&s, t));
+    assert_eq!(sched::action(&s), t.0);
+    // `refill_unblock_check`: the stale head refill now starts at the
+    // current time.
+    assert_eq!(sporadic::head(&s, sc).time, 500);
+    assert_eq!(n.state(&s), NTFN_IDLE);
 }
 
 #[test]

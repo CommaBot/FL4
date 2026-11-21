@@ -199,7 +199,7 @@ The VT-x and AMD-V patches (0038–0043) are implemented through a shared VCPU/E
 
 | Where | Behavior in FL4 | Why |
 |-------|-----------------|-----|
-| `endTimeslice` | A thread in `RunningVM` whose budget runs out gets no timeout fault, even with a valid timeout handler: it is appended or postponed like a thread without one. seL4 raises the fault whatever the thread state | A fault would abandon the in-flight VMEnter: the thread would leave `RunningVM` blocked on its timeout handler, and when the handler replied it would resume in user space with no VMEnter result (neither an exit nor a notification) |
+| `endTimeslice` | A thread in `RunningVM` whose budget runs out gets no timeout fault, even with a valid timeout handler: it is appended or postponed like a thread without one. seL4 raises the fault whatever the thread state | A fault would abandon the in-flight VMEnter: the thread would leave `RunningVM` blocked on its timeout handler with no VMEnter result (neither an exit nor a notification). An empty reply (label 0) restarts it (`TS_RESTART`, `NEXT_IP = FAULT_IP`), so it re-executes `SysVMEnter` with whatever entry state its message registers still hold, not the guest state the interrupted entry had reached; only a handler that rewrites `FAULT_IP` or replies with a nonzero label resumes it elsewhere in user space |
 
 ### Left out
 
