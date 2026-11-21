@@ -28,7 +28,7 @@ guest execution and the trusted layer's contract** (proofs/VIRT-PLAN.md
    `do_user_op`'s `user_memory_update` frame (l4v trusts the machine).
 3. **P3x for virtualization**: `NoVirtObjects`, the states with no VCPU
    and no guest table, and the statement shape `P3xVirt` (VIRT-PLAN.md
-   §10).
+   §10; the theorems are in `Ext/VirtP3x`).
 
 The ported modules are not changed.
 -/
@@ -52,24 +52,26 @@ def VcpuFrame (k : VirtKind) (vs vs' : VcpuState) : Prop :=
   ∀ f, (f.canon k ≠ f ∨ f.guestChanged k = false) → vs'.fields f = vs.fields f
 
 /-- **One guest step of thread `t`** (module docstring, 1; l4v ADT_A
-`do_user_op` for guests). -/
-def GuestStep {Z : Type} (k : VirtKind) (t : ObjRef) (σ σ' : VState Z) (o : GuestOutcome) : Prop :=
+`do_user_op` for guests). The heap changes only at the thread's VCPU
+object (within `VcpuFrame`), the machine state only in memory bytes the
+guest can write. -/
+def GuestStep {Z : Type} (k : VirtKind) (t : ObjRef) (σ σ' : State Z) (o : GuestOutcome) : Prop :=
   ∃ (tcb : Tcb) (v : ObjRef) (vs vs' : VcpuState) (m' : Word64 → Word8),
-    σ.base.kheap t = some (.tcb tcb) ∧ tcb.tcbState = .runningVM ∧
-    σ.virt.tcbVcpu t = some v ∧ σ.virt.vcpus v = some vs ∧
+    σ.kheap t = some (.tcb tcb) ∧ tcb.tcbState = .runningVM ∧
+    tcbVcpuOf σ t = some v ∧ vcpuAt σ v = some vs ∧
     VcpuFrame k vs vs' ∧
     (o.hostIrq ≠ none → vs'.exit.pending = false) ∧
-    σ'.virt = { σ.virt with vcpus := Function.update σ.virt.vcpus v (some vs') } ∧
-    σ'.base = { σ.base with machineState := { σ.base.machineState with underlyingMemory := m' } } ∧
-    ∀ a, m' a ≠ σ.base.machineState.underlyingMemory a →
-      GuestWritableByte σ.base (guestRootOf σ.base t) a
+    σ' = { σ with kheap := Function.update σ.kheap v (some (.archObj (.vcpu vs'))),
+                  machineState := { σ.machineState with underlyingMemory := m' } } ∧
+    ∀ a, m' a ≠ σ.machineState.underlyingMemory a →
+      GuestWritableByte σ (guestRootOf σ t) a
 
 /-- **[P] The trusted layer's contract, abstract form** (module
 docstring, 2). For any implementation state type `I`, relation `R` and
 the layer's effect `run t s s' o` (one `vm::run` of thread `t`): a run
 from a related state ends in a related state reached by one `GuestStep`
 of the selected backend. -/
-def VmRunContract {Z I : Type} (R : I → VState Z → Prop)
+def VmRunContract {Z I : Type} (R : I → State Z → Prop)
     (run : ObjRef → I → I → GuestOutcome → Prop) : Prop :=
   ∀ t s s' o σ, R s σ → run t s s' o → ∃ σ', GuestStep virtKind t σ σ' o ∧ R s' σ'
 
@@ -87,40 +89,48 @@ def VmRunFrame (k : VirtKind) (fieldWords : VField → Set Word) (exitWords cach
     (∃ f, f.canon k = f ∧ f.guestChanged k = true ∧ a ∈ fieldWords f) ∨
     a ∈ exitWords ∨ a ∈ cacheWords ∨ a ∈ writable
 
-/-- No virtualization object exists (module docstring, 3): no VCPU, no
-binding, and the heap holds no VCPU and no guest table. -/
-def NoVirtObjects {Z : Type} (σ : VState Z) : Prop :=
-  (∀ v, σ.virt.vcpus v = none) ∧ (∀ t, σ.virt.tcbVcpu t = none) ∧
-  ∀ p ao, σ.base.kheap p = some (.archObj ao) →
-    (∀ w, ao ≠ .vcpu w) ∧ (∀ l es, ao ≠ .ept l es)
+/-- No virtualization object exists (module docstring, 3): the heap
+holds no VCPU and no guest table (so no thread is bound to a VCPU). -/
+def NoVirtObjects {Z : Type} (σ : State Z) : Prop :=
+  ∀ p ao, σ.kheap p = some (.archObj ao) → (∀ st, ao ≠ .vcpu st) ∧ (∀ l es, ao ≠ .ept l es)
+
+theorem NoVirtObjects.vcpuAt {Z : Type} {σ : State Z} (h : NoVirtObjects σ) (v : ObjRef) :
+    vcpuAt σ v = none := by
+  unfold Fl4Spec.vcpuAt
+  split
+  · rename_i st hk; exact absurd rfl ((h v _ hk).1 st)
+  · rfl
+
+theorem NoVirtObjects.tcbVcpuOf {Z : Type} {σ : State Z} (h : NoVirtObjects σ) (t : ObjRef) :
+    tcbVcpuOf σ t = none :=
+  tcbVcpuOf_none.2 fun v st hv => by rw [h.vcpuAt v] at hv; cases hv
 
 /-- **The P3x statement shape for virtualization** (DESIGN.md §9, P3x;
 VIRT-PLAN.md §10): on a state with no virtualization object, a step of
 the extended kernel (`extStep`) is exactly a step of the ported one
-(`portStep`) with the extension state unchanged. -/
-def P3xVirt {Z : Type} (extStep : VState Z → VState Z → Prop) (portStep : State Z → State Z → Prop) :
-    Prop :=
-  ∀ σ, NoVirtObjects σ → ∀ σ', extStep σ σ' ↔ (portStep σ.base σ'.base ∧ σ'.virt = σ.virt)
+(`portStep`). -/
+def P3xVirt {Z : Type} (extStep portStep : State Z → State Z → Prop) : Prop :=
+  ∀ σ, NoVirtObjects σ → ∀ σ', extStep σ σ' ↔ portStep σ σ'
 
 /-- A guest step needs a VCPU: none happens without virtualization
 objects. -/
-theorem GuestStep.not_noVirt {Z : Type} {k : VirtKind} {t : ObjRef} {σ σ' : VState Z}
+theorem GuestStep.not_noVirt {Z : Type} {k : VirtKind} {t : ObjRef} {σ σ' : State Z}
     {o : GuestOutcome} (h : GuestStep k t σ σ' o) : ¬ NoVirtObjects σ := by
-  obtain ⟨_, v, _, _, _, _, _, _, hv, _⟩ := h
+  obtain ⟨_, v, _, _, _, _, _, hv, _⟩ := h
   intro hn
-  rw [hn.1 v] at hv
-  exact absurd hv (by simp)
+  rw [hn.tcbVcpuOf] at hv
+  cases hv
 
-/-- The isolation frame: a guest step changes no heap object, no other
-VCPU and no binding. -/
-theorem GuestStep.frame {Z : Type} {k : VirtKind} {t : ObjRef} {σ σ' : VState Z}
+/-- The isolation frame: a guest step changes the heap only at the
+thread's VCPU, and keeps that VCPU's binding. -/
+theorem GuestStep.frame {Z : Type} {k : VirtKind} {t : ObjRef} {σ σ' : State Z}
     {o : GuestOutcome} (h : GuestStep k t σ σ' o) :
-    σ'.base.kheap = σ.base.kheap ∧ σ'.virt.tcbVcpu = σ.virt.tcbVcpu ∧
-    ∃ v, σ.virt.tcbVcpu t = some v ∧ ∀ w, w ≠ v → σ'.virt.vcpus w = σ.virt.vcpus w := by
-  obtain ⟨_, v, _, vs', _, _, _, hv, _, _, _, hvirt, hbase, _⟩ := h
-  refine ⟨by rw [hbase], by rw [hvirt], v, hv, fun w hw => ?_⟩
-  rw [hvirt]
-  exact Function.update_of_ne hw _ _
+    ∃ v vs vs', tcbVcpuOf σ t = some v ∧ vcpuAt σ v = some vs ∧ vcpuAt σ' v = some vs' ∧
+      vs'.tcb = vs.tcb ∧ ∀ p, p ≠ v → σ'.kheap p = σ.kheap p := by
+  obtain ⟨_, v, vs, vs', _, _, _, hv, hvs, hfr, _, hσ, _⟩ := h
+  refine ⟨v, vs, vs', hv, hvs, ?_, hfr.1, fun p hp => ?_⟩
+  · subst hσ; simp [Fl4Spec.vcpuAt]
+  · subst hσ; exact Function.update_of_ne hp _ _
 
 end
 
