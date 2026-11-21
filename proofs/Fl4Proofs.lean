@@ -1080,3 +1080,4 @@ import Fl4Proofs.P3.XTopJointKEntry27
 import Fl4Proofs.P3.SpecInvEqD
 import Fl4Proofs.P3.SpecInvEqS
 import Fl4Proofs.P3.SpecInvEqT
+import Fl4Proofs.P3.SpecInvCqC1
