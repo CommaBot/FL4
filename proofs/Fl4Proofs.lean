@@ -1292,3 +1292,4 @@ import Fl4Proofs.P3.SpecInvRd8tA
 import Fl4Proofs.P3.XTopJointLiveStep
 import Fl4Proofs.P3.XTopJointLiveCn
 import Fl4Proofs.P3.XTopJointLiveSt
+import Fl4Spec.Ext.VirtGuest
