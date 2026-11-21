@@ -122,15 +122,15 @@ theorem js_rebase {I : ObjRef × ObjRef} {ct : ObjRef} {d : Prop} {N : Irq → O
 set_option maxHeartbeats 8000000 in
 /-- **The ready-queue bundle across the syscall entry**: from the carried
 entry facts (those of `kcall_tq_sys` at the entry state), every outcome has
-ctq5's `EX` and ctq6's `RB` (`hct` is vi3's `CtSc` [J] for the pinned
-syscalls; `hnd` SpecInvQDom's [P]). -/
+ctq5's `EX` and ctq6's `RB` (`hnd` SpecInvQDom's [P]; vi3's `CtSc` from EX's
+`CurScT`). -/
 theorem kentry_tq (hnd : numDomains = 1) (c : Syscall) {σ : State Unit}
     {I : ObjRef × ObjRef} {d : Prop} {Nq : Irq → ObjRef}
     (hX : EX σ) (hR : RB σ) (h4 : T4 σ) (hV : SInvI.ValidIdle σ) (hEO : SInvB.EntryOK σ)
     (hCX : SInvAll.CtExit σ) (ha : ∀ x, σ.kheap σ.curThread = some (.tcb x) → activeSt x.tcbState)
     (hIu : Iu σ.curThread σ) (hIL : IL [σ.curThread] σ) (hJ : Js I σ.curThread d Nq σ σ)
     (hE : EF Nq σ) (hI2 : I.2 = σ.idleSc) (hI1 : IrqOutV (fun _ => I.1) (uV σ))
-    (hO : SInvG.IdleOutV σ) (hI : SInvI.IdleScOutV σ) (hct : SInvI.Pinned c → SInvI.CtSc σ) :
+    (hO : SInvG.IdleOutV σ) (hI : SInvI.IdleScOutV σ) :
     ∀ y ∈ ((fl4KernelEntrySyscall (Z := Unit) true c) σ).1, EX y.2 ∧ RB y.2 := by
   unfold fl4KernelEntrySyscall
   intro y ⟨z, hz, hy⟩
@@ -168,12 +168,11 @@ theorem kentry_tq (hnd : numDomains = 1) (c : Syscall) {σ : State Unit}
     · show P3V Nq (uV w.2); rw [hu]; exact hE.1
     · show ScKindV (uV w.2); rw [hu]; exact hE.2.1
     · show IrqOutV (fun _ => w.2.idleSc) (uV w.2); rw [hu, fS]; exact hE.2.2.1
-  have hct' : SInvI.Pinned c → SInvI.CtSc w.2 := fun hp => ctSc_arch σ (hct hp) w hw
   rw [← fC] at hIu' hIL' hJ'
   exact kcall_tq_sys hnd true c hX' hR' h4' hV' hEO' hCX' ha' hIu' hIL' (js_rebase hJ') hE'
     (by rw [fS]; exact hI2) (by rw [hu]; exact hI1)
     (by show IrqOutV (fun _ => w.2.idleThread) (uV w.2); rw [hu, fN]; exact hO)
-    (by show IrqOutV (fun _ => w.2.idleSc) (uV w.2); rw [hu, fS]; exact hI) hct' y hy
+    (by show IrqOutV (fun _ => w.2.idleSc) (uV w.2); rw [hu, fS]; exact hI) (fun _ => ctSc_of_curScT hX'.2.2.2) y hy
 
 end
 
