@@ -8871,3 +8871,49 @@ existing edited. No JAtZ cone. Keys rd9-1..9 (./rd9s.sh untracked = rd8as.sh wit
   in a `ReflTransGen` induction name the implicit states (`| @tail b c _ hst ih`); pass outcome states explicitly when the
   goal's state is a `{σ with …}` update (else `_` unifies with the goal's state); `intro` patterns reject `-`;
   do-notation duplicates the continuation into both branches of an `if` (split at the membership, not after the bind).
+## ctq18 (branch par/ctq18 in FL4-q, on 61b8a714 = int/j2 incl. ctq16, ctq15, ctq14) — ctq16 handoff item 1 DONE: `EB true ∧ NQ [] ∧ VI` at every error (preemption) outcome of the event, so `ebx_fl4HandleEvent_preempt` applies
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.R18`, modules SpecInvCqEr0 (generated), Er1, Er2; root imports Er2. Nothing existing edited.
+- **SpecInvCqEr0 (generated, `Simple` across the front)**: `SMK m := IK Simple m`; epq1's VZ family (SpecInvEqV from
+  `vz_threadGet` on: the lookups, `get_mrs`, `get_message_info`, `get_cap_reg`, `fl4_decode_invocation` and every decode)
+  with the view replaced, as rd8c's SpecInvRd8cV (proofs/scratch/er/mksm.sh + head.lean, untracked); hand leaves
+  `sm_setCn` (`set_scheduler_action choose_new_thread`), object / TCB / register writers, `sm_setThreadState`. 133 lemmas.
+  Needed because no existing family carries "no switch pending" through the decode, and `DK` (ctq14) needs it at the perform.
+- **SpecInvCqEr1 (the arms)**: `EBR P m` (from `P`, every error outcome has `EB true`; `ebr_of_ne` (ctq16's `NE`),
+  `ebr_of_ike`, `ebr_bind_ike`, `ebr_bind_ne`, `ebr_mono`); **`dk_installTcbCapI`** / **`dk_installTcbFrameCapI`**
+  (`IKE (DK C)`, every outcome: ctq14's `dz_capDelete`, ctq12's `dk_checkedInsert` / `dk_ipcBufferSet` / `dk_whenResched`),
+  `ebr_invokeTcb`, `ebr_invokeCnode` (`dz_capRevoke` / `dz_capDelete`), **`ebr_fl4PerformInvocation C blk call don inv :
+  EBR (PFE C inv) (fl4PerformInvocation blk call don inv)`** with `PFE C inv s := DK C s ∧ UtInv'' s ∧ IfLiveTN s ∧ GapOKN
+  (uV s) inv`. Item (c): no new DK carry over `reset_untyped_cap` was needed — ctq15's `eb_perfUntyped` at `k = true` already
+  states `EB true` at EVERY outcome of the Untyped arm (detype via `rnDet_of_live`, i.e. `UtInv''` + `IfLiveTN`, the
+  same region argument as sl4's `noLive_reg`), and only `EB true` is needed at the error state (NQ / VI come from their own
+  event-level carries). `sm_updateTimeStamp`.
+- **SpecInvCqEr2 (the walk)**: shell invariant `JE I ct d N σe s := Js I ct d N σe s ∧ EB true s ∧ Simple s` (sl3's `Js`
+  beside EB, exactly as ctq11's `JR` carries it beside `RT`; `je_auto` = js_auto + tq / sa / q4 / rb + sm families);
+  `er_syscall_post` (ft_syscall_post for error outcomes: the fault / error handlers are `liftE`); **`ebr_fl4HandleInvocationR
+  (hE : EF N σe) (hI2 : I.2 = σe.idleSc) … : EBR (JE I ct d N σe) (fl4HandleInvocationR …)`** (at the perform: `DK ct`
+  from Js's ct / `NQ [ct]`, `UtInv''` by `spf_of`, `IfLiveTN` from Js's IL, `GapOKN` from ut7's `DecodedFrom` via
+  `okv_fl4DecodeG`, as rt_fl4HandleInvocationR), `ebr_fl4HandleSyscall`, `ne_fl4HandleEvent_other`, **`ebr_fl4HandleEvent`**
+  (check_budget_restart true ⇒ state unchanged), and
+  **`eb_fl4HandleEvent_err hE hI2 rep ev σ (hJ : JE I ct d N σe σ) (hQ : Iu ct σ) (hW : SInvI.W Ni Si T σ0 σ) (hO : IO
+  (fun _ => Ni) σ0) (hS : IrqOutV (fun _ => Si) (uV σ0)) (hU : UtInv'' σ0) (hT : ∀ c, ev = .syscallEvent c → Pinned c → T =
+  σ0.curThread) : ∀ y ∈ ((fl4HandleEvent rep ev).run σ).1, ∀ e, y.1 = .error e → EB true y.2 ∧ NQ [] y.2 ∧ SInvI.VI Ni Si
+  true y.2`** (NQ: nq3's `nq_fl4HandleEvent_sys` from `Iu ct`, every outcome; VI: vi3's `vi_fl4HandleEvent_sys viGap`,
+  every outcome); **`ebx_fl4HandleEvent_err`** (+ `EntryOK` / `CtExit` / `CurScT`): `EB true y.2 ∧ HKp (EB true) (EBX Ni
+  Si true) y.2 preemptionPath` at every error outcome (ctq16's `ebx_fl4HandleEvent_preempt`).
+- Event-start facts (checked against ctq12 / ctq13 / ctq15): ctq12's `PE` / ctq15's `PF` state `DK C` (EB true, ct = C,
+  Simple, NQ [C]) at the perform, i.e. after the Restart write; ctq15 handoff 3 gets DK at the event start from ctq5's EB /
+  EX and NQ [ct]. `JE` asks `EB true ∧ Simple` there plus sl3's `Js` (as ctq11's `rt_event` does: the tops already build
+  `Js` for RT), `Iu ct` is nq3's shell invariant, the VI premises are vi3's `vi_kcall_sys` ones.
+- HANDOFF (for ctq17 / the tops): at `call_kernel`, error outcomes of the event go through `ebx_fl4HandleEvent_err` (needs
+  `JE` = `JR`'s `Js` + EB true + Simple at the event start, `Iu ct`, vi3's premises, `EntryOK` / `CtExit` / `CurScT`); ok
+  outcomes by ctq12/13/15's HKEr chain. If ctq17's shell carries `PD` through the front by another route, `je_auto`
+  (SpecInvCqEr0's `sm_*` for Simple) can be reused there.
+- Premises: none added (no [J]/[P]/[W]/[S]); all event-start facts are carried entry facts (ctq5 EB / EX, sl3 Js, nq3 Iu,
+  vi3), no ∀-states hypothesis. No FINDING: every reachable error outcome has EB true (the three preemptible arms keep it on
+  every outcome; nothing between the perform's error and the event's error writes state).
+- Builds (tokyo FL4-q mirror, warm; ./ctq18.sh = ctq16.sh with filter SpecInvCqEr and ax18.lean, both untracked; keys
+  ctq18-*): 1 Er0 ok (35 s, first try); 2 Er1 (1.0 s) + Er2 (10 s) ok, first try; 3 Er0-Er2 + axioms. Axioms (ax18.lean):
+  sm_fl4DecodeInvocation, dk_installTcbCapI, dk_installTcbFrameCapI, ebr_invokeTcb, ebr_invokeCnode,
+  ebr_fl4PerformInvocation, ebr_fl4HandleInvocationR, ebr_fl4HandleSyscall, ebr_fl4HandleEvent, eb_fl4HandleEvent_err,
+  ebx_fl4HandleEvent_err: propext, Classical.choice, Quot.sound; sm_updateTimeStamp: propext. No
+  sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (one import line).
