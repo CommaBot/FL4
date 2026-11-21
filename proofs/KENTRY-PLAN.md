@@ -7810,3 +7810,63 @@ Spec-only, namespace `Fl4Proofs.P3.SInvR`, new modules SpecInvRdP / RdK / RdL (r
   Lean traps (again): `subst e` with `e : w = σ` eliminates σ (use `subst w`); `hvT_st` / `hvT_sc` need `(x := …)` when the
   view is of a record update; a do-block `match` + trailing statement is a `have __do_jp` join point (`dsimp only`, then
   `cases`); `simpa using hsch` normalises `schedulable` away — use `Bool.eq_false_iff.mpr`.
+
+## ctq12 (branch par/ctq12 in FL4-c2, on 9b537d6d = int/j2 incl. ctq10, g1c, rd6, epq1) — EB across the performs (ctq10 handoff part B, item 4c); NOT finished: restart / SC bind / yieldTo / SchedControl / Untyped / MakePool arms, decode lemmas, fl4HandleInvocationR
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.P12`, modules SpecInvCqC1..C5 (C5 also imports SpecInvQDom); root imports C1..C5.
+Nothing existing edited. (The first ctq12 agent was stopped by a station restart after C1/C2; C3/C4 were left untracked,
+C4 broken; the resumed agent fixed C4 and added C5.)
+- **Which arms need EB true.** `fl4DecodeInvocation firstPhase` rejects thread / domain / SC / SchedControl / CNode caps when
+  `firstPhase` (ReplyRecv's / NBSendRecv's first invocation), so only Endpoint, Notification, Reply, IRQ, Untyped and arch
+  invocations can precede `handle_recv` in one entry: those keep `EB true` (or `EB k`); every other arm needs only `EB false`
+  (what the post-shell `set_thread_state ct Running` and the tail need). During the perform ct is Restart (runnable).
+- SpecInvCqC1: `EBKE k` for Fl4 TCB, IRQ control, IRQ ack, SetTLSBase, SetFlags, notification control, SC consumed /
+  unbind-object / unbind, every arch arm but MakePool (`eb_perfArchNoPool`), all by `eb_auto` over generated leaves.
+- SpecInvCqC2: `NSw t` (t not the switch target), `sau_tcbReleaseRemove`, **`sa_suspend_p (hS : NSw t σ)`**, `eb_suspend_p`,
+  `EBS k := EB k ∧ Simple`, **`eb_perfSuspend`**, **`eb_perfReadRegisters`** (`HKE (EBS k) (EB k)`; `Simple` = ctq5's EX at the
+  perform).
+- SpecInvCqC3: **`HKEr P Q m`** (every outcome `EB false`, an `ok` one `Q`: a preempted deletion may have charged),
+  **`DK C := EB true ∧ ct = C ∧ Simple ∧ NQ [C]`**, `dk_of` / `p12_dk_auto`. **Hypotheses for ctq11's deletion-cone lemmas
+  (named after them; NOT premises of a final top, ctq11 discharges them):** `EbCapDeleteH`, `EbCapRevokeH` (`∀ C slot, HKEr (DK
+  C) (DK C) (cap_delete / cap_revoke slot)`), `EbCapDeleteOneH`, `EbCancelBadgedSendsH` (`HK (DK C) (DK C)`). Arms:
+  **`eb_perfCnode hD hR hB`**, **`eb_perfIrqHandler hO`** (HKEr DK DK), `PE C := DK C ∧ ScInv ∧ RnH C ∧ idle in its idle state`,
+  **`eb_perfEndpoint`** (`HKE (PE C) (EB true)`, ctq7's `eb_sendIpc_q`), **`eb_perfNtfn`** (HKEr, `eb_sendSignal_p`),
+  **`eb_perfReply`** (`HKE (PE C) (EB true)`, ctq10's `eb_doReplyTransfer_ct`: ctq10 handoff 2 done).
+- SpecInvCqC4: `dk_checkedInsert` (check_cap_at ×2 + cap_insert keep DK), `dk_ipcBufferSet`, `dk_whenResched`, `hke_returnOk`,
+  **`dk_installTcbCap hD`**, **`dk_installTcbFrameCap hD`**, **`eb_perfTcbCaps hD : HKEr (DK C) (DK C) (ThreadControlCaps)`**.
+- SpecInvCqC5 (set_priority / set_domain may enqueue ct under resume_cur_thread, breaking CtNQR until the reschedule right
+  after; E1's `rr_rescheduleRequired` (RR ⇒ SA after) and ctq6's `rq_rescheduleRequired` (RDq ⇒ RBk false after) bridge it):
+  `sa_rescheduleRequired_rr`, **`sa_setPriority : SAK`** (no premise), **`rb_setPriority_p (hc : t = ct → t ∉ releaseQueue)`**
+  (the enqueued thread was read in a ready queue (RDq) or is ct), **`eb_setPriority_p`**, **`eb_setPriority_t (EB true σ) : EB
+  false after`** (NP ct), **`sa_setDomain : SAK`**, **`rb_setDomain : RBK false`** (enqueue only if `schedulable`: not
+  released), `tq_/sa_/rb_invokeDomain'`, **`eb_invokeDomain (hi : DomInvOK σ i) (h0 : SetDom0 i)`** and **`eb_perfDomain h0 :
+  HKE (EB false ∧ DomInvOK) (EB false)`** — `DomInvOK` / `SetDom0` are the decode's checks (SpecInvQDom's T4 premises:
+  decode_domain_set `domain < numDomains = 1`, invC's DomInvOK), to be supplied by the shell from the decode as T4's line does.
+- HANDOFF (in order):
+  1. **Resume / CopyRegisters / WriteRegisters (`restart t`)**: t is woken only when not runnable, so t ≠ ct (ct Restart).
+     `cancel_ipc t` (tq/sa/q4/rb generated, `nsw_cancelIpc`), `set_thread_state t Restart` (`eb_setThreadState_r`),
+     the sporadic check (as ctq7's `eb_wakeDest`: `Sched.nkt_ifCondRefillUnblockCheck`, `rnH_of_tkw`), `maybeM
+     schedContextResume scOpt` (`rb_schedContextResume_p` needs `AK k u` for u = the SC's `scTcb`: from ScInv's ScBackS
+     (`t`'s SC = sc ⇒ sc_tcb sc = t, as ctq10's `eb_postpone_p` use) plus `AN t` (Simple, t ≠ ct): carry `AK k t` by `ak_mk
+     an_* ct_*` as ctq8's `mdk_*`), `test_possible_switch_to t` (`eb_pst_p`). Then CopyRegisters / WriteRegisters' `when (dest
+     = cur) reschedule_required` (`eb_rescheduleRequired`) and arch_post_modify_registers (generated).
+  2. **ThreadControlSched**: `dk_installTcbCap hD`, set_mcpriority (tq/sa/q4/rb generated: `EB true` kept), `eb_setPriority_t`,
+     then the SC option: unbind = generated leaves (`EB false`), bind = item 3.
+  3. **`sched_context_bind_tcb sc t` / SC Bind arm**: tcb / sc ref writes, `ifSporadicActiveCurScTestRefillUnblockCheck`,
+     `schedContextResume sc` (sc_tcb = t just written: `AK false t` needs `t` not the switch target (Simple) and, under resume,
+     t ≠ ct: decode_sched_context_bind / decode_set_sched_params check the target has no SC, and ct has one (CurScT /
+     ResSc) ⇒ t ≠ ct), then `when schedulable (enqueue t; reschedule_required)` = C5's enqueue-then-reschedule pattern
+     (`tq_enq_p`, `rbe_enq`, `rq_rescheduleRequired`, `sa_rescheduleRequired_rr`). tq_schedContextBindTcb does not exist yet
+     (ctq3's P covered only the priority path).
+  4. **YieldTo** (`complete_yield_to`, schedContextResume, dequeue+enqueue of the SC's TCB, ct's `tcbYieldTo` write,
+     `reschedule_required`) and **SchedControl configure** (refill_new / refill_update, schedContextResume,
+     possible_switch_to / reschedule): EB false via the same pieces; sa_/tq_ leaves of refillNew/refillUpdate exist (SF5/RF5).
+  5. **Untyped** (`tq_invokeUntyped` needs UtInv / IfLiveTN as ctq3's P; sa/rb: retype writes fresh objects, no queue or
+     release change: generate sa/rb leaves with retype under UtInv freshness, or `ik_setObject_k`-style frames) and
+     **MakePool** (`tq_makePool` exists; sa/rb/q4 likewise). These can run in firstPhase: keep `EB k`.
+  6. Decode lemmas (one per dispatched cap kind: firstPhase ⇒ the invocation kind; SetDom0 / DomInvOK from
+     decode_domain_invocation as SpecInvQDom's shell does), then `fl4HandleInvocationR` (front by `eb_auto`, `set_thread_state ct
+     Restart` = `eb_setThreadState_ct`, perform by cases, post-shell `set_thread_state ct Running`, ReplyRecv / NBSendRecv
+     `handle_recv` by ctq10's `eb_handleRecv_res` after an ok invocation).
+- Premises: none added ([J]/[P]/[W]/[S]): the four `Eb*H` are hypotheses named for ctq11's deletion-cone lemmas (each true:
+  woken queue members ≠ ct by NQ [ct]; every possible_switch_to in the cone is followed by reschedule_required; suspend runs
+  with no switch pending); `DomInvOK` / `SetDom0` are decode facts. No ∀-states hypothesis. No FINDING.
