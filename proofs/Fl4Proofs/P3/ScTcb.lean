@@ -460,7 +460,7 @@ theorem tcb_set_mcp_refines (th : TypedHeap) (hP : Placed th)
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -648,7 +648,7 @@ theorem tcb_set_prio_refines (th : TypedHeap) (hP : Placed th)
   · obtain ⟨q, hq⟩ := hth
     rw [thread_arg_thread s 1#u64 hq]
     simp only [bind_ok, check_prio_eq]
-    obtain ⟨xq, hkq, hmq⟩ := hM q (hcapT h0 q hq)
+    obtain ⟨xq, hkq, hmq, -⟩ := hM q (hcapT h0 q hq)
     have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
       apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
       have := xq.tcbMcpriority.isLt; omega
@@ -1523,7 +1523,7 @@ theorem checkPrio_run {s : S} {σ : Fl4Spec.State Unit} {T : Set U64} (hM : McpR
     (Fl4Spec.checkPrio (Z := Unit) v q.bv).run σ =
       (Fl4Spec.NonDetE.whenE (v > (L.mem s (mcpA q)).bv)
         (Fl4Spec.NonDetE.throwError (.rangeError 0 (L.mem s (mcpA q)).bv)) : Fl4Spec.SEMonad Unit Unit).run σ := by
-  obtain ⟨xq, hkq, hmq⟩ := hM q hq
+  obtain ⟨xq, hkq, hmq, -⟩ := hM q hq
   have hu : (Fl4Spec.ucast 64 xq.tcbMcpriority) = (L.mem s (mcpA q)).bv := by
     apply BitVec.eq_of_toNat_eq; simp [Fl4Spec.ucast, hmq]
     have := xq.tcbMcpriority.isLt; omega
@@ -1672,7 +1672,7 @@ theorem tcb_set_sched_params_refines [Fl4Proofs.P1.PlainStore st] (th : TypedHea
   rw [retOk_bind] at hspec0
   have hcp0 := checkPrio_run hM hqT y0.bv
   have hcp1 := checkPrio_run hM hqT y1.bv
-  obtain ⟨xq, hkq, hmq⟩ := hM q hqT
+  obtain ⟨xq, hkq, hmq, -⟩ := hM q hqT
   have hmq8 : (L.mem s (mcpA q)).val < 256 := by rw [hmq]; exact xq.tcbMcpriority.isLt
   by_cases hg0 : y0 > L.mem s (mcpA q)
   · rw [ite_eq_left hg0]

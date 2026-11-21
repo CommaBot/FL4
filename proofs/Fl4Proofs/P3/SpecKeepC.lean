@@ -59,6 +59,9 @@ theorem Ipc.CapsOnly.st {x y : Tcb} (h : CapsOnly x y) : y.tcbState = x.tcbState
 theorem Ipc.CapsOnly.buf {x y : Tcb} (h : CapsOnly x y) : y.tcbIpcBuffer = x.tcbIpcBuffer := h.2.1
 theorem Ipc.CapsOnly.ntfn {x y : Tcb} (h : CapsOnly x y) : y.tcbBoundNotification = x.tcbBoundNotification := h.2.2.2.1
 theorem Ipc.CapsOnly.mcp {x y : Tcb} (h : CapsOnly x y) : y.tcbMcpriority = x.tcbMcpriority := h.2.2.2.2.1
+theorem Ipc.CapsOnly.mcpF {x y : Tcb} (h : CapsOnly x y) :
+    (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags) := by
+  rw [h.2.2.2.2.1, h.2.2.2.2.2.2.2.2.2.1]
 theorem Ipc.CapsOnly.sc {x y : Tcb} (h : CapsOnly x y) : y.tcbSchedContext = x.tcbSchedContext := h.2.2.2.2.2.1
 theorem Ipc.CapsOnly.yld {x y : Tcb} (h : CapsOnly x y) : y.tcbYieldTo = x.tcbYieldTo := h.2.2.2.2.2.2.1
 theorem Ipc.CapsOnly.prio {x y : Tcb} (h : CapsOnly x y) : y.tcbPriority = x.tcbPriority := h.2.2.2.2.2.2.2.1

@@ -1293,6 +1293,13 @@ import Fl4Proofs.P3.XTopJointKEntry38
 import Fl4Proofs.P3.MachKeepG4h
 import Fl4Proofs.P3.IrqCtlMR
 import Fl4Proofs.P3.XTopJointKEntry39
+import Fl4Proofs.P3.MachKeepG4j
+import Fl4Proofs.P3.XTopJointMRTcbM
+import Fl4Proofs.P3.XTopJointUtMR
+import Fl4Proofs.P3.XTopJointKEntry40
+import Fl4Proofs.P3.UtResetMR
+import Fl4Proofs.P3.XTopJointKEntry41
+import Fl4Proofs.P3.XTopJointKEntry41V
 import Fl4Proofs.P3.MachKeepG4d
 import Fl4Proofs.P3.MachFieldFamI
 import Fl4Proofs.P3.SpecInvG5
@@ -1318,6 +1325,7 @@ import Fl4Proofs.P3.XTopJointKEntryRR
 import Fl4Proofs.P3.XTopJointFaultG
 import Fl4Proofs.P3.XTopJointKEntryEv3
 import Fl4Proofs.P3.XTopJointKEntryEv4
+import Fl4Proofs.P3.XTopJointKEntry38E
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL

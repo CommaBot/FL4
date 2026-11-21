@@ -1029,7 +1029,8 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     exact hzW j hj _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
   have hMc2 := hMc1.addT hkW (fun q hq => by
     obtain ⟨j, hj, rfl⟩ := hWv q hq
-    exact hzW j hj _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))
+    exact ⟨hzW j hj _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide),
+      hzW j hj _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)⟩)
   have hBw2 := hBw1.addT hkW (fun q hq => by
     obtain ⟨j, hj, rfl⟩ := hWv q hq
     exact hzW j hj _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide))

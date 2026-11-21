@@ -561,10 +561,10 @@ theorem JAtZ.replyRemoveTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨k1, k2, kb⟩ := J.rmW_keeps hw
   have hyk : YKeep σ σ' := (YK.yk_replyRemoveTcb t.bv r.bv σ ((), σ') hmem).ykeep
   have hso : ∀ p x0, σ.kheap p = some (.tcb x0) → ∃ x', σ'.kheap p = some (.tcb x') ∧
-      x'.tcbMcpriority = x0.tcbMcpriority ∧ x'.tcbIpcBuffer = x0.tcbIpcBuffer := by
+      (x'.tcbMcpriority, x'.tcbFlags) = (x0.tcbMcpriority, x0.tcbFlags) ∧ x'.tcbIpcBuffer = x0.tcbIpcBuffer := by
     intro p x0 hp
     obtain ⟨x1, hx1, hso1, -⟩ := hK.tcb hp
-    have e1 := congrArg Fl4Spec.Tcb.tcbMcpriority hso1
+    have e1 := congrArg (fun y : Fl4Spec.Tcb => (y.tcbMcpriority, y.tcbFlags)) hso1
     have e2 := congrArg Fl4Spec.Tcb.tcbIpcBuffer hso1
     by_cases hpt : p = t.bv
     · subst hpt

@@ -521,8 +521,9 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hH := J.kern.heap
   -- the frame words
-  have k1 : ∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) := fun t ht =>
-    hw.mem_eq (mcpA_aligned hT ht) fun hb => J.dbgw_ne_tcb hb ht (mcpA_val hT ht) (by omega) rfl
+  have k1 : ∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t) := fun t ht =>
+    ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => J.dbgw_ne_tcb hb ht (mcpA_val hT ht) (by omega) rfl,
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => J.dbgw_ne_tcb hb ht (flagsA_val hT ht) (by omega) rfl⟩
   have k2 : ∀ t ∈ Z.T, L.mem s' (P1.yieldA t) = L.mem s (P1.yieldA t) := fun t ht =>
     hw.mem_eq (yieldA_aligned hT ht) fun hb => J.dbgw_ne_tcb hb ht (yieldA_val hT ht) (by omega) rfl
   have kb : ∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t) := fun t ht =>
