@@ -597,6 +597,7 @@ theorem JAtZ.bufWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} 
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
+  have hKd := J.kw_dbgKeep (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
   have hyk : YKeep σ σ' := by
@@ -1177,8 +1178,8 @@ theorem JAtZ.restartJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : 
   obtain ⟨hX1, hSS, hk1⟩ := h
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Ac', Lst', D', R⟩ := jowes_restart arI s ar σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
-  refine ⟨s1, σ1, x, hrc1, hst1, hk, hcur, e, ?_, ?_, ?_, hs1, Ac', Lst', D', ?_⟩
+  obtain ⟨Ac', Lst', J1⟩ := J.restartJ (jStepHyps arI) hcur hk htcb hrun hs1
+  refine ⟨s1, σ1, x, hrc1, hst1, hk, hcur, e, ?_, ?_, ?_, hs1, Ac', Lst', D, ?_⟩
   · subst e
     intro u e
     unfold Notif.stsAct at e
@@ -1189,7 +1190,7 @@ theorem JAtZ.restartJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : 
       | cases e
   · subst e; unfold Notif.stsAct; split_ifs <;> rfl
   · subst e; exact (stsAct_fields _ _).2.1
-  · subst e; exact J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_sts (J.thT ct htcb) hs1)
+  · subst e; exact J1
 
 
 end

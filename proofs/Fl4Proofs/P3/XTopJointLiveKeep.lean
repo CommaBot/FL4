@@ -35,7 +35,9 @@ theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
       fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left Or.inl),
       fun q hq => hq.elim (J.jcov.dead q) (hd q),
       J.jcov.ks, J.jcov.idleOut⟩
-    kern := { J.kern with } }
+    kern := { J.kern with }
+    zD := fun p hp => Or.inl (J.zD p hp) }
+
 
 /-- **`DbgWFL` across a `JAtZ` step keeping the debug words** (the
 affinities: every TCB on the current core before and after). -/

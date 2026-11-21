@@ -265,6 +265,7 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
       (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s' := ⟨⟨Q0, R0, hbk.1⟩, hbk.2⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   -- the assembly (as XTopJointSendBlock's `JAtZ.sendBlockJ`)
   have hAR : AR a σ.archState.x64CurrentCr3 := J.xtop.fin.1.1.2.2.2.2.2.2
   have hF : IFrame (L := L) Z.th s s' := IRel.iframe_of hI hW fun b hb => CnW.oobj hI.2.2.1 hb
@@ -389,7 +390,7 @@ theorem JAtZ.recvIpcBlockJGM (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hC0 := JCs.same J hF.1 F.ksz
   have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   have J3 := J.toR.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch
-    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R
+    (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 J.toR.zD
   rw [heq]
   exact ⟨_, Set.mem_singleton _, J3.xtop.relTop, _, _, _, _, _, _, J3⟩
 

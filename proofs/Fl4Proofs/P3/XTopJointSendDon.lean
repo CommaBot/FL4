@@ -633,6 +633,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hidl0 : σ'.idleThread = σ.idleThread := G.idle.trans F.sk.idle
   have hisc0 : σ'.idleSc = σ.idleSc := G.isc.trans F.sk.isc
@@ -667,7 +668,7 @@ theorem JAtZ.wake_postG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
   have hC0 := JCs.same J hF.1 (F.ksz.trans hkz1)
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch) (fun q ao h => hao1 q ao (F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R⟩
+        (fun _ e => by cases e) (fun _ e => by cases e))) hsz hF.1 (F.kback.trans' hkb1) (F.ipcFr.trans hfk1) hC R hKd F.sk.orig (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
 
 
 /-- An SC bound to a thread is not dead (a dead SC's `TCB` word is 0). -/

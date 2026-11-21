@@ -110,8 +110,9 @@ theorem cn_cancel_topJL (hAM : ARMask arI AR) {s : S} {ar : A}
       simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and] at this
       simpa using this.symm
     -- the caller's restart at `J` with the liveness
-    obtain ⟨G1, V1, Ac1, Lst1, D1, J1, hL1, -⟩ := (stepClosed_jatL hAM).restart s a' σ ct x s2 hcur hk htcb hrn hs2
-      Z H Cs Ac Lst D rfl J hLv hZB
+    obtain ⟨G1, V1, Ac1, Lst1, D1, J1, -⟩ := (stepClosed_jat arI hAM (jStepHyps arI)).restart s a' σ ct x s2 hcur
+      hk htcb hrn hs2 Z H Cs Ac Lst D rfl J hZB
+    have hL1 := J1.live
     rw [← hσ1] at J1 hL1
     by_cases hb : b = 0#u64
     · subst hb

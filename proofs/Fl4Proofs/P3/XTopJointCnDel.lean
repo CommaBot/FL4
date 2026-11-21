@@ -69,7 +69,7 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
   obtain ⟨hX1, hSS, hk1⟩ := h
   obtain ⟨hkb, hkz⟩ := kback_ksz_upd (σ' := Notif.stsAct (Notif.updK σ ct.bv
     (.tcb { x with tcbState := .restart })) ct.bv) hk (by rw [stsAct_kheap]; rfl)
-  obtain ⟨Ac', Lst', D', R⟩ := hJ.restart s ar σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D rfl J hX1
+  obtain ⟨Ac', Lst', J1⟩ := J.restartJ hJ hcur hk htcb hrun hs1
   have hns1 : Vs.NoSwitch (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) := by
     intro u e
     unfold Notif.stsAct at e
@@ -78,7 +78,7 @@ theorem EJ.restart (hJ : JStepHyps (L := L) arI AR Z.th) {s : S} {ar : A} {σ : 
       | (have e2 : σ.schedulerAction = .switchThread u := e
          rw [hni.2] at e2; cases e2)
       | cases e
-  exact ⟨Z.vs, Ac', Lst', D', J.cs_frame hk1 hX1 hkb ((IpcFrKeep.of_updTcb (y := { x with tcbState := .restart }) hk rfl rfl).trans (IpcFrKeep.of_kheap (by rw [stsAct_kheap]))) (JCs.same J hSS hkz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_sts (J.thT ct htcb) hs1), hk1, hns1, hsg1,
+  exact ⟨Z.vs, Ac', Lst', D, J1, hk1, hns1, hsg1,
     hP0.of_ppk (PPK.restart hk .restart (Or.inl hcur.symm))⟩
 
 /-- **`PPR0` at the invocation's start**: at a zero consumed time, the

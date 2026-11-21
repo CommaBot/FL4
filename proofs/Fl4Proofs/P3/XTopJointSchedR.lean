@@ -141,7 +141,7 @@ theorem jat_scheduleFR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (J1.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D1 rf.1 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
-      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
+      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, P1.dbgKeep_schedW J1.blk J1.kern.ksbFit hkw⟩
   obtain ⟨Lst', J'⟩ := J1.sch_tail hsc hw hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
   exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D1, J'⟩, hC',

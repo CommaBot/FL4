@@ -163,6 +163,10 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
   /-- JAtZ's `ext` (`JExt`, G2). -/
   ext : JExt (L := L) Z.th s
+  /-- [carried] As `JAtZ.live` (KENTRY-PLAN g2i). -/
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
+  /-- [carried] As `JAtZ.zD`. -/
+  zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
 
 /-- `JAtS`: `JAtZS` at a state (the ghosts existential). -/
 def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
@@ -221,6 +225,8 @@ theorem JAtZ.toS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZS (L :=
   fcov := J.fcov
   fcap := J.fcap
   ext := J.ext
+  live := J.live
+  zD := J.zD
 
 theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -272,6 +278,8 @@ theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
   fcov := J.fcov
   fcap := J.fcap
   ext := J.ext
+  live := J.live
+  zD := J.zD
 
 /-- A `JAtZS` state is a `JAtZ` state, or `SwBlk` holds. -/
 theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :

@@ -83,6 +83,7 @@ theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
+  have hKd := J.kw_dbgKeep (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1 (J.yld.frame k2 hyk) hyk
@@ -101,7 +102,7 @@ theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`set_fault` of a cap fault at `J`** (module docstring): the thread not

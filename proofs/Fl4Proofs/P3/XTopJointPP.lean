@@ -226,9 +226,17 @@ theorem JAtZ.timestampJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hK : ScTKw (fun _ => False) σ σ' :=
     ⟨fun p => OTK.refl _ _, hum2, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hX' : XTopAt (L := L) AR Z s' a2 σ' := xtop_sc_step hX J.ip J.nk hwT (ct := σ.curThread) (hK.mono fun _ h => h.elim) hS2 hR2 fun _ => hAa2 hAR'
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    ⟨hw.1, fun b hb => hw.mem_eq (P1.dbgW_aligned J.blk hb) fun h' => by
+      rcases h' with rfl | rfl
+      · exact P1.dbgW_not_kw J.blk (Or.inr (Or.inl ⟨L.cpu s, J.kern.cpuCs, layout.node.CUR_TIME,
+          by simp [layout.node.CUR_TIME], by simp [layout.node.CUR_TIME], rfl⟩)) hb
+      · exact P1.dbgW_not_kw J.blk (Or.inr (Or.inl ⟨L.cpu s, J.kern.cpuCs, layout.node.CONSUMED,
+          by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], rfl⟩)) hb⟩
   refine ⟨hX', fun hO' hOw' => ?_⟩
   obtain ⟨-, hY', hM', ⟨Lst', hCR', hRF'⟩, hRP', -⟩ :=
     ScAll.of_k hS J.rp J.yld J.mcp J.call J.rfree ⟨⟨hS2, hR2, hN2, hI2⟩, hwK,
+
       ⟨fun p => ORel.refl _ _, rfl, rfl, rfl, rfl, rfl⟩⟩
   have hF : FK σ σ' := ⟨rfl, rfl, rfl⟩
   have hL : LK (fun _ => False) σ σ' := fun p => Or.inr (OL.refl _)
@@ -254,7 +262,9 @@ theorem JAtZ.timestampJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · have := congrArg UScalar.val hb; rw [hd, h2] at this; simp at this; omega
   exact ⟨Ac, Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2)) (J.sc_kern hwT hK hF hX' hDbg fun _ h => h)
-    (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'⟩
+    (J.sc_utc hwT hK hDbg) hN2 hI2 (J.cur.imp id hC2) hOw' hO' hAI' (J.bsa.tkw hK fun p y n h hy => ⟨y, h, hy, fun _ h => h, id⟩) J.curRun hBlk'
+    hKd (J.idleW_keep hX'.fin.1.1.1 hF.2.1 hF.2.2).1 J.zD⟩
+
 
 
 set_option maxHeartbeats 4000000 in

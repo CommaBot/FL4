@@ -171,6 +171,10 @@ structure JAtZR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   fcap : Vs.FrSlots Z.th (UFr σ) (L.mem s)
   /-- JAtZ's `ext` (`JExt`, G2). -/
   ext : JExt (L := L) Z.th s
+  /-- [carried] As `JAtZ.live` (KENTRY-PLAN g2i). -/
+  live : LiveDN (L := L) Z.th H Cs Z.G s σ
+  /-- [carried] As `JAtZ.zD`. -/
+  zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -224,6 +228,8 @@ theorem JAtZ.toR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L :=
   fcov := J.fcov
   fcap := J.fcap
   ext := J.ext
+  live := J.live
+  zD := J.zD
 
 theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ where
   xtop := J.xtop
@@ -274,6 +280,8 @@ theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L 
   fcov := J.fcov
   fcap := J.fcap
   ext := J.ext
+  live := J.live
+  zD := J.zD
 
 theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -325,6 +333,26 @@ theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
   fcov := J.fcov
   fcap := J.fcap
   ext := J.ext
+  live := J.live
+  zD := J.zD
+
+
+/-- `JAtZ.liveX` at `JAtZR` (`liveDN_frame`). -/
+theorem JAtZR.liveX (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {Z' : XSets} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ') (hth : Z'.th = Z.th) (hT : Z'.T = Z.T)
+    (hc : Z'.c = Z.c) (hSS : SlotsSame Z.th (L.mem s) (L.mem s'))
+    (hK : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (horig : σ'.isOriginalCap = σ.isOriginalCap)
+    (hidl : L.idleW s' = L.idleW s) (hdead : ∀ p ∈ ZTcb (L := L) Z.th s, Sched.DeadP (L := L) H s' p) :
+    LiveDN (L := L) Z.th H Cs Z'.G s' σ' :=
+  liveDN_frame J.xtop J.live ⟨J.blk.2.2.1.2.2.tm.dn, J.blk.2.2.1.2.2.tm.dp, J.blk.2.2.1.2.2.tm.dh⟩ J.kern.cs0
+    (by obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+        exact Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩)
+    hX hth hT hc hSS hK horig hidl hdead
+
+/-- `JAtZ.zDX` at `JAtZR`. -/
+theorem JAtZR.zDX (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {D' : Set U64}
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
+    ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D' := fun p hp => hDD p (ZTcb.of_same hSS hp)
 
 end
 

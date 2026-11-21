@@ -415,6 +415,7 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hidl0 : σ'.idleThread = σ.idleThread := G.idle.trans F.sk.idle
   have hisc0 : σ'.idleSc = σ.idleSc := G.isc.trans F.sk.isc
@@ -454,7 +455,7 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) (G.arch.trans F.sk.arch) (fun q ao h => by
       have h1 := F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
         (fun _ e => by cases e) (fun _ e => by cases e)
-      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R⟩
+      rw [ciSt_kh (ne_of_tcb hkc h1 (fun _ e => by cases e))]; exact h1) hsz hF.1 (F.kback.trans' (ciSt_kback hkc)) (F.ipcFr.trans (ciSt_ipcFr hkc)) hC R hKd F.sk.orig (J.idleW_keep hS3 hidl0 hisc0).1 J.zD⟩
 
 set_option maxHeartbeats 64000000 in
 /-- **A call to a waiting receiver at `J` where the caller gets no reply**

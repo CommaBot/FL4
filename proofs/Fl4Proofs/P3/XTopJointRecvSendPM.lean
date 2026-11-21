@@ -87,7 +87,7 @@ theorem JAtZ.recvSendFPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e
@@ -641,7 +641,7 @@ theorem JAtZ.recvSendPJGM (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e
@@ -1172,7 +1172,7 @@ theorem JAtZ.recvSendFPTJM (hAT : P0.ArchTotal arI) (hmax : Fl4Spec.maxTicksToUs
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e

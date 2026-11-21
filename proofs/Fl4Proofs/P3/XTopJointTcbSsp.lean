@@ -344,6 +344,7 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
       (AK.schedcontext_bind_tcb (P1.LawfulStore.total (st := st)) hAT hAK hA0))) ?_
   rintro ⟨s', a'⟩ ⟨⟨σ', he, hS', hR', hN', hI', -, hwk⟩, ⟨hblk', hfD⟩, hA'⟩
   have hDbg := J.kw_dbg (P1.Foot.mono hfD (Set.empty_subset _))
+  have hKd := J.kw_dbgKeep (P1.Foot.mono hfD (Set.empty_subset _))
   have hm : ((), σ') ∈ (Fl4Spec.schedContextBindTcb (Z := Unit) sc.bv t.bv σ).1 := by
     rw [he]; exact Set.mem_singleton _
   have hWk : P1.WritesIn st s s' (KFoot st Z.T Z.N Z.C Z.c s σ) := hwk
@@ -405,7 +406,13 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
   have hkern := J.sc_kern hW hK hF hX' hDbg hsub
   exact ⟨σ', he, Ac, Lst', {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)}, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK hIK.2) hjc hkern (J.sc_utc hW hK hDbg) hN' hI' hC'
-    (Or.inl (hC'.elim hOw' (curOwn_of_curInv hS' hI'))) hO' hAI' hB' hcr' hblk'⟩
+    (Or.inl (hC'.elim hOw' (curOwn_of_curInv hS' hI'))) hO' hAI' hB' hcr' hblk'
+    hKd hIK.1 (fun p hp => ⟨J.zD p hp, fun e => by
+      rcases e with e | e
+      · exact J.not_ztcb hyS (fun _ _ _ h => by rw [capV_of_capAt hyc] at h; cases h)
+          (by rw [capV_of_capAt hyc, bv_inj e]; simp [absCap, Fl4Spec.objRefs]) hp
+      · exact J.not_ztcb hxS (fun _ _ _ h => by rw [capV_of_capAt hxc] at h; cases h)
+          (by rw [capV_of_capAt hxc, bv_inj e]; simp [absCap, Fl4Spec.objRefs]) hp⟩)⟩
 
 end
 

@@ -1,7 +1,7 @@
 /-
 P3 (DESIGN.md §9), KENTRY-PLAN g2i: **the `LiveDN` frame lemmas upstream of
 the step closure** (moved unchanged from XTopJointDbgKeep, XTopJointLiveStep
-and XTopJointLiveIns so that they precede XTopJointStep, toward building the
+and XTopJointLiveIns so that XTopJointStep's `stepClosed_jat` can build the
 `JAtZ.live` field): the debug-word exclusions (`dbgKeep_of_writes`,
 `JAtZ.notDbg'`, `JAtZ.notDbg`, `JAtZ.slot_node`, `JAtZ.inSlot_notDbg`,
 `JAtZ.ksW_notDbg`, `JAtZ.schW_notDbg`), `shape`'s facts, `ZNoBlk`,

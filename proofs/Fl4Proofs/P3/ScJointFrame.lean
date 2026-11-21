@@ -243,7 +243,8 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hown : Sched.CurOwnW Z.T Z.C σ') (hoff : Sched.OffOK σ')
     (hact : Sched.ActIdle σ') (hbsa : Sched.BlockedScActive σ') (hcr : CurRunM σ')
     (hblk : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s') :
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac' s')
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hidl : L.idleW s' = L.idleW s) (hDD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D') :
     JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' s' a' σ' := by
   have hks : L.ksb s' = L.ksb s := hw.1
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
@@ -262,7 +263,8 @@ theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     J.c0, hbsa, hsv, J.isorted.tkw hK, hsl, hcr, hblk, by rw [hks]; exact J.intL,
     J.vsc.of_eq fun y hy => hSS.capV hy,
     J.bok.keep (IpcFrKeep.of_otk hK.kh), J.fcov.ipcFr (IpcFrKeep.of_otk hK.kh),
-    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS (J.tfoot_vkeep hw)⟩
+    J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page, J.ext.ss hSS (J.tfoot_vkeep hw),
+    J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

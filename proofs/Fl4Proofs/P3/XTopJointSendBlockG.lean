@@ -682,6 +682,7 @@ theorem JAtZ.runTmoJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
       obtain ⟨h1, h2, h3⟩ := J.rfree d hd ⟨y, F.replyB hy, hyt⟩
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
     have hDbg := J.kw_dbg hfoot
+    have hKd := J.kw_dbgKeep hfoot
     have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
     -- the scheduler action: kept, or a reschedule
     have hact3 : σ'.schedulerAction = σ.schedulerAction ∨ σ'.schedulerAction = .chooseNewThread := by
@@ -795,7 +796,7 @@ theorem JAtZ.runTmoJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64}
         hrun3, hblk⟩
     have hC0 := JCs.same J hF.1 F.ksz
     have hCs : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R⟩
+    exact ⟨Z.vs, D \ {ptr}, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hCs R hKd F.sk.orig hidl.1 J.zD⟩
   all_goals simp [absCap] at habs6
 
 end

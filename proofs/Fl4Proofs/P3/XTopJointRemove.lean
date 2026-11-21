@@ -949,6 +949,7 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     exact ⟨Tr, Cq, hJ.same hF.1 (fun q y n _ hq => szk q.bv y n hq) hks (J.rmW_irq hw)
       (J.idleW_keep hIR.2.2.1 hidle' hisc').2⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao) := by
     intro p ao hp
     have h1 : p ≠ t.bv := by rintro rfl; rw [hk] at hp; cases hp
@@ -980,7 +981,7 @@ theorem JAtZ.replyRemoveJD (hT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
   exact ⟨σ', Z.vs, Ac, Lst', D, hrm, J.cs_frameI hks hX3 hw (fun b hb => RmW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.rmW_nv hb) harch hao szk hF.1 hkb
     ((IpcFrKeep.of_otk hK.kh).trans (IpcFrKeep.of_upd2 hk5t kt' rfl rfl hk5r kr'
       (IpcFrKeep.objFrK_other (fun _ e => by cases e) (fun _ e => by cases e) (fun _ e => by cases e)) ko'))
-    hC R, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
+    hC R hKd hCK.orig (J.idleW_keep hIR.2.2.1 hidle' hisc').1 J.zD, hF.1, hks, rfl, ⟨_, kt', rfl⟩, hact⟩
 
 /-- **`reply_remove` at `J`** (`replyRemoveJD` without the dead set kept and
 the thread's `Inactive` after). -/

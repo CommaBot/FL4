@@ -188,6 +188,7 @@ theorem JAtZ.pushDonRJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
   have hFK : FK σ σ' := ⟨pd_csc, pd_idle, pd_isc⟩
   have hIK := J.idleW_keep hS' pd_idle pd_isc
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   -- the bound-before objects at `σB`
   have hktB : σB.kheap t.bv = some (.tcb xt) := bd_oth hky hkw hws hh (fun _ e => by cases e) (Ne.symm hst') hkt
   have hkdB : σB.kheap d.bv = some (.tcb xd) := bd_oth hky hkw hws hh (fun _ e => by cases e) (Ne.symm hsd') hkd
@@ -283,7 +284,7 @@ theorem JAtZ.pushDonRJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
     (J.buf.frame kb hK.bufKeep) hRP' (J.apart.sc_frame hks hK.szKeep) hjpl (J.jcov_keep hks hSS hdead hIK)
     (J.sc_kernW hW hK hFK hX' hDbg (subset_refl D))
     (J.rmW_utc hwR hSS hK.cdt hK.orig pd_arch hDbg) hN' hI' (Or.inl hcn') hown hoff hact hbsa
-    (Or.inl (by rw [hcn']; intro h; cases h)) hblk
+    (Or.inl (by rw [hcn']; intro h; cases h)) hblk hKd hIK.1 J.zD
 
 
 
@@ -326,7 +327,7 @@ theorem JAtZ.recvSendFPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e
@@ -909,7 +910,7 @@ theorem JAtZ.recvSendPDJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H
     m ⦃ r =>
       ∃ z ∈ (Fl4Spec.receiveIpc (Z := Unit) t.bv (.endpointCap e.bv b rights) blk rc' σ).1,
         RJ (L := L) arI AR r.1 r.2 z.2 ⦄ := by
-  have J := J.undeadC hcovR.1 hcovR.2
+  have J := J.undeadC hcovR.1 hcovR.2 (J.replyArg_ntcb hrc)
   have hI := J.xtop.irelK J.ks J.buf
   have hP0 := J.ip
   have hP := hP0.e

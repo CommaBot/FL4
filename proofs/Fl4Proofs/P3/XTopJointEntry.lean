@@ -839,7 +839,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     have hOpen := hN
     by_cases h0 : z = 0#u64
     · subst h0 hLb
-      exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot lbl lbl.bv (port_label lbl) length buf ct
+      exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl lbl.bv (port_label lbl) length buf ct
         hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toPN
         arI (specDec_noPreK (by trivial))
     · exact hOpen h0
@@ -851,7 +851,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot hE.handlers lbl lbl.bv (irqControl_label lbl)
+    exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case IoPortControl =>
@@ -861,7 +861,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨p0, hp0, hth0⟩ := hsl
     try simp only at hp0 hth0
     subst hp0
-    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot hE.ports lbl lbl.bv (ioControl_label lbl)
+    exact (decode_invocation_ioport_controlJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) hE.ports lbl lbl.bv (ioControl_label lbl)
       length buf ct hct argsU hlen hargs J.act3 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc blk call don fp ci
       buffer).toPN arI (specDec_noPreK (by trivial))
   case IrqHandler irq =>
@@ -884,7 +884,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     obtain ⟨sl', hl', hd⟩ := dom_canon lbl
     refine XCapP.lbl_congr arI (specDec_dom hd) ?_
     have hex := ExtraOK.relS hPl hXO
-    exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari ct hct J.ksOut J.actK lbl sl' hl' length
+    exact (decode_invocation_domainJ arI hG.dom s ar σ J hni hG.ari (J.zNoBlk hE.sg) ct hct J.ksOut J.actK lbl sl' hl' length
       buf argsU hlen hargs extra _ (exAt_idx0 extra) excaps hex _ blk call don fp ci sl buffer).toPN arI (specDec_noPreK (by trivial))
   case SchedContext p sb =>
     obtain ⟨hP, hY⟩ := hN

@@ -204,7 +204,7 @@ theorem JHole.toJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
     (J.sc_jpl hwT hK hidW.2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) hidW)
     (J.sc_kern hwT hK hF hX' Hh.dbg fun _ h => h)
-    (J.sc_utc hwT hK Hh.dbg) Hh.nsc Hh.inv Hh.cur hOw hO hAI' hbsa hcr Hh.blk⟩
+    (J.sc_utc hwT hK Hh.dbg) Hh.nsc Hh.inv Hh.cur hOw hO hAI' hbsa hcr Hh.blk Hh.dbgK hidW.1 J.zD⟩
 
 set_option maxHeartbeats 32000000 in
 /-- **`charge_budget` without timeout faults from a `JHole`** (module
@@ -354,7 +354,9 @@ theorem JHole.chargeBudgetJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S}
   exact ⟨Lst', J.sc_frame hW hKc hX' hCR' hRF' hY' hM' (J.sc_buf hW hKc) hRP' (J.sc_apart hW hKc)
     (J.sc_jpl hW hKc hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW)
     (J.sc_kern hW hKc hfkc hX' hDbg fun _ h => h) (J.sc_utc hW hKc hDbg) hN' hI' hcur' hown' hoff hAI' hbsa hcr
-    hblk'⟩
+    hblk' (Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot))
+    hidW.1 J.zD⟩
+
 
 set_option maxHeartbeats 8000000 in
 /-- **`charge_budget` with `can_timeout_fault = true` from a `JHole`, when the

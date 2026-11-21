@@ -252,7 +252,17 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
       hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact J.cs_frame (G' := Z.G) hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb => by
+    subst hb
+    refine J.notDbg (fun t ht => ?_) (fun c hc => ?_)
+    · rcases hAp t .tcb ht (fun _ e => by cases e) with e | e
+      · left; omega
+      · right; simpa [P1.HKind.bits] using e
+    · have hcl := J.kern.csLt c hc
+      have hnb : L.nodeBase s c = (L.ksb s).val + 13568 + c.val * 4288 := rfl
+      omega
+  exact J.cs_frameK hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+    hSS hKd F.idle
 
 /-- **A frame word written at `J`** (`JAtZ.userWrJ` for an IPC-buffer word,
 `JAtZ.frameWrJ` for another), the spec's machine state some `ms`. -/

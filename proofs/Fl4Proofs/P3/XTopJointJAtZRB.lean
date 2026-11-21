@@ -886,6 +886,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_cfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep ht
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
@@ -906,7 +907,7 @@ theorem JAtZR.wake_postB (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -1364,6 +1365,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
     · obtain ⟨h1, h2, h3⟩ := hRR d hd x hx hxt
       exact ⟨h1, by rw [e2]; exact h2, by rw [e1]; exact h3⟩
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hIR.2.2.1
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_dfr F hS3 hIR.1 hw k3 hAI3.1 (J.yld.frame k2 F.ykeep) F.ykeep ht
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' := by
@@ -1384,7 +1386,7 @@ theorem JAtZR.wake_postD (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t
   have hC0 := JCs.sameZR J hF.1 F.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hw (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) F.sk.arch (fun q ao h => F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e)
-      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R⟩
+      (fun _ e => by cases e) (fun _ e => by cases e)) F.szKeep hF.1 F.kback F.ipcFr hC R hKd F.sk.orig (J.idleW_keep hS3 F.sk.idle F.sk.isc).1 J.zD⟩
 
 
 /-- A thread in a state other than `inactive` is not dead. -/
@@ -1937,7 +1939,7 @@ theorem JAtZR.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' hik.1 hik.2))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
 
 set_option maxHeartbeats 4000000 in
@@ -2053,7 +2055,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (J0.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D0 s0 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
-      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
+      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, P1.dbgKeep_schedW J0.blk J0.kern.ksbFit hkw⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
   exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'.toJ (Or.inr hC')⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',

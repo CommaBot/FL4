@@ -188,7 +188,7 @@ theorem JAtZ.sch_tailS {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     (J.sch_jpl hwT hK (J.idleW_keep hS' hik.1 hik.2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' hik.1 hik.2))
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
-    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk⟩
+    (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK (J.idleW_keep hS' hik.1 hik.2).1 J.zD⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **FL4's `schedule` refines the spec's at `J`, with the domain switch**
@@ -303,7 +303,7 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
       (J0.jcov.dead q hq)
   have hT2 : SchTailHyps (L := L) AR (Z.mv Z.G V1) H Cs D0 s0 s' a' σ' Ac :=
     ⟨hcur, hTl.ar, hdbg, hdw, hdead,
-      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩⟩
+      ⟨⟨Q', R', hq'⟩, hBd', hXi', hSc', hSg.ksb' hks'⟩, P1.dbgKeep_schedW J0.blk J0.kern.ksbFit hkw⟩
   obtain ⟨Lst', J'⟩ := J0.sch_tailS hSch0 hik hw0 hS' hR' hN' hI' hC' hA' (RunW.scAndTimer (hr3 J1.curRun) he3)
     (OffOK.scAndTimer ho3 he3) (bsa_schedule J1.bsa hsc) hT2
   exact ⟨σ1, σ', hF, hsc, ⟨J'.xtop.relTop, _, _, _, _, _, _, J'⟩, ⟨V1, Ac, Lst', D0, J'⟩, hC',
