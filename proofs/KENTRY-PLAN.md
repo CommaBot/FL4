@@ -8184,3 +8184,117 @@ each gives `EB false`.
   eb_perfCopyRegisters, eb_schedContextBindTcb, eb_perfScBind, y_setPriority, eb_perfTcbSched, eb_schedControlConfigure,
   eb_perfSchedControl: propext, Classical.choice, Quot.sound. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not
   rebuilt (three import lines).
+## g3d (branch par/g3d in FL4-rb, on 65977148 = int/j2 incl. g3c, g3b) — inventory of kernel_entryJ27b / J28; `kernel_entryJ29` (J28 + g3c) and `kernel_entryJ29G` (hK / hFin re-scoped to the run's FL4 states) (DONE; sigRest / JDelParts.vt / thr.obj / live: cone proposals)
+New leaf only: XTopJointKEntry29 (imports XTopJointKEntry28, XTopJointKEntry27b; root import). Nothing existing edited, no JAtZ /
+cone edit. Branch first cut on f84299bf, rebased onto g3b's 65977148 (lead note) before building; J28's body
+`kernel_entryJ13PUN` is itself a leaf, which is what makes the hK / hFin re-scoping leaf-only.
+
+### (1) Inventory: every premise of kernel_entryJ27b (and J28 / J29)
+Classes: **SInvB** = carried in the bundle already; **spec** = spec-only per-state (a leaf could discharge it from SInv fields);
+**J** = joint / FL4-memory, needs G2 JExt; **[P]** platform; **[S]** per-step / scope; **∀** = quantified over states or ghosts
+beyond the actual path (risk 5).
+
+| premise | class | status / why |
+|---|---|---|
+| `PlainStore`, `hn : NativeSys n c` | statement | — |
+| `J : JAtZ` | J (carried, G4) | — |
+| `hni : Entered σ` | ct ≠ idle [S] (event scope); `action = resume` **spec** (c) | NOT in SInvB. Exit half exists in ctq's families (SpecInvCqX `RS`, `ex_exit : HK1 AW EX (schedule >>= activateThread)`), no whole-entry `kentry_` top yet: becomes a G1 field when ctq's tops land |
+| `hR : MR a σ.machineState` | [P]/J (G0) | — |
+| `hS : SInvB σ` | SInvB | carried (g1c) |
+| `hE : EpQAll σ` | **spec** | NOT in SInvB: needs MemOKE of queued threads (valid_sched released slice, Rdy) beyond ScInv; epq2's `kentry_epQAll` carries it given `Rdy` at the exits by name; becomes a field once rd's `kentry_rdy` lands |
+| `hQ : ct ∉ readyQueues` | **spec** | NOT in SInvB: = ctq's `CtNQR` (SpecInvCtNQR) at a resume state, inside ctq's `SA = RA ∧ RR ∧ CtNQR`; no whole-entry top yet |
+| `hflag` (∀ ct v) | [S] l4h trap mode | ∀ v harmless (the written FAULT_IP value; the flags word is not written) |
+| `hB : OffReady (faultIPSt σ ct x)` | **spec** | NOT in SInvB (rd line); given `OffReady σ` it is a one-register frame |
+| `hK` (∀ σb Z' H' Cs' Ac' Lst' D' s' a') | **∀** | RE-SCOPED in J29G (below) |
+| `hFin` (∀ x Z' H' Cs' Ac' Lst' D' s' a') | **∀** | RE-SCOPED in J29G (FL4 states); ghosts stay ∀ (below) |
+| `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu` | [P] (PlatJ) | — |
+| `hNS`, `hNSR` | [S] ∀ | GONE in J28 (g3b) |
+| inside hK — `JEntryGlobM`: `ari tot delParts.archRef delParts.arKeep delParts.thr.ticks nd ppA dom timeAg maxTU tu` | [P] | — |
+| `JEntryGlobM.portIn` | [P] ∀σ | mr10 FINDING (G0 MR redesign) |
+| `JEntryGlobM.sigRest` | **∀** [J] (∀ H Cs ∀ JAtZ, RunningVM bound TCB) | false in general (JAtZ admits a RunningVM bound thread); cone proposal (A) |
+| `JEntryGlobM.delParts.vt` (JVtHyps ×4) | **∀** [J] (∀ JAtZ at th, VT-x placement) | false in general; proposal (B) |
+| `JEntryGlobM.delParts.thr.obj` | **∀** [S] (∀ JAtZ at th, VCPU word 0) | false in general; proposal (B) |
+| `JEntryAtR2.stall`, `ioapics`, `archIrq` | [P] (per (s', a')) | — |
+| `JEntryAtR2.flags handlers ports vsTyp fnz urz utks` | J | G2 JExt fields (per state; meaningful only with hK FL4-path-restricted, J29G) |
+| `JEntryAtR2.live` (∀ H Cs Ac Lst D, JAtZ → LiveDN) | **∀** J | ∀ ghosts at a fixed state; proposal (C) |
+| `JPathAtM`: Thread `hFr` | J | — |
+| `JPathAtM`: SchedC / SchedCtx `tm mb max tu core arch`, `JSchedYieldPath` | [P] | `core` [P] one core |
+| `JPathAtM`: SchedC / SchedCtx `rest` (∀ H Cs Ac Lst D, JAtZ → decode ⦃ScStepP1⦄) | **∀** [P] | P1-provable at every BlkOK (INV-PLAN §3: low risk) |
+| `JPathAtM`: Untyped / Device `fan`, `rcb` | [P] | `Fl4Spec.retypeFanOutLimit` / `resetChunkBits` are fields of the opaque `kernelConfig` (Machine.lean:169): not provable, so not spec-dischargeable |
+| `JPathAtM`: `core0` | [P] | one core |
+| `JPathAtM`: `vtx`, `JPoolPath.native`, `JVtxScope` cases, `JVtxHypMU` | [S] VT-x | — |
+| `JPathAtM`: `bufObj`, `heapH` (ArchFitHyp H σ ∧ RegionUnrefAt H Cs D s), `vsReach`, `devApart devFree devGpm`, `JFramePath.hno`, `JAsidCPath.heapH/vsReach` | J | `heapH`/`devApart` name the ghost heap H: with hK's H′ universally quantified they were asked at every ghost heap admitting JAtZ; J29G asks them at the carried H |
+| inside hFin — `KFinAtR27.hd` (domainTime ≠ 0 ∨ NdOK s σ) | mixed: DomRel (a), DomListOK SInvB, IDX word J | a disjunction, so not split; per FL4 state in J29G |
+| `KFinAtR27.vt` (∀ V1 s1 a1 σ1 …, JAtZR → PML4 asid ≠ 0) | **∀** J | G2 VtAsidJ (then (a) from the JAtZR) |
+| `KFinAtR27.arch archNd sni send` | [P] ∀ SchedRel | depend on the sets of Z only |
+| `KFinAtR27.tail` | [P]+J (CR3 tail, F8) | per FL4 state in J29G |
+
+### (2) Spec-only per-state premises: none dischargeable from SInvB today
+The spec-only per-state premises left in J27b / J28 are exactly `hni`'s `action = resume`, `hQ`, `hB` and `hE`. None of them follows
+from SInvB's 19+2 fields: each needs a valid_sched slice that is not in the bundle. They are `RS` / `CtNQR` from ctq's `EX` / `SA` (no
+whole-entry top), `OffReady` from rd (no whole-entry top), and `EpQAll` from epq2 (carried given Rdy, which comes from rd). Checked
+candidates: `KBudget.tmo` / budgetOkTR B4 is already closed (KBudgetB's `tmo := Or.inr hQ`, g3a); the remaining constants inside hK
+(`fan`, `rcb`, `max`) are opaque config, not spec facts; no JEntryAtR2 field is spec-only. So J29 discharges nothing beyond g3c's four,
+and none of these four premises is false in reachable states. Each becomes an SInvB projection once ctq / rd land their tops (then
+`hQ ∧ hni.2` from SA ∧ RS at the previous exit, `hB` by the FaultIP frame from OffReady σ, `hE` as a field).
+
+### (3) The ∀-ghost premises
+- **hK** quantifies over every ghost `Z' H' Cs' Ac' Lst' D'` and every FL4 state `(s', a')` with `JAtZ … s' a' σb`. The body
+  (`kernel_entryJ13PUN`, XTopJointKEntry28) uses it once: at `Z.mv Z.G V0`, `H`, `Cs` (V0 from `JAtZ.regWrJ`, `Ac' Lst' D'` from
+  `budgetOkB`) and at the FL4 state `(s2, a1)` the passing `budget_ok` returns. The ∀ over `s'` is what makes it undischargeable: every
+  JEntryAtR2 field that JAtZ does not determine (flags, handlers, vsTyp, …) is asked at FL4 states the run never reaches. **Leaf-only
+  re-scoping DONE** (`kernel_entryJ29G`): `hK : ∀ σb, BudgetAt σ σb true → ∀ V' Ac' Lst' D' s' a', KFrontB arI s a s' a' → JAtZ (Z.mv
+  Z.G V') H Cs Ac' Lst' D' s' a' σb → KDispHypsKV27b … (Z.mv Z.G V') H Cs D' s' a' σb n c`, with
+  `KFrontB s a s' a' := ∃ ct v, cur_thread s = ok ct ∧ budget_ok (L.wr s (regA ct FAULT_IP) v) a = ok (true, s', a')` (the FL4 side of
+  `BudgetAt`; the FAULT_IP value stays ∀, which is harmless: one register of ct). `Ac' Lst' D'` stay ∀ because budgetOkB's post is
+  existential in them. Pinning them would mean editing JAtZ.budgetOkB's post (XTopJointBudget*, cone), which only matters for D (RegionUnrefAt).
+- **hFin** quantifies over every ghost and every FL4 state with `JAtZR … x.2`. The body uses it at the FL4 state `finish` starts from
+  (budget_ok's stopping outcome; dispatch_syscall's outcome, also on the preemption path). **Re-scoped** to `KFrontF arI n s a s' a'
+  := ∃ ct v b s2 a2, cur_thread s = ok ct ∧ budget_ok (…) a = ok (b, s2, a2) ∧ ((b = false ∧ s' = s2 ∧ a' = a2) ∨ (b = true ∧
+  dispatch_syscall s2 a2 n = ok (s', a')))` (the FL4 side of `specFront`). The ghosts stay ∀: the producers (budgetOkB's stopping
+  branch `∃ Z'`, `DispPostR`'s `∃ Zm Hm Csm …`) are existential (retype grows the ghost heap). That is harmless once
+  `KFinAtR27.vt` is a JAtZR field (G2 VtAsidJ): `hd` and `tail` then read only the FL4 state, now pinned, and `arch / archNd / sni / send` are
+  [P] statements over any sets.
+- **Mechanism**: `kernel_entryJ13PUG` = `kernel_entryJ13PUN`'s body verbatim, except `Sched.spec_and_eq` keeps the equations
+  `budget_ok … = ok (b, s2, a1)` and `dispatch_syscall … = ok (s3, a2)` beside the posts, and `kPreFinAtG` = `kPreFinHypJI_ofN` at one
+  FL4 state. `kernel_entryJ29_of_G` shows the new premises are instances of J29's, so they are weaker.
+- **Proposal (A) sigRest** (lead's question: can it go the way g3b's hNSR went?). Yes, with a cone edit, not leaf-only. Its only
+  reader is the Notification case of `decOK_JMU` (XTopJointKEntry23P:252, `notifLeafJ hG.tot (hG.sigRest H Cs) …`). There
+  `notifLeafJ` (XTopJointIpcJ:82) applies `signalJHyp_of hAT hW` at the state after ct's restart (`J.restartJ`). Edits:
+  (i) new `notifLeafJN (hAT) (hmb) (J) (hN : NativeScope σ) …` = notifLeafJ with `JAtZ.signal_atN hAT hmb J1 hN1 p b hpN` (g3b,
+  XTopJointMRPath:71) in place of `signalJHyp_of …`, with `hN1` from `hN` across `setThreadState ct restart` (invA's NSK
+  `ns_setThreadState`, restart ≠ RunningVM); the post shapes are identical. (ii) `decOK_JMU` and `handle_invocation_entryJMU` (23P:208,
+  476) take `hN : NativeScope σ` and use notifLeafJN. J28's `invoke_afterJMUN` / `mid_invRecvJMUN` already hold `hN` at σb.
+  (iii) Delete the field `JEntryGlobM.sigRest` (XTopJointKEntry13P:139). It cannot be done as a leaf because `jPreDecHyp_of14U / 17U /
+  18U` (23P, the CNode / Thread / pre-decode chain inside `KDispHypsKV23.to13PU`) take `JEntryGlobM` whole, so the structure
+  itself must lose the field (each anonymous `JEntryGlobM` constructor loses one component; the older `decOK_JM` (13P:244) and
+  XTopJointEntry:776 read `JEntryGlob.sigRest`, the old line, and can stay). Cone cost: 13P and everything downstream that builds
+  `JEntryGlobM`. No new premise.
+- **Proposal (B) JDelParts.vt / thr.obj**: these are read only by the deletion and install hypotheses at WJL: `delHypsJLM`
+  (XTopJointMRDel:300; CNode / IRQ-handler deletion, `h.vt h.thr`) and `tcbInsWM_wjl` (XTopJointMRTcbL:142; Thread-cap installs,
+  `hJDP.vt`, `hJDP.thr`). They are FL4-side VT-x facts (VCPU / EPT placement, VCPU word 0), so the spec NSK family cannot supply them
+  per state as it did for hNS. Route: G2 `NativeScopeX` in `JExt` (FL4 part: no VCPU / EPT caps or objects, VCPU words 0, no
+  EPT-mapped frames). After that, `JVtHyps` / `JThreadFinHypsU.obj` hold as (a) at every JAtZ by `J.ext`, and the ∀ becomes harmless.
+  Without G2 the alternative is per-state forms threaded through the deletion loop (`WJL` carrying them, an XTopJointDelR / WJLDel
+  edit), which is larger.
+- **Proposal (C) JEntryAt.live**: its reader `decOK_JMU` (23P: `hE.live H Cs Ac Lst D J`) uses it only at J's own ghosts. So
+  restate the field as `LiveDN Z.th H Cs Z.G s σ` (JEntryAt / JEntryAtR / JEntryAtR2 then take `H Cs` as parameters; the
+  XTopJointEntry `JEntryAt` structure is cone), or carry `LiveDN` in G2's `JExt` (then (a) from `J.ext`). Same for `JSched(C)Path.rest`:
+  prove it from P1 at the state (INV-PLAN §3), or ask it at the carried ghosts.
+
+### (4) Tops
+- **`kernel_entryJ29`**: J28's premises with `hK → KDispHypsKV27b` and `hE : EpQAll σ`. Compared with J27b, it lacks
+  `hNS` / `hNSR` (g3b) and adds nothing. Compared with J28, it lacks `JPerfRegHyp`, `JPerfIrqSlotHyp`, `JMidVfhHyp` and `JEntryAt.epQ`
+  (g3c) and adds `hE`.
+- **`kernel_entryJ29G`**: J29 with the re-scoped `hK` / `hFin` above. Premises exactly: PlainStore, J, hni, hR, hS, hE, hQ, hn,
+  hflag, hB, hK (KFrontB, carried ghosts), hFin (KFrontF), hARI, hA, hnd, hM, hKD, hPA, hIA, hmrt, hmb, hT, hmax, htu. No new
+  [J]/[P]/[W]/[S]; no premise false in reachable states. The remaining ∀-over-states parts are inside the bundles (sigRest,
+  delParts.vt / thr.obj, live, rest, portIn, KFinAtR27.vt; proposals A–C, G2, G0).
+- Builds (tokyo, FL4-rb mirror seeded from FL4-audit after the lead's r3-g52 full build of 65977148; ./g3d.sh untracked = g3c.sh with the
+  grep on XTopJointKEntry29*): g3d-b1 `SEED=1 … g3d.sh XTopJointKEntry29` OK first try (9.9 s, 6378 jobs; one unused-variable linter
+  warning); no sorry/admit/native_decide/bv_decide. Axioms (scratch/g3d/ax.lean, untracked): kernel_entryJ29, kernel_entryJ29G,
+  kernel_entryJ13PUG, kPreFinAtG, kernel_entryJ29_of_G: propext, Classical.choice, Quot.sound. Root Fl4Proofs.lean not rebuilt
+  (one import line).
+- Next: (a) proposal A (sigRest, S–M cone edit in 13P / 23P plus notifLeafJN); (b) G2 JExt with NativeScopeX, VtAsidJ, LiveDN at the
+  carried ghosts (B, C, KFinAtR27.vt), and FL4 frames across FAULT_IP + budget_ok for the JEntryAtR2 fields (then J29G's hK is
+  dischargeable from per-state facts at s); (c) hQ / hni.2 / hB / hE into SInvB when ctq's / rd's whole-entry tops land.
