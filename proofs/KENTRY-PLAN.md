@@ -13297,3 +13297,114 @@ None.
 - The idle-thread interrupt: `utCheckB` for `ct = idle` (the idle SC's budget check; `CurInv` / `OffReady` for the idle
   thread), then `jEvRef_irq` without `ct ≠ idle`.
 - `handleIrqJIM` can replace the `handle_interrupt` part of g4b's `JDispMR` [W] for the preemption path.
+
+## g4g (branch par/g4g in FL4-q, on 8a5c54c8 = par/g4f) — g4f's handoff: (1) `handle_fault` at J for every fault kind the entries raise DONE (`FaultCorrG`), `JFltHyp` [W] discharged for the user-exception and VM-fault entries under narrow [P] hardware facts; (2) `int $N` entry DONE without `JEvRef`; unknown syscall via `handle_syscall` NOT done (FINDING below: debug-syscall arms); (3) idle-thread interrupt NOT done; (4) `JReachE3` / `kernel_entry_reachE3` (+ `kernel_entry_reachE3T` for `int $N`) DONE
+New leaves only: XTopJointFaultG, XTopJointKEntryEv3, XTopJointKEntryEv4 (root imports after XTopJointKEntryEv2). Nothing existing edited.
+
+### (1) `handle_fault` at J for every fault kind (XTopJointFaultG)
+- The cap-fault proofs (XTopJointFaultEp `faultBlockJ`, XTopJointFaultRecv `setFaultCapJ` / `sendFault{I,P,PD}J` / `faultRecvJ` /
+  `faultHypJZ`) depend on the cap fault in exactly two places: `set_fault`'s seven words (`set_fault_cap_top` / `_eq`) and the transfer
+  to a waiting receiver (`xferFaultStepJ`, plus the stored fault word read as `CapFault` before the reply push). Everything else
+  (the handler cap, the blocking send, the reply push / donation, `Inv.rd` — a non-timeout fault keeps `inClassR`) is generic.
+- **`FaultCorrN f f'`**: FL4 `UnknownSyscall n` ↔ l4v `UnknownSyscallException n`; `UserException n c` ↔ `UserException n c`;
+  `VmFault ad fsr ins` ↔ `VMFault ad [ins, fsr]` (exactly what `FaultRel'` reads from the stored words). **`FaultCorrG := CapFaultCorr ∨
+  FaultCorrN`**, `FaultCorrG.nt` (never a timeout), `faultOK_nt`.
+- `set_fault_N_eq` (the four fault words), **`set_fault_N_top`** (l4v `thread_set tcbFault` on `IRel`: IpcTimeout's
+  `set_fault_timeout_top` with the words of any non-timeout fault), **`set_fault_G_top`** (both kinds, footprint `FRng t` =
+  `[t+3376, t+3432)`).
+- **`JAtZ.setFaultJG`, `JAtZ.faultBlockJG`, `JAtZ.sendFaultIJG` / `sendFaultPJG` / `sendFaultPDJG`, `JAtZ.faultRecvJG`,
+  `JAtZ.faultHypJZG`**: the cap-fault proofs, copied by a script (scratch, untracked) with the `set_fault` step replaced by
+  `set_fault_G_top`, the transfer by XTopJointXferF's `xferFaultStepGJ` (any fault but a timeout), the fault-word read by
+  `TcbRelE.fault0` (`≠ NullFault`). `faultHypJZG` has `faultHypJZ`'s premises with `FaultCorrG` for `CapFaultCorr`.
+
+### (2) `JFltHyp` discharged (XTopJointKEntryEv3)
+- `specBudget_true_shape` / `budget_true_facts`: a passing spec budget check changes only the clock, so at the budget-checked state
+  `Entered`, l4v `ct_not_in_q` (`SInvX.ctQ`), `valid_fault_handler` (`SInvB.vfh`) come from `SInvX` at the entry state, and
+  `σb.ms = gctState σ.ms`.
+- `MachF.mfk_handleFaultG4` (+ `mfk_handleNoFaultG4`): l4v `handle_fault` keeps `msF`; FL4 side MachKeepF's `MKD.faults_handle_fault`.
+- **`jFltHyp_user`**: `JFltHyp … (brU n c) (brUS n c)` from `SInvX`, `ct ≠ idle` and **`UserHw n c`** [P] = `n < 2^32 ∧ c < 2^28`
+  (FL4 stores `number` / `code` unmasked, l4v masks to 32 / 28 bits).
+- **`jFltHyp_vmf`**: `JFltHyp … (brV ad c) (brVS ft)` from `SInvX`, `ct ≠ idle` and **`VmfHw ad c ft σ`** [P]:
+  `getFaultAddressVal (gctState σ.ms) = ad` (cr2 is the spec's opaque fault address), the current thread's `ErrorRegister = c`
+  (FL4's entry stores the error code there, entry.rs), `c < 32` (P/W/U/RSVD/I bits; FL4 enables neither PKE nor CET, cpu.rs),
+  `ft = instruction ↔ bit 4 of c` (`ins_iff`). Spec side: `handleVmFault_err` (the thrown VM fault) caught by `handleFault`.
+- **`JReachE3`** (start / step / irq / **user** (`UserHw`) / **vmf** (`VmfHw`) / event), `JReachE2.toE3`, **`jreach_invE3`**,
+  **`kernel_entry_reachE3`**: `kernel_entry_reachE2` whose user-exception and VM-fault clauses take `UserHw` / `VmfHw` in place
+  of `JFltHyp` (and `KFinEv` as before).
+
+### (3) The `int $N` entry (XTopJointKEntryEv4)
+- `fip_pre`: the FaultIP write at J (as `kernel_entryJ13P`: `reg_wr_irel` + `JAtZ.regWrJ`), at `faultIPSt`; `SInvX` there by
+  `sinvX_fip`, `MR` unchanged.
+- Under `TRAP_SYSCALLS`: `handle_user_exception 13 ((v<<3)|2)` = Ev3's user entry at the FaultIP state (`UserHw` proved from
+  `v < 256`, `shl3_lt`); spec event `KEvSpec.trapF`.
+- Otherwise: `num = (v<<24) | (rax & 0xffffff) < 2^32` (`shl24_lt`), so **`handle_unknown_syscall_pos`**: every special arm
+  (SysDebugPutChar … SysVMEnter are negative i64s) misses and `fast = false`, giving `unknown_syscall_fault num false`; **`usf_eq`**
+  (monad laws: `Std.bind_assoc` / `bind_pure`) puts it in `jEvRef_flt`'s shape; **`jFltHyp_unk`** (FaultCorrN's unknown syscall;
+  `ofNat 64 num.val = num`). Spec event `KEvSpec.trapU v num.val`.
+- **`jEvRef_trap`**: `handle_trap_syscall s a v ⦃ ∃ ev σ', KEvSpec (.trap v) true ev ∧ EvOut true ev σ σ' ∧ RJM ⦄` (the event of
+  this run, chosen by FL4's flag and rax reads); premises `v < 256` [P] (an IDT vector), `KFinEv` at the FaultIP states for both
+  events (FL4 states restricted by `KFrontTrap`), the [P] bundle. **`kernel_entry_reachE3T`**: the same at every `JReachE3` state,
+  ending in `JReachE3` again (its `event` constructor). `JEvRef` is no longer needed for `int $N`.
+
+### (4) Not done, and why
+- **Unknown syscall through `handle_syscall` (`KEv.sysU`)**: two obstacles. (a) `fast = true`: `unknown_syscall_fault` first runs
+  `fastpath::fault` (for TRAP_SYSCALLS threads and out-of-range numbers); its refinement is the m-line's `FastFaultOK` / `fault_same`
+  (P1), not yet available at J. (b) FINDING (below): for the debug / TLS numbers FL4 does not fault at all.
+- **Interrupt in the idle thread**: NOT attempted. `JAtZ.utCheckB` takes `Entered` (ct ≠ idle) and `KBudgetB` (`CurInv`,
+  `OffReady` of the current thread and SC); every J-level budget lemma it composes (`timestampJ`, `check_budgetT`, the hole's
+  `checkBudgetF/T/TR`) is stated for a non-idle running thread. The idle case needs the same chain for `ct = idle`, `curSc =
+  idleSc` (l4v: the idle SC is never charged insufficient — the `idle_sc` refill facts), plus `handleIrqJIM` / `jat_finishJRNM` from
+  that state; sized M–L. `jEvRef_irq` keeps `ct ≠ idle`; the idle-thread interrupt stays under `JEvRef`.
+
+### (5) Remaining premises (exactly)
+- Syscall steps: unchanged (g4e (4)).
+- Interrupt from a non-idle thread: unchanged (g4f (5)).
+- User exception from a non-idle thread: **`UserHw n c`** [P] (entry arguments), `KFinEv` [J/P] at the pre-finish states, the
+  [P] bundle. `JFltHyp`: gone.
+- VM fault from a non-idle thread: **`VmfHw ad c ft σ`** [P] (entry state), `KFinEv`, the [P] bundle. `JFltHyp`: gone.
+- `int $N` from a non-idle thread: `v < 256` [P], `KFinEv` at the FaultIP states, the [P] bundle. `JEvRef`: gone.
+- `JEvRef` [W] remains only for `KEv.sysU` (unknown syscall via `handle_syscall`) and `.irq` in the idle thread.
+
+### (6) Reachability check of the new premises
+- `UserHw`: FL4's x86 dispatch calls `handle_user_exception v error` only for `v < 32` with the hardware error code (selectors for
+  #TS/#NP/#SS/#GP, ≤ 15 bits for #CP, 0 for #DF/#AC, an SVM exit code < 2^28 for #VC); `int $N` under TRAP passes
+  `(v<<3)|2 < 2^11`. True in reachable x86 runs. (AArch64 passes the ESR as `number`: out of scope, the spec is X64.)
+- `VmfHw`: `addr` relates FL4's cr2 argument to the spec's opaque `getFaultAddressVal` (as `IrqHw` relates the IRQ oracle);
+  `err` holds since FL4's entry writes `ERROR := error` into the current thread before the call and `JAtZ` relates the registers;
+  `lt` holds with CR4 = FSGSBASE | SMEP | SMAP (no PK / SS / SGX bits in a user #PF); `kind` is the spec event's choice of
+  `VMFaultType` (l4v reads it from the same bit). Asked at the entry state only.
+- `v < 256`: an IDT vector.
+
+### (7) Findings
+- **FINDING (scope/config, not a kernel bug): the unknown-syscall event is not refined for FL4's debug / TLS syscall numbers.**
+  The extracted build has `PRINTING = DEBUG_BUILD = SET_TLS_BASE_SELF = ENABLE_SMP_SUPPORT = true` (Fl4Core/Funs.lean). A thread
+  that executes `syscall` with `n = SysDebugPutChar = -12` (outside `[SYSCALL_MIN, SYSCALL_MAX] = [-11, -1]`) reaches
+  `handle_unknown_syscall`, which calls `arch.putc` and returns without a fault (likewise DumpScheduler -13, Halt -14, CapIdentify -15,
+  Snapshot -16, NameThread -17, SendIPI -18, GetThreadAffinity -19, SetTLSBase -20, VMEnter -23 with a bound VCPU). The spec's only
+  event for it, `.unknownSyscall m`, runs `handleFault` (the thread blocks on its handler or becomes inactive). Trace: any `JReachE3`
+  state with ct ≠ idle and `rax = -12` → `handle_syscall s a (-12)` = FaultIP write; TRAP clear; `-12 < SYSCALL_MIN` →
+  `handle_unknown_syscall` → `PRINTING` → `putc`, `ok (false, s, a1)` → returns, ct still Running; spec: `.unknownSyscall m` →
+  `handleFault ct (UnknownSyscallException m)`, ct no longer Running. So `JEvRef (.sysU (-12)) true (.unknownSyscall m)` is false in
+  a reachable state for every m. No proved top assumes it (it is the hypothesis of `kernel_entry_reachE3`'s last clause only), but
+  any future sysU clause needs an [S] premise excluding these numbers (l4v verifies configurations without CONFIG_PRINTING /
+  debug syscalls), or the spec needs the debug events. `int $N` is unaffected (its numbers are non-negative; proved above).
+- No premise added here is false in a reachable state (checks in (6)).
+
+### (8) Builds and axioms
+- tokyo, FL4-q mirror (./g4g.sh untracked = g4f.sh with its own log; scratch/g4g/ax.lean untracked). Cache warm at 8a5c54c8
+  (g4g-b0: XTopJointKEntryEv2 up to date, 6918 jobs). Module builds: XTopJointFaultG g4g-b1..b4 (4th green, 5232 jobs),
+  XTopJointKEntryEv3 g4g-b5..b6 (2nd green, 6922 jobs), XTopJointKEntryEv4 g4g-b7..b12 (local elaboration fixes: Aeneas `Result` is an
+  ITree, so `usf_eq` is proved by the monad laws, not by cases; green 6924 jobs). No sorry / admit / native_decide / bv_decide /
+  new axioms.
+- Commits: ac1aa9f8 (XTopJointFaultG), d3745939 (XTopJointKEntryEv3), 33cf783c (XTopJointKEntryEv4), + this section.
+- **g4g-full1** (full `lake build Fl4Proofs` at 33cf783c): "Build completed successfully (7007 jobs)", 0 `declaration uses 'sorry'`.
+- Axioms (g4g-full1, scratch/g4g/ax.lean): set_fault_N_eq, set_fault_N_top, set_fault_G_top, JAtZ.setFaultJG, JAtZ.faultBlockJG,
+  JAtZ.sendFaultIJG, JAtZ.sendFaultPJG, JAtZ.sendFaultPDJG, JAtZ.faultRecvJG, JAtZ.faultHypJZG, jFltHyp_user, jFltHyp_vmf,
+  jFltHyp_unk, handle_unknown_syscall_pos, usf_eq, fip_pre, jEvRef_trap, JReachE2.toE3, jreach_invE3, kernel_entry_reachE3,
+  kernel_entry_reachE3T: propext, Classical.choice, Quot.sound.
+
+### (9) Next (handoff)
+- Unknown syscall via `handle_syscall`: decide the scope of the debug / TLS numbers (FINDING (7)); then the remaining arms need the
+  fast fault path at J (`fastpath::fault` ≡ the general path: P1's `fault_same` / `FastFaultOK`, m60–m61) and the TRAP_SYSCALLS
+  check after the FaultIP write (as `jEvRef_trap`).
+- The idle-thread interrupt ((4)).
