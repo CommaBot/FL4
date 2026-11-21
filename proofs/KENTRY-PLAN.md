@@ -9595,3 +9595,93 @@ premises inside the top's bundles into theorems of it. Resumed once (predecessor
 ### (6) Next (handoff)
 - `vw` field + TCB-word frames (3) → `thr.obj` a theorem, `kernel_entryJ32` with `JDelPartsN` without `thr.obj`.
 - `live`, then the other G2 joint (b) fields (INV-PLAN §4 list) in the same `JExt`, one cone batch each.
+## rd8h (branch par/rd8h in FL4-r3, on 36a778a5 = int/j2 incl. rd8f, rd8e, rd10, g1d, ctq19) — rd8f handoff 1 DONE (every invoke_tcb arm), 3 DONE up to named per-arm inputs (rd_fl4PerformInvocation), lead items DONE (RdF: rd_handleFault; handle_recv: rd_handleRecv / rdBody_recv); NOT done: retype / detype / MakePool (item 2 of rd8f's handoff), decode_update_sc in RdD, the shell rd_fl4HandleInvocationR
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8h` (every new name), modules SpecInvRd8hA / B / F / R / C / D / P (root imports them).
+Nothing existing edited. No JAtZ cone (checked with an ancestry script, scratch/rd8h/anc.py: no JointAt / XTopJointDelR / JAtZ
+module reached from the new imports). Two agents: the first wrote A / B / F (c326df78, 65135de6, ace4d9fe) and was cut off; the
+resumed one wrote R (98b1d16d), C (1f5c6169), P (becc3ddb), D + P update (8b9c2130) and this section.
+- **SpecInvRd8hA (the frame across the fault-handler slot deletion).** `MF s s'` (released SCs stay released, TCBs keep their SC and
+  only lose BlkR, SCs keep their bound TCB), `MFK` leaves (rd8c's BK view, heap-and-time frames, set_thread_state to a non-BlkR state,
+  refill_unblock_check: head at the current time, refill max kept), `bk_setCap` / `bk_emptySlot` / `bk_capInsert`, `mfk_cancelAllIpc`,
+  **`mf_capDelete_fh`** (sb2's `sbp_capDelete_fh` skeleton over rec_del's lfp: slot 3 holds a null or endpoint cap, VfhAll's `FhC`),
+  **`mf_installTcbCap3`**, `bindRel_mf`, `rdyT_mf`.
+- **SpecInvRd8hB (ThreadControlSched).** `rd_install` (install_tcb_cap from rd8f's `RB`), `bk_setPriority` / `mfk_setPriority` /
+  `mfk_setMcpriority`, **`rd_tcSched`** (Rdy, ctq's DK ct and MF after the install; set_priority with `CtRdy` from `RdyT ct` along MF;
+  unbind from TQ / Simple; bind with `BindRel` along MF).
+- **SpecInvRd8hF (handle_fault; rd11b's `RdF` discharged).** `HB t := Rdy ∧ RdyT t ∧ T1 ∧ Simple ∧ ScInv`, `fh_facts`,
+  `rd_sendFaultIpc` (the fault write by `rd_threadSet_r`, then rd8d's `rd_sendIpc_d`), **`rd_hf t ex s (HB t s)`**,
+  `hb_handleVmFault`, `hb_bs` (rd10's `BS` + T1 ⇒ HB ct), **`rd_handleFault ev σ (hEF : A8.EF σ) (h1 : T1 σ) : A11b.RdF ev σ`**.
+- **SpecInvRd8hR (handle_recv; lead item).** `QC t` (t in no ready queue, not in the release queue: `qc_setThreadState`,
+  `qc_tcbNtfnAppend`), `simple_tcbNtfnAppend`, `tcb_tv`, `rd_receiveSignalBlocked` (rd8e's `rd_setThreadState_rt`, the append, RdU's
+  `rd_maybeReturnSc_p`), **`rd_receiveSignal thread cap blk s (Rdy) (thread a TCB not BlkR) (RT) (QC) (Simple)`** (active arm in
+  rd8e's complete_signal shape: badge write, notification write, `rd_maybeDonateSc_sr`, `rd_ifCond`), `RH C s := RcvS s C ∧ RBk true s
+  ∧ ct = C ∧ RdyT s C`, `rh_asUser`, `rh_lookupReply`, **`rd_handleRecv C blk cr : HK (RH C) Rdy (handle_recv blk cr)`** (ctq's
+  `eb_handleRecv_hr` skeleton: endpoint → rd8e's `rd_receiveIpc`; notification → `rd_receiveSignal`; lookup fault → `rd_hf`),
+  **`rdBody_recv rep c (c ∈ Recv / Wait / NBWait / NBRecv) σ (hEF : A8.EF σ) (h1 : T1 σ) (hRB : RBk true σ) (hRS : action =
+  resume_cur_thread) : A9.RdBody rep c σ`** (the true front outcome by `rd_front` / `bs_uts`; RcvS there from BS, ct Running so not
+  BlkR, `RT` from `hb_bs`; `RBk` by ctq's `rb_updateTimeStamp`; the release-queue clause from BS.hb under `hRS`).
+- **SpecInvRd8hC (every invoke_tcb arm).** **`rd_restart t s (Rdy s) (ScBackS s)`** (cancel_ipc, Restart write, unblock check,
+  sched_context_resume with the mutual binding read by ScBackS and carried by sb2's `BR` through the prefix — `sr_schedContextResume`;
+  unbound: `sr_unbound` — then `possible_switch_to` under `schedulable`). `RO C I m` (Rdy at every outcome, `RB C I` at the ok ones),
+  `ro_bind`, `ro_ret`, `io_installTcbCap` / `io_installTcbFrameCap` (IdleScOutV), `rd_installTcbFrameCap`, **`ro_installTcbCap`**,
+  **`ro_installTcbFrameCap`** (RB's members by ctq's `dk_install*D`, `q1_`, sb2's `si_`, `gk_`, `io_`, `isk_`). Arms `rd_tcCaps` (four
+  installs + the frame install), `rd_tcSuspend`, `rd_tcResume`, `rd_tcCopy` / `rd_tcWrite` (resume of the target by `rd_restart`, ScInv
+  to it by sb2's leaves, `ikRS`), `rd_tcRead`, `rd_tcNtfn`, `rd_tcTls`, `rd_tcFlags`; `TcbOK σ i` (ThreadControlSched: VfhAll's
+  slot-3 `FhC` and the decode's `BindRel` for a new SC; else True); **`rd_invokeTcbP bl call don i I σ (hRB : RB ct I σ) (hRT : RdyT
+  σ ct) (hOK : TcbOK σ i)`**.
+- **SpecInvRd8hD (set_domain).** `set_domain` re-enqueues its target whenever it is `schedulable` (unlike `set_priority`, which
+  re-enqueues only a queued thread or ct), so Rdy needs the target `RdyT` when schedulable: rd's `SR t σ` at the perform (l4v
+  `valid_blocked`: a schedulable thread other than ct / the switch target is queued, then R1; ct by `CtRdy`; Simple excludes a switch
+  target). Not derivable from Rdy. `sr_frame` (SR along TV / SVS / release queue: `schedulable_inv` / `schedulable_of`), `SF`, `sf_of`,
+  `sf_archPrepareSetDomain`, `sf_dequeue`, `sf_threadSetDomain`, **`rd_invokeSetDomain t d σ (Rdy σ) (SR t σ)`**.
+- **SpecInvRd8hP (every perform arm).** `rd_seqRet`, `rd_lift`, `rd_invokeCnode` (RB: `rb_capRevoke` / `rb_capDelete`;
+  `rq_cancelBadgedSends` with NQ [] from `fh_of`; moves / swaps / inserts by rd leaves), `rd_invokeIrqHandler` (`rb_capDeleteOne`),
+  `ArchOK`, `rd_archPerf` (every arch arm but ASIDControl), `PerfOK σ iv`, **`rd_fl4PerformInvocation bl call don iv I σ (hRB : RB ct
+  I σ) (hRT : RdyT σ ct) (hO : OffReady σ) (hS : Suff σ) (hN : NtfnQB σ) (hOK : PerfOK σ iv)`**: Endpoint (rd8d's `rd_sendIpc_d`),
+  Notification (`rd_sendSignal`), TCB (`rd_invokeTcbP`), Fl4TCB / IRQControl (rd leaves), Domain (DomainSet by Rd8hD; set-start /
+  configure by rd leaves), Reply (rd8e's `rd_doReplyTransfer`), CNode, IRQHandler, SchedContext (rd8b's `rd_invokeSchedContext`),
+  SchedControl (rd8c's `rd_configure_d`), Arch (`rd_archPerf`).
+- **Named inputs left (each pinned to the given perform state, none ∀-states), with what discharges them:**
+  * `PerfOK` Untyped: `∀ y ∈ (fl4InvokeUntyped i).run σ, Rdy y.2` and ArchOK ASIDControl (MakePool: delete_objects + retype) — goal
+    item 3 (retype / detype / MakePool; ctq15's `rnDet_of_live` / `eb_fl4InvokeUntyped`, ctq11's `rt_detype` as templates: fresh
+    objects are an unbound Inactive TCB / an inactive SC; detype removes only objects no Rdy clause reads as live).
+  * `PerfOK` Reply: `Sched.BlockedScActive σ` — rd8i's `kentry_bsa` / `kcall_bsa` (rd8e handoff 1).
+  * `PerfOK` DomainSet: `SR t σ` [J] l4v `valid_blocked` + `valid_ready_qs` — needs a carried `valid_blocked`-style fact (or ctq's
+    queue bundle extended by "schedulable ∧ ≠ ct ∧ not switch target ⇒ queued"); true in reachable states (see SpecInvRd8hD).
+  * `TcbOK`: the slot-3 `FhC` (sb2/vfh's VfhAll at the perform) and `BindRel` for decode_update_sc (rd8c's `RdD` extended: NOT done).
+  * The perform-level facts `RB ct I`, `RdyT ct`, `OffReady`, `Suff`, `NtfnQB` at the perform (after the shell's Restart write):
+    the shell walk below.
+  * `rdBody_recv`: `hRB` (ctq's RB at the entry) and `hRS` (ctq20's RS, carried at every exit) — both carried facts.
+- Premises: none named [J]/[P]/[W]/[S] added as axioms-of-the-development; the inputs above are hypotheses of the lemmas.
+  No FINDING of a reachable Rdy break. Checked: (a) `set_domain`'s unconditional re-enqueue under `schedulable` (above): a
+  schedulable non-queued non-ct thread with an unready head would break R1, excluded in reachable states only by l4v's
+  `valid_blocked`; (b) ReplyRecv / NBSendRecv: after the reply phase ct may be unbound (a passive server returns the donated SC), so
+  `RH ct` (which asks `RdyT ct` for the fault arm through `rd_hf`) does not hold there in general — `rdBody_recv` covers only the four
+  pure receive syscalls; the ReplyRecv arms need `rd_hf` for an `RT` (unbound) faulting thread (send_fault_ipc's `rd_sendIpc_d` asks
+  `RdyT sender`), see HANDOFF 3.
+- HANDOFF (in order):
+  1. Extend rd8c's `RdD` with `.invokeTCB (.threadControlSched t … (some (some c)))` ⇒ `BindRel σ c t`: decode_update_sc reads
+     `tcb_sched_context` / `sc_tcb` / `is_blocked` / `sc_released` at its start and throws unless tcbSc = none, scTcb = none and
+     ¬(blocked ∧ ¬released) whenever it returns `some (some scPtr)` (`if tcbSc ≠ scPtrOpt` with tcbSc = none). Walk:
+     fl4DecodeInvocation .threadCap → fl4DecodeTcbInvocation → decodeTcbInvocation .tcbSetSchedParams → decodeSetSchedParams
+     (checkPrio reads) → decodeUpdateSc (sb2's `okb_decodeUpdateSc` is the branch map), then `bindRel_bk` + `bindRel_setThreadState`
+     to the perform as `bindRel_perform`.
+  2. `rd_fl4HandleInvocationR` (ctq18's `ebr_fl4HandleInvocationR` skeleton / `er_syscall_post`): carry `RB ct I ∧ RdyT ct ∧ OffReady
+     ∧ Suff ∧ NtfnQB` (plus RNE for `okp_fl4DecodeRdD`) through gets / getMessageInfo / the lookups (read-only: ctq's `pk_*`) /
+     getMrs / the decode (`bk_fl4DecodeInvocation` keeps the view) / `set_thread_state ct Restart` (Restart is runnable, not BlkR);
+     the fault handler by `rd_hf` (HB ct), the error reply / final reply / `set_thread_state ct Running` by rd leaves; the perform by
+     `rd_fl4PerformInvocation` with `PerfOK` from `okp_fl4DecodeRdD` (+ item 1), `bindRel_perform`, `okv_fl4DecodeCfgD`, VfhAll and the
+     named inputs above. Then the Send / NBSend / Call arms of `RdBody` (fl4HandleSyscall: getCapReg then fl4HandleInvocationR).
+  3. ReplyRecv / NBSendRecv / NBSendWait: `RdBody` = fl4HandleInvocationR (item 2) then `rd_handleRecv` from `RH ct` at its outcome;
+     `RH` needs RdyT ct only for `rd_hf` — generalise `rd_hf` / `rd_sendFaultIpc` to an `RT` faulting thread (rd8d's send_ipc with an
+     unbound sender: the BlockedOnSend write is fine by `rd_setThreadState_rt`), and carry RcvS's other clauses across the reply phase.
+  4. Goal item 3 (retype / detype / MakePool) to discharge the Untyped / ASIDControl inputs; a carried `valid_blocked` for DomainSet.
+- Builds (tokyo, FL4-r3 mirror; ./rd8hs.sh untracked = rd8fs.sh with its own log): rd8h-r1 / r2 Rd8hR (green first try, 5464 jobs) +
+  axioms (scratch/rd8h/ax1.lean); r3 Rd8hC (rd_suspend is `B8f.rd_suspend`; set_flags' threadGet needs `ik_unfold`), r4 Rd8hC green
+  (5466 jobs); r5 Rd8hP green (5474 jobs); r6 axioms over every theorem of R / C / P (scratch/rd8h/ax2.lean); r7 Rd8hD + Rd8hP
+  (DomainSet switched from a Rdy-at-the-outcome input to `SR t σ`; `threadSetDomain` must be unfolded and the update function
+  named before `tv_threadSet` / `sv_threadSet'` / `rd_threadSet` apply; the FPU chain of `archPrepareSetDomain` goes through
+  `tv_auto` / `sv_auto` after unfolding fpuRelease / switchLocalFpuOwner / save / load / setX64CurrentFpuOwner), r8 green (5476
+  jobs), r9 axioms over D + P (scratch/rd8h/ax3.lean). Axioms: every listed lemma propext, Classical.choice, Quot.sound or
+  a subset (`tcb_tv`, `sf_of`, `sf_dequeue`: propext; `ikRS`, `rd_seqRet`, `rd_lift`: propext, Classical.choice). No sorry/admit/native_decide/bv_decide/axiom.
+  Root Fl4Proofs.lean not rebuilt (import lines only).
