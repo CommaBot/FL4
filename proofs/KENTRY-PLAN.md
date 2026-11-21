@@ -12295,7 +12295,7 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   Quot.sound.
 - HANDOFF: `FastSame` (P-free memory agreement) for the fault path (F1–F6) then ReplyRecv (R1–R6); `MemResp` for `KPost` and
   `∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs …`; then `FastAcc.of_same` closes `hF` / `hFast`.
-## g4a (branch par/g4a in FL4-sc, on 550d49c6 = int/j2 incl. g2j, rd14h, m56) — G4: inventory of `kernel_entryJ34`; `kernel_entryJ35` (the (a) premises by projection); `JReach` / `jreach_inv` / `kernel_entry_reach` from `JAtZ ∧ SInvX ∧ MR` (no `initASt`)
+## g4a (branch par/g4a in FL4-sc, on 91b89347 = int/j2 incl. m57, g2j, rd14h, m56; first cut on 550d49c6) — G4: inventory of `kernel_entryJ34`; `kernel_entryJ35` (the (a) premises by projection); `JReach` / `jreach_inv` / `kernel_entry_reach` from `JAtZ ∧ SInvX ∧ MR` (no `initASt`)
 New leaf only (XTopJointKEntry35; root import). Nothing existing edited (in particular not XTopJointKEntry33's J33 / J34, m57's file).
 
 ### (1) Inventory (written before proving): every premise of `kernel_entryJ34` and of the chain J34 → J33 → J33G → J32 → J31 → J30 → J29G
@@ -12322,7 +12322,7 @@ with `JAtZR` in hand). The chain below J34 adds no premise: J33 → J33G adds `h
 | T10 | `hB : OffReady (faultIPSt σ ct x)` | σ | (a) | RdL's `OffReady σ` + the FaultIP frame (`offReady_faultIPSt`, new: the write touches ct's TCB only) |
 | T11 | `hARI` ARIface, `hA` ArchTotal, `hM` MachPlat, `hKD` MRKeepD, `hPA` PPPlatA, `hIA` IrqPlatA, `hmrt`, `hmb`, `hT` TimeAgree, `hmax`, `htu` | — | (b) [P] ×11 | arch-only, no ∀-spec-state (G0 done) |
 | T12 | `hnd : numDomains = 1` | — | (c) [S] | config |
-| T13 | `hFast` (`P1.FastAgree` for SysReplyRecv) | σ | (b) [P] | m56 / m57: fastpath refinement (m57 reshaping in parallel) |
+| T13 | `hFast : n = SysReplyRecv → FastRR … (KPost …)` (m57: the runs where `fastpath.reply_recv` answers from a KFrontB state) | σ | (b) [P] | fast-path refinement (m57's FastSame handoff) |
 | G1–G10 | hK: `JEntryGlobM32.ari tot delParts.arKeep delParts.ticks nd ppA dom timeAg maxTU tu` | — | (a) ×10 | duplicates of T11 / T12 (`hARI`, `hA`, `hARI.toARKeep`, `⟨hmax, htu⟩`, `hnd`, `hPA`, `DomConfig = ⟨hnd⟩`, `hT`, `hmax`, `htu`) |
 | G11 | hK: `JEntryGlobM32.delParts.archRef` (ArchRefines) | — | (b) [P] | moved to the top (`hRef`) |
 | G12 | hK: `JEntryGlobM32.portIn` (PortInVal, ∀σ) | — | (b) [P] | moved to the top (`hPI`); strong ∀σ form (mr10 / INV-PLAN §0): restate MR-relative (G0) |
@@ -12360,3 +12360,36 @@ Beyond premises, two gaps of the induction itself (not premises of J34): **(G-a)
 fails: `(fl4KernelEntrySyscall true c σ).2`) has no successor state; l4v closes it with `no_fail` of the abstract entry under
 `invs` — to discharge: a spec-only `kentry_nofail : SInvX σ → ct ≠ idle → ¬ (fl4KernelEntrySyscall true c σ).2`. **(G-b)**
 the MR carry (T4).
+
+### (2) The carried bundle `SInvX` and `kernel_entryJ35` (XTopJointKEntry35)
+- **`SInvX σ := SInvW σ ∧ RPos σ`** (namespace `SInvR.G4`, spec-only). RPos is the one spec fact J34 needs (via `EpQAll`) that
+  SInvW lacks. `kentry_sinvX` (syscall entry, `numDomains = 1`, ct ≠ idle) = rd14h's `kentry_rdyOff9` + epq2's `kentry_rpos`
+  (whose inputs Rdy, ScInv are SInvW's); `kcall_sinvX` the same for every event (`kcall_rdyOff9`, `kcall_rpos`); `boot_sinvX`
+  non-vacuity only. Projections: `SInvX.sb`, `.cq`, `.cr`, `.ctQ`, `.entered`, `.offReady`, `.epQAll` (`epQAll_of`).
+- `offReady_faultIPSt`: `OffReady σ → OffReady (faultIPSt σ t x)` (no hypothesis on t: if the current SC pointer were t the
+  claim is vacuous after the write).
+- `JPathAtM35` = `JPathAtM` with `Vs.NativeCap c →` before `JPathM`; `JPathAtM35.toM` at a `JAtZ` state (the invoked slot is
+  `AbsSlot.isSlot`, `J.ext.nat`). `jEntryGlobM32_of` builds `JEntryGlobM32` from the top's premises + `hRef`, `hPI`.
+  `KDispHypsKV35` = KV33 without `JEntryGlobM32`, with `JPathAtM35`; `.to33`.
+- **`kernel_entryJ35`** premises, exactly: PlainStore, `J : JAtZ … s a σ`, `hct : ct ≠ idle` [S], `hR : MR a σ.machineState`,
+  `hX : SInvX σ`, `hn` [S], `hflag` [S], `hK` (KFrontB / carried ghosts → `KDispHypsKV35`: E1–E10, P1, P2, P6–P35, V1 of (1)),
+  `hFin` (→ `KFinAtR31`: F1–F6), `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu` [P]/[S], `hRef : ArchRefines`, `hPI :
+  PortInVal` [P], `hFast : n = SysReplyRecv → FastRR …` [P] (m57's shape). Removed relative to J34: `hni`, `hS`, `hE`, `hQ`,
+  `hB` (now projections of `hX`), the ten duplicate `JEntryGlobM32` fields and the Vcpu / Ept / owned-IoPort / mapped-EPT-frame
+  JPathM cases. Post: **`KPostX`** = spec failure ∨ ∃ σ' outcome, `RJ r σ'` ∧ `SInvX σ'` (stronger than `KPost`).
+
+### (3) The induction (XTopJointKEntry35)
+- **`JReach arI AR MR : S → A → State Unit → Prop`**: `start` — any `JAtZ … s a σ` (some ghosts), `SInvX σ`, `MR a σ.machineState`
+  (no `initASt`, lead decision 2026-11-20); `step n c` — `JReach s a σ`, `ct ≠ idle` [S], `NativeSys n c` [S],
+  `handle_syscall st arI s a n = ok (s', a')`, `((), σ') ∈ (fl4KernelEntrySyscall true c σ).1`, `RJ s' a' σ'`, and
+  `MR a' σ'.machineState` (the open carry T4: KPost does not give it, so `step` asks it of the exit).
+- **`jreach_inv (hnd)`**: `JReach s a σ → (∃ ghosts, JAtZ … s a σ) ∧ SInvX σ ∧ MR a σ.machineState` (JAtZ from RJ's JAt, which
+  carries `live` / `zD` / `ext` as fields; SInvX by `kentry_sinvX`).
+- **`kernel_entry_reach`** (the [P] bundle + `hRef hPI`, `hnd`): `JReach s a σ → ∃ ghosts, JAtZ ∧ SInvX σ ∧ MR ∧ ∀ n c, ct ≠ idle →
+  NativeSys n c → hflag → hK (at those ghosts) → hFin → hFast → handle_syscall ⦃ r => spec fails ∨ ∃ σ', outcome ∧ RJ r σ' ∧
+  SInvX σ' ∧ (MR r.2 σ'.machineState → JReach r.1 r.2 σ') ⦄`. So the bundle is inductive up to the MR carry: every related exit
+  is again a start-shaped state (JAtZ from RJ, SInvX from the spec carry), and with MR it is reachable.
+- Remaining premises of the induction (exactly): the [P] platform (T1, T11, T13, G11, G12 and the [P] fields inside hK / hFin),
+  the [S] scope per step (ct ≠ idle, NativeSys, hflag, numDomains = 1, the VT-x cases P2 P6 P8 P25 P31 V1), the (d) bundles hK
+  (E4–E10, P1, P7, P9, P10, the Untyped / device [J] fields) and hFin (F1, F6) asked at each reachable state's ghosts, and the two
+  induction gaps (G-a) spec no-fail, (G-b) the MR carry to the exit.

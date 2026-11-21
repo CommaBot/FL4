@@ -92,7 +92,7 @@ theorem offReady_faultIPSt {t : ObjRef} {x : Tcb} (h : Sched.OffReady σ) :
   intro y n hy
   by_cases e : σ.curSc = t
   · exfalso
-    have : (faultIPSt σ t x).kheap (faultIPSt σ t x).curSc = some (.tcb (setReg x .faultIP
+    have : (faultIPSt σ t x).kheap (faultIPSt σ t x).curSc = some (.tcb (Notif.setReg x .faultIP
         (x.tcbArch.tcbContext.userRegs .nextIP - 2))) := by
       show Function.update σ.kheap t _ σ.curSc = _
       rw [e, Function.update_self]
@@ -237,7 +237,7 @@ theorem kernel_entryJ35 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
     (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
-      P1.FastAgree st arI s a n (fun r => KPost (L := L) arI AR c σ r)) :
+      FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostX (L := L) arI AR c σ r ⦄ := by
   have hG := kernel_entryJ34 (MR := MR) s a σ J (hX.entered hct) hR hX.sb hX.epQAll hX.ctQ n c hn hflag
     (fun _ _ => offReady_faultIPSt hX.offReady)
@@ -316,7 +316,7 @@ theorem kernel_entry_reach [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR) 
         (D' : Set U64) (s' : S) (a' : A), KFrontF (L := L) arI n s a s' a' →
           JAtZR (L := L) arI AR Z' H' Cs' Ac' Lst' D' s' a' x.2 →
           KFinAtR31 (L := L) arI AR Z' H' Cs' s' a' x.2) →
-      (n = fl4_abi.syscall.SysReplyRecv → P1.FastAgree st arI s a n (fun r => KPost (L := L) arI AR c σ r)) →
+      (n = fl4_abi.syscall.SysReplyRecv → FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) →
       syscall.handle_syscall st arI s a n ⦃ r => (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).2 ∨
         ∃ σ', ((), σ') ∈ (Fl4Spec.fl4KernelEntrySyscall (Z := Unit) true c σ).1 ∧
           RJ (L := L) arI AR r.1 r.2 σ' ∧ SInvX σ' ∧
