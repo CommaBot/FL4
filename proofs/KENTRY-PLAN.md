@@ -12375,3 +12375,125 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
 - HANDOFF: (a)–(e) above in that order, then ReplyRecv. The meeting-point style (`fault_sync`: prove the general program
   equal to a continuation applied at the fast path's state, with reads as hypotheses at the states where they occur) worked
   with `step*` only for single getters; keep it.
+## g4a (branch par/g4a in FL4-sc, on 91b89347 = int/j2 incl. m57, g2j, rd14h, m56; first cut on 550d49c6) — G4: inventory of `kernel_entryJ34`; `kernel_entryJ35` (the (a) premises by projection); `JReach` / `jreach_inv` / `kernel_entry_reach` from `JAtZ ∧ SInvX ∧ MR` (no `initASt`)
+New leaf only (XTopJointKEntry35; root import). Nothing existing edited (in particular not XTopJointKEntry33's J33 / J34, m57's file).
+
+### (1) Inventory (written before proving): every premise of `kernel_entryJ34` and of the chain J34 → J33 → J33G → J32 → J31 → J30 → J29G
+Tags: **(a)** a projection of JAtZ / JExt at the state it is asked at, of SInvW / SInvB / SInvA at the entry, or of another
+premise of the same top (a duplicate) — field cited; **(b) [P]** platform; **(c) [S]** scope; **(d)** still open ([J] / [W]),
+with what would discharge it. States: σ = entry, σb = dispatch state (after FaultIP + a passing budget check, where `hK`'s
+bundle is asked, with `JAtZ (Z.mv Z.G V') H Cs … s' a' σb` in hand), x.2 = a `specFront` outcome (where `hFin`'s is asked,
+with `JAtZR` in hand). The chain below J34 adds no premise: J33 → J33G adds `hFast`; J33G's `hLv` is J34's `J.live`; J32's
+`thr.obj` = `jThrObj_ofExt` (J.ext.vw); J31's `JDelParts.vt` = `JVtHyps.ofExt` (J.ext.nat), `KFinAtR27.vt` = `vtAsid_ofR`
+(JAtZR.vsc); J30 / J29G are J13PUG's body with hK / hFin pinned to the run's FL4 states (g3d).
+
+| # | premise (J34 / inside a bundle) | at | class | source / what would discharge it |
+|---|---|---|---|---|
+| T1 | `[PlainStore st]` | — | [P] | P1 store model (statement) |
+| T2 | `J : JAtZ` (incl. `live`, `zD`, `ext`) | σ | carried | G4: `RJ` at the previous exit (`KPost`), `JAt`'s ghosts |
+| T3a | `hni.1 : ct ≠ idle` | σ | (c) [S] | a syscall comes from a user thread (`JReach.step` asks it) |
+| T3b | `hni.2 : action = resumeCurThread` | σ | (a) | SInvW → SInvCR's `RS` (`SInvCR.entered`) |
+| T4 | `hR : MR a σ.machineState` | σ | (d) | start condition; NOT in `KPost` (RJ = RelTopM ∧ JAt): carry MR to the exit through the finish / schedule / activate posts (MachPlat chain: `update_timestamp_mr`, the MRV holes, `set_next_interrupt`) and add it to RJ / KPost |
+| T5 | `hS : SInvB σ` | σ | (a) | `SInvW.sb` |
+| T6 | `hE : EpQAll σ` | σ | (a) with one added field | `epQAll_of` (Rdy = RdL.1, ScInv = SInvA.scInv, EpQB = SInvA.epq, **RPos**). RPos is not in SInvW: added to the carried bundle `SInvX := SInvW ∧ RPos` (spec-only), carried by epq2's `kentry_rpos` / `kcall_rpos` (inputs RPos, Rdy, ScInv: all in SInvX) |
+| T7 | `hQ : ∀ d p, ct ∉ readyQueues d p` | σ | (a) | `SInvCQ.ctQ` (EX's CtQ) |
+| T8 | `hn : NativeSys n c` | — | (c) [S] | native syscall numbers (event scope) |
+| T9 | `hflag` (TRAP_SYSCALLS clear after FAULT_IP write) | σ | (c) [S] | l4h trap mode |
+| T10 | `hB : OffReady (faultIPSt σ ct x)` | σ | (a) | RdL's `OffReady σ` + the FaultIP frame (`offReady_faultIPSt`, new: the write touches ct's TCB only) |
+| T11 | `hARI` ARIface, `hA` ArchTotal, `hM` MachPlat, `hKD` MRKeepD, `hPA` PPPlatA, `hIA` IrqPlatA, `hmrt`, `hmb`, `hT` TimeAgree, `hmax`, `htu` | — | (b) [P] ×11 | arch-only, no ∀-spec-state (G0 done) |
+| T12 | `hnd : numDomains = 1` | — | (c) [S] | config |
+| T13 | `hFast : n = SysReplyRecv → FastRR … (KPost …)` (m57: the runs where `fastpath.reply_recv` answers from a KFrontB state) | σ | (b) [P] | fast-path refinement (m57's FastSame handoff) |
+| G1–G10 | hK: `JEntryGlobM32.ari tot delParts.arKeep delParts.ticks nd ppA dom timeAg maxTU tu` | — | (a) ×10 | duplicates of T11 / T12 (`hARI`, `hA`, `hARI.toARKeep`, `⟨hmax, htu⟩`, `hnd`, `hPA`, `DomConfig = ⟨hnd⟩`, `hT`, `hmax`, `htu`) |
+| G11 | hK: `JEntryGlobM32.delParts.archRef` (ArchRefines) | — | (b) [P] | moved to the top (`hRef`) |
+| G12 | hK: `JEntryGlobM32.portIn` (PortInVal, ∀σ) | — | (b) [P] | moved to the top (`hPI`); strong ∀σ form (mr10 / INV-PLAN §0): restate MR-relative (G0) |
+| E1 | hK: `JEntryAtR3.stall` (remote_tcb_stall is a no-op) | σb | (b) [P] | one core |
+| E2–E3 | hK: `JEntryAtR3.ioapics`, `archIrq` | σb | (b) [P] ×2 | arch IRQ tables |
+| E4–E10 | hK: `JEntryAtR3.flags handlers ports vsTyp fnz urz utks` | σb | (d) [J] ×7 | none is a JAtZ / JExt field: add each to `JExt` with its keep lemma at every producer (INV-PLAN G2 list), plus the FAULT_IP + budget_ok frame (as `liveDN_front`) |
+| P1 | hK: JPathAtM Thread `hFr` (ReadFPU frame) | σb | (d) [J] | from `fcap` + `bok` + SpecGlob (INV-PLAN P1), or a JExt field |
+| P2 | hK: JPathAtM Thread SetEPTRoot `JVtxScope` | σb | (c) [S] | label-based VT-x scope (the thread cap is native) |
+| P3 | hK: JPathAtM IoPort with owner ≠ 0 `JVtxScope` | σb | (a) | refuted by `J.ext.nat` at σb (`NativeCap (.IoPort _ _ o) = (o = 0)`; the invoked slot is `AbsSlot.isSlot`) |
+| P4 | hK: JPathAtM Vcpu `JVtxScope` | σb | (a) | refuted by `J.ext.nat` (NativeCap (.Vcpu _) = False) |
+| P5 | hK: JPathAtM Ept `JVtxScope` | σb | (a) | refuted by `J.ext.nat` |
+| P6 | hK: JPathAtM Frame `ep = true ∨ lbl = MapEPT → JVtxScope` | σb | (c) [S] | only the mapped ∧ EPT case is refuted by `nat`; unmapped EPT-flag frames and the EPT-map label stay scope |
+| P7 | hK: JPathAtM Frame `hno` (large frame vs every frame cap) | σb | (d) [J] | frame-cap overlap discipline as a JExt field (INV-PLAN P8) |
+| P8 | hK: JPathAtM AsidPool `native` (extra cap not Ept) | σb | (c) [S] | the extra cap's slot is not in JPathAtM's context (needs `ExtraNamed` there, then (a) by `nat`) |
+| P9–P10 | hK: JPathAtM AsidControl `heapH`, `vsReach` | σb | (d) [J] ×2 | ArchFitHyp / RegionUnrefAt / VsReachMiss carried (INV-PLAN P9 / P10, L) |
+| P11–P17 | hK: JPathAtM SchedContext `tm mb max tu` (dups of T11), `arch` [P], `rest` (∀ ghosts JAtZ → ScStepP1) [P]; YieldTo `mb max tu` (dups) | σb | (b) [P] ×7 groups | `rest` is P1-provable at every BlkOK (INV-PLAN §3); left: the dups sit inside the JPathM case split |
+| P18–P21 | hK: JPathAtM SchedControl `tm mb max tu` (dups), `core` (cpu = Z.c, one core), `arch`, `rest` | σb | (b) [P] ×4 groups | as P11–P17 |
+| P22–P27 | hK: JPathAtM RAM Untyped `fan`, `rcb`, `core0` [P]; `vtx` [S]; `bufObj`, `heapH`, `vsReach` [J] | σb | (b) ×3, (c) ×1, (d) ×3 | INV-PLAN P11–P15 |
+| P28–P35 | hK: JPathAtM device Untyped `fan`, `core0`, `rcb` [P]; `vtx` [S]; `bufObj`, `heapH`, `devApart`, `devFree`, `devGpm`, `vsReach` [J] | σb | (b) ×3, (c) ×1, (d) ×6 | INV-PLAN P17–P20 |
+| V1 | hK: `JVtxHypMU` (Untyped retype to VT-x types 14..18) | σb | (c) [S] | g2a (4): with `nat` it says "no successful VT-x retype" |
+| F1 | hFin: `KFinAtR31.hd` (domainTime ≠ 0 ∨ NdOK) | x.2 | (d) [J] | DomRel from RelTopM, DomListOK from SInvA.dom carried to x.2, the DOM_SCHED_IDX word a JExt field |
+| F2–F5 | hFin: `KFinAtR31.arch archNd sni send` (∀ SchedRel) | — | (b) [P] ×4 | arch switch / next-domain / timer / IPI |
+| F6 | hFin: `KFinAtR31.tail` (CR3 after the switch) | x.2 | (d) [P]+[J] | vtable-to-CR3 relation (INV-PLAN F8, L) |
+
+Counts (by field; a bundle field counts once even when asked by both `inv` and `mid`): **(a) 18** (T3b, T5, T6, T7, T10,
+G1–G10, P3–P5; discharged upstream before J34 and not counted: hLv, thr.obj, JDelParts.vt, KFinAtR27.vt, g3a / g3c's hVI,
+hB.now / cur / tmo, JEntryAt.ni / ctnq / sg / rd0 / vfh / cnf / epQ, KFinAtR.fo, the three mid facts); **(b) [P] 44** (T1, T11 ×11,
+T13, G11, G12, E1–E3, SchedContext ×6 + YieldTo ×3, SchedControl ×7, RAM Untyped fan / rcb / core0, device fan / core0 / rcb,
+F2–F5); **(c) [S] 10** (T3a, T8, T9, T12, P2, P6, P8, RAM / device `vtx`, V1); **(d) open 23** (T4; E4–E10 ×7; P1, P7, P9, P10;
+RAM Untyped bufObj / heapH / vsReach; device bufObj / heapH / devApart / devFree / devGpm / vsReach; F1, F6). None of (d) is a
+∀-over-states premise: each is asked at σ, σb or x.2 of the run (g3d's pinning); hK's `Ac' Lst' D'` and hFin's ghosts stay ∀
+(the producers' posts are existential in them, g3d (3)).
+
+Beyond premises, two gaps of the induction itself (not premises of J34): **(G-a)** `KPost`'s left disjunct (the spec entry
+fails: `(fl4KernelEntrySyscall true c σ).2`) has no successor state; l4v closes it with `no_fail` of the abstract entry under
+`invs` — to discharge: a spec-only `kentry_nofail : SInvX σ → ct ≠ idle → ¬ (fl4KernelEntrySyscall true c σ).2`. **(G-b)**
+the MR carry (T4).
+
+### (2) The carried bundle `SInvX` and `kernel_entryJ35` (XTopJointKEntry35)
+- **`SInvX σ := SInvW σ ∧ RPos σ`** (namespace `SInvR.G4`, spec-only). RPos is the one spec fact J34 needs (via `EpQAll`) that
+  SInvW lacks. `kentry_sinvX` (syscall entry, `numDomains = 1`, ct ≠ idle) = rd14h's `kentry_rdyOff9` + epq2's `kentry_rpos`
+  (whose inputs Rdy, ScInv are SInvW's); `kcall_sinvX` the same for every event (`kcall_rdyOff9`, `kcall_rpos`); `boot_sinvX`
+  non-vacuity only. Projections: `SInvX.sb`, `.cq`, `.cr`, `.ctQ`, `.entered`, `.offReady`, `.epQAll` (`epQAll_of`).
+- `offReady_faultIPSt`: `OffReady σ → OffReady (faultIPSt σ t x)` (no hypothesis on t: if the current SC pointer were t the
+  claim is vacuous after the write).
+- `JPathAtM35` = `JPathAtM` with `Vs.NativeCap c →` before `JPathM`; `JPathAtM35.toM` at a `JAtZ` state (the invoked slot is
+  `AbsSlot.isSlot`, `J.ext.nat`). `jEntryGlobM32_of` builds `JEntryGlobM32` from the top's premises + `hRef`, `hPI`.
+  `KDispHypsKV35` = KV33 without `JEntryGlobM32`, with `JPathAtM35`; `.to33`.
+- **`kernel_entryJ35`** premises, exactly: PlainStore, `J : JAtZ … s a σ`, `hct : ct ≠ idle` [S], `hR : MR a σ.machineState`,
+  `hX : SInvX σ`, `hn` [S], `hflag` [S], `hK` (KFrontB / carried ghosts → `KDispHypsKV35`: E1–E10, P1, P2, P6–P35, V1 of (1)),
+  `hFin` (→ `KFinAtR31`: F1–F6), `hARI hA hnd hM hKD hPA hIA hmrt hmb hT hmax htu` [P]/[S], `hRef : ArchRefines`, `hPI :
+  PortInVal` [P], `hFast : n = SysReplyRecv → FastRR …` [P] (m57's shape). Removed relative to J34: `hni`, `hS`, `hE`, `hQ`,
+  `hB` (now projections of `hX`), the ten duplicate `JEntryGlobM32` fields and the Vcpu / Ept / owned-IoPort / mapped-EPT-frame
+  JPathM cases. Post: **`KPostX`** = spec failure ∨ ∃ σ' outcome, `RJ r σ'` ∧ `SInvX σ'` (stronger than `KPost`).
+
+### (3) The induction (XTopJointKEntry35)
+- **`JReach arI AR MR : S → A → State Unit → Prop`**: `start` — any `JAtZ … s a σ` (some ghosts), `SInvX σ`, `MR a σ.machineState`
+  (no `initASt`, lead decision 2026-11-20); `step n c` — `JReach s a σ`, `ct ≠ idle` [S], `NativeSys n c` [S],
+  `handle_syscall st arI s a n = ok (s', a')`, `((), σ') ∈ (fl4KernelEntrySyscall true c σ).1`, `RJ s' a' σ'`, and
+  `MR a' σ'.machineState` (the open carry T4: KPost does not give it, so `step` asks it of the exit).
+- **`jreach_inv (hnd)`**: `JReach s a σ → (∃ ghosts, JAtZ … s a σ) ∧ SInvX σ ∧ MR a σ.machineState` (JAtZ from RJ's JAt, which
+  carries `live` / `zD` / `ext` as fields; SInvX by `kentry_sinvX`).
+- **`kernel_entry_reach`** (the [P] bundle + `hRef hPI`, `hnd`): `JReach s a σ → ∃ ghosts, JAtZ ∧ SInvX σ ∧ MR ∧ ∀ n c, ct ≠ idle →
+  NativeSys n c → hflag → hK (at those ghosts) → hFin → hFast → handle_syscall ⦃ r => spec fails ∨ ∃ σ', outcome ∧ RJ r σ' ∧
+  SInvX σ' ∧ (MR r.2 σ'.machineState → JReach r.1 r.2 σ') ⦄`. So the bundle is inductive up to the MR carry: every related exit
+  is again a start-shaped state (JAtZ from RJ, SInvX from the spec carry), and with MR it is reachable.
+- Remaining premises of the induction (exactly): the [P] platform (T1, T11, T13, G11, G12 and the [P] fields inside hK / hFin),
+  the [S] scope per step (ct ≠ idle, NativeSys, hflag, numDomains = 1, the VT-x cases P2 P6 P8 P25 P31 V1), the (d) bundles hK
+  (E4–E10, P1, P7, P9, P10, the Untyped / device [J] fields) and hFin (F1, F6) asked at each reachable state's ghosts, and the two
+  induction gaps (G-a) spec no-fail, (G-b) the MR carry to the exit.
+
+### (4) Findings
+- No premise of J34 / J35 found false in a reachable state. Checked: every (a) projection is a field of a bundle carried by a
+  whole-entry top (rd14h, epq2); the known [S] `JVtxHypMU` (g2a (4): false for a system that retypes VT-x objects) is unchanged.
+- Not a premise, but recorded as induction gaps: (G-a) the spec-failure disjunct of `KPost` (no successor state; needs a spec
+  `no_fail` lemma under `SInvX`), (G-b) `MR` at the exit (asked by `JReach.step`).
+
+### (5) Builds and axioms
+- Rebased onto 91b89347 (m57) mid-line (lead note): `hFast` now `FastRR` in J35 and `kernel_entry_reach`; KENTRY-PLAN conflict
+  was two appended sections (both kept).
+- tokyo, FL4-sc mirror (./g4a.sh untracked = g2j.sh; scratch/g4a/ax.lean untracked). g4a-b1 (550d49c6 tree, cold spec cone,
+  ~46 min): one error (`setReg` is `Notif.setReg`). g4a-b2 (91b89347 tree, XTopJointKEntry35): "Build completed successfully
+  (6902 jobs)". **g4a-full1** (full `lake build` of proofs/ at 18e33126): "Build completed successfully (6969 jobs)". No sorry /
+  admit / native_decide / bv_decide.
+- Axioms (g4a-full1): kernel_entryJ35, jreach_inv, kernel_entry_reach, JPathAtM35.toM, KDispHypsKV35.to33, jEntryGlobM32_of,
+  SInvR.G4.kentry_sinvX, kcall_sinvX, SInvX.epQAll, boot_sinvX: propext, Classical.choice, Quot.sound; offReady_faultIPSt:
+  Classical.choice.
+
+### (6) Next (handoff)
+- (G-b) MR to the exit: extend RJ / KPost with `MR r.2 σ'.machineState` (the MachPlat chain already threads MR through the
+  holes; the finish / schedule / activate posts need it), then drop it from `JReach.step`.
+- (G-a) spec `kentry_nofail` under `SInvX` (spec-only line, outside the cone).
+- The 23 (d) premises, in G2 / G3 order: JEntryAtR3's seven joint fields as JExt fields, the JPath [J] fields (heapH /
+  vsReach / devApart … are L), `KFinAtR31.hd` / `tail`.
