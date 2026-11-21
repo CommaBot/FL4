@@ -10515,3 +10515,74 @@ SpecInvRd8jK / B / C, SpecInvRd8mD / E. No JAtZ cone (scratch/rd8h/anc.py on Spe
   bf_chargeOut / svs_kz: propext. No `declaration uses sorry`; no sorry / admit / native_decide / bv_decide / axiom. anc.py:
   SpecInvRd8pB 966 / SpecInvRd8jK 948 / SpecInvRd8mE 966 modules, no JointAt / XTopJointDelR / JAtZ. Root Fl4Proofs.lean not
   rebuilt (two import lines). Commits: 3c4f80a8 (item 3), a417a529 (SpecInvRd8pA / B + root imports), this section.
+## g2c (branch par/g2c in FL4-sc, on 895055b2 = int/j2 incl. g2b) — G2 third step: `JEntryAt.live` re-scoped to the carried ghosts; `live` out of `hK`, asked once at the entry state and carried to the dispatch state; `kernel_entryJ33` (DONE); the carry from the dispatch state to the exit (the post) NOT done (handoff)
+Goal (INV-PLAN §1 E15, §3, §4 G2; g2b handoff (4)/(8)): make `live` (∀-ghost [J], read in 22 files) a per-state carried fact.
+Resumed once (predecessor cut off after ~10 min with the re-scope of (1) uncommitted; kept as is, it built unchanged).
+
+### (1) Re-scope of the field (commit d2c5a35d)
+- `JEntryAt` (XTopJointEntry), `JEntryAtR` (KEntry27), `JEntryAtR2` (KEntry27b) take the ghosts `H Cs` as parameters; `live` was
+  `∀ H Cs Ac Lst D, JAtZ … s ar σ → LiveDN Z.th H Cs Z.G s σ`, it is now `LiveDN Z.th H Cs Z.G s σ`.
+- Every reader (`have hLv := hE.live H Cs Ac Lst D J` in decOK_J, KEntry13P/17P/18P/23P) instantiated the ∀ at the `JAtZ` it decodes
+  from, so the readers changed to `hE.live` only. The dispatch chain (JEntryHyps, dispatch_invokeJ / JE / JPI / JEPI / JEPZEC(I) /
+  JAll, invoke_afterJ, handle_invocation_entryJ, KDispHyps 8..32 bundles, Preempt*) passes the ghosts it already has (`H Cs` of the
+  decode's JAtZ): 59 files, one token each. No new premise; every top's `hK` got strictly weaker (J32's statement keeps its shape).
+- So INV-PLAN §3's row "`JEntryAt.live` … false at a non-reachable instance: possibly (LiveDN at another heap H' that also satisfies
+  JAtZ)" is resolved: the field no longer quantifies over ghosts.
+
+### (2) `kernel_entryJ33` (commit 0ea2bd12, new leaf XTopJointKEntry33)
+- `LiveDN.of_keep`: `LiveDN` kept at the same ghosts by a step keeping the slots (`SlotsSame`), the debug words (`DbgKeep`), every TCB's
+  `affA` / `stA` / `scA` / `boundA` / `yieldA` word, the action and idle words and `isOriginalCap` (`LiveJ.of_sameZ`: a TCB zombie's
+  object is a TCB by `DelInv.zwf`/`ZOK`, so its `DeadP` reads only those words; `DbgWFL.of_keep`; `NullOrig.of_same`). This is the
+  generic frame for every step family whose footprint misses those words (the analogue of g2a/g2b's `JExt.of_eq` / `VKeep`).
+- `budget_ok_frT` (passing `budget_ok` writes the current node's CUR_TIME / CONSUMED only: XTopJointPP `update_timestamp_fr` +
+  P1 `check_budget_restart.same`), `front_writes` (KFrontB writes those two words and the current TCB's FAULT_IP register, offset 392),
+  `BudgetAt.orig` (the spec front keeps the original bits), `liveDN_front` (LiveDN at the entry ⇒ LiveDN at every dispatch state `hK`
+  is asked at: ghosts `Z.mv Z.G V'`, `H`, `Cs`, FL4 state `KFrontB`, spec state `BudgetAt σ σb true`).
+- `JEntryAtR3` / `KDispHypsKV33` (= `JEntryAtR2` / `KDispHypsKV32` without `live`), `.toR2` / `.to32 hLv`.
+- `kernel_entryJ33` = `kernel_entryJ32` with `hK : … → KDispHypsKV33` and ONE new per-state premise
+  `hLv : LiveDN Z.th H Cs Z.G s σ` [J] (l4v `if_unsafe_then_cap`, `if_live_then_nonz_cap`, `zombies_final`, `valid_nullcaps`, FL4's
+  debug-list shape) at the entry state and the entry JAtZ's own ghosts. J32 kept (J33 is a wrapper over it).
+
+### (3) Step families: which keep `LiveDN` (b)
+- Proved: the FL4 front (FAULT_IP + passing budget_ok, `liveDN_front`); inside an invocation, existing (pre-g2c) lemmas already
+  carry it: the caller's restart (`WJL.restart`), the whole deletion loop at `WJL` (`wjl_keep` and the WJL step lemmas: slot swaps /
+  zombie writes / empties, every finaliser incl. a thread cap's `debug_remove`, preemption point, post deletion), a TCB install's
+  insert (`LiveDN.insT`).
+- NOT done (what G4 needs: LiveDN at the exit state, in the post `KPost`/`RJ`): every family from the dispatch state to the exit,
+  through the J decode lemmas' posts (they end at `JAt`, which does not carry LiveDN):
+  (i) the deletion / install invocations: the WJL invariant already holds LiveDN at their end (`EJL`/`WJL` posts), so only the plumbing
+  to the decode post is missing (S–M);
+  (ii) IPC (send / recv / reply / fault / grant transfer): slots change only by the grant's insert (a cap alike the sender's: shape of
+  `LiveDN.insT`), TCB states change (DeadP of a TCB zombie's TCB: dead TCBs are not IPC partners), no debug words: `LiveDN.of_keep`
+  plus an insert lemma (M);
+  (iii) retype / reset: new objects' slots null, new TCBs appended to the debug list together with their thread cap (`dbg` needs the
+  cap: holds after the retype loop, not between `debug_append` and the cap insert) (M–L);
+  (iv) VSpace map / unmap / pool, CNode copy / mint / move / mutate / rotate, IRQ / IO control, SchedControl / SC / TCB config:
+  slot writes of caps alike existing ones (`RefsObj` only sees CNode / Thread / Zombie caps; copies of those are alike) (M);
+  (v) `finish` (schedule, activate_thread, timer / release): footprints miss slots and debug words; DeadP of dead TCBs kept because
+  dead TCBs are never scheduled (S–M, `LiveDN.of_keep` with `JAtZ.deadP_keep`).
+  Cost: one cone pass (the J decode posts are in ~100 modules) if LiveDN is added as a `JExt` field with `JExt.of_eq` / `step` taking
+  the `LiveDN.of_keep` inputs; or a separate post field on `JAt` (same cone).
+- No step found that breaks LiveDN in native scope (no FINDING).
+
+### (4) Boot obligation ([W] for G4, per the 2026-11-20 lead decision)
+- For the initial joint state (s0, a0, σ0) with ghosts Z0, H0, Cs0: `LiveDN Z0.th H0 Cs0 Z0.G s0 σ0`: every slot in use of a CNode or
+  TCB of Z0.th is covered by an MDB cap (CNode / Thread / Zombie) naming its container; every TCB on core 0's debug list is named by a
+  thread cap; zombie conditions (no zombies at boot: vacuous); the debug lists well formed (`DbgWF` with the TCBs of H0, cores Cs0);
+  no null slot original. Part of `BootJ` beside JExt's (g2b (5)); for a concrete FL4 boot state it holds because the root task's
+  CNode / TCB are named by the root caps, its TCB is the only debug-list member and boot makes no zombie.
+
+### (5) Findings
+- None false in reachable native states. The old ∀-ghost form was the risky one (INV-PLAN §3); the new field and `hLv` are per-state.
+
+### (6) Builds and axioms
+- tokyo, FL4-sc mirror (warm), ./g2c.sh (= g2b.sh). r1 (re-scope; targets = the 4 maximal modules of the 144-module downstream
+  closure of the 59 edited files: XTopJointKEntry28M XTopJointKEntry30D XTopJointKEntry32 XTopJointPortInM): "Build completed
+  successfully (6606 jobs)" (the mirror held the predecessor's build of the same tree). r2: parse error in KEntry33 (fixed);
+  r3: XTopJointKEntry33 "Build completed successfully (6388 jobs)". Root Fl4Proofs.lean (one import line) not rebuilt.
+  No sorry / admit / native_decide / bv_decide in the diff.
+- Axioms (scratch/g2c/ax.lean, untracked; task g2c-r4): kernel_entryJ33, kernel_entryJ32, liveDN_front, LiveDN.of_keep, front_writes,
+  budget_ok_frT, BudgetAt.orig, KDispHypsKV33.to32, decOK_J, dispatch_invokeJAll: propext, Classical.choice, Quot.sound.
+
+### (7) Next (handoff)
+- (3)(i)–(v): LiveDN at the exit, then drop `hLv` from the per-call top in favour of the invariant (G4's `jreach_inv`).
