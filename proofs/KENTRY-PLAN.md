@@ -10303,3 +10303,69 @@ existing edited. No JAtZ cone (scratch/rd8l/anc.py = rd13a's script: Rd8lA..C, S
   needs the size, `RqTi` must reduce to True on non-binding decodes), a2 A green (5514 jobs); b1 B green first try (5524); c1 (C:
   BlockedScActive is a structure, so the machine-state step rebuilds it; `split` after `NonDet.when` needs `dsimp only`), c2 C green
   (5526); d1 C (NotQ premise) + D green (5566 jobs: SpecInvAllR cone recompiled) + axioms (scratch/rd8l/ax.lean, untracked): all 31 listed lemmas propext, Classical.choice, Quot.sound or a subset (bq_mfq: Classical.choice; nq_of_ev: propext). No sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (four import lines).
+
+## rd8n (branch par/rd8n in FL4-c2, on 1f88d1ed = int/j2 incl. rd8j, rd8k, rd8h, rd13a, rd12a/b, rd13b, g2a) — rd8j handoff 3 in part: Untyped / ASIDControl perform inputs DONE (retype / detype / reset / MakePool keep Rdy from carried facts); DomainSet's `SR t` DONE from a new invariant `VB` (l4v valid_blocked) at the shell start; `VB`'s carry across the entry NOT done (handoff)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8n` (every new name), modules SpecInvRd8nA / B / Q / C (root imports them). Nothing existing
+edited. No JAtZ cone (scratch/rd8n/anc.py on SpecInvRd8nC: 955 modules, no JointAt / XTopJointDelR / JAtZ).
+- **SpecInvRd8nA (Rdy across retype / detype).** `Rdy` is NOT kept by removing objects (a queued thread or its SC removed breaks R1;
+  rd8k's `bsa_detype` shape does not apply). `FreshR` (an unbound TCB, an inactive SC, anything else), **`RF σ σ'`** (objects of σ'
+  are σ's or fresh; every bound TCB of σ with an SC keeps both objects; the idle SC kept; queues / action / release queue / time /
+  idle pointer unchanged), **`rdy_rf : Rdy σ → RF σ σ' → Rdy σ'`**, `rf_detype`, `rf_retype` (addresses holding no object, not the
+  idle SC), `freshR_default`. Region facts: **`bnd_out`** (sl's carried `ScLiveT (idleThread, idleSc)` + ut's `UtInv''`: no live
+  object in a childless untyped's region, ctq15's `rnDet_of_live` argument; the idle thread / idle SC by `IdleOutV` / `IdleScOutV`),
+  `bnd_pair` (the SC of a bound TCB is bound: sb2's `ScBackS`), `idle_out`, **`retPtrs_delR`** (the retype addresses lie in
+  `delR base bits`; so the idle SC is never a retype address). The reset's chunk loop: `UB := Rdy ∧ ValidMachineTime`
+  (`ub_preemptionPoint` from rd8f's `rdy_preemptionPoint`, `ub_setCap`, `ub_dmo`, `ub_archPost`, `ub_auto`). Steps
+  `rd_deleteObjects_p`, `rd_retypeRegionWith_p`, `rd_resetUntypedCap`, `rd_utBody`; **`rd_fl4InvokeUntyped ui σ (Rdy) (ValidMachineTime)
+  (UtInv'') (ScLiveT) (IdleOutV) (ScBackS) (IdleScOutV) (UtRetOK σ ui)`**, **`rd_makePool … (MpOKN)`**, **`archOK_asid`** (rd8h's
+  `ArchOK` for ASIDControl). NB: `SInvB.ScLive` (sb2's EntryOK) is carried nowhere (boot only); the carried form is sl's `ScLiveT`.
+  NB: SpecInvSbR defines a second, naive `rd_auto`; A uses its own `rdn_auto` (RdC's body) — the naive one unfolds setCap.
+- **SpecInvRd8nB (PerfRest Untyped / ASIDControl discharged).** `PerfRestN` (DomainSet `SR`, Reply `BlockedScActive`), `PerfInN`
+  (rd8j's `PerfIn` shape), **`UF σ := UtInv'' ∧ ScLiveT (idleThread, idleSc) ∧ IdleOutV`**; `tcbV_some`, `scO_some`, `live_kz` /
+  `scLiveT_kz` (ScLiveT along rd12b's `KZ`: tcbV and whole SCs), **`uf_restart`** (UF at the perform: cap view by rd8j's `JS`,
+  `sl_setThreadState`, idle pointers by `cfS`), **`perfRest_of`** (GapOKN ⇒ UtRetOK / MpOKN), **`perfIn_of fp cptr I σ (RB ct I σ)
+  (UF σ) (PerfInN fp cptr σ) : PerfIn fp cptr σ`** (GapOKN from the lookups' slot facts + ut8's `okv_fl4DecodeG`, as ctq17's shell),
+  **`rd_fl4HandleInvocationRN`** (rd8j's shell with `UF` + `PerfInN`).
+- **SpecInvRd8nQ (queue family).** `QVv σ := (readyQueues, releaseQueue)`, `QVK`; epq1's SpecInvEqV body (the lookups and the decode)
+  with the view swapped (scratch/rd8n/genq.py + headq.lean, untracked): 132 `qv_` lemmas.
+- **SpecInvRd8nC (VB, SR).** **`VB σ` [J]** (l4v `valid_blocked`, MCS: schedulable ∧ ≠ ct ∧ not the switch target ⇒ in a ready
+  queue). **`sr_of_vb (VB) (R1) (Simple) (RdyT ct) : ∀ t, SR t`**, **`boot_vb`** (no runnable TCB at boot), `sched_kz`, **`vb_kz`**
+  (VB along KZ + queues), `qv_invF` / `qv_invE`, **`vb_restart`** (the Restart write of ct), `PerfRestB` / `PerfInB` (Reply only),
+  **`perfInN_of fp cptr I σ (RB) (RdyT ct) (OffReady) (Suff) (VB σ) (PerfInB) : PerfInN`**, **`rd_fl4HandleInvocationRV rep calling
+  blocking don fp cptr I σ (RB ct I σ) (RdyT σ ct) (OffReady σ) (Suff σ) (FhAll σ) (UF σ) (VB σ) (PerfInB fp cptr σ)`**: of rd8j's
+  perform inputs only Reply's `BlockedScActive` stays pinned (rd8l / rd8i's line).
+- Premises: `VB` is a NEW carried-invariant statement [J] (l4v valid_blocked), taken at the shell start by `rd_fl4HandleInvocationRV`;
+  its carry is NOT proved here (boot only). No other premise added; UF's members are carried invariants (ut8 `kentry_utInv2`, sl
+  `kentry_scLive2`, sg / vi3 `IdleOutV`). No ∀-states hypothesis. No new axiom.
+- Checks: no reachable step found breaking Rdy / OffReady / RV / CAx (no FINDING). (a) retype may overwrite only addresses holding no
+  object (ut1's `utRet_fresh` / `utRet_fresh_after_reset`), so a fresh default SC (refill max 0, inactive) / TCB (unbound) never hides a
+  bound object; (b) the reset's detype removes only objects no live cap names: a queued / released / switch-target / BlkR-bound thread
+  and its SC are live (bound), so outside the region by ScLiveT, except the idle thread / SC, which IdleOutV / IdleScOutV keep out;
+  (c) the reset's preemption points move only the clock (rd8f). VB vs the writers on the shell path (lookups, decode, Restart write):
+  kept. VB across the rest of the entry not checked writer by writer: set_domain / set_priority / sched_context_bind / configure /
+  awaken / schedule follow l4v's valid_blocked discipline as far as read (no counterexample found, not proved).
+- HANDOFF (in order; new names in SInvR.B8n):
+  1. Carry `VB` across the entry (goal item 2 rest): a frame kit (`VB` across a heap write that does not make a non-queued thread
+     schedulable: runnable / bound / active SC only where it was, or the thread is ct / the switch target / queued afterwards), the
+     generated family (rd8g's scratch/rd8g/gen.py: every function not touching queues / release queue / ct / action / TCB state / binding
+     / SC activeness keeps VB), hand writers: set_thread_state to a runnable state of a non-ct thread (callers then
+     possible_switch_to / enqueue), tcb_sched_dequeue (only ct or a thread made non-schedulable), tcb_release_enqueue / remove, awaken,
+     possible_switch_to, reschedule_required, schedule / switch_to_thread (the old ct enqueued when schedulable), sched_context_bind /
+     unbind / donate, refill_new / configure, set_domain / set_priority, charge_budget / end_timeslice / postpone, set_scheduler_action;
+     then the front (update_time_stamp keeps VB's view; check_budget_restart's true outcome is its read-only branch) and tops
+     `kentry_sr` / `kcall_sr` from carried facts only; at the exit `RS` (ctq20) makes the switch-target exemption vacuous.
+  2. UF / VB at the shell start from the entry (rdBody wiring, rd8j handoff 4): UtInv'' / IdleOutV by `checkBudgetRestart_true`
+     (cap view kept on a true front) + `uk_getCapReg`; ScLiveT by sl's `sl_checkBudgetRestart` (SAP) or a KZ-style frame of the true
+     front; then `rdBody_send` with `rd_fl4HandleInvocationRV` (InvIn → PerfInB).
+  3. Reply's `BlockedScActive` (rd8l / rd8i's kentry_bsa) to drop `PerfInB`.
+- Builds (tokyo, FL4-c2 mirror, warm — no cone recompile; ./rd8ns.sh untracked = ctq20.sh with its own filter and a goal dump; keys
+  rd8n-*): a1 A (multi-line `first |` does not parse; three leftover goals), a2 A (the reset loop: ub_of + rd_auto/gk_auto do not
+  close setCap), a3 A + B (explicit UB leaves fix the reset; the naive SbR `rd_auto` left createCap / capInsert unfolded), a4 A + B
+  green (5488 jobs); ax1 axioms (axrd8n1.lean, untracked); c1 Q + C (epq1's roots tcbReleaseRemove / tcbSchedAction / setTcbQueue do
+  write the queues: dropped from Q), c2 Q + C green (5492 jobs); ax2 axioms (axrd8n2.lean). Axioms: rdy_rf: propext,
+  Classical.choice; freshR_default: Classical.choice; live_kz: propext; every other listed lemma (rf_detype, rf_retype, bnd_out,
+  bnd_pair, retPtrs_delR, ub_preemptionPoint, rd_deleteObjects_p, rd_retypeRegionWith_p, rd_resetUntypedCap, rd_utBody,
+  rd_fl4InvokeUntyped, rd_makePool, archOK_asid, scLiveT_kz, uf_restart, perfRest_of, perfIn_of, rd_fl4HandleInvocationRN, sr_of_vb,
+  boot_vb, sched_kz, vb_kz, qv_invF, qv_invE, vb_restart, perfInN_of, rd_fl4HandleInvocationRV, qv_fl4DecodeInvocation): propext,
+  Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (four import
+  lines). Commits df9dadd0 (A, B), then Q + C, then this section.
