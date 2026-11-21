@@ -12442,3 +12442,87 @@ Spec-only, new names under `Fl4Proofs.P3.SInvR.A14h`, modules SpecInvRd14hQ, Q1,
   Classical.choice, Quot.sound.
 - HANDOFF: (c1)–(c4), (d), (e) above in that order, then ReplyRecv (R1–R7; the same pieces apply: `unblock_check_wr` for
   R4's `unblock_check u.sc`, `schedule` from action `u` instead of CHOOSE_NEW, `dequeue u` a no-op).
+
+## m60 (branch par/m60 in FL4-m56, on c70d2158 = par/m59) — m59's open list: (c1) DONE, (c2) DONE, (c3) DONE, (c4) DONE (`fault_same`: an accepted `fastpath.fault` run ends where `handle_fault` + `finish` ends, both queue cases); (e) fault half DONE at P1 (new top `kernel_entry.entry_of5`, `hF` split into `StoreExt` [P] + the reads `FastFaultOK` + the ReplyRecv half `FastRRP` [P]); (d) NOT done (the reads stay a hypothesis bundle); ReplyRecv R1–R7 NOT started, so no `kernel_entryJ33F` / `J34F`; no FINDING
+- **P1 FastFin (new; imported by the root).**
+  * **(c1)** `atAF` / `peAF` / `vtA` / `krA` (the ASID table / pool words, the VTABLE slot, the kernel root),
+    `asid_table_eq`, `TabOff`, **`VmOff s t A`** (every aligned word `set_vm_root t` reads at `s` is aligned and not
+    `A`: the slot's two words, KERNEL_ROOT, every ASID table word and, for a nonzero table word, every pool word),
+    `find_asid_wr`, `find_vspace_for_asid_wr`, `kernel_root_wr`, `cap_wr`, `set_kernel_vm_root_wr`,
+    **`set_vm_root_wr`** (`set_vm_root (wr s A v) a t = set_vm_root s a t >>= (wr · A v)`), `VmOff.wr`, `wrs` (a write
+    sequence), **`set_vm_root_wrs`**, **`set_vm_root_ok_s`** (its store comes back unchanged; no `ArchTotal` needed).
+  * **(c2) `highest_prio_enq`**: after `enqueue d` (d of priority `p`, not queued, in no ready queue, on this core) from
+    a state with `ReadyQueues` and `is_highest_prio X 0 p = true`, `highest_prio Y 0 = ok p` and the L1 word is set —
+    from P1's `sched.enqueue.ready` (the bitmap after the enqueue records `Q'`) and `sched.highest_prio.spec` at both
+    states; one statement for both queue cases.
+  * **(c3)** `enqE` (the state after `enqueue d` on an empty queue: L1 / L2 words `v1` / `v2`, d's links 0, queue
+    `(d, d)`, QUEUED), **`EnqE`** (F3 empty case: head and tail words 0, the L2 bit of `p` clear, the group's L1 bit
+    set iff its L2 word is nonzero — l4v `valid_queues` / `valid_bitmaps`), `EnqE.vals`, `EnqE.facts` (100 alignment /
+    distinctness facts, generated), `prepend_e`, **`enqueue_e`** (∃ v1 v2 with the `add_to_bitmap` bit laws),
+    `bv_ext_ff`, **`dequeue_enq_e`** (the dequeue clears the bits again: the L2 word comes back by bit extensionality,
+    the L1 word in both `remove_from_bitmap` branches; every word restored, d's links 0).
+  * **(c4)** `fastFin` (the fast path's end from the state `U` after `unblock_sporadic`), `fastTail`,
+    **`schedTail_act`** (`schedule`'s end then `activate_thread` = the fast path's end; tuple binds peeled with
+    `congr 1; funext; obtain`), **`fault_fin_tail`** (generic in the enqueue: given its write list, its dequeue
+    restoring the state, `schedule` switching to the handler, `VmOff` for every written word: the general
+    `possible_switch_to` + `finish` = `fastFin`; the action / link / CUR_THREAD writes commute, `wr_comm`, `wr_wr`),
+    `mem_wrs_ne`, `cpu_wrs`, `nodeAt_wrs`, `ksb_wrs`, `NodePlaced.wrs`, `domain_time_eq`, `schedRd` (the six words
+    `schedule` reads), **`fault_fin_gen`** (reads at `X` = U + CHOOSE_NEW, transported to the enqueued state by
+    `mem_wrs_ne`; `possible_switch_to_cn`, `highest_prio_enq`, `schedule_cn`, `choose_thread_eq_pick`),
+    **`FinCommon`** / **`FinReads`** (the reads, both queue cases as a disjunction `EnqNE ∨ EnqE` with their write
+    lists), **`fault_fin`**, `fS14`, **`FaultOK`** (m58 `FaultReads` + m59 `UsOff` + `FinReads` over the run's
+    intermediate states), **`fault_same`** (`fastpath.fault … = ok (true, sF, aF)` + `FaultOK` ⇒ `handle_fault` then
+    `finish` = `ok (sF, aF)`, as states under `StoreExt`).
+- **P1 FastEntry (new; imported by the root).** `UsfOK`, **`usf_same`** (`unknown_syscall_fault … true = ok (true, …)` ⇒
+  `… false = ok (false, …)`), `HusOK`, **`hus_same`** (the same for `handle_unknown_syscall`, every branch that does not
+  call `unknown_syscall_fault` refuted), `FastFaultOK` (both, after the `FAULT_IP` write), **`FastRRP`** [P] (the
+  ReplyRecv half: runs of `fastpath.reply_recv` from the dispatch state, P3's `KFrontB` shape), **`FastAcc.of_split`**,
+  **top `kernel_entry.entry_of5`** = `entry_of4` with `hF : ∀ n ≠ VMEnter, FastAcc …` replaced by `hX : StoreExt st`
+  [P], `hFt : ∀ n ≠ VMEnter, FastFaultOK …` and `hRR : ∀ n ≠ VMEnter, FastRRP …` [P]. `entry_of4` kept.
+- **Premises.** Removed: none outright. Narrowed: P1 `hF` [P] (FastAcc, both fast paths) → at the new top
+  `entry_of5`: the fault half is proved; what is left of it is `FastRRP` [P] (ReplyRecv only) plus `StoreExt` [P] (as
+  in m58) plus `FastFaultOK` (the general path's reads at the states it reaches; each true in reachable states, the
+  derivation from `EntryInv` is (d) below). Added on building blocks only: `VmOff`, `EnqE`, `FinCommon` / `FinReads`,
+  `FaultOK` (hypothesis bundles). P3 tops unchanged (`kernel_entryJ33` / `J34` keep `hFast : FastRR`).
+- **(d) NOT done** (in order of the bundle): `FaultReads` (m58: `TcbPlaced`, `EpPlaced`, `NodePlaced`, the endpoint
+  queue `QueueRel` and F1 from `SchedQueuesInv` / `EpQ`, the receive buffer outside the kernel objects
+  (`set_mrs_fault`'s footprint: `QueueXferFoot`'s `XferFoot` / `faults.set_mrs_fault.xsf`)); `UsOff` (m59:
+  `RefillsWF` of dest's SC, the node words outside the SC); `FinReads` at the state after `unblock_sporadic`:
+  `ReadyQueues` / `EnqNE` / `EnqE` from `SchedQueuesInv` (the handler was BlockedOnRecv, so in no ready queue and not
+  QUEUED; `valid_bitmaps`), `is_highest_prio` re-read past the fault writes (no bitmap word written), TIMER_MIN /
+  RELEASE_HEAD / DOMAIN_TIME / CUR_THREAD / t's state word past the writes (`schedulable_here` checked the first
+  three at the entry state; t BlockedOnReply after `reply_push`), `VmOff` (dest's VTABLE slot, KERNEL_ROOT, the ASID
+  table and pools are not TCB scheduler words or node queue / bitmap / action words: needs pool placement, P3
+  `VsRel`'s `P` is not a P1 fact yet), `actA s15 = actA S14` (`unblock_sporadic` keeps `ksb` / `cpu`). Each is
+  a frame read through writes whose addresses are known; the work is the frame lemmas for `set_mrs_fault` /
+  `unblock_check` and the pool placement.
+- **ReplyRecv R1–R7 NOT started.** The same pieces apply (`unblock_check_wr` for R4, `set_vm_root_wrs`, `fault_fin_tail`'s
+  `schedTail_act` / write-commutation pattern; `dequeue u` a no-op; `schedule` from action `u` instead of CHOOSE_NEW).
+  A `kernel_entryJ33F` / `J34F` without `hFast` needs it (J33's `hFast` is the ReplyRecv half only), so no new P3 top.
+- **FINDING: none.** Re-traced `finish` after the fault in both queue cases against the extraction (the empty-queue
+  enqueue sets the L1 / L2 bits, the dequeue's `remove_from_bitmap` clears L2 and, only when the group word becomes 0,
+  L1; with `valid_bitmaps` both words come back), `set_vm_root`'s reads, and the entry's fault routes (trap flag,
+  out-of-range numbers through `handle_unknown_syscall`): no difference from the general path.
+- **Lean notes.** `Result` is coinductive (an ITree): `cases` on a `Result` value or `cases h` on `ok x = ok y` fails
+  (dependent elimination); use `bind_eq_ok` / `spec_of_eq_fd` + `WP.spec_ok`. Push a bind into a tuple continuation
+  with `congr 1; funext x; obtain ⟨u, v⟩ := x` (matchers from different declarations do not unify syntactically, so a
+  general assoc lemma over `match` does not `rw`); state a lemma's continuation as a variable `g` with
+  `hg : ∀ x, g x = f x.1 x.2` and `rw [lemma ar]` leaving `hg` as a side goal closed by `rfl` (passing `(fun x => rfl)`
+  fixes `g` to the wrong term). `simp only [bind_ok, uncurry_apply_pair]` reduces `let (a, b) := (x, y); …` left by a
+  rewrite.
+- **Builds (tokyo, mirror FL4-m56, keys m60-*; `.lake` warm from m59).** b1–b9 FastFin iterations (b1: `Result` is
+  coinductive, no `cases` on it; b2–b9: `fastFin` implicit `st`, tuple-bind assoc, `schedTail_act`'s continuation,
+  `Std.bind` vs `>>=` in its statement); **b10: FastFin green (3694 jobs)**, committed abc6dd46; b11 FastEntry
+  (a rewrite of `cur_thread` inside the goal's `∃`, `FastRRP` has no `L`); **b12: FastFin + FastEntry "Build
+  completed successfully (3808 jobs)"**, 0 sorry. Both modules are leaves (only the root imports them), so no other
+  module is affected; no full `lake build` (the lead runs it; the root gains `import Fl4Proofs.P1.FastFin` and
+  `import Fl4Proofs.P1.FastEntry`).
+- **Axioms** (scratch/axm60.lean, untracked): kernel_entryJ33, kernel_entryJ34, P1 kernel_entry.entry_of4,
+  **kernel_entry.entry_of5**, A14h.kcall_rdyOff9 / kentry_rdyOff9, B8w.kcall_rdyOffW / kentry_rdyOffW,
+  FastAcc.of_split, usf_same, hus_same, fault_same, fault_fin, fault_fin_gen, fault_fin_tail, schedTail_act,
+  set_vm_root_wr, set_vm_root_wrs, set_vm_root_ok_s, highest_prio_enq, enqueue_e, dequeue_enq_e, EnqE.facts,
+  find_asid_wr: propext, Classical.choice, Quot.sound.
+- HANDOFF: (d) in the order above (the frame reads are mechanical once `set_mrs_fault` / `unblock_check` have
+  footprint lemmas at `LawfulStore` level and the ASID pools are placed at P1), giving an `entry_of6` with
+  `hFt` derived from `EntryInv`; then ReplyRecv R1–R7 (m57 (3)) in the meeting-point style, giving `FastRRP` (P1) and
+  `FastRR` (P3) and with them `kernel_entryJ33F` / `J34F` in a new module.
