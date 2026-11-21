@@ -15,6 +15,8 @@ the TCB-binding / SC-kind transfers for the Notification and Endpoint arms
   `none`, so `sched_context_donate`'s unbind branch is dead: `bl_donate`).
 -/
 import Fl4Proofs.P3.SpecInvRd13bC
+import Fl4Proofs.P3.IpcSchedLift
+import Fl4Proofs.P3.VsDom
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.A14b
