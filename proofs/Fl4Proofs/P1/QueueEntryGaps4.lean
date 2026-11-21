@@ -15,6 +15,7 @@ import Fl4Proofs.P1.QueueFinIo
 import Fl4Proofs.P1.QueueDecVcpu
 import Fl4Proofs.P1.QueueDecEpt
 import Fl4Proofs.P1.QueueIpcFoot
+import Fl4Proofs.P1.FastDecline
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -102,19 +103,21 @@ theorem kernel_entry.entry_of4G {A : Type _} {ar : machine.Arch A} {Adm : PSets 
 about the entry `handle_syscall`, which may take a fast path), from
 `InvGaps4`, the placement facts of every admissible tuple (`Hyps4`) and
 `hF` [P]: at the entry state the fast paths keep what the general path
-guarantees (`FastAgree`, the refinement fastpath.rs states as intended). -/
+guarantees where they answer (`FastAcc`: only the runs where `fastpath.fault`
+or `fastpath.reply_recv` took the entry; a declined fast path is the general
+path, `syscall_decline`, FastDecline). -/
 theorem kernel_entry.entry_of4 {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (GF : ∀ σ : PSets, Adm σ → Hyps4 st ar Adm Cs U P3Ok σ)
     (hσ : Adm ⟨T, Ω, H, Sg, Rp, Scs, Nt, Z⟩) {Ac : Set U64} (s : S) (a : A) (hP : P3Ok s)
     (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hF : ∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter →
-      FastAgree st ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
+      FastAcc st ar s a number (fun r => ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' r.1)) :
     (∀ number : I64, number ≠ fl4_abi.syscall.SysVMEnter → syscall.handle_syscall st ar s a number ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) ∧
     (∀ irq : U64, syscall.handle_interrupt_entry st ar s a irq ⦃ s' _ =>
       ∃ σ', Adm σ' ∧ ∃ Ac', EntryInvs st Cs σ' Ac' s' ⦄) :=
   let hG := kernel_entry.entry_of4G hA GF hσ s a hP h
-  ⟨fun number hN => WP.spec_mono (FastAgree.spec st ar (hF number hN) (WP.spec_mono (hG.1 number hN)
+  ⟨fun number hN => WP.spec_mono (FastAgree.spec st ar (FastAgree.of_acc st ar LawfulStore.total hA (hF number hN)) (WP.spec_mono (hG.1 number hN)
       fun r hr => by obtain ⟨s', a'⟩ := r; exact hr)) fun r hr => by obtain ⟨s', a'⟩ := r; exact hr,
     hG.2⟩
 
