@@ -11052,3 +11052,73 @@ JAtZ). Keys rd8t-1..4 (./rd8ts.sh untracked = rd8rs.sh with its own log; proofs/
 - HANDOFF: (1) `RecvTC` and `InvRo` inside rd14b / rd14c's PerfA (add `(∃ x, ct tcb x ∧ ∀ f, ¬BlkR) ∧ RT ct` to its ok outcomes; then
   `kcall_rdyOffT` loses `hC`). (2) rd8j's `PerfIn` (`hPs` / `hPr`): rd8n's Untyped / ASIDControl, rd8l's BSA carry for Reply, DomainSet's SR
   via VB (rd8s). (3) Wire `kcall_rdyOffT` / `kentry_rdyOffT` into the SInvCR-level top (its RS / EV10 come from the bundle).
+
+## rd8s (branch par/rd8s in FL4-c2, on ab8ac1a2 = int/j2 incl. rd8q, rd8p, g2c; + the lead's ac5f9833 (rd8n modules open A12b) cherry-picked as 1091fb47) — rd8q handoff 1 in part: `VE` across the wake-up / cancel writers, `schedule` (1(b)), the IPC / fault / budget writers on ct, configure (1(c)) DONE; doReplyTransfer, the deletion recursion, the invocation / syscall / event shells (1(d)), tops, SInvCRBV, UF/VB wiring NOT done (handoff)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8s` (every new name), modules SpecInvRd8sA / B / C / D (root imports them). Nothing
+existing edited. No JAtZ cone (scratch/rd8s/anc.py: SpecInvRd8sD's ancestry has no JointAt / XTopJointDelR; D adds SpecInvSbW, also clean).
+- **SpecInvRd8sA (drops, wake-up / cancel writers).** `threadSet_out`, **`ht_threadSet_nr` / `ht_setThreadState_nr`** (a write of
+  `t`'s TCB in a state that is not runnable: `VE (E ∪ {t}) → VE E`), **`ve_setThreadState_in`** (any state write of an exempt thread),
+  **`ve_drop_ct` / `ht_ct t`** (`VEK (E ∪ {t}) m` + nq1's `CTK t m` ⇒ `HT (VE E ∧ ct = t) (VE E) m`: ct is exempt anyway), `htc`.
+  Thread kept exempt (`VEK (E ∪ {t})`): `ve_completeSignal`, `ve_receiveSignal`, `ve_replyPush` (callee gets the donation),
+  `ve_replyRemove` (superseded by C's `ve_replyRemoveV`). `VEK E`: **`ve_removeAndRestartNtfnQueuedThread`**,
+  **`ve_restartThreadIfNoFault`**, `ve_removeAndRestartEpQueuedThread`, `ve_removeAndRestartBadgedThread`, `ve_cancelAllSignals`,
+  `ve_cancelAllIpc`, `ve_cancelBadgedSends`, **`ve_suspend`**, `ve_schedContextUnbindAllTcbs`, `ve_unbindFromSc`,
+  **`ve_schedContextYieldTo`**, `ve_handleInterrupt`, `ve_invokeSetDomain`, **`ve_activateThread`** (ct), **`ht_guardedSwitchTo`**.
+  ve_leaf rules added for W3's sendSignal / updateWaitingNtfn / restart / fl4Awaken and for maybeDonateSc / schedContextDonate with the
+  receiver discharged by `Or.inr rfl` / assumption.
+- **SpecInvRd8sB (`schedule`, handoff 1(b)).** **`CQ C s`** (schedulable `C` ⇒ queued: the old ct's clause without exemptions),
+  `QRA` (ready queues / release queue / action fixed; `qra_archSwitchToThread` / `…IdleThread` / `qra_archPrepareNextDomain` /
+  `qra_nextDomain` by automation), **`sched_hv`** (schedulability through rdY's heap view `HV`, TCB arch fields erased), `cq_fr`,
+  **`PS E C A := VE E ∧ ct = C ∧ CQ C ∧ action = A`**, `ht_ps` (any step with VEK / CTK / rdY's `FK` / QRA), **`ht_switchToThread_cq`**
+  (`PS → VE E ∧ ct = t`: the target dequeued; if it is `C`, `C` is ct again), `ht_switchToIdleThread_cq`, `ht_guardedSwitchTo_cq`,
+  `ht_chooseThread_cq`, **`ht_scheduleChooseNewThread`** (`PS E C chooseNewThread → VE E`, domain step by FK + QRA), `app_self`,
+  `ht_enq_ps`, `ht_setAction_q` (candidate queued ⇒ the action may become chooseNewThread), **`ht_scheduleSwitchThreadBranch`**
+  (candidate exempt as the switch target until enqueued / appended / switched to; `C` enqueued first when schedulable),
+  **`ve_schedule : VEK E schedule`** (no hypothesis).
+- **SpecInvRd8sC (IPC / fault / budget, cancel cone).** **`ht_replyUnlinkTcb`** (reply_unlink_tcb leaves the caller Inactive: it leaves
+  the set), hence **`ve_replyRemoveV : VEK E (replyRemove caller r)`** (the donation receiver is the caller, exempt until unlinked);
+  `ve_run_pst`; **`ve_receiveIpc t`**, **`ve_sendIpc … t …`** (the destination exempt from its dequeue — it may receive the donation —
+  to its `possible_switch_to`), `ve_sendFaultIpc`, `ve_handleTimeout`, `ve_handleFault` (all `VEK (E ∪ {t})`); on ct via `ht_ct`:
+  **`ve_handleRecv`**, **`ve_endTimeslice`**, **`ve_checkBudgetRestart`**; `ve_chargeBudget`, `ve_checkBudget`, `ve_handleYield`,
+  `ve_maybeHandleInterrupt`, `ve_preemptionPath`, `ve_fastFinalise`, `ve_capDeleteOne`, `ve_deletingIrqHandler`, `ve_finaliseCap`.
+- **SpecInvRd8sD (configure, handoff 1(c); invocation leaves).** `hk_refillNew` / `hk_refillUpdate` (sb2's inner `RO` proofs of
+  sb_refillNew / sb_refillUpdate stated as lemmas), `QRC`, `qrc_refillNew` / `qrc_refillUpdate`, **`ve_ro`** (`VE E'` across a write of
+  the SC `p` alone when every TCB bound to `p` is in `E'`), **`bu_br`** (that fact along sb2's binding frame `BR`), `ht_refill`,
+  `ht_p1`, `ht_in`, `ht_assertOpt_bind`, **`ht_invokeSchedControlConfigureFlags iv : HT (VE E ∧ ScInv) (VE E)`** (exception set
+  `E ∪ {v | sc.scTcb = some v}`; sb2's `ScBackS` gives every TCB bound to the SC is its `scTcb`; `scTcb` dequeued / release-removed,
+  exempt through the refill, leaves as ct / by `possible_switch_to` / as not runnable); `ve_invokeIrqHandler`,
+  `ve_invokeSchedContext`, `ve_domainSetStart`, `ve_invokeDomain`.
+- Premises: none added. Every lemma is for arbitrary states; the only carried fact used beyond `VE` is sb2's `ScInv` (configure).
+- Checks / findings: no reachable writer found breaking VB (no FINDING). Notes: (a) reply_remove's donation is safe because
+  reply_unlink_tcb sets the caller Inactive; (b) send_ipc / receive_ipc: the woken partner is exempt from its wake-up to its
+  possible_switch_to, the caller thread (ct in every caller of the VEK (E ∪ {t}) lemmas except doReplyTransfer's handle_timeout) stays
+  exempt; (c) schedule: the do-notation duplicates `sc_and_timer` into the action match and the switch branch has a join point
+  (`ctPrio`): zeta first (lesson); (d) configure needs ScBackS (sb2 carries ScInv), as rd8q predicted.
+- HANDOFF (in order; new names in SInvR.B8s, register each as a ve_leaf):
+  1. `doReplyTransfer` as `HT (VE E ∧ ScInv) (VE E)`: replyRemove (C's `ve_replyRemoveV`) leaves the receiver Inactive; it is set
+     Running / Restart (exempt); the final `when (sc ≠ none ∧ runnable)`: ready ∧ sufficient → `ht_possibleSwitchTo`; otherwise
+     `postpone sc` dequeues and releases `sc.scTcb`, which is the receiver by ScBackS (carry ScInv with sb2's `si_*` via `ik_and`, read
+     the receiver's binding with `SInvQ.q1_mem_threadGet`, as D's tail does); `handleTimeout receiver` needs the receiver dropped:
+     sendFaultIpc sets its fault and send_ipc's `call ∨ fault ≠ none` arm blocks it (replyPush / Inactive) or sendIpcBlocked blocks it —
+     this needs a small "fault of r stays set" frame over tcbEpDequeue / getThreadState / doIpcTransfer / replyUnlinkTcb (FaultTcbsG's
+     FQ cannot express it: it must be closed under fault clears) — a gen.py family `FH r` (TCB writes keep the fault, except a clear of a
+     thread ≠ r), or prove the four functions by hand; plus the destination ≠ / = r split at the end of send_ipc's recv arm.
+  2. The deletion recursion (`recDel` / `recDelF` / `capDelete` / `capRevoke(F)`, rd8f's `rdCapDeleteH` / rd8i's `hr_recDel_*`
+     skeleton): every callee is now a ve_leaf (finaliseCap, capDeleteOne, cancel-all), so a fuel induction with `ve_auto` per step.
+  3. `invokeCnode`, `installTcbCap(s)`, `invokeTcb`, `performInvocation`, `fl4PerformInvocation` (configure as HT with ScInv: pair VE
+     with ScInv along the shell by `ik_and` with sb2's `si_*` / `sb_handleInvocationR`'s pieces), `handleInvocation`,
+     `fl4HandleInvocationR`, handleSend / handleCall (ct: `ht_ct`), fl4HandleSyscall, handleEvent / fl4HandleEvent, fl4CallKernel,
+     fl4KernelEntrySyscall (with W3's `ve_fl4Awaken`, B's `ve_schedule`; at the exit `VE ⊥ = VB` by `vb_ve`).
+  4. rd8q handoff 2-4 unchanged (tops `kentry_vb` / `kcall_vb` from `boot_vb`, `kentry_sr` / `kcall_sr` via `sr_of_vb`;
+     `SInvCRBV := SInvCRB ∧ VB`; UF / VB wiring for rdBody_send's DomainSet input).
+- Builds (tokyo, FL4-c2 mirror; ./rd8ss.sh untracked = rd8qs.sh with the Rd8s filter and wider error context; keys rd8s-*): a1 A
+  (5520 jobs incl. the Rd8n/Rd8q cone recompiled for ac5f9833, ~25 min on a loaded host; one error: activateThread's ct write had no leaf
+  in A), a2 A green + B (join point `__do_jp` in the switch branch; `scAndTimer` duplicated into schedule's match), b1 B (Bool lemma
+  orientation), b2 B green + C (name clash `ve_replyRemove`, heartbeats in receive_ipc, a docstring before `set_option … in`, the tail of
+  send_ipc's `if call ∨ fault` duplicated into the branches), c1 C (replyRemove's join point; send_ipc fixed by a generic
+  last-step / bind / split loop), c2 C green + D (`HK` ambiguous SInv / SInvB; configure's refill tail duplicated), d1 D (`unfold
+  NonDet.when` on an already-unfolded `when`), d2 D green (5526 jobs) + axioms (axrd8s1.lean, untracked): all 46 listed lemmas
+  (ht_threadSet_nr … ve_invokeDomain, incl. ve_schedule, ve_sendIpc, ve_receiveIpc, ve_replyRemoveV, ve_handleRecv, ve_endTimeslice,
+  ve_checkBudgetRestart, ht_invokeSchedControlConfigureFlags) propext, Classical.choice, Quot.sound (bu_br: none). No sorry / admit /
+  native_decide / bv_decide / axiom. Root Fl4Proofs.lean not rebuilt (four import lines). Commits 18ef33b0 (A), b7fd91c6 (B),
+  37253547 (C), then D and this section.
