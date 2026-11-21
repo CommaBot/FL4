@@ -301,6 +301,37 @@ theorem eb_handleRecv_rs (blk canReply : Bool) (σ : State Unit) (hD : RSq σ.cu
 theorem rsq_of_curScT {σ : State Unit} (hC : CurScT σ) : RSq σ.curThread σ :=
   Or.inl ⟨σ.curSc, fun x hx => hC x hx⟩
 
+/-! ## The stepwise fact behind `RSq ct` (handoff) -/
+
+/-- **`ResSc`**: under `resume_cur_thread` the current thread (if a TCB) has
+an SC (the l4v fact that a resumed current thread is schedulable, SC side).
+Only `schedule` sets `resume_cur_thread`; every writer that strips the
+current thread's SC (`sched_context_donate`'s `test_reschedule`,
+`sched_context_unbind_tcb`, `maybe_return_sc`) reschedules. Not yet carried
+(KENTRY-PLAN ctq10 handoff). -/
+abbrev ResSc (s : State Unit) : Prop :=
+  s.schedulerAction = .resumeCurThread → ∀ x, s.kheap s.curThread = some (.tcb x) → x.tcbSchedContext ≠ none
+
+theorem resSc_of_curScT {σ : State Unit} (hC : CurScT σ) : ResSc σ :=
+  fun _ x hx => by rw [hC x hx]; simp
+
+/-- `EB true` (which gives `action ≠ switch ct`) and `ResSc` give `RSq ct`. -/
+theorem rsq_of_resSc {s : State Unit} (hE : EB true s) (hR : ResSc s) : RSq s.curThread s := by
+  by_cases ha : s.schedulerAction = .resumeCurThread
+  · left
+    by_cases hx : ∃ x, s.kheap s.curThread = some (.tcb x)
+    · obtain ⟨x, hx⟩ := hx
+      obtain ⟨c, hc⟩ := Option.ne_none_iff_exists'.1 (hR ha x hx)
+      exact ⟨c, fun x' hx' => by rw [hx] at hx'; cases hx'; exact hc⟩
+    · exact ⟨s.curSc, fun x hx' => absurd ⟨x, hx'⟩ hx⟩
+  · exact Or.inr ⟨(npq_ct hE).1.1, fun h => absurd h ha⟩
+
+/-- **`handle_recv` from `ResSc`** (the form ReplyRecv / NBSendRecv /
+NBSendWait need after their send phase). -/
+theorem eb_handleRecv_res (blk canReply : Bool) (σ : State Unit) (hR : ResSc σ) (hN : NQ [σ.curThread] σ) :
+    ∀ y, EB true σ → y ∈ (handleRecv (Z := Unit) blk canReply σ).1 → EB false y.2 :=
+  fun y hσ hy => eb_handleRecv_rs blk canReply σ (rsq_of_resSc hσ hR) hN y hσ hy
+
 end
 
 end Fl4Proofs.P3.SInvQ
