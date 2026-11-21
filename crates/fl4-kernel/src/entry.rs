@@ -14,7 +14,8 @@ use fl4_arch_x86_64::smp;
 use core::sync::atomic::{AtomicU64, Ordering};
 
 core::arch::global_asm!(
-    include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("sysret.S"), include_str!("bad_iret.S"), include_str!("entry.S"),
+    include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("sysret.S"), include_str!("bad_iret.S"),
+    include_str!("safe_ret.S"), include_str!("entry.S"),
     spec_ibpb = const fl4_arch_x86_64::spec::policy::IBPB,
     spec_rsb = const fl4_arch_x86_64::spec::policy::RSB,
     spec_pbrsb = const fl4_arch_x86_64::spec::policy::PBRSB,
@@ -26,12 +27,28 @@ core::arch::global_asm!(
 );
 
 extern "C" {
+    fn __x86_return_thunk();
     fn fl4_restore_user(regs: u64, stack_top: u64, cr3: u64) -> !;
     fn fl4_idle(stack_top: u64) -> !;
     static fl4_idle_loop: u8;
     static fl4_idle_end: u8;
     static fl4_vectors: u8;
     static fl4_common_entry: u8;
+}
+
+/// On the boot core, while the APs are parked and native entries still
+/// use IBPB, switch Rust returns to the Safe RET sequence.
+pub fn patch_return_thunk() {
+    let paddr = crate::paging::image_paddr(__x86_return_thunk as *const () as u64);
+    let opcode = fl4_core::layout::pptr(paddr) as *mut u8;
+    unsafe {
+        assert_eq!(opcode.read_volatile(), 0xc3);
+        assert_eq!(opcode.add(1).read_volatile(), 0xcc);
+        // Write through the physical window. The instruction mapping
+        // stays read-only.
+        opcode.write_volatile(0xeb);
+    }
+    crate::smp::sync_patched_text();
 }
 
 /// The CR3 value entry.S switches to on every entry with the skim window
@@ -97,6 +114,7 @@ pub fn store() -> PhysStore {
     PhysStore { frame_masks: (fl4_arch_x86_64::sev::mask(), 0), ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64, tx: false }
 }
 
+#[inline(always)]
 fn save_user(s: &mut PhysStore, f: &Frame) {
     let t = sched::cur_thread(s);
     let r = t.0 + tl::REGS;
@@ -225,6 +243,7 @@ pub fn lock() -> bool {
     !stalled.get()
 }
 
+#[inline(always)]
 fn unlock() {
     let pc = percpu::get();
     if pc.gate_held.get() {
@@ -250,6 +269,11 @@ impl fl4_sync::EntryEnv for KernelEnv {
     }
     fn prefer_serial(&self) -> bool {
         self.serial
+    }
+    /// No transactions on x86_64: entries queue for the gate, and guest
+    /// syscall fast paths run beside it (`fl4_sync::run_syscall`).
+    fn tx_attempts(&self) -> u32 {
+        0
     }
     fn store(&self, tx: bool) -> PhysStore {
         PhysStore { frame_masks: (fl4_arch_x86_64::sev::mask(), 0), ks_base: unsafe { KS_BASE }, cpu: self.cpu(), tx }
@@ -277,6 +301,7 @@ impl fl4_sync::EntryEnv for KernelEnv {
             arch::discard_effects();
         }
     }
+    #[inline(always)]
     fn entry_done(&self) {
         // An interrupt only an aborted attempt took stays for unhandled_irq.
         let pc = percpu::get();
@@ -291,6 +316,7 @@ impl fl4_sync::EntryEnv for KernelEnv {
         pc.held_used.set(false);
         (v != percpu::NO_IRQ).then_some(v)
     }
+    #[inline(always)]
     fn holding_gate(&self) {
         let pc = percpu::get();
         pc.gate_held.set(true);
@@ -314,11 +340,13 @@ impl fl4_sync::EntryEnv for KernelEnv {
             fl4_sync::Count::Serial => {
                 smp::SERIAL_ENTRIES.fetch_add(1, Relaxed);
             }
+            fl4_sync::Count::Local => {}
         }
     }
 }
 
 /// Run the kernel's part of an entry (DESIGN.md §7, `fl4_sync::run_entry`).
+#[inline(always)]
 fn run_entry(irq: bool, serial: bool, body: impl FnMut(&mut PhysStore, &mut PhysArch)) -> bool {
     fl4_sync::run_entry(&KernelEnv { serial }, &GATE, irq, body)
 }
@@ -508,13 +536,27 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
         };
     // An interrupt is handled even if a stall cancelled the entry: it has
     // been accepted and needs its EOI.
-    run_entry(irq, serial, |s, a| {
+    let body = |s: &mut PhysStore, a: &mut PhysArch| {
         if s.tx {
             dispatch_entry(&mut s.specialize::<true>(), a, v, irq, f.rdx as i64, f.error, cr2, dr6);
         } else {
             dispatch_entry(&mut s.specialize::<false>(), a, v, irq, f.rdx as i64, f.error, cr2, dr6);
         }
-    });
+    };
+    if v == VEC_SYSCALL {
+        let number = f.rdx as i64;
+        let local = |s: &mut PhysStore, a: &mut PhysArch| fl4_sync::local_syscall(&mut s.specialize::<false>(), a, &Phys, number);
+        let syscall_body = |s: &mut PhysStore, a: &mut PhysArch| {
+            if s.tx {
+                dispatch_syscall_entry(&mut s.specialize::<true>(), a, number)
+            } else {
+                dispatch_syscall_entry(&mut s.specialize::<false>(), a, number)
+            }
+        };
+        fl4_sync::run_syscall(&KernelEnv { serial }, &GATE, number, local, syscall_body);
+    } else {
+        run_entry(irq, serial, body);
+    }
     exit()
 }
 
@@ -542,6 +584,18 @@ fn dispatch_entry<S: fl4_core::machine::Store>(
     if sched::cur_thread(s) == ct && ct.slot(tl::SLOT_VTABLE).cap(s) != vroot {
         fl4_core::vspace::set_vm_root(s, a, ct);
     }
+}
+
+/// `dispatch_entry` for a syscall: true if a fast path ran.
+#[inline(always)]
+fn dispatch_syscall_entry<S: fl4_core::machine::Store>(s: &mut S, a: &mut PhysArch, number: i64) -> bool {
+    let ct = sched::cur_thread(s);
+    let vroot = ct.slot(tl::SLOT_VTABLE).cap(s);
+    let fast = syscall::handle_syscall_fast(s, a, number);
+    if sched::cur_thread(s) == ct && ct.slot(tl::SLOT_VTABLE).cap(s) != vroot {
+        fl4_core::vspace::set_vm_root(s, a, ct);
+    }
+    fast
 }
 
 #[inline(always)]

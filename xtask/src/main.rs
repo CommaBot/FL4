@@ -175,7 +175,9 @@ fn build_aarch64_image(o: &Opts, root_elf: &Path) -> PathBuf {
 fn build_kernel(o: &Opts) -> PathBuf {
     let r = root();
     let mut c = Command::new("cargo");
-    c.current_dir(&r).args(["build", "--release", "-p", "fl4-kernel", "--target", "x86_64-unknown-none"]);
+    c.current_dir(&r).env("RUSTC_BOOTSTRAP", "1")
+        .args(["build", "-Zbuild-std=core,alloc", "--config", "env.RUSTC_BOOTSTRAP='1'",
+            "--release", "-p", "fl4-kernel", "--target", "x86_64-unknown-none"]);
     if o.release {
         c.arg("--features=release-profile");
     }
@@ -184,6 +186,7 @@ fn build_kernel(o: &Opts) -> PathBuf {
     fs::create_dir_all(&out).unwrap();
     let elf = out.join("kernel.elf");
     run(Command::new("ld").args(["-n", "-static", "--gc-sections", "--build-id=none", "-u", "fl4_boot", "-T"]).arg(r.join("crates/fl4-kernel/linker.ld")).arg("--whole-archive").arg(r.join("target/x86_64-unknown-none/release/libfl4_kernel.a")).arg("-o").arg(&elf));
+    run(Command::new("python3").arg(r.join("xtask/scripts/check_vm_asm.py")).arg(&elf));
     let elf32 = out.join("kernel32.elf");
     run(Command::new("objcopy").args(["-O", "elf32-i386"]).arg(&elf).arg(&elf32));
     elf32
@@ -971,12 +974,19 @@ fn sim(o: &Opts) {
     // Both at once: each runs its seeds in child processes, one per host
     // CPU, so together they keep the host busy until both are done.
     let mut gate = Command::new(dir.join("release/fl4-sim")).args(base).args(["--steps", "8000", "--conc"]).spawn().unwrap();
+    // Without transactions, guest syscall fast paths also run beside the
+    // gate on several cores (fl4_sync::run_syscall), as on x86_64.
+    let quarter = (o.seeds / 4).max(1).to_string();
+    let local = ["--seeds", quarter.as_str(), "--cores", cores.as_str(), "--steps", "20000", "--scenario", "guest"];
+    let mut local_conc = Command::new(dir.join("release/fl4-sim")).args(local).arg("--conc").spawn().unwrap();
+    let mut local_tso = Command::new(dir.join("release/fl4-sim")).args(local).arg("--tso").spawn().unwrap();
     // Every campaign of DESIGN.md §10: random, PCT and x86-TSO schedules,
     // the targeted endpoint and notification races, and the bounded
     // exhaustive search.
     let suite = Command::new(r.join("target/release/fl4-sim")).args(base).arg("--suite").status().unwrap();
     let gate = gate.wait().unwrap();
-    if !suite.success() || !gate.success() {
+    let local_ok = local_conc.wait().unwrap().success() && local_tso.wait().unwrap().success();
+    if !suite.success() || !gate.success() || !local_ok {
         fail("the simulator found failures");
     }
 }
@@ -1015,6 +1025,24 @@ fn mutants() {
             let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
             let name = sched[1..].first().map_or(if sched[0] == "--tso" { "TSO" } else { "random" }, |_| "PCT");
             eprintln!("xtask: {m} ({name}): {failed}/100 seeds fail");
+            caught |= failed > 0;
+        }
+        ok &= caught;
+    }
+    // The syscall fast paths beside the gate run only without transactions:
+    // the serial-gate build, an l4h guest's pattern on every core.
+    for m in ["mutant-local-no-active", "mutant-local-no-lock"] {
+        let dir = r.join("target").join(m);
+        run(Command::new("cargo").current_dir(&r).args(["build", "--quiet", "--release", "-p", "fl4-sim", "--features"]).arg(format!("serial-gate,{m}")).arg("--target-dir").arg(&dir));
+        let mut caught = false;
+        for sched in ["--conc", "--tso"] {
+            let out = Command::new(dir.join("release/fl4-sim"))
+                .args(["--seeds", "100", "--cores", "4", "--steps", "20000", "--scenario", "guest", "--timeout", "60", "--no-shrink", sched])
+                .output()
+                .unwrap();
+            let text = String::from_utf8_lossy(&out.stdout);
+            let failed = text.lines().filter(|l| l.contains("failed:") && l.starts_with("fl4-sim: seed")).count();
+            eprintln!("xtask: {m} ({}): {failed}/100 seeds fail", if sched == "--tso" { "TSO" } else { "random" });
             caught |= failed > 0;
         }
         ok &= caught;
