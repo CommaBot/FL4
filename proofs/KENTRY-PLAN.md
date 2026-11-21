@@ -9804,3 +9804,62 @@ existing edited. No JAtZ cone. Keys rd13b-1..7 (./rd13bs.sh untracked = rd12bs.s
   error outcomes via rd10's `charge_ss4` with BS (Rdy from rd8f's rdCapDeleteH). (2) `invR_of`: case split over the decode's
   outcome (`fl4DecodeInvocation` arms, ctq15's OkDAt facts), `kpc_restart` for `KP ∧ CB0` at the Restart state. (3) tops
   `kcall_rdyOff5` / `kentry_rdyOff5` without InvR.
+## rd12a (branch par/rd12a in FL4-tcbj, on 4a6732af = int/j2 incl. rd11a, rd11b, rd8e, ctq20) — rd11a handoff 1-4: complete_signal, receive_ipc whole, handle_fault after a lookup failure, the handle_recv top / OsBody for Recv / Wait / NBWait / NBRecv DONE up to one pinned carried-fact hypothesis `RcvB` (ctq's EB true ∧ rd8e's RcvS at the body start)
+Spec-only, namespace `Fl4Proofs.P3.SInvR.A12a` (every new name), modules SpecInvRd12aA / B / C (new; root imports them). Nothing
+existing edited. New imports spec-only (C adds SpecInvCqB3, SpecInvCqE3, SpecInvNtfnQH3, SpecInvRd11bB: ancestry script, none reaches
+JointAt). FINDING (import cone, pre-existing): rd11a's SpecInvRd11A1 imports ScMidCur, whose closure reaches JointAt (ScMidCur ←
+ScMidKeep ← ScCurKeep ← ScBsaOps ← ScJointKeep ← ScJoint ← JointAt), so every module on A11 (A2, rd12a A / B / C) is in the JointAt
+closure; A1 likely needs only `rescheduleRequired_cn`, which has spec-only twins (SpecInvCqD2 `rescheduleRequired_cn'`, ScAwaken
+`rescheduleRequired_cnA`): swap the import at merge. (`XTopDelW.EX` is a root-namespace `EX` now visible: qualify `SInvQ.EX`.)
+Resumed from a cut-off predecessor (its untracked A, one failing proof); keys rd12a-1 (predecessor), rd12a-r1..r5 (./rd12s.sh untracked
+= rd11s.sh with its own log; scratch/rd12a/ax.lean, ax2.lean untracked).
+- **SpecInvRd12aA (handoff 1 + the sender arm's kit).** `B0 σ0` (σ0's ct a TCB bound to cur_sc), **`nores_of_unbound`** (under `KP`,
+  ct an unbound TCB rules out resume: RS would give σ0's binding), `kp_nores`; `kp_ruc` / **`kp_ifCondA`** (the assert-form sporadic
+  unblock check runs only on `scp ≠ cur_sc` and rewrites one SC, never ct's TCB: RdB's `ruc_out`); **`kp_replyPush`** (callee = ct:
+  under resume ct is bound so no donation, two SVS writes; otherwise rd11b's CP with no resume to keep); **`kp_recvSender`** (KP across
+  receive_ipc's whole sender arm); `CX t s` (t a TCB unbound or bound to cur_sc), `cx_svcf` / `cx_tcb`, **`cx_replyPush`** (a bound
+  callee gets nothing; the unbound callee gets the caller's released SC: rd8d's `rd_replyPush_d` gives `RT`), **`ce_recvSender`**
+  (rd8d's `rd_recvSender` walk: the receiver keeps `CX`, or ends `RT`); **`ke_completeSignal σ0 n s (KP σ0 s) (ct bound to cur_sc)`**
+  (A2's active arm; the `scSporadic` test reads `scOpt = some cur_sc`, so the inner `scp ≠ cur_sc` test fails).
+- **SpecInvRd12aB (handoff 2: receive_ipc).** **`KR σ0 s := KP σ0 s ∧ (CB0 s ∨ NRun ct s ∨ RT s ct)`**, `ctR_rt`, **`ss4_of_kr`**,
+  `kr_of_ke`, `cb0_of_cx`; `cx_maybeReturnSc` (it can only unbind its thread), `kp_tcbEpAppend`, **`kr_rcvBlocked`** (blocking: ct
+  BlockedOnReceive by rd9's `no_sts` + `fg_auto` over the reply write / tcb_ep_append; non-blocking: SVS); **`kr_recvTail`**
+  (complete_signal: `ke_completeSignal`; else maybe_return_sc (`kp_maybeReturnSc`, `cx_maybeReturnSc`, rd8e's Rdy / T1 / ScInv /
+  Simple carry) then the sender arm at the dequeue state (`kp_recvSender` / `ce_recvSender`) or `kr_rcvBlocked`), `kr_recvRest`,
+  `kr_when` (the reply-cap prefix: `kp_cancelIpc`, ct's binding by rd8e's `sv_cancelIpc'`, RcvS by rd8e's `rcv_when`),
+  **`kr_receiveIpc σ0 (B0 σ0) cap blk rc s (KP σ0 s) (ct bound to cur_sc at s) (RcvS s ct) (RBk true s) : ∀ y, KR σ0 y.2`**.
+- **SpecInvRd12aC (handoff 3-4).** `ik_asUserGet` (as_user t (get_register r) reads only: once t is read as a TCB, rd's
+  `Endp.asUser_getRegister_eq`; `mem_getsThe12` / `getTcb_some12` are local copies of XTopJointMidRunK's, which is in the JAtZ cone),
+  `ik_lookupReply`, `nq_ct` (nq3's `NQ [ct]` at a body start). **`ss4_handleRecv blk cr σb (BS σb) (Suff σb) (EB true σb) (RcvS σb
+  ct) : ∀ y ∈ handle_recv blk cr σb, SS4 y.2`**: ctq's `eb_handleRecv_hr` walk (hk_catch / hkr_bind) with the invariant `s = σb` (every
+  read of the prefix keeps the state); endpoint → `kr_receiveIpc` from `KP σb σb`; notification → rd11a's `ke_receiveSignal`; a lookup
+  failure → handle_fault ct: **handoff 3 needed no new walk** — rd11b's `ss4_end` with `cp_handleFault`, `cfk_handleFault`,
+  `nr_handleFault` (from `nb0_of_bs`: any `canDonate`, as rd11b's `no_sendIpcD` already generalised rd9's `no_sendIpc`) and CB at
+  the handler outcome from ctq7's `eb_handleFault_p` (EB true at σb, `npq_ct`, `NQ [ct]`) — CB is what rules out resume after the
+  donation of ct's SC (the RS clause of KP would otherwise need a walk through send_ipc's reply_push / sched_context_donate).
+  **`RcvB σ`** := at every `true` front outcome `EB true ∧ RcvS ct`; `osBody_hr`, **`osBody_recv rep c (IsRecv c) (EF σ) (RcvB σ) :
+  OsBody rep c σ`** (NQ [] by nq3's `nq_handleRecv`), `osBody_of12`, top **`kentry_rdyOff12`** (rd11b's `kentry_rdyOff3j` with hW
+  narrowed: `RdBody`, `IsRecv c → RcvB w.2`, OsBody only for c ∉ {Yield, Recv, Wait, NBWait, NBRecv}).
+- Premises: none [J]/[P]/[W]/[S]. One pinned hypothesis `RcvB` (carried facts at the given entry's body start, true in reachable states):
+  EB true = ctq17's `EvP` at the body start (`eb_fl4HandleEvent_sys` reads `hσ1.1.1.1 : EB true σ1` there; with restart the body
+  starts at σ1 by `checkBudgetRestart_true`); RcvS = rd8e handoff 2's entry facts (Rdy / ScInv / Simple / CtQ / ct's state from rd10's
+  `BS` (`bs_front`), T1 from ctq's SchedQ, ct ∉ releaseQueue (ct schedulable at a `true` front), RT ct from rd8c's `ctRdy_of`).
+  No FINDING: every step of handle_recv's cone keeps Rdy (rd8e), OffReady / CAx through KP; checked that resume cannot survive
+  handle_fault (CB at its outcome) and that a donated SC reaching ct in the sender arm is a released sender's (RT, rd8d).
+- `sv_cancelIpc` (rd11a A1) is still a duplicate of rd8e's `sv_cancelIpc'` (both on this base now): not dropped (A1 is upstream of
+  A2 / A / B / C; drop at merge if wanted, B already uses `B8e.sv_cancelIpc'`).
+- HANDOFF (in order):
+  1. Discharge `RcvB` from the tops' carried facts: EB true at a `true` front outcome from ctq17's `evp_start` + `evp_auto` over
+     update_time_stamp (as `eb_fl4HandleEvent_sys` / rd11b's `ebx_sys`, which already take every needed fact: EX, RB, T4, ValidIdle,
+     EntryOK, CtExit, Iu, IL, Js, EF Nq, …), and RcvS's fields as listed above (only T1, ct ∉ releaseQueue and RT need a line each).
+  2. The ReplyRecv / NBSendRecv / NBSendWait tails (handle_recv after fl4HandleInvocationR): `ss4_handleRecv` at the invocation's
+     outcome needs BS / Suff / EB true / RcvS there (rd12b's OsBody line for the invocation part).
+  3. OsBody for the six invocation syscalls (rd12b, unchanged from rd10 handoff 2).
+- Builds (tokyo, FL4-tcbj mirror): rd12a-1 (predecessor's A: 4 errors, all in ke_completeSignal: `split_ifs` before beta, a `cases …
+  with` missing alternatives), -r1 A green (5324 jobs; beta_reduce + `split`, a `| _ =>` alternative), -r2 B green first try (5326),
+  -r3 B + axioms (scratch/rd12a/ax.lean), -r4 C: upstream rebuild of the new imports (~14 min), 2 errors in the top (`EX` resolved to
+  XTopDelW's), -r5 C green (5642) + axioms (scratch/rd12a/ax2.lean). Every name listed: propext, Classical.choice, Quot.sound
+  (subsets); no `declaration uses sorry`; no sorry/admit/native_decide/bv_decide/axiom. Root Fl4Proofs.lean not rebuilt (three
+  import lines).
+- Lean traps: `obtain … := hy` clears `hy` — copy it first when a later `no_bind` needs the whole membership; a doc comment cannot
+  precede `section`; `ike_returnOk` is ambiguous across opened namespaces (use `ik_pure _`).
