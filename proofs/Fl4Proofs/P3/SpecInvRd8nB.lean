@@ -27,7 +27,7 @@ import Fl4Proofs.P3.SpecInvUtP6
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.B8n
-open Fl4Spec Fl4Proofs.P3.SInv Fl4Proofs.P3.SInvR Fl4Proofs.P3.SInvR.B8j
+open Fl4Spec Fl4Proofs.P3.SInv Fl4Proofs.P3.SInvR Fl4Proofs.P3.SInvR.B8j Fl4Proofs.P3.SInvR.A12b
 
 noncomputable section
 
