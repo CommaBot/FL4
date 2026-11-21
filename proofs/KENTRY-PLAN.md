@@ -8917,3 +8917,60 @@ Spec-only, namespace `Fl4Proofs.P3.SInvQ.R18`, modules SpecInvCqEr0 (generated),
   ebr_fl4PerformInvocation, ebr_fl4HandleInvocationR, ebr_fl4HandleSyscall, ebr_fl4HandleEvent, eb_fl4HandleEvent_err,
   ebx_fl4HandleEvent_err: propext, Classical.choice, Quot.sound; sm_updateTimeStamp: propext. No
   sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (one import line).
+## ctq17 (branch par/ctq17 in FL4-c2, on 31d17145 = int/j2 incl. ctq15, ctq16, ctq18, ctq14, rd8c, rd9, g3e) — ctq15 handoff 1-2 DONE (the shell, the Eb*H instantiation); handoff 3 DONE for the syscall event up to the exit (`kcall_tq_sys`); NOT done: the non-syscall events, `kentry_tq` (the FaultIP prefix)
+Spec-only, namespace `Fl4Proofs.P3.SInvQ.P17`, modules SpecInvCqN2, N3, N4; root imports N2..N4. Nothing existing edited. (A first
+SpecInvCqN1, a generated `Simple` family over the front and the decode, built but was dropped at the rebase onto ctq18: its
+SpecInvCqEr0 declares the same `sm_leaf` / `sm_auto` syntax over the same roots; N2 uses `R18.SMK`. Generator kept untracked in
+proofs/scratch/sm/.)
+- **SpecInvCqN2 (handoff 1-2).** `eb_fl4PerformInvocationT` / `eb_restartPerformT` = ctq15's arms with ctq14's `R14.ebCapDeleteH`,
+  `ebCapRevokeH`, `ebCapDeleteOneH`, `ebCancelBadgedSendsH` (no hypothesis left). `RQ Q y := EB false y.2 ∧ (y.1 = ok → Q y.2)`
+  (HKEr pointwise); `syscall_r` (SpecInvDom's syscall_post' with a post on the whole outcome). **`SH C N S := DK C ∧ ScInv ∧ VI N S
+  false ∧ RT ∧ UtInv'' ∧ IL [C]`**, `sh_of` / `sh_auto` (eb / ct / R18 sm / nq2 / sb (BRs, then scInv_of_br) / vi / rt / uk / il
+  leaves), `idleSt_of_vi`. **`eb_fl4HandleInvocationR hnd C N S rep calling blocking don fp cptr (hfb : fp = true → blocking =
+  false) (hCN : C ≠ N) σ (hσ : SH C N S σ) : ∀ y, RQ (EB fp) y`**: gets / getMessageInfo / the lookups / getMrs + decode by
+  `sh_auto`; fault branch `eb_handleFault_p` (NPQ ct from EB true, NQ [C]) or, first phase (never blocking), nothing; error reply
+  `eb_auto` (EB true kept); at the decode's outcome SpecInvCqM5's `PD` from SH, `okd_fp` / `okd_tcbP` / `okd_sc` / `okq_fl4Decode`
+  / `okd_fl4Decode` (via okdAt_bind over getMrs) and ut8's `okv_fl4DecodeG` (GS's lookup OkV, `uk_getMrs`,
+  `uk_fl4DecodeInvocation`); then `eb_restartPerformT`; the post: getThreadState, `cases st`, Restart → reply (eb_auto) +
+  `eb_setThreadState_r … .running`.
+- **SpecInvCqN3.** **`EvP C N S I d Nq σe := SH ∧ R14.CKN ∧ Iu C ∧ R11.JR I C d Nq σe`** (CKN for ctq8's hB: `hb_of_evp` =
+  ctq11's `bc_of_ck` with ScInv.back; nq3's Iu for NQ [C] after the first phase; ctq11's JR for RT after it), `evp_auto`
+  (update_time_stamp, get_cap_reg). **`eb_fl4HandleSyscall hnd hE hI2 hI1 hCN rep c σ (hσ : EvP …)`: every outcome `EB false`**
+  (Send / NBSend / Call: the shell with fp = false; ReplyRecv / NBSendRecv / NBSendWait: the shell with fp = true, then
+  `eb_recv` = ctq10's `eb_handleRecv_res` from `EB true` (shell's ok outcome), `rt_fl4HandleInvocationR`,
+  `nq_fl4HandleInvocationR` (blocking = false), `ct_fl4HandleInvocationR`; Recv / Wait / NBWait / NBRecv: `eb_recv` at the start;
+  Yield: `eb_handleYield_p`), **`eb_fl4HandleEvent_sys`** (check_budget_restart: restart ⇒ state unchanged; else
+  `eb_checkBudgetRestart_p` gives EB false).
+- **SpecInvCqN4.** `vi_false_of_true`, **`ebx_handleE_sys`**: every outcome of `handleE (fl4HandleEvent rep (.syscallEvent c))
+  (preemption_path)` has `EBX N S false` — ok: `eb_fl4HandleEvent_sys`, nq3's `nq_fl4HandleEvent_sys`, vi3's
+  `vi_fl4HandleEvent_sys viGap`; error: ctq18's `ebx_fl4HandleEvent_err` (its `JE` = Js ∧ EB true ∧ Simple, all in EvP; σ0 = σ)
+  (the lead's interim instruction to name it as a hypothesis was superseded by ctq18's merge: no hypothesis). `ne_idle_of_active`
+  (vi3's `ha` + ValidIdle ⇒ ct ≠ idle), **`evp_start`** (EvP at the entry from EX, RB, T4, ValidIdle, EntryOK, CtExit, Iu, IL,
+  Js), **`kcall_tq_sys hnd rep c (hX : EX σ) (hR : RB σ) (h4 : T4 σ) (hV : ValidIdle σ) (hEO : EntryOK σ) (hCX : CtExit σ)
+  (ha : ct active) (hIu : Iu ct σ) (hIL : IL [ct] σ) (hJ : Js I ct d Nq σ σ) (hE : EF Nq σ) (hI2 : I.2 = σ.idleSc) (hI1 :
+  IrqOutV (fun _ => I.1) (uV σ)) (hO : IdleOutV σ) (hI : IdleScOutV σ) (hct : Pinned c → CtSc σ) : ∀ y ∈ fl4CallKernel rep
+  (.syscallEvent c) σ, EX y.2 ∧ RB y.2`** (ctq6's `rb_tail`).
+- HANDOFF (in order):
+  1. The non-syscall events for `kcall_tq`: unknownSyscall / userLevelFault (update_time_stamp; check_budget_restart; when
+     restart: `eb_handleFault_p` on ct with NPQ ct from EB true, NQ [ct] from Iu), vmFaultEvent (handle_vm_fault by eb_auto, then
+     the fault in the catch), hypervisorEvent (eb_auto), interrupt (update_time_stamp; check_budget (`eb_checkBudget_p`); then
+     ctq8's `eb_maybeHandleInterrupt_p`: needs NtfnQB and IdS after check_budget — IdS from VI (vi family), NtfnQB from nq1's
+     frame; ct may be idle here, so take EB true only). Error outcomes: these arms are withoutPreemption (no error). Then
+     `kcall_tq` for every event (vi3's `kcall_validIdle_of`-style split on `.interrupt` for VI / `ha`).
+  2. `kentry_tq`: `fl4KernelEntrySyscall` = gets ct; `fl4SyscallFaultIP ct` (an `asUser` on ct) then `kcall_tq_sys`. Each premise
+     of `kcall_tq_sys` must be carried across the asUser write (EX / RB / T4: eb/q4 asUser leaves; ValidIdle: vi_asUser; EntryOK:
+     sb2's; CtExit / ha / CurScT: registers only; Iu / IL / Js: iu / il / js leaves; EF / IrqOutV / IdleOutV / IdleScOutV read
+     σe — keep σe = the entry state and use the uV frame `uk_fl4SyscallFaultIP` as vi3's kentry_validIdle_of does).
+- Premises: none added (no [J]/[P]/[W]/[S]); the tops reuse vi3's `CtSc` [J] (Pinned syscalls only, unchanged) and
+  SpecInvQDom's `hnd : numDomains = 1` [P]; every other hypothesis is a carried entry fact (EX / RB / T4 / ValidIdle / EntryOK /
+  CtExit / Iu / IL / Js / EF / IrqOutV / IdleOutV / IdleScOutV / ct active). No ∀-states hypothesis. No FINDING.
+- Builds (tokyo FL4-c2 mirror, warm; ./ctq17.sh = ctq15.sh with filter SpecInvCqN and ax17.lean, both untracked; keys ctq17-*):
+  1 N1 (generated, 122 lemmas) 35 s; 2 N2 9.7 s; 3 N3 8.0 s (5326 jobs); after the rebase onto 31d17145 (N1 dropped, N2 on R18.SMK)
+  4 N2 9.5 s + N3 7.9 s, N4 failed (the `by cases e, …` comma trap in an anonymous constructor); 5 N4 12 s (5346 jobs) + axioms.
+  Axioms (ax17.lean): eb_fl4PerformInvocationT, eb_restartPerformT, sh_of, eb_fl4HandleInvocationR, eb_fl4HandleSyscall,
+  eb_fl4HandleEvent_sys, ebx_handleE_sys, evp_start, kcall_tq_sys: propext, Classical.choice, Quot.sound; syscall_r,
+  ne_idle_of_active: propext. No sorry/admit/native_decide/bv_decide. Root Fl4Proofs.lean not rebuilt (three import lines).
+- Lean notes: two generated families with the same tactic syntax (`sm_leaf` / `sm_auto`) in different namespaces make every file
+  importing both ambiguous where the tactic is written: reuse the existing family; a combined frame (`sh_of`, one generated
+  family per conjunct, ScInv through sb2's `BRs h0` with `h0 := σ.kheap` and `BR.refl`) keeps each auto on its own leaves; the
+  result-sensitive post (`RQ`) is cheaper than splitting ok / error with two walks.
