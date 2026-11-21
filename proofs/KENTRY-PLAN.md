@@ -11481,3 +11481,52 @@ existing edited. Keys rd14d-1..7 (./rd14ds.sh untracked = rd14cs.sh with its own
   When `C'` covers every arm, `InvRc C'` is vacuous: `kcall_rdyOff9` / `kentry_rdyOff9` := `kcall_rdyOffKB armAKB_all` without
   `hP`. (2) PerfF for the new arms (rd14c's QT family; `fpo_tu` for the unbinding arms, TZ / configure: RT / CBa of ct from
   the resume), then rd14c's B tops lose `InvF`.
+
+## rd8w (branch par/rd8w in FL4-c2, on 3e814483 = int/j2 incl. rd8v, rd14c, rd8t, g2g) — rd8v handoff 1-3 DONE: `InvInB` discharged (no input), rd14c's bridges fed in, the readiness line closed at the bundle level (`SInvW`, tops `kcall_rdyOffW` / `kentry_rdyOffW`), parametric in the perform-arm interface
+Spec-only, namespace `Fl4Proofs.P3.SInvR.B8w`, modules SpecInvRd8wA / B (root imports both). Nothing existing edited. No JAtZ
+cone (imports SpecInvRd8vD / SpecInvRd14cB / SpecInvRd14cC only).
+- **SpecInvRd8wA.** `b0_front` (rd8l's `B0` across the front's true outcomes: `ba_fl4HandleEvent_sys`'s prefix), `b0_of` (B0 from
+  BSA, sb2's EntryOK, IdleScOutV, CnDom, CAx, ct ≠ idle, ct not ipc-queued), `b0_fip` (B0 across the FaultIP write, `kentry_bsa`'s
+  construction); **`invInB_of r fp (B0 σ.idleSc σ) (EntryOK σ) : B8v.InvInB r fp σ`** (handoff 1): front → rd8l's `b0_getCapReg` →
+  `bsa_restart` with `calling := true` (SJ's donation clause vacuous), `PerfRestB` by cases on the invocation. Interface (lead
+  note on rd14d): **`BrR Q := ∀ c σ, A8.EF σ → Q c σ → A12b.InvR c σ`**, **`BrF Q := ∀ c σ, A8.EF σ → Q c σ → A14b.InvF c σ`**,
+  `brR_c (ArmA C) : BrR (InvRc C)` (rd14c's `invR_ofC`), `brF_c (ArmF C) : BrF (InvFc C)`; rd14d's `ArmAK` / `ArmAKB` forms plug in
+  through `invR_ofK` / `invR_ofKB` the same way (if those bridges need more than `EF` at the state, put it inside their `Q`).
+  `kcall_rdyOffR` / `kentry_rdyOffR` = rd8t's `kcall_rdyOffT` / `kentry_rdyOffT` taking `InvR` itself (the `invR_of` from `InvRo`
+  dropped; rd14d's bridges produce `InvR`, not `InvRo`). Tops **`kcall_rdyOffX`** / **`kentry_rdyOffX`** = rd8v's
+  `kcall_rdyOffV` / `kentry_rdyOffV` with `hPs` / `hPr` gone (`invInB_of`, then rd8v's `invIn_of`; extra entry facts `BSA σ`,
+  `CnDom σ`), `RecvTC` by rd14c's `recvTC_of ∘ recvF_of` from `QF` (handoff 3), `InvR` from `QR`.
+- **SpecInvRd8wB.** **`RdL σ := Rdy σ ∧ OffReady σ ∧ CAx σ`**, **`SInvW σ := SInvCRBV σ ∧ RdL σ`**, `boot_sinvW` (non-vacuity:
+  rd8v's boot_sinvCRBV, boot_rdy, boot_offReady, boot_cAx). Every entry fact as a projection: `ef_ofW` (rd8a's EF: CtExit,
+  EX's CtQ / Simple, RB's CB / hb, SInvA's vmt / scInv / cs, NQ [] from nq / epq; ni = ct ≠ idle), `efi_ofW`, `ev10_ofW`,
+  `entryOK_ofW` (sl's `entryOK_of`), `uf_ofW` (UtInv3.1, sl's ScLiveT, IdleOutV), **`scLive_ofW`** (sb2's `ScLive` [J] from sl's
+  `scLive_of`: the [J] premise of rd8l / rd14c's bundle tops is now a projection), `nq_ofW` / `sysF_ofW` (ctq19's `kcall_tqB`
+  construction). Tops (handoff 2):
+  **`kcall_rdyOffW hnd rep ev (h : SInvW σ) (hev : ev ≠ .interrupt → ct ≠ idle) (bR : BrR QR) (bF : BrF QF)
+  (hP : ∀ c, ev = .syscallEvent c → QR c σ) (hF : ∀ c, ev = .syscallEvent c → QF c σ) : ∀ y ∈ fl4CallKernel rep ev σ, SInvW y.2`**,
+  **`kentry_rdyOffW hnd c h (hct : ct ≠ idle) bR bF (hW : ∀ w ∈ fl4SyscallFaultIP ct σ, QR c w.2 ∧ QF c w.2) : ∀ y ∈
+  fl4KernelEntrySyscall true c σ, SInvW y.2`** (RdL by `kcall_rdyOffX`; SInvCRB by rd14c's `kcall_sinvCRBI` with rd's CAx at every
+  exit taken from that same conclusion; VB by rd8v's `kcall_vb`). Instances: `kcall_rdyOffWc` / `kentry_rdyOffWc` (rd14c's
+  `InvRc CR` / `InvFc CF`, any `ArmA CR` / `ArmF CF`), `kcall_rdyOffW14c` (today's `C14c` / `CovC`); **`kcall_rdyOffW_all`** /
+  **`kentry_rdyOffW_all`** (`ArmA (fun _ => True)` / `ArmF (fun _ => True)` ⇒ `invRc_true` / `invFc_true`: no run-pinned
+  input). With rd14d: `kcall_rdyOffW hnd rep ev h hev (its bridge) (its bridge) …`, one line.
+- **Named inputs left (exactly).** Run-pinned, one per interface: `QR` (PerfA of the perform arms outside the covered set; today
+  rd14c's `InvRc C14c`) and `QF` (PerfF outside the covered set; today `InvFc CovC`), each with its bridge. Entry: `SInvW σ`,
+  `hev` / `hct` (event scope, l4v `ct_running ∨ (Interrupt ∧ ct_idle)`; SInvB's own) and `hnd : numDomains = 1` [P] (SInvA's).
+  Gone versus rd8v / rd14c / rd8l: `hPs` / `hPr` (InvInB), `hC` (RecvTC), `hP : InvRo`, `RR`, and as separate premises `hCA`
+  (CAx at every exit), `hI` (ScInv), `hL` (ScLive [J]), `hO` (IdleScOutV), `hA` (CAx), EF / EFI / EV10 / EX / RB / T4 / CtExit /
+  ha / NQ / SysF / RS / VB / UF / BSA / CnDom. No [J]/[P]/[W]/[S] premise added, no ∀-states hypothesis.
+- No FINDING: composition only. Paper checks: the B0 facts hold at every syscall entry from SInvW (CtExit + ct ≠ idle gives ct
+  Running, so not ipc-queued; CAx gives CBa / Bd); `bsa_restart` is reached with `calling := true` only to discharge SJ's `D`,
+  since `InvInB` quantifies over every shell run regardless of the calling flag (BSA at the Restart state does not depend on it).
+  Nothing traced breaks Rdy / OffReady / RV / CAx / VB / CurHold.
+- Builds (tokyo, FL4-c2 mirror; ./rd8ws.sh untracked = rd8vs.sh with the Rd8w filter; keys rd8w-*): a1 (~70 min, recompiled
+  g2g's part of the cone under load ~25) A: `B8l.BSA` unknown (BSA is B8g's); a2 A + B "Build completed successfully (5766
+  jobs)" (B first try) + axioms (axrd8w1.lean, untracked): b0_front, b0_of, b0_fip, invInB_of, brR_c, brF_c, kcall_rdyOffR,
+  kentry_rdyOffR, kcall_rdyOffX, kentry_rdyOffX, boot_sinvW, entryOK_ofW, ef_ofW, efi_ofW, ev10_ofW, uf_ofW, scLive_ofW, nq_ofW,
+  sysF_ofW, kcall_rdyOffW, kentry_rdyOffW, kcall_rdyOffWc, kentry_rdyOffWc, kcall_rdyOffW14c, invRc_true, invFc_true,
+  kcall_rdyOffW_all, kentry_rdyOffW_all: propext, Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide /
+  axiom. Root Fl4Proofs.lean not rebuilt (two import lines). Commits cd853891 (A), 611dfea5 (B + root imports), this section.
+- HANDOFF: (1) rd14d / rd14e: instantiate `kcall_rdyOffW` / `kentry_rdyOffW` with their bridge (`invR_ofK` / `invR_ofKB` as
+  `BrR`); when the covered sets are everything, `kcall_rdyOffW_all` (or its K-interface analogue) is the input-free top.
+  (2) Lead: `SInvW` is the bundle to carry (it includes SInvCRBV); `hev` / `hnd` are the only non-bundle entry premises.
