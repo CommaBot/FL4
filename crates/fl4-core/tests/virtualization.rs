@@ -5,8 +5,8 @@ use fl4_core::capability::{Cap, FrameSize};
 use fl4_core::error::{Exc, SysError};
 use fl4_core::layout::{self, ks, node, reg, tcb};
 use fl4_core::machine::{Arch, Store};
-use fl4_core::obj::{ks_set, node_set, Slot, Tcb};
-use fl4_core::{ept, objects, sched, vcpu, vspace};
+use fl4_core::obj::{ks_set, node_set, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
+use fl4_core::{ept, notification, objects, sched, vcpu, vspace};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -519,6 +519,180 @@ fn notification_before_entry_cannot_reuse_an_old_exits_fields() {
     assert_eq!(t.reg(&s, reg::R9), 0);
     assert_eq!(s.read(0x40000 + 8 + 5 * 8), 0);
 }
+/// The ASID word (with the flush decision) and the clean bits are rewritten
+/// on every entry from the core's cache state: ReadVMCB must not show them,
+/// or one VMM learns whether another VCPU ran on the core. WriteVMCB
+/// rejects them like the physical pointers.
+#[test]
+fn vmcb_hides_per_core_asid_and_clean_bits() {
+    let (mut s, mut a, t, v) = fixture(2);
+    vcpu::set(&mut s, v, vcpu::svm::ASID, 1 | (1 << 32));
+    vcpu::set(&mut s, v, vcpu::svm::CLEAN, 0x3f);
+    vcpu::set(&mut s, v, vcpu::svm::TSC_OFFSET, 0x77);
+    for f in [vcpu::svm::ASID, vcpu::svm::CLEAN] {
+        assert!(vcpu::vmcb_hidden(f));
+        assert!(matches!(vcpu::sanitize_vmcb(&a, f, 0, 0), Err(Exc::Sys(SysError::IllegalOperation))));
+        t.set_reg(&mut s, reg::R10, f);
+        t.set_reg(&mut s, reg::R8, 1);
+        assert!(matches!(
+            vcpu::decode(&mut s, &mut a, label::X86VCPUWriteVMCB, 2, v, true, 0, &[Slot(0); 3]),
+            Err(Exc::Sys(SysError::IllegalOperation))
+        ));
+    }
+    assert_eq!(vcpu::get(&s, v, vcpu::svm::ASID), 1 | (1 << 32));
+    assert_eq!(vcpu::get(&s, v, vcpu::svm::CLEAN), 0x3f);
+    // A bulk read of 0x050..0x0c8: TSC_OFFSET (MR0) shows, the ASID word
+    // (MR1) and the clean bits (MR14, in the IPC buffer) read as 0.
+    t.set_reg(&mut s, reg::R10, 0x050);
+    t.set_reg(&mut s, reg::R8, 16);
+    s.write(0x40000 + 8 + 14 * 8, 0xdead);
+    assert!(vcpu::decode(&mut s, &mut a, label::X86VCPUReadVMCB, 2, v, true, 0, &[Slot(0); 3]).is_ok());
+    assert_eq!(t.reg(&s, reg::R10), 0x77);
+    assert_eq!(t.reg(&s, reg::R8), 0);
+    assert_eq!(s.read(0x40000 + 8 + 14 * 8), 0);
+}
+
+fn bind_ntfn(s: &mut Memory, t: Tcb) -> Ntfn {
+    let n = Ntfn(0x60000);
+    notification::bind_notification(s, t, n.0);
+    n
+}
+
+/// seL4 c_traps.c: a VMEnter that finds its bound notification active
+/// returns at once with the badge and SEL4_VMENTER_RESULT_NOTIF, the
+/// message registers as the caller sent them, and the thread not in
+/// RunningVM. The staged entry state still reaches the VCPU.
+#[test]
+fn vmenter_with_a_pending_signal_leaves_the_message_registers_alone() {
+    for backend in [1, 2] {
+        let (mut s, mut a, t, v) = fixture(backend);
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        let n = bind_ntfn(&mut s, t);
+        n.set_state(&mut s, NTFN_ACTIVE);
+        n.set_badge(&mut s, 0x42);
+        t.set_state(&mut s, sched::TS_RUNNING);
+        for i in 0..30 {
+            vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
+        }
+        // MR0..3 are R10, R8, R9 and R15; MR4.. are in the IPC buffer.
+        t.set_reg(&mut s, reg::R10, 0x1234);
+        t.set_reg(&mut s, reg::R8, 0xffff_ffff);
+        t.set_reg(&mut s, reg::R9, 0x8000_0030);
+        t.set_reg(&mut s, reg::R15, 0x5555);
+        for i in 4..30 {
+            s.write(0x40000 + 8 + i * 8, 0x1000 + i);
+        }
+        vcpu::enter(&mut s, &mut a, t);
+        assert_eq!(t.state(&s), sched::TS_RUNNING);
+        assert_eq!(n.state(&s), NTFN_IDLE);
+        assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+        assert_eq!(t.reg(&s, reg::BADGE), 0x42);
+        assert_eq!(t.reg(&s, reg::R10), 0x1234);
+        assert_eq!(t.reg(&s, reg::R8), 0xffff_ffff);
+        assert_eq!(t.reg(&s, reg::R9), 0x8000_0030);
+        assert_eq!(t.reg(&s, reg::R15), 0x5555);
+        for i in 4..30 {
+            assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+        }
+        let rip = if backend == 2 {
+            vcpu::get(&s, v, vcpu::svm::RIP)
+        } else {
+            vcpu::read_vmcs(&s, v, vcpu::vmx::GUEST_RIP)
+        };
+        assert_eq!(rip, 0x1234);
+        // Without a signal the thread enters RunningVM.
+        vcpu::enter(&mut s, &mut a, t);
+        assert_eq!(t.state(&s), sched::TS_RUNNING_VM);
+    }
+}
+
+/// seL4 `vcpu_sysvmenter_reply_to_user`: a notification that ends a
+/// running VMEnter reports the guest's RIP, controls and pending event in
+/// MR0..2 and leaves every other message register alone, even after a
+/// host exit that saved a full exit record. An event FL4 reinjects after
+/// such an exit is in MR2, so passing MR2 back to VMEnter keeps it.
+#[test]
+fn a_notification_reports_only_the_resume_state() {
+    let (mut s, a, t, v) = fixture(2);
+    s.write(t.0 + tcb::VCPU, v);
+    vcpu::set(&mut s, v, vcpu::TCB, t.0);
+    t.set_state(&mut s, sched::TS_RUNNING_VM);
+    for i in 0..30 {
+        vcpu::set(&mut s, v, vcpu::EXIT + i * 8, 0xdead);
+    }
+    vcpu::set(&mut s, v, vcpu::VALID, 1);
+    vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+    vcpu::set(&mut s, v, vcpu::svm::EVENT_INJ, 0x8000_0b0e);
+    let ctl = vcpu::get(&s, v, vcpu::svm::INTERCEPT_EXC) >> 32;
+    t.set_reg(&mut s, reg::R15, 0x5555);
+    for i in 4..30 {
+        s.write(0x40000 + 8 + i * 8, 0x1000 + i);
+    }
+    vcpu::report(&mut s, &a, t, 0x42);
+    assert_eq!(t.state(&s), sched::TS_RUNNING);
+    assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+    assert_eq!(t.reg(&s, reg::BADGE), 0x42);
+    assert_eq!(t.reg(&s, reg::R10), 0x25);
+    assert_eq!(t.reg(&s, reg::R8), ctl);
+    assert_eq!(t.reg(&s, reg::R9), 0x8000_0b0e);
+    assert_eq!(t.reg(&s, reg::R15), 0x5555);
+    for i in 4..30 {
+        assert_eq!(s.read(0x40000 + 8 + i * 8), 0x1000 + i, "MR{i}");
+    }
+}
+
+/// seL4 `sendSignal` (CONFIG_VTX): a signal to a RunningVM thread on the
+/// current core completes its VMEnter at once, so two signals give two
+/// results (badge 1 now, badge 2 left active for the next VMEnter), not
+/// one with the OR of both. On another core, or with a saved exit still to
+/// report, the signal stays active for the owner's check.
+#[test]
+fn signal_to_a_running_vm_on_this_core_completes_it_at_once() {
+    let setup = |cpu: u64, affinity: u64, pending: bool| {
+        let (mut s, a, t, v) = fixture(2);
+        s.cpu = cpu;
+        s.write(t.0 + tcb::VCPU, v);
+        vcpu::set(&mut s, v, vcpu::TCB, t.0);
+        vcpu::set(&mut s, v, vcpu::svm::RIP, 0x25);
+        vcpu::set(&mut s, v, vcpu::PENDING, pending as u64);
+        vcpu::set(&mut s, v, vcpu::VALID, pending as u64);
+        t.set_affinity(&mut s, affinity);
+        t.set_state(&mut s, sched::TS_RUNNING_VM);
+        t.set_reg(&mut s, reg::R15, 0x5555);
+        let n = bind_ntfn(&mut s, t);
+        (s, a, t, n)
+    };
+    let (mut s, mut a, t, n) = setup(0, 0, false);
+    notification::send_signal(&mut s, &mut a, n.0, 1);
+    assert_eq!(t.state(&s), sched::TS_RUNNING);
+    assert_eq!(t.reg(&s, reg::MSG_INFO), 0);
+    assert_eq!(t.reg(&s, reg::BADGE), 1);
+    assert_eq!(t.reg(&s, reg::R10), 0x25);
+    assert_eq!(t.reg(&s, reg::R15), 0x5555);
+    assert_eq!(n.state(&s), NTFN_IDLE);
+    notification::send_signal(&mut s, &mut a, n.0, 2);
+    assert_eq!(t.reg(&s, reg::BADGE), 1);
+    assert_eq!(n.state(&s), NTFN_ACTIVE);
+    assert_eq!(n.badge(&s), 2);
+
+    for (cpu, affinity, pending) in [(0, 1, false), (1, 0, false), (0, 0, true)] {
+        let (mut s, mut a, t, n) = setup(cpu, affinity, pending);
+        notification::send_signal(&mut s, &mut a, n.0, 1);
+        notification::send_signal(&mut s, &mut a, n.0, 2);
+        assert_eq!(t.state(&s), sched::TS_RUNNING_VM);
+        assert_eq!(n.state(&s), NTFN_ACTIVE);
+        assert_eq!(n.badge(&s), 3);
+        if pending {
+            // The saved exit is reported first; the signal waits.
+            s.cpu = affinity;
+            vcpu::check(&mut s, &mut a, t);
+            assert_eq!(t.reg(&s, reg::MSG_INFO), 1);
+            assert_eq!(n.state(&s), NTFN_ACTIVE);
+        }
+    }
+}
+
 #[test]
 fn nested_asids_are_distinct_and_unmapping_reaches_all_recorded_cores() {
     let mut s = Memory::default();

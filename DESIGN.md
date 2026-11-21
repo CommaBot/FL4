@@ -191,8 +191,15 @@ Bugs in FL4's own code, not differences from seL4, kept here because each one sh
 | An NMI, #DB or #MC between SYSCALL and the stack switch pushed its frame on the user's RSP in ring 0 | Review while adding the SYSRET exit | IST stacks |
 | VMX controls could advertise performance-MSR switching while CPUID exposed no PMU, causing a host MSR-read fault | Intel real-guest regression | Filter the VMX entry/exit performance controls by PMU availability |
 | Deleting a non-final IO-port cap left its VCPU grant active; final cleanup revoked unrelated VCPU grants | Proof port and seL4 lifecycle comparison | Revoke only the cap owner's grant on every finalisation; free the allocation during final cleanup |
+| `ReadVMCB` returned the ASID word (0x058, with the kernel's flush decision) and the clean bits (0x0c0), which the kernel rewrites on every entry from per-core state, so one VMM could see whether another VCPU or root had run on its core | Spec review of the VCPU decoder | Both read as 0, like the physical pointers; `WriteVMCB` already rejected them |
 
 The VT-x and AMD-V patches (0038–0043) are implemented through a shared VCPU/EPT API with runtime CPU selection. See [README.md](README.md#x86-virtualization) for implementation and verification status.
+
+### Virtualization differences from seL4
+
+| Where | Behavior in FL4 | Why |
+|-------|-----------------|-----|
+| `endTimeslice` | A thread in `RunningVM` whose budget runs out gets no timeout fault, even with a valid timeout handler: it is appended or postponed like a thread without one. seL4 raises the fault whatever the thread state | A fault would abandon the in-flight VMEnter: the thread would leave `RunningVM` blocked on its timeout handler, and when the handler replied it would resume in user space with no VMEnter result (neither an exit nor a notification) |
 
 ### Left out
 
