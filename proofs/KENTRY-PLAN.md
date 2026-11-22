@@ -16214,3 +16214,47 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   FrameBatch model lands (or the lead approves a `lbl ≠ X86PML4FrameBatch` premise), prove the six branches; for
   MachKeepG4d the batch path needs an MKD lemma through `frame_batch_entry` → `cdt.delete` (not in the quiet walk).
 - Commits: 015a18c7 (P0), 367af0ca (hugePages), this section.
+
+## tdx (branch par/tdx in FL4-tdx, on par/m75 d139d550 + main b47224c2 = #68) — re-extracted (x86, A64); P0 green (x86 1126/1126, A64 1112/1112); P1 `tdx` family proved; P3 mechanical breaks fixed; TdxControl not modelled in Fl4Spec: 2 P3 lemmas need that decision (below); full x86 build otherwise green outside the six #71 FrameBatch branches; no premise added; FINDINGs below
+- **Merge / extraction (46e0a0ed).** b47224c2 merged as 8b0734a3; `cargo xtask extract` (x86, `--arch aarch64`) on tokyo with
+  `fl4-deps` (Aeneas 0d21a9e); FunsExternal unchanged. `gen_const_specs` + `gen_p0`: x86 1126/1126 (24 by hand), A64
+  1112/1112 (29 by hand), 0 sorry, no new hand proof: the four new default Arch methods are `ArchTotal` fields
+  (`tdx_active`, `tdx_report`, `tdx_extend_rtmr`, `tdx_get_quote`, both Totality.lean, with `@[step]` specs).
+- **P1.** `CapFam.tdx`, `capFam .TdxControl = .tdx`, `InvGaps.tdx`, discharged in the new **QueueDecTdx.lean**
+  (`decGap_tdx hA E`: `tdx.decode.dec` = `get_report` / `extend_rtmr` / `get_quote` keep `DecPost`: errors with the state
+  unchanged; else `restart_blk`, the arch's TDCALL by `ArchTotal`, `tdx.reply.bxi` = the ioport read reply path) in
+  `InvGaps2.gaps` / `InvGaps3.gaps` (so `InvGaps2/3/4` are unchanged: no new premise). QueueDelFin `fin_noop` takes
+  `TdxControl` (finalise returns `(Null, Null)`).
+- **P3: the abstraction (CapRel.lean).** `absCap .TdxControl := .nullCap` and **`CapWf .TdxControl := False`**: no related
+  state holds a TdxControl cap, so the refinement says nothing about TDX guests until Fl4Spec models the cap (lead
+  decision). Before #68 no such cap existed, so every existing statement keeps its meaning for every state it covered.
+  `StateRel.not_tdx` (CnodeRevoke) turns a related slot holding one into `False`.
+- **P3: mechanical fixes.** CapRel `null_iff`; Delete `absCap_eq_null` takes `CapWf c` (9 callers pass `hca.1`;
+  `recDelF_fin` from `TrivKind`); MdbSpec `srB_spec_self` / `sbp_eq` take `CapWf` of the new cap (4 callers pass `hwf`);
+  SoSpec `soB_iff_nf` (TdxControl cases from `ha`/`hb`); FinDefs `key_of_so`; DelFinStep `TrivFin` includes TdxControl;
+  ScDecodeSc (the two statement copies of `decode_bind`/`unbind_object`'s cap match get the TdxControl arm; `hwf`);
+  the decode dispatches (XTopJointEntry, XTopJointKEntry13P, 23P, 38) and the five `sched_params` SC-cap splits (ScTcb,
+  XTopJointMRTcb, MRTcbM, TcbSsp, XTopTcbSched) close the TdxControl case by `not_tdx`; `JPath`/`JPathM` get
+  `.TdxControl => True`; `QuietF .TdxControl := False` (its TDCALLs return an arch state no `MRKeepD` field covers);
+  DecodeTop `decode_invocation_refines` gets `hTdxControl` (one statement per cap type; no caller); XTopJointMachRel's
+  `modelArch` gets the four methods (defaults); Encode decode/encode/round trip (tag 24).
+- **Needs Fl4Spec TdxControl support (NOT fixed, no premise): P3/TcbCtl.lean `vfh_eq` (l.41) and `vfh_ep` (l.233).**
+  FL4's `valid_fault_handler TdxControl = false` while the spec's `validFaultHandler (absCap TdxControl) =
+  validFaultHandler nullCap = true`; `vfh_ep` concludes "endpoint" from a valid non-null handler. Both are stated for
+  every cap (no `CapWf`), `vfh_eq` is a simp rewrite in ~15 places (TcbCtl, ScTcb, XTopTcbSched, XTopJointTcbSsp,
+  XTopJointMRTcb(M), XTopJointTcbInstall) and `vfh_ep` is used in ~15 more (XTopJointFault*, NoFault, ...). Options: a
+  `CapWf c` premise (each caller has the cap's `CapRel` at hand, but the simp uses need a conditional rewrite), or the
+  Fl4Spec cap. With scratch sorries in exactly these two (tdxscratch.py, untracked, never committed) plus m77's six
+  FrameBatch ones, `lake build` (x86): "Build completed successfully (7211 jobs)", 8 `sorry` warnings (those 8).
+  Without them it stops at those 8 (TcbCtl and its downstream unbuilt). `lake build Fl4ProofsA64`: "Build completed
+  successfully (3609 jobs)". Axioms (axtdx2.lean): `decGap_tdx`, `tdx.decode.dec`, `InvGaps2/3.gaps`, `StateRel.not_tdx`,
+  `soB_iff_nf`, `sbp_eq`, P0 `tdx.decode.p0`, `boot.init_tdx_control.p0`: [propext, Classical.choice, Quot.sound].
+- **FINDINGs (Rust, #68).** (1) `tdx::decode` checks `tdx_active` only; the cap exists only when `init_tdx_control` ran
+  (TD guest), so OK, but the cap is copyable/movable and `same_region_as` makes all copies one region (objects.rs:125),
+  so a Revoke of any copy deletes all (as IRQControl in seL4). (2) On AArch64 `TdxControl` (tag 24) still decodes from
+  words and dispatches to `tdx::decode`; `tdx_active` is the default `false`, so every invocation is IllegalOperation.
+  (3) Not "no state write": each successful call sets the caller Restart then Running and writes MR0 / MessageInfo /
+  badge register (normal invocation reply), and the TDCALL writes a user frame (TDREPORT into the private frame,
+  quote into the shared one) — no kernel object changes, as described. (4) `init_tdx_control` reuses root slot
+  `SMC` (15) on x86.
+- Scripts (untracked): tdx-build.sh, tdx-ex.sh, m77scratch.py (copy), tdxscratch.py, axtdx.lean / axtdx2.lean.
