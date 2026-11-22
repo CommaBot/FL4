@@ -15745,3 +15745,89 @@ New modules: ScSniPre (upstream of ScScheduleTop), ScSniProof, XTopJointKEntryU5
 - **(e2) g7c-full2** (full `lake build` at the merge ac69aacb, tokyo, heavily loaded): "Build completed successfully
   (7197 jobs)", 0 `error`, 0 `sorry`; `#print axioms` of the g7c lemmas and `kernel_entry_reachU4`: propext,
   Classical.choice, Quot.sound. (U5/U7 build green inside it.)
+
+## g7d (branch par/g7c in FL4-g7c, on 99f539b9 = g7c-2 plan) — g7c-2 1. (D2) DONE; 2. (D6) narrowing DONE, the narrowed tail NOT yet a theorem; 3. (`kernel_entry_reachU8`) NOT done; no FINDING
+
+### (1) D2: `ArchSwF` guarded by `VsRootOK` in place (commit d76c7fd0)
+- **G7dVsDef** (new, imports VsRel): `VsRootOK T σ` = (every `t ∈ T` whose spec TCB vtable is
+  `pml4Cap p (some a)` has `a ≠ 0`) ∧ (every `x64AsidTable i = some p` names an `asidPool`); `VsRootOK.of_heap`,
+  `VsRootOK.of_eq`. Under it the spec's `setVmRoot t` (`findVspaceForAsid`'s `assertE (asid > 0)`,
+  `getAsidPool`) cannot fail for `t ∈ T` (idle ∈ T by `SchedRel`), which g6b's audit found missing.
+- **ScArchF**: both halves of `ArchSwF` take `VsRootOK T σ →` (first half after `FpuOwnOK σ →`, second half after
+  `NtfnStateRel`): a weaker premise; `ArchSw.toF` adjusted; `VsRootOK.ofF` (across `HeapEqUpToFpu`).
+- **Threaded** next to `hfo` (same pattern as `FpuOwnOK`): `sw_refinesF`, `cn_refinesF`, `cn_enqF`, `cn_appF`,
+  `switch_branch_refinesF` (ScScheduleF), `scnt_refines0F` (ScNextDomF), `cn_refines0F`, `cn_enq0F`, `cn_app0F`,
+  `switch_branch_refines0F` (ScNextDomCF) gained `(hvr : VsRootOK T σ)`; `schedule_refinesWPF`,
+  `schedule_refinesWP0F`, `schedule_refinesWP0FR` gained `(hPv : ∀ r σ1, Pf r σ1 → VsRootOK T σ1)` after `hPo`.
+  Frames: `awaken` (`Calm`'s heap, `crk_awaken`), the queue ops (`QChange`, `crk_tcbSchedAction'`, `dk_when`),
+  `arch_prepare_next_domain` (`HeapEqUpToFpu`, `crk_archPrepareNextDomain`) via ScScheduleF's `asid_of_crk`
+  (ScScheduleF now imports G7cCr3K).
+- **Supplied** at the three callers (XTopJointSchedRF `jat_scheduleFRF`, XTopJointSchedRF2 `jat_scheduleWP0F`,
+  XTopJointJAtZRB `jat_scheduleWP0FZR`) from the post-timer `JAtZ` / `JAtZR` in `Pf`:
+  **G7dVsRoot** (new, imports G7dVsDef, XTopJointJAtZR; root-imported after G7cSwitch): `vsRootOK_of`
+  (`StateRel.tcb` slot 1 = vtable, `VsRel.table`/`tmem`/`pool` over all 2048 indices), `JAtZ.vsRootOK`,
+  `JAtZR.vsRootOK` (nonzero ASID from `vsc`, as `vtAsid_ofR`). XTopJointSchedRF imports G7dVsRoot.
+- No statement of a top changed (the `ArchSwF` text inside `KFinAt*` / `hA` is the same identifier, now weaker).
+  No premise added. D2 left: still a [P] premise (its post: the opaque FPU ops of `lazyFpuRestore` have one
+  outcome and FL4's `set_vm_root` matches), but no longer unsatisfiable.
+
+### (2) D6: the tail narrowed in place (commit dddf3630)
+- The 16 `KFootN` copies of the tail type (XTopJointKEntry `KFinAt.tail`, XTopJointKEntry2 `KFinAt2.tail`,
+  XTopJointKEntry27 `KFinAtR27.tail`, XTopJointKEntry31 `KFinAtR31.tail`, XTopJointKEntry4 `KFinAtR.tail` + 2 `hTail`,
+  XTopJointKEntryU5 `KFinAtR5.tail`, XTopJointKEntry28 / XTopJointKEntry36 `hTail`, XTopJointJAtZRB ×3,
+  XTopJointSchedRF3 ×3) gained, after `Fires σ σ1 →`, the two hypotheses that pin σ1 to the run:
+  `timer.fire st arI s a = ok rf →` and
+  `((∃ V1 Ac1 Lst1 D2, JAtZR … (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨ ∃ V1 Ac1 Lst1 D2, JAtZ … rf.1 rf.2 σ1) →`
+  (scripted, identical text in every copy, so every `.to*` conversion and `F.tail` pass-through is unchanged).
+  The two appliers (`jat_scheduleFR2ZR` in XTopJointJAtZRB, `jat_scheduleFR2` in XTopJointSchedRF3, the latter g7a's
+  file: one line) pass `hfr` and the `JAtZR` / `JAtZ` they already destructure from the chain's `Pf`.
+- The `KFoot` family (ScFireJ, ScSchTailP1, ScSignalJ, XTopJointSchedR, XTopJointSchedRF; JAtZ-only older tops)
+  is not connected to the `KFootN` bundles and is left unchanged; ScJointSchTail / ScJointSched have other shapes.
+- Weaker field everywhere: every top taking a `KFinAt*` / `hTail` now asks the tail only at the run's own
+  post-timer state. Statement text of the tops' own signatures: unchanged except through the bundle definitions
+  (the `tail` field / `hTail` type gained the two hypotheses).
+
+### (3) The narrowed tail as a theorem, and U8: NOT done (agent budget), exact plan
+Target (new module after XTopJointKEntryU7, e.g. G7dTail): at the finish state, from `J : JAtZR … s a σ`,
+`hRef : ArchRefines arI AR` (A15, already a top premise), `IdleVt` [J] at σ (D7), prove `KFinAtR5.tail`'s
+type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : IdleVt` per finish state).
+- **Proof shape.** `sched.schedule = awaken (timer.fire …) >>= rest`; the field's hypotheses give `timer.fire = ok rf`,
+  `Fires σ σ1`, `JAtZR`/`JAtZ` at `(rf, σ1)`. Run an AR-carrying copy of `schedule_refinesWP0FR` with `hfire`
+  instantiated at that σ1 (`rw [hfr]`; `Pf r σ1' := σ1' = σ1 ∧ r = rf ∧ …`), so the chain's σ1 is the given one and
+  its σ' is the given one (`schedule σ1` is a singleton). Conjoin (`WP.spec_and`) with the existing chain for
+  termination, then `∀`-intro over σ1 (Result WP: post at the unique outcome).
+- **Why no correlation lemma is needed on this route.** In `schedule_refinesWP0FR` both sides take the same branch
+  (`ActRel`): resume → neither switches (CR3: `AR rf.2 σ1.cr3` from `JAtZR.xtop` (`OthersRel`'s last conjunct),
+  `crk_awaken`, awaken keeps `r.2 = rf.2`); choose / switch-thread → both switch exactly once, at the same thread
+  (the leaves `choose_thread_refinesFA` (G7cSwitch), `sw_refinesF` + `switch_to_thread_ar`). After the switch the
+  tail ops keep `AR` (`ak_walk` + `ARKeep` over `switch_sched_context` / `set_next_interrupt` / `send_pending`) and
+  the spec CR3 (`crk_scAndTimer`).
+- **AR-carrying copies needed** (posts gain `AR r.2 σ'.archState.x64CurrentCr3`, hypotheses gain `RootOK AR T P s a σ`):
+  `schedule_choose_new_thread_refinesF` (25 lines, via `choose_thread_refinesFA`), `sw_refinesF` (15),
+  `cn_refines0F`/`cn_enq0F`/`cn_app0F` (90), `scnt_refines0F` (80: both branches end in `choose_thread`),
+  `switch_branch_refines0F` (220), `schedule_refinesWP0FR` (215). `a` is unchanged from the timers to the switch
+  (`awaken`'s `r.2 = rf.2`; the queue ops, `set_action`, `ndS` are store-only), so `RootOK.ar` is `⟨σ1.cr3, J1's AR⟩`.
+- **The one new lemma: `RootOK` framed to a switch state.** From `J1 : JAtZR` (or `JAtZ`) at `(rf, σ1)`,
+  `WritesIn rf.1 s_sw (SFootN T c rf.1)` (the chain carries it: `hwA`, `hwq4`, `hwb3`), `HeapEqUpToFpu σ1 σ_sw`
+  and `crF σ_sw = crF σ1` (`crk_*`): `vs` by `VsRel.frame` (VsAssignRel) with `VsWrite ⊆ VObj` and
+  `SFoot ⊆ TFoot → OObj` (`tfoot_oobj`), `TopPlaced.disj`; `kr` by ks+48 ∉ `SFoot` (`tfoot_ksb`) and
+  ∉ `NdW` (ks+16/24/40); `vt` by `slotsSame_of_iw` (ScXStep; `tfoot_iw`, `Placed`/`IpcApart`/`ScApart` from
+  `J1.xtop.rel`) and `StateRel.tcb` at σ1 with `TcbFpuEq` keeping `tcbVtable`; ASID ≠ 0 by `vtAsid` (G7dVsRoot's
+  `JAtZR.vsRootOK` body). Open point: `NdW` (the domain switch in `scnt_refines0F`) vs `VsWrite` / slot words: the
+  ASID table is at ksb+288000.., pools and slots are typed objects (`KsApart`/`TopPlaced.po`); not yet checked.
+- **`IdleVt` [J] (D7).** Asked at the finish state σ, framed to σ1 by the timers (signals change no TCB vtable:
+  `Fires` keeps `kheap` up to TCB state/queue fields; `crF_fires` keeps `idleThread`), then across the chain like
+  `VsRootOK`. Or carried in `JAtZ` (not allowed to this line: JAtZ is not to be edited).
+
+### (4) Builds and axioms
+- tokyo mirror FL4-g7c (warm at the merge). g7d-b1..b4: G7dVsRoot / the D2 cone (b1: `injection` syntax; b2: a
+  `show` for the record-updated state; b3: `eq_of_bv` is `P1.eq_of_bv`, `2 ^ asidHighLen` for omega, a `show` in
+  ScNextDomF); b4 green (5448 jobs). g7d-b5 (U5, U7, KEntry/2/27/28/31/36/4 after the narrowing): green (7102 jobs).
+- **g7d-full1** (full `lake build` at dddf3630): "Build completed successfully (7201 jobs)", 0 `error`, 0 `sorry`.
+- `#print axioms` (./axg7c.lean, untracked): the g7c lemmas, `kernel_entry_reachU4`, `kernel_entry_reachU5`,
+  `kernel_entry_reachU7`, `vsRootOK_of`, `JAtZR.vsRootOK`, `JAtZ.vsRootOK`, `schedule_refinesWP0FR`: propext,
+  Classical.choice, Quot.sound (`VsRootOK.ofF`: none). No sorry / admit / native_decide / bv_decide / axiom in
+  G7dVsDef / G7dVsRoot.
+
+### (5) Findings
+- None. `VsRootOK` holds at every post-timer `JAtZ`/`JAtZR` state (proved, not assumed).
