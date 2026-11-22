@@ -43,6 +43,13 @@ fn nx_enabled<S: Store>(s: &S) -> bool {
     ks_get(s, ks::FEATURES) & ks::FEATURE_NX != 0
 }
 
+/// Whether the CPU takes 1 GiB pages (PS in a PDPTE): without them that
+/// bit is reserved and the entry faults on every access. Kept by the
+/// backend in the global state at boot, as for every core.
+fn huge_pages<S: Store>(s: &S) -> bool {
+    ks_get(s, ks::FEATURES) & ks::FEATURE_HUGE_PAGES != 0
+}
+
 fn entry<S: Store>(s: &S, table: u64, i: u64) -> u64 {
     s.read(table.wrapping_add((i & 511).wrapping_mul(8)))
 }
@@ -570,6 +577,12 @@ fn decode_page_map<S: Store, A: Arch>(s: &mut S, a: &mut A, length: u64, slot: S
     let vm = mask_vm_rights(f.rights, Rights::from_word(rights_mask));
     if vaddr & (1u64 << (f.size.bits() & 63)).wrapping_sub(1) != 0 {
         return Err(Exc::Sys(SysError::AlignmentError));
+    }
+    // A 1 GiB frame on a CPU without 1 GiB pages: the entry would have a
+    // reserved bit. Nothing is written, the cap included. (Nested tables
+    // refuse such frames themselves, ept::map_frame.)
+    if matches!(f.size, FrameSize::Huge) && !huge_pages(s) {
+        return illegal();
     }
     let large = !matches!(f.size, FrameSize::Small);
     let e_addr = page_entry_slot(s, root, vaddr, f.size)?;

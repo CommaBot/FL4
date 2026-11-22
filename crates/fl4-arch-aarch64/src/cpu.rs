@@ -248,6 +248,8 @@ pub fn caps_for(mode: ElMode) -> crate::ap_caps::Caps {
         vhe: vhe && has_vhe(),
         vmid16: el2 && vmid16(),
         vgic_lrs: if el2 { crate::gic::vgic_num_lrs() } else { 0 },
+        virt: el2 && crate::arch::virt_ready(),
+        vgic_vtr: if el2 { crate::gic::vgic_vtr() } else { 0 },
     }
 }
 

@@ -152,6 +152,34 @@ pub fn max_paddr() -> u64 {
     1 << phys_addr_bits(max_ext, eax)
 }
 
+/// CPUID.80000001H:EDX.Page1GB (bit 26): the core takes PS in a PDPTE.
+/// Without it that bit is reserved, and a walk through such an entry
+/// faults (SDM Vol. 3 §4.5.4).
+pub fn page_1g(leaf_8000_0001_edx: u32) -> bool {
+    leaf_8000_0001_edx & (1 << 26) != 0
+}
+
+/// The calling core takes 1 GiB pages (`page_1g`).
+pub fn has_1g_pages() -> bool {
+    page_1g(cpuid(0x8000_0001, 0).edx)
+}
+
+/// Whether a core can walk the boot core's tables and every table and
+/// entry the kernel writes: it takes 1 GiB pages (`core_1g`) if the boot
+/// core chose them (`huge`, for the kernel window and so for user
+/// mappings), and its own physical address top (`core_top`: MAXPHYADDR,
+/// below an SEV C-bit) reaches `paddr_top`, the top of what the kernel
+/// maps or hands to user space (device memory included). A core that can
+/// do more is fine.
+pub fn paging_compatible(huge: bool, paddr_top: u64, core_1g: bool, core_top: u64) -> bool {
+    (core_1g || !huge) && core_top >= paddr_top
+}
+
+/// The calling core is `paging_compatible`.
+pub fn core_paging_supported(huge: bool, paddr_top: u64) -> bool {
+    paging_compatible(huge, paddr_top, has_1g_pages(), crate::sev::gpa_top(max_paddr(), crate::sev::mask()))
+}
+
 const CR4_VMXE: u64 = 1 << 13;
 const CR4_FSGSBASE: u64 = 1 << 16;
 const CR4_OSXSAVE: u64 = 1 << 18;
