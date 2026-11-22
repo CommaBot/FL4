@@ -14821,3 +14821,115 @@ New leaf XTopJointKEntryU (root import after XTopJointKEntry38E). Nothing existi
 - `SpecUtZ` carry (g5d (4): `UtFreeR` + `MemK`) removes the `SpecUtZ σ'` exit premise from every `JReachU` step.
 - `LargeFrOK` carry (g5d (2): `OrigFrObj`, `DescRangeIn`, data-page distinctness) removes `hLF`.
 - `hRP5` (m67's `nvm` through `fastTail`), `hDL` (VT-x scope), the `hK` / `hFin` bundles, `FastFaultOK` from `JAtZ`.
+
+## g5g (branch par/g5g in FL4-sc, on 0321bf4d = #51 head incl. g5f) — g5f's handoff (`SpecUtZ` carry): PARTIAL, stopped on the lead's note (context). DONE and green: the carried invariant `ZR = SpecUtZ ∧ UtPgR`, its split, the whole memory-half family and the cap half for every non-untyped writer, the hand performs ReadFPU / MakePool / arch; NOT green: the perform/shell half (SpecInvUtZS's second part, scratch) and the induction `JReachU2` (scratch); `JReachU`'s steps still take `SpecUtZ σ'`; no FINDING
+New leaves SpecInvUtZK1..K6, SpecInvUtZW, Y, G, X, S (spec side, namespace `Fl4Proofs.P3.SInvUZ`, outside the `JAtZ` cone;
+root imports SpecInvUtZS). Nothing existing edited. Old tops kept. WIP (not in the tree's build): proofs/scratch/g5g/S.tail.lean
+(SpecInvUtZS's second half), proofs/scratch/g5g/XTopJointKEntryU2.lean.wip (the induction), section draft notes below.
+
+### (1) The invariant (SpecInvUtZW)
+- `SpecUtZ` alone is not inductive: a memory write (`store_word_offs`, ReadFPU's `fl4FpuToFrame`) must miss every free
+  part, and the carried `UtFree` (ut1) covers only object base pointers. The carried invariant is
+  **`ZR σ := SpecUtZ' σ ∧ UtPgR σ`** (`zr_iff`; `SpecUtZ'` is g5a's `SpecUtZ` on `capOpt`, `specUtZ_iff`):
+  * `SpecUtZ` (l4v `untyped_ranges_zero`): memory zero in the free part `[b + f, b + 2^n)` of every non-device untyped cap;
+  * **`UtPgR`** [J] spec (l4v `valid_untyped` restricted to non-device data pages and non-device untyped caps): a data
+    page misses every such free part, and a data page meeting such a cap's region lies inside it (the containment clause
+    is what the reset needs: `delete_objects` of the region must remove every page meeting it).
+- Proof form (g5c's IOI split): `ZR σ ↔ ∃ U D, ZS U D σ`, `ZS U D σ := GoodZ U D ∧ HU U σ ∧ YP D (FU U) σ` with
+  `U` a set of untyped caps (base, bits, free index), `D` a set of pages; `GoodZ` pure (the two `UtPgR` clauses between
+  `U` and `D`), **`HU U`** (cap half: every non-device untyped cap is one of `U` with a larger free index or full; a
+  `WLH` predicate, so vih2's generated frames keep it), **`YP D F`** (memory half: pages of the heap in `D`, `D`'s bytes
+  outside `F`, memory zero on `F`). `ik_zr`: keeping every `HU U` and every `YP D F` keeps `ZR`; `zs_canon`.
+
+### (2) The memory half: the `YK` family (SpecInvUtZK1..K6, scratch/g5g/mkyk.py + head1.lean)
+- sg1's idle-pointer family SpecInvSgI1..I6 renamed, with new leaves (head1.lean): `MZ mop` (a machine operation keeps
+  or zeroes every byte; `mz_*` for every machine operation the kernel uses, `clearMemory` / `freeMemory` write zeros,
+  `foldl_upd_zero`, `wordRsplit_zero`), `yk_dmo`, `yk_setObject` (`set_object`'s `aType` assertion: a data page is
+  replaced only by the same data page type; `aType_dp`), **`yk_storeWordOffs`** (`in_user_frame` + word alignment: the
+  eight bytes are in a non-device data page of the heap, `byte_inPage`, `ikp_dmo_store`), `yk_deleteObjects`,
+  `yk_portIn` / `yk_portOut` (with `MZ`). Left out: the reverse closure of `retype_region`, `fl4FpuToFrame`,
+  `port_in/out` (scratch/g5g/deps.py): 19 shells, done by hand in S.
+- g5g-b2: K1..K6 green (1026 jobs) at the second try (b1: three local proof slips in head1).
+
+### (3) The cap half (SpecInvUtZW / Y / G / X)
+- W: `UtIn U c` side conditions, `hu_setCap`, `hu_setUntypedCapAsFull` (raises to the maximum; `utIn_maxFree`),
+  **`hu_capInsert`** (re-reads its source cap: the `set_untyped_cap_as_full` of a slot cap), `hu_capMove` /
+  `hu_capSwap` / `hu_capSwapForDelete`, `hu_retypeRegion(With)` (default objects hold null caps), `hu_deleteObjects`.
+- Y (g5c's Y renamed): lookups, `utIn_deriveCap`, IPC cap transfer, `hu_checkCapAt_ins` (`same_object_as` of an untyped
+  cap is `False`), `hu_performAsidControlInvocation` (parent written back full). The maps / unmaps need no `AtSl`
+  (they write arch caps). G: g5c's 19 generated cap writers without the untyped performs.
+- X: `rv_finaliseCap_ut` (no remainder is a non-device untyped cap), `hu_recDel` / `hu_capDelete` / `hu_capRevoke`,
+  `zr_auto`.
+
+### (4) The performs (SpecInvUtZS, green)
+- ReadFPU: `okv_fl4Decode_z` / `okv_fpuTransfer` (the decode's `InvZ`: the frame `base + offset` of a non-device page
+  cap of the view with `offset + 2696 ≤ 2^bits`), `fpu_bytes_free` (ut4's `CapFreeV`, carried in `P3`: a cap's frame
+  misses every free part), **`zr_invokeFl4Tcb`** (on the canonical sets `zs_canon`).
+- MakePool: `yk_retypeRegion_nd` (an ASID pool is no data page), `yk_performAsidControlInvocation`; arch performs
+  `yk_/hu_archPerformInvocation`, `yk_/hu_fl4ArchPerformInvocation`; the page / table maps by `hu_setCap_bind_dead`
+  (a map of an untyped cap fails right after its `set_cap`), the unmaps split on the table cap.
+
+### (5) NOT green: the shell and the induction (WIP in scratch)
+- proofs/scratch/g5g/S.tail.lean (append to SpecInvUtZS): `PerfGapZ` [W] (∀-states obligation: `fl4InvokeUntyped ui`
+  keeps `ZR` from `P3 N ∧ NodeIs N ∧ ZR ∧ DecodedFrom (uV σ) (.invokeUntyped ui)`), `zr_fl4Perform`, `IKZ` (`ZR` from
+  `P3 N ∧ NodeIs N ∧ ZR`; `P3` threaded by ut7's `IKN`/`NK`/`UK` frames), `ikze_bind_uk` / `ikze_bind` /
+  `ikz_bind_post`, **`zr_handleInvocationR`** (ut7's `p3N_handleInvocationR` with `ZR`), `zr_fl4HandleSyscall`,
+  `zr_handleEvent_other`, `zr_fl4HandleEvent`, `zr_fl4CallKernel`, `zr_fl4SyscallFaultIP`, `zr_kentry`, tops
+  `kentry_zr_of hG`, `kcall_zr_of hG`, `kcall_zr_other` (no premise).
+- **Why the first version blew up** (g5g-b6: the whole file, 15 GB / 10 min in one `lean` process, stopped; the
+  orphan lake/lean PIDs killed): bisecting with `#exit` (b7..b10) showed the first half (decode, ReadFPU, MakePool,
+  arch) elaborates in ~20 s; the blow-up is in the second half, untested piecewise. Suspects, in order: (a)
+  `zr_fl4Perform`'s `| _ => … simp only [fl4PerformInvocation]; zr_auto` — every leaf attempt of `zr_auto` runs
+  `ik_zr` then tries *all* `hv_leaf` rules (vih2's ~340 + ours, each with `ut_side`'s `simp_all` fallback) and all
+  `yk_leaf` rules, then falls back to `ik_unfold`, over the whole of `invokeTcb` / `invokeCnode` / … (g5c's `ioi_auto`
+  had the same shape but IOI's leaves are cheaper); (b) the four `by zr_auto` on the front / decode do-blocks of
+  `zr_handleInvocationR` (`getMrs` + `fl4DecodeInvocation`: the full decode, unfolded); (c) `zr_fl4HandleSyscall`'s
+  `first | …` over 13 syscalls, each trying three alternatives. Advice: give `zr_*` lemmas per perform
+  (`zr_invokeTcb`, `zr_invokeCnode`, … by `ik_zr (fun _ => hu_…) (fun _ _ => yk_…)` directly, the `hu_`/`yk_` lemmas
+  exist or come from hv_auto/yk_auto separately), never `zr_auto` across a decode (use `ik_zr` with the existing
+  `yk_fl4DecodeInvocation` and a hand `hu_` frame: decodes write no cap, so `hv_` lemmas from vih2's family apply),
+  drop `ut_side`'s `simp_all` alternative, and build each lemma alone (`#exit` after it) with a 5-min timeout.
+- proofs/scratch/g5g/XTopJointKEntryU2.lean.wip: `JReachU2` (g5f's `JReachU` with the interrupt / user exception / VM
+  fault / `int $N` / unknown-syscall constructors asking no exit premise — `zr_evOut` from `kcall_zr_other` across the
+  FaultIP write — and the syscall step asking `SpecUtZ σ' ∧ UtPgR σ'`; `start` asks `UtPgR σ`), `JReachU2.zr`,
+  `JReachU2.toU`, `jreach_invU2`, `kernel_entry_reachU2` (generated from `kernel_entry_reachU`'s text by
+  scratch/g5g's script; not compiled). It needs only `kcall_zr_other` and `zr_fl4SyscallFaultIP` from the tail.
+
+### (6) `PerfGapZ` is not provable with the present `P3` (sizing, not a FINDING)
+- A retype creates data pages in the source's free part; a full untyped cap `U` whose region lies strictly inside such
+  a page and which is a CDT *ancestor* of the source is consistent with `P3` (`UtDesc` only asks the descendant's region
+  to miss the ancestor's free part, empty for a full `U`; `UtDisj` / `CapFreeV` / `UtChV` say nothing of untyped
+  regions) and breaks `UtPgR`'s containment clause (a later reset of `U` would expose a live page). Reachable states
+  never have it (an untyped descendant's region lies in its untyped ancestor's). Missing: l4v `untyped_inc`'s
+  `untyped_range c ⊂ untyped_range c' ⟶ p' ∉ descendants_of p` ("Nest"). With Nest in ut's `P3` (`UtDescV`),
+  `PerfGapZ` is l4v's `invoke_untyped_invs` argument. False only in unreachable states: not a FINDING.
+- `UtPgR` (start / syscall-exit premise of the planned `JReachU2`) is l4v `valid_untyped` for data pages: true in every
+  reachable state.
+
+### (7) What is proved / what is left (exactly)
+- Proved (green, no premise): `ZR ↔ SpecUtZ' ∧ UtPgR` (`zr_iff`); `ik_zr` (a function keeping every `HU U` and every
+  `YP D F` keeps `ZR`); `YK` lemmas for every spec function of the syscall entry and the events except the reverse
+  closure of `retype_region` / `fl4FpuToFrame` / `port_in/out` (19 shells: `invokeUntyped(With)`, `invokeFl4Tcb`,
+  `performAsidControlInvocation`, `archPerformInvocation`, `fl4ArchPerformInvocation`, `performInvocation`,
+  `fl4PerformInvocation`, `handleInvocation`, `fl4HandleInvocationR`, `handleSend`, `handleCall`, `fl4HandleSyscall`,
+  `handleEvent`, `fl4HandleEvent`, `fl4CallKernel`, `fl4KernelEntrySyscall`, `retypeRegion(With)`), of which the arch
+  performs, MakePool and `invokeFl4Tcb` (as `zr_invokeFl4Tcb`, from the decode's `InvZ` and `CapFreeV`) are now done by
+  hand; `HU U` lemmas for every cap writer but `create_cap` / `reset_untyped_cap` / `invoke_untyped` (the untyped
+  perform) — vih2's family + W/Y/G/X + S's arch performs.
+- Left: (a) the shell (S.tail, compile it piecewise, (5)); (b) `PerfGapZ` after Nest is carried (6): the reset
+  (`delete_objects` zeroes the region and, by containment, removes every page meeting it; chunks cleared before each
+  free-index write) and the retype (new pages inside the old free part, apart from other free parts by `UtDisj`, inside
+  every region they meet by Nest; untyped children `(b', n', 0)` inside the zero free part; ut2's `UtRetOKV`); (c) then
+  `JReachU2` (scratch) and finally dropping the syscall step's `SpecUtZ σ' ∧ UtPgR σ'` with `kentry_zr_of`.
+
+### (8) Builds and axioms
+- tokyo, FL4-sc mirror (warm from g5f; ./g5g.sh, g5g.files untracked). g5g-b1/b2: K1..K6 (b2 green, 1026 jobs);
+  b3/b4: W, Y, G green, X `IK` ambiguity; b5: X `vfh_run_liftE_bind_mem` not imported (inlined); b6: X green, S
+  (whole) stopped at 10 min / 15 GB (orphan PIDs 79287 79291 79432 killed); b7..b10: S bisected with `#exit` (first
+  half green after two fixes: `capAt_capOpt` inlined, map/unmap HU lemmas); second half moved to scratch.
+- **g5g-full1** (full `lake build Fl4Proofs` at the final tree): "Build completed successfully (7143 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom / `#exit` in the new files.
+- `#print axioms` (scratch/g5g/ax.lean, run by full1): zr_iff, ik_zr, zs_canon, yk_storeWordOffs, yk_setObject,
+  yk_deleteObjects, yk_recDel, yk_fl4SyscallFaultIP, hu_capInsert, hu_recDel, hu_capRevoke, hu_doNormalTransfer,
+  okv_fl4Decode_z, fpu_bytes_free, zr_invokeFl4Tcb, yk_/hu_archPerformInvocation, yk_/hu_fl4ArchPerformInvocation,
+  yk_performAsidControlInvocation: [propext, Classical.choice, Quot.sound].
