@@ -279,7 +279,7 @@ theorem send_signal_idle_bound_idle (hP : NPlaced T N) (s : S) (a : A) (σ : Fl4
   step
   simp only [b_post, i_post, hb0, decide_false, Bool.false_eq_true, ↓reduceIte]
   step
-  simp only [i1_post, hns, ↓reduceIte]
+  simp only [i1_post, hns, hnvm, ↓reduceIte]
   step
   subst s1_post
   obtain ⟨hR', hW⟩ := set_active_rel hP hR hn hk hidle badge
