@@ -15449,7 +15449,7 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
 
-## g7a (branch par/g7a in FL4-g7a, on b41579ba = main) — C25–C27 / C21 / D1 of INV-PLAN §1.U3L: NOT discharged; none is derivable from what `JReachU3` carries, each needs a new carried joint fact in the exit relation `RJ` (a `JAtZ`-wide edit), which is outside "new modules only"; no new top, no premise added or removed; no FINDING
+## g7a (branch par/g7a in FL4-g7a, on b41579ba = main) — D1 `hd` DISCHARGED (lead decision: `DomRel` may be edited): new top **`kernel_entry_reachU6`** (= U4 without `KFinAtR31.hd`); C21/C25–C27 NOT discharged (need a `JAtZ`-wide carry; lead decision: deferred until g6b/g7b/g7c are merged); no premise added; no FINDING
 Analysis only (stopped before editing existing structures, as the brief's rules ask for an unexpected scope). No Lean file changed.
 
 ### (1) Why "carry in the joint induction" is not local
@@ -15515,3 +15515,41 @@ for the spec-object half only), then C27 with it, then C25 (needs the RAM-vs-dev
 
 ### (4) Builds and axioms
 None run (no Lean change). g7a-build.sh untracked.
+
+### (5) D1 done (after the lead's decision; commit 1f97e125)
+- **`DomRel`** (DomDecode.lean:205, carried in `RelTopM` and `XTopAt.rel`) gains `m (ksW kb 24) = 0` (FL4's
+  `DOM_SCHED_IDX` word); StepSem's `DomRelW` the same (still `Iff.rfl`). `DomSame` gains word 24; DecodeTopD's
+  `domOffs` and DomKeep's `domOffs0` gain offset 24 (so every `DomSame`/`DK4` frame keeps the word: the frames that
+  prove the words below 256 untouched needed no change; the explicit enumerations got a sixth case: ScTop, VsDomF,
+  DecodeTopD, ScNextDomB, DomSched, XTopJointFinVt, DomKeep, DomCaps (`DK4.of_wfr`), UtDom, XTopJointPP,
+  XTopJointJAtZRB, VsReplyTop's `domSame_low`; DomDecode's set-start / configure / restart sites).
+- Writers: `domain_set_start` writes 0 (`startS`; `schedStep_start`, `dom_start_refines`); `next_domain` writes the
+  start index, which is 0 (entry 1 is the end marker): XTopJointSchedRF3's `schedStep_dom2` / `JAtZ.ndFJ` and
+  XTopJointJAtZRB's `JAtZR.ndFJ` take `v24 = 0`, supplied in `jat_scheduleFR2` / `jat_scheduleFR2ZR` by `P1.sched.schedule.idx` (below).
+- **SchedIdx (new)**: `IdxI kb m` (word 24 = 0, and the `DOMAIN_TIME` word nonzero or the start word, entry 1's
+  duration and entry 0's domain 0); `SFI` = P1's `SFoot` carrying `IdxI`; `Foot.sfi` (a P1 `Foot` step, `KW` apart
+  from the first 256 bytes by IrqDom's `KWApart`); `ndS_ks` / `idxI_ndS` (`next_domain_eq`'s state);
+  `sched.schedule_choose_new_thread.sfi`, `cand_choose.sfi`, `sched.schedule.sfi` (QueueFootS's `.sfoot` proofs
+  with `SFI`); **`P1.sched.schedule.idx`** (word 24 is 0 after FL4's `schedule`, from `IdxI` at the entry and
+  the timers' `FootD` keeping the words below 256); `fire_ks_of` (RF2's `JAtZ.ndOK_fire` argument, from the
+  `JKern` fields) and `idxI_of` (`IdxI` from `DomRel`, `SchedRel`'s domain-time word and the entry's
+  `σ.domainTime ≠ 0 ∨ NdOK`).
+- **XTopJointKEntryU6 (new)**: `KFinAtR31N` (`KFinAtR31` without `hd`), `KFinEvN`; `JAtZR.hdOK` (at a `JAtZR`
+  state with `DomListOK`: `NdOK` from `XTopAt`'s `DomRel`, the word 0 and `DomListOK.idx0`); `dp_specFront`,
+  `dp_event` (SpecInvDom's `DP`: `DomListOK` kept by the FaultIP write, the event's handling and the preemption
+  path), `sinvX_dom` (`SInvA.dom`); **`SInvR.G5.kernel_entry_reachU6`**: `kernel_entry_reachU4` with
+  `KFinAtR31N` in the syscall clause's `hFin` and `KFinEvN` in the five event clauses. Premise removed: D1
+  (`KFinAtR31.hd`, in B6 and in every `KFinEv`). Added: none. Old tops kept (U4 is unchanged in statement).
+- Builds (tokyo, mirror FL4-g7a): g7a-b1..b5 module builds of SchedIdx + XTopJointKEntryU6 (b5: "Build completed
+  successfully (7088 jobs)"); full build: see (6).
+
+
+### (6) Full build and axioms
+- **g7a-full1** (full `lake build` of proofs/ at 1f97e125): "Build completed successfully (7183 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new or edited files.
+- `#print axioms` (axg7a.lean, untracked): SInvR.G5.kernel_entry_reachU6, SInvR.G5.kernel_entry_reachU4,
+  P1.sched.schedule.idx, JAtZR.hdOK, SInvR.G5.KFinEvN.toEv, jat_scheduleFR2, jat_scheduleFR2ZR: propext,
+  Classical.choice, Quot.sound.
+- Handoff: C21 / C25–C27 as in (1)–(3) (a `JAtZ` component each), on the integration branch after g6b/g7b/g7c.
+  Note for rebases: any new `DomRel` construction needs the fourth conjunct (word 24 = 0) and any new `DomSame`
+  construction the third (word 24 kept); `domOffs`/`domOffs0` enumerations have six cases.
