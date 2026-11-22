@@ -122,6 +122,7 @@ pub fn same_region_as(a: Cap, b: Cap) -> bool {
         Cap::AsidPool { ptr, .. } => matches!(b, Cap::AsidPool { ptr: p, .. } if p == ptr),
         Cap::IoPortControl => matches!(b, Cap::IoPortControl | Cap::IoPort { .. }),
         Cap::IoPort { first, last, .. } => matches!(b, Cap::IoPort { first: f, last: l, .. } if f == first && l == last),
+        Cap::TdxControl => matches!(b, Cap::TdxControl),
         _ => false,
     }
 }
@@ -324,7 +325,7 @@ pub fn finalise_cap_object<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin:
             }
             (Cap::Null, Cap::Null)
         }
-        Cap::Null | Cap::Domain => (Cap::Null, Cap::Null),
+        Cap::Null | Cap::Domain | Cap::TdxControl => (Cap::Null, Cap::Null),
         Cap::CNode { ptr, radix, .. } => {
             if fin {
                 (Cap::Zombie { ptr, ztype: radix, number: 1u64 << (radix & 63) }, Cap::Null)

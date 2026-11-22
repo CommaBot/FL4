@@ -61,6 +61,9 @@ fn init_root_cnode<S: Store>(s: &mut S, b: &Boot) -> Cap {
     root_cap
 }
 
+/// AArch64 has no TDX.
+fn init_tdx_control<S: Store, A: Arch>(_s: &mut S, _a: &A, _b: &Boot) {}
+
 /// AArch64: every core's timer PPI and kernel SGIs.
 fn init_irq_states<S: Store>(s: &mut S) {
     let mut i = 0;
