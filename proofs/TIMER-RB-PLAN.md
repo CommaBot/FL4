@@ -147,3 +147,53 @@ Sizes: S ≤ 300 lines, M ≤ 800, L ≤ 2000, XL > 2000 (one agent-session each
      `HoleUpd`; else `left p == old` picks the side — `old = x` is `p`'s child, distinct from the other child by
      `Nodup`), composing the `LinksEqOn` updates into `ex/ey/eb/eo/hu`.
 - Stage 3b rest (`lk_wr_red`) is only needed from stage 5 (fixups) on; rotations do not touch colours.
+
+## 8. Third session (jc6d2): stage 3 done, stage 4 part 1 done; exact next step
+
+- `TimerRBRotP.lean`: `Rep.keys_ne0`, `nd_mid`/`nd_out`/`nd_in` (Nodup of `P ++ M ++ Q`), `Rep.reparent` (only the
+  root's parent word re-pointed), `Same`, **`rotL_rep`**, **`rotR_rep`** (hypotheses `ex/ey/eb/eo/hu` exactly as in §7).
+- `TimerRBRotH.lean`: `@[simp]` projections of `Links.setL/setR/setP`; `LinksEqOn.trans/setL/setR/setP/setP_out`;
+  `holeSet ctx y K` / `holeR ctx y R` (the hole's link := `y`, the root word at the top) with `holeSet_l_ne/r_ne/p/red`;
+  `HoleL` (`replace_child`'s side test: `lc` ⇒ parent's left = old, `rc` ⇒ ≠ old) + `HoleL.congr`; `Rep.node_inv`;
+  `mid_facts` (a subtree at a hole: keys ≠ `ctx.par`, ≠ 0, ⊆ the tree; `ctx ≠ top ⇒ par` a key, ≠ 0; `HoleL`; its `Rep`);
+  `lk_wr_node`; **`RW st T s0 s c K R F`** = the walk state (links agree on `T` with the explicit `K`; root word `R`;
+  `WritesIn s0 s F`; `NodePlaced`), `RW.init`, `RW.wr_tl/wr_tr/wr_tp/wr_root` (one write = one `Links.set*`);
+  **`timer.replace_child.rw`** (= `holeSet`/`holeR`), `RotFoot`, **`timer.rotate_left.rep` / `timer.rotate_right.rep`**:
+  from `Rep (lk s) 0 root (ctx.plug (node cx a x (node cy b y g)))` + Nodup + keys ⊆ `T`, the result state has
+  `Rep (lk s') 0 root' (ctx.plug (rotL …))` and `WritesIn s s' (RotFoot s c x y b.rootKey ctx.par)` (links of
+  `x, y, b.root, ctx.par` and the root word only; so deadlines, heights, `TIMER_MIN`, other trees are framed).
+- `TimerRBRed.lean` (stage 3b rest): `Links.setRed` simp lemmas, `LinksEqOn.setRed`, `redW b`, `red_bit`, `red_of`,
+  **`timer.set_red.on`** (`s' = wr s (thA z) ((h &&& ~~~1) ||| redW b)`), **`lk_wr_red`**, `core_wr_red` (core bits kept),
+  `RW.wr_red`.
+- `TimerRBIns.lean` (stage 4 part 1): `Dir`, `sorted_mid`, `DescOut`, `DescInv`, **`timer.insert_loop.desc`** (from
+  `Rep (lk s) 0 R t`, sorted deadlines and `t.height ≤ fuel`: the loop returns `(p, go_left, first)` with a leaf
+  hole `ctx` of `t`, `p = ctx.par`, `Dir ctx go_left`, `first ↔ ctx.pre = []`, deadlines `≤ d` before and `> d` after;
+  the `fuel = 0` exit is shown unreachable), **`attach_rep`** (new red leaf at the hole), `attach_keys`
+  (`pre ++ t0 :: post`), `attach_sorted`, `attach_min` (`minKey = if pre = [] then t0 else old minKey`, i.e. the
+  `first` / `TIMER_MIN` update is right).
+- Full build green at the stage-4-part-1 commit 6e69560b: `Build completed successfully (7317 jobs)`, 0 errors, 0 sorry;
+  axioms propext/Classical.choice/Quot.sound for all new tops (axjc6d.lean list, not committed).
+
+Next, in this order:
+1. **Stage 4 rest (heap attach)**, as a lemma about `timer.insert` taking `timer.remove`'s spec as a hypothesis
+   (`hrem : timer.remove st s t ⦃ s1 => P s1 ⦄`, `P` = `TimerRB` with `t` idle, i.e. not a key, null links) and
+   `insert_fixup`'s spec as another hypothesis (stage 5): `cur_cpu`, `timer.root.val`, `timer.insert_loop.desc` with
+   `f = layout.TREE_FUEL` (`layout.TREE_FUEL.val_eq : … = 128`, height from `CoreTree.height_le`), `is_null p`,
+   `set_root` / `set_left` / `set_right` by `Dir` (= `RW.wr_root/wr_tl/wr_tr`, i.e. `holeSet ctx t K`), then the
+   deadline and badge writes (need `lk_wr_td`/`lk_wr_tb`: `tdA`/`tbA` writes keep `lk` on `T`, from `trb_fld_wr`
+   with offsets 3528 / badge offset), `set_parent t p`, `set_left t 0`, `set_right t 0` (`RW.wr_*`), height write
+   `(cpu <<< 8) ||| 1` (red: `((x ||| 1) &&& 1) != 0`; core: `or1_shr8` + `shl8_shr8`, needs `cpu < 2^56`), then
+   `attach_rep` with `k' = K` and `HoleUpd` from `holeSet` (lemma `holeSet_upd` by `cases ctx`), `attach_sorted`
+   (deadline of `t` is `d` after the write; others unchanged), `attach_min` with `first`.
+2. **Stage 5 (insert_fixup)**, pure first (new file `TimerRBFix.lean`): CLRS 13.3 invariant on the zipper:
+   `W = ctx.plug (node true a z b)` with `Bal (node true a z b) n` (z red, children black) and a context predicate
+   `IC ctx n` ("plugging a black-height-`n` tree whose root may be red gives a tree that is red-black except that a
+   red root may sit under a red hole-parent"; inductive over `Ctx`, mirroring `Bal`), plus `Nodup`/sorted carried by
+   in-order equality (`plug_rotL_keys`, recolouring keeps keys).  Cases 1 (uncle red: recolour p, u black, g red,
+   `z := g`, ctx shrinks by 2), 2 (z inner child: `rotL` at p then case 3), 3 (`rotR` at g, recolour) × mirror; loop exit
+   on black parent / null parent; final root blackening.  Fuel: each case-1 round removes two context levels; the
+   context depth is ≤ height(W) ≤ 2·bh(W)+1 with `2^bh ≤ |keys|+1 ≤ 2^64+1` (same argument as `height_le_128`), so
+   ≤ 65 rounds < 128 (the `fuel = 0` exit is unreachable).  Heap side: `timer.parent/left/right/is_red.rep` reads,
+   `timer.set_red.on` + `RW.wr_red`, `timer.rotate_left/right.rep` (compose `RW` with their `WritesIn`/`Rep` via
+   `Rep.det`), loop via `loop.spec_decr_nat` with measure `fuel`.
+3. Stages 6–9 as in §2.
