@@ -12,14 +12,22 @@ entry: crates/fl4-kernel-aarch64/src
 entry: crates/fl4-efi/src
 entry: crates/fl4-bootinfo/src
 
+# The linker scripts that lay the kernel images out: where the sections,
+# the skim window parts and the image symbols the boot code reads are.
+link: crates/fl4-kernel/linker.ld
+link: crates/fl4-kernel-aarch64/linker.ld
+
 # Hardware backends.
 hardware: crates/fl4-arch-x86_64/src
 hardware: crates/fl4-arch-aarch64/src
 
-# fl4-core's AArch64 slice: compiled only with `--features aarch64`, so
-# not extracted by Charon/Aeneas (`cargo xtask extract` builds the x86_64
-# core) and not covered by the proofs.
-unverified-core: crates/fl4-core/src/arch/aarch64
+# fl4-core's AArch64 slice, compiled only with `--features aarch64`.
+# `cargo xtask extract --arch aarch64` extracts that build to
+# proofs/Fl4CoreA64, and P0 covers it (proofs/Fl4ProofsA64, built on its
+# own: `cargo xtask gate` checks only the x86_64 extraction). P1 and P3
+# are about the x86_64 build only. Its Arch methods (machine.rs here) are
+# part of the AArch64 interface below.
+a64-core: crates/fl4-core/src/arch/aarch64
 
 # The kernel entry runtime: the serial gate, the local paths beside it and
 # their object locks (tested by fl4-sim, DESIGN.md §7, §10).
@@ -27,11 +35,19 @@ runtime: crates/fl4-store/src
 runtime: crates/fl4-sync/src
 
 # The interface between the verified core and the trusted world: what P0
-# assumes the Store and Arch implementations do.
+# assumes the Store and Arch implementations do (that they are total), for
+# each extraction. The x86_64 Arch methods are machine.rs and the macro it
+# includes from arch/x86_64 (the AArch64 one is in a64-core above);
+# Fl4CoreA64's FunsExternal.lean is generated from Fl4Core's.
 interface: crates/fl4-core/src/machine.rs
+interface: crates/fl4-core/src/arch/x86_64/machine.rs
 interface: proofs/Fl4Proofs/P0/Totality.lean
 interface: proofs/Fl4Core/FunsExternal.lean
+interface: proofs/Fl4ProofsA64/P0/Totality.lean
+interface: proofs/Fl4CoreA64/FunsExternal.lean
 
 # The abstract model of the transactional runtime P2 was proved about,
-# superseded with it (DESIGN.md §9).
+# superseded with it (DESIGN.md §9). Nothing is proved about the serial
+# gate and local paths that replaced it (P2 not started): the runtime
+# group above is trusted and tested by fl4-sim.
 model: proofs/Fl4Proofs/P2/Runtime.lean

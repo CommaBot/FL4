@@ -465,20 +465,35 @@ pub fn exit() -> ! {
         // reused) unless this core holds the gate: after a local path, or
         // from the idle loop, it does not. Taking it may cancel the entry
         // (a stall): start over with whatever thread is current then.
-        if pc.vspace_stale.get() && smp::multi() && !pc.gate_held.get() {
+        //
+        // So does a thread running a VM (`ARMVCPURun`): before its guest
+        // runs, `vcpu::check` reads its bound notification, which other
+        // cores' serial entries signal, unbind and delete under the gate.
+        // The thread itself is this core's until a remote stall is
+        // acknowledged, which it is not before this core leaves the kernel.
+        let ct = sched::cur_thread(s);
+        if smp::multi()
+            && !pc.gate_held.get()
+            && (pc.vspace_stale.get() || ct.state(s) == sched::TS_RUNNING_VM)
+        {
             lock();
             continue;
         }
-        let ct = sched::cur_thread(s);
         let core = s.cur_cpu();
         let idle = ct.0 == node_get(s, core, node::IDLE_THREAD);
+        let mut a = PhysArch;
         if pc.vspace_stale.replace(false) {
-            let mut a = PhysArch;
             if idle {
                 fl4_core::vspace::set_kernel_vm_root(s, &mut a);
             } else {
                 fl4_core::vspace::set_vm_root(s, &mut a, ct);
             }
+        }
+        // A signal pending on the bound notification ends the run
+        // (`vcpu_run_stop::INTERRUPT`) before the guest is entered: the
+        // thread then returns to its caller below, as a native one.
+        if ct.state(s) == sched::TS_RUNNING_VM {
+            fl4_core::vcpu::check(s, &mut a, ct);
         }
         // Page-table writes this entry made reach the table walkers of
         // every core before the gate opens to the next entry, and before
@@ -492,11 +507,6 @@ pub fn exit() -> ! {
             unsafe { fl4_idle(pc.stack_top.load(core::sync::atomic::Ordering::Relaxed)) }
         }
         if ct.state(s) == sched::TS_RUNNING_VM {
-            let n = fl4_core::obj::Ntfn(ct.bound_ntfn(s));
-            if n.0 != 0 && n.state(s) == fl4_core::obj::NTFN_ACTIVE {
-                run_entry(false, |s, a| fl4_core::vcpu::check(s, a, sched::cur_thread(s)));
-                continue;
-            }
             let run_v = s.read(ct.0 + tl::RUN_VCPU);
             if run_v != 0 {
                 let guest_ptr = s.read(run_v + fl4_core::vcpu::TCB);

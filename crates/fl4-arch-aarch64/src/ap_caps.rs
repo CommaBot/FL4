@@ -26,6 +26,16 @@ pub struct Caps {
     pub vmid16: bool,
     /// Number of VGIC list registers, only when `el2` (0 in EL1).
     pub vgic_lrs: u8,
+    /// Guests can run (`arch::virt_ready`, decided on the boot core).
+    pub virt: bool,
+    /// The VGIC type register as the VCPU ABI gives it (`gic::vgic_vtr`:
+    /// `ICH_VTR_EL2` or `GICH_VTR`, ListRegs capped to the 16 ABI slots),
+    /// only when `el2` (0 in EL1, or with no VGIC). BootInfo and every VCPU
+    /// report it; the priority and preemption bits in it set the
+    /// active-priority registers VHE and nVHE save and restore on each
+    /// core. Compared only when guests can run: a guest that moves between
+    /// cores must find the same interface.
+    pub vgic_vtr: u64,
 }
 
 /// Whether a core with `ap` may run beside a boot core with `bsp`.
@@ -40,4 +50,5 @@ pub fn ap_matches(bsp: &Caps, ap: &Caps) -> bool {
         && ap.vhe == bsp.vhe
         && ap.vmid16 == bsp.vmid16
         && ap.vgic_lrs == bsp.vgic_lrs
+        && (!bsp.virt || (ap.virt && ap.vgic_vtr == bsp.vgic_vtr))
 }

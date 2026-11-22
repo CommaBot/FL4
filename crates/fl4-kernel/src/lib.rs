@@ -273,7 +273,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     }
     cpu::write_cr4(cr4);
     let gpa_top = sev::gpa_top(cpu::max_paddr(), private_mask);
-    let (kernel_root, window_top) = paging::init(nx, spec::skim(), gpa_top);
+    // 1 GiB pages, read once: the window, the other cores and user
+    // mappings all go by this (paging::init).
+    let huge = cpu::has_1g_pages();
+    let (kernel_root, window_top) = paging::init(nx, spec::skim(), gpa_top, huge);
     let stack_top = percpu::stack_top(0);
     gdt::init_idt();
     gdt::init_core(0, stack_top);
@@ -330,8 +333,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // overwrite it.
     let fb_console = mboot::has_option(&mb, b"fb_console");
 
-    // The other cores, if any (each sets itself up and waits).
-    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top });
+    // The top of the physical memory user space can map (device memory,
+    // below) and of the kernel window: every core must address it.
+    let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
+    // The other cores, if any (each sets itself up and waits). Each walks
+    // the boot core's tables, and the 1 GiB pages and addresses in them.
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top, huge, paddr_top: device_top });
     if ncpus > 1 {
         kprintln!("FL4: {} cores running", ncpus);
     }
@@ -348,8 +355,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // statics: fl4-core's `create_device_untypeds` leaves out the image's
     // part (BootParams::kernel_image).
     // Nothing goes past what the CPU can address either (MAXPHYADDR): a
-    // mapping of it would set reserved bits in a paging, EPT or NPT entry.
-    let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
+    // mapping of it would set reserved bits in a paging, EPT or NPT entry
+    // (`device_top`, above, which every core must reach).
     let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
     if ram.lost {
         fail("more RAM ranges than the kernel keeps");
@@ -528,7 +535,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     ks_set(&mut s, ks::KERNEL_ROOT, template);
     // Where a core goes when another deletes the ASID it runs (tlb.rs).
     tlb::set_kernel_root(template.wrapping_sub(fl4_core::layout::PPTR_BASE));
-    ks_set(&mut s, ks::FEATURES, if nx { ks::FEATURE_NX } else { 0 });
+    ks_set(&mut s, ks::FEATURES, if nx { ks::FEATURE_NX } else { 0 } | if huge { ks::FEATURE_HUGE_PAGES } else { 0 });
     let mut a = PhysArch;
     if let Err(e) = fl4_core::boot::create_root_task(&mut s, &mut a, &mut p) {
         let why = match e {

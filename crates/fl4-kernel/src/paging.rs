@@ -8,7 +8,7 @@
 use fl4_arch_x86_64::sev;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicU64, Ordering};
-use fl4_arch_x86_64::cpu::{self, cpuid, write_cr3};
+use fl4_arch_x86_64::cpu::{self, write_cr3};
 use fl4_core::layout::{PADDR_TOP, PPTR_BASE};
 
 pub const KERNEL_OFFSET: u64 = cpu::KERNEL_OFFSET;
@@ -114,10 +114,6 @@ pub fn text_bounds() -> (u64, u64) {
     unsafe { (sym(&__text_start), sym(&__text_end)) }
 }
 
-pub fn has_huge_pages() -> bool {
-    cpuid(0x8000_0001, 0).edx & (1 << 26) != 0
-}
-
 /// Map the image's pages from virtual `start` to `end` with `flags` into
 /// `pd`, with page tables from `pts`.
 fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64, flags: u64) {
@@ -137,11 +133,14 @@ fn map_image(pd: &mut Table, pts: &mut [Table; IMAGE_PTS], start: u64, end: u64,
 /// window (what fl4-core uses as the kernel root) and the top of the
 /// physical memory the window maps. With the skim window the window's
 /// mappings are not global, so none survives a switch to user tables.
-pub fn init(nx: bool, skim: bool, gpa_top: u64) -> (u64, u64) {
+/// `huge`: the window uses 1 GiB pages (the boot core takes them: its
+/// CPUID Page1GB, read once in `fl4_boot`); every other core must then take them too
+/// (smp.rs `fl4_ap_main`), and only then may native user mappings use
+/// them (fl4-core `ks::FEATURE_HUGE_PAGES`).
+pub fn init(nx: bool, skim: bool, gpa_top: u64, huge: bool) -> (u64, u64) {
     let t = unsafe { &mut *TABLES.0.get() };
     let nx_bit = if nx { NX } else { 0 };
     let wg = if skim { 0 } else { G };
-    let huge = has_huge_pages();
     let max = if huge { PADDR_TOP } else { (SMALL_WINDOW_GIB as u64) << 30 };
     let mask = sev::mask();
     let window_top = max.min(gpa_top);

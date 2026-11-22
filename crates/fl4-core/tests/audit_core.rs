@@ -557,6 +557,61 @@ fn pml4_flush_through_a_stale_cap_reaches_no_other_address_space() {
     assert!(r == Err(Exc::Sys(SysError::InvalidCapability { arg: 0 })));
 }
 
+/// A native X86PageMap of a 1 GiB frame needs 1 GiB pages, which the boot
+/// code records (`ks::FEATURE_HUGE_PAGES`) when every core takes them:
+/// without, the PDPTE's PS bit is reserved and the mapping would fault on
+/// every access. It is refused with IllegalOperation, nothing written,
+/// the cap included; 2 MiB frames map as before. With the feature the
+/// 1 GiB frame maps.
+#[test]
+fn a_1gib_frame_maps_natively_only_on_cores_with_1gib_pages() {
+    use fl4_abi::label;
+    use fl4_core::error::{Exc, SysError};
+    use fl4_core::layout::{ks, pptr};
+    use fl4_core::msg::msg_register;
+    use fl4_core::obj::{ks_get, ks_set};
+    let (pool, root, pdpt, pd) = (pptr(0x2000), pptr(0x3000), pptr(0x4000), pptr(0x5000));
+    let t = Tcb(0x40_0000);
+    let vroot = Slot(0x50000);
+    let huge = Cap::Frame { ptr: pptr(0x4000_0000), size: FrameSize::Huge, rights: 3, is_device: false, mapped: false, is_ept: false, asid: 0, vaddr: 0 };
+    let large = Cap::Frame { ptr: pptr(0x20_0000), size: FrameSize::Large, rights: 3, is_device: false, mapped: false, is_ept: false, asid: 0, vaddr: 0 };
+    let map = |features: u64, cap: Cap, vaddr: u64| {
+        let mut s = Memory::default();
+        let mut a = Machine::default();
+        node_set(&mut s, 0, node::CUR_THREAD, t.0);
+        ks_set(&mut s, ks::ASID_TABLE, pool);
+        ks_set(&mut s, ks::FEATURES, features);
+        s.write(pool + 8, root);
+        s.write(root, 0x4000 | 7);
+        s.write(pdpt + 2 * 8, 0x5000 | 7);
+        vroot.set_cap(&mut s, Cap::Pml4 { ptr: root, mapped: true, asid: 1 });
+        let frame = Slot(0x50040);
+        frame.set_cap(&mut s, cap);
+        t.set_reg(&mut s, msg_register(0), vaddr);
+        t.set_reg(&mut s, msg_register(1), 3);
+        t.set_reg(&mut s, msg_register(2), 0);
+        let r = vspace::decode(&mut s, &mut a, label::X86PageMap, 3, frame, cap, false, 0, &[vroot, Slot(0), Slot(0)]);
+        assert_eq!(ks_get(&s, ks::FEATURES), features);
+        (r, s, frame)
+    };
+    let g = 1u64 << 30;
+    for features in [0, ks::FEATURE_NX] {
+        let (r, s, frame) = map(features, huge, g);
+        assert!(r == Err(Exc::Sys(SysError::IllegalOperation)));
+        assert_eq!(s.read(pdpt + 8), 0, "no entry");
+        assert!(frame.cap(&s) == huge, "the cap is unchanged");
+        let (r, s, frame) = map(features, large, 2 * g);
+        assert!(r.is_ok());
+        assert_eq!(s.read(pd) & !0xfff & 0x000f_ffff_ffff_ffff, 0x20_0000);
+        assert!(matches!(frame.cap(&s), Cap::Frame { mapped: true, asid: 1, .. }));
+    }
+    let (r, s, frame) = map(ks::FEATURE_HUGE_PAGES, huge, g);
+    assert!(r.is_ok());
+    let e = s.read(pdpt + 8);
+    assert_eq!((e & 0x000f_ffff_c000_0000, e & (1 << 7), e & 1), (0x4000_0000, 1 << 7, 1));
+    assert!(matches!(frame.cap(&s), Cap::Frame { mapped: true, asid: 1, vaddr, .. } if vaddr == g));
+}
+
 /// An IOAPIC route the backend cannot program (a compatibility-format
 /// entry cannot name a boot core whose x2APIC ID is above 255,
 /// fl4-arch-x86_64 ioapic.rs `map`) issues no IRQHandler: the IRQ stays

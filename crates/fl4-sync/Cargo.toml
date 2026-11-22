@@ -11,9 +11,10 @@ fl4-core = { path = "../fl4-core" }
 fl4-store = { path = "../fl4-store" }
 
 [features]
-# Mutation testing only (DESIGN.md §10): the gate holder does not wait for
-# active local paths, or a local path marks its core active without the
-# store-load order of the handshake.
+# Mutation testing only (DESIGN.md §10), for the host simulator: a
+# bare-metal (kernel) build with any of them fails to compile (lib.rs).
+# The gate holder does not wait for active local paths, or a local path
+# marks its core active without the store-load order of the handshake.
 mutant-gate-no-wait = []
 mutant-gate-release = []
 # The syscall fast paths beside the gate (run_syscall) without marking the
