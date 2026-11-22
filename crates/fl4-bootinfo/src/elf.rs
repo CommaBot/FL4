@@ -8,6 +8,8 @@ const PAGE: u64 = 4096;
 const EHDR_SIZE: usize = 64;
 const PHDR_SIZE: usize = 56;
 const PT_LOAD: u32 = 1;
+/// `p_flags`: the segment is executable.
+const PF_X: u32 = 1;
 const EM_AARCH64: u16 = 183;
 
 /// Where a checked image goes: its loadable segments cover `[v_start,
@@ -81,10 +83,13 @@ pub fn segments(elf: &[u8]) -> impl Iterator<Item = Segment> + '_ {
 /// Check an AArch64 ELF64 image: the headers and every loadable segment's
 /// file bytes lie inside it, no segment has more file than memory bytes
 /// or wraps, the segments (those with memory bytes) lie in `[v_min,
-/// v_limit)` and the entry point inside them.
+/// v_limit)`, page rounded too, and the entry point inside an executable
+/// one (not in a gap between segments, nor in data).
 pub fn check(elf: &[u8], v_min: u64, v_limit: u64) -> Option<Layout> {
     let (phoff, phentsize, phnum) = headers(elf)?;
     let len = elf.len() as u64;
+    let entry = rd64(elf, 24);
+    let mut entry_ok = false;
     let mut lo = u64::MAX;
     let mut hi = 0;
     for i in 0..phnum {
@@ -92,6 +97,7 @@ pub fn check(elf: &[u8], v_min: u64, v_limit: u64) -> Option<Layout> {
         if rd32(elf, ph) != PT_LOAD {
             continue;
         }
+        let flags = rd32(elf, ph + 4);
         let offset = rd64(elf, ph + 8);
         let vaddr = rd64(elf, ph + 16);
         let filesz = rd64(elf, ph + 32);
@@ -103,15 +109,15 @@ pub fn check(elf: &[u8], v_min: u64, v_limit: u64) -> Option<Layout> {
         if memsz > 0 {
             lo = lo.min(vaddr);
             hi = hi.max(end);
+            entry_ok |= flags & PF_X != 0 && entry >= vaddr && entry < end;
         }
     }
-    if lo >= hi || lo < v_min || hi > v_limit {
+    if lo >= hi || lo < v_min || hi > v_limit || !entry_ok {
         return None;
     }
     let v_start = lo & !(PAGE - 1);
     let v_end = hi.checked_add(PAGE - 1)? & !(PAGE - 1);
-    let entry = rd64(elf, 24);
-    if entry < lo || entry >= hi {
+    if v_end > v_limit {
         return None;
     }
     Some(Layout { v_start, v_end, entry })
@@ -136,9 +142,18 @@ mod tests {
     use super::*;
     use std::vec::Vec;
 
-    /// An image with one PT_LOAD per (offset, vaddr, filesz, memsz) and
-    /// the file bytes `fill`.
+    /// `p_flags` of ordinary code: readable and executable.
+    const PF_RX: u32 = 4 | PF_X;
+
+    /// An image with one PT_LOAD per (offset, vaddr, filesz, memsz), each
+    /// executable, and the file bytes `fill`.
     fn image(entry: u64, segs: &[(u64, u64, u64, u64)], size: usize) -> Vec<u8> {
+        let segs: Vec<_> = segs.iter().map(|&s| (s, PF_RX)).collect();
+        image_flags(entry, &segs, size)
+    }
+
+    /// `image` with each segment's `p_flags`.
+    fn image_flags(entry: u64, segs: &[((u64, u64, u64, u64), u32)], size: usize) -> Vec<u8> {
         let mut e = std::vec![0u8; size.max(EHDR_SIZE + segs.len() * PHDR_SIZE)];
         e[0..4].copy_from_slice(b"\x7fELF");
         e[4] = 2;
@@ -148,9 +163,10 @@ mod tests {
         e[32..40].copy_from_slice(&(EHDR_SIZE as u64).to_le_bytes());
         e[54..56].copy_from_slice(&(PHDR_SIZE as u16).to_le_bytes());
         e[56..58].copy_from_slice(&(segs.len() as u16).to_le_bytes());
-        for (i, &(off, va, fs, ms)) in segs.iter().enumerate() {
+        for (i, &((off, va, fs, ms), flags)) in segs.iter().enumerate() {
             let p = EHDR_SIZE + i * PHDR_SIZE;
             e[p..p + 4].copy_from_slice(&PT_LOAD.to_le_bytes());
+            e[p + 4..p + 8].copy_from_slice(&flags.to_le_bytes());
             e[p + 8..p + 16].copy_from_slice(&off.to_le_bytes());
             e[p + 16..p + 24].copy_from_slice(&va.to_le_bytes());
             e[p + 32..p + 40].copy_from_slice(&fs.to_le_bytes());
@@ -205,5 +221,36 @@ mod tests {
         e[18] = 0x3e;
         assert_eq!(check(&e, 0, TOP), None);
         assert_eq!(check(&e[..40], 0, TOP), None);
+    }
+
+    /// Audit r13 T2-03: the entry point lies inside an executable segment,
+    /// not merely between the lowest and highest segment bounds.
+    #[test]
+    fn the_entry_point_must_be_in_an_executable_segment() {
+        let text = (0x200, 0x40_0000, 0x20, 0x1000);
+        let data = (0x220, 0x40_3000, 0x20, 0x1000);
+        let both = |entry| check(&image_flags(entry, &[(text, PF_RX), (data, 4 | 2)], 0x300), 0, TOP);
+        assert_eq!(both(0x40_0010).map(|l| l.entry), Some(0x40_0010));
+        assert_eq!(both(0x40_0fff).map(|l| l.entry), Some(0x40_0fff));
+        // In the gap between the two segments.
+        assert_eq!(both(0x40_1000), None);
+        assert_eq!(both(0x40_2fff), None);
+        // In the data segment (no PF_X).
+        assert_eq!(both(0x40_3000), None);
+        assert_eq!(both(0x40_3010), None);
+        // A lone segment without PF_X has no entry point.
+        assert_eq!(check(&image_flags(0x40_0010, &[(text, 4)], 0x300), 0, TOP), None);
+        assert!(check(&image_flags(0x40_0010, &[(text, PF_X)], 0x300), 0, TOP).is_some());
+        // An executable segment without memory bytes holds nothing.
+        assert_eq!(check(&image_flags(0x40_3010, &[(text, 4), ((0, 0x40_3000, 0, 0), PF_RX), (data, 6)], 0x300), 0, TOP), None);
+    }
+
+    /// Audit r13 T2-03: the page-rounded end stays at or below `v_limit`.
+    #[test]
+    fn the_page_rounded_end_stays_below_the_limit() {
+        let seg = [(0x200, 0x40_0000, 0x20, 0x30)];
+        assert!(check(&image(0x40_0000, &seg, 0x300), 0, 0x40_1000).is_some());
+        assert_eq!(check(&image(0x40_0000, &seg, 0x300), 0, 0x40_0800), None);
+        assert_eq!(check(&image(0x40_0000, &seg, 0x300), 0, 0x40_0030), None);
     }
 }
