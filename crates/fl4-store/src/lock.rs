@@ -44,6 +44,11 @@ static TABLE: [Lock; LOCKS] = [const { Lock(AtomicU64::new(0)) }; LOCKS];
 /// sharing one only make the second attempt fail.
 #[inline(always)]
 fn index(addr: u64) -> usize {
+    // 16-byte granularity: endpoints (16) and slots and replies (32) use
+    // different locks; a pair of neighbouring page-table entries (8
+    // bytes) shares one. 8-byte granularity separates those too, but cost
+    // an l4h guest's page faults 9% at 4 workers (8 vCPUs), against the
+    // spurious contention it removes.
     ((addr >> 4).wrapping_mul(0x9e37_79b9_7f4a_7c15) >> (64 - LOCK_BITS)) as usize
 }
 
