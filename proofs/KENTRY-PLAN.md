@@ -15448,3 +15448,25 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
+
+## a64x (branch par/a64x, on main b41579ba) — AArch64 re-extracted after #63, `Fl4ProofsA64` green, P0 1076/1076; x86 untouched; no FINDING
+- **Extraction** (pvg-office-2, `cargo xtask extract --arch aarch64`, Aeneas nightly-2026.11.14-0d21a9e linux, charon
+  0.1.315; Charon's toolchain nightly-2026-09-17 needed `rustup target add aarch64-unknown-none-softfloat`). Semantic diff
+  of Fl4CoreA64/Funs.lean against #64's: new `vcpu.signal_completes` (`ok false`) and `vcpu.report` (`ok _s`), #63's
+  same-core `TS_RUNNING_VM` branch in `notification.send_signal`, and `sched.preemption_point` reading `irq_pending`
+  first (C seL4 order). Everything else is source comments (fl4-abi build hash, line numbers) and order
+  (`sporadic.sc_sporadic`, `obj.Ntfn.sc`). Types.lean / FunsExternal unchanged.
+- **P0.** gen_const_specs `--arch aarch64`: 105 constants (only `layout.ntfn.SC` moves). gen_p0 `--arch aarch64`:
+  1076/1076 (28 by hand, 87 loops automatically, 0 sorry); `--render-only` reproduces Auto.lean / status.json. New by
+  hand: `notification.send_signal.p0` (`unfold; p0_structural`, as m74 on x86: `split` on the grown body exceeds simp's
+  step limit; the automatic p0_auto / p0_split / p0_match fail on it). New automatic: `vcpu.signal_completes.p0`,
+  `vcpu.report.p0`; `sched.preemption_point.p0` re-proved automatically.
+- **Builds**: `lake build Fl4ProofsA64` (pvg-office-2, LEAN_NUM_THREADS=2, cold mirror): "Build completed successfully
+  (3609 jobs)". The Auto.lean build peaks at ~9-10 GB RSS; the first attempt at LEAN_NUM_THREADS=4 died with the
+  station. `git diff --exit-code b41579ba -- proofs/Fl4Core proofs/Fl4Proofs proofs/Fl4Core.lean proofs/Fl4Proofs.lean`:
+  empty (default target not rebuilt).
+- **Axioms** (axa64x.lean, untracked): `Fl4ProofsA64.P0.` vcpu.report, vcpu.signal_completes, sched.preemption_point,
+  sporadic.sc_sporadic, obj.Ntfn.sc, notification.unblock_sporadic, notification.maybe_donate_sched_context,
+  ipc.cancel_ipc, timer.fire_loop, schedcontext.resume (generated) and notification.send_signal (by hand) `.p0`:
+  propext, Classical.choice, Quot.sound (each).
+- Commits: eb75ea15, this section.
