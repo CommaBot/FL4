@@ -17148,3 +17148,99 @@ rebuilt over the e84b2e3f cache). `#print axioms` (../axf2.lean): `JAtZ.vsReachM
 `vkey_copied`, `JAtZ.vsNamedDrop`, `vsNamedRestart`: `[propext, Classical.choice, Quot.sound]` (the tops' lines
 fell outside the captured tail; their modules are unchanged). axf2.lean's three P1 timer entries `insert.coreW`,
 `insert.rb`, `CoreTree.keep` are unknown constants on this branch (pre-existing list entries, not f2's). No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
+
+## f3 (branch par/f3 from ed26302f = f2) — F1 stage 4 (VSpace / finalise preservation of `VsNamed`), then stage 3 sites; no new top, nothing wired
+
+### (0) Sizing (before starting)
+- **What the posts give.** The VSpace refinements' posts are spec-level: relations at σ' (`VsRel` / `PtRel` at the
+  same sets), `SlotFoot` at the invoked slot, `VsLike` of the new cap, and the spec outcome
+  (`PdptMapSpec σ iv σ'` …) next to the decode's `run … = {(ok iv, σ)}`. FL4's walk words are read through the
+  relations at both states (present / page-size bits and table targets of set tables are fixed by the spec
+  entries, ASID-table and pool words exactly), so no new "word written" clause is needed in the `*Rel` posts.
+- **Finding for stage 5 (before any proof):** the J-layer post `VsPostJ` (VsDecFrame) keeps only
+  `∃ iv, PdptMapSpec σ iv σ' ∨ …`, without the decode result that ties `iv` to the invoked cap, the ASID lookup
+  and the old entry; from it alone `VsNamed` cannot follow (an arbitrary `iv` maps anything anywhere). Stage 5
+  must carry the decode equation (or the derived word-level facts below) through `VsPostJ` / `VsJPost` /
+  `VsJPostO` (VsTopX, VsDecFrame, XTopJointVsMap, XTopJointVsOff and their producers: ~8 files).
+- **Plan.** (a) word-level generic lemmas, one new module `VsNamedOps.lean` (~600–800 lines): a uniform walk
+  step `wstep`, the master inclusion `VsPath.sub_new` (walks after are walks before or new nodes), and
+  `VsNamed.leaf` (frame class: walk steps kept), `mapTab`, `unmapTab`, `assign`, `makePool`, `delSlot`
+  (cap deleted: non-final same-key copy, or its walk gone), `poolDel` / `asidDel`. (b) bridges from the spec
+  (`VsNamedSpec.lean`, ~400–600): walk steps from `PtRel` / `VsRel` at both states and spec entries; spec
+  lookups (`findVspaceForAsid`, `lookupPdptSlot` …) as walks. (c) per-op lemmas at the `*Rel` posts as far as
+  context allows. Stage 3 sites after that.
+
+### (1) Stage 4 done: three new modules (unwired), ~1500 lines
+- **VsNamedOps.lean (word level).** Uniform walk step `wstep k w` (5: the pool word when non-zero and native;
+  4: `eT w` when present; 3, 2: `eT w` when present and not PS; 1: none), its ref `rstep`, entry bound `bnd`.
+  `VsPath.stepW` / `VsPath.inv` (VsPath in that form), **`VsPath.sub_new`** (master inclusion: table words
+  kept or new pool nodes, steps out of old nodes kept or into new nodes, new nodes step nowhere ⇒ walk after
+  = walk before or new node), `VsPath.sub_down` (steps only removed), `VsPath.refOK` / **`VsPath.det`** (a walk
+  node is determined by level + ref). Generic preservation, all at the same typed heap:
+  - `VsNamed.down th m' Del …` (caps of `Del` slots deleted, other keyed caps kept, walks only removed,
+    `hgone`: a walk after named only by deleted slots is named by a kept slot of the same key) with instances
+    **`VsNamed.shrink`** (no slot deleted) and **`VsNamed.delSlot`** (one slot emptied; `gone_of_copy` = the
+    non-final case);
+  - **`VsNamed.mapTab`** (unmapped `y0` of key `(k0, q0)`, `1 ≤ k0 ≤ 4`, mapped at `(a0, v0)`; one new step
+    out of `(k0+1, p0, i0)`, `p0` a walk node at `(a1, v1)` with `rstep (k0+1) a1 v1 i0 = (a0, v0)`; every other
+    step out of a walk node kept; unmapped tables stay empty; `TblSame`);
+  - **`VsNamed.unmapTab`** (the only cap of its key made unmapped, `∀ a v, ¬ VsPath m' k0 q0 a v`, walks only
+    removed, unmapped tables after empty, `TblSame`);
+  - **`VsNamed.makePool`** (zero ASID-table word `hi0` := fresh `q0`, `q0`'s entries no step, pool cap at base
+    `hi0·512` into an unkeyed slot, no cap of key `(5, q0)` before).
+  Helpers `VsNamed.unNotWalk`, `VsNamed.ref_eq`.
+- **VsNamedSpec.lean (relation bridges).** `e4_same` … `e1_same` (words related to one spec entry step alike, and
+  agree on the present bit), `esame_of_kheap`, `pool_same_of_kheap`, `tbl_same_of_asid`, **`lvl_disj`** (one
+  object is a table / pool of one level only, from the spec kinds), **`wstep_keep`** (= the generic lemmas' `hW`
+  for every walk node whose spec object is unchanged), **`unEmpty_keep`** (= `hE`), `e4_upd` / `e3_upd` /
+  `e2_upd` (other entries of a table with one spec entry written), `wstep4_tab` / `3` / `2` (the written
+  entry's step), **`VsPath.of_find`** (l4v `findVspaceForAsid asid = ok pm` ⇒ `VsPath m ksb 4 pm asid 0`).
+- **VsNamedStep.lean (per operation, spec terms).** Common hypotheses: `VsNamed`, `VsSlotsW`, `VsRel` / `PtRel` /
+  `PoolsIn` before, `VsRel` / `PtRel` after at the same sets, the invoked slot's FL4 cap before / after, the other
+  keyed caps kept, every other set object's spec object unchanged, the ASID table unchanged.
+  - `VsNamed.mapTabS` (any level; the parent's other entries step alike);
+  - **`pdptMapS`** (`capV m y0 = .Pdpt q0 false _ _`, `capV m' y0 = .Pdpt q0 true asid va`,
+    `VsPath m ksb 4 pm asid 0`, `va = j·2^39`, `j < 256`, `σ'.kheap pm = pml4 (update f j (pdPointerTablePML4E tab _ _))`,
+    `tab` the address of `q0`), **`pdMapS`** (parent PDPT at `(asid, v1)`, `va = v1 + j·2^30`), **`ptMapS`** (parent PD,
+    `va = v1 + j·2^21`), **`assignS`** (`.Pml4 q0 false _ → .Pml4 q0 true asid`, pool walk node at base `b`,
+    `asid = b + lo`, the pool entry `lo := some q0`, `q0 ≠ 0`, tag 0);
+  - **`makePoolS`** (relations after at `P' ⊇ P ∪ {q0}`; table index free before, `update … (some q0)` after,
+    `σ'.kheap q0 = asidPool (fun _ => none)`, `hfresh`: no cap of key `(5, q0)`);
+  - **`leafS`** (frame class: the tables written are walk nodes whose steps are kept — a PT, or PS entries; the
+    keyed caps kept);
+  - unmap / finalise / delete: `unmapTab` / `delSlot` with **`VsNamed.own`** / `own_ref` (the only cap of a key
+    names every walk to its table, at its ref), **`VsNamed.gone`** (no walk after once no walk node one level up
+    at that ref steps to the table), **`VsPath.par_eq`** + **`hpar_of`** (that parent is the one FL4's lookup at
+    the cap's ref finds; its entry cleared), `wstep4_inv` / `3` / `2` / `5` (a cleared spec entry is no step).
+- **No counterexample found.** Every class is preserved under the FL4 facts of F1-PLAN §3; the only side
+  conditions left to the sites are the decode's checks (unmapped cap, ASID lookup, old entry invalid / DeleteFirst,
+  free ASID index, final cap ⇒ unique key) and the spec state shape of each perform.
+
+### (2) What Stage 5 must add (findings that make it bigger)
+- **The J-layer posts lose the decode.** `VsPostJ` (VsDecFrame) keeps `∃ iv, PdptMapSpec σ iv σ' ∨ …` without the
+  decode equation, so the per-op lemmas' hypotheses (the ASID-lookup walk node, the written entry, the new cap's
+  ref) are not derivable at `JAtZ.vsPostJ` / `vsPostOffJ`. Extend `VsPostJ` / `VsJPost` / `VsJPostO` (and their
+  producers in VsTopX / VsDecFrame / VsThX / VsDomF / XTopJointVsMap / XTopJointVsOff, ~8 files) with the decode
+  result, then add decode inversion lemmas (`decodePdptInvocation … = {(ok iv, σ)}` ⇒ `iv = .pdptMap …` with the
+  checks; one per map kind + assign + unmap, ~100–200 lines each) and the performs' kheap shapes
+  (`setThreadState` / `setCap` touch TCBs / CNodes only, `storePml4e` one entry, the flushes no kheap).
+- **"final ⇒ no other slot with the same key"** (F1-PLAN R6) is still unproved: `delSlot` / `unmapTab` / `own`
+  take it as `huq`. It must come from `FinInv` / `FinM.key` (`okey` equality of overlapping caps) and
+  `is_final_capability`'s neighbour check; no existing lemma states it (M).
+- **Stage 3 site applications cannot be done in new modules.** CnodeCopy / CnodeMove / CnodeRotate /
+  XTopJointGrant / TcbCaps / the retype files build `VsSlotsT` inline from local facts (`htr` …) that their posts
+  do not export, and `VsSlotsT` is set-level (it cannot give `VsKeep`). Each site's post needs a `VsKeep` (or the
+  insert / move / swap facts) added: that edit belongs to Stage 5 (the same files `vsStep` touches), +~15 files.
+- MakePool's relations after are at `P' = P ∪ {q0}` (handled: `makePoolS` takes `P'`); retype / drop / frame posts
+  at changed sets need the f2 lemmas (`grow` / `sub` / `frame`), unchanged.
+
+### (3) Stage 3 sites: not applied (see (2), third point)
+No Stage 3 per-site application was possible without editing the site files' posts; nothing was changed there.
+
+### (4) Builds and axioms
+Module builds f3-m1..m6 (tokyo; m1 `only` is a keyword, a rewrite of a `VRef` conjunction, `.symm` in `det`; m3
+duplicate names `optRef_inj` / `eT_of_eA`, `PAddr` → `ObjRef`; m5 implicit entry attrs left as mvars). Full build
+**f3-full1: `Build completed successfully (7343 jobs)`**, 0 `error`, 0 `sorry` (only the three new modules and the
+root import over the f2 cache). `#print axioms` (../axf3.lean, the 30 new main lemmas first, then every top
+U3L..U25 and the f1 / f2 lemmas): all `[propext, Classical.choice, Quot.sound]` (some P1 timer lemmas fewer).
+No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
