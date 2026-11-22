@@ -15448,3 +15448,61 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
+
+## g7b (branch par/g7b in FL4-g7b, on b41579ba = main) — INV-PLAN §1.U3L C9 / C14 (the SchedContext / SchedControl `rest` premises, `ScStepP1`) DISCHARGED; top **`kernel_entry_reachU7`** = `kernel_entry_reachU4` without them; no premise added; no FINDING
+New leaves ScRestP1, ScRestJ, XTopJointKEntryU7 (root imports after XTopJointKEntryU4). Nothing existing edited. Old tops kept.
+
+### (1) Why P1's lemmas did not suffice, and what is proved (ScRestP1, namespace `Fl4Proofs.P1`)
+- `ScStepP1` asks core 0's `DEBUG_TCBS` word kept, `DbgKeep` (every debug word) and `BlkOK` after. P1's
+  `schedcontext.decode.dec` has the frame `KOD` (debug-list words included: Bind of a thread runs `migrate_tcb` to the
+  SC's core, which moves the thread between the cores' debug lists when the cores differ), and P1's
+  `decode_sched_control.dec` has no frame at all (Configure also ends in `migrate_tcb`). P3's own refinement frame
+  (`KFoot`) contains the whole current node, so its debug head too.
+- In the P3 states both `migrate_tcb`s are no-ops: `SchedRel` puts every TCB on the current core `Z.c` (`SchedCore.aff`)
+  and every SC's `CORE` word at `Z.c` (`SchedSpec.core`), and the SchedControl cap's core is `Z.c` (C12). So the
+  decodes write within P1's `Foot` (`KW`, which has no debug word):
+  * `schedcontext.decode.footK`: Consumed, Bind, UnbindObject (`ScJLabel`'s labels; the other branches are excluded
+    by the label), from `BlkOK`, the invoked SC an `H` SC not bound to the idle thread, the current thread runnable,
+    action word 0, the first extra slot's notification / thread cap naming an `H` object (after the stall's node
+    writes), every TCB's affinity = the SC's core. Bind of a thread via `sc_bind_tcb.blkK` (XTopJointTcbSsp's
+    `bind_tcb.blkK`), Bind of a notification via `bind_ntfn.foot` (two `Sg` words), Consumed without P1's
+    `XferHyps` (`set_consumed.blk`; the state word kept by `set_consumed.rg` + `rgw_keepSt`).
+  * `schedcontext.decode_sched_control.footK` / `configure_flags.blkK` / `cfAK` / `cfDK`: P1's proofs with the
+    footprint carried (`commit_time.foot`, `remote_reschedule.foot`, `set_reprogram_on.foot`, `rfw_foot`,
+    `scw_foot`, the queue ops' `.kw`), and the configured SC's thread's affinity carried to the migration
+    (`aff_qfoot`, field frames), where `migrate_tcb.frame` makes it the identity.
+  * `extra_cap.gen0`: P1's `extra_cap.gen` from slot 0 only.
+
+### (2) At `JAtZ` (ScRestJ, namespace `Fl4Proofs.P3`)
+- `JAtZ.scCtxStepP1` (C9) and `JAtZ.scCtlStepP1` (C14): at any ghost with `JAtZ`, an `Entered` state, the invoked
+  slot a typed slot holding the cap, `ExtraRel` of the first extra slot (and `cpu = Z.c` for C14): the whole
+  `syscall.decode_invocation` ⦃ `ScStepP1` ⦄ (every outcome, so the `rest` posts follow). Facts: `JAtZ.curFacts`
+  (runnable current thread by `ct_schedulable`/`schedulable_eq`, action word 0 by `SchedRel.act`),
+  `JAtZ.nodeW_notSlot` (the stall's node words miss the slots: `JAtZ.slot_node`), `JAtZ.scCtxCap`, `JPlaced.cobj`,
+  `JAtZ.capN`, `CapValid`; then `JAtZ.stepP1_of_foot` (`JAtZ.kw_dbg`, `JAtZ.kw_dbgKeep`).
+
+### (3) The top (XTopJointKEntryU7)
+- `JSchedCtxPathU7` / `JSchedCPathU7` = U4's paths without `rest`; `JPathMEU7`, `JPathAtMU7`, `KDispHypsKVU7`.
+- `JPathAtMU7.toU4` (needs `ArchTotal`, the dispatch state's `JAtZ`, `Entered`; `ExtraRel` from `JAtZ.frontJ` +
+  `ExtraOK.rel1`), `KDispHypsKVU7.toU4`.
+- **`SInvR.G5.kernel_entry_reachU7`** = `kernel_entry_reachU4` with `hK : KDispHypsKVU7`; `Entered σb` at each
+  dispatch state from `BudgetAt.enteredP hnd (SInvX.entered …)` (the clause's `σ.curThread ≠ σ.idleThread`).
+  Premises removed: C9, C14 of §1.U3L ([W]). Added: none (`hA`, `hnd` were already premises).
+- INV-PLAN §1.U3L: rows C9 / C14 moved to the F list; [W] leaves at U7: D6 only.
+
+### (4) Builds and axioms
+- tokyo, mirror FL4-g7b, `.lake` seeded from FL4-m74 (g7b-build.sh, axg7b.lean untracked). Module builds g7b-b1..b11
+  (errors met: `ok` resolving to `schedcontext.extra_cap.ok` inside a declaration named `schedcontext.extra_cap.*`
+  — write `Result.ok`; `Foot` is an abbrev so `hf.mono` picks `Foot.mono` — write `P1.WritesIn.mono hf`;
+  structures not using `L` need `(st := st)`); g7b-b11 green (7090 jobs), commit 2dfd2b9f.
+- **g7b-full1** (full `lake build` of proofs/ at 2dfd2b9f): "Build completed successfully (7185 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new files.
+- `#print axioms` (g7b-full1, axg7b.lean): SInvR.G5.kernel_entry_reachU7, kernel_entry_reachU4, JPathAtMU7.toU4,
+  KDispHypsKVU7.toU4, JAtZ.scCtxStepP1, JAtZ.scCtlStepP1, P1 schedcontext.decode.footK,
+  decode_sched_control.footK, configure_flags.blkK: propext, Classical.choice, Quot.sound (each).
+
+### (5) Findings and handoff
+- No FINDING: `ScStepP1` holds at every reachable dispatch state the paths are asked at (one core makes both
+  `migrate_tcb`s no-ops; with several cores a Bind / Configure moving a thread to another core writes the debug
+  lists, so `DbgKeep` would be false there — out of scope while `SchedRel` is one-core).
+- Next by §1.U3L: the D6 CR3 `tail` [W] is the only [W] leaf left at U7.
