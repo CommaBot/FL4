@@ -17097,3 +17097,47 @@ Classical.choice, Quot.sound]` only. Files changed against e9c21de0: see the f1 
 - Stage 4/5 impact so far: `XTopAt.restart` / `JAtZ.restartJ` do not export the `VObj` post (it is re-derived
   from `restart_top`, as in `vsReachMissR`); every `VsNamed` transport needs `VsSlotsW` at the pre-state
   (available as `JAtZ.vsc`).
+
+### (3) Stage 3: what is proved (VsNamedKeep.lean, new, imports VsNamed)
+- **Vehicle** `Vs.VsKeep th th' m m'` (fields `fwd` / `back` / `inj`, (2)) and **`VsNamed.step`**: `VsKeep` + walk
+  words kept (`TblSame`, `SetWSame` at the pre-state's sets) + `VsRel` / `PtRel` / `PoolsIn` / `VsSlotsW` at the
+  pre-state ⇒ `VsNamed` after. `VsKeep.of_eq` (caps kept), `VsKeep.of_pre` (a slot map), **`vsKeep_insert`**
+  (destination unkeyed before, `c` never `TabUn`, a keyed copy is its source; the source's `fullF`),
+  **`vsKeep_move`**, **`vsKeep_swap`**.
+- **Copies** (`Keyed2 a b` := either keyed): `vkey_mask`, `vkey_update`, `vkey_derive`, **`vkey_copied`**
+  (`cnode.copied_cap … = ok (.Ok (nc, mv)) → Keyed2 nc srcC → nc = srcC`); with `derive_tabun` this gives
+  `vsKeep_insert`'s `hr` / `hu` for CNode Copy / Mint and `vsKeep_move`'s `hr` for Move / Mutate.
+- **Frame class**: stage 2's `VsNamed.frame` (caps kept + walk words kept); `JAtZ.vsNamedRestart` (the caller's
+  restart, from `restart_top`) as the worked instance.
+- **Retype class (generic)**: **`VsNamed.grow`**: old slots kept (`th ⊆ th'`), old keyed caps kept, every keyed
+  cap after old or new; a new one `TabUn`, the only cap of its key, its table empty at `m'`; walk words kept.
+- **Drop class**: **`VsNamed.sub`** (fewer slots, every keyed slot kept) and **`JAtZ.vsNamedDrop`**
+  (`restrictTh` at the same memory, from `NoStraddle` + the MDB slots off the region, i.e. `U.nostr` / `U.ns`
+  as `JAtZ.dropA` has them). The reset's zeroing after the drop is a frame step at the pruned sets (the pruned
+  sets' frames miss the region, `VsDrop.mem` / `tbl`): `VsNamed.frame` at the post-drop relations.
+
+### (4) Handoff: what stage 3 leaves to stage 5 (site obligations) and stage 4
+- Per-site arguments not yet written (they need the site files; mechanical given the lemmas above):
+  * CNode Copy / Mint / Move / Mutate / Rotate (CnodeCopy, CnodeMove, CnodeRotate): `vsKeep_insert` / `move` /
+    `swap` with `vkey_copied` + `derive_tabun` / `copied_tabun`; `hd0` from `ensure_empty_slot` (dest Null).
+  * IPC grant (IpcGrantTr / XTopJointGrant): `vsKeep_insert` with `vkey_derive` + `derive_tabun` (as their
+    `derive_vcap` / `derive_tabun` uses). TCB install (TcbCaps:759 / XTopJointTcbInstall): `vsKeep_insert` with
+    the derive facts there.
+  * Retypes (UtUtRet, UtCnRet, UtTcbRet, UtScRet, UtPmRet, UtEpRet, UtFrRet, UtDevRet, UtDevUt): `VsNamed.grow`'s
+    `hnew` from each file's new-cap facts: new keyed caps are only UtPmRet's PT / PD / PDPT / PML4 caps (unmapped:
+    `newCapOf_tab` / `newCapOf_pml4`, RetypePlace); freshness from `UtInv.drange` at the post `G'` (new objects
+    apart from every non-ancestor cap's object, distinct among themselves by `NewAt`); empty tables from
+    `UtCapP3.zero` / the window zero and the PML4's `copy_global_mappings` writing only 256..511. The other
+    retypes make no keyed cap (`hnew`'s old branch). Walk words kept: the retype writes the window (off the
+    sets, `SpecFree` / `TopPlaced`) and slot words.
+  * Drops (UtDropJ2 `dropA`, UtDevDrop `dropAD`): `JAtZ.vsNamedDrop`; resets (UtResetTopJ / UtResetLoopJ):
+    `VsNamed.frame` at the post-drop state.
+  * `cs_frame*` family (66 files): `VsNamed.frame` from their `SlotsSame` + `VObj` posts through
+    `walk_of_vobj` (F1-PLAN R5: where a helper does not export the `VObj` words, extend its post).
+- Stage 4 (unchanged scope): table map / unmap, frame map family, ASID assign, MakePool (new pool cap is not
+  `TabUn`: needs its own lemma with the ASID-table write and `poolT`), finalise / emptySlot (deletion breaks
+  `VsKeep.fwd`: a deleted keyed cap needs either another cap of its key (non-final, `uref`) or its walk removed
+  (final)).
+
+### (5) Builds and axioms
+See the f2 commits; module builds f2-m1..m8 (tokyo), full build f2-full1 below.

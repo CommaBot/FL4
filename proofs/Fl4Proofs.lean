@@ -1417,3 +1417,4 @@ import Fl4Proofs.P3.UnrefParts
 import Fl4Proofs.P3.XTopJointKEntryU25
 import Fl4Proofs.P3.UnrefSym
 import Fl4Proofs.P3.VsNamed
+import Fl4Proofs.P3.VsNamedKeep
