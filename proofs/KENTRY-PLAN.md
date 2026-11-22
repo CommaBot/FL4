@@ -15100,3 +15100,96 @@ root imports SpecInvUtZS). Nothing existing edited. Old tops kept. WIP (not in t
   yk_deleteObjects, yk_recDel, yk_fl4SyscallFaultIP, hu_capInsert, hu_recDel, hu_capRevoke, hu_doNormalTransfer,
   okv_fl4Decode_z, fpu_bytes_free, zr_invokeFl4Tcb, yk_/hu_archPerformInvocation, yk_/hu_fl4ArchPerformInvocation,
   yk_performAsidControlInvocation: [propext, Classical.choice, Quot.sound].
+
+## g5h (branch par/g5h in FL4-sc, on 6ee2129a = #51 head incl. g5g, m72) — g5g's handoff: (1) DONE: g5g's S.tail compiled, restructured (SpecInvUtZS2 / ZS3 / ZS4, each module ~10 s); `kentry_zr_of`, `kcall_zr_of` (given `PerfGapZ`), `kcall_zr_other`, `zr_fl4SyscallFaultIP` (no premise) green; (3) DONE as far as (2) allows: `JReachU2` / `jreach_invU2` / `kernel_entry_reachU2` green, every event step asks no exit premise, `start` takes `UtPgR`, the syscall step still asks `SpecUtZ σ' ∧ UtPgR σ'` [W]; (2) Nest + `PerfGapZ` NOT done (plan below); no FINDING
+New leaves SpecInvUtZS2, SpecInvUtZS3, SpecInvUtZS4 (spec side, namespace `Fl4Proofs.P3.SInvUZ`, outside the `JAtZ` cone) and
+XTopJointKEntryU2 (namespace `SInvR.G5`); root imports them. Nothing existing edited. Old tops kept.
+
+### (1) Why g5g's tail blew up, and the restructuring
+- g5g's `zr_auto` tried, at *every* node of a perform / decode, `ik_zr` followed by every `hv_leaf` / `yk_leaf` rule
+  before unfolding. Replaced by **`zr_split`** (SpecInvUtZS2): one `ik_zr` / `ike_zr` at the top of a function, then
+  `hv_auto` on the cap half and `yk_auto` on the memory half separately; both meet their existing leaf lemmas at once.
+  No `zr_auto` is used anywhere in the new modules.
+- A second, silent problem of g5g's catch-all: `invokeCnode` writes the *decoded* cap (`cap_insert c`, `cap_move c`),
+  so `hu_capInsert` needs `UtIn U c`, which `ut_side` could only try by `simp_all` (and fail). Now taken from ut7's
+  CNode decode facts `InvOKN` / `CnOKN` (`okv_fl4DecodeN`): `utIn_ci3` (a `CI3` cap is the source slot's cap or no
+  untyped cap, `RefRel`), `utIn_refEq` (moves / rotates), `utIn_of_view`; the shell now carries `InvOKN` beside `InvZ`.
+- SpecInvUtZS2: `zr_pin`, `zr_invokeCnode` (`CnOKN`), `zr_invokeIrqHandler` (`IrqHOKN`: a notification cap),
+  `hu_invokeTcb` / `zr_invokeTcb` (installs re-read their source: `hu_checkCapAt_ins`), `zrp_endpoint` /
+  `zrp_notification` / `zrp_domain` / `zrp_reply` / `zrp_irqControl` / `zrp_schedContext` / `zrp_schedControl`,
+  **`PerfGapZ`** (unchanged from g5g), **`zr_fl4Perform`** (per invocation kind; untyped by `PerfGapZ`, ReadFPU by
+  g5g's `zr_invokeFl4Tcb`, arch by `hu_/yk_fl4ArchPerformInvocation`), `IKZ` and its binds, `zr_restart`,
+  `zr_hiFront`, `zr_hiDecode`.
+- SpecInvUtZS3: **`zr_handleInvocationR hG`** (ut7's `p3N_handleInvocationR` shape; `InvZ` and `InvOKN` from the
+  decode, moved to the perform state by `uV s1 = uV σ`).
+- SpecInvUtZS4: **`zr_fl4HandleSyscall hG`** (explicit per-syscall cases, no `first`), `zr_handleEvent_other`,
+  `zr_fl4HandleEvent hG`, `zr_preempt`, `zr_fl4CallKernel hG`, **`zr_fl4SyscallFaultIP`** (`ik_zr` of the vih2 /
+  YK leaves), `zr_kentry hG`, tops **`kentry_zr_of hG`** (`UtInv3 σ → ZR σ → ZR` at every syscall exit),
+  **`kcall_zr_of hG`** (every event), **`kcall_zr_other`** (every non-syscall event, no premise).
+
+### (2) The induction (XTopJointKEntryU2, from g5g's WIP)
+- `JReachU2`: `start` (`JAtZ ∧ SInvX ∧ SInvIP ∧ MR ∧ UtPgR`), `step` (native syscall; exit premises `SpecUtZ σ'`,
+  `UtPgR σ'`), `irq` / `user` / `vmf` / `trap` / `sysU` with **no exit premise** (`zr_evOut`: `ZR` along `EvOut`
+  by `kcall_zr_other` and `zr_fl4SyscallFaultIP`). `JReachU2.zr`, `JReachU2.toU` (every `JReachU2` state is a
+  `JReachU` state), **`jreach_invU2`** (`jreach_invU`'s bundle plus `UtPgR`).
+- **`kernel_entry_reachU2`**: `kernel_entry_reachU`'s six clauses, the syscall clause by m72's **`kernel_entryJ42H`**
+  (so no `hRP5`, as `kernel_entry_reachUH`); event clauses end in `SpecUtZ σ' ∧ JReachU2`, the syscall clause in
+  `SpecUtZ σ' → UtPgR σ' → JReachU2`.
+- **Premises exactly** (global, all [P], as `kernel_entry_reachUH`): `PlainStore`, `hARI`, `hA`, `hnd`, `hM`,
+  `hKD`, `hIo`, `hIoa`, `hPA`, `hIA`, `hmrt`, `hmb`, `hT`, `hmax`, `htu`, `hRef`, `hPI`, `hSX`; `hJ : JReachU2`.
+  Per clause: (i) syscall: `hct` [S], `hn` [S], `hLF : LargeFrOK` [J], `hflag` [S], `hK : KDispHypsKV42`, `hDL :
+  JDecMRLK VtxK` [W]/[scope], `hFin : KFinAtR31`; (ii) interrupt: `IrqHw` [P], `KFinEv`; (iii)/(iv) user exception /
+  VM fault: `hct` [S], `UserHw` / `VmfHw` [P], `KFinEv`; (v) `int $N`: `hct`, `v < 256` [P], `KFinEv`; (vi) unknown
+  syscall: `hct`, `UnkSys` [S], `NoDbgSys` [S], `FastFaultOK` [J], `KFinEv`. Induction exit premise: **`SpecUtZ σ' ∧
+  UtPgR σ'` at the syscall step only** [W] (was `SpecUtZ σ'` at every step of `JReachU`).
+- Reachability: `UtPgR` (start) is l4v `valid_untyped` for data pages, true in every reachable state; `SpecUtZ σ' ∧
+  UtPgR σ'` at a syscall exit is l4v `untyped_ranges_zero ∧ valid_untyped`, true at every reachable state.
+  `PerfGapZ` is not a premise of any top (only of `kentry_zr_of` / `kcall_zr_of`).
+
+### (3) (2) of the brief NOT done: Nest and `PerfGapZ` — exact plan
+- **What `PerfGapZ` needs beyond P3** (g5g (6)): for the retype, a new data page `P` lies in the source `src`'s free
+  part; for an untyped cap `U` meeting `P`: `U = src` (inside), `U` a descendant of `src` (misses `src`'s free part
+  by `UtDesc`, so misses `P`), unrelated (regions disjoint by `UtDesc`), **`U` a CDT ancestor of `src`: needs
+  `rg src ⊆ rg U`** — l4v `untyped_inc` ("Nest"), not in P3. Everything else is P3 (`UtDisj`, `UtDesc`, `CapFreeV`,
+  ut2's `UtRetOKV`) plus `ZR`'s pages / zero memory. Reset: `delete_objects` removes every page meeting the region
+  (containment clause of `UtPgR`), `clearMemory` zeroes each chunk before its free-index write.
+- **Cheapest carry: strengthen `UtDescV`'s descendant conjunct in place** (SpecInvUt.lean:83) from
+  `∀ k ∈ utR b2 n2, k ∉ utFr b1 n1 f1` to `∀ k ∈ utR b2 n2, k ∈ utR b1 n1 ∧ k ∉ utFr b1 n1 f1` (both disjuncts). The
+  UtDesc reasoning lives in the view lemmas only; they destructure `⟨hF, hW, hD, hDe, hOr⟩`: `utInvV_shrink`
+  (SpecInvUtW:50), `utInvV_shrinkD` (SpecInvUtC:88), `utInv'_leaf` (SpecInvUtIns:37), `utInv'_cc` / **`utInv'_ccU`**
+  (SpecInvUtCC:106/127), `rs_setCap` (SpecInvUtRs:54), `utInv'_rename` (SpecInvUtSw:64), `utInv'_raise`
+  (SpecInvUtI:51), `utInv'_vCap_nn` / `_vCap_rel` / `_cut` / `_vOrig` / **`_ccG`** (SpecInvUtMv:36..110),
+  `utInv'_vEs` (SpecInvUtC:357). Shrink / rename / cut / raise: the region part is untouched (map `.1` through).
+  New children (`utInv'_ccU`, `utInv'_ccG`): their `hAn` hypothesis (ancestors `sl` of `src` miss the child) gains
+  `∀ k ∈ utR bS nS, k ∈ utR b n` from the strengthened `UtDescV` at `w` (callers SpecInvUtI:192 `hL`'s `hAn` producer,
+  SpecInvUtMv:264), and the child-vs-`src` case adds `k ∈ utR bS nS` from `hR`. Then the cone: every module
+  importing SpecInvUt (P3 spec family + the `JAtZ` modules reading `UtInv3`): one full build (~45 min).
+- Then **`PerfGapZ`** (new leaf, after ut8's `p3_invokeUntyped` structure, SpecInvUtP6:134): canonical sets
+  `HasU σ`, `PgOf σ` (`zs_canon`); retype: `hu_` of `create_cap` children `(b', n', 0)` inside the free part (zero),
+  pages from `retype_region` inside the free part (`yk_` reverse closure: `PgIn` with the new pages, `DisjF` by
+  `UtDisj` / `UtDesc` / Nest above); reset: `delete_objects` + `clearMemory` chunks (`MZ`), free index lowered only
+  after its chunk is zero. Size: M (Nest edit + cone) + L (`PerfGapZ`).
+- With `PerfGapZ` proved: `kentry_zr_of perfGapZ` makes the syscall step of `JReachU2` premise-free (new
+  `JReachU3` with `step` asking nothing, `JReachU3.zr` from `kentry_zr_of` and `SInvX`'s `UtInv3`).
+
+### (4) Builds and axioms
+- tokyo, FL4-sc mirror (./g5h.sh, g5h.files, scratch/g5h/{partB,partC,S2.full,ax}.lean untracked; the watchdog kills a
+  `lean` over 8 GB by PID and every leftover `lean` of the build at the end). g5h-b1: timeout 300 s while rebuilding
+  the stale P1 cone (the mirror predated m72), no information; g5h-b2 stopped (left lake 34765/34766, killed by PID in
+  b3); g5h-b3: mirror re-seeded from FL4-g5m (warm at 6ee2129a), SpecInvUtZS warm, part A: one `split` case of
+  `cancelBadgedSends` (`exfalso; simp_all` as g5c); g5h-b4: whole file in 33 s, one ambiguous `NK` (IntFrame's vs
+  SInvU's); **g5h-b5: SpecInvUtZS2..4 green (SpecInvUtZS4 6.2 s), XTopJointKEntryU2 green (7068 jobs)**. Commit a3f7ac0d.
+- **g5h-full1** (full `lake build Fl4Proofs` at a3f7ac0d): "Build completed successfully (7163 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom / `#exit` in the new files.
+- `#print axioms` (scratch/g5h/ax.lean, run by full1): zr_invokeCnode, zr_invokeIrqHandler, hu_invokeTcb,
+  zr_fl4Perform, zr_handleInvocationR, zr_fl4HandleSyscall, zr_fl4CallKernel, zr_fl4SyscallFaultIP, kentry_zr_of,
+  kcall_zr_of, kcall_zr_other, zr_evOut, JReachU2.zr, JReachU2.toU, jreach_invU2, kernel_entry_reachU2 and (kept)
+  kernel_entry_reachUH, kernel_entry_reachU: [propext, Classical.choice, Quot.sound].
+
+### (5) Findings
+- None. Observation: g5g's catch-all could not have closed `invokeCNode` (the decoded cap's `UtIn` is a decode fact,
+  now `InvOKN`), so its blow-up was partly a search for an unprovable side goal.
+
+### (6) Handoff
+- (3) above: strengthen `UtDescV` (Nest), rebuild the cone, prove `PerfGapZ`; then a `JReachU3` whose syscall step
+  asks nothing (`kentry_zr_of perfGapZ`).
