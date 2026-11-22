@@ -145,7 +145,7 @@ theorem key_of_so {a b : capability.Cap} (h : soB a b = true) (hb : NeedsFin b) 
         exfalso
         cases b <;> simp only [soB, Bool.false_eq_true] at h <;> simp only [FinObjKind] at hb' <;>
           simp at hb' <;> (have e := sr_ok h; simp [objects.same_region_as] at e)
-      case Null | Zombie | Domain | SchedControl | AsidControl =>
+      case Null | Zombie | Domain | SchedControl | AsidControl | TdxControl =>
         exfalso
         simp only [soB] at h
         have e := sr_ok h

@@ -68,6 +68,7 @@ def decodeF (w0 w1 : BitVec 64) : capability.Cap :=
   | 20 => .IoPortControl
   | 21 => .IoPort ⟨w1 &&& 0xffff#64⟩ ⟨(w1 >>> 16) &&& 0xffff#64⟩
       (if w0 &&& M48 = 0#64 then 0#u64 else p)
+  | 24 => .TdxControl
   | _ => .Null
 
 theorem decode_eq (w0 w1 : U64) : capability.Cap.decode w0 w1 = ok (decodeF w0.bv w1.bv) := by
@@ -330,6 +331,17 @@ theorem decode_eq (w0 w1 : U64) : capability.Cap.decode w0 w1 = ok (decodeF w0.b
     change (if w0.bv &&& M48 = 0#64 then _ else _) = _
     split <;> rfl
   case h_24 =>
+    have htk : (w0.bv >>> 59).toNat = 24 := congrArg UScalar.val heq
+    try simp only [decodeF, htk]
+    try simp only [shr_eq _ 48#i32 (by decide) (by decide), shr_eq _ 50#i32 (by decide) (by decide),
+      shr_eq _ 53#i32 (by decide) (by decide), shr_eq _ 58#i32 (by decide) (by decide),
+      shr_eq _ 16#i32 (by decide) (by decide), lift, bind_ok, capability.PTR_MASK,
+      bit_val _ 48#u64 (by decide), bit_val _ 49#u64 (by decide), bit_val _ 50#u64 (by decide),
+      bit_val _ 51#u64 (by decide), bit_val _ 52#u64 (by decide), bit_val _ 53#u64 (by decide),
+      bit_val _ 54#u64 (by decide), bit_val _ 58#u64 (by decide), from_code_eq,
+      unpack_asid_eq _ 54#u64 _ (by decide), unpack_asid_eq _ 49#u64 _ (by decide)]
+    all_goals rfl
+  case h_25 =>
     simp only [decodeF]
     split <;> rename_i hk
     · exact absurd (UScalar.eq_of_val_eq (i := (⟨w0.bv >>> I32.toNat 59#i32⟩ : U64)) (j := 1#u64) hk) (by assumption)
@@ -355,6 +367,7 @@ theorem decode_eq (w0 w1 : U64) : capability.Cap.decode w0 w1 = ok (decodeF w0.b
     · exact absurd (UScalar.eq_of_val_eq (i := (⟨w0.bv >>> I32.toNat 59#i32⟩ : U64)) (j := 23#u64) hk) (by assumption)
     · exact absurd (UScalar.eq_of_val_eq (i := (⟨w0.bv >>> I32.toNat 59#i32⟩ : U64)) (j := 20#u64) hk) (by assumption)
     · exact absurd (UScalar.eq_of_val_eq (i := (⟨w0.bv >>> I32.toNat 59#i32⟩ : U64)) (j := 21#u64) hk) (by assumption)
+    · exact absurd (UScalar.eq_of_val_eq (i := (⟨w0.bv >>> I32.toNat 59#i32⟩ : U64)) (j := 24#u64) hk) (by assumption)
     · rfl
 
 theorem shl_u64_eq (x i : U64) (h : i.val < 64) : x <<< i = ok ⟨x.bv <<< i.val⟩ := by
@@ -431,6 +444,7 @@ def encodeF : capability.Cap → BitVec 64 × BitVec 64
       (tagF 23 ||| packF p ||| bF m 48 ||| asidHiF asid 49 ||| ((level.bv &&& 63#64) <<< 53),
         ((asid.bv &&& 0xffff#64) <<< 48) ||| (va.bv &&& M48))
   | .IoPort f l vcpu => (tagF 21 ||| packF vcpu, (f.bv &&& 0xffff#64) ||| ((l.bv &&& 0xffff#64) <<< 16))
+  | .TdxControl => (tagF 24, 0#64)
 
 theorem encode_eq (c : capability.Cap) :
     capability.Cap.encode c = ok (⟨(encodeF c).1⟩, ⟨(encodeF c).2⟩) := by
@@ -765,6 +779,11 @@ theorem rt_IoPortControl  (hc : EncWf .IoPortControl) :
   all_goals (try congr 1)
   all_goals fields
 
+theorem rt_TdxControl  (hc : EncWf .TdxControl) :
+    decodeF (encodeF .TdxControl).1 (encodeF .TdxControl).2 = .TdxControl := by
+  have htag := tag_gen (w := (encodeF .TdxControl).1) (k := 24) (by bvext) (by decide)
+  simp only [decodeF, htag]
+
 theorem rt_Vcpu (p : U64) (hc : EncWf (.Vcpu p)) :
     decodeF (encodeF (.Vcpu p)).1 (encodeF (.Vcpu p)).2 = .Vcpu p := by
   have htag := tag_gen (w := (encodeF (.Vcpu p)).1) (k := 22) (by bvext) (by decide)
@@ -835,6 +854,7 @@ theorem decodeF_encodeF (c : capability.Cap) (hc : EncWf c) :
   | Vcpu p => exact rt_Vcpu p hc
   | Ept p level m asid va => exact rt_Ept p level m asid va hc
   | IoPort f l vcpu => exact rt_IoPort f l vcpu hc
+  | TdxControl  => exact rt_TdxControl  hc
 
 /-- **`Cap::decode` after `Cap::encode` is the identity** on caps whose fields
 fit their encoding. -/
@@ -919,6 +939,7 @@ theorem decodeF_encWf (w0 w1 : BitVec 64) : EncWf (decodeF w0 w1) := by
     · left; intro j hj hj'; simp
     · exact hp
   case h_24 => trivial
+  case h_25 => trivial
 
 theorem decode_encWf {w0 w1 : U64} {c : capability.Cap} (h : capability.Cap.decode w0 w1 = ok c) : EncWf c := by
   rw [decode_eq] at h

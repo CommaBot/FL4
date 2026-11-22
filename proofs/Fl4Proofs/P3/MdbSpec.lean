@@ -56,9 +56,11 @@ theorem fbitsF_val (sz : capability.FrameSize) :
   have h := frame_bits_eq sz
   cases sz <;> simp [capability.FrameSize.bits] at h <;> rw [← h] <;> rfl
 
-theorem srB_spec_self (c d : capability.Cap) (hsh : shape d = shape c) (hs : srB c c = true) (he : EncWf c) :
+theorem srB_spec_self (c d : capability.Cap) (hsh : shape d = shape c) (hs : srB c c = true) (he : EncWf c)
+    (hw : CapWf d) :
     Fl4Spec.sameRegionAs (absCap c) (absCap d) := by
   cases c <;> cases d <;> simp [shape] at hsh
+  case TdxControl.TdxControl => exact False.elim hw
   case Untyped.Untyped p sb fi dev p' sb' fi' dev' =>
     obtain ⟨rfl, rfl⟩ := hsh
     rw [srB_ut] at hs
@@ -86,10 +88,10 @@ theorem u64_beq (x y : U64) : (x == y) = decide (x.bv = y.bv) := by
   rw [Bool.eq_iff_iff]; simp [UScalar.eq_equiv_bv_eq]
 
 theorem sbp_eq (srcC c : capability.Cap) (io : Bool) (hsh : shape c = shape srcC)
-    (hs : srB srcC srcC = true) (he : EncWf srcC) (hk : SameBadgeKind c srcC) :
+    (hs : srB srcC srcC = true) (he : EncWf srcC) (hk : SameBadgeKind c srcC) (hw : CapWf c) :
     decide (Fl4Spec.shouldBeParentOf (absCap srcC) io (absCap c)
       (decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC)))) = isPF io srcC c (revF c srcC) := by
-  have hsr := srB_spec_self srcC c hsh hs he
+  have hsr := srB_spec_self srcC c hsh hs he hw
   have hsrB : srB srcC c = true := by rw [srB_congr rfl hsh]; exact hs
   have hrv : decide (Fl4Spec.isCapRevocable (absCap c) (absCap srcC)) = revF c srcC := by
     have := revF_spec c srcC hk
@@ -99,6 +101,7 @@ theorem sbp_eq (srcC c : capability.Cap) (io : Bool) (hsh : shape c = shape srcC
   rw [hsrB]
   simp only [eq_true hsr, true_and, Bool.and_true]
   cases srcC <;> cases c <;> simp [shape] at hsh
+  case TdxControl.TdxControl => exact False.elim hw
   all_goals (try casesm* _ ∧ _); subst_vars
   all_goals cases io <;> simp [absCap, isBadged, badgeF, Fl4Spec.capEpBadge, UScalar.eq_equiv_bv_eq,
     Fl4Spec.shouldBeArchParentOf, u64_beq]

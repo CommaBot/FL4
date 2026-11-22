@@ -174,7 +174,7 @@ theorem empty_stepWR' (W : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     refine ⟨σ, G, ?_, ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩, capV_of_capAt hc, fun _ _ _ => rfl, le_refl _, le_refl _,
       fun h => absurd (capV_of_capAt hc) h, MdbStep.refl hM, hW⟩
     rw [emptySlot_null_cap _ hg]; rfl
-  have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  have hcan : absCap c ≠ .nullCap := fun h => hcn ((absCap_eq_null hca.1).1 h)
   have hsplit := empty_slot_split (st := st) arI s a (cslotAddr sl) cl (c := c) (by rw [slot_cap_eq]; exact hc) hcn
   rw [hsplit]
   have hxm0 : cslotAddr sl ∈ G.chains.flatten := (hM.members _).2 ⟨hxs, c, hc, hcn⟩

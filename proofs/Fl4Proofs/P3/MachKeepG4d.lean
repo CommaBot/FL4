@@ -9,7 +9,8 @@ Every arch operation reached is a field of `MRKeepD` or a query returning no
 arch state (`virtualization`, `private_device_frame`, `kernel_wcet_ticks`,
 `ticks_to_us`, `us_to_ticks`, `max_us`). `MKD.decode_quiet`: FL4's
 `decode_invocation` of a cap of a quiet kind (`QuietF`: not CNode, Thread,
-Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept) keeps `MR`;
+Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept, TdxControl: its TDCALLs return
+an arch state no `MRKeepD` field covers, and no related state holds one) keeps `MR`;
 `MKD.decode_cnode_nrd`: a CNode cap's decode at a label other than Revoke /
 Delete keeps the arch state. `LoudF`: the kinds left (Thread, Untyped,
 IrqControl, IrqHandler, IoPort).
@@ -31,6 +32,7 @@ def QuietF : capability.Cap → Prop
   | .IoPort .. => False
   | .Vcpu _ => False
   | .Ept .. => False
+  | .TdxControl => False
   | _ => True
 
 /-- **The loud FL4 cap kinds** (the decoders that reach a clock, interrupt or

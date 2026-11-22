@@ -473,6 +473,8 @@ theorem decode_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lb
     (hIoPortControl : cap = .IoPortControl →
       DecOK (L := L) arI s ar σ lbl length slot cap blk call don fp buf extra slbl args ci sl excaps buffer)
     (hIoPort : ∀ f l vcpu, cap = .IoPort f l vcpu →
+      DecOK (L := L) arI s ar σ lbl length slot cap blk call don fp buf extra slbl args ci sl excaps buffer)
+    (hTdxControl : cap = .TdxControl →
       DecOK (L := L) arI s ar σ lbl length slot cap blk call don fp buf extra slbl args ci sl excaps buffer) :
     DecOK (L := L) arI s ar σ lbl length slot cap blk call don fp buf extra slbl args ci sl excaps buffer := by
   cases cap with
@@ -504,6 +506,7 @@ theorem decode_invocation_refines (s : S) (ar : A) (σ : Fl4Spec.State Unit) (lb
   | Vcpu => exact hVcpu _ rfl
   | Ept => exact hEpt _ _ _ _ _ rfl
   | IoPort => exact hIoPort _ _ _ rfl
+  | TdxControl => exact hTdxControl rfl
 
 end
 

@@ -4,6 +4,7 @@ and CNode Delete/Revoke (`InvGaps3`), with the CDT placement facts
 `CdtHyps2` and `P3Place`.  `InvGaps2` is unchanged.
 -/
 import Fl4Proofs.P1.QueueDecDel
+import Fl4Proofs.P1.QueueDecTdx
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -40,7 +41,7 @@ theorem InvGaps3.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} 
     (G : InvGaps3 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨G.untyped, decGap_reply hA P.xfer P.tmoAny (fun Ac s h => (P.blkU Ac s h).2), decGap_cnode2 hA C G.del,
     G.thread, G.irqControl, G.irqHandler, decGap_domain hA, decGap_sc hA P.xfer G.yield, G.schedControl, G.vspace,
-    G.vcpu, G.ept, G.ioPortControl, G.ioPort⟩
+    G.vcpu, G.ept, G.ioPortControl, G.ioPort, decGap_tdx hA P.xfer⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps3`, `CdtHyps2`
 and `P3Place` of every admissible tuple. -/

@@ -62,7 +62,7 @@ theorem emptySlot_cdt_orig {th : TypedHeap} {s : S} {σ σ' : Fl4Spec.State Unit
     have h3 : Fl4Spec.setCap (Z := Unit) .nullCap (p.bv, idx) (emptySlotCdtState σ (p.bv, idx)) =
         ({((), setCnodeSlot (emptySlotCdtState σ (p.bv, idx)) p.bv idx.length cs idx .nullCap)}, False) :=
       setCap_cnode (σ := emptySlotCdtState σ (p.bv, idx)) .nullCap hkq hwf rfl
-    have he := emptySlot_eq hg (fun h => hcn0 (absCap_eq_null.1 h)) h3
+    have he := emptySlot_eq hg (fun h => hcn0 ((absCap_eq_null hca.1).1 h)) h3
     rw [he] at hes
     have e2 := mem_singleton_snd hes
     simp only at e2
@@ -74,7 +74,7 @@ theorem emptySlot_cdt_orig {th : TypedHeap} {s : S} {σ σ' : Fl4Spec.State Unit
         (emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) =
         ({((), setTcbSlot (emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) p.bv tcb i .nullCap)}, False) :=
       setCap_tcb (σ := emptySlotCdtState σ (p.bv, Fl4Spec.tcbCnodeIndex i)) .nullCap hk hi
-    have he := emptySlot_eq hg (fun h => hcn0 (absCap_eq_null.1 h)) h3
+    have he := emptySlot_eq hg (fun h => hcn0 ((absCap_eq_null hca.1).1 h)) h3
     rw [he] at hes
     have e2 := mem_singleton_snd hes
     simp only at e2

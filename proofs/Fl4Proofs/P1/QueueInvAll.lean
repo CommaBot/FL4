@@ -133,7 +133,7 @@ theorem sched.set_thread_state.running_bxi {s : S} {t : U64} (h : BXI st T Cs Ω
 /-- The families of caps `decode_invocation` dispatches on. -/
 inductive CapFam where
   | null | untyped | endpoint | notification | reply | cnode | thread | irqControl | irqHandler | zombie
-  | domain | schedContext | schedControl | vspace | vcpu | ept | ioPortControl | ioPort
+  | domain | schedContext | schedControl | vspace | vcpu | ept | ioPortControl | ioPort | tdx
   deriving DecidableEq
 
 /-- The family of a cap (`vspace`: frames, the paging structures, the ASID
@@ -163,6 +163,7 @@ def capFam : capability.Cap → CapFam
   | .AsidPool .. => .vspace
   | .IoPortControl => .ioPortControl
   | .IoPort .. => .ioPort
+  | .TdxControl => .tdx
 
 /-- What a decoded invocation leaves: the invariants (with a possibly
 smaller active set) and, when it was preempted, the current thread's step
@@ -266,6 +267,7 @@ structure InvGaps (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar :
   ept : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ept
   ioPortControl : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPortControl
   ioPort : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .ioPort
+  tdx : DecGap st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok .tdx
 
 /-- The facts at an invocation (P3's): the current thread is runnable and to
 be resumed, and the caps it invokes (the slot's and the extra caps) are
@@ -376,6 +378,7 @@ theorem syscall.decode_invocation.dec0 {A : Type _} {ar : machine.Arch A} {Adm :
   | Ept => exact G.ept _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
   | IoPortControl => exact G.ioPortControl _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
   | IoPort => exact G.ioPort _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
+  | TdxControl => exact G.tdx _ _ _ _ _ _ _ _ _ _ _ _ _ rfl D hslot he
 
 /-- **`decode_invocation` over every cap family**, the heap possibly growing
 (an untyped's retype, `InvGaps.untyped`; the others keep the set tuple). -/

@@ -5,6 +5,7 @@ steps (`ScYieldGap`, `CnodeGaps`), the CDT placement facts (`CdtHyps`) and
 `P3Place`.
 -/
 import Fl4Proofs.P1.QueueDecCnode
+import Fl4Proofs.P1.QueueDecTdx
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -40,7 +41,7 @@ theorem InvGaps2.gaps {A : Type _} {ar : machine.Arch A} {Adm : PSets → Prop} 
     (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (C : CdtHyps st T Cs Ω H Sg Rp Scs Nt Z P3Ok)
     (G : InvGaps2 st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok) : InvGaps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨G.untyped, G.reply, decGap_cnode C G.cnode, G.thread, G.irqControl, G.irqHandler, decGap_domain hA,
-    decGap_sc hA E G.yield, G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort⟩
+    decGap_sc hA E G.yield, G.schedControl, G.vspace, G.vcpu, G.ept, G.ioPortControl, G.ioPort, decGap_tdx hA E⟩
 
 /-- **Native kernel entries keep `EntryInv`**, from `InvGaps2`, `CdtHyps`
 and `P3Place` of every admissible tuple. -/

@@ -860,6 +860,9 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
           ok (r, s, a)
         | capability.Cap.IoPort _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
+          ok (r, s, a)
+        | capability.Cap.TdxControl =>
+          let r ← error.invalid_cap Unit 1#u64
           ok (r, s, a)) : Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextBind (Z := Unit) sc.bv excaps) s a
         (ScQ (KRels (st := st) N T C c s σ) σ ct call) res ⦄ := by
@@ -1003,8 +1006,9 @@ theorem bind_branch_refines {N T C : Set U64} {c : U64} (hT : TimeAgree ar) (th 
       (rightsOf ww rr false false))
       fun r hr' => Or.inr ⟨_, ?_, hr'⟩
     rw [hpre2, wE_neg (by simp [hxm.sc, h2, optRef_zero])]; rfl
-  all_goals
-    simp only [error.invalid_cap, bind_ok]
+  all_goals first
+  | exact False.elim hwf
+  | simp only [error.invalid_cap, bind_ok]
     exact CPost.err (decBind_other hk (by simp [absCap]) (by simp [absCap]) rest0) (Or.inr ⟨1#u64, rfl, rfl⟩)
 
 
@@ -1126,6 +1130,9 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
           ok (r, s, a)
         | capability.Cap.IoPort _ _ _ =>
           let r ← error.invalid_cap Unit 1#u64
+          ok (r, s, a)
+        | capability.Cap.TdxControl =>
+          let r ← error.invalid_cap Unit 1#u64
           ok (r, s, a)) : Result (core.result.Result Unit error.Exc × S × A)) ⦃ res =>
       CPost σ (Fl4Spec.decodeSchedContextUnbindObject (Z := Unit) sc.bv excaps) s a
         (ScQ (KRels (st := st) N T C c s σ) σ ct call) res ⦄ := by
@@ -1216,8 +1223,9 @@ theorem unbindobj_branch_refines {N T C : Set U64} {c : U64} (th : TypedHeap)
       (fun m hm => by rw [hyn] at hm; rw [eq_of_bv (Option.some.inj hm).symm]; exact hpN) hct hkc hrun call
       (.notificationCap ptr.bv bb.bv (rightsOf ww rr false false)) ⟨_, _, _, rfl⟩) fun r hr' => Or.inr ⟨_, ?_, hr'⟩
     rw [hpre2, wE_neg (by simp [hyn])]; rfl
-  all_goals
-    simp only [error.invalid_cap, bind_ok]
+  all_goals first
+  | exact False.elim hwf
+  | simp only [error.invalid_cap, bind_ok]
     refine CPost.err ?_ (Or.inr ⟨1#u64, rfl, rfl⟩)
     rw [hpre]; simp only [absCap, Fl4Spec.NonDetE.throwError]; rfl
 

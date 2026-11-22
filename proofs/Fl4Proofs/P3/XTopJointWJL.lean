@@ -106,7 +106,7 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
     intro irq e
     rw [e] at ha0
     rcases hsg.irq irq _ ha0 with h0 | ⟨q, b, rs, h0⟩
-    · exact hxn (absCap_eq_null.1 h0)
+    · exact hxn ((absCap_eq_null hca0.1).1 h0)
     · obtain ⟨q', b', w', r', rfl⟩ : ∃ q' b' w' r', c0 = .Notification q' b' w' r' := by
         cases c0 <;> simp [absCap] at h0
         exact ⟨_, _, _, _, rfl⟩

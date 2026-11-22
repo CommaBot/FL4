@@ -255,7 +255,7 @@ theorem deferred_loopZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.
   obtain ⟨bf, hbf1, hbf2, -⟩ := hF s σ G sl c ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hA hc hcn
   rw [is_final_with_cap_eq _ _ _ hc, hbf1]; simp only [bind_ok]
   rw [hca.abs] at hg
-  have hcan : absCap c ≠ .nullCap := fun h => hcn (absCap_eq_null.1 h)
+  have hcan : absCap c ≠ .nullCap := fun h => hcn ((absCap_eq_null hca.1).1 h)
   apply WP.spec_bind (fin_stepZ arI W Rd Rz th hH.fin hH.triv hF hP s a σ G ⟨⟨hR, hV, hM, hC, hI⟩, hD, hFI⟩ hW hA hc hcn
     bf hbf2)
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨σ1, G1, hmem, ⟨⟨hR1, hV1, hM1, hC1, hI1⟩, hD1, hFI1⟩, hx1, hch1, hcl, hclw, hzr, hrem,

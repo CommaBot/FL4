@@ -298,6 +298,7 @@ theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     exact (decode_invocation_irq_controlJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) hE.handlers lbl lbl.bv (irqControl_label lbl)
       (irqControl_remap lbl) length buf ct hct argsU hlen hargs J.act2 extra _ (exAt_idx0 extra) excaps hex hth0 rfl hc nA hnum hnA hE.archIrq
       blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
+  case TdxControl => exact (J.dstate.1.1.not_tdx hAs hc).elim
   case IoPortControl =>
     subst hLb
     have hex := ExtraOK.rel1 hPl hXO

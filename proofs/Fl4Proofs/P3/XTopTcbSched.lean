@@ -1513,6 +1513,8 @@ theorem tcb_set_sched_paramsX [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.C
   rw [slot_cap_eq, capAt_capV]
   simp only [bind_ok]
   cases hc1 : capV (L.mem s) x1
+  case TdxControl =>
+    exact (hX.rel.2.1.1.not_tdx (sl := e1.2) ⟨ps1, hps11, Or.inl hps1⟩ (by rw [← hxe1, capAt_capV, hc1])).elim
   case Null =>
     rw [he11, hc1] at hspec1
     simp only [absCap] at hspec1

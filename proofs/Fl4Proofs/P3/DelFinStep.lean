@@ -14,7 +14,7 @@ noncomputable section
 
 /-- The caps whose finalisation does nothing, final or not. -/
 def TrivFin : capability.Cap → Prop
-  | .Untyped .. | .Domain | .IrqControl | .SchedControl _ | .AsidControl | .IoPortControl => True
+  | .Untyped .. | .Domain | .IrqControl | .SchedControl _ | .AsidControl | .IoPortControl | .TdxControl => True
   | _ => False
 
 theorem cap_cases (c : capability.Cap) (hc : c ≠ .Null) :
