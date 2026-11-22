@@ -19,6 +19,7 @@ the invariants about them that `schedule`, `cancel_ipc`, `suspend` and
 -/
 import Fl4Proofs.P1.QueueCancel
 import Fl4Proofs.P1.QueueSchedStep
+import Fl4Proofs.P1.TimerRBDef
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -97,6 +98,18 @@ theorem TmFr.trans {s₁ s₂ s₃ : S} (h₁ : TmFr st T Cs Nt s₁ s₂) (h₂
       rw [nodeAt_of_ksb h₁.1] at e
       exact e.trans (h₁.2.2.1 c hc o ho),
     fun n hn => (h₂.2.2.2.1 n hn).trans (h₁.2.2.2.1 n hn), fun h => h₂.2.2.2.2 (h₁.2.2.2.2 h)⟩
+
+/-- `TmFr` gives the timer-word agreement `TAgree`. -/
+theorem TAgree.of_tmfr {s s' : S} (f : TmFr st T Cs Nt s s') : TAgree st T Cs s s' := by
+  have fld : ∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
+      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := f.2.1
+  refine ⟨fun y hy => fld y hy 3528#u64 (by simp) (by simp) (by simp),
+    fun y hy => fld y hy 3544#u64 (by simp) (by simp) (by simp),
+    fun y hy => fld y hy 3552#u64 (by simp) (by simp) (by simp),
+    fun y hy => fld y hy 3560#u64 (by simp) (by simp) (by simp),
+    fun y hy => fld y hy 3568#u64 (by simp) (by simp) (by simp), fun c hc => ?_, fun c hc => ?_⟩
+  · rw [nodeAt_of_ksb f.1]; exact f.2.2.1 c hc _ (Or.inl timer_root_val)
+  · rw [nodeAt_of_ksb f.1]; exact f.2.2.1 c hc _ (Or.inr timer_min_val)
 
 /-- `TmFr` when every timer-tree word is kept, the debug words among them. -/
 theorem TmFr.mk0 {s s' : S} (h : L.ksb s' = L.ksb s ∧

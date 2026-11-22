@@ -331,3 +331,65 @@ Next (exact):
    `ntfn_badge_all`'s `tm`), `smp.remote_tcb_stall.all`, `vcpu.report.blk`, `signal_vm` (#63 `RunningVM` paths).
    Then `TAgree.of_tmfr` and drop the premise of `timer.fire.rb`.
 2. Stage 9 (plug-in), as in §2.
+
+## 12. Seventh session (jc6d7): `send_signal`'s timer frame proved; stage 9 sized and planned
+
+### 12.1 Step 1 done: `SigTimerFrame` discharged (`TimerRBSig.lean`, fc8bed5c)
+- `TmFr.reg` (a TCB word below the timer fields), `BlkOK.ntOut`; `obj.Tcb.set_reg.tm`, `msg.set_mr.tm`, **`vcpu.report.tm`**
+  (= `vcpu.report.blk` + `TmFr`), **`smp.remote_tcb_stall.tm`** (`s' = s` or the current core's `IPI_PENDING` = 120 by
+  `fr_node`), **`sporadic.unblock_check.tm`** (`unblock_check.fr` + `TmFr.of_ring`), **`signal_vm.tm`**,
+  `notification.set_active.tm`, **`notification.send_signal.tm`** (every branch of `send_signal` incl. #63's
+  `RunningVM` paths: `TInv s' ∧ TmFr s s'`), **`notification.send_signal.tagree`** (`TInv ∧ TAgree ∧ ksb`).
+- `TAgree.of_tmfr` (now in `QueueObjs`, after `TmFr.trans`).
+- **`timer.fire_loop.rb'` / `timer.fire.rb'`**: from `TimerRB s` and `TInv s` (and `hNt`, as `timer.fire.tinv`):
+  `TimerRB s' ∧ TInv s'`; no `send_signal` premise.  `timer.fire.rb` (with `SigTimerFrame`) is kept unchanged.
+- Note: `SigTimerFrame` as stated (premise `FireInv` only) is not provable as such: `send_signal`'s frame needs
+  `n` to be a typed notification and the IPC invariants (`TInv`); the premise-free form therefore carries
+  `TInv` along `fire`'s loop (`TInv.fireInv`: `TimerRB ∧ TInv ⇒ FireInv`).  No reachable state found where
+  `send_signal` writes a timer word: every branch is a frame (`TmFr`).
+- Full build green at fc8bed5c: `Build completed successfully (7347 jobs)`, 0 errors, 0 sorry; `axjc6d.lean`
+  (83 declarations) only propext/Classical.choice/Quot.sound, no sorryAx.
+
+### 12.2 Stage 9 sizing (plug-in): XL, about two sessions; not far beyond XL, so it proceeds in steps
+Where `TimerRB` must live: P3 carries P1's `BlkOK` (= `TInv`) inside `JAtZ` (`hb.2.2.1.2.2.tm` paths in P3), and
+every P1 step lemma rebuilds `BlkOK` mostly through frames (`XInv.tn` from `TmFr`, `XInv.fr`, `XInv.keepT`,
+`XInv.writes … htn`).  Since `TmFr` covers every word `TimerRB` reads (`TAgree.of_tmfr`), a field `rb : TimerRB`
+next to `tm : TimerOK` in `ScExtra0` is carried by all those frames for free; only the sites that rebuild the
+timer typing by hand break.  (A side-car conjunct in `JAtZ` instead would need a `TmFr` export from every P1
+step lemma, as was done for `send_signal` above: far larger.)  `JReach.start` assumes `JAtZ` at the start state,
+so the start state then also assumes `TimerRB` (empty trees at boot); no `kernel_entry_reach*` text changes.
+
+The obstacle: `TF` (QueueTimer:392, `timer.remove.tf`) claims the full `TInv` at **every intermediate state** of
+`remove` (`TF.wr_ptr/wr_ht/wr_node` after each link write), where `TimerRB` does not hold.  `insert` already uses the
+weaker `BlkT` (`BlkOK` at an earlier state + only timer words written) + `TimerOKx`.
+
+Steps:
+| # | content | size |
+|---|---|---|
+| 9a | move the definitions (`TRB.RBT/Bal/Rep`, `lk`, `CoreTree`, `TimerRB`, `TAgree`, `Rep.congr`, `CoreTree.congr`, `TimerRB.congr`) to a new `TimerRBDef` (imports `QueueCancel`), imported by `QueueObjs`; `TAgree.of_tmfr` into `QueueObjs` | S (**done**, full build green: 7349 jobs, 0 errors, 0 sorry; axioms standard) |
+| 9b | `ScExtra0.rb : TimerRB st T Cs s`; `htn` of `XInv.keep/keep'/keepN/writes/writesM/tn_*`, `XInv0.keepN`, QueueSuspend/QueueYield/QueueIpc/QueueSchedCtl variants: `TimerOK ∧ NtbOK ∧ TimerRB` (`XInv.tn` from `TAgree.of_tmfr` + `TimerRB.congr`); hand-built `ScExtra0`s (14 refs) | M |
+| 9c | `TF` on `BlkT ∧ TimerOK` instead of `TInv` (`TF.start` from `TInv`; `TF.wr_*` = `BlkT.wr_tfield/wr_tnode` + `TimerOK.wr_*`); `BlkT.ok` takes `TimerRB s`; wrapper `timer.remove.tfR : TF s0 s → TimerRB s → ⦃ TF s0 s' ∧ TimerRB s' ⦄` (`WP.spec_and` with `timer.remove.rb`, nodes from `BlkT.nodes`); `TF.tinv : TF s0 s → TimerRB s → TInv s`; `TF2` likewise; `timer.remove.tinv/.csc/.tf2` | L |
+| 9d | `timer.insert.tinv` (TInvx end) with `timer.insert.rb_full`; `thread_unbind_remove.blk`; `timer.fire.tinv` then follows (remove + `send_signal.tinv` frames + `reprogram.tinv`) | M |
+| 9e | the 15 callers of `timer.remove.tf` (QueueCbs ×2, QueueDead, QueueFinFr, QueueFinThr, QueueFinal, QueueFootS; P3 ScFireJ, XTopFinThread, XTopJointDbgKeep, XTopJointFinThread ×3, XTopJointFinThreadU ×2, XTopJointJAtZRB): thread `TimerRB` through with `tfR` | L |
+| 9f | heap: `TimerRB.add` (QueueHeapAddTcb: a zeroed new TCB is unarmed with null links, trees unchanged), `TimerRB.drop` (QueueHeapDrop: from `DropOK`'s `tl`/`node`, no root or link names a dropped TCB ⇒ by `Rep.links` no key is dropped), QueueHeapDbg (debug words are outside `TAgree`) | M |
+| 9g | P3 sites that hand-build `BlkOK` after retype/reset (ScUtRetype, UtTcbP1, DevJ, UtEpJ, UtBodyJ: `hTm : TimerOK …` gets an `hRB : TimerRB …` twin) | M–L |
+| 9h | jc6 (d): `DbgTimerKept`'s timer half from `TimerRB.no_link` at `JAtZ`, given "a TCB of `D` is unarmed" (finalise ends with `timer::remove`, `tdA = 0`; carry it next to `DeadP`, or derive it from the dead TCB's state) | M–L, P3 |
+
+Every step from 9b on changes `QueueObjs` (root of P1 and P3): each iteration is a near-full rebuild (~45 min on
+tokyo at 2 threads), build broken modules in dependency order with `MODE=mod`.
+
+### 12.3 Exact next step
+9b and 9c can only be green together (with `rb` in `ScExtra0`, `TF.wr_*` would claim `TimerRB` at `remove`'s
+intermediate states), so first land 9c's refactor **without** `rb` (pure, green on its own):
+1. `TF s0 s := (BlkT s ∧ TimerOK s) ∧ Foot … s0 s ∧ ANI s0 s ∧ TKeep s0 s ∧ WritesIn s0 s (TW s0)`;
+   `TF.start` (`h.blkT`, `h.tm`); `TF.tinv : TF s0 s → TInv s := BlkT.ok h.1.1 h.1.2`; `TF.tm := h.1.2`,
+   `TF.tcbs/nodes` from `BlkT.tcbs/nodes`; `TF.wr_ptr/wr_ht/wr_node/wr_clear` from `BlkT.wr_tfield` /
+   `BlkT.wr_tnode` (QueueTimer ~l.225) and `TimerOK.wr_ptr/wr_ht/wr_node/wr_clear`; uses of
+   `h.1.1.choose_spec.choose_spec.cur` stay (`BlkT.1` has `BlkOK.1`'s shape).  Grep `\.1\.` on `TF` hypotheses in
+   QueueTimer / QueueTimerC (`TF2`) and the 15 callers of `timer.remove.tf` (list in 9e): a caller reading `TInv`
+   from `h'.1` now uses `h'.tinv`.  Module builds: QueueTimer, QueueTimerC, QueueTimerSet, QueueFire, then the callers.
+2. Then 9b + the `TimerRB` argument of `BlkT.ok` / `TF.tinv` together (`timer.remove.tfR` wrapper with
+   `WP.spec_and … (timer.remove.rb …)`), then 9d–9g.  Manual `htn`/`ScExtra0` sites to patch in 9b (besides
+   QueueObjs): QueueHeapDrop:395, QueueHeapAddTcb:~340, QueueHeapAdd:376, QueueTimer:252 (`BlkT.ok`),
+   QueueIpc:543/672/1177/1213/1993, QueueBlock:377/1252, QueueHeapDbg:161; helper lemmas to add next to
+   `TimerOK.tmfr`/`wr_out`: `TimerRB.tmfr` (`h.congr (TAgree.of_tmfr f)`) and `TimerRB.wr_out`.
