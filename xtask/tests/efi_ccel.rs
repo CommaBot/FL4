@@ -210,14 +210,19 @@ fn the_loader_collects_both_logs_independently() {
     let cc = x86.find("let cc = if shared != 0 { ccel::collect() } else { None };").expect("CC log collected");
     assert!(tpm < cc);
     assert!(x86.contains("MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402"));
-    assert_eq!(x86.matches("ccel::measure_file(path, pa, len);").count(), 2, "rootserver= and module= files");
+    assert!(x86.contains("ccel::measure_file(b\"rootserver\", path, pa, len);"), "rootserver= file");
+    assert!(x86.contains("ccel::measure_file(b\"module\", path, pa, len);"), "module= files");
 }
 
 /// RTMR[2] is a TDX register: the options' files are measured only in a TD.
 #[test]
 fn boot_files_are_measured_only_in_a_td() {
     let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
-    assert_eq!(x86.matches("if measure {\n                ccel::measure_file(path, pa, len);").count(), 2);
+    for role in ["rootserver", "module"] {
+        let call = format!("if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }}");
+        assert_eq!(x86.matches(&call).count(), 1, "{role}");
+    }
+    assert_eq!(x86.matches("ccel::measure_file(").count(), 2, "only these two");
     let start = &x86[x86.find("pub unsafe fn start_default(").expect("start_default")..];
     let start = &start[..start.find("\n}\n").unwrap()];
     let check = start.find("let measure = sev().0 == 0 && tdx_shared_mask() != 0;").expect("TD check");
@@ -304,4 +309,34 @@ fn measure_file_fails_closed_without_the_protocol() {
     assert!(f.contains("measure_status(false, 0)"));
     assert!(f.contains("measure_status(true, r as u64)"));
     assert!(f.contains("fail("));
+}
+
+/// RTMR[2] gets the descriptor first (role, length, path: never empty),
+/// then the contents only of a file that has any: a 0-byte file is not
+/// handed to HashLogExtendEvent, which refuses to hash nothing.
+#[test]
+fn measure_file_extends_the_descriptor_then_nonempty_contents() {
+    let c = include_str!("../../crates/fl4-efi/src/ccel.rs");
+    let f = &c[c.find("pub fn measure_file(role: &[u8], path: &[u8], pa: u64, len: u64)").expect("measure_file")..];
+    let f = &f[..f.find("\n    }\n").unwrap()];
+    let at = |s: &str| f.find(s).unwrap_or_else(|| panic!("{s}"));
+    assert!(at("file_descriptor(&mut desc, role, path, len)") < at("cc_event(&mut event, desc)"));
+    let desc = at("hash_log_extend_event)(cc, 0, desc.as_ptr() as u64, n as u64, event.as_ptr())");
+    let guard = at("if len > 0 {");
+    let contents = at("hash_log_extend_event)(cc, 0, pa, len, event.as_ptr())");
+    assert!(desc < guard && guard < contents);
+    assert_eq!(f.matches("hash_log_extend_event)(").count(), 2);
+    assert_eq!(f.matches("measure_status(true, r as u64)").count(), 2, "both extensions fail closed");
+}
+
+/// The CC event carries the whole descriptor (role, length, path) as its
+/// data, so the log says which file and role a digest is for.
+#[test]
+fn the_cc_event_carries_the_descriptor() {
+    let mut desc = [0u8; tcg2::DESC_MAX];
+    let n = tcg2::file_descriptor(&mut desc, b"module", b"\\efi\\m.elf", 7);
+    let mut buf = [0u8; 18 + tcg2::DESC_MAX];
+    let len = cc_event(&mut buf, &desc[..n]);
+    assert_eq!(len, 18 + n);
+    assert_eq!(&buf[18..len], &desc[..n]);
 }

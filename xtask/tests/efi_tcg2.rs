@@ -368,3 +368,191 @@ fn the_aarch64_loader_finishes_the_log_before_cleaning() {
     assert!(at("clean(bi.tpm_log_paddr, bi.tpm_log_size.div_ceil(PAGE) * PAGE)") < at("enter(region, bi_off)"));
     assert!(at("write_bytes(pa as *mut u8, 0, (pages * PAGE) as usize)") < at("t.copy_main(pa)"));
 }
+
+/// `EFI_TCG2_EVENT` (TCG EFI Protocol §6.6), packed: Size covers the whole
+/// event, HeaderSize the 14-byte `EFI_TCG2_EVENT_HEADER` (header size,
+/// version, PCR index, event type), then the event data.
+#[test]
+fn a_tcg2_event_has_the_packed_layout() {
+    assert_eq!((tcg2::TCG2_HEADER_LEN, tcg2::TCG2_EVENT_FIXED), (14, 18));
+    assert_eq!((tcg2::PCR_BOOT_FILES, tcg2::EV_IPL), (9, 0xd));
+    let mut buf = [0xaau8; 64];
+    let n = tcg2::tcg2_event(&mut buf, tcg2::PCR_BOOT_FILES, tcg2::EV_IPL, b"rootserver");
+    assert_eq!(n, 18 + 10);
+    assert_eq!(u32::from_le_bytes(buf[0..4].try_into().unwrap()), 28);
+    assert_eq!(u32::from_le_bytes(buf[4..8].try_into().unwrap()), 14);
+    assert_eq!(u16::from_le_bytes(buf[8..10].try_into().unwrap()), 1);
+    assert_eq!(u32::from_le_bytes(buf[10..14].try_into().unwrap()), 9);
+    assert_eq!(u32::from_le_bytes(buf[14..18].try_into().unwrap()), 0xd);
+    assert_eq!(&buf[18..28], b"rootserver");
+    assert_eq!(buf[28], 0xaa, "nothing written past the event");
+    // Event data that does not fit is cut to the buffer.
+    let mut small = [0u8; 32];
+    let n = tcg2::tcg2_event(&mut small, 9, 0xd, &[b'x'; 100]);
+    assert_eq!(n, 32);
+    assert_eq!(u32::from_le_bytes(small[0..4].try_into().unwrap()), 32);
+    assert_eq!(&small[18..], &[b'x'; 14]);
+    // No event data: a bare header.
+    let n = tcg2::tcg2_event(&mut small, 9, 0xd, b"");
+    assert_eq!((n, u32::from_le_bytes(small[0..4].try_into().unwrap())), (18, 18));
+}
+
+/// HashLogExtendEvent's result: success, or `EFI_VOLUME_FULL` (the PCR was
+/// extended, only the log is full); anything else stops the boot.
+#[test]
+fn a_tpm_measurement_firmware_refuses_is_an_error() {
+    assert_eq!(tcg2::VOLUME_FULL, (1 << 63) | 11);
+    assert_eq!(tcg2::measure_status(0), Ok(()));
+    assert_eq!(tcg2::measure_status(tcg2::VOLUME_FULL), Ok(()));
+    for r in [1, (1 << 63) | 1, (1 << 63) | 2, (1 << 63) | 3, (1 << 63) | 7, (1 << 63) | 9, (1 << 63) | 14, 11, u64::MAX] {
+        assert!(tcg2::measure_status(r).is_err(), "{r:#x}");
+    }
+}
+
+fn desc(role: &[u8], path: &[u8], len: u64) -> Vec<u8> {
+    let mut buf = [0u8; tcg2::DESC_MAX];
+    let n = tcg2::file_descriptor(&mut buf, role, path, len);
+    buf[..n].to_vec()
+}
+
+/// The descriptor binds role, length and path, in that order, after a
+/// fixed prefix.
+#[test]
+fn a_file_descriptor_is_prefix_role_length_path() {
+    let d = desc(b"module", b"\\efi\\m.elf", 0x1234);
+    let mut want = b"fl4-efi\0module\0".to_vec();
+    want.extend_from_slice(&0x1234u64.to_le_bytes());
+    want.extend_from_slice(b"\\efi\\m.elf");
+    assert_eq!(d, want);
+}
+
+/// Same path or same bytes in another role, at another length or from
+/// another path: always another descriptor, so another PCR value.
+#[test]
+fn file_descriptors_separate_role_length_and_path() {
+    let all = [
+        desc(b"rootserver", b"\\a", 10),
+        desc(b"module", b"\\a", 10),
+        desc(b"cmdline", b"\\a", 10),
+        desc(b"module", b"\\b", 10),
+        desc(b"module", b"\\a", 11),
+        desc(b"module", b"", 10),
+        desc(b"cmdline", b"", 10),
+        // A role that is a prefix of another, the rest moved into the path.
+        desc(b"root", b"server\\a", 10),
+    ];
+    for (i, a) in all.iter().enumerate() {
+        for b in &all[i + 1..] {
+            assert_ne!(a, b);
+        }
+    }
+}
+
+/// A 0-byte file still has a descriptor to extend (firmware refuses to
+/// hash nothing), with its length 0 in it.
+#[test]
+fn an_empty_file_has_a_nonempty_descriptor() {
+    let d = desc(b"module", b"", 0);
+    assert_eq!(d.len(), b"fl4-efi\0module\0".len() + 8);
+    assert_eq!(&d[d.len() - 8..], &[0; 8]);
+    assert_ne!(d, desc(b"rootserver", b"", 0));
+}
+
+/// A path longer than the buffer is cut; the prefix, role and the whole
+/// length stay, and nothing panics.
+#[test]
+fn a_long_path_is_cut_but_keeps_role_and_length() {
+    let path = [b'p'; 4096];
+    let d = desc(b"rootserver", &path, u64::MAX);
+    assert_eq!(d.len(), tcg2::DESC_MAX);
+    let head = b"fl4-efi\0rootserver\0".len();
+    assert_eq!(&d[..head], b"fl4-efi\0rootserver\0");
+    assert_eq!(&d[head..head + 8], &u64::MAX.to_le_bytes());
+    assert!(d[head + 8..].iter().all(|&c| c == b'p'));
+    // Any path read_file opens (255 bytes) fits whole.
+    assert!(tcg2::DESC_MAX >= head + 8 + 255);
+    let mut tiny = [0u8; 27];
+    assert_eq!(tcg2::file_descriptor(&mut tiny, b"rootserver", &path, 1), 27);
+}
+
+fn tcg2_efi() -> &'static str {
+    let t = include_str!("../../crates/fl4-efi/src/tcg2.rs");
+    &t[t.find("mod efi {").expect("efi glue")..]
+}
+
+fn body<'a>(src: &'a str, sig: &str, end: &str) -> &'a str {
+    let f = &src[src.find(sig).unwrap_or_else(|| panic!("{sig}"))..];
+    &f[..f.find(end).unwrap()]
+}
+
+/// `EFI_TCG2_PROTOCOL`'s first three members, in the spec's order.
+#[test]
+fn the_tcg2_protocol_has_hash_log_extend_event_third() {
+    let p = body(tcg2_efi(), "struct Tcg2Protocol {", "\n    }\n");
+    let at = |s: &str| p.find(s).unwrap_or_else(|| panic!("{s}"));
+    assert!(at("get_capability: usize,") < at("get_event_log: extern \"efiapi\" fn("));
+    assert!(at("get_event_log: extern \"efiapi\" fn(") < at("hash_log_extend_event: extern \"efiapi\" fn(*mut Tcg2Protocol, u64, u64, u64, *const u8) -> Status,"));
+}
+
+/// No TPM: nothing to measure. A TPM: the descriptor first, the contents
+/// only when there are any, both checked; a 0-length extension is never
+/// handed to firmware.
+#[test]
+fn measuring_a_file_extends_the_descriptor_then_nonempty_contents() {
+    let efi = tcg2_efi();
+    let b = body(efi, "pub fn measure_bytes(", "\n    }\n");
+    let at = |s: &str| b.find(s).unwrap_or_else(|| panic!("{s}"));
+    assert!(at("let Some(tcg) = protocol() else { return Ok(()) };") < at("if len == 0 {"));
+    assert!(at("if len == 0 {") < at("hash_log_extend_event)("));
+    assert!(at("tcg2_event(&mut event, pcr, EV_IPL, label)") < at("hash_log_extend_event)("));
+    assert!(b.trim_end().ends_with("measure_status(r as u64)"));
+    let f = body(efi, "pub fn measure_file(role: &[u8], path: &[u8], pa: u64, len: u64)", "\n    }\n");
+    let at = |s: &str| f.find(s).unwrap_or_else(|| panic!("{s}"));
+    assert!(at("if protocol().is_none() {\n            return Ok(());") < at("file_descriptor("));
+    let d = at("measure_bytes(PCR_BOOT_FILES, desc, desc.as_ptr() as u64, n as u64)?;");
+    let guard = at("if len > 0 {");
+    let c = at("measure_bytes(PCR_BOOT_FILES, desc, pa, len)?;");
+    assert!(at("file_descriptor(&mut desc, role, path, len)") < d && d < guard && guard < c);
+}
+
+/// x86: every `rootserver=` and `module=` file extends PCR 9 whether or
+/// not this is a TD (RTMR[2] as well in a TD), and a refused measurement
+/// stops the boot. All before the log is collected in `boot`.
+#[test]
+fn the_x86_loader_measures_option_files_into_pcr9() {
+    let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
+    let files = body(x86, "fn boot_files<'a>(", "\n}\n");
+    for role in ["rootserver", "module"] {
+        let arm = body(files, &format!("strip_prefix(b\"{role}=\")"), "files[");
+        let at = |s: &str| arm.find(s).unwrap_or_else(|| panic!("{role}: {s}"));
+        let tpm = at(&format!("\n            tcg2::measure_file(b\"{role}\", path, pa, len).unwrap_or_else(|e| fail(e));"));
+        let cc = at(&format!("if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }}"));
+        assert!(at("read_file(li, path)") < cc && cc < tpm);
+    }
+    assert_eq!(files.matches("tcg2::measure_file(").count(), 2);
+    let start = body(x86, "pub unsafe fn start_default(", "\n}\n");
+    assert!(start.find("boot_files(li, &opts, measure)").unwrap() < start.find("boot(image, ").unwrap());
+    let boot = &x86[x86.find("pub(super) fn boot(").unwrap()..];
+    assert!(!boot[..boot.find("tcg2::collect()").unwrap()].contains("measure_file("));
+}
+
+/// AArch64: the options' modules, root task and kernel command line all
+/// extend PCR 9 (fail-closed) before the log is collected.
+#[test]
+fn the_aarch64_loader_measures_option_files_and_cmdline_into_pcr9() {
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    let body = &lib[lib.find("pub unsafe fn start_default(").expect("start_default")..];
+    let at = |s: &str| body.find(s).unwrap_or_else(|| panic!("{s}"));
+    let collect = at("tcg2::collect()");
+    let module = at("tcg2::measure_file(b\"module\", p, pa, size).unwrap_or_else(|e| fail(e));");
+    assert!(at("strip_prefix(b\"module=\")") < module);
+    let root = at("tcg2::measure_file(b\"rootserver\", p, pa, size).unwrap_or_else(|e| fail(e));");
+    assert!(at("let root_file: &[u8] = match root_path {") < root);
+    let cmdline = at("if cl > 0 {\n        tcg2::measure_file(b\"cmdline\", b\"\", bi.cmdline.as_ptr() as u64, cl as u64).unwrap_or_else(|e| fail(e));");
+    // After the last word was added to the command line.
+    assert!(at("cl += w.len();") < cmdline);
+    for m in [module, root, cmdline] {
+        assert!(m < collect);
+    }
+    assert!(root < at("load_segments(root_file, &rl, root_pa)"));
+}

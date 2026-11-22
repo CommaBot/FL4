@@ -242,6 +242,66 @@ pub fn append_final(m: &(impl Mem + ?Sized), algs: &AlgTable, snap: &FinalSnapsh
     (len, false)
 }
 
+/// The PCR boot files the loader reads (the load options' root task and
+/// modules, and the AArch64 kernel command line) extend: PCR 9, which the
+/// PC Client Platform Firmware Profile gives to the boot loader's files.
+pub const PCR_BOOT_FILES: u32 = 9;
+/// `EV_IPL`: code or data the boot loader loaded.
+pub const EV_IPL: u32 = 0xd;
+/// `EFI_VOLUME_FULL`: extended, but the log had no room for the event.
+pub const VOLUME_FULL: u64 = (1 << 63) | 11;
+/// `EFI_TCG2_EVENT_HEADER`, packed: header size, header version, PCR
+/// index, event type (TCG EFI Protocol §6.6).
+pub const TCG2_HEADER_LEN: usize = 14;
+/// `EFI_TCG2_EVENT`: its size field, then the header, then the event data.
+pub const TCG2_EVENT_FIXED: usize = 4 + TCG2_HEADER_LEN;
+/// The longest boot file descriptor: the prefix, a role, its separator,
+/// the length and a path as long as any `read_file` opens (255 bytes).
+pub const DESC_MAX: usize = 320;
+/// What every descriptor starts with, so that no other event's data can
+/// be mistaken for one.
+const DESC_PREFIX: &[u8] = b"fl4-efi\0";
+
+/// Write an `EFI_TCG2_EVENT` for `pcr` into `buf` (at least
+/// `TCG2_EVENT_FIXED` bytes), with `data` cut to fit as its event data;
+/// returns its length.
+pub fn tcg2_event(buf: &mut [u8], pcr: u32, event_type: u32, data: &[u8]) -> usize {
+    let n = data.len().min(buf.len() - TCG2_EVENT_FIXED);
+    let size = TCG2_EVENT_FIXED + n;
+    buf[0..4].copy_from_slice(&(size as u32).to_le_bytes());
+    buf[4..8].copy_from_slice(&(TCG2_HEADER_LEN as u32).to_le_bytes());
+    buf[8..10].copy_from_slice(&1u16.to_le_bytes());
+    buf[10..14].copy_from_slice(&pcr.to_le_bytes());
+    buf[14..18].copy_from_slice(&event_type.to_le_bytes());
+    buf[TCG2_EVENT_FIXED..size].copy_from_slice(&data[..n]);
+    size
+}
+
+/// Whether HashLogExtendEvent extended the PCR: success, or
+/// `EFI_VOLUME_FULL` (only the log is full).
+pub fn measure_status(status: u64) -> Result<(), &'static str> {
+    match status {
+        0 | VOLUME_FULL => Ok(()),
+        _ => Err("cannot measure a boot file into TPM PCR 9"),
+    }
+}
+
+/// The descriptor measured before a boot file's contents (tcg2.rs and
+/// ccel.rs): `"fl4-efi\0" || role || "\0" || len (u64 LE) || path`, into
+/// `buf` (at least the prefix, the role, 1 and 8 bytes); returns its
+/// length. Never empty, so a 0-byte file still extends; the role (no NUL
+/// in it) and the length come before the path, which alone is cut to fit.
+pub fn file_descriptor(buf: &mut [u8], role: &[u8], path: &[u8], len: u64) -> usize {
+    let mut n = 0;
+    for part in [DESC_PREFIX, role, b"\0", &len.to_le_bytes()[..]] {
+        buf[n..n + part.len()].copy_from_slice(part);
+        n += part.len();
+    }
+    let p = path.len().min(buf.len() - n);
+    buf[n..n + p].copy_from_slice(&path[..p]);
+    n + p
+}
+
 #[cfg(not(test))]
 pub use efi::*;
 
@@ -255,11 +315,52 @@ mod efi {
     pub const EFI_TCG2_FINAL_EVENTS_TABLE_GUID: Guid =
         Guid(0x1e2e_d096, 0x30e2, 0x4254, [0xbd, 0x89, 0x86, 0x3b, 0xbe, 0xf8, 0x23, 0x25]);
 
-    /// `EFI_TCG2_PROTOCOL` up to GetEventLog (TCG EFI Protocol §6.4).
+    /// `EFI_TCG2_PROTOCOL` up to HashLogExtendEvent (TCG EFI Protocol §6.4).
     #[repr(C)]
     struct Tcg2Protocol {
         get_capability: usize,
         get_event_log: extern "efiapi" fn(*mut Tcg2Protocol, u32, *mut u64, *mut u64, *mut u8) -> Status,
+        hash_log_extend_event: extern "efiapi" fn(*mut Tcg2Protocol, u64, u64, u64, *const u8) -> Status,
+    }
+
+    fn protocol() -> Option<*mut Tcg2Protocol> {
+        let mut p = core::ptr::null_mut();
+        let r = (bs().locate_protocol)(&EFI_TCG2_PROTOCOL_GUID, core::ptr::null(), &mut p);
+        (r == SUCCESS && !p.is_null()).then_some(p as *mut Tcg2Protocol)
+    }
+
+    /// Extend `pcr` with the `len` (not 0) bytes at `pa`, logged as an
+    /// `EV_IPL` event labelled `label`. Without a TPM there is nothing to
+    /// extend; with one, a measurement it refuses is an error, which the
+    /// caller turns into a failed boot.
+    pub fn measure_bytes(pcr: u32, label: &[u8], pa: u64, len: u64) -> Result<(), &'static str> {
+        let Some(tcg) = protocol() else { return Ok(()) };
+        if len == 0 {
+            // Firmware refuses to hash nothing (EFI_INVALID_PARAMETER).
+            return Err("empty TPM measurement");
+        }
+        let mut event = [0u8; TCG2_EVENT_FIXED + DESC_MAX];
+        tcg2_event(&mut event, pcr, EV_IPL, label);
+        let r = unsafe { ((*tcg).hash_log_extend_event)(tcg, 0, pa, len, event.as_ptr()) };
+        measure_status(r as u64)
+    }
+
+    /// Measure into PCR 9 a boot file the loader read (`role`: rootserver,
+    /// module or cmdline): its descriptor (`file_descriptor`: role, length,
+    /// path), then its contents in place unless it is empty. Ok without a
+    /// TPM; an error if the TPM refuses either.
+    pub fn measure_file(role: &[u8], path: &[u8], pa: u64, len: u64) -> Result<(), &'static str> {
+        if protocol().is_none() {
+            return Ok(());
+        }
+        let mut desc = [0u8; DESC_MAX];
+        let n = file_descriptor(&mut desc, role, path, len);
+        let desc = &desc[..n];
+        measure_bytes(PCR_BOOT_FILES, desc, desc.as_ptr() as u64, n as u64)?;
+        if len > 0 {
+            measure_bytes(PCR_BOOT_FILES, desc, pa, len)?;
+        }
+        Ok(())
     }
 
     /// Firmware memory at `base`, read at most `limit` bytes in (boot
@@ -343,12 +444,10 @@ mod efi {
     /// The TPM event log, if firmware has a TPM 2.0 protocol with a usable
     /// log. Never fails the boot: anything else is a line on the console.
     pub fn collect() -> Option<TpmLog> {
-        let mut p = core::ptr::null_mut();
-        if (bs().locate_protocol)(&EFI_TCG2_PROTOCOL_GUID, core::ptr::null(), &mut p) != SUCCESS || p.is_null() {
+        let Some(tcg) = protocol() else {
             say!("fl4-efi: no TPM 2.0 protocol, no TPM event log");
             return None;
-        }
-        let tcg = p as *mut Tcg2Protocol;
+        };
         // The crypto agile log first; firmware with only a SHA-1 bank may
         // keep the TCG 1.2 one alone.
         for (format, tcg_1_2) in [(EFI_TCG2_EVENT_LOG_FORMAT_TCG_2, false), (EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2, true)] {
