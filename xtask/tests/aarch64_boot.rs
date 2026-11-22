@@ -225,6 +225,8 @@ fn an_application_processor_must_match_the_boot_core() {
         vhe: false,
         vmid16: false,
         vgic_lrs: 0,
+        virt: false,
+        vgic_vtr: 0,
     };
     assert!(ap_caps::ap_matches(&bsp, &bsp));
     assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
@@ -279,6 +281,59 @@ fn an_application_processor_must_match_the_boot_core() {
     let plain = ap_caps::Caps { hw_af: false, pan: false, ..bsp };
     assert!(!ap_caps::ap_matches(&plain, &bsp));
     assert!(!ap_caps::ap_matches(&ap_caps::Caps { cntfrq: 0, ..bsp }, &ap_caps::Caps { cntfrq: 0, ..bsp }));
+}
+
+/// With guests (`virt_ready`), a core must give guests the boot core's
+/// VGIC as the VCPU ABI reports it, the whole capped type register: not
+/// only the list register count, but the priority and preemption bits too
+/// (the active-priority registers each core saves). Without guests (EL1,
+/// or EL2 with `novirt` or no usable VGIC) the type register is not
+/// compared, so nothing is refused that was not before.
+#[test]
+fn with_guests_an_application_processor_must_give_them_the_boot_cores_vgic() {
+    // ICH_VTR_EL2: PRIbits 5 (field 4), PREbits 5 (field 4), A3V, 4 list
+    // registers (field 3).
+    const VTR: u64 = (4 << 29) | (4 << 26) | (1 << 21) | 3;
+    const PRE6: u64 = (VTR & !(7 << 26)) | (5 << 26);
+    const PRI6: u64 = (VTR & !(7 << 29)) | (5 << 29);
+    const NO_A3V: u64 = VTR & !(1 << 21);
+    let el1 = ap_caps::Caps {
+        asid16: true,
+        hw_af: true,
+        pan: true,
+        pa_bits: 40,
+        cntfrq: 62_500_000,
+        el2: false,
+        vhe: false,
+        vmid16: false,
+        vgic_lrs: 0,
+        virt: false,
+        vgic_vtr: 0,
+    };
+    for (vhe, vmid16) in [(true, true), (false, false)] {
+        let host = ap_caps::Caps { el2: true, vhe, vmid16, vgic_lrs: 4, vgic_vtr: VTR, ..el1 };
+        // novirt, or no usable VGIC: as before, only the list register count.
+        for vtr in [VTR, PRE6, PRI6, NO_A3V, 0] {
+            assert!(ap_caps::ap_matches(&host, &ap_caps::Caps { vgic_vtr: vtr, ..host }), "native {vtr:#x}");
+        }
+        assert!(!ap_caps::ap_matches(&host, &ap_caps::Caps { vgic_lrs: 3, ..host }));
+        // Guests: the whole register.
+        let guests = ap_caps::Caps { virt: true, ..host };
+        assert!(ap_caps::ap_matches(&guests, &guests));
+        assert!(ap_caps::ap_matches(&guests, &ap_caps::Caps { pa_bits: 48, ..guests }));
+        for ap in [
+            ap_caps::Caps { vgic_vtr: PRE6, ..guests },
+            ap_caps::Caps { vgic_vtr: PRI6, ..guests },
+            ap_caps::Caps { vgic_vtr: NO_A3V, ..guests },
+            ap_caps::Caps { vgic_vtr: (VTR & !0x1f) | 2, vgic_lrs: 3, ..guests },
+            ap_caps::Caps { vgic_vtr: 0, ..guests },
+            ap_caps::Caps { virt: false, ..guests },
+        ] {
+            assert!(!ap_caps::ap_matches(&guests, &ap), "guests {ap:?}");
+        }
+    }
+    // EL1: no VGIC at all.
+    assert!(ap_caps::ap_matches(&el1, &el1));
 }
 
 #[test]

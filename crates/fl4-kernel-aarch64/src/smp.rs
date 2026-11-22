@@ -32,6 +32,8 @@ static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps {
     vhe: false,
     vmid16: false,
     vgic_lrs: 0,
+    virt: false,
+    vgic_vtr: 0,
 };
 
 fn reject_ap(reason: u8) -> ! {
@@ -182,8 +184,9 @@ pub fn start_aps(mpidrs: &[u64], ttbr1: u64) -> usize {
             crate::fail("incompatible AP capabilities; refusing to start userspace");
         }
         if rejected != 0 {
-            kprintln!("FL4: rejecting core {:#x}: ASID size, access-flag management, PAN, physical address size \
-                or CNTFRQ_EL0 differ from the boot core's", m);
+            kprintln!("FL4: rejecting core {:#x}: ASID size, access-flag management, PAN, physical address size, \
+                CNTFRQ_EL0, exception level (EL2, VHE), VMID size or VGIC (list registers, and with guests \
+                its type register) differ from the boot core's", m);
             crate::fail("incompatible AP capabilities; refusing to start userspace");
         }
         if smp::num_online() == before {
