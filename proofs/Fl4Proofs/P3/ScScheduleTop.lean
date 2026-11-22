@@ -27,6 +27,7 @@ P3 (DESIGN.md §9), scheduler: **`schedule` refines l4v `schedule`**
   `cur_sc_in_release_q_imp_zero_consumed`).
 -/
 import Fl4Proofs.P3.ScAwaken
+import Fl4Proofs.P3.ScSniPre
 import Fl4Proofs.P3.ScPlatform
 open Aeneas Aeneas.Std Result
 
@@ -697,10 +698,14 @@ theorem switch_branch_refines {N T C : Set U64} {c : U64} (s : S) (a : A) (σ0 �
         · simp only [he, ↓reduceIte]
           exact SW _ hcp1 hcp2 (by rw [if_neg hc1, if_neg (fun h => he (heq.2 h.2))])
 
-/-- The arch hypothesis on `set_next_interrupt` (programming the timer) at
-every related state. -/
+/-- The hypothesis on `set_next_interrupt` (programming the timer) at every
+related state where the spec's `set_next_interrupt` can run (`SniPre`: the
+current thread and the release head have an SC with refills; g6b, INV-PLAN
+§1.U3L.H: without that guard the statement was false at every related state
+whose current thread has no SC, so unsatisfiable). A theorem
+(ScSniProof's `sniHyp_of`) from `ArchTotal` and `SetDlDet` [P]. -/
 def SniHyp (st : machine.Store S) [L : LawfulStore st] (ar : machine.Arch A) (N T C : Set U64) (c : U64) : Prop :=
-  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ →
+  ∀ (s : S) (a : A) (σ : Fl4Spec.State Unit), SchedRel st N T C c s σ → NtfnStateRel N T (L.mem s) σ → SniPre σ →
     sched.set_next_interrupt st ar s a ⦃ r => ∃ σ1, Fl4Spec.setNextInterrupt (Z := Unit) σ = ({((), σ1)}, False) ∧
       SchedRel st N T C c r.1 σ1 ∧ NtfnStateRel N T (L.mem r.1) σ1 ∧ ArchKeeps σ σ1 ⦄
 
@@ -810,7 +815,7 @@ theorem tail_refines {N T C : Set U64} {c : U64} (s3 : S) (a2 : A) (σ3 : Fl4Spe
         Fl4Spec.NonDet.modify fun s : Fl4Spec.State Unit => { s with reprogramTimer := false }) σ5 =
           ({((), σ7)}, False) ∧ SchedRel st N T C c5 r.1 σ7 ∧ NtfnStateRel N T (L.mem r.1) σ7 ∧ NSC N C σ7 ∧
           Inv σ7 ∧ CurInv σ7 ∧ (IdleOK σ3 → ActIdle σ7) ∧ WritesIn st s3 r.1 (KFoot st T N C c5 s3 σ3)) ?_ ?_
-    · refine WP.spec_bind (spec_and_eq (hsni s5 a3 σ5 hS5 hR5) fun r hr => sni_foot hc5.node hc5.cur hr) ?_
+    · refine WP.spec_bind (spec_and_eq (hsni s5 a3 σ5 hS5 hR5 (sniPre_of hS5 hI5 hC5)) fun r hr => sni_foot hc5.node hc5.cur hr) ?_
       rintro ⟨s7, a5⟩ ⟨⟨σ6, h6, hS6, hR6, ek, eq, er, ect, esc, etm, ecn, eact, eid, ecd, edt, eisc⟩, hw7⟩
       step with obj.node_set.spec as ⟨s8, hs8⟩
       subst hs8
