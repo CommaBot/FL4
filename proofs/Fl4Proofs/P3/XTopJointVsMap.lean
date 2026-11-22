@@ -677,6 +677,13 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · rw [hcap y hy e]; exact J.ext.nat y hy,
       J.ext.vkeep (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))⟩
     hLS.1 (fun p hp => J.zD p (hLS.2 p hp))
+    ⟨J.carry.bufPg.frame subset_rfl (fun p vms hp => by
+      rcases F.kh p with e | ⟨a0, a1, h1, h2, ht⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+      · rw [e]; exact hp
+      · rw [hp] at h1; cases h1; rw [h2, aaType_userData.1 ht]
+      · rw [hp] at h1; cases h1
+      · rw [hp] at h1; cases h1),
+      J.carry.archFit.frame F.ksz⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/

@@ -320,6 +320,11 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   dead-set carry keeps `LiveJ.zdead`; every TCB zombie's TCB is `DeadP` by
   `live`, so `D ∪ ZTcb` is always a dead set: `JAtZ.addDeadSet`). -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] **The `JCarry` facts** (KENTRY-PLAN g7b-4, jc1): the IPC-buffer
+  words in non-device data pages (`BufPgHyp`, C21 / C24 bufObj) and `H`'s arch
+  objects no larger than their spec objects (`ArchFitHyp`, the first half of C16 /
+  C22 / C24 heapH). A frame step keeps it by `JCarry.frame`. -/
+  carry : JCarry Z.B H σ
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=

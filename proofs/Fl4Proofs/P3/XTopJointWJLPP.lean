@@ -91,7 +91,7 @@ theorem jPostDelHypL (hAM : ARMask arI AR)
       CRel Z.th (L.mem s') σ' G → P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' →
       WJL (L := L) arI AR Z H Cs kb s' a' σ' G := fun s' a' σ' hSS hw hO hX' hCR hK => by
     obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a' σ σ' hw hO _ H Cs Ac Lst _ rfl J0 hX'
-    have J' := J0.cs_frameK hw.1 hX' (KBack.of_kheap hO.kh) (IpcFrKeep.of_kheap hO.kh)
+    have J' := J0.cs_frameK hw.1 hX' (KBack.of_kheap hO.kh) (IpcFrKeep.of_kheap hO.kh) (J0.carry.frame subset_rfl (IpcFrKeep.of_kheap hO.kh) ((KSz.of_kheap hO.kh)))
       (JCs.same J0 hSS (KSz.of_kheap hO.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J0.vkeep_of hw fun _ hb => J0.ksW_nv hb)
       hSS hK hO.idle
     have hmem : ∀ y ∈ G.chains.flatten, IsSlot Z.th y := fun y hy => ((hDS.1.2.2.1.members y).1 hy).1

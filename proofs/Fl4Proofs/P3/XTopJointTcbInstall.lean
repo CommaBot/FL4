@@ -319,7 +319,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
       exact ⟨y0, hy0, (zombie_of_shape hsh0 hz).trans hz⟩
     · exact ⟨y, hy, by rw [← hcap y hy e]; exact hz⟩) hp)
   exact ⟨Ac, Lst, D, J.cs_frameV hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
-    hLv' hzD⟩
+    hLv' hzD (J.carry.of_objCn hkc)⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`IpcBufCapOK` after SetIPCBuffer/Configure's frame insert** (decision 2

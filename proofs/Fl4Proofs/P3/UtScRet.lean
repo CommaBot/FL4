@@ -901,7 +901,7 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       rcases hb1 _ e1 with h1 | ⟨_, -, -, he⟩
       · exact Or.inr (Or.inl ⟨r0, cs, cs', h1, rfl⟩)
       · cases he
-  have harch1 : ArchFitHyp H σ := hAF
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
   have hK5 : newKind nt.val us.val = some (.sc us.val) := by simp [newKind, hnt]
   have hout' := hout0
   rw [hK5] at hout'
@@ -967,10 +967,18 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hAF' : ArchFitHyp H' σ' := fun o ao n ho hH => by
+    rcases hback o _ ho with e | ⟨r, cs, cs', -, e⟩ | ⟨q, -, -, e⟩
+    · rcases hout_back hout' hH with ⟨-, hK⟩ | hH0
+      · cases hK
+      · exact J.carry.archFit o ao n e hH0
+    · cases e
+    · cases e
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
   have JZ := J.add_frameC (Z' := { Z with G := G', C := Z.C ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hW0 rfl hwI.1 hX' hCs hJR (by rw [hwI.1]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hwI.1]; exact J.nk n hn) hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

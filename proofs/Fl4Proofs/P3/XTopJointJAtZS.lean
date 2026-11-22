@@ -167,6 +167,8 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [carried] As `JAtZ.zD`. -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] As `JAtZ.carry`. -/
+  carry : JCarry Z.B H σ
 
 /-- `JAtS`: `JAtZS` at a state (the ghosts existential). -/
 def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
@@ -227,6 +229,7 @@ theorem JAtZ.toS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZS (L :=
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -280,6 +283,7 @@ theorem JAtZS.toJ (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ)
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 /-- A `JAtZS` state is a `JAtZ` state, or `SwBlk` holds. -/
 theorem JAtZS.toJ_or (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) :

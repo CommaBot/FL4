@@ -83,6 +83,16 @@ theorem objTypeOf_large {n : Nat} (h : objTypeOf n = some (.archObject .largePag
 
 /-! ### The frame retype's pieces (`B` grown, UtFrameAdd) -/
 
+/-- The window index of an address in the window. -/
+theorem win_idx {A k w a : Nat} (hk : 0 < k) (h1 : A ≤ a) (h2 : a < A + w * k) :
+    ∃ j, j < w ∧ A + j * k ≤ a ∧ a < A + (j + 1) * k := by
+  have e1 := Nat.div_mul_le_self (a - A) k
+  have e2 := Nat.lt_div_mul_add (a := a - A) hk
+  refine ⟨(a - A) / k, ?_, by omega, by rw [Nat.add_mul, Nat.one_mul]; omega⟩
+  by_contra hc
+  have := Nat.mul_le_mul_right k (Nat.le_of_not_lt hc)
+  omega
+
 /-- The RAM frame types' spec objects, size and FL4 caps. -/
 theorem frame_new {n : Nat} {t : Fl4Spec.ApiObjectType} (hty : objTypeOf n = some t)
     (hn : n = 9 ∨ n = 10 ∨ n = 11) (us : Nat) :
@@ -814,12 +824,13 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       · cases hn
       · cases hn
       · cases hn
-  have harch1 : ArchFitHyp H σ := hAF
-  obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J.addSets (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hU.pfit hU.free
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
+  obtain ⟨hAF', hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
+    J.addSetsA (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hU.pfit hU.free
       (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => hBF wp hwp _ hxG p sb fiv (capV_of_capAt hcap)) harch1 hA1 hA3 hE.k1 hout hEw0 hNw0 hRw0 hKn
       hback rfl rfl rfl rfl rfl rfl
+      (fun q m hq hK ao hao => newKind_default_le hty hK (Option.some.inj ((hspec q hq).symm.trans hao)))
   -- the CSpace fields (`JCs`)
   have hcjZ : ∀ j, j < win.val → ∀ p1 zt n1, cj j ≠ .Zombie p1 zt n1 := by
     intro j _ p1 zt n1; rw [hcj]; rcases hnt with h | h | h | h | h | h | h | h | h <;> simp [cjOf, newCapOf, h]
@@ -1136,6 +1147,32 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  -- `JCarry` after (jc1b): `B'`'s new words lie in the new RAM pages
+  have hpgN : ∀ a, Wn a → ∃ (q : Fl4Spec.ObjRef) (vms : Fl4Spec.VMPageSize),
+      σ'.kheap q = some (.archObj (.dataPage false vms)) ∧ q.toNat ≤ a.val ∧
+      a.val + 8 ≤ q.toNat + 2 ^ Fl4Spec.pageBitsForSize vms := by
+    intro a ha
+    obtain ⟨hfrm, g1, g2, -⟩ := (hWn a).1 ha
+    obtain ⟨vms, sz, hdo, hpb, -, hnc⟩ := frame_new hty hfrm us.val
+    obtain ⟨j, hj, hjl, hjh⟩ := win_idx (Nat.two_pow_pos (zOf nt.val us.val)) g1 (show a.val < Aw + win.val * 2 ^ zOf nt.val us.val by omega)
+    obtain ⟨q, hqd⟩ : ∃ q : U64, q = ⟨BitVec.ofNat 64 (Aw + j * 2 ^ zOf nt.val us.val)⟩ := ⟨_, rfl⟩
+    have hcjj : cj j = .Frame q sz 3#u64 false false false 0#u64 0#u64 := by
+      rw [hcj, hqd]; exact hnc _ _
+    have hpf : ptrF (.Frame q sz 3#u64 false false false 0#u64 0#u64) = q := ok_inj (ptr_eq _).symm
+    have hqv : q.val = Aw + j * 2 ^ zOf nt.val us.val := by
+      have := hE.cbase j hj
+      unfold baseF at this
+      rw [hcjj, hpf] at this; exact this
+    have hqW : q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val := ⟨j, hj, hqv⟩
+    have hk := hspec q hqW
+    rw [hdo] at hk
+    have hal' : q.val % 2 ^ zOf nt.val us.val = 0 := (hwb q hqW).2.2
+    have ha8 : a.val % 8 = 0 := ((hWn a).1 ha).2.2.2
+    refine ⟨q.bv, vms, hk, show q.val ≤ a.val by omega, ?_⟩
+    show a.val + 8 ≤ q.val + 2 ^ Fl4Spec.pageBitsForSize vms
+    rw [hpb]
+    rcases hK8 with e | e | e | e | e | e <;> simp only [e] at hal' hjh hqv ⊢ <;> omega
+  have hcy0 := (⟨BufPgHyp.grow J.carry.bufPg hBN hpg hpgN, hAF'⟩ : JCarry B' _ σ')
   have JZ := J.add_frameB
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -1146,7 +1183,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
     hKsB J.thT hIpB hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

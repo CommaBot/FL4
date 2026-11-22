@@ -1076,7 +1076,7 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       unfold tcbSlots at hit
       omega)
   -- the set and heap fields (`addSetsT`)
-  have harch1 : ArchFitHyp H σ := hAF
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
   have hout' : HOut H H' Aw (Aw + win.val * 2 ^ zOf nt.val us.val) Aw (2 ^ zOf nt.val us.val) win.val (some .tcb) := by
     have e : newKind nt.val us.val = some .tcb := by simp [newKind, hnt]
     rw [← e]; exact hout
@@ -1350,6 +1350,14 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hAF' : ArchFitHyp H' σ' := fun o ao n ho hH => by
+    rcases hback o _ ho with e | ⟨r, cs', e⟩ | ⟨t, -, -, d, e⟩
+    · rcases hout_back hout' hH with ⟨-, hK⟩ | hH0
+      · cases hK
+      · exact J.carry.archFit o ao n e hH0
+    · cases e
+    · cases e
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G', T := Z.T ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hwT.1 hXT hCs hJR hKs'
     (fun t0 ht0 => by
@@ -1370,7 +1378,7 @@ theorem JAtZ.utTcbBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
         have hv : (tVcpuA (bT Aw i)).val = (bT Aw i).val + 3664 := Notif.tfield_val (hTB i hi) (by simp)
         have a := (hTB i hi).align
         exact winZero_vcpu hWZ4 hfitW hi _ (by show _ % 8 = 0; rw [hv]; omega) hv⟩
-    hLvN hzDN
+    hLvN hzDN hcy0
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
