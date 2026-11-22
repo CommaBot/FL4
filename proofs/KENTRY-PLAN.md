@@ -14747,3 +14747,77 @@ None. (g4g's debug-syscall FINDING is closed by the [S] scope `NoDbgSys`, as dec
   (b) the readiness line's `SInvW` into the P3 induction (`JReach*`) so `J34FW`'s `hSW` is carried, not asked;
   (c) P1-only `RRSumAt` / `CnOffAt` stay on `entry_of8` / `entry_of9` (dropping them there needs a P1 ring-sum carry and
   CNode typing in `ObjsOK`; at P3 they are discharged by `JAtZ.rrSum` / `JAtZ.cnOff`).
+## g5f (branch par/g5f in FL4-sc, on 603c5c61 = #51 head) — the carried spec invariants unified in one induction: `JReachU` / `jreach_invU` / `kernel_entry_reachU` over `JAtZ ∧ SInvX ∧ SInvW ∧ SInvIP (SpecIoP, IoNoOverlap, SpecUtZ) ∧ MR ∧ FlagsRel`, every event step of `JReachE4`; syscall top `kernel_entryJ42` (MD-line dispatch + E-line bundle + no-fail post + m69's ReplyRecv route); one open carry `SpecUtZ σ'` at every step exit [W]; no FINDING
+New leaf XTopJointKEntryU (root import after XTopJointKEntry38E). Nothing existing edited. Old tops kept.
+
+### (1) What was where, and what is carried now
+- `SInvW` is the first conjunct of `SInvX` (`SInvX.w`), kept by every syscall (`kentry_rdyOff9`) and every event
+  (`kcall_rdyOff9`, interrupt with no `ct ≠ idle`) already: no keep lemma needed. `J34FW`'s `hSW` / m69's `hRV` are
+  projections (`SInvW.rv hX.w`).
+- `FlagsRel`: a theorem of `JAtZ` since g5d (`JAtZ.flagsRel`), at every reachable state and at every dispatch state.
+- `SpecIoP ∧ IoNoOverlap`: `kentry_ioi` (syscalls), `kcall_ioi` (events); for the two FaultIP events (`int $N`, unknown
+  syscall) new **`SInvIo.ioi_fip`** (`IKH IOI (fl4SyscallFaultIP t)` from the existing `hv_` / `iok_fl4SyscallFaultIP`
+  leaves) and **`ioi_evOut`** (`SpecIoP ∧ IoNoOverlap` along `EvOut fip ev`).
+- `SpecUtZ` (l4v `untyped_ranges_zero`): NOT carried (g5c (3) / g5d (4): size L, `UtFreeR` + a `MemK` family; the
+  memory writers include the fault-IPC buffer stores reached from events too). Taken as the narrow [W] exit premise
+  `SpecUtZ σ'` of each `JReachU` constructor, exactly as `JReachIP.step` did for syscalls; the tops' posts give
+  `SpecUtZ σ' → JReachU …`.
+
+### (2) The syscall top `kernel_entryJ42`
+- `kernel_entryJ13PUGMD4S`: `kernel_entryJ13PUGMD4` (g4k) with post `KPostMS`, same body, preemption branch by g4e's
+  `kPreFinAtGMS` (g4c: the spec-fails disjunct came only from `kPreFinAtGM`). So the MD line (`hDL : JDecMRLK VtxK` [W]
+  instead of `JDispMRI` [W]) now has the no-fail post the E4 induction needs.
+- `KDispHypsKV42` = `KDispHypsKV36E` without `JVtxHypMU` (`JEntryAtR6 ∧ JPathAtM36E` per inv / mid);
+  `KDispHypsKV42.to41` at a dispatch `JAtZ` (FlagsRel from that `JAtZ`, `toR5` / `toR3V` with `vih_disp` /
+  `sinvIR_disp`, `to35E` with `LargeFrOK` carried from the entry by `front_slotsSame`, `to35`), then g4k's
+  `KDispHypsKV41.to35` with `hDL`.
+- ReplyRecv: `FastAcc.of_rrpre` with `JAtZ.rrPreAt … (SInvW.rv hX.w) (hRP5 hrr)` (m69's J34FW route); no `FastRR` [P].
+- Post `KPostU`: an outcome (no spec-fails disjunct) with `RJ`, `MR`, `SInvX`, `SpecIoP`, `IoNoOverlap`.
+- **Premises exactly**: `PlainStore` [P]; `J : JAtZ` (carried); `hct : ct ≠ idle` [S]; `hR : MR` (carried);
+  `hX : SInvX` (carried); `hI : SInvIP` (carried); `hLF : LargeFrOK Z.G (L.mem s)` [J] FL4 at the entry; `hn :
+  NativeSys` [S] event; `hflag` [S] (M2); `hK : KDispHypsKV42` at the dispatch states (fields: JEntryAtR6's `stall`,
+  `ioapics`, `archIrq` [P], `vsTyp` [J]; JPathAtM36E's per-path bundles); `hDL : JDecMRLK VtxK` [W]/[scope] at the
+  dispatch states; `hFin : KFinAtR31` at the front outcomes; the [P] bundle `hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt
+  hmb hT hmax htu hRef hPI`; `hRP5 : n = SysReplyRecv → P1.RRPreAt5` [J] (m67's `nvm`, entry state).
+
+### (3) The induction (XTopJointKEntryU)
+- **`JReachU`**: `start` (`JAtZ ∧ SInvX ∧ SInvIP ∧ MR`, any state per the 2026-11-20 lead decision), `step` (native
+  syscall), `irq` (any current thread), `user`, `vmf` (ct ≠ idle), `trap` (ct ≠ idle, `v < 256`), `sysU` (ct ≠ idle,
+  `UnkSys`, `NoDbgSys`) — `JReachE4`'s constructors, each with `SpecUtZ σ'`. `JReachU.toE4`, `JReachU.sinv`.
+- **`jreach_invU hnd`**: every `JReachU` state has ghosts with `JAtZ ∧ SInvX ∧ SInvW ∧ SInvIP ∧ IoNoOverlap ∧ MR ∧
+  FlagsRel Z.T (L.mem s) σ`.
+- **`kernel_entry_reachU`** — **premises exactly** (global): `PlainStore`, `hARI : ARIface`, `hA : ArchTotal`, `hnd :
+  numDomains = 1`, `hM : MachPlat`, `hKD : MRKeepD`, `hIo : MRKeepIo`, `hIoa : MRKeepIoapic`, `hPA : PPPlatA`, `hIA :
+  IrqPlatA`, `hmrt`, `hmb`, `hT : TimeAgree`, `hmax`, `htu`, `hRef : ArchRefines`, `hPI : PortInVal`, `hSX : StoreExt`
+  — all [P]; `hJ : JReachU s a σ`. Conclusion: the invariant at the given ghosts and six clauses, each ending in a
+  related outcome with `SInvX`, `MR`, `SpecIoP`, `IoNoOverlap` and `SpecUtZ σ' → JReachU`:
+  (i) native syscall: per state `hct` [S], `hn` [S], `hLF` [J], `hflag` [S], `hK` (KV42), `hDL` [W], `hFin`
+  (`KFinAtR31`), `hRP5` [J] (no spec-fails disjunct, no `FastRR`, no `JDispMRI`);
+  (ii) interrupt from any thread: `IrqHw` [P], `KFinEv .interrupt`;
+  (iii) user exception: `hct` [S], `UserHw` [P], `KFinEv`; (iv) VM fault: `hct` [S], `VmfHw` [P], `KFinEv`;
+  (v) `int $N`: `hct` [S], `v < 256` [P], `KFinEv` at the FaultIP states;
+  (vi) unknown syscall: `hct` [S], `UnkSys` [S], `NoDbgSys` [S] scope, `FastFaultOK` [J] (P1-derived,
+  `fastFaultOK_of_p1`), `KFinEv` at the FaultIP states.
+  Step-exit premise of the induction: `SpecUtZ σ'` [W] (each constructor).
+- Compared with `kernel_entry_reachE4`: the syscall clause trades `KDispHypsKV35` + `JDispMRI` [W] + `FastRR` [P] for
+  `KDispHypsKV42` + `hDL` [W] + `hRP5` [J] + `LargeFrOK` [J] (entry); with `kernel_entry_reachIF`: event steps added,
+  no spec-fails disjunct, `hDM` / `hFast` gone; with `J34FW`: MR at the exit and the reduced bundle.
+
+### (4) Reachability check / findings
+- No new premise: `SpecUtZ σ'` is the existing `JReachIP.step` premise (l4v `untyped_ranges_zero`, an invariant of
+  every reachable l4v state), now also asked at event exits; `LargeFrOK`, `hRP5`, `hDL` as on J38E / J34FW / J41V.
+- FINDING: none (composition only).
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror seeded from FL4-g5m (warm at 603c5c61; ./g5f.sh, g5f.files, scratch/g5f/ax.lean untracked).
+  g5f-b1: `IKH` not in scope (SInvV not opened); **g5f-b2: XTopJointKEntryU green (7028 jobs)**. Commit b59c6fe1.
+- **g5f-full1** (full `lake build Fl4Proofs` at b59c6fe1, mirror warm from FL4-g5m): "Build completed successfully (7121
+  jobs)", 0 `error`, 0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new file.
+- `#print axioms` (scratch/g5f/ax.lean, run by full1): SInvIo.ioi_fip, ioi_evOut, kernel_entryJ13PUGMD4S,
+  KDispHypsKV42.to41, kernel_entryJ42, JReachU.toE4, JReachU.sinv, jreach_invU, kernel_entry_reachU, and (kept)
+  kernel_entry_reachE4, kernel_entryJ41V, kernel_entryJ38E, kernel_entryJ34FW: [propext, Classical.choice, Quot.sound].
+
+### (6) Handoff
+- `SpecUtZ` carry (g5d (4): `UtFreeR` + `MemK`) removes the `SpecUtZ σ'` exit premise from every `JReachU` step.
+- `LargeFrOK` carry (g5d (2): `OrigFrObj`, `DescRangeIn`, data-page distinctness) removes `hLF`.
+- `hRP5` (m67's `nvm` through `fastTail`), `hDL` (VT-x scope), the `hK` / `hFin` bundles, `FastFaultOK` from `JAtZ`.
