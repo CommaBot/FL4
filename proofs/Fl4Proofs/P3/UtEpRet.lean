@@ -1172,7 +1172,7 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     show a.val + 8 ≤ q.val + 2 ^ Fl4Spec.pageBitsForSize vms
     rw [hpb]
     rcases hK8 with e | e | e | e | e | e <;> simp only [e] at hal' hjh hqv ⊢ <;> omega
-  have hcy0 := (⟨BufPgHyp.grow J.carry.bufPg hBN hpg hpgN, hAF'⟩ : JCarry B' _ σ')
+  have hcy0 := (⟨BufPgHyp.grow J.carry.bufPg hBN hpg hpgN, hAF'⟩ : JCarryS B' _ σ')
   have JZ := J.add_frameB
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -1183,7 +1183,9 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
     hKsB J.thT hIpB hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
+    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
+      hwI.1 (idleH_of hXB hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h])))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

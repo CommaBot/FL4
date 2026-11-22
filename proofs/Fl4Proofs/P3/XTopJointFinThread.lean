@@ -578,7 +578,7 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' rfl rfl), hkern,
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
   have hmem : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((J.xtop.rel.2.1.2.2.1.members y).1 hy).1
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.dbgWc_nv hb)
+  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (devFrom_same J.xtop.rel.2.1.2.2.1 hX'.rel.2.1.2.2.1 hSS) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.dbgWc_nv hb)
     ⟨LiveJ.of_sameDbg J.live.1 hSS hmem rfl rfl hks hdbg (fun p hp => hdead p (J.zD p hp)), hDW',
       J.live.2.2.of_same (fun y hy => hSS.capV hy) rfl⟩ (J.zDX hSS J.zD)
 

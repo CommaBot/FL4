@@ -1395,3 +1395,4 @@ import Fl4Proofs.P3.XTopJointKEntryU14
 import Fl4Proofs.P3.XTopJointKEntryU17
 import Fl4Proofs.P3.XTopJointKEntryU16
 import Fl4Proofs.P3.XTopJointKEntryU18
+import Fl4Proofs.P3.XTopJointKEntryU19

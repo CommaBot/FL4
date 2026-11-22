@@ -41,33 +41,7 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 
-/-- **[J] The device untyped caps' apartness** (module docstring; l4v
-`valid_untyped` / `pspace_no_overlap` for device caps, `valid_global_refs`,
-`kernel_window`): every device untyped cap of the MDB has an aligned range
-off the kernel-state block, the nodes, the ASID-table area, the idle objects
-and the typed heap's objects, and every `H` object meeting the range lies in
-its used part `[p, p + fi)` and is a device frame (`.other`: a device
-untyped makes only frames and device untypeds); the range lies in one canonical half with a
-nonzero base (`CanonR`: the boot check 9ab17db1 cuts the page at pointer 0;
-a device piece's pointer range is `PPTR_BASE` + its physical range modulo
-`2^64`, physical memory below `2^47`, so the range is either in the kernel
-half (physical below 512 GiB) or below `2^47 - 2^39`; a child is a
-sub-range); and its size is at least 2^4 bytes (l4v `valid_cap`'s
-`untyped_min_bits ≤ bits` for untyped caps: boot.rs
-`create_untypeds_for_region` gives out only blocks of at least
-`MIN_UNTYPED = 4` size bits, a device child's size bits are the retype's
-`us ≥ 4`, decode's `RetCtx.size`). -/
-def DevApart (th : TypedHeap) (H : Heap) (G : MdbGhost) (Cs : Set U64) (s : S) : Prop :=
-  ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV (L.mem s) x = .Untyped p sb fi true →
-    p.val % 2 ^ sb.val = 0 ∧
-    (p.val + 2 ^ sb.val ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ p.val) ∧
-    (∀ c ∈ Cs, p.val + 2 ^ sb.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ p.val) ∧
-    (p.val + 2 ^ sb.val ≤ (L.ksb s).val + 288000 ∨ (L.ksb s).val + 288000 + 16384 ≤ p.val) ∧
-    (∀ q, IdleAt (L := L) s q → q.val < p.val ∨ p.val + 2 ^ sb.val ≤ q.val) ∧
-    RegionFree th p.val (p.val + 2 ^ sb.val) ∧
-    (∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
-      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + fi.val ∧ ∃ z, kd = .other z)) ∧
-    CanonR p.val (p.val + 2 ^ sb.val) ∧ 4 ≤ sb.val
+-- `DevApart` moved to JCarryDefs (jc2, unchanged statement).
 
 /-- **A device source's `SrcOK`**: its region off the kernel-state block and
 the idle objects (`DevApart`), the new caps no RAM untypeds. -/

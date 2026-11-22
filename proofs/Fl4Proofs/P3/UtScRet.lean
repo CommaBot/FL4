@@ -974,11 +974,13 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       · exact J.carry.archFit o ao n e hH0
     · cases e
     · cases e
-  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
   have JZ := J.add_frameC (Z' := { Z with G := G', C := Z.C ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hW0 rfl hwI.1 hX' hCs hJR (by rw [hwI.1]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hwI.1]; exact J.nk n hn) hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
+      hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout0 fun kd h => by rw [newKind_bits h])))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

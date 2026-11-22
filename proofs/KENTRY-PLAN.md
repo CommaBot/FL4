@@ -16597,3 +16597,75 @@ U11, U3L, UH2, U15 and **U16** all `[propext, Classical.choice, Quot.sound]` (ev
   [J] at U18: C4, C16 / C22 / C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach, C25 (**8**).
 - jc1c-full2 at 765ec522: `Build completed successfully (7291 jobs)`, 0 `error`, 0 `sorry`; U4..U18, U3L, UH2 all
   `[propext, Classical.choice, Quot.sound]`.
+
+## jc2 (branch par/jc2 from d47e9c26 = PR #66 head, top of record `kernel_entry_reachU18`) — g7b-4 step 3 DONE: `JCarry.devApart` (C25 DISCHARGED, new top `kernel_entry_reachU19`); step 4 (`vsTyp`, C4) NOT done (handoff below); no FINDING
+
+### (1) Done
+- **`JCarry` re-indexed once** (JCarryDefs): the σ-only pair is renamed `JCarryS B H σ` (`bufPg`, `archFit`;
+  `JCarryS.frame / of_ao / of_keepC / of_objCn / addP`), and `JCarry (L := L) Z H Cs s σ` = `bufPg`, `archFit`,
+  **`devApart : DevApart Z.th H Z.G Cs s`** (C25; DevJ's definition moved to JCarryDefs, statement unchanged) and
+  **`devSep : DevSep Z.G (L.mem s)`** (new carried fact: a RAM and a device untyped cap of the MDB have disjoint
+  ranges). `JAtZ.carry`, `JAtZR.carry`, `JAtZS.carry` have the new type; `J.carry.frame …` etc. are forwarders
+  returning the `JCarryS` part, so the frame call sites did not change; the helpers combine it with the device
+  part by `JCarryS.withP` (its `Z` is fixed by the expected type: autoparams `B = Z.B`, `th = Z.th`, `G = Z.G`).
+- **Why `devSep`** (design correction to g7b-4 (2)'s `devApart` row "RAM retypes add objects off device ranges
+  (`UtInv.drange` + RAM/device disjointness)"): `DevApart` alone is not inductive. A RAM untyped cap nested in a
+  device cap's used part would let a RAM retype put a TCB/CNode there, against `DevApart`'s `H` / `RegionFree`
+  clauses; `UtInv.drange` only says overlapping caps are nested, nothing about the flags. `DevSep` is true in
+  reachable states (boot hands out RAM and device regions apart; a retype's children have the source's flag,
+  `SrcOK`'s "no RAM untyped from a device cap" and `newCapOf … false`), and is kept by every step (`DevSep.frame`
+  from `UtFrom`; `devRetypeR` / `devSep_retypeD` at the retypes). It is part of the carried start `JAtZ`
+  (lead decision: the start state is any state with the invariants), like `bufPg`/`archFit`. Not a premise.
+- **The idle clause** of `DevApart` is re-derived at each new state (`devApart_idle`) from `IdleH H s` (the idle
+  TCB an `H` TCB, the idle SC an `H` SC or null), proved from the new state's own fields by `idleH_of` (`ActIdle`'s
+  `IdleOK`, `Inv.back`, `ObjCover`, `zH`, `JPlaced.sc`) or kept by `IdleH.keep` / `IdleH.drop`, so no frame site
+  needs an `IdleKeep`.
+- **Sites** (every kind of `JAtZ` construction):
+  * frame (`sc_frame`, `sch_frame`, `sc_frameR/S`, `JAtZR.sc_frame/sch_frame`): `JCarry.devKeep` (`SlotsSame`).
+  * `cs_frameV` (JAtZ / JAtZR) now take `hdu : DevFrom Z.G G' m m' ∧ UtFrom Z.G G' m m'` after `hcy : JCarryS`
+    (`cs_frameVD` / `cs_frameD` take the device facts as a function of `IdleH` instead); `cs_frame`, `cs_frameB`
+    pass it on; `cs_frameI/IS/K` compute it (`devFrom_same`). Callers: `SlotsSame` sites `devFrom_same`; cap steps
+    `devFrom_kept` (from their `UtKept`; `utKept_ins` for an insertion of a non-untyped cap): XTopJointStep
+    (slot/cslot), TcbInstall, Grant, VsSub, VsMap, WJL, WJLEmpty, WJLSwap.
+  * resets' free-index writes: UtResetJ (RAM cap: device caps unchanged), UtDevReset `setFiJD` (new premise
+    `hHr`: the `H` objects meeting the range below the new free index; its one caller, after the drop, proves it
+    from `Heap.drop_eq_some`) by `DevApart.setFi`.
+  * retypes: `add_frame*` take the full `JCarry`; RAM sources (UtUtRet, UtCnRet, UtEpRet, UtPmRet, UtTcbRet,
+    UtScRet) by `devRetypeR` (new objects in the window, `hH_of_hout` + `newKind_bits`; new caps not device,
+    `newCapOf_ram`); device sources (UtDevUt, UtDevRet) by their existing `DevApart.retype` (moved before the
+    `add_frame` call) and `devSep_retypeD`.
+  * MakePool: `DevApart.frameH` (the pool page inside the RAM source's range, `devSep` keeps it off device ranges).
+  * drops (UtDropJ2 `dropA`, UtDevDrop `dropAD`): `DevApart.frame` (`th`, `H` restricted) with `IdleH.drop`.
+- **`kernel_entry_reachU19`** (XTopJointKEntryU19) = U18 with `KDispHypsKVU19`: `JDevPathU19` = `JDevPathU18`
+  without `devApart`; `KDispHypsKVU19.toU18 J'.carry` fills it from the dispatch state's `JAtZ`. Removed relative
+  to U18: C25. Added: none. `JReachU17` unchanged.
+
+### (2) Handoff: step 4 (`vsTyp`, C4), not started in Lean
+Field to add (no index change needed: `JCarry Z H Cs s σ` already has everything):
+`vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)` (move `OffFrame` / `OffTabOK` from
+XTopJointVsOff to JCarryDefs; `OObj`/`VObj` (VsTop) are ancestors). Add it as a fifth argument of `JCarryS.withP`
+(or a `withP` taking a triple), then per class:
+- frame (`devKeep` sites, `cs_frameI/IS/K`): caps kept (`SlotsSame`), `Z` kept, `ksb` kept; needs the tables
+  forward (`hao` in `cs_frameI/IS`; `ScTKw.kh` / `SchStep.kh` OTK keep arch objects) and the SC sizes of `Z.C`
+  backward (`SzKeep`; `hsz` in `cs_frameI`, from OTK in `sc_frame`) for `OObj`'s SC clause. One lemma
+  `VsTypHyp.frame (hks) (hc : caps kept) (hT : tables forward) (hsz : SzKeepC Z.C σ σ')`.
+- cap steps: each new slot cap a copy of an old slot's (copy/move/mint keep the table pointer and mapped flag;
+  DeriveSubframe/Mint of a table cap: check), or not a mapped table cap (Zombie/Null/untyped/...): a
+  `TabKept` analogue of `UtKept` at the ~9 cap sites above.
+- VSpace writes (VsMap/VsSub/VsOff/VsCap/MakePool, 11 files): a map makes a table cap mapped with its table in the
+  sets before; the sets after (`L3' L2' L1'` in VsMap) must keep it or the table must be off every other object
+  (`OffFrame` from the placement `TopPlaced.po/ps/pv` and `pspace_distinct`-style `SpecCover`). This is the real
+  work (L, not M as g7b-4 (3) estimated).
+- retypes: new sets' objects lie in the window, which misses every spec object (`SpecFree` of the source) hence
+  every existing table frame; new caps unmapped (`newCapOf … false`).
+- drops: a mapped table cap whose table lies in the dropped region would be a descendant of the childless cap
+  (`UtInv.drange` with the table cap's `physF` range), so none.
+- Then `JEntryAtR7` = `JEntryAtR6` without `vsTyp`, threaded through `KDispHypsKVU19` into a U20.
+No reachable-state counterexample to C4 found while sizing it (a mapped table's table is a live spec table,
+l4v `valid_cap` typ_at + `pspace_distinct`).
+
+### (3) Builds and axioms
+Module builds jc2-m1..m7 (tokyo); full build jc2-full2: `Build completed successfully (7293 jobs)`, 0 `error`,
+0 `sorry`. `#print axioms` (../axjc2.lean): U3L, UH2, U4..U18 and **U19**, `sniHyp_of`, `sendHyp_of`,
+`scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`; every existing top keeps its statement.
+No sorry / admit / native_decide / bv_decide / axiom in the changed files.

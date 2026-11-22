@@ -171,6 +171,7 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
     exact Or.inr ⟨e y, heS y hy, zt', n', hw, hzt⟩
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
     ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
+    (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J0.ut fun y hy p0 sb0 fi0 d0 h => ⟨e y, heS y hy, fi0, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩)
   exact ⟨⟨V, Ac', Lst', D ∪ E, J', hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns,
     hsg2, hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
 

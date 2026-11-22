@@ -176,7 +176,8 @@ theorem JAtZ.sc_frameR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.fcap.keepU (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (IpcFrKeep.of_otk hK.kh).page,
     J.ext.ss hSS (VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw),
     J.liveX hX rfl rfl rfl hSS hKd hK.orig hidl (fun p hp => hjc.dead p (hDD p hp)), J.zDX hSS hDD,
-    J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz⟩
+    (J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz).withP
+      (J.carry.devKeep J.xtop.rel.2.1.2.2.1 hks hSS hX.rel.2.1.2.2.1 (idleH_of hX (J.obj.tkw hK) J.zH.1 hjpl hinv hact))⟩
   · refine SpecFree.frame J.sfree (fun x' hx' p sb fi' d hc => ⟨x', hx', fi', ?_, le_rfl⟩) hK.ksz
     rw [← hSS.capV (hsl' x' hx')]; exact hc
   · have hG0 : MdbLinks Z.th (L.mem s) G := hG.of_same_symm hSS

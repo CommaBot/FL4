@@ -104,14 +104,14 @@ theorem JDevPathU18.toU17 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     {σ : Fl4Spec.State Unit} {lbl length p sb fi : U64} {blk call don fp : Bool} {buf : U64}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data} {argsU : List U64} {ci : Fl4Spec.CapRef}
     {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
-    (h : JDevPathU18 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarry Z.B H σ) :
+    (h : JDevPathU18 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarryS Z.B H σ) :
     JDevPathU17 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct :=
   { fan := h.fan, vtx := h.vtx, core0 := h.core0, bufObj := hC.bufObj, heapH := ⟨hC.archFit, h.unref⟩,
     devApart := h.devApart, vsReach := h.vsReach, rcb := h.rcb }
 
 set_option maxHeartbeats 4000000 in
 theorem JPathAtMU18.toU17 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64} (hC : JCarry Z.B H σ)
+    {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64} (hC : JCarryS Z.B H σ)
     (h : JPathAtMU18 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr) :
     JPathAtMU17 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr := by
   intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13
@@ -122,7 +122,7 @@ theorem JPathAtMU18.toU17 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   all_goals exact hP
 
 theorem KDispHypsKVU18.toU17 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall} (hC : JCarry Z.B H σ)
+    {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall} (hC : JCarryS Z.B H σ)
     (h : KDispHypsKVU18 (L := L) arI AR Z H Cs D s a σ n c) : KDispHypsKVU17 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi; ⟨e, p.toU17 hC⟩,
     fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm; ⟨e, p.toU17 hC⟩⟩
@@ -199,7 +199,7 @@ theorem kernel_entry_reachU18 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
     kernel_entry_reachU17 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
   exact ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg,
     fun n c hct hn hfl hK hDL hFin => hSys n c hct hn hfl (fun σb hb V' Ac' Lst' D' s' a' hF J' =>
-      (hK σb hb V' Ac' Lst' D' s' a' hF J').toU17 J'.carry) hDL hFin, hIrq, hUs, hVm, hTr, hSU⟩
+      (hK σb hb V' Ac' Lst' D' s' a' hF J').toU17 J'.carry.toS) hDL hFin, hIrq, hUs, hVm, hTr, hSU⟩
 
 end
 

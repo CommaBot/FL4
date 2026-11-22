@@ -391,10 +391,10 @@ theorem twelve_le_arch (ao : Fl4Spec.ArchKernelObj) : 12 ≤ Fl4Spec.objBits (.a
 /-- **`JCarry` across `MakePool`** (jc1b): the pool's page added to `H` as a
 4 KiB `other` object (every arch object is at least that large), the data
 pages kept. -/
-theorem JCarry.addP {B : Set (U64 × Fl4Spec.Word)} {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Unit}
-    (h : JCarry B H σ) (F : MpFr σ σ')
+theorem JCarryS.addP {B : Set (U64 × Fl4Spec.Word)} {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarryS B H σ) (F : MpFr σ σ')
     (hnew : ∀ o ao, σ'.kheap o = some (.archObj ao) → σ.kheap o = none → o = p.bv) :
-    JCarry B (hAddP H p) σ' := by
+    JCarryS B (hAddP H p) σ' := by
   refine ⟨h.bufPg.frame subset_rfl fun q vms hq => ?_, fun o ao n ho hH => ?_⟩
   · rcases F.kh q with e | ⟨r, cs, cs', h1, -⟩ | ⟨h1, -⟩
     · rw [e]; exact hq
@@ -407,6 +407,13 @@ theorem JCarry.addP {B : Set (U64 × Fl4Spec.Word)} {H : P1.Heap} {p : U64} {σ 
       · rw [e] at ho; exact h.archFit o ao n ho hH
       · rw [h2] at ho; cases ho
       · exact absurd (show (⟨o⟩ : U64) = p by rw [hnew o ao ho h1]) hq
+
+/-- The σ part of `JCarry` across `MakePool` (jc2 forwarder). -/
+theorem JCarry.addP {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {p : U64} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarry (L := L) Z H Cs s σ) (F : MpFr σ σ')
+    (hnew : ∀ o ao, σ'.kheap o = some (.archObj ao) → σ.kheap o = none → o = p.bv) :
+    JCarryS Z.B (hAddP H p) σ' :=
+  h.toS.addP F hnew
 
 theorem Sched.ObjCover.mp {N T E R C : Set U64} {σ σ' : Fl4Spec.State Unit} (h : ObjCover N T E R C σ) (F : MpFr σ σ') :
     ObjCover N T E R C σ' :=
@@ -1059,7 +1066,26 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
       · rw [hcap y hy e1 e2]; exact J.ext.nat y hy, J.ext.vkeep (J.mp_vkeep hh hw.2.2 hHo)⟩
     hLvM (fun q hq => J.zD q (ZTcb.of_zombies hZfM hq))
-    (J.carry.addP F hnew)
+    ((J.carry.addP F hnew).withP
+      ⟨J.carry.devApart.frameH (lo := p.val) (hi := p.val + 4096) (fun _ _ h => h)
+        (fun q k h => by
+          rcases P1.Heap.add_eq_some.1 h with ⟨rfl, rfl⟩ | ⟨-, h⟩
+          · exact Or.inr ⟨le_rfl, by simp [P1.HKind.bits]⟩
+          · exact Or.inl h)
+        (fun y hy p' sb' fi' hc => by
+          have := J.carry.devSep _ hsm y hy _ _ _ _ _ _ (capV_of_capAt hsrc0) hc
+          rw [two_pow_asidPool] at this; exact this)
+        hks (devFrom_kept J.mdbL hM' J.ut hUK).1
+        (J.idleH.keep hidl fun q hq => by
+          have hqp : q ≠ p := fun e => hni (e ▸ hq)
+          refine Option.ext fun k => ?_
+          rw [P1.Heap.add_eq_some]
+          constructor
+          · rintro (⟨e, -⟩ | ⟨-, h⟩)
+            · exact absurd e hqp
+            · exact h
+          · intro h; exact Or.inr ⟨hqp, h⟩),
+       J.carry.devSep.frame (devFrom_kept J.mdbL hM' J.ut hUK).2⟩)
 
 end
 

@@ -286,7 +286,11 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
     (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
     (fun y hy => LSim.of_shape (hshape y hy))
-  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc) hJC R
+  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
+    ⟨fun z hz p2 sb2 fi2 hc2 => by
+      by_cases e : z = x
+      · subst e; rw [hcap'] at hc2; cases hc2
+      · exact ⟨z, hz, fi2, le_rfl, by rw [← hco z ((hM.members z).1 hz).1 e]; exact hc2⟩, hUF⟩ hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e) (fun y _ e _ _ _ _ _ _ => by
       rw [e, hcap']; exact Vs.vcapW_ut rfl) (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
     hLS.1 (fun p hp => J.zD p (hLS.2 p hp))

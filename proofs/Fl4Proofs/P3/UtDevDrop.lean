@@ -178,7 +178,7 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   -- `JCarry` after (jc1b): a kept buffer word's page has its base off the
   -- region (else the page lies inside it, `hIn`, and so does the word), so the
   -- page is kept; the arch objects after are old ones, `H`'s kept
-  have hcy : JCarry (KeepB (KBOf p sb) Z.B) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) σ' := by
+  have hcy : JCarryS (KeepB (KBOf p sb) Z.B) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) σ' := by
     refine ⟨fun wp hw => ?_, fun o ao n ho hH => ?_⟩
     · obtain ⟨hwB, -, hw1⟩ := hw
       obtain ⟨q, vms, hq, h1, h2⟩ := J.carry.bufPg wp hwB
@@ -208,7 +208,19 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨hX, hcall, hrf', hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
     hcr, hblk, hiL, hvc, hbf.1, hbf.2.1, hbf.2.2, ⟨fun y hy => J.ext.nat y (IsSlot.of_restrict hy), fun t ht => J.ext.vw t (restrictTh_some ht).1⟩,
-    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩), hcy⟩
+    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩),
+    hcy.withP ⟨J.carry.devApart.frame (fun q k h => (restrictTh_some h).1) (fun q k h => drop_some h) rfl
+      (DevFrom.of_eq fun _ _ => rfl)
+      (J.idleH.drop fun q hq k hk => by
+        rcases (J.carry.devApart _ hx p sb fi hcx).2.2.2.2.2.2.1 q k hk with e | e | ⟨-, -, z, rfl⟩
+        · exact Or.inl e
+        · exact Or.inr e
+        · exfalso
+          rcases hq with rfl | rfl
+          · rw [J.idleH.1] at hk; cases hk
+          · rcases J.idleH.2 with e0 | ⟨z', e0⟩
+            · rw [e0, J.kern.h0] at hk; cases hk
+            · rw [e0] at hk; cases hk), J.carry.devSep⟩⟩
 
 end
 

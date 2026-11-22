@@ -57,7 +57,9 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Untyped p sb f true))
     (hnc : ¬ ∃ y, σ.cdt y = some (pp.bv, idx))
     (hTh : restrictTh Z.th p.val (p.val + 2 ^ sb.val) = Z.th)
-    (f' : U64) (hf' : f'.val ≤ 2 ^ sb.val) :
+    (f' : U64) (hf' : f'.val ≤ 2 ^ sb.val)
+    (hHr : ∀ q kd, H q = some kd → q.val + 2 ^ kd.bits ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val ∨
+      (p.val ≤ q.val ∧ q.val + 2 ^ kd.bits ≤ p.val + f'.val ∧ ∃ z, kd = .other z)) :
     obj.Slot.set_cap st (cslotAddr (pp.bv, idx)) s (.Untyped p sb f' true) ⦃ s' =>
       ∃ cs, σ.kheap pp.bv = some (.cnode rs cs) ∧ Fl4Spec.wellFormedCnodeN rs cs ∧
         JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a
@@ -234,7 +236,9 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
     (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
     (fun y hy => LSim.of_shape (hshape y hy))
-  exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc) hJC R
+  exact J.cs_frameD (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
+    (fun hI => ⟨J.carry.devApart.setFi hks hI hxm hcx hcap' (fun y hy e => hco y ((hM.members y).1 hy).1 e) hHr,
+      J.carry.devSep.frame hUF⟩) hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hcap']; exact Vs.vcapW_ut rfl)
       (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
@@ -359,7 +363,15 @@ theorem JAtZ.reset_untypedDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hfi0' : ¬ (fi = 0#u64) := fun e => hfi0 (by rw [e]; rfl)
   simp only [bind_ok, untyped.as_untyped, hfi0', ↓reduceIte]
   obtain ⟨s2, hs2, cs2, hk2, hwf2, J2, hcap2, hks2, -, hfr2⟩ := spec_exists
-    (J'.setFiJD hpp' hidx hcap hncD hTh 0#u64 (by rw [e0]; omega))
+    (J'.setFiJD hpp' hidx hcap hncD hTh 0#u64 (by rw [e0]; omega) (fun q kd hq => by
+      rw [P1.Heap.drop_eq_some] at hq
+      obtain ⟨hnr, hq⟩ := hq
+      unfold P1.RegionD P1.MeetsR at hnr
+      rw [hq] at hnr
+      simp only [Option.elim, not_not] at hnr
+      rcases hnr with h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)))
   rw [← hxdef] at hs2 hcap2 hfr2
   rw [hs2]
   simp only [bind_ok]

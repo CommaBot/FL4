@@ -558,10 +558,6 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
-  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
-  have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl hcjD (fun q kd hq => ?_) hDF'
@@ -576,6 +572,11 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
       · rw [if_neg hN] at e
         split_ifs at e
         exact Or.inl e.symm
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP ⟨hDA', devSep_retypeD J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

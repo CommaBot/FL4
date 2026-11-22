@@ -323,8 +323,10 @@ structure JAtZ (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs A
   /-- [carried] **The `JCarry` facts** (KENTRY-PLAN g7b-4, jc1): the IPC-buffer
   words in non-device data pages (`BufPgHyp`, C21 / C24 bufObj) and `H`'s arch
   objects no larger than their spec objects (`ArchFitHyp`, the first half of C16 /
-  C22 / C24 heapH). A frame step keeps it by `JCarry.frame`. -/
-  carry : JCarry Z.B H σ
+  C22 / C24 heapH); jc2: the device untyped caps' apartness (`DevApart`, C25) with
+  RAM/device range separation (`DevSep`). A frame step keeps the σ part by
+  `JCarry.frame` (a `JCarryS`) and the device part by `JCarry.devStep` (`JCarryS.withP`). -/
+  carry : JCarry (L := L) Z H Cs s σ
 
 /-- **`JAt`: the joint invariant at a state** (the ghosts existential). -/
 def JAt (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
@@ -566,6 +568,88 @@ theorem _root_.Fl4Proofs.P3.XTopAt.idleThread_bv {Z' : XSets} {s' : S} {a' : A} 
   have h2 := hs.idleTh
   unfold Sched.nodeW at h2
   rw [hc.cur, ← h2]
+
+/-- **The idle objects are `H`'s TCB and SC** (`IdleH`, jc2): the spec's idle
+thread is a TCB (`ActIdle`'s `IdleOK`), so one of the sets' (`ObjCover`), an
+`H` TCB (`zH`); it is bound to the spec's idle SC, an SC (`Inv.back`), so an
+`H` SC unless null (`JPlaced.sc`). -/
+theorem _root_.Fl4Proofs.P3.idleH_of {Z' : XSets} {H' : P1.Heap} {th' : TypedHeap} {s' : S} {a' : A}
+    {σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z' s' a' σ')
+    (hO : Sched.ObjCover Z'.N Z'.T Z'.E Z'.R Z'.C σ') (hzT : ∀ t ∈ Z'.T, H' t = some .tcb)
+    (hJ : ∃ Tr Cq, Sched.JPlaced (L := L) th' H' Tr Cq s' σ') (hI : Sched.Inv σ') (hA : Sched.ActIdle σ') :
+    IdleH (L := L) H' s' := by
+  obtain ⟨x, hx, hsc, -, -⟩ := hA.2
+  obtain ⟨Tr, Cq, hJP⟩ := hJ
+  refine ⟨?_, ?_⟩
+  · obtain ⟨t, ht, e⟩ := hO.tcb _ x hx
+    have : t = L.idleW s' := P1.eq_of_bv (e.trans hX.idleThread_bv)
+    rw [← this]; exact hzT t ht
+  · obtain ⟨y, n, hy, -⟩ := hI.back _ x _ hx hsc
+    by_cases h0 : Sched.idleScW (L := L) s' = 0#u64
+    · exact Or.inl h0
+    · refine Or.inr ⟨_, (hJP.sc _ y n h0 ?_).2⟩
+      rw [Sched.SchedRel.idleScW_bv hX.fin.1.1.1]; exact hy
+
+theorem idleH (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : IdleH (L := L) H s :=
+  idleH_of J.xtop J.obj J.zH.1 J.jpl J.inv J.act
+
+/-- **The untyped caps after a step keeping every slot** (`SlotsSame`; the
+MDB tree after any tree of the same slots) are the old ones (jc2). -/
+theorem _root_.Fl4Proofs.P3.devFrom_same {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hSS : SlotsSame th m m') :
+    DevFrom G G' m m' ∧ Sched.UtFrom G G' m m' := by
+  have k : ∀ x ∈ G'.chains.flatten, x ∈ G.chains.flatten ∧ capV m' x = capV m x := fun x hx => by
+    obtain ⟨hxs, c, hc, hn⟩ := (hM'.members x).1 hx
+    exact ⟨(hM.members x).2 ⟨hxs, c, by rw [← hSS.capAt hxs]; exact hc, hn⟩, hSS.capV hxs⟩
+  refine ⟨fun x hx p sb fi hc => ⟨x, (k x hx).1, fi, le_rfl, by rw [← (k x hx).2]; exact hc⟩,
+    fun x hx p sb fi d hc => ⟨x, (k x hx).1, fi, by rw [← (k x hx).2]; exact hc⟩⟩
+
+/-- **The untyped caps after a step moving caps** (`UtKept`) are old ones with
+a free index no larger (`UtInv.fib` for the full case) (jc2). -/
+theorem _root_.Fl4Proofs.P3.devFrom_kept {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hU : UtInv m G) (hK : UtKept th m m') :
+    DevFrom G G' m m' ∧ Sched.UtFrom G G' m m' := by
+  have k : ∀ x ∈ G'.chains.flatten, ∀ p sb fi d, capV m' x = .Untyped p sb fi d →
+      ∃ y ∈ G.chains.flatten, ∃ fi0 : U64, fi0.val ≤ fi.val ∧ capV m y = .Untyped p sb fi0 d := by
+    intro x hx p sb fi d hc
+    obtain ⟨y, hy, fi', hc', hle⟩ := hK x ((hM'.members x).1 hx).1 p sb fi d hc
+    have hyG : y ∈ G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, by rw [hc']; simp⟩
+    have hf := hU.fib y hyG p sb fi' d hc'
+    exact ⟨y, hyG, fi', by omega, hc'⟩
+  exact ⟨fun x hx p sb fi hc => k x hx p sb fi true hc,
+    fun x hx p sb fi d hc => by
+      obtain ⟨y, hy, fi0, -, e⟩ := k x hx p sb fi d hc
+      exact ⟨y, hy, fi0, e⟩⟩
+
+/-- `UtKept` for a slot insertion of a non-untyped cap (the other slots kept). -/
+theorem _root_.Fl4Proofs.P3.utKept_ins {th : TypedHeap} {m m' : U64 → U64} {d0 : U64}
+    (hcap : ∀ y, IsSlot th y → y ≠ d0 → capV m' y = capV m y)
+    (hnu : ∀ p sb fi d, capV m' d0 ≠ .Untyped p sb fi d) : UtKept th m m' := by
+  intro x hx p sb fi d hc
+  by_cases e : x = d0
+  · subst e; exact absurd hc (hnu p sb fi d)
+  · exact ⟨x, hx, fi, by rw [← hcap x hx e]; exact hc, Or.inl le_rfl⟩
+
+/-- **The device facts across a step whose untyped caps are old ones**
+(`DevFrom`, `UtFrom`; `th`, `H` kept), `IdleH` after (jc2). -/
+theorem _root_.Fl4Proofs.P3.JCarry.devStep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) {s' : S} {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s)
+    (hdu : DevFrom Z.G G' (L.mem s) (L.mem s') ∧ Sched.UtFrom Z.G G' (L.mem s) (L.mem s'))
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  ⟨h.devApart.frame (fun _ _ h => h) (fun _ _ h => h) hks hdu.1 hI, h.devSep.frame hdu.2⟩
+
+theorem _root_.Fl4Proofs.P3.JCarry.devKeep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) (hM : MdbLinks Z.th (L.mem s) Z.G) {s' : S}
+    {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G')
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  h.devStep hks (devFrom_same hM hM' hSS) hI
+
+theorem devKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {G' : MdbGhost}
+    (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G')
+    (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
+  J.carry.devKeep J.mdbL hks hSS hM' hI
 
 /-- **`LiveJ` at another MDB tree of the same slots** (the trees' members are
 the slots holding a non-null cap). -/

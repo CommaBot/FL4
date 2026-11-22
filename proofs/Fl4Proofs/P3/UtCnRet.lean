@@ -745,11 +745,13 @@ theorem JAtZ.utCnBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
-  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
   have JZ := J.add_frameT (Z' := { Z with th := th', G := G' }) rfl rfl hwI.1 hX' hCs hJR
     hKs' (fun t0 ht0 => J.thT t0 (thT_grow hThX hksk hn1 ht0)) (thk_grow hThX hksk J.thk)
     (DelBound.of_placed hP') hintL hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), fun t0 ht0 => J.ext.vkeep (J.vkeep_slot hwI) t0 (thT_grow hThX hksk hn1 ht0)⟩ hLvN hzDN hcy0
+    ⟨J.ext.nat.retype hE hM hM' (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), fun t0 ht0 => J.ext.vkeep (J.vkeep_slot hwI) t0 (thT_grow hThX hksk hn1 ht0)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
+      hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h])))
   refine ⟨σ', hrun, hok, ⟨th', G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

@@ -578,7 +578,7 @@ theorem JAtZ.add_frame {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :=
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
     (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
-    (hcy : JCarry Z'.B H' σ'):
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl
@@ -625,7 +625,7 @@ theorem JAtZ.add_frameB {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
     (hbf : JBuf (L := L) Z' s' σ') (hext : JExt (L := L) Z'.th s')
     (hlv : LiveDN (L := L) Z'.th H' Cs Z'.G s' σ') (hzD : ∀ p ∈ ZTcb (L := L) Z'.th s', p ∈ D') 
-    (hcy : JCarry Z'.B H' σ'):
+    (hcy : JCarry (L := L) Z' H' Cs s' σ'):
     JAtZ (L := L) arI AR Z' H' Cs Ac' Lst' D' s' a' σ' := by
   have hTe : Z'.T = P1.Heap.tcbs H' := by
     obtain ⟨Tr, Cq, hJ⟩ := R.jpl

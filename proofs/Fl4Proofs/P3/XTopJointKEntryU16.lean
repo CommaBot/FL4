@@ -15,7 +15,7 @@ of C16 / C22 / C24 `heapH` (INV-PLAN §1.U3L).
 * `JUtPathMU16` / `JDevPathU16` / `JAsidCPathU16`: `JUtPathM` / `JDevPathU12` /
   `JAsidCPath` without `bufObj` and with only `RegionUnrefAt` of `heapH`
   (`unref`); `JPathMEU16` / `JPathAtMU16` / `KDispHypsKVU16` = U12's with them;
-  `.toU12` given `JCarry Z.B H σ` at the dispatch state (the dispatch's own `JAtZ`,
+  `.toU12` given `JCarryS Z.B H σ` at the dispatch state (the dispatch's own `JAtZ`,
   whose `H` and `B` the paths read).
 
 Premises removed (relative to U15): C21 `bufObj` [J] (`JUtPathM.bufObj`,
@@ -152,7 +152,7 @@ theorem JUtPathMU16.toM {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     {σ : Fl4Spec.State Unit} {lbl length p sb fi : U64} {blk call don fp : Bool} {buf : U64}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data} {argsU : List U64} {ci : Fl4Spec.CapRef}
     {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
-    (h : JUtPathMU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarry Z.B H σ) :
+    (h : JUtPathMU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarryS Z.B H σ) :
     JUtPathM (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct :=
   ⟨h.fan, h.vtx, h.core0, hC.bufObj, ⟨hC.archFit, h.unref⟩, h.vsReach, h.rcb⟩
 
@@ -160,7 +160,7 @@ theorem JDevPathU16.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     {σ : Fl4Spec.State Unit} {lbl length p sb fi : U64} {blk call don fp : Bool} {buf : U64}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data} {argsU : List U64} {ci : Fl4Spec.CapRef}
     {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
-    (h : JDevPathU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarry Z.B H σ) :
+    (h : JDevPathU16 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarryS Z.B H σ) :
     JDevPathU12 (L := L) arI AR Z H Cs D s ar σ lbl length p sb fi blk call don fp buf extra slbl argsU ci sl excaps buffer ct :=
   ⟨h.fan, h.vtx, h.core0, hC.bufObj, ⟨hC.archFit, h.unref⟩, h.devApart, h.devFree, h.vsReach, h.rcb⟩
 
@@ -168,13 +168,13 @@ theorem JAsidCPathU16.toA {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
     {σ : Fl4Spec.State Unit} {lbl length : U64} {blk call don fp : Bool} {buf : U64}
     {extra : Aeneas.Std.Array obj.Slot 3#usize} {slbl : Fl4Spec.Data} {argsU : List U64} {ci : Fl4Spec.CapRef}
     {sl : Fl4Spec.CslotPtr} {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {buffer : Option Fl4Spec.ObjRef} {ct : U64}
-    (h : JAsidCPathU16 (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarry Z.B H σ) :
+    (h : JAsidCPathU16 (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct) (hC : JCarryS Z.B H σ) :
     JAsidCPath (L := L) AR Z H Cs D s ar σ lbl length blk call don fp buf extra slbl argsU ci sl excaps buffer ct :=
   ⟨⟨hC.archFit, h.unref⟩, h.vsReach⟩
 
 set_option maxHeartbeats 4000000 in
 theorem JPathAtMU16.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {ar : A}
-    {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64} (hC : JCarry Z.B H σ)
+    {σ : Fl4Spec.State Unit} {ct : U64} {ic bl cd fp : Bool} {cptr : U64} (hC : JCarryS Z.B H σ)
     (h : JPathAtMU16 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr) :
     JPathAtMU12 (L := L) arI AR Z H Cs D s ar σ ct ic bl cd fp cptr := by
   intro info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13
@@ -185,7 +185,7 @@ theorem JPathAtMU16.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   all_goals exact hP
 
 theorem KDispHypsKVU16.toU12 {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs D : Set U64} {s : S} {a : A}
-    {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall} (hC : JCarry Z.B H σ)
+    {σ : Fl4Spec.State Unit} {n : I64} {c : Fl4Spec.Syscall} (hC : JCarryS Z.B H σ)
     (h : KDispHypsKVU16 (L := L) arI AR Z H Cs D s a σ n c) : KDispHypsKVU12 (L := L) arI AR Z H Cs D s a σ n c :=
   ⟨fun ct call bl don hct hi => let ⟨e, p⟩ := h.inv ct call bl don hct hi; ⟨e, p.toU12 hC⟩,
     fun ct rg sr cr hct hm => let ⟨e, p⟩ := h.mid ct rg sr cr hct hm; ⟨e, p.toU12 hC⟩⟩
@@ -262,7 +262,7 @@ theorem kernel_entry_reachU16 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
     kernel_entry_reachU15 arI AR MR hARI hA hnd hM hKD hIo hIoa hPA hIA hT hmax htu hRef hPI hSX hDR hJ
   refine ⟨Z, H, Cs, Ac, Lst, D, J, hX, hW, hI, hN, hR, hFl, hPg,
     fun n c hct hn hfl hK hDL hFin => hSys n c hct hn hfl (fun σb hb V' Ac' Lst' D' s' a' hF J' =>
-      (hK σb hb V' Ac' Lst' D' s' a' hF J').toU12 J'.carry) hDL hFin, hIrq, hUs, hVm, hTr, hSU⟩
+      (hK σb hb V' Ac' Lst' D' s' a' hF J').toU12 J'.carry.toS) hDL hFin, hIrq, hUs, hVm, hTr, hSU⟩
 
 end
 

@@ -843,18 +843,6 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
-  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
-  have JZ := J.add_frame
-    (Z' := { Z with
-      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
-      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
-      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
-      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} })
-    rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
-    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
-      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
-    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl
@@ -876,6 +864,19 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · rw [if_neg hN] at e
         split_ifs at e
         exact Or.inl e.symm
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have JZ := J.add_frame
+    (Z' := { Z with
+      G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
+      L3 := Z.L3 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 7},
+      L2 := Z.L2 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 13},
+      L1 := Z.L1 ∪ {q | q ∈ winSet Aw (2 ^ zOf nt.val us.val) win.val ∧ nt.val = 12} })
+    rfl rfl rfl hwI.1 hXT ⟨hCs.del, hCs.ut, hCs.finM, hCs.sfree⟩
+    ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
+      hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
+    hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
+    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP ⟨hDA', devSep_retypeD J.carry.devSep hE hCs.ut
+      (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

@@ -168,7 +168,7 @@ structure JAtZS (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   /-- [carried] As `JAtZ.zD`. -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
   /-- [carried] As `JAtZ.carry`. -/
-  carry : JCarry Z.B H σ
+  carry : JCarry (L := L) Z H Cs s σ
 
 /-- `JAtS`: `JAtZS` at a state (the ghosts existential). -/
 def JAtS (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=
