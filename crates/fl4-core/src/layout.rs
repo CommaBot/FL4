@@ -139,6 +139,10 @@ pub mod ks {
     /// CPU features the core needs to know (set at boot).
     pub const FEATURES: u64 = 72;
     pub const FEATURE_NX: u64 = 1;
+    /// x86_64: every core takes 1 GiB pages (CPUID Page1GB), which the
+    /// kernel window then uses; without it native mappings of 1 GiB
+    /// frames are refused.
+    pub const FEATURE_HUGE_PAGES: u64 = 2;
     pub const VCPU_HEAD: u64 = 80;
     // Bytes 88..192 are free.
     /// Domain schedule: (domain, duration) pairs.

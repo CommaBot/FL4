@@ -30,6 +30,7 @@ const REJECT_FPU: u8 = 4;
 const REJECT_TIMER: u8 = 5;
 const REJECT_TLB: u8 = 6;
 const REJECT_CR4: u8 = 7;
+const REJECT_PAGING: u8 = 8;
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -42,9 +43,14 @@ pub struct Features {
     pub cr4: u64,
     pub window_top: u64,
     pub efer_nx: bool,
+    /// The window uses 1 GiB pages (`paging::init`'s `huge`).
+    pub huge: bool,
+    /// The top of what the kernel maps or user space may map: RAM in the
+    /// window and device memory (`device_top`), not only the window.
+    pub paddr_top: u64,
 }
 
-static mut FEATURES: Features = Features { window_top: 0, cr4: 0, efer_nx: false };
+static mut FEATURES: Features = Features { window_top: 0, cr4: 0, efer_nx: false, huge: false, paddr_top: 0 };
 
 /// PIT ticks for about `us` microseconds.
 fn pit_us(us: u64) -> u16 {
@@ -135,6 +141,7 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
                 REJECT_TIMER => "TSC-deadline timer missing on this core",
                 REJECT_TLB => "PCID or INVPCID missing on this core",
                 REJECT_CR4 => "SMEP, SMAP or FSGSBASE missing on this core",
+                REJECT_PAGING => "1 GiB pages missing, or physical addresses narrower than the system's, on this core",
                 _ => "virtualization features differ between cores",
             });
             // VMX/SVM may already be active on other cores. Keep them at
@@ -176,6 +183,10 @@ pub fn release_aps() {
 extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
     if snp::active() { snp::register_cpu(); }
+    // Natively before the boot core's tables, whose 1 GiB pages and
+    // addresses a core without them faults on with no IDT; on SNP (CPUID
+    // by #VC) once the core's own IDT is in, below.
+    if !snp::active() && !cpu::core_paging_supported(f.huge, f.paddr_top) { reject_ap(REJECT_PAGING); }
     cpu::write_cr3(paging::root_paddr());
     // Natively before CR4.PCIDE, SMEP, SMAP and FSGSBASE, which fault on a
     // core without them, with no IDT yet to catch it (OSXSAVE and VMXE are
@@ -189,6 +200,7 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     gdt::init_core(c as usize, stack_top);
     if snp::active() && !fl4_arch_x86_64::tlb::core_supported() { reject_ap(REJECT_TLB); }
     if snp::active() && !cpu::core_cr4_supported(f.cr4) { reject_ap(REJECT_CR4); }
+    if snp::active() && !cpu::core_paging_supported(f.huge, f.paddr_top) { reject_ap(REJECT_PAGING); }
     cpu::init_pat();
     if !fpu::init(false) { reject_ap(REJECT_FPU); }
     if !fl4_arch_x86_64::spec::init_core(false) { reject_ap(REJECT_SPEC); }
