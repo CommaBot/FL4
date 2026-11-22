@@ -488,6 +488,7 @@ theorem ioport_control_refines (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
         (fun _ _ _ _ _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
+        (fun _ _ => by rw [hcap4 _ hAd.isSlot, if_pos rfl]; trivial)
           (by rw [hcap4 _ hAd.isSlot, if_pos rfl]; exact fun h => by cases h)
           (fun _ _ _ h => by rw [hcap4 _ hAd.isSlot, if_pos rfl] at h; cases h))
   have hkeep := capInsert_keeps (absCap (.IoPort first last 0#u64)) (ps.bv, idxs) (pd.bv, db) σ2 ((), σ')

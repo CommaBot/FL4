@@ -431,7 +431,8 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     (hvf : Vs.vtF (capV (L.mem s') (cslotAddr (pc.bv, idx))) = Vs.vtF (capV (L.mem s) (cslotAddr (pc.bv, idx))))
     (hl : ∀ y, IsSlot Z.th y → L.mem s' (wordOf y 16#u64) = L.mem s (wordOf y 16#u64) ∧
       L.mem s' (wordOf y 24#u64) = L.mem s (wordOf y 24#u64))
-    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s')) :
+    (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 L3' L2' L1' (L.mem s'))
+    (hgr : Z.L3 ⊆ L3' ∧ Z.L2 ⊆ L2' ∧ Z.L1 ⊆ L1') :
     JAtZ (L := L) arI AR (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) H Cs Ac Lst D s' a' σ' := by
   set x := cslotAddr (pc.bv, idx) with hxdef
   have hkb : L.ksb s' = L.ksb s := hW.1
@@ -670,6 +671,20 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) F.idle hKd
     (fun sl h => by first | rwa [F.orig] at h | rwa [← F.orig] at h)
     (fun y hy => LSim.of_shape (hS y hy))
+  -- `vsTyp` after (jc3): the invoked slot's cap of the same object key, the
+  -- others kept; the spec's arch objects of the same type; the sets grown
+  have hTT : ∀ R, Vs.TabSlots Z.th R (L.mem s) → Vs.TabSlots Z.th R (L.mem s') := fun R h y hy => by
+    by_cases e : y = x
+    · rw [e]; exact (h x (by rw [← e]; exact hy)).of_okey hok
+    · rw [hcap y hy e]; exact h y hy
+  have hAF : ArchFwd σ σ' := fun p ao hp => by
+    rcases F.kh p with e | ⟨a0, a1, h1, h2, ht⟩ | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+    · exact ⟨ao, by rw [e]; exact hp, rfl⟩
+    · rw [hp] at h1; cases h1; exact ⟨a1, h2, ht⟩
+    · rw [hp] at h1; cases h1
+    · rw [hp] at h1; cases h1
+  have hvy : VsTyp (L := L) (Z.mv Z.G (Z.P, Z.L4, L3', L2', L1')) s' σ' :=
+    J.carry.vsTyp.step hTT (tabSet_mono hgr.2.2 hgr.2.1 hgr.1) subset_rfl rfl hkb hAF
   exact J.cs_frameV (V' := (Z.P, Z.L4, L3', L2', L1')) hkb hX' F.kback hbf ⟨hJC.del, hJC.ut, hJC.finM, hJC.sfree⟩ R
     hvc ⟨fun y hy => by
       by_cases e : y = x
@@ -683,7 +698,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · rw [hp] at h1; cases h1; rw [h2, aaType_userData.1 ht]
       · rw [hp] at h1; cases h1
       · rw [hp] at h1; cases h1),
-      J.carry.archFit.frame F.ksz⟩ (devFrom_kept J.mdbL hM' J.ut hUK)
+      J.carry.archFit.frame F.ksz⟩ (devFrom_kept J.mdbL hM' J.ut hUK) hvy
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/
@@ -702,6 +717,7 @@ theorem JAtZ.vsStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hvc : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s')) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a' σ' :=
   J.vsStepJX Ap hpc hidx (TabsArch.empty σ) (L3' := Z.L3) (L2' := Z.L2) (L1' := Z.L1) hX' F (hW.mono fun _ h => Or.inl h) hcap hsh hok hnu hvf hl hvc
+    ⟨subset_rfl, subset_rfl, subset_rfl⟩
 
 end
 

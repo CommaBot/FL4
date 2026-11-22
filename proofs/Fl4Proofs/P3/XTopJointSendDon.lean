@@ -391,6 +391,7 @@ theorem dn_ipcFr : IpcFrKeep σ (dnSt σ t d p xt xd y n) :=
   IpcFrKeep.of_kbackF (dn_kback hkt hkd hkp htd hpt hpd)
     (fun q x hq => by obtain ⟨sc, h⟩ := dn_tcbF hkt hkd hkp htd hpt hpd hq; exact ⟨_, h, rfl, rfl⟩)
     (fun q vms => dn_oth hkt hkd hkp htd hpt hpd (fun _ e => by cases e) (fun _ _ e => by cases e))
+    (fun q ao h => (dn_oth hkt hkd hkp htd hpt hpd (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h)
 
 theorem dn_ck :
     (∀ q y' m, σ.kheap q = some (.schedContext y' m) → ∃ y'', (dnSt σ t d p xt xd y n).kheap q =

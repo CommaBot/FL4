@@ -210,7 +210,8 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
       Vs.VCapW P L4 L3 L2 L1 (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
     (hft : ∀ U : Nat → Prop, Vs.FrSlots Z.th U (L.mem s) →
       Vs.FrIn U (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
-    (hnt : Vs.VsNat Z.th (L.mem s) → Vs.NativeCap (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
+    (hnt : Vs.VsNat Z.th (L.mem s) → Vs.NativeCap (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n))))
+    (htt : ∀ R, Vs.TabSlots Z.th R (L.mem s) → Vs.TabR R (capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)))) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZ (L := L) arI AR (Z.mv G' Z.vs) H Cs Ac' Lst' D' s' a σ' := by
   have hX := J.xtop
@@ -290,7 +291,8 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     · rw [h] at h1; cases h1
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex n)) (fun y hy hn => hcap y hy hn)
-      (fun y _ e => by subst e; exact hvt) (fun y _ e => by subst e; exact hft) fun y _ e => by subst e; exact hnt
+      (fun y _ e => by subst e; exact hvt) (fun y _ e => by subst e; exact hft) (fun y _ e => by subst e; exact hnt)
+      fun y _ e => by subst e; exact htt
   have hbf : JBuf (L := L) Z s' σ' := by
     have hpgf : ∀ q vms, σ.kheap q = some (.archObj (.dataPage false vms)) →
         σ'.kheap q = some (.archObj (.dataPage false vms)) := fun q vms h => by
@@ -319,7 +321,7 @@ theorem JAtZ.insTJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
       exact ⟨y0, hy0, (zombie_of_shape hsh0 hz).trans hz⟩
     · exact ⟨y, hy, by rw [← hcap y hy e]; exact hz⟩) hp)
   exact ⟨Ac, Lst, D, J.cs_frameV hw.1 hX1 (KBack.of_keepCT hkc) hbf hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
-    hLv' hzD (J.carry.of_objCn hkc) (devFrom_kept J.mdbL hM' J.ut hUK)⟩
+    hLv' hzD (J.carry.of_objCn hkc) (devFrom_kept J.mdbL hM' J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkc))⟩
 
 set_option maxHeartbeats 8000000 in
 /-- **`IpcBufCapOK` after SetIPCBuffer/Configure's frame insert** (decision 2
@@ -953,6 +955,7 @@ theorem install_tcb_capJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A �
         rw [hdst]; exact h.copy hAsrc.isSlot (by rw [hsrc1]; exact hv) (by rw [hsrc1]; exact htu))
       (fun U h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
       (fun h => by rw [hdst]; exact hnat (by rw [← hsrc1]; exact h _ hAsrc.isSlot))
+      (fun R h => by rw [hdst]; exact (h _ hAsrc.isSlot).of_okey (by rw [hsrc1]; exact hkey))
     have hmem : ((), σ') ∈ (Fl4Spec.capInsert (Z := Unit) (absCap nc) (ps.bv, idxs)
         (t.bv, Fl4Spec.tcbCnodeIndex n) σ1).1 := by rw [hins]; rfl
     have hcn := capInsert_nkn _ _ _ σ1 _ hmem
@@ -1136,6 +1139,9 @@ theorem install_bufferJ [Fl4Proofs.P1.PlainStore st] {kb : U64} {W : S → A →
           (fun h => by
             obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, hnt'⟩ := hbfr c' sl rfl
             rw [hdst]; exact hnt' (by rw [← hsrc1]; exact h _ hsrcIs))
+          (fun R h => by
+            obtain ⟨-, -, -, -, -, -, -, -, -, -, -, hk', -, -⟩ := hbfr c' sl rfl
+            rw [hdst]; exact (h _ hsrcIs).of_okey (by rw [hsrc1]; exact hk'))
         have hmem' : ((), σ4) ∈ (Fl4Spec.capInsert (Z := Unit) (absCap c') sl
             (t.bv, Fl4Spec.tcbCnodeIndex 2) σ2).1 := by rw [hins]; rfl
         have hcn := capInsert_nkn _ _ _ σ2 _ hmem'

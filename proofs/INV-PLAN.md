@@ -480,7 +480,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | C1 | `stall` | `∀ q, remote_tcb_stall s a q = ok (s, a)` | [P]/[S] one core | — | 1 |
 | C2 | `ioapics` | `num_ioapics a = σ.x64NumIoapics` | [P] (arch state vs spec arch state; could join `MR`) | — | 1 |
 | C3 | `archIrq` | `ArchIrqRel`: `num`, `pins` (per IOAPIC pin counts = spec), `map`/`mapr`/`mask` succeed (∀ a) | [P] | — | 1 |
-| C4 | `vsTyp` | every slot's mapped PT/PD/PDPT cap whose table is in no set: spec table of that kind there + `OffFrame` | [J] (g5a: not carried; L) | `valid_cap` typ_at, `pspace_distinct` | 1, ∀gh (`V'` sets) |
+| C4 | `vsTyp` | every slot's mapped PT/PD/PDPT cap whose table is in no set: spec table of that kind there + `OffFrame` | [J] → **discharged at U20** (jc3: `JCarry.vsTyp`, `JAtZ.offTabOK`) | `valid_cap` typ_at, `pspace_distinct` | 1, ∀gh (`V'` sets) |
 
 `JPathAtM36E` (∀ the front-end values, which are unique; per native cap `c` in the invoked slot — `Vs.NativeCap c` is a
 premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
@@ -560,7 +560,15 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU19`** (jc2, XTopJointKEntryU19) = U18 without C25 `devApart`:
+**Top of record: `SInvR.G5.kernel_entry_reachU20`** (jc3, XTopJointKEntryU20) = U19 without C4 `vsTyp`:
+`KDispHypsKVU20` asks `JEntryAtR7` (= `JEntryAtR6` without `vsTyp`); `KDispHypsKVU20.toU19 J'` fills `vsTyp` from the
+dispatch state's own `JAtZ` (`JAtZ.offTabOK`: the carried `JCarry.vsTyp` — every table cap's table off its set a spec
+table of its level, its frame off core `Z.c`'s node, the kernel-state block's `OObj` part, the ASID-table area and
+`Z.B`'s words — with the rest of `OffFrame` from `H`'s disjointness). `JReachU17` unchanged. At U20 the [J] leaves are
+C16 / C22 / C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach (**[J] 6**); **[W] 0**. Premises added relative
+to U11: none (`JCarry.vsTyp` is part of the start `JAtZ`, as `bufPg`/`archFit`/`devSep`). Superseded by U20: U19.
+
+Previous top (superseded by U20): `SInvR.G5.kernel_entry_reachU19` (jc2, XTopJointKEntryU19) = U18 without C25 `devApart`:
 `JDevPathU19` = `JDevPathU18` without `devApart`, filled by `KDispHypsKVU19.toU18 J'.carry` from the dispatch
 state's `JAtZ.carry.devApart` (KENTRY-PLAN jc2). `JReachU17` unchanged. At U19 the [J] leaves are C4, C16 / C22 /
 C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach (**[J] 7**); **[W] 0**. Premises added relative to U11:

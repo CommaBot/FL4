@@ -62,7 +62,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   obtain ⟨hC, Ac', Lst', D', hDD, R⟩ := hR hUt
   have hvT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s') :=
     Vs.VsSlotsT.of_some (· = cslotAddr sl) (fun y hy hn => hoth y hy hn)
-      (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) (fun y _ e _ _ => by rw [e, hx0]; trivial) fun y _ e _ => by rw [e, hx0]; trivial
+      (fun y _ e _ _ _ _ _ _ => by rw [e, hx0]; trivial) (fun y _ e _ _ => by rw [e, hx0]; trivial) (fun y _ e _ => by rw [e, hx0]; trivial) fun y _ e _ _ => by rw [e, hx0]; trivial
   have hpp : PPR0 σ' := hp0.of_ppk (PPK.of_cnK hnk)
   -- the slots in use after
   set x := cslotAddr sl with hx
@@ -133,6 +133,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
     ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
     (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J0.ut (utKept_ins hoth fun p0 sb0 fi0 d0 h => by rw [hx0] at h; cases h))
+    (J0.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hks (ArchFwd.of_objCn hnk.2))
   exact ⟨⟨V, Ac', Lst', D', J', hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg,
     hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
 

@@ -523,9 +523,143 @@ theorem IdleH.drop {H : P1.Heap} {s : S} {lo hi : Nat} (h : IdleH (L := L) H s)
         rw [hk]; simp only [Option.elim, not_not]
         exact hoff q hq k hk
 
+/-! ### jc3: `vsTyp` (C4) -/
+
+/-- (jc3) Every spec arch object kept, of the same type (`IpcFrKeep.arch`). -/
+def ArchFwd (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ p ao, σ.kheap p = some (.archObj ao) → ∃ ao', σ'.kheap p = some (.archObj ao') ∧
+    Fl4Spec.aaType ao' = Fl4Spec.aaType ao
+
+theorem ArchFwd.of_ipcFr {σ σ' : Fl4Spec.State Unit} (h : IpcFrKeep σ σ') : ArchFwd σ σ' := h.arch
+
+theorem ArchFwd.of_eq {σ σ' : Fl4Spec.State Unit} (h : ∀ q ao, σ.kheap q = some (.archObj ao) →
+    σ'.kheap q = some (.archObj ao)) : ArchFwd σ σ' := fun p ao hp => ⟨ao, h p ao hp, rfl⟩
+
+/-- The spec type of a level-`k` table (`1` page table, `2` page directory, `3` PDPT). -/
+def tabT : Nat → Fl4Spec.AAType
+  | 1 => .aPageTable
+  | 2 => .aPageDirectory
+  | 3 => .aPDPointerTable
+  | _ => .aPageMapL4
+
+/-- A table of `tabT k` is a page (`2 ^ 12` bytes). -/
+theorem objBits_tabT {ao : Fl4Spec.ArchKernelObj} {k : Nat} (h : Fl4Spec.aaType ao = tabT k) :
+    Fl4Spec.objBits (.archObj ao) = 12 := by
+  show Fl4Spec.archKobjSize ao = 12
+  rw [archKobjSize_aaSize, h]
+  unfold tabT; split <;> rfl
+
+/-- The set of `Z` holding the level-`k` tables (`univ` at other levels). -/
+def tabSet (Z : XSets) (k : Nat) : Set U64 :=
+  if k = 1 then Z.L1 else if k = 2 then Z.L2 else if k = 3 then Z.L3 else Set.univ
+
+theorem tabSet_mono {Z Z' : XSets} (h1 : Z.L1 ⊆ Z'.L1) (h2 : Z.L2 ⊆ Z'.L2) (h3 : Z.L3 ⊆ Z'.L3) (k : Nat) :
+    tabSet Z k ⊆ tabSet Z' k := by
+  unfold tabSet; split_ifs
+  · exact h1
+  · exact h2
+  · exact h3
+  · exact subset_rfl
+
+/-- **A table frame off the fixed kernel areas and `Z.B`'s words** (jc3): no
+byte of `[q, q + 4096)` in core `Z.c`'s node, in the kernel-state block's
+`OObj` part, in the ASID-table area, or in a word of `Z.B`. -/
+def OffK (Z : XSets) (s : S) (q : U64) : Prop :=
+  ∀ b : U64, q.val ≤ b.val → b.val < q.val + 4096 →
+    ¬ ((L.ksb s).val + 13568 + Z.c.val * 4288 ≤ b.val ∧ b.val < (L.ksb s).val + 13568 + Z.c.val * 4288 + 4288) ∧
+    ¬ ((L.ksb s).val ≤ b.val ∧ b.val < (L.ksb s).val + 13568 ∧
+      (b.val < (L.ksb s).val + 1248 ∨ (L.ksb s).val + 5344 ≤ b.val)) ∧
+    ¬ ((L.ksb s).val + 288000 ≤ b.val ∧ b.val < (L.ksb s).val + 288000 + 16384) ∧
+    ∀ wp ∈ Z.B, ¬ (wp.1.val ≤ b.val ∧ b.val < wp.1.val + 8)
+
+/-- **A level-`k` table named by a cap, when not in its set** (jc3): a spec
+table of that level there, its frame `OffK`. -/
+def OffR (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) (k : Nat) (q : U64) : Prop :=
+  q ∉ tabSet Z k →
+    (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) ∧ OffK (L := L) Z s q
+
+/-- **[C4, carried] Every slot's table cap's table off its set is a spec table
+with its frame `OffK`** (l4v `valid_cap` typ_at, `pspace_distinct`; XTopJointVsOff's
+`OffTabOK` follows at a `JAtZ` state, JCarryVsTyp's `JAtZ.offTabOK`). -/
+def VsTyp (Z : XSets) (s : S) (σ : Fl4Spec.State Unit) : Prop :=
+  Vs.TabSlots Z.th (OffR (L := L) Z s σ) (L.mem s)
+
+/-- The new words of `B'` miss every spec table's frame (`B` grown by a
+frame retype: the new pages in the retype's window, apart from old objects). -/
+def BNewOff (B B' : Set (U64 × Fl4Spec.Word)) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ (k : Nat) (q : U64), (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) →
+    ∀ wp ∈ B', wp ∈ B ∨ ∀ b : U64, q.val ≤ b.val → b.val < q.val + 4096 → ¬ (wp.1.val ≤ b.val ∧ b.val < wp.1.val + 8)
+
+theorem BNewOff.of_sub {B B' : Set (U64 × Fl4Spec.Word)} {σ : Fl4Spec.State Unit} (h : B' ⊆ B) :
+    BNewOff B B' σ := fun _ _ _ _ hw => Or.inl (h hw)
+
+theorem OffR.mono' {Z Z' : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} {k : Nat} {q : U64}
+    (h : OffR (L := L) Z s σ k q) (hL : tabSet Z k ⊆ tabSet Z' k) (hB : BNewOff Z.B Z'.B σ) (hc : Z'.c = Z.c)
+    (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') : OffR (L := L) Z' s' σ' k q := by
+  intro hq
+  obtain ⟨⟨ao, h1, h2⟩, hO⟩ := h fun h' => hq (hL h')
+  obtain ⟨ao', h1', h2'⟩ := hA _ ao h1
+  refine ⟨⟨ao', h1', h2'.trans h2⟩, fun b g1 g2 => ?_⟩
+  rw [hks, hc]
+  obtain ⟨a1, a2, a3, a4⟩ := hO b g1 g2
+  refine ⟨a1, a2, a3, fun wp hw => ?_⟩
+  rcases hB k q ⟨ao, h1, h2⟩ wp hw with hw | hw
+  · exact a4 wp hw
+  · exact hw b g1 g2
+
+theorem OffR.mono {Z Z' : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} {k : Nat} {q : U64}
+    (h : OffR (L := L) Z s σ k q) (hL : tabSet Z k ⊆ tabSet Z' k) (hB : Z'.B ⊆ Z.B) (hc : Z'.c = Z.c)
+    (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') : OffR (L := L) Z' s' σ' k q :=
+  h.mono' hL (BNewOff.of_sub hB) hc hks hA
+
+/-- An unmapped table cap placed at `Z`'s sets (`VCapW`) names a table of its
+set, so `OffR` holds of it vacuously. -/
+theorem offR_of_un {Z : XSets} {s : S} {σ : Fl4Spec.State Unit} {c : capability.Cap}
+    (hv : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 c) (hu : Vs.TabUn c) : Vs.TabR (OffR (L := L) Z s σ) c := by
+  cases c with
+  | PageTable q mp a v => exact fun hq => absurd (hv.1 hu) (by simpa [tabSet] using hq)
+  | PageDirectory q mp a v => exact fun hq => absurd (hv.1 hu) (by simpa [tabSet] using hq)
+  | Pdpt q mp a v => exact fun hq => absurd (hv.1 hu) (by simpa [tabSet] using hq)
+  | _ => trivial
+
+/-- A cap that is no mapped table cap (`TabUn` or no table cap). -/
+def MapFree (c : capability.Cap) : Prop := Vs.TabUn c ∨ ∀ R, Vs.TabR R c
+
+theorem mapFree_of_un {c : capability.Cap} (hv : MapFree c) {Z : XSets} {s : S} {σ : Fl4Spec.State Unit}
+    (hvc : Vs.VCapW Z.P Z.L4 Z.L3 Z.L2 Z.L1 c) : Vs.TabR (OffR (L := L) Z s σ) c :=
+  hv.elim (offR_of_un hvc) fun h => h _
+
+/-- `VsTyp` across a step: the table caps step by `TabSlots` (`hT`, at every
+`R`), the sets kept or grown, `B` kept or shrunk, the kernel-state base kept,
+the spec's arch objects kept (`ArchFwd`). -/
+theorem VsTyp.step {Z Z' : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : VsTyp (L := L) Z s σ)
+    (hT : ∀ R, Vs.TabSlots Z.th R (L.mem s) → Vs.TabSlots Z'.th R (L.mem s'))
+    (hL : ∀ k, tabSet Z k ⊆ tabSet Z' k) (hB : Z'.B ⊆ Z.B) (hc : Z'.c = Z.c)
+    (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') : VsTyp (L := L) Z' s' σ' := by
+  intro y hy
+  exact Vs.TabR.imp (fun k q h => h.mono (hL k) hB hc hks hA) (hT _ h y hy)
+
+/-- The newer form at a slot step whose new caps are no mapped table caps
+or placed at the sets after (`hvc`), the old ones kept (`hold`). -/
+theorem VsTyp.stepN {Z Z' : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : VsTyp (L := L) Z s σ)
+    (hvc : Vs.VsSlotsW Z'.th Z'.P Z'.L4 Z'.L3 Z'.L2 Z'.L1 (L.mem s'))
+    (hold : ∀ y, IsSlot Z'.th y → MapFree (capV (L.mem s') y) ∨ ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s') y = capV (L.mem s) y0)
+    (hL : ∀ k, tabSet Z k ⊆ tabSet Z' k) (hB : BNewOff Z.B Z'.B σ) (hc : Z'.c = Z.c)
+    (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') : VsTyp (L := L) Z' s' σ' := by
+  intro y hy
+  rcases hold y hy with hf | ⟨y0, hy0, e⟩
+  · exact mapFree_of_un hf (hvc y hy)
+  · rw [e]; exact Vs.TabR.imp (fun k q h => h.mono' (hL k) hB hc hks hA) (h y0 hy0)
+
+/-- `VsTyp` across a step keeping the slots (`VsSlotsT`), the typed heap and the sets. -/
+theorem VsTyp.frame {Z : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : VsTyp (L := L) Z s σ)
+    (hT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s')) (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') :
+    VsTyp (L := L) Z s' σ' :=
+  h.step (fun _ h => h.step hT) (tabSet_mono subset_rfl subset_rfl subset_rfl) subset_rfl rfl hks hA
+
 /-- **The joint facts carried for the [J] leaves** (KENTRY-PLAN g7b-4; jc1b
 step 1: `bufPg`, `archFit` = `JCarryS`; jc2 step 3: `devApart` (C25) with
-`devSep`). -/
+`devSep`; jc3 step 4: `vsTyp` (C4)). -/
 structure JCarry (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
   /-- C21, C24 bufObj, in its carried form (`JCarry.bufObj`). -/
   bufPg : BufPgHyp Z.B σ
@@ -535,22 +669,41 @@ structure JCarry (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.
   devApart : DevApart (L := L) Z.th H Z.G Cs s
   /-- RAM and device untyped ranges apart (what keeps `devApart` across a RAM retype). -/
   devSep : DevSep Z.G (L.mem s)
+  /-- C4 (jc3): every table cap's table off its set a spec table, its frame `OffK`. -/
+  vsTyp : VsTyp (L := L) Z s σ
 
 theorem JCarry.toS {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : JCarryS Z.B H σ := ⟨h.bufPg, h.archFit⟩
 
 theorem JCarryS.withD {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
-    (h : JCarryS Z.B H σ) (hD : DevApart (L := L) Z.th H Z.G Cs s) (hS : DevSep Z.G (L.mem s)) :
-    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS⟩
+    (h : JCarryS Z.B H σ) (hD : DevApart (L := L) Z.th H Z.G Cs s) (hS : DevSep Z.G (L.mem s))
+    (hV : VsTyp (L := L) Z s σ) :
+    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS, hV⟩
 
 theorem JCarryS.withP {Z : XSets} {B : Set (U64 × Fl4Spec.Word)} {th : TypedHeap} {G : MdbGhost} {H : P1.Heap}
     {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
-    (h : JCarryS B H σ) (hD : DevApart (L := L) th H G Cs s ∧ DevSep G (L.mem s))
+    (h : JCarryS B H σ) (hD : DevApart (L := L) th H G Cs s ∧ DevSep G (L.mem s)) (hV : VsTyp (L := L) Z s σ)
     (hB : B = Z.B := by rfl) (hth : th = Z.th := by rfl) (hG : G = Z.G := by rfl) : JCarry (L := L) Z H Cs s σ := by
-  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2⟩
+  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2, hV⟩
 
 theorem JCarry.bufObj {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : BufObjHyp Z.B σ := bufObj_of_pg h.bufPg
+
+/-- **`vsTyp` across a step** at sets `Z'` with `Z`'s typed heap, the
+VSpace table sets kept or grown, `B` kept or shrunk (`VsTyp.step`). -/
+theorem JCarry.vsStep {Z Z' : XSets} {H : P1.Heap} {Cs : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarry (L := L) Z H Cs s σ) (hth : Z'.th = Z.th) (hT : Vs.VsSlotsT Z.th (L.mem s) (L.mem s'))
+    (h1 : Z.L1 ⊆ Z'.L1) (h2 : Z.L2 ⊆ Z'.L2) (h3 : Z.L3 ⊆ Z'.L3) (hB : Z'.B ⊆ Z.B) (hc : Z'.c = Z.c)
+    (hks : L.ksb s' = L.ksb s) (hA : ArchFwd σ σ') : VsTyp (L := L) Z' s' σ' :=
+  h.vsTyp.step (fun R hR => by rw [hth]; exact hR.step hT) (tabSet_mono h1 h2 h3) hB hc hks hA
+
+/-- `JCarry.vsStep` at the same sets (but the MDB ghost), the slots kept. -/
+theorem JCarry.vsSame {Z Z' : XSets} {H : P1.Heap} {Cs : Set U64} {s s' : S} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarry (L := L) Z H Cs s σ) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hks : L.ksb s' = L.ksb s)
+    (hA : ArchFwd σ σ') (hth : Z'.th = Z.th := by rfl) (h1 : Z.L1 ⊆ Z'.L1 := by exact subset_rfl)
+    (h2 : Z.L2 ⊆ Z'.L2 := by exact subset_rfl) (h3 : Z.L3 ⊆ Z'.L3 := by exact subset_rfl)
+    (hB : Z'.B ⊆ Z.B := by exact subset_rfl) (hc : Z'.c = Z.c := by rfl) : VsTyp (L := L) Z' s' σ' :=
+  h.vsStep hth (Vs.VsSlotsT.of_eq fun _ hy => hSS.capV hy) h1 h2 h3 hB hc hks hA
 
 /-- The σ part across a frame step (`JCarryS.frame`). -/
 theorem JCarry.frame {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ σ' : Fl4Spec.State Unit}

@@ -251,6 +251,66 @@ theorem frame_top_of_reg {q r a va : U64} {sz : capability.FrameSize} {d m ep : 
   rw [bs, ts, hw] at hreg; rw [ts, hw]
   exact nowrap64 hq hpos (Nat.pow_le_pow_right (by decide) (by omega)) hreg
 
+/-! ### jc3: the table caps' ranges and the sets' table frames -/
+
+theorem physF_pt (q : U64) (mp : Bool) (a v : U64) : physF (.PageTable q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pt (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageTable q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pt (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageTable q mp a v) = 12#u64 := ok_inj (size_eq _).symm
+theorem physF_pd (q : U64) (mp : Bool) (a v : U64) : physF (.PageDirectory q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pd (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageDirectory q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pd (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageDirectory q mp a v) = 12#u64 :=
+  ok_inj (size_eq _).symm
+theorem physF_pdpt (q : U64) (mp : Bool) (a v : U64) : physF (.Pdpt q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pdpt (q : U64) (mp : Bool) (a v : U64) : ptrF (.Pdpt q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pdpt (q : U64) (mp : Bool) (a v : U64) : sizeF (.Pdpt q mp a v) = 12#u64 := ok_inj (size_eq _).symm
+
+/-- **A page-sized cap's range when it does not wrap** (`UtInv.reg`). -/
+theorem tab_top {c : capability.Cap} {q : U64} (hp : ptrF c = q) (hs : sizeF c = 12#u64)
+    (hreg : baseF c ≤ topF c) : topF c = q.val + 4095 ∧ q.val + 4096 ≤ 2 ^ 64 := by
+  have hm : (maskF (sizeF c)).val = 2 ^ 12 - 1 := by rw [hs, maskF_val (by decide)]; rfl
+  have hq : q.val < 2 ^ 64 := q.hBounds
+  have hw : topF c = (q.val + (2 ^ 12 - 1)) % 2 ^ 64 := by
+    unfold topF; rw [hp, core.num.U64.wrapping_add_val_eq, hm]; simp [U64.size_def, U64.numBits]
+  have hb : baseF c = q.val := by unfold baseF; rw [hp]
+  rw [hb, hw] at hreg
+  have h := nowrap64 hq (show 0 < 2 ^ 12 by decide) (by decide) hreg
+  rw [hw, h.1]; exact ⟨by norm_num, by have := h.2; norm_num at this; omega⟩
+
+/-- **A table frame of the sets misses the ASID-table area** (`TopPlaced.pv`:
+no table word is an ASID-table word). -/
+theorem asid_off {P L4 L3 L2 L1 : Set U64} {ksb q : U64}
+    (hpv : ∀ b, Vs.PtWAll L4 L3 L2 L1 b → ¬ Vs.VsWrite P ksb b) (hq : q ∈ L4 ∨ q ∈ L3 ∨ q ∈ L2 ∨ q ∈ L1)
+    (hqa : q.val % 4096 = 0) (hqf : q.val + 4096 ≤ 2 ^ 64) (hk8 : ksb.val % 8 = 0)
+    (hkf : ksb.val + 288000 + 16384 ≤ 2 ^ 64) :
+    q.val + 4096 ≤ ksb.val + 288000 ∨ ksb.val + 288000 + 16384 ≤ q.val := by
+  by_contra hn
+  obtain ⟨b0, g1, g2, g3, g4, g5⟩ : ∃ b0 : Nat, q.val ≤ b0 ∧ b0 < q.val + 4096 ∧ ksb.val + 288000 ≤ b0 ∧
+      b0 < ksb.val + 288000 + 16384 ∧ b0 % 8 = 0 :=
+    ⟨max q.val (ksb.val + 288000), by omega, by omega, by omega, by omega, by omega⟩
+  have e1 : ∀ v : BitVec 64, (⟨v⟩ : U64).val = v.toNat := fun _ => rfl
+  have hiv : (⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ : U64).val = (b0 - q.val) / 8 := by
+    rw [e1, BitVec.toNat_ofNat]; omega
+  have hhv : (⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ : U64).val = (b0 - ksb.val - 288000) / 8 := by
+    rw [e1, BitVec.toNat_ofNat]; omega
+  have hi : (⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ : U64).val < 512 := by rw [hiv]; omega
+  have hh : (⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ : U64).val < 2048 := by rw [hhv]; omega
+  have e : Vs.peA q ⟨BitVec.ofNat 64 ((b0 - q.val) / 8)⟩ = Vs.atA ksb ⟨BitVec.ofNat 64 ((b0 - ksb.val - 288000) / 8)⟩ :=
+    UScalar.eq_of_val_eq (by rw [Vs.peA_val hqf hi, Vs.atA_val hkf hh, hiv, hhv]; omega)
+  exact hpv _ ⟨q, hq, _, hi, rfl⟩ (Or.inl ⟨_, hh, e⟩)
+
+/-- **A table of the sets: its frame `OffK`** (`TopPlaced.disj`: the frame is
+`VObj`, so no `OObj` word; `asid_off`). -/
+theorem JAtZ.offK_of_set (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q : U64}
+    (hq : q ∈ Z.L3 ∨ q ∈ Z.L2 ∨ q ∈ Z.L1) : OffK (L := L) Z s q := by
+  have hP := J.xtop.fin.1.2
+  have hqa : q.val % 4096 = 0 := hP.pt q (Or.inr hq)
+  have hasid := asid_off hP.pv (Or.inr hq) hqa (Vs.tbl_fit hqa) hP.vs.ksb_al hP.vs.ksb_fit
+  intro b g1 g2
+  have hv : Vs.VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b := Or.inr (Or.inr (Or.inl ⟨q, Or.inr (Or.inr hq), g1, g2⟩))
+  have hno : ¬ Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b := fun ho => hP.disj b ho hv
+  exact ⟨fun h => hno (Or.inl h), fun h => hno (Or.inr (Or.inl h)), fun h => by omega,
+    fun wp hw h => hno (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, h.1, h.2⟩)))))))⟩
+
 section Rg
 variable {p sb : U64} (hsb : sb.val < 64) (hfit : p.val + 2 ^ sb.val ≤ 2 ^ 64)
 include hsb hfit
@@ -764,6 +824,84 @@ theorem JAtZ.dropBuf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
       exact hUF a (by omega) (by omega) (h0 hd a h1 h2)
     | _ => trivial
 
+/-- (jc3) **A table cap's table misses a childless untyped cap's region**
+(as `FrameOffJ`: `UtInv.drange` + `MdbInv.anc_ut`). -/
+theorem JAtZ.tabOff (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {fi : U64} {dv : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    {y : U64} (hy : IsSlot Z.th y) {q : U64} (hp : ptrF (capV (L.mem s) y) = q)
+    (hs : sizeF (capV (L.mem s) y) = 12#u64) (hph : physF (capV (L.mem s) y) = true)
+    (hnu : isUt (capV (L.mem s) y) = false) : q.val + 4096 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ q.val := by
+  obtain ⟨-, ⟨-, -, hML, -, hI⟩, -⟩ := J.xtop.rel
+  have hrx := J.ut.reg x hx (by rw [hcx]; exact physF_ut _ _ _ _)
+  rw [hcx] at hrx
+  obtain ⟨x1, x2, -⟩ := ut_range hsb hrx
+  have hne : capV (L.mem s) y ≠ .Null := fun h => by rw [h, physF_null] at hph; cases hph
+  have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy, _, capAt_capV _ _, hne⟩
+  have hyx : y ≠ x := by rintro rfl; rw [hcx] at hnu; cases hnu
+  obtain ⟨t1, -⟩ := tab_top hp hs (J.ut.reg y hyG hph)
+  have hb : baseF (capV (L.mem s) y) = q.val := by unfold baseF; rw [hp]
+  by_cases hdj : Disj (capV (L.mem s) y) (capV (L.mem s) x)
+  · unfold Disj at hdj; rw [t1, hb, hcx, x1, x2] at hdj
+    have := Nat.one_le_two_pow (n := sb.val)
+    omega
+  · rcases J.ut.drange x hx p sb fi dv hcx y hyG hyx hph hdj with e | e
+    · exact absurd e (hnd y)
+    · have := hI.anc_ut e (by rw [hcx]; rfl); rw [hnu] at this; cases this
+
+set_option maxHeartbeats 4000000 in
+/-- (jc3) **`vsTyp` across the drop**: a table cap's table misses the region
+(`JAtZ.tabOff`), so its spec table is kept; a table pruned from its set was a
+spec table of its kind (`PtRel`) with its frame `OffK` (`JAtZ.offK_of_set`);
+`B` only shrinks. -/
+theorem JAtZ.dropVsTyp (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {fi : U64} {dv : Bool} (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x)
+    {σ' : Fl4Spec.State Unit} (hD : SDrop (RgOf p sb) σ σ') :
+    VsTyp (L := L) ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s σ' := by
+  have key : ∀ y, IsSlot Z.th y → ∀ (k : Nat) (q : U64), ptrF (capV (L.mem s) y) = q →
+      sizeF (capV (L.mem s) y) = 12#u64 → physF (capV (L.mem s) y) = true → isUt (capV (L.mem s) y) = false →
+      (q ∈ tabSet Z k → (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) ∧ OffK (L := L) Z s q) →
+      OffR (L := L) Z s σ k q →
+      OffR (L := L) ((Z.keep (KOff (RgOf p sb)) (KBOf p sb)).dropV p.val (p.val + 2 ^ sb.val) (L.mem s)) s σ' k q := by
+    intro y hy k q hp hs hph hnu hsp hO _
+    have hoff := J.tabOff hsb hfit hx hcx hnd hy hp hs hph hnu
+    have hor : ¬ RgOf p sb q.bv := fun hr => by
+      have := (rgOf_iff hsb hfit q).1 hr; omega
+    have hold : (∃ ao, σ.kheap q.bv = some (.archObj ao) ∧ Fl4Spec.aaType ao = tabT k) ∧ OffK (L := L) Z s q := by
+      by_cases hq0 : q ∈ tabSet Z k
+      · exact hsp hq0
+      · exact hO hq0
+    obtain ⟨⟨ao, h1, h2⟩, hK⟩ := hold
+    refine ⟨⟨ao, by rw [hD.kout _ hor]; exact h1, h2⟩, fun b g1 g2 => ?_⟩
+    obtain ⟨a1, a2, a3, a4⟩ := hK b g1 g2
+    exact ⟨a1, a2, a3, fun wp hw => a4 wp hw.1⟩
+  have hPt := J.xtop.fin.2.2.1
+  intro y hy
+  have hy0 : IsSlot Z.th y := hy.of_restrict
+  have hO := J.carry.vsTyp y hy0
+  cases hc : capV (L.mem s) y with
+  | PageTable q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 1 q (by rw [hc, ptrF_pt]) (by rw [hc, sizeF_pt]) (by rw [hc, physF_pt]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L1 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l1 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inr (Or.inr h'))⟩
+  | PageDirectory q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 2 q (by rw [hc, ptrF_pd]) (by rw [hc, sizeF_pd]) (by rw [hc, physF_pd]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L2 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l2 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inr (Or.inl h'))⟩
+  | Pdpt q mp a v =>
+    rw [hc] at hO
+    refine key y hy0 3 q (by rw [hc, ptrF_pdpt]) (by rw [hc, sizeF_pdpt]) (by rw [hc, physF_pdpt]) (by rw [hc]; rfl)
+      (fun h => ?_) hO
+    have h' : q ∈ Z.L3 := by simpa [tabSet] using h
+    obtain ⟨f, hf, -⟩ := hPt.l3 q h'
+    exact ⟨⟨_, hf, rfl⟩, J.offK_of_set (Or.inl h')⟩
+  | _ => trivial
+
 end Rg
 
 /-- **The reset's facts of `UtCapP3.rst` for any free index**: at a
@@ -923,7 +1061,8 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩),
     hcy.withP ⟨J.carry.devApart.frame (fun q k h => (restrictTh_some h).1) (fun q k h => drop_some h) rfl
       (DevFrom.of_eq fun _ _ => rfl)
-      (J.idleH.drop fun q hq k hk => (J.jcov.idleOut _ hx p sb fi hcx q hq).2.2 k hk), J.carry.devSep⟩⟩
+      (J.idleH.drop fun q hq k hk => (J.jcov.idleOut _ hx p sb fi hcx q hq).2.2 k hk), J.carry.devSep⟩
+      (J.dropVsTyp hsb hfit hx hcx hnd hD)⟩
 
 /-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

@@ -297,6 +297,7 @@ theorem ps_ipcFr : IpcFrKeep σ (pushSt σ t w xr xt) :=
   IpcFrKeep.of_kbackF (ps_kback hkt hkw hwt)
     (fun q x hq => by obtain ⟨ts, h⟩ := ps_tcbF hkt hkw hwt hq; exact ⟨_, h, rfl, rfl⟩)
     (fun q vms => ps_oth hkt hkw hwt (fun _ e => by cases e) (fun _ e => by cases e))
+    (fun q ao h => (ps_oth hkt hkw hwt (fun _ e => by cases e) (fun _ e => by cases e)).2 h)
 
 theorem ps_ck :
     (∀ q y' m, σ.kheap q = some (.schedContext y' m) → ∃ y'', (pushSt σ t w xr xt).kheap q =

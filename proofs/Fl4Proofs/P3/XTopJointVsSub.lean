@@ -301,7 +301,8 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         intro _ x hx1 hx2
         rw [hS] at hx2
         exact h0 rfl x (by omega) (by rw [hL]; omega))
-      fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap]
+      (fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap])
+      fun y _ e _ _ => by subst e; rw [hdc, hcdef]; trivial
   have hZf : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
       ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n := fun y hy p zt n h => by
     by_cases e : y = dest
@@ -328,7 +329,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
       hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp)) (J.carry.of_objCn hkcT)
-      (devFrom_kept J.mdbL hS'.M J.ut hUK)⟩
+      (devFrom_kept J.mdbL hS'.M J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkcT))⟩
 
 end
 

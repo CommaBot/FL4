@@ -16669,3 +16669,60 @@ Module builds jc2-m1..m7 (tokyo); full build jc2-full2: `Build completed success
 0 `sorry`. `#print axioms` (../axjc2.lean): U3L, UH2, U4..U18 and **U19**, `sniHyp_of`, `sendHyp_of`,
 `scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`; every existing top keeps its statement.
 No sorry / admit / native_decide / bv_decide / axiom in the changed files.
+
+## jc3 (branch par/jc3 from 355d556e = PR #66 head, top of record `kernel_entry_reachU19`) — g7b-4 step 4 DONE: `JCarry.vsTyp` (C4 DISCHARGED, new top `kernel_entry_reachU20`); no premise added; no FINDING
+
+### (1) Done
+- **Carried form (JCarryDefs).** Not `OffTabOK` itself (its `OffFrame` mentions every set and the typed heap, so
+  every retype / VSpace step would owe disjointness from its new objects), but the part that does not follow from
+  `H`: `VsTyp Z s σ := Vs.TabSlots Z.th (OffR Z s σ) (L.mem s)`, where for **every** table cap (mapped or not;
+  `Vs.TabR` reads only the object key) of level `k` naming `q`, `OffR Z s σ k q := q ∉ tabSet Z k →
+  (spec arch object at `q` of type `tabT k`) ∧ OffK Z s q`, and `OffK` = no byte of `[q, q+4096)` in core `Z.c`'s
+  node, in the kernel-state block's `OObj` part, in the ASID-table area `[ksb+288000, +16384)`, or in a word of `Z.B`.
+  New `JCarry` field `vsTyp`; `JCarryS.withP` / `withD` take it as an extra argument.
+- **Derivation at the dispatch state** (XTopJointKEntryU20 `JAtZ.offFrame`, `JAtZ.offTabOK`): the table is an
+  `other 12` object of `H` (`SpecCover.arch` + `ArchFitHyp` + `objBits_tabT`), so 4 KiB-aligned (`HeapOK.align`) and
+  apart (`HeapOK.disj`) from the sets' TCBs/EPs/replies/NTFNs (`zH`), SCs of `Z.C` (`JPlaced.sc`, `c0`), the typed
+  heap's TCBs and CNodes (`JPlaced.tcb/cnode`; a CNode is a spec CNode, `StateRel.cnode`, so not at `q`) and the
+  sets' tables/pools (`vsFr_other`; not `q` by the spec type, `PtRel` / `VsRel.pool`, and `q ∉` its own set);
+  the rest is `OffK`.
+- **Two frame vehicles extended (internal signatures changed):**
+  * `IpcFrKeep` has a 4th field `arch` (every spec arch object kept, same `aaType`; `ArchFwd`). All constructors
+    updated (`refl/trans/of_kheap/of_epStep/of_updTcb/of_fresh/of_otk/of_slot2/of_chg/of_keepC`, `ArFr.ipcFr`,
+    `ScOnly.ipcFr`, MakePool's). `of_updObj` takes `hpa` (an overwritten arch object keeps its type);
+    `of_kbackF` takes `hA`; `ObjFrK` has a 4th clause (arch kept), `objFrK_other` a 4th argument defaulting to
+    `by intro _ e; cases e`.
+  * `Vs.VsSlotsT` has a 4th component `∀ R, TabSlots th R m → TabSlots th R m'` (`TabR`, `TabSlots`,
+    `TabR.of_okey`, `TabR.imp`); `VsSlotsT.of_some` takes `ht`; `vsSlotsT_insert/move/swap` prove it from `okey`;
+    `Steps.insert` and `JAtZ.insTJ` take `htt` (callers: from the copy's `okey`, or the IRQ/IO-port cap trivially).
+- **Sites:** `cs_frameVD/cs_frameV/cs_frameB` (JAtZ and JAtZR) take `hvy : VsTyp (Z.mv G' V') s' σ'`;
+  `cs_frame/cs_frameD/cs_frameI/cs_frameIS/cs_frameK` compute it (`JCarry.vsStep` / `vsSame`); callers of
+  `cs_frameV/B` (WJL, WJLEmpty, WJLSwap, Grant, TcbInstall, VsSub) by `vsStep … (ArchFwd.of_objCn …)`; sc/sch frames
+  (`sc_frame`, `sch_frame`, FinScReply, JAtZRA, JAtZRM, FaultM) by `vsSame`. `vsStepJX` takes `hgr` (table sets
+  grown; VsOff: `∪ W`), the invoked slot by `okey`, `ArchFwd` from `VsSFr.kh`. Retypes (UtEpRet/ScRet/UtRet/PmRet/
+  CnRet/TcbRet/DevUt/DevRet) by `VsTyp.stepN` with `retype_hold` (`RetExp`: old caps kept, untyped, or `newCapOf`,
+  never a mapped table cap: `mapFree_newCapOf`) and `BNewOff` (UtEpRet: the new frame words lie in the window,
+  apart from old spec tables by `hspec1`). MakePool by `VsTyp.step`. Drops (UtDropJ2 `dropA`, UtDevDrop `dropAD`)
+  by `JAtZ.dropVsTyp`: every table cap's table misses the childless untyped's region (`JAtZ.tabOff`:
+  `UtInv.drange` + `MdbInv.anc_ut` with the table caps' range lemmas `ptrF_pt/sizeF_pt/physF_pt…`, `tab_top`), so
+  the spec table is kept (`SDrop.kout`); a table pruned from its set was a `PtRel` table with `OffK` from
+  `TopPlaced.disj` and `asid_off` (`TopPlaced.pv`).
+- **Why it holds in reachable states:** a table cap's table is a live spec table of its kind (l4v `valid_cap`
+  typ_at); its frame is one spec arch object, disjoint from kernel globals, the IPC-buffer pages and every other
+  object (`pspace_distinct`, kernel window); it is detyped only with its untyped's region, which a live cap prevents
+  (`untyped_mdb` / `descendants_range`). It is part of the carried start `JAtZ` (lead decision), as `devSep`.
+- **`kernel_entry_reachU20`** (XTopJointKEntryU20) = U19 with `KDispHypsKVU20` (`JEntryAtR7` = `JEntryAtR6` without
+  `vsTyp`); `KDispHypsKVU20.toU19 J'` fills it by `J'.offTabOK`. Removed relative to U19: C4. Added: none.
+  `JReachU17` unchanged.
+
+### (2) Remaining [J] at U20
+C16 / C22 / C24 heapH (`RegionUnrefAt` halves: g7b-4 `unref`, step 6), C17, C23, C24 vsReach (g7b-4 `vsNamed`,
+step 5). `vsNamed` can reuse jc3's machinery: the `TabSlots` component of `VsSlotsT`, `JAtZ.tabOff` and
+`JAtZ.offK_of_set`.
+
+### (3) Builds and axioms
+Full builds jc3-full2..5 (tokyo; full2..4 stopped at errors: `State` namespace, `Vs.` prefixes, `hfk` name, the
+`L` argument of `JEntryAtR7`); jc3-full5: `Build completed successfully (7295 jobs)`, 0 `error`, 0 `sorry`.
+`#print axioms` (../axjc3.lean): U3L, UH2, U4..U19 and **U20**, `sniHyp_of`, `sendHyp_of`, `scCtxStepP1`,
+`scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`; every existing top keeps its statement. No sorry /
+admit / native_decide / bv_decide / axiom in the changed files.

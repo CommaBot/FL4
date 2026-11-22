@@ -292,7 +292,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
       · subst e; rw [hcap'] at hc2; cases hc2
       · exact ⟨z, hz, fi2, le_rfl, by rw [← hco z ((hM.members z).1 hz).1 e]; exact hc2⟩, hUF⟩ hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e) (fun y _ e _ _ _ _ _ _ => by
-      rw [e, hcap']; exact Vs.vcapW_ut rfl) (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
+      rw [e, hcap']; exact Vs.vcapW_ut rfl) (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial) (fun y _ e _ _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
     hLS.1 (fun p hp => J.zD p (hLS.2 p hp))
 
 end

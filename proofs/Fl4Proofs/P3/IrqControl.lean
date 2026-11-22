@@ -258,6 +258,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
         (fun _ _ _ _ _ _ => by rw [hcap2 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ _ => by rw [hcap2 _ hAd.isSlot, if_pos rfl]; trivial)
         (fun _ => by rw [hcap2 _ hAd.isSlot, if_pos rfl]; trivial)
+        (fun _ _ => by rw [hcap2 _ hAd.isSlot, if_pos rfl]; trivial)
           (by rw [hcap2 _ hAd.isSlot, if_pos rfl]; exact fun h => by cases h)
           (fun _ _ _ h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h))
   refine ⟨σ2, G2, ?_, ⟨hR2, hV2, hM2, hC2, hI2⟩, ⟨fun i hi => ?_, fun i hi => ?_⟩, hkb2, hFI2, ?_, hFRG, hstp⟩

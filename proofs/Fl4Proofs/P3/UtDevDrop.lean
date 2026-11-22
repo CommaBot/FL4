@@ -220,7 +220,8 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
           · rw [J.idleH.1] at hk; cases hk
           · rcases J.idleH.2 with e0 | ⟨z', e0⟩
             · rw [e0, J.kern.h0] at hk; cases hk
-            · rw [e0] at hk; cases hk), J.carry.devSep⟩⟩
+            · rw [e0] at hk; cases hk), J.carry.devSep⟩
+      (J.dropVsTyp hsb hfit hx hcx hnd hD)⟩
 
 end
 

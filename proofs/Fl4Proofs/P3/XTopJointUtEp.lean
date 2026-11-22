@@ -220,6 +220,37 @@ theorem Vs.VsNat.retype {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : Md
       exact h y ((hM.members y).1 hy0).1
   · rw [hE.newc j hj]; exact hn j hj
 
+/-- An untyped cap is no mapped table cap. -/
+theorem mapFree_ut {c : capability.Cap} (h : isUt c = true) : MapFree c :=
+  Or.inr fun _ => by cases c <;> first | trivial | (simp [isUt] at h)
+
+/-- A retype's new cap is no mapped table cap (its table caps are unmapped). -/
+theorem mapFree_newCapOf (n : Nat) (base us : U64) (dev : Bool) : MapFree (newCapOf n base us dev) :=
+  newCapOf_ind MapFree n base us dev (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inl rfl) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial) (fun _ => Or.inr fun _ => trivial)
+    (fun _ => Or.inl rfl) (fun _ => Or.inl rfl) (Or.inr fun _ => trivial)
+
+/-- **The slots after a retype** (`RetExp`; jc3, for `VsTyp.stepN`): an old
+slot's cap kept, an untyped cap, a new cap (no mapped table cap by `hn`) or
+null. -/
+theorem retype_hold {th th' th2 : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {A0 k w : Nat}
+    {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64}
+    (hE : RetExp th th' m m' G G' A0 k w dslot cj xs)
+    (hM : MdbLinks th m G) (hM' : MdbLinks th2 m' G')
+    (hn : ∀ j, j < w → MapFree (cj j)) :
+    ∀ y, IsSlot th2 y → MapFree (capV m' y) ∨ ∃ y0, IsSlot th y0 ∧ capV m' y = capV m y0 := by
+  intro y hy
+  by_cases hnull : capV m' y = .Null
+  · rw [hnull]; exact Or.inl (Or.inr fun _ => trivial)
+  have hy' : y ∈ G'.chains.flatten := (hM'.members y).2 ⟨hy, _, capAt_capV m' y, hnull⟩
+  rcases hE.gmem y hy' with hy0 | ⟨j, hj, rfl⟩
+  · by_cases hu : isUt (capV m y) = true
+    · exact Or.inl (mapFree_ut (hE.utk y hy0 hu))
+    · exact Or.inr ⟨y, ((hM.members y).1 hy0).1, (hE.keep y hy0 (by simpa using hu)).2⟩
+  · rw [hE.newc j hj]; exact Or.inl (hn j hj)
+
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

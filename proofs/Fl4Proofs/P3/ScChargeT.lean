@@ -319,7 +319,7 @@ theorem ScOnly.prio (h : ScOnly c σ σ') (u : ObjRef) : prioOf σ' u = prioOf �
 
 theorem ScOnly.ipcFr (h : ScOnly c σ σ') : IpcFrKeep σ σ' := by
   refine ⟨fun t x' hx => Or.inr ⟨x', h.tcbB hx, rfl, rfl⟩, fun p vms hp => h.othF hp (fun _ _ e => by cases e),
-    fun p vms hp => h.othB hp (fun _ _ e => by cases e)⟩
+    fun p vms hp => h.othB hp (fun _ _ e => by cases e), fun p ao hp => ⟨ao, h.othF hp (fun _ _ e => by cases e), rfl⟩⟩
 
 end
 

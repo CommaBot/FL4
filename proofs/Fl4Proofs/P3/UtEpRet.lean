@@ -955,6 +955,15 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   have hWr : ∀ a, Wn a → p.val + fiv.val ≤ a.val ∧ a.val + 8 ≤ p.val + 2 ^ sb.val := by
     intro a ha; obtain ⟨-, g1, g2, -⟩ := (hWn a).1 ha; omega
   have hWf : ∀ a, Wn a → nt.val = 9 ∨ nt.val = 10 ∨ nt.val = 11 := fun a ha => ((hWn a).1 ha).1
+  -- jc3: the new words miss every old spec table (`hspec1`: off the window)
+  have hBN' : BNewOff Z.B B' σ := fun k q ⟨ao, hq, ht⟩ wp hw => by
+    rcases hBN wp hw with h | ⟨ha, -⟩
+    · exact Or.inl h
+    · refine Or.inr fun b g1 g2 hb => ?_
+      have h1 := hspec1 _ _ hq
+      rw [objBits_tabT ht, UScalar.bv_toNat] at h1
+      have h2 := hWr _ ha
+      omega
   have hfr0' : ∀ wp ∈ Z.B, wp.1.val + 8 ≤ p.val + fiv.val ∨ p.val + 2 ^ sb.val ≤ wp.1.val :=
     fun wp hw => hBF wp hw _ hxG p sb fiv (capV_of_capAt hcap)
   have hinj : ∀ wp ∈ B', ∀ wq ∈ B', (wp.1 = wq.1 ↔ wp.2 = wq.2) := by
@@ -1185,7 +1194,9 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     hKsB J.thT hIpB hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
     ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP (devRetypeR J.carry.devApart J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
-      hwI.1 (idleH_of hXB hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h])))
+      hwI.1 (idleH_of hXB hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
+      (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) hBN' rfl hwI.1 (fun q ao h => (IpcFrKeep.of_keepC hkc).arch _ _ (hA.kold h))))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

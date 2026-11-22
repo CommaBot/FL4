@@ -974,7 +974,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   -- region's (absent) objects gone; the source an untyped cap, the
   -- destination a pool cap
   have hfk : IpcFrKeep σ σ' := by
-    refine ⟨fun t x' hx => ?_, fun q vms hq => ?_, fun q vms hq => ?_⟩
+    refine ⟨fun t x' hx => ?_, fun q vms hq => ?_, fun q vms hq => ?_, fun q ao hq => ?_⟩
     · rcases F.kh t with e | ⟨r, cs, cs', -, e⟩ | ⟨-, a0, e⟩
       · exact Or.inr ⟨x', by rw [← e]; exact hx, rfl, rfl⟩
       · rw [hx] at e; cases e
@@ -989,6 +989,10 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         · rw [← e]; exact hq
         · rw [hq] at e; cases e
         · rw [hq] at e; cases e
+    · rcases F.kh q with e | ⟨r, cs, cs', e0, -⟩ | ⟨e0, -⟩
+      · exact ⟨ao, by rw [e]; exact hq, rfl⟩
+      · rw [hq] at e0; cases e0
+      · rw [hq] at e0; cases e0
   have hbf : JBuf (L := L) (Z.mp G' p) s' σ' := by
     refine ⟨J.bok.keep hfk, J.fcov.ipcFr hfk, fun y hy => ?_⟩
     by_cases e1 : y = cslotAddr (pp.bv, idx)
@@ -1085,7 +1089,14 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
             · exact absurd e hqp
             · exact h
           · intro h; exact Or.inr ⟨hqp, h⟩),
-       J.carry.devSep.frame (devFrom_kept J.mdbL hM' J.ut hUK).2⟩)
+       J.carry.devSep.frame (devFrom_kept J.mdbL hM' J.ut hUK).2⟩
+      (J.carry.vsTyp.step (fun R h y hy => by
+        by_cases e1 : y = cslotAddr (pp.bv, idx)
+        · rw [e1, hsrc]; trivial
+        by_cases e2 : y = cslotAddr (pd.bv, idxd)
+        · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
+        · rw [hcap y hy e1 e2]; exact h y hy) (tabSet_mono subset_rfl subset_rfl subset_rfl) subset_rfl rfl hks
+        (ArchFwd.of_ipcFr hfk)))
 
 end
 
