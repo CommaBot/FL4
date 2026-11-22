@@ -214,7 +214,7 @@ theorem nv_makePool {σ : State Unit} (hP : P3 N σ) {frame : ObjRef} {slot pare
         · exact h
       rw [hcdt3']
       rcases hI.1.2.2.2.1 parent u dev frame page_bits fi d b n f (Ne.symm hu) hc hus' ⟨_, hfr0, hrd'⟩ with
-        ⟨hd, -⟩ | ⟨hd, hr⟩
+        ⟨hd, -⟩ | ⟨hd, hr, -⟩
       · exact absurd hd (desc_noKids hk)
       · exact ⟨hd, hr _ hfr0⟩
   have hN4 : NV N (uV z4.2) := hv_capInsertPool hfit z3.2 hpre z4 hz4

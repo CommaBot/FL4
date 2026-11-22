@@ -159,7 +159,7 @@ def ItemU (w : UView) (src : CslotPtr) (bS : ObjRef) (nS fS sz : Nat) (x : Cslot
     (∀ q, w.1 q = true → q.toNat ∉ utR x.2 sz) ∧ (sz ≤ untypedMaxBits ∧ x.2.toNat % 2 ^ sz = 0) ∧
     (∀ sl d b n f, sl ≠ src → sl ≠ x.1 → w.2.1 sl = some (.untypedCap d b n f) →
       (∃ k, k ∈ utR x.2 sz ∧ k ∈ utR b n) →
-      src ∈ descendantsOf sl w.2.2.1 ∧ ∀ k ∈ utR bS nS, k ∉ utFr b n f)
+      src ∈ descendantsOf sl w.2.2.1 ∧ (∀ k ∈ utR bS nS, k ∉ utFr b n f) ∧ ∀ k ∈ utR bS nS, k ∈ utR b n)
 
 /-- Disjoint regions of size `2^sz`. -/
 def RDisj (sz : Nat) (x y : CslotPtr × ObjRef) : Prop := ∀ k, k ∈ utR x.2 sz → k ∉ utR y.2 sz
@@ -347,7 +347,7 @@ theorem invokeUntyped_utInv' {σ : State Unit} (hI : UtInv' σ) {s : CslotPtr} {
     · rw [hw6, vCap_cap, if_neg hs1] at hcs
       obtain ⟨k0, hk0, hk0'⟩ := hov
       rcases hI.1.2.2.2.1 s sl dev base bits fi d b n f (Ne.symm hs1) hc hcs ⟨k0, utFr_sub (hin k0 hk0).1, hk0'⟩ with
-        ⟨-, hr⟩ | ⟨hd, hr⟩
+        ⟨-, hr, -⟩ | ⟨hd, hr⟩
       · exact absurd (hin k0 hk0).1 (hr k0 hk0')
       · exact ⟨by rw [hw6]; exact hd, hr⟩
   · -- caps that are not untyped

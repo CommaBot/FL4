@@ -132,7 +132,7 @@ theorem utInv'_ccU {w : UView} (hI : UtInv'V w) {src dest : CslotPtr} (hne : des
     (hWf : bits ≤ untypedMaxBits ∧ p.toNat % 2 ^ bits = 0)
     (hAn : ∀ sl d b n f, sl ≠ src → sl ≠ dest → w.2.1 sl = some (.untypedCap d b n f) →
       (∃ k, k ∈ utR p bits ∧ k ∈ utR b n) →
-      src ∈ descendantsOf sl w.2.2.1 ∧ ∀ k ∈ utR bS nS, k ∉ utFr b n f) :
+      src ∈ descendantsOf sl w.2.2.1 ∧ (∀ k ∈ utR bS nS, k ∉ utFr b n f) ∧ ∀ k ∈ utR bS nS, k ∈ utR b n) :
     UtInv'V (vCC src dest (.untypedCap dev p bits 0) w) := by
   obtain ⟨⟨hF, hW, hD, hDe, hOr⟩, hO, hA⟩ := hI
   have hv : (some src : Option CslotPtr) ≠ some dest := fun e => hne (Option.some.inj e).symm
@@ -146,19 +146,20 @@ theorem utInv'_ccU {w : UView} (hI : UtInv'V w) {src dest : CslotPtr} (hne : des
   have side : ∀ s d b n f, s ≠ dest → (vCC src dest (.untypedCap dev p bits 0) w).2.1 s = some (.untypedCap d b n f) →
       (∀ k, k ∈ utR p bits → k ∉ utFr b n f) ∧
       ((∃ k, k ∈ utR p bits ∧ k ∈ utR b n) →
-        dest ∈ descendantsOf s (vCC src dest (.untypedCap dev p bits 0) w).2.2.1 ∧ ∀ k, k ∈ utR p bits → k ∉ utFr b n f) := by
+        dest ∈ descendantsOf s (vCC src dest (.untypedCap dev p bits 0) w).2.2.1 ∧ (∀ k, k ∈ utR p bits → k ∉ utFr b n f) ∧
+          ∀ k, k ∈ utR p bits → k ∈ utR b n) := by
     intro s d b n f hs1 hc
     rw [hcap s hs1] at hc
     by_cases e : s = src
     · subst e; rw [hs] at hc; cases hc
-      refine ⟨fun k hk => (hR k hk).2, fun _ => ⟨?_, fun k hk => (hR k hk).2⟩⟩
+      refine ⟨fun k hk => (hR k hk).2, fun _ => ⟨?_, fun k hk => (hR k hk).2, fun k hk => (hR k hk).1⟩⟩
       exact Relation.TransGen.single (show Function.update w.2.2.1 dest (some s) dest = some s by
         rw [Function.update_self])
     · have hno : ∀ k, k ∈ utR p bits → k ∉ utFr b n f := by
         intro k hk hk2
-        obtain ⟨-, h2⟩ := hAn s d b n f e hs1 hc ⟨k, hk, utFr_sub hk2⟩
+        obtain ⟨-, h2, -⟩ := hAn s d b n f e hs1 hc ⟨k, hk, utFr_sub hk2⟩
         exact h2 k (hR k hk).1 hk2
-      refine ⟨hno, fun hov => ⟨?_, hno⟩⟩
+      refine ⟨hno, fun hov => ⟨?_, hno, fun k hk => (hAn s d b n f e hs1 hc hov).2.2 k (hR k hk).1⟩⟩
       obtain ⟨h1, -⟩ := hAn s d b n f e hs1 hc hov
       have h1' := hdesc s src (Ne.symm hne) h1
       exact Relation.TransGen.tail h1' (show Function.update w.2.2.1 dest (some src) dest = some src by

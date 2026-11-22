@@ -47,7 +47,8 @@ def RSV (src : CslotPtr) (dev : Bool) (b : ObjRef) (n : Nat) (t : Cdt) (w : UVie
   ((∃ f, w.2.1 src = some (.untypedCap dev b n f)) ∨ w.1 src.1 = false) ∧
   (∀ q, w.1 q = true → q.toNat ∉ utR b n) ∧ w.2.2.1 = t ∧ (∀ c, t c ≠ some src) ∧
   (∀ s2 d2 b2 n2 f2, s2 ≠ src → w.2.1 s2 = some (.untypedCap d2 b2 n2 f2) →
-    (∀ k ∈ utR b n, k ∉ utFr b2 n2 f2) ∧ ((∃ k, k ∈ utR b n ∧ k ∈ utR b2 n2) → src ∈ descendantsOf s2 t)) ∧
+    (∀ k ∈ utR b n, k ∉ utFr b2 n2 f2) ∧ ((∃ k, k ∈ utR b n ∧ k ∈ utR b2 n2) →
+      src ∈ descendantsOf s2 t ∧ ∀ k ∈ utR b n, k ∈ utR b2 n2)) ∧
   n ≤ untypedMaxBits ∧ b.toNat % 2 ^ n = 0
 
 /-- **`set_cap` of the source with any free index up to its size.** -/
@@ -86,13 +87,13 @@ theorem rs_setCap {w : UView} (hI : UtInv'V w) {src : CslotPtr} {dev : Bool} {b 
     by_cases e1 : s1 = src
     · subst e1; rw [if_pos rfl] at hc1; rw [if_neg (Ne.symm hne)] at hc2; cases hc1
       have := h5 s2 _ _ _ _ (Ne.symm hne) hc2
-      exact Or.inr ⟨this.2 hov, this.1⟩
+      exact Or.inr ⟨(this.2 hov).1, this.1, (this.2 hov).2⟩
     · rw [if_neg e1] at hc1
       by_cases e2 : s2 = src
       · rw [if_pos e2] at hc2; cases hc2; subst e2
         have := h5 s1 _ _ _ _ e1 hc1
         obtain ⟨k, hk1, hk2⟩ := hov
-        exact Or.inl ⟨this.2 ⟨k, hk2, hk1⟩, this.1⟩
+        exact Or.inl ⟨(this.2 ⟨k, hk2, hk1⟩).1, this.1, (this.2 ⟨k, hk2, hk1⟩).2⟩
       · rw [if_neg e2] at hc2; rw [← h3]; exact hDe s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hne hc1 hc2 hov
   · intro sl d b' n' f' hc
     rw [vCap_cap] at hc
@@ -162,9 +163,9 @@ theorem rsv_mk {σ : State Unit} (hI : UtInv' σ) {src : CslotPtr} {dev : Bool} 
   refine ⟨h1, h2, hcdt, hk, fun s2 d2 b2 n2 f2 hne hc2 => ?_, hW1, hW2⟩
   have hc2' := hsub s2 _ hc2
   refine ⟨UtDesc.noKids hI.1.2.2.2.1 hc hk (Ne.symm hne) hc2', fun hov => ?_⟩
-  rcases hI.1.2.2.2.1 src s2 dev b n fi d2 b2 n2 f2 (Ne.symm hne) hc hc2' hov with ⟨hd, -⟩ | ⟨hd, -⟩
+  rcases hI.1.2.2.2.1 src s2 dev b n fi d2 b2 n2 f2 (Ne.symm hne) hc hc2' hov with ⟨hd, -⟩ | ⟨hd, -, hin⟩
   · exact absurd hd (desc_noKids hk)
-  · exact hd
+  · exact ⟨hd, hin⟩
 
 theorem prfi_mem {i c f n : Nat} {l : List Nat}
     (hi : i ∈ (l.filter (fun i => decide (i * 2 ^ c < f))).reverse) (hf : f ≤ 2 ^ n) : i * 2 ^ c ≤ 2 ^ n := by

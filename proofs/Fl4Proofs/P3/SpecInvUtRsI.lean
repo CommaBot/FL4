@@ -148,7 +148,8 @@ theorem invokeUntyped_reset_utInv' {σ : State Unit} (hI : UtInv' σ) (hDT : Det
     · rw [hw6] at hcs'
       have h5 := hR4.2.2.2.2.1 sl d b n f hs1 hcs'
       obtain ⟨k0, hk0, hk0'⟩ := hov
-      refine ⟨by rw [hw6]; show s ∈ descendantsOf sl x4.2.cdt; rw [hcdt4]; exact h5.2 ⟨k0, (hreg k0 hk0).1, hk0'⟩, h5.1⟩
+      refine ⟨by rw [hw6]; show s ∈ descendantsOf sl x4.2.cdt; rw [hcdt4]; exact (h5.2 ⟨k0, (hreg k0 hk0).1, hk0'⟩).1, h5.1,
+        (h5.2 ⟨k0, (hreg k0 hk0).1, hk0'⟩).2⟩
   · refine hv_ccLoop hty sz s dev _ (uV x6.2) (by rw [hv6]; exact hI5)
       ⟨.untypedCap dev base bits (rb.toNat + slots.length * 2 ^ (fl4ObjBitsApi ty sz) - base.toNat), ?_,
         by intro h; cases h⟩ (fun x hxm => ?_) x6.2 rfl _ hx

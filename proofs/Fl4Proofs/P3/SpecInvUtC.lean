@@ -104,9 +104,9 @@ theorem utInvV_shrinkD {w' w : UView} (h : CapShrinkD w' w) (hI : UtInvV w) : Ut
   · intro s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hne hc1 hc2 hov
     obtain ⟨g1, hg1, hle1, -⟩ := h.caps s1 d1 b1 n1 f1 hc1
     obtain ⟨g2, hg2, hle2, -⟩ := h.caps s2 d2 b2 n2 f2 hc2
-    rcases hDe s1 s2 d1 b1 n1 g1 d2 b2 n2 g2 hne hg1 hg2 hov with ⟨hd, hr⟩ | ⟨hd, hr⟩
-    · exact Or.inl ⟨h.desc s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hc1 hc2 hd, fun k hk hk' => hr k hk (utFr_mono hle1 hk')⟩
-    · exact Or.inr ⟨h.desc s2 s1 d2 b2 n2 f2 d1 b1 n1 f1 hc2 hc1 hd, fun k hk hk' => hr k hk (utFr_mono hle2 hk')⟩
+    rcases hDe s1 s2 d1 b1 n1 g1 d2 b2 n2 g2 hne hg1 hg2 hov with ⟨hd, hr, hin⟩ | ⟨hd, hr, hin⟩
+    · exact Or.inl ⟨h.desc s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hc1 hc2 hd, fun k hk hk' => hr k hk (utFr_mono hle1 hk'), hin⟩
+    · exact Or.inr ⟨h.desc s2 s1 d2 b2 n2 f2 d1 b1 n1 f1 hc2 hc1 hd, fun k hk hk' => hr k hk (utFr_mono hle2 hk'), hin⟩
   · intro sl d b n f' hc
     obtain ⟨f, hc0, -⟩ := h.caps sl d b n f' hc
     exact h.orig sl d b n f' hc (hO sl d b n f hc0)
