@@ -16085,3 +16085,61 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
 
 ### (5) Findings
 - None. `VsRootOK` holds at every post-timer `JAtZ`/`JAtZR` state (proved, not assumed).
+
+## g7e (branch par/g7e in FL4-g7e, on int/j3 ab89cf2d + dbb1f942) — D6 `tail` PROVED at the run's σ1 (g7d (3) done); top **`kernel_entry_reachU8`**; premise added: D7 `IdleVt` [J]; no FINDING
+
+### (1) Modules (new; nothing existing edited, root-imported after XTopJointKEntryU10)
+- **G7eRoot**: `IdleVt σ` [J] (D7: the idle TCB's vtable is no mapped PML4 cap); `RootFr AR T P c s a σ`
+  (G7cSwitch's `RootOK` at every `(s', σ')` with `WritesIn s s' (SFootN T c s)`, `HeapEqUpToFpu σ σ'`,
+  `crF σ' = crF σ`), `RootFr.now` / `.step`; **`JAtZR.rootFr`** (`RootFr` at a `JAtZR` state from `IdleVt`);
+  `JAtZR.fire_ks` / `fire_dt` (the timers keep the kernel-global words, hence the domain time);
+  `JAtZR.idleVt_fire` (`IdleVt` at the finish state gives it after the timers: idle slot 1 kept,
+  `slotsSame_of_footD`, both ends related by `StateRel.tcb`).
+- **g7d (3)'s open point, checked**: every `SFootN` word is an `OObj` word (`SFoot` by `tfoot_oobj`;
+  `next_domain`'s `NdW` words ks+16/24/40 lie in the kernel-global block below ks+1248), so `TopPlaced.disj` keeps
+  them off every `VObj` word: the ASID table and pool words `VsRel` reads (`vsWrite_vobj`) and TCB slot words
+  (slot 1 = vtable). The kernel-root word ks+48 is no `SFootN` word (`tfoot_ksb`; ≠ 16/24/40). So `RootOK`
+  survives the scheduler's writes: **no FINDING**.
+- **G7eChain**: `AK.sched_switch_sched_context` / `sched_set_next_interrupt` / `smp_send_pending` / `sched_tail`
+  (`ak_walk`); `AR`-carrying copies `schedule_choose_new_thread_refinesFA`, `sw_refinesFA`, `scnt_refines0FA`,
+  `cn_refines0FA`, `cn_enq0FA`, `cn_app0FA`, `switch_branch_refines0FA`, **`schedule_refinesWP0FRA`** (posts
+  gain `AR r.2 σ'.cr3`; hypotheses `RootFr` and `ArchRefines`; the R top also `StoreTotal`, `ArchTotal`,
+  `ARKeep` and `hPr : Pf → RootFr ∧ AR r.2 σ1.cr3`). Same branch on both sides: the chain already branches on
+  FL4's action word, `ActRel` to the spec's. Resume: `awaken` returns the timers' arch state, `crk_awaken`.
+  Switch: `choose_thread_refinesFA` / `switch_to_thread_ar`. Tail: `AK.sched_tail`, `crk_scAndTimer`.
+- **G7eFo** (spec only): `fo_handleE_of`, `kcall_fo_ev`, `kcall_fo_fip`: `FT` (so `FpuOwnOK`) at every
+  `handleE (fl4HandleEvent true ev)` outcome, from the entry state (non-syscall events) or after the FaultIP
+  write (trap / unknown-syscall events), from `SInvB`'s fields.
+- **G7eTail**: **`kfin_tail_of`** = `KFinAtR5.tail`'s type at a `JAtZR` finish state, from `hd`, `arch`,
+  `archNd`, `sni`/`send`, `ArchTotal`, `ARKeep`, `ArchRefines`, `TimeAgree`, `FpuOwnOK σ`, `IdleVt σ`. Proof:
+  FL4's `schedule` is total (P0); for the given `(rf, σ1)` (with `JAtZR`, or `JAtZ` by `.toR`) the fire
+  predicate is pinned to `σ1` and `schedule_refinesWP0FRA` run; its spec outcome is the given singleton.
+  `KFinAtR8` (= `KFinAtR5` minus `tail`, plus `idle : IdleVt σ`), `KFinAtR8.to5`; `KFinEv8`, `KFinEv8.to`.
+- **XTopJointKEntryU8**: **`kernel_entry_reachU8`** = `kernel_entry_reachU10` (KDispHypsKVU7, U9's guarded
+  `vsReach`, A16 narrowed) with `hFin : … → KFinAtR8` and `KFinEv8` in the five event clauses, plus U5's
+  `hDR : SetDlDetR MR` [P]. `FpuOwnOK` at the finish states: `sinvB_front_fo` (syscall), G7eFo (events), all
+  from `SInvX.sb` at the entry.
+
+### (2) Premises
+- Removed relative to U10: D4 `sni`, D5 `send` (theorems, as U5), **D6 `tail`** ([W]; now `kfin_tail_of`).
+- Added: **D7 `IdleVt` [J]** (`KFinAtR8.idle`, one spec state: the finish state; l4v: the idle thread is
+  created with null caps and no cap names it; C `Arch_switchToIdleThread` = `setVMRoot(ksIdleThread)`);
+  `hDR : SetDlDetR MR` [P] (U5's, carried into the U10 line). D2 `arch` / D3 `archNd` unchanged ([P]).
+- Satisfiability: `IdleVt` is a fact of the reachable states (boot zeroes the idle TCB; only TCB invocations
+  write TCB slots and need a Thread cap, which never names the idle thread, `ScPlace.noIdle`). Carrying it in
+  `JAtZ` would remove it; JAtZ was not to be edited by this line.
+
+### (3) Builds and axioms
+- tokyo mirror FL4-g7e (g7e-build.sh, axg7e.lean untracked). g7e-b1: `kwApartJ` import, `injection` on
+  `Result`; g7e-b2: missing `open fl4_core` / `Vs` (`ArchRefines`), `har1` is `(s1, a1).2 = rf.2`; g7e-b3:
+  the AK lemmas need `[LawfulStore st]` for `step`; g7e-b4: `Fl4Proofs.P0.sched.schedule.p0`; g7e-b5: the
+  post-timer `P` is `(Z.mv Z.G V1).P`; g7e-b6: G7eTail + U8 green (7122 jobs).
+- **g7e-full1** (full `lake build` at d3587023, with dbb1f942's U6 fix): "Build completed successfully (7219 jobs)",
+  0 `error`, 0 `sorry`.
+- `#print axioms` (./axg7e.lean): `kernel_entry_reachU8`, `kfin_tail_of`, `schedule_refinesWP0FRA`,
+  `JAtZR.rootFr`, `JAtZR.idleVt_fire`, `kcall_fo_ev`, `kcall_fo_fip`, and U3L/U4/U5/U6/U7/U9/U10/UH2:
+  propext, Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide / axiom in the new files.
+
+### (4) Findings and next
+- None. Next: carry `IdleVt` in `JAtZ` (or prove it from a boot + TCB-invocation invariant) to drop D7; D2/D3
+  remain the [P] FPU-machine-op determinism premises.
