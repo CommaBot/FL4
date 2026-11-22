@@ -519,7 +519,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | D1 | `hd` | `domainTime ≠ 0 ∨ NdOK` (`DomRel ∧ DomListOK ∧` FL4 `DOM_SCHED_IDX` word = `domainIndex`) | [J] (DomRel from `RelTopM`; DomListOK spec; IDX word FL4: none carried) | `valid_domain_list` | 1 |
 | D2 | `arch` | `ArchSwF`: at **every** `SchedRel ∧ NtfnStateRel (∧ FpuOwnOK)` state, `set_vm_root` / `set_kernel_vm_root` refine `arch_switch_to_thread` / `_idle_thread` with one spec outcome | [P] **∀st** | arch switch corres, `det` of the machine ops | ∀st |
 | D3 | `archNd` | `ArchNdF`: at every such state `archPrepareNextDomain` (= `switchLocalFpuOwner none`) has one outcome keeping `SchedRel` | [P] **∀st** (only the single-outcome of the opaque `enableFpu`/`readFpuState`/`disableFpu` is platform; the rest is a spec frame) | | ∀st |
-| D4 | `sni` | `SniHyp`: at every such state `set_next_interrupt` refines `setNextInterrupt` | [P] **∀st** (spec side asserts the current SC and the release-queue head SC: false at a `SchedRel` state without them, so not true ∀st as stated) | `setNextInterrupt` corres | ∀st |
+| D4 | `sni` | `SniHyp`: at every such state `set_next_interrupt` refines `setNextInterrupt` with one outcome and no failure | [P] **∀st**, **FALSE as stated (FINDING g6a)**: the spec's `setNextInterrupt` does `assertOpt` on the current thread's `tcbSchedContext` (and on the release-queue head's); `SchedRel` (`SchedSpec.tcb`: `tcbSchedContext = optRef (scA t)`, `SchedCore.curT`) admits a current thread with `scA = 0`, where the spec run fails, so the triple is false there whatever FL4 does. `hFin`/`KFinEv` therefore cannot be supplied for any store with such a state, and every clause of the top is vacuous in practice (the class of §0). Fix: guard `SniHyp` with the current thread's and the release head's SC (true where it is consumed: after `schedule`, `CurInv`) | `setNextInterrupt` corres | ∀st |
 | D5 | `send` | `SendHyp`: at every such state `send_pending` keeps `SchedRel ∧ NtfnStateRel` | [P]/[S] one core **∀st** | — | ∀st |
 | D6 | `tail` | FL4 `schedule s a ⦃ r => ∀ … (spec run after `Fires`, `schedule`, `SchedRel`, `Inv`, `CurInv`, `ActIdle`) → AR r.2 σ'.x64CurrentCr3 ⦄` | [W] CR3 after the switch (a vtable-to-CR3 relation: `findVSpaceForAsid` of the chosen thread = FL4's `set_vm_root` target) | `set_vm_root` corres + `valid_vspace_objs` | 1 (the post quantifies the spec outcomes of one run) |
 
@@ -553,9 +553,8 @@ C27, D1), **[W] 3** (D6 CR3 tail; C9/C14 `rest` as P1 obligations).
 SchedControl decodes, P1-provable).
 
 **Quantified over states (must be discharged or narrowed):** A16 `PortInVal` (∀ spec states), D2 `ArchSwF`,
-D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; D4 is not even true at every such state: its spec side
-asserts SCs the relation does not provide; it is consumed only at states where `CurInv`/`Inv` hold, so the fix is to
-add those guards, as `ArchSwF` did with `FpuOwnOK`). The ∀gh leaves (C4, C9, C14, C16/C22, C25 and the bundles B4/B5/B6)
+D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; **D4 is false as stated**, see its row: the fix is a guard, as
+`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C9, C14, C16/C22, C25 and the bundles B4/B5/B6)
 are asked at one state but at every ghost choice: dischargeable only by derivation from that state's `JAtZ`.
 
 **Cheapest next (g6a JOB 2 takes the first group):** A11, A12, C7, C10, C11 (duplicates), C15 (from `JAtZ.ext.nat`).
