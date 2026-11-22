@@ -1,5 +1,6 @@
 /- s27: global-PML4 frame lemmas `GpK g` (sg1's SpecInvSgI5 renamed; see SpecInvGpK1). -/
 import Fl4Proofs.P3.SpecInvGpK4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvGp
@@ -286,6 +287,15 @@ macro_rules | `(tactic| gpk_leaf) => `(tactic| with_reducible exact gpk_performP
 theorem gpk_performTestAndClearAccessed (_slot : ObjRef) : GpK N (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; gpk_auto
 macro_rules | `(tactic| gpk_leaf) => `(tactic| with_reducible exact gpk_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem gpk_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : GpKE N (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; gpk_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem gpk_performFrameBatch (b : Fl4FrameBatchInvocation) : GpK N (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => gpk_fbEntry b w) (by unfold flushAll; gpk_auto)
+macro_rules | `(tactic| gpk_leaf) => `(tactic| with_reducible exact gpk_performFrameBatch _)
 
 theorem gpk_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : GpKE N (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; gpk_auto

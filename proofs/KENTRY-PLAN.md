@@ -16537,3 +16537,42 @@ global ref).
   Downstream modules were not reached. The fix is real proof work per family (a leaf for `performFrameBatch` /
   `decodeFrameBatch` in each: frame `idk`/`nk`/`gpk` frames, the cap-writing families SpecGlob/SI/Ut via the
   CNode-copy and delete leaves, the decode's `OkV` facts), to be done with the P3 refinement after m75's re-extraction.
+
+### (7) fb-spec-2 (spec-side families for the batch) — PARTIAL, handoff
+- **Generic combinators** (new modules): `SpecInvFbK` (`SInv.ik_fbRun`, `SInv.ik_performFrameBatch`: `IK P` of the batch
+  from `IK P` of one entry `fbEntry` (no recursion) and of the final `flushAll`); `SpecInvFbD` (`Vs.fk_fbRun`,
+  `Vs.fk_performFrameBatch`, the same for the projection frames `FK f`, i.e. `DK` / `DL`).
+- **Generated frame families patched** (each gets `X_fbEntry` by `unfold fbEntry; X_auto`, `X_performFrameBatch` from
+  the combinator, and an `X_leaf` macro, inserted before `X_fl4ArchPerformInvocation`; import `SpecInvFbK`):
+  SpecInvSgI5 (idk), SpecInvNativeScopeF5 (ns), SpecInvGpK5 (gpk), SpecInvSlI5 (isk), SpecInvUtNK5 (nk), SpecInvAllO5
+  (oi), SpecInvQDomF5 (q4), SpecInvNtfnQC4 (ct), SpecInvFaultTcbsF5 (ft), SpecInvFaultTcbsG5 (fg). Patch script:
+  proofs/scratch/fb2/patchfb.py (logic: regex on the `X_fl4ArchPerformInvocation` theorem). The generated bodies in
+  scratch were patched the same way: ft2/bodyFG, ft3/bodyFG, g1c/bodyOI, invA/bodyFT, invA/body; the generators
+  (`gen.py`) themselves are not changed: they need `fbRun` in their skip list and these two lemmas as manual leaves.
+- **Open, in order:**
+  1. **FT / FG** (SpecInvFaultTcbsF5/G5): `fbEntry`'s two `capDelete`s stay open (sd7-fb4: goal
+     `IKE (FTL L) (NonDet.lfp recDelF (cTEDeleteCall _ true))`): these families have no `capDelete` leaf (their
+     generators skip it, as for CNode delete). The batch deletes only frame caps (DELETE checks `pageCap` first; the
+     rollback deletes the derived frame copy), so the fix is a conditional lemma `capDelete` of a slot holding a page
+     cap keeps `FTL L` / `FG…` (rec_del's finalise of a frame: `unmapPage` + `emptySlot`), used through a hand proof of
+     `ft_fbEntry` with the slot fact.
+  2. **DK / DL** (VsDomOps:219 `dke_fl4ArchPerformInvocation`, SpecInvDomG:231 `dle_fl4ArchPerformInvocation`): the
+     leaves the entry needs (`capDelete`, the CNode lookups, `deriveCap`, `ensureEmpty`) live downstream: `dk_capDelete`
+     in DomRecDel, the CNode ones in CnodeDom/AllDom; DomG's own `dl_capDelete` (l. 662), `dl_lookupTargetSlot'`
+     (l. 836), `dle_deriveCap'` (l. 939). DomG: `dle_fl4ArchPerformInvocation` has no user: move it to the file's end
+     and add `| frameBatch i => … Vs.fk_performFrameBatch …`. Vs: `dke_fl4ArchPerformInvocation` is used by AllDom (leaf)
+     and VsDomF:137 (the PML4 decode frame): split it into a no-batch version (hypothesis `∀ b, i ≠ .frameBatch b`) in
+     VsDomOps and a full one in a module after DomRecDel + CnodeDom; AllDom and VsDomF switch to it (check cycles).
+  3. **SpecInvUtE** (`UtInv'`, `uiP_fl4Perform`) and every downstream cap family (not reached by the first full build:
+     the P3/`UtInv''` family SpecInvUtO*, sg1 SgD/SgE, sd7's SiD/SiE, the ZR family, DevFree/Gpm, Vi*, CnDom, …): the
+     batch writes caps, so each needs a real proof: COPY_MAP is a `capInsert` of a `deriveCap` of the source into a
+     lookup destination (the IPC cap transfer's shape: sg1's `sg_transferCapsLoop` / ut7's `hv_capInsert3` with
+     `okv_deriveCapR`, `DestRefV`, `PosOK`), the rollback and DELETE are `capDelete`s, the maps are
+     `performPageInvocation .pageMap` on a slot holding a frame cap (the arch map's existing leaves need `ArchSlN`-style
+     slot facts, here established at run time by `getCap`). Size: L per family group.
+  4. **VsDecTop:257** (P3 refinement, joint): at the current extraction FL4 answers label 90 on a PML4 cap with
+     `IllegalOperation`, the spec now runs the batch: the refinement there is false until m75's re-extraction and the
+     batch's P3 refinement. Closing it now needs a scope premise (label ≠ 90 at the PML4 decode) — a lead decision.
+- Builds: sd7-fb3 (imports missing in the patch, fixed), sd7-fb4 (FT5: only the `capDelete` goals left),
+  **sd7-fb5: SpecInvFbD and the eight families other than FT/FG green (1106 jobs).** No full build run (it cannot be
+  green before items 1-4).

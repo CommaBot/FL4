@@ -1,5 +1,6 @@
 /- ut7: IRQ-node frame lemmas `NK N`, part 5 (invA's NativeScope scripts renamed; see SpecInvUtNK1). -/
 import Fl4Proofs.P3.SpecInvUtNK4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInvU
@@ -286,6 +287,15 @@ macro_rules | `(tactic| nk_leaf) => `(tactic| with_reducible exact nk_performPml
 theorem nk_performTestAndClearAccessed (_slot : ObjRef) : NK N (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; nk_auto
 macro_rules | `(tactic| nk_leaf) => `(tactic| with_reducible exact nk_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem nk_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : NKE N (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; nk_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem nk_performFrameBatch (b : Fl4FrameBatchInvocation) : NK N (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => nk_fbEntry b w) (by unfold flushAll; nk_auto)
+macro_rules | `(tactic| nk_leaf) => `(tactic| with_reducible exact nk_performFrameBatch _)
 
 theorem nk_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : NKE N (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; nk_auto

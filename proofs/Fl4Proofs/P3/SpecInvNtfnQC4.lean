@@ -1,5 +1,6 @@
 /- nq1: the current-thread frame `CTK c` (the current thread stays `c`) for every spec function reachable from the syscall entry except the scheduler, part 4 (generated: proofs/scratch/nq1/mkck.sh). -/
 import Fl4Proofs.P3.SpecInvNtfnQC3
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -149,6 +150,15 @@ macro_rules | `(tactic| ct_leaf) => `(tactic| with_reducible exact ct_performPml
 theorem ct_performTestAndClearAccessed (_slot : ObjRef) : CTK cq (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; ct_auto
 macro_rules | `(tactic| ct_leaf) => `(tactic| with_reducible exact ct_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem ct_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : CTKE cq (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; ct_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem ct_performFrameBatch (b : Fl4FrameBatchInvocation) : CTK cq (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => ct_fbEntry b w) (by unfold flushAll; ct_auto)
+macro_rules | `(tactic| ct_leaf) => `(tactic| with_reducible exact ct_performFrameBatch _)
 
 theorem ct_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : CTKE cq (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; ct_auto
