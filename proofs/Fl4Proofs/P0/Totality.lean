@@ -27,6 +27,10 @@ structure ArchTotal {A : Type _} (ar : machine.Arch A) : Prop where
   vcpu_capability : ∀ a f, ar.vcpu_capability a f ⦃ _ => True ⦄
   vcpu_barrier : ∀ a, ar.vcpu_barrier a ⦃ _ => True ⦄
   invalidate_ept : ∀ a r m, ar.invalidate_ept a r m ⦃ _ => True ⦄
+  tdx_active : ∀ a, ar.tdx_active a ⦃ _ => True ⦄
+  tdx_report : ∀ a f d0 d1 d2 d3 d4 d5 d6 d7, ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄
+  tdx_extend_rtmr : ∀ a i d0 d1 d2 d3 d4 d5, ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄
+  tdx_get_quote : ∀ a f n, ar.tdx_get_quote a f n ⦃ _ => True ⦄
   now : ∀ a, ar.now a ⦃ _ => True ⦄
   set_deadline : ∀ a t, ar.set_deadline a t ⦃ _ => True ⦄
   us_to_ticks : ∀ a x, ar.us_to_ticks a x ⦃ _ => True ⦄
@@ -81,6 +85,10 @@ variable {A : Type _} {ar : machine.Arch A}
 @[step] theorem ArchTotal.vcpu_capability_spec (h : ArchTotal ar) a f : ar.vcpu_capability a f ⦃ _ => True ⦄ := h.vcpu_capability a f
 @[step] theorem ArchTotal.vcpu_barrier_spec (h : ArchTotal ar) a : ar.vcpu_barrier a ⦃ _ => True ⦄ := h.vcpu_barrier a
 @[step] theorem ArchTotal.invalidate_ept_spec (h : ArchTotal ar) a r m : ar.invalidate_ept a r m ⦃ _ => True ⦄ := h.invalidate_ept a r m
+@[step] theorem ArchTotal.tdx_active_spec (h : ArchTotal ar) a : ar.tdx_active a ⦃ _ => True ⦄ := h.tdx_active a
+@[step] theorem ArchTotal.tdx_report_spec (h : ArchTotal ar) a f d0 d1 d2 d3 d4 d5 d6 d7 : ar.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7 ⦃ _ => True ⦄ := h.tdx_report a f d0 d1 d2 d3 d4 d5 d6 d7
+@[step] theorem ArchTotal.tdx_extend_rtmr_spec (h : ArchTotal ar) a i d0 d1 d2 d3 d4 d5 : ar.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ _ => True ⦄ := h.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5
+@[step] theorem ArchTotal.tdx_get_quote_spec (h : ArchTotal ar) a f n : ar.tdx_get_quote a f n ⦃ _ => True ⦄ := h.tdx_get_quote a f n
 @[step] theorem ArchTotal.now_spec (h : ArchTotal ar) a : ar.now a ⦃ _ => True ⦄ := h.now a
 @[step] theorem ArchTotal.set_deadline_spec (h : ArchTotal ar) a t : ar.set_deadline a t ⦃ _ => True ⦄ := h.set_deadline a t
 @[step] theorem ArchTotal.us_to_ticks_spec (h : ArchTotal ar) a x : ar.us_to_ticks a x ⦃ _ => True ⦄ := h.us_to_ticks a x

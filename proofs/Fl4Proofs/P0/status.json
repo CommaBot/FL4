@@ -1,6 +1,6 @@
 {
- "functions": 1113,
- "proved": 1113,
+ "functions": 1126,
+ "proved": 1126,
  "manual": [
   "boot.create_untypeds",
   "ept.map_frame",

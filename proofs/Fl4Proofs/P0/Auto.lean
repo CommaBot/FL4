@@ -216,6 +216,10 @@ theorem layout.irq.TIMER.p0  :
     boot.init_root_cnode machineStoreInst s b ⦃ _ => True ⦄ := by
   unfold boot.init_root_cnode; p0_auto
 
+@[step] theorem boot.init_tdx_control.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (b : boot.Boot) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    boot.init_tdx_control machineStoreInst machineArchInst s a b ⦃ _ => True ⦄ := by
+  unfold boot.init_tdx_control; p0_auto
+
 @[step] theorem obj.Tcb.fpu_addr.p0 (self : obj.Tcb) :
     obj.Tcb.fpu_addr self ⦃ _ => True ⦄ := by
   unfold obj.Tcb.fpu_addr; p0_auto
@@ -4097,6 +4101,22 @@ theorem layout.ks.SIZE.p0  :
     machine.Arch.invalidate_ept.default self _root _mask ⦃ _ => True ⦄ := by
   unfold machine.Arch.invalidate_ept.default; p0_auto
 
+@[step] theorem machine.Arch.tdx_active.default.p0 {Self : Type _} (self : Self) :
+    machine.Arch.tdx_active.default self ⦃ _ => True ⦄ := by
+  unfold machine.Arch.tdx_active.default; p0_auto
+
+@[step] theorem machine.Arch.tdx_report.default.p0 {Self : Type _} (self : Self) (_frame_ptr : Std.U64) (_d0 : Std.U64) (_d1 : Std.U64) (_d2 : Std.U64) (_d3 : Std.U64) (_d4 : Std.U64) (_d5 : Std.U64) (_d6 : Std.U64) (_d7 : Std.U64) :
+    machine.Arch.tdx_report.default self _frame_ptr _d0 _d1 _d2 _d3 _d4 _d5 _d6 _d7 ⦃ _ => True ⦄ := by
+  unfold machine.Arch.tdx_report.default; p0_auto
+
+@[step] theorem machine.Arch.tdx_extend_rtmr.default.p0 {Self : Type _} (self : Self) (_index : Std.U64) (_d0 : Std.U64) (_d1 : Std.U64) (_d2 : Std.U64) (_d3 : Std.U64) (_d4 : Std.U64) (_d5 : Std.U64) :
+    machine.Arch.tdx_extend_rtmr.default self _index _d0 _d1 _d2 _d3 _d4 _d5 ⦃ _ => True ⦄ := by
+  unfold machine.Arch.tdx_extend_rtmr.default; p0_auto
+
+@[step] theorem machine.Arch.tdx_get_quote.default.p0 {Self : Type _} (self : Self) (_frame_ptr : Std.U64) (_buf_len : Std.U64) :
+    machine.Arch.tdx_get_quote.default self _frame_ptr _buf_len ⦃ _ => True ⦄ := by
+  unfold machine.Arch.tdx_get_quote.default; p0_auto
+
 @[step] theorem machine.Arch.irq_free.default.p0 {Self : Type _} (self : Self) (_irq : Std.U64) :
     machine.Arch.irq_free.default self _irq ⦃ _ => True ⦄ := by
   unfold machine.Arch.irq_free.default; p0_auto
@@ -4575,6 +4595,38 @@ theorem vcpu.svm.RAX.p0  :
   set_option maxHeartbeats 4000000 in
   unfold untyped.decode
   p0_structural
+
+@[step] theorem tdx.reply.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ct : obj.Tcb) (call : Bool) (status : Std.U64) (hS : StoreTotal machineStoreInst) :
+    tdx.reply machineStoreInst s ct call status ⦃ _ => True ⦄ := by
+  unfold tdx.reply; p0_split
+
+@[step] theorem tdx.quote_len_ok.p0 (buf_len : Std.U64) (frame_bytes : Std.U64) :
+    tdx.quote_len_ok buf_len frame_bytes ⦃ _ => True ⦄ := by
+  unfold tdx.quote_len_ok; p0_auto
+
+@[step] theorem tdx.quote_frame.p0 {A : Type _} (machineArchInst : machine.Arch A) (a : A) (c : capability.Cap) (hA : ArchTotal machineArchInst) :
+    tdx.quote_frame machineArchInst a c ⦃ _ => True ⦄ := by
+  unfold tdx.quote_frame; p0_auto
+
+@[step] theorem tdx.get_quote.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (call : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tdx.get_quote machineStoreInst machineArchInst s a length call buf extra ⦃ _ => True ⦄ := by
+  unfold tdx.get_quote; p0_split
+
+@[step] theorem tdx.extend_rtmr.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (call : Bool) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tdx.extend_rtmr machineStoreInst machineArchInst s a length call buf ⦃ _ => True ⦄ := by
+  unfold tdx.extend_rtmr; p0_auto
+
+@[step] theorem tdx.report_frame.p0 (c : capability.Cap) :
+    tdx.report_frame c ⦃ _ => True ⦄ := by
+  unfold tdx.report_frame; p0_auto
+
+@[step] theorem tdx.get_report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (call : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tdx.get_report machineStoreInst machineArchInst s a length call buf extra ⦃ _ => True ⦄ := by
+  unfold tdx.get_report; p0_auto
+
+@[step] theorem tdx.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (call : Bool) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tdx.decode machineStoreInst machineArchInst s a lbl length call buf extra ⦃ _ => True ⦄ := by
+  unfold tdx.decode; p0_auto
 
 @[step] theorem timer.insert_fixup_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (z : obj.Tcb) (fuel : Std.U64) (hS : StoreTotal machineStoreInst) :
     timer.insert_fixup_loop machineStoreInst s cpu z fuel ⦃ _ => True ⦄ := by

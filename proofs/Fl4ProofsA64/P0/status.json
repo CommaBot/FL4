@@ -1,6 +1,6 @@
 {
- "functions": 1099,
- "proved": 1099,
+ "functions": 1112,
+ "proved": 1112,
  "manual": [
   "boot.create_untypeds",
   "ept.flush_frame",
