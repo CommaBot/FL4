@@ -1361,6 +1361,7 @@ import Fl4Proofs.P3.XTopJointKEntryU3
 import Fl4Proofs.P3.XTopJointKEntryU3L
 import Fl4Proofs.P3.XTopJointKEntryU4
 import Fl4Proofs.P3.G7cSwitch
+import Fl4Proofs.P3.G7dVsRoot
 import Fl4Proofs.P3.ScRestP1
 import Fl4Proofs.P3.ScRestJ
 import Fl4Proofs.P3.XTopJointKEntryU7

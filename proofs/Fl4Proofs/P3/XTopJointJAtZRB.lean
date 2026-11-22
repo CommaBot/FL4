@@ -1997,7 +1997,7 @@ theorem jat_scheduleWP0FZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, ⟨J1.inv, J1.cur, J1.off, J1.act, J1.own⟩,
       hd.imp (fun h => by rw [hd1]; exact h) (fun h => J.ndOK_fire h hk h1), J1.nk,
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_firesZR J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
-  exact schedule_refinesWP0FR s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) hA hAN hsni hsend hT
+  exact schedule_refinesWP0FR s a σ hS hR J.nsc hnd hfire (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hAN hsni hsend hT
 
 
 end

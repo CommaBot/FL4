@@ -22,6 +22,7 @@ FpuOwnOK σ1` [S] here).
 import Fl4Proofs.P3.XTopJointSchedR
 import Fl4Proofs.P3.ScScheduleF
 import Fl4Proofs.P3.ScFpuOwnK
+import Fl4Proofs.P3.G7dVsRoot
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -93,7 +94,7 @@ theorem jat_scheduleFRF {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     have hd1' : σ1.domainTime ≠ 0 := by rw [hd1]; exact hd
     exact ⟨σ1, h1, J1.xtop.fin.1.1.1, J1.xtop.fin.1.1.2.2.1, J1.nsc, J1.schedPreW hd1',
       ⟨V1, Ac1, Lst1, D1, J1⟩, hf, hk.1, fpuOwnOK_fires J h1 J1.xtop.fin.1.1.2.2.1 hFO⟩
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWPF s a σ hS hR J.nsc hnd hfire2 (fun _ _ h => h.2.2.2) hA hsni hsend hT)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (schedule_refinesWPF s a σ hS hR J.nsc hnd hfire2 (fun _ _ h => h.2.2.2) (fun _ _ h => by obtain ⟨_, _, _, _, J1⟩ := h.1; exact J1.vsRootOK) hA hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
       hTail)) ?_
   rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
