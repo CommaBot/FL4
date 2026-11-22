@@ -17140,4 +17140,10 @@ Classical.choice, Quot.sound]` only. Files changed against e9c21de0: see the f1 
   (final)).
 
 ### (5) Builds and axioms
-See the f2 commits; module builds f2-m1..m8 (tokyo), full build f2-full1 below.
+Module builds f2-m1..m8 (tokyo; m1/m2 a placeholder and `sizeF_pool` via `ASID_POOL`, m4 `dsimp` no-ops, m5 an
+over-eager `rw … at hn`, m6 `Keyed2` not unfolded by `simp`). Full build **f2-full1: `Build completed successfully
+(7337 jobs)`**, 0 `error`, 0 `sorry` (no existing file changed; only the two new modules and the root import
+rebuilt over the e84b2e3f cache). `#print axioms` (../axf2.lean): `JAtZ.vsReachMiss`, `vsReachMissR`,
+`vsReachAsidC`, `VsReach.split`, `VsNamed.frame` / `step` / `grow` / `sub`, `vsKeep_insert` / `move` / `swap`,
+`vkey_copied`, `JAtZ.vsNamedDrop`, `vsNamedRestart`, and the existing tops U3L..U21, U25: `[propext,
+Classical.choice, Quot.sound]`. No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
