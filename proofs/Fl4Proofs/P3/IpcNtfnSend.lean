@@ -200,7 +200,8 @@ theorem send_signal_idle_bound_idleI (hP : IPlaced N T E R B) (s : S) (a : A) (�
   simp only [b_post, i_post, hb0, decide_false, Bool.false_eq_true, ↓reduceIte]
   step
   have hns2 : i1 ≠ sched.TS_BLOCKED_ON_RECV := by rw [i1_post]; exact hns
-  simp only [hns2, ↓reduceIte]
+  have hnvm2 : i1 ≠ sched.TS_RUNNING_VM := by rw [i1_post]; exact hnvm
+  simp only [hns2, hnvm2, ↓reduceIte]
   step
   subst s1_post
   obtain ⟨hR', hW⟩ := set_active_relI hP hR hn hk hidle badge
