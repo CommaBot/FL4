@@ -14,13 +14,15 @@ text = subprocess.check_output(
      "-d", "--no-show-raw-insn", sys.argv[1]], text=True
 )
 functions = {}
+addresses = {}
 near_returns = Counter()
 current = None
 for line in text.splitlines():
-    symbol = re.match(r"^[0-9a-f]+ <([^>]+)>:$", line)
+    symbol = re.match(r"^([0-9a-f]+) <([^>]+)>:$", line)
     if symbol:
-        current = symbol[1]
+        current = symbol[2]
         functions[current] = []
+        addresses[current] = int(symbol[1], 16)
     insn = re.match(r"^\s*([0-9a-f]+):\s+(\S+)\s*(.*)$", line)
     if insn and current:
         op, arg = insn[2], insn[3]
@@ -93,20 +95,36 @@ require(svm_ops.index("clgi") < vmrun < svm_ops.index("stgi"),
 require(max(i for i, op in enumerate(svm_ops) if op == "wrmsr") < svm_ops.index("stgi"),
         "SVM enables interrupts before host protection")
 
+def between(start, end):
+    """The instructions from symbol `start` up to symbol `end`, whichever
+    symbols objdump splits them under (fl4_idle_loop's STI/HLT are not
+    under fl4_idle)."""
+    require(start in addresses and end in addresses, "missing " + start + "/" + end)
+    lo, hi = addresses[start], addresses[end]
+    require(lo < hi, start + " must precede " + end)
+    return sorted(i for f in functions.values() for i in f if lo <= i[0] < hi)
+
+
+idle = between("fl4_idle_loop", "fl4_idle_end")
+require(any(op == "hlt" for _, op, _ in idle), "idle: no HLT in fl4_idle_loop")
 for name, instructions in [
     ("VMX entry", functions["fl4_vmx_run"]), ("SVM entry", svm),
     ("native return", native), ("user return", functions["fl4_restore_user"]),
-    ("idle", functions["fl4_idle"]),
+    ("idle", idle),
 ]:
+    matched = 0
     for i, (_, op, _) in enumerate(instructions):
         if op in ("vmlaunch", "vmresume", "vmrun", "iretq", "sysretq", "sti"):
             # SVM's STI precedes VMRUN with GIF clear, not an idle entry.
             if op == "sti" and name != "idle":
                 continue
+            matched += 1
             require(i >= 2 and instructions[i - 1][1] == "lfence"
                     and instructions[i - 2][1] == "verw",
                     name + ": missing final memory-form VERW/fence before " + op)
             require("(%rip)" in instructions[i - 2][2], name + ": VERW must use memory")
+    # An empty match would pass every check above.
+    require(matched > 0, name + ": no entry/return instruction found")
 # The user return takes SYSRET only for an untouched SYSCALL context
 # (sysret.S): RCX = NextIP, R11 = FLAGS, no TF/RF, and leaves no CR3 on the
 # entry stack.
