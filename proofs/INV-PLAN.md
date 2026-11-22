@@ -516,7 +516,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 
 | # | leaf | statement | tag | l4v | asked |
 |---|---|---|---|---|---|
-| D1 | `hd` | `domainTime ≠ 0 ∨ NdOK` (`DomRel ∧ DomListOK ∧` FL4 `DOM_SCHED_IDX` word = `domainIndex`) | [J] (DomRel from `RelTopM`; DomListOK spec; IDX word FL4: none carried) | `valid_domain_list` | 1 |
+| D1 | `hd` | **DISCHARGED (g7a, `kernel_entry_reachU6`)**: see the F list | — | `valid_domain_list` | — |
 | D2 | `arch` | `ArchSwF`: at **every** `SchedRel ∧ NtfnStateRel (∧ FpuOwnOK)` state, `set_vm_root` / `set_kernel_vm_root` refine `arch_switch_to_thread` / `_idle_thread` with one spec outcome | [P] **∀st** | arch switch corres, `det` of the machine ops | ∀st |
 | D3 | `archNd` | `ArchNdF`: at every such state `archPrepareNextDomain` (= `switchLocalFpuOwner none`) has one outcome keeping `SchedRel` | [P] **∀st** (only the single-outcome of the opaque `enableFpu`/`readFpuState`/`disableFpu` is platform; the rest is a spec frame) | | ∀st |
 | D4 | `sni` | `SniHyp`: at every such state `set_next_interrupt` refines `setNextInterrupt` with one outcome and no failure | [P] **∀st**, **FALSE as stated (FINDING g6a)**: the spec's `setNextInterrupt` does `assertOpt` on the current thread's `tcbSchedContext` (and on the release-queue head's); `SchedRel` (`SchedSpec.tcb`: `tcbSchedContext = optRef (scA t)`, `SchedCore.curT`) admits a current thread with `scA = 0`, where the spec run fails, so the triple is false there whatever FL4 does. `hFin`/`KFinEv` therefore cannot be supplied for any store with such a state, and every clause of the top is vacuous in practice (the class of §0). Fix: guard `SniHyp` with the current thread's and the release head's SC (true where it is consumed: after `schedule`, `CurInv`) | `setNextInterrupt` corres | ∀st |
@@ -541,6 +541,11 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 `KFinAtR.vt` (`vtAsid_ofR`); `fo` (FpuOwnOK, from `JAtZR`); `JDelParts.vt`, `thr.obj` (`JExt`); `JVtxHypMU`
 (implied by B5); `FastFaultOK` (m73), `hRP5` (m72), `SpecUtZ σ'`/`UtPgR σ'` exit premises (g5i), `LargeFrOK` (g5j),
 `hRest`/`KPreFinRestHypI`, `PPPlat`/`IrqPlat` (replaced by MR-relative A5).
+**g7a:** D1 `hd` (`domainTime ≠ 0 ∨ NdOK`, at every `specFront` / event pre-finish outcome): DomDecode's `DomRel`
+(carried in `RelTopM` / `XTopAt`) now also says FL4's `DOM_SCHED_IDX` word is 0 (kept by every frame through
+`DomSame` / `domOffs` / `domOffs0`, which gained word 24; set to 0 by `domain_set_start`; kept 0 by `schedule`,
+SchedIdx's `sched.schedule.idx`); with `DomListOK` (`SInvA.dom`, kept by `specFront` and the event handling:
+SpecInvDom's `DP`) `domain_index = 0`, so `NdOK` holds (`JAtZR.hdOK`). Top `kernel_entry_reachU6`.
 
 ### G. Counts and the two lists the owner asked for
 
@@ -562,4 +567,4 @@ Then: D3 (spec frame + a state-free [P] "the FPU machine ops have one outcome"),
 (carry with the existing `.retype` lemmas, M), D1 (carry the IDX word + DomListOK, S). Large: C4, C16/C22
 `RegionUnrefAt`, C17/C23 `vsReach`, D6.
 
-**g7a (KENTRY-PLAN g7a):** C21, C25, C26, C27, D1 are not derivable from what `JReachU3` carries (the induction step sees only `RJM` at the new state, so a joint fact must be a component of `RJ`); D1 needs FL4 `DOM_SCHED_IDX` word = 0 (= `domainIndex`), true in reachable states but not carried. Each needs a carry inside `JAtZ`/`RelTopM` (plan and order there).
+**g7a (KENTRY-PLAN g7a):** D1 DISCHARGED (top `kernel_entry_reachU6`, F list). C21, C25, C26, C27 are not derivable from what `JReachU3` carries (the induction step sees only `RJM` at the new state, so a joint fact must be a component of `RJ`); each needs a carry inside `JAtZ` (plan and order there; lead decision: after g6b/g7b/g7c merge, sequentially on the integration branch).

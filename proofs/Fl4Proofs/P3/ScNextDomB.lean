@@ -419,7 +419,7 @@ theorem NdOK.keep {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : NdOK (L := L) s 
   · rw [hk]
     refine hD.of_same (domSame_iff fun o ho => hm o ?_ ?_) hdl hds <;>
       (simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-       rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide)
+       rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide)
   · rw [hk, hm 24#u64 (by decide) (by decide), hdi]; exact hi
 
 theorem NdOK.sfoot {N T C : Set U64} {c : U64} {s s' : S} {σ σ0 σ' : Fl4Spec.State Unit} (h : NdOK (L := L) s σ)

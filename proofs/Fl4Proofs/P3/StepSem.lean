@@ -119,7 +119,8 @@ def DomRelW (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
       (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64)) 8#u64)) = 0#u64 →
       m (core.num.U64.wrapping_add kb
         (core.num.U64.wrapping_add 192#u64 (core.num.U64.wrapping_mul i 16#u64))) = 0#u64)) ∧
-  σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val
+  σ.domainStartIndex = (m (core.num.U64.wrapping_add kb 32#u64)).val ∧
+  m (core.num.U64.wrapping_add kb 24#u64) = 0#u64
 
 /-- Every object of `σ'` was an object of the same type in `σ` (SpecKSz). -/
 def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=

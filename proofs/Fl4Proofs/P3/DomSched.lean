@@ -204,7 +204,7 @@ theorem domSame_of_sfootI {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.S
   intro o ho
   have h8 : o.val < 256 ∧ o.val % 8 = 0 := by
     simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-    rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+    rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
   have hv := ksW_val (kb := L.ksb s) (o := o) (by omega)
   refine hw.mem_eq (ksW_al (by omega) (by omega) h8.1 h8.2) fun hb => ?_
   rcases hb with ⟨y, hy, h⟩ | ⟨g1, g2, -⟩

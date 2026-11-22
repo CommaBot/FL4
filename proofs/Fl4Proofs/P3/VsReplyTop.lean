@@ -487,7 +487,7 @@ theorem domSame_low {m m' : U64 → U64} {kb : U64} (hkf : kb.val + 13568 ≤ 2 
   have hw : ∀ o : U64, o.val < 256 → o.val % 8 = 0 → m' (ksW kb o) = m (ksW kb o) := fun o ho h8 => by
     have hv := ksW_val (kb := kb) (o := o) (by omega)
     exact h _ (ksW_al hkf hka ho h8) (by omega) (by omega)
-  refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩⟩ <;>
+  refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩, hw _ (by decide) (by decide)⟩ <;>
     first | (rw [entOff_val hi]; omega) | (rw [durOff_val hi]; omega)
 
 /-- The relations the reply keeps: the CSpace relation, `FinInv`, `MdbOKV`,

@@ -32,9 +32,10 @@ theorem decDomHyp_of_dk4 {s : S} {ar : A} {lbl length slot : U64} {c : capabilit
 /-- A `WFr` step is a `DK4` step. -/
 theorem DK4.of_wfr {th : TypedHeap} {s s' : S} (h : WFr (L := L) th s s') : DK4 (L := L) s s' := by
   refine ⟨h.2.1, fun o ho => ?_⟩
-  obtain ⟨h32, hi⟩ := h.2.2.2
+  obtain ⟨h32, hi, h24⟩ := h.2.2.2
   simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rcases ho with rfl | rfl | rfl | rfl | rfl
+  rcases ho with rfl | rfl | rfl | rfl | rfl | rfl
+  · exact h24
   · exact h32
   · exact (hi 0#u64 (by decide)).1
   · exact (hi 0#u64 (by decide)).2

@@ -26,7 +26,7 @@ noncomputable section
 
 theorem domOffs_lt' {o : U64} (ho : o ∈ domOffs) : o.val < 256 ∧ o.val % 8 = 0 := by
   simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+  rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
