@@ -14821,3 +14821,72 @@ New leaf XTopJointKEntryU (root import after XTopJointKEntry38E). Nothing existi
 - `SpecUtZ` carry (g5d (4): `UtFreeR` + `MemK`) removes the `SpecUtZ σ'` exit premise from every `JReachU` step.
 - `LargeFrOK` carry (g5d (2): `OrigFrObj`, `DescRangeIn`, data-page distinctness) removes `hLF`.
 - `hRP5` (m67's `nvm` through `fastTail`), `hDL` (VT-x scope), the `hK` / `hFin` bundles, `FastFaultOK` from `JAtZ`.
+## m70 (branch par/m70 in FL4-m67, on 603c5c61 = #51 head with m69; merge of 0321bf4d (g5f) before the full build) — goals (1) and (2) DONE: m67's `RRReads5.nvm` and `FaultNvmPre` (m62's `FaultNvm`) derived from the P1 invariants at the fast paths' dispatch states, with no invariant asked at the tail's intermediate states; P1 top `kernel_entry.entry_of10`; P3 ReplyRecv tops without `hRP5`: `kernel_entryJ33H` / `J34H` / `J34HW`; goal (3) (P1 `FastFaultOK` from `JAtZ` at the P3 entry, `kernel_entry_reachE5`) NOT done (residue below); no FINDING
+- **Route (no invariant carry through `fastTail`).** Both fast paths end with `fastpath.switch_to Y a d`. Instead of
+  carrying `BlkOK` / `EntryInv` to the tail's states, the tail is read with footprints that need only state-independent
+  placement plus the two SCs `switch_sched_context` touches, all established at `Y` from the dispatch state's `BXI` and
+  the run's own footprint:
+  * `switch_sched_context.fp` / `set_next_interrupt.fp` / `send_pending.fp` with `B := FreeCd X Ω` (`Ω` words and the
+    current core's low node words), so neither `CUR_THREAD` nor `d`'s TCB words are written;
+  * `complete_yield_to` re-proved with a narrow footprint (`complete_yield_to.ywN`: `Ω` and `d`'s TCB words but its
+    state; inputs `ObjsOK` — which does not depend on the state, `ObjsOK.any` — `Sg ⊆ Ω`, `d`'s `YIELD_TO` an SC of
+    `Scs`); `set_consumed.rw` / `update_consumed.rw` / `cancel_yield_to.ywN` (QueueKeeps' `.cs` proofs with `BlkOK`
+    replaced by those facts; `set_consumed` writes only `d`'s registers (offset < 3328), so the `YIELD_TO` re-read
+    by `cancel_yield_to` is kept);
+  * `activate_thread` (`activate_nvm`): `d` current, `Running` or `Restart` ⇒ `d` current and `Running` at the end
+    (`set_thread_state_act`: `schedule_tcb` writes at most the action word).
+- **P1 FastTailNvm (new, root import).** `TailPld` (TCB / node / `Ω` placement), `FreeCd`, `RegWd`, `YWd`, the narrow
+  yield lemmas, `schedule_tcb_act`, `set_thread_state_act`, `activate_nvm`, **`switch_to_nvm`** (`TailPld Y d`,
+  `ObjsOK`, `Sg ⊆ Ω`, `SCq` of the current SC, `SCin` + disjointness of `d`'s SC when different, `d` Running/Restart,
+  `d`'s `YIELD_TO` typed ⇒ the end state's current thread is `d` and `Running`).
+- **P1 FastTailFault (new, root import).** `unblock_sporadic_wf` (keeps the handler's SC well formed),
+  `faultRecv_of` (the handler is BlockedOnRecv: it heads the RECV endpoint's queue, `EpsWit`, endpoint typed by
+  `EntryHyps0.tmoOK` — `faultEntAt_of`'s argument), **`faultNvm_of`** (at a `BXI` ∧ `XG` state with `FaultEntAt`:
+  the handler's SC active by `BoundInv.sact` (blocked on receive) hence `RefillsWF` (`SCsOK.all`), kept to `fS14` by
+  m61's `FaultKeep`, through `unblock_sporadic`, to `Y` past the link clears; the current SC `ScExtra0.cur` with
+  `SCq` from `SCsOK`, kept by m63's `FinKeep`; `scDisj` / `rpSc` for the disjointness; then `switch_to_nvm`),
+  **`FaultNvmPre.of_asid`** (m67's `FaultNvmPre` at an `EntryInv` / `P3Ok` / `AsidOff` entry state, both routes, as
+  `FastFaultPre.of_asid`).
+- **P1 FastTailRR (new, root import).** `rr_m15` (the writes `X8 → X15` miss everything outside `t`'s TCB, the
+  endpoint and the reply's `TCB` word), `rr_om38` (`X3 → X8` miss `Ω`; `u` is `Restart` at `X8`), **`rrPre5_of`**
+  (`RRPre5` at a dispatch state from `BXI`, m68's `RRPl` and `RRSum`: `usc` well formed at `X3` by `rr_x3`, kept to
+  `X15`; the current SC kept by m68's `FinKeep` at `X8` (`RΩ`), `u`'s SC / `YIELD_TO` / the `CUR_SC` word by
+  `FinKeep.tcb` / `.node`; then `switch_to_nvm`), **`RRPreAt5.of_inv`** (under `RRSumAt`), top
+  **`kernel_entry.entry_of10`** = `entry_of9` without `hNv : FaultNvmPre` and `hRP : RRPreAt5`.
+- **P3 XTopJointKEntryRRG (new, root import).** `JAtZ.rrPre5At` (`RRPreAt5` from `JAtZ` via m69's `JAtZ.rrDisp`,
+  `rrPl_lk`, `JAtZ.rrSum` and `rrPre5_of`), tops **`kernel_entryJ33H`** / **`kernel_entryJ34H`** /
+  **`kernel_entryJ34HW`** = `J33F` / `J34F` / `J34FW` without `hRP5`. (`J33G` was already taken, hence `H`.)
+- **P3 XTopJointKEntryEv5N (new, root import).** `fastFaultOK_of_p1N` = g4i's `fastFaultOK_of_p1` without `hNv`.
+- **Premises.** Removed: m67's `RRReads5.nvm` / `RRPreAt5` [J] (P1 `entry_of10`; P3 `J33H` / `J34H` / `J34HW`),
+  m67's `FaultNvmPre` [J] (P1 `entry_of10`; `fastFaultOK_of_p1N`). Added: none. Left on `entry_of10`: `StoreExt` [P],
+  `AsidOff` [J], `RRSumAt` [J], `CnOffAt` [J]. Left on `J34HW`: none of the m66–m69 ReplyRecv reads (the top's other
+  premises are J34R's).
+- **Reachability.** Nothing new is asked. The facts used at `Y` are the dispatch state's invariants (`BXI` from
+  `budget_ok.bxc`) moved along the run's proved footprint; `FaultNvm` / `nvm` were checked reachable by m62 / m67.
+- **(3) residue (not done).** `FastFaultOK` at the P3 entry (g4i's `jEvRef_sysU`, `kernel_entry_reachE4`, g5f's
+  `kernel_entry_reachU` unknown-syscall clause) still comes from the P1 `EntryInv` + `Hyps4` route
+  (`fastFaultOK_of_p1N`: now `AsidOff` [J] only), which the J-level tops do not carry. The m69-style route: at the
+  dispatch state (`JAtZ.rrDisp`'s analogue for the `FAULT_IP` write + `budget_ok`, also through a declined
+  `debug_syscall`), `faultOK_of` + `faultNvm_of` with (a) `BXI` (`JAtZ.bxi`), (b) `faultEntAt_of` / `faultRecv_of`
+  restated with `E0.tmoOK` (handler cap typed, `CanBlock.nb`, `UserOK`) and `XferHyps.buf` replaced by JAtZ-derived
+  facts (the `SLOT_FAULT_HANDLER` cap typing as `JAtZ.lkTyped` does for `lookup_cap`; the receive buffer from the IPC
+  buffer relation), (c) `AsidOff` from `VsRel` (`JAtZ`'s ASID table / pool placement). Then `kernel_entry_reachE5`
+  and a `reachU` variant drop `FastFaultOK`. Separately cheap: g5f's `kernel_entryJ42` / `kernel_entry_reachU`
+  syscall clause still takes `hRP5`; `JAtZ.rrPre5At` discharges it (a `J42H` + `reachUH` restating the clause without
+  `hRP5`), not done here.
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m67, keys m70-*; m70b.sh untracked).** b1 (name clash with QueueYield's
+  `complete_yield_to.yw`: renamed `ywN` / `YWd` / …), b2 (`set_thread_state` bind, a `let (s1, a1) := (Y, a1)`
+  left by the `rintro` — `WP.spec_bind` with the spec lemmas instead of `rw`), b3 (`nodeAt_val` rewrites), **b4
+  FastTailNvm green (3834 jobs)**, 11bf7b5f; b5 (`fastFin` already unfolded), **b6 FastTailFault green (3836 jobs)**,
+  610e5005; **b7 FastTailRR green (3838 jobs)**, 00d04df4; b8 (`kernel_entryJ33G` taken → `H`), **b9 RRG + Ev5N green
+  (6974 jobs)**, 5cfdb87e; merge of 0321bf4d (g5f) = 8bd7b979.
+- **full1 (full `lake build` of 8bd7b979): "Build completed successfully (7131 jobs)", 0 errors, 0 `declaration uses
+  'sorry'`.**
+- **Axioms** (scratch/axm70.lean, untracked, run by full1): kernel_entry.entry_of10, entry_of9, switch_to_nvm,
+  activate_nvm, complete_yield_to.ywN, faultNvm_of, FaultNvmPre.of_asid, rrPre5_of, RRPreAt5.of_inv, JAtZ.rrPre5At,
+  kernel_entryJ33H, kernel_entryJ34H, kernel_entryJ34HW, kernel_entryJ34FW, fastFaultOK_of_p1N, kernel_entry_reachE4:
+  propext, Classical.choice, Quot.sound (each).
+- HANDOFF: (a) goal (3) as in the residue above (`FastFaultOK` from `JAtZ` at the dispatch state; then
+  `kernel_entry_reachE5` and a `reachU` variant); (b) the cheap `J42H` / `reachUH` without `hRP5` via `JAtZ.rrPre5At`;
+  (c) P1-only `AsidOff` / `RRSumAt` / `CnOffAt` on `entry_of10` (m69 (c)).
