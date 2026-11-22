@@ -111,6 +111,20 @@ pub fn zen2(c: &Caps) -> bool {
         && matches!(c.model, 0x30..=0x4f | 0x60..=0x7f | 0x90..=0x91 | 0xa0..=0xaf)
 }
 
+/// Zen 3 by family 19h model, as in Linux's `arch/x86/kernel/cpu/amd.c`.
+pub fn zen3(c: &Caps) -> bool {
+    c.vendor == Vendor::Amd
+        && c.family == 0x19
+        && matches!(c.model, 0x00..=0x0f | 0x20..=0x5f)
+}
+
+/// Zen 4 by family 19h model, as in Linux's `arch/x86/kernel/cpu/amd.c`.
+pub fn zen4(c: &Caps) -> bool {
+    c.vendor == Vendor::Amd
+        && c.family == 0x19
+        && matches!(c.model, 0x10..=0x1f | 0x60..=0xaf)
+}
+
 // AMD TSA guidance, rev. 3.0 (November 2026), appendix. These revisions
 // also postdate the family 19h SRSO/IBPB branch-type fixes. Never compare
 // revisions belonging to different model/stepping patch streams.
@@ -452,15 +466,19 @@ pub fn select(c: &Caps) -> Result<Plan, Rejected> {
             } else {
                 p.no_smt = true;
             }
-            // Use one thread per physical core on SRSO-affected parts that lack
-            // hardware user/kernel SRSO immunity (Zen 2 has SMT_RSB; Zen 3/4 lack
-            // SRSO_USER_KERNEL_NO and Zen 4 needs a model-specific shared-BTB fix).
             // Parts reporting SRSO_NO or SRSO_USER_KERNEL_NO (Zen 5+) isolate
-            // user/kernel returns in hardware, keep IBPB on every VM exit (with
-            // IBPB_BRTYPE already required above) for guest/host SRSO and VMSCAPE,
-            // isolate SMT siblings with STIBP (checked above), and clear CPU
-            // buffers with VERW (checked below).
-            p.no_smt |= c.amd21 & (SRSO_NO | SRSO_USER_KERNEL_NO) == 0;
+            // user/kernel returns in hardware and keep SMT siblings.
+            // Zen 2 (family 0x17) has SMT_RSB and must park siblings in VM mode.
+            // Bare-metal Zen 3 and Zen 4 lack SMT_RSB, set MSR_ZEN4_BP_CFG[5]
+            // (SHARED_BTB_FIX_BIT) on Zen 4 in `spec::init_core` (as Linux's
+            // `init_amd_zen4` does), and already enforce patched microcode /
+            // IBPB_BRTYPE, IBPB on every VM exit, STIBP (checked above) and VERW.
+            // Nested Zen 3/4 without SRSO_NO or SRSO_USER_KERNEL_NO stay parked:
+            // a guest cannot write MSR_ZEN4_BP_CFG and cannot rule out a
+            // compatibility model masking Zen 2.
+            let smt_safe_srso = c.amd21 & (SRSO_NO | SRSO_USER_KERNEL_NO) != 0
+                || !c.hypervisor && (zen3(c) || zen4(c));
+            p.no_smt |= !smt_safe_srso;
             // Only pre-19h bare metal has implicit TSA immunity. Affected
             // Zen 5 advertises VERW_CLEAR after updating microcode (AMD TSA
             // rev. 3.0, sections 1/6); do not exempt family 1Ah wholesale.
@@ -819,9 +837,74 @@ mod tests {
         c.amd8 &= !AMD_STIBP;
         assert!(select(&c).unwrap().no_smt);
         c.amd8 |= AMD_STIBP;
-        // Zen 3/4 semantics: IBPB_BRTYPE alone, no hardware SRSO immunity.
+        // IBPB_BRTYPE alone, no SRSO immunity bit, not bare-metal Zen 3/4.
         c.amd21 = (c.amd21 & !SRSO_NO) | IBPB_BRTYPE;
         assert!(select(&c).unwrap().no_smt);
+    }
+
+    #[test]
+    fn zen3_and_zen4_models_match_linux_and_are_disjoint() {
+        let mut c = amd();
+        c.family = 0x19;
+        for model in 0..=0xffu32 {
+            c.model = model;
+            let z3 = matches!(model, 0x00..=0x0f | 0x20..=0x5f);
+            let z4 = matches!(model, 0x10..=0x1f | 0x60..=0xaf);
+            assert_eq!(zen3(&c), z3, "{model:#x}");
+            assert_eq!(zen4(&c), z4, "{model:#x}");
+            assert!(!(zen3(&c) && zen4(&c)));
+        }
+        for (model, z3, z4) in [(0x0f, true, false), (0x10, false, true), (0x1f, false, true),
+                                (0x20, true, false), (0x5f, true, false), (0x60, false, true),
+                                (0xaf, false, true), (0xb0, false, false)] {
+            c.model = model;
+            assert_eq!((zen3(&c), zen4(&c)), (z3, z4), "{model:#x}");
+        }
+        c.model = 0x01;
+        for family in [0x17, 0x1a] {
+            assert!(!zen3(&Caps { family, ..c }) && !zen4(&Caps { family, model: 0x11, ..c }));
+        }
+        assert!(!zen3(&Caps { vendor: Vendor::Intel, ..c }));
+        assert!(!zen4(&Caps { vendor: Vendor::Intel, model: 0x11, ..c }));
+    }
+
+    /// Bare-metal Zen 3/4 keep SMT siblings in VM mode with STIBP, as in
+    /// Linux; Zen 2, nested and unknown family 19h models stay parked.
+    #[test]
+    fn bare_metal_zen3_and_zen4_keep_smt_with_stibp() {
+        let mut c = amd();
+        c.family = 0x19;
+        for (model, stepping, z4) in [(0x01, 1, false), (0x21, 0, false), (0x50, 0, false),
+                                      (0x11, 1, true), (0x61, 2, true), (0xa0, 2, true)] {
+            c.model = model;
+            c.stepping = stepping;
+            c.microcode = amd_buffer_revision(model, stepping).unwrap();
+            assert_eq!(zen4(&c), z4);
+            assert_eq!(zen3(&c), !z4);
+            let p = select(&c).unwrap();
+            assert!(!p.no_smt, "{model:#x}");
+            assert_eq!(p.spec_ctrl & 2, 2);
+            assert!(p.buffers);
+            assert_eq!(p.vmexit & IBPB, IBPB);
+            assert!(select(&Caps { amd8: c.amd8 & !AMD_STIBP, ..c }).unwrap().no_smt);
+        }
+        // Unknown family 19h model without an SRSO immunity bit: fail closed.
+        c.model = 0xb0;
+        c.stepping = 0;
+        c.microcode = 0;
+        c.amd21 |= IBPB_BRTYPE | VERW_CLEAR;
+        assert!(!zen3(&c) && !zen4(&c));
+        assert!(select(&c).unwrap().no_smt);
+        // Nested family 19h without an SRSO immunity bit stays parked.
+        for model in [0x01, 0x21, 0x11, 0x61, 0xa0, 0xb0] {
+            let n = Caps { model, hypervisor: true, ..c };
+            assert!(select(&n).unwrap().no_smt, "{model:#x}");
+        }
+        // Zen 2 stays parked, bare metal or nested.
+        let z2 = amd();
+        assert!(select(&z2).unwrap().no_smt);
+        let z2n = Caps { hypervisor: true, amd21: z2.amd21 | IBPB_BRTYPE | VERW_CLEAR, ..z2 };
+        assert!(select(&z2n).unwrap().no_smt);
     }
 
     /// Typical Zen 5 (Turin): SRSO_USER_KERNEL_NO without SRSO_NO keeps SMT

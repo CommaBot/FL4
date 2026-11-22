@@ -247,6 +247,11 @@ pub fn init_core(bsp: bool) -> bool {
             }
         }
         wrmsr(0xc001_1029, de_cfg);
+        if zen4(&c) {
+            // Linux init_amd_zen4: fix shared-BTB SMT interaction on Zen 4
+            // (MSR_ZEN4_BP_CFG = 0xc001_102e, SHARED_BTB_FIX_BIT = bit 5).
+            wrmsr(0xc001_102e, rdmsr(0xc001_102e) | (1 << 5));
+        }
     }
     let plan = select(&c);
     let no_entry_ibpb = entry_without_ibpb(native_entry_without_ibpb(&c), &plan);

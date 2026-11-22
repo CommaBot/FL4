@@ -57,7 +57,7 @@ static int test_vm_policy(env_t env)
     test_eq(seL4_X86_VCPU_WriteMSR(v.cptr, SEL4_VCPU_MSR_XCR0, 0).error, seL4_InvalidArgument);
     test_eq(seL4_X86_VCPU_WriteMSR(v.cptr, 0xc0000102, 0x0200000000000000ull).error, seL4_InvalidArgument);
     /* The VMM API must not modify the host's speculation controls. */
-    const seL4_Word protected_msrs[] = {0x48, 0x49, 0x122, 0x123, 0xc0011029};
+    const seL4_Word protected_msrs[] = {0x48, 0x49, 0x122, 0x123, 0xc0011029, 0xc001102e};
     for (unsigned i = 0; i < sizeof(protected_msrs) / sizeof(protected_msrs[0]); i++) {
         test_eq(seL4_X86_VCPU_ReadMSR(v.cptr, protected_msrs[i]).error, seL4_IllegalOperation);
         test_eq(seL4_X86_VCPU_WriteMSR(v.cptr, protected_msrs[i], 0).error, seL4_IllegalOperation);

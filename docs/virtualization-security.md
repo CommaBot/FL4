@@ -142,13 +142,18 @@ flags](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html#p
 FL4 does not support CPU hotplug; these disabled slots are ignored and do not
 consume the boot CPU limit or trigger startup timeouts.
 
-In VM mode, AMD parts without hardware user/kernel SRSO immunity (Zen 2–4,
-which report neither SRSO_NO nor SRSO_USER_KERNEL_NO), MDS/MMIO-affected
-Intel, and CPUs without STIBP (or, on Intel, eIBRS) use one logical processor
-per physical core. AMD parts reporting SRSO_NO or SRSO_USER_KERNEL_NO (Zen 5
-and later) keep SMT siblings in VM mode: they still need IBPB_BRTYPE, take an
-IBPB on every VM exit (guest/host SRSO and VMSCAPE), keep STIBP on, and clear
-CPU buffers with VERW where TSA requires it. STIBP is enabled when available.
+In VM mode, AMD keeps SMT siblings on parts reporting SRSO_NO or
+SRSO_USER_KERNEL_NO (Zen 5 and later) and on bare-metal Zen 3 and Zen 4
+(family 19h models as classified by Linux's `amd.c`; Zen 4 also sets
+MSR_ZEN4_BP_CFG[5], SHARED_BTB_FIX_BIT, as Linux's `init_amd_zen4` does). These
+still need STIBP, IBPB_BRTYPE or the patched family 19h microcode, an IBPB on
+every VM exit (guest/host SRSO and VMSCAPE), and VERW buffer clearing where TSA
+requires it. Zen 2 (SMT_RSB), nested Zen 3/4 and unknown family 19h models
+without SRSO_NO or SRSO_USER_KERNEL_NO (a guest cannot set MSR_ZEN4_BP_CFG or
+rule out a compatibility model hiding Zen 2), MDS/MMIO-affected Intel, AMD
+without STIBP and Intel without both eIBRS and STIBP use one logical processor
+per physical core in VM mode. STIBP is enabled when available. The VMM API
+cannot read or write MSR_ZEN4_BP_CFG.
 
 This VM-only restriction applies only once a hardware VM backend is actually
 active (`vm::backend() != 0`, after `vm::init` on the boot processor and before
