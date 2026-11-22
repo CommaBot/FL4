@@ -16726,3 +16726,62 @@ Full builds jc3-full2..5 (tokyo; full2..4 stopped at errors: `State` namespace, 
 `#print axioms` (../axjc3.lean): U3L, UH2, U4..U19 and **U20**, `sniHyp_of`, `sendHyp_of`, `scCtxStepP1`,
 `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`; every existing top keeps its statement. No sorry /
 admit / native_decide / bv_decide / axiom in the changed files.
+
+## jc4 (branch par/jc4 from dec11e71 = PR #66 head, top of record `kernel_entry_reachU20`) — g7b-4 step 5 (`vsNamed`, C17 / C23 / C24 vsReach) STOPPED at analysis: **FINDING: C17 and the guarded C23 are false at reachable states** (the `NeedR` roots include mapped PML4 caps); no Lean change, no new top
+
+### (1) FINDING: C17 / guarded C23 false (trace)
+The premises (`JAsidCPath.vsReach`, XTopJointVsCap:574; `JUtPathMU16.vsReach` / `JUtPath.vsReach`) ask
+`VsReachMiss R … (NeedR … 5) … (NeedR … 1)` for a childless untyped's region `R`, and `NeedR th m 4` holds the
+object of **every** PML4 cap of a slot, mapped or not (`VNeed.pml4 {mp}`, UtDropJ2:63; `VCapOK (.Pml4 p mp a)`
+asks `p ∈ L4` for any `mp`, VsFoot:72). An ASID-unreachable mapped PML4 can keep a stale entry to a dead PDPT:
+1. Root task: from RAM untyped U3 (e.g. 12 bits, pool-sized) retype a PDPT q3 (cap c3, U3's only child); from
+   another untyped a PML4 q4 (cap c4). MakePool (pool cap cP), ASID assign: c4 mapped with ASID A.
+2. `X86PDPTMap` c3 into q4 at a user vaddr V: q4[idx(V,39)] = present entry to q3 (`decode_table_map`), c3 mapped (A, V).
+3. Delete cP (final): `delete_asid_pool` (fl4-core x86_64/vspace.rs:345) clears the ASID-table word; the pool's
+   memory and q4 are untouched. c4 stays `Pml4 q4 true A`.
+4. Delete c3 (final): `finalise_cap` → `unmap_pdpt(A, V, q3)` (vspace.rs:305): `find_vspace_for_asid(A)` fails (the
+   ASID-table word is 0) → returns without writing. q4's entry to q3 stays.
+5. U3 now has no descendants. Invoke U3 (`Untyped_Retype`, or AsidControl MakePool with U3 for C17): the reset
+   branch asks the guarded `vsReach`. `q4 ∈ NeedR … 4` (slot of c4), `VsReach … 4 q4` (`.x4`), then `.l4` with
+   i = idx(V,39) < 256 and the present entry gives `VsReach … 3 q3`; q3 lies in U3's region, so `FrMiss` fails.
+   The premise is false whatever the restart does (VsReach reads no thread-state word).
+Every step is an ordinary root-task syscall; seL4 / l4v behave the same (`deleteASIDPool`, `unmapPDPT` returning
+on a failed `findVSpaceForASID`); l4v is fine because `valid_vs_lookup` / `valid_vspace_objs` constrain only what
+is reachable **from the ASID table**, and q4 can never be reached again (c4 and its copies are mapped, so it
+cannot be re-assigned). FL4's relation is stronger: the drop must keep `VsSlotsW` (c4 asks `q4 ∈ L4'`) and
+`PtRel` (q4's entry asks `q3 ∈ L3'` with a spec PDPT at q3), which a reset of U3 destroys. So no `JAtZ` exists
+after such a reset; the syscall clause of U20 (and every top since U9) is vacuous at that dispatch state, as
+for g7b-2's unguarded form. **No carried fact can discharge C17 / C23 as stated**, `vsNamed` included.
+(C17 the same with U3 pool-sized: `JAsidCPath.vsReach` at x = U3.)
+
+### (2) C24 vsReach (device) is true, but not via `vsNamed`
+FL4 retypes only frames and untypeds from a device untyped (untyped.rs:66), so no spec table / pool / PML4 ever
+lies in a device range. A table `VsReach` reaches from `NeedR` is in the sets (`VsReach.mem`, `VsSlotsW.needR`),
+hence a spec table (`PtRel` / `VsRel`), hence off every device range. Not derivable from what is carried:
+`DevApart`'s `H` clause lets `.other` objects (tables are `.other 12` too) lie in a device cap's used part, and
+`DevRangeS` (SpecInvDvW) says nothing on object kinds. Needs a new fact, e.g. `JCarry.devTab` ("every spec arch
+object that is not a data page misses every device untyped cap's range": kept by `KSz` at frame sites, `DevFrom`
+for caps, `devSep` + `devRetypeR` at RAM retypes, device retypes make only device data pages / untypeds), at the
+jc2 `devApart` sites (M, ~40 files). Not started: the brief scoped this step to `vsNamed`.
+
+### (3) `vsNamed` as designed (g7b-4 (1)) is not inductive on its own
+Even for the ASID-rooted form (`VsReach … ∅ ∅ ∅ ∅ ∅`), preserving it at a final table cap's finalisation needs
+that the table is reached only through the entry at the cap's own `(asid, vaddr)` (`unmap_page_table` &c. clear
+only that entry): l4v's ref-carrying `valid_vs_lookup` + `unique_table_refs` (all caps of a table carry one ref;
+FL4 keeps it: `derive_cap` refuses unmapped table / PML4 caps, objects.rs:201; table unmap needs
+`is_final_capability`, vspace.rs:794, and zeroes the table), plus `valid_table_caps` (an unmapped table has no
+present entry) for the map case. `VsReach` would need the path's ref (ASID, index prefix), and `vs_fin`'s post
+(VsFin:529) the exact words written (today only `FinX` at the same sets). Size: L+ (several agents).
+
+### (4) Fix options (lead decision)
+- **F1 (recommended):** mapped PML4 caps ask nothing of the sets (`VNeed.pml4` / `VCapOK .Pml4` only for
+  `mp = false`, as for PT/PD/PDPT); FL4 walks a mapped PML4 only through the ASID table (`set_vm_root` /
+  `check_vspace` use `find_vspace_for_asid`), whose targets are in `L4` by `VsRel` + `PoolsIn`. Then the roots
+  are unmapped caps' tables (empty: `valid_table_caps`) and pools (a live pool cap's pool is in the ASID table),
+  and C17 / C23 become true; they then follow from the ref-carrying `vsNamed` of (3) + `JAtZ.tabOff`'s
+  childless argument. Touches every `VsSlotsW` user (`JAtZ.vsc`: ~46 files) and the CR3 / TCB-root relations.
+- F2: leave C17 / C23 as [J] (documented false at the trace's states: the top is vacuous there) and do C24 alone
+  via `devTab` ((2)).
+
+### (5) Builds
+None (documentation only).
