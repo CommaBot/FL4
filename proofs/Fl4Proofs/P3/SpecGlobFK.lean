@@ -286,9 +286,11 @@ theorem gk_performPml4Flush (i : Fl4Pml4Invocation) : GK (performPml4Flush (Z :=
 theorem gke_archPerformInvocation (i : ArchInvocation) : GKE (archPerformInvocation (Z := Unit) i) := by
   unfold archPerformInvocation; apply dke_liftE; cases i <;> gk_auto
 
-/-- **The arch invocations keep the domain schedule.** -/
-theorem gke_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : GKE (fl4ArchPerformInvocation (Z := Unit) i) := by
+/-- **The arch invocations but the frame batch (fb3: no user) keep the domain schedule.** -/
+theorem gke_fl4ArchPerformInvocation (i : Fl4ArchInvocation) (hb : ∀ b, i ≠ .frameBatch b) :
+    GKE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i with
+  | frameBatch b => exact absurd rfl (hb b)
   | spec i => exact gke_archPerformInvocation i
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; gk_auto; exact gk_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; gk_auto

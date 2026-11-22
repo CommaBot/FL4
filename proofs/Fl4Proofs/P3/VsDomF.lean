@@ -16,6 +16,7 @@ P3 (DESIGN.md §9), VSpace: **the VSpace caps' domain-schedule frame**
 import Fl4Proofs.P3.VsTopCap
 import Fl4Proofs.P3.VsFootW
 import Fl4Proofs.P3.VsDomOps
+import Fl4Proofs.P3.DomFb
 import Fl4Proofs.P3.TopF
 open Aeneas Aeneas.Std Result
 

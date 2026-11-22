@@ -288,9 +288,11 @@ theorem qv_performPml4Flush (i : Fl4Pml4Invocation) : QV (performPml4Flush (Z :=
 theorem qve_archPerformInvocation (i : ArchInvocation) : QVE (archPerformInvocation (Z := Unit) i) := by
   unfold archPerformInvocation; apply dke_liftE; cases i <;> qv_auto
 
-/-- **The arch invocations keep the domain schedule.** -/
-theorem qve_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : QVE (fl4ArchPerformInvocation (Z := Unit) i) := by
+/-- **The arch invocations but the frame batch (fb3: no user) keep the domain schedule.** -/
+theorem qve_fl4ArchPerformInvocation (i : Fl4ArchInvocation) (hb : ∀ b, i ≠ .frameBatch b) :
+    QVE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i with
+  | frameBatch b => exact absurd rfl (hb b)
   | spec i => exact qve_archPerformInvocation i
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; qv_auto; exact qv_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; qv_auto

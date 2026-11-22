@@ -147,6 +147,7 @@ theorem perform_nil (b c d : Bool) {inv : Fl4Invocation} (h : NilInv inv) :
     | pml4Flush _ => exact okAll_liftE (by ndall)
     | deriveSubframe _ => exact okAll_liftE (by ndall)
     | testAndClearAccessed _ => exact absurd h id
+    | frameBatch _ => exact absurd h id
   | _ => exact absurd h id
 
 macro "okall" : tactic => `(tactic| (
