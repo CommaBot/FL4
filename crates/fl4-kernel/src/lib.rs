@@ -5,6 +5,8 @@
 mod acpi;
 mod ap_order;
 mod bootmem;
+mod cvm_mmio;
+mod cvm_walk;
 mod dangerous_msr;
 mod elf;
 mod entry;
@@ -14,13 +16,13 @@ mod mboot;
 mod paging;
 mod smp;
 mod snp;
-mod snp_walk;
+mod tdx;
 mod trace;
 
 use core::cell::UnsafeCell;
 use core::fmt::Write;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fbcon, fpu, ioapic, percpu, pic, serial, sev, spec, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, cvm, fbcon, fpu, ioapic, percpu, pic, serial, sev, spec, timer, tlb};
 use bootmem::Ranges;
 use fl4_core::boot::{BootParams, Region, MAX_REGIONS, PADDR_USER_DEVICE_TOP};
 use fl4_core::layout::{ks, pptr};
@@ -95,7 +97,10 @@ struct Statics {
     mods: KeptModules,
     dma_ram: Ranges,
     private_devices: Ranges,
-    sev_memory: sev::Memory,
+    cvm_memory: cvm::Memory,
+    /// RAM accepted at boot in a TDX guest, which the APs read while they
+    /// help (`smp::accept_memory`).
+    accepted: Ranges,
 }
 
 struct Cell(UnsafeCell<Statics>);
@@ -107,7 +112,8 @@ static STATICS: Cell = Cell(UnsafeCell::new(Statics {
     extra: ExtraBi([0; 4096]),
     dma_ram: Ranges::new(),
     private_devices: Ranges::new(),
-    sev_memory: sev::Memory { ram: &[], private_devices: &[] },
+    cvm_memory: cvm::Memory { ram: &[], private_devices: &[] },
+    accepted: Ranges::new(),
     mods: KeptModules { n: 0, paddr: [0; mboot::MAX_MODULES], size: [0; mboot::MAX_MODULES] },
 }));
 
@@ -151,9 +157,9 @@ fn keep_modules(mb: &mboot::BootInfo, start: u64, ram: &Ranges, k: &mut KeptModu
 }
 
 /// Extra BootInfo records in the order seL4 writes them: ACPI RSDP,
-/// Multiboot memory map, TSC frequency; then l4h's boot modules record
-/// and the TPM event log.
-fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &KeptModules, tpm: Option<mboot::TpmLog>) -> usize {
+/// Multiboot memory map, TSC frequency; then l4h's boot modules record,
+/// the TPM and confidential-computing event logs, and the TDX guest's facts.
+fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &KeptModules, tpm: Option<mboot::EventLog>, cc: Option<mboot::EventLog>) -> usize {
     let mut off = 0;
     let hdr = |buf: &mut [u8], off: &mut usize, id: u64, len: u64| {
         put_bytes(buf, off, &id.to_le_bytes());
@@ -185,7 +191,7 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
     }
     hdr(buf, &mut off, 5, 20);
     put_bytes(buf, &mut off, &(timer::tsc_mhz() as u32).to_le_bytes());
-    if sev::mask() != 0 {
+    if cvm::active() {
         hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::SHARED_DMA, 16);
     }
     if k.n > 0 {
@@ -205,9 +211,23 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
         put_bytes(buf, &mut off, &t.size.to_le_bytes());
         put_bytes(buf, &mut off, &t.flags.to_le_bytes());
     }
+    if let Some(t) = cc {
+        // seL4_CcEventLog: paddr, size, flags.
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::CC_EVENT_LOG, 16 + 24);
+        put_bytes(buf, &mut off, &t.paddr.to_le_bytes());
+        put_bytes(buf, &mut off, &t.size.to_le_bytes());
+        put_bytes(buf, &mut off, &t.flags.to_le_bytes());
+    }
+    if fl4_arch_x86_64::tdx::active() {
+        // seL4_X86_TdxInfo: gpaw, attributes, td_ctls, num_vcpus, max_vcpus.
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::TDX_INFO, 16 + 40);
+        for v in fl4_arch_x86_64::tdx::boot_info() {
+            put_bytes(buf, &mut off, &v.to_le_bytes());
+        }
+    }
     // l4h 0047: the kernel appends the extra untyped chunk with word
     // writes, so end on a word boundary. The records above come to at most
-    // 2050 bytes, so these at most 23 fit in `ExtraBi` too.
+    // 2146 bytes, so these at most 23 fit in `ExtraBi` too.
     if off % 8 != 0 {
         let pad = 8 - off % 8;
         hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::PADDING, (16 + pad) as u64);
@@ -228,7 +248,14 @@ fn cpu_features() -> (bool, bool, bool) {
 #[no_mangle]
 pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page: u64, delta: u64) -> ! {
     paging::set_image_delta(delta);
-    sev::init(private_mask);
+    // An SNP guest's CPUID takes #VC, which has no handler yet; SEV and SNP
+    // are never TDX.
+    let td = if private_mask == 0 && cpuid_page == 0 { fl4_arch_x86_64::tdx::probe() } else { None };
+    cvm::init(private_mask, td.map_or(0, |t| t.shared_mask));
+    if let Some(t) = td {
+        gdt::load_boot_ve();
+        fl4_arch_x86_64::tdx::init(t);
+    }
     if cpuid_page != 0 {
         gdt::load_boot_vc();
         snp::init(cpuid_page);
@@ -238,6 +265,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     if private_mask != 0 {
         let technology = if sev::snp::active() { "SEV-SNP" } else { "SEV" };
         kprintln!("FL4: AMD {} guest, C-bit {}", technology, private_mask.trailing_zeros());
+    }
+    if let Some(t) = td {
+        kprintln!("FL4: Intel TDX guest, GPAW {}, {} of {} vCPUs", t.gpaw, t.num_vcpus, t.max_vcpus);
     }
     let mb = match mboot::parse(magic, info as u64) {
         Some(b) => b,
@@ -268,11 +298,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     spec::detect();
     cr4 |= tlb::init(spec::skim());
     // The bench profile lets user code read the performance counters.
-    if fl4_abi::config::EXPORT_PMC_USER {
+    // In a TD only with the PERFMON attribute.
+    if fl4_abi::config::EXPORT_PMC_USER && td.is_none_or(|t| fl4_arch_x86_64::tdx::user_pmc_allowed(t.attributes)) {
         cr4 |= 1 << 8;
     }
     cpu::write_cr4(cr4);
-    let gpa_top = sev::gpa_top(cpu::max_paddr(), private_mask);
+    let gpa_top = cvm::gpa_top(cpu::max_paddr(), cvm::private_mask() | cvm::shared_mask());
     // 1 GiB pages, read once: the window, the other cores and user
     // mappings all go by this (paging::init).
     let huge = cpu::has_1g_pages();
@@ -297,7 +328,10 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         Some(a) => a,
         None => fail("no ACPI tables"),
     };
-    pic::disable();
+    // A TD has no PIC: its ports are the VMM's.
+    if td.is_none() {
+        pic::disable();
+    }
     let apic_base = apic::enable(true, window_top).unwrap_or_else(|| fail("local APIC outside the physical window"));
     apic::write(apic::REG_SVR, (1 << 8) | 0xff);
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
@@ -313,7 +347,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         kprintln!("FL4: {} IOAPICs: only the first {} are used", acpi.n_ioapics, ioapic::MAX_IOAPICS);
     }
     for i in 0..acpi.n_ioapics.min(ioapic::MAX_IOAPICS) {
-        let addr = sev::mmio_ptr(acpi.ioapics[i], IOAPIC_WINDOW, window_top)
+        let addr = cvm::mmio_ptr(acpi.ioapics[i], IOAPIC_WINDOW, window_top)
             .unwrap_or_else(|| fail("IOAPIC outside the physical window"));
         ioapic::add(addr);
     }
@@ -338,9 +372,19 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // The top of the physical memory user space can map (device memory,
     // below) and of the kernel window: every core must address it.
     let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
+    // The MADT names the mailbox, and the VMM writes the MADT: use it only
+    // if the memory map says it is firmware's.
+    let mailbox = acpi.mp_wakeup_mailbox.filter(|&m| {
+        bootmem::mailbox_ok(m, window_top, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))
+    });
+    let tdx_wakeup = if td.is_some() {
+        mb.tdx_ap_page.zip(mailbox).map(|(page, mailbox)| tdx::Wakeup { page, mailbox })
+    } else {
+        None
+    };
     // The other cores, if any (each sets itself up and waits). Each walks
     // the boot core's tables, and the 1 GiB pages and addresses in them.
-    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top, huge, paddr_top: device_top });
+    let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top, huge, paddr_top: device_top, tdx_wakeup });
     if ncpus > 1 {
         kprintln!("FL4: {} cores running", ncpus);
     }
@@ -359,7 +403,22 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // Nothing goes past what the CPU can address either (MAXPHYADDR): a
     // mapping of it would set reserved bits in a paging, EPT or NPT entry
     // (`device_top`, above, which every core must reach).
-    let ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
+    let mut ram = bootmem::ram(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
+    // A TDX guest's unaccepted RAM joins it, accepted on all cores. Past
+    // the window it stays unaccepted, and out of device memory below.
+    if td.is_some() {
+        let accepted = bootmem::unaccepted(mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)), HIGHMEM_PADDR, window_top);
+        if accepted.lost {
+            fail("more unaccepted memory ranges than the kernel keeps");
+        }
+        let st = unsafe { &mut *STATICS.0.get() };
+        st.accepted = accepted;
+        let list: &'static [Region] = &st.accepted.r[..st.accepted.n];
+        smp::accept_memory(list);
+        for r in list {
+            ram.add(r.start, r.end);
+        }
+    }
     if ram.lost {
         fail("more RAM ranges than the kernel keeps");
     }
@@ -374,9 +433,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     for i in 0..mb.n_modules {
         mods_end = mods_end.max(mb.modules[i].end);
     }
-    // The TPM event log stays where the loader put it until it is copied:
-    // the root task does not load over it.
-    if let Some(t) = mb.tpm_log {
+    // The event logs stay where the loader put them until they are copied:
+    // the root task does not load over them.
+    for t in [mb.tpm_log, mb.cc_log].into_iter().flatten() {
         mods_end = mods_end.max(t.paddr + t.size);
     }
     let mods_end = (mods_end + PAGE - 1) & !(PAGE - 1);
@@ -385,9 +444,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         Some(l) => l,
         None => fail("root task is not a loadable x86_64 ELF image"),
     };
-    let tpm_bytes = mb.tpm_log.map_or(0, |t| t.size.div_ceil(PAGE) * PAGE);
+    let log_bytes = |l: Option<mboot::EventLog>| l.map_or(0, |t| t.size.div_ceil(PAGE) * PAGE);
     let image_bytes = layout.size() + mb.modules[1..mb.n_modules].iter()
-        .map(|m| (m.end - m.start).div_ceil(PAGE) * PAGE).sum::<u64>() + tpm_bytes;
+        .map(|m| (m.end - m.start).div_ceil(PAGE) * PAGE).sum::<u64>() + log_bytes(mb.tpm_log) + log_bytes(mb.cc_log);
     let load = match ram.find(mods_end, image_bytes).or_else(|| {
         // EFI allocates the handoff as a unit and may put it at the top
         // of the last usable range. Search below it as well.
@@ -406,6 +465,17 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     let reserved = [(KERNEL_PHYS_START + delta, mods_end), (image.p_start, image.p_end), (apic_base, apic_base + PAGE)];
     let ioapics = acpi.ioapics[..acpi.n_ioapics].iter().map(|&b| (b, b + IOAPIC_WINDOW));
     let mut dev = bootmem::device(&ram, device_top, reserved.into_iter().chain(ioapics));
+    // RAM not accepted (a TDX guest's past the window, or any other guest's)
+    // is no device: an access through a device cap would fault in the guest.
+    for e in &mb.mmap[..mb.n_mmap] {
+        if e.ty == bootmem::UNACCEPTED {
+            dev.remove(e.base & !(PAGE - 1), e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1));
+        }
+    }
+    // The wakeup mailbox stays the firmware's and the kernel's.
+    if let Some(w) = tdx_wakeup {
+        dev.remove(w.mailbox, w.mailbox + PAGE);
+    }
     // The framebuffer console (l4h 0020), if asked for: only on device
     // memory as it is before the modules join it, so never on RAM, the
     // kernel's image and statics, the boot modules, the root task or the
@@ -421,22 +491,26 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // without clearing.
     let st = unsafe { &mut *STATICS.0.get() };
     let mods = keep_modules(&mb, image.p_end, &ram, &mut st.mods);
-    // The TPM event log after them, the same way (the root task reads it
-    // from device untypeds, which keep its bytes).
-    let tpm_log = mb.tpm_log.and_then(|t| {
-        let end = mods + t.size.div_ceil(PAGE) * PAGE;
-        if !ram.contains(mods, end) {
-            kprintln!("FL4: no memory for the TPM event log: not passed on");
+    // The event logs after them, the same way (the root task reads them
+    // from device untypeds, which keep their bytes).
+    let keep_log = |log: Option<mboot::EventLog>, dst: u64, what: &str| {
+        let t = log?;
+        let end = dst + t.size.div_ceil(PAGE) * PAGE;
+        if !ram.contains(dst, end) {
+            kprintln!("FL4: no memory for the {} event log: not passed on", what);
             return None;
         }
-        unsafe { core::ptr::copy_nonoverlapping(pptr(t.paddr) as *const u8, pptr(mods) as *mut u8, t.size as usize) };
+        unsafe { core::ptr::copy_nonoverlapping(pptr(t.paddr) as *const u8, pptr(dst) as *mut u8, t.size as usize) };
         // The rest of the last page goes to user space too: no old RAM.
-        unsafe { core::ptr::write_bytes(pptr(mods + t.size) as *mut u8, 0, (end - mods - t.size) as usize) };
-        kprintln!("FL4: TPM event log: {:#x} bytes at {:#x}", t.size, mods);
-        Some(mboot::TpmLog { paddr: mods, ..t })
-    });
-    let log_end = tpm_log.map_or(mods, |t| mods + t.size.div_ceil(PAGE) * PAGE);
-    if sev::snp::active() {
+        unsafe { core::ptr::write_bytes(pptr(dst + t.size) as *mut u8, 0, (end - dst - t.size) as usize) };
+        kprintln!("FL4: {} event log: {:#x} bytes at {:#x}", what, t.size, dst);
+        Some(mboot::EventLog { paddr: dst, ..t })
+    };
+    let tpm_log = keep_log(mb.tpm_log, mods, "TPM");
+    let cc_start = tpm_log.map_or(mods, |t| mods + t.size.div_ceil(PAGE) * PAGE);
+    let cc_log = keep_log(mb.cc_log, cc_start, "CC");
+    let log_end = cc_log.map_or(cc_start, |t| cc_start + t.size.div_ceil(PAGE) * PAGE);
+    if cvm::hardened() {
         // Keep usable RAM and ACPI NVS (including the SNP secrets)
         // out of device caps. Root reads ACPI tables in reclaim memory
         // through private device frames, which retain the encryption bit.
@@ -464,7 +538,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     free.remove(KERNEL_PHYS_START + delta, mods_end);
     free.remove(image.p_start, log_end);
 
-    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods, tpm_log);
+    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods, tpm_log, cc_log);
     let mut p = BootParams {
         free: [Region::EMPTY; MAX_REGIONS],
         n_free: 0,
@@ -488,7 +562,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // At most one interval per firmware entry and one for the kept modules.
     // Keep every private boundary even if BootParams can export fewer ranges.
     let mut firmware = bootmem::RangeList::<{ mboot::MAX_MMAP + 1 }>::new();
-    if private_mask != 0 {
+    if cvm::active() {
         firmware.add(image.p_end, log_end);
         for e in &mb.mmap[..mb.n_mmap] {
             if e.len != 0 && matches!(e.ty, 1 | 3 | 4) {
@@ -509,17 +583,20 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         }
     });
     if omitted != 0 { kprintln!("FL4: {} device memory regions exceed the boot range limit", omitted); }
+    if let Some(w) = tdx_wakeup {
+        st.private_devices.add(w.mailbox, w.mailbox + PAGE);
+    }
     // A private boundary left out would hand private memory over as shared.
     if firmware.lost || st.private_devices.lost {
         fail("more firmware memory ranges than the kernel keeps");
     }
-    if private_mask != 0 {
+    if cvm::active() {
         st.dma_ram = free;
-        st.sev_memory = sev::Memory {
+        st.cvm_memory = cvm::Memory {
             ram: &st.dma_ram.r[..st.dma_ram.n],
             private_devices: &st.private_devices.r[..st.private_devices.n],
         };
-        sev::install(&st.sev_memory);
+        cvm::install(&st.cvm_memory);
     }
 
     // Kernel state, then the root task.
@@ -565,5 +642,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
 fn panic(info: &core::panic::PanicInfo) -> ! {
     kprintln!("FL4 panic: {}", info);
     entry::dump_trace();
+    if cvm::hardened() {
+        cvm::terminate(0);
+    }
     cpu::halt_forever()
 }

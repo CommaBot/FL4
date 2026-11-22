@@ -1,9 +1,6 @@
 //! Kernel side of the SEV-SNP UEFI handoff and #VC handling.
 use crate::entry::Frame;
-use fl4_arch_x86_64::{
-    cpu,
-    sev::{self, mmio, snp},
-};
+use fl4_arch_x86_64::{cpu, cvm, sev::snp};
 use fl4_core::layout::pptr;
 
 pub fn init(cpuid: u64) {
@@ -65,26 +62,24 @@ fn virtual_msr(msr: u32) -> bool {
     )
 }
 
-use crate::snp_walk::Access;
+use crate::cvm_walk::Access;
 
 /// Walk the active user tables through their private kernel aliases.
 /// SNP's AMD CPUs run with the full kernel window in each user CR3.
 fn translate(va: u64, access: Access) -> Option<u64> {
-    crate::snp_walk::translate(
+    crate::cvm_walk::translate(
         va,
         access,
         cpu::read_cr3(),
-        sev::mask(),
+        cvm::private_mask(),
+        0,
         fl4_abi::consts::USER_TOP,
         crate::paging::window_top(),
         |pa| unsafe { (pptr(pa) as *const u64).read_volatile() },
     )
 }
 
-fn user_next_rip(rip: u64, length: u64) -> Option<u64> {
-    rip.checked_add(length)
-        .filter(|&next| next <= fl4_abi::consts::USER_TOP)
-}
+use crate::cvm_mmio::user_next_rip;
 
 pub fn user_vc(f: &mut Frame) -> bool {
     let fetch = |off| {
@@ -121,51 +116,7 @@ pub fn user_vc(f: &mut Frame) -> bool {
         return false;
     }
 
-    let gprs = [
-        &mut f.rax, &mut f.rcx, &mut f.rdx, &mut f.rbx, &mut f.rsp, &mut f.rbp, &mut f.rsi,
-        &mut f.rdi, &mut f.r8, &mut f.r9, &mut f.r10, &mut f.r11, &mut f.r12, &mut f.r13,
-        &mut f.r14, &mut f.r15,
-    ];
-    let values = core::array::from_fn(|i| *gprs[i]);
-    let Some(access) = mmio::decode(f.rip, &values, fetch) else {
-        return false;
-    };
-    let Some(next) = user_next_rip(f.rip, access.length) else {
-        return false;
-    };
-    // Never let a single GHCB operation cross a page boundary. Consult
-    // the guest's own mappings instead of any address supplied by the VMM.
-    if (access.address & 4095) + access.bytes > 4096 {
-        return false;
-    }
-    let mode = match access.op {
-        mmio::Operation::Write(_) => Access::Write,
-        mmio::Operation::Read { .. } => Access::Read,
-    };
-    let Some(pa) = translate(access.address, mode) else {
-        return false;
-    };
-    let mask = u64::MAX >> (64 - 8 * access.bytes);
-    match access.op {
-        mmio::Operation::Write(value) => {
-            snp::mmio(pa, access.bytes, Some(value & mask));
-        }
-        mmio::Operation::Read {
-            register,
-            shift,
-            dest_bytes,
-        } => {
-            let value = snp::mmio(pa, access.bytes, None) & mask;
-            *gprs[register] = if dest_bytes >= 4 {
-                value
-            } else {
-                let dest_mask = u64::MAX >> (64 - 8 * dest_bytes);
-                (values[register] & !(dest_mask << shift)) | (value << shift)
-            };
-        }
-    }
-    f.rip = next;
-    true
+    crate::cvm_mmio::user_mmio(f, translate, |pa, bytes, value| snp::mmio(pa, bytes, value))
 }
 
 #[repr(C, align(4096))]

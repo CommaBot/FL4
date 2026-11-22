@@ -32,12 +32,26 @@ fn switch_vspace(root: u64, asid: u64) {
 }
 
 impl Arch for PhysArch {
-    fn private_device_frame(&self, paddr: u64) -> bool { crate::sev::private_device(paddr) }
+    fn private_device_frame(&self, paddr: u64) -> bool { crate::cvm::private_device(paddr) }
 
-    fn dma_ram(&self, base: u64, bytes: u64) -> bool { crate::sev::is_dma_ram(base, bytes) }
+    fn dma_ram(&self, base: u64, bytes: u64) -> bool { crate::cvm::is_dma_ram(base, bytes) }
 
     fn dma_frame(&mut self, base: u64, bytes: u64, shared: bool) {
-        crate::sev::transition(base, bytes, shared);
+        crate::cvm::transition(base, bytes, shared);
+    }
+
+    fn tdx_active(&self) -> bool { crate::tdx::active() }
+
+    fn tdx_report(&mut self, frame_ptr: u64, d0: u64, d1: u64, d2: u64, d3: u64, d4: u64, d5: u64, d6: u64, d7: u64) -> u64 {
+        crate::tdx::report(frame_ptr, &[d0, d1, d2, d3, d4, d5, d6, d7])
+    }
+
+    fn tdx_extend_rtmr(&mut self, index: u64, d0: u64, d1: u64, d2: u64, d3: u64, d4: u64, d5: u64) -> u64 {
+        crate::tdx::extend_rtmr(index, &[d0, d1, d2, d3, d4, d5])
+    }
+
+    fn tdx_get_quote(&mut self, frame_ptr: u64, buf_len: u64) -> u64 {
+        crate::tdx::get_quote(fl4_core::layout::paddr(frame_ptr) | crate::cvm::shared_mask(), buf_len)
     }
 
     fn virtualization(&self) -> u64 { crate::vm::backend() }

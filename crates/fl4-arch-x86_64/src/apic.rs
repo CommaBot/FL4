@@ -32,6 +32,7 @@ pub fn is_x2apic() -> bool {
 
 const BASE_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
 const X2_ENABLE: u64 = 1 << 10;
+const APIC_ENABLE: u64 = 1 << 11;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Registers {
@@ -43,7 +44,7 @@ fn registers(base: u64, cpu_x2: bool, window_top: u64) -> Option<Registers> {
     if cpu_x2 || base & X2_ENABLE != 0 {
         Some(Registers::Msr)
     } else {
-        crate::sev::mmio_ptr(base & BASE_ADDR_MASK, 4096, window_top).map(Registers::Mmio)
+        crate::cvm::mmio_ptr(base & BASE_ADDR_MASK, 4096, window_top).map(Registers::Mmio)
     }
 }
 
@@ -65,8 +66,15 @@ fn ap_registers(base: u64, cpu_x2: bool, bsp_x2: bool, bsp_base: u64, window_top
         // x2APIC cannot go back to xAPIC without disabling the APIC.
         None
     } else {
-        crate::sev::mmio_ptr(base & BASE_ADDR_MASK, 4096, window_top).map(Registers::Mmio)
+        crate::cvm::mmio_ptr(base & BASE_ADDR_MASK, 4096, window_top).map(Registers::Mmio)
     }
+}
+
+/// The IA32_APIC_BASE value that turns on x2APIC mode, if it is not on. A
+/// TDX guest's firmware leaves it on, and the guest may not write the MSR.
+fn enable_write(base: u64) -> Option<u64> {
+    let v = base | APIC_ENABLE | X2_ENABLE;
+    (v != base).then_some(v)
 }
 
 /// Enable this core's APIC and return its physical base for boot memory
@@ -85,13 +93,15 @@ pub fn enable(bsp: bool, window_top: u64) -> Option<u64> {
     // An AP's mode and page are the boot core's: the globals stay.
     match regs {
         Registers::Msr => {
-            wrmsr(msr::APIC_BASE, base | (1 << 11) | X2_ENABLE);
+            if let Some(v) = enable_write(base) {
+                wrmsr(msr::APIC_BASE, v);
+            }
             if bsp {
                 X2APIC.store(true, Ordering::Release);
             }
         }
         Registers::Mmio(mmio) => {
-            wrmsr(msr::APIC_BASE, base | (1 << 11));
+            wrmsr(msr::APIC_BASE, base | APIC_ENABLE);
             if bsp {
                 MMIO.store(mmio, Ordering::Release);
             }
@@ -108,7 +118,7 @@ pub fn read(reg: u32) -> u32 {
     if is_x2apic() {
         rdmsr(0x800 + (reg >> 4)) as u32
     } else {
-        unsafe { crate::sev::read_mmio32(MMIO.load(Ordering::Relaxed) + reg as u64) }
+        unsafe { crate::cvm::read_mmio32(MMIO.load(Ordering::Relaxed) + reg as u64) }
     }
 }
 
@@ -117,7 +127,7 @@ pub fn write(reg: u32, v: u32) {
     if is_x2apic() {
         wrmsr(0x800 + (reg >> 4), v as u64)
     } else {
-        unsafe { crate::sev::write_mmio32(MMIO.load(Ordering::Relaxed) + reg as u64, v) }
+        unsafe { crate::cvm::write_mmio32(MMIO.load(Ordering::Relaxed) + reg as u64, v) }
     }
 }
 
@@ -239,6 +249,14 @@ mod tests {
             registers(last_page | (1 << 11), false, top),
             Some(Registers::Mmio(fl4_core::layout::pptr(last_page)))
         );
+    }
+
+    #[test]
+    fn apic_base_is_not_written_when_x2apic_is_already_on() {
+        let base = 0xfee0_0000;
+        assert_eq!(enable_write(base | APIC_ENABLE | X2_ENABLE), None);
+        assert_eq!(enable_write(base | APIC_ENABLE), Some(base | APIC_ENABLE | X2_ENABLE));
+        assert_eq!(enable_write(base), Some(base | APIC_ENABLE | X2_ENABLE));
     }
 
     /// Audit round 5 F2: an MADT x2APIC entry's ID above 0xfe cannot be

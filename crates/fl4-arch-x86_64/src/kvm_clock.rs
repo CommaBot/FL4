@@ -71,7 +71,7 @@ fn scale_mhz(mul: u32, shift: i8) -> u32 {
 pub fn tsc_mhz() -> u32 {
     // KVM writes this buffer through its shared view. In an encrypted
     // guest it belongs to a private kernel page; use the other clock sources.
-    if crate::sev::mask() != 0 { return 0; }
+    if crate::cvm::active() { return 0; }
     let Some(msr) = clock_msr() else { return 0 };
     let clock = addr_of_mut!(CLOCK);
     compiler_fence(Ordering::SeqCst);

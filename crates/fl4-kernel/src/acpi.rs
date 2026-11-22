@@ -21,10 +21,18 @@ pub struct Info {
     pub n_ioapics: usize,
     /// The MADT lists more IOAPICs than `ioapics` holds.
     pub ioapics_lost: bool,
+    /// The firmware's AP wakeup mailbox (MADT Multiprocessor Wakeup
+    /// structure), how an Intel TDX guest starts its cores. Unvalidated:
+    /// the VMM writes these tables.
+    pub mp_wakeup_mailbox: Option<u64>,
 }
 
 fn rd8(p: u64) -> u8 {
     unsafe { core::ptr::read_volatile(pptr(p) as *const u8) }
+}
+
+fn rd16(p: u64) -> u16 {
+    unsafe { core::ptr::read_unaligned(pptr(p) as *const u16) }
 }
 
 fn rd32(p: u64) -> u32 {
@@ -108,7 +116,7 @@ pub fn init(given: Option<u64>, top: u64) -> Option<Info> {
         Some(p) if valid_rsdp_below(p, top) => p,
         _ => find_rsdp()?,
     };
-    let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0, ioapics_lost: false };
+    let mut info = Info { rsdp: [0; RSDP_LEN], cpus: [0; MAX_CPUS], n_cpus: 0, ioapics: [0; MAX_IOAPICS], n_ioapics: 0, ioapics_lost: false, mp_wakeup_mailbox: None };
     let v2 = rsdp_v2(rsdp, top);
     for i in 0..if v2 { RSDP_LEN } else { 20 } {
         info.rsdp[i] = rd8(rsdp + i as u64);
@@ -154,6 +162,13 @@ pub fn first_listing(ids: &[u32], i: usize) -> bool {
     i < ids.len() && !ids[..i].contains(&ids[i])
 }
 
+/// A Multiprocessor Wakeup structure this kernel understands. Version 0
+/// (ACPI 6.4) is 16 bytes; version 1 (ACPI 6.6, which current TDVF publishes)
+/// adds a reset vector the kernel does not use, with the same mailbox.
+fn mp_wakeup_version_ok(version: u16, len: u64) -> bool {
+    matches!((version, len), (0, 16..) | (1, 24..))
+}
+
 fn parse_madt(t: u64, top: u64, info: &mut Info) {
     let len = rd32(t + 4) as u64;
     let end = match t.checked_add(len) {
@@ -189,6 +204,12 @@ fn parse_madt(t: u64, top: u64, info: &mut Info) {
                 let flags = rd32(p + 8);
                 if flags & 1 != 0 {
                     add_cpu(info, rd32(p + 4));
+                }
+            }
+            // Type, length, mailbox version and reserved, then its address.
+            16 if l >= 16 => {
+                if info.mp_wakeup_mailbox.is_none() && mp_wakeup_version_ok(rd16(p + 2), l) {
+                    info.mp_wakeup_mailbox = Some(rd64(p + 8));
                 }
             }
             _ => {}

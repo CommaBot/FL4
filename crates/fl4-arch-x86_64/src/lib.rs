@@ -5,6 +5,7 @@
 pub mod apic;
 pub mod arch;
 pub mod cpu;
+pub mod cvm;
 pub mod fbcon;
 pub mod fpu;
 pub mod ioapic;
@@ -16,6 +17,7 @@ pub mod serial;
 pub mod sev;
 pub mod smp;
 pub mod spec;
+pub mod tdx;
 pub mod timer;
 pub mod tlb;
 

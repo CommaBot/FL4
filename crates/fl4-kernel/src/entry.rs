@@ -2,7 +2,7 @@
 //! dispatch to fl4-core, and restore whichever thread is current after.
 use crate::kprintln;
 use fl4_arch_x86_64::arch::{PhysArch, TIMER_VECTOR};
-use fl4_arch_x86_64::{apic, cpu, fpu, percpu, timer, tlb};
+use fl4_arch_x86_64::{apic, cpu, cvm, fpu, percpu, tdx, timer, tlb};
 use fl4_core::layout::{irq, node, reg, tcb as tl};
 use fl4_core::machine::Store;
 use fl4_core::obj::{node_get, Tcb};
@@ -125,7 +125,7 @@ pub fn set_ks_base(b: u64) {
 /// Direct access to kernel memory (one core, the serial gate, or this
 /// core's own thread context).
 pub fn store() -> PhysStore {
-    PhysStore { frame_masks: (fl4_arch_x86_64::sev::mask(), 0), ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64 }
+    PhysStore { frame_masks: (cvm::private_mask(), cvm::shared_mask()), ks_base: unsafe { KS_BASE }, cpu: percpu::cpu_index() as u64 }
 }
 
 #[inline(always)]
@@ -174,12 +174,12 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
 /// frame, the fresh frame is usable for termination only. An IRQ taken
 /// with IF clear is also invalid, including after a switch to another IST.
 #[no_mangle]
-extern "C" fn fl4_snp_kernel_entry_stack(f: &Frame) -> u64 {
-    let Some(stack) = crate::gdt::snp_ist(f as *const Frame as u64, f.vector as usize) else {
+extern "C" fn fl4_cvm_kernel_entry_stack(f: &Frame) -> u64 {
+    let Some(stack) = crate::gdt::cvm_ist(f as *const Frame as u64, f.vector as usize) else {
         return 0;
     };
     if stack.contains(&f.rsp) || (f.vector >= 32 && f.rflags & RFLAGS_IF == 0) {
-        fl4_arch_x86_64::sev::snp::terminate(0);
+        cvm::terminate(0);
     }
     // The idle loop has reset RSP to the kernel stack top and keeps
     // nothing on that stack. Dispatch a waking IRQ there, leaving the
@@ -196,18 +196,18 @@ extern "C" fn fl4_snp_kernel_entry_stack(f: &Frame) -> u64 {
 
 #[no_mangle]
 extern "C" fn fl4_bad_entry_frame() -> ! {
-    if fl4_arch_x86_64::sev::snp::active() {
-        fl4_arch_x86_64::sev::snp::terminate(0);
+    if cvm::hardened() {
+        cvm::terminate(0);
     }
     cpu::halt_forever()
 }
 
 fn kernel_fault(f: &Frame) -> ! {
-    if fl4_arch_x86_64::sev::snp::active() {
+    if cvm::hardened() {
         // Injected exceptions must not send private registers or RAM to
         // a hypervisor-controlled console.
-        kprintln!("FL4: SNP kernel exception {:#x} error {:#x}", f.vector, f.error);
-        fl4_arch_x86_64::sev::snp::terminate(0);
+        kprintln!("FL4: confidential guest kernel exception {:#x} error {:#x}", f.vector, f.error);
+        cvm::terminate(0);
     }
     kprintln!(
         "rax {:#x} rbx {:#x} rcx {:#x} rdx {:#x} rsi {:#x} rdi {:#x} rbp {:#x}\nr8 {:#x} r9 {:#x} r10 {:#x} r11 {:#x} r12 {:#x} r13 {:#x} r14 {:#x} r15 {:#x}",
@@ -284,7 +284,7 @@ impl fl4_sync::EntryEnv for KernelEnv {
         smp::multi()
     }
     fn store(&self) -> PhysStore {
-        PhysStore { frame_masks: (fl4_arch_x86_64::sev::mask(), 0), ks_base: unsafe { KS_BASE }, cpu: self.cpu() }
+        PhysStore { frame_masks: (cvm::private_mask(), cvm::shared_mask()), ks_base: unsafe { KS_BASE }, cpu: self.cpu() }
     }
     fn arch(&self) -> PhysArch {
         PhysArch
@@ -338,6 +338,14 @@ fn resume_user() -> u64 {
     }
 }
 
+/// Whether `rip` is in the idle loop, the one place the kernel halts with
+/// interrupts on.
+pub fn in_idle_loop(rip: u64) -> bool {
+    let start = core::ptr::addr_of!(fl4_idle_loop) as u64;
+    let end = core::ptr::addr_of!(fl4_idle_end) as u64;
+    (start..end).contains(&rip)
+}
+
 /// A #DB in kernel mode at the first instruction of an entry stub or the
 /// SYSCALL entry: a single-stepped SYSCALL, or a MOV SS / POP SS with a
 /// data breakpoint whose #DB the CPU held until after the SYSCALL or INT n
@@ -369,6 +377,26 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
             exit();
         }
         if crate::snp::user_vc(f) {
+            save_user(&mut store(), f);
+            exit();
+        }
+        unlock();
+    }
+    if v == 20 && tdx::active() {
+        // First: until the TDX module has handed over this #VE's
+        // information, another #VE would be a double fault.
+        let info = tdx::ve_info();
+        if f.cs & 3 == 0 {
+            crate::tdx::ve(f, &info);
+            return 0;
+        }
+        // As for SNP's #VC: a second core could otherwise remove a table
+        // this walks, and a remote stall can cancel this entry.
+        save_user(&mut store(), f);
+        if !lock() || percpu::get().vspace_stale.get() {
+            exit();
+        }
+        if crate::tdx::user_ve(f, &info) {
             save_user(&mut store(), f);
             exit();
         }
@@ -462,7 +490,7 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
     // caller's registers and the MSR: answered here, outside the core.
     // Not for a thread with trapSyscalls (l4h 0001): its syscall goes to
     // its fault handler like every other (`dangerous_msr::call`).
-    if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL && !fl4_arch_x86_64::sev::snp::active() {
+    if fl4_abi::config::KERNEL_X86_DANGEROUS_MSR && v == VEC_SYSCALL && !cvm::hardened() {
         let n = f.rdx as i64;
         // The TCB flags are read only for the MSR calls themselves.
         if n == fl4_abi::syscall::SysX86DangerousRDMSR || n == fl4_abi::syscall::SysX86DangerousWRMSR {
@@ -590,7 +618,7 @@ fn dispatch_handler<S: fl4_core::machine::Store>(
 /// context no other core changes without stalling this one first.
 pub fn exit() -> ! {
     loop {
-        fl4_arch_x86_64::sev::snp::halt_if_poisoned();
+        cvm::halt_if_poisoned();
         let s = &mut store();
         let mut ct = sched::cur_thread(s);
         if ct.state(s) == sched::TS_RUNNING_VM {
@@ -710,7 +738,7 @@ const TRACE_N: usize = 8192;
 static TRACE: crate::trace::Trace<TRACE_N> = crate::trace::Trace::new();
 
 fn trace(f: &Frame) {
-    if !fl4_abi::config::DEBUG_BUILD || fl4_arch_x86_64::sev::snp::active() {
+    if !fl4_abi::config::DEBUG_BUILD || cvm::hardened() {
         return;
     }
     let s = store();

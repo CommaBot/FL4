@@ -277,3 +277,54 @@ fn each_apic_id_is_started_once() {
     assert_eq!(started, [0, 3, 5, 6]);
     assert!(!acpi::first_listing(&ids, ids.len()));
 }
+
+fn mp_wakeup(mailbox: u64, len: u8) -> Vec<u8> {
+    mp_wakeup_version(mailbox, len, 0)
+}
+
+fn mp_wakeup_version(mailbox: u64, len: u8, version: u16) -> Vec<u8> {
+    let mut e = vec![0u8; len as usize];
+    e[0] = 16;
+    e[1] = len;
+    if len >= 4 {
+        e[2..4].copy_from_slice(&version.to_le_bytes());
+    }
+    if len >= 16 {
+        e[8..16].copy_from_slice(&mailbox.to_le_bytes());
+    }
+    e
+}
+
+/// MADT type 16 gives the AP wakeup mailbox of a TDX guest.
+#[test]
+fn the_multiprocessor_wakeup_entry_names_the_mailbox() {
+    let info = parse(&mp_wakeup(0x7f00_0000, 16));
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert_eq!(parse(&lapic(0, 1)).mp_wakeup_mailbox, None);
+}
+
+#[test]
+fn a_short_wakeup_entry_is_skipped_and_the_first_one_counts() {
+    assert_eq!(parse(&mp_wakeup(0x7f00_0000, 15)).mp_wakeup_mailbox, None);
+    let mut both = mp_wakeup(0x7f00_0000, 16);
+    both.extend(mp_wakeup(0x1000, 16));
+    assert_eq!(parse(&both).mp_wakeup_mailbox, Some(0x7f00_0000));
+}
+
+/// Version 0 (16 bytes) and version 1 (24, as TDVF publishes it) have the
+/// same mailbox. Anything else may not, and is not used.
+#[test]
+fn the_wakeup_entry_version_is_checked() {
+    let at = 0x7f00_0000;
+    assert_eq!(parse(&mp_wakeup_version(at, 16, 0)).mp_wakeup_mailbox, Some(at));
+    assert_eq!(parse(&mp_wakeup_version(at, 24, 0)).mp_wakeup_mailbox, Some(at));
+    assert_eq!(parse(&mp_wakeup_version(at, 24, 1)).mp_wakeup_mailbox, Some(at));
+    assert_eq!(parse(&mp_wakeup_version(at, 16, 1)).mp_wakeup_mailbox, None, "too short for version 1");
+    for version in [2, 3, 0xffff] {
+        assert_eq!(parse(&mp_wakeup_version(at, 24, version)).mp_wakeup_mailbox, None, "version {version}");
+    }
+    // An entry of an unknown version does not hide a good one after it.
+    let mut both = mp_wakeup_version(0x1000, 24, 2);
+    both.extend(mp_wakeup_version(at, 24, 1));
+    assert_eq!(parse(&both).mp_wakeup_mailbox, Some(at));
+}

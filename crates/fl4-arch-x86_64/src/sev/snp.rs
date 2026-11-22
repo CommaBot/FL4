@@ -17,22 +17,8 @@ const SHARED_BUFFER: u64 = 0x800;
 const VALID: usize = 0x3f0;
 const VERSION: usize = 0xffa;
 
-// Also read by the assembly entry path to identify an SNP guest.
-#[no_mangle]
-#[cfg_attr(target_os = "none", link_section = ".bss.skim")]
-static FL4_SNP_CPUID_PAGE: AtomicU64 = AtomicU64::new(0);
+static SNP_CPUID_PAGE: AtomicU64 = AtomicU64::new(0);
 static FEATURES: AtomicU64 = AtomicU64::new(0);
-// Read by the entry and return stubs, including on skim page tables.
-#[no_mangle]
-#[cfg_attr(target_os = "none", link_section = ".bss.skim")]
-static FL4_SNP_POISONED: AtomicBool = AtomicBool::new(false);
-
-#[inline]
-pub fn halt_if_poisoned() {
-    if FL4_SNP_POISONED.load(Ordering::Acquire) {
-        cpu::halt_forever();
-    }
-}
 
 struct Channel {
     gpa: AtomicU64,
@@ -67,7 +53,7 @@ struct CpuidPage {
 }
 
 pub fn active() -> bool {
-    FL4_SNP_CPUID_PAGE.load(Ordering::Relaxed) != 0
+    SNP_CPUID_PAGE.load(Ordering::Relaxed) != 0
 }
 
 fn vmgexit() {
@@ -83,7 +69,7 @@ fn msr_request(request: u64) -> u64 {
 pub fn terminate(reason: u8) -> ! {
     // Standard delivery allows a hostile host to ignore the exit. Every
     // CPU checks this flag at kernel entry and before leaving the kernel.
-    if FL4_SNP_POISONED.swap(true, Ordering::AcqRel) {
+    if crate::cvm::poison() {
         cpu::halt_forever();
     }
     cpu::wrmsr(GHCB_MSR, 0x100 | ((reason as u64) << 16));
@@ -101,7 +87,8 @@ pub unsafe fn init(cpuid: u64, ghcb: u64) {
     if count == 0 || count > 64 {
         terminate(0);
     }
-    FL4_SNP_CPUID_PAGE.store(cpuid, Ordering::Relaxed);
+    SNP_CPUID_PAGE.store(cpuid, Ordering::Relaxed);
+    crate::cvm::set_hardened();
     let info = msr_request(0x002);
     if info & 0xfff != 0x001 || (info >> 48) < 2 || ((info >> 32) & 0xffff) > 2 {
         terminate(1);
@@ -123,7 +110,7 @@ pub fn ap_creation() -> bool {
 /// ghcb is a private, zeroed and exclusively owned page for the given CPU.
 /// That CPU has not started, and no other CPU has used the page.
 pub unsafe fn prepare_cpu(cpu: usize, ghcb: u64) {
-    super::transition_inner(fl4_core::layout::pptr(ghcb), PAGE, true, false);
+    crate::cvm::transition_inner(fl4_core::layout::pptr(ghcb), PAGE, true, false);
     CHANNELS[cpu].gpa.store(ghcb, Ordering::Release);
 }
 
@@ -147,7 +134,7 @@ pub fn start_cpu(apic: u32, vmsa: u64, features: u64) {
 /// Read launch-validated feature bits. The hypervisor-present bit and
 /// XCR0-dependent XSAVE sizes are synthesized from local state.
 pub fn cpuid(function: u32, sub: u32) -> Option<Cpuid> {
-    let ptr = FL4_SNP_CPUID_PAGE.load(Ordering::Relaxed);
+    let ptr = SNP_CPUID_PAGE.load(Ordering::Relaxed);
     if ptr == 0 {
         return None;
     }
@@ -223,7 +210,7 @@ pub fn cpuid(function: u32, sub: u32) -> Option<Cpuid> {
 
 /// Change RMP ownership one 4 KiB page at a time. On a partial failure
 /// stop before returning memory to the allocator in an unknown state.
-pub(super) fn change_state(base: u64, pa: u64, bytes: u64, shared: bool) {
+pub(crate) fn change_state(base: u64, pa: u64, bytes: u64, shared: bool) {
     for off in (0..bytes).step_by(PAGE as usize) {
         if shared {
             pvalidate(base + off, false);
@@ -293,7 +280,7 @@ fn exchange<T>(
     if pa == 0 || channel.in_use.swap(true, Ordering::Relaxed) {
         terminate(0);
     }
-    let base = super::shared_ptr(pa);
+    let base = crate::cvm::shared_ptr(pa);
     let mut ghcb = Ghcb { pa, base, valid: 0 };
     prepare(&mut ghcb);
     ghcb.set(EXIT_CODE, code);

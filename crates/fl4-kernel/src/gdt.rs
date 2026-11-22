@@ -34,10 +34,10 @@ struct Idt([u64; 512]);
 /// during #DB (or the reverse) does not overwrite the other's frame.
 const IST_VECTORS: [usize; 4] = [2, 1, 18, 8]; // NMI, #DB, #MC, #DF
 const STACK_BYTES: usize = 4096;
-const SNP_STACK_BYTES: usize = 8192;
+const CVM_STACK_BYTES: usize = 8192;
 
 #[repr(C, align(4096))]
-struct SnpStack([u8; SNP_STACK_BYTES]);
+struct CvmStack([u8; CVM_STACK_BYTES]);
 
 #[repr(C, align(4096))]
 struct Stack([u8; STACK_BYTES]);
@@ -60,7 +60,7 @@ struct SkimCpu {
     tss: Tss,
     entry_stack: Stack,
     ist: [Stack; 4],
-    snp_ist: [SnpStack; 3],
+    cvm_ist: [CvmStack; 3],
 }
 
 pub const SKIM_CPU_SIZE: usize = core::mem::size_of::<SkimCpu>();
@@ -86,7 +86,7 @@ static TABLES: Cell = Cell(UnsafeCell::new(SkimTables {
             tss: Tss([0; 26]),
             entry_stack: Stack([0; STACK_BYTES]),
             ist: [const { Stack([0; STACK_BYTES]) }; 4],
-            snp_ist: [const { SnpStack([0; SNP_STACK_BYTES]) }; 3],
+            cvm_ist: [const { CvmStack([0; CVM_STACK_BYTES]) }; 3],
         }
     }; MAX_CPUS],
 }));
@@ -115,33 +115,40 @@ fn user_gate(v: usize) -> bool {
 }
 
 /// SNP standard injection permits the VMM to deliver an exception during
-/// the SYSCALL/SYSRET windows with a user-controlled RSP. Every vector
-/// needs a hardware stack switch, including vectors normally masked by
-/// IF. Use separate stacks for #VC, other exceptions, and IRQ/trap gates:
-/// an interrupt or an exception handler may itself access GHCB devices.
-fn ist_index(vector: usize, snp: bool) -> u64 {
+/// the SYSCALL/SYSRET windows with a user-controlled RSP, and a TDX VMM
+/// chooses when interrupts arrive. Every vector needs a hardware stack
+/// switch, including vectors normally masked by IF. Use separate stacks
+/// for the virtualization exception (#VC, or #VE in a TD), other
+/// exceptions, and IRQ/trap gates: an interrupt or an exception handler
+/// may itself access GHCB or TDVMCALL devices.
+fn ist_index(vector: usize, hardened: bool, tdx: bool) -> u64 {
     if let Some(i) = IST_VECTORS.iter().position(|&v| v == vector) { return i as u64 + 1; }
-    if !snp { return 0; }
+    if !hardened { return 0; }
+    let virtualization = if tdx { VE_VECTOR } else { VC_VECTOR };
     match vector {
-        29 => 5,
+        v if v == virtualization => 5,
         0..32 => 6,
         _ => 7,
     }
 }
 
+const VE_VECTOR: usize = 20;
+const VC_VECTOR: usize = 29;
+
 /// Bounds of the trusted runtime IST the given frame arrived on. The
-/// boot IDT can deliver #VC before any runtime IST has been installed.
-pub fn snp_ist(frame: u64, vector: usize) -> Option<core::ops::Range<u64>> {
+/// boot IDT can deliver #VC or #VE before any runtime IST has been
+/// installed.
+pub fn cvm_ist(frame: u64, vector: usize) -> Option<core::ops::Range<u64>> {
     let base = unsafe { core::ptr::addr_of!((*TABLES.0.get()).cpus) as u64 };
     if frame.wrapping_sub(base) >= (MAX_CPUS * SKIM_CPU_SIZE) as u64 {
         return None;
     }
     let core = frame & !(SKIM_CPU_SIZE as u64 - 1);
-    let index = ist_index(vector, true) as usize - 1;
+    let index = ist_index(vector, true, fl4_arch_x86_64::tdx::active()) as usize - 1;
     let (offset, bytes) = if index < IST_VECTORS.len() {
         (core::mem::offset_of!(SkimCpu, ist) + index * STACK_BYTES, STACK_BYTES)
     } else {
-        (core::mem::offset_of!(SkimCpu, snp_ist) + (index - IST_VECTORS.len()) * SNP_STACK_BYTES, SNP_STACK_BYTES)
+        (core::mem::offset_of!(SkimCpu, cvm_ist) + (index - IST_VECTORS.len()) * CVM_STACK_BYTES, CVM_STACK_BYTES)
     };
     let start = core + offset as u64;
     let bounds = start..start + bytes as u64;
@@ -152,19 +159,21 @@ pub fn snp_ist(frame: u64, vector: usize) -> Option<core::ops::Range<u64>> {
 pub fn init_idt() {
     let t = unsafe { &mut *TABLES.0.get() };
     let base = unsafe { &fl4_vectors as *const u8 as u64 };
-    let snp = fl4_arch_x86_64::sev::snp::active();
+    let hardened = fl4_arch_x86_64::cvm::hardened();
+    let tdx = fl4_arch_x86_64::tdx::active();
     for v in 0..256 {
         let h = base + 16 * v as u64;
         let dpl: u64 = if user_gate(v) { 3 } else { 0 };
-        let ist = ist_index(v, snp);
+        let ist = ist_index(v, hardened, tdx);
         let lo = (h & 0xffff) | ((KERNEL_CS as u64) << 16) | (ist << 32) | ((0x8e | (dpl << 5)) << 40) | (((h >> 16) & 0xffff) << 48);
         t.idt.0[2 * v] = lo;
         t.idt.0[2 * v + 1] = h >> 32;
     }
 }
 
-/// The SNP handoff needs #VC before setting up the per-core state. Only
-/// expose that gate until the full IDT and its IST stacks are ready.
+/// The SNP and TDX handoffs need #VC or #VE before setting up the per-core
+/// state. Only expose that gate until the full IDT and its IST stacks are
+/// ready.
 static mut BOOT_IDT: Idt = Idt([0; 512]);
 pub const BOOT_IDT_LIMIT: u16 = 30 * 16 - 1;
 
@@ -172,16 +181,29 @@ pub fn boot_idt_base() -> u64 {
     core::ptr::addr_of!(BOOT_IDT) as u64
 }
 
-pub fn load_boot_vc() {
+fn load_boot_gate(vector: usize) {
     let a = core::ptr::addr_of_mut!(BOOT_IDT).cast::<u64>();
-    let h = unsafe { &fl4_vectors as *const u8 as u64 + 16 * 29 };
+    let h = unsafe { &fl4_vectors as *const u8 as u64 + 16 * vector as u64 };
     let lo = (h & 0xffff) | ((KERNEL_CS as u64) << 16) | (0x8e << 40) | (((h >> 16) & 0xffff) << 48);
-    let ip = Pointer { limit: BOOT_IDT_LIMIT, base: a as u64 };
     unsafe {
-        a.add(58).write(lo);
-        a.add(59).write(h >> 32);
-        asm!("lidt [{}]", in(reg) &ip, options(readonly, nostack, preserves_flags));
+        a.add(2 * vector).write(lo);
+        a.add(2 * vector + 1).write(h >> 32);
     }
+    load_boot_idt();
+}
+
+/// Load the boot IDT, as a TDX AP does before anything can take #VE.
+pub fn load_boot_idt() {
+    let ip = Pointer { limit: BOOT_IDT_LIMIT, base: core::ptr::addr_of!(BOOT_IDT) as u64 };
+    unsafe { asm!("lidt [{}]", in(reg) &ip, options(readonly, nostack, preserves_flags)) };
+}
+
+pub fn load_boot_vc() {
+    load_boot_gate(VC_VECTOR);
+}
+
+pub fn load_boot_ve() {
+    load_boot_gate(VE_VECTOR);
 }
 
 /// Load the GDT, TSS and IDT on core `cpu`, with `stack_top` as the
@@ -211,9 +233,9 @@ pub fn init_core(cpu: usize, stack_top: u64) {
         tss.0[9 + 2 * i] = top as u32;
         tss.0[10 + 2 * i] = (top >> 32) as u32;
     }
-    if fl4_arch_x86_64::sev::snp::active() {
-        for (i, stack) in c.snp_ist.iter().enumerate() {
-            let top = stack.0.as_ptr() as u64 + SNP_STACK_BYTES as u64;
+    if fl4_arch_x86_64::cvm::hardened() {
+        for (i, stack) in c.cvm_ist.iter().enumerate() {
+            let top = stack.0.as_ptr() as u64 + CVM_STACK_BYTES as u64;
             tss.0[17 + 2 * i] = top as u32;
             tss.0[18 + 2 * i] = (top >> 32) as u32;
         }
