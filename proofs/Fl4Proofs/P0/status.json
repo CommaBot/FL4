@@ -1,6 +1,6 @@
 {
- "functions": 1078,
- "proved": 1078,
+ "functions": 1080,
+ "proved": 1080,
  "manual": [
   "boot.create_untypeds",
   "ept.map_frame",
@@ -19,7 +19,8 @@
   "vcpu.init_loop1",
   "vcpu.revoke_ports_loop",
   "vcpu.sanitize_vmcs",
-  "vcpu.vmcs_addr"
+  "vcpu.vmcs_addr",
+  "vspace.decode_page_map"
  ],
  "loops_automatic": [
   "boot.all_zero_loop",

@@ -1988,6 +1988,8 @@ theorem layout.ks.ASID_TABLE.p0  :
 
 @[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
+  -- #63 added the same-core TS_RUNNING_VM branch; `split` on the grown body
+  -- exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
   unfold notification.send_signal
   p0_structural
 
@@ -2555,6 +2557,10 @@ theorem vspace.P_XD.p0  :
     vspace.nx_enabled machineStoreInst s ⦃ _ => True ⦄ := by
   unfold vspace.nx_enabled; p0_auto
 
+@[step] theorem vspace.huge_pages.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (hS : StoreTotal machineStoreInst) :
+    vspace.huge_pages machineStoreInst s ⦃ _ => True ⦄ := by
+  unfold vspace.huge_pages; p0_auto
+
 @[step] theorem vspace.idx.p0 (vaddr : Std.U64) (shift : Std.U64) :
     vspace.idx vaddr shift ⦃ _ => True ⦄ := by
   unfold vspace.idx; p0_auto
@@ -2827,7 +2833,15 @@ theorem vspace.P_XD.p0  :
 
 @[step] theorem vspace.decode_page_map.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64) (slot : obj.Slot) (f : vspace.FrameCap) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_page_map machineStoreInst machineArchInst s a length slot f buf ex ⦃ _ => True ⦄ := by
-  unfold vspace.decode_page_map; p0_split
+  -- #65: the frame size match now binds `(fs, huge)`; with the size a
+  -- constructor, `simp` reduces that match, its pair and the `huge` tests
+  -- before stepping (split leaves the pair's `let` unreduced).
+  obtain ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩ := f
+  set_option maxHeartbeats 4000000 in
+  unfold vspace.decode_page_map
+  cases sz <;> simp only [bind_ok, Bool.false_eq_true, ↓reduceIte] <;>
+    (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;>
+    p0_close
 
 @[step] theorem vspace.decode_frame.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (slot : obj.Slot) (cap : capability.Cap) (call : Bool) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_frame machineStoreInst machineArchInst s a lbl length slot cap call buf ex ⦃ _ => True ⦄ := by

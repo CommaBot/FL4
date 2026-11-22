@@ -286,7 +286,7 @@ def obj.Reply := Std.U64
 def obj.Ep := Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 449:0-458:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 456:0-465:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -317,13 +317,13 @@ structure capability.Rights where
   grant_reply : Bool
 
 /-- [fl4_core::vspace::VRoot]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 511:0-514:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 518:0-521:1 -/
 structure vspace.VRoot where
   pml4 : Std.U64
   asid : Std.U64
 
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 739:0-747:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 752:0-760:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64

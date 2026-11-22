@@ -1719,6 +1719,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.ks.FEATURES.val_eq : layout.ks.FEATURES.val = 72 := by
   unfold layout.ks.FEATURES; rfl
 
+@[simp, scalar_tac_simps] theorem layout.ks.FEATURE_HUGE_PAGES.val_eq : layout.ks.FEATURE_HUGE_PAGES.val = 2 := by
+  unfold layout.ks.FEATURE_HUGE_PAGES; rfl
+
 @[simp, scalar_tac_simps] theorem capability.VM_KERNEL_ONLY.val_eq : capability.VM_KERNEL_ONLY.val = 1 := by
   unfold capability.VM_KERNEL_ONLY; rfl
 
