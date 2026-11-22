@@ -14928,3 +14928,63 @@ New leaf XTopJointKEntryU (root import after XTopJointKEntry38E). Nothing existi
 - **Goals (2) / (3)** not started (stopped per the rule). (3)'s `kernel_entryJ42H` (g5f's `J42` with `hRP5`
   discharged by `JAtZ.rrPre5At`) does not depend on the finding.
 - Builds: none (no Lean file changed). Axioms: n/a.
+
+## m72 (branch par/m72 in FL4-m67, on 3ef61b0f = par/m71) — the lead's decision on m71's FINDING DONE: P1 `BufOK` narrowed from 512 to 128 words, every user re-checked against the extracted indices (no index ≥ 128: no KERNEL FINDING); no top statement changed but by the narrower `BufOK`; goal (3): the cheap half DONE (`kernel_entryJ42H` / `kernel_entry_reachUH` without `hRP5`), `FastFaultOK` from `JAtZ` NOT done — OBSTRUCTION below (P1's `FaultEnt.hU` excludes `Ω`, and at `JAtZ`'s ghost heap every IPC-buffer word in a 4 KiB frame is an `Ω` word)
+- **The narrowing.** `BufOK U buf := buf ≠ 0 → ∀ i < 128, buf + 8·i ∈ U` (QueueXfer.lean; docstring says why: 1024-byte
+  alignment, `lookup_ipc_buffer` = frame + in-frame offset, l4v / P3 `IpcBufCapOK` `k < 128`). The buffer-write
+  lemmas take the matching bounds: `msg.buf_set.xs` / `.xsf` / `.xsv` / `.rw`, `buf_set_rgU`: `i < 128`;
+  `msg.set_mr.xs` / `.xsf` / `.xsv`, `set_mr_last` / `set_mr_lastF`, `set_mr_rgU`: `i < 127` (`set_mr i` writes buffer
+  word `i + 1` for `i ≥ 4`); `copy_mrs_fault_loop1.xs` / `copy_mrs_fault.xs` / `_rgU`: `len regs < 127`;
+  `set_mrs_lookup_failure.xs` (both files): `off < 124` (writes `off .. off+3`). Files: P1/QueueXfer, QueueXferFoot,
+  QueueVcpu, FastFaultInv (bounds only); every other user (QueueDecTcbRR, QueueDecVcpu, QueueInvAll, QueueDecTcb,
+  QueueDecIrq, QueueDecSc, QueueDecVs, FastFaultInv's callers) re-checked unchanged by its `omega` / `simp`.
+- **Max buffer word index per use site (from Fl4Core/Funs.lean):** `copy_mrs_loop1`: `j + 1`, `j < MSG_MAX_LENGTH = 120`
+  → ≤ 120; `transfer_caps_loop` badges: `BUF_CAPS + j = 122 + j`, `j < 3` → ≤ 124; receive CNode / index / depth
+  (`BUF_RECV_CNODE` 125, `_INDEX` 126, `_DEPTH` 127) are only read (`get_receive_slot`, `buf_get`), not under `BufOK`;
+  fault messages: `copy_mrs_fault_loop1` `j + 1`, `j < |SYSCALL_MESSAGE| = 18` → ≤ 18; `set_mrs_fault` constant
+  `set_mr` indices ≤ 18 (`set_mr 18 w0`) → word ≤ 19, `set_mr len consumed` with `len ≤ 4` → ≤ 9, lookup failure at
+  `off = 3` → words ≤ 7; ReadRegisters (`read_registers_loop1/3/5/7/9`): `N_FRAME = 18` + `N_GP` words → below 25;
+  `error_mrs` (`DEBUG_MESSAGE_START = 6`): word 7; VCPU `report_loop0` `set_mr i`, `i < NUM_MRS = 30` → ≤ 30,
+  `report_loop1` `set_mr (10 + j)`, `j < 15` → ≤ 25, report constants ≤ 29 → ≤ 30; VCPU `decode_loop1/2` `set_mr i`,
+  `i < value ≤ 64` → ≤ 64; the remaining `set_mr` constants (TCB / IRQ / SC / VSpace decodes, `syscall` returns) ≤ 4.
+  So every buffer index the kernel writes is < 128 (max 124 for the transfer); no KERNEL FINDING.
+- **Top statements changed (only through `BufOK`).** Every statement that mentions `BufOK` directly or through
+  `XferHyps.buf` / `FaultEnt.hbuf` / `FaultEntAt` / `FastFaultPre` / `Hyps4` (`P3Place.xfer`): P1 `XferHyps`,
+  `Hyps4`, `FaultEnt`, `FaultEntAt`, `FastFaultPre`; the P1 tops `kernel_entry.entry`, `entry_of` … `entry_of10`
+  (`entry_of4G`, `entry_of7r`, `entry_of7r2` included) and P3 `fastFaultOK_of_p1` / `fastFaultOK_of_p1N`: their
+  `Hyps4` / `FaultEnt` premise is now weaker (128 words instead of 512), so each top is stronger. The buffer lemmas
+  above take the narrower index bounds. No J-level P3 top mentions `BufOK` (unchanged).
+- **New P3 XTopJointKEntryUH (root import).** `kernel_entryJ42H` = g5f's `kernel_entryJ42` without
+  `hRP5 : n = SysReplyRecv → P1.RRPreAt5` (from m70's `JAtZ.rrPre5At` with `hX.entered`, `hX.sb`, `hX.ctQ`,
+  `offReady_faultIPSt hX.offReady`, `SInvW.rv hX.w`); `kernel_entry_reachUH` = `kernel_entry_reachU` with the
+  native-syscall clause without `hRP5` (same discharge; every other clause is `reachU`'s). Old tops kept.
+- **OBSTRUCTION to (3)'s `FastFaultOK` from `JAtZ` (route, not a premise on a top).** P1's fault route
+  (`faultEntAt_of` → `FaultEnt`, used by `faultOK_of` / `faultNvm_of`) needs `FaultEnt.hU : ∀ b ∈ U, OutsideObjs ∧
+  b ∉ Ω` together with `FaultEnt.hbuf : BufOK U (lookup_ipc_buffer dest)`. At `JAtZ`'s ghosts `Ω = Heap.omega H`
+  contains every aligned word of every `other` object of `H` (QueueHeap.lean), and `JAtZ.cover : SpecCover H σ`
+  makes every spec arch object — frames included — an `other` object of size `n ≥ 12` (`SpecCover.arch`;
+  `UtEpSets` bounds `n ≤ objBits`). So for a handler whose IPC buffer lies in a 4 KiB frame, every buffer word is an
+  `Ω` word (`JAtZ.bufWord`: each buffer word lies in a spec object, the frame), and `hU` / `hbuf` cannot hold
+  together for any `U` at `JAtZ`'s `H`: `FaultEntAt` is not derivable at `JAtZ`'s ghosts whenever the handler has
+  an IPC buffer (the ordinary case). m71's choice `U := {b | OutsideObjs ∧ b ∉ Ω}` therefore does not work even
+  after the narrowing. Not a FINDING about a top: `FaultEnt` is the caller-chosen-ghost premise of a P1 lemma, and
+  P1's own tops choose their own `H`; the J tops do not carry it. P3's IPC transfers met the same fact and handle it
+  (`XTopJointXferB.blkX_bufw`: buffer words split into `Ω \ Sg` words, kept by `capw_bx`, and user words, `UserOK`).
+  **Route for (3):** restate P1's fault-path footprint like `blkX_bufw`: `FaultEnt.hU` → buffer words outside the
+  TCBs / nodes, off the endpoints / notifications and `∉ Sg` (frame words; `JAtZ.rbufU` gives exactly this with
+  `∉ Heap.frame H`, and the P1 instances at `JAtZ` take `Sg := Heap.frame H`, as `XSV` / `BlkOK` there), then re-prove m58–m61's `faultReads_of`, `usOff_of`,
+  `finReads_of` and `faultNvm_of` with `XferRegW T U ∪ (Ω \ Sg)` buffer writes (plan, not checked line by line: they need the buffer writes to miss
+  `t`'s TCB, the endpoint, the handler's SC / reply words — all TCB or `Sg` words, or the TCBs' fields); then
+  `faultEntAt` at the dispatch state from `JAtZ.rbufU` + `lookup_buf_full` + `JAtZ.lkTyped`-style handler-cap
+  typing + `AsidOff` from `VsRel`, and `kernel_entry_reachE5` / a `reachU` variant without `FastFaultOK`.
+- **FINDING: none** (no buffer index ≥ 128; the (3) obstruction is a route problem, above).
+- **Builds (tokyo, mirror FL4-m67, keys m72-*; m72b.sh untracked).** b1: full `lake build` with the narrowing only:
+  "Build completed successfully (7131 jobs)", 0 errors, first try (every user's `omega` / `simp` closed the new
+  bounds) — 577e0b80; **b2: full `lake build` with XTopJointKEntryUH: "Build completed successfully (7133 jobs)",
+  0 errors, 0 `declaration uses 'sorry'`.**
+- **Axioms** (scratch/axm72.lean, untracked, run by b2): kernel_entryJ42H, kernel_entry_reachUH, kernel_entryJ42,
+  kernel_entry_reachU, kernel_entry.entry_of10 / entry_of7 / entry_of6 / entry, xferOK_of, faultEntAt_of,
+  msg.buf_set.xs, msg.set_mr.xs, ipc.do_fault_transfer.xs, set_mrs_fault_rgU, fastFaultOK_of_p1N,
+  kernel_entry_reachE4: propext, Classical.choice, Quot.sound (each).
+- HANDOFF: (3) `FastFaultOK` from `JAtZ` along the route in the OBSTRUCTION item (P1 fault footprint with buffer
+  words in `Ω \ Sg` allowed, then the dispatch-state `FaultEntAt` from `JAtZ.rbufU`); m70's (c) unchanged.
