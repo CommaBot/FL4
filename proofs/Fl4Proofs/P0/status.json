@@ -1,10 +1,11 @@
 {
- "functions": 1080,
- "proved": 1080,
+ "functions": 1113,
+ "proved": 1113,
  "manual": [
   "boot.create_untypeds",
   "ept.map_frame",
   "interrupt.map_ioapic",
+  "localinv.plan_with",
   "notification.send_signal",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
@@ -20,8 +21,15 @@
   "vcpu.revoke_ports_loop",
   "vcpu.sanitize_vmcs",
   "vcpu.vmcs_addr",
-  "vspace.decode_page_map"
+  "vspace.batch_map",
+  "vspace.decode_frame_batch",
+  "vspace.decode_frame_batch_loop",
+  "vspace.decode_page_map",
+  "vspace.frame_batch_entry"
  ],
+ "preconditions": {
+  "vspace.decode_frame_batch_loop": "`words \u2264 3` and `n \u2264 255` (the entry index `1 + words * done` is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes `words = entry_words op \u2264 3` and `n = (hdr >> 8) & 0xff`."
+ },
  "loops_automatic": [
   "boot.all_zero_loop",
   "boot.clear_dirty_loop",
@@ -56,6 +64,7 @@
   "ioport.set_mask_loop",
   "ipc.lookup_extra_caps_loop",
   "ipc.transfer_caps_loop",
+  "localinv.Plan.still_holds_loop",
   "msg.copy_mrs_loop0",
   "msg.copy_mrs_loop1",
   "notification.cancel_all_signals_loop",

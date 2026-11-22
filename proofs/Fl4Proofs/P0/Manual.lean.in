@@ -214,12 +214,12 @@
   unfold vspace.frame_batch_entry
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
 
--- P0 precondition: `words ≤ 3` and `n ≤ 255` (the entry index `1 + words * done`
--- is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes
--- `words = entry_words op ≤ 3` and `n = (hdr >> 8) & 0xff`.
 @[step] theorem vspace.decode_frame_batch_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (buf : Std.U64) (ct : obj.Tcb) (n : Std.U64) (words : Std.U64) (root : Std.U64) (asid : Std.U64) (op : Std.U64) (depth : Std.U64) (i : Std.U64) (i1 : Std.U64) (i2 : Std.U64) (b : Bool) (cnode : capability.Cap) (dest_cnode : capability.Cap) (done1 : Std.U64) (deferred : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst)
     (hw : words.val ≤ 3) (hn : n.val ≤ 255) :
     vspace.decode_frame_batch_loop machineStoreInst machineArchInst s a buf ct n words root asid op depth i i1 i2 b cnode dest_cnode done1 deferred ⦃ _ => True ⦄ := by
+  -- P0 precondition: `words ≤ 3` and `n ≤ 255` (the entry index `1 + words * done`
+  -- is checked arithmetic). Its one caller, `vspace.decode_frame_batch`, passes
+  -- `words = entry_words op ≤ 3` and `n = (hdr >> 8) & 0xff`.
   unfold vspace.decode_frame_batch_loop
   apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, d, _) => n.val - d.val) (inv := fun _ => True)
   · rintro ⟨x0, x1, x2, x3⟩ -
@@ -239,8 +239,11 @@
     vspace.decode_frame_batch machineStoreInst machineArchInst s a length ptr mapped asid call buf ex ⦃ _ => True ⦄ := by
   have and255 : ∀ x : U64, (x &&& 255#u64).val ≤ 255 := fun x => by
     rw [UScalar.val_and]; exact Nat.le_trans Nat.and_le_right (by decide)
+  -- The two 24-case cap matches (`cnode`, `dest_cnode`) bind a `bool`:
+  -- `p0_bind_match` proves each total alone, before `step` would split the
+  -- rest of the body into every case.
   unfold vspace.decode_frame_batch
-  repeat' (first | p0_cases_sum | (refine WP.spec_bind (vspace.decode_frame_batch_loop.p0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hS hA ‹_› (by subst_vars; exact and255 _)) ?_; intro x _) | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
+  repeat' (first | p0_cases_sum | (refine WP.spec_bind (vspace.decode_frame_batch_loop.p0 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hS hA ‹_› (by subst_vars; exact and255 _)) ?_; intro x _) | p0_bind_match | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
   all_goals p0_close
 
 @[step] theorem localinv.plan_with.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (lbl : Std.U64) (slot : obj.Slot) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :

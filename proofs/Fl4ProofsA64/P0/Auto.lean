@@ -2027,6 +2027,9 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
   unfold notification.send_signal
   p0_structural
 
+-- #71: `p0_structural`, also reducing the `let` pairs the `?` chains leave,
+-- with more heartbeats.
+
 @[step] theorem timer.fire_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (now : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     timer.fire_loop machineStoreInst machineArchInst s a now i ⦃ _ => True ⦄ := by
   unfold timer.fire_loop
@@ -3886,6 +3889,14 @@ theorem domain.MAX_DURATION.p0  :
     fastpath.reply_recv machineStoreInst machineArchInst s a ⦃ _ => True ⦄ := by
   unfold fastpath.reply_recv; p0_split
 
+@[step] theorem fastpath_vm.vm_fault.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (f : error.Fault) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    fastpath_vm.vm_fault machineStoreInst machineArchInst s a t f ⦃ _ => True ⦄ := by
+  unfold fastpath_vm.vm_fault; p0_split
+
+@[step] theorem fastpath_vm.reply_recv_vm_found.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (rptr : Std.U64) (ep_ptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    fastpath_vm.reply_recv_vm_found machineStoreInst machineArchInst s a t rptr ep_ptr ⦃ _ => True ⦄ := by
+  unfold fastpath_vm.reply_recv_vm_found; set_option maxHeartbeats 4000000 in p0_structural
+
 @[step] theorem faults.valid_fault_handler.p0 (cap : capability.Cap) :
     faults.valid_fault_handler cap ⦃ _ => True ⦄ := by
   unfold faults.valid_fault_handler; p0_auto
@@ -3962,6 +3973,86 @@ theorem layout.node.RELEASE_TAIL.p0  :
 theorem layout.ks.SIZE.p0  :
     layout.ks.SIZE ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.ks.SIZE.spec (fun _ _ => trivial)
+
+@[step] theorem localinv.Plan.Insts.CoreCloneClone.clone.p0 (self : localinv.Plan) :
+    localinv.Plan.Insts.CoreCloneClone.clone self ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.Insts.CoreCloneClone.clone; p0_auto
+
+@[step] theorem localinv.Plan.new.p0 (slot : obj.Slot) (extra : Array obj.Slot 3#usize) :
+    localinv.Plan.new slot extra ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.new; p0_auto
+
+@[step] theorem localinv.Plan.add.p0 (self : localinv.Plan) (addr : Std.U64) :
+    localinv.Plan.add self addr ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.add; p0_auto
+
+@[step] theorem localinv.Plan.add_pte.p0 (self : localinv.Plan) (addr : Std.U64) :
+    localinv.Plan.add_pte self addr ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.add_pte; p0_auto
+
+@[step] theorem localinv.Plan.read.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan) (s : S) (addr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.Plan.read machineStoreInst self s addr ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.read; p0_auto
+
+@[step] theorem localinv.Plan.read_cap.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan) (s : S) (slot : obj.Slot) (hS : StoreTotal machineStoreInst) :
+    localinv.Plan.read_cap machineStoreInst self s slot ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.read_cap; p0_auto
+
+@[step] theorem localinv.Plan.still_holds_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan) (s : S) (i : Std.Usize) (hS : StoreTotal machineStoreInst) :
+    localinv.Plan.still_holds_loop machineStoreInst self s i ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.still_holds_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (x0) => self.nseen.val - x0.val) (inv := fun _ => True)
+  · rintro x0 -
+    unfold localinv.Plan.still_holds_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem localinv.Plan.still_holds.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan) (s : S) (hS : StoreTotal machineStoreInst) :
+    localinv.Plan.still_holds machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold localinv.Plan.still_holds; p0_auto
+
+@[step] theorem localinv.some_if.p0 (ok1 : Bool) (p : localinv.Plan) :
+    localinv.some_if ok1 p ⦃ _ => True ⦄ := by
+  unfold localinv.some_if; p0_auto
+
+@[step] theorem localinv.reg_arg.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.reg_arg machineStoreInst s t i ⦃ _ => True ⦄ := by
+  unfold localinv.reg_arg; p0_auto
+
+@[step] theorem localinv.is_page_map.p0 (_lbl : Std.U64) :
+    localinv.is_page_map _lbl ⦃ _ => True ⦄ := by
+  unfold localinv.is_page_map; p0_auto
+
+@[step] theorem localinv.is_local_label.p0 (lbl : Std.U64) :
+    localinv.is_local_label lbl ⦃ _ => True ⦄ := by
+  unfold localinv.is_local_label; p0_auto
+
+@[step] theorem localinv.small_ram_frame.p0 (c : capability.Cap) :
+    localinv.small_ram_frame c ⦃ _ => True ⦄ := by
+  unfold localinv.small_ram_frame; p0_auto
+
+@[step] theorem obj.Slot.next_of_word.p0 (w : Std.U64) :
+    obj.Slot.next_of_word w ⦃ _ => True ⦄ := by
+  unfold obj.Slot.next_of_word; p0_auto
+
+@[step] theorem localinv.page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (_s : S) (_root : Std.U64) (_vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.page_entry machineStoreInst _s _root _vaddr ⦃ _ => True ⦄ := by
+  unfold localinv.page_entry; p0_auto
+
+@[step] theorem localinv.small_page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (_s : S) (_asid : Std.U64) (_vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.small_page_entry machineStoreInst _s _asid _vaddr ⦃ _ => True ⦄ := by
+  unfold localinv.small_page_entry; p0_auto
+
+@[step] theorem localinv.plan_with.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (lbl : Std.U64) (slot : obj.Slot) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :
+    localinv.plan_with machineStoreInst s t lbl slot extra ⦃ _ => True ⦄ := by
+  -- The cap matches bind a value; abstract it rather than split the rest
+  -- of the body into each of their 24 cases.
+  unfold localinv.plan_with
+  (repeat' (first | p0_cases_sum | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)) <;> p0_close
+
+@[step] theorem localinv.plan.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (number : Std.I64) (hS : StoreTotal machineStoreInst) :
+    localinv.plan machineStoreInst s number ⦃ _ => True ⦄ := by
+  unfold localinv.plan; p0_split
 
 @[step] theorem machine.Store.frame_masks.default.p0 {Self : Type _} (self : Self) :
     machine.Store.frame_masks.default self ⦃ _ => True ⦄ := by
@@ -4846,9 +4937,21 @@ theorem sporadic.min_budget_us.p0  :
     syscall.handle_syscall_local machineStoreInst machineArchInst s a number found ⦃ _ => True ⦄ := by
   unfold syscall.handle_syscall_local; p0_split
 
+@[step] theorem syscall.handle_vm_fault_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (addr : Std.U64) (code : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_vm_fault_local machineStoreInst machineArchInst s a addr code ⦃ _ => True ⦄ := by
+  unfold syscall.handle_vm_fault_local; p0_auto
+
+@[step] theorem syscall.handle_reply_recv_vm_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (found : (Std.U64 × Std.U64)) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_reply_recv_vm_local machineStoreInst machineArchInst s a found ⦃ _ => True ⦄ := by
+  unfold syscall.handle_reply_recv_vm_local; p0_split
+
 @[step] theorem syscall.handle_ioport_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_ioport_local machineStoreInst machineArchInst s a number ⦃ _ => True ⦄ := by
   unfold syscall.handle_ioport_local; p0_auto
+
+@[step] theorem syscall.handle_invocation_local.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (p : localinv.Plan) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_invocation_local machineStoreInst machineArchInst s a number p ⦃ _ => True ⦄ := by
+  unfold syscall.handle_invocation_local; set_option maxHeartbeats 4000000 in p0_structural
 
 @[step] theorem syscall.handle_interrupt_entry.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_interrupt_entry machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by

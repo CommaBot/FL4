@@ -276,6 +276,22 @@ macro "p0_data" : tactic => `(tactic| (
 `whnf`: split the matches explicitly. -/
 macro "p0_split" : tactic => `(tactic| ((repeat' (first | step | (simp only [bind_tc_ok, bind_ok]) | split | p0_cases_prod)) <;> p0_close))
 
+open Lean Elab Tactic Meta in
+/-- A spec goal whose program is `bind m k` with `m` headed by a matcher
+(#71's 24-case cap matches binding a `bool`): prove `m` total by splitting
+it alone, then go on with `k` on an abstract value, so the rest of the
+body is not copied into each case. -/
+elab "p0_bind_match" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let program := args[args.size - 2]!
+  unless program.isAppOf ``Aeneas.Std.bind do throwError "not a bind"
+  let m := program.getAppArgs[program.getAppNumArgs - 2]!
+  let .const n _ := m.getAppFn | throwError "no const head"
+  unless (← isMatcher n) do throwError "bind head is not a matcher"
+  evalTactic (← `(tactic| (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro _ _)))
+
 /-- The fallback for a match on the arguments with a call in each branch:
 split the outer matches, then step through each branch. -/
 macro "p0_match" : tactic => `(tactic| (split <;> (try split) <;> p0_auto))
