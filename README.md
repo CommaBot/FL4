@@ -238,7 +238,11 @@ FL4_EXPECT_VM=present FL4_TESTS='^FL4VCPU' cargo xtask fl4test --smp 1 --setup k
 FL4_P0_STRICT=1 cargo xtask gate
 ```
 
-P0 checks totality for every extracted core function. For guest memory,
+P0 checks totality for every extracted core function. One theorem has a
+precondition (listed under `preconditions` in `status.json`): the
+FrameBatch loop `vspace.decode_frame_batch_loop` is total for entries of at
+most 3 words and at most 255 entries, which its only caller
+`vspace.decode_frame_batch` guarantees and its P0 theorem discharges. For guest memory,
 `guest_pte_roundtrip` proves that constructing a 4 KiB, 2 MiB or 1 GiB
 leaf, extracting its address and removing the visibility bits recovers the
 frame's aligned GPA. The store laws admit private and shared address masks.

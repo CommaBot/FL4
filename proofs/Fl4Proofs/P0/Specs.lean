@@ -38,6 +38,33 @@ theorem bvTrailingZeros_le {w : Nat} (x : BitVec w) : bvTrailingZeros x ≤ w :=
     core.result.Result.is_err r ⦃ _ => True ⦄ := by
   cases r <;> simp [core.result.Result.is_err]
 
+/-- #71: the models of `Result::ok` and `Option`'s `?` never fail. -/
+@[step] theorem core.result.Result.ok.spec {T E : Type _} (r : core.result.Result T E) :
+    core.result.Result.ok r ⦃ _ => True ⦄ := by
+  cases r <;> simp [core.result.Result.ok]
+
+@[step] theorem core.option.Option.Insts.CoreOpsTry_traitTry.branch.spec {T : Type _} (o : Option T) :
+    core.option.Option.Insts.CoreOpsTry_traitTry.branch o ⦃ _ => True ⦄ := by
+  cases o <;> simp [core.option.Option.Insts.CoreOpsTry_traitTry.branch]
+
+@[step] theorem core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual.spec
+    (T : Type _) (o : Option Never) :
+    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual T o ⦃ _ => True ⦄ := by
+  simp [core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual]
+
+/-- #71: a FrameBatch entry has at most 3 words. -/
+@[step] theorem vspace.frame_batch.entry_words.spec (op : U64) :
+    vspace.frame_batch.entry_words op ⦃ r => r.val ≤ 3 ⦄ := by
+  unfold vspace.frame_batch.entry_words
+  split <;> (try split) <;> (try split) <;> simp
+
+@[step] theorem frame_batch_map_total {S : Type _} {A : Type _} (st : machine.Store S) (ar : machine.Arch A)
+    {T : Type _} (r : core.result.Result T error.Exc) :
+    core.result.Result.map_err (vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc st ar) r () ⦃ _ => True ⦄ := by
+  cases r <;> simp [core.result.Result.map_err,
+    vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc,
+    vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc.call_once]
+
 /-- `saturating_sub` on u64 is truncated subtraction. -/
 @[simp, scalar_tac_simps] theorem saturating_sub_u64_val (x y : U64) :
     (core.num.U64.saturating_sub x y).val = x.val - y.val := by

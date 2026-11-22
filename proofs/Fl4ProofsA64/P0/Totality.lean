@@ -228,6 +228,76 @@ elab "p0_ite_head" : tactic => withMainContext do
       evalTactic (← `(tactic| apply p0_if_bind <;> intro))
     else throwError "bind head is not an if"
   else throwError "head is not an if"
+open Lean Elab Tactic Meta in
+/-- One step of reduction of `e`: beta / a matcher on a constructor
+(`whnfCore`), else the matcher unfolded (default transparency) and then
+`whnfCore`: Fl4Core's matchers do not reduce by `whnfCore` alone. -/
+def p0RedStep (e : Expr) : MetaM (Option Expr) := do
+  let e1 ← whnfCore e
+  if e1 != e then return some e1
+  let fn := e.getAppFn
+  if let .const n _ := fn then
+    -- Aeneas's `let (x, y) := p` is `uncurry (fun x y => ..) p`: unfold it,
+    -- and the projections of a pair reduce.
+    if n.isStr && n.getString! == "uncurry" then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let e3 ← whnfCore e2
+        if e3 != e then return some e3
+    if (← isMatcher n) || (n.isStr && n.getString!.startsWith "match_") then
+      if let some e2 ← withTransparency .default (unfoldDefinition? e) then
+        let mut e3 ← whnfCore e2
+        -- `Prod.casesOn` and the like: unfold to the recursor, which
+        -- `whnfCore` reduces on a constructor.
+        for _ in [0:3] do
+          if let .const n' _ := e3.getAppFn then
+            if n'.isStr && n'.getString! == "casesOn" then
+              if let some e4 ← withTransparency .default (unfoldDefinition? e3) then
+                e3 ← whnfCore e4
+        -- Only when it reduced to an alternative, not to a stuck recursor.
+        let stuck := match e3.getAppFn with
+          | .const n' _ => n'.isStr && (n'.getString! == "rec" || n'.getString! == "casesOn")
+          | _ => false
+        if e3 != e && !stuck then return some e3
+  return none
+
+open Lean Elab Tactic Meta in
+/-- Reduce (beta, matcher on a constructor) the program of a spec goal, or
+the first action of its leading bind: the `let (x, y) := (a, b)` that
+casing a pair leaves (#71's `?` chains). Fails if nothing changes. -/
+elab "p0_whnf_head" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let i := args.size - 2
+  let program := args[i]!
+  let program' ← match ← p0RedStep program with
+    | some p1 => pure p1
+    | none =>
+      if program.isAppOf ``Aeneas.Std.bind then do
+        let pargs := program.getAppArgs
+        let j := pargs.size - 2
+        let some m' ← p0RedStep pargs[j]! | throwError "p0_whnf_head: no change"
+        pure (mkAppN program.getAppFn (pargs.set! j m'))
+      else throwError "p0_whnf_head: no change"
+  let newT := mkAppN target.getAppFn (args.set! i program')
+  liftMetaTactic fun g => do return [← g.replaceTargetDefEq newT]
+open Lean Elab Tactic Meta in
+/-- `simp only [m]` for the matcher `m` heading the program of a spec goal
+or the first action of its leading bind (a `let (x, y) := (a, b)` left by
+casing a pair: its equation lemma reduces it). -/
+elab "p0_unfold_match" : tactic => withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``Aeneas.Std.WP.spec do throwError "not a spec"
+  let args := target.getAppArgs
+  let program := args[args.size - 2]!
+  let cands := [program] ++
+    (if program.isAppOf ``Aeneas.Std.bind then [program.getAppArgs[program.getAppNumArgs - 2]!] else [])
+  for e in cands do
+    if let .const n _ := e.getAppFn then
+      if (← isMatcher n) then
+        evalTactic (← `(tactic| simp only [$(mkIdent n):ident]))
+        return
+  throwError "p0_unfold_match: no matcher at the head"
 macro "p0_structural" : tactic => `(tactic| (
   (repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod | split)) <;> p0_close))
 
