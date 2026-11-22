@@ -281,7 +281,10 @@ pub fn init_core(cpu: usize, stack_top: u64) {
     wrmsr(msr::LSTAR, fl4_syscall_entry as *const () as u64);
     // Compatibility-mode SYSCALL (AMD) cannot happen without a 32-bit
     // code segment; CSTAR still names an entry rather than address 0.
-    wrmsr(msr::CSTAR, fl4_syscall_entry as *const () as u64);
+    // Intel ignores it, and in a TD the write takes #VE.
+    if !fl4_arch_x86_64::tdx::active() {
+        wrmsr(msr::CSTAR, fl4_syscall_entry as *const () as u64);
+    }
     // No SYSENTER (valid in 64-bit mode on Intel): with SYSENTER_CS 0 it
     // raises #GP, whatever the boot loader left here. VM exits set it to 0
     // too (vm.rs HOST_SYSENTER_CS).

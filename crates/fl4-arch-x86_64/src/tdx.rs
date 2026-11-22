@@ -328,6 +328,18 @@ pub fn virtual_msr(msr: u32, write: bool) -> bool {
     }
 }
 
+/// The one operand an unsupported kernel #VE may name on the console, which
+/// the VMM reads: the MSR number of a verified RDMSR or WRMSR, or the leaf
+/// of a CPUID. Never the raw registers: at any other instruction they hold
+/// kernel data, and a WRMSR's RAX is the value being written.
+pub fn ve_log_operand(exit_reason: u32, opcode: [u8; 2], rax: u64, rcx: u64) -> Option<u32> {
+    match (exit_reason, opcode) {
+        (EXIT_MSR_READ, [0x0f, 0x32]) | (EXIT_MSR_WRITE, [0x0f, 0x30]) => Some(rcx as u32),
+        (EXIT_CPUID, [0x0f, 0xa2]) => Some(rax as u32),
+        _ => None,
+    }
+}
+
 /// What TDG.VP.VEINFO.GET says about the #VE this vCPU took.
 #[derive(Clone, Copy, Debug)]
 pub struct VeInfo {
@@ -668,6 +680,21 @@ mod tests {
         assert_eq!(sept_ve_action(off, flex, Some(0)), Disable);
         assert_eq!(sept_ve_action(0, flex, Some(0)), Disable);
         assert_eq!(sept_ve_action(dbg, flex, Some(0)), Keep);
+    }
+
+    #[test]
+    fn a_failed_ve_logs_only_the_msr_or_leaf_of_a_verified_instruction() {
+        const SECRET: u64 = 0x1122_3344_5566_7788;
+        assert_eq!(ve_log_operand(EXIT_MSR_WRITE, [0x0f, 0x30], SECRET, 0xc000_0083), Some(0xc000_0083));
+        assert_eq!(ve_log_operand(EXIT_MSR_READ, [0x0f, 0x32], SECRET, 0x1b), Some(0x1b));
+        assert_eq!(ve_log_operand(EXIT_CPUID, [0x0f, 0xa2], 0x4000_0000, SECRET), Some(0x4000_0000));
+        // The exit reason and the instruction must agree.
+        assert_eq!(ve_log_operand(EXIT_MSR_WRITE, [0x0f, 0x32], SECRET, SECRET), None);
+        assert_eq!(ve_log_operand(EXIT_MSR_READ, [0x48, 0x89], SECRET, SECRET), None);
+        assert_eq!(ve_log_operand(EXIT_CPUID, [0x90, 0x90], SECRET, SECRET), None);
+        // An EPT violation or anything else names no register.
+        assert_eq!(ve_log_operand(EXIT_EPT_VIOLATION, [0x0f, 0x30], SECRET, SECRET), None);
+        assert_eq!(ve_log_operand(EXIT_HLT, [0xf4, 0], SECRET, SECRET), None);
     }
 
     #[test]

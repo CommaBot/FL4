@@ -56,7 +56,11 @@ pub fn ve(f: &mut Frame, info: &VeInfo) {
             1
         }
         _ => {
-            kprintln!("FL4: unsupported TDX #VE {} at text offset {:#x}", info.exit_reason, f.rip - start);
+            // The console is the VMM's: no raw registers (`ve_log_operand`).
+            match td::ve_log_operand(info.exit_reason, op, f.rax, f.rcx) {
+                Some(operand) => kprintln!("FL4: unsupported TDX #VE {} (MSR or leaf {:#x}) at text offset {:#x}", info.exit_reason, operand, f.rip - start),
+                None => kprintln!("FL4: unsupported TDX #VE {} at text offset {:#x}", info.exit_reason, f.rip - start),
+            }
             td::terminate(10);
         }
     };

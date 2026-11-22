@@ -6,6 +6,7 @@
 const AP: &str = include_str!("../../fl4-kernel/src/ap.S");
 const BOOT: &str = include_str!("../../fl4-kernel/src/boot.S");
 const SMP: &str = include_str!("../../fl4-kernel/src/smp.rs");
+const GDT: &str = include_str!("../../fl4-kernel/src/gdt.rs");
 
 /// The trampoline's instructions, comments and blank lines removed.
 fn trampoline() -> Vec<&'static str> {
@@ -83,4 +84,15 @@ fn the_ap_has_an_idt_before_the_kernels_tables() {
     let at = SMP.find("extern \"C\" fn fl4_ap_main(").expect("fl4_ap_main");
     let m = &SMP[at..];
     assert!(m.find("gdt::load_boot_idt()").unwrap() < m.find("cpu::write_cr3(paging::root_paddr())").unwrap());
+}
+
+/// IA32_CSTAR takes #VE in a TD (TDX Module 1.5 `msr_config_lookup`), and
+/// every core writes the SYSCALL MSRs in `gdt::init_core` before it can
+/// handle one usefully: seen on a real GCP C3 TD.
+#[test]
+fn a_td_does_not_write_cstar() {
+    let write = GDT.find("wrmsr(msr::CSTAR,").expect("CSTAR write");
+    let guard = GDT[..write].rfind("if !fl4_arch_x86_64::tdx::active() {").expect("TDX guard");
+    assert!(!GDT[guard..write].contains('}'), "the write is inside the guard");
+    assert_eq!(GDT.matches("msr::CSTAR").count(), 1);
 }

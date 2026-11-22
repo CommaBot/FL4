@@ -70,11 +70,12 @@ fn ap_registers(base: u64, cpu_x2: bool, bsp_x2: bool, bsp_base: u64, window_top
     }
 }
 
-/// The IA32_APIC_BASE value that turns on x2APIC mode, if it is not on. A
-/// TDX guest's firmware leaves it on, and the guest may not write the MSR.
-fn enable_write(base: u64) -> Option<u64> {
+/// The IA32_APIC_BASE value that turns on x2APIC mode, if it is not on.
+/// Never in a TD: the TDX module keeps x2APIC on and a write takes #VE,
+/// whatever the value the VMM answered the read with.
+fn enable_write(base: u64, tdx: bool) -> Option<u64> {
     let v = base | APIC_ENABLE | X2_ENABLE;
-    (v != base).then_some(v)
+    (!tdx && v != base).then_some(v)
 }
 
 /// Enable this core's APIC and return its physical base for boot memory
@@ -93,7 +94,7 @@ pub fn enable(bsp: bool, window_top: u64) -> Option<u64> {
     // An AP's mode and page are the boot core's: the globals stay.
     match regs {
         Registers::Msr => {
-            if let Some(v) = enable_write(base) {
+            if let Some(v) = enable_write(base, crate::tdx::active()) {
                 wrmsr(msr::APIC_BASE, v);
             }
             if bsp {
@@ -254,9 +255,13 @@ mod tests {
     #[test]
     fn apic_base_is_not_written_when_x2apic_is_already_on() {
         let base = 0xfee0_0000;
-        assert_eq!(enable_write(base | APIC_ENABLE | X2_ENABLE), None);
-        assert_eq!(enable_write(base | APIC_ENABLE), Some(base | APIC_ENABLE | X2_ENABLE));
-        assert_eq!(enable_write(base), Some(base | APIC_ENABLE | X2_ENABLE));
+        assert_eq!(enable_write(base | APIC_ENABLE | X2_ENABLE, false), None);
+        assert_eq!(enable_write(base | APIC_ENABLE, false), Some(base | APIC_ENABLE | X2_ENABLE));
+        assert_eq!(enable_write(base, false), Some(base | APIC_ENABLE | X2_ENABLE));
+        // A TD never writes it, even if the VMM says x2APIC is off.
+        for b in [base, base | APIC_ENABLE, base | APIC_ENABLE | X2_ENABLE, 0] {
+            assert_eq!(enable_write(b, true), None);
+        }
     }
 
     /// Audit round 5 F2: an MADT x2APIC entry's ID above 0xfe cannot be
