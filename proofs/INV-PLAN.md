@@ -561,3 +561,5 @@ are asked at one state but at every ghost choice: dischargeable only by derivati
 Then: D3 (spec frame + a state-free [P] "the FPU machine ops have one outcome"), C21 `bufObj` (carry, S–M), C25–C27
 (carry with the existing `.retype` lemmas, M), D1 (carry the IDX word + DomListOK, S). Large: C4, C16/C22
 `RegionUnrefAt`, C17/C23 `vsReach`, D6.
+
+**g7a (KENTRY-PLAN g7a):** C21, C25, C26, C27, D1 are not derivable from what `JReachU3` carries (the induction step sees only `RJM` at the new state, so a joint fact must be a component of `RJ`); D1 needs FL4 `DOM_SCHED_IDX` word = 0 (= `domainIndex`), true in reachable states but not carried. Each needs a carry inside `JAtZ`/`RelTopM` (plan and order there).
