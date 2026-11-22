@@ -1419,3 +1419,5 @@ import Fl4Proofs.P3.UnrefSym
 import Fl4Proofs.P3.VsNamed
 import Fl4Proofs.P3.VsNamedKeep
 import Fl4Proofs.P3.VsNamedOps
+import Fl4Proofs.P3.VsNamedSpec
+import Fl4Proofs.P3.VsNamedStep
