@@ -16174,3 +16174,43 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   (module builds), m76-e.sh / m76-f.sh, m76sorry.py, m76p0{,b,c,d,e,f}.lean scratch. tokyo mirror FL4-a64x: its
   Auto.lean (x86) is a scratch variant with three proofs as sorry.
 - Commits: e7d023f9, 6ed41d7d, this section.
+
+## m77 (branch par/m75 in FL4-a64x, on fbc8d64f) — #71 P0 green (x86 1113/1113, A64 1099/1099); #65 hugePages threaded through `KRootRel` and built; full x86 build NOT green: the #71 FrameBatch gap breaks 6 proofs (listed below, no premise added); TDX (#68) not started (gated on a green build)
+- **P0 (commit 015a18c7).** `vspace.decode_frame_batch.p0`: Totality.lean (x86) `p0_bind_match` proves a bind whose first
+  action is a matcher (the two 24-case cap matches binding a `bool`) total by splitting the match alone; with it before
+  `step` the proof elaborates in ~40 s. gen_p0: x86 1113/1113 (24 by hand; `preconditions`:
+  `vspace.decode_frame_batch_loop`, `words ≤ 3`, `n ≤ 255`, discharged by `decode_frame_batch`), A64 1099/1099 (29 by hand,
+  `localinv.plan_with` included). The precondition comment moved inside the loop theorem: gen_p0 splits Manual.lean.in at
+  `theorem`, so the comment above it had been attributed to `frame_batch_entry`. `--render-only` adds `@[step]` to the two
+  constants `vspace.frame_batch.{DEFER_DELETE_FLUSH,DEFINED}.p0` where the full run does not (generator inconsistency,
+  harmless; the committed Auto.lean is the full run's).
+- **#65 hugePages (commit below).** `KRootRel m ksb σ := KRootW m ksb σ ∧ HugeRel m ksb σ` (VsTop; `KRootW` = the old
+  kernel-root equation). `feat_val` (ks+72), `HugeRel.frame`. Spec side: a `huge : x64HugePages` field in `OStep`
+  (VsMakePoolRel), `KsStep` (StepSem, last field), `SchStep` (ScXSched) and the conjunct in `SchKeep` (ScSchedSpec);
+  `frameStep` / `frameStepV` take `hWF : ¬ W (ks+FEATURES)` and `hgh`. FL4 side: `KsW` excludes K = 72 (`K ≠ 48 ∧ K ≠ 72`),
+  `not_ksW72`, `domKW_val` / `schW_val` carry `≠ ks+72`. Sites: the 14 `KRootRel` producers, the 2 readers (G7cRoot,
+  VsArch), 11 `frameStep(V)` callers (a copy of each hWK bullet for FEATURES), OStep/KsStep/SchStep producers (rfl /
+  `h.arch` / `.trans`), VsSubTop's explicit OStep tuple. `vsFrameHypsL_top.huge := hS.1.2.2.2.2.2.1.2`. VsFrameMapLRel
+  (m76): `rw [huge_pages_eq]` directly (simp had already reduced the size match), `Bool.eq_false_iff`; m76's
+  `runE_bind_congr` renamed `runE_bind_congrH` (clashed with `Sched.runE_bind_congr`). No top statement changed; the
+  `JReachU3.start` premise `JAtZ` now carries `HugeRel` (as it carries `KRootW`): a relation, satisfiable by choosing
+  σ's flag, not a CPU assumption.
+- **FrameBatch gap (#71, NOT fixed, no premise).** FL4's `vspace.decode` on a PML4 cap now runs
+  `decode_frame_batch` for label `X86PML4FrameBatch` (90). Broken, each exactly at that label's branch: P1
+  `QueueDecVs` (Pml4 case, the first `errV`: no DecPost proof of the batch), `MachKeepG4d.MKD.vspace_decode` (the batch
+  reaches `cdt.delete` via `frame_batch_entry`, not in the MKD walk), P3 `VsTopX.decode_invocation_pml4_capX`,
+  `VsDecTop.decode_invocation_pml4`, `VsThX.domFrame_pml4`, `VsDomF.decode_invocation_pml4D` (spec says IllegalOperation /
+  dom frame of the batch). With a scratch-only `sorry` in exactly those six branches (`m77scratch.py apply`, untracked,
+  never committed) everything else builds (see the build line in the report). These six need either the Fl4Spec
+  FrameBatch model (separate agent) or a lead-approved premise; ~373 modules (all tops) are downstream of them.
+- **Builds (tokyo mirror, m77-full9 / m77-ax1).** x86 `lake build` with the six scratch sorries: "Build completed
+  successfully (7209 jobs)"; without them it stops at the six branches above (QueueDecVs, MachKeepG4d, VsTopX, VsDecTop,
+  VsThX, VsDomF). `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)". Axioms (axm77.lean, untracked):
+  `frame_map_huge_rel`, `vsFrameHypsL_top`, `XTopAt.frameStep/ksStep/schedStep`, `TopSR.step`, all P0 lemmas of
+  axm76p0 / axm76a: [propext, Classical.choice, Quot.sound]. Every `kernel_entry_reach*` top but `kernel_entry_reachE3T`
+  shows `sorryAx` in the scratch build: the FrameBatch gap reaches 31 of the 32 tops. The tokyo mirror still holds the
+  scratch-sorry versions of those six files (the next sync from the worktree overwrites them).
+- **Not done:** TDX (#68) merge / re-extraction / P0 / breakage list (gated on a green build). Next: once the Fl4Spec
+  FrameBatch model lands (or the lead approves a `lbl ≠ X86PML4FrameBatch` premise), prove the six branches; for
+  MachKeepG4d the batch path needs an MKD lemma through `frame_batch_entry` → `cdt.delete` (not in the quiet walk).
+- Commits: 015a18c7 (P0), 367af0ca (hugePages), this section.
