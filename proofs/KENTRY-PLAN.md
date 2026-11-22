@@ -16526,3 +16526,14 @@ C4, C16, C17, C21, C22, C23, C24×3, C25, C27, D7 (12).
 * Builds (tokyo-mac-studio-0): module builds of the Dv chain and XTopJointKEntryU14; full `lake build` at 576eb5c4:
   `Build completed successfully (7253 jobs)`, 0 errors, 0 `sorry`; `#print axioms kernel_entry_reachU14` and
   `SInvDV.kentry_devRange`: [propext, Classical.choice, Quot.sound].
+
+## s26-2 (branch par/s26b from int/j3 5c7a666f) — `kernel_entry_reachU17` = U11 without C26, C27, D7; no FINDING
+* XTopJointKEntryU17 (new module; root import only): `JReachU17 := JReachU3 ∧ GpmOutV ∧ IdleVtS ∧ DevRangeS`.
+  The proof runs U15 at `⟨hJ.1, hJ.2.1, hJ.2.2.1⟩`. Its dispatch bundle `KDispHypsKVU12` comes from `KDispHypsKVU17`
+  (`JDevPathU17` = `JDevPathU12` without `devFree`) by `KDispHypsKVU17.toU12`, with `DevFreeT` from U14's
+  `devFreeT_of` at `BudgetAt.devRange`. Every exit is U15's `JReachU15` plus `DevRangeS σ'` (SpecInvDvP's
+  `kentry_devRange` / `kcall_devRange` / `fip_kcall_devRange`).
+* Premises relative to U11: C26 `devFree`, C27 `devGpm`, D7 `idle` [J] removed; none added (the three spec facts
+  are in `JReachU17`'s start state). [J] 10: C4, C16, C17, C21, C22, C23, C24×3, C25.
+* Full `lake build` at 4f3ed99a (also checks the int/j3 merge): `Build completed successfully (7287 jobs)`, 0 errors,
+  0 `sorry`; `#print axioms kernel_entry_reachU17` (and U15, U14): [propext, Classical.choice, Quot.sound].
