@@ -10,6 +10,22 @@
 //! blocking wait services remote calls, as seL4's CLH lock does.
 #![no_std]
 
+// The mutants (Cargo.toml, DESIGN.md §10) are known-broken runtimes for
+// the simulator's mutation testing: a kernel built with one would run
+// without the gate's exclusion. Both kernel targets are bare metal
+// (x86_64-unknown-none, aarch64-unknown-none-softfloat); the simulator
+// is a host program.
+#[cfg(all(
+    target_os = "none",
+    any(
+        feature = "mutant-gate-no-wait",
+        feature = "mutant-gate-release",
+        feature = "mutant-local-no-active",
+        feature = "mutant-local-no-lock",
+    )
+))]
+compile_error!("fl4-sync's mutant features are for the host simulator (cargo xtask mutants), never for a kernel");
+
 use core::sync::atomic::{AtomicU64, Ordering};
 use fl4_store::lock::{self, Mem};
 
@@ -421,6 +437,22 @@ mod tests {
 
     struct Atomics;
     impl Mem for Atomics {}
+
+    /// Every mutant feature is refused on the kernel targets: the
+    /// `compile_error!` guard names each one Cargo.toml declares.
+    #[test]
+    fn every_mutant_is_refused_on_bare_metal() {
+        let manifest = include_str!("../Cargo.toml");
+        let src = include_str!("lib.rs");
+        let at = src.find("#[cfg(all(\n    target_os = \"none\",").expect("the bare-metal guard");
+        let guard = &src[at..at + src[at..].find("compile_error!").expect("compile_error")];
+        let mutants: std::vec::Vec<&str> =
+            manifest.lines().filter_map(|l| l.strip_suffix(" = []")).filter(|f| f.starts_with("mutant-")).collect();
+        assert_eq!(mutants.len(), 4, "{mutants:?}");
+        for m in mutants {
+            assert!(guard.contains(&std::format!("feature = \"{m}\"")), "{m} is not refused on bare metal");
+        }
+    }
 
     #[test]
     fn a_local_path_cannot_start_while_the_gate_is_held() {
