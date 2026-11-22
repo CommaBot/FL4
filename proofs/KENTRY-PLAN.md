@@ -16365,6 +16365,9 @@ C4, C16, C17, C21, C22, C23, C24×3, C25, C27, D7 (12).
 ### (4) Notes
 * No FINDING: the invariant holds at every reachable state (every object enters a device region only through a
   retype from a device cap, which advances the index past it; the reset deletes the region's objects first; MakePool
-  only uses RAM parents in FL4, and even a device parent is written back full).
+  writes its parent back full, and the pool lies in every other device cap's used part by `untyped_inc`).
 * C27 `devGpm` can reuse this family's cap half: `x64GlobalPml4` is never written, and a device child's region lies in
   its parent's (`KidsD` inside the window).
+* Builds (tokyo-mac-studio-0): module builds of the Dv chain and XTopJointKEntryU14; full `lake build` at 576eb5c4:
+  `Build completed successfully (7253 jobs)`, 0 errors, 0 `sorry`; `#print axioms kernel_entry_reachU14` and
+  `SInvDV.kentry_devRange`: [propext, Classical.choice, Quot.sound].
