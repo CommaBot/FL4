@@ -67,6 +67,8 @@ static int test_vm_policy(env_t env)
         test_eq(seL4_X86_VCPU_ReadVMCS(v.cptr, 0x6800).error, seL4_IllegalOperation);
         test_eq(vmcb_write(v.cptr, 0x40, 0), seL4_IllegalOperation);
         test_eq(vmcb_write(v.cptr, 0xb0, 0), seL4_IllegalOperation);
+        test_eq(vmcb_write(v.cptr, 0x58, 0), seL4_IllegalOperation);
+        test_eq(vmcb_write(v.cptr, 0xc0, 0), seL4_IllegalOperation);
         test_eq(vmcb_write(v.cptr, 0x668, 0x0202020202020202ull), seL4_InvalidArgument);
         test_eq(vmcb_write(v.cptr, 0x620, 0x0200000000000000ull), seL4_InvalidArgument);
         test_eq(seL4_X86_VCPU_ReadVMCB(v.cptr, 3, 1).error, seL4_InvalidArgument);
@@ -109,6 +111,26 @@ static int guest_worker(seL4_Word ctl, seL4_Word ip, seL4_Word c, seL4_Word d)
     seL4_Word badge;
     seL4_Word result = seL4_VMEnter(&badge);
     return result == SEL4_VMENTER_RESULT_FAULT ? seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR) : 0;
+}
+
+/* Two VMEnters, each with sentinels in MR3: the first runs the guest at
+ * loop_ip until a notification ends it, the second starts at hlt_ip. */
+static volatile seL4_Word vm_results[8];
+static int notif_worker(seL4_Word ctl, seL4_Word loop_ip, seL4_Word hlt_ip, seL4_Word d)
+{
+    seL4_Word badge = 0;
+    seL4_SetMR(0, loop_ip); seL4_SetMR(1, ctl); seL4_SetMR(2, 0); seL4_SetMR(3, 0x5a5a);
+    vm_results[0] = seL4_VMEnter(&badge);
+    vm_results[1] = badge;
+    vm_results[2] = seL4_GetMR(0);
+    vm_results[3] = seL4_GetMR(3);
+    badge = 0;
+    seL4_SetMR(0, hlt_ip); seL4_SetMR(1, ctl); seL4_SetMR(2, 0); seL4_SetMR(3, 0xa5a5);
+    vm_results[4] = seL4_VMEnter(&badge);
+    vm_results[5] = badge;
+    vm_results[6] = seL4_GetMR(0);
+    vm_results[7] = seL4_GetMR(3);
+    return 0;
 }
 
 static int wait_guest_started(volatile unsigned char *flag)
@@ -198,6 +220,18 @@ static int test_vm_execute(env_t env)
     test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), amd ? 0x72 : 10);
     test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_EAX), regs.eax);
     test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_R15), regs.r15);
+    if (amd) {
+        /* The entry rewrote the ASID word and clean bits from this core's
+         * cache state: ReadVMCB hides both, WriteVMCB rejects both. */
+        test_eq(seL4_X86_VCPU_ReadVMCB(v.cptr, 0x58, 1).value, 0);
+        test_eq(seL4_X86_VCPU_ReadVMCB(v.cptr, 0xc0, 1).value, 0);
+        seL4_X86_VCPU_ReadVMCB_t bulk = seL4_X86_VCPU_ReadVMCB(v.cptr, 0x50, 16);
+        test_eq(bulk.error, seL4_NoError);
+        test_eq(seL4_GetMR(1), 0);
+        test_eq(seL4_GetMR(14), 0);
+        test_eq(vmcb_write(v.cptr, 0x58, 0), seL4_IllegalOperation);
+        test_eq(vmcb_write(v.cptr, 0xc0, 0), seL4_IllegalOperation);
+    }
     test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR), 2);
     if (!amd) {
         /* Both kinds of failed VMRESUME must leave the VMCS launched,
@@ -360,17 +394,79 @@ static int test_vm_execute(env_t env)
      * clear. A pending signal also completes VMEnter without executing. */
     seL4_CPtr ntfn = vka_alloc_notification_leaky(&env->vka);
     test_eq(seL4_TCB_BindNotification(env->tcb, ntfn), seL4_NoError);
+    /* As in seL4, a pending signal leaves every message register as the
+     * caller sent it; one that ends a running guest reports MR0..2 (the
+     * guest's RIP, controls and event) and leaves the rest. */
     seL4_Signal(ntfn);
     seL4_SetMR(0, 3); seL4_SetMR(1, ctl); seL4_SetMR(2, 0);
+    seL4_SetMR(SEL4_VMENTER_FAULT_REASON_MR, 0x5a5a);
+    seL4_SetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR, 0x6b6b);
     test_eq(seL4_VMEnter(&badge), SEL4_VMENTER_RESULT_NOTIF);
-    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), 0);
-    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR), 0);
+    test_eq(seL4_GetMR(SEL4_VMENTER_CALL_EIP_MR), 3);
+    test_eq(seL4_GetMR(SEL4_VMENTER_CALL_CONTROL_PPC_MR), ctl);
+    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), 0x5a5a);
+    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR), 0x6b6b);
     test_eq(seL4_TCB_SetTimer(env->tcb, __builtin_ia32_rdtsc() + 5000000, 0x42), seL4_NoError);
     seL4_SetMR(0, 3); seL4_SetMR(1, ctl); seL4_SetMR(2, 0);
+    seL4_SetMR(SEL4_VMENTER_FAULT_REASON_MR, 0x5a5a);
+    seL4_SetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR, 0x6b6b);
     test_eq(seL4_VMEnter(&badge), SEL4_VMENTER_RESULT_NOTIF);
     test_eq(badge, 0x42);
-    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), 0);
+    test_eq(seL4_GetMR(SEL4_VMENTER_CALL_EIP_MR), 3);
+    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_REASON_MR), 0x5a5a);
+    test_eq(seL4_GetMR(SEL4_VMENTER_FAULT_INSTRUCTION_LEN_MR), 0x6b6b);
     test_eq(seL4_TCB_UnbindNotification(env->tcb), seL4_NoError);
+    {
+        /* seL4 sendSignal: signals to a RunningVM thread on the current
+         * core complete its VMEnter one at a time. A lower-priority worker
+         * on this core runs the guest loop; a timer wakes us, preempting
+         * it in RunningVM; we signal twice. The first badge ends the
+         * running VMEnter, the second completes the next one at once. */
+        const unsigned char spin[] = {0xc6, 0x06, 0x00, 0x01, 0x01, 0xeb, 0xfe};
+        memcpy((unsigned char *)code + 0x20, spin, sizeof(spin));
+        volatile unsigned char *flag = (unsigned char *)code + 0x100;
+        *flag = 0;
+        seL4_CPtr wake = vka_alloc_notification_leaky(&env->vka);
+        test_eq(seL4_TCB_BindNotification(env->tcb, wake), seL4_NoError);
+        seL4_CPtr vm_ntfn = vka_alloc_notification_leaky(&env->vka);
+        cspacepath_t n_src, n_one, n_two;
+        vka_cspace_make_path(&env->vka, vm_ntfn, &n_src);
+        test_eq(vka_cspace_alloc_path(&env->vka, &n_one), 0);
+        test_eq(vka_cspace_alloc_path(&env->vka, &n_two), 0);
+        test_eq(vka_cnode_mint(&n_one, &n_src, seL4_AllRights, 1), seL4_NoError);
+        test_eq(vka_cnode_mint(&n_two, &n_src, seL4_AllRights, 2), seL4_NoError);
+        helper_thread_t worker;
+        create_helper_thread(env, &worker);
+        set_helper_priority(env, &worker, env->priority - 1);
+        if (env->cores > 1) { set_helper_affinity(env, &worker, 0); }
+        test_eq(seL4_TCB_BindNotification(get_helper_tcb(&worker), vm_ntfn), seL4_NoError);
+        test_eq(seL4_TCB_SetEPTRoot(get_helper_tcb(&worker), root.cptr), seL4_NoError);
+        test_eq(seL4_X86_VCPU_SetTCB(v.cptr, get_helper_tcb(&worker)), seL4_NoError);
+        start_helper(env, &worker, notif_worker, ctl, 0x20, 2, 0);
+        for (int i = 0; i < 100 && !*flag; i++) {
+            test_eq(seL4_TCB_SetTimer(env->tcb, __builtin_ia32_rdtsc() + 20000000, 7), seL4_NoError);
+            seL4_Word ignored;
+            seL4_Wait(wake, &ignored);
+        }
+        test_assert(*flag);
+        seL4_Signal(n_one.capPtr);
+        seL4_Signal(n_two.capPtr);
+        test_eq(wait_for_helper(&worker), 0);
+        test_eq(vm_results[0], SEL4_VMENTER_RESULT_NOTIF);
+        test_eq(vm_results[1], 1);
+        test_eq(vm_results[2], 0x25);
+        test_eq(vm_results[3], 0x5a5a);
+        test_eq(vm_results[4], SEL4_VMENTER_RESULT_NOTIF);
+        test_eq(vm_results[5], 2);
+        test_eq(vm_results[6], 2);
+        test_eq(vm_results[7], 0xa5a5);
+        cleanup_helper(env, &worker);
+        test_eq(seL4_TCB_UnbindNotification(env->tcb), seL4_NoError);
+        test_eq(seL4_TCB_SetEPTRoot(env->tcb, root.cptr), seL4_NoError);
+        test_eq(seL4_X86_VCPU_SetTCB(v.cptr, env->tcb), seL4_NoError);
+        vka_cnode_delete(&n_one);
+        vka_cnode_delete(&n_two);
+    }
     printf("VCPU notification checks completed\n");
     /* Native mapping remains readable after the guest and the EPT alias
      * is revoked while the underlying frame remains allocated. */

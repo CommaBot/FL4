@@ -602,10 +602,16 @@ pub fn sanitize_vmcb<A: Arch>(a: &A, f: u64, old: u64, value: u64) -> KResult<u6
     // As GUEST_CR0 on VMX: no CD, NW or reserved bits, whatever `old` held.
     Ok(if f == svm::CR0 { v & !CR0_OWNED } else { v })
 }
+/// VMCB words ReadVMCB returns as 0. Physical pointers, and the words the
+/// kernel rewrites on every entry from this core's cache state: the ASID
+/// word (0x058, with the flush decision in bit 32) and the clean bits
+/// (0x0c0). Those depend on which VCPU or root last ran on the core, so
+/// reading them back would show a VMM other VMMs' activity. WriteVMCB
+/// rejects all of them (`sanitize_vmcb` has no rule for them).
 pub fn vmcb_hidden(f: u64) -> bool {
     matches!(
         f,
-        0x040 | 0x048 | 0x098 | 0x0a0 | 0x0b0 | 0x0e0 | 0x0f0 | 0x0f8 | 0x108
+        0x040 | 0x048 | 0x058 | 0x098 | 0x0a0 | 0x0b0 | 0x0c0 | 0x0e0 | 0x0f0 | 0x0f8 | 0x108
     )
 }
 
@@ -1029,8 +1035,17 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     }
     set(s, v, VALID, 0);
     set(s, v, PENDING, 0);
+    // seL4 `c_handle_syscall` (c_traps.c): a signal already pending on the
+    // bound notification completes the VMEnter at once with
+    // `completeSignal`. The message registers stay as the caller sent
+    // them; only the badge and the result change.
+    let n = Ntfn(t.bound_ntfn(s));
+    if n.0 != 0 && n.state(s) == NTFN_ACTIVE {
+        crate::notification::complete_signal(s, a, n, t);
+        t.set_reg(s, reg::MSG_INFO, 0);
+        return;
+    }
     sched::set_thread_state(s, t, sched::TS_RUNNING_VM);
-    check(s, a, t);
 }
 /// Run before every hardware re-entry, under the serial gate.
 pub fn cancel_run<S: Store, A: Arch>(_s: &mut S, _a: &mut A, _t: Tcb) {}
@@ -1054,23 +1069,56 @@ pub fn check<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
         report(s, a, t, 0);
     }
 }
+/// For seL4 `sendSignal`'s same-core `RunningVM` case: whether a signal to
+/// `t` (in `TS_RUNNING_VM` on this core) completes its VMEnter now, through
+/// `report`, as the next `check` would. Not while a saved exit is pending,
+/// which is reported first, nor without a bound VCPU: the signal then
+/// stays active for `check`.
+pub fn signal_completes<S: Store>(s: &S, t: Tcb) -> bool {
+    let v = bound(s, t);
+    v != 0 && get(s, v, PENDING) == 0
+}
+
 /// Complete a VMEnter, preferring a saved exit to a later notification.
 pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
     let v = bound(s, t);
     let pending = v != 0 && get(s, v, PENDING) != 0;
     let b = msg::lookup_ipc_buffer(s, true, t);
+    if !pending {
+        // seL4 `vcpu_sysvmenter_reply_to_user`: MR0..2 get the guest state
+        // the next VMEnter resumes from (RIP, controls, event to inject);
+        // every other message register is left as it was.
+        let amd = a.virtualization() == 2;
+        let (ip, ctl, intr) = if v == 0 {
+            (0, 0, 0)
+        } else if amd {
+            (
+                get(s, v, svm::RIP),
+                get(s, v, svm::INTERCEPT_EXC) >> 32,
+                get(s, v, svm::EVENT_INJ),
+            )
+        } else {
+            (
+                read_vmcs(s, v, GUEST_RIP),
+                read_vmcs(s, v, CONTROL_PRIMARY_PROCESSOR_CONTROLS),
+                read_vmcs(s, v, CONTROL_ENTRY_INTERRUPTION_INFO),
+            )
+        };
+        msg::set_mr(s, t, b, 0, ip);
+        msg::set_mr(s, t, b, 1, ctl);
+        msg::set_mr(s, t, b, 2, intr);
+        t.set_reg(s, reg::MSG_INFO, 0);
+        t.set_reg(s, reg::BADGE, badge);
+        sched::set_thread_state(s, t, sched::TS_RUNNING);
+        return;
+    }
     let mut i = 0;
     while i < NUM_MRS {
-        let val = if v != 0 && (pending || get(s, v, VALID) != 0) {
-            get(s, v, EXIT + i * 8)
-        } else {
-            0
-        };
-        msg::set_mr(s, t, b, i, val);
+        msg::set_mr(s, t, b, i, get(s, v, EXIT + i * 8));
         i += 1;
     }
-    // Without an exit yet, report the supplied entry state and current GPRs.
-    if v != 0 && get(s, v, VALID) == 0 {
+    // A failed entry: report the supplied entry state and current GPRs.
+    if get(s, v, VALID) == 0 {
         let amd = a.virtualization() == 2;
         let ip = if amd {
             get(s, v, svm::RIP)
@@ -1096,7 +1144,7 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
             j += 1;
         }
     }
-    if v != 0 && get(s, v, VALID) == 0 {
+    if get(s, v, VALID) == 0 {
         let amd = a.virtualization() == 2;
         let flags = if amd {
             get(s, v, svm::RFLAGS)
@@ -1119,14 +1167,8 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         msg::set_mr(s, t, b, 9, cr3);
         msg::set_mr(s, t, b, 29, cr2);
     }
-    if !pending {
-        msg::set_mr(s, t, b, 3, 0);
-        msg::set_mr(s, t, b, 4, 0);
-    }
-    if v != 0 {
-        set(s, v, PENDING, 0);
-    }
-    t.set_reg(s, reg::MSG_INFO, if pending { 1 } else { 0 });
-    t.set_reg(s, reg::BADGE, if pending { 0 } else { badge });
+    set(s, v, PENDING, 0);
+    t.set_reg(s, reg::MSG_INFO, 1);
+    t.set_reg(s, reg::BADGE, 0);
     sched::set_thread_state(s, t, sched::TS_RUNNING);
 }

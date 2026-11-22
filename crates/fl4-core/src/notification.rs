@@ -91,10 +91,34 @@ pub fn send_signal<S: Store, A: Arch>(s: &mut S, a: &mut A, n_ptr: u64, badge: u
                 sched::possible_switch_to(s, t);
             }
             unblock_sporadic(s, t);
+        } else if !t.is_null()
+            && t.state(s) == sched::TS_RUNNING_VM
+            && t.affinity(s) == s.cur_cpu()
+            && crate::vcpu::signal_completes(s, t)
+        {
+            // seL4's same-core `RunningVM` case: complete the VMEnter now
+            // with this badge (`Arch_leaveVMAsyncTransfer`); `t` runs.
+            // Under the serial gate, on `t`'s own core: no core is in its
+            // context or its guest.
+            crate::vcpu::report(s, a, t, badge);
+            maybe_donate_sched_context(s, a, t, n);
+            if sched::is_schedulable(s, t) {
+                sched::possible_switch_to(s, t);
+            }
+            let sc = Sc(t.sc(s));
+            if !sc.is_null()
+                && sporadic::sc_active(s, sc)
+                && sc.0 == n.sc(s)
+                && sporadic::sc_sporadic(s, sc)
+                && sc != sched::cur_sc(s)
+            {
+                sporadic::unblock_check(s, sc);
+            }
         } else {
             set_active(s, n, badge);
             if !t.is_null() && t.state(s) == sched::TS_RUNNING_VM {
-                // The owner checks bound signals before every VM entry.
+                // On another core (or with an exit still to report): the
+                // owner checks bound signals before every VM entry.
                 // Interrupt an in-flight guest so it reaches that check.
                 crate::smp::remote_tcb_stall(s, a, t);
             }
