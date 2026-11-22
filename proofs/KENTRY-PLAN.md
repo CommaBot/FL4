@@ -16085,3 +16085,43 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
 
 ### (5) Findings
 - None. `VsRootOK` holds at every post-timer `JAtZ`/`JAtZR` state (proved, not assumed).
+
+## m75 (branch par/m75 in FL4-a64x, on int/j3 dbb1f942 + main) — re-extraction after #65/#67 DONE (x86 P0 1080/1080, P1/P3 4K/2M map fixed); #71 (main e35ed12b) re-extracted but NOT green: P0 has 5 open new functions, the 1 GiB map refinement needs a decision, and #71's FrameBatch label leaves the PML4 decode refinement; no premise added
+- **Merges.** 6fee5c79 = dbb1f942 + main 23baaf12 (#65, #67); 27317380 = + main e35ed12b (#69, #71). No conflicts.
+- **#65/#67 (committed, 1fcb75c8, 5c22feac).** x86 extraction (pvg-office-2): `vspace.decode_page_map` changed (a 1 GiB frame
+  without `FEATURE_HUGE_PAGES` is IllegalOperation; the size match binds `(fs, huge)` and rebinds `large`), new
+  `vspace.huge_pages`, `layout.ks.FEATURE_HUGE_PAGES`; nothing else. P0 1080/1080 (19 by hand): new
+  `vspace.decode_page_map.p0` (cases on the size, simp before stepping). P1 `vspace.decode_page_map.dec` and P3
+  `frame_map_rel` (4K) re-proved, same statements. P3 `frame_map_large_rel` (2M): same one-line fix (`apply ok_bind_spec`),
+  module builds, uncommitted (VsFrameMapLRel still fails at the huge theorem below).
+- **Decision needed (1 GiB map, #65).** `frame_map_huge_rel` (VsFrameMapLRel.lean:698) relates FL4's X86PageMap of a
+  huge frame to l4v's `decodePageInvocation` (Fl4Spec/Decode.lean:239), which has no such refusal. With the ks FEATURES bit
+  clear FL4 returns IllegalOperation where the spec maps, so the theorem is unprovable as stated: it needs either a premise
+  that the CPU takes 1 GiB pages (ks `FEATURES & FEATURE_HUGE_PAGES ≠ 0`, written only at boot; carried from the entry as a
+  boot fact), or an Fl4Spec extension (a state-level `hugePages` flag, the refusal after `checkVpAlignment`, related by
+  `SR`). C seL4 without CONFIG_HUGE_PAGE does `fail("Invalid Page type")` here (src/arch/x86/64/kernel/vspace.c:1527), so
+  l4v's model is the CONFIG_HUGE_PAGE configuration.
+- **#71 extraction (uncommitted, working tree).** x86 (pvg-office-2; the first run was SIGKILLed by memory pressure):
+  only `vspace.decode` changed (the `X86PML4FrameBatch` branch under `Cap::Pml4`); added `vspace.{decode_frame_batch(+_loop),
+  frame_batch_entry, batch_map, unmap_page_unflushed, small_page_entry, Batch.clone, frame_batch.*}`, `fastpath_vm.{vm_fault,
+  reply_recv_vm_found}`, `localinv.*` (Plan.*, plan, plan_with, …), `syscall.{handle_vm_fault_local,
+  handle_reply_recv_vm_local, handle_invocation_local}`, `obj.Slot.next_of_word`, `fl4_abi.label.X86PML4FrameBatch`.
+  AArch64: no existing function changed (#71's claim holds); the same localinv / fastpath_vm / syscall functions added.
+  New library externals (`Option` `?`: `Try.branch`, `FromResidual.from_residual`; `Result::ok`; x86 also `is_err`):
+  models added to Fl4Core/FunsExternal.lean (definitions, total). xtask's AArch64 check fails because the x86 template
+  lists `is_err` and the AArch64 one does not; Fl4CoreA64/FunsExternal.lean was written by the same transform by hand.
+  xtask needs to accept a superset (code change, not done).
+- **#71 P0 (x86, tokyo, stopped after round 12).** Open: `vspace.decode_frame_batch_loop` (`words * done` and `1 + …` are
+  checked arithmetic on the loop's own arguments: for arbitrary `words` the loop CAN fail, so its P0 as the generator states
+  it is false; reachable calls have `words ≤ 3`, `n ≤ 255`, so no reachable failure; needs either wrapping arithmetic in
+  Rust or a P0 statement with a precondition), and `vspace.decode_frame_batch`, `vspace.frame_batch_entry`,
+  `vspace.batch_map`, `localinv.plan_with` (every generated tactic fails; hand proofs not written yet). AArch64 P0 not run.
+- **Coverage (#71, no proof attempted, by instruction).** (a) `vspace.decode`'s new `X86PML4FrameBatch` branch is reached
+  from `kernel_entry` through `decode_invocation` on a PML4 cap: P3 `decode_invocation_pml4_thX` (VsThX.lean:501, used by
+  `decode_invocation_pml4JV`, XTopJointVsMap.lean:1095, and the tops through XTopJointEntry / XTopJointKEntry13P / 23P)
+  relates every non-Flush PML4 label to the spec's IllegalOperation (`fl4ArchDecodeInvocation`, Fl4Spec/Ext/Invocation.lean:128);
+  for the FrameBatch label FL4 now runs the batch, so this refinement (and every top through it) no longer covers FL4 there.
+  P1 `QueueDecVs` likewise has no invariant proof for the batch path. (b) `syscall.handle_vm_fault_local`,
+  `handle_reply_recv_vm_local`, `handle_invocation_local` (with `localinv.Plan`) are entered from fl4-sync beside the
+  serial gate, not from `kernel_entry`: no existing top covers them (as for `handle_syscall_local` / `handle_ioport_local`).
+- Commits: 6fee5c79 (merge), 1fcb75c8, 5c22feac, 27317380 (merge), this section.
