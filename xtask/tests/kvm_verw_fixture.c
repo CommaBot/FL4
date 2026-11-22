@@ -49,7 +49,7 @@ int ioctl(int fd, unsigned long request, ...)
                 e->eax |= 1u << 5;
                 if (reject && !strcmp(reject, "smt")) {
                     /* Make the BSP permit SMT, but require AP 1 to park siblings. */
-                    if (apic_id == 1) { e->eax &= ~(1u << 29); }
+                    if (apic_id == 1) { e->eax &= ~((1u << 29) | (1u << 30)); }
                     else { e->eax |= 1u << 29; }
                 }
                 if (reject && apic_id == 1 && !strcmp(reject, "lfence")) {

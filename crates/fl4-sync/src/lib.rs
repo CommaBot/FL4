@@ -77,6 +77,8 @@ pub struct SerialGate {
     active: [Line<AtomicU64>; MAX_CPUS],
     /// Core holding the gate, or u64::MAX.
     owner: Line<AtomicU64>,
+    /// How many of `active` the gate holder drains (`set_cores`).
+    cores: AtomicU64,
 }
 
 impl SerialGate {
@@ -87,7 +89,16 @@ impl SerialGate {
             head: Head { serving: AtomicU64::new(0), closed: AtomicU64::new(0) },
             active: [const { Line(AtomicU64::new(0)) }; MAX_CPUS],
             owner: Line(AtomicU64::new(u64::MAX)),
+            cores: AtomicU64::new(MAX_CPUS as u64),
         }
+    }
+
+    /// Only cores 0..n will ever run an entry: the gate holder drains
+    /// those cores' flags, not all `MAX_CPUS`. Set at boot, before any of
+    /// them is started.
+    pub fn set_cores(&self, n: usize) {
+        assert!(n >= 1 && n <= MAX_CPUS);
+        self.cores.store(n as u64, Ordering::Relaxed);
     }
 
     /// Mark core `cpu` active for a local path: false, with nothing
@@ -127,7 +138,8 @@ impl SerialGate {
         }
         if m.a_load(&self.head.closed, Ordering::Relaxed) != 2 {
             m.a_store(&self.head.closed, 1, Ordering::SeqCst);
-            for (c, a) in self.active.iter().enumerate() {
+            let cores = self.cores.load(Ordering::Relaxed) as usize;
+            for (c, a) in self.active[..cores].iter().enumerate() {
                 // (Mutation test: `mutant-gate-no-wait` does not wait.)
                 if c as u64 == cpu || cfg!(feature = "mutant-gate-no-wait") {
                     continue;
@@ -248,9 +260,76 @@ pub fn run_syscall<E: EntryEnv>(
     // (a timer due, the budget spent) would usually run there next time.
     let fast = core::cell::Cell::new(false);
     let ran = run_entry(env, gate, false, |s, a| fast.set(body(s, a)));
+    // An invocation candidate is so by its label alone: one that ran here
+    // may be no frame cap's (a TCB's CNode_Delete), whose local attempt
+    // will decline again, so it does not wait next time.
     let hit = fast.get() || candidate == Candidate::Port;
     env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, hit as u64, Ordering::Relaxed);
     ran
+}
+
+/// A VM fault from user code: on several cores, first try its fast path
+/// beside the serial gate (`local_vm_fault`), then `run_entry`. Returns as
+/// `run_entry` does. `local` runs `local_vm_fault` on the store it is given.
+#[inline(always)]
+pub fn run_vm_fault<E: EntryEnv>(
+    env: &E,
+    gate: &SerialGate,
+    mut local: impl FnMut(&mut E::S, &mut E::A) -> bool,
+    mut body: impl FnMut(&mut E::S, &mut E::A),
+) -> bool {
+    if !env.multi() {
+        return run_entry(env, gate, false, |s, a| body(s, a));
+    }
+    match local_entry(env, gate, &mut local) {
+        Local::Done => return true,
+        Local::Stalled => return false,
+        Local::Closed | Local::Declined => {}
+    }
+    let ran = run_entry(env, gate, false, |s, a| body(s, a));
+    // As for an I/O port access: the general path has no VM-fault fast
+    // path, and a fault that declined beside the gate (its handler not
+    // waiting yet) usually runs there next time, so the next one waits
+    // for a closed gate rather than take a ticket.
+    env.mem().a_store(&gate.policy[env.cpu() as usize].local_hit, 1, Ordering::Relaxed);
+    ran
+}
+
+/// The local path of a VM fault (`fl4_core::syscall::handle_vm_fault_local`)
+/// with its fault endpoint and the waiting handler's reply object locked,
+/// as for a trapped syscall's fault in `local_syscall`; true if it ran.
+#[inline(always)]
+pub fn local_vm_fault<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    addr: u64,
+    code: u64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    use fl4_core::capability::Cap;
+    use fl4_core::layout::tcb as tl;
+    use fl4_core::obj::Ep;
+    let t = fl4_core::sched::cur_thread(s);
+    let mut held = lock::Held::new();
+    let mut held_objects = [(0, 0); 2];
+    let ok = match t.slot(tl::SLOT_FAULT_HANDLER).cap(s) {
+        Cap::Endpoint { ptr, .. } => {
+            lock_object(m, ptr, &mut held) && Ep(ptr).state(s) == fl4_core::obj::EP_RECV && {
+                let dest = fl4_core::obj::Tcb(Ep(ptr).head(s));
+                let r = if dest.is_null() { 0 } else { dest.reply_obj(s) };
+                held_objects = [(ptr, 16), (r, 32)];
+                r != 0 && lock_object(m, r, &mut held)
+            }
+        }
+        _ => false,
+    };
+    let done = ok && {
+        observe(s, &held_objects);
+        fl4_core::syscall::handle_vm_fault_local(s, a, addr, code)
+    };
+    lock::unlock_held(m, &mut held);
+    done
 }
 
 /// `lock::try_lock_object`. (Mutation test: `mutant-local-no-lock` takes
@@ -273,6 +352,11 @@ fn local_candidate<S: fl4_core::machine::Store>(s: &S, number: i64) -> Candidate
         && fl4_core::ioport::is_port_label(fl4_core::msg::msg_info(s, t).label)
     {
         Candidate::Port
+    } else if number == fl4_abi::syscall::SysCall
+        // A frame-cap invocation, by its label alone.
+        && fl4_core::localinv::is_local_label(fl4_core::msg::msg_info(s, t).label)
+    {
+        Candidate::Invocation
     } else {
         Candidate::No
     }
@@ -285,6 +369,8 @@ enum Candidate {
     Fast,
     /// An I/O port access (`handle_ioport_local`).
     Port,
+    /// A frame-cap invocation (`handle_invocation_local`).
+    Invocation,
 }
 
 /// How long `local_entry` waits for a closed gate to open: some tens of
@@ -335,6 +421,39 @@ fn local_entry<E: EntryEnv>(env: &E, gate: &SerialGate, local: &mut impl FnMut(&
     } else {
         Local::Declined
     }
+}
+
+const _: () = assert!(fl4_core::localinv::MAX_LOCKS <= lock::MAX_HELD);
+
+/// A frame-cap invocation beside the gate (`fl4_core::localinv`): lock
+/// the words its plan names (capability slots, 32 bytes, and at most one
+/// page-table entry, 8), then run it, which checks the plan again.
+#[inline(always)]
+fn local_invocation<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M: Mem>(
+    s: &mut S,
+    a: &mut A,
+    m: &M,
+    number: i64,
+    observe: impl FnOnce(&S, &[(u64, u64)]),
+) -> bool {
+    use fl4_core::localinv::MAX_LOCKS;
+    let p = match fl4_core::localinv::plan(s, number) {
+        Some(p) => p,
+        None => return false,
+    };
+    let mut held = lock::Held::new();
+    let mut objects = [(0, 0); MAX_LOCKS];
+    let mut ok = true;
+    for i in 0..p.n {
+        objects[i] = (p.locks[i], if i == p.pte { 8 } else { 32 });
+        ok = ok && lock_object(m, p.locks[i], &mut held);
+    }
+    let done = ok && {
+        observe(s, &objects[..p.n]);
+        fl4_core::syscall::handle_invocation_local(s, a, number, &p)
+    };
+    lock::unlock_held(m, &mut held);
+    done
 }
 
 /// The local path of a syscall made outside the gate (`run_syscall`), with
@@ -392,6 +511,10 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
             }
             None => false,
         }
+    } else if number == fl4_abi::syscall::SysCall
+        && fl4_core::localinv::is_local_label(fl4_core::msg::msg_info(s, t).label)
+    {
+        return local_invocation(s, a, m, number, observe);
     } else {
         // An I/O port access writes only the caller and this core's
         // state: nothing to lock.
@@ -400,7 +523,17 @@ pub fn local_syscall<S: fl4_core::machine::Store, A: fl4_core::machine::Arch, M:
     };
     let done = ok && {
         observe(s, &held_objects);
-        fl4_core::syscall::handle_syscall_local(s, a, number, found)
+        // A reply to a VM fault takes `fastpath_vm`'s path, any other
+        // `fastpath`'s: one or the other, so the entry's prefix runs once.
+        // (`found` is set for a ReplyRecv only, not for a trapped thread's
+        // syscall with that number.)
+        if found.0 != 0
+            && fl4_core::obj::Tcb(Reply(found.0).tcb(s)).fault_type(s) == fl4_abi::consts::fault::VMFault
+        {
+            fl4_core::syscall::handle_reply_recv_vm_local(s, a, found)
+        } else {
+            fl4_core::syscall::handle_syscall_local(s, a, number, found)
+        }
     };
     lock::unlock_held(m, &mut held);
     done
