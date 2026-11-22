@@ -16937,3 +16937,58 @@ build jc6a-full1: `Build completed successfully (7301 jobs)`, 0 `error`, 0 `sorr
 U3L, UH2, U4..U21 and **U25**, `JAtZ.keptA`, `JAtZ.unrefA`, `regionUnrefAt_iff`, `sniHyp_of`, `sendHyp_of`,
 `scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`. No sorry / admit / native_decide /
 bv_decide / axiom in the new files.
+
+## jc6b (branch par/jc6b from 7f6784dd, merged jc6a 2e9ef5f3) — part (b) of `RegionUnrefAt` PROVED from the bound-notification / SC–notification symmetry; the symmetry NOT yet carried (STOPPED at sizing: the `JCarry` route is XL, not M–L); no new top, no FINDING of a false leaf
+
+### (1) What is proved (new file `Fl4Proofs/P3/UnrefSym.lean`)
+- **`BndSym σ`** (spec side; l4v `sym_refs` for `tcb_bound_notification`/`ntfn_bound_tcb` and
+  `sc_ntfn`/`ntfn_sc`, with the objects' kinds), four clauses: TCB → its notification bound back;
+  notification → its TCB bound back; SC → its notification whose SC is it; notification → its SC naming it
+  back (the last is SInvA's `NtfnScB` and P1's `ScExtra0.nsc`; the consumers read the first three).
+- `BndFwd`/`BndView σ σ'` (kinds and the four link fields kept, both ways), `BndSym.view`,
+  `BndView.updTcb` (a TCB update keeping its bound notification), `BndSym.restart`.
+- **`JAtZ.keptB (J) (hS : BndSym σ) : KeptRefsBAll H D s`** (jc6a's carried form of (b)): a link to a dead
+  object has a spec back-link that reads a word the dead object's `DeadP` zeroes (`ntfnBtA`, `ntfnScA`,
+  `boundA`), via `TcbRel1.bound`, `NtfnRel1.bound`/`.sc`/`.bound_mem`, `ScRelW.ntfn`; the target's kind from
+  P1's `ScExtra0.bnd`/`.scn`.
+- **`JAtZ.unrefB (J) (hni : Entered σ) (hS : BndSym σ) : RegionUnrefB H D s`**: `keptB` at
+  `JAtZ.restartSJ`'s state (same `H`, `D`), `BndSym.restart`, `KeptRefsBAll.region`.
+So U25's (b) is discharged at any `Entered` `JAtZ` state that also has `BndSym σ`.
+
+### (2) Why the symmetry is not carried yet (sizing)
+Adding `BndSym σ` (or its FL4-word form) to `JCarry` needs it after every `JAtZ` construction. Unlike
+jc2/jc3/jc5's facts (caps, arch objects, device ranges), the generic frames do NOT keep the four link fields:
+- `JAtZ.sc_frame` / `sch_frame` (`ScTKw` / `SchStep`): `TKObj` keeps `tcbBoundNotification` and
+  `ntfnBoundTcb` (so the TCB↔ntfn half is derivable inside), but lets an SC change arbitrarily and a
+  notification change its `ntfnSc` (SC Bind/Unbind ntfn are `ScTKw` steps), so the SC↔ntfn half is an
+  obligation of each caller: **128** call sites of `.sc_frame` (+7 `sc_frameS`, 5 `sch_frame`), spread over
+  ~60 files.
+- `JAtZ.cs_frameI` (IPC work): only `KBack` (kinds) and a `WritesIn` over `OObj` (all IPC objects' words):
+  neither half derivable; **50** call sites (+ cs_frame 13, cs_frameV 11, cs_frameB 6, cs_frameVD 3, …,
+  the `JAtZR` copies, the retypes/drops, MakePool, `restartSJ`).
+So the JCarry route is a per-call-site obligation at ~230 sites (XL).
+
+### (3) Cheaper routes (recommended order)
+1. **P1 (`ScExtra0`)**: P1 already carries one half of SC↔ntfn (`ScExtra0.nsc`: a notification's SC names it
+   back) and keeps it through every FL4 step via the base keep lemmas (`XInv0.keepN`/`keep'`/`keep`, `fr`,
+   `writes`, `wr_link`, `drop`, the `Heap.add*` retypes, `bind_ntfn.blk`, …, ~25 base lemmas + ~12 direct
+   constructions). Add `snb : ∀ c ∈ Scs, scNtfnA c ≠ 0 → ntfnScA (scNtfnA c) = c` (keepN already has the
+   keep facts `hns`, `hsn`), and `tbn`/`ntt` (TCB↔ntfn back-links; these need `boundA` and `ntfnBtA` kept,
+   which `keepN` gets only as after-typing `hbd`/`NtbOK`: add the two equalities, callers mostly have them via
+   `Fr`/`TmFr`). The single-write lemmas `bnd_all`/`ntbt_all` (bind/unbind, 8 uses) become a pair lemma.
+   Then P3 needs no site change: `JAtZ.blk` gives the FL4-word symmetry and `keptB` restated on words. (L)
+2. **SInv family**: `NtfnScB` is already an SInvA field; the other three clauses as SInv fields follow
+   SpecInvSlN1–6/NK (2138 lines for `NtfnScB`), but the detype's `RegionUnrefAt` is asked mid-entry, so the
+   top would have to pass the entry invariant down to the dispatch state (a top change; not done here).
+
+### (4) Check against the Rust (no counterexample)
+`notification::bind_notification`/`unbind_notification`/`unbind_maybe_notification` and
+`schedcontext::bind_ntfn`/`unbind_ntfn`/`maybe_unbind_ntfn` always write both sides; the ntfn finalise
+(objects.rs:306–307), TCB finalise (:340) and SC finalise (:362) use them; retyped objects are zeroed. The one
+one-sided write (`ct.set_bound_ntfn` in `arch/aarch64/vcpu.rs:1298`) is in a `#[test]`. So `BndSym` holds in
+reachable states.
+
+### (5) Build
+Full build jc6b-full1: 7303 jobs, 0 errors; `JAtZ.keptB`, `JAtZ.unrefB`, U21, U25 axioms propext,
+Classical.choice, Quot.sound. Next (jc6b2): carry the symmetry by route (3)1, then restate `keptB` on P1's words
+(`JAtZ.blk`) and drop U25's (b).
