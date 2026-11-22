@@ -560,6 +560,10 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
+**Top of record: `SInvR.G5.kernel_entry_reachU11`** (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
+route: `JAtZR.hdOK`, `DomListOK` by SpecInvDom's `DP`). At U11 the [J] leaves are C4, C16, C17, C21, C22, C23,
+C24×3, C25, C26, C27 and D7 `IdleVt` (D1 gone: **[J] 13**, counting D7); **[W] 0**.
+
 **[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
 `kernel_entry_reachU7`; see F.)
 
