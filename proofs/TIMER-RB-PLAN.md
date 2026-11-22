@@ -263,6 +263,12 @@ Next (exact):
   post `Q s7 s8` iff the removed colour is black (`s8 = s7` otherwise), `s' = clrT s8 t`.
 - Findings: no reachable bad state; every leftmost walk has height ≤ 127 < fuel + 1; `x = 0` with `x_parent`
   given is exactly `ctxX.par` with `tx = leaf`.
+- Full build green at 2d93b84c: `Build completed successfully (7335 jobs)`, 0 errors, 0 sorry; axioms
+  propext/Classical.choice/Quot.sound for all new tops (axjc6d.lean, not committed).
+- Lean traps met: `subst h` with `h : a = b` between two local variables may eliminate the wrong one (use
+  `subst x` naming the variable, `clear` competing equations first); after `fun s6 e => …; subst e` the name `s6`
+  is gone (keep `e`, `rw [← e] at r6`); `plug_sub (fun w hw => …)` with untyped binder makes the unifier unfold
+  `RBT.keys`/`Ctx.plug` → whnf heartbeat timeout reported at the theorem head; give the inclusion a typed `have`.
 
 Next (exact):
 1. **Stage 7 (`remove_fixup`)**, as `hfix` of `timer.remove.struct`: from `CoreTree s c W` (W balanced, black root),
