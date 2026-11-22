@@ -276,3 +276,32 @@ fn the_cc_guids_are_the_uefi_ones() {
     assert!(c.contains("Guid(0x9675_1a3d, 0x72f4, 0x41a6, [0xa7, 0x94, 0xed, 0x5d, 0x0e, 0x67, 0xae, 0x6b])"));
     assert!(c.contains("Guid(0xdd4a_4648, 0x2de7, 0x4665, [0x96, 0x4d, 0x21, 0xd9, 0xef, 0x5f, 0xb4, 0x46])"));
 }
+
+/// HashLogExtendEvent's result: success, or `EFI_VOLUME_FULL` (RTMR[2]
+/// extended, only the log is full), lets the file boot; anything else, or a
+/// TD without the protocol at all, stops the boot.
+#[test]
+fn a_boot_file_that_cannot_be_measured_is_refused() {
+    use ccel::{measure_status, VOLUME_FULL};
+    assert_eq!(VOLUME_FULL, (1 << 63) | 11);
+    assert!(measure_status(false, 0).is_err(), "no EFI_CC_MEASUREMENT_PROTOCOL");
+    assert!(measure_status(false, VOLUME_FULL).is_err());
+    assert_eq!(measure_status(true, 0), Ok(()));
+    assert_eq!(measure_status(true, VOLUME_FULL), Ok(()));
+    for r in [(1 << 63) | 2, (1 << 63) | 3, (1 << 63) | 7, (1 << 63) | 9, 1, u64::MAX] {
+        assert!(measure_status(true, r).is_err(), "{r:#x}");
+    }
+}
+
+/// In a TD a missing protocol fails the boot rather than skipping RTMR[2].
+#[test]
+fn measure_file_fails_closed_without_the_protocol() {
+    let c = include_str!("../../crates/fl4-efi/src/ccel.rs");
+    let f = &c[c.find("pub fn measure_file(").expect("measure_file")..];
+    let f = &f[..f.find("\n    }\n").unwrap()];
+    assert!(!f.contains("else { return }"), "a missing protocol must not return quietly");
+    assert!(f.contains("let Some(cc) = protocol() else {"));
+    assert!(f.contains("measure_status(false, 0)"));
+    assert!(f.contains("measure_status(true, r as u64)"));
+    assert!(f.contains("fail("));
+}
