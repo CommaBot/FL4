@@ -15421,3 +15421,17 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   `DOM_SCHED_IDX` word and `DomListOK`, S); C8/C13 `arch` (an `AR` variant of `MKD.decode_quiet` for the
   SchedContext/SchedControl decodes, which never call `set_vspace`).
 - Large: `vsTyp`, `RegionUnrefAt` / `ArchFitHyp`, `vsReach`, the CR3 `tail` [W], the P1 `rest` obligations.
+
+## m74 (branch par/m74 in FL4-m74, on db6231ff = #51 head) — STOPPED at step (2): tokyo disk below 5 GB
+- (1) DONE: merge of main db16705f (#63, #64) = 47fe18f2, no conflicts (lakefile already has `lean_lib Fl4CoreA64` from #64;
+  xtask merged cleanly).
+- (2) not run: m74-ex1 (m74-regen.sh MODE=ex, untracked) stopped at its disk check before seeding `.lake`: `df -h ~` on
+  tokyo-mac-studio-0 = 4.5 GiB free of 926 GiB (100%). Nothing extracted or built; mirror FL4-m74 has no `.lake`.
+- Expected breaks once extracted (#63, read from the Rust diff): `notification.send_signal` gains a branch (bound TCB in
+  `TS_RUNNING_VM`, same core, `vcpu.signal_completes`) → `vcpu.report` + donation + `possible_switch_to` +
+  `unblock_check`; `vcpu.enter` completes on a pending bound signal (`complete_signal`, MSG_INFO=0) and no longer calls
+  `check`; `vcpu.report`'s `!pending` path writes only MR0..2; `vmcb_hidden` gains 0x058/0x0c0; new
+  `vcpu.signal_completes`. Users: send_signal unfolds in P1 QueueSignal / QueueFootS and P3 NtfnSend, NtfnWake,
+  IpcNtfnSend, IpcNtfnWake, IpcSignalDon, IpcSignalBound, IpcSignalWake, MachKeep, MachKeepF, ArchKeep; vcpu in
+  P1 SyscallGen, QueueVcpu, QueueInvAll. Plan: `send_signal_old` + an equation off the new condition (m62 style).
+- HANDOFF: free disk on tokyo, then `MODE=ex bash m74-regen.sh` (key m74-ex1) from step (2).
