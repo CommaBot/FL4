@@ -264,9 +264,9 @@ mod efi {
 
     /// Firmware memory at `base`, read at most `limit` bytes in (boot
     /// services memory or ACPI NVS, identity mapped while the loader runs).
-    struct Raw {
-        base: u64,
-        limit: usize,
+    pub struct Raw {
+        pub base: u64,
+        pub limit: usize,
     }
 
     impl Mem for Raw {
@@ -291,6 +291,20 @@ mod efi {
     }
 
     impl TpmLog {
+        /// A log found through a protocol with this interface (the
+        /// confidential-computing one, ccel.rs, has the same formats).
+        #[cfg(target_arch = "x86_64")]
+        pub fn new(location: u64, log: Log, flags: u64, final_table: u64, snap: Option<FinalSnapshot>) -> TpmLog {
+            TpmLog { location, log, flags, final_table, snap }
+        }
+
+        /// Whether events logged after `collect` can be told apart, so
+        /// that `finish` can append them.
+        #[cfg(target_arch = "x86_64")]
+        pub fn has_final_events(&self) -> bool {
+            self.snap.is_some()
+        }
+
         /// Bytes to set aside for the copy: the log and the slack.
         pub fn capacity(&self) -> u64 {
             (self.log.len + FINAL_SLACK).min(MAX_EVENT_LOG) as u64
