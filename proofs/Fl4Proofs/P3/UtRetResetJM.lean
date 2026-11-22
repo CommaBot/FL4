@@ -378,7 +378,7 @@ theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (pp.bv, idx))) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -483,7 +483,7 @@ theorem JAtZ.utResetJM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
   refine retype_reset_wp arI s1 ar _ _ nt us dest off win false
     (J1.reset_untypedJM hAK hA hnd hMP hPA hrcb hc0 hR01 hres1 hpp hidx hcap1 hnc1 hf0 hKR hDT hAF1
       J1.vsc.needR.1 J1.vsc.needR.2.1 J1.vsc.needR.2.2.1 J1.vsc.needR.2.2.2.1 J1.vsc.needR.2.2.2.2
-      (hVM s1 hs1) Vs.needR_roots hMR1 hVT1 hVI1) ?_ ?_
+      (hVM hnd' s1 hs1) Vs.needR_roots hMR1 hVT1 hVI1) ?_ ?_
   swap
   · intro e s2 a2 hpost
     rcases hpost with ⟨h, -⟩ | ⟨he, σ', hmem, hpre, Z', hX⟩
@@ -647,7 +647,7 @@ theorem JAtZ.jUtRetHypM {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hRd0 : σ.consumedTime = 0 → ∀ y n, σ.kheap σ.curSc = some (.schedContext y n) → Fl4Spec.scActive y = true →
       Fl4Spec.refillReady σ.curTime (Fl4Spec.refillHd y) = true)
     (hnq : ∀ d p, σ.curThread ∉ σ.readyQueues d p)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
@@ -703,7 +703,7 @@ theorem JAtZ.jUtRetHypDevM {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (hBO : BufObjHyp Z.B σ) (hAF : ArchFitHyp H σ) (hRU : RegionUnrefAt (L := L) H Cs D s) (hc0 : Z.c = 0#u64)
     (hDA : DevApart (L := L) Z.th H Z.G Cs s) (hDF : DevFreeT (L.mem s) Z.G σ) (hGP : DevGpm (L.mem s) Z.G σ)
     (hrcb : Fl4Spec.resetChunkBits = 16)
-    (hVM : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+    (hVM : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
       Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1))
