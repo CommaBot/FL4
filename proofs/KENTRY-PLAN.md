@@ -15365,3 +15365,59 @@ definition edited in place (`UtDescV`, SpecInvUt.lean:83) and its view lemmas; n
   Classical.choice, Quot.sound (each).
 - HANDOFF: none for `LargeFrOK`. Rebase note: any new caller of `derive_subframe_rel` / `JFramePath.hno` now passes the
   physical form (`NoOverlap.hno` gives it directly).
+
+## g6a (branch par/g6a in FL4-sc, on a194d098 = #51 head, top `kernel_entry_reachU3L`) — JOB 1: exact premise inventory of `kernel_entry_reachU3L` DONE (INV-PLAN §1.U3L); JOB 2: the cheapest leaves discharged, top **`kernel_entry_reachU4`**; FINDING: `KFinAtR31.sni` (`SniHyp`) is false as stated (∀ `SchedRel` states)
+New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing existing edited. Old tops kept.
+
+### (1) Inventory (INV-PLAN §1.U3L)
+- Every bundle unfolded through the conversions the proof uses, to named leaves, with tag, l4v counterpart and
+  whether it is asked at one state, at every ghost choice of one state (∀gh), or over all states (∀st).
+- Counts: [P] 33 (5 of them duplicates/redundant: `hmrt`, `hmb`, the SchedContext / SchedControl timer constants,
+  the YieldTo path), [S] 20, [J] 14, [W] 3.
+- [W]: `KFinAtR31.tail` (AR at CR3 after `schedule`), `JSchedCtxPath.rest` / `JSchedCPath.rest` (`ScStepP1`, P1).
+- ∀st: `PortInVal` (∀ spec states), `ArchSwF`, `ArchNdF`, `SniHyp`, `SendHyp` (∀ `SchedRel ∧ NtfnStateRel` states).
+
+### (2) FINDING (inventory row D4): `SniHyp` is false as stated
+- `SniHyp st ar N T C c := ∀ s a σ, SchedRel … s σ → NtfnStateRel … → set_next_interrupt s a ⦃ r => ∃ σ1,
+  setNextInterrupt σ = ({((), σ1)}, False) ∧ … ⦄` (ScScheduleTop.lean:702).
+- Trace: the spec's `setNextInterrupt` (Fl4Spec/Schedule.lean:78) runs `getTcbObjRef Tcb.tcbSchedContext curTh` then
+  `NonDet.assertOpt` (= `fail` on `none`, Monad.lean:52); likewise for the release-queue head. `SchedRel` relates
+  `σ.curThread` to the `CUR_THREAD` word (`SchedSpec.curThread`), puts it in `T` (`SchedCore.curT`) and sets
+  `tcbSchedContext = optRef (scA t)` (`SchedSpec.tcb`), with no clause excluding `scA ct = 0`. At such a state the
+  spec run has its failure flag set, so the post is false whatever FL4 does (FL4's `set_next_interrupt` reads
+  `obj.Tcb.sc` and `sporadic.head` without a check). So `SniHyp` fails for any concrete store that has such a
+  `SchedRel` state, `KFinAtR31` cannot be supplied, and `hFin` / every `KFinEv` of the top is unprovable: each
+  clause of `kernel_entry_reachU3L` (and `U4`) is vacuous in practice. Same class as INV-PLAN §0 (`PPPlat.now`).
+- Not proved in Lean (a counterexample needs a concrete `machine.Store` with a `SchedRel` state; the store type is
+  abstract in every statement). The spec half (`setNextInterrupt` fails when the current TCB has no SC) is direct
+  from the definitions above.
+- Fix (not done, cone of ScScheduleTop): guard `SniHyp` with the current thread's SC and the release head's SC (both
+  hold where it is consumed: after `schedule`, under `CurInv` / `Inv`), as `ArchSwF` got `FpuOwnOK`. `ArchSwF`,
+  `ArchNdF`, `SendHyp` should be audited for the same failure mode (spec `assert`/`fail` at an unreachable
+  `SchedRel` state).
+
+### (3) `kernel_entry_reachU4` (XTopJointKEntryU4)
+- `JSchedCPathU4` / `JSchedCtxPathU4`: the scheduler paths without `tm`/`mb`/`max`/`tu`; `JPathMEU4` = `JPathME6` with
+  them, the YieldTo path dropped, and the ASID pool path `True`; `JPathAtMU4`, `KDispHypsKVU4`.
+- `JAtZ.poolNative`: the ASID pool path's `native` from `JAtZ`: `ExtraOK.vsExtra`'s `hxs` (the first extra slot is a
+  typed-heap slot) and `JAtZ.ext.nat` (every slot's cap `NativeCap`, so not `Ept`). `JPathAtMU4.to36E` (at the
+  dispatch state's `JAtZ`, `ExtraOK` from `JAtZ.frontJ`), `KDispHypsKVU4.to42`.
+- **`SInvR.G5.kernel_entry_reachU4`** = `kernel_entry_reachU3L` with no `hmrt` (`TimeAgree.mrt hT`), no `hmb`
+  (`hPA.minBudget`), and `hK : KDispHypsKVU4`. Premises removed: A11, A12, C7, C10, C11, C15 of §1.U3L. Added: none.
+  Everything else exactly as `reachU3L`.
+
+### (4) Builds and axioms
+- tokyo, FL4-sc mirror seeded from FL4-m67's build (./g6a.sh, g6a.files, scratch/g6a/ax.lean untracked).
+  g6a-b1: namespace (JPathME6 lives in `SInvR.G5`) and explicit `arI AR MR`; **g6a-b2: green (7084 jobs)**, commit 44c58a63.
+- **g6a-full1** (full `lake build` of proofs/ at 44c58a63): "Build completed successfully (7179 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new file.
+- `#print axioms` (g6a-full1 / g6a-ax2): SInvR.G5.kernel_entry_reachU4, SInvR.G5.kernel_entry_reachU3L,
+  SInvR.G5.JPathAtMU4.to36E, SInvR.G5.KDispHypsKVU4.to42, JAtZ.poolNative: propext, Classical.choice, Quot.sound.
+
+### (5) Handoff (next steps, by the inventory)
+- FIRST: the `SniHyp` FINDING (guard it; audit `ArchSwF` / `ArchNdF` / `SendHyp` for the same failure mode).
+- Cheap: `ArchNdF` as a spec frame + a state-free [P] "the FPU machine ops have one outcome"; `bufObj` (carry B ⊆
+  spec objects, S–M); `devApart` / `devFree` / `devGpm` (carry with the existing `.retype` lemmas, M); `hd` (carry the
+  `DOM_SCHED_IDX` word and `DomListOK`, S); C8/C13 `arch` (an `AR` variant of `MKD.decode_quiet` for the
+  SchedContext/SchedControl decodes, which never call `set_vspace`).
+- Large: `vsTyp`, `RegionUnrefAt` / `ArchFitHyp`, `vsReach`, the CR3 `tail` [W], the P1 `rest` obligations.
