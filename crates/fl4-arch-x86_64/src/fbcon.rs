@@ -4,7 +4,7 @@
 //! the upper half), 8x8 glyphs scaled 1x2, and wraps to the top of its area
 //! rather than scrolling, so it never reads the framebuffer.
 use core::sync::atomic::{AtomicU64, Ordering};
-use crate::sev::mmio_ptr;
+use crate::cvm::mmio_ptr;
 
 /// Printable ASCII, 0x20 to 0x7e.
 static FONT: [[u8; 8]; 95] = [
@@ -124,7 +124,7 @@ const FB_TYPE_RGB: u8 = 1;
 pub fn init(paddr: u64, window_top: u64, pitch: u32, width: u32, height: u32, bpp: u8, ty: u8) -> bool {
     let size = pitch as u64 * height as u64;
     let bytes = bpp as u64 / 8;
-    if !usable(crate::sev::snp::active(), pitch, width, height, bpp, ty) {
+    if !usable(crate::cvm::hardened(), pitch, width, height, bpp, ty) {
         return false;
     }
     let Some(base) = mmio_ptr(paddr, size, window_top.min(1 << 32)) else { return false };
@@ -139,14 +139,14 @@ pub fn init(paddr: u64, window_top: u64, pitch: u32, width: u32, height: u32, bp
     true
 }
 
-/// A framebuffer this console can draw on. Never in an SEV-SNP guest:
+/// A framebuffer this console can draw on. Never in an SEV-SNP or TDX guest:
 /// `glyph` stores straight to the shared mapping, unaligned and 64 bits
 /// wide, which there is a #VC (NPF on shared MMIO) the kernel answers by
-/// terminating the guest; SNP MMIO goes through the GHCB, 4 bytes at a
-/// time (`sev::write_mmio32`).
-fn usable(snp: bool, pitch: u32, width: u32, height: u32, bpp: u8, ty: u8) -> bool {
+/// terminating the guest; SNP and TDX MMIO go through the GHCB or a
+/// TDVMCALL, 4 bytes at a time (`cvm::write_mmio32`).
+fn usable(hardened: bool, pitch: u32, width: u32, height: u32, bpp: u8, ty: u8) -> bool {
     let bytes = bpp as u64 / 8;
-    !snp && ty == FB_TYPE_RGB
+    !hardened && ty == FB_TYPE_RGB
         && (bpp == 24 || bpp == 32)
         && width >= 640
         && height >= 400

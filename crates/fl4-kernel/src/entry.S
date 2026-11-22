@@ -92,7 +92,7 @@ fl4_common_entry:
     pushq %r14
     pushq %r15
     cld
-    cmpb $0, FL4_SNP_POISONED(%rip)
+    cmpb $0, FL4_CVM_POISONED(%rip)
     jne .Lpoisoned
     cmpb $0, FL4_SAFE_RET(%rip)
     je .Lentry_barrier
@@ -145,12 +145,12 @@ fl4_common_entry:
      * the user (bad_iret.S) and goes the same way. */
     /* Validate the original hardware frame before bad-IRET fixup can
      * replace its saved RSP, or Rust can enter a returning IRQ path. */
-    cmpq $0, FL4_SNP_CPUID_PAGE(%rip)
+    cmpb $0, FL4_CVM_HARDENED(%rip)
     je .Lcheck_user
     testb $3, 18*8(%rbp)
     jnz .Lfrom_user
     movq %rbp, %rdi
-    call fl4_snp_kernel_entry_stack
+    call fl4_cvm_kernel_entry_stack
     testq %rax, %rax
     jnz .Lmove_frame
 .Lcheck_user:
@@ -181,10 +181,10 @@ fl4_common_entry:
      * came from (the kernel stack copy is never mapped for user code). */
     cmpq %rsp, %rbp
     je .Lframe_back
-    /* SNP's full kernel mapping lets IRET use the kernel-stack copy.
+    /* SNP's and TDX's full kernel mapping lets IRET use the kernel-stack copy.
      * Returning from IST6 to userspace on IST6 would let a bad IRET
      * overwrite its own frame when #GP or #SS also lands there. */
-    cmpq $0, FL4_SNP_CPUID_PAGE(%rip)
+    cmpb $0, FL4_CVM_HARDENED(%rip)
     je .Lcopy_back
     cmpq $0, FL4_KERNEL_CR3(%rip)
     je .Lframe_back
@@ -242,18 +242,24 @@ fl4_common_entry:
     movq $0, -136(%rsp)
     /* The SNP poison check loads memory: before the buffers are cleared,
      * so VERW; LFENCE stays last before the return (as in fl4_idle). */
-    cmpb $0, FL4_SNP_POISONED(%rip)
+    cmpb $0, FL4_CVM_POISONED(%rip)
     jne .Lpoisoned
     fl4_clear_buffers
 .Lcommon_iret:
     iretq
 
-/* Once another SNP vCPU reports a fatal error, do not resume guests or
- * enter the normal kernel path. This code and flag are mapped everywhere. */
+/* Once another SNP or TDX vCPU reports a fatal error, do not resume guests
+ * or enter the normal kernel path. This code and flag are mapped everywhere.
+ * HLT would take #VE in a TD, and this path must not take another entry. */
 .Lpoisoned:
     cli
+    cmpb $0, FL4_TDX_ACTIVE(%rip)
+    jne .Lpoisoned_spin
     hlt
     jmp .Lpoisoned
+.Lpoisoned_spin:
+    pause
+    jmp .Lpoisoned_spin
 
 /* fl4_restore_user(regs: *const u64, stack_top: u64, cr3: u64) -> !
  * regs is a TCB's register array (fl4_core::layout::reg order); stack_top
@@ -307,7 +313,7 @@ fl4_restore_user:
     popq %rdi
     movq $0, (%rsp)
     addq $8, %rsp
-    cmpb $0, FL4_SNP_POISONED(%rip)
+    cmpb $0, FL4_CVM_POISONED(%rip)
     jne .Lpoisoned
     fl4_clear_buffers
 .Lrestore_iret:
@@ -345,14 +351,16 @@ fl4_restore_user:
     movq $0, (%rsp)
     addq $8, %rsp
     popq %rsp
-    cmpb $0, FL4_SNP_POISONED(%rip)
+    cmpb $0, FL4_CVM_POISONED(%rip)
     jne .Lpoisoned
     fl4_clear_buffers
     sysretq
 
 /* fl4_idle(stack_top: u64) -> !: the idle thread, on the kernel stack and
- * the kernel's tables. SNP interrupts land on an IST and move here before
- * running the handler. A timer acknowledged early can resume this loop. */
+ * the kernel's tables. SNP and TDX interrupts land on an IST and move here
+ * before running the handler. A timer acknowledged early can resume this
+ * loop. In a TD this HLT takes #VE, still in STI's interrupt shadow, so
+ * no wakeup is lost (tdx.rs `ve`). */
     .align 16
     .global fl4_idle
 fl4_idle:
@@ -360,7 +368,7 @@ fl4_idle:
     .global fl4_idle_loop
 fl4_idle_loop:
 1:
-    cmpb $0, FL4_SNP_POISONED(%rip)
+    cmpb $0, FL4_CVM_POISONED(%rip)
     jne .Lpoisoned
     fl4_clear_buffers
     sti

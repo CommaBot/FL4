@@ -68,7 +68,7 @@ fn caps() -> Caps {
     let family = (one.eax >> 8) & 15;
     let model = (one.eax >> 4) & 15;
     let microcode = match vendor {
-        Vendor::Intel if one.ecx & (1 << 31) == 0 && arch & RDCL_NO != 0 => {
+        Vendor::Intel if one.ecx & (1 << 31) == 0 && arch & RDCL_NO != 0 && !crate::tdx::active() => {
             // IA32_BIOS_SIGN_ID is refreshed by CPUID.1 after clearing it.
             wrmsr(0x8b, 0);
             cpuid(1, 0);
@@ -290,7 +290,10 @@ pub fn init_core(bsp: bool) -> bool {
         let n = native_only(&c, no_entry_ibpb);
         (n.entry, n.spec_ctrl, n.auto_ibrs, n.disable_tsx)
     };
-    if disable_tsx {
+    // A TD may not write these MSRs: the TDX module owns TSX, MCU and
+    // microcode state.
+    let tdx = crate::tdx::active();
+    if disable_tsx && !tdx {
         wrmsr(0x122, rdmsr(0x122) | 3);
     }
     // `native_only` enables STIBP on every core that can use Safe RET
@@ -306,7 +309,7 @@ pub fn init_core(bsp: bool) -> bool {
     }
     // VERW must not be disabled via FB_CLEAR_DIS. Also retain the
     // enumerated microcode mitigation for Gather Data Sampling.
-    if c.vendor == Vendor::Intel && c.arch & ((1 << 18) | GDS_CTRL) != 0 {
+    if !tdx && c.vendor == Vendor::Intel && c.arch & ((1 << 18) | GDS_CTRL) != 0 {
         let mut mcu = rdmsr(0x123);
         if c.arch & (1 << 18) != 0 {
             mcu &= !(1 << 3);

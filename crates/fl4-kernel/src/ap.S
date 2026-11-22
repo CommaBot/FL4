@@ -71,4 +71,122 @@ ap_cpu:   .quad 0
     .global fl4_ap_trampoline_end
 fl4_ap_trampoline_end:
 
+/* An Intel TDX AP has no INIT or SIPI. Firmware parks it, and on the ACPI
+ * wakeup mailbox's command jumps here in 64-bit mode on firmware's identity
+ * map, with interrupts off, in four- or five-level paging (firmware uses
+ * five levels for a 52-bit GPA width). The boot core copies this code to a
+ * page of loader code (executable in firmware's tables) that its boot table
+ * also identity maps, and fills in the data. It is position independent,
+ * and writes nothing to its own page, which firmware may map read-only.
+ * Nothing here may take #VE: no IDT is loaded yet. */
+    .align 16
+    .global fl4_tdx_ap_trampoline
+fl4_tdx_ap_trampoline:
+    .code64
+    cli
+    cld
+    leaq fl4_tdx_ap_trampoline(%rip), %rbx /* below 4 GiB */
+    movl $0xC0000080, %ecx                /* EFER: the boot core's NXE */
+    rdmsr
+    movl %eax, %esi
+    orl tdx_ap_efer(%rip), %esi
+    cmpl %eax, %esi
+    je 1f
+    movl %esi, %eax
+    wrmsr
+1:
+    movq %cr0, %rax
+    orq $(1 << 16), %rax                  /* WP */
+    movq %rax, %cr0
+    lgdtq tdx_ap_gdt_ptr(%rip)
+    /* Before any new CR3: PGE and PCIDE off drop firmware's global and PCID
+     * TLB entries, and PCIDE and CET must be off to clear CR0.PG below. */
+    movq %cr4, %rax
+    andq $~((1 << 7) | (1 << 17) | (1 << 23)), %rax
+    movq %rax, %cr4
+    btq $12, %rax                         /* LA57 */
+    jc 3f
+    movq tdx_ap_cr3(%rip), %rax
+    movq %rax, %cr3
+    jmp .Ltdx_ap_tables
+3:
+    /* LA57 changes only with paging off, from a 32-bit code segment. */
+    ljmpl *tdx_ap_to_compat(%rip)
+    .code32
+    .global fl4_tdx_ap_compat
+fl4_tdx_ap_compat:
+    movl $0x18, %eax
+    movl %eax, %ds
+    movl %eax, %es
+    movl %eax, %ss
+    movl %cr0, %eax
+    andl $0x7fffffff, %eax
+    movl %eax, %cr0
+    movl %cr4, %eax
+    andl $~(1 << 12), %eax
+    movl %eax, %cr4
+    movl (tdx_ap_cr3 - fl4_tdx_ap_trampoline)(%ebx), %eax
+    movl %eax, %cr3
+    movl %cr0, %eax
+    orl $0x80000000, %eax
+    movl %eax, %cr0
+    ljmpl *(tdx_ap_to_long - fl4_tdx_ap_trampoline)(%ebx)
+    .code64
+    .global fl4_tdx_ap_long
+fl4_tdx_ap_long:
+.Ltdx_ap_tables:
+    movq tdx_ap_stack(%rip), %rsp
+    /* The kernel image's GDT, as on the boot core and SNP APs: this page
+     * leaves the address space when fl4_ap_main loads the kernel's tables,
+     * and an exception before gdt::init_core still reads the GDT. */
+    movabsq $fl4_efi_gdt, %rax
+    pushq %rax
+    pushq $0
+    movw $31, 6(%rsp)
+    lgdt 6(%rsp)
+    addq $16, %rsp
+    leaq 2f(%rip), %rax
+    pushq $0x10
+    pushq %rax
+    lretq
+2:
+    movl $0x18, %eax
+    movl %eax, %ds
+    movl %eax, %es
+    movl %eax, %ss
+    xorl %eax, %eax
+    movl %eax, %fs
+    movl %eax, %gs
+    subq $8, %rsp                         /* SysV call alignment */
+    movq tdx_ap_cpu(%rip), %rdi
+    movq tdx_ap_entry(%rip), %rax
+    jmp *%rax
+
+    .align 8
+    .global fl4_tdx_ap_gdt
+fl4_tdx_ap_gdt:                             /* accessed bits set: read-only */
+    .quad 0
+    .quad 0x00cf9b000000ffff                /* 0x08 code, 32-bit */
+    .quad 0x00af9b000000ffff                /* 0x10 code, 64-bit */
+    .quad 0x00cf93000000ffff                /* 0x18 data */
+    .align 8
+    .global fl4_tdx_ap_data
+fl4_tdx_ap_data:
+tdx_ap_cr3:   .quad 0
+tdx_ap_efer:  .quad 0
+tdx_ap_stack: .quad 0
+tdx_ap_entry: .quad 0
+tdx_ap_cpu:   .quad 0
+tdx_ap_to_compat:                           /* far pointers: offset, selector */
+    .long 0
+    .short 0x08, 0
+tdx_ap_to_long:
+    .long 0
+    .short 0x10, 0
+tdx_ap_gdt_ptr:
+    .short 4 * 8 - 1
+    .quad 0                                 /* the GDT's address in the page */
+    .global fl4_tdx_ap_trampoline_end
+fl4_tdx_ap_trampoline_end:
+
     .text

@@ -256,6 +256,9 @@ def init_data_types(wordsize):
         CapType("seL4_DomainSet", wordsize),
         CapType("seL4_SchedContext", wordsize),
         CapType("seL4_SchedControl", wordsize),
+        # FL4's extension interfaces are parsed on every architecture; each
+        # method's condition keeps the stub to x86_64.
+        CapType("seL4_X86_TdxControl", wordsize),
     ]
 
     return types

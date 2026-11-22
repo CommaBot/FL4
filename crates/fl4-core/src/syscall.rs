@@ -154,6 +154,7 @@ fn decode_invocation<S: Store, A: Arch>(
         Cap::Ept { .. } => crate::ept::decode(s, a, lbl, length, cap, slot, buf, extra),
         Cap::IoPortControl => ioport::decode_control(s, a, lbl, length, slot, buf, extra),
         Cap::IoPort { .. } => ioport::decode(s, a, lbl, length, cap, call, buf),
+        Cap::TdxControl => crate::tdx::decode(s, a, lbl, length, call, buf, extra),
         Cap::Frame { .. }
         | Cap::PageTable { .. }
         | Cap::PageDirectory { .. }
@@ -699,6 +700,7 @@ fn cap_type_code(c: Cap) -> u64 {
         Cap::AsidPool { .. } => 13,
         Cap::IoPort { .. } => 19,
         Cap::IoPortControl => 31,
+        Cap::TdxControl => 33,
         Cap::Vcpu { .. } => 21,
         Cap::Ept { level, .. } => if level == 0 { 29 } else if level == 39 { 27 } else if level == 30 { 25 } else { 23 },
     }

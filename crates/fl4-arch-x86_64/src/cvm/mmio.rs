@@ -1,4 +1,5 @@
-//! Scalar MOV and MOVZX forms for SNP MMIO faults in 64-bit userspace. The caller
+//! Scalar MOV and MOVZX forms for SNP (#VC) and TDX (#VE) MMIO faults in
+//! 64-bit userspace. The caller
 //! fetches instruction bytes from executable private mappings and validates
 //! the resulting memory operand against its user page tables.
 #[derive(Debug, PartialEq, Eq)]

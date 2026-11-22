@@ -91,5 +91,6 @@ pub mod sporadic;
 pub mod syscall;
 pub mod tcb;
 pub mod tcbqueue;
+pub mod tdx;
 pub mod timer;
 pub mod untyped;
