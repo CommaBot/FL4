@@ -184,6 +184,22 @@ theorem check_vspace_pml4_pdpt {P : Set U64} (s : S) (σ : Fl4Spec.State Unit) (
     refine (WP.spec_ok _).2 (Or.inr ⟨_, _, rfl, Or.inl (show SysErrRel (.Sys (.FailedLookup false .InvalidRoot))
       (.failedLookup false .invalidRoot) by simp [SysErrRel, LookupFaultRel]), pdptTail_noVs hv hf⟩)
 
+/-- **(F1 stage 5) What a PDPT Map leaves for `VsNamed`** (VsNamedStep's
+`pdptMapS`): the invoked cap `c` before unmapped and after mapped at
+`(asid, va)`, the PML4 `pm` l4v's ASID lookup finds, its entry `j` (`va`'s
+index) written with the PDPT, every other spec arch object and the ASID table
+kept. -/
+def PdptMapF (m' : U64 → U64) (x : U64) (c : capability.Cap) (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∃ (q0 as0 va0 asid va pm j : U64) (f : BitVec 9 → Fl4Spec.PML4E) (ta : Fl4Spec.TableAttrs) (tr : Fl4Spec.VMRights),
+    c = .Pdpt q0 false as0 va0 ∧ capV m' x = .Pdpt q0 true asid va ∧
+    asid ≠ 0#u64 ∧ asid.val < 2 ^ 20 ∧
+    ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok pm.bv, σ)}, False) ∧
+    j.val < 256 ∧ va.val = j.val * 2 ^ 39 ∧
+    σ.kheap pm.bv = some (.archObj (.pageMapL4 f)) ∧
+    σ'.kheap pm.bv = some (.archObj (.pageMapL4
+      (Function.update f (Fl4Spec.ucast 9 j.bv) (.pdPointerTablePML4E (Fl4Spec.addrFromPPtr q0.bv) ta tr)))) ∧
+    ArchKeepBut pm σ σ' ∧ σ'.archState.x64AsidTable = σ.archState.x64AsidTable
+
 /-- **PDPT `Map` refines l4v** (see the module docstring). -/
 theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsPdptMapHyps st A ar th P L4 L3 L2 L1 SR)
@@ -221,7 +237,8 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         PdptMapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pdpt ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Pdpt ptr mp asid0 va0) ∧ KFoot σ σ' ∧
+        PdptMapF (L.mem res.2.1) (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) σ σ') ⦄ := by
   rw [show ∀ args' ex', Fl4Spec.archDecodeInvocation (Z := Unit) slbl args' xs (pc.bv, idx)
       (.pdPointerTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) ex' =
     Fl4Spec.decodePdptInvocation slbl args' (pc.bv, idx)
@@ -410,7 +427,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
           obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
           have hbo : OutsideObjects th (peA q (vIdx v 39)) := hPO _ ⟨q, Or.inl hq, _, hj, rfl⟩
           refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, hdec.trans (pdptTail_ok hv' hf hg), ?_,
-            Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS', ?_, ?_, ?_⟩)
+            Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS', ?_, ?_, ?_, ?_⟩)
           · unfold PdptMapSpec pdptInv
             dsimp only
             rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
@@ -419,6 +436,26 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
           · show VsLike (capV (L.mem s3) _) _
             rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; exact ⟨h.1, h.2.1, fun _ => has1, fun _ => userV_of_not_gt hv⟩⟩
           · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
+          · -- (F1 stage 5) `PdptMapF`
+            have hqct : q.bv ≠ ct.bv := kheap_ne hk hkt' (fun _ h1 h2 => by subst h1; cases h2)
+            have hqpc : q.bv ≠ pc.bv := kheap_ne hk hkc (fun _ h1 h2 => by subst h1; cases h2)
+            have hk20 : σ2.kheap q.bv = σ.kheap q.bv := by
+              simp [hσ2, setCnodeSlot, hσ1, stsAct_kheap, updK, hqpc, hqct]
+            rw [hk20, hk] at hk2
+            cases hk2
+            refine ⟨ptr, asid0, va0, as1, v, q, vIdx v 39, f, Fl4Spec.filterVmAttributes (Fl4Spec.attribsFromWord a1.bv),
+              Fl4Spec.vmReadWrite, rfl, ?_, has1, has2, hf,
+              vIdx_lt_256_of_user (userV_of_not_gt hv),
+              masked_idx (K := core.num.U64.wrapping_sub 549755813888#u64 1#u64) (by decide) (by decide) hvd.symm
+                (by have := userV_of_not_gt hv; unfold UserV at this; omega),
+              hk, by rw [hσ3]; exact Function.update_self _ _ _, ?_,
+              by rw [hσ3, hσ2, hσ1]; unfold stsAct; split <;> rfl⟩
+            · rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]
+            · rintro q' ⟨ao, hao⟩ hne
+              have h1 : q'.bv ≠ q.bv := fun h => hne (eq_of_bv h)
+              have h2 : q'.bv ≠ ct.bv := kheap_ne hao hkt' (fun _ h1 h2 => by subst h1; cases h2)
+              have h3 : q'.bv ≠ pc.bv := kheap_ne hao hkc (fun _ h1 h2 => by subst h1; cases h2)
+              simp [hσ3, updK, hσ2, setCnodeSlot, hσ1, stsAct_kheap, h1, h2, h3]
         · have : ((L.mem s (peA q (vIdx v 39)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
           simp only [this, ↓reduceIte]
           have hninv : f (Fl4Spec.ucast 9 (vIdx v 39).bv) ≠ .invalidPML4E := by

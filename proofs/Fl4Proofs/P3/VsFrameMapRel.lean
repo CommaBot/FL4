@@ -80,6 +80,130 @@ end Hyps
 section
 variable {S : Type} {st : machine.Store S} [L : LawfulStore st]
 
+/-- (F1 stage 5) `peA` is injective in its table. -/
+theorem peA_base_inj {p p' i : U64} (h : peA p i = peA p' i) : p = p' := by
+  unfold peA at h
+  have h2 := congrArg UScalar.val h
+  rw [core.num.U64.wrapping_add_val_eq, core.num.U64.wrapping_add_val_eq] at h2
+  apply UScalar.eq_of_val_eq
+  have hp : p.val < 2 ^ 64 := p.hBounds
+  have hp' : p'.val < 2 ^ 64 := p'.hBounds
+  have hc : (core.num.U64.wrapping_mul i 8#u64).val < 2 ^ 64 := (core.num.U64.wrapping_mul i 8#u64).hBounds
+  have hs : UScalar.size UScalarTy.U64 = 18446744073709551616 := by
+    first
+      | decide
+      | rfl
+      | (simp [U64.size_def, UScalarTy.U64_numBits_eq, U64.numBits]; done)
+      | (simp [UScalar.size, UScalarTy.numBits]; done)
+      | (simp [UScalar.size, UScalarTy.numBits, U64.size_def, U64.numBits]; done)
+      | (simp [UScalar.size, UScalarTy.numBits, U64.size]; done)
+      | (norm_num [UScalar.size, UScalarTy.numBits]; done)
+  rw [hs] at h2
+  simp only [Nat.reducePow] at hp hp' hc
+  omega
+
+/-- **(F1 stage 5) The walk FL4's `lookup_pdpt_slot` takes**: the PML4
+entry present, the slot in the table it targets. -/
+theorem lookup_pdpt_slot_walk (s : S) (pm vaddr : U64) :
+    vspace.lookup_pdpt_slot st s pm vaddr ⦃ r => ∀ x, r = .Ok x →
+      eP (L.mem s (peA pm (vIdx vaddr 39))) ∧ x = peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30) ⦄ := by
+  unfold vspace.lookup_pdpt_slot
+  rw [show vspace.idx vaddr 39#u64 = ok (vIdx vaddr 39) from idx_eq _ _ (by decide)]
+  apply ok_bind_spec
+  rw [entry_eq s pm _ (vIdx_lt _ _)]
+  apply ok_bind_spec
+  rw [P_PRESENT_eq]
+  apply ok_bind_spec
+  unfold lift
+  apply ok_bind_spec
+  by_cases h0 : (L.mem s (peA pm (vIdx vaddr 39)) &&& 1#u64) = 0#u64
+  · simp only [h0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+    exact (WP.spec_ok _).2 (fun x hx => by cases hx)
+  · simp only [h0, ↓reduceIte]
+    rw [table_of_eq]
+    apply ok_bind_spec
+    rw [show vspace.idx vaddr 30#u64 = ok (vIdx vaddr 30) from idx_eq _ _ (by decide)]
+    apply ok_bind_spec
+    rw [entry_addr_eq _ _ (vIdx_lt _ _)]
+    apply ok_bind_spec
+    exact (WP.spec_ok _).2 (fun x hx => by cases hx; exact ⟨h0, rfl⟩)
+
+/-- **(F1 stage 5) The walk FL4's `lookup_pd_slot` takes**: the PML4 entry
+present, the PDPT entry present and no huge page, the slot in the table it
+targets. -/
+theorem lookup_pd_slot_walk (s : S) (pm vaddr : U64) :
+    vspace.lookup_pd_slot st s pm vaddr ⦃ r => ∀ x, r = .Ok x →
+      eP (L.mem s (peA pm (vIdx vaddr 39))) ∧
+      eP (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+      ¬ eS (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+      x = peA (eT (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30)))) (vIdx vaddr 21) ⦄ := by
+  unfold vspace.lookup_pd_slot
+  refine WP.spec_bind (lookup_pdpt_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Err e =>
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from]
+    apply ok_bind_spec
+    cases e <;> exact (WP.spec_ok _).2 (fun x hx => by cases hx)
+  | Ok x =>
+    obtain ⟨h4, rfl⟩ := hw x rfl
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+    rw [L.read_eq]
+    apply ok_bind_spec
+    rw [P_PRESENT_eq]
+    apply ok_bind_spec
+    unfold lift
+    apply ok_bind_spec
+    by_cases h0 : (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30)) &&& 1#u64) = 0#u64
+    · simp only [h0, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte]
+      exact (WP.spec_ok _).2 (fun x hx => by cases hx)
+    · simp only [h0, ↓reduceIte]
+      rw [P_PS_eq]
+      apply ok_bind_spec
+      apply ok_bind_spec
+      by_cases hs : eS (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30)))
+      · simp only [(eS_iff _).2 hs, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun x hx => by cases hx)
+      · have hs' : ¬ ((L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30)) &&& 128#u64) != 0#u64) = true :=
+          fun h => hs ((eS_iff _).1 h)
+        simp only [hs', Bool.false_eq_true, ↓reduceIte]
+        rw [table_of_eq]
+        apply ok_bind_spec
+        rw [show vspace.idx vaddr 21#u64 = ok (vIdx vaddr 21) from idx_eq _ _ (by decide)]
+        apply ok_bind_spec
+        rw [entry_addr_eq _ _ (vIdx_lt _ _)]
+        apply ok_bind_spec
+        exact (WP.spec_ok _).2 (fun x hx => by cases hx; exact ⟨h4, h0, hs, rfl⟩)
+
+/-- `table_entry_slot` at level 30: `lookup_pdpt_slot_walk`. -/
+theorem table_entry_slot_30_walk (s : S) (pm vaddr : U64) :
+    vspace.table_entry_slot st s pm vaddr 30#u64 ⦃ r => ∀ x, r = .Ok x →
+      eP (L.mem s (peA pm (vIdx vaddr 39))) ∧ x = peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30) ⦄ := by
+  unfold vspace.table_entry_slot
+  simp only [↓reduceIte]
+  refine WP.spec_bind (lookup_pdpt_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Ok x => exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact hw _ rfl)
+  | Err lf => exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+
+/-- `table_entry_slot` at level 21: `lookup_pd_slot_walk`. -/
+theorem table_entry_slot_21_walk (s : S) (pm vaddr : U64) :
+    vspace.table_entry_slot st s pm vaddr 21#u64 ⦃ r => ∀ x, r = .Ok x →
+      eP (L.mem s (peA pm (vIdx vaddr 39))) ∧
+      eP (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+      ¬ eS (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+      x = peA (eT (L.mem s (peA (eT (L.mem s (peA pm (vIdx vaddr 39)))) (vIdx vaddr 30)))) (vIdx vaddr 21) ⦄ := by
+  unfold vspace.table_entry_slot
+  simp only [↓reduceIte]
+  refine WP.spec_bind (lookup_pd_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Ok x => exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact hw _ rfl)
+  | Err lf => exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+
 /-- The flushes and stability for `MapRel`. -/
 theorem VsMapHyps.ext {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L1 : Set U64}
     {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsMapHyps st A ar L1 SR) (hPl : Placed th)
@@ -196,6 +320,62 @@ theorem al12 (v : U64) : (v &&& 4095#u64) = 0#u64 ↔ Fl4Spec.isAligned v.bv 12 
 
 theorem paddr_bv (p : U64) : (core.num.U64.wrapping_sub p layout.PPTR_BASE).bv = Fl4Spec.addrFromPPtr p.bv := by
   rw [core.num.U64.wrapping_sub_bv_eq]; unfold layout.PPTR_BASE; rfl
+
+/-- (F1 stage 5) A table entry naming the physical address of `p` targets `p`. -/
+theorem eT_of_addr {w p : U64} (h : (eA w).bv = Fl4Spec.addrFromPPtr p.bv) : eT w = p := by
+  have hA : eA w = core.num.U64.wrapping_sub p layout.PPTR_BASE := eq_of_bv (by rw [h, paddr_bv])
+  unfold eT
+  rw [hA]
+  apply eq_of_bv
+  rw [core.num.U64.wrapping_add_bv_eq, core.num.U64.wrapping_sub_bv_eq]
+  unfold layout.PPTR_BASE
+  exact BitVec.sub_add_cancel _ _
+
+/-- (F1 stage 5) A vaddr masked to `k` low bits clear. -/
+theorem vaddr_low0 {a0 K v : U64} {k : Nat} (hK : K.val = 2 ^ k - 1) (hv : v = a0 &&& ~~~K) :
+    v.val % 2 ^ k = 0 := by
+  have e : (v &&& K).val = v.val % 2 ^ k := by
+    rw [UScalar.val_and, hK]; exact Nat.and_two_pow_sub_one_eq_mod v.val k
+  rw [← e]
+  have : (v &&& K).bv = 0#64 := by
+    rw [hv]; ext i; simp [UScalar.bv_and, UScalar.bv_not]
+  show (v &&& K).bv.toNat = 0
+  rw [this]; rfl
+
+/-- (F1 stage 5) A user vaddr with 30 low bits clear: its PML4 and PDPT indices. -/
+theorem idx30 {v : U64} (h0 : v.val % 2 ^ 30 = 0) (hu : v.val < 2 ^ 47) :
+    v.val = (vIdx v 39).val * 2 ^ 39 + (vIdx v 30).val * 2 ^ 30 := by
+  simp only [vIdx_val, Nat.shiftRight_eq_div_pow] at *
+  norm_num at *
+  omega
+
+/-- (F1 stage 5) A user vaddr with 21 low bits clear: its PML4, PDPT and PD indices. -/
+theorem idx21 {v : U64} (h0 : v.val % 2 ^ 21 = 0) (hu : v.val < 2 ^ 47) :
+    v.val = (vIdx v 39).val * 2 ^ 39 + (vIdx v 30).val * 2 ^ 30 + (vIdx v 21).val * 2 ^ 21 := by
+  simp only [vIdx_val, Nat.shiftRight_eq_div_pow] at *
+  norm_num at *
+  omega
+
+/-- (F1 stage 5) A vaddr masked to a level (`k` low bits clear) and below
+`2 ^ (k + 8)` is its level index times `2 ^ k`. -/
+theorem masked_idx {a0 K v : U64} {k : Nat} (hk : k < 56) (hK : K.val = 2 ^ k - 1)
+    (hv : v = a0 &&& ~~~K) (hu : v.val < 2 ^ (k + 8)) : v.val = (vIdx v k).val * 2 ^ k := by
+  have h0 : v.val % 2 ^ k = 0 := by
+    have e : (v &&& K).val = v.val % 2 ^ k := by
+      rw [UScalar.val_and, hK]; exact Nat.and_two_pow_sub_one_eq_mod v.val k
+    rw [← e]
+    have : (v &&& K).bv = 0#64 := by
+      rw [hv]; ext i; simp [UScalar.bv_and, UScalar.bv_not]
+    show (v &&& K).bv.toNat = 0
+    rw [this]; rfl
+  rw [vIdx_val]
+  have hs : v.val >>> k < 512 := by
+    rw [Nat.shiftRight_eq_div_pow]
+    have e : 2 ^ k * 512 = 2 ^ (k + 9) := by rw [pow_add]; norm_num
+    have h9 : 2 ^ (k + 8) ≤ 2 ^ (k + 9) := Nat.pow_le_pow_right (by decide) (by omega)
+    exact Nat.div_lt_of_lt_mul (by omega)
+  rw [Nat.mod_eq_of_lt hs, Nat.shiftRight_eq_div_pow]
+  exact (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero h0)).symm
 
 theorem attr_defer (w : U64) :
     Fl4Spec.attribsFromWord (w &&& ~~~fl4_abi.consts.vm_attr.DEFER_FLUSH).bv = Fl4Spec.attribsFromWord w.bv := by
