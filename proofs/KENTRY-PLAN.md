@@ -16523,3 +16523,17 @@ global ref).
 - No preemption point is reachable; the batch's length is bounded by the message.
 
 ### (6) Builds
+- sd7-fb1/fb2 (module build `Fl4Spec Fl4Spec.Ext.FrameBatch Fl4Spec.Ext.Invocation`): fb1 `decodePageInvocation`
+  returns an `ArchInvocation` (`.invokePage`, matched); **fb2 green (981 jobs)**.
+- **sd7-fbfull** (full build at 22851fdc): **FAILS as expected, not mass-edited** (rule: report). 19 errors in 14 modules,
+  in two classes, all from the new constructor / decode branch:
+  * exhaustive matches on `Fl4ArchInvocation` with no `frameBatch` alternative: VsDomOps.lean:219, SpecInvDomG.lean:231,
+    SpecInvUtE.lean:126 ("Missing cases", then `uiP_fl4Perform` unknown);
+  * the generated spec-invariant families (`*_auto` unfolding `fl4ArchDecodeInvocation` / `fl4ArchPerformInvocation`)
+    time out on the new branch (`whnf`, 1000000 heartbeats) where the perform now writes caps:
+    SpecInvFaultTcbsF5:224, SpecInvFaultTcbsG5:224, SpecInvNativeScopeF5:288, SpecInvGpK5:290, SpecInvSlI5:290,
+    SpecInvSgI5:290, SpecInvUtNK5:290, SpecInvAllO5:291, SpecInvQDomF5:73, SpecInvNtfnQC4:154;
+  * the VSpace front-end: VsDecTop.lean:257 (unsolved goals: the PML4 label case split gains the batch label).
+  Downstream modules were not reached. The fix is real proof work per family (a leaf for `performFrameBatch` /
+  `decodeFrameBatch` in each: frame `idk`/`nk`/`gpk` frames, the cap-writing families SpecGlob/SI/Ut via the
+  CNode-copy and delete leaves, the decode's `OkV` facts), to be done with the P3 refinement after m75's re-extraction.
