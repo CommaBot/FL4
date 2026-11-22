@@ -301,7 +301,6 @@ theorem setFlagsSpecHyp_of {S : Type} {st : machine.Store S} [L : P1.LawfulStore
       ({((), Notif.updK σ1 p.bv (.tcb { xp with tcbFlags := nf }))}, False) := Notif.threadSet_eq _ hkp
   set σ2 := Notif.updK σ1 p.bv (.tcb { xp with tcbFlags := nf }) with hσ2
   have hkp2 : σ2.kheap p.bv = some (.tcb { xp with tcbFlags := nf }) := by simp [hσ2, Notif.updK]
-  have sok2 : SOK (false, false) σ1 σ2 := (pres_threadSet (fun x => by simp [PK]) p.bv).of_eq hts
   have hts' : Fl4Spec.threadSet (Z := Unit) (fun tcb => { tcb with tcbFlags := nf }) p.bv σ1 =
       ({((), σ2)}, False) := hts
   have vk2 : VK σ1 σ2 := presV_threadSet (g := fun tcb => { tcb with tcbFlags := nf }) (fun _ => rfl) (fun _ => rfl)
@@ -315,11 +314,12 @@ theorem setFlagsSpecHyp_of {S : Type} {st : machine.Store S} [L : P1.LawfulStore
   have sok3 : SOK (false, false) σ2 σ3 := pres_when _ (pres_fpuRelease p.bv) σ2 _ h3
   have vk3 : VK σ2 σ3 := presV_when _ (presV_fpuRelease p.bv) σ2 _ h3
   obtain ⟨w, hw⟩ := tcbFlags_rep nf
-  have sok := sok2.trans sok3
   obtain ⟨y, hy, est, -⟩ := (vk2.trans vk3).tcb ct.bv _ hk1
-  obtain ⟨hC', hFI'⟩ := crel_of_sok hRL.1 hRL.2.1 (SlotsSame.refl _ _) sok
+  -- the flags write keeps the caps (`crel_updTcb`; no `SOK`: `PK` keeps the flags, KENTRY-PLAN g5d)
+  obtain ⟨hC2, hFI2⟩ := crel_updTcb hRL.1 hRL.2.1 (SlotsSame.refl _ _) hkp (y := { xp with tcbFlags := nf }) rfl
+  obtain ⟨hC', hFI'⟩ := crel_of_sok hC2 hFI2 (SlotsSame.refl _ _) sok3
   refine ⟨w, σ3, y, mem_liftE (x := ([w], σ3)) ?_, ⟨hC', hFI', hRL.2.2.1,
-    hRL.2.2.2.of_same (DomSame.refl _ _) sok.dl sok.dsi⟩, hy, est⟩
+    hRL.2.2.2.of_same (DomSame.refl _ _) sok3.dl sok3.dsi⟩, hy, est⟩
   show ([w], σ3) ∈ ((do
     let flags ← Fl4Spec.threadGet (Z := Unit) Fl4Spec.Tcb.tcbFlags p.bv
     let newFlags ← pure (flags \ Fl4Spec.wordToTcbFlags clear.bv ∪ Fl4Spec.wordToTcbFlags set.bv)

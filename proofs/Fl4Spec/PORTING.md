@@ -414,13 +414,23 @@ details.
   to l4v's decoder and invocation, unchanged.
   `fl4HandleInvocation` is `handle_invocation` (Syscall_A) with this
   dispatcher, unchanged otherwise.
+- **`Ext/Timer`: FL4's TCB timers** (l4h 0003, `TCBSetTimer`). At every
+  kernel exit FL4's `sched::schedule` first fires the expired TCB timers
+  (`sched::awaken` → `timer::fire`, at most 32 per entry): each signals its
+  thread's bound notification, if any, with the timer's badge, and sets the
+  reprogram flag. l4v has no such timers. The timer tree is not modelled (as
+  for `TCBSetTimer`), so `fl4Awaken` is nondeterministic: any finite
+  sequence (`fl4TimerFires`) of fired timers (`fl4TimerFire`: no signal or
+  one l4v `send_signal` (`fl4TimerSignal`), then `reprogram_timer := true`).
+  It does not fail. `Ext/Entry`'s `fl4CallKernel` runs it before `schedule`.
 - **`Ext/Entry`: the kernel entry with FL4's dispatcher.**
   `fl4HandleEvent rep` is `handle_event` (Syscall_A) with
   `handle_invocation` replaced by `fl4HandleInvocationR rep` (the
   substitution of `Ext/Invocation` and `Ext/ReplyError` one level up); its
   `match` on the syscall is `fl4HandleSyscall rep`, and the non-syscall
   events are l4v's (`fl4HandleEvent_other`, by `rfl`). `fl4CallKernel rep`
-  is `call_kernel` with `fl4HandleEvent rep`. `fl4KernelEntrySyscall rep c`
+  is `call_kernel` with `fl4HandleEvent rep` and `Ext/Timer`'s `fl4Awaken`
+  before `schedule`. `fl4KernelEntrySyscall rep c`
   is the syscall entry: the current thread's `FaultIP` register :=
   `NextIP - 2` (`fl4SyscallFaultIP`; the `syscall` instruction is two bytes),
   then `fl4CallKernel rep (.syscallEvent c)`. l4v's `call_kernel` has no
@@ -430,6 +440,40 @@ details.
   register matters because `activate_thread` restarts a `Restart` thread at
   `FaultIP` (`getRestartPC`). FL4's `TRAP_SYSCALLS` flag (l4h) and its
   debug/TLS syscalls (`handle_unknown_syscall`) have no branch here yet.
+- **`Ext/Virt*`: x86 virtualization** (VT-x and AMD-V, one spec with the
+  backend `virtKind` as a platform constant; design, decisions and proof
+  plan in `proofs/VIRT-PLAN.md`). `VirtObj`: the abstract VCPU's types
+  (`VcpuState`, held by the FL4 constructor `ArchKernelObj.vcpu`, l4v
+  ARM_HYP style; `X64/Structs` imports this module for it); `VirtBackend`:
+  the backend and the underspecified capability words; `VirtFields`:
+  per-backend VCPU field tables with readable / writable / guest-changed
+  classes; `VirtSanitize`: FL4's sanitize policy as pure functions;
+  `VirtState`: field access, VCPU initialisation, the heap access and the
+  derived TCB → VCPU binding (`tcbVcpuOf`), VMEnter staging and its report;
+  `VirtEpt`: the guest page-table entry format and walk; `VirtGuest`: the
+  guest-execution oracle `GuestStep` (l4v `do_user_op` style), the trusted
+  layer's [P] contract shapes and `NoVirtObjects`; `VirtVcpu`: the VCPU
+  invocations; `VirtEptInv`: the guest page-table, EPT frame and guest
+  ASID invocations; `VirtFinalise`: finalisation hooks (with the
+  extension's copies of `rec_del`, `cap_delete`, `cap_revoke`,
+  `invoke_cnode`, `invoke_tcb`), the VT-x retype gate and VCPU init,
+  TCBSetEPTRoot; `VirtEntry`: VMEnter, the VCPU check, `sendSignalV`,
+  interrupts and timers through it, `activateThreadV`; `VirtDispatch`: the
+  extended dispatcher around `fl4DecodeInvocation` /
+  `fl4PerformInvocation`; `VirtKernel`: `fl4CallKernelV` and the VM-exit
+  entry `fl4VcpuExitV`; `VirtP3x`: the P3x parts proved so far.
+  Where the owner decided (2026-11-21) that FL4 should follow seL4 and the
+  kernel does not yet, the spec states seL4's behaviour and the place is
+  marked `-- FL4 code differs until V1/V2/V3` (VIRT-PLAN.md §12).
+- **`runningVM` and timeout faults** (FL4 `sched.rs` `end_timeslice`,
+  VIRT-PLAN.md FINDING V8, kept by the owner's decision of 2026-11-21): a
+  thread whose budget expires while `runningVM` gets no timeout fault; it
+  is requeued or postponed. seL4's `endTimeslice` has no such exception.
+  This difference is inside the ported `endTimeslice` (`Ipc.lean`, `let
+  valid ← if ts = .runningVM then pure false else ...`, added with the
+  VT-x port in #9), not in an Ext module; l4v's `end_timeslice` reads
+  `valid ← is_valid_timeout_handler ct`. Without `runningVM` threads the two
+  agree.
 - **Invocation label numbers** (a deliberate deviation from l4v). l4v's
   `invocation_type` numbers labels by the Haskell `Enum` of
   `invocation_label` (l4v's labels only, generic then arch). FL4's ABI

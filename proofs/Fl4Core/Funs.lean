@@ -247,70 +247,70 @@ def fl4_abi.consts.object.X86EptPt : Std.U64 := 18#u64
 def fl4_abi.consts.object.Count : Std.U64 := 19#u64
 
 /-- [fl4_abi::consts::bits::SLOT]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 86:4-86:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 88:4-88:23
     Name pattern: [fl4_abi::consts::bits::SLOT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::SLOT"]
 def fl4_abi.consts.bits.SLOT : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::bits::TCB]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 88:4-88:22
+    Source: 'crates/fl4-abi/src/consts.rs', lines 90:4-90:22
     Name pattern: [fl4_abi::consts::bits::TCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::TCB"]
 def fl4_abi.consts.bits.TCB : Std.U64 := 12#u64
 
 /-- [fl4_abi::consts::bits::VCPU]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 89:4-89:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 92:4-92:23
     Name pattern: [fl4_abi::consts::bits::VCPU]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::VCPU"]
 def fl4_abi.consts.bits.VCPU : Std.U64 := 15#u64
 
 /-- [fl4_abi::consts::bits::ENDPOINT]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 90:4-90:27
+    Source: 'crates/fl4-abi/src/consts.rs', lines 96:4-96:27
     Name pattern: [fl4_abi::consts::bits::ENDPOINT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::ENDPOINT"]
 def fl4_abi.consts.bits.ENDPOINT : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::bits::NOTIFICATION]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 91:4-91:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 97:4-97:31
     Name pattern: [fl4_abi::consts::bits::NOTIFICATION]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::NOTIFICATION"]
 def fl4_abi.consts.bits.NOTIFICATION : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::bits::REPLY]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 92:4-92:24
+    Source: 'crates/fl4-abi/src/consts.rs', lines 98:4-98:24
     Name pattern: [fl4_abi::consts::bits::REPLY]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::REPLY"]
 def fl4_abi.consts.bits.REPLY : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::bits::ASID_POOL]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 94:4-94:28
+    Source: 'crates/fl4-abi/src/consts.rs', lines 100:4-100:28
     Name pattern: [fl4_abi::consts::bits::ASID_POOL]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::ASID_POOL"]
 def fl4_abi.consts.bits.ASID_POOL : Std.U64 := 12#u64
 
 /-- [fl4_abi::consts::bits::MIN_UNTYPED]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 101:4-101:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 107:4-107:30
     Name pattern: [fl4_abi::consts::bits::MIN_UNTYPED]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::MIN_UNTYPED"]
 def fl4_abi.consts.bits.MIN_UNTYPED : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::bits::MAX_UNTYPED]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 102:4-102:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 108:4-108:30
     Name pattern: [fl4_abi::consts::bits::MAX_UNTYPED]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::MAX_UNTYPED"]
 def fl4_abi.consts.bits.MAX_UNTYPED : Std.U64 := 47#u64
 
 /-- [fl4_abi::consts::bits::MIN_SCHED_CONTEXT]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 103:4-103:36
+    Source: 'crates/fl4-abi/src/consts.rs', lines 109:4-109:36
     Name pattern: [fl4_abi::consts::bits::MIN_SCHED_CONTEXT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -318,35 +318,35 @@ def fl4_abi.consts.bits.MAX_UNTYPED : Std.U64 := 47#u64
 def fl4_abi.consts.bits.MIN_SCHED_CONTEXT : Std.U64 := 7#u64
 
 /-- [fl4_abi::consts::bits::IPC_BUFFER]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 104:4-104:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 110:4-110:29
     Name pattern: [fl4_abi::consts::bits::IPC_BUFFER]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::bits::IPC_BUFFER"]
 def fl4_abi.consts.bits.IPC_BUFFER : Std.U64 := 10#u64
 
 /-- [fl4_abi::consts::MSG_MAX_LENGTH]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 110:0-110:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 116:0-116:29
     Name pattern: [fl4_abi::consts::MSG_MAX_LENGTH]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::MSG_MAX_LENGTH"]
 def fl4_abi.consts.MSG_MAX_LENGTH : Std.U64 := 120#u64
 
 /-- [fl4_abi::consts::USER_TOP]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 116:0-116:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 122:0-122:23
     Name pattern: [fl4_abi::consts::USER_TOP]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::USER_TOP"]
 def fl4_abi.consts.USER_TOP : Std.U64 := 140737488355327#u64
 
 /-- [fl4_abi::consts::NUM_PRIORITIES]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 117:0-117:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 123:0-123:29
     Name pattern: [fl4_abi::consts::NUM_PRIORITIES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::NUM_PRIORITIES"]
 def fl4_abi.consts.NUM_PRIORITIES : Std.U64 := 256#u64
 
 /-- [fl4_abi::consts::MAX_PRIO]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 118:0-118:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 124:0-124:23
     Name pattern: [fl4_abi::consts::MAX_PRIO]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::MAX_PRIO"]
@@ -354,28 +354,28 @@ def fl4_abi.consts.MAX_PRIO : Result Std.U64 :=
   fl4_abi.consts.NUM_PRIORITIES - 1#u64
 
 /-- [fl4_abi::consts::FPU_STATE_SIZE]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 121:0-121:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 127:0-127:29
     Name pattern: [fl4_abi::consts::FPU_STATE_SIZE]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::FPU_STATE_SIZE"]
 def fl4_abi.consts.FPU_STATE_SIZE : Std.U64 := 2696#u64
 
 /-- [fl4_abi::consts::fault::NullFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 128:4-128:28
+    Source: 'crates/fl4-abi/src/consts.rs', lines 134:4-134:28
     Name pattern: [fl4_abi::consts::fault::NullFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::NullFault"]
 def fl4_abi.consts.fault.NullFault : Std.U64 := 0#u64
 
 /-- [fl4_abi::consts::fault::CapFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 129:4-129:27
+    Source: 'crates/fl4-abi/src/consts.rs', lines 135:4-135:27
     Name pattern: [fl4_abi::consts::fault::CapFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::CapFault"]
 def fl4_abi.consts.fault.CapFault : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::fault::UnknownSyscall]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 130:4-130:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 136:4-136:33
     Name pattern: [fl4_abi::consts::fault::UnknownSyscall]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -383,7 +383,7 @@ def fl4_abi.consts.fault.CapFault : Std.U64 := 1#u64
 def fl4_abi.consts.fault.UnknownSyscall : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::fault::UserException]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 131:4-131:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 137:4-137:32
     Name pattern: [fl4_abi::consts::fault::UserException]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -391,7 +391,7 @@ def fl4_abi.consts.fault.UnknownSyscall : Std.U64 := 2#u64
 def fl4_abi.consts.fault.UserException : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::fault::DebugException]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 132:4-132:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 138:4-138:33
     Name pattern: [fl4_abi::consts::fault::DebugException]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -399,28 +399,28 @@ def fl4_abi.consts.fault.UserException : Std.U64 := 3#u64
 def fl4_abi.consts.fault.DebugException : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::fault::Timeout]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 133:4-133:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 139:4-139:26
     Name pattern: [fl4_abi::consts::fault::Timeout]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::Timeout"]
 def fl4_abi.consts.fault.Timeout : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::fault::VMFault]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 134:4-134:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 140:4-140:26
     Name pattern: [fl4_abi::consts::fault::VMFault]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::fault::VMFault"]
 def fl4_abi.consts.fault.VMFault : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::lookup::InvalidRoot]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 140:4-140:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 232:4-232:30
     Name pattern: [fl4_abi::consts::lookup::InvalidRoot]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::lookup::InvalidRoot"]
 def fl4_abi.consts.lookup.InvalidRoot : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::lookup::MissingCapability]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 141:4-141:36
+    Source: 'crates/fl4-abi/src/consts.rs', lines 233:4-233:36
     Name pattern: [fl4_abi::consts::lookup::MissingCapability]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -428,7 +428,7 @@ def fl4_abi.consts.lookup.InvalidRoot : Std.U64 := 1#u64
 def fl4_abi.consts.lookup.MissingCapability : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::lookup::DepthMismatch]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 142:4-142:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 234:4-234:32
     Name pattern: [fl4_abi::consts::lookup::DepthMismatch]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -436,7 +436,7 @@ def fl4_abi.consts.lookup.MissingCapability : Std.U64 := 2#u64
 def fl4_abi.consts.lookup.DepthMismatch : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::lookup::GuardMismatch]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 143:4-143:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 235:4-235:32
     Name pattern: [fl4_abi::consts::lookup::GuardMismatch]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -444,7 +444,7 @@ def fl4_abi.consts.lookup.DepthMismatch : Std.U64 := 3#u64
 def fl4_abi.consts.lookup.GuardMismatch : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::tcb_flag::FPU_DISABLED]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 148:4-148:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 240:4-240:31
     Name pattern: [fl4_abi::consts::tcb_flag::FPU_DISABLED]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -452,7 +452,7 @@ def fl4_abi.consts.lookup.GuardMismatch : Std.U64 := 4#u64
 def fl4_abi.consts.tcb_flag.FPU_DISABLED : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::tcb_flag::TRAP_SYSCALLS]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 150:4-150:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 242:4-242:32
     Name pattern: [fl4_abi::consts::tcb_flag::TRAP_SYSCALLS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -460,7 +460,7 @@ def fl4_abi.consts.tcb_flag.FPU_DISABLED : Std.U64 := 1#u64
 def fl4_abi.consts.tcb_flag.TRAP_SYSCALLS : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::tcb_flag::MASK]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 151:4-151:23
+    Source: 'crates/fl4-abi/src/consts.rs', lines 243:4-243:23
     Name pattern: [fl4_abi::consts::tcb_flag::MASK]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::tcb_flag::MASK"]
@@ -469,14 +469,14 @@ def fl4_abi.consts.tcb_flag.MASK : Std.U64 :=
     fl4_abi.consts.tcb_flag.TRAP_SYSCALLS
 
 /-- [fl4_abi::consts::sc_flag::SPORADIC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 156:4-156:27
+    Source: 'crates/fl4-abi/src/consts.rs', lines 248:4-248:27
     Name pattern: [fl4_abi::consts::sc_flag::SPORADIC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::sc_flag::SPORADIC"]
 def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 175:4-175:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 267:4-267:32
     Name pattern: [fl4_abi::consts::vm_attr::EXECUTE_NEVER]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -484,7 +484,7 @@ def fl4_abi.consts.sc_flag.SPORADIC : Std.U64 := 1#u64
 def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 
 /-- [fl4_abi::consts::vm_attr::DEFER_FLUSH]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 177:4-177:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 269:4-269:30
     Name pattern: [fl4_abi::consts::vm_attr::DEFER_FLUSH]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -492,7 +492,7 @@ def fl4_abi.consts.vm_attr.EXECUTE_NEVER : Std.U64 := 8#u64
 def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadTCB]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 183:4-183:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 275:4-275:32
     Name pattern: [fl4_abi::consts::root_slot::InitThreadTCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -500,7 +500,7 @@ def fl4_abi.consts.vm_attr.DEFER_FLUSH : Std.U64 := 16#u64
 def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadCNode]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 184:4-184:34
+    Source: 'crates/fl4-abi/src/consts.rs', lines 276:4-276:34
     Name pattern: [fl4_abi::consts::root_slot::InitThreadCNode]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -508,7 +508,7 @@ def fl4_abi.consts.root_slot.InitThreadTCB : Std.U64 := 1#u64
 def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadVSpace]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 185:4-185:35
+    Source: 'crates/fl4-abi/src/consts.rs', lines 277:4-277:35
     Name pattern: [fl4_abi::consts::root_slot::InitThreadVSpace]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -516,7 +516,7 @@ def fl4_abi.consts.root_slot.InitThreadCNode : Std.U64 := 2#u64
 def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 
 /-- [fl4_abi::consts::root_slot::IRQControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 186:4-186:29
+    Source: 'crates/fl4-abi/src/consts.rs', lines 278:4-278:29
     Name pattern: [fl4_abi::consts::root_slot::IRQControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -524,7 +524,7 @@ def fl4_abi.consts.root_slot.InitThreadVSpace : Std.U64 := 3#u64
 def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 
 /-- [fl4_abi::consts::root_slot::ASIDControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 187:4-187:30
+    Source: 'crates/fl4-abi/src/consts.rs', lines 279:4-279:30
     Name pattern: [fl4_abi::consts::root_slot::ASIDControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -532,7 +532,7 @@ def fl4_abi.consts.root_slot.IRQControl : Std.U64 := 4#u64
 def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadASIDPool]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 188:4-188:37
+    Source: 'crates/fl4-abi/src/consts.rs', lines 280:4-280:37
     Name pattern: [fl4_abi::consts::root_slot::InitThreadASIDPool]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -540,7 +540,7 @@ def fl4_abi.consts.root_slot.ASIDControl : Std.U64 := 5#u64
 def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 
 /-- [fl4_abi::consts::root_slot::IOPortControl]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 189:4-189:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 281:4-281:32
     Name pattern: [fl4_abi::consts::root_slot::IOPortControl]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -548,7 +548,7 @@ def fl4_abi.consts.root_slot.InitThreadASIDPool : Std.U64 := 6#u64
 def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 
 /-- [fl4_abi::consts::root_slot::BootInfoFrame]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 191:4-191:32
+    Source: 'crates/fl4-abi/src/consts.rs', lines 283:4-283:32
     Name pattern: [fl4_abi::consts::root_slot::BootInfoFrame]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -556,7 +556,7 @@ def fl4_abi.consts.root_slot.IOPortControl : Std.U64 := 7#u64
 def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 192:4-192:38
+    Source: 'crates/fl4-abi/src/consts.rs', lines 284:4-284:38
     Name pattern: [fl4_abi::consts::root_slot::InitThreadIPCBuffer]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -564,14 +564,14 @@ def fl4_abi.consts.root_slot.BootInfoFrame : Std.U64 := 9#u64
 def fl4_abi.consts.root_slot.InitThreadIPCBuffer : Std.U64 := 10#u64
 
 /-- [fl4_abi::consts::root_slot::Domain]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 193:4-193:25
+    Source: 'crates/fl4-abi/src/consts.rs', lines 285:4-285:25
     Name pattern: [fl4_abi::consts::root_slot::Domain]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::consts::root_slot::Domain"]
 def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 
 /-- [fl4_abi::consts::root_slot::InitThreadSC]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 196:4-196:31
+    Source: 'crates/fl4-abi/src/consts.rs', lines 288:4-288:31
     Name pattern: [fl4_abi::consts::root_slot::InitThreadSC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -579,7 +579,7 @@ def fl4_abi.consts.root_slot.Domain : Std.U64 := 11#u64
 def fl4_abi.consts.root_slot.InitThreadSC : Std.U64 := 14#u64
 
 /-- [fl4_abi::consts::root_slot::NumInitialCaps]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 198:4-198:33
+    Source: 'crates/fl4-abi/src/consts.rs', lines 290:4-290:33
     Name pattern: [fl4_abi::consts::root_slot::NumInitialCaps]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -587,7 +587,7 @@ def fl4_abi.consts.root_slot.InitThreadSC : Std.U64 := 14#u64
 def fl4_abi.consts.root_slot.NumInitialCaps : Std.U64 := 16#u64
 
 /-- [fl4_abi::consts::bootinfo_header::PADDING]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 203:4-203:26
+    Source: 'crates/fl4-abi/src/consts.rs', lines 304:4-304:26
     Name pattern: [fl4_abi::consts::bootinfo_header::PADDING]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -595,7 +595,7 @@ def fl4_abi.consts.root_slot.NumInitialCaps : Std.U64 := 16#u64
 def fl4_abi.consts.bootinfo_header.PADDING : Std.U64 := 0#u64
 
 /-- [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
-    Source: 'crates/fl4-abi/src/consts.rs', lines 215:4-215:37
+    Source: 'crates/fl4-abi/src/consts.rs', lines 316:4-316:37
     Name pattern: [fl4_abi::consts::bootinfo_header::X86_EXTRA_UNTYPEDS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -603,63 +603,63 @@ def fl4_abi.consts.bootinfo_header.PADDING : Std.U64 := 0#u64
 def fl4_abi.consts.bootinfo_header.X86_EXTRA_UNTYPEDS : Std.U64 := 10#u64
 
 /-- [fl4_abi::label::UntypedRetype]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 7:4-7:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 7:4-7:32
     Name pattern: [fl4_abi::label::UntypedRetype]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::UntypedRetype"]
 def fl4_abi.label.UntypedRetype : Std.U64 := 1#u64
 
 /-- [fl4_abi::label::TCBReadRegisters]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 8:4-8:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 8:4-8:35
     Name pattern: [fl4_abi::label::TCBReadRegisters]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBReadRegisters"]
 def fl4_abi.label.TCBReadRegisters : Std.U64 := 2#u64
 
 /-- [fl4_abi::label::TCBWriteRegisters]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 9:4-9:36
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 9:4-9:36
     Name pattern: [fl4_abi::label::TCBWriteRegisters]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBWriteRegisters"]
 def fl4_abi.label.TCBWriteRegisters : Std.U64 := 3#u64
 
 /-- [fl4_abi::label::TCBCopyRegisters]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 10:4-10:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 10:4-10:35
     Name pattern: [fl4_abi::label::TCBCopyRegisters]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBCopyRegisters"]
 def fl4_abi.label.TCBCopyRegisters : Std.U64 := 4#u64
 
 /-- [fl4_abi::label::TCBConfigure]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 11:4-11:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 11:4-11:31
     Name pattern: [fl4_abi::label::TCBConfigure]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBConfigure"]
 def fl4_abi.label.TCBConfigure : Std.U64 := 5#u64
 
 /-- [fl4_abi::label::TCBSetPriority]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 12:4-12:33
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 12:4-12:33
     Name pattern: [fl4_abi::label::TCBSetPriority]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetPriority"]
 def fl4_abi.label.TCBSetPriority : Std.U64 := 6#u64
 
 /-- [fl4_abi::label::TCBSetMCPriority]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 13:4-13:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 13:4-13:35
     Name pattern: [fl4_abi::label::TCBSetMCPriority]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetMCPriority"]
 def fl4_abi.label.TCBSetMCPriority : Std.U64 := 7#u64
 
 /-- [fl4_abi::label::TCBSetSchedParams]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 14:4-14:36
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 14:4-14:36
     Name pattern: [fl4_abi::label::TCBSetSchedParams]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetSchedParams"]
 def fl4_abi.label.TCBSetSchedParams : Std.U64 := 8#u64
 
 /-- [fl4_abi::label::TCBSetTimeoutEndpoint]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 15:4-15:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 15:4-15:40
     Name pattern: [fl4_abi::label::TCBSetTimeoutEndpoint]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -667,42 +667,42 @@ def fl4_abi.label.TCBSetSchedParams : Std.U64 := 8#u64
 def fl4_abi.label.TCBSetTimeoutEndpoint : Std.U64 := 9#u64
 
 /-- [fl4_abi::label::TCBSetIPCBuffer]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 16:4-16:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 16:4-16:34
     Name pattern: [fl4_abi::label::TCBSetIPCBuffer]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetIPCBuffer"]
 def fl4_abi.label.TCBSetIPCBuffer : Std.U64 := 10#u64
 
 /-- [fl4_abi::label::TCBSetSpace]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 17:4-17:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 17:4-17:30
     Name pattern: [fl4_abi::label::TCBSetSpace]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetSpace"]
 def fl4_abi.label.TCBSetSpace : Std.U64 := 11#u64
 
 /-- [fl4_abi::label::TCBSuspend]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 18:4-18:29
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 18:4-18:29
     Name pattern: [fl4_abi::label::TCBSuspend]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSuspend"]
 def fl4_abi.label.TCBSuspend : Std.U64 := 12#u64
 
 /-- [fl4_abi::label::TCBResume]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 19:4-19:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 19:4-19:28
     Name pattern: [fl4_abi::label::TCBResume]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBResume"]
 def fl4_abi.label.TCBResume : Std.U64 := 13#u64
 
 /-- [fl4_abi::label::TCBBindNotification]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 20:4-20:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 20:4-20:38
     Name pattern: [fl4_abi::label::TCBBindNotification]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBBindNotification"]
 def fl4_abi.label.TCBBindNotification : Std.U64 := 14#u64
 
 /-- [fl4_abi::label::TCBUnbindNotification]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 21:4-21:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 21:4-21:40
     Name pattern: [fl4_abi::label::TCBUnbindNotification]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -710,28 +710,28 @@ def fl4_abi.label.TCBBindNotification : Std.U64 := 14#u64
 def fl4_abi.label.TCBUnbindNotification : Std.U64 := 15#u64
 
 /-- [fl4_abi::label::TCBSetBreakpoint]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 22:4-22:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 22:4-22:35
     Name pattern: [fl4_abi::label::TCBSetBreakpoint]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetBreakpoint"]
 def fl4_abi.label.TCBSetBreakpoint : Std.U64 := 16#u64
 
 /-- [fl4_abi::label::TCBGetBreakpoint]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 23:4-23:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 23:4-23:35
     Name pattern: [fl4_abi::label::TCBGetBreakpoint]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBGetBreakpoint"]
 def fl4_abi.label.TCBGetBreakpoint : Std.U64 := 17#u64
 
 /-- [fl4_abi::label::TCBUnsetBreakpoint]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 24:4-24:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 24:4-24:37
     Name pattern: [fl4_abi::label::TCBUnsetBreakpoint]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBUnsetBreakpoint"]
 def fl4_abi.label.TCBUnsetBreakpoint : Std.U64 := 18#u64
 
 /-- [fl4_abi::label::TCBConfigureSingleStepping]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 25:4-25:45
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 25:4-25:45
     Name pattern: [fl4_abi::label::TCBConfigureSingleStepping]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -739,56 +739,56 @@ def fl4_abi.label.TCBUnsetBreakpoint : Std.U64 := 18#u64
 def fl4_abi.label.TCBConfigureSingleStepping : Std.U64 := 19#u64
 
 /-- [fl4_abi::label::TCBSetTLSBase]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 26:4-26:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 26:4-26:32
     Name pattern: [fl4_abi::label::TCBSetTLSBase]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetTLSBase"]
 def fl4_abi.label.TCBSetTLSBase : Std.U64 := 20#u64
 
 /-- [fl4_abi::label::TCBSetFlags]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 27:4-27:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 27:4-27:30
     Name pattern: [fl4_abi::label::TCBSetFlags]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetFlags"]
 def fl4_abi.label.TCBSetFlags : Std.U64 := 21#u64
 
 /-- [fl4_abi::label::TCBReadFPU]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 28:4-28:29
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 28:4-28:29
     Name pattern: [fl4_abi::label::TCBReadFPU]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBReadFPU"]
 def fl4_abi.label.TCBReadFPU : Std.U64 := 22#u64
 
 /-- [fl4_abi::label::TCBWriteFPU]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 29:4-29:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 29:4-29:30
     Name pattern: [fl4_abi::label::TCBWriteFPU]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBWriteFPU"]
 def fl4_abi.label.TCBWriteFPU : Std.U64 := 23#u64
 
 /-- [fl4_abi::label::TCBSetTimer]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 30:4-30:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 30:4-30:30
     Name pattern: [fl4_abi::label::TCBSetTimer]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetTimer"]
 def fl4_abi.label.TCBSetTimer : Std.U64 := 24#u64
 
 /-- [fl4_abi::label::CNodeRevoke]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 31:4-31:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 31:4-31:30
     Name pattern: [fl4_abi::label::CNodeRevoke]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeRevoke"]
 def fl4_abi.label.CNodeRevoke : Std.U64 := 25#u64
 
 /-- [fl4_abi::label::CNodeDelete]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 32:4-32:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 32:4-32:30
     Name pattern: [fl4_abi::label::CNodeDelete]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeDelete"]
 def fl4_abi.label.CNodeDelete : Std.U64 := 26#u64
 
 /-- [fl4_abi::label::CNodeCancelBadgedSends]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 33:4-33:41
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 33:4-33:41
     Name pattern: [fl4_abi::label::CNodeCancelBadgedSends]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -796,77 +796,77 @@ def fl4_abi.label.CNodeDelete : Std.U64 := 26#u64
 def fl4_abi.label.CNodeCancelBadgedSends : Std.U64 := 27#u64
 
 /-- [fl4_abi::label::CNodeCopy]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 34:4-34:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 34:4-34:28
     Name pattern: [fl4_abi::label::CNodeCopy]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeCopy"]
 def fl4_abi.label.CNodeCopy : Std.U64 := 28#u64
 
 /-- [fl4_abi::label::CNodeMint]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 35:4-35:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 35:4-35:28
     Name pattern: [fl4_abi::label::CNodeMint]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeMint"]
 def fl4_abi.label.CNodeMint : Std.U64 := 29#u64
 
 /-- [fl4_abi::label::CNodeMove]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 36:4-36:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 36:4-36:28
     Name pattern: [fl4_abi::label::CNodeMove]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeMove"]
 def fl4_abi.label.CNodeMove : Std.U64 := 30#u64
 
 /-- [fl4_abi::label::CNodeMutate]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 37:4-37:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 37:4-37:30
     Name pattern: [fl4_abi::label::CNodeMutate]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeMutate"]
 def fl4_abi.label.CNodeMutate : Std.U64 := 31#u64
 
 /-- [fl4_abi::label::CNodeRotate]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 38:4-38:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 38:4-38:30
     Name pattern: [fl4_abi::label::CNodeRotate]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::CNodeRotate"]
 def fl4_abi.label.CNodeRotate : Std.U64 := 32#u64
 
 /-- [fl4_abi::label::IRQIssueIRQHandler]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 39:4-39:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 39:4-39:37
     Name pattern: [fl4_abi::label::IRQIssueIRQHandler]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::IRQIssueIRQHandler"]
 def fl4_abi.label.IRQIssueIRQHandler : Std.U64 := 33#u64
 
 /-- [fl4_abi::label::IRQAckIRQ]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 40:4-40:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 40:4-40:28
     Name pattern: [fl4_abi::label::IRQAckIRQ]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::IRQAckIRQ"]
 def fl4_abi.label.IRQAckIRQ : Std.U64 := 34#u64
 
 /-- [fl4_abi::label::IRQSetIRQHandler]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 41:4-41:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 41:4-41:35
     Name pattern: [fl4_abi::label::IRQSetIRQHandler]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::IRQSetIRQHandler"]
 def fl4_abi.label.IRQSetIRQHandler : Std.U64 := 35#u64
 
 /-- [fl4_abi::label::IRQClearIRQHandler]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 42:4-42:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 42:4-42:37
     Name pattern: [fl4_abi::label::IRQClearIRQHandler]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::IRQClearIRQHandler"]
 def fl4_abi.label.IRQClearIRQHandler : Std.U64 := 36#u64
 
 /-- [fl4_abi::label::DomainSetSet]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 43:4-43:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 43:4-43:31
     Name pattern: [fl4_abi::label::DomainSetSet]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::DomainSetSet"]
 def fl4_abi.label.DomainSetSet : Std.U64 := 37#u64
 
 /-- [fl4_abi::label::DomainScheduleConfigure]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 44:4-44:42
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 44:4-44:42
     Name pattern: [fl4_abi::label::DomainScheduleConfigure]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -874,7 +874,7 @@ def fl4_abi.label.DomainSetSet : Std.U64 := 37#u64
 def fl4_abi.label.DomainScheduleConfigure : Std.U64 := 38#u64
 
 /-- [fl4_abi::label::DomainScheduleSetStart]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 45:4-45:41
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 45:4-45:41
     Name pattern: [fl4_abi::label::DomainScheduleSetStart]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -882,7 +882,7 @@ def fl4_abi.label.DomainScheduleConfigure : Std.U64 := 38#u64
 def fl4_abi.label.DomainScheduleSetStart : Std.U64 := 39#u64
 
 /-- [fl4_abi::label::SchedControlConfigureFlags]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 46:4-46:45
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 46:4-46:45
     Name pattern: [fl4_abi::label::SchedControlConfigureFlags]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -890,21 +890,21 @@ def fl4_abi.label.DomainScheduleSetStart : Std.U64 := 39#u64
 def fl4_abi.label.SchedControlConfigureFlags : Std.U64 := 40#u64
 
 /-- [fl4_abi::label::SchedContextBind]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 47:4-47:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 47:4-47:35
     Name pattern: [fl4_abi::label::SchedContextBind]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::SchedContextBind"]
 def fl4_abi.label.SchedContextBind : Std.U64 := 41#u64
 
 /-- [fl4_abi::label::SchedContextUnbind]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 48:4-48:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 48:4-48:37
     Name pattern: [fl4_abi::label::SchedContextUnbind]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::SchedContextUnbind"]
 def fl4_abi.label.SchedContextUnbind : Std.U64 := 42#u64
 
 /-- [fl4_abi::label::SchedContextUnbindObject]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 49:4-49:43
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 49:4-49:43
     Name pattern: [fl4_abi::label::SchedContextUnbindObject]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -912,63 +912,63 @@ def fl4_abi.label.SchedContextUnbind : Std.U64 := 42#u64
 def fl4_abi.label.SchedContextUnbindObject : Std.U64 := 43#u64
 
 /-- [fl4_abi::label::SchedContextConsumed]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 50:4-50:39
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 50:4-50:39
     Name pattern: [fl4_abi::label::SchedContextConsumed]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::SchedContextConsumed"]
 def fl4_abi.label.SchedContextConsumed : Std.U64 := 44#u64
 
 /-- [fl4_abi::label::SchedContextYieldTo]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 51:4-51:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 51:4-51:38
     Name pattern: [fl4_abi::label::SchedContextYieldTo]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::SchedContextYieldTo"]
 def fl4_abi.label.SchedContextYieldTo : Std.U64 := 45#u64
 
 /-- [fl4_abi::label::X86PML4Flush]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 52:4-52:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 52:4-52:31
     Name pattern: [fl4_abi::label::X86PML4Flush]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PML4Flush"]
 def fl4_abi.label.X86PML4Flush : Std.U64 := 46#u64
 
 /-- [fl4_abi::label::X86PDPTMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 53:4-53:29
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 53:4-53:29
     Name pattern: [fl4_abi::label::X86PDPTMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PDPTMap"]
 def fl4_abi.label.X86PDPTMap : Std.U64 := 47#u64
 
 /-- [fl4_abi::label::X86PDPTUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 54:4-54:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 54:4-54:31
     Name pattern: [fl4_abi::label::X86PDPTUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PDPTUnmap"]
 def fl4_abi.label.X86PDPTUnmap : Std.U64 := 48#u64
 
 /-- [fl4_abi::label::X86VCPUReadMSR]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 55:4-55:33
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 55:4-55:33
     Name pattern: [fl4_abi::label::X86VCPUReadMSR]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUReadMSR"]
 def fl4_abi.label.X86VCPUReadMSR : Std.U64 := 49#u64
 
 /-- [fl4_abi::label::X86VCPUWriteMSR]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 56:4-56:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 56:4-56:34
     Name pattern: [fl4_abi::label::X86VCPUWriteMSR]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUWriteMSR"]
 def fl4_abi.label.X86VCPUWriteMSR : Std.U64 := 50#u64
 
 /-- [fl4_abi::label::X86PageDirectoryMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 57:4-57:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 57:4-57:38
     Name pattern: [fl4_abi::label::X86PageDirectoryMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageDirectoryMap"]
 def fl4_abi.label.X86PageDirectoryMap : Std.U64 := 51#u64
 
 /-- [fl4_abi::label::X86PageDirectoryUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 58:4-58:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 58:4-58:40
     Name pattern: [fl4_abi::label::X86PageDirectoryUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -976,35 +976,35 @@ def fl4_abi.label.X86PageDirectoryMap : Std.U64 := 51#u64
 def fl4_abi.label.X86PageDirectoryUnmap : Std.U64 := 52#u64
 
 /-- [fl4_abi::label::X86PageTableMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 59:4-59:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 59:4-59:34
     Name pattern: [fl4_abi::label::X86PageTableMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageTableMap"]
 def fl4_abi.label.X86PageTableMap : Std.U64 := 53#u64
 
 /-- [fl4_abi::label::X86PageTableUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 60:4-60:36
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 60:4-60:36
     Name pattern: [fl4_abi::label::X86PageTableUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageTableUnmap"]
 def fl4_abi.label.X86PageTableUnmap : Std.U64 := 54#u64
 
 /-- [fl4_abi::label::X86PageMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 61:4-61:29
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 61:4-61:29
     Name pattern: [fl4_abi::label::X86PageMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageMap"]
 def fl4_abi.label.X86PageMap : Std.U64 := 55#u64
 
 /-- [fl4_abi::label::X86PageUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 62:4-62:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 62:4-62:31
     Name pattern: [fl4_abi::label::X86PageUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageUnmap"]
 def fl4_abi.label.X86PageUnmap : Std.U64 := 56#u64
 
 /-- [fl4_abi::label::X86PageDeriveSubframe]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 63:4-63:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 63:4-63:40
     Name pattern: [fl4_abi::label::X86PageDeriveSubframe]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1012,7 +1012,7 @@ def fl4_abi.label.X86PageUnmap : Std.U64 := 56#u64
 def fl4_abi.label.X86PageDeriveSubframe : Std.U64 := 57#u64
 
 /-- [fl4_abi::label::X86PageTestAndClearAccessed]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 64:4-64:46
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 64:4-64:46
     Name pattern: [fl4_abi::label::X86PageTestAndClearAccessed]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1020,21 +1020,21 @@ def fl4_abi.label.X86PageDeriveSubframe : Std.U64 := 57#u64
 def fl4_abi.label.X86PageTestAndClearAccessed : Std.U64 := 58#u64
 
 /-- [fl4_abi::label::X86PageGetAddress]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 65:4-65:36
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 65:4-65:36
     Name pattern: [fl4_abi::label::X86PageGetAddress]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageGetAddress"]
 def fl4_abi.label.X86PageGetAddress : Std.U64 := 59#u64
 
 /-- [fl4_abi::label::X86PageMapEPT]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 66:4-66:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 66:4-66:32
     Name pattern: [fl4_abi::label::X86PageMapEPT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86PageMapEPT"]
 def fl4_abi.label.X86PageMapEPT : Std.U64 := 60#u64
 
 /-- [fl4_abi::label::X86ASIDControlMakePool]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 67:4-67:41
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 67:4-67:41
     Name pattern: [fl4_abi::label::X86ASIDControlMakePool]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1042,14 +1042,14 @@ def fl4_abi.label.X86PageMapEPT : Std.U64 := 60#u64
 def fl4_abi.label.X86ASIDControlMakePool : Std.U64 := 61#u64
 
 /-- [fl4_abi::label::X86ASIDPoolAssign]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 68:4-68:36
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 68:4-68:36
     Name pattern: [fl4_abi::label::X86ASIDPoolAssign]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86ASIDPoolAssign"]
 def fl4_abi.label.X86ASIDPoolAssign : Std.U64 := 62#u64
 
 /-- [fl4_abi::label::X86IOPortControlIssue]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 69:4-69:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 69:4-69:40
     Name pattern: [fl4_abi::label::X86IOPortControlIssue]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1057,49 +1057,49 @@ def fl4_abi.label.X86ASIDPoolAssign : Std.U64 := 62#u64
 def fl4_abi.label.X86IOPortControlIssue : Std.U64 := 63#u64
 
 /-- [fl4_abi::label::X86IOPortIn8]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 70:4-70:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 70:4-70:31
     Name pattern: [fl4_abi::label::X86IOPortIn8]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortIn8"]
 def fl4_abi.label.X86IOPortIn8 : Std.U64 := 64#u64
 
 /-- [fl4_abi::label::X86IOPortIn16]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 71:4-71:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 71:4-71:32
     Name pattern: [fl4_abi::label::X86IOPortIn16]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortIn16"]
 def fl4_abi.label.X86IOPortIn16 : Std.U64 := 65#u64
 
 /-- [fl4_abi::label::X86IOPortIn32]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 72:4-72:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 72:4-72:32
     Name pattern: [fl4_abi::label::X86IOPortIn32]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortIn32"]
 def fl4_abi.label.X86IOPortIn32 : Std.U64 := 66#u64
 
 /-- [fl4_abi::label::X86IOPortOut8]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 73:4-73:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 73:4-73:32
     Name pattern: [fl4_abi::label::X86IOPortOut8]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortOut8"]
 def fl4_abi.label.X86IOPortOut8 : Std.U64 := 67#u64
 
 /-- [fl4_abi::label::X86IOPortOut16]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 74:4-74:33
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 74:4-74:33
     Name pattern: [fl4_abi::label::X86IOPortOut16]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortOut16"]
 def fl4_abi.label.X86IOPortOut16 : Std.U64 := 68#u64
 
 /-- [fl4_abi::label::X86IOPortOut32]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 75:4-75:33
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 75:4-75:33
     Name pattern: [fl4_abi::label::X86IOPortOut32]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86IOPortOut32"]
 def fl4_abi.label.X86IOPortOut32 : Std.U64 := 69#u64
 
 /-- [fl4_abi::label::X86IRQIssueIRQHandlerIOAPIC]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 76:4-76:46
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 76:4-76:46
     Name pattern: [fl4_abi::label::X86IRQIssueIRQHandlerIOAPIC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1107,7 +1107,7 @@ def fl4_abi.label.X86IOPortOut32 : Std.U64 := 69#u64
 def fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC : Std.U64 := 70#u64
 
 /-- [fl4_abi::label::X86IRQIssueIRQHandlerMSI]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 77:4-77:43
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 77:4-77:43
     Name pattern: [fl4_abi::label::X86IRQIssueIRQHandlerMSI]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1115,7 +1115,7 @@ def fl4_abi.label.X86IRQIssueIRQHandlerIOAPIC : Std.U64 := 70#u64
 def fl4_abi.label.X86IRQIssueIRQHandlerMSI : Std.U64 := 71#u64
 
 /-- [fl4_abi::label::X86IRQIssueIRQHandlerIOAPICRemapped]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 78:4-78:54
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 78:4-78:54
     Name pattern: [fl4_abi::label::X86IRQIssueIRQHandlerIOAPICRemapped]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1123,63 +1123,63 @@ def fl4_abi.label.X86IRQIssueIRQHandlerMSI : Std.U64 := 71#u64
 def fl4_abi.label.X86IRQIssueIRQHandlerIOAPICRemapped : Std.U64 := 72#u64
 
 /-- [fl4_abi::label::X86VCPUSetTCB]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 79:4-79:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 79:4-79:32
     Name pattern: [fl4_abi::label::X86VCPUSetTCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUSetTCB"]
 def fl4_abi.label.X86VCPUSetTCB : Std.U64 := 73#u64
 
 /-- [fl4_abi::label::X86VCPUReadVMCS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 80:4-80:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 80:4-80:34
     Name pattern: [fl4_abi::label::X86VCPUReadVMCS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUReadVMCS"]
 def fl4_abi.label.X86VCPUReadVMCS : Std.U64 := 74#u64
 
 /-- [fl4_abi::label::X86VCPUWriteVMCS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 81:4-81:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 81:4-81:35
     Name pattern: [fl4_abi::label::X86VCPUWriteVMCS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUWriteVMCS"]
 def fl4_abi.label.X86VCPUWriteVMCS : Std.U64 := 75#u64
 
 /-- [fl4_abi::label::X86VCPUFlushTLB]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 82:4-82:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 82:4-82:34
     Name pattern: [fl4_abi::label::X86VCPUFlushTLB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUFlushTLB"]
 def fl4_abi.label.X86VCPUFlushTLB : Std.U64 := 76#u64
 
 /-- [fl4_abi::label::X86VCPUReadVMCB]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 83:4-83:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 83:4-83:34
     Name pattern: [fl4_abi::label::X86VCPUReadVMCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUReadVMCB"]
 def fl4_abi.label.X86VCPUReadVMCB : Std.U64 := 77#u64
 
 /-- [fl4_abi::label::X86VCPUWriteVMCB]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 84:4-84:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 84:4-84:35
     Name pattern: [fl4_abi::label::X86VCPUWriteVMCB]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUWriteVMCB"]
 def fl4_abi.label.X86VCPUWriteVMCB : Std.U64 := 78#u64
 
 /-- [fl4_abi::label::X86VCPUEnableIOPort]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 85:4-85:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 85:4-85:38
     Name pattern: [fl4_abi::label::X86VCPUEnableIOPort]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUEnableIOPort"]
 def fl4_abi.label.X86VCPUEnableIOPort : Std.U64 := 79#u64
 
 /-- [fl4_abi::label::X86VCPUDisableIOPort]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 86:4-86:39
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 86:4-86:39
     Name pattern: [fl4_abi::label::X86VCPUDisableIOPort]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86VCPUDisableIOPort"]
 def fl4_abi.label.X86VCPUDisableIOPort : Std.U64 := 80#u64
 
 /-- [fl4_abi::label::X86VCPUWriteRegisters]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 87:4-87:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 87:4-87:40
     Name pattern: [fl4_abi::label::X86VCPUWriteRegisters]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1187,147 +1187,147 @@ def fl4_abi.label.X86VCPUDisableIOPort : Std.U64 := 80#u64
 def fl4_abi.label.X86VCPUWriteRegisters : Std.U64 := 81#u64
 
 /-- [fl4_abi::label::X86EPTPDPTMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 88:4-88:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 88:4-88:32
     Name pattern: [fl4_abi::label::X86EPTPDPTMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPDPTMap"]
 def fl4_abi.label.X86EPTPDPTMap : Std.U64 := 82#u64
 
 /-- [fl4_abi::label::X86EPTPDPTUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 89:4-89:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 89:4-89:34
     Name pattern: [fl4_abi::label::X86EPTPDPTUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPDPTUnmap"]
 def fl4_abi.label.X86EPTPDPTUnmap : Std.U64 := 83#u64
 
 /-- [fl4_abi::label::X86EPTPDMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 90:4-90:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 90:4-90:30
     Name pattern: [fl4_abi::label::X86EPTPDMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPDMap"]
 def fl4_abi.label.X86EPTPDMap : Std.U64 := 84#u64
 
 /-- [fl4_abi::label::X86EPTPDUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 91:4-91:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 91:4-91:32
     Name pattern: [fl4_abi::label::X86EPTPDUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPDUnmap"]
 def fl4_abi.label.X86EPTPDUnmap : Std.U64 := 85#u64
 
 /-- [fl4_abi::label::X86EPTPTMap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 92:4-92:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 92:4-92:30
     Name pattern: [fl4_abi::label::X86EPTPTMap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPTMap"]
 def fl4_abi.label.X86EPTPTMap : Std.U64 := 86#u64
 
 /-- [fl4_abi::label::X86EPTPTUnmap]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 93:4-93:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 93:4-93:32
     Name pattern: [fl4_abi::label::X86EPTPTUnmap]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::X86EPTPTUnmap"]
 def fl4_abi.label.X86EPTPTUnmap : Std.U64 := 87#u64
 
 /-- [fl4_abi::label::TCBSetEPTRoot]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 94:4-94:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 94:4-94:32
     Name pattern: [fl4_abi::label::TCBSetEPTRoot]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::TCBSetEPTRoot"]
 def fl4_abi.label.TCBSetEPTRoot : Std.U64 := 88#u64
 
 /-- [fl4_abi::label::UntypedRetypeShared]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 95:4-95:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 95:4-95:38
     Name pattern: [fl4_abi::label::UntypedRetypeShared]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::label::UntypedRetypeShared"]
 def fl4_abi.label.UntypedRetypeShared : Std.U64 := 89#u64
 
 /-- [fl4_abi::syscall::SysCall]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 104:4-104:26
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 104:4-104:26
     Name pattern: [fl4_abi::syscall::SysCall]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysCall"]
 def fl4_abi.syscall.SysCall : Std.I64 := (-1)#i64
 
 /-- [fl4_abi::syscall::SysReplyRecv]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 105:4-105:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 105:4-105:31
     Name pattern: [fl4_abi::syscall::SysReplyRecv]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysReplyRecv"]
 def fl4_abi.syscall.SysReplyRecv : Std.I64 := (-2)#i64
 
 /-- [fl4_abi::syscall::SysNBSendRecv]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 106:4-106:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 106:4-106:32
     Name pattern: [fl4_abi::syscall::SysNBSendRecv]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysNBSendRecv"]
 def fl4_abi.syscall.SysNBSendRecv : Std.I64 := (-3)#i64
 
 /-- [fl4_abi::syscall::SysNBSendWait]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 107:4-107:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 107:4-107:32
     Name pattern: [fl4_abi::syscall::SysNBSendWait]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysNBSendWait"]
 def fl4_abi.syscall.SysNBSendWait : Std.I64 := (-4)#i64
 
 /-- [fl4_abi::syscall::SysSend]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 108:4-108:26
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 108:4-108:26
     Name pattern: [fl4_abi::syscall::SysSend]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysSend"]
 def fl4_abi.syscall.SysSend : Std.I64 := (-5)#i64
 
 /-- [fl4_abi::syscall::SysNBSend]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 109:4-109:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 109:4-109:28
     Name pattern: [fl4_abi::syscall::SysNBSend]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysNBSend"]
 def fl4_abi.syscall.SysNBSend : Std.I64 := (-6)#i64
 
 /-- [fl4_abi::syscall::SysRecv]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 110:4-110:26
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 110:4-110:26
     Name pattern: [fl4_abi::syscall::SysRecv]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysRecv"]
 def fl4_abi.syscall.SysRecv : Std.I64 := (-7)#i64
 
 /-- [fl4_abi::syscall::SysNBRecv]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 111:4-111:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 111:4-111:28
     Name pattern: [fl4_abi::syscall::SysNBRecv]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysNBRecv"]
 def fl4_abi.syscall.SysNBRecv : Std.I64 := (-8)#i64
 
 /-- [fl4_abi::syscall::SysWait]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 112:4-112:26
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 112:4-112:26
     Name pattern: [fl4_abi::syscall::SysWait]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysWait"]
 def fl4_abi.syscall.SysWait : Std.I64 := (-9)#i64
 
 /-- [fl4_abi::syscall::SysNBWait]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 113:4-113:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 113:4-113:28
     Name pattern: [fl4_abi::syscall::SysNBWait]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysNBWait"]
 def fl4_abi.syscall.SysNBWait : Std.I64 := (-10)#i64
 
 /-- [fl4_abi::syscall::SysYield]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 114:4-114:27
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 114:4-114:27
     Name pattern: [fl4_abi::syscall::SysYield]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysYield"]
 def fl4_abi.syscall.SysYield : Std.I64 := (-11)#i64
 
 /-- [fl4_abi::syscall::SysDebugPutChar]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 115:4-115:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 115:4-115:34
     Name pattern: [fl4_abi::syscall::SysDebugPutChar]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysDebugPutChar"]
 def fl4_abi.syscall.SysDebugPutChar : Std.I64 := (-12)#i64
 
 /-- [fl4_abi::syscall::SysDebugDumpScheduler]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 116:4-116:40
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 116:4-116:40
     Name pattern: [fl4_abi::syscall::SysDebugDumpScheduler]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1335,14 +1335,14 @@ def fl4_abi.syscall.SysDebugPutChar : Std.I64 := (-12)#i64
 def fl4_abi.syscall.SysDebugDumpScheduler : Std.I64 := (-13)#i64
 
 /-- [fl4_abi::syscall::SysDebugHalt]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 117:4-117:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 117:4-117:31
     Name pattern: [fl4_abi::syscall::SysDebugHalt]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysDebugHalt"]
 def fl4_abi.syscall.SysDebugHalt : Std.I64 := (-14)#i64
 
 /-- [fl4_abi::syscall::SysDebugCapIdentify]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 118:4-118:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 118:4-118:38
     Name pattern: [fl4_abi::syscall::SysDebugCapIdentify]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1350,28 +1350,28 @@ def fl4_abi.syscall.SysDebugHalt : Std.I64 := (-14)#i64
 def fl4_abi.syscall.SysDebugCapIdentify : Std.I64 := (-15)#i64
 
 /-- [fl4_abi::syscall::SysDebugSnapshot]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 119:4-119:35
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 119:4-119:35
     Name pattern: [fl4_abi::syscall::SysDebugSnapshot]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysDebugSnapshot"]
 def fl4_abi.syscall.SysDebugSnapshot : Std.I64 := (-16)#i64
 
 /-- [fl4_abi::syscall::SysDebugNameThread]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 120:4-120:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 120:4-120:37
     Name pattern: [fl4_abi::syscall::SysDebugNameThread]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysDebugNameThread"]
 def fl4_abi.syscall.SysDebugNameThread : Std.I64 := (-17)#i64
 
 /-- [fl4_abi::syscall::SysDebugSendIPI]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 121:4-121:34
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 121:4-121:34
     Name pattern: [fl4_abi::syscall::SysDebugSendIPI]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysDebugSendIPI"]
 def fl4_abi.syscall.SysDebugSendIPI : Std.I64 := (-18)#i64
 
 /-- [fl4_abi::syscall::SysDebugGetThreadAffinity]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 122:4-122:44
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 122:4-122:44
     Name pattern: [fl4_abi::syscall::SysDebugGetThreadAffinity]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1379,49 +1379,49 @@ def fl4_abi.syscall.SysDebugSendIPI : Std.I64 := (-18)#i64
 def fl4_abi.syscall.SysDebugGetThreadAffinity : Std.I64 := (-19)#i64
 
 /-- [fl4_abi::syscall::SysSetTLSBase]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 123:4-123:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 123:4-123:32
     Name pattern: [fl4_abi::syscall::SysSetTLSBase]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysSetTLSBase"]
 def fl4_abi.syscall.SysSetTLSBase : Std.I64 := (-20)#i64
 
 /-- [fl4_abi::syscall::SysVMEnter]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 126:4-126:29
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 126:4-126:29
     Name pattern: [fl4_abi::syscall::SysVMEnter]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SysVMEnter"]
 def fl4_abi.syscall.SysVMEnter : Std.I64 := (-23)#i64
 
 /-- [fl4_abi::syscall::SYSCALL_MAX]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 127:4-127:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 127:4-127:30
     Name pattern: [fl4_abi::syscall::SYSCALL_MAX]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SYSCALL_MAX"]
 def fl4_abi.syscall.SYSCALL_MAX : Std.I64 := (-1)#i64
 
 /-- [fl4_abi::syscall::SYSCALL_MIN]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 128:4-128:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 128:4-128:30
     Name pattern: [fl4_abi::syscall::SYSCALL_MIN]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::syscall::SYSCALL_MIN"]
 def fl4_abi.syscall.SYSCALL_MIN : Std.I64 := (-11)#i64
 
 /-- [fl4_abi::config::DEBUG_BUILD]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 133:4-133:31
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 133:4-133:31
     Name pattern: [fl4_abi::config::DEBUG_BUILD]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::DEBUG_BUILD"]
 def fl4_abi.config.DEBUG_BUILD : Bool := true
 
 /-- [fl4_abi::config::PRINTING]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 134:4-134:28
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 134:4-134:28
     Name pattern: [fl4_abi::config::PRINTING]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::PRINTING"]
 def fl4_abi.config.PRINTING : Bool := true
 
 /-- [fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 136:4-136:54
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 136:4-136:54
     Name pattern: [fl4_abi::config::KERNEL_INVOCATION_REPORT_ERROR_IPC]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1429,28 +1429,28 @@ def fl4_abi.config.PRINTING : Bool := true
 def fl4_abi.config.KERNEL_INVOCATION_REPORT_ERROR_IPC : Bool := true
 
 /-- [fl4_abi::config::ENABLE_SMP_SUPPORT]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 138:4-138:38
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 138:4-138:38
     Name pattern: [fl4_abi::config::ENABLE_SMP_SUPPORT]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::ENABLE_SMP_SUPPORT"]
 def fl4_abi.config.ENABLE_SMP_SUPPORT : Bool := true
 
 /-- [fl4_abi::config::SET_TLS_BASE_SELF]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 139:4-139:37
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 139:4-139:37
     Name pattern: [fl4_abi::config::SET_TLS_BASE_SELF]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::SET_TLS_BASE_SELF"]
 def fl4_abi.config.SET_TLS_BASE_SELF : Bool := true
 
 /-- [fl4_abi::config::NUM_DOMAINS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 142:4-142:30
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 142:4-142:30
     Name pattern: [fl4_abi::config::NUM_DOMAINS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::NUM_DOMAINS"]
 def fl4_abi.config.NUM_DOMAINS : Std.U64 := 1#u64
 
 /-- [fl4_abi::config::NUM_DOMAIN_SCHEDULES]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 143:4-143:39
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 143:4-143:39
     Name pattern: [fl4_abi::config::NUM_DOMAIN_SCHEDULES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1458,14 +1458,14 @@ def fl4_abi.config.NUM_DOMAINS : Std.U64 := 1#u64
 def fl4_abi.config.NUM_DOMAIN_SCHEDULES : Std.U64 := 2#u64
 
 /-- [fl4_abi::config::MAX_NUM_NODES]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 144:4-144:32
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 144:4-144:32
     Name pattern: [fl4_abi::config::MAX_NUM_NODES]
     Visibility: public -/
 @[global_simps, irreducible, rust_const "fl4_abi::config::MAX_NUM_NODES"]
 def fl4_abi.config.MAX_NUM_NODES : Std.U64 := 64#u64
 
 /-- [fl4_abi::config::ROOT_CNODE_SIZE_BITS]
-    Source: 'target/aarch64-apple-darwin/debug/build/fl4-abi/dedf77609adaab99/out/generated.rs', lines 145:4-145:39
+    Source: 'target/x86_64-unknown-linux-gnu/debug/build/fl4-abi/62ca171a98a8acf9/out/generated.rs', lines 145:4-145:39
     Name pattern: [fl4_abi::config::ROOT_CNODE_SIZE_BITS]
     Visibility: public -/
 @[global_simps, irreducible, rust_const
@@ -1571,7 +1571,7 @@ def boot.alloc
 @[global_simps, irreducible] def layout.cte.SIZE : Std.U64 := 32#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::index]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 295:4-297:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 296:4-298:5
     Visibility: public -/
 def obj.Slot.index (base : Std.U64) (i : Std.U64) : Result obj.Slot := do
   let i1 ← lift (core.num.U64.wrapping_mul i layout.cte.SIZE)
@@ -1584,7 +1584,7 @@ def boot.root_slot (b : boot.Boot) (i : Std.U64) : Result obj.Slot := do
   obj.Slot.index b.root_cnode i
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::clear]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 285:4-290:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 286:4-291:5
     Visibility: public -/
 def obj.Slot.clear
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -1604,7 +1604,7 @@ def obj.Slot.clear
 @[global_simps, irreducible] def layout.cte.NEXT : Std.U64 := 24#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::next_word]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 251:4-253:5 -/
+    Source: 'crates/fl4-core/src/obj.rs', lines 252:4-254:5 -/
 def obj.Slot.next_word
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
   Result Std.U64
@@ -1618,7 +1618,7 @@ def obj.Slot.next_word
 def obj.MDB_FIRST_BADGED : Result Std.U64 := 1#u64 <<< 49#i32
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_first_badged]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 280:4-283:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 281:4-284:5
     Visibility: public -/
 def obj.Slot.set_first_badged
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -1642,7 +1642,7 @@ def obj.Slot.set_first_badged
 def obj.MDB_REVOCABLE : Result Std.U64 := 1#u64 <<< 48#i32
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_revocable]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 273:4-276:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 274:4-277:5
     Visibility: public -/
 def obj.Slot.set_revocable
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -1702,7 +1702,7 @@ def capability.FrameSize.code
   | capability.FrameSize.Huge => ok 2#u64
 
 /-- [fl4_core::capability::{fl4_core::capability::Cap}::encode]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 168:4-221:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 169:4-222:5
     Visibility: public -/
 def capability.Cap.encode
   (self : capability.Cap) : Result (Std.U64 × Std.U64) := do
@@ -1900,7 +1900,7 @@ def capability.Cap.encode
     ok (i2, i6)
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_cap]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 240:4-244:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 241:4-245:5
     Visibility: public -/
 def obj.Slot.set_cap
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -1968,7 +1968,7 @@ def boot.bi_set
 @[global_simps, irreducible] def boot.IT_ASID : Std.U64 := 1#u64
 
 /-- [fl4_core::obj::ks_get]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 301:0-303:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 302:0-304:1
     Visibility: public -/
 def obj.ks_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (off : Std.U64) :
@@ -1984,7 +1984,7 @@ def obj.ks_get
 @[global_simps, irreducible] def layout.ks.KERNEL_ROOT : Std.U64 := 48#u64
 
 /-- [fl4_core::vspace::kernel_root]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 187:0-189:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 190:0-192:1
     Visibility: public -/
 def vspace.kernel_root
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) :
@@ -2012,7 +2012,7 @@ def vspace.entry
   machineStoreInst.read s i3
 
 /-- [fl4_core::vspace::copy_global_mappings]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 211:4-215:5
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 215:4-219:5
     Visibility: public -/
 @[rust_loop_body]
 def vspace.copy_global_mappings_loop.body
@@ -2030,7 +2030,7 @@ def vspace.copy_global_mappings_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::copy_global_mappings]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 211:4-215:5
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 215:4-219:5
     Visibility: public -/
 @[rust_loop]
 def vspace.copy_global_mappings_loop
@@ -2044,7 +2044,7 @@ def vspace.copy_global_mappings_loop
     (s, i)
 
 /-- [fl4_core::vspace::copy_global_mappings]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 208:0-216:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 212:0-220:1
     Visibility: public -/
 def vspace.copy_global_mappings
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -2175,7 +2175,7 @@ def boot.create_it_address_space
   ok (capability.Cap.Pml4 pml4 true boot.IT_ASID, s6, b1)
 
 /-- [fl4_core::obj::ks_set]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 305:0-308:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 306:0-309:1
     Visibility: public -/
 def obj.ks_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (off : Std.U64)
@@ -3056,7 +3056,7 @@ def layout.node.SIZE : Result Std.U64 := do
   i2 * 64#u64
 
 /-- [fl4_core::obj::node_base]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 310:0-312:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 311:0-313:1
     Visibility: public -/
 def obj.node_base
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) :
@@ -3070,7 +3070,7 @@ def obj.node_base
   ok (core.num.U64.wrapping_add i2 i4)
 
 /-- [fl4_core::obj::node_get]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 314:0-316:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 315:0-317:1
     Visibility: public -/
 def obj.node_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -3098,7 +3098,7 @@ def sched.cur_thread
   ok i1
 
 /-- [fl4_core::msg::buf_get]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 45:0-47:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 46:0-48:1
     Visibility: public -/
 def msg.buf_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64)
@@ -3128,7 +3128,7 @@ def msg.msg_register (i : Std.U64) : Result Std.U64 := do
          else ok layout.reg.R15
 
 /-- [fl4_core::msg::syscall_arg]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 54:0-62:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 55:0-63:1
     Visibility: public -/
 def msg.syscall_arg
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -3146,7 +3146,7 @@ def msg.syscall_arg
     else ok 0#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::is_null]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 291:4-293:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 292:4-294:5
     Visibility: public -/
 def obj.Slot.is_null (self : obj.Slot) : Result Bool := do
   ok (self = 0#u64)
@@ -3191,7 +3191,7 @@ def capability.FrameSize.from_code
     else ok capability.FrameSize.Small
 
 /-- [fl4_core::capability::{fl4_core::capability::Cap}::decode]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 116:4-166:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 117:4-167:5
     Visibility: public -/
 def capability.Cap.decode
   (w0 : Std.U64) (w1 : Std.U64) : Result capability.Cap := do
@@ -3287,7 +3287,7 @@ def capability.Cap.decode
   | _ => ok capability.Cap.Null
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::cap]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 236:4-239:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 237:4-240:5
     Visibility: public -/
 def obj.Slot.cap
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -3337,7 +3337,7 @@ def interrupt.set_irq_state
 @[global_simps, irreducible] def interrupt.IRQ_SIGNAL : Std.U64 := 1#u64
 
 /-- [fl4_core::objects::is_cap_revocable]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 176:0-191:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 179:0-194:1
     Visibility: public -/
 def objects.is_cap_revocable
   (derived : capability.Cap) (src : capability.Cap) : Result Bool := do
@@ -3473,7 +3473,7 @@ def objects.is_cap_revocable
 def obj.MDB_PTR_MASK : Std.U64 := 281474976710655#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_next_flags]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 264:4-269:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 265:4-270:5
     Visibility: public -/
 def obj.Slot.set_next_flags
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -3501,7 +3501,7 @@ def obj.Slot.set_next_flags
   machineStoreInst.write s i6 i10
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 257:4-260:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 258:4-261:5
     Visibility: public -/
 def obj.Slot.set_next
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -3526,7 +3526,7 @@ def obj.sext48 (p : Std.U64) : Result Std.U64 := do
   else ok p1
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 254:4-256:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 255:4-257:5
     Visibility: public -/
 def obj.Slot.next
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -3542,7 +3542,7 @@ def obj.Slot.next
 @[global_simps, irreducible] def layout.cte.PREV : Std.U64 := 16#u64
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::set_prev]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 248:4-250:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 249:4-251:5
     Visibility: public -/
 def obj.Slot.set_prev
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot)
@@ -3689,7 +3689,7 @@ def interrupt.is_irq_active
   ok (i != interrupt.IRQ_INACTIVE)
 
 /-- [fl4_core::error::range]:
-    Source: 'crates/fl4-core/src/error.rs', lines 68:0-70:1
+    Source: 'crates/fl4-core/src/error.rs', lines 74:0-76:1
     Visibility: public -/
 def error.range
   (T : Type _) (min : Std.U64) (max : Std.U64) :
@@ -3699,14 +3699,14 @@ def error.range
     max)))
 
 /-- [fl4_core::error::truncated]:
-    Source: 'crates/fl4-core/src/error.rs', lines 56:0-58:1
+    Source: 'crates/fl4-core/src/error.rs', lines 62:0-64:1
     Visibility: public -/
 def error.truncated
   (T : Type _) : Result (core.result.Result T error.Exc) := do
   ok (core.result.Result.Err (error.Exc.Sys error.SysError.TruncatedMessage))
 
 /-- [fl4_core::error::illegal]:
-    Source: 'crates/fl4-core/src/error.rs', lines 52:0-54:1
+    Source: 'crates/fl4-core/src/error.rs', lines 58:0-60:1
     Visibility: public -/
 def error.illegal (T : Type _) : Result (core.result.Result T error.Exc) := do
   ok (core.result.Result.Err (error.Exc.Sys error.SysError.IllegalOperation))
@@ -3722,7 +3722,7 @@ def cspace.mask (bits : Std.U64) : Result Std.U64 := do
     ok (core.num.U64.wrapping_sub i1 1#u64)
 
 /-- [fl4_core::cspace::resolve_address_bits]: loop body 0:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 32:4-63:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 33:4-64:1
     Visibility: public -/
 @[rust_loop_body]
 def cspace.resolve_address_bits_loop.body
@@ -3868,7 +3868,7 @@ def cspace.resolve_address_bits_loop.body
     ok (done (core.result.Result.Err error.LookupFault.InvalidRoot))
 
 /-- [fl4_core::cspace::resolve_address_bits]: loop 0:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 32:4-63:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 33:4-64:1
     Visibility: public -/
 @[rust_loop]
 def cspace.resolve_address_bits_loop
@@ -3882,7 +3882,7 @@ def cspace.resolve_address_bits_loop
     (cap, n, fuel)
 
 /-- [fl4_core::cspace::resolve_address_bits]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 27:0-63:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 28:0-64:1
     Visibility: public -/
 @[reducible]
 def cspace.resolve_address_bits
@@ -3899,7 +3899,7 @@ def cspace.resolve_address_bits
 @[global_simps, irreducible] def cspace.WORD_BITS : Std.U64 := 64#u64
 
 /-- [fl4_core::cspace::lookup_slot_for_cnode_op]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 88:0-108:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 91:0-111:1
     Visibility: public -/
 def cspace.lookup_slot_for_cnode_op
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (is_source : Bool)
@@ -3962,7 +3962,7 @@ def cspace.lookup_slot_for_cnode_op
       is_source error.LookupFault.InvalidRoot)))
 
 /-- [fl4_core::cspace::lookup_target_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 114:0-116:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 117:0-119:1
     Visibility: public -/
 def cspace.lookup_target_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -3972,7 +3972,7 @@ def cspace.lookup_target_slot
   cspace.lookup_slot_for_cnode_op machineStoreInst s false root cptr depth
 
 /-- [fl4_core::capability::{fl4_core::capability::Cap}::is_null]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 223:4-225:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 224:4-226:5
     Visibility: public -/
 def capability.Cap.is_null (self : capability.Cap) : Result Bool := do
   match self with
@@ -4046,7 +4046,7 @@ def obj.Sc.refill_max
   machineStoreInst.read s i
 
 /-- [fl4_core::sporadic::sc_active]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 122:0-124:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 139:0-141:1
     Visibility: public -/
 def sporadic.sc_active
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -4159,7 +4159,7 @@ def obj.Tcb.sc
   machineStoreInst.read s i1
 
 /-- [fl4_core::sched::is_schedulable]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 131:0-137:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 132:0-138:1
     Visibility: public -/
 def sched.is_schedulable
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -4181,7 +4181,7 @@ def sched.is_schedulable
   else ok false
 
 /-- [fl4_core::obj::node_set]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 318:0-321:1
+    Source: 'crates/fl4-core/src/obj.rs', lines 319:0-322:1
     Visibility: public -/
 def obj.node_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
@@ -4235,7 +4235,7 @@ def obj.Tcb.Insts.CoreCmpPartialEqTcb.eq
   ok (self = other)
 
 /-- [fl4_core::sched::schedule_tcb]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 140:0-144:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 142:0-146:1
     Visibility: public -/
 def sched.schedule_tcb
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -4267,7 +4267,7 @@ def obj.Tcb.set_state
   machineStoreInst.write s i v
 
 /-- [fl4_core::sched::set_thread_state]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 147:0-150:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 149:0-152:1
     Visibility: public -/
 def sched.set_thread_state
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -5264,7 +5264,7 @@ def vcpu.svm.EFER : Result Std.U64 := vcpu.svm.SAVE + 208#u64
 @[global_simps, irreducible] def vcpu.SVM_CPU : Std.U64 := 20536#u64
 
 /-- [fl4_core::vcpu::reset_svm]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 651:4-663:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 657:4-669:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.reset_svm_loop.body
@@ -5291,7 +5291,7 @@ def vcpu.reset_svm_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::reset_svm]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 651:4-663:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 657:4-669:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.reset_svm_loop
@@ -5304,7 +5304,7 @@ def vcpu.reset_svm_loop
     (s, off)
 
 /-- [fl4_core::vcpu::reset_svm]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 647:0-673:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 653:0-679:1
     Visibility: public -/
 def vcpu.reset_svm
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64) :
@@ -5974,7 +5974,7 @@ def vcpu.CR4_ALLOWED : Result Std.U64 := do
   ok (i7 ||| i8)
 
 /-- [fl4_core::error::invalid_arg]:
-    Source: 'crates/fl4-core/src/error.rs', lines 60:0-62:1
+    Source: 'crates/fl4-core/src/error.rs', lines 66:0-68:1
     Visibility: public -/
 def error.invalid_arg
   (T : Type _) (arg : Std.U64) : Result (core.result.Result T error.Exc) := do
@@ -6276,7 +6276,7 @@ def vcpu.write_vmcs
 @[global_simps, irreducible] def layout.ks.VCPU_HEAD : Std.U64 := 80#u64
 
 /-- [fl4_core::vcpu::init]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 621:4-624:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 627:4-630:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop0.body
@@ -6294,7 +6294,7 @@ def vcpu.init_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 621:4-624:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 627:4-630:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop0
@@ -6307,7 +6307,7 @@ def vcpu.init_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::init]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 634:8-640:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 640:8-646:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.init_loop1.body
@@ -6332,7 +6332,7 @@ def vcpu.init_loop1.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::init]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 634:8-640:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 640:8-646:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.init_loop1
@@ -6347,7 +6347,7 @@ def vcpu.init_loop1
     (s, j)
 
 /-- [fl4_core::vcpu::init]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 612:0-646:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 618:0-652:1
     Visibility: public -/
 def vcpu.init
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -6726,18 +6726,6 @@ def obj.Tcb.is_null (self : obj.Tcb) : Result Bool := do
 def tcbqueue.Queue.is_empty (self : tcbqueue.Queue) : Result Bool := do
   obj.Tcb.is_null self.head
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_ep_prev]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.set_ep_prev
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
-  (s : S) (v : Std.U64) :
-  Result S
-  := do
-  let i ← layout.tcb.EP_PREV
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.write s i1 v
-
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_sched_prev]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
     Visibility: public -/
@@ -6747,6 +6735,18 @@ def obj.Tcb.set_sched_prev
   Result S
   := do
   let i ← layout.tcb.SCHED_PREV
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.write s i1 v
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_ep_prev]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.set_ep_prev
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
+  (s : S) (v : Std.U64) :
+  Result S
+  := do
+  let i ← layout.tcb.EP_PREV
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.write s i1 v
 
@@ -6761,18 +6761,6 @@ def tcbqueue.set_prev
   | tcbqueue.Link.Sched => obj.Tcb.set_sched_prev machineStoreInst t s v
   | tcbqueue.Link.Ep => obj.Tcb.set_ep_prev machineStoreInst t s v
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_ep_next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.set_ep_next
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
-  (s : S) (v : Std.U64) :
-  Result S
-  := do
-  let i ← layout.tcb.EP_NEXT
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.write s i1 v
-
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_sched_next]:
     Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
     Visibility: public -/
@@ -6782,6 +6770,18 @@ def obj.Tcb.set_sched_next
   Result S
   := do
   let i ← layout.tcb.SCHED_NEXT
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.write s i1 v
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::set_ep_next]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.set_ep_next
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb)
+  (s : S) (v : Std.U64) :
+  Result S
+  := do
+  let i ← layout.tcb.EP_NEXT
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.write s i1 v
 
@@ -6831,17 +6831,6 @@ def sched.cur_domain
   := do
   obj.ks_get machineStoreInst s layout.ks.CUR_DOMAIN
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::affinity]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.affinity
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.AFFINITY
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::prio]:
     Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
     Visibility: public -/
@@ -6864,6 +6853,17 @@ def obj.Tcb.domain
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.read s i1
 
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::affinity]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.affinity
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.AFFINITY
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
 /-- [fl4_core::layout::node::IPI_PENDING]
     Source: 'crates/fl4-core/src/layout.rs', lines 117:4-117:37
     Visibility: public -/
@@ -6880,7 +6880,7 @@ def obj.Tcb.domain
 @[global_simps, irreducible] def layout.node.IDLE_THREAD : Std.U64 := 8#u64
 
 /-- [fl4_core::smp::remote_queue_update]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 78:0-90:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 96:0-108:1
     Visibility: public -/
 def smp.remote_queue_update
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -6928,7 +6928,7 @@ def smp.remote_queue_update
           else ok s
 
 /-- [fl4_core::sched::q_set]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 234:0-237:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 238:0-241:1 -/
 def sched.q_set
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (off : Std.U64) (q : tcbqueue.Queue) :
@@ -6941,7 +6941,7 @@ def sched.q_set
   obj.node_set machineStoreInst s1 cpu i1 i2
 
 /-- [fl4_core::sched::q_get]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 230:0-232:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 234:0-236:1 -/
 def sched.q_get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (off : Std.U64) :
@@ -6953,14 +6953,14 @@ def sched.q_get
   ok { head := i, «end» := i2 }
 
 /-- [fl4_core::sched::bitmap_dom]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 180:0-186:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 183:0-189:1 -/
 def sched.bitmap_dom (dom : Std.U64) : Result Std.U64 := do
   if layout.NUM_DOMAINS > 1#u64
   then ok dom
   else ok 0#u64
 
 /-- [fl4_core::sched::l2_off]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 176:0-178:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 179:0-181:1 -/
 def sched.l2_off (dom : Std.U64) (inv : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul dom 4#u64)
   let i1 ← lift (core.num.U64.wrapping_add i inv)
@@ -6969,13 +6969,13 @@ def sched.l2_off (dom : Std.U64) (inv : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add i3 i2)
 
 /-- [fl4_core::sched::l1_off]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 172:0-174:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 175:0-177:1 -/
 def sched.l1_off (dom : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_mul dom 8#u64)
   ok (core.num.U64.wrapping_add layout.node.L1_BITMAP i)
 
 /-- [fl4_core::sched::add_to_bitmap]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 188:0-196:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 192:0-200:1 -/
 def sched.add_to_bitmap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (dom : Std.U64) (prio : Std.U64) :
@@ -6999,7 +6999,7 @@ def sched.add_to_bitmap
   obj.node_set machineStoreInst s1 cpu i5 i8
 
 /-- [fl4_core::sched::rq_index]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 160:0-166:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 163:0-169:1 -/
 def sched.rq_index (dom : Std.U64) (prio : Std.U64) : Result Std.U64 := do
   if layout.NUM_DOMAINS > 1#u64
   then
@@ -7008,7 +7008,7 @@ def sched.rq_index (dom : Std.U64) (prio : Std.U64) : Result Std.U64 := do
   else ok prio
 
 /-- [fl4_core::sched::rq_head_off]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 168:0-170:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 171:0-173:1 -/
 def sched.rq_head_off (dom : Std.U64) (prio : Std.U64) : Result Std.U64 := do
   let i ← sched.rq_index dom prio
   let i1 ← lift (core.num.U64.wrapping_mul i 16#u64)
@@ -7059,7 +7059,7 @@ def sched.queued
   ok (i1 != 0#u64)
 
 /-- [fl4_core::sched::enqueue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 240:0-256:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 245:0-261:1
     Visibility: public -/
 def sched.enqueue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -7086,7 +7086,7 @@ def sched.enqueue
     smp.remote_queue_update machineStoreInst s4 t
 
 /-- [fl4_core::sched::reschedule_required]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 348:0-354:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 355:0-361:1
     Visibility: public -/
 def sched.reschedule_required
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
@@ -7118,6 +7118,622 @@ def smp.handle_ipi
   then let s1 ← sched.reschedule_required machineStoreInst s
        ok (s1, a)
   else ok (s, a)
+
+/-- [fl4_core::vcpu::read_vmcs]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 445:0-447:1
+    Visibility: public -/
+def vcpu.read_vmcs
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (f : Std.U64) :
+  Result Std.U64
+  := do
+  let i ← vcpu.vmcs_addr v f
+  machineStoreInst.read s i
+
+/-- [fl4_core::vcpu::bound]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 438:0-440:1
+    Visibility: public -/
+def vcpu.bound
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.VCPU
+  let i1 ← lift (core.num.U64.wrapping_add t i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::vcpu::get]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 432:0-434:1
+    Visibility: public -/
+def vcpu.get
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
+  (offset : Std.U64) :
+  Result Std.U64
+  := do
+  let i ← lift (core.num.U64.wrapping_add v offset)
+  machineStoreInst.read s i
+
+/-- [fl4_core::vcpu::svm::CR2]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 265:4-265:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.CR2 : Result Std.U64 := vcpu.svm.SAVE + 576#u64
+
+/-- [fl4_core::vcpu::svm::CR3]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:38
+    Visibility: public -/
+@[global_simps, irreducible]
+def vcpu.svm.CR3 : Result Std.U64 := vcpu.svm.SAVE + 336#u64
+
+/-- [fl4_core::vcpu::svm::EVENT_INJ]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:37
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.svm.EVENT_INJ : Std.U64 := 168#u64
+
+/-- [fl4_core::vcpu::svm::INT_STATE]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:37
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.svm.INT_STATE : Std.U64 := 104#u64
+
+/-- [fl4_core::vcpu::svm::INTERCEPT_EXC]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:41
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.svm.INTERCEPT_EXC : Std.U64 := 8#u64
+
+/-- [fl4_core::vcpu::NUM_MRS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 32:0-32:28
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.NUM_MRS : Std.U64 := 30#u64
+
+/-- [fl4_core::vcpu::EXIT]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 30:0-30:29
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.EXIT : Std.U64 := 20992#u64
+
+/-- [fl4_core::vcpu::REGS]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 28:0-28:29
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.REGS : Std.U64 := 20736#u64
+
+/-- [fl4_core::vcpu::VALID]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 24:0-24:30
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.VALID : Std.U64 := 20528#u64
+
+/-- [fl4_core::vcpu::PENDING]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 23:0-23:32
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.PENDING : Std.U64 := 20520#u64
+
+/-- [fl4_core::vcpu::CR2]
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 22:0-22:28
+    Visibility: public -/
+@[global_simps, irreducible] def vcpu.CR2 : Std.U64 := 20512#u64
+
+/-- [fl4_core::msg::buf_set]:
+    Source: 'crates/fl4-core/src/msg.rs', lines 50:0-52:1
+    Visibility: public -/
+def msg.buf_set
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64)
+  (i : Std.U64) (v : Std.U64) :
+  Result S
+  := do
+  let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
+  let i2 ← lift (core.num.U64.wrapping_add buf i1)
+  machineStoreInst.write s i2 v
+
+/-- [fl4_core::msg::set_mr]:
+    Source: 'crates/fl4-core/src/msg.rs', lines 72:0-82:1
+    Visibility: public -/
+def msg.set_mr
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (buf : Std.U64) (i : Std.U64) (v : Std.U64) :
+  Result (Std.U64 × S)
+  := do
+  if i < msg.N_MSG_REGISTERS
+  then
+    let i1 ← msg.msg_register i
+    let s1 ← obj.Tcb.set_reg machineStoreInst t s i1 v
+    let i2 ← lift (core.num.U64.wrapping_add i 1#u64)
+    ok (i2, s1)
+  else
+    if buf != 0#u64
+    then
+      let i1 ← lift (core.num.U64.wrapping_add i 1#u64)
+      let s1 ← msg.buf_set machineStoreInst s buf i1 v
+      let i2 ← lift (core.num.U64.wrapping_add i 1#u64)
+      ok (i2, s1)
+    else ok (msg.N_MSG_REGISTERS, s)
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::slot]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 78:4-80:5
+    Visibility: public -/
+def obj.Tcb.slot (self : obj.Tcb) (i : Std.U64) : Result obj.Slot := do
+  let i1 ← lift (core.num.U64.wrapping_mul i layout.cte.SIZE)
+  let i2 ← lift (core.num.U64.wrapping_add self i1)
+  ok i2
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::ipc_buffer]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.ipc_buffer
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.IPC_BUFFER
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::capability::VM_READ_ONLY]
+    Source: 'crates/fl4-core/src/capability.rs', lines 40:0-40:32
+    Visibility: public -/
+@[global_simps, irreducible] def capability.VM_READ_ONLY : Std.U64 := 2#u64
+
+/-- [fl4_core::capability::{fl4_core::capability::FrameSize}::bits]:
+    Source: 'crates/fl4-core/src/capability.rs', lines 13:4-19:5
+    Visibility: public -/
+def capability.FrameSize.bits
+  (self : capability.FrameSize) : Result Std.U64 := do
+  match self with
+  | capability.FrameSize.Small => ok 12#u64
+  | capability.FrameSize.Large => ok 21#u64
+  | capability.FrameSize.Huge => ok 30#u64
+
+/-- [fl4_core::msg::lookup_ipc_buffer]:
+    Source: 'crates/fl4-core/src/msg.rs', lines 28:0-44:1
+    Visibility: public -/
+def msg.lookup_ipc_buffer
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (is_receiver : Bool) (t : obj.Tcb) :
+  Result Std.U64
+  := do
+  let w ← obj.Tcb.ipc_buffer machineStoreInst t s
+  let s1 ← obj.Tcb.slot t layout.tcb.SLOT_BUFFER
+  let c ← obj.Slot.cap machineStoreInst s1 s
+  match c with
+  | capability.Cap.Null => ok 0#u64
+  | capability.Cap.Untyped _ _ _ _ => ok 0#u64
+  | capability.Cap.Endpoint _ _ _ _ _ _ => ok 0#u64
+  | capability.Cap.Notification _ _ _ _ => ok 0#u64
+  | capability.Cap.Reply _ _ => ok 0#u64
+  | capability.Cap.CNode _ _ _ _ => ok 0#u64
+  | capability.Cap.Thread _ => ok 0#u64
+  | capability.Cap.IrqControl => ok 0#u64
+  | capability.Cap.IrqHandler _ => ok 0#u64
+  | capability.Cap.Zombie _ _ _ => ok 0#u64
+  | capability.Cap.Domain => ok 0#u64
+  | capability.Cap.SchedContext _ _ => ok 0#u64
+  | capability.Cap.SchedControl _ => ok 0#u64
+  | capability.Cap.Frame ptr size rights is_device _ _ _ _ =>
+    if is_device
+    then ok 0#u64
+    else
+      if rights = capability.VM_READ_WRITE
+      then
+        let bits ← capability.FrameSize.bits size
+        let i ← lift (bits &&& 63#u64)
+        let i1 ← 1#u64 <<< i
+        let i2 ← lift (core.num.U64.wrapping_sub i1 1#u64)
+        let i3 ← lift (w &&& i2)
+        ok (core.num.U64.wrapping_add ptr i3)
+      else
+        if is_receiver
+        then ok 0#u64
+        else
+          if rights = capability.VM_READ_ONLY
+          then
+            let bits ← capability.FrameSize.bits size
+            let i ← lift (bits &&& 63#u64)
+            let i1 ← 1#u64 <<< i
+            let i2 ← lift (core.num.U64.wrapping_sub i1 1#u64)
+            let i3 ← lift (w &&& i2)
+            ok (core.num.U64.wrapping_add ptr i3)
+          else ok 0#u64
+  | capability.Cap.PageTable _ _ _ _ => ok 0#u64
+  | capability.Cap.PageDirectory _ _ _ _ => ok 0#u64
+  | capability.Cap.Pdpt _ _ _ _ => ok 0#u64
+  | capability.Cap.Pml4 _ _ _ => ok 0#u64
+  | capability.Cap.Vcpu _ => ok 0#u64
+  | capability.Cap.Ept _ _ _ _ _ => ok 0#u64
+  | capability.Cap.AsidControl => ok 0#u64
+  | capability.Cap.AsidPool _ _ => ok 0#u64
+  | capability.Cap.IoPortControl => ok 0#u64
+  | capability.Cap.IoPort _ _ _ => ok 0#u64
+
+/-- [fl4_core::vcpu::report]: loop body 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1116:4-1119:5
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.report_loop0.body
+  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb) (v : Std.U64)
+  (b : Std.U64) (s : S) (i : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if i < vcpu.NUM_MRS
+  then
+    let i1 ← i * 8#u64
+    let i2 ← vcpu.EXIT + i1
+    let i3 ← vcpu.get machineStoreInst s v i2
+    let (_, s1) ← msg.set_mr machineStoreInst s t b i i3
+    let i4 ← i + 1#u64
+    ok (cont (s1, i4))
+  else ok (done s)
+
+/-- [fl4_core::vcpu::report]: loop 0:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1116:4-1119:5
+    Visibility: public -/
+@[rust_loop]
+def vcpu.report_loop0
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (v : Std.U64) (b : Std.U64) (i : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, i1) => vcpu.report_loop0.body machineStoreInst t v b s1 i1)
+    (s, i)
+
+/-- [fl4_core::vcpu::report]: loop body 1:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1142:8-1145:9
+    Visibility: public -/
+@[rust_loop_body]
+def vcpu.report_loop1.body
+  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb) (v : Std.U64)
+  (b : Std.U64) (s : S) (j : Std.U64) :
+  Result (ControlFlow (S × Std.U64) S)
+  := do
+  if j < 15#u64
+  then
+    let i ← 10#u64 + j
+    let i1 ← j * 8#u64
+    let i2 ← vcpu.REGS + i1
+    let i3 ← vcpu.get machineStoreInst s v i2
+    let (_, s1) ← msg.set_mr machineStoreInst s t b i i3
+    let j1 ← j + 1#u64
+    ok (cont (s1, j1))
+  else ok (done s)
+
+/-- [fl4_core::vcpu::report]: loop 1:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1142:8-1145:9
+    Visibility: public -/
+@[rust_loop]
+def vcpu.report_loop1
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (v : Std.U64) (b : Std.U64) (j : Std.U64) :
+  Result S
+  := do
+  loop
+    (fun (s1, j1) => vcpu.report_loop1.body machineStoreInst t v b s1 j1)
+    (s, j)
+
+/-- [fl4_core::vcpu::report]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1083:0-1174:1
+    Visibility: public -/
+def vcpu.report
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
+  (badge : Std.U64) :
+  Result S
+  := do
+  let v ← vcpu.bound machineStoreInst s t
+  let pending ←
+    if v != 0#u64
+    then
+      do
+      let i ← vcpu.get machineStoreInst s v vcpu.PENDING
+      ok (i != 0#u64)
+    else ok false
+  let b ← msg.lookup_ipc_buffer machineStoreInst s true t
+  if pending
+  then
+    let s1 ← vcpu.report_loop0 machineStoreInst s t v b 0#u64
+    let i ← vcpu.get machineStoreInst s1 v vcpu.VALID
+    if i = 0#u64
+    then
+      let i1 ← machineArchInst.virtualization a
+      let ip ←
+        if i1 = 2#u64
+        then do
+             let i2 ← vcpu.svm.RIP
+             vcpu.get machineStoreInst s1 v i2
+        else vcpu.read_vmcs machineStoreInst s1 v vcpu.vmx.GUEST_RIP
+      let ctl ←
+        if i1 = 2#u64
+        then
+          do
+          let i2 ← vcpu.get machineStoreInst s1 v vcpu.svm.INTERCEPT_EXC
+          i2 >>> 32#i32
+        else
+          vcpu.read_vmcs machineStoreInst s1 v
+            vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS
+      let intr ←
+        if i1 = 2#u64
+        then vcpu.get machineStoreInst s1 v vcpu.svm.EVENT_INJ
+        else
+          vcpu.read_vmcs machineStoreInst s1 v
+            vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO
+      let (_, s2) ← msg.set_mr machineStoreInst s1 t b 0#u64 ip
+      let (_, s3) ← msg.set_mr machineStoreInst s2 t b 1#u64 ctl
+      let (_, s4) ← msg.set_mr machineStoreInst s3 t b 2#u64 intr
+      let s5 ← vcpu.report_loop1 machineStoreInst s4 t v b 0#u64
+      let i2 ← vcpu.get machineStoreInst s5 v vcpu.VALID
+      let s6 ←
+        if i2 = 0#u64
+        then
+          do
+          let i3 ← machineArchInst.virtualization a
+          let flags ←
+            if i3 = 2#u64
+            then
+              do
+              let i4 ← vcpu.svm.RFLAGS
+              vcpu.get machineStoreInst s5 v i4
+            else vcpu.read_vmcs machineStoreInst s5 v vcpu.vmx.GUEST_RFLAGS
+          let int ←
+            if i3 = 2#u64
+            then vcpu.get machineStoreInst s5 v vcpu.svm.INT_STATE
+            else
+              vcpu.read_vmcs machineStoreInst s5 v
+                vcpu.vmx.GUEST_INTERRUPTABILITY
+          let cr3 ←
+            if i3 = 2#u64
+            then do
+                 let i4 ← vcpu.svm.CR3
+                 vcpu.get machineStoreInst s5 v i4
+            else ok 0#u64
+          let cr2 ←
+            if i3 = 2#u64
+            then do
+                 let i4 ← vcpu.svm.CR2
+                 vcpu.get machineStoreInst s5 v i4
+            else vcpu.get machineStoreInst s5 v vcpu.CR2
+          let (_, s7) ← msg.set_mr machineStoreInst s5 t b 7#u64 flags
+          let (_, s8) ← msg.set_mr machineStoreInst s7 t b 8#u64 int
+          let (_, s9) ← msg.set_mr machineStoreInst s8 t b 9#u64 cr3
+          let (_, s10) ← msg.set_mr machineStoreInst s9 t b 29#u64 cr2
+          ok s10
+        else ok s5
+      let s7 ← vcpu.set machineStoreInst s6 v vcpu.PENDING 0#u64
+      let s8 ←
+        obj.Tcb.set_reg machineStoreInst t s7 layout.reg.MSG_INFO 1#u64
+      let s9 ← obj.Tcb.set_reg machineStoreInst t s8 layout.reg.BADGE 0#u64
+      sched.set_thread_state machineStoreInst s9 t sched.TS_RUNNING
+    else
+      let s2 ←
+        if i = 0#u64
+        then
+          do
+          let i1 ← machineArchInst.virtualization a
+          let flags ←
+            if i1 = 2#u64
+            then
+              do
+              let i2 ← vcpu.svm.RFLAGS
+              vcpu.get machineStoreInst s1 v i2
+            else vcpu.read_vmcs machineStoreInst s1 v vcpu.vmx.GUEST_RFLAGS
+          let int ←
+            if i1 = 2#u64
+            then vcpu.get machineStoreInst s1 v vcpu.svm.INT_STATE
+            else
+              vcpu.read_vmcs machineStoreInst s1 v
+                vcpu.vmx.GUEST_INTERRUPTABILITY
+          let cr3 ←
+            if i1 = 2#u64
+            then do
+                 let i2 ← vcpu.svm.CR3
+                 vcpu.get machineStoreInst s1 v i2
+            else ok 0#u64
+          let cr2 ←
+            if i1 = 2#u64
+            then do
+                 let i2 ← vcpu.svm.CR2
+                 vcpu.get machineStoreInst s1 v i2
+            else vcpu.get machineStoreInst s1 v vcpu.CR2
+          let (_, s3) ← msg.set_mr machineStoreInst s1 t b 7#u64 flags
+          let (_, s4) ← msg.set_mr machineStoreInst s3 t b 8#u64 int
+          let (_, s5) ← msg.set_mr machineStoreInst s4 t b 9#u64 cr3
+          let (_, s6) ← msg.set_mr machineStoreInst s5 t b 29#u64 cr2
+          ok s6
+        else ok s1
+      let s3 ← vcpu.set machineStoreInst s2 v vcpu.PENDING 0#u64
+      let s4 ←
+        obj.Tcb.set_reg machineStoreInst t s3 layout.reg.MSG_INFO 1#u64
+      let s5 ← obj.Tcb.set_reg machineStoreInst t s4 layout.reg.BADGE 0#u64
+      sched.set_thread_state machineStoreInst s5 t sched.TS_RUNNING
+  else
+    let i ← machineArchInst.virtualization a
+    let (ip, ctl, intr) ←
+      if v = 0#u64
+      then ok (0#u64, 0#u64, 0#u64)
+      else
+        if i = 2#u64
+        then
+          do
+          let i1 ← vcpu.svm.RIP
+          let i2 ← vcpu.get machineStoreInst s v i1
+          let i3 ← vcpu.get machineStoreInst s v vcpu.svm.INTERCEPT_EXC
+          let i4 ← i3 >>> 32#i32
+          let i5 ← vcpu.get machineStoreInst s v vcpu.svm.EVENT_INJ
+          ok (i2, i4, i5)
+        else
+          do
+          let i1 ← vcpu.read_vmcs machineStoreInst s v vcpu.vmx.GUEST_RIP
+          let i2 ←
+            vcpu.read_vmcs machineStoreInst s v
+              vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS
+          let i3 ←
+            vcpu.read_vmcs machineStoreInst s v
+              vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO
+          ok (i1, i2, i3)
+    let (_, s1) ← msg.set_mr machineStoreInst s t b 0#u64 ip
+    let (_, s2) ← msg.set_mr machineStoreInst s1 t b 1#u64 ctl
+    let (_, s3) ← msg.set_mr machineStoreInst s2 t b 2#u64 intr
+    let s4 ← obj.Tcb.set_reg machineStoreInst t s3 layout.reg.MSG_INFO 0#u64
+    let s5 ← obj.Tcb.set_reg machineStoreInst t s4 layout.reg.BADGE badge
+    sched.set_thread_state machineStoreInst s5 t sched.TS_RUNNING
+
+/-- [fl4_core::layout::ntfn::TAIL_STATE]
+    Source: 'crates/fl4-core/src/layout.rs', lines 46:4-46:34
+    Visibility: public -/
+@[global_simps, irreducible] def layout.ntfn.TAIL_STATE : Std.U64 := 8#u64
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::tail_state]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
+    Visibility: public -/
+def obj.Ntfn.tail_state
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
+  Result Std.U64
+  := do
+  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.TAIL_STATE)
+  machineStoreInst.read s i
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::tail]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 144:4-146:5
+    Visibility: public -/
+def obj.Ntfn.tail
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
+  Result Std.U64
+  := do
+  let i ← obj.Ntfn.tail_state machineStoreInst self s
+  let i1 ← lift (~~~ 3#u64)
+  ok (i &&& i1)
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_tail_state]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
+    Visibility: public -/
+def obj.Ntfn.set_tail_state
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
+  (s : S) (v : Std.U64) :
+  Result S
+  := do
+  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.TAIL_STATE)
+  machineStoreInst.write s i v
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_state]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 151:4-154:5
+    Visibility: public -/
+def obj.Ntfn.set_state
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
+  (s : S) (state : Std.U64) :
+  Result S
+  := do
+  let t ← obj.Ntfn.tail machineStoreInst self s
+  let i ← lift (state &&& 3#u64)
+  let i1 ← lift (t ||| i)
+  obj.Ntfn.set_tail_state machineStoreInst self s i1
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::state]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 141:4-143:5
+    Visibility: public -/
+def obj.Ntfn.state
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
+  Result Std.U64
+  := do
+  let i ← obj.Ntfn.tail_state machineStoreInst self s
+  ok (i &&& 3#u64)
+
+/-- [fl4_core::obj::NTFN_ACTIVE]
+    Source: 'crates/fl4-core/src/obj.rs', lines 138:0-138:31
+    Visibility: public -/
+@[global_simps, irreducible] def obj.NTFN_ACTIVE : Std.U64 := 2#u64
+
+/-- [fl4_core::obj::NTFN_IDLE]
+    Source: 'crates/fl4-core/src/obj.rs', lines 136:0-136:29
+    Visibility: public -/
+@[global_simps, irreducible] def obj.NTFN_IDLE : Std.U64 := 0#u64
+
+/-- [fl4_core::layout::ntfn::BADGE]
+    Source: 'crates/fl4-core/src/layout.rs', lines 47:4-47:30
+    Visibility: public -/
+@[global_simps, irreducible] def layout.ntfn.BADGE : Std.U64 := 16#u64
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::badge]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
+    Visibility: public -/
+def obj.Ntfn.badge
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
+  Result Std.U64
+  := do
+  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BADGE)
+  machineStoreInst.read s i
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::bound_ntfn]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.bound_ntfn
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.BOUND_NTFN
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::vcpu::check]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1054:0-1071:1
+    Visibility: public -/
+def vcpu.check
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
+  Result (S × A)
+  := do
+  let i ← obj.Tcb.state machineStoreInst t s
+  if i != sched.TS_RUNNING_VM
+  then ok (s, a)
+  else
+    let v ← vcpu.bound machineStoreInst s t
+    if v != 0#u64
+    then
+      let i1 ← vcpu.get machineStoreInst s v vcpu.PENDING
+      if i1 != 0#u64
+      then
+        let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
+        ok (s1, a)
+      else
+        let i2 ← obj.Tcb.bound_ntfn machineStoreInst t s
+        if i2 != 0#u64
+        then
+          let i3 ← obj.Ntfn.state machineStoreInst i2 s
+          if i3 = obj.NTFN_ACTIVE
+          then
+            let badge ← obj.Ntfn.badge machineStoreInst i2 s
+            let s1 ← obj.Ntfn.set_state machineStoreInst i2 s obj.NTFN_IDLE
+            let s2 ←
+              vcpu.report machineStoreInst machineArchInst s1 a t badge
+            ok (s2, a)
+          else
+            if v = 0#u64
+            then
+              let s1 ←
+                vcpu.report machineStoreInst machineArchInst s a t 0#u64
+              ok (s1, a)
+            else ok (s, a)
+        else
+          if v = 0#u64
+          then
+            let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
+            ok (s1, a)
+          else ok (s, a)
+    else
+      let i1 ← obj.Tcb.bound_ntfn machineStoreInst t s
+      if i1 != 0#u64
+      then
+        let i2 ← obj.Ntfn.state machineStoreInst i1 s
+        if i2 = obj.NTFN_ACTIVE
+        then
+          let badge ← obj.Ntfn.badge machineStoreInst i1 s
+          let s1 ← obj.Ntfn.set_state machineStoreInst i1 s obj.NTFN_IDLE
+          let s2 ← vcpu.report machineStoreInst machineArchInst s1 a t badge
+          ok (s2, a)
+        else
+          if v = 0#u64
+          then
+            let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
+            ok (s1, a)
+          else ok (s, a)
+      else
+        if v = 0#u64
+        then
+          let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
+          ok (s1, a)
+        else ok (s, a)
 
 /-- [fl4_core::layout::sc::YIELD_FROM]
     Source: 'crates/fl4-core/src/layout.rs', lines 71:4-71:35
@@ -7249,7 +7865,7 @@ def msginfo.MessageInfo.to_word
   ok (i7 ||| i8)
 
 /-- [fl4_core::msg::set_msg_info]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 106:0-108:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 107:0-109:1
     Visibility: public -/
 def msg.set_msg_info
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -7258,136 +7874,6 @@ def msg.set_msg_info
   := do
   let i ← msginfo.MessageInfo.to_word m
   obj.Tcb.set_reg machineStoreInst t s layout.reg.MSG_INFO i
-
-/-- [fl4_core::msg::buf_set]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 49:0-51:1
-    Visibility: public -/
-def msg.buf_set
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (buf : Std.U64)
-  (i : Std.U64) (v : Std.U64) :
-  Result S
-  := do
-  let i1 ← lift (core.num.U64.wrapping_mul i 8#u64)
-  let i2 ← lift (core.num.U64.wrapping_add buf i1)
-  machineStoreInst.write s i2 v
-
-/-- [fl4_core::msg::set_mr]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 71:0-81:1
-    Visibility: public -/
-def msg.set_mr
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (buf : Std.U64) (i : Std.U64) (v : Std.U64) :
-  Result (Std.U64 × S)
-  := do
-  if i < msg.N_MSG_REGISTERS
-  then
-    let i1 ← msg.msg_register i
-    let s1 ← obj.Tcb.set_reg machineStoreInst t s i1 v
-    let i2 ← lift (core.num.U64.wrapping_add i 1#u64)
-    ok (i2, s1)
-  else
-    if buf != 0#u64
-    then
-      let i1 ← lift (core.num.U64.wrapping_add i 1#u64)
-      let s1 ← msg.buf_set machineStoreInst s buf i1 v
-      let i2 ← lift (core.num.U64.wrapping_add i 1#u64)
-      ok (i2, s1)
-    else ok (msg.N_MSG_REGISTERS, s)
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::slot]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 78:4-80:5
-    Visibility: public -/
-def obj.Tcb.slot (self : obj.Tcb) (i : Std.U64) : Result obj.Slot := do
-  let i1 ← lift (core.num.U64.wrapping_mul i layout.cte.SIZE)
-  let i2 ← lift (core.num.U64.wrapping_add self i1)
-  ok i2
-
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::ipc_buffer]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.ipc_buffer
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.IPC_BUFFER
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::capability::VM_READ_ONLY]
-    Source: 'crates/fl4-core/src/capability.rs', lines 40:0-40:32
-    Visibility: public -/
-@[global_simps, irreducible] def capability.VM_READ_ONLY : Std.U64 := 2#u64
-
-/-- [fl4_core::capability::{fl4_core::capability::FrameSize}::bits]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 13:4-19:5
-    Visibility: public -/
-def capability.FrameSize.bits
-  (self : capability.FrameSize) : Result Std.U64 := do
-  match self with
-  | capability.FrameSize.Small => ok 12#u64
-  | capability.FrameSize.Large => ok 21#u64
-  | capability.FrameSize.Huge => ok 30#u64
-
-/-- [fl4_core::msg::lookup_ipc_buffer]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 27:0-43:1
-    Visibility: public -/
-def msg.lookup_ipc_buffer
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (is_receiver : Bool) (t : obj.Tcb) :
-  Result Std.U64
-  := do
-  let w ← obj.Tcb.ipc_buffer machineStoreInst t s
-  let s1 ← obj.Tcb.slot t layout.tcb.SLOT_BUFFER
-  let c ← obj.Slot.cap machineStoreInst s1 s
-  match c with
-  | capability.Cap.Null => ok 0#u64
-  | capability.Cap.Untyped _ _ _ _ => ok 0#u64
-  | capability.Cap.Endpoint _ _ _ _ _ _ => ok 0#u64
-  | capability.Cap.Notification _ _ _ _ => ok 0#u64
-  | capability.Cap.Reply _ _ => ok 0#u64
-  | capability.Cap.CNode _ _ _ _ => ok 0#u64
-  | capability.Cap.Thread _ => ok 0#u64
-  | capability.Cap.IrqControl => ok 0#u64
-  | capability.Cap.IrqHandler _ => ok 0#u64
-  | capability.Cap.Zombie _ _ _ => ok 0#u64
-  | capability.Cap.Domain => ok 0#u64
-  | capability.Cap.SchedContext _ _ => ok 0#u64
-  | capability.Cap.SchedControl _ => ok 0#u64
-  | capability.Cap.Frame ptr size rights is_device _ _ _ _ =>
-    if is_device
-    then ok 0#u64
-    else
-      if rights = capability.VM_READ_WRITE
-      then
-        let bits ← capability.FrameSize.bits size
-        let i ← lift (bits &&& 63#u64)
-        let i1 ← 1#u64 <<< i
-        let i2 ← lift (core.num.U64.wrapping_sub i1 1#u64)
-        let i3 ← lift (w &&& i2)
-        ok (core.num.U64.wrapping_add ptr i3)
-      else
-        if is_receiver
-        then ok 0#u64
-        else
-          if rights = capability.VM_READ_ONLY
-          then
-            let bits ← capability.FrameSize.bits size
-            let i ← lift (bits &&& 63#u64)
-            let i1 ← 1#u64 <<< i
-            let i2 ← lift (core.num.U64.wrapping_sub i1 1#u64)
-            let i3 ← lift (w &&& i2)
-            ok (core.num.U64.wrapping_add ptr i3)
-          else ok 0#u64
-  | capability.Cap.PageTable _ _ _ _ => ok 0#u64
-  | capability.Cap.PageDirectory _ _ _ _ => ok 0#u64
-  | capability.Cap.Pdpt _ _ _ _ => ok 0#u64
-  | capability.Cap.Pml4 _ _ _ => ok 0#u64
-  | capability.Cap.Vcpu _ => ok 0#u64
-  | capability.Cap.Ept _ _ _ _ _ => ok 0#u64
-  | capability.Cap.AsidControl => ok 0#u64
-  | capability.Cap.AsidPool _ _ => ok 0#u64
-  | capability.Cap.IoPortControl => ok 0#u64
-  | capability.Cap.IoPort _ _ _ => ok 0#u64
 
 /-- [fl4_core::schedcontext::set_consumed]:
     Source: 'crates/fl4-core/src/schedcontext.rs', lines 121:0-129:1 -/
@@ -7431,7 +7917,7 @@ def schedcontext.complete_yield_to
     else ok (s, a)
 
 /-- [fl4_core::sched::activate_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 664:0-675:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 679:0-690:1
     Visibility: public -/
 def sched.activate_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -7454,7 +7940,7 @@ def sched.activate_thread
   else ok (s1, a1)
 
 /-- [fl4_core::smp::send_pending]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 93:0-100:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 112:0-119:1
     Visibility: public -/
 def smp.send_pending
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -7501,7 +7987,7 @@ def obj.Sc.refill_head
   machineStoreInst.read s i
 
 /-- [fl4_core::sporadic::single]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 101:0-103:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 110:0-112:1
     Visibility: public -/
 def sporadic.single
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7512,7 +7998,7 @@ def sporadic.single
   ok (i = i1)
 
 /-- [fl4_core::sporadic::next_index]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 79:0-85:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 88:0-94:1 -/
 def sporadic.next_index
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
   (i : Std.U64) :
@@ -7565,7 +8051,7 @@ def obj.Sc.r_time
   machineStoreInst.read s i1
 
 /-- [fl4_core::sporadic::get]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 52:0-54:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 55:0-57:1
     Visibility: public -/
 def sporadic.get
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -7577,7 +8063,7 @@ def sporadic.get
   ok { time := i1, amount := i2 }
 
 /-- [fl4_core::sporadic::head]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 61:0-63:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 68:0-70:1
     Visibility: public -/
 def sporadic.head
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7587,7 +8073,7 @@ def sporadic.head
   sporadic.get machineStoreInst s sc i
 
 /-- [fl4_core::sporadic::head_overlapping]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 209:0-217:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:0-238:1 -/
 def sporadic.head_overlapping
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
   Result Bool
@@ -7615,7 +8101,7 @@ def obj.Sc.set_refill_head
   machineStoreInst.write s i v
 
 /-- [fl4_core::sporadic::pop_head]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 142:0-148:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 163:0-169:1 -/
 def sporadic.pop_head
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
   Result (sporadic.Refill × S)
@@ -7642,7 +8128,7 @@ def obj.Sc.period
   machineStoreInst.read s i
 
 /-- [fl4_core::sporadic::is_round_robin]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 138:0-140:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 159:0-161:1
     Visibility: public -/
 def sporadic.is_round_robin
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7666,7 +8152,7 @@ def sporadic.cur_time
   obj.node_get machineStoreInst s i layout.node.CUR_TIME
 
 /-- [fl4_core::sporadic::ready]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 118:0-120:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 133:0-135:1
     Visibility: public -/
 def sporadic.ready
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7700,7 +8186,7 @@ def obj.Sc.set_r_time
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::sporadic::put]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 56:0-59:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 61:0-64:1
     Visibility: public -/
 def sporadic.put
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -7711,7 +8197,7 @@ def sporadic.put
   obj.Sc.set_r_amount machineStoreInst sc s1 i r.amount
 
 /-- [fl4_core::sporadic::set_head]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 69:0-72:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 78:0-81:1 -/
 def sporadic.set_head
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
   (r : sporadic.Refill) :
@@ -7721,7 +8207,7 @@ def sporadic.set_head
   sporadic.put machineStoreInst s sc h r
 
 /-- [fl4_core::sporadic::unblock_check]: loop body 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 278:8-283:9
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 301:8-306:9
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.unblock_check_loop.body
@@ -7745,7 +8231,7 @@ def sporadic.unblock_check_loop.body
   else ok (done s)
 
 /-- [fl4_core::sporadic::unblock_check]: loop 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 278:8-283:9
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 301:8-306:9
     Visibility: public -/
 @[rust_loop]
 def sporadic.unblock_check_loop
@@ -7759,7 +8245,7 @@ def sporadic.unblock_check_loop
     (s, fuel)
 
 /-- [fl4_core::sporadic::unblock_check]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 267:0-285:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 290:0-308:1
     Visibility: public -/
 def sporadic.unblock_check
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7799,7 +8285,7 @@ def obj.Sc.sporadic
   machineStoreInst.read s i
 
 /-- [fl4_core::sporadic::sc_constant_bandwidth]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 134:0-136:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 153:0-155:1
     Visibility: public -/
 def sporadic.sc_constant_bandwidth
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7820,7 +8306,7 @@ def obj.Sc.set_refill_tail
   machineStoreInst.write s i v
 
 /-- [fl4_core::sporadic::add_tail]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 150:0-155:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 171:0-176:1 -/
 def sporadic.add_tail
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
   (r : sporadic.Refill) :
@@ -7832,7 +8318,7 @@ def sporadic.add_tail
   sporadic.put machineStoreInst s1 sc nt r
 
 /-- [fl4_core::sporadic::size]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 87:0-95:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 96:0-104:1
     Visibility: public -/
 def sporadic.size
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7851,7 +8337,7 @@ def sporadic.size
     ok (core.num.U64.wrapping_add i i2)
 
 /-- [fl4_core::sporadic::full]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 97:0-99:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 106:0-108:1
     Visibility: public -/
 def sporadic.full
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7862,7 +8348,7 @@ def sporadic.full
   ok (i = i1)
 
 /-- [fl4_core::sporadic::set_tail]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 74:0-77:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 83:0-86:1 -/
 def sporadic.set_tail
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
   (r : sporadic.Refill) :
@@ -7872,7 +8358,7 @@ def sporadic.set_tail
   sporadic.put machineStoreInst s sc t r
 
 /-- [fl4_core::sporadic::tail]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 65:0-67:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 72:0-74:1
     Visibility: public -/
 def sporadic.tail
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -7882,7 +8368,7 @@ def sporadic.tail
   sporadic.get machineStoreInst s sc i
 
 /-- [fl4_core::sporadic::schedule_used]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 198:0-207:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 219:0-228:1 -/
 def sporadic.schedule_used
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
   (new : sporadic.Refill) :
@@ -7904,7 +8390,7 @@ def sporadic.schedule_used
     else sporadic.add_tail machineStoreInst s sc new
 
 /-- [fl4_core::sporadic::max_period_us]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 30:0-32:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 31:0-33:1
     Visibility: public -/
 def sporadic.max_period_us
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) :
@@ -7914,7 +8400,7 @@ def sporadic.max_period_us
   i / 8#u64
 
 /-- [fl4_core::sporadic::max_release_time]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 34:0-37:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 35:0-38:1
     Visibility: public -/
 def sporadic.max_release_time
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) :
@@ -7926,7 +8412,7 @@ def sporadic.max_release_time
   ok (core.num.U64.wrapping_sub core.num.U64.MAX i1)
 
 /-- [fl4_core::sporadic::min_budget]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 21:0-23:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 22:0-24:1
     Visibility: public -/
 def sporadic.min_budget
   {A : Type _} (machineArchInst : machine.Arch A) (a : A) :
@@ -7946,7 +8432,7 @@ def sporadic.min_budget
 @[global_simps, irreducible] def layout.WALK_FUEL : Std.U64 := core.num.U64.MAX
 
 /-- [fl4_core::sporadic::budget_check]: loop body 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-247:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 251:4-269:5
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.budget_check_loop0.body
@@ -7986,7 +8472,7 @@ def sporadic.budget_check_loop0.body
   else ok (done (s, usage))
 
 /-- [fl4_core::sporadic::budget_check]: loop 0:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 230:4-247:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 251:4-269:5
     Visibility: public -/
 @[rust_loop]
 def sporadic.budget_check_loop0
@@ -8000,7 +8486,7 @@ def sporadic.budget_check_loop0
     (s, usage, fuel)
 
 /-- [fl4_core::sporadic::budget_check]: loop body 1:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 258:4-263:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 280:4-285:5
     Visibility: public -/
 @[rust_loop_body]
 def sporadic.budget_check_loop1.body
@@ -8029,7 +8515,7 @@ def sporadic.budget_check_loop1.body
   else ok (done s)
 
 /-- [fl4_core::sporadic::budget_check]: loop 1:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 258:4-263:5
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 280:4-285:5
     Visibility: public -/
 @[rust_loop]
 def sporadic.budget_check_loop1
@@ -8043,7 +8529,7 @@ def sporadic.budget_check_loop1
     (s, fuel2)
 
 /-- [fl4_core::sporadic::budget_check]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 220:0-264:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 241:0-286:1
     Visibility: public -/
 def sporadic.budget_check
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8150,7 +8636,7 @@ impl_def obj.Sc.Insts.CoreCmpPartialEqSc : core.cmp.PartialEq obj.Sc obj.Sc
 }
 
 /-- [fl4_core::sched::commit_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 417:0-437:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 425:0-445:1
     Visibility: public -/
 def sched.commit_time
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8204,7 +8690,8 @@ def sched.set_reprogram
   obj.node_set machineStoreInst s c layout.node.REPROGRAM 1#u64
 
 /-- [fl4_core::sched::switch_sched_context]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 606:0-620:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 620:0-634:1
+    Visibility: public -/
 def sched.switch_sched_context
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -8257,7 +8744,7 @@ def sched.set_cur_thread
   obj.node_set machineStoreInst s c layout.node.CUR_THREAD t
 
 /-- [fl4_core::vspace::set_kernel_vm_root]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 202:0-205:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 206:0-209:1
     Visibility: public -/
 def vspace.set_kernel_vm_root
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8269,7 +8756,7 @@ def vspace.set_kernel_vm_root
   ok (s, a1)
 
 /-- [fl4_core::sched::switch_to_idle_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 581:0-585:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 592:0-596:1
     Visibility: public -/
 def sched.switch_to_idle_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8321,17 +8808,6 @@ def tcbqueue.prev
   | tcbqueue.Link.Sched => obj.Tcb.sched_prev machineStoreInst t s
   | tcbqueue.Link.Ep => obj.Tcb.ep_prev machineStoreInst t s
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::ep_next]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
-    Visibility: public -/
-def obj.Tcb.ep_next
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.EP_NEXT
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
-
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::sched_next]:
     Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
     Visibility: public -/
@@ -8340,6 +8816,17 @@ def obj.Tcb.sched_next
   Result Std.U64
   := do
   let i ← layout.tcb.SCHED_NEXT
+  let i1 ← lift (core.num.U64.wrapping_add self i)
+  machineStoreInst.read s i1
+
+/-- [fl4_core::obj::{fl4_core::obj::Tcb}::ep_next]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+    Visibility: public -/
+def obj.Tcb.ep_next
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
+  Result Std.U64
+  := do
+  let i ← layout.tcb.EP_NEXT
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.read s i1
 
@@ -8424,7 +8911,7 @@ def tcbqueue.remove
   ok (r, s3)
 
 /-- [fl4_core::sched::remove_from_bitmap]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 198:0-208:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 202:0-212:1 -/
 def sched.remove_from_bitmap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64)
   (dom : Std.U64) (prio : Std.U64) :
@@ -8453,7 +8940,7 @@ def sched.remove_from_bitmap
   else ok s1
 
 /-- [fl4_core::sched::dequeue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 278:0-293:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 284:0-299:1
     Visibility: public -/
 def sched.dequeue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -8519,7 +9006,7 @@ def vspace.asid_table
 @[global_simps, irreducible] def vspace.ASID_LOW_BITS : Std.U64 := 9#u64
 
 /-- [fl4_core::vspace::find_asid]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 147:0-157:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 148:0-158:1
     Visibility: public -/
 def vspace.find_asid
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) :
@@ -8539,7 +9026,7 @@ def vspace.find_asid
     else ok (core.result.Result.Ok root)
 
 /-- [fl4_core::vspace::find_vspace_for_asid]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 159:0-162:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 162:0-165:1
     Visibility: public -/
 def vspace.find_vspace_for_asid
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) :
@@ -8558,7 +9045,7 @@ def vspace.find_vspace_for_asid
       Std.U64 (core.convert.FromSame error.LookupFault) residual
 
 /-- [fl4_core::vspace::set_vm_root]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 192:0-200:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 196:0-204:1
     Visibility: public -/
 def vspace.set_vm_root
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -8629,7 +9116,7 @@ def vspace.set_vm_root
     vspace.set_kernel_vm_root machineStoreInst machineArchInst s a
 
 /-- [fl4_core::sched::switch_to_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 575:0-579:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 586:0-590:1 -/
 def sched.switch_to_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -8641,7 +9128,7 @@ def sched.switch_to_thread
   ok (s3, a1)
 
 /-- [fl4_core::sched::highest_set_bit]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 211:0-213:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 215:0-217:1 -/
 def sched.highest_set_bit (w : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.leading_zeros w)
   let i1 ← lift (UScalar.cast .U64 i)
@@ -8649,7 +9136,7 @@ def sched.highest_set_bit (w : Std.U64) : Result Std.U64 := do
   ok (i2 &&& 63#u64)
 
 /-- [fl4_core::sched::highest_prio]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 215:0-223:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 219:0-227:1
     Visibility: public -/
 def sched.highest_prio
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dom : Std.U64) :
@@ -8669,7 +9156,7 @@ def sched.highest_prio
   ok (i3 ||| i4)
 
 /-- [fl4_core::sched::choose_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 587:0-597:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 599:0-609:1 -/
 def sched.choose_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -8692,7 +9179,7 @@ def sched.choose_thread
   else sched.switch_to_idle_thread machineStoreInst machineArchInst s a
 
 /-- [fl4_core::sched::dom_sched_duration]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 566:0-568:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 576:0-578:1
     Visibility: public -/
 def sched.dom_sched_duration
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -8705,7 +9192,7 @@ def sched.dom_sched_duration
   obj.ks_get machineStoreInst s i4
 
 /-- [fl4_core::sched::dom_sched_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 562:0-564:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 572:0-574:1
     Visibility: public -/
 def sched.dom_sched_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -8737,7 +9224,7 @@ def sched.dom_sched_domain
 @[global_simps, irreducible] def layout.ks.DOMAIN_TIME : Std.U64 := 16#u64
 
 /-- [fl4_core::sched::next_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 548:0-560:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 558:0-570:1 -/
 def sched.next_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let i ← obj.ks_get machineStoreInst s layout.ks.DOM_SCHED_IDX
@@ -8769,7 +9256,7 @@ def sched.domain_time
   obj.ks_get machineStoreInst s layout.ks.DOMAIN_TIME
 
 /-- [fl4_core::sched::schedule_choose_new_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 599:0-604:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 612:0-617:1 -/
 def sched.schedule_choose_new_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -9763,19 +10250,34 @@ def obj.Tcb.timer_badge
   let i1 ← lift (core.num.U64.wrapping_add self i)
   machineStoreInst.read s i1
 
-/-- [fl4_core::obj::{fl4_core::obj::Tcb}::bound_ntfn]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
+/-- [fl4_core::vcpu::signal_completes]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1077:0-1080:1
     Visibility: public -/
-def obj.Tcb.bound_ntfn
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Tcb) (s : S) :
-  Result Std.U64
+def vcpu.signal_completes
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result Bool
   := do
-  let i ← layout.tcb.BOUND_NTFN
-  let i1 ← lift (core.num.U64.wrapping_add self i)
-  machineStoreInst.read s i1
+  let v ← vcpu.bound machineStoreInst s t
+  if v != 0#u64
+  then let i ← vcpu.get machineStoreInst s v vcpu.PENDING
+       ok (i = 0#u64)
+  else ok false
+
+/-- [fl4_core::sporadic::sc_sporadic]:
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 149:0-151:1
+    Visibility: public -/
+def sporadic.sc_sporadic
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
+  Result Bool
+  := do
+  let b ← obj.Sc.is_null sc
+  if b
+  then ok false
+  else let i ← obj.Sc.sporadic machineStoreInst sc s
+       ok (i != 0#u64)
 
 /-- [fl4_core::smp::remote_reschedule]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 66:0-73:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 83:0-90:1
     Visibility: public -/
 def smp.remote_reschedule
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9794,7 +10296,7 @@ def smp.remote_reschedule
   else ok (s, a)
 
 /-- [fl4_core::smp::remote_tcb_stall]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 29:0-35:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 46:0-52:1
     Visibility: public -/
 def smp.remote_tcb_stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9814,7 +10316,7 @@ def smp.remote_tcb_stall
   else ok (s, a)
 
 /-- [fl4_core::sched::possible_switch_to]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 357:0-369:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 365:0-377:1
     Visibility: public -/
 def sched.possible_switch_to
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -9850,55 +10352,10 @@ def sched.possible_switch_to
     Visibility: public -/
 @[global_simps, irreducible] def sched.TS_BLOCKED_ON_RECV : Std.U64 := 3#u64
 
-/-- [fl4_core::layout::ntfn::TAIL_STATE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 46:4-46:34
-    Visibility: public -/
-@[global_simps, irreducible] def layout.ntfn.TAIL_STATE : Std.U64 := 8#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::tail_state]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
-    Visibility: public -/
-def obj.Ntfn.tail_state
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
-  Result Std.U64
-  := do
-  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.TAIL_STATE)
-  machineStoreInst.read s i
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::state]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 141:4-143:5
-    Visibility: public -/
-def obj.Ntfn.state
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
-  Result Std.U64
-  := do
-  let i ← obj.Ntfn.tail_state machineStoreInst self s
-  ok (i &&& 3#u64)
-
 /-- [fl4_core::obj::NTFN_WAITING]
     Source: 'crates/fl4-core/src/obj.rs', lines 137:0-137:32
     Visibility: public -/
 @[global_simps, irreducible] def obj.NTFN_WAITING : Std.U64 := 1#u64
-
-/-- [fl4_core::obj::NTFN_IDLE]
-    Source: 'crates/fl4-core/src/obj.rs', lines 136:0-136:29
-    Visibility: public -/
-@[global_simps, irreducible] def obj.NTFN_IDLE : Std.U64 := 0#u64
-
-/-- [fl4_core::layout::ntfn::BADGE]
-    Source: 'crates/fl4-core/src/layout.rs', lines 47:4-47:30
-    Visibility: public -/
-@[global_simps, irreducible] def layout.ntfn.BADGE : Std.U64 := 16#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::badge]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
-    Visibility: public -/
-def obj.Ntfn.badge
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
-  Result Std.U64
-  := do
-  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BADGE)
-  machineStoreInst.read s i
 
 /-- [fl4_core::layout::ntfn::BOUND_TCB]
     Source: 'crates/fl4-core/src/layout.rs', lines 48:4-48:34
@@ -9926,21 +10383,23 @@ def obj.Ntfn.set_badge
   let i ← lift (core.num.U64.wrapping_add self layout.ntfn.BADGE)
   machineStoreInst.write s i v
 
-/-- [fl4_core::sporadic::sc_sporadic]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 130:0-132:1
+/-- [fl4_core::layout::ntfn::SC]
+    Source: 'crates/fl4-core/src/layout.rs', lines 49:4-49:27
     Visibility: public -/
-def sporadic.sc_sporadic
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
-  Result Bool
+@[global_simps, irreducible] def layout.ntfn.SC : Std.U64 := 32#u64
+
+/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::sc]:
+    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
+    Visibility: public -/
+def obj.Ntfn.sc
+  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
+  Result Std.U64
   := do
-  let b ← obj.Sc.is_null sc
-  if b
-  then ok false
-  else let i ← obj.Sc.sporadic machineStoreInst sc s
-       ok (i != 0#u64)
+  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.SC)
+  machineStoreInst.read s i
 
 /-- [fl4_core::notification::unblock_sporadic]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 70:0-75:1 -/
+    Source: 'crates/fl4-core/src/notification.rs', lines 72:0-77:1 -/
 def notification.unblock_sporadic
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -10009,7 +10468,7 @@ def obj.Tcb.debug_next
 @[global_simps, irreducible] def layout.node.DEBUG_TCBS : Std.U64 := 88#u64
 
 /-- [fl4_core::objects::debug_remove]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 404:0-419:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 407:0-422:1
     Visibility: public -/
 def objects.debug_remove
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10034,7 +10493,7 @@ def objects.debug_remove
   obj.Tcb.set_debug_next machineStoreInst t s3 0#u64
 
 /-- [fl4_core::objects::debug_append]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 393:0-402:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 396:0-405:1
     Visibility: public -/
 def objects.debug_append
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10066,7 +10525,7 @@ def obj.Tcb.set_affinity
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::smp::migrate_tcb]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 14:0-22:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 14:0-39:1
     Visibility: public -/
 def smp.migrate_tcb
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -10100,7 +10559,7 @@ def sched.set_reprogram_on
 @[global_simps, irreducible] def layout.node.RELEASE_HEAD : Std.U64 := 64#u64
 
 /-- [fl4_core::sched::release_remove]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 302:0-314:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 308:0-320:1
     Visibility: public -/
 def sched.release_remove
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10214,7 +10673,7 @@ def schedcontext.donate
   smp.migrate_tcb machineStoreInst machineArchInst s3 a1 «to» i1
 
 /-- [fl4_core::sporadic::capacity]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 105:0-112:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 116:0-123:1
     Visibility: public -/
 def sporadic.capacity
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -10227,7 +10686,7 @@ def sporadic.capacity
   else r.amount - usage
 
 /-- [fl4_core::sporadic::sufficient]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 114:0-116:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 127:0-129:1
     Visibility: public -/
 def sporadic.sufficient
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -10275,7 +10734,7 @@ def tcbqueue.append
     ok ({ q with «end» := t }, s3)
 
 /-- [fl4_core::sched::ready_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 297:0-299:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 303:0-305:1 -/
 def sched.ready_time
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result Std.U64
@@ -10285,7 +10744,7 @@ def sched.ready_time
   ok r.time
 
 /-- [fl4_core::sched::release_enqueue]: loop body 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 332:8-335:9
+    Source: 'crates/fl4-core/src/sched.rs', lines 338:8-341:9
     Visibility: public -/
 @[rust_loop_body]
 def sched.release_enqueue_loop.body
@@ -10309,7 +10768,7 @@ def sched.release_enqueue_loop.body
     else ok (done after)
 
 /-- [fl4_core::sched::release_enqueue]: loop 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 332:8-335:9
+    Source: 'crates/fl4-core/src/sched.rs', lines 338:8-341:9
     Visibility: public -/
 @[rust_loop]
 def sched.release_enqueue_loop
@@ -10323,7 +10782,7 @@ def sched.release_enqueue_loop
     (after, fuel)
 
 /-- [fl4_core::sched::release_enqueue]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 317:0-343:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 323:0-349:1
     Visibility: public -/
 def sched.release_enqueue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10395,7 +10854,7 @@ def sched.release_enqueue
         smp.remote_queue_update machineStoreInst s3 t
 
 /-- [fl4_core::sched::postpone]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 372:0-378:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 380:0-386:1
     Visibility: public -/
 def sched.postpone
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -10440,21 +10899,6 @@ def schedcontext.resume
              ok (s1, a)
       else ok (s, a)
 
-/-- [fl4_core::layout::ntfn::SC]
-    Source: 'crates/fl4-core/src/layout.rs', lines 49:4-49:27
-    Visibility: public -/
-@[global_simps, irreducible] def layout.ntfn.SC : Std.U64 := 32#u64
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::sc]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
-    Visibility: public -/
-def obj.Ntfn.sc
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
-  Result Std.U64
-  := do
-  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.SC)
-  machineStoreInst.read s i
-
 /-- [fl4_core::notification::maybe_donate_sched_context]:
     Source: 'crates/fl4-core/src/notification.rs', lines 48:0-56:1 -/
 def notification.maybe_donate_sched_context
@@ -10479,46 +10923,6 @@ def notification.maybe_donate_sched_context
         schedcontext.resume machineStoreInst machineArchInst s1 a1 i1
       else ok (s, a)
   else ok (s, a)
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::tail]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 144:4-146:5
-    Visibility: public -/
-def obj.Ntfn.tail
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) :
-  Result Std.U64
-  := do
-  let i ← obj.Ntfn.tail_state machineStoreInst self s
-  let i1 ← lift (~~~ 3#u64)
-  ok (i &&& i1)
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_tail_state]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 17:16-19:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 128:0-134:2
-    Visibility: public -/
-def obj.Ntfn.set_tail_state
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
-  (s : S) (v : Std.U64) :
-  Result S
-  := do
-  let i ← lift (core.num.U64.wrapping_add self layout.ntfn.TAIL_STATE)
-  machineStoreInst.write s i v
-
-/-- [fl4_core::obj::{fl4_core::obj::Ntfn}::set_state]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 151:4-154:5
-    Visibility: public -/
-def obj.Ntfn.set_state
-  {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn)
-  (s : S) (state : Std.U64) :
-  Result S
-  := do
-  let t ← obj.Ntfn.tail machineStoreInst self s
-  let i ← lift (state &&& 3#u64)
-  let i1 ← lift (t ||| i)
-  obj.Ntfn.set_tail_state machineStoreInst self s i1
-
-/-- [fl4_core::obj::NTFN_ACTIVE]
-    Source: 'crates/fl4-core/src/obj.rs', lines 138:0-138:31
-    Visibility: public -/
-@[global_simps, irreducible] def obj.NTFN_ACTIVE : Std.U64 := 2#u64
 
 /-- [fl4_core::notification::set_active]:
     Source: 'crates/fl4-core/src/notification.rs', lines 43:0-46:1 -/
@@ -10650,7 +11054,7 @@ def obj.Tcb.reply_obj
   machineStoreInst.read s i1
 
 /-- [fl4_core::notification::cancel_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 163:0-166:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 189:0-192:1
     Visibility: public -/
 def notification.cancel_signal
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -10813,7 +11217,7 @@ def obj.Reply.set_tcb
   machineStoreInst.write s i v
 
 /-- [fl4_core::ipc::reply_unlink]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 157:0-160:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 161:0-164:1
     Visibility: public -/
 def ipc.reply_unlink
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (r : obj.Reply)
@@ -10824,7 +11228,7 @@ def ipc.reply_unlink
   sched.set_thread_state machineStoreInst s1 t sched.TS_INACTIVE
 
 /-- [fl4_core::ipc::reply_remove_tcb]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 216:0-233:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 222:0-239:1
     Visibility: public -/
 def ipc.reply_remove_tcb
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10863,7 +11267,7 @@ def obj.Tcb.set_fault_type
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::faults::clear_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 19:0-21:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 18:0-20:1
     Visibility: public -/
 def faults.clear_fault
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -10986,7 +11390,7 @@ def endpoint.get_queue
   ok { head := i, «end» := i1 }
 
 /-- [fl4_core::endpoint::ep_dequeue]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 34:0-40:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 35:0-41:1
     Visibility: public -/
 def endpoint.ep_dequeue
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
@@ -11002,7 +11406,7 @@ def endpoint.ep_dequeue
   else endpoint.set_queue machineStoreInst s1 ep_ptr q1 st
 
 /-- [fl4_core::ipc::cancel_ipc]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 236:0-255:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 242:0-261:1
     Visibility: public -/
 def ipc.cancel_ipc
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11055,7 +11459,7 @@ def ipc.cancel_ipc
         else ok (s1, a)
 
 /-- [fl4_core::notification::send_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 78:0-114:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 80:0-140:1
     Visibility: public -/
 def notification.send_signal
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11070,14 +11474,92 @@ def notification.send_signal
     let b ← obj.Tcb.is_null i
     if b
     then
-      let s1 ← notification.set_active machineStoreInst s n_ptr badge
       if b
-      then ok (s1, a)
+      then
+        let s1 ← notification.set_active machineStoreInst s n_ptr badge
+        if b
+        then ok (s1, a)
+        else
+          let i1 ← obj.Tcb.state machineStoreInst i s1
+          if i1 = sched.TS_RUNNING_VM
+          then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+          else ok (s1, a)
       else
-        let i1 ← obj.Tcb.state machineStoreInst i s1
+        let i1 ← obj.Tcb.state machineStoreInst i s
         if i1 = sched.TS_RUNNING_VM
-        then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
-        else ok (s1, a)
+        then
+          let i2 ← obj.Tcb.affinity machineStoreInst i s
+          let i3 ← machineStoreInst.cur_cpu s
+          if i2 = i3
+          then
+            let b1 ← vcpu.signal_completes machineStoreInst s i
+            if b1
+            then
+              let s1 ←
+                vcpu.report machineStoreInst machineArchInst s a i badge
+              let (s2, a1) ←
+                notification.maybe_donate_sched_context machineStoreInst
+                  machineArchInst s1 a i n_ptr
+              let b2 ← sched.is_schedulable machineStoreInst s2 i
+              let s3 ←
+                if b2
+                then sched.possible_switch_to machineStoreInst s2 i
+                else ok s2
+              let i4 ← obj.Tcb.sc machineStoreInst i s3
+              let b3 ← obj.Sc.is_null i4
+              if b3
+              then ok (s3, a1)
+              else
+                let b4 ← sporadic.sc_active machineStoreInst s3 i4
+                if b4
+                then
+                  let i5 ← obj.Ntfn.sc machineStoreInst n_ptr s3
+                  if i4 = i5
+                  then
+                    let b5 ← sporadic.sc_sporadic machineStoreInst s3 i4
+                    if b5
+                    then
+                      let s4 ← sched.cur_sc machineStoreInst s3
+                      let b6 ←
+                        core.cmp.PartialEq.ne.trait_default
+                          obj.Sc.Insts.CoreCmpPartialEqSc i4 s4
+                      if b6
+                      then
+                        let s5 ←
+                          sporadic.unblock_check machineStoreInst s3 i4
+                        ok (s5, a1)
+                      else ok (s3, a1)
+                    else ok (s3, a1)
+                  else ok (s3, a1)
+                else ok (s3, a1)
+            else
+              let s1 ← notification.set_active machineStoreInst s n_ptr badge
+              if b
+              then ok (s1, a)
+              else
+                let i4 ← obj.Tcb.state machineStoreInst i s1
+                if i4 = sched.TS_RUNNING_VM
+                then
+                  smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+                else ok (s1, a)
+          else
+            let s1 ← notification.set_active machineStoreInst s n_ptr badge
+            if b
+            then ok (s1, a)
+            else
+              let i4 ← obj.Tcb.state machineStoreInst i s1
+              if i4 = sched.TS_RUNNING_VM
+              then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+              else ok (s1, a)
+        else
+          let s1 ← notification.set_active machineStoreInst s n_ptr badge
+          if b
+          then ok (s1, a)
+          else
+            let i2 ← obj.Tcb.state machineStoreInst i s1
+            if i2 = sched.TS_RUNNING_VM
+            then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+            else ok (s1, a)
     else
       let i1 ← obj.Tcb.state machineStoreInst i s
       if i1 = sched.TS_BLOCKED_ON_RECV
@@ -11097,14 +11579,94 @@ def notification.send_signal
         let s6 ← notification.unblock_sporadic machineStoreInst s5 i
         ok (s6, a2)
       else
-        let s1 ← notification.set_active machineStoreInst s n_ptr badge
         if b
-        then ok (s1, a)
+        then
+          let s1 ← notification.set_active machineStoreInst s n_ptr badge
+          if b
+          then ok (s1, a)
+          else
+            let i2 ← obj.Tcb.state machineStoreInst i s1
+            if i2 = sched.TS_RUNNING_VM
+            then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+            else ok (s1, a)
         else
-          let i2 ← obj.Tcb.state machineStoreInst i s1
-          if i2 = sched.TS_RUNNING_VM
-          then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
-          else ok (s1, a)
+          if i1 = sched.TS_RUNNING_VM
+          then
+            let i2 ← obj.Tcb.affinity machineStoreInst i s
+            let i3 ← machineStoreInst.cur_cpu s
+            if i2 = i3
+            then
+              let b1 ← vcpu.signal_completes machineStoreInst s i
+              if b1
+              then
+                let s1 ←
+                  vcpu.report machineStoreInst machineArchInst s a i badge
+                let (s2, a1) ←
+                  notification.maybe_donate_sched_context machineStoreInst
+                    machineArchInst s1 a i n_ptr
+                let b2 ← sched.is_schedulable machineStoreInst s2 i
+                let s3 ←
+                  if b2
+                  then sched.possible_switch_to machineStoreInst s2 i
+                  else ok s2
+                let i4 ← obj.Tcb.sc machineStoreInst i s3
+                let b3 ← obj.Sc.is_null i4
+                if b3
+                then ok (s3, a1)
+                else
+                  let b4 ← sporadic.sc_active machineStoreInst s3 i4
+                  if b4
+                  then
+                    let i5 ← obj.Ntfn.sc machineStoreInst n_ptr s3
+                    if i4 = i5
+                    then
+                      let b5 ← sporadic.sc_sporadic machineStoreInst s3 i4
+                      if b5
+                      then
+                        let s4 ← sched.cur_sc machineStoreInst s3
+                        let b6 ←
+                          core.cmp.PartialEq.ne.trait_default
+                            obj.Sc.Insts.CoreCmpPartialEqSc i4 s4
+                        if b6
+                        then
+                          let s5 ←
+                            sporadic.unblock_check machineStoreInst s3 i4
+                          ok (s5, a1)
+                        else ok (s3, a1)
+                      else ok (s3, a1)
+                    else ok (s3, a1)
+                  else ok (s3, a1)
+              else
+                let s1 ←
+                  notification.set_active machineStoreInst s n_ptr badge
+                if b
+                then ok (s1, a)
+                else
+                  let i4 ← obj.Tcb.state machineStoreInst i s1
+                  if i4 = sched.TS_RUNNING_VM
+                  then
+                    smp.remote_tcb_stall machineStoreInst machineArchInst s1 a
+                      i
+                  else ok (s1, a)
+            else
+              let s1 ← notification.set_active machineStoreInst s n_ptr badge
+              if b
+              then ok (s1, a)
+              else
+                let i4 ← obj.Tcb.state machineStoreInst i s1
+                if i4 = sched.TS_RUNNING_VM
+                then
+                  smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+                else ok (s1, a)
+          else
+            let s1 ← notification.set_active machineStoreInst s n_ptr badge
+            if b
+            then ok (s1, a)
+            else
+              let i2 ← obj.Tcb.state machineStoreInst i s1
+              if i2 = sched.TS_RUNNING_VM
+              then smp.remote_tcb_stall machineStoreInst machineArchInst s1 a i
+              else ok (s1, a)
   else
     if st = obj.NTFN_WAITING
     then
@@ -11196,7 +11758,7 @@ def timer.fire
   timer.fire_loop machineStoreInst machineArchInst s a now 0#u64
 
 /-- [fl4_core::sched::awaken]: loop body 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 537:4-546:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 547:4-556:1
     Visibility: public -/
 @[rust_loop_body]
 def sched.awaken_loop.body
@@ -11223,7 +11785,7 @@ def sched.awaken_loop.body
   else ok (done s)
 
 /-- [fl4_core::sched::awaken]: loop 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 537:4-546:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 547:4-556:1
     Visibility: public -/
 @[rust_loop]
 def sched.awaken_loop
@@ -11235,7 +11797,7 @@ def sched.awaken_loop
     (s, fuel)
 
 /-- [fl4_core::sched::awaken]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 534:0-546:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 544:0-556:1
     Visibility: public -/
 def sched.awaken
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11247,7 +11809,7 @@ def sched.awaken
   ok (s2, a1)
 
 /-- [fl4_core::sched::is_cur_domain_expired]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 459:0-461:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 467:0-469:1
     Visibility: public -/
 def sched.is_cur_domain_expired
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -11257,7 +11819,7 @@ def sched.is_cur_domain_expired
   else ok false
 
 /-- [fl4_core::sched::check_domain_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 463:0-468:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 471:0-476:1 -/
 def sched.check_domain_time
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let b ← sched.is_cur_domain_expired machineStoreInst s
@@ -11297,7 +11859,7 @@ def sched.cur_time
 @[global_simps, irreducible] def layout.node.ARMED : Std.U64 := 80#u64
 
 /-- [fl4_core::sched::set_next_interrupt]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 381:0-414:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 389:0-422:1
     Visibility: public -/
 def sched.set_next_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11355,7 +11917,7 @@ def sched.set_next_interrupt
     ok (s1, a1)
 
 /-- [fl4_core::sched::append]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 259:0-275:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 264:0-280:1
     Visibility: public -/
 def sched.append
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -11382,7 +11944,7 @@ def sched.append
     smp.remote_queue_update machineStoreInst s4 t
 
 /-- [fl4_core::sched::is_highest_prio]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 225:0-228:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 229:0-232:1
     Visibility: public -/
 def sched.is_highest_prio
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dom : Std.U64)
@@ -11399,7 +11961,7 @@ def sched.is_highest_prio
        ok (prio >= i3)
 
 /-- [fl4_core::sched::schedule]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 623:0-661:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 637:0-675:1
     Visibility: public -/
 def sched.schedule
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11498,14 +12060,16 @@ def sched.schedule
   smp.send_pending machineStoreInst machineArchInst s6 a4
 
 /-- [fl4_core::syscall::finish]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 37:0-40:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 37:0-41:1 -/
 def syscall.finish
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
   Result (S × A)
   := do
   let (s1, a1) ← sched.schedule machineStoreInst machineArchInst s a
-  sched.activate_thread machineStoreInst machineArchInst s1 a1
+  let (s2, a2) ← sched.activate_thread machineStoreInst machineArchInst s1 a1
+  let t ← sched.cur_thread machineStoreInst s2
+  vcpu.check machineStoreInst machineArchInst s2 a2 t
 
 /-- [fl4_core::layout::sc::BADGE]
     Source: 'crates/fl4-core/src/layout.rs', lines 70:4-70:30
@@ -11595,7 +12159,7 @@ def obj.Tcb.set_lf_type
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::error::{fl4_core::error::LookupFault}::encode]:
-    Source: 'crates/fl4-core/src/error.rs', lines 102:4-111:5
+    Source: 'crates/fl4-core/src/error.rs', lines 108:4-117:5
     Visibility: public -/
 def error.LookupFault.encode
   (self : error.LookupFault) : Result (Std.U64 × Std.U64 × Std.U64) := do
@@ -11611,7 +12175,7 @@ def error.LookupFault.encode
     ok (4#u64, guard_found, i1)
 
 /-- [fl4_core::faults::set_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 24:0-44:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 24:0-50:1
     Visibility: public -/
 def faults.set_fault
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -11716,7 +12280,7 @@ def obj.Tcb.set_reply_obj
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::sched::set_blocked_on_reply]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 152:0-156:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 155:0-159:1
     Visibility: public -/
 def sched.set_blocked_on_reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -11738,7 +12302,7 @@ def obj.Sc.reply
   machineStoreInst.read s i
 
 /-- [fl4_core::ipc::reply_push]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 163:0-177:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 168:0-182:1
     Visibility: public -/
 def ipc.reply_push
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -11804,7 +12368,7 @@ def obj.Tcb.fault_w0
   machineStoreInst.read s i1
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop body 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 116:4-120:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 125:4-129:5 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -11828,7 +12392,7 @@ def faults.copy_mrs_fault_loop0.body
   else ok (done (s, i))
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 116:4-120:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 125:4-129:5 -/
 @[rust_loop]
 def faults.copy_mrs_fault_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -11841,7 +12405,7 @@ def faults.copy_mrs_fault_loop0
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop body 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 122:8-126:9 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 131:8-135:9 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -11861,7 +12425,7 @@ def faults.copy_mrs_fault_loop1.body
   else ok (done s)
 
 /-- [fl4_core::faults::copy_mrs_fault]: loop 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 122:8-126:9 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 131:8-135:9 -/
 @[rust_loop]
 def faults.copy_mrs_fault_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -11874,7 +12438,7 @@ def faults.copy_mrs_fault_loop1
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 114:0-128:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 123:0-137:1 -/
 def faults.copy_mrs_fault
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
   (receiver : obj.Tcb) (regs_list : Slice Std.U64) (buf : Std.U64) :
@@ -11888,7 +12452,7 @@ def faults.copy_mrs_fault
   else ok s1
 
 /-- [fl4_core::error::{fl4_core::error::LookupFault}::type_code]:
-    Source: 'crates/fl4-core/src/error.rs', lines 92:4-100:5
+    Source: 'crates/fl4-core/src/error.rs', lines 98:4-106:5
     Visibility: public -/
 def error.LookupFault.type_code
   (self : error.LookupFault) : Result Std.U64 := do
@@ -11902,7 +12466,7 @@ def error.LookupFault.type_code
     ok fl4_abi.consts.lookup.GuardMismatch
 
 /-- [fl4_core::faults::set_mrs_lookup_failure]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 92:0-107:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 99:0-114:1 -/
 def faults.set_mrs_lookup_failure
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (receiver : obj.Tcb) (buf : Std.U64) (lf : error.LookupFault)
@@ -11963,7 +12527,7 @@ def obj.Tcb.lf_type
   machineStoreInst.read s i1
 
 /-- [fl4_core::error::{fl4_core::error::LookupFault}::decode]:
-    Source: 'crates/fl4-core/src/error.rs', lines 113:4-123:5
+    Source: 'crates/fl4-core/src/error.rs', lines 119:4-129:5
     Visibility: public -/
 def error.LookupFault.decode
   (t : Std.U64) (w0 : Std.U64) (w1 : Std.U64) : Result error.LookupFault := do
@@ -11981,7 +12545,7 @@ def error.LookupFault.decode
       else ok error.LookupFault.InvalidRoot
 
 /-- [fl4_core::faults::lookup_failure]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 46:0-48:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 52:0-54:1 -/
 def faults.lookup_failure
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result error.LookupFault
@@ -11992,7 +12556,7 @@ def faults.lookup_failure
   error.LookupFault.decode i i1 i2
 
 /-- [fl4_core::faults::set_mrs_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 132:0-176:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 142:0-196:1
     Visibility: public -/
 def faults.set_mrs_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12070,7 +12634,7 @@ def faults.set_mrs_fault
             else ok (0#u64, s)
 
 /-- [fl4_core::ipc::do_fault_transfer]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 136:0-141:1 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 138:0-143:1 -/
 def ipc.do_fault_transfer
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (badge : Std.U64)
@@ -12109,7 +12673,7 @@ def msginfo.MessageInfo.from_word_clamped
   else ok m
 
 /-- [fl4_core::msg::msg_info]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 102:0-104:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 103:0-105:1
     Visibility: public -/
 def msg.msg_info
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -12124,7 +12688,7 @@ def msg.msg_info
 @[global_simps, irreducible] def msg.MSG_MAX_LENGTH : Std.U64 := 120#u64
 
 /-- [fl4_core::msg::copy_mrs]: loop body 0:
-    Source: 'crates/fl4-core/src/msg.rs', lines 86:4-90:5
+    Source: 'crates/fl4-core/src/msg.rs', lines 87:4-91:5
     Visibility: public -/
 @[rust_loop_body]
 def msg.copy_mrs_loop0.body
@@ -12145,7 +12709,7 @@ def msg.copy_mrs_loop0.body
   else ok (done (s, i))
 
 /-- [fl4_core::msg::copy_mrs]: loop 0:
-    Source: 'crates/fl4-core/src/msg.rs', lines 86:4-90:5
+    Source: 'crates/fl4-core/src/msg.rs', lines 87:4-91:5
     Visibility: public -/
 @[rust_loop]
 def msg.copy_mrs_loop0
@@ -12159,7 +12723,7 @@ def msg.copy_mrs_loop0
     (s, i)
 
 /-- [fl4_core::msg::copy_mrs]: loop body 1:
-    Source: 'crates/fl4-core/src/msg.rs', lines 94:4-98:5
+    Source: 'crates/fl4-core/src/msg.rs', lines 95:4-99:5
     Visibility: public -/
 @[rust_loop_body]
 def msg.copy_mrs_loop1.body
@@ -12179,7 +12743,7 @@ def msg.copy_mrs_loop1.body
   else ok (done (i, s))
 
 /-- [fl4_core::msg::copy_mrs]: loop 1:
-    Source: 'crates/fl4-core/src/msg.rs', lines 94:4-98:5
+    Source: 'crates/fl4-core/src/msg.rs', lines 95:4-99:5
     Visibility: public -/
 @[rust_loop]
 def msg.copy_mrs_loop1
@@ -12193,7 +12757,7 @@ def msg.copy_mrs_loop1
     (s, i)
 
 /-- [fl4_core::msg::copy_mrs]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 84:0-100:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 85:0-101:1
     Visibility: public -/
 def msg.copy_mrs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -12210,7 +12774,7 @@ def msg.copy_mrs
     else msg.copy_mrs_loop1 machineStoreInst s1 send_buf recv_buf n i
 
 /-- [fl4_core::objects::mask]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 68:0-74:1 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 71:0-77:1 -/
 def objects.mask (b : Std.U64) : Result Std.U64 := do
   if b >= 64#u64
   then ok core.num.U64.MAX
@@ -12220,7 +12784,7 @@ def objects.mask (b : Std.U64) : Result Std.U64 := do
     ok (core.num.U64.wrapping_sub i1 1#u64)
 
 /-- [fl4_core::objects::cap_is_physical]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 46:0-66:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 49:0-69:1
     Visibility: public -/
 def objects.cap_is_physical (c : capability.Cap) : Result Bool := do
   match c with
@@ -12255,7 +12819,7 @@ def objects.cap_is_physical (c : capability.Cap) : Result Bool := do
 @[global_simps, irreducible] def capability.ZOMBIE_TCB : Std.U64 := 65#u64
 
 /-- [fl4_core::objects::cap_size_bits]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 20:0-43:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 20:0-46:1
     Visibility: public -/
 def objects.cap_size_bits (c : capability.Cap) : Result Std.U64 := do
   match c with
@@ -12289,7 +12853,7 @@ def objects.cap_size_bits (c : capability.Cap) : Result Std.U64 := do
   | capability.Cap.IoPort _ _ _ => ok 0#u64
 
 /-- [fl4_core::capability::{fl4_core::capability::Cap}::ptr]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 246:4-266:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 247:4-267:5
     Visibility: public -/
 def capability.Cap.ptr (self : capability.Cap) : Result Std.U64 := do
   match self with
@@ -12319,7 +12883,7 @@ def capability.Cap.ptr (self : capability.Cap) : Result Std.U64 := do
   | capability.Cap.IoPort _ _ _ => ok 0#u64
 
 /-- [fl4_core::objects::same_region_as]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 77:0-124:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 80:0-127:1
     Visibility: public -/
 def objects.same_region_as
   (a : capability.Cap) (b : capability.Cap) : Result Bool := do
@@ -12946,7 +13510,7 @@ def objects.same_region_as
       else ok false
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::first_badged]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 277:4-279:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 278:4-280:5
     Visibility: public -/
 def obj.Slot.first_badged
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -12958,7 +13522,7 @@ def obj.Slot.first_badged
   ok (i2 != 0#u64)
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::revocable]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 270:4-272:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 271:4-273:5
     Visibility: public -/
 def obj.Slot.revocable
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -13097,7 +13661,7 @@ def cdt.ensure_no_children
     else ok (core.result.Result.Ok ())
 
 /-- [fl4_core::objects::derive_cap]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 198:0-221:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 201:0-224:1
     Visibility: public -/
 def objects.derive_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (slot : obj.Slot)
@@ -13182,7 +13746,7 @@ def msg.BUF_CAPS : Result Std.U64 := do let i ← msg.BUF_USER_DATA
                                         i + 1#u64
 
 /-- [fl4_core::ipc::unwrapped_badge]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 72:0-79:1 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 73:0-80:1 -/
 def ipc.unwrapped_badge
   (cap : capability.Cap) (ep : Std.U64) : Result (Option Std.U64) := do
   match cap with
@@ -13244,7 +13808,7 @@ def msg.BUF_RECV_DEPTH : Result Std.U64 := do
   i + 1#u64
 
 /-- [fl4_core::cspace::lookup_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 66:0-69:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 68:0-71:1
     Visibility: public -/
 def cspace.lookup_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
@@ -13256,7 +13820,7 @@ def cspace.lookup_slot
   cspace.resolve_address_bits machineStoreInst s root cptr cspace.WORD_BITS
 
 /-- [fl4_core::cspace::lookup_cap]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 72:0-77:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 75:0-80:1
     Visibility: public -/
 def cspace.lookup_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
@@ -13272,7 +13836,7 @@ def cspace.lookup_cap
     ok (core.result.Result.Err (error.Exc.Lookup lf))
 
 /-- [fl4_core::ipc::get_receive_slot]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 46:0-67:1 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 47:0-68:1 -/
 def ipc.get_receive_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
   (buf : Std.U64) :
@@ -13302,7 +13866,7 @@ def ipc.get_receive_slot
     | core.result.Result.Err _ => ok 0#u64
 
 /-- [fl4_core::ipc::transfer_caps]: loop body 0:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 88:4-112:5 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 89:4-113:5 -/
 @[rust_loop_body]
 def ipc.transfer_caps_loop.body
   {S : Type _} (machineStoreInst : machine.Store S)
@@ -13352,7 +13916,7 @@ def ipc.transfer_caps_loop.body
   else ok (done (s, out, i))
 
 /-- [fl4_core::ipc::transfer_caps]: loop 0:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 88:4-112:5 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 89:4-113:5 -/
 @[rust_loop]
 def ipc.transfer_caps_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -13366,7 +13930,7 @@ def ipc.transfer_caps_loop
     (s, out, dest, i)
 
 /-- [fl4_core::ipc::transfer_caps]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 81:0-115:1 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 82:0-116:1 -/
 def ipc.transfer_caps
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (info : msginfo.MessageInfo) (extra : Array obj.Slot 3#usize) (ep : Std.U64)
@@ -13396,7 +13960,7 @@ def ipc.NO_EXTRA_CAPS : Array obj.Slot 3#usize :=
   Array.make 3#usize [ 0#u64, 0#u64, 0#u64 ]
 
 /-- [fl4_core::ipc::lookup_extra_caps]: loop body 0:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 34:4-43:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 35:4-44:1
     Visibility: public -/
 @[rust_loop_body]
 def ipc.lookup_extra_caps_loop.body
@@ -13425,7 +13989,7 @@ def ipc.lookup_extra_caps_loop.body
   else ok (done (core.result.Result.Ok caps))
 
 /-- [fl4_core::ipc::lookup_extra_caps]: loop 0:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 34:4-43:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 35:4-44:1
     Visibility: public -/
 @[rust_loop]
 def ipc.lookup_extra_caps_loop
@@ -13439,7 +14003,7 @@ def ipc.lookup_extra_caps_loop
     (caps, i)
 
 /-- [fl4_core::ipc::lookup_extra_caps]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 27:0-43:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 28:0-44:1
     Visibility: public -/
 def ipc.lookup_extra_caps
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
@@ -13453,7 +14017,7 @@ def ipc.lookup_extra_caps
       info.extra_caps 0#u64
 
 /-- [fl4_core::ipc::do_normal_transfer]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 118:0-133:1 -/
+    Source: 'crates/fl4-core/src/ipc.rs', lines 119:0-134:1 -/
 def ipc.do_normal_transfer
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
   (send_buf : Std.U64) (ep : Std.U64) (badge : Std.U64) (can_grant : Bool)
@@ -13480,7 +14044,7 @@ def ipc.do_normal_transfer
   obj.Tcb.set_reg machineStoreInst receiver s3 layout.reg.BADGE badge
 
 /-- [fl4_core::ipc::do_ipc_transfer]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 144:0-152:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 147:0-155:1
     Visibility: public -/
 def ipc.do_ipc_transfer
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13500,7 +14064,7 @@ def ipc.do_ipc_transfer
       receiver recv_buf
 
 /-- [fl4_core::endpoint::unblock_sporadic]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 52:0-57:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 54:0-59:1 -/
 def endpoint.unblock_sporadic
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -13532,7 +14096,7 @@ def tcbqueue.insert_after
   tcbqueue.set_next machineStoreInst s3 l before t
 
 /-- [fl4_core::tcbqueue::append_by_prio]: loop body 0:
-    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 142:8-145:9
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 143:8-146:9
     Visibility: public -/
 @[rust_loop_body]
 def tcbqueue.append_by_prio_loop.body
@@ -13556,7 +14120,7 @@ def tcbqueue.append_by_prio_loop.body
     else ok (done before)
 
 /-- [fl4_core::tcbqueue::append_by_prio]: loop 0:
-    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 142:8-145:9
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 143:8-146:9
     Visibility: public -/
 @[rust_loop]
 def tcbqueue.append_by_prio_loop
@@ -13570,7 +14134,7 @@ def tcbqueue.append_by_prio_loop
     (before, fuel)
 
 /-- [fl4_core::tcbqueue::append_by_prio]:
-    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 133:0-149:1
+    Source: 'crates/fl4-core/src/tcbqueue.rs', lines 134:0-150:1
     Visibility: public -/
 def tcbqueue.append_by_prio
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (l : tcbqueue.Link)
@@ -13597,7 +14161,7 @@ def tcbqueue.append_by_prio
         ok (q, s1)
 
 /-- [fl4_core::endpoint::ep_append]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 27:0-31:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 28:0-32:1 -/
 def endpoint.ep_append
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep : obj.Ep)
   (t : obj.Tcb) (state : Std.U64) :
@@ -13621,7 +14185,7 @@ def endpoint.ep_append
 @[global_simps, irreducible] def endpoint.FLAG_GRANT : Std.U64 := 1#u64
 
 /-- [fl4_core::endpoint::send_ipc]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 61:0-110:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 64:0-113:1
     Visibility: public -/
 def endpoint.send_ipc
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13766,7 +14330,7 @@ def endpoint.send_ipc
       ok (s7, a1)
 
 /-- [fl4_core::faults::send_fault_ipc]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 65:0-74:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 72:0-81:1 -/
 def faults.send_fault_ipc
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -13805,7 +14369,7 @@ def faults.send_fault_ipc
   | capability.Cap.IoPort _ _ _ => ok (false, s, a)
 
 /-- [fl4_core::faults::handle_timeout]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 87:0-90:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 94:0-97:1
     Visibility: public -/
 def faults.handle_timeout
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13821,7 +14385,7 @@ def faults.handle_timeout
   ok (s2, a1)
 
 /-- [fl4_core::faults::valid_timeout_handler]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 60:0-62:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 66:0-68:1
     Visibility: public -/
 def faults.valid_timeout_handler
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -13856,7 +14420,7 @@ def faults.valid_timeout_handler
   | capability.Cap.IoPort _ _ _ => ok false
 
 /-- [fl4_core::sched::end_timeslice]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 471:0-484:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 479:0-492:1
     Visibility: public -/
 def sched.end_timeslice
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13922,7 +14486,7 @@ def sched.end_timeslice
          ok (s1, a)
 
 /-- [fl4_core::sched::charge_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 487:0-510:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 495:0-518:1
     Visibility: public -/
 def sched.charge_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13970,7 +14534,7 @@ def sched.charge_budget
   else ok (s3, a)
 
 /-- [fl4_core::sched::check_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 513:0-521:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 521:0-529:1
     Visibility: public -/
 def sched.check_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -13990,7 +14554,7 @@ def sched.check_budget
     ok (false, s1, a1)
 
 /-- [fl4_core::sched::check_budget_restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 524:0-531:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 533:0-540:1
     Visibility: public -/
 def sched.check_budget_restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14010,7 +14574,7 @@ def sched.check_budget_restart
     else ok (r, s1, a1)
 
 /-- [fl4_core::sched::update_timestamp]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 440:0-457:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 448:0-465:1
     Visibility: public -/
 def sched.update_timestamp
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14051,7 +14615,7 @@ def syscall.budget_ok
   sched.check_budget_restart machineStoreInst machineArchInst s1 a1
 
 /-- [fl4_core::faults::handle_fault]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 77:0-84:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 84:0-91:1
     Visibility: public -/
 def faults.handle_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14072,7 +14636,7 @@ def faults.handle_fault
     ok (s3, a1)
 
 /-- [fl4_core::syscall::handle_user_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 551:0-557:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 651:0-657:1
     Visibility: public -/
 def syscall.handle_user_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14091,526 +14655,6 @@ def syscall.handle_user_exception
     else ok (s1, a1)
   syscall.finish machineStoreInst machineArchInst s2 a2
 
-/-- [fl4_core::vcpu::read_vmcs]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 445:0-447:1
-    Visibility: public -/
-def vcpu.read_vmcs
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
-  (f : Std.U64) :
-  Result Std.U64
-  := do
-  let i ← vcpu.vmcs_addr v f
-  machineStoreInst.read s i
-
-/-- [fl4_core::vcpu::bound]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 438:0-440:1
-    Visibility: public -/
-def vcpu.bound
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
-  Result Std.U64
-  := do
-  let i ← layout.tcb.VCPU
-  let i1 ← lift (core.num.U64.wrapping_add t i)
-  machineStoreInst.read s i1
-
-/-- [fl4_core::vcpu::get]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 432:0-434:1
-    Visibility: public -/
-def vcpu.get
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
-  (offset : Std.U64) :
-  Result Std.U64
-  := do
-  let i ← lift (core.num.U64.wrapping_add v offset)
-  machineStoreInst.read s i
-
-/-- [fl4_core::vcpu::svm::CR2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 265:4-265:38
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.CR2 : Result Std.U64 := vcpu.svm.SAVE + 576#u64
-
-/-- [fl4_core::vcpu::svm::CR3]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 249:4-249:38
-    Visibility: public -/
-@[global_simps, irreducible]
-def vcpu.svm.CR3 : Result Std.U64 := vcpu.svm.SAVE + 336#u64
-
-/-- [fl4_core::vcpu::svm::EVENT_INJ]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 225:4-225:37
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.svm.EVENT_INJ : Std.U64 := 168#u64
-
-/-- [fl4_core::vcpu::svm::INT_STATE]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 217:4-217:37
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.svm.INT_STATE : Std.U64 := 104#u64
-
-/-- [fl4_core::vcpu::svm::INTERCEPT_EXC]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 207:4-207:41
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.svm.INTERCEPT_EXC : Std.U64 := 8#u64
-
-/-- [fl4_core::vcpu::NUM_MRS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 32:0-32:28
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.NUM_MRS : Std.U64 := 30#u64
-
-/-- [fl4_core::vcpu::EXIT]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 30:0-30:29
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.EXIT : Std.U64 := 20992#u64
-
-/-- [fl4_core::vcpu::REGS]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 28:0-28:29
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.REGS : Std.U64 := 20736#u64
-
-/-- [fl4_core::vcpu::VALID]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 24:0-24:30
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.VALID : Std.U64 := 20528#u64
-
-/-- [fl4_core::vcpu::PENDING]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 23:0-23:32
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.PENDING : Std.U64 := 20520#u64
-
-/-- [fl4_core::vcpu::CR2]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 22:0-22:28
-    Visibility: public -/
-@[global_simps, irreducible] def vcpu.CR2 : Std.U64 := 20512#u64
-
-/-- [fl4_core::vcpu::report]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1060:4-1068:5
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.report_loop0.body
-  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb) (v : Std.U64)
-  (pending : Bool) (b : Std.U64) (s : S) (i : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if i < vcpu.NUM_MRS
-  then
-    let val ←
-      if v != 0#u64
-      then
-        if pending
-        then
-          do
-          let i1 ← i * 8#u64
-          let i2 ← vcpu.EXIT + i1
-          vcpu.get machineStoreInst s v i2
-        else
-          do
-          let i1 ← vcpu.get machineStoreInst s v vcpu.VALID
-          if i1 != 0#u64
-          then
-            let i2 ← i * 8#u64
-            let i3 ← vcpu.EXIT + i2
-            vcpu.get machineStoreInst s v i3
-          else ok 0#u64
-      else ok 0#u64
-    let (_, s1) ← msg.set_mr machineStoreInst s t b i val
-    let i1 ← i + 1#u64
-    ok (cont (s1, i1))
-  else ok (done s)
-
-/-- [fl4_core::vcpu::report]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1060:4-1068:5
-    Visibility: public -/
-@[rust_loop]
-def vcpu.report_loop0
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (v : Std.U64) (pending : Bool) (b : Std.U64) (i : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, i1) => vcpu.report_loop0.body machineStoreInst t v pending b s1
-      i1)
-    (s, i)
-
-/-- [fl4_core::vcpu::report]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1091:8-1094:9
-    Visibility: public -/
-@[rust_loop_body]
-def vcpu.report_loop1.body
-  {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb) (v : Std.U64)
-  (b : Std.U64) (s : S) (j : Std.U64) :
-  Result (ControlFlow (S × Std.U64) S)
-  := do
-  if j < 15#u64
-  then
-    let i ← 10#u64 + j
-    let i1 ← j * 8#u64
-    let i2 ← vcpu.REGS + i1
-    let i3 ← vcpu.get machineStoreInst s v i2
-    let (_, s1) ← msg.set_mr machineStoreInst s t b i i3
-    let j1 ← j + 1#u64
-    ok (cont (s1, j1))
-  else ok (done s)
-
-/-- [fl4_core::vcpu::report]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1091:8-1094:9
-    Visibility: public -/
-@[rust_loop]
-def vcpu.report_loop1
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
-  (v : Std.U64) (b : Std.U64) (j : Std.U64) :
-  Result S
-  := do
-  loop
-    (fun (s1, j1) => vcpu.report_loop1.body machineStoreInst t v b s1 j1)
-    (s, j)
-
-/-- [fl4_core::vcpu::report]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1055:0-1129:1
-    Visibility: public -/
-def vcpu.report
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
-  (badge : Std.U64) :
-  Result S
-  := do
-  let v ← vcpu.bound machineStoreInst s t
-  let pending ←
-    if v != 0#u64
-    then
-      do
-      let i ← vcpu.get machineStoreInst s v vcpu.PENDING
-      ok (i != 0#u64)
-    else ok false
-  let b ← msg.lookup_ipc_buffer machineStoreInst s true t
-  let s1 ← vcpu.report_loop0 machineStoreInst s t v pending b 0#u64
-  if v != 0#u64
-  then
-    let i ← vcpu.get machineStoreInst s1 v vcpu.VALID
-    if i = 0#u64
-    then
-      let i1 ← machineArchInst.virtualization a
-      let ip ←
-        if i1 = 2#u64
-        then do
-             let i2 ← vcpu.svm.RIP
-             vcpu.get machineStoreInst s1 v i2
-        else vcpu.read_vmcs machineStoreInst s1 v vcpu.vmx.GUEST_RIP
-      let ctl ←
-        if i1 = 2#u64
-        then
-          do
-          let i2 ← vcpu.get machineStoreInst s1 v vcpu.svm.INTERCEPT_EXC
-          i2 >>> 32#i32
-        else
-          vcpu.read_vmcs machineStoreInst s1 v
-            vcpu.vmx.CONTROL_PRIMARY_PROCESSOR_CONTROLS
-      let intr ←
-        if i1 = 2#u64
-        then vcpu.get machineStoreInst s1 v vcpu.svm.EVENT_INJ
-        else
-          vcpu.read_vmcs machineStoreInst s1 v
-            vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO
-      let (_, s2) ← msg.set_mr machineStoreInst s1 t b 0#u64 ip
-      let (_, s3) ← msg.set_mr machineStoreInst s2 t b 1#u64 ctl
-      let (_, s4) ← msg.set_mr machineStoreInst s3 t b 2#u64 intr
-      let s5 ← vcpu.report_loop1 machineStoreInst s4 t v b 0#u64
-      let s6 ←
-        if v != 0#u64
-        then
-          do
-          let i2 ← vcpu.get machineStoreInst s5 v vcpu.VALID
-          if i2 = 0#u64
-          then
-            let i3 ← machineArchInst.virtualization a
-            let flags ←
-              if i3 = 2#u64
-              then
-                do
-                let i4 ← vcpu.svm.RFLAGS
-                vcpu.get machineStoreInst s5 v i4
-              else vcpu.read_vmcs machineStoreInst s5 v vcpu.vmx.GUEST_RFLAGS
-            let int ←
-              if i3 = 2#u64
-              then vcpu.get machineStoreInst s5 v vcpu.svm.INT_STATE
-              else
-                vcpu.read_vmcs machineStoreInst s5 v
-                  vcpu.vmx.GUEST_INTERRUPTABILITY
-            let cr3 ←
-              if i3 = 2#u64
-              then do
-                   let i4 ← vcpu.svm.CR3
-                   vcpu.get machineStoreInst s5 v i4
-              else ok 0#u64
-            let cr2 ←
-              if i3 = 2#u64
-              then do
-                   let i4 ← vcpu.svm.CR2
-                   vcpu.get machineStoreInst s5 v i4
-              else vcpu.get machineStoreInst s5 v vcpu.CR2
-            let (_, s7) ← msg.set_mr machineStoreInst s5 t b 7#u64 flags
-            let (_, s8) ← msg.set_mr machineStoreInst s7 t b 8#u64 int
-            let (_, s9) ← msg.set_mr machineStoreInst s8 t b 9#u64 cr3
-            let (_, s10) ← msg.set_mr machineStoreInst s9 t b 29#u64 cr2
-            ok s10
-          else ok s5
-        else ok s5
-      let s7 ←
-        if pending
-        then ok s6
-        else
-          do
-          let (_, s8) ← msg.set_mr machineStoreInst s6 t b 3#u64 0#u64
-          let (_, s9) ← msg.set_mr machineStoreInst s8 t b 4#u64 0#u64
-          ok s9
-      let s8 ←
-        if v != 0#u64
-        then vcpu.set machineStoreInst s7 v vcpu.PENDING 0#u64
-        else ok s7
-      if pending
-      then
-        let s9 ←
-          obj.Tcb.set_reg machineStoreInst t s8 layout.reg.MSG_INFO 1#u64
-        if pending
-        then
-          let s10 ←
-            obj.Tcb.set_reg machineStoreInst t s9 layout.reg.BADGE 0#u64
-          sched.set_thread_state machineStoreInst s10 t sched.TS_RUNNING
-        else
-          let s10 ←
-            obj.Tcb.set_reg machineStoreInst t s9 layout.reg.BADGE badge
-          sched.set_thread_state machineStoreInst s10 t sched.TS_RUNNING
-      else
-        let s9 ←
-          obj.Tcb.set_reg machineStoreInst t s8 layout.reg.MSG_INFO 0#u64
-        if pending
-        then
-          let s10 ←
-            obj.Tcb.set_reg machineStoreInst t s9 layout.reg.BADGE 0#u64
-          sched.set_thread_state machineStoreInst s10 t sched.TS_RUNNING
-        else
-          let s10 ←
-            obj.Tcb.set_reg machineStoreInst t s9 layout.reg.BADGE badge
-          sched.set_thread_state machineStoreInst s10 t sched.TS_RUNNING
-    else
-      let s2 ←
-        if v != 0#u64
-        then
-          if i = 0#u64
-          then
-            do
-            let i1 ← machineArchInst.virtualization a
-            let flags ←
-              if i1 = 2#u64
-              then
-                do
-                let i2 ← vcpu.svm.RFLAGS
-                vcpu.get machineStoreInst s1 v i2
-              else vcpu.read_vmcs machineStoreInst s1 v vcpu.vmx.GUEST_RFLAGS
-            let int ←
-              if i1 = 2#u64
-              then vcpu.get machineStoreInst s1 v vcpu.svm.INT_STATE
-              else
-                vcpu.read_vmcs machineStoreInst s1 v
-                  vcpu.vmx.GUEST_INTERRUPTABILITY
-            let cr3 ←
-              if i1 = 2#u64
-              then do
-                   let i2 ← vcpu.svm.CR3
-                   vcpu.get machineStoreInst s1 v i2
-              else ok 0#u64
-            let cr2 ←
-              if i1 = 2#u64
-              then do
-                   let i2 ← vcpu.svm.CR2
-                   vcpu.get machineStoreInst s1 v i2
-              else vcpu.get machineStoreInst s1 v vcpu.CR2
-            let (_, s3) ← msg.set_mr machineStoreInst s1 t b 7#u64 flags
-            let (_, s4) ← msg.set_mr machineStoreInst s3 t b 8#u64 int
-            let (_, s5) ← msg.set_mr machineStoreInst s4 t b 9#u64 cr3
-            let (_, s6) ← msg.set_mr machineStoreInst s5 t b 29#u64 cr2
-            ok s6
-          else ok s1
-        else ok s1
-      let s3 ←
-        if pending
-        then ok s2
-        else
-          do
-          let (_, s4) ← msg.set_mr machineStoreInst s2 t b 3#u64 0#u64
-          let (_, s5) ← msg.set_mr machineStoreInst s4 t b 4#u64 0#u64
-          ok s5
-      let s4 ←
-        if v != 0#u64
-        then vcpu.set machineStoreInst s3 v vcpu.PENDING 0#u64
-        else ok s3
-      if pending
-      then
-        let s5 ←
-          obj.Tcb.set_reg machineStoreInst t s4 layout.reg.MSG_INFO 1#u64
-        if pending
-        then
-          let s6 ←
-            obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE 0#u64
-          sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-        else
-          let s6 ←
-            obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE badge
-          sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-      else
-        let s5 ←
-          obj.Tcb.set_reg machineStoreInst t s4 layout.reg.MSG_INFO 0#u64
-        if pending
-        then
-          let s6 ←
-            obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE 0#u64
-          sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-        else
-          let s6 ←
-            obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE badge
-          sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-  else
-    let s2 ←
-      if v != 0#u64
-      then
-        do
-        let i ← vcpu.get machineStoreInst s1 v vcpu.VALID
-        if i = 0#u64
-        then
-          let i1 ← machineArchInst.virtualization a
-          let flags ←
-            if i1 = 2#u64
-            then
-              do
-              let i2 ← vcpu.svm.RFLAGS
-              vcpu.get machineStoreInst s1 v i2
-            else vcpu.read_vmcs machineStoreInst s1 v vcpu.vmx.GUEST_RFLAGS
-          let int ←
-            if i1 = 2#u64
-            then vcpu.get machineStoreInst s1 v vcpu.svm.INT_STATE
-            else
-              vcpu.read_vmcs machineStoreInst s1 v
-                vcpu.vmx.GUEST_INTERRUPTABILITY
-          let cr3 ←
-            if i1 = 2#u64
-            then do
-                 let i2 ← vcpu.svm.CR3
-                 vcpu.get machineStoreInst s1 v i2
-            else ok 0#u64
-          let cr2 ←
-            if i1 = 2#u64
-            then do
-                 let i2 ← vcpu.svm.CR2
-                 vcpu.get machineStoreInst s1 v i2
-            else vcpu.get machineStoreInst s1 v vcpu.CR2
-          let (_, s3) ← msg.set_mr machineStoreInst s1 t b 7#u64 flags
-          let (_, s4) ← msg.set_mr machineStoreInst s3 t b 8#u64 int
-          let (_, s5) ← msg.set_mr machineStoreInst s4 t b 9#u64 cr3
-          let (_, s6) ← msg.set_mr machineStoreInst s5 t b 29#u64 cr2
-          ok s6
-        else ok s1
-      else ok s1
-    let s3 ←
-      if pending
-      then ok s2
-      else
-        do
-        let (_, s4) ← msg.set_mr machineStoreInst s2 t b 3#u64 0#u64
-        let (_, s5) ← msg.set_mr machineStoreInst s4 t b 4#u64 0#u64
-        ok s5
-    let s4 ←
-      if v != 0#u64
-      then vcpu.set machineStoreInst s3 v vcpu.PENDING 0#u64
-      else ok s3
-    if pending
-    then
-      let s5 ←
-        obj.Tcb.set_reg machineStoreInst t s4 layout.reg.MSG_INFO 1#u64
-      if pending
-      then
-        let s6 ← obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE 0#u64
-        sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-      else
-        let s6 ← obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE badge
-        sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-    else
-      let s5 ←
-        obj.Tcb.set_reg machineStoreInst t s4 layout.reg.MSG_INFO 0#u64
-      if pending
-      then
-        let s6 ← obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE 0#u64
-        sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-      else
-        let s6 ← obj.Tcb.set_reg machineStoreInst t s5 layout.reg.BADGE badge
-        sched.set_thread_state machineStoreInst s6 t sched.TS_RUNNING
-
-/-- [fl4_core::vcpu::check]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1036:0-1053:1
-    Visibility: public -/
-def vcpu.check
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
-  Result (S × A)
-  := do
-  let i ← obj.Tcb.state machineStoreInst t s
-  if i != sched.TS_RUNNING_VM
-  then ok (s, a)
-  else
-    let v ← vcpu.bound machineStoreInst s t
-    if v != 0#u64
-    then
-      let i1 ← vcpu.get machineStoreInst s v vcpu.PENDING
-      if i1 != 0#u64
-      then
-        let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
-        ok (s1, a)
-      else
-        let i2 ← obj.Tcb.bound_ntfn machineStoreInst t s
-        if i2 != 0#u64
-        then
-          let i3 ← obj.Ntfn.state machineStoreInst i2 s
-          if i3 = obj.NTFN_ACTIVE
-          then
-            let badge ← obj.Ntfn.badge machineStoreInst i2 s
-            let s1 ← obj.Ntfn.set_state machineStoreInst i2 s obj.NTFN_IDLE
-            let s2 ←
-              vcpu.report machineStoreInst machineArchInst s1 a t badge
-            ok (s2, a)
-          else
-            if v = 0#u64
-            then
-              let s1 ←
-                vcpu.report machineStoreInst machineArchInst s a t 0#u64
-              ok (s1, a)
-            else ok (s, a)
-        else
-          if v = 0#u64
-          then
-            let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
-            ok (s1, a)
-          else ok (s, a)
-    else
-      let i1 ← obj.Tcb.bound_ntfn machineStoreInst t s
-      if i1 != 0#u64
-      then
-        let i2 ← obj.Ntfn.state machineStoreInst i1 s
-        if i2 = obj.NTFN_ACTIVE
-        then
-          let badge ← obj.Ntfn.badge machineStoreInst i1 s
-          let s1 ← obj.Ntfn.set_state machineStoreInst i1 s obj.NTFN_IDLE
-          let s2 ← vcpu.report machineStoreInst machineArchInst s1 a t badge
-          ok (s2, a)
-        else
-          if v = 0#u64
-          then
-            let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
-            ok (s1, a)
-          else ok (s, a)
-      else
-        if v = 0#u64
-        then
-          let s1 ← vcpu.report machineStoreInst machineArchInst s a t 0#u64
-          ok (s1, a)
-        else ok (s, a)
-
 /-- [fl4_core::vcpu::SVM_EVENT]
     Source: 'crates/fl4-core/src/vcpu.rs', lines 567:0-567:49
     Visibility: public -/
@@ -14623,8 +14667,50 @@ def vcpu.SVM_EVENT : Std.U64 := 18446744071562072063#u64
 @[global_simps, irreducible]
 def vcpu.SVM_I1_WRITABLE : Std.U64 := 1673494480#u64
 
+/-- [fl4_core::notification::complete_signal]:
+    Source: 'crates/fl4-core/src/notification.rs', lines 195:0-207:1
+    Visibility: public -/
+def notification.complete_signal
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (n : obj.Ntfn)
+  (t : obj.Tcb) :
+  Result (S × A)
+  := do
+  let b ← obj.Tcb.is_null t
+  if b
+  then ok (s, a)
+  else
+    let i ← obj.Ntfn.state machineStoreInst n s
+    if i != obj.NTFN_ACTIVE
+    then ok (s, a)
+    else
+      let b1 ← obj.Ntfn.badge machineStoreInst n s
+      let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE b1
+      let s2 ← obj.Ntfn.set_state machineStoreInst n s1 obj.NTFN_IDLE
+      let (s3, a1) ←
+        notification.maybe_donate_sched_context machineStoreInst
+          machineArchInst s2 a t n
+      let i1 ← obj.Tcb.sc machineStoreInst t s3
+      let b2 ← sporadic.sc_sporadic machineStoreInst s3 i1
+      if b2
+      then
+        let i2 ← obj.Ntfn.sc machineStoreInst n s3
+        if i1 = i2
+        then
+          let s4 ← sched.cur_sc machineStoreInst s3
+          let b3 ←
+            core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc
+              i1 s4
+          if b3
+          then
+            let s5 ← sporadic.unblock_check machineStoreInst s3 i1
+            ok (s5, a1)
+          else ok (s3, a1)
+        else ok (s3, a1)
+      else ok (s3, a1)
+
 /-- [fl4_core::vcpu::enter]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 1006:0-1034:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1012:0-1049:1
     Visibility: public -/
 def vcpu.enter
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -14674,11 +14760,29 @@ def vcpu.enter
           vcpu.vmx.CONTROL_ENTRY_INTERRUPTION_INFO i2
     let s2 ← vcpu.set machineStoreInst s1 v vcpu.VALID 0#u64
     let s3 ← vcpu.set machineStoreInst s2 v vcpu.PENDING 0#u64
-    let s4 ← sched.set_thread_state machineStoreInst s3 t sched.TS_RUNNING_VM
-    vcpu.check machineStoreInst machineArchInst s4 a1 t
+    let i1 ← obj.Tcb.bound_ntfn machineStoreInst t s3
+    if i1 != 0#u64
+    then
+      let i2 ← obj.Ntfn.state machineStoreInst i1 s3
+      if i2 = obj.NTFN_ACTIVE
+      then
+        let (s4, a2) ←
+          notification.complete_signal machineStoreInst machineArchInst s3 a1
+            i1 t
+        let s5 ←
+          obj.Tcb.set_reg machineStoreInst t s4 layout.reg.MSG_INFO 0#u64
+        ok (s5, a2)
+      else
+        let s4 ←
+          sched.set_thread_state machineStoreInst s3 t sched.TS_RUNNING_VM
+        ok (s4, a1)
+    else
+      let s4 ←
+        sched.set_thread_state machineStoreInst s3 t sched.TS_RUNNING_VM
+      ok (s4, a1)
 
 /-- [fl4_core::syscall::cap_type_code]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 480:0-507:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 580:0-607:1 -/
 def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   match c with
   | capability.Cap.Null => ok 0#u64
@@ -14715,7 +14819,7 @@ def syscall.cap_type_code (c : capability.Cap) : Result Std.U64 := do
   | capability.Cap.IoPort _ _ _ => ok 19#u64
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 535:4-537:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 635:4-637:5 -/
 @[rust_loop_body]
 def syscall.nonzero_bytes_loop.body
   (v : Std.U64) (k : Std.U64) : Result (ControlFlow Std.U64 Std.U64) := do
@@ -14731,7 +14835,7 @@ def syscall.nonzero_bytes_loop.body
   else ok (done k)
 
 /-- [fl4_core::syscall::nonzero_bytes]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 535:4-537:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 635:4-637:5 -/
 @[rust_loop]
 def syscall.nonzero_bytes_loop
   (v : Std.U64) (k : Std.U64) : Result Std.U64 := do
@@ -14740,7 +14844,7 @@ def syscall.nonzero_bytes_loop
     k
 
 /-- [fl4_core::syscall::nonzero_bytes]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 533:0-539:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 633:0-639:1 -/
 @[reducible]
 def syscall.nonzero_bytes (v : Std.U64) : Result Std.U64 := do
   syscall.nonzero_bytes_loop v 0#u64
@@ -14753,7 +14857,7 @@ def obj.Tcb.name_addr (self : obj.Tcb) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add self i)
 
 /-- [fl4_core::syscall::name_thread]: loop body 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 513:4-528:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 613:4-628:5 -/
 @[rust_loop_body]
 def syscall.name_thread_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (t : obj.Tcb)
@@ -14802,7 +14906,7 @@ def syscall.name_thread_loop.body
   else ok (done s)
 
 /-- [fl4_core::syscall::name_thread]: loop 0:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 513:4-528:5 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 613:4-628:5 -/
 @[rust_loop]
 def syscall.name_thread_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -14815,7 +14919,7 @@ def syscall.name_thread_loop
     (s, w, done1)
 
 /-- [fl4_core::syscall::name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 510:0-529:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 610:0-629:1 -/
 @[reducible]
 def syscall.name_thread
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -14825,7 +14929,7 @@ def syscall.name_thread
   syscall.name_thread_loop machineStoreInst s t src 0#u64 false
 
 /-- [fl4_core::syscall::thread_of]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 455:0-460:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 555:0-560:1 -/
 def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   match c with
   | capability.Cap.Null => ok none
@@ -14854,7 +14958,7 @@ def syscall.thread_of (c : capability.Cap) : Result (Option obj.Tcb) := do
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::cspace::lookup_cap_and_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 80:0-85:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 83:0-88:1
     Visibility: public -/
 def cspace.lookup_cap_and_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
@@ -14870,7 +14974,7 @@ def cspace.lookup_cap_and_slot
     ok (core.result.Result.Err (error.Exc.Lookup lf))
 
 /-- [fl4_core::syscall::invoked_cap]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 447:0-453:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 547:0-553:1 -/
 def syscall.invoked_cap
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result capability.Cap
@@ -14883,7 +14987,7 @@ def syscall.invoked_cap
   | core.result.Result.Err _ => ok capability.Cap.Null
 
 /-- [fl4_core::syscall::debug_name_thread]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 463:0-477:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 563:0-577:1 -/
 def syscall.debug_name_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -14905,7 +15009,7 @@ def syscall.debug_name_thread
       ok (s1, a)
 
 /-- [fl4_core::syscall::debug_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 422:0-444:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 522:0-544:1 -/
 def syscall.debug_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
@@ -14962,7 +15066,7 @@ def syscall.debug_syscall
             else ok (false, s, a)
 
 /-- [fl4_core::syscall::set_tls_base_self]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 385:0-392:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 485:0-492:1 -/
 def syscall.set_tls_base_self
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -14980,30 +15084,432 @@ def syscall.set_tls_base_self
     else ok s1
   syscall.finish machineStoreInst machineArchInst s2 a1
 
-/-- [fl4_core::syscall::unknown_syscall_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 375:0-381:1 -/
-def syscall.unknown_syscall_fault
+/-- [fl4_core::obj::EP_RECV]
+    Source: 'crates/fl4-core/src/obj.rs', lines 112:0-112:27
+    Visibility: public -/
+@[global_simps, irreducible] def obj.EP_RECV : Std.U64 := 2#u64
+
+/-- [fl4_core::fastpath::switch_to]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 65:0-77:1 -/
+def fastpath.switch_to
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) :
+  (machineArchInst : machine.Arch A) (s : S) (a : A) («to» : obj.Tcb) :
   Result (S × A)
   := do
-  let (b, s1, a1) ← syscall.budget_ok machineStoreInst machineArchInst s a
-  let (s2, a2) ←
-    if b
+  let (s1, a1) ←
+    vspace.set_vm_root machineStoreInst machineArchInst s a «to»
+  let s2 ← sched.set_cur_thread machineStoreInst s1 «to»
+  let s3 ← sched.set_action machineStoreInst s2 sched.ACTION_RESUME_CURRENT
+  let (s4, a2) ←
+    sched.switch_sched_context machineStoreInst machineArchInst s3 a1
+  let c ← machineStoreInst.cur_cpu s4
+  let i ← obj.node_get machineStoreInst s4 c layout.node.REPROGRAM
+  let (s5, a3) ←
+    if i != 0#u64
     then
       do
-      let t ← sched.cur_thread machineStoreInst s1
-      faults.handle_fault machineStoreInst machineArchInst s1 a1 t
-        (error.Fault.UnknownSyscall number)
-    else ok (s1, a1)
-  syscall.finish machineStoreInst machineArchInst s2 a2
+      let (s6, a4) ←
+        sched.set_next_interrupt machineStoreInst machineArchInst s4 a2
+      let s7 ← obj.node_set machineStoreInst s6 c layout.node.REPROGRAM 0#u64
+      ok (s7, a4)
+    else ok (s4, a2)
+  let (s6, a4) ← smp.send_pending machineStoreInst machineArchInst s5 a3
+  sched.activate_thread machineStoreInst machineArchInst s6 a4
+
+/-- [fl4_core::fastpath::schedulable_here]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 42:0-60:1 -/
+def fastpath.schedulable_here
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) («to» : obj.Tcb)
+  :
+  Result Bool
+  := do
+  let cpu ← machineStoreInst.cur_cpu s
+  let now ← sched.cur_time machineStoreInst s
+  let i ← obj.node_get machineStoreInst s cpu layout.node.TIMER_MIN
+  let b ← obj.Tcb.is_null i
+  if b
+  then
+    let i1 ← obj.node_get machineStoreInst s cpu layout.node.RELEASE_HEAD
+    let b1 ← obj.Tcb.is_null i1
+    if b1
+    then
+      let b2 ← sched.is_cur_domain_expired machineStoreInst s
+      if b2
+      then ok false
+      else
+        let i2 ← sched.domain_time machineStoreInst s
+        if i2 != 0#u64
+        then
+          let i3 ← obj.Tcb.affinity machineStoreInst «to» s
+          if i3 = cpu
+          then
+            let i4 ← obj.Tcb.domain machineStoreInst «to» s
+            let i5 ← sched.cur_domain machineStoreInst s
+            if i4 = i5
+            then
+              let i6 ← obj.Tcb.sc machineStoreInst «to» s
+              if i6 != 0#u64
+              then
+                let b3 ← sched.in_release_queue machineStoreInst s «to»
+                if b3
+                then ok false
+                else
+                  let b4 ← sched.queued machineStoreInst s «to»
+                  ok (¬ b4)
+              else ok false
+            else ok false
+          else ok false
+        else ok false
+    else
+      let i2 ← obj.Tcb.sc machineStoreInst i1 s
+      let b2 ← sporadic.ready machineStoreInst s i2
+      if b2
+      then ok false
+      else
+        let b3 ← sched.is_cur_domain_expired machineStoreInst s
+        if b3
+        then ok false
+        else
+          let i3 ← sched.domain_time machineStoreInst s
+          if i3 != 0#u64
+          then
+            let i4 ← obj.Tcb.affinity machineStoreInst «to» s
+            if i4 = cpu
+            then
+              let i5 ← obj.Tcb.domain machineStoreInst «to» s
+              let i6 ← sched.cur_domain machineStoreInst s
+              if i5 = i6
+              then
+                let i7 ← obj.Tcb.sc machineStoreInst «to» s
+                if i7 != 0#u64
+                then
+                  let b4 ← sched.in_release_queue machineStoreInst s «to»
+                  if b4
+                  then ok false
+                  else
+                    let b5 ← sched.queued machineStoreInst s «to»
+                    ok (¬ b5)
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+  else
+    let i1 ← obj.Tcb.timer_deadline machineStoreInst i s
+    if i1 <= now
+    then ok false
+    else
+      let i2 ← obj.node_get machineStoreInst s cpu layout.node.RELEASE_HEAD
+      let b1 ← obj.Tcb.is_null i2
+      if b1
+      then
+        let b2 ← sched.is_cur_domain_expired machineStoreInst s
+        if b2
+        then ok false
+        else
+          let i3 ← sched.domain_time machineStoreInst s
+          if i3 != 0#u64
+          then
+            let i4 ← obj.Tcb.affinity machineStoreInst «to» s
+            if i4 = cpu
+            then
+              let i5 ← obj.Tcb.domain machineStoreInst «to» s
+              let i6 ← sched.cur_domain machineStoreInst s
+              if i5 = i6
+              then
+                let i7 ← obj.Tcb.sc machineStoreInst «to» s
+                if i7 != 0#u64
+                then
+                  let b3 ← sched.in_release_queue machineStoreInst s «to»
+                  if b3
+                  then ok false
+                  else
+                    let b4 ← sched.queued machineStoreInst s «to»
+                    ok (¬ b4)
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+      else
+        let i3 ← obj.Tcb.sc machineStoreInst i2 s
+        let b2 ← sporadic.ready machineStoreInst s i3
+        if b2
+        then ok false
+        else
+          let b3 ← sched.is_cur_domain_expired machineStoreInst s
+          if b3
+          then ok false
+          else
+            let i4 ← sched.domain_time machineStoreInst s
+            if i4 != 0#u64
+            then
+              let i5 ← obj.Tcb.affinity machineStoreInst «to» s
+              if i5 = cpu
+              then
+                let i6 ← obj.Tcb.domain machineStoreInst «to» s
+                let i7 ← sched.cur_domain machineStoreInst s
+                if i6 = i7
+                then
+                  let i8 ← obj.Tcb.sc machineStoreInst «to» s
+                  if i8 != 0#u64
+                  then
+                    let b4 ← sched.in_release_queue machineStoreInst s «to»
+                    if b4
+                    then ok false
+                    else
+                      let b5 ← sched.queued machineStoreInst s «to»
+                      ok (¬ b5)
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+
+/-- [fl4_core::fastpath::fault]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 85:0-146:1
+    Visibility: public -/
+def fastpath.fault
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
+  (number : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let i ← sched.action machineStoreInst s
+  if i != sched.ACTION_RESUME_CURRENT
+  then ok (false, s, a)
+  else
+    let s1 ← obj.Tcb.slot t layout.tcb.SLOT_FAULT_HANDLER
+    let c ← obj.Slot.cap machineStoreInst s1 s
+    match c with
+    | capability.Cap.Null => ok (false, s, a)
+    | capability.Cap.Untyped _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Endpoint ptr badge _ _ grant grant_reply =>
+      if grant
+      then
+        let i1 ← obj.Ep.state machineStoreInst ptr s
+        if i1 != obj.EP_RECV
+        then ok (false, s, a)
+        else
+          let i2 ← obj.Ep.head machineStoreInst ptr s
+          let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+          if i3 = 0#u64
+          then ok (false, s, a)
+          else
+            let b ← fastpath.schedulable_here machineStoreInst s i2
+            if b
+            then
+              let i4 ← sched.cur_domain machineStoreInst s
+              let i5 ← obj.Tcb.prio machineStoreInst i2 s
+              let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+              if b1
+              then
+                let s2 ←
+                  faults.set_fault machineStoreInst s t
+                    (error.Fault.UnknownSyscall number)
+                let tail ← obj.Ep.tail machineStoreInst ptr s2
+                let s3 ←
+                  if tail = i2
+                  then
+                    obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                      obj.EP_IDLE
+                  else
+                    do
+                    let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                    let s4 ← obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
+                    obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                      obj.EP_RECV
+                let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                let recv_buf ←
+                  msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                let (sent, s6) ←
+                  faults.set_mrs_fault machineStoreInst machineArchInst s5 a t
+                    i2 recv_buf
+                let mi ←
+                  msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall
+                    0#u64 0#u64 sent
+                let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                let s8 ←
+                  obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE badge
+                let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                let s10 ←
+                  obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
+                let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                let s12 ←
+                  obj.Tcb.set_state machineStoreInst t s11
+                    sched.TS_BLOCKED_ON_REPLY
+                let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                let s14 ←
+                  obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
+                let i6 ← obj.Tcb.sc machineStoreInst i2 s14
+                let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                let s15 ←
+                  if b2
+                  then
+                    do
+                    let s16 ← sched.cur_sc machineStoreInst s14
+                    let b3 ←
+                      core.cmp.PartialEq.ne.trait_default
+                        obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                    if b3
+                    then sporadic.unblock_check machineStoreInst s14 i6
+                    else ok s14
+                  else ok s14
+                let s16 ←
+                  obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                let s17 ←
+                  obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                let (s18, a1) ←
+                  fastpath.switch_to machineStoreInst machineArchInst s17 a i2
+                ok (true, s18, a1)
+              else ok (false, s, a)
+            else ok (false, s, a)
+      else
+        if grant_reply
+        then
+          let i1 ← obj.Ep.state machineStoreInst ptr s
+          if i1 != obj.EP_RECV
+          then ok (false, s, a)
+          else
+            let i2 ← obj.Ep.head machineStoreInst ptr s
+            let i3 ← obj.Tcb.reply_obj machineStoreInst i2 s
+            if i3 = 0#u64
+            then ok (false, s, a)
+            else
+              let b ← fastpath.schedulable_here machineStoreInst s i2
+              if b
+              then
+                let i4 ← sched.cur_domain machineStoreInst s
+                let i5 ← obj.Tcb.prio machineStoreInst i2 s
+                let b1 ← sched.is_highest_prio machineStoreInst s i4 i5
+                if b1
+                then
+                  let s2 ←
+                    faults.set_fault machineStoreInst s t
+                      (error.Fault.UnknownSyscall number)
+                  let tail ← obj.Ep.tail machineStoreInst ptr s2
+                  let s3 ←
+                    if tail = i2
+                    then
+                      obj.Ep.set_queue machineStoreInst ptr s2 0#u64 0#u64
+                        obj.EP_IDLE
+                    else
+                      do
+                      let i6 ← obj.Tcb.ep_next machineStoreInst i2 s2
+                      let s4 ←
+                        obj.Tcb.set_ep_prev machineStoreInst i6 s2 0#u64
+                      obj.Ep.set_queue machineStoreInst ptr s4 i6 tail
+                        obj.EP_RECV
+                  let s4 ← obj.Tcb.set_ep_next machineStoreInst i2 s3 0#u64
+                  let s5 ← obj.Tcb.set_ep_prev machineStoreInst i2 s4 0#u64
+                  let recv_buf ←
+                    msg.lookup_ipc_buffer machineStoreInst s5 true i2
+                  let (sent, s6) ←
+                    faults.set_mrs_fault machineStoreInst machineArchInst s5 a
+                      t i2 recv_buf
+                  let mi ←
+                    msginfo.MessageInfo.new fl4_abi.consts.fault.UnknownSyscall
+                      0#u64 0#u64 sent
+                  let s7 ← msg.set_msg_info machineStoreInst s6 i2 mi
+                  let s8 ←
+                    obj.Tcb.set_reg machineStoreInst i2 s7 layout.reg.BADGE
+                      badge
+                  let s9 ← obj.Reply.set_tcb machineStoreInst i3 s8 0#u64
+                  let s10 ←
+                    obj.Tcb.set_state machineStoreInst i2 s9 sched.TS_INACTIVE
+                  let s11 ← obj.Reply.set_tcb machineStoreInst i3 s10 t
+                  let s12 ←
+                    obj.Tcb.set_state machineStoreInst t s11
+                      sched.TS_BLOCKED_ON_REPLY
+                  let s13 ← obj.Tcb.set_reply_obj machineStoreInst t s12 i3
+                  let s14 ←
+                    obj.Tcb.set_state machineStoreInst i2 s13 sched.TS_RUNNING
+                  let i6 ← obj.Tcb.sc machineStoreInst i2 s14
+                  let b2 ← sporadic.sc_sporadic machineStoreInst s14 i6
+                  let s15 ←
+                    if b2
+                    then
+                      do
+                      let s16 ← sched.cur_sc machineStoreInst s14
+                      let b3 ←
+                        core.cmp.PartialEq.ne.trait_default
+                          obj.Sc.Insts.CoreCmpPartialEqSc i6 s16
+                      if b3
+                      then sporadic.unblock_check machineStoreInst s14 i6
+                      else ok s14
+                    else ok s14
+                  let s16 ←
+                    obj.Tcb.set_sched_next machineStoreInst i2 s15 0#u64
+                  let s17 ←
+                    obj.Tcb.set_sched_prev machineStoreInst i2 s16 0#u64
+                  let (s18, a1) ←
+                    fastpath.switch_to machineStoreInst machineArchInst s17 a
+                      i2
+                  ok (true, s18, a1)
+                else ok (false, s, a)
+              else ok (false, s, a)
+        else ok (false, s, a)
+    | capability.Cap.Notification _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Reply _ _ => ok (false, s, a)
+    | capability.Cap.CNode _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Thread _ => ok (false, s, a)
+    | capability.Cap.IrqControl => ok (false, s, a)
+    | capability.Cap.IrqHandler _ => ok (false, s, a)
+    | capability.Cap.Zombie _ _ _ => ok (false, s, a)
+    | capability.Cap.Domain => ok (false, s, a)
+    | capability.Cap.SchedContext _ _ => ok (false, s, a)
+    | capability.Cap.SchedControl _ => ok (false, s, a)
+    | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok (false, s, a)
+    | capability.Cap.PageTable _ _ _ _ => ok (false, s, a)
+    | capability.Cap.PageDirectory _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Pdpt _ _ _ _ => ok (false, s, a)
+    | capability.Cap.Pml4 _ _ _ => ok (false, s, a)
+    | capability.Cap.Vcpu _ => ok (false, s, a)
+    | capability.Cap.Ept _ _ _ _ _ => ok (false, s, a)
+    | capability.Cap.AsidControl => ok (false, s, a)
+    | capability.Cap.AsidPool _ _ => ok (false, s, a)
+    | capability.Cap.IoPortControl => ok (false, s, a)
+    | capability.Cap.IoPort _ _ _ => ok (false, s, a)
+
+/-- [fl4_core::syscall::unknown_syscall_fault]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 471:0-481:1 -/
+def syscall.unknown_syscall_fault
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64)
+  (fast : Bool) :
+  Result (Bool × S × A)
+  := do
+  let (b, s1, a1) ← syscall.budget_ok machineStoreInst machineArchInst s a
+  if b
+  then
+    let t ← sched.cur_thread machineStoreInst s1
+    if fast
+    then
+      let (b1, s2, a2) ←
+        fastpath.fault machineStoreInst machineArchInst s1 a1 t number
+      if b1
+      then ok (true, s2, a2)
+      else
+        let (s3, a3) ←
+          faults.handle_fault machineStoreInst machineArchInst s2 a2 t
+            (error.Fault.UnknownSyscall number)
+        let (s4, a4) ← syscall.finish machineStoreInst machineArchInst s3 a3
+        ok (false, s4, a4)
+    else
+      let (s2, a2) ←
+        faults.handle_fault machineStoreInst machineArchInst s1 a1 t
+          (error.Fault.UnknownSyscall number)
+      let (s3, a3) ← syscall.finish machineStoreInst machineArchInst s2 a2
+      ok (false, s3, a3)
+  else
+    let (s2, a2) ← syscall.finish machineStoreInst machineArchInst s1 a1
+    ok (false, s2, a2)
 
 /-- [fl4_core::syscall::handle_unknown_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 396:0-419:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 496:0-519:1 -/
 def syscall.handle_unknown_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
-  Result (S × A)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (fast : Bool) :
+  Result (Bool × S × A)
   := do
   let t ← sched.cur_thread machineStoreInst s
   if fl4_abi.config.PRINTING
@@ -15013,12 +15519,12 @@ def syscall.handle_unknown_syscall
       let c ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
       let i ← lift (c &&& 255#u64)
       let a1 ← machineArchInst.putc a i
-      ok (s, a1)
+      ok (false, s, a1)
     else
       if fl4_abi.config.PRINTING
       then
         if number = fl4_abi.syscall.SysDebugDumpScheduler
-        then ok (s, a)
+        then ok (false, s, a)
         else
           if fl4_abi.config.DEBUG_BUILD
           then
@@ -15026,14 +15532,16 @@ def syscall.handle_unknown_syscall
               syscall.debug_syscall machineStoreInst machineArchInst s a t
                 number
             if b
-            then ok (s1, a1)
+            then ok (false, s1, a1)
             else
               if fl4_abi.config.SET_TLS_BASE_SELF
               then
                 if number = fl4_abi.syscall.SysSetTLSBase
                 then
-                  syscall.set_tls_base_self machineStoreInst machineArchInst s1
-                    a1
+                  let (s2, a2) ←
+                    syscall.set_tls_base_self machineStoreInst machineArchInst
+                      s1 a1
+                  ok (false, s2, a2)
                 else
                   if number = fl4_abi.syscall.SysVMEnter
                   then
@@ -15051,19 +15559,21 @@ def syscall.handle_unknown_syscall
                           then
                             vcpu.enter machineStoreInst machineArchInst s2 a2 t
                           else ok (s2, a2)
-                        syscall.finish machineStoreInst machineArchInst s3 a3
+                        let (s4, a4) ←
+                          syscall.finish machineStoreInst machineArchInst s3 a3
+                        ok (false, s4, a4)
                       else
                         let i2 ← lift (IScalar.hcast .U64 number)
                         syscall.unknown_syscall_fault machineStoreInst
-                          machineArchInst s1 a1 i2
+                          machineArchInst s1 a1 i2 fast
                     else
                       let i1 ← lift (IScalar.hcast .U64 number)
                       syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s1 a1 i1
+                        machineArchInst s1 a1 i1 fast
                   else
                     let i ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i
+                      machineArchInst s1 a1 i fast
               else
                 if number = fl4_abi.syscall.SysVMEnter
                 then
@@ -15081,25 +15591,30 @@ def syscall.handle_unknown_syscall
                         then
                           vcpu.enter machineStoreInst machineArchInst s2 a2 t
                         else ok (s2, a2)
-                      syscall.finish machineStoreInst machineArchInst s3 a3
+                      let (s4, a4) ←
+                        syscall.finish machineStoreInst machineArchInst s3 a3
+                      ok (false, s4, a4)
                     else
                       let i2 ← lift (IScalar.hcast .U64 number)
                       syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s1 a1 i2
+                        machineArchInst s1 a1 i2 fast
                   else
                     let i1 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i1
+                      machineArchInst s1 a1 i1 fast
                 else
                   let i ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i
+                    machineArchInst s1 a1 i fast
           else
             if fl4_abi.config.SET_TLS_BASE_SELF
             then
               if number = fl4_abi.syscall.SysSetTLSBase
               then
-                syscall.set_tls_base_self machineStoreInst machineArchInst s a
+                let (s1, a1) ←
+                  syscall.set_tls_base_self machineStoreInst machineArchInst s
+                    a
+                ok (false, s1, a1)
               else
                 if number = fl4_abi.syscall.SysVMEnter
                 then
@@ -15116,19 +15631,21 @@ def syscall.handle_unknown_syscall
                         then
                           vcpu.enter machineStoreInst machineArchInst s1 a1 t
                         else ok (s1, a1)
-                      syscall.finish machineStoreInst machineArchInst s2 a2
+                      let (s3, a3) ←
+                        syscall.finish machineStoreInst machineArchInst s2 a2
+                      ok (false, s3, a3)
                     else
                       let i2 ← lift (IScalar.hcast .U64 number)
                       syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s a i2
+                        machineArchInst s a i2 fast
                   else
                     let i1 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s a i1
+                      machineArchInst s a i1 fast
                 else
                   let i ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i
+                    machineArchInst s a i fast
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15144,33 +15661,37 @@ def syscall.handle_unknown_syscall
                       if b
                       then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                       else ok (s1, a1)
-                    syscall.finish machineStoreInst machineArchInst s2 a2
+                    let (s3, a3) ←
+                      syscall.finish machineStoreInst machineArchInst s2 a2
+                    ok (false, s3, a3)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s a i2
+                      machineArchInst s a i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i1
+                    machineArchInst s a i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i
+                  s a i fast
       else
         if fl4_abi.config.DEBUG_BUILD
         then
           let (b, s1, a1) ←
             syscall.debug_syscall machineStoreInst machineArchInst s a t number
           if b
-          then ok (s1, a1)
+          then ok (false, s1, a1)
           else
             if fl4_abi.config.SET_TLS_BASE_SELF
             then
               if number = fl4_abi.syscall.SysSetTLSBase
               then
-                syscall.set_tls_base_self machineStoreInst machineArchInst s1
-                  a1
+                let (s2, a2) ←
+                  syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                    a1
+                ok (false, s2, a2)
               else
                 if number = fl4_abi.syscall.SysVMEnter
                 then
@@ -15188,19 +15709,21 @@ def syscall.handle_unknown_syscall
                         then
                           vcpu.enter machineStoreInst machineArchInst s2 a2 t
                         else ok (s2, a2)
-                      syscall.finish machineStoreInst machineArchInst s3 a3
+                      let (s4, a4) ←
+                        syscall.finish machineStoreInst machineArchInst s3 a3
+                      ok (false, s4, a4)
                     else
                       let i2 ← lift (IScalar.hcast .U64 number)
                       syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s1 a1 i2
+                        machineArchInst s1 a1 i2 fast
                   else
                     let i1 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i1
+                      machineArchInst s1 a1 i1 fast
                 else
                   let i ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i
+                    machineArchInst s1 a1 i fast
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15216,24 +15739,29 @@ def syscall.handle_unknown_syscall
                       if b1
                       then vcpu.enter machineStoreInst machineArchInst s2 a2 t
                       else ok (s2, a2)
-                    syscall.finish machineStoreInst machineArchInst s3 a3
+                    let (s4, a4) ←
+                      syscall.finish machineStoreInst machineArchInst s3 a3
+                    ok (false, s4, a4)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i2
+                      machineArchInst s1 a1 i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i1
+                    machineArchInst s1 a1 i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s1 a1 i
+                  s1 a1 i fast
         else
           if fl4_abi.config.SET_TLS_BASE_SELF
           then
             if number = fl4_abi.syscall.SysSetTLSBase
-            then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+            then
+              let (s1, a1) ←
+                syscall.set_tls_base_self machineStoreInst machineArchInst s a
+              ok (false, s1, a1)
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15249,19 +15777,21 @@ def syscall.handle_unknown_syscall
                       if b
                       then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                       else ok (s1, a1)
-                    syscall.finish machineStoreInst machineArchInst s2 a2
+                    let (s3, a3) ←
+                      syscall.finish machineStoreInst machineArchInst s2 a2
+                    ok (false, s3, a3)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s a i2
+                      machineArchInst s a i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i1
+                    machineArchInst s a i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i
+                  s a i fast
           else
             if number = fl4_abi.syscall.SysVMEnter
             then
@@ -15277,38 +15807,42 @@ def syscall.handle_unknown_syscall
                     if b
                     then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                     else ok (s1, a1)
-                  syscall.finish machineStoreInst machineArchInst s2 a2
+                  let (s3, a3) ←
+                    syscall.finish machineStoreInst machineArchInst s2 a2
+                  ok (false, s3, a3)
                 else
                   let i2 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i2
+                    machineArchInst s a i2 fast
               else
                 let i1 ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i1
+                  s a i1 fast
             else
               let i ← lift (IScalar.hcast .U64 number)
               syscall.unknown_syscall_fault machineStoreInst machineArchInst s
-                a i
+                a i fast
   else
     if fl4_abi.config.PRINTING
     then
       if number = fl4_abi.syscall.SysDebugDumpScheduler
-      then ok (s, a)
+      then ok (false, s, a)
       else
         if fl4_abi.config.DEBUG_BUILD
         then
           let (b, s1, a1) ←
             syscall.debug_syscall machineStoreInst machineArchInst s a t number
           if b
-          then ok (s1, a1)
+          then ok (false, s1, a1)
           else
             if fl4_abi.config.SET_TLS_BASE_SELF
             then
               if number = fl4_abi.syscall.SysSetTLSBase
               then
-                syscall.set_tls_base_self machineStoreInst machineArchInst s1
-                  a1
+                let (s2, a2) ←
+                  syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                    a1
+                ok (false, s2, a2)
               else
                 if number = fl4_abi.syscall.SysVMEnter
                 then
@@ -15326,19 +15860,21 @@ def syscall.handle_unknown_syscall
                         then
                           vcpu.enter machineStoreInst machineArchInst s2 a2 t
                         else ok (s2, a2)
-                      syscall.finish machineStoreInst machineArchInst s3 a3
+                      let (s4, a4) ←
+                        syscall.finish machineStoreInst machineArchInst s3 a3
+                      ok (false, s4, a4)
                     else
                       let i2 ← lift (IScalar.hcast .U64 number)
                       syscall.unknown_syscall_fault machineStoreInst
-                        machineArchInst s1 a1 i2
+                        machineArchInst s1 a1 i2 fast
                   else
                     let i1 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i1
+                      machineArchInst s1 a1 i1 fast
                 else
                   let i ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i
+                    machineArchInst s1 a1 i fast
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15354,24 +15890,29 @@ def syscall.handle_unknown_syscall
                       if b1
                       then vcpu.enter machineStoreInst machineArchInst s2 a2 t
                       else ok (s2, a2)
-                    syscall.finish machineStoreInst machineArchInst s3 a3
+                    let (s4, a4) ←
+                      syscall.finish machineStoreInst machineArchInst s3 a3
+                    ok (false, s4, a4)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i2
+                      machineArchInst s1 a1 i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i1
+                    machineArchInst s1 a1 i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s1 a1 i
+                  s1 a1 i fast
         else
           if fl4_abi.config.SET_TLS_BASE_SELF
           then
             if number = fl4_abi.syscall.SysSetTLSBase
-            then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+            then
+              let (s1, a1) ←
+                syscall.set_tls_base_self machineStoreInst machineArchInst s a
+              ok (false, s1, a1)
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15387,19 +15928,21 @@ def syscall.handle_unknown_syscall
                       if b
                       then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                       else ok (s1, a1)
-                    syscall.finish machineStoreInst machineArchInst s2 a2
+                    let (s3, a3) ←
+                      syscall.finish machineStoreInst machineArchInst s2 a2
+                    ok (false, s3, a3)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s a i2
+                      machineArchInst s a i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i1
+                    machineArchInst s a i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i
+                  s a i fast
           else
             if number = fl4_abi.syscall.SysVMEnter
             then
@@ -15415,32 +15958,37 @@ def syscall.handle_unknown_syscall
                     if b
                     then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                     else ok (s1, a1)
-                  syscall.finish machineStoreInst machineArchInst s2 a2
+                  let (s3, a3) ←
+                    syscall.finish machineStoreInst machineArchInst s2 a2
+                  ok (false, s3, a3)
                 else
                   let i2 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i2
+                    machineArchInst s a i2 fast
               else
                 let i1 ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i1
+                  s a i1 fast
             else
               let i ← lift (IScalar.hcast .U64 number)
               syscall.unknown_syscall_fault machineStoreInst machineArchInst s
-                a i
+                a i fast
     else
       if fl4_abi.config.DEBUG_BUILD
       then
         let (b, s1, a1) ←
           syscall.debug_syscall machineStoreInst machineArchInst s a t number
         if b
-        then ok (s1, a1)
+        then ok (false, s1, a1)
         else
           if fl4_abi.config.SET_TLS_BASE_SELF
           then
             if number = fl4_abi.syscall.SysSetTLSBase
             then
-              syscall.set_tls_base_self machineStoreInst machineArchInst s1 a1
+              let (s2, a2) ←
+                syscall.set_tls_base_self machineStoreInst machineArchInst s1
+                  a1
+              ok (false, s2, a2)
             else
               if number = fl4_abi.syscall.SysVMEnter
               then
@@ -15456,19 +16004,21 @@ def syscall.handle_unknown_syscall
                       if b1
                       then vcpu.enter machineStoreInst machineArchInst s2 a2 t
                       else ok (s2, a2)
-                    syscall.finish machineStoreInst machineArchInst s3 a3
+                    let (s4, a4) ←
+                      syscall.finish machineStoreInst machineArchInst s3 a3
+                    ok (false, s4, a4)
                   else
                     let i2 ← lift (IScalar.hcast .U64 number)
                     syscall.unknown_syscall_fault machineStoreInst
-                      machineArchInst s1 a1 i2
+                      machineArchInst s1 a1 i2 fast
                 else
                   let i1 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i1
+                    machineArchInst s1 a1 i1 fast
               else
                 let i ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s1 a1 i
+                  s1 a1 i fast
           else
             if number = fl4_abi.syscall.SysVMEnter
             then
@@ -15484,24 +16034,29 @@ def syscall.handle_unknown_syscall
                     if b1
                     then vcpu.enter machineStoreInst machineArchInst s2 a2 t
                     else ok (s2, a2)
-                  syscall.finish machineStoreInst machineArchInst s3 a3
+                  let (s4, a4) ←
+                    syscall.finish machineStoreInst machineArchInst s3 a3
+                  ok (false, s4, a4)
                 else
                   let i2 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s1 a1 i2
+                    machineArchInst s1 a1 i2 fast
               else
                 let i1 ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s1 a1 i1
+                  s1 a1 i1 fast
             else
               let i ← lift (IScalar.hcast .U64 number)
               syscall.unknown_syscall_fault machineStoreInst machineArchInst s1
-                a1 i
+                a1 i fast
       else
         if fl4_abi.config.SET_TLS_BASE_SELF
         then
           if number = fl4_abi.syscall.SysSetTLSBase
-          then syscall.set_tls_base_self machineStoreInst machineArchInst s a
+          then
+            let (s1, a1) ←
+              syscall.set_tls_base_self machineStoreInst machineArchInst s a
+            ok (false, s1, a1)
           else
             if number = fl4_abi.syscall.SysVMEnter
             then
@@ -15517,19 +16072,21 @@ def syscall.handle_unknown_syscall
                     if b
                     then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                     else ok (s1, a1)
-                  syscall.finish machineStoreInst machineArchInst s2 a2
+                  let (s3, a3) ←
+                    syscall.finish machineStoreInst machineArchInst s2 a2
+                  ok (false, s3, a3)
                 else
                   let i2 ← lift (IScalar.hcast .U64 number)
                   syscall.unknown_syscall_fault machineStoreInst
-                    machineArchInst s a i2
+                    machineArchInst s a i2 fast
               else
                 let i1 ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i1
+                  s a i1 fast
             else
               let i ← lift (IScalar.hcast .U64 number)
               syscall.unknown_syscall_fault machineStoreInst machineArchInst s
-                a i
+                a i fast
         else
           if number = fl4_abi.syscall.SysVMEnter
           then
@@ -15545,19 +16102,21 @@ def syscall.handle_unknown_syscall
                   if b
                   then vcpu.enter machineStoreInst machineArchInst s1 a1 t
                   else ok (s1, a1)
-                syscall.finish machineStoreInst machineArchInst s2 a2
+                let (s3, a3) ←
+                  syscall.finish machineStoreInst machineArchInst s2 a2
+                ok (false, s3, a3)
               else
                 let i2 ← lift (IScalar.hcast .U64 number)
                 syscall.unknown_syscall_fault machineStoreInst machineArchInst
-                  s a i2
+                  s a i2 fast
             else
               let i1 ← lift (IScalar.hcast .U64 number)
               syscall.unknown_syscall_fault machineStoreInst machineArchInst s
-                a i1
+                a i1 fast
           else
             let i ← lift (IScalar.hcast .U64 number)
             syscall.unknown_syscall_fault machineStoreInst machineArchInst s a
-              i
+              i fast
 
 /-- [fl4_core::obj::{fl4_core::obj::Tcb}::flags]:
     Source: 'crates/fl4-core/src/obj.rs', lines 13:16-15:17; this code is generated from a macro invocation at: 'crates/fl4-core/src/obj.rs', lines 40:0-75:2
@@ -15596,7 +16155,10 @@ def syscall.handle_trap_syscall
     let i4 ← lift (eax &&& 16777215#u64)
     let num ← lift (i3 ||| i4)
     let i5 ← lift (UScalar.hcast .I64 num)
-    syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i5
+    let (_, s2, a1) ←
+      syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a i5
+        false
+    ok (s2, a1)
 
 /-- [fl4_core::tcb::N_FRAME]
     Source: 'crates/fl4-core/src/arch/x86_64/tcb.rs', lines 1:0-1:24 -/
@@ -15918,7 +16480,7 @@ def vspace.set_asid_table
   obj.ks_set machineStoreInst s i4 pool
 
 /-- [fl4_core::vspace::is_valid_vtable_root]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 164:0-166:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 167:0-169:1
     Visibility: public -/
 def vspace.is_valid_vtable_root (c : capability.Cap) : Result Bool := do
   match c with
@@ -15950,7 +16512,7 @@ def vspace.is_valid_vtable_root (c : capability.Cap) : Result Bool := do
   | capability.Cap.IoPort _ _ _ => ok false
 
 /-- [fl4_core::vspace::check_valid_ipc_buffer]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 169:0-182:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 172:0-185:1
     Visibility: public -/
 def vspace.check_valid_ipc_buffer
   (vptr : Std.U64) (c : capability.Cap) :
@@ -15994,7 +16556,7 @@ def vspace.check_valid_ipc_buffer
   | capability.Cap.IoPort _ _ _ => error.illegal Unit
 
 /-- [fl4_core::vspace::frame_base]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 223:0-229:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 227:0-233:1 -/
 def vspace.frame_base
   (e : Std.U64) (size : capability.FrameSize) : Result Std.U64 := do
   match size with
@@ -16003,7 +16565,7 @@ def vspace.frame_base
   | capability.FrameSize.Huge => ok (e &&& 4503598553628672#u64)
 
 /-- [fl4_core::vspace::frame_gpa]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 529:0-532:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 533:0-536:1 -/
 def vspace.frame_gpa
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (address : Std.U64)
   :
@@ -16015,7 +16577,7 @@ def vspace.frame_gpa
   ok (address &&& i1)
 
 /-- [fl4_core::vspace::unmap_page]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 232:0-259:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 236:0-263:1
     Visibility: public -/
 def vspace.unmap_page
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16137,7 +16699,7 @@ def vspace.unmap_page
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vspace::unmap_page_table]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 262:0-279:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 266:0-283:1
     Visibility: public -/
 def vspace.unmap_page_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16175,7 +16737,7 @@ def vspace.unmap_page_table
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vspace::unmap_page_directory]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 282:0-298:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 286:0-302:1
     Visibility: public -/
 def vspace.unmap_page_directory
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16213,7 +16775,7 @@ def vspace.unmap_page_directory
   | core.result.Result.Err _ => ok (s, a)
 
 /-- [fl4_core::vspace::unmap_pdpt]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 301:0-317:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 305:0-321:1
     Visibility: public -/
 def vspace.unmap_pdpt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16268,7 +16830,7 @@ def ept.invalidate
   ok (s, a1)
 
 /-- [fl4_core::vspace::delete_asid]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 320:0-338:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 324:0-342:1
     Visibility: public -/
 def vspace.delete_asid
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16304,7 +16866,7 @@ def vspace.delete_asid
     else ok (s, a)
 
 /-- [fl4_core::vspace::delete_asid_pool]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 346:4-350:5
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 350:4-354:5
     Visibility: public -/
 @[rust_loop_body]
 def vspace.delete_asid_pool_loop.body
@@ -16341,7 +16903,7 @@ def vspace.delete_asid_pool_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::vspace::delete_asid_pool]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 346:4-350:5
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 350:4-354:5
     Visibility: public -/
 @[rust_loop]
 def vspace.delete_asid_pool_loop
@@ -16356,7 +16918,7 @@ def vspace.delete_asid_pool_loop
     (s, a, i)
 
 /-- [fl4_core::vspace::delete_asid_pool]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 341:0-354:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 345:0-358:1
     Visibility: public -/
 def vspace.delete_asid_pool
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -16378,7 +16940,7 @@ def vspace.delete_asid_pool
     vspace.set_vm_root machineStoreInst machineArchInst s2 a1 ct
 
 /-- [fl4_core::vspace::vm_fault]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 360:0-362:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 364:0-366:1
     Visibility: public -/
 def vspace.vm_fault
   (addr : Std.U64) (code : Std.U64) (instruction : Bool) :
@@ -16387,7 +16949,7 @@ def vspace.vm_fault
   ok (error.Fault.VmFault addr code instruction)
 
 /-- [fl4_core::vspace::extra]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 366:0-372:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 370:0-376:1 -/
 def vspace.extra
   (extra : Array obj.Slot 3#usize) (i : Std.Usize) :
   Result (Option obj.Slot)
@@ -16402,7 +16964,7 @@ def vspace.extra
     else ok (some s)
 
 /-- [fl4_core::error::invalid_cap]:
-    Source: 'crates/fl4-core/src/error.rs', lines 64:0-66:1
+    Source: 'crates/fl4-core/src/error.rs', lines 70:0-72:1
     Visibility: public -/
 def error.invalid_cap
   (T : Type _) (arg : Std.U64) : Result (core.result.Result T error.Exc) := do
@@ -16410,7 +16972,7 @@ def error.invalid_cap
     arg)))
 
 /-- [fl4_core::vspace::check_vspace]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 376:0-391:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 380:0-395:1 -/
 def vspace.check_vspace
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (vcap : capability.Cap) :
@@ -16466,7 +17028,7 @@ def vspace.check_vspace
   | capability.Cap.IoPort _ _ _ => error.invalid_cap (Std.U64 × Std.U64) 1#u64
 
 /-- [fl4_core::vspace::failed_lookup]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 393:0-395:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 397:0-399:1 -/
 def vspace.failed_lookup
   (T : Type _) (lf : error.LookupFault) :
   Result (core.result.Result T error.Exc)
@@ -16475,7 +17037,7 @@ def vspace.failed_lookup
     lf)))
 
 /-- [fl4_core::vspace::reply1]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 397:0-405:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 401:0-409:1 -/
 def vspace.reply1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (call : Bool) (v : Std.U64) :
@@ -16494,7 +17056,7 @@ def vspace.reply1
   sched.set_thread_state machineStoreInst s1 t sched.TS_RUNNING
 
 /-- [fl4_core::vspace::same_frame_and_type]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 408:0-411:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 412:0-415:1 -/
 def vspace.same_frame_and_type
   (old : Std.U64) (new : Std.U64) : Result Bool := do
   let i ← vspace.P_PWT
@@ -16512,7 +17074,7 @@ def vspace.same_frame_and_type
   ok (i9 = i10)
 
 /-- [fl4_core::vspace::rights_raised]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 413:0-418:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 417:0-422:1 -/
 def vspace.rights_raised (old : Std.U64) (new : Std.U64) : Result Bool := do
   let b ← vspace.same_frame_and_type old new
   if b
@@ -16536,7 +17098,7 @@ def vspace.rights_raised (old : Std.U64) (new : Std.U64) : Result Bool := do
   else ok false
 
 /-- [fl4_core::vspace::rights_lowered]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 420:0-425:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 424:0-429:1 -/
 def vspace.rights_lowered (old : Std.U64) (new : Std.U64) : Result Bool := do
   let b ← vspace.same_frame_and_type old new
   if b
@@ -16560,7 +17122,7 @@ def vspace.rights_lowered (old : Std.U64) (new : Std.U64) : Result Bool := do
   else ok false
 
 /-- [fl4_core::vspace::write_mapping]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 427:0-441:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 431:0-445:1 -/
 def vspace.write_mapping
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : Std.U64)
@@ -16590,14 +17152,14 @@ def vspace.write_mapping
            ok (s1, a1)
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}::clone]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 444:9-444:14
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 448:9-448:14
     Visibility: public -/
 def vspace.FrameCap.Insts.CoreCloneClone.clone
   (self : vspace.FrameCap) : Result vspace.FrameCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::FrameCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 444:9-444:14 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 448:9-448:14 -/
 @[reducible]
 def vspace.FrameCap.Insts.CoreCloneClone : core.clone.Clone vspace.FrameCap
   := {
@@ -16605,7 +17167,7 @@ def vspace.FrameCap.Insts.CoreCloneClone : core.clone.Clone vspace.FrameCap
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::FrameCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 444:16-444:20 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 448:16-448:20 -/
 @[reducible]
 def vspace.FrameCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.FrameCap
   := {
@@ -16613,7 +17175,7 @@ def vspace.FrameCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.FrameCap
 }
 
 /-- [fl4_core::vspace::as_frame]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 456:0-461:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 460:0-465:1 -/
 def vspace.as_frame
   (c : capability.Cap) : Result (Option vspace.FrameCap) := do
   match c with
@@ -16994,7 +17556,7 @@ def ept.root
 @[global_simps, irreducible] def ept.LIMIT : Result Std.U64 := 1#u64 <<< 47#i32
 
 /-- [fl4_core::capability::mask_vm_rights]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 288:0-300:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 289:0-301:1
     Visibility: public -/
 def capability.mask_vm_rights
   (vm : Std.U64) (r : capability.Rights) : Result Std.U64 := do
@@ -17024,7 +17586,7 @@ def capability.mask_vm_rights
     else ok capability.VM_KERNEL_ONLY
 
 /-- [fl4_core::capability::{fl4_core::capability::Rights}::from_word]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 279:4-281:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 280:4-282:5
     Visibility: public -/
 def capability.Rights.from_word (w : Std.U64) : Result capability.Rights := do
   let i ← lift (w &&& 1#u64)
@@ -17216,7 +17778,7 @@ def ept.map_frame
           ok (r, s, a)
 
 /-- [fl4_core::vspace::insert_subframes]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 717:4-729:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 721:4-733:5 -/
 @[rust_loop_body]
 def vspace.insert_subframes_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (src : obj.Slot)
@@ -17238,7 +17800,7 @@ def vspace.insert_subframes_loop.body
   else ok (done s)
 
 /-- [fl4_core::vspace::insert_subframes]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 717:4-729:5 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 721:4-733:5 -/
 @[rust_loop]
 def vspace.insert_subframes_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -17252,7 +17814,7 @@ def vspace.insert_subframes_loop
     (s, i)
 
 /-- [fl4_core::vspace::insert_subframes]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 715:0-730:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 719:0-734:1 -/
 @[reducible]
 def vspace.insert_subframes
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (src : obj.Slot)
@@ -17264,7 +17826,7 @@ def vspace.insert_subframes
     0#u64
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 708:4-713:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 712:4-717:1 -/
 @[rust_loop_body]
 def vspace.ensure_empty_run_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -17289,7 +17851,7 @@ def vspace.ensure_empty_run_loop.body
   else ok (done (core.result.Result.Ok ()))
 
 /-- [fl4_core::vspace::ensure_empty_run]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 708:4-713:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 712:4-717:1 -/
 @[rust_loop]
 def vspace.ensure_empty_run_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -17302,7 +17864,7 @@ def vspace.ensure_empty_run_loop
     i
 
 /-- [fl4_core::vspace::ensure_empty_run]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 706:0-713:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 710:0-717:1 -/
 @[reducible]
 def vspace.ensure_empty_run
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (dest : Std.U64)
@@ -17312,7 +17874,7 @@ def vspace.ensure_empty_run
   vspace.ensure_empty_run_loop machineStoreInst s dest first count 0#u64
 
 /-- [fl4_core::vspace::cnode_of]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 645:0-650:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 649:0-654:1 -/
 def vspace.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -17342,7 +17904,7 @@ def vspace.cnode_of
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::subframe_dest]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 687:0-704:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 691:0-708:1 -/
 def vspace.subframe_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (node_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -17407,7 +17969,7 @@ def vspace.subframe_dest
         else ok (core.result.Result.Ok dest)
 
 /-- [fl4_core::vspace::large_ram_frame]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 637:0-642:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 641:0-646:1 -/
 def vspace.large_ram_frame
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -17444,7 +18006,7 @@ def vspace.large_ram_frame
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::derive_subframe]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 653:0-683:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 657:0-687:1 -/
 def vspace.derive_subframe
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -17529,7 +18091,7 @@ def vspace.derive_subframe
          ok (r, s, a)
 
 /-- [fl4_core::vspace::mapped_entry]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 601:0-615:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 605:0-619:1 -/
 def vspace.mapped_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (root : Std.U64) :
@@ -17576,7 +18138,7 @@ def vspace.mapped_entry
   | core.result.Result.Err _ => ok none
 
 /-- [fl4_core::vspace::decode_test_and_clear_accessed]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 617:0-634:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 621:0-638:1 -/
 def vspace.decode_test_and_clear_accessed
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (f : vspace.FrameCap) (call : Bool) :
@@ -17627,7 +18189,7 @@ def vspace.decode_test_and_clear_accessed
          ok (r, s)
 
 /-- [fl4_core::vspace::page_entry_slot]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 581:0-598:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 585:0-602:1 -/
 def vspace.page_entry_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) (size : capability.FrameSize) :
@@ -17667,7 +18229,7 @@ def vspace.page_entry_slot
   | core.result.Result.Err lf => vspace.failed_lookup Std.U64 lf
 
 /-- [fl4_core::vspace::frame_address]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 521:0-527:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 525:0-531:1 -/
 def vspace.frame_address
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (f : vspace.FrameCap) :
@@ -17688,7 +18250,7 @@ def vspace.frame_address
     else ok (pa ||| «private»)
 
 /-- [fl4_core::vspace::mapped_root]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 512:0-517:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 516:0-521:1 -/
 def vspace.mapped_root
   (c : capability.Cap) : Result (Option vspace.VRoot) := do
   match c with
@@ -17721,7 +18283,7 @@ def vspace.mapped_root
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::decode_page_map]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 534:0-577:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 538:0-581:1 -/
 def vspace.decode_page_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -17957,7 +18519,7 @@ def vspace.decode_page_map
          ok (r, s, a)
 
 /-- [fl4_core::vspace::decode_frame]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 463:0-503:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 467:0-507:1 -/
 def vspace.decode_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -18037,35 +18599,35 @@ def vspace.decode_frame
                    ok (r, s, a)
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::VRoot}::clone]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 506:9-506:14
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 510:9-510:14
     Visibility: public -/
 def vspace.VRoot.Insts.CoreCloneClone.clone
   (self : vspace.VRoot) : Result vspace.VRoot := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::VRoot}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 506:9-506:14 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 510:9-510:14 -/
 @[reducible]
 def vspace.VRoot.Insts.CoreCloneClone : core.clone.Clone vspace.VRoot := {
   clone := vspace.VRoot.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::VRoot}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 506:16-506:20 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 510:16-510:20 -/
 @[reducible]
 def vspace.VRoot.Insts.CoreMarkerCopy : core.marker.Copy vspace.VRoot := {
   cloneInst := vspace.VRoot.Insts.CoreCloneClone
 }
 
 /-- [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}::clone]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 734:9-734:14
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 738:9-738:14
     Visibility: public -/
 def vspace.TableCap.Insts.CoreCloneClone.clone
   (self : vspace.TableCap) : Result vspace.TableCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::clone::Clone for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 734:9-734:14 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 738:9-738:14 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
   := {
@@ -18073,7 +18635,7 @@ def vspace.TableCap.Insts.CoreCloneClone : core.clone.Clone vspace.TableCap
 }
 
 /-- Trait implementation: [fl4_core::vspace::{impl core::marker::Copy for fl4_core::vspace::TableCap}]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 734:16-734:20 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 738:16-738:20 -/
 @[reducible]
 def vspace.TableCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.TableCap
   := {
@@ -18081,7 +18643,7 @@ def vspace.TableCap.Insts.CoreMarkerCopy : core.marker.Copy vspace.TableCap
 }
 
 /-- [fl4_core::vspace::as_table]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 745:0-756:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 749:0-760:1 -/
 def vspace.as_table
   (c : capability.Cap) : Result (Option vspace.TableCap) := do
   match c with
@@ -18141,7 +18703,7 @@ def vspace.as_table
   | capability.Cap.IoPort _ _ _ => ok none
 
 /-- [fl4_core::vspace::with_mapping]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 853:0-861:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 857:0-865:1 -/
 def vspace.with_mapping
   (c : capability.Cap) (mapped : Bool) (asid : Std.U64) (vaddr : Std.U64) :
   Result capability.Cap
@@ -18180,7 +18742,7 @@ def vspace.with_mapping
   | capability.Cap.IoPort _ _ _ => ok c
 
 /-- [fl4_core::vspace::table_entry_slot]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 810:0-822:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 814:0-826:1 -/
 def vspace.table_entry_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) (level : Std.U64) :
@@ -18202,7 +18764,7 @@ def vspace.table_entry_slot
   | core.result.Result.Err lf => vspace.failed_lookup Std.U64 lf
 
 /-- [fl4_core::vspace::decode_table_map]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 825:0-851:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 829:0-855:1 -/
 def vspace.decode_table_map
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -18287,7 +18849,7 @@ def capability.FrameSize.Insts.CoreCmpPartialEqFrameSize.eq
   ok (self1 = other1)
 
 /-- [fl4_core::objects::same_object_as]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 127:0-143:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 130:0-146:1
     Visibility: public -/
 def objects.same_object_as
   (a : capability.Cap) (b : capability.Cap) : Result Bool := do
@@ -18384,7 +18946,7 @@ def objects.same_object_as
   | capability.Cap.IoPort _ _ _ => objects.same_region_as a b
 
 /-- [fl4_core::obj::{fl4_core::obj::Slot}::prev]:
-    Source: 'crates/fl4-core/src/obj.rs', lines 245:4-247:5
+    Source: 'crates/fl4-core/src/obj.rs', lines 246:4-248:5
     Visibility: public -/
 def obj.Slot.prev
   {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Slot) (s : S) :
@@ -18433,7 +18995,7 @@ def cdt.is_final_capability
   cdt.is_final_capability_with_cap machineStoreInst s slot cap
 
 /-- [fl4_core::vspace::decode_table_unmap]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 789:0-807:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 793:0-811:1 -/
 def vspace.decode_table_unmap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
@@ -18474,7 +19036,7 @@ def vspace.decode_table_unmap
       a)
 
 /-- [fl4_core::vspace::decode_table]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 759:0-786:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 763:0-790:1 -/
 def vspace.decode_table
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -18513,7 +19075,7 @@ def vspace.decode_table
            ok (r, s, a)
 
 /-- [fl4_core::vspace::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 915:12-917:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 919:12-921:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop0.body
@@ -18530,7 +19092,7 @@ def vspace.decode_loop0.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 0:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 915:12-917:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 919:12-921:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop0
@@ -18542,7 +19104,7 @@ def vspace.decode_loop0
     i
 
 /-- [fl4_core::vspace::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 963:12-965:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop1.body
@@ -18567,7 +19129,7 @@ def vspace.decode_loop1.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 1:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 963:12-965:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop1
@@ -18580,7 +19142,7 @@ def vspace.decode_loop1
     i
 
 /-- [fl4_core::vspace::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 963:12-965:13
     Visibility: public -/
 @[rust_loop_body]
 def vspace.decode_loop2.body
@@ -18605,7 +19167,7 @@ def vspace.decode_loop2.body
   else ok (done i)
 
 /-- [fl4_core::vspace::decode]: loop 2:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 959:12-961:13
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 963:12-965:13
     Visibility: public -/
 @[rust_loop]
 def vspace.decode_loop2
@@ -18618,7 +19180,7 @@ def vspace.decode_loop2
     i
 
 /-- [fl4_core::vspace::decode]:
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 865:0-974:1
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 869:0-978:1
     Visibility: public -/
 def vspace.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19623,7 +20185,7 @@ def boot.create_device_untypeds
     { reg with start := above_start } kernel first
 
 /-- [fl4_core::sporadic::maybe_add_empty_tail]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 157:0-162:1 -/
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 178:0-183:1 -/
 def sporadic.maybe_add_empty_tail
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
   Result S
@@ -19658,7 +20220,7 @@ def obj.Sc.set_period
   machineStoreInst.write s i v
 
 /-- [fl4_core::sporadic::refill_new]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 165:0-173:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 186:0-194:1
     Visibility: public -/
 def sporadic.refill_new
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -20000,7 +20562,7 @@ def boot.create_untypeds
   ok (s8, b2)
 
 /-- [fl4_core::sched::set_dom_sched]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 570:0-573:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 580:0-583:1
     Visibility: public -/
 def sched.set_dom_sched
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -21464,7 +22026,7 @@ def capability.Cap.Insts.CoreCmpEq : core.cmp.Eq capability.Cap := {
 }
 
 /-- [fl4_core::capability::{fl4_core::capability::Cap}::is_arch]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 228:4-243:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 229:4-244:5
     Visibility: public -/
 def capability.Cap.is_arch (self : capability.Cap) : Result Bool := do
   match self with
@@ -21494,14 +22056,14 @@ def capability.Cap.is_arch (self : capability.Cap) : Result Bool := do
   | capability.Cap.IoPort _ _ _ => ok true
 
 /-- [fl4_core::capability::{impl core::clone::Clone for fl4_core::capability::Rights}::clone]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:9-270:14
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:9-271:14
     Visibility: public -/
 def capability.Rights.Insts.CoreCloneClone.clone
   (self : capability.Rights) : Result capability.Rights := do
   ok self
 
 /-- Trait implementation: [fl4_core::capability::{impl core::clone::Clone for fl4_core::capability::Rights}]
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:9-270:14 -/
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:9-271:14 -/
 @[reducible]
 def capability.Rights.Insts.CoreCloneClone : core.clone.Clone capability.Rights
   := {
@@ -21509,7 +22071,7 @@ def capability.Rights.Insts.CoreCloneClone : core.clone.Clone capability.Rights
 }
 
 /-- Trait implementation: [fl4_core::capability::{impl core::marker::Copy for fl4_core::capability::Rights}]
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:16-270:20 -/
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:16-271:20 -/
 @[reducible]
 def capability.Rights.Insts.CoreMarkerCopy : core.marker.Copy capability.Rights
   := {
@@ -21517,14 +22079,14 @@ def capability.Rights.Insts.CoreMarkerCopy : core.marker.Copy capability.Rights
 }
 
 /-- Trait implementation: [fl4_core::capability::{impl core::marker::StructuralPartialEq for fl4_core::capability::Rights}]
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:22-270:31 -/
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:22-271:31 -/
 @[reducible]
 def capability.Rights.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq capability.Rights := {
 }
 
 /-- [fl4_core::capability::{impl core::cmp::PartialEq<fl4_core::capability::Rights> for fl4_core::capability::Rights}::eq]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:22-270:31
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:22-271:31
     Visibility: public -/
 def capability.Rights.Insts.CoreCmpPartialEqRights.eq
   (self : capability.Rights) (other : capability.Rights) : Result Bool := do
@@ -21539,7 +22101,7 @@ def capability.Rights.Insts.CoreCmpPartialEqRights.eq
   else ok false
 
 /-- Trait implementation: [fl4_core::capability::{impl core::cmp::PartialEq<fl4_core::capability::Rights> for fl4_core::capability::Rights}]
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:22-270:31 -/
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:22-271:31 -/
 @[reducible]
 impl_def capability.Rights.Insts.CoreCmpPartialEqRights : core.cmp.PartialEq
   capability.Rights capability.Rights := {
@@ -21549,14 +22111,14 @@ impl_def capability.Rights.Insts.CoreCmpPartialEqRights : core.cmp.PartialEq
 }
 
 /-- [fl4_core::capability::{impl core::cmp::Eq for fl4_core::capability::Rights}::assert_fields_are_eq]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:33-270:35
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:33-271:35
     Visibility: public -/
 def capability.Rights.Insts.CoreCmpEq.assert_fields_are_eq
   (self : capability.Rights) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [fl4_core::capability::{impl core::cmp::Eq for fl4_core::capability::Rights}]
-    Source: 'crates/fl4-core/src/capability.rs', lines 270:33-270:35 -/
+    Source: 'crates/fl4-core/src/capability.rs', lines 271:33-271:35 -/
 @[reducible]
 def capability.Rights.Insts.CoreCmpEq : core.cmp.Eq capability.Rights := {
   partialEqInst := capability.Rights.Insts.CoreCmpPartialEqRights
@@ -21565,13 +22127,13 @@ def capability.Rights.Insts.CoreCmpEq : core.cmp.Eq capability.Rights := {
 }
 
 /-- [fl4_core::capability::{fl4_core::capability::Rights}::all]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 282:4-284:5
+    Source: 'crates/fl4-core/src/capability.rs', lines 283:4-285:5
     Visibility: public -/
 def capability.Rights.all : Result capability.Rights := do
   ok { write := true, read := true, grant := true, grant_reply := true }
 
 /-- [fl4_core::capability::mask_cap_rights]:
-    Source: 'crates/fl4-core/src/capability.rs', lines 303:0-329:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 304:0-330:1
     Visibility: public -/
 def capability.mask_cap_rights
   (r : capability.Rights) (c : capability.Cap) : Result capability.Cap := do
@@ -21895,7 +22457,7 @@ def interrupt.deleted_irq_handler
   ok (s1, a2)
 
 /-- [fl4_core::objects::post_cap_deletion]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 383:0-389:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 386:0-392:1
     Visibility: public -/
 def objects.post_cap_deletion
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22039,7 +22601,7 @@ def cdt.cap_cyclic_zombie
 def sched.MAX_WORK_UNITS_PER_PREEMPTION : Std.U64 := 100#u64
 
 /-- [fl4_core::sched::preemption_point]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 713:0-727:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 728:0-747:1
     Visibility: public -/
 def sched.preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22054,28 +22616,28 @@ def sched.preemption_point
     let s2 ← obj.ks_set machineStoreInst s1 layout.ks.WORK_UNITS 0#u64
     let (s3, a1) ←
       sched.update_timestamp machineStoreInst machineArchInst s2 a
+    let (irq, a2) ← machineArchInst.irq_pending a1
     let sc ← sched.cur_sc machineStoreInst s3
     let c ← sched.consumed machineStoreInst s3
     let b ← sporadic.sc_active machineStoreInst s3 sc
     let ok1 ←
       if b
-      then sporadic.sufficient machineStoreInst machineArchInst s3 a1 sc c
+      then sporadic.sufficient machineStoreInst machineArchInst s3 a2 sc c
       else ok false
-    if ok1
-    then
+    if irq
+    then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
+    else
       let b1 ← sched.is_cur_domain_expired machineStoreInst s3
       if b1
-      then ok (core.result.Result.Err error.Exc.Preempted, s3, a1)
+      then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
       else
-        let (b2, a2) ← machineArchInst.irq_pending a1
-        if b2
-        then ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
-        else ok (core.result.Result.Ok (), s3, a2)
-    else ok (core.result.Result.Err error.Exc.Preempted, s3, a1)
+        if ok1
+        then ok (core.result.Result.Ok (), s3, a2)
+        else ok (core.result.Result.Err error.Exc.Preempted, s3, a2)
   else ok (core.result.Result.Ok (), s1, a)
 
 /-- [fl4_core::vcpu::ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 722:4-728:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 728:4-734:5 -/
 @[rust_loop_body]
 def vcpu.ports_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (v : Std.U64)
@@ -22109,7 +22671,7 @@ def vcpu.ports_loop.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 722:4-728:5 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 728:4-734:5 -/
 @[rust_loop]
 def vcpu.ports_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -22122,7 +22684,7 @@ def vcpu.ports_loop
     (s, port)
 
 /-- [fl4_core::vcpu::ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 720:0-729:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 726:0-735:1 -/
 @[reducible]
 def vcpu.ports
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (v : Std.U64)
@@ -22137,7 +22699,7 @@ def vcpu.ports
 @[global_simps, irreducible] def vcpu.TCB : Std.U64 := 20480#u64
 
 /-- [fl4_core::vcpu::stall]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 674:0-680:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 680:0-686:1
     Visibility: public -/
 def vcpu.stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22152,7 +22714,7 @@ def vcpu.stall
   else smp.remote_tcb_stall machineStoreInst machineArchInst s a1 i
 
 /-- [fl4_core::vcpu::revoke_ports]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 739:4-746:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 745:4-752:5
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.revoke_ports_loop.body
@@ -22180,7 +22742,7 @@ def vcpu.revoke_ports_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::revoke_ports]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 739:4-746:5
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 745:4-752:5
     Visibility: public -/
 @[rust_loop]
 def vcpu.revoke_ports_loop
@@ -22195,7 +22757,7 @@ def vcpu.revoke_ports_loop
     (s, a, v, fuel)
 
 /-- [fl4_core::vcpu::revoke_ports]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 732:0-747:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 738:0-753:1
     Visibility: public -/
 def vcpu.revoke_ports
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22212,7 +22774,7 @@ def vcpu.revoke_ports
       v layout.WALK_FUEL
 
 /-- [fl4_core::vcpu::detach]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 691:0-702:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 697:0-708:1
     Visibility: public -/
 def vcpu.detach
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22236,7 +22798,7 @@ def vcpu.detach
     ok (s4, a1)
 
 /-- [fl4_core::vcpu::finalise]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 703:0-719:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 709:0-725:1
     Visibility: public -/
 def vcpu.finalise
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22387,31 +22949,42 @@ def schedcontext.unbind_all_tcbs
     ok (s2, a1)
   else ok (s, a)
 
+/-- [fl4_core::vcpu::cancel_run]:
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 1051:0-1051:72
+    Visibility: public -/
+def vcpu.cancel_run
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (_s : S) (_a : A) (_t : obj.Tcb) :
+  Result (S × A)
+  := do
+  ok (_s, _a)
+
 /-- [fl4_core::sched::suspend]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 730:0-740:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 750:0-761:1
     Visibility: public -/
 def sched.suspend
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
   Result (S × A)
   := do
-  let (s1, a1) ← ipc.cancel_ipc machineStoreInst machineArchInst s a t
-  let i ← obj.Tcb.state machineStoreInst t s1
-  let s2 ←
+  let (s1, a1) ← vcpu.cancel_run machineStoreInst machineArchInst s a t
+  let (s2, a2) ← ipc.cancel_ipc machineStoreInst machineArchInst s1 a1 t
+  let i ← obj.Tcb.state machineStoreInst t s2
+  let s3 ←
     if i = sched.TS_RUNNING
     then
       do
-      let ip ← obj.Tcb.reg machineStoreInst t s1 layout.reg.NEXT_IP
-      obj.Tcb.set_reg machineStoreInst t s1 layout.reg.FAULT_IP ip
-    else ok s1
-  let s3 ← sched.dequeue machineStoreInst s2 t
-  let s4 ← sched.release_remove machineStoreInst s3 t
-  let s5 ← schedcontext.cancel_yield_to machineStoreInst s4 t
-  let s6 ← sched.set_thread_state machineStoreInst s5 t sched.TS_INACTIVE
-  ok (s6, a1)
+      let ip ← obj.Tcb.reg machineStoreInst t s2 layout.reg.NEXT_IP
+      obj.Tcb.set_reg machineStoreInst t s2 layout.reg.FAULT_IP ip
+    else ok s2
+  let s4 ← sched.dequeue machineStoreInst s3 t
+  let s5 ← sched.release_remove machineStoreInst s4 t
+  let s6 ← schedcontext.cancel_yield_to machineStoreInst s5 t
+  let s7 ← sched.set_thread_state machineStoreInst s6 t sched.TS_INACTIVE
+  ok (s7, a2)
 
 /-- [fl4_core::machine::sharing_enabled]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 38:0-41:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 36:0-39:1
     Visibility: public -/
 def machine.sharing_enabled
   {S : Type _} (StoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -22420,7 +22993,7 @@ def machine.sharing_enabled
   ok (i != 0#u64)
 
 /-- [fl4_core::objects::retire_dma_frame]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 225:0-230:1 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 228:0-233:1 -/
 def objects.retire_dma_frame
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (ptr : Std.U64)
@@ -22495,7 +23068,7 @@ def obj.Tcb.set_bound_ntfn
   machineStoreInst.write s i1 v
 
 /-- [fl4_core::notification::unbind_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 192:0-198:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 218:0-224:1
     Visibility: public -/
 def notification.unbind_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -22509,7 +23082,7 @@ def notification.unbind_notification
   else ok s
 
 /-- [fl4_core::notification::unbind_maybe_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 183:0-190:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 209:0-216:1
     Visibility: public -/
 def notification.unbind_maybe_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) :
@@ -22535,7 +23108,7 @@ def tcbqueue.next_of
   ok i
 
 /-- [fl4_core::notification::cancel_all_signals]: loop body 0:
-    Source: 'crates/fl4-core/src/notification.rs', lines 150:4-158:5
+    Source: 'crates/fl4-core/src/notification.rs', lines 176:4-184:5
     Visibility: public -/
 @[rust_loop_body]
 def notification.cancel_all_signals_loop.body
@@ -22559,7 +23132,7 @@ def notification.cancel_all_signals_loop.body
     else ok (done s)
 
 /-- [fl4_core::notification::cancel_all_signals]: loop 0:
-    Source: 'crates/fl4-core/src/notification.rs', lines 150:4-158:5
+    Source: 'crates/fl4-core/src/notification.rs', lines 176:4-184:5
     Visibility: public -/
 @[rust_loop]
 def notification.cancel_all_signals_loop
@@ -22573,7 +23146,7 @@ def notification.cancel_all_signals_loop
     (s, t, fuel)
 
 /-- [fl4_core::notification::cancel_all_signals]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 143:0-160:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 169:0-186:1
     Visibility: public -/
 def notification.cancel_all_signals
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n_ptr : Std.U64) :
@@ -22590,7 +23163,7 @@ def notification.cancel_all_signals
     sched.reschedule_required machineStoreInst s1
 
 /-- [fl4_core::ipc::reply_pop]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 180:0-194:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 185:0-199:1
     Visibility: public -/
 def ipc.reply_pop
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22617,7 +23190,7 @@ def ipc.reply_pop
   ok (s6, a1)
 
 /-- [fl4_core::ipc::reply_remove]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 197:0-213:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 203:0-219:1
     Visibility: public -/
 def ipc.reply_remove
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -22702,7 +23275,7 @@ def ept.finalise
   | capability.Cap.IoPort _ _ _ => ok (s, a)
 
 /-- [fl4_core::endpoint::restart_thread_if_no_fault]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 186:0-194:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 191:0-199:1 -/
 def endpoint.restart_thread_if_no_fault
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
   Result S
@@ -22716,7 +23289,7 @@ def endpoint.restart_thread_if_no_fault
   else sched.set_thread_state machineStoreInst s t sched.TS_INACTIVE
 
 /-- [fl4_core::endpoint::cancel_all_ipc]: loop body 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 204:4-216:5
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 209:4-221:5
     Visibility: public -/
 @[rust_loop_body]
 def endpoint.cancel_all_ipc_loop.body
@@ -22748,7 +23321,7 @@ def endpoint.cancel_all_ipc_loop.body
     else ok (done s)
 
 /-- [fl4_core::endpoint::cancel_all_ipc]: loop 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 204:4-216:5
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 209:4-221:5
     Visibility: public -/
 @[rust_loop]
 def endpoint.cancel_all_ipc_loop
@@ -22762,7 +23335,7 @@ def endpoint.cancel_all_ipc_loop
     (s, t, fuel)
 
 /-- [fl4_core::endpoint::cancel_all_ipc]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 197:0-218:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 202:0-223:1
     Visibility: public -/
 def endpoint.cancel_all_ipc
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
@@ -22780,7 +23353,7 @@ def endpoint.cancel_all_ipc
     sched.reschedule_required machineStoreInst s1
 
 /-- [fl4_core::objects::finalise_cap_object]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 245:0-380:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 248:0-383:1
     Visibility: public -/
 def objects.finalise_cap_object
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -23041,7 +23614,7 @@ def interrupt.deleting_irq_handler
   cdt.delete_one machineStoreInst machineArchInst s a isl
 
 /-- [fl4_core::objects::finalise_cap]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 233:0-241:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 236:0-244:1
     Visibility: public -/
 def objects.finalise_cap
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -23713,7 +24286,7 @@ def cnode.missing_source
     (error.LookupFault.MissingCapability depth))))
 
 /-- [fl4_core::objects::update_cap_data]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 146:0-173:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 149:0-176:1
     Visibility: public -/
 def objects.update_cap_data
   (preserve : Bool) (data : Std.U64) (c : capability.Cap) :
@@ -23776,7 +24349,7 @@ impl_def obj.Slot.Insts.CoreCmpPartialEqSlot : core.cmp.PartialEq obj.Slot
 }
 
 /-- [fl4_core::cspace::lookup_pivot_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 118:0-120:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 121:0-123:1
     Visibility: public -/
 def cspace.lookup_pivot_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -23786,7 +24359,7 @@ def cspace.lookup_pivot_slot
   cspace.lookup_slot_for_cnode_op machineStoreInst s true root cptr depth
 
 /-- [fl4_core::cspace::lookup_source_slot]:
-    Source: 'crates/fl4-core/src/cspace.rs', lines 110:0-112:1
+    Source: 'crates/fl4-core/src/cspace.rs', lines 113:0-115:1
     Visibility: public -/
 def cspace.lookup_source_slot
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -23949,7 +24522,7 @@ def obj.Tcb.block_badge
   machineStoreInst.read s i1
 
 /-- [fl4_core::endpoint::cancel_badged_sends]: loop body 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 228:4-236:5
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 233:4-241:5
     Visibility: public -/
 @[rust_loop_body]
 def endpoint.cancel_badged_sends_loop.body
@@ -23975,7 +24548,7 @@ def endpoint.cancel_badged_sends_loop.body
     else ok (done s)
 
 /-- [fl4_core::endpoint::cancel_badged_sends]: loop 0:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 228:4-236:5
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 233:4-241:5
     Visibility: public -/
 @[rust_loop]
 def endpoint.cancel_badged_sends_loop
@@ -23989,7 +24562,7 @@ def endpoint.cancel_badged_sends_loop
     (s, t, fuel)
 
 /-- [fl4_core::endpoint::cancel_badged_sends]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 221:0-238:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 226:0-243:1
     Visibility: public -/
 def endpoint.cancel_badged_sends
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
@@ -24366,7 +24939,7 @@ def domain.MAX_DURATION : Result Std.U64 := do
   i - 1#u64
 
 /-- [fl4_core::sched::set_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 678:0-687:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 693:0-702:1
     Visibility: public -/
 def sched.set_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -24604,7 +25177,7 @@ def domain.decode
            ok (r, s, a)
 
 /-- [fl4_core::endpoint::reorder_ep]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 43:0-50:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 44:0-51:1
     Visibility: public -/
 def endpoint.reorder_ep
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64)
@@ -24618,55 +25191,8 @@ def endpoint.reorder_ep
     tcbqueue.append_by_prio machineStoreInst s1 tcbqueue.Link.Ep q1 t
   endpoint.set_queue machineStoreInst s2 ep_ptr q2 st
 
-/-- [fl4_core::obj::EP_RECV]
-    Source: 'crates/fl4-core/src/obj.rs', lines 112:0-112:27
-    Visibility: public -/
-@[global_simps, irreducible] def obj.EP_RECV : Std.U64 := 2#u64
-
-/-- [fl4_core::notification::complete_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 169:0-181:1
-    Visibility: public -/
-def notification.complete_signal
-  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (n : obj.Ntfn)
-  (t : obj.Tcb) :
-  Result (S × A)
-  := do
-  let b ← obj.Tcb.is_null t
-  if b
-  then ok (s, a)
-  else
-    let i ← obj.Ntfn.state machineStoreInst n s
-    if i != obj.NTFN_ACTIVE
-    then ok (s, a)
-    else
-      let b1 ← obj.Ntfn.badge machineStoreInst n s
-      let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.BADGE b1
-      let s2 ← obj.Ntfn.set_state machineStoreInst n s1 obj.NTFN_IDLE
-      let (s3, a1) ←
-        notification.maybe_donate_sched_context machineStoreInst
-          machineArchInst s2 a t n
-      let i1 ← obj.Tcb.sc machineStoreInst t s3
-      let b2 ← sporadic.sc_sporadic machineStoreInst s3 i1
-      if b2
-      then
-        let i2 ← obj.Ntfn.sc machineStoreInst n s3
-        if i1 = i2
-        then
-          let s4 ← sched.cur_sc machineStoreInst s3
-          let b3 ←
-            core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc
-              i1 s4
-          if b3
-          then
-            let s5 ← sporadic.unblock_check machineStoreInst s3 i1
-            ok (s5, a1)
-          else ok (s3, a1)
-        else ok (s3, a1)
-      else ok (s3, a1)
-
 /-- [fl4_core::notification::maybe_return_sched_context]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 59:0-68:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 60:0-69:1
     Visibility: public -/
 def notification.maybe_return_sched_context
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : obj.Ntfn)
@@ -24702,7 +25228,7 @@ def obj.Tcb.block_flags
   machineStoreInst.read s i1
 
 /-- [fl4_core::endpoint::receive_from_sender]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 162:0-184:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 167:0-189:1 -/
 def endpoint.receive_from_sender
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (thread : obj.Tcb)
@@ -24804,7 +25330,7 @@ def endpoint.receive_from_sender
       ok (s5, a)
 
 /-- [fl4_core::endpoint::wait_for_sender]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 146:0-159:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 151:0-164:1 -/
 def endpoint.wait_for_sender
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (thread : obj.Tcb)
   (ep_ptr : Std.U64) (blocking : Bool) (reply : obj.Reply) :
@@ -24828,7 +25354,7 @@ def endpoint.wait_for_sender
   else obj.Tcb.set_reg machineStoreInst thread s layout.reg.BADGE 0#u64
 
 /-- [fl4_core::endpoint::take_reply]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 133:0-143:1 -/
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 137:0-147:1 -/
 def endpoint.take_reply
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (thread : obj.Tcb)
@@ -24875,7 +25401,7 @@ def endpoint.take_reply
   | capability.Cap.IoPort _ _ _ => ok (0#u64, s, a)
 
 /-- [fl4_core::endpoint::receive_ipc]:
-    Source: 'crates/fl4-core/src/endpoint.rs', lines 113:0-130:1
+    Source: 'crates/fl4-core/src/endpoint.rs', lines 117:0-134:1
     Visibility: public -/
 def endpoint.receive_ipc
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -25541,35 +26067,35 @@ def error.Fault.Insts.CoreCmpEq : core.cmp.Eq error.Fault := {
 }
 
 /-- [fl4_core::error::{impl core::clone::Clone for fl4_core::error::Exc}::clone]:
-    Source: 'crates/fl4-core/src/error.rs', lines 38:9-38:14
+    Source: 'crates/fl4-core/src/error.rs', lines 44:9-44:14
     Visibility: public -/
 def error.Exc.Insts.CoreCloneClone.clone
   (self : error.Exc) : Result error.Exc := do
   ok self
 
 /-- Trait implementation: [fl4_core::error::{impl core::clone::Clone for fl4_core::error::Exc}]
-    Source: 'crates/fl4-core/src/error.rs', lines 38:9-38:14 -/
+    Source: 'crates/fl4-core/src/error.rs', lines 44:9-44:14 -/
 @[reducible]
 def error.Exc.Insts.CoreCloneClone : core.clone.Clone error.Exc := {
   clone := error.Exc.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [fl4_core::error::{impl core::marker::Copy for fl4_core::error::Exc}]
-    Source: 'crates/fl4-core/src/error.rs', lines 38:16-38:20 -/
+    Source: 'crates/fl4-core/src/error.rs', lines 44:16-44:20 -/
 @[reducible]
 def error.Exc.Insts.CoreMarkerCopy : core.marker.Copy error.Exc := {
   cloneInst := error.Exc.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [fl4_core::error::{impl core::marker::StructuralPartialEq for fl4_core::error::Exc}]
-    Source: 'crates/fl4-core/src/error.rs', lines 38:22-38:31 -/
+    Source: 'crates/fl4-core/src/error.rs', lines 44:22-44:31 -/
 @[reducible]
 def error.Exc.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq error.Exc := {
 }
 
 /-- [fl4_core::error::{impl core::cmp::PartialEq<fl4_core::error::Exc> for fl4_core::error::Exc}::eq]:
-    Source: 'crates/fl4-core/src/error.rs', lines 38:22-38:31
+    Source: 'crates/fl4-core/src/error.rs', lines 44:22-44:31
     Visibility: public -/
 def error.Exc.Insts.CoreCmpPartialEqExc.eq
   (self : error.Exc) (other : error.Exc) : Result Bool := do
@@ -25604,7 +26130,7 @@ def error.Exc.Insts.CoreCmpPartialEqExc.eq
   else ok false
 
 /-- Trait implementation: [fl4_core::error::{impl core::cmp::PartialEq<fl4_core::error::Exc> for fl4_core::error::Exc}]
-    Source: 'crates/fl4-core/src/error.rs', lines 38:22-38:31 -/
+    Source: 'crates/fl4-core/src/error.rs', lines 44:22-44:31 -/
 @[reducible]
 impl_def error.Exc.Insts.CoreCmpPartialEqExc : core.cmp.PartialEq error.Exc
   error.Exc := {
@@ -25613,14 +26139,14 @@ impl_def error.Exc.Insts.CoreCmpPartialEqExc : core.cmp.PartialEq error.Exc
 }
 
 /-- [fl4_core::error::{impl core::cmp::Eq for fl4_core::error::Exc}::assert_fields_are_eq]:
-    Source: 'crates/fl4-core/src/error.rs', lines 38:33-38:35
+    Source: 'crates/fl4-core/src/error.rs', lines 44:33-44:35
     Visibility: public -/
 def error.Exc.Insts.CoreCmpEq.assert_fields_are_eq
   (self : error.Exc) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [fl4_core::error::{impl core::cmp::Eq for fl4_core::error::Exc}]
-    Source: 'crates/fl4-core/src/error.rs', lines 38:33-38:35 -/
+    Source: 'crates/fl4-core/src/error.rs', lines 44:33-44:35 -/
 @[reducible]
 def error.Exc.Insts.CoreCmpEq : core.cmp.Eq error.Exc := {
   partialEqInst := error.Exc.Insts.CoreCmpPartialEqExc
@@ -25628,7 +26154,7 @@ def error.Exc.Insts.CoreCmpEq : core.cmp.Eq error.Exc := {
 }
 
 /-- [fl4_core::error::sys]:
-    Source: 'crates/fl4-core/src/error.rs', lines 48:0-50:1
+    Source: 'crates/fl4-core/src/error.rs', lines 54:0-56:1
     Visibility: public -/
 def error.sys
   (T : Type _) (e : error.SysError) :
@@ -25637,7 +26163,7 @@ def error.sys
   ok (core.result.Result.Err (error.Exc.Sys e))
 
 /-- [fl4_core::error::{fl4_core::error::SysError}::code]:
-    Source: 'crates/fl4-core/src/error.rs', lines 74:4-88:5
+    Source: 'crates/fl4-core/src/error.rs', lines 80:4-94:5
     Visibility: public -/
 def error.SysError.code (self : error.SysError) : Result Std.U64 := do
   match self with
@@ -25653,54 +26179,8 @@ def error.SysError.code (self : error.SysError) : Result Std.U64 := do
   | error.SysError.RevokeFirst => ok fl4_abi.consts.error.RevokeFirst
   | error.SysError.NotEnoughMemory _ => ok fl4_abi.consts.error.NotEnoughMemory
 
-/-- [fl4_core::faults::valid_fault_handler]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 51:0-57:1
-    Visibility: public -/
-def faults.valid_fault_handler (cap : capability.Cap) : Result Bool := do
-  match cap with
-  | capability.Cap.Null => ok true
-  | capability.Cap.Untyped _ _ _ _ => ok false
-  | capability.Cap.Endpoint _ _ send _ grant grant_reply =>
-    if send
-    then if grant
-         then ok true
-         else ok grant_reply
-    else ok false
-  | capability.Cap.Notification _ _ _ _ => ok false
-  | capability.Cap.Reply _ _ => ok false
-  | capability.Cap.CNode _ _ _ _ => ok false
-  | capability.Cap.Thread _ => ok false
-  | capability.Cap.IrqControl => ok false
-  | capability.Cap.IrqHandler _ => ok false
-  | capability.Cap.Zombie _ _ _ => ok false
-  | capability.Cap.Domain => ok false
-  | capability.Cap.SchedContext _ _ => ok false
-  | capability.Cap.SchedControl _ => ok false
-  | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok false
-  | capability.Cap.PageTable _ _ _ _ => ok false
-  | capability.Cap.PageDirectory _ _ _ _ => ok false
-  | capability.Cap.Pdpt _ _ _ _ => ok false
-  | capability.Cap.Pml4 _ _ _ => ok false
-  | capability.Cap.Vcpu _ => ok false
-  | capability.Cap.Ept _ _ _ _ _ => ok false
-  | capability.Cap.AsidControl => ok false
-  | capability.Cap.AsidPool _ _ => ok false
-  | capability.Cap.IoPortControl => ok false
-  | capability.Cap.IoPort _ _ _ => ok false
-
-/-- [fl4_core::faults::set_mrs_lookup_failure_at]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 110:0-112:1
-    Visibility: public -/
-def faults.set_mrs_lookup_failure_at
-  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
-  (receiver : obj.Tcb) (buf : Std.U64) (lf : error.LookupFault)
-  (offset : Std.U64) :
-  Result (Std.U64 × S)
-  := do
-  faults.set_mrs_lookup_failure machineStoreInst s receiver buf lf offset
-
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop body 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 181:4-186:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 202:4-207:5 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_reply_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (sender : obj.Tcb)
@@ -25729,7 +26209,7 @@ def faults.copy_mrs_fault_reply_loop0.body
   else ok (done (s, i))
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop 0:
-    Source: 'crates/fl4-core/src/faults.rs', lines 181:4-186:5 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 202:4-207:5 -/
 @[rust_loop]
 def faults.copy_mrs_fault_reply_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
@@ -25743,7 +26223,7 @@ def faults.copy_mrs_fault_reply_loop0
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop body 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 190:12-195:13 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 211:12-216:13 -/
 @[rust_loop_body]
 def faults.copy_mrs_fault_reply_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (receiver : obj.Tcb)
@@ -25768,7 +26248,7 @@ def faults.copy_mrs_fault_reply_loop1.body
   else ok (done s)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]: loop 1:
-    Source: 'crates/fl4-core/src/faults.rs', lines 190:12-195:13 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 211:12-216:13 -/
 @[rust_loop]
 def faults.copy_mrs_fault_reply_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
@@ -25782,7 +26262,7 @@ def faults.copy_mrs_fault_reply_loop1
     (s, i)
 
 /-- [fl4_core::faults::copy_mrs_fault_reply]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 178:0-198:1 -/
+    Source: 'crates/fl4-core/src/faults.rs', lines 199:0-219:1 -/
 def faults.copy_mrs_fault_reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb)
   (receiver : obj.Tcb) (regs_list : Slice Std.U64) (length : Std.U64) :
@@ -25808,7 +26288,7 @@ def faults.copy_mrs_fault_reply
   else ok s1
 
 /-- [fl4_core::faults::handle_fault_reply]:
-    Source: 'crates/fl4-core/src/faults.rs', lines 202:0-229:1
+    Source: 'crates/fl4-core/src/faults.rs', lines 224:0-251:1
     Visibility: public -/
 def faults.handle_fault_reply
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -25863,6 +26343,1672 @@ def faults.handle_fault_reply
                   machineArchInst s a receiver 0#u64 n_instrs true
               ok (tag.label = 0#u64, s1, a1)
           else ok (true, s, a)
+
+/-- [fl4_core::fastpath::reply_recv_found]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 187:0-251:1
+    Visibility: public -/
+def fastpath.reply_recv_found
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb)
+  (rptr : Std.U64) (ep_ptr : Std.U64) :
+  Result (Bool × S × A)
+  := do
+  let i ← sched.action machineStoreInst s
+  if i != sched.ACTION_RESUME_CURRENT
+  then ok (false, s, a)
+  else
+    let b ← sched.is_schedulable machineStoreInst s t
+    if b
+    then
+      let info ← msg.msg_info machineStoreInst s t
+      if info.extra_caps != 0#u64
+      then ok (false, s, a)
+      else
+        if info.label != 0#u64
+        then ok (false, s, a)
+        else
+          let i1 ← obj.Reply.tcb machineStoreInst rptr s
+          let b1 ← obj.Tcb.is_null i1
+          if b1
+          then ok (false, s, a)
+          else
+            let i2 ← obj.Tcb.state machineStoreInst i1 s
+            if i2 != sched.TS_BLOCKED_ON_REPLY
+            then ok (false, s, a)
+            else
+              let i3 ← obj.Tcb.fault_type machineStoreInst i1 s
+              if i3 != fl4_abi.consts.fault.UnknownSyscall
+              then ok (false, s, a)
+              else
+                let i4 ← obj.Reply.next machineStoreInst rptr s
+                if i4 != 0#u64
+                then
+                  let b2 ← obj.Reply.next_is_head machineStoreInst rptr s
+                  if b2
+                  then ok (false, s, a)
+                  else
+                    let i5 ← obj.Tcb.sc machineStoreInst i1 s
+                    let b3 ← obj.Sc.is_null i5
+                    if b3
+                    then ok (false, s, a)
+                    else
+                      let b4 ← sporadic.ready machineStoreInst s i5
+                      if b4
+                      then
+                        let b5 ←
+                          sporadic.sufficient machineStoreInst machineArchInst
+                            s a i5 0#u64
+                        if b5
+                        then
+                          let b6 ←
+                            fastpath.schedulable_here machineStoreInst s i1
+                          if b6
+                          then
+                            let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                            if i6 != 0#u64
+                            then
+                              let i7 ← obj.Ntfn.state machineStoreInst i6 s
+                              if i7 = obj.NTFN_ACTIVE
+                              then ok (false, s, a)
+                              else
+                                let i8 ← obj.Ntfn.sc machineStoreInst i6 s
+                                if i8 != 0#u64
+                                then
+                                  let i9 ← obj.Tcb.sc machineStoreInst t s
+                                  if i8 = i9
+                                  then ok (false, s, a)
+                                  else
+                                    let i10 ←
+                                      obj.Ep.state machineStoreInst ep_ptr s
+                                    if i10 != obj.EP_IDLE
+                                    then ok (false, s, a)
+                                    else
+                                      let t1 ←
+                                        sched.idle_thread machineStoreInst s
+                                      let b7 ←
+                                        obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t
+                                          t1
+                                      let fastfail ←
+                                        if b7
+                                        then ok true
+                                        else
+                                          do
+                                          let i11 ←
+                                            obj.Tcb.prio machineStoreInst i1 s
+                                          let i12 ←
+                                            obj.Tcb.prio machineStoreInst t s
+                                          if i11 < i12
+                                          then ok true
+                                          else ok false
+                                      if fastfail
+                                      then
+                                        let i11 ←
+                                          sched.cur_domain machineStoreInst s
+                                        let i12 ←
+                                          obj.Tcb.prio machineStoreInst i1 s
+                                        let b8 ←
+                                          sched.is_highest_prio
+                                            machineStoreInst s i11 i12
+                                        if b8
+                                        then
+                                          let s1 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s sched.TS_RESTART
+                                          let (s2, a1) ←
+                                            ipc.reply_remove machineStoreInst
+                                              machineArchInst s1 a rptr i1
+                                          let b9 ←
+                                            sporadic.sc_sporadic
+                                              machineStoreInst s2 i5
+                                          let s3 ←
+                                            if b9
+                                            then
+                                              do
+                                              let i13 ←
+                                                obj.Sc.cpu machineStoreInst i5
+                                                  s2
+                                              let i14 ←
+                                                obj.node_get machineStoreInst
+                                                  s2 i13 layout.node.CUR_SC
+                                              if i5 != i14
+                                              then
+                                                sporadic.unblock_check
+                                                  machineStoreInst s2 i5
+                                              else ok s2
+                                            else ok s2
+                                          let (restart, s4, a2) ←
+                                            faults.handle_fault_reply
+                                              machineStoreInst machineArchInst
+                                              s3 a1 i1 t
+                                          let s5 ←
+                                            faults.clear_fault machineStoreInst
+                                              s4 i1
+                                          if restart
+                                          then
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_RESTART
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s8
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s10 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s9 ep_ptr
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                          else
+                                            let s6 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst i1 s5
+                                                sched.TS_INACTIVE
+                                            let s7 ←
+                                              sched.set_action machineStoreInst
+                                                s6 i1
+                                            let s8 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s7
+                                                sched.TS_RUNNING
+                                            let s9 ←
+                                              obj.Tcb.set_state
+                                                machineStoreInst t s8
+                                                sched.TS_BLOCKED_ON_RECV
+                                            let s10 ←
+                                              obj.Tcb.set_block_obj
+                                                machineStoreInst t s9 ep_ptr
+                                            let s11 ←
+                                              obj.Tcb.set_reply_obj
+                                                machineStoreInst t s10 rptr
+                                            let s12 ←
+                                              obj.Reply.set_tcb
+                                                machineStoreInst rptr s11 t
+                                            let s13 ←
+                                              obj.Tcb.set_ep_next
+                                                machineStoreInst t s12 0#u64
+                                            let s14 ←
+                                              obj.Tcb.set_ep_prev
+                                                machineStoreInst t s13 0#u64
+                                            let s15 ←
+                                              obj.Ep.set_queue machineStoreInst
+                                                ep_ptr s14 t t obj.EP_RECV
+                                            let (s16, a3) ←
+                                              fastpath.switch_to
+                                                machineStoreInst
+                                                machineArchInst s15 a2 i1
+                                            ok (true, s16, a3)
+                                        else ok (false, s, a)
+                                      else
+                                        let s1 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s sched.TS_RESTART
+                                        let (s2, a1) ←
+                                          ipc.reply_remove machineStoreInst
+                                            machineArchInst s1 a rptr i1
+                                        let b8 ←
+                                          sporadic.sc_sporadic machineStoreInst
+                                            s2 i5
+                                        let s3 ←
+                                          if b8
+                                          then
+                                            do
+                                            let i11 ←
+                                              obj.Sc.cpu machineStoreInst i5 s2
+                                            let i12 ←
+                                              obj.node_get machineStoreInst s2
+                                                i11 layout.node.CUR_SC
+                                            if i5 != i12
+                                            then
+                                              sporadic.unblock_check
+                                                machineStoreInst s2 i5
+                                            else ok s2
+                                          else ok s2
+                                        let (restart, s4, a2) ←
+                                          faults.handle_fault_reply
+                                            machineStoreInst machineArchInst s3
+                                            a1 i1 t
+                                        let s5 ←
+                                          faults.clear_fault machineStoreInst
+                                            s4 i1
+                                        if restart
+                                        then
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_RESTART
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                        else
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_INACTIVE
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                else
+                                  let i9 ←
+                                    obj.Ep.state machineStoreInst ep_ptr s
+                                  if i9 != obj.EP_IDLE
+                                  then ok (false, s, a)
+                                  else
+                                    let t1 ←
+                                      sched.idle_thread machineStoreInst s
+                                    let b7 ←
+                                      obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                    let fastfail ←
+                                      if b7
+                                      then ok true
+                                      else
+                                        do
+                                        let i10 ←
+                                          obj.Tcb.prio machineStoreInst i1 s
+                                        let i11 ←
+                                          obj.Tcb.prio machineStoreInst t s
+                                        if i10 < i11
+                                        then ok true
+                                        else ok false
+                                    if fastfail
+                                    then
+                                      let i10 ←
+                                        sched.cur_domain machineStoreInst s
+                                      let i11 ←
+                                        obj.Tcb.prio machineStoreInst i1 s
+                                      let b8 ←
+                                        sched.is_highest_prio machineStoreInst
+                                          s i10 i11
+                                      if b8
+                                      then
+                                        let s1 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s sched.TS_RESTART
+                                        let (s2, a1) ←
+                                          ipc.reply_remove machineStoreInst
+                                            machineArchInst s1 a rptr i1
+                                        let b9 ←
+                                          sporadic.sc_sporadic machineStoreInst
+                                            s2 i5
+                                        let s3 ←
+                                          if b9
+                                          then
+                                            do
+                                            let i12 ←
+                                              obj.Sc.cpu machineStoreInst i5 s2
+                                            let i13 ←
+                                              obj.node_get machineStoreInst s2
+                                                i12 layout.node.CUR_SC
+                                            if i5 != i13
+                                            then
+                                              sporadic.unblock_check
+                                                machineStoreInst s2 i5
+                                            else ok s2
+                                          else ok s2
+                                        let (restart, s4, a2) ←
+                                          faults.handle_fault_reply
+                                            machineStoreInst machineArchInst s3
+                                            a1 i1 t
+                                        let s5 ←
+                                          faults.clear_fault machineStoreInst
+                                            s4 i1
+                                        if restart
+                                        then
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_RESTART
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                        else
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_INACTIVE
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                      else ok (false, s, a)
+                                    else
+                                      let s1 ←
+                                        obj.Tcb.set_state machineStoreInst t s
+                                          sched.TS_RESTART
+                                      let (s2, a1) ←
+                                        ipc.reply_remove machineStoreInst
+                                          machineArchInst s1 a rptr i1
+                                      let b8 ←
+                                        sporadic.sc_sporadic machineStoreInst
+                                          s2 i5
+                                      let s3 ←
+                                        if b8
+                                        then
+                                          do
+                                          let i10 ←
+                                            obj.Sc.cpu machineStoreInst i5 s2
+                                          let i11 ←
+                                            obj.node_get machineStoreInst s2
+                                              i10 layout.node.CUR_SC
+                                          if i5 != i11
+                                          then
+                                            sporadic.unblock_check
+                                              machineStoreInst s2 i5
+                                          else ok s2
+                                        else ok s2
+                                      let (restart, s4, a2) ←
+                                        faults.handle_fault_reply
+                                          machineStoreInst machineArchInst s3
+                                          a1 i1 t
+                                      let s5 ←
+                                        faults.clear_fault machineStoreInst s4
+                                          i1
+                                      if restart
+                                      then
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_RESTART
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                      else
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_INACTIVE
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                            else
+                              let i7 ← obj.Ep.state machineStoreInst ep_ptr s
+                              if i7 != obj.EP_IDLE
+                              then ok (false, s, a)
+                              else
+                                let t1 ← sched.idle_thread machineStoreInst s
+                                let b7 ←
+                                  obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                let fastfail ←
+                                  if b7
+                                  then ok true
+                                  else
+                                    do
+                                    let i8 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let i9 ←
+                                      obj.Tcb.prio machineStoreInst t s
+                                    if i8 < i9
+                                    then ok true
+                                    else ok false
+                                if fastfail
+                                then
+                                  let i8 ←
+                                    sched.cur_domain machineStoreInst s
+                                  let i9 ← obj.Tcb.prio machineStoreInst i1 s
+                                  let b8 ←
+                                    sched.is_highest_prio machineStoreInst s i8
+                                      i9
+                                  if b8
+                                  then
+                                    let s1 ←
+                                      obj.Tcb.set_state machineStoreInst t s
+                                        sched.TS_RESTART
+                                    let (s2, a1) ←
+                                      ipc.reply_remove machineStoreInst
+                                        machineArchInst s1 a rptr i1
+                                    let b9 ←
+                                      sporadic.sc_sporadic machineStoreInst s2
+                                        i5
+                                    let s3 ←
+                                      if b9
+                                      then
+                                        do
+                                        let i10 ←
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i11 ←
+                                          obj.node_get machineStoreInst s2 i10
+                                            layout.node.CUR_SC
+                                        if i5 != i11
+                                        then
+                                          sporadic.unblock_check
+                                            machineStoreInst s2 i5
+                                        else ok s2
+                                      else ok s2
+                                    let (restart, s4, a2) ←
+                                      faults.handle_fault_reply
+                                        machineStoreInst machineArchInst s3 a1
+                                        i1 t
+                                    let s5 ←
+                                      faults.clear_fault machineStoreInst s4 i1
+                                    if restart
+                                    then
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_RESTART
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_state machineStoreInst t s8
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s10 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s9 ep_ptr
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                                    else
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_INACTIVE
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_state machineStoreInst t s8
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s10 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s9 ep_ptr
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                                  else ok (false, s, a)
+                                else
+                                  let s1 ←
+                                    obj.Tcb.set_state machineStoreInst t s
+                                      sched.TS_RESTART
+                                  let (s2, a1) ←
+                                    ipc.reply_remove machineStoreInst
+                                      machineArchInst s1 a rptr i1
+                                  let b8 ←
+                                    sporadic.sc_sporadic machineStoreInst s2 i5
+                                  let s3 ←
+                                    if b8
+                                    then
+                                      do
+                                      let i8 ←
+                                        obj.Sc.cpu machineStoreInst i5 s2
+                                      let i9 ←
+                                        obj.node_get machineStoreInst s2 i8
+                                          layout.node.CUR_SC
+                                      if i5 != i9
+                                      then
+                                        sporadic.unblock_check machineStoreInst
+                                          s2 i5
+                                      else ok s2
+                                    else ok s2
+                                  let (restart, s4, a2) ←
+                                    faults.handle_fault_reply machineStoreInst
+                                      machineArchInst s3 a1 i1 t
+                                  let s5 ←
+                                    faults.clear_fault machineStoreInst s4 i1
+                                  if restart
+                                  then
+                                    let s6 ←
+                                      obj.Tcb.set_state machineStoreInst i1 s5
+                                        sched.TS_RESTART
+                                    let s7 ←
+                                      sched.set_action machineStoreInst s6 i1
+                                    let s8 ←
+                                      obj.Tcb.set_state machineStoreInst t s7
+                                        sched.TS_RUNNING
+                                    let s9 ←
+                                      obj.Tcb.set_state machineStoreInst t s8
+                                        sched.TS_BLOCKED_ON_RECV
+                                    let s10 ←
+                                      obj.Tcb.set_block_obj machineStoreInst t
+                                        s9 ep_ptr
+                                    let s11 ←
+                                      obj.Tcb.set_reply_obj machineStoreInst t
+                                        s10 rptr
+                                    let s12 ←
+                                      obj.Reply.set_tcb machineStoreInst rptr
+                                        s11 t
+                                    let s13 ←
+                                      obj.Tcb.set_ep_next machineStoreInst t
+                                        s12 0#u64
+                                    let s14 ←
+                                      obj.Tcb.set_ep_prev machineStoreInst t
+                                        s13 0#u64
+                                    let s15 ←
+                                      obj.Ep.set_queue machineStoreInst ep_ptr
+                                        s14 t t obj.EP_RECV
+                                    let (s16, a3) ←
+                                      fastpath.switch_to machineStoreInst
+                                        machineArchInst s15 a2 i1
+                                    ok (true, s16, a3)
+                                  else
+                                    let s6 ←
+                                      obj.Tcb.set_state machineStoreInst i1 s5
+                                        sched.TS_INACTIVE
+                                    let s7 ←
+                                      sched.set_action machineStoreInst s6 i1
+                                    let s8 ←
+                                      obj.Tcb.set_state machineStoreInst t s7
+                                        sched.TS_RUNNING
+                                    let s9 ←
+                                      obj.Tcb.set_state machineStoreInst t s8
+                                        sched.TS_BLOCKED_ON_RECV
+                                    let s10 ←
+                                      obj.Tcb.set_block_obj machineStoreInst t
+                                        s9 ep_ptr
+                                    let s11 ←
+                                      obj.Tcb.set_reply_obj machineStoreInst t
+                                        s10 rptr
+                                    let s12 ←
+                                      obj.Reply.set_tcb machineStoreInst rptr
+                                        s11 t
+                                    let s13 ←
+                                      obj.Tcb.set_ep_next machineStoreInst t
+                                        s12 0#u64
+                                    let s14 ←
+                                      obj.Tcb.set_ep_prev machineStoreInst t
+                                        s13 0#u64
+                                    let s15 ←
+                                      obj.Ep.set_queue machineStoreInst ep_ptr
+                                        s14 t t obj.EP_RECV
+                                    let (s16, a3) ←
+                                      fastpath.switch_to machineStoreInst
+                                        machineArchInst s15 a2 i1
+                                    ok (true, s16, a3)
+                          else ok (false, s, a)
+                        else ok (false, s, a)
+                      else ok (false, s, a)
+                else
+                  let i5 ← obj.Tcb.sc machineStoreInst i1 s
+                  let b2 ← obj.Sc.is_null i5
+                  if b2
+                  then ok (false, s, a)
+                  else
+                    let b3 ← sporadic.ready machineStoreInst s i5
+                    if b3
+                    then
+                      let b4 ←
+                        sporadic.sufficient machineStoreInst machineArchInst s
+                          a i5 0#u64
+                      if b4
+                      then
+                        let b5 ←
+                          fastpath.schedulable_here machineStoreInst s i1
+                        if b5
+                        then
+                          let i6 ← obj.Tcb.bound_ntfn machineStoreInst t s
+                          if i6 != 0#u64
+                          then
+                            let i7 ← obj.Ntfn.state machineStoreInst i6 s
+                            if i7 = obj.NTFN_ACTIVE
+                            then ok (false, s, a)
+                            else
+                              let i8 ← obj.Ntfn.sc machineStoreInst i6 s
+                              if i8 != 0#u64
+                              then
+                                let i9 ← obj.Tcb.sc machineStoreInst t s
+                                if i8 = i9
+                                then ok (false, s, a)
+                                else
+                                  let i10 ←
+                                    obj.Ep.state machineStoreInst ep_ptr s
+                                  if i10 != obj.EP_IDLE
+                                  then ok (false, s, a)
+                                  else
+                                    let t1 ←
+                                      sched.idle_thread machineStoreInst s
+                                    let b6 ←
+                                      obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                    let fastfail ←
+                                      if b6
+                                      then ok true
+                                      else
+                                        do
+                                        let i11 ←
+                                          obj.Tcb.prio machineStoreInst i1 s
+                                        let i12 ←
+                                          obj.Tcb.prio machineStoreInst t s
+                                        if i11 < i12
+                                        then ok true
+                                        else ok false
+                                    if fastfail
+                                    then
+                                      let i11 ←
+                                        sched.cur_domain machineStoreInst s
+                                      let i12 ←
+                                        obj.Tcb.prio machineStoreInst i1 s
+                                      let b7 ←
+                                        sched.is_highest_prio machineStoreInst
+                                          s i11 i12
+                                      if b7
+                                      then
+                                        let s1 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s sched.TS_RESTART
+                                        let (s2, a1) ←
+                                          ipc.reply_remove machineStoreInst
+                                            machineArchInst s1 a rptr i1
+                                        let b8 ←
+                                          sporadic.sc_sporadic machineStoreInst
+                                            s2 i5
+                                        let s3 ←
+                                          if b8
+                                          then
+                                            do
+                                            let i13 ←
+                                              obj.Sc.cpu machineStoreInst i5 s2
+                                            let i14 ←
+                                              obj.node_get machineStoreInst s2
+                                                i13 layout.node.CUR_SC
+                                            if i5 != i14
+                                            then
+                                              sporadic.unblock_check
+                                                machineStoreInst s2 i5
+                                            else ok s2
+                                          else ok s2
+                                        let (restart, s4, a2) ←
+                                          faults.handle_fault_reply
+                                            machineStoreInst machineArchInst s3
+                                            a1 i1 t
+                                        let s5 ←
+                                          faults.clear_fault machineStoreInst
+                                            s4 i1
+                                        if restart
+                                        then
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_RESTART
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                        else
+                                          let s6 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              i1 s5 sched.TS_INACTIVE
+                                          let s7 ←
+                                            sched.set_action machineStoreInst
+                                              s6 i1
+                                          let s8 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s7 sched.TS_RUNNING
+                                          let s9 ←
+                                            obj.Tcb.set_state machineStoreInst
+                                              t s8 sched.TS_BLOCKED_ON_RECV
+                                          let s10 ←
+                                            obj.Tcb.set_block_obj
+                                              machineStoreInst t s9 ep_ptr
+                                          let s11 ←
+                                            obj.Tcb.set_reply_obj
+                                              machineStoreInst t s10 rptr
+                                          let s12 ←
+                                            obj.Reply.set_tcb machineStoreInst
+                                              rptr s11 t
+                                          let s13 ←
+                                            obj.Tcb.set_ep_next
+                                              machineStoreInst t s12 0#u64
+                                          let s14 ←
+                                            obj.Tcb.set_ep_prev
+                                              machineStoreInst t s13 0#u64
+                                          let s15 ←
+                                            obj.Ep.set_queue machineStoreInst
+                                              ep_ptr s14 t t obj.EP_RECV
+                                          let (s16, a3) ←
+                                            fastpath.switch_to machineStoreInst
+                                              machineArchInst s15 a2 i1
+                                          ok (true, s16, a3)
+                                      else ok (false, s, a)
+                                    else
+                                      let s1 ←
+                                        obj.Tcb.set_state machineStoreInst t s
+                                          sched.TS_RESTART
+                                      let (s2, a1) ←
+                                        ipc.reply_remove machineStoreInst
+                                          machineArchInst s1 a rptr i1
+                                      let b7 ←
+                                        sporadic.sc_sporadic machineStoreInst
+                                          s2 i5
+                                      let s3 ←
+                                        if b7
+                                        then
+                                          do
+                                          let i11 ←
+                                            obj.Sc.cpu machineStoreInst i5 s2
+                                          let i12 ←
+                                            obj.node_get machineStoreInst s2
+                                              i11 layout.node.CUR_SC
+                                          if i5 != i12
+                                          then
+                                            sporadic.unblock_check
+                                              machineStoreInst s2 i5
+                                          else ok s2
+                                        else ok s2
+                                      let (restart, s4, a2) ←
+                                        faults.handle_fault_reply
+                                          machineStoreInst machineArchInst s3
+                                          a1 i1 t
+                                      let s5 ←
+                                        faults.clear_fault machineStoreInst s4
+                                          i1
+                                      if restart
+                                      then
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_RESTART
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                      else
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_INACTIVE
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                              else
+                                let i9 ←
+                                  obj.Ep.state machineStoreInst ep_ptr s
+                                if i9 != obj.EP_IDLE
+                                then ok (false, s, a)
+                                else
+                                  let t1 ←
+                                    sched.idle_thread machineStoreInst s
+                                  let b6 ←
+                                    obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                                  let fastfail ←
+                                    if b6
+                                    then ok true
+                                    else
+                                      do
+                                      let i10 ←
+                                        obj.Tcb.prio machineStoreInst i1 s
+                                      let i11 ←
+                                        obj.Tcb.prio machineStoreInst t s
+                                      if i10 < i11
+                                      then ok true
+                                      else ok false
+                                  if fastfail
+                                  then
+                                    let i10 ←
+                                      sched.cur_domain machineStoreInst s
+                                    let i11 ←
+                                      obj.Tcb.prio machineStoreInst i1 s
+                                    let b7 ←
+                                      sched.is_highest_prio machineStoreInst s
+                                        i10 i11
+                                    if b7
+                                    then
+                                      let s1 ←
+                                        obj.Tcb.set_state machineStoreInst t s
+                                          sched.TS_RESTART
+                                      let (s2, a1) ←
+                                        ipc.reply_remove machineStoreInst
+                                          machineArchInst s1 a rptr i1
+                                      let b8 ←
+                                        sporadic.sc_sporadic machineStoreInst
+                                          s2 i5
+                                      let s3 ←
+                                        if b8
+                                        then
+                                          do
+                                          let i12 ←
+                                            obj.Sc.cpu machineStoreInst i5 s2
+                                          let i13 ←
+                                            obj.node_get machineStoreInst s2
+                                              i12 layout.node.CUR_SC
+                                          if i5 != i13
+                                          then
+                                            sporadic.unblock_check
+                                              machineStoreInst s2 i5
+                                          else ok s2
+                                        else ok s2
+                                      let (restart, s4, a2) ←
+                                        faults.handle_fault_reply
+                                          machineStoreInst machineArchInst s3
+                                          a1 i1 t
+                                      let s5 ←
+                                        faults.clear_fault machineStoreInst s4
+                                          i1
+                                      if restart
+                                      then
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_RESTART
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                      else
+                                        let s6 ←
+                                          obj.Tcb.set_state machineStoreInst i1
+                                            s5 sched.TS_INACTIVE
+                                        let s7 ←
+                                          sched.set_action machineStoreInst s6
+                                            i1
+                                        let s8 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s7 sched.TS_RUNNING
+                                        let s9 ←
+                                          obj.Tcb.set_state machineStoreInst t
+                                            s8 sched.TS_BLOCKED_ON_RECV
+                                        let s10 ←
+                                          obj.Tcb.set_block_obj
+                                            machineStoreInst t s9 ep_ptr
+                                        let s11 ←
+                                          obj.Tcb.set_reply_obj
+                                            machineStoreInst t s10 rptr
+                                        let s12 ←
+                                          obj.Reply.set_tcb machineStoreInst
+                                            rptr s11 t
+                                        let s13 ←
+                                          obj.Tcb.set_ep_next machineStoreInst
+                                            t s12 0#u64
+                                        let s14 ←
+                                          obj.Tcb.set_ep_prev machineStoreInst
+                                            t s13 0#u64
+                                        let s15 ←
+                                          obj.Ep.set_queue machineStoreInst
+                                            ep_ptr s14 t t obj.EP_RECV
+                                        let (s16, a3) ←
+                                          fastpath.switch_to machineStoreInst
+                                            machineArchInst s15 a2 i1
+                                        ok (true, s16, a3)
+                                    else ok (false, s, a)
+                                  else
+                                    let s1 ←
+                                      obj.Tcb.set_state machineStoreInst t s
+                                        sched.TS_RESTART
+                                    let (s2, a1) ←
+                                      ipc.reply_remove machineStoreInst
+                                        machineArchInst s1 a rptr i1
+                                    let b7 ←
+                                      sporadic.sc_sporadic machineStoreInst s2
+                                        i5
+                                    let s3 ←
+                                      if b7
+                                      then
+                                        do
+                                        let i10 ←
+                                          obj.Sc.cpu machineStoreInst i5 s2
+                                        let i11 ←
+                                          obj.node_get machineStoreInst s2 i10
+                                            layout.node.CUR_SC
+                                        if i5 != i11
+                                        then
+                                          sporadic.unblock_check
+                                            machineStoreInst s2 i5
+                                        else ok s2
+                                      else ok s2
+                                    let (restart, s4, a2) ←
+                                      faults.handle_fault_reply
+                                        machineStoreInst machineArchInst s3 a1
+                                        i1 t
+                                    let s5 ←
+                                      faults.clear_fault machineStoreInst s4 i1
+                                    if restart
+                                    then
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_RESTART
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_state machineStoreInst t s8
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s10 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s9 ep_ptr
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                                    else
+                                      let s6 ←
+                                        obj.Tcb.set_state machineStoreInst i1
+                                          s5 sched.TS_INACTIVE
+                                      let s7 ←
+                                        sched.set_action machineStoreInst s6 i1
+                                      let s8 ←
+                                        obj.Tcb.set_state machineStoreInst t s7
+                                          sched.TS_RUNNING
+                                      let s9 ←
+                                        obj.Tcb.set_state machineStoreInst t s8
+                                          sched.TS_BLOCKED_ON_RECV
+                                      let s10 ←
+                                        obj.Tcb.set_block_obj machineStoreInst
+                                          t s9 ep_ptr
+                                      let s11 ←
+                                        obj.Tcb.set_reply_obj machineStoreInst
+                                          t s10 rptr
+                                      let s12 ←
+                                        obj.Reply.set_tcb machineStoreInst rptr
+                                          s11 t
+                                      let s13 ←
+                                        obj.Tcb.set_ep_next machineStoreInst t
+                                          s12 0#u64
+                                      let s14 ←
+                                        obj.Tcb.set_ep_prev machineStoreInst t
+                                          s13 0#u64
+                                      let s15 ←
+                                        obj.Ep.set_queue machineStoreInst
+                                          ep_ptr s14 t t obj.EP_RECV
+                                      let (s16, a3) ←
+                                        fastpath.switch_to machineStoreInst
+                                          machineArchInst s15 a2 i1
+                                      ok (true, s16, a3)
+                          else
+                            let i7 ← obj.Ep.state machineStoreInst ep_ptr s
+                            if i7 != obj.EP_IDLE
+                            then ok (false, s, a)
+                            else
+                              let t1 ← sched.idle_thread machineStoreInst s
+                              let b6 ←
+                                obj.Tcb.Insts.CoreCmpPartialEqTcb.eq t t1
+                              let fastfail ←
+                                if b6
+                                then ok true
+                                else
+                                  do
+                                  let i8 ← obj.Tcb.prio machineStoreInst i1 s
+                                  let i9 ← obj.Tcb.prio machineStoreInst t s
+                                  if i8 < i9
+                                  then ok true
+                                  else ok false
+                              if fastfail
+                              then
+                                let i8 ← sched.cur_domain machineStoreInst s
+                                let i9 ← obj.Tcb.prio machineStoreInst i1 s
+                                let b7 ←
+                                  sched.is_highest_prio machineStoreInst s i8
+                                    i9
+                                if b7
+                                then
+                                  let s1 ←
+                                    obj.Tcb.set_state machineStoreInst t s
+                                      sched.TS_RESTART
+                                  let (s2, a1) ←
+                                    ipc.reply_remove machineStoreInst
+                                      machineArchInst s1 a rptr i1
+                                  let b8 ←
+                                    sporadic.sc_sporadic machineStoreInst s2 i5
+                                  let s3 ←
+                                    if b8
+                                    then
+                                      do
+                                      let i10 ←
+                                        obj.Sc.cpu machineStoreInst i5 s2
+                                      let i11 ←
+                                        obj.node_get machineStoreInst s2 i10
+                                          layout.node.CUR_SC
+                                      if i5 != i11
+                                      then
+                                        sporadic.unblock_check machineStoreInst
+                                          s2 i5
+                                      else ok s2
+                                    else ok s2
+                                  let (restart, s4, a2) ←
+                                    faults.handle_fault_reply machineStoreInst
+                                      machineArchInst s3 a1 i1 t
+                                  let s5 ←
+                                    faults.clear_fault machineStoreInst s4 i1
+                                  if restart
+                                  then
+                                    let s6 ←
+                                      obj.Tcb.set_state machineStoreInst i1 s5
+                                        sched.TS_RESTART
+                                    let s7 ←
+                                      sched.set_action machineStoreInst s6 i1
+                                    let s8 ←
+                                      obj.Tcb.set_state machineStoreInst t s7
+                                        sched.TS_RUNNING
+                                    let s9 ←
+                                      obj.Tcb.set_state machineStoreInst t s8
+                                        sched.TS_BLOCKED_ON_RECV
+                                    let s10 ←
+                                      obj.Tcb.set_block_obj machineStoreInst t
+                                        s9 ep_ptr
+                                    let s11 ←
+                                      obj.Tcb.set_reply_obj machineStoreInst t
+                                        s10 rptr
+                                    let s12 ←
+                                      obj.Reply.set_tcb machineStoreInst rptr
+                                        s11 t
+                                    let s13 ←
+                                      obj.Tcb.set_ep_next machineStoreInst t
+                                        s12 0#u64
+                                    let s14 ←
+                                      obj.Tcb.set_ep_prev machineStoreInst t
+                                        s13 0#u64
+                                    let s15 ←
+                                      obj.Ep.set_queue machineStoreInst ep_ptr
+                                        s14 t t obj.EP_RECV
+                                    let (s16, a3) ←
+                                      fastpath.switch_to machineStoreInst
+                                        machineArchInst s15 a2 i1
+                                    ok (true, s16, a3)
+                                  else
+                                    let s6 ←
+                                      obj.Tcb.set_state machineStoreInst i1 s5
+                                        sched.TS_INACTIVE
+                                    let s7 ←
+                                      sched.set_action machineStoreInst s6 i1
+                                    let s8 ←
+                                      obj.Tcb.set_state machineStoreInst t s7
+                                        sched.TS_RUNNING
+                                    let s9 ←
+                                      obj.Tcb.set_state machineStoreInst t s8
+                                        sched.TS_BLOCKED_ON_RECV
+                                    let s10 ←
+                                      obj.Tcb.set_block_obj machineStoreInst t
+                                        s9 ep_ptr
+                                    let s11 ←
+                                      obj.Tcb.set_reply_obj machineStoreInst t
+                                        s10 rptr
+                                    let s12 ←
+                                      obj.Reply.set_tcb machineStoreInst rptr
+                                        s11 t
+                                    let s13 ←
+                                      obj.Tcb.set_ep_next machineStoreInst t
+                                        s12 0#u64
+                                    let s14 ←
+                                      obj.Tcb.set_ep_prev machineStoreInst t
+                                        s13 0#u64
+                                    let s15 ←
+                                      obj.Ep.set_queue machineStoreInst ep_ptr
+                                        s14 t t obj.EP_RECV
+                                    let (s16, a3) ←
+                                      fastpath.switch_to machineStoreInst
+                                        machineArchInst s15 a2 i1
+                                    ok (true, s16, a3)
+                                else ok (false, s, a)
+                              else
+                                let s1 ←
+                                  obj.Tcb.set_state machineStoreInst t s
+                                    sched.TS_RESTART
+                                let (s2, a1) ←
+                                  ipc.reply_remove machineStoreInst
+                                    machineArchInst s1 a rptr i1
+                                let b7 ←
+                                  sporadic.sc_sporadic machineStoreInst s2 i5
+                                let s3 ←
+                                  if b7
+                                  then
+                                    do
+                                    let i8 ←
+                                      obj.Sc.cpu machineStoreInst i5 s2
+                                    let i9 ←
+                                      obj.node_get machineStoreInst s2 i8
+                                        layout.node.CUR_SC
+                                    if i5 != i9
+                                    then
+                                      sporadic.unblock_check machineStoreInst
+                                        s2 i5
+                                    else ok s2
+                                  else ok s2
+                                let (restart, s4, a2) ←
+                                  faults.handle_fault_reply machineStoreInst
+                                    machineArchInst s3 a1 i1 t
+                                let s5 ←
+                                  faults.clear_fault machineStoreInst s4 i1
+                                if restart
+                                then
+                                  let s6 ←
+                                    obj.Tcb.set_state machineStoreInst i1 s5
+                                      sched.TS_RESTART
+                                  let s7 ←
+                                    sched.set_action machineStoreInst s6 i1
+                                  let s8 ←
+                                    obj.Tcb.set_state machineStoreInst t s7
+                                      sched.TS_RUNNING
+                                  let s9 ←
+                                    obj.Tcb.set_state machineStoreInst t s8
+                                      sched.TS_BLOCKED_ON_RECV
+                                  let s10 ←
+                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                      ep_ptr
+                                  let s11 ←
+                                    obj.Tcb.set_reply_obj machineStoreInst t
+                                      s10 rptr
+                                  let s12 ←
+                                    obj.Reply.set_tcb machineStoreInst rptr s11
+                                      t
+                                  let s13 ←
+                                    obj.Tcb.set_ep_next machineStoreInst t s12
+                                      0#u64
+                                  let s14 ←
+                                    obj.Tcb.set_ep_prev machineStoreInst t s13
+                                      0#u64
+                                  let s15 ←
+                                    obj.Ep.set_queue machineStoreInst ep_ptr
+                                      s14 t t obj.EP_RECV
+                                  let (s16, a3) ←
+                                    fastpath.switch_to machineStoreInst
+                                      machineArchInst s15 a2 i1
+                                  ok (true, s16, a3)
+                                else
+                                  let s6 ←
+                                    obj.Tcb.set_state machineStoreInst i1 s5
+                                      sched.TS_INACTIVE
+                                  let s7 ←
+                                    sched.set_action machineStoreInst s6 i1
+                                  let s8 ←
+                                    obj.Tcb.set_state machineStoreInst t s7
+                                      sched.TS_RUNNING
+                                  let s9 ←
+                                    obj.Tcb.set_state machineStoreInst t s8
+                                      sched.TS_BLOCKED_ON_RECV
+                                  let s10 ←
+                                    obj.Tcb.set_block_obj machineStoreInst t s9
+                                      ep_ptr
+                                  let s11 ←
+                                    obj.Tcb.set_reply_obj machineStoreInst t
+                                      s10 rptr
+                                  let s12 ←
+                                    obj.Reply.set_tcb machineStoreInst rptr s11
+                                      t
+                                  let s13 ←
+                                    obj.Tcb.set_ep_next machineStoreInst t s12
+                                      0#u64
+                                  let s14 ←
+                                    obj.Tcb.set_ep_prev machineStoreInst t s13
+                                      0#u64
+                                  let s15 ←
+                                    obj.Ep.set_queue machineStoreInst ep_ptr
+                                      s14 t t obj.EP_RECV
+                                  let (s16, a3) ←
+                                    fastpath.switch_to machineStoreInst
+                                      machineArchInst s15 a2 i1
+                                  ok (true, s16, a3)
+                        else ok (false, s, a)
+                      else ok (false, s, a)
+                    else ok (false, s, a)
+    else ok (false, s, a)
+
+/-- [fl4_core::fastpath::reply_caps]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 167:0-183:1
+    Visibility: public -/
+def fastpath.reply_caps
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
+  Result (Option (Std.U64 × Std.U64))
+  := do
+  let s1 ← obj.Tcb.slot t layout.tcb.SLOT_CTABLE
+  let root ← obj.Slot.cap machineStoreInst s1 s
+  let i ← obj.Tcb.reg machineStoreInst t s layout.reg.REPLY
+  let r ←
+    cspace.resolve_address_bits machineStoreInst s root i cspace.WORD_BITS
+  match r with
+  | core.result.Result.Ok found =>
+    let c ← obj.Slot.cap machineStoreInst found.slot s
+    match c with
+    | capability.Cap.Null => ok none
+    | capability.Cap.Untyped _ _ _ _ => ok none
+    | capability.Cap.Endpoint _ _ _ _ _ _ => ok none
+    | capability.Cap.Notification _ _ _ _ => ok none
+    | capability.Cap.Reply ptr _ =>
+      let i1 ← obj.Tcb.reg machineStoreInst t s layout.reg.CAP
+      let r1 ←
+        cspace.resolve_address_bits machineStoreInst s root i1 cspace.WORD_BITS
+      match r1 with
+      | core.result.Result.Ok found1 =>
+        let c1 ← obj.Slot.cap machineStoreInst found1.slot s
+        match c1 with
+        | capability.Cap.Null => ok none
+        | capability.Cap.Untyped _ _ _ _ => ok none
+        | capability.Cap.Endpoint ptr1 _ _ b _ _ =>
+          if b
+          then ok (some (ptr, ptr1))
+          else ok none
+        | capability.Cap.Notification _ _ _ _ => ok none
+        | capability.Cap.Reply _ _ => ok none
+        | capability.Cap.CNode _ _ _ _ => ok none
+        | capability.Cap.Thread _ => ok none
+        | capability.Cap.IrqControl => ok none
+        | capability.Cap.IrqHandler _ => ok none
+        | capability.Cap.Zombie _ _ _ => ok none
+        | capability.Cap.Domain => ok none
+        | capability.Cap.SchedContext _ _ => ok none
+        | capability.Cap.SchedControl _ => ok none
+        | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok none
+        | capability.Cap.PageTable _ _ _ _ => ok none
+        | capability.Cap.PageDirectory _ _ _ _ => ok none
+        | capability.Cap.Pdpt _ _ _ _ => ok none
+        | capability.Cap.Pml4 _ _ _ => ok none
+        | capability.Cap.Vcpu _ => ok none
+        | capability.Cap.Ept _ _ _ _ _ => ok none
+        | capability.Cap.AsidControl => ok none
+        | capability.Cap.AsidPool _ _ => ok none
+        | capability.Cap.IoPortControl => ok none
+        | capability.Cap.IoPort _ _ _ => ok none
+      | core.result.Result.Err _ => ok none
+    | capability.Cap.CNode _ _ _ _ => ok none
+    | capability.Cap.Thread _ => ok none
+    | capability.Cap.IrqControl => ok none
+    | capability.Cap.IrqHandler _ => ok none
+    | capability.Cap.Zombie _ _ _ => ok none
+    | capability.Cap.Domain => ok none
+    | capability.Cap.SchedContext _ _ => ok none
+    | capability.Cap.SchedControl _ => ok none
+    | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok none
+    | capability.Cap.PageTable _ _ _ _ => ok none
+    | capability.Cap.PageDirectory _ _ _ _ => ok none
+    | capability.Cap.Pdpt _ _ _ _ => ok none
+    | capability.Cap.Pml4 _ _ _ => ok none
+    | capability.Cap.Vcpu _ => ok none
+    | capability.Cap.Ept _ _ _ _ _ => ok none
+    | capability.Cap.AsidControl => ok none
+    | capability.Cap.AsidPool _ _ => ok none
+    | capability.Cap.IoPortControl => ok none
+    | capability.Cap.IoPort _ _ _ => ok none
+  | core.result.Result.Err _ => ok none
+
+/-- [fl4_core::fastpath::reply_recv]:
+    Source: 'crates/fl4-core/src/fastpath.rs', lines 155:0-161:1
+    Visibility: public -/
+def fastpath.reply_recv
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) :
+  Result (Bool × S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let o ← fastpath.reply_caps machineStoreInst s t
+  match o with
+  | none => ok (false, s, a)
+  | some p =>
+    let (rptr, ep_ptr) := p
+    fastpath.reply_recv_found machineStoreInst machineArchInst s a t rptr
+      ep_ptr
+
+/-- [fl4_core::faults::valid_fault_handler]:
+    Source: 'crates/fl4-core/src/faults.rs', lines 57:0-63:1
+    Visibility: public -/
+def faults.valid_fault_handler (cap : capability.Cap) : Result Bool := do
+  match cap with
+  | capability.Cap.Null => ok true
+  | capability.Cap.Untyped _ _ _ _ => ok false
+  | capability.Cap.Endpoint _ _ send _ grant grant_reply =>
+    if send
+    then if grant
+         then ok true
+         else ok grant_reply
+    else ok false
+  | capability.Cap.Notification _ _ _ _ => ok false
+  | capability.Cap.Reply _ _ => ok false
+  | capability.Cap.CNode _ _ _ _ => ok false
+  | capability.Cap.Thread _ => ok false
+  | capability.Cap.IrqControl => ok false
+  | capability.Cap.IrqHandler _ => ok false
+  | capability.Cap.Zombie _ _ _ => ok false
+  | capability.Cap.Domain => ok false
+  | capability.Cap.SchedContext _ _ => ok false
+  | capability.Cap.SchedControl _ => ok false
+  | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok false
+  | capability.Cap.PageTable _ _ _ _ => ok false
+  | capability.Cap.PageDirectory _ _ _ _ => ok false
+  | capability.Cap.Pdpt _ _ _ _ => ok false
+  | capability.Cap.Pml4 _ _ _ => ok false
+  | capability.Cap.Vcpu _ => ok false
+  | capability.Cap.Ept _ _ _ _ _ => ok false
+  | capability.Cap.AsidControl => ok false
+  | capability.Cap.AsidPool _ _ => ok false
+  | capability.Cap.IoPortControl => ok false
+  | capability.Cap.IoPort _ _ _ => ok false
+
+/-- [fl4_core::faults::set_mrs_lookup_failure_at]:
+    Source: 'crates/fl4-core/src/faults.rs', lines 117:0-119:1
+    Visibility: public -/
+def faults.set_mrs_lookup_failure_at
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S)
+  (receiver : obj.Tcb) (buf : Std.U64) (lf : error.LookupFault)
+  (offset : Std.U64) :
+  Result (Std.U64 × S)
+  := do
+  faults.set_mrs_lookup_failure machineStoreInst s receiver buf lf offset
 
 /-- [fl4_core::interrupt::IRQ_RESERVED]
     Source: 'crates/fl4-core/src/interrupt.rs', lines 20:0-20:32
@@ -26236,8 +28382,15 @@ def ioport.port_size (lbl : Std.U64) : Result Std.U64 := do
             then ok 4#u64
             else ok 0#u64
 
+/-- [fl4_core::ioport::is_port_label]:
+    Source: 'crates/fl4-core/src/ioport.rs', lines 129:0-131:1
+    Visibility: public -/
+def ioport.is_port_label (lbl : Std.U64) : Result Bool := do
+  let i ← ioport.port_size lbl
+  ok (i != 0#u64)
+
 /-- [fl4_core::ioport::is_port_in]:
-    Source: 'crates/fl4-core/src/ioport.rs', lines 130:0-136:1 -/
+    Source: 'crates/fl4-core/src/ioport.rs', lines 135:0-141:1 -/
 def ioport.is_port_in (lbl : Std.U64) : Result Bool := do
   if lbl = fl4_abi.label.X86IOPortIn8
   then ok true
@@ -26248,8 +28401,69 @@ def ioport.is_port_in (lbl : Std.U64) : Result Bool := do
          then ok true
          else ok false
 
+/-- [fl4_core::ioport::invocation_ok]:
+    Source: 'crates/fl4-core/src/ioport.rs', lines 146:0-168:1
+    Visibility: public -/
+def ioport.invocation_ok
+  {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
+  (cptr : Std.U64) (info : msginfo.MessageInfo) :
+  Result Bool
+  := do
+  let size ← ioport.port_size info.label
+  if size = 0#u64
+  then ok false
+  else
+    let r ← cspace.lookup_slot machineStoreInst s t cptr
+    match r with
+    | core.result.Result.Ok r1 =>
+      let c ← obj.Slot.cap machineStoreInst r1.slot s
+      match c with
+      | capability.Cap.Null => ok false
+      | capability.Cap.Untyped _ _ _ _ => ok false
+      | capability.Cap.Endpoint _ _ _ _ _ _ => ok false
+      | capability.Cap.Notification _ _ _ _ => ok false
+      | capability.Cap.Reply _ _ => ok false
+      | capability.Cap.CNode _ _ _ _ => ok false
+      | capability.Cap.Thread _ => ok false
+      | capability.Cap.IrqControl => ok false
+      | capability.Cap.IrqHandler _ => ok false
+      | capability.Cap.Zombie _ _ _ => ok false
+      | capability.Cap.Domain => ok false
+      | capability.Cap.SchedContext _ _ => ok false
+      | capability.Cap.SchedControl _ => ok false
+      | capability.Cap.Frame _ _ _ _ _ _ _ _ => ok false
+      | capability.Cap.PageTable _ _ _ _ => ok false
+      | capability.Cap.PageDirectory _ _ _ _ => ok false
+      | capability.Cap.Pdpt _ _ _ _ => ok false
+      | capability.Cap.Pml4 _ _ _ => ok false
+      | capability.Cap.Vcpu _ => ok false
+      | capability.Cap.Ept _ _ _ _ _ => ok false
+      | capability.Cap.AsidControl => ok false
+      | capability.Cap.AsidPool _ _ => ok false
+      | capability.Cap.IoPortControl => ok false
+      | capability.Cap.IoPort first last _ =>
+        let buf ← msg.lookup_ipc_buffer machineStoreInst s false t
+        let length ←
+          if info.length > msg.N_MSG_REGISTERS
+          then if buf = 0#u64
+               then ok msg.N_MSG_REGISTERS
+               else ok info.length
+          else ok info.length
+        let b ← ioport.is_port_in info.label
+        let i ← if b
+                  then ok 1#u64
+                  else ok 2#u64
+        if length < i
+        then ok false
+        else
+          let i1 ← msg.syscall_arg machineStoreInst s t buf 0#u64
+          let port ← lift (i1 &&& 65535#u64)
+          let r2 ← ioport.allowed first last port size
+          core.result.Result.is_ok r2
+    | core.result.Result.Err _ => ok false
+
 /-- [fl4_core::ioport::decode]:
-    Source: 'crates/fl4-core/src/ioport.rs', lines 138:0-182:1
+    Source: 'crates/fl4-core/src/ioport.rs', lines 170:0-214:1
     Visibility: public -/
 def ioport.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -26382,7 +28596,7 @@ def ioport.decode
             ok (r1, s, a)
 
 /-- [fl4_core::ipc::do_reply_transfer]:
-    Source: 'crates/fl4-core/src/ipc.rs', lines 258:0-288:1
+    Source: 'crates/fl4-core/src/ipc.rs', lines 265:0-295:1
     Visibility: public -/
 def ipc.do_reply_transfer
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -26582,7 +28796,7 @@ def machine.Store.read_pair.default
   ok (i, i2)
 
 /-- [fl4_core::machine::Arch::private_device_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 48:4-48:65
+    Source: 'crates/fl4-core/src/machine.rs', lines 46:4-46:65
     Visibility: public -/
 @[trait_default]
 def machine.Arch.private_device_frame.default
@@ -26590,7 +28804,7 @@ def machine.Arch.private_device_frame.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_ram]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 50:4-50:63
+    Source: 'crates/fl4-core/src/machine.rs', lines 48:4-48:63
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_ram.default
@@ -26600,7 +28814,7 @@ def machine.Arch.dma_ram.default
   ok false
 
 /-- [fl4_core::machine::Arch::dma_frame]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 52:4-52:69
+    Source: 'crates/fl4-core/src/machine.rs', lines 50:4-50:69
     Visibility: public -/
 @[trait_default]
 def machine.Arch.dma_frame.default
@@ -26611,7 +28825,7 @@ def machine.Arch.dma_frame.default
   ok self
 
 /-- [fl4_core::machine::Arch::virtualization]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 54:4-54:41
+    Source: 'crates/fl4-core/src/machine.rs', lines 52:4-52:41
     Visibility: public -/
 @[trait_default]
 def machine.Arch.virtualization.default
@@ -26619,7 +28833,7 @@ def machine.Arch.virtualization.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_capability]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 56:4-56:55
+    Source: 'crates/fl4-core/src/machine.rs', lines 54:4-54:55
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_capability.default
@@ -26627,7 +28841,7 @@ def machine.Arch.vcpu_capability.default
   ok 0#u64
 
 /-- [fl4_core::machine::Arch::vcpu_barrier]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 58:4-58:33
+    Source: 'crates/fl4-core/src/machine.rs', lines 56:4-56:33
     Visibility: public -/
 @[trait_default]
 def machine.Arch.vcpu_barrier.default
@@ -26635,7 +28849,7 @@ def machine.Arch.vcpu_barrier.default
   ok self
 
 /-- [fl4_core::machine::Arch::invalidate_ept]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 60:4-60:59
+    Source: 'crates/fl4-core/src/machine.rs', lines 58:4-58:59
     Visibility: public -/
 @[trait_default]
 def machine.Arch.invalidate_ept.default
@@ -26645,7 +28859,7 @@ def machine.Arch.invalidate_ept.default
   ok self
 
 /-- [fl4_core::machine::Arch::irq_free]:
-    Source: 'crates/fl4-core/src/machine.rs', lines 81:4-81:40
+    Source: 'crates/fl4-core/src/machine.rs', lines 79:4-79:40
     Visibility: public -/
 @[trait_default]
 def machine.Arch.irq_free.default
@@ -26658,7 +28872,7 @@ def machine.Arch.irq_free.default
 @[global_simps, irreducible] def msg.BUF_MSG : Std.U64 := 1#u64
 
 /-- [fl4_core::msg::get_mr]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 65:0-67:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 66:0-68:1
     Visibility: public -/
 def msg.get_mr
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -26668,7 +28882,7 @@ def msg.get_mr
   msg.syscall_arg machineStoreInst s t buf i
 
 /-- [fl4_core::msg::reply_success_empty]:
-    Source: 'crates/fl4-core/src/msg.rs', lines 111:0-114:1
+    Source: 'crates/fl4-core/src/msg.rs', lines 112:0-115:1
     Visibility: public -/
 def msg.reply_success_empty
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) :
@@ -26779,7 +28993,7 @@ def notification.reorder_ntfn
   notification.set_queue machineStoreInst s2 n_ptr q2 st
 
 /-- [fl4_core::notification::receive_signal]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 117:0-140:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 143:0-166:1
     Visibility: public -/
 def notification.receive_signal
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -26842,7 +29056,7 @@ def notification.receive_signal
       else ok (s3, a1)
 
 /-- [fl4_core::notification::bind_notification]:
-    Source: 'crates/fl4-core/src/notification.rs', lines 200:0-203:1
+    Source: 'crates/fl4-core/src/notification.rs', lines 226:0-229:1
     Visibility: public -/
 def notification.bind_notification
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -27191,14 +29405,14 @@ def obj.Sc.set_badge
   machineStoreInst.write s i v
 
 /-- [fl4_core::objects::mask_rights]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 193:0-195:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 196:0-198:1
     Visibility: public -/
 def objects.mask_rights
   (r : capability.Rights) (c : capability.Cap) : Result capability.Cap := do
   capability.mask_cap_rights r c
 
 /-- [fl4_core::objects::name_byte]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 459:0-461:1 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 462:0-464:1 -/
 def objects.name_byte
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (i : Std.U64) :
@@ -27216,20 +29430,20 @@ def objects.name_byte
   ok (i9 &&& 255#u64)
 
 /-- [fl4_core::objects::CHILD_PREFIX_LEN]
-    Source: 'crates/fl4-core/src/objects.rs', lines 454:0-454:33 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 457:0-457:33 -/
 @[global_simps, irreducible] def objects.CHILD_PREFIX_LEN : Std.U64 := 11#u64
 
 /-- [fl4_core::objects::CHILD_PREFIX1]
-    Source: 'crates/fl4-core/src/objects.rs', lines 453:0-453:39 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 456:0-456:39 -/
 @[global_simps, irreducible] def objects.CHILD_PREFIX1 : Std.U64 := 2564154#u64
 
 /-- [fl4_core::objects::CHILD_PREFIX0]
-    Source: 'crates/fl4-core/src/objects.rs', lines 452:0-452:49 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 455:0-455:49 -/
 @[global_simps, irreducible]
 def objects.CHILD_PREFIX0 : Std.U64 := 7381153929971198051#u64
 
 /-- [fl4_core::objects::child_name_byte]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 464:0-476:1 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 467:0-479:1 -/
 def objects.child_name_byte
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Tcb)
   (len : Std.U64) (i : Std.U64) :
@@ -27256,11 +29470,11 @@ def objects.child_name_byte
            else ok 0#u64
 
 /-- [fl4_core::objects::CHILD_NAME_MAX]
-    Source: 'crates/fl4-core/src/objects.rs', lines 457:0-457:31 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 460:0-460:31 -/
 @[global_simps, irreducible] def objects.CHILD_NAME_MAX : Std.U64 := 51#u64
 
 /-- [fl4_core::objects::set_child_name]: loop body 0:
-    Source: 'crates/fl4-core/src/objects.rs', lines 485:4-487:5 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 488:4-490:5 -/
 @[rust_loop_body]
 def objects.set_child_name_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Tcb)
@@ -27277,7 +29491,7 @@ def objects.set_child_name_loop0.body
   else ok (done len)
 
 /-- [fl4_core::objects::set_child_name]: loop 0:
-    Source: 'crates/fl4-core/src/objects.rs', lines 485:4-487:5 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 488:4-490:5 -/
 @[rust_loop]
 def objects.set_child_name_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Tcb)
@@ -27290,7 +29504,7 @@ def objects.set_child_name_loop0
     len
 
 /-- [fl4_core::objects::set_child_name]: loop body 2:
-    Source: 'crates/fl4-core/src/objects.rs', lines 492:8-495:9 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 495:8-498:9 -/
 @[rust_loop_body]
 def objects.set_child_name_loop1_loop0.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Tcb)
@@ -27311,7 +29525,7 @@ def objects.set_child_name_loop1_loop0.body
   else ok (done v)
 
 /-- [fl4_core::objects::set_child_name]: loop 2:
-    Source: 'crates/fl4-core/src/objects.rs', lines 492:8-495:9 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 495:8-498:9 -/
 @[rust_loop]
 def objects.set_child_name_loop1_loop0
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (parent : obj.Tcb)
@@ -27324,7 +29538,7 @@ def objects.set_child_name_loop1_loop0
     (v, k)
 
 /-- [fl4_core::objects::set_child_name]: loop body 1:
-    Source: 'crates/fl4-core/src/objects.rs', lines 489:4-498:5 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 492:4-501:5 -/
 @[rust_loop_body]
 def objects.set_child_name_loop1.body
   {S : Type _} (machineStoreInst : machine.Store S) (child : obj.Tcb)
@@ -27345,7 +29559,7 @@ def objects.set_child_name_loop1.body
   else ok (done s)
 
 /-- [fl4_core::objects::set_child_name]: loop 1:
-    Source: 'crates/fl4-core/src/objects.rs', lines 489:4-498:5 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 492:4-501:5 -/
 @[rust_loop]
 def objects.set_child_name_loop1
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (child : obj.Tcb)
@@ -27358,7 +29572,7 @@ def objects.set_child_name_loop1
     (s, w)
 
 /-- [fl4_core::objects::set_child_name]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 480:0-499:1 -/
+    Source: 'crates/fl4-core/src/objects.rs', lines 483:0-502:1 -/
 def objects.set_child_name
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (child : obj.Tcb)
   (parent : obj.Tcb) :
@@ -27375,7 +29589,7 @@ def objects.set_child_name
   else ok s
 
 /-- [fl4_core::objects::create_object]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 422:0-449:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 425:0-452:1
     Visibility: public -/
 def objects.create_object
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27417,7 +29631,7 @@ def objects.create_object
                   t base device
 
 /-- [fl4_core::objects::create_new_objects]: loop body 0:
-    Source: 'crates/fl4-core/src/objects.rs', lines 520:4-524:5
+    Source: 'crates/fl4-core/src/objects.rs', lines 523:4-527:5
     Visibility: public -/
 @[rust_loop_body]
 def objects.create_new_objects_loop.body
@@ -27444,7 +29658,7 @@ def objects.create_new_objects_loop.body
   else ok (done (s, a))
 
 /-- [fl4_core::objects::create_new_objects]: loop 0:
-    Source: 'crates/fl4-core/src/objects.rs', lines 520:4-524:5
+    Source: 'crates/fl4-core/src/objects.rs', lines 523:4-527:5
     Visibility: public -/
 @[rust_loop]
 def objects.create_new_objects_loop
@@ -27462,7 +29676,7 @@ def objects.create_new_objects_loop
     (s, a, i)
 
 /-- [fl4_core::objects::create_new_objects]:
-    Source: 'crates/fl4-core/src/objects.rs', lines 503:0-525:1
+    Source: 'crates/fl4-core/src/objects.rs', lines 506:0-528:1
     Visibility: public -/
 def objects.create_new_objects
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27528,7 +29742,7 @@ def sched.is_stopped
   else sched.is_blocked machineStoreInst s t
 
 /-- [fl4_core::sched::set_priority]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 690:0-710:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 705:0-725:1
     Visibility: public -/
 def sched.set_priority
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -27616,7 +29830,7 @@ def sched.set_priority
             else obj.Tcb.set_prio machineStoreInst t s prio
 
 /-- [fl4_core::sched::restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 743:0-756:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 764:0-777:1
     Visibility: public -/
 def sched.restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -27783,7 +29997,7 @@ def schedcontext.yield_to
     ok (s5, a2)
 
 /-- [fl4_core::sporadic::sc_released]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 126:0-128:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 143:0-145:1
     Visibility: public -/
 def sporadic.sc_released
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) :
@@ -28093,7 +30307,7 @@ def schedcontext.decode
                ok (r, s1, a1)
 
 /-- [fl4_core::sporadic::refill_update]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 176:0-196:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 197:0-217:1
     Visibility: public -/
 def sporadic.refill_update
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc)
@@ -28242,7 +30456,7 @@ def schedcontext.configure_flags
     ok (s6, a2)
 
 /-- [fl4_core::sporadic::refill_absolute_max]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 40:0-50:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 41:0-51:1
     Visibility: public -/
 def sporadic.refill_absolute_max (size_bits : Std.U64) : Result Std.U64 := do
   if size_bits >= 64#u64
@@ -28256,7 +30470,7 @@ def sporadic.refill_absolute_max (size_bits : Std.U64) : Result Std.U64 := do
          i1 / layout.sc.REFILL_SIZE
 
 /-- [fl4_core::sporadic::min_budget_us]:
-    Source: 'crates/fl4-core/src/sporadic.rs', lines 25:0-27:1
+    Source: 'crates/fl4-core/src/sporadic.rs', lines 26:0-28:1
     Visibility: public -/
 def sporadic.min_budget_us : Result Std.U64 := do
   2#u64 * 10#u64
@@ -28414,7 +30628,7 @@ def schedcontext.decode_sched_control
                     ok (r, s, a)
 
 /-- [fl4_core::smp::stall]:
-    Source: 'crates/fl4-core/src/smp.rs', lines 40:0-62:1
+    Source: 'crates/fl4-core/src/smp.rs', lines 57:0-79:1
     Visibility: public -/
 def smp.stall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -28518,11 +30732,11 @@ def sporadic.Refill.Insts.CoreCmpEq : core.cmp.Eq sporadic.Refill := {
 }
 
 /-- [fl4_core::syscall::DEBUG_MESSAGE_START]
-    Source: 'crates/fl4-core/src/syscall.rs', lines 215:0-215:35 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 216:0-216:35 -/
 @[global_simps, irreducible] def syscall.DEBUG_MESSAGE_START : Std.U64 := 6#u64
 
 /-- [fl4_core::syscall::error_mrs]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 61:0-76:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 62:0-77:1 -/
 def syscall.error_mrs
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (buf : Std.U64) (e : error.SysError) :
@@ -28553,7 +30767,7 @@ def syscall.error_mrs
     msg.set_mr machineStoreInst s t buf 0#u64 bytes
 
 /-- [fl4_core::syscall::reply_error]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 43:0-58:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 44:0-59:1 -/
 def syscall.reply_error
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (e : error.SysError) :
@@ -28708,7 +30922,7 @@ def vcpu.READ_FIELDS : Array Std.U64 84#usize :=
 @[global_simps, irreducible] def vcpu.MSRS : Std.U64 := 20864#u64
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure_1) (tupled_args : Std.U64) : Result Std.U64 := do
   let i ← lift (core.num.U64.wrapping_add c vcpu.MSRS)
@@ -28716,7 +30930,7 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   ok (core.num.U64.wrapping_add i i1)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure#1}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure_1 Std.U64 Std.U64 := {
@@ -28725,13 +30939,13 @@ def vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
 }
 
 /-- [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}::call_once]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:30-781:55 -/
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64.call_once
   (c : vcpu.msr_addr.closure) (tupled_args : Std.U64) : Result Std.U64 := do
   ok (core.num.U64.wrapping_add c tupled_args)
 
 /-- Trait implementation: [fl4_core::vcpu::msr_addr::{impl core::ops::function::FnOnce<(u64,), u64> for fl4_core::vcpu::msr_addr::{closure}<'_0>}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:30-781:55 -/
 @[reducible]
 def vcpu.msr_addr.closure.Insts.CoreOpsFunctionFnOnceTupleU64U64 :
   core.ops.function.FnOnce vcpu.msr_addr.closure Std.U64 Std.U64 := {
@@ -28770,7 +30984,7 @@ def vcpu.svm.LSTAR : Result Std.U64 := vcpu.svm.SAVE + 520#u64
 def vcpu.svm.STAR : Result Std.U64 := vcpu.svm.SAVE + 512#u64
 
 /-- [fl4_core::vcpu::svm_msr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 759:0-769:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 765:0-775:1 -/
 def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => let i ← vcpu.svm.STAR
@@ -28788,7 +31002,7 @@ def vcpu.svm_msr (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_slot]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 749:0-758:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 755:0-764:1 -/
 def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   match f with
   | 3221225601#uscalar => ok (some 0#u64)
@@ -28799,7 +31013,7 @@ def vcpu.msr_slot (f : Std.U64) : Result (Option Std.U64) := do
   | _ => ok none
 
 /-- [fl4_core::vcpu::msr_addr]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 770:0-781:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 776:0-787:1 -/
 def vcpu.msr_addr
   (v : Std.U64) (f : Std.U64) (amd : Bool) : Result (Option Std.U64) := do
   if f = 4294967294#u64
@@ -28821,7 +31035,7 @@ def vcpu.msr_addr
           vcpu.msr_addr.closure_1.Insts.CoreOpsFunctionFnOnceTupleU64U64 o v
 
 /-- [fl4_core::vcpu::reply]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 681:0-690:1 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 687:0-696:1 -/
 def vcpu.reply
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (call : Bool)
   (value : Std.U64) :
@@ -28841,15 +31055,17 @@ def vcpu.reply
   sched.set_thread_state machineStoreInst s1 ct sched.TS_RUNNING
 
 /-- [fl4_core::vcpu::vmcb_hidden]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 605:0-610:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 611:0-616:1
     Visibility: public -/
 def vcpu.vmcb_hidden (f : Std.U64) : Result Bool := do
   match f with
   | 64#uscalar => ok true
   | 72#uscalar => ok true
+  | 88#uscalar => ok true
   | 152#uscalar => ok true
   | 160#uscalar => ok true
   | 176#uscalar => ok true
+  | 192#uscalar => ok true
   | 224#uscalar => ok true
   | 240#uscalar => ok true
   | 248#uscalar => ok true
@@ -30880,7 +33096,7 @@ def vcpu.valid_xcr0 (x : Std.U64) (host : Std.U64) : Result Bool := do
 def vcpu.svm.RAX : Result Std.U64 := vcpu.svm.SAVE + 504#u64
 
 /-- [fl4_core::vcpu::decode]: loop body 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 828:8-832:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 834:8-838:9
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop0.body
@@ -30899,7 +33115,7 @@ def vcpu.decode_loop0.body
   else ok (done s)
 
 /-- [fl4_core::vcpu::decode]: loop 0:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 828:8-832:9
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 834:8-838:9
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop0
@@ -30912,7 +33128,7 @@ def vcpu.decode_loop0
     (s, i)
 
 /-- [fl4_core::vcpu::decode]: loop body 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 908:16-919:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop1.body
@@ -30941,7 +33157,7 @@ def vcpu.decode_loop1.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 1:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 908:16-919:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop1
@@ -30956,7 +33172,7 @@ def vcpu.decode_loop1
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 908:16-919:17
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop2.body
@@ -30985,7 +33201,7 @@ def vcpu.decode_loop2.body
   else ok (done (s, n))
 
 /-- [fl4_core::vcpu::decode]: loop 2:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 902:16-913:17
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 908:16-919:17
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop2
@@ -31000,7 +33216,7 @@ def vcpu.decode_loop2
     (s, i, n)
 
 /-- [fl4_core::vcpu::decode]: loop body 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 983:20-990:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop3.body
@@ -31028,7 +33244,7 @@ def vcpu.decode_loop3.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 3:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 983:20-990:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop3
@@ -31043,7 +33259,7 @@ def vcpu.decode_loop3
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]: loop body 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 983:20-990:21
     Visibility: public -/
 @[rust_loop_body]
 def vcpu.decode_loop4.body
@@ -31071,7 +33287,7 @@ def vcpu.decode_loop4.body
   else ok (done (s, a))
 
 /-- [fl4_core::vcpu::decode]: loop 4:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 977:20-984:21
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 983:20-990:21
     Visibility: public -/
 @[rust_loop]
 def vcpu.decode_loop4
@@ -31086,7 +33302,7 @@ def vcpu.decode_loop4
     (s, a, old, fuel)
 
 /-- [fl4_core::vcpu::decode]:
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 784:0-1003:1
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 790:0-1009:1
     Visibility: public -/
 def vcpu.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -32468,11 +34684,11 @@ def vcpu.decode
                            ok (r, s1, a1)
 
 /-- [fl4_core::untyped::RESET_CHUNK]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 219:0-219:31 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 222:0-222:31 -/
 @[global_simps, irreducible] def untyped.RESET_CHUNK : Std.U64 := 65536#u64
 
 /-- [fl4_core::untyped::as_untyped]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 196:0-201:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 199:0-204:1 -/
 def untyped.as_untyped
   (c : capability.Cap) : Result (Option untyped.UntypedCap) := do
   match c with
@@ -32508,7 +34724,7 @@ def untyped.as_untyped
 @[global_simps, irreducible] def untyped.RESET_CHUNK_BITS : Std.U64 := 16#u64
 
 /-- [fl4_core::untyped::reset_untyped]: loop body 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 242:4-251:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 245:4-262:5 -/
 @[rust_loop_body]
 def untyped.reset_untyped_loop.body
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -32525,22 +34741,28 @@ def untyped.reset_untyped_loop.body
   if offset = 0#u64
   then ok (done (core.result.Result.Ok (), s2, a))
   else
-    let (r, s3, a1) ←
-      sched.preemption_point machineStoreInst machineArchInst s2 a
-    let cf ← core.result.Result.Insts.CoreOpsTry.branch r
-    match cf with
-    | core.ops.control_flow.ControlFlow.Continue _ =>
-      let offset1 ←
-        lift (core.num.U64.saturating_sub offset untyped.RESET_CHUNK)
-      ok (cont (s3, a1, offset1))
-    | core.ops.control_flow.ControlFlow.Break residual =>
-      let r1 ←
-        core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
-          Unit (core.convert.FromSame error.Exc) residual
-      ok (done (r1, s3, a1))
+    let c ← obj.Slot.cap machineStoreInst slot s2
+    let o ← untyped.as_untyped c
+    let b := core.option.Option.is_none o
+    if b
+    then ok (done (core.result.Result.Err error.Exc.Preempted, s2, a))
+    else
+      let (r, s3, a1) ←
+        sched.preemption_point machineStoreInst machineArchInst s2 a
+      let cf ← core.result.Result.Insts.CoreOpsTry.branch r
+      match cf with
+      | core.ops.control_flow.ControlFlow.Continue _ =>
+        let offset1 ←
+          lift (core.num.U64.saturating_sub offset untyped.RESET_CHUNK)
+        ok (cont (s3, a1, offset1))
+      | core.ops.control_flow.ControlFlow.Break residual =>
+        let r1 ←
+          core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+            Unit (core.convert.FromSame error.Exc) residual
+        ok (done (r1, s3, a1))
 
 /-- [fl4_core::untyped::reset_untyped]: loop 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 242:4-251:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 245:4-262:5 -/
 @[rust_loop]
 def untyped.reset_untyped_loop
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -32554,7 +34776,7 @@ def untyped.reset_untyped_loop
     (s, a, offset)
 
 /-- [fl4_core::untyped::reset_untyped]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 222:0-252:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 225:0-263:1 -/
 def untyped.reset_untyped
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) :
@@ -32606,7 +34828,7 @@ def untyped.reset_untyped
             u.ptr u.size_bits u.is_device offset
 
 /-- [fl4_core::untyped::retype]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 255:0-279:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 266:0-290:1 -/
 def untyped.retype
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot)
@@ -32709,7 +34931,7 @@ def untyped.retype
     ok (core.result.Result.Ok (), s2, a1)
 
 /-- [fl4_core::untyped::ensure_empty_slots]: loop body 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 208:4-211:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 211:4-214:5 -/
 @[rust_loop_body]
 def untyped.ensure_empty_slots_loop.body
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -32730,7 +34952,7 @@ def untyped.ensure_empty_slots_loop.body
   else ok (done r)
 
 /-- [fl4_core::untyped::ensure_empty_slots]: loop 0:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 208:4-211:5 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 211:4-214:5 -/
 @[rust_loop]
 def untyped.ensure_empty_slots_loop
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -32743,7 +34965,7 @@ def untyped.ensure_empty_slots_loop
     (r, i)
 
 /-- [fl4_core::untyped::ensure_empty_slots]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 205:0-213:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 208:0-216:1 -/
 @[reducible]
 def untyped.ensure_empty_slots
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cnode : Std.U64)
@@ -32754,7 +34976,7 @@ def untyped.ensure_empty_slots
     (core.result.Result.Ok ()) «from»
 
 /-- [fl4_core::untyped::cnode_of]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 180:0-185:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 183:0-188:1 -/
 def untyped.cnode_of
   (c : capability.Cap) : Result (Option (Std.U64 × Std.U64)) := do
   match c with
@@ -32790,7 +35012,7 @@ def untyped.cnode_of
 def untyped.RETYPE_FAN_OUT_LIMIT : Std.U64 := 256#u64
 
 /-- [fl4_core::untyped::retype_dest]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 151:0-178:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 154:0-181:1 -/
 def untyped.retype_dest
   {S : Type _} (machineStoreInst : machine.Store S) (s : S)
   (root_slot : obj.Slot) (node_index : Std.U64) (node_depth : Std.U64)
@@ -32868,7 +35090,7 @@ def untyped.retype_dest
         Std.U64 (core.convert.FromSame error.Exc) residual
 
 /-- [fl4_core::untyped::retype_size]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 127:0-148:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 130:0-151:1 -/
 def untyped.retype_size
   (new_type : Std.U64) (user_size : Std.U64) :
   Result (core.result.Result Std.U64 error.Exc)
@@ -32940,7 +35162,7 @@ def untyped.align_up (v : Std.U64) (align : Std.U64) : Result Std.U64 := do
   ok (i2 &&& i3)
 
 /-- [fl4_core::untyped::shared_extent]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 82:0-91:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 85:0-94:1 -/
 def untyped.shared_extent
   (u : untyped.UntypedCap) (used : Std.U64) (bits : Std.U64) (count : Std.U64)
   :
@@ -32970,7 +35192,7 @@ def untyped.shared_extent
       ok (core.result.Result.Ok (base, bytes, i4))
 
 /-- [fl4_core::untyped::shared_frame_spec]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 73:0-79:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 76:0-82:1 -/
 def untyped.shared_frame_spec
   (bits : Std.U64) :
   Result (core.result.Result (Std.U64 × Std.U64) error.Exc)
@@ -32984,7 +35206,7 @@ def untyped.shared_frame_spec
   | _ => error.invalid_arg (Std.U64 × Std.U64) 0#u64
 
 /-- [fl4_core::untyped::retype_shared]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 96:0-123:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 99:0-126:1 -/
 def untyped.retype_shared
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (length : Std.U64)
@@ -33120,7 +35342,7 @@ def untyped.retype_shared
             ok (r1, s, a)
 
 /-- [fl4_core::untyped::decode]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 25:0-69:1
+    Source: 'crates/fl4-core/src/untyped.rs', lines 25:0-72:1
     Visibility: public -/
 def untyped.decode
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -39811,7 +42033,7 @@ def tcb.decode
                                                     s1, a1)
 
 /-- [fl4_core::syscall::decode_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 80:0-164:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 81:0-165:1 -/
 def syscall.decode_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64)
@@ -39937,7 +42159,7 @@ def syscall.decode_invocation
     ioport.decode machineStoreInst machineArchInst s a lbl length cap call buf
 
 /-- [fl4_core::syscall::handle_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 167:0-211:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 168:0-212:1 -/
 def syscall.handle_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (is_call : Bool)
@@ -40005,7 +42227,7 @@ def syscall.handle_invocation
     else ok (core.result.Result.Ok (), s, a)
 
 /-- [fl4_core::syscall::cap_fault_recv]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 217:0-220:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 218:0-221:1 -/
 def syscall.cap_fault_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (cptr : Std.U64)
@@ -40017,7 +42239,7 @@ def syscall.cap_fault_recv
     cptr true lf)
 
 /-- [fl4_core::syscall::handle_recv]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 223:0-258:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 225:0-260:1 -/
 def syscall.handle_recv
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (blocking : Bool)
@@ -40220,7 +42442,7 @@ def syscall.handle_recv
     | error.Exc.Preempted => ok (s, a)
 
 /-- [fl4_core::syscall::mcs_preemption_point]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 261:0-272:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 263:0-274:1 -/
 def syscall.mcs_preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -40245,7 +42467,7 @@ def syscall.mcs_preemption_point
       ok (s2, a)
 
 /-- [fl4_core::syscall::handle_yield]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 274:0-280:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 276:0-282:1 -/
 def syscall.handle_yield
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -40262,12 +42484,12 @@ def syscall.handle_yield
   ok (s2, a1)
 
 /-- [fl4_core::syscall::NO_IRQ]
-    Source: 'crates/fl4-core/src/syscall.rs', lines 301:0-301:33
+    Source: 'crates/fl4-core/src/syscall.rs', lines 304:0-304:33
     Visibility: public -/
 @[global_simps, irreducible] def syscall.NO_IRQ : Std.U64 := core.num.U64.MAX
 
 /-- [fl4_core::syscall::check_interrupt]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 294:0-298:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 297:0-301:1 -/
 def syscall.check_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) :
@@ -40278,7 +42500,7 @@ def syscall.check_interrupt
   else ok (s, a)
 
 /-- [fl4_core::syscall::after_invocation]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 282:0-292:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 285:0-295:1 -/
 def syscall.after_invocation
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A)
@@ -40296,7 +42518,7 @@ def syscall.after_invocation
     ok (false, s2, a3)
 
 /-- [fl4_core::syscall::dispatch_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 329:0-369:1 -/
+    Source: 'crates/fl4-core/src/syscall.rs', lines 424:0-464:1 -/
 def syscall.dispatch_syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
@@ -40400,13 +42622,13 @@ def syscall.dispatch_syscall
                           a
                       else ok (s, a)
 
-/-- [fl4_core::syscall::handle_syscall]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 308:0-326:1
-    Visibility: public -/
-def syscall.handle_syscall
+/-- [fl4_core::syscall::syscall]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 400:0-420:1 -/
+def syscall.syscall
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
-  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
-  Result (S × A)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (fast : Bool) :
+  Result (Bool × S × A)
   := do
   let t ← sched.cur_thread machineStoreInst s
   let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
@@ -40417,30 +42639,279 @@ def syscall.handle_syscall
   if i2 != 0#u64
   then
     let i3 ← lift (IScalar.hcast .U64 number)
-    syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a i3
+    syscall.unknown_syscall_fault machineStoreInst machineArchInst s1 a i3 fast
   else
     if number < fl4_abi.syscall.SYSCALL_MIN
     then
       syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a
-        number
+        number fast
     else
       if number > fl4_abi.syscall.SYSCALL_MAX
       then
         syscall.handle_unknown_syscall machineStoreInst machineArchInst s1 a
-          number
+          number fast
       else
         let (b, s2, a1) ←
           syscall.budget_ok machineStoreInst machineArchInst s1 a
-        let (s3, a2) ←
+        if b
+        then
+          if fast
+          then
+            if number = fl4_abi.syscall.SysReplyRecv
+            then
+              let (b1, s3, a2) ←
+                fastpath.reply_recv machineStoreInst machineArchInst s2 a1
+              if b1
+              then ok (true, s3, a2)
+              else
+                let (s4, a3) ←
+                  syscall.dispatch_syscall machineStoreInst machineArchInst s3
+                    a2 number
+                let (s5, a4) ←
+                  syscall.finish machineStoreInst machineArchInst s4 a3
+                ok (false, s5, a4)
+            else
+              let (s3, a2) ←
+                syscall.dispatch_syscall machineStoreInst machineArchInst s2 a1
+                  number
+              let (s4, a3) ←
+                syscall.finish machineStoreInst machineArchInst s3 a2
+              ok (false, s4, a3)
+          else
+            let (s3, a2) ←
+              syscall.dispatch_syscall machineStoreInst machineArchInst s2 a1
+                number
+            let (s4, a3) ←
+              syscall.finish machineStoreInst machineArchInst s3 a2
+            ok (false, s4, a3)
+        else
+          let (s3, a2) ←
+            syscall.finish machineStoreInst machineArchInst s2 a1
+          ok (false, s3, a2)
+
+/-- [fl4_core::syscall::handle_syscall]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 312:0-314:1
+    Visibility: public -/
+def syscall.handle_syscall
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
+  Result (S × A)
+  := do
+  let (_, s1, a1) ←
+    syscall.syscall machineStoreInst machineArchInst s a number true
+  ok (s1, a1)
+
+/-- [fl4_core::syscall::handle_syscall_fast]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 317:0-319:1
+    Visibility: public -/
+def syscall.handle_syscall_fast
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
+  Result (Bool × S × A)
+  := do
+  syscall.syscall machineStoreInst machineArchInst s a number true
+
+/-- [fl4_core::syscall::handle_syscall_general]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 323:0-325:1
+    Visibility: public -/
+def syscall.handle_syscall_general
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
+  Result (S × A)
+  := do
+  let (_, s1, a1) ←
+    syscall.syscall machineStoreInst machineArchInst s a number false
+  ok (s1, a1)
+
+/-- [fl4_core::syscall::handle_syscall_local]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 335:0-353:1
+    Visibility: public -/
+def syscall.handle_syscall_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64)
+  (found : (Std.U64 × Std.U64)) :
+  Result (Bool × S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let i ← obj.Tcb.flags machineStoreInst t s
+  let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    if i1 != 0#u64
+    then
+      let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+      let i2 ← lift (core.num.U64.wrapping_sub next 2#u64)
+      let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP i2
+      let (s2, a1) ←
+        sched.update_timestamp machineStoreInst machineArchInst s1 a
+      let csc ← sched.cur_sc machineStoreInst s2
+      let i3 ← sched.consumed machineStoreInst s2
+      let b ←
+        sporadic.sufficient machineStoreInst machineArchInst s2 a1 csc i3
+      if b
+      then
+        if i1 != 0#u64
+        then
+          let i4 ← lift (IScalar.hcast .U64 number)
+          fastpath.fault machineStoreInst machineArchInst s2 a1 t i4
+        else
+          let (i4, i5) := found
+          fastpath.reply_recv_found machineStoreInst machineArchInst s2 a1 t i4
+            i5
+      else ok (false, s2, a1)
+    else
+      if number != fl4_abi.syscall.SysReplyRecv
+      then ok (false, s, a)
+      else
+        let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+        let i2 ← lift (core.num.U64.wrapping_sub next 2#u64)
+        let s1 ← obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP i2
+        let (s2, a1) ←
+          sched.update_timestamp machineStoreInst machineArchInst s1 a
+        let csc ← sched.cur_sc machineStoreInst s2
+        let i3 ← sched.consumed machineStoreInst s2
+        let b ←
+          sporadic.sufficient machineStoreInst machineArchInst s2 a1 csc i3
+        if b
+        then
+          if i1 != 0#u64
+          then
+            let i4 ← lift (IScalar.hcast .U64 number)
+            fastpath.fault machineStoreInst machineArchInst s2 a1 t i4
+          else
+            let (i4, i5) := found
+            fastpath.reply_recv_found machineStoreInst machineArchInst s2 a1 t
+              i4 i5
+        else ok (false, s2, a1)
+
+/-- [fl4_core::syscall::handle_ioport_local]:
+    Source: 'crates/fl4-core/src/syscall.rs', lines 364:0-396:1
+    Visibility: public -/
+def syscall.handle_ioport_local
+  {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
+  (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) :
+  Result (Bool × S × A)
+  := do
+  let t ← sched.cur_thread machineStoreInst s
+  let info ← msg.msg_info machineStoreInst s t
+  if layout.NUM_DOMAINS != 1#u64
+  then ok (false, s, a)
+  else
+    let i ← obj.Tcb.flags machineStoreInst t s
+    let i1 ← lift (i &&& fl4_abi.consts.tcb_flag.TRAP_SYSCALLS)
+    if i1 != 0#u64
+    then ok (false, s, a)
+    else
+      if number != fl4_abi.syscall.SysCall
+      then
+        if number != fl4_abi.syscall.SysSend
+        then ok (false, s, a)
+        else
+          let b ← ioport.is_port_label info.label
           if b
           then
-            syscall.dispatch_syscall machineStoreInst machineArchInst s2 a1
-              number
-          else ok (s2, a1)
-        syscall.finish machineStoreInst machineArchInst s3 a2
+            let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+            let i2 ← lift (core.num.U64.wrapping_sub next 2#u64)
+            let s1 ←
+              obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP i2
+            let (s2, a1) ←
+              sched.update_timestamp machineStoreInst machineArchInst s1 a
+            let cptr ← obj.Tcb.reg machineStoreInst t s2 layout.reg.CAP
+            let csc ← sched.cur_sc machineStoreInst s2
+            let i3 ← sched.action machineStoreInst s2
+            if i3 != sched.ACTION_RESUME_CURRENT
+            then ok (false, s2, a1)
+            else
+              let i4 ← obj.Tcb.yield_to machineStoreInst t s2
+              if i4 != 0#u64
+              then ok (false, s2, a1)
+              else
+                if info.extra_caps != 0#u64
+                then ok (false, s2, a1)
+                else
+                  let b1 ←
+                    ioport.invocation_ok machineStoreInst s2 t cptr info
+                  if b1
+                  then
+                    let i5 ← sched.consumed machineStoreInst s2
+                    let b2 ←
+                      sporadic.sufficient machineStoreInst machineArchInst s2
+                        a1 csc i5
+                    if b2
+                    then
+                      let b3 ←
+                        fastpath.schedulable_here machineStoreInst s2 t
+                      if b3
+                      then
+                        let (r, s3, a2) ←
+                          syscall.handle_invocation machineStoreInst
+                            machineArchInst s2 a1 (number =
+                            fl4_abi.syscall.SysCall) true (number =
+                            fl4_abi.syscall.SysCall) false cptr
+                        let (_, s4, a3) ←
+                          syscall.after_invocation machineStoreInst
+                            machineArchInst s3 a2 r
+                        let (s5, a4) ←
+                          syscall.finish machineStoreInst machineArchInst s4 a3
+                        ok (true, s5, a4)
+                      else ok (false, s2, a1)
+                    else ok (false, s2, a1)
+                  else ok (false, s2, a1)
+          else ok (false, s, a)
+      else
+        let b ← ioport.is_port_label info.label
+        if b
+        then
+          let next ← obj.Tcb.reg machineStoreInst t s layout.reg.NEXT_IP
+          let i2 ← lift (core.num.U64.wrapping_sub next 2#u64)
+          let s1 ←
+            obj.Tcb.set_reg machineStoreInst t s layout.reg.FAULT_IP i2
+          let (s2, a1) ←
+            sched.update_timestamp machineStoreInst machineArchInst s1 a
+          let cptr ← obj.Tcb.reg machineStoreInst t s2 layout.reg.CAP
+          let csc ← sched.cur_sc machineStoreInst s2
+          let i3 ← sched.action machineStoreInst s2
+          if i3 != sched.ACTION_RESUME_CURRENT
+          then ok (false, s2, a1)
+          else
+            let i4 ← obj.Tcb.yield_to machineStoreInst t s2
+            if i4 != 0#u64
+            then ok (false, s2, a1)
+            else
+              if info.extra_caps != 0#u64
+              then ok (false, s2, a1)
+              else
+                let b1 ← ioport.invocation_ok machineStoreInst s2 t cptr info
+                if b1
+                then
+                  let i5 ← sched.consumed machineStoreInst s2
+                  let b2 ←
+                    sporadic.sufficient machineStoreInst machineArchInst s2 a1
+                      csc i5
+                  if b2
+                  then
+                    let b3 ← fastpath.schedulable_here machineStoreInst s2 t
+                    if b3
+                    then
+                      let (r, s3, a2) ←
+                        syscall.handle_invocation machineStoreInst
+                          machineArchInst s2 a1 (number =
+                          fl4_abi.syscall.SysCall) true (number =
+                          fl4_abi.syscall.SysCall) false cptr
+                      let (_, s4, a3) ←
+                        syscall.after_invocation machineStoreInst
+                          machineArchInst s3 a2 r
+                      let (s5, a4) ←
+                        syscall.finish machineStoreInst machineArchInst s4 a3
+                      ok (true, s5, a4)
+                    else ok (false, s2, a1)
+                  else ok (false, s2, a1)
+                else ok (false, s2, a1)
+        else ok (false, s, a)
 
 /-- [fl4_core::syscall::handle_interrupt_entry]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 542:0-547:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 642:0-647:1
     Visibility: public -/
 def syscall.handle_interrupt_entry
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40454,7 +42925,7 @@ def syscall.handle_interrupt_entry
   syscall.finish machineStoreInst machineArchInst s3 a3
 
 /-- [fl4_core::syscall::handle_vm_fault]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 560:0-567:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 660:0-667:1
     Visibility: public -/
 def syscall.handle_vm_fault
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40476,7 +42947,7 @@ def syscall.handle_vm_fault
   syscall.finish machineStoreInst machineArchInst s2 a2
 
 /-- [fl4_core::syscall::handle_debug_exception]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 571:0-579:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 671:0-679:1
     Visibility: public -/
 def syscall.handle_debug_exception
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40495,7 +42966,7 @@ def syscall.handle_debug_exception
   syscall.finish machineStoreInst machineArchInst s4 a3
 
 /-- [fl4_core::syscall::handle_vcpu_exit]:
-    Source: 'crates/fl4-core/src/syscall.rs', lines 585:0-594:1
+    Source: 'crates/fl4-core/src/syscall.rs', lines 685:0-694:1
     Visibility: public -/
 def syscall.handle_vcpu_exit
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -40641,14 +43112,14 @@ impl_def tcbqueue.Link.Insts.CoreCmpEq : core.cmp.Eq tcbqueue.Link := {
 }
 
 /-- [fl4_core::untyped::{impl core::clone::Clone for fl4_core::untyped::UntypedCap}::clone]:
-    Source: 'crates/fl4-core/src/untyped.rs', lines 188:9-188:14
+    Source: 'crates/fl4-core/src/untyped.rs', lines 191:9-191:14
     Visibility: public -/
 def untyped.UntypedCap.Insts.CoreCloneClone.clone
   (self : untyped.UntypedCap) : Result untyped.UntypedCap := do
   ok self
 
 /-- Trait implementation: [fl4_core::untyped::{impl core::clone::Clone for fl4_core::untyped::UntypedCap}]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 188:9-188:14 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 191:9-191:14 -/
 @[reducible]
 def untyped.UntypedCap.Insts.CoreCloneClone : core.clone.Clone
   untyped.UntypedCap := {
@@ -40656,7 +43127,7 @@ def untyped.UntypedCap.Insts.CoreCloneClone : core.clone.Clone
 }
 
 /-- Trait implementation: [fl4_core::untyped::{impl core::marker::Copy for fl4_core::untyped::UntypedCap}]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 188:16-188:20 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 191:16-191:20 -/
 @[reducible]
 def untyped.UntypedCap.Insts.CoreMarkerCopy : core.marker.Copy
   untyped.UntypedCap := {
@@ -40664,7 +43135,7 @@ def untyped.UntypedCap.Insts.CoreMarkerCopy : core.marker.Copy
 }
 
 /-- [fl4_core::untyped::_]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 220:0-220:60 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 223:0-223:60 -/
 @[global_simps, irreducible]
 def untyped._ : Result Unit := do
   let i ← 1#u64 <<< untyped.RESET_CHUNK_BITS

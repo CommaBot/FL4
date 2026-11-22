@@ -23,6 +23,7 @@ RISCV64 `Arch_Structs_A`, and `ntfn_bits` is the MCS value (each marked
 "rt X64 gap").
 -/
 import Fl4Spec.Types
+import Fl4Spec.Ext.VirtObj
 
 namespace Fl4Spec
 
@@ -263,9 +264,14 @@ inductive VMPageEntry where
 deriving Inhabited
 
 /-- l4v: Arch_Structs_A.X64_A.arch_kernel_obj. The IO root, context and page
-tables are commented out in l4v (`FIXME x64-vtd`) and not ported. -/
+tables are commented out in l4v (`FIXME x64-vtd`) and not ported.
+
+FL4 (VT-x port, outside l4v's X64 model): `vcpu` holds the abstract VCPU
+(`VcpuState`, `Ext/VirtObj`), as l4v ARM_HYP's `VCPU vcpu`
+(`Arch_Structs_A.vcpu`; proofs/VIRT-PLAN.md §3.1, decision Q1 of
+2026-11-21); `ept` a guest page table's raw entries. -/
 inductive ArchKernelObj where
-  | vcpu (words : Word → Word)
+  | vcpu (st : VcpuState)
   | ept (level : Nat) (entries : BitVec 9 → Word)
   | asidPool (pool : BitVec 9 → Option ObjRef)
   | pageTable (pt : BitVec 9 → PTE)
@@ -456,7 +462,7 @@ def defaultArchObject (tp : AObjectType) (dev : Bool) (_n : Nat) : ArchKernelObj
   | .pdptObj => .pdPointerTable fun _ => .invalidPDPTE
   | .pml4Obj => .pageMapL4 fun _ => .invalidPML4E
   | .asidPoolObj => .asidPool fun _ => none
-  | .vcpuObj => .vcpu fun _ => 0
+  | .vcpuObj => .vcpu VcpuState.blank
   | .eptPml4Obj => .ept 0 fun _ => 0
   | .eptPdptObj => .ept 39 fun _ => 0
   | .eptPdObj => .ept 30 fun _ => 0

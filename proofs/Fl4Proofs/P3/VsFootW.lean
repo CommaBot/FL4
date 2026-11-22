@@ -771,7 +771,7 @@ theorem derive_subframe_foot {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
     (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm false fa fv))
-    (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten,
+    (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm false fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))

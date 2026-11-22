@@ -116,19 +116,20 @@ theorem sched.preemption_point.pp (hA : P0.ArchTotal ar) (s : S) (a : A)
     have ip := hA.irq_pending
     have sf := sporadic.sufficient.ok (st := st) hA
     have hS : P0.StoreTotal st := L.total
+    refine WP.spec_bind (ip a1) ?_
+    rintro ⟨irq, a2⟩ -
+    try dsimp only
     step*
     all_goals try first | exact ⟨B3, W⟩ | exact (WP.spec_ok _).2 ⟨B3, W⟩ | exact hS
     all_goals
       refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> first | exact sf _ _ _ _ | exact (WP.spec_ok _).2 trivial)
         fun ok1 _ => ?_
       split
+      · exact (WP.spec_ok _).2 ⟨B3, W⟩
       · refine WP.spec_bind (P0.sched.is_cur_domain_expired.p0 st _ hS) fun b1 _ => ?_
         split
         · exact (WP.spec_ok _).2 ⟨B3, W⟩
-        · refine WP.spec_bind (ip _) ?_
-          rintro ⟨b2, a2⟩ -
-          cases b2 <;> simp <;> exact ⟨B3, W⟩
-      · exact (WP.spec_ok _).2 ⟨B3, W⟩
+        · split <;> exact (WP.spec_ok _).2 ⟨B3, W⟩
   · exact (WP.spec_ok _).2 ⟨B1, W1⟩
 
 /-! ## TCB field writes: the IPC buffer and the domain -/
@@ -473,10 +474,14 @@ theorem EntryHyps.of {U : Set U64} {Adm : PSets → Prop} (hA : P0.ArchTotal ar)
     (postG : ∀ (s0 : S) (a0 : A) (call blk don fp : Bool) (cptr : U64) (r : core.result.Result Unit error.Exc)
       (s1 : S) (a1 : A), EntAt st P3Ok s0 → syscall.handle_invocation st ar s0 a0 call blk don fp cptr = ok (r, s1, a1) →
       XG st T Cs Ω H Sg Scs Z P3Ok s1 ∧ ∀ (b : Bool) (s2 : S) (a2 : A),
-        syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2) :
+        syscall.after_invocation st ar s1 a1 r = ok (b, s2, a2) → XG st T Cs Ω H Sg Scs Z P3Ok s2)
+    (vmchk : ∀ (Ac : Set U64) (s : S) (a : A), EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s →
+      L.mem s (stA (L.curW s)) = sched.TS_RUNNING_VM →
+      vcpu.check st ar s a (L.curW s) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄) :
     EntryHyps st ar Adm T Cs Ω H Sg Rp Scs Nt Z U P3Ok :=
   ⟨⟨xfer, tmoOK, blkU, recvOK, irqcap, debug, postG, fun Ac s a h =>
-    WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr⟩, inv⟩
+    WP.spec_mono (sched.activate_thread.entry hA s a h) fun r hr => by obtain ⟨s', a'⟩ := r; simpa using hr,
+    vmchk⟩, inv⟩
 
 end
 

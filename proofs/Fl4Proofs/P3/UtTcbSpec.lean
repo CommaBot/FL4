@@ -236,7 +236,7 @@ theorem uaYKeepT (h : SpecAdd σ σ' W o) (hi : IdleNewT W o) (hC : CnStep σ' �
     fun p y n hp => ⟨y, (h.scIT hi).1 (hC.sc.1 hp), rfl⟩⟩
 
 theorem uaMcpKeepT (h : SpecAdd σ σ' W o) (hC : CnStep σ' σ'') : McpKeep σ σ'' :=
-  fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF (h.kold hp); ⟨y, hy, hc.mcp⟩
+  fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF (h.kold hp); ⟨y, hy, hc.mcpF⟩
 
 theorem uaBufKeepT (h : SpecAdd σ σ' W o) (hC : CnStep σ' σ'') :
     ∀ p x, σ.kheap p = some (.tcb x) → ∃ y, σ''.kheap p = some (.tcb y) ∧ y.tcbIpcBuffer = x.tcbIpcBuffer :=

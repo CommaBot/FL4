@@ -30,8 +30,9 @@ noncomputable section
 
 /-- **A quiet step** (module docstring): the scheduler's abstract fields
 kept; every object kept but TCBs changed in their saved context, yield-to,
-fault (`cancel_ipc`'s fault clear) and flags (SetFlags; no relation of `JAtZ`
-reads `tcb_flags`) and SCs changed in their consumed time
+and fault (`cancel_ipc`'s fault clear; not the flags: `McpRel` reads
+`tcb_flags`, KENTRY-PLAN g5d, SetFlags is `JAtZ.flagsWrJM`) and SCs changed in
+their consumed time
 and yield-from. -/
 structure QKY (σ σ' : State Unit) : Prop where
   ct : σ'.curThread = σ.curThread
@@ -47,7 +48,7 @@ structure QKY (σ σ' : State Unit) : Prop where
   arch : σ'.archState = σ.archState
   kh : ∀ p, σ'.kheap p = σ.kheap p ∨
     (∃ x y, σ.kheap p = some (.tcb x) ∧ σ'.kheap p = some (.tcb y) ∧
-      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags }) ∨
+      y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault }) ∨
     (∃ z w n, σ.kheap p = some (.schedContext z n) ∧ σ'.kheap p = some (.schedContext w n) ∧
       w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
 
@@ -55,7 +56,7 @@ structure QKY (σ σ' : State Unit) : Prop where
 theorem QKY.upd2 {σ : State Unit} {p t : ObjRef} {z w : SchedContext} {n : Nat} {x x' : Tcb}
     (hkp : σ.kheap p = some (.schedContext z n)) (hkt : σ.kheap t = some (.tcb x))
     (hw : w = { z with scConsumed := w.scConsumed, scYieldFrom := w.scYieldFrom })
-    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo, tcbFault := x'.tcbFault, tcbFlags := x'.tcbFlags }) :
+    (hx : x' = { x with tcbArch := x'.tcbArch, tcbYieldTo := x'.tcbYieldTo, tcbFault := x'.tcbFault }) :
     QKY σ (updK (updSc σ p w n) t (.tcb x')) := by
   have hpt : p ≠ t := by rintro rfl; rw [hkp] at hkt; cases hkt
   refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q => ?_⟩
@@ -80,14 +81,14 @@ theorem QKY.khrb : KhRB σ σ' := by
     exact ⟨_, h1, ObjRB.other (fun _ e => by cases e) (fun _ e => by cases e)⟩
 
 theorem QKY.tcb {p : ObjRef} {x : Tcb} (hk : σ.kheap p = some (.tcb x)) :
-    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags } := by
+    ∃ y, σ'.kheap p = some (.tcb y) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, ha, -, -⟩
   · exact ⟨x, e.trans hk, rfl⟩
   · rw [hk] at ha; cases ha; exact ⟨b, hb, e⟩
   · rw [hk] at ha; cases ha
 
 theorem QKY.tcb_back {p : ObjRef} {y : Tcb} (hk : σ'.kheap p = some (.tcb y)) :
-    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault, tcbFlags := y.tcbFlags } := by
+    ∃ x, σ.kheap p = some (.tcb x) ∧ y = { x with tcbArch := y.tcbArch, tcbYieldTo := y.tcbYieldTo, tcbFault := y.tcbFault } := by
   rcases h.kh p with e | ⟨a, b, ha, hb, e⟩ | ⟨z, w, n, -, hb, -⟩
   · exact ⟨y, by rw [← e]; exact hk, rfl⟩
   · rw [hk] at hb; cases hb; exact ⟨a, ha, e⟩
@@ -373,6 +374,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 hA.khrb
   have hDbg := J.kw_dbg (hfoot.mono fun b hb => kw_empty_mono hb _)
+  have hKd := J.kw_dbgKeep (hfoot.mono fun b hb => kw_empty_mono hb _)
   have hS3 : SchedRel st Z.N Z.T Z.C Z.c s' σ' := hI3.2.2.1
   have hAI3 : ActIdle σ' := hA.actIdle J.act
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := J.deadP_qk hA hS3 hI3.1 hwF k3 hAI3.1 (J.yld.frame k2 hyk) hyk
@@ -391,7 +393,7 @@ theorem JAtZ.reg_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
   have hC : JCs (L := L) (Z.mv Z.G V') s' σ' := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
-  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R⟩
+  exact ⟨Z.vs, J.cs_frameI hks hX3 hwF (fun b hb => Ipc.FinW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => Ipc.FinW.nv J.xtop.fin.1.1.1 hb) hA.arch (fun q ao h => (hA.oth (fun _ e => by cases e) (fun _ _ e => by cases e)).2 h) hA.szKeep hF.1 hA.kback hA.ipcFr hC R hKd hck.orig (J.idleW_keep hS3 hA.idle hA.isc).1 J.zD⟩
 
 /-- **`JAtZ` across a register step** (`reg_frameF` without fault words). -/
 theorem JAtZ.reg_frame (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {σ' : Fl4Spec.State Unit}

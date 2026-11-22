@@ -47,7 +47,8 @@ theorem JAtZ.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ)) :
-    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
+    (∀ t ∈ Z.T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ t ∈ Z.T, L.mem s' (tIpcBufA t) = L.mem s (tIpcBufA t)) ∧
     (∀ q ∈ Z.C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
     (∀ r ∈ Z.R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
@@ -55,7 +56,8 @@ theorem JAtZ.finW_keeps {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
   obtain ⟨Q, R0, hc, -⟩ := hS.lists
   have hT := hc.tcbs
   have tsw : ∀ b, Ipc.FinW (st := st) Z.T Z.N Z.C Z.c s σ b → TSW Z.T Z.C b := fun b hb => Ipc.FinW.tsw hS hb
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) fun hb => ((tsw _ hb).1 t ht).1 (mcpA_val hT ht),
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => ((tsw _ hb).1 t ht).1 (mcpA_val hT ht),
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => Ipc.FinW.nf hS hb t ht rfl⟩,
     fun t ht => hw.mem_eq (yieldA_aligned hT ht) fun hb => ((tsw _ hb).1 t ht).2.1 (yieldA_val hT ht),
     fun t ht => hw.mem_eq (tIpcBufA_aligned (hT t ht)) fun hb => ((tsw _ hb).1 t ht).2.2 (tIpcBufA_val (hT t ht)),
     fun q hq => hw.mem_eq (sc_reply_word hS hq).1 fun hb => (tsw _ hb).2 q hq rfl, fun r hr => ?_⟩
@@ -200,6 +202,15 @@ theorem JAtZ.kw_dbg {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
       (P1.EH H) s)) :
     L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
   hw.mem_eq J.kern.dwAl fun hk => P1.dbg0_not_schedW J.blk J.kern.cs0 (Or.inl hk)
+
+/-- **P1's footprint keeps every debug word** (`P1.Foot.dbgKeep`; KENTRY-PLAN
+g2i, the `DbgKeep` of the construction sites' `LiveDN` frame). -/
+theorem JAtZ.kw_dbgKeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (P1.KW st (P1.Heap.tcbs H) Cs (P1.Heap.frame H) (P1.Heap.scs H) (P1.Heap.scBits H)
+      (P1.EH H) s)) : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+  P1.Foot.dbgKeep J.blk (fun _ h => h) hw
 
 end
 

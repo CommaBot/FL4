@@ -270,6 +270,241 @@ theorem signal_tail.F {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) 
     (Foot.d F3).trans (F4.trans (Foot.d (F5.trans F6))), fun hD => F3.trans ((F4c (dc3 hD)).trans (F5.trans F6))⟩
 
 
+/-! ## #63: the same-core `RunningVM` completion, with its footprint -/
+
+/-- A TCB register write: the invariants, the state word, the footprint and
+`DonCore`. -/
+theorem reg_allF {s : S} {t K v n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hn : n ∈ Nt)
+    (hK : 256 ≤ K.val ∧ K.val < 3328) (hK8 : K.val % 8 = 0) :
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (core.num.U64.wrapping_add t K) v) ∧
+      L.mem (L.wr s (core.num.U64.wrapping_add t K) v) (stA t) = L.mem s (stA t) ∧
+      Foot st T Cs Sg Scs Z Es s (L.wr s (core.num.U64.wrapping_add t K) v) ∧
+      (DonCore st T Scs n s → DonCore st T Scs n (L.wr s (core.num.U64.wrapping_add t K) v)) := by
+  obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
+  have hT := h0.tcbs
+  have hta := hT t ht
+  obtain ⟨hb, est⟩ := reg_all h0 hB hX hS hSg ht hK hK8 (v := v)
+  have hfa : Aligned (core.num.U64.wrapping_add t K) := field_aligned hta (by omega) hK8
+  have sg : ∀ b ∈ Sg, L.mem (L.wr s (core.num.U64.wrapping_add t K) v) b = L.mem s b := fun b hb =>
+    L.mem_wr_ne hfa (h0.omega _ (hSg.sub _ hb)).1 (out_ne_field (h0.omega _ (hSg.sub _ hb)) ht hta (by omega))
+  refine ⟨hb, est, foot_field hT ht (by omega) (by omega) hK8 (by constructor <;> omega), fun hD => ?_⟩
+  exact hD.keep (sg _ (hX.1.ntW n hn))
+    (fun y hy => by
+      rw [affA_eq]
+      exact L.mem_wr_ne hfa (field_aligned (hT y hy) (by simp) (by simp))
+        (fun e => field_ne (K1 := K) (K2 := 3520#u64) hta (hT y hy) (by omega) (by simp)
+          (fun _ => by first | omega | (simp; omega) | simp) (UScalar.eq_of_val_eq e)))
+    (fun x hx => sg _ (hX.1.fixW x hx).2)
+
+theorem obj.Tcb.set_reg.blkF (s : S) {t r v n : U64} (hr : r.val < 384) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (ht : t ∈ T) (hn : n ∈ Nt) :
+    obj.Tcb.set_reg st t s r v ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ L.mem s' (stA t) = L.mem s (stA t) ∧
+      Foot st T Cs Sg Scs Z Es s s' ∧ (DonCore st T Scs n s → DonCore st T Scs n s') ⦄ := by
+  refine WP.spec_mono (obj.Tcb.set_reg.wrK s t r v (h.1.choose_spec.choose_spec.tcbs t ht) hr) ?_
+  rintro s1 ⟨K, hK, rfl⟩
+  exact reg_allF h ht hn (by omega) (by omega)
+
+theorem msg.set_mr.blkF (s : S) {t buf i v n : U64} (hi : i.val < 3) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (ht : t ∈ T) (hn : n ∈ Nt) :
+    msg.set_mr st s t buf i v ⦃ r => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac r.2 ∧ L.mem r.2 (stA t) = L.mem s (stA t) ∧
+      Foot st T Cs Sg Scs Z Es s r.2 ∧ (DonCore st T Scs n s → DonCore st T Scs n r.2) ⦄ := by
+  unfold msg.set_mr
+  have hlt : i < msg.N_MSG_REGISTERS := by simp only [msg.N_MSG_REGISTERS]; scalar_tac
+  rw [if_pos hlt]
+  refine WP.spec_bind (Pₘ := fun r => r.val < 384) ?_ fun r hr => ?_
+  · unfold msg.msg_register
+    split
+    · exact (WP.spec_ok _).2 (by simp [layout.reg.R10])
+    split
+    · exact (WP.spec_ok _).2 (by simp [layout.reg.R8])
+    split
+    · exact (WP.spec_ok _).2 (by simp [layout.reg.R9])
+    · exact (WP.spec_ok _).2 (by simp [layout.reg.R15])
+  refine WP.spec_bind (obj.Tcb.set_reg.blkF (Es := Es) s hr h ht hn) fun s1 h1 => ?_
+  simp only [lift, bind_ok]
+  exact (WP.spec_ok _).2 h1
+
+set_option maxHeartbeats 4000000 in
+/-- `vcpu.report.blk` with the footprint and `DonCore`. -/
+theorem vcpu.report.blkF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A) (t n badge : U64)
+    (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hn : n ∈ Nt)
+    (hvm : L.mem s (stA t) = sched.TS_RUNNING_VM)
+    (hc : L.mem s (core.num.U64.wrapping_add t 3664#u64) ≠ 0#u64 →
+      L.mem s (core.num.U64.wrapping_add (L.mem s (core.num.U64.wrapping_add t 3664#u64)) vcpu.PENDING) = 0#u64) :
+    vcpu.report st ar s a t badge ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      L.mem s' (stA t) = sched.TS_RUNNING ∧ Foot st T Cs Sg Scs Z Es s s' ∧
+      (DonCore st T Scs n s → DonCore st T Scs n s') ⦄ := by
+  have hS0 : P0.StoreTotal st := L.total
+  unfold vcpu.report vcpu.bound
+  step as ⟨o, ho⟩
+  simp only [lift, bind_ok]
+  refine WP.spec_bind (LawfulStore.read_spec s _) fun v ev => ?_
+  subst ho
+  refine WP.spec_bind (Pₘ := fun p => p = false) ?_ fun pending hp => ?_
+  · split
+    · rename_i hv
+      unfold vcpu.get
+      simp only [lift, bind_ok]
+      refine WP.spec_bind (LawfulStore.read_spec s _) fun i ei => ?_
+      have hv0 : v ≠ 0#u64 := by simpa using hv
+      have : i = 0#u64 := by rw [ei, ev]; exact hc (by rw [← ev]; exact hv0)
+      exact (WP.spec_ok _).2 (by simp [this])
+    · exact (WP.spec_ok _).2 rfl
+  subst hp
+  refine WP.spec_bind (Fl4Proofs.P0.msg.lookup_ipc_buffer.p0 st s true t hS0) fun b _ => ?_
+  rw [if_neg Bool.false_ne_true]
+  refine WP.spec_bind (hA.virtualization a) fun i _ => ?_
+  refine WP.spec_bind (Pₘ := fun _ => True) ?_ ?_
+  · repeat' (first
+      | exact (WP.spec_ok _).2 trivial
+      | exact Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ hS0
+      | exact Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ hS0
+      | split
+      | (step as ⟨_, _⟩)
+      | refine WP.spec_bind (Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ hS0) fun _ _ => ?_
+      | refine WP.spec_bind (Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ hS0) fun _ _ => ?_)
+  rintro ⟨ip, ctl, intr⟩ -
+  try dsimp only
+  refine WP.spec_bind (msg.set_mr.blkF (Es := Es) s (by simp) h ht hn) ?_
+  rintro ⟨_, s1⟩ ⟨h1, e1, F1, D1⟩
+  try simp only [uncurry_apply_pair]
+  refine WP.spec_bind (msg.set_mr.blkF (Es := Es) s1 (by simp) h1 ht hn) ?_
+  rintro ⟨_, s2⟩ ⟨h2, e2, F2, D2⟩
+  try simp only [uncurry_apply_pair]
+  refine WP.spec_bind (msg.set_mr.blkF (Es := Es) s2 (by simp) h2 ht hn) ?_
+  rintro ⟨_, s3⟩ ⟨h3, e3, F3, D3⟩
+  try simp only [uncurry_apply_pair]
+  refine WP.spec_bind (obj.Tcb.set_reg.blkF (Es := Es) s3 (by simp [layout.reg.MSG_INFO, layout.reg.RSI]) h3 ht hn)
+    fun s4 ⟨h4, e4, F4, D4⟩ => ?_
+  refine WP.spec_bind (obj.Tcb.set_reg.blkF (Es := Es) s4 (by simp [layout.reg.BADGE, layout.reg.RDI]) h4 ht hn)
+    fun s5 ⟨h5, e5, F5, D5⟩ => ?_
+  obtain ⟨⟨Q5, R5, q5⟩, hB5, hX5, hS5, hSg5⟩ := h5
+  have st5 : L.mem s5 (stA t) = sched.TS_RUNNING_VM := by rw [e5, e4, e3, e2, e1, hvm]
+  refine WP.spec_mono (WP.spec_and (sts_all s5 t _ Q5 R5 q5 hB5 hX5 hS5 hSg5 ht not_blocked_running running_ne
+    (Or.inr (by rw [st5]; exact not_blocked_vm))
+    (hX5.noref (q5.tcbs t ht) (by rw [st5]; exact runnable_ne_reply (Or.inr (Or.inr rfl)))
+      (by rw [st5]; exact runnable_ne_recv (Or.inr (Or.inr rfl))))
+    ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩)
+    (sched.set_thread_state.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s5 t _ q5 ht)) ?_
+  rintro s6 ⟨⟨q6, hB6, hX6, hS6, hSg6, st6, k6⟩, F6⟩
+  exact ⟨⟨⟨Q5, R5, q6.congrX empty_congr⟩, hB6, hX6, hS6, hSg6⟩, st6,
+    F1.trans (F2.trans (F3.trans (F4.trans (F5.trans F6)))),
+    fun hD => (D5 (D4 (D3 (D2 (D1 hD))))).keepT0 hn k6.toKeepT0⟩
+
+/-- `maybe_donate_sched_context.tinvF` on a thread that may be queued (as
+`maybe_donate_sched_context.tinvB`). -/
+theorem notification.maybe_donate_sched_context.tinvFB {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (s : S) (a : A) (t n : U64) (Q : U64 → U64 → List U64) (R : U64 → List U64)
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hS : SCsOK st T Ω Sg Scs Z Ac s) (hSg : SgOK st Ω Sg s) (ht : t ∈ T)
+    (hns : L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (scTcbA (L.mem s (ntfnScA n))) = 0#u64 →
+      L.mem s (scA t) = 0#u64 → L.mem s (ntfnScA n) ∈ Scs ∧ L.mem s (scCoreA (L.mem s (ntfnScA n))) ∈ Cs ∧
+        (Sch st s t → L.mem s (ntfnScA n) ∈ Ac)) :
+    notification.maybe_donate_sched_context st ar s a t n ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      TmFr st T Cs Nt s s' ∧ FootD st T Cs Sg Scs Z Es s s' ∧
+      (DonCore st T Scs n s → Foot st T Cs Sg Scs Z Es s s') ⦄ := by
+  by_cases h0 : L.mem s (scA t) = 0#u64
+  · refine notification.maybe_donate_sched_context.tinvF hA s a t n Q R h hB hX hS hSg ht ?_ ?_ ?_ ?_ hns
+    · by_contra hq; exact hB.q t ht hq h0
+    · by_contra hq; exact hB.r t ht hq h0
+    · intro e; exact hB.act (by rw [e]; exact ht) (by rw [e]; exact h0)
+    · intro e; exact hB.idle (by rw [e]; exact h0)
+  · unfold notification.maybe_donate_sched_context
+    step with obj.Tcb.sc.spec as ⟨i, ei⟩
+    rw [if_neg (by rw [ei]; exact h0)]
+    exact (WP.spec_ok _).2 ⟨⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩, TmFr.refl (L := L) _, Foot.d (Foot.refl _),
+      fun _ => Foot.refl _⟩
+
+/-- `signal_vm` with the footprint. -/
+theorem signal_vmF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s1 : S) (a : A) (i n : U64)
+    (h1 : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s1) (hiT : i ∈ T) (hn : n ∈ Nt)
+    (st1 : L.mem s1 (stA i) = sched.TS_RUNNING) :
+    (do
+      let (s2, a1) ← notification.maybe_donate_sched_context st ar s1 a i n
+      let b2 ← sched.is_schedulable st s2 i
+      let s3 ← if b2 = true then sched.possible_switch_to st s2 i else ok s2
+      let i4 ← obj.Tcb.sc st i s3
+      let b3 ← obj.Sc.is_null i4
+      if b3 = true then ok (s3, a1)
+      else do
+        let b4 ← sporadic.sc_active st s3 i4
+        if b4 = true then do
+          let i5 ← obj.Ntfn.sc st n s3
+          if i4 = i5 then do
+            let b5 ← sporadic.sc_sporadic st s3 i4
+            if b5 = true then do
+              let s4 ← sched.cur_sc st s3
+              let b6 ← core.cmp.PartialEq.ne.trait_default obj.Sc.Insts.CoreCmpPartialEqSc i4 s4
+              if b6 = true then do
+                let s5 ← sporadic.unblock_check st s3 i4
+                ok (s5, a1)
+              else ok (s3, a1)
+            else ok (s3, a1)
+          else ok (s3, a1)
+        else ok (s3, a1)) ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootD st T Cs Sg Scs Z Es s1 s' ∧
+          (DonCore st T Scs n s1 → Foot st T Cs Sg Scs Z Es s1 s') ⦄ := by
+  obtain ⟨⟨Q1, R1, q1⟩, hB1, hX1, hS1, hSg1⟩ := h1
+  have hsA1 : L.mem s1 (scA i) = 0#u64 → ¬ Sch st s1 i := fun h0 hS => by
+    rcases hS with e | e | e | e | ⟨e1, e2⟩ | e
+    · exact hB1.q i hiT e h0
+    · exact hB1.r i hiT e h0
+    · exact hB1.act (by rw [e]; exact hiT) (by rw [e]; exact h0)
+    · exact hB1.idle (by rw [e]; exact h0)
+    · exact hB1.resume e1 (by rw [e2]; exact h0)
+    · rw [st1] at e
+      rcases e with e | e
+      · exact not_blocked_running e
+      · exact running_ne.1 e
+  refine WP.spec_bind (notification.maybe_donate_sched_context.tinvFB (Es := Es) hA s1 a i n Q1 R1 q1 hB1 hX1 hS1
+    hSg1 hiT (ntfn_sc_ok hX1 hn hsA1)) ?_
+  rintro ⟨s2, a1⟩ ⟨⟨⟨Q2, R2, q2⟩, hB2, hX2, hS2, hSg2⟩, -, F2, F2c⟩
+  try simp only [WP.uncurry'_pair]
+  step with sched.is_schedulable.spec' as ⟨b2, hb2⟩
+  refine WP.spec_bind (Pₘ := fun s3 => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s3 ∧ Foot st T Cs Sg Scs Z Es s2 s3) ?_ ?_
+  · split
+    · rename_i hb
+      refine WP.spec_mono (WP.spec_and (sched.possible_switch_to.sch s2 i Q2 R2 q2 hB2 hSg2 hiT (hb2 hb).1
+        (fun _ => (hS2.act _ (hX2.2.2.bound i hiT (hb2 hb).2.1).1).2 (hb2 hb).2.2.2))
+        (sched.possible_switch_to.kw (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s2 i q2 hiT)) fun s3 hh => ?_
+      obtain ⟨⟨p3, -, -⟩, k3⟩ := hh
+      exact ⟨⟨p3.inv, p3.bnd, hX2.fr p3.fr, hS2.fr p3.fr, hSg2.fr p3.fr⟩, k3⟩
+    · exact (WP.spec_ok _).2 ⟨⟨⟨Q2, R2, q2⟩, hB2, hX2, hS2, hSg2⟩, Foot.refl _⟩
+  rintro s3 ⟨⟨⟨Q3, R3, q3⟩, hB3, hX3, hS3, hSg3⟩, F3⟩
+  have ok3 : (ok (s3, a1) : Result (S × A)) ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧
+      FootD st T Cs Sg Scs Z Es s1 s' ∧ (DonCore st T Scs n s1 → Foot st T Cs Sg Scs Z Es s1 s') ⦄ :=
+    (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, q3⟩, hB3, hX3, hS3, hSg3⟩, F2.trans (Foot.d F3), fun hD => (F2c hD).trans F3⟩
+  step with obj.Tcb.sc.spec as ⟨i4, ei4⟩
+  step with obj.Sc.is_null.spec as ⟨b3, _hb3⟩
+  refine sig_if _ _ _ _ (fun _ => ok3) (fun _ => ?_)
+  refine WP.spec_bind (sporadic.sc_active.spec s3 i4) fun b4 _ => ?_
+  refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => ok3)
+  refine WP.spec_bind (obj.Ntfn.sc.any s3 n) fun i5 _ => ?_
+  refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => ok3)
+  step with sporadic.sc_sporadic.spec as ⟨b5, eb5⟩
+  refine sig_if _ _ _ _ (fun hb5 => ?_) (fun _ => ok3)
+  step with sched.cur_sc.spec as ⟨c4, _⟩
+  step with sc_ne.spec as ⟨b6⟩
+  refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => ok3)
+  have hi4S : i4 ∈ Scs := (hX3.2.2.bound i hiT (by rw [← ei4]; exact (eb5 hb5).1)).1 |> fun h => by
+    rw [← ei4] at h; exact h
+  have hiA : i4 ∈ Ac := hS3.spor i4 hi4S (eb5 hb5).2
+  have hW : RefillsWF st s3 i4 (Z i4) := hS3.wf hi4S hiA
+  have hSCin : SCin st s3 Ω i4 (Z i4) := ⟨hW, hX3.1.scW i4 hi4S⟩
+  have hN' := q3.nodes _ q3.cur
+  have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
+  have aR : Aligned (L.nodeA s3 layout.node.REPROGRAM) := nodeAt_aligned hN' (by rw [rp]; omega) (by rw [rp])
+  have oR : Outside (L.nodeA s3 layout.node.REPROGRAM) i4 (Z i4) :=
+    hSCin.node_out q3.omega q3.cur hN' (by rw [rp]; omega) (by rw [rp])
+  refine WP.spec_bind (WP.spec_and (sporadic.unblock_check.all s3 i i4 q3 hB3 hX3 hS3 hSg3 hiT ei4 (eb5 hb5).1 hiA)
+    (sporadic.unblock_check.fr hW ⟨aR, oR⟩)) fun s5 ⟨hh, w5⟩ => ?_
+  have F5 : Foot st T Cs Sg Scs Z Es s3 s5 := Foot.of w5 fun b hb => by
+    rcases hb with hb | rfl
+    · exact hb.kw hi4S
+    · exact kw_node q3.cur (by rw [rp]; omega) (by rw [rp]; omega)
+  obtain ⟨q5, hB5, hX5, hS5, hSg5, -⟩ := hh
+  exact (WP.spec_ok _).2 ⟨⟨⟨Q3, R3, q5⟩, hB5, hX5, hS5, hSg5⟩, F2.trans (Foot.d (F3.trans F5)),
+    fun hD => (F2c hD).trans (F3.trans F5)⟩
+
 theorem notification.send_signal.tinvF {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
     (s : S) (a : A) (n badge : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt)
     (hH : H n = some .ntfn) :
@@ -299,16 +534,17 @@ theorem notification.send_signal.tinvF {A : Type _} {ar : machine.Arch A} (hA : 
     fun _ hsa => WP.spec_bind (WP.spec_and hsa saF) fun s1 h1 => (WP.spec_ok _).2 h1
   unfold notification.send_signal
   step with obj.Ntfn.state.spec as ⟨v, hv⟩
-  split
+  refine sig_if _ _ _ _ (fun hidl => ?_) (fun hnidl => ?_)
   · -- an idle notification
-    rename_i hidl
     have hst0 : L.epState s n ≠ 1#u64 := by rw [← hv, hidl]; unfold obj.NTFN_IDLE; decide
     have sa := notification.set_active.tinv s n badge hI hn hH hst0
     step with obj.Ntfn.bound_tcb.val as ⟨i, ei⟩
     step with obj.Tcb.is_null.spec as ⟨b, eb⟩
-    split
-    · exact WP.spec_mono (act s sa) fun _ ⟨h1, F1⟩ => ⟨h1, Foot.d F1, fun _ => F1⟩
-    rename_i hb
+    refine sig_if _ _ _ _ (fun hb => ?_) (fun hb => ?_)
+    · rw [if_pos hb]
+      refine WP.spec_bind (WP.spec_and sa saF) fun s1 ⟨h1, F1⟩ => ?_
+      rw [if_pos hb]
+      exact (WP.spec_ok _).2 ⟨h1, Foot.d F1, fun _ => F1⟩
     have hi0 : i ≠ 0#u64 := fun e => hb (by rw [eb, e]; rfl)
     have hiT : i ∈ T := by
       rcases hNb n hn with e | e
@@ -316,9 +552,8 @@ theorem notification.send_signal.tinvF {A : Type _} {ar : machine.Arch A} (hA : 
       · rw [← ei] at e; exact e
     have hta := hT i hiT
     step with obj.Tcb.state.spec as ⟨i1, ei1⟩
-    split
-    · rename_i hrecv
-      have hst : L.mem s (stA i) = sched.TS_BLOCKED_ON_RECV := by rw [← ei1, hrecv]
+    refine sig_if _ _ _ _ (fun hrecv => ?_) (fun hnrecv => ?_)
+    · have hst : L.mem s (stA i) = sched.TS_BLOCKED_ON_RECV := by rw [← ei1, hrecv]
       have hbl : Blocked (L.mem s (stA i)) := by rw [hst]; exact Or.inr (Or.inl rfl)
       obtain ⟨dq, dr, da⟩ := blocked_out h0 hiT (not_runnable_of_blocked hbl)
       refine WP.spec_bind (WP.spec_and (ipc.cancel_ipc.all s a i Q R h0 hiT hB hX hSg.sub)
@@ -354,16 +589,39 @@ theorem notification.send_signal.tinvF {A : Type _} {ar : machine.Arch A} (hA : 
       rintro ⟨s', a'⟩ ⟨hb', tm', F', F'c⟩
       exact ⟨hI.of_tmfr hb' ((TmFr.of_keepT k1).trans ((TmFr.of_keepT k2).trans tm')), (Foot.d (F1.trans F2)).trans F',
         fun hD => F1.trans (F2.trans (F'c ((hD.keepT0 hn k1.toKeepT0).keepT0 hn k2.toKeepT0)))⟩
-    · refine WP.spec_bind (WP.spec_and sa saF) fun s1 ⟨h1, F1⟩ => ?_
-      step with obj.Tcb.state.spec
-      split
-      · exact WP.spec_mono (smp.remote_tcb_stall.blk hA s1 a i h1)
-          fun r ⟨h2, F2, _⟩ => ⟨h2, Foot.d (F1.trans (F2.mono (Set.empty_subset _))),
-            fun _ => F1.trans (F2.mono (Set.empty_subset _))⟩
-      · exact (WP.spec_ok _).2 ⟨h1, Foot.d F1, fun _ => F1⟩
+    · -- not receiving: #63's same-core `RunningVM` completion, else active
+      have OLD : (do
+          let s1 ← notification.set_active st s n badge
+          if b = true then ok (s1, a)
+          else do
+            let i2 ← obj.Tcb.state st i s1
+            if i2 = sched.TS_RUNNING_VM then smp.remote_tcb_stall st ar s1 a i else ok (s1, a))
+          ⦃ s' _ => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ FootD st T Cs Sg Scs Z (EH H) s s' ∧
+            (DonCore st T Scs n s → Foot st T Cs Sg Scs Z (EH H) s s') ⦄ := by
+        refine WP.spec_bind (WP.spec_and sa saF) fun s1 ⟨h1, F1⟩ => ?_
+        rw [if_neg hb]
+        step with obj.Tcb.state.spec
+        split
+        · exact WP.spec_mono (smp.remote_tcb_stall.blk hA s1 a i h1)
+            fun r ⟨h2, F2, _⟩ => ⟨h2, Foot.d (F1.trans (F2.mono (Set.empty_subset _))),
+              fun _ => F1.trans (F2.mono (Set.empty_subset _))⟩
+        · exact (WP.spec_ok _).2 ⟨h1, Foot.d F1, fun _ => F1⟩
+      rw [if_neg hb]
+      refine sig_if _ _ _ _ (fun hvm => ?_) (fun _ => OLD)
+      step with obj.Tcb.affinity.spec as ⟨i2, _hi2⟩
+      step with LawfulStore.cur_cpu_spec as ⟨i3, _hi3⟩
+      refine sig_if _ _ _ _ (fun _ => ?_) (fun _ => OLD)
+      refine WP.spec_bind (vcpu.signal_completes.blk s i) fun b1 hb1 => ?_
+      refine sig_if _ _ _ _ (fun hb1t => ?_) (fun _ => OLD)
+      have hvmS : L.mem s (stA i) = sched.TS_RUNNING_VM := by rw [← ei1]; exact hvm
+      refine WP.spec_bind (vcpu.report.blkF (Es := EH H) hA s a i n badge hI hiT hn hvmS (hb1 hb1t)) ?_
+      rintro s1 ⟨h1, st1, F1, D1⟩
+      refine WP.spec_mono (signal_vmF (Es := EH H) hA s1 a i n h1 hiT hn st1) ?_
+      rintro ⟨s', a'⟩ ⟨hb', F', F'c⟩
+      exact ⟨hb', (Foot.d F1).trans F', fun hD => F1.trans (F'c (D1 hD))⟩
   · split
     · -- a waiting notification
-      rename_i hnidl hwait
+      rename_i hwait
       have hst1 : L.epState s n = 1#u64 := by rw [← hv, hwait]; unfold obj.NTFN_WAITING; rfl
       obtain ⟨hdT, hbe, hds⟩ := ntfn_head h0 hH hst1
       step with notification.get_queue.spec as ⟨q, eq⟩

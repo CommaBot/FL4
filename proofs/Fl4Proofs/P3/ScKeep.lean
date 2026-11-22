@@ -52,7 +52,7 @@ theorem SOK.none {f : Bool × Bool} {σ σ' : State Unit} (h : SOK f σ σ') {p 
 theorem PK.tcb_inv {f : Bool × Bool} {x : Tcb} {o : KernelObject} (h : PK f (.tcb x) o) :
     ∃ y, o = .tcb y ∧ y.tcbCtable = x.tcbCtable ∧ y.tcbVtable = x.tcbVtable ∧ y.tcbIpcframe = x.tcbIpcframe ∧
       y.tcbFaultHandler = x.tcbFaultHandler ∧ y.tcbTimeoutHandler = x.tcbTimeoutHandler ∧ y.tcbEpt = x.tcbEpt ∧
-      y.tcbMcpriority = x.tcbMcpriority ∧ (f.1 = true → y.tcbYieldTo = x.tcbYieldTo) := by
+      (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags) ∧ (f.1 = true → y.tcbYieldTo = x.tcbYieldTo) := by
   cases o <;> simp only [PK] at h
   exact ⟨_, rfl, h⟩
 
@@ -181,6 +181,34 @@ theorem KFoot.ne_tcbw {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Un
   · have := hS.placed.disj n hn t ht; rw [hv] at g1 g2; omega
   · have := (hS.scOut sc hsc x n hk _ ho).2.2.1 t ht; rw [hv] at this; omega
 
+/-- A `KFoot` word is no TCB's VCPU word (`tVcpuA`, KENTRY-PLAN g2b). -/
+theorem KFoot.ne_vcpu {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ tVcpuA t :=
+  hb.ne_tcbw hS ht (K := 3664#u64) (by simp) not_sOff_vcpu
+
+/-- A `KFoot` word is no flags word (KENTRY-PLAN g5d). -/
+theorem KFoot.ne_flags {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ flagsA t :=
+  hb.ne_tcbw hS ht (K := 3456#u64) (by simp) (by unfold SOff SOffL; decide)
+
+theorem tVcpuA_val {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : (tVcpuA t).val = t.val + 3664 :=
+  tfield_val (hT t ht) (K := 3664#u64) (by simp)
+
+theorem tVcpuA_aligned {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : Aligned (tVcpuA t) :=
+  field_aligned (hT t ht) (K := 3664#u64) (by simp) (by simp)
+
+/-- A TCB word at an offset other than 3664 is no TCB's VCPU word. -/
+theorem tVcpuA_ne {T : Set U64} (hT : TcbPlaced T) {t u b : U64} (ht : t ∈ T) (hu : u ∈ T) {K : Nat}
+    (hb : b.val = t.val + K) (hK : K < 4096) (hne : K ≠ 3664) : b ≠ tVcpuA u := by
+  intro e
+  have h2 := tVcpuA_val hT hu
+  rw [← e] at h2
+  have a1 := (hT t ht).align; have a2 := (hT u hu).align
+  by_cases eu : u = t
+  · subst eu; omega
+  · have : u.val ≠ t.val := fun h => eu (UScalar.eq_of_val_eq h)
+    omega
+
 /-- A `KFoot` word is no `MCP` word. -/
 theorem KFoot.ne_mcp {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
     {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ mcpA t :=
@@ -229,12 +257,13 @@ reply link words. -/
 theorem KFoot.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
     (hw : WritesIn st s s' (KFoot st T N C c s σ)) :
-    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
+    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t)) ∧
     (∀ q ∈ C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
     (∀ r ∈ R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hT := hc.tcbs
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) fun hb => hb.ne_mcp hS ht rfl,
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) fun hb => hb.ne_mcp hS ht rfl,
+      hw.mem_eq (flagsA_aligned hT ht) fun hb => hb.ne_flags hS ht rfl⟩,
     fun t ht => hw.mem_eq (yieldA_aligned hT ht) fun hb => hb.ne_yield hS ht rfl,
     fun q hq => hw.mem_eq (sc_reply_word hS hq).1 fun hb => hb.ne_screply hS hq rfl, fun r hr => ?_⟩
   have hA := hRP.align r hr
@@ -280,20 +309,40 @@ theorem RW.ne_tcbw {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Uni
     have := (hS.scOut q hq xq nq hkq _ hin).2.2.1 t ht
     rw [e, hv] at this; omega
 
+/-- A `YIELD_TO` word is no flags word. -/
+theorem YW.ne_flags {T : Set U64} (hT : TcbPlaced T) {b : U64} (hb : YW T b) {t : U64} (ht : t ∈ T) : b ≠ flagsA t := by
+  obtain ⟨y, hy, rfl⟩ := hb
+  intro e
+  rw [show yieldA y = core.num.U64.wrapping_add y 3472#u64 from rfl,
+    show flagsA t = core.num.U64.wrapping_add t 3456#u64 from rfl, tt_eq_iff (hT y hy) (hT t ht) (by simp) (by simp)] at e
+  exact absurd e.2 (by decide)
+
+/-- A register word (`RegW`) is no flags word. -/
+theorem RegW.ne_flags {T : Set U64} (hT : TcbPlaced T) {b : U64} (hb : RegW T b) {t : U64} (ht : t ∈ T) :
+    b ≠ flagsA t := by
+  obtain ⟨y', hy', K, k1, k2, rfl⟩ := hb
+  intro e
+  rw [show flagsA t = core.num.U64.wrapping_add t 3456#u64 from rfl,
+    tt_eq_iff (hT y' hy') (hT t ht) (by omega) (by simp)] at e
+  have := congrArg UScalar.val e.2; simp at this; omega
+
 /-- **What a `TFoot` step keeps**: the `MCP`, SC `REPLY` and reply link words. -/
 theorem TFoot.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
     (hw : WritesIn st s s' (TFoot st T N C c s σ)) :
-    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧
+    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
     (∀ q ∈ C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
     (∀ r ∈ R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hT := hc.tcbs
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) ?_, fun q hq => hw.mem_eq (sc_reply_word hS hq).1 ?_,
-    fun r hr => ?_⟩
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) ?_, hw.mem_eq (flagsA_aligned hT ht) ?_⟩,
+    fun q hq => hw.mem_eq (sc_reply_word hS hq).1 ?_, fun r hr => ?_⟩
   · rintro (hb | hb)
     · exact hb.ne_mcp hS ht rfl
     · exact (hb.ne hS hRP).1 t ht rfl
+  · rintro (hb | hb)
+    · exact hb.ne_flags hS ht rfl
+    · exact hb.ne_flags hT ht rfl
   · rintro (hb | hb)
     · exact hb.ne_screply hS hq rfl
     · exact (hb.ne hS hRP).2.1 q hq rfl
@@ -334,18 +383,22 @@ theorem RegW.ne {N T C R : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} 
 theorem TFootR.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
     (hw : WritesIn st s s' (TFootR st T N C c s σ)) :
-    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧
+    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧
     (∀ q ∈ C, L.mem s' (scReplyA q) = L.mem s (scReplyA q)) ∧
     (∀ r ∈ R, L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧ L.mem s' (rNextA r) = L.mem s (rNextA r)) := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hT := hc.tcbs
   have hw0 : WritesIn st s s' (fun b => TFoot st T N C c s σ b ∨ RegW T b) := hw
-  refine ⟨fun t ht => hw0.mem_eq (mcpA_aligned hT ht) ?_, fun q hq => hw0.mem_eq (sc_reply_word hS hq).1 ?_,
-    fun r hr => ?_⟩
+  refine ⟨fun t ht => ⟨hw0.mem_eq (mcpA_aligned hT ht) ?_, hw0.mem_eq (flagsA_aligned hT ht) ?_⟩,
+    fun q hq => hw0.mem_eq (sc_reply_word hS hq).1 ?_, fun r hr => ?_⟩
   · rintro ((hb | hb) | hb)
     · exact hb.ne_mcp hS ht rfl
     · exact (hb.ne hS hRP).1 t ht rfl
     · exact (hb.ne hS hRP).1 t ht rfl
+  · rintro ((hb | hb) | hb)
+    · exact hb.ne_flags hS ht rfl
+    · exact hb.ne_flags hT ht rfl
+    · exact hb.ne_flags hT ht rfl
   · rintro ((hb | hb) | hb)
     · exact hb.ne_screply hS hq rfl
     · exact (hb.ne hS hRP).2.1 q hq rfl
@@ -366,13 +419,17 @@ theorem TFootR.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State
 theorem RFoot.keep {N T C R : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hRP : RPlaced st N T C R c s σ)
     (hw : WritesIn st s s' (RFoot st T N C R c s σ)) :
-    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t)) ∧ (∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t)) := by
+    (∀ t ∈ T, L.mem s' (mcpA t) = L.mem s (mcpA t) ∧ L.mem s' (flagsA t) = L.mem s (flagsA t)) ∧ (∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t)) := by
   obtain ⟨Q, R', hc, hs⟩ := hS.lists
   have hT := hc.tcbs
-  refine ⟨fun t ht => hw.mem_eq (mcpA_aligned hT ht) ?_, fun t ht => hw.mem_eq (yieldA_aligned hT ht) ?_⟩
+  refine ⟨fun t ht => ⟨hw.mem_eq (mcpA_aligned hT ht) ?_, hw.mem_eq (flagsA_aligned hT ht) ?_⟩,
+    fun t ht => hw.mem_eq (yieldA_aligned hT ht) ?_⟩
   · rintro (hb | hb)
     · exact hb.ne_mcp hS ht rfl
     · exact hb.ne_tcbw hS hRP ht (K := 3440#u64) (by simp) rfl
+  · rintro (hb | hb)
+    · exact hb.ne_flags hS ht rfl
+    · exact hb.ne_tcbw hS hRP ht (K := 3456#u64) (by simp) rfl
   · rintro (hb | hb)
     · exact hb.ne_yield hS ht rfl
     · exact hb.ne_tcbw hS hRP ht (K := 3472#u64) (by simp) rfl

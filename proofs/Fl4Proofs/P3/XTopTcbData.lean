@@ -362,6 +362,12 @@ steps keep (`FlagsRel.frame`; SetFlags sets both sides, `FlagsRel.set`). -/
 def FlagsRel (T : Set U64) (m : U64 → U64) (σ : Fl4Spec.State Unit) : Prop :=
   ∀ t ∈ T, ∃ x, σ.kheap t.bv = some (.tcb x) ∧ Fl4Spec.wordToTcbFlags (m (tFlagsWA t)).bv = x.tcbFlags
 
+/-- **`FlagsRel` is `McpRel`'s flags part** (KENTRY-PLAN g5d: carried in
+`JAtZ.mcp`, so no longer a per-state premise). -/
+theorem FlagsRel.of_mcp {T : Set U64} {m : U64 → U64} {σ : Fl4Spec.State Unit} (h : Sched.McpRel T m σ) :
+    FlagsRel T m σ := fun t ht => by
+  obtain ⟨x, hx, -, ef⟩ := h t ht; exact ⟨x, hx, ef⟩
+
 /-- **`FlagsRel` across a step** that writes no flags word of `T` and keeps
 every TCB's `tcb_flags`. -/
 theorem FlagsRel.frame {T : Set U64} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} (h : FlagsRel T m σ)

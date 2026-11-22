@@ -162,7 +162,7 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
     fun p x n hp => ⟨x, hC'.sc.1 hp⟩⟩
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC'.tcbF hp; ⟨y, hy, hc.yld⟩,
     fun p x n hp => ⟨x, hC'.sc.2 hp, rfl⟩, fun p y n hp => ⟨y, hC'.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC'.tcbF hp; ⟨y, hy, hc.mcp⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC'.tcbF hp; ⟨y, hy, hc.mcpF⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR2 := J.rrecv.frame k4 hC'.toHStep.khrb
@@ -231,10 +231,14 @@ theorem JAtZ.setFiJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64
       J.apart.sc_frame hw.1 (SzKeep.of_keepC hkc), hjpl, hjc, hkern, hutc, J.nsc.cn hC'.toHStep, J.inv.cn hC',
       CurInvW.cn J.cur hC', J.own.cn hC'.toHStep, J.off.cn hC'.toHStep, J.act.cn hC', J.bsa.cn hC'.toHStep,
       J.isorted.cn hC'.toHStep, J.curRun.cn hC'.toHStep (Or.inr hC'.act), hblk⟩
+  have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
+    (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
+    (fun y hy => LSim.of_shape (hshape y hy))
   exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) hJC R
     (Vs.VsSlotsT.of_some (· = x) (fun y hy e => hco y hy e)
       (fun y _ e _ _ _ _ _ _ => by rw [e, hcap']; exact Vs.vcapW_ut rfl)
-      (fun y _ e _ _ => by rw [e, hcap']; trivial))
+      (fun y _ e _ _ => by rw [e, hcap']; trivial) (fun y _ e _ => by rw [e, hcap']; trivial)) (J.vkeep_slot hw)
+    hLS.1 (fun p hp => J.zD p (hLS.2 p hp))
 
 /-- **The `H` objects meeting a childless device cap's range are dead**
 (module docstring). -/

@@ -21,7 +21,7 @@ set_option maxRecDepth 2048
 namespace fl4_core
 
 /-- Trait declaration: [fl4_core::machine::Store]
-    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-35:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 12:0-33:1
     Visibility: public -/
 structure machine.Store (Self : Type _) where
   frame_masks : Self → Result (Std.U64 × Std.U64)
@@ -131,7 +131,7 @@ structure debug.Breakpoint where
   enabled : Bool
 
 /-- Trait declaration: [fl4_core::machine::Arch]
-    Source: 'crates/fl4-core/src/machine.rs', lines 45:0-130:1
+    Source: 'crates/fl4-core/src/machine.rs', lines 43:0-128:1
     Visibility: public -/
 structure machine.Arch (Self : Type _) where
   private_device_frame : Self → Std.U64 → Result Bool
@@ -185,7 +185,7 @@ inductive error.LookupFault where
 | GuardMismatch : Std.U64 → Std.U64 → Std.U64 → error.LookupFault
 
 /-- [fl4_core::error::Fault]
-    Source: 'crates/fl4-core/src/error.rs', lines 28:0-36:1
+    Source: 'crates/fl4-core/src/error.rs', lines 28:0-42:1
     Visibility: public -/
 @[discriminant isize]
 inductive error.Fault where
@@ -214,7 +214,7 @@ inductive error.SysError where
 | NotEnoughMemory : Std.U64 → error.SysError
 
 /-- [fl4_core::error::Exc]
-    Source: 'crates/fl4-core/src/error.rs', lines 39:0-44:1
+    Source: 'crates/fl4-core/src/error.rs', lines 45:0-50:1
     Visibility: public -/
 @[discriminant isize]
 inductive error.Exc where
@@ -251,6 +251,12 @@ inductive tcbqueue.Link where
 | Sched : tcbqueue.Link
 | Ep : tcbqueue.Link
 
+/-- [fl4_core::obj::Ntfn]
+    Source: 'crates/fl4-core/src/obj.rs', lines 30:0-30:25
+    Visibility: public -/
+@[reducible]
+def obj.Ntfn := Std.U64
+
 /-- [fl4_core::msginfo::MessageInfo]
     Source: 'crates/fl4-core/src/msginfo.rs', lines 5:0-10:1
     Visibility: public -/
@@ -267,12 +273,6 @@ structure sporadic.Refill where
   time : Std.U64
   amount : Std.U64
 
-/-- [fl4_core::obj::Ntfn]
-    Source: 'crates/fl4-core/src/obj.rs', lines 30:0-30:25
-    Visibility: public -/
-@[reducible]
-def obj.Ntfn := Std.U64
-
 /-- [fl4_core::obj::Reply]
     Source: 'crates/fl4-core/src/obj.rs', lines 32:0-32:26
     Visibility: public -/
@@ -286,7 +286,7 @@ def obj.Reply := Std.U64
 def obj.Ep := Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 445:0-454:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 449:0-458:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -308,7 +308,7 @@ def ept.slot.closure (S : Type _) := Unit
 def ept.root.closure (S : Type _) := Unit
 
 /-- [fl4_core::capability::Rights]
-    Source: 'crates/fl4-core/src/capability.rs', lines 271:0-276:1
+    Source: 'crates/fl4-core/src/capability.rs', lines 272:0-277:1
     Visibility: public -/
 structure capability.Rights where
   write : Bool
@@ -317,13 +317,13 @@ structure capability.Rights where
   grant_reply : Bool
 
 /-- [fl4_core::vspace::VRoot]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 507:0-510:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 511:0-514:1 -/
 structure vspace.VRoot where
   pml4 : Std.U64
   asid : Std.U64
 
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 735:0-743:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 739:0-747:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64
@@ -402,17 +402,17 @@ structure cdt.Finalised where
   cleanup : capability.Cap
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:30-781:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 
 /-- [fl4_core::untyped::UntypedCap]
-    Source: 'crates/fl4-core/src/untyped.rs', lines 189:0-194:1 -/
+    Source: 'crates/fl4-core/src/untyped.rs', lines 192:0-197:1 -/
 structure untyped.UntypedCap where
   ptr : Std.U64
   size_bits : Std.U64

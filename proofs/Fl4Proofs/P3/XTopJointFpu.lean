@@ -76,7 +76,7 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' := by
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s) := SlotsSame.refl _ _
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
-  have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) := fun _ _ => rfl
+  have k1 : ∀ t ∈ Z.T, L.mem s (mcpA t) = L.mem s (mcpA t) ∧ L.mem s (flagsA t) = L.mem s (flagsA t) := fun _ _ => ⟨rfl, rfl⟩
   have k2 : ∀ t ∈ Z.T, L.mem s (P1.yieldA t) = L.mem s (P1.yieldA t) := fun _ _ => rfl
   have kb : ∀ t ∈ Z.T, L.mem s (tIpcBufA t) = L.mem s (tIpcBufA t) := fun _ _ => rfl
   have k3 : ∀ q ∈ Z.C, L.mem s (P1.scReplyA q) = L.mem s (P1.scReplyA q) := fun _ _ => rfl
@@ -107,7 +107,8 @@ theorem JAtZ.arFrS (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {a' : A} {�
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
       J.apart.sc_frame rfl F.szKeep, hjpl, J.jcov, hkern, hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F,
       J.own.ar F, J.off.ar F, J.act.ar F, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, J.blk⟩
-  exact J.cs_frame (G' := Z.G) rfl hX F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+  exact J.cs_frameK rfl hX F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) VKeep.rfl'
+    hSS (P1.DbgKeep.refl s) F.idle
 
 /-- The FPU owner's and the machine state's change is an `ArFr` step. -/
 theorem arFr_fpuOwner (σ : Fl4Spec.State Unit) (ms : Fl4Spec.MachineState) (o : Option Fl4Spec.ObjRef) :

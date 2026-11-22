@@ -30,7 +30,7 @@ noncomputable section
 def PK (f : Bool × Bool) : KernelObject → KernelObject → Prop
   | .tcb x, .tcb y => y.tcbCtable = x.tcbCtable ∧ y.tcbVtable = x.tcbVtable ∧ y.tcbIpcframe = x.tcbIpcframe ∧
       y.tcbFaultHandler = x.tcbFaultHandler ∧ y.tcbTimeoutHandler = x.tcbTimeoutHandler ∧ y.tcbEpt = x.tcbEpt ∧
-      y.tcbMcpriority = x.tcbMcpriority ∧ (f.1 = true → y.tcbYieldTo = x.tcbYieldTo)
+      (y.tcbMcpriority, y.tcbFlags) = (x.tcbMcpriority, x.tcbFlags) ∧ (f.1 = true → y.tcbYieldTo = x.tcbYieldTo)
   | .schedContext x n, .schedContext y m =>
       m = n ∧ (f.1 = true → y.scYieldFrom = x.scYieldFrom) ∧ (f.2 = true → y.scReplies = x.scReplies)
   | .notification _, .notification _ => True

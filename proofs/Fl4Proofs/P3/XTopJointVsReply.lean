@@ -104,6 +104,7 @@ theorem JAtZ.runRJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
   rintro s6 ⟨⟨⟨⟨hR6, hS6r⟩, hw6⟩, hy6⟩, hblk, hfoot⟩
   have hX6 := IpcRel.ofSRN hR6 hS6r
   have hDbg := J.kw_dbg hfoot
+  have hKd := J.kw_dbgKeep hfoot
   set x6 : Fl4Spec.Tcb := { x with tcbState := .running } with hx6
   set σ1 := updK σ t.bv (.tcb x6) with hσ1
   set σ6 := stsAct σ1 t.bv with hσ6
@@ -268,7 +269,7 @@ theorem JAtZ.runRJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (
     (J.sc_utc hW hK hDbg) hNSC hInv hcur6 hown6 hoff hAI (BlockedScActive.tkw J.bsa hK fun p y n hp ha => by
       by_cases e : p = t.bv
       · rw [e, hk6] at hp; cases hp
-      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk⟩
+      · rw [hkp _ e] at hp; exact ⟨y, hp, ha, fun _ h => h, id⟩) hcr6 hblk hKd (J.idleW_keep hX'.fin.1.1.1 hfk.2.1 hfk.2.2).1 J.zD⟩
 
 set_option maxHeartbeats 16000000 in
 /-- **`reply1` of a runnable thread at `J`** (XTopJointReply's
@@ -440,7 +441,7 @@ theorem JAtZ.clrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hA : IsSlot Z.th (cslotAddr (pc.bv, idx)) :=
     AbsSlot.isSlot (th := Z.th) (sl := (pc.bv, idx)) ⟨pc, rfl, Or.inl (by simpa [hidx] using hpc)⟩
   refine J.vsStepJ (jVsApartHyp arI Z H Cs Ac Lst D s a σ rfl J) hpc hidx (J.xtop.clr5 hb hba)
-    (VsSFr.of_eq rfl) hW (fun y hy _ => hSS.capV hy) (by rw [hSS.capV hA]) (by rw [hSS.capV hA]) hnu
+    (VsSFr.of_eq rfl) hW (fun y hy _ => hSS.capV hy) (by rw [hSS.capV hA]) (by rw [hSS.capV hA]) hnu (by rw [hSS.capV hA])
     (fun y hy => ⟨(hSS y hy).2.2.1, (hSS y hy).2.2.2⟩) (J.vsc.of_eq fun y hy => hSS.capV hy)
 
 end
@@ -568,7 +569,7 @@ theorem decode_invocation_frameJR [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))

@@ -97,7 +97,7 @@ theorem jowes_slotDFH {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     rfl, rfl⟩, fun p x n hp => ⟨x, hC.sc.1 hp⟩⟩
   have yk : YKeep σ σ' := ⟨fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.yld⟩, fun p x n hp => ⟨x, hC.sc.2 hp, rfl⟩,
     fun p y n hp => ⟨y, hC.sc.1 hp, rfl⟩⟩
-  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcp⟩
+  have mk : McpKeep σ σ' := fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.mcpF⟩
   obtain ⟨hCR', hRP'⟩ := CallRel.carry J.call J.rp ⟨k3, k4⟩ hw.1 ck
   have hRF' := RFree.carry J.rfree J.call k4 ck
   have hRR' := J.rrecv.frame k4 hC.toHStep.khrb
@@ -149,7 +149,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     {dp : U64} {r : Nat} (hdp : Z.th dp = some (.cnode r)) (hr : r < 64) {k : Nat} (hk : k < 2 ^ r)
     (hdst : capAt (L.mem s) (slotAddr dp.bv (BitVec.ofNat 64 k)) = ok .Null)
     {q vm : U64} (hq1 : ptr.val ≤ q.val) (hq2 : q.val + 4096 ≤ ptr.val + 2 ^ 21) (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3)
-    (hqal : q.val % 4096 = 0) (hDL : DestLive Z.th (L.mem s) (L.ksb s) dp) :
+    (hqal : q.val % 4096 = 0) (hDLc : DestCap Z.th (L.mem s) dp) :
     cdt.insert st s (.Frame q .Small vm false false false 0#u64 0#u64) (cslotAddr (pp.bv, idx))
       (slotAddr dp.bv (BitVec.ofNat 64 k)) ⦃ s' => ∃ σ',
         Fl4Spec.capInsert (Z := Unit) (absCap (.Frame q .Small vm false false false 0#u64 0#u64)) (pp.bv, idx)
@@ -163,6 +163,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JAtZ (L := L) arI AR (Z.mv (insG Z.G (cslotAddr (pp.bv, idx)) (slotAddr dp.bv (BitVec.ofNat 64 k)) rv) Z.vs)
             H Cs Ac' Lst' D' s' a σ' ⦄ := by
+  have hDL : DestLive Z.th (L.mem s) (L.ksb s) dp := Or.inl hDLc
   have hX := J.xtop
   obtain ⟨hPl, ⟨hSt, hV, hM, hC, hI⟩, hFI, -, hMO, -, -⟩ := hX.rel
   have hTP := hS.sr.2
@@ -290,7 +291,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       rw [capV_of_capAt hcap] at h0
       rw [hdc]
       exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
-      fun y _ e U h => by
+      (fun y _ e U h => by
         subst e
         have h0 := h src hs
         rw [capV_of_capAt hcap, hsrcCdef] at h0
@@ -299,10 +300,34 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         have hS : (fbitsF .Small).val = 12 := by rw [fbitsF_val]; rfl
         intro _ x hx1 hx2
         rw [hS] at hx2
-        exact h0 rfl x (by omega) (by rw [hL]; omega)
+        exact h0 rfl x (by omega) (by rw [hL]; omega))
+      fun y _ e _ => by subst e; rw [hdc, hcdef]; simp [Vs.NativeCap]
+  have hZf : ∀ y, IsSlot Z.th y → ∀ p zt n, capV (L.mem s') y = .Zombie p zt n →
+      ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p zt n := fun y hy p zt n h => by
+    by_cases e : y = dest
+    · subst e; rw [hdc, hcdef] at h; cases h
+    · exact ⟨y, hy, by rw [← hcapV y hy e]; exact h⟩
+  have hLv' := LiveDN.wstepC J J.live hX1' (fun p hp => R.jcov.dead p (J.zD p hp)) hcn.idle hw
+    [(dp.bv, Fl4Spec.natToCref r k)]
+    (fun sl hsl => by
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hsl
+      subst hsl; exact ⟨dp, r, rfl, hdp, hlen, hDLc⟩)
+    (fun y hy hne => hcapV y hy (by rw [← hdest']; exact hne _ (List.mem_singleton_self _)))
+    (fun sl h => by
+      by_cases e : sl = (dp.bv, Fl4Spec.natToCref r k)
+      · exact Or.inr (by simp [e])
+      · exact Or.inl (by rw [← capInsert_orig (absCap c) _ _ σ ((), σ') hmem sl e]; exact h))
+    (fun sl hsl h => by
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hsl
+      subst hsl; rw [hdest', hdc, hcdef] at h; cases h)
+    hZf
+    (fun y0 hy0 hn => by
+      have e : y0 ≠ dest := fun e => hn (by rw [e]; exact hn0)
+      exact ⟨y0, hy0, by rw [hcapV y0 hy0 e]; exact hn, by rw [hcapV y0 hy0 e]⟩)
   exact ⟨σ', hci, hS', hks, hMS, hoth, Ac, Lst, D,
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
-      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT)⟩
+      (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
+      hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp))⟩
 
 end
 
@@ -318,7 +343,7 @@ it returns). -/
 theorem subframe_dest_live {th : TypedHeap} (s : S) (σ : Fl4Spec.State Unit) (hSt : StateRel th (L.mem s) σ)
     (hSV : SlotsValid th (L.mem s)) {y : U64} (hy : IsSlot th y) {nc : capability.Cap} {nc' : Fl4Spec.Cap}
     (hcy : capAt (L.mem s) y = ok nc) (hnr : CapRel nc nc') (hnv : CapValid th nc) (a0 a1 a2 a4 : U64) :
-    vspace.subframe_dest st s y a0 a1 a2 a4 ⦃ res => ∀ d, res = .Ok d → DestLive th (L.mem s) (L.ksb s) d ⦄ := by
+    vspace.subframe_dest st s y a0 a1 a2 a4 ⦃ res => ∀ d, res = .Ok d → DestCap th (L.mem s) d ⦄ := by
   unfold vspace.subframe_dest
   rw [slot_cap_eq, hcy]; simp only [bind_ok]
   by_cases hd : a1 = 0#u64
@@ -334,7 +359,7 @@ theorem subframe_dest_live {th : TypedHeap} (s : S) (σ : Fl4Spec.State Unit) (h
       obtain ⟨z, hz, -⟩ := shl_radix hr64
       rw [hz]; simp only [bind_ok]
       split_ifs <;> simp only [error.range, bind_ok, WP.spec_ok] <;> intro d h <;> cases h
-      exact Or.inl ⟨y, rad, gs, g, hy, hcv⟩
+      exact ⟨y, rad, gs, g, hy, hcv⟩
     all_goals
       simp only [vspace.cnode_of, bind_ok, vspace.failed_lookup, WP.spec_ok]
       intro d h; cases h
@@ -368,7 +393,7 @@ theorem subframe_dest_live {th : TypedHeap} (s : S) (σ : Fl4Spec.State Unit) (h
         obtain ⟨z, hz, -⟩ := shl_radix hr64
         rw [hz]; simp only [bind_ok]
         split_ifs <;> simp only [error.range, bind_ok, WP.spec_ok] <;> intro d h <;> cases h
-        exact Or.inl ⟨cslotAddr dsl, rad, gs, g, hsl, hcv⟩
+        exact ⟨cslotAddr dsl, rad, gs, g, hsl, hcv⟩
       all_goals
         simp only [vspace.cnode_of, bind_ok, vspace.failed_lookup, WP.spec_ok]
         intro d h; cases h
@@ -396,7 +421,7 @@ theorem insert_subframesJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U6
     (hvm : 1 ≤ vm.val ∧ vm.val ≤ 3) (hbal : base.val % 4096 = 0)
     (hempty : ∀ j : Nat, first.val ≤ j → j < first.val + count.val →
       capAt (L.mem s) (slotAddr dp.bv (BitVec.ofNat 64 j)) = ok .Null)
-    (hDL : DestLive Z.th (L.mem s) (L.ksb s) dp) :
+    (hDL : DestCap Z.th (L.mem s) dp) :
     vspace.insert_subframes st s (cslotAddr (pp.bv, idx)) dp first base count vm ⦃ s' => ∃ σ' G',
       Fl4Spec.NonDet.mapMx (subIns (pp.bv, idx) base.bv (vmRightsOf vm)) (subList dp r first.val count.val) σ =
         ({((), σ')}, False) ∧
@@ -421,7 +446,7 @@ theorem insert_subframesJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U6
         Fl4Spec.NonDet.mapMx g Lst0 σ = ({((), σf)}, False)) ∧
       (∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
         JAtZ (L := L) arI AR (Z.mv Gi Z.vs) H Cs Ac' Lst' D' x.1 a σi) ∧
-      DestLive Z.th (L.mem x.1) (L.ksb s) dp)
+      DestCap Z.th (L.mem x.1) dp)
   · rintro ⟨si, i⟩ ⟨hic, σi, Gi, hSi, hMSi, hksi, hemp, hcont, ⟨Aci, Lsti, Di, Ji⟩, hDLi⟩
     unfold vspace.insert_subframes_loop.body
     simp only at hic hksi hemp hcont hDLi ⊢
@@ -450,7 +475,7 @@ theorem insert_subframesJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U6
       refine WP.spec_bind (JAtZ.subInsJ (Z := Z.mv Gi Z.vs) Ji hpp hidx hSi hal hdp hr hk2 hnull
         (q := core.num.U64.wrapping_add base i1) (by rw [hqv]; omega) (by
           rw [hqv]; have := Nat.mul_le_mul_right 4096 (show i.val + 1 ≤ count.val by omega)
-          rw [Nat.add_mul] at this; omega) hvm (by rw [hqv]; omega) (by rw [hksi]; exact hDLi)) ?_
+          rw [Nat.add_mul] at this; omega) hvm (by rw [hqv]; omega) hDLi) ?_
       rintro s2 ⟨σ2, hci, hS2, hks2, hMS2, hoth, Ac2, Lst2, D2, J2⟩
       step as ⟨i4, hi4⟩
       have hi4v : i4.val = i.val + 1 := by simpa using hi4
@@ -474,13 +499,12 @@ theorem insert_subframesJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U6
             simp [BitVec.toNat_add]; omega
           rw [e]; exact hci
         rw [mapMx_cons_one hgi]; exact hf
-      · rcases hDLi with ⟨y, r', gs, g', hy, hc⟩ | h
-        · have hyd : y ≠ slotAddr dp.bv (BitVec.ofNat 64 (first.val + i.val)) := fun e => by
-            rw [e, capV_of_capAt hnull] at hc; cases hc
-          have e := hoth y hy hyd
-          rw [capAt_capV, capAt_capV] at e
-          exact Or.inl ⟨y, r', gs, g', hy, by rw [eq_of_ok_eq e]; exact hc⟩
-        · exact Or.inr h
+      · obtain ⟨y, r', gs, g', hy, hc⟩ := hDLi
+        have hyd : y ≠ slotAddr dp.bv (BitVec.ofNat 64 (first.val + i.val)) := fun e => by
+          rw [e, capV_of_capAt hnull] at hc; cases hc
+        have e := hoth y hy hyd
+        rw [capAt_capV, capAt_capV] at e
+        exact ⟨y, r', gs, g', hy, by rw [eq_of_ok_eq e]; exact hc⟩
     · rw [if_neg hlt]
       have hic' : i.val = count.val := by
         have : ¬ i.val < count.val := hlt
@@ -513,7 +537,7 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
     {pp : U64} {rs : Nat} (hpp : Z.th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
     {ptr rt fa fv : U64} {sz : capability.FrameSize} {dev mm : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm false fa fv))
-    (hno : sz = .Large → dev = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → dev = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm false fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))
@@ -690,9 +714,9 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
       { R := hSt1, V := hSV1, M := hM1, C := hC1, I := hI1, U := UtInv.of_same hM hU hSS
         vs := J1.xtop.fin.2.1, pt := J1.xtop.fin.2.2.1, sr := J1.xtop.fin.1
         cap := by rw [hSS.capAt hs]; exact hcap, rev := hSS.revOf hs
-        no := fun x hx => by
+        no := fun x hx hp => by
           have hxs := ((hM.members x).1 hx).1
-          rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx
+          rw [hSS.capV hxs] at hp; rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx hp
         F := hFI1
         fr := fun w hw q vm h1 h2 hov => by
           have hws := ((hM.members w).1 hw).1
@@ -710,7 +734,7 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
     refine WP.spec_bind (insert_subframesJ (L := L) J1 hpp hidx hSub1 hal' hdp hr64 hfc (by rw [hbv]; omega)
       (by rw [hbv]; omega) ⟨hm1, hm3⟩ (by rw [hbv]; omega) (fun j h1 h2 => by
         rw [hSS.capAt ⟨dest, j, Or.inl ⟨rr, hdp, by omega⟩, rfl⟩]; exact hemp j h1 h2)
-      (hDL.same hSS hksb1)) ?_
+      (hDL.same hSS)) ?_
     rintro s2 ⟨σ', G', hmap, -, -, -, Ac2, Lst2, D2, J2⟩
     have hbase : (core.num.U64.wrapping_add ptr a3).bv = ptr.bv + a3.bv := core.num.U64.wrapping_add_bv_eq _ _
     have hrights : vmRightsOf m = Fl4Spec.maskVmRights (vmRightsOf rt) (Fl4Spec.dataToRights a5.bv) := by
@@ -791,7 +815,7 @@ theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))
@@ -865,7 +889,7 @@ theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))

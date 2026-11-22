@@ -1,0 +1,228 @@
+-- Hand-written P0 theorems for the AArch64 extraction (Fl4CoreA64), spliced
+-- into Auto.lean by `xtask/scripts/gen_p0.py PROOFS_DIR --arch aarch64` at
+-- each function's place in dependency order. Each block starts with
+-- `theorem NAME.p0` and states the same P0 property the generator would.
+-- Functions whose extraction is the same as x86's reuse the proofs of
+-- Fl4Proofs/P0/Manual.lean.in.
+
+-- The loop clears chunks downwards; `offset` is nonzero where it goes on,
+-- so taking a chunk off (saturating) makes it smaller. Since #52 it reads the
+-- cap back first and stops (`Preempted`) when it is not an untyped cap.
+@[step] theorem untyped.reset_untyped_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (slot : obj.Slot) (ptr : Std.U64) (block : Std.U64) (device : Bool) (offset : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    untyped.reset_untyped_loop machineStoreInst machineArchInst s a slot ptr block device offset ⦃ _ => True ⦄ := by
+  unfold untyped.reset_untyped_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold untyped.reset_untyped_loop.body
+    p0_body
+    -- #52: the cap read back; `none` (a doomed transaction) ends the loop.
+    p0_ite_head
+    · exact (WP.spec_ok _).2 trivial
+    p0_body
+    all_goals
+      simp only [lift, bind_ok, WP.spec_ok, saturating_sub_u64_val]
+      have h0 : x2.val ≠ 0 := by intro h; apply ‹¬x2 = 0#u64›; scalar_tac
+      have : untyped.RESET_CHUNK.val = 65536 := by simp [untyped.RESET_CHUNK]
+      omega
+  · trivial
+
+@[step] theorem tcb.decode.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (target : obj.Tcb) (c : tcb.Ctx) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    tcb.decode machineStoreInst machineArchInst s a lbl target c ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold tcb.decode
+  p0_structural
+
+@[step] theorem syscall.handle_unknown_syscall.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.I64) (fast : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    syscall.handle_unknown_syscall machineStoreInst machineArchInst s a number fast ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold syscall.handle_unknown_syscall
+  p0_structural
+
+
+
+@[step] theorem untyped.shared_extent.p0 (u : untyped.UntypedCap) (used : Std.U64) (bits : Std.U64) (count : Std.U64) :
+    untyped.shared_extent u used bits count ⦃ _ => True ⦄ := by
+  unfold untyped.shared_extent
+  simp only [lift, bind_ok]
+  p0_split
+
+@[step] theorem boot.create_untypeds.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (b : boot.Boot) (p : boot.BootParams) (hS : StoreTotal machineStoreInst) :
+    boot.create_untypeds machineStoreInst s b p ⦃ _ => True ⦄ := by
+  -- #47: binds of `if`s (the extra untyped chunk's `end`, `n`, `(s3, used)`)
+  unfold boot.create_untypeds
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals p0_close
+
+-- Stage-1 and stage-2 table walks: each step takes a level off `rem`
+-- (`level`), checked to be nonzero; the shift amounts are masked with 63.
+@[step] theorem ept.lookup_slot_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ipa : Std.U64) (shift : Std.U64) (slot : Std.U64) (rem : Std.U64) (hS : StoreTotal machineStoreInst) :
+    ept.lookup_slot_loop machineStoreInst s ipa shift slot rem ⦃ _ => True ⦄ := by
+  unfold ept.lookup_slot_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold ept.lookup_slot_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem ept.unmap_table_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ipa : Std.U64) (pt : Std.U64) (table : Std.U64) (shift : Std.U64) (mask : Std.U64) (rem : Std.U64) (hS : StoreTotal machineStoreInst) :
+    ept.unmap_table_loop machineStoreInst s ipa pt table shift mask rem ⦃ _ => True ⦄ := by
+  unfold ept.unmap_table_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, _, x3) => x3.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2, x3⟩ -
+    unfold ept.unmap_table_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vspace.lookup_pt_slot_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vaddr : Std.U64) (shift : Std.U64) (slot : Std.U64) (level : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.lookup_pt_slot_loop machineStoreInst s vaddr shift slot level ⦃ _ => True ⦄ := by
+  unfold vspace.lookup_pt_slot_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, x2) => x2.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1, x2⟩ -
+    unfold vspace.lookup_pt_slot_loop.body
+    p0_body
+  · trivial
+
+-- The stage-2 geometry: an IPA size of at most 48 bits, so `1 << ipa_bits`
+-- in `ipa_limit` cannot overflow.
+@[step] theorem ept.geom.p0 (ipa_bits : Std.U64) :
+    ept.geom ipa_bits ⦃ g => g.ipa_bits.val ≤ 48 ⦄ := by
+  unfold ept.geom
+  split
+  · simp only [WP.spec_ok]; scalar_tac
+  · split <;> (simp only [WP.spec_ok]; scalar_tac)
+
+@[step] theorem ept.ipa_limit.p0 (ipa_bits : Std.U64) :
+    ept.ipa_limit ipa_bits ⦃ _ => True ⦄ := by
+  unfold ept.ipa_limit; p0_auto
+
+-- The cache maintenance range: `end - start` with `start ≤ end`, which the
+-- only caller, `vspace::decode_page_flush`, checks (`end <= start` is an
+-- error there, vspace.rs:677).
+@[step] theorem ept.flush_frame.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (op : Std.U64) (invalidate : Bool) (asid : Std.U64) (ipa : Std.U64) (ptr : Std.U64) (size : capability.FrameSize) (is_device : Bool) (start : Std.U64) («end» : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) (hse : start.val ≤ «end».val) :
+    ept.flush_frame machineStoreInst machineArchInst s a op invalidate asid ipa ptr size is_device start «end» ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold ept.flush_frame
+  p0_structural
+
+-- The number of GIC list registers: at most 16 (`.min(16)`), which bounds
+-- the list-register loops below (`1 << i`, `(VGIC_LR0 + i) * 8`).
+@[step] theorem vcpu.num_lrs.p0 {A : Type _} (machineArchInst : machine.Arch A) (a : A) (hA : ArchTotal machineArchInst) :
+    vcpu.num_lrs machineArchInst a ⦃ r => r.val ≤ 16 ⦄ := by
+  unfold vcpu.num_lrs
+  step*
+  all_goals (simp only [core.cmp.impls.OrdU64.min]; split <;> scalar_tac)
+
+-- Register-range copies between a VCPU and an IPC frame: `r * 8` needs the
+-- range to end below 2^61. Every caller passes `vcpu_reg` constants.
+@[step] theorem vcpu.copy_reg_range_to_frame_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (end_incl : Std.U64) (r : Std.U64) (hS : StoreTotal machineStoreInst) (he : end_incl.val < 2 ^ 61) :
+    vcpu.copy_reg_range_to_frame_loop machineStoreInst s vc frame end_incl r ⦃ _ => True ⦄ := by
+  unfold vcpu.copy_reg_range_to_frame_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => end_incl.val + 1 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.copy_reg_range_to_frame_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.copy_reg_range_to_frame.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (start : Std.U64) (end_incl : Std.U64) (hS : StoreTotal machineStoreInst) (he : end_incl.val < 2 ^ 61) :
+    vcpu.copy_reg_range_to_frame machineStoreInst s vc frame start end_incl ⦃ _ => True ⦄ := by
+  unfold vcpu.copy_reg_range_to_frame; p0_auto
+
+@[step] theorem vcpu.copy_reg_range_from_frame_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (end_incl : Std.U64) (r : Std.U64) (hS : StoreTotal machineStoreInst) (he : end_incl.val < 2 ^ 61) :
+    vcpu.copy_reg_range_from_frame_loop machineStoreInst s vc frame end_incl r ⦃ _ => True ⦄ := by
+  unfold vcpu.copy_reg_range_from_frame_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => end_incl.val + 1 - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.copy_reg_range_from_frame_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.copy_reg_range_from_frame.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (start : Std.U64) (end_incl : Std.U64) (hS : StoreTotal machineStoreInst) (he : end_incl.val < 2 ^ 61) :
+    vcpu.copy_reg_range_from_frame machineStoreInst s vc frame start end_incl ⦃ _ => True ⦄ := by
+  unfold vcpu.copy_reg_range_from_frame; p0_auto
+
+-- List-register loops: `lrs` is `num_lrs` (≤ 16) at every call site.
+@[step] theorem vcpu.validate_vgic_lrs_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) :
+    vcpu.validate_vgic_lrs_loop machineStoreInst s frame lrs gic_v3 i ⦃ _ => True ⦄ := by
+  unfold vcpu.validate_vgic_lrs_loop
+  apply loop.spec_decr_nat (measure := fun x => lrs.val - x.val) (inv := fun _ => True)
+  · rintro x0 -
+    unfold vcpu.validate_vgic_lrs_loop.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.validate_vgic_lrs.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) :
+    vcpu.validate_vgic_lrs machineStoreInst s frame lrs gic_v3 ⦃ _ => True ⦄ := by
+  unfold vcpu.validate_vgic_lrs; p0_auto
+
+@[step] theorem vcpu.write_state_from_frame_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) :
+    vcpu.write_state_from_frame_loop0 machineStoreInst s vc frame lrs gic_v3 i ⦃ _ => True ⦄ := by
+  unfold vcpu.write_state_from_frame_loop0
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => lrs.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.write_state_from_frame_loop0.body
+    p0_body
+  · trivial
+
+@[step] theorem vcpu.write_state_from_frame_loop2.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (frame : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) :
+    vcpu.write_state_from_frame_loop2 machineStoreInst s vc frame lrs gic_v3 i ⦃ _ => True ⦄ := by
+  unfold vcpu.write_state_from_frame_loop2
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, x1) => lrs.val - x1.val) (inv := fun _ => True)
+  · rintro ⟨x0, x1⟩ -
+    unfold vcpu.write_state_from_frame_loop2.body
+    p0_body
+  · trivial
+
+-- The list-register status scan: `1 << i` for `i < lrs ≤ 64`, and
+-- `valid_lrs + 1` with `valid_lrs ≤ i` (it counts list registers so far).
+@[step] theorem vcpu.sync_vgic_status_loop.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (elrsr : Std.U64) (eisr : Std.U64) (valid_lrs : Std.U64) (has_pend : Bool) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) (hv : valid_lrs.val ≤ i.val) :
+    vcpu.sync_vgic_status_loop machineStoreInst s vc lrs gic_v3 elrsr eisr valid_lrs has_pend i ⦃ _ => True ⦄ := by
+  unfold vcpu.sync_vgic_status_loop
+  apply loop.spec_decr_nat (measure := fun x => match x with | (_, _, _, _, x4) => lrs.val - x4.val)
+    (inv := fun x => match x with | (_, _, x2, _, x4) => x2.val ≤ x4.val)
+  · rintro ⟨x0, x1, x2, x3, x4⟩ hinv
+    simp only at hinv
+    unfold vcpu.sync_vgic_status_loop.body
+    set_option maxHeartbeats 4000000 in p0_structural
+  · exact hv
+
+@[step] theorem vcpu.sync_vgic_status.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (vc : Std.U64) (lrs : Std.U64) (gic_v3 : Bool) (hS : StoreTotal machineStoreInst) (hl : lrs.val ≤ 64) :
+    vcpu.sync_vgic_status machineStoreInst s vc lrs gic_v3 ⦃ _ => True ⦄ := by
+  -- The `misr` bits are binds of `if`s whose values do not matter here.
+  set_option maxHeartbeats 4000000 in
+  unfold vcpu.sync_vgic_status
+  repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals p0_close
+
+@[step] theorem vcpu.init.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.init machineStoreInst machineArchInst s a vc ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold vcpu.init
+  p0_structural
+
+-- #42-style binds of `if`s (`let (edge, index, depth) ← if …`).
+@[step] theorem interrupt.decode_irq_control.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (src : obj.Slot) (buf : Std.U64) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    interrupt.decode_irq_control machineStoreInst machineArchInst s a lbl length src buf extra ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold interrupt.decode_irq_control
+  repeat' (first | step | p0_ite_head | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
+  all_goals p0_close
+
+@[step] theorem vcpu.decode_inject_irq.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (length : Std.U64) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.decode_inject_irq machineStoreInst machineArchInst s a vc length buf ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold vcpu.decode_inject_irq
+  -- p0_structural, also unfolding `lift` (the range error's `saturating_sub`).
+  repeat' (first | p0_cases_sum | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok, lift]) | p0_cases_prod | split)
+  all_goals p0_close
+
+@[step] theorem vcpu.decode_write_reg.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (length : Std.U64) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.decode_write_reg machineStoreInst machineArchInst s a vc length buf ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold vcpu.decode_write_reg
+  p0_structural
+
+@[step] theorem vcpu.write_state_from_frame.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (frame : Std.U64) (mask : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.write_state_from_frame machineStoreInst machineArchInst s a vc frame mask ⦃ _ => True ⦄ := by
+  set_option maxHeartbeats 4000000 in
+  unfold vcpu.write_state_from_frame
+  p0_structural

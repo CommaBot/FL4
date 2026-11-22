@@ -136,7 +136,7 @@ structure InsFCtx (th : TypedHeap) (mem mem' : U64 → U64) (G : MdbGhost) (src 
   hcF : isFrame c = true
   hcr : baseF c ≤ topF c
   hcin : Within c (capV mem src)
-  hno : ∀ x ∈ G.chains.flatten, Disj (capV mem x) (capV mem src) ∨ (isFrame (capV mem x) = true ∧ revOf mem x = false) ∨
+  hno : ∀ x ∈ G.chains.flatten, physF (capV mem x) = true → Disj (capV mem x) (capV mem src) ∨ (isFrame (capV mem x) = true ∧ revOf mem x = false) ∨
     Within (capV mem src) (capV mem x)
 
 namespace InsFCtx
@@ -202,7 +202,18 @@ theorem k2 {u : U64} (hu : u ∈ G.chains.flatten) (hnf : ¬ (isFrame (capV mem 
   apply Bool.eq_iff_iff.2
   constructor
   · intro hs
-    rcases h.hno u hu with hd | hf | hw
+    cases hP : physF (capV mem u)
+    · exfalso
+      have hU : isUt (capV mem u) = false := by
+        cases e : isUt (capV mem u)
+        · rfl
+        · rw [physF_of_ut e] at hP; cases hP
+      have hF : isFrame (capV mem u) = false := by
+        cases e : isFrame (capV mem u)
+        · rfl
+        · rw [physF_frame' e] at hP; cases hP
+      rw [srB_other_frame hU hF h.hcF] at hs; cases hs
+    rcases h.hno u hu hP with hd | hf | hw
     · exfalso
       cases hU : isUt (capV mem u)
       · cases hF : isFrame (capV mem u)
