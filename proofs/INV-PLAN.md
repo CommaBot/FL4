@@ -447,7 +447,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | A4 | `hnd` | `numDomains = 1` | [P] config | — | — |
 | A5 | `hM : MachPlat` | `now`/`irq_pending`/`take_pending_irq`/`mask_irq`/`ack_irq` are the spec's machine ops at `MR`-related states; `MR` reads only masks, oracle positions, last time | [P] | machine ops, `irq_oracle`/`time_oracle` | ∀a,ms under MR |
 | A6 | `hKD : MRKeepD arI MR` | 15 finalisation arch ops keep `MR` | [P] | — | under MR |
-| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | [P] | — | under MR |
+| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | **[S]** (owner decision, g6b): no IO-port cap covering the kernel's own ports (PIC 0x20/0x21/0xA0/0xA1, PIT 0x40–0x43, the debug serial port) is ever issued; IoPortControl is root-task authority. FL4's `decode_control` (crates/fl4-core/src/ioport.rs) checks only `range_free` (no other cap on the range) and reserves none of those ports, so this is a scope assumption on the root task, not a kernel check; no kernel change | l4v makes the same abstraction (port I/O is a machine op outside the interrupt/timer state) | under MR |
 | A8 | `hIoa : MRKeepIoapic` | ioapic_map(_remapped) keep `MR` | [P] | — | under MR |
 | A9 | `hPA : PPPlatA` | `irqAR` (irq_pending keeps AR), `minBudget` (= `MIN_BUDGET`) | [P] | — | ∀a |
 | A10 | `hIA : IrqPlatA` | `takeAR`, `noIpi` (no vector 126/127: [S] one core), `ackAR` | [P]/[S] | — | ∀a |
