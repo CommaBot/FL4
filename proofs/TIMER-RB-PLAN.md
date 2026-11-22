@@ -60,7 +60,7 @@ Stage-1 consequences (proved):
 |---|---|---|---|
 | 1 | definitions above, pure height bound, `Rep` determinism/link lemmas, `TimerRB.no_link` | M | **done** |
 | 2 | **done (2a frame `TimerRBFrame`, 2b reads `TimerRBRead`)**; frame: `TimerRB` / `CoreTree` kept by writes outside the timer words (`TW`) and by writes of `tbA` (badge), `REPROGRAM`; read specs: `timer.left/right/parent/root/is_red/core_of` on a key return the abstract child/parent/colour | M | |
-| 3 | **3a done (`TimerRBZip`: `Ctx`, `CRep`, `rep_plug`, `rotL/rotR` keep keys)**; zipper: `Ctx` (path from the root: direction, parent key, colour, sibling subtree); `Rep` of `plug ctx t`; heap-level `rotate_left/right` at a node with context = abstract rotation (`Rep` re-established; keys order kept, so `sorted`, `Nodup`, membership and `minKey` follow from in-order equality); `replace_child`; `set_red` = recolour | L | |
+| 3 | **3a done (`TimerRBZip`: `Ctx`, `CRep`, `rep_plug`, `rotL/rotR` keep keys); 3b done (`TimerRBWr`: writes as link updates); 3c open (`rotL_rep`, see §6)**; zipper: `Ctx` (path from the root: direction, parent key, colour, sibling subtree); `Rep` of `plug ctx t`; heap-level `rotate_left/right` at a node with context = abstract rotation (`Rep` re-established; keys order kept, so `sorted`, `Nodup`, membership and `minKey` follow from in-order equality); `replace_child`; `set_red` = recolour | L | |
 | 4 | `insert` descent: loop invariant = `cur` is the root of the subtree at a context whose in-order position is the insertion point; `fuel ≥ height(subtree)` from `height_le_128` ⇒ the loop exits on `cur = 0`, never on `fuel = 0`; attach `t` red; `first` ⇔ `t` is the new `minKey` (`TIMER_MIN` update) | L | |
 | 5 | `insert_fixup`: abstract invariant "red-black except a red–red edge between `z` and its parent" (CLRS 13.3 loop invariant) over the zipper, three cases × two sides; fuel `128 ≥ depth/2`; final root blackening | XL | |
 | 6 | `remove` structural part: `TIMER_MIN` successor (in-order successor of the leftmost = next key), one-child splice and two-children successor transplant (`y` takes `t`'s place and colour), loops bounded by `height_le_128`; `t`'s links, height and deadline cleared ⇒ `idle` for `t` | XL | |
@@ -99,4 +99,26 @@ Sizes: S ≤ 300 lines, M ≤ 800, L ≤ 2000, XL > 2000 (one agent-session each
 - Stage 2: `TimerRBFrame.lean` (`Rep.congr`, `TAgree`, `CoreTree.congr`, `TimerRB.congr/of_writesIn`, `root_tz`),
   `TimerRBRead.lean` (`timer.left/right/parent/is_red.links` value specs, `.rep` abstract forms, `timer.root.val`).
 - Stage 3a: `TimerRBZip.lean` (`Ctx`, `plug`, `CRep`, `rep_plug`, `rotL`/`rotR`, `plug_rotL_keys`).
-- Full build green at the stage-1–3a commit (7305 jobs, 0 errors, 0 sorry; axioms propext/choice/Quot.sound).
+- Stage 3b: `TimerRBWr.lean` (`trb_fld_wr`, `trb_node_wr_fld`, `trb_fld_wr_node`, `trb_node_wr_node`, `lk_wr_tl/tr/tp`, `Rep.congr_on`).
+- Full build green at the stage-3b commit (7307 jobs; stage-1–3a commit: 7305 jobs, 0 errors, 0 sorry; axioms propext/choice/Quot.sound).
+
+## 6. Next step (exact)
+
+- Stage 3b (`TimerRBWr.lean`, **done**): one-word writes as link updates — `trb_fld_wr`, `trb_node_wr_fld`, `trb_fld_wr_node`,
+  `trb_node_wr_node`, `lk_wr_tl/tr/tp` (`LinksEqOn T (setL/R/P z v) (lk s')`), `Rep.congr_on`. Still to add:
+  `lk_wr_red` (`set_red`'s `(h &&& ~~~1) ||| r` gives colour `r`, core bits kept by `shr8_red`), and the
+  `timer.set_left/right/parent/set_red/set_root/replace_child` specs in this form (null `z` = no write).
+- Stage 3c (pure, the core of the refinement): `rotL_rep` — from `Rep k 0 R (ctx.plug (node cx a x (node cy b y g)))`,
+  `Nodup` keys, and `k'` = `k` updated exactly as `rotate_left` writes (`x.r := b.root`, `b.root.p := x` if
+  non-null, `y.p := ctx.par`, the hole's link in `ctx.par` (or the root word) `:= y`, `y.l := x`, `x.p := y`),
+  conclude `Rep k' 0 R' (ctx.plug (rotL …))`. Proof via `rep_plug`: `CRep` of `ctx` transfers by
+  `Rep.congr_on` on the siblings (their keys miss `x, y, b.root` by `Nodup`) and by the one changed link at
+  `ctx.par`; the rotated subtree is rebuilt with `Rep.node` from `Rep.congr` on `a`, `b` (parent changed only
+  at its root), `g`. Mirror for `rotR_rep`. Then `timer.rotate_left.rb` = heap writes (3b) + `rotL_rep`.
+  Suggested helpers for 3c: `Ctx.pre`/`Ctx.post` (top: `[]`,`[]`; `lc c k r up`: `up.pre`, `k :: r.keys ++ up.post`;
+  `rc c l k up`: `up.pre ++ l.keys ++ [k]`, `up.post`) with `plug_keys_eq : (ctx.plug t).keys = ctx.pre ++ t.keys
+  ++ ctx.post` and `ctx ≠ top → ctx.par ∈ ctx.pre ++ ctx.post`; `CRep.congr` (all links of `pre ++ post` equal ⇒
+  same `CRep`) and `CRep.hole` (only `ctx.par`'s hole link changed, to `y`; `R' = y` at the top, else `R' = R`);
+  disjointness of `t.keys` from `pre ++ post` from `List.nodup_append`.  State `k'` by hypotheses ("`k'` = `k` off
+  `{x, y, b.root, ctx.par}`" + the exact values on those four), which is what 3b's `LinksEqOn` chains deliver.
+- Then stage 4 (insert descent; uses `CoreTree.height_le` for the fuel).

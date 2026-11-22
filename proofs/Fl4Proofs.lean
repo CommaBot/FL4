@@ -102,6 +102,7 @@ import Fl4Proofs.P1.TimerRB
 import Fl4Proofs.P1.TimerRBFrame
 import Fl4Proofs.P1.TimerRBRead
 import Fl4Proofs.P1.TimerRBZip
+import Fl4Proofs.P1.TimerRBWr
 import Fl4Proofs.P1.QueueFinThr
 import Fl4Proofs.P1.QueueDecTcb
 import Fl4Proofs.P1.QueueDecTcbRR
