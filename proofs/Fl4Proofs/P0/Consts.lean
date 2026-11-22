@@ -1605,6 +1605,9 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem layout.ntfn.BOUND_TCB.val_eq : layout.ntfn.BOUND_TCB.val = 24 := by
   unfold layout.ntfn.BOUND_TCB; rfl
 
+@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
+  unfold layout.ntfn.SC; rfl
+
 @[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
   unfold layout.node.DEBUG_TCBS; rfl
 
@@ -1616,9 +1619,6 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
   unfold layout.sc.CORE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
-  unfold layout.ntfn.SC; rfl
 
 @[simp, scalar_tac_simps] theorem layout.ntfn.HEAD.val_eq : layout.ntfn.HEAD.val = 0 := by
   unfold layout.ntfn.HEAD; rfl

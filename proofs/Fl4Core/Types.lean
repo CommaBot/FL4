@@ -402,12 +402,12 @@ structure cdt.Finalised where
   cleanup : capability.Cap
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 780:20-780:76 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/
 @[reducible]
 def vcpu.msr_addr.closure_1 := Std.U64
 
 /-- [fl4_core::vcpu::msr_addr::{closure}]
-    Source: 'crates/fl4-core/src/vcpu.rs', lines 775:30-775:55 -/
+    Source: 'crates/fl4-core/src/vcpu.rs', lines 781:30-781:55 -/
 @[reducible]
 def vcpu.msr_addr.closure := Std.U64
 

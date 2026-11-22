@@ -1131,8 +1131,8 @@ theorem capability.FrameSize.bits.p0 (self : capability.FrameSize) :
     msg.lookup_ipc_buffer machineStoreInst s is_receiver t ⦃ _ => True ⦄ := by
   unfold msg.lookup_ipc_buffer; p0_auto
 
-@[step] theorem vcpu.report_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (pending : Bool) (b : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
-    vcpu.report_loop0 machineStoreInst s t v pending b i ⦃ _ => True ⦄ := by
+@[step] theorem vcpu.report_loop0.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (v : Std.U64) (b : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vcpu.report_loop0 machineStoreInst s t v b i ⦃ _ => True ⦄ := by
   unfold vcpu.report_loop0
   apply loop.spec_decr_nat (measure := fun x => match x with | (x0, x1) => vcpu.NUM_MRS.val - x1.val) (inv := fun _ => True)
   · rintro ⟨x0, x1⟩ -
@@ -1701,6 +1701,14 @@ theorem layout.ks.ASID_TABLE.p0  :
     obj.Tcb.timer_badge machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.timer_badge; p0_auto
 
+@[step] theorem vcpu.signal_completes.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    vcpu.signal_completes machineStoreInst s t ⦃ _ => True ⦄ := by
+  unfold vcpu.signal_completes; p0_auto
+
+@[step] theorem sporadic.sc_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
+    sporadic.sc_sporadic machineStoreInst s sc ⦃ _ => True ⦄ := by
+  unfold sporadic.sc_sporadic; p0_auto
+
 @[step] theorem smp.remote_reschedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.remote_reschedule machineStoreInst machineArchInst s a cpu ⦃ _ => True ⦄ := by
   unfold smp.remote_reschedule; p0_auto
@@ -1721,9 +1729,9 @@ theorem layout.ks.ASID_TABLE.p0  :
     obj.Ntfn.set_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Ntfn.set_badge; p0_auto
 
-@[step] theorem sporadic.sc_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
-    sporadic.sc_sporadic machineStoreInst s sc ⦃ _ => True ⦄ := by
-  unfold sporadic.sc_sporadic; p0_auto
+@[step] theorem obj.Ntfn.sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.sc machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.sc; p0_auto
 
 @[step] theorem notification.unblock_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     notification.unblock_sporadic machineStoreInst s t ⦃ _ => True ⦄ := by
@@ -1829,10 +1837,6 @@ theorem layout.ks.ASID_TABLE.p0  :
 @[step] theorem schedcontext.resume.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.resume machineStoreInst machineArchInst s a sc ⦃ _ => True ⦄ := by
   unfold schedcontext.resume; p0_auto
-
-@[step] theorem obj.Ntfn.sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.sc machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.sc; p0_auto
 
 @[step] theorem notification.maybe_donate_sched_context.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (n : obj.Ntfn) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.maybe_donate_sched_context machineStoreInst machineArchInst s a t n ⦃ _ => True ⦄ := by
@@ -2402,6 +2406,10 @@ theorem msg.BUF_RECV_DEPTH.p0  :
 @[step] theorem syscall.handle_user_exception.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (number : Std.U64) (code : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     syscall.handle_user_exception machineStoreInst machineArchInst s a number code ⦃ _ => True ⦄ := by
   unfold syscall.handle_user_exception; p0_split
+
+@[step] theorem notification.complete_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n : obj.Ntfn) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    notification.complete_signal machineStoreInst machineArchInst s a n t ⦃ _ => True ⦄ := by
+  unfold notification.complete_signal; p0_split
 
 @[step] theorem vcpu.enter.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vcpu.enter machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
@@ -3658,10 +3666,6 @@ theorem domain.MAX_DURATION.p0  :
 @[step] theorem endpoint.reorder_ep.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (ep_ptr : Std.U64) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     endpoint.reorder_ep machineStoreInst s ep_ptr t ⦃ _ => True ⦄ := by
   unfold endpoint.reorder_ep; p0_auto
-
-@[step] theorem notification.complete_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n : obj.Ntfn) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
-    notification.complete_signal machineStoreInst machineArchInst s a n t ⦃ _ => True ⦄ := by
-  unfold notification.complete_signal; p0_split
 
 @[step] theorem notification.maybe_return_sched_context.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (n : obj.Ntfn) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     notification.maybe_return_sched_context machineStoreInst s n t ⦃ _ => True ⦄ := by
