@@ -1160,6 +1160,15 @@ theorem fg_performTestAndClearAccessed (_slot : ObjRef) : FGK Fq Sq Cq (performT
   unfold performTestAndClearAccessed; fg_auto
 macro_rules | `(tactic| fg_leaf) => `(tactic| with_reducible exact fg_performTestAndClearAccessed _)
 
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem fg_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : FGKE Fq Sq Cq (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; fg_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem fg_performFrameBatch (b : Fl4FrameBatchInvocation) : FGK Fq Sq Cq (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => fg_fbEntry b w) (by unfold flushAll; fg_auto)
+macro_rules | `(tactic| fg_leaf) => `(tactic| with_reducible exact fg_performFrameBatch _)
+
 theorem fg_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : FGKE Fq Sq Cq (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; fg_auto
 macro_rules | `(tactic| fg_leaf) => `(tactic| with_reducible exact fg_fl4ArchPerformInvocation _)

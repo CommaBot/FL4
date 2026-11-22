@@ -16214,3 +16214,497 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   FrameBatch model lands (or the lead approves a `lbl ≠ X86PML4FrameBatch` premise), prove the six branches; for
   MachKeepG4d the batch path needs an MKD lemma through `frame_batch_entry` → `cdt.delete` (not in the quiet walk).
 - Commits: 015a18c7 (P0), 367af0ca (hugePages), this section.
+## g7e (branch par/g7e in FL4-g7e, on int/j3 ab89cf2d + dbb1f942) — D6 `tail` PROVED at the run's σ1 (g7d (3) done); top **`kernel_entry_reachU8`**; premise added: D7 `IdleVt` [J]; no FINDING
+
+### (1) Modules (new; nothing existing edited, root-imported after XTopJointKEntryU10)
+- **G7eRoot**: `IdleVt σ` [J] (D7: the idle TCB's vtable is no mapped PML4 cap); `RootFr AR T P c s a σ`
+  (G7cSwitch's `RootOK` at every `(s', σ')` with `WritesIn s s' (SFootN T c s)`, `HeapEqUpToFpu σ σ'`,
+  `crF σ' = crF σ`), `RootFr.now` / `.step`; **`JAtZR.rootFr`** (`RootFr` at a `JAtZR` state from `IdleVt`);
+  `JAtZR.fire_ks` / `fire_dt` (the timers keep the kernel-global words, hence the domain time);
+  `JAtZR.idleVt_fire` (`IdleVt` at the finish state gives it after the timers: idle slot 1 kept,
+  `slotsSame_of_footD`, both ends related by `StateRel.tcb`).
+- **g7d (3)'s open point, checked**: every `SFootN` word is an `OObj` word (`SFoot` by `tfoot_oobj`;
+  `next_domain`'s `NdW` words ks+16/24/40 lie in the kernel-global block below ks+1248), so `TopPlaced.disj` keeps
+  them off every `VObj` word: the ASID table and pool words `VsRel` reads (`vsWrite_vobj`) and TCB slot words
+  (slot 1 = vtable). The kernel-root word ks+48 is no `SFootN` word (`tfoot_ksb`; ≠ 16/24/40). So `RootOK`
+  survives the scheduler's writes: **no FINDING**.
+- **G7eChain**: `AK.sched_switch_sched_context` / `sched_set_next_interrupt` / `smp_send_pending` / `sched_tail`
+  (`ak_walk`); `AR`-carrying copies `schedule_choose_new_thread_refinesFA`, `sw_refinesFA`, `scnt_refines0FA`,
+  `cn_refines0FA`, `cn_enq0FA`, `cn_app0FA`, `switch_branch_refines0FA`, **`schedule_refinesWP0FRA`** (posts
+  gain `AR r.2 σ'.cr3`; hypotheses `RootFr` and `ArchRefines`; the R top also `StoreTotal`, `ArchTotal`,
+  `ARKeep` and `hPr : Pf → RootFr ∧ AR r.2 σ1.cr3`). Same branch on both sides: the chain already branches on
+  FL4's action word, `ActRel` to the spec's. Resume: `awaken` returns the timers' arch state, `crk_awaken`.
+  Switch: `choose_thread_refinesFA` / `switch_to_thread_ar`. Tail: `AK.sched_tail`, `crk_scAndTimer`.
+- **G7eFo** (spec only): `fo_handleE_of`, `kcall_fo_ev`, `kcall_fo_fip`: `FT` (so `FpuOwnOK`) at every
+  `handleE (fl4HandleEvent true ev)` outcome, from the entry state (non-syscall events) or after the FaultIP
+  write (trap / unknown-syscall events), from `SInvB`'s fields.
+- **G7eTail**: **`kfin_tail_of`** = `KFinAtR5.tail`'s type at a `JAtZR` finish state, from `hd`, `arch`,
+  `archNd`, `sni`/`send`, `ArchTotal`, `ARKeep`, `ArchRefines`, `TimeAgree`, `FpuOwnOK σ`, `IdleVt σ`. Proof:
+  FL4's `schedule` is total (P0); for the given `(rf, σ1)` (with `JAtZR`, or `JAtZ` by `.toR`) the fire
+  predicate is pinned to `σ1` and `schedule_refinesWP0FRA` run; its spec outcome is the given singleton.
+  `KFinAtR8` (= `KFinAtR5` minus `tail`, plus `idle : IdleVt σ`), `KFinAtR8.to5`; `KFinEv8`, `KFinEv8.to`.
+- **XTopJointKEntryU8**: **`kernel_entry_reachU8`** = `kernel_entry_reachU10` (KDispHypsKVU7, U9's guarded
+  `vsReach`, A16 narrowed) with `hFin : … → KFinAtR8` and `KFinEv8` in the five event clauses, plus U5's
+  `hDR : SetDlDetR MR` [P]. `FpuOwnOK` at the finish states: `sinvB_front_fo` (syscall), G7eFo (events), all
+  from `SInvX.sb` at the entry.
+
+### (2) Premises
+- Removed relative to U10: D4 `sni`, D5 `send` (theorems, as U5), **D6 `tail`** ([W]; now `kfin_tail_of`).
+- Added: **D7 `IdleVt` [J]** (`KFinAtR8.idle`, one spec state: the finish state; l4v: the idle thread is
+  created with null caps and no cap names it; C `Arch_switchToIdleThread` = `setVMRoot(ksIdleThread)`);
+  `hDR : SetDlDetR MR` [P] (U5's, carried into the U10 line). D2 `arch` / D3 `archNd` unchanged ([P]).
+- Satisfiability: `IdleVt` is a fact of the reachable states (boot zeroes the idle TCB; only TCB invocations
+  write TCB slots and need a Thread cap, which never names the idle thread, `ScPlace.noIdle`). Carrying it in
+  `JAtZ` would remove it; JAtZ was not to be edited by this line.
+
+### (3) Builds and axioms
+- tokyo mirror FL4-g7e (g7e-build.sh, axg7e.lean untracked). g7e-b1: `kwApartJ` import, `injection` on
+  `Result`; g7e-b2: missing `open fl4_core` / `Vs` (`ArchRefines`), `har1` is `(s1, a1).2 = rf.2`; g7e-b3:
+  the AK lemmas need `[LawfulStore st]` for `step`; g7e-b4: `Fl4Proofs.P0.sched.schedule.p0`; g7e-b5: the
+  post-timer `P` is `(Z.mv Z.G V1).P`; g7e-b6: G7eTail + U8 green (7122 jobs).
+- **g7e-full1** (full `lake build` at d3587023, with dbb1f942's U6 fix): "Build completed successfully (7219 jobs)",
+  0 `error`, 0 `sorry`.
+- `#print axioms` (./axg7e.lean): `kernel_entry_reachU8`, `kfin_tail_of`, `schedule_refinesWP0FRA`,
+  `JAtZR.rootFr`, `JAtZR.idleVt_fire`, `kcall_fo_ev`, `kcall_fo_fip`, and U3L/U4/U5/U6/U7/U9/U10/UH2:
+  propext, Classical.choice, Quot.sound. No sorry / admit / native_decide / bv_decide / axiom in the new files.
+
+### (4) Findings and next
+- None. Next: carry `IdleVt` in `JAtZ` (or prove it from a boot + TCB-invocation invariant) to drop D7; D2/D3
+  remain the [P] FPU-machine-op determinism premises.
+
+## g7b-4 (branch par/g7b4 from d21ef5ae, top of record `kernel_entry_reachU11`) — DESIGN: the `JAtZ` carry pass for the 13 [J] leaves (no Lean change); no FINDING
+Scope: C4, C16, C17, C21, C22, C23, C24×3 (device `bufObj` / `heapH` / `vsReach`), C25, C26, C27 and D7 of INV-PLAN §1.U3L.
+The counts below are against d21ef5ae.
+
+### (0) Summary
+- **One new `JAtZ` field.** Add a sub-structure `carry : JCarry Z H Cs D s σ`, holding five joint facts: `bufObj`, `archFit`, `unref`, `devApart`, `vsNamed`.
+- **Two spec-only invariants**, carried in the `SInvX` family and bridged to FL4 by the cap relation, so no `JAtZ` field: `IdleVtS` (D7) and `DevRangeS` (C26 + C27).
+- **C4 `vsTyp`.** Its own `JCarry` field `vsTyp`, but it can reuse the `vsc` sites (it is the converse-free half of `VsSlotsW`).
+- **C24×3 need nothing extra.** They are the device copies of C21 / C22 / C23 and are served by the same fields.
+- **No leaf is false as stated** (each checked below; C23/C24 `vsReach` were already guarded in g7b-2). None is derivable without a carry.
+- **Batching:** yes. `JCarry` is added to `JAtZ`'s constructor once (≈61 anonymous constructions in 51 files, plus 21 `JAtZ.*frame` helpers). Later fields go into `JCarry` only.
+
+### (1) Fields (exact statements)
+```lean
+/-- The joint facts the 13 [J] leaves need (KENTRY-PLAN g7b-4). -/
+structure JCarry (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
+  /-- C21, C24 bufObj: every IPC-buffer word lies in a spec object (l4v `valid_ipc_buffer_cap` + `obj_at`). -/
+  bufObj : BufObjHyp Z.B σ
+  /-- C16, C22, C24 heapH (first half): an `H` arch object is no larger than its spec object (l4v arch `obj_range`). -/
+  archFit : ArchFitHyp H σ
+  /-- C16, C22, C24 heapH (second half, `RegionUnrefAt`): live objects name no dead object (l4v `sym_refs` +
+  `if_live_then_nonz_cap`). `RegionUnrefAt H Cs D s` follows by monotonicity (`RegionD H lo hi ⊆ D`), after the
+  restart's frame (the restart writes one state word). -/
+  unref : KeptRefsP3 (L := L) H (· ∈ D) s ∧ DbgTimerKept (L := L) H (· ∈ D) Cs s
+  /-- C25: no device untyped range covers a kernel / typed / RAM object (DevJ). -/
+  devApart : DevApart (L := L) Z.th H Z.G Cs s
+  /-- C17, C23, C24 vsReach: every table reached from the ASID table is named by a cap in an MDB slot
+  (l4v `valid_vs_lookup` + `valid_asid_table`; g7b-2 (4)). -/
+  vsNamed : ∀ k q, Vs.VsReach (L.mem s) (L.ksb s) ∅ ∅ ∅ ∅ ∅ k q →
+    ∃ y ∈ Z.G.chains.flatten, Vs.VNames (capV (L.mem s) y) k q
+  /-- C4: a mapped PT/PD/PDPT cap whose table is in no set has a spec table of that kind there (l4v `valid_cap`
+  typ_at + `pspace_distinct`). -/
+  vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
+```
+- `Vs.VNames` is new (UtDropJ2): `VNeed`'s constructors plus the mapped PT/PD/PDPT caps (`.PageTable p true a v` at
+  level 1, …), and the PML4 / pool caps as in `VNeed`.
+- Spec-only invariants, added to `SInvX`'s family (`kentry_sinvX`):
+  * `IdleVtS σ := IdleVt σ` (G7eRoot.lean:40; D7).
+  * `DevRangeS σ`: no device `untypedCap` (spec) covers a spec object in its free part (C26) or covers
+    `x64GlobalPml4` (C27).
+
+  Bridge lemmas: `DevFreeT (L.mem s) Z.G σ` and `DevGpm (L.mem s) Z.G σ` from `DevRangeS σ` through
+  `J.dstate.1.1.abs_cap` (a chain slot's FL4 cap is the spec cap `absCap`), the same way `SpecGlob` is bridged.
+
+### (2) Sites per field (where each is re-established) and existing lemmas
+Classes of `JAtZ` constructions:
+* (F) frame steps keeping slots, `H`, `D`, `B`, table/ASID words and spec object kinds (scheduler, IPC without
+  grant, notifications, timers, faults, replies, domain, IRQ, IO port): most of the ~61 constructions and all 21
+  `JAtZ.*frame` helpers (e.g. `JAtZ.sc_frame`).
+* (C) cap steps: CNode copy/move/mutate/rotate (CnodeCopy, CnodeRotate, CnFrame), TCB installs (XTopJointTcbInstall,
+  TcbInsL), IPC grant (IpcGrantTr, XTopJointXferG).
+* (D) delete/revoke/finalise (XTopJointDelR, XTopJointCnDel, XTopJointFin*, 13 FinVt*/FinVs*/FinSc* files),
+  where `D` grows (`JCovD.step`).
+* (V) VSpace writes: XTopJointVsMap, VsSub, VsOff, VsCap (ASID assign), VsReply, MakePool, MpDirtyJ (11 files).
+* (R) retype (10 files: UtEpRet, UtScRet, UtUtRet, UtPmRet, UtCnRet, UtTcbRet, UtFrameAdd, UtReplyAdd, UtDevRet,
+  UtRetResetJ*).
+* (X) detype / reset (UtDropJ, UtDropJ2, UtDevDrop, UtResetTopJ, UtResetLoopJ).
+* (B) boot (`JReachU3` start: the lead's "any state with the invariants", so one boot lemma per field, or assumed
+  with the rest of the start bundle).
+
+| field | (F) | (C) | (D) | (V) | (R) | (X) | existing lemmas | size |
+|---|---|---|---|---|---|---|---|---|
+| `bufObj` | frame (kheap domain and kinds kept) | frame | frame (objects stay until detype) | frame | new frames are spec objects (UtFrameAdd) | `B` pruned with the region (`Z.dropV`), kept words off it | none (59 uses as a premise only) | S–M |
+| `archFit` | frame | frame | frame | MakePool / VsMap keep sizes | `H` and kheap grow together (UtPmRet, UtEpSets) | both dropped | none (90 premise uses) | S–M |
+| `unref` | frame where links are kept; scheduler/IPC link writes name live objects (they read them from live objects) | frame | **real**: before an object joins `D` its incoming links are cleared (finalise: `unbind_*`, `cancel_*`, reply clear; FL4 = l4v `finalise_cap`) | frame | new objects name nothing; links into them only after | `D` objects dropped, kept refs miss the region (already `KeptRefsP3` in the drop's `DropOK`) | `DropOK` parts (ScUtRetype.lean:393/409) produce it at the drop; nothing else | **L** |
+| `devApart` | frame (caps and nodes kept) | caps copied keep ranges (`Within`) | frame | frame | `DevApart.retype` (UtDevRet.lean:52); RAM retypes add objects off device ranges (`UtInv.drange` + RAM/device disjointness) | device reset (UtDevDrop) | `DevApart.retype`, `DevApart.srcOK` | M |
+| `vsNamed` | frame (table words, ASID table and slots kept) | the name moves with the cap (copy/move/rotate keep a slot naming q) | last table/PML4/pool cap deleted only after unmap / pool clear (XTopJointFinVs, FinVt*) | **real**: map adds an entry to a table named by the mapped cap, assign puts a PML4 named by its cap, MakePool a pool named by the new cap | new tables unreachable | reach only shrinks (`vsDropOK`) | none | **L** |
+| `vsTyp` | frame | `OffTabOK` reads the cap's shape (`capObjH_of_shape`-style) | finalise of a mapped table cap | map/unmap move tables in/out of the sets | new caps are unmapped | detype: no mapped table cap in a childless region | `JEntryAtR6.vsTyp` today is a premise (9 uses in 7 files) | M |
+| `IdleVtS` (spec) | — | — | — | — | — | — | `IdleVt.frame`, `JAtZR.idleVt_fire` (G7eRoot); preservation per spec op from `SpecGlob.idle` (no non-page cap names the idle thread, so no TCB invocation or slot op reaches its vtable) | S |
+| `DevRangeS` (spec) | — | — | — | — | — | — | `DevFree.retype` (DevFree.lean:228), `SpecFreeP.retypeU` (UtDevUt.lean:36); `x64GlobalPml4` never changes | M |
+
+(The spec rows are carried by `kentry_sinvX`'s per-op families, as SpecInvUt*, not at `JAtZ` constructions.)
+
+### (3) Order (dependencies) and size
+1. **`JCarry` scaffold** with `bufObj` and `archFit` (S–M): add the field once; `JCarry.frame` (one lemma: slots, `H`,
+   `D`, `B`, table words and spec object kinds kept) closes every (F) site; (R)/(X) by small lemmas. ~51 files
+   touched mechanically (the `zD⟩` constructions). Full rebuild.
+2. **Spec families `IdleVtS`, `DevRangeS`** (S, M): independent of 1; touch only SpecInv* and `SInvX`; bridges at
+   the two finish/dispatch sites (`KFinAtR8.idle` from `IdleVtS`; `JDevPath.devFree`/`devGpm` from `DevRangeS`).
+3. **`devApart`** (M): after 1 (needs `JCarry`); the retype sites only.
+4. **`vsTyp`** (M): after 1; (V) and (D) sites; removes `JEntryAtR6.vsTyp`.
+5. **`vsNamed`** (L): after 1 and 4 (map/unmap proofs share the sets reasoning); then C17 and the guarded C23 become
+   theorems ((a) of g7b-2 (3) + this field).
+6. **`unref`** (L, last): the delete/finalise cone; it also turns `RegionUnrefJ`-style premises of older tops into
+   theorems.
+After each step, a new top drops the leaves served: e.g. U12 (C21, C24 bufObj, D7, C26, C27), U13 (C25), U14 (C4),
+U15 (C17, C23, C24 vsReach), U16 (C16, C22, C24 heapH).
+
+### (4) Batching
+- `JExt` cannot host these: it is indexed by `th` and `s` only, while the fields need `H`, `D`, `B`, `Cs`, `G` and `σ`.
+- So add `JCarry` as one new `JAtZ` component in step 1, with all six fields declared. Before a field's proofs land, it
+  can be carried as `True` (declared `bufObj : True` and later strengthened).
+- Better still: declare the final statements and supply the not-yet-proved ones at construction sites from a
+  temporary field-specific premise. That premise would have to be asked of every step, which the rules forbid. So:
+  **one constructor change, with all six fields at their final statements, in one pass**, the sites closed by
+  `JCarry.frame` where possible and by per-class lemmas elsewhere.
+- If one pass is too big for one PR: land step 1 with `JCarry` holding only the fields proved so far. Later fields
+  are added inside `JCarry`, whose constructions are centralised (`JCarry.frame`, per-class helpers), so the ~61
+  `JAtZ` constructions are not touched again. This is the recommended form.
+
+### (5) Rejected / simplified
+- **C24×3**: no own field (device copies of C21/C22/C23; `JDevPath` reads the same `JCarry` fields).
+- **D7, C26, C27**: no `JAtZ` field. They are spec-only, or spec plus the existing cap bridge (`DevRangeS`, `IdleVtS`).
+  This is cheaper than reverting devks' RAM-only restriction of `JAtZ.sfree` (g7a's alternative for C26, 79 files).
+- **C16 / C22 `RegionUnrefAt`**: not derivable from `JCovD.dead` (`DeadP`, ScPlaceDead.lean:46, describes a dead
+  object's own fields, not links into it), hence `unref`.
+- **No FINDING**: checked each statement against the reachable states.
+  * C4: a mapped table cap's table is live, l4v typ_at, and the drop is childless-only.
+  * C21: frames stay spec objects until detype.
+  * C25: true from boot, kept by `DevApart.retype`.
+  * D7: true from boot (`create_idle_thread` zeroes the TCB) and kept by `SpecGlob.idle`.
+  * C17: g7b-2 (3).
+
+## g7a-4 (branch par/g7a4 from e2c15183, top of record `kernel_entry_reachU11`) — step 2 of g7b-4 (`IdleVtS`, `DevRangeS`): sizing analysis, NOT implemented; both families are true in reachable states (no FINDING), but neither has an existing per-op family it can ride on, so each is a large spec-side family, not S/M
+No Lean change.
+
+### (1) How a new spec fact is carried without touching `JReachU3`
+`JReachU12 s a σ := JReachU3 s a σ ∧ IdleVtS σ (∧ DevRangeS σ)`. The new top asks `JReachU12` and ends each clause
+in `JReachU12` at the exit state: U11's exit gives `JReachU3`, and the spec fact at σ' comes from a whole-entry
+preservation lemma (`∀ y ∈ fl4KernelEntrySyscall true c σ, P σ → P y.2`, and the same for `fl4CallKernel` per
+event), as `kentry_sinvX` / `kentry_zr` do. The start premise moves into `JReachU12` (a one-state premise, [S]
+start). So all of the cost is in the whole-entry preservation lemma of each fact.
+
+### (2) `IdleVtS` (D7): true, but L
+- True: the idle TCB is created with null caps, and its vtable slot is never written. The spec writes a TCB's cap
+  slots only through (a) the TCB invocations, whose target is named by a thread cap (`SpecGlob.idle`: no non-page
+  cap names the idle thread), (b) CSpace lookups, which resolve to CNode slots (never a TCB's), and (c)
+  deletion, which only nulls.
+- No existing family carries it. `ValidIdle` (SpecInvVi*, 4568 lines) is a field frame: its leaf
+  `vi_setCap` (SpecInvViA.lean:246) holds for every `setCap c sl`, so adding the vtable clause to `ObjOK` breaks
+  that leaf and every caller would need the destination argument. SpecGlob's `S N M` family (SpecInvSg*, 3803 lines)
+  carries `NOV N` (the IRQ-node slots `(N irq, [])` hold null or notification caps), with exactly the destination
+  analysis needed (`NotNode`: held, lookup destination, TCB slot, covered), but for a fixed cref `[]` and the node
+  objects. It is not reusable at another slot.
+- Plan: a sibling family `SI M w := P3V N w ∧ IrqOutV M w ∧ IVV w` (`IVV`: the idle TCB's vtable slot holds no
+  mapped PML4 cap), made by the same mechanical rename as SpecInvSgG (ut7's generator), with new leaves for the
+  writers. Sites:
+  * `setCap` / `cap_insert` / `cap_move` / `cap_swap` destinations: a lookup destination is a CNode slot, so not
+    the idle TCB's (new `notIdle_of_destRef`, by object kind);
+  * the TCB installs (`installTcbCap`, `checkCapAt_ins`): the target is the invoked thread's, and not idle by
+    `SpecGlob.idle`;
+  * `do_normal_transfer`: receive slots are lookups;
+  * deletion nulls.
+  Size: a ~600-line leaf module (as SpecInvSgA), plus the generated ~1500 lines (SgG/SgE analogues), plus the
+  decode-fact performs (SgC/SgD analogues, CNode and IRQ performs). **L (2–3 lines of work).**
+
+### (3) `DevRangeS` (C26 + C27): true, but L
+- True:
+  * Spec objects enter a device region only by a retype from a device untyped. That retype advances the free index
+    past the new objects.
+  * The reset deletes the region's objects before it sets the index to 0.
+  * Every other cap writer copies an untyped cap with its index unchanged (or makes it full), or nulls it.
+  * The global PML4 is a kernel-image static: `x64GlobalPml4` is never written, and the boot check e408a625 skips
+    device memory over the image. A device child's range is a sub-range of its parent's.
+- No existing family carries it. `UtFreeV` (UtInv) speaks of object bases only. `UtPgR` / `ZR` (SpecInvUtZ*, 4402
+  lines, g5g–g5i: the existential ghost `U`/`D` sets, `HU`, `GoodZ`, `YP`, the YK/ZW/ZY/ZG/ZX/ZS/ZP families)
+  are fixed to RAM untyped caps (`untypedCap false`) and RAM data pages.
+- Plan: generalise `ZR` to any device flag and any object kind (`UtIn`/`HU` over `untypedCap d`, `GoodZ` over all
+  `kheap` objects with `objBits`). Then `DevRangeS` follows from `ZR` at `d = true` (C26). C27 is a separate
+  range fact `∀ device untyped cap, x64GlobalPml4 ∉ range`, kept by the CD argument (`CD`/`DMV`, SpecInvUtN8: every
+  untyped cap after a step lies inside one before; device-ness is inherited by children), with `x64GlobalPml4`
+  framed. C27 is M on its own; it also needs `DMV` exported for the whole entry, which today exists only at the
+  leaves (SpecInvUtO1 `io_of_dm`).
+  Size: **L** for C26 (the ZR family re-proved with the generalised sets); **M** for C27.
+
+### (4) Bridges (cheap, once the facts are carried)
+- `KFinAtR11.idle` (`IdleVt` at the finish state) from `IdleVtS`, kept by `specFront` and the event handling. The
+  same family gives it, since `IdleVtS` is a whole-state invariant.
+- `JDevPath.devFree` / `devGpm` from `DevRangeS` through `J.dstate.1.1.abs_cap` (the FL4 chain slot's cap is the
+  spec `absCap`; `DevFreeT`'s free part and `DevGpm`'s range read the same `p`, `sb`, `fi`).
+
+### (5) Recommendation
+Order: C27 (M) first, then D7 (L), then C26 (L). Each is spec-only, outside the JAtZ cone, and parallel to m75's
+re-extraction (SpecInv* only). Each wants its own line with a fresh context.
+
+## sd7 (branch par/sd7 in FL4-sd7, on 88b4b4a8 = PR #66 head) — D7 `IdleVt` DISCHARGED (g7a-4 (2)); new top **`kernel_entry_reachU13`** (= U11 without D7); no premise added; no FINDING
+
+### (1) Route (as g7a-4 (2), with one simplification)
+- **Spec fact** `SInvIV.IdleVtS σ := IVV σ.idleThread (uV σ)`, `IVV t w := ∀ a, w.2.1 (t, tcbCnodeIndex 1) = some a → a = .nullCap`:
+  the idle TCB's vtable slot holds the null cap. Stronger than D7's "no mapped PML4 cap", and simpler to carry:
+  a slot holding any non-null cap is then not the idle vtable (`notIV_of_held`), so the ASID-pool assign (rewrites a
+  PML4 cap's slot), the untyped / MakePool sources and the arch map slots need no new decode fact.
+- **Family** `SI N t := SIV N t (uV ·)`, `SIV N t w := P3V N w ∧ IrqOutV (fun _ => t) w ∧ IVV t w` (g7a-4's
+  `P3V ∧ IrqOutV M ∧ IVV` with `M = fun _ => t`), namespace `Fl4Proofs.P3.SInvIV`, prefix `iw_`/`iv_` (`si_` is taken by
+  SpecInvSbI's macro). The first two conjuncts are ut7/ut8's `P3 K` lemmas at `K = N` and `K = fun _ => t` (`iw_of`).
+- Modules (new, spec only, root-imported after XTopJointKEntryU11):
+  * **SpecInvSiA** (SgA's analogue): `IVV`, `NotIV`, `SIV`/`SI`; frames; deletion (sg1's `NulK`), `rec_del` (`ni_recDel`:
+    the reduce-zombie swap's slots are the zombie's own, which holds a non-null cap, and a slot of the zombie's object,
+    covered by the zombie); inserts; **TCB installs** (`iv_checkCapAt_ins`: the inner `check_cap_at` finds
+    `threadCap tt` in its slot (`sameObj_thread`), so `tt` is covered and `tt ≠ t` by the idle range fact; no decode
+    fact needed, so `invokeTcb` stays in the decode-free generated part); the IPC cap transfer (receive slots are lookup
+    destinations).
+  * **SpecInvSiG**: SgG mechanically renamed (`sg_` → `iw_`, `S N M` → `SI N t`).
+  * **SpecInvSiC / SiD**: SgC / SgD's performs adapted (CNode insert/move/rotate destinations `DestRefV`; IRQ control /
+    IO-port control issues into lookup slots; `set_irq_handler` writes `(N irq, [])`, never a TCB slot
+    (`tcbCnodeIndex_ne_nil`); arch maps / unmaps rewrite a slot holding an arch cap; DeriveSubframe, MakePool and
+    untyped performs as sg1, `default_null` for the retyped objects). sg1's decode facts (`CnOKN`, `RotOKN`,
+    `ArchSlN`, `MpOKN`, `UtGapOK`, `SgOKN`) are reused unchanged.
+  * **SpecInvSiE**: the shell, syscalls, events, `fl4CallKernel`, the entry (`IKSI`), plus `iwN_handleE` /
+    `iwN_front` (the finish states' shapes), and the state-level tops `kentry_idleVtS`, `kcall_idleVtS`,
+    `fip_kcall_idleVtS`, `handleE_idleVtS`, `front_idleVtS` (each from `SpecGlobS ∧ IdleOutV ∧ UtInv3 ∧ IdleVtS` at
+    the entry, sg1's `S_of_specGlob`; the idle pointer kept by sg1's `idk_*`), `boot_idleVtS` (non-vacuity).
+  * **XTopJointKEntryU13**: `JAtZR.idleTcb` (the idle word is in `T`, `SchedCore.idleT`; a `T` thread is a spec TCB,
+    `StateRel.tcb`), `idleVt_of` (`IdleVt` from that and `IdleVtS`), `KFinAtR13` / `KFinEv13` (U11's without `idle`)
+    with `.to11`; **`JReachU13 s a σ := JReachU3 s a σ ∧ IdleVtS σ`** (`JReachU13.start`); **`kernel_entry_reachU13`**:
+    U11 at `hJ.1`, every finish bundle's `idle` from `front_idleVtS` (syscall finish, trap / unknown-syscall events)
+    or `handleE_idleVtS` (other events), every exit clause ending in `JReachU13` (U11's `JReachU3` plus
+    `kentry_idleVtS` / `evOut_idleVtS`; `SpecGlobS`, `IdleOutV`, `UtInv3` from `SInvX` at the entry).
+- Nothing existing edited (JReachU3, JAtZ, RelTopM, JExt untouched); only `Fl4Proofs.lean` gains the imports.
+
+### (2) Premises
+- Removed relative to U11: **D7 `idle` [J]** (in the syscall finish bundle `KFinAtR11` and in every event's `KFinEv11`).
+- Added: none. The start fact `IdleVtS σ` is asked once, at the start state of `JReachU13` (as `JReachU3.start` asks
+  `SInvX` etc.); it holds at boot (`boot_idleVtS`: the initial state holds null caps; l4v `create_idle_thread`).
+- [J] count at U13: C4, C16, C17, C21, C22, C23, C24×3, C25, C26, C27 (12); [W] 0.
+
+### (3) Builds and axioms
+- tokyo mirror FL4-sd7 (sd7-build.sh, ../axsd7.lean untracked, seeded from FL4-g7e). Module builds: sd7-m1 (SiA:
+  `finaliseCap_null` closes the goal itself, `iv_fin_rem` has no `N`), sd7-m2 (SiA/SiG/SiC green), sd7-m3 (SiD green,
+  `boot_idleVtS` needs the slot named), sd7-m4 (SiE + U13 green, 7138 jobs).
+- **sd7-full1** (full `lake build` at 3e3b2c2a): "Build completed successfully (7233 jobs)", 0 `error`, 0 `sorry`.
+- `#print axioms` (../axsd7.lean): `kernel_entry_reachU13`, `kentry_idleVtS`, `kcall_idleVtS`, `front_idleVtS`,
+  `boot_idleVtS`, and U3L/U4–U11/UH2: propext, Classical.choice, Quot.sound. No sorry / admit / native_decide /
+  bv_decide / axiom in the new files.
+
+### (4) Findings and next
+- None: `IdleVtS` is preserved by every spec step of the entry (proved), and holds at boot.
+- Next of g7a-4 (5): C27 (M), then C26 (L), the same way (a spec family plus a `JReachU1x` conjunct).
+## s27 (branch par/s27 from 88b4b4a8, top of record `kernel_entry_reachU11`) — C27 `devGpm` DISCHARGED; new top **`kernel_entry_reachU12`**; no premise added; no FINDING
+
+### (1) The invariant, and why it is cheaper than g7a-4 (3) estimated
+- g7a-4 planned a device-only range fact kept by `CD`/`DMV` with device-ness inherited. Stronger and simpler is the l4v
+  form itself: **no cap of any kind covers the global PML4**,
+  `GpmOutV σ := IrqOutV (fun _ => σ.archState.x64GlobalPml4) (uV σ)` (SpecInvGpm; l4v `valid_global_refs`,
+  `x64_global_pml4 ∈ global_refs`). Device-ness is never needed: `DevGpm` asks it only of device untyped caps.
+- `IrqOutV M` is already carried for an **arbitrary** `M` by sg1's SpecGlob family `S N M` (SpecInvSgA..SgE:
+  `sgN_kentry`, `sgN_fl4CallKernel`, the cap-domination argument of SpecInvUtN8 at every writer); sg1 and vi1 use it at
+  `M := fun _ => idleThread` / `idleSc`. So the only new proof obligation is that `x64GlobalPml4` is constant:
+  SpecInvGpK1..K6 (`GpK g := IK (GpmIs g)`, sg1's SpecInvSgI1..I6 mechanically renamed; built unchanged, an `archState`
+  update of another field keeps it by definitional unfolding).
+- Whole-entry lemmas (SpecInvGpm): `kentry_gpmOut` (syscall), `kcall_gpmOut` (events), `fipEv_gpmOut` (FaultIP write
+  then an event: trap / unknown syscall), and at the dispatch state `budget_view`/`budget_gpm` with `fip_view`/`fip_gpm`.
+  Each takes `SpecGlobS σ` (`SInvX.sb.1.1.sg`) and `UtInv3 σ` (`sinvX_ut3`), both carried.
+
+### (2) The carry and the bridge (XTopJointKEntryU12)
+- `JReachU12 s a σ := JReachU3 s a σ ∧ GpmOutV σ` (JReachU3, JAtZ, RelTopM, JExt untouched). Every clause of U12 ends in
+  `JReachU12`: U11's exit gives `JReachU3`; `GpmOutV σ'` from the lemmas of (1) with U11's `SInvX σ`.
+- At the dispatch state σb (`BudgetAt σ σb true`): `budget_gpmOut` gives `GpmOutV σb ∧ UtInv'' σb` (view and global
+  PML4 are σ's).
+- `devGpm_of`: at a `JAtZ` state, `GpmOutV σ ∧ UtInv'' σ → DevGpm (L.mem s) Z.G σ`. A chain slot is a slot (MDB
+  `members`, `IsSlot.abs`); its FL4 cap `Untyped p sb fi true` is related to the spec cap `untypedCap true p.bv sb fi`
+  there (`J.dstate.1.1.abs_cap`, `getCap_set_iff`, `vfh_capAt`); `covR` of it is `delR p.bv sb`, which is the `Nat` range
+  `DevGpm` reads since `UtWfV` gives `sb ≤ 47` and an aligned base (`fit_of_align`, `mem_delR_iff`).
+- `JDevPathU12` = `JDevPath` without `devGpm`; `JPathMEU12` (U7's with it for `.Untyped`), `JPathAtMU12`,
+  `KDispHypsKVU12`; `KDispHypsKVU12.toU7` given `DevGpm` at the dispatch state.
+
+### (3) Premises
+Removed (relative to U11): C27 `JDevPath.devGpm` [J]. Added: none. The start state's `GpmOutV` is in the start bundle
+`JReachU12` (asked at one state, [S] start as A18; true at boot: `boot_gpmOut`, and in l4v by `valid_global_refs`).
+
+### (4) Builds and axioms
+Module builds s27-m1 (SpecInvGpK6, 1026 jobs), s27-m2 (SpecInvGpm, XTopJointKEntryU12, 7142 jobs): green. Full build
+s27-full1 (tokyo, seeded from FL4-g7e): `Build completed successfully (7237 jobs)`, 0 `error`, 0 `sorry`.
+`#print axioms kernel_entry_reachU12`: [propext, Classical.choice, Quot.sound] (U4..U11 unchanged, same).
+
+### (5) Findings and next
+No FINDING (`GpmOutV` holds at boot and is kept by every spec writer through the existing domination proofs). C26
+`devFree` (g7a-4 (3), L) and D7 (g7a-4 (2), L) remain; `GpmOutV` is not reusable for C26 (a free-part fact, not a
+global ref).
+
+## sd7-2 (branch par/sd7b from int/j3 b21d7502 = U12 + U13 merged) — combined top **`kernel_entry_reachU15`** = U11 without C27 and D7; no premise added; no FINDING
+- New module XTopJointKEntryU15 only (root import added; nothing else edited). `JReachU15 := JReachU3 ∧ GpmOutV ∧
+  IdleVtS` (abbrev; `JReachU15.start`). Proof: U12 at `⟨hJ.1, hJ.2.1⟩` (C27 via `devGpm_of` inside U12), finish bundles
+  `KFinAtR13` / `KFinEv13` converted by U13's `.to11` with `front_idleVtS` / `handleE_idleVtS`; each exit's
+  `JReachU12` destructured to `JReachU3 ∧ GpmOutV` (s27's `kentry_gpmOut` / `kcall_gpmOut` / `fipEv_gpmOut`) and
+  `IdleVtS σ'` added (`kentry_idleVtS`, `evOut_idleVtS`).
+- Premises vs U11: removed C27 `devGpm` [J] (`KDispHypsKVU12`) and D7 `idle` [J] (`KFinAtR13`, `KFinEv13`); added none
+  (both start facts at the one start state). [J] at U15: C4, C16, C17, C21, C22, C23, C24×3, C25, C26 (11); [W] 0.
+- Builds: sd7-m5 (U15 module, 7156 jobs, green first try); **sd7-full2** (full build at f17afe07, also the merge check of
+  b21d7502): "Build completed successfully (7251 jobs)", 0 `error`, 0 `sorry`. `#print axioms` U15, U12, U13, U11 and the
+  older tops: propext, Classical.choice, Quot.sound.
+
+## fb-spec (branch par/fbspec from 9d4d4615; FL4 #71 = main e35ed12b read with `git show`, not merged) — **FL4 extension of the spec: `X86PML4FrameBatch`** (no seL4 / l4v counterpart); spec module + dispatch hook; no P3 refinement yet; no FINDING
+
+### (1) FL4's semantics (fl4-core `arch/x86_64/vspace.rs`: `decode_frame_batch`, `frame_batch_entry`, `batch_map`, `unmap_page_unflushed`; `interfaces/object-api-extensions.xml`)
+- **Label** `X86PML4FrameBatch` = **90** in the spec's configuration (x86-64, hardware debug API: after `UntypedRetypeShared` = 89;
+  checked by re-running `fl4-abi/build.rs`'s numbering on main's XML: 86 without the debug API). Only on a PML4 cap
+  (`vspace::decode`, `Cap::Pml4`, after `X86PML4Flush`). x86_64 only. Not a local (beside-the-gate) path: `localinv` does
+  not take it, so it runs under the serial gate.
+- **Decode** (in order): unmapped PML4 cap → `InvalidCapability 0`; `check_vspace` (the ASID still names this PML4) with
+  *every* failure, lookup failures included, mapped to `InvalidCapability 0` (X86PML4Flush reports `FailedLookup` there);
+  `length < 1` → `TruncatedMessage`; header word 0: op bits 0-1 (1 COPY_MAP, 2 REMAP, 3 DELETE), count bits 8-15
+  (n ≤ 255), depth bits 16-22, map rights 24-27, copy rights 28-31, VM attributes 32-36 (seL4_X86_DeferFlush is bit 4 of
+  them), DEFER_DELETE_FLUSH bit 40; reserved bits, op 0, depth 0 or > 64 → `InvalidArgument 0`; `length < 1 + words·n`
+  (3/2/1 words per entry) → `TruncatedMessage`; no extra cap → `TruncatedMessage`; extra cap 0 not a CNode →
+  `InvalidCapability 1`; destination CNode = extra cap 1 for COPY_MAP if given, else extra cap 0; not a CNode →
+  `InvalidCapability 2`. These are ordinary syscall errors (error reply, nothing done).
+- **Loop**: entries in order, each read from the message when it runs; the loop **stops at the first failing entry**.
+  Earlier entries stay done (**partial progress**); a failing entry is no syscall error: the invocation succeeds and a
+  Call gets the reply `(label 0, MR0 = entries done, MR1 = the failing entry's seL4_Error code or 0)`, a Send nothing.
+  A non-`Sys` error of an entry would be code `IllegalOperation` (unreachable: see preemption).
+- **COPY_MAP** (src, dest, vaddr), all or nothing: `lookup_target_slot(dest CNode, dest, depth)`; `ensure_empty_slot`;
+  `lookup_source_slot(CNode, src, depth)`; the source must be a frame cap (`InvalidCapability 0`);
+  `mask_cap_rights(copy rights)` then `derive_cap` (a frame copy is unmapped) and `cdt::insert_with_cap` (CNode_Copy's
+  steps); then `batch_map(dest, vaddr)`; if the map fails, `cdt::delete(dest, true)` removes the copy (never final: the
+  source holds the same frame) and the map's error is the entry's.
+- **REMAP** (slot, vaddr): `lookup_source_slot`, `batch_map`.
+- **`batch_map`** = `decode_page_map` + its perform with the batch's PML4, map rights and attributes: a non-frame or
+  EPT-mapped cap → `InvalidCapability 0`; a mapped cap of another ASID → `InvalidCapability 1`, at another vaddr →
+  `InvalidArgument 0`; an unmapped cap's range above USER_TOP → `InvalidArgument 0`; VM rights =
+  `mask_vm_rights(frame rights, map rights)`; misaligned → `AlignmentError`; 1 GiB without CPU support →
+  `IllegalOperation`; `page_entry_slot` (lookup failure → `FailedLookup false`; a large/huge frame over a table →
+  `DeleteFirst`); then the cap is set mapped and `write_mapping` writes the entry (all checks before any write).
+- **DELETE** (slot): `lookup_target_slot`; an empty slot → Ok (as CNode_Delete); a non-frame cap → `IllegalOperation`;
+  with DEFER_DELETE_FLUSH and a frame cap mapped (not EPT, not device) in *this* ASID: `unmap_page_unflushed` (the entry
+  cleared, if it still maps the frame, without TLB invalidation; `deferred` set if cleared) and the cap rewritten
+  unmapped; then `cdt::delete(slot, true)` (= seL4 `cteDelete(slot, true)`; a still-mapped cap is unmapped with its
+  invalidation by `finalise_cap`, a final device frame is retired by `retire_dma_frame`).
+- **End**: if a deferred delete cleared an entry, `invalidate_asid(asid)` (every core) **before** the reply; then the
+  reply (Call only) and `TS_RUNNING`. The decode runs the whole batch itself (no `TS_RESTART` first, as `reply1`'s
+  invocations), so `handle_invocation` sees a running thread and adds nothing.
+- **Preemption**: none. Every `cdt::delete` here finalises a frame cap, whose remainder is null at once, so
+  `finalise_slot_immediate`'s preemption point is never reached; a batch is ≤ 255 entries (in practice ≤ 119 / 59 / 39
+  by the 120-word message), each O(1) table work plus one CDT insert / remove.
+
+### (2) Deviations from anything seL4 has
+- The invocation itself (one call doing many CNode_Copy + X86Page_Map / X86Page_Map / CNode_Delete steps, stopping at the
+  first failure and reporting progress in a success reply) has no seL4 counterpart: **FL4 extension of the spec**.
+- Per-entry errors are not syscall errors (a success reply carries the code; no lookup-failure details, no error label).
+- The deferred delete flush (unmap without invalidation, one `invalidate_asid` at the end) is new; seL4's `unmapPage`
+  always invalidates. The window is the batch itself, under the serial gate.
+- Inherited from FL4's X86Page_Map (already deviations of FL4's `decode_page_map`, not new here): the 1 GiB CPU check,
+  `write_mapping`'s TLB choices (`invalidate_page` / `invalidate_asid` / none with DeferFlush when rights only drop) vs
+  l4v's `invalidatePageStructureCacheAsid`, SEV address bits.
+
+### (3) The spec (new module `Fl4Spec/Ext/FrameBatch.lean`, FL4 extension; compositions of the ported operations)
+- `fl4FrameBatchLabel = 90`, `FbOp`, `Fl4FrameBatchInvocation` (PML4, ASID, op, depth, rights, attributes, defer flag,
+  CNode caps, entries' words).
+- `decodeFrameBatch args cap extraCaps`: FL4's decode checks, in its order (`findVspaceForAsid` with any failure →
+  `InvalidCapability 0`).
+- `fbMap b slot vaddr`: FL4's EPT rejection, then **l4v's `decodePageInvocation` at the `X64PageMap` label**
+  (`fbPageMapLabel = fromEnum (x64PageMap)`) with `[vaddr, map rights, attr]` and the batch's PML4 cap, then
+  `performPageInvocation`.
+- `fbEntry b w : NonDetE _ Data Bool` (error = the reply's code via `msgFromSyscallError`, result = a deferred delete
+  cleared an entry): COPY_MAP = `lookupTargetSlot`, `ensureEmpty`, `lookupSourceSlot`, `getCap`, `maskCap`, `deriveCap`,
+  `capInsert`, `fbMap`, on failure `capDelete dest` then the error; REMAP = `lookupSourceSlot`, `fbMap`; DELETE =
+  `lookupTargetSlot`, `getCap`, null → ok, deferred unmap (`unmapPageUnflushed` = l4v's `unmapPage` without
+  `invalidateTranslationSingleASID`, returning whether it cleared; `setCap` of the unmapped cap), `capDelete`
+  (a preemption → code `IllegalOperation`, FL4's `Err(_)`).
+- `fbRun` (stop at the first failure), `performFrameBatch` = `fbRun`, `flushAll vspace asid` if needed (l4v's
+  `flush_all` = `invalidateASID`, the op `performPml4Flush` uses), reply `[done, err]`. The shell's `setThreadState
+  restart` … `replyFromKernel thread (0, reply)` … `running` gives FL4's reply and state (nothing in a frame batch reads
+  or writes the caller's thread state).
+- **Dispatch hook** (the only change outside the new module; `Ext/Invocation.lean` is itself an FL4-extension file,
+  no l4v-derived file changed): `import Fl4Spec.Ext.FrameBatch`; constructor `Fl4ArchInvocation.frameBatch`;
+  in `fl4ArchDecodeInvocation`'s `pml4Cap` case `else if dataToNat label = fl4FrameBatchLabel then
+  liftME .frameBatch (decodeFrameBatch args cap extraCaps)` (after the Flush label, before l4v's decoder);
+  in `fl4ArchPerformInvocation` `| .frameBatch i => liftE (performFrameBatch i)`; the module docstring.
+
+### (4) Modelling notes (not FINDINGs)
+- FL4 reads each entry's words from the IPC buffer / registers when the entry runs, interleaved with its writes; the
+  spec reads the message once (`getMrs`). Equal when user memory does not change during the entry (no entry writes
+  user memory; the one-core model, `JDevPath.core0`-style [P]). On SMP another core's thread may rewrite the buffer
+  mid-batch: harmless for the kernel, but the refinement will need the stable-message assumption the other decodes use.
+- Rights-lowering REMAPs with seL4_X86_DeferFlush are not flushed at the batch's end (only deferred deletes are), as for
+  X86Page_Map with DeferFlush: the caller must flush. The XML says nothing about it: **underspecified, documentation**.
+- The decode maps `check_vspace`'s `FailedLookup` to `InvalidCapability 0` (X86PML4Flush does not): an ABI choice.
+
+### (5) Safety review (no FINDING)
+- All or nothing per COPY_MAP: every `batch_map` check precedes its writes; the rollback deletes a non-final copy.
+- No rights escalation: the copy's rights are masked, the mapping's are `mask_vm_rights` of the copy's.
+- Deferred deletes: only frames mapped in the invoked ASID, never device / shared-DMA frames (their final deletion
+  retires memory and needs a clean TLB first), and the ASID is invalidated before the reply, even when a later entry
+  fails. The frames' memory cannot be reused meanwhile: reuse needs an untyped reset / retype, which takes the serial
+  gate the batch holds, and the local paths (CNode Copy / Delete, X86Page_Map) never free memory. Until the end,
+  other cores' threads of that address space may still reach a just-deleted mapping, as they could before the call.
+- No preemption point is reachable; the batch's length is bounded by the message.
+
+### (6) Builds
+- sd7-fb1/fb2 (module build `Fl4Spec Fl4Spec.Ext.FrameBatch Fl4Spec.Ext.Invocation`): fb1 `decodePageInvocation`
+  returns an `ArchInvocation` (`.invokePage`, matched); **fb2 green (981 jobs)**.
+- **sd7-fbfull** (full build at 22851fdc): **FAILS as expected, not mass-edited** (rule: report). 19 errors in 14 modules,
+  in two classes, all from the new constructor / decode branch:
+  * exhaustive matches on `Fl4ArchInvocation` with no `frameBatch` alternative: VsDomOps.lean:219, SpecInvDomG.lean:231,
+    SpecInvUtE.lean:126 ("Missing cases", then `uiP_fl4Perform` unknown);
+  * the generated spec-invariant families (`*_auto` unfolding `fl4ArchDecodeInvocation` / `fl4ArchPerformInvocation`)
+    time out on the new branch (`whnf`, 1000000 heartbeats) where the perform now writes caps:
+    SpecInvFaultTcbsF5:224, SpecInvFaultTcbsG5:224, SpecInvNativeScopeF5:288, SpecInvGpK5:290, SpecInvSlI5:290,
+    SpecInvSgI5:290, SpecInvUtNK5:290, SpecInvAllO5:291, SpecInvQDomF5:73, SpecInvNtfnQC4:154;
+  * the VSpace front-end: VsDecTop.lean:257 (unsolved goals: the PML4 label case split gains the batch label).
+  Downstream modules were not reached. The fix is real proof work per family (a leaf for `performFrameBatch` /
+  `decodeFrameBatch` in each: frame `idk`/`nk`/`gpk` frames, the cap-writing families SpecGlob/SI/Ut via the
+  CNode-copy and delete leaves, the decode's `OkV` facts), to be done with the P3 refinement after m75's re-extraction.
+
+### (7) fb-spec-2 (spec-side families for the batch) — PARTIAL, handoff
+- **Generic combinators** (new modules): `SpecInvFbK` (`SInv.ik_fbRun`, `SInv.ik_performFrameBatch`: `IK P` of the batch
+  from `IK P` of one entry `fbEntry` (no recursion) and of the final `flushAll`); `SpecInvFbD` (`Vs.fk_fbRun`,
+  `Vs.fk_performFrameBatch`, the same for the projection frames `FK f`, i.e. `DK` / `DL`).
+- **Generated frame families patched** (each gets `X_fbEntry` by `unfold fbEntry; X_auto`, `X_performFrameBatch` from
+  the combinator, and an `X_leaf` macro, inserted before `X_fl4ArchPerformInvocation`; import `SpecInvFbK`):
+  SpecInvSgI5 (idk), SpecInvNativeScopeF5 (ns), SpecInvGpK5 (gpk), SpecInvSlI5 (isk), SpecInvUtNK5 (nk), SpecInvAllO5
+  (oi), SpecInvQDomF5 (q4), SpecInvNtfnQC4 (ct), SpecInvFaultTcbsF5 (ft), SpecInvFaultTcbsG5 (fg). Patch script:
+  proofs/scratch/fb2/patchfb.py (logic: regex on the `X_fl4ArchPerformInvocation` theorem). The generated bodies in
+  scratch were patched the same way: ft2/bodyFG, ft3/bodyFG, g1c/bodyOI, invA/bodyFT, invA/body; the generators
+  (`gen.py`) themselves are not changed: they need `fbRun` in their skip list and these two lemmas as manual leaves.
+- **Open, in order:**
+  1. **FT / FG** (SpecInvFaultTcbsF5/G5): `fbEntry`'s two `capDelete`s stay open (sd7-fb4: goal
+     `IKE (FTL L) (NonDet.lfp recDelF (cTEDeleteCall _ true))`): these families have no `capDelete` leaf (their
+     generators skip it, as for CNode delete). The batch deletes only frame caps (DELETE checks `pageCap` first; the
+     rollback deletes the derived frame copy), so the fix is a conditional lemma `capDelete` of a slot holding a page
+     cap keeps `FTL L` / `FG…` (rec_del's finalise of a frame: `unmapPage` + `emptySlot`), used through a hand proof of
+     `ft_fbEntry` with the slot fact.
+  2. **DK / DL** (VsDomOps:219 `dke_fl4ArchPerformInvocation`, SpecInvDomG:231 `dle_fl4ArchPerformInvocation`): the
+     leaves the entry needs (`capDelete`, the CNode lookups, `deriveCap`, `ensureEmpty`) live downstream: `dk_capDelete`
+     in DomRecDel, the CNode ones in CnodeDom/AllDom; DomG's own `dl_capDelete` (l. 662), `dl_lookupTargetSlot'`
+     (l. 836), `dle_deriveCap'` (l. 939). DomG: `dle_fl4ArchPerformInvocation` has no user: move it to the file's end
+     and add `| frameBatch i => … Vs.fk_performFrameBatch …`. Vs: `dke_fl4ArchPerformInvocation` is used by AllDom (leaf)
+     and VsDomF:137 (the PML4 decode frame): split it into a no-batch version (hypothesis `∀ b, i ≠ .frameBatch b`) in
+     VsDomOps and a full one in a module after DomRecDel + CnodeDom; AllDom and VsDomF switch to it (check cycles).
+  3. **SpecInvUtE** (`UtInv'`, `uiP_fl4Perform`) and every downstream cap family (not reached by the first full build:
+     the P3/`UtInv''` family SpecInvUtO*, sg1 SgD/SgE, sd7's SiD/SiE, the ZR family, DevFree/Gpm, Vi*, CnDom, …): the
+     batch writes caps, so each needs a real proof: COPY_MAP is a `capInsert` of a `deriveCap` of the source into a
+     lookup destination (the IPC cap transfer's shape: sg1's `sg_transferCapsLoop` / ut7's `hv_capInsert3` with
+     `okv_deriveCapR`, `DestRefV`, `PosOK`), the rollback and DELETE are `capDelete`s, the maps are
+     `performPageInvocation .pageMap` on a slot holding a frame cap (the arch map's existing leaves need `ArchSlN`-style
+     slot facts, here established at run time by `getCap`). Size: L per family group.
+  4. **VsDecTop:257** (P3 refinement, joint): at the current extraction FL4 answers label 90 on a PML4 cap with
+     `IllegalOperation`, the spec now runs the batch: the refinement there is false until m75's re-extraction and the
+     batch's P3 refinement. Closing it now needs a scope premise (label ≠ 90 at the PML4 decode) — a lead decision.
+- Builds: sd7-fb3 (imports missing in the patch, fixed), sd7-fb4 (FT5: only the `capDelete` goals left),
+  **sd7-fb5: SpecInvFbD and the eight families other than FT/FG green (1106 jobs).** No full build run (it cannot be
+  green before items 1-4).
+- **Lead decision (VsDecTop:257): no scope premise.** It is a sequencing issue: the spec hook lands only together with
+  m75's re-extraction at main e35ed12b (where FL4 runs the batch) and the batch's P3 refinement. par/fbspec stays a side
+  branch until then; on resume: rebase onto m75, items 1-3 above, then the refinement (VsDecTop's PML4 case gains the
+  batch label branch).

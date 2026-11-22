@@ -1,5 +1,6 @@
 /- invA2: FaultTcbsS frame lemmas, part 5 (generated; see SpecInvFaultTcbsF1). -/
 import Fl4Proofs.P3.SpecInvFaultTcbsF4
+import Fl4Proofs.P3.SpecInvFbK
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -220,6 +221,15 @@ macro_rules | `(tactic| ft_leaf) => `(tactic| with_reducible exact ft_performPml
 theorem ft_performTestAndClearAccessed (_slot : ObjRef) : FTK L (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; ft_auto
 macro_rules | `(tactic| ft_leaf) => `(tactic| with_reducible exact ft_performTestAndClearAccessed _)
+
+/-- fb-spec-2: one `X86PML4FrameBatch` entry (no recursion). -/
+theorem ft_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : FTKE L (fbEntry (Z := Unit) b w) := by
+  unfold fbEntry; ft_auto
+
+/-- fb-spec-2: the batch (`Fl4Proofs.P3.SInv.ik_performFrameBatch`). -/
+theorem ft_performFrameBatch (b : Fl4FrameBatchInvocation) : FTK L (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatch (fun w => ft_fbEntry b w) (by unfold flushAll; ft_auto)
+macro_rules | `(tactic| ft_leaf) => `(tactic| with_reducible exact ft_performFrameBatch _)
 
 theorem ft_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : FTKE L (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; ft_auto
