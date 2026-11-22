@@ -122,3 +122,28 @@ Sizes: S ≤ 300 lines, M ≤ 800, L ≤ 2000, XL > 2000 (one agent-session each
   disjointness of `t.keys` from `pre ++ post` from `List.nodup_append`.  State `k'` by hypotheses ("`k'` = `k` off
   `{x, y, b.root, ctx.par}`" + the exact values on those four), which is what 3b's `LinksEqOn` chains deliver.
 - Then stage 4 (insert descent; uses `CoreTree.height_le` for the fuel).
+
+## 7. Stage 3c progress and exact next step (second session)
+
+- Done (`TimerRBRot.lean`, full build green 7309 jobs, 0 errors, 0 sorry): `Ctx.pre`/`Ctx.post`, `Ctx.plug_keys` (`(ctx.plug t).keys = ctx.pre ++ t.keys ++
+  ctx.post`), `Ctx.par_mem`, `nd_sep` (two sides of a `Nodup` append are disjoint), `CRep.congr` (a path reads
+  only `pre ++ post`), `HoleUpd` + `CRep.hole` (only the hole's link re-pointed to `y` ⇒ path kept, ending at `y`).
+- Next, in this order:
+  1. `Rep.keys_ne0 : Rep k p x t → ∀ z ∈ t.keys, z ≠ 0` (induction; needed for `z ≠ ctx.par` at the top, where
+     `par = 0`).
+  2. `rotL_rep` with hypotheses on `k'`: `ex` (x: `l` kept, `r = b.rootKey`, `p = y`, colour kept), `ey` (y:
+     `l = x`, `r` kept, `p = ctx.par`, colour kept), `eb` (`b.rootKey ≠ 0 →` its `p = x`, rest kept), `eo` (any
+     `z ≠ x, y`, `(b.rootKey ≠ 0 → z ≠ b.rootKey)`, `z ≠ ctx.par` keeps all four), `hu : HoleUpd k k' R R' ctx y`.
+     Proof: `(rep_plug ctx _).1 h` → `hc`, `ht`; `cases ht` / `cases` its right child / `cases hb` (leaf or
+     node); goal `show Rep k' 0 R' (ctx.plug (.node cy (.node cx a x b) y g))`, `(rep_plug ctx _).2 ⟨hc.hole …,
+     .node …⟩`. Disjointness: rewrite `hd` with `Ctx.plug_keys`, take `hT : M.Nodup` for the middle
+     `M = a.keys ++ x :: (b.keys ++ y :: g.keys)` by `hd.sublist ((List.sublist_append_right _ _).trans
+     (List.sublist_append_left _ _))`, and get each `≠` from `nd_sep` / `List.nodup_cons` on `M`'s suffixes;
+     `M` vs `pre ++ post` from `nd_sep` on `hd`. (Alternative: `List.Nodup` is `Pairwise (· ≠ ·)`; `simp only
+     [List.pairwise_append, List.pairwise_cons, List.mem_append, List.mem_cons]` gives all facts as ∀s.)
+  3. `rotR_rep` (mirror).
+  4. `timer.rotate_left.rb`: walk the 6 writes of `timer.rotate_left` with `timer.left/right/parent.rep`,
+     `lk_wr_tl/tr/tp` (3b) and `timer.replace_child` (its spec: `p = 0` writes `TIMER_ROOT` = top case of
+     `HoleUpd`; else `left p == old` picks the side — `old = x` is `p`'s child, distinct from the other child by
+     `Nodup`), composing the `LinksEqOn` updates into `ex/ey/eb/eo/hu`.
+- Stage 3b rest (`lk_wr_red`) is only needed from stage 5 (fixups) on; rotations do not touch colours.
