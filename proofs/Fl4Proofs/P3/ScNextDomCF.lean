@@ -25,7 +25,7 @@ variable {S A : Type} {st : machine.Store S} {ar : machine.Arch A} [L : LawfulSt
 
 theorem cn_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ)
+    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ) (hvr : VsRootOK T σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (hdt : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ) {t : U64} (ht : t ∈ T)
     (hsch : Fl4Spec.schedulable t.bv σ = true) (enq : Bool) :
@@ -93,7 +93,8 @@ theorem cn_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.S
       (L.ksb (L.wr s5 (L.nodeAt s5 c layout.node.SCHED_ACTION) 1#u64)).val + 13568 ≤ n.val := by
     rw [hw6.1, hw5.1]; exact hNk
   have hfo6 : FpuOwnOK σ6 := hfo.of (show σ5.archState.x64CurrentFpuOwner = σ.archState.x64CurrentFpuOwner from OW.of_eq (ow_tcbSchedAction _ _) he) hq5.1
-  refine WP.spec_mono (scnt_refines0F _ a σ6 hS6 hR6 hN6 hI6 hA hAN hfo6 hNk6 hdt6) ?_
+  have hvr6 : VsRootOK T σ6 := hvr.of_eq hq5.1 (show σ5.archState.x64AsidTable = σ.archState.x64AsidTable from asid_of_crk (Vs.crk_tcbSchedAction' _ _) he)
+  refine WP.spec_mono (scnt_refines0F _ a σ6 hS6 hR6 hN6 hI6 hA hAN hfo6 hvr6 hNk6 hdt6) ?_
   rintro r ⟨σ', h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
   refine ⟨σ', ?_, h2, h3, h4, h5, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [nd_bind_one he, nd_bind_one (setAction_eq σ5 _)]; exact h1
@@ -109,7 +110,7 @@ theorem cn_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.S
 
 theorem cn_enq0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ)
+    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ) (hvr : VsRootOK T σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (hdt : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ) {t : U64} (ht : t ∈ T)
     (hsch : Fl4Spec.schedulable t.bv σ = true) :
@@ -124,11 +125,11 @@ theorem cn_enq0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       (σ'.curThread = σ.idleThread ∨ Fl4Spec.schedulable σ'.curThread σ = true) ∧
       σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ HeapEqUpToFpu σ σ' ∧ TK0 σ σ' ∧ P1.WritesIn st s r.1 (SFootN st T c s) ⦄ :=
-  cn_refines0F s a σ hS hR hN hI hA hAN hfo hNk hdt ht hsch true
+  cn_refines0F s a σ hS hR hN hI hA hAN hfo hvr hNk hdt ht hsch true
 
 theorem cn_app0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ)
+    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ) (hvr : VsRootOK T σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (hdt : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ) {t : U64} (ht : t ∈ T)
     (hsch : Fl4Spec.schedulable t.bv σ = true) :
@@ -143,7 +144,7 @@ theorem cn_app0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State
       SchedRel st N T C c r.1 σ' ∧ NtfnStateRel N T (L.mem r.1) σ' ∧ NSC N C σ' ∧ Inv σ' ∧
       (σ'.curThread = σ.idleThread ∨ Fl4Spec.schedulable σ'.curThread σ = true) ∧
       σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ HeapEqUpToFpu σ σ' ∧ TK0 σ σ' ∧ P1.WritesIn st s r.1 (SFootN st T c s) ⦄ :=
-  cn_refines0F s a σ hS hR hN hI hA hAN hfo hNk hdt ht hsch false
+  cn_refines0F s a σ hS hR hN hI hA hAN hfo hvr hNk hdt ht hsch false
 
 
 
@@ -151,7 +152,7 @@ theorem cn_app0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : Fl4Spec.State
 
 theorem switch_branch_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ0 σ : Fl4Spec.State Unit)
     (hS : SchedRel st N T C c s σ) (hR : NtfnStateRel N T (L.mem s) σ) (hN : NSC N C σ) (hI : Inv σ)
-    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ)
+    (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c) (hfo : FpuOwnOK σ) (hvr : VsRootOK T σ)
     (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
     (hdt : σ.domainTime ≠ 0 ∨ NdOK (L := L) s σ) {t : U64} (ht : t ∈ T)
     (hsch : Fl4Spec.schedulable t.bv σ = true) (wr : Bool)
@@ -275,12 +276,12 @@ theorem switch_branch_refines0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ0
         σ'.curSc = σ.curSc ∧ σ'.releaseQueue = σ.releaseQueue ∧ HeapEqUpToFpu σ σ' ∧ TK0 σ σ' ∧ P1.WritesIn st s r.1 (SFootN st T c s) := by
     intro cp X h1 h2 hX r ⟨σ', e, rest⟩
     exact ⟨σ', (hsp cp X h1 h2 hX).trans e, rest⟩
-  have SW := fun cp h1 h2 hX => WP.spec_mono (WP.spec_mono (sw_refinesF s a σ hS hR hN hI hA hfo ht hsch)
+  have SW := fun cp h1 h2 hX => WP.spec_mono (WP.spec_mono (sw_refinesF s a σ hS hR hN hI hA hfo hvr ht hsch)
     fun r ⟨σ', g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11⟩ =>
       ⟨σ', g1, g2, g3, g4, g5, g6, g7, g8, g9, TK.tk0 g10, WritesIn.sfootN_of g11⟩) (post cp _ h1 h2 hX)
-  have CE := fun cp h1 h2 hX => WP.spec_mono (cn_enq0F s a σ hS hR hN hI hA hAN hfo hNk hdt ht hsch)
+  have CE := fun cp h1 h2 hX => WP.spec_mono (cn_enq0F s a σ hS hR hN hI hA hAN hfo hvr hNk hdt ht hsch)
     (post cp _ h1 h2 hX)
-  have CA := fun cp h1 h2 hX => WP.spec_mono (cn_app0F s a σ hS hR hN hI hA hAN hfo hNk hdt ht hsch)
+  have CA := fun cp h1 h2 hX => WP.spec_mono (cn_app0F s a σ hS hR hN hI hA hAN hfo hvr hNk hdt ht hsch)
     (post cp _ h1 h2 hX)
   step with sched.cur_thread.spec' as ⟨ct1, hct1⟩
   rw [hc.cur] at hct1
@@ -375,6 +376,7 @@ theorem schedule_refinesWP0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       ((σ1.domainTime ≠ 0 ∨ NdOK (L := L) r.1 σ1) ∧
         (∀ n ∈ N, n.val + 40 ≤ (L.ksb r.1).val ∨ (L.ksb r.1).val + 13568 ≤ n.val) ∧ Pf r σ1) ⦄)
     (hPo : ∀ r σ1, Pf r σ1 → FpuOwnOK σ1)
+    (hPv : ∀ r σ1, Pf r σ1 → VsRootOK T σ1)
     (hA : ArchSwF st ar N T C c) (hAN : ArchNdF st N T C c)
     (hsni : SniHyp st ar N T C c) (hsend : SendHyp st ar N T C c)
     (hT : TimeAgree ar) :
@@ -395,6 +397,7 @@ theorem schedule_refinesWP0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     rw [hwA.1]; exact hNk1
   have hM2 : RunM σ1 → RunM σ2 := fun h => h.calm hcalm hnr12
   have hfo2 : FpuOwnOK σ2 := (hPo rf σ1 hPf).of (ow_awaken.of_eq haw) hcalm.1
+  have hvr2 : VsRootOK T σ2 := (hPv rf σ1 hPf).of_eq hcalm.1 (asid_of_crk Vs.crk_awaken haw)
   have hsp := schedule_unfold haw hnd
   simp only [check_domain_time_refines, bind_ok]
   obtain ⟨Q, R, hc, hs⟩ := hS2.lists
@@ -491,6 +494,7 @@ theorem schedule_refinesWP0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
     have hN4 : NSC N C σ4 := fun n hn x p hx hp => hN2 n hn x p (by rw [← hq4.1]; exact hx) hp
     have hI4 := hI2.qchange hq4
     have hfo4 : FpuOwnOK σ4 := hfo2.of ((ow_when _ (ow_tcbSchedAction _ _)).of_eq hw4) hq4.1
+    have hvr4 : VsRootOK T σ4 := hvr2.of_eq hq4.1 (asid_of_crk (Vs.dk_when _ (Vs.crk_tcbSchedAction' _ _)) hw4)
     have hSK4 := (SchK.of_eq (schs_when _ (schs_tcbSchedAction _ _)) hw4).1
     have hdt4 : σ4.domainTime ≠ 0 ∨ NdOK (L := L) s4 σ4 :=
       hdt2.imp (fun h => by rw [htk4.2.2.2.2.1]; exact h)
@@ -518,7 +522,7 @@ theorem schedule_refinesWP0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
           first | rfl | exact absurd ha h0 | exact absurd h1 ha.2.1
       rw [choose_val']
       simp only [h1, ↓reduceIte]
-      refine WP.spec_bind (scnt_refines0F s4 a1 σ4 hS4 hR4 hN4 hI4 hA hAN hfo4 hNk4 hdt4) ?_
+      refine WP.spec_bind (scnt_refines0F s4 a1 σ4 hS4 hR4 hN4 hI4 hA hAN hfo4 hvr4 hNk4 hdt4) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3, hwb3⟩
       obtain ⟨g1, g2, g3, g4, g5, g6, g7, g8⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
       refine tail s3 a2 σ3 hS3 hR3 hN3 hI3
@@ -559,7 +563,7 @@ theorem schedule_refinesWP0F {N T C : Set U64} {c : U64} (s : S) (a : A) (σ : F
       have hwhen : Fl4Spec.NonDet.when (Fl4Spec.schedulable (nodeW st s1 c layout.node.CUR_THREAD).bv σ2 = true)
           (Fl4Spec.tcbSchedAction (Z := Unit) Fl4Spec.tcbSchedEnqueue σ4.curThread) σ2 = ({((), σ4)}, False) := by
         rw [hct4, ← ect]; exact hw4
-      refine WP.spec_bind (switch_branch_refines0F s4 a1 σ2 σ4 hS4 hR4 hN4 hI4 hA hAN hfo4 hNk4 hdt4 hwT hsch4 _ hidle4 hwhen) ?_
+      refine WP.spec_bind (switch_branch_refines0F s4 a1 σ2 σ4 hS4 hR4 hN4 hI4 hA hAN hfo4 hvr4 hNk4 hdt4 hwT hsch4 _ hidle4 hwhen) ?_
       rintro ⟨s3, a2⟩ ⟨σ3, h3, hS3, hR3, hN3, hI3, hnc3, hcs3, hr3, hk3, htk3, hwb3⟩
       obtain ⟨g1, g2, g3, g4, g5, g6, g7, g8⟩ := conv σ3 hnc3 hk3 hr3 hcs3 htk3
       refine tail s3 a2 σ3 hS3 hR3 hN3 hI3
