@@ -1096,7 +1096,16 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
         by_cases e2 : y = cslotAddr (pd.bv, idxd)
         · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
         · rw [hcap y hy e1 e2]; exact h y hy) (tabSet_mono subset_rfl subset_rfl subset_rfl) subset_rfl rfl hks
-        (ArchFwd.of_ipcFr hfk)))
+        (ArchFwd.of_ipcFr hfk))
+      (J.carry.devTab.step (lo := p.val) (hi := p.val + 4096) (devFrom_kept J.mdbL hM' J.ut hUK).1.sub
+        (fun o ao ho hv => by
+          rcases F.kh o with e | ⟨r, cs, cs', -, h2⟩ | ⟨h1, -⟩
+          · rw [e] at ho; exact Or.inl ⟨ao, ho, hv⟩
+          · rw [h2] at ho; cases ho
+          · right; obtain rfl := hnew o ao ho h1; exact ⟨le_rfl, le_rfl⟩)
+        (fun y hy p' sb' fi' hc => by
+          have := J.carry.devSep _ hsm y hy _ _ _ _ _ _ (capV_of_capAt hsrc0) hc
+          rw [two_pow_asidPool] at this; exact this)))
 
 end
 

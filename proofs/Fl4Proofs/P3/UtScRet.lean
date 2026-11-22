@@ -975,6 +975,11 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · cases e
     · cases e
   have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have hTB : TabBack σ σ' := fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩
+    · exact ⟨ao', h, hv⟩
+    · cases e
+    · cases e
   have JZ := J.add_frameC (Z' := { Z with G := G', C := Z.C ∪ winSet Aw (2 ^ zOf nt.val us.val) win.val })
     rfl rfl hW0 rfl hwI.1 hX' hCs hJR (by rw [hwI.1]; exact J.ks) J.thT J.ip
     (fun n hn => by rw [hwI.1]; exact J.nk n hn) hcov' hobj' hzH' hset' hscC' hvc hbf
@@ -982,7 +987,8 @@ theorem JAtZ.utScBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hX' hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout0 fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
-        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk)))
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) (hTB.new _ _)))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

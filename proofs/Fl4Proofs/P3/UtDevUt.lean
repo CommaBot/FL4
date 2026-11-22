@@ -573,12 +573,21 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
         split_ifs at e
         exact Or.inl e.symm
   have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have hTB : TabBack σ σ' := fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨q, -, -, -, m, -, hk⟩
+    · exact ⟨ao', h, hv⟩
+    · cases e
+    · cases e
+    · cases e
+    · cases e
+    · rw [hK0] at hk; cases hk
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
     ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP ⟨hDA', devSep_retypeD J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
-        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk)))
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
+      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

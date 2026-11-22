@@ -646,6 +646,14 @@ theorem _root_.Fl4Proofs.P3.JCarry.devKeep {Z : XSets} {H : P1.Heap} {Cs : Set U
     (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=
   h.devStep hks (devFrom_same hM hM' hSS) hI
 
+/-- **`devTab` across a step keeping the slots and the objects' types** (jc5). -/
+theorem _root_.Fl4Proofs.P3.JCarry.tabKeep {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S}
+    {σ : Fl4Spec.State Unit} (h : JCarry (L := L) Z H Cs s σ) (hM : MdbLinks Z.th (L.mem s) Z.G) {s' : S}
+    {G' : MdbGhost} {σ' : Fl4Spec.State Unit}
+    (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G') (hk : KSz σ σ') :
+    DevTab G' (L.mem s') σ' :=
+  h.devTab.frame (devFrom_same hM hM' hSS).1.sub (tabBack_of_ksz hk)
+
 theorem devKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {G' : MdbGhost}
     (hks : L.ksb s' = L.ksb s) (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hM' : MdbLinks Z.th (L.mem s') G')
     (hI : IdleH (L := L) H s') : DevApart (L := L) Z.th H G' Cs s' ∧ DevSep G' (L.mem s') :=

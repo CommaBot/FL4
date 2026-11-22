@@ -657,6 +657,142 @@ theorem VsTyp.frame {Z : XSets} {s s' : S} {σ σ' : Fl4Spec.State Unit} (h : Vs
     VsTyp (L := L) Z s' σ' :=
   h.step (fun _ h => h.step hT) (tabSet_mono subset_rfl subset_rfl subset_rfl) subset_rfl rfl hks hA
 
+/-! ### jc5: `devTab` (C24 device vsReach) -/
+
+/-- (jc5) The arch object types of the VSpace tables and the ASID pools. -/
+def VsTy : Fl4Spec.AAType → Prop
+  | .aASIDPool => True
+  | .aPageMapL4 => True
+  | .aPDPointerTable => True
+  | .aPageDirectory => True
+  | .aPageTable => True
+  | _ => False
+
+/-- **[carried] No VSpace table or ASID pool in a device untyped cap's range**
+(jc5; KENTRY-PLAN jc4 (2)): every spec arch object of a table or pool type
+misses the range of every device untyped cap of the MDB. FL4 (as seL4's
+`decodeUntypedInvocation`) retypes only frames and untypeds from a device
+untyped (fl4-core untyped.rs), MakePool takes a RAM untyped, and RAM ranges
+are apart from device ranges (`DevSep`). -/
+def DevTab (G : MdbGhost) (m : U64 → U64) (σ : Fl4Spec.State Unit) : Prop :=
+  ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV m x = .Untyped p sb fi true →
+    ∀ (o : Fl4Spec.ObjRef) ao, σ.kheap o = some (.archObj ao) → VsTy (Fl4Spec.aaType ao) →
+      o.toNat + 4096 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat
+
+/-- The device untyped ranges after a step lie inside old ones. -/
+def DevSub (G G' : MdbGhost) (m m' : U64 → U64) : Prop :=
+  ∀ x ∈ G'.chains.flatten, ∀ p sb fi, capV m' x = .Untyped p sb fi true →
+    ∃ y ∈ G.chains.flatten, ∃ p0 sb0 fi0 : U64, capV m y = .Untyped p0 sb0 fi0 true ∧
+      p0.val ≤ p.val ∧ p.val + 2 ^ sb.val ≤ p0.val + 2 ^ sb0.val
+
+theorem DevFrom.sub {G G' : MdbGhost} {m m' : U64 → U64} (h : DevFrom G G' m m') : DevSub G G' m m' :=
+  fun x hx p sb fi hc =>
+    let ⟨y, hy, fi0, _, e⟩ := h x hx p sb fi hc
+    ⟨y, hy, p, sb, fi0, e, le_rfl, le_rfl⟩
+
+theorem DevSub.of_utFrom {G G' : MdbGhost} {m m' : U64 → U64} (h : Sched.UtFrom G G' m m') : DevSub G G' m m' :=
+  fun x hx p sb fi hc =>
+    let ⟨y, hy, fi0, e⟩ := h x hx p sb fi true hc
+    ⟨y, hy, p, sb, fi0, e, le_rfl, le_rfl⟩
+
+theorem devSub_of_eq {G : MdbGhost} {m m' : U64 → U64}
+    (h : ∀ x ∈ G.chains.flatten, capV m' x = capV m x) : DevSub G G m m' :=
+  (DevFrom.of_eq h).sub
+
+/-- The table / pool objects after a step: old ones (of a table / pool type). -/
+def TabBack (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∀ o ao', σ'.kheap o = some (.archObj ao') → VsTy (Fl4Spec.aaType ao') →
+    ∃ ao, σ.kheap o = some (.archObj ao) ∧ VsTy (Fl4Spec.aaType ao)
+
+/-- The table / pool objects after a step: old ones, or new ones in `[lo, hi)`. -/
+def TabNew (σ σ' : Fl4Spec.State Unit) (lo hi : Nat) : Prop :=
+  ∀ o ao', σ'.kheap o = some (.archObj ao') → VsTy (Fl4Spec.aaType ao') →
+    (∃ ao, σ.kheap o = some (.archObj ao) ∧ VsTy (Fl4Spec.aaType ao)) ∨ (lo ≤ o.toNat ∧ o.toNat + 4096 ≤ hi)
+
+theorem TabBack.new {σ σ' : Fl4Spec.State Unit} (h : TabBack σ σ') (lo hi : Nat) : TabNew σ σ' lo hi :=
+  fun o ao' ho hv => Or.inl (h o ao' ho hv)
+
+theorem TabBack.refl (σ : Fl4Spec.State Unit) : TabBack σ σ := fun o ao' ho hv => ⟨ao', ho, hv⟩
+
+theorem TabBack.trans {σ σ' σ'' : Fl4Spec.State Unit} (h : TabBack σ σ') (h' : TabBack σ' σ'') : TabBack σ σ'' :=
+  fun o ao ho hv => let ⟨a1, h1, v1⟩ := h' o ao ho hv; h o a1 h1 v1
+
+/-- `KSz` (an object after was one of the same type before) keeps the tables back. -/
+theorem tabBack_of_ksz {σ σ' : Fl4Spec.State Unit} (hk : KSz σ σ') : TabBack σ σ' := by
+  intro o ao' ho hv
+  obtain ⟨ko, hko, ht⟩ := hk o _ ho
+  cases ko with
+  | archObj ao0 =>
+    have e : Fl4Spec.aaType ao0 = Fl4Spec.aaType ao' := by
+      simpa only [Fl4Spec.aType, Fl4Spec.AType.aArch.injEq] using ht
+    exact ⟨ao0, hko, by rw [e]; exact hv⟩
+  | cnode sz cs =>
+    simp only [Fl4Spec.aType] at ht; split at ht <;> cases ht
+  | schedContext x n =>
+    simp only [Fl4Spec.aType] at ht; split at ht <;> cases ht
+  | _ => simp [Fl4Spec.aType] at ht
+
+/-- **`DevTab` across a step** (jc5): the device ranges after inside old ones
+(`DevSub`), the tables after old ones or new ones in `[lo, hi)`, which misses
+every old device range (`hsep`; vacuous for `TabBack`, `lo = hi = 0`). -/
+theorem DevTab.step {G G' : MdbGhost} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit} {lo hi : Nat}
+    (h : DevTab G m σ) (hD : DevSub G G' m m') (hB : TabNew σ σ' lo hi)
+    (hsep : ∀ y ∈ G.chains.flatten, ∀ p sb fi : U64, capV m y = .Untyped p sb fi true →
+      hi ≤ p.val ∨ p.val + 2 ^ sb.val ≤ lo) : DevTab G' m' σ' := by
+  intro x hx p sb fi hc o ao' ho hv
+  obtain ⟨y, hy, p0, sb0, fi0, hc0, h1, h2⟩ := hD x hx p sb fi hc
+  rcases hB o ao' ho hv with ⟨ao, hao, hv0⟩ | ⟨g1, g2⟩
+  · rcases h y hy p0 sb0 fi0 hc0 o ao hao hv0 with e | e
+    · left; omega
+    · right; omega
+  · rcases hsep y hy p0 sb0 fi0 hc0 with e | e
+    · left; omega
+    · right; omega
+
+/-- `DevTab.step` with the tables kept back (`TabBack`). -/
+theorem DevTab.frame {G G' : MdbGhost} {m m' : U64 → U64} {σ σ' : Fl4Spec.State Unit}
+    (h : DevTab G m σ) (hD : DevSub G G' m m') (hB : TabBack σ σ') : DevTab G' m' σ' :=
+  h.step hD (hB.new 0 0) fun _ _ _ _ _ _ => Or.inl (Nat.zero_le _)
+
+/-- **`DevTab` across a retype from a RAM untyped cap** (jc5): the device caps
+after are old ones (no new device cap, `hcjD`); the new tables lie in the
+window, inside the source's range, which `DevSep` keeps off every device range. -/
+theorem devTabRetypeR {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64} {σ σ' : Fl4Spec.State Unit}
+    (hT : DevTab G m σ) (hS : DevSep G m) (hE : RetExp th th' m m' G G' A k w dslot cj xs)
+    (hram : ∀ p sb fi d, capV m xs = .Untyped p sb fi d → d = false)
+    (hcjD : ∀ j, j < w → ∀ p sb fi, cj j ≠ .Untyped p sb fi true)
+    (hN : TabNew σ σ' A (A + w * k)) : DevTab G' m' σ' := by
+  obtain ⟨hxs, ps, sbs, fis, fis1, d0, hc0, hc1, hA1, -, hA2, -, hoth⟩ := hE.usrc
+  obtain rfl : d0 = false := hram _ _ _ _ hc0
+  refine hT.step (fun x hx p sb fi hc => ?_) hN (fun y hy p' sb' fi' hc => ?_)
+  · rcases hE.gmem x hx with hx0 | ⟨j, hj, rfl⟩
+    · by_cases hu : isUt (capV m x) = true
+      · by_cases e : x = xs
+        · subst e; rw [hc1] at hc; cases hc
+        · exact ⟨x, hx0, p, sb, fi, by rw [← hoth x hx0 hu e]; exact hc, le_rfl, le_rfl⟩
+      · have e := (hE.keep x hx0 (by simpa using hu)).2
+        rw [e] at hc; rw [hc] at hu; exact absurd (isUt_untyped _ _ _ _) hu
+    · rw [hE.newc j hj] at hc; exact absurd hc (hcjD j hj p sb fi)
+  · rcases hS xs hxs y hy _ _ _ _ _ _ hc0 hc with h | h
+    · left; omega
+    · right; omega
+
+/-- **`DevTab` across a retype from a device untyped cap** (jc5): the new
+device caps lie in the source's range (`retype_utOld`), and the step makes no
+table (`TabBack`: frames or untypeds only). -/
+theorem devTabRetypeD {th th' : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost}
+    {A k w : Nat} {dslot : Nat → U64} {cj : Nat → capability.Cap} {xs : U64} {σ σ' : Fl4Spec.State Unit}
+    (hT : DevTab G m σ) (hE : RetExp th th' m m' G G' A k w dslot cj xs) (hU' : UtInv m' G')
+    (hdev : ∀ p sb fi d, capV m xs = .Untyped p sb fi d → d = true)
+    (hB : TabBack σ σ') : DevTab G' m' σ' := by
+  obtain ⟨hxs, ps, sbs, fis, fis1, d0, hc0, -, hA1, -, hA2, -, -⟩ := hE.usrc
+  obtain rfl : d0 = true := hdev _ _ _ _ hc0
+  refine hT.frame (fun x hx p sb fi hc => ?_) hB
+  rcases retype_utOld hE hU' hx hc with ⟨hx0, fx, ex⟩ | ⟨j, hj, -, h1, h2⟩
+  · exact ⟨x, hx0, p, sb, fx, ex, le_rfl, le_rfl⟩
+  · exact ⟨xs, hxs, ps, sbs, fis, hc0, by omega, by omega⟩
+
 /-- **The joint facts carried for the [J] leaves** (KENTRY-PLAN g7b-4; jc1b
 step 1: `bufPg`, `archFit` = `JCarryS`; jc2 step 3: `devApart` (C25) with
 `devSep`; jc3 step 4: `vsTyp` (C4)). -/
@@ -671,20 +807,23 @@ structure JCarry (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.
   devSep : DevSep Z.G (L.mem s)
   /-- C4 (jc3): every table cap's table off its set a spec table, its frame `OffK`. -/
   vsTyp : VsTyp (L := L) Z s σ
+  /-- C24 device vsReach (jc5): no VSpace table or ASID pool in a device untyped's range. -/
+  devTab : DevTab Z.G (L.mem s) σ
 
 theorem JCarry.toS {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : JCarryS Z.B H σ := ⟨h.bufPg, h.archFit⟩
 
 theorem JCarryS.withD {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarryS Z.B H σ) (hD : DevApart (L := L) Z.th H Z.G Cs s) (hS : DevSep Z.G (L.mem s))
-    (hV : VsTyp (L := L) Z s σ) :
-    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS, hV⟩
+    (hV : VsTyp (L := L) Z s σ) (hT : DevTab Z.G (L.mem s) σ) :
+    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS, hV, hT⟩
 
 theorem JCarryS.withP {Z : XSets} {B : Set (U64 × Fl4Spec.Word)} {th : TypedHeap} {G : MdbGhost} {H : P1.Heap}
     {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarryS B H σ) (hD : DevApart (L := L) th H G Cs s ∧ DevSep G (L.mem s)) (hV : VsTyp (L := L) Z s σ)
+    (hT : DevTab G (L.mem s) σ)
     (hB : B = Z.B := by rfl) (hth : th = Z.th := by rfl) (hG : G = Z.G := by rfl) : JCarry (L := L) Z H Cs s σ := by
-  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2, hV⟩
+  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2, hV, hT⟩
 
 theorem JCarry.bufObj {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : BufObjHyp Z.B σ := bufObj_of_pg h.bufPg

@@ -698,7 +698,7 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       · rw [hp] at h1; cases h1; rw [h2, aaType_userData.1 ht]
       · rw [hp] at h1; cases h1
       · rw [hp] at h1; cases h1),
-      J.carry.archFit.frame F.ksz⟩ (devFrom_kept J.mdbL hM' J.ut hUK) hvy
+      J.carry.archFit.frame F.ksz⟩ (devFrom_kept J.mdbL hM' J.ut hUK) hvy hAF
 
 set_option maxHeartbeats 4000000 in
 /-- **`vsStepJX` at the same sets, no off-set table frame written.** -/

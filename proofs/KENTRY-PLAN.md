@@ -16785,3 +16785,51 @@ present entry) for the map case. `VsReach` would need the path's ref (ASID, inde
 
 ### (5) Builds
 None (documentation only).
+
+## jc5 (branch par/jc5 from e9c21de0 = PR #66 head, top of record `kernel_entry_reachU20`) — C24 device `vsReach` DISCHARGED via `JCarry.devTab` (new top **`kernel_entry_reachU21`**); no premise added; no FINDING
+
+### (1) Done
+- **Carried fact (JCarryDefs)**: `VsTy : AAType → Prop` (PML4, PDPT, PD, PT, ASID pool) and
+  `DevTab G m σ := ∀ x ∈ G.chains.flatten, ∀ p sb fi, capV m x = .Untyped p sb fi true →
+  ∀ o ao, σ.kheap o = some (.archObj ao) → VsTy (aaType ao) → o.toNat + 4096 ≤ p.val ∨ p.val + 2 ^ sb.val ≤ o.toNat`.
+  New `JCarry` field `devTab : DevTab Z.G (L.mem s) σ`; `JCarryS.withP` / `withD` take it as a last explicit argument.
+  Phrased on the spec heap (not on `H`, where tables and device frames are both `.other 12`, nor on the sets, which
+  move at every VSpace step) and on the MDB's device caps, like `devApart`.
+- **Why it holds in reachable states**: FL4 (as seL4's `decodeUntypedInvocation`) retypes only frames and untypeds
+  from a device untyped (fl4-core untyped.rs:66); MakePool takes a RAM untyped; RAM and device untyped ranges are
+  apart (`devSep`); tables are never re-typed in place. Boot places no table in a device region.
+- **Preservation** (generic lemmas in JCarryDefs): `DevTab.step` (device ranges after inside old ones, `DevSub`;
+  tables after old ones or new ones in `[lo, hi)`, `TabNew`, with `[lo, hi)` off every old device range) and
+  `DevTab.frame` (`TabBack`). `DevSub` from `DevFrom.sub`, `DevSub.of_utFrom`, `devSub_of_eq`; `TabBack` from
+  `tabBack_of_ksz` (`KSz`) or `tabBack_of` (XTopJointStep: `KBack` + `ArchFwd`). Sites:
+  * `cs_frameVD` (JAtZ / JAtZR) take `htb : DevTab G' (L.mem s') σ'`; `cs_frameV` / `cs_frameB` take
+    `hAF : ArchFwd σ σ'` (computing `htb` from `hdu.1` and `KBack`); `cs_frameD` takes `hdS : DevSub …`
+    (its caller UtDevReset: `DevSub.of_utFrom hUF`); `cs_frame / cs_frameI / cs_frameIS / cs_frameK` compute it.
+    External `cs_frameV/B` callers pass the `ArchFwd` they already gave `vsStep`: WJL, WJLEmpty, WJLSwap, Grant,
+    TcbInstall, VsSub, VsMap (`vsStepJX`, `hAF`).
+  * `sc_frame`-style sites (ScJointFrame, ScJointSchFrame, FinScReply, JAtZRA, JAtZRM, FaultM): `JCarry.tabKeep`
+    (JointAt; `SlotsSame` + `KSz`).
+  * RAM retypes (UtUtRet, UtCnRet, UtTcbRet, UtScRet, UtPmRet, UtEpRet): `devTabRetypeR` with `TabNew` from each
+    file's `hback` (`tabNew_win`, UtRetLive: new arch objects at `NewAt Aw (2^z) win` with `12 ≤ z`; non-arch
+    retypes by `TabBack`); device retypes (UtDevRet, UtDevUt): `devTabRetypeD` (new device caps inside the source,
+    `retype_utOld`; `TabBack`: UtDevRet's new objects are `dataPage true`, UtDevUt makes none).
+  * MakePool: `DevTab.step` with the pool page `[p, p + 4096)` (`hnew`) and the jc2 `devSep` argument.
+  * drops (UtDropJ2, UtDevDrop): `DevTab.frame` (`SDrop.kin/kout`, caps unchanged).
+- **Use** (XTopJointKEntryU21 `JAtZ.devVsReach`): at an `Entered` `JAtZ` state, `JAtZ.restartJ` gives `JAtZ` at the
+  restart's `s1` (same `Z`); a `VsReach` from the `NeedR` roots is in its set (`VsReach.mem`, `VsSlotsW.needR`), so a
+  spec pool / table of `σ1` (`VsRel.pool`, `PtRel.l4..l1`), so one of `σ` (only the caller's TCB changed), and
+  `devTab` puts it off the device cap's range (`FrMiss`).
+- **`kernel_entry_reachU21`** = U20 with `KDispHypsKVU21` (`JDevPathU21` = `JDevPathU19` without `vsReach`);
+  `KDispHypsKVU21.toU20 J' (hb.enteredP hnd (hX.entered hct))` fills it. Removed relative to U20: C24 device vsReach.
+  Added: none. `JReachU17` unchanged. No Vs relation file (VsTop, VsSlots*, VNeed, VCapW) changed (par/f1 merge).
+
+### (2) Remaining [J] at U21
+C16 / C22 / C24 heapH (`RegionUnrefAt` halves), C17, C23 (the latter two false at reachable states as stated, jc4;
+F1 redesign on par/f1).
+
+### (3) Builds and axioms
+Module builds jc5-m1..m5 (tokyo; m2 stopped at the `devTabRetype*` lemmas placed before `DevTab`, m3 at a
+`hTB` name clash in UtTcbRet, m4 at `Set.not_mem_empty` and the `JAtZ.devVsReach` namespace); full build jc5-full1:
+`Build completed successfully (7297 jobs)`, 0 `error`, 0 `sorry`. `#print axioms` (../axjc5.lean): U3L, UH2, U4..U20
+and **U21**, `sniHyp_of`, `sendHyp_of`, `scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`;
+every existing top keeps its statement. No sorry / admit / native_decide / bv_decide / axiom in the changed files.

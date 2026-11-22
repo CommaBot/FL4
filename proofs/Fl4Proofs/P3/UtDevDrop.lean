@@ -221,7 +221,11 @@ theorem JAtZ.dropAD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
           · rcases J.idleH.2 with e0 | ⟨z', e0⟩
             · rw [e0, J.kern.h0] at hk; cases hk
             · rw [e0] at hk; cases hk), J.carry.devSep⟩
-      (J.dropVsTyp hsb hfit hx hcx hnd hD)⟩
+      (J.dropVsTyp hsb hfit hx hcx hnd hD)
+      (J.carry.devTab.frame (devSub_of_eq fun _ _ => rfl) fun o ao ho hv => by
+        by_cases hr : RgOf p sb o
+        · rw [hD.kin o hr] at ho; cases ho
+        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)⟩
 
 end
 

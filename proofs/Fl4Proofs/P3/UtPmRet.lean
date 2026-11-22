@@ -768,6 +768,15 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
   have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarryS Z.B _ σ')
+  have hTN : TabNew σ σ' Aw (Aw + win.val * 2 ^ zOf nt.val us.val) := tabNew_win fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨q, hq, hqo, -, m, hm, hk⟩
+    · exact Or.inl ⟨ao', h, hv⟩
+    · cases e
+    · cases e
+    · cases e
+    · cases e
+    · refine Or.inr ⟨q, hq, hqo, ?_⟩
+      have := newKind_bits hk; simp only [P1.HKind.bits] at this; omega
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -786,7 +795,8 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hX4 hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
-        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk)))
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) hTN))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

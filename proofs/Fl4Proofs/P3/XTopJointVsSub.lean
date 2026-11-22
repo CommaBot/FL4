@@ -329,7 +329,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw))
       hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp)) (J.carry.of_objCn hkcT)
-      (devFrom_kept J.mdbL hS'.M J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkcT))⟩
+      (devFrom_kept J.mdbL hS'.M J.ut hUK) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkcT)) (ArchFwd.of_objCn hkcT)⟩
 
 end
 

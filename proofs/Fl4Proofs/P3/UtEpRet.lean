@@ -1182,6 +1182,15 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     rw [hpb]
     rcases hK8 with e | e | e | e | e | e <;> simp only [e] at hal' hjh hqv ⊢ <;> omega
   have hcy0 := (⟨BufPgHyp.grow J.carry.bufPg hBN hpg hpgN, hAF'⟩ : JCarryS B' _ σ')
+  have hTN : TabNew σ σ' Aw (Aw + win.val * 2 ^ zOf nt.val us.val) := tabNew_win fun o ao' ho hv => by
+    rcases hback o _ ho with h | ⟨_, _, _, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨_, -, -, e⟩ | ⟨q, hq, hqo, -, m, hm, hk⟩
+    · exact Or.inl ⟨ao', h, hv⟩
+    · cases e
+    · cases e
+    · cases e
+    · cases e
+    · refine Or.inr ⟨q, hq, hqo, ?_⟩
+      have := newKind_bits hk; simp only [P1.HKind.bits] at this; omega
   have JZ := J.add_frameB
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -1196,7 +1205,8 @@ theorem JAtZ.utEpBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram)
       hwI.1 (idleH_of hXB hobj' hzH'.1 ⟨_, _, hJPa⟩ hInv1 hAct1) (hH_of_hout hout fun kd h => by rw [newKind_bits h]))
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
-        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) hBN' rfl hwI.1 (fun q ao h => (IpcFrKeep.of_keepC hkc).arch _ _ (hA.kold h))))
+        (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) hBN' rfl hwI.1 (fun q ao h => (IpcFrKeep.of_keepC hkc).arch _ _ (hA.kold h)))
+      (devTabRetypeR J.carry.devTab J.carry.devSep hE (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) (fun j _ _ _ _ => by rw [hcj]; exact newCapOf_ram) hTN))
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
