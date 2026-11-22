@@ -16143,3 +16143,116 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
 ### (4) Findings and next
 - None. Next: carry `IdleVt` in `JAtZ` (or prove it from a boot + TCB-invocation invariant) to drop D7; D2/D3
   remain the [P] FPU-machine-op determinism premises.
+
+## g7b-4 (branch par/g7b4 from d21ef5ae, top of record `kernel_entry_reachU11`) — DESIGN: the `JAtZ` carry pass for the 13 [J] leaves (no Lean change); no FINDING
+Scope: C4, C16, C17, C21, C22, C23, C24×3 (device `bufObj` / `heapH` / `vsReach`), C25, C26, C27 and D7 of INV-PLAN §1.U3L.
+The counts below are against d21ef5ae.
+
+### (0) Summary
+- **One new `JAtZ` field.** Add a sub-structure `carry : JCarry Z H Cs D s σ`, holding five joint facts: `bufObj`, `archFit`, `unref`, `devApart`, `vsNamed`.
+- **Two spec-only invariants**, carried in the `SInvX` family and bridged to FL4 by the cap relation, so no `JAtZ` field: `IdleVtS` (D7) and `DevRangeS` (C26 + C27).
+- **C4 `vsTyp`.** Its own `JCarry` field `vsTyp`, but it can reuse the `vsc` sites (it is the converse-free half of `VsSlotsW`).
+- **C24×3 need nothing extra.** They are the device copies of C21 / C22 / C23 and are served by the same fields.
+- **No leaf is false as stated** (each checked below; C23/C24 `vsReach` were already guarded in g7b-2). None is derivable without a carry.
+- **Batching:** yes. `JCarry` is added to `JAtZ`'s constructor once (≈61 anonymous constructions in 51 files, plus 21 `JAtZ.*frame` helpers). Later fields go into `JCarry` only.
+
+### (1) Fields (exact statements)
+```lean
+/-- The joint facts the 13 [J] leaves need (KENTRY-PLAN g7b-4). -/
+structure JCarry (Z : XSets) (H : P1.Heap) (Cs D : Set U64) (s : S) (σ : Fl4Spec.State Unit) : Prop where
+  /-- C21, C24 bufObj: every IPC-buffer word lies in a spec object (l4v `valid_ipc_buffer_cap` + `obj_at`). -/
+  bufObj : BufObjHyp Z.B σ
+  /-- C16, C22, C24 heapH (first half): an `H` arch object is no larger than its spec object (l4v arch `obj_range`). -/
+  archFit : ArchFitHyp H σ
+  /-- C16, C22, C24 heapH (second half, `RegionUnrefAt`): live objects name no dead object (l4v `sym_refs` +
+  `if_live_then_nonz_cap`). `RegionUnrefAt H Cs D s` follows by monotonicity (`RegionD H lo hi ⊆ D`), after the
+  restart's frame (the restart writes one state word). -/
+  unref : KeptRefsP3 (L := L) H (· ∈ D) s ∧ DbgTimerKept (L := L) H (· ∈ D) Cs s
+  /-- C25: no device untyped range covers a kernel / typed / RAM object (DevJ). -/
+  devApart : DevApart (L := L) Z.th H Z.G Cs s
+  /-- C17, C23, C24 vsReach: every table reached from the ASID table is named by a cap in an MDB slot
+  (l4v `valid_vs_lookup` + `valid_asid_table`; g7b-2 (4)). -/
+  vsNamed : ∀ k q, Vs.VsReach (L.mem s) (L.ksb s) ∅ ∅ ∅ ∅ ∅ k q →
+    ∃ y ∈ Z.G.chains.flatten, Vs.VNames (capV (L.mem s) y) k q
+  /-- C4: a mapped PT/PD/PDPT cap whose table is in no set has a spec table of that kind there (l4v `valid_cap`
+  typ_at + `pspace_distinct`). -/
+  vsTyp : ∀ y, IsSlot Z.th y → OffTabOK (L := L) Z s σ (capV (L.mem s) y)
+```
+- `Vs.VNames` is new (UtDropJ2): `VNeed`'s constructors plus the mapped PT/PD/PDPT caps (`.PageTable p true a v` at
+  level 1, …), and the PML4 / pool caps as in `VNeed`.
+- Spec-only invariants, added to `SInvX`'s family (`kentry_sinvX`):
+  * `IdleVtS σ := IdleVt σ` (G7eRoot.lean:40; D7).
+  * `DevRangeS σ`: no device `untypedCap` (spec) covers a spec object in its free part (C26) or covers
+    `x64GlobalPml4` (C27).
+
+  Bridge lemmas: `DevFreeT (L.mem s) Z.G σ` and `DevGpm (L.mem s) Z.G σ` from `DevRangeS σ` through
+  `J.dstate.1.1.abs_cap` (a chain slot's FL4 cap is the spec cap `absCap`), the same way `SpecGlob` is bridged.
+
+### (2) Sites per field (where each is re-established) and existing lemmas
+Classes of `JAtZ` constructions:
+* (F) frame steps keeping slots, `H`, `D`, `B`, table/ASID words and spec object kinds (scheduler, IPC without
+  grant, notifications, timers, faults, replies, domain, IRQ, IO port): most of the ~61 constructions and all 21
+  `JAtZ.*frame` helpers (e.g. `JAtZ.sc_frame`).
+* (C) cap steps: CNode copy/move/mutate/rotate (CnodeCopy, CnodeRotate, CnFrame), TCB installs (XTopJointTcbInstall,
+  TcbInsL), IPC grant (IpcGrantTr, XTopJointXferG).
+* (D) delete/revoke/finalise (XTopJointDelR, XTopJointCnDel, XTopJointFin*, 13 FinVt*/FinVs*/FinSc* files),
+  where `D` grows (`JCovD.step`).
+* (V) VSpace writes: XTopJointVsMap, VsSub, VsOff, VsCap (ASID assign), VsReply, MakePool, MpDirtyJ (11 files).
+* (R) retype (10 files: UtEpRet, UtScRet, UtUtRet, UtPmRet, UtCnRet, UtTcbRet, UtFrameAdd, UtReplyAdd, UtDevRet,
+  UtRetResetJ*).
+* (X) detype / reset (UtDropJ, UtDropJ2, UtDevDrop, UtResetTopJ, UtResetLoopJ).
+* (B) boot (`JReachU3` start: the lead's "any state with the invariants", so one boot lemma per field, or assumed
+  with the rest of the start bundle).
+
+| field | (F) | (C) | (D) | (V) | (R) | (X) | existing lemmas | size |
+|---|---|---|---|---|---|---|---|---|
+| `bufObj` | frame (kheap domain and kinds kept) | frame | frame (objects stay until detype) | frame | new frames are spec objects (UtFrameAdd) | `B` pruned with the region (`Z.dropV`), kept words off it | none (59 uses as a premise only) | S–M |
+| `archFit` | frame | frame | frame | MakePool / VsMap keep sizes | `H` and kheap grow together (UtPmRet, UtEpSets) | both dropped | none (90 premise uses) | S–M |
+| `unref` | frame where links are kept; scheduler/IPC link writes name live objects (they read them from live objects) | frame | **real**: before an object joins `D` its incoming links are cleared (finalise: `unbind_*`, `cancel_*`, reply clear; FL4 = l4v `finalise_cap`) | frame | new objects name nothing; links into them only after | `D` objects dropped, kept refs miss the region (already `KeptRefsP3` in the drop's `DropOK`) | `DropOK` parts (ScUtRetype.lean:393/409) produce it at the drop; nothing else | **L** |
+| `devApart` | frame (caps and nodes kept) | caps copied keep ranges (`Within`) | frame | frame | `DevApart.retype` (UtDevRet.lean:52); RAM retypes add objects off device ranges (`UtInv.drange` + RAM/device disjointness) | device reset (UtDevDrop) | `DevApart.retype`, `DevApart.srcOK` | M |
+| `vsNamed` | frame (table words, ASID table and slots kept) | the name moves with the cap (copy/move/rotate keep a slot naming q) | last table/PML4/pool cap deleted only after unmap / pool clear (XTopJointFinVs, FinVt*) | **real**: map adds an entry to a table named by the mapped cap, assign puts a PML4 named by its cap, MakePool a pool named by the new cap | new tables unreachable | reach only shrinks (`vsDropOK`) | none | **L** |
+| `vsTyp` | frame | `OffTabOK` reads the cap's shape (`capObjH_of_shape`-style) | finalise of a mapped table cap | map/unmap move tables in/out of the sets | new caps are unmapped | detype: no mapped table cap in a childless region | `JEntryAtR6.vsTyp` today is a premise (9 uses in 7 files) | M |
+| `IdleVtS` (spec) | — | — | — | — | — | — | `IdleVt.frame`, `JAtZR.idleVt_fire` (G7eRoot); preservation per spec op from `SpecGlob.idle` (no non-page cap names the idle thread, so no TCB invocation or slot op reaches its vtable) | S |
+| `DevRangeS` (spec) | — | — | — | — | — | — | `DevFree.retype` (DevFree.lean:228), `SpecFreeP.retypeU` (UtDevUt.lean:36); `x64GlobalPml4` never changes | M |
+
+(The spec rows are carried by `kentry_sinvX`'s per-op families, as SpecInvUt*, not at `JAtZ` constructions.)
+
+### (3) Order (dependencies) and size
+1. **`JCarry` scaffold** with `bufObj` and `archFit` (S–M): add the field once; `JCarry.frame` (one lemma: slots, `H`,
+   `D`, `B`, table words and spec object kinds kept) closes every (F) site; (R)/(X) by small lemmas. ~51 files
+   touched mechanically (the `zD⟩` constructions). Full rebuild.
+2. **Spec families `IdleVtS`, `DevRangeS`** (S, M): independent of 1; touch only SpecInv* and `SInvX`; bridges at
+   the two finish/dispatch sites (`KFinAtR8.idle` from `IdleVtS`; `JDevPath.devFree`/`devGpm` from `DevRangeS`).
+3. **`devApart`** (M): after 1 (needs `JCarry`); the retype sites only.
+4. **`vsTyp`** (M): after 1; (V) and (D) sites; removes `JEntryAtR6.vsTyp`.
+5. **`vsNamed`** (L): after 1 and 4 (map/unmap proofs share the sets reasoning); then C17 and the guarded C23 become
+   theorems ((a) of g7b-2 (3) + this field).
+6. **`unref`** (L, last): the delete/finalise cone; it also turns `RegionUnrefJ`-style premises of older tops into
+   theorems.
+After each step, a new top drops the leaves served: e.g. U12 (C21, C24 bufObj, D7, C26, C27), U13 (C25), U14 (C4),
+U15 (C17, C23, C24 vsReach), U16 (C16, C22, C24 heapH).
+
+### (4) Batching
+- `JExt` cannot host these: it is indexed by `th` and `s` only, while the fields need `H`, `D`, `B`, `Cs`, `G` and `σ`.
+- So add `JCarry` as one new `JAtZ` component in step 1, with all six fields declared. Before a field's proofs land, it
+  can be carried as `True` (declared `bufObj : True` and later strengthened).
+- Better still: declare the final statements and supply the not-yet-proved ones at construction sites from a
+  temporary field-specific premise. That premise would have to be asked of every step, which the rules forbid. So:
+  **one constructor change, with all six fields at their final statements, in one pass**, the sites closed by
+  `JCarry.frame` where possible and by per-class lemmas elsewhere.
+- If one pass is too big for one PR: land step 1 with `JCarry` holding only the fields proved so far. Later fields
+  are added inside `JCarry`, whose constructions are centralised (`JCarry.frame`, per-class helpers), so the ~61
+  `JAtZ` constructions are not touched again. This is the recommended form.
+
+### (5) Rejected / simplified
+- **C24×3**: no own field (device copies of C21/C22/C23; `JDevPath` reads the same `JCarry` fields).
+- **D7, C26, C27**: no `JAtZ` field. They are spec-only, or spec plus the existing cap bridge (`DevRangeS`, `IdleVtS`).
+  This is cheaper than reverting devks' RAM-only restriction of `JAtZ.sfree` (g7a's alternative for C26, 79 files).
+- **C16 / C22 `RegionUnrefAt`**: not derivable from `JCovD.dead` (`DeadP`, ScPlaceDead.lean:46, describes a dead
+  object's own fields, not links into it), hence `unref`.
+- **No FINDING**: checked each statement against the reachable states.
+  * C4: a mapped table cap's table is live, l4v typ_at, and the drop is childless-only.
+  * C21: frames stay spec objects until detype.
+  * C25: true from boot, kept by `DevApart.retype`.
+  * D7: true from boot (`create_idle_thread` zeroes the TCB) and kept by `SpecGlob.idle`.
+  * C17: g7b-2 (3).
