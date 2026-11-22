@@ -503,8 +503,8 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C20 | Untyped RAM `core0` | `Z.c = 0` | [P]/[S] one core | | 1 |
 | C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | [J] (S–M: B grows at frame retype, shrinks at detype) | `valid_ipc_buffer_cap` + `obj_at` | 1 |
 | C22 | Untyped RAM `heapH` | as C16 | [J] | | 1, ∀gh |
-| C23 | Untyped RAM `vsReach` | `VsReachMiss` for the cap's region at the restart state | [J] (L) | `valid_vs_lookup` | 1 |
-| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there | | 1 |
+| C23 | Untyped RAM `vsReach` | `VsReachMiss` for the cap's region at the restart state | [J] (L); **FALSE as stated (FINDING g7b-2)**: asked for every RAM untyped invocation, also of a cap with children, whose region then holds e.g. a PML4 named by a slot's cap (a `NeedR` root, so `VsReach`); fix: guard with the childless test the reset branch already has (`hnd'`, UtRetResetJ) | `valid_vs_lookup` | 1 |
+| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: false as stated, as C23) | | 1 |
 | C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | [J] (`DevApart.retype` exists; not carried) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | 1, ∀gh |
 | C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | [J] (`DevFree.retype` exists) | `valid_untyped` | 1 |
 | C27 | Untyped device `devGpm` | global PML4 off every device untyped range | [J] | `valid_global_refs` | 1 |

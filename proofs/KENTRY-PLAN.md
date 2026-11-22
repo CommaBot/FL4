@@ -15506,3 +15506,88 @@ New leaves ScRestP1, ScRestJ, XTopJointKEntryU7 (root imports after XTopJointKEn
   `migrate_tcb`s no-ops; with several cores a Bind / Configure moving a thread to another core writes the debug
   lists, so `DbgKeep` would be false there — out of scope while `SchedRel` is one-core).
 - Next by §1.U3L: the D6 CR3 `tail` [W] is the only [W] leaf left at U7.
+
+## g7b-2 (branch par/g7b in FL4-g7b, on 629cd228) — C17 / C23 (`VsReachMiss`) of INV-PLAN §1.U3L: analysis only. **FINDING: C23 (and C24's device `vsReach`) is false as stated.** C17 is true but not derivable from what `JReachU3` / `JAtZ` / `SInvX` carry: half of it is derivable, the other half needs a new carried `JAtZ` fact (valid_vs_lookup). No Lean change, no new top
+Stopped after the analysis, as the brief asks when a leaf needs a `JAtZ` edit, and as the rules ask for a premise that is false in a reachable state.
+
+### (1) The premises
+- `Vs.VsReachMiss rl rh m ksb XP X4 X3 X2 X1` (VsDrop.lean:100): every table `VsReach` reaches misses `[rl, rh)`.
+  `VsReach` (VsDrop.lean:79) starts from the ASID table (`tbl`: every non-zero word `m (atA ksb h)`, h < 2048) and
+  from the extra roots, then follows pool entries, PML4 entries, PDPT and PD table entries.
+- At both sites the roots are `Vs.NeedR Z.th (L.mem s1) k` (UtDropJ2.lean:114): the table of every slot's
+  unmapped PT/PD/PDPT cap, and the object of every slot's PML4 cap (mapped or not) and ASID-pool cap (`VNeed`).
+- C17 `JAsidCPath.vsReach` (XTopJointVsCap.lean:574): for every slot x in the MDB that holds a RAM untyped cap of pool
+  size **with no descendants** (`∀ y, ¬ Mdb.Desc Z.G.par y x`), at the restart's state.
+- C23 `JUtPathM.vsReach` (XTopJointKEntry23P.lean:78, = `JUtPath.vsReach`, XTopJointEntry.lean:576) and
+  `JDevPath.vsReach` (XTopJointEntry.lean:643): for the invoked untyped cap's region `[p, p + 2^sb)`,
+  **unconditionally**.
+
+### (2) FINDING: C23 is false at reachable states
+- Trace: the root task holds a RAM untyped cap U with region R. It retypes a PML4 from U into one of its CNode
+  slots y (`Untyped_Retype`, type PML4): the new object q lies in R and slot y holds `.Pml4 q _ _`, a typed-heap
+  slot. At a later entry it invokes U again (any label, e.g. a second `Untyped_Retype`). At that dispatch state,
+  `JPathM`'s Untyped arm (XTopJointKEntry23P.lean, `dev = false → JUtPathM …`) asks `vsReach`. But `q ∈ NeedR … 4`
+  (`VNeed.pml4`), so `VsReach … 4 q` (`.x4`), and `FrMiss p (p+2^sb) q` fails (p ≤ q, q + 4096 ≤ p + 2^sb). So
+  the premise is false whatever the restart does: `VsReach` reads no thread-state word. The same holds with an
+  unmapped PT/PD/PDPT or an ASID pool from U, and, through the ASID table, with any reachable table in R.
+  `JDevPath.vsReach` fails the same way for a device untyped whose region holds a table (rarer, but the
+  statement still makes no exception).
+- Consequence: `KDispHypsKV…` (B4) cannot be supplied at any dispatch state that invokes an untyped whose region
+  holds a table named by a slot's cap. At such entries the syscall clause of `kernel_entry_reachU4` / `U7` (and
+  of every earlier top through `JUtPath`) is vacuous. This is the same class as g6a's `SniHyp` finding.
+- Why the proofs did not notice: the premise is read only on the reset branch, after the decode has established
+  that the cap has no children (UtRetResetJ.lean:422, `hnd' := nodesc_of_cdt hP hC hAs hnc`; the same in
+  UtRetResetJM / UtDevReset), where it is true (as C17).
+- Fix (not done: it edits the existing decode chain, not `JAtZ`): guard the field with the childless test, i.e.
+  `vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, … → VsReachMiss …`, like C17's. Then pass `hnd'`
+  where `hM` is consumed: UtRetResetJ (lines 339/598), UtRetResetJM (206/382/651/707), UtResetMR (312/488/832/875),
+  UtDevReset (297/438/663) and the dispatch sites (XTopJointEntry 1056/1069, XTopJointKEntry23P 982/987,
+  KEntry14P 139/144, KEntry40 453/460, KEntry41 48/51). That is about 20 use sites in 9 files, in the cone of
+  every top since 13P. Once guarded, C23 is the same statement as C17 at the invoked cap and follows from (3).
+
+### (3) C17 (and the guarded C23): what is derivable
+Split `VsReach` by where it starts:
+- **(a) From a `NeedR` root: derivable from what is carried.** A slot y with a table / PML4 / pool cap naming q,
+  q's 4 KiB frame meeting the region of the childless untyped cap at x. Then `y ∈ Z.G.chains.flatten`
+  (`MdbLinks.members`, from `J.xtop.rel`). The cap's range meets x's range, so `J.ut.drange` (UtInv, l4v
+  `untyped_children_in_mdb`) gives `Desc y x ∨ Desc x y`. The first contradicts childlessness. The second
+  contradicts `MdbInv.anc_ut` (an untyped's ancestors are untyped). This is exactly `JAtZ.dropBuf`'s `hFO` argument
+  for frame caps (UtDropJ2.lean:704-718), with `physF` of the table caps. The tables reached below such a root
+  need (b)'s fact too (a PML4 entry's target is not itself a root).
+- **(b) From the ASID table (and below any root): not derivable.** It needs l4v's `valid_vs_lookup`: every table
+  reached through the ASID table and the table entries is named by a cap in an MDB slot (the pool by a pool cap,
+  a PML4 by a mapped PML4 cap, a PDPT / PD / PT by a mapped table cap of that ASID and address). With it, (a)'s
+  argument finishes. Nothing carried states it:
+  * `JAtZ.vsc` (`VsSlotsW`) runs the other way: a cap's table is in the sets.
+  * `VsRel` / `PtRel` / `PoolsIn` put targets in the ghost sets, which may also hold unreachable or dead tables
+    (VsDrop's docstring).
+  * `JCovD.th` / `.h` (ScPlaceDead.lean:61) give `Covered` (inside some cap's range, an untyped's counts) or dead.
+  * `SInvX` has no VSpace-reachability family (grep `vs_lookup` in SpecInv*: none).
+  The spec state could carry it (l4v does: `valid_vs_lookup` is an `invs` conjunct over the spec's ASID table and
+  caps), but bridging the spec's reachability to FL4's `VsReach` again needs `VsRel`/`PtRel` at every reached
+  table, not only at the sets, so a spec-only carry does not avoid a `JAtZ`-level statement.
+
+### (4) The carry C17 needs, and its size
+- New `JAtZ` component (or `JExt`, if indexed by `Z.th`, `s` and `Z.G`), say
+  `vsNamed : ∀ k q, VsReach (L.mem s) (L.ksb s) ∅ ∅ ∅ ∅ ∅ k q → ∃ y ∈ Z.G.chains.flatten, VNames (capV (L.mem s) y) k q`
+  (`VNames`: `VNeed`'s caps with the mapped flag allowed). l4v: `valid_vs_lookup` + `valid_asid_table`.
+- Re-established at every `JAtZ` construction. The sets don't change it where the ASID table, the table words and
+  the slots are kept (most sites: a frame lemma from `VsReach` reading only table / ASID-table words, plus the
+  slots kept). It needs real proofs at:
+  * VSpace map/unmap: XTopJointVsMap, VsPtUnmapRel; a new entry's target is the mapped cap's table, an unmap
+    removes reach.
+  * ASID assign (XTopJointVsCap) and MakePool (XTopJointMakePool, MpDirtyJ).
+  * Cap copy/move/mutate/rotate (the name moves with the cap: CnodeCopy/Rotate frames).
+  * Delete/finalise of the last table / PML4 / pool cap (FL4 unmaps / clears the pool entry or ASID word first:
+    XTopJointFinVs, XTopJointFinVt).
+  * Revoke, the untyped drop / reset (`vsDropOK` already gives the pruned sets; reach only shrinks), and retype
+    (new tables are empty and unreachable).
+- Scale, by `JAtZ.vsc`, the nearest existing VSpace carry: 128 uses in 46 files. By `JAtZ.hscC` (the last component
+  added at every construction): 420 uses in 91 files. Expect the hscC-sized edit (every anonymous `JAtZ`
+  constructor) plus about 10 files of new preservation lemmas, then a full-cone rebuild (~7100 jobs) per
+  iteration.
+- After the carry, C17 is a theorem at the dispatch state ((a) + (b)), and the guarded C23 follows from the same
+  lemma. Lead decision (JAtZ edit).
+
+### (5) Builds
+None (no Lean change).
