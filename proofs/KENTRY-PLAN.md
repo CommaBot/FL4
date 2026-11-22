@@ -16883,3 +16883,57 @@ statement must quantify over every object of `H` (the `¬ D y →` antecedents d
    `RegionUnrefAt` narrowed to the (b)+(c)+(d) parts (needs a name: U22/U23 reserved, U24 kept for the final).
 2. jc6b: (b) symmetry family. 3. jc6c: (c) debug lists. 4. jc6d (several agents, or a Rust change first): (d).
    Then U24 = U21 without the `RegionUnrefAt` halves.
+
+## jc6a (branch par/jc6a from 7f6784dd = PR #66 head, top of record `kernel_entry_reachU21`) — part (a) of `RegionUnrefAt` PROVED at `JAtZ`; `RegionUnrefAt` split into (a)–(d); new top **`kernel_entry_reachU25`** (U21 with `RegionUnrefAt` narrowed to (b)+(c)+(d)); no premise added; no FINDING
+
+### (1) The split (new module P3/UnrefParts)
+With `KeptRef H D x := H x ≠ none → ¬ D x` (P1) and `D` the region predicate:
+- (a) `KeptRefsA H D s`: reply next (masked, when `headBit` false), reply prev (masked), SC `scReplyA`, TCB `yieldA`,
+  SC `scYieldFromA` — each for an `H` object `¬ D`.
+- (b) `KeptRefsB H D s`: TCB `boundA`, SC `scNtfnA`, ntfn `ntfnBtA`.
+- (c) `DbgKeptC H D Cs s`: TCB `dnA`/`dpA`, every core's `DEBUG_TCBS`.
+- (d) `TimerKeptD H D Cs s`: TCB `tlA`/`trA`/`tpA`, every core's `TIMER_ROOT`, `TIMER_MIN`.
+`keptRefsP3_iff` (`KeptRefsP3 ↔ A ∧ B`), `dbgTimerKept_iff` (`DbgTimerKept ↔ C ∧ D`). `RegionPartAt P H D s0` = "after
+the restart from `s0`, `P` at every `RegionD H lo hi` whose `H` objects are in `D`" (the shape of `RegionUnrefAt`);
+`RegionUnrefA/B/C/D` are its instances; `regionUnrefAt_iff : RegionUnrefAt H Cs D s0 ↔ A ∧ B ∧ C ∧ D`.
+`RegionUnrefBCD H Cs D s0 := RegionUnrefB ∧ RegionUnrefC ∧ RegionUnrefD`. `RegionUnrefAt`'s own definition (ScJoint)
+is unchanged, so no consumer changed.
+
+### (2) Part (a) at `JAtZ`
+`JAtZ.keptA (J : JAtZ … D s …) (hD : ∀ q k, H q = some k → Rg q → q ∈ D) : KeptRefsA H Rg s` — any `JAtZ` state,
+any `Rg`, no `Entered`, no carry. Proof: a link target named by an `H` object in `Rg` is in `D`, so `DeadP`;
+- `JAtZ.replyDead`: a dead reply has `rTcb = 0` (`DeadP`), so `replyTcb = none` (`IpcRel.reply`), so `Free`, so
+  (`RFree`) on no stack with null next/prev. `JAtZ.stackLive`: a reply on a call stack is live.
+- reply next: on a stack at index 0 the word is `sc ||| 1` (`headBit` true, excluded); at `j+1` it is the stack's
+  `j`-th reply (`StackW`), live; detached: 0, or (`CallRel.det`) a reply whose prev is the (non-null) linking reply,
+  so not free. Prev: symmetric (`getD (i+1)`; `det`'s prev clause). Masking by `and_not1` (replies 5-bit aligned,
+  `JKern.heap.align`); 0 masks to 0 and `H 0 = none`.
+- SC reply head: `StackW`'s head (`hscC` puts `H`'s SCs in `Z.C`).
+- TCB yield-to: `YieldRel.toSc` gives an SC of `Z.C` whose spec `scYieldFrom = some t` (`H` kind from
+  `JPlaced.sc`); a dead SC's word 56 is 0 (`DeadP`), and `ScRelW.yieldFrom` reads it as `none`.
+- SC yield-from: a nonzero word is the spec's `scYieldFrom` (`ScRelW.yieldFrom`), `YieldRel.frm` gives the TCB with
+  `YIELD_TO = c`; a dead TCB's is 0 (`DeadP`), but `c ≠ 0` (`JAtZ.c0`).
+`JAtZ.unrefA (J) (hni : Entered σ) : RegionUnrefA H D s`: `JAtZ.restartSJ` (same `H`, `D`) at the restart, then
+`keptA`. `JAtZ.regionUnrefAt (J) (hni) : RegionUnrefBCD H Cs D s → RegionUnrefAt H Cs D s`.
+
+### (3) Carried forms of (b)–(d) (definitions only, no threading; jc6 (2) correction)
+`KeptRefsBAll H D s`, `DbgKeptCAll H Cs D s`, `TimerKeptDAll H Cs D s`: the same links with dead set `(· ∈ D)` and
+**no `¬ D y` antecedent** (every object of `H`, dead ones included). `KeptRefsBAll.region` / `DbgKeptCAll.region` /
+`TimerKeptDAll.region` (via `keptRef_mono`) give the region form at the same state for any region whose `H` objects
+are in `D`. Still to do by jc6b/c/d: carry them in `JAtZ` (or derive) and move them across the restart (as
+`unrefA` does through `restartSJ`). Nothing was added to `JCarry` or to any construction site.
+
+### (4) `kernel_entry_reachU25` (P3/XTopJointKEntryU25)
+`JUtPathMU25` / `JAsidCPathU25` / `JDevPathU25` = `JUtPathMU16` / `JAsidCPathU16` / `JDevPathU21` with
+`unref : RegionUnrefBCD H Cs D s`; `JPathMEU25` / `JPathAtMU25` / `KDispHypsKVU25` = U21's with them;
+`.toU16` / `.toU21` take the dispatch state's `JAtZ` and `Entered`; `KDispHypsKVU25.toU21 J' (hb.enteredP hnd
+(hX.entered hct))` in the top. Removed relative to U21: part (a) of the `RegionUnrefAt` halves of C16 / C22 / C24
+heapH. Added: none. `JReachU17` unchanged; no existing top's statement and no internal signature changed (only new
+declarations). Remaining [J] at U25: C16 / C22 / C24 heapH (b)+(c)+(d), C17, C23.
+
+### (5) Builds and axioms
+Module builds jc6a-m1 (UnrefParts: an `absurd` and an ambiguous `optRef_ne`), jc6a-m2 (UnrefParts + U25: OK); full
+build jc6a-full1: `Build completed successfully (7301 jobs)`, 0 `error`, 0 `sorry`. `#print axioms` (../axjc6a.lean):
+U3L, UH2, U4..U21 and **U25**, `JAtZ.keptA`, `JAtZ.unrefA`, `regionUnrefAt_iff`, `sniHyp_of`, `sendHyp_of`,
+`scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`. No sorry / admit / native_decide /
+bv_decide / axiom in the new files.
