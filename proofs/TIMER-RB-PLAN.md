@@ -61,8 +61,8 @@ Stage-1 consequences (proved):
 | 1 | definitions above, pure height bound, `Rep` determinism/link lemmas, `TimerRB.no_link` | M | **done** |
 | 2 | **done (2a frame `TimerRBFrame`, 2b reads `TimerRBRead`)**; frame: `TimerRB` / `CoreTree` kept by writes outside the timer words (`TW`) and by writes of `tbA` (badge), `REPROGRAM`; read specs: `timer.left/right/parent/root/is_red/core_of` on a key return the abstract child/parent/colour | M | |
 | 3 | **3a done (`TimerRBZip`: `Ctx`, `CRep`, `rep_plug`, `rotL/rotR` keep keys); 3b done (`TimerRBWr`: writes as link updates); 3c open (`rotL_rep`, see §6)**; zipper: `Ctx` (path from the root: direction, parent key, colour, sibling subtree); `Rep` of `plug ctx t`; heap-level `rotate_left/right` at a node with context = abstract rotation (`Rep` re-established; keys order kept, so `sorted`, `Nodup`, membership and `minKey` follow from in-order equality); `replace_child`; `set_red` = recolour | L | |
-| 4 | `insert` descent: loop invariant = `cur` is the root of the subtree at a context whose in-order position is the insertion point; `fuel ≥ height(subtree)` from `height_le_128` ⇒ the loop exits on `cur = 0`, never on `fuel = 0`; attach `t` red; `first` ⇔ `t` is the new `minKey` (`TIMER_MIN` update) | L | |
-| 5 | `insert_fixup`: abstract invariant "red-black except a red–red edge between `z` and its parent" (CLRS 13.3 loop invariant) over the zipper, three cases × two sides; fuel `128 ≥ depth/2`; final root blackening | XL | |
+| 4 | **done (`TimerRBIns`, `TimerRBInsH`)**; `insert` descent: loop invariant = `cur` is the root of the subtree at a context whose in-order position is the insertion point; `fuel ≥ height(subtree)` from `height_le_128` ⇒ the loop exits on `cur = 0`, never on `fuel = 0`; attach `t` red; `first` ⇔ `t` is the new `minKey` (`TIMER_MIN` update) | L | |
+| 5 | **done (`TimerRBFix`, `TimerRBFixH`, `TimerRBFixL`; composed with 4 in `TimerRBInsC`)**; `insert_fixup`: abstract invariant "red-black except a red–red edge between `z` and its parent" (CLRS 13.3 loop invariant) over the zipper, three cases × two sides; fuel `128 ≥ depth/2`; final root blackening | XL | |
 | 6 | `remove` structural part: `TIMER_MIN` successor (in-order successor of the leftmost = next key), one-child splice and two-children successor transplant (`y` takes `t`'s place and colour), loops bounded by `height_le_128`; `t`'s links, height and deadline cleared ⇒ `idle` for `t` | XL | |
 | 7 | `remove_fixup`: "doubly black at `x`" invariant (CLRS 13.4) with `x` possibly `0` identified by `p`; four cases × two sides; fuel `256 ≥ depth`; the null-`x` case uses black height (`x = 0` ⇒ sibling non-null) | XL | |
 | 8 | composition: `timer.remove.rb`, `timer.insert.rb`, `timer.fire.rb` (loop of removes of `minKey`; `send_signal` frames by stage 2); `TF`-style footprint form so the existing `timer.remove.tf` callers can carry `TimerRB` | L | |
@@ -197,3 +197,38 @@ Next, in this order:
    `timer.set_red.on` + `RW.wr_red`, `timer.rotate_left/right.rep` (compose `RW` with their `WritesIn`/`Rep` via
    `Rep.det`), loop via `loop.spec_decr_nat` with measure `fuel`.
 3. Stages 6–9 as in §2.
+
+## 9. Fourth session (jc6d3 + jc6d4): stages 4 and 5 done
+
+- `TimerRBInsH.lean` (af288688): **`timer.insert.attach`** (heap attach of `t` inside `timer.insert`, `remove`'s and
+  `insert_fixup`'s specs as hypotheses `hrem`/`hfix`; result `InsMid` = `t` red at the hole, sorted, `t`'s core
+  bits, writes in `InsFoot`; `TIMER_MIN`/`REPROGRAM` written exactly when `ctx.pre = []`); `lk_wr_oth`/`lk_wr_th`,
+  `insFoot_not`.
+- `TimerRBFix.lean` (pure): `Ctx.parRed`, `Ctx.blk` (black path nodes), **`CtxOK ctx n`** (path red-black for a
+  black-height-`n` hole, red–red allowed only at the hole), `RootB`, `BalW`, `plug_balW`, **`plug_bal`**,
+  `CtxOK.of_bal`, **`blk_le_64`** (`2^bh ≤ |keys|+1 ≤ 2^64+1`), `Rep.recolor`.
+- `TimerRBFixH.lean`: walk state **`FB st T s0 c Ks s W`** (heap = `W` from the root word, keys `Ks` fixed,
+  writes in `FixFoot` = links/height words of `Ks ∪ {0}` + root word, core bits kept, `NodePlaced`);
+  `FB.set_red` (colour write = abstract recolour), `FB.rotL`/`FB.rotR` (heap rotations on `FB`).
+- `TimerRBFixL.lean`: loop invariant `FixInv` = `FixA` (z red at a `CtxOK` hole, `RootB`, `ctx.blk + 1 ≤ fuel`)
+  ∨ `FixB` (tree balanced, z's parent black/null, reached after a rotation case); case lemmas
+  `fix_case1L/R`, `fix_case3L/R`, `fixA_exit`, `Bal.blacken`; heap rounds `fix_body_exit`, `fix_body_LL/RL/RR/LR`
+  (+ shared tails `fix_tailL/R` after the optional inner rotation), `fix_body`; **`timer.insert_fixup_loop.rb`**
+  (`loop.spec_decr_nat`, measure = fuel; the `fuel = 0` exit is refuted by `blk + 1 ≤ fuel`, and a recolour
+  round removes one black path node, the grandparent); **`timer.insert_fixup.rb`** (from `t` red at a leaf hole
+  of a black-root red-black tree: result `FB` with `Bal W n` and black root; initial `blk ≤ 64 < 128`).
+- `TimerRBInsC.lean`: `FB.td`/`FB.min` (fixup writes no deadline / `TIMER_MIN`), `InsMid.np1/parT/th_old/min_old/
+  keys_iff/nodup/inT`, `CoreTree.of_fix`, **`timer.insert.core`**: after `timer.insert s t d bd` with `d ≠ 0`, the
+  current core has `CoreTree s' (cpu s1) W` with `W.keys = ctx.pre ++ t :: ctx.post` (old tree `ctx.plug leaf`).
+- Finding: no reachable bad state found; the fuel argument works as planned (fixup rounds ≤ 65; descent ≤ 128).
+- Full build green at d6693d4b: `Build completed successfully (7327 jobs)`, 0 errors, 0 sorry; axioms
+  propext/Classical.choice/Quot.sound for all new tops (axjc6d.lean, not committed).
+
+Next (exact):
+1. Stage 8 for insert (frame part): `timer.insert` touches only `t`'s fields, the hole parent's child links,
+   the fixup footprint (links/height words of the current tree's keys) and the current core's
+   `TIMER_ROOT`/`TIMER_MIN`/`REPROGRAM`; from that, the other cores' `CoreTree`s are framed
+   (`CoreTree.congr`/`TAgree`, they share no key with the current tree since a key's core bits name its core)
+   and `TimerRB` after insert follows with `hrem` = `timer.remove`'s `.rb` spec (stage 6/7).  Needs a
+   `WritesIn` footprint out of `timer.insert.core` (compose `InsMid.wi` with `FB.wi` and the two node writes).
+2. Stages 6–7 (`remove` structural part, `remove_fixup`), then 8 (`fire`), 9 (plug-in), as in §2.
