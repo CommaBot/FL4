@@ -60,12 +60,7 @@ theorem hout_back (h : HOut H H' lo hi A k w K) {q : U64} {kd : HKind} (hq : H' 
 
 end
 
-/-- **[J] The `other` object of `H` at a spec arch object is no larger than
-it** (l4v: the arch objects' `obj_range` is the object's own; P1's heap
-holds a VSpace table as `other 12`, the spec's table of `2 ^ 12` bytes).
-With `SpecFree` it keeps those `H` objects off an untyped cap's free part. -/
-def ArchFitHyp (H : Heap) (σ : Fl4Spec.State Unit) : Prop :=
-  ∀ o ao n, σ.kheap o = some (.archObj ao) → H ⟨o⟩ = some (.other n) → n ≤ Fl4Spec.objBits (.archObj ao)
+-- `ArchFitHyp` moved to JCarryDefs (jc1, unchanged statement).
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A' : Type} {arI : machine.Arch A'}

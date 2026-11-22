@@ -16425,3 +16425,52 @@ global ref).
 - Builds: sd7-m5 (U15 module, 7156 jobs, green first try); **sd7-full2** (full build at f17afe07, also the merge check of
   b21d7502): "Build completed successfully (7251 jobs)", 0 `error`, 0 `sorry`. `#print axioms` U15, U12, U13, U11 and the
   older tops: propext, Classical.choice, Quot.sound.
+
+## jc1 (s27-2, branch par/jc1 from 9d4d4615, top of record `kernel_entry_reachU15`) — g7b-4 step 1, PART 1 only: `JCarry` facts and frame lemmas built, NOT yet a `JAtZ` field; no new top; no FINDING (one design correction)
+
+### (1) Done (commit on par/jc1)
+- New module **JCarryDefs** (imported by JointAt, so every `JAtZ` user sees it):
+  * `BufObjHyp` and `ArchFitHyp` **moved** here from XTopJointUtEp / UtEpSets (statements unchanged; the old files
+    keep a one-line pointer). Every existing user compiles unchanged.
+  * `BufPgHyp B σ`: every word of `B` in a **non-device data page** of σ; `bufObj_of_pg : BufPgHyp → BufObjHyp`.
+  * `BufPgHyp.frame` (B shrunk/kept, non-device data pages kept forward = `IpcFrKeep.page`), `BufPgHyp.grow`
+    (UtFrameAdd's `BNew`: new words lie in new non-device pages).
+  * `aaSize`, `archKobjSize_aaSize`, `archObj_of_aType` (an object of an arch object's `aType` is an arch object of the
+    same size), `ArchFitHyp.frame` (from `KSz`, `H` kept).
+  * `structure JCarry (B) (H) (σ)` with `bufPg : BufPgHyp B σ`, `archFit : ArchFitHyp H σ`; `JCarry.bufObj`;
+    **`JCarry.frame (h) (hB : B' ⊆ B) (hF : IpcFrKeep σ σ') (hk : KSz σ σ')`**.
+
+### (2) Design correction (g7b-4 (1) `bufObj`)
+`BufObjHyp` as stated cannot be carried through a frame step: the frame facts each `JAtZ` construction has are `KSz`
+(backward: an object after was one of the same type before) and `IpcFrKeep` (forward only for non-device data pages);
+neither keeps an arbitrary spec object. The carried form is `BufPgHyp` (true: `B` only grows by the RAM frame retype's
+new words, UtEpRet `hBN`/UtFrameAdd `BNew`, and is only pruned by the detype's `KeepB (KBOf p sb)`; `XSets.dropV`
+itself does NOT prune `B`, contrary to g7b-4 (2)'s table), and C21 follows by `bufObj_of_pg`. The field is `bufPg`.
+`JCarry` is indexed by `Z.B`, `H`, σ only for now (later fields add `Cs D s`; with `[L]` the signature changes, so add
+them in the same pass as the field if possible).
+
+### (3) Remaining for step 1 (exact recipe)
+1. Add `carry : JCarry Z.B H σ` as the LAST field of `JAtZ` (JointAt.lean) and of `JAtZR` (XTopJointJAtZR.lean:47) and
+   `JAtZS` (XTopJointJAtZS.lean:38) (the `zD := J.zD` conversions at XTopJointJAtZR 232/284/337, XTopJointJAtZS
+   229/282, XTopJointLiveKeep 39, XTopJointRecvSendP 150, XTopJointRestart 559, XTopJointFinThreadU 371 get
+   `carry := J.carry` or `J.carry.frame …`).
+2. Construction sites: `grep -rn "JAtZ.mk\|zD :=\|zD⟩\|zDX" Fl4Proofs/P3/*.lean` (91 hits, 58 files at 9d4d4615;
+   the `⟨Z.vs, J.cs_frameI …⟩` hits are calls into the XTopJointStep helpers, fixed once there). At each anonymous
+   construction append `, J.carry.frame hB hF hk`, where **`hF` is the `IpcFrKeep` the same construction passes to
+   `J.fcov.ipcFr`/`J.bok.keep`** (e.g. ScJointFrame `IpcFrKeep.of_otk hK.kh`, the RecvSend family `F.ipcFr`) and
+   **`hk` the `KSz` it passes to `SpecFree.frame`** (`hK.ksz`, `F.szKeep`, `hsz`); `hB` is `subset_rfl` (`Z.B` kept)
+   except at the drop.
+3. Real sites: frame retype (UtEpRet ~1043: `BufPgHyp.grow` with `hBN` and the new pages of `retypeRegion`;
+   `ArchFitHyp` with `H` grown: new `other` objects are the new tables/frames, sized by `objBitsApi`, UtPmRet /
+   UtEpSets `addSetsG`); drop (UtDropJ2 `dropA`, UtDevDrop `dropAD`; `B' = KeepB (KBOf p sb) Z.B ⊆ Z.B`, pages with
+   base off the region are kept by `detype`; a page with base inside the region holding a word past its end needs
+   the no-straddle fact (`SpecOffR` / the region's `RegionFree` side; check before assuming); `ArchFitHyp`: `H` loses
+   the region's objects, `KSz`-style backward fact of `detype`); VSpace writes (setObject of a table: `KSz` holds,
+   `IpcFrKeep` holds; MakePool new pool: `H` and kheap grow together).
+4. Remove the premises: `JUtPath(M).bufObj`, `JDevPath.bufObj`, `.heapH.1` → new path structures without them
+   (as s27's `JDevPathU12`), top `kernel_entry_reachU16` from U15, start fact in `JAtZ` itself (no extra bundle).
+
+### (4) Builds and axioms
+s27-jc1-m1 (JCarryDefs alone) green; full build s27-jc1-full (tokyo): `Build completed successfully (7253 jobs)`,
+0 `error`, 0 `sorry`; every existing top unchanged (U4..U15: [propext, Classical.choice, Quot.sound]); `JCarry.frame`
+the same, `BufPgHyp.grow` [propext].

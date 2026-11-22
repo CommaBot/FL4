@@ -186,6 +186,7 @@ import Fl4Proofs.P3.RetypePlace
 import Fl4Proofs.P3.ScUtRetype
 import Fl4Proofs.P3.ScUtRetypeDev
 import Fl4Proofs.P3.ScRemoveTcb
+import Fl4Proofs.P3.JCarryDefs
 import Fl4Proofs.P3.JointAt
 import Fl4Proofs.P3.ScJoint
 import Fl4Proofs.P3.ScJointKeep
