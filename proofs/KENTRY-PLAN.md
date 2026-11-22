@@ -15448,3 +15448,52 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
+
+## g7c (branch par/g7c in FL4-g7c, on b41579ba = main, top `kernel_entry_reachU4`) — D6 (`KFinAtR31.tail`, [W] CR3 after `schedule`)
+New modules only; nothing existing edited.
+
+### (a) What D6 says and what it needs (written before any proof)
+- **Statement** (XTopJointKEntry31 `KFinAtR31.tail`, asked at every `JAtZR` state the finish starts from):
+  `sched.schedule st arI s a ⦃ r => ∀ rf σ1 σ' D1, Fires σ σ1 → schedule σ1 = {((), σ')} → WritesIn rf.1 r.1 (KFootN … rf.1 σ1)
+  → SchedRel r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' → AR r.2 σ'.archState.x64CurrentCr3 ⦄`.
+- **What decides the CR3 on each side.** FL4 `schedule` changes the arch state only by `set_vm_root t` / `set_kernel_vm_root`
+  (in `switch_to_thread` / `switch_to_idle_thread`) and by ops that keep `AR` (`ARKeep`, A2: `now`, `set_deadline`,
+  `send_reschedule`; `commit_time` takes `&A`). The spec's `schedule` changes `x64CurrentCr3` only in `archSwitchToThread t`
+  (= `setVmRoot t; lazyFpuRestore t`) and `archSwitchToIdleThread` (= `setVmRoot idleThread`); `awaken`, `tcbSchedAction`,
+  `setSchedulerAction`, `scAndTimer`, `lazyFpuRestore`, `dequeue`, the `curThread` write and the timer signals (`Fires`)
+  keep it (and the ASID table, the global PML4, `idleThread`). So after `schedule`: no switch → both keep the entry CR3
+  (FL4: `AR a σ.cr3`, from `JAtZR.xtop` (`OthersRel`'s last conjunct)); switch to `t` → FL4 `AR r.2 (makeCr3 (addrFromPPtr ptr) asid)`
+  or the kernel root, the spec `rootCr3 σ_sw t (findVspaceForAsid asid)` (VsRoot's `setVmRoot_mapped` / `setVmRoot_other`).
+- **Joint facts that make the two roots equal** (all in `JAtZ` at the state after the timers, `XTopAt`):
+  the vtable cap: `StateRel.tcb` (in `CRel`, `XTopAt.rel.2.1.1`) — FL4 slot 1 of `t` ↔ `tcbVtable` (`tcbCnodeMap_one`);
+  the ASID lookup: `VsRel P` (`FinX`'s second conjunct; `find_vspace_for_asid_rel` / `_all`), a mapped PML4 cap's ASID ≠ 0
+  (`vtAsid_ofR`, from `JAtZR.vsc`); the kernel root: `KRootRel` (OthersRel; `ks::KERNEL_ROOT` ↔ `globCr3`).
+  From the state after the timers to the switch point FL4 writes only `SFoot` words (TCB scheduler fields, node words),
+  which are `OObj` (`tfoot_oobj`) and so not `VObj` (`TopPlaced.disj`: slots, pools, the ASID table at ksb+288000) and not
+  the kernel-root word (`tfoot_ksb`); the spec keeps `kheap` (`Calm`, `QChange`) and the projection
+  (cr3, ASID table, global PML4, idle thread) up to the switch.
+- **Arch premise.** Only A15 `ArchRefines.setVspace` (`∀ a c ptr asid, AR a c → set_vspace a ptr asid ⦃ a' => AR a' (makeCr3 (addrFromPPtr ptr) asid) ⦄`):
+  state-free (∀ a under AR), already a premise of the top. No new [P].
+- **The idle thread (a deviation).** FL4's `switch_to_idle_thread` calls `set_kernel_vm_root` (kernel root, ASID 0) while the
+  spec's `archSwitchToIdleThread` is `setVmRoot idleThread`, which reads the idle TCB's vtable. They agree iff the idle TCB's
+  slot 1 holds no mapped PML4 cap whose ASID maps to it. True in reachable states (boot `create_idle_thread` zeroes the TCB
+  incl. its slots; no cap names the idle thread (`ScPlace.noIdle`), and only TCB invocations write a TCB's slots), but not
+  carried by `JAtZ` / `SInvX`: a [J] fact `IdleVt` (l4v: the idle thread is created with null caps; C `Arch_switchToIdleThread`
+  = `setVMRoot(ksIdleThread)` relies on the same), asked at one state.
+- **The obstacle: D6 quantifies over every `Fires` successor σ1**, not the run's. `Fires` = any sequence of `sendSignal`s to
+  any notification with any badge. Every consumer (`jat_scheduleT2`, `jat_scheduleFR2ZR`, …) applies the tail only at the
+  σ1, σ' the scheduler chain produces, but the field asks it for all σ1 satisfying the listed facts. For such a σ1 the spec
+  may switch (to the same current thread) while FL4 does not, or the converse; then σ'.cr3 is the current thread's root
+  while FL4 kept the entry CR3. They differ when the entry CR3 is stale, which is reachable: TCB `SetSpace` on the caller
+  (`tcb.rs` `thread_control_caps`: no `reschedule_required`, as seL4) changes the current thread's vtable without a switch.
+  Ruling those σ1 out needs a correlation argument (σ's action is `resume`; a σ1 that makes the spec switch woke a thread,
+  which `SchedRel r.1 σ'` then shows in the ready / release queues, so FL4 woke the same and switched too) — not attempted.
+  Without it D6 cannot be proved as stated; with the run's own σ1, σ' it can (plan below). A drop-in `KFinAtR31` without the
+  tail is not possible (the field is fixed), and a top without D6 then needs the tail weakened to the run's outcome in the
+  lowest consumer and every top above it re-stated (`jat_scheduleFR2ZR` → `jat_finishJRP` → KEntry28/29/… → U4).
+- **Plan for (b)** (the run's outcome): `schedule_refinesWP0FR`'s chain (ScNextDomCFR / ScNextDomCF / ScNextDomF / ScScheduleF /
+  ScArchF) with `AR` carried: `switch_to_thread` / `switch_to_idle_thread` / `choose_thread` get `AR r.2 σ'.cr3` from a FL4
+  root lemma (`set_vm_root` at a state equal to the base on the `VObj` and kernel-root words, with the spec's `setVmRoot` clause
+  at any spec state with the base's heap and projection) and a spec cr3 lemma (`switchToThread` / `switchToIdleThread`);
+  the queue steps before the switch carry the base equalities (`SFoot` writes; `QChange`/`Calm` heap equality, the projection
+  family); the tail (`set_action` .. `send_pending`) keeps `AR` (`ARKeep` via `ak_walk`) and the spec's `scAndTimer` keeps cr3.
