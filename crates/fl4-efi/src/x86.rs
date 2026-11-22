@@ -23,6 +23,9 @@ const TABLE_BYTES: u64 = 10 * PAGE;
 const INFO_BYTES: u64 = 4 * PAGE;
 // Match the kernel's mboot::MAX_MMAP after adjacent descriptors are merged.
 const MAX_MMAP: u64 = 128;
+/// FL4's Multiboot 2 tag for the TPM event log copy: physical address,
+/// size, flags (the kernel's mboot.rs).
+const MB2_TAG_TPM_EVENT_LOG: u32 = 0x464c_3401;
 
 fn alloc_low(bytes: u64) -> u64 {
     let mut address = TOP - 1;
@@ -386,7 +389,11 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         .iter()
         .map(|&(_, len, _)| len.div_ceil(PAGE) * PAGE)
         .sum();
-    let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len;
+    // The TPM event log goes after the files, with room for the events
+    // ExitBootServices adds.
+    let tpm = tcg2::collect();
+    let tpm_cap = tpm.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
+    let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len + tpm_cap;
     let base = alloc_low(len + HUGE);
     let delta = base.div_ceil(HUGE) * HUGE;
     unsafe {
@@ -427,6 +434,10 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         info.module(dst, size, &name[..name.len().min(63)]);
         dst += size.div_ceil(PAGE) * PAGE;
     }
+    let tpm_dst = dst;
+    if let Some(t) = &tpm {
+        t.copy_main(tpm_dst);
+    }
     let rsdp = config_table(ACPI_20);
     let (rsdp, kind, size) = if rsdp != 0 {
         (rsdp, 15, 36)
@@ -446,6 +457,15 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
             write(info.tag(8, gop::LEN as u64), &fb);
         }
     }
+    // Its size and flags are final after ExitBootServices (below).
+    let tpm_tag_pa = tpm.as_ref().map(|t| {
+        let (size, flags) = t.record();
+        let p = info.tag(MB2_TAG_TPM_EVENT_LOG, 24);
+        write(p, &tpm_dst.to_le_bytes());
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
+        p
+    });
     let trampoline = handoff_code();
     say!("fl4-efi: entering x86_64 kernel, SEV-SNP {}", cpuid != 0);
     let (mut size, mut key, mut stride, mut version) = (0, 0, 0, 0);
@@ -488,6 +508,13 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         if attempt == 7 {
             handoff_failed(attempt, "ExitBootServices");
         }
+    }
+    // No boot services: firmware's identity map and the final events
+    // table (ACPI NVS) are still there.
+    if let (Some(t), Some(p)) = (&tpm, tpm_tag_pa) {
+        let (size, flags) = t.finish(tpm_dst);
+        write(p + 8, &size.to_le_bytes());
+        write(p + 16, &flags.to_le_bytes());
     }
     unsafe {
         asm!(

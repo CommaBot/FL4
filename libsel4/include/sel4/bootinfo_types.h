@@ -111,6 +111,7 @@ typedef enum {
     SEL4_BOOTINFO_HEADER_SHARED_DMA         = 9, /* Header only. DMA requires RetypeShared frames. */
     SEL4_BOOTINFO_HEADER_X86_EXTRA_UNTYPEDS = 10, /* seL4_UntypedDesc[], slots follow untyped.end */
     SEL4_BOOTINFO_HEADER_AARCH64_VIRT_INFO  = 11, /* seL4_AArch64VirtInfo */
+    SEL4_BOOTINFO_HEADER_TPM_EVENT_LOG      = 12, /* seL4_TpmEventLog */
     /* Add more IDs here, the two elements below must always be at the end. */
     SEL4_BOOTINFO_HEADER_NUM,
     SEL4_FORCE_LONG_ENUM(seL4_BootInfoID)
@@ -153,6 +154,17 @@ typedef struct seL4_AArch64VirtInfo {
     seL4_Word id_aa64dfr0_el1;
     seL4_Word id_aa64dfr1_el1;
 } seL4_AArch64VirtInfo;
+
+/* SEL4_BOOTINFO_HEADER_TPM_EVENT_LOG: the UEFI TPM event log, copied by the
+ * loader, in device untyped memory (retyping it does not clear it). */
+#define seL4_TpmEventLog_Truncated (1ul << 0)
+#define seL4_TpmEventLog_Tcg12     (1ul << 1)
+
+typedef struct seL4_TpmEventLog {
+    seL4_Word paddr; /* 4 KiB-aligned physical address (in device untypeds) */
+    seL4_Word size;  /* exact byte length of the finalized event log */
+    seL4_Word flags; /* bit 0 = truncated, bit 1 = tcg_1_2 (0 = TCG 2.0) */
+} seL4_TpmEventLog;
 
 SEL4_COMPILE_ASSERT(
     invalid_seL4_BootInfoHeader,

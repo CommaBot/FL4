@@ -316,4 +316,14 @@ pub mod bootinfo_header {
     pub const X86_EXTRA_UNTYPEDS: u64 = 10;
     /// AArch64 EL2/VHE virtualization capabilities and GIC/ID metadata.
     pub const AARCH64_VIRT_INFO: u64 = 11;
+    /// UEFI TPM event log (seL4_TpmEventLog: paddr, size, flags).
+    pub const TPM_EVENT_LOG: u64 = 12;
+}
+
+/// `bootinfo_header::TPM_EVENT_LOG` flags (libsel4 `seL4_TpmEventLog_*`).
+pub mod tpm_event_log_flag {
+    /// Events are missing at the end of the log.
+    pub const TRUNCATED: u64 = 1 << 0;
+    /// The log is in the TCG 1.2 (SHA-1) format; clear for TCG 2.0 crypto agile.
+    pub const TCG_1_2: u64 = 1 << 1;
 }

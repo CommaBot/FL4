@@ -16,6 +16,13 @@ const MODULE_NAME_LEN: usize = 64;
 const BOOT_MAP_TOP: u64 = 1 << 32;
 /// Multiboot 1 information up to the framebuffer type byte.
 const MB1_INFO_LEN: u64 = 110;
+/// FL4's Multiboot 2 tag for the UEFI TPM event log (fl4-efi x86.rs):
+/// physical address, size, flags, eight bytes each.
+pub const MB2_TAG_TPM_EVENT_LOG: u32 = 0x464c_3401;
+/// The longest TPM event log taken (fl4-efi tcg2.rs `MAX_EVENT_LOG`).
+pub const MAX_TPM_LOG: u64 = 1 << 20;
+/// Where a TPM event log may start: past the first MiB.
+const TPM_LOG_MIN: u64 = 0x10_0000;
 
 /// Whether `[p, p + len)` lies in the boot mapping.
 fn inside(p: u64, len: u64) -> bool {
@@ -59,6 +66,16 @@ pub struct BootInfo {
     pub cmdline_len: u64,
     /// The framebuffer the boot loader set up, if any.
     pub fb: Option<Framebuffer>,
+    /// The TPM event log fl4-efi copied, if any.
+    pub tpm_log: Option<TpmLog>,
+}
+
+/// A TPM event log in boot loader memory (seL4_TpmEventLog's fields).
+#[derive(Clone, Copy)]
+pub struct TpmLog {
+    pub paddr: u64,
+    pub size: u64,
+    pub flags: u64,
 }
 
 /// seL4's `multiboot2_fb_t`.
@@ -169,7 +186,7 @@ pub fn has_option(b: &BootInfo, opt: &[u8]) -> bool {
 }
 
 pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
-    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None };
+    let mut b = BootInfo { mmap: [MemRegion::default(); MAX_MMAP], n_mmap: 0, mmap_lost: false, modules: [Module::EMPTY; MAX_MODULES], n_modules: 0, rsdp: None, cmdline: 0, cmdline_len: 0, fb: None, tpm_log: None };
     if magic == MB1_MAGIC {
         if !inside(info, MB1_INFO_LEN) {
             return None;
@@ -237,6 +254,16 @@ pub fn parse(magic: u32, info: u64) -> Option<BootInfo> {
             14 | 15 if size >= 8 + if ty == 14 { 20 } else { 36 } => {
                 if b.rsdp.is_none() || ty == 15 {
                     b.rsdp = Some(t + 8);
+                }
+            }
+            MB2_TAG_TPM_EVENT_LOG if size >= 32 => {
+                let log = TpmLog { paddr: rd64(t + 8), size: rd64(t + 16), flags: rd64(t + 24) };
+                // Above low memory, which the APs' boot code overwrites
+                // before the kernel copies the log (lib.rs).
+                if log.size > 0 && log.size <= MAX_TPM_LOG && log.paddr >= TPM_LOG_MIN && inside(log.paddr, log.size) {
+                    b.tpm_log = Some(log);
+                } else {
+                    crate::kprintln!("FL4: TPM event log tag out of range: ignored");
                 }
             }
             _ => {}

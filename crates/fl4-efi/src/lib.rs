@@ -187,6 +187,7 @@ macro_rules! say {
 mod efi_mmap;
 #[cfg(target_arch = "x86_64")]
 mod gop;
+mod tcg2;
 #[cfg(target_arch = "x86_64")]
 mod snp_map;
 #[cfg(target_arch = "x86_64")]
@@ -562,6 +563,29 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     say!("fl4-efi: kernel region {:#x} ({:#x} bytes), root task {:#x}..{:#x}, ACPI {:#x}, device tree {:#x}",
         region, region_len, bi.root.p_start, bi.root.p_end, bi.rsdp, bi.dtb);
 
+    // The TPM event log: out of boot services memory into the loader's
+    // own, with room for the final events (appended below). Without one,
+    // or without memory for it, the kernel gets none.
+    let tpm = tcg2::collect().and_then(|t| {
+        let pages = t.capacity().div_ceil(PAGE);
+        match try_alloc_pages(pages) {
+            Ok(pa) => {
+                // Whole pages go to user space: none of their old contents.
+                unsafe { core::ptr::write_bytes(pa as *mut u8, 0, (pages * PAGE) as usize) };
+                t.copy_main(pa);
+                let (size, flags) = t.record();
+                bi.tpm_log_paddr = pa;
+                bi.tpm_log_size = size;
+                bi.tpm_log_flags = flags;
+                Some((t, pa))
+            }
+            Err(_) => {
+                say!("fl4-efi: no memory for the TPM event log: not passed on");
+                None
+            }
+        }
+    });
+
     // The memory map, then leave boot services.
     let mut size = 0usize;
     let mut key = 0usize;
@@ -595,11 +619,20 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
             handoff_failed(tries, "ExitBootServices");
         }
     }
-    // No boot services from here on.
+    // No boot services from here on. The events ExitBootServices logged
+    // go after the copy (before the record is cleaned to memory).
+    if let Some((t, pa)) = &tpm {
+        let (size, flags) = t.finish(*pa);
+        bi.tpm_log_size = size;
+        bi.tpm_log_flags = flags;
+    }
     clean(region, region_len);
     clean(bi.root.p_start, bi.root.p_end - bi.root.p_start);
     for i in 0..bi.n_modules as usize {
         clean(bi.modules[i].paddr, bi.modules[i].size);
+    }
+    if bi.tpm_log_paddr != 0 {
+        clean(bi.tpm_log_paddr, bi.tpm_log_size.div_ceil(PAGE) * PAGE);
     }
     unsafe { enter(region, bi_off) }
 }
