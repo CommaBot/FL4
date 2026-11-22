@@ -40,6 +40,11 @@ structure KFinAt2 (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (C
   sni : SniHyp st arI Z.N Z.T Z.C Z.c
   send : SendHyp st arI Z.N Z.T Z.C Z.c
   tail : sched.schedule st arI s a ⦃ r => ∀ (rf : S × A) σ1 σ' (D1 : Set U64), Fires σ σ1 →
+      timer.fire st arI s a = ok rf →
+      ((∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZR (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) ∨
+       ∃ (V1 : XVs) (Ac1 : Set U64) (Lst1 : U64 → List U64) (D2 : Set U64),
+        JAtZ (L := L) arI AR (Z.mv Z.G V1) H Cs Ac1 Lst1 D2 rf.1 rf.2 σ1) →
       Fl4Spec.schedule (Z := Unit) σ1 = ({((), σ')}, False) →
       P1.WritesIn st rf.1 r.1 (KFootN st Z.T Z.N Z.C Z.c rf.1 σ1) →
       SchedRel st Z.N Z.T Z.C Z.c r.1 σ' → Inv σ' → CurInv σ' → ActIdle σ' →
