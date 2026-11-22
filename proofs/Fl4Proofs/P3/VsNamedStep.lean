@@ -389,4 +389,63 @@ theorem wstep5_inv {P : Set U64} {m' : U64 → U64} {ksb : U64} {σ' : Fl4Spec.S
 
 end
 
+
+/-! ## The parent at a ref -/
+
+section Par
+variable {m m' : U64 → U64} {ksb : U64}
+
+/-- **A step's parent and index are determined by the ref it gives.** -/
+theorem VsPath.par_eq {k : Nat} (hk2 : 2 ≤ k) (hk5 : k ≤ 5) {p p' : U64} {a1 v1 a1' v1' : Nat} {i i' : U64}
+    (h : VsPath m ksb k p a1 v1) (h' : VsPath m ksb k p' a1' v1') (hi : i.val < bnd k) (hi' : i'.val < bnd k)
+    (hr : rstep k a1 v1 i.val = rstep k a1' v1' i'.val) : p = p' ∧ i = i' := by
+  obtain rfl | rfl | rfl | rfl : k = 5 ∨ k = 4 ∨ k = 3 ∨ k = 2 := by omega
+  · have hb := h.base5
+    have hb' := h'.base5
+    have e1 := h.v5
+    have e2 := h'.v5
+    subst e1; subst e2
+    simp [rstep] at hr
+    simp [bnd] at hi hi'
+    obtain rfl : a1' = a1 := by omega
+    exact ⟨h.det h', UScalar.eq_of_val_eq (by omega)⟩
+  · have e1 := h.v4
+    have e2 := h'.v4
+    subst e1; subst e2
+    simp [rstep] at hr
+    simp [bnd] at hi hi'
+    obtain ⟨rfl, hr⟩ := hr
+    exact ⟨h.det h', UScalar.eq_of_val_eq (by omega)⟩
+  · have r1 : RefOK 3 v1 := h.refOK
+    have r2 : RefOK 3 v1' := h'.refOK
+    obtain ⟨r1a, -⟩ := r1
+    obtain ⟨r2a, -⟩ := r2
+    simp [rstep] at hr
+    simp [bnd] at hi hi'
+    obtain ⟨rfl, hr⟩ := hr
+    obtain rfl : v1' = v1 := by omega
+    exact ⟨h.det h', UScalar.eq_of_val_eq (by omega)⟩
+  · have r1 : RefOK 2 v1 := h.refOK
+    have r2 : RefOK 2 v1' := h'.refOK
+    obtain ⟨r1a, -⟩ := r1
+    obtain ⟨r2a, -⟩ := r2
+    simp [rstep] at hr
+    simp [bnd] at hi hi'
+    obtain ⟨rfl, hr⟩ := hr
+    obtain rfl : v1' = v1 := by omega
+    exact ⟨h.det h', UScalar.eq_of_val_eq (by omega)⟩
+
+/-- `gone`'s `hpar` from the one parent at the ref (FL4's lookup at the cap's
+ref) whose entry no longer steps to `q0`. -/
+theorem hpar_of {k0 : Nat} (hk1 : 1 ≤ k0) (hk4 : k0 ≤ 4) {p0 i0 q0 : U64} {a1 v1 a v : Nat}
+    (hp0 : VsPath m ksb (k0 + 1) p0 a1 v1) (hi0 : i0.val < bnd (k0 + 1)) (hr0 : rstep (k0 + 1) a1 v1 i0.val = (a, v))
+    (hcl : wstep (k0 + 1) (m' (peA p0 i0)) ≠ some q0) :
+    ∀ (p : U64) (a1' v1' : Nat) (i : U64), VsPath m ksb (k0 + 1) p a1' v1' → i.val < bnd (k0 + 1) →
+      rstep (k0 + 1) a1' v1' i.val = (a, v) → wstep (k0 + 1) (m' (peA p i)) ≠ some q0 := by
+  intro p a1' v1' i hp hi hr
+  obtain ⟨rfl, rfl⟩ := VsPath.par_eq (by omega) (by omega) hp hp0 hi hi0 (hr.trans hr0.symm)
+  exact hcl
+
+end Par
+
 end Fl4Proofs.P3.Vs
