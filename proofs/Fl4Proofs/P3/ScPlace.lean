@@ -41,7 +41,8 @@ object of `H` inside its range (so a non-null table, `H` holding nothing at
 0); an EPT, frame, page-table, page-directory or PDPT cap's range meets no
 object of `H` but `other` ones (l4v `valid_cap`'s `typ_at` with
 `pspace_distinct`; a VSpace table is an `other` object, so its cap's frame
-holds no live object even once the table left the VSpace sets; the frames
+holds no live object even once the table left the VSpace sets; (f1) a PML4
+cap's likewise, mapped or not: an orphaned mapped PML4 is in no set; the frames
 are user memory; stated by range, not by an object at the frame's base,
 since a 4 KiB alias of a page of a large frame has no object of its own).
 An SC cap names an SC of `H` of the cap's size (l4v `valid_cap`'s
@@ -57,6 +58,7 @@ def CapObjH (H : Heap) (isc : U64) : capability.Cap → Prop
   | .PageTable p m a v => FrApartH H (.PageTable p m a v)
   | .PageDirectory p m a v => FrApartH H (.PageDirectory p m a v)
   | .Pdpt p m a v => FrApartH H (.Pdpt p m a v)
+  | .Pml4 p m a => FrApartH H (.Pml4 p m a)
   | .SchedContext p sb => H p = some (.sc sb.val) ∧ p ≠ isc
   | _ => True
 
@@ -86,6 +88,10 @@ theorem capObjH_of_shape {H : Heap} {isc : U64} {c d : capability.Cap} (h : shap
     intro q k hq hk
     rw [hb, ht]; exact hd q k hq hk
   | Pdpt p m a v =>
+    cases d <;> simp only [shape, reduceCtorEq] at h
+    intro q k hq hk
+    rw [hb, ht]; exact hd q k hq hk
+  | Pml4 p m a =>
     cases d <;> simp only [shape, reduceCtorEq] at h
     intro q k hq hk
     rw [hb, ht]; exact hd q k hq hk

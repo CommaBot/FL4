@@ -54,7 +54,8 @@ theorem fullF_zombie {a c u : capability.Cap} (h : fullF a c = some u) {p zt n :
   cases a <;> cases c <;> simp [fullF] at h
 
 /-- The caps naming an endpoint, a notification or a reply (the objects
-`CapTyped` constrains), a frame, an EPT table or an SC (`CapObjH`). -/
+`CapTyped` constrains), a frame, an EPT table, a VSpace table or (f1) PML4, or an SC
+(`CapObjH`). -/
 def tyObj : capability.Cap → Bool
   | .Endpoint .. => true
   | .SchedContext .. => true
@@ -65,6 +66,7 @@ def tyObj : capability.Cap → Bool
   | .PageTable .. => true
   | .PageDirectory .. => true
   | .Pdpt .. => true
+  | .Pml4 .. => true
   | _ => false
 
 theorem tyObj_of_shape {c d : capability.Cap} (h : shape c = shape d) : tyObj c = tyObj d := by

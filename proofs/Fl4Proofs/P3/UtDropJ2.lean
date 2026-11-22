@@ -54,12 +54,13 @@ namespace Vs
 
 /-- **The tables a cap's `VCapW` asks in the sets**: level `k` (VsDrop's
 `lvlSet`: 1 PT, 2 PD, 3 PDPT, 4 PML4, 5 pool) and address `q`; mapped
-PT/PD/PDPT caps ask nothing (their table may be pruned). -/
+PT/PD/PDPT caps and (F1) mapped PML4 caps ask nothing (their table may be
+pruned, or orphaned: KENTRY-PLAN jc4). -/
 inductive VNeed : capability.Cap → Nat → U64 → Prop
   | pt {p a v : U64} : VNeed (.PageTable p false a v) 1 p
   | pd {p a v : U64} : VNeed (.PageDirectory p false a v) 2 p
   | pdpt {p a v : U64} : VNeed (.Pdpt p false a v) 3 p
-  | pml4 {p a : U64} {mp : Bool} : VNeed (.Pml4 p mp a) 4 p
+  | pml4 {p a : U64} : VNeed (.Pml4 p false a) 4 p
   | pool {p b : U64} : VNeed (.AsidPool p b) 5 p
 
 /-- `VCapW` at new sets holding what the cap asks. -/
@@ -71,7 +72,7 @@ theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capabili
     | exact ⟨fun e => by subst e; exact hn 1 _ .pt, h.2⟩
     | exact ⟨fun e => by subst e; exact hn 2 _ .pd, h.2⟩
     | exact ⟨fun e => by subst e; exact hn 3 _ .pdpt, h.2⟩
-    | exact ⟨hn 4 _ .pml4, h.2⟩
+    | exact ⟨fun e => by subst e; exact hn 4 _ .pml4, h.2⟩
     | exact ⟨⟨hn 5 _ .pool, h.1.2⟩, h.2⟩
     | exact h
     | trivial
@@ -638,6 +639,9 @@ theorem JAtZ.dropJpl (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64}
     | Pdpt q m' a' va =>
       rw [hc] at hC
       exact fun q' k hq hk => hC q' k (drop_some hq) hk
+    | Pml4 q m' a' =>
+      rw [hc] at hC
+      exact fun q' k hq hk => hC q' k (drop_some hq) hk
     | SchedContext q sb' =>
       rw [hc] at hC
       obtain ⟨hH, hpi⟩ := hC
@@ -949,7 +953,7 @@ reschedule pending, the spec detype's own facts (`SDrop` and the fields it
 keeps), `KeptRefsP3`/`DbgTimerKept` at the region (`RegionUnrefJ` [J]'s two
 parts, as `utEpJ`), `ArchFitHyp` [J] (as `utEpJ`), and `VsReachMiss` [J]
 (VsDrop) at roots `XP … X1` holding every table a slot's cap asks
-(`hXc`, `Vs.VNeed`: an unmapped PT/PD/PDPT cap's, a PML4 or pool cap's; so
+(`hXc`, `Vs.VNeed`: an unmapped PT/PD/PDPT/PML4 cap's or a pool cap's; so
 the VSpace cap field `vsc` holds at the pruned sets, `VsSlotsW.drop`; the
 callers take the roots `{q | ∃ y, IsSlot Z.th y ∧ VNeed (capV m y) k q}`,
 in the sets by `VsSlotsW.need`). -/

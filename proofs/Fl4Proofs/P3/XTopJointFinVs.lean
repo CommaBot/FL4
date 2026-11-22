@@ -636,8 +636,8 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
 
 /-- **A VSpace cap's slot is ready** (module docstring): a table cap's range
 meets no object of `H` but `other` ones (`JPlaced.cobj`, mapped or not, in
-the sets or not); a PML4 or pool cap's frame `p`, a VSpace frame of the sets
-(`JAtZ.vsc`), holds none either; so every object in its range is dead, and
+the sets or not; (f1) a PML4 cap's too); a pool cap's frame `p`, a VSpace
+frame of the sets (`JAtZ.vsc`), holds none either; so every object in its range is dead, and
 the current SC is not in it. -/
 theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
@@ -669,14 +669,15 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     have h := hJ.cobj x hxs
     rw [hcv] at h; exact h
-  rcases hv with ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | hv
+  rcases hv with ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, rfl⟩ | hv
+  · exact apartR hcobj
   · exact apartR hcobj
   · exact apartR hcobj
   · exact apartR hcobj
   have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 c := by
     have h := J.vsc x hxs
     rw [hcv] at h
-    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩ <;> exact h
+    obtain ⟨p, b, rfl⟩ := hv; exact h
   -- the cap's frame and range
   have key : ∃ p : U64, VsFr Z p ∧ baseF c = p.val ∧ topF c ≤ p.val + 4095 := by
     have rng : ∀ p : U64, p.val % 4096 = 0 → ptrF c = p → sizeF c = 12#u64 →
@@ -685,10 +686,7 @@ theorem JAtZ.vs_ready {s : S} {a : A} {σ : Fl4Spec.State Unit}
       have := capRange (c := c) (b := 12#u64) hp hs (by decide) hf
       have e2 : topF c = p.val + 2 ^ 12 - 1 := this.2
       exact ⟨this.1, by omega⟩
-    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩
-    · simp only [VCapOK] at hok
-      exact ⟨p, Or.inr (Or.inl hok.1), rng p (hS.2.pt p (Or.inl hok.1))
-        (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩
+    obtain ⟨p, b, rfl⟩ := hv
     · simp only [VCapOK] at hok
       exact ⟨p, Or.inl hok.1.1, rng p (hS.2.vs.pal p hok.1.1).1 (ok_inj (ptr_eq _).symm)
         (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits, fl4_abi.consts.bits.ASID_POOL]))⟩

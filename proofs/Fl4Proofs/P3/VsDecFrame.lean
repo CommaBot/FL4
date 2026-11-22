@@ -255,7 +255,7 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hGA : lbl = fl4_abi.label.X86PageGetAddress →
       DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
@@ -349,13 +349,13 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
     cases sz
     · exact WP.spec_mono (frame_map_rel hH1 s ar σ hP hVP hD hPP hPS hPV1 hPO hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt)
         htcb hact ⟨p, .Small, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaS rfl) hpc hidx hl length buf args hlen
-        hargs ci extra hex hcx hvr xsl rest hvc) post
+        hargs ci extra hex hcx hvr xsl rest hvc hPI) post
     · exact WP.spec_mono (frame_map_large_rel hHL s ar σ hP hVP hD hPP hPS hPV hPO hSt hSV hR hPt hS ct hct hcur'
         hkt (hrun _ hkt) htcb hact ⟨p, .Large, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaL rfl) hpc hidx hl length buf args
-        hlen hargs ci extra hex hcx hvr xsl rest hvc) post
+        hlen hargs ci extra hex hcx hvr xsl rest hvc hPI) post
     · exact WP.spec_mono (frame_map_huge_rel hHL s ar σ hP hVP hD hPP hPS hPV hPO hSt hSV hR hPt hS ct hct hcur'
         hkt (hrun _ hkt) htcb hact ⟨p, .Huge, rt, d, m, false, asid, va⟩ rfl hfw hfe hfcv hfm hfu (hpaH rfl) hpc hidx hl length buf args
-        hlen hargs ci extra hex hcx hvr xsl rest hvc) post
+        hlen hargs ci extra hex hcx hvr xsl rest hvc hPI) post
   by_cases hunmap : lbl = fl4_abi.label.X86PageUnmap
   · subst hunmap
     have hl := hlbl.unmap rfl
@@ -411,7 +411,7 @@ theorem decode_invocation_frame [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (h
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef)
     (hGA : lbl = fl4_abi.label.X86PageGetAddress →
       DecOKRM (L := L) arI s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Frame p sz rt d m false asid va) blk call don fp
@@ -468,7 +468,7 @@ theorem decode_invocation_page_tableX (th : TypedHeap) (hP : Placed th) (s : S) 
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQX (L := L) arI Q X s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -516,7 +516,7 @@ theorem decode_invocation_page_tableX (th : TypedHeap) (hP : Placed th) (s : S) 
         exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩) hX0
     refine WP.spec_mono (pt_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
-      hex hcx hvr xsl rest hvc) ?_
+      hex hcx hvr xsl rest hvc hPI) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', hR', hPt', hSRq, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms),
@@ -579,7 +579,7 @@ theorem decode_invocation_page_table (th : TypedHeap) (hP : Placed th) (s : S) (
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -622,7 +622,7 @@ theorem decode_invocation_page_directoryX (th : TypedHeap) (hP : Placed th) (s :
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQX (L := L) arI Q X s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -670,7 +670,7 @@ theorem decode_invocation_page_directoryX (th : TypedHeap) (hP : Placed th) (s :
         exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩) hX0
     refine WP.spec_mono (pd_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inr (Or.inl hq), i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
-      hex hcx hvr xsl rest hvc) ?_
+      hex hcx hvr xsl rest hvc hPI) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', hR', hPt', hSRq, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms),
@@ -732,7 +732,7 @@ theorem decode_invocation_page_directory (th : TypedHeap) (hP : Placed th) (s : 
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.PageDirectory ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -775,7 +775,7 @@ theorem decode_invocation_pdptX (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQX (L := L) arI Q X s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -823,7 +823,7 @@ theorem decode_invocation_pdptX (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
         exact topMQX_err (⟨_, rfl, rfl, .truncatedMessage, htr, Or.inl trivial⟩) hX0
     refine WP.spec_mono (pdpt_map_rel hHM s ar σ hP hVP hD hPP hPS (fun b hb => hPV b (let ⟨q, hq, i, hi, e⟩ := hb; ⟨q, Or.inl hq, i, hi, e⟩)) hSt hSV hR hPt hS
       ct hct hcur' hkt (hrun _ hkt) htcb hact hPO ptr asid0 va0 mp hpL hfe hpa hpc hidx hl length buf args hlen hargs ci extra
-      hex hcx hvr xsl rest hvc) ?_
+      hex hcx hvr xsl rest hvc hPI) ?_
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', hR', hPt', hSRq, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms),
@@ -886,7 +886,7 @@ theorem decode_invocation_pdpt (th : TypedHeap) (hP : Placed th) (s : S) (ar : A
     (hext : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20)
     (blk call don fp : Bool) (ci : Fl4Spec.CapRef) (buffer : Option Fl4Spec.ObjRef) :
     DecOKMQ (L := L) arI Q s ar σ lbl length (cslotAddr (pc.bv, idx)) (.Pdpt ptr mp asid0 va0) blk call don fp
       buf extra slbl (args.map UScalar.bv) ci (pc.bv, idx) excaps buffer := by
@@ -1123,7 +1123,7 @@ theorem decode_invocation_asid_poolX (th : TypedHeap) (hP : Placed th) (s : S) (
   · refine ⟨topMX_of_lift2M ⟨_, ⟨hmem, hnf⟩, _, hst1, (.ok [], σ'), ?_,
       (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR'
         (fun b hb hne => ⟨_, p1, a1, hex, hcx, hAW b hb hne⟩) h3.1 h3.2.1 h3.2.2 hK
-        ⟨pc, r, idx, _, hpc, hidx, hcx, rfl, trivial, hF, hL, Or.inr ⟨_, _, _, hAS⟩⟩⟩)
+        ⟨pc, r, idx, _, hpc, hidx, hcx, rfl, (rfl : false = false), hF, hL, Or.inr ⟨_, _, _, hAS⟩⟩⟩)
       (crelM_after hCR hFI hMO hcx hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
     have h2 := hAS
     unfold AssignSpec at h2

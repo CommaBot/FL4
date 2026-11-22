@@ -290,7 +290,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       have h0 := h src hs
       rw [capV_of_capAt hcap] at h0
       rw [hdc]
-      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
+      exact (vcap_alias (h0.ok_of fun _ _ _ => ⟨by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef], by simp [hsrcCdef]⟩) hq1 hq2 hqal).toW)
       (fun y _ e U h => by
         subst e
         have h0 := h src hs

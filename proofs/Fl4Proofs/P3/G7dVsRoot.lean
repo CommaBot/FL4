@@ -73,7 +73,7 @@ theorem JAtZ.vsRootOK {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
   have hx : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
   have h := J.vsc _ hx
   rw [capV_of_capAt hc] at h
-  have h' : p ∈ _ ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
+  have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
   exact (h'.2.2 rfl).1
 
 /-- **`VsRootOK` at a `JAtZR` state** (module docstring). -/
@@ -87,7 +87,7 @@ theorem JAtZR.vsRootOK {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 �
   have hx : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
   have h := J.vsc _ hx
   rw [capV_of_capAt hc] at h
-  have h' : p ∈ _ ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
+  have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
   exact (h'.2.2 rfl).1
 
 end

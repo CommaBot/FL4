@@ -569,6 +569,9 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
           | Pdpt p m' a' va =>
             rw [hc] at hC
             exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | Pml4 p m' a' =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
           | SchedContext p sb =>
             rw [hc] at hC
             obtain ⟨hH, hpi⟩ := hC
@@ -586,23 +589,20 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
         have ht := hE.ctop j hj
         have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va →
             ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p sz r d m' ep a' va, c = .Frame p sz r d m' ep a' va →
-            ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
-          all_goals first
-            | (intros; simp_all; done)
-            | (intro hn _ _ _ _ _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
-               exact ⟨_, rfl⟩)
+          intro p sz r d m' ep a' va hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_frame hc; omega) hk
         -- a new table's object is an `other` one too
         have hnkT : ∀ p m' a' va, (cj j = .PageTable p m' a' va ∨ cj j = .PageDirectory p m' a' va ∨
             cj j = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p m' a' va, (c = .PageTable p m' a' va ∨ c = .PageDirectory p m' a' va ∨
-            c = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
-          all_goals first
-            | (intros; simp_all; done)
-            | (intro hn _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
-               exact ⟨_, rfl⟩)
+          intro p m' a' va hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_tab hc; omega) hk
+        -- (f1) a new PML4's object is an `other` one too (type 8, `newCapOf_pml4`)
+        have hnkP : ∀ p m' a', cj j = .Pml4 p m' a' → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
+          intro p m' a' hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_pml4 hc; omega) hk
         have hfrT : ∀ c', cj j = c' → (∀ kd, newKind n us = some kd → ∃ z, kd = .other z) →
             FrApartH H' c' := by
           intro c' hc hK q kq hq hkq
@@ -618,9 +618,9 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
             rw [Nat.add_mul, Nat.one_mul] at this
             rw [hb', ht']; omega
         have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p lv m' a' va, c ≠ .Ept p lv m' a' va)
-          all_goals (intros; simp_all)
+          intro p lv m' a' va hc
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newCapOf_ne_ept hc
         cases hc : cj j with
         | Ept p lv m' a' va => exact absurd hc (hne p lv m' a' va)
         | Frame p sz r d m' ep a' va =>
@@ -638,6 +638,7 @@ theorem JPlaced.retypeGS {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C :
         | PageTable p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inl hc))
         | PageDirectory p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inl hc)))
         | Pdpt p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inr hc)))
+        | Pml4 p m' a' => exact hfrT _ hc (hnkP p m' a' hc)
         | SchedContext p sb =>
           -- a new SC: `H'`'s at the window's slot, of the cap's size, in the
           -- source (RAM) untyped's region, so not the idle SC (`IdleOut`)

@@ -182,6 +182,7 @@ set_option hygiene false in
 macro "map_tail_L" : tactic => `(tactic| (
   refine WP.spec_bind (check_vspace_pml4L s σ hR p1 as1 has1 dev ptr.bv (vmRightsOf rt) a0.bv a1.bv a2.bv (pc.bv, idx)) ?_
   rintro r1 (⟨rfl, hf⟩ | ⟨e, e', rfl, he, hte⟩)
+  have hp1 : p1 ∈ L4 := mem_L4_of_find hR hPI has1 hf
   rotate_left
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
@@ -321,7 +322,8 @@ theorem frame_map_large_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_page_map st ar s a length (cslotAddr (pc.bv, idx)) f buf ex ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ MapErrRel e e' ∧
         ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl (args.map UScalar.bv) xs (pc.bv, idx)
@@ -364,7 +366,7 @@ theorem frame_map_large_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th
     rw [slot_cap_eq, hcx]; apply ok_bind_spec
     by_cases hvp : ∃ p asid, vc = .Pml4 p true asid
     · obtain ⟨p1, as1, rfl⟩ := hvp
-      obtain ⟨hp1, has1, has2⟩ := hvc p1 as1 rfl
+      obtain ⟨has1, has2⟩ := hvc p1 as1 rfl
       have hvc' : vc' = .archObjectCap (.pml4Cap p1.bv (some as1.bv)) := by rw [← hvr.2]; rfl
       subst hvc'
       simp only [vspace.mapped_root, ↓reduceIte, bind_ok]
@@ -579,6 +581,7 @@ set_option hygiene false in
 macro "map_tail_H" : tactic => `(tactic| (
   refine WP.spec_bind (check_vspace_pml4H s σ hR p1 as1 has1 dev ptr.bv (vmRightsOf rt) a0.bv a1.bv a2.bv (pc.bv, idx)) ?_
   rintro r1 (⟨rfl, hf⟩ | ⟨e, e', rfl, he, hte⟩)
+  have hp1 : p1 ∈ L4 := mem_L4_of_find hR hPI has1 hf
   rotate_left
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
       core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
@@ -718,7 +721,8 @@ theorem frame_map_huge_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th 
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_page_map st ar s a length (cslotAddr (pc.bv, idx)) f buf ex ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ MapErrRel e e' ∧
         ExceptT.run (Fl4Spec.archDecodeInvocation (Z := Unit) slbl (args.map UScalar.bv) xs (pc.bv, idx)
@@ -761,7 +765,7 @@ theorem frame_map_huge_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th 
     rw [slot_cap_eq, hcx]; apply ok_bind_spec
     by_cases hvp : ∃ p asid, vc = .Pml4 p true asid
     · obtain ⟨p1, as1, rfl⟩ := hvp
-      obtain ⟨hp1, has1, has2⟩ := hvc p1 as1 rfl
+      obtain ⟨has1, has2⟩ := hvc p1 as1 rfl
       have hvc' : vc' = .archObjectCap (.pml4Cap p1.bv (some as1.bv)) := by rw [← hvr.2]; rfl
       subst hvc'
       simp only [vspace.mapped_root, ↓reduceIte, bind_ok]

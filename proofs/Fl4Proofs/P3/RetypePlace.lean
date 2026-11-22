@@ -280,6 +280,37 @@ theorem newCapOf_sc {n : Nat} {base us p sb : U64} {dev : Bool}
   revert h
   apply newCapOf_ind (fun c => c = .SchedContext p sb → n = 5 ∧ p = base ∧ sb = us) <;> intros <;> simp_all
 
+/-- (f1) A new cap that is a PML4 cap is FL4 type 8's. -/
+theorem newCapOf_pml4 {n : Nat} {base us p a : U64} {dev m : Bool}
+    (h : newCapOf n base us dev = .Pml4 p m a) : n = 8 := by
+  revert h
+  apply newCapOf_ind (fun c => c = .Pml4 p m a → n = 8) <;> intros <;> simp_all
+
+/-- A new cap that is a frame cap is FL4 type 9's, 10's or 11's. -/
+theorem newCapOf_frame {n : Nat} {base us p r a va : U64} {sz : capability.FrameSize} {dev d m ep : Bool}
+    (h : newCapOf n base us dev = .Frame p sz r d m ep a va) : n = 9 ∨ n = 10 ∨ n = 11 := by
+  revert h
+  apply newCapOf_ind (fun c => c = .Frame p sz r d m ep a va → n = 9 ∨ n = 10 ∨ n = 11) <;> intros <;> simp_all
+
+/-- A new cap that is a PT, PD or PDPT cap is FL4 type 12's, 13's or 7's. -/
+theorem newCapOf_tab {n : Nat} {base us p a va : U64} {dev m : Bool}
+    (h : newCapOf n base us dev = .PageTable p m a va ∨ newCapOf n base us dev = .PageDirectory p m a va ∨
+      newCapOf n base us dev = .Pdpt p m a va) : n = 7 ∨ n = 12 ∨ n = 13 := by
+  revert h
+  apply newCapOf_ind (fun c => (c = .PageTable p m a va ∨ c = .PageDirectory p m a va ∨ c = .Pdpt p m a va) →
+    n = 7 ∨ n = 12 ∨ n = 13) <;> intros <;> simp_all
+
+/-- No new cap is an EPT cap. -/
+theorem newCapOf_ne_ept {n : Nat} {base us p lv a va : U64} {dev m : Bool} :
+    newCapOf n base us dev ≠ .Ept p lv m a va := by
+  apply newCapOf_ind (fun c => c ≠ .Ept p lv m a va) <;> intros <;> simp_all
+
+/-- Types 7..13 make `other` objects (VSpace tables, frames). -/
+theorem newKind_other_of {n us : Nat} (h : 7 ≤ n ∧ n ≤ 13) {kd : HKind} (hk : newKind n us = some kd) :
+    ∃ z, kd = .other z := by
+  obtain ⟨h1, h2⟩ := h
+  interval_cases n <;> simp [newKind] at hk <;> subst hk <;> exact ⟨_, rfl⟩
+
 /-- A new SC of a retype is `H'`'s, of the user size. -/
 theorem hOut_newSc {H H' : Heap} {lo hi A k w j us : Nat} {uu q : U64}
     (hO : HOut H H' lo hi A k w (newKind 5 us)) (huu : uu.val = us) (hj : j < w) (hv : q.val = A + j * k) :
@@ -791,6 +822,9 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
           | Pdpt p m' a' va =>
             rw [hc] at hC
             exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
+          | Pml4 p m' a' =>
+            rw [hc] at hC
+            exact hkeepA _ hc (ok_inj (phys_eq _).symm) hC
           | SchedContext p sb =>
             rw [hc] at hC
             obtain ⟨hH, hpi⟩ := hC
@@ -808,23 +842,20 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         have ht := hE.ctop j hj
         have hnk : ∀ p sz r d m' ep a' va, cj j = .Frame p sz r d m' ep a' va →
             ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p sz r d m' ep a' va, c = .Frame p sz r d m' ep a' va →
-            ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
-          all_goals first
-            | (intros; simp_all; done)
-            | (intro hn _ _ _ _ _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
-               exact ⟨_, rfl⟩)
+          intro p sz r d m' ep a' va hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_frame hc; omega) hk
         -- a new table's object is an `other` one too
         have hnkT : ∀ p m' a' va, (cj j = .PageTable p m' a' va ∨ cj j = .PageDirectory p m' a' va ∨
             cj j = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p m' a' va, (c = .PageTable p m' a' va ∨ c = .PageDirectory p m' a' va ∨
-            c = .Pdpt p m' a' va) → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z)
-          all_goals first
-            | (intros; simp_all; done)
-            | (intro hn _ _ _ _ _ kd hk; subst hn; simp only [newKind] at hk; simp at hk; subst hk
-               exact ⟨_, rfl⟩)
+          intro p m' a' va hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_tab hc; omega) hk
+        -- (f1) a new PML4's object is an `other` one too (type 8, `newCapOf_pml4`)
+        have hnkP : ∀ p m' a', cj j = .Pml4 p m' a' → ∀ kd, newKind n us = some kd → ∃ z, kd = .other z := by
+          intro p m' a' hc kd hk
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newKind_other_of (by have := newCapOf_pml4 hc; omega) hk
         have hfrT : ∀ c', cj j = c' → (∀ kd, newKind n us = some kd → ∃ z, kd = .other z) →
             FrApartH H' c' := by
           intro c' hc hK q kq hq hkq
@@ -840,9 +871,9 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
             rw [Nat.add_mul, Nat.one_mul] at this
             rw [hb', ht']; omega
         have hne : ∀ p lv m' a' va, cj j ≠ .Ept p lv m' a' va := by
-          rw [hcjE]; unfold cjOf
-          apply newCapOf_ind (fun c => ∀ p lv m' a' va, c ≠ .Ept p lv m' a' va)
-          all_goals (intros; simp_all)
+          intro p lv m' a' va hc
+          rw [hcjE] at hc; unfold cjOf at hc
+          exact newCapOf_ne_ept hc
         cases hc : cj j with
         | Ept p lv m' a' va => exact absurd hc (hne p lv m' a' va)
         | Frame p sz r d m' ep a' va =>
@@ -860,6 +891,7 @@ theorem JPlaced.retype {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs Tr C : S
         | PageTable p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inl hc))
         | PageDirectory p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inl hc)))
         | Pdpt p m' a' va => exact hfrT _ hc (hnkT p m' a' va (Or.inr (Or.inr hc)))
+        | Pml4 p m' a' => exact hfrT _ hc (hnkP p m' a' hc)
         | SchedContext p sb =>
           -- a new SC: `H'`'s at the window's slot, of the cap's size, in the
           -- source (RAM) untyped's region, so not the idle SC (`IdleOut`)

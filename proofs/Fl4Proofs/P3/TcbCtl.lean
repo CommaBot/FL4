@@ -1081,7 +1081,7 @@ theorem roots_rel (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.State 
                   rw [hv0]
                 · exact Or.inl rfl
                 · exact fun _ _ _ _ _ h => h
-                · exact fun h => False.elim h
+                · exact fun h => absurd h (by simp [Vs.TabUn])
                 · exact id
               exact ⟨_, rfl, Or.inl ⟨c', v', rfl, hcv, hokc, hokv⟩⟩
             · simp only [hvr, decide_false, Bool.false_eq_true, ↓reduceIte, error.illegal] at hcv ⊢

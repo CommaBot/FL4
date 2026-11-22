@@ -207,7 +207,8 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     (xs : Fl4Spec.CapRef) (ex : Array obj.Slot 3#usize) {x : obj.Slot} (hex : vspace.extra ex 0#usize = ok (some x))
     {vc : capability.Cap} (hcx : capAt (L.mem s) x = ok vc) {vc' : Fl4Spec.Cap} (hvr : CapRel vc vc')
     (xsl : Fl4Spec.CslotPtr) (rest : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
-    (hvc : ∀ p asid, vc = .Pml4 p true asid → p ∈ L4 ∧ asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) :
+    (hvc : ∀ p asid, vc = .Pml4 p true asid → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20)
+    (hPI : PoolsIn P L4 (L.mem s)) :
     vspace.decode_table st ar s a fl4_abi.label.X86PDPTMap length (cslotAddr (pc.bv, idx))
       (.Pdpt ptr mp asid0 va0) buf ex ⦃ res =>
       (∃ e e', res.1 = .Err e ∧ VsErrRel e e' ∧
@@ -257,7 +258,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       have hvb : v.bv = a0.bv &&& ~~~Fl4Spec.mask Fl4Spec.pml4ShiftBits := by rw [← hvd]; exact vaddr39_bv a0
       by_cases hvp : ∃ p asid, vc = .Pml4 p true asid
       · obtain ⟨p1, as1, rfl⟩ := hvp
-        obtain ⟨hp1, has1, has2⟩ := hvc p1 as1 rfl
+        obtain ⟨has1, has2⟩ := hvc p1 as1 rfl
         have hvc' : vc' = .archObjectCap (.pml4Cap p1.bv (some as1.bv)) := by rw [← hvr.2]; rfl
         subst hvc'
         have hdec : D = ExceptT.run (pdptTail ptr.bv p1.bv as1.bv v.bv a1.bv (pc.bv, idx)) σ := by
@@ -277,6 +278,7 @@ theorem pdpt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         simp only [hv, ↓reduceIte]
         refine WP.spec_bind (check_vspace_pml4_pdpt s σ hR p1 as1 has1 ptr.bv v.bv a1.bv (pc.bv, idx) hv') ?_
         rintro r1 (⟨rfl, hf⟩ | ⟨e, e', rfl, he, hte⟩)
+        have hp1 : p1 ∈ L4 := mem_L4_of_find hR hPI has1 hf
         rotate_left
         · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
             core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame.from]
