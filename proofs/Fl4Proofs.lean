@@ -98,6 +98,7 @@ import Fl4Proofs.P1.QueueEntryGaps3
 import Fl4Proofs.P1.QueueDelFin
 import Fl4Proofs.P1.QueueFinCur
 import Fl4Proofs.P1.QueueTimerC
+import Fl4Proofs.P1.TimerRBDef
 import Fl4Proofs.P1.TimerRB
 import Fl4Proofs.P1.TimerRBFrame
 import Fl4Proofs.P1.TimerRBRead

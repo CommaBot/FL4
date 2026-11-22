@@ -14,18 +14,6 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat}
 
-/-- `TmFr` gives the timer-word agreement `TAgree`. -/
-theorem TAgree.of_tmfr {s s' : S} (f : TmFr st T Cs Nt s s') : TAgree st T Cs s s' := by
-  have fld : ∀ y ∈ T, ∀ K : U64, 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
-      L.mem s' (core.num.U64.wrapping_add y K) = L.mem s (core.num.U64.wrapping_add y K) := f.2.1
-  refine ⟨fun y hy => fld y hy 3528#u64 (by simp) (by simp) (by simp),
-    fun y hy => fld y hy 3544#u64 (by simp) (by simp) (by simp),
-    fun y hy => fld y hy 3552#u64 (by simp) (by simp) (by simp),
-    fun y hy => fld y hy 3560#u64 (by simp) (by simp) (by simp),
-    fun y hy => fld y hy 3568#u64 (by simp) (by simp) (by simp), fun c hc => ?_, fun c hc => ?_⟩
-  · rw [nodeAt_of_ksb f.1]; exact f.2.2.1 c hc _ (Or.inl timer_root_val)
-  · rw [nodeAt_of_ksb f.1]; exact f.2.2.1 c hc _ (Or.inr timer_min_val)
-
 /-- A write of a TCB word below the timer fields keeps `TmFr`. -/
 theorem TmFr.reg {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : ∀ c ∈ Cs, NodePlaced st T s c)
     (hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n)) (hy : y ∈ T) (hK : K.val < 3528) (h8 : K.val % 8 = 0) :
