@@ -66,9 +66,18 @@ impl VirtInfo {
     }
 }
 
+/// The UEFI TPM event log (`bootinfo_header::TPM_EVENT_LOG`,
+/// seL4_TpmEventLog).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TpmEventLog {
+    pub paddr: u64,
+    pub size: u64,
+    pub flags: u64,
+}
+
 /// Write the records into `buf`: the ACPI RSDP, the boot core's ID
 /// registers (l4h 0018), optional virtualization info, the boot modules
-/// (l4h 0021) and the device tree. Returns their length, a multiple of 8
+/// (l4h 0021), the TPM event log and the device tree. Returns their length, a multiple of 8
 /// (a padding record ends the chain if needed, as on x86_64); none if
 /// `buf` is too small.
 ///
@@ -82,6 +91,7 @@ pub fn build(
     id_regs: &[u64; 5],
     virt_info: Option<&VirtInfo>,
     mods: &[Module],
+    tpm_log: Option<&TpmEventLog>,
     dtb: &[u8],
 ) -> Option<usize> {
     buf.fill(0);
@@ -108,6 +118,12 @@ pub fn build(
             put(buf, &mut off, &m.paddr.to_le_bytes())?;
             put(buf, &mut off, &m.size.to_le_bytes())?;
             put(buf, &mut off, &m.name)?;
+        }
+    }
+    if let Some(t) = tpm_log {
+        hdr(buf, &mut off, id::TPM_EVENT_LOG, 16 + 24)?;
+        for w in [t.paddr, t.size, t.flags] {
+            put(buf, &mut off, &w.to_le_bytes())?;
         }
     }
     if !dtb.is_empty() {

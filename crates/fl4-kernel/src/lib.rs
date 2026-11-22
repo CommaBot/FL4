@@ -151,8 +151,9 @@ fn keep_modules(mb: &mboot::BootInfo, start: u64, ram: &Ranges, k: &mut KeptModu
 }
 
 /// Extra BootInfo records in the order seL4 writes them: ACPI RSDP,
-/// Multiboot memory map, TSC frequency; then l4h's boot modules record.
-fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &KeptModules) -> usize {
+/// Multiboot memory map, TSC frequency; then l4h's boot modules record
+/// and the TPM event log.
+fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &KeptModules, tpm: Option<mboot::TpmLog>) -> usize {
     let mut off = 0;
     let hdr = |buf: &mut [u8], off: &mut usize, id: u64, len: u64| {
         put_bytes(buf, off, &id.to_le_bytes());
@@ -197,9 +198,16 @@ fn build_extra_bi(buf: &mut [u8], a: &acpi::Info, mb: &mboot::BootInfo, k: &Kept
             put_bytes(buf, &mut off, &mb.modules[i + 1].name);
         }
     }
+    if let Some(t) = tpm {
+        // seL4_TpmEventLog: paddr, size, flags.
+        hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::TPM_EVENT_LOG, 16 + 24);
+        put_bytes(buf, &mut off, &t.paddr.to_le_bytes());
+        put_bytes(buf, &mut off, &t.size.to_le_bytes());
+        put_bytes(buf, &mut off, &t.flags.to_le_bytes());
+    }
     // l4h 0047: the kernel appends the extra untyped chunk with word
     // writes, so end on a word boundary. The records above come to at most
-    // 2010 bytes, so these at most 23 fit in `ExtraBi` too.
+    // 2050 bytes, so these at most 23 fit in `ExtraBi` too.
     if off % 8 != 0 {
         let pad = 8 - off % 8;
         hdr(buf, &mut off, fl4_abi::consts::bootinfo_header::PADDING, (16 + pad) as u64);
@@ -357,14 +365,20 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     for i in 0..mb.n_modules {
         mods_end = mods_end.max(mb.modules[i].end);
     }
+    // The TPM event log stays where the loader put it until it is copied:
+    // the root task does not load over it.
+    if let Some(t) = mb.tpm_log {
+        mods_end = mods_end.max(t.paddr + t.size);
+    }
     let mods_end = (mods_end + PAGE - 1) & !(PAGE - 1);
     let m0 = mb.modules[0];
     let layout = match elf::check(m0.start, m0.end - m0.start, fl4_abi::consts::USER_TOP + 1 - IT_TAIL) {
         Some(l) => l,
         None => fail("root task is not a loadable x86_64 ELF image"),
     };
+    let tpm_bytes = mb.tpm_log.map_or(0, |t| t.size.div_ceil(PAGE) * PAGE);
     let image_bytes = layout.size() + mb.modules[1..mb.n_modules].iter()
-        .map(|m| (m.end - m.start).div_ceil(PAGE) * PAGE).sum::<u64>();
+        .map(|m| (m.end - m.start).div_ceil(PAGE) * PAGE).sum::<u64>() + tpm_bytes;
     let load = match ram.find(mods_end, image_bytes).or_else(|| {
         // EFI allocates the handoff as a unit and may put it at the top
         // of the last usable range. Search below it as well.
@@ -398,6 +412,21 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // without clearing.
     let st = unsafe { &mut *STATICS.0.get() };
     let mods = keep_modules(&mb, image.p_end, &ram, &mut st.mods);
+    // The TPM event log after them, the same way (the root task reads it
+    // from device untypeds, which keep its bytes).
+    let tpm_log = mb.tpm_log.and_then(|t| {
+        let end = mods + t.size.div_ceil(PAGE) * PAGE;
+        if !ram.contains(mods, end) {
+            kprintln!("FL4: no memory for the TPM event log: not passed on");
+            return None;
+        }
+        unsafe { core::ptr::copy_nonoverlapping(pptr(t.paddr) as *const u8, pptr(mods) as *mut u8, t.size as usize) };
+        // The rest of the last page goes to user space too: no old RAM.
+        unsafe { core::ptr::write_bytes(pptr(mods + t.size) as *mut u8, 0, (end - mods - t.size) as usize) };
+        kprintln!("FL4: TPM event log: {:#x} bytes at {:#x}", t.size, mods);
+        Some(mboot::TpmLog { paddr: mods, ..t })
+    });
+    let log_end = tpm_log.map_or(mods, |t| mods + t.size.div_ceil(PAGE) * PAGE);
     if sev::snp::active() {
         // Keep usable RAM and ACPI NVS (including the SNP secrets)
         // out of device caps. Root reads ACPI tables in reclaim memory
@@ -408,7 +437,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
             }
         }
     }
-    dev.add(image.p_end, mods);
+    dev.add(image.p_end, log_end);
     if fb_console {
         let ok = match fb {
             Some(f) => fbcon::init(f.addr, window_top, f.pitch, f.width, f.height, f.bpp, f.ty),
@@ -424,9 +453,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     }
     let mut free = ram;
     free.remove(KERNEL_PHYS_START + delta, mods_end);
-    free.remove(image.p_start, mods);
+    free.remove(image.p_start, log_end);
 
-    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods);
+    let extra_len = build_extra_bi(&mut st.extra.0, &acpi, &mb, &st.mods, tpm_log);
     let mut p = BootParams {
         free: [Region::EMPTY; MAX_REGIONS],
         n_free: 0,
@@ -451,7 +480,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // Keep every private boundary even if BootParams can export fewer ranges.
     let mut firmware = bootmem::RangeList::<{ mboot::MAX_MMAP + 1 }>::new();
     if private_mask != 0 {
-        firmware.add(image.p_end, mods);
+        firmware.add(image.p_end, log_end);
         for e in &mb.mmap[..mb.n_mmap] {
             if e.len != 0 && matches!(e.ty, 1 | 3 | 4) {
                 let start = e.base & !(PAGE - 1);
