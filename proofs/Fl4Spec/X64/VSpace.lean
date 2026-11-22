@@ -400,6 +400,8 @@ def archDeriveCap (c : ArchCap) : SEMonad Z Cap :=
   | .asidPoolCap _ _ => NonDetE.returnOk (.archObjectCap c)
   | .ioPortCap _ _ => NonDetE.returnOk (.archObjectCap c)
   | .ioPortControlCap => NonDetE.returnOk .nullCap
+  -- FL4 extension (#68): FL4's `derive_cap` keeps a TDX control cap (copyable).
+  | .tdxControlCap => NonDetE.returnOk (.archObjectCap c)
 
 end
 
@@ -507,6 +509,7 @@ def archIsPhysical (cap : ArchCap) : Bool :=
   | .asidControlCap => false
   | .ioPortCap _ _ => false
   | .ioPortControlCap => false
+  | .tdxControlCap => false
   | _ => true
 
 /-- l4v: ArchCSpace_A.X64_A.arch_same_region_as: whether the second cap is to
@@ -528,6 +531,9 @@ def archSameRegionAs : ArchCap → ArchCap → Prop
   | .asidPoolCap r _, c' => ∃ r' d', c' = .asidPoolCap r' d' ∧ r = r'
   | .ioPortCap frst lst, c' => ∃ frst' lst', c' = .ioPortCap frst' lst' ∧ frst' = frst ∧ lst' = lst
   | .ioPortControlCap, c' => c' = .ioPortControlCap ∨ ∃ f l, c' = .ioPortCap f l
+  -- FL4 extension (#68): every copy of the TDX control cap is one region
+  -- (FL4's `same_region_as`, objects.rs:125).
+  | .tdxControlCap, c' => c' = .tdxControlCap
 
 /-- l4v: ArchCSpace_A.X64_A.is_irq_control_descendant. -/
 def isIrqControlDescendant (_acap : ArchCap) : Bool := false

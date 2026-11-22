@@ -60,7 +60,6 @@ theorem srB_spec_self (c d : capability.Cap) (hsh : shape d = shape c) (hs : srB
     (hw : CapWf d) :
     Fl4Spec.sameRegionAs (absCap c) (absCap d) := by
   cases c <;> cases d <;> simp [shape] at hsh
-  case TdxControl.TdxControl => exact False.elim hw
   case Untyped.Untyped p sb fi dev p' sb' fi' dev' =>
     obtain ⟨rfl, rfl⟩ := hsh
     rw [srB_ut] at hs
@@ -101,7 +100,6 @@ theorem sbp_eq (srcC c : capability.Cap) (io : Bool) (hsh : shape c = shape srcC
   rw [hsrB]
   simp only [eq_true hsr, true_and, Bool.and_true]
   cases srcC <;> cases c <;> simp [shape] at hsh
-  case TdxControl.TdxControl => exact False.elim hw
   all_goals (try casesm* _ ∧ _); subst_vars
   all_goals cases io <;> simp [absCap, isBadged, badgeF, Fl4Spec.capEpBadge, UScalar.eq_equiv_bv_eq,
     Fl4Spec.shouldBeArchParentOf, u64_beq]

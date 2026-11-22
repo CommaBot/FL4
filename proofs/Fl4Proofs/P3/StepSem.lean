@@ -132,14 +132,22 @@ def KSz (σ σ' : Fl4Spec.State Unit) : Prop :=
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- The arch operations of the interrupt and IO port decodes: none, an
-IRQ's mask, an IOAPIC pin's (remapped) programming, a port access. -/
+/-- The TDCALLs of the TDX control cap's decode (#68): `tdx_report`,
+`tdx_extend_rtmr`, `tdx_get_quote`. -/
+def TdxArchStep (a a' : A) : Prop :=
+  (∃ p d0 d1 d2 d3 d4 d5 d6 d7 v, arI.tdx_report a p d0 d1 d2 d3 d4 d5 d6 d7 = ok (v, a')) ∨
+    (∃ i d0 d1 d2 d3 d4 d5 v, arI.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 = ok (v, a')) ∨
+    (∃ p n v, arI.tdx_get_quote a p n = ok (v, a'))
+
+/-- The arch operations of the interrupt, IO port and TDX decodes: none, an
+IRQ's mask, an IOAPIC pin's (remapped) programming, a port access, a TDCALL
+(`TdxArchStep`). -/
 def ArchIrqStep (a a' : A) : Prop :=
   a' = a ∨ (∃ irq b, arI.mask_irq a irq b = ok a') ∨
     (∃ i p l po v b, arI.ioapic_map a i p l po v = ok (b, a')) ∨
     (∃ i p l po v h b, arI.ioapic_map_remapped a i p l po v h = ok (b, a')) ∨
     (∃ p z v, arI.port_in a p z = ok (v, a')) ∨ (∃ p z d, arI.port_out a p z d = ok a') ∨
-    (∃ irq, arI.irq_free a irq = ok a')
+    (∃ irq, arI.irq_free a irq = ok a') ∨ TdxArchStep arI a a'
 
 /-- The kernel-global words of the domain schedule a scheduler step may
 write: the domain time and index, the start and the table. -/

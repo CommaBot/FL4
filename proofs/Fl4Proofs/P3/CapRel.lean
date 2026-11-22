@@ -273,9 +273,8 @@ def absCap : capability.Cap → Fl4Spec.Cap
   | .AsidPool p base => .archObjectCap (.asidPoolCap p.bv base.bv)
   | .IoPortControl => .archObjectCap .ioPortControlCap
   | .IoPort f l _ => .archObjectCap (.ioPortCap (BitVec.ofNat 16 f.val) (BitVec.ofNat 16 l.val))
-  -- #68: Fl4Spec has no TDX attestation cap (its model is a separate lead decision). `CapWf`
-  -- excludes `TdxControl`, so no related state holds one and this value is never used.
-  | .TdxControl => .nullCap
+  -- #68: the FL4 extension cap of the spec (`Fl4Spec/Ext/Tdx`).
+  | .TdxControl => .archObjectCap .tdxControlCap
 
 /-- Field ranges under which `absCap` is faithful. Every cap `Cap::decode`
 produces satisfies the CNode bounds on radix and guard size
@@ -288,7 +287,6 @@ def CapWf : capability.Cap → Prop
   | .SchedContext _ sb => Fl4Spec.minSchedContextBits ≤ sb.val
   | .Frame _ _ r _ _ _ _ _ => 1 ≤ r.val ∧ r.val ≤ 3
   | .IoPort f l _ => f.val < 2 ^ 16 ∧ l.val < 2 ^ 16 ∧ f.val ≤ l.val
-  | .TdxControl => False
   | _ => True
 
 /-- The capability relation: FL4 cap `c` represents abstract cap `a`. -/

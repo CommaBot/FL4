@@ -51,9 +51,21 @@ noncomputable section
 section
 variable {A : Type} (arI : machine.Arch A)
 
-/-- **The arch relation's interface** (`ARKeep` with `ARMask`, one premise). -/
+/-- **[P] FL4's TDX platform queries answer the spec's platform constants**
+(#68, `Fl4Spec/Ext/Tdx`): `tdx_active` is `Fl4Spec.tdxActive` (the kernel
+runs in a TD guest with the TD module) and `dma_ram` is `Fl4Spec.tdxDmaRam`
+(a range is RAM shared with the VMM). Arch-only, as `ARKeep`: properties of
+the platform, not of kernel state. They decide the TDX decode's errors. -/
+structure TdxPlat : Prop where
+  active : ∀ a, arI.tdx_active a = ok Fl4Spec.tdxActive
+  dma_ram : ∀ a p n, arI.dma_ram a p n = ok (Fl4Spec.tdxDmaRam p.bv n.val)
+
+/-- **The arch relation's interface** (`ARKeep` with `ARMask`, one premise;
+with the TDX platform queries, `TdxPlat`). -/
 structure ARIface (AR : A → Fl4Spec.Cr3 → Prop) : Prop extends ARKeep arI AR where
   mask : ∀ a c a', AR a c → ArchIrqStep arI a a' → AR a' c
+  /-- #68 [P]: the TDX platform queries (`TdxPlat`). -/
+  tdx : TdxPlat arI
 
 theorem ARIface.toMask {AR : A → Fl4Spec.Cr3 → Prop} (h : ARIface arI AR) : ARMask arI AR := h.mask
 

@@ -9,8 +9,8 @@ Every arch operation reached is a field of `MRKeepD` or a query returning no
 arch state (`virtualization`, `private_device_frame`, `kernel_wcet_ticks`,
 `ticks_to_us`, `us_to_ticks`, `max_us`). `MKD.decode_quiet`: FL4's
 `decode_invocation` of a cap of a quiet kind (`QuietF`: not CNode, Thread,
-Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept, TdxControl: its TDCALLs return
-an arch state no `MRKeepD` field covers, and no related state holds one) keeps `MR`;
+Untyped, IrqControl, IrqHandler, IoPort, Vcpu, Ept; TdxControl is quiet: its
+TDCALLs are `MRKeepD` fields, `MKD.tdx_decode`) keeps `MR`;
 `MKD.decode_cnode_nrd`: a CNode cap's decode at a label other than Revoke /
 Delete keeps the arch state. `LoudF`: the kinds left (Thread, Untyped,
 IrqControl, IrqHandler, IoPort).
@@ -32,7 +32,6 @@ def QuietF : capability.Cap → Prop
   | .IoPort .. => False
   | .Vcpu _ => False
   | .Ept .. => False
-  | .TdxControl => False
   | _ => True
 
 /-- **The loud FL4 cap kinds** (the decoders that reach a clock, interrupt or
@@ -77,6 +76,26 @@ set_option maxHeartbeats 4000000 in
 theorem MKD.ioport_decode_control {s : S} {a : A} {lbl : Std.U64} {length : Std.U64} {slot : obj.Slot} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (h : AR a c₀) :
     ioport.decode_control st arI s a lbl length slot buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
   unfold ioport.decode_control; mkd_walk
+
+set_option maxHeartbeats 4000000 in
+theorem MKD.tdx_get_report {s : S} {a : A} {length : Std.U64} {call : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (h : AR a c₀) :
+    tdx.get_report st arI s a length call buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
+  unfold tdx.get_report; mkd_walk
+
+set_option maxHeartbeats 4000000 in
+theorem MKD.tdx_extend_rtmr {s : S} {a : A} {length : Std.U64} {call : Bool} {buf : Std.U64} (h : AR a c₀) :
+    tdx.extend_rtmr st arI s a length call buf ⦃ r => AR r.2.2 c₀ ⦄ := by
+  unfold tdx.extend_rtmr; mkd_walk
+
+set_option maxHeartbeats 4000000 in
+theorem MKD.tdx_get_quote {s : S} {a : A} {length : Std.U64} {call : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (h : AR a c₀) :
+    tdx.get_quote st arI s a length call buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
+  unfold tdx.get_quote; mkd_walk
+
+set_option maxHeartbeats 4000000 in
+theorem MKD.tdx_decode {s : S} {a : A} {lbl length : Std.U64} {call : Bool} {buf : Std.U64} {extra : Array obj.Slot 3#usize} (h : AR a c₀) :
+    tdx.decode st arI s a lbl length call buf extra ⦃ r => AR r.2.2 c₀ ⦄ := by
+  unfold tdx.decode; mkd_walk
 
 set_option maxHeartbeats 4000000 in
 theorem MKD.ipc_do_reply_transfer {s : S} {a : A} {sender : obj.Tcb} {r : obj.Reply} {grant : Bool} (h : AR a c₀) :

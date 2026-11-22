@@ -391,7 +391,6 @@ theorem decOK_JMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     obtain ⟨p', hp, hth⟩ := hsl; exact ⟨p', hp, Or.inl hth⟩
   have hPl : Placed Z.th := J.xtop.rel.1
   cases c <;> simp only [QuietF, LoudF, not_true_eq_false, not_false_eq_true] at hq hlo
-  case TdxControl => exact (J.dstate.1.1.not_tdx hAs hc).elim
   case Vcpu p => exact absurd hNat (by simp [Vs.NativeCap])
   case Ept p l m asid va => exact absurd hNat (by simp [Vs.NativeCap])
   case CNode p r gs g =>

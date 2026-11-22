@@ -157,6 +157,8 @@ theorem okv_fl4ArchDecodeSl {w : UView} (label : Data) (args : List Data) (xs : 
   case pml4Cap p m =>
     simp only [fl4ArchDecodeInvocation]
     exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeSl label args xs cte _ ex hc))
+  case tdxControlCap =>
+    simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_triv fun _ => trivial)
   all_goals (simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_archDecodeSl label args xs cte _ ex hc))
 
 /-! ## The arch performs -/

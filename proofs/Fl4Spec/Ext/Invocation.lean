@@ -23,7 +23,10 @@ functions:
    `performDeriveSubframe`; `decodeTestAndClearAccessed`,
    `performTestAndClearAccessed`). These labels are not l4v labels either:
    their numbers are FL4's (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
-   `fl4TestAndClearLabel`).
+   `fl4TestAndClearLabel`). The FL4 extension `seL4_X86_TdxControl`
+   (`tdxControlCap`, no seL4 counterpart) goes to `decodeTdxInvocation` /
+   `performTdxInvocation` (`Ext/Tdx`), at FL4's label numbers
+   (`fl4TdxGetReportLabel` ..).
 
 4. thread caps: `fl4DecodeTcbInvocation` for `decode_tcb_invocation`,
    which is l4v's except for FL4's TCB extensions (`Ext/Tcb`): the label
@@ -49,6 +52,7 @@ import Fl4Spec.Ext.TcbSize
 import Fl4Spec.Ext.IrqControl
 import Fl4Spec.Ext.VSpace
 import Fl4Spec.Ext.Tcb
+import Fl4Spec.Ext.Tdx
 
 namespace Fl4Spec
 
@@ -96,6 +100,8 @@ inductive Fl4ArchInvocation where
   | pml4Flush (i : Fl4Pml4Invocation)
   | deriveSubframe (i : Fl4SubframeInvocation)
   | testAndClearAccessed (slot : ObjRef)
+  /-- FL4 extension (no l4v counterpart): `seL4_X86_TdxControl` (`Ext/Tdx`). -/
+  | tdx (i : Fl4TdxInvocation)
 deriving Inhabited
 
 /-- l4v's `invocation` (Invocations_A) with FL4's IRQControl and arch
@@ -134,6 +140,7 @@ def fl4ArchDecodeInvocation (label : Data) (args : List Data) (xSlot : CapRef) (
     else if dataToNat label = fl4TestAndClearLabel
     then NonDetE.liftME Fl4ArchInvocation.testAndClearAccessed <| decodeTestAndClearAccessed cap
     else NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
+  | .tdxControlCap => NonDetE.liftME Fl4ArchInvocation.tdx <| decodeTdxInvocation label args extraCaps
   | _ => NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
 
 /-- l4v: Arch_A.X64_A.arch_perform_invocation, with the l4h VSpace
@@ -143,6 +150,7 @@ def fl4ArchPerformInvocation : Fl4ArchInvocation → PMonad Z (List Data)
   | .pml4Flush i => NonDetE.liftE <| archNoReturn <| performPml4Flush i
   | .deriveSubframe i => NonDetE.liftE <| archNoReturn <| performDeriveSubframe i
   | .testAndClearAccessed slot => NonDetE.liftE <| performTestAndClearAccessed slot
+  | .tdx i => NonDetE.liftE <| performTdxInvocation i
 
 /-- l4v: Decode_A.decode_tcb_invocation, with FL4's TCB extensions
 (`Ext/Tcb`): FL4's `SetFlags`, and the extension labels. -/

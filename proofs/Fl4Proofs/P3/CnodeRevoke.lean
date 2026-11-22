@@ -254,14 +254,6 @@ theorem StateRel.abs_cap {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} (hR 
     rw [nd_bind_one (show Fl4Spec.NonDet.pure (Fl4Spec.tcbCnodeMap tcb) σ = ({(_, σ)}, False) from rfl), ha]
     rfl
 
-/-- **No related slot holds a `TdxControl` cap** (#68): `CapWf` excludes it,
-Fl4Spec having no TDX cap (CapRel.lean). -/
-theorem StateRel.not_tdx {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit} (hR : StateRel th (L.mem s) σ)
-    {sl : Fl4Spec.CslotPtr} (hs : AbsSlot th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok .TdxControl) : False := by
-  obtain ⟨c, a, hc', hca, -⟩ := hR.abs_cap hs
-  rw [hc] at hc'; cases eq_of_ok_eq hc'
-  exact hca.1
-
 end
 
 /-! ## FL4's `revoke` loop -/

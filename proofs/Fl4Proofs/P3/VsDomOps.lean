@@ -221,6 +221,7 @@ theorem dke_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DKE (fl4ArchPerfo
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto; exact dk_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dk_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> dk_auto
 
 end
 end Fl4Proofs.P3.Vs

@@ -376,6 +376,17 @@ details.
   `invokeFl4IrqControl`, with the invocations `Fl4IrqControlInvocation`.
 - **`Ext/VSpace`: l4h VSpace extensions** (PML4 flush, TestAndClearAccessed,
   DeriveSubframe), as separate decoders and invocations.
+- **`Ext/Tdx`: `seL4_X86_TdxControl`** (FL4 #68, Intel TDX attestation; no
+  seL4 counterpart). The arch cap `tdxControlCap` (X64/Structs; one arm in
+  each l4v function over arch caps, behaving as the ASID control cap: no
+  object, one region for all copies, derived unchanged, finalised with no
+  action) and its invocations GetReport / ExtendRTMR / GetQuote
+  (`decodeTdxInvocation`, FL4's checks in FL4's order;
+  `performTdxInvocation`, the TDCALL: a status word, any bytes written into
+  the frame; no kernel object changes). Whether the TD module is present and
+  whether a frame is shared with the VMM are platform constants
+  (`tdxActive`, `tdxDmaRam`, opaque); the status and the frame's bytes are
+  nondeterministic.
 - **`Ext/Tcb`: FL4's TCB extensions**, modelled on FL4's Rust
   (`tcb.rs`): seL4's debug API (`TCBSetBreakpoint`, `TCBGetBreakpoint`,
   `TCBUnsetBreakpoint`, `TCBConfigureSingleStepping`; not in l4v), l4h's

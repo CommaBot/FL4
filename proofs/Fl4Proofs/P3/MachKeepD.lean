@@ -53,6 +53,11 @@ structure MRKeepD (AR : A → C → Prop) : Prop where
   set_vspace : ∀ a x y c, AR a c → arI.set_vspace a x y ⦃ a' => AR a' c ⦄
   dma_frame : ∀ a x y b c, AR a c → arI.dma_frame a x y b ⦃ a' => AR a' c ⦄
   irq_free : ∀ a x c, AR a c → arI.irq_free a x ⦃ a' => AR a' c ⦄
+  /-- #68: the TDCALLs of the TDX control cap's decode (the TD module's
+  attestation services: no IRQ mask, pending line or clock). -/
+  tdx_report : ∀ a p d0 d1 d2 d3 d4 d5 d6 d7 c, AR a c → arI.tdx_report a p d0 d1 d2 d3 d4 d5 d6 d7 ⦃ r => AR r.2 c ⦄
+  tdx_extend_rtmr : ∀ a i d0 d1 d2 d3 d4 d5 c, AR a c → arI.tdx_extend_rtmr a i d0 d1 d2 d3 d4 d5 ⦃ r => AR r.2 c ⦄
+  tdx_get_quote : ∀ a p n c, AR a c → arI.tdx_get_quote a p n ⦃ r => AR r.2 c ⦄
 
 theorem MRKeepD.toK {AR : A → C → Prop} (h : MRKeepD arI AR) : MRKeep arI AR :=
   ⟨h.set_deadline, h.send_reschedule, h.remote_stall, h.fpu_flush, h.fpu_release, h.fpu_sanitise,

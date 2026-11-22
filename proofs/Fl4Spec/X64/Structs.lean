@@ -132,6 +132,9 @@ inductive ArchCap where
   | pageDirectoryCap (ref : ObjRef) (mapped : Option (Asid × VSpaceRef))
   | pdPointerTableCap (ref : ObjRef) (mapped : Option (Asid × VSpaceRef))
   | pml4Cap (ref : ObjRef) (mapped : Option Asid)
+  /-- FL4 extension (#68, no l4v counterpart): `seL4_X86_TdxControl`, Intel TDX
+  attestation (`Ext/Tdx`). No object. -/
+  | tdxControlCap
 deriving Inhabited
 
 /-- l4v: Arch_Structs_A.X64_A.acap_asid_pool (selector). -/
@@ -300,6 +303,7 @@ def archObjSize : ArchCap → Nat
   | .pageDirectoryCap _ _ => tableSize
   | .pdPointerTableCap _ _ => tableSize
   | .pml4Cap _ _ => tableSize
+  | .tdxControlCap => 0
 
 /-- l4v: Arch_Structs_A.X64_A.arch_cap_is_device. -/
 def archCapIsDevice : ArchCap → Bool
@@ -313,6 +317,7 @@ def archCapIsDevice : ArchCap → Bool
   | .pageDirectoryCap _ _ => false
   | .pdPointerTableCap _ _ => false
   | .pml4Cap _ _ => false
+  | .tdxControlCap => false
 
 /-- l4v: Arch_Structs_A.X64_A.arch_cap_badge (rt X64 gap; RISCV64
 `arch_cap_badge`): no badges on arch caps. -/
@@ -357,6 +362,7 @@ def aobjRef : ArchCap → Option ObjRef
   | .pageTableCap x _ => some x
   | .pdPointerTableCap x _ => some x
   | .pml4Cap x _ => some x
+  | .tdxControlCap => none
 
 /-- l4v: Arch_Structs_A.X64_A.acap_rights_update. -/
 def acapRightsUpdate (rs : CapRights) (ac : ArchCap) : ArchCap :=

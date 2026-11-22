@@ -16,9 +16,7 @@ set_option maxHeartbeats 4000000 in
 theorem soB_iff_nf (a b : capability.Cap) (ha : CapWf a) (hb : CapWf b) (hnu : isUt a = false)
     (hnf : isFrame a = false) :
     soB a b = true ↔ Fl4Spec.sameObjectAs (absCap a) (absCap b) := by
-  -- #68: `CapWf` excludes `TdxControl` (no Fl4Spec counterpart)
-  cases a <;> (try exact False.elim ha) <;> simp [isUt, isFrame] at hnu hnf <;> cases b <;>
-    (try exact False.elim hb) <;> simp only [soB] <;>
+  cases a <;> simp [isUt, isFrame] at hnu hnf <;> cases b <;> simp only [soB] <;>
     (try rw [srB_of_eq (by simp [objects.same_region_as]; rfl)]) <;>
     simp [Fl4Spec.sameObjectAs, Fl4Spec.sameRegionAs, absCap, Fl4Spec.isEpCap, Fl4Spec.isNtfnCap, Fl4Spec.objRefOf,
       Fl4Spec.isCnodeCap, Fl4Spec.bitsOf, Fl4Spec.isThreadCap, Fl4Spec.isSchedContextCap, Fl4Spec.archSameRegionAs,
