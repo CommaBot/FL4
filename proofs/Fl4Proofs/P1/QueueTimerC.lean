@@ -13,13 +13,13 @@ section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
 variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64}
 
-/-- `TF` with the current SC word kept. -/
+/-- `TFB` with the current SC word kept. -/
 def TF2 (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
     (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
-  TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s ∧ L.cscW s = L.cscW s0
+  TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s ∧ L.cscW s = L.cscW s0
 
 theorem TF2.start {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s s :=
-  ⟨TF.start h, rfl⟩
+  ⟨TFB.start h, rfl⟩
 
 theorem TF2.tm {s0 s : S} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TimerOK st T Cs s := h.1.tm
 
@@ -44,24 +44,24 @@ theorem cscW_wr_node {s : S} {c o v : U64} (hT : TcbPlaced T) (hN : NodePlaced s
 theorem TF2.wr_ptr {s0 s : S} {x K v : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hx : x ∈ T) (hK : K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560) (hv : Tz T v) :
     TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (core.num.U64.wrapping_add x K) v) :=
-  ⟨h.1.wr_ptr hx hK hv, (cscW_wr_field h.1.tcbs (h.1.nodes _ h.1.1.1.choose_spec.choose_spec.cur) hx
+  ⟨h.1.wr_ptr hx hK hv, (cscW_wr_field h.1.tcbs (h.1.nodes _ h.1.cur) hx
     (by omega) (by omega)).trans h.2⟩
 
 theorem TF2.wr_ht {s0 s : S} {x v : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
     (hx : x ∈ T) (hc : x ∈ T → L.mem s (tdA x) ≠ 0#u64 → ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
     TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (thA x) v) :=
-  ⟨h.1.wr_ht hx hc, (cscW_wr_field (K := 3568#u64) h.1.tcbs (h.1.nodes _ h.1.1.1.choose_spec.choose_spec.cur) hx
+  ⟨h.1.wr_ht hx hc, (cscW_wr_field (K := 3568#u64) h.1.tcbs (h.1.nodes _ h.1.cur) hx
     (by simp) (by simp)).trans h.2⟩
 
 theorem TF2.wr_node {s0 s : S} {c o v : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs)
     (ho : o.val = 104 ∨ o.val = 112) (hv : Tz T v) :
     TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr s (L.nodeAt s c o) v) :=
-  ⟨h.1.wr_node hc ho hv, (cscW_wr_node h.1.tcbs (h.1.nodes c hc) (h.1.nodes _ h.1.1.1.choose_spec.choose_spec.cur)
+  ⟨h.1.wr_node hc ho hv, (cscW_wr_node h.1.tcbs (h.1.nodes c hc) (h.1.nodes _ h.1.cur)
     (by omega) (by omega) (by omega)).trans h.2⟩
 
 theorem TF2.wr_clear {s0 s : S} {t : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T) :
     TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) := by
-  have hN := h.1.nodes _ h.1.1.1.choose_spec.choose_spec.cur
+  have hN := h.1.nodes _ h.1.cur
   refine ⟨h.1.wr_clear ht, ?_⟩
   rw [tdA, cscW_wr_field (K := 3528#u64) h.1.tcbs ((hN.ksb (L.ksb_wr _ _ _)) |> fun hh => by
       rw [LawfulStore.cpu_wr]; exact hh) ht (by simp) (by simp),
@@ -70,7 +70,7 @@ theorem TF2.wr_clear {s0 s : S} {t : U64} (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z A
 
 theorem timer.core_of.csf2 {s0 : S} (s : S) (t : U64) (h : TF2 st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (ht : t ∈ T)
     (hd : L.mem s (tdA t) ≠ 0#u64) : timer.core_of st s t ⦃ c => c ∈ Cs ⦄ :=
-  timer.core_of.cs s t h.1.1 ht hd
+  timer.core_of.cstm s t h.1.tm ht hd
 
 section ops2
 variable {s0 : S}

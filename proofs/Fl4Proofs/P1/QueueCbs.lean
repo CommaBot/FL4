@@ -319,38 +319,38 @@ theorem endpoint.cancel_badged_sends.blkF (s : S) (ep badge : U64) (h : BlkOK st
 section timer
 variable {s0 : S}
 
-theorem timer.insert_fixup_loop.tf (s : S) (c z fuel : U64)
-    (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs) (hz : Tz T z) :
-    timer.insert_fixup_loop st s c z fuel ⦃ s' => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
+theorem timer.insert_fixup_loop.tfb (s : S) (c z fuel : U64)
+    (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs) (hz : Tz T z) :
+    timer.insert_fixup_loop st s c z fuel ⦃ s' => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   have L1 := timer.left.tzf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
   have L2 := timer.right.tzf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
   have L3 := timer.parent.tzf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
-  have L5 := timer.set_red.tf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
-  have L6 := timer.rotate_left.tf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
-  have L7 := timer.rotate_right.tf (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
+  have L5 := timer.set_red.tfb (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
+  have L6 := timer.rotate_left.tfb (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
+  have L7 := timer.rotate_right.tfb (L := L) (T := T) (Cs := Cs) (Z := Z) (Ω := Ω) (H := H) (Sg := Sg) (Rp := Rp) (Scs := Scs) (Nt := Nt) (s0 := s0) (Ac := Ac)
   have L8 := timer.is_red.any (L := L)
   have L9 := tcb_eq.iff
   unfold timer.insert_fixup_loop
   apply loop.spec_decr_nat (measure := fun x => x.2.2.val)
-    (inv := fun x => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 x.1 ∧ Tz T x.2.1)
+    (inv := fun x => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 x.1 ∧ Tz T x.2.1)
   · rintro ⟨s1, z1, f1⟩ ⟨h1, hz1⟩
     simp only at h1 hz1
     unfold timer.insert_fixup_loop.body
     step*
     all_goals try (
-      refine WP.spec_bind (Pₘ := fun r => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ∧ Tz T r.2.1 ∧ Tz T r.2.2) ?_ ?_
+      refine WP.spec_bind (Pₘ := fun r => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 r.1 ∧ Tz T r.2.1 ∧ Tz T r.2.2) ?_ ?_
       · split <;> step*
       rintro ⟨sa, za, pa⟩ ⟨ha, hza, hpa⟩
       simp only at ha hza hpa
       step*)
   · exact ⟨h, hz⟩
 
-theorem timer.insert_fixup.tf (s : S) (c z : U64) (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs)
-    (hz : Tz T z) : timer.insert_fixup st s c z ⦃ s' => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
+theorem timer.insert_fixup.tfb (s : S) (c z : U64) (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hc : c ∈ Cs)
+    (hz : Tz T z) : timer.insert_fixup st s c z ⦃ s' => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ := by
   unfold timer.insert_fixup
-  refine WP.spec_bind (timer.insert_fixup_loop.tf s c z _ h hc hz) fun s1 h1 => ?_
+  refine WP.spec_bind (timer.insert_fixup_loop.tfb s c z _ h hc hz) fun s1 h1 => ?_
   refine WP.spec_bind (timer.root.tzf s1 c h1 hc) fun r hr => ?_
-  exact timer.set_red.tf s1 r false h1 hr
+  exact timer.set_red.tfb s1 r false h1 hr
 
 /-- **`timer.remove`'s fine footprint**: `TInv` kept, only the timer words
 `TW` (the TCB timer fields 3528–3576, the cores' `TIMER_ROOT` and
@@ -387,36 +387,34 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
     fun w => TW.keep_node h w (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega) (by rw [rp]; omega)
   have htz : Tz T t := Tz.of_mem ht
   unfold timer.insert
-  refine WP.spec_bind (timer.remove.tf (s0 := s) s t (TF.start h) ht) fun s1 h1 => ?_
+  refine WP.spec_bind (timer.remove.tfb (s0 := s) s t (TFB.start h) ht) fun s1 h1 => ?_
   have TWR : ∀ {sa : S}, WritesIn st s sa (TW st T Cs s) →
       WritesIn st s sa (fun b => TW st T Cs s b ∨ b = L.nodeAt s (L.cpu s) layout.node.REPROGRAM) :=
     fun w => w.mono fun _ hb => Or.inl hb
   split
-  · exact (WP.spec_ok _).2 ⟨h1.1, h1.2.1, TWR h1.2.2.2.2, Or.inl (KR h1.2.2.2.2)⟩
+  · exact (WP.spec_ok _).2 ⟨h1.tinv, h1.2.1, TWR h1.2.2.2.2, Or.inl (KR h1.2.2.2.2)⟩
   refine WP.spec_bind (L.cur_cpu_spec s1) fun cpu ec => ?_
-  have hc : cpu ∈ Cs := by
-    obtain ⟨⟨Q, R, h0⟩, -⟩ := h1.1
-    rw [ec]; exact h0.cur
-  refine WP.spec_bind (timer.root.tz s1 cpu h1.1 hc) fun cur hcur => ?_
-  refine WP.spec_bind (timer.insert_loop.tz s1 d 0#u64 cur false true _ h1.1 Tz.zero hcur) ?_
+  have hc : cpu ∈ Cs := by rw [ec]; exact h1.cur
+  refine WP.spec_bind (timer.root.tzf s1 cpu h1 hc) fun cur hcur => ?_
+  refine WP.spec_bind (timer.insert_loop.tz s1 d 0#u64 cur false true _ h1.tinv Tz.zero hcur) ?_
   rintro ⟨p, gl, fst⟩ hp
   simp only at hp
   try simp only [WP.uncurry'_pair]
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
-  refine WP.spec_bind (Pₘ := fun r : S × U64 => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 ∧ r.2 = t) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r : S × U64 => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s r.1 ∧ r.2 = t) ?_ ?_
   · split
-    · exact WP.spec_bind (timer.set_root.tf s1 cpu t h1 hc htz) fun s3 h3 => (WP.spec_ok _).2 ⟨h3, rfl⟩
-    · refine WP.spec_bind (Pₘ := fun s2 => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s s2) ?_
+    · exact WP.spec_bind (timer.set_root.tfb s1 cpu t h1 hc htz) fun s3 h3 => (WP.spec_ok _).2 ⟨h3, rfl⟩
+    · refine WP.spec_bind (Pₘ := fun s2 => TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s s2) ?_
         fun s2 h2 => (WP.spec_ok _).2 ⟨h2, rfl⟩
       split
-      · exact timer.set_left.tf s1 p t h1 hp htz
-      · exact timer.set_right.tf s1 p t h1 hp htz
+      · exact timer.set_left.tfb s1 p t h1 hp htz
+      · exact timer.set_right.tfb s1 p t h1 hp htz
   rintro ⟨s2, t1⟩ ⟨h2, e⟩
   simp only at h2 e
   subst t1
   try simp only [WP.uncurry'_pair]
   have hT := h2.tcbs
-  have hN2 := h2.nodes _ h2.1.1.choose_spec.choose_spec.cur
+  have hN2 := h2.nodes _ h2.cur
   have FW : ∀ {sa : S} (K v : U64), WritesIn st s sa (TW st T Cs s) → 3528 ≤ K.val → K.val < 3576 → K.val % 8 = 0 →
       WritesIn st s (L.wr sa (core.num.U64.wrapping_add t K) v) (TW st T Cs s) :=
     fun K v w a1 a2 a3 => TW.wr_field w hT ht a1 a2 a3
@@ -428,7 +426,7 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
           (L.cpu (L.wr sa (core.num.U64.wrapping_add t K) v)) :=
     fun K v f n hN a1 a2 a3 a4 a5 => ⟨f.trans (foot_field hT ht a1 a2 a3 ⟨a4, a5⟩),
       n.trans (ani_field hT hN ht a2 a3), by rw [LawfulStore.cpu_wr]; exact hN.ksb (L.ksb_wr _ _ _)⟩
-  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s2 := ⟨BlkOK.blkT h2.1, h2.1.tm.x t⟩
+  have hx2 : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s2 := ⟨h2.1.1, h2.tm.x t⟩
   refine WP.spec_bind (obj.Tcb.set_timer_deadline.wr s2 t d) fun s3 e3 => ?_
   subst e3
   have hx3 := hx2.wr (K := 3528#u64) (v := d) ht (by simp) (by simp) (by simp) (fun h => by simp at h)
@@ -453,8 +451,8 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
   simp only [lift, timer.RED, Aeneas.Std.bind_ok]
   refine WP.spec_bind (obj.Tcb.set_timer_height.wr _ t _) fun s8 e8 => ?_
   subst e8
-  have h8 := hx7.wr_ht ht (v := i ||| 1#u64) fun c hcv => by
-    rw [or1_shr8, shl8_shr8 (h1.1.cpu_small hc) hi1] at hcv
+  have h8 := hx7.wr_ht' ht (v := i ||| 1#u64) fun c hcv => by
+    rw [or1_shr8, shl8_shr8 (h1.tinv.cpu_small hc) hi1] at hcv
     rw [show c = cpu from UScalar.eq_of_val_eq hcv]; exact hc
   obtain ⟨f8, n8, -⟩ := FA (K := 3568#u64) (i ||| 1#u64) f7 n7 N7 (by simp) (by simp) (by simp) (by simp) (by simp)
   have w8 := FW (K := 3568#u64) (i ||| 1#u64) (FW (K := 3552#u64) 0#u64 (FW (K := 3544#u64) 0#u64
@@ -466,11 +464,11 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
     (by simp) (by simp) (by simp)).wr_field (K' := 3544#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field
     (K' := 3552#u64) (v := 0#u64) hT ht (by simp) (by simp) (by simp)).wr_field (K' := 3568#u64) (v := i ||| 1#u64)
     hT ht (by simp) (by simp) (by simp))
-  refine WP.spec_bind (timer.insert_fixup.tf (s0 := s) _ cpu t ⟨h8, f8, n8, k8, w8⟩ hc htz) fun s9 h9 => ?_
+  refine WP.spec_bind (timer.insert_fixup.tfb (s0 := s) _ cpu t ⟨h8, f8, n8, k8, w8⟩ hc htz) fun s9 h9 => ?_
   split
   · refine WP.spec_bind (obj.node_set.spec s9 cpu _ t) fun s10 e10 => ?_
     subst e10
-    have h10 := h9.1.wr_node hc (o := layout.node.TIMER_MIN) (by rw [timer_min_val]; simp) htz
+    have h10 := h9.tinv.wr_node hc (o := layout.node.TIMER_MIN) (by rw [timer_min_val]; simp) htz
     have f10 := h9.2.1.trans (foot_node (v := t) (h9.nodes cpu hc) hc (by rw [timer_min_val]; omega)
       (by rw [timer_min_val]) (by rw [timer_min_val]; omega))
     have w10 := TW.wr_node (v := t) h9.2.2.2.2 (h9.nodes cpu hc) hc (o := layout.node.TIMER_MIN)
@@ -489,7 +487,7 @@ theorem timer.insert.foot (s : S) (t d bd : U64) (h : TInv st T Cs Ω H Sg Rp Sc
           L.nodeAt (L.wr s9 (L.nodeAt s9 cpu layout.node.TIMER_MIN) t) cpu layout.node.REPROGRAM by
         rw [nodeAt_of_ksb w10.1, ← hcs]]
       exact L.mem_wr_same (nodeAt_aligned (h10.nodes cpu hc) (by rw [rp]; omega) (by rw [rp]))
-  · exact (WP.spec_ok _).2 ⟨h9.1, h9.2.1, TWR h9.2.2.2.2, Or.inl (KR h9.2.2.2.2)⟩
+  · exact (WP.spec_ok _).2 ⟨h9.tinv, h9.2.1, TWR h9.2.2.2.2, Or.inl (KR h9.2.2.2.2)⟩
 
 end timer
 

@@ -134,11 +134,15 @@ theorem TInvx.wr {s : S} {t K v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac
     TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t (L.wr s (core.num.U64.wrapping_add t K) v) :=
   ⟨h.1.wr_tfield ht hK (by omega) hK8, h.2.wr h.1.tcbs h.1.nodes ht hK hK' hK8 hv⟩
 
+theorem TInvx.wr_ht' {s : S} {t v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s) (ht : t ∈ T)
+    (hc : ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
+    BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (thA t) v) ∧ TimerOK st T Cs (L.wr s (thA t) v) :=
+  ⟨h.1.wr_tfield (K := 3568#u64) ht (by simp) (by simp) (by simp), h.2.wr_ht h.1.tcbs h.1.nodes ht hc⟩
+
 theorem TInvx.wr_ht {s : S} {t v : U64} (h : TInvx st T Cs Ω H Sg Rp Scs Nt Z Ac t s) (ht : t ∈ T)
     (hc : ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
     TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (thA t) v) :=
-  ((h.1.wr_tfield (K := 3568#u64) ht (by simp) (by simp) (by simp)).ok
-    (h.2.wr_ht h.1.tcbs h.1.nodes ht hc)).tinv
+  ((h.wr_ht' ht hc).1.ok (h.wr_ht' ht hc).2).tinv
 
 theorem obj.Tcb.set_timer_badge.wr (s : S) (t : obj.Tcb) (v : U64) :
     obj.Tcb.set_timer_badge st t s v ⦃ s' => s' = L.wr s (tbA t) v ⦄ := by
