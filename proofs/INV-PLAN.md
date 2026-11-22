@@ -501,7 +501,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C18 | Untyped RAM `fan`, `rcb` | `retypeFanOutLimit = 256`, `resetChunkBits = 16` (opaque `kernelConfig`) | [P] config | | 1 (state-free) |
 | C19 | Untyped RAM `vtx` | types 14..18: `JVtxScope` | [S] VT-x | | 1 |
 | C20 | Untyped RAM `core0` | `Z.c = 0` | [P]/[S] one core | | 1 |
-| C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | [J] (S–M: B grows at frame retype, shrinks at detype) | `valid_ipc_buffer_cap` + `obj_at` | 1 |
+| C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | **DISCHARGED (jc1b, `kernel_entry_reachU16`; top of record `kernel_entry_reachU18`, jc1c)**: `JAtZ.carry.bufPg` (`BufPgHyp`, `JCarry.bufObj`). The `ArchFitHyp` halves of C16 / C22 / C24 heapH likewise (`JAtZ.carry.archFit`); their `RegionUnrefAt` halves stay [J] | `valid_ipc_buffer_cap` + `obj_at` | 1 |
 | C22 | Untyped RAM `heapH` | as C16 | [J] | | 1, ∀gh |
 | C23 | Untyped RAM `vsReach` | **narrowed (g7b-2)**: `VsReachMiss` for the cap's region at the restart state, *when the invoked cap has no descendants* (as C17) | [J] (L). FINDING g7b-2 (recorded): the unguarded form was false at reachable states (an untyped with children whose region holds a table named by a slot's cap, a `NeedR` root); the guard is the reset branch's `hnd'` (UtRetResetJ and siblings), applied in place to `JUtPath`/`JUtPathM`, so every top asks the guarded form; top of record `kernel_entry_reachU9` | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
 | C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2) | | 1 |
@@ -560,7 +560,16 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU17`** (s26-2, XTopJointKEntryU17) = U11 without C26 `devFree`, C27
+**Top of record: `SInvR.G5.kernel_entry_reachU18`** (jc1c, XTopJointKEntryU18) = U17 with jc1b's U16 dispatch
+bundle: U11 without C21 `bufObj`, the `ArchFitHyp` half of C16 / C22 / C24 heapH, C26 `devFree`, C27 `devGpm` and D7
+`idle`. `JReachU17` unchanged; `KDispHypsKVU18.toU17 J'.carry` fills C21 (`JCarry.bufObj`) and `ArchFitHyp`
+(`JCarry.archFit`) from the dispatch state's own `JAtZ.carry` (jc1b, KENTRY-PLAN jc1b), then U17 supplies C26. At U18
+the [J] leaves are C4, C16 (`RegionUnrefAt` half), C17, C22 (`RegionUnrefAt` half), C23, C24 heapH (`RegionUnrefAt`
+half), C24 vsReach, C25 (**[J] 8**; C21 and C24 bufObj gone, C16/C22/C24 heapH narrowed to `RegionUnrefAt`); **[W] 0**.
+Premises added relative to U11: none. Superseded by U18: U17 and jc1b's `kernel_entry_reachU16` (U15 without C21 and the
+`ArchFitHyp` half; [J] 9).
+
+Previous top (superseded by U18): `SInvR.G5.kernel_entry_reachU17` (s26-2, XTopJointKEntryU17) = U11 without C26 `devFree`, C27
 `devGpm` and D7 `idle`: U15 and s26's U14 combined. The three spec-only facts are carried in
 `JReachU17 := JReachU3 ∧ GpmOutV ∧ IdleVtS ∧ DevRangeS` (start facts at one state); the proof runs U15 and supplies
 C26 at every dispatch state from `DevRangeS` (U14's `devFreeT_of`, `BudgetAt.devRange`; `KDispHypsKVU17.toU12`), and
