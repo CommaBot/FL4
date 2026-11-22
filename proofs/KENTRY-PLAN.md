@@ -16256,3 +16256,65 @@ U15 (C17, C23, C24 vsReach), U16 (C16, C22, C24 heapH).
   * C25: true from boot, kept by `DevApart.retype`.
   * D7: true from boot (`create_idle_thread` zeroes the TCB) and kept by `SpecGlob.idle`.
   * C17: g7b-2 (3).
+
+## g7a-4 (branch par/g7a4 from e2c15183, top of record `kernel_entry_reachU11`) — step 2 of g7b-4 (`IdleVtS`, `DevRangeS`): sizing analysis, NOT implemented; both families are true in reachable states (no FINDING), but neither has an existing per-op family it can ride on, so each is a large spec-side family, not S/M
+No Lean change.
+
+### (1) How a new spec fact is carried without touching `JReachU3`
+`JReachU12 s a σ := JReachU3 s a σ ∧ IdleVtS σ (∧ DevRangeS σ)`. The new top asks `JReachU12` and ends each clause
+in `JReachU12` at the exit state: U11's exit gives `JReachU3`, and the spec fact at σ' comes from a whole-entry
+preservation lemma (`∀ y ∈ fl4KernelEntrySyscall true c σ, P σ → P y.2`, and the same for `fl4CallKernel` per
+event), as `kentry_sinvX` / `kentry_zr` do. The start premise moves into `JReachU12` (a one-state premise, [S]
+start). So all of the cost is in the whole-entry preservation lemma of each fact.
+
+### (2) `IdleVtS` (D7): true, but L
+- True: the idle TCB is created with null caps, and its vtable slot is never written. The spec writes a TCB's cap
+  slots only through (a) the TCB invocations, whose target is named by a thread cap (`SpecGlob.idle`: no non-page
+  cap names the idle thread), (b) CSpace lookups, which resolve to CNode slots (never a TCB's), and (c)
+  deletion, which only nulls.
+- No existing family carries it. `ValidIdle` (SpecInvVi*, 4568 lines) is a field frame: its leaf
+  `vi_setCap` (SpecInvViA.lean:246) holds for every `setCap c sl`, so adding the vtable clause to `ObjOK` breaks
+  that leaf and every caller would need the destination argument. SpecGlob's `S N M` family (SpecInvSg*, 3803 lines)
+  carries `NOV N` (the IRQ-node slots `(N irq, [])` hold null or notification caps), with exactly the destination
+  analysis needed (`NotNode`: held, lookup destination, TCB slot, covered), but for a fixed cref `[]` and the node
+  objects. It is not reusable at another slot.
+- Plan: a sibling family `SI M w := P3V N w ∧ IrqOutV M w ∧ IVV w` (`IVV`: the idle TCB's vtable slot holds no
+  mapped PML4 cap), made by the same mechanical rename as SpecInvSgG (ut7's generator), with new leaves for the
+  writers. Sites:
+  * `setCap` / `cap_insert` / `cap_move` / `cap_swap` destinations: a lookup destination is a CNode slot, so not
+    the idle TCB's (new `notIdle_of_destRef`, by object kind);
+  * the TCB installs (`installTcbCap`, `checkCapAt_ins`): the target is the invoked thread's, and not idle by
+    `SpecGlob.idle`;
+  * `do_normal_transfer`: receive slots are lookups;
+  * deletion nulls.
+  Size: a ~600-line leaf module (as SpecInvSgA), plus the generated ~1500 lines (SgG/SgE analogues), plus the
+  decode-fact performs (SgC/SgD analogues, CNode and IRQ performs). **L (2–3 lines of work).**
+
+### (3) `DevRangeS` (C26 + C27): true, but L
+- True:
+  * Spec objects enter a device region only by a retype from a device untyped. That retype advances the free index
+    past the new objects.
+  * The reset deletes the region's objects before it sets the index to 0.
+  * Every other cap writer copies an untyped cap with its index unchanged (or makes it full), or nulls it.
+  * The global PML4 is a kernel-image static: `x64GlobalPml4` is never written, and the boot check e408a625 skips
+    device memory over the image. A device child's range is a sub-range of its parent's.
+- No existing family carries it. `UtFreeV` (UtInv) speaks of object bases only. `UtPgR` / `ZR` (SpecInvUtZ*, 4402
+  lines, g5g–g5i: the existential ghost `U`/`D` sets, `HU`, `GoodZ`, `YP`, the YK/ZW/ZY/ZG/ZX/ZS/ZP families)
+  are fixed to RAM untyped caps (`untypedCap false`) and RAM data pages.
+- Plan: generalise `ZR` to any device flag and any object kind (`UtIn`/`HU` over `untypedCap d`, `GoodZ` over all
+  `kheap` objects with `objBits`). Then `DevRangeS` follows from `ZR` at `d = true` (C26). C27 is a separate
+  range fact `∀ device untyped cap, x64GlobalPml4 ∉ range`, kept by the CD argument (`CD`/`DMV`, SpecInvUtN8: every
+  untyped cap after a step lies inside one before; device-ness is inherited by children), with `x64GlobalPml4`
+  framed. C27 is M on its own; it also needs `DMV` exported for the whole entry, which today exists only at the
+  leaves (SpecInvUtO1 `io_of_dm`).
+  Size: **L** for C26 (the ZR family re-proved with the generalised sets); **M** for C27.
+
+### (4) Bridges (cheap, once the facts are carried)
+- `KFinAtR11.idle` (`IdleVt` at the finish state) from `IdleVtS`, kept by `specFront` and the event handling. The
+  same family gives it, since `IdleVtS` is a whole-state invariant.
+- `JDevPath.devFree` / `devGpm` from `DevRangeS` through `J.dstate.1.1.abs_cap` (the FL4 chain slot's cap is the
+  spec `absCap`; `DevFreeT`'s free part and `DevGpm`'s range read the same `p`, `sb`, `fi`).
+
+### (5) Recommendation
+Order: C27 (M) first, then D7 (L), then C26 (L). Each is spec-only, outside the JAtZ cone, and parallel to m75's
+re-extraction (SpecInv* only). Each wants its own line with a fresh context.
