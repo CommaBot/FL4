@@ -16708,3 +16708,53 @@ global ref).
   m75's re-extraction at main e35ed12b (where FL4 runs the batch) and the batch's P3 refinement. par/fbspec stays a side
   branch until then; on resume: rebase onto m75, items 1-3 above, then the refinement (VsDecTop's PML4 case gains the
   batch label branch).
+## fb3 (branch par/fb3 in FL4-fb3, on d139d550 = m77 + merge of par/fbspec ce8df4a1) — FrameBatch: spec families, P1, P3 at the six m77 sites; PLAN + progress (resumed after the first fb3 agent hit a usage limit right after the merge)
+- **Merge (f8e4c299).** `git merge par/fbspec`: one textual conflict (KENTRY-PLAN, union of both sides). The merge also
+  brings g7e / g7a-3 / sd7 / s27 / sd7-2 (tops U8 … U15) from fbspec's base 9d4d4615, which were built against the
+  pre-#71 extraction: they are re-checked by the first full build.
+- **Semantics re-check (spec `Ext/FrameBatch` vs fl4-core `vspace.rs` 654-850, extracted `Funs.lean` 21744-22120): no
+  mismatch.** Checked: decode order and error codes (`check_vspace` → IC0; header; `length` = `args.length` by `hlen`;
+  extra caps; dest CNode only for COPY_MAP); entry words (w0/w1/w2 ↔ `w.1`/`w.2.1`/`w.2.2`); per-entry errors are all
+  `Exc::Sys` (`lookup_slot_for_cnode_op` returns `Sys(FailedLookup|RangeError)`), codes = `msgFromSyscallError`'s first
+  component (1..10 both sides); COPY_MAP order and rollback (`batch_map` writes only after all checks, so a failing map
+  leaves only the inserted copy, which `cdt::delete(dest,true)` / `capDelete` removes; never final); `batch_map` =
+  `decode_page_map` minus its vspace-cap checks, which the spec's `decodePageInvocation` re-does per entry and which
+  always pass mid-batch (no entry changes the ASID table or the PML4 cap); DELETE deferred condition
+  (`mapped ∧ ¬ept ∧ ¬device ∧ asid = b.asid` ↔ `some _, vmVSpaceMap, dev = false, asid' = b.asid`); `unmap_page_unflushed`
+  ↔ `unmapPageUnflushed` (lookup failure / wrong entry → false); final `invalidate_asid` ↔ `flushAll`; reply and
+  `TS_RUNNING` ↔ the shell's `replyFromKernel` + `setThreadState running`. Message re-reads mid-batch: FL4 reads each
+  entry via `syscall_arg(s, ct, buf, i)` at the current state; no entry writes user memory or `ct`'s registers
+  (`finalise_cap` of a frame: `unmap_page` + `retire_dma_frame`, the latter only `Arch` calls), so the words are
+  stable: a footprint lemma, not an assumption. One divergence on an unreachable path only: if an entry's final
+  `cdt::delete` failed after a deferred clear, FL4 would still flush (`deferred` set before the delete) and the spec
+  would not (`fbRun` drops the failing entry's `cleared`); `cdt::delete` of a frame cap never fails (no preemption
+  point is reached), which the P3 proof must show anyway.
+- **Plan, in order, with sizes** (S < 100 lines, M 100-400, L 400-1500, XL > 1500):
+  1. Spec-side families (fb-spec-2 open 1-3).
+     a. FT / FG [S]: `ft_/fg_fl4ArchPerformInvocation` restricted to non-batch invocations (they have no other user);
+        the batch in the bundle `B` (SpecInvFaultTcbsH7 `b_fbEntry` / `b_performFrameBatch`, where `b_capDelete` is a
+        leaf), H8 `b_fl4PerformInvocation` gains the `invokeArchObject` case.
+     b. DK / DL [S-M]: new module DomFb (after DomRecDel, before VsDomF): AllDom's lookup / derive leaves moved there
+        unchanged, batch leaves (`ensureEmpty`, `decodePageInvocation`, `fbMap`, `unmapPageUnflushed`, `fbCode`,
+        `fbDelete`), full `dke_fl4ArchPerformInvocation` (VsDomOps keeps `dke_fl4ArchPerformInvocation0` for
+        non-batch); SpecInvDomG `dle_fl4ArchPerformInvocation` moved to the file's end with the batch case.
+     c. SpecInvUtE `uiP_fl4Perform` [M]: COPY_MAP's `capInsert` needs `CIOK` at the insert: from `okv_deriveCap` +
+        `utKeep_mask` + the `getCap` of the source (as `okv_decodeCnode`'s copy), the steps before it view-preserving
+        (`uk_*`); the rest by `ui_auto` (`ui_capDelete` is a leaf).
+     d. Downstream cap families not reached by fb-spec's build (UtO*, sg1 SgD/SgE, SiD/SiE, ZR, DevFree/Gpm, Vi*,
+        CnDom, …) [L per group, count unknown until a full build reaches them].
+  2. P1 `QueueDecVs` Pml4 / batch [L]: a loop invariant for `decode_frame_batch_loop` (P1's `Cur0` relative to the
+     decode state but without the caller's restart), per entry: CNode lookups (reads), `ensure_empty_slot`,
+     `derive_cap`, `insert_with_cap` (`CdtHyps`), `batch_map` (`decode_page_map.dec`'s tail), `cdt.delete` (the CNode
+     delete's `DelPlace` lemma), `unmap_page_unflushed` (as `unmap_page.vs`); then `invalidate_asid`, the reply
+     (`set_mr` ×2, `set_msg_info`, as `reply1.bxi`) and `TS_RUNNING`.
+  3. P3 `MachKeepG4d.MKD.vspace_decode` [M-L]: an MKD lemma for the batch loop (reaches `cdt.delete` through
+     `frame_batch_entry`, outside the quiet walk).
+  4. P3 refinement at VsDecTop / VsTopX / VsThX / VsDomF [XL, several sessions]: decode vs `decodeFrameBatch` [M];
+     per entry vs `fbEntry` [L-XL: CNode lookup refinement, CNode copy (`insert_with_cap` vs `capInsert` with the
+     MDB ghost), `batch_map` vs `fbMap` (the frame-map refinement re-stated at an intermediate state: its
+     `VsFrameHyps*` / `SR` bundle must hold at every entry), `cdt.delete` vs `capDelete` (Delete / DelDelete, with
+     `FinInv`), `unmap_page_unflushed` vs `unmapPageUnflushed` (new)]; the loop with CRel / FinInv / MdbOKV / VsRel /
+     PtRel / TopSR re-established after each entry and the message words stable (footprint); the in-decode reply:
+     the PML4 cap's batch label moves from the `DecOKM` class to the reply class (`DecOKRM` / `TacHypX`-style, as
+     TestAndClearAccessed), which threads through VsTopCap / VsTopX / XTopJointVsReply; then VsThX / VsDomF.
