@@ -451,7 +451,8 @@ fn long_mode_entry(kernel: &[u8]) -> Option<u64> {
 
 pub(super) type BootFile<'a> = (u64, u64, &'a [u8]);
 
-/// `measure`: this is a TD, whose RTMR[2] the files from the options extend.
+/// The files from the options extend TPM PCR 9 when there is a TPM, and
+/// (`measure`: this is a TD) RTMR[2].
 fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFile<'a>; 9], usize) {
     let mut files = [(0, 0, &[][..]); 9];
     let mut n = 1;
@@ -459,8 +460,9 @@ fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFil
         if let Some(path) = opt.strip_prefix(b"rootserver=") {
             let (pa, len) = read_file(li, path);
             if measure {
-                ccel::measure_file(path, pa, len);
+                ccel::measure_file(b"rootserver", path, pa, len);
             }
+            tcg2::measure_file(b"rootserver", path, pa, len).unwrap_or_else(|e| fail(e));
             files[0] = (pa, len, path);
         } else if let Some(path) = opt.strip_prefix(b"module=") {
             if n == files.len() {
@@ -468,8 +470,9 @@ fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFil
             }
             let (pa, len) = read_file(li, path);
             if measure {
-                ccel::measure_file(path, pa, len);
+                ccel::measure_file(b"module", path, pa, len);
             }
+            tcg2::measure_file(b"module", path, pa, len).unwrap_or_else(|e| fail(e));
             files[n] = (pa, len, path);
             n += 1;
         }

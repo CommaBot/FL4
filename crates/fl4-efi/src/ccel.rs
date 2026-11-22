@@ -8,7 +8,9 @@
 //! host tests run it (xtask/tests/efi_ccel.rs). A guest whose log is
 //! missing or unusable boots without the record.
 
-use crate::tcg2::{event2_len, spec_id, AlgTable, Log, Mem, MAX_EVENT_LOG};
+use crate::tcg2::{event2_len, spec_id, AlgTable, Log, Mem, EV_IPL, MAX_EVENT_LOG};
+/// `EFI_VOLUME_FULL`: extended, but the log had no room for the event.
+pub use crate::tcg2::VOLUME_FULL;
 
 /// The `CCEL` table: its fixed part, through the log area's address.
 const CCEL_LEN: usize = 56;
@@ -17,8 +19,6 @@ const CC_TYPE_TDX: u8 = 2;
 /// The CC measurement register RTMR[2] is (`EFI_CC_MR_INDEX`: 0 is MRTD, 1
 /// is RTMR[0]).
 pub const MR_INDEX_RTMR2: u32 = 3;
-/// `EV_IPL`: code the boot loader loaded.
-const EV_IPL: u32 = 0xd;
 /// `EFI_CC_EVENT_HEADER`, packed: size, version, MR index, event type.
 const CC_HEADER_LEN: usize = 14;
 /// `EFI_CC_EVENT`: its size field, then the header, then the event data.
@@ -90,9 +90,6 @@ pub fn choose<T>(protocol: Option<T>, complete: impl Fn(&T) -> bool, table: impl
     }
 }
 
-/// `EFI_VOLUME_FULL`: extended, but the log had no room for the event.
-pub const VOLUME_FULL: u64 = (1 << 63) | 11;
-
 /// Whether a boot file was measured into RTMR[2] and may boot: there must
 /// be an `EFI_CC_MEASUREMENT_PROTOCOL`, and its HashLogExtendEvent must have
 /// extended the register (success, or `EFI_VOLUME_FULL`: only the log is
@@ -119,7 +116,7 @@ pub use efi::*;
 #[cfg(not(test))]
 mod efi {
     use super::*;
-    use crate::tcg2::{final_snapshot, main_log, Raw, TpmLog, EFI_TCG2_EVENT_LOG_FORMAT_TCG_2, TCG_1_2, TRUNCATED};
+    use crate::tcg2::{file_descriptor, final_snapshot, main_log, Raw, TpmLog, DESC_MAX, EFI_TCG2_EVENT_LOG_FORMAT_TCG_2, TCG_1_2, TRUNCATED};
     use crate::{bs, config_table, fail, print, Con, Guid, Status, ACPI_10, ACPI_20, SUCCESS};
 
     pub const EFI_CC_MEASUREMENT_PROTOCOL_GUID: Guid = Guid(0x9675_1a3d, 0x72f4, 0x41a6, [0xa7, 0x94, 0xed, 0x5d, 0x0e, 0x67, 0xae, 0x6b]);
@@ -138,19 +135,31 @@ mod efi {
         (r == SUCCESS && !p.is_null()).then_some(p as *mut CcProtocol)
     }
 
-    /// Measure a file the load options named into RTMR[2], so that a quote
-    /// covers it. Called only in a TD: a file that cannot be measured is not
-    /// booted, and neither is one when firmware offers no
+    /// Measure a file the load options named (`role`: rootserver or
+    /// module) into RTMR[2], so that a quote covers it: its descriptor
+    /// (tcg2.rs `file_descriptor`: role, length, path), then its contents
+    /// in place unless it is empty (firmware refuses to hash nothing).
+    /// Called only in a TD: a file that cannot be measured is not booted,
+    /// and neither is one when firmware offers no
     /// `EFI_CC_MEASUREMENT_PROTOCOL` (`measure_status`).
-    pub fn measure_file(path: &[u8], pa: u64, len: u64) {
+    pub fn measure_file(role: &[u8], path: &[u8], pa: u64, len: u64) {
         let Some(cc) = protocol() else {
             fail(measure_status(false, 0).unwrap_err());
         };
-        let mut event = [0u8; CC_EVENT_FIXED + 256];
-        cc_event(&mut event, path);
-        let r = unsafe { ((*cc).hash_log_extend_event)(cc, 0, pa, len, event.as_ptr()) };
+        let mut desc = [0u8; DESC_MAX];
+        let n = file_descriptor(&mut desc, role, path, len);
+        let desc = &desc[..n];
+        let mut event = [0u8; CC_EVENT_FIXED + DESC_MAX];
+        cc_event(&mut event, desc);
+        let r = unsafe { ((*cc).hash_log_extend_event)(cc, 0, desc.as_ptr() as u64, n as u64, event.as_ptr()) };
         if let Err(e) = measure_status(true, r as u64) {
             fail(e);
+        }
+        if len > 0 {
+            let r = unsafe { ((*cc).hash_log_extend_event)(cc, 0, pa, len, event.as_ptr()) };
+            if let Err(e) = measure_status(true, r as u64) {
+                fail(e);
+            }
         }
     }
 

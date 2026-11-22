@@ -518,6 +518,7 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
                 fail("too many boot modules");
             }
             let (pa, size) = read_file(li, p);
+            tcg2::measure_file(b"module", p, pa, size).unwrap_or_else(|e| fail(e));
             let mut name = [0u8; fl4_bootinfo::NAME_LEN];
             let base = p.rsplit(|&c| c == b'\\' || c == b'/').next().unwrap_or(p);
             for (i, &c) in base.iter().take(fl4_bootinfo::NAME_LEN - 1).enumerate() {
@@ -534,9 +535,15 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
             cl += w.len();
         }
     }
+    // What the options added to the kernel command line extends TPM PCR 9
+    // (as the files from the options do) when there is a TPM.
+    if cl > 0 {
+        tcg2::measure_file(b"cmdline", b"", bi.cmdline.as_ptr() as u64, cl as u64).unwrap_or_else(|e| fail(e));
+    }
     let root_file: &[u8] = match root_path {
         Some(p) => {
             let (pa, size) = read_file(li, p);
+            tcg2::measure_file(b"rootserver", p, pa, size).unwrap_or_else(|e| fail(e));
             unsafe { core::slice::from_raw_parts(pa as *const u8, size as usize) }
         }
         None => embedded::ROOTSERVER,
