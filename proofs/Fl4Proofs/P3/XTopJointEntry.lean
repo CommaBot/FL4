@@ -843,7 +843,7 @@ theorem decOK_J [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Stat
     by_cases h0 : z = 0#u64
     · subst h0 hLb
       exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl lbl.bv (port_label lbl) length buf ct
-        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toPN
+        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn.at ar σ) blk don fp extra ci excaps buffer).toPN
         arI (specDec_noPreK (by trivial))
     · exact hOpen h0
   case IrqControl =>
