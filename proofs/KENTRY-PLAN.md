@@ -16576,3 +16576,7 @@ global ref).
 - Builds: sd7-fb3 (imports missing in the patch, fixed), sd7-fb4 (FT5: only the `capDelete` goals left),
   **sd7-fb5: SpecInvFbD and the eight families other than FT/FG green (1106 jobs).** No full build run (it cannot be
   green before items 1-4).
+- **Lead decision (VsDecTop:257): no scope premise.** It is a sequencing issue: the spec hook lands only together with
+  m75's re-extraction at main e35ed12b (where FL4 runs the batch) and the batch's P3 refinement. par/fbspec stays a side
+  branch until then; on resume: rebase onto m75, items 1-3 above, then the refinement (VsDecTop's PML4 case gains the
+  batch label branch).
