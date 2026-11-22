@@ -26,7 +26,7 @@ const MAILBOX_ACK_US: u64 = 5_000_000;
 pub fn ve(f: &mut Frame, info: &VeInfo) {
     let (start, end) = paging::text_bounds();
     if f.rip < start || f.rip >= end.saturating_sub(2) {
-        td::terminate(10);
+        td::terminate_with(10, format_args!("kernel #VE {} outside text", info.exit_reason));
     }
     let op = unsafe { (f.rip as *const [u8; 2]).read() };
     let msr = f.rcx as u32;
@@ -61,7 +61,8 @@ pub fn ve(f: &mut Frame, info: &VeInfo) {
                 Some(operand) => kprintln!("FL4: unsupported TDX #VE {} (MSR or leaf {:#x}) at text offset {:#x}", info.exit_reason, operand, f.rip - start),
                 None => kprintln!("FL4: unsupported TDX #VE {} at text offset {:#x}", info.exit_reason, f.rip - start),
             }
-            td::terminate(10);
+            // Also if the line above could not get out.
+            td::terminate_with(10, format_args!("unsupported #VE {}", info.exit_reason));
         }
     };
     f.rip += length;

@@ -10,7 +10,7 @@ use fl4_core::{debug, sched, syscall};
 use fl4_store::{Phys, PhysStore};
 use fl4_sync::SerialGate;
 use fl4_arch_x86_64::smp;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 core::arch::global_asm!(
     include_str!("../../fl4-arch-x86_64/src/spec.S"), include_str!("sysret.S"), include_str!("bad_iret.S"),
@@ -178,8 +178,10 @@ extern "C" fn fl4_cvm_kernel_entry_stack(f: &Frame) -> u64 {
     let Some(stack) = crate::gdt::cvm_ist(f as *const Frame as u64, f.vector as usize) else {
         return 0;
     };
-    if stack.contains(&f.rsp) || (f.vector >= 32 && f.rflags & RFLAGS_IF == 0) {
-        cvm::terminate(0);
+    let ist_overlap = stack.contains(&f.rsp);
+    let if_clear = f.vector >= 32 && f.rflags & RFLAGS_IF == 0;
+    if ist_overlap || if_clear {
+        cvm::terminate_with(0, format_args!("invalid kernel entry vec={:#x} ist_overlap={} if_clear={}", f.vector, ist_overlap, if_clear));
     }
     // The idle loop has reset RSP to the kernel stack top and keeps
     // nothing on that stack. Dispatch a waking IRQ there, leaving the
@@ -197,7 +199,7 @@ extern "C" fn fl4_cvm_kernel_entry_stack(f: &Frame) -> u64 {
 #[no_mangle]
 extern "C" fn fl4_bad_entry_frame() -> ! {
     if cvm::hardened() {
-        cvm::terminate(0);
+        cvm::terminate_with(0, format_args!("bad entry frame"));
     }
     cpu::halt_forever()
 }
@@ -357,6 +359,10 @@ fn deferred_user_debug(f: &Frame) -> bool {
     f.vector == 1 && (start..end).contains(&f.rip)
 }
 
+/// How many unhandled user #VEs are logged.
+const USER_VE_LOG_MAX: u32 = 8;
+static USER_VE_LOGS: AtomicU32 = AtomicU32::new(0);
+
 /// Called by entry.S for every kernel entry, on the kernel's tables; from
 /// user mode, on the core's kernel stack. Returns only to resume the
 /// interrupted code at once, with the CR3 value to load first (0: what the
@@ -401,6 +407,14 @@ extern "C" fn fl4_entry(f: &mut Frame) -> u64 {
             exit();
         }
         unlock();
+        // The thread's own fault from here. User code can repeat it, so
+        // only the first few reach the console, which the VMM reads: the
+        // exit reason and nothing of the thread's.
+        if USER_VE_LOGS.load(Ordering::Relaxed) < USER_VE_LOG_MAX
+            && USER_VE_LOGS.fetch_add(1, Ordering::Relaxed) < USER_VE_LOG_MAX
+        {
+            kprintln!("FL4: unhandled user TDX #VE (exit_reason {})", info.exit_reason);
+        }
     }
     let irq = (VEC_IRQ_MIN..=VEC_IRQ_MAX).contains(&v);
     if f.cs & 3 == 0 {

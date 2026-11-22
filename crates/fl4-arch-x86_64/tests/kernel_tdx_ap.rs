@@ -96,3 +96,19 @@ fn a_td_does_not_write_cstar() {
     assert!(!GDT[guard..write].contains('}'), "the write is inside the guard");
     assert_eq!(GDT.matches("msr::CSTAR").count(), 1);
 }
+
+/// The console is the VMM's. A fatal detail in the kernel's entry and #VE
+/// code names vectors, reasons and flags, never a frame's registers.
+#[test]
+fn fatal_details_in_the_entry_paths_name_no_registers() {
+    for src in [include_str!("../../fl4-kernel/src/entry.rs"), include_str!("../../fl4-kernel/src/tdx.rs")] {
+        for (at, _) in src.match_indices("terminate_with(") {
+            let call = &src[at..at + src[at..].find('\n').unwrap()];
+            for field in ["f.rip", "f.rsp", "f.rax", "f.rbx", "f.rcx", "f.rdx", "f.rsi", "f.rdi", "f.rbp", "f.r8", "f.r9", "f.r1", "info.gpa", "info.gla"] {
+                assert!(!call.contains(field), "{field} in {call}");
+            }
+        }
+    }
+    let entry = include_str!("../../fl4-kernel/src/entry.rs");
+    assert!(entry.contains("kprintln!(\"FL4: unhandled user TDX #VE (exit_reason {})\", info.exit_reason);"));
+}

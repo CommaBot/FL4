@@ -278,19 +278,21 @@ fn accept_chunks_partition_the_ranges() {
 }
 
 /// The MADT's mailbox address comes from the VMM: only a whole page of
-/// firmware's reserved or NVS memory, inside the window, is used.
+/// firmware's reserved, ACPI reclaim or NVS memory, inside the window, is
+/// used.
 #[test]
 fn the_wakeup_mailbox_must_be_a_firmware_page() {
     let top = 4 << 30;
-    let map = [(0x10_0000, 16 * MIB, 1), (0x7f00_0000, 0x4000, 4), (0x7f80_0000, 0x1000, 2), (0x8000_0000, 0x1000, 3)];
+    let map = [(0x10_0000, 16 * MIB, 1), (0x7f00_0000, 0x4000, 4), (0x7f80_0000, 0x1000, 2), (0x8000_0000, 0x1000, 3), (0x9000_0000, 0x4000, UNACCEPTED)];
     assert!(bootmem::mailbox_ok(0x7f00_0000, top, map));
     assert!(bootmem::mailbox_ok(0x7f00_3000, top, map));
     assert!(bootmem::mailbox_ok(0x7f80_0000, top, map));
+    assert!(bootmem::mailbox_ok(0x8000_0000, top, map));
     for bad in [
         0,
         0x7f00_0800,                // off a page
         0x20_0000,                  // RAM
-        0x8000_0000,                // ACPI reclaim, which goes to user space
+        0x9000_1000,                // unaccepted RAM
         0x7f00_4000,                // just past the entry
         0x7f7f_f000,                // in a hole
         u64::MAX & !0xfff,
@@ -319,4 +321,19 @@ fn the_chunk_count_is_the_number_of_pieces() {
         assert_eq!(n, chunks(&ranges, c).len() as u64, "{ranges:?}");
         assert_eq!(bootmem::chunk_of(&ranges, n, c), None);
     }
+}
+
+#[test]
+fn the_memory_type_of_a_page_needs_one_entry_to_hold_it() {
+    let map = [(0x10_0000, 0x2000, 1), (0x10_2000, 0x1000, 4), (0x20_0000, 0x1800, 3)];
+    assert_eq!(bootmem::mmap_type_of(0x10_0000, map), Some(1));
+    assert_eq!(bootmem::mmap_type_of(0x10_1000, map), Some(1));
+    assert_eq!(bootmem::mmap_type_of(0x10_2000, map), Some(4));
+    assert_eq!(bootmem::mmap_type_of(0x20_0000, map), Some(3));
+    // Across two entries, past an entry's end, in a hole, at the top.
+    assert_eq!(bootmem::mmap_type_of(0x10_1800, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x20_1000, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x30_0000, map), None);
+    assert_eq!(bootmem::mmap_type_of(u64::MAX & !0xfff, map), None);
+    assert_eq!(bootmem::mmap_type_of(0x10_0000, []), None);
 }

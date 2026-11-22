@@ -133,7 +133,11 @@ pub fn init(vector: u32) {
         // The VMM must not be able to change how the guest measures time.
         match tdx_tsc_khz(cpuid) {
             Some(k) => (k, Source::Cpuid),
-            None => crate::tdx::terminate(9),
+            None => {
+                let max = cpuid(0, 0).eax;
+                let l = if max >= 0x15 { cpuid(0x15, 0) } else { Cpuid { eax: 0, ebx: 0, ecx: 0, edx: 0 } };
+                crate::tdx::terminate_with(9, format_args!("no TDX CPUID 15H TSC rate max={:#x} eax={:#x} ebx={:#x} ecx={:#x}", max, l.eax, l.ebx, l.ecx))
+            }
         }
     } else {
         reported_tsc_khz(cpuid, || {

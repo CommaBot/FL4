@@ -160,16 +160,24 @@ pub fn chunk_count(ranges: &[Region], chunk: u64) -> u64 {
     ranges.iter().filter(|r| r.start < r.end).map(|r| (r.end - 1) / chunk - r.start / chunk + 1).sum()
 }
 
+/// The type of the memory map entry holding the whole page at `addr`.
+pub fn mmap_type_of(addr: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> Option<u32> {
+    let end = addr.checked_add(PAGE)?;
+    mmap.into_iter().find(|&(base, len, _)| base <= addr && end <= base.saturating_add(len)).map(|e| e.2)
+}
+
 /// Whether the AP wakeup mailbox page the MADT names is firmware's: inside
-/// the window, whole in one reserved (type 2) or ACPI NVS (type 4) entry of
-/// the memory map. The VMM writes the MADT, and the kernel will write to this
-/// address and wait on it, so it must not be RAM or the kernel's own.
+/// the window, whole in one reserved (type 2), ACPI reclaim (3) or ACPI NVS
+/// (4) entry of the memory map. The VMM writes the MADT, and the kernel will
+/// write to this address and wait on it, so it must not be RAM or the
+/// kernel's own. None of these types is RAM to the kernel (`ram`), and
+/// fl4_boot keeps the page out of device memory.
 pub fn mailbox_ok(mailbox: u64, window_top: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> bool {
     let Some(end) = mailbox.checked_add(PAGE) else { return false };
     if mailbox == 0 || mailbox % PAGE != 0 || end > window_top {
         return false;
     }
-    mmap.into_iter().any(|(base, len, ty)| matches!(ty, 2 | 4) && base <= mailbox && end <= base.saturating_add(len))
+    mmap.into_iter().any(|(base, len, ty)| matches!(ty, 2 | 3 | 4) && base <= mailbox && end <= base.saturating_add(len))
 }
 
 /// What user space gets as device memory: everything below `top` that is

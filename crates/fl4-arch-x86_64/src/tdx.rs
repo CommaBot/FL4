@@ -7,6 +7,7 @@
 use crate::cpu::{self, Cpuid};
 use crate::cvm;
 use core::arch::asm;
+use core::fmt::{self, Write};
 use core::sync::atomic::{compiler_fence, AtomicBool, AtomicU64, Ordering};
 
 // TDCALL leaves.
@@ -156,20 +157,95 @@ fn raw_vmcall(expose: u64, sub: u64, a12: u64, a13: u64, a14: u64, a15: u64) -> 
 fn vmcall(expose: u64, sub: u64, a12: u64, a13: u64, a14: u64, a15: u64) -> VmcallOut {
     let (tdcall_status, o) = raw_vmcall(expose, sub, a12, a13, a14, a15);
     if tdcall_status != 0 {
-        terminate(1);
+        terminate_with(1, format_args!("sub={:#x} tdcall={:#x}", sub, tdcall_status));
     }
     o
+}
+
+/// The longest fatal line, its newline included.
+const FATAL_LINE: usize = 160;
+const COM1: u64 = 0x3f8;
+const COM1_LSR: u64 = COM1 + 5;
+const LSR_THRE: u64 = 0x20;
+/// Polls of the transmitter for one byte, before the line stops polling.
+const FATAL_LSR_POLLS: u32 = 65536;
+
+/// A fatal line on the stack. What does not fit is cut: formatting never
+/// fails or panics, and the newline always fits.
+struct FatalLine {
+    buf: [u8; FATAL_LINE],
+    len: usize,
+}
+
+impl Write for FatalLine {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let n = s.len().min(FATAL_LINE - 1 - self.len);
+        self.buf[self.len..self.len + n].copy_from_slice(&s.as_bytes()[..n]);
+        self.len += n;
+        Ok(())
+    }
+}
+
+fn fatal_line(reason: u8, detail: Option<fmt::Arguments<'_>>) -> FatalLine {
+    let mut line = FatalLine { buf: [0; FATAL_LINE], len: 0 };
+    let _ = match detail {
+        Some(d) => write!(line, "FL4: TDX fatal (reason {reason}): {d}"),
+        None => write!(line, "FL4: TDX fatal (reason {reason})"),
+    };
+    line.buf[line.len] = b'\n';
+    line.len += 1;
+    line
+}
+
+/// One byte to COM1. Uses `raw_vmcall` and ignores its status, so that a
+/// failing VMCALL cannot come back here through `terminate`. After a byte
+/// whose transmitter never went idle, `poll` is off and the rest is written
+/// without waiting.
+fn fatal_serial_byte(byte: u8, poll: &mut bool) {
+    let io = R12 | R13 | R14 | R15;
+    if *poll {
+        let ready = (0..FATAL_LSR_POLLS).any(|_| raw_vmcall(io, EXIT_IO as u64, 1, 0, COM1_LSR, 0).1.r11 & LSR_THRE != 0);
+        *poll = ready;
+    }
+    let _ = raw_vmcall(io, EXIT_IO as u64, 1, 1, COM1, byte as u64);
+}
+
+/// Write to COM1 with no lock and nothing that can terminate.
+fn fatal_serial_write(bytes: &[u8]) {
+    let mut poll = true;
+    for &b in bytes {
+        if b == b'\n' {
+            fatal_serial_byte(b'\r', &mut poll);
+        }
+        fatal_serial_byte(b, &mut poll);
+    }
+}
+
+fn fatal(reason: u8, detail: Option<fmt::Arguments<'_>>) -> ! {
+    // Only the first failing vCPU reports, so lines do not interleave.
+    if cvm::poison() {
+        cpu::halt_forever();
+    }
+    let line = fatal_line(reason, detail);
+    fatal_serial_write(&line.buf[..line.len]);
+    let _ = raw_vmcall(R12 | R13, VMCALL_REPORT_FATAL_ERROR, reason as u64, 0, 0, 0);
+    cpu::halt_forever()
 }
 
 /// Stop every core, for good: a VMM that ignores the report still gets no
 /// more guest execution (`cvm::poison`, checked at each kernel entry and
 /// exit).
 pub fn terminate(reason: u8) -> ! {
-    if cvm::poison() {
-        cpu::halt_forever();
-    }
-    let _ = raw_vmcall(R12 | R13, VMCALL_REPORT_FATAL_ERROR, reason as u64, 0, 0, 0);
-    cpu::halt_forever()
+    fatal(reason, None)
+}
+
+/// `terminate`, saying why on the serial console. The VMM reads that
+/// console: `detail` may hold reason codes, TDCALL and VMCALL status, MSR
+/// numbers, GPAs the VMM already knows, vectors and flags, and never a
+/// register's contents, a value being written, a stack address or private
+/// memory.
+pub fn terminate_with(reason: u8, detail: fmt::Arguments<'_>) -> ! {
+    fatal(reason, Some(detail))
 }
 
 /// Halt this vCPU for good, without an instruction that would take #VE.
@@ -286,14 +362,14 @@ pub fn init(info: Info) {
     VCPUS.store(info.num_vcpus | (info.max_vcpus << 32), Ordering::Relaxed);
     let config = vm_rd(TDCS_CONFIG_FLAGS);
     let ctls = vm_rd(TDCS_TD_CTLS);
-    match sept_ve_action(info.attributes, config, ctls) {
-        SeptVe::Off | SeptVe::Keep => {}
-        SeptVe::Disable => {
-            if !vm_wr(TDCS_TD_CTLS, TD_CTLS_PENDING_VE_DISABLE, TD_CTLS_PENDING_VE_DISABLE) {
-                terminate(2);
-            }
-        }
-        SeptVe::Refuse => terminate(2),
+    let action = sept_ve_action(info.attributes, config, ctls);
+    let refused = match action {
+        SeptVe::Off | SeptVe::Keep => false,
+        SeptVe::Disable => !vm_wr(TDCS_TD_CTLS, TD_CTLS_PENDING_VE_DISABLE, TD_CTLS_PENDING_VE_DISABLE),
+        SeptVe::Refuse => true,
+    };
+    if refused {
+        terminate_with(2, format_args!("sept_ve action={:?} attrs={:#x} cfg={:x?} ctls={:x?}", action, info.attributes, config, ctls));
     }
     TD_CTLS.store(vm_rd(TDCS_TD_CTLS).unwrap_or(0), Ordering::Relaxed);
 }
@@ -354,8 +430,9 @@ pub struct VeInfo {
 /// fault, so a #VE handler calls it before anything else.
 pub fn ve_info() -> VeInfo {
     let mut r = Regs::default();
-    if tdcall(TDG_VP_VEINFO_GET, &mut r) != 0 {
-        terminate(3);
+    let status = tdcall(TDG_VP_VEINFO_GET, &mut r);
+    if status != 0 {
+        terminate_with(3, format_args!("ve_info tdcall={:#x}", status));
     }
     VeInfo {
         exit_reason: r.rcx as u32,
@@ -395,7 +472,8 @@ pub fn accept_pages(pa: u64, bytes: u64) {
     while cur < end {
         let level = if !small && cur % HUGE == 0 && end - cur >= HUGE { LEVEL_2M } else { LEVEL_4K };
         let mut r = Regs { rcx: cur | level, ..Regs::default() };
-        match accept_result(tdcall(TDG_MEM_PAGE_ACCEPT, &mut r), level) {
+        let status = tdcall(TDG_MEM_PAGE_ACCEPT, &mut r);
+        match accept_result(status, level) {
             Accepted::Advance => {
                 cur += if level == LEVEL_2M { HUGE } else { PAGE };
                 small = false;
@@ -405,11 +483,11 @@ pub fn accept_pages(pa: u64, bytes: u64) {
             Accepted::Retry => {
                 busy += 1;
                 if busy > ACCEPT_BUSY_RETRIES {
-                    terminate(4);
+                    terminate_with(4, format_args!("accept status={:#x} lvl={} cur={:#x} end={:#x} busy={}", status, level, cur, end, busy));
                 }
                 core::hint::spin_loop();
             }
-            Accepted::Fail => terminate(4),
+            Accepted::Fail => terminate_with(4, format_args!("accept status={:#x} lvl={} cur={:#x} end={:#x} busy={}", status, level, cur, end, busy)),
         }
     }
 }
@@ -455,7 +533,7 @@ pub fn map_gpa(gpa: u64, bytes: u64) {
                 cur = next;
                 stalled = s;
             }
-            MapGpa::Violation => terminate(5),
+            MapGpa::Violation => terminate_with(5, format_args!("map_gpa status={:#x} cur={:#x} end={:#x} r11={:#x} stalled={}", o.status, cur, end, o.r11, stalled)),
         }
     }
 }
@@ -479,7 +557,7 @@ pub fn cpuid_is_vmm_leaf(leaf: u32) -> bool {
 pub fn hlt(interrupt_blocked: bool) {
     let o = vmcall(R12, EXIT_HLT as u64, interrupt_blocked as u64, 0, 0, 0);
     if o.status != 0 {
-        terminate(6);
+        terminate_with(6, format_args!("hlt status={:#x} blocked={}", o.status, interrupt_blocked));
     }
 }
 
@@ -503,7 +581,7 @@ pub fn io(port: u16, bytes: u64, value: Option<u32>) -> u32 {
 pub fn read_msr(msr: u32) -> u64 {
     let o = vmcall(R12, EXIT_MSR_READ as u64, msr as u64, 0, 0, 0);
     if o.status != 0 {
-        terminate(7);
+        terminate_with(7, format_args!("rdmsr msr={:#x} status={:#x}", msr, o.status));
     }
     o.r11
 }
@@ -512,7 +590,8 @@ pub fn read_msr(msr: u32) -> u64 {
 pub fn write_msr(msr: u32, value: u64) {
     let o = vmcall(R12 | R13, EXIT_MSR_WRITE as u64, msr as u64, value, 0, 0);
     if o.status != 0 {
-        terminate(7);
+        // Not the value: it can be private.
+        terminate_with(7, format_args!("wrmsr msr={:#x} status={:#x}", msr, o.status));
     }
 }
 
@@ -532,7 +611,7 @@ pub fn mmio(gpa: u64, bytes: u64, write: Option<u64>) -> u64 {
 pub fn wbinvd() {
     let o = vmcall(R12, EXIT_WBINVD as u64, 0, 0, 0, 0);
     if o.status != 0 {
-        terminate(8);
+        terminate_with(8, format_args!("wbinvd status={:#x}", o.status));
     }
 }
 
@@ -589,6 +668,7 @@ pub fn extend_rtmr(index: u64, digest: &[u64; 6]) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
 
     #[test]
@@ -680,6 +760,53 @@ mod tests {
         assert_eq!(sept_ve_action(off, flex, Some(0)), Disable);
         assert_eq!(sept_ve_action(0, flex, Some(0)), Disable);
         assert_eq!(sept_ve_action(dbg, flex, Some(0)), Keep);
+    }
+
+    fn text(l: &FatalLine) -> &str {
+        core::str::from_utf8(&l.buf[..l.len]).unwrap()
+    }
+
+    #[test]
+    fn a_fatal_line_names_the_reason_and_its_detail() {
+        assert_eq!(text(&fatal_line(9, None)), "FL4: TDX fatal (reason 9)\n");
+        let l = fatal_line(7, Some(format_args!("rdmsr msr={:#x} status={:#x}", 0xc000_0083u32, 1u64)));
+        assert_eq!(text(&l), "FL4: TDX fatal (reason 7): rdmsr msr=0xc0000083 status=0x1\n");
+    }
+
+    /// The longest real line fits, and a longer one is cut, with its newline.
+    #[test]
+    fn a_fatal_line_is_cut_to_fit_without_failing() {
+        let m = u64::MAX;
+        let l = fatal_line(5, Some(format_args!("map_gpa status={:#x} cur={:#x} end={:#x} r11={:#x} stalled={}", m, m, m, m, u32::MAX)));
+        assert!(text(&l).ends_with("stalled=4294967295\n"), "{}", text(&l));
+        assert!(l.len <= FATAL_LINE);
+        for n in [FATAL_LINE - 40, FATAL_LINE, FATAL_LINE * 3] {
+            let long = "x".repeat(n);
+            let l = fatal_line(255, Some(format_args!("{long}")));
+            assert!(l.len <= FATAL_LINE);
+            assert_eq!(l.buf[l.len - 1], b'\n');
+        }
+        // Many small writes stop at the same place.
+        let mut w = FatalLine { buf: [0; FATAL_LINE], len: 0 };
+        for _ in 0..FATAL_LINE * 2 {
+            write!(w, "y").unwrap();
+        }
+        assert_eq!(w.len, FATAL_LINE - 1);
+    }
+
+    /// The console is the VMM's: the failed WRMSR's line names the MSR and
+    /// status, never the value being written.
+    #[test]
+    fn a_failed_wrmsr_does_not_log_its_value() {
+        let src = include_str!("tdx.rs");
+        let f = &src[src.find("pub fn write_msr(").unwrap()..];
+        let f = &f[..f.find("\n}\n").unwrap()];
+        let call = &f[f.find("terminate_with(").unwrap()..];
+        assert_eq!(call.lines().next().unwrap(), "terminate_with(7, format_args!(\"wrmsr msr={:#x} status={:#x}\", msr, o.status));");
+        const VALUE: u64 = 0x1122_3344_5566_7788;
+        let (msr, status) = (0x6e0u32, 0x8000_0000_0000_0000u64);
+        let l = fatal_line(7, Some(format_args!("wrmsr msr={:#x} status={:#x}", msr, status)));
+        assert!(!text(&l).contains(&std::format!("{VALUE:x}")));
     }
 
     #[test]

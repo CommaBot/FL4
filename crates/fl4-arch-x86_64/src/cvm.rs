@@ -86,6 +86,15 @@ pub fn terminate(reason: u8) -> ! {
     snp::terminate(reason)
 }
 
+/// `terminate`, with a detail for the TDX console (`tdx::terminate_with`:
+/// the VMM reads it, so nothing private). SNP reports the reason alone.
+pub fn terminate_with(reason: u8, detail: core::fmt::Arguments<'_>) -> ! {
+    if tdx::active() {
+        tdx::terminate_with(reason, detail)
+    }
+    snp::terminate(reason)
+}
+
 /// End of the contiguous GPA range below both MAXPHYADDR and the visibility
 /// bit, `private_mask | shared_mask`. AMD APM vol. 2 §15.34.6 applies
 /// PhysAddrReduction to the system physical address after nested

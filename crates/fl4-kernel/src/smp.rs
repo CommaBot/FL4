@@ -84,8 +84,8 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
         return 1;
     }
     let tdx_guest = fl4_arch_x86_64::tdx::active();
+    // fl4_boot has said why.
     if tdx_guest && f.tdx_wakeup.is_none() {
-        kprintln!("FL4: no usable TDX AP wakeup mailbox; using one core");
         return 1;
     }
     let max = (MAX_NODES as usize).min(percpu::MAX_CPUS);

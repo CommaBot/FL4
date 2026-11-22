@@ -382,6 +382,15 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     } else {
         None
     };
+    if td.is_some() && tdx_wakeup.is_none() {
+        let mmap_ty = acpi.mp_wakeup_raw.and_then(|(_, _, m)| {
+            bootmem::mmap_type_of(m, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))
+        });
+        kprintln!(
+            "FL4: no usable TDX AP wakeup mailbox (ap_page {:x?}, madt (ver, len, mailbox) {:x?}, mmap_ty {:x?}); using one core",
+            mb.tdx_ap_page, acpi.mp_wakeup_raw, mmap_ty
+        );
+    }
     // The other cores, if any (each sets itself up and waits). Each walks
     // the boot core's tables, and the 1 GiB pages and addresses in them.
     let ncpus = smp::start_aps(&acpi.cpus[..acpi.n_cpus], smp::Features { cr4: cpu::ap_boot_cr4(cpu::read_cr4()), efer_nx: nx, window_top, huge, paddr_top: device_top, tdx_wakeup });

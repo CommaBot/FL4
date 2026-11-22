@@ -311,20 +311,32 @@ fn a_short_wakeup_entry_is_skipped_and_the_first_one_counts() {
     assert_eq!(parse(&both).mp_wakeup_mailbox, Some(0x7f00_0000));
 }
 
-/// Version 0 (16 bytes) and version 1 (24, as TDVF publishes it) have the
-/// same mailbox. Anything else may not, and is not used.
+/// As in Linux, any version with room for the address is used: firmware
+/// publishes version 1 with 16 bytes as well as 24, and the mailbox is at the
+/// same place in all of them.
 #[test]
-fn the_wakeup_entry_version_is_checked() {
+fn the_wakeup_entry_needs_room_for_its_address_in_any_version() {
     let at = 0x7f00_0000;
-    assert_eq!(parse(&mp_wakeup_version(at, 16, 0)).mp_wakeup_mailbox, Some(at));
-    assert_eq!(parse(&mp_wakeup_version(at, 24, 0)).mp_wakeup_mailbox, Some(at));
-    assert_eq!(parse(&mp_wakeup_version(at, 24, 1)).mp_wakeup_mailbox, Some(at));
-    assert_eq!(parse(&mp_wakeup_version(at, 16, 1)).mp_wakeup_mailbox, None, "too short for version 1");
-    for version in [2, 3, 0xffff] {
-        assert_eq!(parse(&mp_wakeup_version(at, 24, version)).mp_wakeup_mailbox, None, "version {version}");
+    for (version, len) in [(0, 16), (0, 24), (1, 16), (1, 24), (2, 16), (0xffff, 24)] {
+        let info = parse(&mp_wakeup_version(at, len, version));
+        assert_eq!(info.mp_wakeup_mailbox, Some(at), "version {version}, length {len}");
+        assert_eq!(info.mp_wakeup_raw, Some((version, len as u64, at)));
     }
-    // An entry of an unknown version does not hide a good one after it.
-    let mut both = mp_wakeup_version(0x1000, 24, 2);
-    both.extend(mp_wakeup_version(at, 24, 1));
-    assert_eq!(parse(&both).mp_wakeup_mailbox, Some(at));
+}
+
+/// A short entry gives no mailbox, and the log still shows what it was.
+#[test]
+fn a_short_wakeup_entry_is_only_recorded() {
+    for len in [4, 8, 15] {
+        let info = parse(&mp_wakeup_version(0x7f00_0000, len, 1));
+        assert_eq!(info.mp_wakeup_mailbox, None, "length {len}");
+        assert_eq!(info.mp_wakeup_raw, Some((1, len as u64, 0)));
+    }
+    assert_eq!(parse(&lapic(0, 1)).mp_wakeup_raw, None);
+    // The first entry is the one shown; a good one after a short one is used.
+    let mut both = mp_wakeup_version(0, 8, 3);
+    both.extend(mp_wakeup_version(0x7f00_0000, 16, 1));
+    let info = parse(&both);
+    assert_eq!(info.mp_wakeup_raw, Some((3, 8, 0)));
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
 }
