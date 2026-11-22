@@ -1,8 +1,9 @@
 //! Starting the application processors (seL4 arch/x86/kernel/smp_sys.c).
 use crate::{entry, gdt, kprintln, paging};
-use core::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use fl4_arch_x86_64::arch::TIMER_VECTOR;
 use fl4_arch_x86_64::{apic, cpu, fpu, percpu, pit, sev::snp, smp, timer};
+use fl4_core::boot::Region;
 use fl4_core::layout::{pptr, MAX_NODES};
 use fl4_core::sched;
 
@@ -48,9 +49,11 @@ pub struct Features {
     /// The top of what the kernel maps or user space may map: RAM in the
     /// window and device memory (`device_top`), not only the window.
     pub paddr_top: u64,
+    /// A TDX guest's way to start its cores, if it has one.
+    pub tdx_wakeup: Option<crate::tdx::Wakeup>,
 }
 
-static mut FEATURES: Features = Features { window_top: 0, cr4: 0, efer_nx: false, huge: false, paddr_top: 0 };
+static mut FEATURES: Features = Features { window_top: 0, cr4: 0, efer_nx: false, huge: false, paddr_top: 0, tdx_wakeup: None };
 
 /// PIT ticks for about `us` microseconds.
 fn pit_us(us: u64) -> u16 {
@@ -80,13 +83,22 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
         kprintln!("FL4: SNP hypervisor does not advertise AP creation; using one core");
         return 1;
     }
+    let tdx_guest = fl4_arch_x86_64::tdx::active();
+    // fl4_boot has said why.
+    if tdx_guest && f.tdx_wakeup.is_none() {
+        return 1;
+    }
     let max = (MAX_NODES as usize).min(percpu::MAX_CPUS);
     let bsp = percpu::apic_id(percpu::cpu_index());
     let smt_shift = fl4_arch_x86_64::spec::smt_shift();
     let tramp = unsafe { &fl4_ap_trampoline as *const u8 };
     let len = unsafe { &fl4_ap_trampoline_end as *const u8 as usize } - tramp as usize;
     let data_off = unsafe { &fl4_ap_data as *const u8 as usize } - tramp as usize;
-    let boot_root = if snp_guest { 0 } else { paging::ap_boot_root() };
+    let boot_root = match f.tdx_wakeup {
+        _ if snp_guest => 0,
+        Some(w) => paging::ap_boot_root(w.page),
+        None => paging::ap_boot_root(AP_BASE),
+    };
     let mut aps = [(0usize, 0u32); percpu::MAX_CPUS];
     let n = crate::ap_order::select(apic_ids, max, |i, id| {
         if !crate::acpi::first_listing(apic_ids, i) || !fl4_arch_x86_64::spec::allow_ap(
@@ -105,12 +117,19 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     // Cores 0..=n: the boot core and the indices `select` handed out.
     crate::entry::GATE.set_cores(n + 1);
     let entry = fl4_ap_main as *const () as u64;
+    if let Some(w) = f.tdx_wakeup {
+        crate::tdx::prepare_wakeup(w.page, boot_root, f.efer_nx, entry);
+    }
+    // A TDX VMM schedules the vCPU that has to come up.
+    let start_timeout_us = if tdx_guest { 5_000_000 } else { 100_000 };
     crate::ap_order::bring_up(&aps[..n], snp_guest, |c, _| {
         crate::snp::prepare_ap(c, percpu::stack_top(c), entry);
     }, |c, id| {
         let before = smp::num_online();
         if snp_guest {
             crate::snp::start_ap(c, id);
+        } else if let Some(w) = f.tdx_wakeup {
+            crate::tdx::start_ap(w, c, id);
         } else {
             unsafe {
                 core::ptr::copy_nonoverlapping(tramp, pptr(AP_BASE) as *mut u8, len);
@@ -129,7 +148,7 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
                 wait_us(200);
             }
         }
-        let deadline = cpu::rdtsc() + timer::us_to_ticks(100_000);
+        let deadline = cpu::rdtsc() + timer::us_to_ticks(start_timeout_us);
         while smp::num_online() == before && AP_REJECTED.load(Ordering::Acquire) == 0
             && cpu::rdtsc() < deadline {
             core::hint::spin_loop();
@@ -157,7 +176,53 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             crate::fail("AP startup timed out; refusing to start userspace");
         }
     });
+    if let Some(w) = f.tdx_wakeup {
+        crate::tdx::finish_wakeup(w.page);
+    }
     smp::num_online() as usize
+}
+
+/// How much unaccepted memory one core takes at a time.
+const ACCEPT_CHUNK: u64 = 64 << 20;
+/// The ranges being accepted: published once, in static memory.
+static ACCEPT_LIST: AtomicPtr<Region> = AtomicPtr::new(core::ptr::null_mut());
+static ACCEPT_LEN: AtomicUsize = AtomicUsize::new(0);
+static ACCEPT_CHUNKS: AtomicU64 = AtomicU64::new(0);
+static ACCEPT_NEXT: AtomicU64 = AtomicU64::new(0);
+static ACCEPT_DONE: AtomicU64 = AtomicU64::new(0);
+
+/// Accept pieces of the published ranges until none is left.
+fn help_accept() {
+    let list = ACCEPT_LIST.load(Ordering::Acquire);
+    if list.is_null() {
+        return;
+    }
+    let ranges = unsafe { core::slice::from_raw_parts(list, ACCEPT_LEN.load(Ordering::Acquire)) };
+    let chunks = ACCEPT_CHUNKS.load(Ordering::Acquire);
+    // Once every piece is taken, a core waiting here only reads the counter.
+    while ACCEPT_NEXT.load(Ordering::Relaxed) < chunks {
+        let index = ACCEPT_NEXT.fetch_add(1, Ordering::Relaxed);
+        let Some((start, end)) = crate::bootmem::chunk_of(ranges, index, ACCEPT_CHUNK) else { break };
+        fl4_arch_x86_64::tdx::accept_pages(start, end - start);
+        ACCEPT_DONE.fetch_add(end - start, Ordering::AcqRel);
+    }
+}
+
+/// Accept `ranges` (TDG.MEM.PAGE.ACCEPT) on every online core: the APs do
+/// this while they wait for the root task (`fl4_ap_main`).
+pub fn accept_memory(ranges: &'static [Region]) {
+    let total: u64 = ranges.iter().map(|r| r.end - r.start).sum();
+    if total == 0 {
+        return;
+    }
+    ACCEPT_CHUNKS.store(crate::bootmem::chunk_count(ranges, ACCEPT_CHUNK), Ordering::Release);
+    ACCEPT_LEN.store(ranges.len(), Ordering::Release);
+    ACCEPT_LIST.store(ranges.as_ptr().cast_mut(), Ordering::Release);
+    help_accept();
+    while ACCEPT_DONE.load(Ordering::Acquire) < total {
+        core::hint::spin_loop();
+    }
+    ACCEPT_LIST.store(core::ptr::null_mut(), Ordering::Release);
 }
 
 /// Synchronize the patched instructions before enabling the new native
@@ -184,6 +249,8 @@ pub fn release_aps() {
 #[no_mangle]
 extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
+    // Before anything that can take #VE.
+    if fl4_arch_x86_64::tdx::active() { gdt::load_boot_idt(); }
     if snp::active() { snp::register_cpu(); }
     // Natively before the boot core's tables, whose 1 GiB pages and
     // addresses a core without them faults on with no IDT; on SNP (CPUID
@@ -224,6 +291,7 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
             TEXT_SYNCED.fetch_add(1, Ordering::AcqRel);
             text_synced = true;
         }
+        help_accept();
         core::hint::spin_loop();
     }
     entry::lock();

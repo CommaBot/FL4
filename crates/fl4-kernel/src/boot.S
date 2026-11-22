@@ -197,5 +197,7 @@ boot_stack_top:
     ud2
     .align 8
     .global fl4_efi_gdt
+    /* In read-only text once the kernel's tables are in: the accessed bits
+     * are set so that loading a selector from it writes nothing. */
 fl4_efi_gdt:
-    .quad 0, 0, 0x00af9a000000ffff, 0x00cf92000000ffff
+    .quad 0, 0, 0x00af9b000000ffff, 0x00cf93000000ffff

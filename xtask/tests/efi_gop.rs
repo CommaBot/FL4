@@ -146,8 +146,8 @@ fn the_loader_writes_the_tag_before_the_memory_map_and_not_under_sev() {
     let tags_end = body.find("let tags_end = info.used").expect("tags_end");
     assert!(write < tags_end);
     let guard = body[..write]
-        .rfind("if mask == 0 {")
-        .expect("the framebuffer tag is not behind the SEV check");
+        .rfind("if mask | shared == 0 {")
+        .expect("the framebuffer tag is not behind the SEV and TDX check");
     // The guard's block stays open up to the tag.
     let mut depth = 0;
     for c in body[guard..write].chars() {

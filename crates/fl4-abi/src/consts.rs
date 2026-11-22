@@ -318,6 +318,12 @@ pub mod bootinfo_header {
     pub const AARCH64_VIRT_INFO: u64 = 11;
     /// UEFI TPM event log (seL4_TpmEventLog: paddr, size, flags).
     pub const TPM_EVENT_LOG: u64 = 12;
+    /// UEFI confidential-computing event log (seL4_CcEventLog: paddr,
+    /// size, flags; the flags are `tpm_event_log_flag`'s).
+    pub const CC_EVENT_LOG: u64 = 13;
+    /// Intel TDX guest facts (seL4_X86_TdxInfo: gpaw, attributes, td_ctls,
+    /// num_vcpus, max_vcpus).
+    pub const TDX_INFO: u64 = 14;
 }
 
 /// `bootinfo_header::TPM_EVENT_LOG` flags (libsel4 `seL4_TpmEventLog_*`).
@@ -326,4 +332,10 @@ pub mod tpm_event_log_flag {
     pub const TRUNCATED: u64 = 1 << 0;
     /// The log is in the TCG 1.2 (SHA-1) format; clear for TCG 2.0 crypto agile.
     pub const TCG_1_2: u64 = 1 << 1;
+}
+
+/// `bootinfo_header::CC_EVENT_LOG` flags (libsel4 `seL4_CcEventLog_*`).
+pub mod cc_event_log_flag {
+    pub const TRUNCATED: u64 = super::tpm_event_log_flag::TRUNCATED;
+    pub const TCG_1_2: u64 = super::tpm_event_log_flag::TCG_1_2;
 }

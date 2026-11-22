@@ -51,4 +51,58 @@
             <param dir="in" name="header" type="seL4_Word" description="Op, count, depth, rights, attributes and flags"/>
         </method>
     </interface>
+    <interface name="seL4_X86_TdxControl" manual_name="X86 TDX Control" cap_description="Intel TDX attestation control capability, in root CNode slot seL4_CapX86TdxControl of a TDX guest.">
+        <method id="X86TdxControlGetReport" name="GetReport" manual_name="Get Report">
+            <condition><not><config var="CONFIG_ARCH_AARCH64"/></not></condition>
+            <brief>Write this TD's 1024-byte TDREPORT, bound to 64 bytes of report data.</brief>
+            <description>
+                Runs TDG.MR.REPORT. On success the report is in the first 1024 bytes of the frame.
+                A nonzero tdx_status is the TDX module's completion status; the frame is then unchanged.
+            </description>
+            <param dir="in" name="report_frame" type="seL4_CPtr" description="A writable private 4 KiB frame"/>
+            <param dir="in" name="d0" type="seL4_Word" description="Word 0 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d1" type="seL4_Word" description="Word 1 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d2" type="seL4_Word" description="Word 2 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d3" type="seL4_Word" description="Word 3 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d4" type="seL4_Word" description="Word 4 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d5" type="seL4_Word" description="Word 5 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d6" type="seL4_Word" description="Word 6 of the REPORTDATA, little-endian"/>
+            <param dir="in" name="d7" type="seL4_Word" description="Word 7 of the REPORTDATA, little-endian"/>
+            <param dir="out" name="tdx_status" type="seL4_Word" description="RAX of TDG.MR.REPORT"/>
+            <error name="seL4_IllegalOperation" description="This is not a TDX guest."/>
+            <error name="seL4_InvalidCapability" description="report_frame is not a writable private 4 KiB frame."/>
+            <error name="seL4_TruncatedMessage" description="A required argument or the frame capability is missing."/>
+        </method>
+        <method id="X86TdxControlExtendRTMR" name="ExtendRTMR" manual_name="Extend RTMR">
+            <condition><not><config var="CONFIG_ARCH_AARCH64"/></not></condition>
+            <brief>Extend a runtime measurement register with a SHA-384 digest.</brief>
+            <description>Runs TDG.MR.RTMR.EXTEND. A nonzero tdx_status is the TDX module's completion status.</description>
+            <param dir="in" name="rtmr_index" type="seL4_Word" description="The RTMR, 0 to 3"/>
+            <param dir="in" name="d0" type="seL4_Word" description="Word 0 of the digest, little-endian"/>
+            <param dir="in" name="d1" type="seL4_Word" description="Word 1 of the digest, little-endian"/>
+            <param dir="in" name="d2" type="seL4_Word" description="Word 2 of the digest, little-endian"/>
+            <param dir="in" name="d3" type="seL4_Word" description="Word 3 of the digest, little-endian"/>
+            <param dir="in" name="d4" type="seL4_Word" description="Word 4 of the digest, little-endian"/>
+            <param dir="in" name="d5" type="seL4_Word" description="Word 5 of the digest, little-endian"/>
+            <param dir="out" name="tdx_status" type="seL4_Word" description="RAX of TDG.MR.RTMR.EXTEND"/>
+            <error name="seL4_IllegalOperation" description="This is not a TDX guest."/>
+            <error name="seL4_InvalidArgument" description="rtmr_index is above 3."/>
+            <error name="seL4_TruncatedMessage" description="A required argument is missing."/>
+        </method>
+        <method id="X86TdxControlGetQuote" name="GetQuote" manual_name="Get Quote">
+            <condition><not><config var="CONFIG_ARCH_AARCH64"/></not></condition>
+            <brief>Ask the VMM to turn the TDREPORT in a shared buffer into a quote.</brief>
+            <description>
+                Runs TDG.VP.VMCALL&lt;GetQuote&gt; on the frame, which must come from RetypeShared. The call does
+                not block: the VMM updates the buffer's status field when the quote is ready.
+            </description>
+            <param dir="in" name="shared_frame" type="seL4_CPtr" description="A writable shared 4 KiB or 2 MiB frame"/>
+            <param dir="in" name="buf_len" type="seL4_Word" description="Buffer length: a multiple of 4096, at most the frame's size"/>
+            <param dir="out" name="vmcall_status" type="seL4_Word" description="R10 of TDG.VP.VMCALL&lt;GetQuote&gt;"/>
+            <error name="seL4_IllegalOperation" description="This is not a TDX guest."/>
+            <error name="seL4_InvalidCapability" description="shared_frame is not a writable frame from RetypeShared."/>
+            <error name="seL4_InvalidArgument" description="buf_len is not a nonzero multiple of 4096 within the frame."/>
+            <error name="seL4_TruncatedMessage" description="A required argument or the frame capability is missing."/>
+        </method>
+    </interface>
 </api>

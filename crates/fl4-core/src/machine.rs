@@ -57,6 +57,19 @@ pub trait Arch {
     /// Drop nested translations on the cores in mask, synchronously.
     fn invalidate_ept(&mut self, _root: u64, _mask: u64) {}
 
+    /// The kernel runs as an Intel TDX guest.
+    fn tdx_active(&self) -> bool { false }
+    /// TDG.MR.REPORT over the 64 bytes `d0..d7`: on success the TDREPORT is
+    /// in the first 1024 bytes of the private frame at `frame_ptr`. Returns
+    /// the TDX module's status.
+    fn tdx_report(&mut self, _frame_ptr: u64, _d0: u64, _d1: u64, _d2: u64, _d3: u64, _d4: u64, _d5: u64, _d6: u64, _d7: u64) -> u64 { u64::MAX }
+    /// TDG.MR.RTMR.EXTEND of RTMR `index` (at most 3) with the SHA-384
+    /// digest `d0..d5`. Returns the TDX module's status.
+    fn tdx_extend_rtmr(&mut self, _index: u64, _d0: u64, _d1: u64, _d2: u64, _d3: u64, _d4: u64, _d5: u64) -> u64 { u64::MAX }
+    /// TDG.VP.VMCALL<GetQuote> on the `buf_len` bytes of the shared frame
+    /// at `frame_ptr`. Returns the VMCALL's status (R10).
+    fn tdx_get_quote(&mut self, _frame_ptr: u64, _buf_len: u64) -> u64 { u64::MAX }
+
     // Time (MCS): ticks are the timer's own units (the TSC on x86).
     fn now(&mut self) -> u64;
     fn set_deadline(&mut self, ticks: u64);

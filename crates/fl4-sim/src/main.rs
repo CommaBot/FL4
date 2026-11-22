@@ -582,6 +582,10 @@ struct Machine {
     ports: Vec<(u64, u64, u64)>,
     rng: Rng,
     halted: bool,
+    /// Boot as an Intel TDX guest (`Arch::tdx_active`).
+    tdx: bool,
+    /// The frames TDG.MR.REPORT wrote.
+    tdx_reports: Vec<u64>,
 }
 
 #[derive(Clone)]
@@ -630,6 +634,14 @@ impl SimArch {
 const TICKS_PER_US: u64 = 100;
 
 impl Arch for SimArch {
+    fn tdx_active(&self) -> bool {
+        self.m.lock().unwrap().tdx
+    }
+    fn tdx_report(&mut self, frame: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64, _: u64) -> u64 {
+        self.gate_only("tdx_report");
+        self.m.lock().unwrap().tdx_reports.push(frame);
+        0
+    }
     fn now(&mut self) -> u64 {
         let mut m = self.m.lock().unwrap();
         // Time passes during kernel entries too, and now and then a lot
@@ -978,6 +990,8 @@ impl Sim {
             console: Vec::new(),
             ports: Vec::new(),
             halted: false,
+            tdx: false,
+            tdx_reports: Vec::new(),
             rng: Rng(seed_rng(seed)),
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, conc: None };
@@ -2786,6 +2800,70 @@ mod tests {
         let used = 24 + 16 + 16 * 10;
         assert_eq!(records(&sim), [(0, 0x7f, 24), (24, hdr::X86_EXTRA_UNTYPEDS, 16 + 16 * 10), (used, hdr::PADDING, 8192 - used)]);
         check_descriptors(&sim, e + 24 + 16, ut_range(&sim).1, 10);
+    }
+
+    /// The root task's thread: its message registers hold a reply.
+    fn root_thread(sim: &Sim) -> Tcb {
+        Tcb(sim.root_tcb())
+    }
+
+    /// The label of the reply the last `seL4_Call` got (0: success).
+    fn reply_label(sim: &Sim) -> u64 {
+        fl4_core::msg::msg_info(&sim.s, root_thread(sim)).label
+    }
+
+    fn tdx_boot(ncores: u64) -> Sim {
+        let mut sim = Sim::new(BOOT_SEED, ncores);
+        sim.a.m.lock().unwrap().tdx = true;
+        sim.boot();
+        sim
+    }
+
+    /// A free 4 KiB frame cap in the root CNode, from the first untyped.
+    fn retype_frame(sim: &mut Sim) -> u64 {
+        let (ut, dest) = (sim.first_untyped(), sim.first_empty());
+        sim.invoke(0, ut, label::UntypedRetype, &[ot::X86Page4K, 0, rs::InitThreadCNode, 0, dest, 1], &[rs::InitThreadCNode]);
+        assert!(matches!(sim.root_cnode_slot(dest), Cap::Frame { .. }), "the frame was created");
+        dest
+    }
+
+    /// Only a TDX boot puts the cap in slot 15, and elsewhere the slot's
+    /// invocation is an invalid capability, not a TDCALL.
+    #[test]
+    fn tdx_control_is_in_slot_15_of_a_tdx_boot_only() {
+        let mut sim = booted(1);
+        assert!(sim.root_cnode_slot(rs::SMC).is_null());
+        let frame = retype_frame(&mut sim);
+        sim.invoke(0, rs::SMC, label::X86TdxControlGetReport, &[1, 2, 3, 4, 5, 6, 7, 8], &[frame]);
+        assert_eq!(reply_label(&sim), 2, "seL4_InvalidCapability");
+        assert!(sim.a.m.lock().unwrap().tdx_reports.is_empty());
+
+        let sim = tdx_boot(1);
+        assert!(matches!(sim.root_cnode_slot(rs::SMC), Cap::TdxControl));
+    }
+
+    /// The whole hand-off through real syscalls: root copies the cap to
+    /// another slot, deletes its own, and only the copy still works.
+    #[test]
+    fn tdx_control_moves_to_another_holder_through_syscalls() {
+        let mut sim = tdx_boot(1);
+        let frame = retype_frame(&mut sim);
+        let holder = sim.first_empty();
+        // The root CNode's guard and radix resolve all 64 bits.
+        let depth = 64;
+        sim.invoke(0, rs::InitThreadCNode, label::CNodeCopy, &[holder, depth, rs::SMC, depth, 0xf], &[rs::InitThreadCNode]);
+        assert_eq!(reply_label(&sim), 0);
+        assert!(matches!(sim.root_cnode_slot(holder), Cap::TdxControl));
+        sim.invoke(0, rs::InitThreadCNode, label::CNodeDelete, &[rs::SMC, depth], &[]);
+        assert_eq!(reply_label(&sim), 0);
+        assert!(sim.root_cnode_slot(rs::SMC).is_null());
+        // The old slot no longer reaches the TDX module, the copy does.
+        sim.invoke(0, rs::SMC, label::X86TdxControlGetReport, &[0; 8], &[frame]);
+        assert_eq!(reply_label(&sim), 2);
+        assert!(sim.a.m.lock().unwrap().tdx_reports.is_empty());
+        sim.invoke(0, holder, label::X86TdxControlGetReport, &[0; 8], &[frame]);
+        assert_eq!(reply_label(&sim), 0);
+        assert_eq!(sim.a.m.lock().unwrap().tdx_reports.len(), 1);
     }
 
     /// A backend length that is not a word multiple leaves no room for the

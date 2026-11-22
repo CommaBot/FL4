@@ -441,6 +441,7 @@ fn find_rootserver_mem(p: &BootParams, size: u64, align_bits: u64) -> Option<Pic
 pub fn create_root_task<S: Store, A: Arch>(s: &mut S, a: &mut A, p: &mut BootParams) -> Result<Tcb, BootError> {
     let mut r = rootserver_objects(s, p)?;
     let root_cap = init_root_cnode(s, &r.b);
+    init_tdx_control(s, a, &r.b);
     init_bootinfo(s, &mut r, p);
     let (vcap, ipc_cap) = init_address_space(s, &mut r, p);
     // The paging structures came from the allocator above; the SC is last

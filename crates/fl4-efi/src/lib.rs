@@ -186,6 +186,8 @@ macro_rules! say {
 #[cfg(target_arch = "aarch64")]
 mod efi_mmap;
 #[cfg(target_arch = "x86_64")]
+mod ccel;
+#[cfg(target_arch = "x86_64")]
 mod gop;
 mod tcg2;
 #[cfg(target_arch = "x86_64")]

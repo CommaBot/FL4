@@ -277,3 +277,66 @@ fn each_apic_id_is_started_once() {
     assert_eq!(started, [0, 3, 5, 6]);
     assert!(!acpi::first_listing(&ids, ids.len()));
 }
+
+fn mp_wakeup(mailbox: u64, len: u8) -> Vec<u8> {
+    mp_wakeup_version(mailbox, len, 0)
+}
+
+fn mp_wakeup_version(mailbox: u64, len: u8, version: u16) -> Vec<u8> {
+    let mut e = vec![0u8; len as usize];
+    e[0] = 16;
+    e[1] = len;
+    if len >= 4 {
+        e[2..4].copy_from_slice(&version.to_le_bytes());
+    }
+    if len >= 16 {
+        e[8..16].copy_from_slice(&mailbox.to_le_bytes());
+    }
+    e
+}
+
+/// MADT type 16 gives the AP wakeup mailbox of a TDX guest.
+#[test]
+fn the_multiprocessor_wakeup_entry_names_the_mailbox() {
+    let info = parse(&mp_wakeup(0x7f00_0000, 16));
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert_eq!(parse(&lapic(0, 1)).mp_wakeup_mailbox, None);
+}
+
+#[test]
+fn a_short_wakeup_entry_is_skipped_and_the_first_one_counts() {
+    assert_eq!(parse(&mp_wakeup(0x7f00_0000, 15)).mp_wakeup_mailbox, None);
+    let mut both = mp_wakeup(0x7f00_0000, 16);
+    both.extend(mp_wakeup(0x1000, 16));
+    assert_eq!(parse(&both).mp_wakeup_mailbox, Some(0x7f00_0000));
+}
+
+/// As in Linux, any version with room for the address is used: firmware
+/// publishes version 1 with 16 bytes as well as 24, and the mailbox is at the
+/// same place in all of them.
+#[test]
+fn the_wakeup_entry_needs_room_for_its_address_in_any_version() {
+    let at = 0x7f00_0000;
+    for (version, len) in [(0, 16), (0, 24), (1, 16), (1, 24), (2, 16), (0xffff, 24)] {
+        let info = parse(&mp_wakeup_version(at, len, version));
+        assert_eq!(info.mp_wakeup_mailbox, Some(at), "version {version}, length {len}");
+        assert_eq!(info.mp_wakeup_raw, Some((version, len as u64, at)));
+    }
+}
+
+/// A short entry gives no mailbox, and the log still shows what it was.
+#[test]
+fn a_short_wakeup_entry_is_only_recorded() {
+    for len in [4, 8, 15] {
+        let info = parse(&mp_wakeup_version(0x7f00_0000, len, 1));
+        assert_eq!(info.mp_wakeup_mailbox, None, "length {len}");
+        assert_eq!(info.mp_wakeup_raw, Some((1, len as u64, 0)));
+    }
+    assert_eq!(parse(&lapic(0, 1)).mp_wakeup_raw, None);
+    // The first entry is the one shown; a good one after a short one is used.
+    let mut both = mp_wakeup_version(0, 8, 3);
+    both.extend(mp_wakeup_version(0x7f00_0000, 16, 1));
+    let info = parse(&both);
+    assert_eq!(info.mp_wakeup_raw, Some((3, 8, 0)));
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+}

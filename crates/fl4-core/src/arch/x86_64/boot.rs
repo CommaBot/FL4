@@ -66,6 +66,14 @@ fn init_root_cnode<S: Store>(s: &mut S, b: &Boot) -> Cap {
     root_cap
 }
 
+/// The TDX attestation cap, in a TDX guest only: elsewhere the slot stays
+/// null.
+fn init_tdx_control<S: Store, A: Arch>(s: &mut S, a: &A, b: &Boot) {
+    if a.tdx_active() {
+        write_slot(s, root_slot(b, rs::SMC), Cap::TdxControl);
+    }
+}
+
 fn init_irq_states<S: Store>(s: &mut S) {
     let mut i = 0;
     while i <= irq::MAX {
