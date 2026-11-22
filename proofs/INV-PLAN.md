@@ -561,3 +561,64 @@ are asked at one state but at every ghost choice: dischargeable only by derivati
 Then: D3 (spec frame + a state-free [P] "the FPU machine ops have one outcome"), C21 `bufObj` (carry, S–M), C25–C27
 (carry with the existing `.retype` lemmas, M), D1 (carry the IDX word + DomListOK, S). Large: C4, C16/C22
 `RegionUnrefAt`, C17/C23 `vsReach`, D6.
+
+### H. Audit (g6b) of the ∀st hypotheses of `KFinAtR31` and of A16 `PortInVal`
+
+Question per hypothesis: can it hold for a real store, i.e. is it true at **every** state it quantifies over (every
+`SchedRel ∧ NtfnStateRel` pair `(s, σ)`, plus its guard), or is there a state of that class where the spec run fails
+or FL4's run fails / breaks the relation? The quantified class is much larger than the reachable states (`SchedRel`
+says nothing about caps, the ASID table, refills of SCs outside `C`, …), so a spec `assert`/`fail` at such a state
+makes the premise false for every store that has one such state, i.e. unsatisfiable in practice.
+
+* **D4 `SniHyp` — UNSATISFIABLE as stated** (g6a's finding, confirmed). The spec's `setNextInterrupt`
+  (Fl4Spec/Schedule.lean:78) fails (`assertOpt`) when the current thread has no SC and (`getRefillHead`'s `oassert`)
+  when that SC has no refills; likewise for the release-queue head. `SchedRel` admits `scA ct = 0` and an SC whose
+  `REFILL_MAX = 0` (`ScRelW` relates the full ring only when active). Besides, the singleton outcome needs the
+  opaque `setDeadlineImpl` (`doMachineOp (setDeadline _)` = `machineOpLift`, `ignoreFailure`, so never a failure, but
+  as many outcomes as `setDeadlineImpl d mr`) to have at most one outcome: a genuine platform fact. FL4's side is
+  provable: `set_next_interrupt` is total under `ArchTotal` and writes only the node's `ARMED` word
+  (P1 `sched.set_next_interrupt.fp`), which keeps `SchedRel` (`SchedRel.set_armed`) and `NtfnStateRel`; FL4's
+  deadline value (with the TCB timers and the already-armed shortcut) differs from the spec's, but no relation reads
+  the spec's machine deadline. **Fix (g6b):** guard with `SniPre σ` (the current thread and the release head have an
+  SC with nonempty refills), which at the only use site (`tail_refines`, after `switch_sched_context`) follows from
+  `SchedRel` + `Inv` + `CurInv` (current SC active, or the idle SC, configured by `ScRelW.idle`; `Inv.ne`;
+  the head by `Inv.rel`), and PROVE the guarded statement from `ArchTotal` and the platform fact
+  `SetDlDetR MR` (`setDeadlineImpl` has at most one outcome at every `MR`-related machine state; `MachPlat.frame`
+  makes `MR` blind to `machineStateRest`, so one `MR` state yields it for every rest).
+* **D5 `SendHyp` — SATISFIABLE, and a theorem.** `send_pending` reads the node's `IPI_PENDING` word, clears it and
+  calls `send_reschedule`; no spec step, so no spec failure. It is true at every `SchedRel ∧ NtfnStateRel` state as
+  soon as `send_reschedule` is total (`ArchTotal`): node offset 120 is read by no part of `SchedRel` (offsets
+  0–72, 128–4287) and lies outside every notification/TCB word (`SchedRel.nodeNW`). **Fix (g6b):** proved
+  (`sendHyp_of`), dropped from the new bundle.
+* **D2 `ArchSwF` — UNSATISFIABLE as stated (same failure mode as D4).** Its first half asks, at every
+  `SchedRel ∧ NtfnStateRel ∧ FpuOwnOK` state and every `t ∈ T`, that the spec's `arch_switch_to_thread t` have one
+  outcome without failure. `setVmRoot t` (Fl4Spec/X64/VSpace.lean:210) runs `findVspaceForAsid asid` on a
+  `pml4Cap _ (some asid)` in `t`'s vtable slot, which **fails** (`assertE (asid > 0)`) for `asid = 0`, and fails
+  (`getAsidPool`'s `NonDet.fail`) when the ASID table entry names a non-pool object. Neither `SchedRel`,
+  `NtfnStateRel` nor `FpuOwnOK` excludes such a state (the cap slots and the ASID table are outside them). Its second
+  half fails the same way through the idle thread's vtable slot. In reachable states both are excluded
+  (`valid_cap`: a mapped PML4 cap has `asid ≠ 0`, `JAtZR.vsc` / `vtAsid_ofR`; `valid_arch_state` /
+  `valid_asid_table`: table entries are pools), so this is not a reachable-state FINDING, but the premise as stated
+  is unsatisfiable for any store that has such a related pair. Platform residue after a correct guard: only the
+  single outcome of the opaque FPU machine operations of `lazyFpuRestore` (the CR3 write is a spec `archState`
+  update, not a machine op); `set_vm_root` / `find_vspace_for_asid` are FL4 code (provable). **Fix (not done in
+  g6b, see KENTRY-PLAN g6b):** guard with `VsRootOK σ` (every TCB's vtable PML4 cap has a nonzero ASID; every ASID
+  table entry is a pool) — kept by the whole schedule prefix (timer signals, awaken, enqueue/dequeue change no cap
+  and no ASID table) and supplied at `KFinAtR` from the finish state's `JAtZR` (`vsc`, plus a carried ASID-table
+  fact); this needs the guard threaded through every `hA.1`/`hA.2` site (ScScheduleF ×3, ScNextDomF ×2) and their
+  callers.
+* **D3 `ArchNdF` — SATISFIABLE (with its `FpuOwnOK` guard) up to a platform fact.** `archPrepareNextDomain =
+  switchLocalFpuOwner none`: `enableFpu`, `saveFpuState owner` (`asUser` on the owner: a TCB by `FpuOwnOK`),
+  `disableFpu`, `setX64CurrentFpuOwner none` (`archThreadSet` on the owner: a TCB). No other failure; the FL4 store is
+  unchanged and `SchedRel`/`NtfnStateRel` read none of the spec fields changed (owner's `tcbArch` FPU image,
+  `tcbCurFpu`, `x64CurrentFpuOwner`, `machineState`). The one-outcome claim needs the opaque `enableFpuImpl`,
+  `disableFpuImpl`, `readFpuStateImpl` (and `readFpuStateVal` is a function) to have at most one outcome: a platform
+  fact, stateable under `MR` as for `setDeadlineImpl`. So it is not false, but it is a ∀st premise whose only platform
+  part is that determinism; the rest is a spec frame computation (S–M), left as the next step.
+* **A16 `PortInVal` — consistent but over-strong.** It quantifies over every spec state σ: FL4's `port_in` value must
+  be an outcome of the spec's `In` at σ's machine state. The outcomes are `inNVal ms'` over the outcomes `ms'` of the
+  opaque `inNImpl port` at `σ.machineState.machineStateRest`; nothing in Lean refutes it (the opaque constants could
+  make every value reachable from every rest), and no spec failure is possible (`ignoreFailure`). So it is not
+  unsatisfiable, but it says the oracle can produce FL4's value at machine states that are not FL4's (§0 already
+  asked for an `MR`-relative form). Narrowing: `∀ σ, MR a σ.machineState → …`; this needs `MR` at the IO-port
+  decode, which `KDispHypsKV42` does not carry (handoff).
