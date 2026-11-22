@@ -235,6 +235,16 @@ Conventions of the ported base layer that later modules rely on.
   `timeoutMessage` (C `TIMEOUT_REPLY_MESSAGE`), `arch_cap_badge`,
   `reply_bits` (5), `parse_time_arg`, `words_from_time`; `ntfn_bits` is the
   MCS value 6, not X64's non-MCS 5.
+- **FL4 deviation, 1 GiB pages only with CPU support** (#65): `arch_state`
+  has an extra field `x64HugePages` (FL4's ks `FEATURES & FEATURE_HUGE_PAGES`,
+  set at boot from CPUID and never written after; `initArchState` sets it,
+  the configuration l4v models), and `createMappingEntries` of an
+  `X64HugePage` fails with `IllegalOperation` when it is clear, before the
+  PDPT slot lookup. That is C seL4 without `CONFIG_HUGE_PAGE`
+  (`decodeX86FrameInvocation`'s "Invalid Page type") and FL4's
+  `decode_page_map` (after the alignment check, before `page_entry_slot`);
+  l4v's spec is the `CONFIG_HUGE_PAGE` configuration (the flag set). The P3
+  relation: `HugeRel` (P3/VsRel), carried by `VsFrameHypsL.huge`.
 - **FL4 extension, 20-bit ASIDs** (DESIGN.md §3): `asid_high_len` is 11
   (2048 ASID pools) and `asid_len` 20; l4v has 3 and 12. `cr3_addr_mask`
   keeps the 12-bit PCID field (l4v writes `asid_bits` for it), and

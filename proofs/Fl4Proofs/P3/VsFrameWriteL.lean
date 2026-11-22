@@ -54,6 +54,8 @@ structure VsFrameHypsL (A : Type) (ar : machine.Arch A) (th : TypedHeap) (P L4 L
       SR s' a (stsAct (updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ∧ L.ksb s' = L.ksb s ⦄
   capStable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (SlotW th) → CapStep σ σ' → SR s' a σ'
   map : VsMapHypsAll st A ar L1 L2 L3 SR
+  /-- #65: `SR` relates FL4's 1 GiB-page feature bit to the spec's flag. -/
+  huge : ∀ s a σ, SR s a σ → HugeRel (L.mem s) (L.ksb s) σ
 
 end Hyps
 

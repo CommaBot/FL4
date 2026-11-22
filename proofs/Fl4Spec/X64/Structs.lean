@@ -486,6 +486,11 @@ structure ArchState where
   x64IoapicNirqs : Word → BitVec 8
   x64IrqState : BitVec 8 → X64IRQState
   x64CurrentFpuOwner : Option ObjRef
+  /-- **FL4 deviation (#65):** whether the CPU has 1 GiB pages (FL4's ks
+  `FEATURES & FEATURE_HUGE_PAGES`, set at boot and never written after). C
+  seL4 has 1 GiB frames only with `CONFIG_HUGE_PAGE`; l4v models that
+  configuration. `createMappingEntries` refuses a 1 GiB mapping without it. -/
+  x64HugePages : Bool
 deriving Inhabited
 
 /-- l4v: Arch_Structs_A.X64_A.pd_shift_bits. -/

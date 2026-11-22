@@ -166,6 +166,7 @@ theorem VsFrameHypsL.foot (hPl : Placed th) (hH : VsFrameHypsL st A ar th P L4 L
       (sts_foot hPl hsub hS.2 htcb hact)) fun _ ⟨⟨a1, a2, a3, a4, a5, a6⟩, hw⟩ => ⟨a1, a2, a3, a4, ⟨a5, hw⟩, a6⟩
   capStable := foot_stab (fun b h => hsub b (slotW_foot h)) hH.capStable
   map := hH.map.foot hsub
+  huge := fun s a σ hS => hH.huge s a σ hS.1
 
 theorem VsUnmapPageHyps.foot (hH : VsUnmapPageHyps st A ar L3 L2 L1 SR) :
     VsUnmapPageHyps st A ar L3 L2 L1 (FootSR st SR s0 W) where

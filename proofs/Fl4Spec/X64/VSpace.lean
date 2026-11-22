@@ -92,6 +92,12 @@ def createMappingEntries (base : Paddr) (vptr : VSpaceRef) :
       let p ← lookupErrorOnFailure false (lookupPdSlot pdpt vptr)
       NonDetE.returnOk (.vmPDE (.largePagePDE base (attrib \ attrMask) vmRights), p)
   | .x64HugePage, vmRights, attrib, pml4 => do
+      -- FL4 deviation (#65): no 1 GiB entry on a CPU without 1 GiB pages,
+      -- as C seL4 without CONFIG_HUGE_PAGE ("Invalid Page type",
+      -- src/arch/x86/64/kernel/vspace.c). FL4's `decode_page_map` checks
+      -- after the alignment and before the slot lookup, as here.
+      let huge ← NonDetE.liftE <| NonDet.gets fun s : State Z => s.archState.x64HugePages
+      NonDetE.unlessE huge <| NonDetE.throwError .illegalOperation
       let p ← lookupErrorOnFailure false (lookupPdptSlot pml4 vptr)
       NonDetE.returnOk (.vmPDPTE (.hugePagePDPTE base (attrib \ attrMask') vmRights), p)
 

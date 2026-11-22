@@ -267,23 +267,67 @@ theorem mapTailH_unaligned {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef}
   unfold checkVpAlignment
   exact runE_bind_err (by rw [runE_unlessE_false ha']; rfl)
 
+/-- `ExceptT.run (m >>= f) s` depends on `m` only through `ExceptT.run m s`. -/
+theorem runE_bind_congr {ε α β : Type} {m m' : NonDetE (State Unit) ε α} {f : α → NonDetE (State Unit) ε β}
+    {s : State Unit} (h : ExceptT.run m s = ExceptT.run m' s) :
+    ExceptT.run (m >>= f) s = ExceptT.run (m' >>= f) s := by
+  show NonDet.bind (ExceptT.run m) (ExceptT.bindCont f) s = NonDet.bind (ExceptT.run m') (ExceptT.bindCont f) s
+  unfold NonDet.bind; rw [h]
+
+/-- FL4 (#65): with 1 GiB pages, `createMappingEntries` of a huge page is
+l4v's. -/
+theorem cme_huge_ok {σ : State Unit} (hh : σ.archState.x64HugePages = true) (base : Paddr) (vptr : VSpaceRef)
+    (r : VMRights) (a : VMAttributes) (pml4 : ObjRef) :
+    ExceptT.run (createMappingEntries (Z := Unit) base vptr .x64HugePage r a pml4) σ =
+    ExceptT.run (do
+      let p ← lookupErrorOnFailure false (lookupPdptSlot (Z := Unit) pml4 vptr)
+      NonDetE.returnOk (ε := SyscallError) (VMPageEntry.vmPDPTE (.hugePagePDPTE base (a \ attrMask') r), p)) σ := by
+  unfold createMappingEntries
+  rw [runE_bind_ok (runE_liftE (show NonDet.gets (fun s : State Unit => s.archState.x64HugePages) σ =
+    ({(true, σ)}, False) by rw [← hh]; rfl)), runE_bind_ok (runE_unlessE_true rfl _ σ)]
+
+/-- FL4 (#65): without 1 GiB pages, `createMappingEntries` of a huge page
+fails with IllegalOperation. -/
+theorem cme_huge_no {σ : State Unit} (hh : σ.archState.x64HugePages = false) (base : Paddr) (vptr : VSpaceRef)
+    (r : VMRights) (a : VMAttributes) (pml4 : ObjRef) :
+    ExceptT.run (createMappingEntries (Z := Unit) base vptr .x64HugePage r a pml4) σ =
+    ExceptT.run (NonDetE.throwError (σ := State Unit) (α := VMPageEntry × ObjRef) SyscallError.illegalOperation) σ := by
+  unfold createMappingEntries
+  rw [runE_bind_ok (runE_liftE (show NonDet.gets (fun s : State Unit => s.archState.x64HugePages) σ =
+    ({(false, σ)}, False) by rw [← hh]; rfl))]
+  exact runE_bind_err (by rw [runE_unlessE_false (by simp)]; rfl)
+
+/-- FL4 (#65): a 1 GiB map without 1 GiB pages is an illegal operation. -/
+theorem mapTailH_noHuge {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : VMRights}
+    {vaddr rm attr : Data} {cte : CslotPtr} {σ : State Unit}
+    (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok pm, σ)}, False))
+    (ha : isAligned vaddr 30) (hh : σ.archState.x64HugePages = false) :
+    ExceptT.run (mapTailH pm asid dev p R vaddr rm attr cte) σ = ({(.error .illegalOperation, σ)}, False) := by
+  have ha' : isAligned vaddr (pageBitsForSize .x64HugePage) := ha
+  rw [mapTailH_prefix hf]
+  unfold checkVpAlignment
+  rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
+  rw [runE_bind_congr (cme_huge_no hh _ _ _ _ _)]
+  exact runE_bind_err (runE_throw _ σ)
+
 theorem mapTailH_noSlot {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : VMRights}
     {vaddr rm attr : Data} {cte : CslotPtr} {σ : State Unit}
     (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok pm, σ)}, False))
-    (ha : isAligned vaddr 30) {lf : LookupFailure}
+    (ha : isAligned vaddr 30) (hh : σ.archState.x64HugePages = true) {lf : LookupFailure}
     (hl : ExceptT.run (lookupPdptSlot (Z := Unit) pm vaddr) σ = ({(.error lf, σ)}, False)) :
     ExceptT.run (mapTailH pm asid dev p R vaddr rm attr cte) σ = ({(.error (.failedLookup false lf), σ)}, False) := by
   have ha' : isAligned vaddr (pageBitsForSize .x64HugePage) := ha
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  unfold createMappingEntries lookupErrorOnFailure
+  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  unfold lookupErrorOnFailure
   exact runE_bind_err (runE_bind_err (by rw [runE_handle_err hl]; rfl))
 
 theorem mapTailH_ok {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : VMRights}
     {vaddr rm attr : Data} {cte : CslotPtr} {σ : State Unit}
     (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok pm, σ)}, False))
-    (ha : isAligned vaddr 30) {slot : ObjRef}
+    (ha : isAligned vaddr 30) (hh : σ.archState.x64HugePages = true) {slot : ObjRef}
     (hl : ExceptT.run (lookupPdptSlot (Z := Unit) pm vaddr) σ = ({(.ok slot, σ)}, False)) {x : PDPTE}
     (hg : getPdpte (Z := Unit) slot σ = ({(x, σ)}, False)) (hx : x = .invalidPDPTE ∨ ∃ a b c, x = .hugePagePDPTE a b c) :
     ExceptT.run (mapTailH pm asid dev p R vaddr rm attr cte) σ =
@@ -292,7 +336,8 @@ theorem mapTailH_ok {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : V
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  unfold createMappingEntries lookupErrorOnFailure
+  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  unfold lookupErrorOnFailure
   rw [runE_bind_ok (runE_bind_ok (runE_handle_ok hl))]
   unfold ensureSafeMapping
   dsimp only
@@ -302,7 +347,7 @@ theorem mapTailH_ok {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : V
 theorem mapTailH_used {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : VMRights}
     {vaddr rm attr : Data} {cte : CslotPtr} {σ : State Unit}
     (hf : ExceptT.run (findVspaceForAsid (Z := Unit) asid) σ = ({(.ok pm, σ)}, False))
-    (ha : isAligned vaddr 30) {slot : ObjRef}
+    (ha : isAligned vaddr 30) (hh : σ.archState.x64HugePages = true) {slot : ObjRef}
     (hl : ExceptT.run (lookupPdptSlot (Z := Unit) pm vaddr) σ = ({(.ok slot, σ)}, False)) {a b c : _}
     (hg : getPdpte (Z := Unit) slot σ = ({(.pageDirectoryPDPTE a b c, σ)}, False)) :
     ExceptT.run (mapTailH pm asid dev p R vaddr rm attr cte) σ = ({(.error .deleteFirst, σ)}, False) := by
@@ -310,7 +355,8 @@ theorem mapTailH_used {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R :
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  unfold createMappingEntries lookupErrorOnFailure
+  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  unfold lookupErrorOnFailure
   rw [runE_bind_ok (runE_bind_ok (runE_handle_ok hl))]
   unfold ensureSafeMapping
   dsimp only
