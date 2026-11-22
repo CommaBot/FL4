@@ -293,7 +293,7 @@ theorem kernel_entryJ35E [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 �
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
       FastRR (L := L) (arI := arI) s a n (fun r => KPost (L := L) arI AR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostX (L := L) arI AR c σ r ⦄ := by

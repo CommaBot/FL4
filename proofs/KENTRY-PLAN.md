@@ -15673,3 +15673,29 @@ None (no Lean change).
   successfully (7187 jobs)", 0 `error`, 0 `declaration uses 'sorry'`.
 - `#print axioms`: kernel_entry_reachU9, U7, U4, U3L, UH2, E5, JAtZ.utResetJ, utResetJMM, utDevResetJ (and g7b's
   list): propext, Classical.choice, Quot.sound (each).
+
+## g7b-3 (branch par/g7b, merged int/j3 f979a311) — A16 `PortInVal` narrowed to `MR`-related states; top `kernel_entry_reachU10`; no premise added; no FINDING
+- **Definitions** (XTopPortIn):
+  * `PortInValAt arI a σ`: the read at one arch state and one machine state (every σ' with σ's machine state).
+  * `PortInValMR arI MR`: `PortInVal` restricted to σ with `MR a σ.machineState`.
+  * Conversions: `PortInVal.toMR`, `PortInVal.at`, `PortInValMR.at`.
+- **Consumers:**
+  * The IO-port decode and its tails ask only `call = true → PortInValAt arI ar σ`, in XTopPortIn (4 binders), XTopJointPortIn (3), XTopJointLiveSt (3), XTopJoint (1) and XTopJointReply (1).
+  * The two reads (`hval rfl a1 … σ1 h`) pass σ1's machine state (the restart's `stsAct`).
+  * `decOK_JM` / `decOK_JMU` (13P / 23P) give it as `hG.portIn.at hR`, with the `MR ar σ.machineState` they already take. `decOK_J` (XTopJointEntry, `JEntryGlob`) gives `hG.portIn.at ar σ`.
+- **Structures:** `JEntryGlobM`, `JEntryGlobM31` and `JEntryGlobM32` take `MR` (inserted after `AR` at every use, 25 files) and carry
+  `portIn : PortInValMR arI MR`. `jEntryGlobM32_of`, `JEntryGlobM32.to31` and `JEntryGlobM31.toM` gain `{MR}`. `JAtZ`, `RelTopM`, `JExt`,
+  `KFinAtR*` and the scheduler tail are untouched.
+- **Tops:** every `(hPI : PortInVal arI)` binder in XTopJointKEntry* (all of them have `MR`) is now `(hPI : PortInValMR arI MR)`,
+  a weaker premise. Statements changed only in that binder: `kernel_entry_reachU4`, `U5`, `U7`, `U9`, `U3L`, `UH2`, `E5`,
+  `U`, `U2`, `U3`, `U2F`, `U2L`, … and the KEntry35–41 / Ev / NF / FF lines. **`SInvR.G5.kernel_entry_reachU10`**
+  (XTopJointKEntryU10, root import) restates `U9` for the record.
+- **Caveat** (mr10, XTopJointPortInM `MachPortIn.frameAll`): `MachPlat.frame` makes `MR` see only `irqMasks`, `irqState`,
+  `timeState` and `lastMachineTime`, and the spec's `In` does not depend on them. So the narrowed premise is formally
+  weaker, but not much weaker in substance. A substantive narrowing needs a machine relation that sees
+  `machineStateRest` (l4v's shared `machine_state`), which `MachPlat.frame` excludes: a platform-model decision.
+- INV-PLAN §1.U3L row A16: "narrowed, g7b-3", with the caveat; removed from the ∀st list.
+- **Builds:**
+  * g7b3-b1 (full) failed at XTopJointEntry:846: XTopJointPortIn and XTopJointReply still had the old binder. Fixed, the task stopped, no orphan lake.
+  * g7b3-b2 (full): "Build completed successfully (7195 jobs)", 0 `error`, 0 `declaration uses 'sorry'`.
+- **`#print axioms`:** kernel_entry_reachU10, U9, U7, U5, U4, U3L, UH2, E5 and the g7b / g7b-2 lemmas each depend only on propext, Classical.choice, Quot.sound.

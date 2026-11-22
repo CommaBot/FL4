@@ -48,7 +48,7 @@ theorem portInTail_jat (hAM : ARMask arI AR) (hJS : JStepHyps (L := L) arI AR Z.
     (hRep : JReplyHyp (L := L) arI AR Z.th) {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hZB : ZNoBlk Z.th (L.mem s) (L.ksb s)) (hC : CurRun σ)
     {ct : U64} (hcur : σ.curThread = ct.bv) (port z : U64) (call : Bool)
-    (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInVal arI) :
+    (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (hval : call = true → PortInValAt arI ar σ) :
     portInTail (st := st) arI s ar ct port z call ⦃ res => res.1 = .Ok () ∧
       L.mem res.2.1 (stA ct) ≠ sched.TS_RESTART ∧ ∀ σ1,
         Fl4Spec.setThreadState (Z := Unit) ct.bv .restart σ = ({((), σ1)}, False) →
@@ -83,7 +83,7 @@ theorem portInTail_jat (hAM : ARMask arI AR) (hJS : JStepHyps (L := L) arI AR Z.
         show σ1.kheap ct.bv = _; rw [hσ1, Notif.stsAct_kheap, Notif.updK_kheap, Function.update_self]
       rw [specTail_restart hky rfl false r, specTail_restart hky rfl false v.bv]
       simp only [Bool.false_eq_true, ↓reduceIte]
-    · obtain ⟨ms, hu, hmem⟩ := hval rfl ar a1 port z v hv σ1
+    · obtain ⟨ms, hu, hmem⟩ := hval rfl a1 port z v hv σ1 (by rw [hσ1]; unfold Notif.stsAct; split_ifs <;> rfl)
       exact ⟨[v.bv], ms, hu, hmem, rfl⟩
   set σy : Fl4Spec.State Unit := { σ1 with machineState := ms } with hσy
   -- the restart and the access, as primitive steps
@@ -132,7 +132,7 @@ theorem decode_invocation_ioport_inJ (hAM : ARMask arI AR) (hJS : JStepHyps (L :
     (hcur : σ.curThread = ct.bv) (first last : U64) (hfl : first.val ≤ last.val) (hl16 : last.val < 65536)
     (hC : CurRun σ)
     (hin : ∀ (a : A) p z, ∃ v a', arI.port_in a p z = ok (v, a')) (call : Bool)
-    (hval : call = true → PortInVal arI)
+    (hval : call = true → PortInValAt arI ar σ)
     (slot : U64) (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     DecOKRMX (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length slot (.IoPort first last 0#u64) blk call don fp buf
@@ -230,7 +230,7 @@ theorem decode_invocation_ioportJ_steps [Fl4Proofs.P1.PlainStore st] (s : S) (ar
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (first last : U64)
     (hsc : capV (L.mem s) (cslotAddr sl) = .IoPort first last 0#u64) (call : Bool)
-    (hval : call = true → PortInVal arI)
+    (hval : call = true → PortInValAt arI ar σ)
     (blk don fp : Bool) (extra : Aeneas.Std.Array obj.Slot 3#usize) (ci : Fl4Spec.CapRef)
     (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef) :
     XCap (L := L) arI (JAt (L := L) arI AR) s ar σ lbl length (cslotAddr sl) (.IoPort first last 0#u64) blk call don fp

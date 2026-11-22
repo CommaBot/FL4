@@ -456,7 +456,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | A13 | `hT : TimeAgree` | max_period, us_to_ticks, kernel_wcet, wcetUs = 10, timerUnit = 1 | [P] | constants | ∀a |
 | A14 | `hmax`, `htu` | `maxTicksToUs = U64.MAX`, `ticks_to_us = ticksToUs` | [P] | constants | ∀a |
 | A15 | `hRef : ArchRefines` | set_vspace sets CR3 = makeCr3; invalidations keep AR | [P] | set_vm_root corres | under AR |
-| A16 | `hPI : PortInVal` | for every FL4 `port_in` result and **every spec state σ**, some machine state with σ's memory gives that value in the spec's `In` | [P] **∀st** (spec states; consistent only because `in8Impl` is opaque; INV-PLAN §0 G0: restate MR-relative) | `in8`/`in16`/`in32` oracle | ∀st |
+| A16 | `hPI : PortInValMR arI MR` (**narrowed, g7b-3**; was `PortInVal`) | for every FL4 `port_in` result from arch state `a` and every spec state σ **with `MR a σ.machineState`**, some machine state with σ's memory gives that value in the spec's `In`. The IO-port decode asks only `PortInValAt arI ar σ` at its own state, from `hG.portIn.at hR` | [P] (MR-relative, as §0 G0 asked; caveat XTopJointPortInM `MachPortIn.frameAll`: `MR` sees only the four clock/IRQ fields, which the read does not depend on, so it is formally weaker, not much in substance) | `in8`/`in16`/`in32` oracle | under MR |
 | A17 | `hSX : StoreExt` | states equal in aligned words, ksb, cpu are equal | [P] | Fastpath_C state equality | ∀ store states (extensionality, not a reachability claim): fine |
 | A18 | `hJ : JReachU3` | start: `JAtZ ∧ SInvX ∧ SInvIP ∧ MR ∧ UtPgR` at the first state (lead decision 2026-11-20: any state with the invariants) | [S] start | `invs ∧ state_relation` assumed initially | 1 |
 
@@ -556,7 +556,7 @@ C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 
 **[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
 `kernel_entry_reachU7`; see F.)
 
-**Quantified over states (must be discharged or narrowed):** A16 `PortInVal` (∀ spec states), D2 `ArchSwF`,
+**Quantified over states (must be discharged or narrowed):** (A16 `PortInVal`: narrowed to `MR`-related states by g7b-3, top `kernel_entry_reachU10`), D2 `ArchSwF`,
 D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; **D4 is false as stated**, see its row: the fix is a guard, as
 `ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C16/C22, C25 and the bundles B4/B5/B6)
 are asked at one state but at every ghost choice: dischargeable only by derivation from that state's `JAtZ`.

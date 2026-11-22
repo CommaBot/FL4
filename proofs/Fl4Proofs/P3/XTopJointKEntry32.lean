@@ -55,14 +55,14 @@ structure JDelPartsN32 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop
     ∀ (a : A) (v : U64), arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
 
 /-- **`JEntryGlobM31` with `JDelPartsN32`** (module docstring). -/
-structure JEntryGlobM32 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Prop where
+structure JEntryGlobM32 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (th : TypedHeap) : Prop where
   ari : ARIface arI AR
   tot : P0.ArchTotal arI
   delParts : JDelPartsN32 arI AR th
   nd : Fl4Spec.numDomains = 1
   ppA : PPPlatA arI AR
   dom : DomConfig
-  portIn : PortInVal arI
+  portIn : PortInValMR arI MR
   timeAg : TimeAgree arI
   maxTU : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv
   tu : ∀ (a : A) v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄
@@ -71,11 +71,11 @@ structure JEntryGlobM32 (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) : Pro
 structure KDispHypsKV32 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM32 arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM32 arI AR MR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM32 arI AR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM32 arI AR MR Z.th ∧ JEntryAtR2 (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
 
@@ -86,8 +86,8 @@ theorem JDelPartsN32.toN {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h :
     JDelPartsN (L := L) arI AR th :=
   ⟨h.archRef, h.arKeep, ⟨jThrObj_ofExt (L := L) arI AR th, h.ticks⟩⟩
 
-theorem JEntryGlobM32.to31 {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (h : JEntryGlobM32 arI AR th) :
-    JEntryGlobM31 (L := L) arI AR th :=
+theorem JEntryGlobM32.to31 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {th : TypedHeap} (h : JEntryGlobM32 arI AR MR th) :
+    JEntryGlobM31 (L := L) arI AR MR th :=
   ⟨h.ari, h.tot, h.delParts.toN, h.nd, h.ppA, h.dom, h.portIn, h.timeAg, h.maxTU, h.tu⟩
 
 theorem KDispHypsKV32.to31 {AR : A → Fl4Spec.Cr3 → Prop} {MR : A → Fl4Spec.MachineState → Prop} {Z : XSets}

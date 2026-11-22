@@ -35,7 +35,7 @@ set_option maxHeartbeats 8000000 in
 /-- **`JUtResetHyp` at a dispatch state** (module docstring). -/
 theorem jUtResetHyp_of [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) :
     JUtResetHyp (L := L) arI AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc p sb fi dev hcE
@@ -300,7 +300,7 @@ theorem kernel_entryJ41 [Fl4Proofs.P1.PlainStore st] {AR : A → Fl4Spec.Cr3 →
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     (hFast : n = fl4_abi.syscall.SysReplyRecv →
       FastRR (L := L) (arI := arI) s a n (fun r => KPostM (L := L) arI AR MR c σ r)) :
     syscall.handle_syscall st arI s a n ⦃ r => KPostXM (L := L) arI AR MR c σ r ⦄ := by
@@ -353,7 +353,7 @@ theorem kernel_entry_reachMD4 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI A
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI)
+    (hRef : ArchRefines arI AR) (hPI : PortInValMR arI MR)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachM (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ MR a σ.machineState ∧

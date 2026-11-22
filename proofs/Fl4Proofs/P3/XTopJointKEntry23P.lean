@@ -208,7 +208,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 set_option maxHeartbeats 4000000 in
 theorem decOK_JMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (lbl length : U64) (blk call don fp : Bool) (buf : U64) (extra : Aeneas.Std.Array obj.Slot 3#usize)
     (slbl : Fl4Spec.Data) (argsU : List U64) (hlen : length.val = argsU.length)
@@ -267,7 +267,7 @@ theorem decOK_JMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
     by_cases h0 : z = 0#u64
     · subst h0 hLb
       exact (decode_invocation_ioportJ arI s ar σ J hni hG.ari hG.tot (J.zNoBlk hE.sg) lbl lbl.bv (port_label lbl) length buf ct
-        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn) blk don fp extra ci excaps buffer).toPN
+        hct argsU hlen hargs sl hAs first last hsc call (fun _ => hG.portIn.at hR) blk don fp extra ci excaps buffer).toPN
         arI (specDec_noPreK (by trivial))
     · exact XCapP.reXP arI (hOpen h0) (specDec_noPreK (by trivial))
   case IrqControl =>
@@ -478,7 +478,7 @@ theorem handle_invocation_entryJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (is_call blocking can_donate first_phase : Bool) (cptr : U64)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct is_call blocking can_donate first_phase cptr)
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ) :
@@ -544,7 +544,7 @@ set_option maxHeartbeats 4000000 in
 theorem invoke_afterJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (call bl don : Bool)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
@@ -591,7 +591,7 @@ theorem dispatch_invokeJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ) (hNs : NativeScope σ)
@@ -631,7 +631,7 @@ theorem mid_invRecvJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (rg : U64) (sr : Fl4Spec.Register) (cr : Bool)
     (hrg : regIdx sr = rg)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct false false true true (L.mem s (regA ct rg)))
     (hW : MidRun.JMidPerfHyp true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ)
     (hR : JMidRecvHyp (L := L) arI AR (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) cr σ)
@@ -698,7 +698,7 @@ theorem dispatch_midJMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (c : Fl4Spec.Syscall) (rg : U64)
     (sr : Fl4Spec.Register) (cr : Bool) (hn : MidSysR number c rg sr cr)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct false false true true (L.mem s (regA ct rg)))
     (hW : MidRun.JMidPerfHyp true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ)
     (hR : JMidRecvHyp (L := L) arI AR (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) cr σ)
@@ -735,7 +735,7 @@ theorem dispatch_invokeJAllMU [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A)
     (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (number : I64) (call bl don : Bool)
     (hn : InvSys number call bl don)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ)
     (hP : JPathAtM (L := L) arI AR Z H Cs D s ar σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)))
     (hPD : JPreDecHypM (L := L) arI AR MR Z H Cs D s ar σ ct) (hR : MR ar σ.machineState)
     (hVT : ValidMachineTime σ) (hVI : ValidIrqMasks σ)
@@ -759,13 +759,13 @@ each invocation's path, and `ValidMachineTime` [J] at the dispatch state (l4v
 structure KDispHyps13PU (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JPreDecHypM (L := L) arI AR MR Z H Cs D s a σ ct
   recv : ∀ bl cr, RecvSys n bl cr → (∀ d p, σ.curThread ∉ σ.readyQueues d p) ∧
     (∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     MidRun.JMidPerfHypQ true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
     JMidVfhHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
@@ -949,7 +949,7 @@ set_option maxHeartbeats 4000000 in
 /-- Untyped (RAM native, device) by `decode_invocation_untypedJM`, as `jPreDecHyp_of14` (given `JPathM`). -/
 theorem jPreDecHyp_of14U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hPD : JPreDecHypKM (L := L) arI PreKind14 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI (fun c _ => NoPreKind c → False) AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hK excaps buffer
@@ -992,7 +992,7 @@ set_option maxHeartbeats 4000000 in
 /-- CNode by `decode_invocation_cnodeJ_stepsLM`, as `jPreDecHyp_of17` (given `JPathM`). -/
 theorem jPreDecHyp_of17U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hPD : JPreDecHypKM (L := L) arI PreKind17 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI PreKind14 AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hK excaps buffer
@@ -1024,7 +1024,7 @@ set_option maxHeartbeats 4000000 in
 /-- Thread by the MachPlat installs, as `jPreDecHyp_of18` (given `JPathM`). -/
 theorem jPreDecHyp_of18U [Fl4Proofs.P1.PlainStore st] {s : S} {ar : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {ct : U64} (hct : sched.cur_thread st s = ok ct)
-    (hG : JEntryGlobM (L := L) arI AR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
+    (hG : JEntryGlobM (L := L) arI AR MR Z.th) (hE : JEntryAt (L := L) arI AR Z H Cs s ar σ) (hM : MachPlat arI MR)
     (hKD : MRKeepD arI MR) (hPD : JPreDecHypKM (L := L) arI PreKind18 AR MR Z H Cs D s ar σ ct) :
     JPreDecHypKM (L := L) arI PreKind17 AR MR Z H Cs D s ar σ ct := by
   intro hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc hK excaps buffer
@@ -1162,13 +1162,13 @@ no `JUtPath.ret` [W] in the path premise. -/
 structure KDispHypsKV23 (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (Z : XSets)
     (H : P1.Heap) (Cs D : Set U64) (s : S) (a : A) (σ : Fl4Spec.State Unit) (n : I64) (c : Fl4Spec.Syscall) : Prop where
   inv : ∀ ct call bl don, sched.cur_thread st s = ok ct → InvSys n call bl don →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct call bl don false (L.mem s (regA ct layout.reg.CAP)) ∧
     JVtxHypMU (L := L) arI AR MR Z H Cs D s a σ ct
   recv : ∀ bl cr, RecvSys n bl cr → (∀ d p, σ.curThread ∉ σ.readyQueues d p) ∧
     (∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.validFaultHandler x.tcbFaultHandler)
   mid : ∀ ct rg sr cr, sched.cur_thread st s = ok ct → MidSysR n c rg sr cr →
-    JEntryGlobM (L := L) arI AR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
+    JEntryGlobM (L := L) arI AR MR Z.th ∧ JEntryAt (L := L) arI AR Z H Cs s a σ ∧
     JPathAtM (L := L) arI AR Z H Cs D s a σ ct false false true true (L.mem s (regA ct rg)) ∧
     MidRun.JMidPerfHypQ true (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
     JMidVfhHyp (Fl4Spec.toBl (L.mem s (regA ct rg)).bv) σ ∧
