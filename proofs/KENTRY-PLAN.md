@@ -16758,3 +16758,40 @@ global ref).
      PtRel / TopSR re-established after each entry and the message words stable (footprint); the in-decode reply:
      the PML4 cap's batch label moves from the `DecOKM` class to the reply class (`DecOKRM` / `TacHypX`-style, as
      TestAndClearAccessed), which threads through VsTopCap / VsTopX / XTopJointVsReply; then VsThX / VsDomF.
+- **Progress (fb3 resume).**
+  * P0 (7c259728): the committed x86 / A64 `P0/Consts.lean` were stale at d139d550 (m77 built with a regenerated,
+    uncommitted one: Auto.lean uses `Consts.vspace.frame_batch.{DEFER_DELETE_FLUSH,DEFINED}.spec`); regenerated with
+    `gen_const_specs.py proofs [--arch aarch64]` on tokyo (additions only + reordering). P0 not otherwise touched.
+  * 1a / 1b / 1c DONE (d4f23e04), built on tokyo (fb3b-m4): SpecInvFaultTcbsF5 / G5 / H7 / H8, VsDomOps, DomFb (new),
+    SpecInvDomG, SpecInvUtE, SpecGlobFK. In the same commit, not yet checkable (downstream of the open sites):
+    AllDom (leaves moved to DomFb), VsDomF (imports DomFb), PerformNil (`frameBatch` is no `NilInv`), and three
+    unused arch-perform lemmas restricted to non-batch (SpecGlobFK `gke_`, XTopJointMidRunQ `qve_`,
+    XTopJointChooseF `scke_fl4ArchPerform_nA`).
+  * fb3b-m4's only errors: `P1/QueueDecVs.lean:801` (the batch branch) and `P3/VsDecTop.lean:257/261` (the PML4
+    label split: besides the batch branch, the non-Flush branch now needs `dataToNat slbl ≠ 90` to reduce the spec
+    to l4v's decoder; `decode_invocation_pml4` needs a batch-label relation like `hlbl`, a non-top statement change).
+- **HANDOFF (open, in plan order).**
+  1d. Downstream spec families with an exhaustive `Fl4ArchInvocation` / perform-arm split, found by grep (not yet
+      built, behind the sites): SpecInvRd14bD `Cov` / `perfA_cov` and SpecInvRd14gE `CovFF` (their wildcard
+      `.invokeArchObject _ => True` now covers the batch, the match lacks its arm). Two ways: (i) prove `PerfA` /
+      `PerfF` of the batch (needs sv / cfk / ne / tv families with a `capDelete` leaf, which those families do not
+      have: CNode delete is outside `Cov` too), or (ii) put the batch outside `Cov` as CNode delete — but then
+      `kcall_rdyOff5` / `kentry_rdyOff5`'s `InvRo` premise asks `PerfA` of the batch arm, i.e. an existing top's
+      meaning changes: lead decision; I reverted my (ii) edit. SpecInvRd8hP (`Rdy`, `rda_auto`), SpecInvRd13bA:
+      batch arm needed (`capDelete` leaf of `Rdy` exists? check). Then a scratch full build with sorries at the six
+      sites (as m77's) to list every other family (estimate from fb-spec: UtO*, SgD/SgE, SiD/SiE, ZR, DevFree/Gpm,
+      Vi*, CnDom). [L per group]
+  2. P1 QueueDecVs: blocked on a design point: P1 delegates CNode lookups' placement to P3 (`CdtHyps.tgt/src`,
+     stated only at `EntAt` states = the entry state up to the entry prefix's words); mid-batch states are not
+     `EntAt`, so per-entry lookups need a new gap field at `Fr0 s0 s` states (as `CdtHyps.ins` already is) and its
+     P3 discharge at mid-batch states (which needs step 4's relation). `cdt.delete.cur0` (QueueDecDel) and
+     `Cur0` serve as the loop invariant otherwise. [L, + the P3 discharge]
+  3. MachKeepG4d: the walk reaches `cdt.delete`; CNode Delete keeps `MR` through the P3 deletion loop's `EJLM`
+     (XTopJointKEntry38), not by MKD. The batch needs either a slot-conditional `MKD.cdt_delete` (the slot holds a
+     frame cap: finalise = `unmap_page` + `retire_dma_frame`, `MRKeepD` fields) threaded through
+     `frame_batch_entry` and the loop, or the joint route as CNode Delete. [M-L]
+  4. P3 refinement: as planned [XL]. Also: `decOut_nil_*` (PerformNil) and `dk_spec_arch` (VsDomF) assume the
+     PML4 decode gives a `[]`-returning, non-reply invocation; the batch's success reply moves its label to the
+     reply class (`DecOKRMX`, as GetAddress / TestAndClearAccessed).
+- Builds: fb3b-m2 (DomFb missing `dk_ensureNoChildren'`; DomG / H7 `*_auto` whnf timeouts on `fbEntry` → explicit
+  leaves), fb3b-m3 (stale Consts, H7 DELETE-branch shape), fb3b-m4 (above). No full build (cannot be green before 2-4).
