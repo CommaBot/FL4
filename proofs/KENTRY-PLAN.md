@@ -15704,3 +15704,44 @@ New modules: ScSniPre (upstream of ScScheduleTop), ScSniProof, XTopJointKEntryU5
 - `ArchNdF` (D3): prove from an MR-stated FPU-op determinism fact (spec frame computation, S–M).
 - `PortInVal` (A16): MR-relative form; needs `MR` at the IO-port decode.
 - A7 `MRKeepIo` retagged [S] in INV-PLAN §1.U3L (owner decision; commit 6dc4da47).
+
+## g7c-2 (branch par/g7c in FL4-g7c, int/j3 23df1d8f merged as ac69aacb: g6b's U5 / `KFinAtR5`, g7b's U7) — combined scheduler-tail restructure (D2 `arch` guard, D6 `tail` narrowed): NOT DONE, plan only (agent context exhausted); no FINDING
+- **Why copying the tops is not the way.** Every top from KEntry28 up to U5/U7 takes the finish bundle as a premise
+  and passes it down unchanged; the files that mention `KFinAtR31` / `KFinEv` alone are ~13.5k lines (38 files), plus
+  KEntry2/3/4/27/28 and the event tops. A new `KFinAtR8` threaded by copies means copying all of them.
+- **The way that keeps every top compiling (g6b's pattern for `SniHyp`): narrow the two definitions in place and fix only
+  their consumers.**
+  1. *D2.* `ArchSwF` (ScArchF:388): add the guard `VsRootOK T σ →` to both halves, with
+     `VsRootOK T σ := (∀ t ∈ T, ∀ x, σ.kheap t.bv = some (.tcb x) → ∀ p a, x.tcbVtable = .archObjectCap (.pml4Cap p (some a)) → a ≠ 0)
+     ∧ (∀ i p, σ.archState.x64AsidTable i = some p → ∃ f, σ.kheap p = some (.archObj (.asidPool f)))` (idle ∈ T by
+     `SchedRel.idleT`, so the second half is covered). Weaker premise everywhere; the five uses (ScScheduleF:72, :138,
+     :547; ScNextDomF:61, :98) need `VsRootOK` at their state. Add `(hVR : VsRootOK T σ)` to `sw_refinesF`, `cn_refinesF`
+     (+ `cn_enqF`/`cn_appF`), `switch_branch_refinesF`, `schedule_refinesWPF`, `scnt_refines0F`, `cn_refines0F`
+     (+ enq/app), `switch_branch_refines0F`, `schedule_refinesWP0FR` (and the non-R `0F` variant), framed across the steps
+     before each switch by `VsRootOK.of (hk : σ'.kheap = σ.kheap ∨ HeapEqUpToFpu σ σ') (ht : asid table equal)`
+     (spec: `QChange.1`, `Calm.1`, `ArchNdF`'s heap fact, `ndSt`; ASID table: G7cCr3K `crk_awaken`,
+     `crk_tcbSchedAction'`, `crk_setSchedulerAction'`, `crk_archPrepareNextDomain`, `crk_nextDomain`, `crF_fires`).
+     Supply it where `J : JAtZ`/`JAtZR` is in scope (jat_scheduleWP0FZR, jat_scheduleFR2ZR, XTopJointSchedRF/RF2/RF3,
+     ScSchTailP1, XTopJointSchedR, ScSignalJ, ScFireJ) from the post-timer `JAtZR`: nonzero ASID = `vtAsid_ofR` through
+     `StateRel.tcb` slot 1 (`tcbCnodeMap_one`, `absCap`), every ASID-table entry a pool = `VsRel.table`/`tmem`/`pool`
+     (`FinX`'s `VsRel`; `ucast 11` of `hi < 2048` covers all 2048 indices). **No new [J] for D2.**
+  2. *D6.* `KFinAtR31.tail` and the 14 restated `hTail` hypothesis types (files: XTopJointKEntry28, XTopJointSchedR,
+     ScSignalJ, XTopJointKEntryU5, XTopJointJAtZRB, XTopJointSchedRF3, ScSchTailP1, XTopJointKEntry4, XTopJointKEntry36,
+     XTopJointKEntry, XTopJointKEntry2, XTopJointSchedRF, XTopJointKEntry31, XTopJointKEntry27, ScFireJ): add two
+     hypotheses that pin σ1 to the run, `timer.fire st arI s a = ok rf` and `∃ V1 Ac1 Lst1 D1, JAtZR … rf.1 rf.2 σ1`
+     (every applier has them: `hfr` and `J1` in jat_scheduleFR2ZR / jat_scheduleT2-style lemmas; the non-R ones have
+     `JAtZ`, so state the second as `(∃ …, JAtZR …) ∨ (∃ …, JAtZ …)`). Weaker field, same type text in each copy (a
+     scripted replacement). Then the field is a theorem: from `JAtZR` at `(rf, σ1)`, the `AR`-carrying copy of the
+     `schedule_refinesWP0FR` chain (G7cSwitch's `choose_thread_refinesFA`, `switch_to_thread_ar`; `RootOK` at each switch
+     state framed as in 1.; the tail ops keep `AR` by `ak_walk` + `ARKeep`; spec CR3 kept by `crk_scAndTimer`; resume
+     branch by `crk_awaken`) gives `∃ σ'', schedule σ1 = {σ''} ∧ AR r.2 σ''.cr3`; the given σ' is σ'' (singleton).
+     The only premise left is **`IdleVt` [J]** (INV-PLAN §1.U3L D7), asked at the finish state and framed to `rf`
+     (`slotsSame_of_footD` with `JPlaced.kwOutBlk J.blk` and `P1.timer.fire.kw`; idle word by `XTopAt.idleThread_bv` at
+     both ends and `crF_fires`).
+  3. *Top.* `kernel_entry_reachU8` = U7's `KDispHypsKVU7` with U5's `KFinAtR5` minus `tail` (theorem from 2. with
+     `IdleVt`) and `arch` (guarded, still a [P] premise: the FPU machine-op determinism of `lazyFpuRestore`; to prove it
+     from G7cRoot's `set_vm_root_ar` spec clause + a `SetDlDetR`-style FPU determinism [P] is the next step).
+- **Builds.** g7c-full2 (full build at the merge ac69aacb) — see (e2) below.
+- **(e2) g7c-full2** (full `lake build` at the merge ac69aacb, tokyo, heavily loaded): "Build completed successfully
+  (7197 jobs)", 0 `error`, 0 `sorry`; `#print axioms` of the g7c lemmas and `kernel_entry_reachU4`: propext,
+  Classical.choice, Quot.sound. (U5/U7 build green inside it.)
