@@ -491,12 +491,10 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C6 | Frame with `ep = true` or label MapEPT | `JVtxScope` | [S] VT-x | — | 1 |
 | C7 | SchedContext (Consumed/Bind/UnbindObject) `tm mb max tu` | = A13/A12/A14 at this `a` | [P] **duplicate** | | 1 |
 | C8 | SchedContext `arch` | the decode keeps `AR` | [P] (needs an `AR`-version of `MKD.decode_quiet`; `MRKeepD arI AR` is not available because `set_vspace` does not keep AR) | | 1 |
-| C9 | SchedContext `rest` | `∀ H Cs Ac Lst D, JAtZ → decode ⦃ … → ScStepP1 ⦄` (debug word, `DbgKeep`, `BlkOK` after) | [P] "P1-supplied"; really a P1 obligation [W] | | 1, ∀gh |
 | C10 | SchedContext YieldTo `JSchedYieldPath` (`mb max tu`) | = A12/A14 | [P] **duplicate** | | 1 |
 | C11 | SchedControl `tm mb max tu` | = A13/A12/A14 | [P] **duplicate** | | 1 |
 | C12 | SchedControl `core` | `cpu = Z.c` | [P]/[S] one core (no carried cap-core fact) | `valid_cap` bounds the core | 1 |
 | C13 | SchedControl `arch` | as C8 | [P] | | 1 |
-| C14 | SchedControl `rest` | as C9 (configure) | [P]/[W] P1 | | 1, ∀gh |
 | C15 | AsidPool `native` | the first extra slot's cap is not an Ept cap | [S] **derivable**: the extra slot is a typed-heap slot (`JAtZ.frontJ` + `ExtraOK.vsExtra`), `JAtZ.ext.nat` | x64 has no EPT caps | 1 |
 | C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
 | C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
@@ -541,20 +539,26 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 `KFinAtR.vt` (`vtAsid_ofR`); `fo` (FpuOwnOK, from `JAtZR`); `JDelParts.vt`, `thr.obj` (`JExt`); `JVtxHypMU`
 (implied by B5); `FastFaultOK` (m73), `hRP5` (m72), `SpecUtZ σ'`/`UtPgR σ'` exit premises (g5i), `LargeFrOK` (g5j),
 `hRest`/`KPreFinRestHypI`, `PPPlat`/`IrqPlat` (replaced by MR-relative A5).
+**g7b (top `kernel_entry_reachU7`, XTopJointKEntryU7):** C9 SchedContext `rest` and C14 SchedControl `rest`
+(`ScStepP1` of the Consumed / Bind / UnbindObject and ConfigureFlags decodes at every ghost with `JAtZ`) are
+theorems (`JAtZ.scCtxStepP1`, `JAtZ.scCtlStepP1`, ScRestJ) from P1's decodes with the footprint `Foot` (ScRestP1:
+`schedcontext.decode.footK`, `decode_sched_control.footK`, `configure_flags.blkK`), every thread on the current
+core (`SchedRel`), the dispatch state `Entered` (`BudgetAt.enteredP`, `SInvX.entered`) and the top's `hA`.
+No premise added.
 
 ### G. Counts and the two lists the owner asked for
 
 Leaves: A 18, B 6 (B4/B6 bundles), C 27 rows (C24 = 7 leaves), D 6, E 5 clauses (≈ 14 leaves).
 By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which **4 duplicates/redundant**: A11, A12,
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
-C27, D1), **[W] 3** (D6 CR3 tail; C9/C14 `rest` as P1 obligations).
+C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6).
 
-**[W] leaves:** D6 `tail` (CR3 relation after `schedule`), C9 / C14 `rest` (`ScStepP1` of the SchedContext /
-SchedControl decodes, P1-provable).
+**[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
+`kernel_entry_reachU7`; see F.)
 
 **Quantified over states (must be discharged or narrowed):** A16 `PortInVal` (∀ spec states), D2 `ArchSwF`,
 D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; **D4 is false as stated**, see its row: the fix is a guard, as
-`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C9, C14, C16/C22, C25 and the bundles B4/B5/B6)
+`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C16/C22, C25 and the bundles B4/B5/B6)
 are asked at one state but at every ghost choice: dischargeable only by derivation from that state's `JAtZ`.
 
 **Cheapest next (g6a JOB 2 takes the first group):** A11, A12, C7, C10, C11 (duplicates), C15 (from `JAtZ.ext.nat`).
