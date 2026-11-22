@@ -5,6 +5,7 @@
   "boot.create_untypeds",
   "ept.map_frame",
   "interrupt.map_ioapic",
+  "notification.send_signal",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.decode",

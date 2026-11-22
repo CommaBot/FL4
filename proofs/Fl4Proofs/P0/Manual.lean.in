@@ -172,3 +172,10 @@
   unfold boot.create_untypeds
   repeat' (first | step | (refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> p0_split) ?_; intro x _; try (rcases x with ⟨_, _⟩)) | split | (simp only [bind_tc_ok, bind_ok]) | p0_cases_prod)
   all_goals p0_close
+
+-- #63 added the same-core TS_RUNNING_VM branch; `split` on the grown body
+-- exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
+@[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
+  unfold notification.send_signal
+  p0_structural

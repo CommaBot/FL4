@@ -1988,7 +1988,8 @@ theorem layout.ks.ASID_TABLE.p0  :
 
 @[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
-  unfold notification.send_signal; p0_split
+  unfold notification.send_signal
+  p0_structural
 
 @[step] theorem timer.fire_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (now : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     timer.fire_loop machineStoreInst machineArchInst s a now i ⦃ _ => True ⦄ := by
