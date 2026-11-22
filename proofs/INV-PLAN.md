@@ -506,7 +506,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C23 | Untyped RAM `vsReach` | **narrowed (g7b-2)**: `VsReachMiss` for the cap's region at the restart state, *when the invoked cap has no descendants* (as C17) | [J] (L). FINDING g7b-2 (recorded): the unguarded form was false at reachable states (an untyped with children whose region holds a table named by a slot's cap, a `NeedR` root); the guard is the reset branch's `hnd'` (UtRetResetJ and siblings), applied in place to `JUtPath`/`JUtPathM`, so every top asks the guarded form; top of record `kernel_entry_reachU9` | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
 | C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2) | | 1 |
 | C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | [J] (`DevApart.retype` exists; not carried) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | 1, ∀gh |
-| C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | [J] (`DevFree.retype` exists) | `valid_untyped` | 1 |
+| C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | **DISCHARGED (s26, `kernel_entry_reachU14`)**: from the spec invariant `SInvDV.DevRangeS` (SpecInvDvW..DvP, g7a-4's generalised ZR route) through `devFreeT_of`; `DevRangeS` carried in `JReachU14`, asked at the start state | `valid_untyped` | — |
 | C27 | Untyped device `devGpm` | global PML4 off every device untyped range | [J] | `valid_global_refs` | 1 |
 | — | every other native cap (Null, Zombie, Ntfn, Ep, Reply, CNode, IrqControl, IoPortControl, IrqHandler, Domain, PT, PD, PDPT, PML4, native Frame, Thread at any other label) | `True` | — | | |
 
@@ -560,7 +560,7 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU11`** (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
+**Top of record (s26): `SInvR.G5.kernel_entry_reachU14`** (XTopJointKEntryU14) = U11 without C26 `devFree` (KENTRY-PLAN s26; `JReachU14 = JReachU3 ∧ DevRangeS`): [J] 12 (C4, C16, C17, C21, C22, C23, C24×3, C25, C27, D7). Before: **`SInvR.G5.kernel_entry_reachU11`** (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
 route: `JAtZR.hdOK`, `DomListOK` by SpecInvDom's `DP`). At U11 the [J] leaves are C4, C16, C17, C21, C22, C23,
 C24×3, C25, C26, C27 and D7 `IdleVt` (D1 gone: **[J] 13**, counting D7); **[W] 0**.
 
