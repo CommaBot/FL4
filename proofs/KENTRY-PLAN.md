@@ -15312,3 +15312,56 @@ definition edited in place (`UtDescV`, SpecInvUt.lean:83) and its view lemmas; n
   `hLF : LargeFrOK` [J] (g5d (2): `OrigFrObj`, `DescRangeIn` — now partly available: Nest is `DescRangeIn` for
   untyped descendants —, data-page distinctness), `hDL` (VT-x scope), the `hK` / `hFin` / `KFinEv` bundles, the [P]
   platform facts and the [S] event-scope facts.
+
+## g5j (branch par/g5j in FL4-m67, on ff75a72f = #51 head; merge of 5595b53e (g5i) before the full build) — `LargeFrOK` [J] off the native-syscall clause: DONE by re-sizing, no new carried invariant; tops `kernel_entry_reachU3L` (= g5i's `kernel_entry_reachU3` without `LargeFrOK`) and `kernel_entry_reachU2L` (= `reachU2F` without it); no FINDING
+- **Re-size (brief: first check what is already carried).** g5d sized `LargeFrOK` as three new spec fields
+  ((a) original frame caps cover exactly their object, (b) `descendants_range_in`, (c) data pages pairwise apart).
+  All three are already carried at FL4 level, for physical caps, by **`NoOverlap`** (MdbStep, l4v `caps_no_overlap`
+  with distinct objects: a non-untyped physical cap `x` meets a physical cap `y` only if `y` is an untyped containing
+  it, or both are frames and `y` is non-revocable or contains `x`, or neither is a frame and the ranges are equal).
+  `NoOverlap` is part of `MdbOK` ⊂ `MdbOKV` ⊂ `RelTopB` = `JAtZ.xtop.rel`, kept by every `MdbStep` (MdbStepInv), and
+  MdbStepInv already had `NoOverlap.hno` ("gives DeriveSubframe's `hno` for the physical caps") — unused.
+- **The one gap: non-physical caps.** `LargeFrOK` / `JFramePath.hno` / `InsFCtx.hno` quantified over every MDB cap.
+  A non-physical cap (Domain, IRQ control/handler, SchedControl, IO-port caps; `ptr = 0`, size bits 0, range `[0, 0]`)
+  is `Disj` from the large frame only if the frame's base is nonzero; no carried fact states that (FL4 frames are
+  kernel-virtual, so it is true in reachable runs, but the start is any state with the invariants). And it is never
+  needed: the only reader, `InsFCtx.k2` (VsSubMdb: a cap that sees the 4 KiB alias by `same_region_as` sees the large
+  frame), is trivial for a non-physical cap (`srB` of a non-untyped non-frame cap against a frame is false both ways,
+  `srB_other_frame`).
+- **Change (existing modules, statement weakenings only):** `InsFCtx.hno`, `SubRel.no` (VsSubRel), the `hno` argument of
+  `derive_subframe_rel` and of every wrapper up to `JFramePath.hno` (VsFootW, VsDecFrame ×2, VsReplyTop, VsThX ×2,
+  VsTopX, VsFrameFull, VsDomF, VsTopCap, XTopJointVsSub ×3, XTopJointVsReply, XTopJointVsMap, XTopJointVsCap), and
+  `LargeFrOK` (XTopJointKEntry36E) now ask `physF (capV m x) = true →`. Proof edits: `InsFCtx.k2` (non-physical case
+  by `srB_other_frame`), the two `SubRel` constructions (VsSubRel, XTopJointVsSub), the alias re-establishment in
+  `sub_step`, `LargeFrOK.of_same`, `JPathAtM36E.to35E`. Every other site passes `hno` through unchanged.
+  JAtZ is not touched.
+- **P3 XTopJointKEntryU2L (new, root import).** `LargeFrOK.of_noOverlap`, **`JAtZ.largeFrOK`** (from
+  `J.xtop.rel`'s `NoOverlap`), **`SInvR.G5.kernel_entry_reachU2L`** = `kernel_entry_reachU2F` with the native-syscall
+  clause's `LargeFrOK Z.G (L.mem s)` supplied by the clause's `JAtZ`.
+- **P3 XTopJointKEntryU3L (new, root import; the lead's note).** **`SInvR.G5.kernel_entry_reachU3L`** = g5i's
+  `kernel_entry_reachU3` with the same discharge. g5i's spec `Nest` (UtDescV) is not needed on this route: the
+  untyped half of the descendants-range fact is FL4's `UtInv.inc` / `drange` and `NoOverlap`'s untyped disjunct,
+  already in `JAtZ`; the fact is read at FL4 level, so no spec-to-FL4 transfer is needed.
+- **Old tops kept** (same names; their `hLF : LargeFrOK` premise is now the weaker physical form, so each is at least as
+  strong as before): `kernel_entryJ36E` … `J42H`, `kernel_entry_reachI/IP/IF/U/UH/UH2/U2/U2F`.
+- **Premises.** Removed from the new tops: `LargeFrOK` [J]. Added: none. Remaining on `kernel_entry_reachU3L` exactly as
+  `kernel_entry_reachU3` minus `LargeFrOK` (and on `reachU2L` as `reachU2F` minus it): theorem level [P] `hARI hA hnd hM hKD hIo hIoa hPA hIA hmrt hmb hT hmax htu
+  hRef hPI`, `hSX : StoreExt` [P], `JReachU2`; native-syscall clause: `ct ≠ idle` [S], `NativeSys` [S], `hflag` [S],
+  `hK : KDispHypsKV42` (its [P] fields and `vsTyp` [J]), `JDecMRLK` (`hDL`) [W], `hFin → KFinAtR31`; its exit asks
+  nothing on `reachU3L` (g5i); on `reachU2L` still `SpecUtZ σ' → UtPgR σ' →` for `JReachU2`; event clauses unchanged (unknown syscall:
+  `UnkSys` / `NoDbgSys` [S], `hFin`).
+- **Reachability.** Nothing new is asked; `LargeFrOK` is a projection of `JAtZ`.
+- **FINDING: none.** Observation (not a premise anywhere now): the old all-caps `LargeFrOK` was not derivable from the
+  carried facts because of the nonzero-base case above.
+- **Builds (tokyo, mirror FL4-m67, keys g5j-*; ./g5jb.sh untracked = m73b.sh + a <5 GB free-disk guard;
+  scratch/axg5j.lean untracked).** b1 (`VsSubRel`, `XTopJointVsSub` and their cone): "Build completed successfully
+  (5220 jobs)", commit 32cbc780. full1 stopped (no orphan lake left) to merge 5595b53e (g5i) per the lead's note:
+  ab034533 (U2L), merge 134d9460. full2: one error in the new leaf only (`kernel_entry_reachU3`'s `arI AR MR` are
+  implicit); fixed. **full3 (full `lake build` of proofs/): "Build completed successfully (7177 jobs)", 0 errors,
+  0 `declaration uses 'sorry'`.** No sorry / admit / native_decide / bv_decide / axiom in the diff.
+- **Axioms** (scratch/axg5j.lean, run by full3): SInvR.G5.kernel_entry_reachU3L, SInvR.G5.kernel_entry_reachU2L,
+  JAtZ.largeFrOK, LargeFrOK.of_noOverlap, LargeFrOK.of_same, Vs.InsFCtx.k2, Vs.derive_subframe_rel, and the old tops
+  SInvR.G5.kernel_entry_reachU3, kernel_entry_reachU2F, kernel_entry_reachU2, kernel_entryJ36E: propext,
+  Classical.choice, Quot.sound (each).
+- HANDOFF: none for `LargeFrOK`. Rebase note: any new caller of `derive_subframe_rel` / `JFramePath.hno` now passes the
+  physical form (`NoOverlap.hno` gives it directly).
