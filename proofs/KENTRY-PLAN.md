@@ -15422,16 +15422,29 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   SchedContext/SchedControl decodes, which never call `set_vspace`).
 - Large: `vsTyp`, `RegionUnrefAt` / `ArchFitHyp`, `vsReach`, the CR3 `tail` [W], the P1 `rest` obligations.
 
-## m74 (branch par/m74 in FL4-m74, on db6231ff = #51 head) — STOPPED at step (2): tokyo disk below 5 GB
-- (1) DONE: merge of main db16705f (#63, #64) = 47fe18f2, no conflicts (lakefile already has `lean_lib Fl4CoreA64` from #64;
-  xtask merged cleanly).
-- (2) not run: m74-ex1 (m74-regen.sh MODE=ex, untracked) stopped at its disk check before seeding `.lake`: `df -h ~` on
-  tokyo-mac-studio-0 = 4.5 GiB free of 926 GiB (100%). Nothing extracted or built; mirror FL4-m74 has no `.lake`.
-- Expected breaks once extracted (#63, read from the Rust diff): `notification.send_signal` gains a branch (bound TCB in
-  `TS_RUNNING_VM`, same core, `vcpu.signal_completes`) → `vcpu.report` + donation + `possible_switch_to` +
-  `unblock_check`; `vcpu.enter` completes on a pending bound signal (`complete_signal`, MSG_INFO=0) and no longer calls
-  `check`; `vcpu.report`'s `!pending` path writes only MR0..2; `vmcb_hidden` gains 0x058/0x0c0; new
-  `vcpu.signal_completes`. Users: send_signal unfolds in P1 QueueSignal / QueueFootS and P3 NtfnSend, NtfnWake,
-  IpcNtfnSend, IpcNtfnWake, IpcSignalDon, IpcSignalBound, IpcSignalWake, MachKeep, MachKeepF, ArchKeep; vcpu in
-  P1 SyscallGen, QueueVcpu, QueueInvAll. Plan: `send_signal_old` + an equation off the new condition (m62 style).
-- HANDOFF: free disk on tokyo, then `MODE=ex bash m74-regen.sh` (key m74-ex1) from step (2).
+## m74 (branch par/m74 in FL4-m74, on db6231ff = #51 head) — main db16705f (#63, #64) and par/a64p0 merged, x86 re-extracted for #63, every break fixed, full build green, `Fl4ProofsA64` green; no premise added; no FINDING
+- **Merges.** 47fe18f2 = main db16705f (no conflicts; #64 already adds `lean_lib Fl4CoreA64`). 04edcb62 = par/a64p0 ebf84ad5
+  (A64 P0 1074/1074, `lean_lib Fl4ProofsA64`, gen_p0 / gen_const_specs `--arch`), no conflicts.
+- **Extraction** (pvg-office-2, Aeneas nightly-2026.11.14-0d21a9e linux, charon 0.1.315; tokyo had < 5 GB then). Semantic diff of
+  Fl4Core: only #63's x86 changes: `notification.send_signal` (new same-core `TS_RUNNING_VM` branch), `vcpu.enter`,
+  `vcpu.report`, `vcpu.report_loop0` (+ body; no `pending` argument), `vcpu.vmcb_hidden`, new `vcpu.signal_completes`;
+  Types.lean only source lines. gen_const_specs 132 constants; P0 1078/1078 (18 by hand, 0 sorry).
+- **A64.** proofs/Fl4CoreA64 is #64's (= par/a64p0's) extraction, from Rust before #63's merge into it: main's Rust now
+  also has AArch64 `vcpu.signal_completes` (= false) / `report` (no-op) and #63's `send_signal` branch, so a re-extraction
+  of main with `--arch aarch64` would differ (send_signal + two functions). Not regenerated (scope frozen for #51);
+  `Fl4ProofsA64` is consistent with the committed Fl4CoreA64.
+- **Fixes.** P0: `notification.send_signal.p0` by hand (Manual.lean.in, `p0_structural`): `split` on the grown body exceeds
+  simp's step limit. P1 QueueSignal: `send_signal.tinv` through the new branch (`sig_if` instead of `split` for the same
+  reason; `vcpu.report.blk`: without a pending exit `report` writes only R10/R8/R9 (`N_MSG_REGISTERS` = 4, no IPC-buffer
+  word), MSG_INFO, BADGE and `TS_RUNNING`; `maybe_donate_sched_context.tinvB`: donation only for a thread without an SC,
+  which `BoundInv` keeps out of queues / action / idle; `signal_vm`: switch and the inlined sporadic unblock). P1 QueueFootS:
+  the same with footprints and `DonCore` (`vcpu.report.blkF`, `tinvFB`, `signal_vmF`). P1 QueueVcpu: `report_loop0.xs`
+  (no `pending`), `report.cur0` rewritten for the new `report` (statement unchanged). P3 NtfnSend / IpcNtfnSend: the
+  idle-bound-not-receiving lemmas close #63's `TS_RUNNING_VM` test with their existing `hnvm`. No statement of a top
+  changed; no premise added / removed / narrowed.
+- **Native scope.** The P3 tops are unaffected: their send_signal lemmas already carry `hvm` (the bound TCB is not
+  `runningVM`, from `NativeScope`), so the new branch is never taken there. P1 has no such scope, so P1 proves the branch.
+- **Builds** (tokyo, mirror FL4-m74, `.lake` seeded from FL4-sc; m74-regen.sh untracked): full3: "Build completed
+  successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
+- **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
+- Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
