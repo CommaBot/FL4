@@ -151,7 +151,13 @@ implementations are grouped by subsystem under `src/arch/x86_64` and
 (default x86_64, or the `aarch64` feature). Each implementation contributes
 items to the same public modules, preserving the paths used by the backends
 and by the proof extractions (`proofs/Fl4Core` for x86_64,
-`proofs/Fl4CoreA64` for AArch64). Proofs currently cover x86_64.
+`proofs/Fl4CoreA64` for AArch64). P0 (no failure) covers both builds;
+P1 and P3 are about the x86_64 build, one serial kernel entry at a time.
+The existing P2 theorem is about the transactional runtime that was
+removed; nothing is proved yet about the serial gate and local paths
+that run SMP today (DESIGN.md §9). `cargo xtask gate` checks the x86_64
+extraction; the AArch64 one is extracted and checked on its own
+(`lake build Fl4ProofsA64`).
 
 ## x86 virtualization
 
