@@ -1706,6 +1706,10 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     obj.Tcb.bound_ntfn machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Tcb.bound_ntfn; p0_auto
 
+@[step] theorem sporadic.sc_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
+    sporadic.sc_sporadic machineStoreInst s sc ⦃ _ => True ⦄ := by
+  unfold sporadic.sc_sporadic; p0_auto
+
 @[step] theorem smp.remote_reschedule.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.remote_reschedule machineStoreInst machineArchInst s a cpu ⦃ _ => True ⦄ := by
   unfold smp.remote_reschedule; p0_auto
@@ -1734,13 +1738,13 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     obj.Ntfn.set_badge machineStoreInst self s v ⦃ _ => True ⦄ := by
   unfold obj.Ntfn.set_badge; p0_auto
 
+@[step] theorem obj.Ntfn.sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
+    obj.Ntfn.sc machineStoreInst self s ⦃ _ => True ⦄ := by
+  unfold obj.Ntfn.sc; p0_auto
+
 @[step] theorem obj.Ntfn.badge.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
     obj.Ntfn.badge machineStoreInst self s ⦃ _ => True ⦄ := by
   unfold obj.Ntfn.badge; p0_auto
-
-@[step] theorem sporadic.sc_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) :
-    sporadic.sc_sporadic machineStoreInst s sc ⦃ _ => True ⦄ := by
-  unfold sporadic.sc_sporadic; p0_auto
 
 @[step] theorem notification.unblock_sporadic.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
     notification.unblock_sporadic machineStoreInst s t ⦃ _ => True ⦄ := by
@@ -1846,10 +1850,6 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 @[step] theorem schedcontext.resume.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (sc : obj.Sc) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     schedcontext.resume machineStoreInst machineArchInst s a sc ⦃ _ => True ⦄ := by
   unfold schedcontext.resume; p0_auto
-
-@[step] theorem obj.Ntfn.sc.p0 {S : Type _} (machineStoreInst : machine.Store S) (self : obj.Ntfn) (s : S) (hS : StoreTotal machineStoreInst) :
-    obj.Ntfn.sc machineStoreInst self s ⦃ _ => True ⦄ := by
-  unfold obj.Ntfn.sc; p0_auto
 
 @[step] theorem notification.maybe_donate_sched_context.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) (n : obj.Ntfn) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.maybe_donate_sched_context machineStoreInst machineArchInst s a t n ⦃ _ => True ⦄ := by
@@ -2011,9 +2011,18 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
     ipc.cancel_ipc machineStoreInst machineArchInst s a t ⦃ _ => True ⦄ := by
   unfold ipc.cancel_ipc; p0_split
 
+@[step] theorem vcpu.report.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (_s : S) (_a : A) (_t : obj.Tcb) (_badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
+    vcpu.report machineStoreInst machineArchInst _s _a _t _badge ⦃ _ => True ⦄ := by
+  unfold vcpu.report; p0_auto
+
+@[step] theorem vcpu.signal_completes.p0 {S : Type _} (machineStoreInst : machine.Store S) (_s : S) (_t : obj.Tcb) (hS : StoreTotal machineStoreInst) :
+    vcpu.signal_completes machineStoreInst _s _t ⦃ _ => True ⦄ := by
+  unfold vcpu.signal_completes; p0_auto
+
 @[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
-  unfold notification.send_signal; p0_split
+  unfold notification.send_signal
+  p0_structural
 
 @[step] theorem timer.fire_loop.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (now : Std.U64) (i : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     timer.fire_loop machineStoreInst machineArchInst s a now i ⦃ _ => True ⦄ := by
@@ -2718,6 +2727,10 @@ theorem vcpu.sanitize_vgic_lr.MASK_V3.p0  :
   set_option maxHeartbeats 4000000 in
   unfold vcpu.write_state_from_frame
   p0_structural
+
+-- #63 added the same-core TS_RUNNING_VM branch (here with the AArch64
+-- `vcpu.signal_completes` = false and the no-op `vcpu.report`); `split` on the
+-- grown body exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
 
 @[step] theorem vcpu.decode_state_transfer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (length : Std.U64) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (to_frame : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vcpu.decode_state_transfer machineStoreInst machineArchInst s a vc length buf ex to_frame ⦃ _ => True ⦄ := by

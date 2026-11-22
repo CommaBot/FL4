@@ -1,6 +1,6 @@
 {
- "functions": 1074,
- "proved": 1074,
+ "functions": 1076,
+ "proved": 1076,
  "manual": [
   "boot.create_untypeds",
   "ept.flush_frame",
@@ -9,6 +9,7 @@
   "ept.lookup_slot_loop",
   "ept.unmap_table_loop",
   "interrupt.decode_irq_control",
+  "notification.send_signal",
   "syscall.handle_unknown_syscall",
   "tcb.decode",
   "untyped.reset_untyped_loop",

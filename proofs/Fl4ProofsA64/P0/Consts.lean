@@ -1363,6 +1363,9 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem layout.ntfn.BADGE.val_eq : layout.ntfn.BADGE.val = 16 := by
   unfold layout.ntfn.BADGE; rfl
 
+@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
+  unfold layout.ntfn.SC; rfl
+
 @[simp, scalar_tac_simps] theorem layout.node.DEBUG_TCBS.val_eq : layout.node.DEBUG_TCBS.val = 88 := by
   unfold layout.node.DEBUG_TCBS; rfl
 
@@ -1374,9 +1377,6 @@ open fl4_core_a64
 
 @[simp, scalar_tac_simps] theorem layout.sc.CORE.val_eq : layout.sc.CORE.val = 16 := by
   unfold layout.sc.CORE; rfl
-
-@[simp, scalar_tac_simps] theorem layout.ntfn.SC.val_eq : layout.ntfn.SC.val = 32 := by
-  unfold layout.ntfn.SC; rfl
 
 @[simp, scalar_tac_simps] theorem obj.NTFN_ACTIVE.val_eq : obj.NTFN_ACTIVE.val = 2 := by
   unfold obj.NTFN_ACTIVE; rfl
