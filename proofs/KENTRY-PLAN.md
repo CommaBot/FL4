@@ -15448,3 +15448,70 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
+
+## g7a (branch par/g7a in FL4-g7a, on b41579ba = main) — C25–C27 / C21 / D1 of INV-PLAN §1.U3L: NOT discharged; none is derivable from what `JReachU3` carries, each needs a new carried joint fact in the exit relation `RJ` (a `JAtZ`-wide edit), which is outside "new modules only"; no new top, no premise added or removed; no FINDING
+Analysis only (stopped before editing existing structures, as the brief's rules ask for an unexpected scope). No Lean file changed.
+
+### (1) Why "carry in the joint induction" is not local
+- `JReachU3.step` (XTopJointKEntryU3) sees, besides the old state's `JReachU3`, only the FL4 run
+  `handle_syscall s a n = ok (s', a')`, the spec outcome `σ' ∈ fl4KernelEntrySyscall c σ` and `RJM s' a' σ'`
+  (= `RelTopM ∧ JAt ∧ MR`, all existential in the ghosts `Z' H' Cs' …`). Nothing relates `Z'` to `Z`, `H'` to `H`.
+  So a joint fact (one that mentions FL4 memory or the ghosts) can be carried only (a) inside `RJ` itself, i.e. as a
+  `JAtZ` / `RelTopM` component re-established by every refinement path, or (b) as a spec-only invariant of `σ` (kept by
+  the spec entry, like `SInvX` via `kentry_sinvX`) bridged to FL4 at each state through `JAtZ`'s cap relation.
+- (b) does not reach these leaves: each one names an FL4-only address or ghost (ks block, nodes, ASID-table area, idle
+  objects, `H`, `Z.B`, the `DOM_SCHED_IDX` word), which the spec state does not contain.
+- (a) is the established way (schcap/`hscC`, rrecv, devks were done so): `hscC` has 413 uses in 92 files, `sfree`
+  169 in 79 files; `JExt` (the one-component extension point) is indexed by `th` and `s` only, so `DevApart`
+  (needs `H`, `G`, `Cs`) and `BufObjHyp` (needs `Z.B`, `σ`) do not fit it without changing its signature, which
+  touches its ~360 construction sites (`J.ext.ss` / `.step` / `.vkeep` / anonymous). Each is a full-cone rebuild
+  (~7000 jobs, ~45 min) per iteration.
+
+### (2) Per leaf
+- **C25 `devApart`** (`DevApart`, DevJ): its clauses (a) alignment, `CanonR`, `4 ≤ sb`; (b) off `[ksb, ksb+13568)`;
+  (c) off the nodes of `Cs`; (d) off the ASID-table area `[ksb+288000, +16384)`; (e) off `IdleAt`; (f)
+  `RegionFree Z.th`; (g) `H` objects in the range are `.other` below `fi`. Spec side gives at most (a)'s alignment
+  (`UtWfV`) through the cap relation; (b)–(e) are FL4 addresses with no spec counterpart (the spec's only
+  no-cap-covers-this fact is `IrqOutV σ.interruptIrqNode`, and its preservation family `P3 N` / `IKN` requires
+  `N` = the state's IRQ node, so it cannot be reused for another address set); (f)/(g) would need
+  `pspace_no_overlap`-strength spec facts (`UtFreeV` is about object bases only). Carry plan (a): a new `JAtZ`
+  component `dev : DevApart Z.th H Z.G Cs s ∧ DevFreeT (L.mem s) Z.G σ ∧ DevGpm (L.mem s) Z.G σ`, re-established
+  at every construction: frames where caps/`H`/`th` are kept (most sites; `SpecFreeP.frame` is generic in the
+  predicate), `DevApart.retype`/`DevFree.retype`/`SpecFreeP.retypeU` at device retypes, the reset (UtDevReset
+  already produces all three after the reset), and for RAM retypes the new `th`/`H` objects must miss device ranges
+  (needs `UtDescV` nesting + device-ness inherited by descendants: a RAM and a device untyped range are disjoint).
+- **C26 `devFree`**: as C25 (no spec invariant gives full-extent object containment for device caps; `UtFreeV` is
+  base-only, `UtPgR` / `SpecUtZ` are RAM-only). Before #34's devks `JAtZ.sfree` covered device caps too, so the
+  per-site proofs existed; carrying `SpecFreeP (fun _ _ _ => True)` again is the cheapest of the three carries.
+- **C27 `devGpm`**: `x64GlobalPml4` is fixed by the spec, but "no device untyped range covers it" again needs the
+  caps of every post state, i.e. a carry (or a spec `valid_global_refs` family for the PML4, which does not exist).
+- **C21 `bufObj`** (`BufObjHyp Z.B σ`): nothing in `JAtZ` ties `B` to spec objects (`FrameCover` is the converse,
+  frames ⊆ `B`; XTopJointUtEp's `BufFreeHyp` docstring says the same). Two routes: carry it as a `JAtZ` component
+  (kept where `B` and the spec objects are kept, grown at frame retype, shrunk at detype), or a shrink lemma
+  `JAtZ Z … → JAtZ {Z with B := B ∩ frameWords σ} …` (every `B` field but `FrameCover`/`BufMap` is antitone in `B`;
+  those two ask only frame words, IPC buffers lying in non-device frames by `IpcBufCapOK`), with a top whose `Z` is
+  chosen after the shrink; but `kernel_entry_reachU4`'s clauses are stated for the `Z` its chain extracts from
+  `jreach_inv`, and the leaf is asked at the dispatch state `σb`, so the shrink must also be pushed through the
+  front end (`BudgetAt`, objects kept). Both are large.
+- **D1 `hd`**: not derivable outright with `numDomains = 1`. Trace: a Domain `SetStart` invocation (native, `JDomPath`
+  = True) runs the spec's `domainSetStart` (Fl4Spec/Schedule.lean:300: `domainTime := 0`, `domainIndex :=
+  length - 2`) and FL4's (domain.rs:77–79: `DOMAIN_TIME := 0`, `DOM_SCHED_IDX := NUM_DOMAIN_SCHEDULES - 2`);
+  also `nextDomain` loads a duration that may be 0 (`DomListOK.zero` allows 0 for domain-0 entries, i.e. all
+  entries). So `domainTime = 0` is reachable at an entry and `NdOK` is needed there. Of `NdOK`: `DomRel` is
+  `RelTopM`'s (carried), `DomListOK` is `SInvX`'s; with `DomRel.len` (= 2) and `DomListOK.idx`, `σ.domainIndex = 0`
+  at every such state, so the missing fact is the FL4-only **`DOM_SCHED_IDX` word = 0**. It is TRUE in reachable
+  states (no FINDING): only `domain_set_start` (writes `2 - 2 = 0`) and `next_domain` (sched.rs:558: `idx+1 = 1`
+  unless entry 1's duration is 0, which it is by `DomListOK.last` + `DomRel`, else `DOM_SCHED_START`, which is 0
+  by `DomListOK.start/startNE` with length 2) write it. But it is not carried (`DomRel` has the entries and the
+  start only), and per (1) it cannot be carried outside `RJ`. Cheapest carry: add `(m (ksW kb 24)).val =
+  σ.domainIndex` to `DomRel` (DomDecode.lean:205): `DomRel.of_same` / `.frame` / `domSame_wr` (8 uses) gain the
+  word 24 and `σ'.domainIndex = σ.domainIndex`; the domain performs (startS/startSt, DomDecode) and
+  ScNextDom's `next_domain_words` already compute both sides; the other ~40 files only pass `DomRel` along.
+  Then `NdOK` follows at every `JAtZR` state from `RelTopM ∧ SInvX`.
+
+### (3) Suggested order for a line allowed to edit existing structures
+D1 (DomRel + word 24; small cone edits, deep rebuild), then C26 (`sfree` for all caps, reverting devks' restriction
+for the spec-object half only), then C27 with it, then C25 (needs the RAM-vs-device range disjointness), then C21.
+
+### (4) Builds and axioms
+None run (no Lean change). g7a-build.sh untracked.
