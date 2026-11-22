@@ -16125,3 +16125,52 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   `handle_reply_recv_vm_local`, `handle_invocation_local` (with `localinv.Plan`) are entered from fl4-sync beside the
   serial gate, not from `kernel_entry`: no existing top covers them (as for `handle_syscall_local` / `handle_ioport_local`).
 - Commits: 6fee5c79 (merge), 1fcb75c8, 5c22feac, 27317380 (merge), this section.
+
+## m76 (branch par/m75 in FL4-a64x, on 4a0ae3df) — #71 P0 mostly done, not green; #65 hugePages spec change written but not built; FrameBatch gap and TDX (#68) not started; HANDOFF (agent context exhausted)
+- **Step 1.** `lake build Fl4Core Fl4CoreA64` green with m75's external models (FunsExternal.lean, both arches, unchanged by m76):
+  `Option`'s `?` = `Try.branch` (`some x ↦ Continue x`, `none ↦ Break none`) and `FromResidual.from_residual`
+  (`_ ↦ none`), `Result::ok` (`Ok x ↦ some x`, `Err _ ↦ none`); definitions, total, no axioms.
+- **P0 (commit e7d023f9; Auto.lean / status.json NOT regenerated).** Specs.lean (both): step specs for the three
+  models; x86 also `vspace.frame_batch.entry_words.spec` (≤ 3) and the FrameBatch `map_err` closure. With them the
+  generator proves `localinv.small_page_entry` (and on A64 everything but `plan_with`: last A64 run 1099 functions,
+  1098 proved, open `localinv.plan_with`). Manual.lean.in (x86): `vspace.batch_map` (✓ in gen_p0),
+  `vspace.decode_frame_batch_loop` (✓; **P0 with precondition** `words.val ≤ 3`, `n.val ≤ 255`, recorded by the
+  `-- P0 precondition:` line, which gen_p0.py now lists under `preconditions` in status.json; README says so),
+  `vspace.frame_batch_entry` and `localinv.plan_with` (✓ in scratch m76p0e.lean against an Auto with those
+  proofs as sorry, after the `p0_whnf_head` fix below), `vspace.decode_frame_batch` (**OPEN**). A64 Manual:
+  `localinv.plan_with`, same proof (untested since the fix).
+- **The stuck goals** were `let (x, y) := (a, b); …` whose head is Aeneas's `uncurry` (not a matcher: dsimp /
+  simp only [] / split / whnfCore do nothing). Totality.lean (both) `p0_whnf_head` unfolds `uncurry` (and a
+  matcher) at the head of the spec program or of its first bind action; `p0_unfold_match` is a fallback.
+- **decode_frame_batch.p0 OPEN:** with `p0_whnf_head` in the chain it no longer gets stuck on `let (root, _)`
+  but times out (whnf, 4M heartbeats; >8 min at 8M with the bind-of-match abstraction added): the two 24-case
+  cap matches (`cnode`, `dest_cnode`) duplicate the rest of the body (with the loop and the reply). Next: state
+  the tail after `let b1 ← match dest_cnode` as a separate lemma (or prove `@[step]` lemmas for
+  "`match c with … => ok bool` never fails" and use `refine WP.spec_bind` explicitly for each match, then `step`),
+  check in scratch (m76p0f.lean; build Auto first with `python3 m76sorry.py proofs/Fl4Proofs/P0/Auto.lean
+  vspace.decode_frame_batch` after gen_p0 has written it), then regenerate x86 + A64 (`bash m76-g.sh`).
+- **#65 hugePages (commit 6ed41d7d, NOT BUILT).** Fl4Spec: `ArchState.x64HugePages : Bool`; `createMappingEntries`
+  of an `X64HugePage` throws `illegalOperation` when it is clear, before the PDPT lookup (= FL4's order: alignment,
+  then `huge_pages`, then `page_entry_slot`); `initArchState` sets it; PORTING.md Deviations entry. Placing the
+  check in `createMappingEntries` leaves every 4K/2M proof definitionally unchanged. P3: `HugeRel m ksb σ` (VsRel.lean:
+  ks `FEATURES & FEATURE_HUGE_PAGES ≠ 0` = `σ.archState.x64HugePages`), field `VsFrameHypsL.huge : ∀ s a σ, SR s a σ →
+  HugeRel …` (VsFootW's `.foot` passes it), mapTailH_noSlot/_ok/_used take `hh : x64HugePages = true`,
+  new `mapTailH_noHuge`, `cme_huge_ok`/`cme_huge_no`, `runE_bind_congr`, `huge_pages_eq`, `map_tail_H` cases on the
+  bit. **Open:** `vsFrameHypsL_top` (VsTopInst.lean:80) must prove `huge` from `TopSR`, which does not carry it.
+  Plan: add `HugeRel` to `KRootRel` (VsTop.lean:91, "kernel words written at boot only") and fix its 14 producing
+  sites (UtEpXTop:228, XTopBuf:141, VsReplyTop:338/460, XTopStepT:141, XTopStep:331, VsTop:326, UtScAdd:128,
+  ReplyFailX:95, XTopTcbFpu:169, ScXSched:115, VsSubTop:197, IpcTopFrame:456, ScXStep:507; readers G7cRoot:106,
+  VsArch:322): FL4 side the same frame fact with offset 72 (FEATURES) beside 48 (KERNEL_ROOT); XTopAt.frameStep /
+  XTopTcbFpu's variant need a `hWF : ¬ W (ks+FEATURES)` beside `hWK` (≈12 callers); spec side: sites with `har`
+  (whole archState) are immediate, sites with only `gpml4` (KsStep / SchStep / step records, 49 occurrences of
+  `x64GlobalPml4 = …` in 51 files) need a parallel `x64HugePages` field. The ArchState field itself broke nothing
+  known yet (no full build run since).
+- **Not done:** full x86 build, `Fl4ProofsA64` build, axioms (axm76p0.lean / axm76a.lean written, untracked),
+  step 6 FrameBatch gap listing (`decode_invocation_pml4_thX`, VsThX.lean:501, via `decode_invocation_pml4_capX`:
+  FL4 runs the batch on label X86PML4FrameBatch where the spec says IllegalOperation; not touched, no premise),
+  lead's new item: merge main b47224c2 (#68 TDX; fetched into FL4-a64x as origin/main), re-extract, gen_p0, report
+  P1/P3 breakage from `Cap::TdxControl`.
+- Scripts (untracked, worktree root): m76-g.sh (gen_p0 both arches → m76back3), m76-cmd.sh (scratch files), m76-m.sh
+  (module builds), m76-e.sh / m76-f.sh, m76sorry.py, m76p0{,b,c,d,e,f}.lean scratch. tokyo mirror FL4-a64x: its
+  Auto.lean (x86) is a scratch variant with three proofs as sorry.
+- Commits: e7d023f9, 6ed41d7d, this section.
