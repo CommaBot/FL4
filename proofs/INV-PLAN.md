@@ -520,7 +520,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | D4 | `sni` | `SniHyp`: at every such state `set_next_interrupt` refines `setNextInterrupt` with one outcome and no failure | [P] **∀st**, **FALSE as stated (FINDING g6a)**: the spec's `setNextInterrupt` does `assertOpt` on the current thread's `tcbSchedContext` (and on the release-queue head's); `SchedRel` (`SchedSpec.tcb`: `tcbSchedContext = optRef (scA t)`, `SchedCore.curT`) admits a current thread with `scA = 0`, where the spec run fails, so the triple is false there whatever FL4 does. `hFin`/`KFinEv` therefore cannot be supplied for any store with such a state, and every clause of the top is vacuous in practice (the class of §0). Fix: guard `SniHyp` with the current thread's and the release head's SC (true where it is consumed: after `schedule`, `CurInv`) | `setNextInterrupt` corres | ∀st |
 | D5 | `send` | `SendHyp`: at every such state `send_pending` keeps `SchedRel ∧ NtfnStateRel` | [P]/[S] one core **∀st** | — | ∀st |
 | D6 | `tail` | FL4 `schedule s a ⦃ r => ∀ … (spec run after `Fires`, `schedule`, `SchedRel`, `Inv`, `CurInv`, `ActIdle`) → AR r.2 σ'.x64CurrentCr3 ⦄` | [W] CR3 after the switch (a vtable-to-CR3 relation: `findVSpaceForAsid` of the chosen thread = FL4's `set_vm_root` target) | `set_vm_root` corres + `valid_vspace_objs` | **∀st** (g7c: quantifies over every `Fires` successor σ1, not only the run's, the SniHyp class; fix (route 1, lead): narrow to the run's own σ1, σ' in the `KFinAtR31` restructure with g6b; at the run's outcome G7cSwitch's pieces give it) | **PROVED (g7e, `kernel_entry_reachU8`)**: `kfin_tail_of` (G7eTail) at the narrowed statement (g7d), from `IdleVt` (D7) and A15 `ArchRefines`; see KENTRY-PLAN g7e |
-| D7 (g7c, new) | `IdleVt` (G7cSwitch `RootOK.idle`) | the idle TCB's vtable (FL4 slot 1 of `idleW`; spec `tcbVtable` of `idleThread`) is no mapped PML4 cap (`∀ p asid, x.tcbVtable ≠ .archObjectCap (.pml4Cap p (some asid))`) | [J] new leaf of the eventual top without D6: FL4's `switch_to_idle_thread` loads the kernel root, the spec's `archSwitchToIdleThread` is `setVmRoot idleThread`; true by boot (`create_idle_thread` zeroes the TCB) and because no cap names the idle thread (`ScPlace.noIdle`), not carried by `JAtZ`/`SInvX` | the idle thread is created with null caps (C `Arch_switchToIdleThread` = `setVMRoot(ksIdleThread)`) | 1 (at the switch state; to be framed from the finish state) | **(g7e)**: now a named premise of `kernel_entry_reachU8` (`KFinAtR8.idle`, G7eTail; def `IdleVt`, G7eRoot), asked at each finish state, framed across the timers by `JAtZR.idleVt_fire`. **(sd7) DISCHARGED**: `kernel_entry_reachU13` (`IdleVtS` carried in `JReachU13`, SpecInvSiE) |
+| D7 (g7c, new) | `IdleVt` (G7cSwitch `RootOK.idle`) | the idle TCB's vtable (FL4 slot 1 of `idleW`; spec `tcbVtable` of `idleThread`) is no mapped PML4 cap (`∀ p asid, x.tcbVtable ≠ .archObjectCap (.pml4Cap p (some asid))`) | [J] new leaf of the eventual top without D6: FL4's `switch_to_idle_thread` loads the kernel root, the spec's `archSwitchToIdleThread` is `setVmRoot idleThread`; true by boot (`create_idle_thread` zeroes the TCB) and because no cap names the idle thread (`ScPlace.noIdle`), not carried by `JAtZ`/`SInvX` | the idle thread is created with null caps (C `Arch_switchToIdleThread` = `setVMRoot(ksIdleThread)`) | 1 (at the switch state; to be framed from the finish state) | **(g7e)**: now a named premise of `kernel_entry_reachU8` (`KFinAtR8.idle`, G7eTail; def `IdleVt`, G7eRoot), asked at each finish state, framed across the timers by `JAtZR.idleVt_fire`. **(sd7) DISCHARGED**: `kernel_entry_reachU13` (`IdleVtS` carried in `JReachU13`, SpecInvSiE); with C27, top `kernel_entry_reachU15` |
 | D6 note (g7c) | — | D6 quantifies over every `Fires` successor σ1, not the run's: KENTRY-PLAN g7c (a), (f) | — | — | — |
 
 ### E. Event clauses
@@ -560,21 +560,19 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU13`** (sd7, XTopJointKEntryU13) = U11 without D7 `idle`: `IdleVtS`
-(the idle TCB's vtable slot holds the null cap, spec only, SpecInvSiA..SiE) carried in `JReachU13 := JReachU3 ∧ IdleVtS`
-(start fact at one state), `IdleVt` at every finish state from it and `JAtZR.idleTcb`. At U13 the [J] leaves are
-C4, C16, C17, C21, C22, C23, C24×3, C25, C26, C27 (**[J] 12**); **[W] 0**.
+**Top of record: `SInvR.G5.kernel_entry_reachU15`** (sd7-2, XTopJointKEntryU15) = U11 without C27 `devGpm` and
+without D7 `idle`: s27's U12 and sd7's U13 combined. Both spec-only facts are carried in
+`JReachU15 := JReachU3 ∧ GpmOutV ∧ IdleVtS` (start facts at one state): C27 at every dispatch state from `GpmOutV`
+(`devGpm_of`), D7 at every finish state from `IdleVtS` and `JAtZR.idleTcb`. At U15 the [J] leaves are C4, C16, C17,
+C21, C22, C23, C24×3, C25, C26 (**[J] 11**); **[W] 0**.
+
+Parallel tops (superseded by U15): `kernel_entry_reachU12` (s27, XTopJointKEntryU12) = U11 without C27
+(`JReachU12 := JReachU3 ∧ GpmOutV`, [J] 12); `kernel_entry_reachU13` (sd7, XTopJointKEntryU13) = U11 without D7
+(`IdleVtS`, the idle TCB's vtable slot holds the null cap, SpecInvSiA..SiE; `JReachU13 := JReachU3 ∧ IdleVtS`, [J] 12).
 
 Previous top: `SInvR.G5.kernel_entry_reachU11` (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
 route: `JAtZR.hdOK`, `DomListOK` by SpecInvDom's `DP`). At U11 the [J] leaves are C4, C16, C17, C21, C22, C23,
 C24×3, C25, C26, C27 and D7 `IdleVt` (D1 gone: **[J] 13**, counting D7); **[W] 0**.
-
-**Top of record: `SInvR.G5.kernel_entry_reachU12`** (s27, XTopJointKEntryU12) = U11 without C27 `devGpm`
-(spec fact `GpmOutV`, l4v `valid_global_refs`, carried in `JReachU12 := JReachU3 ∧ GpmOutV`, start fact at one state).
-At U12 the [J] leaves are C4, C16, C17, C21, C22, C23, C24×3, C25, C26 and D7 (**[J] 12**); **[W] 0**.
-
-**Lead note (merge of s27 and sd7):** U12 (no C27) and U13 (no D7) are parallel lines from U11; neither alone is the
-top of record. A combined top (`JReachU3 ∧ GpmOutV ∧ IdleVtS`, without C27 and D7: [J] 11) is the next step.
 
 **[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
 `kernel_entry_reachU7`; see F.)
