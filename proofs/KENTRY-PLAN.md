@@ -17061,3 +17061,39 @@ Classical.choice, Quot.sound]` only. Files changed against e9c21de0: see the f1 
 - `TabIn`'s PML4 clause is `mp = false`: Stage 4's ASID-assign site already has it from the decode (`rfl`).
 - Stage 5 merge with U21 (`devTab`): this stage touched no `JCarry` file, so only INV-PLAN / KENTRY-PLAN text and
   axf1-style lists can conflict.
+
+## f2 (branch par/f2 from e84b2e3f = PR #66 head) — F1 stages 2 and 3: `VsPath` / `VsNamed` and the discharge `JAtZ.vsReachMiss` (stage 2 DONE), preservation for the non-VSpace step classes (stage 3, see (3)); no new top, nothing wired
+
+### (1) Stage 2 done (VsNamed.lean, new, imports only UtDropJ2)
+- Definitions as F1-PLAN §1.6 (`VsPath`, `VKey`, `VRefOf`, `VRef`, `VsNamed` with `named` / `uref` / `uun` /
+  `empty` / `poolT`), one change: `poolT` is stated without a U64 shift,
+  `capV m y = .AsidPool q b → ∀ hi : U64, hi.val * 512 = b.val → m (atA ksb hi) = q` (the base's
+  `b % 512 = 0 ∧ b < 2^20` comes from `VsSlotsW`).
+- `VsReach.split` (needs `VsNamed` + `VsSlotsW` only: a pool root is a walk node by `poolT`; an unmapped root
+  has no present entry by `empty`, so nothing is reached through it). `uref` / `uun` are not needed for the
+  discharge, only for preservation.
+- `VsPath.reach` / `VsPath.mem`, `VsPath.frame` / `VsReach.frame` / `VsNamed.frame` (frame by `TblSame` +
+  `SetWSame`: the ASID-table words and the sets' table / pool words kept; `walk_of_vobj` derives both from the
+  usual `∀ b, Aligned b → VObj … b → m' b = m b` post), `NeedR.congr`.
+- **`JAtZ.vsReachMiss`** (any `dv`): `VsNamed Z.th (L.mem s) (L.ksb s)` + childless untyped `x` ⇒
+  `VsReachMiss` at `s` with the `NeedR` roots (root or walk node ⇒ a slot's keyed cap ⇒ `JAtZ.tabOff`; the PML4 /
+  pool size and phys lemmas `physF_pml4` … `sizeF_pool` added). **`JAtZ.vsReachMissR`**: the premise form at the
+  restart state `s1` (`restart_top`'s `VObj` post, `SlotsSame`); **`JAtZ.vsReachAsidC`**: the `JAsidCPath.vsReach`
+  shape verbatim. No new fact was needed from `JAtZ`; no reachable-state counterexample to `VsNamed` found
+  (checked against vspace.rs: table maps mask the vaddr to the level and bound it by `USER_TOP`; assign writes
+  `base + i` with `base = i_tbl << 9`; nested (EPT) roots are tag 1 and excluded by `VsPath.pool`).
+
+### (2) Sizing update for stages 3–5 (before stage 3)
+- Stage 3 vehicle named **`Vs.VsKeep th th' m m'`** (`VKeep` is taken: JointAt's VCPU-word frame). Fields:
+  `fwd` (every keyed cap before has a slot after with the same `VKey` / `VRefOf`), `back` (the converse),
+  `inj` (two distinct slots after with one key, the first unmapped, have two distinct preimages). With the walk
+  words kept, `VsNamed.step` needs only `VsSlotsW` and the relations at the pre-state.
+- Estimates: vehicle + `VsNamed.step` + of_eq / insert / move / swap ≈ 400–500 lines; ref equality of copies
+  (`copied_cap`, derive, mask, update_cap_data, IPC grant, TCB install: FL4 returns VSpace caps unchanged,
+  `other => other`) ≈ 150–250; frame class ≈ 50 (stage 2's `VsNamed.frame`); retypes ≈ 300–450 (fresh keys
+  from the post-state `UtInv.drange`, zero words, new caps unmapped); drops ≈ 250–400 (a walk node after is one
+  before, kept because it misses the region by `vsReachMiss`; naming slots are off the region since a
+  non-null slot is an MDB slot, `UtCapP3.ns`). Stage 3 ≈ 1200–1600 lines: within the plan's L.
+- Stage 4/5 impact so far: `XTopAt.restart` / `JAtZ.restartJ` do not export the `VObj` post (it is re-derived
+  from `restart_top`, as in `vsReachMissR`); every `VsNamed` transport needs `VsSlotsW` at the pre-state
+  (available as `JAtZ.vsc`).
