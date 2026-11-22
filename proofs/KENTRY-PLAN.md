@@ -14890,3 +14890,41 @@ New leaf XTopJointKEntryU (root import after XTopJointKEntry38E). Nothing existi
 - HANDOFF: (a) goal (3) as in the residue above (`FastFaultOK` from `JAtZ` at the dispatch state; then
   `kernel_entry_reachE5` and a `reachU` variant); (b) the cheap `J42H` / `reachUH` without `hRP5` via `JAtZ.rrPre5At`;
   (c) P1-only `AsidOff` / `RRSumAt` / `CnOffAt` on `entry_of10` (m69 (c)).
+## m71 (branch par/m71 in FL4-m67, on ef845085 = #51 head with m70) — goal (1) STOPPED on a FINDING before any Lean change: the receive-buffer input of `faultEntAt_of` (P1 `FaultEnt.hbuf`, from Hyps4's `XferHyps.buf`) is false in reachable states, so it cannot be read off `JAtZ`; goals (2) / (3) not started; no commit but this section
+- **What (1) needed.** `faultEntAt_of` / `faultRecv_of` / `faultNvm_of` (P1 FastFaultEnt / FastTailFault) read three
+  things besides `BXI`: `EntryHyps0.tmoOK` (handler cap typed, `CanBlock.nb`, `UserOK U`), `XferHyps.buf`, `XG`.
+  At the dispatch state (`JAtZ.rrDisp`'s analogue, which for the unknown-syscall event comes from `fip_pre` +
+  `JAtZ.budgetOkB` with `SInvX` of `faultIPSt σ`, as `jEvRef_sysU` builds it; the declined `debug_syscall` returns
+  `ok (false, s, a)` unchanged) the first two are available: the `SLOT_FAULT_HANDLER` cap typing as `JAtZ.lkTyped`
+  does it (`lookup_cap_held` + `JPlaced.typed`), `CanBlock.nb` from `CurInv σb`'s `NotIpcBlk` and `TcbRel1.st`, and
+  `UserOK` is free for the choice `U := {b | OutsideObjs T Cs s b ∧ b ∉ Ω}`. The third is the problem.
+- **FINDING (P1 premise false in reachable states).** `FaultEnt.hbuf : msg.lookup_ipc_buffer s true dest ⦃ b =>
+  BufOK U b ⦄` with `FaultEnt.hU : ∀ b ∈ U, OutsideObjs T Cs s b ∧ b ∉ Ω`, where (QueueXfer.lean:200)
+  `BufOK U buf := buf ≠ 0 → ∀ i < 512, buf + 8·i ∈ U` — a 4 KiB window from the buffer start. FL4's IPC buffer is
+  1024-byte aligned (`check_valid_ipc_buffer`: `vptr & (2^bits::IPC_BUFFER − 1) = 0`, `IPC_BUFFER = 10`) and
+  `lookup_ipc_buffer` returns `ptr + (w & (2^frameBits − 1))`; l4v / P3 (`Endp.IpcBufCapOK`) place only its 128 words
+  inside the frame. Trace (every step an ordinary invocation):
+  1. Untyped `u` of 8 KiB (kernel window `p`, 8 KiB aligned): `Retype(Frame 4K)` → frame at `p`; `Retype(TCB)` →
+     TCB `q = p + 4096` (the free index advances; `q ∈ T = Heap.tcbs H`, `TcbAddr q`).
+  2. Thread `h` (any TCB): map the frame RW at `vbase`, `SetIPCBuffer(vbase + 3072, frame cap)` (3072 ≡ 0 mod 1024:
+     accepted); `h` does `Recv` on endpoint `E` with a reply object (blocked on receive, reply word ≠ 0, SC bound).
+  3. Thread `t` (current, resumed) with `SLOT_FAULT_HANDLER` = an Endpoint cap on `E`, issues an unknown syscall
+     (`n > SYSCALL_MAX`); `handle_syscall` enters `fastpath.fault`; `FaultChecks t ptr=E … dest=h r` holds.
+  4. At that dispatch state `lookup_ipc_buffer h = p + 3072 ≠ 0`; `BufOK U` needs `p + 3072 + 8·128 = p + 4096 = q ∈ U`,
+     but `OutsideObjs` requires `q.val < q.val ∨ q.val + 4096 ≤ q.val`: false. So `FaultEnt.hbuf` / `hU` are
+     unsatisfiable together for every `U`, `FaultEntAt` is false there, and so are `FastFaultPre` (m63/m64) and
+     Hyps4's `XferHyps.buf` (`∀` `XG ∧ XI` states and `y ∈ T`: this state with `y = h` is one, `XI` contains
+     `UserOK U`). Every P1 top built on `Hyps4` (`kernel_entry.entry_of*`, P3 `fastFaultOK_of_p1` / `_p1N`) assumes it.
+  Not a kernel bug: the fault transfer writes only buffer indices below `n_syscallMessage + 1` (< 128), and the
+  general IPC transfer indices below 128 (l4v `msg_max_length` + caps + receive-slot words = the 1024-byte buffer).
+  The premise is over-wide, not the kernel wrong. `FastFaultOK` itself (`FaultOK ∧ FaultNvm`, reads of the general
+  path) has no buffer-width clause and is not refuted; only its derivation route is.
+- **Proposed fix (not done, needs the lead's decision: it edits P1 statements).** `BufOK` over 128 words (`i.val < 128`,
+  1024 bytes); check every user's index bound (`msg.buf_set.xs` `i < 512`, `msg.set_mr.xs` `i < 511`, FastFaultInv
+  `buf_set_rgU` / `set_mr` lemmas `< 512` / `< 511`, QueueXferFoot, QueueDecTcbRR, QueueVcpu / QueueDecVcpu) against
+  the extracted indices (fault messages, `MSG_MAX_LENGTH`, extra-cap / badge words, receive CNode/index/depth words).
+  Then at P3 `BufOK` (128) is `IpcBufCapOK`'s `inUserFrame` for `k < 128` + `BufPlaced` / frame words outside the
+  TCBs / nodes / `Ω` (`HeapOK.disj`), and m71's goal (1) proceeds as planned above.
+- **Goals (2) / (3)** not started (stopped per the rule). (3)'s `kernel_entryJ42H` (g5f's `J42` with `hRP5`
+  discharged by `JAtZ.rrPre5At`) does not depend on the finding.
+- Builds: none (no Lean file changed). Axioms: n/a.
