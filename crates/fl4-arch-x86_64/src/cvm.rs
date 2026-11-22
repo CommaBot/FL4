@@ -27,6 +27,12 @@ static FL4_CVM_POISONED: AtomicBool = AtomicBool::new(false);
 #[cfg_attr(target_os = "none", link_section = ".bss.skim")]
 static FL4_CVM_HARDENED: AtomicBool = AtomicBool::new(false);
 
+const PAGE: u64 = 4096;
+const HUGE: u64 = 1 << 21;
+// A batch of 4 KiB frames stays below 2 MiB, so only a single large frame
+// has `bytes == HUGE` (`tdx_map_gpa_step`).
+const _: () = assert!(fl4_core::untyped::RETYPE_FAN_OUT_LIMIT * PAGE < HUGE);
+
 /// Adjacent to the private physical window in PML4 slot 511.
 pub const SHARED_SLOT: usize = 510;
 const SHARED_BASE: u64 = 0xffff_ff00_0000_0000;
@@ -257,6 +263,20 @@ fn steps(platform: Platform, shootdown: bool, shared: bool, mut step: impl FnMut
     }
 }
 
+/// The MapGPA size for a transition of `[pa, pa + bytes)`: the size of the
+/// frames in it. A batch of 4 KiB frames is shared at once but retired one
+/// frame at a time, and a VMM with passthrough devices (VFIO Type1 v2, GCE)
+/// refuses to split a DMA mapping, so each MapGPA matches one frame.
+fn tdx_map_gpa_step(pa: u64, bytes: u64) -> u64 {
+    if bytes == HUGE && pa & (HUGE - 1) == 0 { HUGE } else { PAGE }
+}
+
+/// The `(gpa, bytes)` of each MapGPA for a transition (`tdx_map_gpa_step`).
+fn tdx_map_gpa_ranges(pa: u64, bytes: u64) -> impl Iterator<Item = (u64, u64)> {
+    let step = tdx_map_gpa_step(pa, bytes);
+    (0..bytes).step_by(step as usize).map(move |off| (pa + off, step))
+}
+
 pub(crate) fn transition_inner(base: u64, bytes: u64, shared: bool, shootdown: bool) {
     let alias = shared_ptr(paddr(base));
     let (old, new) = if shared { (base, alias) } else { (alias, base) };
@@ -280,8 +300,10 @@ pub(crate) fn transition_inner(base: u64, bytes: u64, shared: bool, shootdown: b
             crate::smp::remote_call(crate::smp::CALL_CVM_INVLPG, base, bytes, crate::smp::online_mask());
         }
         Step::ChangeState if platform == Platform::Tdx => {
-            let gpa = paddr(base) | if shared { shared_mask() } else { 0 };
-            tdx::map_gpa(gpa, bytes);
+            let mask = if shared { shared_mask() } else { 0 };
+            for (gpa, len) in tdx_map_gpa_ranges(paddr(base), bytes) {
+                tdx::map_gpa(gpa | mask, len);
+            }
         }
         Step::ChangeState => snp::change_state(base, paddr(base), bytes, shared),
         Step::Accept => tdx::accept_pages(paddr(base), bytes),
@@ -401,6 +423,57 @@ mod tests {
             let (s, _) = record(p, true, shared);
             assert!(!s.contains(&Some(Accept)), "{p:?} shared={shared}");
         }
+    }
+
+    /// Seen on GCE C3: a 1 MiB batch of 4 KiB frames mapped with one MapGPA
+    /// could not be retired frame by frame.
+    #[test]
+    fn tdx_map_gpa_matches_the_frames_being_transitioned() {
+        assert_eq!(tdx_map_gpa_step(0x1440_0000, 0x10_0000), PAGE, "1 MiB batch, 2 MiB aligned");
+        assert_eq!(tdx_map_gpa_step(0x1470_0000, 0x10_0000), PAGE, "1 MiB batch, 1 MiB aligned");
+        assert_eq!(tdx_map_gpa_step(0x147f_f000, 0x1000), PAGE, "one 4 KiB frame");
+        assert_eq!(tdx_map_gpa_step(0x1440_0000, HUGE), HUGE, "one 2 MiB frame");
+        assert_eq!(tdx_map_gpa_step(0x1440_0000, 0x20_0000), 0x20_0000);
+        assert_eq!(tdx_map_gpa_step(0x1470_0000, HUGE), PAGE, "2 MiB off a 2 MiB boundary");
+        assert_eq!(tdx_map_gpa_step(0x1440_1000, HUGE), PAGE);
+    }
+
+    /// The largest 4 KiB batch is still below the size of a large frame.
+    #[test]
+    fn a_full_batch_of_small_frames_is_never_taken_for_a_large_frame() {
+        let bytes = fl4_core::untyped::RETYPE_FAN_OUT_LIMIT * PAGE;
+        assert!(bytes < HUGE);
+        assert_eq!(tdx_map_gpa_step(0x1440_0000, bytes), PAGE);
+    }
+
+    /// The ranges cover the transition exactly, in order, and each is what
+    /// retiring one frame maps back.
+    #[test]
+    fn tdx_map_gpa_ranges_cover_the_transition_without_gaps_or_overlap() {
+        for (pa, bytes) in [
+            (0x1440_0000u64, 0x10_0000u64),
+            (0x1470_0000, 0x10_0000),
+            (0x147f_f000, 0x1000),
+            (0x1440_0000, HUGE),
+            (0x1470_0000, HUGE),
+            (0x1440_3000, 0x5000),
+        ] {
+            let step = tdx_map_gpa_step(pa, bytes);
+            let mut next = pa;
+            let mut n = 0;
+            for (gpa, len) in tdx_map_gpa_ranges(pa, bytes) {
+                assert_eq!((gpa, len), (next, step), "{pa:#x} + {bytes:#x}");
+                assert_eq!(gpa % step, 0);
+                next += len;
+                n += 1;
+            }
+            assert_eq!(next, pa + bytes, "{pa:#x} + {bytes:#x}");
+            assert_eq!(n, bytes / step);
+        }
+        // The batch from the failure: its last frame is a range of its own.
+        let last = tdx_map_gpa_ranges(0x1470_0000, 0x10_0000).last();
+        assert_eq!(last, Some((0x147f_f000, PAGE)));
+        assert_eq!(tdx_map_gpa_ranges(0x1470_0000, 0).count(), 0);
     }
 
     #[test]
