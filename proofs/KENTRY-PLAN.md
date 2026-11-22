@@ -15497,3 +15497,59 @@ New modules only; nothing existing edited.
   at any spec state with the base's heap and projection) and a spec cr3 lemma (`switchToThread` / `switchToIdleThread`);
   the queue steps before the switch carry the base equalities (`SFoot` writes; `QChange`/`Calm` heap equality, the projection
   family); the tail (`set_action` .. `send_pending`) keeps `AR` (`ARKeep` via `ak_walk`) and the spec's `scAndTimer` keeps cr3.
+
+### (b) Proved (6cc867fa; modules G7cCr3K, G7cRoot, G7cSwitch, root-imported after XTopJointKEntryU4)
+- **G7cCr3K** (spec only): `crF σ = (x64CurrentCr3, x64AsidTable, x64GlobalPml4, idleThread)`, `CRK := FK crF`; ScFpuOwnK's
+  `OWK` leaves for the `send_signal` cone renamed (`crk_sendSignal`), plus `crk_tcbReleaseDequeue`, `crk_awaken`,
+  `crk_archThreadSet`, `crk_saveFpuState`, `crk_loadFpuState`, `crk_setX64CurrentFpuOwner`, `crk_switchLocalFpuOwner`,
+  `crk_lazyFpuRestore`, `crk_archPrepareNextDomain`, `crk_nextDomain`, `crk_commitTime`, `crk_switchSchedContext`,
+  `crk_setNextInterrupt`, `crk_scAndTimer`; `Sched.crF_fires : Fires σ σ1 → crF σ1 = crF σ`.
+- **G7cRoot**: `switchToThread_cr3` / `switchToIdleThread_cr3` (the spec switch ends at the CR3 `setVmRoot` writes);
+  `set_kernel_vm_root_ar` and **`set_vm_root_ar`**: `set_vm_root t ⦃ r => r.1 = s ∧ ∃ c, (∀ σ' with σ's heap, ASID table
+  and global PML4, setVmRoot t σ' = {cr3Upd σ' c}) ∧ AR r.2 c ⦄` from `ArchRefines` (A15), `AR a c0`, `VsRel`, `KRootRel`,
+  the vtable correspondence of slot 1 and a non-zero ASID. (VsRoot's `set_vm_root_rel` without the `SR`/`VsRootHyps`
+  over spec states.)
+- **G7cSwitch**: `RootOK AR T P s a σ` (AR at some CR3, `VsRel`, `KRootRel`, slot-1 correspondence + ASID ≠ 0 for every
+  TCB of `T`, and the [J] `idle` field = `IdleVt`); `switch_to_thread_ar`, `switch_to_idle_thread_ar` (every spec outcome
+  of the switch has the CR3 FL4's arch state is `AR`-related to); **`choose_thread_refinesFA`** = ScArchF's
+  `choose_thread_refinesF` with `AR r.2 σ'.cr3` added to the post, given `RootOK` at the choose state.
+- Premises: none added to any top. `RootOK.idle` (IdleVt, [J]) and the rest of `RootOK` are hypotheses of these lemmas,
+  to be supplied from `JAtZ` (all but `idle`, see (d)).
+
+### (c) Top: NOT done
+- No `kernel_entry_reachU8`: D6 as stated is a ∀-`Fires`-successor statement ((a), "The obstacle"), and no new
+  `KFinAtR31` can be built without it. No FINDING: I have no counterexample (the reachable stale-CR3 state plus a
+  different Fires-successor σ1 needs `SchedRel r.1 σ'` to hold for a σ' whose queues differ from FL4's; I believe that is
+  impossible, but it is the correlation argument not proved).
+
+### (d) Handoff (two routes to a top without D6)
+1. **Weaken the tail to the run's outcome and re-thread.** In `jat_scheduleFR2ZR` (XTopJointJAtZRB) the tail is used only
+   at `schedule_refinesWP0FR`'s own σ1, σ'. Replace `hTail` by an `AR`-carrying copy of the chain
+   (ScNextDomCFR `schedule_refinesWP0FR`, ScNextDomCF `cn_refines0F`/`cn_enq0F`/`cn_app0F`/`switch_branch_refines0F`,
+   ScNextDomF `scnt_refines0F`, ScScheduleF `sw_refinesF`) with `choose_thread_refinesFA` / `switch_to_thread_ar` at the
+   leaves; `RootOK` at each switch state from the post-timer `JAtZR` (`J1.xtop`: `.fin.2.1` VsRel, `.fin.1.1.2.2.2.2.2.1`
+   KRootRel, `.fin.1.1.2.2.2.2.2.2` AR, `.rel.2.1.1` StateRel.tcb at slot 1 via `tcbCnodeMap_one`, `vtAsid_ofR`) framed
+   across the queue steps (FL4 writes `SFoot`/`SFootN`: `OObj` (`tfoot_oobj`), so not `VObj` (`TopPlaced.disj`) and not
+   ks+48 (`tfoot_ksb`); slots by `slotsSame_of_iw`; the spec keeps `kheap` (`Calm.1`, `QChange.1`, `ArchNdF`'s heap) and
+   `crF` (`crk_awaken`, `crk_tcbSchedAction'`, `crk_setSchedulerAction'`, `crk_archPrepareNextDomain`, `crk_nextDomain`));
+   after the switch the tail ops keep `AR` (`ak_walk` over `switch_sched_context` / `set_next_interrupt` / `send_pending`
+   with `ARKeep`) and `crk_scAndTimer` keeps the spec CR3; the resume branch keeps the entry `AR` (`crF_fires`,
+   `crk_awaken`). Then every top from KEntry28/29 to U4 must be re-stated with a `KFinAtR` bundle without `tail`
+   (large: ~20 tops).
+2. **Prove D6 as stated** with the correlation lemma: (i) the action never returns to `resume` along `Fires`/`awaken`
+   (spec and FL4); (ii) if σ's action is `resume` and a σ1 (resp. FL4's timers) moves it, a thread entered the ready or
+   release queue and is still there (or current) after `schedule`; (iii) so `SchedRel r.1 σ'` and FL4's run agree on
+   whether a switch happened; then the CR3 is the entry one on both sides or the chosen thread's root on both sides
+   (`crF_fires`, (1)'s leaves).
+- `IdleVt` [J] (the idle TCB's slot 1 holds no mapped PML4 cap): needed by either route; true by boot
+  (`create_idle_thread` zeroes the TCB) and because no cap names the idle thread; carry it in `JAtZ` (TCB-slot writers
+  are the TCB invocations, which need a Thread cap, `ScPlace.noIdle`) or ask it at the finish state and frame it across
+  the timers (`slotsSame_of_footD` with `JPlaced.kwOutBlk`, `IdleKeep`).
+
+### (e) Builds and axioms
+- tokyo, mirror FL4-g7c seeded from FL4-m74's `.lake` (./g7c-build.sh, ./axg7c.lean untracked). g7c-b1: `crk_archThreadSet`
+  leaf missing; g7c-b2: a `rw` under a beta-redex (`change` first); g7c-b3: G7cRoot + G7cSwitch green.
+- **g7c-full1** (full `lake build` at 6cc867fa): "Build completed successfully (7185 jobs)", 0 `error`, 0 `sorry`.
+- `#print axioms`: choose_thread_refinesFA, switch_to_thread_ar, switch_to_idle_thread_ar, set_vm_root_ar, switchToThread_cr3,
+  crk_scAndTimer, crF_fires, kernel_entry_reachU4: propext, Classical.choice, Quot.sound. No sorry / admit /
+  native_decide / bv_decide / axiom in the new files.
