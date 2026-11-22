@@ -337,3 +337,19 @@ fn the_memory_type_of_a_page_needs_one_entry_to_hold_it() {
     assert_eq!(bootmem::mmap_type_of(u64::MAX & !0xfff, map), None);
     assert_eq!(bootmem::mmap_type_of(0x10_0000, []), None);
 }
+
+/// Audit r13 T2-02: free RAM past BootParams' `MAX_REGIONS` ranges is not
+/// dropped silently: the boot says how many ranges and bytes it left out,
+/// as it does for device memory.
+#[test]
+fn free_ram_past_the_boot_range_limit_is_reported() {
+    let lib = include_str!("../../crates/fl4-kernel/src/lib.rs");
+    let copy = lib.find("for i in 0..free.n.min(MAX_REGIONS) {").expect("free RAM copied");
+    let warn = lib.find("if free.n > MAX_REGIONS {").expect("free RAM past the limit");
+    assert!(copy < warn);
+    let block = &lib[warn..];
+    let block = &block[..block.find("\n    }\n").unwrap()];
+    assert!(block.contains("let lost = &free.r[MAX_REGIONS..free.n];"));
+    assert!(block.contains("kprintln!(\"FL4: {} free RAM region(s) ({:#x} bytes) exceed the boot range limit\", lost.len(), bytes);"));
+    assert!(lib.contains("kprintln!(\"FL4: {} device memory regions exceed the boot range limit\", omitted);"));
+}
