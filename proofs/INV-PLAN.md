@@ -622,3 +622,11 @@ makes the premise false for every store that has one such state, i.e. unsatisfia
   unsatisfiable, but it says the oracle can produce FL4's value at machine states that are not FL4's (§0 already
   asked for an `MR`-relative form). Narrowing: `∀ σ, MR a σ.machineState → …`; this needs `MR` at the IO-port
   decode, which `KDispHypsKV42` does not carry (handoff).
+
+**Status after g6b (top `kernel_entry_reachU5`, XTopJointKEntryU5):** D4 `SniHyp` narrowed in place to `SniPre` states
+(ScScheduleTop; supplied at `tail_refines` by `sniPre_of`) and proved (`sniHyp_of`, ScSniProof) from `ArchTotal` and the
+platform fact `SetDlDetR MR` (the opaque `setDeadlineImpl` has at most one outcome at an `MR`-related machine state);
+D5 `SendHyp` proved (`sendHyp_of`, from `ArchTotal`). Both left the finish bundle (`KFinAtR5`). Still ∀st: D2 `ArchSwF`
+(**unsatisfiable as stated**, see the audit; fix = `VsRootOK` guard threaded through the schedule cone), D3 `ArchNdF`
+(satisfiable up to FPU-op determinism), A16 `PortInVal` (consistent, over-strong). A7 `MRKeepIo` is now [S] (owner
+decision, row A7), so the [P] count of §G drops by one and [S] rises by one.

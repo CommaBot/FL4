@@ -15448,3 +15448,58 @@ New leaf XTopJointKEntryU4 (root import after XTopJointKEntryU3L). Nothing exist
   successfully (7179 jobs)", 0 errors, 0 sorry; `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)".
 - **Axioms** (axm74x.lean / axm74a.lean, untracked; one file cannot import both Fl4Core and Fl4CoreA64; ax1, ax2): SInvR.G5.kernel_entry_reachU4, kernel_entryJ42H, kernel_entry_reachU3L, kernel_entry_reachUH2, kernel_entry_reachE5, P1 kernel_entry.entry_of10, Fl4Spec.fl4CallKernelV, P1 send_signal.tinv / tinvF, vcpu.report.cur0, P0 notification.send_signal.p0, and 15 Fl4ProofsA64 P0 theorems (10 sampled + 5 by hand): propext, Classical.choice, Quot.sound (each).
 - Commits: 47fe18f2, 2cccd18a, fb34cf22, bf33d13e, 04edcb62, d1e776e3, c833c544, this section.
+
+## g6b (branch par/g6b in FL4-sc, on db6231ff = #51 head incl. g6a) — lead decision on g6a's D4 FINDING: (1) audit of the ∀st hypotheses DONE (INV-PLAN §1.U3L.H, committed first); (2) `SniHyp` narrowed in place to `SniPre` states and PROVED, `SendHyp` PROVED, top **`kernel_entry_reachU5`**; `ArchSwF` found UNSATISFIABLE as stated (same failure mode as D4), NOT fixed (needs a carried vspace-root fact threaded through the schedule cone, plan below); `ArchNdF`, `PortInVal` satisfiable/consistent, left
+New modules: ScSniPre (upstream of ScScheduleTop), ScSniProof, XTopJointKEntryU5 (root import after U4). Edited: ScScheduleTop (`SniHyp` def + one line of `tail_refines`).
+
+### (1) Audit (INV-PLAN §1.U3L.H, commit c48e1146)
+- D4 `SniHyp`: unsatisfiable (spec `setNextInterrupt` fails without an SC / without refills on the current thread or the
+  release head; `SchedRel` admits both). Fixed.
+- D5 `SendHyp`: satisfiable; a theorem from `ArchTotal` (node offset 120 is read by no relation). Proved.
+- D2 `ArchSwF`: **unsatisfiable as stated**: the spec's `setVmRoot t` fails (`assertE (asid > 0)`) on a vtable
+  `pml4Cap _ (some 0)` and (`getAsidPool`'s `fail`) when the ASID table names a non-pool; `SchedRel ∧ NtfnStateRel ∧
+  FpuOwnOK` excludes neither, for `t ∈ T` (first half) or the idle thread (second half). Unreachable (valid_cap /
+  valid_asid_table), so not a reachable-state FINDING, but the premise is false for any store having such a pair.
+- D3 `ArchNdF`: satisfiable with its `FpuOwnOK` guard, up to the single outcome of the opaque FPU ops (platform).
+- A16 `PortInVal`: consistent (no spec failure, opaque oracle), over-strong (∀σ); MR-relative form needs `MR` at the
+  IO-port decode (not carried by `KDispHypsKV42`).
+
+### (2) What changed
+- **ScSniPre** (new, imports ScAwaken): `SniPre σ` (current thread and release-queue head: TCB, bound SC, SC object,
+  refills ≠ []), `sniPre_of : SchedRel → Inv → CurInv → SniPre` (current SC active by `CurInv.active`, or the idle SC,
+  configured by `ScRelW.idle`/`.max`; `Inv.ne`; head by `Inv.rel`), `SetDlDet` [P] (opaque `setDeadlineImpl` has at
+  most one outcome), `setDeadline_one`, `doMachineOp_one`, `setNextInterrupt_one : SetDlDet → SniPre σ → ∃ ms',
+  setNextInterrupt σ = {((), σ{ms'})}`.
+- **ScScheduleTop**: `SniHyp` gains the guard `SniPre σ →` (weaker; every statement taking `SniHyp` is now
+  weaker-premised, none stronger); `tail_refines` supplies it by `sniPre_of hS5 hI5 hC5` (after
+  `switch_sched_context`, where `SchedRel`/`Inv`/`CurInv` hold). No other file applies `hsni`.
+- **ScSniProof** (new): `SchedRel.set_ipi` (as `set_armed`, offset 120), `sni_shape`, `send_shape`,
+  **`sniHyp_of : ArchTotal → SetDlDet → SniHyp`**, **`sendHyp_of : ArchTotal → SendHyp`**.
+- **XTopJointKEntryU5** (new): `SetDlDetR MR` [P] (the same determinism at every `MR`-related machine state),
+  `setDlDet_of` (with `MachPlat.frame`: `MR` is blind to `machineStateRest`), `KFinAtR5` (= `KFinAtR31` without
+  `sni`/`send`), `KFinAtR5.to31`, `KFinEv5`, `KFinEv5.to`, **`kernel_entry_reachU5`** = `kernel_entry_reachU4` with
+  `hFin` / every `KFinEv` asking `KFinAtR5`, plus `hDR : SetDlDetR arI MR`. Removed: D4, D5 (both ∀st). Added: `hDR`.
+
+### (3) Satisfiability of the finish bundle at `kernel_entry_reachU5`
+- `sni`, `send`: gone from the bundle; discharged at each use by `sniHyp_of hA hD` / `sendHyp_of hA`, with
+  `SniPre` supplied at the use site (`tail_refines`) by the carried `SchedRel` + `Inv` + `CurInv` after
+  `switch_sched_context`, and `SetDlDet` from `hDR` at the reach state's `MR` (`kernel_entry_reachU4`'s
+  `MR a σ.machineState`).
+- **NOT yet satisfiable as a whole**: `KFinAtR5.arch = ArchSwF` is still unsatisfiable (audit D2). `hd`, `archNd`
+  (platform FPU determinism), `tail` ([W] CR3) are not ∀st-false.
+
+### (4) Builds and axioms
+- tokyo (FL4-sc mirror, seeded at g6a): g6b-b1..b7 ScSniPre (green at b7, 3814 jobs); g6b-b8 ScSniProof incl. the edited ScScheduleTop: **green (3820 jobs)**, commit 5a2b759c.
+- g6b-b9 (U5 cone on tokyo) reached 6433/7090 and failed only in IpcGrant:1350 (`selectF_one` ambiguous with Endp.selectF_one: my ScSniPre lemma had the same name); renamed `selectF_sni`. b10 refused (tokyo disk 2.1 GB, script stop); b11 stopped at 6017/7090 on the owner's move to pvg-office-1 (its lake and children killed by exact PID).
+- pvg-office-1 (8 cores, 6–17 GB RAM, no cache; setup g6b-pvg-setup): full build g6b-pvg-full1 at LEAN_NUM_THREADS=2 killed by the station at ~3870/7186 (memory); g6b-pvg-full2 at 1 thread **still running** at the time of this note (4109/7185, 0 errors, ~1.5 jobs/min): U5, the rename and the root import are NOT yet build-verified, and no `#print axioms` result yet (scratch/g6b/ax.lean is passed as AX to that build).
+
+### (5) Handoff
+- `ArchSwF` (D2): guard both halves with `VsRootOK σ` (every TCB's vtable `pml4Cap _ (some a)` has `a ≠ 0`; every
+  ASID-table entry is an ASID pool), thread it through the `hA.1`/`hA.2` sites (ScScheduleF ×3, ScNextDomF ×2) and
+  their callers up to `KFinAtR` (kept by the schedule prefix: `Fires`, awaken, enqueue/dequeue, `HeapEqUpToFpu` change
+  no cap and no ASID table), supplied from the finish state's `JAtZR` (`vsc`: nonzero ASID; plus a carried
+  ASID-table fact, l4v `valid_asid_table`). Then prove the FL4 half (`set_vm_root` / `find_vspace_for_asid` are FL4
+  code) leaving only the FPU machine-op determinism [P] (as `SetDlDetR`).
+- `ArchNdF` (D3): prove from an MR-stated FPU-op determinism fact (spec frame computation, S–M).
+- `PortInVal` (A16): MR-relative form; needs `MR` at the IO-port decode.
+- A7 `MRKeepIo` retagged [S] in INV-PLAN §1.U3L (owner decision; commit 6dc4da47).

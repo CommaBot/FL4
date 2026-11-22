@@ -40,7 +40,7 @@ def SetDlDet : Prop :=
   ∀ (d : Word64) (mr : MachineStateRest) (x y : Unit × MachineStateRest),
     x ∈ (setDeadlineImpl d mr).1 → y ∈ (setDeadlineImpl d mr).1 → x = y
 
-theorem selectF_one {σ α : Type} (a : α) (s : σ) :
+theorem selectF_sni {σ α : Type} (a : α) (s : σ) :
     NonDet.selectF (σ := σ) ({a}, False) s = ({(a, s)}, False) := by
   unfold NonDet.selectF
   refine Prod.ext ?_ rfl
@@ -73,7 +73,7 @@ theorem setDeadline_one (hD : SetDlDet) (d : Word64) (ms : MachineState) :
       · intro hy; rw [Set.mem_singleton_iff.1 hy]; exact hx
   refine ⟨{ ms with machineStateRest := mr' }, ?_⟩
   unfold setDeadline machineOpLift machineRestLift
-  rw [nd_gets_bind, hi, nd_bind_one (selectF_one _ _)]
+  rw [nd_gets_bind, hi, nd_bind_one (selectF_sni _ _)]
   dsimp only
   rw [nd_modify_bind']
   rfl
@@ -82,7 +82,7 @@ theorem doMachineOp_one {α : Type} {mop : NonDet MachineState α} {σ : State U
     {ms' : MachineState} (h : mop σ.machineState = ({(v, ms')}, False)) :
     doMachineOp (Z := Unit) mop σ = ({(v, { σ with machineState := ms' })}, False) := by
   unfold doMachineOp
-  rw [nd_gets_bind, h, nd_bind_one (selectF_one _ _)]
+  rw [nd_gets_bind, h, nd_bind_one (selectF_sni _ _)]
   dsimp only
   rw [nd_modify_bind']
   rfl
