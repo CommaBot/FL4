@@ -285,3 +285,49 @@ Next (exact):
    (`DelShape.keys` + Nodup), so `clrT` keeps the tree (`KeepOut` with `X = (· = t)`), `TIMER_MIN = delKeys.headD`
    = new `minKey` (`DelShape.keys` + fixup keeps keys), other cores framed (`CoreTree.keep`, `X` = old keys),
    `t` idle (all five words 0).  Then `timer.insert.rb` with `hrem := timer.remove.rb`.  Then `fire`.
+
+## 11. Sixth session (jc6d6): stage 7 done, stage 8 remove + insert done, fire modulo `send_signal`'s timer frame
+
+- `TimerRBRfxP.lean` (pure): `Ctx.depth` (+ `depth_le`: depth + subtree height ≤ height, `depth_app`),
+  `Ctx.plug_root_mem`, **`x_ne_root`** (away from the top the hole's root word is not the root word, so the loop
+  guard `x != root` holds), `plug_isRed_key`; **`DB tx n`** ("doubly black": black/leaf balanced of black height
+  `n`, or red with balanced children of black height `n`); **`RfA W x p f`** (`W = ctx.plug tx`, `x = tx.rootKey`,
+  `p = ctx.par`, `CtxOK ctx (n+1)`, `DB tx n`, `RootB ctx`, `tx` red or `ctx.depth ≤ f`), `RfB` (balanced, black
+  root, `x` the root), `RfR` (red `x` to blacken); `UpC`/**`UpOK up cp n`** (path above the parent: `RootB`, top ⇒
+  black parent, `CtxOK up (n+1)` + black grandparent-slot if `cp` red, `CtxOK up (n+2)` if black), `UpOK.of_lc/of_rc`,
+  `UpOK.pushL/R` (after case 1); case lemmas `rf_case2L/R`, `rf_top`, `rf_case4L/R`, `rfA_top`, `rfR_fin`;
+  **`rf_init`** (from `DelShape … false` on a balanced black-root tree of height ≤ 128: `∃ n, CtxOK ctxX (n+1) ∧
+  DB tx n ∧ RootB ctxX ∧ ctxX.depth ≤ 128`).
+- `TimerRBRfx.lean`: loop invariant `RfInv` (FB + `RfA ∨ RfB`), `RfOut`, `RfPost`; intermediate states `RfC2L/R`
+  (black sibling after the optional case 1), `RfC4L/R` (far nephew red); `rf_c4L/R` (case 4 code ⇒ `RfB`),
+  `rf_c3L/R` (case 3 code ⇒ `RfC4`).  NB the extraction's right-side case 3 differs by branch: on the
+  `left(w)` black / `right(w)` red path it reuses `t3 = right(w)` (no re-read; `rf_c3R` is that form), on the
+  (unreachable) `left(w)` red / not-red-again path it re-reads `right(w)`.
+- `TimerRBRfxL.lean`: `rf_tailL/R` (cases 2–4 after the optional case 1, code stated literally), `rf_body_L/R`
+  (black `x`, left/right child, incl. case 1; for `x = 0` on the right the sibling is non-null so `x != left(p)`),
+  `rf_body_top/B/red` (exits), **`rf_body`**, **`timer.remove_fixup_loop.rb`** (`loop.spec_decr_nat`, measure
+  fuel; a fuel-spending round starts with black `x` and `depth ≤ fuel`, and ends in `RfB`, with a red `x`, or with
+  the path one shorter), **`timer.remove_fixup.rb`** (result `FB … s c (ctx.plug tx).keys s' W ∧ Bal W m ∧ black`).
+- `TimerRBRmv.lean`: `del_red_bal` (red removed ⇒ the spliced tree is balanced with black root), `wi_fix_td`,
+  `wi_fix_min`, `clrT_wi`, `clrT_t`, `RmQ` (the fixup post in the core-independent form `remove.struct`'s `Q`
+  needs: quantified over the core named by `t`'s core bits and the tree, both determined), `delKeys_sub/mem/not`,
+  **`timer.remove.rb`**: from `TimerRB s` and placed nodes, after `remove t`: `TimerRB`, `tdA t = 0` (so null links
+  and `TimerRB.no_link` applies), nodes placed, and either nothing changed (`t` unarmed) or the writes are in
+  `XFoot s (· ∈ W.keys) c` for `t`'s core `c` and its old tree `W`.  **`timer.insert.rb_full`**: `timer.insert.rb`
+  with `remove` discharged (needs `L.cpu s ∈ Cs`).
+- `TimerRBFire.lean`: `FireInv` (`TimerRB`, nodes placed, current core in `Cs`), `SigTimerFrame` [P] (send_signal
+  keeps `TAgree`, `ksb`, `cpu`), `FireInv.reprogram`, **`timer.fire_loop.rb`**, **`timer.fire.rb`** (given
+  `SigTimerFrame`).
+- Full build green: `Build completed successfully (7345 jobs)`, 0 errors, 0 sorry; axioms propext/Classical.choice/
+  Quot.sound for all new tops (axjc6d.lean, not committed).
+- Findings: no reachable bad state; the remove fixup's rounds are bounded by the path length (≤ 128 < 256);
+  `x = 0` is always identified correctly by `x == left(p)` (a doubly-black null hole has a non-null sibling).
+
+Next (exact):
+1. **`SigTimerFrame`** (M–L): `notification.send_signal` writes no timer word (`TW`) and keeps `ksb`/`cpu`.  QueueSignal
+   carries `TmFr` (which is `TAgree` + `ksb` for `T`/`Cs`) through most branches but drops it in
+   `TInv.of_tmfr`; restate `notification.send_signal.tinv` as `…tmfr` returning `TmFr s s'` (+ cpu, from the
+   WritesIn of each step): needs `TmFr` versions of `notification.set_active.tinv` (easy: `ntfn_state_all`'s and
+   `ntfn_badge_all`'s `tm`), `smp.remote_tcb_stall.all`, `vcpu.report.blk`, `signal_vm` (#63 `RunningVM` paths).
+   Then `TAgree.of_tmfr` and drop the premise of `timer.fire.rb`.
+2. Stage 9 (plug-in), as in §2.

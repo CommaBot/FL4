@@ -117,6 +117,11 @@ import Fl4Proofs.P1.TimerRBInsF
 import Fl4Proofs.P1.TimerRBDel
 import Fl4Proofs.P1.TimerRBDelH
 import Fl4Proofs.P1.TimerRBDelC
+import Fl4Proofs.P1.TimerRBRfxP
+import Fl4Proofs.P1.TimerRBRfx
+import Fl4Proofs.P1.TimerRBRfxL
+import Fl4Proofs.P1.TimerRBRmv
+import Fl4Proofs.P1.TimerRBFire
 import Fl4Proofs.P1.QueueFinThr
 import Fl4Proofs.P1.QueueDecTcb
 import Fl4Proofs.P1.QueueDecTcbRR
