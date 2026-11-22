@@ -315,6 +315,12 @@ open fl4_core
 @[step] theorem ept.LIMIT.spec : ept.LIMIT ⦃ v => v = 140737488355328#u64 ⦄ := by
   unfold ept.LIMIT; step*
 
+@[step] theorem vspace.frame_batch.DEFER_DELETE_FLUSH.spec : vspace.frame_batch.DEFER_DELETE_FLUSH ⦃ v => v = 1099511627776#u64 ⦄ := by
+  unfold vspace.frame_batch.DEFER_DELETE_FLUSH; step*
+
+@[step] theorem vspace.frame_batch.DEFINED.spec : vspace.frame_batch.DEFINED ⦃ v => v = 1236942192387#u64 ⦄ := by
+  unfold vspace.frame_batch.DEFINED; simp only [vspace.frame_batch.ATTR_SHIFT, vspace.frame_batch.CAP_RIGHTS_SHIFT, vspace.frame_batch.COUNT_SHIFT, vspace.frame_batch.DEPTH_SHIFT, vspace.frame_batch.MAP_RIGHTS_SHIFT, vspace.frame_batch.OP]; step*
+
 @[step] theorem boot.BOOT_THREAD_TIME_SLICE_US.spec : boot.BOOT_THREAD_TIME_SLICE_US ⦃ v => v = 5000#u64 ⦄ := by
   unfold boot.BOOT_THREAD_TIME_SLICE_US; step*
 
@@ -893,6 +899,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem fl4_abi.label.UntypedRetypeShared.val_eq : fl4_abi.label.UntypedRetypeShared.val = 89 := by
   unfold fl4_abi.label.UntypedRetypeShared; rfl
+
+@[simp, scalar_tac_simps] theorem fl4_abi.label.X86PML4FrameBatch.val_eq : fl4_abi.label.X86PML4FrameBatch.val = 90 := by
+  unfold fl4_abi.label.X86PML4FrameBatch; rfl
 
 @[simp, scalar_tac_simps] theorem fl4_abi.config.NUM_DOMAINS.val_eq : fl4_abi.config.NUM_DOMAINS.val = 1 := by
   unfold fl4_abi.config.NUM_DOMAINS; rfl
@@ -1728,6 +1737,42 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem ept.ADDRESS.val_eq : ept.ADDRESS.val = 4503599627366400 := by
   unfold ept.ADDRESS; rfl
 
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.COPY_MAP.val_eq : vspace.frame_batch.COPY_MAP.val = 1 := by
+  unfold vspace.frame_batch.COPY_MAP; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.REMAP.val_eq : vspace.frame_batch.REMAP.val = 2 := by
+  unfold vspace.frame_batch.REMAP; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.DELETE.val_eq : vspace.frame_batch.DELETE.val = 3 := by
+  unfold vspace.frame_batch.DELETE; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.OP.val_eq : vspace.frame_batch.OP.val = 3 := by
+  unfold vspace.frame_batch.OP; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.COUNT_SHIFT.val_eq : vspace.frame_batch.COUNT_SHIFT.val = 8 := by
+  unfold vspace.frame_batch.COUNT_SHIFT; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.DEPTH_SHIFT.val_eq : vspace.frame_batch.DEPTH_SHIFT.val = 16 := by
+  unfold vspace.frame_batch.DEPTH_SHIFT; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.MAP_RIGHTS_SHIFT.val_eq : vspace.frame_batch.MAP_RIGHTS_SHIFT.val = 24 := by
+  unfold vspace.frame_batch.MAP_RIGHTS_SHIFT; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.CAP_RIGHTS_SHIFT.val_eq : vspace.frame_batch.CAP_RIGHTS_SHIFT.val = 28 := by
+  unfold vspace.frame_batch.CAP_RIGHTS_SHIFT; rfl
+
+@[simp, scalar_tac_simps] theorem vspace.frame_batch.ATTR_SHIFT.val_eq : vspace.frame_batch.ATTR_SHIFT.val = 32 := by
+  unfold vspace.frame_batch.ATTR_SHIFT; rfl
+
+@[simp, scalar_tac_simps] theorem sched.MAX_WORK_UNITS_PER_PREEMPTION.val_eq : sched.MAX_WORK_UNITS_PER_PREEMPTION.val = 100 := by
+  unfold sched.MAX_WORK_UNITS_PER_PREEMPTION; rfl
+
+@[simp, scalar_tac_simps] theorem vcpu.TCB.val_eq : vcpu.TCB.val = 20480 := by
+  unfold vcpu.TCB; rfl
+
+@[simp, scalar_tac_simps] theorem layout.sc.NTFN.val_eq : layout.sc.NTFN.val = 40 := by
+  unfold layout.sc.NTFN; rfl
+
 @[simp, scalar_tac_simps] theorem boot.MAX_REGIONS.val_eq : boot.MAX_REGIONS.val = 32 := by
   unfold boot.MAX_REGIONS; rfl
 
@@ -1782,15 +1827,6 @@ open fl4_core
 @[simp, scalar_tac_simps] theorem sched.TS_IDLE.val_eq : sched.TS_IDLE.val = 7 := by
   unfold sched.TS_IDLE; rfl
 
-@[simp, scalar_tac_simps] theorem sched.MAX_WORK_UNITS_PER_PREEMPTION.val_eq : sched.MAX_WORK_UNITS_PER_PREEMPTION.val = 100 := by
-  unfold sched.MAX_WORK_UNITS_PER_PREEMPTION; rfl
-
-@[simp, scalar_tac_simps] theorem vcpu.TCB.val_eq : vcpu.TCB.val = 20480 := by
-  unfold vcpu.TCB; rfl
-
-@[simp, scalar_tac_simps] theorem layout.sc.NTFN.val_eq : layout.sc.NTFN.val = 40 := by
-  unfold layout.sc.NTFN; rfl
-
 @[simp, scalar_tac_simps] theorem interrupt.IRQ_RESERVED.val_eq : interrupt.IRQ_RESERVED.val = 4 := by
   unfold interrupt.IRQ_RESERVED; rfl
 
@@ -1817,6 +1853,9 @@ open fl4_core
 
 @[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 2048 := by
   unfold layout.ks.NUM_ASID_POOLS; rfl
+
+@[simp, scalar_tac_simps] theorem localinv.MAX_LOCKS.val_eq : localinv.MAX_LOCKS.val = 4 := by
+  unfold localinv.MAX_LOCKS; rfl
 
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl

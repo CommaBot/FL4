@@ -1555,11 +1555,17 @@ open fl4_core_a64
 @[simp, scalar_tac_simps] theorem layout.ks.FEATURE_NX.val_eq : layout.ks.FEATURE_NX.val = 1 := by
   unfold layout.ks.FEATURE_NX; rfl
 
+@[simp, scalar_tac_simps] theorem layout.ks.FEATURE_HUGE_PAGES.val_eq : layout.ks.FEATURE_HUGE_PAGES.val = 2 := by
+  unfold layout.ks.FEATURE_HUGE_PAGES; rfl
+
 @[simp, scalar_tac_simps] theorem layout.ks.VCPU_HEAD.val_eq : layout.ks.VCPU_HEAD.val = 80 := by
   unfold layout.ks.VCPU_HEAD; rfl
 
 @[simp, scalar_tac_simps] theorem layout.ks.NUM_ASID_POOLS.val_eq : layout.ks.NUM_ASID_POOLS.val = 2048 := by
   unfold layout.ks.NUM_ASID_POOLS; rfl
+
+@[simp, scalar_tac_simps] theorem localinv.MAX_LOCKS.val_eq : localinv.MAX_LOCKS.val = 4 := by
+  unfold localinv.MAX_LOCKS; rfl
 
 @[simp, scalar_tac_simps] theorem msg.BUF_MSG.val_eq : msg.BUF_MSG.val = 1 := by
   unfold msg.BUF_MSG; rfl
