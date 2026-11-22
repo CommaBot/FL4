@@ -17319,3 +17319,51 @@ gained a 4th conjunct `VsOpF m m' x c σ σ'` (a disjunction over the ops); its 
 ### (3) Builds and axioms
 See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` left to `simp`; m5–m8
 `peA_base_inj` arithmetic, a `hS3` name clash in VsPtMapRel).
+
+### (4) f4b (restart of f4 after a session restart; same branch par/f4)
+- **f4 part 1 verified**: the killed agent's full build of 38c5f0d9 (f4-full1) finished `Build completed successfully
+  (7347 jobs)`, 0 `error`; `#print axioms` (axf4.lean) all `[propext, Classical.choice, Quot.sound]` (some P1 timer
+  lemmas fewer).
+- **Item 1, frame ops DONE** (`VsOpF` now `PdptMapF ∨ PdMapF ∨ PtMapF ∨ AssignF ∨ MapLeafF ∨ UnmapLeafF ∨ VsOpTodo`;
+  helpers `VsOpF.todo` / `.mapLeaf` / `.unmapLeaf`; `VsOpTodo` is left only at the 3 in-set table unmaps
+  (VsDecFrame) and the 3 off-set ones (VsOffDec)).
+  - New module **`VsLeafF.lean`** (imports VsAssignRel, VsPt; upstream of the frame rels): `IsFrameC`,
+    `VWalk3` / `VWalk2` / `VWalk1` (FL4's walk words from a PML4 to a PDPT / PD / PT), `NoStep2` / `NoStep3`,
+    **`MapLeafF`** (frame caps before / after, `findVspaceForAsid asid = ok pm`, the written table `q` reached by
+    `VWalk*` from `pm`, its written entry `NoStep` before and after for PD / PDPT, `ArchKeepBut q`, ASID table
+    kept), **`EntShr`** / **`ArchShr`** (every spec arch object kept or only entries cleared, ASID table kept;
+    `of_keep`, `refl`, `keep_left`, `keep_right`, `ms`, `upd_pt` / `upd_pd` / `upd_pdpt` / `upd_pml4`,
+    `sts_keep`, `cnode_keep`), **`UnmapLeafF`** (frame caps, `ArchShr`).
+  - VsFrameMapRel: `lookup_pt_slot_walk`, `page_entry_slot_small_walk` / `_large_walk` / `_huge_walk`,
+    `store_flush_shape` (+ `_pd` / `_pdpt` in VsFrameMapLRel); `frame_map_rel`, `frame_map_large_rel`,
+    `frame_map_huge_rel` posts end in `MapLeafF (L.mem s) (L.mem res.2.1) x (frameCapOf f) σ σ'` (the `map_tail*`
+    macros take the walk by `WP.spec_and`).
+  - VsFrameUnmapRel: `unmap_page_rel`'s `∃ σ'` gains `ArchShr σ σ'`; `frame_unmap_rel`'s post ends in
+    `UnmapLeafF`. Consumers (VsFootW, VsFin) unchanged (trailing `-` patterns).
+  - VsNamedPost: `frameC_vkey`, `VWalk*.path` (walk words from a level-4 walk node are `VsPath`s),
+    `wstep2_noStep` / `wstep3_noStep`, `keep_of_frame`, **`VsNamed.ofMapLeafF`** (`leafS` with `X = (· = q)`),
+    `ent_shr`, **`VsNamed.ofUnmapLeafF`** (`shrink`); `ofOpF` dispatches them (no `hx` needed for these two).
+
+### (5) What remains after f4b (in order; sizes)
+1. **Item 1, table unmaps** (PT / PD / PDPT, in-set `pt/pd/pdpt_unmap_rel` + off-set `*_unmap_rel_off`, VsOffDec):
+   then delete `VsOpTodo`. Design (not written):
+   - Rel side: extend `unmap_page_table_rel` (and the PD / PDPT inner unmaps) with `ArchShr σ σ'` exactly as
+     `unmap_page_rel` (skip branches `ArchShr.refl`; the clearing branch `ArchShr.ms (ArchShr.upd_pd hk _) _`);
+     the zeroing `updK σu ptr (pageTable fun _ => invalidPTE)` is again `EntShr` (all entries invalid); the
+     sts / setCap ends via `sts_keep` / `cnode_keep`. So the whole step is `ArchShr σ σ'`.
+   - Fact `UnmapTabF m m' x c σ σ'`: `VKey c = some (k0, q0)` (k0 = 1/2/3), `finF m x = true` (the decode's final
+     check, `hfin`), `TabUn (capV m' x)` with the same key, `ArchShr σ σ'`, the table's spec object after all
+     invalid (`hE` for `x`), and for a mapped `c` at `(asid0, va0)`: "∀ pm, `findVspaceForAsid asid0` at σ = ok pm →
+     ∀ p, (FL4 walk words from pm along va0's indices `vIdx va0 39 / 30 / 21` to the parent p) →
+     `wstep (k0+1) (m' (peA p (vIdx va0 (12 + 9·k0)))) ≠ some q0`". In the rel this comes from: lookup Ok →
+     entry cleared (spec invalid after → `wstep_none`) or not naming q0 (FL4's `eA ≠ paddr q0` check, the word
+     unchanged up to the spec entry: `e2_same` at σ / σ'); lookup Err → the walk words at those indices do not
+     exist (needs a *negative* walk lemma: `lookup_pd_slot` returning `Err` ⇒ ¬ walk words; mirror of
+     `lookup_pd_slot_walk`).
+   - J side `VsNamed.ofUnmapTabF`: VsNamedOps' `unmapTab` with `huq` from `huq_of_finF` (needs MdbLinks / MdbInv
+     / FinInv / NeedsFin at the J state — take `huq` as a hypothesis of `ofOpF` and derive it in item 4 from
+     `J.xtop.rel`), `hW` / `hE` from `ent_shr`, `hT` from `ArchShr.1`, `hgone` from `VsNamed.gone` +
+     `own_ref` + an inversion `VsPath m 1 q0 (asid0, va0)` ⇒ parent chain with indices `vIdx va0 k`
+     (`VsPath.inv`, `idx21` / `idx30` / `masked_idx`) and `VsPath.det` with `VsPath.of_find`; an unmapped `c`:
+     no walk before (`uun` + `named`), walks after ⊆ before (`VsPath.sub_down`, steps only removed). L.
+2. **Item 3** (VsKeep in the CSpace posts) and **item 4** (`JCarry.vsNamed`) unchanged from (2) above.

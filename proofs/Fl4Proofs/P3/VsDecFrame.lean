@@ -187,7 +187,17 @@ def VsOpTodo : Prop := True
 the decode's checks and the perform's spec writes, per operation
 (`PdptMapF` …). -/
 def VsOpF (m m' : U64 → U64) (x : U64) (c : capability.Cap) (σ σ' : Fl4Spec.State Unit) : Prop :=
-  PdptMapF m' x c σ σ' ∨ PdMapF m m' x c σ σ' ∨ PtMapF m m' x c σ σ' ∨ AssignF m' x c σ σ' ∨ VsOpTodo
+  PdptMapF m' x c σ σ' ∨ PdMapF m m' x c σ σ' ∨ PtMapF m m' x c σ σ' ∨ AssignF m' x c σ σ' ∨
+    MapLeafF m m' x c σ σ' ∨ UnmapLeafF m' x c σ σ' ∨ VsOpTodo
+
+theorem VsOpF.todo {m m' : U64 → U64} {x : U64} {c : capability.Cap} {σ σ' : Fl4Spec.State Unit} :
+    VsOpF m m' x c σ σ' := Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr trivial)))))
+
+theorem VsOpF.mapLeaf {m m' : U64 → U64} {x : U64} {c : capability.Cap} {σ σ' : Fl4Spec.State Unit}
+    (h : MapLeafF m m' x c σ σ') : VsOpF m m' x c σ σ' := Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h))))
+
+theorem VsOpF.unmapLeaf {m m' : U64 → U64} {x : U64} {c : capability.Cap} {σ σ' : Fl4Spec.State Unit}
+    (h : UnmapLeafF m' x c σ σ') : VsOpF m m' x c σ σ' := Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl h)))))
 
 /-- **What a VSpace map, unmap or ASID assignment leaves for `J`**
 (XTopJointVsMap): the slot footprint at the cap's slot `x`, its cap alike
@@ -346,15 +356,16 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨p, sz, rt, d, m, false, asid, va⟩) ∧
-        KFoot σ σ')) →
+        KFoot σ σ' ∧ MapLeafF (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx))
+          (frameCapOf ⟨p, sz, rt, d, m, false, asid, va⟩) σ σ')) →
         TopPostMX (L := L) X σ blk call don (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeArchObject
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl
             (args.map UScalar.bv) ci (pc.bv, idx) (frameACapG ⟨p, sz, rt, d, m, false, asid, va⟩) ((vc', xsl) :: rest))))
           s res ∧ FootQ Q s res := by
-      rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', hR', hPt', hSRq, hF, hL, hK⟩)
+      rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, hSt', hSV', hR', hPt', hSRq, hF, hL, hK, hMF⟩)
       · exact topMQX_err (⟨e, h1, h2, e', hdec, he.elim id (fun ⟨h3, h4⟩ => h3 ▸ h4 ▸ hAl)⟩) (by rw [h2, h2a]; exact hX0)
       · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms,
-          (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, trivial, hF, hL, Or.inl ⟨iv, Or.inl hms⟩, Or.inr (Or.inr (Or.inr (Or.inr trivial)))⟩⟩)
+          (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, trivial, hF, hL, Or.inl ⟨iv, Or.inl hms⟩, VsOpF.mapLeaf hMF⟩⟩)
           (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
     cases sz
     · exact WP.spec_mono (frame_map_rel hH1 s ar σ hP hVP hD hPP hPS hPV1 hPO hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt)
@@ -372,9 +383,9 @@ theorem decode_invocation_frameX [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (
     refine WP.spec_mono (frame_unmap_rel hHU s ar σ hP hVP hD hPP hPS hPV hPI hPO hSt hSV hR hPt hS ct hct hcur'
       hkt (hrun _ hkt) htcb hact ⟨p, sz, rt, d, m, false, asid, va⟩ hfw hfe hfm hfu hpc hidx hcap hl length buf call extra
       (args.map UScalar.bv) ci excaps) ?_
-    rintro res ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩
+    rintro res ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hMF⟩
     exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_page_mem blk call don hst1 hms,
-      (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, trivial, hF, hL, Or.inl ⟨iv, Or.inl hms⟩, Or.inr (Or.inr (Or.inr (Or.inr trivial)))⟩⟩)
+      (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, trivial, hF, hL, Or.inl ⟨iv, Or.inl hms⟩, VsOpF.unmapLeaf hMF⟩⟩)
       (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2, o3⟩ := hlbl.other hmap hunmap hga htac hds
   unfold vspace.decode_frame
@@ -546,7 +557,7 @@ theorem decode_invocation_page_tableX (th : TypedHeap) (hP : Placed th) (s : S) 
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms),
-        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩, Or.inr (Or.inr (Or.inr (Or.inr trivial)))⟩⟩)
+        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩, VsOpF.todo⟩⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -700,7 +711,7 @@ theorem decode_invocation_page_directoryX (th : TypedHeap) (hP : Placed th) (s :
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms),
-        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩, Or.inr (Or.inr (Or.inr (Or.inr trivial)))⟩⟩)
+        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩, VsOpF.todo⟩⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -853,7 +864,7 @@ theorem decode_invocation_pdptX (th : TypedHeap) (hP : Placed th) (s : S) (ar : 
     rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms),
-        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩, Or.inr (Or.inr (Or.inr (Or.inr trivial)))⟩⟩)
+        (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK ⟨pc, r, idx, _, hpc, hidx, hcap, rfl, hpL, hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩, VsOpF.todo⟩⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table

@@ -25,6 +25,7 @@ flushes with `SR` (`map : VsMapHyps`). Invariants taken as hypotheses:
 import Fl4Proofs.P3.VsFrameMap
 import Fl4Proofs.P3.CnodeCaps
 import Fl4Proofs.P3.VsFoot
+import Fl4Proofs.P3.VsLeafF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -203,6 +204,139 @@ theorem table_entry_slot_21_walk (s : S) (pm vaddr : U64) :
   cases r with
   | Ok x => exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact hw _ rfl)
   | Err lf => exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+
+/-- **(F1 stage 5) The walk FL4's `lookup_pt_slot` takes** (`VWalk1`). -/
+theorem lookup_pt_slot_walk (s : S) (pm vaddr : U64) (hv : UserV vaddr) :
+    vspace.lookup_pt_slot st s pm vaddr ⦃ r => ∀ x, r = .Ok x →
+      ∃ q, VWalk1 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 12) ⦄ := by
+  unfold vspace.lookup_pt_slot
+  refine WP.spec_bind (lookup_pd_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Err e =>
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok,
+      core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+      core.convert.FromSame.from]
+    apply ok_bind_spec
+    cases e <;> exact (WP.spec_ok _).2 (fun x hx => by cases hx)
+  | Ok x =>
+    obtain ⟨h4, h3, hs3, hx⟩ := hw x rfl
+    simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
+    rw [L.read_eq]
+    apply ok_bind_spec
+    rw [P_PRESENT_eq]
+    apply ok_bind_spec
+    unfold lift
+    apply ok_bind_spec
+    by_cases h0 : (L.mem s x &&& 1#u64) = 0#u64
+    · rw [if_pos h0]
+      exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+    · rw [if_neg h0]
+      rw [P_PS_eq]
+      apply ok_bind_spec
+      apply ok_bind_spec
+      by_cases hs : eS (L.mem s x)
+      · simp only [(eS_iff _).2 hs, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+      · have hs' : ¬ ((L.mem s x &&& 128#u64) != 0#u64) = true := fun h => hs ((eS_iff _).1 h)
+        simp only [hs', Bool.false_eq_true, ↓reduceIte]
+        rw [table_of_eq]
+        apply ok_bind_spec
+        rw [show vspace.idx vaddr 12#u64 = ok (vIdx vaddr 12) from idx_eq _ _ (by decide)]
+        apply ok_bind_spec
+        rw [entry_addr_eq _ _ (vIdx_lt _ _)]
+        apply ok_bind_spec
+        refine (WP.spec_ok _).2 (fun y hy => ?_)
+        cases hy
+        subst hx
+        exact ⟨_, ⟨_, _, ⟨_, _, ⟨_, vIdx_lt_256_of_user hv, h4, rfl⟩, vIdx_lt _ _, h3, hs3, rfl⟩,
+          vIdx_lt _ _, h0, hs, rfl⟩, rfl⟩
+
+/-- `page_entry_slot` for a 4K page: `lookup_pt_slot_walk`. -/
+theorem page_entry_slot_small_walk (s : S) (pm vaddr : U64) (hv : UserV vaddr) :
+    vspace.page_entry_slot st s pm vaddr .Small ⦃ r => ∀ x, r = .Ok x →
+      ∃ q, VWalk1 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 12) ⦄ := by
+  unfold vspace.page_entry_slot
+  refine WP.spec_bind (lookup_pt_slot_walk s pm vaddr hv) ?_
+  rintro r hw
+  cases r with
+  | Ok x =>
+    simp only [↓reduceIte, bind_ok]
+    exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact hw _ rfl)
+  | Err lf =>
+    cases lf <;> exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+
+/-- `page_entry_slot` for a large page: `lookup_pd_slot_walk` (`VWalk2`). -/
+theorem page_entry_slot_large_walk (s : S) (pm vaddr : U64) (hv : UserV vaddr) :
+    vspace.page_entry_slot st s pm vaddr .Large ⦃ r => ∀ x, r = .Ok x →
+      ∃ q, VWalk2 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 21) ⦄ := by
+  unfold vspace.page_entry_slot
+  refine WP.spec_bind (lookup_pd_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Err lf =>
+    cases lf <;> exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+  | Ok x =>
+    obtain ⟨h4, h3, hs3, hx⟩ := hw x rfl
+    have W : ∃ q, VWalk2 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 21) :=
+      ⟨_, ⟨_, _, ⟨_, vIdx_lt_256_of_user hv, h4, rfl⟩, vIdx_lt _ _, h3, hs3, rfl⟩, hx⟩
+    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
+    rw [L.read_eq]
+    apply ok_bind_spec
+    rw [P_PRESENT_eq]
+    apply ok_bind_spec
+    unfold lift
+    apply ok_bind_spec
+    by_cases hp0 : (L.mem s x &&& 1#u64) = 0#u64
+    · have : ((L.mem s x &&& 1#u64) != 0#u64) = false := by simp [hp0]
+      simp only [this, Bool.false_eq_true, ↓reduceIte]
+      exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact W)
+    · have : ((L.mem s x &&& 1#u64) != 0#u64) = true := by simp [hp0]
+      simp only [this, ↓reduceIte]
+      rw [P_PS_eq]
+      apply ok_bind_spec
+      apply ok_bind_spec
+      by_cases hps : (L.mem s x &&& 128#u64) = 0#u64
+      · simp only [hps, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+      · simp only [hps, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact W)
+
+/-- `page_entry_slot` for a huge page: `lookup_pdpt_slot_walk` (`VWalk3`). -/
+theorem page_entry_slot_huge_walk (s : S) (pm vaddr : U64) (hv : UserV vaddr) :
+    vspace.page_entry_slot st s pm vaddr .Huge ⦃ r => ∀ x, r = .Ok x →
+      ∃ q, VWalk3 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 30) ⦄ := by
+  unfold vspace.page_entry_slot
+  refine WP.spec_bind (lookup_pdpt_slot_walk s pm vaddr) ?_
+  rintro r hw
+  cases r with
+  | Err lf =>
+    cases lf <;> exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+  | Ok x =>
+    obtain ⟨h4, hx⟩ := hw x rfl
+    have W : ∃ q, VWalk3 (L.mem s) pm q ∧ x = peA q (vIdx vaddr 30) :=
+      ⟨_, ⟨_, vIdx_lt_256_of_user hv, h4, rfl⟩, hx⟩
+    simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]
+    rw [L.read_eq]
+    apply ok_bind_spec
+    rw [P_PRESENT_eq]
+    apply ok_bind_spec
+    unfold lift
+    apply ok_bind_spec
+    by_cases hp0 : (L.mem s x &&& 1#u64) = 0#u64
+    · have : ((L.mem s x &&& 1#u64) != 0#u64) = false := by simp [hp0]
+      simp only [this, Bool.false_eq_true, ↓reduceIte]
+      exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact W)
+    · have : ((L.mem s x &&& 1#u64) != 0#u64) = true := by simp [hp0]
+      simp only [this, ↓reduceIte]
+      rw [P_PS_eq]
+      apply ok_bind_spec
+      apply ok_bind_spec
+      by_cases hps : (L.mem s x &&& 128#u64) = 0#u64
+      · simp only [hps, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun y hy => by cases hy)
+      · simp only [hps, ↓reduceIte]
+        exact (WP.spec_ok _).2 (fun y hy => by cases hy; exact W)
 
 /-- The flushes and stability for `MapRel`. -/
 theorem VsMapHyps.ext {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L1 : Set U64}
@@ -472,6 +606,24 @@ theorem kfoot_store_flush {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : F
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
   exact (KFoot.arch hk _).trans (KFoot.ms _ ms)
 
+/-- (F1 stage 5) The spec state after a PT store and its flush. -/
+theorem store_flush_shape {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
+    (hP : PtPlaced L4 L3 L2 L1) (hR : PtRel L4 L3 L2 L1 m σ2) {q : U64} (hq : q ∈ L1) {i : U64} (hi : i.val < 512)
+    (pte : Fl4Spec.PTE) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid)
+    (hm : ((), σ') ∈ ((Fl4Spec.storePte (Z := Unit) (peA q i).bv pte >>= fun _ =>
+      Fl4Spec.invalidatePageStructureCacheAsid vs asid) σ2).1) :
+    ∃ f, σ2.kheap q.bv = some (.archObj (.pageTable f)) ∧ (∀ p, p ≠ q.bv → σ'.kheap p = σ2.kheap p) ∧
+      σ'.kheap q.bv = some (.archObj (.pageTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte))) ∧
+      σ'.archState = σ2.archState := by
+  obtain ⟨f, hk, -⟩ := hR.l1 q hq
+  have hpa := hP q (Or.inr (Or.inr (Or.inr hq)))
+  have hst : Fl4Spec.storePte (Z := Unit) (peA q i).bv pte σ2 =
+      ({((), updK σ2 q.bv (.archObj (.pageTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte))))}, False) := by
+    rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePte_at hpa hk hi pte
+  rw [nd_bind_one hst] at hm
+  obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
+  exact ⟨f, hk, fun p hp => by simp [updK, hp], by simp [updK], rfl⟩
+
 set_option hygiene false in
 /-- The common part of both cases: from `check_vspace` on. -/
 macro "map_tail" : tactic => `(tactic| (
@@ -492,8 +644,9 @@ macro "map_tail" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 4095#u64) = 0#u64
   · have : ((a0 &&& 4095#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
-    refine WP.spec_bind (page_entry_slot_small s σ hPt hPP hp1 a0 hvU) ?_
-    rintro r3 ⟨hsl, hse⟩
+    refine WP.spec_bind (WP.spec_and (page_entry_slot_small s σ hPt hPP hp1 a0 hvU)
+      (page_entry_slot_small_walk s p1 a0 hvU)) ?_
+    rintro r3 ⟨⟨hsl, hse⟩, hwk⟩
     cases r3 with
     | Err lf =>
       obtain ⟨n, rfl, hsp⟩ := hse _ rfl
@@ -575,7 +728,7 @@ macro "map_tail" : tactic => `(tactic| (
       have hbo : OutsideObjects th (peA q (vIdx a0 12)) := hPO _ ⟨q, Or.inr (Or.inr (Or.inr hq)), _, vIdx_lt a0 12, rfl⟩
       simp only at hr3
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTail_ok hf ((al12 a0).1 hal) hsp), ?_,
-        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_⟩)
+        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_⟩)
       · unfold MapSpec mapInv
         dsimp only
         rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
@@ -585,6 +738,18 @@ macro "map_tail" : tactic => `(tactic| (
       · rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK, frameCapOf] at h ⊢; exact ⟨fun _ => has1, h.2.1, fun _ => hvU⟩⟩
       · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans
           (kfoot_store_flush hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm'))
+      · -- (F1 stage 5) `MapLeafF`
+        obtain ⟨f2, -, hko2, -, hAs2⟩ := store_flush_shape hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm'
+        have hs1k := sts_keep hkt' { xct with tcbState := .restart }
+        have hc1k := cnode_keep hkc1 idx nc
+        obtain ⟨q', hW1, hq'⟩ := hwk _ rfl
+        refine ⟨True.intro, by rw [hr3, capV_wr_out hPl hxsl s2 hbo, hcv2]; exact True.intro,
+          by rw [hAs2]; exact hc1k.1.trans hs1k.1, as1, p1, q, has1, has2, hf, ?_,
+          Or.inl (by rw [peA_base_inj hq']; exact hW1)⟩
+        rintro q2 ⟨ao, hao⟩ hne
+        have h1 : q2.bv ≠ q.bv := fun h => hne (eq_of_bv h)
+        have e1 := hs1k.2 _ _ hao
+        exact (hko2 _ h1).trans ((hc1k.2 _ _ (e1.trans hao)).trans e1)
   · have : ((a0 &&& 4095#u64) != 0#u64) = true := by simp [hal]
     simp only [this, ↓reduceIte]
     exact (WP.spec_ok _).2 (Or.inl ⟨_, _, rfl, Or.inr ⟨rfl, rfl⟩,
@@ -625,7 +790,8 @@ theorem frame_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
         MapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf f) ∧ KFoot σ σ' ∧
+        MapLeafF (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) (frameCapOf f) σ σ') ⦄ := by
   obtain ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩ := f
   simp only at hsz hfm hfu hpa ⊢
   subst hsz
