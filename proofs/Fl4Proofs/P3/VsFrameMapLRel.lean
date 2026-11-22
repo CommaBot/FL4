@@ -196,6 +196,8 @@ macro "map_tail_L" : tactic => `(tactic| (
   by_cases hal : (a0 &&& 2097151#u64) = 0#u64
   · have : ((a0 &&& 2097151#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
+    -- #65: `large` is rebound by a match on the size.
+    apply ok_bind_spec
     refine WP.spec_bind (page_entry_slot_large s σ hPt hPP hp1 a0 hvU) ?_
     rintro r3 ⟨hsl, hse⟩
     cases r3 with

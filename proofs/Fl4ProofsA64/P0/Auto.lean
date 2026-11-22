@@ -2021,6 +2021,9 @@ theorem obj.Sc.Insts.CoreCmpPartialEqSc.eq.p0 (self : obj.Sc) (other : obj.Sc) :
 
 @[step] theorem notification.send_signal.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (n_ptr : Std.U64) (badge : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     notification.send_signal machineStoreInst machineArchInst s a n_ptr badge ⦃ _ => True ⦄ := by
+  -- #63 added the same-core TS_RUNNING_VM branch (here with the AArch64
+  -- `vcpu.signal_completes` = false and the no-op `vcpu.report`); `split` on the
+  -- grown body exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
   unfold notification.send_signal
   p0_structural
 
@@ -2727,10 +2730,6 @@ theorem vcpu.sanitize_vgic_lr.MASK_V3.p0  :
   set_option maxHeartbeats 4000000 in
   unfold vcpu.write_state_from_frame
   p0_structural
-
--- #63 added the same-core TS_RUNNING_VM branch (here with the AArch64
--- `vcpu.signal_completes` = false and the no-op `vcpu.report`); `split` on the
--- grown body exceeds simp's step limit, `p0_ite_head` (in p0_structural) does not.
 
 @[step] theorem vcpu.decode_state_transfer.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (vc : Std.U64) (length : Std.U64) (buf : Std.U64) (ex : Array obj.Slot 3#usize) (to_frame : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vcpu.decode_state_transfer machineStoreInst machineArchInst s a vc length buf ex to_frame ⦃ _ => True ⦄ := by

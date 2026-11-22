@@ -286,7 +286,7 @@ def obj.Reply := Std.U64
 def obj.Ep := Std.U64
 
 /-- [fl4_core::vspace::FrameCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 456:0-465:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 462:0-471:1 -/
 structure vspace.FrameCap where
   ptr : Std.U64
   size : capability.FrameSize
@@ -317,13 +317,38 @@ structure capability.Rights where
   grant_reply : Bool
 
 /-- [fl4_core::vspace::VRoot]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 518:0-521:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 524:0-527:1 -/
 structure vspace.VRoot where
   pml4 : Std.U64
   asid : Std.U64
 
+/-- [fl4_core::vspace::Batch]
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 637:0-648:1 -/
+structure vspace.Batch where
+  root : Std.U64
+  asid : Std.U64
+  op : Std.U64
+  depth : Std.U64
+  map_rights : Std.U64
+  cap_rights : Std.U64
+  attr : Std.U64
+  defer_delete : Bool
+  cnode : capability.Cap
+  dest_cnode : capability.Cap
+
+/-- [fl4_core::cdt::Finalised]
+    Source: 'crates/fl4-core/src/cdt.rs', lines 233:0-236:1 -/
+structure cdt.Finalised where
+  success : Bool
+  cleanup : capability.Cap
+
+/-- [fl4_core::vspace::decode_frame_batch::{closure}]
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 660:72-660:124 -/
+@[reducible]
+def vspace.decode_frame_batch.closure (S : Type _) (A : Type _) := Unit
+
 /-- [fl4_core::vspace::TableCap]
-    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 752:0-760:1 -/
+    Source: 'crates/fl4-core/src/arch/x86_64/vspace.rs', lines 1011:0-1019:1 -/
 structure vspace.TableCap where
   map_lbl : Std.U64
   unmap_lbl : Std.U64
@@ -395,11 +420,18 @@ structure boot.RootLayout where
   max_bits : Std.U64
   total : Std.U64
 
-/-- [fl4_core::cdt::Finalised]
-    Source: 'crates/fl4-core/src/cdt.rs', lines 233:0-236:1 -/
-structure cdt.Finalised where
-  success : Bool
-  cleanup : capability.Cap
+/-- [fl4_core::localinv::Plan]
+    Source: 'crates/fl4-core/src/localinv.rs', lines 47:0-59:1
+    Visibility: public -/
+structure localinv.Plan where
+  slot : obj.Slot
+  extra : Array obj.Slot 3#usize
+  locks : Array Std.U64 4#usize
+  n : Std.Usize
+  pte : Std.Usize
+  seen : Array (Std.U64 × Std.U64) 4#usize
+  nseen : Std.Usize
+  ok_words : Bool
 
 /-- [fl4_core::vcpu::msr_addr::{closure#1}]
     Source: 'crates/fl4-core/src/vcpu.rs', lines 786:20-786:76 -/

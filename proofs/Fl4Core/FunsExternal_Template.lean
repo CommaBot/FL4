@@ -35,3 +35,39 @@ axiom Bool.Insts.CoreCmpPartialEqBool.ne : Bool → Bool → Result Bool
 @[rust_fun "core::num::{u64}::trailing_zeros"]
 axiom core.num.U64.trailing_zeros : Std.U64 → Result Std.U32
 
+/-- [core::option::{impl core::ops::try_trait::Try for core::option::Option<T>}::branch]:
+    Source: '/rustc/library/core/src/option.rs', lines 2875:4-2875:64
+    Name pattern: [core::option::{core::ops::try_trait::Try<core::option::Option<@T>>}::branch]
+    Visibility: public -/
+@[rust_fun
+  "core::option::{core::ops::try_trait::Try<core::option::Option<@T>>}::branch"]
+axiom core.option.Option.Insts.CoreOpsTry_traitTry.branch
+  {T : Type _} :
+  Option T → Result (core.ops.control_flow.ControlFlow (Option Never) T)
+
+/-- [core::option::{impl core::ops::try_trait::FromResidual<core::option::Option<!>> for core::option::Option<T>}::from_residual]:
+    Source: '/rustc/library/core/src/option.rs', lines 2889:4-2889:49
+    Name pattern: [core::option::{core::ops::try_trait::FromResidual<core::option::Option<@T>, core::option::Option<!>>}::from_residual]
+    Visibility: public -/
+@[rust_fun
+  "core::option::{core::ops::try_trait::FromResidual<core::option::Option<@T>, core::option::Option<!>>}::from_residual"]
+axiom
+  core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+  (T : Type _) : Option Never → Result (Option T)
+
+/-- [core::result::{core::result::Result<T, E>}::is_err]:
+    Source: '/rustc/library/core/src/result.rs', lines 647:4-647:38
+    Name pattern: [core::result::{core::result::Result<@T, @E>}::is_err]
+    Visibility: public -/
+@[rust_fun "core::result::{core::result::Result<@T, @E>}::is_err"]
+axiom core.result.Result.is_err
+  {T : Type _} {E : Type _} : core.result.Result T E → Result Bool
+
+/-- [core::result::{core::result::Result<T, E>}::ok]:
+    Source: '/rustc/library/core/src/result.rs', lines 709:4-712:28
+    Name pattern: [core::result::{core::result::Result<@T, @E>}::ok]
+    Visibility: public -/
+@[rust_fun "core::result::{core::result::Result<@T, @E>}::ok"]
+axiom core.result.Result.ok
+  {T : Type _} {E : Type _} : core.result.Result T E → Result (Option T)
+

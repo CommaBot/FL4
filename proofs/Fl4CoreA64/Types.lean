@@ -423,6 +423,19 @@ structure cdt.Finalised where
   success : Bool
   cleanup : capability.Cap
 
+/-- [fl4_core::localinv::Plan]
+    Source: 'crates/fl4-core/src/localinv.rs', lines 47:0-59:1
+    Visibility: public -/
+structure localinv.Plan where
+  slot : obj.Slot
+  extra : Array obj.Slot 3#usize
+  locks : Array Std.U64 4#usize
+  n : Std.Usize
+  pte : Std.Usize
+  seen : Array (Std.U64 × Std.U64) 4#usize
+  nseen : Std.Usize
+  ok_words : Bool
+
 /-- [fl4_core::untyped::UntypedCap]
     Source: 'crates/fl4-core/src/untyped.rs', lines 192:0-197:1 -/
 structure untyped.UntypedCap where
