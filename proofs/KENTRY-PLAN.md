@@ -16372,3 +16372,44 @@ re-extraction (SpecInv* only). Each wants its own line with a fresh context.
 ### (4) Findings and next
 - None: `IdleVtS` is preserved by every spec step of the entry (proved), and holds at boot.
 - Next of g7a-4 (5): C27 (M), then C26 (L), the same way (a spec family plus a `JReachU1x` conjunct).
+## s27 (branch par/s27 from 88b4b4a8, top of record `kernel_entry_reachU11`) — C27 `devGpm` DISCHARGED; new top **`kernel_entry_reachU12`**; no premise added; no FINDING
+
+### (1) The invariant, and why it is cheaper than g7a-4 (3) estimated
+- g7a-4 planned a device-only range fact kept by `CD`/`DMV` with device-ness inherited. Stronger and simpler is the l4v
+  form itself: **no cap of any kind covers the global PML4**,
+  `GpmOutV σ := IrqOutV (fun _ => σ.archState.x64GlobalPml4) (uV σ)` (SpecInvGpm; l4v `valid_global_refs`,
+  `x64_global_pml4 ∈ global_refs`). Device-ness is never needed: `DevGpm` asks it only of device untyped caps.
+- `IrqOutV M` is already carried for an **arbitrary** `M` by sg1's SpecGlob family `S N M` (SpecInvSgA..SgE:
+  `sgN_kentry`, `sgN_fl4CallKernel`, the cap-domination argument of SpecInvUtN8 at every writer); sg1 and vi1 use it at
+  `M := fun _ => idleThread` / `idleSc`. So the only new proof obligation is that `x64GlobalPml4` is constant:
+  SpecInvGpK1..K6 (`GpK g := IK (GpmIs g)`, sg1's SpecInvSgI1..I6 mechanically renamed; built unchanged, an `archState`
+  update of another field keeps it by definitional unfolding).
+- Whole-entry lemmas (SpecInvGpm): `kentry_gpmOut` (syscall), `kcall_gpmOut` (events), `fipEv_gpmOut` (FaultIP write
+  then an event: trap / unknown syscall), and at the dispatch state `budget_view`/`budget_gpm` with `fip_view`/`fip_gpm`.
+  Each takes `SpecGlobS σ` (`SInvX.sb.1.1.sg`) and `UtInv3 σ` (`sinvX_ut3`), both carried.
+
+### (2) The carry and the bridge (XTopJointKEntryU12)
+- `JReachU12 s a σ := JReachU3 s a σ ∧ GpmOutV σ` (JReachU3, JAtZ, RelTopM, JExt untouched). Every clause of U12 ends in
+  `JReachU12`: U11's exit gives `JReachU3`; `GpmOutV σ'` from the lemmas of (1) with U11's `SInvX σ`.
+- At the dispatch state σb (`BudgetAt σ σb true`): `budget_gpmOut` gives `GpmOutV σb ∧ UtInv'' σb` (view and global
+  PML4 are σ's).
+- `devGpm_of`: at a `JAtZ` state, `GpmOutV σ ∧ UtInv'' σ → DevGpm (L.mem s) Z.G σ`. A chain slot is a slot (MDB
+  `members`, `IsSlot.abs`); its FL4 cap `Untyped p sb fi true` is related to the spec cap `untypedCap true p.bv sb fi`
+  there (`J.dstate.1.1.abs_cap`, `getCap_set_iff`, `vfh_capAt`); `covR` of it is `delR p.bv sb`, which is the `Nat` range
+  `DevGpm` reads since `UtWfV` gives `sb ≤ 47` and an aligned base (`fit_of_align`, `mem_delR_iff`).
+- `JDevPathU12` = `JDevPath` without `devGpm`; `JPathMEU12` (U7's with it for `.Untyped`), `JPathAtMU12`,
+  `KDispHypsKVU12`; `KDispHypsKVU12.toU7` given `DevGpm` at the dispatch state.
+
+### (3) Premises
+Removed (relative to U11): C27 `JDevPath.devGpm` [J]. Added: none. The start state's `GpmOutV` is in the start bundle
+`JReachU12` (asked at one state, [S] start as A18; true at boot: `boot_gpmOut`, and in l4v by `valid_global_refs`).
+
+### (4) Builds and axioms
+Module builds s27-m1 (SpecInvGpK6, 1026 jobs), s27-m2 (SpecInvGpm, XTopJointKEntryU12, 7142 jobs): green. Full build
+s27-full1 (tokyo, seeded from FL4-g7e): `Build completed successfully (7237 jobs)`, 0 `error`, 0 `sorry`.
+`#print axioms kernel_entry_reachU12`: [propext, Classical.choice, Quot.sound] (U4..U11 unchanged, same).
+
+### (5) Findings and next
+No FINDING (`GpmOutV` holds at boot and is kept by every spec writer through the existing domination proofs). C26
+`devFree` (g7a-4 (3), L) and D7 (g7a-4 (2), L) remain; `GpmOutV` is not reusable for C26 (a free-part fact, not a
+global ref).

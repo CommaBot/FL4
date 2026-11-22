@@ -507,7 +507,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2) | | 1 |
 | C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | [J] (`DevApart.retype` exists; not carried) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | 1, ∀gh |
 | C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | [J] (`DevFree.retype` exists) | `valid_untyped` | 1 |
-| C27 | Untyped device `devGpm` | global PML4 off every device untyped range | [J] | `valid_global_refs` | 1 |
+| C27 | Untyped device `devGpm` | global PML4 off every device untyped range | **DISCHARGED (s27, `kernel_entry_reachU12`)**: from SpecInvGpm's `GpmOutV` (no cap covers `x64GlobalPml4`) carried in `JReachU12`, bridged by `devGpm_of` (KENTRY-PLAN s27) | `valid_global_refs` | — |
 | — | every other native cap (Null, Zombie, Ntfn, Ep, Reply, CNode, IrqControl, IoPortControl, IrqHandler, Domain, PT, PD, PDPT, PML4, native Frame, Thread at any other label) | `True` | — | | |
 
 ### D. `KFinAtR31` leaves (B6; also every event clause's `KFinEv` = this bundle at each pre-finish outcome)
@@ -568,6 +568,13 @@ C4, C16, C17, C21, C22, C23, C24×3, C25, C26, C27 (**[J] 12**); **[W] 0**.
 Previous top: `SInvR.G5.kernel_entry_reachU11` (g7a-3, XTopJointKEntryU11) = U8 without D1 `hd` (g7a's U6
 route: `JAtZR.hdOK`, `DomListOK` by SpecInvDom's `DP`). At U11 the [J] leaves are C4, C16, C17, C21, C22, C23,
 C24×3, C25, C26, C27 and D7 `IdleVt` (D1 gone: **[J] 13**, counting D7); **[W] 0**.
+
+**Top of record: `SInvR.G5.kernel_entry_reachU12`** (s27, XTopJointKEntryU12) = U11 without C27 `devGpm`
+(spec fact `GpmOutV`, l4v `valid_global_refs`, carried in `JReachU12 := JReachU3 ∧ GpmOutV`, start fact at one state).
+At U12 the [J] leaves are C4, C16, C17, C21, C22, C23, C24×3, C25, C26 and D7 (**[J] 12**); **[W] 0**.
+
+**Lead note (merge of s27 and sd7):** U12 (no C27) and U13 (no D7) are parallel lines from U11; neither alone is the
+top of record. A combined top (`JReachU3 ∧ GpmOutV ∧ IdleVtS`, without C27 and D7: [J] 11) is the next step.
 
 **[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
 `kernel_entry_reachU7`; see F.)

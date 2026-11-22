@@ -1381,3 +1381,11 @@ import Fl4Proofs.P3.SpecInvSiC
 import Fl4Proofs.P3.SpecInvSiD
 import Fl4Proofs.P3.SpecInvSiE
 import Fl4Proofs.P3.XTopJointKEntryU13
+import Fl4Proofs.P3.SpecInvGpK1
+import Fl4Proofs.P3.SpecInvGpK2
+import Fl4Proofs.P3.SpecInvGpK3
+import Fl4Proofs.P3.SpecInvGpK4
+import Fl4Proofs.P3.SpecInvGpK5
+import Fl4Proofs.P3.SpecInvGpK6
+import Fl4Proofs.P3.SpecInvGpm
+import Fl4Proofs.P3.XTopJointKEntryU12
