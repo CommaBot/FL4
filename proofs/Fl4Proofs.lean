@@ -20,6 +20,7 @@ import Fl4Proofs.P1.FastRRFoot
 import Fl4Proofs.P1.FastRRLk
 import Fl4Proofs.P1.FastTailNvm
 import Fl4Proofs.P1.FastTailFault
+import Fl4Proofs.P1.FastFaultEntU
 import Fl4Proofs.P1.FastTailRR
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
@@ -1348,3 +1349,4 @@ import Fl4Proofs.P3.XTopJointLiveSt
 import Fl4Spec.Ext.VirtGuest
 import Fl4Spec.Ext.VirtP3x
 import Fl4Proofs.P3.XTopJointKEntryUH
+import Fl4Proofs.P3.XTopJointKEntryFF

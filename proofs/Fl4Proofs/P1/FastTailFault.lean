@@ -103,15 +103,18 @@ theorem faultRecv_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 �
 
 set_option maxHeartbeats 1600000 in
 /-- **m62's `FaultNvm` from the P1 invariants where `fastpath.fault` is
-entered** (module docstring). -/
-theorem faultNvm_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
-    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+entered** (module docstring), with the handler's receive state as an
+argument (m73: `faultNvm_of` reads it off `EntryHyps0.tmoOK` by
+`faultRecv_of`; P3 reads it off the joint relation). -/
+theorem faultNvm_ofR {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat}
+    (hA : P0.ArchTotal ar)
     {s : S} {a : A} {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hrecv0 : ∀ {ptr badge dest r : U64}, FaultChecks st s t ptr badge dest r →
+      L.mem s (stA dest) = sched.TS_BLOCKED_ON_RECV)
     (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultNvm (L := L) ar s a t n := by
   intro sF aF h
   obtain ⟨ptr, badge, dest, r, hc, hfast⟩ := fault_acc st ar h
-  have hrecv := faultRecv_of ar E0 hI hG et hc
+  have hrecv := hrecv0 hc
   obtain ⟨⟨Q, R, hSQ⟩, hB, hX, hSg, hS⟩ := hI
   have hX0 : ScExtra0 st T Cs Scs Nt s := hX.2.2.toScExtra0
   have hO := hX.1
@@ -265,6 +268,16 @@ theorem faultNvm_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 �
   obtain ⟨h1, h2⟩ := hend
   rw [h1, h2]
   simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
+
+/-- **m62's `FaultNvm` from the P1 invariants where `fastpath.fault` is
+entered** (module docstring): `faultNvm_ofR` with the handler's receive
+state from `EntryHyps0.tmoOK` (`faultRecv_of`). -/
+theorem faultNvm_of {T Cs Ω U Sg Rp Scs Nt Ac : Set U64} {H : Heap} {Z : U64 → Nat} {P3Ok : S → Prop}
+    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    {s : S} {a : A} {t : obj.Tcb} {n : U64} (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hG : XG st T Cs Ω H Sg Scs Z P3Ok s) (et : sched.cur_thread st s = ok t)
+    (hF : FaultEntAt (L := L) T Cs Ω U Sg Rp s t) : FaultNvm (L := L) ar s a t n :=
+  faultNvm_ofR ar hA hI (fun hc => faultRecv_of ar E0 hI hG et hc) hF
 
 /-- **m67's `FaultNvmPre` [J] derived**: at an entry state with `EntryInv`
 (a `P3Ok` state, the `Hyps4` fields `EntryHyps0` / `XferHyps`) and
