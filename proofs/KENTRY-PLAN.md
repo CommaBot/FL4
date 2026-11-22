@@ -17145,5 +17145,6 @@ over-eager `rw … at hn`, m6 `Keyed2` not unfolded by `simp`). Full build **f2-
 (7337 jobs)`**, 0 `error`, 0 `sorry` (no existing file changed; only the two new modules and the root import
 rebuilt over the e84b2e3f cache). `#print axioms` (../axf2.lean): `JAtZ.vsReachMiss`, `vsReachMissR`,
 `vsReachAsidC`, `VsReach.split`, `VsNamed.frame` / `step` / `grow` / `sub`, `vsKeep_insert` / `move` / `swap`,
-`vkey_copied`, `JAtZ.vsNamedDrop`, `vsNamedRestart`, and the existing tops U3L..U21, U25: `[propext,
-Classical.choice, Quot.sound]`. No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
+`vkey_copied`, `JAtZ.vsNamedDrop`, `vsNamedRestart`: `[propext, Classical.choice, Quot.sound]` (the tops' lines
+fell outside the captured tail; their modules are unchanged). axf2.lean's three P1 timer entries `insert.coreW`,
+`insert.rb`, `CoreTree.keep` are unknown constants on this branch (pre-existing list entries, not f2's). No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
