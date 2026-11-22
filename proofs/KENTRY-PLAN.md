@@ -16586,3 +16586,14 @@ Steps 2–6 of g7b-4 (3): `IdleVtS`/`DevRangeS` are done (U15); then `devApart` 
 Module builds jc1b-m1..m5 (tokyo; m5 = the `XTopJointKEntryU16` cone, 0 errors); full build jc1b-full1 at 788e4f92:
 `Build completed successfully (7255 jobs)`, 0 `error`, 0 `sorry`. `#print axioms`: U4, U5, U6, U7, U8, U9, U10,
 U11, U3L, UH2, U15 and **U16** all `[propext, Classical.choice, Quot.sound]` (every existing top keeps its statement).
+
+## jc1c (branch par/jc1c from int/j3 ebfbb07f = jc1b merged with s26-2's U17) — new top of record **`kernel_entry_reachU18`**; no premise added; no FINDING
+- The merge built unchanged (jc1c-full1: `Build completed successfully (7289 jobs)`, 0 `error`, 0 `sorry`): no
+  module of the U12..U17 / SpecInvGp* / SpecInvSi* / SpecInvDv* lines constructs a `JAtZ`.
+- **`kernel_entry_reachU18`** (XTopJointKEntryU18) = U17 with U16's dispatch bundle: `JDevPathU18` = `JDevPathU16`
+  without `devFree`; RAM Untyped / ASID control paths `JUtPathMU16` / `JAsidCPathU16`; `KDispHypsKVU18.toU17
+  J'.carry` (C21 from `JCarry.bufObj`, `ArchFitHyp` from `JCarry.archFit`), then U17 (C26 from `DevRangeS`).
+  `JReachU17` unchanged. Removed relative to U17: C21, the `ArchFitHyp` half of C16 / C22 / C24 heapH. Added: none.
+  [J] at U18: C4, C16 / C22 / C24 heapH (`RegionUnrefAt` halves), C17, C23, C24 vsReach, C25 (**8**).
+- jc1c-full2 at 765ec522: `Build completed successfully (7291 jobs)`, 0 `error`, 0 `sorry`; U4..U18, U3L, UH2 all
+  `[propext, Classical.choice, Quot.sound]`.
