@@ -263,7 +263,8 @@ theorem okv_fl4ArchDecodeN {w : UView} (label : Data) (args : List Data) (xs : C
       (okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex)))
   case pml4Cap p m =>
     simp only [fl4ArchDecodeInvocation]
-    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex))
+    exact okv_ite (okv_liftME (okv_triv fun _ => trivial)) (okv_ite (okv_liftME (okv_triv fun _ => trivial))
+      (okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex)))
   all_goals (simp only [fl4ArchDecodeInvocation]; exact okv_liftME (okv_archDecodeN label args xs cte _ ex hc hex))
 
 /-! ## The VSpace performs -/

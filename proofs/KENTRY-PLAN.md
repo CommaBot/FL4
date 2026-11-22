@@ -16795,3 +16795,68 @@ global ref).
      reply class (`DecOKRMX`, as GetAddress / TestAndClearAccessed).
 - Builds: fb3b-m2 (DomFb missing `dk_ensureNoChildren'`; DomG / H7 `*_auto` whnf timeouts on `fbEntry` → explicit
   leaves), fb3b-m3 (stale Consts, H7 DELETE-branch shape), fb3b-m4 (above). No full build (cannot be green before 2-4).
+### fb3c (resume of fb3b's handoff, branch par/fb3 in FL4-fb3) — spec families via `fbEntryX`; `Cov` kept (no rdyOff change); downstream list partly enumerated; six sites and P1/P3 still open
+- **Lead decision used: `Cov` proved directly, nothing moved out of it.** `SpecInvRd14bD.Cov` / `SpecInvRd14gE.CovFF`
+  are unchanged (their `.invokeArchObject _ => True` arm now covers the batch); `perfA_cov` / `armF_covFF` gain the
+  arm `.frameBatch i` (`perfA_frameBatch` / `perfF_frameBatch`). No top, no `kcall_rdyOff*` / `kentry_rdyOff*`
+  statement changed.
+- **New module SpecFbX** (spec only, imports SpecInvFbK, SpecInvUtC, SpecInvUtF1): **`capDelete_subX`**: at a state
+  where `slot` holds a frame cap (`capAt σ slot = some (.archObjectCap (.pageCap ..))`), every outcome of
+  `capDelete slot` is an outcome of `fbDelX slot` (getCap; `isFinalCap`; `archFinaliseCap` of the frame;
+  `emptySlot slot .nullCap`; any other cap: `fail`) — via `ik_lfp_le` with the outcome predicate `QX` (finalise of a
+  frame: Null remainder, `capRemoveable`, no Zombie, no preemption point), so such a delete never throws. `fbEntryX` /
+  `fbRunX` / `performFrameBatchX` (= the spec's with `fbDelX` / `fbDeleteX` for `capDelete` / `fbDelete`);
+  **`fbEntry_subX`**, **`performFrameBatch_subX`**: outcome inclusion, the slot facts carried along (`getCap_capAt`,
+  the unlessE frame check, `deriveCap` of a masked frame is a frame, `fbx_capInsert_at` (cap_insert writes the
+  destination), `fbx_fbMap_err` (fbMap's errors keep `capAt`, via `uk_decodePageInvocation`), `setCap_at` for the
+  deferred unmap's rewrite). Combinators for families: `ike_fbEntry_ofX`, `ik_performFrameBatch_ofX`,
+  **`ik_performFrameBatchX`** (IK family: one `fbEntryX` + the final flush), **`rk_performFrameBatchX`** (any
+  reflexive transitive pre/post relation: `SVM`, `FK f`, …). So a family needs no `capDelete` / lfp leaf: its
+  `X_fbEntryX` is `unfold fbEntryX fbDeleteX fbDelX [fbCode fbMap unmapPageUnflushed]; X_auto` (unfold order matters:
+  `fbDeleteX` before `fbDelX`). Template: proofs/scratch/patchfbx.py.
+- **Readiness (G1)**: new module **SpecInvRdFb** (imported by SpecInvRd14bD): `svfb_*` / `cfkfb_*` (copies of rd14f E's
+  `empty_slot` leaves, that module being downstream), `svfb_fbEntryX`, `cfkfb_fbEntryX`, `svfb_performFrameBatch`,
+  `cfkfb_performFrameBatch`, **`perfA_frameBatch`** (rd13b's `perfA_sve`); SpecInvRd14gE: `tvfb_fbEntryX`,
+  **`perfF_frameBatch`** (`perfF_sve`, `QT` by `qt_of_tv`). SpecInvRd8hP `rd_archPerf`: the `frameBatch` arm
+  (`rda_auto` on `fbEntryX`).
+- **Other family fixes (built)**: SpecInvDomG (`dl_leaf` for `dl_performFrameBatch` and `dle_fl4ArchPerformInvocation`:
+  SpecInvDomE's `dle_fl4Perform` timed out on the batch); SpecInvNtfnQH2 (`nq_fbEntryX`, `nq_performFrameBatch`);
+  SpecInvViH (`vi_fbEntryX`, `vi_performFrameBatch`, the arm in `vi_fl4ArchPerform`); SpecInvValidMachineTimeGen
+  (`gk_decodeFrameBatch`, `gk_fbEntryX`, `gk_flushAllFb`, `gk_performFrameBatch`); the PML4 decode's new
+  `if` (batch label) in the OkV decode lemmas SpecInvUtP1 `okv_fl4ArchDecodeN`, SpecInvSgD `okv_fl4ArchDecodeSl`,
+  SpecInvSlA (`okv_ite` of two trivial arms). PerformNil: `okAll_specDec_arch` gains `hfb` (a PML4 cap's label is
+  not the batch's) and `okAll_specDec_pml4` the hypothesis `hfb : dataToNat slbl ≠ fl4FrameBatchLabel` (its one user,
+  VsThX:527 `XCap` of a PML4 cap, is a six-site user: it must split on the batch label like the frame caps'
+  GetAddress / TestAndClearAccessed, item 4 below).
+- **Merge breakage fixed (not batch)**: G7eRoot `JAtZR.rootFr` (g7e, built before #65) proved the old `KRootRel`
+  (= `KRootW` only); now also `HugeRel` at the scheduler's outcome: `sfootN_feat` (ks+72 is no `SFootN` word) and
+  `crF` (G7cCr3K) extended by `x64HugePages` (the scheduler cone never writes it; `crF`'s idle projection is now
+  `.2.2.2.1`).
+- **Downstream families (scratch full builds fb3c-full1..5 with the six sites stubbed by proofs/scratch/fb3scratch.py,
+  untracked, plus stubs at VsThX:527 and the three `ArchOKN`-carrying perform arms below):** errors, by build:
+  full1 (6481/7259 jobs reached): SpecInvDomE, SpecInvUtP1, PerformNil, SpecInvNtfnQH2 (fixed / stubbed above);
+  full3: SpecFbX (fixed), SpecInvSgD (stubbed), G7eRoot, MachFieldFamI, SpecInvNtfnQH2 (unfold order),
+  SpecInvValidMachineTimeGen, SpecInvViH, XTopJointMidRunS; full5 (latest; the build stops at these, ~700 jobs not
+  reached): **SpecInvNtfnQLA** (`il_` arm: `il_auto` on `fbEntryX` leaves goals / times out at 356), **MachFieldFamI**
+  (`mtk_fbEntryX`: `mtk_auto` times out (200000 heartbeats default at l. 116): needs `set_option maxHeartbeats` and
+  probably explicit leaves for the lookups / `fbMap`), **XTopJointMidRunS** (`kf_auto` on `fbEntryX`: unsolved goals at
+  524), **SpecInvCqP** (l. 33/101 timeouts: a generated perform family, same treatment), **SpecInvSbX4** (l. 292
+  timeout), **SpecInvEqG5**, **SpecInvValidIrqHandlersG** (failed, details not read). Sizes: each IK/FK family with an
+  `_auto` is S (an `X_fbEntryX` leaf, heartbeats, maybe a few explicit leaves); not yet reached: everything
+  downstream of these (the rest of the cap families of fb-spec-2 open 3: UtO*, SgE, SiE, ZR, DevFree/Gpm, Vi*, CnDom).
+- **L items (stubbed in scratch only, no proof yet): the cap-writing families' perform arm for the batch**:
+  SpecInvUtP1 `p3_fl4ArchPerform` (`P3 N` = `UtInv''` + IRQ-out: COPY_MAP's `capInsert` needs `CI3` (the copy
+  `RefRel` to the source frame cap read at run time) and `PosOK` / `DestRefV` of the destination (a lookup through
+  `b.destCnode`, whose cap stays in the extra slot: no batch step deletes or overwrites a non-frame cap), the DELETE /
+  rollback `capDelete`s by `capDelete_subX` + the family's `empty_slot` / unmap leaves, the maps as
+  `performPageInvocation .pageMap` on a slot holding a frame cap); SpecInvSgD `sg_fl4ArchPerform` (`NOV`: every slot
+  the batch writes a non-null cap into is no IRQ-node slot: the copy's destination is a CNode slot, the maps rewrite
+  frame slots), SpecInvSiD (`IV`, same shape). Each needs a run-time version of the decode facts the CNode copy gets
+  from `okv_decodeCnode` (L per family; a shared "lookup result is a CNode slot of a cap held in a slot" lemma first).
+- **Still open as in fb3b's handoff**: the six m77 sites (P1 QueueDecVs, MachKeepG4d, VsTopX, VsDecTop, VsThX, VsDomF),
+  P1 [L] (CdtHyps-style gap at mid-batch states), MachKeepG4d [M-L] (now easier: `MKD.objects_finalise_cap` is
+  general; what fails is `cdt.delete` of an arbitrary slot (a loud cleanup / the preemption point); a frame slot's
+  delete is one round of `finalise_slot_immediate_loop` with a Null remainder and Null cleanup: an FL4 slot fact at
+  `frame_batch_entry`'s two `cdt.delete` calls, as SpecFbX's on the spec side), P3 refinement [XL] (the batch label to
+  the reply-in-decode class; `okAll_specDec_pml4`'s new `hfb` is where VsThX's PML4 `XCap` splits).
+- Builds: fb3c-full1..5 (tokyo mirror, `MODE=build`, scratch stubs applied there only). No green full build.

@@ -13,6 +13,7 @@ a childless untyped's region (null slots, ut4's `RegNull`) and a retype at the
 freed frame. **`perfGapILA : PerfGapILA`**; `perfGapIL : PerfGapIL`.
 -/
 import Fl4Proofs.P3.SpecInvNtfnQLU
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -348,6 +349,12 @@ theorem perfGapILA : PerfGapILA := by
     obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
     refine (?_ : ILK K _) σ hσ.1.1 x hx
     il_auto
+  | frameBatch bi =>
+    refine (?_ : ILKE K _) σ hσ.1.1 y hy
+    simp only [fl4ArchPerformInvocation]
+    exact ike_liftE (ik_performFrameBatchX
+      (fun w => by unfold fbEntryX fbDeleteX fbDelX fbCode fbMap unmapPageUnflushed; il_auto)
+      (by unfold flushAll; il_auto))
   | _ =>
     refine (?_ : ILKE K _) σ hσ.1.1 y hy
     simp only [fl4ArchPerformInvocation, archNoReturn]

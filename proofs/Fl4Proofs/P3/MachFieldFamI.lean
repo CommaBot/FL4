@@ -18,6 +18,7 @@ SchedControl or arch cap decodes to (`QInv`), and by `freeMemory` (a
 -/
 import Fl4Proofs.P3.MachFieldFamS
 import Fl4Proofs.P3.SpecNoPre
+import Fl4Proofs.P3.SpecFbX
 
 open Classical
 
@@ -111,6 +112,17 @@ macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_performI
 theorem mtk_archPerformInvocationG (i : ArchInvocation) : MTKE (archPerformInvocation (Z := Unit) i) := by
   cases i <;> unfold archPerformInvocation <;> mtk_auto
 macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_archPerformInvocationG _)
+
+/-- fb3c: one `X86PML4FrameBatch` entry, its frame `cap_delete` written out (SpecFbX). -/
+theorem mtk_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) :
+    MTKE (Fl4Proofs.P3.SInv.fbEntryX b w) := by
+  unfold Fl4Proofs.P3.SInv.fbEntryX Fl4Proofs.P3.SInv.fbDeleteX Fl4Proofs.P3.SInv.fbDelX fbCode fbMap unmapPageUnflushed; mtk_auto
+
+/-- fb3c: the batch. -/
+theorem mtk_performFrameBatch (b : Fl4FrameBatchInvocation) : MTK (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.rk_performFrameBatchX (R := fun σ σ' => msFT σ' = msFT σ) (fun _ => rfl)
+    (fun _ _ _ h1 h2 => h2.trans h1) (fun w => mtk_fbEntryX b w) (mtk_flushAll _ _)
+macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_performFrameBatch _)
 
 theorem mtk_fl4ArchPerformInvocationG (i : Fl4ArchInvocation) : MTKE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i <;> unfold fl4ArchPerformInvocation <;> mtk_auto

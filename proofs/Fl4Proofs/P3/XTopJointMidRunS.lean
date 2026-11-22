@@ -25,6 +25,7 @@ import Fl4Proofs.P3.XTopJointMidRunP
 import Fl4Proofs.P3.XTopJointMidRun
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ScCharge7
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.MidRun
@@ -515,6 +516,14 @@ theorem perf_first (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw : 
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact kfe_post (by kf_auto) hs
+    | frameBatch bi =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      refine kfe_post (Fl4Proofs.P3.Vs.dke_liftE ?_) hs
+      exact Fl4Proofs.P3.SInv.rk_performFrameBatchX (R := fun σ σ' => ctV ct σ' = ctV ct σ) (fun _ => rfl)
+        (fun _ _ _ h1 h2 => h2.trans h1)
+        (fun w => by
+          unfold Fl4Proofs.P3.SInv.fbEntryX Fl4Proofs.P3.SInv.fbDeleteX Fl4Proofs.P3.SInv.fbDelX fbCode fbMap unmapPageUnflushed; kf_auto)
+        (kf_flushAll (ct := ct) _ _)
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact kfe_post (by kf_auto) hs

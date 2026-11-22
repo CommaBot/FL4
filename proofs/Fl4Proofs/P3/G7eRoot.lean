@@ -84,6 +84,19 @@ theorem sfootN_oobj {N T C E R : Set U64} {B : Set (U64 × Fl4Spec.Word)} {c : U
     simp at h16 h24 h40
     rcases h with rfl | rfl | rfl <;> omega
 
+/-- The `FEATURES` word (#65's 1 GiB-page bit) is no `SFootN` word. -/
+theorem sfootN_feat {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hS : SchedRel st N T C c s σ) (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
+    (hkf : (L.ksb s).val + 13568 ≤ 2 ^ 64) : ¬ SFootN st T c s (ksW (L.ksb s) 72#u64) := by
+  have h16 := ksW_val (kb := L.ksb s) (o := 16#u64) (by simp; omega)
+  have h24 := ksW_val (kb := L.ksb s) (o := 24#u64) (by simp; omega)
+  have h40 := ksW_val (kb := L.ksb s) (o := 40#u64) (by simp; omega)
+  have h72 := ksW_val (kb := L.ksb s) (o := 72#u64) (by simp; omega)
+  simp at h16 h24 h40 h72
+  rintro (h | h)
+  · have := tfoot_ksb hS hNk (σ := σ) (Or.inl (KFoot.of_sfoot h)); omega
+  · rcases h with e | e | e <;> (have := congrArg UScalar.val e; omega)
+
 /-- The kernel root word is no `SFootN` word. -/
 theorem sfootN_kr {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit}
     (hS : SchedRel st N T C c s σ) (hNk : ∀ n ∈ N, n.val + 40 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ n.val)
@@ -112,7 +125,7 @@ theorem JAtZR.rootFr {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
   have hks : L.ksb s' = L.ksb s := hw.1
   have hat : σ'.archState.x64AsidTable = σ.archState.x64AsidTable := congrArg (fun q => q.2.1) hc
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := congrArg (fun q => q.2.2.1) hc
-  have hid : σ'.idleThread = σ.idleThread := congrArg (fun q => q.2.2.2) hc
+  have hid : σ'.idleThread = σ.idleThread := congrArg (fun q => q.2.2.2.1) hc
   have hout : ∀ b, P1.Aligned b → Vs.VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → L.mem s' b = L.mem s b :=
     fun b hb hv => hw.mem_eq hb fun hf => hTP.disj b (sfootN_oobj hS hkf hf) hv
   refine ⟨⟨_, J.xtop.fin.1.1.2.2.2.2.2.2⟩, ?_, ?_, ?_, hIV.frame hk hid⟩
@@ -121,13 +134,22 @@ theorem JAtZR.rootFr {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
       (fun p hp => by
         obtain ⟨f, hf, -⟩ := J.xtop.fin.2.1.pool p hp
         rw [hf]; exact (hk.ntcb (fun _ e => by cases e)).2 hf)
-  · have hR := J.xtop.fin.1.1.2.2.2.2.2.1
-    unfold KRootRel at hR ⊢
-    have e : core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT = ksW (L.ksb s) 48#u64 := by
-      unfold layout.ks.KERNEL_ROOT; rfl
-    rw [hks, e, hw.mem_eq (ksW_al hkf hka (by decide) (by decide)) (sfootN_kr hS J.nk hkf)]
-    rw [e] at hR
-    rw [hR]; unfold globCr3; rw [hgp]
+  · obtain ⟨hR, hH⟩ := J.xtop.fin.1.1.2.2.2.2.2.1
+    have hhu : σ'.archState.x64HugePages = σ.archState.x64HugePages := congrArg (fun q => q.2.2.2.2) hc
+    unfold KRootRel
+    refine ⟨?_, ?_⟩
+    · unfold KRootW at hR ⊢
+      have e : core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT = ksW (L.ksb s) 48#u64 := by
+        unfold layout.ks.KERNEL_ROOT; rfl
+      rw [hks, e, hw.mem_eq (ksW_al hkf hka (by decide) (by decide)) (sfootN_kr hS J.nk hkf)]
+      rw [e] at hR
+      rw [hR]; unfold globCr3; rw [hgp]
+    · rw [hks]
+      refine HugeRel.frame hH ?_ hhu
+      have e72 : core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES = ksW (L.ksb s) 72#u64 := by
+        unfold layout.ks.FEATURES; rfl
+      rw [e72]
+      exact hw.mem_eq (ksW_al hkf hka (by decide) (by decide)) (sfootN_feat hS J.nk hkf)
   · intro t ht
     obtain ⟨Tr, Cq, hJ⟩ := J.jpl
     have hth : Z.th t = some .tcb := (hJ.tcb t).2 (J.zH.1 t ht)
@@ -251,7 +273,7 @@ theorem JAtZR.idleVt_fire (hAT : P0.ArchTotal arI) {Z : XSets} {H : P1.Heap} {Cs
   have e : cp1 = cp := by
     have := hcp1'.symm.trans hc1
     simpa using this
-  have hid : σ1.idleThread = σ.idleThread := congrArg (fun q => q.2.2.2) (Sched.crF_fires hF)
+  have hid : σ1.idleThread = σ.idleThread := congrArg (fun q => q.2.2.2.1) (Sched.crF_fires hF)
   refine ⟨y, by rw [hid, hs.idleTh]; exact hky, ?_⟩
   rw [hv1, e]; exact absCap_not_pml4 hnp
 

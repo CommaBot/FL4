@@ -3,7 +3,7 @@ P3 (DESIGN.md §9), invariant line G1 (rd14b, KENTRY-PLAN rd13b handoff 2-3):
 **`InvR` from the per-arm lemmas** (spec side only).
 
 * `Cov b`: the perform arms proved (rd12b's Domain, rd13b's frame-keeping
-  arms, rd14b's Notification and Endpoint); **`perfA_cov`**: every covered arm has `PerfA`
+  arms, rd14b's Notification and Endpoint, SpecInvRdFb's frame batch); **`perfA_cov`**: every covered arm has `PerfA`
   from the Restart state's facts (`KP σ0 ∧ CB0` by `kpc_restart`, ct bound to
   σ0's cur_sc and cur_sc an SC by `bdsc_restart`).
 * `PerfRo` / `InvRo`: rd12b's `PerfR` / `InvR` with `PerfA` asked only of the
@@ -13,6 +13,7 @@ P3 (DESIGN.md §9), invariant line G1 (rd14b, KENTRY-PLAN rd13b handoff 2-3):
   **`kcall_rdyOff5` / `kentry_rdyOff5`** (rd12b's `*rdyOff4r` with `InvRo`).
 -/
 import Fl4Proofs.P3.SpecInvRd14bB
+import Fl4Proofs.P3.SpecInvRdFb
 open Classical
 
 namespace Fl4Proofs.P3.SInvR.A14b
@@ -86,6 +87,7 @@ theorem perfA_cov {σ0 u : State Unit} (bl cl dn : Bool) (b : Fl4Invocation) (hc
   | .invokeArchObject (.pml4Flush i), _ => exact perfA_pml4Flush bl cl dn i hK hb
   | .invokeArchObject (.deriveSubframe i), _ => exact perfA_deriveSubframe bl cl dn i hK hb
   | .invokeArchObject (.testAndClearAccessed p), _ => exact perfA_testAndClear bl cl dn p hK hb
+  | .invokeArchObject (.frameBatch i), _ => exact perfA_frameBatch bl cl dn i hK hb
   | .invokeArchObject (.spec (.invokeASIDControl _)), hc => exact False.elim hc
   | .invokeUntyped _, hc => exact False.elim hc
   | .invokeReply _ _, hc => exact False.elim hc

@@ -36,6 +36,7 @@ import Fl4Proofs.P3.SpecInvViG
 import Fl4Proofs.P3.SpecInvUtO6
 import Fl4Proofs.P3.SpecInvSgE
 import Fl4Proofs.P3.SpecInvNtfnQC4
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvI
@@ -86,6 +87,16 @@ theorem vi_invokeCnodeO (ci : CnodeInvocation) :
     all_goals exact (show IKE (VI N S true) (invokeCnode (Z := Unit) (.cancelBadgedSendsCall _)) by
       simp only [invokeCnode]; vi_auto) σ hσ.1 z hz
 
+/-- fb3c: one `X86PML4FrameBatch` entry, its frame `cap_delete` written out (SpecFbX). -/
+theorem vi_fbEntryX {b : Bool} (bi : Fl4FrameBatchInvocation) (w : Data × Data × Data) :
+    IKE (VI N S b) (Fl4Proofs.P3.SInv.fbEntryX bi w) := by
+  unfold Fl4Proofs.P3.SInv.fbEntryX Fl4Proofs.P3.SInv.fbDeleteX Fl4Proofs.P3.SInv.fbDelX; vi_auto
+
+/-- fb3c: the batch. -/
+theorem vi_performFrameBatch {b : Bool} (bi : Fl4FrameBatchInvocation) :
+    IK (VI N S b) (performFrameBatch (Z := Unit) bi) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchX (fun w => vi_fbEntryX bi w) (by unfold flushAll; vi_auto)
+
 theorem vi_fl4ArchPerform {b : Bool} (ai : Fl4ArchInvocation) (h : ∀ a, ai ≠ .spec (.invokeASIDControl a)) :
     IKE (VI N S b) (fl4ArchPerformInvocation (Z := Unit) ai) := by
   cases ai
@@ -93,6 +104,7 @@ theorem vi_fl4ArchPerform {b : Bool} (ai : Fl4ArchInvocation) (h : ∀ a, ai ≠
     cases i
     case invokeASIDControl a => exact absurd rfl (h a)
     all_goals simp only [fl4ArchPerformInvocation, archPerformInvocation]; vi_auto
+  case frameBatch bi => simp only [fl4ArchPerformInvocation]; exact ike_liftE (vi_performFrameBatch bi)
   all_goals simp only [fl4ArchPerformInvocation]; vi_auto
 
 set_option maxHeartbeats 8000000 in

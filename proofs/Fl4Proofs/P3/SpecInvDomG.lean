@@ -1186,6 +1186,7 @@ theorem dl_fbEntry (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : DL
 /-- fb3: the batch (SpecInvFbD's `fk_performFrameBatch`). -/
 theorem dl_performFrameBatch (b : Fl4FrameBatchInvocation) : DL (performFrameBatch (Z := Unit) b) :=
   fk_performFrameBatch (fun w => dl_fbEntry b w) (dl_flushAll _ _)
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dl_performFrameBatch _)
 
 /-- **The arch invocations keep the domain list** (moved to the end for the batch's leaves). -/
 theorem dle_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DLE (fl4ArchPerformInvocation (Z := Unit) i) := by
@@ -1195,6 +1196,7 @@ theorem dle_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : DLE (fl4ArchPerfo
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0; exact dl_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; dl_auto0
+macro_rules | `(tactic| dl_leaf) => `(tactic| with_reducible exact dle_fl4ArchPerformInvocation _)
 
 end
 
