@@ -512,7 +512,7 @@ theorem decode_invocation_frame_capD [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
     (hAl : ErrRel (.Sys .AlignmentError) .alignmentError)
-    (hno : sz = .Large → d = false → ∀ x ∈ G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))

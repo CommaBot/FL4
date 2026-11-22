@@ -545,7 +545,7 @@ structure JFramePath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (s : S) (ar :
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (slbl : Fl4Spec.Data) (argsU : List U64) (ci : Fl4Spec.CapRef)
     (sl : Fl4Spec.CslotPtr) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)) (buffer : Option Fl4Spec.ObjRef)
     (ct : U64) : Prop where
-  hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+  hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
     Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
     Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x)

@@ -39,13 +39,17 @@ noncomputable section
 
 /-- **[J] FL4 (l4v `valid_cap` / the frame-cap overlap discipline,
 INV-PLAN P8; `JFramePath.hno` for every MDB slot at once)**: every MDB slot's
-large non-device frame cap is, against every MDB slot's cap, disjoint from
-it, or that cap is a non-revocable frame cap, or it lies within that cap.
-A statement about the state alone (no invocation): asked at the entry state
-and carried to the dispatch state (`largeFr_front`). -/
+large non-device frame cap is, against every MDB slot's physical cap,
+disjoint from it, or that cap is a non-revocable frame cap, or it lies within
+that cap. A statement about the state alone (no invocation): asked at the
+entry state and carried to the dispatch state (`largeFr_front`). Since g5j
+only physical caps are compared (the non-physical ones never meet the
+`same_region_as` test `DeriveSubframe`'s `InsFCtx.k2` reads), and so it is a
+theorem of every `JAtZ` (`JAtZ.largeFrOK`, XTopJointKEntryU2L: from
+`NoOverlap` in `MdbOKV`). -/
 def LargeFrOK (G : MdbGhost) (m : U64 → U64) : Prop :=
   ∀ y ∈ G.chains.flatten, ∀ (p rt : U64) (mp : Bool) (asid va : U64),
-    capV m y = .Frame p .Large rt false mp false asid va → ∀ x ∈ G.chains.flatten,
+    capV m y = .Frame p .Large rt false mp false asid va → ∀ x ∈ G.chains.flatten, physF (capV m x) = true →
       Disj (capV m x) (.Frame p .Large rt false mp false asid va) ∨
       (isFrame (capV m x) = true ∧ revOf m x = false) ∨
       Within (.Frame p .Large rt false mp false asid va) (capV m x)
@@ -53,12 +57,13 @@ def LargeFrOK (G : MdbGhost) (m : U64 → U64) : Prop :=
 /-- `LargeFrOK` across a step keeping every slot of the typed heap. -/
 theorem LargeFrOK.of_same {th : TypedHeap} {G : MdbGhost} {m m' : U64 → U64} (h : LargeFrOK G m)
     (hG : ∀ y ∈ G.chains.flatten, IsSlot th y) (hS : SlotsSame th m m') : LargeFrOK G m' := by
-  intro y hy p rt mp asid va hc x hx
+  intro y hy p rt mp asid va hc x hx hp
   have ex := hS.capV (hG x hx)
   have ey := hS.capV (hG y hy)
   have er : revOf m' x = revOf m x := by unfold revOf; rw [(hS x (hG x hx)).2.2.2]
+  rw [ex] at hp
   rw [ex, er]
-  exact h y hy p rt mp asid va (by rw [← ey]; exact hc) x hx
+  exact h y hy p rt mp asid va (by rw [← ey]; exact hc) x hx hp
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {th : TypedHeap}
@@ -327,12 +332,12 @@ theorem JPathAtM36E.to35E {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.
   have hP := h info mi buf buffer r2 er argsU h1 h2 h3 h4 h5 h6 h7 sl c e exs h8 h9 h10 h11 h12 h13
   cases c
   case Frame p sz rt d m ep asid va =>
-    refine ⟨hP, fun hep => ⟨fun hsz hd x hx => ?_⟩⟩
+    refine ⟨hP, fun hep => ⟨fun hsz hd x hx hpx => ?_⟩⟩
     subst hep hsz hd
     obtain ⟨q, hq1, hq2⟩ := h8
     have hy : cslotAddr sl ∈ Z.G.chains.flatten :=
       (hM.members _).2 ⟨AbsSlot.isSlot ⟨q, hq1, Or.inl hq2⟩, _, h9, fun h => by cases h⟩
-    exact hLF _ hy p rt m asid va (capV_of_capAt h9) x hx
+    exact hLF _ hy p rt m asid va (capV_of_capAt h9) x hx hpx
   all_goals exact hP
 
 /-- **`KDispHypsKV35E` with `JEntryAtR6` and `JPathAtM36E`.** -/

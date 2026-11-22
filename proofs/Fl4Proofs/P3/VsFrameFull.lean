@@ -45,7 +45,7 @@ theorem decode_invocation_frame_full [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     (hpaH : sz = .Huge → (core.num.U64.wrapping_sub p layout.PPTR_BASE &&& 4503598553628672#u64) =
       core.num.U64.wrapping_sub p layout.PPTR_BASE)
     (hAl : ErrRel (.Sys .AlignmentError) .alignmentError)
-    (hno : sz = .Large → d = false → ∀ x ∈ G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))

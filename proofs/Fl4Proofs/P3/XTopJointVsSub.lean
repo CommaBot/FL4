@@ -537,7 +537,7 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
     {pp : U64} {rs : Nat} (hpp : Z.th pp = some (.cnode rs)) {idx : List Bool} (hidx : idx.length = rs)
     {ptr rt fa fv : U64} {sz : capability.FrameSize} {dev mm : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm false fa fv))
-    (hno : sz = .Large → dev = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → dev = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm false fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))
@@ -714,9 +714,9 @@ theorem derive_subframeJ {s : S} {a : A} {σ : Fl4Spec.State Unit} {Ac : Set U64
       { R := hSt1, V := hSV1, M := hM1, C := hC1, I := hI1, U := UtInv.of_same hM hU hSS
         vs := J1.xtop.fin.2.1, pt := J1.xtop.fin.2.2.1, sr := J1.xtop.fin.1
         cap := by rw [hSS.capAt hs]; exact hcap, rev := hSS.revOf hs
-        no := fun x hx => by
+        no := fun x hx hp => by
           have hxs := ((hM.members x).1 hx).1
-          rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx
+          rw [hSS.capV hxs] at hp; rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx hp
         F := hFI1
         fr := fun w hw q vm h1 h2 hov => by
           have hws := ((hM.members w).1 hw).1
@@ -815,7 +815,7 @@ theorem decode_invocation_frame_dsJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))
@@ -889,7 +889,7 @@ theorem decode_invocation_frameJS [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p : U64} {sz : capability.FrameSize} {rt asid va : U64} {d m : Bool}
     (hcap : capAt (L.mem s) (cslotAddr (pc.bv, idx)) = ok (.Frame p sz rt d m false asid va))
-    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten,
+    (hno : sz = .Large → d = false → ∀ x ∈ Z.G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame p sz rt d m false asid va) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame p sz rt d m false asid va) (capV (L.mem s) x))

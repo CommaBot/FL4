@@ -89,7 +89,7 @@ structure SubRel {A : Type} (th : TypedHeap) (P L4 L3 L2 L1 : Set U64) (SR : S �
   sr : SR s a σ
   cap : capAt (L.mem s) src = ok srcC
   rev : revOf (L.mem s) src = rv
-  no : ∀ x ∈ G.chains.flatten, Disj (capV (L.mem s) x) srcC ∨
+  no : ∀ x ∈ G.chains.flatten, physF (capV (L.mem s) x) = true → Disj (capV (L.mem s) x) srcC ∨
     (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨ Within srcC (capV (L.mem s) x)
   F : FinInv th (L.mem s) σ G
   /-- The caps of the MDB naming a page of the large frame are frame caps in
@@ -413,7 +413,7 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
       hrev := fun y hy => by rw [hW.revOf' hy hsd]; rfl
       hfb := fun y hy => by rw [InsWords.fbOf' hW hy hsd]; rfl
       hsF := hsF, hcF := rfl, hcr := hcr, hcin := hcin
-      hno := fun x hx => by rw [capV_of_capAt hcap]; exact hno x hx }
+      hno := fun x hx hp => by rw [capV_of_capAt hcap]; exact hno x hx hp }
   have hrv' : revOf (L.mem s) src = rv := hrev
   have hI' : MdbInv (L.mem s') (insG G src dest rv) := by rw [← hrv']; exact hctx.inv
   have hU' : UtInv (L.mem s') (insG G src dest rv) :=
@@ -468,10 +468,10 @@ theorem sub_step {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {SR : S �
       (by rw [hctx.cd]; exact hcin) (by rw [hctx.cd]; exact hcr) (Vs.large_aligned hV hM)
       (fun z hz => hctx.cz hz) hctx.rd (fun z hz => hctx.rz hz) hq2 hqal
   refine ⟨σ', hci', ⟨hR', hV', hM', hC', hI', hU', hvs', hpt', hsr2, hcap', by rw [hctx.rz hsrcm]; exact hrev,
-    fun x hx => ?_, hFI', hfr', hFR', hVC'⟩, hF.1, hMS, fun y hy hyd => ?_⟩
+    fun x hx hp => ?_, hFI', hfr', hFR', hVC'⟩, hF.1, hMS, fun y hy hyd => ?_⟩
   · rcases (hctx.memI x).1 (by rw [← hrv'] at hx; exact hx) with rfl | hx
     · right; left; rw [hctx.cd, hctx.rd]; exact ⟨rfl, rfl⟩
-    · rw [hctx.cz hx, hctx.rz hx]; exact hno x hx
+    · rw [hctx.cz hx] at hp; rw [hctx.cz hx, hctx.rz hx]; exact hno x hx hp
   · rw [hW.capAt' hy he hes hcap, if_neg hyd]
     by_cases h2 : y = src
     · rw [if_pos h2, h2, hcap]; rfl
@@ -874,7 +874,7 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
     (hS : SR s a σ) (hVP : VsPlaced P (L.ksb s))
     (hVO : ∀ b, VsWrite P (L.ksb s) b → OutsideObjects th b) (hPO : ∀ b, PtWAll L4 L3 L2 L1 b → OutsideObjects th b)
     (hcap : capAt (L.mem s) (cslotAddr (pp.bv, idx)) = ok (.Frame ptr sz rt dev mm false fa fv))
-    (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten,
+    (hno : sz = .Large → dev = false → ∀ x ∈ G.chains.flatten, physF (capV (L.mem s) x) = true →
       Disj (capV (L.mem s) x) (.Frame ptr sz rt dev mm false fa fv) ∨
       (isFrame (capV (L.mem s) x) = true ∧ revOf (L.mem s) x = false) ∨
       Within (.Frame ptr sz rt dev mm false fa fv) (capV (L.mem s) x))
@@ -1045,9 +1045,9 @@ theorem derive_subframe_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P
         (revOf (L.mem s) (cslotAddr (pp.bv, idx))) s1 a σ1 G :=
       { R := hSt1, V := hSV1, M := hM1, C := hC1, I := MdbInv.of_same hM hI hSS, U := UtInv.of_same hM hU hSS
         vs := hR1, pt := hPt1, sr := hS1, cap := by rw [hSS.capAt hs]; exact hcap, rev := hSS.revOf hs
-        no := fun x hx => by
+        no := fun x hx hp => by
           have hxs := ((hM.members x).1 hx).1
-          rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx
+          rw [hSS.capV hxs] at hp; rw [hSS.capV hxs, hSS.revOf hxs]; exact hno' x hx hp
         F := hFI.of_same hM hSS ((ksub_of_eq (setThreadState_nks _ _) hst).trans (KSub.of_kheap rfl))
         fr := fun w hw q vm h1 h2 hov => by
           have hws := ((hM.members w).1 hw).1
