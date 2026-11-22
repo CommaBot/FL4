@@ -225,7 +225,7 @@ theorem TopSR.specAdd {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {s : S} {a : 
     ⟨fun i hi => by rw [hist]; exact hIrq.st i hi, fun i hi => by rw [hin]; exact hIrq.node i hi⟩,
     fun p hp => by rw [har]; exact hIo p hp, ?_, by rw [har]; exact hAr⟩,
     { hP with disj := fun x hx => hP.disj x (OObj.of_szKeep hz hx) }⟩
-  unfold KRootRel globCr3 at hKr ⊢
+  unfold KRootRel KRootW HugeRel globCr3 at hKr ⊢
   rw [har]; exact hKr
 
 

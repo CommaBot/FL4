@@ -103,7 +103,8 @@ theorem set_kernel_vm_root_ar (hRef : ArchRefines ar AR) (s : S) (a : A) (σ : F
   rw [kernel_root_eq]
   apply ok_bind_spec
   refine WP.spec_bind (hRef.setVspace a _ _ 0#u64 hA) fun a' h => (WP.spec_ok _).2 ⟨rfl, ?_⟩
-  unfold KRootRel at hKr
+  replace hKr := hKr.1
+  unfold KRootW at hKr
   rw [← hKr]; exact h
 
 /-- **`set_vm_root t` gives `AR` at the CR3 the spec's `setVmRoot t`

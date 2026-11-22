@@ -215,7 +215,7 @@ theorem XTopAt.fpuOwner (hX : XTopAt (L := L) AR Z s a σ) {a' : A} (ms : Fl4Spe
       machineState := ms, archState := { σ.archState with x64CurrentFpuOwner := o } } := by
   have hI := hX.fin.1.1.2.2.2.1
   exact hX.frameStep (P1.WritesIn.refl s (fun _ => False)) (fun _ h => h.elim) (fun _ h => h.elim)
-    (fun _ h => h.elim) id rfl rfl rfl rfl hum rfl rfl
+    (fun _ h => h.elim) id id rfl rfl rfl rfl hum rfl rfl rfl
     (hX.fin.1.1.1.spec_congr rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl) ⟨hI.st, hI.node⟩
     hX.fin.1.1.2.2.2.2.1 hX.rel.2.2.2.1 hAR
 

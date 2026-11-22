@@ -601,17 +601,16 @@ macro "map_tail_H" : tactic => `(tactic| (
   · have : ((a0 &&& 1073741823#u64) != 0#u64) = false := by simp [hal]
     simp only [this, Bool.false_eq_true, ↓reduceIte]
     -- #65: the size match binds `(fs, huge)`; a 1 GiB map needs the feature bit.
-    apply ok_bind_spec
-    dsimp only
-    simp only [↓reduceIte]
-    rw [huge_pages_eq]
+    first
+      | rw [huge_pages_eq]
+      | (apply ok_bind_spec; try dsimp only; try simp only [↓reduceIte]; rw [huge_pages_eq])
     apply ok_bind_spec
     have hHg : HugeRel (L.mem s) (L.ksb s) σ := hH.huge s a σ hS
     unfold HugeRel at hHg
     by_cases hhb : ((L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES) &&&
         layout.ks.FEATURE_HUGE_PAGES) != 0#u64) = true
     rotate_left
-    · have hσh : σ.archState.x64HugePages = false := by rw [← hHg]; simpa using hhb
+    · have hσh : σ.archState.x64HugePages = false := by rw [← hHg]; exact Bool.eq_false_iff.mpr hhb
       simp only [hhb, Bool.false_eq_true, ↓reduceIte, error.illegal, bind_ok]
       exact (WP.spec_ok _).2 (Or.inl ⟨_, .illegalOperation, rfl,
         Or.inl (Or.inl (show SysErrRel (.Sys .IllegalOperation) .illegalOperation from trivial)),

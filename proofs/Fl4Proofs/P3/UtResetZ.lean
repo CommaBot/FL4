@@ -101,7 +101,7 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       L.mem s' x = L.mem s x := fun x hx h1 h2 => hw.mem_eq hx fun hb => by
     have := hfar x hb; have := (hu x hb).al; unfold P1.Aligned at *; omega
   refine hX.frameStepV hw (fun x hx => (hu x hx).vobj) (fun x hx hf => ?_) (fun x hx hf => ?_)
-    (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
+    (fun hx => ?_) (fun hx => ?_) rfl rfl rfl rfl rfl rfl rfl rfl (hSch.ws_far hw fun b hb => (hu b hb).far) ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · have hu' := hu x hx
     have hbal : x.val % 8 = 0 := hu'.al
@@ -120,6 +120,11 @@ theorem XTopAt.userWs {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {
       have := hf2 t ht; have := (hT t ht).align; omega
   · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := hfar _ hx
+    rw [hkv] at this; omega
+  · have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := hfar _ hx
     rw [hkv] at this; omega

@@ -80,6 +80,7 @@ theorem vsFrameHypsL_top {A : Type} {arI : machine.Arch A} {AR : A → Fl4Spec.C
     VsFrameHypsL st A arI th P L4 L3 L2 L1 (TopSR st th P L4 L3 L2 L1 N T C E R B c AR) where
   capStable := fun s s' a σ σ' hS hw hc => capStable_top s s' a σ σ' hS hw hc
   map := vsMapHypsAll_top hA
+  huge := fun _ _ _ hS => hS.1.2.2.2.2.2.1.2
   restart := fun s a σ ct x hSt hSV hR hPt hS hcur hk htcb hact hrun =>
     WP.spec_mono (restart_full s a σ ct x hSt hSV hR hS hcur hk htcb hact hrun) fun _ h =>
       ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1 hPt, h.2.2.2.2.1, h.2.2.2.2.2.1⟩

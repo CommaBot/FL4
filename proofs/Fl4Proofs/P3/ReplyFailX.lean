@@ -93,12 +93,17 @@ theorem bufw_top {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} (s : S) (a : A) (�
     · have := nfoot_tcb_range (hSch.placed.tcb t ht) ht'
       have := hP.ep.bt wp hw t ht; omega
   have hKr' : KRootRel (L.mem (L.wr s wp.1 v)) (L.ksb (L.wr s wp.1 v)) σ1 := by
-    unfold KRootRel globCr3 at hKr ⊢
-    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
-      unfold layout.ks.KERNEL_ROOT
-      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
-    rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
-    exact hKr
+    refine ⟨?_, ?_⟩
+    · have hKr := hKr.1
+      unfold KRootW globCr3 at hKr ⊢
+      have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
+        unfold layout.ks.KERNEL_ROOT
+        simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+      rw [hksb, hmK _ (by unfold Aligned; rw [hkv]; omega) (by rw [hkv]; omega) (by rw [hkv]; omega)]
+      exact hKr
+    · rw [hksb]
+      have hfv := feat_val hkf
+      exact HugeRel.frame hKr.2 (hmK _ (by unfold Aligned; rw [hfv]; omega) (by rw [hfv]; omega) (by rw [hfv]; omega)) rfl
   refine ⟨hVs, hPt', ⟨⟨hS', hEp', hNt', ?_, ?_, hKr', hAr⟩, ?_⟩, hksb, hmV⟩
   · rw [hksb]; exact IrqRel.ksFrame hIrq hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl rfl
   · rw [hksb]; exact IoRel.ksFrame hIo hkf hka (fun b hb h1 h2 _ => hmK b hb h1 h2) rfl

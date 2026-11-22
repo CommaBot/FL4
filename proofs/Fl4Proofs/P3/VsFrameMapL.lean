@@ -268,7 +268,7 @@ theorem mapTailH_unaligned {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef}
   exact runE_bind_err (by rw [runE_unlessE_false ha']; rfl)
 
 /-- `ExceptT.run (m >>= f) s` depends on `m` only through `ExceptT.run m s`. -/
-theorem runE_bind_congr {ε α β : Type} {m m' : NonDetE (State Unit) ε α} {f : α → NonDetE (State Unit) ε β}
+theorem runE_bind_congrH {ε α β : Type} {m m' : NonDetE (State Unit) ε α} {f : α → NonDetE (State Unit) ε β}
     {s : State Unit} (h : ExceptT.run m s = ExceptT.run m' s) :
     ExceptT.run (m >>= f) s = ExceptT.run (m' >>= f) s := by
   show NonDet.bind (ExceptT.run m) (ExceptT.bindCont f) s = NonDet.bind (ExceptT.run m') (ExceptT.bindCont f) s
@@ -307,7 +307,7 @@ theorem mapTailH_noHuge {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  rw [runE_bind_congr (cme_huge_no hh _ _ _ _ _)]
+  rw [runE_bind_congrH (cme_huge_no hh _ _ _ _ _)]
   exact runE_bind_err (runE_throw _ σ)
 
 theorem mapTailH_noSlot {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : VMRights}
@@ -320,7 +320,7 @@ theorem mapTailH_noSlot {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  rw [runE_bind_congrH (cme_huge_ok hh _ _ _ _ _)]
   unfold lookupErrorOnFailure
   exact runE_bind_err (runE_bind_err (by rw [runE_handle_err hl]; rfl))
 
@@ -336,7 +336,7 @@ theorem mapTailH_ok {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R : V
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  rw [runE_bind_congrH (cme_huge_ok hh _ _ _ _ _)]
   unfold lookupErrorOnFailure
   rw [runE_bind_ok (runE_bind_ok (runE_handle_ok hl))]
   unfold ensureSafeMapping
@@ -355,7 +355,7 @@ theorem mapTailH_used {pm : ObjRef} {asid : Asid} {dev : Bool} {p : ObjRef} {R :
   rw [mapTailH_prefix hf]
   unfold checkVpAlignment
   rw [runE_bind_ok (runE_unlessE_true ha' _ σ)]
-  rw [runE_bind_congr (cme_huge_ok hh _ _ _ _ _)]
+  rw [runE_bind_congrH (cme_huge_ok hh _ _ _ _ _)]
   unfold lookupErrorOnFailure
   rw [runE_bind_ok (runE_bind_ok (runE_handle_ok hl))]
   unfold ensureSafeMapping

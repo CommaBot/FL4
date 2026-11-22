@@ -109,8 +109,8 @@ theorem XTopAt.dbgStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} 
     (hnw _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION]))
     (hnw _ (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
     ⟨rfl, rfl, fun _ => Or.inl rfl⟩
-  refine hX.frameStepV hw (fun b hb => ?_) (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_)
-    rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_ hX.fin.1.1.2.2.2.2.2.2
+  refine hX.frameStepV hw (fun b hb => ?_) (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) (fun hb => ?_)
+    rfl rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_ hX.fin.1.1.2.2.2.2.2.2
   · -- no VSpace object word
     rcases hb with ⟨y, hy, rfl | rfl⟩ | rfl
     · exact hP.disj _ (tcb_oobj hy (hT y hy) (by decide) (by decide))
@@ -147,6 +147,13 @@ theorem XTopAt.dbgStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} 
   · -- not the kernel root
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    rcases hV hb with ⟨y, hy, g1, g2⟩ | g
+    · rcases hko y hy with h' | h' <;> omega
+    · rw [hnb] at g; omega
+  · -- not the FEATURES word (#65)
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     rcases hV hb with ⟨y, hy, g1, g2⟩ | g
     · rcases hko y hy with h' | h' <;> omega

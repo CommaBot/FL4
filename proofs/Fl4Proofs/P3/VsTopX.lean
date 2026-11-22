@@ -525,7 +525,7 @@ theorem PtRel.clr5 {m m' : U64 → U64} {σ0 : Fl4Spec.State Unit} (hR : PtRel L
     · rw [hm _ ⟨q, Or.inr (Or.inr (Or.inr hq)), j, hj, rfl⟩ e]; exact hgf j hj
 
 theorem OStep.refl' (σ0 : Fl4Spec.State Unit) : OStep (fun _ => False) σ0 σ0 :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ h => absurd rfl h⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ h => absurd rfl h⟩
 
 /-- **`FinX` after the accessed-bit clear** (the spec unchanged: the bit is
 invisible to the relations). -/

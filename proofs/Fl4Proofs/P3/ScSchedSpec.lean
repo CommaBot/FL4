@@ -36,12 +36,13 @@ def SchKeep (σ σ' : State Unit) : Prop :=
     σ'.isOriginalCap = σ.isOriginalCap ∧ σ'.domainList = σ.domainList ∧ σ'.domainStartIndex = σ.domainStartIndex ∧
     σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts ∧
     σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 ∧
+    σ'.archState.x64HugePages = σ.archState.x64HugePages ∧
     σ'.archState.x64AsidTable = σ.archState.x64AsidTable ∧ σ'.interruptStates = σ.interruptStates ∧
     σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.idleSc = σ.idleSc
 
 theorem SchS.of_keep {σ σ' : State Unit} (h : SchKeep σ σ') : SchS σ σ' := by
-  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩ := h
-  exact ⟨⟨fun p => by rw [e1]; exact OTK.refl _ _, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12⟩,
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e8', e9, e10, e11, e12⟩ := h
+  exact ⟨⟨fun p => by rw [e1]; exact OTK.refl _ _, e2, e3, e4, e5, e6, e7, e8, e8', e9, e10, e11, e12⟩,
     ⟨fun p => by rw [e1]; exact ORel.refl _ _, e3, e4, e5, e6, e12⟩⟩
 
 /-- An update of `σ` at `p` with `o'`, related to the object there. -/
@@ -238,7 +239,7 @@ theorem schs_doMachineOp {α : Type} {mop : NonDet MachineState α} (h : MK mop)
   intro σ x hx
   obtain ⟨ms, hms, e⟩ := doMachineOp_mem2 (r := x.1) (σ' := x.2) hx
   rw [e]
-  exact SchS.of_keep ⟨rfl, h _ _ hms, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  exact SchS.of_keep ⟨rfl, h _ _ hms, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 end Machine
 
@@ -248,7 +249,7 @@ macro "schs_step0" : tactic => `(tactic| first
   | with_reducible exact schs_gets _ | with_reducible exact schs_get
   | with_reducible exact schs_assert _ | with_reducible exact schs_assertOpt _
   | with_reducible exact schs_getsThe _ | with_reducible exact schs_selectF _
-  | ((with_reducible apply schs_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
+  | ((with_reducible apply schs_modify); intro _; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩)
   | (with_reducible refine schs_bind ?_ (fun _ => ?_))
   | (with_reducible refine schs_bind' ?_ (fun _ => ?_))
   | (with_reducible apply schs_ite) | (with_reducible apply schs_when)

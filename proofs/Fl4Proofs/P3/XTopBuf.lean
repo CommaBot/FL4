@@ -138,7 +138,7 @@ theorem TopSR.bufStep {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHe
   obtain ⟨k, rfl, -⟩ := hT
   exact ⟨⟨SchedRel.bufFrame hSch h, EpStateRel.bufFrame hEp h, NtfnStateRel.bufFrame hNt h,
     ⟨fun i hi => hIrq.st i hi, fun i hi => hIrq.node i hi⟩, fun p hp => hIo p hp,
-    by unfold KRootRel globCr3 at hKr ⊢; exact hKr, hAr⟩,
+    by unfold KRootRel KRootW HugeRel globCr3 at hKr ⊢; exact hKr, hAr⟩,
     ⟨hP.ep, hP.vs, hP.pt, hP.pl, fun x hx => hP.disj x (OObj.of_bufStep h hx), hP.nodeE,
       hP.po, hP.ps, hP.pv, hP.vo, hP.sd, hP.tko⟩⟩
 
@@ -249,7 +249,7 @@ theorem XTopAt.tcbWrA {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
       exact hne _ (P1.nodeAt_aligned hN (by simp [layout.node.REPROGRAM]) (by simp [layout.node.REPROGRAM]))
         (by rw [P1.nodeAt_val hN (by simp [layout.node.REPROGRAM])]; simp only [layout.node.REPROGRAM]; simp; omega)
   refine hX.frameStep hw (fun b hb => by subst hb; exact Or.inr (Or.inr (Or.inl ⟨t, ht, by omega, by omega⟩)))
-    (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_
+    (fun b hb hf => ?_) (fun b hb hf => ?_) (fun hb => ?_) (fun hb => ?_) rfl rfl rfl rfl rfl rfl rfl rfl hSch' ?_ ?_ ?_
     hX.fin.1.1.2.2.2.2.2.2
   · -- not read by the endpoint relation
     subst hb
@@ -277,6 +277,12 @@ theorem XTopAt.tcbWrA {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s : S} {a :
   · -- not the kernel root
     have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.KERNEL_ROOT).val = (L.ksb s).val + 48 := by
       unfold layout.ks.KERNEL_ROOT
+      simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+    have := congrArg UScalar.val hb
+    rw [hkv, hwv] at this; omega
+  · -- not the FEATURES word (#65)
+    have hkv : (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES).val = (L.ksb s).val + 72 := by
+      unfold layout.ks.FEATURES
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have := congrArg UScalar.val hb
     rw [hkv, hwv] at this; omega

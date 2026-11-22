@@ -74,6 +74,7 @@ structure OStep (Rg : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   io : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
+  huge : σ'.archState.x64HugePages = σ.archState.x64HugePages
   kh : ∀ q, σ'.kheap q ≠ σ.kheap q → (Rg q ∨ Passive (σ.kheap q)) ∧ Passive (σ'.kheap q)
 
 theorem OStep.keep {Rg : ObjRef → Prop} {σ σ' : State Unit} (h : OStep Rg σ σ') {q : ObjRef}
@@ -93,7 +94,7 @@ theorem OStep.trans {Rg Rg' : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : 
   refine ⟨h2.rq.trans h1.rq, h2.rel.trans h1.rel, h2.ct.trans h1.ct, h2.act.trans h1.act, h2.csc.trans h1.csc,
     h2.ctime.trans h1.ctime, h2.cons.trans h1.cons, h2.repr.trans h1.repr, h2.cdom.trans h1.cdom,
     h2.dtime.trans h1.dtime, h2.idle.trans h1.idle, h2.isc.trans h1.isc, h2.ist.trans h1.ist, h2.inode.trans h1.inode,
-    h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, fun q hq => ?_⟩
+    h2.io.trans h1.io, h2.gpml4.trans h1.gpml4, h2.huge.trans h1.huge, fun q hq => ?_⟩
   by_cases e1 : σ2.kheap q = σ1.kheap q
   · have e2 : σ3.kheap q ≠ σ2.kheap q := by rw [e1]; exact hq
     obtain ⟨a, b⟩ := h2.kh q e2
@@ -107,7 +108,7 @@ theorem OStep.trans {Rg Rg' : ObjRef → Prop} {σ1 σ2 σ3 : State Unit} (h1 : 
 
 theorem OStep.mono {Rg Rg' : ObjRef → Prop} {σ σ' : State Unit} (h : OStep Rg σ σ') (hr : ∀ q, Rg q → Rg' q) :
     OStep Rg' σ σ' :=
-  ⟨h.rq, h.rel, h.ct, h.act, h.csc, h.ctime, h.cons, h.repr, h.cdom, h.dtime, h.idle, h.isc, h.ist, h.inode, h.io, h.gpml4,
+  ⟨h.rq, h.rel, h.ct, h.act, h.csc, h.ctime, h.cons, h.repr, h.cdom, h.dtime, h.idle, h.isc, h.ist, h.inode, h.io, h.gpml4, h.huge,
     fun q hq => ⟨(h.kh q hq).1.imp (hr q) id, (h.kh q hq).2⟩⟩
 
 theorem passive_tcb {x : Tcb} : ¬ Passive (some (.tcb x)) := by
@@ -124,7 +125,7 @@ theorem passive_sc {x : SchedContext} {n : Nat} : ¬ Passive (some (.schedContex
 theorem OStep.cnode {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {r : Nat} {cs : Fl4Spec.CnodeContents}
     (hk : σ.kheap p = some (.cnode r cs)) (idx : List Bool) (a : Fl4Spec.Cap) :
     OStep (fun _ => False) σ (setCnodeSlot σ p r cs idx a) := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
   by_cases e : q = p
   · subst e
     exact ⟨Or.inr (Or.inr (Or.inl ⟨r, cs, hk⟩)), Or.inr (Or.inl ⟨r, Function.update cs idx (some a), by simp [setCnodeSlot]⟩)⟩
@@ -133,7 +134,7 @@ theorem OStep.cnode {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} {r : Nat} {cs
 theorem OStep.arch {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} (hk : Passive (σ.kheap p))
     (ao' : Fl4Spec.ArchKernelObj) :
     OStep (fun _ => False) σ (updK σ p (.archObj ao')) := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
+  refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
   by_cases e : q = p
   · subst e
     exact ⟨Or.inr hk, Or.inr (Or.inr ⟨ao', by simp⟩)⟩
@@ -141,7 +142,7 @@ theorem OStep.arch {σ : Fl4Spec.State Unit} {p : Fl4Spec.ObjRef} (hk : Passive 
 
 theorem OStep.table {σ : Fl4Spec.State Unit} (t : Fl4Spec.AsidHighIndex → Option Fl4Spec.ObjRef) :
     OStep (fun _ => False) σ { σ with archState := { σ.archState with x64AsidTable := t } } :=
-  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
 
 end OSpec
 
@@ -633,7 +634,7 @@ theorem mp_perform_relB {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
         rw [Function.update_of_ne hppp, hpd0]
       have h3 := OStep.cnode hkpd idxd A
       have h4 : OStep (fun _ => False) (setCnodeSlot τr pd.bv rd csd idxd A) τi :=
-        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
+        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun _ hq => absurd rfl hq⟩
       have h5 := OStep.table (σ := τi) (Function.update τi.archState.x64AsidTable (Fl4Spec.asidHighBitsOf base.bv)
         (some p.bv))
       exact ((((h1.trans h2).trans h3).trans h4).trans h5).mono (fun q h => by simp at h)
@@ -836,7 +837,7 @@ theorem mp_perform_relB {A : Type} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
       show p.val % 8 = 0; omega) (show p.bv.toNat + 2 ^ 12 ≤ 2 ^ 64 from hpfit) hy
     have hO1 : OStep (fun q => q ∈ Fl4Proofs.P3.regionSet p.bv 12) σ y.2 := by
       rw [hy2]
-      refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
+      refine ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, fun q hq => ?_⟩
       simp only [Fl4Spec.detype] at hq ⊢
       split_ifs at hq ⊢ with h
       · exact ⟨Or.inl h, Or.inl rfl⟩
