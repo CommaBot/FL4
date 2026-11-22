@@ -16413,3 +16413,15 @@ s27-full1 (tokyo, seeded from FL4-g7e): `Build completed successfully (7237 jobs
 No FINDING (`GpmOutV` holds at boot and is kept by every spec writer through the existing domination proofs). C26
 `devFree` (g7a-4 (3), L) and D7 (g7a-4 (2), L) remain; `GpmOutV` is not reusable for C26 (a free-part fact, not a
 global ref).
+
+## sd7-2 (branch par/sd7b from int/j3 b21d7502 = U12 + U13 merged) — combined top **`kernel_entry_reachU15`** = U11 without C27 and D7; no premise added; no FINDING
+- New module XTopJointKEntryU15 only (root import added; nothing else edited). `JReachU15 := JReachU3 ∧ GpmOutV ∧
+  IdleVtS` (abbrev; `JReachU15.start`). Proof: U12 at `⟨hJ.1, hJ.2.1⟩` (C27 via `devGpm_of` inside U12), finish bundles
+  `KFinAtR13` / `KFinEv13` converted by U13's `.to11` with `front_idleVtS` / `handleE_idleVtS`; each exit's
+  `JReachU12` destructured to `JReachU3 ∧ GpmOutV` (s27's `kentry_gpmOut` / `kcall_gpmOut` / `fipEv_gpmOut`) and
+  `IdleVtS σ'` added (`kentry_idleVtS`, `evOut_idleVtS`).
+- Premises vs U11: removed C27 `devGpm` [J] (`KDispHypsKVU12`) and D7 `idle` [J] (`KFinAtR13`, `KFinEv13`); added none
+  (both start facts at the one start state). [J] at U15: C4, C16, C17, C21, C22, C23, C24×3, C25, C26 (11); [W] 0.
+- Builds: sd7-m5 (U15 module, 7156 jobs, green first try); **sd7-full2** (full build at f17afe07, also the merge check of
+  b21d7502): "Build completed successfully (7251 jobs)", 0 `error`, 0 `sorry`. `#print axioms` U15, U12, U13, U11 and the
+  older tops: propext, Classical.choice, Quot.sound.
