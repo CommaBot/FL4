@@ -7,6 +7,7 @@ copied names suffixed `ZR`); the proofs are the originals' except where
 `cur` (now `CurInvR`, XTopJointJAtZR) is framed. Each section is headed by
 its origin module.
 -/
+import Fl4Proofs.P3.SchedIdx
 import Fl4Proofs.P3.XTopJointJAtZRA
 import Fl4Proofs.P3.XTopJointJAtZRS
 import Fl4Proofs.P3.ScNextDomCFR
@@ -1201,7 +1202,7 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have h40 : o.val ≠ 40 := by
       simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-      rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+      rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
     exact hne _ (by unfold P1.Aligned; rw [e]; omega) (by rw [e]; omega)⟩
   have hD := hX.rel.2.2.2.1
   have hAR := hX.fin.1.1.2.2.2.2.2.2
@@ -2014,12 +2015,12 @@ variable {AR : A → Fl4Spec.Cr3 → Prop}
 /-- **`JAtZR` at the fake state** (module docstring). -/
 theorem JAtZR.ndFJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (v16 v24 v40 : U64) (di : Nat) :
+    (v16 v24 v40 : U64) (di : Nat) (h24 : v24 = 0#u64) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZR (L := L) arI AR Z H Cs Ac' Lst' D' (ndF (L := L) s (L.ksb s) v16 v24 v40) a (ndFSt σ v16.bv di) := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
-  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka)
+  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka h24)
   obtain ⟨Ac2, Lst2, J2⟩ := J1.workUnitsJD (arI := arI) v40
   have e : core.num.U64.wrapping_add (L.ksb (ndF2 (L := L) s (L.ksb s) v16 v24)) layout.ks.WORK_UNITS =
       ksW (L.ksb s) 40#u64 := by
@@ -2086,13 +2087,19 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
-  refine WP.spec_mono (WP.spec_and (WP.spec_and
+  -- g7a: the `DOM_SCHED_IDX` word stays 0 (SchedIdx)
+  have hIdx := P1.sched.schedule.idx hAT hNt s a hB J.kern.ksbFit J.kern.ksbAl
+    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc))
+    (fun s1 hf1 => fire_ks_of J.kern.ksbFit J.kern.ksbAl J.kern.hks J.kern.heap
+      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1)
+    (idxI_of J.xtop.rel.2.2.2.1 J.xtop.fin.1.1.1 hd)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
     (jat_scheduleWP0FZR s a σ J hd hnd hAT P hP hSig hA hAN hFO hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
-      hTail)) ?_
-  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
-    hkw⟩, ⟨htinv, hRest⟩⟩
-  simp only [WP.uncurry'_pair] at hkw htinv
+      hTail)) hIdx) ?_
+  rintro ⟨s', a'⟩ ⟨⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
+    hkw⟩, ⟨htinv, hRest⟩⟩, h24'⟩
+  simp only [WP.uncurry'_pair] at hkw htinv h24'
   obtain ⟨rf', hrf', -, hkw⟩ := hkw
   obtain rfl : rf = rf' := by simpa using (hrf'.symm.trans hfr).symm
   have hTl := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
@@ -2105,7 +2112,7 @@ theorem jat_scheduleFR2ZR {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     with hs0
   set σ0 := ndFSt σ1 (L.mem s' (ksW kb 16#u64)).bv σ'.domainIndex with hσ0
   obtain ⟨Ac0, Lst0, D0, J0⟩ := J1.ndFJ (L.mem s' (ksW kb 16#u64)) (L.mem s' (ksW kb 24#u64))
-    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex
+    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex (by rw [← hkf] at h24'; exact h24')
   have hw0 : P1.WritesIn st s0 s' (KFoot st Z.T Z.N Z.C Z.c s0 σ0) := ndF_writes σ'.domainIndex hkf1 hka1 hw
   have hk0 : L.ksb s0 = L.ksb rf.1 := ndF_ksb _ _ _ _ _
   have hks' : L.ksb s' = L.ksb s := hkw.1.trans hkf

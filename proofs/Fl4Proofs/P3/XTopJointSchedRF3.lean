@@ -28,6 +28,7 @@ pre-state*:
 (NdOK's [J] facts at the entry, sch2/sch3) and `ArchNdF` [P]; `hTail`'s
 footprint is `KFootN`. They supersede the `F` versions.
 -/
+import Fl4Proofs.P3.SchedIdx
 import Fl4Proofs.P3.XTopJointSchedRF2
 import Fl4Proofs.P3.XTopJointCopyRegs
 import Fl4Proofs.P3.XTopJointPP
@@ -57,7 +58,7 @@ def ndFSt (σ : Fl4Spec.State Unit) (dt : BitVec 64) (di : Nat) : Fl4Spec.State 
 /-- **The DOMAIN_TIME / DOM_SCHED_IDX writes as a scheduler step** (as
 DomDecode's `schedStep_start`, without the start word). -/
 theorem schedStep_dom2 (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb : U64} (v16 v24 : U64) (di : Nat)
-    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) :
+    (hk1 : L.ksb s1 = kb) (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka : kb.val % 8 = 0) (h24 : v24 = 0#u64) :
     SchedStep (L := L) th s1 σ1 (ndF2 (L := L) s1 kb v16 v24) (ndFSt σ1 v16.bv di) := by
   subst hk1
   set kb := L.ksb s1
@@ -78,7 +79,8 @@ theorem schedStep_dom2 (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb 
     rw [h16]
   · obtain ⟨hl1, hent1, hst1⟩ := domRel_iff.2 hD
     refine domRel_iff.1 ⟨hl1, fun i hi => ?_, by
-      rw [hw4 _ (by decide) (by decide) (by decide) (by decide)]; exact hst1⟩
+      rw [hw4 _ (by decide) (by decide) (by decide) (by decide)]; exact hst1.1, by
+      rw [ndF2, mem_ks_same _ _ hkf hka (by decide) (by decide)]; exact h24⟩
     obtain ⟨b1, b2, b3, b4, -, b6, b7, -, b9, b10⟩ := dur_off_bounds hi
     rw [hw4 _ b1 b2 b6 b7, hw4 _ b3 b4 b9 b10]
     exact hent1 i hi
@@ -148,12 +150,12 @@ theorem SchS.ndF {σ σ' : Fl4Spec.State Unit} (h : SchS σ σ') (dt : BitVec 64
 /-- **`JAtZ` at the fake state** (module docstring). -/
 theorem JAtZ.ndFJ {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (v16 v24 v40 : U64) (di : Nat) :
+    (v16 v24 v40 : U64) (di : Nat) (h24 : v24 = 0#u64) :
     ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac' Lst' D' (ndF (L := L) s (L.ksb s) v16 v24 v40) a (ndFSt σ v16.bv di) := by
   have hkf := J.kern.ksbFit
   have hka := J.kern.ksbAl
-  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka)
+  obtain ⟨Ac1, Lst1, D1, J1⟩ := J.schedJ (schedStep_dom2 Z.th s σ v16 v24 di rfl hkf hka h24)
   obtain ⟨Ac2, Lst2, J2⟩ := J1.workUnitsJD (arI := arI) v40
   have e : core.num.U64.wrapping_add (L.ksb (ndF2 (L := L) s (L.ksb s) v16 v24)) layout.ks.WORK_UNITS =
       ksW (L.ksb s) 40#u64 := by
@@ -218,13 +220,19 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   have hNt : ∀ n ∈ P1.Heap.ntfns H, H n = some .ntfn := fun _ h => h
   have hal : P1.Aligned (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     P1.nodeAt_aligned (hq.nodes 0#u64 h0Cs) (by simp) (by simp)
-  refine WP.spec_mono (WP.spec_and (WP.spec_and
+  -- g7a: the `DOM_SCHED_IDX` word stays 0 (SchedIdx)
+  have hIdx := P1.sched.schedule.idx hAT hNt s a hB J.kern.ksbFit J.kern.ksbAl
+    (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc))
+    (fun s1 hf1 => fire_ks_of J.kern.ksbFit J.kern.ksbAl J.kern.hks J.kern.heap
+      (J.kwApartJ (s' := s) rfl (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc)) (fun c hc => J.blk.2.2.1.2.2.tm.npl c hc) hf1)
+    (idxI_of J.xtop.rel.2.2.2.1 J.xtop.fin.1.1.1 hd)
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
     (jat_scheduleWP0F s a σ J hd hnd hAT hSig hA hAN hFO hsni hsend hT)
     (P1.sched.schedule.kw hAT hNt s a hB)) (WP.spec_and (P1.sched.schedule.tinv hAT hNt s a Q R hq hBd hSc hXi hSg)
-      hTail)) ?_
-  rintro ⟨s', a'⟩ ⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
-    hkw⟩, ⟨htinv, hRest⟩⟩
-  simp only [WP.uncurry'_pair] at hkw htinv
+      hTail)) hIdx) ?_
+  rintro ⟨s', a'⟩ ⟨⟨⟨⟨σ1, σ', hF, hsc, hS', hR', hN', hI', hC', hA', rf, ⟨⟨V1, Ac1, Lst1, D1, J1⟩, hfr, hkf, -⟩, hw, hrun⟩,
+    hkw⟩, ⟨htinv, hRest⟩⟩, h24'⟩
+  simp only [WP.uncurry'_pair] at hkw htinv h24'
   obtain ⟨rf', hrf', -, hkw⟩ := hkw
   obtain rfl : rf = rf' := by simpa using (hrf'.symm.trans hfr).symm
   have hTl := hRest rf σ1 σ' D1 hF hsc hw hS' hI' hC' hA'
@@ -237,7 +245,7 @@ theorem jat_scheduleFR2 {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     with hs0
   set σ0 := ndFSt σ1 (L.mem s' (ksW kb 16#u64)).bv σ'.domainIndex with hσ0
   obtain ⟨Ac0, Lst0, D0, J0⟩ := J1.ndFJ (L.mem s' (ksW kb 16#u64)) (L.mem s' (ksW kb 24#u64))
-    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex
+    (L.mem s' (ksW kb 40#u64)) σ'.domainIndex (by rw [← hkf] at h24'; exact h24')
   have hw0 : P1.WritesIn st s0 s' (KFoot st Z.T Z.N Z.C Z.c s0 σ0) := ndF_writes σ'.domainIndex hkf1 hka1 hw
   have hk0 : L.ksb s0 = L.ksb rf.1 := ndF_ksb _ _ _ _ _
   have hks' : L.ksb s' = L.ksb s := hkw.1.trans hkf

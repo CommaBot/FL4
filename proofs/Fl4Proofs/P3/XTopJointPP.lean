@@ -83,7 +83,7 @@ theorem JAtZ.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
       simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
     have h40 : o.val ≠ 40 := by
       simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-      rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+      rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
     exact hne _ (by unfold P1.Aligned; rw [e]; omega) (by rw [e]; omega)⟩
   have hD := hX.rel.2.2.2.1
   have hAR := hX.fin.1.1.2.2.2.2.2.2

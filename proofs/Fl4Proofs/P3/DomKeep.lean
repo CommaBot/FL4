@@ -23,11 +23,11 @@ open fl4_core Classical
 noncomputable section
 
 /-- The offsets of the domain schedule's words in the kernel-global area. -/
-def domOffs0 : List U64 := [32#u64, 192#u64, 200#u64, 208#u64, 216#u64]
+def domOffs0 : List U64 := [24#u64, 32#u64, 192#u64, 200#u64, 208#u64, 216#u64]
 
 theorem domOffs0_lt {o : U64} (ho : o ∈ domOffs0) : o.val < 256 ∧ o.val % 8 = 0 := by
   simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+  rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
@@ -110,7 +110,7 @@ theorem DK4.irqSt {s : S} (hf : (L.ksb s).val + 13568 ≤ 2 ^ 64) (ha : (L.ksb s
   refine DK4.wr hf ha (by unfold P1.Aligned; rw [hv]; omega) (Or.inr (Or.inr fun o ho => ?_)) v
   have := (domOffs0_lt ho).1
   simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rw [hv]; rcases ho with rfl | rfl | rfl | rfl | rfl <;> simp <;> omega
+  rw [hv]; rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> simp <;> omega
 
 /-- **`set_thread_state` of a TCB.** -/
 theorem sts_dk4 {th : TypedHeap} (hP : Placed th) {s : S} (hD : DomPlaced (L := L) th s) {t : U64}

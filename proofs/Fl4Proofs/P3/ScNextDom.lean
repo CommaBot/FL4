@@ -178,7 +178,7 @@ theorem next_domain_words {m : U64 → U64} {kb : U64} {σ : Fl4Spec.State Unit}
       m (ksW kb (entOff 0#u64)) = 0#u64 ∧
       σ.domainList[0]? = some ((0 : Fl4Spec.Domain), (BitVec.ofNat 56 (m (ksW kb (durOff 0#u64))).val : Fl4Spec.DomainDuration)) ∧
       Fl4Spec.ucast 64 (BitVec.ofNat 56 (m (ksW kb (durOff 0#u64))).val) = (m (ksW kb (durOff 0#u64))).bv := by
-  obtain ⟨hl, hent, hst⟩ := hD
+  obtain ⟨hl, hent, hst, -⟩ := hD
   have hi := hV.idx0 hl
   have hs := hV.start0 hl
   obtain ⟨l0, d0, u0, -⟩ := hent 0#u64 (by decide)

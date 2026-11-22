@@ -93,9 +93,9 @@ theorem restart_ut {th : TypedHeap} (hP : Placed th) {s s0 : S} (hD : DomPlaced 
   · rw [L.mem_wr_ne hD.actAl hDWal (Ne.symm hDWne.2), L.mem_wr_ne hsta hDWal (Ne.symm hDWne.1)]
 
 theorem domOffs0_val {o : U64} (ho : o ∈ domOffs0) :
-    o.val = 32 ∨ o.val = 192 ∨ o.val = 200 ∨ o.val = 208 ∨ o.val = 216 := by
+    o.val = 24 ∨ o.val = 32 ∨ o.val = 192 ∨ o.val = 200 ∨ o.val = 208 ∨ o.val = 216 := by
   simp only [domOffs0, List.mem_cons, List.mem_nil_iff, or_false] at ho
-  rcases ho with rfl | rfl | rfl | rfl | rfl <;> simp
+  rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> simp
 
 /-- Node 0 placed, from the current core's node. -/
 theorem nodePlaced_zero {s : S} (hN : P1.NodePlaced st ∅ s (L.cpu s)) : P1.NodePlaced st ∅ s 0#u64 := by
@@ -183,7 +183,7 @@ theorem reset_ut {A' : Type} (arI : machine.Arch A') (hA : P0.ArchTotal arI) {th
       have := (domOffs0_lt ho).1; omega), hq1, hq2, hW.2.2 _ ?_ (hnot _ (Or.inr hdv) (fun h => by omega)
       fun _ => ⟨hDWobj, hDWreg⟩)⟩
   · left; have := (domOffs0_lt ho).1
-    rcases domOffs0_val ho with e | e | e | e | e <;> constructor <;> omega
+    rcases domOffs0_val ho with e | e | e | e | e | e <;> constructor <;> omega
   · unfold P1.Aligned; rw [hdv]; omega
 
 /-- **The creation's frame keeps the domain words**: the slot words, the

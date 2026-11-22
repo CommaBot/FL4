@@ -200,8 +200,12 @@ theorem durOff_val {i : U64} (h : i.val < 2) : (durOff i).val = 200 + 16 * i.val
 
 /-- **The domain schedule relation**: FL4's table (domain and duration
 words, a zero duration only with domain 0) is the spec's `domain_list`, of
-`NUM_DOMAIN_SCHEDULES` = 2 entries, and the `DOM_SCHED_START` word its
-`domain_start_index`. -/
+`NUM_DOMAIN_SCHEDULES` = 2 entries, the `DOM_SCHED_START` word its
+`domain_start_index`, and (g7a) the `DOM_SCHED_IDX` word 0: with two entries
+the spec's `domain_index` is 0 at every `DomListOK` state (`DomListOK.idx0`),
+and FL4 writes the word only in `domain_set_start` (`NUM_DOMAIN_SCHEDULES - 2
+= 0`, `startS`) and `next_domain` (entry 1 is the end marker, so the start
+index 0, `ndS`). -/
 def DomRel (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
   σ.domainList.length = 2 ∧
   (∀ i : U64, i.val < 2 →
@@ -209,7 +213,7 @@ def DomRel (m : U64 → U64) (kb : U64) (σ : Fl4Spec.State Unit) : Prop :=
       BitVec.ofNat 56 (m (ksW kb (durOff i))).val) ∧
     (m (ksW kb (entOff i))).val < 2 ^ 8 ∧ (m (ksW kb (durOff i))).val < 2 ^ 56 ∧
     (m (ksW kb (durOff i)) = 0#u64 → m (ksW kb (entOff i)) = 0#u64)) ∧
-  σ.domainStartIndex = (m (ksW kb 32#u64)).val
+  σ.domainStartIndex = (m (ksW kb 32#u64)).val ∧ m (ksW kb 24#u64) = 0#u64
 
 /-- `DomRel` is StepSem's `DomRelW`. -/
 theorem domRel_iff {m : U64 → U64} {kb : U64} {σ : Fl4Spec.State Unit} : DomRel m kb σ ↔ DomRelW m kb σ :=
@@ -218,27 +222,29 @@ theorem domRel_iff {m : U64 → U64} {kb : U64} {σ : Fl4Spec.State Unit} : DomR
 /-- The words of the domain schedule are the same. -/
 def DomSame (m m' : U64 → U64) (kb : U64) : Prop :=
   m' (ksW kb 32#u64) = m (ksW kb 32#u64) ∧
-  ∀ i : U64, i.val < 2 → m' (ksW kb (entOff i)) = m (ksW kb (entOff i)) ∧
-    m' (ksW kb (durOff i)) = m (ksW kb (durOff i))
+  (∀ i : U64, i.val < 2 → m' (ksW kb (entOff i)) = m (ksW kb (entOff i)) ∧
+    m' (ksW kb (durOff i)) = m (ksW kb (durOff i))) ∧
+  m' (ksW kb 24#u64) = m (ksW kb 24#u64)
 
-theorem DomSame.refl (m : U64 → U64) (kb : U64) : DomSame m m kb := ⟨rfl, fun _ _ => ⟨rfl, rfl⟩⟩
+theorem DomSame.refl (m : U64 → U64) (kb : U64) : DomSame m m kb := ⟨rfl, fun _ _ => ⟨rfl, rfl⟩, rfl⟩
 
 theorem DomSame.trans {m1 m2 m3 : U64 → U64} {kb : U64} (h1 : DomSame m1 m2 kb) (h2 : DomSame m2 m3 kb) :
     DomSame m1 m3 kb :=
-  ⟨h2.1.trans h1.1, fun i hi => ⟨(h2.2 i hi).1.trans (h1.2 i hi).1, (h2.2 i hi).2.trans (h1.2 i hi).2⟩⟩
+  ⟨h2.1.trans h1.1, fun i hi => ⟨(h2.2.1 i hi).1.trans (h1.2.1 i hi).1, (h2.2.1 i hi).2.trans (h1.2.1 i hi).2⟩,
+    h2.2.2.trans h1.2.2⟩
 
 theorem DomRel.of_same {m m' : U64 → U64} {kb : U64} {σ σ' : Fl4Spec.State Unit} (h : DomRel m kb σ)
     (hs : DomSame m m' kb) (hl : σ'.domainList = σ.domainList) (hst : σ'.domainStartIndex = σ.domainStartIndex) :
     DomRel m' kb σ' := by
-  obtain ⟨h1, h2, h3⟩ := h
-  refine ⟨by rw [hl]; exact h1, fun i hi => ?_, by rw [hst, hs.1]; exact h3⟩
-  rw [(hs.2 i hi).1, (hs.2 i hi).2, hl]; exact h2 i hi
+  obtain ⟨h1, h2, h3, h4⟩ := h
+  refine ⟨by rw [hl]; exact h1, fun i hi => ?_, by rw [hst, hs.1]; exact h3, by rw [hs.2.2]; exact h4⟩
+  rw [(hs.2.1 i hi).1, (hs.2.1 i hi).2, hl]; exact h2 i hi
 
 /-- A write to an aligned word outside the domain schedule keeps it. -/
 theorem domSame_wr {kb a v : U64} (hf : kb.val + 13568 ≤ 2 ^ 64) (hkb : kb.val % 8 = 0) (ha : P1.Aligned a)
-    (hout : ∀ o : U64, o.val < 256 → (ksW kb o).val ≠ a.val ∨ o.val ∉ ({32, 192, 200, 208, 216} : Finset Nat))
+    (hout : ∀ o : U64, o.val < 256 → (ksW kb o).val ≠ a.val ∨ o.val ∉ ({24, 32, 192, 200, 208, 216} : Finset Nat))
     (s : S) : DomSame (L.mem s) (L.mem (L.wr s a v)) kb := by
-  have hw : ∀ o : U64, o.val ∈ ({32, 192, 200, 208, 216} : Finset Nat) →
+  have hw : ∀ o : U64, o.val ∈ ({24, 32, 192, 200, 208, 216} : Finset Nat) →
       L.mem (L.wr s a v) (ksW kb o) = L.mem s (ksW kb o) := by
     intro o ho
     have ho' : o.val < 256 := by simp at ho; omega
@@ -246,7 +252,7 @@ theorem domSame_wr {kb a v : U64} (hf : kb.val + 13568 ≤ 2 ^ 64) (hkb : kb.val
     rcases hout o ho' with h | h
     · exact L.mem_wr_ne ha (by unfold P1.Aligned; rw [hv]; simp at ho; omega) (Ne.symm h)
     · exact absurd ho h
-  refine ⟨hw _ (by simp), fun i hi => ⟨hw _ ?_, hw _ ?_⟩⟩
+  refine ⟨hw _ (by simp), fun i hi => ⟨hw _ ?_, hw _ ?_⟩, hw _ (by simp)⟩
   · rw [entOff_val hi]; simp; omega
   · rw [durOff_val hi]; simp; omega
 
@@ -393,7 +399,7 @@ theorem dom_restart (th : TypedHeap) (hP : Placed th) (s : S) (σ : Fl4Spec.Stat
       rw [e4] at this; exact this ⟨by omega, by omega⟩
     · exact fun e => hactK o ho e.symm
   have hDS : DomSame (L.mem s) (L.mem s1) (L.ksb s) := by
-    refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩⟩ <;>
+    refine ⟨hw _ (by decide) (by decide), fun i hi => ⟨hw _ ?_ ?_, hw _ ?_ ?_⟩, hw _ (by decide) (by decide)⟩ <;>
       first | (rw [entOff_val hi]; omega) | (rw [durOff_val hi]; omega)
   refine ⟨s1, hs1, hS, hkb, σ1, hst1, ?_⟩
   have hK := ksub_of_eq (setThreadState_nks _ _) hst1
@@ -606,7 +612,8 @@ theorem schedStep_start (th : TypedHeap) (s1 : S) (σ1 : Fl4Spec.State Unit) {kb
   · show (0 : BitVec 64) = (L.mem (startS (L := L) s1 kb y0) (ksW kb 16#u64)).bv
     rw [h16]; rfl
   · obtain ⟨hl1, hent1, -⟩ := domRel_iff.2 hD
-    refine domRel_iff.1 ⟨hl1, fun i hi => ?_, by rw [h32]; rfl⟩
+    refine domRel_iff.1 ⟨hl1, fun i hi => ?_, by rw [h32]; rfl,
+      by rw [startS, mem_ks_same _ _ hkf hka (by decide) (by decide)]⟩
     obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9, b10⟩ := dur_off_bounds hi
     rw [hw4 _ b1 b2 b5 b6 b7, hw4 _ b3 b4 b8 b9 b10]
     exact hent1 i hi
@@ -646,7 +653,7 @@ theorem dom_start_refines (arI : machine.Arch A) (th : TypedHeap) (hP : Placed t
   simp only [hargs 0#u64 y0 (by simp), bind_ok, nds_eq]
   have hspec := dec_start (σ := σ) hg y0.bv (rest.map UScalar.bv) excs
   have hmap : List.map UScalar.bv (y0 :: rest) = y0.bv :: rest.map UScalar.bv := rfl
-  obtain ⟨hl, hent, hstart⟩ := hDR
+  obtain ⟨hl, hent, hstart, h24D⟩ := hDR
   have hun : Fl4Spec.unat y0.bv = y0.val := rfl
   rw [hl, hun] at hspec
   by_cases h2 : y0 ≥ 2#u64
@@ -673,7 +680,7 @@ theorem dom_start_refines (arI : machine.Arch A) (th : TypedHeap) (hP : Placed t
     exact h3 (UScalar.eq_of_val_eq (e2.trans rfl))
   -- `set_thread_state Restart`
   obtain ⟨s1, hs1, hS1, hkb1, σ1, hst1, hCR1, hFI1, hDR1, hdl1, hstR⟩ :=
-    dom_restart th hP s σ G hCR hFI ⟨hl, hent, hstart⟩ ct hcur htcb hact hkf hka hksO hactK
+    dom_restart th hP s σ G hCR hFI ⟨hl, hent, hstart, h24D⟩ ct hcur htcb hact hkf hka hksO hactK
   rw [hs1]
   simp only [bind_ok, ks_set_eq, hkb1, L.ksb_wr, show (2#u64 - 2#u64 : Result U64) = ok 0#u64 from rfl,
     show layout.ks.DOM_SCHED_START = 32#u64 by unfold layout.ks.DOM_SCHED_START; rfl,
@@ -704,7 +711,8 @@ theorem dom_start_refines (arI : machine.Arch A) (th : TypedHeap) (hP : Placed t
       mem_ks_same _ _ hkf hka (by decide) (by decide)]
   obtain ⟨hl1, hent1, hst1'⟩ := hDR1
   have hDR4 : DomRel (L.mem s4) kb (startSt σ1 y0.val) := by
-    refine ⟨hl1, fun i hi => ?_, by rw [h32]; rfl⟩
+    refine ⟨hl1, fun i hi => ?_, by rw [h32]; rfl,
+      by rw [hs4, startS, mem_ks_same _ _ hkf hka (by decide) (by decide)]⟩
     obtain ⟨b1, b2, b3, b4, b5, b6, b7, b8, b9, b10⟩ := dur_off_bounds hi
     rw [hw4 _ b1 b2 b5 b6 b7, hw4 _ b3 b4 b8 b9 b10]
     exact hent1 i hi
@@ -742,11 +750,12 @@ theorem domRel_conf (s1 : S) {kb : U64} (hkf : kb.val + 13568 ≤ 2 ^ 64) (hka :
       mem_ks_same _ _ hkf hka (by decide) (by decide)]
   have w200 : L.mem s2 (ksW kb 200#u64) = y2 := by
     rw [hs2, mem_ks_same _ _ hkf hka (by decide) (by decide)]
-  obtain ⟨hl1, hent1, hst1'⟩ := hD
+  obtain ⟨hl1, hent1, hst1', h24⟩ := hD
   set ent : Fl4Spec.Domain × Fl4Spec.DomainDuration :=
     (Fl4Spec.ucast Fl4Spec.domainLen y1.bv, Fl4Spec.ucast Fl4Spec.domainDurationLen y2.bv) with hent
   refine ⟨by simp [hl1], fun i hi => ?_, by
-    rw [hw _ (by decide) (by decide) (by decide) (by decide)]; exact hst1'⟩
+    rw [hw _ (by decide) (by decide) (by decide) (by decide)]; exact hst1', by
+    rw [hw _ (by decide) (by decide) (by decide) (by decide)]; exact h24⟩
   rcases (show i.val = 0 ∨ i.val = 1 by omega) with hi0 | hi1
   · have : i = 0#u64 := UScalar.eq_of_val_eq (by rw [hi0]; rfl)
     subst this
@@ -871,7 +880,7 @@ theorem dom_conf_refines (arI : machine.Arch A) (hcfg : DomConfig) (th : TypedHe
     show (2#u64 - 1#u64 : Result U64) = ok 1#u64 from rfl]
   have hspec := dec_conf (σ := σ) hg y0.bv y1.bv y2.bv (rest.map UScalar.bv) excs
   have hmap : List.map UScalar.bv (y0 :: y1 :: y2 :: rest) = y0.bv :: y1.bv :: y2.bv :: rest.map UScalar.bv := rfl
-  obtain ⟨hl, hent, hstart⟩ := hDR
+  obtain ⟨hl, hent, hstart, h24D⟩ := hDR
   have hu0 : Fl4Spec.unat y0.bv = y0.val := rfl
   have hu1 : Fl4Spec.unat y1.bv = y1.val := rfl
   rw [hl, hu0, hu1, hcfg.numDomains] at hspec
@@ -916,7 +925,7 @@ theorem dom_conf_refines (arI : machine.Arch A) (hcfg : DomConfig) (th : TypedHe
         ok ((core.result.Result.Ok () : core.result.Result Unit error.Exc), s2, a)) ⦃ res =>
         DomPostA (L := L) th σ G (Fl4Spec.decodeDomainInvocation slbl (List.map UScalar.bv (y0 :: y1 :: y2 :: rest))
           excs) s a res ⦄ := fun hc5 =>
-    dom_conf_ok th hP s a σ G hCR hFI ⟨hl, hent, hstart⟩ ct hcur htcb hact hkf hka hksO hactK _ y0 y1 y2 hy0 hy1 hy2
+    dom_conf_ok th hP s a σ G hCR hFI ⟨hl, hent, hstart, h24D⟩ ct hcur htcb hact hkf hka hksO hactK _ y0 y1 y2 hy0 hy1 hy2
       (by rw [hmap, hspec, if_neg (by omega), if_neg (by omega), if_neg nc3, if_neg nc4, if_neg hc5]; rfl)
   have hk2 : obj.ks_get st s layout.ks.DOM_SCHED_START = ok (L.mem s (ksW kb 32#u64)) := by
     rw [ks_get_eq, show layout.ks.DOM_SCHED_START = 32#u64 by unfold layout.ks.DOM_SCHED_START; rfl]

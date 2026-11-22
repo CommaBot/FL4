@@ -305,7 +305,7 @@ theorem JAtZ.vheadJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
     have hlt := domOffs_lt' ho
     have h80 : o.val ≠ 80 := by
       simp only [domOffs, List.mem_cons, List.mem_nil_iff, or_false] at ho
-      rcases ho with rfl | rfl | rfl | rfl | rfl <;> decide
+      rcases ho with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
     have e := ksW_val (kb := L.ksb s) (o := o) (by omega)
     exact hne _ (ksW_al hf hal hlt.1 hlt.2) (by rw [e]; omega)
   have hAR := hX.fin.1.1.2.2.2.2.2.2
