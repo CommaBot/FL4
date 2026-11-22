@@ -174,7 +174,7 @@ theorem p3_invokeUntyped (ui : UntypedInvocation) (σ : State Unit) (hP : P3 N �
     · intro u d b n f hu hus k hk1 hk2 hkb
       have hkf : k ∈ utFr base bits fi := ⟨by omega, by omega⟩
       rcases hI.1.2.2.2.1 s u dev base bits fi d b n f (Ne.symm hu) hc hus ⟨k, utFr_sub hkf, hkb⟩ with
-        ⟨-, hr'⟩ | ⟨hd, hr'⟩
+        ⟨-, hr', -⟩ | ⟨hd, hr', -⟩
       · exact absurd hkf (hr' k hkb)
       · exact ⟨hd, hr' k (utFr_sub hkf)⟩
   · -- reset
@@ -221,7 +221,7 @@ theorem p3_invokeUntyped (ui : UntypedInvocation) (σ : State Unit) (hP : P3 N �
       obtain ⟨hA, hB⟩ := hR5 u d b n f hu hus
       have hkr : k ∈ utR base bits := ⟨by omega, by omega⟩
       rw [show s2.cdt = σ.cdt from hR3]
-      exact ⟨hB ⟨k, hkr, hkb⟩, hA k hkr⟩
+      exact ⟨(hB ⟨k, hkr, hkb⟩).1, hA k hkr⟩
     · intro d hd
       obtain ⟨hn, ⟨t1, c1, ht1, hr1, hz1, hsh1⟩, hl⟩ := hdst0 d hd
       have hds : d ≠ s := fun e => by rw [e, hc'] at hn; cases hn

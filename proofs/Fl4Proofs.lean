@@ -1341,6 +1341,7 @@ import Fl4Proofs.P3.SpecInvUtZS
 import Fl4Proofs.P3.SpecInvUtZS2
 import Fl4Proofs.P3.SpecInvUtZS3
 import Fl4Proofs.P3.SpecInvUtZS4
+import Fl4Proofs.P3.SpecInvUtZP
 import Fl4Proofs.P3.XTopJointLiveFalse
 import Fl4Proofs.P3.SpecInvRd8rS
 import Fl4Proofs.P3.XTopJointWJPL
@@ -1356,3 +1357,4 @@ import Fl4Proofs.P3.XTopJointKEntryFF
 import Fl4Proofs.P3.XTopJointKEntryU2
 import Fl4Proofs.P3.XTopJointKEntryU2F
 import Fl4Proofs.P3.XTopJointKEntryU2L
+import Fl4Proofs.P3.XTopJointKEntryU3

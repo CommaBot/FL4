@@ -15244,3 +15244,71 @@ XTopJointKEntryU2 (namespace `SInvR.G5`); root imports them. Nothing existing ed
 - HANDOFF: the unknown-syscall clause of the event tops now asks only `UnkSys` / `NoDbgSys` [S] and `hFin`; the
   P1-only tops (`entry_of10`) still take `AsidOff` [J] at P1's ghosts (m70 (c), unchanged); `JAtZ.asidOffU` shows
   the same placement holds at `OmegaU` and could replace it if P1's tops are ever instantiated at P3's ghosts.
+
+## g5i (branch par/g5i in FL4-sc, on 49412063 = #51 head incl. g5h, fast-forwarded to ff75a72f = m73) — g5h's handoff (2)/(3): (1) DONE: `UtDescV` strengthened in place (Nest); (2) DONE: `PerfGapZ` proved (`perfGapZ`), `kentry_zr` / `kcall_zr` with no premise; (3) DONE: `JReachU3` / `jreach_invU3` / **`kernel_entry_reachU3`** (m73's `kernel_entry_reachU2F`, so no `FastFaultOK`, with the syscall step asking no `SpecUtZ σ'` / `UtPgR σ'`); no FINDING
+New leaves SpecInvUtZP (spec side, `Fl4Proofs.P3.SInvUZ`) and XTopJointKEntryU3 (`SInvR.G5`); root imports them. One existing
+definition edited in place (`UtDescV`, SpecInvUt.lean:83) and its view lemmas; no top statement changed. Old tops kept.
+
+### (1) Nest (SpecInvUt `UtDescV`)
+- Both disjuncts gain a third conjunct: the descendant's region lies inside the ancestor's
+  (`(s2 ∈ descendantsOf s1 ∧ (∀ k ∈ utR b2 n2, k ∉ utFr b1 n1 f1) ∧ ∀ k ∈ utR b2 n2, k ∈ utR b1 n1) ∨ …`), l4v
+  `untyped_inc`'s `untyped_range c ⊂ untyped_range c' ⟶ p ∈ descendants_of p'` (overlapping untyped ranges are
+  nested, the smaller one a descendant; equal ranges trivially). True in every reachable state; boot is vacuous.
+- Re-proved (all mechanical but two): `UtDesc.noKids`, `utInvV_shrink` (W), `utInvV_shrinkD` (C), `utInv'_rename` (Sw,
+  unchanged), the new-child lemmas **`utInv'_ccU`** (CC) and **`utInv'_ccG`** (Mv): their `hAn` (every other untyped
+  cap meeting the child is an ancestor of the source) now also gives `rg src ⊆ rg sl`, and `side` gives the child
+  inside each such ancestor (`rg child ⊆ rg src ⊆ rg sl`). Callers: `ItemU` (SpecInvUtI, the `create_cap` loop of an
+  untyped retype) and the reset's `RSV` (SpecInvUtRs) carry the containment (`rsv_mk` from the strengthened `UtDesc`),
+  `invokeUntyped_utInv'`, `hv_capInsert_ut`, SpecInvUtRsI, SpecInvUtP3, SpecInvUtP6 adjusted (pattern / projection).
+- Spec family module build (132 modules, g5i-b2): "Build completed successfully (6074 jobs)" (after b1's one P6 slip).
+
+### (2) `PerfGapZ` (SpecInvUtZP)
+- Zero stores (UtResetSpecJ's lemmas restated outside the `JAtZ` cone, `zp_*`): `zp_deleteObjects_out` —
+  `delete_objects` of an aligned region zeroes every byte of it, writes only zeros, removes exactly `delR`.
+- Reset `zp_reset`: after `delete_objects`, `ZS (ResU σ dev base bits) (PgOf z)` (the decode state's caps plus
+  `(base, bits, 0)` for a non-device source): the region is zero, and a page meeting it lay inside it by `UtPgR`'s
+  containment clause, hence was deleted. The chunk loop (`clear_memory`, the source's free-index writes, preemption
+  points, `arch_post_reset_untyped`) keeps those sets (`zp_ik` leaves). Every outcome (finished or preempted): `ZR`,
+  the region zero and meeting no data page.
+- Retype `zp_tail` from `TailOK` (source cap, region arithmetic, window `[rb, base + 2^bits)` zero and meeting no page,
+  every other non-device untyped cap: the window misses its free part, and if the window meets its region, the
+  source's region lies inside it). `zp_good`: after the free-index write the sets `HasU ∪ Kids` (untyped children
+  `(p, sz, 0)`) and `PgOf ∪ NewPg` (new data pages, `zp_dflt_pg`: page bits = object bits) satisfy `GoodZ`; then
+  `retype_region` (`zp_yk_retype`), `init_arch_objects`, the `create_cap` loop (`zp_hu_createCap`) keep `ZS`.
+- `perfGapZ : PerfGapZ`: no reset — `TailOK` at the decode state from `SpecUtZ`/`UtPgR` (window ⊆ old free part),
+  `UtDisj`, and `UtDesc` with Nest (an untyped ancestor of the source contains the source's region; a descendant would
+  miss the old free part); reset — `TailOK` at the reset outcome from `zp_reset` and ut2's `RSV` (now with Nest).
+  `kentry_zr` / `kcall_zr` = SpecInvUtZS4's `kentry_zr_of` / `kcall_zr_of` at `perfGapZ` (no premise).
+- g5i-b3/b4: `IK` ambiguous (SInv vs SInvV), `ik_mapMx_mem` not imported (local `zp_mapMx_mem`); **g5i-b5: green
+  (4780 jobs, 17 s for the module)**.
+
+### (3) The induction (XTopJointKEntryU3)
+- `JReachU3` = `JReachU2` whose `step` has no `SpecUtZ σ'` / `UtPgR σ'`; `JReachU3.ofU2`, **`JReachU3.toU2 hnd`**
+  (step: `ZR σ'` by `kentry_zr` from `JReachU2.zr` and `UtInv3` in `SInvX`, `sinvX_ut3`), `jreach_invU3`.
+- **`kernel_entry_reachU3`** (on m73's `kernel_entry_reachU2F`, per the lead's note): premises exactly
+  `kernel_entry_reachU2F`'s — global [P] `PlainStore`, `hARI`, `hA`, `hnd`, `hM`, `hKD`, `hIo`, `hIoa`, `hPA`, `hIA`,
+  `hmrt`, `hmb`, `hT`, `hmax`, `htu`, `hRef`, `hPI`, `hSX`; `hJ : JReachU3`. Per clause: (i) native syscall `hct` [S],
+  `hn` [S], `hLF : LargeFrOK` [J], `hflag` [S], `hK : KDispHypsKV42`, `hDL : JDecMRLK VtxK` [W]/[scope], `hFin :
+  KFinAtR31`; post `… ∧ SpecUtZ σ' ∧ UtPgR σ' ∧ JReachU3` with **no exit premise**; (ii) interrupt `IrqHw` [P],
+  `KFinEv`; (iii)/(iv) `hct`, `UserHw` / `VmfHw` [P], `KFinEv`; (v) `hct`, `v < 256` [P], `KFinEv`; (vi) unknown
+  syscall `hct`, `UnkSys` [S], `NoDbgSys` [S], `KFinEv` (no `FastFaultOK`, m73). Induction exit premises: none.
+
+### (4) Findings
+- None. The strengthened `UtDescV` is l4v `untyped_inc` (true in reachable states); no premise was added.
+
+### (5) Builds and axioms
+- tokyo, FL4-sc mirror (warm from g5h; ./g5i.sh, ./g5ifull.sh, g5i.files, g5i.mods, scratch/g5i/ax.lean untracked).
+  g5i-b1: one P6 slip; **g5i-b2: spec family green (6074 jobs)**, commit f5323944; g5i-b3..b5: SpecInvUtZP green,
+  commit 0110a78f; the branch was fast-forwarded to m73's ff75a72f before (per the lead's note).
+- **g5i-full1** (full `lake build Fl4Proofs`): "Build completed successfully (7173 jobs)", 0 `error`, 0 `declaration
+  uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom / `#exit` in the new files or the diff.
+- `#print axioms` (scratch/g5i/ax.lean, run by full1): perfGapZ, kentry_zr, kcall_zr, zp_tail, zp_reset, zp_good,
+  zp_deleteObjects_out, invokeUntyped_utInv', reset_utInv', perfGap, JReachU3.toU2, JReachU3.ofU2, jreach_invU3,
+  kernel_entry_reachU3 and (kept) kernel_entry_reachU2F, kernel_entry_reachU2, kentry_zr_of: [propext,
+  Classical.choice, Quot.sound]; utInv'_ccU, utInv'_ccG: [propext, Quot.sound].
+
+### (6) Handoff
+- `SpecUtZ` / `UtPgR` are now carried with no premise anywhere in the induction. Left on `kernel_entry_reachU3`:
+  `hLF : LargeFrOK` [J] (g5d (2): `OrigFrObj`, `DescRangeIn` — now partly available: Nest is `DescRangeIn` for
+  untyped descendants —, data-page distinctness), `hDL` (VT-x scope), the `hK` / `hFin` / `KFinEv` bundles, the [P]
+  platform facts and the [S] event-scope facts.

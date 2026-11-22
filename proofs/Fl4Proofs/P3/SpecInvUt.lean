@@ -79,13 +79,17 @@ def UtDisjV (w : UView) : Prop :=
 
 /-- `UtDesc` on the view: two untyped caps in different slots whose regions
 overlap are in the CDT ancestor relation, and the descendant's region misses the
-ancestor's free part. -/
+ancestor's free part and lies inside the ancestor's region (l4v `untyped_inc`:
+overlapping untyped ranges are nested, the smaller one a descendant; g5i added
+the containment, "Nest"). -/
 def UtDescV (w : UView) : Prop :=
   ∀ s1 s2 d1 b1 n1 f1 d2 b2 n2 f2, s1 ≠ s2 →
     w.2.1 s1 = some (.untypedCap d1 b1 n1 f1) → w.2.1 s2 = some (.untypedCap d2 b2 n2 f2) →
     (∃ k, k ∈ utR b1 n1 ∧ k ∈ utR b2 n2) →
-    (s2 ∈ descendantsOf s1 w.2.2.1 ∧ ∀ k, k ∈ utR b2 n2 → k ∉ utFr b1 n1 f1) ∨
-      (s1 ∈ descendantsOf s2 w.2.2.1 ∧ ∀ k, k ∈ utR b1 n1 → k ∉ utFr b2 n2 f2)
+    (s2 ∈ descendantsOf s1 w.2.2.1 ∧ (∀ k, k ∈ utR b2 n2 → k ∉ utFr b1 n1 f1) ∧
+        ∀ k, k ∈ utR b2 n2 → k ∈ utR b1 n1) ∨
+      (s1 ∈ descendantsOf s2 w.2.2.1 ∧ (∀ k, k ∈ utR b1 n1 → k ∉ utFr b2 n2 f2) ∧
+        ∀ k, k ∈ utR b1 n1 → k ∈ utR b2 n2)
 
 /-- `UtOrig` on the view. -/
 def UtOrigV (w : UView) : Prop :=
@@ -126,7 +130,7 @@ theorem UtDesc.noKids {σ : State Unit} (hD : UtDesc σ) {s1 : CslotPtr} {d1 : B
     ∀ k, k ∈ utR b1 n1 → k ∉ utFr b2 n2 f2 := by
   intro k hk1 hk2
   rcases hD s1 s2 d1 b1 n1 f1 d2 b2 n2 f2 hne hc1 hc2 ⟨k, hk1, ⟨by have := hk2.1; omega, hk2.2⟩⟩ with
-    ⟨hd, -⟩ | ⟨-, hr⟩
+    ⟨hd, -⟩ | ⟨-, hr, -⟩
   · exact desc_noKids hk hd
   · exact hr k hk1 hk2
 
