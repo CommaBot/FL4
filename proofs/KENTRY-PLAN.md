@@ -15553,3 +15553,34 @@ New modules only; nothing existing edited.
 - `#print axioms`: choose_thread_refinesFA, switch_to_thread_ar, switch_to_idle_thread_ar, set_vm_root_ar, switchToThread_cr3,
   crk_scAndTimer, crF_fires, kernel_entry_reachU4: propext, Classical.choice, Quot.sound. No sorry / admit /
   native_decide / bv_decide / axiom in the new files.
+
+### (f) Route 2 (lead decision: prove D6 as stated via the correlation): STOPPED, no FINDING
+- **The argument that would work.** At the finish state σ, if the action is not `resume`, both sides switch (the action
+  never returns to `resume` along `Fires` / `awaken`: only `schedule` writes `resume`); the CR3 is then the chosen thread's
+  root on both sides (G7cSwitch + `crF_fires`; vtables and pools are kept by signals). If it is `resume`, a run switches
+  iff its timers made a thread schedulable outside the release queue in the current domain (`possibleSwitchTo` with
+  `resume` sets `switchThread`; its domain branch enqueues without switching; `setThreadStateAct` / `scheduleTcb` change the
+  action only for the current thread, which a signal never wakes). Such a thread ends in a ready queue or current, and
+  `SchedRel r.1 σ'` fixes σ''s ready queues, current thread and release queue as functions of FL4's final store, the same as
+  for the run's own σ'*. So `switched(σ1) ↔ switched(σ1*)` and the chosen thread is the same, hence the same CR3.
+- **Where it needs facts `SchedRel`/`JAtZ` do not give.** Every step above is about the spec run from an arbitrary σ1, which
+  FL4 did not take, so no joint relation holds at its intermediate states. The iff needs spec invariants along an
+  arbitrary sequence of `sendSignal`s from σ and then `awaken`:
+  (i) a woken (IPC-blocked) thread is in no ready queue before it is woken (l4v `valid_ready_qs`; `Inv.rq` at σ only);
+  (ii) `schedContextDonate`'s previous owner is `none` on the `maybeDonateSc` path (guarded by the spec itself) and a
+  donated SC's thread is not queued (l4v `sym_refs`; `Inv.back` at σ only);
+  (iii) the woken thread's domain vs `curDomain` (decides `possibleSwitchTo`'s domain branch; equal on both runs, but the
+  run-independence needs `tcbDomain` kept by signals);
+  (iv) a `schedule`-level lemma that a thread made schedulable before the scheduler is still queued or current after it.
+  (i)/(ii) at the intermediate states need preservation of `Inv` (or SInvX's `Rdy`/`NtfnQB`, `rd_sendSignal`) by
+  `sendSignal` spec-only, from σ. `JAtZR` at the finish gives `Inv σ`, but no spec-only preservation over `Signal` exists in P3
+  (the joint ones go through the FL4 relation), and SInvX is not in scope at the `hFin` site.
+- **σ1 class where the proof stops.** Every σ1 ≠ the run's (some `Signal` of the sequence differs from FL4's timer
+  signals) at a finish state whose action is `resume` and whose CR3 differs from the current thread's root (stale CR3, e.g.
+  after TCB `SetSpace` on the caller). For all other σ1 (action not `resume`, or CR3 = current thread's root) the
+  argument needs only (iii) and the pieces of (b).
+- **No counterexample.** A mismatch needs a σ1 that makes the spec switch to the current thread (or not switch) while FL4
+  did the opposite, with `SchedRel r.1 σ'` holding. In the spec a switch from `resume` needs a woken schedulable thread,
+  which then shows in σ''s ready queues; FL4's store has it only if FL4's timers woke it, and then FL4 switched too
+  (FL4's `possible_switch_to` is the same test). I found no σ1 escaping this, so no FINDING.
+- Route 1 not started (lead: g6b restructures `KFinAtR31`; fold the narrowed tail into it).
