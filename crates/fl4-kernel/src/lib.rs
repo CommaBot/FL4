@@ -284,6 +284,8 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     assert!(fpu::init(true));
     assert!(spec::init_core(true));
     assert!(fl4_arch_x86_64::vm::init(true));
+    // VM-only SMT parking, before `describe` and AP startup.
+    spec::commit_vm(fl4_arch_x86_64::vm::backend() != 0);
     kprintln!("FL4: virtualization {}", match fl4_arch_x86_64::vm::backend() { 1 => "VT-x", 2 => "AMD-V", _ => "unavailable" });
     percpu::get().cr3.set(paging::root_paddr());
     if spec::skim() {

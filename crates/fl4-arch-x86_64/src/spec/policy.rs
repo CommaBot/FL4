@@ -452,9 +452,15 @@ pub fn select(c: &Caps) -> Result<Plan, Rejected> {
             } else {
                 p.no_smt = true;
             }
-            // Use one thread per physical core on SRSO-affected parts.
-            // Do not rely on model-specific shared-BTB controls initially.
-            p.no_smt |= c.amd21 & SRSO_NO == 0;
+            // Use one thread per physical core on SRSO-affected parts that lack
+            // hardware user/kernel SRSO immunity (Zen 2 has SMT_RSB; Zen 3/4 lack
+            // SRSO_USER_KERNEL_NO and Zen 4 needs a model-specific shared-BTB fix).
+            // Parts reporting SRSO_NO or SRSO_USER_KERNEL_NO (Zen 5+) isolate
+            // user/kernel returns in hardware, keep IBPB on every VM exit (with
+            // IBPB_BRTYPE already required above) for guest/host SRSO and VMSCAPE,
+            // isolate SMT siblings with STIBP (checked above), and clear CPU
+            // buffers with VERW (checked below).
+            p.no_smt |= c.amd21 & (SRSO_NO | SRSO_USER_KERNEL_NO) == 0;
             // Only pre-19h bare metal has implicit TSA immunity. Affected
             // Zen 5 advertises VERW_CLEAR after updating microcode (AMD TSA
             // rev. 3.0, sections 1/6); do not exempt family 1Ah wholesale.
@@ -813,8 +819,38 @@ mod tests {
         c.amd8 &= !AMD_STIBP;
         assert!(select(&c).unwrap().no_smt);
         c.amd8 |= AMD_STIBP;
+        // Zen 3/4 semantics: IBPB_BRTYPE alone, no hardware SRSO immunity.
         c.amd21 = (c.amd21 & !SRSO_NO) | IBPB_BRTYPE;
-        assert!(select(&c).unwrap().no_smt); // Deliberate conservative SMT policy.
+        assert!(select(&c).unwrap().no_smt);
+    }
+
+    /// Typical Zen 5 (Turin): SRSO_USER_KERNEL_NO without SRSO_NO keeps SMT
+    /// siblings in VM mode, relying on IBPB_BRTYPE, IBPB at every VM exit,
+    /// STIBP and VERW.
+    #[test]
+    fn zen5_srso_user_kernel_no_keeps_smt_with_vm_exit_ibpb_stibp_and_verw() {
+        let mut c = amd();
+        c.family = 0x1a;
+        c.model = 0x02;
+        c.amd8 = AMD_IBPB | AMD_STIBP | AMD_IBPB_RET;
+        c.amd21 =
+            LFENCE_SERIAL | AUTO_IBRS | IBPB_BRTYPE | VERW_CLEAR | SRSO_USER_KERNEL_NO;
+        assert!(c.smep);
+        let p = select(&c).unwrap();
+        assert!(!p.no_smt);
+        assert_eq!(p.vmexit, IBPB);
+        assert_eq!(p.entry, 0);
+        assert!(p.buffers);
+        assert_eq!(p.spec_ctrl, 2);
+        // Without STIBP siblings are parked.
+        assert!(select(&Caps { amd8: c.amd8 & !AMD_STIBP, ..c }).unwrap().no_smt);
+        // IBPB_BRTYPE stays mandatory: SRSO_USER_KERNEL_NO is not SRSO_NO.
+        assert_eq!(
+            select(&Caps { amd21: c.amd21 & !IBPB_BRTYPE, ..c }),
+            Err(Rejected::SrsoMicrocode)
+        );
+        // Without either SRSO immunity bit (Zen 3/4) siblings are parked.
+        assert!(select(&Caps { amd21: c.amd21 & !SRSO_USER_KERNEL_NO, ..c }).unwrap().no_smt);
     }
 
     #[test]

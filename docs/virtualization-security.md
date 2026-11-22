@@ -142,14 +142,24 @@ flags](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html#p
 FL4 does not support CPU hotplug; these disabled slots are ignored and do not
 consume the boot CPU limit or trigger startup timeouts.
 
-With a VM-capable plan, SRSO-affected AMD and MDS/MMIO-affected Intel use
-one logical processor per physical core; native-only boots, Safe RET
-included, keep SMT siblings with STIBP (Predictor boundaries above). STIBP is enabled when available; an otherwise eligible CPU
-without adequate cross-thread branch protection also uses one thread per core.
+In VM mode, AMD parts without hardware user/kernel SRSO immunity (Zen 2–4,
+which report neither SRSO_NO nor SRSO_USER_KERNEL_NO), MDS/MMIO-affected
+Intel, and CPUs without STIBP (or, on Intel, eIBRS) use one logical processor
+per physical core. AMD parts reporting SRSO_NO or SRSO_USER_KERNEL_NO (Zen 5
+and later) keep SMT siblings in VM mode: they still need IBPB_BRTYPE, take an
+IBPB on every VM exit (guest/host SRSO and VMSCAPE), keep STIBP on, and clear
+CPU buffers with VERW where TSA requires it. STIBP is enabled when available.
+
+This VM-only restriction applies only once a hardware VM backend is actually
+active (`vm::backend() != 0`, after `vm::init` on the boot processor and before
+any AP starts). A boot without VMX/SVM, including cloud VMs without nested
+virtualization and SEV-SNP guests, keeps SMT siblings with STIBP even when
+`select` accepted the CPU, exactly as native-only boots (Safe RET included)
+whose `select` failed (Predictor boundaries above); the mitigation summary then
+reports "(no VM)" and never "SMT siblings parked".
+
 Unknown topology under this restriction uses only the boot processor. The BSP
 is retained even if firmware started it on a secondary thread.
-The SRSO_NO requirement for retaining AMD SMT is deliberately conservative,
-including on newer CPUs; model-specific relaxations need separate validation.
 
 Skipped siblings remain in firmware's wait-for-SIPI state. FL4 currently does
 not enable CR4.MCE. Future machine-check support must initialize every sibling
