@@ -35,7 +35,7 @@ theorem set_reg_rgU {s0 s : S} {t r v : U64} (hT : TcbPlaced T) (ht : t ∈ T) (
       hb.elim id fun e => Or.inl ⟨t, ht, K, by omega, by omega, by omega, e⟩
 
 theorem buf_set_rgU {s0 s : S} {buf i v : U64} (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U buf)
-    (h0 : buf ≠ 0#u64) (hi : i.val < 512) (h : WritesIn st s0 s (XferRegW T U)) :
+    (h0 : buf ≠ 0#u64) (hi : i.val < 128) (h : WritesIn st s0 s (XferRegW T U)) :
     msg.buf_set st s buf i v ⦃ s' => WritesIn st s0 s' (XferRegW T U) ⦄ := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
@@ -45,7 +45,7 @@ theorem buf_set_rgU {s0 s : S} {buf i v : U64} (hUa : ∀ b ∈ U, Aligned b) (h
   exact (h.trans (writesIn_wr (hUa _ hu))).mono fun b hb => hb.elim id fun e => Or.inr (e ▸ hu)
 
 theorem set_mr_rgU {s0 s : S} {y buf i v : U64} (hT : TcbPlaced T) (hy : y ∈ T) (hUa : ∀ b ∈ U, Aligned b)
-    (hb : BufOK U buf) (hi : i.val < 511) (h : WritesIn st s0 s (XferRegW T U)) :
+    (hb : BufOK U buf) (hi : i.val < 127) (h : WritesIn st s0 s (XferRegW T U)) :
     msg.set_mr st s y buf i v ⦃ r => WritesIn st s0 r.2 (XferRegW T U) ∧ r.1.val ≤ i.val + 4 ⦄ := by
   unfold msg.set_mr
   split
@@ -58,7 +58,7 @@ theorem set_mr_rgU {s0 s : S} {y buf i v : U64} (hT : TcbPlaced T) (hy : y ∈ T
     · rename_i hne
       have h0 : buf ≠ 0#u64 := by simpa using hne
       simp only [lift, bind_ok]
-      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 512 := by
+      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
       refine WP.spec_bind (buf_set_rgU (v := v) hUa hb h0 hi1 h) fun s1 h1 => ?_
       refine (WP.spec_ok _).2 ⟨h1, ?_⟩
@@ -95,7 +95,7 @@ theorem copy_mrs_fault_loop0_rgU {s0 s : S} {snd rcv : U64} {regs : Slice U64} {
 
 theorem copy_mrs_fault_loop1_rgU {s0 s : S} {snd buf : U64} {regs : Slice U64} {i : Usize}
     (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U buf) (h0 : buf ≠ 0#u64)
-    (hl : (Slice.len regs).val < 511) (h : WritesIn st s0 s (XferRegW T U)) :
+    (hl : (Slice.len regs).val < 127) (h : WritesIn st s0 s (XferRegW T U)) :
     faults.copy_mrs_fault_loop1 st s snd regs buf i ⦃ s' => WritesIn st s0 s' (XferRegW T U) ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold faults.copy_mrs_fault_loop1
@@ -118,7 +118,7 @@ theorem copy_mrs_fault_loop1_rgU {s0 s : S} {snd buf : U64} {regs : Slice U64} {
         have := j.hBounds
         simp only [UScalar.cast_val_eq, UScalarTy.numBits]
         exact Nat.mod_eq_of_lt (by simp [Usize.size] at *; omega)
-      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 512 := by
+      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, hc]; omega
       refine WP.spec_bind (buf_set_rgU (v := v) hUa hb h0 hix h1) fun s2 h2 => ?_
       step as ⟨j2, hj2⟩
@@ -128,7 +128,7 @@ theorem copy_mrs_fault_loop1_rgU {s0 s : S} {snd buf : U64} {regs : Slice U64} {
 
 theorem copy_mrs_fault_rgU {s : S} {snd rcv buf : U64} {regs : Slice U64}
     (hT : TcbPlaced T) (hr : rcv ∈ T) (hUa : ∀ b ∈ U, Aligned b) (hb : BufOK U buf)
-    (hl : (Slice.len regs).val < 511) :
+    (hl : (Slice.len regs).val < 127) :
     faults.copy_mrs_fault st s snd rcv regs buf ⦃ s' => WritesIn st s s' (XferRegW T U) ⦄ := by
   unfold faults.copy_mrs_fault
   refine WP.spec_bind (copy_mrs_fault_loop0_rgU (snd := snd) (regs := regs) (i := 0#usize) hT hr

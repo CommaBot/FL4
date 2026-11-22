@@ -196,9 +196,18 @@ theorem XG.xs {P3Ok : S → Prop} {s0 s : S} (hG : XG st T Cs Ω H Sg Scs Z P3Ok
 
 /-! ## The transfer's writes -/
 
-/-- The words of a (non-null) IPC buffer are user words. -/
+/-- The words of a (non-null) IPC buffer are user words: its 128 words
+(1024 bytes). FL4's IPC buffer is only 1024-byte aligned
+(`check_valid_ipc_buffer`, `bits::IPC_BUFFER = 10`) and `lookup_ipc_buffer`
+returns the frame pointer plus the in-frame offset, so only these 128 words
+are guaranteed inside the frame (l4v `ipc_buffer_wp_at` / P3
+`Endp.IpcBufCapOK`: `k < 128`). Every buffer index the kernel writes is below
+128 (`msg_max_length` 120 + 1, the three extra-cap / badge words at 122..124,
+the receive CNode / index / depth words 125..127; the fault messages and the
+register / VCPU transfers write fewer). (Before m72 this claimed 512 words,
+false for a buffer at frame offset 3072 followed by a TCB: KENTRY-PLAN m71.) -/
 def BufOK (U : Set U64) (buf : U64) : Prop :=
-  buf ≠ 0#u64 → ∀ i : U64, i.val < 512 → core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64) ∈ U
+  buf ≠ 0#u64 → ∀ i : U64, i.val < 128 → core.num.U64.wrapping_add buf (core.num.U64.wrapping_mul i 8#u64) ∈ U
 
 theorem obj.Tcb.set_reg.xs {s0 s : S} {y r v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hy : y ∈ T)
     (hr : r.val < 384) :
@@ -210,7 +219,7 @@ theorem obj.Tcb.set_reg.xs {s0 s : S} {y r v : U64} (h : XS st T Cs Ω H Sg Rp S
     Or.inl ⟨y, hy, K, by omega, by omega, e⟩)
 
 theorem msg.buf_set.xs {s0 s : S} {buf i v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
-    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
+    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 128) :
     msg.buf_set st s buf i v ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
@@ -220,7 +229,7 @@ theorem msg.buf_set.xs {s0 s : S} {buf i v : U64} (h : XS st T Cs Ω H Sg Rp Scs
   exact h.foot ((writesIn_wr (h.1.2.2.2.2.2 _ hu).1.1).mono fun b e => Or.inr (e ▸ hu))
 
 theorem msg.set_mr.xs {s0 s : S} {y buf i v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
-    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 127) :
     msg.set_mr st s y buf i v ⦃ r => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 r.2 ∧ r.1.val ≤ i.val + 4 ⦄ := by
   unfold msg.set_mr
   split
@@ -239,7 +248,7 @@ theorem msg.set_mr.xs {s0 s : S} {y buf i v : U64} (h : XS st T Cs Ω H Sg Rp Sc
     · rename_i hne
       have h0 : buf ≠ 0#u64 := by simpa using hne
       simp only [lift, bind_ok]
-      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 512 := by
+      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
       refine WP.spec_bind (msg.buf_set.xs (v := v) h hb h0 hi1) fun s1 h1 => ?_
       refine (WP.spec_ok _).2 ⟨h1, ?_⟩
@@ -396,7 +405,7 @@ theorem ipc.transfer_caps_loop.xs (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P3
         step
         step
         try simp only [lift, bind_ok]
-        have hix : (core.num.U64.wrapping_add i3 j).val < 512 := by
+        have hix : (core.num.U64.wrapping_add i3 j).val < 128 := by
           simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
         refine WP.spec_bind (msg.buf_set.xs (v := badge) h1 hb h0 hix) fun s2 h2 => ?_
         step*
@@ -492,7 +501,7 @@ theorem faults.copy_mrs_fault_loop0.xs {s0 s : S} {snd rcv : U64} {regs : Slice 
 
 theorem faults.copy_mrs_fault_loop1.xs {s0 s : S} {snd buf : U64} {regs : Slice U64} {i : Usize}
     (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hb : BufOK U buf) (h0 : buf ≠ 0#u64)
-    (hl : (Slice.len regs).val < 511) :
+    (hl : (Slice.len regs).val < 127) :
     faults.copy_mrs_fault_loop1 st s snd regs buf i ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold faults.copy_mrs_fault_loop1
@@ -515,7 +524,7 @@ theorem faults.copy_mrs_fault_loop1.xs {s0 s : S} {snd buf : U64} {regs : Slice 
         have := j.hBounds
         simp only [UScalar.cast_val_eq, UScalarTy.numBits]
         exact Nat.mod_eq_of_lt (by simp [Usize.size] at *; omega)
-      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 512 := by
+      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, hc]; omega
       refine WP.spec_bind (msg.buf_set.xs (v := v) h1 hb h0 hix) fun s2 h2 => ?_
       step as ⟨j2, hj2⟩
@@ -525,7 +534,7 @@ theorem faults.copy_mrs_fault_loop1.xs {s0 s : S} {snd buf : U64} {regs : Slice 
 
 theorem faults.copy_mrs_fault.xs {s0 s : S} {snd rcv buf : U64} {regs : Slice U64}
     (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf)
-    (hl : (Slice.len regs).val < 511) :
+    (hl : (Slice.len regs).val < 127) :
     faults.copy_mrs_fault st s snd rcv regs buf ⦃ s' => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   unfold faults.copy_mrs_fault
   refine WP.spec_bind (faults.copy_mrs_fault_loop0.xs (snd := snd) (regs := regs) (i := 0#usize) h hr (by simp)) ?_
@@ -538,10 +547,10 @@ theorem faults.copy_mrs_fault.xs {s0 s : S} {snd rcv buf : U64} {regs : Slice U6
   · exact (WP.spec_ok _).2 h1
 
 theorem faults.set_mrs_lookup_failure.xs {s0 s : S} {rcv buf off : U64} {lf : error.LookupFault}
-    (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf) (ho : off.val < 500) :
+    (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf) (ho : off.val < 124) :
     faults.set_mrs_lookup_failure st s rcv buf lf off ⦃ r => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 r.2 ⦄ := by
   unfold faults.set_mrs_lookup_failure
-  have hk : ∀ k : U64, k.val < 4 → (core.num.U64.wrapping_add off k).val < 511 := fun k hk => by
+  have hk : ∀ k : U64, k.val < 4 → (core.num.U64.wrapping_add off k).val < 127 := fun k hk => by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
   refine WP.spec_bind (P0.error.LookupFault.type_code.p0 lf) fun i _ => ?_
   refine WP.spec_bind (msg.set_mr.xs (v := i) h hr hb (by omega)) ?_
@@ -588,7 +597,7 @@ theorem schedcontext.update_consumed.xs {A : Type _} {ar : machine.Arch A} (hA :
 
 /-- Some `set_mr`s in a row, ending the computation. -/
 theorem set_mr_last {s0 s : S} {y buf i v : U64} (h : XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
-    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 127) :
     msg.set_mr st s y buf i v ⦃ r => XS st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 r.2 ⦄ :=
   WP.spec_mono (msg.set_mr.xs h hy hb hi) fun _ h' => h'.1
 

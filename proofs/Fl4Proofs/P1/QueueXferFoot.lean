@@ -137,7 +137,7 @@ theorem obj.Tcb.set_reg.xsf {s0 s : S} {y r v : U64} (h : XSF st T Cs Ω H Sg Rp
     Or.inl ⟨y, hy, K, by omega, by omega, by omega, e⟩)
 
 theorem msg.buf_set.xsf {s0 s : S} {buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
-    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
+    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 128) :
     msg.buf_set st s buf i v ⦃ s' => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' ⦄ := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
@@ -147,7 +147,7 @@ theorem msg.buf_set.xsf {s0 s : S} {buf i v : U64} (h : XSF st T Cs Ω H Sg Rp S
   exact h.foot ((writesIn_wr (h.1.2.2.2.2.2 _ hu).1.1).mono fun b e => Or.inr (e ▸ hu))
 
 theorem msg.buf_set.rw {s0 s : S} {buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
-    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
+    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 128) :
     msg.buf_set st s buf i v ⦃ s' => WritesIn st s s' (XferRegW T U) ⦄ := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
@@ -157,7 +157,7 @@ theorem msg.buf_set.rw {s0 s : S} {buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Sc
   exact (writesIn_wr (h.1.2.2.2.2.2 _ hu).1.1).mono fun b e => Or.inr (e ▸ hu)
 
 theorem msg.set_mr.xsf {s0 s : S} {y buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
-    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 127) :
     msg.set_mr st s y buf i v ⦃ r => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 r.2 ∧ r.1.val ≤ i.val + 4 ⦄ := by
   unfold msg.set_mr
   split
@@ -176,7 +176,7 @@ theorem msg.set_mr.xsf {s0 s : S} {y buf i v : U64} (h : XSF st T Cs Ω H Sg Rp 
     · rename_i hne
       have h0 : buf ≠ 0#u64 := by simpa using hne
       simp only [lift, bind_ok]
-      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 512 := by
+      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
       refine WP.spec_bind (msg.buf_set.xsf (v := v) h hb h0 hi1) fun s1 h1 => ?_
       refine (WP.spec_ok _).2 ⟨h1, ?_⟩
@@ -313,7 +313,7 @@ theorem ipc.transfer_caps_loop.xsf (E : XferHyps st T Cs Ω H Sg Rp Scs Nt Z U P
         step
         step
         try simp only [lift, bind_ok]
-        have hix : (core.num.U64.wrapping_add i3 j).val < 512 := by
+        have hix : (core.num.U64.wrapping_add i3 j).val < 128 := by
           simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
         refine WP.spec_bind (WP.spec_and (msg.buf_set.xsf (v := badge) h1 hb h0 hix)
           (msg.buf_set.rw (v := badge) h1 hb h0 hix)) fun s2 ⟨h2, w2⟩ => ?_
@@ -419,7 +419,7 @@ theorem faults.copy_mrs_fault_loop0.xsf {s0 s : S} {snd rcv : U64} {regs : Slice
 
 theorem faults.copy_mrs_fault_loop1.xsf {s0 s : S} {snd buf : U64} {regs : Slice U64} {i : Usize}
     (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hb : BufOK U buf) (h0 : buf ≠ 0#u64)
-    (hl : (Slice.len regs).val < 511) :
+    (hl : (Slice.len regs).val < 127) :
     faults.copy_mrs_fault_loop1 st s snd regs buf i ⦃ s' => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' ⦄ := by
   have hS : P0.StoreTotal st := L.total
   unfold faults.copy_mrs_fault_loop1
@@ -442,7 +442,7 @@ theorem faults.copy_mrs_fault_loop1.xsf {s0 s : S} {snd buf : U64} {regs : Slice
         have := j.hBounds
         simp only [UScalar.cast_val_eq, UScalarTy.numBits]
         exact Nat.mod_eq_of_lt (by simp [Usize.size] at *; omega)
-      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 512 := by
+      have hix : (core.num.U64.wrapping_add (UScalar.cast .U64 j) 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits, hc]; omega
       refine WP.spec_bind (msg.buf_set.xsf (v := v) h1 hb h0 hix) fun s2 h2 => ?_
       step as ⟨j2, hj2⟩
@@ -452,7 +452,7 @@ theorem faults.copy_mrs_fault_loop1.xsf {s0 s : S} {snd buf : U64} {regs : Slice
 
 theorem faults.copy_mrs_fault.xsf {s0 s : S} {snd rcv buf : U64} {regs : Slice U64}
     (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf)
-    (hl : (Slice.len regs).val < 511) :
+    (hl : (Slice.len regs).val < 127) :
     faults.copy_mrs_fault st s snd rcv regs buf ⦃ s' => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s' ⦄ := by
   unfold faults.copy_mrs_fault
   refine WP.spec_bind (faults.copy_mrs_fault_loop0.xsf (snd := snd) (regs := regs) (i := 0#usize) h hr (by simp)) ?_
@@ -465,10 +465,10 @@ theorem faults.copy_mrs_fault.xsf {s0 s : S} {snd rcv buf : U64} {regs : Slice U
   · exact (WP.spec_ok _).2 h1
 
 theorem faults.set_mrs_lookup_failure.xsf {s0 s : S} {rcv buf off : U64} {lf : error.LookupFault}
-    (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf) (ho : off.val < 500) :
+    (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s) (hr : rcv ∈ T) (hb : BufOK U buf) (ho : off.val < 124) :
     faults.set_mrs_lookup_failure st s rcv buf lf off ⦃ r => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 r.2 ⦄ := by
   unfold faults.set_mrs_lookup_failure
-  have hk : ∀ k : U64, k.val < 4 → (core.num.U64.wrapping_add off k).val < 511 := fun k hk => by
+  have hk : ∀ k : U64, k.val < 4 → (core.num.U64.wrapping_add off k).val < 127 := fun k hk => by
     simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
   refine WP.spec_bind (P0.error.LookupFault.type_code.p0 lf) fun i _ => ?_
   refine WP.spec_bind (msg.set_mr.xsf (v := i) h hr hb (by omega)) ?_
@@ -515,7 +515,7 @@ theorem schedcontext.update_consumed.xsf {A : Type _} {ar : machine.Arch A} (hA 
 
 /-- Some `set_mr`s in a row, ending the computation. -/
 theorem set_mr_lastF {s0 s : S} {y buf i v : U64} (h : XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 s)
-    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 127) :
     msg.set_mr st s y buf i v ⦃ r => XSF st T Cs Ω H Sg Rp Scs Nt Z U RS Ac X Q R s0 r.2 ⦄ :=
   WP.spec_mono (msg.set_mr.xsf h hy hb hi) fun _ h' => h'.1
 

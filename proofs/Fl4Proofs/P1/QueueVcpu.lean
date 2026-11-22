@@ -129,7 +129,7 @@ theorem obj.Tcb.set_reg.xsv {s0 s : S} {y r v : U64} (h : XSV st T Cs Ω H Sg Rp
     Or.inl ⟨y, hy, K, by omega, by omega, e⟩)
 
 theorem msg.buf_set.xsv {s0 s : S} {buf i v : U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
-    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 512) :
+    (hb : BufOK U buf) (h0 : buf ≠ 0#u64) (hi : i.val < 128) :
     msg.buf_set st s buf i v ⦃ s' => XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s' ⦄ := by
   unfold msg.buf_set
   simp only [lift, bind_ok]
@@ -139,7 +139,7 @@ theorem msg.buf_set.xsv {s0 s : S} {buf i v : U64} (h : XSV st T Cs Ω H Sg Rp S
   exact XSV.foot h ((writesIn_wr (h.1.1.2.2.2.2.2 _ hu).1.1).mono fun b e => Or.inr (e ▸ hu))
 
 theorem msg.set_mr.xsv {s0 s : S} {y buf i v : U64} (h : XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 s)
-    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 511) :
+    (hy : y ∈ T) (hb : BufOK U buf) (hi : i.val < 127) :
     msg.set_mr st s y buf i v ⦃ r => XSV st T Cs Ω H Sg Rp Scs Nt Z U Ac X Q R s0 r.2 ∧ r.1.val ≤ i.val + 4 ⦄ := by
   unfold msg.set_mr
   split
@@ -158,7 +158,7 @@ theorem msg.set_mr.xsv {s0 s : S} {y buf i v : U64} (h : XSV st T Cs Ω H Sg Rp 
     · rename_i hne
       have h0 : buf ≠ 0#u64 := by simpa using hne
       simp only [lift, bind_ok]
-      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 512 := by
+      have hi1 : (core.num.U64.wrapping_add i 1#u64).val < 128 := by
         simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
       refine WP.spec_bind (msg.buf_set.xsv (v := v) h hb h0 hi1) fun s1 h1 => ?_
       refine (WP.spec_ok _).2 ⟨h1, ?_⟩
