@@ -15193,3 +15193,54 @@ XTopJointKEntryU2 (namespace `SInvR.G5`); root imports them. Nothing existing ed
 ### (6) Handoff
 - (3) above: strengthen `UtDescV` (Nest), rebuild the cone, prove `PerfGapZ`; then a `JReachU3` whose syscall step
   asks nothing (`kentry_zr_of perfGapZ`).
+## m73 (branch par/m73 in FL4-m67, on 6ee2129a = #51 head with m72; merge of 49412063 (g5h) before the full build) — m72's route for (3) DONE: `P1.FastFaultOK` derived from `JAtZ` at the P3 entry (`JAtZ.fastFaultOK`), with no premise beyond what `JReachE4` / `JReachU` / `JReachU2` carry; `AsidOff` [J] DERIVED on that route (not kept); tops `kernel_entry_reachE5`, `kernel_entry_reachUH2`, `kernel_entry_reachU2F` (= `reachE4` / m72's `reachUH` / g5h's `reachU2` with the unknown-syscall clause without `FastFaultOK`); no FINDING
+- **Route: the fault path at a second word set, not a restated `FaultEnt`.** m58–m70's `faultReads_of`, `usOff_of`,
+  `finReads_of`, `faultOK_of`, `faultNvm_of` are stated over an arbitrary `Ω`; only `FaultEnt.hU` (`b ∈ U → b ∉ Ω`)
+  conflicts with `JAtZ`'s `Ω = Heap.omega H` (m72's OBSTRUCTION). So they are used unchanged at
+  `OmegaU H Z kb σ = (Heap.omega H \ BufU Z σ) ∪ VsU Z kb` (`BufU`: the IPC-buffer words of `Z.T`'s TCBs, `RcvBufW`;
+  `VsU`: the ASID-table and pool words, `VsWrite`), where `FaultEnt.hU` holds and the kept-`Ω` facts
+  (`FaultKeep.omg`, `FinKeep.omg`) cover every word the reads need: `Sg` words (no buffer word: `rbufU`), the
+  kernel-state block (no buffer word: `KsApart.buf`), the ASID words (no buffer word: `TopPlaced.disj`). The
+  buffer words in `Ω \ Sg` of `blkX_bufw` are exactly `BufU ∩ Heap.omega`; nothing about the buffer is restated.
+- **P1 FastFaultEntU (new, root import).** `BXI.reΩ` (`BXI` at any `Ω'` whose words are `Ω` words or `V` words placed
+  outside the TCBs / nodes / endpoints / notifications, holding `Sg` and the kernel-state block: `SchedQueuesInvX`'s
+  `eps`/`omega` are anti-monotone in `Ω`, `ObjsOK.scW` / `SgOK` / `SCsOK.sub,ksΩ` positive); `faultEntAt_ofT`
+  (m64's `faultEntAt_of` with `EntryHyps0.tmoOK` / `XferHyps.buf` replaced by the facts read: current thread not
+  `Blocked`, fault-handler cap `CapTyped`, `U` outside the TCBs / nodes and off `Ω`, every TCB's receive buffer
+  `BufOK U`, `AsidOff`); `faultRecv_ofT` (m70's `faultRecv_of` with the cap typing as argument); `fastFault_of`
+  (`FaultOK ∧ FaultNvm` at one dispatch state); `syscall.debug_syscall.same2` (a declined debug syscall returns
+  `ok (false, s, a)`, Arch value included).
+- **P1 FastTailFault (in-place restatement).** `faultNvm_ofR` = the former body of `faultNvm_of` with the handler's
+  receive state as an argument (`hrecv0`) instead of `E0` / `hG`; `faultNvm_of` kept as a wrapper with its statement
+  unchanged (`faultRecv_of`). Nothing else in P1 changed.
+- **P3 XTopJointKEntryFF (new, root import).** `JAtZ.fltDisp` (m69's `rrDisp` keeping `budgetOkB`'s `CurInv` of the
+  dispatch spec state); at the dispatch `JAtZ`: `JAtZ.bxiU` (`BXI` at `OmegaU`), `JAtZ.asidOffU` (**`AsidOff` at
+  `OmegaU`, derived**: table words and, for a nonzero entry, the pool's words — `VsRel.tmem` — are `VsU` words, off
+  the frame words by `vsObjW`), `JAtZ.bufU_out`, `JAtZ.bufOK` (`lookup_buf_full`, `BufWordRel`, `BufCover`),
+  `JAtZ.curNb` (`CurInv`'s `NotIpcBlk` + `TcbRel.st`), `JAtZ.fhTyped` (`JPlaced.typed` at TCB slot 3);
+  **`JAtZ.fastFaultOK`** (trap route and declined-debug route); tops **`kernel_entry_reachE5`**,
+  **`SInvR.G5.kernel_entry_reachUH2`**.
+- **P3 XTopJointKEntryU2F (new, root import; the lead's note).** **`SInvR.G5.kernel_entry_reachU2F`** = g5h's
+  `kernel_entry_reachU2` without `FastFaultOK` in its unknown-syscall clause.
+- **Premises.** Removed: `P1.FastFaultOK` [J] from the unknown-syscall clause (`reachE5`, `reachUH2`, `reachU2F`);
+  `AsidOff` [J] is not needed on this route (derived at `OmegaU`; it stays only on the P1-only tops `entry_of*` and
+  `fastFaultOK_of_p1N`, whose ghosts are P1's). Added: none. Left on the clause: `UnkSys` [S], `NoDbgSys` [S] (both
+  unchanged), the finish bundle `hFin`, `StoreExt` [P] (theorem-level, unchanged).
+- **Reachability.** Nothing new is asked: every fact used at the dispatch state is a projection of the `JAtZ` /
+  `CurInv` there (from `budgetOkB`), the entry's `SInvX` (the same reads m72's `rrPre5At` takes) and the clause's
+  `ct ≠ idle`.
+- **FINDING: none.**
+- **Builds (tokyo, mirror FL4-m67, keys m73-*; m73b.sh untracked).** b1 P1 FastFaultEntU green; b2
+  (`kernel_entry_reachE4`'s `arI AR MR` are implicit: named args); b3 **XTopJointKEntryFF green (7042 jobs)**,
+  64ff42c8; merge of 49412063 (g5h) = ec082089; XTopJointKEntryU2F added.
+- **full1 (full `lake build` of the merge + U2F): "Build completed successfully (7169 jobs)", 0 errors, 0
+  `declaration uses 'sorry'`.**
+- **Axioms** (scratch/axm73.lean, untracked, run by full1): kernel_entry_reachE5, SInvR.G5.kernel_entry_reachUH2,
+  SInvR.G5.kernel_entry_reachU2F, JAtZ.fastFaultOK / fltDisp / bxiU / asidOffU / bufU_out / bufOK / curNb /
+  fhTyped, P1 BXI.reΩ, faultEntAt_ofT, faultRecv_ofT, fastFault_of, faultNvm_ofR, faultNvm_of,
+  FaultNvmPre.of_asid, syscall.debug_syscall.same2, and the old tops kernel_entry_reachE4,
+  SInvR.G5.kernel_entry_reachUH, SInvR.G5.kernel_entry_reachU2, kernel_entry.entry_of10: propext,
+  Classical.choice, Quot.sound (each).
+- HANDOFF: the unknown-syscall clause of the event tops now asks only `UnkSys` / `NoDbgSys` [S] and `hFin`; the
+  P1-only tops (`entry_of10`) still take `AsidOff` [J] at P1's ghosts (m70 (c), unchanged); `JAtZ.asidOffU` shows
+  the same placement holds at `OmegaU` and could replace it if P1's tops are ever instantiated at P3's ghosts.
