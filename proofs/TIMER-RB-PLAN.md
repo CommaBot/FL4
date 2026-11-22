@@ -232,3 +232,50 @@ Next (exact):
    and `TimerRB` after insert follows with `hrem` = `timer.remove`'s `.rb` spec (stage 6/7).  Needs a
    `WritesIn` footprint out of `timer.insert.core` (compose `InsMid.wi` with `FB.wi` and the two node writes).
 2. Stages 6–7 (`remove` structural part, `remove_fixup`), then 8 (`fire`), 9 (plug-in), as in §2.
+
+## 10. Fifth session (jc6d5): stage 8 insert part done, stage 6 (remove, structural part) done
+
+- `TimerRBInsF.lean`: `XFoot T s0 X C` (writes in words of `X`-TCBs, the null TCB and core `C`'s node),
+  `KeepOut` + `KeepOut.of_wi`, **`CoreTree.keep`** (a core's tree is framed through a step writing only
+  `X`-TCBs and another core's node, when its keys miss `X`), `InsX ctx t` (= `t` or an old key),
+  **`timer.insert.coreW`** (`timer.insert.core` + `WritesIn s1 s' (XFoot … (InsX ctx t) cpu)`),
+  **`timer.insert.rb`**: given `remove`'s spec `hrem` with post `P` and `P s1 → TimerRB s1 ∧ tdA t = 0 ∧
+  cpu s1 ∈ Cs ∧ nodes placed`, `insert` ends in `TimerRB` (other cores framed: their keys have other core bits;
+  armed TCBs are in some tree; unarmed keep null links).
+- `TimerRBDel.lean` (pure + walks): `Ctx.app`/`plug_app`/`app_par`, `LSpine` (+`pre`, `of_pre`, `post_head`,
+  `keys`), `Rep.zero`, **`plug_hole`**, `min_head`/`min_ne`, `delKeys ctx a b` (= `pre ++ a ++ b ++ post`),
+  `min_is_t`, **`min_new_par`/`min_new_r`/`min_keep`** (the `TIMER_MIN` update names the new leftmost key),
+  **`timer.remove_loop0.lm`** (+ `loop1/2/3`, the same loop by `rfl`): leftmost walk from a non-null root of a
+  subtree of height ≤ fuel+1 returns `y` with `b = ctx2.plug (node cy leaf y g)`, `LSpine ctx2`; fuel never 0.
+- `TimerRBDelH.lean`: `delClr/delOne/delTwoFin/delTwo/delTail` restate one copy of the extraction's
+  (triplicated) `remove` tail and are definitionally equal to each copy; `Rep.root_ne0`, `Ctx.height_le`,
+  `LSpine.keys_node`, `plug_sub`, **`splice_rep`** (pure: a node with ≤ 1 child replaced by that child),
+  `LinkFoot` (link words of the old keys/null + root word) with `linkFoot_fix`/`linkFoot_th`,
+  **`DelMid st T s1 c Ks s W`** (heap = `W` from the root word, writes in `FixFoot s1 c Ks`, core bits kept,
+  node placed), `clrT` (the five clearing writes of `t`), `delClr.on`, `rr_tail`,
+  **`delOne.spec`**, **`delTwoFin.spec`**, **`delTwo.spec`**, `DelShape ctx ct a b ctxX tx rr` (the three cases:
+  `a = leaf` → `(ctx, b, ct)`; `b = leaf` → `(ctx, a, ct)`; two children → `(app ctx2 (rc ct a y ctx), g, cy)` with
+  `b = ctx2.plug (node cy leaf y g)`), **`delTail.spec`** (fixup spec as hypothesis `hfix`, run iff `rr = false`).
+- `TimerRBDelC.lean`: `RBT.mem_split`, **`DelShape.keys`** (`(ctxX.plug tx).keys = delKeys ctx a b`),
+  `timer.core_of.rb`, **`timer.remove.struct`**: from `TimerRB s` (+ nodes placed), `remove t` either does nothing
+  (`tdA t = 0`) or, with `t` in core `c`'s tree `ctx.plug (node ct a t b)`: one `TIMER_MIN` write to
+  `(delKeys ctx a b).headD 0` (state `s1`), `DelShape`, `DelMid … s7 (ctxX.plug tx)` before the fixup, the fixup's
+  post `Q s7 s8` iff the removed colour is black (`s8 = s7` otherwise), `s' = clrT s8 t`.
+- Findings: no reachable bad state; every leftmost walk has height ≤ 127 < fuel + 1; `x = 0` with `x_parent`
+  given is exactly `ctxX.par` with `tx = leaf`.
+
+Next (exact):
+1. **Stage 7 (`remove_fixup`)**, as `hfix` of `timer.remove.struct`: from `CoreTree s c W` (W balanced, black root),
+   `DelShape ctx ct a b ctxX tx rr`, `rr = false`, `DelMid s1 c W.keys s7 (ctxX.plug tx)`: `remove_fixup s7 c
+   tx.rootKey ctxX.par` ends in an `FB`-like state (heap = `W'` with `W'.keys = (ctxX.plug tx).keys`, `Bal W' n`,
+   black root, writes in `FixFoot`, core bits kept).  Pure invariant ("doubly black at the hole", CLRS 13.4):
+   `CtxOK`-like predicate for a hole needing black height `n+1` holding `Bal tx n` (`tx` black or leaf in the loop;
+   a red `tx` ends the loop and is blackened).  Initial state from `DelShape` + `CtxOK.of_bal` on `W`
+   (case 1/2: `Bal (node ct leaf t b) m` with `ct` black ⇒ `b` has bh `m-1`; case 3 similarly at `y`).
+   Fuel 256 ≥ number of rounds: each recolour round moves the hole up one level (≤ `ctx.blk` + red levels ≤ 128).
+   Heap side: reuse `FB.set_red`, `FB.rotL/rotR` (keys fixed = `(ctxX.plug tx).keys`), reads by
+   `timer.*.rep`; `x == left(p)` decides the side (`HoleL`), `x = 0` handled through `ctxX.par`.
+2. **Stage 8 remove**: `timer.remove.rb` = `timer.remove.struct` + stage 7 + the clears: `t ∉ (ctxX.plug tx).keys`
+   (`DelShape.keys` + Nodup), so `clrT` keeps the tree (`KeepOut` with `X = (· = t)`), `TIMER_MIN = delKeys.headD`
+   = new `minKey` (`DelShape.keys` + fixup keeps keys), other cores framed (`CoreTree.keep`, `X` = old keys),
+   `t` idle (all five words 0).  Then `timer.insert.rb` with `hrem := timer.remove.rb`.  Then `fire`.
