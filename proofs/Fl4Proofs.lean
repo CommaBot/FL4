@@ -18,6 +18,9 @@ import Fl4Proofs.P1.RabCongr
 import Fl4Proofs.P1.FastRREnt
 import Fl4Proofs.P1.FastRRFoot
 import Fl4Proofs.P1.FastRRLk
+import Fl4Proofs.P1.FastTailNvm
+import Fl4Proofs.P1.FastTailFault
+import Fl4Proofs.P1.FastTailRR
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
@@ -1323,10 +1326,12 @@ import Fl4Proofs.P3.SpecInvIoPortsS
 import Fl4Proofs.P3.XTopJointKEntry37E
 import Fl4Proofs.P3.XTopJointKEntryRR
 import Fl4Proofs.P3.XTopJointKEntryRRF
+import Fl4Proofs.P3.XTopJointKEntryRRG
 import Fl4Proofs.P3.XTopJointFaultG
 import Fl4Proofs.P3.XTopJointKEntryEv3
 import Fl4Proofs.P3.XTopJointKEntryEv4
 import Fl4Proofs.P3.XTopJointKEntryEv5
+import Fl4Proofs.P3.XTopJointKEntryEv5N
 import Fl4Proofs.P3.XTopJointKEntryEv6
 import Fl4Proofs.P3.XTopJointKEntryEv7
 import Fl4Proofs.P3.XTopJointKEntry38E
