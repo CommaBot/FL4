@@ -17148,3 +17148,24 @@ rebuilt over the e84b2e3f cache). `#print axioms` (../axf2.lean): `JAtZ.vsReachM
 `vkey_copied`, `JAtZ.vsNamedDrop`, `vsNamedRestart`: `[propext, Classical.choice, Quot.sound]` (the tops' lines
 fell outside the captured tail; their modules are unchanged). axf2.lean's three P1 timer entries `insert.coreW`,
 `insert.rb`, `CoreTree.keep` are unknown constants on this branch (pre-existing list entries, not f2's). No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
+
+## f3 (branch par/f3 from ed26302f = f2) — F1 stage 4 (VSpace / finalise preservation of `VsNamed`), then stage 3 sites; no new top, nothing wired
+
+### (0) Sizing (before starting)
+- **What the posts give.** The VSpace refinements' posts are spec-level: relations at σ' (`VsRel` / `PtRel` at the
+  same sets), `SlotFoot` at the invoked slot, `VsLike` of the new cap, and the spec outcome
+  (`PdptMapSpec σ iv σ'` …) next to the decode's `run … = {(ok iv, σ)}`. FL4's walk words are read through the
+  relations at both states (present / page-size bits and table targets of set tables are fixed by the spec
+  entries, ASID-table and pool words exactly), so no new "word written" clause is needed in the `*Rel` posts.
+- **Finding for stage 5 (before any proof):** the J-layer post `VsPostJ` (VsDecFrame) keeps only
+  `∃ iv, PdptMapSpec σ iv σ' ∨ …`, without the decode result that ties `iv` to the invoked cap, the ASID lookup
+  and the old entry; from it alone `VsNamed` cannot follow (an arbitrary `iv` maps anything anywhere). Stage 5
+  must carry the decode equation (or the derived word-level facts below) through `VsPostJ` / `VsJPost` /
+  `VsJPostO` (VsTopX, VsDecFrame, XTopJointVsMap, XTopJointVsOff and their producers: ~8 files).
+- **Plan.** (a) word-level generic lemmas, one new module `VsNamedOps.lean` (~600–800 lines): a uniform walk
+  step `wstep`, the master inclusion `VsPath.sub_new` (walks after are walks before or new nodes), and
+  `VsNamed.leaf` (frame class: walk steps kept), `mapTab`, `unmapTab`, `assign`, `makePool`, `delSlot`
+  (cap deleted: non-final same-key copy, or its walk gone), `poolDel` / `asidDel`. (b) bridges from the spec
+  (`VsNamedSpec.lean`, ~400–600): walk steps from `PtRel` / `VsRel` at both states and spec entries; spec
+  lookups (`findVspaceForAsid`, `lookupPdptSlot` …) as walks. (c) per-op lemmas at the `*Rel` posts as far as
+  context allows. Stage 3 sites after that.
