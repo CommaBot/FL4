@@ -16318,3 +16318,57 @@ start). So all of the cost is in the whole-entry preservation lemma of each fact
 ### (5) Recommendation
 Order: C27 (M) first, then D7 (L), then C26 (L). Each is spec-only, outside the JAtZ cone, and parallel to m75's
 re-extraction (SpecInv* only). Each wants its own line with a fresh context.
+
+## sd7 (branch par/sd7 in FL4-sd7, on 88b4b4a8 = PR #66 head) — D7 `IdleVt` DISCHARGED (g7a-4 (2)); new top **`kernel_entry_reachU13`** (= U11 without D7); no premise added; no FINDING
+
+### (1) Route (as g7a-4 (2), with one simplification)
+- **Spec fact** `SInvIV.IdleVtS σ := IVV σ.idleThread (uV σ)`, `IVV t w := ∀ a, w.2.1 (t, tcbCnodeIndex 1) = some a → a = .nullCap`:
+  the idle TCB's vtable slot holds the null cap. Stronger than D7's "no mapped PML4 cap", and simpler to carry:
+  a slot holding any non-null cap is then not the idle vtable (`notIV_of_held`), so the ASID-pool assign (rewrites a
+  PML4 cap's slot), the untyped / MakePool sources and the arch map slots need no new decode fact.
+- **Family** `SI N t := SIV N t (uV ·)`, `SIV N t w := P3V N w ∧ IrqOutV (fun _ => t) w ∧ IVV t w` (g7a-4's
+  `P3V ∧ IrqOutV M ∧ IVV` with `M = fun _ => t`), namespace `Fl4Proofs.P3.SInvIV`, prefix `iw_`/`iv_` (`si_` is taken by
+  SpecInvSbI's macro). The first two conjuncts are ut7/ut8's `P3 K` lemmas at `K = N` and `K = fun _ => t` (`iw_of`).
+- Modules (new, spec only, root-imported after XTopJointKEntryU11):
+  * **SpecInvSiA** (SgA's analogue): `IVV`, `NotIV`, `SIV`/`SI`; frames; deletion (sg1's `NulK`), `rec_del` (`ni_recDel`:
+    the reduce-zombie swap's slots are the zombie's own, which holds a non-null cap, and a slot of the zombie's object,
+    covered by the zombie); inserts; **TCB installs** (`iv_checkCapAt_ins`: the inner `check_cap_at` finds
+    `threadCap tt` in its slot (`sameObj_thread`), so `tt` is covered and `tt ≠ t` by the idle range fact; no decode
+    fact needed, so `invokeTcb` stays in the decode-free generated part); the IPC cap transfer (receive slots are lookup
+    destinations).
+  * **SpecInvSiG**: SgG mechanically renamed (`sg_` → `iw_`, `S N M` → `SI N t`).
+  * **SpecInvSiC / SiD**: SgC / SgD's performs adapted (CNode insert/move/rotate destinations `DestRefV`; IRQ control /
+    IO-port control issues into lookup slots; `set_irq_handler` writes `(N irq, [])`, never a TCB slot
+    (`tcbCnodeIndex_ne_nil`); arch maps / unmaps rewrite a slot holding an arch cap; DeriveSubframe, MakePool and
+    untyped performs as sg1, `default_null` for the retyped objects). sg1's decode facts (`CnOKN`, `RotOKN`,
+    `ArchSlN`, `MpOKN`, `UtGapOK`, `SgOKN`) are reused unchanged.
+  * **SpecInvSiE**: the shell, syscalls, events, `fl4CallKernel`, the entry (`IKSI`), plus `iwN_handleE` /
+    `iwN_front` (the finish states' shapes), and the state-level tops `kentry_idleVtS`, `kcall_idleVtS`,
+    `fip_kcall_idleVtS`, `handleE_idleVtS`, `front_idleVtS` (each from `SpecGlobS ∧ IdleOutV ∧ UtInv3 ∧ IdleVtS` at
+    the entry, sg1's `S_of_specGlob`; the idle pointer kept by sg1's `idk_*`), `boot_idleVtS` (non-vacuity).
+  * **XTopJointKEntryU13**: `JAtZR.idleTcb` (the idle word is in `T`, `SchedCore.idleT`; a `T` thread is a spec TCB,
+    `StateRel.tcb`), `idleVt_of` (`IdleVt` from that and `IdleVtS`), `KFinAtR13` / `KFinEv13` (U11's without `idle`)
+    with `.to11`; **`JReachU13 s a σ := JReachU3 s a σ ∧ IdleVtS σ`** (`JReachU13.start`); **`kernel_entry_reachU13`**:
+    U11 at `hJ.1`, every finish bundle's `idle` from `front_idleVtS` (syscall finish, trap / unknown-syscall events)
+    or `handleE_idleVtS` (other events), every exit clause ending in `JReachU13` (U11's `JReachU3` plus
+    `kentry_idleVtS` / `evOut_idleVtS`; `SpecGlobS`, `IdleOutV`, `UtInv3` from `SInvX` at the entry).
+- Nothing existing edited (JReachU3, JAtZ, RelTopM, JExt untouched); only `Fl4Proofs.lean` gains the imports.
+
+### (2) Premises
+- Removed relative to U11: **D7 `idle` [J]** (in the syscall finish bundle `KFinAtR11` and in every event's `KFinEv11`).
+- Added: none. The start fact `IdleVtS σ` is asked once, at the start state of `JReachU13` (as `JReachU3.start` asks
+  `SInvX` etc.); it holds at boot (`boot_idleVtS`: the initial state holds null caps; l4v `create_idle_thread`).
+- [J] count at U13: C4, C16, C17, C21, C22, C23, C24×3, C25, C26, C27 (12); [W] 0.
+
+### (3) Builds and axioms
+- tokyo mirror FL4-sd7 (sd7-build.sh, ../axsd7.lean untracked, seeded from FL4-g7e). Module builds: sd7-m1 (SiA:
+  `finaliseCap_null` closes the goal itself, `iv_fin_rem` has no `N`), sd7-m2 (SiA/SiG/SiC green), sd7-m3 (SiD green,
+  `boot_idleVtS` needs the slot named), sd7-m4 (SiE + U13 green, 7138 jobs).
+- **sd7-full1** (full `lake build` at 3e3b2c2a): "Build completed successfully (7233 jobs)", 0 `error`, 0 `sorry`.
+- `#print axioms` (../axsd7.lean): `kernel_entry_reachU13`, `kentry_idleVtS`, `kcall_idleVtS`, `front_idleVtS`,
+  `boot_idleVtS`, and U3L/U4–U11/UH2: propext, Classical.choice, Quot.sound. No sorry / admit / native_decide /
+  bv_decide / axiom in the new files.
+
+### (4) Findings and next
+- None: `IdleVtS` is preserved by every spec step of the entry (proved), and holds at boot.
+- Next of g7a-4 (5): C27 (M), then C26 (L), the same way (a spec family plus a `JReachU1x` conjunct).
