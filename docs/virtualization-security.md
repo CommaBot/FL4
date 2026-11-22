@@ -19,7 +19,15 @@ below. FL4 does not install firmware/microcode updates.
 ## Predictor boundaries
 
 * Native syscall, interrupt, exception and NMI entry run the selected assembly
-  barriers before calling Rust. There is no GS/per-CPU lookup before protection.
+  barriers before calling Rust. Interrupts, exceptions and NMIs arrive on a
+  stack the hardware switched to (TSS RSP0 or an IST) and reach the barriers
+  with no GS/per-CPU lookup. SYSCALL switches no stack: `fl4_syscall_entry`
+  runs `SWAPGS; LFENCE` (the fence keeps a mispredicted path from using the
+  wrong GS base), saves the user RSP in a GS scratch word and loads the
+  core's entry stack (`SkimCpu.entry_stack`, `gs_block[0]`), pushes SS and
+  the user RSP, clears the scratch word and runs the paired `SWAPGS`; it
+  then pushes the rest of the frame and falls into `fl4_common_entry`,
+  which runs the barriers, moves to the kernel stack and enters Rust.
 * Every VM exit, including failed entry, issues IBPB before the first host return
   or interrupt enable. This also protects the userspace VMM without requiring
   a context switch. The guest cannot write the host's speculation-control MSRs.
@@ -105,6 +113,15 @@ them grows the image more than it saves.
   guest/host isolation is unaffected. Nested Intel relies on L0 implementing
   the advertised IBPB contract: a guest BIOS-signature MSR is not a physical
   host firmware revision.
+* An Intel TDX L1 guest (TD) does not trust its VMM either: MapGPA answers
+  must make progress, emulated MMIO takes its address from the thread's page
+  tables and never from the VMM, and a kernel #VE other than CPUID, the idle
+  HLT and the x2APIC/timer MSRs terminates the TD (README, "Intel TDX
+  guests"). The TDX module, not the TD, owns TSX, `MCU_OPT_CTRL` and microcode
+  state: in a TD FL4 reads no microcode revision (`IA32_BIOS_SIGN_ID`) and
+  writes neither `TSX_CTRL` nor `MCU_OPT_CTRL`. The VM backend is not started
+  in a TD (`vm::init` skips it in any confidential guest, as under SEV):
+  nested virtualization is outside the supported configuration.
 * Outside SEV/SEV-SNP the hypervisor is trusted: on Intel, MMIO stale data
   and RFDS are judged by the reported model, as on bare metal, when the
   immunity bits are missing (GCE N4 reports no RFDS_NO although RFDS affects

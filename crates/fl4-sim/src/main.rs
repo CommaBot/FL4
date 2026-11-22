@@ -142,6 +142,10 @@ struct Conc {
     /// Per core, while it runs a local path beside the gate: the words it
     /// writes, for the footprint oracle (`Sim::check_footprint`).
     footprint: Vec<Mutex<Option<Vec<u64>>>>,
+    /// Per core, while it runs a frame-cap invocation's local path
+    /// (`fl4_core::localinv`): the one local path that may invalidate TLB
+    /// entries (`SimArch::local_tlb`).
+    local_tlb: Vec<AtomicBool>,
     /// x86-TSO (DESIGN.md §10): per core, the stores not yet visible to
     /// other cores, oldest first. Off unless `--tso`.
     tso: bool,
@@ -219,6 +223,42 @@ const SPIN_LIMIT: u64 = 2_000_000;
 static FASTPATH_DIFF: AtomicBool = AtomicBool::new(false);
 static FASTPATH_COUNTS: Mutex<(u64, u64)> = Mutex::new((0, 0));
 
+/// The local paths beside the gate that PR #71 added, as tried (serially
+/// under `--fastpath-diff`, or beside the gate with `--conc`) and as run:
+/// frame-cap invocations (`fl4_core::localinv`), VM faults
+/// (`fastpath_vm::vm_fault`) and ReplyRecv answering one
+/// (`fastpath_vm::reply_recv_vm_found`, run only).
+#[derive(Default, Clone, Copy, Debug)]
+struct LocalCounts {
+    inv_tried: u64,
+    inv_ran: u64,
+    vm_fault_tried: u64,
+    vm_fault_ran: u64,
+    vm_reply_ran: u64,
+    /// TLB invalidations frame-cap invocations made beside the gate
+    /// (`--conc`): of a page, of an address space.
+    tlb_page: u64,
+    tlb_asid: u64,
+}
+
+static LOCAL_COUNTS: Mutex<LocalCounts> = Mutex::new(LocalCounts { inv_tried: 0, inv_ran: 0, vm_fault_tried: 0, vm_fault_ran: 0, vm_reply_ran: 0, tlb_page: 0, tlb_asid: 0 });
+
+/// A local syscall path ran on the objects `held` (`fl4_sync::local_syscall`'s
+/// `observe`): whether it is a ReplyRecv answering a VM fault, which holds
+/// its reply object (32 bytes) then its endpoint (16), and whose reply
+/// names a thread with a VM fault. Read beside the locks, without
+/// scheduling points (as `footprint`).
+fn replies_to_vm_fault(s: &SimStore, held: &[(u64, u64)]) -> bool {
+    let s = SimStore { conc: None, ..s.clone() };
+    match held {
+        [(r, 32), (_, 16)] => {
+            let u = Tcb(fl4_core::obj::Reply(*r).tcb(&s));
+            !u.is_null() && u.fault_type(&s) == fl4_abi::consts::fault::VMFault
+        }
+        _ => false,
+    }
+}
+
 impl Conc {
     /// `pct`: run PCT of that depth over about `points` scheduling points.
     fn new(n: u64, seed: u64, pct: Option<(u64, u64)>, tso: bool, explore: Option<Vec<u64>>) -> Conc {
@@ -248,6 +288,7 @@ impl Conc {
             gate_held: (0..n).map(|_| AtomicBool::new(false)).collect(),
             out_of_steps: AtomicU64::new(0),
             footprint: (0..n).map(|_| Mutex::new(None)).collect(),
+            local_tlb: (0..n).map(|_| AtomicBool::new(false)).collect(),
             tso,
             sb: (0..n).map(|_| Mutex::new(StoreBuffer::default())).collect(),
         }
@@ -607,6 +648,20 @@ impl SimArch {
         }
     }
 
+    /// `gate_only`, except in a frame-cap invocation's local path, which
+    /// invalidates what it unmaps or remaps itself: a page (an unmap, a
+    /// remap that raises rights) or the address space (a remap that lowers
+    /// them, without `DEFER_FLUSH`), shooting other cores down under
+    /// `CALL_LOCK` (fl4-arch-x86_64 smp.rs). Whether it returns true: such
+    /// a local path made it.
+    fn local_tlb(&self, what: &str) -> bool {
+        let Some(c) = &self.conc else { return false };
+        let cpu = self.cpu as usize;
+        let local = c.footprint[cpu].lock().unwrap().is_some();
+        assert!(!local || c.local_tlb[cpu].load(Ordering::SeqCst), "footprint: core {cpu}'s local path called {what}");
+        local
+    }
+
     fn raise(&self, cpu: u64, irq: u64) {
         let mut m = self.m.lock().unwrap();
         m.cores[cpu as usize].pending[(irq / 64) as usize] |= 1 << (irq % 64);
@@ -695,11 +750,16 @@ impl Arch for SimArch {
     fn set_vspace(&mut self, root: u64, asid: u64) {
         self.m.lock().unwrap().cores[self.cpu as usize].vspace = (root, asid);
     }
+    // The simulator has no TLBs: it checks who invalidates them.
     fn invalidate_page(&mut self, _asid: u64, _vaddr: u64) {
-        self.gate_only("invalidate_page");
+        if self.local_tlb("invalidate_page") {
+            LOCAL_COUNTS.lock().unwrap().tlb_page += 1;
+        }
     }
     fn invalidate_asid(&mut self, _asid: u64) {
-        self.gate_only("invalidate_asid");
+        if self.local_tlb("invalidate_asid") {
+            LOCAL_COUNTS.lock().unwrap().tlb_asid += 1;
+        }
     }
     fn invalidate_page_structures(&mut self, _asid: u64) {
         self.gate_only("invalidate_page_structures");
@@ -892,15 +952,34 @@ fn footprint(s: &SimStore, ncores: u64, cpu: u64, locked: &[(u64, u64)]) -> Vec<
     v
 }
 
-/// The footprint oracle: every word the local path for syscall `number`
-/// on core `cpu` wrote lies in `allowed` (`Sim::footprint`).
-fn check_footprint(cpu: u64, number: i64, allowed: &[(u64, u64)], writes: impl Iterator<Item = u64>) {
+/// The footprint oracle: every word the local path for `what` (a syscall,
+/// a VM fault) on core `cpu` wrote lies in `allowed` (`Sim::footprint`).
+fn check_footprint(cpu: u64, what: &str, allowed: &[(u64, u64)], writes: impl Iterator<Item = u64>) {
     for w in writes {
         assert!(
             allowed.iter().any(|&(a, n)| w >= a && w < a + n),
-            "footprint: core {cpu}'s local path for syscall {number} wrote {w:#x}, outside its footprint"
+            "footprint: core {cpu}'s local path for {what} wrote {w:#x}, outside its footprint"
         );
     }
+}
+
+/// Run a local path beside the gate on core `cpu` under the footprint
+/// oracle: `path` runs it with `observe`, which reads its footprint once
+/// it holds its locks; every word it wrote must lie in that footprint, and
+/// one that never took its locks must have written nothing. `tlb`: it is a
+/// frame-cap invocation's, which may invalidate TLB entries.
+fn under_footprint(conc: &Conc, ncores: u64, cpu: u64, what: &str, tlb: bool, path: impl FnOnce(&mut dyn FnMut(&SimStore, &[(u64, u64)])) -> bool) -> bool {
+    let mut allowed = None;
+    *conc.footprint[cpu as usize].lock().unwrap() = Some(Vec::new());
+    conc.local_tlb[cpu as usize].store(tlb, Ordering::SeqCst);
+    let ran = path(&mut |s: &SimStore, held: &[(u64, u64)]| allowed = Some(footprint(s, ncores, cpu, held)));
+    conc.local_tlb[cpu as usize].store(false, Ordering::SeqCst);
+    let writes = conc.footprint[cpu as usize].lock().unwrap().take().unwrap();
+    match &allowed {
+        Some(allowed) => check_footprint(cpu, what, allowed, writes.into_iter()),
+        None => assert!(writes.is_empty(), "footprint: core {cpu}'s local path for {what} wrote {:#x} without its locks", writes[0]),
+    }
+    ran
 }
 
 /// xorshift64*, seeded.
@@ -966,11 +1045,28 @@ struct Sim {
     guest: Vec<(Tcb, Tcb, u64, u64)>,
     /// `first_untyped`'s last answer: (slot, size).
     big_ut: Cell<(u64, u64)>,
+    /// Empty root CNode slots for copies of frame caps, each with a small
+    /// page of the root VSpace (one whose page table exists) to map its
+    /// copy at: (slot, vaddr). The root task copies, mints, maps and
+    /// deletes in them, and workers delete, as a guest's pager does
+    /// (`fl4_core::localinv`).
+    frame_slots: Vec<(u64, u64)>,
 }
 
 fn pptr(p: u64) -> u64 {
     p + PPTR_BASE
 }
+
+/// How many `Sim::frame_slots`.
+const FRAME_SLOTS: u64 = 6;
+
+/// `seL4_CapRights_t` with every right (bit 0 write, 1 read, 2 grant,
+/// 3 grant reply), and with read only.
+const ALL_RIGHTS: u64 = 0xf;
+const READ_ONLY: u64 = 2;
+
+/// A user address under no page table of the root VSpace.
+const UNMAPPED_VA: u64 = 0x1000_0000_0000;
 
 impl Sim {
     fn new(seed: u64, ncores: u64) -> Sim {
@@ -996,7 +1092,7 @@ impl Sim {
         }));
         let s = SimStore { mem: mem.clone(), ks_base, cpu: 0, conc: None };
         let a = SimArch { m, mem, ks_base, cpu: 0, conc: None };
-        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0, port: 0, guest: Vec::new(), big_ut: Cell::new((0, 0)) }
+        Sim { s, a, ncores, objs: Vec::new(), next_slot: 0, fault_ep: 0, reply: 0, focus: None, reset_ut: 0, reset_child: 0, port: 0, guest: Vec::new(), big_ut: Cell::new((0, 0)), frame_slots: Vec::new() }
     }
 
     /// Run the kernel part of an entry: directly, or (concurrent mode)
@@ -1176,12 +1272,110 @@ impl Sim {
         if FASTPATH_DIFF.load(Ordering::Relaxed) && self.s.conc.is_none() {
             return self.diff_syscall(number);
         }
-        self.enter_syscall(number);
+        // A frame-cap invocation: not a trapped syscall, and by its label
+        // (as fl4_sync::local_syscall chooses `local_invocation`). The flags
+        // are read without a scheduling point: only a stall, under the
+        // gate, changes them, and this core's stores are drained.
+        let flags = t.flags(&SimStore { conc: None, ..self.s.clone() });
+        let trap = flags & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
+        let inv = !trap && number == sc::SysCall && fl4_core::localinv::is_local_label(info >> 12);
+        self.enter_syscall(number, inv);
+    }
+
+    /// A VM fault (a page fault, error code `code`, at `addr`) of the
+    /// current thread of `cpu`, as the kernel takes one (fl4-kernel
+    /// entry.rs): the thread's registers saved with `FAULT_IP` at the
+    /// faulting instruction, then `fl4_sync::run_vm_fault`; serially,
+    /// `handle_vm_fault`.
+    fn vm_fault(&mut self, cpu: u64, addr: u64, code: u64) {
+        self.on(cpu);
+        let t = sched::cur_thread(&self.s);
+        if TRACE.load(Ordering::Relaxed) {
+            println!("  core {cpu} thread {:#x} ({}) VM fault at {addr:#x} code {code:#x}", t.0, name_of(&self.s, t));
+        }
+        let ip = t.reg(&self.s, reg::NEXT_IP);
+        t.set_reg(&mut self.s, reg::FAULT_IP, ip);
+        if FASTPATH_DIFF.load(Ordering::Relaxed) && self.s.conc.is_none() {
+            return self.diff_vm_fault(addr, code);
+        }
+        self.enter_vm_fault(addr, code);
+    }
+
+    /// A VM fault's kernel entry (fl4_sync::run_vm_fault, its local path
+    /// under the footprint oracle); serially, `handle_vm_fault`.
+    fn enter_vm_fault(&mut self, addr: u64, code: u64) {
+        let Some(conc) = self.s.conc.clone() else {
+            return syscall::handle_vm_fault(&mut self.s, &mut self.a, addr, code);
+        };
+        let cpu = self.s.cpu as usize;
+        conc.in_kernel[cpu].store(true, Ordering::SeqCst);
+        let env = SimEnv { s: self.s.clone(), a: self.a.clone(), conc: conc.clone() };
+        let m = self.s.clone();
+        let ncores = self.ncores;
+        let local = |s: &mut SimStore, a: &mut SimArch| {
+            let ran = under_footprint(&conc, ncores, cpu as u64, "a VM fault", false, |observe| fl4_sync::local_vm_fault(s, a, &m, addr, code, |s, held| observe(s, held)));
+            let mut c = LOCAL_COUNTS.lock().unwrap();
+            c.vm_fault_tried += 1;
+            c.vm_fault_ran += ran as u64;
+            ran
+        };
+        fl4_sync::run_vm_fault(&env, &GATE, local, |s, a| syscall::handle_vm_fault(s, a, addr, code));
+        self.leave_kernel(&conc);
+    }
+
+    /// The end of an entry made with `fl4_sync`: release the gate if this
+    /// core holds it, check that no accepted interrupt is left
+    /// unacknowledged, and drain the store buffer (IRET, SYSRET after a
+    /// serializing write).
+    fn leave_kernel(&mut self, conc: &Conc) {
+        let cpu = self.s.cpu as usize;
+        if conc.gate_held[cpu].swap(false, Ordering::SeqCst) {
+            GATE.release(&self.s);
+        }
+        let stuck = self.a.m.lock().unwrap().cores[cpu].in_service;
+        assert!(stuck.is_none(), "liveness: core {cpu} left the kernel with interrupt {stuck:?} accepted and never acknowledged");
+        self.s.drain();
+        conc.in_kernel[cpu].store(false, Ordering::SeqCst);
+    }
+
+    /// `--fastpath-diff` for a VM fault: the local path
+    /// (`fl4_sync::local_vm_fault`, under the footprint oracle) and, if it
+    /// declined, `handle_vm_fault`, as a core entering beside the gate
+    /// takes it; undone, then `handle_vm_fault` alone; both must end in the
+    /// same memory and machine state.
+    fn diff_vm_fault(&mut self, addr: u64, code: u64) {
+        let mem = self.s.mem.clone();
+        let m0 = self.a.m.lock().unwrap().clone();
+        let cpu = self.s.cpu;
+        let ncores = self.ncores;
+        let time0 = node_get(&self.s, cpu, node::CUR_TIME);
+        let mut allowed = None;
+        let locks = SimStore { conc: None, ..self.s.clone() };
+        mem.start_log();
+        let ran_local = fl4_sync::local_vm_fault(&mut self.s, &mut self.a, &locks, addr, code, |s, held| allowed = Some(footprint(s, ncores, cpu, held)));
+        // A local attempt that declined after reading the clock.
+        let read_clock = !ran_local && node_get(&self.s, cpu, node::CUR_TIME) != time0;
+        if !ran_local {
+            syscall::handle_vm_fault(&mut self.s, &mut self.a, addr, code);
+        }
+        let fast_log = mem.take_log();
+        if ran_local {
+            check_footprint(cpu, "a VM fault", allowed.as_ref().unwrap(), fast_log.iter().map(|&(i, _)| PPTR_BASE + i as u64 * 8));
+        }
+        {
+            let mut c = LOCAL_COUNTS.lock().unwrap();
+            c.vm_fault_tried += 1;
+            c.vm_fault_ran += ran_local as u64;
+        }
+        let what = format!("VM fault at {addr:#x} code {code:#x} (locally: {ran_local})");
+        self.diff_general(&what, m0, fast_log, read_clock, |s, a| syscall::handle_vm_fault(s, a, addr, code));
     }
 
     /// A syscall's kernel entry, as the kernel makes it (fl4_sync::
-    /// run_syscall); serially, `handle_syscall`.
-    fn enter_syscall(&mut self, number: i64) {
+    /// run_syscall); serially, `handle_syscall`. `inv`: a frame-cap
+    /// invocation (`localinv`), whose local path may invalidate TLB
+    /// entries.
+    fn enter_syscall(&mut self, number: i64, inv: bool) {
         let Some(conc) = self.s.conc.clone() else {
             return syscall::handle_syscall(&mut self.s, &mut self.a, number);
         };
@@ -1194,24 +1388,22 @@ impl Sim {
         // read once the path holds its locks: its core is active and its
         // objects locked, so nothing it reads changes meanwhile.
         let local = |s: &mut SimStore, a: &mut SimArch| {
-            let mut allowed = None;
-            *conc.footprint[cpu].lock().unwrap() = Some(Vec::new());
-            let ran = fl4_sync::local_syscall(s, a, &m, number, |s, held| allowed = Some(footprint(s, ncores, cpu as u64, held)));
-            let writes = conc.footprint[cpu].lock().unwrap().take().unwrap();
-            match &allowed {
-                Some(allowed) => check_footprint(cpu as u64, number, allowed, writes.into_iter()),
-                None => assert!(writes.is_empty(), "footprint: core {cpu}'s local path for syscall {number} wrote {:#x} without its locks", writes[0]),
-            }
+            let mut vm_reply = false;
+            let what = format!("syscall {number}");
+            let ran = under_footprint(&conc, ncores, cpu as u64, &what, inv, |observe| {
+                fl4_sync::local_syscall(s, a, &m, number, |s, held| {
+                    vm_reply = replies_to_vm_fault(s, held);
+                    observe(s, held)
+                })
+            });
+            let mut c = LOCAL_COUNTS.lock().unwrap();
+            c.inv_tried += inv as u64;
+            c.inv_ran += (inv && ran) as u64;
+            c.vm_reply_ran += (vm_reply && ran) as u64;
             ran
         };
         fl4_sync::run_syscall(&env, &GATE, number, local, |s, a| syscall::handle_syscall_fast(s, a, number));
-        if conc.gate_held[cpu].swap(false, Ordering::SeqCst) {
-            GATE.release(&self.s);
-        }
-        let stuck = self.a.m.lock().unwrap().cores[cpu].in_service;
-        assert!(stuck.is_none(), "liveness: core {cpu} left the kernel with interrupt {stuck:?} accepted and never acknowledged");
-        self.s.drain();
-        conc.in_kernel[cpu].store(false, Ordering::SeqCst);
+        self.leave_kernel(&conc);
     }
 
     /// `--fastpath-diff` (serial runs): the syscall through `handle_syscall`
@@ -1227,26 +1419,54 @@ impl Sim {
         let local = FASTPATH_COUNTS.lock().unwrap().0 % 2 == 0;
         let t = sched::cur_thread(&self.s);
         let trap = t.flags(&self.s) & fl4_abi::consts::tcb_flag::TRAP_SYSCALLS != 0;
-        // The syscalls fl4_sync::run_syscall tries a local path for.
-        let port = !trap
-            && (number == sc::SysCall || number == sc::SysSend)
-            && fl4_core::ioport::is_port_label(fl4_core::msg::msg_info(&self.s, t).label);
-        let try_local = local && (trap || number == sc::SysReplyRecv || port);
+        // The syscalls fl4_sync::run_syscall tries a local path for: a
+        // trapped syscall, ReplyRecv, an I/O port access, or a frame-cap
+        // invocation (`fl4_core::localinv`), by its label.
+        let lbl = fl4_core::msg::msg_info(&self.s, t).label;
+        let port = !trap && (number == sc::SysCall || number == sc::SysSend) && fl4_core::ioport::is_port_label(lbl);
+        let local_inv = !trap && number == sc::SysCall && fl4_core::localinv::is_local_label(lbl);
+        let try_local = local && (trap || number == sc::SysReplyRecv || port || local_inv);
         let cpu = self.s.cpu;
         let ncores = self.ncores;
         let time0 = node_get(&self.s, cpu, node::CUR_TIME);
         let mut allowed = None;
+        let mut vm_reply = false;
         let locks = SimStore { conc: None, ..self.s.clone() };
         mem.start_log();
         let ran_local = try_local
-            && fl4_sync::local_syscall(&mut self.s, &mut self.a, &locks, number, |s, held| allowed = Some(footprint(s, ncores, cpu, held)));
+            && fl4_sync::local_syscall(&mut self.s, &mut self.a, &locks, number, |s, held| {
+                vm_reply = replies_to_vm_fault(s, held);
+                allowed = Some(footprint(s, ncores, cpu, held))
+            });
         // A local attempt that declined after reading the clock.
         let read_clock = try_local && !ran_local && node_get(&self.s, cpu, node::CUR_TIME) != time0;
         let fast = ran_local || syscall::handle_syscall_fast(&mut self.s, &mut self.a, number);
         let fast_log = mem.take_log();
         if ran_local {
-            check_footprint(cpu, number, allowed.as_ref().unwrap(), fast_log.iter().map(|&(i, _)| PPTR_BASE + i as u64 * 8));
+            check_footprint(cpu, &format!("syscall {number}"), allowed.as_ref().unwrap(), fast_log.iter().map(|&(i, _)| PPTR_BASE + i as u64 * 8));
         }
+        {
+            let mut c = LOCAL_COUNTS.lock().unwrap();
+            c.inv_tried += (local_inv && try_local) as u64;
+            c.inv_ran += (local_inv && ran_local) as u64;
+            c.vm_reply_ran += (vm_reply && ran_local) as u64;
+        }
+        {
+            let mut c = FASTPATH_COUNTS.lock().unwrap();
+            c.0 += 1;
+            c.1 += fast as u64;
+        }
+        let what = format!("syscall {number} (fast path ran: {fast}, locally: {ran_local})");
+        self.diff_general(&what, m0, fast_log, read_clock, |s, a| syscall::handle_syscall_general(s, a, number));
+    }
+
+    /// The second half of a `--fastpath-diff` check: the entry `what` ran
+    /// from machine state `m0` and wrote `fast_log` (and read the clock
+    /// once more, `read_clock`, in a local attempt that declined); undo
+    /// it, run `general` from the same state, and require every word
+    /// either wrote and the machine state to end the same.
+    fn diff_general(&mut self, what: &str, m0: Machine, fast_log: Vec<(usize, u64)>, read_clock: bool, general: impl FnOnce(&mut SimStore, &mut SimArch)) {
+        let mem = self.s.mem.clone();
         let m_fast = self.a.m.lock().unwrap().clone();
         let mut orig: HashMap<usize, u64> = HashMap::new();
         let mut want: HashMap<usize, u64> = HashMap::new();
@@ -1265,14 +1485,9 @@ impl Sim {
             let _ = self.a.now();
         }
         mem.start_log();
-        syscall::handle_syscall_general(&mut self.s, &mut self.a, number);
+        general(&mut self.s, &mut self.a);
         for (i, old) in mem.take_log() {
             orig.entry(i).or_insert(old);
-        }
-        {
-            let mut c = FASTPATH_COUNTS.lock().unwrap();
-            c.0 += 1;
-            c.1 += fast as u64;
         }
         let mut bad: Vec<(u64, u64, u64, u64)> = orig
             .iter()
@@ -1291,7 +1506,7 @@ impl Sim {
             if m_fast != m_general {
                 println!("  machine: general {m_general:?}\n  fast    {m_fast:?}");
             }
-            panic!("fastpath: syscall {number} (fast path ran: {fast}, locally: {ran_local}) left {} words and the machine state {} from the general path's", bad.len(), if m_fast == m_general { "equal" } else { "different" });
+            panic!("fastpath: {what} left {} words and the machine state {} from the general path's", bad.len(), if m_fast == m_general { "equal" } else { "different" });
         }
     }
 
@@ -1356,6 +1571,22 @@ impl Sim {
         self.after("setup port");
         self.port = dest;
         self.next_slot += 1;
+        // Slots for frame-cap copies, each with an unmapped small page of
+        // the root VSpace under a page table that exists (the one over the
+        // root task's image), so that a map can take the local path.
+        let root = match self.root_cnode_slot(rs::InitThreadVSpace) {
+            Cap::Pml4 { ptr, .. } => ptr,
+            c => panic!("root VSpace cap is {:?}", cap_name(c)),
+        };
+        let free_pages = (0..512u64)
+            .rev()
+            .map(|i| 0x40_0000 + i * 4096)
+            .filter(|&va| fl4_core::vspace::small_page_entry(&self.s, root, va).is_some_and(|e| self.s.read(e) == 0));
+        let first = self.next_slot;
+        let frame_slots = free_pages.take(FRAME_SLOTS as usize).enumerate().map(|(i, va)| (first + i as u64, va)).collect::<Vec<_>>();
+        self.frame_slots = frame_slots;
+        assert_eq!(self.frame_slots.len() as u64, FRAME_SLOTS, "setup: no room for frame-cap mappings in the root VSpace");
+        self.next_slot += FRAME_SLOTS;
         // Give each new TCB a CSpace, VSpace, priority, an SC on some core,
         // and start it: these become the threads running random programs.
         let tcbs: Vec<u64> = self.objs_of(|c| matches!(c, Cap::Thread { .. }));
@@ -1501,6 +1732,9 @@ impl Sim {
                 return;
             }
         }
+        if !self.frame_slots.is_empty() && self.a.m.lock().unwrap().rng.below(4) == 0 {
+            return self.frame_turn(cpu);
+        }
         if self.port != 0 && self.a.m.lock().unwrap().rng.below(8) == 0 {
             // An I/O port access (fl4_core::syscall::handle_ioport_local),
             // sometimes out of the cap's range or with too few arguments.
@@ -1539,6 +1773,47 @@ impl Sim {
         }
     }
 
+    /// The root task's frame-cap invocation (`fl4_core::localinv`), as a
+    /// guest's pager makes them: copy or mint a frame cap (one of the
+    /// workload's frames, or another copy) into a frame slot, read-write or
+    /// read-only; map the copy in a frame slot at its page, or remap it
+    /// there with other rights (a remap that lowers them invalidates the
+    /// address space, unless `DEFER_FLUSH`; one that raises them, the
+    /// page); or delete it, which unmaps it. Some fail (an occupied
+    /// destination, an empty source, a copy mapped elsewhere, another
+    /// slot's page, a page without a page table), as they may in a guest.
+    fn frame_turn(&mut self, cpu: u64) {
+        let frames = self.objs_of(|c| matches!(c, Cap::Frame { .. }));
+        let (op, i, j, rights, badge, attr, at) = {
+            let r = &mut self.a.m.lock().unwrap().rng;
+            let n = self.frame_slots.len() as u64;
+            (
+                r.below(4),
+                r.below(n) as usize,
+                r.below(n + frames.len() as u64) as usize,
+                if r.below(3) == 0 { READ_ONLY } else { ALL_RIGHTS },
+                r.below(1 << 20),
+                if r.below(2) == 0 { 0 } else { fl4_abi::consts::vm_attr::DEFER_FLUSH },
+                r.below(16),
+            )
+        };
+        let (slot, va) = self.frame_slots[i];
+        let src = if j < frames.len() { frames[j] } else { self.frame_slots[j - frames.len()].0 };
+        // Mostly the slot's own page; sometimes another slot's, or one no
+        // page table covers (the plan's lookup declines).
+        let va = match at {
+            0 | 1 => self.frame_slots[(i + 1) % self.frame_slots.len()].1,
+            2 => UNMAPPED_VA,
+            _ => va,
+        };
+        match op {
+            0 => self.invoke(cpu, rs::InitThreadCNode, label::CNodeCopy, &[slot, 64, src, 64, rights], &[rs::InitThreadCNode]),
+            1 => self.invoke(cpu, rs::InitThreadCNode, label::CNodeMint, &[slot, 64, src, 64, rights, badge], &[rs::InitThreadCNode]),
+            2 => self.invoke(cpu, slot, label::X86PageMap, &[va, rights, attr], &[rs::InitThreadVSpace]),
+            _ => self.invoke(cpu, rs::InitThreadCNode, label::CNodeDelete, &[slot, 64], &[]),
+        }
+    }
+
     fn is_root(&self, t: Tcb) -> bool {
         name_of(&self.s, t) == "rootserver"
     }
@@ -1562,10 +1837,22 @@ impl Sim {
                 ct.set_reg(&mut self.s, reg::REPLY, reply);
                 return self.syscall(cpu, sc::SysReplyRecv, ep, (lbl << 12) | len, mrs);
             }
-            if ct == u && pick < 9 {
+            if ct == u && (pick == 7 || pick == 8) {
+                // A page fault (l4h: a guest page not mapped yet), at a
+                // user address, user mode, any of the other error bits.
+                let (addr, code) = (mrs[0] & 0x7fff_ffff_f000 | mrs[1] << 3, mrs[3] & 0x1b | 4);
+                return self.vm_fault(cpu, addr, code);
+            }
+            if ct == u && pick < 7 {
                 // Any number: with trapSyscalls each one faults.
                 return self.syscall(cpu, n - 200, 0, len, mrs);
             }
+        }
+        // Another core's frame-cap copy deleted under it, beside the gate.
+        if !self.frame_slots.is_empty() && self.a.m.lock().unwrap().rng.below(16) == 0 {
+            let i = self.a.m.lock().unwrap().rng.below(self.frame_slots.len() as u64) as usize;
+            let slot = self.frame_slots[i].0;
+            return self.invoke(cpu, rs::InitThreadCNode, label::CNodeDelete, &[slot, 64], &[]);
         }
         let mut guard = self.a.m.lock().unwrap();
         let rng = &mut guard.rng;
@@ -2185,6 +2472,13 @@ fn run_one(mut sim: Sim, seed: u64, ncores: u64, steps: u64, verbose: bool, conc
     if FASTPATH_DIFF.load(Ordering::Relaxed) {
         let c = FASTPATH_COUNTS.lock().unwrap();
         println!("seed {seed}: fastpath diff: {} syscalls checked, {} through a fast path", c.0, c.1);
+    }
+    if FASTPATH_DIFF.load(Ordering::Relaxed) || (concurrent && ncores > 1) {
+        let c = *LOCAL_COUNTS.lock().unwrap();
+        println!(
+            "seed {seed}: local paths: frame-cap invocations {}/{}, VM faults {}/{}, VM fault replies {} (run/tried); their TLB invalidations: page {}, address space {}",
+            c.inv_ran, c.inv_tried, c.vm_fault_ran, c.vm_fault_tried, c.vm_reply_ran, c.tlb_page, c.tlb_asid
+        );
     }
 }
 

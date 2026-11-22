@@ -1679,3 +1679,137 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
     let mut small = vec![0u8; 4096];
     assert_eq!(extra_bi::build(&mut small, None, &regs, None, &[], None, &[1u8; 4096]), None);
 }
+
+/// Audit r13 T3-01: the EL2 nVHE identity map (TTBR0_EL2) keeps the W^X
+/// split of TTBR1_EL1. Before, the whole kernel region was mapped
+/// read-write and executable at EL2 (`normal() | D_AP_RW_EL2`, no XN).
+/// EL2 regime, E2H=0: AP[2:1] = 0b01 RW, 0b11 RO; bit 54 (`D_UXN`) is XN.
+#[test]
+fn the_el2_identity_map_is_w_xor_x() {
+    let paging = include_str!("../../crates/fl4-kernel-aarch64/src/paging.rs");
+    assert!(paging.contains("const D_UXN: u64 = 1 << 54;"));
+    let hyp = &paging[paging.find("if cpu::is_el2_nvhe() {").expect("EL2 nVHE map")..];
+    let hyp = &hyp[..hyp.find("s.hyp_ident = hyp;").expect("end of the EL2 map")];
+    assert!(hyp.contains("const D_AP_RW_EL2: u64 = 1 << 6;"));
+    assert!(hyp.contains("const D_AP_RO_EL2: u64 = 3 << 6;"));
+    let maps: Vec<&str> = hyp.lines().map(str::trim).filter(|l| l.starts_with("map(hyp, r_start")).collect();
+    assert_eq!(
+        maps,
+        [
+            "map(hyp, r_start, r_start, text_end, normal() | D_AP_RO_EL2);",
+            "map(hyp, r_start + text_end, r_start + text_end, ro_end - text_end, normal() | D_AP_RO_EL2 | D_UXN);",
+            "map(hyp, r_start + ro_end, r_start + ro_end, region_len - ro_end, normal() | D_AP_RW_EL2 | D_UXN);",
+        ],
+        "text RO+X, rodata RO+XN, the rest RW+XN"
+    );
+    // Nothing else in the EL2 map is both writable and executable.
+    for l in hyp.lines().map(str::trim).filter(|l| l.starts_with("map(hyp") || l.starts_with("let ram_attr")) {
+        assert!(l.contains("D_UXN") || !l.contains("D_AP_RW_EL2"), "RW without XN at EL2: {l}");
+    }
+    // The split points are the TTBR1 ones.
+    assert!(paging.contains("let text_end = unsafe { &__text_end as *const u8 as u64 } - KERNEL_VBASE;"));
+    assert!(paging.contains("let ro_end = unsafe { &__rodata_end as *const u8 as u64 } - KERNEL_VBASE;"));
+}
+
+/// Audit r13 T3-02: every `HypCpu` offset the Rust side asserts is the one
+/// hyp_nvhe.S uses, field by field (comparing only the set of values would
+/// miss two swapped names).
+#[test]
+fn hyp_cpu_offsets_match_the_assembly_field_by_field() {
+    const FIELDS: [(&str, &str); 42] = [
+        ("in_guest", "HYP_IN_GUEST"),
+        ("regs_pa", "HYP_REGS_PA"),
+        ("vcpu_pa", "HYP_VCPU_PA"),
+        ("host_hcr_el2", "HYP_HOST_HCR"),
+        ("host_mdcr_el2", "HYP_HOST_MDCR"),
+        ("guest_mdcr_el2", "HYP_GUEST_MDCR"),
+        ("gic_v3", "HYP_GIC_V3"),
+        ("vgic_lrs", "HYP_VGIC_LRS"),
+        ("vgic_n_apr", "HYP_VGIC_N_APR"),
+        ("has_ras", "HYP_HAS_RAS"),
+        ("host_elr_el2", "HYP_HOST_ELR"),
+        ("host_spsr_el2", "HYP_HOST_SPSR"),
+        ("host_ttbr0_el1", "HYP_HOST_TTBR0"),
+        ("host_cpacr_el1", "HYP_HOST_CPACR"),
+        ("host_sp_el1", "HYP_HOST_SP_EL1"),
+        ("host_sctlr_el1", "HYP_HOST_SCTLR"),
+        ("host_tcr_el1", "HYP_HOST_TCR"),
+        ("host_ttbr1_el1", "HYP_HOST_TTBR1"),
+        ("host_mair_el1", "HYP_HOST_MAIR"),
+        ("host_vbar_el1", "HYP_HOST_VBAR"),
+        ("host_tpidr_el1", "HYP_HOST_TPIDR_EL1"),
+        ("host_cntkctl_el1", "HYP_HOST_CNTKCTL"),
+        ("host_mdscr_el1", "HYP_HOST_MDSCR"),
+        ("guest_mdccint_nz", "HYP_GUEST_MDCCINT_NZ"),
+        ("guest_ras_nz", "HYP_GUEST_RAS_NZ"),
+        ("guest_cntvoff_nz", "HYP_GUEST_CNTVOFF_NZ"),
+        ("cur_actlr", "HYP_CUR_ACTLR"),
+        ("cur_vttbr", "HYP_CUR_VTTBR"),
+        ("cur_vpidr", "HYP_CUR_VPIDR"),
+        ("cur_vmpidr", "HYP_CUR_VMPIDR"),
+        ("vgic_live", "HYP_VGIC_LIVE"),
+        ("vgic_lr_mask", "HYP_VGIC_LR_MASK"),
+        ("cur_vmcr", "HYP_CUR_VMCR"),
+        ("cur_ap0r", "HYP_CUR_AP0R"),
+        ("cur_ap1r", "HYP_CUR_AP1R"),
+        ("host_actlr_el1", "HYP_HOST_ACTLR"),
+        ("cur_cptr", "HYP_CUR_CPTR"),
+        ("cur_cntv_ctl", "HYP_CUR_CNTV_CTL"),
+        ("cur_cntv_cval", "HYP_CUR_CNTV_CVAL"),
+        ("cur_csselr", "HYP_CUR_CSSELR"),
+        ("cur_mdscr", "HYP_CUR_MDSCR"),
+        ("vgic_owner", "HYP_VGIC_OWNER"),
+    ];
+    fn hex(v: &str) -> u64 {
+        u64::from_str_radix(v.trim().trim_start_matches("0x"), 16).unwrap_or_else(|_| panic!("offset {v}"))
+    }
+    let rs = include_str!("../../crates/fl4-arch-aarch64/src/hyp_nvhe.rs");
+    let asm = include_str!("../../crates/fl4-arch-aarch64/src/hyp_nvhe.S");
+    let mut rust = std::collections::BTreeMap::new();
+    for l in rs.lines() {
+        if let Some(rest) = l.trim().strip_prefix("const _: () = assert!(offset_of!(HypCpu, ") {
+            let (field, rest) = rest.split_once(") == ").expect("offset assertion");
+            let v = rest.strip_suffix(");").expect("offset assertion end");
+            assert!(rust.insert(field.to_string(), hex(v)).is_none(), "{field} twice");
+        }
+    }
+    let mut equ = std::collections::BTreeMap::new();
+    for l in asm.lines() {
+        if let Some(rest) = l.trim().strip_prefix(".equ HYP_") {
+            let (name, v) = rest.split_once(',').expect(".equ");
+            let name = format!("HYP_{}", name.trim());
+            if name.starts_with("HYP_KIND_") || name == "HYP_SPSR_EL1H_MASKED" {
+                continue;
+            }
+            assert!(equ.insert(name.clone(), hex(v)).is_none(), "{name} twice");
+        }
+    }
+    assert_eq!(rust.len(), FIELDS.len(), "every offset_of! assertion is mapped");
+    assert_eq!(equ.len(), FIELDS.len(), "every HypCpu .equ is mapped");
+    for (field, name) in FIELDS {
+        let r = rust.get(field).unwrap_or_else(|| panic!("no offset_of!(HypCpu, {field})"));
+        let a = equ.get(name).unwrap_or_else(|| panic!("no .equ {name}"));
+        assert_eq!(r, a, "{field} is at {r:#x}, {name} says {a:#x}");
+    }
+    // boot.S records the host HCR_EL2/MDCR_EL2 pair by raw offset.
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    assert!(boot.contains("stp     x9, x10, [sp, #0x18]    /* HypCpu.host_hcr_el2, host_mdcr_el2 */"));
+    assert_eq!((rust["host_hcr_el2"], rust["host_mdcr_el2"]), (0x18, 0x20));
+}
+
+/// Audit r13 T2-02: the free RAM ranges dropped to fit BootParams (the
+/// smallest first) and device ranges past `MAX_REGIONS` are reported, not
+/// lost silently.
+#[test]
+fn ranges_past_the_boot_range_limit_are_reported() {
+    let lib = include_str!("../../crates/fl4-kernel-aarch64/src/lib.rs");
+    let drop = &lib[lib.find("while free.n > MAX_REGIONS {").expect("smallest dropped")..];
+    let drop = &drop[..drop.find("\n    }\n").unwrap()];
+    assert!(drop.contains("free.remove(r.start, r.end);"));
+    assert!(drop.contains("omitted_free += 1;") && drop.contains("omitted_bytes += r.end - r.start;"));
+    assert!(lib.contains("kprintln!(\"FL4: {} free RAM region(s) ({:#x} bytes) exceed the boot range limit\", omitted_free, omitted_bytes);"));
+    let dev = lib.find("for i in 0..dev.n.min(MAX_REGIONS) {").expect("device ranges copied");
+    let warn = lib.find("if dev.n > MAX_REGIONS {").expect("device ranges past the limit");
+    assert!(dev < warn);
+    assert!(lib.contains("kprintln!(\"FL4: {} device memory regions exceed the boot range limit\", dev.n - MAX_REGIONS);"));
+}

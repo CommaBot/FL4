@@ -568,6 +568,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         p.free[i] = Region { start: pptr(free.r[i].start), end: pptr(free.r[i].end) };
         p.n_free += 1;
     }
+    // BootParams holds MAX_REGIONS free ranges: say what the rest held.
+    if free.n > MAX_REGIONS {
+        let lost = &free.r[MAX_REGIONS..free.n];
+        let bytes: u64 = lost.iter().map(|r| r.end - r.start).sum();
+        kprintln!("FL4: {} free RAM region(s) ({:#x} bytes) exceed the boot range limit", lost.len(), bytes);
+    }
     // At most one interval per firmware entry and one for the kept modules.
     // Keep every private boundary even if BootParams can export fewer ranges.
     let mut firmware = bootmem::RangeList::<{ mboot::MAX_MMAP + 1 }>::new();

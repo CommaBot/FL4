@@ -165,15 +165,24 @@ pub fn init(region_pa: u64, region_len: u64, ram: &[(u64, u64)], pa_top: u64) ->
     let ident = alloc_table();
     map(ident, region_pa, region_pa, region_len, normal());
     s.ident = ident;
-    // In EL2 nVHE mode, build an identity map for EL2 (TTBR0_EL2, E2H=0):
-    // kernel region executable (XN=0), all other RAM non-executable (XN=1),
-    // all Normal WB Inner-Shareable matching TTBR1_EL1 for cache coherency.
+    // In EL2 nVHE mode, build an identity map for EL2 (TTBR0_EL2, E2H=0),
+    // with the same W^X split as TTBR1_EL1: text read-only and executable,
+    // read-only data read-only and never executable, the rest of the region
+    // (data with `HypCpu`, bss, the loader's tables) and all other RAM
+    // (`Vcpu`/`Regs` objects) read-write and never executable. EL2 code
+    // (boot.S, hyp_nvhe.S) writes only `HypCpu` and those objects. All
+    // Normal WB Inner-Shareable, matching TTBR1_EL1 for cache coherency.
+    // The EL2 regime has one privilege level: AP[2:1] = 0b01 is RW, 0b11
+    // RO; bit 54 is XN.
     if cpu::is_el2_nvhe() {
         const D_AP_RW_EL2: u64 = 1 << 6;
+        const D_AP_RO_EL2: u64 = 3 << 6;
         let hyp = alloc_table();
         let r_start = region_pa;
         let r_end = region_pa + region_len;
-        map(hyp, r_start, r_start, region_len, normal() | D_AP_RW_EL2);
+        map(hyp, r_start, r_start, text_end, normal() | D_AP_RO_EL2);
+        map(hyp, r_start + text_end, r_start + text_end, ro_end - text_end, normal() | D_AP_RO_EL2 | D_UXN);
+        map(hyp, r_start + ro_end, r_start + ro_end, region_len - ro_end, normal() | D_AP_RW_EL2 | D_UXN);
         let ram_attr = normal() | D_AP_RW_EL2 | D_UXN;
         for &(start, end) in ram {
             if end <= start || end > PPTR_TOP - PPTR_BASE {

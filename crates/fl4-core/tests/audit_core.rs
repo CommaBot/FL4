@@ -686,3 +686,11 @@ fn preemption_point_reads_the_irq_line_even_without_budget() {
         assert_eq!(a.irq_reads, 1);
     }
 }
+
+/// Audit r13 T5-02: the IPC buffer limits user space is told (fl4-abi) are
+/// the ones the kernel enforces (fl4-core `msg`).
+#[test]
+fn abi_message_limits_match_the_kernel() {
+    assert_eq!(fl4_abi::consts::MSG_MAX_LENGTH, fl4_core::msg::MSG_MAX_LENGTH);
+    assert_eq!(fl4_abi::consts::MSG_MAX_EXTRA_CAPS, fl4_core::msg::MSG_MAX_EXTRA_CAPS);
+}

@@ -473,6 +473,7 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         kernel_image: Region { start: KERNEL_VBASE, end: unsafe { &__kernel_end as *const u8 as u64 } },
     };
     // The largest free ranges, if there are more than BootParams holds.
+    let (mut omitted_free, mut omitted_bytes) = (0usize, 0u64);
     while free.n > MAX_REGIONS {
         let (mut k, mut best) = (0, u64::MAX);
         for j in 0..free.n {
@@ -484,6 +485,11 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
         }
         let r = free.r[k];
         free.remove(r.start, r.end);
+        omitted_free += 1;
+        omitted_bytes += r.end - r.start;
+    }
+    if omitted_free != 0 {
+        kprintln!("FL4: {} free RAM region(s) ({:#x} bytes) exceed the boot range limit", omitted_free, omitted_bytes);
     }
     for i in 0..free.n {
         p.free[i] = Region { start: pptr(free.r[i].start), end: pptr(free.r[i].end) };
@@ -492,6 +498,9 @@ pub extern "C" fn fl4_boot(off: u64, el_mode: u64) -> ! {
     for i in 0..dev.n.min(MAX_REGIONS) {
         p.device[i] = dev.r[i];
         p.n_device += 1;
+    }
+    if dev.n > MAX_REGIONS {
+        kprintln!("FL4: {} device memory regions exceed the boot range limit", dev.n - MAX_REGIONS);
     }
 
     // The root task's image came from the loader through the data cache;

@@ -90,6 +90,23 @@ pub fn choose<T>(protocol: Option<T>, complete: impl Fn(&T) -> bool, table: impl
     }
 }
 
+/// `EFI_VOLUME_FULL`: extended, but the log had no room for the event.
+pub const VOLUME_FULL: u64 = (1 << 63) | 11;
+
+/// Whether a boot file was measured into RTMR[2] and may boot: there must
+/// be an `EFI_CC_MEASUREMENT_PROTOCOL`, and its HashLogExtendEvent must have
+/// extended the register (success, or `EFI_VOLUME_FULL`: only the log is
+/// full).
+pub fn measure_status(has_protocol: bool, status: u64) -> Result<(), &'static str> {
+    if !has_protocol {
+        return Err("EFI_CC_MEASUREMENT_PROTOCOL unavailable for RTMR[2] measurement");
+    }
+    match status {
+        0 | VOLUME_FULL => Ok(()),
+        _ => Err("cannot measure a boot file into RTMR[2]"),
+    }
+}
+
 /// The largest log area taken.
 pub fn area_limit(laml: u64) -> usize {
     laml.min(MAX_EVENT_LOG as u64) as usize
@@ -107,9 +124,6 @@ mod efi {
 
     pub const EFI_CC_MEASUREMENT_PROTOCOL_GUID: Guid = Guid(0x9675_1a3d, 0x72f4, 0x41a6, [0xa7, 0x94, 0xed, 0x5d, 0x0e, 0x67, 0xae, 0x6b]);
     pub const EFI_CC_FINAL_EVENTS_TABLE_GUID: Guid = Guid(0xdd4a_4648, 0x2de7, 0x4665, [0x96, 0x4d, 0x21, 0xd9, 0xef, 0x5f, 0xb4, 0x46]);
-    /// `EFI_VOLUME_FULL`: extended, but the log had no room for the event.
-    const VOLUME_FULL: Status = (1 << 63) | 11;
-
     /// `EFI_CC_MEASUREMENT_PROTOCOL` up to HashLogExtendEvent.
     #[repr(C)]
     struct CcProtocol {
@@ -125,15 +139,18 @@ mod efi {
     }
 
     /// Measure a file the load options named into RTMR[2], so that a quote
-    /// covers it. A file that cannot be measured is not booted. Without the
-    /// protocol (not a measured confidential guest) nothing happens.
+    /// covers it. Called only in a TD: a file that cannot be measured is not
+    /// booted, and neither is one when firmware offers no
+    /// `EFI_CC_MEASUREMENT_PROTOCOL` (`measure_status`).
     pub fn measure_file(path: &[u8], pa: u64, len: u64) {
-        let Some(cc) = protocol() else { return };
+        let Some(cc) = protocol() else {
+            fail(measure_status(false, 0).unwrap_err());
+        };
         let mut event = [0u8; CC_EVENT_FIXED + 256];
         cc_event(&mut event, path);
         let r = unsafe { ((*cc).hash_log_extend_event)(cc, 0, pa, len, event.as_ptr()) };
-        if r != SUCCESS && r != VOLUME_FULL {
-            fail("cannot measure a boot file into RTMR[2]");
+        if let Err(e) = measure_status(true, r as u64) {
+            fail(e);
         }
     }
 
