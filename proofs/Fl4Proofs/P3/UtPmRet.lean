@@ -736,7 +736,7 @@ theorem JAtZ.utPmBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
       rw [e] at h1 hqW ⊢
       have hb : ptrF (.Pml4 b false 0#u64) = b := ok_inj (ptr_eq _).symm
       rw [hb] at hqW
-      exact ⟨Set.mem_union_right _ hqW, h1.2.1, fun h => by cases h⟩
+      exact ⟨fun _ => Set.mem_union_right _ hqW, h1.2.1, fun h => by cases h⟩
   -- the buffer fields (`JBuf`): fresh PML4s, then CNode slots; the new caps PML4 caps
   have hfk : IpcFrKeep σ σ' :=
     (IpcFrKeep.of_specAdd hA

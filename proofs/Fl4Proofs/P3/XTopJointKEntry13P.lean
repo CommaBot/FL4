@@ -447,7 +447,8 @@ theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     exact (decode_invocation_pdptJV arI s ar σ J hni hG.delParts.archRef hVC lbl lbl.bv hlM hlU hlO length buf ct
       hct argsU hlen hargs hth0 rfl hc hok extra excaps (ExtraOK.vsExtra hPl hXO) blk call don fp ci buffer).toPN arI (specDec_noPreK (by trivial))
   case Pml4 p mp asid =>
-    have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).atOK J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp) (by simp)
+    -- (f1) the weak `VCapW` suffices: only the mapped cap's ASID facts are read
+    have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).at J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp)
     subst hLb
     exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl) ct hct p asid mp
       (fun h => (hok.2.2 h).1) length

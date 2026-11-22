@@ -23,13 +23,15 @@ def VCapW (P L4 L3 L2 L1 : Set U64) : capability.Cap → Prop
       (mp = true → UserV v)
   | .Pdpt p mp a v => (mp = false → p ∈ L3) ∧ PaM p 4503599627366400#u64 ∧ (mp = true → a ≠ 0#u64) ∧
       (mp = true → UserV v)
+  | .Pml4 p mp a => (mp = false → p ∈ L4) ∧ p ≠ 0#u64 ∧ (mp = true → a ≠ 0#u64 ∧ a.val < 2 ^ 20)
   | c => VCapOK P L4 L3 L2 L1 c
 
-/-- An unmapped page-table, page-directory or PDPT cap. -/
+/-- An unmapped page-table, page-directory, PDPT or (F1) PML4 cap. -/
 def TabUn : capability.Cap → Prop
   | .PageTable _ mp _ _ => mp = false
   | .PageDirectory _ mp _ _ => mp = false
   | .Pdpt _ mp _ _ => mp = false
+  | .Pml4 _ mp _ => mp = false
   | _ => False
 
 /-- A cap whose placement names no VSpace set (no table, PML4 or ASID pool
@@ -71,10 +73,11 @@ theorem VCapOK.toW {c : capability.Cap} (h : VCapOK P L4 L3 L2 L1 c) : VCapW P L
     | exact ⟨fun _ => h.1, h.2⟩
     | exact h
 
-/-- **Back to `VCapOK`**: an unmapped table cap, or any cap but a mapped
-table cap. -/
+/-- **Back to `VCapOK`**: an unmapped table or PML4 cap, or any cap but a
+mapped table or PML4 cap. -/
 theorem VCapW.ok_of {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c)
-    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v) :
+    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v ∧
+      c ≠ .Pml4 p true a) :
     VCapOK P L4 L3 L2 L1 c := by
   cases c with
   | PageTable p mp a v =>
@@ -88,18 +91,25 @@ theorem VCapW.ok_of {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c)
     · exact ⟨h.1 rfl, h.2⟩
     · exact absurd rfl this
   | Pdpt p mp a v =>
-    have := (hm p a v).2.2; simp only [VCapW] at h; simp only [VCapOK]
+    have := (hm p a v).2.2.1; simp only [VCapW] at h; simp only [VCapOK]
+    cases mp
+    · exact ⟨h.1 rfl, h.2⟩
+    · exact absurd rfl this
+  | Pml4 p mp a =>
+    have := (hm p a 0#u64).2.2.2; simp only [VCapW] at h; simp only [VCapOK]
     cases mp
     · exact ⟨h.1 rfl, h.2⟩
     · exact absurd rfl this
   | _ => exact h
 
 /-- **A table cap's table in its set** (mapped or not; no condition on the
-other caps): what `VCapW` leaves out of `VCapOK` for a mapped table cap. -/
+other caps): what `VCapW` leaves out of `VCapOK` for a mapped table cap;
+(F1) a PML4 cap unmapped (a mapped one's table need be in no set). -/
 def TabIn (L3 L2 L1 : Set U64) : capability.Cap → Prop
   | .PageTable p _ _ _ => p ∈ L1
   | .PageDirectory p _ _ _ => p ∈ L2
   | .Pdpt p _ _ _ => p ∈ L3
+  | .Pml4 _ mp _ => mp = false
   | _ => True
 
 /-- **The strong placement from the weakened one** and the table in its set. -/
@@ -109,15 +119,9 @@ theorem VCapW.okTab {c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c) (ht : TabIn
   | PageTable p mp a v => exact ⟨ht, h.2⟩
   | PageDirectory p mp a v => exact ⟨ht, h.2⟩
   | Pdpt p mp a v => exact ⟨ht, h.2⟩
+  | Pml4 p mp a =>
+    simp only [TabIn] at ht; subst ht; exact ⟨h.1 rfl, h.2⟩
   | _ => exact h
-
-/-- `VCapOK` puts a table cap's table in its set. -/
-theorem VCapOK.tabIn {c : capability.Cap} (h : VCapOK P L4 L3 L2 L1 c) : TabIn L3 L2 L1 c := by
-  cases c with
-  | PageTable p mp a v => exact h.1
-  | PageDirectory p mp a v => exact h.1
-  | Pdpt p mp a v => exact h.1
-  | _ => trivial
 
 /-- A mapped table cap's or an unmapped one's placement: the table in its set
 when unmapped. -/
@@ -129,6 +133,7 @@ theorem VCapW.mono {P' L4' L3' L2' L1' : Set U64} (hP : P ⊆ P') (h4 : L4 ⊆ L
     | exact ⟨fun e => h1 (h.1 e), h.2⟩
     | exact ⟨fun e => h2 (h.1 e), h.2⟩
     | exact ⟨fun e => h3 (h.1 e), h.2⟩
+    | exact ⟨fun e => h4 (h.1 e), h.2⟩
     | exact vcapOK_monoB hP h4 h3 h2 h1 h
 
 /-- **The step lemma** (module docstring): `VCapOK` carried from `c0` to `c`
@@ -137,9 +142,9 @@ theorem VCapW.transfer {c0 c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c0)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, VCapOK P L4 L3 L2 L1 c0 → VCapOK P L4 L3 L2 L1 c)
     (hu : TabUn c → TabUn c0) : VCapW P L4 L3 L2 L1 c := by
   -- the target's placement from `VCapOK` at sets differing from these in
-  -- `L3`, `L2` or `L1` only, when the target is no unmapped table cap
-  have back : ∀ L3' L2' L1' : Set U64, VCapOK P L4 L3' L2' L1' c → ¬ TabUn c → VCapW P L4 L3 L2 L1 c := by
-    intro L3' L2' L1' hc hn
+  -- `L4`, `L3`, `L2` or `L1` only, when the target is no unmapped table cap
+  have back : ∀ L4' L3' L2' L1' : Set U64, VCapOK P L4' L3' L2' L1' c → ¬ TabUn c → VCapW P L4 L3 L2 L1 c := by
+    intro L4' L3' L2' L1' hc hn
     cases c with
     | PageTable p mp a v =>
       cases mp
@@ -153,24 +158,33 @@ theorem VCapW.transfer {c0 c : capability.Cap} (h : VCapW P L4 L3 L2 L1 c0)
       cases mp
       · exact absurd rfl hn
       · exact ⟨fun e => absurd e (by decide), hc.2⟩
+    | Pml4 p mp a =>
+      cases mp
+      · exact absurd rfl hn
+      · exact ⟨fun e => absurd e (by decide), hc.2⟩
     | _ => exact hc
   cases c0 with
   | PageTable p mp a v =>
     cases mp
-    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back _ _ (insert p L1) (hv P L4 L3 L2 (insert p L1) ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
+    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp, by simp⟩)).toW
+    · exact back _ _ _ (insert p L1) (hv P L4 L3 L2 (insert p L1) ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
   | PageDirectory p mp a v =>
     cases mp
-    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back _ (insert p L2) _ (hv P L4 L3 (insert p L2) L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
+    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp, by simp⟩)).toW
+    · exact back _ _ (insert p L2) _ (hv P L4 L3 (insert p L2) L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
   | Pdpt p mp a v =>
     cases mp
-    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
-    · exact back (insert p L3) _ _ (hv P L4 (insert p L3) L2 L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
+    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp, by simp⟩)).toW
+    · exact back _ (insert p L3) _ _ (hv P L4 (insert p L3) L2 L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2.1 rfl, fun _ => h.2.2.2 rfl⟩)
         fun ht => by have := hu ht; simp [TabUn] at this
-  | _ => exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp⟩)).toW
+  | Pml4 p mp a =>
+    cases mp
+    · exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp, by simp⟩)).toW
+    · exact back (insert p L4) _ _ _ (hv P (insert p L4) L3 L2 L1 ⟨Set.mem_insert _ _, h.2.1, fun _ => h.2.2 rfl⟩)
+        fun ht => by have := hu ht; simp [TabUn] at this
+  | _ => exact (hv _ _ _ _ _ (VCapW.ok_of h fun _ _ _ => ⟨by simp, by simp, by simp, by simp⟩)).toW
 
 end
 
@@ -299,11 +313,12 @@ theorem VsSlotsW.at (h : VsSlotsW th P L4 L3 L2 L1 m) {x : U64} (hx : IsSlot th 
   have e : capV m x = c := by rw [capAt_capV] at hc; simpa using hc
   rw [← e]; exact h x hx
 
-/-- The strong form at a slot for an unmapped table cap, or a PML4, pool or
+/-- The strong form at a slot for an unmapped table or PML4 cap, or a pool or
 frame cap. -/
 theorem VsSlotsW.atOK (h : VsSlotsW th P L4 L3 L2 L1 m) {x : U64} (hx : IsSlot th x) {c : capability.Cap}
     (hc : capAt m x = ok c)
-    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v) :
+    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v ∧
+      c ≠ .Pml4 p true a) :
     VCapOK P L4 L3 L2 L1 c :=
   (h.at hx hc).ok_of hm
 

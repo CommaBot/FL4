@@ -8,17 +8,18 @@ and PDPT caps, whose table must be in its set only while the cap is
 **unmapped**: a mapped table may be pruned from the sets by a detype (its
 entries may name a dead table of the region; vsreach.md G1), an unmapped one
 is empty (l4v `valid_table_caps`: a table cap without an ASID names an empty
-table), so it is never pruned. PML4 caps, ASID pool caps and frame caps keep
-`VCapOK`: an assigned PML4 and every live pool stay `vs_lookup`-reachable
-(deleting a pool's last cap clears its ASID-table word, deleting a PML4's
-last cap clears its pool entry), an unassigned PML4 is empty.
+table), so it is never pruned. (F1) PML4 caps likewise: a mapped PML4's
+table need be in `L4` only while the ASID table reaches it, which `VsRel` +
+`PoolsIn` give at each use (`mem_L4_of_find`); deleting a pool's last cap
+clears its ASID-table word and leaves an orphaned mapped PML4 behind
+(KENTRY-PLAN jc4). ASID pool caps and frame caps keep `VCapOK`.
 l4v counterpart: `valid_cap` for the arch caps (`valid_arch_cap`'s
 placement part: `cap_aligned`, the ASID facts) with `valid_table_caps`.
 
 Primitives (as VsCapInv's): `of_caps`, `recap`, `remove`, `rename`,
 `insert`/`insert_copy`/`insert_fresh` (retype: the sets grown), `at`; from
-the strong form `VsCapsIn.toW`; back to `VCapOK` for an unmapped table cap
-or a PML4/pool/frame cap (`VCapW.ok_of`).
+the strong form `VsCapsIn.toW`; back to `VCapOK` for an unmapped table or
+PML4 cap or a pool/frame cap (`VCapW.ok_of`).
 
 `VCapW.transfer` is the step lemma the MDB steps need: a cap whose
 `VCapOK` follows from its source's at **every** set (`MdbStep`'s `hv`
@@ -162,11 +163,12 @@ theorem VsCapsW.at {th : TypedHeap} (h : VsCapsW P L4 L3 L2 L1 mem G) (hM : MdbL
   have := h x ((hM.members x).2 ⟨hx, c, hc, hn⟩)
   rwa [capV_of_capAt hc] at this
 
-/-- The strong form at a slot for an unmapped table cap, or a PML4, pool or
+/-- The strong form at a slot for an unmapped table or PML4 cap, or a pool or
 frame cap (`VCapW.ok_of`). -/
 theorem VsCapsW.atOK {th : TypedHeap} (h : VsCapsW P L4 L3 L2 L1 mem G) (hM : MdbLinks th mem G) {x : U64}
     (hx : IsSlot th x) {c : capability.Cap} (hc : capAt mem x = ok c) (hn : c ≠ .Null)
-    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v) :
+    (hm : ∀ p a v, c ≠ .PageTable p true a v ∧ c ≠ .PageDirectory p true a v ∧ c ≠ .Pdpt p true a v ∧
+      c ≠ .Pml4 p true a) :
     VCapOK P L4 L3 L2 L1 c :=
   (h.at hM hx hc hn).ok_of hm
 

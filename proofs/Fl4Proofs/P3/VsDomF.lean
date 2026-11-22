@@ -179,14 +179,14 @@ theorem domFrame_page_table (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.Stat
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
@@ -268,14 +268,14 @@ theorem domFrame_page_directory (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
@@ -357,14 +357,14 @@ theorem domFrame_pdpt (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
-      have hv := hVC.atOK hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp) (fun _ _ _ => by rw [e]; simp)
+      have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   refine ⟨?_, dk_spec_arch ⟨_, rfl⟩ hkt⟩
@@ -534,14 +534,14 @@ theorem decode_invocation_frame_capD [Fl4Proofs.P1.PlainStore st] (th : TypedHea
   have hext' : (vspace.extra extra 0#usize = ok none ∧ excaps = []) ∨
       ∃ x vc vc' xsl rest, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok vc ∧
         CapRel vc vc' ∧ excaps = (vc', xsl) :: rest ∧
-        ∀ p' asid', vc = .Pml4 p' true asid' → p' ∈ L4 ∧ asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
+        ∀ p' asid', vc = .Pml4 p' true asid' → asid' ≠ 0#u64 ∧ asid'.val < 2 ^ 20 := by
     rcases hext with h | ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4⟩
     · exact Or.inl h
     · refine Or.inr ⟨x, vc, vc', xsl, rest, h1, h2, h3, h4, fun p' a' e => ?_⟩
       have hv := hVC.at hCR.2.2.1 (hxs x h1) h2 (by rw [e]; simp)
       rw [e] at hv
-      obtain ⟨hv1, -, hv3⟩ := hv
-      exact ⟨hv1, (hv3 rfl).1, (hv3 rfl).2⟩
+      obtain ⟨-, -, hv3⟩ := hv
+      exact ⟨(hv3 rfl).1, (hv3 rfl).2⟩
   obtain ⟨xct, hkt0, -⟩ := hCR.1.tcb ct htcb
   have hkt : σ.kheap σ.curThread = some (.tcb xct) := by rw [hcur]; exact hkt0
   by_cases hlga : lbl = fl4_abi.label.X86PageGetAddress

@@ -27,10 +27,6 @@ open fl4_core Fl4Proofs.P1 Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3
 
 noncomputable section
 
-/-- Every non-null native pool entry is a PML4 of `L4`; guest tags remain occupied. -/
-def PoolsIn (P L4 : Set U64) (m : U64 → U64) : Prop :=
-  ∀ p ∈ P, ∀ lo : U64, lo.val < 512 → m (peA p lo) ≠ 0#u64 → m (peA p lo) &&& 1#u64 = 0#u64 → m (peA p lo) ∈ L4
-
 section Hyps
 variable {S : Type} (st : machine.Store S) [L : LawfulStore st]
 

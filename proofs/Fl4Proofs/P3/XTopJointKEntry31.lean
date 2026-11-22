@@ -104,7 +104,7 @@ theorem vtAsid_ofR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   have hx : IsSlot Z.th (slotOf t 1) := ⟨t, 1, Or.inr ⟨hth, by decide⟩, rfl⟩
   have h := J1.vsc _ hx
   rw [capV_of_capAt hc] at h
-  have h' : p ∈ _ ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
+  have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
   exact (h'.2.2 rfl).1
 
 variable {arI}

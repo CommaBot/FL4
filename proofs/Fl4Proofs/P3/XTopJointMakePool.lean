@@ -265,6 +265,7 @@ theorem capObjH_addP {H : P1.Heap} {p : U64} (hp : H p = none) {isc : U64} {c : 
   | PageTable q m a v => exact frApartH_addP h
   | PageDirectory q m a v => exact frApartH_addP h
   | Pdpt q m a v => exact frApartH_addP h
+  | Pml4 q m a => exact frApartH_addP h
   | SchedContext q sb => exact ⟨(hAddP_iff (fun _ e => by cases e) hp).2 h.1, h.2⟩
   | _ => trivial
 

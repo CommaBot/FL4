@@ -154,7 +154,7 @@ theorem JAtZR.rootFr {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → 
     subst hpe
     have h := J.vsc _ hx
     rw [capV_of_capAt hcp'] at h
-    have h' : p ∈ _ ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
+    have h' : (true = false → p ∈ _) ∧ p ≠ 0#u64 ∧ (true = true → asid ≠ 0#u64 ∧ asid.val < 2 ^ 20) := h
     exact (h'.2.2 rfl).1
 
 /-- **FL4's timers keep the kernel-global words** (`JAtZR.ndOK_fire`'s

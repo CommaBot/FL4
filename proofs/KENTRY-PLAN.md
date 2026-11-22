@@ -16785,3 +16785,73 @@ present entry) for the map case. `VsReach` would need the path's ref (ASID, inde
 
 ### (5) Builds
 None (documentation only).
+
+## f1 (branch par/f1 from e9c21de0 = PR #66 head, top of record `kernel_entry_reachU20`) — F1 stage 1 DONE: mapped PML4 caps ask nothing of the sets, `NeedR` narrowed in place, `mem_L4_of_find`; `CapObjH` PML4 clause for `JAtZ.vs_ready`; no new top (U22 skipped)
+
+### (0) `JAtZ.vs_ready` (XTopJointFinVs): the second reliance, fixed by option (a)
+The first f1 run stopped here: `vs_ready` (deletion readiness, `EmptyReady H Z.G s' x` for a VSpace cap) took a
+PML4 cap's frame-apartness from `VCapOK`'s `p ∈ L4` (`VsFr` frame, `J.vobj_apart` / `vsFr_sc`); with F1 an orphaned
+mapped PML4 is in no set and no ASID lookup is around, so `mem_L4_of_find` cannot cover it (F1-PLAN R8 missed it).
+Fixed with option (a) (f1b): ScPlace's `CapObjH` gained `| .Pml4 p m a => FrApartH H (.Pml4 p m a)` (l4v
+`valid_cap` typ_at + `pspace_distinct`, as the table caps' clauses), `tyObj` counts PML4 caps, and `vs_ready` uses
+`apartR hcobj` for PML4 as for PT / PD / PDPT (only the pool cap still reads `VCapOK`). Sites: `capObjH_of_shape`
+(+ case), `capObjH_addP` (XTopJointMakePool), `JAtZ.dropJpl` (UtDropJ2), `JPlaced.retype` (RetypePlace) and
+`JPlaced.retypeGS` (UtBodyJ): kept caps by `hkeepA`, a new PML4 by `hfrT` (its object is `other`, type 8).
+`JPlaced` is part of the start `JAtZ`, so the start state carries a little more (as `devSep` / `vsTyp`).
+`capObjH_of_tyObj` and its callers (XTopJointMakePool, XTopJointVsSub, XTopJointRest) needed no change.
+Heartbeats: the extra PML4 cases pushed `JPlaced.retype` / `retypeGS` (one declaration each, 4M heartbeats) over
+the limit; instead of raising it, the in-proof `newCapOf_ind` + `simp_all` blocks (`hnk`, `hnkT`, `hne`, new `hnkP`)
+became standalone lemmas in RetypePlace (`newCapOf_frame`, `newCapOf_tab`, `newCapOf_pml4`, `newCapOf_ne_ept`,
+`newKind_other_of`), so `simp_all` no longer runs in the big context; both stay at 4M.
+
+### (1) Done (f1 WIP commit + f1b)
+- **Definitions (VsCapWBase, UtDropJ2).** Conjunct order kept; the strict `VCapOK` (VsFoot) is unchanged.
+  ```lean
+  | .Pml4 p mp a => (mp = false → p ∈ L4) ∧ p ≠ 0#u64 ∧ (mp = true → a ≠ 0#u64 ∧ a.val < 2 ^ 20)  -- VCapW
+  | .Pml4 _ mp _ => mp = false                                                                  -- TabUn
+  | pml4 {p a : U64} : VNeed (.Pml4 p false a) 4 p                                              -- VNeed
+  ```
+  `VCapW.ok_of`, `VsSlotsW.atOK`, `VsCapsW.atOK` take a fourth exclusion `c ≠ .Pml4 p true a`; `VCapW.mono` /
+  `transfer` / `relevel` gained the PML4 case (`transfer`'s `back` re-levels `L4` too). `TabIn` (read only by
+  `okTab` at XTopJointVsMap and by VsDecFrame's `VsPostJx`) asks `mp = false` of a PML4 cap, so `okTab` still gives
+  `VCapOK` (the ASID-assign post: the invoked PML4 cap is unmapped, `rfl`); the unused `VCapOK.tabIn` was removed.
+- **`Vs.mem_L4_of_find` (VsRel, with `PoolsIn` moved there from VsPtUnmapRel so the 4K PT / frame map files see
+  it):** `VsRel P m ksb σ → PoolsIn P L4 m → asid ≠ 0 → run (findVspaceForAsid asid) σ = {(ok p, σ)} → p ∈ L4`
+  (table word ≠ 0 ⇒ pool in `P`, pool entry = `optRef` word, `nativeAsidRoot` ⇒ tag 0, `PoolsIn`). It needs no
+  `asid < 2^20`.
+- **`hvc` rework.** `pt_map_rel`, `pd_map_rel`, `pdpt_map_rel`, `frame_map_rel`, `frame_map_large_rel`,
+  `frame_map_huge_rel` take `hvc : … vc = .Pml4 p true asid → asid ≠ 0 ∧ asid.val < 2^20` (no `p ∈ L4`) and a new
+  last argument `hPI : PoolsIn P L4 (L.mem s)`; `hp1 := mem_L4_of_find hR hPI has1 hf` right after `check_vspace`
+  succeeds (in the three frame files inside the `map_tail*` macros). Carriers changed in text only (the `p' ∈ L4`
+  conjunct dropped): VsFootW (6 lemmas, also take `hPI`; no callers), VsDecFrame (8; positional calls pass `hPI`),
+  VsTopX (7), VsTopInst (4), VsThX (1), VsDomF (4), VsFrameFull (1), VsTopCap (4). Producers read the ASID facts
+  from `VsCapsW.at` (weak `VCapW`, `.2.2`) instead of `atOK`.
+- **Other fixes:** shape casts G7eRoot:157, G7dVsRoot:76/90, XTopJointKEntry31:107 (`(true = false → p ∈ _) ∧ …`);
+  UtPmRet:739 (new unmapped PML4 cap: `fun _ => …`); XTopJointVsSub:293 (4-tuple `hm`); TcbCtl:1084 (`TabUn` of a
+  mapped PML4 is `true = false`, not `False`); VsDecFrame:1126 (`TabIn` of the assigned unmapped PML4: `rfl`).
+  `JCarryDefs.lean` untouched (`offR_of_un`'s wildcard covers PML4, `TabR` has no PML4 arm).
+- **In-place narrowing (lead decision, g7b-2 precedent).** `NeedR` keeps its text, so no `kernel_entry_reach*`
+  statement changes; the C17 / C23 / C24 `vsReach` premises of every top U9..U20 now have as roots only unmapped
+  PT/PD/PDPT/PML4 caps' tables and pools (weaker premise). The jc4 trace (an orphaned mapped PML4 reaching a dead
+  PDPT) no longer refutes C17 / C23. **U22 skipped:** with U21 not on this branch it would restate U20 verbatim,
+  and the in-place change already covers every top; INV-PLAN records the narrowing instead.
+
+- **f1b, after the full build reached the entry decode:** XTopJointEntry, XTopJointKEntry13P, XTopJointKEntry23P (the
+  `Pml4` decode case): `VsCapsW.atOK` needs the new PML4 exclusion, which a cap with unknown `mp` cannot give; they
+  read only the mapped cap's ASID facts, so they now use the weak `VsCapsW.at` (`(hok.2.2 h).1` unchanged).
+
+### (1b) Builds
+f1b-m3 (RetypePlace, UtBodyJ, XTopJointFinVs) green; **f1b-full2: `Build completed successfully (7295 jobs)`**, 0
+errors, 0 sorry; axf1.lean (U3L..U20, UH2, `Vs.mem_L4_of_find`, …): every top depends on `[propext,
+Classical.choice, Quot.sound]` only. Files changed against e9c21de0: see the f1 commit (`git diff --stat e9c21de0`).
+
+### (2) Stages 2–6: what this stage taught
+- Besides the map refinements' `hvc`, `JAtZ.vs_ready` relied on it (above, fixed by `CapObjH`; F1-PLAN R8 was incomplete). Up to
+  XTopJointFinVs, `CurOK`, `VsRootOK`, `IdleVt`, `fin_pml4`, PML4 flush, TCB install needed no change.
+- Stage 2's `vsReachMiss` route for PML4 roots and Stage 4's finalise sites should use the `CapObjH` PML4 clause
+  for frame-apartness rather than `L4` membership.
+- `mem_L4_of_find` is the Stage-2 seed for `VsPath.mem` at level 4 (the `.pool` step is exactly its argument).
+- `PoolsIn` now lives in VsRel (same namespace `Vs`), which Stage 2's `VsNamed.lean` can import cheaply.
+- `TabIn`'s PML4 clause is `mp = false`: Stage 4's ASID-assign site already has it from the decode (`rfl`).
+- Stage 5 merge with U21 (`devTab`): this stage touched no `JCarry` file, so only INV-PLAN / KENTRY-PLAN text and
+  axf1-style lists can conflict.

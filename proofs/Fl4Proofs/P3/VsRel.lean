@@ -263,6 +263,61 @@ theorem find_vspace_for_asid_rel {P : Set U64} (s : S) (σ : Fl4Spec.State Unit)
 
 end
 
+/-- Every non-null native pool entry is a PML4 of `L4`; guest tags remain occupied.
+(F1: moved here from VsPtUnmapRel for `mem_L4_of_find`.) -/
+def PoolsIn (P L4 : Set U64) (m : U64 → U64) : Prop :=
+  ∀ p ∈ P, ∀ lo : U64, lo.val < 512 → m (peA p lo) ≠ 0#u64 → m (peA p lo) &&& 1#u64 = 0#u64 → m (peA p lo) ∈ L4
+
+/-- (F1) **The ASID table's walk target is in `L4`**: a successful l4v
+`find_vspace_for_asid` names a native pool entry (`VsRel`), which `PoolsIn`
+puts in `L4`. What the map refinements ask of the extra vspace cap's PML4
+after `check_vspace` succeeds; a mapped PML4 cap's own `VCapW` no longer
+gives it (an orphaned mapped PML4 is in no set, KENTRY-PLAN jc4). -/
+theorem mem_L4_of_find {P L4 : Set U64} {m : U64 → U64} {ksb : U64} {σ : Fl4Spec.State Unit}
+    (hR : VsRel P m ksb σ) (hPI : PoolsIn P L4 m) {asid p : U64} (h0 : asid ≠ 0#u64)
+    (hf : ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok p.bv, σ)}, False)) : p ∈ L4 := by
+  have key : ∀ {a b : Except Fl4Spec.LookupFailure Fl4Spec.ObjRef},
+      ((({(a, σ)} : Set _), False) : Set (Except Fl4Spec.LookupFailure Fl4Spec.ObjRef × Fl4Spec.State Unit) × Prop) =
+        ({(b, σ)}, False) → a = b :=
+    fun h => congrArg Prod.fst (Set.singleton_eq_singleton_iff.mp (congrArg Prod.fst h))
+  have hpos : asid.bv > 0 := by
+    have : asid.val ≠ 0 := fun h => h0 (UScalar.eq_of_val_eq (by simpa using h))
+    show 0 < asid.bv.toNat
+    exact Nat.pos_of_ne_zero this
+  obtain ⟨i, hiv⟩ : ∃ i : U64, i.val = asid.val >>> 9 := by
+    refine ⟨⟨BitVec.ofNat 64 (asid.val >>> 9)⟩, ?_⟩
+    show (BitVec.ofNat 64 (asid.val >>> 9)).toNat = _
+    rw [BitVec.toNat_ofNat]
+    exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) asid.bv.isLt)
+  have hlt := and_lt i 11 2047#u64 rfl (by decide)
+  have htab := hR.table _ hlt
+  rw [hi_bv asid i hiv] at htab
+  by_cases hp : m (atA ksb (i &&& 2047#u64)) = 0#u64
+  · rw [hp, optRef_eq_none.mpr rfl] at htab
+    rw [findVspaceForAsid_none hpos htab] at hf
+    cases key hf
+  · have hq := hR.tmem _ hlt hp
+    obtain ⟨f, hkf, hfp⟩ := hR.pool _ hq
+    rw [optRef, if_neg hp] at htab
+    have hsp := findVspaceForAsid_some hpos htab hkf
+    have hlo := and_lt asid 9 511#u64 rfl (by decide)
+    have hfe := hfp _ hlo
+    rw [lo_bv] at hfe
+    rw [hsp, hfe, nativeAsidRoot_optRef] at hf
+    have he := key hf
+    have hin := hPI _ hq _ hlo
+    generalize m (peA (m (atA ksb (i &&& 2047#u64))) (asid &&& 511#u64)) = w at he hin
+    unfold nativeRef at he
+    by_cases ht : w &&& 1#u64 = 0#u64
+    · rw [if_pos ht] at he
+      by_cases hw0 : w = 0#u64
+      · rw [optRef, if_pos hw0] at he; cases he
+      · rw [optRef, if_neg hw0] at he
+        have hb : w.bv = p.bv := Except.ok.inj he
+        have hwp : w = p := (UScalar.eq_equiv_bv_eq _ _).mpr hb
+        exact hwp ▸ hin hw0 ht
+    · rw [if_neg ht] at he; cases he
+
 end
 
 end Fl4Proofs.P3.Vs
