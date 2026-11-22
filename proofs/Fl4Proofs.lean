@@ -1369,3 +1369,8 @@ import Fl4Proofs.P3.XTopJointKEntryU5
 import Fl4Proofs.P3.XTopJointKEntryU9
 import Fl4Proofs.P3.XTopJointKEntryU6
 import Fl4Proofs.P3.XTopJointKEntryU10
+import Fl4Proofs.P3.G7eRoot
+import Fl4Proofs.P3.G7eChain
+import Fl4Proofs.P3.G7eFo
+import Fl4Proofs.P3.G7eTail
+import Fl4Proofs.P3.XTopJointKEntryU8
