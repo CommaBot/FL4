@@ -1375,3 +1375,9 @@ import Fl4Proofs.P3.G7eFo
 import Fl4Proofs.P3.G7eTail
 import Fl4Proofs.P3.XTopJointKEntryU8
 import Fl4Proofs.P3.XTopJointKEntryU11
+import Fl4Proofs.P3.SpecInvSiA
+import Fl4Proofs.P3.SpecInvSiG
+import Fl4Proofs.P3.SpecInvSiC
+import Fl4Proofs.P3.SpecInvSiD
+import Fl4Proofs.P3.SpecInvSiE
+import Fl4Proofs.P3.XTopJointKEntryU13
