@@ -21,9 +21,11 @@ functions:
    (`decodePml4Flush`, `performPml4Flush`), `Page_DeriveSubframe` and
    `Page_TestAndClearAccessed` on a frame cap (`decodeDeriveSubframe`,
    `performDeriveSubframe`; `decodeTestAndClearAccessed`,
-   `performTestAndClearAccessed`). These labels are not l4v labels either:
+   `performTestAndClearAccessed`), and the FL4 extension `X86PML4FrameBatch`
+   on a PML4 cap (`decodeFrameBatch`, `performFrameBatch`, `Ext/FrameBatch`;
+   no seL4 counterpart). These labels are not l4v labels either:
    their numbers are FL4's (`fl4Pml4FlushLabel`, `fl4DeriveSubframeLabel`,
-   `fl4TestAndClearLabel`).
+   `fl4TestAndClearLabel`, `fl4FrameBatchLabel`).
 
 4. thread caps: `fl4DecodeTcbInvocation` for `decode_tcb_invocation`,
    which is l4v's except for FL4's TCB extensions (`Ext/Tcb`): the label
@@ -49,6 +51,7 @@ import Fl4Spec.Ext.TcbSize
 import Fl4Spec.Ext.IrqControl
 import Fl4Spec.Ext.VSpace
 import Fl4Spec.Ext.Tcb
+import Fl4Spec.Ext.FrameBatch
 
 namespace Fl4Spec
 
@@ -96,6 +99,8 @@ inductive Fl4ArchInvocation where
   | pml4Flush (i : Fl4Pml4Invocation)
   | deriveSubframe (i : Fl4SubframeInvocation)
   | testAndClearAccessed (slot : ObjRef)
+  /-- FL4 extension (no l4v counterpart): `X86PML4FrameBatch` (`Ext/FrameBatch`). -/
+  | frameBatch (i : Fl4FrameBatchInvocation)
 deriving Inhabited
 
 /-- l4v's `invocation` (Invocations_A) with FL4's IRQControl and arch
@@ -127,6 +132,8 @@ def fl4ArchDecodeInvocation (label : Data) (args : List Data) (xSlot : CapRef) (
   | .pml4Cap _ _ =>
     if dataToNat label = fl4Pml4FlushLabel
     then NonDetE.liftME Fl4ArchInvocation.pml4Flush <| decodePml4Flush cap
+    else if dataToNat label = fl4FrameBatchLabel
+    then NonDetE.liftME Fl4ArchInvocation.frameBatch <| decodeFrameBatch args cap extraCaps
     else NonDetE.liftME Fl4ArchInvocation.spec <| archDecodeInvocation label args xSlot cte cap extraCaps
   | .pageCap _ _ _ _ _ _ =>
     if dataToNat label = fl4DeriveSubframeLabel
@@ -143,6 +150,7 @@ def fl4ArchPerformInvocation : Fl4ArchInvocation → PMonad Z (List Data)
   | .pml4Flush i => NonDetE.liftE <| archNoReturn <| performPml4Flush i
   | .deriveSubframe i => NonDetE.liftE <| archNoReturn <| performDeriveSubframe i
   | .testAndClearAccessed slot => NonDetE.liftE <| performTestAndClearAccessed slot
+  | .frameBatch i => NonDetE.liftE <| performFrameBatch i
 
 /-- l4v: Decode_A.decode_tcb_invocation, with FL4's TCB extensions
 (`Ext/Tcb`): FL4's `SetFlags`, and the extension labels. -/

@@ -16425,3 +16425,101 @@ global ref).
 - Builds: sd7-m5 (U15 module, 7156 jobs, green first try); **sd7-full2** (full build at f17afe07, also the merge check of
   b21d7502): "Build completed successfully (7251 jobs)", 0 `error`, 0 `sorry`. `#print axioms` U15, U12, U13, U11 and the
   older tops: propext, Classical.choice, Quot.sound.
+
+## fb-spec (branch par/fbspec from 9d4d4615; FL4 #71 = main e35ed12b read with `git show`, not merged) — **FL4 extension of the spec: `X86PML4FrameBatch`** (no seL4 / l4v counterpart); spec module + dispatch hook; no P3 refinement yet; no FINDING
+
+### (1) FL4's semantics (fl4-core `arch/x86_64/vspace.rs`: `decode_frame_batch`, `frame_batch_entry`, `batch_map`, `unmap_page_unflushed`; `interfaces/object-api-extensions.xml`)
+- **Label** `X86PML4FrameBatch` = **90** in the spec's configuration (x86-64, hardware debug API: after `UntypedRetypeShared` = 89;
+  checked by re-running `fl4-abi/build.rs`'s numbering on main's XML: 86 without the debug API). Only on a PML4 cap
+  (`vspace::decode`, `Cap::Pml4`, after `X86PML4Flush`). x86_64 only. Not a local (beside-the-gate) path: `localinv` does
+  not take it, so it runs under the serial gate.
+- **Decode** (in order): unmapped PML4 cap → `InvalidCapability 0`; `check_vspace` (the ASID still names this PML4) with
+  *every* failure, lookup failures included, mapped to `InvalidCapability 0` (X86PML4Flush reports `FailedLookup` there);
+  `length < 1` → `TruncatedMessage`; header word 0: op bits 0-1 (1 COPY_MAP, 2 REMAP, 3 DELETE), count bits 8-15
+  (n ≤ 255), depth bits 16-22, map rights 24-27, copy rights 28-31, VM attributes 32-36 (seL4_X86_DeferFlush is bit 4 of
+  them), DEFER_DELETE_FLUSH bit 40; reserved bits, op 0, depth 0 or > 64 → `InvalidArgument 0`; `length < 1 + words·n`
+  (3/2/1 words per entry) → `TruncatedMessage`; no extra cap → `TruncatedMessage`; extra cap 0 not a CNode →
+  `InvalidCapability 1`; destination CNode = extra cap 1 for COPY_MAP if given, else extra cap 0; not a CNode →
+  `InvalidCapability 2`. These are ordinary syscall errors (error reply, nothing done).
+- **Loop**: entries in order, each read from the message when it runs; the loop **stops at the first failing entry**.
+  Earlier entries stay done (**partial progress**); a failing entry is no syscall error: the invocation succeeds and a
+  Call gets the reply `(label 0, MR0 = entries done, MR1 = the failing entry's seL4_Error code or 0)`, a Send nothing.
+  A non-`Sys` error of an entry would be code `IllegalOperation` (unreachable: see preemption).
+- **COPY_MAP** (src, dest, vaddr), all or nothing: `lookup_target_slot(dest CNode, dest, depth)`; `ensure_empty_slot`;
+  `lookup_source_slot(CNode, src, depth)`; the source must be a frame cap (`InvalidCapability 0`);
+  `mask_cap_rights(copy rights)` then `derive_cap` (a frame copy is unmapped) and `cdt::insert_with_cap` (CNode_Copy's
+  steps); then `batch_map(dest, vaddr)`; if the map fails, `cdt::delete(dest, true)` removes the copy (never final: the
+  source holds the same frame) and the map's error is the entry's.
+- **REMAP** (slot, vaddr): `lookup_source_slot`, `batch_map`.
+- **`batch_map`** = `decode_page_map` + its perform with the batch's PML4, map rights and attributes: a non-frame or
+  EPT-mapped cap → `InvalidCapability 0`; a mapped cap of another ASID → `InvalidCapability 1`, at another vaddr →
+  `InvalidArgument 0`; an unmapped cap's range above USER_TOP → `InvalidArgument 0`; VM rights =
+  `mask_vm_rights(frame rights, map rights)`; misaligned → `AlignmentError`; 1 GiB without CPU support →
+  `IllegalOperation`; `page_entry_slot` (lookup failure → `FailedLookup false`; a large/huge frame over a table →
+  `DeleteFirst`); then the cap is set mapped and `write_mapping` writes the entry (all checks before any write).
+- **DELETE** (slot): `lookup_target_slot`; an empty slot → Ok (as CNode_Delete); a non-frame cap → `IllegalOperation`;
+  with DEFER_DELETE_FLUSH and a frame cap mapped (not EPT, not device) in *this* ASID: `unmap_page_unflushed` (the entry
+  cleared, if it still maps the frame, without TLB invalidation; `deferred` set if cleared) and the cap rewritten
+  unmapped; then `cdt::delete(slot, true)` (= seL4 `cteDelete(slot, true)`; a still-mapped cap is unmapped with its
+  invalidation by `finalise_cap`, a final device frame is retired by `retire_dma_frame`).
+- **End**: if a deferred delete cleared an entry, `invalidate_asid(asid)` (every core) **before** the reply; then the
+  reply (Call only) and `TS_RUNNING`. The decode runs the whole batch itself (no `TS_RESTART` first, as `reply1`'s
+  invocations), so `handle_invocation` sees a running thread and adds nothing.
+- **Preemption**: none. Every `cdt::delete` here finalises a frame cap, whose remainder is null at once, so
+  `finalise_slot_immediate`'s preemption point is never reached; a batch is ≤ 255 entries (in practice ≤ 119 / 59 / 39
+  by the 120-word message), each O(1) table work plus one CDT insert / remove.
+
+### (2) Deviations from anything seL4 has
+- The invocation itself (one call doing many CNode_Copy + X86Page_Map / X86Page_Map / CNode_Delete steps, stopping at the
+  first failure and reporting progress in a success reply) has no seL4 counterpart: **FL4 extension of the spec**.
+- Per-entry errors are not syscall errors (a success reply carries the code; no lookup-failure details, no error label).
+- The deferred delete flush (unmap without invalidation, one `invalidate_asid` at the end) is new; seL4's `unmapPage`
+  always invalidates. The window is the batch itself, under the serial gate.
+- Inherited from FL4's X86Page_Map (already deviations of FL4's `decode_page_map`, not new here): the 1 GiB CPU check,
+  `write_mapping`'s TLB choices (`invalidate_page` / `invalidate_asid` / none with DeferFlush when rights only drop) vs
+  l4v's `invalidatePageStructureCacheAsid`, SEV address bits.
+
+### (3) The spec (new module `Fl4Spec/Ext/FrameBatch.lean`, FL4 extension; compositions of the ported operations)
+- `fl4FrameBatchLabel = 90`, `FbOp`, `Fl4FrameBatchInvocation` (PML4, ASID, op, depth, rights, attributes, defer flag,
+  CNode caps, entries' words).
+- `decodeFrameBatch args cap extraCaps`: FL4's decode checks, in its order (`findVspaceForAsid` with any failure →
+  `InvalidCapability 0`).
+- `fbMap b slot vaddr`: FL4's EPT rejection, then **l4v's `decodePageInvocation` at the `X64PageMap` label**
+  (`fbPageMapLabel = fromEnum (x64PageMap)`) with `[vaddr, map rights, attr]` and the batch's PML4 cap, then
+  `performPageInvocation`.
+- `fbEntry b w : NonDetE _ Data Bool` (error = the reply's code via `msgFromSyscallError`, result = a deferred delete
+  cleared an entry): COPY_MAP = `lookupTargetSlot`, `ensureEmpty`, `lookupSourceSlot`, `getCap`, `maskCap`, `deriveCap`,
+  `capInsert`, `fbMap`, on failure `capDelete dest` then the error; REMAP = `lookupSourceSlot`, `fbMap`; DELETE =
+  `lookupTargetSlot`, `getCap`, null → ok, deferred unmap (`unmapPageUnflushed` = l4v's `unmapPage` without
+  `invalidateTranslationSingleASID`, returning whether it cleared; `setCap` of the unmapped cap), `capDelete`
+  (a preemption → code `IllegalOperation`, FL4's `Err(_)`).
+- `fbRun` (stop at the first failure), `performFrameBatch` = `fbRun`, `flushAll vspace asid` if needed (l4v's
+  `flush_all` = `invalidateASID`, the op `performPml4Flush` uses), reply `[done, err]`. The shell's `setThreadState
+  restart` … `replyFromKernel thread (0, reply)` … `running` gives FL4's reply and state (nothing in a frame batch reads
+  or writes the caller's thread state).
+- **Dispatch hook** (the only change outside the new module; `Ext/Invocation.lean` is itself an FL4-extension file,
+  no l4v-derived file changed): `import Fl4Spec.Ext.FrameBatch`; constructor `Fl4ArchInvocation.frameBatch`;
+  in `fl4ArchDecodeInvocation`'s `pml4Cap` case `else if dataToNat label = fl4FrameBatchLabel then
+  liftME .frameBatch (decodeFrameBatch args cap extraCaps)` (after the Flush label, before l4v's decoder);
+  in `fl4ArchPerformInvocation` `| .frameBatch i => liftE (performFrameBatch i)`; the module docstring.
+
+### (4) Modelling notes (not FINDINGs)
+- FL4 reads each entry's words from the IPC buffer / registers when the entry runs, interleaved with its writes; the
+  spec reads the message once (`getMrs`). Equal when user memory does not change during the entry (no entry writes
+  user memory; the one-core model, `JDevPath.core0`-style [P]). On SMP another core's thread may rewrite the buffer
+  mid-batch: harmless for the kernel, but the refinement will need the stable-message assumption the other decodes use.
+- Rights-lowering REMAPs with seL4_X86_DeferFlush are not flushed at the batch's end (only deferred deletes are), as for
+  X86Page_Map with DeferFlush: the caller must flush. The XML says nothing about it: **underspecified, documentation**.
+- The decode maps `check_vspace`'s `FailedLookup` to `InvalidCapability 0` (X86PML4Flush does not): an ABI choice.
+
+### (5) Safety review (no FINDING)
+- All or nothing per COPY_MAP: every `batch_map` check precedes its writes; the rollback deletes a non-final copy.
+- No rights escalation: the copy's rights are masked, the mapping's are `mask_vm_rights` of the copy's.
+- Deferred deletes: only frames mapped in the invoked ASID, never device / shared-DMA frames (their final deletion
+  retires memory and needs a clean TLB first), and the ASID is invalidated before the reply, even when a later entry
+  fails. The frames' memory cannot be reused meanwhile: reuse needs an untyped reset / retype, which takes the serial
+  gate the batch holds, and the local paths (CNode Copy / Delete, X86Page_Map) never free memory. Until the end,
+  other cores' threads of that address space may still reach a just-deleted mapping, as they could before the call.
+- No preemption point is reachable; the batch's length is bounded by the message.
+
+### (6) Builds
