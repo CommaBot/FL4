@@ -447,7 +447,7 @@ every ghost choice satisfying `JAtZ` there (the ghost issue of §3 risk 5; fine 
 | A4 | `hnd` | `numDomains = 1` | [P] config | — | — |
 | A5 | `hM : MachPlat` | `now`/`irq_pending`/`take_pending_irq`/`mask_irq`/`ack_irq` are the spec's machine ops at `MR`-related states; `MR` reads only masks, oracle positions, last time | [P] | machine ops, `irq_oracle`/`time_oracle` | ∀a,ms under MR |
 | A6 | `hKD : MRKeepD arI MR` | 15 finalisation arch ops keep `MR` | [P] | — | under MR |
-| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | [P] | — | under MR |
+| A7 | `hIo : MRKeepIo` | port_in/port_out keep `MR` | **[S]** (owner decision, g6b): no IO-port cap covering the kernel's own ports (PIC 0x20/0x21/0xA0/0xA1, PIT 0x40–0x43, the debug serial port) is ever issued; IoPortControl is root-task authority. FL4's `decode_control` (crates/fl4-core/src/ioport.rs) checks only `range_free` (no other cap on the range) and reserves none of those ports, so this is a scope assumption on the root task, not a kernel check; no kernel change | l4v makes the same abstraction (port I/O is a machine op outside the interrupt/timer state) | under MR |
 | A8 | `hIoa : MRKeepIoapic` | ioapic_map(_remapped) keep `MR` | [P] | — | under MR |
 | A9 | `hPA : PPPlatA` | `irqAR` (irq_pending keeps AR), `minBudget` (= `MIN_BUDGET`) | [P] | — | ∀a |
 | A10 | `hIA : IrqPlatA` | `takeAR`, `noIpi` (no vector 126/127: [S] one core), `ackAR` | [P]/[S] | — | ∀a |
@@ -491,12 +491,10 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C6 | Frame with `ep = true` or label MapEPT | `JVtxScope` | [S] VT-x | — | 1 |
 | C7 | SchedContext (Consumed/Bind/UnbindObject) `tm mb max tu` | = A13/A12/A14 at this `a` | [P] **duplicate** | | 1 |
 | C8 | SchedContext `arch` | the decode keeps `AR` | [P] (needs an `AR`-version of `MKD.decode_quiet`; `MRKeepD arI AR` is not available because `set_vspace` does not keep AR) | | 1 |
-| C9 | SchedContext `rest` | `∀ H Cs Ac Lst D, JAtZ → decode ⦃ … → ScStepP1 ⦄` (debug word, `DbgKeep`, `BlkOK` after) | [P] "P1-supplied"; really a P1 obligation [W] | | 1, ∀gh |
 | C10 | SchedContext YieldTo `JSchedYieldPath` (`mb max tu`) | = A12/A14 | [P] **duplicate** | | 1 |
 | C11 | SchedControl `tm mb max tu` | = A13/A12/A14 | [P] **duplicate** | | 1 |
 | C12 | SchedControl `core` | `cpu = Z.c` | [P]/[S] one core (no carried cap-core fact) | `valid_cap` bounds the core | 1 |
 | C13 | SchedControl `arch` | as C8 | [P] | | 1 |
-| C14 | SchedControl `rest` | as C9 (configure) | [P]/[W] P1 | | 1, ∀gh |
 | C15 | AsidPool `native` | the first extra slot's cap is not an Ept cap | [S] **derivable**: the extra slot is a typed-heap slot (`JAtZ.frontJ` + `ExtraOK.vsExtra`), `JAtZ.ext.nat` | x64 has no EPT caps | 1 |
 | C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
 | C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
@@ -543,23 +541,98 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 `KFinAtR.vt` (`vtAsid_ofR`); `fo` (FpuOwnOK, from `JAtZR`); `JDelParts.vt`, `thr.obj` (`JExt`); `JVtxHypMU`
 (implied by B5); `FastFaultOK` (m73), `hRP5` (m72), `SpecUtZ σ'`/`UtPgR σ'` exit premises (g5i), `LargeFrOK` (g5j),
 `hRest`/`KPreFinRestHypI`, `PPPlat`/`IrqPlat` (replaced by MR-relative A5).
+**g7b (top `kernel_entry_reachU7`, XTopJointKEntryU7):** C9 SchedContext `rest` and C14 SchedControl `rest`
+(`ScStepP1` of the Consumed / Bind / UnbindObject and ConfigureFlags decodes at every ghost with `JAtZ`) are
+theorems (`JAtZ.scCtxStepP1`, `JAtZ.scCtlStepP1`, ScRestJ) from P1's decodes with the footprint `Foot` (ScRestP1:
+`schedcontext.decode.footK`, `decode_sched_control.footK`, `configure_flags.blkK`), every thread on the current
+core (`SchedRel`), the dispatch state `Entered` (`BudgetAt.enteredP`, `SInvX.entered`) and the top's `hA`.
+No premise added.
 
 ### G. Counts and the two lists the owner asked for
 
 Leaves: A 18, B 6 (B4/B6 bundles), C 27 rows (C24 = 7 leaves), D 6, E 5 clauses (≈ 14 leaves).
 By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which **4 duplicates/redundant**: A11, A12,
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
-C27, D1), **[W] 3** (D6 CR3 tail; C9/C14 `rest` as P1 obligations).
+C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6).
 
-**[W] leaves:** D6 `tail` (CR3 relation after `schedule`), C9 / C14 `rest` (`ScStepP1` of the SchedContext /
-SchedControl decodes, P1-provable).
+**[W] leaves:** D6 `tail` (CR3 relation after `schedule`). (C9 / C14 `rest`: discharged by g7b, top
+`kernel_entry_reachU7`; see F.)
 
 **Quantified over states (must be discharged or narrowed):** A16 `PortInVal` (∀ spec states), D2 `ArchSwF`,
 D3 `ArchNdF`, D4 `SniHyp`, D5 `SendHyp` (∀ `SchedRel` states; **D4 is false as stated**, see its row: the fix is a guard, as
-`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C9, C14, C16/C22, C25 and the bundles B4/B5/B6)
+`ArchSwF` got `FpuOwnOK`; D2/D3/D5 still to audit for the same failure mode). The ∀gh leaves (C4, C16/C22, C25 and the bundles B4/B5/B6)
 are asked at one state but at every ghost choice: dischargeable only by derivation from that state's `JAtZ`.
 
 **Cheapest next (g6a JOB 2 takes the first group):** A11, A12, C7, C10, C11 (duplicates), C15 (from `JAtZ.ext.nat`).
 Then: D3 (spec frame + a state-free [P] "the FPU machine ops have one outcome"), C21 `bufObj` (carry, S–M), C25–C27
 (carry with the existing `.retype` lemmas, M), D1 (carry the IDX word + DomListOK, S). Large: C4, C16/C22
 `RegionUnrefAt`, C17/C23 `vsReach`, D6.
+
+### H. Audit (g6b) of the ∀st hypotheses of `KFinAtR31` and of A16 `PortInVal`
+
+Question per hypothesis: can it hold for a real store, i.e. is it true at **every** state it quantifies over (every
+`SchedRel ∧ NtfnStateRel` pair `(s, σ)`, plus its guard), or is there a state of that class where the spec run fails
+or FL4's run fails / breaks the relation? The quantified class is much larger than the reachable states (`SchedRel`
+says nothing about caps, the ASID table, refills of SCs outside `C`, …), so a spec `assert`/`fail` at such a state
+makes the premise false for every store that has one such state, i.e. unsatisfiable in practice.
+
+* **D4 `SniHyp` — UNSATISFIABLE as stated** (g6a's finding, confirmed). The spec's `setNextInterrupt`
+  (Fl4Spec/Schedule.lean:78) fails (`assertOpt`) when the current thread has no SC and (`getRefillHead`'s `oassert`)
+  when that SC has no refills; likewise for the release-queue head. `SchedRel` admits `scA ct = 0` and an SC whose
+  `REFILL_MAX = 0` (`ScRelW` relates the full ring only when active). Besides, the singleton outcome needs the
+  opaque `setDeadlineImpl` (`doMachineOp (setDeadline _)` = `machineOpLift`, `ignoreFailure`, so never a failure, but
+  as many outcomes as `setDeadlineImpl d mr`) to have at most one outcome: a genuine platform fact. FL4's side is
+  provable: `set_next_interrupt` is total under `ArchTotal` and writes only the node's `ARMED` word
+  (P1 `sched.set_next_interrupt.fp`), which keeps `SchedRel` (`SchedRel.set_armed`) and `NtfnStateRel`; FL4's
+  deadline value (with the TCB timers and the already-armed shortcut) differs from the spec's, but no relation reads
+  the spec's machine deadline. **Fix (g6b):** guard with `SniPre σ` (the current thread and the release head have an
+  SC with nonempty refills), which at the only use site (`tail_refines`, after `switch_sched_context`) follows from
+  `SchedRel` + `Inv` + `CurInv` (current SC active, or the idle SC, configured by `ScRelW.idle`; `Inv.ne`;
+  the head by `Inv.rel`), and PROVE the guarded statement from `ArchTotal` and the platform fact
+  `SetDlDetR MR` (`setDeadlineImpl` has at most one outcome at every `MR`-related machine state; `MachPlat.frame`
+  makes `MR` blind to `machineStateRest`, so one `MR` state yields it for every rest).
+* **D5 `SendHyp` — SATISFIABLE, and a theorem.** `send_pending` reads the node's `IPI_PENDING` word, clears it and
+  calls `send_reschedule`; no spec step, so no spec failure. It is true at every `SchedRel ∧ NtfnStateRel` state as
+  soon as `send_reschedule` is total (`ArchTotal`): node offset 120 is read by no part of `SchedRel` (offsets
+  0–72, 128–4287) and lies outside every notification/TCB word (`SchedRel.nodeNW`). **Fix (g6b):** proved
+  (`sendHyp_of`), dropped from the new bundle.
+* **D2 `ArchSwF` — UNSATISFIABLE as stated (same failure mode as D4).** Its first half asks, at every
+  `SchedRel ∧ NtfnStateRel ∧ FpuOwnOK` state and every `t ∈ T`, that the spec's `arch_switch_to_thread t` have one
+  outcome without failure. `setVmRoot t` (Fl4Spec/X64/VSpace.lean:210) runs `findVspaceForAsid asid` on a
+  `pml4Cap _ (some asid)` in `t`'s vtable slot, which **fails** (`assertE (asid > 0)`) for `asid = 0`, and fails
+  (`getAsidPool`'s `NonDet.fail`) when the ASID table entry names a non-pool object. Neither `SchedRel`,
+  `NtfnStateRel` nor `FpuOwnOK` excludes such a state (the cap slots and the ASID table are outside them). Its second
+  half fails the same way through the idle thread's vtable slot. In reachable states both are excluded
+  (`valid_cap`: a mapped PML4 cap has `asid ≠ 0`, `JAtZR.vsc` / `vtAsid_ofR`; `valid_arch_state` /
+  `valid_asid_table`: table entries are pools), so this is not a reachable-state FINDING, but the premise as stated
+  is unsatisfiable for any store that has such a related pair. Platform residue after a correct guard: only the
+  single outcome of the opaque FPU machine operations of `lazyFpuRestore` (the CR3 write is a spec `archState`
+  update, not a machine op); `set_vm_root` / `find_vspace_for_asid` are FL4 code (provable). **Fix (not done in
+  g6b, see KENTRY-PLAN g6b):** guard with `VsRootOK σ` (every TCB's vtable PML4 cap has a nonzero ASID; every ASID
+  table entry is a pool) — kept by the whole schedule prefix (timer signals, awaken, enqueue/dequeue change no cap
+  and no ASID table) and supplied at `KFinAtR` from the finish state's `JAtZR` (`vsc`, plus a carried ASID-table
+  fact); this needs the guard threaded through every `hA.1`/`hA.2` site (ScScheduleF ×3, ScNextDomF ×2) and their
+  callers.
+* **D3 `ArchNdF` — SATISFIABLE (with its `FpuOwnOK` guard) up to a platform fact.** `archPrepareNextDomain =
+  switchLocalFpuOwner none`: `enableFpu`, `saveFpuState owner` (`asUser` on the owner: a TCB by `FpuOwnOK`),
+  `disableFpu`, `setX64CurrentFpuOwner none` (`archThreadSet` on the owner: a TCB). No other failure; the FL4 store is
+  unchanged and `SchedRel`/`NtfnStateRel` read none of the spec fields changed (owner's `tcbArch` FPU image,
+  `tcbCurFpu`, `x64CurrentFpuOwner`, `machineState`). The one-outcome claim needs the opaque `enableFpuImpl`,
+  `disableFpuImpl`, `readFpuStateImpl` (and `readFpuStateVal` is a function) to have at most one outcome: a platform
+  fact, stateable under `MR` as for `setDeadlineImpl`. So it is not false, but it is a ∀st premise whose only platform
+  part is that determinism; the rest is a spec frame computation (S–M), left as the next step.
+* **A16 `PortInVal` — consistent but over-strong.** It quantifies over every spec state σ: FL4's `port_in` value must
+  be an outcome of the spec's `In` at σ's machine state. The outcomes are `inNVal ms'` over the outcomes `ms'` of the
+  opaque `inNImpl port` at `σ.machineState.machineStateRest`; nothing in Lean refutes it (the opaque constants could
+  make every value reachable from every rest), and no spec failure is possible (`ignoreFailure`). So it is not
+  unsatisfiable, but it says the oracle can produce FL4's value at machine states that are not FL4's (§0 already
+  asked for an `MR`-relative form). Narrowing: `∀ σ, MR a σ.machineState → …`; this needs `MR` at the IO-port
+  decode, which `KDispHypsKV42` does not carry (handoff).
+
+**Status after g6b (top `kernel_entry_reachU5`, XTopJointKEntryU5):** D4 `SniHyp` narrowed in place to `SniPre` states
+(ScScheduleTop; supplied at `tail_refines` by `sniPre_of`) and proved (`sniHyp_of`, ScSniProof) from `ArchTotal` and the
+platform fact `SetDlDetR MR` (the opaque `setDeadlineImpl` has at most one outcome at an `MR`-related machine state);
+D5 `SendHyp` proved (`sendHyp_of`, from `ArchTotal`). Both left the finish bundle (`KFinAtR5`). Still ∀st: D2 `ArchSwF`
+(**unsatisfiable as stated**, see the audit; fix = `VsRootOK` guard threaded through the schedule cone), D3 `ArchNdF`
+(satisfiable up to FPU-op determinism), A16 `PortInVal` (consistent, over-strong). A7 `MRKeepIo` is now [S] (owner
+decision, row A7), so the [P] count of §G drops by one and [S] rises by one.

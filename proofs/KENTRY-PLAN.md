@@ -15584,3 +15584,123 @@ New modules only; nothing existing edited.
   which then shows in σ''s ready queues; FL4's store has it only if FL4's timers woke it, and then FL4 switched too
   (FL4's `possible_switch_to` is the same test). I found no σ1 escaping this, so no FINDING.
 - Route 1 not started (lead: g6b restructures `KFinAtR31`; fold the narrowed tail into it).
+## g7b (branch par/g7b in FL4-g7b, on b41579ba = main) — INV-PLAN §1.U3L C9 / C14 (the SchedContext / SchedControl `rest` premises, `ScStepP1`) DISCHARGED; top **`kernel_entry_reachU7`** = `kernel_entry_reachU4` without them; no premise added; no FINDING
+New leaves ScRestP1, ScRestJ, XTopJointKEntryU7 (root imports after XTopJointKEntryU4). Nothing existing edited. Old tops kept.
+
+### (1) Why P1's lemmas did not suffice, and what is proved (ScRestP1, namespace `Fl4Proofs.P1`)
+- `ScStepP1` asks core 0's `DEBUG_TCBS` word kept, `DbgKeep` (every debug word) and `BlkOK` after. P1's
+  `schedcontext.decode.dec` has the frame `KOD` (debug-list words included: Bind of a thread runs `migrate_tcb` to the
+  SC's core, which moves the thread between the cores' debug lists when the cores differ), and P1's
+  `decode_sched_control.dec` has no frame at all (Configure also ends in `migrate_tcb`). P3's own refinement frame
+  (`KFoot`) contains the whole current node, so its debug head too.
+- In the P3 states both `migrate_tcb`s are no-ops: `SchedRel` puts every TCB on the current core `Z.c` (`SchedCore.aff`)
+  and every SC's `CORE` word at `Z.c` (`SchedSpec.core`), and the SchedControl cap's core is `Z.c` (C12). So the
+  decodes write within P1's `Foot` (`KW`, which has no debug word):
+  * `schedcontext.decode.footK`: Consumed, Bind, UnbindObject (`ScJLabel`'s labels; the other branches are excluded
+    by the label), from `BlkOK`, the invoked SC an `H` SC not bound to the idle thread, the current thread runnable,
+    action word 0, the first extra slot's notification / thread cap naming an `H` object (after the stall's node
+    writes), every TCB's affinity = the SC's core. Bind of a thread via `sc_bind_tcb.blkK` (XTopJointTcbSsp's
+    `bind_tcb.blkK`), Bind of a notification via `bind_ntfn.foot` (two `Sg` words), Consumed without P1's
+    `XferHyps` (`set_consumed.blk`; the state word kept by `set_consumed.rg` + `rgw_keepSt`).
+  * `schedcontext.decode_sched_control.footK` / `configure_flags.blkK` / `cfAK` / `cfDK`: P1's proofs with the
+    footprint carried (`commit_time.foot`, `remote_reschedule.foot`, `set_reprogram_on.foot`, `rfw_foot`,
+    `scw_foot`, the queue ops' `.kw`), and the configured SC's thread's affinity carried to the migration
+    (`aff_qfoot`, field frames), where `migrate_tcb.frame` makes it the identity.
+  * `extra_cap.gen0`: P1's `extra_cap.gen` from slot 0 only.
+
+### (2) At `JAtZ` (ScRestJ, namespace `Fl4Proofs.P3`)
+- `JAtZ.scCtxStepP1` (C9) and `JAtZ.scCtlStepP1` (C14): at any ghost with `JAtZ`, an `Entered` state, the invoked
+  slot a typed slot holding the cap, `ExtraRel` of the first extra slot (and `cpu = Z.c` for C14): the whole
+  `syscall.decode_invocation` ⦃ `ScStepP1` ⦄ (every outcome, so the `rest` posts follow). Facts: `JAtZ.curFacts`
+  (runnable current thread by `ct_schedulable`/`schedulable_eq`, action word 0 by `SchedRel.act`),
+  `JAtZ.nodeW_notSlot` (the stall's node words miss the slots: `JAtZ.slot_node`), `JAtZ.scCtxCap`, `JPlaced.cobj`,
+  `JAtZ.capN`, `CapValid`; then `JAtZ.stepP1_of_foot` (`JAtZ.kw_dbg`, `JAtZ.kw_dbgKeep`).
+
+### (3) The top (XTopJointKEntryU7)
+- `JSchedCtxPathU7` / `JSchedCPathU7` = U4's paths without `rest`; `JPathMEU7`, `JPathAtMU7`, `KDispHypsKVU7`.
+- `JPathAtMU7.toU4` (needs `ArchTotal`, the dispatch state's `JAtZ`, `Entered`; `ExtraRel` from `JAtZ.frontJ` +
+  `ExtraOK.rel1`), `KDispHypsKVU7.toU4`.
+- **`SInvR.G5.kernel_entry_reachU7`** = `kernel_entry_reachU4` with `hK : KDispHypsKVU7`; `Entered σb` at each
+  dispatch state from `BudgetAt.enteredP hnd (SInvX.entered …)` (the clause's `σ.curThread ≠ σ.idleThread`).
+  Premises removed: C9, C14 of §1.U3L ([W]). Added: none (`hA`, `hnd` were already premises).
+- INV-PLAN §1.U3L: rows C9 / C14 moved to the F list; [W] leaves at U7: D6 only.
+
+### (4) Builds and axioms
+- tokyo, mirror FL4-g7b, `.lake` seeded from FL4-m74 (g7b-build.sh, axg7b.lean untracked). Module builds g7b-b1..b11
+  (errors met: `ok` resolving to `schedcontext.extra_cap.ok` inside a declaration named `schedcontext.extra_cap.*`
+  — write `Result.ok`; `Foot` is an abbrev so `hf.mono` picks `Foot.mono` — write `P1.WritesIn.mono hf`;
+  structures not using `L` need `(st := st)`); g7b-b11 green (7090 jobs), commit 2dfd2b9f.
+- **g7b-full1** (full `lake build` of proofs/ at 2dfd2b9f): "Build completed successfully (7185 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`. No sorry / admit / native_decide / bv_decide / axiom in the new files.
+- `#print axioms` (g7b-full1, axg7b.lean): SInvR.G5.kernel_entry_reachU7, kernel_entry_reachU4, JPathAtMU7.toU4,
+  KDispHypsKVU7.toU4, JAtZ.scCtxStepP1, JAtZ.scCtlStepP1, P1 schedcontext.decode.footK,
+  decode_sched_control.footK, configure_flags.blkK: propext, Classical.choice, Quot.sound (each).
+
+### (5) Findings and handoff
+- No FINDING: `ScStepP1` holds at every reachable dispatch state the paths are asked at (one core makes both
+  `migrate_tcb`s no-ops; with several cores a Bind / Configure moving a thread to another core writes the debug
+  lists, so `DbgKeep` would be false there — out of scope while `SchedRel` is one-core).
+- Next by §1.U3L: the D6 CR3 `tail` [W] is the only [W] leaf left at U7.
+## g6b (branch par/g6b in FL4-sc, on db6231ff = #51 head incl. g6a) — lead decision on g6a's D4 FINDING: (1) audit of the ∀st hypotheses DONE (INV-PLAN §1.U3L.H, committed first); (2) `SniHyp` narrowed in place to `SniPre` states and PROVED, `SendHyp` PROVED, top **`kernel_entry_reachU5`**; `ArchSwF` found UNSATISFIABLE as stated (same failure mode as D4), NOT fixed (needs a carried vspace-root fact threaded through the schedule cone, plan below); `ArchNdF`, `PortInVal` satisfiable/consistent, left
+New modules: ScSniPre (upstream of ScScheduleTop), ScSniProof, XTopJointKEntryU5 (root import after U4). Edited: ScScheduleTop (`SniHyp` def + one line of `tail_refines`).
+
+### (1) Audit (INV-PLAN §1.U3L.H, commit c48e1146)
+- D4 `SniHyp`: unsatisfiable (spec `setNextInterrupt` fails without an SC / without refills on the current thread or the
+  release head; `SchedRel` admits both). Fixed.
+- D5 `SendHyp`: satisfiable; a theorem from `ArchTotal` (node offset 120 is read by no relation). Proved.
+- D2 `ArchSwF`: **unsatisfiable as stated**: the spec's `setVmRoot t` fails (`assertE (asid > 0)`) on a vtable
+  `pml4Cap _ (some 0)` and (`getAsidPool`'s `fail`) when the ASID table names a non-pool; `SchedRel ∧ NtfnStateRel ∧
+  FpuOwnOK` excludes neither, for `t ∈ T` (first half) or the idle thread (second half). Unreachable (valid_cap /
+  valid_asid_table), so not a reachable-state FINDING, but the premise is false for any store having such a pair.
+- D3 `ArchNdF`: satisfiable with its `FpuOwnOK` guard, up to the single outcome of the opaque FPU ops (platform).
+- A16 `PortInVal`: consistent (no spec failure, opaque oracle), over-strong (∀σ); MR-relative form needs `MR` at the
+  IO-port decode (not carried by `KDispHypsKV42`).
+
+### (2) What changed
+- **ScSniPre** (new, imports ScAwaken): `SniPre σ` (current thread and release-queue head: TCB, bound SC, SC object,
+  refills ≠ []), `sniPre_of : SchedRel → Inv → CurInv → SniPre` (current SC active by `CurInv.active`, or the idle SC,
+  configured by `ScRelW.idle`/`.max`; `Inv.ne`; head by `Inv.rel`), `SetDlDet` [P] (opaque `setDeadlineImpl` has at
+  most one outcome), `setDeadline_one`, `doMachineOp_one`, `setNextInterrupt_one : SetDlDet → SniPre σ → ∃ ms',
+  setNextInterrupt σ = {((), σ{ms'})}`.
+- **ScScheduleTop**: `SniHyp` gains the guard `SniPre σ →` (weaker; every statement taking `SniHyp` is now
+  weaker-premised, none stronger); `tail_refines` supplies it by `sniPre_of hS5 hI5 hC5` (after
+  `switch_sched_context`, where `SchedRel`/`Inv`/`CurInv` hold). No other file applies `hsni`.
+- **ScSniProof** (new): `SchedRel.set_ipi` (as `set_armed`, offset 120), `sni_shape`, `send_shape`,
+  **`sniHyp_of : ArchTotal → SetDlDet → SniHyp`**, **`sendHyp_of : ArchTotal → SendHyp`**.
+- **XTopJointKEntryU5** (new): `SetDlDetR MR` [P] (the same determinism at every `MR`-related machine state),
+  `setDlDet_of` (with `MachPlat.frame`: `MR` is blind to `machineStateRest`), `KFinAtR5` (= `KFinAtR31` without
+  `sni`/`send`), `KFinAtR5.to31`, `KFinEv5`, `KFinEv5.to`, **`kernel_entry_reachU5`** = `kernel_entry_reachU4` with
+  `hFin` / every `KFinEv` asking `KFinAtR5`, plus `hDR : SetDlDetR arI MR`. Removed: D4, D5 (both ∀st). Added: `hDR`.
+
+### (3) Satisfiability of the finish bundle at `kernel_entry_reachU5`
+- `sni`, `send`: gone from the bundle; discharged at each use by `sniHyp_of hA hD` / `sendHyp_of hA`, with
+  `SniPre` supplied at the use site (`tail_refines`) by the carried `SchedRel` + `Inv` + `CurInv` after
+  `switch_sched_context`, and `SetDlDet` from `hDR` at the reach state's `MR` (`kernel_entry_reachU4`'s
+  `MR a σ.machineState`).
+- **NOT yet satisfiable as a whole**: `KFinAtR5.arch = ArchSwF` is still unsatisfiable (audit D2). `hd`, `archNd`
+  (platform FPU determinism), `tail` ([W] CR3) are not ∀st-false.
+
+### (4) Builds and axioms
+- tokyo (FL4-sc mirror, seeded at g6a): g6b-b1..b7 ScSniPre (green at b7, 3814 jobs); g6b-b8 ScSniProof incl. the edited ScScheduleTop: **green (3820 jobs)**, commit 5a2b759c.
+- g6b-b9 (U5 cone on tokyo) reached 6433/7090 and failed only in IpcGrant:1350 (`selectF_one` ambiguous with Endp.selectF_one: my ScSniPre lemma had the same name); renamed `selectF_sni`. b10 refused (tokyo disk 2.1 GB, script stop); b11 stopped at 6017/7090 on the owner's move to pvg-office-1 (its lake and children killed by exact PID).
+- pvg-office-1 (8 cores, 6–17 GB RAM, no cache): g6b-pvg-full1 (2 threads) killed by the station on memory at ~3870/7186;
+  g6b-pvg-full2 (1 thread) too slow (~1.5 jobs/min), stopped on the lead's note, leftovers killed by exact PID.
+- Rebased onto main b41579ba (= #51 final f5f6e597 tree; KENTRY-PLAN append conflict only). Back on tokyo, mirror
+  re-seeded from FL4-m74's build (APFS clone, FL4-m74 untouched). g6b-full3: everything green but XTopJointKEntryU5
+  (`SetDlDetR arI MR`: `SetDlDetR` takes no arch, fixed to `SetDlDetR (A := A) MR`).
+- **g6b-full4** (full `lake build` of proofs/ at the fix): "Build completed successfully (7185 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`; no sorry / admit / native_decide / bv_decide / axiom in the new files.
+- `#print axioms` (g6b-full4, scratch/g6b/ax.lean): kernel_entry_reachU5, kernel_entry_reachU4, kernel_entry_reachU3L,
+  setDlDet_of, KFinAtR5.to31, KFinEv5.to, sniHyp_of, sendHyp_of, sniPre_of, setNextInterrupt_one, SchedRel.set_ipi,
+  tail_refines: propext, Classical.choice, Quot.sound.
+
+### (5) Handoff
+- `ArchSwF` (D2): guard both halves with `VsRootOK σ` (every TCB's vtable `pml4Cap _ (some a)` has `a ≠ 0`; every
+  ASID-table entry is an ASID pool), thread it through the `hA.1`/`hA.2` sites (ScScheduleF ×3, ScNextDomF ×2) and
+  their callers up to `KFinAtR` (kept by the schedule prefix: `Fires`, awaken, enqueue/dequeue, `HeapEqUpToFpu` change
+  no cap and no ASID table), supplied from the finish state's `JAtZR` (`vsc`: nonzero ASID; plus a carried
+  ASID-table fact, l4v `valid_asid_table`). Then prove the FL4 half (`set_vm_root` / `find_vspace_for_asid` are FL4
+  code) leaving only the FPU machine-op determinism [P] (as `SetDlDetR`).
+- `ArchNdF` (D3): prove from an MR-stated FPU-op determinism fact (spec frame computation, S–M).
+- `PortInVal` (A16): MR-relative form; needs `MR` at the IO-port decode.
+- A7 `MRKeepIo` retagged [S] in INV-PLAN §1.U3L (owner decision; commit 6dc4da47).
