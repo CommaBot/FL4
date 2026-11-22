@@ -572,8 +572,10 @@ structure JUtPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (C
   (`Vs.NeedR`: unmapped PT/PD/PDPT caps' tables, PML4 and pool caps' frames;
   `JAtZ.drop`'s `hXc`, so `JAtZ.vsc` survives the drop): UtResetTopJ's
   `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype with a reset
-  (`JAtZ.utResetJ`). -/
-  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+  (`JAtZ.utResetJ`). Asked only when the invoked cap has no descendants (the
+  reset branch's `hnd'`; unguarded it is false for a cap whose region holds a
+  table named by a slot's cap: FINDING g7b-2, KENTRY-PLAN). -/
+  vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)
@@ -639,8 +641,9 @@ structure JDevPath (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   devGpm : DevGpm (L.mem s) Z.G σ
   /-- [J] the reset's `VsReachMiss` at the restart's state, as
   `JUtPath.vsReach`, for the device cap's region (UtDevDrop's `JAtZ.dropAD`
-  in UtDevReset's `JAtZ.reset_untypedDJ`). -/
-  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+  in UtDevReset's `JAtZ.reset_untypedDJ`). Asked only when the cap has no
+  descendants (FINDING g7b-2: unguarded it is false). -/
+  vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)

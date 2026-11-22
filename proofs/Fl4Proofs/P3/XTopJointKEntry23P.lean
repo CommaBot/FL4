@@ -74,8 +74,9 @@ structure JUtPathM (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (
   (`Vs.NeedR`: unmapped PT/PD/PDPT caps' tables, PML4 and pool caps' frames;
   `JAtZ.drop`'s `hXc`, so `JAtZ.vsc` survives the drop): UtResetTopJ's
   `JAtZ.reset_untypedJ` (`JAtZ.drop`), the retype with a reset
-  (`JAtZ.utResetJ`). -/
-  vsReach : ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
+  (`JAtZ.utResetJ`). Asked only when the invoked cap has no descendants
+  (FINDING g7b-2: unguarded it is false). -/
+  vsReach : (∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
     Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
         (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
         (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1)

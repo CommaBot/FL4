@@ -15591,3 +15591,22 @@ Split `VsReach` by where it starts:
 
 ### (5) Builds
 None (no Lean change).
+
+### (6) g7b-2 part 2 (lead decision): C23 / C24 `vsReach` guarded; top `kernel_entry_reachU9`
+- Fields: `JUtPath.vsReach`, `JDevPath.vsReach` (XTopJointEntry) and `JUtPathM.vsReach` (XTopJointKEntry23P) now read
+  `(∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr sl)) → ∀ s1, … → VsReachMiss …` (C17's guard).
+- Consumers: the `hVM` binders of `JAtZ.utResetJ` / `jUtRetHypR_of` (UtRetResetJ), `utResetJM` / `jUtRetHypM` /
+  `jUtRetHypDevM` (UtRetResetJM), `utResetJMM` / `jUtResetMRM` / `jUtResetMRDev` (UtResetMR), `utDevResetJ` /
+  `jUtRetHypDev` (UtDevReset) take the guarded form (10 binders). The four use sites apply it to the reset branch's
+  `hnd'` (`nodesc_of_cdt`). The dispatch sites (XTopJointEntry, 23P, 14P, 40, 41, …) pass `hN.vsReach` unchanged.
+  6 files, 17 lines plus docstrings. `JAtZ` is untouched.
+- Tops: the guard is in place, so every top whose dispatch bundle reaches these structures (`kernel_entry_reachU4`,
+  `U7`, `U3L`, `UH2`, `E5`, …) compiles with the same text. It now asks the weaker premise, so it is a stronger
+  theorem. No top changed its statement text. `SInvR.G5.kernel_entry_reachU9` (XTopJointKEntryU9, root import)
+  restates `U7` under the new name for the record (proof: `kernel_entry_reachU7 …`).
+- INV-PLAN §1.U3L: C23 and C24's `vsReach` rows are "narrowed (g7b-2)", with the FINDING kept. C17 is still [J]: it
+  waits for the `vsNamed` carry, which goes into the post-merge `JAtZ` pass.
+- Builds: g7b2-b1 (full, guards): "Build completed successfully (7185 jobs)". g7b2-b2 (full, + U9): "Build completed
+  successfully (7187 jobs)", 0 `error`, 0 `declaration uses 'sorry'`.
+- `#print axioms`: kernel_entry_reachU9, U7, U4, U3L, UH2, E5, JAtZ.utResetJ, utResetJMM, utDevResetJ (and g7b's
+  list): propext, Classical.choice, Quot.sound (each).
