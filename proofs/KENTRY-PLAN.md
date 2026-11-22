@@ -15491,7 +15491,16 @@ New modules: ScSniPre (upstream of ScScheduleTop), ScSniProof, XTopJointKEntryU5
 ### (4) Builds and axioms
 - tokyo (FL4-sc mirror, seeded at g6a): g6b-b1..b7 ScSniPre (green at b7, 3814 jobs); g6b-b8 ScSniProof incl. the edited ScScheduleTop: **green (3820 jobs)**, commit 5a2b759c.
 - g6b-b9 (U5 cone on tokyo) reached 6433/7090 and failed only in IpcGrant:1350 (`selectF_one` ambiguous with Endp.selectF_one: my ScSniPre lemma had the same name); renamed `selectF_sni`. b10 refused (tokyo disk 2.1 GB, script stop); b11 stopped at 6017/7090 on the owner's move to pvg-office-1 (its lake and children killed by exact PID).
-- pvg-office-1 (8 cores, 6–17 GB RAM, no cache; setup g6b-pvg-setup): full build g6b-pvg-full1 at LEAN_NUM_THREADS=2 killed by the station at ~3870/7186 (memory); g6b-pvg-full2 at 1 thread **still running** at the time of this note (4109/7185, 0 errors, ~1.5 jobs/min): U5, the rename and the root import are NOT yet build-verified, and no `#print axioms` result yet (scratch/g6b/ax.lean is passed as AX to that build).
+- pvg-office-1 (8 cores, 6–17 GB RAM, no cache): g6b-pvg-full1 (2 threads) killed by the station on memory at ~3870/7186;
+  g6b-pvg-full2 (1 thread) too slow (~1.5 jobs/min), stopped on the lead's note, leftovers killed by exact PID.
+- Rebased onto main b41579ba (= #51 final f5f6e597 tree; KENTRY-PLAN append conflict only). Back on tokyo, mirror
+  re-seeded from FL4-m74's build (APFS clone, FL4-m74 untouched). g6b-full3: everything green but XTopJointKEntryU5
+  (`SetDlDetR arI MR`: `SetDlDetR` takes no arch, fixed to `SetDlDetR (A := A) MR`).
+- **g6b-full4** (full `lake build` of proofs/ at the fix): "Build completed successfully (7185 jobs)", 0 `error`,
+  0 `declaration uses 'sorry'`; no sorry / admit / native_decide / bv_decide / axiom in the new files.
+- `#print axioms` (g6b-full4, scratch/g6b/ax.lean): kernel_entry_reachU5, kernel_entry_reachU4, kernel_entry_reachU3L,
+  setDlDet_of, KFinAtR5.to31, KFinEv5.to, sniHyp_of, sendHyp_of, sniPre_of, setNextInterrupt_one, SchedRel.set_ipi,
+  tail_refines: propext, Classical.choice, Quot.sound.
 
 ### (5) Handoff
 - `ArchSwF` (D2): guard both halves with `VsRootOK σ` (every TCB's vtable `pml4Cap _ (some a)` has `a ≠ 0`; every

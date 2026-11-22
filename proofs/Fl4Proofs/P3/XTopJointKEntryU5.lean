@@ -39,7 +39,7 @@ def SetDlDetR (MR : A → Fl4Spec.MachineState → Prop) : Prop :=
 
 /-- `SetDlDet` from `SetDlDetR` at one `MR` state: `MR` does not read the
 machine-state rest (`MachPlat.frame`). -/
-theorem setDlDet_of {MR : A → Fl4Spec.MachineState → Prop} (hM : MachPlat arI MR) (hDR : SetDlDetR arI MR)
+theorem setDlDet_of {MR : A → Fl4Spec.MachineState → Prop} (hM : MachPlat arI MR) (hDR : SetDlDetR (A := A) MR)
     {a : A} {ms : Fl4Spec.MachineState} (h : MR a ms) : SetDlDet := fun d mr x y hx hy =>
   hDR a { ms with machineStateRest := mr } (hM.frame a ms _ h rfl rfl rfl rfl) d x y hx hy
 
@@ -94,7 +94,7 @@ theorem kernel_entry_reachU5 [Fl4Proofs.P1.PlainStore st] (hARI : ARIface arI AR
     (hT : TimeAgree arI)
     (hmax : Fl4Spec.maxTicksToUs = core.num.U64.MAX.bv)
     (htu : ∀ a v, arI.ticks_to_us a v ⦃ r => r.bv = Fl4Spec.ticksToUs v.bv ⦄)
-    (hRef : ArchRefines arI AR) (hPI : PortInVal arI) (hSX : P1.StoreExt st) (hDR : SetDlDetR arI MR)
+    (hRef : ArchRefines arI AR) (hPI : PortInVal arI) (hSX : P1.StoreExt st) (hDR : SetDlDetR (A := A) MR)
     {s : S} {a : A} {σ : Fl4Spec.State Unit} (hJ : JReachU3 (L := L) arI AR MR s a σ) :
     ∃ (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List U64) (D : Set U64),
       JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ ∧ SInvX σ ∧ SInvR.B8w.SInvW σ ∧ SInvIP σ ∧
