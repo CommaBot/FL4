@@ -16258,3 +16258,45 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   quote into the shared one) — no kernel object changes, as described. (4) `init_tdx_control` reuses root slot
   `SMC` (15) on x86.
 - Scripts (untracked): tdx-build.sh, tdx-ex.sh, m77scratch.py (copy), tdxscratch.py, axtdx.lean / axtdx2.lean.
+
+## tdx3 (branch par/tdx in FL4-tdx, on 9a934034) — lead decision on tdx's open item: **TdxControl modelled in Fl4Spec as an FL4 extension** (no scope premise); design note (written first), progress below
+
+### Design (spec)
+- **Cap** `ArchCap.tdxControlCap` (X64/Structs, last constructor; no object). Arms in the l4v-derived files, one each, as
+  the VT-x caps got: `archObjSize` 0, `archCapIsDevice` false, `aobjRef` none (Structs); `archDeriveCap` keeps it (FL4's
+  `derive_cap` `other => Ok(other)`), `archIsPhysical` false, `archSameRegionAs .tdxControlCap c' := c' = .tdxControlCap`
+  (FL4 objects.rs:125: all copies one region, as `asidControlCap`), `archFinaliseCap` the default `(null, null)` (FL4
+  `finalise_cap` → `(Null, Null)`), `sameAobjectAs` / `archIsCapRevocable` / `shouldBeArchParentOf` the defaults (FL4:
+  `same_object_as` = `same_region_as`, `is_cap_revocable` false) (VSpace); l4v's `archDecodeInvocation` arm
+  `IllegalOperation`, never reached (Decode). `validFaultHandler` (not an endpoint) is false, as FL4's.
+  So in every cap-generic function the TDX control cap behaves exactly as the ASID control cap.
+- **Invocation** `Fl4Spec/Ext/Tdx.lean` (new): labels 91/92/93 (`fl4TdxGetReportLabel` ..), `Fl4TdxInvocation`
+  (`getReport frame data` / `extendRtmr index data` / `getQuote frame len`), `decodeTdxInvocation label args extraCaps`
+  (FL4's checks in FL4's order: `tdxActive` else IllegalOperation; GetReport: `<8` words or no extra cap
+  TruncatedMessage, `tdxReportFrame` (RW non-device 4K) else InvalidCapability 1; ExtendRTMR: `<7` TruncatedMessage,
+  index > 3 InvalidArgument 0; GetQuote: `<1` or no extra cap TruncatedMessage, `tdxQuoteFrame` (RW device 4K/2M) and
+  `tdxDmaRam` else InvalidCapability 1, `tdxQuoteLenOk` else InvalidArgument 0; other label IllegalOperation),
+  `performTdxInvocation` (GetReport / GetQuote: `doMachineOp (tdxFrameWrite frame n)`, then `tdxStatus`; ExtendRTMR:
+  `tdxStatus`). Returns `[status]`: the shell's restart / `replyFromKernel (0, [w])` / Running is FL4's `TS_RESTART` +
+  `tdx::reply` (= `vspace::reply1`, same body). No kernel object, CSpace, CDT, page table or machine field but memory.
+- **[P] platform outputs, nondeterministic** (as `performTestAndClearAccessed`'s accessed bit): `tdxActive`,
+  `tdxDmaRam` (`NonDet.select univ` of a Bool), `tdxStatus` (any word), `tdxFrameWrite base n` (any bytes in
+  `[base, base+n)`, every other byte and machine field kept). FL4's values are always one of the spec's outcomes, so
+  the refinement needs no value premise (unlike `PortInVal`).
+- **Dispatch hook** (Ext/Invocation, an FL4-extension file): `import Fl4Spec.Ext.Tdx`, `Fl4ArchInvocation.tdx`, the
+  `.tdxControlCap` arm of `fl4ArchDecodeInvocation`, the `.tdx` arm of `fl4ArchPerformInvocation`.
+
+### Design (P3)
+- CapRel: `absCap .TdxControl := .archObjectCap .tdxControlCap`, `CapWf .TdxControl` = True (default); `StateRel.not_tdx`
+  removed; its 5 sched_params uses fall into the generic non-SC case, the 4 decode dispatches
+  (XTopJointEntry `decOK_J`, KEntry13P, KEntry23P, KEntry38) get the real TdxControl case.
+- FL4 side: the TDCALLs return a new arch state; as for `port_in` the arch operations get the existing [P] arch
+  obligations: `ArchIrqStep` gains a disjunct (`TdxArchStep`: one of `tdx_report` / `tdx_extend_rtmr` /
+  `tdx_get_quote`), so `ARMask` / `ARIface.mask` cover them; `MRKeepD` gains the three fields (TdxControl becomes a
+  quiet kind, `QuietF`). The model platform (defaults: `(U64::MAX, self)`) satisfies them.
+- Refinement: `decode_invocation_tdxJ` (`XCap … (JAt …) … .TdxControl …`): errors at the start's `JAtZ`; success =
+  `Steps.restart` + `Steps.arch` (the TDCALL) + the spec's outcome with memory unchanged and status = FL4's, then
+  `reply1` (`Vs.reply1_invT`, `jReplyHyp`), as XTopJointPortIn's `In` tail.
+- Spec-invariant families: the generated families unfold any `Fl4Spec` function (`ik_unfold`) and have generic
+  `doMachineOp` / `select` leaves, so the new decode / perform should go through where the generators' leaves suffice;
+  the machine-field families (MachFieldFam `MKF`, MTK) need one leaf `mkf_tdxFrameWrite`. To be listed from the build.
