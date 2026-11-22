@@ -175,6 +175,8 @@ structure JAtZR (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs 
   live : LiveDN (L := L) Z.th H Cs Z.G s σ
   /-- [carried] As `JAtZ.zD`. -/
   zD : ∀ p ∈ ZTcb (L := L) Z.th s, p ∈ D
+  /-- [carried] As `JAtZ.carry`. -/
+  carry : JCarry Z.B H σ
 
 variable {arI} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
   {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -230,6 +232,7 @@ theorem JAtZ.toR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L :=
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ where
   xtop := J.xtop
@@ -282,6 +285,7 @@ theorem JAtZS.toR (J : JAtZS (L := L) arI AR Z H Cs Ac Lst D s a σ) : JAtZR (L 
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (h : σ.schedulerAction = .chooseNewThread ∨ Sched.CurInv σ) : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ where
@@ -335,6 +339,7 @@ theorem JAtZR.toJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s a σ)
   ext := J.ext
   live := J.live
   zD := J.zD
+  carry := J.carry
 
 
 /-- `JAtZ.liveX` at `JAtZR` (`liveDN_frame`). -/

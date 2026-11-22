@@ -604,7 +604,7 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb =>
     J.notDbg (fun p hp => J.vsObjW Ap hb hp (fun z h => by cases h)) (fun c hc => J.vsNodeW hb hc)
-  exact ⟨h1, h2, h3, σ1, hm, J.cs_frameK hkb hX1 F.kback F.ipcFr (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+  exact ⟨h1, h2, h3, σ1, hm, J.cs_frameK hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
     hSS hKd F.idle, hSS, hkb⟩
 
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`

@@ -131,7 +131,7 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     have hw : capV (L.mem s) y = .Zombie p zt' n' := by rw [← hoth y hy hyx]; exact hz'
     exact hDD (Or.inr ⟨y, hy, zt', n', hw, hzt⟩)
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
-    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf
+    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
   exact ⟨⟨V, Ac', Lst', D', J', hks.trans hkb, (ak_emptySlot' _ _).noSwitch hes hns, SpecGlob.empty hes hsg,
     hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
 

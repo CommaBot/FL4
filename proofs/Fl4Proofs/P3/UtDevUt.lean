@@ -490,9 +490,9 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     · exact Or.inl (e.symm.trans hk)
     · rw [e2] at hk; cases hk
       exact Or.inr (Or.inl ⟨r0, cs, cs', e1, rfl⟩)
-  have harch1 : ArchFitHyp H σ := hAF
-  obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J.addSets (Z' := { Z with G := G' }) (En := ∅) (Nn := ∅) (Rn := ∅) hwI.1 (by omega) hpfit hfree
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
+  obtain ⟨hAF', hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
+    J.addSetsA (Z' := { Z with G := G' }) (En := ∅) (Nn := ∅) (Rn := ∅) hwI.1 (by omega) hpfit hfree
       (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => by
         obtain ⟨o, ko, hk, h1, h2⟩ := hBO wp hwp
@@ -501,6 +501,7 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
       (fun _ h => by simp at h) (fun _ h => by simp at h) (fun _ h => by simp at h)
       (fun q _ kd hK => by rw [hK0] at hK; cases hK) hback rfl (Set.union_empty _).symm rfl rfl
       (Set.union_empty _).symm (Set.union_empty _).symm
+      (fun q m _ hK => by rw [hK0] at hK; cases hK)
   -- the CSpace fields (`JCs`)
   have hcjZ : ∀ j, j < win.val → ∀ p1 zt n1, cj j ≠ .Zombie p1 zt n1 := by
     intro j _ p1 zt n1; rw [hcj]; simp [cjOf, newCapOf, hnt]
@@ -557,9 +558,10 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl hcjD (fun q kd hq => ?_) hDF'

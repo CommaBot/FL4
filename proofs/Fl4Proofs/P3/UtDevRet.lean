@@ -721,15 +721,16 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       · cases hn
       · cases hn
       · cases hn
-  have harch1 : ArchFitHyp H σ := hAF
-  obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J.addSets (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hpfit hfree
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
+  obtain ⟨hAF', hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
+    J.addSetsA (Z' := { Z with G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn }) hwI.1 (by omega) hpfit hfree
       (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => by
         obtain ⟨o, ko, hk, h1, h2⟩ := hBO wp hwp
         rcases hDF _ hxG p sb fiv true (capV_of_capAt hcap) ⟨rfl, trivial⟩ o ko hk with (h | h) | ⟨h3, h4⟩ <;>
           omega) harch1 hA1 hA3 hE.k1 hout hEw0 hNw0 hRw0 hKn
       hback rfl rfl rfl rfl rfl rfl
+      (fun q m hq hK ao hao => newKind_default_le hty hK (Option.some.inj ((hspec q hq).symm.trans hao)))
   -- the CSpace fields (`JCs`)
   have hcjZ : ∀ j, j < win.val → ∀ p1 zt n1, cj j ≠ .Zombie p1 zt n1 := by
     intro j _ p1 zt n1; rw [hcj]; rcases hnt with h | h | h <;> simp [cjOf, newCapOf, h]
@@ -842,6 +843,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -852,7 +854,7 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     ⟨hJR.call, hJR.rfree, hJR.rrecv, hJR.yld, hJR.mcp, hJR.buf, hJR.rp, hJR.apart, hJR.jpl, hJR.jcov, hJR.kern,
       hJR.utc, hJR.nsc, hJR.inv, hJR.cur, hJR.own, hJR.off, hJR.act, hJR.bsa, hJR.isorted, hJR.curRun, hJR.blk⟩
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   -- `DevApart` after
   have hDA' : DevApart (L := L) Z.th H' G' Cs res.2.1 := by
     refine hDA.retype hE (fun p0 sb0 fi0 d0 h => ?_) hksR hidl

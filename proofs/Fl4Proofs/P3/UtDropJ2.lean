@@ -887,6 +887,22 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     · omega
     · exact ⟨h1, by omega⟩
   have hbf := J.dropBuf hsb hfit hx hcx hSO hIn hnd hp8 hD
+  -- `JCarry` after (jc1b): a kept buffer word's page has its base off the
+  -- region (else the page lies inside it, `hIn`, and so does the word), so the
+  -- page is kept; the arch objects after are old ones, `H`'s kept
+  have hcy : JCarry (KeepB (KBOf p sb) Z.B) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) σ' := by
+    refine ⟨fun wp hw => ?_, fun o ao n ho hH => ?_⟩
+    · obtain ⟨hwB, -, hw1⟩ := hw
+      obtain ⟨q, vms, hq, h1, h2⟩ := J.carry.bufPg wp hwB
+      have hr : ¬ RgOf p sb q := fun hr => by
+        have h3 := hIn q _ hq hr
+        have e : Fl4Spec.objBits (.archObj (.dataPage false vms)) = Fl4Spec.pageBitsForSize vms := rfl
+        rw [e] at h3
+        rcases hw1 with h | h <;> omega
+      exact ⟨q, vms, by rw [hD.kout q hr]; exact hq, h1, h2⟩
+    · by_cases hr : RgOf p sb o
+      · rw [hD.kin o hr] at ho; cases ho
+      · rw [hD.kout o hr] at ho; exact J.carry.archFit o ao n ho (drop_some hH)
   -- `LiveDN` after (KENTRY-PLAN g2j): the same memory and ghost tree, the typed
   -- heap and `H` restricted; the debug lists' members kept (P1's `DbgTz` after)
   have hLvD : LiveDN (L := L) (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
@@ -904,7 +920,7 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   exact ⟨hX, hcall, hrf, hrr, hyl, hmcp, hbuf, hks, hthT, hthk, hip, hrp, hap, hnk, hnB, hjpl, hcov, hobj, hzH, hsf,
     hhs, hscC, hjc, hkn, hdel, J.ut, hbd, hfin, hutc, hnsc, hinv, hcu, hown, hoff, hact, hc0, hbsa, hsv, hiso, hsl',
     hcr, hblk, hiL, hvc, hbf.1, hbf.2.1, hbf.2.2, ⟨fun y hy => J.ext.nat y (IsSlot.of_restrict hy), fun t ht => J.ext.vw t (restrictTh_some ht).1⟩,
-    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩)⟩
+    hLvD, fun q hq => J.zD q (by obtain ⟨y, hy, zt, n, hz, h65⟩ := hq; exact ⟨y, IsSlot.of_restrict hy, zt, n, hz, h65⟩), hcy⟩
 
 /-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

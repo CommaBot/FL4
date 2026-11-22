@@ -16537,3 +16537,52 @@ C4, C16, C17, C21, C22, C23, C24×3, C25, C27, D7 (12).
   are in `JReachU17`'s start state). [J] 10: C4, C16, C17, C21, C22, C23, C24×3, C25.
 * Full `lake build` at 4f3ed99a (also checks the int/j3 merge): `Build completed successfully (7287 jobs)`, 0 errors,
   0 `sorry`; `#print axioms kernel_entry_reachU17` (and U15, U14): [propext, Classical.choice, Quot.sound].
+
+## jc1b (branch par/jc1b from a36fb003 = jc1, top of record **`kernel_entry_reachU16`**) — g7b-4 step 1 DONE: `JAtZ.carry`; C21 and the `ArchFitHyp` half of C16 / C22 / C24 DISCHARGED; no premise added; no FINDING
+
+### (1) Done
+- **`JAtZ.carry : JCarry Z.B H σ`** (last field), also `JAtZR.carry` / `JAtZS.carry` (`carry := J.carry` in the
+  conversions; the `{ J with … }` updates keep it).
+- **Frame sites** (no caller of `sc_frame` / `cs_frameI` / `cs_frameIS` changed):
+  * `JAtZ(R).sc_frame` and the five sibling anonymous constructions (ScJointSchFrame, XTopJointFaultM,
+    XTopJointFinScReply, XTopJointJAtZRA, XTopJointJAtZRM): `J.carry.frame subset_rfl (IpcFrKeep.of_otk hK.kh) hK.ksz`.
+  * `cs_frameI` / `cs_frameIS`: new `JCarry.of_ao` (KBack + arch objects kept forward, so an arch object after is
+    the kept one).
+  * `cs_frameV` / `cs_frameB` (JAtZ and JAtZR) take `(hcy : JCarry Z.B H σ')` last; `cs_frame` / `cs_frameK` take
+    `(hcy : JCarry Z.B H σ')` right after `hfk`. Callers pass `J.carry.frame subset_rfl hfk K` (the `KSz` they
+    already give `JCs.same`), `J.carry.of_keepC hkc` (new: CNode-only `KeepC`), or `J.carry.of_objCn h`
+    (new: pointwise `ObjCn`, i.e. `CnK.2` / `KeepCT`: TcbInstall, VsSub, Grant, WJL, WJLEmpty, WJLSwap).
+  * VsMap: data pages forward from `VsSFr.kh` + `aaType_userData`, `ArchFitHyp.frame F.ksz`.
+- **Retypes**: `ArchFitHyp.add` (UtEpSets: `H` grown by `HOut`, the spec's objects after old / CNode / new
+  ep-ntfn-reply / new arch at a new `other`; the old ones off the region) with the size side `hKa` from
+  `newKind_default_le` (a retype's default arch object is at least `newKind`'s `other` size; `twelve_le_archObj`
+  for PML4); wrappers `JAtZ.addSetsA` / `addSetsGA` return it with the old conjuncts. `add_frame` / `add_frameB` /
+  `add_frameC` / `add_frameT` take `(hcy : JCarry Z'.B H' σ')` last. Sites: UtUtRet, UtDevUt, UtCnRet, UtDevRet,
+  UtPmRet, UtEpRet (B grows: `BufPgHyp.grow` with `hBN` and `hpgN`, every new word in its window's RAM page by
+  `win_idx` + `frame_new`), UtScRet / UtTcbRet (new objects SC / TCB: `hout_back` directly).
+- **MakePool**: `JCarry.addP` (`hAddP H p` gives the pool page `other 12`; every arch object ≥ 12 bits,
+  `twelve_le_arch`).
+- **Detype** (`JAtZ.dropA`, UtDropJ2; `JAtZ.dropAD`, UtDevDrop): `B' = KeepB (KBOf p sb) Z.B`. No-straddle CHECKED:
+  a kept word's page `q` has `¬ RgOf p sb q`, else by `hIn` (from `SpecFree`: a spec object whose base is in the
+  region lies inside `[p, p + 2^sb)`) the page and so the word lie in the region, against `KBOf`'s second
+  conjunct; so the page is kept (`SDrop.kout`). `ArchFitHyp`: `σ'`'s objects are old off-region ones, `H.drop`'s are
+  `H`'s (`drop_some`). No FINDING.
+- **Boot**: none needed: the start fact is `JAtZ` itself (`JReachU3.start J …`), whose `carry` is the boot fact.
+- **`kernel_entry_reachU16`** (XTopJointKEntryU16): U15 with `KDispHypsKVU16` in place of `KDispHypsKVU12`;
+  `JUtPathMU16` / `JDevPathU16` / `JAsidCPathU16` = `JUtPathM` / `JDevPathU12` / `JAsidCPath` without `bufObj`
+  and with `unref : RegionUnrefAt H Cs D s` in place of `heapH`; `KDispHypsKVU16.toU12 J'.carry` at the dispatch
+  state (its `JAtZ` has the paths' `H` and `B`). Premises removed: C21 (`JUtPathM.bufObj`, `JDevPath.bufObj`),
+  `ArchFitHyp` of C16 (`JAsidCPath.heapH.1`), C22 (`JUtPathM.heapH.1`), C24 heapH (`JDevPath.heapH.1`). Added:
+  none. The inner lemmas keep their `hBO` / `hAF` parameters (now fed from `J.carry`; `harch1 := J.carry.archFit`
+  at the retype sites).
+
+### (2) Left (g7b-4 order)
+Steps 2–6 of g7b-4 (3): `IdleVtS`/`DevRangeS` are done (U15); then `devApart` (C25), `vsTyp` (C4), `vsNamed`
+(C17, C23, C24 vsReach), `unref` (the `RegionUnrefAt` halves of C16 / C22 / C24). Each new field goes inside
+`JCarry`; it is now indexed by `Z.B H σ` only, so the field that needs `Cs D s` changes the index (every
+`JCarry Z.B H σ` mention: JointAt, JAtZR, JAtZS, the `hcy` parameters of the helpers, UtEpSets, MakePool).
+
+### (3) Builds and axioms
+Module builds jc1b-m1..m5 (tokyo; m5 = the `XTopJointKEntryU16` cone, 0 errors); full build jc1b-full1 at 788e4f92:
+`Build completed successfully (7255 jobs)`, 0 `error`, 0 `sorry`. `#print axioms`: U4, U5, U6, U7, U8, U9, U10,
+U11, U3L, UH2, U15 and **U16** all `[propext, Classical.choice, Quot.sound]` (every existing top keeps its statement).

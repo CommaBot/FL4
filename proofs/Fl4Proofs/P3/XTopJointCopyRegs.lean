@@ -42,7 +42,7 @@ theorem JAtZ.schedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) {s' : S} 
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
   obtain ⟨Ac', Lst', R⟩ := jowes_sched arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D, J.cs_frameK hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (JCs.same J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun _ hb => J.schW_nv hb)
+  exact ⟨Ac', Lst', D, J.cs_frameK hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap hS.1.kh) ((KSz.of_kheap hS.1.kh))) (JCs.same J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun _ hb => J.schW_nv hb)
     hSS (dbgKeep_of_writes J.blk hW fun _ hb => J.schW_notDbg hb) hS.1.idle⟩
 
 set_option maxHeartbeats 4000000 in

@@ -379,6 +379,35 @@ theorem Sched.SpecCover.addP {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Uni
     have hq : (⟨o⟩ : U64) = p := by rw [e]
     exact ⟨12, le_rfl, by rw [hq, hAddP_self]⟩
 
+/-- Every spec arch object is at least a 4 KiB page (`archKobjSize`). -/
+theorem twelve_le_arch (ao : Fl4Spec.ArchKernelObj) : 12 ≤ Fl4Spec.objBits (.archObj ao) := by
+  cases ao with
+  | dataPage _ sz =>
+    cases sz <;> simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.pageBitsForSize, Fl4Spec.pageBits,
+      Fl4Spec.ptTranslationBits]
+  | _ => simp [Fl4Spec.objBits, Fl4Spec.archKobjSize, Fl4Spec.tableSize, Fl4Spec.ptTranslationBits,
+      Fl4Spec.wordSizeBits, Fl4Spec.pageBits]
+
+/-- **`JCarry` across `MakePool`** (jc1b): the pool's page added to `H` as a
+4 KiB `other` object (every arch object is at least that large), the data
+pages kept. -/
+theorem JCarry.addP {B : Set (U64 × Fl4Spec.Word)} {H : P1.Heap} {p : U64} {σ σ' : Fl4Spec.State Unit}
+    (h : JCarry B H σ) (F : MpFr σ σ')
+    (hnew : ∀ o ao, σ'.kheap o = some (.archObj ao) → σ.kheap o = none → o = p.bv) :
+    JCarry B (hAddP H p) σ' := by
+  refine ⟨h.bufPg.frame subset_rfl fun q vms hq => ?_, fun o ao n ho hH => ?_⟩
+  · rcases F.kh q with e | ⟨r, cs, cs', h1, -⟩ | ⟨h1, -⟩
+    · rw [e]; exact hq
+    · rw [h1] at hq; cases hq
+    · rw [h1] at hq; cases hq
+  · by_cases hq : (⟨o⟩ : U64) = p
+    · rw [hq, hAddP_self] at hH; cases hH; exact twelve_le_arch ao
+    · rw [hAddP_ne hq] at hH
+      rcases F.kh o with e | ⟨r, cs, cs', -, h2⟩ | ⟨h1, -⟩
+      · rw [e] at ho; exact h.archFit o ao n ho hH
+      · rw [h2] at ho; cases ho
+      · exact absurd (show (⟨o⟩ : U64) = p by rw [hnew o ao ho h1]) hq
+
 theorem Sched.ObjCover.mp {N T E R C : Set U64} {σ σ' : Fl4Spec.State Unit} (h : ObjCover N T E R C σ) (F : MpFr σ σ') :
     ObjCover N T E R C σ' :=
   ⟨fun o x ho => h.tcb o x (F.tcb.1 ho), fun o x ho => h.ntfn o x (F.ntfn.1 ho), fun o x ho => h.ep o x (F.ep.1 ho),
@@ -1030,7 +1059,7 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
       · obtain ⟨b, hb⟩ := hdst; rw [e2, hb]; trivial
       · rw [hcap y hy e1 e2]; exact J.ext.nat y hy, J.ext.vkeep (J.mp_vkeep hh hw.2.2 hHo)⟩
     hLvM (fun q hq => J.zD q (ZTcb.of_zombies hZfM hq))
-
+    (J.carry.addP F hnew)
 
 end
 

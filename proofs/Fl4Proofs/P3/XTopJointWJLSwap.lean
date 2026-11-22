@@ -170,7 +170,7 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
     have hw : capV (L.mem s) (e y) = .Zombie p zt' n' := by rw [← hcap' y hy]; exact hz'
     exact Or.inr ⟨e y, heS y hy, zt', n', hw, hzt⟩
   have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
-    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf
+    ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
   exact ⟨⟨V, Ac', Lst', D ∪ E, J', hks.trans hkb, (ak_capSwapForDelete' _ _).noSwitch (mem_of_single hsw) hns,
     hsg2, hpp⟩, hL', ⟨lst, hDW'⟩, hN'⟩
 

@@ -681,14 +681,15 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     · exact Or.inl (e.symm.trans hk)
     · rw [e2] at hk; cases hk
       exact Or.inr (Or.inl ⟨r0, cs, cs', e1, rfl⟩)
-  have harch1 : ArchFitHyp H σ := hAF
-  obtain ⟨hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
-    J.addSets (Z' := { Z with G := G' }) (En := ∅) (Nn := ∅) (Rn := ∅) hwI.1 (by omega) hU.pfit hU.free
+  have harch1 : ArchFitHyp H σ := J.carry.archFit
+  obtain ⟨hAF', hKs', hIp', hnk', hcov', hobj', hzH', hset', hscC'⟩ :=
+    J.addSetsA (Z' := { Z with G := G' }) (En := ∅) (Nn := ∅) (Rn := ∅) hwI.1 (by omega) hU.pfit hU.free
       (by rcases k1 with h | h <;> omega) hspec1
       (fun wp hwp => hBF wp hwp _ hxG p sb fiv (capV_of_capAt hcap)) harch1 hA1 hA3 hE.k1 hout
       (fun _ h => by simp at h) (fun _ h => by simp at h) (fun _ h => by simp at h)
       (fun q _ kd hK => by rw [hK0] at hK; cases hK) hback rfl (Set.union_empty _).symm rfl rfl
       (Set.union_empty _).symm (Set.union_empty _).symm
+      (fun q m _ hK => by rw [hK0] at hK; cases hK)
   -- the CSpace fields (`JCs`)
   have hcjZ : ∀ j, j < win.val → ∀ p1 zt n1, cj j ≠ .Zombie p1 zt n1 := by
     intro j _ p1 zt n1; rw [hcj]; simp [cjOf, newCapOf, hnt]
@@ -745,9 +746,10 @@ theorem JAtZ.utUtBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L :
     (windowSlots dest r off.val win.val) hWd hAs.isSlot hcapK (fun d hd => capV_of_capAt (hDn0 d hd))
     (fun d hd => invokeUntyped_cdt_slots _ _ _ _ _ _ _ _ _ σ (.ok (), σ') (by rw [hrun]; rfl) rfl d hd)
     horgK
+  have hcy0 := (⟨J.carry.bufPg.frame subset_rfl hfk.page, hAF'⟩ : JCarry Z.B _ σ')
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
-    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN
+    ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN hcy0
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩
