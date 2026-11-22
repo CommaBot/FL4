@@ -16833,3 +16833,53 @@ Module builds jc5-m1..m5 (tokyo; m2 stopped at the `devTabRetype*` lemmas placed
 `Build completed successfully (7297 jobs)`, 0 `error`, 0 `sorry`. `#print axioms` (../axjc5.lean): U3L, UH2, U4..U20
 and **U21**, `sniHyp_of`, `sendHyp_of`, `scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`;
 every existing top keeps its statement. No sorry / admit / native_decide / bv_decide / axiom in the changed files.
+
+## jc6 (branch par/jc6 from 1b6cd896 = PR #66 head, top of record `kernel_entry_reachU21`) — g7b-4 step 6 (`unref`, the `RegionUnrefAt` halves of C16 / C22 / C24 heapH) STOPPED at sizing: more than one agent; split proposed; no Lean change, no new top, no FINDING of a false leaf
+
+### (1) What the premise contains
+`RegionUnrefAt H Cs D s` (ScJoint:157) = for every region whose `H` objects are all in `D`, after the restart:
+`KeptRefsP3` (reply next/prev, SC reply head, TCB bound ntfn, SC ntfn, ntfn bound TCB, TCB yield-to, SC yield-from)
+∧ `DbgTimerKept` (every TCB's timer-tree links `tl/tr/tp` and debug links `dn/dp`, every core's `TIMER_ROOT`,
+`TIMER_MIN`, `DEBUG_TCBS`). C16, C22 and C24 ask the same statement, so no top drops one of them before all four
+parts below are proved (no C16/C22-before-C24 split exists).
+
+### (2) Design correction to g7b-4's `unref` row
+`KeptRefsP3 H (· ∈ D) s` does not give `KeptRefsP3 H (RegionD …) s` by monotonicity: the region form asks the links
+of every object off the region, dead ones (in `D`, off the region) included, while the `(· ∈ D)` form says nothing
+about dead objects' links. For TCB/SC/ntfn links `DeadP` zeroes them; for a dead reply, `DeadP`'s `rTcb = 0` +
+`IpcRel.reply` + `RFree` zero next/prev; but a dead TCB's timer and debug links are not covered. The carried
+statement must quantify over every object of `H` (the `¬ D y →` antecedents dropped).
+
+### (3) Sizing per part
+- **(a) reply and yield links: derivable at any `JAtZ` state, no carry, no site change (S–M).** A link to a dead
+  object has a back-link that `DeadP` zeroes: reply stacks by `CallRel` (`StackW`, `det`) + `RFree` + `IpcRel.reply`
+  (a dead reply is `Free`, so detached with null links); yield by `YieldRel.toSc/frm` + `ScRel.yieldFrom` (SC word 56)
+  + `hscC`.
+- **(b) bound-notification and SC–notification links: need a new invariant (M–L).** Nothing in `JAtZ` relates
+  `tcbBoundNotification` ↔ `ntfnBoundTcb` or `scNtfn` ↔ `ntfnSc` (l4v `sym_refs`): `SchedValid` / `ScLinkHyp` /
+  `Sched.Inv.ntfnSc` are typing only, P1 `BoundInv` is about SCs. UtDropSpec's `SKeep` (tcbNtfn, ntfnB, ntfnSc, scN) is
+  itself derived from `KeptRefsP3` (`JAtZ.sKeep`), so it cannot be used. Needs a carried symmetry (spec-side, in the
+  SInvX family, or a `JCarry` field), with sites: TCB Bind/UnbindNotification, SchedContext Bind/Unbind (ntfn),
+  finalise of TCB / ntfn / SC (`unbind_notification`, `unbind_ntfn`, `unbind_maybe_notification`), retypes (new
+  objects unbound), detype (`SKeep`).
+- **(c) debug lists (M–L).** `DbgWF` gives the lists' shape (all cores), so a link names a list member; what is
+  missing is "a list member is not in `D`". `LiveJ.dbg` gives a Thread cap only for core 0's list, and nothing says a
+  covered object is off `D`. Either generalise `LiveJ.dbg` to every core of `Cs` (FL4 keys the lists by affinity,
+  `smp::migrate_tcb` moves a TCB between them) and restate the consumers' region as "missed by every covered range"
+  (true at both use sites: `ut_free` / `ut_free_fi`), or carry "a TCB of `D` is in no debug list" (kept by
+  `debug_remove` in the TCB finalise; `debug_append` only on retype's new TCBs and on migrate of a capped TCB).
+- **(d) timer trees (XL, P1).** P1's `TimerOK` (QueueObjs:42) is typing only (links null or a TCB). "No live link
+  names a dead TCB" after `timer::remove(t)` (TCB finalise, objects.rs:341) needs the trees' parent/child consistency
+  (only `t`'s parent, children, the root and `TIMER_MIN` name `t`), per-core membership (`core_of` from the height
+  word), and, because `insert`'s descent and `remove`'s successor search are bounded by `TREE_FUEL = 128` and corrupt
+  the tree when the fuel runs out (insert overwrites `p`'s non-null child; remove overwrites the successor's left
+  child), the red-black balance bound (height ≤ 2·log2(n+1) ≤ 104 < 128). All through timer.rs's `insert`, `remove`,
+  `insert_fixup`, `remove_fixup` (rotations) and `fire` in P1, and kept by every other step. Not false in reachable
+  states (assuming the red-black code is correct), but the largest part. A cheaper alternative needs a Rust change
+  (make fuel exhaustion fail-safe, e.g. refuse the insert), after which consistency alone suffices (L).
+
+### (4) Proposed split
+1. jc6a (one agent): (a) as a lemma at `JAtZ`; carried-form definitions for (b)–(d); an intermediate top = U21 with
+   `RegionUnrefAt` narrowed to the (b)+(c)+(d) parts (needs a name: U22/U23 reserved, U24 kept for the final).
+2. jc6b: (b) symmetry family. 3. jc6c: (c) debug lists. 4. jc6d (several agents, or a Rust change first): (d).
+   Then U24 = U21 without the `RegionUnrefAt` halves.
