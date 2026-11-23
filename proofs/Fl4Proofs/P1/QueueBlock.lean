@@ -374,7 +374,7 @@ theorem blk_keep {X : Set U64} {s s' : S} {Q : U64 → U64 → List U64} {R : U6
             rw [rTcbA_val (r0p h0), scNtfnA_val hPc hzc] at this
             have := hO.rpSc r0 (hr0 h0).1 c hc
             have := (sc_facts hO hc).1
-            omega)) (fun c hc => (fix c hc).2.2.1), hE.tm.tmfr htm, hE.ntb.tmfr htm,
+            omega)) (fun c hc => (fix c hc).2.2.1), hE.tm.tmfr htm, hE.ntb.tmfr htm, hE.rb.tmfr htm,
         fun c hc => by
           rw [om _ (hS.sub _ (hO.snW c hc)) (fun h0 e => by
             have := congrArg UScalar.val e
@@ -1249,7 +1249,7 @@ theorem unbind_state {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U6
             by_cases hci : c = i
             · subst hci; omega
             · have := hO.scDisj c hc i hiS hci; omega))
-          (fun c hc => scw c hc _ (hcΩ _ hc).2.2.1 (Or.inr (Or.inl (sc_facts hO hc).2.2.2.1))), hE.tm.tmfr tmU, hE.ntb.tmfr tmU,
+          (fun c hc => scw c hc _ (hcΩ _ hc).2.2.1 (Or.inr (Or.inl (sc_facts hO hc).2.2.2.1))), hE.tm.tmfr tmU, hE.ntb.tmfr tmU, hE.rb.tmfr tmU,
         fun c hc => by
           rw [F2 _ (hSg.sub _ (hO.snW c hc)) (fun e => by
             obtain ⟨hPc, hzc⟩ := hO.sc c hc

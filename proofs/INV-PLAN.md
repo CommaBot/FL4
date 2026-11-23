@@ -729,3 +729,10 @@ D5 `SendHyp` proved (`sendHyp_of`, from `ArchTotal`). Both left the finish bundl
 (satisfiable up to FPU-op determinism), A16 `PortInVal` (consistent, over-strong). A7 `MRKeepIo` is now [S] (owner
 decision, row A7), so the [P] count of §G drops by one and [S] rises by one.
 **g7a (KENTRY-PLAN g7a):** D1 DISCHARGED (top `kernel_entry_reachU6`, F list). C21, C25, C26, C27 are not derivable from what `JReachU3` carries (the induction step sees only `RJM` at the new state, so a joint fact must be a component of `RJ`); each needs a carry inside `JAtZ` (plan and order there; lead decision: after g6b/g7b/g7c merge, sequentially on the integration branch).
+
+## Note (jc6d9, 2026-11-23): `TimerRB` in the start-state assumption
+
+P1's `ScExtra0` gained the field `rb : TimerRB st T Cs s` (the per-core timer trees are red-black trees holding
+exactly the armed TCBs, unarmed TCBs have null timer links; TIMER-RB-PLAN §13).  `JAtZ` carries P1's `BlkOK`, so
+`JReach.start`'s assumption at the start state now includes `TimerRB`; it holds trivially at boot (empty trees, every
+TCB unarmed with null links).  No `kernel_entry_reach*` statement changed text.

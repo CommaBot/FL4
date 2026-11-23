@@ -338,6 +338,31 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       · rw [A.zTd hn] at hd; exact absurd rfl hd
   have ntb : NtbOK st (H.add N .tcb).tcbs H.ntfns s' := fun n hn => by
     rw [sig _ (hX.1.ntB n hn).2]; exact (hX.2.2.ntb n hn).up TU
+  have rb : TimerRB st (H.add N .tcb).tcbs Cs s' := by
+    have r1 : TimerRB st H.tcbs Cs s' := hX.2.2.rb.congr
+      ⟨fun y hy => fld y hy 3528#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3544#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3552#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3560#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun y hy => fld y hy 3568#u64 (by simp) (by simp) (by simp) (by simp) (by simp),
+        fun c hc => by
+          rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_root_val]; omega) (by rw [timer_root_val])
+            (by rw [timer_root_val]; omega)],
+        fun c hc => by
+          rw [nodeAt_of_ksb G.ksb, G.nod c hc _ (by rw [timer_min_val]; omega) (by rw [timer_min_val])
+            (by rw [timer_min_val]; omega)]⟩
+    have ct : ∀ {c : U64} {t : TRB.RBT}, CoreTree st H.tcbs s' c t → CoreTree st (H.add N .tcb).tcbs s' c t :=
+      fun c1 => { c1 with inT := fun y hy => TU y (c1.inT y hy) }
+    refine ⟨fun c hc => ?_, fun y hy hd => ?_, fun y hy hd => ?_⟩
+    · obtain ⟨t, c1⟩ := r1.tree c hc
+      exact ⟨t, ct c1⟩
+    · rcases A.tcbs_add.1 hy with hy | hn
+      · obtain ⟨c, hc, t, c1, hyt⟩ := r1.armed y hy hd
+        exact ⟨c, hc, t, ct c1, hyt⟩
+      · rw [A.zTd hn] at hd; exact absurd rfl hd
+    · rcases A.tcbs_add.1 hy with hy | hn
+      · exact r1.idle y hy hd
+      · exact ⟨A.zTl hn, A.zTr hn, A.zTp hn⟩
   -- the object invariants
   obtain ⟨hO, hR, hE⟩ := hX
   have hrw : ∀ r ∈ H.replies, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
@@ -380,7 +405,7 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
       rw [hrep _ b1, hst _ b1]; exact ⟨b0, TU _ b1, b2, b3⟩
   have ext : ScExtra st (H.add N .tcb).tcbs Cs H.scs H.ntfns s' := by
     refine ⟨⟨fun t ht hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
-      fun t ht hb => ?_, ScExtra.nsc_keepN hE.nsc hns hsn (fun c hc _ => hmx c hc), tmo, ntb,
+      fun t ht hb => ?_, ScExtra.nsc_keepN hE.nsc hns hsn (fun c hc _ => hmx c hc), tmo, ntb, rb,
       fun c hc => by rw [hsn c hc]; exact hE.scn c hc, ⟨fun c hc h0' => ?_, fun t ht h0' => ?_, fun c hc h0' => ?_⟩⟩,
       hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc⟩
     · rcases A.tcbs_add.1 ht with ht | hnw

@@ -122,6 +122,7 @@ import Fl4Proofs.P1.TimerRBRfxP
 import Fl4Proofs.P1.TimerRBRfx
 import Fl4Proofs.P1.TimerRBRfxL
 import Fl4Proofs.P1.TimerRBRmv
+import Fl4Proofs.P1.QueueTimerR
 import Fl4Proofs.P1.TimerRBFire
 import Fl4Proofs.P1.TimerRBSig
 import Fl4Proofs.P1.QueueFinThr

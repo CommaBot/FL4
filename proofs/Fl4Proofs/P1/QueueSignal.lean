@@ -2,7 +2,7 @@
 P1: `send_signal` keeps the IPC invariants, the timer-tree typing and the
 notifications' bound-TCB typing (`TInv`).
 -/
-import Fl4Proofs.P1.QueueTimer
+import Fl4Proofs.P1.QueueTimerR
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1

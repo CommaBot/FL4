@@ -346,7 +346,7 @@ theorem schedcontext.resume.allF (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : ob
 theorem XInv.wr_yieldV {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a : U64}
     {v : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
     (hA : AvoidX st T Rp Scs Nt s a)
-    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v))
+    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v))
     (hvy : ∀ u ∈ T, a.val = (yieldA u).val → v ≠ 0#u64 → v ∈ Scs)
     (hvf : ∀ c ∈ Scs, a.val = (scYieldFromA c).val → v ≠ 0#u64 → v ∈ T) :
     XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a v) := by

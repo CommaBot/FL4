@@ -393,3 +393,53 @@ intermediate states), so first land 9c's refactor **without** `rb` (pure, green 
    QueueObjs): QueueHeapDrop:395, QueueHeapAddTcb:~340, QueueHeapAdd:376, QueueTimer:252 (`BlkT.ok`),
    QueueIpc:543/672/1177/1213/1993, QueueBlock:377/1252, QueueHeapDbg:161; helper lemmas to add next to
    `TimerOK.tmfr`/`wr_out`: `TimerRB.tmfr` (`h.congr (TAgree.of_tmfr f)`) and `TimerRB.wr_out`.
+
+## 13. Eighth session (jc6d8 + jc6d9): `TimerRB` in `ScExtra0` (9b + 9c + 9d + the P1 part of 9f)
+
+### 13.1 What landed
+- **TFB refactor (jc6d8, commit db7863c7)**: `remove`'s intermediate states are on `TFB` (`(BlkT ∧ TimerOK) ∧ Foot ∧ ANI ∧
+  TKeep ∧ WritesIn`, QueueTimer); `TF` (full `TInv`) only at both ends.  `TF2` (QueueTimerC) on `TFB`.
+- **Import restructure (found this session, not in §12's plan)**: the red-black proofs (`TimerRB` … `TimerRBRmv`) were
+  *downstream* of `QueueTimerSet`/`QueueFire`/`QueueSignal`, while every P1 lemma that ends a timer operation with `TInv`
+  sits in those modules.  With `rb` in `ScExtra0` those lemmas need `timer.remove.rb`/`timer.insert.rb_full`, so:
+  * `obj.Tcb.set_timer_badge.wr`, `or1_shr8`, `shl8_shr8`, `timer.set_left/right/parent.on` moved QueueTimerSet → QueueTimer;
+    `TimerRBRotH` no longer imports `QueueTimerSet`: the chain now sits right after `QueueTimer`.
+  * new module **`QueueTimerR`** (imports `TimerRBRmv`; `QueueSignal` imports it instead of `QueueTimer`): `TF`,
+    `TF.start/tfb`, `TFB.tf`, **`timer.remove.tf`** (= `WP.spec_and` of `timer.remove.tfb` and `timer.remove.rb`),
+    `timer.remove.tinv`.
+  * QueueCbs' `section timer` (`insert_fixup(_loop).tfb`, `remove.tw`, `TW.keep_node`, `insert.foot`) moved into
+    QueueTimerSet; **`timer.insert.footR`** (post `(TimerRB s' → TInv s') ∧ footprint`; the `REPROGRAM` write is
+    undone for `TimerRB` by the new `TAgree.wr_node`), **`timer.insert.foot`** = `footR` ∧ `timer.insert.rb_full`,
+    `timer.insert.tinv` from `foot`.  `insert_loop.tz` on `TFB`.  Deleted (false once `TInv ⊇ TimerRB`): the single-op
+    `timer.set_*/rotate_*.tinv`, `TInv.wr_ptr/wr_ht/wr_node/wr_clear`, `TInvx.wr_ht`, `insert_fixup(_loop).tinv`.
+- **9b**: `ScExtra0.rb : TimerRB st T Cs s` (after `ntb`); `htn` of `XInv(0).keep/keep'/keepN`, `XInv.writes`,
+  `XInv.tn/tn_wr/tn_node/tn_field/tn_writes`, `bx_wr`, `bx_field'`, `XInv.wr_yield0`, QueueIpc/QueueYield/QueueSchedCtl
+  variants: `TimerOK ∧ NtbOK ∧ TimerRB`.  `TimerRB.tmfr`, `TimerRB.wr_out` (QueueObjs), `TInv.rb` (QueueTimer).
+  `BlkT.ok` and `TFB.tinv` take `TimerRB s`.  Hand-built sites: QueueObjs keepN/keepT/fr, QueueIpc (×5: frames,
+  `dbgF_x`/`dbgN_x` via `TmFr.dbgF/dbgN`, `wr_out`), QueueBlock ×2, QueueSchedCtl, QueueHeapDbg (`TAgree` from `fld`).
+- **9f (P1 part)**: `TRB.Rep.all` + **`TimerRB.drop`** (QueueHeapDrop: every tree node kept by `DropOK.tl/node`),
+  `TimerRB` after `addTcb` (QueueHeapAddTcb: old trees by `TAgree`, new TCBs unarmed with null links), QueueHeapAdd
+  (ntfn: `{ hX.2.2 with … }` keeps `rb`).
+- No `kernel_entry_reach*` text changed; `JReach.start`'s `JAtZ` now also assumes `TimerRB` at the start state
+  (empty trees at boot) — noted in INV-PLAN.
+- Full build green (1 Lean thread): `Build completed successfully (7351 jobs)`, 0 errors, 0 sorry; `axjc6d.lean` only
+  propext/Classical.choice/Quot.sound.  The P3 sites of 9e/9g needed **no change**: every caller of `timer.remove.tf`
+  keeps its statement (`TF` → `TF`), and the P3 retype/reset sites rebuild `BlkOK` through P1's heap lemmas
+  (`ScExtra.drop`, `addTcb`), which now carry `rb`.  No P3 file touched.
+
+### 13.2 What remains (sizes)
+- **9h = jc6 (d)** (M–L, P3): the timer half of `DbgTimerKept` (ScUtRetype:409: `tl/tr/tp` of kept TCBs and the cores'
+  `TIMER_ROOT`/`TIMER_MIN` are `KeptRef`) from `JAtZ`'s `TInv.rb` plus one new carried fact, **a dead TCB is unarmed**
+  (`tdA q = 0`).  The derivation (P1 lemma, S): if `x ≠ 0` is a link of a kept TCB `y` or a core's root/min, and `x` is
+  dead hence unarmed, then `x` is in no tree (`CoreTree.armed`); `y` armed ⇒ `y` in a tree `W` and `Rep.links` puts
+  `x ∈ W.keys`, contradiction; `y` unarmed ⇒ `TimerRB.idle` makes its links null; root/min ∈ keys or 0
+  (`Rep.root_mem`, `RBT.minKey_mem`).  The carried fact: add `L.mem s (tdA q) = 0#u64` to `DeadP`'s TCB conjunct
+  (ScPlaceDead:46) and re-prove `DeadP` where it is established (finalise ends with `timer::remove`:
+  `timer.remove.rb` gives `tdA t = 0`) and kept (nothing arms a dead TCB: `timer.insert` targets are live).
+- The heap/debug-list sites of 9f and the P3 sites of 9g turned out free (above).
+
+### 13.3 Exact next step
+9h: grep the producers of `DeadP` (`retype_window_dead`, ScPlaceDead) and check whether the dead TCBs there are exactly
+the finalised ones (state `TS_INACTIVE`, `SC = 0`, … already carried); add the `tdA = 0` conjunct and follow the build
+errors.  Then the P1 lemma `TimerRB.kept` (statement as `DbgTimerKept`'s timer half, premises `TimerOK`, `TimerRB`,
+`∀ q, D q → H q = some .tcb → tdA q = 0`).

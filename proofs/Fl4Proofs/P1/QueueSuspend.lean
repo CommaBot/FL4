@@ -52,7 +52,7 @@ theorem bx_wr {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → 
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (ha : Aligned a) (hP : ¬ Prot T Rp Scs Nt a) (hsi : ∀ y ∈ T, a.val ≠ (scA y).val ∧ a.val ≠ (inqA y).val)
     (hn : ∀ o : U64, (o.val = 0 ∨ o.val = 8 ∨ o.val = 16 ∨ o.val = 24) → a.val ≠ (L.nodeAt s (L.cpu s) o).val)
-    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v)) :
+    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v)) :
     BoundInv st T Ac (L.wr s a v) ∧ XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a v) := by
   obtain ⟨hB', ecs⟩ := bnd_wr (v := v) h hB ha hsi hn
     (fun y hy e => hP (Or.inr (Or.inr (Or.inl ⟨_, hy, Or.inr (Or.inr (Or.inl (UScalar.eq_of_val_eq e)))⟩))))
@@ -68,7 +68,8 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
     (hsub : ∀ b ∈ Sg, b ∈ Ω) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0)
     (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472)
     (htn : TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
-      NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v)) :
+      NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) ∧
+      TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v)) :
     BoundInv st T Ac (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (core.num.U64.wrapping_add y K) v) := by
   have hya := h.tcbs y hy
@@ -185,7 +186,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
     (hA : AvoidX st T Rp Scs Nt s a)
-    (htn : TimerOK st T Cs (L.wr s a 0#u64) ∧ NtbOK st T Nt (L.wr s a 0#u64)) :
+    (htn : TimerOK st T Cs (L.wr s a 0#u64) ∧ NtbOK st T Nt (L.wr s a 0#u64) ∧ TimerRB st T Cs (L.wr s a 0#u64)) :
     XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a 0#u64) := by
   obtain ⟨hR, hC, hU, hN, hcs, hid⟩ := hA
   have hO := hX.1
