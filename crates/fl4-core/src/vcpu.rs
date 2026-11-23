@@ -9,7 +9,7 @@ use crate::layout::{self, ks, reg, tcb as tl};
 use crate::machine::{Arch, Store};
 use crate::msg;
 use crate::msginfo::MessageInfo;
-use crate::obj::{ks_get, ks_set, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
+use crate::obj::{ks_get, ks_set, node_get, Ntfn, Slot, Tcb, NTFN_ACTIVE, NTFN_IDLE};
 use crate::{sched, smp};
 use fl4_abi::label;
 
@@ -1008,6 +1008,12 @@ pub fn decode<S: Store, A: Arch>(
     Ok(())
 }
 
+// The stock wrapper passes zero. The full-state wrapper supplies its reply
+// length in msgInfo, which stays in the TCB until this VMEnter completes.
+fn full_reply<S: Store>(s: &S, t: Tcb) -> bool {
+    t.reg(s, reg::MSG_INFO) == NUM_MRS
+}
+
 /// Enter request: MR0..2 are in registers even without an IPC buffer.
 pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     a.vcpu_barrier();
@@ -1025,6 +1031,13 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
         let old = get(s, v, svm::INTERCEPT_EXC);
         let val = (ctl & SVM_I1_WRITABLE) | SVM_I1_FORCED;
         set(s, v, svm::INTERCEPT_EXC, (old & 0xffff_ffff) | (val << 32));
+        // l4h passes the descriptor in MR2 after staging the error code
+        // in the upper half of EVENTINJ with WriteVMCB (seL4 patch 0040).
+        let intr = if full_reply(s, t) {
+            (get(s, v, svm::EVENT_INJ) & !0xffff_ffff) | (intr & 0xffff_ffff)
+        } else {
+            intr
+        };
         set(s, v, svm::EVENT_INJ, intr & SVM_EVENT);
     } else {
         write_vmcs(s, v, GUEST_RIP, ip);
@@ -1037,12 +1050,15 @@ pub fn enter<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
     set(s, v, PENDING, 0);
     // seL4 `c_handle_syscall` (c_traps.c): a signal already pending on the
     // bound notification completes the VMEnter at once with
-    // `completeSignal`. The message registers stay as the caller sent
-    // them; only the badge and the result change.
+    // `completeSignal`. The standard ABI preserves the caller's MRs.
     let n = Ntfn(t.bound_ntfn(s));
     if n.0 != 0 && n.state(s) == NTFN_ACTIVE {
         crate::notification::complete_signal(s, a, n, t);
-        t.set_reg(s, reg::MSG_INFO, 0);
+        if full_reply(s, t) {
+            report(s, a, t, t.reg(s, reg::BADGE));
+        } else {
+            t.set_reg(s, reg::MSG_INFO, 0);
+        }
         return;
     }
     sched::set_thread_state(s, t, sched::TS_RUNNING_VM);
@@ -1069,14 +1085,40 @@ pub fn check<S: Store, A: Arch>(s: &mut S, a: &mut A, t: Tcb) {
         report(s, a, t, 0);
     }
 }
-/// For seL4 `sendSignal`'s same-core `RunningVM` case: whether a signal to
-/// `t` (in `TS_RUNNING_VM` on this core) completes its VMEnter now, through
-/// `report`, as the next `check` would. Not while a saved exit is pending,
-/// which is reported first, nor without a bound VCPU: the signal then
-/// stays active for `check`.
+/// A saved hardware exit takes precedence. A full-state caller can also
+/// be completed on another core once it has stopped running there.
 pub fn signal_completes<S: Store>(s: &S, t: Tcb) -> bool {
     let v = bound(s, t);
-    v != 0 && get(s, v, PENDING) == 0
+    let cpu = t.affinity(s);
+    v != 0
+        && get(s, v, PENDING) == 0
+        && (cpu == s.cur_cpu() || (full_reply(s, t) && node_get(s, cpu, layout::node::CUR_THREAD) != t.0))
+}
+
+/// Finish l4h's notification reply after writing the guest registers. A
+/// host interrupt may have interrupted delivery of an event. Its vector,
+/// error code and instruction length survive in MR27, MR28 and MR5.
+fn finish_notification<S: Store, A: Arch>(
+    s: &mut S,
+    a: &A,
+    t: Tcb,
+    b: u64,
+    badge: u64,
+    vectoring: bool,
+) {
+    msg::set_mr(s, t, b, 3, if a.virtualization() == 2 { 0x60 } else { 1 });
+    msg::set_mr(s, t, b, 4, 0);
+    if !vectoring {
+        msg::set_mr(s, t, b, 5, 0);
+    }
+    msg::set_mr(s, t, b, 6, 0);
+    msg::set_mr(s, t, b, 25, 0);
+    msg::set_mr(s, t, b, 26, 0);
+    t.set_reg(s, reg::MSG_INFO, 0);
+    t.set_reg(s, reg::BADGE, badge);
+    let next = t.reg(s, reg::NEXT_IP);
+    t.set_reg(s, reg::FAULT_IP, next);
+    sched::set_thread_state(s, t, sched::TS_RUNNING);
 }
 
 /// Complete a VMEnter, preferring a saved exit to a later notification.
@@ -1084,7 +1126,8 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
     let v = bound(s, t);
     let pending = v != 0 && get(s, v, PENDING) != 0;
     let b = msg::lookup_ipc_buffer(s, true, t);
-    if !pending {
+    let full = full_reply(s, t);
+    if !pending && !full {
         // seL4 `vcpu_sysvmenter_reply_to_user`: MR0..2 get the guest state
         // the next VMEnter resumes from (RIP, controls, event to inject);
         // every other message register is left as it was.
@@ -1116,12 +1159,24 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         sched::set_thread_state(s, t, sched::TS_RUNNING);
         return;
     }
+    let saved = v != 0 && get(s, v, VALID) != 0;
     let mut i = 0;
     while i < NUM_MRS {
+        // A notification before entry has no exit frame. Clear stale exit
+        // metadata before reporting the staged state and the current GPRs.
+        if !pending && !saved {
+            msg::set_mr(s, t, b, i, 0);
+            i += 1;
+            continue;
+        }
         msg::set_mr(s, t, b, i, get(s, v, EXIT + i * 8));
         i += 1;
     }
-    // A failed entry: report the supplied entry state and current GPRs.
+    if v == 0 {
+        finish_notification(s, a, t, b, badge, false);
+        return;
+    }
+    // An entry without a hardware frame: report the staged state and GPRs.
     if get(s, v, VALID) == 0 {
         let amd = a.virtualization() == 2;
         let ip = if amd {
@@ -1170,6 +1225,17 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         msg::set_mr(s, t, b, 8, int);
         msg::set_mr(s, t, b, 9, cr3);
         msg::set_mr(s, t, b, 29, cr2);
+    }
+    if full {
+        // Both l4h backends return the 32-bit entry descriptor in MR2.
+        // The AMD exit frame can also hold the VMCB's upper error word.
+        let descriptor = msg::syscall_arg(s, t, b, 2) & 0xffff_ffff;
+        msg::set_mr(s, t, b, 2, descriptor);
+        if !pending {
+            let vectoring = saved && get(s, v, EXIT + 27 * 8) & (1 << 31) != 0;
+            finish_notification(s, a, t, b, badge, vectoring);
+            return;
+        }
     }
     set(s, v, PENDING, 0);
     t.set_reg(s, reg::MSG_INFO, 1);
