@@ -515,6 +515,9 @@ theorem perf_first (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw : 
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact kfe_post (by kf_auto) hs
+    | tdx i =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> unfold performTdxInvocation tdxStatus <;> exact kfe_post (by kf_auto) hs
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact kfe_post (by kf_auto) hs

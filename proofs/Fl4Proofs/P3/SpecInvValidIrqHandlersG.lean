@@ -73,6 +73,9 @@ theorem vi_performDeriveSubframe (iv : Fl4SubframeInvocation) : IKH VI (performD
   unfold performDeriveSubframe; hv_auto
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact vi_performDeriveSubframe _)
 
+/-- #68: the TD module's frame write (memory only) as a machine leaf. -/
+macro_rules | `(tactic| hv_leaf) => `(tactic| ((with_reducible refine WLH.msk _ ?_); exact mt_of_mkf (Fl4Proofs.P3.MachF.mkf_tdxFrameWrite _ _)))
+
 theorem vi_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : IKHE VI (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; hv_auto
 macro_rules | `(tactic| hv_leaf) => `(tactic| with_reducible exact vi_fl4ArchPerformInvocation _)
