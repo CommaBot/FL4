@@ -54,6 +54,12 @@ theorem eb_perfScUnbind (bl call don : Bool) (p : ObjRef) :
     EBKE k (fl4PerformInvocation (Z := Unit) bl call don (.invokeSchedContext (.invokeSchedContextUnbind p))) := by
   simp only [fl4PerformInvocation, withoutPreemption, invokeSchedContext]; eb_auto
 
+/-- fb3e: the frame batch keeps `EB k` (`ik_performFrameBatchW`). -/
+theorem eb_performFrameBatch (b : Fl4FrameBatchInvocation) : EBK k (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchW b (fun _ _ _ _ => by eb_auto) (fun _ => by eb_auto) (fun _ _ _ _ _ _ _ => by eb_auto)
+    (fun _ => by eb_auto) (fun _ _ _ _ => by unfold unmapPageUnflushed; eb_auto) (fun _ _ _ => by eb_auto)
+    (by eb_auto)
+
 theorem eb_perfArchNoPool (bl call don : Bool) (i : Fl4ArchInvocation)
     (hi : ∀ o, i ≠ .spec (.invokeASIDControl o)) :
     EBKE k (fl4PerformInvocation (Z := Unit) bl call don (.invokeArchObject i)) := by
@@ -62,6 +68,9 @@ theorem eb_perfArchNoPool (bl call don : Bool) (i : Fl4ArchInvocation)
     cases a
     case invokeASIDControl o => exact absurd rfl (hi o)
     all_goals (simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]; eb_auto)
+  case frameBatch b =>
+    simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+    exact ike_liftE (eb_performFrameBatch b)
   all_goals (simp only [fl4PerformInvocation, fl4ArchPerformInvocation]; eb_auto)
 
 end

@@ -23,6 +23,7 @@ side only; outside the `JAtZ` cone; vih3's SpecInvValidIrqHandlersS with
   XTopJointKEntry37E (SpecInvG5's namespace is kept out of this module).
 -/
 import Fl4Proofs.P3.SpecInvIoPortsX
+import Fl4Proofs.P3.SpecFbQ
 open Classical
 
 namespace Fl4Proofs.P3.SInvIo
@@ -373,11 +374,61 @@ theorem ioi_archPerform (ai : ArchInvocation) (σ : State Unit) (h : IOI σ) (hc
     exact nr (ioi_ioCtl f l d c σ h hc.1 hc.2)
   | _ => exact (by simp only; ioi_auto : IKH IOI _) σ h
 
+theorem ioi_capAt_capOpt (σ : State Unit) (sl : CslotPtr) : SInvU.capAt σ sl = capOpt (σ.kheap sl.1) sl.2 := by
+  unfold SInvU.capAt
+  cases σ.kheap sl.1 with
+  | none => rfl
+  | some o => cases o <;> first | rfl | (simp only [SInvU.capView, capOpt]; split <;> rfl)
+
+theorem ioi_noIo_frame {c : Cap} (hc : Fl4Proofs.P3.SInv.IsFrameCap c) :
+    ∀ f l, c ≠ .archObjectCap (.ioPortCap f l) :=
+  fun f l e => by subst e; exact hc
+
+/-- fb3e: **the frame batch keeps `IOI`** (`SInv.ik_fbEntryX_of`): it inserts and writes frame caps only, its
+maps are decoded `ArchSpecOKN` page invocations (an unmap's slot holds its cap), its deletes empty frame slots. -/
+theorem ioi_performFrameBatch (b : Fl4FrameBatchInvocation) : IKH IOI (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchX (fun w => Fl4Proofs.P3.SInv.ik_fbEntryX_of b w
+    Fl4Proofs.P3.SInv.fbx_lookupTargetSlot Fl4Proofs.P3.SInv.fbx_lookupSourceSlot
+    Fl4Proofs.P3.SInv.fbx_ensureEmpty Fl4Proofs.P3.SInv.fbx_deriveCap
+    (fun s c src dest _ hs hc _ _ _ _ _ =>
+      ik_ioi (fun S => hi_capInsert c src dest (ioIn_noIo (ioi_noIo_frame hc) S)) (fun _ => iok_capInsert _ _ _) s hs)
+    (fun sl v => Fl4Proofs.P3.SInv.ik_fbMapQ (Q := fun t iv => ArchIo t iv) b sl v
+      (fun _ _ _ _ _ _ => Fl4Proofs.P3.SInv.fbx_decodePageInvocation _ _ _ _ _)
+      (fun s dev p R mt sz m hcap iv t h => by
+        have hat : AtSl sl (.archObjectCap (.pageCap dev p R mt sz m)) s := by
+          unfold AtSl; rw [← ioi_capAt_capOpt]; exact hcap
+        have hfr : hV t = hV s :=
+          (show IKHE (fun s' => hV s' = hV s) (decodePageInvocation (Z := Unit) fbPageMapLabel [v, b.mapRights, b.attr]
+            sl (.pageCap dev p R mt sz m) [(.archObjectCap (.pml4Cap b.vspace (some b.asid)), sl)]) by hv_auto) s rfl _ h
+        have h2 := okd_archDecode_io fbPageMapLabel [v, b.mapRights, b.attr] ([] : CapRef) sl
+          (.pageCap dev p R mt sz m) [(.archObjectCap (.pml4Cap b.vspace (some b.asid)), sl)] s hat s
+        simp only [archDecodeInvocation] at h2
+        exact h2 iv t h hfr)
+      (fun s pi hs hq x hx => ioi_of_vs (ikp_vs (S := Has s) (hi_performPageInvocation pi s (fun c0 sl0 e => by
+          subst e; exact hq))
+        (fun _ => iok_performPageInvocation _) (vs_of_ioi hs) x hx)))
+    (fun sl => by
+      unfold fbDelX
+      refine ike_liftE (ik_bind (Fl4Proofs.P3.SInv.fbx_ik_getCap _) fun c => ?_)
+      split
+      · exact ik_bind (Fl4Proofs.P3.SInv.fbx_isFinalCap _) fun _ =>
+          ik_bind (ik_ioi (fun _ => hv_archFinaliseCap _ _) (fun _ => iok_archFinaliseCap _ _)) fun _ =>
+            fun s hs x hx => ioi_emptySlot_p sl .nullCap s (clOk_noIo (fun f l e => by cases e) sl s) hs x hx
+      · exact ik_fail)
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; ioi_auto)
+    (fun s _ _ _ _ _ _ sl hs _ x hx => ioi_setCap_noIo _ sl (fun f l e => by cases e) s hs x hx))
+    (ik_ioi (fun _ => hv_flushAll _ _) (fun _ => iok_flushAll _ _))
+
 theorem ioi_fl4ArchPerform (fa : Fl4ArchInvocation) (σ : State Unit) (h : IOI σ)
     (hc : InvIo σ (.invokeArchObject fa)) :
     ∀ x ∈ ((fl4ArchPerformInvocation (Z := Unit) fa).run σ).1, IOI x.2 := by
   cases fa with
   | spec ai => exact ioi_archPerform ai σ h hc
+  | frameBatch bi =>
+    intro x hx
+    simp only [fl4ArchPerformInvocation] at hx
+    obtain ⟨y, hy, rfl⟩ := mem_liftE_inv' hx
+    exact ioi_performFrameBatch bi σ h y hy
   | _ => exact (by simp only [fl4ArchPerformInvocation]; ioi_auto : IKHE IOI _) σ h
 
 theorem ioi_invokeCnode (i : CnodeInvocation) (σ : State Unit) (h : IOI σ) (hc : CnIo (Has σ) i) :
