@@ -567,6 +567,11 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
     // The TPM event log goes after the files, with room for the events
     // ExitBootServices adds. A TD ignores any TPM: its measurements are
     // its RTMRs, whose CC event log goes after the TPM's place instead.
+    // It first poisons the TPM's PCRs, so that none looks like a clean
+    // boot's (it measured no boot file into PCR 9).
+    if shared != 0 {
+        tcg2::poison().unwrap_or_else(|e| fail(e));
+    }
     let tpm = if shared == 0 { tcg2::collect() } else { None };
     let tpm_cap = tpm.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
     let cc = if shared != 0 { ccel::collect() } else { None };
