@@ -1424,3 +1424,5 @@ import Fl4Proofs.P3.VsNamedStep
 import Fl4Proofs.P3.VsNamedJ
 import Fl4Proofs.P3.VsNamedPost
 import Fl4Proofs.P3.VsLeafF
+import Fl4Proofs.P3.VsUnmapTabF
+import Fl4Proofs.P3.VsKeyDefs

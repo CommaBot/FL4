@@ -17379,3 +17379,127 @@ See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` l
   some P1 timer lemmas fewer).
 - The table-unmap `ArchShr` commit was module-built only (f4b-m6: the three inner rels, their in-set / off-set
   callers, VsFin; no other module names these lemmas); not yet in a full build.
+
+### (7) f4c (third session on par/f4): item 1 DONE (table unmaps), `VsOpTodo` removed, `ofOpF` total
+- **Design used** (differs from (5) in where the "converse" lives): the fact is about spec objects, not FL4's
+  lookup words, so neither a negative FL4 walk on the J side nor a converse of `VsPath.of_find` is needed.
+  New module **`VsUnmapTabF.lean`** (imports VsFrameMapRel; imported by Vs{Pt,Pd,Pdpt}UnmapRel):
+  - `SW4 σ asid pm` (the ASID table entry names a pool whose native root for `asid` is `pm`, i.e. l4v's
+    `find_vspace_for_asid` data), `SE4 σ pm va p3` / `SE3 σ p3 va p2` (the PML4 / PDPT entry on `va`'s index
+    names the next table), `NoName4/3/2 σ σ' asid va q0` (for every such chain at σ, the parent's entry at σ'
+    does not name `q0`).
+  - **`UnmapTabF m' x c σ σ'`** := `ArchShr σ σ'` ∧ ∃ q0 mp asid0 va0, (c = PT/PD/PDPT cap ∧ the cap after the
+    same, unmapped (`… q0 false 0 0`) ∧ (mp → NoName{2,3,4} σ σ' asid0 va0 q0)) ∧ (mp → the table's words not
+    present at m'). `VsOpF`'s last disjunct is now `UnmapTabF m' x c σ σ' ∧ finF m x = true` (VsDecFrame;
+    `VsOpF.unmapTab`); `VsOpTodo`, `VsOpF.todo` deleted.
+  - Spec helpers: `entShr_trans`, `ArchShr.trans`, `ArchShr.zero_pt/pd/pdpt`, `SW4/SE4/SE3.keep`, `SW4.find`,
+    `run_ok_inj`, `run_ok_ne_err`, `addr_eT`, `SE4.word`, `SE3.word`, `entry4_of/3_of/2_of`, `zero_words_*`;
+    FL4: **`lookup_pdpt_slot_nwalk`**, **`lookup_pd_slot_nwalk`** (Err ⇒ walk words missing).
+- **Rel side**: `unmap_page_table_rel` / `unmap_page_directory_rel` / `unmap_pdpt_rel` posts end in
+  `… ∧ ArchShr σ σ' ∧ NoName{2,3,4} σ σ' asid vaddr pt` (find Err / lookup Err: vacuous via `SW4.find` +
+  the nwalk lemmas; entry guards: the entry at σ not naming; match: the entry cleared). The six decode rels
+  (`pt/pd/pdpt_unmap_rel`, `*_unmap_rel_off`) end in `… ∧ fin = true ∧ UnmapTabF …` (ArchShr: `sts_keep`,
+  the inner `ArchShr`, `ArchShr.zero_*`, `cnode_keep`; NoName transferred σ → σ1 by `*.keep`, σu → σ' by the
+  kheap shape; words: in-set from `PtRel` at the end + `zero_words_*`, off-set from the zeroed words).
+  VsDecFrame / VsOffDec pass `VsOpF.unmapTab ⟨hUT, hfn⟩` (`hfn : finF (L.mem s) x = true` because the decode
+  rel's `fin` is `is_final_eq`'s).
+- **J side** (VsNamedPost): `wsub_of_shr`, `sw4_of_path` (a level-4 walk node gives `SW4` at its ASID),
+  `hpar2/3/4` (a parent at the cap's ref is the chain `SW4`/`SE4`/`SE3`, indices by `vIdx_val` arithmetic;
+  its step to `q0` at σ' contradicts `NoName*` through `PtRel` at σ' and `entry*_of`), **`VsNamed.ofUnmapTabF`**
+  (`unmapTab`; `hgone` by `gone` + `own_ref` + `hpar*`, or `unNotWalk` for an unmapped cap; `hE` at `x` from
+  the zeroed words / old `empty`). **`VsNamed.ofOpF`** is total: `hTodo` replaced by
+  `hUq : finF m x = true → huq` (item 4: from `huq_of_finF` at `J.xtop.rel`).
+- `VsKeep.trans` (VsNamedKeep) added for item 3 (CNode Rotate's two moves).
+- `VsNamed.stepShr` (VsNamedPost): **the item-4 vehicle for CSpace / frame steps**: `VsKeep th th' m m'` +
+  `ArchShr σ σ'` + `VsRel` / `PtRel` at the same sets before and after ⇒ `VsNamed th' m'` (no FL4 word
+  equality asked; `ArchShr.of_keep` from kept arch objects + ASID table, `cnode_keep` / `sts_keep`).
+
+### (8) f4c: item 3 (started) and item 4 (not started): what remains, with the census
+- **Restructure for item 3**: CnodeCopy / CnodeRotate / TcbCaps are *upstream* of VsNamed (via StepSem), so
+  they cannot name `VsKeep`. New module **`VsKeyDefs.lean`** (imports CnodeVsW, Insert; imported by VsNamed,
+  CnodeCopy, CnodeRotate) now holds `VKey`, `VRefOf` (moved from VsNamed), the cap facts, `VsKeep` with
+  `of_eq` / `of_pre` / `trans` / `vsKeep_insert` / `move` / `swap`, `Keyed2`, `vkey_mask` … `vkey_copied`
+  (moved from VsNamedKeep, same names / namespace `Vs`), and new **`copied_untab`** (a Copy / Mint cap,
+  `mv = false`, is never `TabUn`). VsNamedKeep keeps `step` / `grow` / `sub`.
+- **CNode posts (item 3, CNode part)**: `CnTrace` (CnodeCopy) gains `Vs.VsKeep th th (L.mem s2) (L.mem s')`
+  after its `VsSlotsT`; producers: CnodeCopy insert (`vsKeep_insert` + `vkey_copied` + `copied_untab`), move
+  (`vsKeep_move`), CnodeRotate swap (`vsKeep_swap` + `vkey_update`), two moves (`VsKeep.trans`). Consumer
+  XTopCnode takes it as `-` (not yet carried up: `TopPostDMX`'s `X` at XTopCnode → the J-level CNode site must
+  carry it next; that is part of item 4's CNode site).
+- **Item 3 rest = item 4 sites** (all J-level, so no further post change below J is needed for them):
+  XTopJointGrant (377: `vsKeep_insert` with `vkey_derive` + `derive_tabun`, beside its `vsSlotsT_insert`),
+  XTopJointTcbInstall (292: `VsSlotsT.of_some` from `hcap`; needs TcbCaps' derive facts for `hr` / `hu`),
+  the retype files (`VsNamed.grow`), drops (`JAtZ.vsNamedDrop`), resets (`VsNamed.frame`).
+- **Item 4 census** (adding `vsNamed : Vs.VsNamed Z.th (L.mem s) (L.ksb s)` to `JCarry`): `JCarryS.withP` 14
+  files / 15 occ, `withD` 1; cs_frame family callers: `cs_frameI` 43 files (has `WritesIn` + `OObj`: walk words
+  kept → `VsNamed.frame`; internal), `cs_frameIS` 2, `cs_frameK` 12, `cs_frame` 6, `cs_frameV` 7,
+  `cs_frameB` 5, `cs_frameD` 2, `cs_frameVD` 2; `sc_frame` 94 (internal), `sch_frame` 5, `sc_frameR` 3,
+  `sc_frameS` 5. **R5 confirmed**: `cs_frame` / `K` / `V` / `B` / `D` know only `ArchFwd` (arch object *types*
+  kept) and `VsSlotsT` (set-level): neither gives `VsNamed`. Plan: give them an explicit `hvn` (as `hvy`), and at
+  their callers build it by `VsNamed.stepShr` (`VsKeep` from the site's slot facts or `VsKeep.of_eq`; `ArchShr`
+  from the spec post: most CSpace steps write CNodes / TCBs only, `ArchShr.of_keep`), or `VsNamed.frame` where
+  a `WritesIn` footprint misses the `VObj` words. VSpace sites: `JAtZ.vsStepJX` with `VsNamed.ofOpF`
+  (`hUq` from `huq_of_finF hP J.mdbL … J.xtop.rel`). Estimated L (~50 files), unchanged from (5).
+
+### (9) f4d (fourth session on par/f4): item 3 CSpace steps of StepSem; item 4 started (WIP, uncommitted)
+- **Group B (in the worktree, uncommitted, not yet built as a whole; f4d's module build f4d-m1 never reported)**:
+  f4c's item 1 + CNode `VsKeep` (sections (7), (8)), and **StepSem's `slot` / `cslot` premises
+  now end in `Vs.VsKeep th th (L.mem s) (L.mem s')`** (StepSem imports VsKeyDefs). Producers: `Steps.cnTrace`
+  (XTopCnode, new last argument `hVK`, from `CnTrace`'s `VsKeep`), `Steps.insert` (new argument
+  `hnk : VKey (capV m' dest) = none`, `VsKeep.of_nokey`; IoControl / IrqControl / IrqHandler pass it by name:
+  IO port / IRQ handler caps are unkeyed). Consumers: XTopCaps' `stepClosed_xtop` (`_`), XTopJointStep's
+  `stepClosed_jat` (binders `_hVK`, used by item 4). New in VsKeyDefs: **`VsKeep.of_nokey`** (slots outside `W`
+  kept, the slots of `W` unkeyed before and after).
+- **Item 4 WIP (group C; set aside by f4d at 05:06Z so that group B builds alone: full copies of the 23 files
+  below plus `itemC.patch` against a5e6b976 are in the untracked `f4-itemC/` at the worktree root; its
+  XTopJointStep copy already contains group B's `_hVK` binders; restore by copying the files over
+  `proofs/Fl4Proofs/P3/` after group B is committed)**:
+  - JCarryDefs: `import VsNamedPost`; field **`vsNamed : Vs.VsNamed Z.th (L.mem s) (L.ksb s)`**; `withD` / `withP`
+    take `hN` after `hT`; helpers **`XTopAt.vsNamed_of`** (a `WritesIn` footprint of `OObj` words ⇒ `VsNamed`
+    after, by `walk_of_vobj` + `VsNamed.frame`), **`XTopAt.vsNamedShr`** (`VsKeep` + `ArchShr`, `XTopAt` after at
+    `Z.mv G' Z.vs`, by `stepShr`), `Vs.ArchShr.of_objCn` / `.of_ao` / `.of_otk` / `.of_keepC`.
+  - JointAt: `JAtZ.vsW`, `JAtZ.vsShr`, `JAtZ.vsSS`; JAtZRA: `JAtZR.vsW` / `vsKs` / `vsSS`; XTopJointStep:
+    `JAtZ.vsKs` (a `KsW` write).
+  - The `cs_frame` family (JAtZ in XTopJointStep, JAtZR in JAtZRA): **`cs_frameVD / V / B / cs_frame / cs_frameD /
+    cs_frameK` take `(hvn : Vs.VsNamed Z.th (L.mem s') (L.ksb s'))` as their last parameter; callers pass it by
+    name, `(hvn := …)`**; `cs_frameI` / `IS` compute it (`vsW hW hWO`).
+  - Sites DONE: sc_frame (ScJointFrame), sch_frame (ScJointSchFrame), sc_frameR (FaultM), JAtZR.sc_frame (JAtZRM),
+    JAtZR.sch_frame (JAtZRA) by `vsNamed_of hw tfoot_oobj`; sc_frameS (FinScReply) by `vsSS` +
+    `ArchShr.of_otk hK.kh`; stepClosed_jat's restart (`sts_keep`), ks (`vsW`), insertion / cslot (`vsShr` with
+    `hVK` + `ArchShr.of_objCn hcn.2 (ostep_of_cnk hcn hkc).2.2`), sched (`vsW … schW_oobj`); ScFireJ,
+    JAtZRB 421 (NFr: `ArchShr.of_ao F.sk.arch (F.othF …)`); UtResetZ, FinVt 261, ReadFpu, FinThread
+    (`ArchShr.refl`); XTopJointData (`setUm`: `of_keep rfl`); Fpu (memory unchanged: `J.carry.vsNamed`);
+    CopyRegs / JAtZRB 1142 (sched, `vsW`); PP, Post, WJLPP, FinVt 316, JAtZRB 1214 (`vsKs`); UtResetJ,
+    UtDevReset (`vsShr` + `VsKeep.of_nokey (· = x)`: untyped caps unkeyed).
+  - Sites OPEN (each needs `hvn`; the module will not build until done):
+    1. `withP` at the retypes UtCnRet, UtDevRet, UtDevUt, UtEpRet, UtPmRet, UtScRet, UtTcbRet, UtUtRet:
+       `VsNamed.grow` (old keyed slots kept; the new caps unkeyed except UtPmRet's tables: `TabUn`, unique, zeroed).
+    2. `withP` at the drops UtDevDrop, UtDropJ2: `JAtZ.vsNamedDrop` (VsNamedJ; it imports UtDropJ2, so move the
+       lemma or inline `VsNamed.sub`) then the frame.
+    3. `withP` at XTopJointMakePool: `VsNamed.makePoolS`.
+    4. `cs_frameK` at XTopJointFinVs 607 (VSpace finalise; `ArFr` only keeps arch types): export `ArchShr` (or the
+       delSlot facts) from VsFin's post up to `finVsJb`'s `hm`, then `vsSS`.
+    5. `cs_frameV` at XTopJointGrant 408 (`vsKeep_insert` + `vkey_derive` + `derive_tabun` beside
+       `vsSlotsT_insert`, then `vsShr`), XTopJointTcbInstall 323 (TcbCaps' derive facts), XTopJointVsMap 688 and
+       XTopJointVsSub 329 (`VsNamed.ofOpF` at `JAtZ.vsStepJX`, `hUq` from `huq_of_finF`).
+    6. `cs_frameB` at XTopJointWJL 126, WJLEmpty 133, WJLSwap 172 (a slot set to a Zombie: `VsKeep.of_nokey` needs
+       the old cap unkeyed, a CNode / TCB cap: from the zombie-making step's `hal`).
+  - The WIP files: JCarryDefs JointAt ScJointFrame ScJointSchFrame XTopJointFaultM XTopJointFinScReply
+    XTopJointJAtZRM XTopJointJAtZRA XTopJointJAtZRB ScFireJ UtResetZ UtResetJ UtDevReset XTopJointData
+    XTopJointFinVt XTopJointFpu XTopJointReadFpu XTopJointCopyRegs XTopJointPP XTopJointPost XTopJointWJLPP
+    XTopJointFinThread XTopJointStep (the `hvn` parts).
+
+### (10) f4e (fifth session on par/f4): state at the tokyo stop order (no builds)
+- tokyo-mac-studio-0 ran out of memory; the lead stopped all builds of this line (f4c-full1 had run since 01:51Z on a
+  tree before most of group B and reported nothing). No build was run in f4e; nothing committed.
+- Worktree = group B (section (9)); group C (item 4 WIP) preserved in `f4-itemC/` (section (9)).
+- Next, once a build station is given: (1) module build of group B (`VsKeyDefs VsNamed* VsUnmapTabF Vs{Pt,Pd,Pdpt}Unmap{Rel,Off}
+  VsDecFrame VsOffDec CnodeCopy CnodeRotate StepSem XTopCnode XTopCaps XTopJointStep IoControl IrqControl IrqHandler`), then a
+  full build, commit group B (closes item 1 and the CNode / StepSem part of item 3); (2) copy `f4-itemC/*.lean` back,
+  module-build the 23 files, then the open sites of (9) 1–6.
+- Note for the retype sites ((9) 1): `VsNamed.grow` needs, besides `hold` / `hnew` / `hth`, the section's walk-word frame
+  (`hWt` / `hWp` from m to m'), so a shared lemma beside `devRetypeR` / `vsTyp.stepN` (old keyed slots from `hE.keep`,
+  untyped caps unkeyed, new caps `newCapOf` unkeyed except UtPmRet's tables, walk words outside the window by the
+  retype's `WritesIn`) is cheaper than eight inline proofs.
+- **f4e: group B committed** after a full build on afkprover (f4e-full1, SEED=A: BUILD 0, ERRORS 0, SORRY 0,
+  jobs 7351/7353; axf4.lean: 40 `#print axioms`, all within [propext, Classical.choice, Quot.sound]).

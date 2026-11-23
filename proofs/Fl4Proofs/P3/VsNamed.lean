@@ -33,6 +33,7 @@ ref-carrying ASID walk and the VSpace naming invariant** (l4v `vs_lookup` with
 Not yet wired: `VsNamed` is a hypothesis here (F1 stage 5 adds it to `JCarry`).
 -/
 import Fl4Proofs.P3.VsDrop
+import Fl4Proofs.P3.VsKeyDefs
 import Fl4Proofs.P3.StepSem
 import Fl4Proofs.P3.BufDefs
 open Aeneas Aeneas.Std Result
@@ -123,25 +124,6 @@ inductive VsPath (m : U64 → U64) (ksb : U64) : Nat → U64 → Nat → Nat →
       ¬ eS (m (peA p i)) → VsPath m ksb 2 (eT (m (peA p i))) a (v + i.val * 2 ^ 30)
   | l2 {p : U64} {a v : Nat} {i : U64} : VsPath m ksb 2 p a v → i.val < 512 → eP (m (peA p i)) →
       ¬ eS (m (peA p i)) → VsPath m ksb 1 (eT (m (peA p i))) a (v + i.val * 2 ^ 21)
-
-/-- The VSpace key of a cap: level and object (PT 1 … PML4 4, pool 5). -/
-def VKey : capability.Cap → Option (Nat × U64)
-  | .PageTable q _ _ _ => some (1, q)
-  | .PageDirectory q _ _ _ => some (2, q)
-  | .Pdpt q _ _ _ => some (3, q)
-  | .Pml4 q _ _ => some (4, q)
-  | .AsidPool q _ => some (5, q)
-  | _ => none
-
-/-- The ref a cap carries (l4v `vs_cap_ref`): mapped flag, ASID / pool base,
-vaddr. -/
-def VRefOf : capability.Cap → Option (Bool × Nat × Nat)
-  | .PageTable _ mp a v => some (mp, a.val, v.val)
-  | .PageDirectory _ mp a v => some (mp, a.val, v.val)
-  | .Pdpt _ mp a v => some (mp, a.val, v.val)
-  | .Pml4 _ mp a => some (mp, a.val, 0)
-  | .AsidPool _ b => some (true, b.val, 0)
-  | _ => none
 
 /-- A cap names the walk node `(k, q, a, v)`. -/
 def VRef (c : capability.Cap) (k : Nat) (q : U64) (a v : Nat) : Prop :=

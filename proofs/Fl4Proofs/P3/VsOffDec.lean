@@ -237,12 +237,12 @@ theorem decode_invocation_page_tableXO (th : TypedHeap) (hP : Placed th) (s : S)
     refine WP.spec_mono (pt_unmap_rel_off hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
       hact hPO ptr asid0 va0 mp hTy hqa hoff hnS hoffSt hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci
       extra excaps (is_final_eq s _) hfinR) ?_
-    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz⟩)
+    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz, hfn, hUT⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩, VsOpF.todo⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩, VsOpF.unmapTab ⟨hUT, hfn⟩⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -440,12 +440,12 @@ theorem decode_invocation_page_directoryXO (th : TypedHeap) (hP : Placed th) (s 
     refine WP.spec_mono (pd_unmap_rel_off hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inr (Or.inl hq)), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
       hact hPO ptr asid0 va0 mp hTy hqa hoff hnS hoffSt hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci
       extra excaps (is_final_eq s _) hfinR) ?_
-    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz⟩)
+    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz, hfn, hUT⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩, VsOpF.todo⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩, VsOpF.unmapTab ⟨hUT, hfn⟩⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -643,12 +643,12 @@ theorem decode_invocation_pdptXO (th : TypedHeap) (hP : Placed th) (s : S) (ar :
     refine WP.spec_mono (pdpt_unmap_rel_off hHU s ar σ hP hVP hD hPP hPS (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inl hq, i, hi, e⟩) (fun b ⟨q, hq, i, hi, e⟩ => hPV b ⟨q, Or.inr (Or.inl hq), i, hi, e⟩) hPI hSt hSV hR hPt hS ct hct hcur' hkt (hrun _ hkt) htcb
       hact hPO ptr asid0 va0 mp hTy hqa hoff hnS hoffSt hfe hm0 hmu hpc hidx hcap hl length buf (args.map UScalar.bv) ci
       extra excaps (is_final_eq s _) hfinR) ?_
-    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz⟩)
+    rintro res (⟨e, e', h1, he, hdec, h2, h2a⟩ | ⟨h1, iv, σ', hdec, hms, ⟨hSRq, hSt', hSV', hR', hPt'⟩, hF, hL, hK, hz, hfn, hUT⟩)
     · exact topMQX_err (⟨e, h1, h2, e', hdec, he⟩) (by rw [h2, h2a]; exact hX0)
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩, VsOpF.todo⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩, VsOpF.unmapTab ⟨hUT, hfn⟩⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table

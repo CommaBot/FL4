@@ -10,6 +10,7 @@ related to the spec's first two extra caps, or null when there are fewer
 (`ExtraRel2`).
 -/
 import Fl4Proofs.P3.CnodeOther
+import Fl4Proofs.P3.VsKeyDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -387,6 +388,9 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 (by rw [capV_of_capAt hsc2]; exact update_okey hns hnsn)
                 (by rw [capV_of_capAt hpc2]; exact update_okey hnp hnpn)
                 (by rw [capV_of_capAt hsc2]; exact update_nat hns) (by rw [capV_of_capAt hpc2]; exact update_nat hnp),
+              Vs.vsKeep_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) htr.2.1 htr.2.2.1 htr.2.2.2
+                (fun hk => by rw [capV_of_capAt hsc2] at hk ⊢; exact Vs.vkey_update hns hk)
+                (fun hk => by rw [capV_of_capAt hpc2] at hk ⊢; exact Vs.vkey_update hnp hk),
               coverUt_swap hAs.isSlot hAp.isSlot (fun h => e1 h.symm) (capV_of_capAt hsc2) (capV_of_capAt hpc2)
                 htr.2.2.1 htr.2.2.2 htr.2.1 hshs hshp (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl
@@ -575,6 +579,11 @@ theorem decode_rotate_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G 
                 (by rw [capV_of_capAt hsc3]; exact update_tabun hns)
                 (by rw [capV_of_capAt hsc3]; exact update_okey hns hnsn)
                 (by rw [capV_of_capAt hsc3]; exact update_nat hns)),
+              (Vs.vsKeep_move hAp.isSlot hAd.isSlot e2 htr1.2.1 htr1.2.2.1 htr1.2.2.2 (by rw [capV_of_capAt hdc2]; rfl)
+                (fun hk => by rw [capV_of_capAt hpc2] at hk ⊢; exact Vs.vkey_update hnp hk)).trans
+                (Vs.vsKeep_move hAs.isSlot hAp.isSlot (fun h => e1 h.symm) htr2.2.1 htr2.2.2.1 htr2.2.2.2
+                  (by rw [capV_of_capAt hpc3]; rfl)
+                  (fun hk => by rw [capV_of_capAt hsc3] at hk ⊢; exact Vs.vkey_update hns hk)),
               ⟨(coverUt_mov hAd.isSlot (fun e => hdm (e ▸ hpm)) (capV_of_capAt hpc2) (capV_of_capAt hdc2)
                 htr1.2.2.1 htr1.2.2.2 htr1.2.1 hshp hAp.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt pivC = true := by rw [hs]; rfl

@@ -251,7 +251,7 @@ theorem invoke_ctl_rel (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : 
   have hk1 : L.ksb s1 = L.ksb s := by simp [s1]
   have hstp : Steps (L := L) arI th s ar σ s2 a1 σ2 :=
     Steps.trans arI (Steps.irqWr arI hL hirq interrupt.IRQ_SIGNAL ha1 .irqSignal hsig)
-      (Steps.insert arI hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
+      (Steps.insert arI (hnk := by rw [hcap2 _ hAd.isSlot, if_pos rfl]; rfl) hP hps hpd hld hci hF2' ⟨hR2, hV2, hM2, hC2, hI2⟩ hFI2 (by rw [hk1]; exact hFRG)
         (fun y hy hne => by rw [hcap2 y hy, if_neg hne]) hdst1
         (fun p sb fi d h => by rw [hcap2 _ hAd.isSlot, if_pos rfl] at h; cases h)
         (typedKept_set hcap2 (Or.inl rfl)) (hDL.same hS hk1) hdi

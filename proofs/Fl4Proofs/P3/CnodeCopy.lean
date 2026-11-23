@@ -31,6 +31,7 @@ import Fl4Proofs.P3.SlotCover
 import Fl4Proofs.P3.SlotLive
 import Fl4Proofs.P3.CnUtSrc
 import Fl4Proofs.P3.CnodeVsW
+import Fl4Proofs.P3.VsKeyDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -407,7 +408,8 @@ def CnTrace (th : TypedHeap) (ct : U64) (σ : Fl4Spec.State Unit) (root : capabi
       ∀ sl ∈ invSlots inv, ∃ p, sl.1 = p.bv ∧ DestLive th (L.mem s2) (L.ksb s) p) ∧
     (∀ σ1 σ', Fl4Spec.setThreadState (Z := Unit) σ.curThread .restart σ = ({((), σ1)}, False) →
       (Fl4Spec.invokeCnode (Z := Unit) inv).run σ1 = ({(.ok (), σ')}, False) → UtSrc th (L.mem s2) (L.mem s') σ1 σ') ∧
-    Vs.VsSlotsT th (L.mem s2) (L.mem s') ∧ (CoverKept th (L.mem s2) (L.mem s') ∧ UtKept th (L.mem s2) (L.mem s')) ∧
+    Vs.VsSlotsT th (L.mem s2) (L.mem s') ∧ Vs.VsKeep th th (L.mem s2) (L.mem s') ∧
+    (CoverKept th (L.mem s2) (L.mem s') ∧ UtKept th (L.mem s2) (L.mem s')) ∧
     CnLive (L.mem s2) (L.mem s') (invSlots inv) ∧
     (∀ sl ∈ invSlots inv, capV (L.mem s') (cslotAddr sl) = .Null → NullSrc inv sl)
 
@@ -662,6 +664,9 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             vsSlotsT_insert hAs.isSlot htr.2.1 htr.2.2.1 (by rw [capV_of_capAt hsc2]; exact htr.2.2.2)
               (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2)
               (by rw [capV_of_capAt hsc2]; exact hkey) (by rw [capV_of_capAt hsc2]; exact copied_nat hr2),
+            Vs.vsKeep_insert hAs.isSlot htr.2.1 htr.2.2.1 (by rw [capV_of_capAt hsc2]; exact htr.2.2.2)
+              (by rw [capV_of_capAt hdc2]; rfl)
+              (fun hk => by rw [capV_of_capAt hsc2] at hk ⊢; exact Vs.vkey_copied hr2 hk) (Vs.copied_untab hr2),
             coverUt_ins hAs.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               (copied_ut hr2) (fun _ _ _ _ e => by
                 have h := hsc2; rw [capAt_words, e] at h; exact (decode_encWf h).2),
@@ -708,6 +713,8 @@ theorem decode_copy_rel (th : TypedHeap) (s : S) (σ : Fl4Spec.State Unit) (G : 
             vsSlotsT_move hAs.isSlot htr.2.1 htr.2.2.1 htr.2.2.2
               (by rw [capV_of_capAt hsc2]; exact copied_vcap hr2) (by rw [capV_of_capAt hsc2]; exact copied_tabun hr2)
               (by rw [capV_of_capAt hsc2]; exact hkey) (by rw [capV_of_capAt hsc2]; exact copied_nat hr2),
+            Vs.vsKeep_move hAs.isSlot hAd.isSlot hsd htr.2.1 htr.2.2.1 htr.2.2.2 (by rw [capV_of_capAt hdc2]; rfl)
+              (fun hk => by rw [capV_of_capAt hsc2] at hk ⊢; exact Vs.vkey_copied hr2 hk),
             coverUt_mov hAd.isSlot hsd (capV_of_capAt hsc2) (capV_of_capAt hdc2) htr.2.2.1 htr.2.2.2 htr.2.1 hsh
               hAs.isSlot (fun _ _ _ _ hc _ _ hs => by
                 have hu : isUt srcC = true := by rw [hs]; rfl

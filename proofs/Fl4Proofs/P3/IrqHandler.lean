@@ -356,7 +356,7 @@ theorem irq_set_refinesD (th : TypedHeap) (hP : Placed th)
     · have hk3 : L.ksb s3 = L.ksb s := hF4.1.symm.trans hks
       refine IrqSteps.of_del arI hct hs2 hst (Steps.restart arI hcur hk' htcb hs2 hst hC) hR1 hA
         ⟨_, rfl, by simpa using hL.node irq hirq⟩ hok3 (by rw [cslotAddr_nil]; exact hr3) hdel
-        (Steps.insert arI hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
+        (Steps.insert arI (hnk := by rw [cslotAddr_nil, hcap4 _ hns, if_pos rfl]; rfl) hP hps (hL.node irq hirq) (idxd := []) rfl hci hF4 ⟨hR', hV', hM', hC', hI'⟩ hFI'
           (by rw [hk3]; exact hmst.okv hFR) (fun y hy hne => ?_) hdst3
           (fun p sb fi d h => ?_)
           (typedKept_set hcap4 (Or.inr ⟨x0, hxs, by rw [capV_of_capAt hsrcx]⟩))

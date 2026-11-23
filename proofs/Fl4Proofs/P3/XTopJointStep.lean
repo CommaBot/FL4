@@ -623,9 +623,9 @@ theorem stepClosed_jat {AR : A → Fl4Spec.Cr3 → Prop} (hAM : ARMask arI AR) {
     fun s a σ ct x s1 hcur hk htcb hrun hs1 Z H Cs Ac Lst D hth J hZ => ?_,
     fun s s' a a' σ σ' hw hO hdk hdl hds hirq hio harch Z H Cs Ac Lst D hth J hZ => ?_,
     fun s s' a σ σ' G' c ps pd rs rd idxs idxd hps hpd hci hld hcap hnull hnu hw hCR hFI hMO hTS hTK hT3 hDL hDl hVT
-      hnn hnz Z H Cs Ac Lst D hth J hZ => ?_,
+      hnn hnz _hVK Z H Cs Ac Lst D hth J hZ => ?_,
     fun s s' a σ σ' hS Z H Cs Ac Lst D hth J hZ => ?_,
-    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT hLW hNO
+    fun s s' a σ σ' G' hcn hkc hCK hUK horig hw hCR hFI hMO hTS hTK hT3 hkz hDl W hW hcW hoW hUS hVT hLW hNO _hVK
       Z H Cs Ac Lst D hth J hZ => ?_⟩
   · obtain ⟨G1, V1, Ac1, Lst1, D1, J1, hZ1⟩ := h1 Z H Cs Ac Lst D hth J hZ
     obtain ⟨G2, V2, Ac2, Lst2, D2, J2, hZ2⟩ := h2 (Z.mv G1 V1) H Cs Ac1 Lst1 D1 hth J1 hZ1

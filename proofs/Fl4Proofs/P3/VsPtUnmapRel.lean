@@ -21,6 +21,7 @@ P3 (DESIGN.md §9), VSpace: **`unmap_page_table` refines l4v
 -/
 import Fl4Proofs.P3.VsPtUnmap
 import Fl4Proofs.P3.VsLeafF
+import Fl4Proofs.P3.VsUnmapTabF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -219,36 +220,67 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
         ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageDirectory g))) → σ'.kheap p = σ.kheap p) ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
+        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ∧
+          NoName2 σ σ' asid vaddr pt ⦄ := by
   obtain ⟨hS, hSt, hSV, hR, hPt⟩ := hU
   have hskip : Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ = ({((), σ)}, False) →
+      NoName2 σ σ asid vaddr pt →
       (ok (s, a) : Result (S × A)) ⦃ r =>
         ¬ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).2 ∧
         (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
           ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageDirectory g))) → σ'.kheap p = σ.kheap p) ∧
         ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
-    intro h
+          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ∧
+          NoName2 σ σ' asid vaddr pt ⦄ := by
+    intro h hnn
     refine (WP.spec_ok _).2 ⟨by rw [h]; exact id, fun x σ' hx p _ => ?_, σ, by rw [h]; simp,
-      ⟨hS, hSt, hSV, hR, hPt⟩, rfl, ArchShr.refl σ⟩
+      ⟨hS, hSt, hSV, hR, hPt⟩, rfl, ArchShr.refl σ, hnn⟩
     rw [h] at hx; simp only [Set.mem_singleton_iff, Prod.mk.injEq] at hx; rw [hx.2]
   unfold vspace.unmap_page_table
   refine WP.spec_bind (WP.spec_and (find_vspace_for_asid_rel s σ hR asid h0)
     (find_vspace_for_asid_L4 s σ hR hPI asid)) ?_
   rintro r ⟨hf, hL⟩
   cases r with
-  | Err lf => exact hskip (unmapPT_noVs hf)
+  | Err lf =>
+    exact hskip (unmapPT_noVs hf) (fun pm _ _ hsw _ _ _ _ _ _ _ => run_ok_ne_err ((SW4.find h0 hsw).symm.trans hf))
   | Ok r1 =>
     have hr1 := hL r1 rfl
-    refine WP.spec_bind (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr hv) ?_
-    rintro r2 ⟨hsp, hsl, hse⟩
+    have hpm : ∀ pm, SW4 σ asid pm → pm = r1 := fun pm hsw =>
+      eq_of_bv (run_ok_inj ((SW4.find h0 hsw).symm.trans hf))
+    have hwd : ∀ pm p3 p2, SW4 σ asid pm → SE4 σ pm vaddr p3 → SE3 σ p3 vaddr p2 →
+        eP (L.mem s (peA r1 (vIdx vaddr 39))) ∧
+        eP (L.mem s (peA (eT (L.mem s (peA r1 (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+        ¬ eS (L.mem s (peA (eT (L.mem s (peA r1 (vIdx vaddr 39)))) (vIdx vaddr 30))) ∧
+        eT (L.mem s (peA (eT (L.mem s (peA r1 (vIdx vaddr 39)))) (vIdx vaddr 30))) = p2 := by
+      intro pm p3 p2 hsw h4 h3
+      obtain rfl := hpm pm hsw
+      obtain ⟨e4, t4, hp3⟩ := h4.word hPt hr1 hv
+      rw [t4]
+      obtain ⟨e3, s3, t3, -⟩ := h3.word hPt hp3
+      exact ⟨e4, e3, s3, t3⟩
+    refine WP.spec_bind (WP.spec_and (lookup_pd_slot_rel s σ hPt hPP hr1 vaddr hv)
+      (WP.spec_and (lookup_pd_slot_walk s r1 vaddr) (lookup_pd_slot_nwalk s r1 vaddr))) ?_
+    rintro r2 ⟨⟨hsp, hsl, hse⟩, hw2, hn2⟩
     cases r2 with
     | Err lf =>
+      have hnn : NoName2 σ σ asid vaddr pt := fun pm p3 p2 hsw h4 h3 _ _ _ _ _ =>
+        let ⟨e4, e3, s3, _⟩ := hwd pm p3 p2 hsw h4 h3
+        hn2 _ rfl ⟨e4, e3, s3⟩
       obtain ⟨n, rfl⟩ := hse _ rfl
-      exact hskip (unmapPT_noSlot hf hsp)
+      exact hskip (unmapPT_noSlot hf hsp) hnn
     | Ok x =>
       obtain ⟨q, hq, rfl⟩ := hsl _ rfl
+      obtain ⟨-, -, -, hxq⟩ := hw2 _ rfl
+      have hq2 : ∀ pm p3 p2, SW4 σ asid pm → SE4 σ pm vaddr p3 → SE3 σ p3 vaddr p2 → p2 = q :=
+        fun pm p3 p2 hsw h4 h3 => (hwd pm p3 p2 hsw h4 h3).2.2.2.symm.trans (peA_base_inj hxq).symm
       obtain ⟨f, hk, hf2⟩ := hPt.l2 q hq
+      have hnn : (∀ a b c, f (Fl4Spec.ucast 9 (vIdx vaddr 21).bv) = .pageTablePDE a b c →
+          Fl4Spec.addrFromPPtr pt.bv ≠ a) → NoName2 σ σ asid vaddr pt := by
+        intro hm pm p3 p2 hsw h4 h3 h hh ta tr he
+        have e := hq2 pm p3 p2 hsw h4 h3
+        subst e
+        rw [hk] at hh; cases hh
+        exact hm _ ta tr he rfl
       have hqa := hPP q (Or.inr (Or.inr (Or.inl hq)))
       have hj := vIdx_lt vaddr 21
       have hfe2 := hf2 _ hj
@@ -265,6 +297,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       by_cases hp0 : (L.mem s (peA q (vIdx vaddr 21)) &&& 1#u64) = 0#u64
       · rw [if_pos hp0]
         exact hskip (unmapPT_other hf hsp hg (fun a b c h => by rw [h] at hfe2; exact absurd hp0 hfe2.1))
+          (hnn (fun a b c h => by rw [h] at hfe2; exact absurd hp0 hfe2.1))
       rw [if_neg hp0, P_PS_eq]
       apply ok_bind_spec
       apply ok_bind_spec
@@ -272,6 +305,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       · rw [if_pos hps]
         exact hskip (unmapPT_other hf hsp hg (fun a b c h => by
           rw [h] at hfe2; exact absurd ((eS_iff _).1 hps) hfe2.2.1))
+          (hnn (fun a b c h => by rw [h] at hfe2; exact absurd ((eS_iff _).1 hps) hfe2.2.1))
       rw [if_neg hps]
       apply ok_bind_spec
       have hAM : vspace.ADDR_MASK = 4503599627366400#u64 := by unfold vspace.ADDR_MASK; rfl
@@ -288,6 +322,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
           core.num.U64.wrapping_sub pt layout.PPTR_BASE) = true
       · rw [if_pos hadr]
         exact hskip (unmapPT_other hf hsp hg (fun a b c h e => (bne_iff_ne.1 hadr) ((hadr' a b c h).1 e)))
+          (hnn (fun a b c h e => (bne_iff_ne.1 hadr) ((hadr' a b c h).1 e)))
       rw [if_neg hadr]
       have hadrE : eA (L.mem s (peA q (vIdx vaddr 21))) = core.num.U64.wrapping_sub pt layout.PPTR_BASE :=
         Classical.byContradiction fun hne => hadr (bne_iff_ne.2 hne)
@@ -349,7 +384,15 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       obtain ⟨ms2, rfl⟩ := doMachineOp_mem hσ'
       refine (WP.spec_ok _).2 ⟨?_, ?_, _, ?_, ⟨hS', Vs.StateRel.ms hSts ms2, hSVs, ⟨hRs.1, hRs.2, hRs.3⟩,
         ⟨hPts.l4, hPts.l3, hPts.l2, hPts.l1⟩⟩, L.ksb_wr _ _ _,
-        ArchShr.ms (ArchShr.keep_left rfl (fun _ _ _ => rfl) (ArchShr.upd_pd hk _)) _⟩
+        ArchShr.ms (ArchShr.keep_left rfl (fun _ _ _ => rfl) (ArchShr.upd_pd hk _)) _, ?_⟩
+      rotate_right
+      · intro pm p3 p2 hsw h4 h3 h hh ta tr he
+        have e := hq2 pm p3 p2 hsw h4 h3
+        subst e
+        have hh' : σs.kheap p2.bv = some (.archObj (.pageDirectory h)) := hh
+        obtain rfl : Function.update f (Fl4Spec.ucast 9 (vIdx vaddr 21).bv) .invalidPDE = h := by
+          simpa [hσs, updK] using hh'
+        simp at he
       · rw [hun]
         refine nd_nofail_bind (hH.flushTblOK σ r1.bv vaddr.bv pt.bv asid.bv hal hptk) (fun y hy => ?_)
         obtain ⟨u, σy⟩ := y
@@ -443,7 +486,8 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
             ({(.ok iv, σ)}, False) ∧
         PtMapSpec σ iv σ' ∧ UR st th P L4 L3 L2 L1 SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.PageTable ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.PageTable ptr mp asid0 va0) ∧ KFoot σ σ' ∧
+        fin = true ∧ UnmapTabF (L.mem res.2.1) (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) σ σ') ⦄ := by
   rw [show Fl4Spec.archDecodeInvocation (Z := Unit) slbl args xs (pc.bv, idx)
       (.pageTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) vcs =
     Fl4Spec.decodePageTableInvocation slbl args (pc.bv, idx)
@@ -540,7 +584,10 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
     refine WP.spec_bind (fin_cap s1 a σ1 ⟨hS1, hSt1, hSV1, hR1, hPt1⟩ hkc1 hk1) ?_
     rintro s5 ⟨hU5, hF5, hcv5⟩
     refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans hF5,
-      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (KFoot.cnode hkc1 hwf idx nc)⟩)
+      by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (KFoot.cnode hkc1 hwf idx nc), trivial,
+      ArchShr.keep_right (ArchShr.of_keep (sts_keep hkt' _).1 (sts_keep hkt' _).2) (cnode_keep hkc1 idx nc).1
+        (cnode_keep hkc1 idx nc).2, ptr, false, asid0, va0, .inl ⟨rfl, hcv5, fun h => absurd h (by decide)⟩,
+      fun h => absurd h (by decide)⟩)
     unfold PtMapSpec
     dsimp only
     rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt'), performPtUnmap_none hkc1 hwf hidx hcs]
@@ -571,10 +618,12 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         UR st th P L4 L3 L2 L1 SR p.1 p.2 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))) ∧
         (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))).kheap pc.bv = some (.cnode r cs) ∧
         L.ksb p.1 = L.ksb s ∧ SlotFoot th (L.mem s1) (L.mem p.1) (cslotAddr (pc.bv, idx)) ∧
-        KFoot σ1 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE)))) ?_ ?_
+        KFoot σ1 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))) ∧
+        ArchShr σ1 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))) ∧
+        NoName2 σ1 σu asid0 va0 ptr) ?_ ?_
     · refine WP.spec_bind (unmap_page_table_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV2) hPI1 hU1
         asid0 va0 ptr hA0 hVA (hmu rfl)) ?_
-      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3, -⟩
+      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3, hsh3, hnn3⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]
       apply ok_bind_spec
@@ -604,14 +653,15 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         Vs.StateRel.upd_other (StateRel.of_caps hSt3 hcap) hkpu _, Vs.SlotsValid.of_caps hSV3 hcap, ?_, hPt4⟩,
         by simp [updK, hpc'.symm, hkcu], by rw [L.ksb_zr, hks3],
         hF3.trans (SlotFoot.of_writes hPl hW (fun b ⟨q, hq, i, hi, e⟩ =>
-          hPO b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩) _), hK3.trans (KFoot.arch hkpu _)⟩
+          hPO b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩) _), hK3.trans (KFoot.arch hkpu _),
+        hsh3.trans (ArchShr.zero_pt hkpu), hnn3⟩
       rw [hW.1]
       refine hR3.frame (fun b hb => hW.2.2 b (hb.aligned (hks3 ▸ hVP)) (fun h => hPV1 b h (hks3 ▸ hb))) rfl
         (fun p hp => ?_)
       obtain ⟨g, hg, -⟩ := hR3.pool p hp
       have : p.bv ≠ ptr.bv := kheap_ne hg hkpu (fun _ h1 h2 => by subst h1; cases h2)
       simp [updK, this]
-    · rintro ⟨s4, a4⟩ ⟨σu, hu, hnu, hall', hU4, hkc4, hks4, hF4, hK4⟩
+    · rintro ⟨s4, a4⟩ ⟨σu, hu, hnu, hall', hU4, hkc4, hks4, hF4, hK4, hsh4, hnn4⟩
       show (vspace.with_mapping (.PageTable ptr true asid0 va0) false asid0 va0 >>= fun c =>
         obj.Slot.set_cap st (cslotAddr (pc.bv, idx)) s4 c >>= fun s3 => ok (core.result.Result.Ok (), s3, a4)) ⦃ _ ⦄
       rw [show vspace.with_mapping (.PageTable ptr true asid0 va0) false asid0 va0 =
@@ -619,8 +669,26 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
       apply ok_bind_spec
       refine WP.spec_bind (fin_cap s4 a4 _ hU4 hkc4 hks4) ?_
       rintro s5 ⟨hU5, hF5, hcv5⟩
+      have hPt5 : PtRel L4 L3 L2 L1 (L.mem s5)
+          (setCnodeSlot (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))) pc.bv r cs idx nc) := by
+        obtain ⟨-, -, -, -, h⟩ := hU5; exact h
+      have hnnF : NoName2 σ
+          (setCnodeSlot (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE))) pc.bv r cs idx nc)
+          asid0 va0 ptr := by
+        intro pm p3 p2 hsw h4 h3 h hh
+        refine hnn4 pm p3 p2 (hsw.keep (sts_keep hkt' _).1 (sts_keep hkt' _).2) (h4.keep (sts_keep hkt' _).2)
+          (h3.keep (sts_keep hkt' _).2) h ?_
+        by_cases e1 : p2.bv = pc.bv
+        · simp [setCnodeSlot, updK, e1] at hh
+        by_cases e2 : p2.bv = ptr.bv
+        · simp [setCnodeSlot, updK, e1, e2, hpc'] at hh
+        simpa [setCnodeSlot, updK, e1, e2] using hh
+      have hshF := ArchShr.keep_right (ArchShr.keep_left (sts_keep hkt' _).1 (sts_keep hkt' _).2 hsh4)
+        (cnode_keep hkc4 idx nc).1 (cnode_keep hkc4 idx nc).2
+      have hzF := zero_words_pt hPt5 hpL1 (by simp [setCnodeSlot, updK, hpc'])
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, rfl, ?_, hU5, (SlotFoot.of_same hSS1 _).trans (hF4.trans hF5),
-        by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (hK4.trans (KFoot.cnode hkc4 hwf idx nc))⟩)
+        by rw [hcv5]; exact ⟨⟨rfl, rfl, rfl, rfl⟩, fun _ _ _ _ _ h => by simp only [VCapOK] at h ⊢; first | exact ⟨h.1, h.2.1, fun e => absurd e (by decide), fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1, trivial, trivial⟩ | exact ⟨h.1, h.2.1, fun e => absurd e (by decide)⟩ | exact ⟨h.1, h.2.1⟩ | exact ⟨h.1, h.2.1, trivial⟩⟩, (KFoot.sts hkt' _).trans (hK4.trans (KFoot.cnode hkc4 hwf idx nc)), trivial,
+        hshF, ptr, true, asid0, va0, .inl ⟨rfl, hcv5, fun _ => hnnF⟩, fun _ => hzF⟩)
       unfold PtMapSpec
       dsimp only
       rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
