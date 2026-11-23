@@ -43,6 +43,8 @@ impl Store for Memory {
 #[derive(Default)]
 struct Machine {
     backend: u64,
+    /// The host's XCR0 (VCPU capability 0); None: 7.
+    xcr0: Option<u64>,
     invalidations: Vec<(u64, u64)>,
     dma_transitions: Vec<(u64, u64, bool)>,
 }
@@ -56,7 +58,7 @@ impl Arch for Machine {
     }
     fn vcpu_capability(&self, f: u64) -> u64 {
         match f {
-            0 => 7,
+            0 => self.xcr0.unwrap_or(7),
             1 => 48,
             0x486 => 0x20,
             0x488 => 1 << 13,
@@ -324,9 +326,9 @@ fn vmx_users_cannot_enable_host_address_controls_or_unswitched_state() {
         write(CONTROL_CR0_MASK, 0) & vcpu::CR0_OWNED,
         vcpu::CR0_OWNED
     );
-    assert_eq!(write(CONTROL_CR4_MASK, 0), !vcpu::CR4_ALLOWED);
+    assert_eq!(write(CONTROL_CR4_MASK, 0), !vcpu::cr4_allowed(&a));
     assert_eq!(
-        write(GUEST_CR4, u64::MAX) & !((1 << 13) | vcpu::CR4_ALLOWED),
+        write(GUEST_CR4, u64::MAX) & !((1 << 13) | vcpu::cr4_allowed(&a)),
         0
     );
     assert!(vcpu::sanitize_vmcs(&a, CONTROL_EPT_POINTER, 0).is_err());
@@ -366,7 +368,7 @@ fn svm_restricts_addresses_intercepts_and_pat() {
             vcpu::EXCEPTIONS | (vcpu::SVM_I1_FORCED << 32)
         );
         assert_eq!(
-            vcpu::sanitize_vmcb(&a, 0x548, 0, val).ok().unwrap() & !vcpu::CR4_ALLOWED,
+            vcpu::sanitize_vmcb(&a, 0x548, 0, val).ok().unwrap() & !vcpu::cr4_allowed(&a),
             0
         );
     }
@@ -384,6 +386,34 @@ fn svm_guests_cannot_enable_broadcast_tlb_invalidation() {
     let a = Machine { backend: 2, ..Default::default() };
     for val in [1 << 7, 0x81, u64::MAX] {
         assert!(vcpu::sanitize_vmcb(&a, vcpu::svm::NESTED_CTL, 1, val).is_err());
+    }
+}
+
+/// The deferred exit IBPB is the VCPU holder's choice (WriteMSR of
+/// MSR_VM_IBPB_DEFER, 0 or 1), off after retype, on both backends; and a
+/// guest may have CR4.PKE.
+#[test]
+fn vm_ibpb_defer_is_the_holders_choice() {
+    for backend in [1, 2] {
+        let (mut s, mut a, t, v) = fixture(backend);
+        assert_eq!(vcpu::get(&s, v, vcpu::VM_IBPB_DEFER), 0, "off after retype");
+        for (val, ok) in [(1, true), (0, true), (2, false), (u64::MAX, false), (1, true)] {
+            t.set_reg(&mut s, reg::R10, vcpu::MSR_VM_IBPB_DEFER);
+            t.set_reg(&mut s, reg::R8, val);
+            let r = vcpu::decode(&mut s, &mut a, label::X86VCPUWriteMSR, 2, v, true, 0, &[Slot(0); 3]);
+            assert_eq!(r.is_ok(), ok, "backend {backend}, {val:#x}");
+        }
+        assert_eq!(vcpu::get(&s, v, vcpu::VM_IBPB_DEFER), 1, "a refused value leaves it");
+        t.set_reg(&mut s, reg::R10, vcpu::MSR_VM_IBPB_DEFER);
+        vcpu::decode(&mut s, &mut a, label::X86VCPUReadMSR, 1, v, true, 0, &[Slot(0); 3]).ok().unwrap();
+        assert_eq!(t.reg(&s, reg::R10), 1, "ReadMSR");
+    }
+    assert_ne!(vcpu::CR4_ALLOWED & (1 << 22), 0, "CR4.PKE");
+    // Only with PKRU in the host's XCR0, which switches it with the FPU.
+    for (xcr0, pke) in [(7, false), (0x207, true)] {
+        let a = Machine { backend: 2, xcr0: Some(xcr0), ..Default::default() };
+        assert_eq!(vcpu::sanitize_vmcb(&a, 0x548, 0, 1 << 22).ok().unwrap() & (1 << 22) != 0, pke, "SVM, XCR0 {xcr0:#x}");
+        assert_eq!(vcpu::sanitize_vmcs(&a, fl4_core::vcpu::vmx::CONTROL_CR4_MASK, 0).ok().unwrap() & (1 << 22) == 0, pke, "VMX mask, XCR0 {xcr0:#x}");
     }
 }
 

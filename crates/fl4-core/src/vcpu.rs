@@ -25,12 +25,28 @@ pub const VALID: u64 = 0x5030;
 /// Hardware backend's last SVM core (index + 1); zero forces a TLB flush.
 /// Retype clears it, and software paging changes revoke the cached ASID.
 pub const SVM_CPU: u64 = 0x5038;
+/// Whether this VCPU's exits may leave their IBPB to the next switch to
+/// another address space (`fl4_arch_x86_64::spec::vm_ibpb_deferred`):
+/// its holder's own choice, as only the holder's address space is then
+/// left without it.  WriteMSR of `MSR_VM_IBPB_DEFER`, 0 or 1; 0 (the IBPB
+/// at every exit) after retype.
+pub const VM_IBPB_DEFER: u64 = 0x5040;
+/// The VCPU MSR number of `VM_IBPB_DEFER` (with 0xffff_fffe for XCR0 and
+/// 0xffff_ffff for CR2).
+pub const MSR_VM_IBPB_DEFER: u64 = 0xffff_fffd;
 pub const REGS: u64 = 0x5100;
 pub const MSRS: u64 = 0x5180;
 pub const EXIT: u64 = 0x5200;
 pub const IO: u64 = 0x6000;
 pub const NUM_MRS: u64 = 30;
-pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21);
+pub const CR4_ALLOWED: u64 = 0x0fff | (1 << 16) | (1 << 17) | (1 << 18) | (1 << 20) | (1 << 21) | (1 << 22);
+/// CR4 bits a guest may have here: CR4_ALLOWED, without PKE (bit 22)
+/// unless the host's XCR0 (VCPU capability 0) holds PKRU. Neither VMX nor
+/// SVM switches PKRU; the host's XSAVE of the guest's FPU state does, and
+/// only with PKRU in XCR0.
+pub fn cr4_allowed<A: Arch>(a: &A) -> u64 {
+    if a.vcpu_capability(0) & (1 << 9) != 0 { CR4_ALLOWED } else { CR4_ALLOWED & !(1 << 22) }
+}
 pub const CR0_OWNED: u64 = (3 << 29) | (0x3ff << 19) | (1 << 17) | (0x3ff << 6);
 pub const EXCEPTIONS: u64 = (1 << 1) | (1 << 17) | (1 << 18);
 /// Guest IA32_DEBUGCTL bits a VMM may set: BTF (single-step on branches)
@@ -501,7 +517,7 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         }
         CONTROL_EXCEPTION_BITMAP => value | EXCEPTIONS,
         CONTROL_CR0_MASK => value | CR0_OWNED,
-        CONTROL_CR4_MASK => value | !CR4_ALLOWED,
+        CONTROL_CR4_MASK => value | !cr4_allowed(a),
         CONTROL_PIN_EXECUTION_CONTROLS => controls(a, 0x481, value, PIN_ALLOWED, PIN_ALLOWED),
         CONTROL_PRIMARY_PROCESSOR_CONTROLS => {
             controls(a, 0x482, value, PRIMARY_FORCED, PRIMARY_ALLOWED)
@@ -546,7 +562,7 @@ pub fn sanitize_vmcs<A: Arch>(a: &A, f: u64, value: u64) -> KResult<u64> {
         }
         GUEST_CR4 => {
             let fixed = a.vcpu_capability(0x488);
-            (value | fixed) & a.vcpu_capability(0x489) & (fixed | CR4_ALLOWED)
+            (value | fixed) & a.vcpu_capability(0x489) & (fixed | cr4_allowed(a))
         }
         GUEST_DEBUGCTRL => value & DEBUGCTL_ALLOWED,
         _ => value,
@@ -584,7 +600,7 @@ pub fn sanitize_vmcb<A: Arch>(a: &A, f: u64, old: u64, value: u64) -> KResult<u6
         0x0c8 => (u64::MAX, 0, false),
         0x4c8 => (0xff00_0000, 0, false),
         0x4d0 => (u64::MAX, 1 << 12, false),
-        0x548 => (CR4_ALLOWED, 0, false),
+        0x548 => (cr4_allowed(a), 0, false),
         0x400 | 0x410 | 0x420 | 0x430 | 0x440 | 0x450 | 0x460 | 0x470 | 0x480 | 0x490 | 0x550
         | 0x558 | 0x560 | 0x568 | 0x570 | 0x578 | 0x5d8 | 0x5f8 | 0x600 | 0x618 | 0x628 | 0x640
         | 0x668 => (u64::MAX, 0, false),
@@ -777,6 +793,9 @@ fn msr_addr(v: u64, f: u64, amd: bool) -> Option<u64> {
     if f == 0xffff_fffe {
         return Some(v.wrapping_add(XCR0));
     }
+    if f == MSR_VM_IBPB_DEFER {
+        return Some(v.wrapping_add(VM_IBPB_DEFER));
+    }
     if amd {
         return svm_msr(f).map(|off| v.wrapping_add(off));
     }
@@ -943,6 +962,9 @@ pub fn decode<S: Store, A: Arch>(
                 return invalid_arg(1);
             }
             if f == 0xffff_fffe && !valid_xcr0(value, a.vcpu_capability(0)) {
+                return invalid_arg(1);
+            }
+            if f == MSR_VM_IBPB_DEFER && value > 1 {
                 return invalid_arg(1);
             }
             s.write(addr, value);

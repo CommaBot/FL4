@@ -31,6 +31,25 @@ below. FL4 does not install firmware/microcode updates.
 * Every VM exit, including failed entry, issues IBPB before the first host return
   or interrupt enable. This also protects the userspace VMM without requiring
   a context switch. The guest cannot write the host's speculation-control MSRs.
+  A VCPU's holder may defer it (VCPU MSR `0xffff_fffd`, `MSR_VM_IBPB_DEFER`,
+  0 or 1; 0 after retype) where the kernel's own branches are already out of
+  the guest's reach, as Linux relies on to skip the IBPB at VM exits
+  (`policy::vm_ibpb_deferrable`): indirect branches by AutoIBRS or eIBRS, not
+  legacy IBRS; returns by hardware where a native entry needs no IBPB either
+  (AutoIBRS with SRSO_NO or SRSO_USER_KERNEL_NO, eIBRS without ITS), or on AMD
+  by Safe RET. With Safe RET the SVM exit calls `fl4_untrain_ret` before its
+  first return and returns through the return thunk, as Linux's
+  `UNTRAIN_RET_VM` (`check_vm_asm.py` checks both). ITS-affected Intel parts
+  and SRSO-affected AMD parts without Safe RET keep the IBPB. The core then
+  owes the IBPB to its next switch to
+  an address space other than the one that entered the guest (`tlb::switch`).
+  Only the holder's address space is left without it, which suits a monitor
+  whose address space is its guest's alone (l4h's HVM monitor holds guest RAM,
+  the guest's I/O buffers and rings, and its own state). Linux's vmscape IBPB
+  before a return to the user VMM protects a host address space (QEMU's); here
+  every other address space gets the IBPB first. A VMM sharing its address
+  space with other data (a guest kernel's KVM) does not opt in. SMT siblings
+  are isolated by STIBP or parked.
 * Intel eIBRS stays enabled. Without eIBRS, legacy IBRS is reasserted with a
   fresh WRMSR at each boundary, even if already set, and VM exit fills the RSB.
   Affected eIBRS CPUs use the PBRSB CALL/stack-adjust/LFENCE sequence.
