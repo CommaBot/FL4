@@ -202,7 +202,7 @@ theorem JHole.toJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a : A} {
       (J.jcov.dead q hq)
   have hidW := J.idleW_keep hS hF.2.1 hF.2.2
   exact ⟨Lst', J.sc_frame hwT hK hX' hCR' hRF' hY' hM' (J.sc_buf hwT hK) hRP' (J.sc_apart hwT hK)
-    (J.sc_jpl hwT hK hidW.2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) hidW)
+    (J.sc_jpl hwT hK hidW.2) (J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) hidW Hh.dbgK subset_rfl)
     (J.sc_kern hwT hK hF hX' Hh.dbg fun _ h => h)
     (J.sc_utc hwT hK Hh.dbg) Hh.nsc Hh.inv Hh.cur hOw hO hAI' hbsa hcr Hh.blk Hh.dbgK hidW.1 J.zD⟩
 
@@ -351,10 +351,12 @@ theorem JHole.chargeBudgetJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S}
   have hdead : ∀ q ∈ D, DeadP (L := L) H s' q := fun q hq =>
     J.deadP_sc_stepQ hX' hW hKc (fun _ h => h.elim) hlkc hfkc hAI'.1 hY' ((hsokc.ykeep rfl).dk q.bv) (fun h => h)
       (J.jcov.dead q hq)
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 s' :=
+    Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot)
   exact ⟨Lst', J.sc_frame hW hKc hX' hCR' hRF' hY' hM' (J.sc_buf hW hKc) hRP' (J.sc_apart hW hKc)
-    (J.sc_jpl hW hKc hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW)
+    (J.sc_jpl hW hKc hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW hKd subset_rfl)
     (J.sc_kern hW hKc hfkc hX' hDbg fun _ h => h) (J.sc_utc hW hKc hDbg) hN' hI' hcur' hown' hoff hAI' hbsa hcr
-    hblk' (Hh.dbgK.trans (P1.Foot.dbgKeep Hh.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot))
+    hblk' hKd
     hidW.1 J.zD⟩
 
 

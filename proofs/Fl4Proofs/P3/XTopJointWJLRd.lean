@@ -80,6 +80,58 @@ theorem LiveJ.liveOther_zombie {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s 
 
 variable (arI : machine.Arch A) {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 
+/-- **A CNode cap's range holds no TCB** (`TcbReady`; as XTopJointDelR's
+`JAtZ.cnode_ready`: the only object of `H` in it is the CNode). -/
+theorem JAtZ.cnode_tcbReady {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {G : MdbGhost} {x : U64} {q r gs g : U64}
+    (hcv : capV (L.mem s) x = .CNode q r gs g) (hth : Z.th q = some (.cnode r.val)) :
+    TcbReady (L := L) Z.th H G s x := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hHq : H q = some (.other (r.val + 5)) := hJ.cnode q r.val hth
+  have e5 : 2 ^ (r.val + 5) = 32 * 2 ^ r.val := by rw [pow_add]; ring
+  have hfit : q.val + 32 * 2 ^ r.val ≤ 2 ^ 64 := by
+    have := J.kern.heap.fits q _ hHq; rw [← e5]; exact this
+  have hlt : r.val + 5 < 64 := J.kern.heap.lt64 q _ hHq
+  obtain ⟨r1, r2⟩ := range_cnodeR q r gs g hlt hfit
+  exact TcbReady.of_obj (sz := 2 ^ (r.val + 5)) (fun h => by rw [hHq] at h; cases h)
+    (fun q' hq' hne => J.kern.heap.disj q' _ q _ hq' hHq hne) Nat.one_le_two_pow
+    (by rw [hcv]; exact r1) (by rw [hcv, r2, e5])
+
+/-- **A zombie's range holds no live TCB** (`TcbReady`; as XTopJointZombie's
+`JAtZ.zombie_ready`): a TCB zombie's range is its TCB, a TCB zombie's
+(`ZTcb`); a CNode zombie's is its CNode. -/
+theorem JAtZ.zombie_tcbReady {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
+    {G : MdbGhost} {x : U64} (hx : IsSlot Z.th x) {p zt n : U64} (hcv : capV (L.mem s) x = .Zombie p zt n) :
+    TcbReady (L := L) Z.th H G s x := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  rcases J.del.zwf x hx p zt n hcv with ⟨h65, hth, -⟩ | ⟨h65, hth, -⟩
+  · have hz : zt = capability.ZOMBIE_TCB := UScalar.eq_of_val_eq (by rw [zombie_tcb_val]; exact h65)
+    subst hz
+    have hHp : H p = some .tcb := (hJ.tcb p).1 hth
+    obtain ⟨r1, r2⟩ := range_thread p (J.kern.heap.fits p _ hHp)
+    have al : CapAlike (.Zombie p capability.ZOMBIE_TCB n) (.Thread p) := capAlike_zombie_thread
+    have e1 : baseF (capV (L.mem s) x) = p.val := by rw [hcv]; exact al.base.trans r1
+    have e2 : topF (capV (L.mem s) x) = p.val + 2 ^ 12 - 1 := by rw [hcv]; exact al.top.trans r2
+    intro _ _ lo hi hlh h1 h2
+    refine Or.inr fun q hq hHq => ?_
+    by_cases e : q = p
+    · rw [e]; exact ⟨x, hx, capability.ZOMBIE_TCB, n, hcv, h65⟩
+    · exfalso
+      have hout : q.val + 2 ^ 12 ≤ p.val ∨ p.val + 2 ^ 12 ≤ q.val := J.kern.heap.disj q _ p _ hHq hHp e
+      rw [e1] at h1
+      rw [e2] at h2
+      have h12 : (2 : Nat) ^ 12 = 4096 := by norm_num
+      rcases hout with h | h <;> omega
+  · have hne : zt ≠ capability.ZOMBIE_TCB := fun e => h65 (by rw [e, zombie_tcb_val])
+    have hHp : H p = some (.other (zt.val + 5)) := hJ.cnode p zt.val hth
+    have hlt : zt.val + 5 < 64 := J.kern.heap.lt64 p _ hHp
+    obtain ⟨r1, r2⟩ := range_zombieCn p zt n hne hlt (J.kern.heap.fits p _ hHp)
+    exact TcbReady.of_obj (sz := 2 ^ (zt.val + 5)) (fun h => by rw [hHp] at h; cases h)
+      (fun q hq hne' => J.kern.heap.disj q _ p _ hq hHp hne') Nat.one_le_two_pow
+      (by rw [hcv]; exact r1) (by rw [hcv]; exact r2)
+
 set_option maxHeartbeats 4000000 in
 /-- **The readiness at `WJL` of a cap finalised without effect** (module
 docstring). -/
@@ -93,21 +145,27 @@ theorem rdTrivJLO [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap)
   rcases cap_cases c hcn with ht | ⟨q, r, gs, g, rfl⟩ | ⟨p, zt, n, rfl⟩ | ho
   · have hn : ∀ q, ¬ RefsObj q (capV (L.mem s) (cslotAddr sl)) := fun q h => by
       rw [hcv] at h; cases c <;> simp [TrivFin] at ht <;> simp [RefsObj] at h
-    refine ⟨⟨?_, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn⟩
-    intro hp hu
-    rw [hcv] at hp hu
-    rw [physF_triv c ht hu] at hp
-    cases hp
+    refine ⟨⟨?_, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn, ?_⟩
+    · intro hp hu
+      rw [hcv] at hp hu
+      rw [physF_triv c ht hu] at hp
+      cases hp
+    · intro hp hu
+      rw [hcv] at hp hu
+      rw [physF_triv c ht hu] at hp
+      cases hp
   · have hcvd : CapValid Z.th (.CNode q r gs g) := hDS.1.2.1.abs hA hc
     have hfin : ¬ Fl4Spec.isFinalCap' (absCap (.CNode q r gs g)) σ := fun hf =>
       (show Z.th q = some (.cnode r.val) ∧ r.val ≠ 0 from hcvd).2 (hCN q r gs g rfl hf).1
     obtain ⟨y, hy, hne, hky⟩ := other_keyN J.xtop.rel.1 hDS hA hcv (Or.inr (Or.inl ⟨_, _, _, _, rfl⟩)) rfl hfin
     refine ⟨⟨JAtZ.cnode_ready arI J hcv (show Z.th q = some (.cnode r.val) ∧ r.val ≠ 0 from hcvd).1,
       J.readyLive_key hL hy hne (by rw [hky, hcv]) (by rw [hcv]; simp [okey])⟩,
-      hL.liveOther_key hy hne (by rw [hky, hcv]) (by rw [hcv]; simp [okey])⟩
+      hL.liveOther_key hy hne (by rw [hky, hcv]) (by rw [hcv]; simp [okey]),
+      JAtZ.cnode_tcbReady arI J hcv (show Z.th q = some (.cnode r.val) ∧ r.val ≠ 0 from hcvd).1⟩
   · exact ⟨⟨J.zombie_ready hA.isSlot hcv (hL.zdead _ hA.isSlot p zt n hcv),
       J.readyLive_zombie hL hA.isSlot hcv (hZ p zt n rfl)⟩,
-      hL.liveOther_zombie J.xtop.rel.1 hA.isSlot hcv (hZ p zt n rfl)⟩
+      hL.liveOther_zombie J.xtop.rel.1 hA.isSlot hcv (hZ p zt n rfl),
+      JAtZ.zombie_tcbReady arI J hA.isSlot hcv⟩
   · exact absurd ho hnk
 
 end

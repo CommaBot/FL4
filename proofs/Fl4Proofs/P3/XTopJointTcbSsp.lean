@@ -401,8 +401,8 @@ theorem JAtZ.bindTcbJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hAT : P
     · rw [bv_inj e]; exact covS
     · rw [bv_inj e]; exact covT
   have hIK := J.idleW_keep hS' hF.2.1 hF.2.2
-  have hjc := J.sc_jcov hW hDead hCov hIK
   have hsub : {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)} ⊆ D := fun q h => h.1
+  have hjc := J.sc_jcov hW hDead hCov hIK hKd hsub
   have hkern := J.sc_kern hW hK hF hX' hDbg hsub
   exact ⟨σ', he, Ac, Lst', {q : U64 | q ∈ D ∧ ¬ (q.bv = sc.bv ∨ q.bv = t.bv)}, J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
     (J.sc_jpl hW hK hIK.2) hjc hkern (J.sc_utc hW hK hDbg) hN' hI' hC'

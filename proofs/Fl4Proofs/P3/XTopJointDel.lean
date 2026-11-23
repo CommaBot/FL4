@@ -469,8 +469,35 @@ theorem JAtZ.emptyNtfnJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     have hks : L.ksb s2 = L.ksb s := hw.1
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc, by rw [hks]; exact k3⟩
+  have hdx2 := J.dxk (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw)
+  have hxu : ∀ q', q' ∈ Uncov Z.th H (L.mem s2) G2 (ExAt (L := L) Z.th H s2) → Sched.DeadX (L := L) H Cs s2 q' := by
+    intro q' hq'
+    by_cases hD : q' ∈ D
+    · exact hdx2 q' hD
+    obtain ⟨hni, hq'⟩ := hq'
+    rcases hq' with ⟨k, hk, hnc⟩ | ⟨k, hk, hnc⟩
+    · rcases J.jcov.th q' k hk with hcv | hD' | hi
+      · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
+        · exact absurd h hnc
+        · exfalso
+          obtain ⟨k', hk', hle⟩ := hHth q' k hk
+          have e := hin q' k' hk' g1 (by omega)
+          subst e
+          rw [hHp] at hk'; cases hk'
+          rcases J.thk q' k hk with rfl | ⟨r', rfl⟩
+          · rw [(hJ.tcb q').1 hk] at hHp; cases hHp
+          · rw [hJ.cnode q' r' hk] at hHp; cases hHp
+      · exact absurd hD' hD
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
+    · rcases J.jcov.h q' k hk with hcv | hD' | hi
+      · rcases hcovA _ _ hcv with h | ⟨g1, g2, hd⟩
+        · exact absurd h hnc
+        · rw [hin q' k hk g1 g2]
+          exact Sched.DeadX.of_ne fun h => by rw [hHp] at h; cases h
+      · exact absurd hD' hD
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
   have hjc := J.jcov.step hunc (fun q' _ hd => J.deadP_slot hX2 hcn2 (KeepC.t hkc) hw hd) hks2
-    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
+    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK)) hxu (fun q' hq' _ => hdx2 q' hq')
   have horig : ∀ sl', (setCnodeSlot (emptySlotCdtState σ (q.bv, idx)) q.bv idx.length cs idx .nullCap).isOriginalCap sl' = true →
       σ.isOriginalCap sl' = true := fun sl' h => by
     by_cases e : sl' = (q.bv, idx)

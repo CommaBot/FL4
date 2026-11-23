@@ -285,13 +285,14 @@ theorem JAtZ.jcov_keep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hks : L.ksb s' = L.ksb s)
     (hSS : SlotsSame Z.th (L.mem s) (L.mem s')) (hdead : ∀ q ∈ D, DeadP (L := L) H s' q)
-    (hidl : Sched.IdleKeep (L := L) s s') :
+    (hidl : Sched.IdleKeep (L := L) s s') (hDX : Sched.DXKeep (L := L) H Cs s s') :
     JCovD (L := L) Z.th H Z.G D Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
   refine J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
     (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
     (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩)
+    (fun q _ h => h.keep hDX)
 
 theorem covered_keepC {th : TypedHeap} {m m' : U64 → U64} {G G' : MdbGhost} {lo hi : Nat}
     (hM : MdbLinks th m G) (hM' : MdbLinks th m' G') (hc : Covered m G lo hi)
@@ -320,13 +321,14 @@ theorem JAtZ.jcov_cover {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {G' : MdbGhost} (hks : L.ksb s' = L.ksb s)
     (hM' : MdbLinks Z.th (L.mem s') G')
     (hC : CoverKept Z.th (L.mem s) (L.mem s')) (hU : UtKept Z.th (L.mem s) (L.mem s'))
-    (hdead : ∀ q ∈ D, DeadP (L := L) H s' q) (hidl : Sched.IdleKeep (L := L) s s') :
+    (hdead : ∀ q ∈ D, DeadP (L := L) H s' q) (hidl : Sched.IdleKeep (L := L) s s')
+    (hDX : Sched.DXKeep (L := L) H Cs s s') :
     JCovD (L := L) Z.th H G' D Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   refine ⟨fun q k hq => (J.jcov.th q k hq).imp (fun hc => covered_keepC hM hM' hc hC)
       (Or.imp_right (exAt_of hidl hks).2),
     fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hM' hc hC) (Or.imp_right (exAt_of hidl hks).2),
-    hdead, J.jcov.ks.keep hks (J.utFrom hM' hU), J.jcov.idleOut.keep hidl (J.utFrom hM' hU)⟩
+    hdead, J.jcov.ks.keep hks (J.utFrom hM' hU), J.jcov.idleOut.keep hidl (J.utFrom hM' hU), J.jcov.dxKeep hDX⟩
 
 /-- **`SpecFree` across a step moving caps** (`UtKept`: each untyped region
 after an old one, its free index no lower or the new one full; the spec's

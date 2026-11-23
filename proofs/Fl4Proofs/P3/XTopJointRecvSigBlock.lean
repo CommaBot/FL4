@@ -867,7 +867,7 @@ theorem JAtZ.recvSigBlockJ (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z 
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
     exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg (J.rbw_dbgKeep hRB) (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, by rw [← hcur]; exact hC.notRel⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik

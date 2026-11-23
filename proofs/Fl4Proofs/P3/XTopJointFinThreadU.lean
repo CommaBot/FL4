@@ -358,7 +358,8 @@ theorem JAtZ.finThreadJU (hAT : P0.ArchTotal arI) (hK : ARKeep arI AR)
 by `hd`; no other `JAtZ` field reads `D`). Toward `LiveJ.zdead` as
 "a TCB zombie's TCB is in `D`": the thread's finalisation adds it. -/
 theorem JAtZ.addDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
-    (hd : DeadP (L := L) H s p) : JAtZ (L := L) arI AR Z H Cs Ac Lst (insert p D) s a σ :=
+    (hd : DeadP (L := L) H s p) (hx : DeadX (L := L) H Cs s p) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst (insert p D) s a σ :=
   { J with
     jcov := ⟨fun q k hq => (J.jcov.th q k hq).imp_right (Or.imp_left (Set.mem_insert_of_mem p)),
       fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left (Set.mem_insert_of_mem p)),
@@ -366,7 +367,10 @@ theorem JAtZ.addDead (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {p : U64}
         rcases hq with rfl | hq
         · exact hd
         · exact J.jcov.dead q hq,
-      J.jcov.ks, J.jcov.idleOut⟩
+      J.jcov.ks, J.jcov.idleOut, fun q hq => by
+        rcases hq with rfl | hq
+        · exact hx
+        · exact J.jcov.dx q hq⟩
     kern := { J.kern with }
     zD := fun q hq => Set.mem_insert_of_mem p (J.zD q hq) }
 

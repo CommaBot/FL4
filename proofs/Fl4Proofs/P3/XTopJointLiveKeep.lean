@@ -29,12 +29,13 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 /-- **A dead set joins the dead set** (as XTopJointFinThreadU's `JAtZ.addDead`). -/
 theorem JAtZ.addDeadSet {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {E : Set U64}
-    (hd : ∀ p ∈ E, DeadP (L := L) H s p) : JAtZ (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
+    (hd : ∀ p ∈ E, DeadP (L := L) H s p) (hx : ∀ p ∈ E, DeadX (L := L) H Cs s p) :
+    JAtZ (L := L) arI AR Z H Cs Ac Lst (D ∪ E) s a σ :=
   { J with
     jcov := ⟨fun q k hq => (J.jcov.th q k hq).imp_right (Or.imp_left Or.inl),
       fun q k hq => (J.jcov.h q k hq).imp_right (Or.imp_left Or.inl),
       fun q hq => hq.elim (J.jcov.dead q) (hd q),
-      J.jcov.ks, J.jcov.idleOut⟩
+      J.jcov.ks, J.jcov.idleOut, fun q hq => hq.elim (J.jcov.dx q) (hx q)⟩
     kern := { J.kern with }
     zD := fun p hp => Or.inl (J.zD p hp) }
 

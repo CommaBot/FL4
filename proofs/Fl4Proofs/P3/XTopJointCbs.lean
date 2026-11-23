@@ -494,7 +494,8 @@ theorem JAtZ.cancelBadgedJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {e 
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s3 σ3 :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz

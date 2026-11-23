@@ -1023,7 +1023,7 @@ theorem JAtZ.recvIpcBlockJG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       · rw [hD', if_neg h0]; exact (J.jcov.undead hcov.1 hcov.2).undead (hcovR h0).1 (hcovR h0).2
     exact hcv.same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
-      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) (fun q _ h => h.keep (DXKeep.of_dbg hKd (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from a runnable state)
   have hnqT : NotQueued σ t.bv := ⟨by rw [← hcur]; exact hnq, hnrl⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik

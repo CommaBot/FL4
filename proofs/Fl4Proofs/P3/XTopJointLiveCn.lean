@@ -44,7 +44,7 @@ theorem JAtZ.cancelBadgedJL {s : S} {a : A} {σ : Fl4Spec.State Unit}
       ((), σ3) ∈ (Fl4Spec.cancelBadgedSends (Z := Unit) e.bv b.bv σ).1 ∧
       JAtZ (L := L) arI AR (Z.mv Z.G V') H Cs Ac Lst D' s3 a σ3 ∧ LiveDN (L := L) Z.th H Cs Z.G s3 σ3 ⦄ := by
   have hpH : H e = some .ep := J.zH.2.1 e he
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.1.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.1.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   refine WP.spec_mono (WP.spec_and (J0.cancelBadgedJ b he hpre)
     (P1.endpoint.cancel_badged_sends.blkF s e b J.blk hpH)) ?_
   rintro s3 ⟨⟨σ3, V', hm3, J3, hSS, -⟩, -, hfoot0⟩

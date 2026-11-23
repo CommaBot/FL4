@@ -182,7 +182,8 @@ theorem JAtZ.reg_frameG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
-      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hwF fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
@@ -1734,7 +1735,8 @@ the caller's restart (`JAtZ.restartJ`), then `timer::insert` by P1's
 set) and ScFireJ's `JAtZ.tmw_step`, the spec's reprogram flag chosen as
 FL4's (`setTimer_memB`). -/
 theorem tcb_set_timerJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ)
-    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (slbl : Fl4Spec.Data)
+    (hni : Entered σ) (p : U64) (hpT : p ∈ Z.T) (x0 : U64) (hxS : IsSlot Z.th x0)
+    (hcap : capAt (L.mem s) x0 = ok (.Thread p)) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.genInvocationType slbl = .invalidInvocation)
     (hext : Fl4Spec.fl4TcbExtLabelOf slbl = some .setTimer)
     (length buf ct : U64) (hct : sched.cur_thread st s = ok ct) (args : List U64)
@@ -1773,7 +1775,16 @@ theorem tcb_set_timerJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   have ha1 : tcb.arg st s ⟨length, buf, call, slot, extra⟩ 1#u64 = ok y1 := by
     unfold tcb.arg; rw [hct]; simp only [bind_ok]; exact hargs 1#u64 y1 (by simp)
   rw [ha0, ha1]; simp only [bind_ok]
-  obtain ⟨s1, σ1, -, hrc1, hst1, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨s1, σ1, x, hrc1, hst1, hk, hcur, -, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+  obtain ⟨-, x', hk', hrun⟩ := J.curRunnable hni hct
+  rw [hk] at hk'; cases hk'
+  -- the slots kept by the caller's restart: the target's cap, so the target out of the dead set
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s1) := by
+    have h := XTopAt.restart J.xtop hcur hk hrun
+    rw [hs1, WP.spec_ok] at h; exact h.2.1
+  have hcap1 : capAt (L.mem s1) x0 = ok (.Thread p) := by
+    rw [capAt_capV, hSS.capV hxS, ← capAt_capV]; exact hcap
+  have J1' := J1.undead hxS hcap1 hpT
   rw [hrc1]; simp only [bind_ok]
   have hdec : (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4Invocation.invokeFl4TCB
       (Fl4Spec.decodeFl4SetTimer (Z := Unit) ((y0 :: y1 :: rest).map UScalar.bv) p.bv)).run σ =
@@ -1785,15 +1796,20 @@ theorem tcb_set_timerJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
   have hTe : Z.T = P1.Heap.tcbs H := J1.tcbs_eq.1
   have hpH : p ∈ P1.Heap.tcbs H := by rw [← hTe]; exact hpT
   have hc1 : L.cpu s1 = Z.c := by obtain ⟨Q, R0, hc, -⟩ := J1.xtop.fin.1.1.1.lists; exact hc.cur
-  refine WP.spec_bind (P1.timer.insert.foot s1 p y0 y1 J1.blk.tinv hpH) ?_
-  rintro s2 ⟨hblk2, -, hw, hR⟩
+  have hI1 := J1.blk.tinv
+  refine WP.spec_bind (WP.spec_and (P1.timer.insert.foot s1 p y0 y1 hI1 hpH)
+    (insert_td s1 p y0 y1 hI1.tcbs hpH hI1.rb hI1.nodes J1.kern.cpuCs)) ?_
+  rintro s2 ⟨⟨hblk2, -, hw, hR⟩, htd2⟩
   rw [hc1] at hw hR
   have hw' : P1.WritesIn st s1 s2 (TmW (L := L) Z.T Cs Z.c s1) :=
     hw.mono fun b hb => by unfold TmW; rw [hTe]; exact hb
-  obtain ⟨r, J2⟩ := J1.tmw_step hw' hR hblk2
+  -- the dead TCBs (`p` not among them) stay unarmed
+  have hTd2 : ∀ q ∈ D1 \ {p}, H q = some .tcb → L.mem s1 (P1.tdA q) = 0#u64 → L.mem s2 (P1.tdA q) = 0#u64 :=
+    fun q hq hH h0 => htd2 q (show q ∈ P1.Heap.tcbs H from hH) (fun e => hq.2 (by subst e; exact Set.mem_singleton _)) h0
+  obtain ⟨r, J2⟩ := J1'.tmw_step hw' hR hblk2 hTd2
   refine (WP.spec_ok _).2 (Or.inr ⟨_, DecOut.of_eq hdec, σ1, hst1, (.ok [], _),
     setTimer_memB blk call don σ1 p.bv y0.bv y1.bv r, ⟨Z.th, Z.G, Or.inl ⟨rfl, rfl⟩, J2.xtop.rel.1,
-      J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩, ⟨Z, H, Cs, Ac1, Lst1, D1, J2⟩⟩)
+      J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.rel.2.2.2.2.1⟩, ⟨Z, H, Cs, Ac1, Lst1, D1 \ {p}, J2⟩⟩)
 
 set_option maxHeartbeats 8000000 in
 /-- **The WriteFPU label at `JAt`** (as `tcb_fpuX` with `toFrame` false):
@@ -2943,7 +2959,8 @@ theorem decode_invocation_threadJ_step [Fl4Proofs.P1.PlainStore st] (s : S) (ar 
         subst h
         obtain ⟨hg, he⟩ := ext_lbl hlbl hext (by simp [tcbLabelOf]) (show tcbExtOf _ = some .setTimer by
           simp [tcbExtOf])
-        exact tcb_set_timerJ arI s ar σ J hni p hpT slbl hg he length buf ct hct argsU hlen hargs (hstall' p) call
+        exact tcb_set_timerJ arI s ar σ J hni p hpT (cslotAddr sl) hAs.isSlot (by rw [capAt_capV, hsc]) slbl hg he
+          length buf ct hct argsU hlen hargs (hstall' p) call
           (cslotAddr sl) extra blk don ci sl excaps buffer }) hnpT
 
 end

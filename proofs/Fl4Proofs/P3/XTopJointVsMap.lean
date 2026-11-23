@@ -588,7 +588,13 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
       AbsSlot.isSlot ⟨t, rfl, Or.inr ⟨ht, 2, by decide, rfl⟩⟩
     rw [hcap _ hs (fun e => cnode_slot_ne_tcb J.xtop.rel.1 hpc hidx ht 2 (by decide) e.symm)]
     exact hJ.bfs t ht) hidl.2⟩
-  have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hW fun b hb =>
+    J.notDbg (fun p hp => J.vsxObjWX Ap hXa hpc hidx hb hp (fun z h => by cases h))
+      (fun c hc => J.vsxNodeWX hXa hpc hidx hb hc)
+  have hTd : Sched.TdKeep (L := L) H s s' := fun q hq =>
+    tcbK q (J.tcbZ hq) (P1.tdA q) (P1.field_aligned (hT q (J.tcbZ hq)) (K := 3528#u64) (by simp) (by simp))
+      (by rw [J.tdA_val' (J.tcbZ hq)]; omega) (by rw [J.tdA_val' (J.tcbZ hq)]; omega)
+  have hjc := J.jcov_cover hkb hM' hCK hUK hdead hidl (DXKeep.of_dbg hKd hTd)
   have hJC := J.jcs_slot hM' hMO' hFI' hUK F.ksz hDel
   -- `JKern`
   have hkern : JKern (L := L) H Cs D Z.th s' σ' := by
@@ -665,9 +671,6 @@ theorem JAtZ.vsStepJX {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := 
     · rw [e]
       exact Vs.FrIn.of_okey hok ((J.fcap x (by rw [← e]; exact hy)).mono fun _ => UFr.keep hfk.page)
     · rw [hcap y hy e]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
-  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hW fun b hb =>
-    J.notDbg (fun p hp => J.vsxObjWX Ap hXa hpc hidx hb hp (fun z h => by cases h))
-      (fun c hc => J.vsxNodeWX hXa hpc hidx hb hc)
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) F.idle hKd
     (fun sl h => by first | rwa [F.orig] at h | rwa [← F.orig] at h)
     (fun y hy => LSim.of_shape (hS y hy))

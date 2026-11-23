@@ -140,8 +140,13 @@ theorem JAtZ.tmRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U6
     timer.remove st s t ⦃ s' => JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a σ ⦄ := by
   have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
   have htT : t ∈ P1.Heap.tcbs H := by rw [← hTe]; exact ht
-  refine WP.spec_mono (P1.timer.remove.tf (s0 := s) s t (P1.TF.start (P1.BlkOK.tinv J.blk)) htT) ?_
-  rintro s2 ⟨h2, -, -, -, hw2⟩
+  have hI := P1.BlkOK.tinv J.blk
+  refine WP.spec_mono (WP.spec_and (P1.timer.remove.tf (s0 := s) s t (P1.TF.start hI) htT)
+    (P1.timer.remove.rb s t hI.tcbs htT hI.rb hI.nodes)) ?_
+  rintro s2 ⟨⟨h2, -, -, -, hw2⟩, -, -, -, hrb2⟩
+  -- a dead (unarmed) TCB stays unarmed
+  have hTd2 : ∀ q ∈ D, H q = some .tcb → L.mem s (P1.tdA q) = 0#u64 → L.mem s2 (P1.tdA q) = 0#u64 :=
+    fun q _ hH h0 => remove_td hI.tcbs hI.nodes hrb2 (show q ∈ P1.Heap.tcbs H from hH) h0
   have hw2' : P1.WritesIn st s s2 (TmW (L := L) Z.T Cs Z.c s) :=
     hw2.mono fun b hb => Or.inl (by rw [hTe]; exact hb)
   have hR2 : L.mem s2 (L.nodeAt s Z.c layout.node.REPROGRAM) = L.mem s (L.nodeAt s Z.c layout.node.REPROGRAM) := by
@@ -166,7 +171,7 @@ theorem JAtZ.tmRemoveJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U6
           omega
         · have : Z.c.val * 4288 + 4288 ≤ c'.val * 4288 := by nlinarith
           omega
-  obtain ⟨r2, J2⟩ := J.tmw_step hw2' (Or.inl hR2) h2
+  obtain ⟨r2, J2⟩ := J.tmw_step hw2' (Or.inl hR2) h2 hTd2
   have e2 : (σ.reprogramTimer || r2) = σ.reprogramTimer := by
     have g1 : (σ.reprogramTimer || r2) = decide (Sched.nodeW st s2 Z.c layout.node.REPROGRAM ≠ 0#u64) :=
       J2.xtop.fin.1.1.1.repr
@@ -246,7 +251,8 @@ theorem JAtZ.nfrStep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} 
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hw fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, F.bsa J.bsa, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz
@@ -509,7 +515,9 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hdbg : ∀ n, dbgNth (L.mem s') n (dbgHead (L := L) s') ≠ 0#u64 → ∃ k,
       dbgNth (L.mem s') n (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) ∧
       dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ 0#u64)
-    (hDW' : DbgWF (P1.Heap.tcbs H) Cs (L.mem s') (dbgHd (L := L) s')) :
+    (hDW' : DbgWF (P1.Heap.tcbs H) Cs (L.mem s') (dbgHd (L := L) s') ∧
+      (∀ q ∈ D, H q = some .tcb → L.mem s' (P1.dpA q) = 0#u64 ∧
+        ∀ c ∈ Cs, L.mem s' (L.nodeAt s' c layout.node.DEBUG_TCBS) ≠ q)) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D s' a σ := by
   have hX' := J.xtop.dbgStep hw
   have F : Sched.NFr true σ.curThread σ σ := Sched.NFr.rt _ σ σ.reprogramTimer
@@ -573,13 +581,26 @@ theorem JAtZ.dbgw_step (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hks hirq (J.idleW_keep hS' rfl rfl).2⟩
   have hkern := J.kern_dbg hks hw.2.1 hS' hhead
+  -- the dead set off every debug list after (`hDW'.2`), its deadline words kept
+  have hTd : Sched.TdKeep (L := L) H s s' :=
+    J.tdkeep_of hw fun _ hb t ht => J.dbgw_ne_tcb hb ht (J.tdA_val' ht) (by omega)
+  have hdx' : ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := fun q hq hqt =>
+    ⟨(hDW'.2 q hq hqt).1, (hDW'.2 q hq hqt).2, by rw [hTd q hqt]; exact (J.jcov.dx q hq hqt).2.2⟩
+  have hjc : Sched.JCovD (L := L) Z.th H Z.G D Cs s' := by
+    have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h =>
+      ((J.xtop.rel.2.1.2.2.1.members x).1 h).1
+    have hidl := J.idleW_keep hS' rfl rfl
+    exact J.jcov.same (fun y hy _ _ => ⟨hy, hSS.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
+      (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩) hidl hks
+      (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩)
+      (fun q hq _ => hdx' q hq)
   have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s' σ :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hSS hdead (J.idleW_keep hS' rfl rfl), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, hjc, hkern,
       J.dbgw_utc hw hSS hhd, J.nsc, J.inv, J.cur, J.own, J.off, J.act, J.bsa, J.isorted, J.curRun, hblk⟩
   have hmem : ∀ y ∈ Z.G.chains.flatten, IsSlot Z.th y := fun y hy => ((J.xtop.rel.2.1.2.2.1.members y).1 hy).1
   exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (devFrom_same J.xtop.rel.2.1.2.2.1 hX'.rel.2.1.2.2.1 hSS) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.dbgWc_nv hb)
-    ⟨LiveJ.of_sameDbg J.live.1 hSS hmem rfl rfl hks hdbg (fun p hp => hdead p (J.zD p hp)), hDW',
+    ⟨LiveJ.of_sameDbg J.live.1 hSS hmem rfl rfl hks hdbg (fun p hp => hdead p (J.zD p hp)), hDW'.1,
       J.live.2.2.of_same (fun y hy => hSS.capV hy) rfl⟩ (J.zDX hSS J.zD)
 
 /-- **A debug-list head after `debug_remove t`**: unchanged, or it was `t`
@@ -655,7 +676,9 @@ theorem JAtZ.dbgRemove_live (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t
     objects.debug_remove st s t ⦃ s' => (∀ n, dbgNth (L.mem s') n (dbgHead (L := L) s') ≠ 0#u64 → ∃ k,
       dbgNth (L.mem s') n (dbgHead (L := L) s') = dbgNth (L.mem s) k (dbgHead (L := L) s) ∧
       dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ 0#u64) ∧
-      DbgWF (P1.Heap.tcbs H) Cs (L.mem s') (dbgHd (L := L) s') ⦄ := by
+      DbgWF (P1.Heap.tcbs H) Cs (L.mem s') (dbgHd (L := L) s') ∧
+      (∀ q ∈ D, H q = some .tcb → L.mem s' (P1.dpA q) = 0#u64 ∧
+        ∀ c ∈ Cs, L.mem s' (L.nodeAt s' c layout.node.DEBUG_TCBS) ≠ q) ⦄ := by
   obtain ⟨Q, R0, hc, -⟩ := J.xtop.fin.1.1.1.lists
   have hTe : Z.T = P1.Heap.tcbs H := J.tcbs_eq.1
   have htT : t ∈ P1.Heap.tcbs H := by rw [← hTe]; exact ht
@@ -668,7 +691,14 @@ theorem JAtZ.dbgRemove_live (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t
   have hafa : L.mem s (P1.affA t) ∈ Cs := by rw [hc.aff t ht]; exact hcC
   obtain ⟨lst, hW⟩ := J.live.2.1
   have c0 : 0#u64 ∈ Cs := J.kern.cs0
-  refine WP.spec_mono (debug_remove_wf s t hT hNa hDa hafa htT hW) fun s' hs' => ⟨fun n hn => ?_, ⟨_, hs'.2⟩⟩
+  refine WP.spec_mono (debug_remove_wf s t hT hNa hDa hafa htT hW) fun s' hs' =>
+    ⟨fun n hn => ?_, ⟨_, hs'.2⟩, fun q hq hqt => ?_⟩
+  rotate_left
+  · -- the dead set: off every list before (`JCovD.dx`), so off the lists after (`t` erased)
+    have hd := J.jcov.dx q hq hqt
+    have hn : ∀ c ∈ Cs, q ∉ (lst c).erase t := fun c hc h =>
+      hW.notMem_of_off hd.1 hd.2.1 c hc (List.mem_of_mem_erase h)
+    exact hs'.2.off_of_notMem hqt (fun e => by rw [e, J.kern.h0] at hqt; cases hqt) hn
   rcases dbgNth_mem_wf hs'.2 c0 n with h0 | hm
   · exact absurd h0 hn
   · obtain ⟨k, hk', e⟩ := List.getElem_of_mem (List.mem_of_mem_erase hm)

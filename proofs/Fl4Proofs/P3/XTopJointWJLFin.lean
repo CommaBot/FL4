@@ -43,7 +43,7 @@ def JFinAtL (AR : A → Fl4Spec.Cr3 → Prop) (th : TypedHeap) (Kd : capability.
           (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
         MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ WJL (L := L) arI AR Z H Cs kb r.2.1 r.2.2 σ' G' ∧
         (RmOK r.1.1 (cslotAddr sl) → RdLO (L := L) (A := A) th H r.2.1 r.2.2 σ' G' (cslotAddr sl)) ∧
-        (∀ p zt n, r.1.1 = .Zombie p zt n → RzJ (L := L) (A := A) H r.2.1 r.2.2 σ' G' (cslotAddr sl)) ⦄
+        (∀ p zt n, r.1.1 = .Zombie p zt n → RzJ (L := L) (A := A) H Cs r.2.1 r.2.2 σ' G' (cslotAddr sl)) ⦄
 
 /-- **A slot-keeping finalisation keeps `LiveJ`, `DbgWF` and `NullOrig`**
 (module docstring). -/
@@ -71,9 +71,10 @@ theorem wjl_keep {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List
 theorem rdLO_noRef {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
     {s : S} {a : A} {σ : Fl4Spec.State Unit} {G : MdbGhost} {V : XVs}
     (J : JAtZ (L := L) arI AR (Z.mv G V) H Cs Ac Lst D s a σ) (hL : LiveJ (L := L) Z.th H G s σ) {x : U64}
-    (hRd : EmptyReady (L := L) H G s x) (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x)) :
+    (hRd : EmptyReady (L := L) H G s x) (hn : ∀ q, ¬ RefsObj q (capV (L.mem s) x))
+    (hT : TcbReady (L := L) Z.th H G s x) :
     RdLO (L := L) (A := A) Z.th H s a σ G x :=
-  ⟨⟨hRd, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn⟩
+  ⟨⟨hRd, J.readyLive_noRef hL hn⟩, hL.liveOther_noRef hn, hT⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A final endpoint cap's finalisation at `WJL`** (module docstring). -/
@@ -81,7 +82,7 @@ theorem jFinAtL_ep : JFinAtL (L := L) arI AR th EpK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨e, b, x1, x2, x3, x4, hce⟩ hfin
   subst hce hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hHe : H e = some .ep := (hJ.typed _ hA.isSlot).1 e b x1 x2 x3 x4 hcv
@@ -103,11 +104,17 @@ theorem jFinAtL_ep : JFinAtL (L := L) arI AR th EpK := by
   have hDS1 : DState (L := L) Z.th s1 σ1 G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
   obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS1 hDS1 hK (gk_idle (Vs.gk_finaliseCap _ _) hmem1)
   have hn : ∀ q, ¬ RefsObj q (capV (L.mem s1) (cslotAddr sl)) := fun q h => by rw [hcv1] at h; exact h
+  have hTR : TcbReady (L := L) Z.th H G s1 (cslotAddr sl) := by
+    have hpfit : e.val + 2 ^ 4 ≤ 2 ^ 64 := J.kern.heap.fits e _ hHe
+    obtain ⟨r1, r2⟩ := range_ep e b x1 x2 x3 x4 hpfit
+    exact TcbReady.of_obj (sz := 2 ^ 4) (fun h => by rw [hHe] at h; cases h)
+      (fun q hq hne => J.kern.heap.disj q _ e _ hq hHe hne) Nat.one_le_two_pow
+      (by rw [hcv1]; exact r1) (by rw [hcv1]; exact r2)
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, hDS1, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨⟨V1, Ac, Lst, _, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg, hpp _ _ hmem1 hp0⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp) hn,
+    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.ep_ready arI J1 hA.isSlot hcv1 hdp) hn hTR,
     fun _ _ _ _ q h => by rw [hcv1] at h; cases h⟩
 
 set_option maxHeartbeats 4000000 in
@@ -118,7 +125,7 @@ theorem jFinAtL_ntfn : JFinAtL (L := L) arI AR th NtfnK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨p, b, w, r, hce⟩ hfin
   subst hce hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hHp : H p = some .ntfn := ((hJ.typed _ hA.isSlot).2.1 p b w r hcv).2
@@ -140,11 +147,17 @@ theorem jFinAtL_ntfn : JFinAtL (L := L) arI AR th NtfnK := by
   have hDS1 : DState (L := L) Z.th s1 σ1 G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
   obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS1 hDS1 hK (gk_idle (Vs.gk_finaliseCap _ _) hmem1)
   have hn : ∀ q, ¬ RefsObj q (capV (L.mem s1) (cslotAddr sl)) := fun q h => by rw [hcv1] at h; exact h
+  have hTR : TcbReady (L := L) Z.th H G s1 (cslotAddr sl) := by
+    have hpfit : p.val + 2 ^ 6 ≤ 2 ^ 64 := J.kern.heap.fits p _ hHp
+    obtain ⟨r1, r2⟩ := range_ntfn p b w r hpfit
+    exact TcbReady.of_obj (sz := 2 ^ 6) (fun h => by rw [hHp] at h; cases h)
+      (fun q hq hne => J.kern.heap.disj q _ p _ hq hHp hne) Nat.one_le_two_pow
+      (by rw [hcv1]; exact r1) (by rw [hcv1]; exact r2)
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, hDS1, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨⟨V1, Ac, Lst, _, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg, hpp _ _ hmem1 hp0⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (J1.ntfn_ready hA.isSlot hcv1 (Or.inl hdp)) hn,
+    fun _ => rdLO_noRef arI J1 hL1 (J1.ntfn_ready hA.isSlot hcv1 (Or.inl hdp)) hn hTR,
     fun _ _ _ _ q h => by rw [hcv1] at h; cases h⟩
 
 set_option maxHeartbeats 4000000 in
@@ -159,7 +172,7 @@ theorem jFinAtL_sc (hT : P0.ArchTotal arI)
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨p, sb, hce⟩ hfin
   subst hce hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hC' := J.scCap arI hA hc
   obtain ⟨hHp, hpC, hpz, hna, hidle, -, hpi⟩ :=
@@ -187,12 +200,91 @@ theorem jFinAtL_sc (hT : P0.ArchTotal arI)
   have hDS1 : DState (L := L) Z.th s1 σ1 G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
   obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS1 hDS1 hK (gk_idle (Vs.gk_finaliseCap _ _) hm1)
   have hn : ∀ q, ¬ RefsObj q (capV (L.mem s1) (cslotAddr sl)) := fun q h => by rw [hcv1] at h; exact h
+  have hTR : TcbReady (L := L) Z.th H G s1 (cslotAddr sl) := by
+    have hpfit : p.val + 2 ^ sb.val ≤ 2 ^ 64 := by
+      have := J.kern.heap.fits p _ hHp
+      simpa only [P1.HKind.bits] using this
+    have hp0 : p ≠ 0#u64 := fun e => by rw [e, J.kern.h0] at hHp; cases hHp
+    have hp1 : 1 ≤ p.val := by
+      rcases Nat.eq_zero_or_pos p.val with h | h
+      · exact absurd (UScalar.eq_of_val_eq (by rw [h]; rfl)) hp0
+      · exact h
+    have hsb : sb.val < 64 := by
+      by_contra hge
+      have : 2 ^ 64 ≤ 2 ^ sb.val := Nat.pow_le_pow_right (by decide) (by omega)
+      omega
+    obtain ⟨r1, r2⟩ := range_sc p sb hsb hpfit
+    exact TcbReady.of_obj (sz := 2 ^ sb.val) (fun h => by rw [hHp] at h; cases h)
+      (fun q hq hne => J.kern.heap.disj q _ p _ hq hHp hne) Nat.one_le_two_pow
+      (by rw [hcv1]; exact r1) (by rw [hcv1]; exact r2)
   exact ⟨rfl, trivial, trivial, σ1, G, hm1, hDS1, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨⟨V1, Ac1, Lst1, _, J1, hks1.trans hkb, ak_finaliseCap_ns hm1 hns, SpecGlob.fin hm1 hsg, hpp _ _ hm1 hp0⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.sc_ready arI J1 hcv1 hHp hdp) hn,
+    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.sc_ready arI J1 hcv1 hHp hdp) hn hTR,
     fun _ _ _ _ q h => by rw [hcv1] at h; cases h⟩
+
+/-- **A VSpace cap's range holds no TCB** (`TcbReady`; as XTopJointFinVs's
+`JAtZ.vs_ready`): a table cap's range meets no object of `H` but `other`
+ones (`JPlaced.cobj`); a PML4 or pool cap's frame, a VSpace frame of the
+sets, holds no TCB (`JAtZ.vsc`, the TCB's word at offset 256 no VSpace word). -/
+theorem JAtZ.vs_tcbReady {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 → List U64} {D : Set U64}
+    {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {x : U64} (hx : x ∈ Z.G.chains.flatten)
+    {c : capability.Cap} (hcv : capV (L.mem s) x = c)
+    (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
+      (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b) {s' : S}
+    (hcv' : capV (L.mem s') x = c) : TcbReady (L := L) th H Z.G s' x := by
+  have hS := J.xtop.fin.1
+  have hxs : IsSlot Z.th x := ((J.mdbL.members x).1 hx).1
+  have hcobj : Sched.CapObjH H (Sched.idleScW (L := L) s) c := by
+    obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+    have h := hJ.cobj x hxs
+    rw [hcv] at h; exact h
+  rcases hv with ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | ⟨p, m, a0, v, rfl⟩ | hv
+  · exact TcbReady.of_apartO (by rw [hcv']; exact hcobj)
+  · exact TcbReady.of_apartO (by rw [hcv']; exact hcobj)
+  · exact TcbReady.of_apartO (by rw [hcv']; exact hcobj)
+  have hok : VCapOK Z.P Z.L4 Z.L3 Z.L2 Z.L1 c := by
+    have h := J.vsc x hxs
+    rw [hcv] at h
+    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩ <;> exact h
+  -- the cap's frame and range
+  have key : ∃ p : U64, VsFr Z p ∧ baseF c = p.val ∧ topF c ≤ p.val + 4095 := by
+    have rng : ∀ p : U64, p.val % 4096 = 0 → ptrF c = p → sizeF c = 12#u64 →
+        baseF c = p.val ∧ topF c ≤ p.val + 4095 := fun p ha hp hs => by
+      have hf := tbl_fit ha
+      have := capRange (c := c) (b := 12#u64) hp hs (by decide) hf
+      have e2 : topF c = p.val + 2 ^ 12 - 1 := this.2
+      exact ⟨this.1, by omega⟩
+    rcases hv with ⟨p, m, a0, rfl⟩ | ⟨p, b, rfl⟩
+    · simp only [VCapOK] at hok
+      exact ⟨p, Or.inr (Or.inl hok.1), rng p (hS.2.pt p (Or.inl hok.1))
+        (ok_inj (ptr_eq _).symm) (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits]))⟩
+    · simp only [VCapOK] at hok
+      exact ⟨p, Or.inl hok.1.1, rng p (hS.2.vs.pal p hok.1.1).1 (ok_inj (ptr_eq _).symm)
+        (ok_inj (by rw [← size_eq]; simp [objects.cap_size_bits, fl4_abi.consts.bits.ASID_POOL]))⟩
+  obtain ⟨p, hp, eb, et⟩ := key
+  have hpal := vsFr_al hS.2.pt hS.2.vs hp
+  have hVq : ∀ w : U64, p.val ≤ w.val → w.val < p.val + 4096 → VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) w :=
+    fun w g1 g2 => Or.inr (Or.inr (Or.inl ⟨p, hp, g1, g2⟩))
+  -- a TCB at the base of a range inside the cap's lies in the frame: none does
+  intro _ _ lo hi hlh h1 h2
+  refine Or.inr fun q hq hHq => ?_
+  exfalso
+  rw [hcv'] at h1 h2
+  have g1 : p.val ≤ q.val := by omega
+  have g2 : q.val < p.val + 4096 := by omega
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  have hqT : q ∈ Z.T := J.thT q ((hJ.tcb q).2 hHq)
+  have hal := J.kern.heap.align q _ hHq
+  have hfit := J.kern.heap.fits q _ hHq
+  simp only [P1.HKind.bits] at hal hfit
+  have hqp : q.val = p.val := by omega
+  have hv256 : (core.num.U64.wrapping_add q 256#u64).val = q.val + 256 := by
+    simp [core.num.U64.wrapping_add_val_eq, U64.size_def, U64.numBits]; omega
+  exact hS.2.disj (core.num.U64.wrapping_add q 256#u64)
+    (Or.inr (Or.inr (Or.inl ⟨q, hqT, by omega, by omega⟩))) (hVq _ (by omega) (by omega))
 
 set_option maxHeartbeats 4000000 in
 /-- **A final native VSpace cap's finalisation at `WJL`** (XTopJointDelR's
@@ -203,7 +295,7 @@ theorem jFinAtL_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hxm : cslotAddr sl ∈ G.chains.flatten := (hDS.1.2.2.1.members _).2 ⟨hA.isSlot, _, hc, fun h => by
     subst h
@@ -232,7 +324,8 @@ theorem jFinAtL_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
     ⟨⟨V, Ac, Lst, _, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg, hpp _ _ hm hp0⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (J.vs_ready hxm hcv hv hcv1) (by rw [hcv1]; exact hn0),
+    fun _ => rdLO_noRef arI J1 hL1 (J.vs_ready hxm hcv hv hcv1) (by rw [hcv1]; exact hn0)
+      (JAtZ.vs_tcbReady arI J hxm hcv hv hcv1),
     fun _ _ _ _ q h => absurd (hcv1.symm.trans h) (hnt q)⟩
 
 set_option maxHeartbeats 4000000 in
@@ -245,7 +338,7 @@ theorem jFinAtL_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hpr⟩, hL, hDW, hN⟩ := hW
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth hce
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hap0 := J.ept_obj hA.isSlot hcv
   have hp0 := J.ept_ne0 hA.isSlot hcv
@@ -264,7 +357,8 @@ theorem jFinAtL_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
     ⟨⟨V, Ac, Lst, _, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg, hpp _ _ hm hpr⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (EmptyReady.of_apartO (by rw [hcv1]; exact hap0)) hn,
+    fun _ => rdLO_noRef arI J1 hL1 (EmptyReady.of_apartO (by rw [hcv1]; exact hap0)) hn
+      (TcbReady.of_apartO (by rw [hcv1]; exact hap0)),
     fun _ _ _ _ q h => by rw [hcv1] at h; cases h⟩
 
 set_option maxHeartbeats 4000000 in
@@ -276,7 +370,7 @@ theorem jFinAtL_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hk' hfin
   subst hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hn0 : ∀ q, ¬ RefsObj q c := fun q h => by
     rcases hk' with ⟨_, _, _, _, _, rfl, -⟩ | ⟨_, rfl⟩ <;> exact h
@@ -298,7 +392,11 @@ theorem jFinAtL_vt (hAR : ArchRefines arI AR) (hK : ARKeep arI AR) (hV : JVtHyps
   exact ⟨h1, h2, h3, σ, G, hm, hDS1, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
     ⟨⟨V, Ac1, Lst1, _, J1, hks.trans hkb, hns, hsg, hp0⟩, hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 hRd (by rw [hcv1]; exact hn0),
+    fun _ => rdLO_noRef arI J1 hL1 hRd (by rw [hcv1]; exact hn0) (by
+      rcases hk' with ⟨p, lv, m, asid, va, rfl, -⟩ | ⟨v, rfl⟩
+      · exact TcbReady.of_apartO (by rw [hcv1]; exact J.ept_obj hA.isSlot hcv)
+      · obtain ⟨-, -, -, hap⟩ := hV.vcpu (Z.mv G V) H Cs Ac Lst D s a σ rfl J _ v hA.isSlot hcv
+        exact TcbReady.of_apartO (by rw [hcv1]; exact hap)),
     fun _ _ _ _ q h => absurd (hcv1.symm.trans h) (hnt q)⟩
 
 set_option maxHeartbeats 4000000 in
@@ -322,7 +420,7 @@ theorem jFin_nonfinalLO [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (
           (capV (L.mem r.2.1) y = .Null ∧ isZb (capV (L.mem s) y) = false)) ∧
         MdbStep (L.mem s) G (L.mem r.2.1) G' ∧ WJL (L := L) arI AR Z H Cs kb r.2.1 r.2.2 σ' G' ∧
         (RmOK r.1.1 (cslotAddr sl) → RdLO (L := L) (A := A) th H r.2.1 r.2.2 σ' G' (cslotAddr sl)) ∧
-        (∀ p zt n, r.1.1 = .Zombie p zt n → RzJ (L := L) (A := A) H r.2.1 r.2.2 σ' G' (cslotAddr sl)) ⦄ := by
+        (∀ p zt n, r.1.1 = .Zombie p zt n → RzJ (L := L) (A := A) H Cs r.2.1 r.2.2 σ' G' (cslotAddr sl)) ⦄ := by
   subst hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := id hW
   have hP : Placed Z.th := J.xtop.rel.1
@@ -351,7 +449,9 @@ theorem jFin_nonfinalLO [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (
     hW, fun _ => ⟨⟨EmptyReady.of_cover (x := cslotAddr sl) hy hne (fun h => by rw [ep]; rw [hcv] at h; exact h) hut
       (by rw [eb, hcv]) (by rw [et, hcv]),
       J.readyLive_key hL hy hne (by rw [hky, hcv]) (by rw [hcv]; exact hn)⟩,
-      hL.liveOther_key hy hne (by rw [hky, hcv]) (by rw [hcv]; exact hn)⟩,
+      hL.liveOther_key hy hne (by rw [hky, hcv]) (by rw [hcv]; exact hn),
+      TcbReady.of_cover (x := cslotAddr sl) hy hne (fun h => by rw [ep]; rw [hcv] at h; exact h) hut
+        (by rw [eb, hcv]) (by rw [et, hcv])⟩,
     fun _ _ _ e => by cases e⟩
 
 set_option maxHeartbeats 4000000 in
@@ -364,7 +464,7 @@ theorem jFrMapL [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hAp : J
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth hce
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hpp := jFinPPHyp arI (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl _ hA hc hk
   refine WP.spec_mono (WP.spec_and (J0.finVsJb hAR Ap hDS hA hc rfl ⟨_, rfl⟩ _
@@ -391,7 +491,7 @@ theorem jFrVtL [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK : ARK
   intro s a σ G sl c hDS hW hA hc _ hk
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
   subst hth
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   refine WP.spec_mono (WP.spec_and (J0.frVtJD hAR hK hV hDS hA hc hk _) (J.frVtDbg hAR hK hV hA.isSlot (capV_of_capAt hc) hk _)) ?_
   rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, hm, ⟨Ac1, Lst1, J1⟩, hSS, hks⟩, hK'⟩
@@ -420,15 +520,23 @@ theorem jFinAtL_frio [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR) (hK
     rcases hk with hf | ⟨f, l, o, rfl⟩
     · cases c <;> first | exact h | simp [isFrame] at hf
     · exact h
-  refine rdLO_noRef arI J hL ?_ hn
-  rcases hk with hf | ⟨f, l, o, rfl⟩
-  · cases c with
-    | Frame p sz r d m ep a' va =>
-      have hC := J.cobj hA.isSlot
-      rw [hcv] at hC
-      exact EmptyReady.of_apartO (by rw [hcv]; exact hC)
-    | _ => cases hf
-  · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
+  refine rdLO_noRef arI J hL ?_ hn ?_
+  · rcases hk with hf | ⟨f, l, o, rfl⟩
+    · cases c with
+      | Frame p sz r d m ep a' va =>
+        have hC := J.cobj hA.isSlot
+        rw [hcv] at hC
+        exact EmptyReady.of_apartO (by rw [hcv]; exact hC)
+      | _ => cases hf
+    · exact EmptyReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
+  · rcases hk with hf | ⟨f, l, o, rfl⟩
+    · cases c with
+      | Frame p sz r d m ep a' va =>
+        have hC := J.cobj hA.isSlot
+        rw [hcv] at hC
+        exact TcbReady.of_apartO (by rw [hcv]; exact hC)
+      | _ => cases hf
+    · exact TcbReady.of_nonphys (by rw [hcv]; exact physF_ioPort f l o)
 
 end
 

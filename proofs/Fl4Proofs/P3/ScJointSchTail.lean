@@ -139,7 +139,7 @@ theorem JAtZ.sch_tail {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (J.sch_jpl hwT hK (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
         (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2).2) (J.sc_jcov hwT hT.dead (fun q hq hn => absurd hq hn)
       (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1
-        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2))
+        (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).2) hT.dbgK subset_rfl)
     (J.sch_kern hwT hK hS' hT.dbg hT.dwNe (J.sch_csc hwT hK hS' hI' hC' hT.dead).1) (J.sch_utc hwT hK hT.dbg) hN' hI' (Or.inr hC')
     (Or.inl (curOwn_of_curInv hS' hI' hC')) hoff hA' hbsa (Or.inr hcr) hT.blk hT.dbgK
     (J.idleW_keep hS' (ik_schedule σ ((), σ') (by rw [hsc]; exact Set.mem_singleton _)).1

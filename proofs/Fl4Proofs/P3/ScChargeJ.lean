@@ -385,7 +385,7 @@ theorem JAtZ.chargeBudgetJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hA
     J.deadP_sc_stepQ hX' hW hK (fun _ h => h.elim) hlk hfk hAI'.1 hY' ((hsok.ykeep rfl).dk q.bv) (fun h => h)
       (J.jcov.dead q hq)
   exact ⟨Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW)
+    (J.sc_jpl hW hK hidW.2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) hidW hKd subset_rfl)
     (J.sc_kern hW hK hfk hX' hDbg fun _ h => h) (J.sc_utc hW hK hDbg) hN' hI' hcur' hown' hoff hAI' hbsa hcr
     hblk' hKd hidW.1 J.zD⟩
 

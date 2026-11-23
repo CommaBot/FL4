@@ -97,7 +97,8 @@ theorem JAtZ.fin_frameF (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : 
     (D' := D)
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac' Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 hyk, J.mcp.frame k1 hA.mcpKeep, J.buf.frame kb hA.bufKeep, hRP',
-      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc), hkern,
+      J.apart.sc_frame hks hA.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hA.idle hA.isc)
+        (DXKeep.of_dbg hKd (J.tdkeep_of hwF fun _ hb => Ipc.FinW.ntd J.xtop.fin.1.1.1 hb)), hkern,
       J.finW_utc hwF hF.1 hA.cdt hA.orig hA.arch hDbg, hA.nsc J.nsc, hInv, hA.cur J.cur, hA.own J.own, hA.off J.off,
       hAI3, hA.bsa J.bsa, hA.isorted J.isorted, hA.curRunM J.curRun, hblk⟩
   have hC0 := JCs.same J hF.1 hA.ksz
@@ -136,7 +137,7 @@ theorem JAtZ.setFaultCapJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t :
       (writesIn_wr (v := if rp then 1#u64 else 0#u64) (a_fw1 hta).1)).trans
       (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
     refine w.mono fun w0 hw0 => ?_
-    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
+    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ ((K ≠ 3512 ∧ K ≠ 3528) ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
       rcases hw0 with ((((((h | h) | h) | h) | h) | h) | h) <;> subst h
       · exact ⟨3408, by omega, by omega, by omega, by omega, by omega, val_lf hta⟩
       · exact ⟨3416, by omega, by omega, by omega, by omega, by omega, val_lf0 hta⟩

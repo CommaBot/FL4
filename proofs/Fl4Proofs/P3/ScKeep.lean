@@ -191,6 +191,11 @@ theorem KFoot.ne_flags {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State U
     {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ flagsA t :=
   hb.ne_tcbw hS ht (K := 3456#u64) (by simp) (by unfold SOff SOffL; decide)
 
+/-- A `KFoot` word is no deadline word (`P1.tdA`, 3528; KENTRY-PLAN jc6e). -/
+theorem KFoot.ne_td {N T C : Set U64} {c : U64} {s : S} {σ : Fl4Spec.State Unit} (hS : SchedRel st N T C c s σ)
+    {b : U64} (hb : KFoot st T N C c s σ b) {t : U64} (ht : t ∈ T) : b ≠ P1.tdA t :=
+  hb.ne_tcbw hS ht (K := 3528#u64) (by simp) (by unfold SOff SOffL; decide)
+
 theorem tVcpuA_val {T : Set U64} (hT : TcbPlaced T) {t : U64} (ht : t ∈ T) : (tVcpuA t).val = t.val + 3664 :=
   tfield_val (hT t ht) (K := 3664#u64) (by simp)
 
@@ -202,6 +207,18 @@ theorem tVcpuA_ne {T : Set U64} (hT : TcbPlaced T) {t u b : U64} (ht : t ∈ T) 
     (hb : b.val = t.val + K) (hK : K < 4096) (hne : K ≠ 3664) : b ≠ tVcpuA u := by
   intro e
   have h2 := tVcpuA_val hT hu
+  rw [← e] at h2
+  have a1 := (hT t ht).align; have a2 := (hT u hu).align
+  by_cases eu : u = t
+  · subst eu; omega
+  · have : u.val ≠ t.val := fun h => eu (UScalar.eq_of_val_eq h)
+    omega
+
+/-- A TCB word at an offset other than 3528 is no TCB's deadline word (KENTRY-PLAN jc6e). -/
+theorem tdA_ne {T : Set U64} (hT : TcbPlaced T) {t u b : U64} (ht : t ∈ T) (hu : u ∈ T) {K : Nat}
+    (hb : b.val = t.val + K) (hK : K < 4096) (hne : K ≠ 3528) : b ≠ P1.tdA u := by
+  intro e
+  have h2 : (P1.tdA u).val = u.val + 3528 := tfield_val (hT u hu) (K := 3528#u64) (by simp)
   rw [← e] at h2
   have a1 := (hT t ht).align; have a2 := (hT u hu).align
   by_cases eu : u = t

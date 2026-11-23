@@ -306,8 +306,91 @@ theorem JAtZ.create_noresetTB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H :
   have hnewQ : ∀ q, NewAt A0 k w q → newKind n us ≠ none → NewQ A0 k w cj q := by
     rintro q ⟨j, hj, hq⟩ hK
     exact ⟨j, hj, hq, hcjU hK j hj⟩
+  -- jc6e: a dead TCB that is no new TCB is off the window (TCB-aligned); the TCB loop writes
+  -- neither its `DEBUG_PREV` nor its deadline word, and core 0's head after is the last new TCB
+  have hfit4 : A0 + w * 4096 ≤ 2 ^ 64 := by rw [← hk]; exact hfitW
+  have hA4 : A0 % 4096 = 0 := by rw [← hk]; exact hAk
+  have hK1 : newKind n us ≠ none := by rw [hn1]; simp [newKind]
+  have hdxT : ∀ q ∈ D, ¬ NewQ A0 k w cj q → Sched.DeadX (L := L) H Cs s q → Sched.DeadX (L := L) H Cs s' q := by
+    intro q _ hnq hd
+    refine deadX_of_frame J.kern.heap hW (fun hq v hv => ?_) (fun hq c hc => ?_)
+      (fun c hc => nodeAt_aligned (hTm.npl c hc) (by simp [layout.node.DEBUG_TCBS]) (by simp [layout.node.DEBUG_TCBS]))
+      hd
+    · have hal := J.kern.heap.align q .tcb hq
+      simp only [HKind.bits] at hal
+      have hdp : (P1.dpA q).val = q.val + 3584 := tcb_word J.kern.heap hq (by simp)
+      have htd : (P1.tdA q).val = q.val + 3528 := tcb_word J.kern.heap hq (by simp)
+      have slotC : SlotSpan Z.th v → v ≠ P1.dpA q ∧ v ≠ P1.tdA q := fun hsl =>
+        ⟨((hsoff v hsl).1 q hq).2, slot_word_ne_tw hJP hsl hq (K := 3528#u64) (by simp) (by simp)⟩
+      rcases hv with (⟨-, hv⟩ | hsl) | ⟨hp4, -⟩
+      · rcases hv with hsl | ⟨j, hj, hin⟩ | rfl | ⟨hne, hvv⟩
+        · exact slotC hsl
+        · have hjv := bT_v hj hfit4
+          obtain ⟨i1, i2, -⟩ := hin
+          unfold bT at hjv
+          rw [hjv] at i1 i2
+          refine ⟨fun e' => hnq ⟨j, hj, ?_, hcjU hK1 j hj⟩, fun e' => hnq ⟨j, hj, ?_, hcjU hK1 j hj⟩⟩
+          · rw [e', hdp] at i1 i2; rw [hk]; omega
+          · rw [e', htd] at i1 i2; rw [hk]; omega
+        · have := J.kern.hnd q .tcb hq 0#u64 J.kern.cs0
+          have hd0 := hdv 0#u64 J.kern.cs0
+          simp only [HKind.bits, Nat.reducePow] at this
+          refine ⟨fun e' => ?_, fun e' => ?_⟩
+          · have e'' := congrArg UScalar.val e'
+            rw [hd0, hdp] at e''; omega
+          · have e'' := congrArg UScalar.val e'
+            rw [hd0, htd] at e''; omega
+        · have hh0 := hh0T hne
+          have hal0 := J.kern.heap.align _ .tcb hh0
+          simp only [HKind.bits] at hal0
+          refine ⟨fun e' => (hd hq).2.1 0#u64 J.kern.cs0 (UScalar.eq_of_val_eq ?_), fun e' => ?_⟩
+          · have e'' := congrArg UScalar.val e'
+            rw [hdp] at e''; omega
+          · have e'' := congrArg UScalar.val e'
+            rw [htd] at e''; omega
+      · exact slotC hsl
+      · exact absurd hp4 hP4
+    · by_cases hc0 : c = 0#u64
+      · right
+        subst hc0
+        obtain ⟨-, -, -, -, -, -, c7⟩ := hC
+        rw [c7, if_neg (show ¬ w = 0 by omega)]
+        intro e'
+        apply hnq
+        refine ⟨w - 1, by omega, ?_, hcjU hK1 (w - 1) (by omega)⟩
+        have hb := bT_v (A := A0) (j := w - 1) (win := w) (by omega) hfit4
+        rw [e'] at hb
+        rw [hb, hk]
+      · left
+        intro v hv e'
+        subst e'
+        rcases hv with (⟨-, hv⟩ | hsl) | ⟨hp4, -⟩
+        · rcases hv with hsl | ⟨j, hj, hin⟩ | e0 | ⟨hne, hvv⟩
+          · have := (hsoff _ hsl).2 c hc
+            rw [hdv c hc] at this
+            omega
+          · have hjv := bT_v hj hfit4
+            obtain ⟨i1, i2, -⟩ := hin
+            have hjk : (j + 1) * 4096 ≤ w * 4096 := Nat.mul_le_mul_right _ hj
+            rw [Nat.add_mul, Nat.one_mul] at hjk
+            unfold bT at hjv
+            rw [hjv] at i1 i2
+            exact (hwin (L.nodeAt s c layout.node.DEBUG_TCBS) (by omega) (by rw [hk]; omega)).2 c hc rfl
+          · have e'' := congrArg UScalar.val e0
+            rw [hdv 0#u64 J.kern.cs0, hdv c hc] at e''
+            simp only [P1.LawfulStore.nodeBase] at e''
+            exact hc0 (UScalar.eq_of_val_eq (by simp at e'' ⊢; omega))
+          · rw [hdv c hc] at hvv
+            have := J.kern.hnd _ .tcb (hh0T hne) c hc
+            simp only [HKind.bits, Nat.reducePow] at this; omega
+        · have := (hsoff _ hsl).2 c hc
+          rw [hdv c hc] at this
+          omega
+        · exact absurd hp4 hP4
+  have hdx' : ∀ q ∈ D, ¬ NewQ A0 k w cj q → H' q = H q → Sched.DeadX (L := L) H Cs s q →
+      Sched.DeadX (L := L) H Cs s' q := fun q hq hn _ hd => hdxT q hq hn hd
   refine ⟨H', Ac', hb', hout, J.jcov.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hW.1
-    hidl ⟨p, sb, fi, hcv⟩⟩
+    hidl hdx' ⟨p, sb, fi, hcv⟩⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna', hk'⟩
     · refine Or.inl ⟨h1, ?_⟩
       rintro ⟨j, hj, hv, -⟩

@@ -42,6 +42,17 @@ def EmptyReady (H : P1.Heap) (G : MdbGhost) (s : S) (x : U64) : Prop :=
   ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
     OtherCov (L.mem s) G x lo hi ∨ ∀ q : U64, q.val = lo → DeadP (L := L) H s q
 
+/-- **The readiness of a slot to be emptied, for `DeadX`** (KENTRY-PLAN jc6e):
+each range inside the (covering) cap's is covered by another cap, or its
+object, unless already dead (in `D`), is off every debug list and unarmed
+(`DeadX`: vacuous for a non-TCB). FL4: a final thread cap is first turned
+into a zombie (its TCB then in the dead set), after `timer::remove` and
+`debug_remove`; a non-final one has another cap covering its TCB. -/
+def EmptyReadyX (H : P1.Heap) (Cs D : Set U64) (G : MdbGhost) (s : S) (x : U64) : Prop :=
+  physF (capV (L.mem s) x) = true → isUt (capV (L.mem s) x) = false →
+  ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
+    OtherCov (L.mem s) G x lo hi ∨ ∀ q : U64, q.val = lo → q ∉ D → Sched.DeadX (L := L) H Cs s q
+
 /-- **`JCovD.delete` with the removed cap's readiness asked only of a
 covering cap.** -/
 theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : Set U64} {s : S}
@@ -53,7 +64,9 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q))
     (hdead : ∀ q ∈ D, DeadP (L := L) H s q → DeadP (L := L) H s' q)
     (hks : UtKsApart (L := L) G' Cs s')
-    (hidl : Sched.IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s') :
+    (hidl : Sched.IdleKeep (L := L) s s') (hkb : L.ksb s' = L.ksb s) (hio : IdleOut (L := L) th H G' s')
+    (hxu : ∀ q, q ∈ Uncov th H (L.mem s') G' (ExAt (L := L) th H s') → Sched.DeadX (L := L) H Cs s' q)
+    (hdx : ∀ q ∈ D, Sched.DeadX (L := L) H Cs s q → Sched.DeadX (L := L) H Cs s' q) :
     Sched.JCovD (L := L) th H G' (D ∪ Uncov th H (L.mem s') G' (ExAt (L := L) th H s')) Cs s' := by
   have cov : ∀ {lo hi : Nat}, lo < hi → Covered (L.mem s) G lo hi →
       Covered (L.mem s') G' lo hi ∨ (∀ q : U64, q.val = lo → DeadP (L := L) H s' q) := by
@@ -63,7 +76,7 @@ theorem Sched.JCovD.deleteG {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs 
     · subst hyx; exact hx hp hu lo hi hlh hb ht
     · obtain ⟨hy', e⟩ := hk y hy hyx hp hu
       exact Or.inl ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hu, by rw [e]; exact hb, by rw [e]; exact ht⟩
-  refine h.step (fun q hq => ?_) hdead hks hio
+  refine h.step (fun q hq => ?_) hdead hks hio hxu hdx
   obtain ⟨hni, hq⟩ := hq
   rcases hq with ⟨k, hq, hnc⟩ | ⟨k, hq, hnc⟩
   · rcases h.th q k hq with hc | hd | hi
@@ -89,6 +102,7 @@ theorem JAtZ.emptyJCoreD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
     (hnull2 : capV (L.mem s2) (cslotAddr sl) = .Null)
@@ -165,8 +179,35 @@ theorem JAtZ.emptyJCoreD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     have hnb : ∀ c, L.nodeBase s2 c = L.nodeBase s c := fun c => by simp only [P1.LawfulStore.nodeBase, hks]
     exact ⟨by rw [hks]; exact k1, fun c hc => by rw [hnb]; exact k2 c hc, by rw [hks]; exact k3⟩
   have hidl : Sched.IdleKeep (L := L) s s2 := J.idleW_keep hX2.fin.1.1.1 (CnStep.of_cnK hcn2).idle (CnStep.of_cnK hcn2).isc
+  -- the dead set's `DeadX` kept (slot words only), the uncovered ones' by `hrx`
+  have hDXK : Sched.DXKeep (L := L) H Cs s s2 :=
+    DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw)
+  have hxu : ∀ q, q ∈ Uncov Z.th H (L.mem s2) G2 (ExAt (L := L) Z.th H s2) → Sched.DeadX (L := L) H Cs s2 q := by
+    intro q hq
+    by_cases hD : q ∈ D
+    · exact (J.jcov.dx q hD).keep hDXK
+    obtain ⟨hni, hq⟩ := hq
+    have key : ∀ hi, q.val < hi → Covered (L.mem s) Z.G q.val hi → ¬ Covered (L.mem s2) G2 q.val hi →
+        Sched.DeadX (L := L) H Cs s2 q := by
+      rintro hi hlh ⟨y, hy, hp, hu, hb, ht⟩ hnc
+      by_cases hyx : y = cslotAddr sl
+      · subst hyx
+        rcases hrx hp hu _ hi hlh hb ht with h | h
+        · exact absurd (ocov _ _ h) hnc
+        · exact (h q rfl hD).keep hDXK
+      · obtain ⟨hy', e⟩ := hk y hy hyx hp hu
+        exact (hnc ⟨y, hy', by rw [e]; exact hp, by rw [e]; exact hu, by rw [e]; exact hb, by rw [e]; exact ht⟩).elim
+    rcases hq with ⟨k, hk', hnc⟩ | ⟨k, hk', hnc⟩
+    · rcases J.jcov.th q k hk' with hc | hd | hi
+      · exact key _ (by omega) hc hnc
+      · exact absurd hd hD
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
+    · rcases J.jcov.h q k hk' with hc | hd | hi
+      · exact key _ (by have := Nat.one_le_two_pow (n := k.bits); omega) hc hnc
+      · exact absurd hd hD
+      · exact absurd ((exAt_of hidl hw.1).2 hi) hni
   have hjc := J.jcov.deleteG hk hx (fun q' _ hd => J.deadP_slot hX2 hcn2 hkc hw hd) hks2 hidl hw.1
-    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK))
+    (J.jcov.idleOut.keep hidl (J.utFrom hM2 hUK)) hxu (fun q _ h => h.keep hDXK)
   refine ⟨hw.1, KBack.of_keepCT hkc, J.slot2FrO hkc hX2.rel.2.1.1 hnull2 hoth2, fun hUt => ?_⟩
   have hutc := J.del_utc (G' := G2) (sl := sl) (fun y hy e => hoth2 y hy e) hnull2 hw hcdt horig hgp hM2 hUt
   obtain ⟨hJC, R⟩ := jowes_slotD J hX2 hcn2 hkc hw hFI2 hMO hkz hTK hT3 hT2 hDl2 hUK hjc
@@ -180,6 +221,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr}
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
     (hnull2 : capV (L.mem s2) (cslotAddr sl) = .Null)
@@ -196,7 +238,7 @@ theorem JAtZ.emptyJCore {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.He
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
-  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJCoreD hrd hDS2 hnull2 hoth2 hX2 hwS hcn2 hkc hkz hcdt horig hgp
+  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJCoreD hrd hrx hDS2 hnull2 hoth2 hX2 hwS hcn2 hkc hkz hcdt horig hgp
   exact ⟨h1, h2, hf, fun hU => let ⟨h4, Ac', Lst', D', _, R⟩ := h3 hU; ⟨h4, Ac', Lst', D', R⟩⟩
 
 set_option maxHeartbeats 16000000 in
@@ -207,6 +249,7 @@ theorem JAtZ.emptyJRD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hcnode : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length))
     (hcn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hes : ((), σ2) ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1)
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
@@ -254,7 +297,7 @@ theorem JAtZ.emptyJRD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     by_cases e : sl' = (q.bv, idx)
     · subst e; simp [setCnodeSlot, emptySlotCdtState] at h
     · simpa [setCnodeSlot, emptySlotCdtState, Function.update_of_ne e] using h
-  exact J.emptyJCoreD hrd hDS2 hnull2 hoth2 hX2 hwS hcn2 (KeepC.t hkc) hkz rfl horig hgp
+  exact J.emptyJCoreD hrd hrx hDS2 hnull2 hoth2 hX2 hwS hcn2 (KeepC.t hkc) hkz rfl horig hgp
 
 
 set_option maxHeartbeats 4000000 in
@@ -265,6 +308,7 @@ theorem JAtZ.emptyJR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     (hcnode : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length))
     (hcn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hes : ((), σ2) ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1)
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
@@ -279,7 +323,7 @@ theorem JAtZ.emptyJR {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
-  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJRD hA hcnode hcn hrd hes hDS2 hnull2 hoth2 hX2 hwS hcn2
+  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJRD hA hcnode hcn hrd hrx hes hDS2 hnull2 hoth2 hX2 hwS hcn2
   exact ⟨h1, h2, hf, fun hU => let ⟨h4, Ac', Lst', D', _, R⟩ := h3 hU; ⟨h4, Ac', Lst', D', R⟩⟩
 
 set_option maxHeartbeats 16000000 in
@@ -292,6 +336,7 @@ theorem JAtZ.emptyJRTD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     (hntc : ¬ ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length))
     (hcn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hes : ((), σ2) ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1)
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
@@ -332,7 +377,7 @@ theorem JAtZ.emptyJRTD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     by_cases e : sl' = (p.bv, Fl4Spec.tcbCnodeIndex i)
     · subst e; simp [setTcbSlot, emptySlotCdtState] at h
     · simpa [setTcbSlot, emptySlotCdtState, Function.update_of_ne e] using h
-  exact J.emptyJCoreD hrd hDS2 hnull2 hoth2 hX2 hwS hcn2 (KeepCT.of_cnK hcn2) hkz rfl horig rfl
+  exact J.emptyJCoreD hrd hrx hDS2 hnull2 hoth2 hX2 hwS hcn2 (KeepCT.of_cnK hcn2) hkz rfl horig rfl
 
 
 set_option maxHeartbeats 4000000 in
@@ -343,6 +388,7 @@ theorem JAtZ.emptyJRT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hntc : ¬ ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length))
     (hcn : capV (L.mem s) (cslotAddr sl) ≠ .Null)
     (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl))
     {s2 : S} {σ2 : Fl4Spec.State Unit} {G2 : MdbGhost} {V2 : XVs}
     (hes : ((), σ2) ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1)
     (hDS2 : DState (L := L) Z.th s2 σ2 G2)
@@ -357,7 +403,7 @@ theorem JAtZ.emptyJRT {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
        JCs (L := L) (Z.mv G2 V2) s2 σ2 ∧
         ∃ (Ac' : Set U64) (Lst' : U64 → List U64) (D' : Set U64),
           JRest (L := L) arI (Z.mv G2 V2) H Cs Ac' Lst' D' s2 σ2) := by
-  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJRTD hA hntc hcn hrd hes hDS2 hnull2 hoth2 hX2 hwS hcn2
+  obtain ⟨h1, h2, hf, h3⟩ := J.emptyJRTD hA hntc hcn hrd hrx hes hDS2 hnull2 hoth2 hX2 hwS hcn2
   exact ⟨h1, h2, hf, fun hU => let ⟨h4, Ac', Lst', D', _, R⟩ := h3 hU; ⟨h4, Ac', Lst', D', R⟩⟩
 
 set_option maxHeartbeats 16000000 in
@@ -367,7 +413,8 @@ theorem JAtZ.emptyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {sl : Fl4Spec.CslotPtr} (hA : AbsSlot Z.th sl)
     (hcnode : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length))
     {c : capability.Cap} (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hcn : c ≠ .Null)
-    (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl)) :
+    (hrd : EmptyReady (L := L) H Z.G s (cslotAddr sl))
+    (hrx : EmptyReadyX (L := L) H Cs D Z.G s (cslotAddr sl)) :
     cdt.empty_slot st arI s a (cslotAddr sl) .Null ⦃ res => res.2 = a ∧ ∃ σ' G' V',
       ((), σ') ∈ (Fl4Spec.emptySlot (Z := Unit) sl .nullCap σ).1 ∧ XTopAt (L := L) AR (Z.mv G' V') res.1 res.2 σ' ∧
       L.ksb res.1 = L.ksb s ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧
@@ -392,7 +439,7 @@ theorem JAtZ.emptyJ {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} 
   simp only at hes hDS2 hnull2 hoth2 hX2 hwS hcn2 ha2 ⊢
   subst ha2
   obtain ⟨hks, hkb, hfk, hR2⟩ := J.emptyJR hA hcnode (by rw [capV_of_capAt hc]; exact hcn)
-    hrd hes hDS2 hnull2 hoth2 hX2 hwS hcn2
+    hrd hrx hes hDS2 hnull2 hoth2 hX2 hwS hcn2
   exact ⟨rfl, σ2, G2, V2, hes, hX2, hks, hkb, hfk, hR2⟩
 
 /-- A word off `H`'s objects is dead (`DeadP` reads `H` only). -/

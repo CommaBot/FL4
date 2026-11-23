@@ -28,7 +28,7 @@ theorem JCovD.idle_uncovered (s : S) (Cs : Set U64) :
         ⟨[], fun _ => none⟩ ∅ Cs s ∧
       ¬ Covered (L.mem s) ⟨[], fun _ => none⟩ (L.idleW s).val ((L.idleW s).val + 2 ^ P1.HKind.bits .tcb) := by
   refine ⟨⟨fun q k hq => by simp at hq, fun q k hq => ?_, fun _ h => h.elim,
-    fun x hx => by simp at hx, fun x hx => by simp at hx⟩, ?_⟩
+    fun x hx => by simp at hx, fun x hx => by simp at hx, fun _ h => h.elim⟩, ?_⟩
   · by_cases e : q = L.idleW s
     · exact Or.inr (Or.inr (Or.inl (Or.inl e)))
     · simp only [e, if_false] at hq; cases hq

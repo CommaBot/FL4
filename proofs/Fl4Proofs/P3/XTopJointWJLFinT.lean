@@ -38,7 +38,7 @@ theorem jFinAtL_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) : JFi
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨p, g, hce⟩ hfin
   subst hce hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, hDW, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   obtain ⟨Tr, Cq, hJ⟩ := J.jpl
   have hHp : H p = some .reply := (hJ.typed _ hA.isSlot).2.2 p g hcv
@@ -67,21 +67,34 @@ theorem jFinAtL_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) : JFi
   have hDS1 : DState (L := L) Z.th s1 σ1 G := ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩
   obtain ⟨hL1, hDW1, hN1⟩ := wjl_keep arI J hDS hL hDW hN J1 (fun p hp => Or.inr hp) hSS1 hDS1 hK (gk_idle (Vs.gk_finaliseCap _ _) hmem1)
   have hn : ∀ q, ¬ RefsObj q (capV (L.mem s1) (cslotAddr sl)) := fun q h => by rw [hcv1] at h; exact h
+  have hTR : TcbReady (L := L) Z.th H G s1 (cslotAddr sl) := by
+    have hpfit : p.val + 2 ^ 5 ≤ 2 ^ 64 := J.kern.heap.fits p _ hHp
+    obtain ⟨r1, r2⟩ := range_reply p g hpfit
+    exact TcbReady.of_obj (sz := 2 ^ 5) (fun h => by rw [hHp] at h; cases h)
+      (fun q hq hne => J.kern.heap.disj q _ p _ hq hHp hne) Nat.one_le_two_pow
+      (by rw [hcv1]; exact r1) (by rw [hcv1]; exact r2)
   exact ⟨rfl, trivial, trivial, σ1, G, hmem1, hDS1, hcv1,
     fun y hy _ => Or.inl (hSS1.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS1,
     ⟨⟨V1, Ac1, Lst1, _, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg, hpp _ _ hmem1 hp0⟩,
       hL1, hDW1, hN1⟩,
-    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp) hn,
+    fun _ => rdLO_noRef arI J1 hL1 (JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp) hn hTR,
     fun _ _ _ _ q h => by rw [hcv1] at h; cases h⟩
 
 set_option maxHeartbeats 4000000 in
 /-- **A final thread cap's finalisation at `WJL`** (module docstring). -/
 theorem jFinAtL_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR)
-    (hF : JThreadFinHypsU (L := L) arI AR th) : JFinAtL (L := L) arI AR th TcbK := by
+    (hF : JThreadFinHypsU (L := L) arI AR th)
+    (hTd : ∀ (H : P1.Heap) (Cs Ac : Set U64) (s : S) (a : A) (p : U64),
+      P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+        (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s →
+      H p = some .tcb → L.actionW s ≠ p → L.idleW s ≠ p →
+      L.mem s (core.num.U64.wrapping_add p 3664#u64) = 0#u64 →
+      objects.finalise_cap st arI s a (.Thread p) true false ⦃ r => L.mem r.2.1 (P1.tdA p) = 0#u64 ⦄) :
+    JFinAtL (L := L) arI AR th TcbK := by
   intro Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ⟨p, hce⟩ hfin
   subst hce hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ := hW
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hcv := capV_of_capAt hc
   have hthp : Z.th p = some .tcb := hDS.1.2.1.abs hA hc
   have hpT : p ∈ Z.T := J.thT p hthp
@@ -101,12 +114,13 @@ theorem jFinAtL_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR)
   have hnd := hDW.nodup 0#u64 c0
   have hpp := jFinPPHyp arI (Z.mv G V) H Cs Ac Lst D s a σ rfl J sl _ hA hc hk
   rw [decide_eq_true hfin] at hpp ⊢
-  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and
+  refine WP.spec_mono (WP.spec_and (WP.spec_and (WP.spec_and (WP.spec_and
     (J0.finThreadJL hT hK hF.ticks hL hpT hv0 hna hidle)
     (P1.fin_cap_thread.dead (ar := arI) hT s a p false J.blk hpH hna hidle hv0))
     (P1.fin_cap_thread.slots (ar := arI) hT s a p true false J.blk hpH hna hidle hv0))
-    (J.finThreadDbgPre hT hpH hna hidle hv0)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, J1⟩, d1, d2, d3, d4, d5, d6⟩, e, -, f, hW1⟩, s5, hpre⟩
+    (J.finThreadDbgPre hT hpH hna hidle hv0)) (hTd H Cs Ac s a p J.blk hpH hna hidle hv0)) ?_
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨⟨⟨⟨σ1, hm1, V1, Ac1, Lst1, J1⟩, d1, d2, d3, d4, d5, d6⟩, e, -, f, hW1⟩, s5, hpre⟩,
+    htd1⟩
   simp only [ite_true, Prod.mk.injEq] at e
   obtain ⟨rfl, rfl⟩ := e
   have hSS1 : SlotsSame Z.th (L.mem s) (L.mem s1) :=
@@ -151,7 +165,8 @@ theorem jFinAtL_thread (hT : P0.ArchTotal arI) (hK : ARKeep arI AR)
       rcases hn with hn | ⟨hn, -⟩ <;> exact absurd hn (by decide)
   · have e : p = q := by rw [hcv1] at hq; cases hq; rfl
     subst e
-    refine ⟨hdp, fun n hn => ?_⟩
+    refine ⟨hdp, fun n hn => ?_, deadX_of_lists hDW1 J.kern.h0
+      (fun c hc h => ((List.Nodup.mem_erase_iff (hDW.nodup c hc)).1 h).1 rfl) fun _ => htd1⟩
     rcases hW1m n with h | h
     · exact hp00 (hn.symm.trans h)
     · rw [hn] at h
@@ -282,7 +297,7 @@ theorem jFinAtL_irq [Fl4Proofs.P1.PlainStore st] : JFinAtL (L := L) arI AR th Ir
     intro s' a' σ' G' hW' h
     obtain ⟨⟨V', Ac', Lst', D', J', -⟩, hL', -⟩ := hW'
     exact rdLO_noRef arI J' hL' (fun hp => by rw [h, hphys] at hp; cases hp)
-      (fun q hr => by rw [h] at hr; exact hr)
+      (fun q hr => by rw [h] at hr; exact hr) (TcbReady.of_nonphys (by rw [h]; exact hphys))
   rcases hok with hnull | ⟨p, b, w, r, hn⟩
   · -- a null node slot: nothing to delete
     obtain ⟨c0, ac0, hc0, hca0, hg0⟩ := hDS.1.1.abs_cap hA'

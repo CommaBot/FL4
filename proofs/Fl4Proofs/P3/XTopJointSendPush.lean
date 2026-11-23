@@ -565,7 +565,8 @@ theorem JAtZ.wake_postGR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 (F.ykeep.trans hyk1),
       J.mcp.frame k1 (F.mcpKeep.trans hmk1), J.buf.frame kb hbuf, hRP',
-      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0), hkern,
+      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       hnsc3, I3, hcur3, hown3, hoff3, hAI3, B3, hiso3, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 (F.ksz.trans hkz1)

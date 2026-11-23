@@ -222,7 +222,7 @@ theorem JAtZ.cancelYieldJD (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {y 
   have hDbg := J.kw_dbg (hP.2.1.mono (Set.empty_subset _))
   have hKd := J.kw_dbgKeep (hP.2.1.mono (Set.empty_subset _))
   exact ⟨_, he, Ac, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2)) (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2) hKd subset_rfl) (J.sc_kern hW hK hA.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hN' hI' (hA.cur J.cur) (hA.own J.own) (hA.off J.off) hAI (hA.bsa J.bsa)
     (hA.curRunM J.curRun) hP.1 hKd (J.idleW_keep hX'.fin.1.1.1 hA.fk.2.1 hA.fk.2.2).1 J.zD⟩
 

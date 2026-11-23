@@ -17552,3 +17552,149 @@ module build jc6b4-m1 of XTopJointTcb/UnrefBnd/U27 green, 7266 jobs). The one fi
   retype's `WritesIn`) is cheaper than eight inline proofs.
 - **f4e: group B committed** after a full build on afkprover (f4e-full1, SEED=A: BUILD 0, ERRORS 0, SORRY 0,
   jobs 7351/7353; axf4.lean: 40 `#print axioms`, all within [propext, Classical.choice, Quot.sound]).
+
+## jc6c (branch par/jc6c from fde049c4, top of record `kernel_entry_reachU27`) — part (c) of `RegionUnrefAt` STOPPED at the route decision: **FINDING: (c) is false at reachable states for a dead set `JAtZ` admits**; neither route of jc6 (3)(c) is sound; the sound route is sized L–XL; no Lean change, no new top
+
+### (1) FINDING: U27's (c) [J] is false for an admissible `D'` (trace)
+The tops ask `unref` at the dispatch state for **every** `D'` with `JAtZ … D' s' a' σb` (`KDispHypsKVU27` under
+`∀ … D' …`). `JAtZ` constrains `D'` only by `JCovD.dead` (`DeadP`), and is closed under adding any `DeadP` set
+(`JAtZ.addDeadSet`, XTopJointLiveKeep:29). `DeadP`'s TCB clause (inactive, `scA`/`boundA`/`yieldA` 0, not action, not
+idle) says nothing about the debug lists, and a TCB can be `DeadP` while on a list:
+1. Entry 1: the root thread retypes one TCB `t` (`create_object`, objects.rs:435: `debug_append` makes `t` the head of
+   core 0's list; the TCB is zeroed: `TS_INACTIVE`, no SC, no bound notification, `YIELD_TO = 0`). `H t = some .tcb`
+   in the next start state's `JReachU17`.
+2. Entry 2 (nothing configures `t`): the root thread invokes any RAM untyped cap. At the dispatch state `s'`,
+   `DeadP H s' t` holds (`t` ≠ action word, ≠ idle), so with `J'` the construction's `JAtZ`, `J'.addDeadSet` gives
+   `JAtZ … (D ∪ {t}) s' …`; the hypothesis must then supply `JUtPathMU27.unref` at `D' := D ∪ {t}`.
+3. `RegionUnrefC`, restart state `s1` (`set_thread_state` keeps the debug words), `lo = t`, `hi = t + 2^bits(tcb)`:
+   the only `H` object meeting the region is `t ∈ D'` (`HeapOK` disjointness), so `DbgKeptC` must hold at
+   `R = RegionD H lo hi`; its head clause at `c = 0 ∈ Cs` (`cs0`) asks `KeptRef H R (DEBUG_TCBS₀) = KeptRef H R t`,
+   i.e. `H t ≠ none → ¬ R t`: false. (If more TCBs were appended after `t`, the predecessor clause fails instead:
+   `dnA y = t` for a live `y ∉ R`.)
+So the (c) leaf of C16 / C22 / C24 heapH (since U21's `RegionUnrefAt`) cannot be discharged for such entries; the
+real kernel is fine (the detype's actual dead set is the uncovered objects, finalised by `debug_remove`,
+objects.rs:351). **The same hole is in `DeadUnarmed` (U26, (d))**: `TCBSetTimer` on the fresh `t` (tcb.rs:476) arms
+it while it stays `DeadP` (`suspend` does not disarm), so `DeadUnarmed H (D ∪ {t}) s'` is false; TIMER-RB-PLAN §14.2's
+"no reachable counterexample" considered only the construction's own `D`. Its §14.3 fix (strengthen `DeadP`) is the
+right one, and also covers (c).
+
+### (2) The two routes of jc6 (3)(c), and why neither is sound
+- **Generalise `LiveJ.dbg` to every core of `Cs`**: gives every listed TCB a Thread cap, i.e. covered. But a covered
+  object may be in `D` (`JCovD` is "covered ∨ dead ∨ exempt"; `addDead`/`addDeadSet`, the zombie TCBs, and the
+  `D \ {…}` sites show `D` holds covered objects), so it does not exclude a listed TCB from `D'`. Restating the
+  consumers' region as "missed by every covered range" would change the premise's text (not allowed; and `D'` is
+  still universally quantified).
+- **Carry "a TCB of `D` is in no debug list" in P1 next to `ScExtra0.bs`**: P1 has no `D` (no word distinguishes a
+  listed suspended TCB from a dead one), and as a `JAtZ`/`JCarry` fact it is refuted by `addDeadSet` (step (1)2).
+  Sizing is moot.
+
+### (3) The sound route: a debug conjunct in `DeadP` (sized L–XL; do it in one pass with `DeadUnarmed`)
+1. `DeadP` / P1 `DeadQ` TCB clause += `DbgOff s q := L.mem s (dpA q) = 0 ∧ L.mem s (L.nodeAt s (L.mem s (affA q))
+   DEBUG_TCBS) ≠ q` (no `Cs` needed: `DbgWFL.mem` puts a listed TCB on its affinity's list; on a list it is the head
+   or has a nonzero predecessor, `prevA` with `zero`). (TIMER-RB-PLAN §14.3's `tdA q = 0` in the same edit.)
+2. Then `JAtZ.keptCW : DbgKeptCAll H Cs D s` at any `JAtZ` from `J.live.2.1` (`DbgWFL`): a dead TCB is on no list, so
+   no listed `y`'s `dn`/`dp` and no head names it (`nextIn_mem`/`prevA_mem`, `nodup`); off-list TCBs' links are 0
+   (`off`, `H 0 = none`). `JAtZ.unrefCW` across the restart as `unrefBW`; `kernel_entry_reachU28` = U27 asking only
+   `DeadUnarmed` (or, with the `tdA` conjunct, nothing: the U24 top).
+3. Sites (counted at fde049c4): the keep lemmas `deadP_keep` (55 calls), `deadP_hstep` (14), `deadP_sc_step*` (52),
+   `deadP_sch_step` (9), `deadP_qk`/`qm` (9): **139 calls in 98 files**; each lemma takes `P1.DbgKeep st T Cs s s'`
+   plus the affinity word kept. Unlike `tdA` the frame is mostly in hand: 89 of the 98 caller files already have a
+   `DbgKeep` (`hKd`, passed to `sc_frame`/`liveX` for `LiveDN`); the 9 without (XTopJointGrant, VsSub, Zombie, Rest,
+   Empty, Del, ScDeadSch, ScDeadStep, DeadKeep) need one from their footprint (`Foot.dbgKeep`, QueueDbgKeep).
+   Special sites: TCB finalise (`finDead_thread`, XTopJointFinThread*: `debug_remove` leaves `dp = 0`, head moved off
+   `t`: needs P1 facts on `debug_remove`'s words, `dbgRm_wf` has the list surgery); `addDead`/`addDeadSet` callers
+   (32: zombie TCBs, already finalised); `smp::migrate_tcb` (SC bind/SetAffinity of a capped TCB: it must leave `D`
+   first, as `bindNJ`'s `D \ {t, n}`); retype (new TCBs are `NewQ`, already removed from `D`; `debug_append` writes the
+   old head's `dp`, a listed so live TCB); drop (`DeadP.drop`). Start state: `D = ∅` (no change at boot).
+   Estimate: the ~139 mechanical call edits are L on their own, the finalise/migrate sites add M: **L–XL**, over the
+   jc6c budget (≤ L), so not started. Recommended: one agent does (3)1–3 for both conjuncts (debug and `tdA`); the
+   per-site edit is the same call, and only `tdA` needs new frames (TIMER-RB-PLAN §14.3 step 3).
+
+### (4) Build
+None (no Lean change; no build slot used).
+
+## jc6e (branch par/jc6c from da74c0fb, top of record `kernel_entry_reachU27`) — strengthen `DeadP` by the debug conjunct and `tdA = 0` (lead decision after jc6c), then `kernel_entry_reachU28`: STOPPED at the size check (> XL as specified); no Lean change, no build slot used, no new top
+
+### (1) What the quick pass found beyond jc6c (3)
+- **The affinity word is not kept by the generic frames.** jc6c (3)1's form `dpA q = 0 ∧ head(affA q) ≠ q` reads
+  `affA q` (`TCB + 3520`, layout `AFFINITY = F + 192`). That word is inside both generic footprints the keep sites
+  use: `SOffL` (ScKFoot:31 lists 3520 — its docstring calls it "the release flag", but it is `AFFINITY`), so every
+  `TFoot`/`KFoot`/`SFoot` step may write it, and P1 `KW` (QueueFoot:23: every TCB word 192..4096 but 3576/3584).
+  FL4 writes it in `smp::migrate_tcb`, called from `sched_context_bind_tcb` (schedcontext.rs:29), **`sched_context_donate`
+  (:78, i.e. every IPC path that donates: call, reply, fault, `PushDon`, `SendDon`, …)** and configure (:311). So the
+  head clause is NOT kept "by `DbgKeep` plus a mostly-in-hand frame" (jc6c (3)3): `DbgKeep` keeps `dpA` and the heads
+  of `c ∈ Cs`, but which head to read moves with `affA q`, and every site (the 40 `deadP_sc_step*` calls included, which
+  get `dpA`/`tdA` for free from `hw : TFoot` since 3584/3528 ∉ `SOffL`) needs a new "dead TCB's `affA` kept" fact; at
+  the ~10 migrate/donate sites it needs "the migrated TCB is not dead" (true: it is blocked/bound, so its state or SC
+  word contradicts `DeadP`, but per site).
+- **`tdA` (3528) is in `KW`**, so at the CSpace/IPC sites (`deadP_keep` 53 calls / 48 files, `deadP_hstep` 12, `deadP_slot`
+  16, the `*fr*` wrappers) no frame in hand gives it: only 11 of the 98 caller files see a `TmFr`; P1's op lemmas
+  establish `TmFr` internally for `ScExtra0.rb` but export only `Foot`/`KW` (TIMER-RB-PLAN §14.2, unchanged).
+- Counts at da74c0fb (calls / files, excluding the definitions): `deadP_keep` 53/48, `deadP_sc_step*` 40/30,
+  `deadP_slot` 16/8, `deadP_hstep` 12/9, `deadP_sch_step` 7/8, `deadP_qk`/`qm` 7/6, `*fr*` wrappers ~45;
+  `addDeadSet` 29/15 + `addDead` 1; `LiveJ.zdead` 22 uses (zombie TCBs must satisfy the stronger `DeadP` too:
+  `finDead_thread` has to deliver both conjuncts after `debug_remove` + `timer::remove`); `FinDeadHyp` 8;
+  `DeadP_iff : DeadP ↔ DeadQ := Iff.rfl` (ScPlaceRet:388) forces P1 `DeadQ` to change with it (P1 QueueHeapDrop:22,
+  11 P1/P3 files use `DeadQ`). Every `obtain ⟨d1, …, d6⟩ := hd.1 hq` / `.2.2.2.2.2` projection of the TCB clause changes.
+
+### (2) Size
+Per site the new obligation is two FL4-word frames (`affA q`, `tdA q`) for a dead TCB plus `DbgKeep`; no site has the
+first, ~11 files have the second. That is TIMER-RB-PLAN §14's carry (already rated L–XL for `tdA` alone) applied twice,
+with `affA` also at the SC family that `tdA` did not need, plus the finalise / zombie / retype / migrate specials (M–L).
+Together: **> XL** (≈ 2–3 agent sessions), and blind until a build slot (one 1-thread slot; changing `ScPlaceDead`
+rebuilds most of P3 per round). Not started.
+
+### (3) Two ways to cut it (lead decision)
+- **(A) As decided: `DeadP` += `dpA q = 0 ∧ head(affA q) ≠ q ∧ tdA q = 0`** (and `DeadQ`). Keep lemmas take one new
+  premise `hX : H q = some .tcb → DXKeep s s' q` (ksb, `dpA q`, `affA q`, `tdA q`, and the head word of core
+  `affA q` kept; `DXKeep.of_dbg` from `DbgKeep` + `J.blk`'s `aff` + the two word equalities). New frame lemmas per
+  footprint family: `TFoot` (gives `tdA`, `dpA`; `affA` only off the migrate target), `KW`/`Foot` sites (neither:
+  needs P1 op posts to export "TCB words 3520/3528 kept off the target" — the TimerRB `TmFr` already proved inside
+  P1, plus an affinity clause), slot/`InSlot`/`KsW`/`VsW`/`VtOut` steps (both by offset, as `JAtZ.inSlot_scKeep`).
+  Size > XL as above.
+- **(B) Recommended: the debug conjunct with `Cs`, carried as `JCovD`'s dead clause, not inside `DeadP`.**
+  `DeadX Cs s q := H q = some .tcb → L.mem s (dpA q) = 0 ∧ (∀ c ∈ Cs, L.mem s (nodeAt s c DEBUG_TCBS) ≠ q) ∧
+  L.mem s (tdA q) = 0`, and `JCovD.dead : ∀ q ∈ D, DeadP H s q ∧ DeadX Cs s q` (JCovD has `Cs`; `DeadP` has
+  not, which is why (A) must go through `affA`). Same narrowing of `JAtZ`'s admissible `D'` (it sits in `JAtZ.jcov`,
+  the antecedent of U27's `∀ D'`), no statement text changes, `addDeadSet` takes `DeadX` too (its 30 callers add
+  finalised zombies). Gains: no `affA` anywhere; the debug half is `DbgKeep` alone (in hand at 89/98 files,
+  `DeadX.keep : DbgKeep → tdA kept → DeadX s q → DeadX s' q`); `tdA` free on the SC family (`TFoot`); `DeadP`,
+  `DeadQ`, `DeadP_iff`, `LiveJ.zdead` and all 305 `DeadP` mentions untouched (zombies are in `D` by `JAtZ.zD`, so
+  `JCovD` covers them). Cost: the `JCovD` builders (`jcov_keep` 43, `sc_jcov` 38, `jcov_cover` 9, `JCovD.same/step/
+  delete/retype*` ~15, anonymous constructions) take one more `hdx` argument; the `tdA` frame is still needed at the
+  `KW` sites (TIMER-RB-PLAN §14.3 step 3). Then `JAtZ.keptCW` (jc6c (3)2 with `∀ c ∈ Cs` instead of `affA`: a list
+  member is the head or has a nonzero predecessor, `DbgWFL.prev`/`zero`/`nodup`) and `DeadUnarmed` is
+  `fun q hq hH => ((J.jcov.dead q hq).2 hH).2.2`. Size L–XL (one agent, tight).
+- Either way the timer half needs the §14.3 step 4/5 sites (SetTimer: target leaves `D` as `bindNJ`'s `D \ {t, n}`;
+  `fire`/finalise: `timer.remove.rb` gives `tdA t = 0`), and the start state needs nothing (`D = ∅` at boot).
+
+### (4) Build
+None (no Lean change; no build slot used).
+
+### (5) Route (B) approved and DONE: new top **`kernel_entry_reachU28`**; full build green
+- `Sched.DeadX H Cs s q` (TCB → `dpA q = 0` ∧ no core head = q ∧ `tdA q = 0`), `TdKeep`, `DXKeep` (ScPlaceDead);
+  `JCovD.dx : ∀ q ∈ D, DeadX H Cs s q` (6th field). Lead's condition: `DbgWFL.notMem_of_off` (LiveDefs) proves
+  DeadX's debug words + `DbgWFL` ⇒ on no core's list; converse `off_of_notMem`, `deadX_of_lists`.
+- Builders take the new obligation: `sc_jcov`/`JAtZR.sc_jcov` (+`hKd hDD`), `sc_jcovS`, `jcov_keep`,
+  `jcov_cover`, `JAtZR.jcov_keep` (+`hDX : DXKeep`), `JCovD.same/step/delete/deleteG` (+`hdx`/`hxu`),
+  `addDeadSet`/`addDead` (+`hx`), retype family (+`hdx`, with `H' q = H q`), `JCovD.retype_post` (+`hdx`).
+- Deadline frames: `*_ntd` twins of the VCPU `*_nv` lemmas (`KFoot.ne_td`, `FinW.ntd` — `FinW` now also
+  excludes offset 3528 —, `cnW_ntd`/`cnW_td`, `inSlot_ntd`, `ks(W)_ntd`, `schW_ntd`, `rmW_ntd`, JAtZR `cnW_ntd`),
+  `TdKeep.of_tfoot`, `JAtZ.tfoot_td`, `td_sts`, `tdkeep_of/slot`.
+- Special sites: timer steps (`tmw_step` + `remove_td`/`insert_td`/`xfoot_td` in ScFireJ; SetTimer's target
+  leaves `D` by `undead`, `tcb_set_timerJ` takes its cap slot); thread finalisation (`dbgRemove_live` gives the
+  dead set off every list after `debug_remove`; `RzJ` takes `Cs` and carries `DeadX`, produced in
+  `jFinAtL_thread` from the erased lists and the new P1 `fin_cap_thread.td0` (P1/QueueDeadTd)); emptying a slot
+  (`EmptyReadyX`, from a new `TcbReady` in `RdLO`); retypes (DevJ, UtBodyJ, UtEpJ, UtTcbP1 incl. debug_append).
+- New: P3/UnrefDbg (`JAtZ.keptCW`, `unrefCW`, `deadUnarmed`, `regionUnrefCU`), P3/XTopJointKEntryU28
+  (`kernel_entry_reachU28` = U27 with `RegionUnrefCU` removed; D = ∅ at boot, no new start fact).
+- No real-kernel gap found by any producer.
+- Extra pieces added while building: `DXKeep.of_writes` (LiveDefs), `JAtZR.ksW_dxk` / `JAtZR.schW_dxk`
+  (XTopJointJAtZRA, the KsW / SchW steps of `JAtZR`), `Sched.tdA_ne` (ScKeep), `JAtZ.schW_ntd`, `JAtZ.td_sts`.
+- Builds (afkprover, SEED=A): module build jc6e-m1c (ScPlaceDead, LiveDefs, JointAt, ScKeep, IpcCancelSignals:
+  one error, `FinW`'s new offset in `FinW.tsw`); full builds b1/b2y/b3b/b4 (fixes: U28 import, IdleCovered dx,
+  ScJointFrame `tdA_ne`, JAtZRA's three JAtZR sites, ScFireJ `xfoot_td`, FinScReply `sc_jcovS` args, TcbSched /
+  TcbInstall `tw_ne (a := b)`); **jc6e-b5x: `Build completed successfully (7371 jobs)`, ERRORS 0, SORRY 0**.
+  `axjc6e.lean`: `kernel_entry_reachU28`, `kernel_entry_reachU27`, `JAtZ.keptCW`, `unrefCW`, `deadUnarmed`,
+  `regionUnrefCU`, `DbgWFL.notMem_of_off`, `P1.fin_cap_thread.td0` all `[propext, Classical.choice, Quot.sound]`.
+- Remaining [J] at U28: C17, C23 (jc4); no `RegionUnrefAt` part left.

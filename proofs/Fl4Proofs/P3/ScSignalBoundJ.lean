@@ -110,6 +110,24 @@ theorem JAtZ.cnW_nf (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
     exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
       (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
 
+/-- **A `CnW` word is no TCB's deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.cnW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64}
+    (hb : CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ b) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  have hS := J.xtop.fin.1.1.1
+  intro t ht
+  rcases hb with hb | hx
+  · exact FinW.ntd hS hb t ht
+  · rintro rfl
+    obtain ⟨Q, R0, hc, -⟩ := hS.lists
+    have hv : (P1.tdA t).val = t.val + 3528 := tfield_val (hc.tcbs t ht) (K := 3528#u64) (by simp)
+    exact J.cnX_not hx (J.zH.1 t ht) (by omega) (by simp only [P1.HKind.bits]; omega)
+      (Or.inl ⟨fun e => (by cases e), fun e => (by cases e)⟩)
+
+/-- **A `CnW` step keeps every deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.cnW_td (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  J.tdkeep_of hw fun _ hb => J.cnW_ntd hb
+
 /-- **The frame words a `CnW` step keeps** (`finW_keeps`). -/
 theorem JAtZ.cnW_keeps (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hw : P1.WritesIn st s s' (CnW (st := st) Z.T Z.N Z.C Z.E Z.R Z.c s σ)) :
@@ -464,7 +482,8 @@ theorem JAtZ.wake_postB (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t :
   have hRR' := J.rrecv.frame k4 F.khrb
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 F.ykeep, J.mcp.frame k1 F.mcpKeep, J.buf.frame kb F.bufKeep, hRP',
-      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc), hkern,
+      J.apart.sc_frame hks F.szKeep, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 F.sk.idle F.sk.isc)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 F.sk.cdt F.sk.orig F.sk.arch hDbg, F.nsc J.nsc, I3, hcur3, F.own J.own, F.off J.off,
       hAI3, B3, F.isorted J.isorted, hrun3, hblk⟩
   have hC0 := JCs.same J hF.1 F.ksz

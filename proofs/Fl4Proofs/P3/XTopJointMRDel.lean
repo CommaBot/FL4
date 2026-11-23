@@ -208,7 +208,7 @@ theorem jPreemptHypLM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
     PPHypDW (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb) th := by
   intro s a σ G hDS ⟨⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩, hR, hV, hVI⟩
   subst hth
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   obtain ⟨r0, hr0, hP0⟩ := J0.ppJDMV hAK hA hnd hM hPA hR hV hVI hns hp0
   have hPS : sched.preemption_point st arI s a ⦃ r => ∃ σ',
       ((r.1 = .Ok () ∧ (.ok (), σ') ∈ ((Fl4Spec.preemptionPoint (Z := Unit)).run σ).1 ∧
@@ -268,7 +268,7 @@ theorem delHypsJLM [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : A
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H) th := by
+      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th := by
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by

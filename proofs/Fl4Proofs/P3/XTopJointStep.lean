@@ -560,6 +560,32 @@ theorem JAtZ.schW_nv {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap}
     exact J.ks_nv (by omega) (by omega) u hu
 
 variable {arI} in
+/-- A scheduler-step word (`SchW`) is no TCB's deadline word (KENTRY-PLAN jc6e). -/
+theorem JAtZ.schW_ntd {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h : SchW (L := L) Z.T Z.c s b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  have hT : P1.TcbPlaced Z.T := J.ip.e.tcb
+  intro u hu
+  rcases h with ⟨y, hy, rfl | rfl | rfl⟩ | h | h
+  · exact Sched.tdA_ne (K := 3480) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.tdA_ne (K := 3488) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.tdA_ne (K := 3592) hT hy hu (tfield_val (hT y hy) (by simp)) (by omega) (by omega)
+  · exact Sched.KFoot.ne_td J.xtop.fin.1.1.1 (Sched.KFoot.of_sfoot (Or.inr ⟨h.1, h.2.1⟩)) hu
+  · have := domKW_val h
+    exact J.ks_ntd (by omega) (by omega) u hu
+
+variable {arI} in
+/-- **`set_thread_state` keeps the deadline words** (its scheduler footprint). -/
+theorem JAtZ.td_sts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t v : U64} {s1 : S} (ht : t ∈ Z.T)
+    (hs1 : sched.set_thread_state st s t v = ok s1) : Sched.TdKeep (L := L) H s s1 := by
+  have hw := Sched.set_thread_state_sfoot J.xtop.fin.1.1.1 ht v
+  rw [hs1, WP.spec_ok] at hw
+  exact J.tdkeep_of hw fun b hb u hu => Sched.KFoot.ne_td J.xtop.fin.1.1.1 (Sched.KFoot.of_sfoot hb) hu
+
+variable {arI} in
 /-- **`set_thread_state` keeps the VCPU words** (its scheduler footprint). -/
 theorem JAtZ.vkeep_sts {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
     {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}

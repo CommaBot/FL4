@@ -360,9 +360,11 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
     have e := congrArg (fun z => z.archState.x64GlobalPml4) hcn.1; exact e
   have hutc := J.cn_utc arI [(ps.bv, idxs), (pd.bv, idxd)] hW hcW hoW hUS hw hgp hM'
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb
   have hjc := J.jcov_cover hw.1 hM' hCU.1 hCU.2
     (fun q hq => J.deadP_slot hX1' hcn hkcT hw (J.jcov.dead q hq))
     (J.idleW_keep hX1'.fin.1.1.1 (CnStep.of_cnK hcn).idle (CnStep.of_cnK hcn).isc)
+    (DXKeep.of_dbg hKd (J.tdkeep_slot hw))
   have hfh' : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) =
         .Endpoint ep b0 b1 b2 b3 b4 := by
