@@ -159,7 +159,7 @@ structure JRest (Z : XSets) (H : P1.Heap) (Cs Ac : Set U64) (Lst : U64 → List 
   apart : Sched.SlotsApart (st := st) Z.th Z.T Z.N Z.C Z.R Z.c s σ
   jpl : ∃ Tr Cq, Sched.JPlaced (L := L) Z.th H Tr Cq s σ
   jcov : Sched.JCovD (L := L) Z.th H Z.G D Cs s
-  kern : JKern (L := L) H Cs D Z.th s σ
+  kern : JKern (L := L) arI H Cs D Z.th s σ
   utc : ∀ sl p sb fi dev, AbsSlot Z.th sl → capAt (L.mem s) (cslotAddr sl) = ok (.Untyped p sb fi dev) → dev = false →
     Sched.UtCapP3 (L := L) arI Z.th s σ Z.G sl p sb fi
   nsc : Sched.NSC Z.N Z.C σ

@@ -44,7 +44,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
 
 /-- A machine-state-only spec step is an `ArFr` step. -/
 theorem arFr_setUm (σ : Fl4Spec.State Unit) (um : Fl4Spec.Word → Fl4Spec.Word8) : ArFr σ (Endp.setUm σ um) :=
-  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 open Fl4Proofs.P1 in
 set_option maxHeartbeats 16000000 in

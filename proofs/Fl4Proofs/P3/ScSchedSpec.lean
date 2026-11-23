@@ -36,7 +36,7 @@ def SchKeep (σ σ' : State Unit) : Prop :=
     σ'.isOriginalCap = σ.isOriginalCap ∧ σ'.domainList = σ.domainList ∧ σ'.domainStartIndex = σ.domainStartIndex ∧
     σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts ∧
     σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 ∧
-    σ'.archState.x64HugePages = σ.archState.x64HugePages ∧
+    σ'.archState.x64Plat = σ.archState.x64Plat ∧
     σ'.archState.x64AsidTable = σ.archState.x64AsidTable ∧ σ'.interruptStates = σ.interruptStates ∧
     σ'.interruptIrqNode = σ.interruptIrqNode ∧ σ'.idleSc = σ.idleSc
 

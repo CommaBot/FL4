@@ -5,7 +5,8 @@ FL4's `tdx::decode` against the spec's FL4 extension (`Fl4Spec/Ext/Tdx`,
 
 * `report_frame_cases`, `quote_frame_cases`, `quote_len_ok_eq`: FL4's frame
   and length checks are the spec's (`tdxReportFrame`, `tdxQuoteFrame` with
-  `tdxDmaRam`, `tdxQuoteLenOk`), given `TdxPlat` [P] (ARIface's `tdx`).
+  the platform record's `tdxDmaRam`, `tdxQuoteLenOk`), given FL4's `dma_ram`
+  answering that record (`TdxRel`, the joint relation's `JKern.tdx`).
 * `tdx_perform_out`: every status word is an outcome of the spec's TDCALL,
   with the frame's bytes unchanged (the TD module's outputs are the spec's
   choices, so FL4's value needs no premise).
@@ -62,13 +63,15 @@ theorem report_frame_cases (c : capability.Cap) :
 section
 variable {A : Type} (arI : machine.Arch A)
 
-/-- **FL4's `quote_frame` is the spec's `tdxQuoteFrame` and `tdxDmaRam`**
-(given `TdxPlat`). -/
-theorem quote_frame_cases (hD : TdxPlat arI) (a : A) (c : capability.Cap) :
+/-- **FL4's `quote_frame` is the spec's `tdxQuoteFrame` and the platform
+record's `tdxDmaRam`** (given FL4's `dma_ram` answering the record, `TdxRel`'s
+second part). -/
+theorem quote_frame_cases {P : Fl4Spec.X64Platform}
+    (hD : ∀ a (p n : U64), arI.dma_ram a p n = ok (P.tdxDmaRam p.bv n.val)) (a : A) (c : capability.Cap) :
     (tdx.quote_frame arI a c = ok none ∧
-      ∀ p n, Fl4Spec.tdxQuoteFrame (absCap c) = some (p, n) → Fl4Spec.tdxDmaRam p n = false) ∨
+      ∀ p n, Fl4Spec.tdxQuoteFrame (absCap c) = some (p, n) → P.tdxDmaRam p n = false) ∨
     ∃ p n : U64, tdx.quote_frame arI a c = ok (some (p, n)) ∧ Fl4Spec.tdxQuoteFrame (absCap c) = some (p.bv, n.val) ∧
-      Fl4Spec.tdxDmaRam p.bv n.val = true := by
+      P.tdxDmaRam p.bv n.val = true := by
   cases c
   case Frame p sz r d m ept asid va =>
     cases d
@@ -79,7 +82,7 @@ theorem quote_frame_cases (hD : TdxPlat arI) (a : A) (c : capability.Cap) :
     all_goals
       simp only [tdx.quote_frame, Fl4Spec.tdxQuoteFrame, absCap, frameSizeOf, ↓reduceIte]
       by_cases h : r.val = 3
-      · rw [if_pos (rw3_iff.2 h), if_pos (vmRightsOf_rw.2 h), hD.dma_ram]
+      · rw [if_pos (rw3_iff.2 h), if_pos (vmRightsOf_rw.2 h), hD]
         simp only [bind_ok]
         split
         · rename_i hb; right; exact ⟨p, _, rfl, rfl, hb⟩
@@ -145,6 +148,14 @@ theorem tdx_perform_out (inv : Fl4TdxInvocation) (σ : State Unit) (v : Data) :
   | getQuote f l => exact mem_bind_nd (hw f (unat l)) (hstat σ)
 
 /-! ## The spec's decode -/
+
+/-- The decode's read of the platform record. -/
+theorem tdx_dec_gets {β : Type} (σ : Fl4Spec.State Unit) (k : Fl4Spec.X64Platform → Fl4Spec.SEMonad Unit β) :
+    (Fl4Spec.NonDetE.liftE (Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.archState.x64Plat) >>= k).run σ =
+      (k σ.archState.x64Plat).run σ :=
+  run_bind_ok (s := σ) (a := σ.archState.x64Plat)
+    (run_liftE (m := Fl4Spec.NonDet.gets fun s : Fl4Spec.State Unit => s.archState.x64Plat) (s := σ)
+      (a := σ.archState.x64Plat) rfl) k
 
 theorem tdx_unlessE_pos {σ ε : Type} {P : Prop} [Decidable P] (h : P) (m : Fl4Spec.NonDetE σ ε Unit) :
     Fl4Spec.NonDetE.unlessE P m = Fl4Spec.NonDetE.returnOk () := by
@@ -280,12 +291,12 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   unfold DecOKRMX syscall.decode_invocation
   rw [hct]; simp only [bind_ok]
   unfold tdx.decode
-  rw [hARI.tdx.active ar]; simp only [bind_ok]
-  by_cases hact : Fl4Spec.tdxActive = true
+  rw [J.kern.tdx.1 ar]; simp only [bind_ok]
+  by_cases hact : σ.archState.x64Plat.tdxActive = true
   swap
   · rw [if_neg hact]; simp only [error.illegal, bind_ok, WP.spec_ok]
     refine herr _ .illegalOperation (Or.inl trivial) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_neg hact]; exact Sched.run_throw_bind _ _ _
   rw [if_pos hact]
   have hlenB : (args.map UScalar.bv).length = length.val := by rw [List.length_map, hlen]
@@ -297,7 +308,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     by_cases h8 : length < 8#u64
     · rw [if_pos h8]; simp only [error.truncated, bind_ok, WP.spec_ok]
       refine herr _ .truncatedMessage (Or.inl trivial) ?_
-      unfold Fl4Spec.decodeTdxInvocation
+      unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
       rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_pos (show (args.map UScalar.bv).length < 8 ∨ excaps = [] from
         Or.inl (by rw [hlenB]; scalar_tac))]
       exact Sched.run_throw_bind _ _ _
@@ -305,7 +316,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     rcases hex with ⟨h0, hnil⟩ | ⟨hx0n, -, c0, a0, rest, hc0, hca0, -, hcs⟩
     · rw [h0]; simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
       refine herr _ .truncatedMessage (Or.inl trivial) ?_
-      unfold Fl4Spec.decodeTdxInvocation
+      unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
       rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_pos (show (args.map UScalar.bv).length < 8 ∨ excaps = [] from
         Or.inr (List.map_eq_nil_iff.1 hnil))]
       exact Sched.run_throw_bind _ _ _
@@ -323,7 +334,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     rcases report_frame_cases c0 with ⟨hn, hsn⟩ | ⟨p, hp, hsp⟩
     · rw [hn]; simp only [bind_ok, error.invalid_cap, WP.spec_ok]
       refine herr _ (.invalidCapability 1) (Or.inr ⟨1#u64, rfl, rfl⟩) ?_
-      unfold Fl4Spec.decodeTdxInvocation
+      unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
       rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_neg hnot, retOk_bind, hfr, hsn] <;> rfl
     rw [hp]; simp only [bind_ok]
     obtain ⟨y0, y1, y2, y3, y4, y5, y6, y7, rest', rfl⟩ :
@@ -338,7 +349,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     obtain ⟨⟨v, a1⟩, hv, -⟩ := spec_exists (hT.tdx_report ar p y0 y1 y2 y3 y4 y5 y6 y7)
     rw [hv]; simp only [bind_ok, tdx_reply_eq]
     refine hsucc (.getReport p.bv (List.take 8 ((y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: y7 :: rest').map UScalar.bv))) v a1 (Or.inl ⟨_, _, _, _, _, _, _, _, _, _, hv⟩) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_neg hnot, retOk_bind, hfr, hsp] <;> rfl
   rw [if_neg h91]
   have hn91 : ¬ Fl4Spec.dataToNat lbl.bv = Fl4Spec.fl4TdxGetReportLabel := fun e => h91 ((lbl_rep_iff lbl).2 e)
@@ -350,7 +361,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     by_cases h7 : length < 7#u64
     · rw [if_pos h7]; simp only [error.truncated, bind_ok, WP.spec_ok]
       refine herr _ .truncatedMessage (Or.inl trivial) ?_
-      unfold Fl4Spec.decodeTdxInvocation
+      unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
       rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd,
         whenE_pos (show (args.map UScalar.bv).length < 7 by rw [hlenB]; scalar_tac)]
       exact Sched.run_throw_bind _ _ _
@@ -368,7 +379,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     by_cases hi : y0 > 3#u64
     · rw [if_pos hi]; simp only [error.invalid_arg, bind_ok, WP.spec_ok]
       refine herr _ (.invalidArgument 0) (Or.inl (by simp [SysErrRel])) ?_
-      unfold Fl4Spec.decodeTdxInvocation
+      unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
       rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd, whenE_neg hnot, retOk_bind]
       have h0 : Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]? = y0.bv := rfl
       simp only [h0]
@@ -381,7 +392,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     obtain ⟨⟨v, a1⟩, hv, -⟩ := spec_exists (hT.tdx_extend_rtmr ar y0 y1 y2 y3 y4 y5 y6)
     rw [hv]; simp only [bind_ok, tdx_reply_eq]
     refine hsucc (.extendRtmr y0.bv (List.take 6 (List.drop 1 ((y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest').map UScalar.bv)))) v a1 (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, _, hv⟩)) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd, whenE_neg hnot, retOk_bind]
     have h0 : Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]? = y0.bv := rfl
     simp only [h0]
@@ -393,7 +404,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   swap
   · rw [if_neg h93]; simp only [error.illegal, bind_ok, WP.spec_ok]
     refine herr _ .illegalOperation (Or.inl trivial) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92,
       if_neg (fun e => h93 ((lbl_quote_iff lbl).2 e))]; rfl
   -- GetQuote
@@ -403,7 +414,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   by_cases h1 : length < 1#u64
   · rw [if_pos h1]; simp only [error.truncated, bind_ok, WP.spec_ok]
     refine herr _ .truncatedMessage (Or.inl trivial) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd,
       whenE_pos (show (args.map UScalar.bv).length < 1 ∨ excaps = [] from Or.inl (by rw [hlenB]; scalar_tac))]
     exact Sched.run_throw_bind _ _ _
@@ -411,7 +422,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   rcases hex with ⟨h0, hnil⟩ | ⟨hx0n, -, c0, a0, rest, hc0, hca0, -, hcs⟩
   · rw [h0]; simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
     refine herr _ .truncatedMessage (Or.inl trivial) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd,
       whenE_pos (show (args.map UScalar.bv).length < 1 ∨ excaps = [] from Or.inr (List.map_eq_nil_iff.1 hnil))]
     exact Sched.run_throw_bind _ _ _
@@ -426,17 +437,17 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     · rw [hlenB] at h; exact h1 (by scalar_tac)
     · cases h
   have hfr : (Fl4Spec.the (e0 :: es)[0]?).1 = absCap c0 := by rw [hca0.2, ← he0] <;> rfl
-  rcases quote_frame_cases arI hARI.tdx ar c0 with ⟨hn, hsn⟩ | ⟨p, n, hp, hsp, hdm⟩
+  rcases quote_frame_cases arI J.kern.tdx.2 ar c0 with ⟨hn, hsn⟩ | ⟨p, n, hp, hsp, hdm⟩
   · rw [hn]; simp only [bind_ok, error.invalid_cap, WP.spec_ok]
     refine herr _ (.invalidCapability 1) (Or.inr ⟨1#u64, rfl, rfl⟩) ?_
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd, whenE_neg hnot, retOk_bind, hfr]
     cases hq : Fl4Spec.tdxQuoteFrame (absCap c0) with
     | none => rfl
     | some pb =>
       obtain ⟨p', n'⟩ := pb
       dsimp only
-      rw [tdx_unlessE_neg (show ¬ (Fl4Spec.tdxDmaRam p' n' = true) by rw [hsn p' n' hq]; simp)]
+      rw [tdx_unlessE_neg (show ¬ (σ.archState.x64Plat.tdxDmaRam p' n' = true) by rw [hsn p' n' hq]; simp)]
       exact Sched.run_throw_bind _ _ _
   rw [hp]; simp only [bind_ok]
   obtain ⟨y0, rest', rfl⟩ : ∃ y0 rest', args = y0 :: rest' := by
@@ -449,7 +460,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
           (Fl4Spec.NonDetE.throwError (.invalidArgument 0)) >>= fun _ =>
         (Fl4Spec.NonDetE.returnOk (Fl4Spec.Fl4TdxInvocation.getQuote p.bv y0.bv) :
           Fl4Spec.SEMonad Unit Fl4Spec.Fl4TdxInvocation)).run σ := by
-    unfold Fl4Spec.decodeTdxInvocation
+    unfold Fl4Spec.decodeTdxInvocation; rw [tdx_dec_gets]
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd, whenE_neg hnot, retOk_bind, hfr,
       hsp]
     dsimp only

@@ -74,7 +74,8 @@ structure OStep (Rg : ObjRef → Prop) (σ σ' : State Unit) : Prop where
   inode : σ'.interruptIrqNode = σ.interruptIrqNode
   io : σ'.archState.x64AllocatedIoPorts = σ.archState.x64AllocatedIoPorts
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
-  huge : σ'.archState.x64HugePages = σ.archState.x64HugePages
+  /-- The platform record (#65 1 GiB pages, #68 TDX), written by no step. -/
+  huge : σ'.archState.x64Plat = σ.archState.x64Plat
   kh : ∀ q, σ'.kheap q ≠ σ.kheap q → (Rg q ∨ Passive (σ.kheap q)) ∧ Passive (σ'.kheap q)
 
 theorem OStep.keep {Rg : ObjRef → Prop} {σ σ' : State Unit} (h : OStep Rg σ σ') {q : ObjRef}

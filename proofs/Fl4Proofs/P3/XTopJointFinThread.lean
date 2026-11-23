@@ -458,7 +458,7 @@ theorem JAtZ.kern_dbg (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     (hhead : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = 0#u64 ∨
       (Z.th (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) = some .tcb ∧
         TcbOk (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))) :
-    JKern (L := L) H Cs D Z.th s' σ := by
+    JKern (L := L) arI H Cs D Z.th s' σ := by
   have K := J.kern
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := J.xtop.fin.1.1.1.lists
@@ -487,7 +487,7 @@ theorem JAtZ.kern_dbg (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.tdx⟩
   rw [hna]; exact hhead
 
 set_option maxHeartbeats 8000000 in

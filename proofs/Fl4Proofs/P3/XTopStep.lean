@@ -151,7 +151,7 @@ theorem ostep_of_cnk {σ σ' : Fl4Spec.State Unit} (hcn : CnK σ σ') (hkc : Kee
     (by have e := congrArg Fl4Spec.AbstractState.interruptStates h; exact e),
     (by have e := congrArg Fl4Spec.AbstractState.interruptIrqNode h; exact e),
     (by exact congrArg (fun a => a.archState.x64AllocatedIoPorts) h), (by exact congrArg (fun a => a.archState.x64GlobalPml4) h),
-    (by exact congrArg (fun a => a.archState.x64HugePages) h), fun q hq => ?_⟩, (by have e := congrArg Fl4Spec.AbstractState.machineState h; exact e), (by have e := congrArg Fl4Spec.AbstractState.archState h; exact e)⟩
+    (by exact congrArg (fun a => a.archState.x64Plat) h), fun q hq => ?_⟩, (by have e := congrArg Fl4Spec.AbstractState.machineState h; exact e), (by have e := congrArg Fl4Spec.AbstractState.archState h; exact e)⟩
   rcases hkc q with e | ⟨r, cs, cs', h1, h2⟩
   · exact absurd e hq
   · exact ⟨Or.inr (Or.inr (Or.inl ⟨r, cs, h1⟩)), Or.inr (Or.inl ⟨r, cs', h2⟩)⟩
@@ -316,7 +316,7 @@ theorem XTopAt.frameStep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S
     (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
     (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
-    (hgh : σ'.archState.x64HugePages = σ.archState.x64HugePages)
+    (hgh : σ'.archState.x64Plat = σ.archState.x64Plat)
     (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
     (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :

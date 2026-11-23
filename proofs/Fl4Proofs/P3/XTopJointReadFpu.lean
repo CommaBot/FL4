@@ -101,7 +101,7 @@ theorem JAtZ.frameWrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {w : U64
     (hks : w.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 304384 ≤ w.val) (v : U64) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.wr s w v) a σ := by
   set s1 := L.wr s w v with hs1
-  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
   have hal : P1.Aligned w := hu.al
   have hW : P1.WritesIn st s s1 (· = w) := P1.writesIn_wr hal

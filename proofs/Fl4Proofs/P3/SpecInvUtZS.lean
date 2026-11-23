@@ -183,6 +183,8 @@ theorem okv_decodeTdx {w : UView} (label : Data) (args : List Data) (ex : List (
     (hex : ∀ p ∈ ex, w.2.1 p.2 = some p.1) :
     OkV w (TdxI w) (decodeTdxInvocation (Z := Unit) label args ex) := by
   unfold decodeTdxInvocation NonDetE.unlessE
+  refine okv_bind_uk (fun v => by uk_auto) (fun plat => ?_)
+  dsimp only
   split
   · refine okv_returnOk_bind (okv_ite ?_ (okv_ite ?_ (okv_ite ?_ (okv_throw _))))
     · unfold NonDetE.whenE

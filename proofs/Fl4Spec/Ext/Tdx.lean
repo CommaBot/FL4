@@ -14,7 +14,7 @@ FL4 places it in a TD guest only, in the root CNode (`init_tdx_control`).
 **The invocations** (labels `fl4TdxGetReportLabel` .. `fl4TdxGetQuoteLabel`,
 FL4's numbers 91..93), with FL4's checks in FL4's order
 (`decodeTdxInvocation`): the platform must have the TD module
-(`tdxActive`, else `IllegalOperation`); then
+(`x64Plat.tdxActive`, else `IllegalOperation`); then
 
 * `GetReport` (8 words of report data, a frame): fewer than 8 words or no
   extra cap `TruncatedMessage`; the frame must be a writable non-device
@@ -24,8 +24,8 @@ FL4's numbers 91..93), with FL4's checks in FL4's order
   index above 3 `InvalidArgument 0`;
 * `GetQuote` (length, a frame): no word or no extra cap `TruncatedMessage`;
   the frame must be a writable device 4 KiB / 2 MiB frame
-  (`tdxQuoteFrame`) that the platform shares with the VMM (`tdxDmaRam`,
-  FL4's `dma_ram`), else `InvalidCapability 1`; the length must be whole
+  (`tdxQuoteFrame`) that the platform shares with the VMM
+  (`x64Plat.tdxDmaRam`, FL4's `dma_ram`), else `InvalidCapability 1`; the length must be whole
   pages, at least one, within the frame (`tdxQuoteLenOk`), else
   `InvalidArgument 0`;
 * any other label `IllegalOperation`.
@@ -37,12 +37,16 @@ MR0, the message info, the badge register) before the caller runs again
 (FL4's `tdx::reply` after its `TS_RESTART`), and GetReport / GetQuote write
 the frame (the TDREPORT, the quote).
 
-**[P] The platform.** Whether the TD module is present (`tdxActive`) and
+**The platform.** Whether the TD module is present (`tdxActive`) and
 whether a range is RAM shared with the VMM (`tdxDmaRam`) are properties of
-the platform, not of kernel state: opaque constants of the spec (as l4v's
-`consts'` machine values), which FL4's arch queries `tdx_active` / `dma_ram`
-answer (a platform obligation of the refinement). They decide decode errors,
-so they are values, not choices: a decode's error is its only outcome. The
+the platform: fields of the arch state's platform record `x64Plat`
+(X64/Structs `X64Platform`, with #65's `hugePages`), which no operation
+writes. The decode reads them from the state (as `createMappingEntries`
+reads `hugePages`). They decide decode errors, so they are values, not
+choices: a decode's error is its only outcome. The refinement relates them
+to FL4's arch queries `tdx_active` / `dma_ram` by a clause of the joint
+relation (`JKern.tdx`, P3 JointAt), set by choosing the start state's
+record. The
 status word and the bytes written into the frame are outputs of the TD
 module: the spec takes them nondeterministically (`NonDet.select`, as
 `performTestAndClearAccessed` does for the accessed bit). The frame write
@@ -94,21 +98,14 @@ def tdxQuoteFrame : Cap → Option (ObjRef × Nat)
 def tdxQuoteLenOk (len : Data) (bytes : Nat) : Prop :=
   0x1000 ≤ unat len ∧ unat len % 0x1000 = 0 ∧ unat len ≤ bytes
 
-/-- [P] The platform: the kernel runs in a TD guest with the TD module (FL4's
-`tdx_active`). -/
-opaque tdxActive : Bool
-
-/-- [P] The platform: the `bytes` bytes at `frame` are RAM shared with the VMM
-(FL4's `dma_ram`). -/
-opaque tdxDmaRam : ObjRef → Nat → Bool
-
 section
 variable {Z : Type} [StateExt Z]
 
 /-- The decode (module docstring). -/
 def decodeTdxInvocation (label : Data) (args : List Data) (extraCaps : List (Cap × CslotPtr)) :
     SEMonad Z Fl4TdxInvocation := do
-  NonDetE.unlessE tdxActive <| NonDetE.throwError .illegalOperation
+  let plat ← NonDetE.liftE <| NonDet.gets fun s : State Z => s.archState.x64Plat
+  NonDetE.unlessE plat.tdxActive <| NonDetE.throwError .illegalOperation
   if dataToNat label = fl4TdxGetReportLabel then do
     NonDetE.whenE (args.length < 8 ∨ extraCaps = []) <| NonDetE.throwError .truncatedMessage
     match tdxReportFrame (the extraCaps[0]?).1 with
@@ -123,7 +120,7 @@ def decodeTdxInvocation (label : Data) (args : List Data) (extraCaps : List (Cap
     NonDetE.whenE (args.length < 1 ∨ extraCaps = []) <| NonDetE.throwError .truncatedMessage
     match tdxQuoteFrame (the extraCaps[0]?).1 with
     | some (p, bytes) => do
-      NonDetE.unlessE (tdxDmaRam p bytes) <| NonDetE.throwError (.invalidCapability 1)
+      NonDetE.unlessE (plat.tdxDmaRam p bytes) <| NonDetE.throwError (.invalidCapability 1)
       let len := the args[0]?
       NonDetE.unlessE (tdxQuoteLenOk len bytes) <| NonDetE.throwError (.invalidArgument 0)
       NonDetE.returnOk (.getQuote p len)

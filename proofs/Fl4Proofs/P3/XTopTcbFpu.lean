@@ -156,7 +156,7 @@ theorem XTopAt.frameStepV {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : 
     (hum : σ'.machineState.underlyingMemory = σ.machineState.underlyingMemory)
     (hasid : σ'.archState.x64AsidTable = σ.archState.x64AsidTable)
     (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
-    (hgh : σ'.archState.x64HugePages = σ.archState.x64HugePages)
+    (hgh : σ'.archState.x64Plat = σ.archState.x64Plat)
     (hSch' : Sched.SchedRel st Z.N Z.T Z.C Z.c s' σ')
     (hIrq' : IrqRel (L.mem s') (L.ksb s) σ') (hIo' : IoRel (L.mem s') (L.ksb s) σ')
     (hD' : DomRel (L.mem s') (L.ksb s) σ') (hAR' : AR a' σ'.archState.x64CurrentCr3) :

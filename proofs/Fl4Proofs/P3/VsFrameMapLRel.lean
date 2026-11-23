@@ -610,12 +610,12 @@ macro "map_tail_H" : tactic => `(tactic| (
     by_cases hhb : ((L.mem s (core.num.U64.wrapping_add (L.ksb s) layout.ks.FEATURES) &&&
         layout.ks.FEATURE_HUGE_PAGES) != 0#u64) = true
     rotate_left
-    · have hσh : σ.archState.x64HugePages = false := by rw [← hHg]; exact Bool.eq_false_iff.mpr hhb
+    · have hσh : σ.archState.x64Plat.hugePages = false := by rw [← hHg]; exact Bool.eq_false_iff.mpr hhb
       simp only [hhb, Bool.false_eq_true, ↓reduceIte, error.illegal, bind_ok]
       exact (WP.spec_ok _).2 (Or.inl ⟨_, .illegalOperation, rfl,
         Or.inl (Or.inl (show SysErrRel (.Sys .IllegalOperation) .illegalOperation from trivial)),
         hdec.trans (mapTailH_noHuge hf ((al30 a0).1 hal) hσh), rfl, rfl⟩)
-    have hσh : σ.archState.x64HugePages = true := by rw [← hHg]; exact hhb
+    have hσh : σ.archState.x64Plat.hugePages = true := by rw [← hHg]; exact hhb
     simp only [hhb, ↓reduceIte]
     apply ok_bind_spec
     refine WP.spec_bind (page_entry_slot_huge s σ hPt hPP hp1 a0 hvU) ?_

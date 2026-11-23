@@ -648,7 +648,7 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     (hhd : ¬ (p.val ≤ (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val ∧
       (L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)).val < p.val + 2 ^ sb.val))
     (hg : ¬ (p.val ≤ σ.archState.x64GlobalPml4.toNat ∧ σ.archState.x64GlobalPml4.toNat < p.val + 2 ^ sb.val)) :
-    JKern (L := L) (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs D
+    JKern (L := L) arI (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Cs D
       (restrictTh Z.th p.val (p.val + 2 ^ sb.val)) s σ' := by
   have K := J.kern
   have hcT : ¬ (p.val ≤ (L.curW s).val ∧ (L.curW s).val < p.val + 2 ^ sb.val) :=
@@ -659,7 +659,7 @@ theorem JAtZ.dropKern (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {σ' : F
     P1.HeapOK.drop K.heap, ?_, fun q k hq hk => K.hks q k (drop_some hq) hk,
     fun q z hq => K.hksIn q z (drop_some hq), fun q k hq c hc => K.hnd q k (drop_some hq) c hc, K.ksbFit,
     K.ksbAl, K.nodeFit, K.cpuCs, drop_keep K.curH hcur, by rw [P1.Heap.drop_of_not hcsc]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.tdx.frame (by rw [harch])⟩
   · rcases K.head with h | ⟨h1, h2⟩
     · exact Or.inl h
     · exact Or.inr ⟨by rw [restrictTh_out hhd]; exact h1, h2⟩

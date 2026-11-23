@@ -154,15 +154,15 @@ variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st]
 the window (objects meeting it dropped, the new ones added); the new
 objects are no `other` objects and lie off the kernel-state block and the
 nodes; the current thread's and SC's objects are kept. -/
-theorem JKern.hout {H H' : Heap} {Cs D D' : Set U64} {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
-    (K : JKern (L := L) H Cs D th s σ) (hH' : HeapOK H') {A k w : Nat} {Kd : Option HKind}
+theorem JKern.hout {Aa : Type} {arI : machine.Arch Aa} {H H' : Heap} {Cs D D' : Set U64} {th : TypedHeap} {s : S} {σ : Fl4Spec.State Unit}
+    (K : JKern (L := L) arI H Cs D th s σ) (hH' : HeapOK H') {A k w : Nat} {Kd : Option HKind}
     (hout : HOut H H' A (A + w * k) A k w Kd) (hk1 : 1 ≤ k) (hA0 : 0 < A)
     (hnew : ∀ q kd, NewAt A k w q → Kd = some kd →
       (q.val + 2 ^ kd.bits ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ q.val) ∧
       ∀ c ∈ Cs, q.val + 2 ^ kd.bits ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val)
     (hcur : (L.curW s).val + 2 ^ 12 ≤ A ∨ A + w * k ≤ (L.curW s).val)
     (hcsc : H' (L.cscW s) ≠ none) :
-    JKern (L := L) H' Cs D' th s σ := by
+    JKern (L := L) arI H' Cs D' th s σ := by
   have back := fun {q} {kd} (h : H' q = some kd) => hout_back hout h
   have h0' : H' 0#u64 = none := by
     cases e : H' 0#u64 with
@@ -173,7 +173,7 @@ theorem JKern.hout {H H' : Heap} {Cs D D' : Set U64} {th : TypedHeap} {s : S} {�
       · rw [K.h0] at h; cases h
   refine ⟨K.orig, K.cur, K.curT, K.act, K.dwAl, K.dwObj, K.dwNe, K.head, K.gpm, K.ga, K.gf, hH', h0',
     fun q kd hq ho => ?_, fun q z hq => ?_, fun q kd hq c hc => ?_, K.ksbFit, K.ksbAl, K.nodeFit, K.cpuCs, ?_, hcsc,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.tdx⟩
   · rcases back hq with ⟨hn, hK⟩ | h
     · exact (hnew q kd hn hK).1
     · exact K.hks q kd h ho

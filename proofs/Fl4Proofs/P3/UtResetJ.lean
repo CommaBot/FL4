@@ -233,7 +233,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := rfl
-  have hkern := J.kern_keep hks hcpu hX'.fin.1.1.1 hC'.ct hC'.csc (fun sl h => Or.inl h) hgp
+  have hkern := J.kern_keep hks hcpu hX'.fin.1.1.1 hC'.ct hC'.csc (fun sl h => Or.inl h) rfl
     (fun p ao h => (hC'.look (fun _ _ e => by cases e) (fun _ e => by cases e)).2 h) hDbg (D' := D)
   -- the untyped caps' facts
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks

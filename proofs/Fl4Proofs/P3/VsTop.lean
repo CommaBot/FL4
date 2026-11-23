@@ -93,7 +93,7 @@ def KRootW (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
 
 /-- The kernel words written at boot only: the kernel root (`KRootW`) and,
 since #65, the `FEATURES` word's 1 GiB-page bit (`HugeRel`: the spec's
-`x64HugePages`). -/
+`x64Plat.hugePages`). -/
 def KRootRel (m : U64 → U64) (ksb : U64) (σ : Fl4Spec.State Unit) : Prop :=
   KRootW m ksb σ ∧ HugeRel m ksb σ
 
@@ -121,7 +121,7 @@ theorem feat_val {kb : U64} (hkf : kb.val + 13568 ≤ 2 ^ 64) :
 /-- `HugeRel` across a step keeping the `FEATURES` word and the spec's flag. -/
 theorem HugeRel.frame {m m' : U64 → U64} {kb : U64} {σ σ' : Fl4Spec.State Unit} (h : HugeRel m kb σ)
     (hm : m' (core.num.U64.wrapping_add kb layout.ks.FEATURES) = m (core.num.U64.wrapping_add kb layout.ks.FEATURES))
-    (hh : σ'.archState.x64HugePages = σ.archState.x64HugePages) : HugeRel m' kb σ' := by
+    (hh : σ'.archState.x64Plat = σ.archState.x64Plat) : HugeRel m' kb σ' := by
   unfold HugeRel at h ⊢; rw [hm, hh]; exact h
 
 

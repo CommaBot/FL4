@@ -16341,3 +16341,35 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
   `TopPostRMX`'s error clause relaxed from a singleton `run` to membership (all decode refinements). (2)
   `decode_invocation_refines`' `hTdxControl` kept (see above). (3) The #71 FrameBatch branches remain (separate line).
 - Scripts (untracked): tdx4-run.sh (mirror wrapper: reverts stale scratch, absolute-path trap), axtdx4b.lean.
+
+### tdx5 (on 2b33b8b1) — lead review of tdx4's open point 1: the opaque platform constants replaced by a spec platform record (1 GiB precedent); no `kernel_entry_reach*` statement changed
+- **Where the values live.** X64/Structs `X64Platform` (`hugePages`, `tdxActive`, `tdxDmaRam : ObjRef → Nat → Bool`),
+  the arch state's field `x64Plat` (replaces m77's `x64HugePages`; no spec operation writes it; `initArchState`: huge
+  pages on, not a TD guest). `decodeTdxInvocation` reads it first (`NonDet.gets (·.archState.x64Plat)`), as
+  `createMappingEntries` reads `x64Plat.hugePages`. `Fl4Spec.tdxActive` / `Fl4Spec.tdxDmaRam` (opaque) removed.
+- **The relation.** JointAt `TdxRel arI σ := (∀ a, arI.tdx_active a = ok σ.archState.x64Plat.tdxActive) ∧ ∀ a p n,
+  arI.dma_ram a p n = ok (σ.archState.x64Plat.tdxDmaRam p.bv n.val)`, a new carried field `JKern.tdx` (so part of
+  `JAtZ`, i.e. of the start-state assumption, INV-PLAN A18 next to `HugeRel`). Kept by every step through
+  `TdxRel.frame` (it depends on `x64Plat` only): `KsStep.huge` now states `x64Plat` unchanged, `ArFr.plat` /
+  `archF` carry it, `JAtZ.kern_keep` takes it with the global PML4. `TdxPlat` removed from `ARIface` (no TDX field left).
+- **Satisfiability** (`TdxRel.adjust`): for `arI` with `TdxTotal arI` (both queries total and arch-state independent:
+  `∃ b, ∀ a, tdx_active a = ok b` and `∀ p n, ∃ v, ∀ a, dma_ram a p n = ok v`) and any spec state `σ`,
+  `TdxRel arI (withPlat σ (tdxPlatOf arI h σ.archState.x64Plat))`, where `withPlat` changes the record only and
+  `tdxPlatOf` keeps `hugePages`. So the clause restricts the choice of the start state's record, never the platform.
+- **Point 2** (`DecodeTop.decode_invocation_refines`' `hTdxControl`): kept as tdx4 said (caller-less dispatch, one
+  hypothesis per cap type; the real path `decOK_J` has no TDX premise).
+- **Callers fixed in tdx7** (sites the first build reached only after earlier errors): `JAtZ.kern_keep` /
+  `kern_keepC` / `JKern.keepH` / `JAtZR.kern_keep` now take the `(x64GlobalPml4, x64Plat)` pair — XTopJointRest (2),
+  XTopJointDel, XTopJointVsSub, XTopJointJAtZRA, XTopJointMakePool (`hMs.1.huge`), UtDevReset / UtResetJ (`rfl`),
+  UtCnRet, UtDevRet, UtDevUt, UtEpRet, UtPmRet, UtTcbRet, UtUtRet, UtScRet (`hgpP` from `hcnk.1` / `hA.arch`);
+  UtDropJ2 `dropKern`'s result `JKern … arI`; XTopJointVsMap's `ArFr` literal (17 fields); XTopJointTdx
+  `tdx_dec_gets` (explicit `run_bind_ok` / `run_liftE` arguments).
+- **Builds and axioms (tokyo, LEAN_NUM_THREADS=1, one lean at a time via leanq).** `lake build` (x86) with m77's six
+  FrameBatch scratch sorries applied (reverted after): "Build completed successfully (7215 jobs)", 0 errors. No
+  `sorry` in the committed sources (grep). `#print axioms` (axtdx4b.lean, untracked): `vfh_eq`, `vfh_ep`,
+  `decode_invocation_tdxJ`, `SInvUZ.zr_tdx`, `SInvUZ.okv_fl4Decode_z`, `MKD.tdx_decode`, `SInvR.A13b.perfA_tdx`,
+  `TdxRel.adjust`: [propext, Classical.choice, Quot.sound]; `tdx_perform_out`: none; `decOK_J`, `kernel_entry_reach`,
+  `kernel_entry_reachU10`, `kernel_entry_reachU2`: + `sorryAx`, from the #71 FrameBatch scratch only (separate line).
+  AArch64 (`lake build Fl4ProofsA64`): see the follow-up line below.
+- Scripts (untracked): tdx4-run.sh, tdx-build.sh (fake-sysroot leanq + disk/memory/swap/load guard), leanq,
+  leanq-root.sh, axtdx4b.lean.

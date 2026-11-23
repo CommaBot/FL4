@@ -65,7 +65,8 @@ structure KsStep (σ σ' : Fl4Spec.State Unit) : Prop where
   asidT : σ'.archState.x64AsidTable = σ.archState.x64AsidTable
   gpml4 : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4
   cr3 : σ'.archState.x64CurrentCr3 = σ.archState.x64CurrentCr3
-  huge : σ'.archState.x64HugePages = σ.archState.x64HugePages
+  /-- The platform record (#65 1 GiB pages, #68 TDX), written by no step. -/
+  huge : σ'.archState.x64Plat = σ.archState.x64Plat
 
 theorem KsStep.refl (σ : Fl4Spec.State Unit) : KsStep σ σ :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩

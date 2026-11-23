@@ -84,17 +84,19 @@ from `JKern` and the scheduler relation before, at any typed heap: the head
 word of core 0 may change, e.g. to a new TCB). -/
 theorem JKern.keepH {H : P1.Heap} {Cs D D' : Set U64} {th : TypedHeap} {N T C : Set U64} {c : U64}
     {s s' : S} {σ σ' : Fl4Spec.State Unit}
-    (K : JKern (L := L) H Cs D th s σ) (hS : Sched.SchedRel st N T C c s σ)
+    (K : JKern (L := L) arI H Cs D th s σ) (hS : Sched.SchedRel st N T C c s σ)
     (hks : L.ksb s' = L.ksb s) (hcpu : L.cpu s' = L.cpu s)
     (hS' : Sched.SchedRel st N T C c s' σ')
     (hct : σ'.curThread = σ.curThread) (hcsc : σ'.curSc = σ.curSc)
     (horig : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot th sl)
-    (hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4)
+    (hgp : (σ'.archState.x64GlobalPml4, σ'.archState.x64Plat) = (σ.archState.x64GlobalPml4, σ.archState.x64Plat))
     (hao : ∀ p ao, σ.kheap p = some (.archObj ao) → σ'.kheap p = some (.archObj ao))
     (hhead : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = 0#u64 ∨
       (th (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)) = some .tcb ∧
         TcbOk (L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS)))) :
-    JKern (L := L) H Cs D' th s' σ' := by
+    JKern (L := L) arI H Cs D' th s' σ' := by
+  have hpl : σ'.archState.x64Plat = σ.archState.x64Plat := congrArg Prod.snd hgp
+  replace hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := congrArg Prod.fst hgp
   have hna : ∀ c o, L.nodeAt s' c o = L.nodeAt s c o := P1.nodeAt_of_ksb hks
   obtain ⟨Q, R, hc, hs⟩ := hS.lists
   obtain ⟨Q', R', hc', hs'⟩ := hS'.lists
@@ -123,7 +125,7 @@ theorem JKern.keepH {H : P1.Heap} {Cs D D' : Set U64} {th : TypedHeap} {N T C : 
     K.heap, K.h0, by rw [hks]; exact K.hks, by rw [hks]; exact K.hksIn, fun p k hp c hc => by rw [hnb]; exact K.hnd p k hp c hc,
     by rw [hks]; exact K.ksbFit, by rw [hks]; exact K.ksbAl, by rw [hks, hcpu]; exact K.nodeFit,
     by rw [hcpu]; exact K.cpuCs, by rw [ecw]; exact K.curH, by rw [ecs]; exact K.cscH,
-    K.csLt, K.cs0⟩
+    K.csLt, K.cs0, K.tdx.frame hpl⟩
 
 
 set_option maxHeartbeats 4000000 in

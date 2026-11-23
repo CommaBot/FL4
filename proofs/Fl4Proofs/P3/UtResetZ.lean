@@ -167,7 +167,7 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
     (hnd : ∀ c ∈ Cs, q.val + n.val ≤ L.nodeBase s c ∨ L.nodeBase s c + 4288 ≤ q.val) :
     JAtZ (L := L) arI AR Z H Cs Ac Lst D (L.zr s q n) a σ := by
   set s1 := L.zr s q n with hs1
-  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  have F : ArFr σ σ := ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   have hP := J.xtop.fin.1.2
   have hq8 : q.val % 8 = 0 := hal
   let W : U64 → Prop := fun b => P1.Aligned b ∧ q.val ≤ b.val ∧ b.val < q.val + n.val
