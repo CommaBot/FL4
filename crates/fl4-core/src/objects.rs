@@ -40,6 +40,8 @@ pub fn cap_size_bits(c: Cap) -> u64 {
         Cap::Ept { .. } => 12,
         #[cfg(feature = "aarch64")]
         Cap::Ept { .. } => bits::STAGE2_VSPACE,
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { .. } => bits::HIGH_VSPACE,
         Cap::AsidPool { .. } => bits::ASID_POOL,
         _ => 0,
     }
@@ -64,6 +66,8 @@ pub fn cap_is_physical(c: Cap) -> bool {
         | Cap::Vcpu { .. }
         | Cap::Ept { .. }
         | Cap::AsidPool { .. } => true,
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { .. } => true,
         _ => false,
     }
 }
@@ -120,6 +124,8 @@ pub fn same_region_as(a: Cap, b: Cap) -> bool {
         Cap::Ept { ptr, level, .. } => matches!(b, Cap::Ept { ptr: p, level: l, .. } if p == ptr && l == level),
         Cap::AsidControl => matches!(b, Cap::AsidControl),
         Cap::AsidPool { ptr, .. } => matches!(b, Cap::AsidPool { ptr: p, .. } if p == ptr),
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { ptr, .. } => matches!(b, Cap::HighVSpace { ptr: p, .. } if p == ptr),
         Cap::IoPortControl => matches!(b, Cap::IoPortControl | Cap::IoPort { .. }),
         Cap::IoPort { first, last, .. } => matches!(b, Cap::IoPort { first: f, last: l, .. } if f == first && l == last),
         Cap::TdxControl => matches!(b, Cap::TdxControl),
@@ -217,6 +223,14 @@ pub fn derive_cap<S: Store>(s: &S, slot: Slot, c: Cap) -> KResult<Cap> {
                 Err(Exc::Sys(SysError::IllegalOperation))
             }
         }
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { mapped, .. } => {
+            if mapped {
+                Ok(c)
+            } else {
+                Err(Exc::Sys(SysError::IllegalOperation))
+            }
+        }
         Cap::Frame { ptr, size, rights, is_device, .. } => {
             Ok(Cap::Frame { ptr, size, rights, is_device, mapped: false, is_ept: false, asid: 0, vaddr: 0 })
         }
@@ -284,6 +298,13 @@ pub fn finalise_cap_object<S: Store, A: Arch>(s: &mut S, a: &mut A, c: Cap, fin:
         Cap::AsidPool { ptr, asid_base } => {
             if fin {
                 vspace::delete_asid_pool(s, a, asid_base, ptr);
+            }
+            (Cap::Null, Cap::Null)
+        }
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { ptr, mapped, asid } => {
+            if fin && mapped {
+                vspace::delete_asid(s, a, asid, ptr | vspace::ROOT_HIGH);
             }
             (Cap::Null, Cap::Null)
         }

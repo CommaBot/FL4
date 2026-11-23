@@ -937,8 +937,34 @@ fn an_application_processor_must_match_the_boot_core() {
         vgic_lrs: 0,
         virt: false,
         vgic_vtr: 0,
+        pauth: 0,
     };
     assert!(ap_caps::ap_matches(&bsp, &bsp));
+    // Pointer authentication must agree both ways, field by field: a
+    // thread's PAC keys are loaded on whichever core runs it, and must
+    // compute (and fail) the same there.
+    use ap_caps::{pauth_fields_of, pauth_in};
+    // QARMA5 (APA 1) with generic authentication (GPA 1), PAuth2 + FPAC
+    // (APA 5) with it, QARMA3 (APA3 1, GPA3 1), and IMPLEMENTATION DEFINED
+    // (API 1, GPI 1).
+    let qarma5 = pauth_fields_of((1 << 4) | (1 << 24), 0);
+    let qarma5_fpac = pauth_fields_of((5 << 4) | (1 << 24), 0);
+    let qarma3 = pauth_fields_of(0, (1 << 12) | (1 << 8));
+    let imp = pauth_fields_of((1 << 8) | (1 << 28), 0);
+    let no_ga = pauth_fields_of(1 << 4, 0);
+    for f in [qarma5, qarma5_fpac, qarma3, imp, no_ga] {
+        assert!(pauth_in(f), "{f:#x}");
+    }
+    assert!(!pauth_in(pauth_fields_of(1 << 24, 1 << 8)), "generic authentication alone is no FEAT_PAuth");
+    assert_eq!(pauth_fields_of(u64::MAX, u64::MAX), 0xff00_0ff0 | (0xff00 << 32));
+    let all = [0, qarma5, qarma5_fpac, qarma3, imp, no_ga];
+    for (i, &b) in all.iter().enumerate() {
+        for (j, &a) in all.iter().enumerate() {
+            let bc = ap_caps::Caps { pauth: b, ..bsp };
+            let ac = ap_caps::Caps { pauth: a, ..bsp };
+            assert_eq!(ap_caps::ap_matches(&bc, &ac), i == j, "bsp {b:#x} ap {a:#x}");
+        }
+    }
     assert!(ap_caps::ap_matches(&bsp, &ap_caps::Caps { pa_bits: 48, ..bsp }));
     for ap in [
         ap_caps::Caps { asid16: false, ..bsp },
@@ -1019,6 +1045,7 @@ fn with_guests_an_application_processor_must_give_them_the_boot_cores_vgic() {
         vgic_lrs: 0,
         virt: false,
         vgic_vtr: 0,
+        pauth: 0,
     };
     for (vhe, vmid16) in [(true, true), (false, false)] {
         let host = ap_caps::Caps { el2: true, vhe, vmid16, vgic_lrs: 4, vgic_vtr: VTR, ..el1 };
@@ -1485,9 +1512,10 @@ fn memory_map_entries_never_wrap() {
 }
 
 /// The kernel's device area (paging.rs): from the top of the window
-/// (fl4-core aarch64 `PPTR_TOP`) to the kernel image (`KERNEL_VBASE`).
+/// (fl4-core aarch64 `PPTR_TOP`) to the high window of `ArmHighVSpace`s
+/// (`HIGH_VSPACE_BASE`, below the kernel image at `KERNEL_VBASE`).
 const DEVICE_BASE: u64 = 0xffff_ff80_0000_0000;
-const DEVICE_TOP: u64 = fl4_bootinfo::KERNEL_VBASE;
+const DEVICE_TOP: u64 = 0xffff_ffe0_0000_0000;
 
 /// Audit r10 F1: a device mapping never wraps past 2^64 into the kernel
 /// image. `device_pages` lets through any range below the physical address
@@ -1498,7 +1526,7 @@ const DEVICE_TOP: u64 = fl4_bootinfo::KERNEL_VBASE;
 #[test]
 fn device_mappings_never_wrap_past_the_device_area() {
     let paging = include_str!("../../crates/fl4-kernel-aarch64/src/paging.rs");
-    assert!(paging.contains("const DEVICE_BASE: u64 = PPTR_TOP;") && paging.contains("const DEVICE_TOP: u64 = KERNEL_VBASE;"));
+    assert!(paging.contains("const DEVICE_BASE: u64 = PPTR_TOP;") && paging.contains("const DEVICE_TOP: u64 = HIGH_VSPACE_BASE;"));
     assert!(paging.contains("crate::bootmem::device_va(s.next_device, size, DEVICE_TOP)"));
     let va = bootmem::device_va;
     // 512 GiB from the base ends exactly at 2^64; one page less than what
@@ -2581,4 +2609,28 @@ fn single_core_dt_cpu_without_unit_address_is_registered() {
     layout::MEMORY.set((0, 0));
     assert_eq!(h.n_cpus, 1);
     assert_eq!(h.cpus[0], 0);
+}
+
+/// TCR_EL1 (TCR_EL2 in VHE mode) gives EL0's TTBR0 addresses Top Byte
+/// Ignore (TBI0, bit 37) always, and with FEAT_PAuth (APA, API or APA3, the
+/// fields the key clearing tests) TBID0 (bit 51) too, so instruction
+/// addresses keep their top byte for pointer authentication codes. TBI1
+/// stays clear: the kernel's own addresses and the high window are exact.
+#[test]
+fn tcr_sets_tbi0_and_with_pauth_tbid0() {
+    let c = boot_code("fl4_mmu_on");
+    let at = |l: &str| c.iter().position(|x| x == l).unwrap_or_else(|| panic!("{l} not in fl4_mmu_on"));
+    let tcr = at("msr     tcr_el1, x9");
+    assert!(at("orr     x9, x9, #(1 << 37)") < tcr);
+    let tbid = at("orr     x9, x9, #(1 << 51)");
+    let test = at("cbz     x10, 1f");
+    assert!(test + 1 == tbid && tbid < tcr);
+    assert!(at("and     x10, x10, #0xff0") < test && at("and     x11, x11, #0xf000") < test);
+    assert!(at("mrs     x10, id_aa64isar1_el1") < test && at("mrs     x11, s3_0_c0_c6_2") < test);
+    assert!(!c.iter().any(|l| l.contains("1 << 38") || l.contains("1 << 52")), "TBI1/TBID1 stay clear");
+    // The TCR's low half: A1 (bit 22) clear, so the TTBR0 ASID tags the
+    // high window's translations (fl4-arch-aarch64 mmu.rs).
+    let boot = include_str!("../../crates/fl4-kernel-aarch64/src/boot.S");
+    assert!(boot.contains(".equ TCR_LO,          0xb5103510"));
+    assert_eq!(0xb510_3510u64 & (1 << 22), 0);
 }

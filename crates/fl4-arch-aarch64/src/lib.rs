@@ -16,6 +16,7 @@ pub mod gic_layout;
 pub mod hyp_nvhe;
 pub mod its;
 pub mod mmu;
+pub mod pac;
 pub mod percpu;
 pub mod serial;
 pub mod smp;

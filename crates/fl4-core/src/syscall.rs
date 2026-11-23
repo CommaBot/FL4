@@ -162,6 +162,8 @@ fn decode_invocation<S: Store, A: Arch>(
         | Cap::Pml4 { .. }
         | Cap::AsidControl
         | Cap::AsidPool { .. } => vspace::decode(s, a, lbl, length, slot, cap, call, buf, extra),
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { .. } => vspace::decode(s, a, lbl, length, slot, cap, call, buf, extra),
     }
 }
 
@@ -703,6 +705,9 @@ fn cap_type_code(c: Cap) -> u64 {
         Cap::TdxControl => 33,
         Cap::Vcpu { .. } => 21,
         Cap::Ept { level, .. } => if level == 0 { 29 } else if level == 39 { 27 } else if level == 30 { 25 } else { 23 },
+        // FL4 AArch64 `ArmHighVSpace` (no seL4 counterpart).
+        #[cfg(feature = "aarch64")]
+        Cap::HighVSpace { .. } => 35,
     }
 }
 

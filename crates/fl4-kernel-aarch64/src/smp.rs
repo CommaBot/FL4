@@ -34,6 +34,7 @@ static mut BOOT_CAPS: ap_caps::Caps = ap_caps::Caps {
     vgic_lrs: 0,
     virt: false,
     vgic_vtr: 0,
+    pauth: 0,
 };
 
 fn reject_ap(reason: u8) -> ! {

@@ -1,6 +1,6 @@
 //! AArch64 system registers, barriers and cache maintenance.
 use core::arch::asm;
-use core::sync::atomic::{AtomicU8, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 /// Read a system register by name.
 #[macro_export]
@@ -234,6 +234,37 @@ pub fn has_clrbhb() -> bool {
     (mrs!("s3_0_c0_c6_2") >> 28) & 0xf != 0
 }
 
+/// The pointer authentication fields of the ID registers, side by side:
+/// ID_AA64ISAR1_EL1.APA [7:4], API [11:8], GPA [27:24], GPI [31:28] where
+/// they are, and ID_AA64ISAR2_EL1.APA3 [15:12], GPA3 [11:8] moved up by 32.
+/// Every core must have the boot core's (`ap_caps`): the algorithm and the
+/// level of address and generic authentication decide what a thread's keys
+/// (`TCBSetPACKeys`) compute, and whether an AUT failure traps (FPAC).
+pub fn pauth_fields() -> u64 {
+    let isar1 = mrs!("id_aa64isar1_el1");
+    let isar2 = mrs!("s3_0_c0_c6_2");
+    crate::ap_caps::pauth_fields_of(isar1, isar2)
+}
+
+pub fn read_pauth() -> bool {
+    crate::ap_caps::pauth_in(pauth_fields())
+}
+
+/// `read_pauth` of the boot core, read once (`init_pauth`): ID register
+/// reads can trap to a hypervisor, and every exit asks (`pac::switch_to`).
+static PAUTH: AtomicBool = AtomicBool::new(false);
+
+/// On the boot core, before any thread runs.
+pub fn init_pauth() {
+    PAUTH.store(read_pauth(), Ordering::Relaxed);
+}
+
+/// FEAT_PAuth (every core has it if the boot core has: `ap_caps`).
+#[inline(always)]
+pub fn has_pauth() -> bool {
+    PAUTH.load(Ordering::Relaxed)
+}
+
 /// This core's `ap_caps::Caps` for the given `ElMode`.
 pub fn caps_for(mode: ElMode) -> crate::ap_caps::Caps {
     let el2 = mode != ElMode::El1;
@@ -250,6 +281,7 @@ pub fn caps_for(mode: ElMode) -> crate::ap_caps::Caps {
         vgic_lrs: if el2 { crate::gic::vgic_num_lrs() } else { 0 },
         virt: el2 && crate::arch::virt_ready(),
         vgic_vtr: if el2 { crate::gic::vgic_vtr() } else { 0 },
+        pauth: pauth_fields(),
     }
 }
 

@@ -300,6 +300,18 @@ typedef enum {
 #define seL4_ARM_VCPUBits          12
 #define seL4_VCPUBits              12
 #define seL4_ARM_Stage2VSpaceBits  13
+/* FL4: ArmHighVSpace, the TTBR1 level-0 table and its last level-1 table
+ * (8 KiB), and the addresses it may map (level-0 entry 511, level-1
+ * entries 384-495). */
+#define seL4_ARM_HighVSpaceBits    13
+#define seL4_ARM_HighVSpaceBase    0xffffffe000000000ul
+#define seL4_ARM_HighVSpaceTop     0xfffffffc00000000ul
+
+/* FL4: seL4_TCB_SetPACKeys flags (SCTLR_EL1.EnIA, EnIB, EnDA, EnDB). */
+#define seL4_ARM_PAC_EnIA (1ul << 0)
+#define seL4_ARM_PAC_EnIB (1ul << 1)
+#define seL4_ARM_PAC_EnDA (1ul << 2)
+#define seL4_ARM_PAC_EnDB (1ul << 3)
 
 /* word size */
 #define seL4_WordBits (sizeof(seL4_Word) * 8)

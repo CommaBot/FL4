@@ -225,6 +225,24 @@ impl Arch for PhysArch {
     fn vcpu_midr(&self) -> u64 {
         crate::mrs!("midr_el1")
     }
+    fn has_pauth(&self) -> bool {
+        crate::cpu::has_pauth()
+    }
+    fn next_pac_epoch(&mut self) -> u64 {
+        crate::pac::next_epoch()
+    }
+    fn kernel_ttbr1_entry(&self, level: u64, index: u64) -> u64 {
+        crate::mmu::kernel_ttbr1_entry(level, index)
+    }
+    fn set_high_vspace(&mut self, root: u64, ttbr0_asid: u64) {
+        crate::mmu::switch_high(root, ttbr0_asid)
+    }
+    fn invalidate_high_page(&mut self, vaddr: u64) {
+        crate::mmu::invalidate_high_page(vaddr)
+    }
+    fn invalidate_high_vspace(&mut self, root: u64) {
+        crate::mmu::invalidate_high_vspace(root)
+    }
 
     fn putc(&mut self, c: u64) {
         serial::putc(c as u8)
