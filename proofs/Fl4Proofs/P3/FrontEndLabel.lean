@@ -453,6 +453,12 @@ theorem pml4_label (lbl : U64) : dataToNat lbl.bv = fl4Pml4FlushLabel ↔ lbl = 
   have h1 : fl4_abi.label.X86PML4Flush.val = 46 := by simp [fl4_abi.label.X86PML4Flush]
   rw [dataToNat_bv, u64_val_eq, h1]; rfl
 
+/-- FrameBatch (#71): the batch's label on a PML4 cap (FL4 90 = `fl4FrameBatchLabel`). -/
+theorem pml4fb_label (lbl : U64) :
+    dataToNat lbl.bv = fl4FrameBatchLabel ↔ lbl = fl4_abi.label.X86PML4FrameBatch := by
+  have h1 : fl4_abi.label.X86PML4FrameBatch.val = 90 := by simp [fl4_abi.label.X86PML4FrameBatch]
+  rw [dataToNat_bv, u64_val_eq, h1]; rfl
+
 set_option synthInstance.maxSize 2048 in
 set_option synthInstance.maxHeartbeats 400000 in
 /-- **The native frame cap's labels** (VsDecFrame's `FrameLabel`), off FL4's

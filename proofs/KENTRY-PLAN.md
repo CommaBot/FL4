@@ -16991,3 +16991,81 @@ global ref).
   the reply-in-decode class]. No `kernel_entry_reach*` statement changed; intermediate statement changed in fb3f:
   `SInv.VArch` (frameBatch arm), `ioi_/vfh_` helpers added; no premise.
 - Commits: f420d8d6, 9133d92c, 61fa4e10, b94eea3d, 8a3aa288, this section. Builds: fb3f-m1..m7, fb3f-full1..3.
+### fb3g (resume of fb3f, branch par/fb3 in FL4-fb3) — P1 `QueueDecVs` batch arm PROVED (new `VsPlace` gap fields); VsDecTop / VsDomF sites closed by restricting their two unused lemmas to non-batch labels; live P3 chain (VsTopX / VsThX / XTopJointVsMap) still open; no premise on any top; no FINDING
+- **P1 (QueueDecVs, QueueEntryGaps4).** `vspace.decode_frame_batch.dec`: the decode's checks (no state change), the loop
+  under `Cur0` from the decode's start *without* the restart (`Cur0.ofPreV`: `Cur0 s s` from `DecPre`; `Cur0` only asks the
+  current thread not `BlockedR`, which the batch keeps), the deferred `invalidate_asid` (arch only), the reply
+  (`BXI.xs`, `E.buf`, `set_reg` BADGE, two `set_mr`, `set_msg_info`, as `reply1.bxi`), then `TS_RUNNING` from a
+  non-`BlockedR` state (`sched.set_thread_state.running_bxi_nbr`). Per entry `vspace.frame_batch_entry.cur0`: COPY_MAP's
+  `insert_with_cap` by `CdtHyps.ins` (already stated at `Fr0` states), the map by `vspace.batch_map.cur0` (cap slot write +
+  `write_mapping.cur0` of the `page_entry_slot.vs` word), the rollback / DELETE `cdt.delete` by `cdt.delete.cur0` with
+  `DelGapsAt` at the decode's start, the deferred unmap by the new `vspace.unmap_page_unflushed.vs` (VSpace word) and the
+  cap rewrite (`set_cap.capw`). Loop: `vspace.decode_frame_batch_loop.cur0` (`loop.spec_decr_nat`, measure `n - done`,
+  `words ≤ 3`, `n ≤ 255`).
+- **The gap (as asked, like `CdtHyps.ins`)**: two new `VsPlace` fields `fbTgt` / `fbSrc`: at a state `s` inside the batch
+  (`EntAt s0`, `Fr0 s0 s`, `BXI s`), a target / source lookup through a cap `c` read from a cap slot `x` at `s0`
+  (`CapSlotW x`, `obj.Slot.cap st x s0 = ok c`) returns a whole cap slot (`SlotW`). (`CdtHyps.tgt/src` are stated at entry
+  states only.) The extra slots' `CapSlotW` comes from `decode.dec`'s `hx` (IrqPlace.extra). Signature changes
+  (intermediate): `vspace.decode.dec` gains `G : DelGapsAt … s`, `decGap_vspace` gains `DG : DelGaps …` (QueueEntryGaps4
+  passes its local `DG`).
+- **"Discharged on the P3 side": nothing to discharge today.** No P3 module constructs `VsPlace`, `CdtHyps`,
+  `InvGaps4` or `Hyps4` (grep: the only P3 mention of `Hyps4` is `fastFaultOK_of_p1(N)`, which takes `GF` as a premise and
+  has no user); the P1 entry theorems are not instantiated by any `kernel_entry_reach*` top (the tops get P1's invariant
+  through `JAtZ` / `XTopAt` posts). So the new fields are premises of P1's own entry theorems only, exactly as
+  `CdtHyps.ins` is. When the P1↔P3 bridge is built, `fbTgt` / `fbSrc` are the mid-batch versions of what P3's
+  `Lookup` / `CnodeCopy` already prove at entry states (a lookup through a CNode cap held in a slot lands in that CNode's
+  slots: `JPlaced.slotCapW`).
+- **VsDecTop / VsDomF (two of the six m77 sites) closed by restriction**: `VsDecTop.decode_invocation_pml4` and
+  `VsDomF.decode_invocation_pml4D` gain `hfb : dataToNat slbl ≠ fl4FrameBatchLabel ∧ lbl ≠ X86PML4FrameBatch` (non-batch
+  branch: `rw [if_neg hl, if_neg hfb.2]`, spec side `if_neg hfb.1`). Neither has a user (grep -w: `decode_invocation_pml4`
+  is used only by `decode_invocation_pml4D`, which is used nowhere; the live PML4 chain is
+  XTopJointVsMap.`decode_invocation_pml4JV` → VsThX.`decode_invocation_pml4_thX` → VsTopX.`decode_invocation_pml4_capX`
+  + VsThX.`domFrame_pml4` + PerformNil.`okAll_specDec_pml4`). Same treatment as fb3b's three unused arch-perform lemmas.
+  If a user appears, re-derive them from the live chain's batch case.
+- **Scratch stubs now (proofs/scratch/fb3scratch.py)**: VsTopX:732 (`decode_invocation_pml4_capX` batch-or-illegal
+  branch), VsThX:468 (`domFrame_pml4`), VsThX:527 (`okAll_specDec_pml4 … sorry`), MachKeepG4d (other agent). Was: + P1
+  QueueDecVs, VsDecTop, VsDomF.
+- **Plan for the live P3 chain (open, XL; precise):**
+  1. [S] FrontEndLabel: `pml4fb_label (lbl) : dataToNat lbl.bv = fl4FrameBatchLabel ↔ lbl = X86PML4FrameBatch` (as
+     `pml4_label`, value 90). Thread `hlfb` through `decode_invocation_pml4JV` (callers XTopJointKEntry13P:452,
+     XTopJointKEntry23P:435, XTopJointEntry:1011 pass `pml4fb_label lbl`) and `decode_invocation_pml4_thX`.
+  2. [S] Restrict `decode_invocation_pml4_capX` and `domFrame_pml4` to non-batch labels (`hfb`, as VsDecTop); in
+     `decode_invocation_pml4_thX` split on `lbl = X86PML4FrameBatch`: non-batch → today's `Or.inl` (with
+     `okAll_specDec_pml4 … hfb.1`: closes VsThX:527), batch → `Or.inr (DecOKRMX.toXR …)` of a new
+     `decode_invocation_pml4_fbX` (no `DomFrame` / `OkAll NilInv` needed in the reply class, as the frame caps'
+     GetAddress / TestAndClearAccessed). `thX`'s post changes from `FinXR ∧ VsJFlush` to `FinXR ∧ (VsJFlush ∨ VsJBatch)`
+     (VsJBatch = what the J layer needs after a batch, see 4).
+  3. [XL] `decode_invocation_pml4_fbX : DecOKRMX (FinXT … ∧ VsJBatch …) … (.Pml4 p mp asid)` for the batch label:
+     a. decode errors vs `decodeFrameBatch` [M]: unmapped cap / `check_vspace` failure / `findVspaceForAsid` failure or
+        mismatch (FL4 maps every failure to IC0; spec `handleE … IC0`, `whenE (vs ≠ p)`: reuse `find_vspace_for_asid_rel`
+        / `_err` as in the Flush branch), `length < 1` ↔ `args.length < 1` (`hlen`), header checks (one `InvalidArgument 0`
+        for reserved bits / op 0 / depth ∉ 1..64: `fbDefined` = FL4's `DEFINED`, a `bv_decide`-free bit lemma), length
+        vs `1 + op.words * n`, extra caps (`vspace.extra` ↔ `excaps`, `ExtraRel`), CNode checks (`isCnodeCap` ↔ the
+        24-case match), destination CNode.
+     b. one entry vs `fbEntry` [L-XL]: CNode lookups (`Lookup`'s `lookup_*_slot` refinements at the *current* state),
+        `ensure_empty_slot` vs `ensureEmpty`, `as_frame`/`isPageCap`, `derive_cap` vs `deriveCap (maskCap …)`
+        (CnodeCopy's `copied_rel`), `insert_with_cap` vs `capInsert` (InsertRefine / MdbInsert with the MDB ghost),
+        `batch_map` vs `fbMap` (VsFrameMapRel's `decode_page_map` refinement minus the vspace-cap checks, which the spec
+        re-does and which pass mid-batch: the ASID table and the PML4 cap are unchanged by every entry), the rollback
+        `cdt.delete` vs `capDelete` and DELETE's (SpecFbX `capDelete_subX` gives only "every `capDelete` outcome is an
+        `fbDelX` outcome", so no throw and the unreachable "deferred set then delete fails" divergence never arises; a
+        refinement needs the converse direction too — FL4's one outcome *is* a `capDelete` outcome — i.e. a
+        characterisation of `capDelete` of a frame slot as `fbDelX`, or reuse of the CNode Delete refinement
+        (Delete / DelDelete / XTopJointCnDel) at the mid-batch state), `unmap_page_unflushed` vs
+        `unmapPageUnflushed` (new, as VsFrameUnmapRel without the invalidation), the per-entry error code
+        (`SysError.code` vs `(msgFromSyscallError e).1`, 1..10).
+     c. the loop [L]: the relation bundle (CRel / FinInv / MdbOKV / VsRel / PtRel / TopSR / PoolsIn / CurOK) re-established
+        after each entry (each existing refinement above ends in those), the message words stable across entries (no
+        entry writes user memory or `ct`'s registers: footprint), `fbRun`'s stop at the first error ↔ the loop's `done`.
+     d. tail [M]: `invalidate_asid` ↔ `flushAll` (as Flush: `flushAllH_top`), reply ↔ `specTail call ct (…)` with
+        `rr = [done, err]` (`replyFromKernel`, as `TacHypX`/`GetAddrHypX`), `TS_RUNNING`, and
+        `L.mem s' (stA ct) ≠ TS_RESTART`.
+     The reply class's post is `RelTopM` (Placed, CRel, FinInv, DomRel, MdbOKV) at the success tail's spec state
+     plus `X`; `DecOKRMX.toXR` then needs `DomRel` only through it.
+  4. [L] XTopJointVsMap: the J layer after a batch (`VsJBatch → JAt`), as `vsFlushJ` / `vsPostJ` plus the CNode copy /
+     delete J layers (XTopJointCnDel's `EJLM` for the deletes) per entry; or carry the joint invariant through 3c.
+- Builds: fb3g-m1 (baseline), m2..m4 (QueueDecVs iterations: `split` on the grown bodies → `ihead` = `P0.p0_if` /
+  `p0_if_bind` by refine; `p0_ite_head` answers "not a spec" in P1's goals), m5..m6, **fb3g-m7 green** (module build
+  `QueueEntryGaps4 VsDomF FrontEndLabel` with the scratch stubs, 5104 jobs, 0 errors; axioms of
+  `decode_frame_batch.dec`, `frame_batch_entry.cur0`, `batch_map.cur0`, `decGap_vspace`, `InvGaps4.gaps3`,
+  `kernel_entry.entry_of4`: [propext, Classical.choice, Quot.sound]).
