@@ -18,6 +18,7 @@ mod smp;
 mod snp;
 mod tdx;
 mod trace;
+mod user_trap;
 
 use core::cell::UnsafeCell;
 use core::fmt::Write;
