@@ -124,9 +124,11 @@ theorem rd_archPerf (i : Fl4ArchInvocation) (σ : State Unit) (hR : Rdy σ) (hOK
     exact (show IKE Rdy _ from ike_liftE (by rda_auto)) σ hR y hy
   | frameBatch b =>
     simp only [fl4ArchPerformInvocation] at hy
-    exact (show IKE Rdy _ from ike_liftE (ik_performFrameBatchX
-      (fun w => by unfold fbEntryX fbDeleteX fbDelX fbMap unmapPageUnflushed fbCode; rda_auto)
-      (by unfold flushAll; rda_auto))) σ hR y hy
+    exact (show IKE Rdy _ from ike_liftE (ik_performFrameBatchW b (fun _ _ _ _ => rd_capInsert _ _ _)
+      (fun _ => rd_performPageInvocation _) (fun _ _ _ _ _ _ _ => rd_archFinaliseCap _ _)
+      (fun _ => rd_emptySlot _ _)
+      (fun _ _ _ _ => by unfold unmapPageUnflushed; repeat' (first | rd_leaf | ik_step0 | ik_unfold | (unfold NonDetE.unlessE)))
+      (fun _ _ _ => rd_setCap _ _) (rd_flushAll _ _))) σ hR y hy
 
 /-- The per-arm facts of a perform (module docstring). -/
 def PerfOK (σ : State Unit) : Fl4Invocation → Prop

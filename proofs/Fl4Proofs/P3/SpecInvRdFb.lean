@@ -58,21 +58,27 @@ theorem cfkfb_emptySlot (sl : CslotPtr) (ci : Cap) : CFK (emptySlot (Z := Unit) 
   all_goals first | exact cfkfb_postCapDeletion _ | (unfold setOriginal; cfk_auto)
 macro_rules | `(tactic| cfk_leaf) => `(tactic| with_reducible exact cfkfb_emptySlot _ _)
 
-theorem svfb_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : SVK.SVE (fbEntryX b w) := by
-  unfold fbEntryX fbDeleteX fbDelX fbMap unmapPageUnflushed fbCode
-  sv_auto
+/-- fb3f: by step lemmas (`ik_performFrameBatchW` at `SVS σ0 ·`, transitive), no whole-entry unfolding. -/
+theorem svfb_performFrameBatch (b : Fl4FrameBatchInvocation) : SVK.SVM (performFrameBatch (Z := Unit) b) := by
+  intro σ0 x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, SVK.SVM m → IK (fun s => SVK.SVS σ0 s) m :=
+    fun h s hs y hy => hs.trans (h s y hy)
+  exact ik_performFrameBatchW (P := fun s => SVK.SVS σ0 s) b (fun _ _ _ _ => k (SVK.sv_capInsert _ _ _))
+    (fun _ => k (sv13_performPageInvocation _)) (fun _ _ _ _ _ _ _ => k (by simp only [archFinaliseCap]; sv_auto))
+    (fun _ => k (svfb_emptySlot _ _))
+    (fun _ _ _ _ => k (by unfold unmapPageUnflushed; sv_auto)) (fun _ _ _ => k (SVK.sv_setCap _ _))
+    (k (sv13_flushAll _ _)) σ0 (SVK.SVS.refl σ0) x hx
 
-theorem cfkfb_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : CFKE (fbEntryX b w) := by
-  unfold fbEntryX fbDeleteX fbDelX fbMap unmapPageUnflushed fbCode
-  cfk_auto
-
-theorem svfb_performFrameBatch (b : Fl4FrameBatchInvocation) : SVK.SVM (performFrameBatch (Z := Unit) b) :=
-  rk_performFrameBatchX SVK.SVS.refl (fun _ _ _ h1 h2 => h1.trans h2) (fun w => svfb_fbEntryX b w)
-    (by unfold flushAll; sv_auto)
-
-theorem cfkfb_performFrameBatch (b : Fl4FrameBatchInvocation) : CFK (performFrameBatch (Z := Unit) b) :=
-  rk_performFrameBatchX (R := fun σ σ' => cfS σ' = cfS σ) (fun _ => rfl) (fun _ _ _ h1 h2 => h2.trans h1)
-    (fun w => cfkfb_fbEntryX b w) (by unfold flushAll; cfk_auto)
+/-- fb3f: by step lemmas (`ik_performFrameBatchW` at `cfS · = cfS σ0`). -/
+theorem cfkfb_performFrameBatch (b : Fl4FrameBatchInvocation) : CFK (performFrameBatch (Z := Unit) b) := by
+  intro σ0 x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, CFK m → IK (fun s => cfS s = cfS σ0) m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  exact ik_performFrameBatchW (P := fun s => cfS s = cfS σ0) b (fun _ _ _ _ => k (cfk_capInsert _ _ _))
+    (fun _ => k (cfk_performPageInvocation _)) (fun _ _ _ _ _ _ _ => k (cfk_archFinaliseCap' _ _))
+    (fun _ => k (cfkfb_emptySlot _ _))
+    (fun _ _ _ _ => k (by unfold unmapPageUnflushed; cfk_auto)) (fun _ _ _ => k (cfk_setCap _ _))
+    (k (by unfold flushAll; exact cfk_doMachineOp (Fl4Proofs.P3.MachT.mkf_invalidateASID _ _))) σ0 rfl x hx
 
 /-- **The frame batch** has `PerfA` from `KP σ0 ∧ CB0`. -/
 theorem perfA_frameBatch {σ0 s : State Unit} (bl call don : Bool) (i : Fl4FrameBatchInvocation)
