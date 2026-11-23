@@ -41,7 +41,7 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
   have hzok : ZOK Z.th p zt n := J.del.zwf _ hA.isSlot p zt n hz
   -- the dead set: the TCB zombies' TCBs
   set E : Set U64 := ZTcb (L := L) Z.th s with hE
-  have J0 := J.addDeadSet (E := E) hL.ztcb
+  have J0 := J.addDeadSet (E := E) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G _
     ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, hkb⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hfk2, hC, Ac', Lst', R⟩ := J0.swapJCoreD hA hz hpx hsw hD2 hcap hX2

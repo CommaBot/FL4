@@ -78,7 +78,7 @@ theorem JAtZ.reply1JL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hL : LiveDN (L := L) Z.th H Cs Z.G s σ) {ct : U64} (hct : ct ∈ Z.T)
     {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x)) (hrs : x.tcbState = .restart) (call : Bool) (v : U64) :
     vspace.reply1 st s ct call v ⦃ s2 => ∀ z ∈ (specTail call ct.bv [v.bv] σ).1, JAtL (L := L) arI AR s2 a z.2 ⦄ := by
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.1.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.1.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   unfold vspace.reply1
   cases call
   · simp only [Bool.false_eq_true, ↓reduceIte, bind_ok]

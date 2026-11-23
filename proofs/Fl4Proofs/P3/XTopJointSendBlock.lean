@@ -620,7 +620,7 @@ theorem JCovD.undead {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : Set U
     (hth : ∀ k, th e = some k → Covered (L.mem s) G e.val (e.val + max (objSize k) 1))
     (hH : ∀ k, H e = some k → Covered (L.mem s) G e.val (e.val + 2 ^ k.bits)) :
     JCovD (L := L) th H G (D \ {e}) Cs s := by
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => h.dead q hq.1, h.ks, h.idleOut⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => h.dead q hq.1, h.ks, h.idleOut, fun q hq => h.dx q hq.1⟩
   · by_cases hqe : q = e
     · subst hqe; exact Or.inl (hth k hq)
     · rcases h.th q k hq with h1 | h1 | h1
@@ -801,6 +801,7 @@ theorem JAtZ.sendBlockJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
     exact (J.jcov.undead hcov.1 hcov.2).same (fun y hy _ _ => ⟨hy, hF.1.capV (hsl y hy)⟩) (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (fun q _ h => h.keep (DXKeep.of_dbg hKd (J.cnW_td hW)))
   -- `Inv` (`InvBut.ik`; the thread's `RelIfBound` from `Restart`)
   have hnqT : NotQueued σ t.bv := ⟨hnq, by rw [← hct]; exact hC.notRel⟩
   obtain ⟨hIB, -⟩ := (J.inv.toBut t.bv).ik hnqT hik

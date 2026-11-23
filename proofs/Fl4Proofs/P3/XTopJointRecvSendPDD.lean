@@ -281,7 +281,7 @@ theorem JAtZ.pushDonRJW (hAT : P0.ArchTotal arI) (J : JAtZ (L := L) arI AR Z H C
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s' σ' :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => hK.szKeep q.bv y n hq) hks (J.rmW_irq hwR) hIK.2⟩
   exact J.sc_frameS hks hSS (J.vkeep_of hwR fun b hb => J.rmW_nv hb) hK hX' hCR' hRF' hrr (J.yld.frame k2 hyk) (J.mcp.frame k1 hmk)
-    (J.buf.frame kb hK.bufKeep) hRP' (J.apart.sc_frame hks hK.szKeep) hjpl (J.jcov_keep hks hSS hdead hIK)
+    (J.buf.frame kb hK.bufKeep) hRP' (J.apart.sc_frame hks hK.szKeep) hjpl (J.jcov_keep hks hSS hdead hIK (DXKeep.of_dbg hKd (J.tdkeep_of hwR fun b hb => J.rmW_ntd hb)))
     (J.sc_kernW hW hK hFK hX' hDbg (subset_refl D))
     (J.rmW_utc hwR hSS hK.cdt hK.orig pd_arch hDbg) hN' hI' (Or.inl hcn') hown hoff hact hbsa
     (Or.inl (by rw [hcn']; intro h; cases h)) hblk hKd hIK.1 J.zD

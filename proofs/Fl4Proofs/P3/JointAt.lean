@@ -558,6 +558,59 @@ theorem ksW_nv (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb :
   obtain ⟨K, h1, h2, -, e, -⟩ := hb
   exact J.ks_nv (by omega) (by omega)
 
+/-! ## The dead set's debug and deadline words (KENTRY-PLAN jc6e) -/
+
+/-- A TCB of `H` is in `Z.T`. -/
+theorem tcbZ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : H t = some .tcb) : t ∈ Z.T := by
+  obtain ⟨Tr, Cq, hJ⟩ := J.jpl
+  exact J.thT t ((hJ.tcb t).2 ht)
+
+/-- **The dead set's `DeadX` after a step keeping the words it reads.** -/
+theorem dxKeep (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} (hk : Sched.DXKeep (L := L) H Cs s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.jcov.dxKeep hk
+
+/-- **`DXKeep` from the debug words and the deadline words kept.** -/
+theorem dxk (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s') (hTd : Sched.TdKeep (L := L) H s s') :
+    ∀ q ∈ D, Sched.DeadX (L := L) H Cs s' q := J.dxKeep (DXKeep.of_dbg hKd hTd)
+
+theorem tdA_val' (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U64} (ht : t ∈ Z.T) :
+    (P1.tdA t).val = t.val + 3528 :=
+  Notif.tfield_val (J.ip.e.tcb t ht) (K := 3528#u64) (by simp)
+
+/-- **`TdKeep` from a `WritesIn` footprint missing every TCB's deadline word.** -/
+theorem tdkeep_of (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S} {W : U64 → Prop}
+    (hW : P1.WritesIn st s s' W) (hWV : ∀ b, W b → ∀ t ∈ Z.T, b ≠ P1.tdA t) : Sched.TdKeep (L := L) H s s' :=
+  Sched.TdKeep.of_writes J.ip.e.tcb (fun _ ht => J.tcbZ ht) hW hWV
+
+/-- **A slot word is no TCB's deadline word** (as `inSlot_nv`). -/
+theorem inSlot_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : InSlot Z.th b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  obtain ⟨x, hx, h1, h2⟩ := hb
+  intro t ht e
+  have h3 := (J.apart x hx).1 t ht
+  rw [e, J.tdA_val' ht] at h1 h2
+  omega
+
+/-- **A step writing slot words only keeps the deadline words.** -/
+theorem tdkeep_slot (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (InSlot Z.th)) : Sched.TdKeep (L := L) H s s' :=
+  J.tdkeep_of hw fun _ hb => J.inSlot_ntd hb
+
+/-- **A kernel-state block word is no TCB's deadline word.** -/
+theorem ks_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (h1 : (L.ksb s).val ≤ b.val)
+    (h2 : b.val < (L.ksb s).val + 13568) : ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  intro t ht e
+  obtain ⟨⟨Q, R, hq⟩, -⟩ := J.blk
+  have hv := J.tdA_val' ht
+  rw [e] at h1 h2
+  rcases hq.ksOut t (J.zH.1 t ht) with h | h <;> omega
+
+theorem ksW_ntd (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {b : U64} (hb : KsW (L.ksb s) b) :
+    ∀ t ∈ Z.T, b ≠ P1.tdA t := by
+  obtain ⟨K, h1, h2, -, e, -⟩ := hb
+  exact J.ks_ntd (by omega) (by omega)
+
 /-! ## The liveness bundle across a step (KENTRY-PLAN g2i) -/
 
 /-- The spec's idle thread is the idle word at an `XTopAt` state. -/

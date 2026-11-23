@@ -17160,3 +17160,31 @@ rebuilds most of P3 per round). Not started.
 
 ### (4) Build
 None (no Lean change; no build slot used).
+
+### (5) Route (B) approved and DONE: new top **`kernel_entry_reachU28`**; full build green
+- `Sched.DeadX H Cs s q` (TCB → `dpA q = 0` ∧ no core head = q ∧ `tdA q = 0`), `TdKeep`, `DXKeep` (ScPlaceDead);
+  `JCovD.dx : ∀ q ∈ D, DeadX H Cs s q` (6th field). Lead's condition: `DbgWFL.notMem_of_off` (LiveDefs) proves
+  DeadX's debug words + `DbgWFL` ⇒ on no core's list; converse `off_of_notMem`, `deadX_of_lists`.
+- Builders take the new obligation: `sc_jcov`/`JAtZR.sc_jcov` (+`hKd hDD`), `sc_jcovS`, `jcov_keep`,
+  `jcov_cover`, `JAtZR.jcov_keep` (+`hDX : DXKeep`), `JCovD.same/step/delete/deleteG` (+`hdx`/`hxu`),
+  `addDeadSet`/`addDead` (+`hx`), retype family (+`hdx`, with `H' q = H q`), `JCovD.retype_post` (+`hdx`).
+- Deadline frames: `*_ntd` twins of the VCPU `*_nv` lemmas (`KFoot.ne_td`, `FinW.ntd` — `FinW` now also
+  excludes offset 3528 —, `cnW_ntd`/`cnW_td`, `inSlot_ntd`, `ks(W)_ntd`, `schW_ntd`, `rmW_ntd`, JAtZR `cnW_ntd`),
+  `TdKeep.of_tfoot`, `JAtZ.tfoot_td`, `td_sts`, `tdkeep_of/slot`.
+- Special sites: timer steps (`tmw_step` + `remove_td`/`insert_td`/`xfoot_td` in ScFireJ; SetTimer's target
+  leaves `D` by `undead`, `tcb_set_timerJ` takes its cap slot); thread finalisation (`dbgRemove_live` gives the
+  dead set off every list after `debug_remove`; `RzJ` takes `Cs` and carries `DeadX`, produced in
+  `jFinAtL_thread` from the erased lists and the new P1 `fin_cap_thread.td0` (P1/QueueDeadTd)); emptying a slot
+  (`EmptyReadyX`, from a new `TcbReady` in `RdLO`); retypes (DevJ, UtBodyJ, UtEpJ, UtTcbP1 incl. debug_append).
+- New: P3/UnrefDbg (`JAtZ.keptCW`, `unrefCW`, `deadUnarmed`, `regionUnrefCU`), P3/XTopJointKEntryU28
+  (`kernel_entry_reachU28` = U27 with `RegionUnrefCU` removed; D = ∅ at boot, no new start fact).
+- No real-kernel gap found by any producer.
+- Extra pieces added while building: `DXKeep.of_writes` (LiveDefs), `JAtZR.ksW_dxk` / `JAtZR.schW_dxk`
+  (XTopJointJAtZRA, the KsW / SchW steps of `JAtZR`), `Sched.tdA_ne` (ScKeep), `JAtZ.schW_ntd`, `JAtZ.td_sts`.
+- Builds (afkprover, SEED=A): module build jc6e-m1c (ScPlaceDead, LiveDefs, JointAt, ScKeep, IpcCancelSignals:
+  one error, `FinW`'s new offset in `FinW.tsw`); full builds b1/b2y/b3b/b4 (fixes: U28 import, IdleCovered dx,
+  ScJointFrame `tdA_ne`, JAtZRA's three JAtZR sites, ScFireJ `xfoot_td`, FinScReply `sc_jcovS` args, TcbSched /
+  TcbInstall `tw_ne (a := b)`); **jc6e-b5x: `Build completed successfully (7371 jobs)`, ERRORS 0, SORRY 0**.
+  `axjc6e.lean`: `kernel_entry_reachU28`, `kernel_entry_reachU27`, `JAtZ.keptCW`, `unrefCW`, `deadUnarmed`,
+  `regionUnrefCU`, `DbgWFL.notMem_of_off`, `P1.fin_cap_thread.td0` all `[propext, Classical.choice, Quot.sound]`.
+- Remaining [J] at U28: C17, C23 (jc4); no `RegionUnrefAt` part left.

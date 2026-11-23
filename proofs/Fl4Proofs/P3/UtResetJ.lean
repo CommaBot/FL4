@@ -224,12 +224,13 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
     by_cases e : z = x
     · subst e; rw [hcap'] at hc2; cases hc2; exact ⟨_, hxm, f, hcx⟩
     · exact ⟨z, hz, fi2, by rw [← hco z ((hM.members z).1 hz).1 e]; exact hc2⟩
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' := dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb
   have hjc : JCovD (L := L) Z.th H Z.G D Cs s' :=
     ⟨fun q k hq => (J.jcov.th q k hq).imp (fun hc => covered_keepC hM hRR'.M hc hCK)
         (Or.imp_right (exAt_of hidl hks).2),
       fun q k hq => (J.jcov.h q k hq).imp (fun hc => covered_keepC hM hRR'.M hc hCK)
         (Or.imp_right (exAt_of hidl hks).2),
-      hdead, J.jcov.ks.keep hks hUF, J.jcov.idleOut.keep hidl hUF⟩
+      hdead, J.jcov.ks.keep hks hUF, J.jcov.idleOut.keep hidl hUF, J.dxk hKd (J.tdkeep_slot hw)⟩
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := rfl
@@ -284,7 +285,7 @@ theorem JAtZ.setFiJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {pp : U64}
       CurInvW.cn J.cur hC', J.own.cn hC'.toHStep, J.off.cn hC'.toHStep, J.act.cn hC', J.bsa.cn hC'.toHStep,
       J.isorted.cn hC'.toHStep, J.curRun.cn hC'.toHStep (Or.inr hC'.act), hblk⟩
   have hLS := LiveDN.simX J J.live hX' rfl rfl rfl (fun p hp => R.jcov.dead p (J.zD p hp)) hC'.idle
-    (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (fun sl h => h)
+    hKd (fun sl h => h)
     (fun y hy => LSim.of_shape (hshape y hy))
   exact J.cs_frame (G' := Z.G) hks hX' (KBack.of_keepCT (KeepC.t hkc)) (IpcFrKeep.of_keepC hkc) (J.carry.of_keepC hkc)
     ⟨fun z hz p2 sb2 fi2 hc2 => by

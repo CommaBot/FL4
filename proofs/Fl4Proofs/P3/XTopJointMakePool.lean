@@ -343,7 +343,8 @@ theorem Sched.JCovD.addP {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : S
     (hcov : Covered (L.mem s) G p.val (p.val + 4096))
     (hni : ¬ IdleAt (L := L) s p) :
     JCovD (L := L) th (hAddP H p) G D Cs s := by
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, h.ks, fun x hx p' sb fi hc q hq => ?_⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => ?_, h.ks, fun x hx p' sb fi hc q hq => ?_,
+    fun q hq => ?_⟩
   · have hqp : q ≠ p := fun e => by subst e; rw [hth] at hq; cases hq
     exact (h.th q k hq).imp_right (Or.imp_right (exAt_addP hqp).2)
   · rcases hAddP_cases hq with ⟨rfl, rfl⟩ | ⟨hqp, hq⟩
@@ -359,6 +360,9 @@ theorem Sched.JCovD.addP {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {D Cs : S
     have hqp : q ≠ p := fun e => hni (e ▸ hq)
     rw [hAddP_ne hqp] at hk
     exact g3 k hk
+  · by_cases hqp : q = p
+    · rw [hqp]; exact Sched.DeadX.of_ne (by rw [hAddP_self]; exact fun e => by cases e)
+    · exact (h.dx q hq).heq (hAddP_ne hqp)
 
 /-- **The spec's objects in `H` with the pool's page** (`SpecCover`): every
 object after an `MpFr` step is one before but the pool at `p`. -/
@@ -928,8 +932,35 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hni : ¬ IdleAt (L := L) s' p := fun h => by
     have := (J.jcov.idleOut _ hsm p _ fi0 hsv p ((idleAt_of hidl).1 h)).1
     rw [two_pow_asidPool] at this; omega
+  have hdkM : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
+    dbgKeep_of_writes J.blk hw fun b hb => by
+      rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
+      · have hf := hx.fit hPl
+        have := hk.lt
+        have hv := wordOf_val (a := x) (k := k) (by omega)
+        exact J.inSlot_notDbg ⟨x, hx, by rw [e, hv]; omega, by rw [e, hv]; omega⟩
+      · refine J.notDbg' (fun q hq => ?_) (fun c hc => ?_)
+        · have := hHo q .tcb hq; simp only [P1.HKind.bits] at this ⊢; omega
+        · have := Ad.nodes p rfl c hc; simp only [P1.HKind.bits] at this; omega
+      · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
+        rw [← e] at hb'
+        exact J.notDbg' (fun q hq => J.vsObjW ⟨J.scOut⟩ hb' hq (fun _ e => by cases e))
+          (fun c hc => by rcases J.vsNodeW hb' hc with e' | e' <;> omega)
+  have hTdM : Sched.TdKeep (L := L) H s s' := J.tdkeep_of hw fun b hb t ht e' => by
+    have hv := J.tdA_val' ht
+    have hHt : H t = some .tcb := J.zH.1 t ht
+    rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
+    · have hf := hx.fit hPl
+      have := hk.lt
+      have hv' := wordOf_val (a := x) (k := k) (by omega)
+      exact J.inSlot_ntd ⟨x, hx, by rw [e, hv']; omega, by rw [e, hv']; omega⟩ t ht e'
+    · have := hHo t .tcb hHt; simp only [P1.HKind.bits] at this; rw [e'] at g1 g2; omega
+    · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
+      rw [← e] at hb'
+      have e2 := J.vsObjW ⟨J.scOut⟩ hb' hHt (fun _ e => by cases e)
+      simp only [P1.HKind.bits] at e2; rw [e'] at e2; omega
   have hjc : JCovD (L := L) Z.th (hAddP H p) G' D Cs s' :=
-    (J.jcov_cover hks hM' hCK hUK hdead hidl).addP hp hthp hcovp hni
+    (J.jcov_cover hks hM' hCK hUK hdead hidl (DXKeep.of_dbg hdkM hTdM)).addP hp hthp hcovp hni
   -- `JKern`
   have horig' : ∀ sl, σ'.isOriginalCap sl = true → σ.isOriginalCap sl = true ∨ AbsSlot Z.th sl := by
     intro sl h
@@ -1002,20 +1033,6 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     · rw [hcap y hy e1 e2]; exact (J.fcap y hy).mono fun _ => UFr.keep hfk.page
   -- `LiveDN` and `zD` after (LiveFrame's `wstepR`: the destination slot in a
   -- CNode named by a CNode cap, the source's free index changed)
-  have hdkM : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s' :=
-    dbgKeep_of_writes J.blk hw fun b hb => by
-      rcases hb with ⟨x, k, hx, hk, e⟩ | ⟨g1, g2⟩ | e
-      · have hf := hx.fit hPl
-        have := hk.lt
-        have hv := wordOf_val (a := x) (k := k) (by omega)
-        exact J.inSlot_notDbg ⟨x, hx, by rw [e, hv]; omega, by rw [e, hv]; omega⟩
-      · refine J.notDbg' (fun q hq => ?_) (fun c hc => ?_)
-        · have := hHo q .tcb hq; simp only [P1.HKind.bits] at this ⊢; omega
-        · have := Ad.nodes p rfl c hc; simp only [P1.HKind.bits] at this; omega
-      · have hb' : VsW Z (L.ksb s) (atA (L.ksb s) hi) := Or.inr (Or.inl ⟨hi, hh, rfl⟩)
-        rw [← e] at hb'
-        exact J.notDbg' (fun q hq => J.vsObjW ⟨J.scOut⟩ hb' hq (fun _ e => by cases e))
-          (fun c hc => by rcases J.vsNodeW hb' hc with e' | e' <;> omega)
   have hTHM : P1.Heap.tcbs (hAddP H p) = P1.Heap.tcbs H := Set.ext fun q => hk' (fun _ e => by cases e) q
   have hZfM : ∀ y, IsSlot Z.th y → ∀ p' zt n, capV (L.mem s') y = .Zombie p' zt n →
       ∃ y0, IsSlot Z.th y0 ∧ capV (L.mem s) y0 = .Zombie p' zt n := fun y hy p' zt n h => by

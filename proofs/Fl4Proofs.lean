@@ -126,6 +126,7 @@ import Fl4Proofs.P1.QueueTimerR
 import Fl4Proofs.P1.TimerRBFire
 import Fl4Proofs.P1.TimerRBSig
 import Fl4Proofs.P1.QueueFinThr
+import Fl4Proofs.P1.QueueDeadTd
 import Fl4Proofs.P1.QueueDecTcb
 import Fl4Proofs.P1.QueueDecTcbRR
 import Fl4Proofs.P1.QueueDecTcb2
@@ -1432,3 +1433,5 @@ import Fl4Proofs.P3.UnrefTimer
 import Fl4Proofs.P3.XTopJointKEntryU26
 import Fl4Proofs.P3.UnrefBnd
 import Fl4Proofs.P3.XTopJointKEntryU27
+import Fl4Proofs.P3.UnrefDbg
+import Fl4Proofs.P3.XTopJointKEntryU28

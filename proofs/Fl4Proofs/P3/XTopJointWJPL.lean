@@ -203,7 +203,7 @@ theorem delHypsJLML [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : 
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPML (L := L) arI AR MR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H) th :=
+      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th :=
   let h := delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb hth
   ⟨h.fin, h.triv, jPreemptHypLML arI hK hT hnd hM hPA Z H Cs kb hth, h.post, h.zomb, h.swap, h.empty⟩
 

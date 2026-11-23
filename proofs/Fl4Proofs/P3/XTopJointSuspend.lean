@@ -324,7 +324,7 @@ theorem JAtZ.suspendScJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t : U
         cases hx : x.tcbState <;> simp_all [tsCode])
       (hF.lk (W := fun _ => False)) hF.fk hAI.1 hY' (hYD6 q.bv) (fun h => h) (J.jcov.dead q hq)
   refine ⟨_, hsp, Lst', J.sc_frame hW hK hX' hCR' hRF' hY' hM' (J.sc_buf hW hK) hRP' (J.sc_apart hW hK)
-    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2)) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
+    (J.sc_jpl hW hK (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).2) (J.sc_jcov hW hdead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2) hKd0 subset_rfl) (J.sc_kern hW hK hF.fk hX' hDbg fun _ h => h)
     (J.sc_utc hW hK hDbg) hNSC hInv (J.cur.imp (fun e => hF.act.elim (fun e' => e'.trans e) id) hF.curInv)
     (hF.own J.own) (hF.off J.off) hAI (hF.bsa J.bsa) (hF.curRun J.curRun) hblk
     hKd0 (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).1 J.zD⟩

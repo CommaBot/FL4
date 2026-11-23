@@ -143,7 +143,10 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
         (∀ q kd, H1 q = some kd → H q = some kd) ∧
         (∀ q, H1 q = H q → DeadP (L := L) H s q → DeadQ st H1 sR q))
     (hidl : Sched.IdleKeep (L := L) s res.2.1)
-    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 false) :
+    (hdv : ∃ p0 sb0 fi0, capV (L.mem s) (cslotAddr sl) = .Untyped p0 sb0 fi0 false)
+    (hdx : ∀ q ∈ D, H q = some .tcb →
+      ¬ MeetsR rb.toNat (rb.toNat + slots.length * 2 ^ bitsApi t us) q.val (q.val + 2 ^ HKind.tcb.bits) →
+      DeadX (L := L) H Cs s q → DeadX (L := L) H Cs res.2.1 q) :
     ∃ th' G' A k w dslot cj, RetExp th th' (L.mem s) (L.mem res.2.1) G G' A k w dslot cj (cslotAddr sl) ∧
       ∃ (H' : Heap) (Ac' : Set U64),
         BlkOK st (Heap.tcbs H') Cs (Heap.omega H') H' (Heap.frame H') (Heap.replies H') (Heap.scs H')
@@ -170,7 +173,14 @@ theorem JCovD.retype_post {th : TypedHeap} {H : Heap} {G : MdbGhost} {D Cs : Set
     (fun hT => hn1 (hnt.2 hT)) hfit
     (fun hs ho w hw h1 h2 => ((hWZ (hnZ hs ho)) w hw h1 h2).imp id (fun ⟨hT, hj⟩ => ⟨hnt.2 hT, hj⟩))
     (fun h => hn1 h)
-  refine ⟨th', G', _, _, _, dslot, cj, hE, H', Ac', hb', hJ.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hks hidl hdv⟩
+  -- jc6e: a surviving dead TCB of `H` is off the window (`hdx`)
+  have hdx' : ∀ q ∈ D, ¬ NewQ rb.toNat (2 ^ bitsApi t us) slots.length cj q → H' q = H q →
+      DeadX (L := L) H Cs s q → DeadX (L := L) H Cs res.2.1 q := by
+    intro q hqD hnq e hd hq
+    rcases hshape q .tcb (e.trans hq) with ⟨-, hm⟩ | ⟨hna, hk⟩
+    · exact hdx q hqD hq hm hd hq
+    · exact absurd (hnewQ q hna (by rw [hk]; rfl)) hnq
+  refine ⟨th', G', _, _, _, dslot, cj, hE, H', Ac', hb', hJ.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hks hidl hdx' hdv⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna, hk⟩
     · refine Or.inl ⟨hsub q kd h1, ?_⟩
       rintro ⟨j, hj, hv, -⟩

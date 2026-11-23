@@ -223,6 +223,23 @@ theorem JAtZ.tfoot_vkeep {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.H
     (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) : VKeep (L := L) Z.th s s' :=
   VKeep.of_tfoot J.xtop.fin.1.1.1 J.thT hw
 
+/-- **`TdKeep` across a `TFoot` step** (KENTRY-PLAN jc6e), from the scheduler
+relation alone: 3528 is no scheduler offset (`KFoot.ne_td`), nor a `YIELD_TO` word. -/
+theorem TdKeep.of_tfoot {H : P1.Heap} {N T C : Set U64} {c : U64} {s s' : S} {σ : Fl4Spec.State Unit}
+    (hS : Sched.SchedRel st N T C c s σ) (hth : ∀ t, H t = some .tcb → t ∈ T)
+    (hw : P1.WritesIn st s s' (Sched.TFoot st T N C c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  Sched.TdKeep.of_writes hS.placed.tcb hth hw fun b hb u hu => by
+    rcases hb with hb | ⟨y, hy, rfl⟩
+    · exact Sched.KFoot.ne_td hS hb hu
+    · exact Sched.tdA_ne hS.placed.tcb hy hu (Sched.yieldA_val hS.placed.tcb hy) (by omega) (by omega)
+
+/-- **A `TFoot` step keeps every deadline word** (KENTRY-PLAN jc6e). -/
+theorem JAtZ.tfoot_td {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
+    {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {s' : S}
+    (hw : P1.WritesIn st s s' (Sched.TFoot st Z.T Z.N Z.C Z.c s σ)) : Sched.TdKeep (L := L) H s s' :=
+  TdKeep.of_tfoot J.xtop.fin.1.1.1 (fun _ ht => J.tcbZ ht) hw
+
 set_option maxHeartbeats 1000000 in
 /-- **`JAtZ` across an SC step** (module docstring). -/
 theorem JAtZ.sc_frame {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}

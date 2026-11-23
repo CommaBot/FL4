@@ -31,7 +31,7 @@ theorem jPreemptHypL (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Spe
     PPHypDW (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb) th := by
   intro s a σ G hDS ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩
   subst hth
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   obtain ⟨⟨r1, s', a'⟩, hr, ⟨⟨σ', hcase, hX', hJ'⟩, -, hw⟩, hK⟩ :=
     spec_exists (WP.spec_and (WP.spec_and (J0.ppJD arI hAK hA hnd hP hp0)
       (P1.sched.preemption_point.pp hA s a J.blk)) (J.ppDbg hA))
@@ -84,7 +84,7 @@ theorem jPostDelHypL (hAM : ARMask arI AR)
   intro s a σ G cl hDS ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ hcl hcln hclw
   subst hth
   have hX := J.xtop
-  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+  have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
   have hLy : IntLayout Z.th (L.ksb s) ∧ IoLayout Z.th (L.ksb s) := ⟨J.intL, J.ioLay⟩
   have hfin : ∀ (s' : S) (a' : A) (σ' : Fl4Spec.State Unit), SlotsSame (Z.mv G V).th (L.mem s) (L.mem s') →
       P1.WritesIn st s s' (KsW (L.ksb s)) → KsStep σ σ' → XTopAt (L := L) AR (Z.mv G V) s' a' σ' →

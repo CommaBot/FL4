@@ -190,6 +190,80 @@ end
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
 
+/-- A slot word is no TCB word past the TCB's cap slots (offset `K ≥ 256`). -/
+theorem slot_word_ne_tw {th : TypedHeap} {H : P1.Heap} {Tr C : Set U64} {s : S} {σ : Fl4Spec.State Unit}
+    (hJP : JPlaced (L := L) th H Tr C s σ) {v : U64} (hv : SlotSpan th v) {y : U64} (hy : H y = some .tcb)
+    {K : U64} (hK : 256 ≤ K.val) (hK2 : K.val < 4096) : v ≠ core.num.U64.wrapping_add y K := by
+  obtain ⟨a, ha, h1, h2⟩ := hv
+  obtain ⟨q, kq, hq, e1, e2, e3, -⟩ := hJP.slot_in ha
+  have hyK : (core.num.U64.wrapping_add y K).val = y.val + K.val := tcb_word hJP.heap hy hK2
+  intro e
+  rw [e, hyK] at h1 h2
+  by_cases hyq : y = q
+  · subst hyq; rw [hy] at hq; cases hq
+    have := e3 rfl
+    omega
+  · have hd := hJP.heap.disj y .tcb q kq hy hq hyq
+    rw [show (2 : Nat) ^ HKind.tcb.bits = 4096 from rfl] at hd
+    omega
+
+/-- **`DeadX` across a write frame** (jc6e): the frame misses the TCB's
+`DEBUG_PREV` and deadline words, and each core's head word is unwritten or
+names another object after. -/
+theorem deadX_of_frame {H : P1.Heap} {Cs : Set U64} {s s' : S} {q : U64} {Pw : U64 → Prop} (hH : P1.HeapOK H)
+    (hW : WFrame (L := L) s s' Pw)
+    (hpw : H q = some .tcb → ∀ v, Pw v → v ≠ P1.dpA q ∧ v ≠ P1.tdA q)
+    (hhd : H q = some .tcb → ∀ c ∈ Cs, (∀ v, Pw v → v ≠ L.nodeAt s c layout.node.DEBUG_TCBS) ∨
+      L.mem s' (L.nodeAt s c layout.node.DEBUG_TCBS) ≠ q)
+    (hnal : ∀ c ∈ Cs, P1.Aligned (L.nodeAt s c layout.node.DEBUG_TCBS))
+    (hd : Sched.DeadX (L := L) H Cs s q) : Sched.DeadX (L := L) H Cs s' q := by
+  intro hq
+  obtain ⟨d1, d2, d3⟩ := hd hq
+  have hal := hH.align q .tcb hq
+  simp only [HKind.bits] at hal
+  have hdp : (P1.dpA q).val = q.val + 3584 := tcb_word hH hq (by simp)
+  have htd : (P1.tdA q).val = q.val + 3528 := tcb_word hH hq (by simp)
+  have hp := hpw hq
+  refine ⟨?_, fun c hc => ?_, ?_⟩
+  · rw [hW.2.2 (P1.dpA q) (by unfold P1.Aligned; rw [hdp]; omega) (fun h => (hp _ h).1 rfl)]; exact d1
+  · rw [P1.nodeAt_of_ksb hW.1]
+    rcases hhd hq c hc with h | h
+    · rw [hW.2.2 _ (hnal c hc) (fun hp' => h _ hp' rfl)]; exact d2 c hc
+    · exact h
+  · rw [hW.2.2 (P1.tdA q) (by unfold P1.Aligned; rw [htd]; omega) (fun h => (hp _ h).2 rfl)]; exact d3
+
+/-- **`DeadX` across the restart** (jc6e): it writes the current thread's
+state word and the current core's scheduler-action word, none of a dead
+TCB's words nor a core's head word. -/
+theorem deadX_restart {H : P1.Heap} {Cs : Set U64} {s0 s : S} {c q : U64} (hH : P1.HeapOK H)
+    (hfr : Frame2 (L := L) s0 s (P1.stA c) (L.nodeAt s0 (L.cpu s0) layout.node.SCHED_ACTION))
+    (hks : L.ksb s = L.ksb s0) (hc : H c = some .tcb) (hqc : q ≠ c)
+    (hnd : ∀ p k, H p = some k → ∀ c' ∈ Cs, p.val + 2 ^ k.bits ≤ L.nodeBase s0 c' ∨ L.nodeBase s0 c' + 4288 ≤ p.val)
+    (hcpu : L.cpu s0 ∈ Cs) (hnf : (L.ksb s0).val + 13568 + ((L.cpu s0).val + 1) * 4288 ≤ 2 ^ 64)
+    (hDv : ∀ c' ∈ Cs, (L.nodeAt s0 c' layout.node.DEBUG_TCBS).val = L.nodeBase s0 c' + 88)
+    (hnal : ∀ c' ∈ Cs, P1.Aligned (L.nodeAt s0 c' layout.node.DEBUG_TCBS))
+    (hd : Sched.DeadX (L := L) H Cs s0 q) : Sched.DeadX (L := L) H Cs s q := by
+  intro hq
+  obtain ⟨d1, d2, d3⟩ := hd hq
+  have b12 : (2 : Nat) ^ HKind.tcb.bits = 4096 := rfl
+  have hal := hH.align q .tcb hq
+  simp only [HKind.bits] at hal
+  have hdp : (P1.dpA q).val = q.val + 3584 := tcb_word hH hq (by simp)
+  have htd : (P1.tdA q).val = q.val + 3528 := tcb_word hH hq (by simp)
+  have kw := restart_keeps_obj hH hfr hq hc hqc (hnd q .tcb hq _ hcpu) hnf
+  refine ⟨?_, fun c' hc' => ?_, ?_⟩
+  · rw [kw (P1.dpA q) (by omega) (by omega) (by omega)]; exact d1
+  · have hst : (P1.stA c).val = c.val + 3328 := by rw [P1.stA_eq]; exact tcb_word hH hc (by simp)
+    have hsa := nodeAt_val' (L := L) (s := s0) (off := layout.node.SCHED_ACTION) hnf
+      (by simp [layout.node.SCHED_ACTION])
+    have h16 : layout.node.SCHED_ACTION.val = 16 := by simp [layout.node.SCHED_ACTION]
+    have hcn := hnd c .tcb hc c' hc'
+    have hdv := hDv c' hc'
+    unfold LawfulStore.nodeBase at hcn hdv
+    rw [P1.nodeAt_of_ksb hks, hfr (L.nodeAt s0 c' layout.node.DEBUG_TCBS) (hnal c' hc') (by omega) (by omega)]
+    exact d2 c' hc'
+  · rw [kw (P1.tdA q) (by omega) (by omega) (by omega)]; exact d3
+
 set_option maxHeartbeats 4000000 in
 /-- **P1's creation after the restart, without a reset** (module docstring):
 from `JAtZ` at the decode (no switch pending) and after the restart, a CNode
@@ -350,8 +424,54 @@ theorem JAtZ.create_noresetW {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
   have hnewQ : ∀ q, NewAt A0 k w q → newKind n us ≠ none → NewQ A0 k w cj q := by
     rintro q ⟨j, hj, hq⟩ hK
     exact ⟨j, hj, hq, hcjU hK j hj⟩
+  -- jc6e: a surviving dead TCB lies off the window; the restart and the creation keep its `DeadX` words
+  have hTm0 : TimerOK st H.tcbs Cs s := J.blk.2.2.1.2.2.tm
+  have hdx' : ∀ q ∈ D, ¬ NewQ A0 k w cj q → H' q = H q → Sched.DeadX (L := L) H Cs s q →
+      Sched.DeadX (L := L) H Cs s' q := by
+    intro q hqD hnq e hd
+    have hqc : q ≠ L.curW s := by
+      intro e'; subst e'
+      exact P1.runnable_ne_inactive hrun ((J.jcov.dead _ hqD).1 J.kern.curH).1
+    have hd1 : Sched.DeadX (L := L) H Cs s1 q :=
+      deadX_restart (c := L.curW s) J.kern.heap hfr hks1 J.kern.curH hqc J.kern.hnd J.kern.cpuCs J.kern.nodeFit
+        (fun c hc => by
+          rw [nodeAt_val (hTm0.npl c hc) (by simp [layout.node.DEBUG_TCBS] : layout.node.DEBUG_TCBS.val < 4288)]
+          simp [layout.node.DEBUG_TCBS])
+        (fun c hc => nodeAt_aligned (hTm0.npl c hc) (by simp [layout.node.DEBUG_TCBS]) (by simp [layout.node.DEBUG_TCBS]))
+        hd
+    refine deadX_of_frame J.kern.heap hW (fun hq v hv => ?_) (fun hq c hc => Or.inl ?_)
+      (fun c hc => nodeAt_aligned (hTm.npl c hc) (by simp [layout.node.DEBUG_TCBS]) (by simp [layout.node.DEBUG_TCBS]))
+      hd1
+    · have hq' : H' q = some .tcb := e.trans hq
+      have hm : q.val + 4096 ≤ A0 ∨ A0 + w * k ≤ q.val := by
+        rcases hshape q .tcb hq' with ⟨-, hm⟩ | ⟨hna', hk''⟩
+        · unfold MeetsR at hm
+          have b12 : (2 : Nat) ^ HKind.tcb.bits = 4096 := rfl
+          omega
+        · exact absurd (hnewQ q hna' (by rw [hk'']; simp)) hnq
+      have hdp : (P1.dpA q).val = q.val + 3584 := tcb_word J.kern.heap hq (by simp)
+      have htd : (P1.tdA q).val = q.val + 3528 := tcb_word J.kern.heap hq (by simp)
+      rcases hv with (⟨hT', -⟩ | hsl) | ⟨-, hv1, hv2⟩
+      · exact absurd hT' hT
+      · exact ⟨((hsoff v hsl).1 q hq).2, slot_word_ne_tw hJP hsl hq (K := 3528#u64) (by simp) (by simp)⟩
+      · exact ⟨fun e' => by rw [e', hdp] at hv1 hv2; omega, fun e' => by rw [e', htd] at hv1 hv2; omega⟩
+    · intro v hv e'
+      rcases hv with (⟨hT', -⟩ | hsl) | ⟨-, hv1, hv2⟩
+      · exact absurd hT' hT
+      · have hv0 := nodeAt_val (hTm.npl c hc) (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
+        have := (hsoff v hsl).2 c hc
+        rw [e', hv0] at this
+        have : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
+        omega
+      · have hv0 := nodeAt_val (hTm.npl c hc) (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
+        have h4 : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
+        have hc2 := hk2 c hc
+        have hnc := hnb c
+        subst e'
+        rw [hv0, hnc] at hv1 hv2
+        rcases hc2 with h | h <;> omega
   refine ⟨H', Ac', hb', hout, J.jcov.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) (hW.1.trans hks1)
-    hidl ⟨p, sb, fi, hcv⟩⟩
+    hidl hdx' ⟨p, sb, fi, hcv⟩⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna', hk'⟩
     · refine Or.inl ⟨h1, ?_⟩
       rintro ⟨j, hj, hv, -⟩

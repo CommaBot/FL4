@@ -448,7 +448,8 @@ theorem JAtZ.dropCov (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) :
     Sched.JCovD (L := L) (restrictTh Z.th p.val (p.val + 2 ^ sb.val))
       (H.drop (P1.RegionD H p.val (p.val + 2 ^ sb.val))) Z.G D Cs s := by
   have C := J.jcov
-  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => DeadP.drop (C.dead q hq), C.ks, ?_⟩
+  refine ⟨fun q k hq => ?_, fun q k hq => ?_, fun q hq => DeadP.drop (C.dead q hq), C.ks, ?_,
+    fun q hq hq' => C.dx q hq (drop_some hq')⟩
   · rcases C.th q k (restrictTh_some hq).1 with h | h | h
     · exact Or.inl h
     · exact Or.inr (Or.inl h)

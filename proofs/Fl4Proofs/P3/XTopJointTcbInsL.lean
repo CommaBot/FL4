@@ -45,7 +45,7 @@ theorem bufHypW_JL {t : U64} (ht : Z.th t = some .tcb) (kb addr : U64) :
     refine WP.spec_mono (set_ipc_buffer_wr s t addr) ?_
     rintro s' rfl
     have hstep := tcbBufStep_upd hk addr.bv
-    have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb
+    have J0 := J.addDeadSet (E := ZTcb (L := L) Z.th s) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
     obtain ⟨V', J'⟩ := J0.bufWrJ htT hk addr (ipcframe_null_of hX.rel.2.1.1 ht hk hnull)
     have hSS : SlotsSame Z.th (L.mem s) (L.mem (L.wr s (tIpcBufA t) addr)) :=
       hX.slotsSame_of (P1.writesIn_wr hwa) (fun b hb => by subst hb; exact tcb_oobj htT hta (by decide) (by decide))
@@ -131,7 +131,7 @@ theorem tcbInsW_wjl [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : 
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR Z.th) (hF : JThreadFinHypsU (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR) (hAM : ARMask arI AR) :
     TcbInsW (L := L) arI AR Z H Cs (fun kb => WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) Z.th H)
-      (RzJ (L := L) (A := A) H) :=
+      (RzJ (L := L) (A := A) H Cs) :=
   ⟨insWJ_wjl arI, fun kb => delHypsJL arI hT hAR hK hV hF hnd hPP hAM Z H Cs kb rfl⟩
 
 end

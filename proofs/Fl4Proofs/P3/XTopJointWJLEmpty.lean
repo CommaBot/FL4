@@ -1,7 +1,8 @@
 /-
 P3 (DESIGN.md §9), CSpace: **emptying a ready slot keeps `WJL`**
 (`EmptyHypWR` at `WJL`, XTopJointWJL), the readiness `RdLO`: XTopJointDelR's
-`RdL` and `LiveOther`.
+`RdL`, `LiveOther` and `TcbReady` (no live TCB in the cap's range; with the
+TCB zombies' TCBs dead, `EmptyReadyX`).
 
 * `WJR` as `emptyHypJ` (XTopJointDelR), at a dead set holding the TCB
   zombies' TCBs (`JAtZ.addDeadSet`, `emptyJRD`/`emptyJRTD` growing it),
@@ -26,9 +27,73 @@ noncomputable section
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 
-/-- **The deletion loop's readiness at `WJL`**: `RdL` and `LiveOther`. -/
+/-- **No live TCB in the emptied cap's range** (KENTRY-PLAN jc6e, for
+`EmptyReadyX`): each range inside the (covering) cap's is covered by another
+cap, or each TCB at its base is a TCB zombie's (in `ZTcb`, so in the dead set
+`WJL` grows by `JAtZ.addDeadSet`). FL4: the loop empties a slot only when the
+finalisation's remainder is removable (`RmOK`): a non-final cap (another cap
+alike it), a cap finalised without effect, a removable zombie, or a final
+non-thread object cap (no TCB in its range); a final thread cap's remainder is
+a zombie still naming slots. -/
+def TcbReady (th : TypedHeap) (H : P1.Heap) (G : MdbGhost) (s : S) (x : U64) : Prop :=
+  physF (capV (L.mem s) x) = true → isUt (capV (L.mem s) x) = false →
+  ∀ lo hi, lo < hi → baseF (capV (L.mem s) x) ≤ lo → hi ≤ topF (capV (L.mem s) x) + 1 →
+    OtherCov (L.mem s) G x lo hi ∨ ∀ q : U64, q.val = lo → H q = some .tcb → q ∈ ZTcb (L := L) th s
+
+/-- `TcbReady` of a cap whose range meets no TCB of `H`. -/
+theorem TcbReady.of_apart {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
+    (hT : ∀ q, H q = some .tcb →
+      q.val + 2 ^ (P1.HKind.tcb).bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val) :
+    TcbReady (L := L) th H G s x := by
+  intro _ _ lo hi hlh h1 h2
+  refine Or.inr fun q hq hHq => ?_
+  exfalso
+  have : 1 ≤ 2 ^ (P1.HKind.tcb).bits := Nat.one_le_two_pow
+  rcases hT q hHq with h | h <;> omega
+
+/-- `TcbReady` of a cap whose range meets no object of `H` but `other` ones
+(as `EmptyReady.of_apartO`). -/
+theorem TcbReady.of_apartO {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
+    (hap : ∀ q k, H q = some k → (∀ z, k ≠ .other z) →
+      q.val + 2 ^ k.bits ≤ baseF (capV (L.mem s) x) ∨ topF (capV (L.mem s) x) < q.val) :
+    TcbReady (L := L) th H G s x :=
+  TcbReady.of_apart fun q hq => hap q _ hq (fun z e => by cases e)
+
+/-- `TcbReady` of a cap whose range is one object `p` of `H`, not a TCB. -/
+theorem TcbReady.of_obj {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64} {p : U64} {sz : Nat}
+    (hp : H p ≠ some .tcb)
+    (hdisj : ∀ q, H q = some .tcb → q ≠ p → q.val + 2 ^ (P1.HKind.tcb).bits ≤ p.val ∨ p.val + sz ≤ q.val)
+    (hsz : 1 ≤ sz) (e1 : baseF (capV (L.mem s) x) = p.val) (e2 : topF (capV (L.mem s) x) = p.val + sz - 1) :
+    TcbReady (L := L) th H G s x := by
+  refine TcbReady.of_apart fun q hq => ?_
+  have hne : q ≠ p := fun e => hp (by rw [← e]; exact hq)
+  rw [e1, e2]
+  rcases hdisj q hq hne with h | h
+  · exact Or.inl h
+  · right; omega
+
+/-- `TcbReady` of a non-physical cap. -/
+theorem TcbReady.of_nonphys {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {x : U64}
+    (hp : physF (capV (L.mem s) x) = false) : TcbReady (L := L) th H G s x := by
+  intro h
+  rw [hp] at h
+  cases h
+
+/-- `TcbReady` when another MDB cap covers the cap's range (as
+`EmptyReady.of_cover`). -/
+theorem TcbReady.of_cover {th : TypedHeap} {H : P1.Heap} {G : MdbGhost} {s : S} {x y : U64}
+    (hy : y ∈ G.chains.flatten)
+    (hne : y ≠ x) (hp : physF (capV (L.mem s) x) = true → physF (capV (L.mem s) y) = true)
+    (hu : isUt (capV (L.mem s) y) = false) (hb : baseF (capV (L.mem s) y) ≤ baseF (capV (L.mem s) x))
+    (ht : topF (capV (L.mem s) x) ≤ topF (capV (L.mem s) y)) : TcbReady (L := L) th H G s x := by
+  intro hpx _
+  exact fun lo hi _ h1 h2 => Or.inl ⟨y, hy, hne, hp hpx, hu, le_trans hb h1, by omega⟩
+
+/-- **The deletion loop's readiness at `WJL`**: `RdL`, `LiveOther` and
+`TcbReady`. -/
 abbrev RdLO (th : TypedHeap) (H : P1.Heap) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
-  fun s a σ G x => RdL (L := L) (A := A) th H s a σ G x ∧ LiveOther (L := L) th s σ G x
+  fun s a σ G x => RdL (L := L) (A := A) th H s a σ G x ∧ LiveOther (L := L) th s σ G x ∧
+    TcbReady (L := L) th H G s x
 
 variable {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap}
 
@@ -38,19 +103,26 @@ theorem emptyHypJL [Fl4Proofs.P1.PlainStore st] (Z : XSets)
     (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     EmptyHypWR (L := L) (WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) th H) th := by
   intro s s' a σ σ' G G' sl hW hRdLO hD1 hD2 hF hes hA hxn hx0 hoth hmS
-  obtain ⟨⟨hRd, hRL⟩, hLO⟩ := hRdLO
+  obtain ⟨⟨hRd, hRL⟩, hLO, hTR⟩ := hRdLO
   subst hth
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ := hW
   have hP := J.xtop.rel.1
   set E : Set U64 := ZTcb (L := L) Z.th s with hE
-  have J0 := J.addDeadSet (E := E) hL.ztcb
+  have J0 := J.addDeadSet (E := E) hL.ztcb (fun p hp => J.jcov.dx p (J.zD p hp))
+  -- `EmptyReadyX` at the grown dead set: a TCB in the range is a TCB zombie's (`TcbReady`)
+  have hrx : EmptyReadyX (L := L) H Cs (D ∪ E) G s (cslotAddr sl) := by
+    intro hp hu lo hi hlh h1 h2
+    refine (hTR hp hu lo hi hlh h1 h2).imp_right fun h q hq hqD => ?_
+    by_cases hHq : H q = some .tcb
+    · exact (hqD (Or.inr (h q hq hHq))).elim
+    · exact Sched.DeadX.of_ne hHq
   have hnk := emptySlot_null_nkn _ σ ((), σ') hes
   obtain ⟨⟨V2, hX2⟩, -, -, -⟩ := slotHypW_XZ AR (Z.mv G V) kb s s' a σ σ' G G'
     ⟨⟨V, J0.xtop⟩, J0.ks, J0.thT, hkb⟩ hD1 hD2 hF hnk hmS
   obtain ⟨hks, hkb2, hfk2, hR⟩ : L.ksb s' = L.ksb s ∧ KBack σ σ' ∧ IpcFrKeep σ σ' ∧ _ := by
     by_cases hcn : ∃ q, sl.1 = q.bv ∧ Z.th q = some (.cnode sl.2.length)
-    · exact J0.emptyJRD hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
-    · exact J0.emptyJRTD hA hcn hxn hRd hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
+    · exact J0.emptyJRD hA hcn hxn hRd hrx hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
+    · exact J0.emptyJRTD hA hcn hxn hRd hrx hes hD2 hx0 hoth hX2 (SlotFrame2.writesIn hF) hnk
   have hcs := emptySlot_cdt_orig J.xtop.rel.2.1.1 hA hxn hes
   have hw : P1.WritesIn st s s' (InSlot Z.th) :=
     (SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J.xtop.rel.1 hb

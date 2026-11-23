@@ -15,6 +15,7 @@ named steps assembled.
 -/
 import Fl4Proofs.P3.XTopJointWJLFinT
 import Fl4Proofs.P3.XTopJointWJLSwap
+import Fl4Proofs.P1.QueueDeadTd
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -32,7 +33,7 @@ theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchR
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     FinObjHypWRcZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) th H)
-      (RzJ (L := L) (A := A) H) th := by
+      (RzJ (L := L) (A := A) H Cs) th := by
   intro s a σ G sl c hDS hW hA hc hk _
   by_cases hfi : FrIoK c
   · refine WP.spec_mono (jFinAtL_frio arI hAR hK (jVsApartHyp arI) hV Z H Cs kb hth s a σ G sl c hDS hW hA hc hk
@@ -59,7 +60,9 @@ theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchR
     by_cases hsc : ScK c
     · exact jFinAtL_sc arI hT hF.ticks Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
-    · exact jFinAtL_thread arI hT hK hF Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
+    · exact jFinAtL_thread arI hT hK hF
+        (fun _ _ _ s a p hb hp hna hid hv => P1.fin_cap_thread.td0 (ar := arI) hT s a p false hb hp hna hid hv)
+        Z H Cs kb hth s a σ G sl c hDS hW hA hc hk ht hfin
     by_cases hvt : EptK c ∨ VcpuK c
     · exact jFinAtL_vt arI hAR hK hV Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvt hfin
     by_cases hrt : EptRootK c
@@ -73,7 +76,7 @@ theorem delHypsJL [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : Ar
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR) (hAM : ARMask arI AR)
     (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     DelHypsWRZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H) th := by
+      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th := by
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by

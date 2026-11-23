@@ -166,8 +166,8 @@ theorem jowes_restartD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
   have hRR' : RRecv (L.mem s1) Z.R σ1 :=
     J.rrecv.frame (TFoot.keep hS J.rp hwT).2.2 (KhRB.of_sctkw hK)
   have hF : FK σ σ1 := (fk_setThreadState _ _).of_eq he1
-  have hBlk' : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
-      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s1 := by
+  have hBK : P1.BlkOK st (P1.Heap.tcbs H) Cs (P1.Heap.omega H) H (P1.Heap.frame H) (P1.Heap.replies H)
+      (P1.Heap.scs H) (P1.Heap.ntfns H) (P1.Heap.scBits H) Ac s1 ∧ P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := by
     obtain ⟨x', hk', hRt⟩ := J.xtop.ipc.tcb ct hT
     rw [hk] at hk'; cases hk'
     have hnbr : ¬ P1.BlockedR (L.mem s (P1.stA ct)) := fun hb => by
@@ -177,8 +177,11 @@ theorem jowes_restartD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
       obtain ⟨Tr, Cq, hJ⟩ := J.jpl
       exact Set.ext fun t => ⟨fun h => J.zH.1 t h, fun h => J.thT t ((hJ.tcb t).2 h)⟩
     rw [hTe] at hT
-    exact (P1.sched.set_thread_state.restart_ok (Es := ∅) J.blk hT (fun h => hnbr (Or.inl h))
-      (fun h => hnbr (Or.inr h)) hs1).1
+    have hr := P1.sched.set_thread_state.restart_ok (Es := ∅) J.blk hT (fun h => hnbr (Or.inl h))
+      (fun h => hnbr (Or.inr h)) hs1
+    exact ⟨hr.1, P1.Foot.dbgKeep J.blk (Set.empty_subset _) hr.2.1⟩
+  have hBlk' := hBK.1
+  have hKd := hBK.2
   have hDbg : L.mem s1 (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) =
       L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) := by
     have hP := hX.rel.1
@@ -214,7 +217,7 @@ theorem jowes_restartD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Hea
     J.deadP_sc_step hX1 hwT hK (fun p y e hy => by subst e; rw [hk] at hy; cases hy; exact hrun) hL hF hAI.1
       hY' ((hSOK.ykeep rfl).dk q.bv) (fun h => h) (J.jcov.dead q hq)
   refine ⟨Lst', ⟨hCR', hRF', hRR', hY', hM', J.sc_buf hwT hK, hRP', J.sc_apart hwT hK, J.sc_jpl hwT hK (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2).2,
-    J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2), J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
+    J.sc_jcov hwT hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX1.fin.1.1.1 hF.2.1 hF.2.2) hKd subset_rfl, J.sc_kern hwT hK hF hX1 hDbg (fun _ h => h),
     J.sc_utc hwT hK hDbg, hNsc, hI1, hcur', curOwnW_updTcb J.own hk _, OffOK.restart J.off _, hAI, hB',
     J.isorted.tkw hK, Or.inr (Or.inl hCR''), hBlk'⟩⟩
 
@@ -742,6 +745,7 @@ theorem jowes_slotOf {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} {G' : Md
   have hJC := J.jcs_slot hM' hMO hFI hUK hkz (hDl J.del)
   have hjc := J.jcov_cover hw.1 hM' hCK hUK (fun q hq => hdead q hq (J.jcov.dead q hq))
     (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc)
+    (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw))
   have hDbg : L.mem s' (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) = L.mem s (L.nodeAt s 0#u64 layout.node.DEBUG_TCBS) :=
     hw.mem_eq J.kern.dwAl fun ⟨x, hx, h1, h2⟩ => J.kern.dwObj x hx ⟨h1, h2⟩
   have hgp : σ'.archState.x64GlobalPml4 = σ.archState.x64GlobalPml4 := by
@@ -986,7 +990,9 @@ theorem jowes_ksD {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S) 
       exact ⟨fun sl' h => r1 sl' (by rw [← hO.orig]; exact h), by rw [hna, hDbg]; exact r3⟩
   exact ⟨Ac, Lst, ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hO.kh),
-    J.jpl_keep arI hSS hO.kh hw.1 hI (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2, J.jcov_keep hw.1 hSS hdead (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc), hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
+    J.jpl_keep arI hSS hO.kh hw.1 hI (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2, J.jcov_keep hw.1 hSS hdead (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc)
+      (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) (J.tdkeep_of hw fun _ hb => J.ksW_ntd hb)),
+    hkern, hutc, J.nsc.cn hC.toHStep, J.inv.cn hC, CurInvW.cn J.cur hC, J.own.cn hC.toHStep, J.off.cn hC.toHStep,
     J.act.cn hC,
     J.bsa.cn hC.toHStep, J.isorted.cn hC.toHStep, J.curRun.cn hC.toHStep (Or.inr hC.act), hblk⟩⟩
 
@@ -1180,7 +1186,9 @@ theorem jowes_sched {AR : A → Fl4Spec.Cr3 → Prop} {th : TypedHeap} (s s' : S
       (J.jcov.dead q hq)
   exact ⟨Ac, Lst, ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 mk,
     J.buf.frame kb (fun p x hp => let ⟨y, hy, hc⟩ := hC.tcbF hp; ⟨y, hy, hc.buf⟩), hRP', J.apart.sc_frame hw.1 (SzKeep.of_kheap hK.kh),
-    J.jpl_keep arI hSS hK.kh hw.1 hI (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2, J.jcov_keep hw.1 hSS hdead (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc), hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
+    J.jpl_keep arI hSS hK.kh hw.1 hI (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc).2, J.jcov_keep hw.1 hSS hdead (J.idleW_keep hX'.fin.1.1.1 hC.idle hC.isc)
+      (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.schW_notDbg hb) (J.tdkeep_of hw fun _ hb => J.schW_ntd hb)),
+    hkern, hutc, J.nsc.cn hC, hI', hcur', J.own.cn hC, J.off.cn hC, hA', J.bsa.cn hC, J.isorted.cn hC,
     J.curRun.cn hC hQ.2, hblk⟩⟩
 
 

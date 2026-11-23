@@ -242,6 +242,7 @@ theorem JAtZ.subInsJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
   have hjc := J.jcov_cover hw.1 hS'.M hCK hUK
     (fun q hq => J.deadP_slot hX1' hcn hkcT hw (J.jcov.dead q hq))
     (J.idleW_keep hX1'.fin.1.1.1 (CnStep.of_cnK hcn).idle (CnStep.of_cnK hcn).isc)
+    (DXKeep.of_dbg (dbgKeep_of_writes J.blk hw fun _ hb => J.inSlot_notDbg hb) (J.tdkeep_slot hw))
   have hfh' : ∀ t, Z.th t = some .tcb → capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) = .Null ∨
       ∃ ep b0 b1 b2 b3 b4, capV (L.mem s') (cslotAddr (t.bv, Fl4Spec.tcbCnodeIndex 3)) =
         .Endpoint ep b0 b1 b2 b3 b4 := by

@@ -1021,8 +1021,42 @@ theorem JAtZ.create_noresetB {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : 
   have hnewQ : ∀ q, NewAt A0 k w q → newKind n us ≠ none → NewQ A0 k w cj q := by
     rintro q ⟨j, hj, hq⟩ hK
     exact ⟨j, hj, hq, hcjU hK j hj⟩
+  -- jc6e: a surviving dead TCB lies off the window; the creation keeps its `DeadX` words
+  have hdx' : ∀ q ∈ D, ¬ NewQ A0 k w cj q → H' q = H q → Sched.DeadX (L := L) H Cs s q →
+      Sched.DeadX (L := L) H Cs s' q := by
+    intro q _ hnq e hd
+    refine deadX_of_frame J.kern.heap hW (fun hq v hv => ?_) (fun hq c hc => Or.inl ?_)
+      (fun c hc => nodeAt_aligned (hTm.npl c hc) (by simp [layout.node.DEBUG_TCBS]) (by simp [layout.node.DEBUG_TCBS]))
+      hd
+    · have hq' : H' q = some .tcb := e.trans hq
+      have hm : q.val + 4096 ≤ A0 ∨ A0 + w * k ≤ q.val := by
+        rcases hshape q .tcb hq' with ⟨-, hm⟩ | ⟨hna', hk''⟩
+        · unfold MeetsR at hm
+          have b12 : (2 : Nat) ^ HKind.tcb.bits = 4096 := rfl
+          omega
+        · exact absurd (hnewQ q hna' (by rw [hk'']; simp)) hnq
+      have hdp : (P1.dpA q).val = q.val + 3584 := tcb_word J.kern.heap hq (by simp)
+      have htd : (P1.tdA q).val = q.val + 3528 := tcb_word J.kern.heap hq (by simp)
+      rcases hv with (⟨hT', -⟩ | hsl) | ⟨-, hv1, hv2⟩
+      · exact absurd hT' hT
+      · exact ⟨((hsoff v hsl).1 q hq).2, slot_word_ne_tw hJP hsl hq (K := 3528#u64) (by simp) (by simp)⟩
+      · exact ⟨fun e' => by rw [e', hdp] at hv1 hv2; omega, fun e' => by rw [e', htd] at hv1 hv2; omega⟩
+    · intro v hv e'
+      rcases hv with (⟨hT', -⟩ | hsl) | ⟨-, hv1, hv2⟩
+      · exact absurd hT' hT
+      · have hv0 := nodeAt_val (hTm.npl c hc) (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
+        have := (hsoff v hsl).2 c hc
+        rw [e', hv0] at this
+        have : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
+        omega
+      · have hv0 := nodeAt_val (hTm.npl c hc) (off := layout.node.DEBUG_TCBS) (by simp [layout.node.DEBUG_TCBS])
+        have h4 : layout.node.DEBUG_TCBS.val < 4288 := by simp [layout.node.DEBUG_TCBS]
+        have hc2 := hk2 c hc
+        subst e'
+        rw [hv0] at hv1 hv2
+        rcases hc2 with h | h <;> omega
   refine ⟨H', Ac', hb', hout, J.jcov.retype hE (fun q kd hq => ?_) (fun q hqD hnq e hd => ?_) hW.1
-    hidl ⟨p, sb, fi, hcv⟩⟩
+    hidl hdx' ⟨p, sb, fi, hcv⟩⟩
   · rcases hshape q kd hq with ⟨h1, hm⟩ | ⟨hna', hk'⟩
     · refine Or.inl ⟨h1, ?_⟩
       rintro ⟨j, hj, hv, -⟩

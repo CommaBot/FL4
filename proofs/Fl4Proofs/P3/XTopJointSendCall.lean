@@ -446,7 +446,8 @@ theorem JAtZ.wake_postCI (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {n t 
   have R : JRest (L := L) arI (Z.mv Z.G V') H Cs Ac Lst D s' σ' :=
     ⟨hCR', hRF', hRR', J.yld.frame k2 (F.ykeep.trans (ciSt_ykeep hkc)),
       J.mcp.frame k1 (F.mcpKeep.trans (ciSt_mcpKeep hkc)), J.buf.frame kb hbuf, hRP',
-      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0), hkern,
+      J.apart.sc_frame hks hsz, hjpl, J.jcov_keep hks hF.1 hdead (J.idleW_keep hS3 hidl0 hisc0)
+        (DXKeep.of_dbg hKd (J.cnW_td hw)), hkern,
       J.cnW_utc hw hF.1 (G.cdt.trans F.sk.cdt) (G.orig.trans F.sk.orig) (G.arch.trans F.sk.arch) hDbg,
       ciSt_nsc (F.nsc J.nsc), I3, hcur3, ciSt_own hkc (F.own htT J.own), ciSt_off (F.off J.off),
       hAI3, B3, ciSt_isorted hkc (F.isorted J.isorted), hrun3, hblk⟩

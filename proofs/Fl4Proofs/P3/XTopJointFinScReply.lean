@@ -294,7 +294,8 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
     (hcov : ∀ q ∈ D, q ∉ D' →
       (∀ k, Z.th q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + max (objSize k) 1)) ∧
       (∀ k, H q = some k → Sched.Covered (L.mem s') Z.G q.val (q.val + 2 ^ k.bits)))
-    (hidl : Sched.IdleKeep (L := L) s s') :
+    (hidl : Sched.IdleKeep (L := L) s s')
+    (hDX : Sched.DXKeep (L := L) H Cs s s') (hDD : D' ⊆ D) :
     Sched.JCovD (L := L) Z.th H Z.G D' Cs s' := by
   obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
   have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -304,7 +305,8 @@ theorem JAtZ.sc_jcovS {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap
   have JC := J.jcov
   refine ⟨fun q k hq => ?_, fun q k hq => ?_, hdead,
     JC.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
-    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩⟩
+    JC.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hSS.capV (hsl x hx)]; exact hc⟩,
+    fun q hq => J.jcov.dxKeep hDX q (hDD hq)⟩
   · rcases JC.th q k hq with hc | hd | hi
     · exact Or.inl (Sched.covered_keep hc hk)
     · by_cases h : q ∈ D'
@@ -649,7 +651,8 @@ theorem JAtZ.unbindReplyJD {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1
   have hDbg := J.kw_dbg (hfoot.mono (Set.empty_subset _))
   have hKd := J.kw_dbgKeep (hfoot.mono (Set.empty_subset _))
   exact ⟨σ', he, Z.vs, Ac, Lst', J.sc_frameS hks hSS (J.vkeep_of hwR fun b hb u hu => Sched.RW.ne_tcbw hS J.rp hb hu (K := 3664#u64) (by simp)) hK hX' hCR' hRF' hRR' hY' hM' hbuf hRP'
-    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2))
+    (J.apart.sc_frame hks hK.szKeep) hjpl (J.sc_jcovS hks hSS hDead (fun q hq hn => absurd hq hn) (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2)
+      (DXKeep.of_dbg hKd (J.tdkeep_of hwR fun b hb u hu => Sched.RW.ne_tcbw hS J.rp hb hu (K := 3528#u64) (by simp))) subset_rfl)
     (J.sc_kernW hw hK hF.fk hX' hDbg fun _ h => h) (J.sc_utcR hwR hSS hK hDbg) hN' hI'
     (J.cur.imp (fun e => by rw [hF.act]; exact e) hF.curInv) (hF.own J.own) (hF.off J.off) hact'
     (hF.bsa J.bsa) (hF.curRun J.curRun) hblk hKd (J.idleW_keep hX'.fin.1.1.1 hF.fk.2.1 hF.fk.2.2).1 J.zD⟩

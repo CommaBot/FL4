@@ -310,17 +310,25 @@ theorem JAtZ.zeroJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {q n : U64}
   have hjpl : ∃ Tr Cq, JPlaced (L := L) Z.th H Tr Cq s1 σ :=
     ⟨Tr, Cq, hJ.same hSS (fun q y n _ hq => F.szKeep q.bv y n hq) hkb hirq (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc).2⟩
   have hkern := J.kern_keepA hkb hcpu hX1.fin.1.1.1 F hDbg
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
-    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
-      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
-      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc), hkern,
-      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
-      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s s1 := dbgKeep_of_writes J.blk hW fun b hb => by
     obtain ⟨-, h1, h2⟩ := hb
     refine J.notDbg' (fun p hp => ?_) (fun c hc => ?_)
     · rcases hAp p .tcb hp (fun z h => by cases h) with e | e <;> simp only [P1.HKind.bits] at e ⊢ <;> omega
     · rcases hnd c hc with e | e <;> omega
+  have hTd : Sched.TdKeep (L := L) H s s1 := J.tdkeep_of hW fun b hb u hu' e => by
+    obtain ⟨-, h1, h2⟩ := hb
+    have hv := J.tdA_val' hu'
+    have := hAp u .tcb (J.zH.1 u hu') (fun z h => by cases h)
+    rw [e] at h1 h2
+    simp only [P1.HKind.bits] at this
+    omega
+  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ :=
+    ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
+      J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
+      J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc)
+        (DXKeep.of_dbg hKd hTd), hkern,
+      hutc, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
+      J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
   exact J.cs_frameK hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hW fun b hb u hu' e => by
     obtain ⟨-, h1, h2⟩ := hb
     have hv := Sched.tVcpuA_val J.ip.e.tcb hu'

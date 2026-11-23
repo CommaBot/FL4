@@ -179,7 +179,7 @@ theorem JTH.tmoBaseCtJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
       (writesIn_wr (v := b) (a_fw0 hta).1)).trans (writesIn_wr (v := 0#u64) (a_fw1 hta).1)).trans
       (writesIn_wr (v := 0#u64) (a_fw2 hta).1)
     refine w.mono fun w0 hw0 => ?_
-    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ (K ≠ 3512 ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
+    have k : ∃ K : Nat, 256 ≤ K ∧ K < 4096 ∧ K ≠ 3440 ∧ K ≠ 3472 ∧ ((K ≠ 3512 ∧ K ≠ 3528) ∧ K ≠ 3664 ∧ K ≠ 3456) ∧ w0.val = t.val + K := by
       rcases hw0 with ((h | h) | h) | h <;> subst h
       · exact ⟨3376, by omega, by omega, by omega, by omega, by omega, val_fault hta⟩
       · exact ⟨3384, by omega, by omega, by omega, by omega, by omega, val_fw0 hta⟩
@@ -392,6 +392,9 @@ theorem JTH.tmoBaseCtJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
   have hkern := J.kern_keep hks hW.2.1 hS3 e_ct e_csc (fun sl h => Or.inl (by rw [← e_orig]; exact h))
     (by rw [e_arch]) haoc hDbg (D' := D)
   have hRR' := J.rrecv.frame k4 hrbc
+  have hKd : P1.DbgKeep st (P1.Heap.tcbs H) Cs s0 sB :=
+    Hj.dbgK.trans (P1.Foot.dbgKeep Hj.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot)
+  have hDX : Sched.DXKeep (L := L) H Cs s0 sB := DXKeep.of_dbg hKd (J.cnW_td hW)
   have hjcov : JCovD (L := L) Z.th H Z.G D Cs sB := by
     obtain ⟨-, ⟨-, -, hM, -, -⟩, -⟩ := J.xtop.rel
     have hsl : ∀ x ∈ Z.G.chains.flatten, IsSlot Z.th x := fun x h => ((hM.members x).1 h).1
@@ -399,6 +402,7 @@ theorem JTH.tmoBaseCtJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
       (fun q hq _ => hdead q hq)
       (J.jcov.ks.keep hks fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩) hidl hks
       (J.jcov.idleOut.keep hidl fun x hx p sb fi d hc => ⟨x, hx, fi, by rw [← hF.1.capV (hsl x hx)]; exact hc⟩)
+      (fun q _ h => h.keep hDX)
   -- `Inv` (`InvBut.ik` at the hole; the thread `Inactive`, not `inClassR`)
   have hik : IK t.bv σ σB := by
     have i1 : IK t.bv σ σF := IK.updSelf hk rfl
@@ -452,7 +456,7 @@ theorem JTH.tmoBaseCtJ {s0 : S} {a0 : A} {σ0 : Fl4Spec.State Unit} {s : S} {a :
   have hC0 := JCs.same J hF.1 hkszc
   have hCs : JCs (L := L) (Z.mv Z.G V') sB σB := ⟨hC0.del, hC0.ut, hC0.finM, hC0.sfree⟩
   exact ⟨Z.vs, J.cs_frameI hks hX3 hW (fun b hb => Ipc.CnW.oobj J.xtop.fin.1.1.1 hb) (fun b hb => J.cnW_nv hb) e_arch haoc hszc
-    hF.1 hkbc hfkc hCs R (Hj.dbgK.trans (P1.Foot.dbgKeep Hj.blk (by first | exact fun _ h => h | exact Set.empty_subset _) hfoot)) e_orig
+    hF.1 hkbc hfkc hCs R hKd e_orig
     (XTopAt.idleW_eqS J.xtop hX3 e_idle) J.zD⟩
 
 end

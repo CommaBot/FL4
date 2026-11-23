@@ -54,10 +54,11 @@ def WJL (AR : A → Fl4Spec.Cr3 → Prop) (Z : XSets) (H : P1.Heap) (Cs : Set U6
     DbgWF (P1.Heap.tcbs H) Cs (L.mem s) (dbgHd (L := L) s) ∧ NullOrig Z.th (L.mem s) σ
 
 /-- **The finalisation's slot fact for the zombie write at `J`**: a thread
-cap's TCB dead and off core 0's debug list. -/
-abbrev RzJ (H : P1.Heap) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
+cap's TCB dead and off core 0's debug list, and off every core's debug list
+and unarmed (`DeadX`, KENTRY-PLAN jc6e: `timer::remove`, `debug_remove`). -/
+abbrev RzJ (H : P1.Heap) (Cs : Set U64) : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop :=
   fun s _ _ _ x => ∀ q, capV (L.mem s) x = .Thread q →
-    DeadP (L := L) H s q ∧ ∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ q
+    DeadP (L := L) H s q ∧ (∀ n, dbgNth (L.mem s) n (dbgHead (L := L) s) ≠ q) ∧ DeadX (L := L) H Cs s q
 
 /-- **The stronger readiness of the slot `x` to be emptied** (module
 docstring). -/
@@ -132,17 +133,19 @@ theorem JAtZ.zombieWD {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64} {Lst : U64 →
 set_option maxHeartbeats 4000000 in
 /-- **A zombie written over a cap alike it keeps `WJL`** (module docstring). -/
 theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    ZombieHypWZ (L := L) (A := A) (WJL (L := L) arI AR Z H Cs kb) (RzJ (L := L) (A := A) H) th := by
+    ZombieHypWZ (L := L) (A := A) (WJL (L := L) arI AR Z H Cs kb) (RzJ (L := L) (A := A) H Cs) th := by
   intro s s' a σ σ' G sl p zt n hW hRz0 hcd hZF hD1 hD2 hF hsc hA hxn hz hal hoth hmS
   subst hth
   have hRz : ∀ q, capV (L.mem s) (cslotAddr sl) = .Thread q →
-      DeadP (L := L) H s q ∧ ∀ k, dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ q := fun q h => hRz0 q h q h
+      DeadP (L := L) H s q ∧ (∀ k, dbgNth (L.mem s) k (dbgHead (L := L) s) ≠ q) ∧ DeadX (L := L) H Cs s q :=
+    fun q h => hRz0 q h q h
   obtain ⟨⟨V, Ac, Lst, D, J, hkb, hns, hsg, hp0⟩, hL, ⟨lst, hDW⟩, hN⟩ := hW
   have hP := J.xtop.rel.1
   have hxs := hA.isSlot
   -- the dead set: the TCB zombies' TCBs and the thread's
   set E : Set U64 := ZTcb (L := L) Z.th s ∪ {q | capV (L.mem s) (cslotAddr sl) = .Thread q} with hE
   have J0 := J.addDeadSet (E := E) (fun q hq => hq.elim (hL.ztcb q) (fun h => (hRz q h).1))
+    (fun q hq => hq.elim (fun h => J.jcov.dx q (J.zD q h)) (fun h => (hRz q h).2.2))
   obtain ⟨V2, Ac', Lst', hXb, hdead0, mk, hks, hns', hsg'⟩ :=
     J0.zombieWD arI hns hsg hD1 hD2 hF hsc hA hxn hz hal hoth hmS
   have hdead : ∀ q ∈ E, DeadP (L := L) H s' q := fun q hq => hdead0 q (Or.inr hq)
@@ -209,7 +212,7 @@ theorem jZombieHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z
       obtain ⟨y, hy, hr⟩ := hL.dbg k hk (by rw [← gk_idle (Vs.gk_setCap _ _) (mem_of_single hsc)]; exact hki)
       refine ⟨y, hy, ?_⟩
       by_cases e : y = cslotAddr sl
-      · subst e; exact absurd rfl ((hRz _ hr).2 k)
+      · subst e; exact absurd rfl ((hRz _ hr).2.1 k)
       · rw [hoth y (hmem y hy) e]; exact hr
     · by_cases e : y = cslotAddr sl
       · subst e
