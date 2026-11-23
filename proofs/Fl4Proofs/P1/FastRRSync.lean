@@ -57,6 +57,51 @@ theorem after_invocation_ok (s : S) (a : A) :
 theorem unknown_ne_null : ¬ (fl4_abi.consts.fault.UnknownSyscall = fl4_abi.consts.fault.NullFault) := by
   unfold fl4_abi.consts.fault.UnknownSyscall fl4_abi.consts.fault.NullFault; decide
 
+/-- **`do_reply_transfer` on the accepted ReplyRecv run** (a receiver with a fault of type `ty ≠ NullFault`, pf1) (from `X1`, after
+`t`'s Restart, to `X7`, after the action write): the fast path's
+`reply_remove`, `unblock_check` branch, `handle_fault_reply` (restart),
+`clear_fault`, `u`'s Restart, and `possible_switch_to u` = `set_action u`. -/
+theorem do_reply_transfer_rrG {ty : U64} {X1 X2 X3 X4 X5 X6 X7 : S} {a a1 a2 : A} {t u rptr usc : U64} {g b9 : Bool}
+    (hrt : obj.Reply.tcb st rptr X1 = ok u) (hun : obj.Tcb.is_null u = ok false)
+    (hus : obj.Tcb.state st u X1 = ok sched.TS_BLOCKED_ON_REPLY)
+    (h2 : ipc.reply_remove st ar X1 a rptr u = ok (X2, a1))
+    (hsc2 : obj.Tcb.sc st u X2 = ok usc)
+    (h3s : sporadic.sc_sporadic st X2 usc = ok b9)
+    (h3 : (if b9 then do
+        let i13 ← obj.Sc.cpu st usc X2
+        let i14 ← obj.node_get st X2 i13 layout.node.CUR_SC
+        if usc != i14 then sporadic.unblock_check st X2 usc else ok X2
+      else ok X2) = ok X3)
+    (hty0 : ¬ ty = fl4_abi.consts.fault.NullFault) (hft : obj.Tcb.fault_type st u X3 = ok ty)
+    (h4 : faults.handle_fault_reply st ar X3 a1 u t = ok (true, X4, a2))
+    (h5 : faults.clear_fault st X4 u = ok X5)
+    (h6 : obj.Tcb.set_state st u X5 sched.TS_RESTART = ok X6)
+    (hsch6 : sched.schedule_tcb st X6 u = ok X6)
+    (hsc6 : obj.Tcb.sc st u X6 = ok usc) (husc : obj.Sc.is_null usc = ok false)
+    (hrun6 : sched.is_runnable st X6 u = ok true)
+    (hrdy6 : sporadic.ready st X6 usc = ok true)
+    (hsuf6 : sporadic.sufficient st ar X6 a2 usc 0#u64 = ok true)
+    (hpst : sched.possible_switch_to st X6 u = ok X7) :
+    ipc.do_reply_transfer st ar X1 a t rptr g = ok (X7, a2) := by
+  unfold ipc.do_reply_transfer
+  simp only [hrt, hun, hus, bind_ok, Bool.false_eq_true, ↓reduceIte, bne_self_rr]
+  rw [h2]; simp only [bind_ok, uncurry_apply_pair]
+  rw [hsc2]; simp only [bind_ok]
+  rw [h3s]; simp only [bind_ok]
+  rw [h3]; simp only [bind_ok]
+  rw [hft]; simp only [bind_ok, hty0, ↓reduceIte]
+  rw [h4]; simp only [bind_ok, uncurry_apply_pair]
+  rw [h5]; simp only [bind_ok, ↓reduceIte]
+  unfold sched.set_thread_state
+  rw [h6]; simp only [bind_ok]
+  rw [hsch6]; simp only [bind_ok, uncurry_apply_pair]
+  rw [hsc6]; simp only [bind_ok]
+  rw [husc]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
+  rw [hrun6]; simp only [bind_ok, ↓reduceIte]
+  rw [hrdy6]; simp only [bind_ok, ↓reduceIte]
+  rw [hsuf6]; simp only [bind_ok, ↓reduceIte]
+  rw [hpst]; simp only [bind_ok]
+
 /-- **`do_reply_transfer` on the accepted ReplyRecv run** (from `X1`, after
 `t`'s Restart, to `X7`, after the action write): the fast path's
 `reply_remove`, `unblock_check` branch, `handle_fault_reply` (restart),
@@ -83,24 +128,7 @@ theorem do_reply_transfer_rr {X1 X2 X3 X4 X5 X6 X7 : S} {a a1 a2 : A} {t u rptr 
     (hsuf6 : sporadic.sufficient st ar X6 a2 usc 0#u64 = ok true)
     (hpst : sched.possible_switch_to st X6 u = ok X7) :
     ipc.do_reply_transfer st ar X1 a t rptr g = ok (X7, a2) := by
-  unfold ipc.do_reply_transfer
-  simp only [hrt, hun, hus, bind_ok, Bool.false_eq_true, ↓reduceIte, bne_self_rr]
-  rw [h2]; simp only [bind_ok, uncurry_apply_pair]
-  rw [hsc2]; simp only [bind_ok]
-  rw [h3s]; simp only [bind_ok]
-  rw [h3]; simp only [bind_ok]
-  rw [hft]; simp only [bind_ok, unknown_ne_null, ↓reduceIte]
-  rw [h4]; simp only [bind_ok, uncurry_apply_pair]
-  rw [h5]; simp only [bind_ok, ↓reduceIte]
-  unfold sched.set_thread_state
-  rw [h6]; simp only [bind_ok]
-  rw [hsch6]; simp only [bind_ok, uncurry_apply_pair]
-  rw [hsc6]; simp only [bind_ok]
-  rw [husc]; simp only [bind_ok, Bool.false_eq_true, ↓reduceIte]
-  rw [hrun6]; simp only [bind_ok, ↓reduceIte]
-  rw [hrdy6]; simp only [bind_ok, ↓reduceIte]
-  rw [hsuf6]; simp only [bind_ok, ↓reduceIte]
-  rw [hpst]; simp only [bind_ok]
+  apply do_reply_transfer_rrG (ty := fl4_abi.consts.fault.UnknownSyscall) (hty0 := unknown_ne_null) <;> assumption
 
 /-- **`handle_invocation` on the accepted ReplyRecv run** (the `REPLY` cptr,
 not a call, not blocking, first phase), from `X0` to `X8`: the lookup the fast

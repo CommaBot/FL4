@@ -141,16 +141,16 @@ theorem rr_om38 {X0 X3 X4 X5 X6 X7 X8 : S} {a a2 : A} {t rptr ep u usc : U64}
 
 set_option maxHeartbeats 1600000 in
 /-- **m67's `nvm` from the dispatch state's invariants** (module docstring). -/
-theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
+theorem rrPre5_ofG {ty : U64} [HfrRestart st ar ty] {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
     (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X0)
     (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
-      RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
-    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5 (L := L) ar X0 a := by
+      RRChecksG st ar ty X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5G (L := L) ar ty X0 a := by
   intro t rptr ep u usc X1 X2 a1 b9 X3 hct hrc hC e1 e2 e3s e3 X4 a2 X5 X6 X7 X8 X9 X10 X11 X12 X13 X14 X15
     e4 e5 e6 e7 e8 e9 e10 e11 e12 e13 e14 e15
   have P := hP t rptr ep u usc hct hrc hC
-  obtain ⟨-, -, K8, -⟩ := rr_x8 ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
-  obtain ⟨-, -, -, -, -, hW3, -⟩ := rr_x3 ar P hC (hS usc P.hcS) e1 e2 e3s e3
+  obtain ⟨-, -, K8, -⟩ := rr_x8G ar P hC (hS usc P.hcS) e1 e2 e3s e3 e4 e5 e6 e7 e8
+  obtain ⟨-, -, -, -, -, hW3, -⟩ := rr_x3G ar P hC (hS usc P.hcS) e1 e2 e3s e3
   obtain ⟨om38, su8⟩ := rr_om38 ar P K8.ksb K8.cpu e4 e5 e6 e7 e8
   obtain ⟨k15, c15, m15⟩ := rr_m15 P e9 e10 e11 e12 e13 e14 e15
   obtain ⟨-, -, hX, -, hS0⟩ := hI
@@ -255,14 +255,23 @@ theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
   rw [h1, h2]
   simp [sched.TS_RUNNING, sched.TS_RUNNING_VM]
 
+/-- `rrPre5_ofG` at an UnknownSyscall fault (pf1). -/
+theorem rrPre5_of {H : Heap} {Ac : Set U64} {X0 : S} {a : A}
+    (hI : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac X0)
+    (hP : ∀ t rptr ep u usc, sched.cur_thread st X0 = ok t → fastpath.reply_caps st X0 t = ok (some (rptr, ep)) →
+      RRChecks st ar X0 a t rptr ep u usc → RRPl (L := L) T Cs Ω Sg Rp Scs Nt Z X0 t rptr ep u usc)
+    (hS : RRSum (L := L) Scs X0) (hA : P0.ArchTotal ar) : RRPre5 (L := L) ar X0 a := by
+  apply rrPre5_ofG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
+
 /-- **`RRPreAt5` (m67's `nvm`) at an entry state** with `EntryInv`, under
 m68's ring-sum bound `RRSumAt` [J] (the dispatch states' invariants from
 `budget_ok.bxc`, the placement from `rrPl_of`, as `RRPreAt2.of5`). -/
-theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+theorem RRPreAt5.of_invG {ty : U64} [HfrRestart st ar ty] {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
     (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
     (hNt : ∀ n ∈ Nt, H n = some .ntfn)
     {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5 (L := L) ar s a := by
+    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5G (L := L) ar ty s a := by
   intro t nx s1 s2 a2 et enx es1 hb
   have h0 := h.1.choose_spec.choose_spec
   have et' : t = L.curW s := by
@@ -285,8 +294,17 @@ theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
   have hx := syscall.budget_ok.bxc hA E0 s1 a h1 he1.xg
   rw [hb, WP.spec_ok] at hx
   have hPl := fun t' rptr ep u usc (et2 : sched.cur_thread st s2 = ok t') hrc
-    (hC : RRChecks st ar s2 a2 t' rptr ep u usc) => rrPl_of ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
-  exact rrPre5_of ar hx.1 hPl (hSum t nx s1 s2 a2 et enx es1 hb) hA
+    (hC : RRChecksG st ar ty s2 a2 t' rptr ep u usc) => rrPl_ofG ar E0 hNt hx.1 (hx.2.2 rfl) et2 hrc hC
+  exact rrPre5_ofG ar hx.1 hPl (hSum t nx s1 s2 a2 et enx es1 hb) hA
+
+/-- `RRPreAt5.of_invG` at an UnknownSyscall fault (pf1). -/
+theorem RRPreAt5.of_inv {U Ac : Set U64} {H : Heap} {P3Ok : S → Prop}
+    (hA : P0.ArchTotal ar) (E0 : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
+    (hNt : ∀ n ∈ Nt, H n = some .ntfn)
+    {s : S} {a : A} (hP : P3Ok s) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
+    (hSum : RRSumAt (L := L) ar Scs s a) : RRPreAt5 (L := L) ar s a := by
+  apply RRPreAt5.of_invG (ty := fl4_abi.consts.fault.UnknownSyscall) <;> assumption
+
 
 end
 

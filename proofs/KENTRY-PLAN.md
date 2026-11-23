@@ -17107,3 +17107,142 @@ global ref).
   MachKeepG4d). Tokyo note: fb3g-m7's EXIT trap ran in `proofs/` and left the stubs applied in the mirror; every later
   command's `saferevert` prefix reverts them (fb3h-m1/m2 did); use an absolute path in the trap.
 - Builds: fb3h-m1 (`lt_iff_val` unknown), fb3h-m2. Commits: a5a25843, this section + VsFbReply.
+
+## pf1 (branch par/pf1 in FL4-pf1, on cba1820b, an extraction with FL4 #71's `fastpath_vm.rs`) — the l4h guest page-fault fast paths: step 1 (P1 `vm_fault_same` / `rr_vm_same` / declines) WRITTEN in `P1/FastVm.lean`, NOT YET BUILT (no build slot yet); step 2 (a top over the `*_local` entries) DESIGNED and sized XL, so not started; no FINDING
+- **What the extraction shows.** `fastpath_vm.vm_fault s a t f` is, line for line, `fastpath.fault s a t n` with
+  `set_fault … (UnknownSyscall n)` read as `set_fault … f` and the message label `UnknownSyscall` read as `VMFault`;
+  `fastpath_vm.reply_recv_vm_found` is `fastpath.reply_recv_found` with the receiver's fault-type check
+  `UnknownSyscall` read as `VMFault` (a `diff` of the two extracted bodies: that one line). The general counterparts
+  are the same functions as for #56: `handle_fault f` (`send_fault_ipc` → `send_ipc` → `do_fault_transfer`, label =
+  the sender's fault word, which `set_fault (VmFault …)` writes `VMFault`) + `finish`; `dispatch_syscall SysReplyRecv`
+  whose `do_reply_transfer` calls `handle_fault_reply`, which for `VMFault` returns `(true, s, a)` without writing.
+  Traced against the general path: no divergence (no FINDING). The VM reply path is *simpler* than #56's (no register
+  copy), and its fast path asks `label = 0` although a VM fault restarts whatever the label (conservative).
+- **Step 1, written (P1/FastVm.lean, root-imported after FastTailRR):**
+  * fault half, generalised over the fault (`f`, the state `s2` that `set_fault f` writes, the label `ty ≠
+    NullFault`), existing statements untouched: `faultTailG`, `faultTail2G`, `vm_fault_acc`, `faultTailG_eq`,
+    `faultTail2G_eq`, `handle_fault_preG`, `FaultReadsG`, `FaultOKG`, **`fault_sameG`**, then **`vm_fault_same`**
+    (accepted `vm_fault` = `handle_fault f` + `finish`, given `FaultOKG … VMFault` and `VmFaultNvm`, the analogues of
+    m60's `FaultOK` / m62's `FaultNvm`); **`vm_local_same`**: an accepted `handle_vm_fault_local` = the general entry
+    `handle_vm_fault` (with one domain `budget_ok` after the same `update_timestamp` passes without writing when
+    `sufficient` held: `check_budget_restart_suf`), given `VmFaultOK` (the reads at every post-`budget_ok` state);
+  * declines: **`vm_fault_decline`**, **`reply_recv_vm_found_decline`** (as m57's, `false` = entry state);
+    **`vm_local_decline`**: a declined `handle_vm_fault_local` returns exactly `update_timestamp s a` (NOT the entry
+    state; see step 2);
+  * ReplyRecv half: `RRChecksV`, `reply_recv_vm_found_acc` (the write part is m64's `rrTail` verbatim), `hfr_vm`,
+    `do_reply_transfer_rrV`, `RRR3V`, `RRPreV`, **`rr_vm_same`**: from the dispatch state `X0`, with `(rptr, ep) =`
+    `reply_caps X0 t` (fl4-sync's `found`), an accepted `reply_recv_vm_found` ends where `dispatch_syscall …
+    SysReplyRecv` + `finish` end, given `RRPreV` (m66's `RRPre` with the VM fault type; `RRReads` unchanged).
+  * Not done in step 1 (sizes): deriving `FaultOKG … VMFault` / `VmFaultNvm` from entry-state facts (m61–m63, m70–m73's
+    `FaultEnt` / `finReads_of` / `faultOK_of` / `JAtZ.fastFaultOK` over `f`; the one fault-specific piece is the
+    footprint of `set_mrs_fault`, four `set_mr` for a VM fault instead of the `copy_mrs_fault` loop: L);
+    `RRPreV` from `EntryInv` (m67–m70's `RRReads.of_ent` / `rr_x8` / `lk8_of` / `rrPre5_of`: the only
+    fault-specific piece is `XferRegW` for `handle_fault_reply`, empty for a VM fault: M); re-deriving the
+    UnknownSyscall statements from the `G` forms (S, optional).
+- **Step 2 design: one theorem per `*_local` entry**, from a state with the joint relation (`JReachU15 s a σ`):
+  * accepted (`= ok (true, s', a')`): the result is one general step: `handle_vm_fault_local` → `handle_vm_fault`
+    (`vm_local_same`, needs `VmFaultOK` from `JAtZ`); `handle_reply_recv_vm_local` → `syscall … SysReplyRecv false`
+    (`syscall_rr_general` + `rr_vm_same`; obligations: the local entry reads `flags` before the `FAULT_IP` write and the
+    general one after it (`regA … FAULT_IP` ≠ the flags word), and `found = reply_caps` at the *dispatch* state while
+    fl4-sync computes it at the entry state (read-congruence of `reply_caps` across the `FAULT_IP` / timestamp writes:
+    `RabCongr` + m68's `CnOff`)); `handle_syscall_local` → `handle_syscall` (the trap arm is `fastpath.fault` with the
+    number `trapped_syscall_number!` after the FAULT_IP write: `usf_same`'s route; the ReplyRecv arm as above);
+    `handle_ioport_local` / `handle_invocation_local` run the general path's own `handle_invocation` / `after_invocation`
+    / `finish` after a prefix (`FAULT_IP`, `update_timestamp`) and read-only checks: the obligation is that `syscall`'s
+    dispatch reaches the same call (ioport: decode route by label, `invocation_ok`; invocation: `Plan.still_holds`
+    pins the slots the general lookups would find — a lookup-congruence lemma per plan field);
+  * declined (`= ok (false, s', a')`): **the brief's "leaving the state unchanged" is false as stated**: each local
+    entry has already run `update_timestamp` (and the syscall ones the `FAULT_IP` write), as its Rust doc says, and
+    fl4-sync then runs the general entry from that state. The statement that holds: `s'` is the entry state after
+    `update_timestamp` (plus the `FAULT_IP` write that the general entry repeats with the same value). Closing it at
+    the top needs either (a) `JReachU15` at `s'` (the relation after a lone timestamp update; P3 relates `CUR_TIME` /
+    `consumed` to the spec through `MR` / `TimeAgree`, so this is a spec-side "time passed" step, not in the current
+    spec step relation) or (b) a merge lemma: `update_timestamp` twice = once with the later clock reading (true:
+    `consumed + (n1 - p) + (n2 - n1) = consumed + (n2 - p)` mod 2^64, `CUR_TIME = n2`; one domain), plus an Arch law
+    that the general run from `(s, a)` can read `n2` (P3's `TimeAgree` / `MachPlat` would have to quantify the clock
+    reading; today the run from `(s', a1)` is not a run from `(s, a)`).
+  * Sizes: VM accepted (needs `VmFaultOK` from `JAtZ`, the m61–m73 route over `f`): L; RR-VM accepted (+ `RRPreV`
+    from `EntryInv`, the `found` congruence): L; `handle_syscall_local` accepted: M–L; ioport / invocation accepted:
+    L each; the decline route (a) or (b) with the P3 time relation: L–XL. Total **XL** (> L), so per the brief step 2
+    stops at this design.
+- Builds: none yet (waiting for the tokyo build slot). First build: `MODE=mod MODS="Fl4Proofs.P1.FastVm"`, then the
+  root target. Commits: none yet (nothing green).
+### pf1b (same branch; lead's decisions: decline route (b) with a clock law [P]; step 1's derivations, then step 2 VM + RR-VM accepted first) — WRITTEN, NOT BUILT (still no build slot)
+- **Step 1 derivations (P1/FastVmInv.lean, P1/FastVmRR.lean, P3/XTopJointKEntryVm.lean):**
+  * fault half: `sfG` (`set_fault`'s four words over the values; `set_fault_vm`), `set_mrs_fault_rgV` (a VM fault's
+    message is four `set_mr`: m61's `XferRegW` footprint), `xfer_foot_S8V`, `faultReads_ofV` (m61's `faultReads_of`
+    text over `sfG … VMFault`), `faultOK_ofV`, `faultNvm_ofRV`, `vmFault_of` (m73's `fastFault_of`), and at P3
+    `JAtZ.vmFaultOK`: FastVm's `VmFaultOK` (now asked for `VmFault addr fsr ins` only; `vm_local_same` reads the
+    fault off `vspace.vm_fault`) at every `JAtZ` entry state, from `JAtZ.budgetOkB` at the entry's own `σ` (no
+    `FAULT_IP` write) and `OffReady σ` (SInvX's `offReady`).
+  * ReplyRecv half: FastVmRR is generated (scratch script `vcopy.py`) from FastRREnt / FastRRFoot / FastRRLk /
+    FastTailRR: every declaration whose text names `RRChecks` / `RRR3` / `RRPre` / `RRPreAt` (closure) is repeated
+    with the VM forms and a `V` name (24 declarations); hand edits only in `rr_r3V` / `rr_x8V` (fault type
+    `VMFault`, `hfr_vm`; `handle_fault_reply.rg` is fault-agnostic, so the footprint text is unchanged).
+    `RRPreAtV.of_inv` (P1, from `EntryInv` + `RRSumAt` / `CnOffAt` [J], as `entry_of10`) and P3 `JAtZ.rrPreAtV`
+    (as `JAtZ.rrPreAt` / `rrPre5At`, no residue: `RV` from the carried `SInvW`).
+- **Step 2, accepted cases (P1/FastVmLocal.lean, P3/XTopJointKEntryVm.lean):** `vm_local_triple`,
+  `rr_found_decline_of_vm` (where `reply_recv_vm_found` accepts, #56's `reply_recv_found` declines at the same
+  state: same reply thread, fault type `VMFault`), `syscall_rr_true` (then `syscall … SysReplyRecv true` is its
+  general path), `rr_vm_local_same` / `rr_vm_local_triple` (an accepted `handle_reply_recv_vm_local` ends where
+  `handle_syscall … SysReplyRecv` ends). Top **`SInvR.G5.kernel_entry_reachU15Vm`**: `kernel_entry_reachU15`'s
+  premises and `JReachU15 s a σ` give the JAtZ witnesses and (i) an accepted `handle_vm_fault_local` has the
+  postcondition of U15's VM-fault clause (no added premise), (ii) an accepted `handle_reply_recv_vm_local` has the
+  postcondition of U15's syscall clause at `SysReplyRecv`, under the clause's own inputs plus **`RRVmFound` [W]**
+  (at the dispatch state the current thread is `t`, its flags word is the one read before the `FAULT_IP` write, and
+  fl4-sync's `found` is `reply_caps` there: open, M — `reply_caps` read-congruence across the prefix's three writes,
+  with `CnOff`).
+- **Decline route (b), P1 part (P1/FastVmDecline.lean):** `update_timestamp_ok` (closed form `utW`, one domain),
+  `wrap_twice`, `utW_twice` (two updates = the later one, under `StoreExt`), **`update_timestamp_twice`**: the
+  second update from the first's result is one update from the entry state with any `a'` such that
+  `ar.now a' = ar.now a1`. With `vm_local_decline` (a declined `handle_vm_fault_local` returns exactly
+  `update_timestamp s a`), the general entry fl4-sync then runs is the general entry from `(s, a')`.
+  **Clock law [P] (to state on the arch interface, used only by the decline top):** `ClockLater arI AR MR :=
+  ∀ a n a1, arI.now a = ok (n, a1) → ∃ a', arI.now a' = arI.now a1 ∧ ArchAgree a a'`, i.e. a later clock reading is
+  a reading the entry could have made (monotone `now`), where `ArchAgree a a'` = every Arch relation the joint state
+  reads agrees: `MR a ms → MR a' ms`, `AR a c → AR a' c` and the other `a`-indexed parts of `JReachU15`. Open (L):
+  enumerate the `a`-dependent conjuncts of `JReachU15` and prove `JReachU15 s a σ → ArchAgree a a' → JReachU15 s a'
+  σ`; the decline top then is `kernel_entry_reachU15`'s VM clause at `(s, a')`. (`MR` relates the clock to the spec
+  machine time via `MachPlat.nowAgree`; `ClockLater` must keep that agreement, which is the monotone-read content.)
+- **Left (sizes):** `RRVmFound` derivation (M); decline tops (L, needs the `JReachU15` Arch transfer); the
+  `handle_syscall_local` (M–L, `usf_same`'s route after the `FAULT_IP` write + `trapped_syscall_number!`),
+  `handle_ioport_local` / `handle_invocation_local` accepted cases (L each).
+- New modules (root-imported): P1/FastVmInv, FastVmRR, FastVmLocal, FastVmDecline, P3/XTopJointKEntryVm. Builds:
+  none yet. Commits: none (nothing green).
+### pf1c (lead review: no script copy of the #56 ReplyRecv derivation; derive `RRVmFound`) — WRITTEN, NOT BUILT; supersedes pf1b's FastVmRR and `RRVmFound` [W]
+- **FastVmRR deleted.** The #56 ReplyRecv derivation is now stated over the receiver's fault type `ty`, in place:
+  FastRR `RRChecksG ty` (structure; `RRChecks` := `abbrev … RRChecksG … UnknownSyscall`, same fields, no statement
+  changed) and `class HfrRestart ty` (reply with label 0 restarts and keeps the Arch value; instances
+  `hfrRestart_us` from `hfr_us`, FastVm `hfrRestart_vm` from `hfr_vm`); FastRRSame `RRR3G` / `RRPreG` / `RRPreAtG`
+  (`RRR3` / `RRPre` / `RRPreAt` abbrevs at `UnknownSyscall`) and `rr_found_sameG` (rr_same's body; `rr_same` and
+  FastVm's `rr_vm_same` are its instances); FastRRSync `do_reply_transfer_rrG` (`hty0 : ty ≠ NullFault`). The 24
+  declarations of FastRREnt / FastRRFoot / FastRRLk / FastTailRR that name the checks / bundles are renamed `…G`
+  with `{ty} [HfrRestart st ar ty]` (bodies unchanged but `ty` in `rr_r3G` / `rr_x8G`'s fault-type line and
+  `HfrRestart.restart` for `hfr_us`); each original name keeps its statement and is proved by
+  `apply …G (ty := UnknownSyscall) <;> assumption`; the six bundle defs (`RRPre2/3/5`, `RRPreAt2/3/5`) are
+  abbrevs of their `…G` at `UnknownSyscall`. (Generator: scratch `vgen.py`; the bodies moved, nothing duplicated.)
+- **`RRVmFound` [W] derived (FastVmLocal):** `check_budget_restart_true` / `budget_ok_true` (a passing `budget_ok` is
+  its `update_timestamp`), `reply_caps_keep` (`reply_caps` past writes missing `t`'s root slot words 0/8, its
+  `REPLY` / `CAP` registers and every cap-slot word its walks reach, `CnOff`), `rr_prefix_keep` (the local entry's
+  `FAULT_IP` write + `CUR_TIME` / `CONSUMED` miss all of those and the `CUR_THREAD` word). `rr_vm_local_same` now
+  takes `BXI` and `CnOff` at the entry state (P3: `J.bxi`, `J.cnOff`), the top's own flag fact (`hflag`, which
+  the syscall clause already has), and `found = reply_caps s t` at the entry state (fl4-sync `local_syscall`'s
+  contract, an input of the clause, not a premise on the state). P3 `JAtZ.rrPreAtG`, top
+  `kernel_entry_reachU15Vm`: no premise added in either clause.
+- `RRPreAtG.of_inv` (P1, any `ty`): the bundle from `EntryInv` + `RRSumAt` / `CnOffAt` [J], as `entry_of10`.
+- **Fault half, same treatment (no copy left in FastVm / FastVmInv):** FastFault `fastFaultG` (the extraction's
+  `fastpath.fault` text over `f` / `ty`; `fastpath.fault … n` and `fastpath_vm.vm_fault … f` are it by definition),
+  `fault_accG` (`fault_acc` and FastVm's `vm_fault_acc` its instances), `faultTailG` / `faultTail2G` (`faultTail` /
+  `faultTail2` now defined as them at `UnknownSyscall`), `faultTailG_eq`, `faultTail2G_eq`, `handle_fault_preG`
+  (`faultTail_eq`, `faultTail2_eq`, `handle_fault_pre` instances), `FaultReadsG` (`FaultReads` an abbrev), `sfG`
+  (`sfW_eq_sfG : sfW s t n = sfG … UnknownSyscall n 0 0 := rfl`), `set_fault_vm`; FastFin `FaultOKG`, `fault_sameG`,
+  `FaultOK.toG` / `FaultOK.ofG` (`fault_same` an instance); FastFaultInv `set_mrs_fault_rgV` / `set_mrs_fault_rgG`
+  (`ty` an UnknownSyscall or a VM fault), `xfer_foot_S8G`, `faultReads_ofG` (`faultReads_of` an instance); FastFinInv
+  `faultOK_ofG` (`faultOK_of` an instance); FastTailFault `faultNvm_tailG` (`faultNvm_ofR` an instance). FastVmInv is
+  now three short VM instances (`faultOK_ofV`, `faultNvm_ofRV`, `vmFault_of`). Still per-function (short tactic
+  automation, not generalised): `vm_fault_decline` / `reply_recv_vm_found_decline` (as FastDecline's, which is
+  upstream of `fastFaultG`) and `reply_recv_vm_found_acc` (as `reply_recv_found_acc`).
+- No existing theorem statement changed; proofs of the originals replaced by their `…G` instances; existing defs /
+  structures `RRChecks`, `RRR3`, `RRPre`, `RRPreAt`, `RRPre2/3/5`, `RRPreAt2/3/5`, `FaultReads` became abbrevs (same
+  fields / unfolding), `faultTail` / `faultTail2` defs re-pointed (one `unfold faultTail2` in `fault_sync` now
+  `unfold faultTail2 faultTail2G`). Generators: scratch `vgen.py` (ReplyRecv files) + inline python edits.
