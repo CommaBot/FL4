@@ -88,10 +88,12 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
     subst he
     exact h.okTab trivial
   have hp1 : p1 ∈ Z.L4 := fb_root_L4 hR hPI has1 hf
-  have hH := (vsFrameHyps_top hA).foot (s0 := s) (W := VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s) (fun _ h => h)
-    hS.2.pl
-  have hHL := (vsFrameHypsL_top hA).foot (s0 := s) (W := VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s) (fun _ h => h)
-    hS.2.pl
+  have hH : VsFrameHyps st A arI Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (FootSR st (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1
+      Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR) s (VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s)) :=
+    (vsFrameHyps_top hA).foot (s0 := s) (W := VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s) (fun _ h => h) hS.2.pl
+  have hHL : VsFrameHypsL st A arI Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (FootSR st (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1
+      Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR) s (VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s)) :=
+    (vsFrameHypsL_top hA).foot (s0 := s) (W := VsFootW0 st Z.th Z.L4 Z.L3 Z.L2 Z.L1 s) (fun _ h => h) hS.2.pl
   refine WP.spec_mono (batch_map_rel hH hHL s a τ hS.2.pl hS.2.vs hS.2.sd hS.2.pt hS.2.ps hS.2.pv hS.2.po
     hSt hSV hR hPt ⟨hS, P1.WritesIn.refl _ _⟩ hpc hidx hc hok hnat hp1 has1 has2 hf op depth a1 cr a2 dd cn dcn a0
     b hbv hba hbm hbat) ?_
@@ -191,7 +193,7 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
     simp only [Nat.reducePow] at hal
     exact hW.mem_eq (by unfold P1.Aligned; rw [hr]; omega) fun hb => by
       rcases J.vsxObjW Ap hpc hidx hb (J.zH.1 t ht) (fun _ e => by cases e) with e | e <;>
-        simp only [P1.HKind.bits, Nat.reducePow] at e <;> omega
+        (try simp only [P1.HKind.bits, Nat.reducePow] at e) <;> omega
   · have hal : P1.Aligned wp.1 := (hS.2.ep.balign wp hw).1
     exact hW.mem_eq hal fun hb => hS.2.disj _
       (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))))))

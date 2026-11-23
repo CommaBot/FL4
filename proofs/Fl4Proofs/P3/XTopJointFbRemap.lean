@@ -33,6 +33,20 @@ theorem fb_code {e : error.SysError} {e' : Fl4Spec.SyscallError}
   · simp only [error.SysError.code, WP.spec_ok, Fl4Spec.msgFromSyscallError, fl4_abi.consts.error.AlignmentError]
     decide
 
+theorem fbr_branch_ok {α β : Type} (x : α) :
+    core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok x : core.result.Result α β) =
+      ok (core.ops.control_flow.ControlFlow.Continue x) := rfl
+
+theorem fbr_branch_err {α β : Type} (e : β) :
+    core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e : core.result.Result α β) =
+      ok (core.ops.control_flow.ControlFlow.Break (core.result.Result.Err e)) := rfl
+
+theorem fbr_fromResidual (e : error.Exc) :
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual Unit
+      (core.convert.FromSame error.Exc) (core.result.Result.Err e) = ok (core.result.Result.Err e) := by
+  simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+    core.convert.FromSame.from]
+
 section Spec
 open Fl4Spec
 
@@ -104,7 +118,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
     cases e1 with
     | ok _ => exact hrel1.elim
     | error e' =>
-      simp only [fb_branch_err, bind_ok, fb_fromResidual, WP.spec_ok]
+      simp only [fbr_branch_err, bind_ok, fbr_fromResidual, WP.spec_ok]
       refine ⟨τ, hM, Or.inr ⟨e, rfl, rfl, ?_⟩⟩
       have hrun : ((Fl4Spec.fbEntry (Z := Unit) b w).run τ) = ({(.error (Fl4Spec.msgFromSyscallError e').1, τ)}, False) := by
         rw [hE]; exact runE_bind_err (fbCode_err hls)
@@ -121,7 +135,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
       obtain ⟨sa, idx⟩ := sl'
       simp only at hpc1 hpc
       subst hpc1
-      simp only [fb_branch_ok, bind_ok]
+      simp only [fbr_branch_ok, bind_ok]
       have hrun1 : (Fl4Spec.fbEntry (Z := Unit) b w).run τ = ExceptT.run (Fl4Spec.fbCode (Fl4Spec.fbMap (Z := Unit) b
           (pc.bv, idx) w.2.1) >>= fun _ => Fl4Spec.NonDetE.returnOk false) τ := by
         rw [hE]; exact runE_bind_ok (fbCode_ok hls)

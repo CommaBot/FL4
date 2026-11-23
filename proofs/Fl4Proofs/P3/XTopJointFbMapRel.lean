@@ -76,7 +76,8 @@ theorem fbk_store_flush {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4
     rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePte_at hpa hk hi pte
   rw [nd_bind_one hst] at hm
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
-  exact (fbk_arch hk (by intro h; cases h) _ rfl).trans (fbk_ms _ ms)
+  exact (fbk_arch hk (by intro h; cases h) (.pageTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte)) rfl).trans
+    (fbk_ms _ ms)
 
 /-- `FbKeep` of a PD store and its flush. -/
 theorem fbk_store_flush_pd {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
@@ -91,7 +92,8 @@ theorem fbk_store_flush_pd {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : 
     rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePde_at hpa hk hi pte
   rw [nd_bind_one hst] at hm
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
-  exact (fbk_arch hk (by intro h; cases h) _ rfl).trans (fbk_ms _ ms)
+  exact (fbk_arch hk (by intro h; cases h) (.pageDirectory (Function.update f (Fl4Spec.ucast 9 i.bv) pte)) rfl).trans
+    (fbk_ms _ ms)
 
 /-- `FbKeep` of a PDPT store and its flush. -/
 theorem fbk_store_flush_pdpt {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
@@ -106,7 +108,8 @@ theorem fbk_store_flush_pdpt {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' 
     rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePdpte_at hpa hk hi pte
   rw [nd_bind_one hst] at hm
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
-  exact (fbk_arch hk (by intro h; cases h) _ rfl).trans (fbk_ms _ ms)
+  exact (fbk_arch hk (by intro h; cases h) (.pdPointerTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte)) rfl).trans
+    (fbk_ms _ ms)
 
 set_option hygiene false in
 /-- The batch map from the rights on (`map_tail` without `check_vspace` and the restart). -/
@@ -875,7 +878,7 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
   obtain ⟨cS, aS, hcS, hcaS, hgS⟩ := hSt.slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl
     (by simpa [hidx] using hpc)
   rw [hcap] at hcS; cases eq_of_ok_eq hcS
-  rw [← hcaS.abs] at hgS
+  rw [hcaS.abs] at hgS
   have hcw : CapWf c := hcaS.1
   have hce : EncWf c := by have h := hcap; rw [capAt_words] at h; exact decode_encWf h
   have hcv : CapValid th c := hSV.cnode pc r hpc (blVal 0 idx) (hidx ▸ blVal_lt idx) _
@@ -952,9 +955,9 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
   all_goals
     unfold vspace.batch_map
     rw [slot_cap_eq, hcap]
-    simp only [bind_ok, vspace.as_frame, error.invalid_cap, WP.spec_ok]
-    exact Or.inl ⟨_, .invalidCapability 0, rfl, Or.inl (Or.inr ⟨0#u64, rfl, rfl⟩),
-      fbMap_nonPage hgS (fun _ _ _ _ _ _ h => by simp [absCap] at h), rfl, rfl⟩
+    simp only [bind_ok, vspace.as_frame, error.invalid_cap]
+    exact (WP.spec_ok _).2 (Or.inl ⟨_, .invalidCapability 0, rfl, Or.inl (Or.inr ⟨0#u64, rfl, rfl⟩),
+      fbMap_nonPage hgS (fun _ _ _ _ _ _ h => by simp [absCap] at h), rfl, rfl⟩)
 
 end
 
