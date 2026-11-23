@@ -5,6 +5,8 @@
 //! `EfiACPIMemoryNVS` (10) to both the loader (acpi.rs `mailbox_ok`) and the
 //! kernel (bootmem `mailbox_ok`, ACPI NVS only, plus the loader's tag); the
 //! CC log area ACPI reclaim or NVS memory (ccel.rs `ccel_area_in_map`).
+//! Runtime services code and data and persistent memory (5, 6, 14) are
+//! firmware's private memory, never ACPI NVS (audit TDX r5, fix 4).
 extern crate self as fl4_core;
 
 pub mod boot {
@@ -105,8 +107,8 @@ fn unaccepted_ram_is_type_15_and_the_kernel_accepts_only_it() {
     // None of it is RAM the kernel uses before accepting it.
     let ram = bootmem::ram(entries.iter().copied(), 0x10_0000, 8 * GIB);
     assert!(!ram.contains(UNACCEPTED, UNACCEPTED + PAGE));
-    // 14 is persistent memory (kept as ACPI NVS), 16 and later reserved.
-    assert!(entries.contains(&(PERSISTENT, PAGE, 4)));
+    // 14 is persistent memory (kept private), 16 and later reserved.
+    assert!(entries.contains(&(PERSISTENT, PAGE, x86_mmap::PRIVATE_RESERVED)));
     assert!(entries.contains(&(MAX_TYPE, PAGE, 2)));
 }
 
@@ -161,10 +163,11 @@ fn only_an_nvs_page_is_a_wakeup_mailbox_to_loader_and_kernel() {
         assert!(!kernel(page), "{what}");
         assert_eq!(loader(page), None, "{what}");
     }
-    // The kernel's map alone cannot tell runtime services memory from NVS
-    // (both kind 4): the loader's check is what refuses it.
-    assert!(bootmem::mailbox_ok(RT_DATA, window, entries.iter().copied()));
-    assert!(!bootmem::mailbox_ok(RECLAIM, window, entries.iter().copied()));
+    // The kernel's map alone now refuses runtime services and persistent
+    // memory too: none of it is kind 4 any more.
+    for page in [RT_CODE, RT_DATA, PERSISTENT, RECLAIM] {
+        assert!(!bootmem::mailbox_ok(page, window, entries.iter().copied()), "{page:#x}");
+    }
 }
 
 #[test]
@@ -195,7 +198,7 @@ fn snp_pages_are_private_and_no_acpi_memory() {
     // The NVS descriptor holds both pages: the whole of it is private.
     assert!(entries.contains(&(NVS, 4 * PAGE, x86_mmap::PRIVATE_RESERVED)));
     // fl4_boot's `acpi_readable` takes RAM, ACPI reclaim and NVS only.
-    let acpi_readable = |p: u64, len: u64| entries.iter().any(|&(b, n, ty)| matches!(ty, 1 | 3 | 4) && b <= p && p + len <= b + n);
+    let acpi_readable = |p: u64, len: u64| bootmem::acpi_readable(p, len, entries.iter().copied());
     assert!(!acpi_readable(cpuid, 36) && !acpi_readable(secrets, 36));
     assert!(acpi_readable(RECLAIM, 36));
     assert!(!bootmem::mailbox_ok(secrets, 8 * GIB, entries.iter().copied()));
@@ -209,7 +212,99 @@ fn snp_pages_are_private_and_no_acpi_memory() {
     .unwrap();
     assert_eq!(entries, [(NVS, PAGE, 4), (NVS + PAGE, PAGE, x86_mmap::PRIVATE_RESERVED), (NVS + 2 * PAGE, PAGE, 4)]);
     let lib = include_str!("../../crates/fl4-kernel/src/lib.rs");
-    assert!(lib.contains("mb.mmap[..mb.n_mmap].iter().any(|e| matches!(e.ty, 1 | 3 | 4) && e.base <= p && end <= e.base.saturating_add(e.len))"));
+    assert!(lib.contains("!cvm::hardened() || bootmem::acpi_readable(p, len, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))"));
     assert!(lib.contains("if matches!(e.ty, 1 | 4 | bootmem::PRIVATE_RESERVED) {"));
     assert!(lib.contains("matches!(e.ty, 1 | 3 | 4 | bootmem::PRIVATE_RESERVED)"));
+}
+
+/// Audit (TDX r5, fix 4): fl4-efi gave runtime services code and data and
+/// persistent memory (EFI 5, 6, 14) kind 4, ACPI NVS, so the kernel read
+/// ACPI tables from them (`acpi_readable`) and took a mailbox there
+/// (`mailbox_ok`) where the loader (x86_mmap `readable`, acpi.rs
+/// `mailbox_ok`) refuses both. They are firmware's private memory now:
+/// still private and out of device memory in a confidential guest, but
+/// neither. Nor does the kernel read ACPI tables from physical page 0.
+#[test]
+fn runtime_services_and_persistent_memory_are_private_but_no_acpi_memory() {
+    let m = map();
+    let entries = mb2(&m);
+    let readable = |p: u64, len: u64| bootmem::acpi_readable(p, len, entries.iter().copied());
+    let window = 8 * GIB;
+    for (at, what) in [(RT_CODE, "runtime services code"), (RT_DATA, "runtime services data"), (PERSISTENT, "persistent")] {
+        let kind = entries.iter().find(|e| e.0 == at).expect(what).2;
+        assert_eq!(kind, x86_mmap::PRIVATE_RESERVED, "{what}");
+        assert!(!readable(at, 36), "{what}");
+        assert!(!bootmem::mailbox_ok(at, window, entries.iter().copied()), "{what}");
+        // The loader agrees.
+        let ty = raw(&m).iter().find(|e| e.0 == at).unwrap().2;
+        assert!(!x86_mmap::readable(ty), "{what}");
+        // fl4_boot keeps it out of device memory and private.
+        assert!(matches!(kind, 1 | 4 | bootmem::PRIVATE_RESERVED), "{what}");
+        assert!(matches!(kind, 1 | 3 | 4 | bootmem::PRIVATE_RESERVED), "{what}");
+        assert!(!bootmem::ram(entries.iter().copied(), 0x10_0000, window).contains(at, at + PAGE), "{what}");
+    }
+    // What the loader reads, the kernel reads.
+    assert!(readable(NVS, 36) && readable(RECLAIM, 36) && readable(CONVENTIONAL, 36));
+    assert!(readable(RECLAIM, PAGE) && !readable(RECLAIM, PAGE + 1), "whole in one entry");
+    assert!(!readable(RECLAIM, 0) && !readable(u64::MAX - 8, 36), "empty or wrapping");
+    for (at, what) in [(MMIO, "MMIO"), (UNACCEPTED, "unaccepted"), (RESERVED_WB, "reserved"), (MAX_TYPE, "past EfiMaxMemoryType")] {
+        assert!(!readable(at, 36), "{what}");
+    }
+}
+
+#[test]
+fn the_kernel_reads_no_acpi_table_from_page_0() {
+    let low = [(0, 0xa_0000, 1), (0x10_0000, 0x10_0000, 1)];
+    let readable = |p: u64, len: u64| bootmem::acpi_readable(p, len, low.iter().copied());
+    for (p, len) in [(0, 36), (0, 20), (0x40e, 2), (PAGE - 36, 36), (PAGE - 1, 2)] {
+        assert!(!readable(p, len), "{p:#x}+{len}");
+    }
+    assert!(readable(PAGE, 36) && readable(0x9_f000, 20));
+    assert!(!readable(0xa_0000, 20), "past the entry");
+    // Only in a confidential guest: elsewhere the window alone bounds it.
+    let lib = include_str!("../../crates/fl4-kernel/src/lib.rs");
+    assert!(lib.contains("let acpi_readable = |p: u64, len: u64| {\n        !cvm::hardened() || bootmem::acpi_readable("));
+}
+
+/// Audit (TDX r5, R1-M2): fl4-efi hands on no overlapping entries, but the
+/// kernel does not rely on it: an ACPI read or the mailbox needs every
+/// non-empty entry it touches to be of an allowed type and to hold it
+/// whole, so a private, unaccepted, MMIO or reserved entry over it wins.
+#[test]
+fn an_overlapping_entry_of_another_type_refuses_acpi_reads_and_the_mailbox() {
+    const NVS_AT: u64 = 0x7f00_0000;
+    let window = 8 * GIB;
+    let acpi = |m: &[(u64, u64, u32)], p: u64, len: u64| bootmem::acpi_readable(p, len, m.iter().copied());
+    let mailbox = |m: &[(u64, u64, u32)], p: u64| bootmem::mailbox_ok(p, window, m.iter().copied());
+    let nvs = (NVS_AT, 4 * PAGE, 4);
+    assert!(acpi(&[nvs], NVS_AT + PAGE, 36) && mailbox(&[nvs], NVS_AT + PAGE));
+    for other in [bootmem::PRIVATE_RESERVED, bootmem::UNACCEPTED, 2] {
+        for (base, len, what) in [
+            (NVS_AT, 4 * PAGE, "the same range"),
+            (NVS_AT + PAGE, PAGE, "just the page"),
+            (NVS_AT - PAGE, 2 * PAGE + 1, "the page's first byte"),
+            (NVS_AT + 2 * PAGE - 1, PAGE, "the page's last byte"),
+            (0, 1 << 40, "around everything"),
+        ] {
+            let bad = (base, len, other);
+            for m in [[nvs, bad], [bad, nvs]] {
+                assert!(!acpi(&m, NVS_AT + PAGE, PAGE), "{other:#x} {what}");
+                assert!(!mailbox(&m, NVS_AT + PAGE), "{other:#x} {what}");
+            }
+        }
+        // Next to it, or empty: no effect.
+        for bad in [(NVS_AT + 4 * PAGE, PAGE, other), (NVS_AT - PAGE, PAGE, other), (NVS_AT + PAGE, 0, other)] {
+            for m in [[nvs, bad], [bad, nvs]] {
+                assert!(acpi(&m, NVS_AT + PAGE, PAGE) && mailbox(&m, NVS_AT + PAGE), "{bad:x?}");
+            }
+        }
+    }
+    // Two allowed entries over the same range still each hold it whole.
+    let ram_over = (NVS_AT, 4 * PAGE, 1);
+    assert!(acpi(&[nvs, ram_over], NVS_AT + PAGE, 36));
+    // An allowed entry holding only part of it does not.
+    assert!(!acpi(&[nvs, (NVS_AT + PAGE + 8, PAGE, 3)], NVS_AT + PAGE, 36));
+    assert!(!mailbox(&[nvs, (NVS_AT + PAGE, 8, 4)], NVS_AT + PAGE));
+    // RAM over the NVS page is no mailbox.
+    assert!(!mailbox(&[nvs, ram_over], NVS_AT + PAGE));
 }

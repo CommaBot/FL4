@@ -326,6 +326,19 @@ mod efi {
     /// when firmware offers no `EFI_CC_MEASUREMENT_PROTOCOL`
     /// (`measure_status`). The error, said on the console, is the caller's
     /// to act on: it must not boot them.
+    ///
+    /// RTMR[2] is extended once, with the SHA-384 of the bytes alone:
+    /// HashLogExtendEvent hashes the buffer it is given, never the event,
+    /// and `name` is only the `EFI_CC_EVENT` log entry's data (cut to 256
+    /// bytes), unlike `measure_file`, which first measures a descriptor
+    /// naming the file. Nothing authenticates `name`, not even replaying the
+    /// CC event log: the digests the log records and RTMR[2] check out
+    /// whatever name the entry carries, and with the log full
+    /// (`EFI_VOLUME_FULL`) the register is extended with no entry at all. A
+    /// verifier that cares which bytes were which must get that from the
+    /// bytes themselves (measure a descriptor holding the role or name,
+    /// or put domain separation into them) or from a measurement order
+    /// fixed with the prover.
     pub fn measure_bytes(name: &[u8], pa: u64, len: u64) -> Result<(), Status> {
         let Some(cc) = protocol() else {
             say!("fl4-efi: {}", measure_status(false, 0).unwrap_err());

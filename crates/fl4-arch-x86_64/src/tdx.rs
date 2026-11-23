@@ -451,13 +451,23 @@ pub fn user_pmc_allowed(attributes: u64) -> bool {
     attributes & ATTR_PERFMON != 0
 }
 
-/// MSRs a kernel #VE forwards to the VMM: the architectural x2APIC registers
-/// and its TSC-deadline timer, which the VMM emulates, and (read only) the
-/// APIC base, which a TD may not write.
+/// MSRs a kernel #VE forwards to the VMM, each only in the direction the
+/// kernel uses it: the x2APIC registers the VMM emulates (TDX Module 1.5
+/// virtual APIC) and its TSC-deadline timer, and (read only) the APIC base,
+/// which a TD may not write. The kernel only writes SVR, ICR, the LVTs and
+/// the timer's initial count and divider in x2APIC mode, so a read of one
+/// is no answer it should take from the VMM either. The CPU virtualizes the interrupt state itself
+/// from the virtual-APIC page (TPR, PPR, EOI, ISR, TMR, IRR, SELF IPI): a
+/// #VE on one of those is no answer the kernel should take from the VMM,
+/// least of all an ISR read (`apic::ack_stray`) or an EOI.
 pub fn virtual_msr(msr: u32, write: bool) -> bool {
     match msr {
-        cpu::msr::TSC_DEADLINE | 0x800..=0x83f => true,
-        cpu::msr::APIC_BASE => !write,
+        cpu::msr::TSC_DEADLINE => true,
+        // ID; Timer Current Count.
+        cpu::msr::APIC_BASE | 0x802 | 0x839 => !write,
+        // SVR; ICR; LVT Timer, LINT0, LINT1, Error; Timer Initial Count,
+        // Divide Configuration: written only.
+        0x80f | 0x830 | 0x832 | 0x835 | 0x836 | 0x837 | 0x838 | 0x83e => write,
         _ => false,
     }
 }
@@ -903,18 +913,56 @@ mod tests {
         assert!(!user_pmc_allowed(!ATTR_PERFMON));
     }
 
+    /// Audit (TDX r5, fix 2): only the x2APIC registers the VMM emulates,
+    /// each in the direction the kernel uses it (ID and current count read,
+    /// SVR, ICR, LVTs, initial count and divider written), go to the VMM on
+    /// a kernel #VE. The interrupt state the virtual-APIC page holds (TPR, PPR, EOI,
+    /// ISR, TMR, IRR, SELF IPI) never does, nor a write to a read-only
+    /// register or anything reserved.
     #[test]
     fn the_ve_msr_whitelist_is_the_x2apic_and_its_timer() {
+        let write_only = [0x80f, 0x830, 0x832, 0x835, 0x836, 0x837, 0x838, 0x83e];
+        let read_only = [0x802, 0x839];
+        for msr in 0x800..=0x83f {
+            assert_eq!(virtual_msr(msr, false), read_only.contains(&msr), "read {msr:#x}");
+            assert_eq!(virtual_msr(msr, true), write_only.contains(&msr), "write {msr:#x}");
+        }
+        for msr in write_only {
+            assert!(!virtual_msr(msr, false) && virtual_msr(msr, true), "{msr:#x}");
+        }
+        let virtual_apic = [0x808, 0x80a, 0x80b, 0x83f].into_iter().chain(0x810..=0x817).chain(0x818..=0x81f).chain(0x820..=0x827);
+        for msr in virtual_apic.chain([0x800, 0x803, 0x80d, 0x828, 0x831]) {
+            assert!(!virtual_msr(msr, false) && !virtual_msr(msr, true), "{msr:#x}");
+        }
         for write in [false, true] {
-            for msr in [0x800, 0x80b, 0x830, 0x83e, 0x83f, cpu::msr::TSC_DEADLINE] {
-                assert!(virtual_msr(msr, write), "{msr:#x}");
-            }
+            assert!(virtual_msr(cpu::msr::TSC_DEADLINE, write));
             for msr in [0x7ff, 0x840, 0x8ff, 0x10, 0x48, 0x10a, cpu::msr::EFER, cpu::msr::LSTAR] {
                 assert!(!virtual_msr(msr, write), "{msr:#x}");
             }
         }
         assert!(virtual_msr(cpu::msr::APIC_BASE, false));
         assert!(!virtual_msr(cpu::msr::APIC_BASE, true));
+    }
+
+    /// Every x2APIC register the kernel touches through `apic::read` or
+    /// `apic::write` in a TD either the CPU virtualizes (EOI, ISR, IRR) or
+    /// `virtual_msr` forwards in that direction.
+    #[test]
+    fn the_kernels_x2apic_accesses_are_virtualized_or_forwarded() {
+        use crate::apic::*;
+        let msr = |reg: u32| 0x800 + (reg >> 4);
+        for reg in [REG_ID, REG_TIMER_CUR] {
+            assert!(virtual_msr(msr(reg), false) && !virtual_msr(msr(reg), true), "{reg:#x}");
+        }
+        for reg in [REG_SVR, REG_LVT_TIMER, REG_LVT_LINT0, REG_LVT_LINT1, REG_LVT_ERROR, REG_TIMER_INIT, REG_TIMER_DIV] {
+            assert!(virtual_msr(msr(reg), true) && !virtual_msr(msr(reg), false), "{reg:#x}");
+        }
+        // send_ipi writes the ICR as one MSR; it reads it only in xAPIC mode.
+        assert!(virtual_msr(0x830, true) && !virtual_msr(0x830, false), "ICR");
+        assert_eq!(msr(REG_ICR_LO), 0x830);
+        for reg in [REG_EOI, REG_ISR, REG_IRR] {
+            assert!(!virtual_msr(msr(reg), false) && !virtual_msr(msr(reg), true), "{reg:#x}");
+        }
     }
 
     /// Audit (TDX r1, fix 3): only the topology leaves go to the VMM on a

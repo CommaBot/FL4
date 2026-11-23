@@ -48,7 +48,9 @@ pub(super) struct EfiMap {
 }
 
 impl EfiMap {
-    /// None if firmware gives no map or no memory for it.
+    /// None if firmware gives no map, no memory for it, or a map of other
+    /// than whole, page-aligned, non-overlapping descriptors
+    /// (`x86_mmap::validate_map`).
     pub(super) fn get() -> Option<EfiMap> {
         let (mut size, mut key, mut stride, mut version) = (0usize, 0usize, 0usize, 0u32);
         if (bs().get_memory_map)(&mut size, core::ptr::null_mut(), &mut key, &mut stride, &mut version) != BUFFER_TOO_SMALL {
@@ -67,6 +69,9 @@ impl EfiMap {
         }
         map.size = size;
         map.stride = stride;
+        // Every read by EFI type (RSDP, ACPI tables, CC log, mailbox) goes
+        // by one descriptor's type for its range: none may overlap another.
+        x86_mmap::validate_map(unsafe { core::slice::from_raw_parts(buffer as *const u8, size) }, stride).ok()?;
         Some(map)
     }
 
@@ -562,60 +567,28 @@ fn long_mode_entry(kernel: &[u8]) -> Option<u64> {
     Some(rd64(entry, 16))
 }
 
-pub(super) type BootFile<'a> = (u64, u64, &'a [u8]);
+pub(super) use boot_files::BootFile;
 
-/// The files from the options extend RTMR[2] in a TD (`measure`), and TPM
-/// PCR 9 when there is a TPM outside one: a TD ignores any TPM.
-fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFile<'a>; 9], usize) {
-    let mut files = [(0, 0, &[][..]); 9];
-    let mut n = 1;
-    for opt in opts.iter() {
-        if let Some(path) = opt.strip_prefix(b"rootserver=") {
-            let (pa, len) = read_file(li, path);
+/// The files from the options (`boot_files::select`) extend RTMR[2] in a
+/// TD (`measure`), and TPM PCR 9 when there is a TPM outside one: a TD
+/// ignores any TPM.
+fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFile<'a>; boot_files::MAX_FILES], usize) {
+    let at = |b: &[u8]| (b.as_ptr() as u64, b.len() as u64);
+    boot_files::select(
+        opts.iter(),
+        at(embedded::ROOTSERVER),
+        at(embedded::MODULE),
+        |path| try_read_file(li, path),
+        |role, path, pa, len| {
             if measure {
-                ccel::measure_file(b"rootserver", path, pa, len);
+                ccel::measure_file(role, path, pa, len);
+                Ok(())
             } else {
-                tcg2::measure_file(b"rootserver", path, pa, len).unwrap_or_else(|e| fail(e));
+                tcg2::measure_file(role, path, pa, len)
             }
-            files[0] = (pa, len, path);
-        } else if let Some(path) = opt.strip_prefix(b"module=") {
-            if n == files.len() {
-                fail("too many boot modules");
-            }
-            let (pa, len) = read_file(li, path);
-            if measure {
-                ccel::measure_file(b"module", path, pa, len);
-            } else {
-                tcg2::measure_file(b"module", path, pa, len).unwrap_or_else(|e| fail(e));
-            }
-            files[n] = (pa, len, path);
-            n += 1;
-        }
-    }
-    if files[0].1 == 0 {
-        if embedded::ROOTSERVER.is_empty() {
-            fail("no x86_64 root task");
-        }
-        files[0] = (
-            embedded::ROOTSERVER.as_ptr() as u64,
-            embedded::ROOTSERVER.len() as u64,
-            b"rootserver",
-        );
-    }
-    // The fallback EFI path has no load options. Allow a boot module to
-    // be built in alongside the root task.
-    if !embedded::MODULE.is_empty() {
-        if n == files.len() {
-            fail("too many boot modules");
-        }
-        files[n] = (
-            embedded::MODULE.as_ptr() as u64,
-            embedded::MODULE.len() as u64,
-            b"module",
-        );
-        n += 1;
-    }
-    (files, n)
+        },
+    )
+    .unwrap_or_else(|e| fail(e))
 }
 
 pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
@@ -726,11 +699,7 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>], cmdline
         write(dst, unsafe {
             core::slice::from_raw_parts(src as *const u8, size as usize)
         });
-        let name = path
-            .rsplit(|&b| b == b'/' || b == b'\\')
-            .next()
-            .unwrap_or(path);
-        info.module(dst, size, &name[..name.len().min(63)]);
+        info.module(dst, size, boot_files::module_name(path));
         dst += size.div_ceil(PAGE) * PAGE;
     }
     let tpm_dst = dst;

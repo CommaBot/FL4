@@ -170,7 +170,7 @@ fn the_map_buffer_bounds_what_is_read() {
 /// (reserved) would make it device memory, and type 1 RAM the kernel
 /// touches before accepting it. 14 is `EfiPersistentMemory`, 16
 /// `EfiMaxMemoryType`: no unaccepted memory, and 16 and later nothing the
-/// kernel keeps as ACPI NVS either (audit TDX r2, R1-1).
+/// kernel keeps private either (audit TDX r2, R1-1).
 #[test]
 fn unaccepted_memory_is_neither_ram_nor_reserved() {
     assert_eq!(x86_mmap::UNACCEPTED, 0x464c_3410);
@@ -180,7 +180,13 @@ fn unaccepted_memory_is_neither_ram_nor_reserved() {
     for other in [0, 1, 2, 7, 9, 10, 11, 14, 16, 17] {
         assert_ne!(x86_mmap::kind(other, 0), x86_mmap::UNACCEPTED, "EFI type {other}");
     }
-    assert_eq!(x86_mmap::kind(14, 0), 4);
+    // Only ACPI NVS is ACPI NVS: runtime services code and data and
+    // persistent memory are firmware's private memory (audit TDX r5, fix 4).
+    assert_eq!(x86_mmap::kind(10, 0), 4);
+    for private in [5, 6, 14] {
+        assert_eq!(x86_mmap::kind(private, 0), x86_mmap::PRIVATE_RESERVED, "EFI type {private}");
+        assert_eq!(x86_mmap::kind(private, 8), x86_mmap::PRIVATE_RESERVED, "EFI type {private}");
+    }
     // Write-back reserved memory is private, but not ACPI NVS (audit TDX
     // r3, R2-2); without write-back it is plain reserved memory.
     assert_eq!(x86_mmap::PRIVATE_RESERVED, 0x464c_3411);
@@ -208,4 +214,100 @@ fn adjacent_unaccepted_regions_merge_and_stay_apart_from_ram() {
         out,
         [(0x10_0000, 0x1_0000, 1), (0x11_0000, 0x2_0000, x86_mmap::UNACCEPTED), (0x13_0000, 0x1_0000, 1)]
     );
+}
+
+/// Audit (TDX r5, R1-M2): descriptors that share a byte make a map the
+/// loader refuses, before it reads anything by it (x86.rs `EfiMap::get`) and
+/// before it hands the kernel any region (`regions`): one range must not be
+/// ACPI NVS by one descriptor and reserved, unaccepted or MMIO by another.
+/// Order does not matter, adjacent and empty descriptors are fine.
+#[test]
+fn overlapping_descriptors_are_refused_in_any_order() {
+    let (a, b) = (0x10_0000u64, 0x20_0000u64);
+    let ok = |ds: &[(u32, u64, u64)]| x86_mmap::validate_map(&map_of(48, ds), 48);
+    let overlap = Err("overlapping EFI memory descriptors");
+    for ds in [
+        vec![(10, a, 16), (11, a, 16)],                 // the same range
+        vec![(10, a, 16), (0, a + 0xf000, 1)],          // the other's last page
+        vec![(10, a + 0x1000, 16), (11, a, 2)],         // the other's first page
+        vec![(7, a, 256), (10, a + 0x8000, 1)],         // inside the other
+        vec![(10, a + 0x8000, 1), (7, a, 256)],         // inside, listed first
+        vec![(7, b, 1), (10, a, 16), (15, a + 0x4000, 1)], // a later pair
+    ] {
+        assert_eq!(ok(&ds), overlap, "{ds:x?}");
+        let mut rev = ds.clone();
+        rev.reverse();
+        assert_eq!(ok(&rev), overlap, "{rev:x?}");
+        assert!(regions(&map_of(48, &ds), 48, 0, 0).is_err(), "{ds:x?}");
+    }
+    // Out of order, adjacent, or empty: no overlap.
+    assert_eq!(ok(&[(7, b, 16), (10, a, 16), (9, a + 0x10000, 1)]), Ok(()));
+    assert_eq!(ok(&[(10, a, 16), (7, a + 0x10000, 16)]), Ok(()));
+    assert_eq!(ok(&[(10, a, 16), (11, a + 0x4000, 0), (0, a, 0)]), Ok(()));
+    assert_eq!(ok(&[]), Ok(()));
+    assert_eq!(regions(&map_of(48, &[(7, b, 16), (10, a, 16)]), 48, 0, 0).unwrap(), vec![(b, 0x10000, 1), (a, 0x10000, 4)]);
+    // What every descriptor needs as before.
+    assert_eq!(x86_mmap::validate_map(&map_of(48, &[(7, a + 1, 1)]), 48), Err("EFI memory descriptor off a page boundary or past 2^64"));
+    assert_eq!(x86_mmap::validate_map(&map_of(48, &[(7, u64::MAX - 0xfff, 1)]), 48), Err("EFI memory descriptor off a page boundary or past 2^64"));
+    assert_eq!(x86_mmap::validate_map(&map_of(48, &[(7, a, 1)])[..40], 48), Err("invalid EFI memory map"));
+    assert_eq!(x86_mmap::validate_map(&map_of(36, &[(7, a, 1)]), 36), Err("invalid EFI memory map"));
+    // The loader checks the map it reads by and the one it hands on.
+    let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
+    let get = &x86[x86.find("pub(super) fn get() -> Option<EfiMap> {").unwrap()..];
+    let get = &get[..get.find("\n    }\n").unwrap()];
+    assert!(get.find("x86_mmap::layout_ok(size, stride, capacity)").unwrap() < get.find("x86_mmap::validate_map(").unwrap());
+    assert!(get.find("x86_mmap::validate_map(").unwrap() < get.find("Some(map)").unwrap());
+    let mmap = include_str!("../../crates/fl4-efi/src/x86_mmap.rs");
+    let regions_src = &mmap[mmap.find("pub fn regions(").unwrap()..];
+    assert!(regions_src.find("validate_map(map, stride)?;").unwrap() < regions_src.find("snp_map::all_held(").unwrap());
+}
+
+/// Audit (TDX r5, R2-M2): `validate_map` does bounded work. A sorted map
+/// takes one pass however many descriptors it has; an unsorted one has
+/// its runs of adjacent descriptors sorted (at most `MAX_UNSORTED_RUNS`,
+/// beyond which it is refused).
+#[test]
+fn validating_a_map_is_bounded_and_still_finds_every_overlap() {
+    use x86_mmap::{validate_map, MAX_UNSORTED_RUNS};
+    let base = 0x100_0000u64;
+    let pages = 4096u64;
+    // 4096 one-page descriptors, two kinds alternating in blocks of 256.
+    let page = |i: u64| (if (i / 256) % 2 == 0 { 7 } else { 4 }, base + i * PAGE, 1);
+    let sorted: Vec<_> = (0..pages).map(page).collect();
+    // The same in blocks of 64 listed in reverse block order: unsorted, 64
+    // runs.
+    let blocks: Vec<_> = (0..pages / 64).rev().flat_map(|b| (b * 64..(b + 1) * 64).map(page)).collect();
+    for ds in [&sorted, &blocks] {
+        let map = map_of(48, ds);
+        assert_eq!(validate_map(&map, 48), Ok(()));
+        let r = regions(&map, 48, 0, 0).unwrap();
+        assert_eq!(r.iter().map(|e| e.1).sum::<u64>(), pages * PAGE);
+        assert!(r.len() <= 64 + 16, "merged: {}", r.len());
+    }
+    // One overlapping pair among them is found wherever it is.
+    for (at, what) in [(0, "first"), (pages / 2 + 17, "inside a merged run"), (pages - 1, "last")] {
+        for ds in [&sorted, &blocks] {
+            let mut ds = ds.clone();
+            ds.insert(ds.len() / 3, (11, base + at * PAGE, 1));
+            assert_eq!(validate_map(&map_of(48, &ds), 48), Err("overlapping EFI memory descriptors"), "{what}");
+            let last = ds.len() - 1;
+            ds.swap(0, last);
+            assert_eq!(validate_map(&map_of(48, &ds), 48), Err("overlapping EFI memory descriptors"), "{what}, swapped");
+        }
+    }
+    // A run overlapping another run only past its first descriptor.
+    let ds = [(7, base + 4 * PAGE, 4), (7, base + 8 * PAGE, 4), (4, base, 4), (10, base + 10 * PAGE, 1)];
+    assert_eq!(validate_map(&map_of(48, &ds), 48), Err("overlapping EFI memory descriptors"));
+    // Unsorted and with no two adjacent: refused past MAX_UNSORTED_RUNS
+    // runs, taken at that many.
+    let scattered = |n: u64| -> Vec<(u32, u64, u64)> { (0..n).rev().map(|i| (7, base + 2 * i * PAGE, 1)).collect() };
+    assert_eq!(validate_map(&map_of(48, &scattered(MAX_UNSORTED_RUNS as u64)), 48), Ok(()));
+    assert_eq!(validate_map(&map_of(48, &scattered(MAX_UNSORTED_RUNS as u64 + 1)), 48), Err("too many unsorted EFI memory descriptors"));
+    // Sorted, any number is fine.
+    let spaced: Vec<_> = (0..4 * MAX_UNSORTED_RUNS as u64).map(|i| (7, base + 2 * i * PAGE, 1)).collect();
+    assert_eq!(validate_map(&map_of(48, &spaced), 48), Ok(()));
+    // Empty descriptors neither break the order nor count.
+    let mut with_empty = spaced.clone();
+    with_empty.insert(5, (7, 0, 0));
+    assert_eq!(validate_map(&map_of(48, &with_empty), 48), Ok(()));
 }
