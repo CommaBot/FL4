@@ -16923,3 +16923,71 @@ global ref).
 - Builds: fb3e-m1..m15 (module builds with the stubs), fb3e-full1 (stopped), fb3e-full2 (above). No green full
   build (the six sites). Next, in order: the five modules above (S each, same pattern), a scratch full build
   (should then stop only at the six sites), then the six sites as planned in fb3 / fb3c.
+### fb3f (resume of fb3e, branch par/fb3 in FL4-fb3) — the five remaining spec-family modules PROVED; scratch full build; six sites + VsThX:527 still open; no premise added; no FINDING
+- **Five modules (fb3e's list), all with a `*_performFrameBatch` leaf before the arch-perform lemma:**
+  * SpecInvIoPortsS `ioi_performFrameBatch` (`IOI`): `ik_fbEntryX_of`; capInsert / setCap of a frame (`hi_capInsert`,
+    `ioi_setCap_noIo`), emptySlot Null (`ioi_emptySlot_p`, `clOk_noIo`), the map via the new **SpecFbQ.`ik_fbMapQ`**
+    (= SpecFbM's `ik_fbMapF` with a family-chosen decode fact `Q`; here `ArchIo` from `okd_archDecode_io` at the
+    pageCap arm, `hV` kept by the decode). SpecFbM cannot be imported there: its UtD dependency's `macro "okv_step"`
+    collides with SpecInvValidIrqHandlersS's (ambiguous parse, Lean PANIC "loose bvar" in `okv_decodeCnode_io`).
+  * SpecInvVfhE `vs_performFrameBatch` (`VS σ0`): **`VArch` (SpecInvVfhX) gains `| .frameBatch b => CnOk σ0
+    b.destCnode`** (an intermediate decode-carry, proved by the new `vfh_okv_decodeFrameBatch`: the destination is an
+    extra cap, `CRoot`); at each mid-batch state `s` (`VS σ0 s`), `CnOk s` by `CnOk.mono`, so the COPY_MAP
+    destination is a slot of a full CNode (`vfh_lookupSlotForCnodeOp` at `s`, `vfh_notBad_cnFull`); the map / set_cap
+    slots hold a frame (`vfh_notBad_arch` from `VfhV s`); the map's cap is `CnOk` by `RefEq` with the frame
+    (`vfh_cnOk_refEq_frame`, `shp`).
+  * SpecInvCqGP `rt_performFrameBatch`, SpecInvCqC1 `eb_performFrameBatch` (`ik_performFrameBatchW` with the
+    generated leaves / `eb_auto` per leaf).
+  * XTopJointMidRunQ (shared with the TDX line, see below): `kf_performFrameBatchQ`, `qv_performFrameBatch` (new
+    lemmas before `perf_firstQ`, 4000000 heartbeats each; inlined in `perf_firstQ` they pushed the theorem over its
+    default heartbeats) and the `| frameBatch bi =>` arm of `perf_firstQ` (3 lines).
+- **MachKeepG4d plan, checked against the extraction (not started; M-L → L):** what `MKD.vspace_decode` needs at the
+  batch label is an MKD lemma for `vspace.decode_frame_batch` (mkd_call finds it by name), i.e. for
+  `decode_frame_batch_loop` (`loop.spec_decr_nat`, inv `AR`, as `cdt.finalise_slot_immediate.cur0`, QueueDecDel 276)
+  and `frame_batch_entry`. Facts read off Funs.lean: `objects.finalise_cap_object` of a `Frame` returns
+  `(Null, Null)` (unmap / EPT unmap / `retire_dma_frame`: MRKeepD fields); `cdt.cap_removable Null _ = ok true`, so
+  `finalise_slot_immediate` on a slot holding a Frame is one round, `done` with cleanup `Null`, no
+  `preemption_point`; then `MKD.cdt_empty_slot` (Null cleanup). So `MKD.cdt_delete_frame (hc : obj.Slot.cap st
+  slot s = ok (.Frame ..))` is S-M (a finalise lemma with post `AR ∧ r.1 = (Null, Null)`, the loop by
+  `spec_decr_nat` never continuing). The cost is the slot fact at the two deletes of `frame_batch_entry`:
+  (a) DELETE without deferral: the cap was read at the same state (`as_frame c = some f` ⇒ `c` is a Frame): free;
+  (b) DELETE after the deferred unmap: `obj.Slot.set_cap val s2 (Frame ..)` then read: needs read-after-write
+  (SetCap.`capAt_wr2_self`: `EncWf` of the new Frame (`decode_encWf` of the read cap + the zeroed asid / vaddr),
+  slot alignment) and that `unmap_page_unflushed` keeps the slot words; (c) COPY_MAP rollback: `insert_with_cap`
+  writes the derived masked frame to `val` (Insert.`InsWords.capAt'`, needs `Placed` / `IsSlot`), and
+  `vspace.batch_map` returns its input state on every `Err` (read off the code: all writes, `set_cap` +
+  `write_mapping`, are on the `Ok` path; a WP walk `⦃ r => r.1 is Err → r.2 = (s, a) ⦄`). (b)/(c) need store laws and
+  slot placement that MKD's context (`P0.StoreTotal` only) lacks: thread `[LawfulStore st]` plus a slot-placement
+  hypothesis through `MKD.vspace_decode` / `MKD.decode_quiet` (one user: XTopJointKEntry38:385, which has `L`), or
+  take the joint route (CNode Delete keeps `MR` through XTopJointKEntry38's `EJLM`), which needs the P3 refinement of
+  the batch first.
+- **Two more modules found by scratch full build fb3f-full1** (stubs only at the six sites + VsThX:527; reached
+  6950/7269 jobs; failing: SpecInvSlKE:355, XTopJointChooseB:969 — nothing else), both PROVED (fb3f-m4):
+  * SpecInvSlKE `ks_performFrameBatch` (`KS σd`): writes are frames with the range of a frame held in a slot
+    (`kok_frame_rng` ← `kok_arch_rng`, `KS.cap`); the map by `ik_fbMapQ` with `Q` = (the slot's cap is KOk ⇒
+    `KArchS σd`, from `kr_okd_archDecode` at the pageCap arm) ∧ `ArchSpecOKN` (`okv_decodePageInvocationF`), then
+    `ikp_of_kap (ksv_performPageInvocation _)`.
+  * XTopJointChooseB `sck_performFrameBatch` (SC view) and the `frameBatch` arm of `perf_firstB` (as `perf_firstQ`).
+- **Rd family (found by fb3f-full2 / module builds, fixed, fb3f-m7 green):** SpecInvRdFb (`svfb_` / `cfkfb_performFrameBatch`)
+  and SpecInvRd8hP (`rd_archPerf`'s batch arm) still used fb3c's whole-entry unfolding (`unfold fbEntryX ...; X_auto`)
+  and now fail (unsolved `ensureEmpty` / `doMachineOp invalidateASID` leaves, a 1000000-heartbeat timeout): rewritten
+  with `ik_performFrameBatchW` (relational ones at `SVS σ0 ·` / `cfS · = cfS σ0`, explicit leaves `SVK.sv_capInsert`,
+  `sv13_*`, `cfk_*`, `rd_*`); `svfb_fbEntryX` / `cfkfb_fbEntryX` removed (no other user). SpecInvRd14gE
+  `tvfb_fbEntryX` by `ik_fbEntryX_w`. Two modules never reached before, with a wildcard arch arm now covering the
+  batch: SpecInvRd8kD `ba_archPerf…` (BSA) and SpecInvRd8vB `ve_fl4ArchPerformInvocation` (VE; imports SpecFbX now):
+  batch arms by `ik_performFrameBatchW` with the family's `*_auto` per leaf. (Why full1 did not show the Rd errors is
+  unexplained: none of fb3f's edited modules is an ancestor of them; possibly stale oleans in the tokyo mirror's
+  seeded `.lake`. The next agent should not trust "built" for modules not rebuilt since the #71 merge.)
+- **Scratch full build fb3f-full3** (tokyo, `MODE=build`, LEAN 1 thread, stubs ONLY at the six m77 sites + VsThX:527
+  via proofs/scratch/fb3scratch.py): **"Build completed successfully (7269 jobs)"**. So every spec-family / downstream
+  module is done; what keeps the real build red is exactly the seven stubbed places.
+- **Shared with the TDX line:** XTopJointMidRunQ (two new lemmas before `perf_firstQ` + a 3-line `frameBatch` arm
+  in `perf_firstQ`, near the old l. 1084) and XTopJointChooseB (one new lemma before `perf_firstB` + a 4-line arm).
+  XTopJointMidRunS not touched in fb3f.
+- **HANDOFF (open, sizes as fb3 / fb3c):** (1) P1 `QueueDecVs` Pml4 batch [L; new `CdtHyps`-style gap field at mid-batch
+  `Fr0` states, discharged on the P3 side]; (2) `MachKeepG4d.MKD.vspace_decode` [L, plan above]; (3) P3 refinement
+  `VsTopX.decode_invocation_pml4_capX`, `VsDecTop.decode_invocation_pml4`, `VsThX.domFrame_pml4` + VsThX:527
+  (`okAll_specDec_pml4`'s `hfb`: split on the batch label), `VsDomF.decode_invocation_pml4D` [XL; the batch label into
+  the reply-in-decode class]. No `kernel_entry_reach*` statement changed; intermediate statement changed in fb3f:
+  `SInv.VArch` (frameBatch arm), `ioi_/vfh_` helpers added; no premise.
+- Commits: f420d8d6, 9133d92c, 61fa4e10, b94eea3d, 8a3aa288, this section. Builds: fb3f-m1..m7, fb3f-full1..3.
