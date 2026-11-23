@@ -8,7 +8,7 @@ P3 (issue #16, FL4 #71), VSpace FrameBatch: **one REMAP entry at `J`** (KENTRY-P
   ReplyFailX's `code_label` without the label mask.
 * `fbEntry_remap`: the spec's entry at a REMAP batch.
 -/
-import Fl4Proofs.P3.XTopJointFbMapJ
+import Fl4Proofs.P3.XTopJointFbMapJL
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -92,7 +92,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
       FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
   unfold FbEntryPost
   obtain ⟨p1, as1, op, depth, a1, cr, a2, dd, cn, dcn⟩ := bt
-  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J⟩, hargs, hK⟩ := id hM
+  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, hth, hct, hbm, J, hLv⟩, hargs, hK, hns, hsg, hp0⟩ := id hM
   have hbop : b.op = .remap := C.hopR.1 hopR
   have hX := J.xtop
   obtain ⟨-, hCR, -, -, -, -, -⟩ := id hX.rel
@@ -139,9 +139,9 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
       have hrun1 : (Fl4Spec.fbEntry (Z := Unit) b w).run τ = ExceptT.run (Fl4Spec.fbCode (Fl4Spec.fbMap (Z := Unit) b
           (pc.bv, idx) w.2.1) >>= fun _ => Fl4Spec.NonDetE.returnOk false) τ := by
         rw [hE]; exact runE_bind_ok (fbCode_ok hls)
-      refine WP.spec_bind (JAtZ.batchMapJ arI hA J hpc rfl C.h0 C.hasid hf op depth a1 cr a2 dd cn dcn w1 b C.hbv
+      refine WP.spec_bind (JAtZ.batchMapJL arI hA J hLv hns hsg hp0 hpc rfl C.h0 C.hasid hf op depth a1 cr a2 dd cn dcn w1 b C.hbv
         C.hba C.hmr C.hat) ?_
-      rintro ⟨r2, s2, a2'⟩ (⟨e, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ1, hmem, J', hK1, hF⟩)
+      rintro ⟨r2, s2, a2'⟩ (⟨e, e', h1, h2, h3, h4, h5⟩ | ⟨h1, τ1, hmem, J', hK1, hF, hLv1, hns1, hsg1, hp01⟩)
       · simp only at h1 h4 h5
         subst h1 h4 h5
         fbj_red
@@ -162,7 +162,7 @@ theorem fb_entry_remapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (
         subst h1
         fbj_red
         refine (WP.spec_ok _).2 ⟨τ1, FbMidJ.step arI (a := a) (H1 := H1) (Cs1 := Cs1) (Ac1 := Ac1) (Lst1 := Lst1) (D1 := D1)
-          C.hal hth hct hbm hargs hK J' rfl rfl rfl hF hK1,
+          C.hal hth hct hbm hargs hK J' rfl rfl rfl hF hK1 hLv1 hns1 hsg1 hp01,
           Or.inl ⟨rfl, false, ?_, by simp⟩⟩
         rw [hrun1]
         exact mem_bindE_ok (fbCode_mem (by rw [← hw1]; exact hmem)) (Set.mem_singleton _)

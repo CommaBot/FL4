@@ -450,7 +450,9 @@ theorem decOK_JM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.Sta
     have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).atOK J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp) (by simp)
     subst hLb
     exact (decode_invocation_pml4JV arI s ar σ J hni hG.delParts.archRef hG.tot lbl lbl.bv (pml4_label lbl)
-      (pml4fb_label lbl) ct hct p asid mp (fun h => (hok.2.2 h).1) length buf blk call don fp argsU hlen hargs hbuf hl sl hAs hc
+      (pml4fb_label lbl) ct hct p asid mp (fun h => (hok.2.2 h).1) length buf blk call don fp argsU hlen hargs hbuf hl
+      (fun h => (hok.2.2 h).2) hE.live hE.sg (J.ppr0_start arI hE.ni hE.rd0 hE.ctnq)
+      hG.delParts hG.nd hG.ari sl hAs hc
       extra excaps hXO hXN ci buffer).toPN arI (specDec_noPreK (by trivial))
   case AsidPool ptr base =>
     have hN : JPoolPath (L := L) AR Z s ar σ lbl length (.AsidPool ptr base) blk call don fp buf extra slbl argsU ci

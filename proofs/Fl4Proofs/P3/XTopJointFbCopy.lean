@@ -5,6 +5,8 @@ lookup, the frame check, `mask_cap_rights` and `derive_cap`, `insert_with_cap` (
 against `fbMap`, and on its error `cdt.delete` of the fresh copy.
 -/
 import Fl4Proofs.P3.XTopJointFbDefs
+import Fl4Proofs.P3.XTopJointFbDelFrameN
+import Fl4Proofs.P3.XTopJointFbMapJL
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -20,6 +22,7 @@ set_option maxHeartbeats 8000000 in
 /-- **One COPY_MAP entry at `J`** (module docstring). OPEN. -/
 theorem fb_entry_copyJ (hA : ArchRefines arI AR) (hT : P0.ArchTotal arI) {σ : Fl4Spec.State Unit} {th0 : TypedHeap}
     {ct buf : U64} {args : List U64} {bt : vspace.Batch} {b : Fl4Spec.Fl4FrameBatchInvocation}
+    (hDP : JDelParts (L := L) arI AR th0) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (C : FbCtx σ th0 args bt b) (hopC : bt.op = vspace.frame_batch.COPY_MAP)
     (x : S) (a : A) (τ : Fl4Spec.State Unit) (hM : FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ)
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)

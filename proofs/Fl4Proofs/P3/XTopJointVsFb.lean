@@ -198,8 +198,9 @@ theorem fb_the_arg {args : List U64} {i : Nat} (h : i < args.length) :
 state has an outcome of the spec's `fbEntry` (its error code as the loop computes it), `FbMidJ` after,
 the deferred flag as the spec's: by the op, XTopJointFbCopy's `fb_entry_copyJ`, XTopJointFbRemap's
 `fb_entry_remapJ`, XTopJointFbDel's `fb_entry_delJ`. -/
-theorem fb_entryJ (hA : ArchRefines arI AR) (hT : P0.ArchTotal arI) {σ : Fl4Spec.State Unit} {th0 : TypedHeap}
+theorem fb_entryJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) (hT : P0.ArchTotal arI) {σ : Fl4Spec.State Unit} {th0 : TypedHeap}
     {ct buf : U64} {args : List U64} {bt : vspace.Batch} {b : Fl4Spec.Fl4FrameBatchInvocation}
+    (hDP : JDelParts (L := L) arI AR th0) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (C : FbCtx σ th0 args bt b)
     (x : S) (a : A) (τ : Fl4Spec.State Unit) (hM : FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ)
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
@@ -207,17 +208,17 @@ theorem fb_entryJ (hA : ArchRefines arI AR) (hT : P0.ArchTotal arI) {σ : Fl4Spe
     vspace.frame_batch_entry st arI x a bt w0 w1 w2 df ⦃ r =>
       FbEntryPost (L := L) (AR := AR) arI σ th0 ct buf args b w τ df r ⦄ := by
   by_cases h1 : bt.op = vspace.frame_batch.COPY_MAP
-  · exact fb_entry_copyJ arI hA hT C h1 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
+  · exact fb_entry_copyJ arI hA hT hDP hnd hARI C h1 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
   by_cases h2 : bt.op = vspace.frame_batch.REMAP
   · exact fb_entry_remapJ arI hA hT C h1 h2 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
-  · exact fb_entry_delJ arI hA hT C h1 h2 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
+  · exact fb_entry_delJ arI hA hT hDP hnd hARI C h1 h2 x a τ hM w w0 w1 w2 hw0 hw1 hw2 df
 
 set_option maxHeartbeats 8000000 in
 /-- **The batch's loop at `J`** (the decode's checks passed): FL4's loop has an outcome of the spec's
 `fbRun` over the batch's entries from `σ` (entries done, the failing entry's code, whether a deferred
 delete cleared an entry), with `JAtZ` after, the current thread and its thread state kept. OPEN (the
 one FrameBatch stub left; KENTRY-PLAN fb3k). -/
-theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem fb_loopI [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -244,7 +245,9 @@ theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hln : 1 + words.val * n.val ≤ args.length)
     (hbv : b.vspace = p.bv) (hba : b.asid = asid.bv)
     (C : FbCtx σ Z.th args { root := p, asid := asid, op := op, depth := depth, map_rights := mr, cap_rights := cr, attr := attr, defer_delete := dd, cnode := cnode, dest_cnode := dcnode } b)
-    (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp) :
+    (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
+    (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR) :
     vspace.decode_frame_batch_loop st arI s ar buf ct n words p asid op depth mr cr attr dd cnode dcnode
         0#u64 false ⦃ r => ∃ (τ : Fl4Spec.State Unit) (Z1 : XSets) (H1 : P1.Heap) (Cs1 Ac1 : Set U64)
         (Lst1 : U64 → List U64) (D1 : Set U64),
@@ -306,7 +309,7 @@ theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
           exact (WP.spec_ok _).2 rfl
       intro w2 hw2
       have hdrop := fbEntries_drop (A := (args.map UScalar.bv : List Fl4Spec.Data)) (w := b.op.words) hx
-      refine WP.spec_bind (fb_entryJ arI hA hT C x0 x1 τ hM
+      refine WP.spec_bind (fb_entryJ arI hA hT hDP hnd hARI C x0 x1 τ hM
         (Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val]?,
           if b.op.words > 1 then Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val + 1]? else 0,
           if b.op.words > 2 then Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[1 + b.op.words * x2.val + 2]? else 0)
@@ -342,7 +345,7 @@ theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
               ∀ x : Fl4Spec.Tcb, σ.kheap ct.bv = some (.tcb x) →
                 ∃ y : Fl4Spec.Tcb, τ.kheap ct.bv = some (.tcb y) ∧ y.tcbState = x.tcbState := by
           intro c hc
-          obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, -, -, -, J1⟩, -, hK1⟩ := hM1
+          obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, -, -, -, J1, -⟩, -, hK1, -⟩ := hM1
           refine ⟨τ1, Z1, H1, Cs1, Ac1, Lst1, D1, hpre _ ?_, J1, hK1.ct, fun x hx => ?_⟩
           swap
           · obtain ⟨y, hy, hxy⟩ := hK1.tcb hx; exact ⟨y, hy, hxy.1⟩
@@ -357,14 +360,16 @@ theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     · rw [if_neg hd]
       have hxn : x2.val = n.val := by have : ¬ x2.val < n.val := hd; omega
       refine (WP.spec_ok _).2 ?_
-      obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, -, -, -, J1⟩, -, hK1⟩ := hM
+      obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, -, -, -, J1, -⟩, -, hK1, -⟩ := hM
       refine ⟨τ, Z1, H1, Cs1, Ac1, Lst1, D1, hpre _ ?_, J1, hK1.ct, fun x hx => ?_⟩
       swap
       · obtain ⟨y, hy, hxy⟩ := hK1.tcb hx; exact ⟨y, hy, hxy.1⟩
       rw [hbe, hxn, fbEntries_drop_n, ← hxn]
       exact fbRun_nil_mem b _ _ _
   · have hctT : ct ∈ Z.T := J.thT ct (J.xtop.curTcb (J.curEq hct).1).1
-    refine ⟨σ, ⟨⟨Z, H, Cs, Ac, Lst, D, rfl, hctT, hbm, J⟩, hargs, FbKeep.refl σ⟩, by simp, fun y hy => ?_⟩
+    have hns : Vs.NoSwitch σ := fun u e => by rw [hni.2] at e; cases e
+    refine ⟨σ, ⟨⟨Z, H, Cs, Ac, Lst, D, rfl, hctT, hbm, J, hLv⟩, hargs, FbKeep.refl σ, hns, hsg, hp0⟩, by simp,
+      fun y hy => ?_⟩
     simpa using hy
 
 /-- Reassociating a bind under a spec. -/
@@ -377,7 +382,7 @@ set_option maxHeartbeats 8000000 in
 loop against `fbRun` from `σ`, moved to the spec's `Restart` by SpecFbRestart, the deferred
 `invalidate_asid` against `flushAll`, the reply and `TS_RUNNING` by VsFbReply's `fbTail_inv`, `JAt`
 after. -/
-theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem fb_loopJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
@@ -405,6 +410,8 @@ theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hbv : b.vspace = p.bv) (hba : b.asid = asid.bv)
     (C : FbCtx σ Z.th args { root := p, asid := asid, op := op, depth := depth, map_rights := mr, cap_rights := cr, attr := attr, defer_delete := dd, cnode := cnode, dest_cnode := dcnode } b)
     (hbm : buf ≠ 0#u64 → ∃ sp, BufMap Z.B buf sp)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
+    (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (K : S × A × U64 × U64 × Bool → Result (core.result.Result Unit error.Exc × S × A))
     (hK : ∀ s1 a1 done1 err deferred, K (s1, a1, done1, err, deferred) = (do
     let a2 ← if deferred then arI.invalidate_asid a1 asid else ok a1
@@ -434,7 +441,7 @@ theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
       (.pml4Cap p.bv (some asid.bv)) excaps) σ = ({(.ok b, σ)}, False) := by rw [hfd, hb]
   refine WP.spec_bind (fb_loopI arI s ar σ J hni hA hT ct hct p asid h0 length buf args hlen hargs extra excaps
     hXO hXN hf b hb a0 ha0 n words op depth mr cr attr dd cnode dcnode hop hw hn hdp hmr hcr hat hdd hcn hdcn
-    hbc hbd hcnC hdc6 hbe hln hbv hba C hbm) ?_
+    hbc hbd hcnC hdc6 hbe hln hbv hba C hbm hLv hsg hp0 hDP hnd hARI) ?_
   rintro ⟨s1, a1, d1, e1, df⟩ ⟨τ, Z1, H1, Cs1, Ac1, Lst1, D1, hrun1, J1, hcurτ, hy⟩
   obtain ⟨y, hky, hys⟩ := hy x hk
   rw [hK]
@@ -505,7 +512,7 @@ theorem fb_opR (x : U64) {op : Fl4Spec.FbOp} (h : Fl4Spec.fbOpOf (Fl4Spec.dataTo
 /-- **The decode's facts every entry uses** (`FbCtx`), from the decode walk's. -/
 theorem fbCtx_mk {σ : Fl4Spec.State Unit} {th0 : TypedHeap} {args : List U64} {p asid a0 i13 : U64}
     {excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr)} {op' : Fl4Spec.FbOp} {cnode dc : capability.Cap}
-    (hni : Entered σ) (h0 : asid ≠ 0#u64)
+    (hni : Entered σ) (h0 : asid ≠ 0#u64) (h20 : asid.val < 2 ^ 20)
     (hf : ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok p.bv, σ)}, False))
     (hhd : Fl4Spec.the (args.map UScalar.bv : List Fl4Spec.Data)[0]? = a0.bv)
     (hop' : Fl4Spec.fbOpOf (Fl4Spec.dataToNat (a0.bv &&& 0x3#64)) = some op')
@@ -565,11 +572,12 @@ theorem fbCtx_mk {σ : Fl4Spec.State Unit} {th0 : TypedHeap} {args : List U64} {
   hcw := hcw
   hdcw := hdcw
   hal := hal
+  hasid := h20
 
 set_option maxHeartbeats 8000000 in
 /-- **The FrameBatch label on a PML4 cap at `JAt`** (module docstring): the decode's checks against
 SpecFbDec's `fbDecP`, the loop and tail by `fb_loopJ`. -/
-theorem decode_invocation_pml4_fbJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem decode_invocation_pml4_fbJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data) (hlb : lbl = fl4_abi.label.X86PML4FrameBatch)
@@ -579,6 +587,9 @@ theorem decode_invocation_pml4_fbJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf) (hl : args.length ≤ 120)
+    (h20 : mp = true → asid.val < 2 ^ 20)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
+    (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Pml4 p mp asid))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hXN : ExtraNamed Z.th (L.mem s) extra)
@@ -822,7 +833,8 @@ theorem decode_invocation_pml4_fbJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
           rw [hhd, hnn]
           try rfl)
       (by have h3' := h3; rw [List.length_map, hhd, hnn, ← hwv] at h3'; omega)
-      rfl rfl (fbCtx_mk hni h0' hf hhd hop' hcpy hd2 hd3 hi13 hthe0 hdeq h6 ⟨_, _, _, _, rfl⟩ hcvv0 hcr0.1 hdcv hdcw (by omega)) hbm
+      rfl rfl (fbCtx_mk hni h0' (h20 rfl) hf hhd hop' hcpy hd2 hd3 hi13 hthe0 hdeq h6 ⟨_, _, _, _, rfl⟩ hcvv0 hcr0.1 hdcv hdcw
+        (by omega)) hbm hLv hsg hp0 hDP hnd hARI
       _ (fun _ _ _ _ _ => rfl)
   all_goals
     simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
@@ -838,7 +850,7 @@ theorem decode_invocation_pml4_fbJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
 
 set_option maxHeartbeats 4000000 in
 /-- **A PML4 cap at `JAt`**, every label (module docstring). -/
-theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+theorem decode_invocation_pml4JV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data)
@@ -849,6 +861,9 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (args : List U64) (hlen : length.val = args.length)
     (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
     (hbuf : msg.lookup_ipc_buffer st s false ct = ok buf) (hl : args.length ≤ 120)
+    (h20 : mp = true → asid.val < 2 ^ 20)
+    (hLv : LiveDN (L := L) Z.th H Cs Z.G s σ) (hsg : SpecGlob σ) (hp0 : PPR0 σ)
+    (hDP : JDelParts (L := L) arI AR Z.th) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (sl : Fl4Spec.CslotPtr) (hAs : AbsSlot Z.th sl) (hc : capAt (L.mem s) (cslotAddr sl) = ok (.Pml4 p mp asid))
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
     (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hXN : ExtraNamed Z.th (L.mem s) extra)
@@ -857,7 +872,7 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
       extra slbl (args.map UScalar.bv) ci sl excaps buffer ct := by
   by_cases hb : lbl = fl4_abi.label.X86PML4FrameBatch
   · exact decode_invocation_pml4_fbJV arI s ar σ J hni hA hT lbl slbl hb (hlfb.2 hb) ct hct p asid mp h0 length buf
-      blk call don fp args hlen hargs hbuf hl sl hAs hc extra excaps hXO hXN ci buffer
+      blk call don fp args hlen hargs hbuf hl h20 hLv hsg hp0 hDP hnd hARI sl hAs hc extra excaps hXO hXN ci buffer
   · exact decode_invocation_pml4JVn (st := st) (L := L) arI s ar σ J hni hA hT lbl slbl hlbl ⟨fun h => hb (hlfb.1 h), hb⟩ ct hct p asid
       mp h0 length _ buf blk call don fp extra _ ci sl excaps buffer
 

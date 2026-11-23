@@ -546,10 +546,12 @@ import Fl4Proofs.P3.XTopJointVsMap
 import Fl4Proofs.P3.XTopJointFbDefs
 import Fl4Proofs.P3.XTopJointFbMapRel
 import Fl4Proofs.P3.XTopJointFbMapJ
+import Fl4Proofs.P3.XTopJointFbMapJL
 import Fl4Proofs.P3.XTopJointFbRemap
 import Fl4Proofs.P3.SpecFbKeepDel
 import Fl4Proofs.P3.SpecFbDelRun
 import Fl4Proofs.P3.XTopJointFbDelFrame
+import Fl4Proofs.P3.XTopJointFbDelFrameN
 import Fl4Proofs.P3.XTopJointFbDel
 import Fl4Proofs.P3.XTopJointFbCopy
 import Fl4Proofs.P3.XTopJointVsFb

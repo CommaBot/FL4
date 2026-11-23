@@ -5,7 +5,7 @@ P3 (issue #16, FL4 #71), VSpace FrameBatch: **one DELETE entry at `J`** (KENTRY-
 `cdt.delete` against `fbDelete`, any other cap `IllegalOperation`.
 -/
 import Fl4Proofs.P3.XTopJointFbDefs
-import Fl4Proofs.P3.XTopJointFbDelFrame
+import Fl4Proofs.P3.XTopJointFbDelFrameN
 import Fl4Proofs.P3.SpecFbKeepDel
 import Fl4Proofs.P3.SpecFbDelRun
 open Aeneas Aeneas.Std Result
@@ -32,28 +32,11 @@ section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} (arI : machine.Arch A)
 variable {AR : A → Fl4Spec.Cr3 → Prop}
 
-/-- **`FbMidJ` with the deletion's liveness facts** (KENTRY-PLAN fb3l): the frame delete at `J`
-runs at XTopJointWJL's `WJL` (`LiveDN` at the state's MDB ghost, `NoSwitch`, `SpecGlob`, `PPR0`), as
-the CNode Delete does from `JEntryAt.live`; the batch's loop must carry them. -/
-def FbLiveJ (σ : Fl4Spec.State Unit) (th0 : TypedHeap) (ct buf : U64) (args : List U64) (x : S) (a : A)
-    (τ : Fl4Spec.State Unit) : Prop :=
-  (∃ (Z1 : XSets) (H1 : P1.Heap) (Cs1 Ac1 : Set U64) (Lst1 : U64 → List U64) (D1 : Set U64),
-    Z1.th = th0 ∧ ct ∈ Z1.T ∧ (buf ≠ 0#u64 → ∃ sp, BufMap Z1.B buf sp) ∧
-    JAtZ (L := L) arI AR Z1 H1 Cs1 Ac1 Lst1 D1 x a τ ∧ LiveDN (L := L) Z1.th H1 Cs1 Z1.G x τ) ∧
-  (∀ (i : U64) v, args[i.val]? = some v → msg.syscall_arg st x ct buf i = ok v) ∧
-  FbKeep σ τ ∧ Vs.NoSwitch τ ∧ SpecGlob τ ∧ PPR0 τ
-
-theorem FbLiveJ.mid {σ : Fl4Spec.State Unit} {th0 : TypedHeap} {ct buf : U64} {args : List U64} {x : S} {a : A}
-    {τ : Fl4Spec.State Unit} (h : FbLiveJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ) :
-    FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ :=
-  by
-  obtain ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, h1, h2, h3, J, -⟩, h4, h5, -⟩ := h
-  exact ⟨⟨Z1, H1, Cs1, Ac1, Lst1, D1, h1, h2, h3, J⟩, h4, h5⟩
-
 set_option maxHeartbeats 8000000 in
 /-- **One DELETE entry at `J`** (module docstring). OPEN. -/
 theorem fb_entry_delJ (hA : ArchRefines arI AR) (hT : P0.ArchTotal arI) {σ : Fl4Spec.State Unit} {th0 : TypedHeap}
     {ct buf : U64} {args : List U64} {bt : vspace.Batch} {b : Fl4Spec.Fl4FrameBatchInvocation}
+    (hDP : JDelParts (L := L) arI AR th0) (hnd : Fl4Spec.numDomains = 1) (hARI : ARIface arI AR)
     (C : FbCtx σ th0 args bt b) (hopC : bt.op ≠ vspace.frame_batch.COPY_MAP) (hopR : bt.op ≠ vspace.frame_batch.REMAP)
     (x : S) (a : A) (τ : Fl4Spec.State Unit) (hM : FbMidJ (L := L) (AR := AR) arI σ th0 ct buf args x a τ)
     (w : Fl4Spec.Data × Fl4Spec.Data × Fl4Spec.Data) (w0 w1 w2 : U64)
