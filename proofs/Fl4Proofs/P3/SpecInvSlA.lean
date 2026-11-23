@@ -15,6 +15,7 @@ lemmas sl3's gap is closed (spec side only). il2's SpecInvNtfnQLA with `NCap`:
 * **`slGap`**.
 -/
 import Fl4Proofs.P3.SpecInvSlU
+import Fl4Proofs.P3.SpecFbM
 open Classical
 
 namespace Fl4Proofs.P3.SInvL
@@ -310,6 +311,33 @@ theorem nb_archPerform (i : ArchInvocation) (hm : ∀ a, i ≠ .invokeASIDContro
   | invokeASIDControl a => exact absurd rfl (hm a)
   | _ => simp only [archPerformInvocation, archNoReturn]; nb_auto
 
+/-- fb3e: **the frame batch keeps `SL I K`** (`ik_fbEntryX_of`: every slot the batch empties, rewrites or maps
+holds a frame cap, no thread / SC cap). -/
+theorem sl_performFrameBatch (b : Fl4FrameBatchInvocation) : SLK I K (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => ik_fbEntryX_of b w fbx_lookupTargetSlot fbx_lookupSourceSlot fbx_ensureEmpty
+    fbx_deriveCap (fun s c src dest _ hs _ _ _ _ _ _ => sl_capInsert c src dest s hs)
+    (fun sl v => ik_fbMapF2 b sl v (fun _ _ _ _ _ _ => sl_decodePageInvocation _ _ _ _ _)
+      (fun s pi dev p R mt sz m hs hok hpg hcap x hx => sl_pageInv pi s hs hok (by
+        cases pi with
+        | pageMap c sl0 en vs =>
+          simp only [PgSl] at hpg; subst hpg
+          intro p' c0 h
+          have h' : SInvU.capAt s _ = some c0 := h
+          rw [hcap] at h'; cases h'; exact id
+        | _ => trivial) x hx))
+    (fun sl => ik_fbDelXF sl (fun _ => ik_gets _) (fun c x => sl_archFinaliseCap c x)
+      (fun s _ _ _ _ _ _ hs hc x hx => sl_emptySlot_p sl .nullCap s (fun p' c0 h => by rw [hc] at h; cases h; exact id)
+        (by simp only [postCapDeletion]; sl_auto) hs x hx))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; sl_auto)
+    (fun s _ _ _ _ _ _ sl hs hc0 x hx => sl_setCap_nt _ sl s (fun p' c0 h => by rw [hc0] at h; cases h; exact id) hs x hx))
+    (sl_flushAll _ _)
+
+/-- fb3e: the frame batch keeps `NtfnScB`. -/
+theorem nb_performFrameBatch (b : Fl4FrameBatchInvocation) : NBK (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchW b (fun _ _ _ _ => nb_capInsert _ _ _) (fun _ => nb_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => nb_archFinaliseCap _ _) (fun _ => nb_emptySlot _ _)
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; nb_auto) (fun _ _ _ => nb_setCap _ _) (nb_flushAll _ _)
+
 /-! ## The gap -/
 
 set_option maxHeartbeats 4000000 in
@@ -355,6 +383,10 @@ theorem slGap : SlGap := by
       refine sln_ik (?_ : SLK I K _) (?_ : NBK _) σ ⟨hS, hNB⟩ x hx
       · sl_auto
       · nb_auto
+    | frameBatch bi =>
+      simp only [fl4ArchPerformInvocation] at hy
+      obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
+      exact ⟨sl_performFrameBatch bi σ hS x hx, nb_performFrameBatch bi σ hNB x hx⟩
     | _ =>
       refine ⟨(?_ : SLKE I K _) σ hS y hy, (?_ : NBKE _) σ hNB y hy⟩
       all_goals simp only [fl4ArchPerformInvocation, archNoReturn]
