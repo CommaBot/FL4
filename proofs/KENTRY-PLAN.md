@@ -17503,3 +17503,31 @@ See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` l
   retype's `WritesIn`) is cheaper than eight inline proofs.
 - **f4e: group B committed** after a full build on afkprover (f4e-full1, SEED=A: BUILD 0, ERRORS 0, SORRY 0,
   jobs 7351/7353; axf4.lean: 40 `#print axioms`, all within [propext, Classical.choice, Quot.sound]).
+
+### (11) f4e: item 4 (group C) state, in worktree `FL4-f4c` (branch `par/f4c-wip`, uncommitted, 395473d4's tree + C)
+- The WIP lives in the sibling worktree `FL4-f4c` (not on par/f4; it has **temporary `sorry`s**, never commit them).
+  Build there with `MODE=mod SEED=A ... bash /data/fl4/afk-build.sh` on afkprover (keys f4e-c1..c5).
+- **New (f4e)**: `VsNamedRet.lean` (imports JointAt, ScFresh; in Fl4Proofs.lean): `Vs.VsKeep.retype` (RetExp with
+  unkeyed new caps), `Vs.ArchShr.of_specAdd`, `XTopAt.vsNamedRet` (stepShr through SpecAdd + CnK/KeepC),
+  `JAtZ.vsNamedDrop` (moved from VsNamedJ). VsNamedPost: `ofOpF`'s `hUq` now also takes `VKey (capV m x) ≠ none`
+  (the unmapTab branch supplies it from `UnmapTabF`); new **`VsNamed.stepShrGrow`** (stepShr + grow's `hold`/`hnew`,
+  for UtPmRet: new PML4 caps). JCarryDefs: `ArchShr.of_otk` fix (`exact hp.symm`).
+- **Sites green in module builds (f4e-c4)**: all f4d WIP sites; retypes UtCnRet / UtScRet / UtUtRet / UtDevUt / UtTcbRet
+  (`J.xtop.vsNamedRet … hE hM <M'> (newCapOf unkeyed) hA hcnk hkc`), drops UtDropJ2 / UtDevDrop (`vsNamedDrop`),
+  XTopJointGrant (insDJ takes `hkr : Keyed2 cc srcC → cc = srcC`, `hnt : ¬ TabUn cc`; IpcGrantTr's `InsRec` carries
+  them, XTopJointXferG destructures them as `hkr2`/`hnt2`; site: `vsShr` + `vsKeep_insert`), XTopJointVsMap
+  (`vsStepJX`/`vsStepJ` take `hvn`; `vsPostJ` builds it by `ofOpF` from `J` with `huq_of_finF`), XTopJointVsReply
+  (`clrJ`: `vsSS` + `ArchShr.refl`); f4e-c5 also green: XTopJointVsOff (same `ofOpF` block at the old sets `hX'`),
+  XTopJointVsSub (`vsShr` + `VsKeep.of_nokey (· = dest)`), XTopJointXferG. f4e-c5's only errors: UtEpRet 1204 and
+  XTopJointMakePool 1074 (the `hN` argument of `withP` missing: open sites below). `VsNamed.stepShrGrow` was added after
+  f4e-c5 and is not yet built.
+- **Open (temporary `sorry`, grep `f4e WIP`)**: XTopJointFinVs 607 (VSpace finalise; ASID-pool / PML4 deletion
+  changes the ASID table or a pool, so `ArchShr` does not hold: needs a stepShr variant with an ASID-entry cleared),
+  XTopJointTcbInstall 323 (as Grant: derive facts `hkr`/`hnt` through TcbCaps' `hok` structure, then `vsShr` +
+  `vsKeep_insert`), XTopJointWJL 126 / WJLEmpty 133 / WJLSwap 172 (cs_frameB: a slot set to a Zombie / Null / swapped;
+  `VsKeep.of_nokey` needs the old cap unkeyed, else a `delSlot`-style lemma), UtPmRet 799 (`stepShrGrow`: hPt' by
+  restricting `hX4`'s `l4` to `Z.L4`; `hnew` for the new PML4 caps: TabUn, keys distinct (window addresses, old keyed
+  objects are spec objects outside the free region), user half empty from `hX4`'s PtRel at the new empty PML4).
+  Not yet reached by the module builds (depend on the above): UtEpRet (PDPT/PD/PT retypes: new keyed caps, sets grow
+  in L3/L2/L1, so stepShrGrow needs PtRel at the old sets after), UtDevRet (frames only: `vsNamedRet` after rewriting
+  the empty `{q | … ∧ nt = 7/13/12}` set unions away), XTopJointMakePool (`VsNamed.makePoolS`).
