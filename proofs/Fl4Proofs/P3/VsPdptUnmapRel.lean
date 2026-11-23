@@ -8,6 +8,7 @@ l4v's `InvalidPDPTE` stores.
 -/
 import Fl4Proofs.P3.VsPdptUnmap
 import Fl4Proofs.P3.VsFoot
+import Fl4Proofs.P3.VsLeafF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -122,7 +123,7 @@ theorem unmap_pdpt_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
         ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageMapL4 g))) → σ'.kheap p = σ.kheap p) ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ⦄ := by
+        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
   obtain ⟨hS, hSt, hSV, hR, hPt⟩ := hU
   have hskip : Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ = ({((), σ)}, False) →
       (ok (s, a) : Result (S × A)) ⦃ r =>
@@ -130,10 +131,10 @@ theorem unmap_pdpt_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
         (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
           ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageMapL4 g))) → σ'.kheap p = σ.kheap p) ∧
         ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPdpt (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ⦄ := by
+          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
     intro h
     refine (WP.spec_ok _).2 ⟨by rw [h]; exact id, fun x σ' hx p _ => ?_, σ, by rw [h]; simp,
-      ⟨hS, hSt, hSV, hR, hPt⟩, rfl⟩
+      ⟨hS, hSt, hSV, hR, hPt⟩, rfl, ArchShr.refl σ⟩
     rw [h] at hx; simp only [Set.mem_singleton_iff, Prod.mk.injEq] at hx; rw [hx.2]
   unfold vspace.unmap_pdpt
   refine WP.spec_bind (WP.spec_and (find_vspace_for_asid_rel s σ hR asid h0)
@@ -232,7 +233,8 @@ theorem unmap_pdpt_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
       simp [hσs, updK, this]
     refine WP.spec_bind (hH.flushPSKeep s1 a1 σs asid hSs) ?_
     intro a2 hS2
-    refine (WP.spec_ok _).2 ⟨?_, ?_, σs, ?_, ⟨hS2, hSts, hSVs, hRs, hPts⟩, L.ksb_wr _ _ _⟩
+    refine (WP.spec_ok _).2 ⟨?_, ?_, σs, ?_, ⟨hS2, hSts, hSVs, hRs, hPts⟩, L.ksb_wr _ _ _,
+      ArchShr.keep_left rfl (fun _ _ _ => rfl) (ArchShr.upd_pml4 hk _)⟩
     · rw [hun]
       refine nd_nofail_bind (hH.flushAllOK σ q.bv asid.bv) (fun y hy => ?_)
       obtain ⟨u, σy⟩ := y
@@ -420,7 +422,7 @@ theorem pdpt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L
         KFoot σ1 (updK σu ptr.bv (.archObj (.pdPointerTable fun _ => .invalidPDPTE)))) ?_ ?_
     · refine WP.spec_bind (unmap_pdpt_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV4) hPI1 hU1
         asid0 va0 ptr hA0 (hmu rfl)) ?_
-      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
+      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3, -⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]
       apply ok_bind_spec

@@ -17347,9 +17347,11 @@ See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` l
 ### (5) What remains after f4b (in order; sizes)
 1. **Item 1, table unmaps** (PT / PD / PDPT, in-set `pt/pd/pdpt_unmap_rel` + off-set `*_unmap_rel_off`, VsOffDec):
    then delete `VsOpTodo`. Design (not written):
-   - Rel side: extend `unmap_page_table_rel` (and the PD / PDPT inner unmaps) with `ArchShr σ σ'` exactly as
-     `unmap_page_rel` (skip branches `ArchShr.refl`; the clearing branch `ArchShr.ms (ArchShr.upd_pd hk _) _`);
-     the zeroing `updK σu ptr (pageTable fun _ => invalidPTE)` is again `EntShr` (all entries invalid); the
+   - Rel side: **DONE (f4b, commit after 09de60ce)**: `unmap_page_table_rel`, `unmap_page_directory_rel`,
+     `unmap_pdpt_rel` posts' `∃ σ'` end in `ArchShr σ σ'` (skip branches `ArchShr.refl`, the clearing branch
+     `ArchShr.ms (ArchShr.keep_left rfl _ (ArchShr.upd_pd hk _)) _` …; callers in Vs*UnmapRel / Vs*UnmapOff take
+     it as `-`, VsFin unchanged). Still to do: the
+     zeroing `updK σu ptr (pageTable fun _ => invalidPTE)` is again `EntShr` (all entries invalid); the
      sts / setCap ends via `sts_keep` / `cnode_keep`. So the whole step is `ArchShr σ σ'`.
    - Fact `UnmapTabF m m' x c σ σ'`: `VKey c = some (k0, q0)` (k0 = 1/2/3), `finF m x = true` (the decode's final
      check, `hfin`), `TabUn (capV m' x)` with the same key, `ArchShr σ σ'`, the table's spec object after all
@@ -17367,3 +17369,13 @@ See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` l
      (`VsPath.inv`, `idx21` / `idx30` / `masked_idx`) and `VsPath.det` with `VsPath.of_find`; an unmapped `c`:
      no walk before (`uun` + `named`), walks after ⊆ before (`VsPath.sub_down`, steps only removed). L.
 2. **Item 3** (VsKeep in the CSpace posts) and **item 4** (`JCarry.vsNamed`) unchanged from (2) above.
+
+### (6) f4b builds and axioms
+- f4b-m1..m6 module builds (tokyo; m1: `eP` needs `import VsPt`, `updK` mvar in `ArchShr.upd_*`; m3: a blanket
+  rewrite hit `VsOpF.todo`'s own proof; m4: `rintro _ rfl` eliminated the named `q`).
+- **f4b-full1** (commit 09de60ce, LEAN_NUM_THREADS=1): `Build completed successfully (7349 jobs)`, 0 `error`,
+  0 `sorry`; `#print axioms` (axf4.lean, 130 lines, new: `ofMapLeafF`, `ofUnmapLeafF`, `ent_shr`, the four frame
+  rels, `unmap_page_rel`, `lookup_pt_slot_walk`): all `[propext, Classical.choice, Quot.sound]` (`vkey_ovl` and
+  some P1 timer lemmas fewer).
+- The table-unmap `ArchShr` commit was module-built only (f4b-m6: the three inner rels, their in-set / off-set
+  callers, VsFin; no other module names these lemmas); not yet in a full build.

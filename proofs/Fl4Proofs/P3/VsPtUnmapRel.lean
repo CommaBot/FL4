@@ -20,6 +20,7 @@ P3 (DESIGN.md §9), VSpace: **`unmap_page_table` refines l4v
   slot), then the cap's mapping cleared.
 -/
 import Fl4Proofs.P3.VsPtUnmap
+import Fl4Proofs.P3.VsLeafF
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3.Vs
@@ -218,7 +219,7 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
         ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageDirectory g))) → σ'.kheap p = σ.kheap p) ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ⦄ := by
+        UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
   obtain ⟨hS, hSt, hSV, hR, hPt⟩ := hU
   have hskip : Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ = ({((), σ)}, False) →
       (ok (s, a) : Result (S × A)) ⦃ r =>
@@ -226,10 +227,10 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
         (∀ x σ', (x, σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 →
           ∀ p, (∀ g, σ.kheap p ≠ some (.archObj (.pageDirectory g))) → σ'.kheap p = σ.kheap p) ∧
         ∃ σ', ((), σ') ∈ (Fl4Spec.unmapPageTable (Z := Unit) asid.bv vaddr.bv pt.bv σ).1 ∧
-          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ⦄ := by
+          UR st th P L4 L3 L2 L1 SR r.1 r.2 σ' ∧ L.ksb r.1 = L.ksb s ∧ ArchShr σ σ' ⦄ := by
     intro h
     refine (WP.spec_ok _).2 ⟨by rw [h]; exact id, fun x σ' hx p _ => ?_, σ, by rw [h]; simp,
-      ⟨hS, hSt, hSV, hR, hPt⟩, rfl⟩
+      ⟨hS, hSt, hSV, hR, hPt⟩, rfl, ArchShr.refl σ⟩
     rw [h] at hx; simp only [Set.mem_singleton_iff, Prod.mk.injEq] at hx; rw [hx.2]
   unfold vspace.unmap_page_table
   refine WP.spec_bind (WP.spec_and (find_vspace_for_asid_rel s σ hR asid h0)
@@ -347,7 +348,8 @@ theorem unmap_page_table_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {
       have hσ'' := hσ'
       obtain ⟨ms2, rfl⟩ := doMachineOp_mem hσ'
       refine (WP.spec_ok _).2 ⟨?_, ?_, _, ?_, ⟨hS', Vs.StateRel.ms hSts ms2, hSVs, ⟨hRs.1, hRs.2, hRs.3⟩,
-        ⟨hPts.l4, hPts.l3, hPts.l2, hPts.l1⟩⟩, L.ksb_wr _ _ _⟩
+        ⟨hPts.l4, hPts.l3, hPts.l2, hPts.l1⟩⟩, L.ksb_wr _ _ _,
+        ArchShr.ms (ArchShr.keep_left rfl (fun _ _ _ => rfl) (ArchShr.upd_pd hk _)) _⟩
       · rw [hun]
         refine nd_nofail_bind (hH.flushTblOK σ r1.bv vaddr.bv pt.bv asid.bv hal hptk) (fun y hy => ?_)
         obtain ⟨u, σy⟩ := y
@@ -572,7 +574,7 @@ theorem pt_unmap_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 
         KFoot σ1 (updK σu ptr.bv (.archObj (.pageTable fun _ => .invalidPTE)))) ?_ ?_
     · refine WP.spec_bind (unmap_page_table_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV2) hPI1 hU1
         asid0 va0 ptr hA0 hVA (hmu rfl)) ?_
-      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
+      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3, -⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]
       apply ok_bind_spec

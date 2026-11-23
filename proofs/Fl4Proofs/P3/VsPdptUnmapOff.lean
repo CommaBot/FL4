@@ -191,7 +191,7 @@ theorem pdpt_unmap_rel_off {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P 
         ∀ i : U64, i.val < 512 → L.mem p.1 (peA ptr i) = 0#u64) ?_ ?_
     · refine WP.spec_bind (unmap_pdpt_rel hH' s1 a σ1 hPl hPP hPS (hk1 ▸ hVP) (hk1 ▸ hPV4) hPI1 hU1
         asid0 va0 ptr hA0 (hmu rfl)) ?_
-      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3⟩
+      rintro ⟨s3, a3⟩ ⟨hnu, hall, σu, hu, ⟨⟨hS3, hF3, hK3⟩, hSt3, hSV3, hR3, hPt3⟩, hk3, -⟩
       show (st.zero s3 ptr 4096#u64 >>= fun s4 => ok (s4, a3)) ⦃ _ ⦄
       rw [L.zero_eq]
       apply ok_bind_spec
