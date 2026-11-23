@@ -174,6 +174,17 @@ theorem perfF_testAndClear {σ0 u : State Unit} (p : ObjRef) (h : RF σ0 u) :
     (qt_of_tv _ fun _ => by
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation, performTestAndClearAccessed]; tv_auto)
 
+/-- #68: the TDCALL. -/
+theorem perfF_tdx {σ0 u : State Unit} (i : Fl4TdxInvocation) (h : RF σ0 u) :
+    PerfF σ0 (.invokeArchObject (.tdx i)) u :=
+  perfF_sve h (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+                  cases i <;> simp only [performTdxInvocation, tdxStatus] <;> sv_auto)
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        cases i <;> simp only [performTdxInvocation, tdxStatus] <;> cfk_auto)
+    (qt_of_tv _ fun _ => by
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> simp only [performTdxInvocation, tdxStatus] <;> tv_auto)
+
 theorem perfF_pml4Flush {σ0 u : State Unit} (i : Fl4Pml4Invocation) (h : RF σ0 u) :
     PerfF σ0 (.invokeArchObject (.pml4Flush i)) u :=
   perfF_sve h (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archNoReturn]; sv_auto)
@@ -240,6 +251,7 @@ theorem armF_covFF : ArmF CovFF := by
   | .invokeArchObject (.pml4Flush i), _ => exact perfF_pml4Flush i h
   | .invokeArchObject (.deriveSubframe i), _ => exact perfF_deriveSubframe i h
   | .invokeArchObject (.testAndClearAccessed p), _ => exact perfF_testAndClear p h
+  | .invokeArchObject (.tdx i), _ => exact perfF_tdx i h
   | .invokeArchObject (.spec (.invokeASIDControl _)), hc => exact False.elim hc
   | .invokeUntyped _, hc => exact False.elim hc
   | .invokeEndpoint _ _ _ _, hc => exact False.elim hc
