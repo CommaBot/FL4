@@ -110,14 +110,17 @@
             <condition><config var="CONFIG_ARCH_AARCH64"/></condition>
             <brief>Create an IRQ handler capability for MSIs of a PCI function through the GICv3 ITS.</brief>
             <description>
-                Maps event `event` of device `device` (its PCI requester ID) to the kernel's LPI number
-                `irq` and routes it to core `target`. The device raises it by writing `event` to the
-                doorbell that SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO gives, whose numbers bound the
-                arguments. Deleting the handler unmaps the event. LPIs are edge triggered and are not
+                Maps event `event` of device `device` to the kernel's LPI number `irq` and routes it to
+                core `target`. `device` is the ITS DeviceID of the device's MSIs at the ITS that
+                SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO advertises (its `doorbell` is that ITS's
+                GITS_TRANSLATER, 0x10040 past its base): user space finds it in the firmware's MSI
+                routing (ACPI IORT, or a device tree's `msi-map`); where that routing is the identity it
+                is the PCI requester ID (bus &lt;&lt; 8 | devfn). The device raises the interrupt by
+                writing `event` to the doorbell, whose record's numbers bound the arguments. Deleting the handler unmaps the event. LPIs are edge triggered and are not
                 masked between their signal and IRQHandler_Ack.
             </description>
             <param dir="in" name="irq" type="seL4_Word" description="The LPI number, below num_lpis."/>
-            <param dir="in" name="device" type="seL4_Word" description="The device ID (PCI requester ID), below num_devices."/>
+            <param dir="in" name="device" type="seL4_Word" description="The ITS DeviceID from the firmware's MSI routing (the PCI requester ID where it is the identity), below num_devices."/>
             <param dir="in" name="event" type="seL4_Word" description="The event ID the device writes, below num_events."/>
             <param dir="in" name="root" type="seL4_CNode" description="CPtr to the CNode that forms the root of the destination CSpace. Must be at a depth equivalent to the wordsize."/>
             <param dir="in" name="index" type="seL4_Word" description="CPtr to the destination slot. Resolved from the root of the destination CSpace."/>

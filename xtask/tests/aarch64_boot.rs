@@ -176,6 +176,113 @@ fn redistributors_are_found_only_inside_their_mapping() {
     assert_eq!(gic_layout::find_frame(u64::MAX - 0xffff, 0x1_0000, 0, frames(&[])), None);
 }
 
+/// A device tree's `redistributor-stride` spaces redistributors further
+/// apart than their frames: the walk steps by it, finds a later one, and
+/// keeps the padding after the last one up to the range's end. A stride
+/// smaller than a redistributor's frames is no layout at all.
+#[test]
+fn redistributors_follow_their_stride() {
+    let b = 0x800_0000;
+    let t = [(b, 0 << 32), (b + 0x3_0000, 1 << 32), (b + 0x6_0000, 2 << 32 | LAST)];
+    assert_eq!(gic_layout::find_frame_strided(b, 0x9_0000, 0x3_0000, 1, frames(&t)), Some(b + 0x3_0000));
+    assert_eq!(gic_layout::find_frame_strided(b, 0x9_0000, 0x3_0000, 2, frames(&t)), Some(b + 0x6_0000));
+    assert_eq!(gic_layout::reserve_strided(b, 0x9_0000, 0x9_0000, 0x3_0000, frames(&t)), Some(0x9_0000));
+    assert_eq!(gic_layout::reserve_strided(b, 0, 0x9_0000, 0x3_0000, frames(&t)), Some(0x9_0000));
+    let mut seen = vec![];
+    assert!(gic_layout::for_each_frame(b, 0x9_0000, 0x3_0000, frames(&t), |a, _| seen.push(a)));
+    assert_eq!(seen, [b, b + 0x3_0000, b + 0x6_0000]);
+    // GICv4 redistributors (256 KiB) with a 128 KiB stride.
+    let v4 = [(b, VLPIS), (b + 0x4_0000, VLPIS | LAST)];
+    assert_eq!(gic_layout::reserve_strided(b, 0x8_0000, 0x8_0000, 0x2_0000, frames(&v4)), None);
+    assert_eq!(gic_layout::find_frame_strided(b, 0x8_0000, 0x2_0000, 0, frames(&v4)), None);
+    assert!(!gic_layout::for_each_frame(b, 0x8_0000, 0x2_0000, frames(&v4), |_, _| {}));
+}
+
+/// A GICv3 device tree node with `extra` properties after its reg.
+fn dt_gic_props(extra: &[(&str, Vec<u8>)]) -> Option<hw::Hw> {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x40_0000)]));
+    for (n, v) in extra {
+        d.prop(n, v);
+    }
+    d.end();
+    d.begin("pl011@9000000");
+    d.prop_str("compatible", "arm,pl011");
+    d.prop("reg", &reg2(&[(0x900_0000, 0x1000)]));
+    d.end();
+    d.end();
+    discover_blob(&d.blob())
+}
+
+/// `redistributor-stride`: one 64-bit value, at least 128 KiB, a multiple
+/// of 64 KiB; anything else leaves the redistributors unknown (the boot
+/// fails). The distributor's and the console's sizes are kept.
+#[test]
+fn the_redistributor_stride_and_device_sizes_come_from_the_device_tree() {
+    let h = dt_gic_props(&[]).expect("device tree");
+    assert_eq!((h.gicr_stride, h.gicd_len, h.uart_base, h.uart_len), (0, 0x1_0000, 0x900_0000, 0x1000));
+    let h = dt_gic_props(&[("redistributor-stride", 0x3_0000u64.to_be_bytes().to_vec())]).expect("device tree");
+    assert_eq!(h.gicr_stride, 0x3_0000);
+    assert!(!h.gicr_lost);
+    for (what, v) in [
+        ("32 bits", 0x4_0000u32.to_be_bytes().to_vec()),
+        ("0", 0u64.to_be_bytes().to_vec()),
+        ("64 KiB", 0x1_0000u64.to_be_bytes().to_vec()),
+        ("misaligned", 0x3_1000u64.to_be_bytes().to_vec()),
+    ] {
+        let h = dt_gic_props(&[("redistributor-stride", v)]).expect("device tree");
+        assert!(h.gicr_lost, "{what}");
+    }
+}
+
+/// The redistributor walk refuses what it cannot follow: a range with no
+/// whole redistributor in it, a base off a page or past the address space,
+/// a stride off 64 KiB, a step past the address space; a last frame is
+/// still visited when the step after it would overflow.
+#[test]
+fn a_redistributor_walk_refuses_what_it_cannot_follow() {
+    let b = 0x800_0000;
+    let one = [(b, LAST)];
+    // Less than a redistributor's RD and SGI frames.
+    assert!(!gic_layout::for_each_frame(b, 0x1_0000, 0, frames(&one), |_, _| {}));
+    assert_eq!(gic_layout::reserve_strided(b, 0x1_0000, 0x1_0000, 0, frames(&one)), None);
+    // A base off a page; a stride off 64 KiB; a range past the end.
+    assert!(!gic_layout::for_each_frame(b + 0x800, 0x2_0000, 0, frames(&[]), |_, _| {}));
+    assert!(!gic_layout::for_each_frame(b, 0x6_0000, 0x2_8000, frames(&one), |_, _| {}));
+    assert!(!gic_layout::for_each_frame(u64::MAX - 0xffff, 0x2_0000, 0, frames(&[]), |_, _| {}));
+    // The last frame at the top of the address space with a stride that
+    // would step past it: visited, kept to the range's end.
+    let top = u64::MAX - 0x3_ffff;
+    let last = [(top, LAST)];
+    let mut seen = vec![];
+    assert!(gic_layout::for_each_frame(top, 0x3_ffff, 0x4_0000, frames(&last), |a, _| seen.push(a)));
+    assert_eq!(seen, [top]);
+    assert_eq!(gic_layout::reserve_strided(top, 0x3_ffff, 0x3_ffff, 0x4_0000, frames(&last)), Some(0x3_ffff));
+    // A bounded range of 192 KiB with one packed redistributor that is not
+    // the last: a second one begins inside it but does not fit, unseen.
+    let first = [(b, 0)];
+    assert!(!gic_layout::for_each_frame(b, 0x3_0000, 0, frames(&first), |_, _| {}));
+    assert_eq!(gic_layout::reserve_strided(b, 0x3_0000, 0x3_0000, 0, frames(&first)), None);
+    // Two that fill it exactly, neither marked last: whole.
+    let two = [(b, 0), (b + 0x2_0000, 1 << 32)];
+    let mut seen = vec![];
+    assert!(gic_layout::for_each_frame(b, 0x4_0000, 0, frames(&two), |a, _| seen.push(a)));
+    assert_eq!(seen, [b, b + 0x2_0000]);
+    assert_eq!(gic_layout::reserve_strided(b, 0x4_0000, 0x4_0000, 0, frames(&two)), Some(0x4_0000));
+    // A MADT GICC range (RD and SGI frames) of a GICv4 redistributor: its
+    // VLPI frames run past the range, which is whole.
+    assert_eq!(gic_layout::reserve_strided(b, 0x2_0000, 0x2_0000, 0, frames(&[(b, VLPIS)])), Some(0x4_0000));
+    // A frame that is not the last, whose step would overflow.
+    let not_last = [(top, 0)];
+    assert!(!gic_layout::for_each_frame(top, 0x3_ffff, 0x4_0000, frames(&not_last), |_, _| {}));
+    assert_eq!(gic_layout::reserve_strided(top, 0, 0x3_ffff, 0x4_0000, frames(&not_last)), None);
+}
+
 #[test]
 fn a_gicv4_redistributor_reserves_its_vlpi_frames() {
     let b = 0x800_0000;
@@ -207,6 +314,594 @@ fn another_cores_gicv2_banked_interrupts_take_a_remote_call() {
         assert!(!gic_layout::banked_remote(false, id, 1, 0), "id {id}");
         assert!(!gic_layout::banked_remote(true, id, 1, 0), "id {id}");
     }
+}
+
+/// The interrupt ID of an acknowledge value: GICv2 keeps the low ten bits
+/// (an SGI's source CPU is above them); GICv3's INTIDs are whole, so an
+/// extended SPI or PPI (1024..8191) is not taken for the SGI or SPI with
+/// its low ten bits. Only 1020..=1023 are special (nothing to end); a real
+/// interrupt the kernel has no IRQ for (1024 up to the first LPI) is
+/// unsupported: ended, then dropped.
+#[test]
+fn acknowledge_values_name_their_interrupt() {
+    const LPI: u64 = 8192;
+    // GICv2: SGI 1 from CPU 3, SPI 40, 1022 and 1023.
+    assert_eq!(gic_layout::raw_id(false, 3 << 10 | 1), 1);
+    assert!(!gic_layout::is_spurious(false, 3 << 10 | 1));
+    assert!(!gic_layout::is_unsupported(false, 3 << 10 | 1, LPI));
+    assert_eq!(gic_layout::raw_id(false, 40), 40);
+    assert!(!gic_layout::is_spurious(false, 40));
+    for id in [1020, 1022, 1023] {
+        assert!(gic_layout::is_spurious(false, id), "{id}");
+        assert!(!gic_layout::is_unsupported(false, id, LPI), "{id}");
+    }
+    for id in [0, 1, 27, 32, 1019] {
+        assert_eq!(gic_layout::raw_id(true, id), id);
+        assert!(!gic_layout::is_spurious(true, id), "{id}");
+        assert!(!gic_layout::is_unsupported(true, id, LPI), "{id}");
+    }
+    for id in 1020..=1023 {
+        assert!(gic_layout::is_spurious(true, id), "{id}");
+        assert!(!gic_layout::is_unsupported(true, id, LPI), "{id}");
+    }
+    // Extended SPIs and PPIs: real interrupts, not SGI 0 (4096 & 0x3ff) or
+    // SPI 32, and not special either.
+    for id in [1024, 1056, 4096, 4096 + 32, 5119, 8191] {
+        assert_eq!(gic_layout::raw_id(true, id), id);
+        assert!(!gic_layout::is_spurious(true, id), "{id}");
+        assert!(gic_layout::is_unsupported(true, id, LPI), "{id}");
+    }
+    // LPIs, the kernel's and past them: neither.
+    for id in [LPI, LPI + 255, LPI + 256, 16383, 1 << 20] {
+        assert_eq!(gic_layout::raw_id(true, id), id);
+        assert!(!gic_layout::is_spurious(true, id), "{id}");
+        assert!(!gic_layout::is_unsupported(true, id, LPI), "{id}");
+    }
+}
+
+/// GICD_TYPER: LPIs need LPIS, 14 interrupt ID bits, and, where num_LPIs
+/// bounds them, room for the kernel's 256.
+#[test]
+fn the_distributor_has_every_lpi_the_kernel_numbers() {
+    let typer = |id_bits: u32, num_lpis: u32| 1 << 17 | (id_bits - 1) << 19 | num_lpis << 11;
+    assert!(gic_layout::lpi_supported(true, typer(16, 0), 14, 256));
+    assert!(gic_layout::lpi_supported(true, typer(14, 0), 14, 256));
+    assert!(!gic_layout::lpi_supported(true, typer(13, 0), 14, 256), "too few ID bits");
+    assert!(!gic_layout::lpi_supported(true, typer(16, 5), 14, 256), "64 LPIs");
+    assert!(!gic_layout::lpi_supported(true, typer(16, 6), 14, 256), "128 LPIs");
+    assert!(gic_layout::lpi_supported(true, typer(16, 7), 14, 256), "256 LPIs");
+    assert!(gic_layout::lpi_supported(true, typer(16, 31), 14, 256));
+    assert!(!gic_layout::lpi_supported(true, typer(16, 0) & !(1 << 17), 14, 256), "no LPIS");
+    assert!(!gic_layout::lpi_supported(false, typer(16, 0), 14, 256), "GICv2");
+}
+
+/// The ITS and redistributor table base registers are used only as they
+/// read back: valid, flat, the size and page size asked for, at the
+/// address asked for (64 KiB pages keep PA[51:48] in bits 12..15).
+#[test]
+fn table_base_registers_read_back_as_asked() {
+    use gic_layout::{BASER_PSZ_16K as P16, BASER_PSZ_4K as P4, BASER_PSZ_64K as P64, BASER_VALID as V};
+    let pa = 0x4_0002_0000u64;
+    let b = |psz: u64, pages: u64, pa: u64| V | 7 << 59 | 1 << 56 | pa | 1 << 10 | psz << 8 | (pages - 1);
+    assert!(gic_layout::its_baser_ok(b(P64, 1, pa), pa, P64, 1));
+    assert!(gic_layout::its_baser_ok(b(P16, 4, pa), pa, P16, 4));
+    assert!(gic_layout::its_baser_ok(b(P4, 16, pa), pa, P4, 16));
+    assert!(!gic_layout::its_baser_ok(b(P64, 1, pa) & !V, pa, P64, 1), "not valid");
+    assert!(!gic_layout::its_baser_ok(b(P64, 1, pa) | 1 << 62, pa, P64, 1), "indirect");
+    assert!(!gic_layout::its_baser_ok(b(P16, 1, pa), pa, P64, 1), "page size");
+    assert!(!gic_layout::its_baser_ok(b(P64, 2, pa), pa, P64, 1), "size");
+    assert!(!gic_layout::its_baser_ok(b(P64, 1, 0x1_0000), pa, P64, 1), "address");
+    // A 52-bit address in 64 KiB pages: PA[51:48] in bits 12..15.
+    let hi = 0x000a_0000_0001_0000u64;
+    assert_eq!(gic_layout::its_baser_pa(V | 0x1_0000 | 0xa << 12 | P64 << 8, P64), hi);
+    assert!(!gic_layout::its_baser_ok(b(P64, 1, 0x1_0000) | 0xa << 12, 0x1_0000, P64, 1), "PA[51:48] set");
+
+    let cmd = 0x8_0001_0000u64;
+    assert!(gic_layout::its_cbaser_ok(V | 7 << 59 | cmd | 1 << 10 | 15, cmd, 16));
+    assert!(!gic_layout::its_cbaser_ok(cmd | 15, cmd, 16), "not valid");
+    assert!(!gic_layout::its_cbaser_ok(V | cmd | 3, cmd, 16), "size");
+    assert!(!gic_layout::its_cbaser_ok(V | (cmd + 0x1000) | 15, cmd, 16), "address");
+
+    let prop = 0x8_0000_0000u64;
+    assert!(gic_layout::propbaser_ok(prop | 7 << 7 | 1 << 10 | 13, prop, 14));
+    assert!(!gic_layout::propbaser_ok(prop | 7 << 7 | 1 << 10 | 15, prop, 14), "ID bits");
+    assert!(!gic_layout::propbaser_ok(0x1000 | 13, prop, 14), "address");
+    let pend = 0x8_0006_0000u64;
+    assert!(gic_layout::pendbaser_ok(pend | 7 << 7 | 1 << 10, pend));
+    assert!(!gic_layout::pendbaser_ok(pend + 0x1_0000, pend));
+    // Attributes compared across redistributors: shareability and both
+    // cacheabilities, nothing else.
+    assert_eq!(gic_layout::gicr_baser_attrs(prop | 7 << 7 | 1 << 10 | 13), 7 << 7 | 1 << 10);
+    assert_ne!(gic_layout::gicr_baser_attrs(1 << 7), gic_layout::gicr_baser_attrs(7 << 7 | 1 << 10));
+}
+
+/// An ITS is kept from user space whole. A size the tables give is the
+/// ITS's (a GICv4.0 ITS has two frames, and the next device may follow),
+/// unless it is less than two frames, or than three for an ITS showing
+/// GICv4.1 features (VSGI, VMAPP, SVPET, nID): the tables contradict the
+/// hardware. With none given (a MADT): three frames for any GICv4 ITS
+/// (GITS_PIDR2.ArchRev 4) or one showing GICv4.1 features, two otherwise.
+/// VMOVP (bit 37, GICv4.0) adds nothing.
+#[test]
+fn an_its_is_kept_whole() {
+    assert_eq!(gic_layout::ITS_SIZE, 0x2_0000);
+    assert_eq!(gic_layout::ITS_SIZE_V4_1, 0x3_0000);
+    assert_eq!(gic_layout::GITS_PIDR2, 0xffe8);
+    // GICv3, as QEMU's (Physical, ITT entry size 8, 16 ID bits, PTA).
+    let v3 = 1 | 7 << 4 | 15 << 8 | 15 << 13 | 1 << 19;
+    let (rev3, rev4) = (0x3b, 0x4b);
+    // Unsized (MADT).
+    assert_eq!(gic_layout::its_span(v3, rev3, 0), Some(0x2_0000));
+    assert_eq!(gic_layout::its_span(v3 | 1 << 37, rev3, 0), Some(0x2_0000), "VMOVP");
+    assert_eq!(gic_layout::its_span(v3, rev4, 0), Some(0x3_0000), "GICv4, VSGI clear");
+    assert_eq!(gic_layout::its_span(v3 | 1 << 39, rev4, 0), Some(0x3_0000));
+    for bit in [39, 40, 41, 42, 43] {
+        assert_eq!(gic_layout::its_span(v3 | 1 << bit, rev3, 0), Some(0x3_0000), "bit {bit}");
+    }
+    // Sized: honoured, a GICv4.0 ITS's two frames included.
+    assert_eq!(gic_layout::its_span(v3, rev3, 0x2_0000), Some(0x2_0000));
+    assert_eq!(gic_layout::its_span(v3 | 1 << 37, rev4, 0x2_0000), Some(0x2_0000), "sized GICv4.0");
+    assert_eq!(gic_layout::its_span(v3 | 1 << 39, rev4, 0x3_0000), Some(0x3_0000), "sized GICv4.1 (VSGI)");
+    assert_eq!(gic_layout::its_span(v3 | 1 << 40, rev4, 0x3_0000), Some(0x3_0000), "sized GICv4.1 (VMAPP)");
+    assert_eq!(gic_layout::its_span(v3 | 1 << 41, rev4, 0x3_0000), Some(0x3_0000), "sized GICv4.1 (SVPET)");
+    assert_eq!(gic_layout::its_span(v3, rev3, 0x4_0000), Some(0x4_0000));
+    assert_eq!(gic_layout::its_span(v3 | 1 << 39, rev4, 0x10_0000), Some(0x10_0000));
+    // Sized against the hardware: under two frames, or a GICv4.1 ITS in two.
+    assert_eq!(gic_layout::its_span(v3, rev3, 0x1_0000), None);
+    assert_eq!(gic_layout::its_span(v3 | 1 << 39, rev4, 0x2_0000), None, "GICv4.1 in two frames");
+    assert_eq!(gic_layout::its_span(v3 | 1 << 43, rev4, 0x2_0000), None, "nID in two frames");
+}
+
+/// Extended SPIs (GICD_TYPER.ESPI, ESPI_range) and extended PPIs
+/// (GICR_TYPER.PPInum) the kernel disables.
+#[test]
+fn extended_interrupts_are_counted() {
+    assert_eq!(gic_layout::espi_count(0), 0);
+    assert_eq!(gic_layout::espi_count(31 << 27), 0, "ESPI_range without ESPI");
+    assert_eq!(gic_layout::espi_count(1 << 8), 32);
+    assert_eq!(gic_layout::espi_count(1 << 8 | 3 << 27), 128);
+    assert_eq!(gic_layout::espi_count(1 << 8 | 31 << 27), 1024);
+    assert_eq!(gic_layout::eppi_words(0), 0);
+    assert_eq!(gic_layout::eppi_words(1 << 27), 1);
+    assert_eq!(gic_layout::eppi_words(2 << 27), 2);
+    assert_eq!(gic_layout::eppi_words(31 << 27), 2, "reserved values: no more than 64");
+    assert_eq!(gic_layout::eppi_words(0xffff_ffff_0000_0000 | 1 << 4), 0, "other fields");
+}
+
+/// A MADT GIC ITS entry (type 0x0f, `len` bytes, 20 in ACPI 6.6).
+fn its_entry_len(id: u32, base: u64, len: u8) -> Vec<u8> {
+    let mut e = vec![0u8; 20];
+    e[0] = 0x0f;
+    e[1] = len;
+    e[4..8].copy_from_slice(&id.to_le_bytes());
+    e[8..16].copy_from_slice(&base.to_le_bytes());
+    e.truncate(len as usize);
+    e
+}
+
+fn its_entry(id: u32, base: u64) -> Vec<u8> {
+    its_entry_len(id, base, 20)
+}
+
+fn madt_hw(e: &[Vec<u8>]) -> hw::Hw {
+    let mut all = vec![gicd(), gicc(0, 0x80a_0000)];
+    all.extend_from_slice(e);
+    let t = tables(&madt(&all), 2, b"XSDT");
+    hw::discover(t.rsdp(), 0).expect("ACPI")
+}
+
+/// Every ITS the MADT gives is recorded (once each), not the first only;
+/// more than the kernel records, or one it cannot place (a short entry, at
+/// 0 or off 64 KiB), fails the boot.
+#[test]
+fn every_its_of_the_madt_is_recorded() {
+    let h = madt_hw(&[its_entry(0, 0x808_0000), its_entry(1, 0x10_0000_0000), its_entry(2, 0x808_0000)]);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x808_0000, 0, u64::MAX), its_block(0x10_0000_0000, 0, u64::MAX)]);
+    assert!(!h.its_lost);
+
+    for (what, e) in [
+        ("at 0", its_entry(3, 0)),
+        ("off 64 KiB", its_entry(3, 0x808_1000)),
+    ] {
+        let h = madt_hw(&[its_entry(0, 0x808_0000), e]);
+        assert!(h.its_lost, "{what}");
+    }
+    // A short ITS entry makes the MADT unusable.
+    let t = tables(&madt(&[gicd(), gicc(0, 0x80a_0000), its_entry_len(3, 0x900_0000, 16)]), 2, b"XSDT");
+    assert!(hw::discover(t.rsdp(), 0).is_none(), "16-byte ITS entry");
+
+    let mut e = vec![];
+    for i in 0..hw::MAX_ITS as u64 {
+        e.push(its_entry(i as u32, 0x1000_0000 + i * 0x10_0000));
+    }
+    let h = madt_hw(&e);
+    assert_eq!(h.n_its, hw::MAX_ITS);
+    assert!(!h.its_lost);
+    e.push(its_entry(99, 0x2000_0000));
+    let h = madt_hw(&e);
+    assert_eq!(h.n_its, hw::MAX_ITS);
+    assert!(h.its_lost);
+}
+
+fn its_block(base: u64, raw_len: u64, max_len: u64) -> hw::ItsBlock {
+    hw::ItsBlock { base, raw_len, max_len }
+}
+
+/// A MADT whose entries are cut short, run past it, or stop short of its
+/// end is not used: no hardware is published from it.
+#[test]
+fn a_malformed_madt_is_not_used() {
+    let good = madt(&[gicd(), gicc(0, 0x80a_0000), its_entry(0, 0x808_0000)]);
+    let t = tables(&good, 2, b"XSDT");
+    assert!(hw::discover(t.rsdp(), 0).is_some());
+    // An entry of length 1.
+    let mut short = good.clone();
+    short.extend_from_slice(&[0x7f, 1]);
+    // An entry running past the table.
+    let mut past = good.clone();
+    past.extend_from_slice(&[0x7f, 8, 0, 0]);
+    // One trailing byte.
+    let mut trailing = good.clone();
+    trailing.push(0);
+    // GIC entries too short for what they hold.
+    let undersized = |ty: u8, len: u8| {
+        let mut e = vec![0u8; len as usize];
+        e[0] = ty;
+        e[1] = len;
+        madt(&[gicd(), gicc(0, 0x80a_0000), e])
+    };
+    for (what, e) in [
+        ("length 1", short),
+        ("past the end", past),
+        ("trailing byte", trailing),
+        ("12-byte GICR", undersized(0x0e, 12)),
+        ("40-byte GICC", undersized(0x0b, 40)),
+        ("16-byte GICD", undersized(0x0c, 16)),
+    ] {
+        let t = tables(&e, 2, b"XSDT");
+        assert!(hw::discover(t.rsdp(), 0).is_none(), "{what}");
+    }
+    // Bad checksums: the XSDT's, the MADT's.
+    for at in [BASE as usize + 64 + 9, BASE as usize + 128 + 9] {
+        let mut t = tables(&good, 2, b"XSDT");
+        t.mem[at] = t.mem[at].wrapping_add(1);
+        assert!(hw::discover(t.rsdp(), 0).is_none(), "checksum at {at:#x}");
+    }
+}
+
+/// A device tree with a GICv3 node (with `gic_ranges` as its `ranges`
+/// property, if any) under a bus node (`bus_ranges`, if any, of
+/// (child, parent, size) entries, two cells each) and ITS nodes under it
+/// with `its_regs` (each a reg property's raw bytes).
+fn dt_its_bus(bus_ranges: Option<&[(u64, u64, u64)]>, gic_ranges: Option<&[u8]>, its_regs: &[Vec<u8>]) -> hw::Hw {
+    dt_its_bus_try(bus_ranges, gic_ranges, its_regs).expect("device tree")
+}
+
+fn dt_its_bus_try(bus_ranges: Option<&[(u64, u64, u64)]>, gic_ranges: Option<&[u8]>, its_regs: &[Vec<u8>]) -> Option<hw::Hw> {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("soc");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    if let Some(r) = bus_ranges {
+        let raw: Vec<u8> = r.iter().flat_map(|&(c, p, s)| [c.to_be_bytes(), p.to_be_bytes(), s.to_be_bytes()].concat()).collect();
+        d.prop("ranges", &raw);
+    }
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    if let Some(r) = gic_ranges {
+        d.prop("ranges", r);
+    }
+    d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+    for (i, r) in its_regs.iter().enumerate() {
+        d.begin(&format!("msi-controller@{i}"));
+        d.prop_str("compatible", "arm,gic-v3-its");
+        d.prop("reg", r);
+        d.end();
+    }
+    d.end();
+    d.end();
+    d.end();
+    let blob = d.blob();
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(&blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE);
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+fn discover_blob(blob: &[u8]) -> Option<hw::Hw> {
+    let mut mem = vec![0u8; BASE as usize + blob.len()];
+    mem[BASE as usize..].copy_from_slice(blob);
+    layout::MEMORY.set((mem.as_ptr() as u64, mem.len() as u64));
+    let h = hw::discover(0, BASE);
+    layout::MEMORY.set((0, 0));
+    h
+}
+
+/// A GICv3 device tree (`dt_hw`'s) with `extra` nodes nested `depth` deep
+/// at its end.
+fn gic_dtb(depth: usize) -> Vec<u8> {
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+    d.end();
+    for i in 0..depth {
+        d.begin(&format!("n{i}"));
+        d.prop_u32("x", 0);
+    }
+    for _ in 0..depth {
+        d.end();
+    }
+    d.end();
+    d.blob()
+}
+
+/// A blob that is not whole and well formed is not used at all: no
+/// FDT_END, a node left open, nodes deeper than the kernel follows.
+#[test]
+fn a_malformed_device_tree_is_not_used() {
+    assert!(discover_blob(&gic_dtb(0)).is_some());
+    // Root at depth 1: 14 more levels make 16, the most followed.
+    assert!(discover_blob(&gic_dtb(15)).is_some());
+    assert!(discover_blob(&gic_dtb(16)).is_none(), "17 levels");
+    let st = |b: &[u8], at: usize| u32::from_be_bytes(b[at..at + 4].try_into().unwrap()) as usize;
+    // FDT_END turned into FDT_NOP: the walk runs off the block.
+    let mut b = gic_dtb(0);
+    let end_tok = st(&b, 8) + st(&b, 36) - 4;
+    assert_eq!(st(&b, end_tok), 9);
+    b[end_tok..end_tok + 4].copy_from_slice(&4u32.to_be_bytes());
+    assert!(discover_blob(&b).is_none(), "no FDT_END");
+    // The root's FDT_END_NODE turned into FDT_NOP: a node left open.
+    let mut b = gic_dtb(0);
+    assert_eq!(st(&b, end_tok - 4), 2);
+    b[end_tok - 4..end_tok].copy_from_slice(&4u32.to_be_bytes());
+    assert!(discover_blob(&b).is_none(), "unclosed node");
+
+    // An FDT_END before the end of the block, tokens after it.
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+    d.end();
+    d.end();
+    d.word(9);
+    d.word(4);
+    assert!(discover_blob(&d.blob()).is_none(), "early FDT_END");
+    // A property after a child node.
+    let mut d = Dtb::default();
+    d.begin("");
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.begin("intc@8000000");
+    d.prop_str("compatible", "arm,gic-v3");
+    d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+    d.end();
+    d.prop_u32("model", 0);
+    d.end();
+    assert!(discover_blob(&d.blob()).is_none(), "property after a child");
+    // Two root nodes; a named root. Each holds a GIC the kernel would
+    // otherwise find.
+    let gic_root = |d: &mut Dtb, name: &str| {
+        d.begin(name);
+        d.prop_u32("#address-cells", 2);
+        d.prop_u32("#size-cells", 2);
+        d.begin("intc@8000000");
+        d.prop_str("compatible", "arm,gic-v3");
+        d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+        d.end();
+        d.end();
+    };
+    let mut d = Dtb::default();
+    gic_root(&mut d, "");
+    assert!(discover_blob(&d.blob()).is_some(), "one root");
+    let mut d = Dtb::default();
+    gic_root(&mut d, "");
+    d.begin("");
+    d.end();
+    assert!(discover_blob(&d.blob()).is_none(), "two roots");
+    let mut d = Dtb::default();
+    gic_root(&mut d, "root");
+    assert!(discover_blob(&d.blob()).is_none(), "named root");
+    // The strings block ends inside a property's name: a trailing one,
+    // after everything the kernel uses.
+    let trailing = || {
+        let mut d = Dtb::default();
+        d.begin("");
+        d.prop_u32("#address-cells", 2);
+        d.prop_u32("#size-cells", 2);
+        d.begin("intc@8000000");
+        d.prop_str("compatible", "arm,gic-v3");
+        d.prop("reg", &reg2(&[GICD, (0x80a_0000, 0x2_0000)]));
+        d.prop_u32("zz-trailing", 0);
+        d.end();
+        d.end();
+        d.blob()
+    };
+    let mut b = trailing();
+    assert!(discover_blob(&b).is_some(), "trailing property");
+    let strs = st(&b, 12);
+    let strs_len = st(&b, 32);
+    assert_eq!(&b[strs + strs_len - 12..strs + strs_len], b"zz-trailing\0");
+    b[strs + strs_len - 1] = b'x';
+    assert!(discover_blob(&b).is_none(), "unterminated property name");
+}
+
+/// The loader's kernel command line: words appended with one space, a NUL
+/// left after them, and a word that does not fit refused (the loader then
+/// fails, never drops it); the kernel finds `warm_its` only as a whole
+/// word.
+#[test]
+fn kernel_command_line_options_are_never_dropped() {
+    use fl4_bootinfo::{cmdline_room, has_option, CMDLINE_LEN};
+    let mut c = [0u8; CMDLINE_LEN];
+    let mut len = 0;
+    for w in [&b"novirt"[..], b"warm_its"] {
+        let at = cmdline_room(len, w.len()).expect("fits");
+        if len > 0 {
+            c[len] = b' ';
+        }
+        c[at..at + w.len()].copy_from_slice(w);
+        len = at + w.len();
+    }
+    assert_eq!(&c[..len], b"novirt warm_its");
+    assert!(has_option(&c, b"warm_its"));
+    assert!(has_option(&c, b"novirt"));
+    assert!(!has_option(&c, b"warm"));
+    assert!(!has_option(&[0u8; CMDLINE_LEN], b"warm_its"));
+    let mut other = [0u8; CMDLINE_LEN];
+    other[..12].copy_from_slice(b"fb_console x");
+    assert!(!has_option(&other, b"warm_its"));
+    // Room for the NUL: a first word of 255 bytes fits, 256 does not; a
+    // word after 250 bytes fits only with its space and the NUL.
+    assert_eq!(cmdline_room(0, CMDLINE_LEN - 1), Some(0));
+    assert_eq!(cmdline_room(0, CMDLINE_LEN), None);
+    assert_eq!(cmdline_room(250, 4), Some(251));
+    assert_eq!(cmdline_room(250, 5), None);
+    assert_eq!(cmdline_room(1, usize::MAX), None);
+    // A full line (no NUL) is read whole.
+    let mut full = [b'x'; CMDLINE_LEN];
+    full[CMDLINE_LEN - 9..].copy_from_slice(b" warm_its");
+    assert!(has_option(&full, b"warm_its"));
+}
+
+/// GICv2 with a 4 KiB distributor right before an 8 KiB CPU interface
+/// (arm,gic.yaml's example; RK3328's GIC-400): both kept as given.
+#[test]
+fn a_gicv2_distributor_can_be_one_page() {
+    let regs = [(0xff81_1000u64, 0x1000u64), (0xff81_2000, 0x2000), (0xff81_4000, 0x2000), (0xff81_6000, 0x2000)];
+    let h = dt_hw("arm,gic-400", &regs, None);
+    assert_eq!(h.gic_version, 2);
+    assert_eq!((h.gicd, h.gicd_len), (0xff81_1000, 0x1000));
+    assert_eq!((h.gicc, h.gicc_len), (0xff81_2000, 0x2000));
+    assert_eq!((h.gich, h.gich_len), (0xff81_4000, 0x2000));
+    // What lib.rs maps and keeps of it: one page, up to the CPU interface.
+    let lim = 1 << 40;
+    assert_eq!(gic_layout::gicd_extent(h.gic_version, h.gicd, h.gicd_len, lim), Some((0x1000, 0x1000)));
+    assert_eq!(h.gicd + 0x1000, h.gicc);
+    // GICv3's is 64 KiB.
+    assert_eq!(gic_layout::gicd_extent(3, 0x800_0000, 0x1000, lim), None);
+    assert_eq!(gic_layout::gicd_extent(3, 0x800_0000, 0x1_0000, lim), Some((0x1_0000, 0x1_0000)));
+    assert_eq!(gic_layout::gicd_extent(3, 0x800_0000, 0, lim), Some((0x1_0000, 0x1_0000)));
+    // Unsized GICv2: one page; a larger size is kept whole.
+    assert_eq!(gic_layout::gicd_extent(2, 0x800_0000, 0, lim), Some((0x1000, 0x1000)));
+    assert_eq!(gic_layout::gicd_extent(2, 0x800_0000, 0x1_0000, lim), Some((0x1000, 0x1_0000)));
+    // Off a page, at 0, past the physical address space.
+    assert_eq!(gic_layout::gicd_extent(2, 0xff81_1800, 0x1000, lim), None);
+    assert_eq!(gic_layout::gicd_extent(2, 0, 0x1000, lim), None);
+    assert_eq!(gic_layout::gicd_extent(2, lim - 0x1000, 0x2000, lim), None);
+    assert_eq!(gic_layout::gicd_extent(2, lim - 0x1000, 0x1000, lim), Some((0x1000, 0x1000)));
+}
+
+/// Whether an ITS is still set up from before the kernel: it was enabled,
+/// or its command queue or a table is valid; addresses (UNKNOWN at reset)
+/// tell nothing. An ITS with GITS_TYPER.INV is always taken over; one
+/// without only cold, on a boot path that hands it over from reset.
+#[test]
+fn a_warm_its_is_told_from_a_cold_one() {
+    let v = 1u64 << 63;
+    let cold = [0u64; 8];
+    assert!(!gic_layout::its_is_warm(false, 0, &cold));
+    // Cold reset with UNKNOWN addresses in the command queue and the
+    // implemented tables, none valid: cold, taken over on a trusted
+    // handoff even without INV.
+    let mut unknown = [0u64; 8];
+    unknown[0] = 1 << 56 | 7 << 48 | 0x4_0002_0000;
+    unknown[1] = 4 << 56 | 15 << 48 | 0x7_1234_5000;
+    let warm = gic_layout::its_is_warm(false, 0x4_0001_0000 | 0xf, &unknown);
+    assert!(!warm);
+    assert!(gic_layout::its_takeover_allowed(false, warm, true));
+    // The same without a trusted handoff: not without INV.
+    assert!(!gic_layout::its_takeover_allowed(false, false, false));
+    assert!(gic_layout::its_takeover_allowed(true, false, false));
+    // Warm: enabled, a valid command queue, a valid table.
+    assert!(gic_layout::its_is_warm(true, 0, &cold), "was enabled");
+    assert!(gic_layout::its_is_warm(false, v, &cold), "CBASER valid");
+    let mut b = cold;
+    b[3] = v;
+    assert!(gic_layout::its_is_warm(false, 0, &b), "BASER valid");
+    // Warm needs INV, whatever the handoff.
+    assert!(!gic_layout::its_takeover_allowed(false, true, true));
+    assert!(gic_layout::its_takeover_allowed(true, true, false));
+    assert!(gic_layout::its_takeover_allowed(true, true, true));
+}
+
+/// ITS nodes under identity buses (empty `ranges`, as QEMU's).
+fn dt_its(its_regs: &[Vec<u8>]) -> hw::Hw {
+    dt_its_bus(Some(&[]), Some(&[]), its_regs)
+}
+
+/// Every ITS node of a device tree is recorded with its physical address
+/// (through its buses' `ranges`) and size (the larger where one is given
+/// twice); one whose reg cannot be read, is empty, or does not translate
+/// fails the boot rather than go to user space.
+#[test]
+fn every_its_of_the_device_tree_is_recorded() {
+    let h = dt_hw("arm,gic-v3", &[GICD, (0x80a_0000, 0x2_0000)], None);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x808_0000, 0x2_0000, 0x3_0000)]);
+    assert!(!h.its_lost);
+    // The same ITS twice with the same size is one; with two sizes, which
+    // is right is unknown.
+    let h = dt_its(&[reg2(&[(0x808_0000, 0x2_0000)]), reg2(&[(0x900_0000, 0x4_0000)]), reg2(&[(0x808_0000, 0x2_0000)])]);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x808_0000, 0x2_0000, 0x3_0000), its_block(0x900_0000, 0x4_0000, 0x4_0000)]);
+    assert!(!h.its_lost);
+    assert!(dt_its(&[reg2(&[(0x808_0000, 0x2_0000)]), reg2(&[(0x808_0000, 0x10_0000)])]).its_lost);
+    // Zero length, or less than the two frames.
+    assert!(dt_its(&[reg2(&[(0x808_0000, 0)])]).its_lost);
+    assert!(dt_its(&[reg2(&[(0x808_0000, 0x1_0000)])]).its_lost);
+    // Not a whole number of (address, size) entries; empty.
+    let mut bad = reg2(&[(0x808_0000, 0x2_0000)]);
+    bad.truncate(12);
+    assert!(dt_its(&[bad]).its_lost);
+    assert!(dt_its(&[vec![]]).its_lost);
+    // Off 64 KiB.
+    assert!(dt_its(&[reg2(&[(0x808_1000, 0x2_0000)])]).its_lost);
+    let many: Vec<Vec<u8>> = (0..hw::MAX_ITS as u64 + 1).map(|i| reg2(&[(0x1000_0000 + i * 0x10_0000, 0x2_0000)])).collect();
+    let h = dt_its(&many);
+    assert_eq!(h.n_its, hw::MAX_ITS);
+    assert!(h.its_lost);
+
+    // A bus that maps its children's 0..0x1000_0000 to 0x40_0000_0000: the
+    // ITS's reg is a bus address.
+    let r = [(0, 0x40_0000_0000, 0x1000_0000)];
+    let h = dt_its_bus(Some(&r), Some(&[]), &[reg2(&[(0x808_0000, 0x2_0000)])]);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x40_0808_0000, 0x2_0000, 0x3_0000)]);
+    assert!(!h.its_lost);
+    // The GIC's own registers go through the same ranges.
+    assert_eq!(h.gicd, 0x40_0800_0000);
+    assert_eq!(&h.gicr[..h.n_gicr], &[(0x40_080a_0000, 0x2_0000)]);
+    assert!(!h.gicr_lost);
+    // A bus window that ends right after the ITS's two frames: a third
+    // frame would be past it, so the ITS may not grow there.
+    let tight = [(0x800_0000, 0x40_0800_0000, 0xa_0000)];
+    let h = dt_its_bus(Some(&tight), Some(&[]), &[reg2(&[(0x808_0000, 0x2_0000)])]);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x40_0808_0000, 0x2_0000, 0x2_0000)]);
+    // ... and the GIC's redistributor past the window does not translate.
+    assert!(h.gicr_lost);
+    // The GIC node's own non-empty ranges too.
+    let gic_r: Vec<u8> = [0x800_0000u64, 0x200_0000, 0x100_0000].iter().flat_map(|w| w.to_be_bytes()).collect();
+    let h = dt_its_bus(Some(&r), Some(&gic_r), &[reg2(&[(0x808_0000, 0x2_0000)])]);
+    assert_eq!(&h.its[..h.n_its], &[its_block(0x40_0208_0000, 0x2_0000, 0x3_0000)]);
+    assert!(!h.its_lost);
+    // Outside every range, or straddling its end; a bus without ranges.
+    assert!(dt_its_bus(Some(&r), Some(&[]), &[reg2(&[(0x1000_0000, 0x2_0000)])]).its_lost);
+    assert!(dt_its_bus(Some(&r), Some(&[]), &[reg2(&[(0xfff_0000, 0x2_0000)])]).its_lost);
+    // Without ranges on /soc nothing under it translates: not the ITS,
+    // nor the GIC, so there is no hardware to boot on.
+    assert!(dt_its_bus_try(None, Some(&[]), &[reg2(&[(0x808_0000, 0x2_0000)])]).is_none());
+    assert!(dt_its_bus(Some(&[]), None, &[reg2(&[(0x808_0000, 0x2_0000)])]).its_lost);
 }
 
 // ---- EL0 access to per-core registers (audit F3) -------------------------------
@@ -702,12 +1397,13 @@ fn pmuserenr_is_written_only_with_a_pmu() {
 }
 
 /// An interrupt from EL0 records the thread's restart PC (FAULT_IP) before
-/// it takes the interrupt: taking a remote-call SGI services a stall
-/// (`take_irq` -> `service_remote` -> `fl4_core::smp::stall`), whose
-/// acknowledgement lets the calling core restart, rewrite (TCB_WriteRegisters)
-/// or delete the thread and retype its memory at once. After `take_irq`,
-/// `fl4_entry` must not touch the thread it read before (x86_64 entry.rs
-/// likewise saves the user state before `service_remote`).
+/// it waits for the serial gate: waiting services remote calls, a stall
+/// among them (`fl4_core::smp::stall`), whose acknowledgement lets the
+/// calling core restart, rewrite (TCB_WriteRegisters) or delete the thread
+/// and retype its memory at once. After `run_entry` starts, `fl4_entry`
+/// must not touch the thread it read before (x86_64 entry.rs likewise
+/// saves the user state before `service_remote`); it only compares it with
+/// the current thread.
 #[test]
 fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
     let entry = include_str!("../../crates/fl4-kernel-aarch64/src/entry.rs");
@@ -716,7 +1412,7 @@ fn an_el0_interrupt_saves_the_restart_pc_before_it_can_be_stalled() {
     let irq = start + code[start..].iter().position(|l| l.trim() == "if kind == KIND_IRQ {").expect("IRQ branch");
     let end = irq + code[irq..].iter().position(|l| l.trim() == "exit()").expect("end of the IRQ branch");
     let branch = &code[start..=end];
-    let take = branch.iter().position(|l| l.contains("take_irq()")).expect("take_irq in fl4_entry");
+    let take = branch.iter().position(|l| l.contains("run_entry(true")).expect("run_entry in fl4_entry");
     let save = branch.iter().position(|l| l.contains("t.set_reg(s, reg::FAULT_IP, elr)")).expect("FAULT_IP save");
     assert!(save < take, "fl4_entry takes the interrupt (and services stalls) before it saves FAULT_IP");
     for l in &branch[take..] {
@@ -1220,6 +1916,11 @@ fn dt_hw(compat: &str, regs: &[(u64, u64)], redist: Option<u32>) -> hw::Hw {
     d.begin("intc@8000000");
     d.prop_str("compatible", compat);
     d.prop_u32("#interrupt-cells", 3);
+    // The cells of its children's reg (QEMU's virt board's, as the GICv3
+    // binding asks for with ITS children).
+    d.prop_u32("#address-cells", 2);
+    d.prop_u32("#size-cells", 2);
+    d.prop("ranges", &[]);
     // reg before #redistributor-regions: a node's facts are used at its end.
     d.prop("reg", &reg2(regs));
     if let Some(n) = redist {
@@ -1450,6 +2151,7 @@ fn dt_soc(root: (u32, u32), soc: (u32, u32), reg: &[u8], redist: u32) -> Option<
     d.prop_u32("#size-cells", soc.1);
     // The root's cells for /soc's own reg.
     d.prop("reg", &[0u8; 12]);
+    d.prop("ranges", &[]);
     d.begin("interrupt-controller@8000000");
     d.prop_str("compatible", "arm,gic-v3");
     // The GIC's cells are its children's (an ITS), not its own reg's.
@@ -1590,11 +2292,13 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
         })
         .collect();
     let tpm = extra_bi::TpmEventLog { paddr: 0x4800_0000, size: 0x1_2345, flags: 1 };
+    let msi_words = [0x808_0040u64, 256, 64, 4096];
+    for has_msi in [false, true] {
     for has_tpm in [false, true] {
         for has_rsdp in [false, true] {
             for n_mods in [0, 1, 3, fl4_bootinfo::MAX_MODULES] {
                 for dtb_len in [0usize, 40, 41, 44, 45, 48, 0x1000, 0x1003, 0x1004, 0x1_0000] {
-                    let what = format!("tpm {has_tpm} rsdp {has_rsdp} mods {n_mods} dtb {dtb_len:#x}");
+                    let what = format!("msi {has_msi} tpm {has_tpm} rsdp {has_rsdp} mods {n_mods} dtb {dtb_len:#x}");
                     let mut dtb: Vec<u8> = (0..dtb_len).map(|i| not_poison(i, 7)).collect();
                     if dtb_len >= 8 {
                         dtb[..4].copy_from_slice(&0xd00d_feedu32.to_be_bytes());
@@ -1619,7 +2323,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                         id_aa64dfr0_el1: 0x1030_5106,
                         id_aa64dfr1_el1: 0,
                     };
-                    let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, has_tpm.then_some(&tpm), None, &dtb).expect(&what);
+                    let len = extra_bi::build(&mut buf, has_rsdp.then_some(&rsdp[..]), &regs, Some(&vi), mods, has_tpm.then_some(&tpm), has_msi.then_some(&msi_words), &dtb).expect(&what);
                     assert_eq!(len % 8, 0, "{what}");
                     assert!(buf.iter().all(|&b| b != 0xaa), "{what}: uninitialized bytes");
                     let recs = bi_records(&buf, len);
@@ -1634,6 +2338,9 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                     }
                     if has_tpm {
                         want.push(id::TPM_EVENT_LOG);
+                    }
+                    if has_msi {
+                        want.push(id::AARCH64_MSI_INFO);
                     }
                     if dtb_len != 0 {
                         want.push(id::FDT);
@@ -1677,6 +2384,11 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                                 let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
                                 assert_eq!(got, [tpm.paddr, tpm.size, tpm.flags], "{what}");
                             }
+                            id::AARCH64_MSI_INFO => {
+                                assert_eq!(l, 48, "{what}");
+                                let got: Vec<u64> = body.chunks(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+                                assert_eq!(got, msi_words, "{what}");
+                            }
                             id::PADDING => {
                                 assert!(l < 24, "{what}");
                                 assert!(body.iter().all(|&b| b == 0), "{what}");
@@ -1687,6 +2399,7 @@ fn extra_bootinfo_records_chain_exactly_with_nothing_uninitialized() {
                 }
             }
         }
+    }
     }
     // Too small a buffer is refused, not overrun.
     let mut small = [0u8; 64];

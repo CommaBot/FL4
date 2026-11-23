@@ -196,8 +196,11 @@ typedef struct seL4_X86_TdxInfo {
 
 /* SEL4_BOOTINFO_HEADER_AARCH64_MSI_INFO: the kernel drives a GICv3 ITS, so
  * seL4_IRQControl_GetMSI issues handlers for MSIs.  A device signals event
- * `event` by writing it (32 bits) to `doorbell`, the ITS's GITS_TRANSLATER;
- * its device ID is its PCI requester ID (bus << 8 | devfn). */
+ * `event` by writing it (32 bits) to `doorbell`, the GITS_TRANSLATER of that
+ * ITS (its base + 0x10040).  GetMSI's device is the device's ITS DeviceID
+ * there, from the firmware's MSI routing (ACPI IORT, device tree msi-map);
+ * where that routing is the identity it is the PCI requester ID
+ * (bus << 8 | devfn). */
 typedef struct seL4_AArch64MsiInfo {
     seL4_Word doorbell;    /* physical address of GITS_TRANSLATER */
     seL4_Word num_lpis;    /* GetMSI's irq is below this */
