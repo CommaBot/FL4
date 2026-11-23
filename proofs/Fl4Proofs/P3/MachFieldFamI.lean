@@ -118,8 +118,7 @@ theorem mtk_performTdxInvocation (i : Fl4TdxInvocation) : MTK (performTdxInvocat
 
 theorem mtk_fl4ArchPerformInvocationG (i : Fl4ArchInvocation) : MTKE (fl4ArchPerformInvocation (Z := Unit) i) := by
   cases i <;> unfold fl4ArchPerformInvocation <;> mtk_auto
-  all_goals first | exact mtk_performPml4Flush _ | exact mtk_performDeriveSubframe _ | exact mtk_performTestAndClearAccessed _
-    | exact mtk_performTdxInvocation _
+  all_goals first | exact mtk_performPml4Flush _ | exact mtk_performDeriveSubframe _ | exact mtk_performTestAndClearAccessed _ | exact mtk_performTdxInvocation _
 macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_fl4ArchPerformInvocationG _)
 
 /-- `handle_invocation`'s reply tail keeps `msFT`. -/

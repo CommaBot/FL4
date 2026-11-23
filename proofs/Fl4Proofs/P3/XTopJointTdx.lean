@@ -18,6 +18,9 @@ FL4's `tdx::decode` against the spec's FL4 extension (`Fl4Spec/Ext/Tdx`,
   invocations by `tdxTail_jat`.
 -/
 import Fl4Proofs.P3.XTopJointReply
+import Fl4Proofs.P3.FrontEndExtra
+import Fl4Proofs.P3.FrontEndLabel
+import Fl4Proofs.P3.ScTcb
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -96,7 +99,9 @@ theorem quote_len_ok_eq (l n : U64) : tdx.quote_len_ok l n = ok (decide (Fl4Spec
   have hP : tdx.PAGE.val = 4096 := by simp [tdx.PAGE]
   by_cases h1 : l ≥ tdx.PAGE
   · rw [if_pos h1]
-    have hs : tdx.PAGE - 1#u64 = ok 4095#u64 := by simp [tdx.PAGE]
+    obtain ⟨m, hs, hmv, -⟩ := spec_exists (U64.sub_spec (x := tdx.PAGE) (y := 1#u64) (by rw [hP]; simp))
+    have hm : m = 4095#u64 := UScalar.eq_of_val_eq (by rw [hmv, hP]; rfl)
+    subst hm
     rw [hs]; simp only [bind_ok, lift]
     have hand : (l &&& 4095#u64).val = l.val % 4096 := by
       rw [UScalar.val_and]
@@ -212,7 +217,7 @@ theorem tdxTail_jat [Fl4Proofs.P1.PlainStore st] (hAM : ARMask arI AR) {s : S} {
   have hcurY : ct.bv = σ1.curThread := by
     rw [hσ1, stsAct_cur]; exact hcur.symm
   have hR1 := Vs.reply1_invT s1 a1 σ1 hI ct htcb hcurY hkY rfl J'.kern.act call v
-  refine spec_bind_assoc (WP.spec_and hR1 (spec_self hR1)) ?_
+  refine WP.spec_bind (WP.spec_and hR1 (spec_self hR1)) ?_
   rintro s3 ⟨⟨hne, hks3, w, hw, hI3, hz3⟩, heq⟩
   rw [WP.spec_ok]
   refine ⟨rfl, hne, fun σ1' hσ1' => ?_⟩
@@ -281,7 +286,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   · rw [if_neg hact]; simp only [error.illegal, bind_ok, WP.spec_ok]
     refine herr _ .illegalOperation (Or.inl trivial) ?_
     unfold Fl4Spec.decodeTdxInvocation
-    rw [tdx_unlessE_neg hact]; exact run_throw_bind _ _ _
+    rw [tdx_unlessE_neg hact]; exact Sched.run_throw_bind _ _ _
   rw [if_pos hact]
   have hlenB : (args.map UScalar.bv).length = length.val := by rw [List.length_map, hlen]
   by_cases h91 : lbl = fl4_abi.label.X86TdxControlGetReport
@@ -295,7 +300,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
       unfold Fl4Spec.decodeTdxInvocation
       rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_pos (show (args.map UScalar.bv).length < 8 ∨ excaps = [] from
         Or.inl (by rw [hlenB]; scalar_tac))]
-      exact run_throw_bind _ _ _
+      exact Sched.run_throw_bind _ _ _
     rw [if_neg h8, exAt_idx0 extra]; simp only [bind_ok, obj.Slot.is_null]
     rcases hex with ⟨h0, hnil⟩ | ⟨hx0n, -, c0, a0, rest, hc0, hca0, -, hcs⟩
     · rw [h0]; simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
@@ -303,7 +308,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
       unfold Fl4Spec.decodeTdxInvocation
       rw [tdx_unlessE_pos hact, retOk_bind, if_pos hd, whenE_pos (show (args.map UScalar.bv).length < 8 ∨ excaps = [] from
         Or.inr (List.map_eq_nil_iff.1 hnil))]
-      exact run_throw_bind _ _ _
+      exact Sched.run_throw_bind _ _ _
     simp only [hx0n, decide_false, Bool.false_eq_true, ↓reduceIte]
     rw [slot_cap_eq, hc0]; simp only [bind_ok]
     obtain ⟨e0, es, rfl, he0⟩ : ∃ e0 es, excaps = e0 :: es ∧ e0.1 = a0 := by
@@ -348,7 +353,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
       unfold Fl4Spec.decodeTdxInvocation
       rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd,
         whenE_pos (show (args.map UScalar.bv).length < 7 by rw [hlenB]; scalar_tac)]
-      exact run_throw_bind _ _ _
+      exact Sched.run_throw_bind _ _ _
     rw [if_neg h7]
     have hnot : ¬ (args.map UScalar.bv).length < 7 := by rw [hlenB]; intro h; exact h7 (by scalar_tac)
     obtain ⟨y0, y1, y2, y3, y4, y5, y6, rest', rfl⟩ :
@@ -365,11 +370,11 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
       refine herr _ (.invalidArgument 0) (Or.inl (by simp [SysErrRel])) ?_
       unfold Fl4Spec.decodeTdxInvocation
       rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd, whenE_neg hnot, retOk_bind]
-      try dsimp only
-      try simp only [List.map_cons, List.getElem?_cons_zero]
-      rw [whenE_pos (show Fl4Spec.unat (Fl4Spec.the (some y0.bv)) > 3 by
+      have h0 : Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]? = y0.bv := rfl
+      simp only [h0]
+      rw [whenE_pos (show Fl4Spec.unat (Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]?) > 3 by
         show y0.val > 3; scalar_tac)]
-      exact run_throw_bind _ _ _
+      exact Sched.run_throw_bind _ _ _
     rw [if_neg hi]
     simp only [hargs 1#u64 y1 (by simp), hargs 2#u64 y2 (by simp), hargs 3#u64 y3 (by simp),
       hargs 4#u64 y4 (by simp), hargs 5#u64 y5 (by simp), hargs 6#u64 y6 (by simp), bind_ok]
@@ -378,9 +383,9 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     refine hsucc (.extendRtmr y0.bv (List.take 6 (List.drop 1 ((y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest').map UScalar.bv)))) v a1 (Or.inr (Or.inl ⟨_, _, _, _, _, _, _, _, hv⟩)) ?_
     unfold Fl4Spec.decodeTdxInvocation
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_pos hd, whenE_neg hnot, retOk_bind]
-    try dsimp only
-    try simp only [List.map_cons, List.getElem?_cons_zero]
-    rw [whenE_neg (show ¬ Fl4Spec.unat (Fl4Spec.the (some y0.bv)) > 3 by
+    have h0 : Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]? = y0.bv := rfl
+    simp only [h0]
+    rw [whenE_neg (show ¬ Fl4Spec.unat (Fl4Spec.the (List.map UScalar.bv (y0 :: y1 :: y2 :: y3 :: y4 :: y5 :: y6 :: rest'))[0]?) > 3 by
       show ¬ y0.val > 3; scalar_tac), retOk_bind]; rfl
   rw [if_neg h92]
   have hn92 : ¬ Fl4Spec.dataToNat lbl.bv = Fl4Spec.fl4TdxExtendRtmrLabel := fun e => h92 ((lbl_rtmr_iff lbl).2 e)
@@ -401,7 +406,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     unfold Fl4Spec.decodeTdxInvocation
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd,
       whenE_pos (show (args.map UScalar.bv).length < 1 ∨ excaps = [] from Or.inl (by rw [hlenB]; scalar_tac))]
-    exact run_throw_bind _ _ _
+    exact Sched.run_throw_bind _ _ _
   rw [if_neg h1, exAt_idx0 extra]; simp only [bind_ok, obj.Slot.is_null]
   rcases hex with ⟨h0, hnil⟩ | ⟨hx0n, -, c0, a0, rest, hc0, hca0, -, hcs⟩
   · rw [h0]; simp only [decide_true, ↓reduceIte, error.truncated, bind_ok, WP.spec_ok]
@@ -409,7 +414,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     unfold Fl4Spec.decodeTdxInvocation
     rw [tdx_unlessE_pos hact, retOk_bind, if_neg hn91, if_neg hn92, if_pos hd,
       whenE_pos (show (args.map UScalar.bv).length < 1 ∨ excaps = [] from Or.inr (List.map_eq_nil_iff.1 hnil))]
-    exact run_throw_bind _ _ _
+    exact Sched.run_throw_bind _ _ _
   simp only [hx0n, decide_false, Bool.false_eq_true, ↓reduceIte]
   rw [slot_cap_eq, hc0]; simp only [bind_ok]
   obtain ⟨e0, es, rfl, he0⟩ : ∃ e0 es, excaps = e0 :: es ∧ e0.1 = a0 := by
@@ -432,7 +437,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
       obtain ⟨p', n'⟩ := pb
       dsimp only
       rw [tdx_unlessE_neg (show ¬ (Fl4Spec.tdxDmaRam p' n' = true) by rw [hsn p' n' hq]; simp)]
-      exact run_throw_bind _ _ _
+      exact Sched.run_throw_bind _ _ _
   rw [hp]; simp only [bind_ok]
   obtain ⟨y0, rest', rfl⟩ : ∃ y0 rest', args = y0 :: rest' := by
     match args with
@@ -450,6 +455,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
     dsimp only
     rw [tdx_unlessE_pos hdm, retOk_bind]
     rfl
+  show (if decide (Fl4Spec.tdxQuoteLenOk y0.bv n.val) = true then _ else _) ⦃ _ ⦄
   by_cases hl : Fl4Spec.tdxQuoteLenOk y0.bv n.val
   · rw [decide_eq_true hl]; simp only [↓reduceIte]
     obtain ⟨⟨v, a1⟩, hv, -⟩ := spec_exists (hT.tdx_get_quote ar p y0)
@@ -459,7 +465,7 @@ theorem decode_invocation_tdxJ [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ
   · rw [decide_eq_false hl]; simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_arg, bind_ok, WP.spec_ok]
     refine herr _ (.invalidArgument 0) (Or.inl (by simp [SysErrRel])) ?_
     rw [hsq, tdx_unlessE_neg hl]
-    exact run_throw_bind _ _ _
+    exact Sched.run_throw_bind _ _ _
 
 end
 
