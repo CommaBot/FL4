@@ -543,6 +543,10 @@ import Fl4Proofs.P3.SpecNoPre
 import Fl4Proofs.P3.XTopJointUnblock
 import Fl4Proofs.P3.XTopJointVsMapSpec
 import Fl4Proofs.P3.XTopJointVsMap
+import Fl4Proofs.P3.XTopJointFbDefs
+import Fl4Proofs.P3.XTopJointFbRemap
+import Fl4Proofs.P3.XTopJointFbDel
+import Fl4Proofs.P3.XTopJointFbCopy
 import Fl4Proofs.P3.XTopJointVsFb
 import Fl4Proofs.P3.XTopJointVsOff
 import Fl4Proofs.P3.XTopJointVsReply
