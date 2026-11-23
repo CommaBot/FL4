@@ -633,6 +633,267 @@ theorem rk_performFrameBatchX {R : State Unit → State Unit → Prop} (hr : ∀
   · rw [Set.mem_singleton_iff.1 hz]; exact hr u
 
 
+
+theorem uk_unmapPageUnflushed {uvw : UView} (sz : VMPageSize) (vs : ObjRef) (va : VSpaceRef) (p : ObjRef) :
+    UK uvw (unmapPageUnflushed (Z := Unit) sz vs va p) := by
+  unfold unmapPageUnflushed; uk_auto
+
+/-! ## The entry's reads, for any predicate (fb3e) -/
+
+section RO
+variable {P : State Unit → Prop}
+
+theorem fbx_resolveAddressBits' (p : Cap × CapRef) : IKE P (resolveAddressBits' (Z := Unit) p) := by
+  rw [resolveAddressBits']
+  split
+  · split
+    · exact ike_liftE ik_fail
+    · refine ike_bind (ike_whenE _ (ike_throw _)) fun _ => ike_bind (ike_whenE _ (ike_throw _)) fun _ => ?_
+      refine ike_returnOk_bind ?_
+      dsimp only
+      split
+      · exact ike_returnOk _
+      · refine ike_bind (ike_liftE (by repeat' (first | ik_step0 | ik_unfold))) fun nc => ?_
+        split
+        · exact fbx_resolveAddressBits' _
+        · exact ike_returnOk _
+  · exact ike_throw _
+termination_by p.2.length
+decreasing_by
+  simp only [List.length_drop]
+  have h1 : p.2.length ≠ 0 := by
+    intro h; simp_all [List.drop_eq_nil_of_le]
+  omega
+
+theorem fbx_resolveAddressBits (p : Cap × CapRef) : IKE P (resolveAddressBits (Z := Unit) p) := by
+  unfold resolveAddressBits
+  repeat' (first | (with_reducible exact fbx_resolveAddressBits' _) | ik_step0 | ik_unfold)
+
+theorem fbx_lookupTargetSlot (cn : Cap) (c : CapRef) (d : Nat) : IKE P (lookupTargetSlot (Z := Unit) cn c d) := by
+  unfold lookupTargetSlot
+  repeat' (first | (with_reducible exact fbx_resolveAddressBits _) | (with_reducible exact fbx_resolveAddressBits' _) | ik_step0 | ik_unfold)
+
+theorem fbx_lookupSourceSlot (cn : Cap) (c : CapRef) (d : Nat) : IKE P (lookupSourceSlot (Z := Unit) cn c d) := by
+  unfold lookupSourceSlot
+  repeat' (first | (with_reducible exact fbx_lookupTargetSlot _ _ _) | (with_reducible exact fbx_resolveAddressBits _) | (with_reducible exact fbx_resolveAddressBits' _) | ik_step0 | ik_unfold)
+
+theorem fbx_ensureEmpty (sl : CslotPtr) : IKE P (ensureEmpty (Z := Unit) sl) := by
+  unfold ensureEmpty; repeat' (first | ik_step0 | ik_unfold)
+
+theorem fbx_deriveCap (sl : CslotPtr) (c : Cap) : IKE P (deriveCap (Z := Unit) sl c) := by
+  unfold deriveCap; repeat' (first | ik_step0 | ik_unfold)
+
+theorem fbx_decodePageInvocation (label : Data) (args : List Data) (cte : CslotPtr) (cap : ArchCap)
+    (ex : List (Cap × CslotPtr)) : IKE P (decodePageInvocation (Z := Unit) label args cte cap ex) := by
+  unfold decodePageInvocation; repeat' (first | ik_step0 | ik_unfold)
+
+theorem fbx_isFinalCap (c : Cap) : IK P (isFinalCap (Z := Unit) c) := ik_gets _
+
+end RO
+
+/-! ## One entry from its steps (fb3e) -/
+
+/-- `IKE` through a bind whose continuation is needed only at the outcomes satisfying `Q`. -/
+theorem ike_bind_q {P : State Unit → Prop} {ε α β : Type} {m : NonDetE (State Unit) ε α}
+    {g : α → NonDetE (State Unit) ε β} (Q : α → Prop) (hm : IKE P m)
+    (hq : ∀ s a t, (.ok a, t) ∈ (m.run s).1 → Q a) (hg : ∀ a, Q a → IKE P (g a)) : IKE P (m >>= g) := by
+  intro s hs y hy
+  obtain ⟨z, hz, ⟨a, ha, hy⟩ | ⟨e, -, rfl⟩⟩ := fbx_mem_bindE hy
+  · obtain ⟨r, t⟩ := z
+    simp only at ha; subst ha
+    exact hg a (hq s a t hz) t (hm s hs _ hz) y hy
+  · exact hm s hs z hz
+
+/-- `IKE`-style reasoning at one state, the continuation needed only at the outcomes satisfying `Q`. -/
+theorem fbx_ikp_bind {P : State Unit → Prop} {ε α β : Type} {m : NonDetE (State Unit) ε α}
+    {g : α → NonDetE (State Unit) ε β} {s : State Unit} (Q : α → State Unit → Prop)
+    (hm : ∀ y ∈ (m.run s).1, P y.2) (hq : ∀ a t, (.ok a, t) ∈ (m.run s).1 → Q a t)
+    (hg : ∀ a t, Q a t → ∀ y ∈ ((g a).run t).1, P y.2) : ∀ y ∈ ((m >>= g).run s).1, P y.2 := by
+  intro y hy
+  obtain ⟨z, hz, ⟨a, ha, hy⟩ | ⟨e, -, rfl⟩⟩ := fbx_mem_bindE hy
+  · obtain ⟨r, t⟩ := z
+    simp only at ha; subst ha
+    exact hg a t (hq a t hz) y hy
+  · exact hm z hz
+
+theorem fbx_ik_getCap {P : State Unit → Prop} (sl : CslotPtr) : IK P (getCap (Z := Unit) sl) :=
+  ik_of_eq fun _ _ hx => (getCap_capAt hx).1
+
+theorem fbx_ensureEmpty_null {sl : CslotPtr} {s t : State Unit} {u : Unit}
+    (h : (.ok u, t) ∈ ((ensureEmpty (Z := Unit) sl).run s).1) : capAt s sl = some .nullCap := by
+  unfold ensureEmpty at h
+  obtain ⟨z, hz, ⟨c, hc, h⟩ | ⟨e, -, h⟩⟩ := fbx_mem_bindE h
+  · obtain ⟨x, hx, rfl⟩ := fbx_mem_liftE hz
+    obtain ⟨-, hcap⟩ := getCap_capAt hx
+    simp only [Except.ok.injEq] at hc
+    subst hc
+    unfold NonDetE.whenE at h
+    split at h
+    · cases (Prod.mk.inj (Set.mem_singleton_iff.1 h)).1
+    · rename_i hn
+      rw [hcap]; exact congrArg some (Classical.not_not.1 hn)
+  · cases (Prod.mk.inj h).1
+
+/-- **`IKE P` of one entry** from `IKE P` / `IK P` of its steps (a cap inserted or written by an entry is a
+frame cap). A family proves each step with its own `*_auto`; no step unfolds the whole entry. -/
+theorem ik_fbEntryX_of {P : State Unit → Prop} (b : Fl4FrameBatchInvocation) (w : Data × Data × Data)
+    (hlt : ∀ cn c d, IKE P (lookupTargetSlot (Z := Unit) cn c d))
+    (hls : ∀ cn c d, IKE P (lookupSourceSlot (Z := Unit) cn c d))
+    (hee : ∀ sl, IKE P (ensureEmpty (Z := Unit) sl))
+    (hdc : ∀ sl c, IKE P (deriveCap (Z := Unit) sl c))
+    (hci : ∀ s c src dest c0, P s → IsFrameCap c →
+      (.ok dest, s) ∈ ((lookupTargetSlot (Z := Unit) b.destCnode (dataToCptr w.2.1) b.depth).run s).1 →
+      capAt s dest = some .nullCap → capAt s src = some c0 → isPageCap c0 = true →
+      (.ok c, s) ∈ ((deriveCap (Z := Unit) src (maskCap (dataToRights b.capRights) c0)).run s).1 →
+      ∀ x ∈ (capInsert (Z := Unit) c src dest s).1, P x.2)
+    (hmap : ∀ sl v, IKE P (fbMap (Z := Unit) b sl v))
+    (hdel : ∀ sl, IKE P (fbDelX sl))
+    (hun : ∀ sz vs va p, IK P (unmapPageUnflushed (Z := Unit) sz vs va p))
+    (hset : ∀ s dev p R mt sz m sl, P s → capAt s sl = some (.archObjectCap (.pageCap dev p R mt sz m)) →
+      ∀ x ∈ (setCap (Z := Unit) (.archObjectCap (.pageCap dev p R .vmNoMap sz none)) sl s).1, P x.2) :
+    IKE P (fbEntryX b w) := by
+  have hcode : ∀ {Q : State Unit → Prop} {α : Type} {m : SEMonad Unit α}, IKE Q m → IKE Q (fbCode (Z := Unit) m) :=
+    fun h => ike_handleE h fun _ => ike_throw _
+  rcases b with ⟨vs, asid, op, depth, mr, cr, attr, dd, cn, dcn, es⟩
+  cases op
+  case remap =>
+    unfold fbEntryX; dsimp only
+    exact ike_bind (hcode (hls _ _ _)) fun sl => ike_bind (hcode (hmap _ _)) fun _ => ike_returnOk _
+  case copyMap =>
+    unfold fbEntryX; dsimp only
+    intro s hs
+    refine fbx_ikp_bind (fun dest t => t = s ∧
+        (.ok dest, s) ∈ ((lookupTargetSlot (Z := Unit) dcn (dataToCptr w.2.1) depth).run s).1)
+      (hcode (hlt _ _ _) s hs) (fun a t h => ?_) fun dest t ⟨e, hdest⟩ => ?_
+    · have e : t = s := hcode (fbx_lookupTargetSlot (P := (· = s)) _ _ _) s rfl _ h
+      subst t; exact ⟨rfl, fbx_fbCode_ok h⟩
+    subst t
+    refine fbx_ikp_bind (fun _ t => t = s ∧ capAt s dest = some .nullCap) (hcode (hee _) s hs) (fun a t h => ?_)
+      fun _ t ⟨e, hnull⟩ => ?_
+    · have e : t = s := hcode (fbx_ensureEmpty (P := (· = s)) _) s rfl _ h
+      subst t; exact ⟨rfl, fbx_ensureEmpty_null (fbx_fbCode_ok h)⟩
+    subst t
+    refine fbx_ikp_bind (fun _ t => t = s) (hcode (hls _ _ _) s hs)
+      (fun a t h => hcode (fbx_lookupSourceSlot (P := (· = s)) _ _ _) s rfl _ h) fun src t e => ?_
+    subst t
+    refine fbx_ikp_bind (fun c0 t => t = s ∧ capAt s src = some c0) (ike_liftE (fbx_ik_getCap _) s hs)
+      (fun a t h => ?_) fun c0 t ⟨e, hc0⟩ => ?_
+    · obtain ⟨x, hx, hxe⟩ := fbx_mem_liftE h
+      simp only [Prod.mk.injEq, Except.ok.injEq] at hxe
+      obtain ⟨rfl, rfl⟩ := hxe
+      exact getCap_capAt hx
+    subst t
+    refine fbx_ikp_bind (fun _ t => isPageCap c0 = true ∧ t = s) (hcode (ike_unlessE _ (ike_throw _)) s hs)
+      (fun a t h => fbx_unlessE_ok (fbx_fbCode_ok h)) fun _ t ⟨hpg, e⟩ => ?_
+    subst t
+    refine fbx_ikp_bind (fun c t => t = s ∧
+        (.ok c, s) ∈ ((deriveCap (Z := Unit) src (maskCap (dataToRights cr) c0)).run s).1)
+      (hcode (hdc _ _) s hs) (fun a t h => ?_) fun c t ⟨e, hder⟩ => ?_
+    · have e : t = s := hcode (fbx_deriveCap (P := (· = s)) _ _) s rfl _ h
+      subst t; exact ⟨rfl, fbx_fbCode_ok h⟩
+    subst t
+    have hfc : IsFrameCap c := by
+      obtain ⟨dev, p, R, mt, sz, m, rfl⟩ := fbx_frame_of_isPageCap hpg
+      have hder' := hder
+      simp only [maskCap, capRightsUpdate, acapRightsUpdate, deriveCap, archDeriveCap] at hder'
+      obtain ⟨e1, -⟩ := Prod.mk.inj (Set.mem_singleton_iff.1 hder')
+      simp only [Except.ok.injEq] at e1
+      subst e1; exact trivial
+    have hci' : ∀ y ∈ ((NonDetE.liftE (ε := Data) (capInsert (Z := Unit) c src dest)).run s).1, P y.2 := by
+      intro y hy
+      obtain ⟨x, hx, rfl⟩ := fbx_mem_liftE hy
+      exact hci s c src dest c0 hs hfc hdest hnull hc0 hpg hder x hx
+    refine fbx_ikp_bind (fun _ t => P t) hci' (fun a t h => hci' _ h) fun _ t ht => ?_
+    exact (ike_bind (ike_handleE (hcode (hmap _ _)) fun c =>
+      ike_bind (ike_liftE (ik_catch (hdel _) fun _ => ik_pure' _)) fun _ => ike_throw _)
+      fun _ => ike_returnOk _ : IKE P _) t ht
+  case delete =>
+    unfold fbEntryX; dsimp only
+    refine ike_bind (hcode (hlt _ _ _)) fun slot => ?_
+    have hd : ∀ cl : Bool, IKE P (fbDeleteX slot >>= fun _ => (NonDetE.returnOk cl : NonDetE (State Unit) Data Bool)) :=
+      fun cl => ike_bind (by unfold fbDeleteX; exact ike_handleE (hdel _) fun _ => ike_throw _) fun _ => ike_returnOk _
+    intro s hs y hy
+    obtain ⟨z, hz, hr⟩ := fbx_mem_bindE hy
+    obtain ⟨x, hx, rfl⟩ := fbx_mem_liftE hz
+    obtain ⟨e1, hcap⟩ := getCap_capAt hx
+    rcases hr with ⟨c, hc, hy⟩ | ⟨e, he, -⟩
+    swap; · cases he
+    simp only [Except.ok.injEq] at hc
+    subst hc
+    obtain ⟨c, t⟩ := x
+    try dsimp only at e1 hcap hy
+    subst s
+    cases c
+    case nullCap => exact ike_returnOk _ t hs y hy
+    case archObjectCap a =>
+      cases a
+      case pageCap dev p R mt sz m =>
+        rcases m with _ | ⟨asid', vaddr⟩
+        · try dsimp only at hy
+          first | exact hd _ t hs y hy | exact ike_returnOk_bind (hd _) t hs y hy | exact ike_bind (ike_returnOk _) (fun cl => hd cl) t hs y hy
+        · try dsimp only at hy
+          by_cases hcond : (dd = true ∧ mt = .vmVSpaceMap ∧ dev = false ∧ asid' = asid)
+          · rw [if_pos hcond] at hy
+            obtain ⟨z2, hz2, hr2⟩ := fbx_mem_bindE hy
+            obtain ⟨x2, hx2, rfl⟩ := fbx_mem_liftE hz2
+            rcases hr2 with ⟨cl, -, hy⟩ | ⟨e, he, -⟩
+            swap; · cases he
+            obtain ⟨u1, hu1, hx2⟩ := hx2
+            obtain ⟨u2, hu2, hx2⟩ := hx2
+            rw [Set.mem_singleton_iff.1 hx2] at hy
+            have hP1 := hun _ _ _ _ t hs u1 hu1
+            have hv1 : uV u1.2 = uV t := uk_unmapPageUnflushed (uvw := uV t) _ _ _ _ t rfl u1 hu1
+            have hc1 : capAt u1.2 slot = some (.archObjectCap (.pageCap dev p R mt sz (some (asid', vaddr)))) := by
+              have := congrArg (fun w : UView => w.2.1 slot) hv1
+              simp only [uV] at this
+              rw [this]; exact hcap
+            have hP2 := hset u1.2 dev p R mt sz (some (asid', vaddr)) slot hP1 hc1 u2 hu2
+            exact hd _ _ hP2 y hy
+          · rw [if_neg hcond] at hy
+            first | exact hd _ t hs y hy | exact ike_returnOk_bind (hd _) t hs y hy | exact ike_bind (ike_returnOk _) (fun cl => hd cl) t hs y hy
+      all_goals exact ike_throw _ t hs y hy
+    all_goals exact ike_throw _ t hs y hy
+
+
+/-- **`IKE P` of one entry** from the family's leaves for the entry's writes: `cap_insert` of a frame cap,
+`perform_page_invocation`, `arch_finalise_cap` of a frame, `empty_slot _ Null`, the unflushed unmap and
+`set_cap` of a frame cap (the reads are `fbx_*`). -/
+theorem ik_fbEntryX_w {P : State Unit → Prop} (b : Fl4FrameBatchInvocation) (w : Data × Data × Data)
+    (hci : ∀ c src dest, IsFrameCap c → IK P (capInsert (Z := Unit) c src dest))
+    (hpp : ∀ pi, IK P (performPageInvocation (Z := Unit) pi))
+    (haf : ∀ dev p R mt sz m fin, IK P (archFinaliseCap (Z := Unit) (.pageCap dev p R mt sz m) fin))
+    (hes : ∀ sl, IK P (emptySlot (Z := Unit) sl .nullCap))
+    (hun : ∀ sz vs va p, IK P (unmapPageUnflushed (Z := Unit) sz vs va p))
+    (hset : ∀ c sl, IsFrameCap c → IK P (setCap (Z := Unit) c sl)) :
+    IKE P (fbEntryX b w) := by
+  refine ik_fbEntryX_of b w fbx_lookupTargetSlot fbx_lookupSourceSlot fbx_ensureEmpty fbx_deriveCap
+    (fun s c src dest _ hs hc _ _ _ _ _ => hci c src dest hc s hs) (fun sl v => ?_) (fun sl => ?_) hun (fun s dev p R _ sz _ sl hs _ => hset (.archObjectCap (.pageCap dev p R .vmNoMap sz none)) sl trivial s hs)
+  · unfold fbMap
+    refine ike_bind (ike_liftE (fbx_ik_getCap _)) fun c => ?_
+    split
+    · refine ike_bind (ike_whenE _ (ike_throw _)) fun _ => ike_bind (fbx_decodePageInvocation _ _ _ _ _) fun iv => ?_
+      split
+      · exact ike_bind (ike_liftE (hpp _)) fun _ => ike_returnOk _
+      · exact ike_liftE ik_fail
+    · exact ike_throw _
+  · unfold fbDelX
+    refine ike_liftE (ik_bind (fbx_ik_getCap _) fun c => ?_)
+    split
+    · exact ik_bind (fbx_isFinalCap _) fun _ => ik_bind (haf _ _ _ _ _ _ _) fun _ => hes _
+    · exact ik_fail
+
+/-- **`IK P` of the batch** from the family's leaves for the entry's writes and the final flush. -/
+theorem ik_performFrameBatchW {P : State Unit → Prop} (b : Fl4FrameBatchInvocation)
+    (hci : ∀ c src dest, IsFrameCap c → IK P (capInsert (Z := Unit) c src dest))
+    (hpp : ∀ pi, IK P (performPageInvocation (Z := Unit) pi))
+    (haf : ∀ dev p R mt sz m fin, IK P (archFinaliseCap (Z := Unit) (.pageCap dev p R mt sz m) fin))
+    (hes : ∀ sl, IK P (emptySlot (Z := Unit) sl .nullCap))
+    (hun : ∀ sz vs va p, IK P (unmapPageUnflushed (Z := Unit) sz vs va p))
+    (hset : ∀ c sl, IsFrameCap c → IK P (setCap (Z := Unit) c sl))
+    (hf : IK P (flushAll (Z := Unit) b.vspace b.asid)) :
+    IK P (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => ik_fbEntryX_w b w hci hpp haf hes hun hset) hf
+
 end
 
 end Fl4Proofs.P3.SInv

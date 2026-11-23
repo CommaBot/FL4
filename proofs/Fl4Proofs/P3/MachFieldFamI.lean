@@ -113,15 +113,16 @@ theorem mtk_archPerformInvocationG (i : ArchInvocation) : MTKE (archPerformInvoc
   cases i <;> unfold archPerformInvocation <;> mtk_auto
 macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_archPerformInvocationG _)
 
-/-- fb3c: one `X86PML4FrameBatch` entry, its frame `cap_delete` written out (SpecFbX). -/
-theorem mtk_fbEntryX (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) :
-    MTKE (Fl4Proofs.P3.SInv.fbEntryX b w) := by
-  unfold Fl4Proofs.P3.SInv.fbEntryX Fl4Proofs.P3.SInv.fbDeleteX Fl4Proofs.P3.SInv.fbDelX fbCode fbMap unmapPageUnflushed; mtk_auto
-
-/-- fb3c: the batch. -/
-theorem mtk_performFrameBatch (b : Fl4FrameBatchInvocation) : MTK (performFrameBatch (Z := Unit) b) :=
-  Fl4Proofs.P3.SInv.rk_performFrameBatchX (R := fun σ σ' => msFT σ' = msFT σ) (fun _ => rfl)
-    (fun _ _ _ h1 h2 => h2.trans h1) (fun w => mtk_fbEntryX b w) (mtk_flushAll _ _)
+/-- fb3c/fb3e: the batch, from the leaves of its writes (`SInv.ik_performFrameBatchW`). -/
+theorem mtk_performFrameBatch (b : Fl4FrameBatchInvocation) : MTK (performFrameBatch (Z := Unit) b) := by
+  intro σ x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, MTK m → SInv.IK (fun s => msFT s = msFT σ) m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  refine SInv.ik_performFrameBatchW (P := fun s => msFT s = msFT σ) b (fun _ _ _ _ => k (mtk_capInsert _ _ _))
+    (fun _ => k (mtk_performPageInvocation _)) (fun _ _ _ _ _ _ _ => k (mtk_archFinaliseCap' _ _))
+    (fun _ => k (mtk_emptySlotNull _)) (fun _ _ _ _ => k ?_) (fun _ _ _ => k (mtk_setCap _ _))
+    (k (mtk_flushAll _ _)) σ rfl x hx
+  unfold unmapPageUnflushed; mtk_auto
 macro_rules | `(tactic| mtk_leaf) => `(tactic| with_reducible exact mtk_performFrameBatch _)
 
 theorem mtk_fl4ArchPerformInvocationG (i : Fl4ArchInvocation) : MTKE (fl4ArchPerformInvocation (Z := Unit) i) := by

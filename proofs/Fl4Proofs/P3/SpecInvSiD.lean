@@ -10,6 +10,7 @@ performs keep `SI N t`** (sg1's SpecInvSgD for the idle vtable slot; spec side o
   (`notIV_of_cov`; the decode facts are sg1's / ut8's: `ArchSlN`, `MpOKN`, `UtGapOK`).
 -/
 import Fl4Proofs.P3.SpecInvSiC
+import Fl4Proofs.P3.SpecFbP3
 open Classical
 
 namespace Fl4Proofs.P3.SInvIV
@@ -237,6 +238,32 @@ theorem iw_fl4ArchPerform (ai : Fl4ArchInvocation) (hm : ∀ a, ai ≠ .spec (.i
     refine notIV_of_cov hI.2.1 hs1 ?_
     rw [(hd d hdm).1]
     simp [covR, capRng, objRefs]
+  | frameBatch bi =>
+    simp only [fl4ArchPerformInvocation] at hy
+    obtain ⟨x, hx, rfl⟩ := mem_liftE' hy
+    have nn : ∀ (a : ArchCap), (.archObjectCap a : Cap) ≠ .nullCap := fun a e => by cases e
+    refine (fbq_run (N := fun _ => t) (RV := IVV t) bi ?_ ?_ ?_ ?_ σ ⟨⟨hI.1.1, hI.2.1⟩, hok⟩ hI.2.2 x hx).2
+    · intro s c src dest c0 hs hrs hD _ _ _ _ x hx
+      obtain ⟨s1, c1, hs1, hr1, -, -⟩ := hD
+      exact ivk_capInsert (Or.inl (notIV_of_cov hs.1.2 hs1 (capRng_sub_covR _ (sRefs_sub_capRng _ hr1)))) s hrs x hx
+    · intro s pi sl dev p R mt sz m hs hrs hok hpg hcap x hx
+      have hS : ∀ sl', ArchWr (.invokePage pi) sl' → NotIV t sl' := by
+        intro sl' hw
+        cases pi with
+        | pageMap c s0 en vs =>
+          simp only [ArchWr] at hw; simp only [PgSl] at hpg; subst hw; subst hpg
+          exact notIV_of_held hrs hcap (nn _)
+        | pageUnmap a s0 =>
+          simp only [ArchWr] at hw; subst hw
+          exact notIV_of_held hrs (hok : capAt s _ = some (.archObjectCap a)) (nn _)
+        | pageGetAddr _ => simp only [ArchWr] at hw
+      exact ivk_archPerform (.invokePage pi) (fun a e => by cases e) hS s hrs _ (fb_mem_archPage hx)
+    · intro s sl dev p R mt sz m hs hrs hc x hx a ha
+      rcases fb_emptySlot_nul hx (t, tcbCnodeIndex 1) with e | ⟨-, e⟩
+      · rw [e] at ha; exact hrs a ha
+      · rw [e] at ha; exact (Option.some.inj ha).symm
+    · intro s dev p R mt sz m sl hs hrs hc x hx
+      exact ivk_setCap (Or.inl (notIV_of_held hrs hc (nn _))) s hrs x hx
   | _ => exact (ivke_of_uk fun _ => by simp only [fl4ArchPerformInvocation]; uk_auto) σ hI.2.2 y hy
 
 /-! ## MakePool -/

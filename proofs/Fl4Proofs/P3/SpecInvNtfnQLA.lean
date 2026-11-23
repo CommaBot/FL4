@@ -13,7 +13,7 @@ a childless untyped's region (null slots, ut4's `RegNull`) and a retype at the
 freed frame. **`perfGapILA : PerfGapILA`**; `perfGapIL : PerfGapIL`.
 -/
 import Fl4Proofs.P3.SpecInvNtfnQLU
-import Fl4Proofs.P3.SpecFbX
+import Fl4Proofs.P3.SpecFbM
 open Classical
 
 namespace Fl4Proofs.P3.SInv
@@ -323,6 +323,20 @@ theorem il_makePool (frame : ObjRef) (slot parent : CslotPtr) (base : Asid) (σ 
   refine (?_ : ILK Kq _) y4.2 hb4 y hy
   il_auto
 
+/-- fb3e: **the frame batch keeps `IL`** (`ik_fbEntryX_of`: the map through `ik_fbMapF` and `il_pageInv`,
+the frame deletes through `ik_fbDelXF`; every slot the batch empties or rewrites holds a frame cap). -/
+theorem il_performFrameBatch (b : Fl4FrameBatchInvocation) : ILK Kq (performFrameBatch (Z := Unit) b) :=
+  ik_performFrameBatchX (fun w => ik_fbEntryX_of b w fbx_lookupTargetSlot fbx_lookupSourceSlot fbx_ensureEmpty
+    fbx_deriveCap (fun s c src dest _ hs _ _ _ _ _ _ => il_capInsert c src dest s hs)
+    (fun sl v => ik_fbMapF b sl v (fun _ _ _ _ _ _ => il_decodePageInvocation _ _ _ _ _)
+      (fun s pi hs hok x hx => il_pageInv pi s hs hok x hx))
+    (fun sl => ik_fbDelXF sl (fun _ => ik_gets _) (fun c x => il_archFinaliseCap c x)
+      (fun s _ _ _ _ _ _ hs hc x hx => il_emptySlot_p sl .nullCap s (fun t h => by rw [hc] at h; simp at h)
+        (by simp only [postCapDeletion]; il_auto) hs x hx))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; il_auto)
+    (fun s _ _ _ _ _ _ sl hs hc0 x hx => il_setCap_nt _ sl s (fun t h => by rw [hc0] at h; simp at h) hs x hx))
+    (il_flushAll _ _)
+
 /-! ## `PerfGapILA` -/
 
 theorem perfGapILA : PerfGapILA := by
@@ -352,9 +366,7 @@ theorem perfGapILA : PerfGapILA := by
   | frameBatch bi =>
     refine (?_ : ILKE K _) σ hσ.1.1 y hy
     simp only [fl4ArchPerformInvocation]
-    exact ike_liftE (ik_performFrameBatchX
-      (fun w => by unfold fbEntryX fbDeleteX fbDelX fbCode fbMap unmapPageUnflushed; il_auto)
-      (by unfold flushAll; il_auto))
+    exact ike_liftE (il_performFrameBatch bi)
   | _ =>
     refine (?_ : ILKE K _) σ hσ.1.1 y hy
     simp only [fl4ArchPerformInvocation, archNoReturn]

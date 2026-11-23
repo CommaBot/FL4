@@ -16860,3 +16860,43 @@ global ref).
   `frame_batch_entry`'s two `cdt.delete` calls, as SpecFbX's on the spec side), P3 refinement [XL] (the batch label to
   the reply-in-decode class; `okAll_specDec_pml4`'s new `hfb` is where VsThX's PML4 `XCap` splits).
 - Builds: fb3c-full1..5 (tokyo mirror, `MODE=build`, scratch stubs applied there only). No green full build.
+### fb3e (resume of fb3c / fb3d, branch par/fb3 in FL4-fb3) — spec families via step lemmas (no whole-entry unfolding); the three cap-writing perform arms PROVED (UtP1 / SgD / SiD: no scratch stub left there); six sites, P1, P3 refinement still open; no premise added; no FINDING
+- **Why the whnf timeouts**: `unfold fbEntryX …; X_auto` hands the family's auto the whole entry (lookups, the
+  page decode, finalise, …) at once. Replaced by **step lemmas** (SpecFbX, end of file):
+  * `fbx_*` (section RO): the entry's reads keep *any* predicate (`fbx_resolveAddressBits'` (= CqB3's
+    `pk_resolveAddressBits'`, which sits downstream), `fbx_lookupTargetSlot/SourceSlot`, `fbx_ensureEmpty`,
+    `fbx_deriveCap`, `fbx_decodePageInvocation`, `fbx_isFinalCap`); instantiated at `(· = s)` they give "state
+    unchanged". `uk_unmapPageUnflushed`.
+  * **`ik_fbEntryX_of`**: `IKE P (fbEntryX b w)` from `IKE`/`IK P` of the steps, the two writes that need slot
+    facts given them at run time: COPY_MAP's `cap_insert c src dest` at a state where the destination lookup of
+    `b.destCnode` returned `dest` *at this state*, `dest` holds Null, `src` holds the frame `c0`, `c` is
+    `derive_cap` of the masked `c0` (`fbx_ikp_bind`: a bind at one state with an outcome fact); the deferred
+    unmap's `set_cap` of the unmapped frame over the slot holding the mapped one.
+  * **`ik_fbEntryX_w` / `ik_performFrameBatchW`**: for a family whose writes need no slot fact: leaves for
+    `capInsert` of a frame cap, `performPageInvocation`, `archFinaliseCap` of a frame, `emptySlot _ Null`,
+    `unmapPageUnflushed`, `setCap` of a frame cap, `flushAll`. Relational families (`FK f`: MTK, KF) use it at
+    `P := (f · = f σ)`.
+  * SpecFbM (fb3d's module, kept, extended): `ik_fbMapF` / **`ik_fbMapF2`** (the map's perform at
+    `ArchSpecOKN` + `PgSl` (a decoded map writes the invoked slot) + the frame cap in the slot;
+    `okv_decodePageInvocationF2`), `ik_fbDelXF` (the frame delete: `emptySlot` at a slot holding the frame).
+- **Small families (fb3d's failing list) — all built**: MachFieldFamI (`mtk_performFrameBatch` via
+  `ik_performFrameBatchW` at `msFT · = msFT σ`), SpecInvCqP (`q1_performFrameBatch`), SpecInvEqG5
+  (`pz_performFrameBatch`), SpecInvSbX4 (`sb_performFrameBatch`), SpecInvValidIrqHandlersG (`vi_performFrameBatch`:
+  frame caps are no IRQ handler caps, `vi_emptySlot_p` with a Null cleanup), XTopJointMidRunS (the `kf` arm),
+  SpecInvNtfnQLA (`il_performFrameBatch`: `ik_fbEntryX_of` + `ik_fbMapF`/`il_pageInv` + `ik_fbDelXF`/
+  `il_emptySlot_p` + `il_setCap_nt`; `perfGapILA`'s arm uses it).
+- **Cap-writing families (fb3c's L items) — PROVED**:
+  * `ArchOKN` (SpecInvUtP1) gains `| .frameBatch b => FbOKN w b` (`isCnodeCap b.destCnode ∧` it sits in a
+    slot); `okv_decodeFrameBatchN` (the destination CNode cap is an extra cap; `okv_fl4ArchDecodeN`'s PML4
+    branch uses it). UtP1's arch perform is now `p3_fl4ArchPerform0` (`hnb : ∀ b, ai ≠ .frameBatch b`).
+  * New module **SpecFbP3** (imports SpecFbM; imported by UtP6, SgD, SiD): **`fbq_run`** — the batch keeps
+    `FbQ N b := P3 N ∧ FbOKN` and any view predicate `RV`, given `RV` across the four writes at their run-time
+    facts (COPY_MAP destination a `DestRefV` slot: `okv_lookupSlotForCnodeOpN` through the CNode cap in its
+    slot; the other writes hit slots holding frames). `FbOKN` is kept because no write hits the slot holding
+    the CNode cap (`fbk_setCap` / `fbk_emptySlot` / `fbk_pageMap` / `hv_capInsert_keep`, `fbk_slot_ne`). P3 at
+    the insert: `hv_capInsert3` (`CI3` by `fb_frame_refRel`, `PosOK` by `posOK_of_destRef`); delete:
+    `hv_emptySlotN` (`SafeDelV` of a frame: no `sRefs`) + `io_emptySlot`; deferred unmap: `hv_setCapRE`.
+    **`p3_performFrameBatch`**, full **`p3_fl4ArchPerform`** (same name and statement as before, now with the
+    batch). SgD `sg_fl4ArchPerform` / SiD `iw_fl4ArchPerform`: `| frameBatch` arms by `fbq_run` at
+    `RV := NOV N` / `IVV t` (`notNode_of_destRef`, `notIV_of_cov`, `notNode/IV_of_held`, `fb_emptySlot_nul`).
+  * proofs/scratch/fb3scratch.py no longer stubs UtP1 / SgD / SiD (only the six m77 sites and VsThX:527).

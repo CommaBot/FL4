@@ -1,6 +1,7 @@
 
 /- epq1: generated frames `PZK` (sg1's SpecInvSgI5 renamed, the refill writers and the configure path removed; see SpecInvEqG1). -/
 import Fl4Proofs.P3.SpecInvEqG4
+import Fl4Proofs.P3.SpecFbX
 open Classical
 
 namespace Fl4Proofs.P3.SInvE
@@ -288,6 +289,13 @@ macro_rules | `(tactic| pz_leaf) => `(tactic| with_reducible exact pz_performPml
 theorem pz_performTestAndClearAccessed (_slot : ObjRef) : PZK (performTestAndClearAccessed (Z := Unit) _slot) := by
   unfold performTestAndClearAccessed; pz_auto
 macro_rules | `(tactic| pz_leaf) => `(tactic| with_reducible exact pz_performTestAndClearAccessed _)
+
+/-- fb3e: the frame batch, from the leaves of its writes (`SInv.ik_performFrameBatchW`). -/
+theorem pz_performFrameBatch (b : Fl4FrameBatchInvocation) : PZK (performFrameBatch (Z := Unit) b) :=
+  Fl4Proofs.P3.SInv.ik_performFrameBatchW b (fun _ _ _ _ => pz_capInsert _ _ _) (fun _ => pz_performPageInvocation _)
+    (fun _ _ _ _ _ _ _ => pz_archFinaliseCap _ _) (fun _ => pz_emptySlot _ _) (fun _ _ _ _ => by unfold unmapPageUnflushed; pz_auto)
+    (fun _ _ _ => pz_setCap _ _) (pz_flushAll _ _)
+macro_rules | `(tactic| pz_leaf) => `(tactic| with_reducible exact pz_performFrameBatch _)
 
 theorem pz_fl4ArchPerformInvocation (a0 : Fl4ArchInvocation) : PZKE (fl4ArchPerformInvocation (Z := Unit) a0) := by
   unfold fl4ArchPerformInvocation; pz_auto
