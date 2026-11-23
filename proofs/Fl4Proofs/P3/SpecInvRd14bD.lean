@@ -86,6 +86,7 @@ theorem perfA_cov {σ0 u : State Unit} (bl cl dn : Bool) (b : Fl4Invocation) (hc
   | .invokeArchObject (.pml4Flush i), _ => exact perfA_pml4Flush bl cl dn i hK hb
   | .invokeArchObject (.deriveSubframe i), _ => exact perfA_deriveSubframe bl cl dn i hK hb
   | .invokeArchObject (.testAndClearAccessed p), _ => exact perfA_testAndClear bl cl dn p hK hb
+  | .invokeArchObject (.tdx i), _ => exact perfA_tdx bl cl dn i hK hb
   | .invokeArchObject (.spec (.invokeASIDControl _)), hc => exact False.elim hc
   | .invokeUntyped _, hc => exact False.elim hc
   | .invokeReply _ _, hc => exact False.elim hc

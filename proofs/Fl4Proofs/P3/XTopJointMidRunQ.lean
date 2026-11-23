@@ -295,6 +295,7 @@ theorem qve_fl4ArchPerformInvocation (i : Fl4ArchInvocation) : QVE (fl4ArchPerfo
   | pml4Flush i => unfold fl4ArchPerformInvocation; apply dke_liftE; qv_auto; exact qv_performPml4Flush i
   | deriveSubframe i => unfold fl4ArchPerformInvocation; apply dke_liftE; qv_auto
   | testAndClearAccessed slot => unfold fl4ArchPerformInvocation; apply dke_liftE; qv_auto
+  | tdx i => unfold fl4ArchPerformInvocation; apply dke_liftE; cases i <;> unfold performTdxInvocation tdxStatus <;> qv_auto
 
 
 theorem qv_asUser {α : Type} (t : ObjRef) (u : UserMonad α) : QV (asUser (Z := Unit) t u) := by
@@ -1079,6 +1080,9 @@ theorem perf_firstQ (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw :
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact pqe_post (by kf_auto) (by qv_auto2) hs
+    | tdx i =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      cases i <;> unfold performTdxInvocation tdxStatus <;> exact pqe_post (by kf_auto) (by qv_auto2) hs
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact pqe_post (by kf_auto) (by qv_auto2) hs

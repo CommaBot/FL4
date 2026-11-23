@@ -245,6 +245,17 @@ theorem perfA_testAndClear {σ0 s : State Unit} (bl call don : Bool) (p : ObjRef
     (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]; cfk_auto)
     (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]; ne_auto) hK hb
 
+/-- #68: the TDCALL (a status word; GetReport / GetQuote write a user frame). -/
+theorem perfA_tdx {σ0 s : State Unit} (bl call don : Bool) (i : Fl4TdxInvocation)
+    (hK : A11.KP σ0 s) (hb : A11.CB0 s) :
+    PerfA σ0 bl call don (.invokeArchObject (.tdx i)) s :=
+  perfA_sve (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+                cases i <;> simp only [performTdxInvocation, tdxStatus] <;> sv_auto)
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        cases i <;> simp only [performTdxInvocation, tdxStatus] <;> cfk_auto)
+    (by simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+        cases i <;> simp only [performTdxInvocation, tdxStatus] <;> ne_auto) hK hb
+
 end
 
 end Fl4Proofs.P3.SInvR.A13b

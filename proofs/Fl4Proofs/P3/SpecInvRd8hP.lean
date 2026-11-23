@@ -121,6 +121,9 @@ theorem rd_archPerf (i : Fl4ArchInvocation) (σ : State Unit) (hR : Rdy σ) (hOK
   | testAndClearAccessed sl =>
     simp only [fl4ArchPerformInvocation] at hy
     exact (show IKE Rdy _ from ike_liftE (by rda_auto)) σ hR y hy
+  | tdx j =>
+    cases j <;> simp only [fl4ArchPerformInvocation, performTdxInvocation, tdxStatus] at hy <;>
+      exact (show IKE Rdy _ from ike_liftE (by rda_auto)) σ hR y hy
 
 /-- The per-arm facts of a perform (module docstring). -/
 def PerfOK (σ : State Unit) : Fl4Invocation → Prop
