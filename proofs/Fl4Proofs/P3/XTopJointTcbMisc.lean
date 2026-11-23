@@ -463,11 +463,12 @@ set_option maxHeartbeats 16000000 in
 (`bind_ntfn_eq`) against the spec's (`bindNotification_eq`), `IRel` after
 (`bound_wr_irel`), the footprint `FinW` (as `unbindNJ`'s), the spec frame
 `BKY` with `Inv` after (`Inv.updNtfn`, `Inv.tcbUpd`), P1's
-`bind_notification.blk` and its footprint (as `unbind_notification.blkF`);
+`bind_notification.blk` (both unbound before, `hz1`/`hz2`: the decode's
+checks) and its footprint (as `unbind_notification.blkF`);
 the thread and the notification leave the dead set, covered by their caps
 (`JAtZ.cover_tn`). -/
 theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64} (ht : t ∈ Z.T) (hn : n ∈ Z.N)
-    (hn0 : n ≠ 0#u64) {xT xN : U64} (hxT : IsSlot Z.th xT) (hcT : capAt (L.mem s) xT = ok (.Thread t))
+    (hn0 : n ≠ 0#u64) (hz1 : L.mem s (P1.boundA t) = 0#u64) (hz2 : L.mem s (P1.ntfnBtA n) = 0#u64) {xT xN : U64} (hxT : IsSlot Z.th xT) (hcT : capAt (L.mem s) xT = ok (.Thread t))
     (hxN : IsSlot Z.th xN) {nb : U64} {nw nr : Bool} (hcN : capAt (L.mem s) xN = ok (.Notification n nb nw nr)) :
     notification.bind_notification st s t n ⦃ s' => ∃ σ',
       Fl4Spec.bindNotification (Z := Unit) t.bv n.bv σ = ({((), σ')}, False) ∧
@@ -481,7 +482,7 @@ theorem JAtZ.bindNJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) {t n : U64
   have hnH : n ∈ P1.Heap.ntfns H := J.zH.2.2.2 n hn
   obtain ⟨⟨cT1, cT2⟩, ⟨cN1, cN2⟩⟩ := J.cover_tn ht hn hxT hcT hxN hcN
   -- P1's `BlkOK` and footprint
-  have hblk0 := P1.notification.bind_notification.blk s t n J.blk htH hnH
+  have hblk0 := P1.notification.bind_notification.blk s t n J.blk htH hnH hz1 hz2
   rw [Sched.bind_ntfn_eq s t n, WP.spec_ok] at hblk0
   have hb := J.blk
   have hT := hb.1.choose_spec.choose_spec.tcbs

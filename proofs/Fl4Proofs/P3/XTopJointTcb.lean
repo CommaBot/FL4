@@ -1682,8 +1682,22 @@ theorem tcb_bind_ntfnJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
       obtain ⟨e, -, ex, -, ps, hps, he⟩ := hXc.get hx0' h0
       rw [ex]; exact AbsSlot.isSlot (th := Z.th) (sl := e.2) ⟨ps, he, Or.inl hps⟩
     have hq0 : q ≠ 0#u64 := (J.capN ⟨x0, b, w, r, hx0s, hc⟩).2
-    obtain ⟨s1, σ1, -, hrc1, hst, -, -, -, -, -, -, -, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
+    obtain ⟨s1, σ1, -, hrc1, hst, -, -, -, -, -, -, hss1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
     obtain ⟨hcur, -⟩ := J.curEq hct
+    -- both still unbound after the restart (P1's `KeepT` of the restart)
+    have ectc : ct = L.curW s := by
+      have hc2 : sched.cur_thread st s = ok (L.curW s) := cur_thread_eq s
+      rw [hct] at hc2; exact eq_of_ok_eq hc2
+    obtain ⟨-, xc, hkxc, hrxc⟩ := J.curRunnable hni (cur_thread_eq s)
+    have hcTZ : L.curW s ∈ Z.T := by rw [J.tcbs_eq.1]; exact J.kern.curH
+    have hrunc : P1.Runnable (L.mem s (P1.stA (L.curW s))) := by
+      rw [stA_tStA]; exact (runnable_iff (J.xtop.fin.1.1.2.2.1.at_tcb hcTZ hkxc).st).2 hrxc
+    have hkr := P1.sched.set_thread_state.restart_blk (Es := ∅) s (L.curW s) J.blk J.kern.curH
+      (P1.runnable_ok hrunc).1 (P1.runnable_ok hrunc).2
+    rw [← ectc, hss1, WP.spec_ok] at hkr
+    obtain ⟨-, -, -, kr⟩ := hkr
+    have hz1 : L.mem s1 (P1.boundA p) = 0#u64 := by rw [kr.bndf (J.zH.1 p hpT)]; exact hb0
+    have hz2 : L.mem s1 (P1.ntfnBtA q) = 0#u64 := by rw [kr.ntb q (J.zH.2.2.2 q hqN)]; exact hnb
     obtain ⟨s1', σ1', hrc', -, -, hSS, -⟩ := restart_dstate Z.th hX.rel.1 s σ Z.G
       ⟨hX.rel.2.1, J.del, hX.rel.2.2.1⟩ ct hct hcur (hX.curTcb hcur).1 J.kern.act
     have e1 : s1' = s1 := by
@@ -1694,7 +1708,7 @@ theorem tcb_bind_ntfnJ (s : S) (ar : A) (σ : Fl4Spec.State Unit) (J : JAtZ (L :
     have hcN1 : capAt (L.mem s1') x0 = ok (.Notification q b w r) := by rw [capAt_capV, hSS.capV hx0s, hc]
     refine leaf_assoc ?_
     rw [hrc1]; simp only [bind_ok]
-    refine WP.spec_bind (J1.bindNJ hpT hqN hq0 hxT hcT1 hx0s hcN1) ?_
+    refine WP.spec_bind (J1.bindNJ hpT hqN hq0 hz1 hz2 hxT hcT1 hx0s hcN1) ?_
     rintro s2 ⟨σ', hbn, V, D', J2⟩
     refine (WP.spec_ok _).2 ?_
     have hz : ((.ok [], σ') : Except Unit (List Fl4Spec.Data) × Fl4Spec.State Unit) ∈

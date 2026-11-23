@@ -432,7 +432,8 @@ theorem ScExtra.drop (P : DropOK st H D Cs s)
     h.rb.drop P h.tm,
     fun c hc h0 => (P.scn c (C hc).1 (C hc).2).mem_ntfns (h.scn c (C hc).1 h0), ⟨fun c hc h0 => ?_,
     fun t ht h0 => (P.yto t (T ht).1 (T ht).2).mem_scs (h.yt.2.1 t (T ht).1 h0),
-    fun c hc h0 => (P.yfrom c (C hc).1 (C hc).2).mem_tcbs (h.yt.2.2 c (C hc).1 h0)⟩⟩,
+    fun c hc h0 => (P.yfrom c (C hc).1 (C hc).2).mem_tcbs (h.yt.2.2 c (C hc).1 h0)⟩,
+    ⟨fun t ht => h.bs.tb t (T ht).1, fun n hn => h.bs.nt n (N hn).1, fun c hc => h.bs.sn c (C hc).1⟩⟩,
     fun c hc => h.tsc c (C hc).1⟩
   · obtain ⟨h1, h2, h3⟩ := h.bound t (T ht).1 h0
     exact ⟨Heap.mem_scs_drop.2 ⟨h1, P.keepSc h1 (Or.inl (by rw [h2]; exact P.ne0 (hne (Or.inl (T ht).1))))⟩,

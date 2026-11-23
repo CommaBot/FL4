@@ -496,7 +496,7 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C12 | SchedControl `core` | `cpu = Z.c` | [P]/[S] one core (no carried cap-core fact) | `valid_cap` bounds the core | 1 |
 | C13 | SchedControl `arch` | as C8 | [P] | | 1 |
 | C15 | AsidPool `native` | the first extra slot's cap is not an Ept cap | [S] **derivable**: the extra slot is a typed-heap slot (`JAtZ.frontJ` + `ExtraOK.vsExtra`), `JAtZ.ext.nat` | x64 has no EPT caps | 1 |
-| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L). **Narrowed (jc6a, `kernel_entry_reachU25`)**: `RegionUnrefAt` = (a) ∧ (b) ∧ (c) ∧ (d) (UnrefParts `regionUnrefAt_iff`); (a) reply-stack / yield links proved at `JAtZ` (`JAtZ.keptA`, `JAtZ.unrefA`); asked: `RegionUnrefBCD` = (b) bound/SC-ntfn links, (c) debug lists, (d) timer trees (same for C22 / C24 heapH) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
+| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L). **(b) discharged (jc6b2, `kernel_entry_reachU27`)**: P1 `ScExtra0.bs` (`BndS`), UnrefBnd `JAtZ.unrefBW`; asked: (c) ∧ `DeadUnarmed` (`RegionUnrefCU`). **Narrowed (jc6a, `kernel_entry_reachU25`)**: `RegionUnrefAt` = (a) ∧ (b) ∧ (c) ∧ (d) (UnrefParts `regionUnrefAt_iff`); (a) reply-stack / yield links proved at `JAtZ` (`JAtZ.keptA`, `JAtZ.unrefA`); asked: `RegionUnrefBCD` = (b) bound/SC-ntfn links, (c) debug lists, (d) timer trees (same for C22 / C24 heapH). **(d) replaced by `DeadUnarmed` (jc6d10, `kernel_entry_reachU26`)**: dead TCBs have deadline 0, at the dispatch state (UnrefTimer `JAtZ.unrefD`) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
 | C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L). **FINDING jc4: false at reachable states** as stated: the `NeedR` roots hold every PML4 cap's table, mapped or not; after the ASID pool is deleted and a mapped PDPT's last cap is finalised (its `unmap_pdpt` fails the ASID lookup and writes nothing), the unreachable mapped PML4 still reaches the dead PDPT in a childless untyped's region (KENTRY-PLAN jc4 (1)). Not dischargeable by `vsNamed`; fix F1 (mapped PML4 caps ask nothing of the sets) is a lead decision. **F1 stage 1 (narrowed in place):** `VNeed.pml4` now holds only of an **unmapped** PML4 cap (`VCapW .Pml4`, `TabUn` widened likewise), so the `NeedR` roots are the tables of unmapped PT/PD/PDPT/PML4 caps and the pools of pool caps; the premise text is unchanged, so every top since U9 asks less (weaker premise, stronger theorem; g7b-2 precedent). The jc4 trace no longer refutes it (the orphaned mapped PML4 is no root); still [J], to be discharged by `vsNamed` (F1 stages 2–6, KENTRY-PLAN f1) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
 | C18 | Untyped RAM `fan`, `rcb` | `retypeFanOutLimit = 256`, `resetChunkBits = 16` (opaque `kernelConfig`) | [P] config | | 1 (state-free) |
 | C19 | Untyped RAM `vtx` | types 14..18: `JVtxScope` | [S] VT-x | | 1 |
@@ -560,7 +560,26 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU25`** (jc6a, XTopJointKEntryU25) = U21 with the `RegionUnrefAt`
+**Top of record: `SInvR.G5.kernel_entry_reachU27`** (jc6b2, XTopJointKEntryU27) = U26 with part (b) of the
+`RegionUnrefAt` halves of C16 / C22 / C24 heapH (TCB bound notification, SC notification, notification bound TCB:
+no such link names a dead object) **discharged**: P1 carries the bound-link symmetry `BndS` (l4v `sym_refs` for
+`tcb_bound_notification`/`ntfn_bound_tcb` and `sc_ntfn`/`ntfn_sc`, FL4 words) in `ScExtra0.bs`, so `JAtZ.blk` has
+it; UnrefBnd's `JAtZ.keptBW` / `JAtZ.unrefBW` prove (b) at every `Entered` `JAtZ` state. `KDispHypsKVU27` asks
+`JUtPathMU27` / `JAsidCPathU27` / `JDevPathU27` (= U26's with `unref : RegionUnrefCU` = (c) ∧ `DeadUnarmed`);
+`KDispHypsKVU27.toU26 J' hni`. [J] leaves as U26 (C16 / C22 / C24 heapH now (c) and `DeadUnarmed`; C17, C23:
+**[J] 5**); **[W] 0**. The start state's assumption grows by `BndS` (note jc6b2 below). Superseded by U27: U26.
+
+Previous top (superseded by U27): `SInvR.G5.kernel_entry_reachU26` (jc6d10, XTopJointKEntryU26) = U25 with part (d) of the
+`RegionUnrefAt` halves of C16 / C22 / C24 heapH (timer-tree links of every TCB, every core's `TIMER_ROOT` /
+`TIMER_MIN`, at the restart state, over every region of dead objects) replaced by **`DeadUnarmed H D s`** (every TCB
+of the dispatch state's dead set has deadline word 0; UnrefTimer): `KDispHypsKVU26` asks `JUtPathMU26` /
+`JAsidCPathU26` / `JDevPathU26` (= U25's with `unref : RegionUnrefBCU` = (b) ∧ (c) ∧ `DeadUnarmed`);
+`KDispHypsKVU26.toU25 J' hni` fills (d) from the dispatch state's own `JAtZ` (`JAtZ.unrefD`: `JAtZ.restartSJ`,
+`DeadUnarmed.sts`, `JAtZ.keptD` = P1's `TimerRB.no_link` + `TimerOK` at `J.blk`). [J] leaves as U25 (C16 / C22 / C24
+heapH now (b), (c), `DeadUnarmed`; C17, C23: **[J] 5**); **[W] 0**. `DeadUnarmed` is to be carried in `JAtZ`
+(TIMER-RB-PLAN §14, sized L–XL). Superseded by U26: U25.
+
+Previous top (superseded by U26): `SInvR.G5.kernel_entry_reachU25` (jc6a, XTopJointKEntryU25) = U21 with the `RegionUnrefAt`
 halves of C16 / C22 / C24 heapH narrowed to parts (b)+(c)+(d) (`RegionUnrefBCD`; UnrefParts): `KDispHypsKVU25` asks
 `JUtPathMU25` / `JAsidCPathU25` / `JDevPathU25` (= `JUtPathMU16` / `JAsidCPathU16` / `JDevPathU21` with
 `unref : RegionUnrefBCD`); `KDispHypsKVU25.toU21 J' hni` fills part (a) (reply next/prev, SC reply head, TCB
@@ -736,3 +755,12 @@ P1's `ScExtra0` gained the field `rb : TimerRB st T Cs s` (the per-core timer tr
 exactly the armed TCBs, unarmed TCBs have null timer links; TIMER-RB-PLAN §13).  `JAtZ` carries P1's `BlkOK`, so
 `JReach.start`'s assumption at the start state now includes `TimerRB`; it holds trivially at boot (empty trees, every
 TCB unarmed with null links).  No `kernel_entry_reach*` statement changed text.
+
+## Note (jc6b2, 2026-11-23): `BndS` in the start-state assumption
+
+P1's `ScExtra0` gained the field `bs : BndS st T Scs Nt s` (a TCB's `BOUND_NTFN` names a notification whose
+`BOUND_TCB` names the TCB back; a notification's `BOUND_TCB` names a TCB whose `BOUND_NTFN` names it back; a nonzero
+SC's `NTFN` names a notification whose `SC` names the SC back; the fourth direction was already `ScExtra0.nsc`).
+`JAtZ` carries P1's `BlkOK`, so `JReach.start`'s assumption at the start state now includes `BndS`; it holds
+trivially at boot (no TCB, notification or SC is bound: all four link words are 0).  No existing
+`kernel_entry_reach*` statement changed text.

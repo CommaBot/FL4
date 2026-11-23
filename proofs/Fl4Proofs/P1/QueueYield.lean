@@ -346,7 +346,7 @@ theorem schedcontext.resume.allF (hA : P0.ArchTotal ar) (s : S) (a : A) (sc : ob
 theorem XInv.wr_yieldV {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a : U64}
     {v : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
     (hA : AvoidX st T Rp Scs Nt s a)
-    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v))
+    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v) ∧ (∀ n ∈ Nt, L.mem (L.wr s a v) (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hvy : ∀ u ∈ T, a.val = (yieldA u).val → v ≠ 0#u64 → v ∈ Scs)
     (hvf : ∀ c ∈ Scs, a.val = (scYieldFromA c).val → v ≠ 0#u64 → v ∈ T) :
     XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a v) := by
@@ -365,9 +365,7 @@ theorem XInv.wr_yieldV {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inl rfl)⟩)))) (hU u hu).2.1)
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inl rfl))⟩)))) (hU u hu).2.2.1)
     ?_ (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩))) (hC c hc).2.2.1)
-    (fun u hu => by
-      rw [k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2]
-      exact hX.2.2.bnd u hu)
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2)
     (fun n hn => k _ (hO.ntAl n hn) (hN n hn)) htn
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2.1)
     ⟨fun c hc => by

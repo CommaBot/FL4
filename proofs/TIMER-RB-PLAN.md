@@ -443,3 +443,44 @@ intermediate states), so first land 9c's refactor **without** `rb` (pure, green 
 the finalised ones (state `TS_INACTIVE`, `SC = 0`, … already carried); add the `tdA = 0` conjunct and follow the build
 errors.  Then the P1 lemma `TimerRB.kept` (statement as `DbgTimerKept`'s timer half, premises `TimerOK`, `TimerRB`,
 `∀ q, D q → H q = some .tcb → tdA q = 0`).
+
+## 14. Ninth session (jc6d10): stage 9h — (d) reduced to `DeadUnarmed`; carrying it sized (L–XL)
+
+### 14.1 What landed
+- Merged par/jc6b (contains jc6a: UnrefParts, `kernel_entry_reachU25`, UnrefSym) into par/jc6d; clean merge, no
+  conflict with the TimerRB work.
+- New P3 module **`UnrefTimer`**: `DeadUnarmed H D s` (every TCB of `D` has `tdA = 0`); **`timerKeptDAll_of`** (from
+  `TimerOK` typing, `TimerRB.no_link`, `H 0 = none`: jc6a's carried form `TimerKeptDAll`); **`JAtZ.keptD`** (at any
+  `JAtZ`, from `J.blk`'s `tm`/`rb`); **`DeadUnarmed.sts`** (`set_thread_state` keeps every deadline word,
+  `KeepT.fld`); **`JAtZ.unrefD`** (part (d), `RegionUnrefD`, at an `Entered` `JAtZ` state with `DeadUnarmed`, through
+  `JAtZ.restartSJ`); `RegionUnrefBCU` = (b) ∧ (c) ∧ `DeadUnarmed`, `JAtZ.regionUnrefBCD`.
+- New top **`kernel_entry_reachU26`** (XTopJointKEntryU26) = U25 with (d) replaced by `DeadUnarmed` at the dispatch
+  state. No existing statement changed.
+- Full build green (1 Lean thread): `Build completed successfully (7361 jobs)`, 0 errors, 0 sorry; `axjc6d.lean` (98
+  declarations, incl. U25, U26, `JAtZ.keptD`, `JAtZ.unrefD`, `timerKeptDAll_of`) only propext/Classical.choice/Quot.sound.
+
+### 14.2 Why `DeadUnarmed` is not carried yet (the plan's "M–L" was too low)
+§13.2 planned to add `tdA q = 0` to `DeadP`'s TCB conjunct.  Every `DeadP` word today is kept **through the spec
+relation** (`JAtZ.deadP_keep`: a dead TCB's state/SC/bound ntfn read by `IpcRel`/`SchedRel` before and after;
+`yieldA` by `YieldRel`), so the ~130 `hdead` sites (55 × `deadP_keep`, 14 × `deadP_hstep`, ~50 × `deadP_sc_step*`,
+9 × `deadP_sch_step`, plus XTopJointDelR / retype / drop sites, in ~85 P3 files) carry no FL4-word frame for TCBs.
+The deadline word has **no spec counterpart** (Fl4Spec's SetTimer changes no state but `reprogramTimer`), so each
+site needs a new FL4 frame fact.  No reachable counterexample: only `TCBSetTimer` arms a TCB (through a thread cap;
+`tcb.rs:476`), finalise ends with `timer::remove` (`objects.rs:341`), `fire` only disarms.
+
+### 14.3 Route for the carry (L–XL, mechanical; the next agent)
+1. `DeadP` TCB conjunct += `L.mem s (P1.tdA q) = 0#u64` (ScPlaceDead:46).
+2. `deadP_keep` / `deadP_hstep` / `deadP_sc_step(Qm,Q,M,G)` / `deadP_sch_step` / `deadP_qk` / `deadP_qm` take
+   `hTd : H q = some .tcb → L.mem s' (P1.tdA q) = L.mem s (P1.tdA q)`.
+3. Supply `hTd` from each footprint family's keep bundle, next to the `yieldA` keep (offset 3512; `tdA` = 3528 is a TCB
+   word outside every non-timer footprint): `JAtZ.cnW_keeps` (ScSignalBoundJ:114) and its siblings (`tcbX` lists the
+   allowed offsets), `schW_scKeep`, `TFoot`/`KFoot` (`J.tmw_ne_tcb` pattern), `KeepT.fld` for `set_thread_state`.
+   Destructurings `⟨k1, k2, kb, k3, k4⟩` at the call sites change (mechanical).
+4. Timer sites (`JAtZ.tmw_step`, ScFireJ:220; callers SetTimer XTopJointTcb:1774, fire ScFireJ:356/429, finalise
+   XTopJointFinThread:169): add a premise "every deadline word kept or set to 0" for remove-only callers (P1: from
+   `TFB`'s `TKeep`/`timer.remove.tf`, `t`'s deadline 0 by `timer.remove.rb`); SetTimer: the target leaves the dead
+   set (`D \ {p}`, covered by its cap, as XTopJointTcbMisc's `bindNJ` does for `D \ {t, n}`).
+5. New dead TCBs (`hunc`, finalise / `FinDeadHyp`, `finDead_thread`): `tdA t = 0` after `timer::remove` (P1
+   `timer.remove.rb` + the later finalise writes are frames on `tdA`).  Retyped TCBs are zeroed.
+6. Then `DeadUnarmed` = `fun q hq hH => ((J.jcov.dead q hq).1 hH).2.2.2.2.2.2`, and U24-style top = U26 without
+   `DeadUnarmed` (new name; U24 stays reserved for the top without any `RegionUnrefAt` part).

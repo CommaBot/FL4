@@ -251,7 +251,8 @@ theorem BlkT.ok {s : S} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htm : Timer
     (fun y hy hS _ => Or.inl (Sch.of_eq (fun hf => by rwa [hiq y hy] at hf) (fun hf => by rwa [hiq y hy] at hf)
       ea ei ec (by rw [stA_eq]; exact fld _ hy _ (by simp) (by simp) (by simp)) hS)),
     hX.writes hT hw (fun b hb => not_prot_tw h0 hX.1 hSg.sub hb) (by rw [ecs]; exact hX.2.2.cur)
-      ⟨htm, fun n hn => by rw [om _ (hSg.sub _ (hX.1.ntB n hn).2)]; exact hX.2.2.ntb n hn, hrb⟩ ei,
+      ⟨htm, fun n hn => by rw [om _ (hSg.sub _ (hX.1.ntB n hn).2)]; exact hX.2.2.ntb n hn, hrb,
+        fun n hn => om _ (hSg.sub _ (hX.1.ntB n hn).2)⟩ ei,
     SCsOK.keep hS hX hw.1 hsc ecs (fun c hc => ⟨om _ (hcΩ c hc).2.2.1, om _ (hcΩ c hc).2.2.2.1,
       om _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => om _ (spor_omega hX.1 hc)) (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩⟩

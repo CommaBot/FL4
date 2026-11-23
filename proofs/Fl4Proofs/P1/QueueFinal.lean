@@ -454,14 +454,14 @@ theorem cscW_wr_field {s : S} {y K v : U64} (hT : TcbPlaced T) (hN : NodePlaced 
 
 /-- Clearing a notification's `SC` word. -/
 theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnScA n) 0#u64) ∧
+    BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnScA n) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (ntfnScA n) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hP := hO.ntP n hn
   have av := ntfnScA_val hP
   have hm : ntfnScA n ∈ Ω := hSg.sub _ (hO.ntW n hn)
-  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allT (w := 0#u64) h0 hB hX hS hSg hm
+  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allTM (w := 0#u64) h0 hB hX.m hS hSg hm
     (fun r hr => by rw [av, (rp_facts hO hr).2.1]; have := hO.ntORp n hn r hr; omega)
     (fun c hc => by
       obtain ⟨h128, e1, e2, e3, e4, e5, -⟩ := sc_facts hO hc
@@ -483,9 +483,9 @@ theorem ntsc_zero_all {s : S} {n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z A
   exact ⟨⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩, foot_wr (h0.omega _ hm).1 (kw_sg (hO.ntW n hn))⟩
 
 /-- Clearing an SC's `NTFN` word. -/
-theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs)
+theorem scn_zero_all {s : S} {c : U64} (h : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Scs)
     (hfree : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ c) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scNtfnA c) 0#u64) ∧
+    BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (scNtfnA c) 0#u64) ∧
       Foot st T Cs Sg Scs Z ∅ s (L.wr s (scNtfnA c) 0#u64) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
@@ -493,7 +493,7 @@ theorem scn_zero_all {s : S} {c : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac
   have av := scNtfnA_val hP hz
   obtain ⟨h128, -⟩ := sc_facts hO hc
   have hm : scNtfnA c ∈ Ω := hSg.sub _ (hO.snW c hc)
-  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allT (w := 0#u64) h0 hB hX hS hSg hm
+  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allTM (w := 0#u64) h0 hB hX hS hSg hm
     (fun r hr => by rw [av, (rp_facts hO hr).2.1]; have := hO.rpSc r hr c hc; omega)
     (fun c' hc' => by
       obtain ⟨h128', e1, e2, e3, e4, e5, -⟩ := sc_facts hO hc'
@@ -566,7 +566,11 @@ theorem schedcontext.unbind_ntfn.blk (s : S) (c : U64) (h : BlkOK st T Cs Ω H S
       obtain ⟨-, h2⟩ := hX.2.2.nsc n hn (by rw [e]; exact hc0)
       rw [e, ← ej] at h2
       exact hnj h2.symm
-    obtain ⟨h2, f2⟩ := scn_zero_all h1 hcS hfree
+    obtain ⟨h2M, f2⟩ := scn_zero_all h1 hcS hfree
+    have hsn := hX.2.2.bs.sn c hcS hc0 (by rw [← ej]; simpa using hj)
+    rw [← ej] at hsn
+    have h2 := h2M.x (BndS.pairSN hX.2.2.toScExtra0 h0 hO h.2.2.2.2.sub hcS hjN (Or.inl rfl)
+      (Or.inr ⟨rfl, rfl, ej.symm, hsn⟩))
     obtain ⟨hP, hz⟩ := hO.sc c hcS
     obtain ⟨h128, e1, -⟩ := sc_facts hO hcS
     have av := scNtfnA_val hP hz
@@ -622,7 +626,10 @@ theorem notification.unbind_maybe_notification.blkF (s : S) (n : U64) (h : BlkOK
       foot_wr (h.1.choose_spec.choose_spec.omega _ (h.2.2.2.2.sub _ hm)).1 (kw_sg hm)
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ i 0#u64) fun s2 e2 => ?_
     subst e2
-    exact ⟨bnd_all h1 hiT fun h0 => absurd rfl h0,
+    have hi0 : L.mem s (ntfnBtA n) ≠ 0#u64 := fun e0 => absurd (by simp [ei, e0]) hb
+    have nt := h.2.2.1.2.2.bs.nt n hn hi0
+    rw [← ei] at nt
+    exact ⟨unbind_pair h hiT hn nt ei.symm,
       f1.trans (foot_field (K := 3368#u64) hT hiT (by simp) (by simp) (by simp) (by simp))⟩
 
 /-! ## `finalise_cap` of an endpoint or a notification -/
@@ -993,7 +1000,9 @@ theorem notification.unbind_notification.blkF (s : S) (t : U64) (h : BlkOK st T 
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ t 0#u64) fun s2 e2 => ?_
     subst e2
     have h0 := h.1.choose_spec.choose_spec
-    exact ⟨bnd_all (ntbt_all h hin Tz.zero) ht fun h0 => absurd rfl h0,
+    have tb := h.2.2.1.2.2.bs.tb t ht hi0
+    rw [← ei] at tb
+    exact ⟨unbind_pair h ht hin ei.symm tb,
       f1.trans (foot_field (K := 3368#u64) hT ht (by simp) (by simp) (by simp) (by simp)),
       (ani_out (v := 0#u64) (h0.nodes _ h0.cur) h0.cur (h0.omega _ (h.2.2.2.2.sub _ hm))).trans
         (ani_field (K := 3368#u64) hT (by rw [LawfulStore.cpu_wr]; exact (h0.nodes _ h0.cur).ksb (L.ksb_wr _ _ _))
