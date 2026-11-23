@@ -269,6 +269,8 @@ structure FbCtx (σ : Fl4Spec.State Unit) (th0 : TypedHeap) (args : List U64) (b
   hcw : CapWf bt.cnode
   hdcw : CapWf bt.dest_cnode
   hal : args.length < 127
+  /-- The batch's ASID is a 20-bit ASID (the PML4 cap's `VCapOK`; a mapped frame cap's `EncWf`). -/
+  hasid : bt.asid.val < 2 ^ 20
 
 /-- **What one entry leaves** (XTopJointVsFb's `fb_entryJ`): `FbMidJ` after at a spec state `τ1`, and
 either an `Ok` with an `ok d'` outcome of the spec's `fbEntry` (the deferred flag `df || d'`) or an
