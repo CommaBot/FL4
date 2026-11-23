@@ -13,6 +13,7 @@ pub mod boot {
     }
 }
 
+#[allow(dead_code)]
 #[path = "../../crates/fl4-kernel/src/bootmem.rs"]
 mod bootmem;
 
@@ -278,18 +279,19 @@ fn accept_chunks_partition_the_ranges() {
 }
 
 /// The MADT's mailbox address comes from the VMM: only a whole page of
-/// firmware's reserved, ACPI reclaim or NVS memory, inside the window, is
-/// used.
+/// firmware's ACPI NVS memory, inside the window, is used; not other
+/// reserved memory (MMIO, uncached or unusable) nor ACPI reclaim memory
+/// (audit TDX r1, fix 2; r2, R1-4).
 #[test]
 fn the_wakeup_mailbox_must_be_a_firmware_page() {
     let top = 4 << 30;
     let map = [(0x10_0000, 16 * MIB, 1), (0x7f00_0000, 0x4000, 4), (0x7f80_0000, 0x1000, 2), (0x8000_0000, 0x1000, 3), (0x9000_0000, 0x4000, UNACCEPTED)];
     assert!(bootmem::mailbox_ok(0x7f00_0000, top, map));
     assert!(bootmem::mailbox_ok(0x7f00_3000, top, map));
-    assert!(bootmem::mailbox_ok(0x7f80_0000, top, map));
-    assert!(bootmem::mailbox_ok(0x8000_0000, top, map));
     for bad in [
         0,
+        0x7f80_0000,                // reserved (2): MMIO, uncached or unusable
+        0x8000_0000,                // ACPI reclaim (3): not NVS
         0x7f00_0800,                // off a page
         0x20_0000,                  // RAM
         0x9000_1000,                // unaccepted RAM

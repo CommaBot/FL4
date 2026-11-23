@@ -11,6 +11,11 @@ pub mod layout {
 #[path = "../../crates/fl4-kernel/src/acpi.rs"]
 mod acpi;
 
+/// Everything readable: the window top alone bounds the reads.
+fn any(_: u64, _: u64) -> bool {
+    true
+}
+
 fn checksum(table: &mut [u8], offset: usize) {
     table[offset] = 0;
     table[offset] = table.iter().fold(0u8, |sum, byte| sum.wrapping_add(*byte)).wrapping_neg();
@@ -48,7 +53,7 @@ fn tables(entries: &[u8]) -> Vec<u8> {
 
 fn parse(entries: &[u8]) -> acpi::Info {
     let t = tables(entries);
-    acpi::init(Some(t.as_ptr() as u64), u64::MAX).expect("valid RSDP")
+    acpi::init(Some((t.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP")
 }
 
 /// Tables the kernel window does not map (from `top` on) are not read:
@@ -59,17 +64,17 @@ fn tables_past_the_window_top_are_skipped() {
     let t = tables(&entries);
     let base = t.as_ptr() as u64;
     let end = base + t.len() as u64;
-    let rsdp = Some(base);
-    let info = acpi::init(rsdp, end).expect("valid RSDP");
+    let rsdp = Some((base, 36));
+    let info = acpi::init(rsdp, end, &any).expect("valid RSDP");
     assert_eq!(&info.cpus[..info.n_cpus], &[5]);
     // The MADT's last byte, its header, or all of it past the top.
     for top in [end - 1, base + 128 + 8, base + 128] {
-        let info = acpi::init(rsdp, top).expect("valid RSDP");
+        let info = acpi::init(rsdp, top, &any).expect("valid RSDP");
         assert_eq!(info.n_cpus, 0, "top {:#x}", top - base);
     }
     // The XSDT, or its pointer to the MADT, past the top: no tables.
     for top in [base + 107, base + 64 + 4] {
-        assert!(acpi::init(rsdp, top).is_none(), "top {:#x}", top - base);
+        assert!(acpi::init(rsdp, top, &any).is_none(), "top {:#x}", top - base);
     }
 }
 
@@ -216,7 +221,7 @@ fn an_acpi_1_rsdp_uses_the_rsdt_and_only_its_20_bytes() {
     rsdp[15] = 0;
     rsdp[16..20].copy_from_slice(&(rsdt.as_ptr() as u64 as u32).to_le_bytes());
     checksum(&mut rsdp[..20], 8);
-    let info = acpi::init(Some(rsdp.as_ptr() as u64), u64::MAX).expect("valid RSDP");
+    let info = acpi::init(Some((rsdp.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP");
     assert_eq!(&info.cpus[..info.n_cpus], &[3]);
     assert_eq!(&info.rsdp[..20], &rsdp[..20]);
     assert!(info.rsdp[20..].iter().all(|&b| b == 0));
@@ -234,7 +239,7 @@ fn a_root_table_shorter_than_its_header_gives_no_tables() {
     rsdp[24..32].copy_from_slice(&(xsdt.as_ptr() as u64).to_le_bytes());
     checksum(&mut rsdp[..20], 8);
     checksum(&mut rsdp, 32);
-    assert!(acpi::init(Some(rsdp.as_ptr() as u64), u64::MAX).is_none());
+    assert!(acpi::init(Some((rsdp.as_ptr() as u64, 36)), u64::MAX, &any).is_none());
 }
 
 /// A core listed twice (twice as a Local APIC or x2APIC, as both, or in a
@@ -303,12 +308,110 @@ fn the_multiprocessor_wakeup_entry_names_the_mailbox() {
     assert_eq!(parse(&lapic(0, 1)).mp_wakeup_mailbox, None);
 }
 
+/// Audit (TDX r1, fix 2): ACPI allows one wakeup structure. With two the
+/// kernel cannot know which mailbox firmware polls, so it uses neither
+/// (and a multi-vCPU TD does not boot).
 #[test]
-fn a_short_wakeup_entry_is_skipped_and_the_first_one_counts() {
-    assert_eq!(parse(&mp_wakeup(0x7f00_0000, 15)).mp_wakeup_mailbox, None);
-    let mut both = mp_wakeup(0x7f00_0000, 16);
-    both.extend(mp_wakeup(0x1000, 16));
-    assert_eq!(parse(&both).mp_wakeup_mailbox, Some(0x7f00_0000));
+fn a_short_wakeup_entry_is_skipped_and_a_second_one_voids_the_mailbox() {
+    let short = parse(&mp_wakeup(0x7f00_0000, 15));
+    assert_eq!(short.mp_wakeup_mailbox, None);
+    assert!(!short.mp_wakeup_duplicate);
+    let one = parse(&mp_wakeup(0x7f00_0000, 16));
+    assert_eq!(one.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert!(!one.mp_wakeup_duplicate);
+    for n in [2, 3] {
+        let mut entries = Vec::new();
+        for i in 0..n {
+            entries.extend(mp_wakeup(0x7f00_0000 + i * 0x1000, 16));
+        }
+        let info = parse(&entries);
+        assert_eq!(info.mp_wakeup_mailbox, None, "{n} entries");
+        assert!(info.mp_wakeup_duplicate, "{n} entries");
+        // The log still shows the first.
+        assert_eq!(info.mp_wakeup_raw, Some((0, 16, 0x7f00_0000)));
+    }
+    // The same address twice is two structures all the same.
+    let mut same = mp_wakeup(0x7f00_0000, 16);
+    same.extend(mp_wakeup(0x7f00_0000, 24));
+    let info = parse(&same);
+    assert_eq!(info.mp_wakeup_mailbox, None);
+    assert!(info.mp_wakeup_duplicate);
+}
+
+/// One MADT, and an XSDT that lists it after another MADT, each table
+/// with its own valid checksum.
+fn two_madts(first: &[u8], second: &[u8]) -> Vec<u8> {
+    let madt_at = |entries: &[u8]| 44 + entries.len();
+    let (a, b) = (madt_at(first), madt_at(second));
+    let mut buf = vec![0u8; 128 + a + b];
+    let base = buf.as_ptr() as u64;
+    for (off, entries) in [(128, first), (128 + a, second)] {
+        let madt = &mut buf[off..off + madt_at(entries)];
+        madt[44..].copy_from_slice(entries);
+        let len = madt.len() as u32;
+        madt[..4].copy_from_slice(b"APIC");
+        madt[4..8].copy_from_slice(&len.to_le_bytes());
+        checksum(madt, 9);
+    }
+    let xsdt = &mut buf[64..116];
+    xsdt[..4].copy_from_slice(b"XSDT");
+    xsdt[4..8].copy_from_slice(&52u32.to_le_bytes());
+    xsdt[36..44].copy_from_slice(&(base + 128).to_le_bytes());
+    xsdt[44..52].copy_from_slice(&(base + 128 + a as u64).to_le_bytes());
+    checksum(xsdt, 9);
+    let rsdp = &mut buf[..36];
+    rsdp[..8].copy_from_slice(b"RSD PTR ");
+    rsdp[15] = 2;
+    rsdp[20..24].copy_from_slice(&36u32.to_le_bytes());
+    rsdp[24..32].copy_from_slice(&(base + 64).to_le_bytes());
+    checksum(&mut rsdp[..20], 8);
+    checksum(rsdp, 32);
+    buf
+}
+
+#[test]
+fn a_wakeup_entry_in_a_second_madt_voids_the_mailbox_too() {
+    let t = two_madts(&mp_wakeup(0x7f00_0000, 16), &mp_wakeup(0x1000, 16));
+    let info = acpi::init(Some((t.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP");
+    assert_eq!(info.mp_wakeup_mailbox, None);
+    assert!(info.mp_wakeup_duplicate);
+    // One in each, but one MADT also lists the cores: still two.
+    let mut first = lapic(0, 1).to_vec();
+    first.extend(mp_wakeup(0x7f00_0000, 16));
+    let t = two_madts(&first, &lapic(1, 1));
+    let info = acpi::init(Some((t.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP");
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert!(!info.mp_wakeup_duplicate);
+    assert_eq!(&info.cpus[..info.n_cpus], &[0, 1]);
+}
+
+/// Audit (TDX r1, fix 2): an XSDT or MADT whose bytes do not sum to zero is
+/// not used: no cores, no IOAPICs and no wakeup mailbox from it.
+#[test]
+fn tables_with_a_bad_checksum_are_not_used() {
+    let mut entries = lapic(3, 1).to_vec();
+    entries.extend(mp_wakeup(0x7f00_0000, 16));
+    let good = tables(&entries);
+    let info = acpi::init(Some((good.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP");
+    assert_eq!(&info.cpus[..info.n_cpus], &[3]);
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+
+    // A bad MADT: the RSDP and XSDT still hold, the MADT gives nothing.
+    let mut bad_madt = tables(&entries);
+    bad_madt[128 + 44 + 8 + 8] ^= 0x10; // the wakeup entry's mailbox
+    let info = acpi::init(Some((bad_madt.as_ptr() as u64, 36)), u64::MAX, &any).expect("valid RSDP");
+    assert_eq!(info.n_cpus, 0);
+    assert_eq!(info.mp_wakeup_mailbox, None);
+    assert_eq!(info.mp_wakeup_raw, None);
+
+    // A bad XSDT: no tables at all.
+    let mut bad_xsdt = tables(&entries);
+    bad_xsdt[64 + 9] = bad_xsdt[64 + 9].wrapping_add(1);
+    assert!(acpi::init(Some((bad_xsdt.as_ptr() as u64, 36)), u64::MAX, &any).is_none());
+    // The XSDT's MADT pointer changed but not its checksum.
+    let mut moved = tables(&entries);
+    moved[64 + 36] ^= 0x01;
+    assert!(acpi::init(Some((moved.as_ptr() as u64, 36)), u64::MAX, &any).is_none());
 }
 
 /// As in Linux, any version with room for the address is used: firmware
@@ -339,4 +442,123 @@ fn a_short_wakeup_entry_is_only_recorded() {
     let info = parse(&both);
     assert_eq!(info.mp_wakeup_raw, Some((3, 8, 0)));
     assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+}
+
+/// A valid wakeup entry, then a short one: the short one is no second
+/// mailbox (and the other way round, `a_short_wakeup_entry_is_only_recorded`).
+#[test]
+fn a_short_wakeup_entry_after_a_valid_one_changes_nothing() {
+    let mut entries = mp_wakeup_version(0x7f00_0000, 16, 1);
+    entries.extend(mp_wakeup_version(0, 8, 1));
+    let info = parse(&entries);
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert!(!info.mp_wakeup_duplicate);
+    assert_eq!(info.mp_wakeup_raw, Some((1, 16, 0x7f00_0000)));
+    let mut entries = mp_wakeup_version(0, 8, 1);
+    entries.extend(mp_wakeup_version(0x7f00_0000, 16, 1));
+    let info = parse(&entries);
+    assert_eq!(info.mp_wakeup_mailbox, Some(0x7f00_0000));
+    assert!(!info.mp_wakeup_duplicate);
+}
+
+/// Audit (TDX r2, R1-3): in a confidential guest the kernel reads ACPI
+/// only where the memory map allows (`readable`), and asks before every
+/// read: a table it may not read is not read, and gives nothing.
+#[test]
+fn tables_outside_readable_memory_are_not_read() {
+    let mut entries = lapic(3, 1).to_vec();
+    entries.extend(mp_wakeup(0x7f00_0000, 16));
+    let t = tables(&entries);
+    let base = t.as_ptr() as u64;
+    let asked = std::cell::RefCell::new(Vec::new());
+    let refused = std::cell::RefCell::new(Vec::new());
+    // The RSDP and XSDT are firmware memory; the MADT (from 128) is not.
+    let readable = |p: u64, len: u64| {
+        asked.borrow_mut().push((p - base, len));
+        let ok = p >= base && p + len <= base + 128;
+        if !ok {
+            refused.borrow_mut().push((p - base, len));
+        }
+        ok
+    };
+    let info = acpi::init(Some((base, 36)), u64::MAX, &readable).expect("valid RSDP");
+    assert_eq!(info.n_cpus, 0);
+    assert_eq!(info.mp_wakeup_mailbox, None);
+    assert_eq!(refused.borrow().as_slice(), [(128, 36)], "the MADT's header, before any of it is read");
+    assert!(asked.borrow().contains(&(0, 20)) && asked.borrow().contains(&(64, 44)));
+    // Unreadable RSDP: no tables (the BIOS areas are unreadable too).
+    let none = |_: u64, _: u64| false;
+    assert!(acpi::init(Some((base, 36)), u64::MAX, &none).is_none());
+    // An unreadable XSDT: none either.
+    let rsdp_only = |p: u64, len: u64| p >= base && p + len <= base + 64;
+    assert!(acpi::init(Some((base, 36)), u64::MAX, &rsdp_only).is_none());
+}
+
+/// A root table whose entries do not fill it exactly, or a table longer
+/// than `MAX_SDT_LEN`, is not used.
+#[test]
+fn a_root_table_with_a_ragged_tail_or_a_huge_length_is_refused() {
+    // An XSDT of 47 bytes: one entry and three stray bytes.
+    let mut t = tables(&lapic(3, 1));
+    let base = t.as_ptr() as u64;
+    let xsdt = &mut t[64..111];
+    xsdt[4..8].copy_from_slice(&47u32.to_le_bytes());
+    checksum(xsdt, 9);
+    assert!(acpi::init(Some((base, 36)), u64::MAX, &any).is_none());
+
+    // An MADT claiming more than MAX_SDT_LEN: never walked or summed.
+    let mut t = tables(&lapic(3, 1));
+    let base = t.as_ptr() as u64;
+    let big = (acpi::MAX_SDT_LEN + 1) as u32;
+    let asked = std::cell::RefCell::new(Vec::new());
+    t[128 + 4..128 + 8].copy_from_slice(&big.to_le_bytes());
+    let readable = |p: u64, len: u64| {
+        asked.borrow_mut().push((p - base, len));
+        true
+    };
+    let info = acpi::init(Some((base, 36)), u64::MAX, &readable).expect("valid RSDP");
+    assert_eq!(info.n_cpus, 0);
+    assert!(asked.borrow().iter().all(|&(_, len)| len <= 64), "{:?}", asked.borrow());
+    // The same for a huge root table.
+    let mut t = tables(&lapic(3, 1));
+    let base = t.as_ptr() as u64;
+    t[64 + 4..64 + 8].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert!(acpi::init(Some((base, 36)), u64::MAX, &any).is_none());
+}
+
+
+/// Audit (TDX r3, R2-4): the RSDP from a Multiboot 2 tag is read no further
+/// than the tag: an ACPI 2.0 length past it (into the next tag) is no ACPI
+/// 2.0 RSDP, however the bytes there sum.
+#[test]
+fn an_rsdp_is_read_no_further_than_its_tag() {
+    // A 64-byte ACPI 2.0 RSDP naming an XSDT; its extended checksum holds
+    // over all 64 bytes, the last 28 of which are where the next tag is.
+    let mut t = tables(&lapic(3, 1));
+    let base = t.as_ptr() as u64;
+    let xsdt = base + 64;
+    let mut buf = vec![0u8; 64 + 44 + t.len()];
+    let at = buf.as_ptr() as u64;
+    buf[..36].copy_from_slice(&t[..36]);
+    buf[20..24].copy_from_slice(&64u32.to_le_bytes());
+    buf[36..64].fill(0x5a);
+    checksum(&mut buf[..64], 32);
+    assert_eq!(u64::from_le_bytes(buf[24..32].try_into().unwrap()), xsdt);
+    t[0] = 0; // the tables' own RSDP is not used
+    let inside = |p: u64, len: u64| (p >= at && p + len <= at + 64) || (p >= base && p + len <= base + t.len() as u64);
+    // A tag holding all 64 bytes: ACPI 2.0, through the XSDT.
+    let info = acpi::init(Some((at, 64)), u64::MAX, &inside).expect("valid RSDP");
+    assert_eq!(&info.cpus[..info.n_cpus], &[3]);
+    // Handed on (BootInfo) as a whole 36-byte RSDP (audit TDX r4, R3-4):
+    // its length 36, both checksums holding, the same XSDT.
+    let sum = |b: &[u8]| b.iter().fold(0u8, |s, x| s.wrapping_add(*x));
+    assert_eq!(u32::from_le_bytes(info.rsdp[20..24].try_into().unwrap()), 36);
+    assert_eq!((sum(&info.rsdp[..20]), sum(&info.rsdp[..36])), (0, 0));
+    assert_eq!(&info.rsdp[..20], &buf[..20]);
+    assert_eq!(&info.rsdp[24..32], &buf[24..32]);
+    // A 36-byte tag: the length passes it, so only the 20 ACPI 1.0 bytes
+    // count, and their RSDT (0) is nothing to read.
+    assert!(acpi::init(Some((at, 36)), u64::MAX, &inside).is_none());
+    // Less than an RSDP: not used at all (and the BIOS areas are refused).
+    assert!(acpi::init(Some((at, 19)), u64::MAX, &inside).is_none());
 }

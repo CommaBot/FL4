@@ -180,8 +180,19 @@ pub fn in_service(v: u32) -> bool {
 
 /// First vector above the kernel's IRQ range (the `int n` trap range).
 const STRAY_MIN: u64 = fl4_core::layout::irq::INT_OFFSET + fl4_core::layout::irq::MAX + 1;
-/// The spurious vector (SVR): its delivery sets no ISR bit and takes no EOI.
+/// The spurious vector (SVR): a real spurious interrupt sets no ISR bit and
+/// takes no EOI.
 pub const SPURIOUS_VECTOR: u64 = 0xff;
+
+/// Whether an interrupt on `v` with `in_service` (its ISR bit) needs an EOI
+/// here: a vector above the IRQ range, the spurious vector included, that
+/// the APIC delivered. A real spurious interrupt leaves ISR[255] clear and
+/// takes none, but a TDX VMM can post vector 0xff as an ordinary interrupt
+/// (posted interrupts), which sets vISR[255]: without its EOI the virtual
+/// PPR stays at 0xf0 and masks every other vector on the core for good.
+pub fn stray_needs_eoi(v: u64, in_service: bool) -> bool {
+    (STRAY_MIN..=SPURIOUS_VECTOR).contains(&v) && in_service
+}
 
 /// An interrupt on `v` above the IRQ range, which no kernel IRQ uses but a
 /// device's MSI or an IPI can name: if the APIC delivered it (rather than
@@ -190,7 +201,7 @@ pub const SPURIOUS_VECTOR: u64 = 0xff;
 /// for good. Returns whether it was one, to be otherwise ignored.
 #[inline(always)]
 pub fn ack_stray(v: u64) -> bool {
-    if v < STRAY_MIN || v >= SPURIOUS_VECTOR || !in_service(v as u32) {
+    if !(STRAY_MIN..=SPURIOUS_VECTOR).contains(&v) || !stray_needs_eoi(v, in_service(v as u32)) {
         return false;
     }
     eoi();
@@ -312,19 +323,31 @@ mod tests {
         assert_eq!(ap_registers(top | en, false, false, top, top), None);
     }
 
+    /// Audit (TDX r1, fix 4): vector 0xff posted by a TDX VMM sets
+    /// vISR[255] and needs its EOI; a real spurious interrupt does not.
+    #[test]
+    fn a_delivered_vector_0xff_takes_an_eoi_and_a_spurious_one_does_not() {
+        assert!(!stray_needs_eoi(0xff, false));
+        assert!(stray_needs_eoi(0xff, true));
+        assert!(!stray_needs_eoi(0xa0, false));
+        assert!(stray_needs_eoi(0xa0, true));
+        assert!(!stray_needs_eoi(0x9f, true));
+        assert!(!stray_needs_eoi(0x100, true));
+    }
+
     fn set_in_service(v: u32) {
         let r = REG_ISR + (v / 32) * 0x10;
         FAKE[(r >> 4) as usize].fetch_or(1 << (v % 32), Ordering::Relaxed);
     }
 
     /// Audit F2: an interrupt the APIC delivers on a vector of the trap
-    /// range (0xa0..=0xfe) is acknowledged; an `int n` on one is not, nor
-    /// is the spurious vector or a vector of the IRQ range (the core
-    /// acknowledges those itself).
+    /// range (0xa0..=0xff) is acknowledged; an `int n` on one is not, nor
+    /// is a real spurious interrupt (no ISR bit) or a vector of the IRQ
+    /// range (the core acknowledges those itself).
     #[test]
     fn stray_vectors_are_acknowledged_only_when_in_service() {
         assert_eq!(STRAY_MIN, 0xa0);
-        for v in [0xa0u32, 0xb3, 0xfe] {
+        for v in [0xa0u32, 0xb3, 0xfe, 0xff] {
             // `int n` from user code: nothing in service.
             assert!(!ack_stray(v as u64));
             set_in_service(v);
@@ -336,7 +359,7 @@ mod tests {
             eoi();
             assert!(!in_service(0x9d));
         }
-        for v in [0x9du32, 0x9f, 0xff] {
+        for v in [0x9du32, 0x9f] {
             set_in_service(v);
             assert!(!ack_stray(v as u64));
             assert!(in_service(v));

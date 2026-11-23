@@ -84,11 +84,23 @@ impl Firmware<'_> {
     /// Enter an x86_64 FL4 ELF kernel. The first module is the root task.
     /// Subsequent modules are passed in the order given.
     ///
+    /// Unlike `start_default`, this measures nothing. `start_default`
+    /// measures each file it loads from the load options: into RTMR[2] in
+    /// an Intel TDX guest, and outside one into TPM PCR 9 when firmware
+    /// provides `EFI_TCG2_PROTOCOL`. The modules given here are the
+    /// caller's, loaded however it chose: a caller that wants a TD quote or
+    /// the TPM's PCRs to cover them must measure them itself before this
+    /// call, into RTMR[2] in a TD (`measure_cc_file`), or into PCR 9
+    /// through `EFI_TCG2_PROTOCOL` when firmware provides it.
+    ///
     /// # Safety
     ///
     /// The kernel and root task must be trusted FL4 boot payloads for this
     /// handoff ABI. The loader writes the kernel's ELF segments to physical
     /// memory and transfers control to it after exiting boot services.
+    /// Nothing here measures them: in a TDX or TPM trusted boot, the
+    /// attestation covers them only if the caller measured them into
+    /// RTMR[2] or PCR 9 before calling.
     pub unsafe fn boot(&self, kernel: &[u8], modules: &[(&[u8], &[u8])]) -> ! {
         unsafe { self.boot_with_cmdline(kernel, modules, c"") }
     }

@@ -5,6 +5,7 @@
 //! hole would become device memory a user could map.
 #[path = "../../crates/fl4-efi/src/snp_map.rs"]
 mod snp_map;
+#[allow(dead_code)]
 #[path = "../../crates/fl4-efi/src/x86_mmap.rs"]
 mod x86_mmap;
 
@@ -101,14 +102,17 @@ fn a_merge_that_wraps_cannot_drop_the_secrets_page() {
 }
 
 /// Every region the kernel gets ends past its base and inside 2^64, and
-/// the regions covering the SNP pages are NVS (kind 4) whole.
+/// the regions covering the SNP pages are private reserved memory whole
+/// (audit TDX r4, R3-3: kept private and out of every capability, but no
+/// ACPI memory to read); the ACPI NVS page between them stays NVS.
 #[test]
-fn snp_pages_stay_nvs_in_a_merged_map() {
+fn snp_pages_stay_private_in_a_merged_map() {
     let cpuid = 0x80_1000;
     let secrets = 0x80_3000;
     let map = map_of(48, &[(7, 0, 0x800), (7, 0x80_0000, 1), (7, 0x80_1000, 1), (10, 0x80_2000, 1), (7, 0x80_3000, 1), (7, 0x80_4000, 4)]);
     let r = regions(&map, 48, cpuid, secrets).unwrap();
-    assert_eq!(r, vec![(0, 0x80_1000, 1), (0x80_1000, 0x3000, 4), (0x80_4000, 0x4000, 1)]);
+    let private = x86_mmap::PRIVATE_RESERVED;
+    assert_eq!(r, vec![(0, 0x80_1000, 1), (0x80_1000, 0x1000, private), (0x80_2000, 0x1000, 4), (0x80_3000, 0x1000, private), (0x80_4000, 0x4000, 1)]);
     for (base, bytes, _) in &r {
         assert!(base.checked_add(*bytes).is_some());
     }
@@ -161,16 +165,29 @@ fn the_map_buffer_bounds_what_is_read() {
     assert!(x86.find("x86_mmap::layout_ok(size, stride, capacity)").unwrap() < x86.find("from_raw_parts(buffer as *const u8, size)").unwrap());
 }
 
-/// `EfiUnacceptedMemoryType` keeps a kind of its own: type 2 (reserved)
-/// would make it device memory, and type 1 RAM the kernel touches before
-/// accepting it.
+/// `EfiUnacceptedMemoryType` (15: UEFI 2.10 table 7.10, EDK2
+/// `UefiMultiPhase.h`, Linux `efi.h`) keeps a kind of its own: type 2
+/// (reserved) would make it device memory, and type 1 RAM the kernel
+/// touches before accepting it. 14 is `EfiPersistentMemory`, 16
+/// `EfiMaxMemoryType`: no unaccepted memory, and 16 and later nothing the
+/// kernel keeps as ACPI NVS either (audit TDX r2, R1-1).
 #[test]
 fn unaccepted_memory_is_neither_ram_nor_reserved() {
     assert_eq!(x86_mmap::UNACCEPTED, 0x464c_3410);
-    assert_eq!(x86_mmap::kind(16, 0), x86_mmap::UNACCEPTED);
-    assert_eq!(x86_mmap::kind(16, 8), x86_mmap::UNACCEPTED);
-    for other in [0, 1, 2, 7, 9, 10, 11, 15, 17] {
+    assert_eq!(x86_mmap::EFI_UNACCEPTED, 15);
+    assert_eq!(x86_mmap::kind(15, 0), x86_mmap::UNACCEPTED);
+    assert_eq!(x86_mmap::kind(15, 8), x86_mmap::UNACCEPTED);
+    for other in [0, 1, 2, 7, 9, 10, 11, 14, 16, 17] {
         assert_ne!(x86_mmap::kind(other, 0), x86_mmap::UNACCEPTED, "EFI type {other}");
+    }
+    assert_eq!(x86_mmap::kind(14, 0), 4);
+    // Write-back reserved memory is private, but not ACPI NVS (audit TDX
+    // r3, R2-2); without write-back it is plain reserved memory.
+    assert_eq!(x86_mmap::PRIVATE_RESERVED, 0x464c_3411);
+    assert_eq!(x86_mmap::kind(0, 8), x86_mmap::PRIVATE_RESERVED);
+    assert_eq!(x86_mmap::kind(0, 1), 2);
+    for past in [16, 17, 0x7000_0000, 0x8000_0000] {
+        assert_eq!(x86_mmap::kind(past, 8), 2, "EFI type {past:#x}");
     }
 }
 
@@ -178,8 +195,8 @@ fn unaccepted_memory_is_neither_ram_nor_reserved() {
 fn adjacent_unaccepted_regions_merge_and_stay_apart_from_ram() {
     let stride = 48;
     let mut map = desc(stride, 7, 0x10_0000, 16);
-    map.extend(desc(stride, 16, 0x11_0000, 16));
-    map.extend(desc(stride, 16, 0x12_0000, 16));
+    map.extend(desc(stride, 15, 0x11_0000, 16));
+    map.extend(desc(stride, 15, 0x12_0000, 16));
     map.extend(desc(stride, 7, 0x13_0000, 16));
     let mut out = Vec::new();
     x86_mmap::regions(&map, stride, 0, 0, |r| {

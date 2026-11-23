@@ -121,6 +121,12 @@ pub fn ram(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u6
 /// device memory: touching it before TDG.MEM.PAGE.ACCEPT faults.
 pub const UNACCEPTED: u32 = 0x464c_3410;
 
+/// fl4-efi's memory map type for write-back `EfiReservedMemoryType`:
+/// firmware's private memory. A confidential guest keeps it private and out
+/// of device memory, but reads no ACPI tables from it (`acpi_readable` in
+/// fl4_boot) and puts no mailbox there (`mailbox_ok`).
+pub const PRIVATE_RESERVED: u32 = 0x464c_3411;
+
 /// The whole pages of each unaccepted memory map entry from `low` on and
 /// below `top`.
 pub fn unaccepted(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u64) -> Ranges {
@@ -167,17 +173,22 @@ pub fn mmap_type_of(addr: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) 
 }
 
 /// Whether the AP wakeup mailbox page the MADT names is firmware's: inside
-/// the window, whole in one reserved (type 2), ACPI reclaim (3) or ACPI NVS
-/// (4) entry of the memory map. The VMM writes the MADT, and the kernel will
-/// write to this address and wait on it, so it must not be RAM or the
-/// kernel's own. None of these types is RAM to the kernel (`ram`), and
-/// fl4_boot keeps the page out of device memory.
+/// the window, whole in one ACPI NVS (4) entry of the memory map, as ACPI
+/// (Multiprocessor Wakeup Structure) and TDVF have it. The VMM writes the
+/// MADT, and the kernel will write to this address and wait on it, so it
+/// must not be RAM or the kernel's own, ACPI reclaim memory (3), nor
+/// reserved memory of any other kind (2: memory-mapped I/O, uncached or
+/// unusable memory, which may be the VMM's shared memory). fl4-efi gives 4
+/// for EFI runtime and persistent memory too; under it the loader also
+/// checks the EFI type itself (`EfiACPIMemoryNVS`, mboot `tdx_mailbox`).
+/// It is not RAM to the kernel (`ram`), and fl4_boot keeps the page out of
+/// device memory.
 pub fn mailbox_ok(mailbox: u64, window_top: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> bool {
     let Some(end) = mailbox.checked_add(PAGE) else { return false };
     if mailbox == 0 || mailbox % PAGE != 0 || end > window_top {
         return false;
     }
-    mmap.into_iter().any(|(base, len, ty)| matches!(ty, 2 | 3 | 4) && base <= mailbox && end <= base.saturating_add(len))
+    mmap.into_iter().any(|(base, len, ty)| ty == 4 && base <= mailbox && end <= base.saturating_add(len))
 }
 
 /// What user space gets as device memory: everything below `top` that is

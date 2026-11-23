@@ -325,7 +325,16 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     }
 
     // Interrupt controllers and the timer.
-    let acpi = match acpi::init(mb.rsdp, window_top) {
+    // In a confidential guest the tables are read only from firmware memory
+    // the memory map names (RAM, ACPI reclaim or NVS): never unaccepted
+    // memory, MMIO or a hole. Elsewhere firmware may keep them in reserved
+    // memory (SeaBIOS), and the window alone bounds the reads.
+    let acpi_readable = |p: u64, len: u64| {
+        !cvm::hardened() || p.checked_add(len).is_some_and(|end| {
+            mb.mmap[..mb.n_mmap].iter().any(|e| matches!(e.ty, 1 | 3 | 4) && e.base <= p && end <= e.base.saturating_add(e.len))
+        })
+    };
+    let acpi = match acpi::init(mb.rsdp, window_top, &acpi_readable) {
         Some(a) => a,
         None => fail("no ACPI tables"),
     };
@@ -374,9 +383,14 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     // below) and of the kernel window: every core must address it.
     let device_top = bootmem::top(&[PADDR_USER_DEVICE_TOP, gpa_top]);
     // The MADT names the mailbox, and the VMM writes the MADT: use it only
-    // if the memory map says it is firmware's.
+    // if the memory map says it is ACPI NVS and, from fl4-efi (which gives
+    // the AP page), only the one the loader found in `EfiACPIMemoryNVS`.
+    // That keeps the kernel's writes off runtime services, reclaim memory,
+    // RAM, MMIO and unaccepted pages; which page in NVS it is stays the
+    // MADT's word (TDVF writes it).
     let mailbox = acpi.mp_wakeup_mailbox.filter(|&m| {
         bootmem::mailbox_ok(m, window_top, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))
+            && (mb.tdx_ap_page.is_none() || mb.tdx_mailbox == Some(m))
     });
     let tdx_wakeup = if td.is_some() {
         mb.tdx_ap_page.zip(mailbox).map(|(page, mailbox)| tdx::Wakeup { page, mailbox })
@@ -388,9 +402,15 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
             bootmem::mmap_type_of(m, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))
         });
         kprintln!(
-            "FL4: no usable TDX AP wakeup mailbox (ap_page {:x?}, madt (ver, len, mailbox) {:x?}, mmap_ty {:x?}); using one core",
-            mb.tdx_ap_page, acpi.mp_wakeup_raw, mmap_ty
+            "FL4: no usable TDX AP wakeup mailbox (ap_page {:x?}, loader mailbox {:x?}, madt (ver, len, mailbox) {:x?}, duplicate {}, mmap_ty {:x?})",
+            mb.tdx_ap_page, mb.tdx_mailbox, acpi.mp_wakeup_raw, acpi.mp_wakeup_duplicate, mmap_ty
         );
+        // The other vCPUs would stay in firmware, waiting on a mailbox the
+        // kernel does not own: never boot past them. One vCPU has none.
+        if td.is_some_and(|t| t.num_vcpus > 1) {
+            fail("no usable TDX AP wakeup mailbox for multi-vCPU TD");
+        }
+        kprintln!("FL4: one TDX vCPU: using one core");
     }
     // The other cores, if any (each sets itself up and waits). Each walks
     // the boot core's tables, and the 1 GiB pages and addresses in them.
@@ -428,6 +448,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
         for r in list {
             ram.add(r.start, r.end);
         }
+    }
+    // The TDX AP wakeup page keeps the code that parks a late vCPU
+    // (tdx::finish_wakeup): never RAM again, so nothing loads over it and it
+    // is neither free nor DMA memory; device memory leaves it out below.
+    if let Some(page) = mb.tdx_ap_page {
+        ram.remove(page, page + PAGE);
     }
     if ram.lost {
         fail("more RAM ranges than the kernel keeps");
@@ -482,9 +508,13 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
             dev.remove(e.base & !(PAGE - 1), e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1));
         }
     }
-    // The wakeup mailbox stays the firmware's and the kernel's.
+    // The wakeup mailbox stays the firmware's and the kernel's, and the
+    // wakeup page the kernel's, wherever it is.
     if let Some(w) = tdx_wakeup {
         dev.remove(w.mailbox, w.mailbox + PAGE);
+    }
+    if let Some(page) = mb.tdx_ap_page {
+        dev.remove(page, page + PAGE);
     }
     // The framebuffer console (l4h 0020), if asked for: only on device
     // memory as it is before the modules join it, so never on RAM, the
@@ -521,16 +551,21 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     let cc_log = keep_log(mb.cc_log, cc_start, "CC");
     let log_end = cc_log.map_or(cc_start, |t| cc_start + t.size.div_ceil(PAGE) * PAGE);
     if cvm::hardened() {
-        // Keep usable RAM and ACPI NVS (including the SNP secrets)
-        // out of device caps. Root reads ACPI tables in reclaim memory
-        // through private device frames, which retain the encryption bit.
+        // Keep usable RAM, ACPI NVS (including the SNP secrets) and
+        // firmware's private reserved memory out of device caps. Root reads
+        // ACPI tables in reclaim memory through private device frames,
+        // which retain the encryption bit.
         for e in &mb.mmap[..mb.n_mmap] {
-            if matches!(e.ty, 1 | 4) {
+            if matches!(e.ty, 1 | 4 | bootmem::PRIVATE_RESERVED) {
                 dev.remove(e.base & !(PAGE - 1), e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1));
             }
         }
     }
     dev.add(image.p_end, log_end);
+    // The modules and logs reach the root task only as device memory.
+    if log_end > image.p_end && !dev.contains(image.p_end, log_end) {
+        fail("boot modules or event logs exceed the boot device range limit");
+    }
     if fb_console {
         let ok = match fb {
             Some(f) => fbcon::init(f.addr, window_top, f.pitch, f.width, f.height, f.bpp, f.ty),
@@ -581,7 +616,7 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     if cvm::active() {
         firmware.add(image.p_end, log_end);
         for e in &mb.mmap[..mb.n_mmap] {
-            if e.len != 0 && matches!(e.ty, 1 | 3 | 4) {
+            if e.len != 0 && matches!(e.ty, 1 | 3 | 4 | bootmem::PRIVATE_RESERVED) {
                 let start = e.base & !(PAGE - 1);
                 let end = e.base.saturating_add(e.len).saturating_add(PAGE - 1) & !(PAGE - 1);
                 firmware.add(start, end);
@@ -610,6 +645,9 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
     }
     if let Some(w) = tdx_wakeup {
         st.private_devices.add(w.mailbox, w.mailbox + PAGE);
+    }
+    if let (Some(page), true) = (mb.tdx_ap_page, cvm::active()) {
+        st.private_devices.add(page, page + PAGE);
     }
     // A private boundary left out would hand private memory over as shared.
     if firmware.lost || st.private_devices.lost {
@@ -665,10 +703,13 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    kprintln!("FL4 panic: {}", info);
-    entry::dump_trace();
     if cvm::hardened() {
+        // The console is the VMM's: a panic's message and the trace name
+        // values and addresses, as `entry::kernel_fault` does not.
+        kprintln!("FL4: kernel panic");
         cvm::terminate(0);
     }
+    kprintln!("FL4 panic: {}", info);
+    entry::dump_trace();
     cpu::halt_forever()
 }

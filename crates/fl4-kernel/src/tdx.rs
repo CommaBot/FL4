@@ -8,7 +8,7 @@ use crate::cvm_mmio::{self, user_next_rip};
 use crate::cvm_walk::{self, Access};
 use crate::entry::Frame;
 use crate::{kprintln, paging};
-use core::sync::atomic::{fence, AtomicU16, Ordering};
+use core::sync::atomic::{fence, AtomicBool, AtomicU16, AtomicU64, Ordering};
 use fl4_arch_x86_64::tdx::{self as td, VeInfo};
 use fl4_arch_x86_64::{cpu, cvm, percpu, timer};
 use fl4_core::layout::pptr;
@@ -31,7 +31,10 @@ pub fn ve(f: &mut Frame, info: &VeInfo) {
     let op = unsafe { (f.rip as *const [u8; 2]).read() };
     let msr = f.rcx as u32;
     let length = match (info.exit_reason, op) {
-        (td::EXIT_CPUID, [0x0f, 0xa2]) => {
+        // Only the whitelisted topology leaves (`virtual_cpuid`) go to the
+        // VMM; a kernel CPUID #VE on any other leaf ends the TD (fail
+        // closed), whoever caused it.
+        (td::EXIT_CPUID, [0x0f, 0xa2]) if td::virtual_cpuid(f.rax as u32) => {
             let r = td::cpuid(f.rax as u32, f.rcx as u32);
             f.rax = r.eax as u64;
             f.rbx = r.ebx as u64;
@@ -132,6 +135,17 @@ const DATA_TO_COMPAT: usize = 5 * 8;
 const DATA_TO_LONG: usize = 6 * 8;
 const DATA_GDT_BASE: usize = 7 * 8 + 2;
 
+/// Set once the boot core is done starting cores: the trampoline then
+/// rejects every vCPU that reaches it (ap.S `.Ltdx_ap_reject`), which
+/// poisons the guest.
+#[no_mangle]
+pub static FL4_TDX_AP_CLOSED: AtomicBool = AtomicBool::new(false);
+/// The core indices the trampoline has handed out, one bit each: an AP
+/// takes its index's bit (`lock bts`) before it touches that core's stack,
+/// so no two vCPUs ever run on one. Bit 0 is the boot core's.
+#[no_mangle]
+pub static FL4_TDX_AP_CLAIMED: AtomicU64 = AtomicU64::new(1);
+
 /// Where a TDX AP starts: the loader's page of code and the firmware's
 /// wakeup mailbox.
 #[derive(Clone, Copy)]
@@ -145,6 +159,11 @@ pub struct Wakeup {
 /// uses them.
 pub fn prepare_wakeup(page: u64, boot_root: u64, efer_nx: bool, entry: u64) {
     assert!(page < 1 << 32 && boot_root < 1 << 32);
+    // Once only, and before any AP: nothing is closed or taken but the
+    // boot core's index.
+    if FL4_TDX_AP_CLOSED.load(Ordering::Acquire) || FL4_TDX_AP_CLAIMED.load(Ordering::Acquire) != 1 {
+        crate::fail("TDX AP trampoline already used");
+    }
     let tramp = core::ptr::addr_of!(fl4_tdx_ap_trampoline);
     let len = core::ptr::addr_of!(fl4_tdx_ap_trampoline_end) as usize - tramp as usize;
     assert!(len <= PAGE as usize);
@@ -178,15 +197,21 @@ pub fn start_ap(w: Wakeup, c: usize, id: u32) {
     let mb = pptr(w.mailbox);
     let command = unsafe { AtomicU16::from_ptr(mb as *mut u16) };
     let deadline = cpu::rdtsc() + timer::us_to_ticks(MAILBOX_ACK_US);
+    // An AP the trampoline rejected has poisoned the guest: on the way in,
+    // while waiting and on the way out, whether or not the loop runs.
     let wait_idle = || {
+        cvm::halt_if_poisoned();
         while command.load(Ordering::Acquire) != 0 {
+            cvm::halt_if_poisoned();
             if cpu::rdtsc() >= deadline {
                 crate::fail("TDX AP wakeup mailbox not acknowledged");
             }
             core::hint::spin_loop();
         }
+        cvm::halt_if_poisoned();
     };
     wait_idle();
+    cvm::halt_if_poisoned();
     unsafe {
         ((mb + 4) as *mut u32).write_volatile(id);
         ((mb + 8) as *mut u64).write_volatile(w.page);
@@ -196,7 +221,12 @@ pub fn start_ap(w: Wakeup, c: usize, id: u32) {
     wait_idle();
 }
 
-/// The boot core is done with the wakeup page, now ordinary free RAM.
-pub fn finish_wakeup(page: u64) {
-    unsafe { core::ptr::write_bytes(pptr(page) as *mut u8, 0, PAGE as usize) };
+/// The boot core is done with the wakeup page: from now on the trampoline
+/// rejects every vCPU that reaches it. The page keeps the trampoline as it
+/// is, never written again (a late vCPU may be fetching from it: no
+/// cross-modifying code), and never becomes free RAM or device memory
+/// (fl4_boot), nor do the boot tables it switches to.
+pub fn finish_wakeup() {
+    FL4_TDX_AP_CLOSED.store(true, Ordering::Release);
+    fence(Ordering::SeqCst);
 }

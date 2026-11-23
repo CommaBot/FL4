@@ -14,22 +14,61 @@ fn rd64(b: &[u8], o: usize) -> u64 {
     u64::from_le_bytes(b[o..o + 8].try_into().unwrap())
 }
 
-/// FL4's Multiboot 2 memory type for `EfiUnacceptedMemoryType` (16): RAM a
+/// FL4's Multiboot 2 memory type for `EfiUnacceptedMemoryType` (15, UEFI
+/// 2.10 table 7.10; 14 is `EfiPersistentMemory`, 16 `EfiMaxMemoryType`): RAM a
 /// confidential guest must accept before touching it. Neither usable RAM
 /// nor reserved memory, which the kernel would hand out as device memory.
 pub const UNACCEPTED: u32 = 0x464c_3410;
 
+/// FL4's Multiboot 2 memory type for `EfiReservedMemoryType` that is
+/// write-back memory: firmware's private memory, which the kernel keeps
+/// private and out of device memory in a confidential guest, but no
+/// firmware data it reads (UEFI calls the type not usable).
+pub const PRIVATE_RESERVED: u32 = 0x464c_3411;
+
+/// EFI memory types (UEFI 2.10 table 7.10) the loader looks at by number.
+pub const EFI_ACPI_RECLAIM: u32 = 9;
+pub const EFI_ACPI_NVS: u32 = 10;
+pub const EFI_UNACCEPTED: u32 = 15;
+
 /// Conventional and reclaimable boot-services pages are free. Keep
 /// firmware RAM distinguishable from device apertures for encrypted guests.
+/// Runtime services, ACPI NVS and persistent memory (5, 6, 10, 14) become
+/// ACPI NVS, write-back reserved memory `PRIVATE_RESERVED`; types from
+/// `EfiMaxMemoryType` (16) on, unknown, reserved.
 pub fn kind(ty: u32, attributes: u64) -> u32 {
     match ty {
         1..=4 | 7 => 1,
-        9 => 3,
-        5 | 6 | 10 | 14 | 15 => 4,
-        0 if attributes & 8 != 0 => 4,
-        16 => UNACCEPTED,
+        EFI_ACPI_RECLAIM => 3,
+        5 | 6 | EFI_ACPI_NVS | 14 => 4,
+        0 if attributes & 8 != 0 => PRIVATE_RESERVED,
+        EFI_UNACCEPTED => UNACCEPTED,
         _ => 2,
     }
+}
+
+/// Whether the loader may read firmware data (ACPI tables) from memory of
+/// this EFI type: loader, boot services and conventional memory (1 to 4,
+/// 7), ACPI reclaim (9) or ACPI NVS (10). Never reserved memory (0, with
+/// or without write-back), runtime services (5, 6), unusable memory, MMIO
+/// (11, 12), persistent memory, nor unaccepted memory, which a TD faults
+/// on.
+pub fn readable(ty: u32) -> bool {
+    matches!(ty, 1..=4 | 7 | EFI_ACPI_RECLAIM | EFI_ACPI_NVS)
+}
+
+/// The descriptors of `map` (`stride` bytes apart) as (base, bytes, EFI
+/// type, attributes), leaving out any `extent` refuses.
+pub fn descriptors(map: &[u8], stride: usize) -> impl Iterator<Item = (u64, u64, u32, u64)> + Clone + '_ {
+    map.chunks_exact(stride.max(DESCRIPTOR_MIN))
+        .filter_map(|d| extent(d).map(|(base, bytes)| (base, bytes, rd32(d, 0), rd64(d, 32))))
+}
+
+/// Whether `[addr, addr + len)` (non-empty, not wrapping) lies whole in one
+/// of `regions`, given as (base, bytes, whether that region will do).
+pub fn within(addr: u64, len: u64, regions: impl IntoIterator<Item = (u64, u64, bool)>) -> bool {
+    let Some(end) = addr.checked_add(len) else { return false };
+    len != 0 && regions.into_iter().any(|(base, bytes, ok)| ok && base <= addr && base.checked_add(bytes).is_some_and(|e| end <= e))
 }
 
 /// EFI_MEMORY_DESCRIPTOR up to its attributes: type at 0, physical start
@@ -63,8 +102,9 @@ fn extent(d: &[u8]) -> Option<(u64, u64)> {
 /// The regions of `map` (descriptors `stride` bytes apart), each passed to
 /// `emit` as (base, bytes, kind), adjacent ones of one kind merged. The
 /// SEV-SNP CPUID and secrets pages (0 without SNP) must lie whole in a
-/// descriptor, and every descriptor holding one gets kind 4 (ACPI NVS,
-/// which the kernel keeps out of every capability). The kernel hands out
+/// descriptor, and every descriptor holding one gets `PRIVATE_RESERVED`,
+/// which a confidential guest's kernel keeps private and out of every
+/// capability, and reads no ACPI tables from. The kernel hands out
 /// what the map leaves out as device memory, so every descriptor must fit:
 /// a length or end past 2^64 is an error, not a wrap (two descriptors
 /// whose merge wrapped once added up to a region of 0 bytes).
@@ -94,7 +134,7 @@ pub fn regions(
         let sensitive = [cpuid, secrets]
             .into_iter()
             .any(|page| page != 0 && base < page.saturating_add(PAGE) && page < base + bytes);
-        let kind = if sensitive { 4 } else { kind(rd32(d, 0), rd64(d, 32)) };
+        let kind = if sensitive { PRIVATE_RESERVED } else { kind(rd32(d, 0), rd64(d, 32)) };
         if let Some((start, len, ty)) = previous {
             // `start + len` is the end of a descriptor, which fits; so is
             // the merged region's.
