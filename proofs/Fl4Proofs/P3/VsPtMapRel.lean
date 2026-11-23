@@ -230,6 +230,26 @@ theorem check_vspace_pml4_pt {P : Set U64} (s : S) (σ : Fl4Spec.State Unit) (hR
 
 theorem top_bv (v : U64) : (Fl4Spec.userVtop < v.bv) ↔ v > fl4_abi.consts.USER_TOP := (gt_top v)
 
+/-- **(F1 stage 5) What a PT Map leaves for `VsNamed`** (VsNamedStep's
+`ptMapS`): the invoked cap `c` before unmapped and after mapped at
+`(asid, va)`, the PML4 `pm` l4v's ASID lookup finds, its present entry `i`
+naming the PDPT `pt3`, whose present non-huge entry `k` names the PD `pd`,
+whose entry `j` is written with the PT, every other spec arch object and the
+ASID table kept. -/
+def PtMapF (m m' : U64 → U64) (x : U64) (c : capability.Cap) (σ σ' : Fl4Spec.State Unit) : Prop :=
+  ∃ (q0 as0 va0 asid va pm i pt3 k pd j : U64) (f : BitVec 9 → Fl4Spec.PDE) (ta : Fl4Spec.TableAttrs)
+    (tr : Fl4Spec.CapRights),
+    c = .PageTable q0 false as0 va0 ∧ capV m' x = .PageTable q0 true asid va ∧
+    asid ≠ 0#u64 ∧ asid.val < 2 ^ 20 ∧
+    ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok pm.bv, σ)}, False) ∧
+    i.val < 256 ∧ eP (m (peA pm i)) ∧ eT (m (peA pm i)) = pt3 ∧
+    k.val < 512 ∧ eP (m (peA pt3 k)) ∧ ¬ eS (m (peA pt3 k)) ∧ eT (m (peA pt3 k)) = pd ∧
+    j.val < 512 ∧ va.val = i.val * 2 ^ 39 + k.val * 2 ^ 30 + j.val * 2 ^ 21 ∧
+    σ.kheap pd.bv = some (.archObj (.pageDirectory f)) ∧
+    σ'.kheap pd.bv = some (.archObj (.pageDirectory
+      (Function.update f (Fl4Spec.ucast 9 j.bv) (.pageTablePDE (Fl4Spec.addrFromPPtr q0.bv) ta tr)))) ∧
+    ArchKeepBut pd σ σ' ∧ σ'.archState.x64AsidTable = σ.archState.x64AsidTable
+
 /-- **PageTable `Map` refines l4v** (see the module docstring). -/
 theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2 L1 : Set U64}
     {SR : S → A → Fl4Spec.State Unit → Prop} (hH : VsPtMapHyps st A ar th P L4 L3 L2 L1 SR)
@@ -267,7 +287,8 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
         PtMapSpec σ iv σ' ∧ StateRel th (L.mem res.2.1) σ' ∧ SlotsValid th (L.mem res.2.1) ∧
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
-        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.PageTable ptr mp asid0 va0) ∧ KFoot σ σ') ⦄ := by
+        VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.PageTable ptr mp asid0 va0) ∧ KFoot σ σ' ∧
+        PtMapF (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) (.PageTable ptr mp asid0 va0) σ σ') ⦄ := by
   rw [show ∀ args' ex', Fl4Spec.archDecodeInvocation (Z := Unit) slbl args' xs (pc.bv, idx)
       (.pageTableCap ptr.bv (if mp then some (asid0.bv, va0.bv) else none)) ex' =
     Fl4Spec.decodePageTableInvocation slbl args' (pc.bv, idx)
@@ -331,8 +352,9 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
           simp only [Bind.bind, bind_ok]
           exact (WP.spec_ok _).2 (Or.inl ⟨e, e', rfl, he, hdec.trans hte, rfl, rfl⟩)
         simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
-        refine WP.spec_bind (table_entry_slot_21 s σ hPt hPP hp1 v (userV_of_not_gt hv)) ?_
-        rintro r2 ⟨hsl, hse⟩
+        refine WP.spec_bind (WP.spec_and (table_entry_slot_21 s σ hPt hPP hp1 v (userV_of_not_gt hv))
+          (table_entry_slot_21_walk s p1 v)) ?_
+        rintro r2 ⟨⟨hsl, hse⟩, hwk⟩
         cases r2 with
         | Err lf =>
           obtain ⟨n, rfl, hsp⟩ := hse _ rfl
@@ -344,6 +366,8 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
             Or.inl (by simp [SysErrRel, LookupFaultRel]), hdec.trans (ptTail_noSlot hv' hf hsp), rfl, rfl⟩)
         | Ok sl =>
           obtain ⟨hsp, q, hq, rfl⟩ := hsl _ rfl
+          obtain ⟨hWP4, hWP3, hWS3, hWT3⟩ := hwk _ rfl
+          have hWT3' := (peA_base_inj hWT3).symm
           simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
           obtain ⟨f, hk, hf2⟩ := hPt.l2 q hq
           have hqa := hPP q (Or.inr (Or.inr (Or.inl hq)))
@@ -463,7 +487,7 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
             obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
             have hbo : OutsideObjects th (peA q (vIdx v 21)) := hPO _ ⟨q, Or.inr (Or.inr (Or.inl hq)), _, hj, rfl⟩
             refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, _, hdec.trans (ptTail_ok hv' hf hsp hg), ?_,
-              Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS', ?_, ?_, ?_⟩)
+              Vs.StateRel.ms hSt3 ms, hSV3, ⟨hR3.1, hR3.2, hR3.3⟩, ⟨hPt3.l4, hPt3.l3, hPt3.l2, hPt3.l1⟩, hS', ?_, ?_, ?_, ?_⟩)
             · unfold PtMapSpec ptInv
               dsimp only
               rw [← hcur, nd_bind_one (Notif.setThreadState_eq .restart hkt')]
@@ -476,6 +500,26 @@ theorem pt_map_rel {A : Type} {ar : machine.Arch A} {th : TypedHeap} {P L4 L3 L2
                 have e : Fl4Spec.ptTranslationBits + Fl4Spec.pageBits = Fl4Spec.pdShiftBits := rfl
                 rw [e, show U64.bv v = v.bv from rfl, hvb, BitVec.and_assoc]; simp⟩
             · exact (KFoot.sts hkt' _).trans ((KFoot.cnode hkc1 hwf idx nc).trans ((KFoot.arch hk2 _).trans (KFoot.ms _ ms)))
+            · -- (F1 stage 5) `PtMapF`
+              have hqct : q.bv ≠ ct.bv := kheap_ne hk hkt' (fun _ h1 h2 => by subst h1; cases h2)
+              have hqpc : q.bv ≠ pc.bv := kheap_ne hk hkc (fun _ h1 h2 => by subst h1; cases h2)
+              have hk20 : σ2.kheap q.bv = σ.kheap q.bv := by
+                simp [hσ2, setCnodeSlot, hσ1, stsAct_kheap, updK, hqpc, hqct]
+              rw [hk20, hk] at hk2
+              cases hk2
+              refine ⟨ptr, asid0, va0, as1, v, p1, vIdx v 39, _, vIdx v 30, q, vIdx v 21, f,
+                Fl4Spec.filterVmAttributes (Fl4Spec.attribsFromWord a1.bv), Fl4Spec.vmReadWrite, rfl, ?_, has1, has2, hf,
+                vIdx_lt_256_of_user (userV_of_not_gt hv), hWP4, rfl, vIdx_lt v 30, hWP3, hWS3, hWT3', hj,
+                idx21 (vaddr_low0 (K := core.num.U64.wrapping_sub 2097152#u64 1#u64) (by decide) hvd.symm)
+                  (by have := userV_of_not_gt hv; unfold UserV at this; omega),
+                hk, by rw [hσ3]; exact Function.update_self _ _ _, ?_,
+                by rw [hσ3, hσ2, hσ1]; unfold stsAct; split <;> rfl⟩
+              · rw [hs3, capV_wr_out hPl hxsl s2 hbo, hcv2]
+              · rintro q' ⟨ao, hao⟩ hne
+                have h1 : q'.bv ≠ q.bv := fun h => hne (eq_of_bv h)
+                have h2 : q'.bv ≠ ct.bv := kheap_ne hao hkt' (fun _ h1 h2 => by subst h1; cases h2)
+                have h3 : q'.bv ≠ pc.bv := kheap_ne hao hkc (fun _ h1 h2 => by subst h1; cases h2)
+                simp [hσ3, updK, hσ2, setCnodeSlot, hσ1, stsAct_kheap, h1, h2, h3]
           · have : ((L.mem s (peA q (vIdx v 21)) &&& 1#u64) != 0#u64) = true := by simp [hpres]
             simp only [this, ↓reduceIte]
             have hninv : f (Fl4Spec.ucast 9 (vIdx v 21).bv) ≠ .invalidPDE := by

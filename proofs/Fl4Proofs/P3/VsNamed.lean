@@ -32,13 +32,25 @@ ref-carrying ASID walk and the VSpace naming invariant** (l4v `vs_lookup` with
 
 Not yet wired: `VsNamed` is a hypothesis here (F1 stage 5 adds it to `JCarry`).
 -/
-import Fl4Proofs.P3.UtDropJ2
+import Fl4Proofs.P3.VsDrop
+import Fl4Proofs.P3.StepSem
+import Fl4Proofs.P3.BufDefs
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
 
 open fl4_core
 
+theorem physF_pt (q : U64) (mp : Bool) (a v : U64) : physF (.PageTable q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pt (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageTable q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pt (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageTable q mp a v) = 12#u64 := ok_inj (size_eq _).symm
+theorem physF_pd (q : U64) (mp : Bool) (a v : U64) : physF (.PageDirectory q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pd (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageDirectory q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pd (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageDirectory q mp a v) = 12#u64 :=
+  ok_inj (size_eq _).symm
+theorem physF_pdpt (q : U64) (mp : Bool) (a v : U64) : physF (.Pdpt q mp a v) = true := ok_inj (phys_eq _).symm
+theorem ptrF_pdpt (q : U64) (mp : Bool) (a v : U64) : ptrF (.Pdpt q mp a v) = q := ok_inj (ptr_eq _).symm
+theorem sizeF_pdpt (q : U64) (mp : Bool) (a v : U64) : sizeF (.Pdpt q mp a v) = 12#u64 := ok_inj (size_eq _).symm
 theorem physF_pml4 (q : U64) (mp : Bool) (a : U64) : physF (.Pml4 q mp a) = true := ok_inj (phys_eq _).symm
 theorem ptrF_pml4 (q : U64) (mp : Bool) (a : U64) : ptrF (.Pml4 q mp a) = q := ok_inj (ptr_eq _).symm
 theorem sizeF_pml4 (q : U64) (mp : Bool) (a : U64) : sizeF (.Pml4 q mp a) = 12#u64 := ok_inj (size_eq _).symm
@@ -52,6 +64,49 @@ namespace Vs
 open Fl4Proofs.P1
 
 noncomputable section
+
+/-! ## The tables a cap asks (moved from UtDropJ2 for F1 stage 5) -/
+
+/-- **The tables a cap's `VCapW` asks in the sets**: level `k` (VsDrop's
+`lvlSet`: 1 PT, 2 PD, 3 PDPT, 4 PML4, 5 pool) and address `q`; mapped
+PT/PD/PDPT caps and (F1) mapped PML4 caps ask nothing (their table may be
+pruned, or orphaned: KENTRY-PLAN jc4). -/
+inductive VNeed : capability.Cap → Nat → U64 → Prop
+  | pt {p a v : U64} : VNeed (.PageTable p false a v) 1 p
+  | pd {p a v : U64} : VNeed (.PageDirectory p false a v) 2 p
+  | pdpt {p a v : U64} : VNeed (.Pdpt p false a v) 3 p
+  | pml4 {p a : U64} : VNeed (.Pml4 p false a) 4 p
+  | pool {p b : U64} : VNeed (.AsidPool p b) 5 p
+
+/-- What a slot's cap asks is in the sets (`VsSlotsW`). -/
+theorem VsSlotsW.need {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
+    (h : VsSlotsW th P L4 L3 L2 L1 m) {y : U64} (hy : IsSlot th y) {k : Nat} {q : U64}
+    (hn : VNeed (capV m y) k q) : q ∈ lvlSet P L4 L3 L2 L1 k := by
+  have hc := h y hy
+  generalize capV m y = c at hc hn
+  cases hn <;> simp only [VCapW, VCapOK] at hc
+  all_goals first | exact hc.1 trivial | exact hc.1 rfl | exact hc.1 | exact hc.1.1
+
+/-- **The tables the slots' caps ask** at level `k` (`VNeed`): the roots
+`JAtZ.drop`'s `VsReachMiss` is asked at. -/
+def NeedR (th : TypedHeap) (m : U64 → U64) (k : Nat) : Set U64 :=
+  {q | ∃ y, IsSlot th y ∧ VNeed (capV m y) k q}
+
+/-- The asked tables are roots (`JAtZ.drop`'s `hXc` at `NeedR`). -/
+theorem needR_roots {th : TypedHeap} {m : U64 → U64} :
+    ∀ y, IsSlot th y → ∀ k q, VNeed (capV m y) k q →
+      q ∈ lvlSet (NeedR th m 5) (NeedR th m 4) (NeedR th m 3) (NeedR th m 2) (NeedR th m 1) k := by
+  intro y hy k q hn
+  have hm : q ∈ NeedR th m k := ⟨y, hy, hn⟩
+  generalize capV m y = c at hn
+  cases hn <;> exact hm
+
+/-- The asked tables are in the sets (`VsSlotsW.need`). -/
+theorem VsSlotsW.needR {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
+    (h : VsSlotsW th P L4 L3 L2 L1 m) :
+    NeedR th m 5 ⊆ P ∧ NeedR th m 4 ⊆ L4 ∧ NeedR th m 3 ⊆ L3 ∧ NeedR th m 2 ⊆ L2 ∧ NeedR th m 1 ⊆ L1 :=
+  ⟨fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn,
+    fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn⟩
 
 /-! ## Definitions -/
 
@@ -104,6 +159,40 @@ structure VsNamed (th : TypedHeap) (m : U64 → U64) (ksb : U64) : Prop where
     ∀ i : U64, i.val < (if k = 4 then 256 else 512) → ¬ eP (m (peA q i))
   poolT : ∀ y, IsSlot th y → ∀ q b, capV m y = .AsidPool q b → ∀ hi : U64, hi.val * 512 = b.val →
     m (atA ksb hi) = q
+
+/-! ## A final cap is the only cap of its key (F1-PLAN R6) -/
+
+/-- A keyed cap's object is one of its spec cap's object references. -/
+theorem vkey_mem {c : capability.Cap} {k : Nat} {q : U64} (h : VKey c = some (k, q)) :
+    Fl4Spec.GenObjRef.objRef q.bv ∈ Fl4Spec.genObjRefs (absCap c) := by
+  refine Set.mem_union_left _ (Set.mem_union_left _ ⟨q.bv, ?_, rfl⟩)
+  cases c <;> simp only [VKey, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at h
+  all_goals obtain ⟨-, rfl⟩ := h
+  all_goals simp [absCap, Fl4Spec.objRefs, Fl4Spec.aobjRef]
+
+/-- Two caps of one VSpace key overlap (`Ovl`). -/
+theorem vkey_ovl {a b : capability.Cap} (h : VKey a = VKey b) (hk : VKey a ≠ none) :
+    Ovl (absCap a) (absCap b) := by
+  obtain ⟨⟨k, q⟩, hq⟩ := Option.ne_none_iff_exists'.1 hk
+  intro he
+  have : Fl4Spec.GenObjRef.objRef q.bv ∈ Fl4Spec.genObjRefs (absCap a) ∩ Fl4Spec.genObjRefs (absCap b) :=
+    ⟨vkey_mem hq, vkey_mem (h ▸ hq)⟩
+  rw [he] at this; exact this
+
+/-- **(F1 stage 5, F1-PLAN R6) A final keyed cap is the only cap of its key**
+(`huq` of VsNamedOps' `delSlot` / `unmapTab` and VsNamedStep's `own`): FL4's
+`is_final_capability` (`finF`: the MDB neighbours) means no other MDB cap
+overlaps it (`finF_iff`, from `FinInv`'s `FinM.key`), and two caps of one key
+overlap (`vkey_ovl`); a non-null slot is an MDB slot. -/
+theorem huq_of_finF {th : TypedHeap} (hP : Placed th) {m : U64 → U64} {σ : Fl4Spec.State Unit} {G : MdbGhost}
+    (hM : MdbLinks th m G) (hI : MdbInv m G) (hF : FinInv th m σ G) {x : U64} (hx : x ∈ G.chains.flatten)
+    (hN : NeedsFin (capV m x)) (hz : isZb (capV m x) = false) (hf : finF m x = true)
+    (hk : VKey (capV m x) ≠ none) :
+    ∀ y, IsSlot th y → y ≠ x → VKey (capV m y) ≠ VKey (capV m x) := by
+  intro y hy hyx he
+  have hy0 : capV m y ≠ .Null := fun h => hk (by rw [← he, h]; rfl)
+  have hyG : y ∈ G.chains.flatten := (hM.members y).2 ⟨hy, _, capAt_capV _ _, hy0⟩
+  exact (finF_iff hP hM hI hF hx hN hz).1 hf y hyG hyx (vkey_ovl he.symm hk)
 
 /-! ## Cap facts -/
 
@@ -348,79 +437,5 @@ end
 end
 
 end Vs
-
-/-! ## The discharge at `JAtZ` -/
-
-section
-open Fl4Proofs.P3.Notif Fl4Proofs.P3.Endp Fl4Proofs.P3.Ipc Fl4Proofs.P3.Sched
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-  {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-
-/-- **(F1) C17 / C23 / C24 vsReach at a `JAtZ` state with `VsNamed`**: every
-table reached from the `NeedR` roots misses a childless untyped cap's region
-(module docstring). -/
-theorem JAtZ.vsReachMiss (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s)) {x p sb fi : U64} {dv : Bool} (hx : x ∈ Z.G.chains.flatten)
-    (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) :
-    Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s) (L.ksb s)
-      (Vs.NeedR Z.th (L.mem s) 5) (Vs.NeedR Z.th (L.mem s) 4) (Vs.NeedR Z.th (L.mem s) 3)
-      (Vs.NeedR Z.th (L.mem s) 2) (Vs.NeedR Z.th (L.mem s) 1) := by
-  have hca : capAt (L.mem s) x = ok (.Untyped p sb fi dv) := by rw [capAt_capV, hcx]
-  have hsb : sb.val < 64 := capAt_untyped_inv hca
-  have hrx := J.ut.reg x hx (by rw [hcx]; exact physF_ut _ _ _ _)
-  rw [hcx] at hrx
-  obtain ⟨-, -, hfit⟩ := ut_range hsb hrx
-  intro k q hR
-  have hy : ∃ y, IsSlot Z.th y ∧ Vs.VKey (capV (L.mem s) y) = some (k, q) := by
-    rcases hR.split hN J.vsc with ⟨y, hy, hn⟩ | ⟨a, v, hw⟩
-    · exact ⟨y, hy, (Vs.vkey_vneed hn).1⟩
-    · obtain ⟨y, hy, hk, -⟩ := hN.named _ _ _ _ hw
-      exact ⟨y, hy, hk⟩
-  obtain ⟨y, hy, hk⟩ := hy
-  obtain ⟨hp, hs, hph, hnu⟩ := Vs.vkey_tab hk
-  exact J.tabOff hsb hfit hx hcx hnd hy hp hs hph hnu
-
-/-- **(F1) The premise shape: C17 / C23 / C24 vsReach at the caller's restart
-state** (`JUtPath.vsReach`, `JUtPathM(U16).vsReach`, `JDevPath.vsReach` with
-`x = cslotAddr sl`): `set_thread_state Restart` keeps the slots and the `VObj`
-words (`restart_top`), so a reach at `s1` is one at `s` (`VsReach.frame`). -/
-theorem JAtZ.vsReachMissR (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s)) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) {x p sb fi : U64} {dv : Bool} (hx : x ∈ Z.G.chains.flatten)
-    (hcx : capV (L.mem s) x = .Untyped p sb fi dv) (hnd : ∀ y, ¬ Mdb.Desc Z.G.par y x) :
-    ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      Vs.VsReachMiss p.val (p.val + 2 ^ sb.val) (L.mem s1) (L.ksb s1)
-        (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
-        (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1) := by
-  intro s1 hs1
-  obtain ⟨hcur, x0, hk, hrun⟩ := J.curRunnable hni hct
-  have hF := J.xtop.fin
-  have h := Vs.restart_top s a σ ct x0 hF.1 hF.2.1 hcur.symm hk hrun
-  rw [hs1, WP.spec_ok] at h
-  obtain ⟨-, -, -, hks, hmV⟩ := h
-  have hSS : SlotsSame Z.th (L.mem s) (L.mem s1) := slotsSame_of_vobj J.xtop.rel.1 hmV
-  have hc : ∀ y, IsSlot Z.th y → capV (L.mem s1) y = capV (L.mem s) y := fun y hy => hSS.capV hy
-  obtain ⟨hWt, hWp⟩ := Vs.walk_of_vobj hF.1.2.vs hF.1.2.pt hmV
-  intro k q hR
-  rw [hks] at hR
-  simp only [Vs.NeedR.congr hc] at hR
-  have hN' := J.vsc.needR
-  exact J.vsReachMiss hN hx hcx hnd k q
-    (hR.frame hF.2.1 hF.2.2.1 hF.2.2.2.1 hWt hWp hN'.1 hN'.2.1 hN'.2.2.1 hN'.2.2.2.1 hN'.2.2.2.2)
-
-/-- **(F1) The `JAsidCPath.vsReach` shape** (C17). -/
-theorem JAtZ.vsReachAsidC (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s)) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) :
-    ∀ (x p fi : U64) (s1 : S), x ∈ Z.G.chains.flatten →
-      capV (L.mem s) x = .Untyped p fl4_abi.consts.bits.ASID_POOL fi false → (∀ y, ¬ Mdb.Desc Z.G.par y x) →
-      sched.set_thread_state st s ct sched.TS_RESTART = ok s1 →
-      Vs.VsReachMiss p.val (p.val + 2 ^ (fl4_abi.consts.bits.ASID_POOL).val) (L.mem s1) (L.ksb s1)
-        (Vs.NeedR Z.th (L.mem s1) 5) (Vs.NeedR Z.th (L.mem s1) 4) (Vs.NeedR Z.th (L.mem s1) 3)
-        (Vs.NeedR Z.th (L.mem s1) 2) (Vs.NeedR Z.th (L.mem s1) 1) :=
-  fun _ _ _ s1 hx hc hnd hs1 => J.vsReachMissR hN hni hct hx hc hnd s1 hs1
-
-end
 
 end Fl4Proofs.P3

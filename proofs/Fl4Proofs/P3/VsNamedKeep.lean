@@ -414,44 +414,4 @@ theorem vkey_copied {s : S} {lbl length buf src : U64} {srcC nc : capability.Cap
 
 end Copy
 
-/-! ## The drop at `JAtZ` -/
-
-section
-open Fl4Proofs.P3.Sched
-variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type} {arI : machine.Arch A}
-variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Set U64}
-  {Lst : U64 → List U64} {D : Set U64} {s : S} {a : A} {σ : Fl4Spec.State Unit}
-
-/-- **(F1 stage 3) `VsNamed` at the drop's typed heap** (`JAtZ.drop`'s
-`restrictTh`, same memory): the MDB's slots miss the region (`UtCapP3.ns`). -/
-theorem _root_.Fl4Proofs.P3.JAtZ.vsNamedDrop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : VsNamed Z.th (L.mem s) (L.ksb s)) {lo hi : Nat} (hNS : NoStraddle Z.th lo hi)
-    (hns : ∀ a ∈ Z.G.chains.flatten, a.val < lo ∨ hi ≤ a.val) :
-    VsNamed (restrictTh Z.th lo hi) (L.mem s) (L.ksb s) := by
-  obtain ⟨hPl, ⟨-, -, hML, -, -⟩, -⟩ := J.xtop.rel
-  refine hN.sub (fun y hy => hy.of_restrict) fun y hy hk => ?_
-  have hne : capV (L.mem s) y ≠ .Null := fun h => hk (by rw [h]; rfl)
-  have hyG : y ∈ Z.G.chains.flatten := (hML.members y).2 ⟨hy, _, capAt_capV _ _, hne⟩
-  exact hy.restrict hPl hNS (hns y hyG)
-
-/-- **(F1 stage 3, frame class) `VsNamed` across the caller's restart**
-(`set_thread_state Restart`: the slots and the `VObj` words kept,
-`restart_top`), the frame `JAtZ.restartJ` makes. -/
-theorem _root_.Fl4Proofs.P3.JAtZ.vsNamedRestart (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
-    (hN : VsNamed Z.th (L.mem s) (L.ksb s)) (hni : Entered σ) {ct : U64}
-    (hct : sched.cur_thread st s = ok ct) :
-    ∀ s1, sched.set_thread_state st s ct sched.TS_RESTART = ok s1 → VsNamed Z.th (L.mem s1) (L.ksb s1) := by
-  intro s1 hs1
-  obtain ⟨hcur, x0, hk, hrun⟩ := J.curRunnable hni hct
-  have hF := J.xtop.fin
-  have h := restart_top s a σ ct x0 hF.1 hF.2.1 hcur.symm hk hrun
-  rw [hs1, WP.spec_ok] at h
-  obtain ⟨-, -, -, hks, hmV⟩ := h
-  have hSS : SlotsSame Z.th (L.mem s) (L.mem s1) := slotsSame_of_vobj J.xtop.rel.1 hmV
-  obtain ⟨hWt, hWp⟩ := walk_of_vobj hF.1.2.vs hF.1.2.pt hmV
-  rw [hks]
-  exact hN.frame hF.2.1 hF.2.2.1 hF.2.2.2.1 hWt hWp J.vsc fun y hy => hSS.capV hy
-
-end
-
 end Fl4Proofs.P3.Vs

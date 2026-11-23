@@ -17244,3 +17244,126 @@ duplicate names `optRef_inj` / `eT_of_eA`, `PAddr` → `ObjRef`; m5 implicit ent
 root import over the f2 cache). `#print axioms` (../axf3.lean, the 30 new main lemmas first, then every top
 U3L..U25 and the f1 / f2 lemmas): all `[propext, Classical.choice, Quot.sound]` (some P1 timer lemmas fewer).
 No `maxHeartbeats` raise; no sorry / admit / native_decide / bv_decide / axiom.
+
+## f4 (branch par/f4 from 86577024 = f3) — F1 stage 5, part 1: the `VsNamed` machinery moved upstream of JCarryDefs, the table-map / ASID-assign facts exported through `VsPostJ` (item 1, partial), "final ⇒ only cap of its key" proved (item 2); items 3–4 (VsKeep in the CSpace posts, the `JCarry.vsNamed` field) NOT started; no new top, no FINDING
+
+### (0) Design change against f3 (2): facts, not the decode equation
+f3 proposed carrying the decode equation through `VsPostJ` and inverting it at the `J` layer (one inversion lemma per
+op + the performs' kheap shapes). Instead each refinement exports, at its success endpoint (where the decode is
+computed forward and every word / spec object is a local hypothesis), exactly the hypotheses VsNamedStep's per-op
+lemma needs, as a new last conjunct of its post: no decode inversion, no perform-shape lemmas. `VsPostJ` (VsDecFrame)
+gained a 4th conjunct `VsOpF m m' x c σ σ'` (a disjunction over the ops); its producers (VsDecFrame 9 sites, VsOffDec
+3) pass the rel's fact or `VsOpTodo` (`:= True`, the ops not yet done). Consumers changed in pattern only
+(XTopJointVsMap `vsPostJ`, XTopJointVsOff `vsPostOffJ`: `⟨hSF, hLk, hsp, -⟩`).
+
+### (1) Done
+- **Restructure (needed for item 4).** JCarryDefs could not import `VsNamed` (it sat after UtDropJ2), and the
+  CSpace / finalise sites (CnodeCopy, TcbCaps, XTopJointFinVs, all upstream of UtDropJ2) could not use VsNamedKeep /
+  Ops. Now `VsNamed.lean` imports `VsDrop`, `StepSem`, `BufDefs` (= JCarryDefs' imports + VsDrop), and holds `VNeed`,
+  `VsSlotsW.need`, `NeedR`, `needR_roots`, `VsSlotsW.needR`, `physF_pt` … `sizeF_pdpt` (moved verbatim from UtDropJ2,
+  same names / namespaces; UtDropJ2 now imports VsNamed). The `JAtZ` lemmas (`vsReachMiss`, `vsReachMissR`,
+  `vsReachAsidC`, `vsNamedDrop`, `vsNamedRestart`) moved to the new **`VsNamedJ.lean`** (imports UtDropJ2 +
+  VsNamedStep). So VsNamed → VsNamedKeep → Ops → Spec → Step → **VsNamedPost** are all importable by JCarryDefs
+  (checked: VsNamedStep does not import JCarryDefs / UtDropJ2 / JointAt). JCarryDefs does NOT import them yet (item 4).
+- **Helpers (VsFrameMapRel, before the map rels):** `eT_of_addr` (an entry naming `addrFromPPtr p` targets `p`),
+  `vaddr_low0` / `masked_idx` / `idx30` / `idx21` (a masked user vaddr is its level indices), `peA_base_inj`,
+  **`lookup_pdpt_slot_walk`**, **`lookup_pd_slot_walk`**, `table_entry_slot_30_walk`, `table_entry_slot_21_walk`
+  (FL4-only re-runs of the lookups with the walk as post: entries present / not PS, slot in the table they target;
+  combined with the existing `*_rel` by `WP.spec_and`, so no existing lookup post changed). `ArchKeepBut` (VsAssignRel).
+- **Per-op facts (new last conjunct of the success post):** `PdptMapF` (pdpt_map_rel), `PdMapF` (pd_map_rel),
+  `PtMapF` (pt_map_rel), `AssignF` (assign_rel). Each: invoked cap before unmapped / after mapped at `(asid, va)`,
+  `findVspaceForAsid asid = ok pm` with `asid ≠ 0 ∧ < 2^20` (PD / PT: the FL4 walk words to the parent), `va` = the
+  indices, the parent's spec object before / after (`Function.update f j (… (addrFromPPtr q0) ta tr)`),
+  `ArchKeepBut parent σ σ'`, ASID table kept. Assign: ASID-table entry `hi` names the pool, `asid = hi·512 + lo`.
+- **J-layer lemmas (VsNamedPost.lean):** `capV_of_foot`, `arch_of_set`, `VsNamed.ofPdptMapF` / `ofPdMapF` /
+  `ofPtMapF` / `ofAssignF` (VsNamedStep's `pdptMapS` … `assignS`; assign's PML4 tag bit from `VsSlotsW` + `PtPlaced`),
+  **`VsNamed.ofOpF`** (dispatch over `VsOpF`; `hTodo` for `VsOpTodo`).
+- **Item 2, `huq` (VsNamed.lean):** `vkey_mem`, `vkey_ovl` (two caps of one key overlap), **`huq_of_finF`**: FL4's
+  `finF m x = true` (+ `MdbLinks`, `MdbInv`, `FinInv`, `NeedsFin`, `¬isZb`, keyed) ⇒ `∀ y ≠ x slot, VKey y ≠ VKey x`
+  (from `finF_iff`; `FinM.key` is inside `finF_iff`). This is the `huq` of `unmapTab` / `delSlot` / `own`.
+
+### (2) What remains (sizes; in order)
+1. **Item 1, the other `VsOpF` ops** (then delete `VsOpTodo`; `ofOpF` becomes total):
+   - frame map 4K / large / huge (VsFrameMapRel `map_tail` macro, VsFrameMapLRel ×2) and frame unmap (VsFrameUnmapRel ×3
+     sizes): `LeafF` for VsNamedStep's `leafS` with `X = {the table written}`: its walk (add `lookup_pt_slot_walk`, the
+     same pattern as `lookup_pd_slot_walk`), the written entry's step none before / after (PT: level 1, trivial; PS
+     entries), other words of that table kept, `ArchKeepBut table`, ASID table kept; the spec side of
+     `write_mapping_rel` / `kfoot_store_flush` gives the kheap shape. M–L (~400 lines).
+   - table unmaps in-set (VsDecFrame PT/PD/PDPT unmap via `pt/pd/pdpt_unmap_rel`) and off-set (VsOffDec
+     `*_unmap_rel_off`, `VsJPostO`): `UnmapF` for `unmapTab`: `finF m x = true` (decode's final check; J layer then
+     `huq_of_finF` from `J.xtop.rel`), cap after unmapped, the table's words zero, the parent entry at the cap's ref
+     cleared or the ASID lookup failing (`VsNamed.gone` + `own_ref` + `hpar_of`), every other walk word kept. The
+     unmapped-cap case is a frame step. L (~500).
+   - the PML4 flush (`VsJFlush`, XTopJointVsMap) is a frame step (slots / VObj kept): `VsNamed.frame`.
+2. **Item 3**: `VsKeep` (or the insert / move / swap facts) in the posts of CnodeCopy (662/708), CnodeRotate (384/570),
+   XTopJointGrant (377), TcbCaps / XTopJointTcbInstall (`insTJ`, 293), XTopJointDel (481), XTopJointWJLEmpty (64),
+   StepSem `Steps.insert` (400; IoControl, IrqControl, IrqHandler callers), UtResetJ / UtDevReset (`of_some (· = x)`),
+   beside each `VsSlotsT` they build (VsNamedKeep's `vsKeep_insert / move / swap`, `vkey_copied`, `derive_tabun`),
+   plus the walk words kept (`walk_of_vobj` from the step's `VObj` post). ~15 files, M–L.
+3. **Item 4** (the jc3 / jc5 pattern): JCarryDefs `import Fl4Proofs.P3.VsNamedPost`; field
+   `vsNamed : Vs.VsNamed Z.th (L.mem s) (L.ksb s)`; `JCarryS.withP` / `withD` take it (20 + 1 files:
+   JCarryDefs JointAt ScJointFrame ScJointSchFrame UtDevDrop UtCnRet UtDevUt UtEpRet UtPmRet UtScRet UtDevRet UtTcbRet
+   UtDropJ2 UtUtRet XTopJointFaultM XTopJointFinScReply XTopJointJAtZRM XTopJointJAtZRA XTopJointMakePool
+   XTopJointStep). Frame lemmas computing it internally (`VsNamed.frame` from `SlotsSame` + the `TFoot`/`OObj` writes
+   missing the `VObj` words): sc_frame (94 caller files, no caller change), sch_frame, sc_frameR / S, cs_frameI / IS / K,
+   JAtZRA / RM frames. Explicit argument `hvn` on `cs_frameVD / V / B / cs_frame / cs_frameD` (callers: UtDevReset
+   UtResetJ XTopJointGrant XTopJointJAtZRB XTopJointJAtZRA XTopJointFinThread XTopJointStep XTopJointVsMap
+   XTopJointVsSub XTopJointWJLSwap XTopJointTcbInstall XTopJointWJLEmpty XTopJointWJL): from item 3 (CSpace), from
+   `VsNamed.ofOpF` at `JAtZ.vsStepJX` (J at `s1` after the restart: `JAtZ.vsNamedRestart`, then `ofOpF` from `s` with
+   the decode's relations — note `VsOpF` is stated `σ → σ'` from the pre-restart state, so apply it at `J` (state `s`),
+   not `J1`), drops (`JAtZ.vsNamedDrop` + `VsNamed.frame` for the reset), retypes (`VsNamed.grow`), MakePool
+   (`makePoolS`), finalise (`delSlot` + `huq_of_finF`). Start state: part of the carried start `JAtZ` (lead decision,
+   as `devSep` / `vsTyp`). L (~50 files).
+4. Stage 6 (U23) after all of the above.
+
+### (3) Builds and axioms
+See the f4 commits; module builds f4-m1..m9 (tokyo; m3 metavariables `ta`/`tr` left to `simp`; m5–m8
+`peA_base_inj` arithmetic, a `hS3` name clash in VsPtMapRel).
+
+### (4) f4b (restart of f4 after a session restart; same branch par/f4)
+- **f4 part 1 verified**: the killed agent's full build of 38c5f0d9 (f4-full1) finished `Build completed successfully
+  (7347 jobs)`, 0 `error`; `#print axioms` (axf4.lean) all `[propext, Classical.choice, Quot.sound]` (some P1 timer
+  lemmas fewer).
+- **Item 1, frame ops DONE** (`VsOpF` now `PdptMapF ∨ PdMapF ∨ PtMapF ∨ AssignF ∨ MapLeafF ∨ UnmapLeafF ∨ VsOpTodo`;
+  helpers `VsOpF.todo` / `.mapLeaf` / `.unmapLeaf`; `VsOpTodo` is left only at the 3 in-set table unmaps
+  (VsDecFrame) and the 3 off-set ones (VsOffDec)).
+  - New module **`VsLeafF.lean`** (imports VsAssignRel, VsPt; upstream of the frame rels): `IsFrameC`,
+    `VWalk3` / `VWalk2` / `VWalk1` (FL4's walk words from a PML4 to a PDPT / PD / PT), `NoStep2` / `NoStep3`,
+    **`MapLeafF`** (frame caps before / after, `findVspaceForAsid asid = ok pm`, the written table `q` reached by
+    `VWalk*` from `pm`, its written entry `NoStep` before and after for PD / PDPT, `ArchKeepBut q`, ASID table
+    kept), **`EntShr`** / **`ArchShr`** (every spec arch object kept or only entries cleared, ASID table kept;
+    `of_keep`, `refl`, `keep_left`, `keep_right`, `ms`, `upd_pt` / `upd_pd` / `upd_pdpt` / `upd_pml4`,
+    `sts_keep`, `cnode_keep`), **`UnmapLeafF`** (frame caps, `ArchShr`).
+  - VsFrameMapRel: `lookup_pt_slot_walk`, `page_entry_slot_small_walk` / `_large_walk` / `_huge_walk`,
+    `store_flush_shape` (+ `_pd` / `_pdpt` in VsFrameMapLRel); `frame_map_rel`, `frame_map_large_rel`,
+    `frame_map_huge_rel` posts end in `MapLeafF (L.mem s) (L.mem res.2.1) x (frameCapOf f) σ σ'` (the `map_tail*`
+    macros take the walk by `WP.spec_and`).
+  - VsFrameUnmapRel: `unmap_page_rel`'s `∃ σ'` gains `ArchShr σ σ'`; `frame_unmap_rel`'s post ends in
+    `UnmapLeafF`. Consumers (VsFootW, VsFin) unchanged (trailing `-` patterns).
+  - VsNamedPost: `frameC_vkey`, `VWalk*.path` (walk words from a level-4 walk node are `VsPath`s),
+    `wstep2_noStep` / `wstep3_noStep`, `keep_of_frame`, **`VsNamed.ofMapLeafF`** (`leafS` with `X = (· = q)`),
+    `ent_shr`, **`VsNamed.ofUnmapLeafF`** (`shrink`); `ofOpF` dispatches them (no `hx` needed for these two).
+
+### (5) What remains after f4b (in order; sizes)
+1. **Item 1, table unmaps** (PT / PD / PDPT, in-set `pt/pd/pdpt_unmap_rel` + off-set `*_unmap_rel_off`, VsOffDec):
+   then delete `VsOpTodo`. Design (not written):
+   - Rel side: extend `unmap_page_table_rel` (and the PD / PDPT inner unmaps) with `ArchShr σ σ'` exactly as
+     `unmap_page_rel` (skip branches `ArchShr.refl`; the clearing branch `ArchShr.ms (ArchShr.upd_pd hk _) _`);
+     the zeroing `updK σu ptr (pageTable fun _ => invalidPTE)` is again `EntShr` (all entries invalid); the
+     sts / setCap ends via `sts_keep` / `cnode_keep`. So the whole step is `ArchShr σ σ'`.
+   - Fact `UnmapTabF m m' x c σ σ'`: `VKey c = some (k0, q0)` (k0 = 1/2/3), `finF m x = true` (the decode's final
+     check, `hfin`), `TabUn (capV m' x)` with the same key, `ArchShr σ σ'`, the table's spec object after all
+     invalid (`hE` for `x`), and for a mapped `c` at `(asid0, va0)`: "∀ pm, `findVspaceForAsid asid0` at σ = ok pm →
+     ∀ p, (FL4 walk words from pm along va0's indices `vIdx va0 39 / 30 / 21` to the parent p) →
+     `wstep (k0+1) (m' (peA p (vIdx va0 (12 + 9·k0)))) ≠ some q0`". In the rel this comes from: lookup Ok →
+     entry cleared (spec invalid after → `wstep_none`) or not naming q0 (FL4's `eA ≠ paddr q0` check, the word
+     unchanged up to the spec entry: `e2_same` at σ / σ'); lookup Err → the walk words at those indices do not
+     exist (needs a *negative* walk lemma: `lookup_pd_slot` returning `Err` ⇒ ¬ walk words; mirror of
+     `lookup_pd_slot_walk`).
+   - J side `VsNamed.ofUnmapTabF`: VsNamedOps' `unmapTab` with `huq` from `huq_of_finF` (needs MdbLinks / MdbInv
+     / FinInv / NeedsFin at the J state — take `huq` as a hypothesis of `ofOpF` and derive it in item 4 from
+     `J.xtop.rel`), `hW` / `hE` from `ent_shr`, `hT` from `ArchShr.1`, `hgone` from `VsNamed.gone` +
+     `own_ref` + an inversion `VsPath m 1 q0 (asid0, va0)` ⇒ parent chain with indices `vIdx va0 k`
+     (`VsPath.inv`, `idx21` / `idx30` / `masked_idx`) and `VsPath.det` with `VsPath.of_find`; an unmapped `c`:
+     no walk before (`uun` + `named`), walks after ⊆ before (`VsPath.sub_down`, steps only removed). L.
+2. **Item 3** (VsKeep in the CSpace posts) and **item 4** (`JCarry.vsNamed`) unchanged from (2) above.

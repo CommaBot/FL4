@@ -22,6 +22,7 @@ module proves the placement, cover and CSpace fields there:
 import Fl4Proofs.P3.UtDropJ
 import Fl4Proofs.P3.UtEpSets
 import Fl4Proofs.P3.BufCov
+import Fl4Proofs.P3.VsNamed
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -52,17 +53,6 @@ end Heap
 
 namespace Vs
 
-/-- **The tables a cap's `VCapW` asks in the sets**: level `k` (VsDrop's
-`lvlSet`: 1 PT, 2 PD, 3 PDPT, 4 PML4, 5 pool) and address `q`; mapped
-PT/PD/PDPT caps and (F1) mapped PML4 caps ask nothing (their table may be
-pruned, or orphaned: KENTRY-PLAN jc4). -/
-inductive VNeed : capability.Cap → Nat → U64 → Prop
-  | pt {p a v : U64} : VNeed (.PageTable p false a v) 1 p
-  | pd {p a v : U64} : VNeed (.PageDirectory p false a v) 2 p
-  | pdpt {p a v : U64} : VNeed (.Pdpt p false a v) 3 p
-  | pml4 {p a : U64} : VNeed (.Pml4 p false a) 4 p
-  | pool {p b : U64} : VNeed (.AsidPool p b) 5 p
-
 /-- `VCapW` at new sets holding what the cap asks. -/
 theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capability.Cap}
     (h : VCapW P L4 L3 L2 L1 c) (hn : ∀ k q, VNeed c k q → q ∈ lvlSet P' L4' L3' L2' L1' k) :
@@ -76,15 +66,6 @@ theorem VCapW.relevel {P L4 L3 L2 L1 P' L4' L3' L2' L1' : Set U64} {c : capabili
     | exact ⟨⟨hn 5 _ .pool, h.1.2⟩, h.2⟩
     | exact h
     | trivial
-
-/-- What a slot's cap asks is in the sets (`VsSlotsW`). -/
-theorem VsSlotsW.need {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
-    (h : VsSlotsW th P L4 L3 L2 L1 m) {y : U64} (hy : IsSlot th y) {k : Nat} {q : U64}
-    (hn : VNeed (capV m y) k q) : q ∈ lvlSet P L4 L3 L2 L1 k := by
-  have hc := h y hy
-  generalize capV m y = c at hc hn
-  cases hn <;> simp only [VCapW, VCapOK] at hc
-  all_goals first | exact hc.1 trivial | exact hc.1 rfl | exact hc.1 | exact hc.1.1
 
 /-- **`VsSlotsW` across the drop**: at the restricted typed heap and the
 pruned sets, given that the roots `XP … X1` of `VsReachMiss` hold every
@@ -109,27 +90,6 @@ theorem VsSlotsW.drop {th : TypedHeap} {P L4 L3 L2 L1 XP X4 X3 X2 X1 : Set U64} 
   · exact h3 _ (.x3 hr)
   · exact h4 _ (.x4 hr)
   · exact h5 _ (.xp hr)
-
-/-- **The tables the slots' caps ask** at level `k` (`VNeed`): the roots
-`JAtZ.drop`'s `VsReachMiss` is asked at. -/
-def NeedR (th : TypedHeap) (m : U64 → U64) (k : Nat) : Set U64 :=
-  {q | ∃ y, IsSlot th y ∧ VNeed (capV m y) k q}
-
-/-- The asked tables are roots (`JAtZ.drop`'s `hXc` at `NeedR`). -/
-theorem needR_roots {th : TypedHeap} {m : U64 → U64} :
-    ∀ y, IsSlot th y → ∀ k q, VNeed (capV m y) k q →
-      q ∈ lvlSet (NeedR th m 5) (NeedR th m 4) (NeedR th m 3) (NeedR th m 2) (NeedR th m 1) k := by
-  intro y hy k q hn
-  have hm : q ∈ NeedR th m k := ⟨y, hy, hn⟩
-  generalize capV m y = c at hn
-  cases hn <;> exact hm
-
-/-- The asked tables are in the sets (`VsSlotsW.need`). -/
-theorem VsSlotsW.needR {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {m : U64 → U64}
-    (h : VsSlotsW th P L4 L3 L2 L1 m) :
-    NeedR th m 5 ⊆ P ∧ NeedR th m 4 ⊆ L4 ∧ NeedR th m 3 ⊆ L3 ∧ NeedR th m 2 ⊆ L2 ∧ NeedR th m 1 ⊆ L1 :=
-  ⟨fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn,
-    fun _ ⟨_, hy, hn⟩ => h.need hy hn, fun _ ⟨_, hy, hn⟩ => h.need hy hn⟩
 
 end Vs
 
@@ -253,17 +213,6 @@ theorem frame_top_of_reg {q r a va : U64} {sz : capability.FrameSize} {d m ep : 
   exact nowrap64 hq hpos (Nat.pow_le_pow_right (by decide) (by omega)) hreg
 
 /-! ### jc3: the table caps' ranges and the sets' table frames -/
-
-theorem physF_pt (q : U64) (mp : Bool) (a v : U64) : physF (.PageTable q mp a v) = true := ok_inj (phys_eq _).symm
-theorem ptrF_pt (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageTable q mp a v) = q := ok_inj (ptr_eq _).symm
-theorem sizeF_pt (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageTable q mp a v) = 12#u64 := ok_inj (size_eq _).symm
-theorem physF_pd (q : U64) (mp : Bool) (a v : U64) : physF (.PageDirectory q mp a v) = true := ok_inj (phys_eq _).symm
-theorem ptrF_pd (q : U64) (mp : Bool) (a v : U64) : ptrF (.PageDirectory q mp a v) = q := ok_inj (ptr_eq _).symm
-theorem sizeF_pd (q : U64) (mp : Bool) (a v : U64) : sizeF (.PageDirectory q mp a v) = 12#u64 :=
-  ok_inj (size_eq _).symm
-theorem physF_pdpt (q : U64) (mp : Bool) (a v : U64) : physF (.Pdpt q mp a v) = true := ok_inj (phys_eq _).symm
-theorem ptrF_pdpt (q : U64) (mp : Bool) (a v : U64) : ptrF (.Pdpt q mp a v) = q := ok_inj (ptr_eq _).symm
-theorem sizeF_pdpt (q : U64) (mp : Bool) (a v : U64) : sizeF (.Pdpt q mp a v) = 12#u64 := ok_inj (size_eq _).symm
 
 /-- **A page-sized cap's range when it does not wrap** (`UtInv.reg`). -/
 theorem tab_top {c : capability.Cap} {q : U64} (hp : ptrF c = q) (hs : sizeF c = 12#u64)

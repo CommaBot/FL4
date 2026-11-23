@@ -242,7 +242,7 @@ theorem decode_invocation_page_tableXO (th : TypedHeap) (hP : Placed th) (s : S)
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 (Or.inl hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inl hms)⟩, VsOpF.todo⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -445,7 +445,7 @@ theorem decode_invocation_page_directoryXO (th : TypedHeap) (hP : Placed th) (s 
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inl) hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inl hms))⟩, VsOpF.todo⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table
@@ -648,7 +648,7 @@ theorem decode_invocation_pdptXO (th : TypedHeap) (hP : Placed th) (s : S) (ar :
     · obtain ⟨hz1, hz2⟩ := hz hmp
       exact ⟨topMX_of_lift2 ⟨iv, hdec, _, hst1, _, perf_tbl_mem blk call don hst1 ((Or.inr ∘ Or.inr) hms),
         (fun h3 => ⟨⟨th, G, Or.inl ⟨h1, [], rfl⟩, hP, h3⟩, hXs _ _ _ hSRq hR' hPt' h3.1 h3.2.1 h3.2.2 hK
-          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩⟩ hz1 hz2⟩)
+          ⟨hF, hL, Or.inl ⟨iv, Or.inr (Or.inr (Or.inr hms))⟩, VsOpF.todo⟩ hz1 hz2⟩)
         (crelM_after hCR hFI hMO hcap hSt' hSV' hF hL hK rfl)⟩, Or.inr (hQ _ _ _ hSRq)⟩
   obtain ⟨o1, o2⟩ := hlO hm hu
   unfold vspace.decode_table

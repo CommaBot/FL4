@@ -92,7 +92,7 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPostO (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G pc r idx c q s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
-  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp⟩, hCR', hFI', hMO', hz, hTE⟩
+  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp, -⟩, hCR', hFI', hMO', hz, hTE⟩
   · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, hσ1, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
