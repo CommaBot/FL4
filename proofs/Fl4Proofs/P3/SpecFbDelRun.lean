@@ -89,11 +89,15 @@ theorem fbEntry_del_frame (hop : b.op = .delete) {sl : CslotPtr} {dev : Bool} {p
     (.ok false, τ1) ∈ ((fbEntry (Z := Unit) b w).run τ).1 := by
   unfold fbEntry; rw [hop]
   refine fbr_bind_ok (fbr_code_ok h) (fbr_bind_ok (fbr_liftE hg) ?_)
-  refine fbr_bind_ok (a := false) (t := τ) ?_ (fbr_bind_ok (fbr_delete_ok hd) (fbr_ret _))
-  rcases m with _ | ⟨a', v⟩
-  · exact fbr_ret _
-  · dsimp only
-    rw [if_neg (hnd a' v rfl)]; exact fbr_ret _
+  dsimp only
+  rcases m with _ | ⟨a', v⟩ <;> dsimp only
+  · first
+      | exact fbr_bind_ok (fbr_delete_ok hd) (fbr_ret false)
+      | exact fbr_bind_ok (fbr_ret false) (fbr_bind_ok (fbr_delete_ok hd) (fbr_ret false))
+  · rw [if_neg (hnd a' v rfl)]
+    first
+      | exact fbr_bind_ok (fbr_delete_ok hd) (fbr_ret false)
+      | exact fbr_bind_ok (fbr_ret false) (fbr_bind_ok (fbr_delete_ok hd) (fbr_ret false))
 
 /-- A frame deleted after the deferred unmap. -/
 theorem fbEntry_del_frameD (hop : b.op = .delete) {sl : CslotPtr} {dev : Bool} {p : ObjRef} {R : CapRights}
@@ -109,7 +113,7 @@ theorem fbEntry_del_frameD (hop : b.op = .delete) {sl : CslotPtr} {dev : Bool} {
   refine fbr_bind_ok (fbr_code_ok h) (fbr_bind_ok (fbr_liftE hg) ?_)
   dsimp only
   rw [if_pos hdf]
-  refine fbr_bind_ok (fbr_liftE ⟨_, hu, _, hs, Set.mem_singleton _⟩) (fbr_bind_ok (fbr_delete_ok hd) (fbr_ret _))
+  exact fbr_bind_ok (fbr_liftE ⟨_, hu, _, hs, Set.mem_singleton _⟩) (fbr_bind_ok (fbr_delete_ok hd) (fbr_ret r))
 
 end
 

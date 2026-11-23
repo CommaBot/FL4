@@ -49,7 +49,7 @@ theorem fbu_setObject (p : ObjRef) (a : ArchKernelObj) (hn : aaType a ≠ .aASID
       unfold poolV
       by_cases eq : q = p
       · subst eq
-        rw [Function.update_self, hk]
+        simp only [Function.update_self, hk]
         cases a <;> cases a0 <;> simp_all [aaType]
       · simp only [Function.update_of_ne eq]
     rw [hp]
@@ -58,11 +58,11 @@ theorem fbu_setObject (p : ObjRef) (a : ArchKernelObj) (hn : aaType a ≠ .aASID
   | _ => simp [aType] at hty
 
 theorem fbu_setObject_pt (p : ObjRef) (pt : BitVec 9 → PTE) :
-    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pageTable pt))) := fbu_setObject p _ (by decide)
+    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pageTable pt))) := fbu_setObject p _ (by simp [aaType])
 theorem fbu_setObject_pd (p : ObjRef) (pd : BitVec 9 → PDE) :
-    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pageDirectory pd))) := fbu_setObject p _ (by decide)
+    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pageDirectory pd))) := fbu_setObject p _ (by simp [aaType])
 theorem fbu_setObject_pdpt (p : ObjRef) (pd : BitVec 9 → PDPTE) :
-    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pdPointerTable pd))) := fbu_setObject p _ (by decide)
+    Vs.FK fbUF (setObject (Z := Unit) p (.archObj (.pdPointerTable pd))) := fbu_setObject p _ (by simp [aaType])
 
 /-- A machine operation keeping the underlying memory. -/
 def UKM {α : Type} (m : NonDet MachineState α) : Prop :=
@@ -89,10 +89,12 @@ theorem fbu_doMachineOp {α : Type} {mop : NonDet MachineState α} (hm : UKM mop
   simp only [Prod.mk.injEq] at e2 h3
   obtain ⟨-, rfl⟩ := e2
   rw [Set.mem_singleton_iff.1 h3] at hx
-  rw [Set.mem_singleton_iff.1 hx]
+  simp only at hx
+  obtain rfl := Set.mem_singleton_iff.1 hx
   have e := hm _ _ hm2
   simp only at e
-  simp only [fbUF, archF, poolV, e]
+  exact Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext rfl
+    (Prod.ext rfl (Prod.ext rfl e)))))))
 
 theorem fbu_invTSA (v a : Word) :
     Vs.FK fbUF (doMachineOp (Z := Unit) (invalidateTranslationSingleASID v a)) :=
@@ -116,6 +118,12 @@ theorem eraseA_some {o : Option KernelObject} {k : KernelObject} (h : eraseA o =
   · simp [eraseA] at h
   · cases o <;> simp_all [eraseA]
 
+theorem aaType_pool {a : ArchKernelObj} (h : aaType a = .aASIDPool) : ∃ f, a = .asidPool f := by
+  cases a with
+  | asidPool f => exact ⟨f, rfl⟩
+  | dataPage d sz => cases d <;> simp [aaType] at h
+  | _ => simp [aaType] at h
+
 /-- **`FbKeep` from `fbUF`.** -/
 theorem FbKeep.of_fbUF {σ σ' : State Unit} (h : fbUF σ' = fbUF σ) : FbKeep σ σ' := by
   simp only [fbUF, archF, Prod.mk.injEq] at h
@@ -126,7 +134,7 @@ theorem FbKeep.of_fbUF {σ σ' : State Unit} (h : fbUF σ' = fbUF σ) : FbKeep �
   have e1 := congrFun he p
   have e2 := congrFun ht p
   have e3 := congrFun hpool p
-  simp only at e1 e2
+  try simp only at e1 e2
   cases hk : σ.kheap p with
   | none =>
     rw [hk] at e1 e2
@@ -135,7 +143,7 @@ theorem FbKeep.of_fbUF {σ σ' : State Unit} (h : fbUF σ' = fbUF σ) : FbKeep �
     · exact h0
     · rw [ha] at e2; cases e2
   | some o =>
-    rw [hk] at e1 e2 e3
+    rw [hk] at e1 e2
     cases o with
     | archObj a =>
       rcases eraseA_eq_none e1 with h0 | ⟨a', ha'⟩
@@ -143,11 +151,9 @@ theorem FbKeep.of_fbUF {σ σ' : State Unit} (h : fbUF σ' = fbUF σ) : FbKeep �
       · rw [ha'] at e2
         have e2' : aaType a' = aaType a := by simpa [aType] using e2
         by_cases hpa : aaType a = .aASIDPool
-        · cases a <;> simp [aaType] at hpa
-          cases a' <;> simp [aaType] at e2'
-          unfold poolV at e3
-          rw [hk, ha'] at e3
-          simp only [Option.some.injEq] at e3
+        · obtain ⟨f, rfl⟩ := aaType_pool hpa
+          obtain ⟨f', rfl⟩ := aaType_pool (e2'.trans hpa)
+          simp only [poolV, hk, ha', Option.some.injEq] at e3
           subst e3
           left; exact ha'
         · right; left
@@ -195,12 +201,23 @@ theorem fbKeep_capDelete_frame {sl : CslotPtr} {σ τ : State Unit} {dev : Bool}
       subst e2
       obtain ⟨⟨cc, σ3⟩, h5, h6⟩ := h4
       have hU : fbUF σ3 = fbUF σ2 := by
-        rcases m' with _ | ⟨a, v⟩ <;> cases fin <;> simp only [archFinaliseCap] at h5
-        all_goals first
-          | (rw [(congrArg Prod.snd (Set.mem_singleton_iff.1 h5))])
-          | (obtain ⟨y, hy, h5⟩ := h5
-             rw [(congrArg Prod.snd (Set.mem_singleton_iff.1 h5))]
-             exact fbu_unmapPage _ _ _ _ σ2 y hy)
+        rcases m' with _ | ⟨a, v⟩
+        · have h5' : (cc, σ3) ∈ (archFinaliseCap (Z := Unit) (.pageCap dev' p' R' mt' sz' none) fin σ2).1 := h5
+          have hA : archFinaliseCap (Z := Unit) (.pageCap dev' p' R' mt' sz' none) fin =
+              (pure (.nullCap, .nullCap) : NonDet (State Unit) (Cap × Cap)) := by cases fin <;> rfl
+          rw [hA] at h5'
+          have e5 := Set.mem_singleton_iff.1 h5'
+          simp only [Prod.mk.injEq] at e5
+          rw [e5.2]
+        · have h5' : (cc, σ3) ∈ (archFinaliseCap (Z := Unit) (.pageCap dev' p' R' mt' sz' (some (a, v))) fin σ2).1 := h5
+          have hA : archFinaliseCap (Z := Unit) (.pageCap dev' p' R' mt' sz' (some (a, v))) fin =
+              (unmapPage (Z := Unit) sz' a v p' >>= fun _ => pure (.nullCap, .nullCap)) := by cases fin <;> rfl
+          rw [hA] at h5'
+          obtain ⟨y, hy, h7⟩ := h5'
+          have e5 := Set.mem_singleton_iff.1 h7
+          simp only [Prod.mk.injEq] at e5
+          rw [e5.2]
+          exact fbu_unmapPage _ _ _ _ σ2 y hy
       have hC := emptySlot_null_nkn sl σ3 _ h6
       refine ⟨(FbKeep.of_fbUF hU).trans (FbKeep.of_cnK hC), ?_⟩
       have u1 : σ3.machineState.underlyingMemory = σ2.machineState.underlyingMemory :=
