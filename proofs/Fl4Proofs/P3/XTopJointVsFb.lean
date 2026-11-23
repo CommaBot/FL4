@@ -24,6 +24,7 @@ import Fl4Proofs.P3.JEntryIrq
 import Fl4Proofs.P3.VsFbDec
 import Fl4Proofs.P3.VsFbReply
 import Fl4Proofs.P3.XTopJointVsReply
+import Fl4Proofs.P3.SpecFbRestart
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -104,7 +105,7 @@ theorem XTopAt.msAR' {s : S} {a : A} {σ : Fl4Spec.State Unit} (hX : XTopAt (L :
 theorem JAtZ.fbFlushJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (vs : Fl4Spec.ObjRef) (asid : U64) :
     arI.invalidate_asid a asid ⦃ a' => ∃ σ', ((), σ') ∈ (Fl4Spec.flushAll (Z := Unit) vs asid.bv σ).1 ∧
-      JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' ⦄ := by
+      σ'.kheap = σ.kheap ∧ σ'.curThread = σ.curThread ∧ JAtZ (L := L) arI AR Z H Cs Ac Lst D s a' σ' ⦄ := by
   refine WP.spec_mono (hA.invAsid a _ asid J.xtop.fin.1.1.2.2.2.2.2.2) ?_
   intro a' hAR
   obtain ⟨-, ⟨y, hy⟩, h3⟩ := flushAll_ok vs asid.bv σ
@@ -113,7 +114,7 @@ theorem JAtZ.fbFlushJ (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.St
   cases u
   simp only at e
   subst e
-  exact ⟨_, hy, J.arFrS ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+  exact ⟨_, hy, rfl, rfl, J.arFrS ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
     rfl⟩ (J.xtop.msAR' ms a' hum hAR)⟩
 
 set_option maxHeartbeats 8000000 in
@@ -177,10 +178,52 @@ theorem JAtZ.fbTailJ {s : S} {a : A} {σ : Fl4Spec.State Unit}
     exact ⟨_, _, _, _, _, _, J6⟩
 
 set_option maxHeartbeats 8000000 in
+/-- **The batch's loop at `J`** (the decode's checks passed): FL4's loop has an outcome of the spec's
+`fbRun` over the batch's entries from `σ` (entries done, the failing entry's code, whether a deferred
+delete cleared an entry), with `JAtZ` after, the current thread and its thread state kept. OPEN (the
+one FrameBatch stub left; KENTRY-PLAN fb3k). -/
+theorem fb_loopI (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+    (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
+    (hT : P0.ArchTotal arI)
+    (ct : U64) (hct : sched.cur_thread st s = ok ct)
+    (p asid : U64) (h0 : asid ≠ 0#u64) (length buf : U64)
+    (args : List U64) (hlen : length.val = args.length)
+    (hargs : ∀ (i : U64) x, args[i.val]? = some x → msg.syscall_arg st s ct buf i = ok x)
+    (extra : Aeneas.Std.Array obj.Slot 3#usize) (excaps : List (Fl4Spec.Cap × Fl4Spec.CslotPtr))
+    (hXO : ExtraOK Z.th (L.mem s) extra excaps) (hXN : ExtraNamed Z.th (L.mem s) extra)
+    (hf : ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) asid.bv) σ = ({(.ok p.bv, σ)}, False))
+    (b : Fl4Spec.Fl4FrameBatchInvocation)
+    (hb : fbDecP p.bv asid.bv (args.map UScalar.bv) excaps = .ok b)
+    (a0 : U64) (ha0 : args[0]? = some a0)
+    (n words op depth mr cr attr : U64) (dd : Bool) (cnode dcnode : capability.Cap)
+    (hop : op = a0 &&& vspace.frame_batch.OP) (hw : words.val = b.op.words)
+    (hn : n = (⟨a0.bv >>> 8⟩ : U64) &&& 255#u64) (hdp : depth = (⟨a0.bv >>> 16⟩ : U64) &&& 127#u64)
+    (hmr : mr = (⟨a0.bv >>> 24⟩ : U64) &&& 15#u64) (hcr : cr = (⟨a0.bv >>> 28⟩ : U64) &&& 15#u64)
+    (hat : attr = (⟨a0.bv >>> 32⟩ : U64) &&& 31#u64)
+    (hdd : ∃ d : U64, d = 1099511627776#u64 ∧ dd = (a0 &&& d != 0#u64))
+    (hcn : ∃ x, vspace.extra extra 0#usize = ok (some x) ∧ capAt (L.mem s) x = ok cnode)
+    (hdcn : dcnode = cnode ∨ ∃ x, vspace.extra extra 1#usize = ok (some x) ∧ capAt (L.mem s) x = ok dcnode)
+    (hbc : b.cnode = absCap cnode) (hbd : b.destCnode = absCap dcnode)
+    (hcnC : ∃ a b d e, cnode = .CNode a b d e) (hdc6 : Fl4Spec.isCnodeCap (absCap dcnode) = true) :
+    vspace.decode_frame_batch_loop st arI s ar buf ct n words p asid op depth mr cr attr dd cnode dcnode
+        0#u64 false ⦃ r => ∃ (τ : Fl4Spec.State Unit) (Z1 : XSets) (H1 : P1.Heap) (Cs1 Ac1 : Set U64)
+        (Lst1 : U64 → List U64) (D1 : Set U64),
+      ((r.2.2.1.val, r.2.2.2.1.bv, r.2.2.2.2), τ) ∈ (Fl4Spec.fbRun (Z := Unit) b b.entries 0 false σ).1 ∧
+      JAtZ (L := L) arI AR Z1 H1 Cs1 Ac1 Lst1 D1 r.1 r.2.1 τ ∧ τ.curThread = σ.curThread ∧
+      ∀ x : Fl4Spec.Tcb, σ.kheap ct.bv = some (.tcb x) →
+        ∃ y : Fl4Spec.Tcb, τ.kheap ct.bv = some (.tcb y) ∧ y.tcbState = x.tcbState ⦄ := by
+  fail "FB3 OPEN: the FrameBatch refinement (KENTRY-PLAN fb3j)"
+
+/-- Reassociating a bind under a spec. -/
+theorem fb_assoc_spec {α β γ : Type} {m : Result α} {g : α → Result β} {k : β → Result γ} {P : γ → Prop}
+    (h : ((m >>= g) >>= k) ⦃ x => P x ⦄) : (m >>= fun x => g x >>= k) ⦃ x => P x ⦄ := by
+  rw [bind_assoc_eq] at h; exact h
+
+set_option maxHeartbeats 8000000 in
 /-- **The batch's loop and tail at `JAt`** (the decode's checks passed; module docstring): the
 loop against `fbRun` from `σ`, moved to the spec's `Restart` by SpecFbRestart, the deferred
 `invalidate_asid` against `flushAll`, the reply and `TS_RUNNING` by VsFbReply's `fbTail_inv`, `JAt`
-after. OPEN. -/
+after. -/
 theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
@@ -204,6 +247,7 @@ theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (hdcn : dcnode = cnode ∨ ∃ x, vspace.extra extra 1#usize = ok (some x) ∧ capAt (L.mem s) x = ok dcnode)
     (hbc : b.cnode = absCap cnode) (hbd : b.destCnode = absCap dcnode)
     (hcnC : ∃ a b d e, cnode = .CNode a b d e) (hdc6 : Fl4Spec.isCnodeCap (absCap dcnode) = true)
+    (hbv : b.vspace = p.bv) (hba : b.asid = asid.bv)
     (K : S × A × U64 × U64 × Bool → Result (core.result.Result Unit error.Exc × S × A))
     (hK : ∀ s1 a1 done1 err deferred, K (s1, a1, done1, err, deferred) = (do
     let a2 ← if deferred then arI.invalidate_asid a1 asid else ok a1
@@ -227,7 +271,57 @@ theorem fb_loopJ (s : S) (ar : A) (σ : Fl4Spec.State Unit)
           (Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.frameBatch
             (Fl4Spec.decodeFrameBatch (Z := Unit) (args.map UScalar.bv) (.pml4Cap p.bv (some asid.bv)) excaps)))
         ct s res ⦄ := by
-  fail "FB3 OPEN: the FrameBatch refinement (KENTRY-PLAN fb3j)"
+  obtain ⟨hcur, x, hk, hrun⟩ := J.curRunnable hni hct
+  have hfd := decodeFrameBatch_run (args := args.map UScalar.bv) (ex := excaps) hf
+  have hDs : ExceptT.run (Fl4Spec.decodeFrameBatch (Z := Unit) (args.map UScalar.bv)
+      (.pml4Cap p.bv (some asid.bv)) excaps) σ = ({(.ok b, σ)}, False) := by rw [hfd, hb]
+  refine WP.spec_bind (fb_loopI arI s ar σ J hni hA hT ct hct p asid h0 length buf args hlen hargs extra excaps
+    hXO hXN hf b hb a0 ha0 n words op depth mr cr attr dd cnode dcnode hop hw hn hdp hmr hcr hat hdd hcn hdcn
+    hbc hbd hcnC hdc6) ?_
+  rintro ⟨s1, a1, d1, e1, df⟩ ⟨τ, Z1, H1, Cs1, Ac1, Lst1, D1, hrun1, J1, hcurτ, hy⟩
+  obtain ⟨y, hky, hys⟩ := hy x hk
+  rw [hK]
+  -- the deferred invalidation
+  have hflush : (if df then arI.invalidate_asid a1 asid else ok a1) ⦃ a2 => ∃ τ',
+      ((), τ') ∈ (Fl4Spec.NonDet.when (df = true) (Fl4Spec.flushAll (Z := Unit) b.vspace b.asid) τ).1 ∧
+      τ'.kheap = τ.kheap ∧ τ'.curThread = τ.curThread ∧ JAtZ (L := L) arI AR Z1 H1 Cs1 Ac1 Lst1 D1 s1 a2 τ' ⦄ := by
+    cases df
+    · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
+      refine ⟨τ, ?_, rfl, rfl, J1⟩
+      unfold Fl4Spec.NonDet.when; rw [if_neg (by decide)]; rfl
+    · simp only [↓reduceIte]
+      refine WP.spec_mono (J1.fbFlushJ arI hA b.vspace asid) ?_
+      rintro a2 ⟨τ', hτ', hkh, hct', J2⟩
+      refine ⟨τ', ?_, hkh, hct', J2⟩
+      unfold Fl4Spec.NonDet.when; rw [if_pos trivial, hba]; exact hτ'
+  refine WP.spec_bind hflush ?_
+  rintro a2 ⟨τ', hτ', hkh, hct', J2⟩
+  -- the spec's batch, then moved after its `Restart`
+  have hd : BitVec.ofNat 64 d1.val = d1.bv := by
+    apply BitVec.eq_of_toNat_eq; rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by scalar_tac)
+  have hperf : ([d1.bv, e1.bv], τ') ∈ (Fl4Spec.performFrameBatch (Z := Unit) b σ).1 := by
+    rw [← hd]
+    unfold Fl4Spec.performFrameBatch
+    exact ⟨_, hrun1, _, hτ', rfl⟩
+  obtain ⟨y', hky', -, hperf1⟩ := SInv.performFrameBatch_restart b hk hperf
+  have hky2 : τ'.kheap ct.bv = some (.tcb y) := by rw [hkh]; exact hky
+  rw [hky2] at hky'
+  simp only [Option.some.injEq, Fl4Spec.KernelObject.tcb.injEq] at hky'
+  subst hky'
+  have hrx : Fl4Spec.runnable y.tcbState = true := by rw [hys]; exact hrun
+  have hcur' : τ'.curThread = ct.bv := hct'.trans (hcurτ.trans hcur)
+  have htcb1 : Z1.th ct = some .tcb := (J2.xtop.curTcb hcur').1
+  have hcT1 : ct ∈ Z1.T := J2.thT ct htcb1
+  have hI2 : Vs.RInv (L := L) Z1.th Z1.P Z1.L4 Z1.L3 Z1.L2 Z1.L1 Z1.N Z1.T Z1.C Z1.E Z1.R Z1.B Z1.c AR Z1.G s1 a2 τ' :=
+    ⟨J2.xtop.rel.2.1, J2.xtop.rel.2.2.1, J2.xtop.rel.2.2.2.2.1, J2.xtop.rel.2.2.2.1, J2.xtop.fin⟩
+  -- the reply and `Running`
+  refine fb_assoc_spec (WP.spec_bind (WP.spec_and (Vs.fbTail_inv s1 a2 τ' hI2 ct htcb1 hcur'.symm hky2 hrx
+    J2.kern.act call d1 e1) (J2.fbTailJ arI hcT1 hky2 (runnable3 hrx) call d1 e1)) ?_)
+  rintro s3 ⟨⟨hne, -, -⟩, Z3, H3, Cs3, Ac3, Lst3, D3, J3⟩
+  refine (WP.spec_ok _).2 ?_
+  exact Or.inr ⟨rfl, hne, _, DecOut.of_eq (run_liftME_ok (run_liftME_ok hDs)), _,
+    by rw [hcur]; exact Notif.setThreadState_eq .restart hk, _, _, mem_liftE (ε := Unit) (x := (_, _)) hperf1,
+    _, Vs.specTail_fb τ' ct hky2 call d1 e1, J3.xtop.relTop, ⟨_, _, _, _, _, _, J3⟩⟩
 
 
 set_option maxHeartbeats 8000000 in
@@ -470,7 +564,7 @@ theorem decode_invocation_pml4_fbJV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     try simp only [bind_ok, lift]
     exact fb_loopJ arI s ar σ J hni hA hT ct hct p asid h0' length buf blk call don args hlen hargs extra excaps
       ⟨hXl, hXs, hXz⟩ hXN hf _ hb a0 ha0 _ words _ _ _ _ _ _ _ _ rfl hwv rfl rfl rfl rfl rfl
-      ⟨i13, hi13, rfl⟩ hcn hdcn hthe0 hdeq ⟨_, _, _, _, rfl⟩ h6 _ (fun _ _ _ _ _ => rfl)
+      ⟨i13, hi13, rfl⟩ hcn hdcn hthe0 hdeq ⟨_, _, _, _, rfl⟩ h6 rfl rfl _ (fun _ _ _ _ _ => rfl)
   all_goals
     simp only [Bool.false_eq_true, ↓reduceIte, error.invalid_cap, bind_ok, WP.spec_ok]
     have h5 : ¬ Fl4Spec.isCnodeCap (Fl4Spec.the excaps[0]?).1 = true := by
