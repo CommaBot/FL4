@@ -17160,3 +17160,47 @@ global ref).
 - Builds: fb3j-m1..m11 (afkprover, SEED=B SCR=1). No `kernel_entry_reach*` statement changed; intermediate statements
   changed: `decode_invocation_pml4_capX` / `domFrame_pml4` / `_thX` (+`hfb`), `decode_invocation_pml4JV` (moved,
   + `hlfb`, message, slot, extra caps), XTopJointVsMap `decode_invocation_pml4JVn` (renamed, + `hfb`).
+### fb3m (branch par/fb3m in FL4-fb3m, on aa3059d7; parallel to par/fb3) — MachKeepG4d batch arm: everything but the mid-batch slot facts PROVED; `MKD.vspace_decode` still stubbed; FINDING: the stub cannot be closed from MKD's context (or from `decOK_JMM`'s initial-state facts) alone
+- **New in MachKeepG4d (before `MKD.vspace_decode_page_map`), all built (fb3m-m6), no premise on any existing lemma:**
+  * helpers outside the section: `MKD.spec_exists`, `MKD.ok_inj`, `MKD.walk_fuel_pos`, `MKD.fbB` (the loop's batch
+    record), tactic `fb_red` (reduces the `uncurry` of a tuple-`let` continuation: `dsimp only` does not).
+  * `MKD.objects_finalise_cap_frame` (finalise of a `Frame` = `(Null, Null)`, `AR` kept);
+    `MKD.cdt_finalise_frame` (slot holding a frame: one round, `done` with cleanup `Null`, no preemption point);
+    **`MKD.cdt_delete_frame`** (`obj.Slot.cap st slot s = ok c`, `as_frame c = some f` ⇒ `cdt.delete … true` keeps `AR`
+    **and returns `Ok ()`** — also the fact fb3's semantics note asks of P3: a batch delete of a frame never fails).
+  * `MKD.vspace_batch_map` (`AR`), `MKD.vspace_batch_map_err` (`AR` ∧ every `Err` returns the input state).
+  * **`FbDelOK st s b w0 w1`** (structure, [gap]): `del` — after the deferred unmap, writing the cleared frame
+    (`Frame ptr size rights dev false false 0 0` of the read frame) to the DELETE target and reading it back gives it;
+    `cpy` — COPY_MAP's `insert_with_cap` of the derived cap (read source frame, `mask_cap_rights`, `derive_cap`) leaves it
+    in the destination. Both are stated on the code's own lookups at `s`.
+  * `MKD.derive_frame` (derived copy of a frame is a frame); **`MKD.vspace_frame_batch_entry`** (`FbDelOK` ⇒ entry keeps
+    `AR`; all three ops); **`MKD.vspace_decode_frame_batch_loop`** (P0's `words ≤ 3`, `n ≤ 255`; a state invariant `P`
+    with `P s`, `P s' → FbDelOK s' (fbB …) w0 w1`, and `P` kept by every entry ⇒ the loop keeps `AR`).
+- **Why `MKD.vspace_decode`'s batch arm is still open (FINDING, no FL4 bug):** FL4 only ever deletes a frame cap in the
+  batch (DELETE: the cap was read as a frame, or written back as one; COPY_MAP rollback: the inserted derived frame,
+  `batch_map`'s `Err` leaves the insert's state), so the semantics are fine. But `FbDelOK` at entry k needs, at the k-th
+  mid-batch state: (del) the DELETE target slot (from `lookup_target_slot` through CNode caps read *at that state*)
+  aligned — store laws only speak of aligned words (`LawfulStore.mem_wr`), slot alignment comes from `Placed` /
+  `IsSlot` of the CNodes reached; (cpy) the CDT `next` of the source not aliasing the destination's cap words
+  (`set_prev next`), i.e. `valid_mdb`. Neither is a code-level fact and neither is preserved by a cheap invariant: the
+  batch writes caps, CDT links and PTEs, so keeping slot placement across entries is P1's batch invariant
+  (`Cur0`/`BXI`) plus the CNode lookups' placement, which P1 itself delegates to P3 (`CdtHyps.tgt/src`, only at `EntAt`
+  states — the fb3 handoff's "new gap field at `Fr0 s0 s` states, discharged by P3's mid-batch relation"). `decOK_JMM`
+  (the one user, XTopJointKEntry38:385) has these facts only at the decode's own state (`J : JAtZ`), so threading a
+  hypothesis up to it does not close anything, and going further up would change `kernel_entry_reach*` premises. So
+  this arm waits on the same mid-batch relation as P1 QueueDecVs and the P3 refinement (par/fb3).
+- **To finish (after par/fb3 provides the mid-batch relation):** (1) `MKD.vspace_decode_frame_batch`: walk
+  `decode_frame_batch` (reads, `check_vspace`, header checks; `words = entry_words op ≤ 3` and `n ≤ 255` as P0's
+  `decode_frame_batch.p0`), call the loop lemma with `P` := the mid-batch relation, then `invalidate_asid`
+  (`MRKeepD` field) and the reply (store only); (2) `P → FbDelOK`: `del` by `SetCap.capAt_wr2_self` (+ `decode_encWf`
+  of the read frame for the cleared one's `EncWf`, slot alignment from `IsSlot`), `cpy` by `Insert.InsWords.capAt'`;
+  (3) give `MKD.vspace_decode` / `MKD.decode_quiet` the hypothesis at the Pml4 batch label and discharge it in
+  `decOK_JMM` from the relation (or route the batch label like CNode Delete through the joint relation, `EJLM`-style).
+  Sizes: (1) S-M, (2) M, (3) S once the relation exists.
+- Files touched: `proofs/Fl4Proofs/P3/MachKeepG4d.lean` (additions only, before `MKD.vspace_decode_page_map`), this
+  section. Scratch: `proofs/scratch/fb3scratch.py` unchanged (its MachKeepG4d stub stays). No premise added, no
+  `kernel_entry_reach*` statement changed. Builds: fb3m-m0 (baseline), m1..m6 (MachKeepG4d).
+- fb3n (resume check, same branch): with the MachKeepG4d stub removed from the scratch script, the module build
+  (fb3n-m1) fails with exactly one error, `MachKeepG4d.lean:442:85: unsolved goals` (`MKD.vspace_decode`, the
+  FrameBatch arm); every fb3m helper above elaborates (no other error, no `sorry`). So the stub stays in
+  `fb3scratch.py` until par/fb3's mid-batch relation exists; the finding above stands.
