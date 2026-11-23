@@ -17102,3 +17102,61 @@ right one, and also covers (c).
 
 ### (4) Build
 None (no Lean change; no build slot used).
+
+## jc6e (branch par/jc6c from da74c0fb, top of record `kernel_entry_reachU27`) — strengthen `DeadP` by the debug conjunct and `tdA = 0` (lead decision after jc6c), then `kernel_entry_reachU28`: STOPPED at the size check (> XL as specified); no Lean change, no build slot used, no new top
+
+### (1) What the quick pass found beyond jc6c (3)
+- **The affinity word is not kept by the generic frames.** jc6c (3)1's form `dpA q = 0 ∧ head(affA q) ≠ q` reads
+  `affA q` (`TCB + 3520`, layout `AFFINITY = F + 192`). That word is inside both generic footprints the keep sites
+  use: `SOffL` (ScKFoot:31 lists 3520 — its docstring calls it "the release flag", but it is `AFFINITY`), so every
+  `TFoot`/`KFoot`/`SFoot` step may write it, and P1 `KW` (QueueFoot:23: every TCB word 192..4096 but 3576/3584).
+  FL4 writes it in `smp::migrate_tcb`, called from `sched_context_bind_tcb` (schedcontext.rs:29), **`sched_context_donate`
+  (:78, i.e. every IPC path that donates: call, reply, fault, `PushDon`, `SendDon`, …)** and configure (:311). So the
+  head clause is NOT kept "by `DbgKeep` plus a mostly-in-hand frame" (jc6c (3)3): `DbgKeep` keeps `dpA` and the heads
+  of `c ∈ Cs`, but which head to read moves with `affA q`, and every site (the 40 `deadP_sc_step*` calls included, which
+  get `dpA`/`tdA` for free from `hw : TFoot` since 3584/3528 ∉ `SOffL`) needs a new "dead TCB's `affA` kept" fact; at
+  the ~10 migrate/donate sites it needs "the migrated TCB is not dead" (true: it is blocked/bound, so its state or SC
+  word contradicts `DeadP`, but per site).
+- **`tdA` (3528) is in `KW`**, so at the CSpace/IPC sites (`deadP_keep` 53 calls / 48 files, `deadP_hstep` 12, `deadP_slot`
+  16, the `*fr*` wrappers) no frame in hand gives it: only 11 of the 98 caller files see a `TmFr`; P1's op lemmas
+  establish `TmFr` internally for `ScExtra0.rb` but export only `Foot`/`KW` (TIMER-RB-PLAN §14.2, unchanged).
+- Counts at da74c0fb (calls / files, excluding the definitions): `deadP_keep` 53/48, `deadP_sc_step*` 40/30,
+  `deadP_slot` 16/8, `deadP_hstep` 12/9, `deadP_sch_step` 7/8, `deadP_qk`/`qm` 7/6, `*fr*` wrappers ~45;
+  `addDeadSet` 29/15 + `addDead` 1; `LiveJ.zdead` 22 uses (zombie TCBs must satisfy the stronger `DeadP` too:
+  `finDead_thread` has to deliver both conjuncts after `debug_remove` + `timer::remove`); `FinDeadHyp` 8;
+  `DeadP_iff : DeadP ↔ DeadQ := Iff.rfl` (ScPlaceRet:388) forces P1 `DeadQ` to change with it (P1 QueueHeapDrop:22,
+  11 P1/P3 files use `DeadQ`). Every `obtain ⟨d1, …, d6⟩ := hd.1 hq` / `.2.2.2.2.2` projection of the TCB clause changes.
+
+### (2) Size
+Per site the new obligation is two FL4-word frames (`affA q`, `tdA q`) for a dead TCB plus `DbgKeep`; no site has the
+first, ~11 files have the second. That is TIMER-RB-PLAN §14's carry (already rated L–XL for `tdA` alone) applied twice,
+with `affA` also at the SC family that `tdA` did not need, plus the finalise / zombie / retype / migrate specials (M–L).
+Together: **> XL** (≈ 2–3 agent sessions), and blind until a build slot (one 1-thread slot; changing `ScPlaceDead`
+rebuilds most of P3 per round). Not started.
+
+### (3) Two ways to cut it (lead decision)
+- **(A) As decided: `DeadP` += `dpA q = 0 ∧ head(affA q) ≠ q ∧ tdA q = 0`** (and `DeadQ`). Keep lemmas take one new
+  premise `hX : H q = some .tcb → DXKeep s s' q` (ksb, `dpA q`, `affA q`, `tdA q`, and the head word of core
+  `affA q` kept; `DXKeep.of_dbg` from `DbgKeep` + `J.blk`'s `aff` + the two word equalities). New frame lemmas per
+  footprint family: `TFoot` (gives `tdA`, `dpA`; `affA` only off the migrate target), `KW`/`Foot` sites (neither:
+  needs P1 op posts to export "TCB words 3520/3528 kept off the target" — the TimerRB `TmFr` already proved inside
+  P1, plus an affinity clause), slot/`InSlot`/`KsW`/`VsW`/`VtOut` steps (both by offset, as `JAtZ.inSlot_scKeep`).
+  Size > XL as above.
+- **(B) Recommended: the debug conjunct with `Cs`, carried as `JCovD`'s dead clause, not inside `DeadP`.**
+  `DeadX Cs s q := H q = some .tcb → L.mem s (dpA q) = 0 ∧ (∀ c ∈ Cs, L.mem s (nodeAt s c DEBUG_TCBS) ≠ q) ∧
+  L.mem s (tdA q) = 0`, and `JCovD.dead : ∀ q ∈ D, DeadP H s q ∧ DeadX Cs s q` (JCovD has `Cs`; `DeadP` has
+  not, which is why (A) must go through `affA`). Same narrowing of `JAtZ`'s admissible `D'` (it sits in `JAtZ.jcov`,
+  the antecedent of U27's `∀ D'`), no statement text changes, `addDeadSet` takes `DeadX` too (its 30 callers add
+  finalised zombies). Gains: no `affA` anywhere; the debug half is `DbgKeep` alone (in hand at 89/98 files,
+  `DeadX.keep : DbgKeep → tdA kept → DeadX s q → DeadX s' q`); `tdA` free on the SC family (`TFoot`); `DeadP`,
+  `DeadQ`, `DeadP_iff`, `LiveJ.zdead` and all 305 `DeadP` mentions untouched (zombies are in `D` by `JAtZ.zD`, so
+  `JCovD` covers them). Cost: the `JCovD` builders (`jcov_keep` 43, `sc_jcov` 38, `jcov_cover` 9, `JCovD.same/step/
+  delete/retype*` ~15, anonymous constructions) take one more `hdx` argument; the `tdA` frame is still needed at the
+  `KW` sites (TIMER-RB-PLAN §14.3 step 3). Then `JAtZ.keptCW` (jc6c (3)2 with `∀ c ∈ Cs` instead of `affA`: a list
+  member is the head or has a nonzero predecessor, `DbgWFL.prev`/`zero`/`nodup`) and `DeadUnarmed` is
+  `fun q hq hH => ((J.jcov.dead q hq).2 hH).2.2`. Size L–XL (one agent, tight).
+- Either way the timer half needs the §14.3 step 4/5 sites (SetTimer: target leaves `D` as `bindNJ`'s `D \ {t, n}`;
+  `fire`/finalise: `timer.remove.rb` gives `tdA t = 0`), and the start state needs nothing (`D = ∅` at boot).
+
+### (4) Build
+None (no Lean change; no build slot used).
