@@ -30,6 +30,80 @@ const MB2_TAG_TPM_EVENT_LOG: u32 = 0x464c_3401;
 const MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402;
 /// A TDX guest's AP wakeup page (the kernel's mboot.rs): its address.
 const MB2_TAG_TDX_AP_PAGE: u32 = 0x464c_3403;
+/// A TDX guest's AP wakeup mailbox, checked here against the EFI memory
+/// type (`acpi::mailbox_ok`): its address.
+const MB2_TAG_TDX_MAILBOX: u32 = 0x464c_3404;
+
+/// Set once TDG.VP.INFO has answered (`tdx_shared_mask`, which only runs
+/// in a guest that is not SEV): the halt path's only test for a TD.
+static TDX_CONFIRMED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+/// The firmware's memory map, read once with GetMemoryMap into pages of
+/// its own, which go back when it is dropped (before ExitBootServices).
+pub(super) struct EfiMap {
+    buffer: u64,
+    pages: u64,
+    size: usize,
+    stride: usize,
+}
+
+impl EfiMap {
+    /// None if firmware gives no map or no memory for it.
+    pub(super) fn get() -> Option<EfiMap> {
+        let (mut size, mut key, mut stride, mut version) = (0usize, 0usize, 0usize, 0u32);
+        if (bs().get_memory_map)(&mut size, core::ptr::null_mut(), &mut key, &mut stride, &mut version) != BUFFER_TOO_SMALL {
+            return None;
+        }
+        let capacity = x86_mmap::capacity(size, stride)?;
+        let pages = (capacity as u64).div_ceil(PAGE);
+        let buffer = try_alloc_pages(pages).ok()?;
+        // Freed on the way out if the second call fails.
+        let mut map = EfiMap { buffer, pages, size: 0, stride };
+        size = capacity;
+        if (bs().get_memory_map)(&mut size, buffer as *mut u8, &mut key, &mut stride, &mut version) != SUCCESS
+            || !x86_mmap::layout_ok(size, stride, capacity)
+        {
+            return None;
+        }
+        map.size = size;
+        map.stride = stride;
+        Some(map)
+    }
+
+    /// Every descriptor: (base, bytes, EFI type, attributes).
+    pub(super) fn descriptors(&self) -> impl Iterator<Item = (u64, u64, u32, u64)> + Clone + '_ {
+        let map = unsafe { core::slice::from_raw_parts(self.buffer as *const u8, self.size) };
+        x86_mmap::descriptors(map, self.stride)
+    }
+
+    /// The RSDP the system table names (ACPI 2.0's, else 1.0's) that holds
+    /// (`acpi::rsdp`), and its address.
+    pub(super) fn rsdp(&self) -> Option<(u64, acpi::Rsdp)> {
+        [config_table(ACPI_20), config_table(ACPI_10)]
+            .into_iter()
+            .filter(|&a| a != 0)
+            .find_map(|a| acpi::rsdp(self, a).map(|r| (a, r)))
+    }
+}
+
+impl Drop for EfiMap {
+    fn drop(&mut self) {
+        (bs().free_pages)(self.buffer, self.pages as usize);
+    }
+}
+
+/// Firmware data memory only (`x86_mmap::readable`: RAM, ACPI reclaim or
+/// NVS by EFI type; never reserved memory, MMIO, a hole or unaccepted
+/// memory), whole in one descriptor, and never the first page.
+impl acpi::Phys for EfiMap {
+    fn read(&self, addr: u64, n: usize) -> Option<&[u8]> {
+        let ok = addr >= PAGE
+            && x86_mmap::within(addr, n as u64, self.descriptors().map(|(base, bytes, ty, _)| {
+                (base, bytes, x86_mmap::readable(ty))
+            }));
+        ok.then(|| unsafe { core::slice::from_raw_parts(addr as *const u8, n) })
+    }
+}
 
 fn alloc_low(bytes: u64) -> u64 {
     let mut address = TOP - 1;
@@ -235,6 +309,40 @@ pub(super) fn is_tdx() -> bool {
     sev().0 == 0 && tdx_shared_mask() != 0
 }
 
+/// Stop for good with interrupts off, spinning: no HLT, which takes #VE in a
+/// TD, and no CPUID (#VC under SEV-ES and SNP, a forged leaf 21H). In a
+/// confirmed TD (`TDX_CONFIRMED`), tell the VMM first with
+/// TDG.VP.VMCALL<ReportFatalError>.
+pub(super) fn halt_forever() -> ! {
+    unsafe { asm!("cli", options(nomem, nostack)) };
+    if TDX_CONFIRMED.load(core::sync::atomic::Ordering::Acquire) {
+        // R10 0 (GHCI), R11 ReportFatalError, R12 the error code, R13 no
+        // data page: only those reach the VMM.
+        unsafe {
+            asm!(
+                ".byte 0x66, 0x0f, 0x01, 0xcc", // TDCALL
+                inlateout("rax") 0u64 => _, // TDG.VP.VMCALL
+                inlateout("rcx") (1u64 << 10) | (1 << 11) | (1 << 12) | (1 << 13) => _,
+                inlateout("r10") 0u64 => _,
+                inlateout("r11") 0x10003u64 => _,
+                inlateout("r12") 0u64 => _,
+                inlateout("r13") 0u64 => _,
+                lateout("rdx") _,
+                lateout("rsi") _,
+                lateout("rdi") _,
+                lateout("r8") _,
+                lateout("r9") _,
+                lateout("r14") _,
+                lateout("r15") _,
+                options(nostack),
+            );
+        }
+    }
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 /// An Intel TDX guest's shared-page bit, the top bit of its guest physical
 /// address width, or 0 outside a TD. CPUID leaf 21H comes from the TDX
 /// module in a TD; a non-TD forging it faults on TDCALL, which is no worse
@@ -266,6 +374,7 @@ fn tdx_shared_mask() -> u64 {
     if status != 0 || !matches!(gpaw, 48 | 52) {
         fail("invalid TDX guest information");
     }
+    TDX_CONFIRMED.store(true, core::sync::atomic::Ordering::Release);
     1 << (gpaw - 1)
 }
 
@@ -391,9 +500,7 @@ fn handoff_failed(attempt: usize, message: &str) -> ! {
     if attempt == 0 {
         fail(message);
     }
-    loop {
-        unsafe { asm!("cli; hlt", options(nomem, nostack)) };
-    }
+    halt_forever()
 }
 
 /// The handoff's page tables. `private` is SEV's C-bit, on everything the
@@ -574,7 +681,7 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>], cmdline
     }
     let tpm = if shared == 0 { tcg2::collect() } else { None };
     let tpm_cap = tpm.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
-    let cc = if shared != 0 { ccel::collect() } else { None };
+    let (cc, cc_areas) = if shared != 0 { ccel::collect() } else { (None, ccel::CcAreas::default()) };
     let cc_cap = cc.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
     let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len + tpm_cap + cc_cap;
     let base = alloc_low(len + HUGE);
@@ -634,16 +741,15 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>], cmdline
     if let Some(t) = &cc {
         t.copy_main(cc_dst);
     }
-    let rsdp = config_table(ACPI_20);
-    let (rsdp, kind, size) = if rsdp != 0 {
-        (rsdp, 15, 36)
-    } else {
-        (config_table(ACPI_10), 14, 20)
-    };
-    if rsdp != 0 {
-        write(info.tag(kind, size), unsafe {
-            core::slice::from_raw_parts(rsdp as *const u8, size as usize)
-        });
+    // The ACPI tables, through the memory map (acpi.rs): only an RSDP that
+    // holds is copied, from firmware memory.
+    let map = EfiMap::get().unwrap_or_else(|| fail("GetMemoryMap"));
+    let acpi_root = map.rsdp();
+    if let Some((rsdp, r)) = acpi_root {
+        // Whole in its tag: 36 bytes of length 36 (`canonical_rsdp`).
+        if let Some((bytes, n)) = acpi::canonical_rsdp(&map, rsdp, &r) {
+            write(info.tag(if r.v2 { 15 } else { 14 }, n as u64), &bytes[..n]);
+        }
     }
     // Not for SEV or TDX guests: the framebuffer is device memory whose
     // shared or private status firmware does not state, and the kernel's
@@ -675,7 +781,26 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>], cmdline
     if shared != 0 {
         let page = alloc_code_page();
         write(info.tag(MB2_TAG_TDX_AP_PAGE, 8), &page.to_le_bytes());
+        // The MADT's wakeup mailbox, while the EFI memory types are known:
+        // ACPI NVS, clear of everything the loader and the tables use. The
+        // kernel uses no other (lib.rs). Which page in NVS it is stays the
+        // MADT's word: TDVF writes the MADT.
+        // Clear too of every CC log area firmware keeps, whichever log the
+        // kernel gets (`ccel::collect`).
+        let avoid = [(base, base + len + HUGE), (page, page + PAGE)];
+        let mailbox = acpi_root.and_then(|(rsdp, r)| {
+            let m = acpi::wakeup_mailbox(&map, &r)?;
+            let ok = acpi::mailbox_ok(m, map.descriptors().map(|(b, n, ty, _)| (b, n, ty)), &avoid)
+                && ccel::mailbox_clear_of(m, &cc_areas, map.descriptors().map(|(b, n, _, _)| (b, n)))
+                && !acpi::overlaps_tables(&map, rsdp, &r, m, m + PAGE);
+            ok.then_some(m)
+        });
+        match mailbox {
+            Some(m) => write(info.tag(MB2_TAG_TDX_MAILBOX, 8), &m.to_le_bytes()),
+            None => say!("fl4-efi: no TDX AP wakeup mailbox in ACPI NVS memory"),
+        }
     }
+    drop(map);
     let trampoline = if la57 {
         handoff_code_la57(&Handoff {
             cr3: root,

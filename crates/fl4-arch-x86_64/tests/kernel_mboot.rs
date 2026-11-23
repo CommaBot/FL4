@@ -23,6 +23,12 @@ mod mb2;
 #[allow(dead_code)]
 #[path = "../../fl4-kernel/src/mboot.rs"]
 mod mboot;
+#[allow(dead_code)]
+#[path = "../../fl4-kernel/src/acpi.rs"]
+mod acpi;
+#[allow(dead_code)]
+#[path = "../../fl4-efi/src/acpi.rs"]
+mod efi_acpi;
 
 fn words(memory: &mut [u8], offset: usize, values: &[u32]) {
     for (chunk, value) in memory[offset..][..values.len() * 4]
@@ -147,7 +153,7 @@ fn multiboot2_short_tags_are_ignored() {
     let boot = parse(mboot::MB2_MAGIC, &memory);
     assert!(boot.fb.is_none());
     assert_eq!(boot.n_mmap, 1);
-    assert_eq!(boot.rsdp, Some(112 + 8));
+    assert_eq!(boot.rsdp, Some((112 + 8, 20)));
 }
 
 /// Audit F6(a): information that the boot mapping ([0, 4 GiB)) does not
@@ -334,4 +340,116 @@ fn multiboot2_tdx_ap_page_tag_must_be_a_page_in_the_boot_mapping() {
         let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_TDX_AP_PAGE, &[page]));
         assert_eq!(boot.tdx_ap_page, None, "{page:#x}");
     }
+}
+
+/// Audit (TDX r2, R1-4): the wakeup mailbox fl4-efi checked comes as its
+/// own tag, a whole page; the kernel still checks it against the MADT and
+/// the memory map.
+#[test]
+fn multiboot2_tdx_mailbox_tag_must_be_a_page() {
+    assert_eq!(mboot::MB2_TAG_TDX_MAILBOX, 0x464c_3404);
+    let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_TDX_MAILBOX, &[0x7f00_0000]));
+    assert_eq!(boot.tdx_mailbox, Some(0x7f00_0000));
+    assert_eq!(boot.tdx_ap_page, None);
+    for page in [0, 0x7f00_0800] {
+        let boot = parse(mboot::MB2_MAGIC, &mb2_with(mboot::MB2_TAG_TDX_MAILBOX, &[page]));
+        assert_eq!(boot.tdx_mailbox, None, "{page:#x}");
+    }
+    let x86 = include_str!("../../fl4-efi/src/x86.rs");
+    assert!(x86.contains("const MB2_TAG_TDX_MAILBOX: u32 = 0x464c_3404;"));
+}
+
+fn sum_to_zero(b: &mut [u8], at: usize) {
+    b[at] = 0;
+    b[at] = b.iter().fold(0u8, |s, x| s.wrapping_add(*x)).wrapping_neg();
+}
+
+/// Emulated memory as fl4-efi's reader sees it: `bytes` at physical 0.
+struct Mem<'a>(&'a [u8]);
+
+impl efi_acpi::Phys for Mem<'_> {
+    fn read(&self, addr: u64, n: usize) -> Option<&[u8]> {
+        self.0.get(addr as usize..(addr as usize).checked_add(n)?)
+    }
+}
+
+/// Audit (TDX r3, R2-4), from the loader to the kernel: firmware's 64-byte
+/// ACPI 2.0 RSDP becomes a whole 36-byte one in tag 15 (`canonical_rsdp`),
+/// and the kernel reads it, and the tables through it, without a byte of
+/// the next tag; a tag 15 whose RSDP claims more than the tag holds is no
+/// ACPI 2.0 RSDP to the kernel.
+#[test]
+fn an_rsdp_tag_carries_a_whole_rsdp_and_is_read_within_it() {
+    const XSDT: usize = 0x400;
+    const MADT: usize = 0x440;
+    const FW_RSDP: usize = 0x500;
+    let mut memory = vec![0u8; 0x600];
+    // The XSDT and an MADT with one enabled local APIC.
+    let madt_len = 44 + 8;
+    memory[MADT..MADT + 4].copy_from_slice(b"APIC");
+    memory[MADT + 4..MADT + 8].copy_from_slice(&(madt_len as u32).to_le_bytes());
+    memory[MADT + 44..MADT + 52].copy_from_slice(&[0, 8, 7, 7, 1, 0, 0, 0]);
+    sum_to_zero(&mut memory[MADT..MADT + madt_len], 9);
+    memory[XSDT..XSDT + 4].copy_from_slice(b"XSDT");
+    memory[XSDT + 4..XSDT + 8].copy_from_slice(&44u32.to_le_bytes());
+    memory[XSDT + 36..XSDT + 44].copy_from_slice(&(MADT as u64).to_le_bytes());
+    sum_to_zero(&mut memory[XSDT..XSDT + 44], 9);
+    // Firmware's RSDP: revision 2, 64 bytes.
+    let fw = &mut memory[FW_RSDP..FW_RSDP + 64];
+    fw[..8].copy_from_slice(b"RSD PTR ");
+    fw[15] = 2;
+    fw[20..24].copy_from_slice(&64u32.to_le_bytes());
+    fw[24..32].copy_from_slice(&(XSDT as u64).to_le_bytes());
+    fw[36..].fill(0x33);
+    sum_to_zero(&mut fw[..20], 8);
+    sum_to_zero(fw, 32);
+    let m = Mem(&memory);
+    let r = efi_acpi::rsdp(&m, FW_RSDP as u64).expect("firmware's RSDP");
+    let (rsdp, n) = efi_acpi::canonical_rsdp(&m, FW_RSDP as u64, &r).unwrap();
+    assert_eq!(n, 36);
+    // Multiboot 2: tag 15 (8 + 36, padded to 48), then a tag of nonzero
+    // bytes right after it, then the end tag.
+    let mb2 = |rsdp: &[u8], next: u8| {
+        let mut mem = memory.clone();
+        let info = 0x100;
+        let tag = info + 8;
+        words(&mut mem, tag, &[6, 16 + 24, 24, 0]);
+        mem[tag + 16..tag + 40].copy_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
+        let t15 = tag + 40;
+        words(&mut mem, t15, &[15, 8 + rsdp.len() as u32]);
+        mem[t15 + 8..t15 + 8 + rsdp.len()].copy_from_slice(rsdp);
+        let next_at = t15 + (8 + rsdp.len() + 7) / 8 * 8;
+        words(&mut mem, next_at, &[0x464c_3499, 40]);
+        mem[next_at + 8..next_at + 40].fill(next);
+        words(&mut mem, next_at + 40, &[0, 8]);
+        words(&mut mem, info, &[(next_at + 48 - info) as u32, 0]);
+        (mem, info as u64, t15 as u64 + 8)
+    };
+    let kernel = |mem: &[u8], info: u64| {
+        MEMORY.with(|base| base.set(mem.as_ptr() as u64));
+        let boot = mboot::parse(mboot::MB2_MAGIC, info).unwrap();
+        let acpi = acpi::init(boot.rsdp, mem.len() as u64, &|_, _| true);
+        MEMORY.with(|base| base.set(0));
+        (boot.rsdp, acpi)
+    };
+    for next in [0, 0x5a, 0xff] {
+        let (mem, info, at) = mb2(&rsdp[..n], next);
+        let (given, acpi) = kernel(&mem, info);
+        assert_eq!(given, Some((at, 36)));
+        let acpi = acpi.expect("valid RSDP");
+        assert_eq!(&acpi.cpus[..acpi.n_cpus], &[7], "next tag {next:#x}");
+        assert_eq!(&acpi.rsdp[..], &rsdp[..]);
+    }
+    // Firmware's own 36 bytes, which say 64: what the extended checksum
+    // would cover runs into the next tag, which here even makes it sum.
+    let raw = memory[FW_RSDP..FW_RSDP + 36].to_vec();
+    let (mut mem, info, at) = mb2(&raw, 0);
+    let next = at as usize + 48; // past the next tag's header, in its fields
+    let partial = mem[at as usize..at as usize + 64].iter().fold(0u8, |s, x| s.wrapping_add(*x));
+    mem[next] = mem[next].wrapping_sub(partial);
+    assert_eq!(mem[at as usize..at as usize + 64].iter().fold(0u8, |s, x| s.wrapping_add(*x)), 0);
+    let (given, acpi) = kernel(&mem, info);
+    assert_eq!(given, Some((at, 36)));
+    // ACPI 1.0 by the first 20 bytes: the RSDT (0) is the tag area, no RSDT.
+    assert!(acpi.is_none_or(|a| a.rsdp[20..].iter().all(|&b| b == 0)));
 }

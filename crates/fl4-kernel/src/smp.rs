@@ -1,6 +1,7 @@
 //! Starting the application processors (seL4 arch/x86/kernel/smp_sys.c).
 use crate::{entry, gdt, kprintln, paging};
-use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicU8, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering};
+use fl4_arch_x86_64::cvm::halt_if_poisoned;
 use fl4_arch_x86_64::arch::TIMER_VECTOR;
 use fl4_arch_x86_64::{apic, cpu, fpu, percpu, pit, sev::snp, smp, timer};
 use fl4_core::boot::Region;
@@ -32,6 +33,10 @@ const REJECT_TIMER: u8 = 5;
 const REJECT_TLB: u8 = 6;
 const REJECT_CR4: u8 = 7;
 const REJECT_PAGING: u8 = 8;
+const REJECT_APIC_ID: u8 = 9;
+/// The APIC ID each core was woken as (a TD's mailbox command names it):
+/// its local APIC must say the same before it goes online.
+static WOKEN_APIC_ID: [AtomicU32; percpu::MAX_CPUS] = [const { AtomicU32::new(u32::MAX) }; percpu::MAX_CPUS];
 
 fn reject_ap(reason: u8) -> ! {
     AP_REJECTED.store(reason, Ordering::Release);
@@ -114,6 +119,16 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
         }
         true
     }, &mut aps);
+    // A TD's MADT is the VMM's, its vCPU count the TDX module's: no more
+    // cores than vCPUs, and none of them left out, where it would wait in
+    // firmware for a wakeup the kernel never sends.
+    if tdx_guest {
+        let vcpus = fl4_arch_x86_64::tdx::num_vcpus() as usize;
+        if !crate::ap_order::tdx_cores_match(n + 1, vcpus, max) {
+            kprintln!("FL4: the MADT gives {} usable core(s) for {} TDX vCPU(s) (kernel limit {})", n + 1, vcpus, max);
+            crate::fail("TDX vCPUs and MADT cores do not match");
+        }
+    }
     // Cores 0..=n: the boot core and the indices `select` handed out.
     crate::entry::GATE.set_cores(n + 1);
     let entry = fl4_ap_main as *const () as u64;
@@ -125,7 +140,9 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
     crate::ap_order::bring_up(&aps[..n], snp_guest, |c, _| {
         crate::snp::prepare_ap(c, percpu::stack_top(c), entry);
     }, |c, id| {
+        halt_if_poisoned();
         let before = smp::num_online();
+        WOKEN_APIC_ID[c].store(id, Ordering::Release);
         if snp_guest {
             crate::snp::start_ap(c, id);
         } else if let Some(w) = f.tdx_wakeup {
@@ -149,12 +166,16 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
             }
         }
         let deadline = cpu::rdtsc() + timer::us_to_ticks(start_timeout_us);
-        while smp::num_online() == before && AP_REJECTED.load(Ordering::Acquire) == 0
-            && cpu::rdtsc() < deadline {
-            core::hint::spin_loop();
-        }
-        let rejected = AP_REJECTED.load(Ordering::Acquire);
-        if rejected != 0 {
+        // A TDX AP the trampoline or `tdx::register_ap` rejected has
+        // poisoned the guest: stop at once, also if the core is up.
+        let started = crate::ap_order::wait_start(
+            fl4_arch_x86_64::cvm::poisoned,
+            || AP_REJECTED.load(Ordering::Acquire),
+            || smp::num_online() != before,
+            || cpu::rdtsc() >= deadline,
+        );
+        halt_if_poisoned();
+        if let crate::ap_order::Started::Rejected(rejected) = started {
             kprintln!("FL4: rejecting AP with APIC id {}: {}", id, match rejected {
                 REJECT_SPEC => "speculation capabilities differ between cores",
                 REJECT_APIC => "local APIC outside the physical window",
@@ -163,22 +184,25 @@ pub fn start_aps(apic_ids: &[u32], f: Features) -> usize {
                 REJECT_TLB => "PCID or INVPCID missing on this core",
                 REJECT_CR4 => "SMEP, SMAP or FSGSBASE missing on this core",
                 REJECT_PAGING => "1 GiB pages missing, or physical addresses narrower than the system's, on this core",
+                REJECT_APIC_ID => "its local APIC ID is not the one it was woken as",
                 _ => "virtualization features differ between cores",
             });
             // VMX/SVM may already be active on other cores. Keep them at
             // BOOT_DONE and halt the BSP; never publish a partial backend.
             crate::fail("incompatible AP capabilities; refusing to start userspace");
         }
-        if smp::num_online() == before {
+        if started != crate::ap_order::Started::Online {
             kprintln!("FL4: core with APIC id {} did not start", id);
             // An AP could still be probing. Do not reuse its per-core slot
             // or release userspace before its capabilities are known.
             crate::fail("AP startup timed out; refusing to start userspace");
         }
     });
-    if let Some(w) = f.tdx_wakeup {
-        crate::tdx::finish_wakeup(w.page);
+    halt_if_poisoned();
+    if f.tdx_wakeup.is_some() {
+        crate::tdx::finish_wakeup();
     }
+    halt_if_poisoned();
     smp::num_online() as usize
 }
 
@@ -200,8 +224,10 @@ fn help_accept() {
     let ranges = unsafe { core::slice::from_raw_parts(list, ACCEPT_LEN.load(Ordering::Acquire)) };
     let chunks = ACCEPT_CHUNKS.load(Ordering::Acquire);
     // Once every piece is taken, a core waiting here only reads the counter.
-    while ACCEPT_NEXT.load(Ordering::Relaxed) < chunks {
-        let index = ACCEPT_NEXT.fetch_add(1, Ordering::Relaxed);
+    // A poisoned guest takes no more pieces.
+    loop {
+        halt_if_poisoned();
+        let Some(index) = crate::ap_order::next_accept_chunk(fl4_arch_x86_64::cvm::poisoned(), &ACCEPT_NEXT, chunks) else { break };
         let Some((start, end)) = crate::bootmem::chunk_of(ranges, index, ACCEPT_CHUNK) else { break };
         fl4_arch_x86_64::tdx::accept_pages(start, end - start);
         ACCEPT_DONE.fetch_add(end - start, Ordering::AcqRel);
@@ -215,11 +241,14 @@ pub fn accept_memory(ranges: &'static [Region]) {
     if total == 0 {
         return;
     }
+    halt_if_poisoned();
     ACCEPT_CHUNKS.store(crate::bootmem::chunk_count(ranges, ACCEPT_CHUNK), Ordering::Release);
     ACCEPT_LEN.store(ranges.len(), Ordering::Release);
     ACCEPT_LIST.store(ranges.as_ptr().cast_mut(), Ordering::Release);
     help_accept();
+    halt_if_poisoned();
     while ACCEPT_DONE.load(Ordering::Acquire) < total {
+        halt_if_poisoned();
         core::hint::spin_loop();
     }
     ACCEPT_LIST.store(core::ptr::null_mut(), Ordering::Release);
@@ -232,7 +261,9 @@ pub fn sync_patched_text() {
     TEXT_SYNCED.store(1, Ordering::Release);
     let online = smp::num_online();
     let deadline = cpu::rdtsc() + timer::us_to_ticks(100_000);
+    halt_if_poisoned();
     while TEXT_SYNCED.load(Ordering::Acquire) < online {
+        halt_if_poisoned();
         if cpu::rdtsc() >= deadline {
             crate::fail("AP did not synchronize patched instructions");
         }
@@ -249,8 +280,12 @@ pub fn release_aps() {
 #[no_mangle]
 extern "C" fn fl4_ap_main(c: u64) -> ! {
     let f = unsafe { FEATURES };
-    // Before anything that can take #VE.
-    if fl4_arch_x86_64::tdx::active() { gdt::load_boot_idt(); }
+    // Before anything that can take #VE; then this vCPU must be one of the
+    // TD's that has not run the kernel yet.
+    if fl4_arch_x86_64::tdx::active() {
+        gdt::load_boot_idt();
+        fl4_arch_x86_64::tdx::register_ap();
+    }
     if snp::active() { snp::register_cpu(); }
     // Natively before the boot core's tables, whose 1 GiB pages and
     // addresses a core without them faults on with no IDT; on SNP (CPUID
@@ -280,7 +315,15 @@ extern "C" fn fl4_ap_main(c: u64) -> ! {
     apic::write(apic::REG_LVT_LINT0, 1 << 16);
     apic::write(apic::REG_LVT_LINT1, 1 << 16);
     apic::write(apic::REG_LVT_ERROR, 1 << 16);
-    percpu::set_apic_id(apic::id());
+    // Read once: in a TD without ENUM_TOPOLOGY the ID comes from the VMM
+    // (#VE), and the one checked must be the one other cores send IPIs to.
+    // The VMM picks which vCPU answers a mailbox wakeup: it must be the
+    // core the boot core woke, by that ID.
+    let apic_id = apic::id();
+    if fl4_arch_x86_64::tdx::active() && apic_id != WOKEN_APIC_ID[c as usize].load(Ordering::Acquire) {
+        reject_ap(REJECT_APIC_ID);
+    }
+    percpu::set_apic_id(apic_id);
     if !timer::core_supported() { reject_ap(REJECT_TIMER); }
     timer::init_core(TIMER_VECTOR);
     smp::set_online(c as usize);

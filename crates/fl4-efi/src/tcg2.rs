@@ -35,7 +35,7 @@ const SPEC_ID_SIGNATURE: &[u8; 16] = b"Spec ID Event03\0";
 /// digest, event size.
 const PCR_EVENT_LEN: usize = 32;
 /// `EFI_TCG2_FINAL_EVENTS_TABLE`'s header: version, number of events.
-const FINAL_HEADER: usize = 16;
+pub const FINAL_HEADER: usize = 16;
 
 /// Bytes at an offset of a source, if they all lie inside it.
 pub trait Mem {
@@ -446,6 +446,7 @@ mod efi {
         pub fn has_final_events(&self) -> bool {
             self.snap.is_some()
         }
+
 
         /// Bytes to set aside for the copy: the log and the slack.
         pub fn capacity(&self) -> u64 {

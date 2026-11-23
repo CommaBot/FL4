@@ -186,6 +186,8 @@ macro_rules! say {
 #[cfg(target_arch = "aarch64")]
 mod efi_mmap;
 #[cfg(target_arch = "x86_64")]
+mod acpi;
+#[cfg(target_arch = "x86_64")]
 mod ccel;
 #[cfg(target_arch = "x86_64")]
 mod gop;
@@ -199,11 +201,21 @@ mod x86_mmap;
 
 fn fail(msg: &str) -> ! {
     say!("fl4-efi: {}", msg);
+    halt()
+}
+
+/// Stop for good: interrupts off, spinning, and in a TD after telling the
+/// VMM (x86.rs `halt_forever`). For the loader's panic handler too.
+#[cfg(target_arch = "x86_64")]
+pub fn halt() -> ! {
+    x86::halt_forever()
+}
+
+/// Stop for good.
+#[cfg(target_arch = "aarch64")]
+pub fn halt() -> ! {
     loop {
-        #[cfg(target_arch = "aarch64")]
         unsafe { asm!("wfi") };
-        #[cfg(target_arch = "x86_64")]
-        unsafe { asm!("hlt") };
     }
 }
 

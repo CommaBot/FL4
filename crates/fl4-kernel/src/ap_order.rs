@@ -46,3 +46,61 @@ pub fn bring_up(
         start(c, id);
     }
 }
+
+/// Whether a TD may start `cores` cores (the boot core included) with
+/// `vcpus` vCPUs and a kernel limit of `max`: every vCPU, so that none
+/// stays in firmware out of the kernel's hands, and so no more vCPUs than
+/// the kernel can run.
+pub fn tdx_cores_match(cores: usize, vcpus: usize, max: usize) -> bool {
+    vcpus >= 1 && vcpus <= max && cores == vcpus
+}
+
+/// How a started core came up (`wait_start`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Started {
+    /// The guest is poisoned (a TDX AP was rejected): stop at once.
+    Poisoned,
+    /// The core refused this reason (`smp::reject_ap`).
+    Rejected(u8),
+    Online,
+    TimedOut,
+}
+
+/// Wait for a core to come up: poison first, on every pass and even when
+/// the core is online before the first, then a rejection, then the core
+/// online, then the deadline.
+pub fn wait_start(
+    poisoned: impl Fn() -> bool,
+    rejected: impl Fn() -> u8,
+    online: impl Fn() -> bool,
+    expired: impl Fn() -> bool,
+) -> Started {
+    loop {
+        if poisoned() {
+            return Started::Poisoned;
+        }
+        match rejected() {
+            0 => {}
+            r => return Started::Rejected(r),
+        }
+        if online() {
+            return Started::Online;
+        }
+        if expired() {
+            return Started::TimedOut;
+        }
+        core::hint::spin_loop();
+    }
+}
+
+/// The next piece of the memory being accepted for this core to take
+/// (`smp::help_accept`): none once the guest is poisoned, when nothing is
+/// taken, or once every piece is.
+pub fn next_accept_chunk(poisoned: bool, next: &core::sync::atomic::AtomicU64, chunks: u64) -> Option<u64> {
+    use core::sync::atomic::Ordering::Relaxed;
+    if poisoned || next.load(Relaxed) >= chunks {
+        return None;
+    }
+    let index = next.fetch_add(1, Relaxed);
+    (index < chunks).then_some(index)
+}
