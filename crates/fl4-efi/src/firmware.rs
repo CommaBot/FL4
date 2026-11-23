@@ -37,6 +37,12 @@ pub struct Firmware<'a> {
 }
 
 impl Firmware<'_> {
+    /// Whether this is an Intel TDX guest. A TD's loader measures into
+    /// RTMR[2] and ignores any TPM, as `boot` does.
+    pub fn is_tdx(&self) -> bool {
+        x86::is_tdx()
+    }
+
     pub fn has_load_options(&self) -> bool {
         self.loaded.options_size != 0
     }
