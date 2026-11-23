@@ -16883,3 +16883,125 @@ statement must quantify over every object of `H` (the `¬ D y →` antecedents d
    `RegionUnrefAt` narrowed to the (b)+(c)+(d) parts (needs a name: U22/U23 reserved, U24 kept for the final).
 2. jc6b: (b) symmetry family. 3. jc6c: (c) debug lists. 4. jc6d (several agents, or a Rust change first): (d).
    Then U24 = U21 without the `RegionUnrefAt` halves.
+
+## jc6a (branch par/jc6a from 7f6784dd = PR #66 head, top of record `kernel_entry_reachU21`) — part (a) of `RegionUnrefAt` PROVED at `JAtZ`; `RegionUnrefAt` split into (a)–(d); new top **`kernel_entry_reachU25`** (U21 with `RegionUnrefAt` narrowed to (b)+(c)+(d)); no premise added; no FINDING
+
+### (1) The split (new module P3/UnrefParts)
+With `KeptRef H D x := H x ≠ none → ¬ D x` (P1) and `D` the region predicate:
+- (a) `KeptRefsA H D s`: reply next (masked, when `headBit` false), reply prev (masked), SC `scReplyA`, TCB `yieldA`,
+  SC `scYieldFromA` — each for an `H` object `¬ D`.
+- (b) `KeptRefsB H D s`: TCB `boundA`, SC `scNtfnA`, ntfn `ntfnBtA`.
+- (c) `DbgKeptC H D Cs s`: TCB `dnA`/`dpA`, every core's `DEBUG_TCBS`.
+- (d) `TimerKeptD H D Cs s`: TCB `tlA`/`trA`/`tpA`, every core's `TIMER_ROOT`, `TIMER_MIN`.
+`keptRefsP3_iff` (`KeptRefsP3 ↔ A ∧ B`), `dbgTimerKept_iff` (`DbgTimerKept ↔ C ∧ D`). `RegionPartAt P H D s0` = "after
+the restart from `s0`, `P` at every `RegionD H lo hi` whose `H` objects are in `D`" (the shape of `RegionUnrefAt`);
+`RegionUnrefA/B/C/D` are its instances; `regionUnrefAt_iff : RegionUnrefAt H Cs D s0 ↔ A ∧ B ∧ C ∧ D`.
+`RegionUnrefBCD H Cs D s0 := RegionUnrefB ∧ RegionUnrefC ∧ RegionUnrefD`. `RegionUnrefAt`'s own definition (ScJoint)
+is unchanged, so no consumer changed.
+
+### (2) Part (a) at `JAtZ`
+`JAtZ.keptA (J : JAtZ … D s …) (hD : ∀ q k, H q = some k → Rg q → q ∈ D) : KeptRefsA H Rg s` — any `JAtZ` state,
+any `Rg`, no `Entered`, no carry. Proof: a link target named by an `H` object in `Rg` is in `D`, so `DeadP`;
+- `JAtZ.replyDead`: a dead reply has `rTcb = 0` (`DeadP`), so `replyTcb = none` (`IpcRel.reply`), so `Free`, so
+  (`RFree`) on no stack with null next/prev. `JAtZ.stackLive`: a reply on a call stack is live.
+- reply next: on a stack at index 0 the word is `sc ||| 1` (`headBit` true, excluded); at `j+1` it is the stack's
+  `j`-th reply (`StackW`), live; detached: 0, or (`CallRel.det`) a reply whose prev is the (non-null) linking reply,
+  so not free. Prev: symmetric (`getD (i+1)`; `det`'s prev clause). Masking by `and_not1` (replies 5-bit aligned,
+  `JKern.heap.align`); 0 masks to 0 and `H 0 = none`.
+- SC reply head: `StackW`'s head (`hscC` puts `H`'s SCs in `Z.C`).
+- TCB yield-to: `YieldRel.toSc` gives an SC of `Z.C` whose spec `scYieldFrom = some t` (`H` kind from
+  `JPlaced.sc`); a dead SC's word 56 is 0 (`DeadP`), and `ScRelW.yieldFrom` reads it as `none`.
+- SC yield-from: a nonzero word is the spec's `scYieldFrom` (`ScRelW.yieldFrom`), `YieldRel.frm` gives the TCB with
+  `YIELD_TO = c`; a dead TCB's is 0 (`DeadP`), but `c ≠ 0` (`JAtZ.c0`).
+`JAtZ.unrefA (J) (hni : Entered σ) : RegionUnrefA H D s`: `JAtZ.restartSJ` (same `H`, `D`) at the restart, then
+`keptA`. `JAtZ.regionUnrefAt (J) (hni) : RegionUnrefBCD H Cs D s → RegionUnrefAt H Cs D s`.
+
+### (3) Carried forms of (b)–(d) (definitions only, no threading; jc6 (2) correction)
+`KeptRefsBAll H D s`, `DbgKeptCAll H Cs D s`, `TimerKeptDAll H Cs D s`: the same links with dead set `(· ∈ D)` and
+**no `¬ D y` antecedent** (every object of `H`, dead ones included). `KeptRefsBAll.region` / `DbgKeptCAll.region` /
+`TimerKeptDAll.region` (via `keptRef_mono`) give the region form at the same state for any region whose `H` objects
+are in `D`. Still to do by jc6b/c/d: carry them in `JAtZ` (or derive) and move them across the restart (as
+`unrefA` does through `restartSJ`). Nothing was added to `JCarry` or to any construction site.
+
+### (4) `kernel_entry_reachU25` (P3/XTopJointKEntryU25)
+`JUtPathMU25` / `JAsidCPathU25` / `JDevPathU25` = `JUtPathMU16` / `JAsidCPathU16` / `JDevPathU21` with
+`unref : RegionUnrefBCD H Cs D s`; `JPathMEU25` / `JPathAtMU25` / `KDispHypsKVU25` = U21's with them;
+`.toU16` / `.toU21` take the dispatch state's `JAtZ` and `Entered`; `KDispHypsKVU25.toU21 J' (hb.enteredP hnd
+(hX.entered hct))` in the top. Removed relative to U21: part (a) of the `RegionUnrefAt` halves of C16 / C22 / C24
+heapH. Added: none. `JReachU17` unchanged; no existing top's statement and no internal signature changed (only new
+declarations). Remaining [J] at U25: C16 / C22 / C24 heapH (b)+(c)+(d), C17, C23.
+
+### (5) Builds and axioms
+Module builds jc6a-m1 (UnrefParts: an `absurd` and an ambiguous `optRef_ne`), jc6a-m2 (UnrefParts + U25: OK); full
+build jc6a-full1: `Build completed successfully (7301 jobs)`, 0 `error`, 0 `sorry`. `#print axioms` (../axjc6a.lean):
+U3L, UH2, U4..U21 and **U25**, `JAtZ.keptA`, `JAtZ.unrefA`, `regionUnrefAt_iff`, `sniHyp_of`, `sendHyp_of`,
+`scCtxStepP1`, `scCtlStepP1` all `[propext, Classical.choice, Quot.sound]`. No sorry / admit / native_decide /
+bv_decide / axiom in the new files.
+
+## jc6b (branch par/jc6b from 7f6784dd, merged jc6a 2e9ef5f3) — part (b) of `RegionUnrefAt` PROVED from the bound-notification / SC–notification symmetry; the symmetry NOT yet carried (STOPPED at sizing: the `JCarry` route is XL, not M–L); no new top, no FINDING of a false leaf
+
+### (1) What is proved (new file `Fl4Proofs/P3/UnrefSym.lean`)
+- **`BndSym σ`** (spec side; l4v `sym_refs` for `tcb_bound_notification`/`ntfn_bound_tcb` and
+  `sc_ntfn`/`ntfn_sc`, with the objects' kinds), four clauses: TCB → its notification bound back;
+  notification → its TCB bound back; SC → its notification whose SC is it; notification → its SC naming it
+  back (the last is SInvA's `NtfnScB` and P1's `ScExtra0.nsc`; the consumers read the first three).
+- `BndFwd`/`BndView σ σ'` (kinds and the four link fields kept, both ways), `BndSym.view`,
+  `BndView.updTcb` (a TCB update keeping its bound notification), `BndSym.restart`.
+- **`JAtZ.keptB (J) (hS : BndSym σ) : KeptRefsBAll H D s`** (jc6a's carried form of (b)): a link to a dead
+  object has a spec back-link that reads a word the dead object's `DeadP` zeroes (`ntfnBtA`, `ntfnScA`,
+  `boundA`), via `TcbRel1.bound`, `NtfnRel1.bound`/`.sc`/`.bound_mem`, `ScRelW.ntfn`; the target's kind from
+  P1's `ScExtra0.bnd`/`.scn`.
+- **`JAtZ.unrefB (J) (hni : Entered σ) (hS : BndSym σ) : RegionUnrefB H D s`**: `keptB` at
+  `JAtZ.restartSJ`'s state (same `H`, `D`), `BndSym.restart`, `KeptRefsBAll.region`.
+So U25's (b) is discharged at any `Entered` `JAtZ` state that also has `BndSym σ`.
+
+### (2) Why the symmetry is not carried yet (sizing)
+Adding `BndSym σ` (or its FL4-word form) to `JCarry` needs it after every `JAtZ` construction. Unlike
+jc2/jc3/jc5's facts (caps, arch objects, device ranges), the generic frames do NOT keep the four link fields:
+- `JAtZ.sc_frame` / `sch_frame` (`ScTKw` / `SchStep`): `TKObj` keeps `tcbBoundNotification` and
+  `ntfnBoundTcb` (so the TCB↔ntfn half is derivable inside), but lets an SC change arbitrarily and a
+  notification change its `ntfnSc` (SC Bind/Unbind ntfn are `ScTKw` steps), so the SC↔ntfn half is an
+  obligation of each caller: **128** call sites of `.sc_frame` (+7 `sc_frameS`, 5 `sch_frame`), spread over
+  ~60 files.
+- `JAtZ.cs_frameI` (IPC work): only `KBack` (kinds) and a `WritesIn` over `OObj` (all IPC objects' words):
+  neither half derivable; **50** call sites (+ cs_frame 13, cs_frameV 11, cs_frameB 6, cs_frameVD 3, …,
+  the `JAtZR` copies, the retypes/drops, MakePool, `restartSJ`).
+So the JCarry route is a per-call-site obligation at ~230 sites (XL).
+
+### (3) Cheaper routes (recommended order)
+1. **P1 (`ScExtra0`)**: P1 already carries one half of SC↔ntfn (`ScExtra0.nsc`: a notification's SC names it
+   back) and keeps it through every FL4 step via the base keep lemmas (`XInv0.keepN`/`keep'`/`keep`, `fr`,
+   `writes`, `wr_link`, `drop`, the `Heap.add*` retypes, `bind_ntfn.blk`, …, ~25 base lemmas + ~12 direct
+   constructions). Add `snb : ∀ c ∈ Scs, scNtfnA c ≠ 0 → ntfnScA (scNtfnA c) = c` (keepN already has the
+   keep facts `hns`, `hsn`), and `tbn`/`ntt` (TCB↔ntfn back-links; these need `boundA` and `ntfnBtA` kept,
+   which `keepN` gets only as after-typing `hbd`/`NtbOK`: add the two equalities, callers mostly have them via
+   `Fr`/`TmFr`). The single-write lemmas `bnd_all`/`ntbt_all` (bind/unbind, 8 uses) become a pair lemma.
+   Then P3 needs no site change: `JAtZ.blk` gives the FL4-word symmetry and `keptB` restated on words. (L)
+2. **SInv family**: `NtfnScB` is already an SInvA field; the other three clauses as SInv fields follow
+   SpecInvSlN1–6/NK (2138 lines for `NtfnScB`), but the detype's `RegionUnrefAt` is asked mid-entry, so the
+   top would have to pass the entry invariant down to the dispatch state (a top change; not done here).
+
+### (4) Check against the Rust (no counterexample)
+`notification::bind_notification`/`unbind_notification`/`unbind_maybe_notification` and
+`schedcontext::bind_ntfn`/`unbind_ntfn`/`maybe_unbind_ntfn` always write both sides; the ntfn finalise
+(objects.rs:306–307), TCB finalise (:340) and SC finalise (:362) use them; retyped objects are zeroed. The one
+one-sided write (`ct.set_bound_ntfn` in `arch/aarch64/vcpu.rs:1298`) is in a `#[test]`. So `BndSym` holds in
+reachable states.
+
+### (5) Build
+Full build jc6b-full1: 7303 jobs, 0 errors; `JAtZ.keptB`, `JAtZ.unrefB`, U21, U25 axioms propext,
+Classical.choice, Quot.sound. Next (jc6b2): carry the symmetry by route (3)1, then restate `keptB` on P1's words
+(`JAtZ.blk`) and drop U25's (b).
+
+## jc6d (branch par/jc6d: P1 `TimerRB` carried in `ScExtra0`, TIMER-RB-PLAN §1–13; merged par/jc6b) — part (d) of `RegionUnrefAt` reduced to `DeadUnarmed`; new top **`kernel_entry_reachU26`**; no FINDING
+
+- P1 (jc6d…jc6d9): the per-core timer trees are red-black trees holding exactly the armed TCBs (`TimerRB`), carried in
+  `ScExtra0.rb` (so in `JAtZ.blk`); start state assumes it (empty trees at boot; INV-PLAN note jc6d9).
+- P3 (jc6d10, new module UnrefTimer): `JAtZ.keptD` (`TimerKeptDAll` at any `JAtZ` from `TimerRB.no_link` and
+  `TimerOK`, given `DeadUnarmed H D s`: every TCB of `D` has deadline word 0), `JAtZ.unrefD` ((d) at an `Entered`
+  state across the restart, `DeadUnarmed.sts`), `RegionUnrefBCU` = (b) ∧ (c) ∧ `DeadUnarmed`.
+- `kernel_entry_reachU26` (XTopJointKEntryU26) = U25 with `unref : RegionUnrefBCU` in `JUtPathMU26` /
+  `JAsidCPathU26` / `JDevPathU26`; `KDispHypsKVU26.toU25 J' hni`.  Replaced: (d) [J] by `DeadUnarmed` [J] (a point
+  fact at the dispatch state).  (b) (`BndSym` route, jc6b) and (c) unchanged.  No existing statement changed.
+- Remaining for (d): carry `DeadUnarmed` (as a `DeadP` conjunct), L–XL: the deadline word has no spec counterpart, so
+  the ~130 `hdead` sites need a TCB-word frame each (TIMER-RB-PLAN §14.3 has the route).

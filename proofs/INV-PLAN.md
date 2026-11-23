@@ -496,15 +496,15 @@ premise, so the Vcpu, Ept and IoPort-with-owner arms are vacuous):
 | C12 | SchedControl `core` | `cpu = Z.c` | [P]/[S] one core (no carried cap-core fact) | `valid_cap` bounds the core | 1 |
 | C13 | SchedControl `arch` | as C8 | [P] | | 1 |
 | C15 | AsidPool `native` | the first extra slot's cap is not an Ept cap | [S] **derivable**: the extra slot is a typed-heap slot (`JAtZ.frontJ` + `ExtraOK.vsExtra`), `JAtZ.ext.nat` | x64 has no EPT caps | 1 |
-| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
+| C16 | AsidControl `heapH` | `ArchFitHyp H σ ∧ RegionUnrefAt H Cs D' s` | [J] (ArchFit S–M; RegionUnref L). **Narrowed (jc6a, `kernel_entry_reachU25`)**: `RegionUnrefAt` = (a) ∧ (b) ∧ (c) ∧ (d) (UnrefParts `regionUnrefAt_iff`); (a) reply-stack / yield links proved at `JAtZ` (`JAtZ.keptA`, `JAtZ.unrefA`); asked: `RegionUnrefBCD` = (b) bound/SC-ntfn links, (c) debug lists, (d) timer trees (same for C22 / C24 heapH). **(d) replaced by `DeadUnarmed` (jc6d10, `kernel_entry_reachU26`)**: dead TCBs have deadline 0, at the dispatch state (UnrefTimer `JAtZ.unrefD`) | arch `obj_range`; `untyped_children_in_mdb`+`if_live_then_nonz_cap`+`sym_refs` | 1, ∀gh (`D'`) |
 | C17 | AsidControl `vsReach` | `VsReachMiss` for every childless pool-sized RAM untyped region, at the restart state | [J] (L). **FINDING jc4: false at reachable states** as stated: the `NeedR` roots hold every PML4 cap's table, mapped or not; after the ASID pool is deleted and a mapped PDPT's last cap is finalised (its `unmap_pdpt` fails the ASID lookup and writes nothing), the unreachable mapped PML4 still reaches the dead PDPT in a childless untyped's region (KENTRY-PLAN jc4 (1)). Not dischargeable by `vsNamed`; fix F1 (mapped PML4 caps ask nothing of the sets) is a lead decision | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
 | C18 | Untyped RAM `fan`, `rcb` | `retypeFanOutLimit = 256`, `resetChunkBits = 16` (opaque `kernelConfig`) | [P] config | | 1 (state-free) |
 | C19 | Untyped RAM `vtx` | types 14..18: `JVtxScope` | [S] VT-x | | 1 |
 | C20 | Untyped RAM `core0` | `Z.c = 0` | [P]/[S] one core | | 1 |
 | C21 | Untyped RAM `bufObj` | every word of `Z.B` inside a spec object | **DISCHARGED (jc1b, `kernel_entry_reachU16`; top of record `kernel_entry_reachU18`, jc1c)**: `JAtZ.carry.bufPg` (`BufPgHyp`, `JCarry.bufObj`). The `ArchFitHyp` halves of C16 / C22 / C24 heapH likewise (`JAtZ.carry.archFit`); their `RegionUnrefAt` halves stay [J] | `valid_ipc_buffer_cap` + `obj_at` | 1 |
-| C22 | Untyped RAM `heapH` | as C16 | [J] | | 1, ∀gh |
+| C22 | Untyped RAM `heapH` | as C16 | [J]; narrowed to (b)+(c)+(d) as C16 (jc6a, U25) | | 1, ∀gh |
 | C23 | Untyped RAM `vsReach` | **narrowed (g7b-2)**: `VsReachMiss` for the cap's region at the restart state, *when the invoked cap has no descendants* (as C17) | [J] (L). FINDING g7b-2 (recorded): the unguarded form was false at reachable states (an untyped with children whose region holds a table named by a slot's cap, a `NeedR` root); the guard is the reset branch's `hnd'` (UtRetResetJ and siblings), applied in place to `JUtPath`/`JUtPathM`, so every top asks the guarded form; top of record `kernel_entry_reachU9`. **FINDING jc4: the guarded form is false too** at reachable states (same trace as C17, KENTRY-PLAN jc4 (1)) | `valid_vs_lookup` + `untyped_children_in_mdb` | 1 |
-| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2; jc4: the guarded device form is **true** — FL4 makes no table in a device range; **vsReach DISCHARGED (jc5, `kernel_entry_reachU21`)**: `JAtZ.carry.devTab` (`DevTab`: no spec table / ASID pool in a device untyped cap's range) with `JAtZ.devVsReach`, KENTRY-PLAN jc5; heapH's `RegionUnrefAt` half stays [J]) | | 1 |
+| C24 | Untyped device `fan rcb vtx core0 bufObj heapH vsReach` | as C18–C23 | as there (`vsReach`: **narrowed (g7b-2)** as C23, `JDevPath.vsReach`; the unguarded form was false, FINDING g7b-2; jc4: the guarded device form is **true** — FL4 makes no table in a device range; **vsReach DISCHARGED (jc5, `kernel_entry_reachU21`)**; heapH's `RegionUnrefAt` half narrowed to (b)+(c)+(d) (jc6a, `kernel_entry_reachU25`, as C16): `JAtZ.carry.devTab` (`DevTab`: no spec table / ASID pool in a device untyped cap's range) with `JAtZ.devVsReach`, KENTRY-PLAN jc5; heapH's `RegionUnrefAt` half stays [J]) | | 1 |
 | C25 | Untyped device `devApart` | `DevApart` (no device range covers a kernel/typed/RAM object; canonical half, nonzero base, ≥ 4 bits) | **DISCHARGED (jc2, `kernel_entry_reachU19`)**: `JAtZ.carry.devApart` (`JCarry` re-indexed `Z H Cs s σ`), carried with `devSep` (RAM and device untyped ranges disjoint; KENTRY-PLAN jc2) | `valid_untyped`, `pspace_no_overlap`, `kernel_window` | — |
 | C26 | Untyped device `devFree` | `DevFreeT`: no spec object in a device cap's free part | **DISCHARGED (s26, `kernel_entry_reachU14`; in the top of record `kernel_entry_reachU17`, s26-2)**: from the spec invariant `SInvDV.DevRangeS` (SpecInvDvW..DvP, g7a-4's generalised ZR route) through `devFreeT_of`; `DevRangeS` carried in `JReachU14`, asked at the start state | `valid_untyped` | — |
 | C27 | Untyped device `devGpm` | global PML4 off every device untyped range | **DISCHARGED (s27, `kernel_entry_reachU12`)**: from SpecInvGpm's `GpmOutV` (no cap covers `x64GlobalPml4`) carried in `JReachU12`, bridged by `devGpm_of` (KENTRY-PLAN s27) | `valid_global_refs` | — |
@@ -560,7 +560,27 @@ By tag (counting C24 as its 7 and E's leaves separately): **[P] 33** (of which *
 C7, C10, C11 — five rows), **[S] 20**, **[J] 14** (C4, C16, C17, C21, C22, C23, C24×3 (bufObj/heapH/vsReach), C25, C26,
 C27, D1), **[W] 3** at U4 (D6 CR3 tail; C9/C14 `rest` as P1 obligations); **[W] 1** at U7 (D6); **[W] 0** at U8 (g7e: D6 proved; D7 `IdleVt` [J] added).
 
-**Top of record: `SInvR.G5.kernel_entry_reachU21`** (jc5, XTopJointKEntryU21) = U20 without C24's device `vsReach`:
+**Top of record: `SInvR.G5.kernel_entry_reachU26`** (jc6d10, XTopJointKEntryU26) = U25 with part (d) of the
+`RegionUnrefAt` halves of C16 / C22 / C24 heapH (timer-tree links of every TCB, every core's `TIMER_ROOT` /
+`TIMER_MIN`, at the restart state, over every region of dead objects) replaced by **`DeadUnarmed H D s`** (every TCB
+of the dispatch state's dead set has deadline word 0; UnrefTimer): `KDispHypsKVU26` asks `JUtPathMU26` /
+`JAsidCPathU26` / `JDevPathU26` (= U25's with `unref : RegionUnrefBCU` = (b) ∧ (c) ∧ `DeadUnarmed`);
+`KDispHypsKVU26.toU25 J' hni` fills (d) from the dispatch state's own `JAtZ` (`JAtZ.unrefD`: `JAtZ.restartSJ`,
+`DeadUnarmed.sts`, `JAtZ.keptD` = P1's `TimerRB.no_link` + `TimerOK` at `J.blk`). [J] leaves as U25 (C16 / C22 / C24
+heapH now (b), (c), `DeadUnarmed`; C17, C23: **[J] 5**); **[W] 0**. `DeadUnarmed` is to be carried in `JAtZ`
+(TIMER-RB-PLAN §14, sized L–XL). Superseded by U26: U25.
+
+Previous top (superseded by U26): `SInvR.G5.kernel_entry_reachU25` (jc6a, XTopJointKEntryU25) = U21 with the `RegionUnrefAt`
+halves of C16 / C22 / C24 heapH narrowed to parts (b)+(c)+(d) (`RegionUnrefBCD`; UnrefParts): `KDispHypsKVU25` asks
+`JUtPathMU25` / `JAsidCPathU25` / `JDevPathU25` (= `JUtPathMU16` / `JAsidCPathU16` / `JDevPathU21` with
+`unref : RegionUnrefBCD`); `KDispHypsKVU25.toU21 J' hni` fills part (a) (reply next/prev, SC reply head, TCB
+yield-to, SC yield-from links) from the dispatch state's own `JAtZ` (`JAtZ.regionUnrefAt`: `JAtZ.keptA` at the
+restart's `JAtZ`, `JAtZ.restartSJ`), `Entered` by `BudgetAt.enteredP`. `JReachU17` unchanged. At U25 the [J] leaves
+are C16 / C22 / C24 heapH (parts (b), (c), (d) of `RegionUnrefAt`), C17, C23 (**[J] 5**); **[W] 0**. Premises added
+relative to U11: none. Names U22 / U23 reserved (parallel redesign), U24 for the top without `RegionUnrefAt`.
+Superseded by U25: U21.
+
+Previous top (superseded by U25): `SInvR.G5.kernel_entry_reachU21` (jc5, XTopJointKEntryU21) = U20 without C24's device `vsReach`:
 `KDispHypsKVU21` asks `JDevPathU21` (= `JDevPathU19` without `vsReach`); `KDispHypsKVU21.toU20 J' hni` fills it from
 the dispatch state's own `JAtZ` (`JAtZ.devVsReach`: the restart's `JAtZ`, `VsReach.mem` into the sets, the sets' tables
 spec tables / pools, the carried `JCarry.devTab` keeping them off every device untyped range), `Entered` at the
