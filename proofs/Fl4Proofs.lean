@@ -22,6 +22,10 @@ import Fl4Proofs.P1.FastTailNvm
 import Fl4Proofs.P1.FastTailFault
 import Fl4Proofs.P1.FastFaultEntU
 import Fl4Proofs.P1.FastTailRR
+import Fl4Proofs.P1.FastVm
+import Fl4Proofs.P1.FastVmInv
+import Fl4Proofs.P1.FastVmDecline
+import Fl4Proofs.P1.FastVmLocal
 import Fl4Proofs.P1.Refill
 import Fl4Proofs.P1.Queue
 import Fl4Proofs.P1.QueuePrio
@@ -1392,3 +1396,4 @@ import Fl4Proofs.P3.SpecInvGpK6
 import Fl4Proofs.P3.SpecInvGpm
 import Fl4Proofs.P3.XTopJointKEntryU12
 import Fl4Proofs.P3.XTopJointKEntryU15
+import Fl4Proofs.P3.XTopJointKEntryVm
