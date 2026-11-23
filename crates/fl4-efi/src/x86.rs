@@ -229,6 +229,12 @@ fn sev() -> (u64, u64, u64) {
     (1 << bit, cpuid_page, secrets_page)
 }
 
+/// Whether this is an Intel TDX guest: only a guest that is not SEV can be
+/// a TD. A TD measures into its RTMRs and CC event log and ignores any TPM.
+pub(super) fn is_tdx() -> bool {
+    sev().0 == 0 && tdx_shared_mask() != 0
+}
+
 /// An Intel TDX guest's shared-page bit, the top bit of its guest physical
 /// address width, or 0 outside a TD. CPUID leaf 21H comes from the TDX
 /// module in a TD; a non-TD forging it faults on TDCALL, which is no worse
@@ -451,8 +457,8 @@ fn long_mode_entry(kernel: &[u8]) -> Option<u64> {
 
 pub(super) type BootFile<'a> = (u64, u64, &'a [u8]);
 
-/// The files from the options extend TPM PCR 9 when there is a TPM, and
-/// (`measure`: this is a TD) RTMR[2].
+/// The files from the options extend RTMR[2] in a TD (`measure`), and TPM
+/// PCR 9 when there is a TPM outside one: a TD ignores any TPM.
 fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFile<'a>; 9], usize) {
     let mut files = [(0, 0, &[][..]); 9];
     let mut n = 1;
@@ -461,8 +467,9 @@ fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFil
             let (pa, len) = read_file(li, path);
             if measure {
                 ccel::measure_file(b"rootserver", path, pa, len);
+            } else {
+                tcg2::measure_file(b"rootserver", path, pa, len).unwrap_or_else(|e| fail(e));
             }
-            tcg2::measure_file(b"rootserver", path, pa, len).unwrap_or_else(|e| fail(e));
             files[0] = (pa, len, path);
         } else if let Some(path) = opt.strip_prefix(b"module=") {
             if n == files.len() {
@@ -471,8 +478,9 @@ fn boot_files<'a>(li: &LoadedImage, opts: &'a Words, measure: bool) -> ([BootFil
             let (pa, len) = read_file(li, path);
             if measure {
                 ccel::measure_file(b"module", path, pa, len);
+            } else {
+                tcg2::measure_file(b"module", path, pa, len).unwrap_or_else(|e| fail(e));
             }
-            tcg2::measure_file(b"module", path, pa, len).unwrap_or_else(|e| fail(e));
             files[n] = (pa, len, path);
             n += 1;
         }
@@ -513,8 +521,7 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     }
     let li = unsafe { &*(li as *const LoadedImage) };
     let opts = options(li);
-    // As in `boot`: only a guest that is not SEV can be a TD.
-    let measure = sev().0 == 0 && tdx_shared_mask() != 0;
+    let measure = is_tdx();
     let (files, n) = boot_files(li, &opts, measure);
     boot(image, embedded::KERNEL, &files[..n])
 }
@@ -558,10 +565,10 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         .map(|&(_, len, _)| len.div_ceil(PAGE) * PAGE)
         .sum();
     // The TPM event log goes after the files, with room for the events
-    // ExitBootServices adds.
-    let tpm = tcg2::collect();
+    // ExitBootServices adds. A TD ignores any TPM: its measurements are
+    // its RTMRs, whose CC event log goes after the TPM's place instead.
+    let tpm = if shared == 0 { tcg2::collect() } else { None };
     let tpm_cap = tpm.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
-    // The same for a TDX guest's RTMR log, independently of the TPM's.
     let cc = if shared != 0 { ccel::collect() } else { None };
     let cc_cap = cc.as_ref().map_or(0, |t| t.capacity().div_ceil(PAGE) * PAGE);
     let len = end + TABLE_BYTES + INFO_BYTES + 2 * PAGE + files_len + tpm_cap + cc_cap;

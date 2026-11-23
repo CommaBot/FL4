@@ -515,9 +515,9 @@ fn measuring_a_file_extends_the_descriptor_then_nonempty_contents() {
     assert!(at("file_descriptor(&mut desc, role, path, len)") < d && d < guard && guard < c);
 }
 
-/// x86: every `rootserver=` and `module=` file extends PCR 9 whether or
-/// not this is a TD (RTMR[2] as well in a TD), and a refused measurement
-/// stops the boot. All before the log is collected in `boot`.
+/// x86: every `rootserver=` and `module=` file extends PCR 9 outside a TD
+/// (RTMR[2] instead in a TD, which ignores any TPM), and a refused
+/// measurement stops the boot. All before the log is collected in `boot`.
 #[test]
 fn the_x86_loader_measures_option_files_into_pcr9() {
     let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
@@ -525,8 +525,8 @@ fn the_x86_loader_measures_option_files_into_pcr9() {
     for role in ["rootserver", "module"] {
         let arm = body(files, &format!("strip_prefix(b\"{role}=\")"), "files[");
         let at = |s: &str| arm.find(s).unwrap_or_else(|| panic!("{role}: {s}"));
-        let tpm = at(&format!("\n            tcg2::measure_file(b\"{role}\", path, pa, len).unwrap_or_else(|e| fail(e));"));
-        let cc = at(&format!("if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }}"));
+        let cc = at(&format!("if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }} else {{"));
+        let tpm = at(&format!("}} else {{\n                tcg2::measure_file(b\"{role}\", path, pa, len).unwrap_or_else(|e| fail(e));\n            }}"));
         assert!(at("read_file(li, path)") < cc && cc < tpm);
     }
     assert_eq!(files.matches("tcg2::measure_file(").count(), 2);
@@ -534,6 +534,7 @@ fn the_x86_loader_measures_option_files_into_pcr9() {
     assert!(start.find("boot_files(li, &opts, measure)").unwrap() < start.find("boot(image, ").unwrap());
     let boot = &x86[x86.find("pub(super) fn boot(").unwrap()..];
     assert!(!boot[..boot.find("tcg2::collect()").unwrap()].contains("measure_file("));
+    assert!(boot.contains("let tpm = if shared == 0 { tcg2::collect() } else { None };"), "no TPM log in a TD");
 }
 
 /// AArch64: the options' modules, root task and kernel command line all
