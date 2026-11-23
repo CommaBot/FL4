@@ -523,10 +523,10 @@ pub unsafe fn start_default(image: Handle, system: *mut SystemTable) -> Status {
     let opts = options(li);
     let measure = is_tdx();
     let (files, n) = boot_files(li, &opts, measure);
-    boot(image, embedded::KERNEL, &files[..n])
+    boot(image, embedded::KERNEL, &files[..n], c"")
 }
 
-pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
+pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>], cmdline: &core::ffi::CStr) -> ! {
     let cr4: u64;
     unsafe { asm!("mov {}, cr4", out(reg) cr4) };
     let (mask, cpuid, secrets) = sev();
@@ -599,6 +599,15 @@ pub(super) fn boot(image: Handle, kernel: &[u8], files: &[BootFile<'_>]) -> ! {
         base: root + TABLE_BYTES,
         used: 8,
     };
+    // Multiboot 2 boot command line (tag type 1), NUL included. At most a
+    // page, so the tags after it still fit.
+    if !cmdline.is_empty() {
+        let bytes = cmdline.to_bytes_with_nul();
+        if bytes.len() as u64 > PAGE {
+            fail("kernel command line too long");
+        }
+        write(info.tag(1, bytes.len() as u64), bytes);
+    }
     let cpuid_copy = info.base + INFO_BYTES;
     if cpuid != 0 {
         write(cpuid_copy, unsafe {
