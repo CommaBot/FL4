@@ -1109,6 +1109,10 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
         msg::set_mr(s, t, b, 2, intr);
         t.set_reg(s, reg::MSG_INFO, 0);
         t.set_reg(s, reg::BADGE, badge);
+        // The VMEnter has finished: a timeout fault raised by the budget
+        // check that follows must not restart it.
+        let next_ip = t.reg(s, reg::NEXT_IP);
+        t.set_reg(s, reg::FAULT_IP, next_ip);
         sched::set_thread_state(s, t, sched::TS_RUNNING);
         return;
     }
@@ -1170,5 +1174,7 @@ pub fn report<S: Store, A: Arch>(s: &mut S, a: &A, t: Tcb, badge: u64) {
     set(s, v, PENDING, 0);
     t.set_reg(s, reg::MSG_INFO, 1);
     t.set_reg(s, reg::BADGE, 0);
+    let ip = t.reg(s, reg::NEXT_IP);
+    t.set_reg(s, reg::FAULT_IP, ip);
     sched::set_thread_state(s, t, sched::TS_RUNNING);
 }

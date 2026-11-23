@@ -273,10 +273,10 @@ fn fl4_entry_vcpu_run(
         // So the guest's PC is the HVC until the entry runs (as `FAULT_IP`
         // is for a bound VCPU's HVC, in `fl4_entry`), and goes past it
         // again only in the body, before `complete_run` reads the guest
-        // state for the VMM. TCB invocations on a guest's TCB do not stall
-        // the thread running it, so their register writes already race
-        // with the exit's register save; the body only avoids moving a PC
-        // that is no longer the rewound one.
+        // state for the VMM. TCB invocations on a guest's TCB stall the
+        // thread running it, cancelling this entry before the body runs;
+        // the check below is defensive against moving a PC that is no
+        // longer the rewound one.
         let elr = guest_tcb.reg(s, reg::ELR_EL1);
         guest_tcb.set_reg(s, reg::ELR_EL1, elr.wrapping_sub(4));
         run_entry(false, |s, a| {
