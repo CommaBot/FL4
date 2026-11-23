@@ -5,6 +5,9 @@ P3 (issue #16, FL4 #71), VSpace FrameBatch: **one DELETE entry at `J`** (KENTRY-
 `cdt.delete` against `fbDelete`, any other cap `IllegalOperation`.
 -/
 import Fl4Proofs.P3.XTopJointFbDefs
+import Fl4Proofs.P3.XTopJointFbDelFrame
+import Fl4Proofs.P3.SpecFbKeepDel
+import Fl4Proofs.P3.SpecFbDelRun
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
