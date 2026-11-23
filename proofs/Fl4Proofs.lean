@@ -262,6 +262,10 @@ import Fl4Proofs.P3.VsFin
 import Fl4Proofs.P3.VsTopX
 import Fl4Proofs.P3.VsReplyTop
 import Fl4Proofs.P3.VsFbReply
+import Fl4Proofs.P3.SpecFbSim
+import Fl4Proofs.P3.SpecFbRestart
+import Fl4Proofs.P3.SpecFbDec
+import Fl4Proofs.P3.VsFbDec
 import Fl4Proofs.P3.HandleTopX
 import Fl4Proofs.P3.PerformNil
 import Fl4Proofs.P3.ReplyTopX
