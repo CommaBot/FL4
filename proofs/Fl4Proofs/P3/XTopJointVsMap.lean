@@ -1090,13 +1090,14 @@ theorem decode_invocation_frameJV [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) 
     exact XCap.imp arI h fun _ _ _ h => J.vsPostJ hni hct h.1 (h.2 h1 h2 h3)
 
 set_option maxHeartbeats 4000000 in
-/-- **A PML4 cap at `JAt`** (`decode_invocation_pml4_thX`; the ASID
-invalidation total by `ArchTotal`). -/
-theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
+/-- **A PML4 cap at `JAt`**, every label but FrameBatch (`decode_invocation_pml4_thX`; the ASID
+invalidation total by `ArchTotal`; with the batch: XTopJointVsFb's `decode_invocation_pml4JV`). -/
+theorem decode_invocation_pml4JVn (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s ar σ) (hni : Entered σ) (hA : ArchRefines arI AR)
     (hT : P0.ArchTotal arI)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct)
     (p asid : U64) (mp : Bool) (h0 : mp = true → asid ≠ 0#u64) (length slot buf : U64) (blk call don fp : Bool)
     (extra : Aeneas.Std.Array obj.Slot 3#usize) (args : List Fl4Spec.Data) (ci : Fl4Spec.CapRef)
@@ -1110,7 +1111,7 @@ theorem decode_invocation_pml4JV (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     obtain ⟨r, hr, -⟩ := spec_exists (hT.invalidate_asid a asid)
     exact ⟨r, hr⟩
   exact XCap.imp arI (decode_invocation_pml4_thX arI Z.th s ar σ Z.G hCR hFI hMO hDR hA hX.fin.1
-    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlbl ct hct hcur htcb J.kern.act
+    hX.fin.2.2.2.1 hX.fin.2.2.2.2 hX.fin.2.1 hX.fin.2.2.1 lbl slbl hlbl hfb ct hct hcur htcb J.kern.act
     (J.curRun.run hni) hinv p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer hX.esa hIA.dom)
     fun _ _ _ h => J.vsFlushJ hni hct h.1 h.2
 end

@@ -697,7 +697,8 @@ theorem decode_invocation_frame_capX [Fl4Proofs.P1.PlainStore st] (th : TypedHea
     · exact absurd h hnTAC
 
 set_option maxHeartbeats 8000000 in
-/-- **A PML4 cap at `TopSR`** (`Flush`, any other label), `FinX` after. -/
+/-- **A PML4 cap at `TopSR`** (`Flush`, any other label but FrameBatch: `hfb`, the batch replies in the
+decode, XTopJointVsFb), `FinX` after. -/
 theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G)
@@ -707,6 +708,7 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
@@ -729,12 +731,12 @@ theorem decode_invocation_pml4_capX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4S
   rw [hspec]
   by_cases hl : lbl = fl4_abi.label.X86PML4Flush
   swap
-  · rw [if_neg hl]
+  · rw [if_neg hl, if_neg hfb.2]
     have hd : Fl4Spec.fl4ArchDecodeInvocation (Z := Unit) slbl args ci sl
         (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps =
         Fl4Spec.NonDetE.liftME Fl4Spec.Fl4ArchInvocation.spec (Fl4Spec.archDecodeInvocation (Z := Unit) slbl args ci sl
           (.pml4Cap p.bv (if mp then some asid.bv else none)) excaps) := by
-      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h))]
+      unfold Fl4Spec.fl4ArchDecodeInvocation; dsimp only; rw [if_neg (fun h => hl (hlbl.1 h)), if_neg hfb.1]
     rw [hd]
     simp only [error.illegal, bind_ok, WP.spec_ok]
     refine (topMQX_err (Q := fun _ => True) ?_ hX0).1
