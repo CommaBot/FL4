@@ -1,6 +1,12 @@
 //! The GIC, version 2 or 3 as found at boot (ACPI MADT or the device
-//! tree). All interrupts are group 1 at one priority; the kernel takes
-//! them one at a time with interrupts masked except in the idle loop.
+//! tree). All interrupts share one priority; the kernel takes them one at
+//! a time with interrupts masked except in the idle loop. GICv3: every
+//! interrupt is group 1. GICv2: group 0 where GICD_IGROUPR is writable (a
+//! GIC with one security state, or its Secure view), with
+//! GICC_CTLR.AckCtl set so GICC_IAR acknowledges any group 1 interrupt
+//! too rather than reading 1022; in the Non-Secure view GICD_IGROUPR is
+//! RAZ/WI and every interrupt is group 1 (`gic_layout::spi_groups`,
+//! `gic_layout::V2_GICC_CTLR`).
 use crate::{cpu, gic_layout, percpu};
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -177,7 +183,7 @@ pub fn init_dist(version: u64, gicd: u64, gicc: u64) {
         wr(gicd + GICD_ICENABLER + i / 8, bits);
         wr(gicd + GICD_ICPENDR + i / 8, bits);
         wr(gicd + GICD_ICACTIVER + i / 8, bits);
-        wr(gicd + GICD_IGROUPR + i / 8, bits);
+        wr(gicd + GICD_IGROUPR + i / 8, gic_layout::spi_groups(version == 3, bits));
         i += 32;
     }
     let mut i = 32;
@@ -287,6 +293,9 @@ pub fn init_cpu(gicr: u64) {
         wr(d + GICD_ICENABLER, u32::MAX);
         wr(d + GICD_ICPENDR, u32::MAX);
         wr(d + GICD_ICACTIVER, u32::MAX);
+        // Banked SGIs and PPIs: group 0, as the SPIs (RAZ/WI if
+        // Non-Secure).
+        wr(d + GICD_IGROUPR, gic_layout::spi_groups(false, u32::MAX));
         let mut i = 0;
         while i < 32 {
             wr(d + GICD_IPRIORITYR + i, PRIO * 0x0101_0101);
@@ -297,7 +306,7 @@ pub fn init_cpu(gicr: u64) {
         let c = GICC.load(Ordering::Relaxed);
         wr(c + GICC_PMR, 0xff);
         wr(c + GICC_BPR, 0);
-        wr(c + GICC_CTLR, 3);
+        wr(c + GICC_CTLR, gic_layout::V2_GICC_CTLR);
         if cpu::has_el2() {
             let h = GICH.load(Ordering::Relaxed);
             if h != 0 {

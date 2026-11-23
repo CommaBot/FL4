@@ -104,6 +104,21 @@ fn gicv2_spis_go_to_the_boot_cores_interface() {
     assert_eq!(gic_layout::v2_targets(0), 0x0101_0101);
 }
 
+/// GICv2 in its Secure (or only) view reads 1022 from GICC_IAR for a group 1
+/// interrupt unless AckCtl is set: the first SPI then never acknowledged
+/// and core 0 spun in the exception vector. GICv2 keeps every interrupt in
+/// group 0 with AckCtl set; GICv3 keeps group 1.
+#[test]
+fn gicv2_interrupts_are_group_0_and_acknowledged() {
+    assert_eq!(gic_layout::spi_groups(false, u32::MAX), 0);
+    assert_eq!(gic_layout::spi_groups(false, 0x0fff_ffff), 0);
+    assert_eq!(gic_layout::spi_groups(true, u32::MAX), u32::MAX);
+    assert_eq!(gic_layout::spi_groups(true, 0x0fff_ffff), 0x0fff_ffff);
+    // EnableGrp0, EnableGrp1, AckCtl; FIQEn (bit 3) clear.
+    assert_eq!(gic_layout::V2_GICC_CTLR, 0b111);
+    assert_eq!(gic_layout::V2_GICC_CTLR & (1 << 3), 0);
+}
+
 /// Audit round 5 F5: SGIs only reach cores a target list can name. GICv2
 /// has eight CPU interfaces; a core reading no interface (or several, or
 /// another core's) would never answer a remote call. GICv3 names Aff0 16

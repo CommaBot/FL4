@@ -30,6 +30,23 @@ pub fn bank_bits(first: u64, lines: u64) -> u32 {
     }
 }
 
+/// GICD_IGROUPR for the implemented interrupts `bits` of one bank. GICv3:
+/// group 1. GICv2: group 0, as seL4's gic_v2.c: where the register is
+/// writable (one security state, or the Secure view) a group 1 interrupt
+/// reads 1022 from GICC_IAR unless AckCtl is set, and the Non-Secure view
+/// makes the register RAZ/WI, so the zero changes nothing there.
+pub fn spi_groups(gicv3: bool, bits: u32) -> u32 {
+    if gicv3 { bits } else { 0 }
+}
+
+/// GICv2 GICC_CTLR: EnableGrp0 | EnableGrp1 | AckCtl where the Secure (or
+/// only) view is the one seen, so GICC_IAR acknowledges a group 1
+/// interrupt firmware left behind instead of reading 1022 for it forever.
+/// FIQEn stays clear, so group 0 still signals IRQ.
+/// In the Non-Secure view bit 0 is EnableGrp1 and bits 1 and 2 are RES0
+/// there, as with the 3 written before.
+pub const V2_GICC_CTLR: u32 = 0b111;
+
 /// GICv2: the GICD_ITARGETSR word that sends four SPIs to the calling
 /// core, from its banked GICD_ITARGETSR0 (each byte that core's own CPU
 /// interface bit). A uniprocessor GIC reads it as zero: interface 0.
