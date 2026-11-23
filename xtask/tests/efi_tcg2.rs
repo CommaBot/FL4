@@ -619,5 +619,8 @@ fn the_x86_loader_poisons_the_tpm_in_a_td() {
     assert!(poison < at("(bs().exit_boot_services)"));
     assert_eq!(x86.matches("tcg2::poison()").count(), 1);
     let fw = include_str!("../../crates/fl4-efi/src/firmware.rs");
-    assert!(fw.contains("x86::boot(self.image, kernel, &files[..modules.len()])"));
+    assert!(fw.contains("x86::boot(self.image, kernel, &files[..modules.len()], cmdline)"));
+    let b = body(fw, "pub unsafe fn boot(&self, kernel: &[u8], modules: &[(&[u8], &[u8])]) -> ! {", "\n    }\n");
+    assert!(b.contains("unsafe { self.boot_with_cmdline(kernel, modules, c\"\") }"), "boot is boot_with_cmdline with none");
+    assert_eq!(fw.matches("x86::boot(").count(), 1, "only boot_with_cmdline enters x86::boot");
 }
