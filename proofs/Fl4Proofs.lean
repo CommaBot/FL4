@@ -1440,3 +1440,5 @@ import Fl4Proofs.P3.UnrefTimer
 import Fl4Proofs.P3.XTopJointKEntryU26
 import Fl4Proofs.P3.UnrefBnd
 import Fl4Proofs.P3.XTopJointKEntryU27
+import Fl4Proofs.P3.VsUnmapTabF
+import Fl4Proofs.P3.VsKeyDefs

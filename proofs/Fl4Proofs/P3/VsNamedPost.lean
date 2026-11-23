@@ -306,13 +306,248 @@ theorem VsNamed.ofUnmapLeafF (hN : VsNamed th m ksb) (hS : VsSlotsW th P L4 L3 L
     rw [hT _ (pool_hi hcw hib).1]
     exact hN.poolT y hy q b hb hi hib
 
+/-! ## Table unmaps (`UnmapTabF`) -/
+
+/-- Under `ArchShr`, a walk node's entry steps alike or is cleared. -/
+theorem wsub_of_shr (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hR' : VsRel P m' ksb σ') (hPt' : PtRel L4 L3 L2 L1 m' σ') (hsh : ArchShr σ σ') :
+    ∀ (k : Nat) (p : U64) (a v : Nat) (i : U64), VsPath m ksb k p a v → 2 ≤ k → k ≤ 5 → i.val < bnd k →
+      wstep k (m' (peA p i)) = wstep k (m (peA p i)) ∨ wstep k (m' (peA p i)) = none := by
+  intro k p a v i hp h2 h5 hi
+  have hm := hp.mem hR hPt hPI
+  by_cases e5 : k = 5
+  · subst e5
+    left
+    obtain ⟨f, hf, -⟩ := hR.pool p hm
+    obtain ⟨ao', h', he⟩ := hsh.2 _ _ hf
+    have hko : σ'.kheap p.bv = σ.kheap p.bv := by
+      rcases he with rfl | ⟨_, _, e1, -⟩ | ⟨_, _, e1, -⟩ | ⟨_, _, e1, -⟩ | ⟨_, _, e1, -⟩
+      · rw [h', hf]
+      all_goals cases e1
+    rw [pool_same_of_kheap hR hR' hm hm hko (by simpa [bnd] using hi)]
+  · rcases ent_shr hPt hPt' hsh (by omega) (by omega) hm hi with h | h
+    · exact .inl h.2
+    · exact .inr h.2
+
+/-- The ASID lookup data of a level-4 walk node at its ASID. -/
+theorem sw4_of_path (hR : VsRel P m ksb σ) {pm : U64} {a : Nat} (h : VsPath m ksb 4 pm a 0) {asid : U64}
+    (ha : asid.val = a) : SW4 σ asid pm := by
+  cases h with
+  | @pool p b lo hp hl h0 ht =>
+    cases hp with
+    | @tbl hi hh h0' =>
+      have hq := hR.tmem hi hh h0'
+      obtain ⟨f, hkf, hfp⟩ := hR.pool _ hq
+      have e1 : (hi &&& 2047#u64) = hi := UScalar.eq_of_val_eq (by
+        rw [and_val hi 11 2047#u64 rfl]; exact Nat.mod_eq_of_lt (by norm_num; omega))
+      have hhi : (Fl4Spec.ucast 11 hi.bv : BitVec 11) = Fl4Spec.asidHighBitsOf asid.bv := by
+        have := hi_bv asid hi (by rw [Nat.shiftRight_eq_div_pow, ha]; norm_num; omega)
+        rwa [e1] at this
+      have e2 : (asid &&& 511#u64) = lo := UScalar.eq_of_val_eq (by
+        rw [and_val asid 9 511#u64 rfl, ha]; norm_num; omega)
+      have hlo : (Fl4Spec.ucast 9 lo.bv : BitVec 9) = Fl4Spec.asidLowBitsOf asid.bv := by
+        have := lo_bv asid
+        rwa [e2] at this
+      refine ⟨_, f, ?_, hkf, ?_⟩
+      · rw [← hhi, hR.table hi hh, optRef_some h0']
+      · rw [← hlo, hfp lo hl, nativeAsidRoot_optRef, nativeRef, if_pos ht, optRef_some h0]
+
+/-- `gone`'s `hpar` for a PT unmap: a parent PD at the cap's ref is the one
+l4v's lookup reaches, whose entry no longer names the table (`NoName2`). -/
+theorem hpar2 (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hPt' : PtRel L4 L3 L2 L1 m' σ') {asid0 va0 q0 : U64} (hNN : NoName2 σ σ' asid0 va0 q0) :
+    ∀ (p : U64) (a1 v1 : Nat) (i : U64), VsPath m ksb 2 p a1 v1 → i.val < bnd 2 →
+      rstep 2 a1 v1 i.val = (asid0.val, va0.val) → wstep 2 (m' (peA p i)) ≠ some q0 := by
+  intro p a1 v1 i hp hi hr hw
+  have hp2 : p ∈ L2 := hp.mem hR hPt hPI
+  have hi' : i.val < 512 := by simpa [bnd] using hi
+  cases hp with
+  | @l3 p3 _ v i3 hp3 hi3 he3 hs3 =>
+    have hp3m : p3 ∈ L3 := hp3.mem hR hPt hPI
+    cases hp3 with
+    | @l4 pm _ i4 hpm hi4 he4 =>
+      unfold rstep at hr
+      rw [if_neg (show ¬ (2 : Nat) = 5 by decide), if_neg (show ¬ (2 : Nat) = 4 by decide),
+        if_neg (show ¬ (2 : Nat) = 3 by decide)] at hr
+      simp only [Prod.mk.injEq] at hr
+      obtain ⟨ha, hv⟩ := hr
+      have e39 : vIdx va0 39 = i4 := UScalar.eq_of_val_eq (by
+        rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+      have e30 : vIdx va0 30 = i3 := UScalar.eq_of_val_eq (by
+        rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+      have e21 : vIdx va0 21 = i := UScalar.eq_of_val_eq (by
+        rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+      have hsw := sw4_of_path hR hpm ha.symm
+      have hpm4 : pm ∈ L4 := hpm.mem hR hPt hPI
+      obtain ⟨f, hkf, hrf⟩ := hPt.l4 pm hpm4
+      obtain ⟨ta4, tr4, hf4⟩ := entry4_of (hrf i4 hi4) he4
+      obtain ⟨g, hkg, hrg⟩ := hPt.l3 _ hp3m
+      obtain ⟨ta3, tr3, hg3⟩ := entry3_of (hrg i3 hi3) he3 hs3
+      obtain ⟨⟨hP2, hS2⟩, hT2⟩ := (wstep32 (.inr rfl)).1 hw
+      obtain ⟨h, hkh, hrh⟩ := hPt'.l2 _ hp2
+      obtain ⟨ta, tr, hh⟩ := entry2_of (hrh i hi') hP2 hS2
+      rw [hT2] at hh
+      refine hNN pm _ _ hsw ⟨f, ta4, tr4, hkf, by rw [e39]; exact hf4⟩ ⟨g, ta3, tr3, hkg, by rw [e30]; exact hg3⟩
+        h hkh ta tr ?_
+      rw [e21]; exact hh
+
+/-- `gone`'s `hpar` for a PD unmap (`NoName3`). -/
+theorem hpar3 (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hPt' : PtRel L4 L3 L2 L1 m' σ') {asid0 va0 q0 : U64} (hNN : NoName3 σ σ' asid0 va0 q0) :
+    ∀ (p : U64) (a1 v1 : Nat) (i : U64), VsPath m ksb 3 p a1 v1 → i.val < bnd 3 →
+      rstep 3 a1 v1 i.val = (asid0.val, va0.val) → wstep 3 (m' (peA p i)) ≠ some q0 := by
+  intro p a1 v1 i hp hi hr hw
+  have hp3 : p ∈ L3 := hp.mem hR hPt hPI
+  have hi' : i.val < 512 := by simpa [bnd] using hi
+  cases hp with
+  | @l4 pm _ i4 hpm hi4 he4 =>
+    unfold rstep at hr
+    rw [if_neg (show ¬ (3 : Nat) = 5 by decide), if_neg (show ¬ (3 : Nat) = 4 by decide), if_pos rfl] at hr
+    simp only [Prod.mk.injEq] at hr
+    obtain ⟨ha, hv⟩ := hr
+    have e39 : vIdx va0 39 = i4 := UScalar.eq_of_val_eq (by
+      rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+    have e30 : vIdx va0 30 = i := UScalar.eq_of_val_eq (by
+      rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+    have hsw := sw4_of_path hR hpm ha.symm
+    have hpm4 : pm ∈ L4 := hpm.mem hR hPt hPI
+    obtain ⟨f, hkf, hrf⟩ := hPt.l4 pm hpm4
+    obtain ⟨ta4, tr4, hf4⟩ := entry4_of (hrf i4 hi4) he4
+    obtain ⟨⟨hP3, hS3⟩, hT3⟩ := (wstep32 (.inl rfl)).1 hw
+    obtain ⟨h, hkh, hrh⟩ := hPt'.l3 _ hp3
+    obtain ⟨ta, tr, hh⟩ := entry3_of (hrh i hi') hP3 hS3
+    rw [hT3] at hh
+    refine hNN pm _ hsw ⟨f, ta4, tr4, hkf, by rw [e39]; exact hf4⟩ h hkh ta tr ?_
+    rw [e30]; exact hh
+
+/-- `gone`'s `hpar` for a PDPT unmap (`NoName4`). -/
+theorem hpar4 (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hPt' : PtRel L4 L3 L2 L1 m' σ') {asid0 va0 q0 : U64} (hNN : NoName4 σ σ' asid0 va0 q0) :
+    ∀ (p : U64) (a1 v1 : Nat) (i : U64), VsPath m ksb 4 p a1 v1 → i.val < bnd 4 →
+      rstep 4 a1 v1 i.val = (asid0.val, va0.val) → wstep 4 (m' (peA p i)) ≠ some q0 := by
+  intro p a1 v1 i hp hi hr hw
+  have hp4 : p ∈ L4 := hp.mem hR hPt hPI
+  have hi' : i.val < 256 := by simpa [bnd] using hi
+  have hv0 := hp.v4
+  subst hv0
+  unfold rstep at hr
+  rw [if_neg (show ¬ (4 : Nat) = 5 by decide), if_pos rfl] at hr
+  simp only [Prod.mk.injEq] at hr
+  obtain ⟨ha, hv⟩ := hr
+  have e39 : vIdx va0 39 = i := UScalar.eq_of_val_eq (by
+    rw [vIdx_val, Nat.shiftRight_eq_div_pow]; norm_num at hv ⊢; omega)
+  have hsw := sw4_of_path hR hp ha.symm
+  obtain ⟨hP4, hT4⟩ := wstep4.1 hw
+  obtain ⟨h, hkh, hrh⟩ := hPt'.l4 _ hp4
+  obtain ⟨ta, tr, hh⟩ := entry4_of (hrh i hi') hP4
+  rw [hT4] at hh
+  refine hNN p hsw h hkh ta tr ?_
+  rw [e39]; exact hh
+
+/-- **(F1 stage 5) Table Unmap with its post's facts** (`UnmapTabF`;
+VsNamedOps' `unmapTab`): `huq` (the cap the only one of its key) from the
+decode's final check (`huq_of_finF`, at the caller). -/
+theorem VsNamed.ofUnmapTabF (hN : VsNamed th m ksb) (hS : VsSlotsW th P L4 L3 L2 L1 m)
+    (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hR' : VsRel P m' ksb σ') (hPt' : PtRel L4 L3 L2 L1 m' σ')
+    {x : U64} (hx : IsSlot th x) {c : capability.Cap} (hc : capV m x = c) (hSF : SlotFoot th m m' x)
+    (hF : UnmapTabF m' x c σ σ')
+    (huq : ∀ y, IsSlot th y → y ≠ x → VKey (capV m y) ≠ VKey (capV m x)) : VsNamed th m' ksb := by
+  obtain ⟨hsh, q0, mp, asid0, va0, hcase, hz⟩ := hF
+  have hT := tbl_same_of_asid hR hR' hsh.1
+  have hW := wsub_of_shr hR hPt hPI hR' hPt' hsh
+  have hsub : ∀ k q a v, VsPath m' ksb k q a v → VsPath m ksb k q a v :=
+    fun _ _ _ _ h => VsPath.sub_down (fun hi hh => .inl (hT hi hh)) hW h
+  obtain ⟨k0, hk1, hk3, hkey0, hu1, hkey1, hr0, hpar⟩ : ∃ k0, 1 ≤ k0 ∧ k0 ≤ 3 ∧
+      VKey (capV m x) = some (k0, q0) ∧ TabUn (capV m' x) ∧ VKey (capV m' x) = some (k0, q0) ∧
+      VRefOf (capV m x) = some (mp, asid0.val, va0.val) ∧
+      (mp = true → ∀ (p : U64) (a1 v1 : Nat) (i : U64), VsPath m ksb (k0 + 1) p a1 v1 → i.val < bnd (k0 + 1) →
+        rstep (k0 + 1) a1 v1 i.val = (asid0.val, va0.val) → wstep (k0 + 1) (m' (peA p i)) ≠ some q0) := by
+    rcases hcase with ⟨rfl, h1, hn⟩ | ⟨rfl, h1, hn⟩ | ⟨rfl, h1, hn⟩
+    · exact ⟨1, le_rfl, by omega, by rw [hc]; exact rfl, by rw [h1]; exact rfl, by rw [h1]; exact rfl,
+        by rw [hc]; exact rfl, fun hm => hpar2 hR hPt hPI hPt' (hn hm)⟩
+    · exact ⟨2, by omega, by omega, by rw [hc]; exact rfl, by rw [h1]; exact rfl, by rw [h1]; exact rfl,
+        by rw [hc]; exact rfl, fun hm => hpar3 hR hPt hPI hPt' (hn hm)⟩
+    · exact ⟨3, by omega, le_rfl, by rw [hc]; exact rfl, by rw [h1]; exact rfl, by rw [h1]; exact rfl,
+        by rw [hc]; exact rfl, fun hm => hpar4 hR hPt hPI hPt' (hn hm)⟩
+  have hun0 : mp = false → TabUn (capV m x) := fun hm => by
+    rw [tabUn_iff]; exact ⟨by rw [hkey0]; simp, _, _, hm ▸ hr0⟩
+  refine hN.unmapTab hS hkey0 huq hu1 hkey1 (fun y hy hne _ => capV_of_foot hSF y hy hne) hT hW ?_ ?_
+  · intro a v h
+    cases mp
+    · exact hN.unNotWalk hx (hun0 rfl) hkey0 (hsub _ _ _ _ h)
+    · exact VsNamed.gone (by omega) (hN.own_ref hkey0 huq hr0) hsub (hpar rfl) a v h
+  · intro y hy hu k q hk i hi
+    by_cases e : y = x
+    · subst e
+      rw [hkey1] at hk
+      obtain ⟨rfl, rfl⟩ : k0 = k ∧ q0 = q := by simpa using hk
+      cases mp
+      · have hu0 := hun0 rfl
+        have hq := hS.need hy (vneed_of_un hu0 hkey0)
+        rcases ent_shr hPt hPt' hsh hk1 (by omega) hq hi with h | h
+        · rw [h.1]; exact hN.empty y hy hu0 k0 q0 hkey0 i hi
+        · exact h.1
+      · exact hz rfl i (lt_of_lt_of_le hi (bnd_le _))
+    · have hc' := capV_of_foot hSF y hy e
+      rw [hc'] at hu hk
+      have hq := hS.need hy (vneed_of_un hu hk)
+      have hk14 := un_lvl hu hk
+      rcases ent_shr hPt hPt' hsh hk14.1 hk14.2 hq hi with h | h
+      · rw [h.1]; exact hN.empty y hy hu k q hk i hi
+      · exact h.1
+
+/-- **(F1 stage 5, item 4 vehicle) `VsNamed` across a step keeping the keyed
+caps (`VsKeep`) with only spec entries cleared (`ArchShr`)**: the relations at
+the same sets before and after (no FL4 word equality asked: a frame / CSpace
+step's `ArchShr.of_keep` from its kept arch objects and ASID table). -/
+theorem VsNamed.stepShr {th' : TypedHeap} (hN : VsNamed th m ksb) (hS : VsSlotsW th P L4 L3 L2 L1 m)
+    (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m)
+    (hR' : VsRel P m' ksb σ') (hPt' : PtRel L4 L3 L2 L1 m' σ')
+    (hK : VsKeep th th' m m') (hsh : ArchShr σ σ') : VsNamed th' m' ksb := by
+  have hT := tbl_same_of_asid hR hR' hsh.1
+  have hW := wsub_of_shr hR hPt hPI hR' hPt' hsh
+  refine ⟨fun k q a v h => ?_, fun y1 y2 hy1 hy2 hk hn => ?_, fun y1 y2 hy1 hy2 hk hu => ?_,
+    fun y' hy' hu k q hk i hi => ?_, fun y' hy' q b hb hi hib => ?_⟩
+  · obtain ⟨y, hy, hk, hr⟩ := hN.named k q a v (VsPath.sub_down (fun hi hh => .inl (hT hi hh)) hW h)
+    obtain ⟨y', hy', e1, e2⟩ := hK.fwd y hy (by rw [hk]; simp)
+    exact ⟨y', hy', by rw [e1]; exact hk, by rw [e2]; exact hr⟩
+  · obtain ⟨z1, hz1, a1, b1⟩ := hK.back y1 hy1 hn
+    obtain ⟨z2, hz2, a2, b2⟩ := hK.back y2 hy2 (by rw [← hk]; exact hn)
+    rw [← b1, ← b2]
+    exact hN.uref z1 z2 hz1 hz2 (by rw [a1, a2, hk]) (by rw [a1]; exact hn)
+  · by_contra hne
+    obtain ⟨z1, z2, hz1, hz2, hz, a1, b1, a2⟩ := hK.inj y1 y2 hy1 hy2 hne hk hu
+    exact hz (hN.uun z1 z2 hz1 hz2 (by rw [a1, a2]) (TabUn.of_ref a1 b1 hu))
+  · obtain ⟨z, hz, a1, b1⟩ := hK.back y' hy' (tabUn_key hu)
+    have hu' := TabUn.of_ref a1 b1 hu
+    have hk' : VKey (capV m z) = some (k, q) := a1.trans hk
+    have hq := hS.need hz (vneed_of_un hu' hk')
+    have hk14 := un_lvl hu' hk'
+    have hi' : i.val < bnd k := by unfold bnd; exact hi
+    rcases ent_shr hPt hPt' hsh hk14.1 hk14.2 hq hi' with h | h
+    · rw [h.1]; exact hN.empty z hz hu' k q hk' i hi
+    · exact h.1
+  · have hk0 : VKey (capV m' y') = some (5, q) := by rw [hb]; rfl
+    obtain ⟨z, hz, a1, b1⟩ := hK.back y' hy' (by rw [hk0]; simp)
+    obtain ⟨b', hb'⟩ := pool_of_key (a1.trans hk0)
+    rw [hb', hb] at b1
+    simp only [VRefOf, Option.some.injEq, Prod.mk.injEq, true_and, and_true] at b1
+    have hcw := hS z hz
+    rw [hb'] at hcw
+    rw [hT _ (pool_hi hcw (by omega)).1]
+    exact hN.poolT z hz q b' hb' hi (by omega)
+
 /-- **(F1 stage 5) `VsNamed` across a VSpace step with its `VsOpF`** (the
-operations whose facts are exported; `hTodo` for the rest, KENTRY-PLAN f4). -/
+per-operation facts; `hUq`, the cap the only one of its key, for a table
+Unmap, from the decode's final check). -/
 theorem VsNamed.ofOpF (hN : VsNamed th m ksb) (hS : VsSlotsW th P L4 L3 L2 L1 m)
     (hR : VsRel P m ksb σ) (hPt : PtRel L4 L3 L2 L1 m σ) (hPI : PoolsIn P L4 m) (hPP : PtPlaced L4 L3 L2 L1)
     (hR' : VsRel P m' ksb σ') (hPt' : PtRel L4 L3 L2 L1 m' σ')
     {x : U64} (hx : IsSlot th x) {c : capability.Cap} (hc : capV m x = c) (hSF : SlotFoot th m m' x)
-    (hF : VsOpF m m' x c σ σ') (hTodo : VsOpTodo → VsNamed th m' ksb) : VsNamed th m' ksb := by
+    (hF : VsOpF m m' x c σ σ')
+    (hUq : finF m x = true → ∀ y, IsSlot th y → y ≠ x → VKey (capV m y) ≠ VKey (capV m x)) :
+    VsNamed th m' ksb := by
   rcases hF with h | h | h | h | h | h | h
   · exact hN.ofPdptMapF hS hR hPt hPI hR' hPt' hx hc hSF h
   · exact hN.ofPdMapF hS hR hPt hPI hR' hPt' hx hc hSF h
@@ -320,7 +555,7 @@ theorem VsNamed.ofOpF (hN : VsNamed th m ksb) (hS : VsSlotsW th P L4 L3 L2 L1 m)
   · exact hN.ofAssignF hS hR hPt hPI hPP hR' hPt' hx hc hSF h
   · exact hN.ofMapLeafF hS hR hPt hPI hR' hPt' hc hSF h
   · exact hN.ofUnmapLeafF hS hR hPt hPI hR' hPt' hc hSF h
-  · exact hTodo h
+  · exact hN.ofUnmapTabF hS hR hPt hPI hR' hPt' hx hc hSF h.1 (hUq h.2)
 
 end
 
