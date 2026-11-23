@@ -16900,3 +16900,26 @@ global ref).
     batch). SgD `sg_fl4ArchPerform` / SiD `iw_fl4ArchPerform`: `| frameBatch` arms by `fbq_run` at
     `RV := NOV N` / `IVV t` (`notNode_of_destRef`, `notIV_of_cov`, `notNode/IV_of_held`, `fb_emptySlot_nul`).
   * proofs/scratch/fb3scratch.py no longer stubs UtP1 / SgD / SiD (only the six m77 sites and VsThX:527).
+- **More arms (commit 52b6a8e5)**: SpecInvFoP (`oiF_performFrameBatch` for the FoG `OI q` family, IL by
+  `il_performFrameBatch`), SpecInvSlA (`sl_performFrameBatch` via `ik_fbEntryX_of` + `sl_pageInv` (`ArchNCS`
+  from `PgSl` and the frame in the slot) + `sl_emptySlot_p` / `sl_setCap_nt`; `nb_performFrameBatch`).
+- **Scratch full build fb3e-full2** (tokyo, `MODE=build`, stubs only at the six m77 sites + VsThX:527, LEAN 1
+  thread, 36 min): reached 7267 jobs; failing modules, all the same class ("`X_auto` on the batch arm": add an
+  `X_performFrameBatch` leaf before the arch-perform lemma, as above):
+  * SpecInvUtZS: `yk_fl4ArchPerformInvocation` (263), `hu_fl4ArchPerformInvocation` (343) — patched in the
+    worktree (`yk_performFrameBatch` via `ik_performFrameBatchW`; `hu_performFrameBatch` with `utIn_frame`,
+    emptySlot by `unfold emptySlot; hv_auto`): **built (fb3e-m15), committed**;
+  * SpecInvIoPortsS:381 `ioi_fl4ArchPerform` (`ioi_setCap_noIo` (frame ≠ ioport cap), `ioi_emptySlot_p` (`ClOk
+    Null`), capInsert / performPageInvocation leaves to find; probably `ik_fbEntryX_of` with slot facts);
+  * SpecInvVfhE:157 (`VS σ0`: `vs_capInsert` / `vs_setCap` need `vfh_Bad σ0 sl → validFaultHandler c` / `CnOk`;
+    a frame cap is no valid fault handler, so the run-time fact "the slot is not `vfh_Bad`" is needed: use
+    `ik_fbEntryX_of`'s slot facts (frame / Null in the written slot) — check `vfh_Bad`'s definition);
+  * SpecInvCqGP:23/63 (`rt_fl4PerformInvocation`), SpecInvCqC1:57 (`eb_perfArchNoPool`, `EBKE k`),
+    XTopJointMidRunQ:1084 (`perf_firstQ`: the `kf_auto` / `qv_auto2` arm; `kf` already has the batch in
+    MidRunS, `qv` needs a leaf).
+  Every other module of the 7267 built, except those downstream of the six sites / these six modules.
+- **Still open as before**: the six m77 sites (P1 QueueDecVs [L], MachKeepG4d [M-L], VsTopX / VsDecTop / VsThX /
+  VsDomF = the P3 refinement [XL]) and VsThX:527 (`okAll_specDec_pml4`'s `hfb`).
+- Builds: fb3e-m1..m15 (module builds with the stubs), fb3e-full1 (stopped), fb3e-full2 (above). No green full
+  build (the six sites). Next, in order: the five modules above (S each, same pattern), a scratch full build
+  (should then stop only at the six sites), then the six sites as planned in fb3 / fb3c.
