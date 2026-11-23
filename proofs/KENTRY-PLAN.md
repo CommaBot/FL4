@@ -17246,3 +17246,16 @@ global ref).
   structures `RRChecks`, `RRR3`, `RRPre`, `RRPreAt`, `RRPre2/3/5`, `RRPreAt2/3/5`, `FaultReads` became abbrevs (same
   fields / unfolding), `faultTail` / `faultTail2` defs re-pointed (one `unfold faultTail2` in `fault_sync` now
   `unfold faultTail2 faultTail2G`). Generators: scratch `vgen.py` (ReplyRecv files) + inline python edits.
+### pf1d (builds) — GREEN
+- tokyo (LEANQ_N=1): FastFault, then the whole P1 group green after three fixes (FastFaultInv: a blanket VMFault→ty
+  rename hit `hty'` itself, `xfer_foot_S8G` argument order, `faultReads_ofG`'s value variables renamed `fw0..fw2`
+  since its proof names hypotheses `w1`/`w2`; FastVmLocal: `lift` binds reduced before the obtains). Commit d730c03e.
+- afkprover (SEED=B, scratch = untracked `proofs/scratch/pf1scratch.py`: the four FrameBatch stubs of cba1820b —
+  VsTopX:732, VsThX:468/527, MachKeepG4d — idempotent apply/revert): pf1-a3 FastVmLocal + XTopJointKEntryVm green
+  (commit 4495346f); pf1-a4 FULL BUILD green: 7281 jobs, ERRORS 0, SORRY 4 (exactly the four scratch stubs),
+  mirror clean before/after (FB3SCRATCH 0). Axioms (pfax.lean): every new P1 lemma and `JAtZ.vmFaultOK` /
+  `JAtZ.rrPreAtG`, and the re-derived `fault_same` / `rr_same` / `faultReads_of` / `faultNvm_ofR`:
+  [propext, Classical.choice, Quot.sound]; `kernel_entry_reachU15Vm`: + sorryAx, exactly as `kernel_entry_reachU15`
+  itself under the FrameBatch scratch (the stubs sit below U15's chain; nothing of pf1 adds one).
+- Open as in pf1b/pf1c: the decline tops (P3 `JReachU15` Arch transfer under `ClockLater` [P]),
+  `handle_syscall_local` / `handle_ioport_local` / `handle_invocation_local` accepted cases.
