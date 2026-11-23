@@ -321,7 +321,7 @@ theorem XInv0.keep0 {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
     (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c))
@@ -334,7 +334,7 @@ theorem XInv0.keep0 {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
       hR.head.keep (fun r hr => (hrw r hr).2.2) hsr (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
     ⟨fun t ht hb => ?_, hcs, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
       fun t ht => by rw [hbd t ht]; exact hE.bnd t ht, ScExtra.nsc_keep hE.nsc hns hsn hmx,
-      htn.1, htn.2, fun c hc => by rw [hsn c hc]; exact hE.scn c hc,
+      htn.1, htn.2.1, htn.2.2, fun c hc => by rw [hsn c hc]; exact hE.scn c hc,
       hE.yt.keep (fun c hc => (hfx c hc).1) hyl hyf⟩⟩
   · rw [hst t ht] at hs
     obtain ⟨h1, h2⟩ := hR.reply t ht hs
@@ -540,7 +540,7 @@ theorem XInv.set_sctcb {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
           by_cases hcc : c = c0
           · subst hcc; omega
           · have := hO.scDisj c hc c0 hc0 hcc; omega)),
-      hE.tm.tmfr tmS, hE.ntb.tmfr tmS,
+      hE.tm.tmfr tmS, hE.ntb.tmfr tmS, hE.rb.tmfr tmS,
       fun c hc => by
         obtain ⟨hPc, hzc⟩ := hO.sc c hc
         rw [k _ (h.omega _ (hsub _ (hO.snW c hc))).1 (fun e => by
@@ -669,7 +669,7 @@ theorem XInv.bind {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
         exact hE.bnd u hu,
       ScExtra.nsc_keep hE.nsc (fun n hn => ok _ (hsub _ (hO.ntW n hn))) (fun c hc => ok _ (hsub _ (hO.snW c hc)))
         (fun c hc => ok _ (hcΩ c hc).2.2.1),
-      hE.tm.tmfr tmB, hE.ntb.tmfr tmB, fun c hc => by rw [ok _ (hsub _ (hO.snW c hc))]; exact hE.scn c hc,
+      hE.tm.tmfr tmB, hE.ntb.tmfr tmB, hE.rb.tmfr tmB, fun c hc => by rw [ok _ (hsub _ (hO.snW c hc))]; exact hE.scn c hc,
       hE.yt.keep (fun c hc => ok _ (hcΩ c hc).1)
         (fun u hu => fk u hu _ (by simp) (by simp) (fun _ => by simp))
         (fun c hc => ok _ (hsub _ (hO.syW c hc)))⟩⟩
@@ -1174,7 +1174,8 @@ theorem dbgF_x {X : Set U64} {s : S} {y K v : U64} (h : BlkOKX st T Cs Ω H Sg R
   have hΩ : ∀ n ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n) := fun n hn => h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)
   obtain ⟨b1, b2⟩ := bx_field' (K := K) (v := v) h0 hB hX hSg.sub hy (by omega) (by omega) (by omega)
     ⟨hX.2.2.tm.wr_ptr hT h0.nodes hy (by omega) hv,
-     hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_field (hΩ n hn) hy hya (by omega))⟩
+     hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_field (hΩ n hn) hy hya (by omega)),
+     hX.2.2.rb.tmfr (TmFr.dbgF hT h0.nodes hΩ hy hK hv)⟩
   refine ⟨⟨⟨Q, R, inv_wr_field h0 hy (by omega) (by omega) (by omega)⟩, b1, b2,
     SCsOK.field h0 hS hX hy (by omega) (by omega) (by omega),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩,
@@ -1210,7 +1211,8 @@ theorem dbgN_x {X : Set U64} {s : S} {c v : U64} (h : BlkOKX st T Cs Ω H Sg Rp 
     hX.writes h0.tcbs (writesIn_wr (v := v) ha) (fun b hb => hb ▸ not_prot_node h0 hX.1 hSg.sub hc (by omega))
       (by rw [ecs]; exact hX.2.2.cur)
       ⟨hX.2.2.tm.wr_node hT h0.nodes hc (by omega) hv,
-       hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_node (hΩ n hn) hc hN (by omega))⟩
+       hX.2.2.ntb.wr hX.1 ha (fun n hn => out_ne_node (hΩ n hn) hc hN (by omega)),
+       hX.2.2.rb.tmfr (TmFr.dbgN hT h0.nodes hΩ hc hv)⟩
       (by
         unfold LawfulStore.idleW; rw [LawfulStore.cpu_wr, nodeAt_wr]
         exact L.mem_wr_ne ha (nodeAt_aligned hN' (by rw [idle8]; omega) (by rw [idle8]))
@@ -1990,7 +1992,7 @@ theorem XInvR.wr_linkT {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
           split
           · exact hnB _ h1 ‹_› n hn rfl
           · exact h2,
-      hE.tm.wr_out h.tcbs h.nodes ho, hE.ntb.wr_tz hO ho.1 hnb, fun c hc => by
+      hE.tm.wr_out h.tcbs h.nodes ho, hE.ntb.wr_tz hO ho.1 hnb, hE.rb.wr_out h.tcbs h.nodes ho, fun c hc => by
         rw [L.mem_wr_val ho.1 (al _ (hsub _ (hO.snW c hc)))]
         split
         · exact hsnT c hc ‹_›

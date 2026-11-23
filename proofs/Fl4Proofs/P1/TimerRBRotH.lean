@@ -9,7 +9,6 @@ subtree's root `b`, the hole's parent `ctx.par`, and the root word (`timer.rotat
 import Fl4Proofs.P1.TimerRBRotP
 import Fl4Proofs.P1.TimerRBWr
 import Fl4Proofs.P1.TimerRBRead
-import Fl4Proofs.P1.QueueTimerSet
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1

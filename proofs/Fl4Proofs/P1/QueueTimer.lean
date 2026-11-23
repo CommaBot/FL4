@@ -22,6 +22,7 @@ abbrev TInv (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H :
 
 theorem TInv.tm {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TimerOK st T Cs s := h.2.2.1.2.2.tm
 theorem TInv.ntb {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : NtbOK st T Nt s := h.2.2.1.2.2.ntb
+theorem TInv.rb {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TimerRB st T Cs s := h.2.2.1.2.2.rb
 
 /-- A write of a timer object's height word that keeps the core of an armed
 TCB. -/
@@ -210,7 +211,8 @@ theorem BlkT.wr_node {s : S} {c o v : U64} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z
   · exact Or.inr ⟨c, hc, o, ho, by rw [nodeAt_of_ksb hw.1]⟩
 
 /-- Back to `BlkOK` once the timer trees are typed. -/
-theorem BlkT.ok {s : S} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htm : TimerOK st T Cs s) :
+theorem BlkT.ok {s : S} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htm : TimerOK st T Cs s)
+    (hrb : TimerRB st T Cs s) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s := by
   obtain ⟨hq, s0, ⟨⟨Q0, R0, h0⟩, hB, hX, hS, hSg⟩, hw⟩ := h
   have hT := h0.tcbs
@@ -249,7 +251,7 @@ theorem BlkT.ok {s : S} (h : BlkT st T Cs Ω H Sg Rp Scs Nt Z Ac s) (htm : Timer
     (fun y hy hS _ => Or.inl (Sch.of_eq (fun hf => by rwa [hiq y hy] at hf) (fun hf => by rwa [hiq y hy] at hf)
       ea ei ec (by rw [stA_eq]; exact fld _ hy _ (by simp) (by simp) (by simp)) hS)),
     hX.writes hT hw (fun b hb => not_prot_tw h0 hX.1 hSg.sub hb) (by rw [ecs]; exact hX.2.2.cur)
-      ⟨htm, fun n hn => by rw [om _ (hSg.sub _ (hX.1.ntB n hn).2)]; exact hX.2.2.ntb n hn⟩ ei,
+      ⟨htm, fun n hn => by rw [om _ (hSg.sub _ (hX.1.ntB n hn).2)]; exact hX.2.2.ntb n hn, hrb⟩ ei,
     SCsOK.keep hS hX hw.1 hsc ecs (fun c hc => ⟨om _ (hcΩ c hc).2.2.1, om _ (hcΩ c hc).2.2.2.1,
       om _ (hcΩ c hc).2.2.2.2⟩) (fun c hc => om _ (spor_omega hX.1 hc)) (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))),
     ⟨hSg.sub, fun b hb => by rw [hw.1]; exact hSg.ks b hb, fun o h1 h2 => by rw [hw.1]; exact hSg.ksΩ o h1 h2⟩⟩
@@ -278,27 +280,6 @@ theorem TInv.ntb_ne_node {s : S} {c o : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt
   exact out_ne_node (h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)) hc (h0.nodes c hc) ho
 
 theorem TInv.objs {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : ObjsOK st Ω Sg Rp Scs Nt Z s := h.2.2.1.1
-
-theorem TInv.wr_ptr {s : S} {x K v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hx : x ∈ T) (hK : K.val = 3544 ∨ K.val = 3552 ∨ K.val = 3560) (hv : Tz T v) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (core.num.U64.wrapping_add x K) v) :=
-  (((BlkOK.blkT h).wr_tfield hx (by omega) (by omega) (by omega)).ok (h.tm.wr_ptr h.tcbs h.nodes hx (by omega) hv)).tinv
-
-theorem TInv.wr_ht {s : S} {x v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (hx : x ∈ T) (hc : x ∈ T → L.mem s (tdA x) ≠ 0#u64 → ∀ c : U64, c.val = v.val >>> 8 → c ∈ Cs) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (thA x) v) :=
-  (((BlkOK.blkT h).wr_tfield (K := 3568#u64) hx (by simp) (by simp) (by simp)).ok
-    (h.tm.wr_ht h.tcbs h.nodes (Tz.of_mem hx) hc)).tinv
-
-theorem TInv.wr_node {s : S} {c o v : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
-    (ho : o.val = 104 ∨ o.val = 112) (hv : Tz T v) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (L.nodeAt s c o) v) :=
-  (((BlkOK.blkT h).wr_node hc ho).ok (h.tm.wr_node h.tcbs h.nodes hc (by omega) hv)).tinv
-
-theorem TInv.wr_clear {s : S} {t : U64} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) :
-    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr (L.wr s (thA t) 0#u64) (tdA t) 0#u64) :=
-  ((((BlkOK.blkT h).wr_tfield (K := 3568#u64) ht (by simp) (by simp) (by simp)).wr_tfield (K := 3528#u64) ht
-      (by simp) (by simp) (by simp)).ok (h.tm.wr_clear h.tcbs h.nodes ht)).tinv
 
 /-! ## The accessors -/
 
@@ -403,8 +384,9 @@ def TFB (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Hea
 theorem TFB.start {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s s :=
   ⟨⟨BlkOK.blkT h, h.tm⟩, Foot.refl _, ANI.refl _, TKeep.refl _, WritesIn.refl _ _⟩
 
-theorem TFB.tinv {s0 s : S} (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s :=
-  (h.1.1.ok h.1.2).tinv
+theorem TFB.tinv {s0 s : S} (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) (hrb : TimerRB st T Cs s) :
+    TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s :=
+  (h.1.1.ok h.1.2 hrb).tinv
 
 theorem TFB.cur {s0 s : S} (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : L.cpu s ∈ Cs :=
   h.1.1.1.choose_spec.choose_spec.cur
@@ -773,32 +755,47 @@ theorem timer.remove.tfb (s : S) (t : U64) (h : TFB st T Cs Ω H Sg Rp Scs Nt Z 
 
 end ops
 
-/-! ## `TInv` with a footprint at both ends
+theorem obj.Tcb.set_timer_badge.wr (s : S) (t : obj.Tcb) (v : U64) :
+    obj.Tcb.set_timer_badge st t s v ⦃ s' => s' = L.wr s (tbA t) v ⦄ := by
+  unfold obj.Tcb.set_timer_badge; step*; simp_all [tbA]
 
-`TF` is `TFB` with the full `TInv`; it holds at the start and at the end of
-`timer.remove`, not at its intermediate states (hence `TFB` inside). -/
+theorem or1_shr8 (i : U64) : (i ||| 1#u64).val >>> 8 = i.val >>> 8 := by
+  have hb : (i ||| 1#u64).bv >>> 8 = i.bv >>> 8 := by
+    apply BitVec.eq_of_getLsbD_eq; intro j hj
+    simp only [BitVec.getLsbD_ushiftRight, UScalar.bv_or, BitVec.getLsbD_or, one_bit]
+    simp
+  show (i ||| 1#u64).bv.toNat >>> 8 = i.bv.toNat >>> 8
+  rw [← BitVec.toNat_ushiftRight, ← BitVec.toNat_ushiftRight, hb]
 
-/-- `TInv`, and a `KW ∅` footprint from `s0`: the timer code writes only TCB
-timer fields and node timer-tree words (`TKeep`: the other TCB fields are kept). -/
-def TF (st : machine.Store S) [L : LawfulStore st] (T Cs Ω : Set U64) (H : Heap) (Sg Rp Scs Nt : Set U64)
-    (Z : U64 → Nat) (Ac : Set U64) (s0 s : S) : Prop :=
-  TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s ∧ Foot st T Cs Sg Scs Z ∅ s0 s ∧ ANI st s0 s ∧ TKeep st T s0 s ∧
-    WritesIn st s0 s (TW st T Cs s0)
+theorem shl8_shr8 {c i : U64} (hc : c.val < 2 ^ 56) (hi : i.val = (c.val <<< 8) % U64.size) :
+    i.val >>> 8 = c.val := by
+  rw [hi, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
+  simp [U64.size_def, U64.numBits]
+  omega
 
-theorem TF.start {s : S} (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s s :=
-  ⟨h, Foot.refl _, ANI.refl _, TKeep.refl _, WritesIn.refl _ _⟩
+theorem timer.set_left.on (s : S) (t v : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
+    timer.set_left st s t v ⦃ s' => s' = L.wr s (tlA t) v ⦄ := by
+  unfold timer.set_left
+  step with obj.Tcb.is_null.spec as ⟨b, eb⟩
+  split
+  · rename_i hb; exfalso; exact (hT t ht).ne0 (by rw [show t = 0#u64 by simpa [eb] using hb]; rfl)
+  · exact obj.Tcb.set_timer_left.wr s t v
 
-theorem TF.tfb {s0 s : S} (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s :=
-  ⟨⟨BlkOK.blkT h.1, h.1.tm⟩, h.2⟩
+theorem timer.set_right.on (s : S) (t v : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
+    timer.set_right st s t v ⦃ s' => s' = L.wr s (trA t) v ⦄ := by
+  unfold timer.set_right
+  step with obj.Tcb.is_null.spec as ⟨b, eb⟩
+  split
+  · rename_i hb; exfalso; exact (hT t ht).ne0 (by rw [show t = 0#u64 by simpa [eb] using hb]; rfl)
+  · exact obj.Tcb.set_timer_right.wr s t v
 
-theorem TFB.tf {s0 s : S} (h : TFB st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s) : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s :=
-  ⟨h.tinv, h.2⟩
-
-/-- **`timer.remove` with its footprint**: `TInv` kept, only the timer words
-written, the other TCB fields kept. -/
-theorem timer.remove.tf {s0 : S} (s : S) (t : U64) (h : TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s)
-    (ht : t ∈ T) : timer.remove st s t ⦃ s' => TF st T Cs Ω H Sg Rp Scs Nt Z Ac s0 s' ⦄ :=
-  WP.spec_mono (timer.remove.tfb s t h.tfb ht) fun _ h' => h'.tf
+theorem timer.set_parent.on (s : S) (t v : U64) (hT : TcbPlaced T) (ht : t ∈ T) :
+    timer.set_parent st s t v ⦃ s' => s' = L.wr s (tpA t) v ⦄ := by
+  unfold timer.set_parent
+  step with obj.Tcb.is_null.spec as ⟨b, eb⟩
+  split
+  · rename_i hb; exfalso; exact (hT t ht).ne0 (by rw [show t = 0#u64 by simpa [eb] using hb]; rfl)
+  · exact obj.Tcb.set_timer_parent.wr s t v
 
 /-! ## The `TInv` forms -/
 
@@ -810,31 +807,6 @@ theorem timer.parent.tz (s : S) (x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z 
     timer.parent st s x ⦃ v => Tz T v ⦄ := timer.parent.tzf (s0 := s) s x (TFB.start h) hx
 theorem timer.root.tz (s : S) (c : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs) :
     timer.root st s c ⦃ v => Tz T v ⦄ := timer.root.tzf (s0 := s) s c (TFB.start h) hc
-theorem timer.set_left.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
-    (hv : Tz T v) : timer.set_left st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_left.tfb (s0 := s) s x v (TFB.start h) hx hv) fun _ h' => h'.tinv
-theorem timer.set_right.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
-    (hv : Tz T v) : timer.set_right st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_right.tfb (s0 := s) s x v (TFB.start h) hx hv) fun _ h' => h'.tinv
-theorem timer.set_parent.tinv (s : S) (x v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x)
-    (hv : Tz T v) : timer.set_parent st s x v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_parent.tfb (s0 := s) s x v (TFB.start h) hx hv) fun _ h' => h'.tinv
-theorem timer.set_root.tinv (s : S) (c v : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
-    (hv : Tz T v) : timer.set_root st s c v ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_root.tfb (s0 := s) s c v (TFB.start h) hc hv) fun _ h' => h'.tinv
-theorem timer.set_red.tinv (s : S) (x : U64) (red : Bool) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hx : Tz T x) :
-    timer.set_red st s x red ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.set_red.tfb (s0 := s) s x red (TFB.start h) hx) fun _ h' => h'.tinv
-theorem timer.rotate_left.tinv (s : S) (c x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
-    (hx : Tz T x) : timer.rotate_left st s c x ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.rotate_left.tfb (s0 := s) s c x (TFB.start h) hc hx) fun _ h' => h'.tinv
-theorem timer.rotate_right.tinv (s : S) (c x : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hc : c ∈ Cs)
-    (hx : Tz T x) : timer.rotate_right st s c x ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.rotate_right.tfb (s0 := s) s c x (TFB.start h) hc hx) fun _ h' => h'.tinv
-theorem timer.remove.tinv (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (ht : t ∈ T) : timer.remove st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (timer.remove.tfb (s0 := s) s t (TFB.start h) ht) fun _ h' => h'.tinv
-
 
 end
 
