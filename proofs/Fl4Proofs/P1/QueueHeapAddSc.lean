@@ -235,7 +235,11 @@ theorem BlkOK.addSc (A : AddOK st H N (.sc z) Cs s) (hH : HeapOK H) (hz : 7 ≤ 
       tsc := fun c hc hc0 h0' => by
         rcases (SS c).1 hc with hc | hc
         · exact hE.tsc c hc hc0 h0'
-        · exact absurd (zT c hc) h0' }
+        · exact absurd (zT c hc) h0'
+      bs := ⟨hE.bs.tb, hE.bs.nt, fun c hc hc0 h0' => by
+        rcases (SS c).1 hc with hc | hc
+        · exact hE.bs.sn c hc hc0 h0'
+        · exact absurd (zN c hc) h0'⟩ }
   have sub : ∀ b ∈ (H.add N (.sc z)).frame, b ∈ (H.add N (.sc z)).omega := fun b hb => Heap.frame_omega hb
   have ks : ∀ b ∈ (H.add N (.sc z)).frame, b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val := by
     intro b hb

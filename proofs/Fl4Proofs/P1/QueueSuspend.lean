@@ -52,7 +52,7 @@ theorem bx_wr {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → 
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (ha : Aligned a) (hP : ¬ Prot T Rp Scs Nt a) (hsi : ∀ y ∈ T, a.val ≠ (scA y).val ∧ a.val ≠ (inqA y).val)
     (hn : ∀ o : U64, (o.val = 0 ∨ o.val = 8 ∨ o.val = 16 ∨ o.val = 24) → a.val ≠ (L.nodeAt s (L.cpu s) o).val)
-    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v)) :
+    (htn : TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v) ∧ (∀ n ∈ Nt, L.mem (L.wr s a v) (ntfnBtA n) = L.mem s (ntfnBtA n))) :
     BoundInv st T Ac (L.wr s a v) ∧ XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a v) := by
   obtain ⟨hB', ecs⟩ := bnd_wr (v := v) h hB ha hsi hn
     (fun y hy e => hP (Or.inr (Or.inr (Or.inl ⟨_, hy, Or.inr (Or.inr (Or.inl (UScalar.eq_of_val_eq e)))⟩))))
@@ -69,7 +69,8 @@ theorem bx_field' {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 
     (hKn : K.val ≠ 3464 ∧ K.val ≠ 3360 ∧ K.val ≠ 3328 ∧ K.val ≠ 3592 ∧ K.val ≠ 3368 ∧ K.val ≠ 3472)
     (htn : TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) ∧
-      TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v)) :
+      TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
+      (∀ n ∈ Nt, L.mem (L.wr s (core.num.U64.wrapping_add y K) v) (ntfnBtA n) = L.mem s (ntfnBtA n))) :
     BoundInv st T Ac (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s (core.num.U64.wrapping_add y K) v) := by
   have hya := h.tcbs y hy
@@ -186,7 +187,7 @@ theorem avoidX_scYield {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
 theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a : U64}
     (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (ha : Aligned a)
     (hA : AvoidX st T Rp Scs Nt s a)
-    (htn : TimerOK st T Cs (L.wr s a 0#u64) ∧ NtbOK st T Nt (L.wr s a 0#u64) ∧ TimerRB st T Cs (L.wr s a 0#u64)) :
+    (htn : TimerOK st T Cs (L.wr s a 0#u64) ∧ NtbOK st T Nt (L.wr s a 0#u64) ∧ TimerRB st T Cs (L.wr s a 0#u64) ∧ (∀ n ∈ Nt, L.mem (L.wr s a 0#u64) (ntfnBtA n) = L.mem s (ntfnBtA n))) :
     XInv st T Cs Ω Sg Rp Scs Nt Z (L.wr s a 0#u64) := by
   obtain ⟨hR, hC, hU, hN, hcs, hid⟩ := hA
   have hO := hX.1
@@ -208,9 +209,7 @@ theorem XInv.wr_yield0 {X : Set U64} {s : S} {Q : U64 → U64 → List U64} {R :
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inl rfl)⟩)))) (hU u hu).2.1)
     (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inl rfl))⟩)))) (hU u hu).2.2.1)
     ?_ (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inl rfl))⟩))) (hC c hc).2.2.1)
-    (fun u hu => by
-      rw [k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2]
-      exact hX.2.2.bnd u hu)
+    (fun u hu => k _ (alP _ (Or.inr (Or.inr (Or.inl ⟨u, hu, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩)))) (hU u hu).2.2.2)
     (fun n hn => k _ (hO.ntAl n hn) (hN n hn)) htn
     (fun c hc => k _ (alP _ (Or.inr (Or.inl ⟨c, hc, Or.inr (Or.inr (Or.inr (Or.inl rfl)))⟩))) (hC c hc).2.2.2.1)
     ⟨fun c hc => by
@@ -381,21 +380,28 @@ theorem SCsOK.wr {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {
     SCsOK st T Ω Sg Scs Z Ac (L.wr s a v) := SCsOK.wr' h hS hX.1 ha hsc hcs hh hsp hrA
 
 /-- A TCB field other than the SC field keeps `SCsOK`. -/
-theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
-    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+theorem SCsOK.fieldO {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
     (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKs : K.val ≠ 3464) :
     SCsOK st T Ω Sg Scs Z Ac (L.wr s (core.num.U64.wrapping_add y K) v) := by
   have hya := h.tcbs y hy
   have hN' := h.nodes _ h.cur
-  obtain ⟨-, hc⟩ := objs_omega hX.1 hS.sub
-  refine SCsOK.wr h hS hX (field_aligned hya hK hK8) (fun y' hy' => ?_) ?_ (fun c hc' => ?_)
-    (fun c hc' => out_ne_field (h.omega _ (spor_omega hX.1 hc')) hy hya hK)
-    (fun c hc' e => absurd e (out_ne_field (h.omega _ (hS.sub _ (hX.1.repW c hc'))) hy hya hK))
+  obtain ⟨-, hc⟩ := objs_omega hO hS.sub
+  refine SCsOK.wr' h hS hO (field_aligned hya hK hK8) (fun y' hy' => ?_) ?_ (fun c hc' => ?_)
+    (fun c hc' => out_ne_field (h.omega _ (spor_omega hO hc')) hy hya hK)
+    (fun c hc' e => absurd e (out_ne_field (h.omega _ (hS.sub _ (hO.repW c hc'))) hy hya hK))
   · rw [scA_eq]; exact fun e => field_ne hya (h.tcbs y' hy') hK (by simp) (fun _ => by simp; omega) (UScalar.eq_of_val_eq e)
   · exact fun e => node_ne_field hN' (by simp [layout.node.CUR_SC]) hy hya hK (UScalar.eq_of_val_eq e).symm
   · obtain ⟨-, -, c3, c4, c5⟩ := hc c hc'
     exact ⟨out_ne_field (h.omega _ c3) hy hya hK, out_ne_field (h.omega _ c4) hy hya hK,
       out_ne_field (h.omega _ c5) hy hya hK⟩
+
+/-- A TCB field other than the SC field keeps `SCsOK`. -/
+theorem SCsOK.field {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
+    {X : Set U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
+    (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKs : K.val ≠ 3464) :
+    SCsOK st T Ω Sg Scs Z Ac (L.wr s (core.num.U64.wrapping_add y K) v) :=
+  SCsOK.fieldO h hS hX.1 hy hK hK8 hKs
 
 /-- An SC object's `YIELD_FROM` or `REPLY` word keeps `SCsOK`. -/
 theorem SCsOK.scword {s : S} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c a v : U64}

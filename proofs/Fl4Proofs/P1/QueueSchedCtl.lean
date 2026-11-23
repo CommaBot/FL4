@@ -106,9 +106,9 @@ theorem XInv0.keepM {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
-    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧ (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyt : YT st T Scs s')
     (hiw : L.idleW s' = L.idleW s) :
@@ -119,11 +119,12 @@ theorem XInv0.keepM {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
       idleRep_keep hR.idle hiw (fun c hc => hft c hc) (fun c hc => Or.inl (hsr c hc))⟩,
       hR.head.keep (fun r hr => (hrw r hr).2.2) hsr (fun r hr h0 hb => (hR.next r hr h0).1 hb)⟩,
     ⟨fun t ht hb => ?_, hcs, hcore,
-      hbd, fun n hn h0 => by
+      fun t ht => by rw [hbd t ht]; exact hE.bnd t ht, fun n hn h0 => by
         rw [hns n hn] at h0 ⊢
         obtain ⟨h1, h2⟩ := hE.nsc n hn h0
         exact ⟨h1, by rw [hsn _ h1]; exact h2⟩,
-      htn.1, htn.2.1, htn.2.2, fun c hc => by rw [hsn c hc]; exact hE.scn c hc, hyt⟩⟩
+      htn.1, htn.2.1, htn.2.2.1, fun c hc => by rw [hsn c hc]; exact hE.scn c hc, hyt,
+      hE.bs.keep hE.bnd hE.ntb hE.scn hbd htn.2.2.2 hns hsn⟩⟩
   rotate_left 4
   · rw [(hrw r hr).1] at hn ⊢
     obtain ⟨b0, b1, b2, b3⟩ := hR.back r hr hn
@@ -153,13 +154,13 @@ theorem XInv.keepM {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧ (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
     (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c))
     (hiw : L.idleW s' = L.idleW s) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
-  (hX.x0.keepM hrw hft hcore hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
+  (hX.x0.keepM hrw hft hcore hsc hrep hst hcs hsr hbd hns htn
     hsn (hX.2.2.yt.keep (fun c hc => hft c hc) hyl hyf) hiw).x
     (hX.2.2.tsc.keep hX.2.2.yt.1 (fun c hc => hft c hc) hsc)
 
@@ -184,7 +185,7 @@ theorem ProtM.prot {T Rp Scs Nt : Set U64} {b : U64} (h : ProtM T Rp Scs Nt b) :
 `REFILL_MAX` words**, avoiding the other words it reads. -/
 theorem XInv.writesM {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T)
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ ProtM T Rp Scs Nt b) (hcore : ∀ c ∈ Scs, L.mem s' (scCoreA c) ∈ Cs)
-    (hcs : L.cscW s' ∈ Scs) (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s') (hiw : L.idleW s' = L.idleW s) :
+    (hcs : L.cscW s' ∈ Scs) (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧ (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))) (hiw : L.idleW s' = L.idleW s) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   have k : ∀ b, ProtM T Rp Scs Nt b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (hX.1.aligned hT hb.prot) (fun h => hB b h hb)

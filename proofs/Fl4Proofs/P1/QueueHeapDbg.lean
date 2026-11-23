@@ -177,7 +177,7 @@ theorem BlkOK.agreeD {s s' : S} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (G 
       (fun y hy => by unfold replyA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp)) hst
       (by rw [ecs]; exact hX.2.2.cur) (fun c hc => sig _ (hX.1.repW c hc))
       (fun y hy => by unfold boundA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
-      (fun n hn => sig _ (hX.1.ntW n hn)) ⟨tmo, ntb, rb⟩
+      (fun n hn => sig _ (hX.1.ntW n hn)) ⟨tmo, ntb, rb, fun n hn => sig _ (hX.1.ntB n hn).2⟩
       (fun c hc => sig _ (hX.1.snW c hc))
       (fun y hy => by unfold yieldA; exact fld y hy _ (by simp) (by simp) (by simp) (by simp) (by simp))
       (fun c hc => sig _ (hX.1.syW c hc))

@@ -133,7 +133,7 @@ theorem schedcontext.bind_ntfn.blk (s : S) (c n : U64) (h : BlkOK st T Cs Ω H S
   have rpc : ∀ r ∈ Rp, ∀ o : U64, o.val < 32 → (core.num.U64.wrapping_add r o).val ≠ (scNtfnA c).val :=
     fun r hr o ho => by
       rw [rp_val (hO.rp r hr) ho, avB]; have := hO.rpSc r hr c hc; omega
-  obtain ⟨g0, gB, gX, gS, gSg, -⟩ := link_allT (w := n) h0 hB hX hS hSg hmB
+  obtain ⟨g0, gB, gX, gS, gSg, -⟩ := link_allTM (w := n) h0 hB hX.m hS hSg hmB
     (fun r hr => by rw [avB, (rp_facts hO hr).2.1]; have := hO.rpSc r hr c hc; omega)
     (fun c' hc' => by
       obtain ⟨h128', f1, f2, f3, f4, f5, -⟩ := sc_facts hO hc'
@@ -172,7 +172,7 @@ theorem schedcontext.bind_ntfn.blk (s : S) (c n : U64) (h : BlkOK st T Cs Ω H S
     have hnn : n'.val = n.val := by omega
     exact ⟨UScalar.eq_of_val_eq hnn, by omega⟩
   have mB : L.mem (L.wr s (scNtfnA c) n) (scNtfnA c) = n := L.mem_wr_same alB
-  obtain ⟨k0, kB, kX, kS, kSg, -⟩ := link_allT (w := c) g0 gB gX gS gSg hmA
+  obtain ⟨k0, kB, kX, kS, kSg, -⟩ := link_allTM (w := c) g0 gB gX gS gSg hmA
     (fun r hr => by rw [avA, (rp_facts hO hr).2.1]; have := hO.ntORp n hn r hr; omega)
     (fun c' hc' => by
       obtain ⟨h128', f1, f2, f3, f4, f5, -⟩ := sc_facts hO hc'
@@ -193,7 +193,10 @@ theorem schedcontext.bind_ntfn.blk (s : S) (c n : U64) (h : BlkOK st T Cs Ω H S
     (fun c' hc' => fun e => scA' c' hc' layout.sc.SPORADIC (by simp [layout.sc.SPORADIC]) e.symm)
     (fun r hr e => absurd e (by rw [avA, (rp_facts hO hr).2.2.2]; have := hO.ntORp n hn r hr; omega))
     (fun c' hc' e => absurd e.symm (scA' c' hc' layout.sc.REPLY (by simp [layout.sc.REPLY])))
-  exact BlkOK.same ⟨⟨Q, R, k0⟩, kB, kX, kS, kSg⟩ (wr_swap alA alB hneAB)
+  have hM : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr (L.wr s (scNtfnA c) n) (ntfnScA n) c) :=
+    ⟨⟨Q, R, k0⟩, kB, kX, kS, kSg⟩
+  exact BlkOK.same (hM.x (BndS.pairSN hX.2.2.toScExtra0 h0 hO hSg.sub hc hn (Or.inr rfl)
+    (Or.inl ⟨rfl, rfl, h1, h2⟩))) (wr_swap alA alB hneAB)
 
 /-! ## `set_consumed` within `XS` -/
 

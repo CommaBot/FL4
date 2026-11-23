@@ -327,6 +327,57 @@ theorem YT.keep {s s' : S} (h : YT st T Scs s) (hfx : ∀ c ∈ Scs, L.mem s' (s
   ⟨fun c hc => by rw [hfx c hc]; exact h.1 c hc, fun t ht => by rw [hyl t ht]; exact h.2.1 t ht,
     fun c hc => by rw [hyf c hc]; exact h.2.2 c hc⟩
 
+/-- **The bound-notification and SC–notification symmetry** (l4v `sym_refs` for
+`tcb_bound_notification`/`ntfn_bound_tcb` and `sc_ntfn`/`ntfn_sc`; the
+notification-to-SC half is `ScExtra0.nsc`): a TCB's bound notification names it
+back, a notification's bound TCB names it back, and an SC's notification names
+it back as its SC. -/
+structure BndS (st : machine.Store S) [L : LawfulStore st] (T Scs Nt : Set U64) (s : S) : Prop where
+  tb : ∀ t ∈ T, L.mem s (boundA t) ≠ 0#u64 → L.mem s (ntfnBtA (L.mem s (boundA t))) = t
+  nt : ∀ n ∈ Nt, L.mem s (ntfnBtA n) ≠ 0#u64 → L.mem s (boundA (L.mem s (ntfnBtA n))) = n
+  sn : ∀ c ∈ Scs, c ≠ 0#u64 → L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (ntfnScA (L.mem s (scNtfnA c))) = c
+
+/-- `BndS` when the four link words are kept (given the links' typing at the
+old state). -/
+theorem BndS.keep {s s' : S} (h : BndS st T Scs Nt s)
+    (hbn : ∀ t ∈ T, L.mem s (boundA t) ≠ 0#u64 → L.mem s (boundA t) ∈ Nt) (hnb : NtbOK st T Nt s)
+    (hsc : ∀ c ∈ Scs, L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (scNtfnA c) ∈ Nt)
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
+    (hnt : ∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c)) : BndS st T Scs Nt s' :=
+  ⟨fun t ht h0 => by
+    rw [hbd t ht] at h0 ⊢; rw [hnt _ (hbn t ht h0)]; exact h.tb t ht h0,
+   fun n hn h0 => by
+    rw [hnt n hn] at h0 ⊢; rw [hbd _ ((hnb n hn).ne0 h0)]; exact h.nt n hn h0,
+   fun c hc hc0 h0 => by
+    rw [hsn c hc] at h0 ⊢; rw [hns _ (hsc c hc h0)]; exact h.sn c hc hc0 h0⟩
+
+/-- `ScExtra0` without the symmetry `BndS` (the states between the two writes
+of a notification bind or unbind). -/
+structure ScExtra0M (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set U64) (s : S) : Prop where
+  bound : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 →
+    L.mem s (scA t) ∈ Scs ∧ L.mem s (scTcbA (L.mem s (scA t))) = t ∧ L.mem s (scCoreA (L.mem s (scA t))) ∈ Cs
+  cur : L.cscW s ∈ Scs
+  /-- Every SC's `CORE` word names a core. -/
+  core : ∀ c ∈ Scs, L.mem s (scCoreA c) ∈ Cs
+  /-- A TCB's bound notification is a notification object (l4v `bound_tcb_at`/`valid_tcb`). -/
+  bnd : ∀ t ∈ T, L.mem s (boundA t) ≠ 0#u64 → L.mem s (boundA t) ∈ Nt
+  /-- A notification's SC is an SC object (l4v `valid_ntfn`) naming it back
+  (l4v `sym_refs`). -/
+  nsc : ∀ n ∈ Nt, L.mem s (ntfnScA n) ≠ 0#u64 → L.mem s (ntfnScA n) ∈ Scs ∧
+    L.mem s (scNtfnA (L.mem s (ntfnScA n))) = n
+  /-- The timer trees are typed. -/
+  tm : TimerOK st T Cs s
+  /-- A notification's bound TCB is null or a TCB. -/
+  ntb : NtbOK st T Nt s
+  /-- The timer trees are red-black trees holding exactly the armed TCBs (`TimerRB`). -/
+  rb : TimerRB st T Cs s
+  /-- An SC's bound notification is null or a notification (l4v `valid_sched_context`, `sc_ntfn`). -/
+  scn : ∀ c ∈ Scs, L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (scNtfnA c) ∈ Nt
+  /-- The SC/TCB and yield links are typed. -/
+  yt : YT st T Scs s
+
 /-- Bound SCs are SC objects naming their thread and a core. -/
 structure ScExtra0 (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set U64) (s : S) : Prop where
   bound : ∀ t ∈ T, L.mem s (scA t) ≠ 0#u64 →
@@ -350,6 +401,14 @@ structure ScExtra0 (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Se
   scn : ∀ c ∈ Scs, L.mem s (scNtfnA c) ≠ 0#u64 → L.mem s (scNtfnA c) ∈ Nt
   /-- The SC/TCB and yield links are typed. -/
   yt : YT st T Scs s
+  /-- The bound links are symmetric (`BndS`). -/
+  bs : BndS st T Scs Nt s
+
+theorem ScExtra0.m {s : S} (h : ScExtra0 st T Cs Scs Nt s) : ScExtra0M st T Cs Scs Nt s :=
+  ⟨h.bound, h.cur, h.core, h.bnd, h.nsc, h.tm, h.ntb, h.rb, h.scn, h.yt⟩
+
+theorem ScExtra0M.x {s : S} (h : ScExtra0M st T Cs Scs Nt s) (hb : BndS st T Scs Nt s) : ScExtra0 st T Cs Scs Nt s :=
+  ⟨h.bound, h.cur, h.core, h.bnd, h.nsc, h.tm, h.ntb, h.rb, h.scn, h.yt, hb⟩
 
 /-- An SC's `TCB` word names a thread whose `SC` field names the SC (l4v
 `sym_refs` for `sc_tcb`/`tcb_sched_context`; the other half is
@@ -411,6 +470,48 @@ theorem XInv0.x {s : S} (h : XInv0 st T Cs Ω Sg Rp Scs Nt Z s) (ht : TSc st Scs
     XInv st T Cs Ω Sg Rp Scs Nt Z s :=
   ⟨h.1, h.2.1, ⟨h.2.2, ht⟩⟩
 
+/-- `ScExtra` without `BndS`. -/
+structure ScExtraM (st : machine.Store S) [L : LawfulStore st] (T Cs Scs Nt : Set U64) (s : S) : Prop
+    extends ScExtra0M st T Cs Scs Nt s where
+  tsc : TSc st Scs s
+
+/-- `XInv0` without `BndS`. -/
+def XInv0M (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv st T Rp Scs s ∧ ScExtra0M st T Cs Scs Nt s
+
+/-- `XInv` without `BndS` (between the two writes of a notification bind or
+unbind). -/
+def XInvM (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv st T Rp Scs s ∧ ScExtraM st T Cs Scs Nt s
+
+/-- `XInvR` without `BndS`. -/
+def XInvRM (st : machine.Store S) [L : LawfulStore st] (T Cs Ω Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (s : S) : Prop :=
+  ObjsOK st Ω Sg Rp Scs Nt Z s ∧ ReplyInv0 st T Rp Scs s ∧ ScExtraM st T Cs Scs Nt s
+
+theorem XInv.m {s : S} (h : XInv st T Cs Ω Sg Rp Scs Nt Z s) : XInvM st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1, ⟨h.2.2.toScExtra0.m, h.2.2.tsc⟩⟩
+
+theorem XInvM.x {s : S} (h : XInvM st T Cs Ω Sg Rp Scs Nt Z s) (hb : BndS st T Scs Nt s) :
+    XInv st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1, ⟨h.2.2.toScExtra0M.x hb, h.2.2.tsc⟩⟩
+
+theorem XInvR.m {s : S} (h : XInvR st T Cs Ω Sg Rp Scs Nt Z s) : XInvRM st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1, ⟨h.2.2.toScExtra0.m, h.2.2.tsc⟩⟩
+
+theorem XInvRM.x {s : S} (h : XInvRM st T Cs Ω Sg Rp Scs Nt Z s) (hb : BndS st T Scs Nt s) :
+    XInvR st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1, ⟨h.2.2.toScExtra0M.x hb, h.2.2.tsc⟩⟩
+
+theorem XInvM.xr {s : S} (h : XInvM st T Cs Ω Sg Rp Scs Nt Z s) : XInvRM st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, h.2.1.toReplyInv0, h.2.2⟩
+
+theorem XInvRM.x' {s : S} (h : XInvRM st T Cs Ω Sg Rp Scs Nt Z s) (hh : RHead st Rp s) :
+    XInvM st T Cs Ω Sg Rp Scs Nt Z s :=
+  ⟨h.1, ⟨h.2.1, hh⟩, h.2.2⟩
+
+/-- The symmetry at an `XInv` state. -/
+theorem XInv.bs {s : S} (h : XInv st T Cs Ω Sg Rp Scs Nt Z s) : BndS st T Scs Nt s := h.2.2.bs
+
 /-! ## Under a frame -/
 
 /-- `ScExtra.nsc` when the notifications' `SC` words and the SCs'
@@ -451,7 +552,7 @@ theorem idleRep_keep {s s' : S}
 
 /-- `XInv0` only reads the reply words, the SCs' `TCB`/`CORE` words, the TCBs'
 reply, state and SC fields, and the current SC. -/
-theorem XInv0.keepN {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
+theorem XInv0M.keepN {s s' : S} (hX : XInv0M st T Cs Ω Sg Rp Scs Nt Z s)
     (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
       L.mem s' (rNextA r) = L.mem s (rNextA r))
     (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
@@ -467,7 +568,7 @@ theorem XInv0.keepN {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hyt : YT st T Scs s')
     (hmx : ∀ c ∈ Scs, (∃ n ∈ Nt, L.mem s (ntfnScA n) = c) → L.mem s' (maxA c) = L.mem s (maxA c))
     (hiw : L.idleW s' = L.idleW s) :
-    XInv0 st T Cs Ω Sg Rp Scs Nt Z s' := by
+    XInv0M st T Cs Ω Sg Rp Scs Nt Z s' := by
   obtain ⟨hO, hR, hE⟩ := hX
   refine ⟨hO.ksb, ⟨⟨fun t ht hs => ?_, fun t ht hs hn => ?_, fun r hr => ?_, fun r hr => ?_, fun r hr hn => ?_,
       fun c hc => by rw [hsr c hc]; exact hR.screp c hc,
@@ -493,6 +594,29 @@ theorem XInv0.keepN {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     obtain ⟨h1, h2, h3⟩ := hE.bound t ht hb
     rw [(hfx _ h1).1, (hfx _ h1).2]; exact ⟨h1, h2, h3⟩
 
+/-- `XInv0`'s frame: as `XInv0M.keepN`, with the bound links kept (`BndS`). -/
+theorem XInv0.keepN {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
+    (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
+      L.mem s' (rNextA r) = L.mem s (rNextA r))
+    (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
+    (hsc : ∀ t ∈ T, L.mem s' (scA t) = L.mem s (scA t))
+    (hrep : ∀ t ∈ T, L.mem s' (replyA t) = L.mem s (replyA t))
+    (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
+    (hcs : L.cscW s' ∈ Scs)
+    (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
+    (hyt : YT st T Scs s')
+    (hmx : ∀ c ∈ Scs, (∃ n ∈ Nt, L.mem s (ntfnScA n) = c) → L.mem s' (maxA c) = L.mem s (maxA c))
+    (hiw : L.idleW s' = L.idleW s) :
+    XInv0 st T Cs Ω Sg Rp Scs Nt Z s' :=
+  have M := XInv0M.keepN (hX := ⟨hX.1, hX.2.1, hX.2.2.m⟩) hrw hfx hsc hrep hst hcs hsr
+    (fun t ht h0 => by rw [hbd t ht] at h0 ⊢; exact hX.2.2.bnd t ht h0) hns ⟨htn.1, htn.2.1, htn.2.2.1⟩ hsn hyt hmx hiw
+  ⟨M.1, M.2.1, M.2.2.x (hX.2.2.bs.keep hX.2.2.bnd hX.2.2.ntb hX.2.2.scn hbd htn.2.2.2 hns hsn)⟩
+
 theorem XInv0.keep' {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
       L.mem s' (rNextA r) = L.mem s (rNextA r))
@@ -502,9 +626,10 @@ theorem XInv0.keep' {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
-    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyt : YT st T Scs s') (hmx : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c))
     (hiw : L.idleW s' = L.idleW s) :
@@ -522,14 +647,14 @@ theorem XInv0.keep {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
     (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c))
     (hmx : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c)) (hiw : L.idleW s' = L.idleW s) :
     XInv0 st T Cs Ω Sg Rp Scs Nt Z s' :=
-  hX.keep' hrw hfx hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
-    hsn (hX.2.2.yt.keep (fun c hc => (hfx c hc).1) hyl hyf) hmx hiw
+  hX.keep' hrw hfx hsc hrep hst hcs hsr hbd hns htn hsn (hX.2.2.yt.keep (fun c hc => (hfx c hc).1) hyl hyf) hmx hiw
 
 /-- `XInv` only reads the reply words, the SCs' `TCB`/`CORE` words, the TCBs'
 reply, state and SC fields, and the current SC. -/
@@ -542,9 +667,10 @@ theorem XInv.keepN {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
-    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyt : YT st T Scs s')
     (hmx : ∀ c ∈ Scs, (∃ n ∈ Nt, L.mem s (ntfnScA n) = c) → L.mem s' (maxA c) = L.mem s (maxA c))
@@ -562,9 +688,10 @@ theorem XInv.keep' {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
     (hcs : L.cscW s' ∈ Scs)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
-    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyt : YT st T Scs s') (hmx : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c))
     (hiw : L.idleW s' = L.idleW s) :
@@ -582,17 +709,44 @@ theorem XInv.keep {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
     (hbd : ∀ t ∈ T, L.mem s' (boundA t) = L.mem s (boundA t))
     (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)))
     (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
     (hyl : ∀ t ∈ T, L.mem s' (yieldA t) = L.mem s (yieldA t))
     (hyf : ∀ c ∈ Scs, L.mem s' (scYieldFromA c) = L.mem s (scYieldFromA c))
     (hmx : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c)) (hiw : L.idleW s' = L.idleW s) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' :=
-  hX.keep' hrw hfx hsc hrep hst hcs hsr (fun t ht => by rw [hbd t ht]; exact hX.2.2.bnd t ht) hns htn
-    hsn (hX.2.2.yt.keep (fun c hc => (hfx c hc).1) hyl hyf) hmx hiw
+  hX.keep' hrw hfx hsc hrep hst hcs hsr hbd hns htn hsn (hX.2.2.yt.keep (fun c hc => (hfx c hc).1) hyl hyf) hmx hiw
+
+/-- `XInvM`'s frame (no `BndS`; the bound notifications only typed). -/
+theorem XInvM.keep' {s s' : S} (hX : XInvM st T Cs Ω Sg Rp Scs Nt Z s)
+    (hrw : ∀ r ∈ Rp, L.mem s' (rTcbA r) = L.mem s (rTcbA r) ∧ L.mem s' (rPrevA r) = L.mem s (rPrevA r) ∧
+      L.mem s' (rNextA r) = L.mem s (rNextA r))
+    (hfx : ∀ c ∈ Scs, L.mem s' (scTcbA c) = L.mem s (scTcbA c) ∧ L.mem s' (scCoreA c) = L.mem s (scCoreA c))
+    (hsc : ∀ t ∈ T, L.mem s' (scA t) = L.mem s (scA t))
+    (hrep : ∀ t ∈ T, L.mem s' (replyA t) = L.mem s (replyA t))
+    (hst : ∀ t ∈ T, L.mem s' (stA t) = L.mem s (stA t))
+    (hcs : L.cscW s' ∈ Scs)
+    (hsr : ∀ c ∈ Scs, L.mem s' (scReplyA c) = L.mem s (scReplyA c))
+    (hbd : ∀ t ∈ T, L.mem s' (boundA t) ≠ 0#u64 → L.mem s' (boundA t) ∈ Nt)
+    (hns : ∀ n ∈ Nt, L.mem s' (ntfnScA n) = L.mem s (ntfnScA n))
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s')
+    (hsn : ∀ c ∈ Scs, L.mem s' (scNtfnA c) = L.mem s (scNtfnA c))
+    (hyt : YT st T Scs s') (hmx : ∀ c ∈ Scs, L.mem s' (maxA c) = L.mem s (maxA c))
+    (hiw : L.idleW s' = L.idleW s) :
+    XInvM st T Cs Ω Sg Rp Scs Nt Z s' :=
+  have M := XInv0M.keepN (hX := ⟨hX.1, hX.2.1, hX.2.2.toScExtra0M⟩) hrw hfx hsc hrep hst hcs hsr hbd hns htn hsn hyt
+    (fun c hc _ => hmx c hc) hiw
+  ⟨M.1, M.2.1, ⟨M.2.2, hX.2.2.tsc.keep hX.2.2.yt.1 (fun c hc => (hfx c hc).1) hsc⟩⟩
 
 /-- The timer-tree typing and the notifications' bound TCBs after a frame. -/
 theorem XInv.tn {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (f : TmFr st T Cs Nt s s') :
+    TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧
+      (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)) :=
+  ⟨hX.2.2.tm.tmfr f, hX.2.2.ntb.tmfr f, hX.2.2.rb.tmfr f, f.2.2.2.1⟩
+
+/-- `XInv.tn` at an `XInvM` state (three parts, for `XInvM.keep'`). -/
+theorem XInvM.tn {s s' : S} (hX : XInvM st T Cs Ω Sg Rp Scs Nt Z s) (f : TmFr st T Cs Nt s s') :
     TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' :=
   ⟨hX.2.2.tm.tmfr f, hX.2.2.ntb.tmfr f, hX.2.2.rb.tmfr f⟩
 
@@ -602,7 +756,7 @@ theorem XInv0.fr {s s' : S} (hX : XInv0 st T Cs Ω Sg Rp Scs Nt Z s) (f : Fr st 
     (fun c hc => ⟨f.sig _ (hX.1.fixW c hc).1, f.sig _ (hX.1.fixW c hc).2⟩) f.sc f.rep f.st
     (by rw [f.csc]; exact hX.2.2.cur) (fun c hc => f.sig _ (hX.1.repW c hc)) f.bnd
     (fun n hn => f.sig _ (hX.1.ntW n hn)) ⟨hX.2.2.tm.tmfr (TmFr.of_fr f hX.1 hX.2.2.tm.npl), hX.2.2.ntb.tmfr (TmFr.of_fr f hX.1 hX.2.2.tm.npl),
-      hX.2.2.rb.tmfr (TmFr.of_fr f hX.1 hX.2.2.tm.npl)⟩
+      hX.2.2.rb.tmfr (TmFr.of_fr f hX.1 hX.2.2.tm.npl), (TmFr.of_fr f hX.1 hX.2.2.tm.npl).2.2.2.1⟩
     (fun c hc => f.sig _ (hX.1.snW c hc)) f.yld (fun c hc => f.sig _ (hX.1.syW c hc))
     (fun c hc => f.sig _ (hX.1.mxW c hc)) f.idle
 
@@ -656,7 +810,7 @@ theorem ObjsOK.aligned (h : ObjsOK st Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T) {b
 current SC is an SC object. -/
 theorem XInv.writes {s s' : S} {B : U64 → Prop} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hT : TcbPlaced T)
     (hw : WritesIn st s s' B) (hB : ∀ b, B b → ¬ Prot T Rp Scs Nt b) (hcs : L.cscW s' ∈ Scs)
-    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s') (hiw : L.idleW s' = L.idleW s) :
+    (htn : TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧ (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n))) (hiw : L.idleW s' = L.idleW s) :
     XInv st T Cs Ω Sg Rp Scs Nt Z s' := by
   have k : ∀ b, Prot T Rp Scs Nt b → L.mem s' b = L.mem s b := fun b hb =>
     hw.mem_eq (hX.1.aligned hT hb) (fun h => hB b h hb)
@@ -783,11 +937,253 @@ theorem notTmW_ring {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → Li
     · rw [InSC, sc_word_val hP hz (by simp [layout.sc.CONSUMED])]; simp [layout.sc.CONSUMED]; omega
   exact notTmW_insc h hO hsub hc hb hin
 
+/-- `BndS` after a write of a word of another object (`Ω`) that is none of the
+notifications' `BOUND_TCB`/`SC` words and none of the SCs' `NTFN` words. -/
+theorem BndS.wr_omega {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (haΩ : a ∈ Ω) (hn : ∀ n ∈ Nt, a.val ≠ (ntfnBtA n).val ∧ a.val ≠ (ntfnScA n).val)
+    (hc : ∀ c ∈ Scs, a.val ≠ (scNtfnA c).val) : BndS st T Scs Nt (L.wr s a v) := by
+  have ho := h.omega a haΩ
+  have al : ∀ b ∈ Ω, Aligned b := fun b hb => (h.omega b hb).1
+  exact hE.bs.keep hE.bnd hE.ntb hE.scn
+    (fun t ht => L.mem_wr_ne ho.1 (field_aligned (h.tcbs t ht) (K := 3368#u64) (by simp) (by simp))
+      (fun e => out_ne_field (K := 3368#u64) ho ht (h.tcbs t ht) (by simp) e.symm))
+    (fun n hn' => L.mem_wr_ne ho.1 (al _ (hsub _ (hO.ntB n hn').2)) (hn n hn').1)
+    (fun n hn' => L.mem_wr_ne ho.1 (al _ (hsub _ (hO.ntW n hn'))) (hn n hn').2)
+    (fun c hc' => L.mem_wr_ne ho.1 (al _ (hsub _ (hO.snW c hc'))) (hc c hc'))
+
+/-- `BndS` after a write of a word of an SC (offset below 128) other than its `NTFN` word. -/
+theorem BndS.wr_scw {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a c0 v : U64} {o : Nat}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (haΩ : a ∈ Ω) (hc0 : c0 ∈ Scs) (hav : a.val = c0.val + o) (ho : o < 128)
+    (h40 : o ≠ 40) : BndS st T Scs Nt (L.wr s a v) := by
+  have h128 := (sc_facts hO hc0).1
+  refine BndS.wr_omega hE h hO hsub haΩ (fun n hn => ⟨fun e => ?_, fun e => ?_⟩) (fun c hc e => ?_)
+  · rw [hav, ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntOSc n hn c0 hc0; omega
+  · rw [hav, ntfnScA_val (hO.ntP n hn)] at e; have := hO.ntOSc n hn c0 hc0; omega
+  · obtain ⟨hPc, hzc⟩ := hO.sc c hc
+    rw [hav, scNtfnA_val hPc hzc] at e
+    by_cases hcc : c = c0
+    · subst hcc; omega
+    · have := hO.scDisj c hc c0 hc0 hcc; have := (sc_facts hO hc).1; omega
+
+/-- `BndS` after a write of a word of a reply object. -/
+theorem BndS.wr_rpw {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a r v : U64}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (haΩ : a ∈ Ω) (hr : r ∈ Rp) (hav : r.val ≤ a.val ∧ a.val < r.val + 32) :
+    BndS st T Scs Nt (L.wr s a v) := by
+  refine BndS.wr_omega hE h hO hsub haΩ (fun n hn => ⟨fun e => ?_, fun e => ?_⟩) (fun c hc e => ?_)
+  · rw [ntfnBtA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega
+  · rw [ntfnScA_val (hO.ntP n hn)] at e; have := hO.ntORp n hn r hr; omega
+  · obtain ⟨hPc, hzc⟩ := hO.sc c hc
+    rw [scNtfnA_val hPc hzc] at e; have := hO.rpSc r hr c hc; have := (sc_facts hO hc).1; omega
+
+/-- `BndS` after a write of a TCB field other than `BOUND_NTFN`. -/
+theorem BndS.wr_field {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {y K v : U64}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKb : K.val ≠ 3368) :
+    BndS st T Scs Nt (L.wr s (core.num.U64.wrapping_add y K) v) := by
+  have hya := h.tcbs y hy
+  have ha : Aligned (core.num.U64.wrapping_add y K) := field_aligned hya hK hK8
+  have om : ∀ b ∈ Ω, L.mem (L.wr s (core.num.U64.wrapping_add y K) v) b = L.mem s b := fun b hb =>
+    L.mem_wr_ne ha (h.omega _ hb).1 (out_ne_field (h.omega _ hb) hy hya hK)
+  exact hE.bs.keep hE.bnd hE.ntb hE.scn
+    (fun t ht => L.mem_wr_ne ha (field_aligned (h.tcbs t ht) (K := 3368#u64) (by simp) (by simp)) fun e =>
+      field_ne hya (h.tcbs t ht) (K2 := 3368#u64) hK (by simp) (fun _ => by simp; omega) (UScalar.eq_of_val_eq e))
+    (fun n hn => om _ (hsub _ (hO.ntB n hn).2)) (fun n hn => om _ (hsub _ (hO.ntW n hn)))
+    (fun c hc => om _ (hsub _ (hO.snW c hc)))
+
+/-- **`BndS` after a bind or unbind of a TCB and a notification**: the
+notification's `BOUND_TCB` word, then the TCB's `BOUND_NTFN` word, written
+`t`/`n` when both were unbound, or `0`/`0` when they were bound to each other. -/
+theorem BndS.pairTN {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {t n v w : U64}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (ht : t ∈ T) (hn : n ∈ Nt)
+    (hc : (v = t ∧ w = n ∧ L.mem s (boundA t) = 0#u64 ∧ L.mem s (ntfnBtA n) = 0#u64) ∨
+      (v = 0#u64 ∧ w = 0#u64 ∧ L.mem s (boundA t) = n ∧ L.mem s (ntfnBtA n) = t)) :
+    BndS st T Scs Nt (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) := by
+  have hT := h.tcbs
+  have abt : ∀ t' ∈ T, Aligned (boundA t') := fun t' ht' =>
+    field_aligned (hT t' ht') (K := 3368#u64) (by simp) (by simp)
+  have ant : ∀ n' ∈ Nt, Aligned (ntfnBtA n') := fun n' hn' => ntfnBt_aligned (hO.ntP n' hn')
+  have obt : ∀ n' ∈ Nt, OutsideObjs st T Cs s (ntfnBtA n') := fun n' hn' => h.omega _ (hsub _ (hO.ntB n' hn').2)
+  have mb : ∀ t' ∈ T, L.mem (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) (boundA t') =
+      if t' = t then w else L.mem s (boundA t') := by
+    intro t' ht'
+    rw [L.mem_wr_val (abt t ht) (abt t' ht')]
+    by_cases e : t' = t
+    · subst e; simp
+    · have hne : (boundA t).val ≠ (boundA t').val := fun hv =>
+        field_ne (hT t ht) (hT t' ht') (K1 := 3368#u64) (K2 := 3368#u64) (by simp) (by simp)
+          (fun e' => absurd e'.symm e) (UScalar.eq_of_val_eq hv)
+      rw [if_neg hne, if_neg e, L.mem_wr_ne (ant n hn) (abt t' ht')
+        (fun e' => out_ne_field (K := 3368#u64) (obt n hn) ht' (hT t' ht') (by simp) e'.symm)]
+  have mn : ∀ n' ∈ Nt, L.mem (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) (ntfnBtA n') =
+      if n' = n then v else L.mem s (ntfnBtA n') := by
+    intro n' hn'
+    rw [L.mem_wr_ne (abt t ht) (ant n' hn') (out_ne_field (K := 3368#u64) (obt n' hn') ht (hT t ht) (by simp)),
+      L.mem_wr_val (ant n hn) (ant n' hn')]
+    by_cases e : n' = n
+    · subst e; simp
+    · rw [if_neg e, if_neg]
+      intro hv
+      rw [ntfnBtA_val (hO.ntP n hn), ntfnBtA_val (hO.ntP n' hn')] at hv
+      exact e (UScalar.eq_of_val_eq (by omega))
+  have mo : ∀ b ∈ Ω, b.val ≠ (ntfnBtA n).val →
+      L.mem (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) b = L.mem s b := fun b hb hne => by
+    rw [L.mem_wr_ne (abt t ht) (h.omega b hb).1 (out_ne_field (K := 3368#u64) (h.omega b hb) ht (hT t ht) (by simp)),
+      L.mem_wr_ne (ant n hn) (h.omega b hb).1 (fun e => hne e.symm)]
+  have msn : ∀ c ∈ Scs, L.mem (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) (scNtfnA c) = L.mem s (scNtfnA c) :=
+    fun c hc' => mo _ (hsub _ (hO.snW c hc')) (by
+      obtain ⟨hPc, hzc⟩ := hO.sc c hc'
+      rw [scNtfnA_val hPc hzc, ntfnBtA_val (hO.ntP n hn)]
+      have := hO.ntOSc n hn c hc'; have := (sc_facts hO hc').1; omega)
+  have mns : ∀ n' ∈ Nt, L.mem (L.wr (L.wr s (ntfnBtA n) v) (boundA t) w) (ntfnScA n') = L.mem s (ntfnScA n') :=
+    fun n' hn' => mo _ (hsub _ (hO.ntW n' hn')) (by
+      rw [ntfnScA_val (hO.ntP n' hn'), ntfnBtA_val (hO.ntP n hn)]
+      have := (hO.ntP n hn).1; have := (hO.ntP n' hn').1; omega)
+  have t0 : ∀ t' ∈ T, t' ≠ 0#u64 := fun t' ht' e => notT_small hT (v := 0#u64) (by simp) (e ▸ ht')
+  refine ⟨fun t' ht' h0 => ?_, fun n' hn' h0 => ?_, fun c hc' hc0 h0 => ?_⟩
+  · rw [mb t' ht'] at h0 ⊢
+    by_cases e : t' = t
+    · subst e; rw [if_pos rfl] at h0 ⊢
+      rcases hc with ⟨rfl, rfl, -, -⟩ | ⟨-, rfl, -, -⟩
+      · rw [mn _ hn, if_pos rfl]
+      · exact absurd rfl h0
+    · rw [if_neg e] at h0 ⊢
+      have hm := hE.bnd t' ht' h0
+      have old := hE.bs.tb t' ht' h0
+      rw [mn _ hm]
+      by_cases em : L.mem s (boundA t') = n
+      · exfalso; rw [em] at old
+        rcases hc with ⟨-, -, -, e0⟩ | ⟨-, -, -, e1⟩
+        · rw [e0] at old; exact t0 t' ht' old.symm
+        · rw [e1] at old; exact e old.symm
+      · rw [if_neg em]; exact old
+  · rw [mn n' hn'] at h0 ⊢
+    by_cases e : n' = n
+    · subst e; rw [if_pos rfl] at h0 ⊢
+      rcases hc with ⟨rfl, rfl, -, -⟩ | ⟨rfl, -, -, -⟩
+      · rw [mb _ ht, if_pos rfl]
+      · exact absurd rfl h0
+    · rw [if_neg e] at h0 ⊢
+      have hy := (hE.ntb n' hn').ne0 h0
+      have old := hE.bs.nt n' hn' h0
+      rw [mb _ hy]
+      by_cases ey : L.mem s (ntfnBtA n') = t
+      · exfalso; rw [ey] at old
+        rcases hc with ⟨-, -, e0, -⟩ | ⟨-, -, e1, -⟩
+        · rw [e0] at old; exact hO.nt0 n' hn' old.symm
+        · rw [e1] at old; exact e old.symm
+      · rw [if_neg ey]; exact old
+  · rw [msn c hc'] at h0 ⊢
+    rw [mns _ (hE.scn c hc' h0)]; exact hE.bs.sn c hc' hc0 h0
+
+/-- The core of `BndS.pairSN`: the SC/notification links of `s2` are those of
+`s` but for the SC `c`'s `NTFN` word (`w`) and the notification `n`'s `SC` word
+(`v`). -/
+theorem BndS.pairSNc {s2 : S} {c n v w : U64} (hE : ScExtra0 st T Cs Scs Nt s) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hn : n ∈ Nt)
+    (hcs : (v = c ∧ w = n ∧ L.mem s (ntfnScA n) = 0#u64 ∧ L.mem s (scNtfnA c) = 0#u64) ∨
+      (v = 0#u64 ∧ w = 0#u64 ∧ L.mem s (scNtfnA c) = n ∧ L.mem s (ntfnScA n) = c))
+    (ms : ∀ c' ∈ Scs, L.mem s2 (scNtfnA c') = if c' = c then w else L.mem s (scNtfnA c'))
+    (mn : ∀ n' ∈ Nt, L.mem s2 (ntfnScA n') = if n' = n then v else L.mem s (ntfnScA n'))
+    (mb : ∀ t' ∈ T, L.mem s2 (boundA t') = L.mem s (boundA t'))
+    (mt : ∀ n' ∈ Nt, L.mem s2 (ntfnBtA n') = L.mem s (ntfnBtA n')) : BndS st T Scs Nt s2 := by
+  refine ⟨fun t' ht' h0 => ?_, fun n' hn' h0 => ?_, fun c' hc' hc0 h0 => ?_⟩
+  · rw [mb t' ht'] at h0 ⊢; rw [mt _ (hE.bnd t' ht' h0)]; exact hE.bs.tb t' ht' h0
+  · rw [mt n' hn'] at h0 ⊢; rw [mb _ ((hE.ntb n' hn').ne0 h0)]; exact hE.bs.nt n' hn' h0
+  · rw [ms c' hc'] at h0 ⊢
+    by_cases e : c' = c
+    · subst e; rw [if_pos rfl] at h0 ⊢
+      rcases hcs with ⟨rfl, rfl, -, -⟩ | ⟨-, rfl, -, -⟩
+      · rw [mn _ hn, if_pos rfl]
+      · exact absurd rfl h0
+    · rw [if_neg e] at h0 ⊢
+      have hm := hE.scn c' hc' h0
+      have old := hE.bs.sn c' hc' hc0 h0
+      rw [mn _ hm]
+      by_cases em : L.mem s (scNtfnA c') = n
+      · exfalso; rw [em] at old
+        rcases hcs with ⟨-, -, e0, -⟩ | ⟨-, -, -, e1⟩
+        · rw [e0] at old; exact hc0 old.symm
+        · rw [e1] at old; exact e old.symm
+      · rw [if_neg em]; exact old
+
+/-- The four link words after two writes to an SC's `NTFN` word and a
+notification's `SC` word, in either order. -/
+theorem pairSN_mem {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c n v w : U64}
+    (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hc : c ∈ Scs) (hn : n ∈ Nt) {s2 : S}
+    (hs2 : s2 = L.wr (L.wr s (ntfnScA n) v) (scNtfnA c) w ∨ s2 = L.wr (L.wr s (scNtfnA c) w) (ntfnScA n) v) :
+    (∀ c' ∈ Scs, L.mem s2 (scNtfnA c') = if c' = c then w else L.mem s (scNtfnA c')) ∧
+    (∀ n' ∈ Nt, L.mem s2 (ntfnScA n') = if n' = n then v else L.mem s (ntfnScA n')) ∧
+    (∀ t' ∈ T, L.mem s2 (boundA t') = L.mem s (boundA t')) ∧
+    (∀ n' ∈ Nt, L.mem s2 (ntfnBtA n') = L.mem s (ntfnBtA n')) := by
+  have hT := h.tcbs
+  have al : ∀ b ∈ Ω, Aligned b := fun b hb => (h.omega b hb).1
+  have aS : ∀ c' ∈ Scs, Aligned (scNtfnA c') := fun c' hc' => al _ (hsub _ (hO.snW c' hc'))
+  have aN : ∀ n' ∈ Nt, Aligned (ntfnScA n') := fun n' hn' => hO.ntAl n' hn'
+  have snv : ∀ c' ∈ Scs, (scNtfnA c').val = c'.val + 40 := fun c' hc' => scNtfnA_val (hO.sc c' hc').1 (hO.sc c' hc').2
+  have nsS : ∀ n' ∈ Nt, ∀ c' ∈ Scs, (ntfnScA n').val ≠ (scNtfnA c').val := fun n' hn' c' hc' e => by
+    rw [ntfnScA_val (hO.ntP n' hn'), snv c' hc'] at e
+    have := hO.ntOSc n' hn' c' hc'; have := (sc_facts hO hc').1; omega
+  -- every read through the two writes, as a function of the old memory
+  have rd : ∀ x, Aligned x → L.mem s2 x =
+      if (scNtfnA c).val = x.val then w else if (ntfnScA n).val = x.val then v else L.mem s x := by
+    intro x hx
+    rcases hs2 with rfl | rfl
+    · rw [L.mem_wr_val (aS c hc) hx, L.mem_wr_val (aN n hn) hx]
+    · rw [L.mem_wr_val (aN n hn) hx, L.mem_wr_val (aS c hc) hx]
+      by_cases e1 : (ntfnScA n).val = x.val
+      · rw [if_pos e1, if_neg (fun e2 => nsS n hn c hc (e1.trans e2.symm)), if_pos e1]
+      · simp only [if_neg e1]
+  refine ⟨fun c' hc' => ?_, fun n' hn' => ?_, fun t' ht' => ?_, fun n' hn' => ?_⟩
+  · rw [rd _ (aS c' hc')]
+    by_cases e : c' = c
+    · subst e; simp
+    · have hne : (scNtfnA c).val ≠ (scNtfnA c').val := fun hv => by
+        rw [snv c hc, snv c' hc'] at hv
+        have := hO.scDisj c hc c' hc' (Ne.symm e); have := (sc_facts hO hc).1; have := (sc_facts hO hc').1; omega
+      rw [if_neg hne, if_neg (nsS n hn c' hc'), if_neg e]
+  · rw [rd _ (aN n' hn'), if_neg (fun e => nsS n' hn' c hc e.symm)]
+    by_cases e : n' = n
+    · subst e; simp
+    · rw [if_neg e, if_neg]
+      intro hv
+      rw [ntfnScA_val (hO.ntP n hn), ntfnScA_val (hO.ntP n' hn')] at hv
+      exact e (UScalar.eq_of_val_eq (by omega))
+  · have ab : Aligned (boundA t') := field_aligned (hT t' ht') (K := 3368#u64) (by simp) (by simp)
+    rw [rd _ ab, if_neg (show (scNtfnA c).val ≠ (boundA t').val from
+        (out_ne_field (K := 3368#u64) (h.omega _ (hsub _ (hO.snW c hc))) ht' (hT t' ht') (by simp)).symm),
+      if_neg (show (ntfnScA n).val ≠ (boundA t').val from
+        (out_ne_field (K := 3368#u64) (h.omega _ (hsub _ (hO.ntW n hn))) ht' (hT t' ht') (by simp)).symm)]
+  · rw [rd _ (ntfnBt_aligned (hO.ntP n' hn')), if_neg, if_neg]
+    · intro e
+      rw [ntfnBtA_val (hO.ntP n' hn'), ntfnScA_val (hO.ntP n hn)] at e
+      have := (hO.ntP n hn).1; have := (hO.ntP n' hn').1; omega
+    · intro e
+      rw [ntfnBtA_val (hO.ntP n' hn'), snv c hc] at e
+      have := hO.ntOSc n' hn' c hc; have := (sc_facts hO hc).1; omega
+
+/-- **`BndS` after a bind or unbind of an SC and a notification**: the
+notification's `SC` word and the SC's `NTFN` word (in either order) written
+`c`/`n` when both were unbound, or `0`/`0` when they were bound to each other. -/
+theorem BndS.pairSN {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {c n v w : U64}
+    (hE : ScExtra0 st T Cs Scs Nt s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hO : ObjsOK st Ω Sg Rp Scs Nt Z s)
+    (hsub : ∀ b ∈ Sg, b ∈ Ω) (hc : c ∈ Scs) (hn : n ∈ Nt) {s2 : S}
+    (hs2 : s2 = L.wr (L.wr s (ntfnScA n) v) (scNtfnA c) w ∨ s2 = L.wr (L.wr s (scNtfnA c) w) (ntfnScA n) v)
+    (hcs : (v = c ∧ w = n ∧ L.mem s (ntfnScA n) = 0#u64 ∧ L.mem s (scNtfnA c) = 0#u64) ∨
+      (v = 0#u64 ∧ w = 0#u64 ∧ L.mem s (scNtfnA c) = n ∧ L.mem s (ntfnScA n) = c)) :
+    BndS st T Scs Nt s2 :=
+  have m := pairSN_mem h hO hsub hc hn hs2
+  BndS.pairSNc hE hO hn hcs m.1 m.2.1 m.2.2.1 m.2.2.2
+
 /-- A write avoiding the timer-tree words keeps their typing. -/
 theorem XInv.tn_wr {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {a v : U64}
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ha : Aligned a)
     (hna : ¬ TmW st T Cs Nt s a) :
-    TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v) :=
+    TimerOK st T Cs (L.wr s a v) ∧ NtbOK st T Nt (L.wr s a v) ∧ TimerRB st T Cs (L.wr s a v) ∧ (∀ n ∈ Nt, L.mem (L.wr s a v) (ntfnBtA n) = L.mem s (ntfnBtA n)) :=
   hX.tn (TmFr.wr h.tcbs h.nodes hX.1 ha hna)
 
 /-- A node word other than the timer-tree words. -/
@@ -795,7 +1191,8 @@ theorem XInv.tn_node {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → L
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hsub : ∀ b ∈ Sg, b ∈ Ω)
     (hc : c ∈ Cs) (ho : o.val < 4288) (h8 : o.val % 8 = 0) (hto : o.val ≠ 88 ∧ o.val ≠ 104 ∧ o.val ≠ 112) :
     TimerOK st T Cs (L.wr s (L.nodeAt s c o) v) ∧ NtbOK st T Nt (L.wr s (L.nodeAt s c o) v) ∧
-      TimerRB st T Cs (L.wr s (L.nodeAt s c o) v) :=
+      TimerRB st T Cs (L.wr s (L.nodeAt s c o) v) ∧
+      (∀ n ∈ Nt, L.mem (L.wr s (L.nodeAt s c o) v) (ntfnBtA n) = L.mem s (ntfnBtA n)) :=
   hX.tn_wr h (nodeAt_aligned (h.nodes c hc) ho h8)
     (notTmW_node h.tcbs h.nodes (fun n hn => h.omega _ (hsub _ (hX.1.ntB n hn).2)) hc ho hto)
 
@@ -805,7 +1202,8 @@ theorem XInv.tn_field {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → 
     (hy : y ∈ T) (hK : K.val < 4096) (hK8 : K.val % 8 = 0) (hKt : K.val < 3528 ∨ 3592 ≤ K.val) :
     TimerOK st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
       NtbOK st T Nt (L.wr s (core.num.U64.wrapping_add y K) v) ∧
-      TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) :=
+      TimerRB st T Cs (L.wr s (core.num.U64.wrapping_add y K) v) ∧
+      (∀ n ∈ Nt, L.mem (L.wr s (core.num.U64.wrapping_add y K) v) (ntfnBtA n) = L.mem s (ntfnBtA n)) :=
   hX.tn_wr h (field_aligned (h.tcbs y hy) hK hK8)
     (notTmW_field h.tcbs h.nodes (fun n hn => h.omega _ (hsub _ (hX.1.ntB n hn).2)) hy hK hKt)
 
@@ -824,7 +1222,7 @@ theorem TmFr.of_epfoot {X : Set U64} {s' : S} {Q : U64 → U64 → List U64} {R 
 theorem XInv.tn_writes {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64} {s' : S} {B : U64 → Prop}
     (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (hw : WritesIn st s s' B)
     (hB : ∀ b, Aligned b → B b → ¬ TmW st T Cs Nt s b) :
-    TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' :=
+    TimerOK st T Cs s' ∧ NtbOK st T Nt s' ∧ TimerRB st T Cs s' ∧ (∀ n ∈ Nt, L.mem s' (ntfnBtA n) = L.mem s (ntfnBtA n)) :=
   hX.tn (TmFr.of_writes h.tcbs h.nodes hX.1 (hw.mono' (B := fun b => Aligned b ∧ B b) fun b hb hh => ⟨hb, hh⟩)
     fun b hh => hB b hh.1 hh.2)
 
@@ -929,7 +1327,8 @@ theorem XInv.keepT {t : U64} {s s' : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) 
         fun c hc h0 => by
           rcases k.syf c hc with e | e
           · rw [e] at h0 ⊢; exact hE.yt.2.2 c hc h0
-          · exact absurd e h0⟩⟩,
+          · exact absurd e h0⟩,
+      hE.bs.keep hE.bnd hE.ntb hE.scn (fun u hu => k.bndf hu) k.ntb k.nsc k.snt⟩,
       hE.tsc.keep hE.yt.1 (fun c hc => (k.fix c hc).1) (fun u hu => k.scf hu)⟩⟩
   · by_cases e : u = t
     · subst e; exact absurd hs hst.1

@@ -406,7 +406,16 @@ theorem BlkOK.agreeAddTcb {s s' : S} {Ac : Set U64} (hH : HeapOK H)
   have ext : ScExtra st (H.add N .tcb).tcbs Cs H.scs H.ntfns s' := by
     refine ⟨⟨fun t ht hb => ?_, by rw [ecs]; exact hE.cur, fun c hc => by rw [(hfx c hc).2]; exact hE.core c hc,
       fun t ht hb => ?_, ScExtra.nsc_keepN hE.nsc hns hsn (fun c hc _ => hmx c hc), tmo, ntb, rb,
-      fun c hc => by rw [hsn c hc]; exact hE.scn c hc, ⟨fun c hc h0' => ?_, fun t ht h0' => ?_, fun c hc h0' => ?_⟩⟩,
+      fun c hc => by rw [hsn c hc]; exact hE.scn c hc, ⟨fun c hc h0' => ?_, fun t ht h0' => ?_, fun c hc h0' => ?_⟩,
+      ⟨fun t ht h0' => by
+        rcases A.tcbs_add.1 ht with ht | hnw
+        · rw [hbd t ht] at h0' ⊢; rw [sig _ (hO.ntB _ (hE.bnd t ht h0')).2]; exact hE.bs.tb t ht h0'
+        · rw [A.zBnd hnw] at h0'; exact absurd rfl h0',
+       fun n hn h0' => by
+        rw [sig _ (hO.ntB n hn).2] at h0' ⊢
+        rw [hbd _ ((hE.ntb n hn).ne0 h0')]; exact hE.bs.nt n hn h0',
+       fun c hc hc0 h0' => by
+        rw [hsn c hc] at h0' ⊢; rw [hns _ (hE.scn c hc h0')]; exact hE.bs.sn c hc hc0 h0'⟩⟩,
       hE.tsc.keep hE.yt.1 (fun c hc => (hfx c hc).1) hsc⟩
     · rcases A.tcbs_add.1 ht with ht | hnw
       · rw [hsc t ht] at hb ⊢

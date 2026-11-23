@@ -754,13 +754,13 @@ theorem obj.Tcb.set_bound_ntfn.wr (s : S) (t : obj.Tcb) (v : U64) :
 
 /-- A write of a null or a TCB to a notification's `BOUND_TCB` word. -/
 theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (hn : n ∈ Nt) (hv : Tz T v) :
-    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnBtA n) v) := by
+    BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (ntfnBtA n) v) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hP := hO.ntP n hn
   have av := ntfnBtA_val hP
   have hm : ntfnBtA n ∈ Ω := hSg.sub _ (hO.ntB n hn).2
-  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allT (w := v) h0 hB hX hS hSg hm
+  obtain ⟨h1, hB1, hX1, hS1, hSg1, -⟩ := link_allTM (w := v) h0 hB hX.m hS hSg hm
     (fun r hr => by rw [av, (rp_facts hO hr).2.1]; have := hO.ntORp n hn r hr; omega)
     (fun c hc => by
       obtain ⟨h128, e1, e2, e3, e4, e5, -⟩ := sc_facts hO hc
@@ -790,8 +790,8 @@ theorem ntbt_all {s : S} {n v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s
   exact ⟨⟨Q, R, h1⟩, hB1, hX1, hS1, hSg1⟩
 
 /-- A write of a null or a notification to a TCB's `BOUND_NTFN` field. -/
-theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
-    (hv : v ≠ 0#u64 → v ∈ Nt) : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (boundA t) v) := by
+theorem bnd_all {s : S} {t v : U64} (h : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T)
+    (hv : v ≠ 0#u64 → v ∈ Nt) : BlkOKM st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr s (boundA t) v) := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hT := h0.tcbs
   have hya := hT t ht
@@ -831,15 +831,16 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
       (by rw [ei]; exact ⟨h0.idleT, hB.idle⟩) (fun h1 => ?_) (hB.nb ei (hst _ h0.idleT))
       (fun y hy hS _ => Or.inl (Sch.of_eq (fun hf => by rwa [hiq y hy] at hf) (fun hf => by rwa [hiq y hy] at hf)
         ea ei ec (hst y hy) hS)),
-    hX.keep' (fun r hr => ⟨om _ (hrΩ r hr).1, om _ (hrΩ r hr).2.1, om _ (hrΩ r hr).2.2⟩)
+    XInvM.keep' hX (fun r hr => ⟨om _ (hrΩ r hr).1, om _ (hrΩ r hr).2.1, om _ (hrΩ r hr).2.2⟩)
       (fun c hc => ⟨om _ (hcΩ c hc).1, om _ (hcΩ c hc).2.1⟩) hsc hrp hst (by rw [ecs]; exact hX.2.2.cur)
       (fun c hc => om _ (hSg.sub _ (hX.1.repW c hc))) (fun y hy hb => ?_)
       (fun n hn => om _ (hSg.sub _ (hX.1.ntW n hn)))
-      (hX.tn_field (K := 3368#u64) h0 hSg.sub ht (by simp) (by simp) (by simp))
+      (hX.tn (TmFr.wr hT h0.nodes hX.1 ha (notTmW_field (K := 3368#u64) hT h0.nodes
+        (fun n hn => h0.omega _ (hSg.sub _ (hX.1.ntB n hn).2)) ht (by simp) (by simp))))
       (fun c hc => om _ (hSg.sub _ (hX.1.snW c hc)))
       (hX.2.2.yt.keep (fun c hc => om _ (hcΩ c hc).1) (fun y hy => fk y hy _ (by simp) (by simp) (fun _ => by simp))
         (fun c hc => om _ (hSg.sub _ (hX.1.syW c hc)))) (fun c hc => om _ (hcΩ c hc).2.2.1) ei,
-    SCsOK.field (K := 3368#u64) h0 hS hX ht (by simp) (by simp) (by simp),
+    SCsOK.fieldO (K := 3368#u64) h0 hS hX.1 ht (by simp) (by simp) (by simp),
     ⟨hSg.sub, fun b hb => by rw [L.ksb_wr]; exact hSg.ks b hb, fun o h1 h2 => by rw [L.ksb_wr]; exact hSg.ksΩ o h1 h2⟩⟩
   · rw [ea] at haT ⊢; exact ⟨haT, hB.act haT⟩
   · rw [ea] at h1; rw [ec]; exact ⟨h0.curT, hB.resume h1⟩
@@ -849,16 +850,26 @@ theorem bnd_all {s : S} {t v : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
         fk y hy _ (by simp) (by simp) (fun e' => absurd e' e)
       rw [k] at hb ⊢; exact hX.2.2.bnd y hy hb
 
+/-- **Unbinding a TCB and the notification bound to it** (the notification's
+`BOUND_TCB` word, then the TCB's `BOUND_NTFN` word, both cleared). -/
+theorem unbind_pair {s : S} {t n : U64} (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) (ht : t ∈ T) (hn : n ∈ Nt)
+    (hb : L.mem s (boundA t) = n) (hnb : L.mem s (ntfnBtA n) = t) :
+    BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac (L.wr (L.wr s (ntfnBtA n) 0#u64) (boundA t) 0#u64) :=
+  (bnd_all (ntbt_all h hn Tz.zero) ht fun h0 => absurd rfl h0).x
+    (BndS.pairTN h.2.2.1.2.2.toScExtra0 h.1.choose_spec.choose_spec h.2.2.1.1 h.2.2.2.2.sub ht hn
+      (Or.inr ⟨rfl, rfl, hb, hnb⟩))
+
 /-- seL4 `bindNotification`. -/
 theorem notification.bind_notification.blk (s : S) (t n : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (ht : t ∈ T) (hn : n ∈ Nt) :
+    (ht : t ∈ T) (hn : n ∈ Nt) (h0t : L.mem s (boundA t) = 0#u64) (h0n : L.mem s (ntfnBtA n) = 0#u64) :
     notification.bind_notification st s t n ⦃ s' => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ := by
   unfold notification.bind_notification
   refine WP.spec_bind (obj.Ntfn.set_bound_tcb.wr s n t) fun s1 e1 => ?_
   subst e1
   refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ t n) fun s2 e2 => ?_
   subst e2
-  exact bnd_all (ntbt_all h hn (Tz.of_mem ht)) ht fun _ => hn
+  exact (bnd_all (ntbt_all h hn (Tz.of_mem ht)) ht fun _ => hn).x
+    (BndS.pairTN h.2.2.1.2.2.toScExtra0 h.1.choose_spec.choose_spec h.2.2.1.1 h.2.2.2.2.sub ht hn (Or.inl ⟨rfl, rfl, h0t, h0n⟩))
 
 /-- seL4 `unbindNotification`. -/
 theorem notification.unbind_notification.blk (s : S) (t : U64) (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s)
@@ -874,7 +885,9 @@ theorem notification.unbind_notification.blk (s : S) (t : U64) (h : BlkOK st T C
     subst e1
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ t 0#u64) fun s2 e2 => ?_
     subst e2
-    exact bnd_all (ntbt_all h hin Tz.zero) ht fun h0 => absurd rfl h0
+    have tb := h.2.2.1.2.2.bs.tb t ht hi0
+    rw [← ei] at tb
+    exact unbind_pair h ht hin ei.symm tb
   · exact (WP.spec_ok _).2 h
 
 /-- seL4 `unbindMaybeNotification`. -/
@@ -896,12 +909,15 @@ theorem notification.unbind_maybe_notification.blk (s : S) (n : U64) (h : BlkOK 
     subst e1
     refine WP.spec_mono (obj.Tcb.set_bound_ntfn.wr _ i 0#u64) fun s2 e2 => ?_
     subst e2
-    exact bnd_all (ntbt_all h hn Tz.zero) hiT fun h0 => absurd rfl h0
+    have hi0 : L.mem s (ntfnBtA n) ≠ 0#u64 := fun e0 => absurd (by simp [ei, e0]) hb
+    have nt := h.2.2.1.2.2.bs.nt n hn hi0
+    rw [← ei] at nt
+    exact unbind_pair h hiT hn nt ei.symm
 
 theorem notification.bind_notification.tinv (s : S) (t n : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
-    (ht : t ∈ T) (hn : n ∈ Nt) :
+    (ht : t ∈ T) (hn : n ∈ Nt) (h0t : L.mem s (boundA t) = 0#u64) (h0n : L.mem s (ntfnBtA n) = 0#u64) :
     notification.bind_notification st s t n ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=
-  WP.spec_mono (notification.bind_notification.blk s t n h ht hn) fun _ h' => h'.tinv
+  WP.spec_mono (notification.bind_notification.blk s t n h ht hn h0t h0n) fun _ h' => h'.tinv
 theorem notification.unbind_notification.tinv (s : S) (t : U64) (h : TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (ht : t ∈ T) :
     notification.unbind_notification st s t ⦃ s' => TInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ⦄ :=

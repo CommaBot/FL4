@@ -375,7 +375,11 @@ theorem BlkOK.addNtfn (A : AddOK st H N .ntfn Cs s) (hH : HeapOK H) {Ac : Set U6
         rcases (NT n).1 hn with hn | hn
         · exact hX.2.2.ntb n hn
         · exact Or.inl (hz n hn _ (Or.inr (Or.inr rfl)))
-      scn := fun c hc h0' => (NT _).2 (Or.inl (hX.2.2.scn c hc h0')) }
+      scn := fun c hc h0' => (NT _).2 (Or.inl (hX.2.2.scn c hc h0'))
+      bs := ⟨hX.2.2.bs.tb, fun n hn h0' => by
+          rcases (NT n).1 hn with hn | hn
+          · exact hX.2.2.bs.nt n hn h0'
+          · exact absurd (hz n hn _ (Or.inr (Or.inr rfl))) h0', hX.2.2.bs.sn⟩ }
   have sub : ∀ b ∈ (H.add N .ntfn).frame, b ∈ (H.add N .ntfn).omega := fun b hb => Heap.frame_omega hb
   have ks : ∀ b ∈ (H.add N .ntfn).frame, b.val + 8 ≤ (L.ksb s).val ∨ (L.ksb s).val + 13568 ≤ b.val := by
     intro b hb

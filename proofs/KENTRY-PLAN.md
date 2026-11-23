@@ -17005,3 +17005,40 @@ Classical.choice, Quot.sound. Next (jc6b2): carry the symmetry by route (3)1, th
   fact at the dispatch state).  (b) (`BndSym` route, jc6b) and (c) unchanged.  No existing statement changed.
 - Remaining for (d): carry `DeadUnarmed` (as a `DeadP` conjunct), L–XL: the deadline word has no spec counterpart, so
   the ~130 `hdead` sites need a TCB-word frame each (TIMER-RB-PLAN §14.3 has the route).
+
+## jc6b2 (branch par/jc6d from 45bd4cd4) — part (b) of `RegionUnrefAt` DISCHARGED: the bound-link symmetry carried in P1 (`ScExtra0.bs`); new top **`kernel_entry_reachU27`**; no FINDING
+
+**Build (jc6b4, 2026-11-23):** full `lake build` green, 7365 jobs, 0 errors, 0 `sorry` (tokyo, task jc6b4-full2;
+module build jc6b4-m1 of XTopJointTcb/UnrefBnd/U27 green, 7266 jobs). The one fix after the interrupted jc6b2-full1:
+`tcb_bind_ntfnJ`'s `ct = L.curW s` via `cur_thread_eq` + `eq_of_ok_eq` (as UtRetResetJM).
+
+### (1) P1: `BndS` in `ScExtra0` (route (3)1 of jc6b)
+- `BndS st T Scs Nt s` (QueueObjs): `tb` (a TCB's `BOUND_NTFN` names a notification whose `BOUND_TCB` names it),
+  `nt` (a notification's `BOUND_TCB` names a TCB whose `BOUND_NTFN` names it), `sn` (a nonzero SC's `NTFN` names a
+  notification whose `SC` names it; the fourth direction is the existing `nsc`). New field `ScExtra0.bs`.
+- Frame: `BndS.keep` (the four link words kept). The full keep lemmas (`XInv0/XInv.keepN/keep'/keep`, `keepM`,
+  `keep0`) now take `hbd` as an equality and `htn` gained a 4th conjunct (the notifications' `BOUND_TCB` words kept;
+  `XInv.tn*` produce it from `TmFr`). Single-write helpers `BndS.wr_omega` / `wr_scw` / `wr_rpw` / `wr_field`.
+- The states between the two writes of a bind/unbind break the symmetry (any order breaks one direction), so a
+  weak family without `bs`: `ScExtra0M`, `ScExtraM`, `XInv0M`, `XInvM`, `XInvRM`, `BlkOKM` (+ `.m` / `.x`),
+  `XInv0M.keepN`, `XInvM.keep'`, `XInvRM.wr_linkT`, `XInvM.wr_linkT`, `link_allTM` (the old bodies); the full
+  `XInvR.wr_linkT` / `XInv.wr_linkT` / `link_allT` take `hbs : BndS` of the written state (callers: `BndS.wr_*`).
+- Pair lemmas: `BndS.pairTN` (TCB↔ntfn: `t`/`n` written when both unbound, `0`/`0` when bound to each other),
+  `BndS.pairSN` (SC↔ntfn, either write order; core `pairSNc`, `pairSN_mem`). `ntbt_all : BlkOK → BlkOKM`,
+  `bnd_all : BlkOKM → BlkOKM`, `unbind_pair`; `ntsc_zero_all : BlkOK → BlkOKM`, `scn_zero_all : BlkOKM → BlkOKM`.
+- Sites: bind/unbind/unbind_maybe_notification (.blk, .blkF), `bind_ntfn.blk`, `unbind_ntfn.blk`, heap add (ntfn,
+  sc, tcb), drop, dbg, `blk_keep`, `unbind_state`, `keepT`, `set_sctcb`, `XInv.bind`, `dbgF_x`/`dbgN_x`, Timer.
+- `notification.bind_notification.blk` / `.tinv` take `h0t : boundA t = 0`, `h0n : ntfnBtA n = 0` (the decode's
+  checks; Rust `decode_bind_notification` / `bindable_ntfn`); QueueDecTcb carries them across the restart (`KeepT`).
+
+### (2) P3
+- XTopJointTcbMisc `JAtZ.bindNJ` takes `hz1`/`hz2` (both unbound); XTopJointTcb `tcb_bind_ntfnJ` derives them from
+  its decode checks (`hb0`, `hnb`) across the restart (P1 `set_thread_state.restart_blk`'s `KeepT`). These are the
+  only existing P3 files touched (internal signature of `bindNJ`; no `kernel_entry_reach*` text changed).
+- New UnrefBnd: `JAtZ.keptBW` (`KeptRefsBAll` at any `JAtZ`, from `J.blk`'s `BndS` and `DeadP`), `JAtZ.unrefBW`
+  ((b) at an `Entered` state), `RegionUnrefCU` = (c) ∧ `DeadUnarmed`, `JAtZ.regionUnrefBCU`.
+- New XTopJointKEntryU27: `kernel_entry_reachU27` = U26 with `unref : RegionUnrefCU` (`KDispHypsKVU27.toU26`).
+  Removed: part (b) [J] of C16 / C22 / C24 heapH. Start state grows by `BndS` (INV-PLAN note jc6b2).
+
+### (3) Remaining for `RegionUnrefAt`
+(c) debug lists (jc6 (3)(c), M–L) and carrying `DeadUnarmed` (TIMER-RB-PLAN §14, L–XL).
