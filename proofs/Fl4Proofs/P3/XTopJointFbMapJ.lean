@@ -56,8 +56,9 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64}
 
 set_option maxHeartbeats 8000000 in
-/-- **FL4's `batch_map` at `J`** (module docstring). -/
-theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A}
+/-- **FL4's `batch_map` at `J`** (module docstring), with the spec step (`VsSFr`), FL4's writes in
+`VsXW`, the slots' caps alike for the liveness bundle (`LSim`) and the spec's caps (`CapPage`). -/
+theorem JAtZ.batchMapJX [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A}
     {τ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a τ)
     {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
     {p1 as1 : U64} (has1 : as1 ≠ 0#u64) (has2 : as1.val < 2 ^ 20)
@@ -71,7 +72,10 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
         res.2.1 = s ∧ res.2.2 = a) ∨
       (res.1 = .Ok () ∧ ∃ τ1, ((.ok (), τ1) : Except Fl4Spec.SyscallError Unit × Fl4Spec.State Unit) ∈
           (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) τ).1 ∧
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 τ1 ∧ FbKeep τ τ1 ∧ FbFootK (L := L) Z s res.2.1) ⦄ := by
+        JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 τ1 ∧ FbKeep τ τ1 ∧ FbFootK (L := L) Z s res.2.1 ∧
+        VsSFr τ τ1 ∧ P1.WritesIn st s res.2.1 (VsXW Z (L.ksb s) (cslotAddr (pc.bv, idx))) ∧
+        (∀ y, IsSlot Z.th y → LSim (capV (L.mem res.2.1) y) (capV (L.mem s) y)) ∧ CapPage τ τ1 (pc.bv, idx) ∧
+        ∃ a0, capOpt (τ.kheap pc.bv) idx = some a0 ∧ IsPageCap a0) ⦄ := by
   have hX := J.xtop
   obtain ⟨hS, hR, hPt, hPI, hCur⟩ := id hX.fin
   obtain ⟨hPl, hCR, hFI, hDR, hMO, hIA, -⟩ := id hX.rel
@@ -98,7 +102,7 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
     hSt hSV hR hPt ⟨hS, P1.WritesIn.refl _ _⟩ hpc hidx hc hok hnat hp1 has1 has2 hf op depth a1 cr a2 dd cn dcn a0
     b hbv hba hbm hbat) ?_
   rintro ⟨r0, s', a'⟩ (⟨e, e', h1, h2, h3, h4, h5⟩ | ⟨h1, σ', hmem, ⟨pi, hpi⟩, hSt', hSV', hR', hPt', hSRq, hSF, hLk,
-    hK, hFK, cp, csz, crt, cd, cm, ce, cfa, cfv, hcf⟩)
+    hK, hFK, hCP, cp, csz, crt, cd, cm, ce, cfa, cfv, hcf⟩)
   · exact Or.inl ⟨e, e', h1, h2, h3, h4, h5⟩
   try simp only at h1 hSt' hSV' hR' hPt' hSRq hSF hLk ⊢
   have hu : isUt c = false := by rw [hcf]; rfl
@@ -185,7 +189,18 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
   have J' := J.vsStepJ Ap hpc hidx hX' F hW hcap (by rw [hcv0]; exact hLk.1.1) (by rw [hcv0]; exact hLk.1.2.1)
     (by rw [hcv0]; exact hu) (by rw [hcv0]; exact hLk.1.2.2.2)
     (fun y hy => ⟨(hSF y hy).1, (hSF y hy).2.1⟩) hvc
-  refine Or.inr ⟨h1, σ', hmem, J', hFK, fun t ht g => ?_, fun wp hw => ?_⟩
+  have hsim : ∀ y, IsSlot Z.th y → LSim (capV (L.mem s') y) (capV (L.mem s) y) := by
+    intro y hy
+    by_cases e : y = cslotAddr (pc.bv, idx)
+    · rw [e, hcv0]; exact LSim.of_shape hLk.1.1
+    · rw [hcap y hy e]; exact LSim.rfl' _
+  have h0 : ∃ a0, capOpt (τ.kheap pc.bv) idx = some a0 ∧ IsPageCap a0 := by
+    obtain ⟨cS, aS, hcS, hcaS, hgS⟩ := hSt.slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl
+      (by simpa [hidx] using hpc)
+    rw [hc] at hcS; cases eq_of_ok_eq hcS
+    refine ⟨aS, (getCap_set_iff τ pc.bv idx aS).1 (congrArg Prod.fst hgS), ?_⟩
+    rw [hcaS.abs, hcf]; trivial
+  refine Or.inr ⟨h1, σ', hmem, J', hFK, ⟨fun t ht g => ?_, fun wp hw => ?_⟩, F, hW, hsim, hCP, h0⟩
   · have hta : P1.TcbAddr t := J.ip.e.tcb t ht
     have hr := regA_val hta (regIdx_lt g)
     have hrl := regIdx_lt g
@@ -198,6 +213,29 @@ theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s
     exact hW.mem_eq hal fun hb => hS.2.disj _
       (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨wp, hw, le_refl _, by omega⟩)))))))
       (vsxw_vobj hPl hS.2.vs hS.2.pt hxsl hb)
+
+
+set_option maxHeartbeats 8000000 in
+/-- **FL4's `batch_map` at `J`** (`JAtZ.batchMapJX`'s main part). -/
+theorem JAtZ.batchMapJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A}
+    {τ : Fl4Spec.State Unit} (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a τ)
+    {pc : U64} {r : Nat} (hpc : Z.th pc = some (.cnode r)) {idx : List Bool} (hidx : idx.length = r)
+    {p1 as1 : U64} (has1 : as1 ≠ 0#u64) (has2 : as1.val < 2 ^ 20)
+    (hf : ExceptT.run (Fl4Spec.findVspaceForAsid (Z := Unit) as1.bv) τ = ({(.ok p1.bv, τ)}, False))
+    (op depth a1 cr a2 : U64) (dd : Bool) (cn dcn : capability.Cap) (a0 : U64)
+    (b : Fl4Spec.Fl4FrameBatchInvocation) (hbv : b.vspace = p1.bv) (hba : b.asid = as1.bv)
+    (hbm : b.mapRights = a1.bv) (hbat : b.attr = a2.bv) :
+    vspace.batch_map st arI s a (cslotAddr (pc.bv, idx)) ⟨p1, as1, op, depth, a1, cr, a2, dd, cn, dcn⟩ a0 ⦃ res =>
+      (∃ e e', res.1 = .Err e ∧ MapErrRel e e' ∧
+        ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) τ = ({(.error e', τ)}, False) ∧
+        res.2.1 = s ∧ res.2.2 = a) ∨
+      (res.1 = .Ok () ∧ ∃ τ1, ((.ok (), τ1) : Except Fl4Spec.SyscallError Unit × Fl4Spec.State Unit) ∈
+          (ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) τ).1 ∧
+        JAtZ (L := L) arI AR Z H Cs Ac Lst D res.2.1 res.2.2 τ1 ∧ FbKeep τ τ1 ∧ FbFootK (L := L) Z s res.2.1) ⦄ := by
+  refine WP.spec_mono (JAtZ.batchMapJX arI hA J hpc hidx has1 has2 hf op depth a1 cr a2 dd cn dcn a0 b hbv hba hbm hbat) ?_
+  rintro res (h | ⟨h1, τ1, hm, J', hK, hF, -⟩)
+  · exact Or.inl h
+  · exact Or.inr ⟨h1, τ1, hm, J', hK, hF⟩
 
 end
 

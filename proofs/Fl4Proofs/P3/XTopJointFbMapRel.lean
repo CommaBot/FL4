@@ -58,6 +58,33 @@ theorem fbk_arch {σ : State Unit} {p : ObjRef} {ao : ArchKernelObj} (hk : σ.kh
 theorem fbk_ms (σ : State Unit) (ms : MachineState) : FbKeep σ { σ with machineState := ms } :=
   ⟨fun _ => Or.inl rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
+/-- **The spec's caps across a page map**: each one as before, or a page cap at the written slot. -/
+def CapPage (σ σ' : State Unit) (sl : CslotPtr) : Prop :=
+  ∀ p cref a, capOpt (σ'.kheap p) cref = some a →
+    capOpt (σ.kheap p) cref = some a ∨ (p = sl.1 ∧ cref = sl.2 ∧ IsPageCap a)
+
+theorem capPage_set {σ : State Unit} {p : ObjRef} {r : Nat} {cs : CnodeContents}
+    (hk : σ.kheap p = some (.cnode r cs)) (hwf : wellFormedCnodeN r cs) {idx : List Bool} (hidx : idx.length = r)
+    (a : Cap) (ha : IsPageCap a) {σ' : State Unit}
+    (hσ' : ∀ q cref, capOpt (σ'.kheap q) cref = capOpt ((setCnodeSlot σ p r cs idx a).kheap q) cref) :
+    CapPage σ σ' (p, idx) := by
+  intro q cref b hb
+  rw [hσ'] at hb
+  by_cases e : q = p
+  · subst e
+    simp only [setCnodeSlot, Function.update_self] at hb
+    have hdom : idx ∈ dom cs := by rw [hwf]; exact hidx
+    rw [capOpt_cnode_set a ⟨hdom, hwf⟩ cref] at hb
+    by_cases ec : cref = idx
+    · subst ec
+      rw [Function.update_self] at hb
+      obtain rfl := Option.some.inj hb
+      exact Or.inr ⟨rfl, rfl, ha⟩
+    · rw [Function.update_of_ne ec, ← hk] at hb
+      exact Or.inl hb
+  · left
+    simpa [setCnodeSlot, e] using hb
+
 end Spec
 
 section
@@ -110,6 +137,63 @@ theorem fbk_store_flush_pdpt {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' 
   obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
   exact (fbk_arch hk (by intro h; cases h) (.pdPointerTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte)) rfl).trans
     (fbk_ms _ ms)
+
+/-- The caps kept by a PT store and its flush (`kfoot_store_flush`). -/
+theorem capk_store_flush {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
+    (hP : PtPlaced L4 L3 L2 L1) (hR : PtRel L4 L3 L2 L1 m σ2) {q : U64} (hq : q ∈ L1) {i : U64} (hi : i.val < 512)
+    (pte : Fl4Spec.PTE) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid)
+    (hm : ((), σ') ∈ ((Fl4Spec.storePte (Z := Unit) (peA q i).bv pte >>= fun _ =>
+      Fl4Spec.invalidatePageStructureCacheAsid vs asid) σ2).1) : ∀ p cref, capOpt (σ'.kheap p) cref = capOpt (σ2.kheap p) cref := by
+  obtain ⟨f, hk, -⟩ := hR.l1 q hq
+  have hpa := hP q (Or.inr (Or.inr (Or.inr hq)))
+  have hst : Fl4Spec.storePte (Z := Unit) (peA q i).bv pte σ2 =
+      ({((), updK σ2 q.bv (.archObj (.pageTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte))))}, False) := by
+    rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePte_at hpa hk hi pte
+  rw [nd_bind_one hst] at hm
+  obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
+  intro p cref
+  simp only [Notif.updK_kheap]
+  by_cases e : p = q.bv
+  · subst e; rw [Function.update_self, hk]; rfl
+  · rw [Function.update_of_ne e]
+
+/-- The caps kept by a PD store and its flush. -/
+theorem capk_store_flush_pd {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
+    (hP : PtPlaced L4 L3 L2 L1) (hR : PtRel L4 L3 L2 L1 m σ2) {q : U64} (hq : q ∈ L2) {i : U64} (hi : i.val < 512)
+    (pte : Fl4Spec.PDE) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid)
+    (hm : ((), σ') ∈ ((Fl4Spec.storePde (Z := Unit) (peA q i).bv pte >>= fun _ =>
+      Fl4Spec.invalidatePageStructureCacheAsid vs asid) σ2).1) : ∀ p cref, capOpt (σ'.kheap p) cref = capOpt (σ2.kheap p) cref := by
+  obtain ⟨f, hk, -⟩ := hR.l2 q hq
+  have hpa := hP q (Or.inr (Or.inr (Or.inl hq)))
+  have hst : Fl4Spec.storePde (Z := Unit) (peA q i).bv pte σ2 =
+      ({((), updK σ2 q.bv (.archObj (.pageDirectory (Function.update f (Fl4Spec.ucast 9 i.bv) pte))))}, False) := by
+    rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePde_at hpa hk hi pte
+  rw [nd_bind_one hst] at hm
+  obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
+  intro p cref
+  simp only [Notif.updK_kheap]
+  by_cases e : p = q.bv
+  · subst e; rw [Function.update_self, hk]; rfl
+  · rw [Function.update_of_ne e]
+
+/-- The caps kept by a PDPT store and its flush. -/
+theorem capk_store_flush_pdpt {L4 L3 L2 L1 : Set U64} {m : U64 → U64} {σ2 σ' : Fl4Spec.State Unit}
+    (hP : PtPlaced L4 L3 L2 L1) (hR : PtRel L4 L3 L2 L1 m σ2) {q : U64} (hq : q ∈ L3) {i : U64} (hi : i.val < 512)
+    (pte : Fl4Spec.PDPTE) (vs : Fl4Spec.ObjRef) (asid : Fl4Spec.Asid)
+    (hm : ((), σ') ∈ ((Fl4Spec.storePdpte (Z := Unit) (peA q i).bv pte >>= fun _ =>
+      Fl4Spec.invalidatePageStructureCacheAsid vs asid) σ2).1) : ∀ p cref, capOpt (σ'.kheap p) cref = capOpt (σ2.kheap p) cref := by
+  obtain ⟨f, hk, -⟩ := hR.l3 q hq
+  have hpa := hP q (Or.inr (Or.inl hq))
+  have hst : Fl4Spec.storePdpte (Z := Unit) (peA q i).bv pte σ2 =
+      ({((), updK σ2 q.bv (.archObj (.pdPointerTable (Function.update f (Fl4Spec.ucast 9 i.bv) pte))))}, False) := by
+    rw [peA_bv _ _ hi (tbl_fit hpa)]; exact storePdpte_at hpa hk hi pte
+  rw [nd_bind_one hst] at hm
+  obtain ⟨ms, rfl⟩ := doMachineOp_mem hm
+  intro p cref
+  simp only [Notif.updK_kheap]
+  by_cases e : p = q.bv
+  · subst e; rw [Function.update_self, hk]; rfl
+  · rw [Function.update_of_ne e]
 
 set_option hygiene false in
 /-- The batch map from the rights on (`map_tail` without `check_vspace` and the restart). -/
@@ -206,7 +290,7 @@ macro "bmap_tail" : tactic => `(tactic| (
       have hbo : OutsideObjects th (peA q (vIdx a0 12)) := hPO _ ⟨q, Or.inr (Or.inr (Or.inr hq)), _, vIdx_lt a0 12, rfl⟩
       simp only at hr3
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTail_ok hf ((al12 a0).1 hal) hsp), ?_,
-        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_⟩)
+        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_, ?_⟩)
       · unfold MapSpecN mapInv
         dsimp only
         exact performMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
@@ -217,6 +301,8 @@ macro "bmap_tail" : tactic => `(tactic| (
           (kfoot_store_flush hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm')
       · exact (fbk_cnode hkc1 idx nc).trans
           (fbk_store_flush hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm')
+      · exact capPage_set hkc1 hwf hidx nc trivial
+          (capk_store_flush hPP hPt2 hq (vIdx_lt a0 12) _ _ _ hm')
   · have : ((a0 &&& 4095#u64) != 0#u64) = true := by simp [hal]
     simp only [this, ↓reduceIte]
     exact (WP.spec_ok _).2 (Or.inl ⟨_, _, rfl, Or.inr ⟨rfl, rfl⟩,
@@ -321,7 +407,7 @@ macro "bmap_tail_L" : tactic => `(tactic| (
       have hbo : OutsideObjects th (peA q (vIdx a0 21)) := hPO _ ⟨q, Or.inr (Or.inr (Or.inl hq)), _, vIdx_lt a0 21, rfl⟩
       simp only at hr3
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTailL_ok hf ((al21 a0).1 hal) hsp hgd hd), ?_,
-        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_⟩)
+        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_, ?_⟩)
       · unfold MapSpecN mapInvL
         dsimp only
         exact performLMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
@@ -332,6 +418,8 @@ macro "bmap_tail_L" : tactic => `(tactic| (
           (kfoot_store_flush_pd hPP hPt2 hq (vIdx_lt a0 21) _ _ _ hm')
       · exact (fbk_cnode hkc1 idx nc).trans
           (fbk_store_flush_pd hPP hPt2 hq (vIdx_lt a0 21) _ _ _ hm')
+      · exact capPage_set hkc1 hwf hidx nc trivial
+          (capk_store_flush_pd hPP hPt2 hq (vIdx_lt a0 21) _ _ _ hm')
   · have : ((a0 &&& 2097151#u64) != 0#u64) = true := by simp [hal]
     simp only [this, ↓reduceIte]
     exact (WP.spec_ok _).2 (Or.inl ⟨_, _, rfl, Or.inr ⟨rfl, rfl⟩,
@@ -452,7 +540,7 @@ macro "bmap_tail_H" : tactic => `(tactic| (
       have hbo : OutsideObjects th (peA q (vIdx a0 30)) := hPO _ ⟨q, Or.inr (Or.inl hq), _, vIdx_lt a0 30, rfl⟩
       simp only at hr3
       refine (WP.spec_ok _).2 (Or.inr ⟨rfl, _, σ', hdec.trans (mapTailH_ok hf ((al30 a0).1 hal) hσh hsp hgd hd), ?_,
-        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_⟩)
+        hSt3, hSV3, hR3, hPt3, hS3, ?_, ?_, ?_, ?_, ?_⟩)
       · unfold MapSpecN mapInvH
         dsimp only
         exact performHMap_mem (setCap_cnode nc hkc1 hwf hidx) hm' hnf
@@ -463,6 +551,8 @@ macro "bmap_tail_H" : tactic => `(tactic| (
           (kfoot_store_flush_pdpt hPP hPt2 hq (vIdx_lt a0 30) _ _ _ hm')
       · exact (fbk_cnode hkc1 idx nc).trans
           (fbk_store_flush_pdpt hPP hPt2 hq (vIdx_lt a0 30) _ _ _ hm')
+      · exact capPage_set hkc1 hwf hidx nc trivial
+          (capk_store_flush_pdpt hPP hPt2 hq (vIdx_lt a0 30) _ _ _ hm')
   · have : ((a0 &&& 1073741823#u64) != 0#u64) = true := by simp [hal]
     simp only [this, ↓reduceIte]
     exact (WP.spec_ok _).2 (Or.inl ⟨_, _, rfl, Or.inr ⟨rfl, rfl⟩,
@@ -504,7 +594,7 @@ theorem batch_map_small_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨ptr, .Small, rt, dev, mp, ep, fa, fv⟩) ∧
-        KFoot σ σ' ∧ FbKeep σ σ') ⦄ := by
+        KFoot σ σ' ∧ FbKeep σ σ' ∧ CapPage σ σ' (pc.bv, idx)) ⦄ := by
   have hPV : ∀ b, PtW L1 b → ¬ VsWrite P (L.ksb s) b := fun b ⟨q, hq, i, hi, e⟩ =>
     hPVa b ⟨q, Or.inr (Or.inr (Or.inr hq)), i, hi, e⟩
   have hl := fb_label
@@ -611,7 +701,7 @@ theorem batch_map_large_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨ptr, .Large, rt, dev, mp, ep, fa, fv⟩) ∧
-        KFoot σ σ' ∧ FbKeep σ σ') ⦄ := by
+        KFoot σ σ' ∧ FbKeep σ σ' ∧ CapPage σ σ' (pc.bv, idx)) ⦄ := by
   have hPV := hPVa
   have hl := fb_label
   generalize hDec : ExceptT.run (Fl4Spec.decodePageInvocation (Z := Unit) Fl4Spec.fbPageMapLabel [a0.bv, a1.bv, a2.bv] (pc.bv, idx)
@@ -717,7 +807,7 @@ theorem batch_map_huge_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th 
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨ptr, .Huge, rt, dev, mp, ep, fa, fv⟩) ∧
-        KFoot σ σ' ∧ FbKeep σ σ') ⦄ := by
+        KFoot σ σ' ∧ FbKeep σ σ' ∧ CapPage σ σ' (pc.bv, idx)) ⦄ := by
   have hPV := hPVa
   have hl := fb_label
   generalize hDec : ExceptT.run (Fl4Spec.decodePageInvocation (Z := Unit) Fl4Spec.fbPageMapLabel [a0.bv, a1.bv, a2.bv] (pc.bv, idx)
@@ -874,7 +964,7 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
         VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
         SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
         VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) c ∧ KFoot σ σ' ∧ FbKeep σ σ' ∧
-        ∃ p sz rt d m e fa fv, c = .Frame p sz rt d m e fa fv) ⦄ := by
+        CapPage σ σ' (pc.bv, idx) ∧ ∃ p sz rt d m e fa fv, c = .Frame p sz rt d m e fa fv) ⦄ := by
   obtain ⟨cS, aS, hcS, hcaS, hgS⟩ := hSt.slot_cap (Z := Unit) (sl := (pc.bv, idx)) (p := pc) rfl
     (by simpa [hidx] using hpc)
   rw [hcap] at hcS; cases eq_of_ok_eq hcS
@@ -918,7 +1008,7 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
           VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
           SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
           VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (frameCapOf ⟨ptr, sz, rt, dev, mp, ep, fa, fv⟩) ∧
-          KFoot σ σ' ∧ FbKeep σ σ')) →
+          KFoot σ σ' ∧ FbKeep σ σ' ∧ CapPage σ σ' (pc.bv, idx))) →
         ((∃ e e', res.1 = .Err e ∧ MapErrRel e e' ∧
           ExceptT.run (Fl4Spec.fbMap (Z := Unit) b (pc.bv, idx) a0.bv) σ = ({(.error e', σ)}, False) ∧
           res.2.1 = s ∧ res.2.2 = a) ∨
@@ -929,7 +1019,7 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
           VsRel P (L.mem res.2.1) (L.ksb res.2.1) σ' ∧ PtRel L4 L3 L2 L1 (L.mem res.2.1) σ' ∧ SR res.2.1 res.2.2 σ' ∧
           SlotFoot th (L.mem s) (L.mem res.2.1) (cslotAddr (pc.bv, idx)) ∧
           VsLike (capV (L.mem res.2.1) (cslotAddr (pc.bv, idx))) (.Frame ptr sz rt dev mp ep fa fv) ∧
-          KFoot σ σ' ∧ FbKeep σ σ' ∧
+          KFoot σ σ' ∧ FbKeep σ σ' ∧ CapPage σ σ' (pc.bv, idx) ∧
           ∃ p' sz' rt' d' m' e' fa' fv', capability.Cap.Frame ptr sz rt dev mp ep fa fv =
             .Frame p' sz' rt' d' m' e' fa' fv')) := by
       have hb3 : [a0.bv, a1.bv, a2.bv] = [a0.bv, b.mapRights, b.attr] := by rw [hbm, hbat]
@@ -942,8 +1032,8 @@ theorem batch_map_rel [PlainStore st] {A : Type} {ar : machine.Arch A} {th : Typ
         | invokePage pi =>
           obtain ⟨hm, -⟩ := hms
           refine Or.inr ⟨h1, σ', fbMap_page_ok hgS' hne (by rw [← hb3, ← hb4]; exact h3) hm, ⟨pi, hm⟩, ?_⟩
-          obtain ⟨a1', a2', a3', a4', a5', a6', a7', a8', a9'⟩ := h6
-          exact ⟨a1', a2', a3', a4', a5', a6', hlike _ a7', a8', a9', _, _, _, _, _, _, _, _, rfl⟩
+          obtain ⟨a1', a2', a3', a4', a5', a6', a7', a8', a9', a10'⟩ := h6
+          exact ⟨a1', a2', a3', a4', a5', a6', hlike _ a7', a8', a9', a10', _, _, _, _, _, _, _, _, rfl⟩
         | _ => exact hms.elim
     cases sz
     · exact WP.spec_mono (batch_map_small_rel hH s a σ hPl hVP hD hPP hPS hPVa hPO hSt hSV hR hPt hS hep hcw hce hcv
