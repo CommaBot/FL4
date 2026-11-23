@@ -16,6 +16,9 @@ mod x86_mmap;
 #[allow(dead_code)]
 #[path = "../../crates/fl4-efi/src/snp_map.rs"]
 mod snp_map;
+#[allow(dead_code)]
+#[path = "../../crates/fl4-efi/src/boot_files.rs"]
+mod boot_files;
 
 use acpi::{sdt_ok, Phys};
 use ccel::{area_limit, cc_event, ccel_area, ccel_area_in_map, choose, probe_ccel, walk_log, CcelArea, MR_INDEX_RTMR2};
@@ -222,8 +225,7 @@ fn the_loader_collects_the_cc_log_in_a_td_and_the_tpm_log_otherwise() {
     assert_eq!(x86.matches("tcg2::collect()").count(), 1, "only outside a TD");
     assert_eq!(x86.matches("ccel::collect()").count(), 1, "only in a TD");
     assert!(x86.contains("MB2_TAG_CC_EVENT_LOG: u32 = 0x464c_3402"));
-    assert!(x86.contains("ccel::measure_file(b\"rootserver\", path, pa, len);"), "rootserver= file");
-    assert!(x86.contains("ccel::measure_file(b\"module\", path, pa, len);"), "module= files");
+    assert!(x86.contains("ccel::measure_file(role, path, pa, len);"), "rootserver= and module= files");
 }
 
 /// RTMR[2] is a TDX register: the options' files are measured into it only
@@ -231,13 +233,10 @@ fn the_loader_collects_the_cc_log_in_a_td_and_the_tpm_log_otherwise() {
 #[test]
 fn boot_files_are_measured_only_in_a_td() {
     let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
-    for role in ["rootserver", "module"] {
-        let call = format!(
-            "if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }} else {{\n                tcg2::measure_file(b\"{role}\", path, pa, len).unwrap_or_else(|e| fail(e));\n            }}"
-        );
-        assert_eq!(x86.matches(&call).count(), 1, "{role}");
-    }
-    assert_eq!(x86.matches("ccel::measure_file(").count(), 2, "only these two");
+    let call = "if measure {\n                ccel::measure_file(role, path, pa, len);\n                Ok(())\n            } else {\n                tcg2::measure_file(role, path, pa, len)\n            }";
+    let files = &x86[x86.find("fn boot_files<'a>(").expect("boot_files")..];
+    assert_eq!(files[..files.find("\n}\n").unwrap()].matches(call).count(), 1);
+    assert_eq!(x86.matches("ccel::measure_file(").count(), 1, "only this one");
     let is_tdx = &x86[x86.find("pub(super) fn is_tdx() -> bool {").expect("is_tdx")..];
     assert!(is_tdx[..is_tdx.find("\n}\n").unwrap()].contains("sev().0 == 0 && tdx_shared_mask() != 0"));
     let start = &x86[x86.find("pub unsafe fn start_default(").expect("start_default")..];
@@ -246,6 +245,179 @@ fn boot_files_are_measured_only_in_a_td() {
     assert!(check < start.find("boot_files(li, &opts, measure)").expect("boot_files"));
     let fw = include_str!("../../crates/fl4-efi/src/firmware.rs");
     assert!(fw.contains("pub fn is_tdx(&self) -> bool {\n        x86::is_tdx()\n    }"));
+}
+
+/// What `boot_files::select` did, in order.
+#[derive(Debug, PartialEq, Clone)]
+enum Ev {
+    Read(Vec<u8>),
+    Measure(&'static [u8], Vec<u8>, u64, u64),
+}
+
+const EMBEDDED_ROOT: (u64, u64) = (0xe000_0000, 0x3000);
+
+/// `select` over `opts` with files whose lengths `sizes` gives by path (at
+/// address 0x1000 times their option index), the TD's descriptor
+/// measurement (`file_descriptor`) recorded with each measurement.
+fn select_with<'a>(
+    opts: &'a [&'a [u8]],
+    sizes: &dyn Fn(&[u8]) -> u64,
+    embedded_module: (u64, u64),
+) -> (Result<([boot_files::BootFile<'a>; boot_files::MAX_FILES], usize), &'static str>, Vec<Ev>, Vec<Vec<u8>>) {
+    let log = std::cell::RefCell::new(Vec::new());
+    let descriptors = std::cell::RefCell::new(Vec::new());
+    let reads = std::cell::Cell::new(0u64);
+    let r = boot_files::select(
+        opts.iter().copied(),
+        EMBEDDED_ROOT,
+        embedded_module,
+        |path| {
+            log.borrow_mut().push(Ev::Read(path.to_vec()));
+            reads.set(reads.get() + 1);
+            Ok((0x1000 * reads.get(), sizes(path)))
+        },
+        |role, path, pa, len| {
+            log.borrow_mut().push(Ev::Measure(role, path.to_vec(), pa, len));
+            let mut desc = [0u8; tcg2::DESC_MAX];
+            let n = tcg2::file_descriptor(&mut desc, role, path, len);
+            descriptors.borrow_mut().push(desc[..n].to_vec());
+            Ok(())
+        },
+    );
+    (r, log.into_inner(), descriptors.into_inner())
+}
+
+/// Audit (TDX r5, fix 3, R1-M3): a path is opened, measured and named
+/// whole or refused before anything is opened or measured: empty, with a
+/// NUL, longer than the 255 units the loader opens, or with a module name
+/// longer than the kernel keeps.
+#[test]
+fn boot_paths_are_used_whole_or_refused_before_any_open_or_measurement() {
+    use boot_files::{module_name, valid_boot_path, MAX_BOOT_PATH, MAX_MODULE_NAME};
+    assert_eq!((MAX_BOOT_PATH, MAX_MODULE_NAME), (255, 63));
+    assert!(!valid_boot_path(b"") && !valid_boot_path(b"a\0b") && !valid_boot_path(&[b'a'; 256]));
+    assert!(valid_boot_path(b"\\EFI\\fl4\\root") && valid_boot_path(&[b'a'; 255]));
+    // The longest descriptor of a valid path fits: its path is never cut.
+    assert!(8 + b"rootserver".len() + 1 + 8 + MAX_BOOT_PATH <= tcg2::DESC_MAX);
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    let read = &lib[lib.find("fn try_read_file(").unwrap()..];
+    let read = &read[..read.find("\n}\n").unwrap()];
+    let check = read.find("if !boot_files::valid_boot_path(path) {").expect("path check");
+    assert!(check < read.find("open_volume").unwrap(), "before the volume is opened");
+    assert!(!read.contains(".take("), "the whole path is opened");
+
+    // 255 bytes, a name of 63: opened, measured and named whole.
+    let mut long = b"\\EFI\\".to_vec();
+    long.resize(255 - 64, b'd');
+    long.push(b'\\');
+    long.extend([b'n'; 63]);
+    assert_eq!(long.len(), 255);
+    let opt = [b"rootserver=".as_slice(), &long].concat();
+    let opts = [opt.as_slice()];
+    let (r, log, desc) = select_with(&opts, &|_| 5, (0, 0));
+    let (files, n) = r.unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(files[0], (0x1000, 5, long.as_slice()));
+    assert_eq!(log, [Ev::Read(long.clone()), Ev::Measure(b"rootserver", long.clone(), 0x1000, 5)]);
+    assert!(desc[0].ends_with(&long), "measured whole");
+    assert_eq!(module_name(files[0].2), &[b'n'; 63][..]);
+
+    // Refused before any open or measurement, wherever in the options.
+    let mut evil = vec![b'a'; 251];
+    evil.extend(b"\\evil");
+    let long_name = [b"x\\".as_slice(), &[b'n'; 64]].concat();
+    for bad in [&b""[..], b"a\0b", &evil, &long_name, b"dir\\", b"dir/"] {
+        for role in ["rootserver=", "module="] {
+            let opt = [role.as_bytes(), bad].concat();
+            let opts = [b"module=first".as_slice(), opt.as_slice()];
+            let (r, log, _) = select_with(&opts, &|_| 1, (0, 0));
+            assert_eq!(r.unwrap_err(), "invalid boot file path", "{role}{bad:?}");
+            assert_eq!(log.len(), 2, "only the first module: {role}{bad:?}");
+        }
+    }
+}
+
+/// Audit (TDX r5, fix 3): an empty `rootserver=` file ends the boot after
+/// it is read and before it is measured; the embedded root task stands in
+/// only when no `rootserver=` is given.
+#[test]
+fn an_empty_rootserver_file_is_refused_and_not_replaced() {
+    let opts = [b"rootserver=\\root".as_slice(), b"module=\\m"];
+    let (r, log, _) = select_with(&opts, &|_| 0, (0, 0));
+    assert_eq!(r.unwrap_err(), "empty rootserver");
+    assert_eq!(log, [Ev::Read(b"\\root".to_vec())], "no measurement, nothing after it");
+    // An empty one after a good one: still refused.
+    let opts = [b"rootserver=\\good".as_slice(), b"rootserver=\\empty"];
+    let (r, _, _) = select_with(&opts, &|p| if p == b"\\empty" { 0 } else { 9 }, (0, 0));
+    assert_eq!(r.unwrap_err(), "empty rootserver");
+}
+
+/// The last `rootserver=` boots, each one measured in order; without one
+/// the embedded root task does; empty modules are measured (their
+/// descriptor) and handed on with no bytes.
+#[test]
+fn the_options_pick_the_root_task_and_modules_in_order() {
+    let opts = [b"rootserver=\\a".as_slice(), b"module=\\m1", b"rootserver=\\b", b"module=\\m0"];
+    let (r, log, desc) = select_with(&opts, &|p| if p == b"\\m0" { 0 } else { 7 }, (0, 0));
+    let (files, n) = r.unwrap();
+    assert_eq!(n, 3);
+    assert_eq!(&files[..3], [(0x3000, 7, &b"\\b"[..]), (0x2000, 7, &b"\\m1"[..]), (0x4000, 0, &b"\\m0"[..])]);
+    assert_eq!(
+        log,
+        [
+            Ev::Read(b"\\a".to_vec()),
+            Ev::Measure(b"rootserver", b"\\a".to_vec(), 0x1000, 7),
+            Ev::Read(b"\\m1".to_vec()),
+            Ev::Measure(b"module", b"\\m1".to_vec(), 0x2000, 7),
+            Ev::Read(b"\\b".to_vec()),
+            Ev::Measure(b"rootserver", b"\\b".to_vec(), 0x3000, 7),
+            Ev::Read(b"\\m0".to_vec()),
+            Ev::Measure(b"module", b"\\m0".to_vec(), 0x4000, 0),
+        ]
+    );
+    assert_eq!(desc[3], [&b"fl4-efi\0module\0"[..], &0u64.to_le_bytes(), b"\\m0"].concat(), "empty module: its descriptor");
+    assert_eq!(boot_files::module_name(files[1].2), b"m1");
+    assert_eq!(boot_files::module_name(b"a/b\\c"), b"c");
+
+    // No rootserver=: the embedded root task, after the options' modules
+    // the embedded module.
+    let opts = [b"module=\\m".as_slice(), b"cmdline-word"];
+    let (r, _, _) = select_with(&opts, &|_| 1, (0xe100_0000, 0x10));
+    let (files, n) = r.unwrap();
+    assert_eq!(&files[..n], [(EMBEDDED_ROOT.0, EMBEDDED_ROOT.1, &b"rootserver"[..]), (0x1000, 1, b"\\m"), (0xe100_0000, 0x10, b"module")]);
+    // Nor that: nothing to boot.
+    let r = boot_files::select([b"cmdline-word".as_slice()].into_iter(), (0, 0), (0, 0), |_| Ok((1, 1)), |_, _, _, _| Ok(()));
+    assert_eq!(r.map(|(_, n)| n), Err("no x86_64 root task"));
+
+    // At most eight modules, refused before the ninth is read.
+    let nine: Vec<Vec<u8>> = (0..9).map(|i| format!("module=\\m{i}").into_bytes()).collect();
+    let opts: Vec<&[u8]> = nine.iter().map(|v| v.as_slice()).collect();
+    let (r, log, _) = select_with(&opts, &|_| 1, (0, 0));
+    assert_eq!(r.unwrap_err(), "too many boot modules");
+    assert_eq!(log.iter().filter(|e| matches!(e, Ev::Read(_))).count(), 8);
+    let (r, _, _) = select_with(&opts[..8], &|_| 1, (0xe100_0000, 0x10));
+    assert_eq!(r.unwrap_err(), "too many boot modules", "no room for the embedded module");
+
+    // A read or measurement that fails ends it.
+    let opts = [b"module=\\m".as_slice(), b"module=\\n"];
+    let mut reads = 0;
+    let r = boot_files::select(opts.iter().copied(), EMBEDDED_ROOT, (0, 0), |_| { reads += 1; Err("missing file") }, |_, _, _, _| Ok(()));
+    assert_eq!((r.map(|(_, n)| n), reads), (Err("missing file"), 1));
+    let mut reads = 0;
+    let r = boot_files::select(opts.iter().copied(), EMBEDDED_ROOT, (0, 0), |_| { reads += 1; Ok((1, 1)) }, |_, _, _, _| Err("refused"));
+    assert_eq!((r.map(|(_, n)| n), reads), (Err("refused"), 1));
+}
+
+/// x86.rs boots what `select` picks and names each module with
+/// `module_name`.
+#[test]
+fn the_x86_loader_boots_what_select_picks() {
+    let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
+    let f = &x86[x86.find("fn boot_files<'a>(").expect("boot_files")..];
+    let f = &f[..f.find("\n}\n").unwrap()];
+    assert!(f.contains("boot_files::select(\n        opts.iter(),\n        at(embedded::ROOTSERVER),\n        at(embedded::MODULE),\n        |path| try_read_file(li, path),"));
+    assert!(x86.contains("info.module(dst, size, boot_files::module_name(path));"));
+    assert!(!x86.contains("strip_prefix(b\"rootserver=\")"));
 }
 
 #[test]
@@ -977,4 +1149,109 @@ fn a_doubtful_ccel_table_leaves_no_mailbox_clear() {
     assert_eq!(clear(&with(&[c], vec![(c, sev)])), (CcelArea::Absent, true));
     // None at all.
     assert_eq!(clear(&with(&[d], vec![(d, sdt(b"APIC", &[0; 8]))])), (CcelArea::Absent, true));
+}
+
+/// `units` as UCS-2 little-endian bytes stored one byte past an even
+/// address, as firmware may hand them over (LoadOptions is `VOID *`).
+fn unaligned(units: &[u16]) -> Vec<u8> {
+    let mut v = vec![0xaa];
+    for u in units {
+        v.extend(u.to_le_bytes());
+    }
+    v
+}
+
+/// UCS-2 load options of `s`.
+fn ucs2(s: &[u8]) -> Vec<u16> {
+    s.iter().map(|&b| b as u16).collect()
+}
+
+/// Audit (TDX r5, R2-M1, R3-M1): load options were cut at 1024 units
+/// without a word, and read as `u16`s from a pointer UEFI never promised to
+/// align. A cut inside a `rootserver=` or `module=` path left a shorter
+/// path that could open and boot another file. The options are now decoded
+/// from their bytes, at any alignment, and options longer than 1024 units
+/// (or ending in half a unit with no NUL before it) are refused before any
+/// file is read or measured; options of exactly 1024 units, with or without
+/// a NUL after them, are taken whole.
+#[test]
+fn load_options_are_taken_whole_or_refused() {
+    use boot_files::{load_options, MAX_OPTIONS_UNITS};
+    assert_eq!(MAX_OPTIONS_UNITS, 1024);
+    // A command line word, then "module=\a rootserver=<200-byte path>"
+    // with the root path ending at unit 1024; one more unit and the loader
+    // would have cut it to a path it can open (it now never sees it cut).
+    let root_path = [&b"\\"[..], &[b'd'; 140], b"\\", &[b'n'; 58]].concat();
+    let tail = [&b"module=\\a rootserver="[..], &root_path].concat();
+    let mut opts = vec![b'x'; MAX_OPTIONS_UNITS - tail.len() - 1];
+    opts.push(b' ');
+    opts.extend(&tail);
+    assert_eq!((opts.len(), root_path.len()), (MAX_OPTIONS_UNITS, 200));
+    let picked = |stored: &[u8]| -> (Result<usize, &'static str>, u32, u32, Vec<u8>) {
+        let bytes = &stored[1..];
+        assert_eq!(bytes.as_ptr() as usize % 2, stored.as_ptr() as usize % 2 ^ 1, "one byte off");
+        let (mut reads, mut measures, mut root) = (0, 0, Vec::new());
+        let r = load_options(bytes).and_then(|w| {
+            let w = Box::leak(Box::new(w));
+            boot_files::select(w.iter(), (0, 0), (0, 0), |_| { reads += 1; Ok((0x1000, 1)) }, |_, _, _, _| { measures += 1; Ok(()) })
+                .map(|(files, n)| {
+                    root = files[0].2.to_vec();
+                    n
+                })
+        });
+        (r, reads, measures, root)
+    };
+    // Exactly 1024 units: no NUL, a NUL at 1024, a NUL and garbage (and an
+    // odd byte) after it.
+    let whole = ucs2(&opts);
+    let mut nul = whole.clone();
+    nul.push(0);
+    let mut garbage = nul.clone();
+    garbage.extend(ucs2(b"rootserver=\\evil"));
+    let mut odd_after_nul = unaligned(&garbage);
+    odd_after_nul.push(0x41);
+    for stored in [unaligned(&whole), unaligned(&nul), unaligned(&garbage), odd_after_nul] {
+        let (r, reads, measures, root) = picked(&stored);
+        assert_eq!((r, reads, measures), (Ok(2), 2, 2));
+        assert_eq!(root, root_path, "the whole root path");
+    }
+    // 1025 units before any NUL: refused, nothing read or measured, whether
+    // the cut falls in the root path or in a module's.
+    for extra in [&b"n"[..], b" module=\\c"] {
+        let mut long = whole.clone();
+        long.extend(ucs2(extra));
+        let (r, reads, measures, _) = picked(&unaligned(&long));
+        assert_eq!((r, reads, measures), (Err("load options too long"), 0, 0));
+    }
+    let mut cut_module = ucs2(b"rootserver=\\r module=\\");
+    cut_module.resize(MAX_OPTIONS_UNITS + 1, b'm' as u16);
+    assert_eq!(picked(&unaligned(&cut_module)).0, Err("load options too long"));
+    // An odd size: a half unit after the options is refused unless a NUL
+    // ends them first.
+    let short = ucs2(b"rootserver=\\r");
+    let mut half = unaligned(&short);
+    half.push(0x5c);
+    assert_eq!(picked(&half), (Err("invalid load options"), 0, 0, vec![]));
+    let mut ended = short.clone();
+    ended.push(0);
+    let mut ended = unaligned(&ended);
+    ended.push(0x5c);
+    assert_eq!(picked(&ended).0, Ok(1));
+    assert_eq!(load_options(&[0x41]).err(), Some("invalid load options"));
+    assert_eq!(load_options(&[]).map(|w| w.iter().count()), Ok(0));
+    assert_eq!(load_options(&[0, 0, 0x41]).map(|w| w.iter().count()), Ok(0));
+    // Non-ASCII units are `?`, never a path separator or NUL.
+    let w = load_options(&unaligned(&[b'a' as u16, 0x5c5c, 0x2f, 0x0100, b'b' as u16])[1..]).unwrap();
+    assert_eq!(w.iter().collect::<Vec<_>>(), [&b"a?/?b"[..]]);
+    // The loader takes its options so, as bytes, and stops on an error.
+    let lib = include_str!("../../crates/fl4-efi/src/lib.rs");
+    assert!(lib.contains("    options: *const u8,"));
+    let f = &lib[lib.find("fn options(li: &LoadedImage) -> Words {").expect("options")..];
+    let f = &f[..f.find("\n}\n").unwrap()];
+    let at = |s: &str| f.find(s).unwrap_or_else(|| panic!("{s}"));
+    let empty = at("if li.options_size == 0 {\n        return Words::new();\n    }");
+    let null = at("if li.options.is_null() {\n        fail(\"invalid load options\");\n    }");
+    let decode = at("boot_files::load_options(bytes).unwrap_or_else(|e| fail(e))");
+    assert!(empty < null && null < at("core::slice::from_raw_parts(li.options, li.options_size as usize)") && null < decode);
+    assert!(!f.contains("u16"));
 }

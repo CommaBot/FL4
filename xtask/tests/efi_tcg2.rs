@@ -522,14 +522,16 @@ fn measuring_a_file_extends_the_descriptor_then_nonempty_contents() {
 fn the_x86_loader_measures_option_files_into_pcr9() {
     let x86 = include_str!("../../crates/fl4-efi/src/x86.rs");
     let files = body(x86, "fn boot_files<'a>(", "\n}\n");
-    for role in ["rootserver", "module"] {
-        let arm = body(files, &format!("strip_prefix(b\"{role}=\")"), "files[");
-        let at = |s: &str| arm.find(s).unwrap_or_else(|| panic!("{role}: {s}"));
-        let cc = at(&format!("if measure {{\n                ccel::measure_file(b\"{role}\", path, pa, len);\n            }} else {{"));
-        let tpm = at(&format!("}} else {{\n                tcg2::measure_file(b\"{role}\", path, pa, len).unwrap_or_else(|e| fail(e));\n            }}"));
-        assert!(at("read_file(li, path)") < cc && cc < tpm);
-    }
-    assert_eq!(files.matches("tcg2::measure_file(").count(), 2);
+    // boot_files::select reads, then measures each option file through
+    // this callback, and fails on its error (efi_ccel.rs tests the order).
+    let at = |s: &str| files.find(s).unwrap_or_else(|| panic!("{s}"));
+    let select = at("boot_files::select(");
+    let read = at("|path| try_read_file(li, path),");
+    let cc = at("if measure {\n                ccel::measure_file(role, path, pa, len);\n                Ok(())\n            } else {");
+    let tpm = at("} else {\n                tcg2::measure_file(role, path, pa, len)\n            }");
+    assert!(select < read && read < cc && cc < tpm);
+    assert!(files.trim_end().ends_with(".unwrap_or_else(|e| fail(e))"));
+    assert_eq!(files.matches("tcg2::measure_file(").count(), 1);
     let start = body(x86, "pub unsafe fn start_default(", "\n}\n");
     assert!(start.find("boot_files(li, &opts, measure)").unwrap() < start.find("boot(image, ").unwrap());
     let boot = &x86[x86.find("pub(super) fn boot(").unwrap()..];

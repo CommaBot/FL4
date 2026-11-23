@@ -5,6 +5,7 @@
 mod acpi;
 mod ap_order;
 mod bootmem;
+mod cvm_entry;
 mod cvm_mmio;
 mod cvm_walk;
 mod dangerous_msr;
@@ -326,13 +327,12 @@ pub extern "C" fn fl4_boot(magic: u32, info: u32, private_mask: u64, cpuid_page:
 
     // Interrupt controllers and the timer.
     // In a confidential guest the tables are read only from firmware memory
-    // the memory map names (RAM, ACPI reclaim or NVS): never unaccepted
-    // memory, MMIO or a hole. Elsewhere firmware may keep them in reserved
-    // memory (SeaBIOS), and the window alone bounds the reads.
+    // the memory map names (RAM, ACPI reclaim or NVS, off page 0): never
+    // unaccepted memory, MMIO, a hole or firmware's private memory
+    // (bootmem `acpi_readable`). Elsewhere firmware may keep them in
+    // reserved memory (SeaBIOS), and the window alone bounds the reads.
     let acpi_readable = |p: u64, len: u64| {
-        !cvm::hardened() || p.checked_add(len).is_some_and(|end| {
-            mb.mmap[..mb.n_mmap].iter().any(|e| matches!(e.ty, 1 | 3 | 4) && e.base <= p && end <= e.base.saturating_add(e.len))
-        })
+        !cvm::hardened() || bootmem::acpi_readable(p, len, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))
     };
     let acpi = match acpi::init(mb.rsdp, window_top, &acpi_readable) {
         Some(a) => a,

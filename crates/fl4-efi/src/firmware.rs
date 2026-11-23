@@ -74,6 +74,17 @@ impl Firmware<'_> {
 
     /// Measure caller-selected external bytes when running in a trust domain.
     /// The caller may return to EFI if the firmware cannot extend RTMR[2].
+    ///
+    /// RTMR[2] is extended once, with the SHA-384 of `bytes` alone. `name`
+    /// only goes into the `EFI_CC_EVENT` log entry's data (cut to 256
+    /// bytes), which firmware does not hash: nothing authenticates it, not
+    /// even replaying the CC event log, whose digests check out whatever
+    /// name an entry carries, and a full log (`EFI_VOLUME_FULL`) still
+    /// extends RTMR[2] with no entry. A verifier that depends on which
+    /// bytes were which must get it from the bytes (measure a descriptor
+    /// with the role or name, or put domain separation into `bytes`) or
+    /// from a measurement order agreed with the prover
+    /// (`ccel::measure_bytes`).
     pub fn measure_cc_file(&self, name: &[u8], bytes: &[u8]) -> Result<(), Status> {
         if x86::is_tdx() {
             ccel::measure_bytes(name, bytes.as_ptr() as u64, bytes.len() as u64)?;

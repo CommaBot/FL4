@@ -36,6 +36,13 @@ extern "C" {
     static fl4_idle_end: u8;
     static fl4_vectors: u8;
     static fl4_common_entry: u8;
+    // The kernel runs on the user's RSP in [fl4_syscall_entry,
+    // fl4_syscall_on_stack) and [fl4_sysret_user_rsp, fl4_sysret_end)
+    // (entry.S, cvm_entry.rs).
+    fn fl4_syscall_entry();
+    static fl4_syscall_on_stack: u8;
+    static fl4_sysret_user_rsp: u8;
+    static fl4_sysret_end: u8;
 }
 
 /// On the boot core, while the APs are parked and native entries still
@@ -174,13 +181,17 @@ fn save_user(s: &mut PhysStore, f: &Frame) {
 /// An IST always lands at a fixed stack top. If it overwrote a live
 /// frame, the fresh frame is usable for termination only. An IRQ taken
 /// with IF clear is also invalid, including after a switch to another IST.
+/// RSP is no kernel frame where the kernel runs on the user's RSP: a #DB
+/// at the SYSCALL entry's first instruction, or an NMI or #MC there or on
+/// the SYSRET path, may find it in an IST (cvm_entry.rs).
 #[no_mangle]
 extern "C" fn fl4_cvm_kernel_entry_stack(f: &Frame) -> u64 {
     let Some(stack) = crate::gdt::cvm_ist(f as *const Frame as u64, f.vector as usize) else {
         return 0;
     };
-    let ist_overlap = stack.contains(&f.rsp);
-    let if_clear = f.vector >= 32 && f.rflags & RFLAGS_IF == 0;
+    let syscall = fl4_syscall_entry as *const () as u64..core::ptr::addr_of!(fl4_syscall_on_stack) as u64;
+    let sysret = core::ptr::addr_of!(fl4_sysret_user_rsp) as u64..core::ptr::addr_of!(fl4_sysret_end) as u64;
+    let (ist_overlap, if_clear) = crate::cvm_entry::invalid_entry(f.vector, f.rip, f.rsp, f.rflags, stack, syscall, sysret);
     if ist_overlap || if_clear {
         cvm::terminate_with(0, format_args!("invalid kernel entry vec={:#x} ist_overlap={} if_clear={}", f.vector, ist_overlap, if_clear));
     }

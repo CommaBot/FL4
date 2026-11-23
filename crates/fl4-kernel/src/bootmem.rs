@@ -121,10 +121,11 @@ pub fn ram(entries: impl IntoIterator<Item = (u64, u64, u32)>, low: u64, top: u6
 /// device memory: touching it before TDG.MEM.PAGE.ACCEPT faults.
 pub const UNACCEPTED: u32 = 0x464c_3410;
 
-/// fl4-efi's memory map type for write-back `EfiReservedMemoryType`:
-/// firmware's private memory. A confidential guest keeps it private and out
-/// of device memory, but reads no ACPI tables from it (`acpi_readable` in
-/// fl4_boot) and puts no mailbox there (`mailbox_ok`).
+/// fl4-efi's memory map type for firmware's private memory: write-back
+/// `EfiReservedMemoryType`, EFI runtime services code and data, persistent
+/// memory and the SEV-SNP CPUID and secrets pages. A confidential guest
+/// keeps it private and out of device memory, but reads no ACPI tables from
+/// it (`acpi_readable`) and puts no mailbox there (`mailbox_ok`).
 pub const PRIVATE_RESERVED: u32 = 0x464c_3411;
 
 /// The whole pages of each unaccepted memory map entry from `low` on and
@@ -172,23 +173,60 @@ pub fn mmap_type_of(addr: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) 
     mmap.into_iter().find(|&(base, len, _)| base <= addr && end <= base.saturating_add(len)).map(|e| e.2)
 }
 
+/// Whether a confidential guest's fl4_boot may read ACPI tables at
+/// `[p, p + len)`: non-empty, not wrapping, off physical page 0 (no table
+/// belongs there, and a zeroed table pointer leads there), and whole in one
+/// entry of the memory map that is RAM (1), ACPI reclaim (3) or ACPI NVS
+/// (4), the firmware memory fl4-efi reads tables from too (x86_mmap
+/// `readable`), overlapped by no entry of another type (`held_only_by`). Never unaccepted memory, MMIO, a hole, nor firmware's
+/// private memory (`PRIVATE_RESERVED`: EFI runtime services, persistent
+/// memory, the SNP pages). Outside a confidential guest firmware may keep
+/// its tables in reserved memory (SeaBIOS), and the kernel window alone
+/// bounds the reads.
+pub fn acpi_readable(p: u64, len: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> bool {
+    let Some(end) = p.checked_add(len) else { return false };
+    len != 0 && p >= PAGE && held_only_by(p, end, mmap, |ty| matches!(ty, 1 | 3 | 4))
+}
+
+/// Whether `[p, end)` (non-empty) lies whole in an entry of `mmap` whose
+/// type is `ok`, and every non-empty entry it shares a byte with is such
+/// an entry holding it whole. fl4-efi hands on no overlapping entries
+/// (x86_mmap `validate_map`), but another loader might: then a type that
+/// must not be read or written (private, unaccepted, MMIO) overrides
+/// whatever an overlapping entry says.
+fn held_only_by(p: u64, end: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>, ok: impl Fn(u32) -> bool) -> bool {
+    let mut held = false;
+    for (base, n, ty) in mmap {
+        let e = base.saturating_add(n);
+        if n == 0 || e <= p || end <= base {
+            continue;
+        }
+        if !ok(ty) || p < base || e < end {
+            return false;
+        }
+        held = true;
+    }
+    held
+}
+
 /// Whether the AP wakeup mailbox page the MADT names is firmware's: inside
 /// the window, whole in one ACPI NVS (4) entry of the memory map, as ACPI
 /// (Multiprocessor Wakeup Structure) and TDVF have it. The VMM writes the
 /// MADT, and the kernel will write to this address and wait on it, so it
 /// must not be RAM or the kernel's own, ACPI reclaim memory (3), nor
 /// reserved memory of any other kind (2: memory-mapped I/O, uncached or
-/// unusable memory, which may be the VMM's shared memory). fl4-efi gives 4
-/// for EFI runtime and persistent memory too; under it the loader also
-/// checks the EFI type itself (`EfiACPIMemoryNVS`, mboot `tdx_mailbox`).
-/// It is not RAM to the kernel (`ram`), and fl4_boot keeps the page out of
-/// device memory.
+/// unusable memory, which may be the VMM's shared memory; `PRIVATE_RESERVED`:
+/// firmware's private memory, which is where fl4-efi puts EFI runtime
+/// services and persistent memory). The loader also checks the EFI type
+/// itself (`EfiACPIMemoryNVS`, mboot `tdx_mailbox`). No other entry may
+/// overlap the page (`held_only_by`). It is not RAM to the kernel (`ram`),
+/// and fl4_boot keeps the page out of device memory.
 pub fn mailbox_ok(mailbox: u64, window_top: u64, mmap: impl IntoIterator<Item = (u64, u64, u32)>) -> bool {
     let Some(end) = mailbox.checked_add(PAGE) else { return false };
     if mailbox == 0 || mailbox % PAGE != 0 || end > window_top {
         return false;
     }
-    mmap.into_iter().any(|(base, len, ty)| ty == 4 && base <= mailbox && end <= base.saturating_add(len))
+    held_only_by(mailbox, end, mmap, |ty| ty == 4)
 }
 
 /// What user space gets as device memory: everything below `top` that is

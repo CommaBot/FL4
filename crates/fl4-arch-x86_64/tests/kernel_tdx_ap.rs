@@ -269,14 +269,18 @@ fn boot_modules_must_fit_the_device_ranges() {
     assert!(LIB[at..].starts_with("    dev.add(image.p_end, log_end);\n    // The modules and logs reach the root task only as device memory.\n    if log_end > image.p_end && !dev.contains(image.p_end, log_end) {\n        fail(\"boot modules or event logs exceed the boot device range limit\");"));
 }
 
-/// Audit (TDX r2, R1-3): in a confidential guest the kernel reads ACPI
-/// tables only from RAM, ACPI reclaim or NVS memory of the memory map.
+/// Audit (TDX r2, R1-3; r5, fix 4): in a confidential guest the kernel
+/// reads ACPI tables only from RAM, ACPI reclaim or NVS memory of the
+/// memory map, off page 0 (bootmem `acpi_readable`).
 #[test]
 fn a_cvm_reads_acpi_only_from_firmware_memory() {
     let at = LIB.find("let acpi_readable = |p: u64, len: u64| {").expect("readable");
     let r = &LIB[at..at + LIB[at..].find("};").unwrap()];
-    assert!(r.contains("!cvm::hardened() ||"));
-    assert!(r.contains("matches!(e.ty, 1 | 3 | 4) && e.base <= p && end <= e.base.saturating_add(e.len)"));
+    assert!(r.contains("!cvm::hardened() || bootmem::acpi_readable(p, len, mb.mmap[..mb.n_mmap].iter().map(|e| (e.base, e.len, e.ty)))"));
+    let bootmem = include_str!("../../fl4-kernel/src/bootmem.rs");
+    let f = &bootmem[bootmem.find("pub fn acpi_readable(").expect("bootmem acpi_readable")..];
+    let f = &f[..f.find("\n}\n").unwrap()];
+    assert!(f.contains("len != 0 && p >= PAGE && held_only_by(p, end, mmap, |ty| matches!(ty, 1 | 3 | 4))"));
     assert!(LIB.contains("acpi::init(mb.rsdp, window_top, &acpi_readable)"));
 }
 
@@ -318,5 +322,5 @@ fn private_reserved_memory_is_kept_private_but_not_read() {
     assert!(!LIB[at..at + LIB[at..].find("};").unwrap()].contains("PRIVATE_RESERVED"));
     let bootmem = include_str!("../../fl4-kernel/src/bootmem.rs");
     assert!(bootmem.contains("pub const PRIVATE_RESERVED: u32 = 0x464c_3411;"));
-    assert!(bootmem.contains("ty == 4 && base <= mailbox"));
+    assert!(bootmem.contains("held_only_by(mailbox, end, mmap, |ty| ty == 4)"));
 }
