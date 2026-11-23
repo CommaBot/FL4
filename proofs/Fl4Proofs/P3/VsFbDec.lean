@@ -45,6 +45,10 @@ theorem fb_defined (x : U64) :
     have : (x &&& ~~~(1236942192387#u64 : U64)) ≠ 0#u64 := fun he => h (by rw [he]; rfl)
     simpa using this
 
+theorem fb_defined' (x d : U64) (hd : d = 1236942192387#u64) :
+    ((x &&& ~~~d) != 0#u64) = true ↔ x.bv &&& ~~~Fl4Spec.fbDefined ≠ 0 := by
+  subst hd; exact fb_defined x
+
 /-- `entry_words` of the header's op, against `fbOpOf`. -/
 theorem fb_words (x : U64) :
     vspace.frame_batch.entry_words (x &&& vspace.frame_batch.OP) ⦃ w =>
@@ -97,6 +101,32 @@ theorem fb_shr_and_val (x k m : U64) (hk : k.val < 64) :
 
 section
 variable {S : Type} {st : machine.Store S} [L : P1.LawfulStore st] {A : Type}
+
+theorem fb_mapErr_ok {S A : Type} (st : machine.Store S) (ar : machine.Arch A) (v : U64 × U64) :
+    core.result.Result.map_err (vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc st ar)
+      (core.result.Result.Ok v : core.result.Result (U64 × U64) error.Exc) () = ok (core.result.Result.Ok v) := by
+  simp [core.result.Result.map_err]
+
+theorem fb_mapErr_err {S A : Type} (st : machine.Store S) (ar : machine.Arch A) (e : error.Exc) :
+    core.result.Result.map_err (vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc st ar)
+      (core.result.Result.Err e : core.result.Result (U64 × U64) error.Exc) () =
+      ok (core.result.Result.Err (error.Exc.Sys (error.SysError.InvalidCapability 0#u64))) := by
+  simp [core.result.Result.map_err, vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc,
+    vspace.decode_frame_batch.closure.Insts.CoreOpsFunctionFnOnceTupleExcExc.call_once]
+
+theorem fb_branch_ok {α β : Type} (x : α) :
+    core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Ok x : core.result.Result α β) =
+      ok (core.ops.control_flow.ControlFlow.Continue x) := rfl
+
+theorem fb_branch_err {α β : Type} (e : β) :
+    core.result.Result.Insts.CoreOpsTry.branch (core.result.Result.Err e : core.result.Result α β) =
+      ok (core.ops.control_flow.ControlFlow.Break (core.result.Result.Err e)) := rfl
+
+theorem fb_fromResidual (e : error.Exc) :
+    core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual Unit
+      (core.convert.FromSame error.Exc) (core.result.Result.Err e) = ok (core.result.Result.Err e) := by
+  simp [core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual, core.convert.FromSame,
+    core.convert.FromSame.from]
 
 /-- **An error of the FrameBatch decode**, the state unchanged. -/
 theorem fb_err {X : S → A → Fl4Spec.State Unit → Prop} {σ : Fl4Spec.State Unit} {blk call don : Bool}
