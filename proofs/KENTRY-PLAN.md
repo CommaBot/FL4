@@ -17069,3 +17069,41 @@ global ref).
   `QueueEntryGaps4 VsDomF FrontEndLabel` with the scratch stubs, 5104 jobs, 0 errors; axioms of
   `decode_frame_batch.dec`, `frame_batch_entry.cur0`, `batch_map.cur0`, `decGap_vspace`, `InvGaps4.gaps3`,
   `kernel_entry.entry_of4`: [propext, Classical.choice, Quot.sound]).
+### fb3h (resume of fb3g, branch par/fb3 in FL4-fb3) — fb3g committed (a5a25843); the batch's reply tail PROVED (VsFbReply); a design point of the live P3 chain found (the spec's `Restart` that FL4 omits); VsTopX / VsThX sites still open; no premise added; no FINDING
+- **Commit a5a25843**: fb3g's P1 `QueueDecVs` batch arm (`VsPlace.fbTgt` / `fbSrc`), QueueEntryGaps4, VsDecTop / VsDomF
+  restrictions, FrontEndLabel `pml4fb_label`, all built in fb3g-m7 (above).
+- **New module VsFbReply** (imports VsReplyTop; root-imported after it): `Endp.replyTcb2`, `Endp.replyFromKernel_two`
+  (the spec's `reply_from_kernel (0, [d, e])`, one outcome), `Vs.fbTail` (FL4's batch tail after the loop and the
+  deferred `invalidate_asid`: the two-word reply when called, then `TS_RUNNING`; same text as `decode_frame_batch`'s,
+  so `change`/`show` reaches it), `fbTail_words`, `fbTail_core` (keeps `RInv`), `fbTail_ksb`, **`fbTail_inv`**: from
+  `RInv s a σ` with the current thread runnable in `σ`, FL4's tail ends not `Restart`, the kernel base kept, and has an
+  outcome of `specTail call ct [d, e]` *from the spec's `Restart` of `σ`* with `RInv` and `SzKeep σ` (the spec's
+  `Restart` absorbed by the final `Running`, `stsAct_twice`, as `tacHypX_top`). Built: fb3h-m2.
+- **Design point (not a FINDING; semantics agree): FL4's batch runs without `Restart`, the spec's perform runs after
+  it.** `TopPostRMX`'s success disjunct asks an outcome of `fl4PerformInvocation … (.frameBatch b)` from
+  `σ1 = setThreadState ct restart σ`, while FL4's loop starts from `s` related to `σ` (ct `Running`), not to `σ1`
+  (`σ1` is related to `set_thread_state s ct RESTART`, which FL4 never runs). No batch step reads or writes ct's
+  thread state or the scheduler action (fb-spec (1)), so the outcomes agree up to ct's `tcbState`, but every existing
+  per-step refinement (CNode lookup / copy / insert, `frame_map_rel`, delete) is stated between related states.
+  Recommended route (L): a spec-side simulation `SimCt σ σ'` := equal but for ct's `tcbState` (both runnable) and
+  `schedulerAction` as `stsAct` sets it; prove `fbEntryX` / `performFrameBatchX` (SpecFbX, `capDelete` already reduced
+  to `fbDelX`) preserve it outcome-wise (leaves: `getCap`, `setCap`, `capInsert`, the lookups / `resolveAddressBits'`,
+  `ensureEmpty`, `deriveCap`, `decodePageInvocation`, `performPageInvocation`, `isFinalCap`, `archFinaliseCap` of a
+  frame, `emptySlot`, `unmapPageUnflushed`, `flushAll`: each reads TCBs only through their caps); then refine FL4's
+  loop against the spec's batch from `σ` (ct `Running`, the states related as usual), transfer the outcome to `σ1` by
+  `SimCt` + `performFrameBatch_subX`, and close with `fbTail_inv`. (FL4-side alternative — the loop commutes with the
+  `stA ct` word — needs a read-footprint framework FL4's proofs do not have.)
+- **Other constraints found** (for the plan items 1-4 of fb3g):
+  * `JPath`'s PML4 arm is `True` (XTopJointEntry 680): a J-layer fact after the batch cannot be asked as a `JPath` field
+    (that would be a new premise of the tops); it must be proved (plan item 4).
+  * `decode_invocation_pml4JV` / `_thX` / `_capX` take no message or extra-cap relations; the batch needs `args` /
+    `hlen` / `hargs` and `JVsExtra` (`hex.hext`, `hex.hxs`) as the frame cap's `decode_invocation_frameJV`; the three
+    callers (XTopJointEntry 1011, XTopJointKEntry13P 452, XTopJointKEntry23P 435) have them in scope (their Pdpt case
+    passes `argsU hlen hargs … (ExtraOK.vsExtra hPl hXO)`).
+  * StepSem's `Steps` (restart / ks / slot insert / sched / cslot) has no map or delete step, so the batch cannot be a
+    `Steps` run; its X must be re-established per entry from the step refinements' own posts.
+- **Still open (sizes as fb3g's plan):** VsTopX:732 / VsThX:468 / VsThX:527 (the live PML4 chain, plan items 1-4 + the
+  `SimCt` route above: XL), MachKeepG4d (other agent). Scratch stubs unchanged (fb3scratch.py: VsTopX, VsThX ×2,
+  MachKeepG4d). Tokyo note: fb3g-m7's EXIT trap ran in `proofs/` and left the stubs applied in the mirror; every later
+  command's `saferevert` prefix reverts them (fb3h-m1/m2 did); use an absolute path in the trap.
+- Builds: fb3h-m1 (`lt_iff_val` unknown), fb3h-m2. Commits: a5a25843, this section + VsFbReply.
