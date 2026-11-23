@@ -1040,6 +1040,36 @@ theorem fq_I {α : Type} {m : NonDet (State Unit) α} (h1 : FV ct m) (h2 : QV m)
   obtain ⟨a, b⟩ := fv_I h1 ⟨hI.1.1, hI.2⟩ x hx
   exact ⟨⟨a, qk_of_qv h2 σ x hx hI.1.2⟩, b⟩
 
+set_option maxHeartbeats 4000000 in
+/-- fb3f: the frame batch keeps the current thread's view (`SInv.ik_performFrameBatchW`, as XTopJointMidRunS's
+`kf` arm). -/
+theorem kf_performFrameBatchQ (bi : Fl4FrameBatchInvocation) : KF ct (performFrameBatch (Z := Unit) bi) := by
+  intro σ' x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, KF ct m →
+      Fl4Proofs.P3.SInv.IK (fun s => ctV ct s = ctV ct σ') m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  refine Fl4Proofs.P3.SInv.ik_performFrameBatchW (P := fun s => ctV ct s = ctV ct σ') bi
+    (fun _ _ _ _ => k (kf_capInsert _ _ _)) (fun _ => k (kf_performPageInvocation _))
+    (fun _ _ _ _ _ _ _ => k (kf_archFinaliseCap' _ _)) (fun _ => k (kf_emptySlot' _ _))
+    (fun _ _ _ _ => k ?_) (fun _ _ _ => k (kf_setCap _ _)) (k (kf_flushAll _ _)) σ' rfl x hx
+  unfold unmapPageUnflushed; kf_auto
+
+set_option maxHeartbeats 4000000 in
+set_option maxRecDepth 20000 in
+/-- fb3f: the frame batch keeps the ready queues and the scheduler action. -/
+theorem qv_performFrameBatch (bi : Fl4FrameBatchInvocation) : QV (performFrameBatch (Z := Unit) bi) := by
+  intro σ' x hx
+  have k : ∀ {α : Type} {m : NonDet (State Unit) α}, QV m →
+      Fl4Proofs.P3.SInv.IK (fun s => qV s = qV σ') m :=
+    fun h s hs y hy => (h s y hy).trans hs
+  refine Fl4Proofs.P3.SInv.ik_performFrameBatchW (P := fun s => qV s = qV σ') bi
+    (fun _ _ _ _ => k (qv_capInsert _ _ _)) (fun _ => k (qv_performPageInvocation _))
+    (fun _ _ _ _ _ _ _ => k ?_) (fun _ => k ?_)
+    (fun _ _ _ _ => k ?_) (fun _ _ _ => k (qv_setCap _ _)) (k (qv_flushAll _ _)) σ' rfl x hx
+  · simp only [archFinaliseCap]; qv_auto2
+  · unfold emptySlot; qv_auto2
+  · unfold unmapPageUnflushed; qv_auto2
+
 set_option maxRecDepth 20000 in
 /-- **The perform of a first-phase invocation but `PerfW` keeps `CQ`** from
 `CQ ∧ NQ` (module docstring). -/
@@ -1081,6 +1111,10 @@ theorem perf_firstQ (don : Bool) (inv : Fl4Invocation) (hf : FirstInv inv) (hw :
       | _ =>
         simp only [fl4PerformInvocation, fl4ArchPerformInvocation, archPerformInvocation]
         exact pqe_post (by kf_auto) (by qv_auto2) hs
+    | frameBatch bi =>
+      simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
+      exact pqe_post (Fl4Proofs.P3.Vs.dke_liftE (kf_performFrameBatchQ bi))
+        (Fl4Proofs.P3.Vs.dke_liftE (qv_performFrameBatch bi)) hs
     | _ =>
       simp only [fl4PerformInvocation, fl4ArchPerformInvocation]
       exact pqe_post (by kf_auto) (by qv_auto2) hs
