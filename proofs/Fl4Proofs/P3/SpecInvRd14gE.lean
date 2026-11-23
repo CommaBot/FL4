@@ -197,8 +197,9 @@ theorem perfF_archSpec {σ0 u : State Unit} (i : ArchInvocation) (hi : ∀ o, i 
 
 theorem tvfb_fbEntryX (V : ObjRef → Option (ThreadState × Option Fault × Option ObjRef))
     (b : Fl4FrameBatchInvocation) (w : Data × Data × Data) : B8d.TVKE V (fbEntryX b w) := by
-  unfold fbEntryX fbDeleteX fbDelX fbMap unmapPageUnflushed fbCode
-  tv_auto
+  exact ik_fbEntryX_w b w (fun _ _ _ _ => by tv_auto) (fun _ => by tv_auto) (fun _ _ _ _ _ _ _ => by tv_auto)
+    (fun _ => by first | (tv_auto; done) | (unfold emptySlot; tv_auto))
+    (fun _ _ _ _ => by unfold unmapPageUnflushed; tv_auto) (fun _ _ _ => by tv_auto)
 
 /-- **The frame batch** (SpecInvRdFb's `SVM ∧ CFK` facts; no TCB view is written). -/
 theorem perfF_frameBatch {σ0 u : State Unit} (i : Fl4FrameBatchInvocation) (h : RF σ0 u) :
