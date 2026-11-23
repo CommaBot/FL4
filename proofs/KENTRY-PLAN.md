@@ -17253,3 +17253,22 @@ global ref).
      route the batch label through the joint relation (the invariant carries `JAtZ`, which implies MKD's `AR` facts).
 - **Remaining stubs (scratch only):** `XTopJointVsFb.fb_loopI`, `MachKeepG4d` (`MKD.vspace_decode` batch arm). So no
   full no-SCR build, no axiom file yet (`axfb3k.lean` would only show `sorryAx` until `fb_loopI` is proved).
+- **fb3k, second part (same branch):** `fb_loopI` PROVED (build fb3k-m10 green, only `sorry` at `fb_entryJ`) by
+  `loop.spec_decr_nat` (measure `n - done`) with invariant `∃ τ, FbMidJ … x.1 x.2.1 τ ∧ done ≤ n ∧ (fbRun b
+  (b.entries.drop done) done df τ ⊆ fbRun b b.entries 0 false σ)`; entry words read through `FbMidJ`'s `hargs`
+  (`fb_the_arg`, `fbEntries_drop`, `fbEntries_drop_n`); done / error / ok branches closed by `fbRun_nil_mem` /
+  `fbRun_cons_err` / `fbRun_cons_ok`. `fb_loopI`, `fb_loopJ` gain `hbe : b.entries = fbEntries (args.map bv) b.op.words
+  n.val` and `hln : 1 + words.val * n.val ≤ args.length` (`fb_loopI` also `hbv`, `hba`), proved at the decode.
+  New defs: `FbMidJ` (JAtZ ∃, `hargs` at the state, `curThread`, ct's thread state), `FbErrOK` (the loop's error code
+  against the spec's per `error.Exc` constructor), tactic `fbj_red` (copy of MachKeepG4d's `fb_red`; a distinct name
+  because both modules are in the root).
+- **The ONE P3 FrameBatch stub is now `XTopJointVsFb.fb_entryJ`** (fb3scratch.py's `fail` pattern is on it): from
+  `FbMidJ … x a τ` and the spec entry `w` with FL4's words `w0 w1 w2` (`.bv` equal), `frame_batch_entry … ⦃ r => ∃ τ1,
+  FbMidJ … r.2.1 r.2.2.1 τ1 ∧ ((r.1 = Ok ∧ ∃ d', (.ok d', τ1) ∈ (fbEntry b w).run τ ∧ r.df = df || d') ∨
+  (∃ e, r.1 = Err e ∧ r.df = df ∧ FbErrOK b w τ τ1 e)) ⦄`. Note `r.df = df` on errors: FL4 keeps the deferred flag
+  updated by a DELETE's unmap only when the following `cdt.delete` succeeds, which fb3m's `MKD.cdt_delete_frame`
+  shows it always does for a frame — so the spec's "error keeps d" matches. Per-op plan unchanged (item 2 above:
+  REMAP / COPY_MAP / DELETE + the new `unmap_page_unflushed` refinement + the footprint fact for `FbMidJ.hargs`).
+  `FbMidJ` may be extended (e.g. `Entered τ`, slot facts) if the entry proofs need it; it is local to this module.
+- Commits: 6ceaac2c, this part (fb_loopI). Still open: `fb_entryJ`, MachKeepG4d's batch arm (fb3m To finish (1)-(3)),
+  then full no-SCR build + `axfb3k.lean`.
