@@ -16300,3 +16300,44 @@ type. Then `kernel_entry_reachU8` = U7 with `KFinAtR5` minus `tail` (+ `hIV : Id
 - Spec-invariant families: the generated families unfold any `Fl4Spec` function (`ik_unfold`) and have generic
   `doMachineOp` / `select` leaves, so the new decode / perform should go through where the generators' leaves suffice;
   the machine-field families (MachFieldFam `MKF`, MTK) need one leaf `mkf_tdxFrameWrite`. To be listed from the build.
+
+### tdx4 (restart after tdx3 was killed; commits 2d073390, 5a600ce3, 0e48c934, 4da84be7, 8f987a9d, 2f3d8088) — DONE: TdxControl modelled and refined; full x86 build green outside the six #71 FrameBatch branches; no premise added on any top (two existing [P] bundles extended, below)
+- **Mirror cleanup.** tdx3's killed build left m77's six scratch sorries applied on the tokyo mirror; reverted from the
+  mirror root (`tdx4-run.sh` reverts any stale `M77SCRATCH` first and keeps an absolute-path EXIT trap); verified by
+  grep before every build. No stale lake process of tdx3 was running.
+- **Spec (as designed above, committed in 2d073390).** `ArchCap.tdxControlCap` with its arms in X64/Structs, X64/VSpace,
+  Decode (unreachable arm); `Fl4Spec/Ext/Tdx.lean`; dispatch hook in `Ext/Invocation`. Platform: `tdxActive` /
+  `tdxDmaRam` opaque [P] constants (the decode's errors must be its only outcome: `TopPostRMX`'s error clause is a
+  singleton `run`, so a nondeterministic decode error would need a framework change); status word and frame bytes
+  nondeterministic (`NonDet.select`).
+- **P3 abstraction.** `absCap .TdxControl := .archObjectCap .tdxControlCap`, `CapWf .TdxControl` = True,
+  `StateRel.not_tdx` removed (no uses left). `TcbCtl.vfh_eq` / `vfh_ep` build unchanged (no premise).
+- **[P] obligations (existing premise bundles extended, no new top premise):** `JointAt.ARIface` gains `tdx :
+  TdxPlat arI` (`tdx_active a = ok tdxActive`, `dma_ram a p n = ok (tdxDmaRam p.bv n.val)`, ∀ a; same shape as
+  `PPPlat.minBudget`); `StepSem.ArchIrqStep` gains `TdxArchStep` (the three TDCALLs, so `ARIface.mask` covers them);
+  `MachKeepD.MRKeepD` gains `tdx_report` / `tdx_extend_rtmr` / `tdx_get_quote` (TdxControl becomes `QuietF`,
+  `MKD.tdx_decode`); `modelArch_mrKeepD` proves the new fields for the model platform.
+- **Refinement.** `XTopJointTdx.decode_invocation_tdxJ` (`XCap … (JAt …) … .TdxControl …`, every label: errors at
+  the start's `JAtZ`, success = `Steps.restart` + `Steps.arch` (`TdxArchStep`) + `tdx_perform_out` (any status, memory
+  unchanged is a spec outcome) + `reply1`); used by `decOK_J` (XTopJointEntry) and `decOK_JM` (XTopJointKEntry13P),
+  23P, 38.
+- **Spec-invariant leaves added:** VsDomOps `dke_…` / SpecInvDomG `dle_…` / SpecGlobFK `gke_…` (tdx arm, unfold
+  `performTdxInvocation tdxStatus`), MachFieldFam `mkf_tdxFrameWrite` (+ mfk/mtk leaves), MachFieldFamI
+  `mtk_performTdxInvocation`, SpecInvValidMachineTimeGen `gk_decodeTdxInvocation` / `gk_performTdxInvocation`,
+  SpecInvValidIrqHandlersG an `hv_leaf` for the frame write, SpecInvSgD / SpecInvUtP1 / SpecInvSlA (`tdxControlCap`
+  arm: `okv_triv`), XTopJointMidRunS (tdx arm), PerformNil (`htdx`), XTopPostDel (8th `ArchIrqStep` disjunct).
+- **`DecodeTop.decode_invocation_refines`' `hTdxControl` kept**: that theorem is a dispatch with one hypothesis per
+  cap type (as `hIoPortControl`, `hIoPort`, …), no caller, and no arch premise from which a `DecOK` for the TDX cap
+  could be proved (`tdx_active` of an arbitrary arch); the real path is `decOK_J` above, which has no TDX premise.
+- **Builds and axioms (tokyo, LEAN_NUM_THREADS=1, 2f3d8088).** `lake build` (x86) with m77's six FrameBatch scratch
+  sorries applied (`m77scratch.py`, reverted after, verified by grep): "Build completed successfully (7215 jobs)".
+  `lake build Fl4ProofsA64`: "Build completed successfully (3609 jobs)". `#print axioms` (axtdx4b.lean, untracked):
+  `vfh_eq`, `vfh_ep`, `decode_invocation_tdxJ`, `SInvUZ.zr_tdx`, `SInvUZ.okv_fl4Decode_z`, `MKD.tdx_decode`,
+  `SInvR.A13b.perfA_tdx`: [propext, Classical.choice, Quot.sound]; `tdx_perform_out`: none; `decOK_J`,
+  `kernel_entry_reach`, `kernel_entry_reachU10`, `kernel_entry_reachU2`: + `sorryAx`, from the #71 FrameBatch scratch
+  only (separate line). tdx3's `tdxscratch.py` stubs are gone (none needed).
+- **Open / for the lead:** (1) the `TdxPlat` field strengthens the existing `ARIface` premise with an ∀-arch-state
+  equation to opaque spec constants (`tdx_active`, `dma_ram`); a nondeterministic spec decode would avoid it but needs
+  `TopPostRMX`'s error clause relaxed from a singleton `run` to membership (all decode refinements). (2)
+  `decode_invocation_refines`' `hTdxControl` kept (see above). (3) The #71 FrameBatch branches remain (separate line).
+- Scripts (untracked): tdx4-run.sh (mirror wrapper: reverts stale scratch, absolute-path trap), axtdx4b.lean.
