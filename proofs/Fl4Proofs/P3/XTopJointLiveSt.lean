@@ -90,7 +90,7 @@ theorem JAtZ.reply1JL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     rw [Set.mem_singleton_iff.1 hz]
     exact ⟨_, _, _, _, _, _, J2, LiveDN.of_jstep J hL J2 rfl rfl hSS hK
       (orig_eq_of_slots J.xtop.rel.2.1.2.2.2.1 J2.xtop.rel.2.1.2.2.2.1 J.kern.orig J2.kern.orig hSS)
-      (by unfold Notif.stsAct; split <;> rfl) fun p hp => Or.inr hp⟩
+      (by unfold Notif.stsAct; split <;> rfl) fun p hp => Or.inr hp, inferInstance⟩
   · simp only [↓reduceIte]
     have hin : (do
         let buf ← msg.lookup_ipc_buffer st s true ct
@@ -160,7 +160,7 @@ theorem JAtZ.reply1JL (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) [VxE Z]
     exact ⟨_, _, _, _, _, _, J4, LiveDN.of_jstep J hL J4 rfl rfl hSS
       (((hK1.trans hK2).trans hK3).trans hK4)
       (orig_eq_of_slots J.xtop.rel.2.1.2.2.2.1 J4.xtop.rel.2.1.2.2.2.1 J.kern.orig J4.kern.orig hSS)
-      (by unfold Notif.stsAct; split <;> rfl) fun p hp => Or.inr hp⟩
+      (by unfold Notif.stsAct; split <;> rfl) fun p hp => Or.inr hp, inferInstance⟩
 
 end
 
