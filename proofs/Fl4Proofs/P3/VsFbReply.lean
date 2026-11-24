@@ -265,6 +265,40 @@ theorem fbTail_inv {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {G : MdbGhost} (
     rw [ey, stsAct_twice (hsch { Endp.replyTcb2 x d.bv e.bv with tcbState := .running } rfl rfl)]
     exact Set.mem_singleton _
 
+/-- **The spec side of `fbTail_inv`**: the outcome of `specTail` from the spec's `Restart` of the
+current thread is its reply (when called) and `Running` at the state before the `Restart`. -/
+theorem specTail_fb (σ : Fl4Spec.State Unit) (ct : U64) {x : Fl4Spec.Tcb} (hk : σ.kheap ct.bv = some (.tcb x))
+    (call : Bool) (d e : U64) :
+    ((), Notif.stsAct (Notif.updK σ ct.bv
+      (.tcb { (if call then Endp.replyTcb2 x d.bv e.bv else x) with tcbState := .running })) ct.bv) ∈
+      (specTail call ct.bv [d.bv, e.bv]
+        (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv)).1 := by
+  have hk1 : (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv).kheap ct.bv =
+      some (.tcb { x with tcbState := .restart }) := by simp [Notif.stsAct_kheap]
+  have hsch : ∀ y : Fl4Spec.Tcb, y.tcbSchedContext = x.tcbSchedContext → Fl4Spec.runnable y.tcbState = true →
+      Fl4Spec.schedulable ct.bv (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) =
+        Fl4Spec.schedulable ct.bv (Notif.updK σ ct.bv (.tcb y)) := fun y h1 h2 =>
+    schedulable_updK_tcb (by rw [h2]; rfl) h1.symm
+  unfold specTail
+  rw [nd_bind_one (Notif.getThreadState_eq hk1)]
+  dsimp only
+  cases call
+  · rw [Endp.nd_when_false (by simp), Notif.nd_pure_bind']
+    try simp only [Bool.false_eq_true, ↓reduceIte]
+    rw [Notif.setThreadState_eq .running hk1, stsAct_twice (hsch { x with tcbState := .running } rfl rfl)]
+    exact Set.mem_singleton _
+  · unfold Fl4Spec.NonDet.when; simp only [↓reduceIte]
+    rw [nd_bind_one (Endp.replyFromKernel_two hk1 d.bv e.bv)]
+    have hkC : (Notif.updK (Notif.stsAct (Notif.updK σ ct.bv (.tcb { x with tcbState := .restart })) ct.bv) ct.bv
+        (.tcb (Endp.replyTcb2 { x with tcbState := .restart } d.bv e.bv))).kheap ct.bv =
+        some (.tcb (Endp.replyTcb2 { x with tcbState := .restart } d.bv e.bv)) := by simp
+    rw [Notif.setThreadState_eq .running hkC, updK_updK]
+    have ey : ({ Endp.replyTcb2 { x with tcbState := .restart } d.bv e.bv with tcbState := .running } : Fl4Spec.Tcb) =
+        { Endp.replyTcb2 x d.bv e.bv with tcbState := .running } := rfl
+    rw [ey, stsAct_twice (hsch { Endp.replyTcb2 x d.bv e.bv with tcbState := .running } rfl rfl)]
+    exact Set.mem_singleton _
+
+
 end
 
 end

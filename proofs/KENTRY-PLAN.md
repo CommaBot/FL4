@@ -18759,6 +18759,208 @@ states, where `Z.vx = ∅` must be pinned in the carried entry predicate (top st
   MachKeepG4d). Tokyo note: fb3g-m7's EXIT trap ran in `proofs/` and left the stubs applied in the mirror; every later
   command's `saferevert` prefix reverts them (fb3h-m1/m2 did); use an absolute path in the trap.
 - Builds: fb3h-m1 (`lt_iff_val` unknown), fb3h-m2. Commits: a5a25843, this section + VsFbReply.
+### fb3j (resume of fb3i, branch par/fb3 in FL4-fb3; builds on afkprover) — SimCt route (lead decision (a)) spec side PROVED; live PML4 chain restructured: VsTopX:732 / VsThX:468 / VsThX:527 CLOSED, the batch label isolated in one stub (`XTopJointVsFb.decode_invocation_pml4_fbJV`); decode walk against the spec decode built through the extra-cap checks (WIP file); no premise on any top; no FINDING
+- **Commit ba77f5de (green: fb3j-m2 / m5):** SpecFbSim (fb3i's module, fixed: `cm_setCap` per object kind, `cm_mapM`,
+  `cm_archFinaliseCap_frame`, `Function.comp` step in `cm_step0`, `capDelete_supX` substs, `fbsF_performFrameBatch`):
+  `CM ct m` = an outcome `(r, τ)` of `m` from `σ` gives `(r, fbsM ct ts sa τ)` from `fbsM ct ts sa σ` (`fbsM`: ct's
+  `tcbState := ts`, `schedulerAction := sa`); **`performFrameBatch_fbsM`**, `performFrameBatch_supX` (the converse of
+  SpecFbX's inclusion: a frame's `fbDelX` round is a `capDelete` outcome), `fbsF_performFrameBatch` (the batch keeps
+  scheduler action, current thread, release queue). SpecFbRestart: **`performFrameBatch_restart`** — from `σ` with ct's
+  TCB `x`, an outcome `(r, τ)` of the batch gives `τ.kheap ct = some (.tcb y)` (same SC) and the outcome
+  `(r, stsAct (updK τ ct (y with Restart)) ct)` from `stsAct (updK σ ct (x with Restart)) ct` (= the spec's
+  `setThreadState ct Restart`), via `stsAct_updK_fbsM`, `fbs_schedulable`, `fbs_stsAct_sa`. With VsFbReply's `fbTail_inv`
+  (which starts from the spec's Restart) this is the whole spec side of lead decision (a). SpecFbDec: `fbDecP` / `fbDecQ`
+  (the decode after the ASID check as a pure `Except`), **`decodeFrameBatch_run`** (`findVspaceForAsid` = ok p ⇒ the decode
+  has the single outcome `fbDecP …`), `_noVs` / `_wrongVs`, `fbDecP_short` / `_hdr` / `_some`. VsFbDec: `fb_err` (an
+  error as `TopPostRMX`'s error disjunct), `check_vspace_fb`, `fb_words` (`entry_words` vs `fbOpOf`, COPY_MAP ↔ copyMap),
+  `fb_defined'` (FL4 `DEFINED` = `fbDefined`), `fb_and_val`, `fb_mapErr_ok/err`, `fb_branch_ok/err`, `fb_fromResidual`.
+- **Second group (VsTopX, VsThX, XTopJointVsMap, new XTopJointVsFb, XTopJointEntry, XTopJointKEntry13P/23P; fb3j-m11):**
+  `decode_invocation_pml4_capX`, `domFrame_pml4`, `decode_invocation_pml4_thX` gain `hfb` (non-batch labels, as
+  VsDecTop): their stubs are gone (VsThX:527 by `okAll_specDec_pml4 … hfb.1`). XTopJointVsMap's PML4 lemma is now
+  `decode_invocation_pml4JVn` (non-batch). New module **XTopJointVsFb** (root-imported after XTopJointVsMap, imported by
+  XTopJointEntry): `decode_invocation_pml4JV` (every label; splits on `lbl = X86PML4FrameBatch`) and the stub
+  **`decode_invocation_pml4_fbJV`** (the batch; body `fail "FB3 OPEN…"`, replaced by `sorry` in proofs/scratch/fb3scratch.py).
+  Lead decision (c): the three callers (XTopJointEntry, KEntry13P, KEntry23P) now pass `pml4fb_label lbl`, the message
+  (`argsU hlen hargs`), the invoked slot (`sl hAs hc`) and the extra caps (`hXO : ExtraOK`, `hXN : ExtraNamed`; the batch
+  uses extra caps 0 and 1, so `JVsExtra` (extra 0 only) is not enough). Scratch stubs now: XTopJointVsFb (fbJV),
+  MachKeepG4d (par/fb3m). Was: VsTopX:732, VsThX:468, VsThX:527.
+- **The decode walk (proofs/scratch/fb3j_dec_wip.lean, NOT built, not in the root; paste over the stub):** walks
+  `vspace.decode_frame_batch` against `fbDecP`: unmapped cap, `check_vspace` errors (`fb_mapErr_err`), `length < 1`, the header
+  (`fb_words`, `fb_defined'`, depth 0 / > 64), `length < 1 + words*n` (`step`), extra cap 0 (none / not a CNode, `fb_notCN`,
+  `fb_isCN`), extra cap 1 (copy only) — every error branch closed by `fb_err` (state unchanged, `JAt` from `J`), and the
+  success continuation handed to the stated (open) **`fb_loopJ`** (loop + `invalidate_asid` + tail, with `hb : fbDecP … =
+  .ok b` and the FL4 batch fields as equations on the header word `a0`). Build state (fb3j-m10): everything up to the
+  extra caps elaborates; remaining: (i) `hq`'s witness (`exact ⟨_, rfl, rfl⟩` reported "Eq.refl has no explicit fields":
+  state `∃ b, fbDecQ … = .ok b ∧ b.op = op'` as a SpecFbDec lemma instead); (ii) the three `exact tail …` uses time out
+  (8M heartbeats): do not restate the residual program — `WP.spec_bind` on the `dest_cnode` match with post
+  `(dc = cnode ∨ ∃ x, extra 1 = some x ∧ capAt x = ok dc) ∧ (isCnodeCap (spec dest) ↔ dc is a CNode)`, then one tail;
+  and give `fb_loopJ` the continuation `K` with `hK : ∀ s1 a1 d e df, K (s1, a1, d, e, df) = <Funs text>` (`rfl` at the
+  use: same elaboration as Funs under `open Aeneas Aeneas.Std Result`). Facts found: Funs' `let (root, _) := val` is
+  `Aeneas.Std.uncurry` (reduce with fb3m's `fb_red` set: `WP.uncurry'_pair` / `Aeneas.Std.uncurry`, not `dsimp`/`split`);
+  `rintro x rfl` on a Consts spec (`DEFINED`, `DEFER_DELETE_FLUSH`) leaves a literal whose `decide` proof makes later
+  `simp` fail ("no progress", not type-correct at implicit transparency): keep the variable and an equation;
+  `args.map UScalar.bv` in statements needs `: List Fl4Spec.Data` (else `HAnd (BitVec U64.numBits) (BitVec 64)`); in
+  `exact`, pass `_` for the spec args (elaborating `args.map UScalar.bv` against `List Data` times out).
+- **Open (sizes as fb3g's plan):** (1) finish the decode walk (S-M, above); (2) `fb_loopJ` (XL): the loop against
+  `fbRun` from `σ` (ct Running; per-entry refinements CNode lookup / copy+insert / `batch_map` vs `fbMap` / delete /
+  `unmap_page_unflushed`, `TopSR`/`CRel`/`FinInv`/`MdbOKV` re-established per entry), then `performFrameBatch_restart` to
+  move the outcome to the spec's Restart, `flushAllH_top` for `invalidate_asid`, `fbTail_inv` for the reply, and `JAt`
+  after (lead decision (b): proved, `JPath`'s PML4 arm stays True); (3) par/fb3m merge + its "To finish" (1)-(3) — waits on
+  (2)'s mid-batch relation (not started). (d) P1 gap fields: no P3 module consumes `Hyps4`/`VsPlace` on the J path (as
+  fb3g found; the U-tops get P1's invariant through `JAtZ`/`XTopAt` posts), so `VsPlace.fbTgt/fbSrc` have nothing to
+  discharge on the P3 side today; the J-layer uses `JAtZ` (`JPlaced`, `XTopAt`) instead.
+- Builds: fb3j-m1..m11 (afkprover, SEED=B SCR=1). No `kernel_entry_reach*` statement changed; intermediate statements
+  changed: `decode_invocation_pml4_capX` / `domFrame_pml4` / `_thX` (+`hfb`), `decode_invocation_pml4JV` (moved,
+  + `hlfb`, message, slot, extra caps), XTopJointVsMap `decode_invocation_pml4JVn` (renamed, + `hfb`).
+### fb3m (branch par/fb3m in FL4-fb3m, on aa3059d7; parallel to par/fb3) — MachKeepG4d batch arm: everything but the mid-batch slot facts PROVED; `MKD.vspace_decode` still stubbed; FINDING: the stub cannot be closed from MKD's context (or from `decOK_JMM`'s initial-state facts) alone
+- **New in MachKeepG4d (before `MKD.vspace_decode_page_map`), all built (fb3m-m6), no premise on any existing lemma:**
+  * helpers outside the section: `MKD.spec_exists`, `MKD.ok_inj`, `MKD.walk_fuel_pos`, `MKD.fbB` (the loop's batch
+    record), tactic `fb_red` (reduces the `uncurry` of a tuple-`let` continuation: `dsimp only` does not).
+  * `MKD.objects_finalise_cap_frame` (finalise of a `Frame` = `(Null, Null)`, `AR` kept);
+    `MKD.cdt_finalise_frame` (slot holding a frame: one round, `done` with cleanup `Null`, no preemption point);
+    **`MKD.cdt_delete_frame`** (`obj.Slot.cap st slot s = ok c`, `as_frame c = some f` ⇒ `cdt.delete … true` keeps `AR`
+    **and returns `Ok ()`** — also the fact fb3's semantics note asks of P3: a batch delete of a frame never fails).
+  * `MKD.vspace_batch_map` (`AR`), `MKD.vspace_batch_map_err` (`AR` ∧ every `Err` returns the input state).
+  * **`FbDelOK st s b w0 w1`** (structure, [gap]): `del` — after the deferred unmap, writing the cleared frame
+    (`Frame ptr size rights dev false false 0 0` of the read frame) to the DELETE target and reading it back gives it;
+    `cpy` — COPY_MAP's `insert_with_cap` of the derived cap (read source frame, `mask_cap_rights`, `derive_cap`) leaves it
+    in the destination. Both are stated on the code's own lookups at `s`.
+  * `MKD.derive_frame` (derived copy of a frame is a frame); **`MKD.vspace_frame_batch_entry`** (`FbDelOK` ⇒ entry keeps
+    `AR`; all three ops); **`MKD.vspace_decode_frame_batch_loop`** (P0's `words ≤ 3`, `n ≤ 255`; a state invariant `P`
+    with `P s`, `P s' → FbDelOK s' (fbB …) w0 w1`, and `P` kept by every entry ⇒ the loop keeps `AR`).
+- **Why `MKD.vspace_decode`'s batch arm is still open (FINDING, no FL4 bug):** FL4 only ever deletes a frame cap in the
+  batch (DELETE: the cap was read as a frame, or written back as one; COPY_MAP rollback: the inserted derived frame,
+  `batch_map`'s `Err` leaves the insert's state), so the semantics are fine. But `FbDelOK` at entry k needs, at the k-th
+  mid-batch state: (del) the DELETE target slot (from `lookup_target_slot` through CNode caps read *at that state*)
+  aligned — store laws only speak of aligned words (`LawfulStore.mem_wr`), slot alignment comes from `Placed` /
+  `IsSlot` of the CNodes reached; (cpy) the CDT `next` of the source not aliasing the destination's cap words
+  (`set_prev next`), i.e. `valid_mdb`. Neither is a code-level fact and neither is preserved by a cheap invariant: the
+  batch writes caps, CDT links and PTEs, so keeping slot placement across entries is P1's batch invariant
+  (`Cur0`/`BXI`) plus the CNode lookups' placement, which P1 itself delegates to P3 (`CdtHyps.tgt/src`, only at `EntAt`
+  states — the fb3 handoff's "new gap field at `Fr0 s0 s` states, discharged by P3's mid-batch relation"). `decOK_JMM`
+  (the one user, XTopJointKEntry38:385) has these facts only at the decode's own state (`J : JAtZ`), so threading a
+  hypothesis up to it does not close anything, and going further up would change `kernel_entry_reach*` premises. So
+  this arm waits on the same mid-batch relation as P1 QueueDecVs and the P3 refinement (par/fb3).
+- **To finish (after par/fb3 provides the mid-batch relation):** (1) `MKD.vspace_decode_frame_batch`: walk
+  `decode_frame_batch` (reads, `check_vspace`, header checks; `words = entry_words op ≤ 3` and `n ≤ 255` as P0's
+  `decode_frame_batch.p0`), call the loop lemma with `P` := the mid-batch relation, then `invalidate_asid`
+  (`MRKeepD` field) and the reply (store only); (2) `P → FbDelOK`: `del` by `SetCap.capAt_wr2_self` (+ `decode_encWf`
+  of the read frame for the cleared one's `EncWf`, slot alignment from `IsSlot`), `cpy` by `Insert.InsWords.capAt'`;
+  (3) give `MKD.vspace_decode` / `MKD.decode_quiet` the hypothesis at the Pml4 batch label and discharge it in
+  `decOK_JMM` from the relation (or route the batch label like CNode Delete through the joint relation, `EJLM`-style).
+  Sizes: (1) S-M, (2) M, (3) S once the relation exists.
+- Files touched: `proofs/Fl4Proofs/P3/MachKeepG4d.lean` (additions only, before `MKD.vspace_decode_page_map`), this
+  section. Scratch: `proofs/scratch/fb3scratch.py` unchanged (its MachKeepG4d stub stays). No premise added, no
+  `kernel_entry_reach*` statement changed. Builds: fb3m-m0 (baseline), m1..m6 (MachKeepG4d).
+- fb3n (resume check, same branch): with the MachKeepG4d stub removed from the scratch script, the module build
+  (fb3n-m1) fails with exactly one error, `MachKeepG4d.lean:442:85: unsolved goals` (`MKD.vspace_decode`, the
+  FrameBatch arm); every fb3m helper above elaborates (no other error, no `sorry`). So the stub stays in
+  `fb3scratch.py` until par/fb3's mid-batch relation exists; the finding above stands.
+### fb3k (resume of fb3j, branch par/fb3 in FL4-fb3; builds on afkprover) — `decode_invocation_pml4_fbJV` PROVED (no longer a stub); `fb_loopJ` PROVED from the new stub `fb_loopI` (the loop entry by entry: the ONE FrameBatch stub left on the P3 chain); par/fb3m merged; fb3m's "To finish" (1)-(3) NOT done (they wait on `fb_loopI`'s per-entry relation); no premise on any top; no FINDING
+- **Commits:** 764d77d0 (merge par/fb3m, clean: MachKeepG4d + this file; MachKeepG4d rebuilt in fb3k-m4 with only its scratch stub),
+  89c42537 (decode walk + J helpers), 6ceaac2c (`fb_loopJ` from `fb_loopI`), this section. Builds (afkprover, SEED=B SCR=1,
+  `MODE=mod`): fb3k-m1..m8; m6 / m8 green (`XTopJointVsFb` with the one `sorry` at `fb_loopI`). Error extraction helper:
+  untracked `fb3k-err.py` in the worktree root (`python3 fb3k-err.py afklogs/b-mod.log 25`). Note: `station_task log`
+  sometimes keeps returning an empty log for a finished task; use `get`/`log` again or a fresh small task to read the file.
+- **XTopJointVsFb (new / changed):**
+  * `fbDecB` (the record `fbDecQ` returns), `fbDecQ_ok` (replaces the failing `⟨_, rfl, rfl⟩` witness of fb3j's WIP).
+  * `decode_invocation_pml4_fbJV` PROVED: fb3j's WIP walk, with the destination CNode bound by `WP.spec_bind` on the
+    `dest_cnode` match (post: `dc = cnode ∨ ∃ x, extra 1 = some x ∧ capAt x = dc`, and the spec's destination `= absCap dc`)
+    and the CNode test bound on `b1 = isCnodeCap (absCap dc)` — so the rest of the program is never restated; `fb_loopJ`
+    takes the rest as `K` with `hK : ∀ …, K (s1, a1, done, err, df) = <Funs text>`, discharged by `fun _ _ _ _ _ => rfl`
+    at the use (fb3j's 8M-heartbeat timeouts gone). Gotcha: `WP.spec_bind`'s post is named `Pₘ`, not `Q` (or use
+    `show _ ⦃ x => … ⦄ from ?_`).
+  * `fb_loopJ` statement changed (not a top): + `hbc : b.cnode = absCap cnode`, `hbd : b.destCnode = absCap dcnode`,
+    `hcnC`, `hdc6`, `hbv : b.vspace = p.bv`, `hba : b.asid = asid.bv`, and `K`/`hK` in place of the restated tail.
+    PROVED: `fb_loopI`, then the deferred `invalidate_asid` (`JAtZ.fbFlushJ`: `flushAll_ok` + `XTopAt.msAR'` + `JAtZ.arFrS`),
+    `performFrameBatch`'s outcome from `fbRun`'s (`[d.bv, e.bv]`), `SInv.performFrameBatch_restart` (the outcome from the
+    spec's `Restart`), `Vs.fbTail_inv` (for `≠ TS_RESTART`; `RInv` from `XTopAt` as XTopJointPortIn) ∧ `JAtZ.fbTailJ`
+    (`JAt` after), `Vs.specTail_fb` (the specTail outcome), `fb_assoc_spec` (reassociate the tail's bind).
+  * New J helpers: `JAtZ.fbRegsJ` / `JAtZ.fbTailJ` (two-word reply + `Running` at J, as XTopJointVsReply's `reply1RJ`),
+    `XTopAt.msAR'` (copy of XTopJointIrq's `msAR`, which is downstream), `JAtZ.fbFlushJ`, spec `fbRun_nil_mem`,
+    `fbRun_cons_err`, `fbRun_cons_ok` (built). Imports added: VsFbReply, XTopJointVsReply, SpecFbRestart (acyclic, checked).
+  * VsFbReply: `specTail_fb` (the spec half of `fbTail_inv`, same proof).
+- **The open stub `fb_loopI`** (`fail "FB3 OPEN…"`, `sorry` via proofs/scratch/fb3scratch.py; statement in XTopJointVsFb):
+  from `JAtZ … s ar σ` and the decode's facts, `decode_frame_batch_loop … 0 false ⦃ r => ∃ τ Z1 H1 Cs1 Ac1 Lst1 D1,
+  ((r.done.val, r.err.bv, r.deferred), τ) ∈ (fbRun b b.entries 0 false σ).1 ∧ JAtZ … r.1 r.2.1 τ ∧ τ.curThread =
+  σ.curThread ∧ ct's TCB kept with the same thread state ⦄`. Plan (XL):
+  1. Loop induction as fb3m's `MKD.vspace_decode_frame_batch_loop` (`loop.spec_decr_nat`, measure `n - done`, `fb_red`,
+     `P0.msg.syscall_arg.p0`). Invariant at `(s', a', d, df)`: `∃ τ Z' …, JAtZ s' a' τ`, `hargs` at `s'` (the batch writes
+     no register / IPC-buffer word of ct: CNode slots, CDT links, PTEs only — needs a footprint lemma), `d ≤ n`, ct facts,
+     and `∀ y ∈ fbRun b (b.entries.drop d) d df τ, y ∈ fbRun b b.entries 0 false σ` (close with `fbRun_nil_mem` /
+     `fbRun_cons_err` / `fbRun_cons_ok`; `b.entries = fbEntries (args.map bv) words n`, the entry words from `hargs` since
+     `length ≥ 1 + words*n`).
+  2. Per-entry lemma `fb_entryJ` (the bulk): `frame_batch_entry st arI s' a' ⟨p, asid, op, depth, mr, cr, attr, dd,
+     cnode, dcnode⟩ w0 w1 w2 df ⦃ (r, s1, a1, df1) => ∃ τ1 …, JAtZ s1 a1 τ1 ∧ … ∧ (r = Ok ∧ ∃ d', (.ok d', τ1) ∈
+     (fbEntry b w).run τ ∧ df1 = df || d') ∨ (r = Err e ∧ (.error c, τ1) ∈ … ∧ code(e).bv = c) ⦄`, by op:
+     REMAP = `lookup_source_slot` (CnodeSpec/CnodeCopy's lookup refinements) + `batch_map` vs `fbMap` (the frame Map
+     path of VsThX / `decode_invocation_frame_thX` split to its perform part + `JAtZ.vsStepJ`); COPY_MAP = CNode Copy's
+     lookups / `ensure_empty` / `derive_cap` (CnodeCopy `decode_copy_rel`) + `JAtZ.insDJ` (insert at J) + the map +
+     on a map error `cdt.delete` of the fresh frame copy (fb3m's `MKD.cdt_delete_frame` gives `Ok`; J side as
+     XTopJointFinVs `JAtZ.finVsJ`); DELETE = lookup + optional `unmap_page_unflushed` (new: vs SpecFb's
+     `unmapPageUnflushed`, as `unmap_page_rel` without the flush) + `set_cap` of the unmapped frame + `cdt.delete`.
+     Spec side already available: SpecFbX (`fbEntry_subX`, `fbx_*`), SpecFbSim (batch from σ with ct Running is fine).
+  3. Then fb3m's "To finish": (1) `MKD.vspace_decode` batch arm with `P` := the invariant of step 1 (it gives
+     `FbDelOK` via slot placement from `JAtZ`), (2) `P → FbDelOK`, (3) thread the hypothesis to `decOK_JMM` — or better,
+     route the batch label through the joint relation (the invariant carries `JAtZ`, which implies MKD's `AR` facts).
+- **Remaining stubs (scratch only):** `XTopJointVsFb.fb_loopI`, `MachKeepG4d` (`MKD.vspace_decode` batch arm). So no
+  full no-SCR build, no axiom file yet (`axfb3k.lean` would only show `sorryAx` until `fb_loopI` is proved).
+- **fb3k, second part (same branch):** `fb_loopI` PROVED (build fb3k-m10 green, only `sorry` at `fb_entryJ`) by
+  `loop.spec_decr_nat` (measure `n - done`) with invariant `∃ τ, FbMidJ … x.1 x.2.1 τ ∧ done ≤ n ∧ (fbRun b
+  (b.entries.drop done) done df τ ⊆ fbRun b b.entries 0 false σ)`; entry words read through `FbMidJ`'s `hargs`
+  (`fb_the_arg`, `fbEntries_drop`, `fbEntries_drop_n`); done / error / ok branches closed by `fbRun_nil_mem` /
+  `fbRun_cons_err` / `fbRun_cons_ok`. `fb_loopI`, `fb_loopJ` gain `hbe : b.entries = fbEntries (args.map bv) b.op.words
+  n.val` and `hln : 1 + words.val * n.val ≤ args.length` (`fb_loopI` also `hbv`, `hba`), proved at the decode.
+  New defs: `FbMidJ` (JAtZ ∃, `hargs` at the state, `curThread`, ct's thread state), `FbErrOK` (the loop's error code
+  against the spec's per `error.Exc` constructor), tactic `fbj_red` (copy of MachKeepG4d's `fb_red`; a distinct name
+  because both modules are in the root).
+- **The ONE P3 FrameBatch stub is now `XTopJointVsFb.fb_entryJ`** (fb3scratch.py's `fail` pattern is on it): from
+  `FbMidJ … x a τ` and the spec entry `w` with FL4's words `w0 w1 w2` (`.bv` equal), `frame_batch_entry … ⦃ r => ∃ τ1,
+  FbMidJ … r.2.1 r.2.2.1 τ1 ∧ ((r.1 = Ok ∧ ∃ d', (.ok d', τ1) ∈ (fbEntry b w).run τ ∧ r.df = df || d') ∨
+  (∃ e, r.1 = Err e ∧ r.df = df ∧ FbErrOK b w τ τ1 e)) ⦄`. Note `r.df = df` on errors: FL4 keeps the deferred flag
+  updated by a DELETE's unmap only when the following `cdt.delete` succeeds, which fb3m's `MKD.cdt_delete_frame`
+  shows it always does for a frame — so the spec's "error keeps d" matches. Per-op plan unchanged (item 2 above:
+  REMAP / COPY_MAP / DELETE + the new `unmap_page_unflushed` refinement + the footprint fact for `FbMidJ.hargs`).
+  `FbMidJ` may be extended (e.g. `Entered τ`, slot facts) if the entry proofs need it; it is local to this module.
+- Commits: 6ceaac2c, this part (fb_loopI). Still open: `fb_entryJ`, MachKeepG4d's batch arm (fb3m To finish (1)-(3)),
+  then full no-SCR build + `axfb3k.lean`.
+### fb3l (resume of fb3k, branch par/fb3 in FL4-fb3; coordinator + parallel forks par/fb3l-{a,b,c,d}) — `fb_entryJ` PROVED (split by op, all three ops proved, no stub left); fb3m "To finish" (1)-(3) DONE (MachKeepG4d stub gone); no premise on any top; no FINDING
+- **Interface (XTopJointFbDefs, new):** `FbKeep σ σ'` (spec: objects kept but CNodes of the same size, non-pool arch
+  objects of the same type, TCBs' caps; scheduler fields, ASID table, global PML4; refl/trans, `FbKeep.tcb`,
+  `FbKeep.findVs` with `findVs_pool`/`getAsidPool_none`), `FbFootK Z s s'` (FL4: TCB registers of `Z.T` and the buffer
+  words of `Z.B` kept), `FbMidJ σ th0 ct buf args x a τ` (the loop invariant: `JAtZ` at typed heap `th0`, `ct ∈ T`,
+  `BufMap` of `buf`, `LiveDN` at JAtZ's ghost; the message words; `FbKeep σ τ`; `NoSwitch`, `SpecGlob`, `PPR0` —
+  the frame delete runs at `WJL`), `FbMidJ.step`, `FbCtx` (decode facts: FL4 batch record vs spec `b`, roots valid,
+  `hasid`, `args.length < 127`), `FbEntryPost`, `FbErrOK`, `CnSlotsKept` (slots holding CNode caps keep them).
+- **Per op:** XTopJointFbRemap `fb_entry_remapJ` (fork A; batch_map vs fbMap: XTopJointFbMapRel
+  `batch_map_{small,large,huge}_rel`/`batch_map_rel`, XTopJointFbMapJ `JAtZ.batchMapJ{,X}`, XTopJointFbMapJL
+  `JAtZ.batchMapJL` with LiveDN/NoSwitch/SpecGlob/PPR0); XTopJointFbDel `fb_entry_delJ` (fork B; XTopJointFbDelFrame,
+  XTopJointFbDelFrameN `JAtZ.fbDelFrameJN` = one finalise round + empty slot at WJL, NO `PPPlat` (false,
+  `PPPlat.false`); SpecFbKeepDel, SpecFbDelRun; XTopJointFbDelDefer `JAtZ.fbDeferStepJ` (unflushed unmap + cleared set_cap at J) and
+  `JAtZ.fbDelDeferJ` (+ `hcn`: the slot's CNode), fork E; VsFbUnmapU `unmap_unflushed_rel` vs `unmapPageUnflushed`);
+  XTopJointFbCopy `fb_entry_copyJ` (fork C; SpecFbCopyRun, XTopJointFbCopyIns `JAtZ.fbInsJ`, `fbc_ppk`); `fb_entryJ`
+  (VsFb) = case split, post `FbEntryPost ∧ CnSlotsKept`, premise `hRt` (both root CNode caps held in slots, carried by
+  fb_loopI via `CnSlotsKept.held`).
+- **MR (fork D, fb3m To finish):** XTopJointFbDelOK `FbMidJ.delOK` (FbDelOK from the J state); `MKD.vspace_decode`
+  autoParam `hfb`, `MKD.decode_quiet` explicit `hfb`; `fb_loopI`/`fb_loopJ` also carry `MR` (`MRKeepD`);
+  `decode_invocation_pml4_fbJVM` (walk with `MR` conjunct), `decode_invocation_pml4_fbJV` its corollary at
+  `mrKeepD_true`; `decOK_JMM` (KEntry38) uses fbJVM at the batch label (statement unchanged). `FbDelOK.cpy` takes the
+  `ensure_empty_slot` result.
+- **Statements changed (none a top):** `fb_entryJ` (FbCtx form, hDP/hnd/hARI, hRt, conjunctive post), `fb_loopI`,
+  `fb_loopJ`, `decode_invocation_pml4_fbJV`, `decode_invocation_pml4JV` (+ `[PlainStore]`, `hbuf`, `hl`, `h20`, `hLv`,
+  `hsg`, `hp0`, `hDP`, `hnd`, `hARI`; callers XTopJointEntry/KEntry13P/KEntry23P pass `hbuf hl (hok.2.2 h).2 hE.live
+  hE.sg (J.ppr0_start …) hG.delParts hG.nd hG.ari`), `FbDelOK.cpy`, `MKD.vspace_decode`, `MKD.decode_quiet`.
+- **Forks / commits:** A (REMAP, batch_map) d3083948, a11268a7, a94dc59b; B (DELETE) eba1b0fa, a98442b9, adf38be3,
+  98a3ca72; C (COPY_MAP) b68a341f, 0903c831; D (MR) 84dd8fce, 9bb2d94f, ce84338a; E (deferred unmap) f49408f0,
+  17c5a497; coordinator e515713d, afee8672, 108560a7 and merges. All merged into par/fb3 (local only).
+- **Scratch:** proofs/scratch/fb3scratch.py's stub list is EMPTY (no FrameBatch stub left anywhere).
+- **Done (fb3l):** full no-SCR build `fb3l-full1` (afkprover, `MODE=build SEED=B`, tree 0d395012): ERRORS 0, SORRY 0,
+  "Build completed successfully (7313 jobs)". Axioms (`axfb3k.lean`, untracked in the worktree root: `import Fl4Proofs`
+  + `#print axioms` of decode_invocation_pml4JV, _fbJV, _fbJVM, fb_loopJ, fb_loopI, fb_entryJ, the three per-op
+  lemmas, batchMapJL, fbDelFrameJN, fbDelDeferJ, decOK_JMM, MKD.vspace_decode, MKD.decode_quiet and all 37
+  `kernel_entry_reach*` tops; run `fb3l-ax5` with NAX=80): every one depends only on [propext, Classical.choice,
+  Quot.sound]. No `kernel_entry_reach*` statement changed; no premise added to any top or to JEntryGlob/JEntryGlobM;
+  no FINDING (FL4's batch matches `performFrameBatch` op by op, COPY_MAP's rollback included).
 
 ## pf1 (branch par/pf1 in FL4-pf1, on cba1820b, an extraction with FL4 #71's `fastpath_vm.rs`) — the l4h guest page-fault fast paths: step 1 (P1 `vm_fault_same` / `rr_vm_same` / declines) WRITTEN in `P1/FastVm.lean`, NOT YET BUILT (no build slot yet); step 2 (a top over the `*_local` entries) DESIGNED and sized XL, so not started; no FINDING
 - **What the extraction shows.** `fastpath_vm.vm_fault s a t f` is, line for line, `fastpath.fault s a t n` with

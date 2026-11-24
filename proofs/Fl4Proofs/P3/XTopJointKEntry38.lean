@@ -382,8 +382,20 @@ theorem decOK_JMM [Fl4Proofs.P1.PlainStore st] (s : S) (ar : A) (σ : Fl4Spec.St
   have hX0 := decOK_JMU arI s ar σ J hG hE ct hct lbl length blk call don fp buf extra slbl argsU hlen hargs
     hbuf hl ci sl hsl c hc excaps buffer hXO hXN hLb hA5 hN hPD hR hVT hVI hNs
   by_cases hq : QuietF c
-  · exact XCapP.mr hM hX0 (MKD.decode_quiet L.total hA hKD hq hR)
-      (fun inv hd => MachT.dec_quiet fp slbl _ ci sl (absCap c) excaps buffer (quietS_of hq) σ _ hd.1 inv rfl)
+  · by_cases hfbc : ∃ p m a', c = .Pml4 p m a' ∧ lbl = fl4_abi.label.X86PML4FrameBatch
+    · -- the FrameBatch label on a PML4 cap: the batch keeps `MR` (XTopJointVsFb)
+      obtain ⟨p, mp, asid, rfl, hlb⟩ := hfbc
+      have hAs : AbsSlot Z.th sl := by
+        obtain ⟨p', hp, hth⟩ := hsl; exact ⟨p', hp, Or.inl hth⟩
+      have hok := (J.vsc.caps J.xtop.rel.2.1.2.2.1).at J.xtop.rel.2.1.2.2.1 hAs.isSlot hc (by simp)
+      have hW := WP.spec_mono (decode_invocation_pml4_fbJVM arI s ar σ J hE.ni hG.delParts.archRef hG.tot lbl lbl.bv
+        hlb ((pml4fb_label lbl).2 hlb) ct hct p asid mp (fun h => (hok.2.2 h).1) length buf blk call don fp argsU hlen
+        hargs hbuf hl (fun h => (hok.2.2 h).2) hE.live hE.sg (J.ppr0_start arI hE.ni hE.rd0 hE.ctnq) hG.delParts
+        hG.nd hG.ari hKD hR sl hAs hc extra excaps hXO hXN ci buffer) (fun _ h => h.2)
+      exact XCapP.mr hM hX0 hW
+        (fun inv hd => MachT.dec_quiet fp slbl _ ci sl (absCap _) excaps buffer (quietS_of hq) σ _ hd.1 inv rfl)
+    · exact XCapP.mr hM hX0 (MKD.decode_quiet L.total hA hKD hq hR (fun p m a' hc' hl' => hfbc ⟨p, m, a', hc', hl'⟩))
+        (fun inv hd => MachT.dec_quiet fp slbl _ ci sl (absCap c) excaps buffer (quietS_of hq) σ _ hd.1 inv rfl)
   by_cases hlo : LoudF c
   · exact hDL hR hVT hVI lbl length blk call don fp buf extra slbl argsU hlen hargs hbuf hl ci sl hsl c hc ⟨hlo, hNat⟩
       excaps buffer hXO hXN hLb hA5 hN

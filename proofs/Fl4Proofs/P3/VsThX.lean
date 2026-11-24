@@ -448,6 +448,7 @@ theorem domFrame_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : F
     (hS : TopSR st th P L4 L3 L2 L1 N T C E R B c AR s ar σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hinv : ∀ (a : A) (asid : U64), ∃ a', arI.invalidate_asid a asid = ok a')
@@ -465,7 +466,7 @@ theorem domFrame_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : F
   rw [hct]; simp only [bind_ok]
   by_cases hl : lbl = fl4_abi.label.X86PML4Flush
   swap
-  · rw [if_neg hl]
+  · rw [if_neg hl, if_neg hfb.2]
     simp only [error.illegal, bind_ok, WP.spec_ok]
     exact ⟨trivial, fun _ _ => trivial⟩
   rw [if_pos hl]
@@ -496,8 +497,8 @@ theorem domFrame_pml4 (th : TypedHeap) (hP : Placed th) (s : S) (ar : A) (σ : F
 
 
 set_option maxHeartbeats 8000000 in
-/-- **A PML4 cap at `FinXR`** (`VsThX`). `hinv`: the platform's ASID
-invalidation always succeeds. -/
+/-- **A PML4 cap at `FinXR`** (`VsThX`), every label but FrameBatch (`hfb`; the
+batch: XTopJointVsFb). `hinv`: the platform's ASID invalidation always succeeds. -/
 theorem decode_invocation_pml4_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Spec.State Unit)
     (G : MdbGhost) (hCR : CRel th (L.mem s) σ G) (hFI : FinInv th (L.mem s) σ G)
     (hMO : MdbOKV (L.ksb s) (L.mem s) G) (hDR : DomRel (L.mem s) (L.ksb s) σ)
@@ -507,6 +508,7 @@ theorem decode_invocation_pml4_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
     (hR : VsRel P (L.mem s) (L.ksb s) σ) (hPt : PtRel L4 L3 L2 L1 (L.mem s) σ)
     (lbl : U64) (slbl : Fl4Spec.Data)
     (hlbl : Fl4Spec.dataToNat slbl = Fl4Spec.fl4Pml4FlushLabel ↔ lbl = fl4_abi.label.X86PML4Flush)
+    (hfb : Fl4Spec.dataToNat slbl ≠ Fl4Spec.fl4FrameBatchLabel ∧ lbl ≠ fl4_abi.label.X86PML4FrameBatch)
     (ct : U64) (hct : sched.cur_thread st s = ok ct) (hcur : σ.curThread = ct.bv) (htcb : th ct = some .tcb)
     (hact : OutsideObjects th (L.nodeAt s (L.cpu s) layout.node.SCHED_ACTION))
     (hrun : ∀ x, σ.kheap σ.curThread = some (.tcb x) → Fl4Spec.runnable x.tcbState = true)
@@ -520,10 +522,10 @@ theorem decode_invocation_pml4_thX (th : TypedHeap) (s : S) (ar : A) (σ : Fl4Sp
       VsJFlush (L := L) th G s ar σ s' a' σ') s ar σ lbl length
       slot (.Pml4 p mp asid) blk call don fp buf extra slbl args ci sl excaps buffer ct :=
   Or.inl (DecOKMX.toXD arI (decode_invocation_pml4_capX arI th s ar σ G hCR hFI hMO hA hS hPI hCur hR hPt lbl slbl
-      hlbl ct hct hcur htcb hact hrun p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer)
-    (domFrame_pml4 arI th hS.2.pl s ar σ G hCR hFI hMO hS lbl slbl hlbl ct hct hcur htcb hact hinv p asid mp length
+      hlbl hfb ct hct hcur htcb hact hrun p asid mp h0 length slot buf blk call don fp extra args ci sl excaps buffer)
+    (domFrame_pml4 arI th hS.2.pl s ar σ G hCR hFI hMO hS lbl slbl hlbl hfb ct hct hcur htcb hact hinv p asid mp length
       slot buf blk call don fp extra args ci sl excaps buffer)
-    (okAll_specDec_pml4 fp slbl args ci sl p mp asid excaps buffer) hDR
+    (okAll_specDec_pml4 fp slbl args ci sl p mp asid excaps buffer hfb.1) hDR
     (fun _ _ _ hx hd => ⟨FinXT.toXR G hEA hdom hx.1 hd, hx.2⟩))
 
 set_option maxHeartbeats 8000000 in
