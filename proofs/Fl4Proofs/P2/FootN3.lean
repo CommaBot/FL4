@@ -70,13 +70,24 @@ theorem end_suffGN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → L
       simp only [WP.uncurry'_pair] at hr ⊢
       exact ⟨hr.1, hGF _ _ hG hr.2⟩
 
+/-- The timeout faults a budget check from `s0` raises keep the invariants
+and `G`: at a state `s` reached from `s0` by `ChgW` writes (P1's `TmoK` guard)
+where the current thread satisfies `CurOK` and `G` holds. Unlike P1's
+`TmoKG`, whose states are only constrained by the invariants and `G`. -/
+def TmoKC (st : machine.Store S) [L : LawfulStore st] {A : Type _} (ar : machine.Arch A) (T Cs Ω : Set U64)
+    (H : Heap) (Sg Rp Scs Nt : Set U64) (Z : U64 → Nat) (Ac : Set U64) (s0 : S) (G : S → Prop) : Prop :=
+  ∀ (s : S) (a : A) (f : error.Fault) (Q : U64 → U64 → List U64) (R : U64 → List U64),
+    SchedQueuesInv st T Cs Ω H s Q R → BoundInv st T Ac s → XInv st T Cs Ω Sg Rp Scs Nt Z s → SgOK st Ω Sg s →
+    SCsOK st T Ω Sg Scs Z Ac s → WritesIn st s0 s (ChgW st Scs Z s0) → CurOK st T s → G s →
+    faults.handle_timeout st ar s a (L.curW s) f ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄
+
 /-- seL4 `endTimeslice` (`KWN` frame). -/
 theorem sched.end_timeslice.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : Bool)
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hc : CurOK st T s)
     {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
-    (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
+    (htmo : TmoKC st ar T Cs Ω H Sg Rp Scs Nt Z Ac s G) :
     sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄ := by
   have E := end_suffGN hA s a Q R h hB hX hSg hS hc hGF hG
   unfold sched.end_timeslice
@@ -96,7 +107,7 @@ theorem sched.end_timeslice.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : 
     · exact E
     · split
       · step with P0.obj.Sc.badge.p0 st _ s L.total as ⟨badge⟩
-        exact htmo s a _ Q R h hB hX hSg hS hG
+        exact htmo s a _ Q R h hB hX hSg hS (WritesIn.refl _ _) hc hG
       · exact E
   · exact E
 
@@ -109,7 +120,7 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
     {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
-    (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
+    (htmo : TmoKC st ar T Cs Ω H Sg Rp Scs Nt Z Ac s G) :
     sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄ := by
   have hcS : L.cscW s ∈ Scs := hX.2.2.cur
   have hcT0 : L.curW s ∈ T := h.curT
@@ -187,6 +198,18 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
         out_ne_node (h2.omega _ c4) h2.cur hN2 (by rw [hco]; omega),
         out_ne_node (h2.omega _ c5) h2.cur hN2 (by rw [hco]; omega)⟩
   rw [← s3_post] at h3 hB3 hX3 hSg3 ea3 ec3 ecs3 f3 hS3
+  have W3 : WritesIn st s s3 (ChgW st Scs Z s) := by
+    obtain ⟨hP, hz⟩ := hX.1.sc _ hcS
+    obtain ⟨-, h128, -⟩ := sc_lo hP hz
+    have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
+    have hN2 := h2.nodes _ h2.cur
+    have wn : WritesIn st s2 s3 (fun b => b = L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED) := by
+      rw [s3_post]; exact writesIn_wr (nodeAt_aligned hN2 (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
+    refine (w2.trans wn).mono fun b hh => ?_
+    rcases hh with (hh | rfl) | rfl
+    · exact Or.inl ⟨_, hcS, hh.inSC⟩
+    · exact Or.inl ⟨_, hcS, by rw [hv]; simp, by rw [hv]; simp [layout.sc.CONSUMED]; omega⟩
+    · exact Or.inr (by rw [nodeAt_of_ksb w2.1, w2.2.1])
   have G3 : G s3 := by
     obtain ⟨hP, hz⟩ := hX.1.sc _ hcS
     obtain ⟨-, h128, -⟩ := sc_lo hP hz
@@ -216,7 +239,9 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
       rw [ec3, ec2, (f3 _ hcT).1, (f2 _ hcT).1]
     have hc : CurOK st T s3 := ⟨hrun, hbd, hrl, by
       rw [ecs3, ecs2, esc]; exact hcsc (by rw [← esc]; exact hbd), by rw [ea3, ea2, ec3, ec2]; exact hna, hrm⟩
-    refine WP.spec_bind (sched.end_timeslice.allGN hA s3 a cto Q R h3 hB3 hX3 hSg3 hS3 hc hGF G3 htmo) ?_
+    refine WP.spec_bind (sched.end_timeslice.allGN hA s3 a cto Q R h3 hB3 hX3 hSg3 hS3 hc hGF G3
+      (fun s' a' f' Q' R' q' b' x' g' c' w' o' G' => htmo s' a' f' Q' R' q' b' x' g' c' ((W3.trans w').mono fun b hb =>
+        hb.elim id fun hb => hb.imp id fun e => by rw [e, nodeAt_of_ksb W3.1, W3.2.1]) o' G')) ?_
     rintro ⟨s4, a1⟩ ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hSg4, hS4⟩, g4⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (WP.spec_and (sched.reschedule_required.sch s4 Q4 R4 h4 hB4 hSg4)
@@ -239,7 +264,7 @@ theorem sched.check_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
     {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
-    (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
+    (htmo : TmoKC st ar T Cs Ω H Sg Rp Scs Nt Z Ac s G) :
     sched.check_budget st ar s a ⦃ r s' _ => (BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s') ∧ (r = true → s' = s) ⦄ := by
   unfold sched.check_budget
   step with sched.cur_sc.spec as ⟨sc⟩

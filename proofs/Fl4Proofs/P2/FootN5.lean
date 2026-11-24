@@ -9,17 +9,19 @@ P2 (p2j, KWN step 5): **`send_ipc` and the timeout fault in `KWN`**.
 * `send_ipc.footPN` (P1 `send_ipc.footP` over `KWN` steps), `send_ipc.footN`,
   `handle_timeout.footN`: a timeout fault writes only `IpcW` words and no
   node identity word.
-* `tmoKG_N`: P1's `TmoKG` for `GN s0` (`XG` and an `IpcFootN` footprint from
-  `s0`), from `EntryHyps0`, `TmoXG` and the transfer footprint `XferFootOK`
-  at a relation `RS` — **named premise `hRSX` [P]**: `RS s s` at every `XG`
-  state where `BXI` holds (P3's `RSI`, its CSpace relation at P3's placed
-  states; P1's own users pass it per call as `hRS0`). `GN s0` is kept by
-  `KWN` steps (`GN.foot`), so with `check_budget.allGN` (`P2/FootN3.lean`)
-  the budget path from `s0` writes no node identity word of `s0`.
+* `tmoKC_N`: the timeout faults of a budget check keep `GN s0` (`XG` and an
+  `IpcFootN` footprint from `s0`), as `TmoKC` (`P2/FootN3.lean`): at the
+  states the check itself reaches. `CanBlock` is proved there, `RS s s` comes
+  from `RS` at the check's start. (p2j4: this replaces `tmoKG_N`, whose
+  premises `EntryHyps0` — see `P2/BlkUCheck.lean` — and `hRSX` quantified
+  over all `XG`/`BXI` states.) **Named premise `hcap` [P]**: the timeout
+  handler cap is typed at those states. `GN s0` is kept by `KWN` steps
+  (`GN.foot`), so with `check_budget.allGN` the budget path from `s0` writes
+  no node identity word of `s0`.
 * (p2j3) the exclusion layer: `send_ipc.footPN`/`footN` and
   `handle_timeout.footN` take the sender `t ∉ Kp`, the protected threads
   not blocked (so the woken receiver is none of them) and, for a
-  donation, `¬ Nd`; `tmoKG_N` runs in `Nd` mode and derives these from
+  donation, `¬ Nd`; `tmoKC_N` runs in `Nd` mode and derives these from
   `s0` (the current thread and the `Kp` states are protected words).
   (p2j4) the transfer's footprint is taken as `XferFootOKC`
   (`P2/XferN.lean`: only SC `CONSUMED` words, discharged by
@@ -500,30 +502,58 @@ theorem GN.foot {s0 s1 s2 : S} (g : GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0 s1)
 theorem GN.refl {s0 : S} (g : XG st T Cs Ω H Sg Scs Z P3Ok s0) : GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0 s0 :=
   ⟨g, IpcFootN.refl s0⟩
 
-/-- **Timeout faults keep `GN s0`** (P1's `TmoKG` at `GN s0`), with the named
-premise `hRSX` [P]: the transfer relation `RS` holds at the `XG` / `BXI`
-states (P1's `hRS0`, per state). -/
-theorem tmoKG_N {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
-    (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok) (TX : TmoXG st ar) {RS : S → S → Prop}
+/-- **Timeout faults keep `GN s0`** (`TmoKC` from the budget check's start
+`s1`, itself a `GN s0` state): the current thread can block (`CanBlock`) by
+`CurOK` and its queue flag and idleness at `s1`, which `ChgW` writes keep.
+Premises: the transfer (`XferOK`, `XferFootOKC`, `TmoXG`), `RS` at `s1`
+(P1's per-call `hRS0`), and the typing of the current thread's timeout
+handler cap, `hcap` [P], at the states `ChgW` writes reach from `s1`. -/
+theorem tmoKC_N {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (TX : TmoXG st ar) {RS : S → S → Prop}
     (hxw : XferFootOKC st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
-    (hRSX : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → RS s s)
     (hNd : Nd) (hKT : ∀ y ∈ Kp, y ∈ T)
-    (Ac : Set U64) (s0 : S) (hKc : L.curW s0 ∉ Kp) (hKB0 : ∀ y ∈ Kp, ¬ Blocked (L.mem s0 (stA y)))
-    (NP0 : NodePlaced st T s0 (L.cpu s0)) (hc0 : L.cpu s0 ∈ Cs) :
-    TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac (GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0) :=
-  fun s a f Q R h hB hX hSg hS hG => by
+    (Ac : Set U64) (s0 s1 : S) (hKc : L.curW s0 ∉ Kp) (hKB0 : ∀ y ∈ Kp, ¬ Blocked (L.mem s0 (stA y)))
+    (NP0 : NodePlaced st T s0 (L.cpu s0)) (hc0 : L.cpu s0 ∈ Cs)
+    (h1 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1) (hRS1 : RS s1 s1) (hU1 : UserOK st T Cs Ω H U s1)
+    (hnq : (L.mem s1 (inqA (L.curW s1)) &&& sched.Q_QUEUED) = 0#u64) (hni : L.idleW s1 ≠ L.curW s1)
+    (hcap : ∀ s : S, WritesIn st s1 s (ChgW st Scs Z s1) →
+      obj.Tcb.slot (L.curW s) layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
+        obj.Slot.cap st sl s ⦃ c => CapTyped H Rp Nt c ⦄ ⦄) :
+    TmoKC st ar T Cs Ω H Sg Rp Scs Nt Z Ac s1 (GN st Kp Nd T Cs Ω H Sg Scs Z U P3Ok s0) :=
+  fun s a f Q R h hB hX hSg hS hw hok hG => by
+    obtain ⟨⟨Q1, R1, q1⟩, -, hX1, -, -⟩ := h1
     have hKt : L.curW s ∉ Kp := by rw [hG.2.curK hNd NP0 hc0]; exact hKc
     have hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)) := fun y hy => by
       rw [hG.2.stK h.tcbs (hKT y hy) hy]; exact hKB0 y hy
-    have hb : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨⟨Q, R, h⟩, hB, hX, hSg, hS⟩
-    obtain ⟨hc, hU, hcap⟩ := E.tmoOK Ac s hG.1 hb
     have hk : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨⟨Q, R, h⟩, hB, hX, hS, hSg⟩
-    refine WP.spec_mono (WP.spec_and (WP.spec_and (faults.handle_timeout.bxi hA E.xfer s a _ f
-      (XG.faultG hG.1 hk hU hc) hk hU hc (hcap _ (Or.inl rfl)))
-      (TX T Cs Ω H Sg Rp Scs Nt Z U P3Ok E.xfer Ac s a _ f hG.1 hk hU hc (hcap _ (Or.inl rfl))))
-      (faults.handle_timeout.footN (Nd := Nd) hA E.xfer hxw s a _ f hk hU hc (hcap _ (Or.inl rfl)) hRSK
-        (hRSX Ac s hG.1 hb) hG.1 hKt hKT hKB)) ?_
+    have c40 : layout.node.CONSUMED.val = 40 := by simp [layout.node.CONSUMED]
+    have wF : WritesIn st s1 s (L.Free s1 Ω Cs) := hw.mono' fun b hb hh => by
+      rcases hh with ⟨c, hc, hin⟩ | e
+      · exact Or.inl (hX1.1.scW c hc b hb hin)
+      · exact e ▸ free_cur_node q1.cur (by unfold LowFree; omega)
+    obtain ⟨-, kc, ki, -⟩ := free_keys q1 wF
+    have hcT := q1.curT
+    have kq : L.mem s (inqA (L.curW s1)) = L.mem s1 (inqA (L.curW s1)) := by
+      rw [inqA_eq]
+      refine wF.mem_eq (field_aligned (q1.tcbs _ hcT) (by simp) (by simp)) ?_
+      rintro (hm | ⟨c, hc, o, ho, e⟩)
+      · exact out_ne_field (q1.omega _ hm) hcT (q1.tcbs _ hcT) (by simp) rfl
+      · exact node_ne_field (q1.nodes c hc) (by simp only [LowFree] at ho; omega) hcT (q1.tcbs _ hcT) (by simp) e.symm
+    have hrs : RS s s := hRSK s1 s1 s hRS1 (hw.mono fun b hh => by
+      rcases hh with ⟨c, hc, hin⟩ | e
+      · exact kw_sc hc hin
+      · exact e ▸ kw_node q1.cur (by omega) (by omega))
+    have hc : CanBlock st T Ac s (L.curW s) :=
+      ⟨h.curT, fun hb => blocked_not_runnable hb hok.run, runnable_ne_reply hok.run,
+        by rw [kc, kq]; exact hnq, hok.rel, hok.act, by rw [ki, kc]; exact hni,
+        fun _ => (hS.act _ (hX.2.2.bound _ h.curT hok.bnd).1).2 hok.rmx⟩
+    have hU : UserOK st T Cs Ω H U s := hU1.ksb hw.1
+    refine WP.spec_mono (WP.spec_and (WP.spec_and (faults.handle_timeout.bxi hA hxf s a _ f
+      (XG.faultG hG.1 hk hU hc) hk hU hc (hcap s hw))
+      (TX T Cs Ω H Sg Rp Scs Nt Z U P3Ok hxf Ac s a _ f hG.1 hk hU hc (hcap s hw)))
+      (faults.handle_timeout.footN (Nd := Nd) hA hxf hxw s a _ f hk hU hc (hcap s hw) hRSK
+        hrs hG.1 hKt hKT hKB)) ?_
     rintro ⟨s', a'⟩ hr
     simp only [WP.uncurry'_pair] at hr ⊢
     exact ⟨BlkOK.bxi hr.1.1, hr.1.2, hG.2.trans hr.2⟩

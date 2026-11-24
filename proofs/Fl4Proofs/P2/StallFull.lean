@@ -5,9 +5,15 @@ stalled core's view — with the frame `StKeep` for the other cores.
 
 * `smp.stall.entryN`, `stallSeq.entryN`.
 
-**Named premise**: `hRSX` [P] (`tmoKG_N`, `P2/FootN5.lean`).
+Premises: the transfer's (`XferOK`, `XferFootOKC`, `TmoXG`, `hRSK`, and
+`hRS0`/`UserOK`/`XG` at the stall's start, as in P1), the per-core clauses of
+the stalled core (`EntryInv`, `IdleSc`, `hnq`: its current thread, unless
+idle, is not queued), the protected threads (`Kp`). **Named premise**:
+`TmoCap` [P].  No premise quantifies over all `XG`/`BXI` states except
+`XferOK`/`XferFootOKC` (P1's `xferOK_of`, `xferFootOKC_of`).
 -/
 import Fl4Proofs.P2.StallPost
+import Fl4Proofs.P1.QueueSchedCtl
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P1
@@ -22,15 +28,27 @@ variable {P3Ok : S → Prop} {A : Type _} {ar : machine.Arch A}
 theorem EntryInv.blkOK {s : S} (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
     BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s := ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.1.sg⟩
 
+/-- **[P] The stalled thread's timeout handler cap is typed** at the states
+its budget check reaches: from `s` writing only SC words and the core's own
+node words (P1's `tmoOK` cap clause, at these states only; P3: the cap
+relation, the TCB's slots being untouched). -/
+def TmoCap (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (Z : U64 → Nat) (H : Heap) (Rp Nt : Set U64)
+    (s : S) : Prop :=
+  ∀ s' : S, WritesIn st s s' (fun b => (∃ c ∈ Scs, InSC c (Z c) b) ∨ L.NodeOf s (L.cpu s) (fun _ => True) b) →
+    obj.Tcb.slot (L.curW s) layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
+      obj.Slot.cap st sl s' ⦃ c => CapTyped H Rp Nt c ⦄ ⦄
+
 /-- **`smp.stall`**: from the stalled core's `EntryInv` and `IdleSc`. -/
-theorem smp.stall.entryN (hA : P0.ArchTotal ar) (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (TX : TmoXG st ar) {RS : S → S → Prop}
+theorem smp.stall.entryN (hA : P0.ArchTotal ar)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (TX : TmoXG st ar) {RS : S → S → Prop}
     (hxw : XferFootOKC st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
-    (hRSX : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → RS s s)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) :
+    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
+    (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
+    (hcap : TmoCap st Scs Z H Rp Nt s) :
     smp.stall st ar s a ⦃ s' _ => BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ StKeep st T Cs Scs Kp (L.cpu s) s s' ∧
       ((s' = s ∧ L.curW s = L.idleW s) ∨ Stalled0 st Ac s') ⦄ := by
   have q0 := h.1.choose_spec.choose_spec
@@ -41,16 +59,48 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar) (E : EntryHyps0 st ar T Cs Ω H 
   intro b hb
   have hctT : ct ∈ T := by rw [hct]; exact q0.curT
   split
-  · refine WP.spec_bind (WP.spec_and (sched.update_timestamp.entry hA s a h)
-      (sched.update_timestamp.kwN (Kp := Kp) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) hA s a
+  · rename_i hbt
+    have hne : L.curW s ≠ L.idleW s := by
+      have := hb.1 hbt
+      rw [hct, ht] at this; exact this
+    refine WP.spec_bind (WP.spec_and (WP.spec_and (sched.update_timestamp.entry hA s a h)
+      (sched.update_timestamp.fr hA s a (q0.nodes _ q0.cur))) (sched.update_timestamp.kwN (Kp := Kp) (Nd := True) (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) hA s a
         q0.nodes q0.cur)) ?_
     rintro ⟨s1, a1⟩ hh1
     simp only [WP.uncurry'_pair] at hh1 ⊢
-    obtain ⟨⟨⟨⟨Q, R, q1⟩, hB1, hX1, hSg1, hS1⟩, -, hcA, hna, hcsc, -⟩, f1⟩ := hh1
+    obtain ⟨⟨⟨⟨⟨Q, R, q1⟩, hB1, hX1, hSg1, hS1⟩, -, hcA, hna, hcsc, hck⟩, w1⟩, f1⟩ := hh1
     have g1 : GN st Kp True T Cs Ω H Sg Scs Z U P3Ok s s1 := GN.foot (GN.refl hG) f1
+    have K1 : StKeep st T Cs Scs Kp (L.cpu s) s s1 := StKeep.ofN h.blkOK hKT f1
+    have ki1 : L.idleW s1 = L.idleW s := by
+      unfold LawfulStore.idleW; rw [K1.cpu, nodeAt_of_ksb K1.ksb, K1.nd _ q0.cur _ (Or.inl idle8)]
+    have b1 : BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s1 := ⟨⟨Q, R, q1⟩, hB1, hX1, hSg1, hS1⟩
+    have hq1 : (L.mem s1 (inqA (L.curW s1)) &&& sched.Q_QUEUED) = 0#u64 := by
+      rw [hck.1]
+      have kq : L.mem s1 (inqA (L.curW s)) = L.mem s (inqA (L.curW s)) := by
+        rw [inqA_eq]
+        refine w1.mem_eq (field_aligned (q0.tcbs _ q0.curT) (by simp) (by simp)) ?_
+        rintro ⟨o, -, ho, -, e⟩
+        exact node_ne_field (q0.nodes _ q0.cur) ho q0.curT (q0.tcbs _ q0.curT) (by simp) e.symm
+      rw [kq]; exact hnq hne
+    have hcap1 : ∀ s' : S, WritesIn st s1 s' (ChgW st Scs Z s1) →
+        obj.Tcb.slot (L.curW s') layout.tcb.SLOT_TIMEOUT_HANDLER ⦃ sl =>
+          obj.Slot.cap st sl s' ⦃ c => CapTyped H Rp Nt c ⦄ ⦄ := fun s' w' => by
+      have wF : WritesIn st s1 s' (L.Free s1 Ω Cs) := w'.mono' fun b hb hh => by
+        rcases hh with ⟨c, hc, hin⟩ | e
+        · exact Or.inl (hX1.1.scW c hc b hb hin)
+        · exact e ▸ free_cur_node q1.cur (by simp [layout.node.CONSUMED, LowFree])
+      rw [(free_keys q1 wF).2.1, hck.1]
+      refine hcap s' ((w1.trans w').mono fun b hh => ?_)
+      rcases hh with hh | hh | e
+      · exact Or.inr hh
+      · exact Or.inl hh
+      · exact Or.inr (by
+          rw [e, K1.cpu, nodeAt_of_ksb K1.ksb]
+          exact ⟨_, trivial, by simp [layout.node.CONSUMED], by simp [layout.node.CONSUMED], rfl⟩)
     refine WP.spec_bind (sched.check_budget.allGN (Kp := Kp) (Nd := True) hA s1 a1 Q R q1 hB1 hX1 hSg1 hS1 hcsc hna hcA
       (G := GN st Kp True T Cs Ω H Sg Scs Z U P3Ok s) (fun _ _ g f => GN.foot g f) g1
-      (tmoKG_N hA E TX hxw hRSK hRSX trivial hKT Ac s hKc hKB (q0.nodes _ q0.cur) q0.cur)) ?_
+      (tmoKC_N hA hxf TX hxw hRSK trivial hKT Ac s s1 hKc hKB (q0.nodes _ q0.cur) q0.cur b1
+        (hRSK s s s1 hRS0 f1.foot) (hU.ksb K1.ksb) hq1 (by rw [ki1, hck.1]; exact hne.symm) hcap1)) ?_
     rintro ⟨r, s2, a2⟩ hh2
     simp only [WP.uncurry'_pair] at hh2 ⊢
     obtain ⟨⟨b2, g2⟩, -⟩ := hh2
@@ -75,21 +125,23 @@ theorem smp.stall.entryN (hA : P0.ArchTotal ar) (E : EntryHyps0 st ar T Cs Ω H 
 
 /-- **`smp.stall` then `smp.send_pending`** keep the executing core's
 `EntryInv` and `IdleSc`; the core then runs its idle thread; `StKeep`. -/
-theorem stallSeq.entryN (hA : P0.ArchTotal ar) (E : EntryHyps0 st ar T Cs Ω H Sg Rp Scs Nt Z U P3Ok)
-    (TX : TmoXG st ar) {RS : S → S → Prop}
+theorem stallSeq.entryN (hA : P0.ArchTotal ar)
+    (hxf : XferOK st ar T Cs Ω H Sg Rp Scs Nt Z U (XG st T Cs Ω H Sg Scs Z P3Ok)) (TX : TmoXG st ar) {RS : S → S → Prop}
     (hxw : XferFootOKC st ar T Cs Ω H Sg Rp Scs Nt Z U RS (XG st T Cs Ω H Sg Scs Z P3Ok))
     (hRSK : ∀ s0 s1 s2 : S, RS s0 s1 → WritesIn st s1 s2 (KW st T Cs Sg Scs Z (EH H) s1) → RS s2 s2)
-    (hRSX : ∀ (Ac : Set U64) (s : S), XG st T Cs Ω H Sg Scs Z P3Ok s → BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s → RS s s)
     (hKT : ∀ y ∈ Kp, y ∈ T) (s : S) (a : A) (h : EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s)
     (hI : IdleSc st (L.cpu s) s) (hG : XG st T Cs Ω H Sg Scs Z P3Ok s)
-    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y))) :
+    (hKc : L.curW s ∉ Kp) (hKB : ∀ y ∈ Kp, ¬ Blocked (L.mem s (stA y)))
+    (hRS0 : RS s s) (hU : UserOK st T Cs Ω H U s)
+    (hnq : L.curW s ≠ L.idleW s → (L.mem s (inqA (L.curW s)) &&& sched.Q_QUEUED) = 0#u64)
+    (hcap : TmoCap st Scs Z H Rp Nt s) :
     (do
       let (s1, a1) ← smp.stall st ar s a
       smp.send_pending st ar s1 a1) ⦃ s' _ => EntryInv st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ IdleSc st (L.cpu s) s' ∧
         StKeep st T Cs Scs Kp (L.cpu s) s s' ∧ L.curW s' = L.idleW s' ∧
         (L.actionW s' = L.actionW s ∨ L.actionW s' = 0#u64) ⦄ := by
   have q0 := h.1.choose_spec.choose_spec
-  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA E TX hxw hRSK hRSX hKT s a h hI hG hKc hKB) ?_
+  refine WP.spec_bind (smp.stall.entryN (Kp := Kp) hA hxf TX hxw hRSK hKT s a h hI hG hKc hKB hRS0 hU hnq hcap) ?_
   rintro ⟨s1, a1⟩ hh
   simp only [WP.uncurry'_pair] at hh ⊢
   obtain ⟨k1, K1, hc1⟩ := hh
@@ -109,11 +161,11 @@ theorem stallSeq.entryN (hA : P0.ArchTotal ar) (E : EntryHyps0 st ar T Cs Ω H S
   refine ⟨⟨k2.1, k2.2.1, k2.2.2.1, k2.2.2.2.1, k2.2.2.1.2.2.tm, ?_⟩, K2.idle q0.cur q0.idleT hI, K2, ?_, ?_⟩
   · rcases hc1 with ⟨e, -⟩ | hs
     · subst e
-      rw [ecs, ea, ec, kst.sc _ q1.curT]
+      rw [ecs, ea, ec, show L.mem s' (scA (L.curW s1)) = L.mem s1 (scA (L.curW s1)) from kst.sc _ q1.curT]
       exact h.2.2.2.2.2
     · refine ⟨by rw [ecs]; exact hs.ac, ?_, fun _ => by rw [ecs, hsc]; exact hs.csc⟩
       rw [ea, hs.act]
-      exact fun e => notT_small q2.tcbs (by simp) (e ▸ q2.curT : (0#u64) ∈ T)
+      exact fun e => notT_small q2.tcbs (v := 0#u64) (by simp) (by rw [e]; exact q2.curT)
   · rcases hc1 with ⟨e, e2⟩ | hs
     · subst e; rw [ec, ei]; exact e2
     · rw [ec, ei]; exact hs.cur
