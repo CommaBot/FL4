@@ -275,9 +275,10 @@ set_option maxHeartbeats 8000000 in
 every non-`other` object of `H` (the TCB's IPC-frame slot holds a frame cap,
 `StateRel.bufCap`, whose range meets no such object, `JPlaced.cobj`'s
 `FrApartH`) and inside a spec object (the frame's data page, `IpcBufCapOK`). -/
-theorem JAtZ.bufWord (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
+theorem JAtZ.bufWordG (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
     (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {q : Fl4Spec.ObjRef}
-    (hq : Endp.ipcBufOf true x = some q) (k : Nat) (hk128 : k < 128) {b : U64} (hb : b.bv = Endp.bufAddr q k) :
+    {isR : Bool} (hq : Endp.ipcBufOf isR x = some q) (k : Nat) (hk128 : k < 128) {b : U64}
+    (hb : b.bv = Endp.bufAddr q k) :
     (∀ p k', H p = some k' → (∀ z, k' ≠ .other z) → b.val + 8 ≤ p.val ∨ p.val + 2 ^ k'.bits ≤ b.val) ∧
       ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ b.val ∧ b.val < o.toNat + 2 ^ Fl4Spec.objBits ko := by
   have hbv : b.val = (Endp.bufAddr q k).toNat := by rw [← hb]; rfl
@@ -337,6 +338,16 @@ theorem JAtZ.bufWord (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : En
       · rw [bs] at e; right; omega
       · rw [htop] at e; left; omega
   · cases hq
+
+set_option maxHeartbeats 8000000 in
+/-- **A word of a TCB's receive buffer at `J`** (`JAtZ.bufWordG` for the
+receiver's lookup; lcv generalised it over the receiver flag). -/
+theorem JAtZ.bufWord (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (hOK : Endp.IpcBufCapOK σ) {t : U64}
+    (ht : Z.th t = some .tcb) {x : Fl4Spec.Tcb} (hk : σ.kheap t.bv = some (.tcb x)) {q : Fl4Spec.ObjRef}
+    (hq : Endp.ipcBufOf true x = some q) (k : Nat) (hk128 : k < 128) {b : U64} (hb : b.bv = Endp.bufAddr q k) :
+    (∀ p k', H p = some k' → (∀ z, k' ≠ .other z) → b.val + 8 ≤ p.val ∨ p.val + 2 ^ k'.bits ≤ b.val) ∧
+      ∃ o ko, σ.kheap o = some ko ∧ o.toNat ≤ b.val ∧ b.val < o.toNat + 2 ^ Fl4Spec.objBits ko :=
+  J.bufWordG hOK ht hk hq k hk128 hb
 
 /-- FL4's buffer word `i` at the spec's buffer address (both wrapping). -/
 theorem fl4BufA_bv (w i : U64) : (Endp.fl4BufA w i).bv = Endp.bufAddr w.bv i.val := by

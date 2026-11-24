@@ -19247,6 +19247,193 @@ None (no Lean change).
   `Fl4Core{,A64}/FunsExternal_Template.lean` (generated templates, as before; no axiom reaches any print).
 - Untracked helpers in the worktree root: axint5.lean, m77scratch.py, pf1scratch.py (scratch scripts, not needed now).
 
+## lcs (branch par/lcs in FL4-lcs, from int/j5 cbded6b6, top of record `kernel_entry_reachU29`) — `handle_syscall_local` ACCEPTED and pf1's VM entries at U29: `kernel_entry_reachU29S`, `kernel_entry_reachU29Vm`; no premise added; no FINDING
+- **What the extraction shows.** `syscall.handle_syscall_local s a n found` reads the current thread `t` and its flags
+  word at the entry state, writes `FAULT_IP` (`NEXT_IP - 2`), runs `update_timestamp`, and on a passing `sufficient`
+  calls `fastpath.fault … t (IScalar.hcast .U64 n)` (trap arm; `trapped_syscall_number!` extracts to the cast) or
+  `fastpath.reply_recv_found … t found.0 found.1` (trap clear, `n = SysReplyRecv`). Both are **the general entry's own
+  fast paths**: `syscall … true` takes the same `FAULT_IP` write, reads the flags word after it (the same word: FLAGS
+  at offset 3456, the register at 392), and then `unknown_syscall_fault … true` (trap) runs `budget_ok` (a passing
+  `sufficient` makes `check_budget_restart` write nothing), re-reads the current thread and calls the same
+  `fastpath.fault`; or (ReplyRecv) the range checks pass, `budget_ok` passes, and `fastpath.reply_recv` reads
+  `reply_caps` at the dispatch state, which is fl4-sync's `found`. So an accepted local run *is*
+  `handle_syscall` (no general-path reads needed, unlike the VM entries whose fast paths `handle_syscall` does not
+  run). Traced: no divergence, no FINDING.
+- **P1 (new module P1/FastSysLocal.lean):** `flags_spec_mem` / `flags_mem` (the flags word), `flags_fip` (flags past
+  the `FAULT_IP` write), `set_fip_wr`, `syscall_rr_fast` (`syscall … SysReplyRecv true` where `fastpath.reply_recv`
+  runs; `syscall_rr_true`'s accepted twin), `syscall_trap_fast` (`syscall … true` of a trapped thread where
+  `fastpath.fault` runs), **`syscall_local_same`** (accepted `handle_syscall_local` = `handle_syscall`, from `BXI` and
+  `CnOff` at the entry state and fl4-sync's `found` contract), `syscall_local_triple`, `found_vacuous` (under
+  `UnkSys`'s disjunction the `found` contract holds vacuously: `SysReplyRecv` is in range, and a set trap bit after
+  the `FAULT_IP` write is a set trap bit at entry).
+- **P1 FastVmLocal, generalised in place:** `local_prefix_keep` = pf1c's `rr_prefix_keep` body with the `reply_caps`
+  part as an implication (`∀ rptr ep, reply_caps s t = some … → reply_caps s2 t = some …`), so the trap arm (no
+  `found`) uses its current-thread half; `rr_prefix_keep` keeps its statement, proved as its instance.
+- **P3 (new module P3/XTopJointKEntryU29S.lean, root-imported last):**
+  * **`SInvR.G5.kernel_entry_reachU29S`**: U29's premises verbatim, `JReachU17 s a σ`; gives the `JAtZ` witnesses
+    and (i) under the inputs of U29's native syscall clause (`NativeSys n c`, `hflag`, `KDispHypsKVU29`, `JDecMRLK`,
+    `KFinAtR13`) plus fl4-sync's contract `∀ t f, cur_thread s = ok t → flags t s = ok f → f &&& TRAP_SYSCALLS = 0 →
+    n = SysReplyRecv → reply_caps s t = ok (some found)` (`local_syscall` computes `found` exactly so, at the entry
+    state; an input of the entry, not a state premise), an accepted `handle_syscall_local s a n found` has that
+    clause's postcondition; (ii) under the inputs of U29's unknown-syscall clause (`UnkSys`, `NoDbgSys`, `KFinEv13`),
+    with no `found` input, the unknown-syscall clause's postcondition. Proof: `kernel_entry_reachU29`'s two clauses
+    through `syscall_local_triple` (`J.bxi`, `J.cnOff`; (ii) `found_vacuous`).
+    Note: (ii) inherits the clause's [S] `NoDbgSys`: a trapped thread issuing a debug / TLS number is covered by the
+    general top only under that scope premise too (the local and general runs are the same function there).
+  * **`SInvR.G5.kernel_entry_reachU29Vm`**: pf1's `kernel_entry_reachU15Vm` at U29 (`JReachU17`,
+    `KDispHypsKVU29`, U29's postconditions incl. `JReachU17`): same proof through `kernel_entry_reachU28V` (which
+    exposes `VxE Z`, asked by `JAtZ.vmFaultOK` / `JAtZ.rrPreAtG`), the syscall clause's `KDispHypsKVU29` converted
+    by `.toU28` as `kernel_entry_reachU29` does. Inputs as U15Vm (the VM clause adds none; the ReplyRecv clause has
+    fl4-sync's `found = reply_caps` at the entry state).
+- **Premises vs U29:** none added to either top (only the entry inputs `found` and its contract, as U15Vm).
+  No existing top statement changed.
+- **Builds (afkprover, mirror FL4-lcs, SEED=FL4-int5):** lcs-m1 (FastSysLocal + U29S): FastVmLocal / XTopJointKEntryVm
+  green after the `local_prefix_keep` change; FastSysLocal 3 errors (a `congr 1` recursion in `flags_spec_mem`, two
+  `simpa` on `bne`), fixed; lcs-m2: ERRORS 0, SORRY 0 (commit a6921249); lcs-full1 FULL BUILD: "Build completed
+  successfully (7477 jobs)", ERRORS 0, SORRY 0. Axioms (`ax-lcs.lean`, untracked, worktree root):
+  `kernel_entry_reachU29S`, `kernel_entry_reachU29Vm`, `kernel_entry_reachU29`, `kernel_entry_reachU15Vm`,
+  `syscall_local_same`, `syscall_local_triple`, `found_vacuous`, `flags_fip`, `syscall_rr_fast`, `syscall_trap_fast`,
+  `local_prefix_keep`, `rr_prefix_keep`, `rr_vm_local_same`: all [propext, Classical.choice, Quot.sound].
+## lci (branch par/lci in FL4-lci, from int/j5 cbded6b6, top of record `kernel_entry_reachU29`) — `handle_ioport_local` ACCEPTED: new top **`kernel_entry_reachU29I`**; no premise added; no FINDING
+- **Trace (Rust / extraction).** An accepted `handle_ioport_local s a n` has: `n ∈ {SysCall, SysSend}`, trap flag clear
+  (read at `s`), `FAULT_IP := NEXT_IP − 2` (same value as `syscall`), `update_timestamp` → `(s2, a1)`, `cptr :=` `CAP` of
+  `t` at `s2`, read-only checks at `s2` (`action`, `yield_to`, `extra_caps`, `ioport.invocation_ok`, `consumed` +
+  `sporadic.sufficient`, `schedulable_here`), then `handle_invocation s2 a1 (n = SysCall) true (n = SysCall) false
+  cptr`, `after_invocation`, `finish`. The general `syscall … n true`: same `FAULT_IP` write; flags read *after* it (the
+  top's flag fact gives trap clear there); `n` in range; `budget_ok` = the same `update_timestamp` then
+  `check_budget_restart`, which with `sufficient` at `s2` returns `(true, s2, a1)` (pf1's `check_budget_restart_suf`,
+  one domain); `fast ∧ n = SysReplyRecv` false; `dispatch_syscall s2 a1 n` reads `cur_thread s2` (= `t`: the prefix
+  misses the current-thread word), `CAP` (same read), `REPLY` (total), then the `SysSend` arm `(false, true, false,
+  false)` / `SysCall` arm `(true, true, true, false)` = the local entry's arguments; same `after_invocation`; then
+  `finish`. Identical result; no divergence (no FINDING). The local checks other than `sufficient` only narrow when
+  the local entry runs.
+- **P1 (new module `P1/FastIoLocal.lean`, root-imported after FastVmLocal):** `prefix_cur_keep` (the `FAULT_IP` write +
+  a passing `budget_ok` keep `cur_thread`; the first half of `rr_prefix_keep` without its `reply_caps` part, stated on
+  its own so FastVmLocal is untouched — other lines edit near it; `rr_prefix_keep`'s first conjunct can be re-pointed
+  at it at merge), `syscall_inv_same` (`syscall … true` for SysCall / SysSend = dispatch's invocation arm + `finish`),
+  **`ioport_local_same`** (accepted `handle_ioport_local` = `handle_syscall`, from `BXI` at the entry state and the
+  top's flag fact), **`ioport_local_triple`** (every postcondition of `handle_syscall … n` on the `true` results).
+- **P3 (new module `P3/XTopJointKEntryU29I.lean`):** **`SInvR.G5.kernel_entry_reachU29I`**: `kernel_entry_reachU29`'s
+  premises verbatim and `JReachU17 s a σ` give the `JAtZ` witnesses and, for every `n c`, under U29's syscall clause's
+  own inputs (`curThread ≠ idle`, `NativeSys n c`, the flag fact, the `KDispHypsKVU29` / `JDecMRLK` / `KFinAtR13`
+  families), `handle_ioport_local s a n ⦃ r => r.1 = true → ⟨U29's syscall postcondition at (r.2.1, r.2.2)⟩ ⦄`.
+  Premises added vs U29: none; inputs added: none (`BXI` is `J.bxi`).
+- **Builds (afkprover, mirror FL4-lci, SEED=FL4-int5):** lci-m1 one Lean error (bullet structure of the number split,
+  fixed with `on_goal`); lci-m2 `FastIoLocal` + `XTopJointKEntryU29I` green (commit 67cd19f4); lci-full1 FULL build
+  `AX=axlci.lean` (untracked): "Build completed successfully (7477 jobs)", ERRORS 0, SORRY 0;
+  `kernel_entry_reachU29I`, `kernel_entry_reachU29`, `ioport_local_triple`, `ioport_local_same`, `syscall_inv_same`,
+  `prefix_cur_keep`: [propext, Classical.choice, Quot.sound].
+## lcv (branch par/lcv from cbded6b6 = int/j5, top of record `kernel_entry_reachU29`) — `handle_invocation_local` ACCEPTED → U29's syscall clause
+### Design (written before the proof; size L, below XL, so continued)
+- **What the Rust does.** fl4-sync `local_invocation` computes `p = localinv::plan(s, number)` at the entry state
+  `s` (no write in between: the locks live in `m`, not in the store), then runs
+  `handle_invocation_local(s, a, number, &p)`. Accepted (`true`), that ran: `FAULT_IP` write (s1),
+  `update_timestamp` (s2, a1), read-only checks (`action`, `yield_to`, `sufficient`, `schedulable_here`,
+  `still_holds`), then `handle_invocation`'s own decode on `p.slot` / `p.extra`, its reply, `after_invocation`,
+  `finish`. The general `syscall … SysCall true` from `s`: same `FAULT_IP` write; flags (trap clear: the top's
+  `hflag`); `budget_ok s1 a` = the same `update_timestamp` + `check_budget_restart`, which is `(true, s2, a1)`
+  without writes when `sufficient` held (`check_budget_restart_suf`); `dispatch_syscall s2 a1 SysCall` →
+  `handle_invocation s2 a1 true true true false (reg CAP)`: `cur_thread`, `msg_info`, `lookup_slot`, `Slot.cap`,
+  `lookup_ipc_buffer false`, `lookup_extra_caps`, `length`, the same `decode_invocation` call, the same
+  reply arms (`is_call = true`); `after_invocation`; `finish`.
+- **The plan input.** "Any plan" cannot work as a bare argument: `still_holds` only checks the words the plan
+  *read* (dest/src slot words), not that `p.slot` / `p.extra` are what the CSpace lookups find, so an arbitrary
+  `Plan` value with `nseen = 0` would be decoded at an arbitrary slot. The input is fl4-sync's contract
+  `localinv.plan st s n = ok (some p)` at the entry state (as lcs/pf1c's `found = reply_caps s t`): an input of
+  the clause, not a state premise. From it (`plan_fields`): `p.slot = r.slot` and `p.extra = e` where
+  `lookup_slot s t (reg CAP) = ok (Ok r)`, `lookup_extra_caps s t (lookup_ipc_buffer s false t) (msg_info s t) =
+  ok (Ok e)` (`plan_with` only updates `seen` / `nseen` / `ok_words` / `locks` / `n` / `pte`: `KP` chain over
+  `Plan.new` / `read` / `read_cap` / `add` / `add_pte` / `some_if`).
+- **Lookup congruence per plan field** (s → s2, footprint = `t`'s `FAULT_IP` word, the core's `CUR_TIME` /
+  `CONSUMED`, as pf1c's `rr_prefix_keep`): `cur_thread`; registers other than `FAULT_IP` (`MSG_INFO`, `CAP`);
+  `lookup_slot` (root slot words 0/8 of `t` + `CnOff`'s cap-slot words, `rab_loop_congr2`) — gives `p.slot`;
+  `lookup_ipc_buffer` (TCB words `ibA` / `sbA`: `lookup_buf_agree` generalised over the receiver flag);
+  `lookup_extra_caps` (loop induction; the buffer words `BUF_CAPS + i`, i < 3, are `OutsideObjs` by a send-buffer
+  `BufOK` fact, so off the footprint) — gives `p.extra`.
+- **P3.** Send-buffer placement at a `JAtZ` state (`JAtZ.sbufOK`, from `lookup_buf_full … false`, `BufCover` at
+  `false`, `JAtZ.bufWord` generalised in place over the receiver flag (`bufWordG`), `nodeB`), `J.cnOff`, `J.bxi`.
+  Top `SInvR.G5.kernel_entry_reachU29V`: U29's premises verbatim; conclusion = U29's syscall clause with
+  `handle_invocation_local … p ⦃ r => r.1 = true → post ⦄` and the one added input `localinv.plan st s n = ok (some p)`.
+- Size: P1 module ~500 lines (plan fields M, congruence M, assembly M–L), P3 ~150 (S–M): L.
+### Done (lcv): P1 `LocalInv`, P3 `XTopJointKEntryInvL`, top `SInvR.G5.kernel_entry_reachU29V`; no FINDING
+- **P1 `Fl4Proofs/P1/LocalInv.lean`** (root-imported): `PlanKP` + `kp_new` / `kp_read` / `kp_read_cap` / `kp_add` /
+  `kp_add_pte` / `kp_some_if`, **`plan_with_kp`** (a walk over `plan_with`'s binds, ites and matches recording what each
+  bound call keeps of the plan: every `Some p` it returns has the `slot` / `extra` it was given), **`plan_fields`**
+  (`localinv.plan s n = some p` ⇒ `p.slot` / `p.extra` are what `lookup_slot (reg CAP)` / `lookup_extra_caps
+  (lookup_ipc_buffer false)` return at `s`); **`inv_prefix`** (the `FAULT_IP` write + `update_timestamp` keep the current
+  thread, every word of its TCB but offset 392, every `OutsideObjs` word); `reg_keepK`, **`lookup_slot_keep`** (root slot
+  words 0/8 + `CnOff`, `rab_loop_congr2`), **`lookup_buf_keep`** (`lookup_buf_agreeB`), `buf_get_ok`, `lecLoop_unfold`,
+  `lec_body_keep`, `lec_loop_keep`, **`lec_keep`** (extra caps: buffer words `122 + i` outside the TCBs and nodes);
+  **`inv_local_same`** (accepted `handle_invocation_local s a n p` with `plan s n = some p` = `handle_syscall s a n`,
+  given `BXI`, `CnOff`, the sender buffer's `BufOK` over `OutsideObjs`, the top's flag fact) and `inv_local_triple`.
+- **Shared-file edits (generalised in place, originals as instances, statements unchanged):** P1 FastFaultInv
+  `lookup_buf_agreeB` (any receiver flag; `lookup_buf_agree` = it at `true`); P3 XTopJointData `JAtZ.bufWordG` (any
+  receiver flag; `JAtZ.bufWord` = it at `true`).
+- **P3 `Fl4Proofs/P3/XTopJointKEntryInvL.lean`** (root-imported): `JAtZ.sbufOK` (every TCB's sender buffer word is
+  `OutsideObjs`: `lookup_buf_full … false`, `BufCover` at `false`, `balign`, `bufWordG`, `nodeB`), top
+  **`kernel_entry_reachU29V`**: U29's premises verbatim, `JReachU17 s a σ`; conclusion `∃ Z H Cs Ac Lst D, JAtZ … ∧
+  ∀ n c p, [U29 syscall clause's inputs] → localinv.plan st s n = ok (some p) → handle_invocation_local st arI s a n p
+  ⦃ r => r.1 = true → [U29 syscall post at (r.2.1, r.2.2)] ⦄`. Premises added to the top: none. Inputs added to the
+  clause: only fl4-sync's plan contract (`local_invocation` computes `p = plan(s, number)` at the entry state; nothing
+  writes the store between the plan and the call). Why the plan contract and not "any plan": `still_holds` checks
+  only the words the plan read, not that `p.slot` / `p.extra` are the lookups' slots, so an arbitrary `Plan` value
+  would decode at an arbitrary slot (no FL4 bug: fl4-sync never passes one).
+- Builds (afkprover, mirror FL4-lcv, SEED=FL4-int5): lcv-b1…b5 `MODE=mod Fl4Proofs.P1.LocalInv` (b5 green, ERRORS 0,
+  commit 51189aaa); lcv-b6 `Fl4Proofs.P3.XTopJointKEntryInvL`: 7378 jobs, ERRORS 0, SORRY 0.
+- **Full build** lcv-full1 (`MODE=build AX=axlcv.lean`, tree of 0aaef44d): "Build completed successfully (7477 jobs)",
+  ERRORS 0, SORRY 0. Axioms (axlcv.lean, untracked at the worktree root): `kernel_entry_reachU29V`, `kernel_entry_reachU29`,
+  `kernel_entry_reachU15Vm`, `JAtZ.sbufOK`, `JAtZ.bufWordG`, `JAtZ.bufWord`, `inv_local_same`, `inv_local_triple`,
+  `plan_fields`, `plan_with_kp`, `lec_keep`, `lookup_slot_keep`, `inv_prefix`, `lookup_buf_agreeB`, `lookup_buf_agree`:
+  all `[propext, Classical.choice, Quot.sound]`. No `kernel_entry_reach*` statement changed; no premise added to any top.
+## lcd (branch par/lcd from cbded6b6 = int/j5, top of record `kernel_entry_reachU29`) — the DECLINE case of the five fl4-sync `*_local` entries: route (c) (spec clock tick), new top `SInvR.G5.kernel_entry_reachU29D`, no premise added
+
+### (1) Design check: pf1b's `ClockLater` [P] is vacuous on a real clock (stopped and reported; lead chose route (c))
+- The joint relation reads the Arch value `a` in exactly two places: `JAtZ.xtop` (`OthersRel`'s
+  `AR a σ.archState.x64CurrentCr3`; no other `JAtZ` field takes `a`) and `JReachU3.start`'s `MR a σ.ms`.
+- `MachPlat.now`: `MR a ms → arI.now a` reads `gctVal ms` and leaves `MR a1 (gctState ms)`; the spec clock is a
+  deterministic oracle (`getCurrentTime_eq`), each reading advances `timeState`.
+- `ClockLater` asks `a'` with `MR a' σ.ms` (to keep the relation at `σ`) and `now a' = now a1`: the first forces the
+  reading `gctVal σ.ms`, the second `gctVal (gctState σ.ms)`; so with `MachPlat` it says the oracle never advances.
+  Likewise the brief's target (U29's postcondition from the entry state's `σ`) is false whenever time advances:
+  the general run sets `CUR_TIME` to the second reading, `SchedRel.curTime` ties it to the spec's, which from `σ`
+  reads the first. Not a FINDING (the clock really advanced between the two reads; the spec counts readings).
+
+### (2) Route (c): the declined case relates to `tick σ`
+- **Spec extension** `Fl4Spec/Ext/Tick.lean`: `clockTickMs` (getCurrentTime's state change), `fl4ClockTick σ` (an
+  environment step that only consumes one clock-oracle reading, the hardware clock advancing; l4v counterpart:
+  machine_state's `time_oracle` / `time_state` / `last_machine_time` as `getCurrentTime` moves them).
+- **P1 `FastLocalDecline`** (all green):
+  * `LocalPre ar s a r` (current thread's `FAULT_IP` from `NEXT_IP`, then one `update_timestamp` ending at `r`),
+    `RoT st s n` (number in the native range, or the thread traps syscalls);
+  * decline shapes `syscall_local_decline`, `rr_vm_local_decline`, `ioport_local_decline`,
+    `invocation_local_decline`: `= ok (false, s', a')` gives `(s', a') = (s, a)` or `LocalPre … (s', a') ∧ RoT`
+    (prefix by hand, the suffix by FastDecline's walk `decl_walk` / `decl_leaf`: read-only checks write nothing, the
+    fast paths' declines are FastDecline / FastVm's). VM entry: FastVm's `vm_local_decline` (one `update_timestamp`).
+  * `syscall_pre_same` / `handle_syscall_pre_same`: from the prefix's result `(s', a')`, `syscall` (any `fast`) runs
+    as from `(s, a')`: same current thread / `NEXT_IP` / flags (the three writes miss them), the `FAULT_IP` write
+    rewrites the value the word holds (`wr_mem`), `budget_ok_utW` (its own update supersedes the prefix's,
+    `utW_twice`); `vm_pre_same` for `handle_vm_fault`. Helpers `flags_ok`, `BXI.tcbNode`, `utW_mem/ksb/cpu/placed`,
+    `ut_now`, `localPre_now`, `rng_rr/call/send`.
+- **P3 `XTopJointKEntryU29D`** (green): `tick_eq`, `getCurrentTime_tick`, `vmt_tick`, `sinvA_tick`, `sinvX_tick`,
+  `sinvIP_tick` (only `ValidMachineTime` reads the clock fields; the rest by defeq, structures rebuilt);
+  **`jreachU17_tick`**: `JReachU17 s a σ → arI.now a = ok (n1, a1) → JReachU17 s a1 (tick σ)` (via `jreach_invU3`,
+  `JAtZ.msArJ` with `ARKeep.now`, `MachPlat.now`, `JReachU3.start`; no premise). `SysClU29` / `SysUClU29` /
+  `VmClU29` (U29's clause texts for a given run), `DeclAt` (`(s, a, σ)` for a decline before any write, else
+  `(s, a', tick σ)` with `now a = ok (n1, a')`), `DeclSysU29` / `DeclVmU29`, `declSys_of`, `declVm_of`.
+- **Top `kernel_entry_reachU29D`**: U29's premises verbatim, nothing added; for each of `handle_vm_fault_local`
+  (VM-fault clause of `handle_vm_fault`), `handle_syscall_local`, `handle_reply_recv_vm_local`,
+  `handle_ioport_local`, `handle_invocation_local` (syscall clause, every `c`, and unknown-syscall clause of
+  `handle_syscall`): on the runs returning `false`, the general entry from the declined state has the U29 clause's
+  postcondition at the joint state `DeclAt` gives (ghosts existential as in U29). The spec event starts from
+  `tick σ` in the clock-read case.
+- No existing statement changed; no sorry / admit / axiom / native_decide / bv_decide.
+- **Builds (afkprover, mirror FL4-lcd, seeded from FL4-lcs)**: lcd-b2 / lcd-b3 / lcd-b4 module rounds (fixes:
+  number equalities by `bne_iff_ne`, leaf lemmas under `with_reducible` (a whnf timeout), `BlockedScActive` rebuilt,
+  `(L := L)` on the clause defs); module build green (commit f556548b). **lcd-full1: full build
+  "Build completed successfully (7479 jobs)", ERRORS 0, SORRY 0**; `AX=axlcd.lean` (untracked): `kernel_entry_reachU29D`,
+  `declSys_of`, `declVm_of`, `jreachU17_tick`, `sinvX_tick`, P1 `syscall_pre_same`, `vm_pre_same`, the four
+  `*_local_decline`, and `kernel_entry_reachU29`: all `[propext, Classical.choice, Quot.sound]`.
+
 ## int6 (branch int/j6 in FL4-int6, from int/j5 cbded6b6 + origin/main 279c8261 = #93) — merged; x86 re-extracted, P0 green (1134/1134); **full build NOT green**: the #80/#85 cross-core full-state VMEnter completion inside `send_signal` breaks P1 `QueueSignal` (and everything downstream, ~670 modules) and needs a route decision (below); AArch64 extraction FAILS (FINDING 1); no top statement changed, no premise added
 - **Merge** d56d1aeb (`git merge --no-ff origin/main`, no conflicts; main touched no `proofs/` file). 20 commits #73..#93.
 - **Extraction** (tokyo, key `int6-ex1`, `fl4-deps` Aeneas 0d21a9e, script `ex6.sh` untracked): x86 OK (commit b3581a19);
