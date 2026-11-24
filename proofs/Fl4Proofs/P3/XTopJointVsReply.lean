@@ -443,6 +443,7 @@ theorem JAtZ.clrJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
   refine J.vsStepJ (jVsApartHyp arI Z H Cs Ac Lst D s a σ rfl J) hpc hidx (J.xtop.clr5 hb hba)
     (VsSFr.of_eq rfl) hW (fun y hy _ => hSS.capV hy) (by rw [hSS.capV hA]) (by rw [hSS.capV hA]) hnu (by rw [hSS.capV hA])
     (fun y hy => ⟨(hSS y hy).2.2.1, (hSS y hy).2.2.2⟩) (J.vsc.of_eq fun y hy => hSS.capV hy)
+    (J.vsSS (G' := Z.G) (J.xtop.clr5 hb hba) hW.1 hSS (Vs.ArchShr.refl _))
 
 end
 

@@ -63,6 +63,10 @@ structure XSets where
   R : Set U64
   B : Set (U64 × Fl4Spec.Word)
   c : U64
+  /-- (F1 stage 5, item 4; KENTRY-PLAN f4 (12)/(13)) The slots exempt from `JCarry.vsNamed`:
+  `∅` everywhere but inside the deletion loop, between the finalisation of a slot's cap and its
+  `empty_slot` (a final ASID pool cap's pool leaves the ASID table first). Only `vx = ∅` is used. -/
+  vx : Set U64
 
 /-- The VSpace sets (`P`, `L4`..`L1`). -/
 abbrev XVs : Type := Set U64 × Set U64 × Set U64 × Set U64 × Set U64

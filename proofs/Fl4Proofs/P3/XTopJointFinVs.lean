@@ -451,21 +451,25 @@ and `ArchRefines` [P]. -/
 theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
-    (hc : capAt (L.mem s) (cslotAddr sl) = ok c) (hvf : IsVsFin c)
+    (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hfinP : ∀ p bb, c = .AsidPool p bb → ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl →
+      Vs.VKey (capV (L.mem s) y) ≠ Vs.VKey c) (hvf : IsVsFin c)
     (hac : ∃ ac, absCap c = .archObjectCap ac) (b : Bool) (hw : FinWork c b) :
     objects.finalise_cap st arI s a c b false ⦃ r =>
       r.1.1 = finRem c b ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
         ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) b σ).1 ∧
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D r.2.1 r.2.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧
-        L.ksb r.2.1 = L.ksb s ⦄ := by
+        (∃ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D r.2.1 r.2.2 σ' ∧
+          (E = Z.vx ∨ ∃ p bb, c = .AsidPool p bb)) ∧
+        (Z.vx = ∅ → Vs.VsPend Z.th (L.mem r.2.1) (L.ksb r.2.1) (cslotAddr sl)) ∧
+        SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ⦄ := by
   have hS := J.xtop.fin.1
   have hH : VsFinHyps st A arI Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1
       (FootSR st (TopSR st Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.N Z.T Z.C Z.E Z.R Z.B Z.c AR) s (VsW Z (L.ksb s))) :=
     VsFinHyps.footN (fun _ h => Or.inl h) (fun _ h => Or.inr h) (vsFinHyps_top hA)
-  refine WP.spec_mono (vs_fin hH s a σ Z.G sl hDS hAs
+  refine WP.spec_mono (vs_finV hH s a σ Z.G sl hDS hAs
     ⟨hS.2.pl, hS.2.pt, hS.2.ps, hS.2.pv, hS.2.po, hS.2.vo, hS.2.sd, hS.2.vs,
       ⟨⟨hS, P1.WritesIn.refl _ _⟩, J.xtop.fin.2⟩, J.vsc⟩ c hc hvf b hw) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, σ1, G1, hm, hDS1, -, -, -, ⟨hS1, hW⟩, hx1⟩, hSS⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨⟨h1, h2, h3, σ1, G1, hm, hDS1, -, -, -, ⟨⟨hS1, hW⟩, hx1⟩, hVF⟩, hSS⟩
   simp only at h1 h2 h3 hm hDS1 hS1 hW hx1 hSS ⊢
   obtain ⟨ac, hacE⟩ := hac
   have F : ArFr σ σ1 := by rw [hacE] at hm; exact ArFr.of_fin hm
@@ -601,14 +605,82 @@ theorem JAtZ.finVsJb [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s :
   have hTd : Sched.TdKeep (L := L) H s s1 := fun q hq =>
     tcbK q (J.tcbZ hq) _ (P1.field_aligned (J.ip.e.tcb q (J.tcbZ hq)) (K := 3528#u64) (by simp) (by simp))
       (by rw [J.tdA_val' (J.tcbZ hq)]; omega) (by rw [J.tdA_val' (J.tcbZ hq)]; omega)
-  have R : JRest (L := L) arI { Z with G := Z.G } H Cs Ac Lst D s1 σ1 :=
+  have R : ∀ E : Set U64, JRest (L := L) arI { Z with vx := E } H Cs Ac Lst D s1 σ1 := fun _ =>
     ⟨hCR', hRF', hRR', J.yld.frame k2 yk, J.mcp.frame k1 (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩),
       J.buf.frame kb (fun p x hp => ⟨x, (F.look (fun _ e => by cases e)).2 hp, rfl⟩), hRP',
       J.apart.sc_frame hkb F.szKeep, hjpl, J.jcov_keep hkb hSS hdead (J.idleW_keep hX1.fin.1.1.1 F.idle F.isc) (DXKeep.of_dbg hKd hTd), hkern,
       J.vs_utc hW hVR1 hTN hSS F.cdt F.orig F.gpml4 hDbg, J.nsc.ar F, J.inv.ar F, CurInvW.ar J.cur F, J.own.ar F,
       J.off.ar F, hAI, J.bsa.ar F, J.isorted.ar F, J.curRun.ar F, hblk⟩
-  exact ⟨h1, h2, h3, σ1, hm, J.cs_frameK hkb hX1 F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht)) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
-    hSS hKd F.idle, hSS, hkb⟩
+  -- (f4g) the `JAtZ` after at any exempt set `E` (the window's for an ASID pool cap)
+  have mk : ∀ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s a σ →
+      (E = ∅ → Vs.VsNamed Z.th (L.mem s1) (L.ksb s1)) →
+      JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D s1 a1 σ1 := fun E JE hN =>
+    JE.cs_frameK (hvn := hN) hkb ⟨hX1.fin, hX1.rel, hX1.ipc, hX1.esa⟩ F.kback F.ipcFr
+      (J.carry.frame subset_rfl F.ipcFr F.ksz) (JCs.same JE hSS F.ksz) (R E)
+      (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy)
+      (fun t ht => tcbK t (J.thT t ht) _ (Sched.tVcpuA_aligned J.ip.e.tcb (J.thT t ht))
+        (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega) (by rw [Sched.tVcpuA_val J.ip.e.tcb (J.thT t ht)]; omega))
+      hSS hKd F.idle
+  -- (f4g) `VsNamed` / `VsPend` after, from VsFin's `VsFinF`
+  have hPt1 : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s1) σ1 := hX1.fin.2.2.1
+  have hcS : ∀ y, IsSlot Z.th y → capV (L.mem s1) y = capV (L.mem s) y := fun y hy => hSS.capV hy
+  have hcv0 := capV_of_capAt hc
+  have hPd : Z.vx = ∅ → Vs.VsPend Z.th (L.mem s1) (L.ksb s1) (cslotAddr sl) := by
+    intro h; rw [hkb]
+    have hN0 := J.carry.vsNamed h
+    cases c with
+    | Frame p sz r d mm ep asid va =>
+      exact Vs.VsPend.of_nokey (hN0.stepShr J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 hVR1 hPt1
+        (Vs.VsKeep.of_eq hcS) hVF) (by rw [hcS _ hAs.isSlot, hcv0]; rfl)
+    | PageTable q mp asid va =>
+      obtain ⟨hsh, hnn⟩ := hVF
+      exact hN0.pendUnmap J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 hVR1 hPt1 hsh hcS hAs.isSlot
+        ⟨q, mp, asid, va, Or.inl ⟨hcv0, hnn⟩⟩
+    | PageDirectory q mp asid va =>
+      obtain ⟨hsh, hnn⟩ := hVF
+      exact hN0.pendUnmap J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 hVR1 hPt1 hsh hcS hAs.isSlot
+        ⟨q, mp, asid, va, Or.inr (Or.inl ⟨hcv0, hnn⟩)⟩
+    | Pdpt q mp asid va =>
+      obtain ⟨hsh, hnn⟩ := hVF
+      exact hN0.pendUnmap J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 hVR1 hPt1 hsh hcS hAs.isSlot
+        ⟨q, mp, asid, va, Or.inr (Or.inr ⟨hcv0, hnn⟩)⟩
+    | Pml4 q mp asid =>
+      obtain ⟨hz, htb, hda⟩ := hVF
+      exact hN0.pendDa J.vsc J.xtop.fin.1.2.vs J.xtop.fin.1.2.pt J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1
+        hcS hz htb hAs.isSlot hcv0 (fun hmp => by obtain ⟨-, h⟩ := hda hmp; exact h)
+    | Ept p lv mm asid va =>
+      obtain ⟨hz, htb⟩ := hVF
+      exact Vs.VsPend.of_nokey (hN0.shrinkZ J.vsc J.xtop.fin.1.2.vs J.xtop.fin.1.2.pt J.xtop.fin.2.1 J.xtop.fin.2.2.1
+        J.xtop.fin.2.2.2.1 hcS hz htb) (by rw [hcS _ hAs.isSlot, hcv0]; rfl)
+    | AsidPool q bb =>
+      obtain ⟨hz, hd1, hd2⟩ := hVF
+      exact hN0.pendPool J.vsc J.xtop.fin.1.2.vs J.xtop.fin.1.2.pt J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1
+        hcS hz hAs.isSlot hcv0 hd1 hd2 (fun y hy hyx => by rw [hcv0]; exact hfinP q bb rfl y hy hyx)
+    | _ => cases hvf
+  by_cases hpool : ∃ p bb, c = .AsidPool p bb
+  · exact ⟨h1, h2, h3, σ1, hm, ⟨{0#u64}, mk _ (J.vxSet fun h => absurd h vx0_ne) (fun h => absurd h vx0_ne),
+      Or.inr hpool⟩, hPd, hSS, hkb⟩
+  · have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s1) (L.ksb s1) := by
+      intro h; rw [hkb]
+      have hN0 := J.carry.vsNamed h
+      have hshr : ∀ hsh : Vs.ArchShr σ σ1, Vs.VsNamed Z.th (L.mem s1) (L.ksb s) := fun hsh =>
+        hN0.stepShr J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 hVR1 hPt1 (Vs.VsKeep.of_eq hcS) hsh
+      cases c with
+      | Frame => exact hshr hVF
+      | PageTable => obtain ⟨hsh, -⟩ := hVF; exact hshr hsh
+      | PageDirectory => obtain ⟨hsh, -⟩ := hVF; exact hshr hsh
+      | Pdpt => obtain ⟨hsh, -⟩ := hVF; exact hshr hsh
+      | Pml4 =>
+        obtain ⟨hz, htb, -⟩ := hVF
+        exact hN0.shrinkZ J.vsc J.xtop.fin.1.2.vs J.xtop.fin.1.2.pt J.xtop.fin.2.1 J.xtop.fin.2.2.1
+          J.xtop.fin.2.2.2.1 hcS hz htb
+      | Ept =>
+        obtain ⟨hz, htb⟩ := hVF
+        exact hN0.shrinkZ J.vsc J.xtop.fin.1.2.vs J.xtop.fin.1.2.pt J.xtop.fin.2.1 J.xtop.fin.2.2.1
+          J.xtop.fin.2.2.2.1 hcS hz htb
+      | AsidPool p bb => exact absurd ⟨p, bb, rfl⟩ hpool
+      | _ => cases hvf
+    exact ⟨h1, h2, h3, σ1, hm, ⟨Z.vx, mk _ J hvn, Or.inl rfl⟩, hPd, hSS, hkb⟩
 
 /-- **`JAtZ` across a final native VSpace cap's finalisation** (`finVsJb`
 at a table or pool cap). -/
@@ -616,13 +688,17 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
     (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ) (Ap : VsApart (L := L) Z H Cs s)
     {sl : Fl4Spec.CslotPtr} {c : capability.Cap} (hDS : DState (L := L) Z.th s σ Z.G) (hAs : AbsSlot Z.th sl)
     (hc : capAt (L.mem s) (cslotAddr sl) = ok c)
+    (hfinP : ∀ p bb, c = .AsidPool p bb → ∀ y, IsSlot Z.th y → y ≠ cslotAddr sl →
+      Vs.VKey (capV (L.mem s) y) ≠ Vs.VKey c)
     (hv : (∃ p m a v, c = .PageTable p m a v) ∨ (∃ p m a v, c = .PageDirectory p m a v) ∨
       (∃ p m a v, c = .Pdpt p m a v) ∨ (∃ p m a, c = .Pml4 p m a) ∨ ∃ p b, c = .AsidPool p b) :
     objects.finalise_cap st arI s a c true false ⦃ r =>
       r.1.1 = finRem c true ∧ CleanCap r.1.2 ∧ CapWf r.1.2 ∧ ∃ σ',
         ((absCap r.1.1, absCap r.1.2), σ') ∈ (Fl4Spec.finaliseCap (Z := Unit) (absCap c) true σ).1 ∧
-        JAtZ (L := L) arI AR Z H Cs Ac Lst D r.2.1 r.2.2 σ' ∧ SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧
-        L.ksb r.2.1 = L.ksb s ⦄ := by
+        (∃ E : Set U64, JAtZ (L := L) arI AR { Z with vx := E } H Cs Ac Lst D r.2.1 r.2.2 σ' ∧
+          (E = Z.vx ∨ ∃ p bb, c = .AsidPool p bb)) ∧
+        (Z.vx = ∅ → Vs.VsPend Z.th (L.mem r.2.1) (L.ksb r.2.1) (cslotAddr sl)) ∧
+        SlotsSame Z.th (L.mem s) (L.mem r.2.1) ∧ L.ksb r.2.1 = L.ksb s ⦄ := by
   have hvf : IsVsFin c := by
     rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> trivial
   have hac : ∃ ac, absCap c = .archObjectCap ac := by
@@ -634,7 +710,7 @@ theorem JAtZ.finVsJ [Fl4Proofs.P1.PlainStore st] (hA : ArchRefines arI AR) {s : 
     · intro f l e
       rcases hv with ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;>
         cases e
-  exact J.finVsJb hA Ap hDS hAs hc hvf hac true hw
+  exact J.finVsJb hA Ap hDS hAs hc hfinP hvf hac true hw
 
 
 /-- **A VSpace cap's slot is ready** (module docstring): a table cap's range

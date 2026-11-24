@@ -92,7 +92,7 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
     (hF : FinXR (L := L) AR Z s' a' σ')
     (hV : VsJPostO (L := L) Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 Z.G pc r idx c q s ar σ s' a' σ') :
     JAt (L := L) arI AR s' a' σ' := by
-  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp, -⟩, hCR', hFI', hMO', hz, hTE⟩
+  rcases hV with ⟨rfl, rfl, rfl⟩ | ⟨hW0, hpc, hidx, hc0, hnu, ⟨hSF, hLk, hsp, hOp⟩, hCR', hFI', hMO', hz, hTE⟩
   · exact ⟨Z, H, Cs, Ac, Lst, D, J⟩
   obtain ⟨s1, σ1, x1, -, hst1, hk, hcur, hσ1, -, -, -, hs1, Ac1, Lst1, D1, J1⟩ := J.restartJ hni hct
   have hP := J.xtop.rel.1
@@ -230,10 +230,23 @@ theorem JAtZ.vsPostOffJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       exact VCapW.mono (subset_refl _) (subset_refl _) Set.subset_union_left Set.subset_union_left
         Set.subset_union_left (J1.vsc y hy)
   have Ap : VsApart (L := L) Z H Cs s1 := jVsApartHyp arI Z H Cs Ac1 Lst1 D1 s1 ar σ1 rfl J1
+  -- (F1 stage 5, item 4) `VsNamed` after, from the op's fact at `J` (`Vs.VsNamed.ofOpF`, the old sets)
+  have hvn : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s') (L.ksb s') := fun hvx => by
+    obtain ⟨hPl, ⟨-, -, hML, -, hMI⟩, hFI0, -⟩ := J.xtop.rel
+    have hR' : Vs.VsRel Z.P (L.mem s') (L.ksb s) σ' := by rw [← hks']; exact hX'.fin.2.1
+    have h := (J.carry.vsNamed hvx).ofOpF J.vsc J.xtop.fin.2.1 J.xtop.fin.2.2.1 J.xtop.fin.2.2.2.1 J.xtop.fin.1.2.pt
+      hR' hX'.fin.2.2.1 hA.isSlot hcv0 hSF hOp (fun hf hk => by
+        have hk' : Vs.VKey c ≠ none := by rw [← hcv0]; exact hk
+        have hnz : NeedsFin c ∧ isZb c = false := by
+          cases c <;> first | exact absurd rfl hk' | exact ⟨Or.inl ⟨trivial, rfl⟩, rfl⟩
+        have hx0 : capV (L.mem s) (cslotAddr (pc.bv, idx)) ≠ .Null := fun e => hk (by rw [e]; rfl)
+        exact Vs.huq_of_finF hPl hML hMI hFI0 ((hML.members _).2 ⟨hA.isSlot, _, capAt_capV _ _, hx0⟩)
+          (by rw [hcv0]; exact hnz.1) (by rw [hcv0]; exact hnz.2) hf hk)
+    rw [hks']; exact h
   have J' := J1.vsStepJX Ap hpc hidx hXa hX'' F hW hcap (by rw [hcv1]; exact hLk.1.1) (by rw [hcv1]; exact hLk.1.2.1)
     (by rw [hcv1]; exact hnu) (by rw [hcv1]; exact hLk.1.2.2.2)
     (fun y hy => ⟨(hSlot y hy).1, (hSlot y hy).2.1⟩) hvc
-    ⟨Set.subset_union_left, Set.subset_union_left, Set.subset_union_left⟩
+    ⟨Set.subset_union_left, Set.subset_union_left, Set.subset_union_left⟩ hvn
   exact ⟨_, H, Cs, Ac1, Lst1, D1, J'⟩
 
 end

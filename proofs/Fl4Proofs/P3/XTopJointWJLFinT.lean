@@ -200,7 +200,7 @@ theorem jFinNtfnKL [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : 
     exact ⟨h1, h2, σ', G', h4, h5, hkeep, h7, h8, h9 (Or.inl h1)⟩
   · refine WP.spec_mono (WP.spec_and hK
       (jFin_nonfinalLO arI Z H Cs kb hth s a σ G sl _ hDS hW hA hc trivial hfi hfin)) ?_
-    rintro res ⟨⟨h1, h2, σ0, G0, -, -, hkeep, -⟩, ⟨-, -, -, σ', G', h4, h5, -, -, h7, h8, h9, -⟩⟩
+    rintro res ⟨⟨h1, h2, σ0, G0, -, -, hkeep, -⟩, ⟨-, -, -, σ', G', h4, h5, -, -, h7, h8, h9, -⟩, -⟩
     exact ⟨h1, h2, σ', G', h4, h5, hkeep, h7, h8, h9 (Or.inl h1)⟩
 
 set_option maxHeartbeats 4000000 in
@@ -234,9 +234,14 @@ theorem delete_oneJL [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs 
   simp only at hrem hcl hmem hDS1 hkeep hm1 hW1 hRd1
   subst hcl
   simp only [uncurry_apply_pair]
-  refine WP.spec_mono (empty_stepWR' arI (WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) th H) th hP
-    (cl := .Null) (fun h => absurd rfl h) (emptyHypJL arI Z H Cs kb hth) s1 a1 σ1 G1 hDS1 hW1 hA
-    (fun _ => hRd1) trivial trivial) ?_
+  have hPd : Z.vx = ∅ → Vs.VsPend th (L.mem s1) (L.ksb s1) (cslotAddr sl) := fun hvx => by
+    obtain ⟨⟨V, Ac, Lst, D, J, -⟩, -⟩ := hW1
+    subst hth
+    exact Vs.VsPend.of_nokey (J.carry.vsNamed hvx) (by rw [hkeep _ hA.isSlot, hcv]; rfl)
+  refine WP.spec_mono (empty_stepWR' arI (WJL (L := L) arI AR Z H Cs kb) (WJLx (L := L) arI AR Z H Cs kb)
+    (RdLX (L := L) (A := A) th H Z.vx) th hP
+    (cl := .Null) (fun h => absurd rfl h) (emptyHypJL arI Z H Cs kb hth) s1 a1 σ1 G1 hDS1 (hW1.x arI) (fun _ => hW1) hA
+    (fun _ => ⟨hRd1, hPd⟩) trivial trivial) ?_
   rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, hx2, hoth, -, -, -, hm2, hW2⟩
   refine ⟨σ2, G2, ?_, hDS2, hx2, fun y hy hyx => by rw [hoth y hy hyx, hkeep y hy], hm1.trans hm2, hW2⟩
   unfold Fl4Spec.capDeleteOne

@@ -26,31 +26,31 @@ def DDPost (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop) (th : T
       (res.1 = .Err .Preempted ∧ RD (.cTEDeleteCall sl false) σ (.error (), σ'))) ∧
     WPost W Wp res.1 res.2.1 res.2.2 σ' G'
 
-theorem delete_deferred_refinesZ [Fl4Proofs.P1.PlainStore st] (W Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
+theorem delete_deferred_refinesZ [Fl4Proofs.P1.PlainStore st] (W Wx Wp : S → A → Fl4Spec.State Unit → MdbGhost → Prop)
     (Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop) (th : TypedHeap)
-    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wp Rd Rz th)
+    (hP : Placed th) (hF : FinalHyp (L := L) th) (hH : DelHypsWRZ (L := L) arI W Wx Wp Rd Rz th)
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
     cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W Wp th s σ G sl res ⦄ := by
   unfold cdt.delete_deferred cdt.finalise_slot_deferred
   have hWF : layout.WALK_FUEL.val = 2 ^ 64 - 1 := by simp [layout.WALK_FUEL, U64.rMax]
-  apply WP.spec_bind (deferred_loopZ arI W Wp Rd Rz th hP hF hH sl hA s σ G s a layout.WALK_FUEL
+  apply WP.spec_bind (deferred_loopZ arI W Wx Wp Rd Rz th hP hF hH sl hA s σ G s a layout.WALK_FUEL
     ⟨σ, G, hDS, by simp only; rw [hWF]; exact hfuel, le_refl _, le_refl _, fun _ h => h,
       fun _ _ _ => ChgOK.refl _ _, StrictChg.refl _ _ _, MdbStep.refl hDS.1.2.2.1, hW⟩)
   rintro ⟨r, s1, a1⟩ ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, hres, hW1⟩
   simp only [uncurry_apply_pair] at hDS1 hcd1 hps1 hch1 hsc1 hmS1 hres hW1 ⊢
-  rcases hres with ⟨f, rfl, hcl, hclw, hsf, hRd1, hrd⟩ | ⟨rfl, hrd⟩
+  rcases hres with ⟨f, rfl, hcl, hclw, hsf, hRd1, hWn1, hrd⟩ | ⟨rfl, hrd⟩
   · simp only [core.result.Result.Insts.CoreOpsTry.branch, bind_ok]
     cases hs : f.success
     · simp only [Bool.false_eq_true, ↓reduceIte, WP.spec_ok]
       rw [hs] at hrd
       obtain ⟨v, hv⟩ := rd_cte_ok (σ2 := σ1) hrd (by simp only [Bool.false_eq_true, or_self]; rfl)
-      exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inl ⟨rfl, ⟨v, hv⟩, Or.inr (hsf hs)⟩, hW1⟩
+      exact ⟨σ1, G1, hDS1, hcd1, hps1, hch1, hsc1, hmS1, Or.inl ⟨rfl, ⟨v, hv⟩, Or.inr (hsf hs)⟩, hWn1 (Or.inl hs)⟩
     · simp only [↓reduceIte]
       rw [hs] at hrd
       simp only [↓reduceIte] at hrd
-      apply WP.spec_bind (empty_stepWR' arI W Rd th hP (fun _ => hH.post) hH.empty s1 a1 σ1 G1 hDS1 hW1 hA
-        (hRd1 hs) hcl hclw)
+      apply WP.spec_bind (empty_stepWR' arI W Wx Rd th hP (fun _ => hH.post) hH.empty s1 a1 σ1 G1 hDS1 hW1
+        (fun h => hWn1 (Or.inr h)) hA (hRd1 hs) hcl hclw)
       rintro ⟨s2, a2⟩ ⟨σ2, G2, hes, hDS2, hx2, hoth2, hps2, hcd2, hlt2, hmS2, hW2⟩
       simp only [uncurry_apply_pair] at hes hDS2 hx2 hoth2 hps2 hcd2 hlt2 hmS2 hW2 ⊢
       rw [WP.spec_ok]
@@ -77,7 +77,7 @@ theorem delete_deferred_refines [Fl4Proofs.P1.PlainStore st] (W Wp : S → A →
     (sl : Fl4Spec.CslotPtr) (hA : AbsSlot th sl) (s : S) (a : A) (σ : Fl4Spec.State Unit) (G : MdbGhost)
     (hDS : DState (L := L) th s σ G) (hW : W s a σ G) (hfuel : psiD (L.mem s) G < 2 ^ 64 - 1) :
     cdt.delete_deferred st arI s a (cslotAddr sl) ⦃ res => DDPost (L := L) W Wp th s σ G sl res ⦄ :=
-  delete_deferred_refinesZ arI W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s a σ G hDS hW hfuel
+  delete_deferred_refinesZ arI W W Wp Rd RzT th hP hF (hH.toZ arI) sl hA s a σ G hDS hW hfuel
 
 end
 

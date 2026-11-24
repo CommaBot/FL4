@@ -19,6 +19,7 @@ module proves the placement, cover and CSpace fields there:
   are null: their caps would be in the MDB, whose slots are off the region,
   `UtCapP3.ns`).
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtDropJ
 import Fl4Proofs.P3.UtEpSets
 import Fl4Proofs.P3.BufCov
@@ -1020,7 +1021,8 @@ theorem JAtZ.dropA (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
       (J.carry.devTab.frame (devSub_of_eq fun _ _ => rfl) fun o ao ho hv => by
         by_cases hr : RgOf p sb o
         · rw [hD.kin o hr] at ho; cases ho
-        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)⟩
+        · rw [hD.kout o hr] at ho; exact ⟨ao, ho, hv⟩)
+      (fun hvx => J.vsNamedDrop (J.carry.vsNamed hvx) U.nostr (U.ns hnc))⟩
 
 /-- `JAtZ.dropA` at a used region (the untyped reset's drop, `fi ≠ 0`). -/
 theorem JAtZ.drop (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)

@@ -1465,7 +1465,7 @@ theorem ssp_tail [Fl4Proofs.P1.PlainStore st] (th : TypedHeap) (hP : Placed th) 
   have hnf := vfh_not_frame hv
   obtain ⟨hO, hPP, hPD, K, hK, hK6, hB⟩ := hT
   have hok : NewCapOK th (L.mem s1) (capV (L.mem s) x2) e2.2 := by
-    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hnf)
+    rw [← hc1, hxe2]; exact newCapOK_self hDS1.1.1 hDS1.1.2.1 hps hps1 (by rw [← hxe2, hc1]; exact hv)
   have hI := install_okQ arI (Q := MdbOKV (L.ksb s)) (MdbOKV.step _) th hP hO hPP hPD K hK hK6 hB s1 s1 ar σ1 G
     hDS1 (MdbOKV.of_same hDS.1.2.2.1 hS1 hFR) p hp 3 (by simp [tcbSlots])
     layout.tcb.SLOT_FAULT_HANDLER (by simp [layout.tcb.SLOT_FAULT_HANDLER]) (InstFr.refl _ _ _) ssl hAs

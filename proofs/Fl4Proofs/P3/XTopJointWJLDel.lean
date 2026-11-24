@@ -32,14 +32,19 @@ set_option maxHeartbeats 4000000 in
 theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    FinObjHypWRcZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (RdLO (L := L) (A := A) th H)
-      (RzJ (L := L) (A := A) H Cs) th := by
+    FinObjHypWRcZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJLx (L := L) arI AR Z H Cs kb)
+      (RdLX (L := L) (A := A) th H Z.vx) (RzJ (L := L) (A := A) H Cs) th := by
   intro s a σ G sl c hDS hW hA hc hk _
+  show objects.finalise_cap st arI s a c _ false ⦃ r => FinPostLX (L := L) arI AR Z H Cs kb th s σ G sl c r ⦄
   by_cases hfi : FrIoK c
-  · refine WP.spec_mono (jFinAtL_frio arI hAR hK (jVsApartHyp arI) hV Z H Cs kb hth s a σ G sl c hDS hW hA hc hk
+  · have hkc : Vs.VKey c = none := by
+      rcases hfi with h | ⟨f, l, o, rfl⟩
+      · cases c <;> first | rfl | simp [isFrame] at h
+      · rfl
+    refine WP.spec_mono (jFinAtL_frio arI hAR hK (jVsApartHyp arI) hV Z H Cs kb hth s a σ G sl c hDS hW hA hc hk
       hfi) ?_
     rintro r ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10⟩
-    refine ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, fun _ => h10, fun p zt n e => ?_⟩
+    refine FinPostL.liftK arI hth ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, fun _ => h10, fun p zt n e => ?_⟩ hkc
     obtain ⟨e1, -⟩ := finRem_zombie (h1.symm.trans e)
     subst e1
     exfalso
@@ -47,7 +52,11 @@ theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchR
     · simp [isFrame] at h
     · cases e
   by_cases hfin : Fl4Spec.isFinalCap' (absCap c) σ
-  · by_cases hn : NtfnK c
+  · by_cases hvs : VsK c
+    · exact jFinAtL_vs arI hAR (jVsApartHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
+    have hkc := vkey_none_of_not_vsK hvs
+    refine WP.spec_mono ?_ fun r h => FinPostL.liftK arI hth h hkc
+    by_cases hn : NtfnK c
     · exact jFinAtL_ntfn arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hn hfin
     by_cases hq : IrqK c
     · exact jFinAtL_irq arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hq hfin
@@ -55,8 +64,6 @@ theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchR
     · exact jFinAtL_ep arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk he hfin
     by_cases hr : RpK c
     · exact jFinAtL_reply arI hT Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hr hfin
-    by_cases hvs : VsK c
-    · exact jFinAtL_vs arI hAR (jVsApartHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hvs hfin
     by_cases hsc : ScK c
     · exact jFinAtL_sc arI hT hF.ticks Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hsc hfin
     by_cases ht : TcbK c
@@ -68,22 +75,35 @@ theorem finJLZ [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchR
     by_cases hrt : EptRootK c
     · exact jFinAtL_eptRoot arI hAR (jVsApartHyp arI) Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hrt hfin
     · exact (finObjKind_covered hk hn hfi hq he hr hvs hsc ht hvt hrt).elim
-  · exact jFin_nonfinalLO arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin
+  · exact WP.spec_mono (jFin_nonfinalLO arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hk hfi hfin)
+      fun r h => FinPostL.lift arI h.1 h.2
+
+/-- (f4g) `rdTrivJLO` with `VsPend` (a cap finalised without effect has no VSpace key). -/
+theorem rdTrivJLX [Fl4Proofs.P1.PlainStore st] (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
+    RdTrivHyp (L := L) (WJL (L := L) arI AR Z H Cs kb) (RdLX (L := L) (A := A) th H Z.vx) th := by
+  intro s a σ G sl c hDS hW hA hc hcn hnk h1 h2
+  refine ⟨rdTrivJLO arI Z H Cs kb hth s a σ G sl c hDS hW hA hc hcn hnk h1 h2, fun hvx => ?_⟩
+  obtain ⟨⟨V, Ac, Lst, D, J, -⟩, -⟩ := hW
+  subst hth
+  have hk : Vs.VKey c = none := by
+    cases c <;> first | rfl | (exfalso; exact hnk trivial)
+  exact Vs.VsPend.of_nokey (J.carry.vsNamed hvx) (by rw [capV_of_capAt hc]; exact hk)
 
 /-- **The deletion loop's named steps at `WJL`** (module docstring). -/
 theorem delHypsJL [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (hnd : Fl4Spec.numDomains = 1) (hPP : PPPlat arI AR) (hAM : ARMask arI AR)
     (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    DelHypsWRZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJP (L := L) arI AR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th := by
+    DelHypsWRZ (L := L) arI (WJL (L := L) arI AR Z H Cs kb) (WJLx (L := L) arI AR Z H Cs kb)
+      (WJP (L := L) arI AR Z H Cs kb) (RdLX (L := L) (A := A) th H Z.vx) (RzJ (L := L) (A := A) H Cs) th := by
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
-  exact ⟨finJLZ arI hT hAR hK hV hF Z H Cs kb hth, rdTrivJLO arI Z H Cs kb hth,
+  exact ⟨finJLZ arI hT hAR hK hV hF Z H Cs kb hth, rdTrivJLX arI Z H Cs kb hth,
     jPreemptHypL arI hK hT hnd hPP Z H Cs kb hth, jPostDelHypL arI hAM hmask hfree Z H Cs kb hth,
-    jZombieHypL arI Z H Cs kb hth, jSwapHypL arI Z H Cs kb hth, emptyHypJL arI Z H Cs kb hth⟩
+    jZombieHypL arI Z H Cs kb hth, jSwapHypL arI Z H Cs kb hth, emptyHypJL arI Z H Cs kb hth,
+    fun _ _ _ _ h => h.x arI⟩
 
 /-- **The deletion at `WJL`** (module docstring): `JDelHyp` from a state with
 `WJL`, keeping it. -/
@@ -104,7 +124,7 @@ theorem JDelParts.jDelHypL [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L) 
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH := delHypsJL arI hT h.archRef h.arKeep h.vt h.thr hnd hPP hAM Z H Cs kb hth
   subst hth
-  exact delHyp_fullWRZ arI _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
+  exact delHyp_fullWRZ arI _ _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
 end
 

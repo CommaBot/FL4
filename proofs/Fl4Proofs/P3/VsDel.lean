@@ -111,6 +111,22 @@ def VsZeroW (P : Set U64) (s s' : S) : Prop :=
   L.ksb s' = L.ksb s ∧ L.cpu s' = L.cpu s ∧
     ∀ b, Aligned b → L.mem s' b ≠ L.mem s b → VsWrite P (L.ksb s) b ∧ L.mem s' b = 0#u64
 
+/-- (f4g) **`delete_asid`'s walk effect** (XTopJointFinVs's `VsNamed` after a PML4 / EPT root
+finalisation): the ASID-table words kept, and the ASID's pool word zeroed if it was the root
+natively (tag `0`). -/
+abbrev DaMem (asid root : U64) (s s' : S) : Prop :=
+  (∀ hi : U64, hi.val < 2048 → L.mem s' (atA (L.ksb s) hi) = L.mem s (atA (L.ksb s) hi)) ∧
+  ∀ hi lo : U64, hi.val = asid.val / 512 % 2048 → lo.val = asid.val % 512 →
+    L.mem s (atA (L.ksb s) hi) ≠ 0#u64 → L.mem s (peA (L.mem s (atA (L.ksb s) hi)) lo) = root →
+    L.mem s (peA (L.mem s (atA (L.ksb s) hi)) lo) &&& 1#u64 = 0#u64 →
+    L.mem s' (peA (L.mem s (atA (L.ksb s) hi)) lo) = 0#u64
+
+/-- (f4g) **`delete_asid_pool`'s walk effect**: only the ASID-table word at the base's high
+bits may change, and it does not name the pool after. -/
+abbrev DpMem (base pool : U64) (s s' : S) : Prop :=
+  (∀ b, Aligned b → (∀ hi : U64, hi.val = base.val / 512 % 2048 → b ≠ atA (L.ksb s) hi) → L.mem s' b = L.mem s b) ∧
+  ∀ hi : U64, hi.val = base.val / 512 % 2048 → L.mem s' (atA (L.ksb s) hi) ≠ pool
+
 /-- The arch effects and the other subsystems (see the module docstring). -/
 structure VsHypsR (A : Type) (ar : machine.Arch A) (P : Set U64) (SR : S → A → Fl4Spec.State Unit → Prop) : Prop where
   stable : ∀ s s' a σ σ', SR s a σ → WritesIn st s s' (VsWrite P (L.ksb s)) → VsStep σ σ' → SR s' a σ'
@@ -142,6 +158,41 @@ theorem VsZeroW.wr {P : Set U64} (s : S) {b : U64} (hb : Aligned b) (hw : VsWrit
   by_cases e : b = c
   · subst e; exact ⟨hw, L.mem_wr_same hb⟩
   · exact absurd (L.mem_wr_ne hb hc (fun h => e (UScalar.eq_of_val_eq h))) hne
+
+theorem and_val' (x : U64) (k : Nat) (K : U64) (hK : K.val = 2 ^ k - 1) : (x &&& K).val = x.val % 2 ^ k := by
+  show (x &&& K).bv.toNat = _
+  rw [UScalar.bv_and, BitVec.toNat_and, show K.bv.toNat = 2 ^ k - 1 from hK, Nat.and_two_pow_sub_one_eq_mod]; rfl
+
+theorem da_idx {asid i hi lo : U64} (hiv : i.val = asid.val >>> 9) (hh : hi.val = asid.val / 512 % 2048)
+    (hl : lo.val = asid.val % 512) : hi = i &&& 2047#u64 ∧ lo = asid &&& 511#u64 := by
+  refine ⟨UScalar.eq_of_val_eq ?_, UScalar.eq_of_val_eq ?_⟩
+  · rw [and_val' i 11 2047#u64 rfl, hiv, hh, Nat.shiftRight_eq_div_pow]; norm_num
+  · rw [and_val' asid 9 511#u64 rfl, hl]; norm_num
+
+/-- A pool word's write keeps the ASID-table words (`VsPlaced.ptab`). -/
+theorem mem_wr_pool_tbl {P : Set U64} {s : S} (hP : VsPlaced P (L.ksb s)) {w lo : U64} (hw : w ∈ P)
+    (hlo : lo.val < 512) (hea : Aligned (peA w lo)) {hi : U64} (hh : hi.val < 2048) :
+    L.mem (L.wr s (peA w lo) 0#u64) (atA (L.ksb s) hi) = L.mem s (atA (L.ksb s) hi) := by
+  have hv := atA_val hP.ksb_fit hh
+  obtain ⟨-, wf⟩ := hP.pal w hw
+  have hv2 := peA_val wf hlo
+  have hal := hP.ksb_al
+  have hpt := hP.ptab w hw
+  exact L.mem_wr_ne hea (by show _ % 8 = 0; rw [hv]; omega) (by rw [hv, hv2]; omega)
+
+theorem da_hi_val {x i : U64} (hiv : i.val = x.val >>> 9) : (i &&& 2047#u64).val = x.val / 512 % 2048 := by
+  rw [and_val' i 11 2047#u64 rfl, hiv, Nat.shiftRight_eq_div_pow]; norm_num
+
+theorem da_hi {x i hi : U64} (hiv : i.val = x.val >>> 9) (hh : hi.val = x.val / 512 % 2048) :
+    hi = i &&& 2047#u64 :=
+  UScalar.eq_of_val_eq (by rw [and_val' i 11 2047#u64 rfl, hiv, hh, Nat.shiftRight_eq_div_pow]; norm_num)
+
+theorem DaMem.refl {asid root : U64} {s : S}
+    (h : ∀ hi lo : U64, hi.val = asid.val / 512 % 2048 → lo.val = asid.val % 512 →
+      L.mem s (atA (L.ksb s) hi) ≠ 0#u64 → L.mem s (peA (L.mem s (atA (L.ksb s) hi)) lo) = root →
+      L.mem s (peA (L.mem s (atA (L.ksb s) hi)) lo) &&& 1#u64 = 0#u64 → False) :
+    DaMem st asid root s s :=
+  ⟨fun _ _ => rfl, fun hi lo hh hl h1 h2 h3 => (h hi lo hh hl h1 h2 h3).elim⟩
 
 theorem ucast9_inj {a b : U64} (ha : a.val < 512) (hb : b.val < 512)
     (h : (Fl4Spec.ucast 9 a.bv : BitVec 9) = Fl4Spec.ucast 9 b.bv) : a = b := by
@@ -290,7 +341,7 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
     vspace.delete_asid st ar s a asid root ⦃ r =>
       ¬ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).2 ∧
       ∃ σ', ((), σ') ∈ (Fl4Spec.deleteAsid (Z := Unit) asid.bv root.bv σ).1 ∧
-        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ⦄ := by
+        VsRel P (L.mem r.1) (L.ksb r.1) σ' ∧ SR r.1 r.2 σ' ∧ VsZeroW st P s r.1 ∧ DaMem st asid root s r.1 ⦄ := by
   unfold vspace.delete_asid
   have hL : vspace.ASID_LOW_BITS = 9#u64 := by unfold vspace.ASID_LOW_BITS; rfl
   rw [hL]
@@ -314,7 +365,8 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
   · rw [hp, show optRef 0#u64 = none from optRef_zero] at htab
     simp only [hp, ↓reduceIte, WP.spec_ok]
     rw [hspec0, htab]
-    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s⟩
+    exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s,
+      DaMem.refl fun hi lo hh hl h1 _ _ => by obtain ⟨rfl, rfl⟩ := da_idx hiv hh hl; exact h1 hp⟩
   · simp only [hp, ↓reduceIte]
     set w := L.mem s (atA (L.ksb s) (i &&& 2047#u64)) with hw
     have hwP := hR.tmem _ hlt hp
@@ -365,7 +417,9 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
         rintro ⟨s3, a3⟩ ⟨e3, hnf, σ3, hm3, hR3, hS3⟩
         simp only at e3
         subst e3
-        refine ⟨?_, σ3, ?_, hR3, hS3, VsZeroW.wr s hea (Or.inr ⟨w, hwP, _, hlo, rfl⟩)⟩
+        refine ⟨?_, σ3, ?_, hR3, hS3, VsZeroW.wr s hea (Or.inr ⟨w, hwP, _, hlo, rfl⟩),
+          fun hi hh => mem_wr_pool_tbl hP hwP hlo hea hh,
+          fun hi lo hh hl _ _ _ => by obtain ⟨rfl, rfl⟩ := da_idx hiv hh hl; exact L.mem_wr_same hea⟩
         · refine nd_nofail_bind (hH.invalOK _ _ σ) fun x hx => ?_
           obtain ⟨r, σ''⟩ := x
           obtain ⟨ms, rfl⟩ := doMachineOp_mem hx
@@ -380,7 +434,8 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
       · simp only [hvr, ↓reduceIte, WP.spec_ok]
         have hc : ¬ f (Fl4Spec.asidLowBitsOf asid.bv) = some root.bv := by rw [hfe, optRef_eq_some hr0]; exact hvr
         rw [nd_when_false hc]
-        exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s⟩
+        exact ⟨by simp [pure, Fl4Spec.NonDet.pure], σ, by simp [pure, Fl4Spec.NonDet.pure], hR, hS, VsZeroW.refl P s,
+          DaMem.refl fun hi lo hh hl _ h2 _ => by obtain ⟨rfl, rfl⟩ := da_idx hiv hh hl; exact hvr h2⟩
 
     · rw [daBody_nested asid root w f _ hkf hfe htag]
       by_cases hvr : L.mem s (peA w (asid &&& 511#u64)) &&& ~~~1#u64 = root
@@ -407,9 +462,12 @@ theorem delete_asid_relR {A : Type} {ar : machine.Arch A} {P : Set U64} {SR : S 
         have hS' := hH.stable s (L.wr s (peA w (asid &&& 511#u64)) 0#u64) a1 σ σG hS1
           ((writesIn_wr hea).mono fun b hb => Or.inr ⟨w, hwP, asid &&& 511#u64, hlo, hb⟩)
           (Or.inl ⟨w.bv, f, _, hkf, rfl⟩)
-        exact ⟨by simp, σG, by simp [σG], by simpa only [L.ksb_wr, peA] using hR', hS', hew⟩
+        exact ⟨by simp, σG, by simp [σG], by simpa only [L.ksb_wr, peA] using hR', hS', hew,
+          fun hi hh => mem_wr_pool_tbl hP hwP hlo hea hh,
+          fun hi lo hh hl _ _ _ => by obtain ⟨rfl, rfl⟩ := da_idx hiv hh hl; exact L.mem_wr_same hea⟩
       · simp only [hvr, ↓reduceIte, WP.spec_ok]
-        exact ⟨by simp, σ, by simp, hR, hS, VsZeroW.refl P s⟩
+        exact ⟨by simp, σ, by simp, hR, hS, VsZeroW.refl P s,
+          DaMem.refl fun hi lo hh hl _ _ h3 => by obtain ⟨rfl, rfl⟩ := da_idx hiv hh hl; exact htag h3⟩
 
 end
 

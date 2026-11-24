@@ -621,29 +621,6 @@ theorem jFinAt_reply [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI)
     ⟨V1, Ac1, Lst1, D1, J1, hks1.trans hkb, ak_finaliseCap_ns hmem1 hns, SpecGlob.fin hmem1 hsg⟩, JAtZ.reply_ready arI J1 hA.isSlot hcv1 hdp⟩
 
 set_option maxHeartbeats 4000000 in
-/-- **A final native VSpace cap's finalisation at `J`** (XTopJointFinVs's
-`JAtZ.finVsJ`; the slot ready, `JAtZ.vs_ready`), from `ArchRefines` [P],
-`JAtZ.vsc` (`JVsApartHyp` holds: `jVsApartHyp`). -/
-theorem jFinAt_vs [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
-    (hAp : JVsApartHyp (L := L) arI AR th) : JFinAtF (L := L) arI AR th VsK := by
-  intro Z H Cs kb hth s a σ G sl c hDS hW hA hc _ hv hfin
-  obtain ⟨V, Ac, Lst, D, J, hkb, hns, hsg⟩ := hW
-  have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
-  subst hth
-  have hcv := capV_of_capAt hc
-  have hxm : cslotAddr sl ∈ G.chains.flatten := (hDS.1.2.2.1.members _).2 ⟨hA.isSlot, _, hc, fun h => by
-    subst h
-    rcases hv with ⟨_, _, _, _, e⟩ | ⟨_, _, _, _, e⟩ | ⟨_, _, _, _, e⟩ | ⟨_, _, _, e⟩ | ⟨_, _, e⟩ <;> cases e⟩
-  rw [decide_eq_true hfin]
-  refine WP.spec_mono (J.finVsJ hAR Ap hDS hA hc hv) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
-  simp only at h1 h2 h3 hm J1 hSS hks ⊢
-  have hcv1 : capV (L.mem s1) (cslotAddr sl) = c := by rw [hSS.capV hA.isSlot, hcv]
-  exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
-    fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,
-    ⟨V, Ac, Lst, D, J1, hks.trans hkb, ak_finaliseCap_ns hm hns, SpecGlob.fin hm hsg⟩, J.vs_ready hxm hcv hv hcv1⟩
-
-set_option maxHeartbeats 4000000 in
 /-- **A VSpace-mapped frame cap's finalisation at `J`** (XTopJointFinVs's
 `JAtZ.finVsJb`, final or not), from `ArchRefines` [P], `JAtZ.vsc` and
 `jVsApartHyp`. -/
@@ -654,10 +631,11 @@ theorem jFrMap_of [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
   have Ap := hAp (Z.mv G V) H Cs Ac Lst D s a σ hth J
   subst hth hce
   have hcv := capV_of_capAt hc
-  refine WP.spec_mono (J.finVsJb hAR Ap hDS hA hc rfl ⟨_, rfl⟩ _
+  refine WP.spec_mono (J.finVsJb hAR Ap hDS hA hc (fun _ _ e => nomatch e) rfl ⟨_, rfl⟩ _
     (Or.inr ⟨p, sz, r, d, false, asid, va, rfl⟩)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, ⟨E1, J1, hE1⟩, -, hSS, hks⟩
   simp only at h1 h2 h3 hm J1 hSS hks ⊢
+  replace J1 := JAtZ.ofVx (Z := Z.mv G V) J1 (hE1.resolve_right fun ⟨_, _, e⟩ => by cases e)
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Frame p sz r d true false asid va := by
     rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
@@ -701,10 +679,11 @@ theorem jFinAt_eptRoot [Fl4Proofs.P1.PlainStore st] (hAR : ArchRefines arI AR)
   have hap0 := J.ept_obj hA.isSlot hcv
   have hp0 := J.ept_ne0 hA.isSlot hcv
   rw [decide_eq_true hfin]
-  refine WP.spec_mono (J.finVsJb hAR Ap hDS hA hc ⟨rfl, rfl, hp0⟩ ⟨_, rfl⟩ true
+  refine WP.spec_mono (J.finVsJb hAR Ap hDS hA hc (fun _ _ e => nomatch e) ⟨rfl, rfl, hp0⟩ ⟨_, rfl⟩ true
     (Or.inl ⟨Or.inl rfl, rfl, fun f l e => by cases e⟩)) ?_
-  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, J1, hSS, hks⟩
+  rintro ⟨⟨rem, cl⟩, s1, a1⟩ ⟨h1, h2, h3, σ1, hm, ⟨E1, J1, hE1⟩, -, hSS, hks⟩
   simp only at h1 h2 h3 hm J1 hSS hks ⊢
+  replace J1 := JAtZ.ofVx (Z := Z.mv G V) J1 (hE1.resolve_right fun ⟨_, _, e⟩ => by cases e)
   have hcv1 : capV (L.mem s1) (cslotAddr sl) = .Ept p 0#u64 true asid va := by rw [hSS.capV hA.isSlot, hcv]
   exact ⟨h1, h2, h3, σ1, G, hm, ⟨J1.xtop.rel.2.1, J1.del, J1.xtop.rel.2.2.1⟩, hcv1,
     fun y hy _ => Or.inl (hSS.capV hy), (MdbStep.refl hDS.1.2.2.1).same_right hDS.1.2.2.1 hSS,

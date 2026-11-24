@@ -877,6 +877,10 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       obtain ⟨sz, e⟩ := hdo
       rw [hspec q hq, e] at ho; cases ho
       simp [VsTy, Fl4Spec.aaType] at hv
+  -- (F1 stage 5, item 4) `vsNamed` after: frames only, no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hXZ.fin.2.1 hXZ.fin.2.2.1 hks hE hM
+    hXZ.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; rcases hnt with h | h | h <;> simp [cjOf, newCapOf, h, Vs.VKey])
+    hA hcnk hkc
   have JZ := J.add_frame
     (Z' := { Z with
       G := G', E := Z.E ∪ En, N := Z.N ∪ Nn, R := Z.R ∪ Rn,
@@ -891,7 +895,8 @@ theorem JAtZ.utDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L 
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hXZ.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
-      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB))
+      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB)
+      hvnR)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hXZ.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

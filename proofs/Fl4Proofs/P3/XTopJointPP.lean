@@ -92,7 +92,7 @@ theorem JAtZ.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksD arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frameK hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
+  exact ⟨Ac', Lst', J.cs_frameK (hvn := J.vsKs hw) hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (JCs.same J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (J.vkeep_of hw fun _ hb => J.ksW_nv hb)
     hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl⟩
 
 /-- `JAtZ.workUnitsJD` with the dead set existential. -/

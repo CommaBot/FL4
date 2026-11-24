@@ -106,7 +106,7 @@ theorem mrv_keep {arI : machine.Arch A} (hM : MachPlat arI MR) {a : A} {σ σ' :
   · rw [e4]; exact hV2
   · rw [e1]; exact hI i (by rw [← e5]; exact hi)
 
-variable {W : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
+variable {W Wx : S → A → Fl4Spec.State Unit → MdbGhost → Prop}
   {Rd Rz : S → A → Fl4Spec.State Unit → MdbGhost → U64 → Prop}
 
 theorem ZombieHypWZ.mrv {arI : machine.Arch A} (hM : MachPlat arI MR) (h : ZombieHypWZ (L := L) (A := A) W Rz th) :
@@ -121,8 +121,8 @@ theorem SwapHypWZ.mrv {arI : machine.Arch A} (hM : MachPlat arI MR) (h : SwapHyp
   exact ⟨h s s' a σ σ' G G' sl p zt n hW.1 hn1 hD1 hD2 hF hsw hA hz hpx hG' hcap hmS,
     mrv_keep hM hW.2 (MachT.mtk_capSwapForDelete' _ _ σ ((), σ') (mem_of_single hsw))⟩
 
-theorem EmptyHypWR.mrv {arI : machine.Arch A} (hM : MachPlat arI MR) (h : EmptyHypWR (L := L) W Rd th) :
-    EmptyHypWR (L := L) (WMR MR W) Rd th := by
+theorem EmptyHypWR.mrv {arI : machine.Arch A} (hM : MachPlat arI MR) (h : EmptyHypWR (L := L) W Wx Rd th) :
+    EmptyHypWR (L := L) (WMR MR W) (WMR MR Wx) Rd th := by
   intro s s' a σ σ' G G' sl hW hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS
   exact ⟨h s s' a σ σ' G G' sl hW.1 hRd hD1 hD2 hF hes hA hxn hx0 hoth hmS,
     mrv_keep hM hW.2 (MachT.mtk_emptySlotNull _ σ ((), σ') hes)⟩
@@ -131,13 +131,14 @@ theorem RdTrivHyp.mrv (h : RdTrivHyp (L := L) W Rd th) : RdTrivHyp (L := L) (WMR
   fun s a σ G sl c hDS hW => h s a σ G sl c hDS hW.1
 
 theorem FinObjHypWRcZ.mrv (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hT : P0.ArchTotal arI)
-    (h : FinObjHypWRcZ (L := L) arI W Rd Rz th) : FinObjHypWRcZ (L := L) arI (WMR MR W) Rd Rz th := by
+    (h : FinObjHypWRcZ (L := L) arI W Wx Rd Rz th) : FinObjHypWRcZ (L := L) arI (WMR MR W) (WMR MR Wx) Rd Rz th := by
   intro s a σ G sl c hDS hW hA hc hk ht
   refine WP.spec_mono (WP.spec_and (h s a σ G sl c hDS hW.1 hA hc hk ht)
     (MKD.objects_finalise_cap L.total hT hKD hW.2.1)) ?_
   rintro r ⟨⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8, h9, h10, h11⟩, hR⟩
+  have hmv := mrv_keep hM ⟨hR, hW.2.2⟩ (MachT.mtk_finaliseCap _ _ σ _ h4)
   exact ⟨h1, h2, h3, σ', G', h4, h5, h6, h7, h8,
-    ⟨h9, mrv_keep hM ⟨hR, hW.2.2⟩ (MachT.mtk_finaliseCap _ _ σ _ h4)⟩, h10, h11⟩
+    ⟨fun hn => ⟨h9.1 hn, hmv⟩, fun hr => ⟨h9.2 hr, hmv⟩⟩, h10, h11⟩
 
 /-- **A cleanup cap's `post_cap_deletion` keeps `MRV`** (module docstring). -/
 theorem post_mrv (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) {s : S} {a : A} {σ : Fl4Spec.State Unit}
@@ -267,17 +268,17 @@ theorem delHypsJLM [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : A
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPM (L := L) arI AR MR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th := by
+    DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WMR MR (WJLx (L := L) arI AR Z H Cs kb))
+      (WJPM (L := L) arI AR MR Z H Cs kb) (RdLX (L := L) (A := A) th H Z.vx) (RzJ (L := L) (A := A) H Cs) th := by
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.mask_irq a i m); exact ⟨a', h⟩
   have hfree : ∀ (a : A) (irq : U64), ∃ a', arI.irq_free a irq = ok a' := fun a i => by
     obtain ⟨a', h, -⟩ := spec_exists (hT.irq_free a i); exact ⟨a', h⟩
-  exact ⟨(finJLZ arI hT hAR hK hV hF Z H Cs kb hth).mrv arI hM hKD hT, (rdTrivJLO arI Z H Cs kb hth).mrv,
+  exact ⟨(finJLZ arI hT hAR hK hV hF Z H Cs kb hth).mrv arI hM hKD hT, (rdTrivJLX arI Z H Cs kb hth).mrv,
     jPreemptHypLM arI hK hT hnd hM hPA Z H Cs kb hth,
     (jPostDelHypL arI hAM hmask hfree Z H Cs kb hth).mrv arI hM hKD,
     (jZombieHypL arI Z H Cs kb hth).mrv hM, (jSwapHypL arI Z H Cs kb hth).mrv hM,
-    (emptyHypJL arI Z H Cs kb hth).mrv hM⟩
+    (emptyHypJL arI Z H Cs kb hth).mrv hM, fun _ _ _ _ h => ⟨h.1.x arI, h.2⟩⟩
 
 /-- **The deletion at `MachPlat`**: XTopJointWJLDel's `JDelHypL` with `MRV`
 beside `WJL`, `WJPM` after a preemption. -/
@@ -299,7 +300,7 @@ theorem JDelParts.jDelHypLM [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L)
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH := delHypsJLM arI hT h.archRef h.arKeep h.vt h.thr hnd hM hKD hPA hAM Z H Cs kb hth
   subst hth
-  exact delHyp_fullWRZ arI _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
+  exact delHyp_fullWRZ arI _ _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
 end
 

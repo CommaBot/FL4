@@ -456,7 +456,8 @@ theorem JAtZR.tmw_step {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZR (L :
       fun e => F.curInv (J.cur (by rw [← (F.act rfl).1]; exact e)), F.own J.own, F.off J.off,
       hAI, F.bsa J.bsa, F.isorted J.isorted,
       J.curRun.imp (fun e => by rw [(F.act rfl).1]; exact e) F.curRunW, hblk⟩
-  exact J.cs_frame (G' := Z.G) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (devFrom_same J.xtop.rel.2.1.2.2.1 hX'.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
+  exact J.cs_frame (G' := Z.G) (hvn := J.vsSS (G' := Z.G) hX' hks hSS (Vs.ArchShr.of_ao F.sk.arch fun q ao h =>
+    F.othF h (fun _ e => by cases e) (fun _ _ e => by cases e) (fun _ e => by cases e))) hks hX' F.kback F.ipcFr (J.carry.frame subset_rfl F.ipcFr F.ksz) (devFrom_same J.xtop.rel.2.1.2.2.1 hX'.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS F.ksz) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (fun t ht => hw.mem_eq (Sched.tVcpuA_aligned hT (J.thT t ht)) fun hb => J.tmw_ne_tcb hb (J.thT t ht) (Sched.tVcpuA_val hT (J.thT t ht)) (by omega) rfl)
     (J.liveX hX' rfl rfl rfl hSS hKd F.sk.orig (J.idleW_keep hS' F.sk.idle F.sk.isc).1
       fun p hp => R.jcov.dead p (J.zD p hp)) (J.zDX hSS J.zD)
 
@@ -1189,7 +1190,7 @@ theorem JAtZR.schedJ (J : JAtZR (L := L) arI AR Z H Cs Ac Lst D s ar σ) {s' : S
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb
   obtain ⟨Ac', Lst', R⟩ := jowes_schedZR arI s s' ar σ σ' hS Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', D, J.cs_frame hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap hS.1.kh) ((KSz.of_kheap hS.1.kh))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)
+  exact ⟨Ac', Lst', D, J.cs_frame (hvn := J.vsW hW fun b hb => schW_oobj hX.fin.1.1.1.placed.tcb hb) hW.1 hX1 (KBack.of_kheap hS.1.kh) (IpcFrKeep.of_kheap hS.1.kh) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap hS.1.kh) ((KSz.of_kheap hS.1.kh))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap hS.1.kh)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hW fun _ hb => J.schW_nv hb)
     (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hW fun _ hb => J.schW_notDbg hb)
       (orig_eq_of_slots J.xtop.rel.2.1.2.2.2.1 hX1.rel.2.1.2.2.2.1 J.kern.orig R.kern.orig hSS)
       (XTopAt.idleW_eqS hX hX1 hS.1.idle) fun p hp => R.jcov.dead p (J.zD p hp))
@@ -1261,7 +1262,7 @@ theorem JAtZR.workUnitsJD {s : S} {a : A} {σ : Fl4Spec.State Unit}
   have hSS : SlotsSame Z.th (L.mem s) (L.mem s') :=
     hX.slotsSame_of hw fun b hb => by obtain ⟨K, h1, h2, -, e⟩ := hb; exact Or.inr (Or.inl ⟨by omega, by omega⟩)
   obtain ⟨Ac', Lst', R⟩ := jowes_ksDZR arI s s' a a σ σ hw (KsStep.refl σ) Z H Cs Ac Lst D rfl J hX1
-  exact ⟨Ac', Lst', J.cs_frame hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)
+  exact ⟨Ac', Lst', J.cs_frame (hvn := J.vsKs hw) hw.1 hX1 (KBack.of_kheap rfl) (IpcFrKeep.of_kheap rfl) (J.carry.frame subset_rfl (IpcFrKeep.of_kheap rfl) ((KSz.of_kheap rfl))) (devFrom_same J.xtop.rel.2.1.2.2.1 hX1.rel.2.1.2.2.1 hSS) (JCs.sameZR J hSS (KSz.of_kheap rfl)) R (Vs.VsSlotsT.of_eq fun y hy => hSS.capV hy) (VKeep.of_writes J.ip.e.tcb J.thT hw fun _ hb => J.ksW_nv hb)
     (J.liveX hX1 rfl rfl rfl hSS (dbgKeep_of_writes J.blk hw fun _ hb => J.ksW_notDbg hb) rfl
       (XTopAt.idleW_eqS hX hX1 rfl) fun p hp => R.jcov.dead p (J.zD p hp))
     (J.zDX hSS J.zD)⟩

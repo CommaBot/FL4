@@ -96,7 +96,7 @@ theorem IpcApart.of_topD {th : TypedHeap} {P L4 L3 L2 L1 : Set U64} {s : S} {σ 
 /-- The sets of `FinXR` for a typed heap. -/
 def xsetsOf (th : TypedHeap) (G : MdbGhost) (P L4 L3 L2 L1 N T C E R : Set U64) (B : Set (U64 × Fl4Spec.Word))
     (c : U64) : XSets :=
-  ⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c⟩
+  ⟨th, G, P, L4, L3, L2, L1, N, T, C, E, R, B, c, ∅⟩
 
 /-- **`FinXT` with `DomRel` is `FinXR`** at the sets with its typed heap, from
 the entry's endpoint-scheduler apartness and the IPC words' distance from

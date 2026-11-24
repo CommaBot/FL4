@@ -786,6 +786,9 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
     (hsrc : capV (L.mem s') (cslotAddr (pp.bv, idx)) = .Untyped p fl4_abi.consts.bits.ASID_POOL 4096#u64 false)
     (hdst : ∃ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b)
     (hdstb : ∀ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b → b.val % 512 = 0 ∧ b.val < 2 ^ 20)
+    (hbhi : ∀ b, capV (L.mem s') (cslotAddr (pd.bv, idxd)) = .AsidPool p b → b.val = hi.val * 512)
+    (hat0 : σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) = none)
+    (hat : σ'.archState.x64AsidTable = Function.update σ.archState.x64AsidTable (Fl4Spec.ucast 11 hi.bv) (some p.bv))
     (hp0 : p ≠ 0#u64)
     (hcap : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s) y)
@@ -1123,7 +1126,35 @@ theorem JAtZ.mpStepJ {s : S} {a : A} {σ : Fl4Spec.State Unit} (J : JAtZ (L := L
           · right; obtain rfl := hnew o ao ho h1; exact ⟨le_rfl, le_rfl⟩)
         (fun y hy p' sb' fi' hc => by
           have := J.carry.devSep _ hsm y hy _ _ _ _ _ _ (capV_of_capAt hsrc0) hc
-          rw [two_pow_asidPool] at this; exact this)))
+          rw [two_pow_asidPool] at this; exact this))
+      (fun hvx => by
+        obtain ⟨b, hb⟩ := hdst
+        have hR := J.xtop.fin.2.1
+        have hPt := J.xtop.fin.2.2.1
+        have hR' : Vs.VsRel (insert p Z.P) (L.mem s') (L.ksb s) σ' := by rw [← hks]; exact hX'.fin.2.1
+        have hPt' : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') σ' := hX'.fin.2.2.1
+        rw [hks]
+        refine Vs.VsNamed.makePoolS (J.carry.vsNamed hvx) J.vsc hR hPt J.xtop.fin.2.2.2.1 hR' hPt'
+          (fun q hq => Set.mem_insert_of_mem _ hq) (Set.mem_insert _ _) hAd.isSlot hb (by rw [hnv]; rfl)
+          (hbhi b hb) hh hp0 (fun y hy hk => ?_) (fun y hy hne hk => ?_) hat0 hat hkp (fun q hq => ?_)
+        · have hcw := J.vsc y hy
+          cases hc : capV (L.mem s) y <;> rw [hc] at hk <;>
+            simp only [Vs.VKey, reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at hk
+          all_goals try omega
+          rename_i q0 b0
+          rw [hc] at hcw
+          simp only [Vs.VCapW, Vs.VCapOK] at hcw
+          obtain ⟨g, hg, -⟩ := hR.pool q0 hcw.1.1
+          have hq0 : q0 = p := by simpa using hk
+          rw [hq0, hσp] at hg; cases hg
+        · by_cases e1 : y = cslotAddr (pp.bv, idx)
+          · exfalso; subst e1; rw [hsrc, hsv] at hk; exact hk.elim (fun h => h rfl) (fun h => h rfl)
+          · exact hcap y hy e1 hne
+        · obtain ⟨ao, hao⟩ := Vs.arch_of_set hR hPt hq
+          rcases F.kh q.bv with e | ⟨r, cs, cs', e1, -⟩ | ⟨e1, -⟩
+          · exact e
+          · rw [hao] at e1; cases e1
+          · rw [hao] at e1; cases e1))
 
 end
 
@@ -1205,7 +1236,7 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   intro s' a' σ' p th' G' dest ps y rc hex1 hcy hSR hR' hPt' hcur' hPI' hCR' hFI' hMO' hth hk hsc hRg hxu hU' hMS
     hMid hDR'
   obtain ⟨s1, ct', hi, σ1, hs1, hct', hst', hh, hks1, hcpu1, hW, hzero, -, hMs, hkp, hkh, hcdt, horig, hsrc, hdst,
-    hdstb, hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
+    hdstb, hbhi, hat0, hat, hcap, hDI, ⟨pp, rs, idx, fi0, rfl, hpp, hidx, hsrc0, hnch⟩, pd, rd, idxd, rfl, hpd, hld, hnull, hCn⟩ := hMid
   -- the region holds no object
   have hAs : AbsSlot Z.th (pp.bv, idx) := ⟨pp, rfl, Or.inl (by simpa [hidx] using hpp)⟩
   have hsm : cslotAddr (pp.bv, idx) ∈ Z.G.chains.flatten :=
@@ -1272,7 +1303,7 @@ theorem decode_invocation_asid_controlJC (s : S) (ar : A) (σ : Fl4Spec.State Un
   have hcap1 : ∀ y, IsSlot Z.th y → y ≠ cslotAddr (pp.bv, idx) → y ≠ cslotAddr (pd.bv, idxd) →
       capV (L.mem s') y = capV (L.mem s1) y := fun y hy h1 h2 => by rw [hcap y hy h1 h2, hSS.capV hy]
   exact ⟨_, _, Cs, Ac1, Lst1, D1, J1.mpStepJ hh hTh hHo Ad hspec1 hpp hidx hsrc1 hnch1 hpd hld hnull1 hDL1 hX'
-    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hp0 hcap1 (hDI J.del) hU'⟩
+    ⟨hks1, hcpu1, hW⟩ hzero hMs hkp hkh hcdt horig hsrc hdst hdstb hbhi hat0 hat hp0 hcap1 (hDI J.del) hU'⟩
 
 /-- **The ASID control cap at `JAt`** (XTopJointEntry's dispatch): the
 clean case proved (`decode_invocation_asid_controlJC`), the dirty one asked

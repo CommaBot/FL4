@@ -169,7 +169,10 @@ theorem jSwapHypL (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.t
   have hZf : ∀ p ∈ ZTcb (L := L) Z.th s', p ∈ D ∪ E := fun p ⟨y, hy, zt', n', hz', hzt⟩ => by
     have hw : capV (L.mem s) (e y) = .Zombie p zt' n' := by rw [← hcap' y hy]; exact hz'
     exact Or.inr ⟨e y, heS y hy, zt', n', hw, hzt⟩
-  have J' := J0.cs_frameB hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
+  have J' := J0.cs_frameB (hvn := J0.vsShr (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hks
+      (Vs.vsKeep_swap hxs hpS hpx.symm (fun y hy h1 h2 => by rw [hcap y hy, if_neg h1, if_neg h2])
+        (by rw [hcap p hpS, if_neg hpx, if_pos rfl]) (by rw [hcap x hxs, if_pos rfl]) (fun _ => rfl) (fun _ => rfl))
+      (Vs.ArchShr.of_objCn hnk.2 (by have e := congrArg Fl4Spec.AbstractState.archState hnk.1; exact e))) hks (J0.xtop.vs_backC hX2 (SlotFrame2.writesIn hF) hnk) hkb2 (J0.bfK hfk2 hvT) hC R (J0.vsc.step hvT) (J0.ext.step hvT (J0.vkeep_slot ((SlotFrame2.writesIn hF).mono fun b hb => slotWd_range J0.xtop.rel.1 hb)))
     ⟨hL', ⟨lst, hDW'⟩, hN'⟩ hZf (J0.carry.of_objCn hnk.2)
     (devFrom_kept hD1.1.2.2.1 hD2.1.2.2.1 J0.ut fun y hy p0 sb0 fi0 d0 h => ⟨e y, heS y hy, fi0, by rw [← hcap' y hy]; exact h, Or.inl le_rfl⟩)
     (J0.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hks (ArchFwd.of_objCn hnk.2)) (ArchFwd.of_objCn hnk.2)

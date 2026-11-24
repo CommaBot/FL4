@@ -21,6 +21,7 @@ source's free part, so they inherit `DevApart`'s clauses from the source's
   from a device untyped, ending in `UtRetPostJ`.
   (The reset of a used device cap and `JAtZ.jUtRetHypDev`: UtDevReset.)
 -/
+import Fl4Proofs.P3.VsNamedRet
 import Fl4Proofs.P3.UtUtRet
 import Fl4Proofs.P3.UtDevRet
 import Fl4Proofs.P3.UtRetLive
@@ -581,13 +582,16 @@ theorem JAtZ.utUtDevBodyJ {s : S} {ar : A} {σ : Fl4Spec.State Unit} (J : JAtZ (
     · cases e
     · cases e
     · rw [hK0] at hk; cases hk
+  -- (F1 stage 5, item 4) `vsNamed` after: no new cap keyed (`XTopAt.vsNamedRet`)
+  have hvnR := fun hvx => J.xtop.vsNamedRet (J.carry.vsNamed hvx) J.vsc hX'.fin.2.1 hX'.fin.2.2.1 hks hE hM hX'.rel.2.1.2.2.1
+    (fun j _ => by rw [hcj]; simp [cjOf, newCapOf, hnt, Vs.VKey]) hA hcnk hkc
   have JZ := J.add_frame (Z' := { Z with G := G' }) rfl rfl rfl hwI.1 hX' hCs hJR
     hKs' J.thT hIp' hnk' hcov' hobj' hzH' hset' hscC' hvc hbf
     ⟨J.ext.nat.retype hE hM hX'.rel.2.1.2.2.1 (fun j _ => by rw [hcj]; exact Vs.nativeCap_newCapOf _ _ _ _), J.ext.vkeep (J.vkeep_slot hwI)⟩ hLvN hzDN (hcy0.withP ⟨hDA', devSep_retypeD J.carry.devSep hE hCs.ut
       (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hcjR⟩
       (J.carry.vsTyp.stepN hvc (retype_hold hE hM hX'.rel.2.1.2.2.1 fun j _ => by rw [hcj]; exact mapFree_newCapOf _ _ _ _)
         (tabSet_mono (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h) (fun _ h => by first | exact h | exact Or.inl h)) (BNewOff.of_sub subset_rfl) rfl hwI.1 (ArchFwd.of_ipcFr hfk))
-      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB))
+      (devTabRetypeD J.carry.devTab hE hCs.ut (fun _ _ _ _ h => by rw [capV_of_capAt hcap] at h; cases h; rfl) hTB) hvnR)
   refine ⟨σ', hrun, hok, ⟨Z.th, G', ?_⟩, ?_⟩
   · obtain ⟨hPl, hCR, hFI, hD, hMO, -, -⟩ := hX'.rel
     exact ⟨hPl, hCR, hFI, hD, hMO⟩

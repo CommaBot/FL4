@@ -202,10 +202,10 @@ theorem delHypsJLML [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : 
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
-    DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WJPML (L := L) arI AR MR Z H Cs kb)
-      (RdLO (L := L) (A := A) th H) (RzJ (L := L) (A := A) H Cs) th :=
+    DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WMR MR (WJLx (L := L) arI AR Z H Cs kb))
+      (WJPML (L := L) arI AR MR Z H Cs kb) (RdLX (L := L) (A := A) th H Z.vx) (RzJ (L := L) (A := A) H Cs) th :=
   let h := delHypsJLM arI hT hAR hK hV hF hnd hM hKD hPA hAM Z H Cs kb hth
-  ⟨h.fin, h.triv, jPreemptHypLML arI hK hT hnd hM hPA Z H Cs kb hth, h.post, h.zomb, h.swap, h.empty⟩
+  ⟨h.fin, h.triv, jPreemptHypLML arI hK hT hnd hM hPA Z H Cs kb hth, h.post, h.zomb, h.swap, h.empty, h.wx⟩
 
 /-- **The deletion at `MachPlat`, `WJPML` after a preemption** (XTopJointMRDel's
 `JDelHypLM` with the liveness at the preempted state). -/
@@ -226,7 +226,7 @@ theorem JDelParts.jDelHypLML [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH := delHypsJLML arI hT h.archRef h.arKeep h.vt h.thr hnd hM hKD hPA hAM Z H Cs kb hth
   subst hth
-  exact delHyp_fullWRZ arI _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
+  exact delHyp_fullWRZ arI _ _ _ _ _ Z.th hP (finalHyp_full Z.th hP) hH K hK hK6 s a σ G c hCR hE hA hxm
 
 /-- **`JAt` with `LiveDN` at its own ghosts** (module docstring). -/
 def JAtL (AR : A → Fl4Spec.Cr3 → Prop) (s : S) (a : A) (σ : Fl4Spec.State Unit) : Prop :=

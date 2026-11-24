@@ -276,7 +276,7 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
     (hut : isUt srcC = true → ∀ y, ¬ Mdb.Desc Z.G.par y (cslotAddr (ps.bv, idxs))) (hzb : isZb srcC = false)
     (hkey : okey cc = okey srcC)
     (hv : ∀ P L4 L3 L2 L1 : Set U64, Vs.VCapOK P L4 L3 L2 L1 srcC → Vs.VCapOK P L4 L3 L2 L1 cc)
-    (htu : Vs.TabUn cc → Vs.TabUn srcC)
+    (htu : Vs.TabUn cc → Vs.TabUn srcC) (hkr : Vs.Keyed2 cc srcC → cc = srcC) (hnt : ¬ Vs.TabUn cc)
     (huc : isUt srcC = true → cc = srcC) (hnat : Vs.NativeCap srcC → Vs.NativeCap cc)
     (hDs : DestCap Z.th (L.mem s) ps) (hDd : DestCap Z.th (L.mem s) pd) :
     cdt.insert st s cc (cslotAddr (ps.bv, idxs)) (cslotAddr (pd.bv, idxd)) ⦃ s' => ∃ σ',
@@ -407,7 +407,10 @@ theorem JAtZ.insDJ (J : JAtZ (L := L) arI AR Z H Cs Ac Lst D s a σ)
         exact ⟨_, hAd.isSlot, by rw [hdc]; exact hcnn, by rw [hdc, hsv]; exact hsh⟩
       · exact ⟨y0, hy0, by rw [hoth y0 hy0 eS eD]; exact hn, by rw [hoth y0 hy0 eS eD]⟩)
   exact ⟨σ', hci, hcn.keepCV hkc, hcn, hw.1, hoth, hdc, hsc, G',
-    J.cs_frameV hw.1 hX1' (KBack.of_keepCT hkcT)
+    J.cs_frameV (hvn := J.vsShr hX1' hw.1
+        (Vs.vsKeep_insert hAs.isSlot hoth hdc (by rw [hsv]; exact hsc) (by rw [hdv]; rfl) (by rw [hsv]; exact hkr) hnt)
+        (Vs.ArchShr.of_objCn hcn.2 (by have e := congrArg Fl4Spec.AbstractState.archState hcn.1; exact e)))
+      hw.1 hX1' (KBack.of_keepCT hkcT)
       (J.bfK (J.slot2Fr hkcT hX1'.rel.2.1.1 fun q hq => Or.inl (hTS 2 (by decide) q hq)) hvT) hJC R
       (J.vsc.step hvT) (J.ext.step hvT (J.vkeep_slot hw)) hLv' (fun p hp => J.zD p (ZTcb.of_zombies hZf hp)) (J.carry.of_objCn hkcT)
       (devFrom_kept J.mdbL hM' J.ut hCU.2) (J.carry.vsStep rfl hvT subset_rfl subset_rfl subset_rfl subset_rfl rfl hw.1 (ArchFwd.of_objCn hkcT)) (ArchFwd.of_objCn hkcT)⟩
@@ -667,6 +670,7 @@ theorem tc_bodyJ {rcv : U64} (hrT : Z.th rcv = some .tcb) {x0 : Fl4Spec.Tcb}
                 have hins := WP.spec_and (J.insDJ hps hpd hls hld hsrcC hsnn hdst c' a' ⟨hw', ha'⟩
                   (hv' Z.th hcvv0) he' hn hsh (Or.inl hbd) hut hzb (derive_okey hr hn)
                   (fun P L4 L3 L2 L1 => derive_vcap hr P L4 L3 L2 L1) (fun h => (derive_tabun hr h).elim)
+                  (fun hk => Vs.vkey_derive hr hk) (fun h => derive_tabun hr h)
                   (derive_ut hr) (derive_nat hr) hDs hDd)
                   (insert_capfr2 hPl s c' _ _ hsI' hAd.isSlot cv hsrcC he0 he' hnx)
                 rw [← hxa, ← hdA] at hins

@@ -29,6 +29,7 @@ idle objects being `H`'s TCB and SC, `devApart_idle`), `JCarryS.withP`.
 -/
 import Fl4Proofs.P3.BufDefs
 import Fl4Proofs.P3.StepSem
+import Fl4Proofs.P3.VsNamedPost
 open Aeneas Aeneas.Std Result
 
 namespace Fl4Proofs.P3
@@ -809,21 +810,25 @@ structure JCarry (Z : XSets) (H : P1.Heap) (Cs : Set U64) (s : S) (σ : Fl4Spec.
   vsTyp : VsTyp (L := L) Z s σ
   /-- C24 device vsReach (jc5): no VSpace table or ASID pool in a device untyped's range. -/
   devTab : DevTab Z.G (L.mem s) σ
+  /-- (F1 stage 5, item 4) l4v `valid_vs_lookup` and the table-cap uniqueness (`Vs.VsNamed`), when
+  no slot is exempt (`Z.vx = ∅`; KENTRY-PLAN f4 (13): only the deletion loop's window between a
+  slot's finalisation and its `empty_slot` exempts one). -/
+  vsNamed : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)
 
 theorem JCarry.toS {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : JCarryS Z.B H σ := ⟨h.bufPg, h.archFit⟩
 
 theorem JCarryS.withD {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarryS Z.B H σ) (hD : DevApart (L := L) Z.th H Z.G Cs s) (hS : DevSep Z.G (L.mem s))
-    (hV : VsTyp (L := L) Z s σ) (hT : DevTab Z.G (L.mem s) σ) :
-    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS, hV, hT⟩
+    (hV : VsTyp (L := L) Z s σ) (hT : DevTab Z.G (L.mem s) σ) (hN : Z.vx = ∅ → Vs.VsNamed Z.th (L.mem s) (L.ksb s)) :
+    JCarry (L := L) Z H Cs s σ := ⟨h.bufPg, h.archFit, hD, hS, hV, hT, hN⟩
 
 theorem JCarryS.withP {Z : XSets} {B : Set (U64 × Fl4Spec.Word)} {th : TypedHeap} {G : MdbGhost} {H : P1.Heap}
     {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarryS B H σ) (hD : DevApart (L := L) th H G Cs s ∧ DevSep G (L.mem s)) (hV : VsTyp (L := L) Z s σ)
-    (hT : DevTab G (L.mem s) σ)
+    (hT : DevTab G (L.mem s) σ) (hN : Z.vx = ∅ → Vs.VsNamed th (L.mem s) (L.ksb s))
     (hB : B = Z.B := by rfl) (hth : th = Z.th := by rfl) (hG : G = Z.G := by rfl) : JCarry (L := L) Z H Cs s σ := by
-  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2, hV, hT⟩
+  subst hB hth hG; exact ⟨h.bufPg, h.archFit, hD.1, hD.2, hV, hT, hN⟩
 
 theorem JCarry.bufObj {Z : XSets} {H : P1.Heap} {Cs : Set U64} {s : S} {σ : Fl4Spec.State Unit}
     (h : JCarry (L := L) Z H Cs s σ) : BufObjHyp Z.B σ := bufObj_of_pg h.bufPg
@@ -863,6 +868,75 @@ theorem JCarry.devSame {Z : XSets} {H H' : P1.Heap} {Cs : Set U64} {s s' : S} {�
     ⟨x, (hG x hx).1, fi, le_rfl, by rw [← (hG x hx).2]; exact hc⟩
   refine ⟨h.devApart.frame hth hH hks hD hI, h.devSep.frame fun x hx p sb fi d hc => ⟨x, (hG x hx).1, fi, ?_⟩⟩
   rw [← (hG x hx).2]; exact hc
+
+/-! ### F1 stage 5, item 4: `vsNamed` across steps -/
+
+/-- **`VsNamed` across a step writing only other objects' words** (a `WritesIn`
+footprint of `OObj` words: the slots and the walk words kept, `Vs.VsNamed.frame`). -/
+theorem XTopAt.vsNamed_of {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {s s' : S} {a : A} {σ : Fl4Spec.State Unit}
+    (hX : XTopAt (L := L) AR Z s a σ) (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s))
+    (hS : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s)) {W : U64 → Prop} (hw : P1.WritesIn st s s' W)
+    (hWO : ∀ b, W b → Vs.OObj st Z.N Z.T Z.C Z.E Z.R Z.B Z.c s σ b) : Vs.VsNamed Z.th (L.mem s') (L.ksb s') := by
+  have hmV : ∀ b, P1.Aligned b → Vs.VObj Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.ksb s) b → L.mem s' b = L.mem s b :=
+    fun b hb hv => hw.mem_eq hb fun h => hX.fin.1.2.disj b (hWO b h) hv
+  have hSS : SlotsSame Z.th (L.mem s) (L.mem s') := slotsSame_of_vobj hX.rel.1 hmV
+  obtain ⟨hWt, hWp⟩ := Vs.walk_of_vobj hX.fin.1.2.vs hX.fin.1.2.pt hmV
+  rw [hw.1]
+  exact hN.frame hX.fin.2.1 hX.fin.2.2.1 hX.fin.2.2.2.1 hWt hWp hS fun y hy => hSS.capV hy
+
+/-- **`VsNamed` across a step keeping the keyed caps (`VsKeep`) with only spec
+entries cleared (`ArchShr`)**, the VSpace sets the same before and after
+(`Vs.VsNamed.stepShr`). -/
+theorem XTopAt.vsNamedShr {A : Type} {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {G' : MdbGhost} {s s' : S} {a a' : A}
+    {σ σ' : Fl4Spec.State Unit} (hX : XTopAt (L := L) AR Z s a σ) (hX' : XTopAt (L := L) AR (Z.mv G' Z.vs) s' a' σ')
+    (hN : Vs.VsNamed Z.th (L.mem s) (L.ksb s)) (hS : Vs.VsSlotsW Z.th Z.P Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s))
+    (hks : L.ksb s' = L.ksb s) {th' : TypedHeap} (hK : Vs.VsKeep Z.th th' (L.mem s) (L.mem s'))
+    (hsh : Vs.ArchShr σ σ') : Vs.VsNamed th' (L.mem s') (L.ksb s') := by
+  have hR' : Vs.VsRel Z.P (L.mem s') (L.ksb s) σ' := by rw [← hks]; exact hX'.fin.2.1
+  have hPt' : Vs.PtRel Z.L4 Z.L3 Z.L2 Z.L1 (L.mem s') σ' := hX'.fin.2.2.1
+  rw [hks]
+  exact hN.stepShr hS hX.fin.2.1 hX.fin.2.2.1 hX.fin.2.2.2.1 hR' hPt' hK hsh
+
+/-- `ArchShr` of a step changing only CNodes and TCB caps (`ObjCn`), the arch
+state kept. -/
+theorem _root_.Fl4Proofs.P3.Vs.ArchShr.of_objCn {σ σ' : Fl4Spec.State Unit}
+    (hc : ∀ p, Ipc.ObjCn (σ.kheap p) (σ'.kheap p)) (har : σ'.archState = σ.archState) : Vs.ArchShr σ σ' :=
+  Vs.ArchShr.of_keep (by rw [har]) fun p ao hp => by
+    rcases hc p with e | ⟨r, cs, cs', h1, -⟩ | ⟨x, y, h1, -⟩
+    · exact e
+    · rw [h1] at hp; cases hp
+    · rw [h1] at hp; cases hp
+
+/-- `ArchShr` of a step keeping the arch objects and the arch state. -/
+theorem _root_.Fl4Proofs.P3.Vs.ArchShr.of_ao {σ σ' : Fl4Spec.State Unit} (har : σ'.archState = σ.archState)
+    (hao : ∀ q ao, σ.kheap q = some (.archObj ao) → σ'.kheap q = some (.archObj ao)) : Vs.ArchShr σ σ' :=
+  Vs.ArchShr.of_keep (by rw [har]) fun p ao hp => (hao p ao hp).trans hp.symm
+
+/-- `ArchShr` of an SC / scheduler step (`OTK`: TCBs in their scheduling fields, SCs,
+notification / reply SC links), the ASID table kept. -/
+theorem _root_.Fl4Proofs.P3.Vs.ArchShr.of_otk {P : Fl4Spec.ObjRef → Prop} {σ σ' : Fl4Spec.State Unit}
+    (h : ∀ p, Sched.OTK (P p) (σ.kheap p) (σ'.kheap p))
+    (har : σ'.archState.x64AsidTable = σ.archState.x64AsidTable) : Vs.ArchShr σ σ' :=
+  Vs.ArchShr.of_keep har fun p ao hp => by
+    have hq := h p
+    rw [hp] at hq
+    revert hq
+    cases e : σ'.kheap p with
+    | none => intro hq; simp [Sched.OTK] at hq
+    | some o =>
+      intro hq
+      simp only [Sched.OTK] at hq
+      rcases hq with rfl | ⟨x, y, h1, -⟩ | ⟨_, _, _, h1, -⟩ | ⟨_, _, h1, -⟩ | ⟨_, _, h1, -⟩
+      · exact hp.symm
+      all_goals cases h1
+
+/-- `ArchShr` of a step changing only CNodes (`KeepC`), the ASID table kept. -/
+theorem _root_.Fl4Proofs.P3.Vs.ArchShr.of_keepC {σ σ' : Fl4Spec.State Unit} (hkc : Ipc.KeepC σ σ')
+    (har : σ'.archState.x64AsidTable = σ.archState.x64AsidTable) : Vs.ArchShr σ σ' :=
+  Vs.ArchShr.of_keep har fun p ao hp => by
+    rcases hkc p with e | ⟨r, cs, cs', h1, -⟩
+    · exact e
+    · rw [h1] at hp; cases hp
 
 end
 
