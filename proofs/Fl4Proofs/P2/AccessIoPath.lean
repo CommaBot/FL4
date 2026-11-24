@@ -156,7 +156,7 @@ structure FinOK {A : Type} (R W : U64 → Prop) (ar : machine.Arch A) (s s3 : S)
 /-- **The I/O port path after the flag check, accepted, on the guarded store.** -/
 theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t : U64}
     {info : msginfo.MessageInfo} {number : I64}
-    (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
     (hnx : R (regA t layout.reg.NEXT_IP)) (hfi : W (regA t layout.reg.FAULT_IP))
     (hmid : ∀ nx s1 s2 a1, obj.Tcb.reg st t s layout.reg.NEXT_IP = ok nx →
       obj.Tcb.set_reg st t s layout.reg.FAULT_IP (core.num.U64.wrapping_sub nx 2#u64) = ok s1 →
@@ -186,10 +186,10 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   have k1 : L.ksb s1 = L.ksb s := by rw [e1, L.ksb_wr]
   have c1 : L.cpu s1 = L.cpu s := by rw [e1, LawfulStore.cpu_wr]
   refine tr_bind (fun x hx _ => by
-      rw [sched.update_timestamp.guard ar s1 a (nd_at hNd k1 c1 _ (by simp [layout.node.CUR_TIME])).1
-        (nd_at hNd k1 c1 _ (by simp [layout.node.CUR_TIME])).2
-        (nd_at hNd k1 c1 _ (by simp [layout.node.CONSUMED])).1
-        (nd_at hNd k1 c1 _ (by simp [layout.node.CONSUMED])).2]; exact hx)
+      rw [sched.update_timestamp.guard ar s1 a (nd_at hNd k1 c1 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
+        (nd_at hNd k1 c1 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).2
+        (nd_at hNd k1 c1 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1
+        (nd_at hNd k1 c1 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).2]; exact hx)
     (fun x eu => ?_)
   obtain ⟨s2, a1⟩ := x
   simp only [uncurry_apply_pair]
@@ -199,9 +199,9 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   subst Mc
   rw [obj.Tcb.reg.guard (L.curW s2) s2 _ M.cap, reg_ok]
   simp only [bind_ok]
-  rw [sched.cur_sc.guard s2 (nd2 _ (by simp [layout.node.CUR_SC])).1]
+  rw [sched.cur_sc.guard s2 (nd2 _ (by simp [layout.node.CUR_SC]) (by simp [layout.node.CUR_SC])).1]
   refine tr_bind_same (fun csc ecsc => ?_)
-  rw [sched.action.guard s2 (nd2 _ (by simp [layout.node.SCHED_ACTION])).1]
+  rw [sched.action.guard s2 (nd2 _ (by simp [layout.node.SCHED_ACTION]) (by simp [layout.node.SCHED_ACTION])).1]
   refine tr_bind_same (fun i3 ei3 => ?_)
   beta_reduce
   refine tr_ite (fun _ h => h) (fun hi3 => ?_)
@@ -217,7 +217,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
     M.hRf M.iok.1.ib M.iok.1.bs M.r10 hb1) (fun b1 eb1 => ?_)
   beta_reduce
   refine tr_ite (fun hb => ?_) (fun _ h => h)
-  rw [sched.consumed.guard s2 (nd2 _ (by simp [layout.node.CONSUMED])).1]
+  rw [sched.consumed.guard s2 (nd2 _ (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])).1]
   refine tr_bind_same (fun i5 _ => ?_)
   have ecsc' : csc = L.cscW s2 := by
     rw [eq_of_spec_fd (sched.cur_sc.spec (L := L) s2)] at ecsc; exact (ok_inj_ff ecsc).symm
@@ -226,8 +226,8 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   refine tr_bind_same (fun b2 _ => ?_)
   beta_reduce
   refine tr_ite (fun _ => ?_) (fun _ h => h)
-  rw [fastpath.schedulable_here.guard s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME])).1
-    (nd2 _ (by simp [layout.node.TIMER_MIN])).1 (nd2 _ (by simp [layout.node.RELEASE_HEAD])).1
+  rw [fastpath.schedulable_here.guard s2 (L.curW s2) (nd2 _ (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1
+    (nd2 _ (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 (nd2 _ (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1
     M.td M.rs M.dt M.cd M.af M.dom M.iok.1.sc M.iok.1.inq]
   refine tr_bind_same (fun b3 eb3 => ?_)
   beta_reduce
@@ -237,7 +237,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
   refine tr_bind (fun y ey _ => by
       have e := syscall.handle_invocation.guard_io ar (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
-        (nd2 _ (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
+        (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
         eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot M.hRf
         M.iok ey
       exact e.1)
@@ -252,7 +252,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
     have e := syscall.handle_invocation.guard_io (R := R) (W := W) ar
         (call := decide (number = fl4_abi.syscall.SysCall))
         (blocking := true) (cd := decide (number = fl4_abi.syscall.SysCall)) (fp := false) C
-        (nd2 _ (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
+        (nd2 _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1 M.mi M.rmi hx
         eb1 M.hsl M.hR0 M.hR8 M.hRc M.hcl M.hroot M.hRf
         M.iok ey
     exact e.2
@@ -266,7 +266,7 @@ theorem ioTail.guard {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A} {t :
 path on the guarded store ends as the real run** (module docstring). -/
 theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {s s' : S} {a a' : A}
     {number : I64}
-    (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeAt s (L.cpu s) o) ∧ W (L.nodeAt s (L.cpu s) o))
     (hmi : R (regA (L.curW s) layout.reg.MSG_INFO))
     (hfl : R (core.num.U64.wrapping_add (L.curW s) 3456#u64))
     (hnx : R (regA (L.curW s) layout.reg.NEXT_IP)) (hfi : W (regA (L.curW s) layout.reg.FAULT_IP))
@@ -289,7 +289,7 @@ theorem syscall.handle_ioport_local.guard_acc {A : Type} (ar : machine.Arch A) {
     syscall.handle_ioport_local (PathObl.guard st R W) ar s a number = ok (true, s', a') := by
   rw [handle_ioport_local_eq] at h ⊢
   revert h
-  rw [sched.cur_thread.guard s (hNd _ (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
+  rw [sched.cur_thread.guard s (hNd _ (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
   simp only [bind_ok]
   rw [msg.msg_info.guard s _ hmi]
   refine tr_bind_same (fun info emi => ?_)

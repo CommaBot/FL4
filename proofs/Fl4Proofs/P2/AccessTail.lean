@@ -42,7 +42,7 @@ theorem timer.earliest.guard (s : S) (htm : R (tmA (L := L) s))
 
 /-- **`set_next_interrupt`** (module docstring). -/
 theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) (a : A)
-    (hNd : ∀ o : U64, o.val < 4288 → R (L.nodeA s o) ∧ W (L.nodeA s o))
+    (hNd : ∀ o : U64, o.val < 4288 → o.val % 8 = 0 → R (L.nodeA s o) ∧ W (L.nodeA s o))
     (hdt : R (core.num.U64.wrapping_add (L.ksb s) layout.ks.DOMAIN_TIME))
     (hsc : R (scA (L.curW s))) (hhd : RdHead (L := L) R s (L.mem s (scA (L.curW s))))
     (hrs : L.mem s (rhA (L := L) s) ≠ 0#u64 → R (scA (L.mem s (rhA (L := L) s))) ∧
@@ -51,19 +51,19 @@ theorem sched.set_next_interrupt.guard {A : Type} (ar : machine.Arch A) (s : S) 
       R (core.num.U64.wrapping_add (L.mem s (tmA (L := L) s)) 3528#u64)) :
     sched.set_next_interrupt (PathObl.guard st R W) ar s a = sched.set_next_interrupt st ar s a := by
   unfold sched.set_next_interrupt
-  rw [sched.cur_time.guard s (hNd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME])).1,
-    sched.cur_thread.guard s (hNd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
+  rw [sched.cur_time.guard s (hNd layout.node.CUR_TIME (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])).1,
+    sched.cur_thread.guard s (hNd layout.node.CUR_THREAD (by simp [layout.node.CUR_THREAD]) (by simp [layout.node.CUR_THREAD])).1, cur_thread_ok]
   simp only [bind_ok]
   rw [obj.Tcb.sc.guard _ s hsc, tcb_sc_ok]
   simp only [bind_ok]
   rw [sporadic.head.guard s _ hhd, sched.domain_time.guard s hdt,
-    timer.earliest.guard s (hNd layout.node.TIMER_MIN (by simp [layout.node.TIMER_MIN])).1 htd]
+    timer.earliest.guard s (hNd layout.node.TIMER_MIN (by simp [layout.node.TIMER_MIN]) (by simp [layout.node.TIMER_MIN])).1 htd]
   simp only [guard_cur_cpu, L.cur_cpu_eq, bind_ok]
-  rw [obj.node_get.guard s _ layout.node.RELEASE_HEAD (hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD])).1,
-    obj.node_get.guard s _ layout.node.ARMED (hNd layout.node.ARMED (by simp [layout.node.ARMED])).1,
+  rw [obj.node_get.guard s _ layout.node.RELEASE_HEAD (hNd layout.node.RELEASE_HEAD (by simp [layout.node.RELEASE_HEAD]) (by simp [layout.node.RELEASE_HEAD])).1,
+    obj.node_get.guard s _ layout.node.ARMED (hNd layout.node.ARMED (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])).1,
     node_get_ok s _ layout.node.RELEASE_HEAD]
   simp only [bind_ok, is_null_ok,
-    obj.node_set.guard s (L.cpu s) layout.node.ARMED _ (hNd layout.node.ARMED (by simp [layout.node.ARMED])).2]
+    obj.node_set.guard s (L.cpu s) layout.node.ARMED _ (hNd layout.node.ARMED (by simp [layout.node.ARMED]) (by simp [layout.node.ARMED])).2]
   by_cases h1 : L.mem s (rhA (L := L) s) = 0#u64
   · simp only [h1, decide_true, ↓reduceIte]
   · obtain ⟨hs1, hs2⟩ := hrs h1
