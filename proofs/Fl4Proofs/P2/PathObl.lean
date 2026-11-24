@@ -417,7 +417,14 @@ def interp {A X : Type} (st : machine.Store S) (ar : machine.Arch A) :
 extracted body family `F` (generic in the Arch instance as in the Store one)
 is the tree `p` of its trait calls, on every store and Arch instance (a free
 theorem of Rust code generic in `S: Store` and `A: Arch` and of its
-extraction). -/
+extraction). **What [P] includes beyond the statement** (`P2/ReadGap.lean`):
+`p` must be the body's *own* call tree, its sequence of trait calls as the
+extracted text makes them, each read with its own multiplicity. The equation
+alone does not say that: `Store.read` returns no state, so no store instance and
+no `Result` can observe how often a word is read, and a tree that reads a word
+once and reuses the value satisfies it for a body that reads the word twice.
+Properties of the tree (`E2E.ReadOnce`) are about the body only under this
+reading. -/
 def IsProg {X : Type}
     (F : ∀ {A : Type}, machine.Arch A → machine.Store S → S → A → Result (X × S × A))
     (p : SProg X) : Prop :=
