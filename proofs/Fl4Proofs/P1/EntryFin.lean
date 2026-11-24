@@ -33,7 +33,7 @@ footprint; the buffer placement from `XferHyps.buf` at the `XG` state. -/
 theorem sigXG_holds (hA : P0.ArchTotal ar) : SigXG st ar :=
   SigXG.of_ipcFoot fun T Cs Ω H Sg Rp Scs Nt Z U P3Ok E Ac s a n badge hG h hU hn hH => by
     obtain ⟨Q, R, x0⟩ := BXI.xs (BlkOK.bxi h) hU
-    refine WP.spec_mono (notification.send_signal.tinvF hA s a n badge h.tinv hn hH (hU.bufW h)
+    refine WP.spec_mono (notification.send_signal.tinvF hA s a n badge h.tinv hn hH (hU.usrW h)
       (fun y hy => E.buf _ _ _ _ s y hG x0.1 hy)) fun r hr => ?_
     obtain ⟨s', a'⟩ := r
     simp only [WP.uncurry'_pair] at hr ⊢

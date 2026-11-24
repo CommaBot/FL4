@@ -832,6 +832,7 @@ theorem vcpu.decode.msr {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
       | refine WP.spec_bind (P0.vcpu.canonical.p0 _ _) fun _ _ => ?_
       | refine WP.spec_bind (P0.vcpu.valid_xcr0.p0 _ _) fun _ _ => ?_
       | (simp only [bind_ok])
+      | (refine _root_.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_))
       | split)
 
 
