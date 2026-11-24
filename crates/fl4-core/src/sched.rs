@@ -411,11 +411,19 @@ pub fn set_next_interrupt<S: Store, A: Arch>(s: &mut S, a: &mut A) {
     if td != 0 && td < deadline {
         deadline = td;
     }
-    // l4h 0006: keep an earlier deadline that is still pending.
+    // l4h 0006: keep an earlier deadline that is still pending, but not
+    // for the idle thread: the core is about to wait for the interrupt, and
+    // an earlier deadline left over from the thread that ran last (its
+    // budget) would wake it for nothing.
     let c = s.cur_cpu();
     let armed = node_get(s, c, node::ARMED);
-    if armed > now && armed <= deadline {
-        return;
+    if armed > now {
+        if armed == deadline {
+            return;
+        }
+        if armed < deadline && cur_thread(s) != idle_thread(s) {
+            return;
+        }
     }
     node_set(s, c, node::ARMED, deadline);
     a.set_deadline(deadline);
