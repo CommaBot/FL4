@@ -133,9 +133,13 @@ theorem vcpu.report_loop3.gen (R : RepSteps st t Bok P vOk) {s : S} {v b j : U64
     exact ⟨h2, by first | omega | (dsimp only; omega)⟩
   · exact h
 
-/-- One `report` step of the four kinds, or a read. -/
-macro "rep_step" R:term "," hb:term "," hfin:term : tactic => `(tactic| first
+/-- One `report` step: a write of the four kinds (`RepSteps`), a read (the
+explicit P0 lemmas, so that no write is ever taken as a read), an `if` (a
+state-valued one keeps `P`, a value one is a read), or pure arithmetic. -/
+macro "rep_step" R:term "," hb:term "," hfin:term "," hS:term "," hA:term "," Pt:term : tactic => `(tactic| first
   | exact $hfin _ (by assumption)
+  | exact (WP.spec_ok _).2 (by assumption)
+  | exact (WP.spec_ok _).2 trivial
   | (refine WP.spec_bind (RepSteps.mr $R _ _ _ _ $hb (by assumption) (by simp)) ?_; rintro ⟨_, _⟩ _;
      try simp only [uncurry_apply_pair])
   | (refine WP.spec_bind (RepSteps.reg $R _ _ _ (by assumption) (by simp)) ?_; intro _ _)
@@ -143,16 +147,20 @@ macro "rep_step" R:term "," hb:term "," hfin:term : tactic => `(tactic| first
   | (refine WP.spec_bind (vcpu.report_loop1.gen $R $hb (by assumption)) ?_; intro _ _)
   | (refine WP.spec_bind (vcpu.report_loop2.gen $R $hb (by assumption)) ?_; intro _ _)
   | (refine WP.spec_bind (vcpu.report_loop3.gen $R $hb (by assumption)) ?_; intro _ _)
-  | (refine WP.spec_bind (Pₘ := fun _ => True) (by
-       repeat' (first
-         | exact (WP.spec_ok _).2 trivial
-         | (step as ⟨_, _⟩)
-         | split)) ?_; intro _ _)
-  | (simp only [bind_ok])
-  | (refine P0.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_))
-  | (refine P0.p0_if_bind _ _ _ _ _ (fun _ => ?_) (fun _ => ?_))
+  | exact Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ $hS
+  | exact Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ $hS
+  | (refine WP.spec_bind (Fl4Proofs.P0.vcpu.get.p0 _ _ _ _ $hS) fun _ _ => ?_)
+  | (refine WP.spec_bind (Fl4Proofs.P0.vcpu.read_vmcs.p0 _ _ _ _ $hS) fun _ _ => ?_)
+  | (refine WP.spec_bind (Fl4Proofs.P0.obj.Tcb.reg.p0 _ _ _ _ $hS) fun _ _ => ?_)
+  | (refine WP.spec_bind (Fl4Proofs.P0.msg.syscall_arg.p0 _ _ _ _ _ $hS) fun _ _ => ?_)
+  | (refine WP.spec_bind (P0.ArchTotal.virtualization $hA _) fun _ _ => ?_)
+  | (refine WP.spec_bind (Pₘ := $Pt) (_root_.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_)) fun _ _ => ?_)
+  | (refine WP.spec_bind (Pₘ := fun _ => True) (_root_.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_)) fun _ _ => ?_)
+  | (refine _root_.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_))
+  | (simp only [lift, bind_ok])
   | split
-  | (step as ⟨_, _⟩))
+  | step
+  | scalar_tac)
 
 set_option maxHeartbeats 4000000 in
 /-- `finish_notification` from the four step kinds. -/
@@ -163,7 +171,8 @@ theorem vcpu.finish_notification.gen {A : Type _} {ar : machine.Arch A} (hA : P0
   have hS : P0.StoreTotal st := L.total
   unfold vcpu.finish_notification
   refine WP.spec_bind (hA.virtualization a) fun _ _ => ?_
-  repeat' (rep_step R, hb, hfin)
+  refine _root_.p0_if _ _ _ _ (fun _ => ?_) (fun _ => ?_)
+  all_goals repeat' (rep_step R, hb, hfin, hS, hA, P)
 
 set_option maxHeartbeats 16000000 in
 /-- **`vcpu.report` from the four step kinds** (module docstring): `P` kept by
@@ -196,7 +205,7 @@ theorem vcpu.report.gen {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar
   repeat' (first
     | exact FN _ _ (by assumption)
     | (refine WP.spec_bind (PD _ (by assumption) (by first | assumption | simpa using ‹_›)) ?_; intro _ _)
-    | rep_step R, hb, hfin)
+    | rep_step R, hb, hfin, hS, hA, P)
 
 end
 
