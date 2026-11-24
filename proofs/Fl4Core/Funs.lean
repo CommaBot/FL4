@@ -8449,7 +8449,7 @@ def schedcontext.complete_yield_to
     else ok (s, a)
 
 /-- [fl4_core::sched::activate_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 679:0-690:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 687:0-698:1
     Visibility: public -/
 def sched.activate_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9168,7 +9168,7 @@ impl_def obj.Sc.Insts.CoreCmpPartialEqSc : core.cmp.PartialEq obj.Sc obj.Sc
 }
 
 /-- [fl4_core::sched::commit_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 425:0-445:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 433:0-453:1
     Visibility: public -/
 def sched.commit_time
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9222,7 +9222,7 @@ def sched.set_reprogram
   obj.node_set machineStoreInst s c layout.node.REPROGRAM 1#u64
 
 /-- [fl4_core::sched::switch_sched_context]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 620:0-634:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 628:0-642:1
     Visibility: public -/
 def sched.switch_sched_context
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9288,7 +9288,7 @@ def vspace.set_kernel_vm_root
   ok (s, a1)
 
 /-- [fl4_core::sched::switch_to_idle_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 592:0-596:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 600:0-604:1
     Visibility: public -/
 def sched.switch_to_idle_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -9650,7 +9650,7 @@ def vspace.set_vm_root
     vspace.set_kernel_vm_root machineStoreInst machineArchInst s a
 
 /-- [fl4_core::sched::switch_to_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 586:0-590:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 594:0-598:1 -/
 def sched.switch_to_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) (t : obj.Tcb) :
@@ -9690,7 +9690,7 @@ def sched.highest_prio
   ok (i3 ||| i4)
 
 /-- [fl4_core::sched::choose_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 599:0-609:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 607:0-617:1 -/
 def sched.choose_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -9713,7 +9713,7 @@ def sched.choose_thread
   else sched.switch_to_idle_thread machineStoreInst machineArchInst s a
 
 /-- [fl4_core::sched::dom_sched_duration]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 576:0-578:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 584:0-586:1
     Visibility: public -/
 def sched.dom_sched_duration
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -9726,7 +9726,7 @@ def sched.dom_sched_duration
   obj.ks_get machineStoreInst s i4
 
 /-- [fl4_core::sched::dom_sched_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 572:0-574:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 580:0-582:1
     Visibility: public -/
 def sched.dom_sched_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64) :
@@ -9758,7 +9758,7 @@ def sched.dom_sched_domain
 @[global_simps, irreducible] def layout.ks.DOMAIN_TIME : Std.U64 := 16#u64
 
 /-- [fl4_core::sched::next_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 558:0-570:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 566:0-578:1 -/
 def sched.next_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let i ← obj.ks_get machineStoreInst s layout.ks.DOM_SCHED_IDX
@@ -9790,7 +9790,7 @@ def sched.domain_time
   obj.ks_get machineStoreInst s layout.ks.DOMAIN_TIME
 
 /-- [fl4_core::sched::schedule_choose_new_thread]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 612:0-617:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 620:0-625:1 -/
 def sched.schedule_choose_new_thread
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
   (machineArchInst : machine.Arch A) (s : S) (a : A) :
@@ -12300,7 +12300,7 @@ def timer.fire
   timer.fire_loop machineStoreInst machineArchInst s a now 0#u64
 
 /-- [fl4_core::sched::awaken]: loop body 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 547:4-556:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 555:4-564:1
     Visibility: public -/
 @[rust_loop_body]
 def sched.awaken_loop.body
@@ -12327,7 +12327,7 @@ def sched.awaken_loop.body
   else ok (done s)
 
 /-- [fl4_core::sched::awaken]: loop 0:
-    Source: 'crates/fl4-core/src/sched.rs', lines 547:4-556:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 555:4-564:1
     Visibility: public -/
 @[rust_loop]
 def sched.awaken_loop
@@ -12339,7 +12339,7 @@ def sched.awaken_loop
     (s, fuel)
 
 /-- [fl4_core::sched::awaken]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 544:0-556:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 552:0-564:1
     Visibility: public -/
 def sched.awaken
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12351,7 +12351,7 @@ def sched.awaken
   ok (s2, a1)
 
 /-- [fl4_core::sched::is_cur_domain_expired]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 467:0-469:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 475:0-477:1
     Visibility: public -/
 def sched.is_cur_domain_expired
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result Bool := do
@@ -12361,7 +12361,7 @@ def sched.is_cur_domain_expired
   else ok false
 
 /-- [fl4_core::sched::check_domain_time]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 471:0-476:1 -/
+    Source: 'crates/fl4-core/src/sched.rs', lines 479:0-484:1 -/
 def sched.check_domain_time
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) : Result S := do
   let b ← sched.is_cur_domain_expired machineStoreInst s
@@ -12401,7 +12401,7 @@ def sched.cur_time
 @[global_simps, irreducible] def layout.node.ARMED : Std.U64 := 80#u64
 
 /-- [fl4_core::sched::set_next_interrupt]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 389:0-422:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 389:0-430:1
     Visibility: public -/
 def sched.set_next_interrupt
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -12447,12 +12447,27 @@ def sched.set_next_interrupt
   let armed ← obj.node_get machineStoreInst s i1 layout.node.ARMED
   if armed > now
   then
-    if armed <= deadline1
+    if armed = deadline1
     then ok (s, a)
     else
-      let s1 ← obj.node_set machineStoreInst s i1 layout.node.ARMED deadline1
-      let a1 ← machineArchInst.set_deadline a deadline1
-      ok (s1, a1)
+      if armed < deadline1
+      then
+        let t1 ← sched.idle_thread machineStoreInst s
+        let b1 ←
+          core.cmp.PartialEq.ne.trait_default obj.Tcb.Insts.CoreCmpPartialEqTcb
+            t t1
+        if b1
+        then ok (s, a)
+        else
+          let s1 ←
+            obj.node_set machineStoreInst s i1 layout.node.ARMED deadline1
+          let a1 ← machineArchInst.set_deadline a deadline1
+          ok (s1, a1)
+      else
+        let s1 ←
+          obj.node_set machineStoreInst s i1 layout.node.ARMED deadline1
+        let a1 ← machineArchInst.set_deadline a deadline1
+        ok (s1, a1)
   else
     let s1 ← obj.node_set machineStoreInst s i1 layout.node.ARMED deadline1
     let a1 ← machineArchInst.set_deadline a deadline1
@@ -12503,7 +12518,7 @@ def sched.is_highest_prio
        ok (prio >= i3)
 
 /-- [fl4_core::sched::schedule]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 637:0-675:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 645:0-683:1
     Visibility: public -/
 def sched.schedule
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -15021,7 +15036,7 @@ def faults.valid_timeout_handler
   | capability.Cap.TdxControl => ok false
 
 /-- [fl4_core::sched::end_timeslice]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 479:0-492:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 487:0-500:1
     Visibility: public -/
 def sched.end_timeslice
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -15087,7 +15102,7 @@ def sched.end_timeslice
          ok (s1, a)
 
 /-- [fl4_core::sched::charge_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 495:0-518:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 503:0-526:1
     Visibility: public -/
 def sched.charge_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -15135,7 +15150,7 @@ def sched.charge_budget
   else ok (s3, a)
 
 /-- [fl4_core::sched::check_budget]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 521:0-529:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 529:0-537:1
     Visibility: public -/
 def sched.check_budget
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -15155,7 +15170,7 @@ def sched.check_budget
     ok (false, s1, a1)
 
 /-- [fl4_core::sched::check_budget_restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 533:0-540:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 541:0-548:1
     Visibility: public -/
 def sched.check_budget_restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -15175,7 +15190,7 @@ def sched.check_budget_restart
     else ok (r, s1, a1)
 
 /-- [fl4_core::sched::update_timestamp]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 448:0-465:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 456:0-473:1
     Visibility: public -/
 def sched.update_timestamp
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19563,7 +19578,7 @@ def cspace.lookup_source_slot
 def sched.MAX_WORK_UNITS_PER_PREEMPTION : Std.U64 := 100#u64
 
 /-- [fl4_core::sched::preemption_point]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 728:0-747:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 736:0-755:1
     Visibility: public -/
 def sched.preemption_point
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -19922,7 +19937,7 @@ def vcpu.cancel_run
   ok (_s, _a)
 
 /-- [fl4_core::sched::suspend]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 750:0-761:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 758:0-769:1
     Visibility: public -/
 def sched.suspend
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)
@@ -24697,7 +24712,7 @@ def boot.create_untypeds
   ok (s8, b2)
 
 /-- [fl4_core::sched::set_dom_sched]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 580:0-583:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 588:0-591:1
     Visibility: public -/
 def sched.set_dom_sched
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (i : Std.U64)
@@ -27107,7 +27122,7 @@ def domain.MAX_DURATION : Result Std.U64 := do
   i - 1#u64
 
 /-- [fl4_core::sched::set_domain]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 693:0-702:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 701:0-710:1
     Visibility: public -/
 def sched.set_domain
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -32670,33 +32685,33 @@ def layout.ks.SIZE : Result Std.U64 := do
   i1 + i
 
 /-- [fl4_core::localinv::MAX_LOCKS]
-    Source: 'crates/fl4-core/src/localinv.rs', lines 42:0-42:31
+    Source: 'crates/fl4-core/src/localinv.rs', lines 52:0-52:31
     Visibility: public -/
 @[global_simps, irreducible] def localinv.MAX_LOCKS : Std.Usize := 4#usize
 
 /-- [fl4_core::localinv::{impl core::clone::Clone for fl4_core::localinv::Plan}::clone]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 46:9-46:14
+    Source: 'crates/fl4-core/src/localinv.rs', lines 56:9-56:14
     Visibility: public -/
 def localinv.Plan.Insts.CoreCloneClone.clone
   (self : localinv.Plan) : Result localinv.Plan := do
   ok self
 
 /-- Trait implementation: [fl4_core::localinv::{impl core::clone::Clone for fl4_core::localinv::Plan}]
-    Source: 'crates/fl4-core/src/localinv.rs', lines 46:9-46:14 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 56:9-56:14 -/
 @[reducible]
 def localinv.Plan.Insts.CoreCloneClone : core.clone.Clone localinv.Plan := {
   clone := localinv.Plan.Insts.CoreCloneClone.clone
 }
 
 /-- Trait implementation: [fl4_core::localinv::{impl core::marker::Copy for fl4_core::localinv::Plan}]
-    Source: 'crates/fl4-core/src/localinv.rs', lines 46:16-46:20 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 56:16-56:20 -/
 @[reducible]
 def localinv.Plan.Insts.CoreMarkerCopy : core.marker.Copy localinv.Plan := {
   cloneInst := localinv.Plan.Insts.CoreCloneClone
 }
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::new]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 62:4-64:5 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 72:4-74:5 -/
 def localinv.Plan.new
   (slot : obj.Slot) (extra : Array obj.Slot 3#usize) :
   Result localinv.Plan
@@ -32716,7 +32731,7 @@ def localinv.Plan.new
     }
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::add]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 66:4-76:5 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 76:4-86:5 -/
 def localinv.Plan.add
   (self : localinv.Plan) (addr : Std.U64) :
   Result (Bool × localinv.Plan)
@@ -32732,7 +32747,7 @@ def localinv.Plan.add
       ok (true, { self with locks := a, n := i })
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::add_pte]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 78:4-81:5 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 88:4-91:5 -/
 def localinv.Plan.add_pte
   (self : localinv.Plan) (addr : Std.U64) :
   Result (Bool × localinv.Plan)
@@ -32740,7 +32755,7 @@ def localinv.Plan.add_pte
   localinv.Plan.add { self with pte := self.n } addr
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::read]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 88:4-97:5 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 98:4-107:5 -/
 def localinv.Plan.read
   {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan)
   (s : S) (addr : Std.U64) :
@@ -32755,7 +32770,7 @@ def localinv.Plan.read
     ok (v, { self with seen := a, nseen := i })
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::read_cap]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 100:4-104:5 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 110:4-114:5 -/
 def localinv.Plan.read_cap
   {S : Type _} (machineStoreInst : machine.Store S) (self : localinv.Plan)
   (s : S) (slot : obj.Slot) :
@@ -32769,7 +32784,7 @@ def localinv.Plan.read_cap
   ok (c, self2)
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::still_holds]: loop body 0:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 110:8-118:5
+    Source: 'crates/fl4-core/src/localinv.rs', lines 120:8-128:5
     Visibility: public -/
 @[rust_loop_body]
 def localinv.Plan.still_holds_loop.body
@@ -32793,7 +32808,7 @@ def localinv.Plan.still_holds_loop.body
   else ok (done true)
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::still_holds]: loop 0:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 110:8-118:5
+    Source: 'crates/fl4-core/src/localinv.rs', lines 120:8-128:5
     Visibility: public -/
 @[rust_loop]
 def localinv.Plan.still_holds_loop
@@ -32806,7 +32821,7 @@ def localinv.Plan.still_holds_loop
     i
 
 /-- [fl4_core::localinv::{fl4_core::localinv::Plan}::still_holds]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 108:4-118:5
+    Source: 'crates/fl4-core/src/localinv.rs', lines 118:4-128:5
     Visibility: public -/
 @[reducible]
 def localinv.Plan.still_holds
@@ -32817,7 +32832,7 @@ def localinv.Plan.still_holds
   localinv.Plan.still_holds_loop machineStoreInst self s 0#usize
 
 /-- [fl4_core::localinv::some_if]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 121:0-127:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 131:0-137:1 -/
 def localinv.some_if
   (ok1 : Bool) (p : localinv.Plan) : Result (Option localinv.Plan) := do
   if ok1
@@ -32827,7 +32842,7 @@ def localinv.some_if
   else ok none
 
 /-- [fl4_core::localinv::reg_arg]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 131:0-133:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 141:0-143:1 -/
 def localinv.reg_arg
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
   (i : Std.U64) :
@@ -32836,12 +32851,12 @@ def localinv.reg_arg
   msg.syscall_arg machineStoreInst s t 0#u64 i
 
 /-- [fl4_core::localinv::is_page_map]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 142:0-144:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 152:0-154:1 -/
 def localinv.is_page_map (lbl : Std.U64) : Result Bool := do
   ok (lbl = fl4_abi.label.X86PageMap)
 
 /-- [fl4_core::localinv::is_local_label]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 137:0-139:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 147:0-149:1
     Visibility: public -/
 def localinv.is_local_label (lbl : Std.U64) : Result Bool := do
   if lbl = fl4_abi.label.CNodeCopy
@@ -32855,7 +32870,7 @@ def localinv.is_local_label (lbl : Std.U64) : Result Bool := do
       else localinv.is_page_map lbl
 
 /-- [fl4_core::localinv::small_ram_frame]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 152:0-154:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 162:0-164:1 -/
 def localinv.small_ram_frame (c : capability.Cap) : Result Bool := do
   match c with
   | capability.Cap.Null => ok false
@@ -32900,8 +32915,13 @@ def obj.Slot.next_of_word (w : Std.U64) : Result obj.Slot := do
   let i ← obj.sext48 w
   ok i
 
+/-- [fl4_core::localinv::map_attr_local]:
+    Source: 'crates/fl4-core/src/localinv.rs', lines 280:0-282:1 -/
+def localinv.map_attr_local (_attr : Std.U64) : Result Bool := do
+  ok true
+
 /-- [fl4_core::localinv::page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 255:0-260:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 271:0-276:1 -/
 def localinv.page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64)
   (vaddr : Std.U64) :
@@ -32912,7 +32932,7 @@ def localinv.page_entry
   else vspace.small_page_entry machineStoreInst s root vaddr
 
 /-- [fl4_core::localinv::small_page_entry]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 247:0-250:1 -/
+    Source: 'crates/fl4-core/src/localinv.rs', lines 262:0-265:1 -/
 def localinv.small_page_entry
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64)
   (vaddr : Std.U64) :
@@ -32929,7 +32949,7 @@ def localinv.small_page_entry
       Std.U64 residual
 
 /-- [fl4_core::localinv::plan_with]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 181:0-244:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 191:0-257:1
     Visibility: public -/
 def localinv.plan_with
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -33321,24 +33341,29 @@ def localinv.plan_with
               | capability.Cap.Pml4 ptr b3 _ =>
                 if b3
                 then
-                  let i ← localinv.reg_arg machineStoreInst s t 0#u64
-                  let o ← localinv.page_entry machineStoreInst s ptr i
-                  let cf ←
-                    core.option.Option.Insts.CoreOpsTry_traitTry.branch o
-                  match cf with
-                  | core.ops.control_flow.ControlFlow.Continue val =>
-                    let (b4, p2) ← localinv.Plan.add p1 slot
-                    let (p3, ok1) ←
-                      if b4
-                      then
-                        do
-                        let (ok2, p4) ← localinv.Plan.add_pte p2 val
-                        ok (p4, ok2)
-                      else ok (p2, false)
-                    localinv.some_if ok1 p3
-                  | core.ops.control_flow.ControlFlow.Break residual =>
-                    core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
-                      localinv.Plan residual
+                  let i ← localinv.reg_arg machineStoreInst s t 2#u64
+                  let b4 ← localinv.map_attr_local i
+                  if b4
+                  then
+                    let i1 ← localinv.reg_arg machineStoreInst s t 0#u64
+                    let o ← localinv.page_entry machineStoreInst s ptr i1
+                    let cf ←
+                      core.option.Option.Insts.CoreOpsTry_traitTry.branch o
+                    match cf with
+                    | core.ops.control_flow.ControlFlow.Continue val =>
+                      let (b5, p2) ← localinv.Plan.add p1 slot
+                      let (p3, ok1) ←
+                        if b5
+                        then
+                          do
+                          let (ok2, p4) ← localinv.Plan.add_pte p2 val
+                          ok (p4, ok2)
+                        else ok (p2, false)
+                      localinv.some_if ok1 p3
+                    | core.ops.control_flow.ControlFlow.Break residual =>
+                      core.option.Option.Insts.CoreOpsTry_traitFromResidualOptionNever.from_residual
+                        localinv.Plan residual
+                  else ok none
                 else ok none
               | capability.Cap.Vcpu _ => ok none
               | capability.Cap.Ept _ _ _ _ _ => ok none
@@ -33351,7 +33376,7 @@ def localinv.plan_with
         else ok none
 
 /-- [fl4_core::localinv::plan]:
-    Source: 'crates/fl4-core/src/localinv.rs', lines 158:0-177:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 168:0-187:1
     Visibility: public -/
 def localinv.plan
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (number : Std.I64)
@@ -35719,7 +35744,7 @@ def sched.is_stopped
   else sched.is_blocked machineStoreInst s t
 
 /-- [fl4_core::sched::set_priority]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 705:0-725:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 713:0-733:1
     Visibility: public -/
 def sched.set_priority
   {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb)
@@ -35807,7 +35832,7 @@ def sched.set_priority
             else obj.Tcb.set_prio machineStoreInst t s prio
 
 /-- [fl4_core::sched::restart]:
-    Source: 'crates/fl4-core/src/sched.rs', lines 764:0-777:1
+    Source: 'crates/fl4-core/src/sched.rs', lines 772:0-785:1
     Visibility: public -/
 def sched.restart
   {S : Type _} {A : Type _} (machineStoreInst : machine.Store S)

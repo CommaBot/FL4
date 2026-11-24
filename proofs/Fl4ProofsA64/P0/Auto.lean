@@ -254,13 +254,10 @@ theorem layout.irq.LPI_BASE.p0  :
     layout.irq.LPI_BASE ⦃ _ => True ⦄ := by
   exact WP.spec_mono Consts.layout.irq.LPI_BASE.spec (fun _ _ => trivial)
 
-@[step] theorem layout.irq.id.p0 (irq : Std.U64) (hirq : irq.val ≤ 3327) :
+@[step] theorem layout.irq.id.p0 (irq : Std.U64) :
     layout.irq.id irq ⦃ _ => True ⦄ := by
-  -- P0 precondition: `irq ≤ irq::MAX` (3327). Callers: `boot.init_irq_states_loop`
-  -- (its loop condition) and `smp.handle_ipi` (its own precondition, from
-  -- `interrupt.handle_interrupt`'s `irq > MAX` check).
   unfold layout.irq.id
-  simp only [layout.irq.LPI_ID_BASE]
+  try simp only [layout.irq.LPI_ID_BASE]
   p0_body
 
 theorem layout.irq.MAX.p0  :
@@ -838,6 +835,10 @@ theorem regs.PSTATE_USER.p0  :
     p0_body
   · trivial
 
+-- The frame size is matched into a pair bound by `let (fs, b) ←` (`Huge`
+-- refused): the match is total, and the rest is total for any pair, so the
+-- bind is split with `True` in between and the pair taken apart.
+
 @[step] theorem faults.trap_extra_reply.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (sender : obj.Tcb) (receiver : obj.Tcb) (length : Std.U64) (hS : StoreTotal machineStoreInst) :
     faults.trap_extra_reply machineStoreInst s sender receiver length ⦃ _ => True ⦄ := by
   unfold faults.trap_extra_reply; p0_auto
@@ -1325,11 +1326,8 @@ theorem vcpu.HCR_FORCED_1.p0  :
     sched.reschedule_required machineStoreInst s ⦃ _ => True ⦄ := by
   unfold sched.reschedule_required; p0_split
 
-@[step] theorem smp.handle_ipi.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst)
-    (hirq : irq.val ≤ 3327) :
+@[step] theorem smp.handle_ipi.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (irq : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     smp.handle_ipi machineStoreInst machineArchInst s a irq ⦃ _ => True ⦄ := by
-  -- P0 precondition: `irq ≤ irq::MAX` (`layout.irq.id`'s). Its one caller,
-  -- `interrupt.handle_interrupt`, checks `irq > MAX` first.
   unfold smp.handle_ipi
   p0_body
 
@@ -2870,6 +2868,10 @@ theorem msg.BUF_RECV_DEPTH.p0  :
     vspace.unmap_page_directory machineStoreInst machineArchInst s a asid vaddr pd ⦃ _ => True ⦄ := by
   unfold vspace.unmap_page_directory; p0_auto
 
+@[step] theorem vspace.unmap_root.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.unmap_root machineStoreInst s asid ⦃ _ => True ⦄ := by
+  unfold vspace.unmap_root; p0_auto
+
 @[step] theorem vspace.page_shift.p0 (size : capability.FrameSize) :
     vspace.page_shift size ⦃ _ => True ⦄ := by
   unfold vspace.page_shift; p0_auto
@@ -2900,7 +2902,7 @@ theorem msg.BUF_RECV_DEPTH.p0  :
 
 @[step] theorem vspace.unmap_page.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (size : capability.FrameSize) (asid : Std.U64) (vaddr : Std.U64) (pptr : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.unmap_page machineStoreInst machineArchInst s a size asid vaddr pptr ⦃ _ => True ⦄ := by
-  unfold vspace.unmap_page; p0_auto
+  unfold vspace.unmap_page; p0_split
 
 @[step] theorem vcpu.set_bound.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (vc : Std.U64) (hS : StoreTotal machineStoreInst) :
     vcpu.set_bound machineStoreInst s t vc ⦃ _ => True ⦄ := by
@@ -3298,6 +3300,10 @@ theorem vspace.MAIR.p0  :
     vspace.copy_global_mappings machineStoreInst s new_root ⦃ _ => True ⦄ := by
   unfold vspace.copy_global_mappings; p0_auto
 
+@[step] theorem vspace.small_page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    vspace.small_page_entry machineStoreInst s root vaddr ⦃ _ => True ⦄ := by
+  unfold vspace.small_page_entry; p0_auto
+
 @[step] theorem vspace.vm_fault.p0 (addr : Std.U64) (code : Std.U64) (instruction : Bool) :
     vspace.vm_fault addr code instruction ⦃ _ => True ⦄ := by
   unfold vspace.vm_fault; p0_auto
@@ -3402,7 +3408,14 @@ theorem vspace.MAIR.p0  :
 
 @[step] theorem vspace.decode_test_and_clear_accessed.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (f : vspace.FrameCap) (call : Bool) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_test_and_clear_accessed machineStoreInst machineArchInst s a f call ⦃ _ => True ⦄ := by
-  sorry
+  unfold vspace.decode_test_and_clear_accessed
+  split
+  · p0_structural
+  · refine WP.spec_bind (Pₘ := fun _ => True) (by split <;> exact (WP.spec_ok _).2 trivial) ?_
+    rintro ⟨fs, b⟩ -
+    -- the pair's `let` is `uncurry _ (fs, b)` (Aeneas): unfold it to its body
+    simp only [Aeneas.Std.uncurry_apply_pair]
+    p0_structural
 
 @[step] theorem vspace.decode_page_flush.p0 {S : Type _} {A : Type _} (machineStoreInst : machine.Store S) (machineArchInst : machine.Arch A) (s : S) (a : A) (lbl : Std.U64) (length : Std.U64) (f : vspace.FrameCap) (buf : Std.U64) (hS : StoreTotal machineStoreInst) (hA : ArchTotal machineArchInst) :
     vspace.decode_page_flush machineStoreInst machineArchInst s a lbl length f buf ⦃ _ => True ⦄ := by
@@ -4244,8 +4257,8 @@ theorem layout.ks.SIZE.p0  :
     localinv.reg_arg machineStoreInst s t i ⦃ _ => True ⦄ := by
   unfold localinv.reg_arg; p0_auto
 
-@[step] theorem localinv.is_page_map.p0 (_lbl : Std.U64) :
-    localinv.is_page_map _lbl ⦃ _ => True ⦄ := by
+@[step] theorem localinv.is_page_map.p0 (lbl : Std.U64) :
+    localinv.is_page_map lbl ⦃ _ => True ⦄ := by
   unfold localinv.is_page_map; p0_auto
 
 @[step] theorem localinv.is_local_label.p0 (lbl : Std.U64) :
@@ -4260,13 +4273,17 @@ theorem layout.ks.SIZE.p0  :
     obj.Slot.next_of_word w ⦃ _ => True ⦄ := by
   unfold obj.Slot.next_of_word; p0_auto
 
-@[step] theorem localinv.page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (_s : S) (_root : Std.U64) (_vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
-    localinv.page_entry machineStoreInst _s _root _vaddr ⦃ _ => True ⦄ := by
-  unfold localinv.page_entry; p0_auto
+@[step] theorem localinv.map_attr_local.p0 (attr : Std.U64) :
+    localinv.map_attr_local attr ⦃ _ => True ⦄ := by
+  unfold localinv.map_attr_local; p0_auto
 
-@[step] theorem localinv.small_page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (_s : S) (_asid : Std.U64) (_vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
-    localinv.small_page_entry machineStoreInst _s _asid _vaddr ⦃ _ => True ⦄ := by
-  unfold localinv.small_page_entry; p0_auto
+@[step] theorem localinv.small_page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (asid : Std.U64) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.small_page_entry machineStoreInst s asid vaddr ⦃ _ => True ⦄ := by
+  unfold localinv.small_page_entry; p0_split
+
+@[step] theorem localinv.page_entry.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (root : Std.U64) (vaddr : Std.U64) (hS : StoreTotal machineStoreInst) :
+    localinv.page_entry machineStoreInst s root vaddr ⦃ _ => True ⦄ := by
+  unfold localinv.page_entry; p0_auto
 
 @[step] theorem localinv.plan_with.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (t : obj.Tcb) (lbl : Std.U64) (slot : obj.Slot) (extra : Array obj.Slot 3#usize) (hS : StoreTotal machineStoreInst) :
     localinv.plan_with machineStoreInst s t lbl slot extra ⦃ _ => True ⦄ := by
@@ -4314,10 +4331,9 @@ theorem layout.ks.SIZE.p0  :
   repeat' (first | p0_cases_sum | (exact localtimer.in_core_timer_tree_loop.p0 _ _ _ _ _ _ _ _ _ hS (by first | simp | scalar_tac)) | step | p0_ite_head | (simp only [bind_tc_ok, bind_ok]) | p0_whnf_head | p0_unfold_match | split | p0_cases_prod)
   all_goals p0_close
 
--- #86 (LPIs): `id` adds `LPI_ID_BASE` to `irq - LPI_BASE` with Rust's `+`
--- (checked in the extraction), so it is total only for interrupt numbers in
--- range. Its callers pass `irq ≤ irq::MAX`: `init_irq_states` (its loop
--- bound) and `handle_ipi` (from `handle_interrupt`, after its `irq > MAX` check).
+-- #86 (LPIs): `id` maps an LPI to `(irq - LPI_BASE).wrapping_add(LPI_ID_BASE)`
+-- (#100: wrapping, so total for every interrupt number) and a banked
+-- interrupt to its bank index.
 
 @[step] theorem localtimer.release_due.p0 {S : Type _} (machineStoreInst : machine.Store S) (s : S) (cpu : Std.U64) (hS : StoreTotal machineStoreInst) :
     localtimer.release_due machineStoreInst s cpu ⦃ _ => True ⦄ := by

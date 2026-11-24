@@ -431,7 +431,7 @@ structure boot.RootLayout where
   total : Std.U64
 
 /-- [fl4_core::localinv::Plan]
-    Source: 'crates/fl4-core/src/localinv.rs', lines 47:0-59:1
+    Source: 'crates/fl4-core/src/localinv.rs', lines 57:0-69:1
     Visibility: public -/
 structure localinv.Plan where
   slot : obj.Slot
