@@ -87,7 +87,6 @@ theorem set_timer_prefix (hA : P0.ArchTotal ar) {s s1 s2 : S} {a a1 : A} {t nx :
 structure StPre (st : machine.Store S) [L : LawfulStore st] (Scs : Set U64) (s : S) : Prop where
   aff : L.mem s (affA (L.curW s)) = L.cpu s
   nq : ¬ QueuedState (L.mem s (stA (L.curW s)))
-  nr : ¬ ReplyState (L.mem s (stA (L.curW s)))
   sct : L.mem s (scA (L.curW s)) = L.cscW s
   csc : L.cscW s ∈ Scs
   core : L.mem s (scCoreA (L.cscW s)) = L.cpu s
@@ -126,7 +125,7 @@ theorem set_timer_dec_guard (hA : P0.ArchTotal ar) {s s' : S} {a a' : A} {n : I6
     ⟨Or.inl (held_core (hL.own_node _ h1)), nodeAt_aligned hN h1 h2⟩
   have cR : ∀ k : U64, 256 ≤ k.val → k.val < 4096 → k.val % 8 = 0 → (k.val < 3528 ∨ 3576 ≤ k.val) →
       R (core.num.U64.wrapping_add (L.curW s) k) := fun k h1 h2 h3 h4 => by
-    have e := caller_own' hL hT hcT hP.aff hP.nq hP.nr h1 h2 h4
+    have e := caller_own' hL hT hcT hP.aff hP.nq h1 h2 h4
     refine ⟨?_, field_aligned ht' h2 h3⟩
     split at e
     · exact Or.inr e
