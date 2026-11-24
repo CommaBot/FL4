@@ -19660,7 +19660,7 @@ None (no Lean change).
     `ntfn_dequeue` field frame). So `cancel_ipc.kw`, `dequeue_blocked_kw`, `set_thread_state.kwP` need no `B` copy.
   - `BufKeep.of_blkDBU (h : BlkOK … s) (hU : ∀ b ∈ U, OutsideObjs st T Cs s b) (f : WritesIn s s' (KWB … (EH H) s ∨
     DbgW ∨ U))` (QueueFinal): the form the fire loop / P3 use.
-- **Merged int/j6 1bcc63f9** (the core's `IbKeep` interface, `FootU`/`FootDU`). On top: QueueFootS `FootUB` /
+- **Merged int/j6 1bcc63f9 and 24b24b04** (the core's `IbKeep` interface, `FootU`/`FootDU`, `NoVmSig`, `UsrW`). On top: QueueFootS `FootUB` /
   `FootDUB` (`FootU`/`FootDU` with `KWB`), `RepW.footB`, **`vcpu.report.blkFK`, `signal_vmFK`,
   `notification.send_signal.tinvFK`** (the core's new `blkF`/`signal_vmF`/`send_signal.tinvF` with `FootUB`/`FootDB`/
   `FootDUB`; the originals are instances; the cancel and `ntfn_dequeue` steps lift their `KW` footprints by
@@ -19670,8 +19670,9 @@ None (no Lean change).
   `notification.send_signal.ibFr` (`send_signal.tinvFK`'s `FootDUB` → `BufKeep.of_blkDBU` with `UserOK` → `IbFr`);
   `IbFr.of_bufKeep` bridges QueueFoot's `BufKeep` and QueueSignal's `IbFr` (same words: `ibA`/`ibWordA`,
   `sbA`/`sbWordA` are the same terms). No premise. Fix carried: int/j6's `sbWordA8_eq` (`omega` after a closing `simp`).
-- **P3 helpers** (new module `P3/BufKeepJ`): **`JAtZ.bufAt (hΩ : ∀ b ∈ BufU Z σ, b ∉ Ω) : P1.BufAt st (tcbs H) Cs Ω H
-  (BufU Z σ) s`**, **`JAtZ.bufAtU`** (at `Ω = OmegaU H Z (L.ksb s) σ`, `JAtZ.bxiU`'s set), `JAtZ.bufFact : P1.BufFact st (P1.Heap.tcbs H) (P1.BufOK (BufU Z σ)) s`
+- **P3 helpers** (new module `P3/BufKeepJ`): **`JAtZ.bufAt : P1.BufAt st (tcbs H) Cs H (frame H) (scs H) (scBits H) (BufU Z σ) s`**
+  (int/j6 24b24b04's Ω-free `BufAt`; from **`JAtZ.bufUsrW`**: a `BufU` word is `UsrW` — `bufU_rbuf`, the
+  kernel-state block by `J.ks.buf`, the SCs since an SC word is a frame word), `JAtZ.bufFact : P1.BufFact st (P1.Heap.tcbs H) (P1.BufOK (BufU Z σ)) s`
   (from `JAtZ.bufOK`), `JAtZ.bufU_outside : b ∈ BufU Z σ → P1.OutsideObjs st (P1.Heap.tcbs H) Cs s b`
   (from `JAtZ.bufU_out`), and `JAtZ.bufFact_of_footDBU` (the buffer fact at any state `s'` with
   `WritesIn s s' (KWB ∨ DbgW ∨ BufU Z σ)` from `J` at `s`: every state inside the fire loop / `schedule`).
