@@ -267,7 +267,7 @@ theorem jPreemptHypLM (hAK : ARKeep arI AR) (hA : P0.ArchTotal arI) (hnd : Fl4Sp
 theorem delHypsJLM [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR th) (hF : JThreadFinHypsU (L := L) arI AR th)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
-    (hAM : ARMask arI AR) (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
+    (hAM : ARMask arI AR) (Z : XSets) [VxE Z] (H : P1.Heap) (Cs : Set U64) (kb : U64) (hth : Z.th = th) :
     DelHypsWRZ (L := L) arI (WMR MR (WJL (L := L) arI AR Z H Cs kb)) (WMR MR (WJLx (L := L) arI AR Z H Cs kb))
       (WJPM (L := L) arI AR MR Z H Cs kb) (RdLX (L := L) (A := A) th H Z.vx) (RzJ (L := L) (A := A) H Cs) th := by
   have hmask : ∀ (a : A) (irq : U64) (b : Bool), ∃ a', arI.mask_irq a irq b = ok a' := fun a i m => by
@@ -283,7 +283,7 @@ theorem delHypsJLM [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : A
 /-- **The deletion at `MachPlat`**: XTopJointWJLDel's `JDelHypL` with `MRV`
 beside `WJL`, `WJPM` after a preemption. -/
 def JDelHypLM (AR : A → Fl4Spec.Cr3 → Prop) (MR : A → Fl4Spec.MachineState → Prop) (th : TypedHeap) : Prop :=
-  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat), Z.th = th →
+  ∀ (Z : XSets) (H : P1.Heap) (Cs : Set U64) (kb : U64) (K : Nat), [VxE Z] → Z.th = th →
     (∀ p r, th p = some (.cnode r) → 2 ^ r ≤ K) → 6 ≤ K →
     DelHypW (L := L) arI psiD th
       (fun s a σ G => DelE (L := L) Z.th K s σ ∧ WMR MR (WJL (L := L) arI AR Z H Cs kb) s a σ G)
@@ -295,7 +295,7 @@ theorem JDelParts.jDelHypLM [Fl4Proofs.P1.PlainStore st] (h : JDelParts (L := L)
     (hT : P0.ArchTotal arI) (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR)
     (hPA : PPPlatA arI AR) (hAM : ARMask arI AR) :
     JDelHypLM (L := L) arI AR MR th := by
-  intro Z H Cs kb K hth hK hK6 s a σ G c hCR hE hA hxm
+  intro Z H Cs kb K _ hth hK hK6 s a σ G c hCR hE hA hxm
   obtain ⟨⟨⟨V, Ac, Lst, D, J, -⟩, -⟩, -⟩ := hE.2
   have hP : Placed th := hth ▸ J.xtop.rel.1
   have hH := delHypsJLM arI hT h.archRef h.arKeep h.vt h.thr hnd hM hKD hPA hAM Z H Cs kb hth

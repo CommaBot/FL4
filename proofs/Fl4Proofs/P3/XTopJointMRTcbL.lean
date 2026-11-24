@@ -61,7 +61,7 @@ variable {AR : A → Fl4Spec.Cr3 → Prop} {Z : XSets} {H : P1.Heap} {Cs Ac : Se
   {Lst : U64 → List U64} {D : Set U64} {MR : A → Fl4Spec.MachineState → Prop}
 
 /-- **`TcbInsWM` at `WMR MR WJL`** (module docstring). -/
-theorem tcbInsWM_wjl [Fl4Proofs.P1.PlainStore st] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
+theorem tcbInsWM_wjl [Fl4Proofs.P1.PlainStore st] [VxE Z] (hT : P0.ArchTotal arI) (hAR : ArchRefines arI AR)
     (hK : ARKeep arI AR) (hV : JVtHyps (L := L) arI AR Z.th) (hF : JThreadFinHypsU (L := L) arI AR Z.th)
     (hnd : Fl4Spec.numDomains = 1) (hM : MachPlat arI MR) (hKD : MRKeepD arI MR) (hPA : PPPlatA arI AR)
     (hAM : ARMask arI AR) :
