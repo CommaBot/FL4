@@ -15,17 +15,18 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Es : Set U64} {Ac : Set U64}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Es : Set U64} {Ac : Set U64} {Kp : Set U64} {Nd : Prop}
 variable {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
 /-- A write of a current-node word other than the idle words. -/
 theorem footN_cur {s : S} {o v : U64} (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs)
-    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hi8 : o.val ≠ 8) (hi32 : o.val ≠ 32) :
-    FootN st T Cs Sg Scs Z Es s (L.wr s (L.nodeAt s (L.cpu s) o) v) :=
-  footN_node NP hc ho h8 h88 (idOff_cur hi8 hi32)
+    (ho : o.val < 4288) (h8 : o.val % 8 = 0) (h88 : o.val ≠ 88) (hi8 : o.val ≠ 8) (hi32 : o.val ≠ 32)
+    (h0 : Nd → o.val ≠ 0) :
+    FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (L.nodeAt s (L.cpu s) o) v) :=
+  footN_node NP hc ho h8 h88 (idOff_cur hi8 hi32 h0)
 
 theorem sched.append.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
-    sched.append st s t ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+    sched.append st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hc := h.aff t ht
   have hp := h.prio t ht
   have hR1 := h.ready _ hc
@@ -37,39 +38,40 @@ theorem sched.append.kwN (s : S) (t : obj.Tcb) (h : SchedQueuesInvX st T Cs Ω H
   · exact ht
   · exact (hR1.1.rel _ hp).mem w hw
 
-theorem sched.set_cur_thread.kwN (s : S) (t : obj.Tcb) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
-    sched.set_cur_thread st s t ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ :=
+theorem sched.set_cur_thread.kwN (s : S) (t : obj.Tcb) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs)
+    (hNd : ¬ Nd) :
+    sched.set_cur_thread st s t ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ :=
   WP.spec_mono (sched.set_cur_thread.spec s t) fun s' e => by
     subst e
     exact footN_cur NP hc (by rw [curth0]; omega) (by rw [curth0]) (by rw [curth0]; omega)
-      (by rw [curth0]; omega) (by rw [curth0]; omega)
+      (by rw [curth0]; omega) (by rw [curth0]; omega) (fun h => absurd h hNd)
 
 theorem sched.switch_to_thread.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (t : obj.Tcb) {Q : U64 → U64 → List U64} {R : U64 → List U64} (h : SchedQueuesInv st T Cs Ω H s Q R)
-    (ht : t ∈ T) : sched.switch_to_thread st ar s a t ⦃ s' _ => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+    (ht : t ∈ T) (hNd : ¬ Nd) : sched.switch_to_thread st ar s a t ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   unfold sched.switch_to_thread
   refine WP.spec_bind (set_vm_root_same hA s a t) ?_
   rintro ⟨s1, a1⟩ e
   simp only [WP.uncurry'_pair] at e
   subst e
-  refine WP.spec_bind (sched.dequeue.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s1 t h ht) ?_
+  refine WP.spec_bind (sched.dequeue.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s1 t h ht) ?_
   intro s2 f2
-  refine WP.spec_bind (sched.set_cur_thread.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s2 t
-    (fun c hc => (h.nodes c hc).ksb f2.1) (by rw [f2.2.1]; exact h.cur)) ?_
+  refine WP.spec_bind (sched.set_cur_thread.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s2 t
+    (fun c hc => (h.nodes c hc).ksb f2.1) (by rw [f2.2.1]; exact h.cur) hNd) ?_
   intro s3 f3
   simp only [WP.spec_ok, WP.uncurry'_pair]
   exact f2.trans f3
 
 theorem sched.set_reprogram.kwN (s : S) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
-    sched.set_reprogram st s ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ :=
+    sched.set_reprogram st s ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ :=
   WP.spec_mono (sched.set_reprogram.spec s) fun s' e => by
     subst e
     have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
     exact footN_cur NP hc (by rw [rp]; omega) (by rw [rp]) (by rw [rp]; omega) (by rw [rp]; omega)
-      (by rw [rp]; omega)
+      (by rw [rp]; omega) (fun _ => by rw [rp]; omega)
 
 theorem sched.set_reprogram_on.kwN (s : S) (cpu : U64) (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : cpu ∈ Cs) :
-    sched.set_reprogram_on st s cpu ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ :=
+    sched.set_reprogram_on st s cpu ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ :=
   WP.spec_mono (sched.set_reprogram_on.spec s cpu) fun s' e => by
     subst e
     have rp : layout.node.REPROGRAM.val = 56 := by simp [layout.node.REPROGRAM]
@@ -80,7 +82,7 @@ theorem sched.postpone.kwN (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (R : U64 → List U64) (h : SchedQueuesInv st T Cs Ω H s Q R) (ht : L.mem s (scTcbA sc) ∈ T)
     (hr0 : (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64)
     (hcore : OutsideObjs st T Cs s (scCoreA sc)) (hcs : L.mem s (scCoreA sc) ∈ Cs) :
-    sched.postpone st s sc ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+    sched.postpone st s sc ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   unfold sched.postpone
   step with obj.Sc.tcb.spec as ⟨t, t_post⟩
   subst t_post
@@ -96,7 +98,7 @@ theorem sched.postpone.kwN (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     (sched.dequeue.foot s t _ hT ht hp hN hN' (hR1.1.rel _ hp) hmemq)) ?_
   rintro s1 ⟨h1, hw1, -⟩
   have hW1 : ∀ w ∈ Q (L.mem s (affA t)) (L.mem s (prioA t)), w ∈ T := fun w hw => h.memT hc hp hw
-  have F1 : FootN st T Cs Sg Scs Z Es s s1 :=
+  have F1 : FootN st Kp Nd T Cs Sg Scs Z Es s s1 :=
     hw1.mono fun b hb => LawfulStore.QFoot.kwN hT h.nodes hW1 hc h.cur ht (fun o ho => by omega)
       (fun o ho => idOff_ge (by omega)) hb
   have core1 : L.mem s1 (scCoreA sc) = L.mem s (scCoreA sc) :=
@@ -115,7 +117,7 @@ theorem sched.postpone.kwN (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
     intro w hw; rcases List.mem_cons.1 hw with rfl | hw
     · exact ht
     · exact h1.memTR hc1 hw
-  have F2 : FootN st T Cs Sg Scs Z Es s1 s2 :=
+  have F2 : FootN st Kp Nd T Cs Sg Scs Z Es s1 s2 :=
     hw2.mono fun b hb => LawfulStore.QFoot.kwN hT1 h1.nodes hW2 hc1 h1.cur ht
       (fun o ho => by unfold RelOffs at ho; omega) (fun o ho => idOff_ge (by unfold RelOffs at ho; omega)) hb
   have core2 : L.mem s2 (scCoreA sc) = L.mem s (scCoreA sc) :=
@@ -129,7 +131,7 @@ theorem sched.postpone.kwN (s : S) (sc : obj.Sc) (Q : U64 → U64 → List U64)
 /-- `update_timestamp` writes the current core's `CUR_TIME` and `CONSUMED`. -/
 theorem sched.update_timestamp.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
-    sched.update_timestamp st ar s a ⦃ s' _ => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+    sched.update_timestamp st ar s a ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   unfold sched.update_timestamp
   step with sched.cur_time.spec as ⟨prev⟩
   refine WP.spec_bind (hA.now a) ?_
@@ -138,9 +140,10 @@ theorem sched.update_timestamp.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.A
   step with LawfulStore.cur_cpu_spec as ⟨c, ec⟩
   step with obj.node_set.spec as ⟨s1, e1⟩
   subst ec e1
-  have f1 : FootN st T Cs Sg Scs Z Es s (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) now) :=
+  have f1 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) now) :=
     footN_cur NP hc (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
       (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME]) (by simp [layout.node.CUR_TIME])
+      (fun _ => by simp [layout.node.CUR_TIME])
   step as ⟨used, _⟩
   step with sched.consumed.spec as ⟨i⟩
   step as ⟨total, _⟩
@@ -148,11 +151,12 @@ theorem sched.update_timestamp.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.A
   rw [show ∀ s0 : S, L.nodeA s0 layout.node.CONSUMED = L.nodeAt s0 (L.cpu s0) layout.node.CONSUMED from
     fun _ => rfl] at e2
   subst e2
-  have f2 := footN_cur (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) (v := total)
+  have f2 := footN_cur (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) (v := total)
     (s := L.wr s (L.nodeAt s (L.cpu s) layout.node.CUR_TIME) now)
     (fun c hc' => (NP c hc').ksb (L.ksb_wr _ _ _)) (by rw [LawfulStore.cpu_wr]; exact hc)
     (o := layout.node.CONSUMED) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])
     (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED])
+    (fun _ => by simp [layout.node.CONSUMED])
   simp only [layout.NUM_DOMAINS, fl4_abi.config.NUM_DOMAINS]
   have hnd : ¬ ((1#u64) > (1#u64)) := by simp
   simp only [hnd, ↓reduceIte, WP.spec_ok, WP.uncurry'_pair]
@@ -162,7 +166,7 @@ theorem sched.update_timestamp.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.A
 current node's `CONSUMED`. -/
 theorem sched.commit_time.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (a : A) {s : S}
     (h : BlkOK st T Cs Ω H Sg Rp Scs Nt Z Ac s) :
-    sched.commit_time st ar s a ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+    sched.commit_time st ar s a ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   obtain ⟨⟨Q, R, h0⟩, hB, hX, hS, hSg⟩ := h
   have hO := hX.1
   have hc : L.cscW s ∈ Scs := hX.2.2.cur
@@ -175,19 +179,20 @@ theorem sched.commit_time.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTo
   refine WP.spec_mono (sched.commit_time.fr hA a (hS.all _ hc).1 rfl aC oC) fun s' hw => ?_
   refine FootN.of' hw.1 fun b hb hh => ?_
   rcases hh with (hh | rfl) | rfl
-  · exact ⟨kw_sc hc hh.inSC, notIdW_out h0.nodes (h0.omega _ (hO.scW _ hc b hb hh.inSC))⟩
+  · exact ⟨kw_sc hc hh.inSC, notIdW_out h0.nodes (h0.omega _ (hO.scW _ hc b hb hh.inSC)) (noHdr_ring hO hc hh)⟩
   · obtain ⟨-, h128, -⟩ := sc_lo hP hz
     have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
     have hin : InSC (L.cscW s) (Z (L.cscW s)) (core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED) :=
       ⟨by rw [hv]; simp, by rw [hv]; simp [layout.sc.CONSUMED]; omega⟩
-    exact ⟨kw_sc hc hin, notIdW_out h0.nodes (h0.omega _ (hO.scW _ hc _ hb hin))⟩
+    exact ⟨kw_sc hc hin, notIdW_out h0.nodes (h0.omega _ (hO.scW _ hc _ hb hin))
+      (noHdr_sc hO hc hin (by rw [hv]; simp [layout.sc.CONSUMED]) (by rw [hv]; simp [layout.sc.CONSUMED]))⟩
   · exact ⟨kw_node h0.cur (by rw [cnv]; omega) (by rw [cnv]; omega),
       notIdW_node h0.nodes h0.cur (by rw [cnv]; omega) (idOff_ge (by simp [cnv]))⟩
 
 /-- `send_pending` only clears the current core's `IPI_PENDING`. -/
 theorem smp.send_pending.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hc : L.cpu s ∈ Cs) :
-    smp.send_pending st ar s a ⦃ s' _ => FootN st T Cs Sg Scs Z Es s s' ⦄ :=
+    smp.send_pending st ar s a ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ :=
   smp.send_pending.fp hA s a (NP _ hc)
     ⟨kw_node hc (by simp [layout.node.IPI_PENDING]) (by simp [layout.node.IPI_PENDING]),
       notIdW_node NP hc (by simp [layout.node.IPI_PENDING]) (idOff_ge (by simp [layout.node.IPI_PENDING]))⟩

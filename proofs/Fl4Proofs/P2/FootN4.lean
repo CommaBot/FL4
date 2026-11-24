@@ -15,25 +15,25 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {Es U : Set U64}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {Ac : Set U64} {Es U : Set U64} {Kp : Set U64} {Nd : Prop}
 
 /-- A footprint inside `KW` and the debug-list words, without node identity
 words. -/
-abbrev FootDN (st : machine.Store S) [L : LawfulStore st] (T Cs Sg Scs : Set U64) (Z : U64 → Nat) (Es : Set U64)
+abbrev FootDN (st : machine.Store S) [L : LawfulStore st] (Kp : Set U64) (Nd : Prop) (T Cs Sg Scs : Set U64) (Z : U64 → Nat) (Es : Set U64)
     (s s' : S) : Prop :=
-  WritesIn st s s' (fun b => (KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b) ∧ ¬ IdW st Cs s b)
+  WritesIn st s s' (fun b => (KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b) ∧ ¬ IdW st Kp Nd T Cs Scs s b)
 
 theorem notIdW_ksb {s0 s1 : S} {b : U64} (hk : L.ksb s1 = L.ksb s0) (hc : L.cpu s1 = L.cpu s0)
-    (h : ¬ IdW st Cs s0 b) : ¬ IdW st Cs s1 b :=
+    (h : ¬ IdW st Kp Nd T Cs Scs s0 b) : ¬ IdW st Kp Nd T Cs Scs s1 b :=
   fun hi => h (hi.ksb hk.symm hc.symm)
 
-theorem FootDN.refl (s : S) : FootDN st T Cs Sg Scs Z Es s s := WritesIn.refl _ _
+theorem FootDN.refl (s : S) : FootDN st Kp Nd T Cs Sg Scs Z Es s s := WritesIn.refl _ _
 
-theorem FootDN.footD {s s' : S} (h : FootDN st T Cs Sg Scs Z Es s s') : FootD st T Cs Sg Scs Z Es s s' :=
+theorem FootDN.footD {s s' : S} (h : FootDN st Kp Nd T Cs Sg Scs Z Es s s') : FootD st T Cs Sg Scs Z Es s s' :=
   WritesIn.mono h fun _ hb => hb.1
 
-theorem FootDN.trans {s₁ s₂ s₃ : S} (h₁ : FootDN st T Cs Sg Scs Z Es s₁ s₂)
-    (h₂ : FootDN st T Cs Sg Scs Z Es s₂ s₃) : FootDN st T Cs Sg Scs Z Es s₁ s₃ :=
+theorem FootDN.trans {s₁ s₂ s₃ : S} (h₁ : FootDN st Kp Nd T Cs Sg Scs Z Es s₁ s₂)
+    (h₂ : FootDN st Kp Nd T Cs Sg Scs Z Es s₂ s₃) : FootDN st Kp Nd T Cs Sg Scs Z Es s₁ s₃ :=
   WritesIn.mono (WritesIn.trans h₁ h₂) fun b hb => by
     rcases hb with hb | ⟨hb, hn⟩
     · exact hb
@@ -43,16 +43,23 @@ theorem FootDN.trans {s₁ s₂ s₃ : S} (h₁ : FootDN st T Cs Sg Scs Z Es s�
       · exact Or.inr (DbgW.ksb h₁.1 hb)
 
 theorem FootDN.of' {s s' : S} {B : U64 → Prop} (h : WritesIn st s s' B)
-    (hB : ∀ b, Aligned b → B b → (KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b) ∧ ¬ IdW st Cs s b) :
-    FootDN st T Cs Sg Scs Z Es s s' :=
+    (hB : ∀ b, Aligned b → B b → (KW st T Cs Sg Scs Z Es s b ∨ DbgW st T Cs s b) ∧ ¬ IdW st Kp Nd T Cs Scs s b) :
+    FootDN st Kp Nd T Cs Sg Scs Z Es s s' :=
   ⟨h.1, h.2.1, fun b hb hn => h.2.2 b hb fun hh => hn (hB b hb hh)⟩
 
-theorem FootN.d {s s' : S} (f : FootN st T Cs Sg Scs Z Es s s') : FootDN st T Cs Sg Scs Z Es s s' :=
+theorem FootN.d {s s' : S} (f : FootN st Kp Nd T Cs Sg Scs Z Es s s') : FootDN st Kp Nd T Cs Sg Scs Z Es s s' :=
   WritesIn.mono f fun _ hb => ⟨Or.inl hb.1, hb.2⟩
 
-theorem FootN.of0 {s s' : S} (f : FootN st T Cs ∅ ∅ Z ∅ s s') : FootN st T Cs Sg Scs Z Es s s' :=
+theorem FootN.of0 {s s' : S} (f : FootN st Kp Nd T Cs ∅ ∅ Z ∅ s s') (hNd : ¬ Nd) :
+    FootN st Kp Nd T Cs Sg Scs Z Es s s' :=
   WritesIn.mono f fun b hb => by
-    refine ⟨?_, hb.2⟩
+    refine ⟨?_, fun h => hb.2 ?_⟩
+    swap
+    · rcases h with h | h
+      · exact Or.inl h
+      · rcases h with h | ⟨hn, -⟩
+        · exact Or.inr (Or.inl h)
+        · exact absurd hn hNd
     rcases hb.1 with h | h | hm | ⟨c, hc, -⟩ | ⟨e, he, -⟩
     · exact Or.inl h
     · exact Or.inr (Or.inl h)
@@ -62,67 +69,81 @@ theorem FootN.of0 {s s' : S} (f : FootN st T Cs ∅ ∅ Z ∅ s s') : FootN st T
 
 /-- A `FootN` write of a TCB field after a `FootN` step. -/
 theorem FootN.field {s s₁ : S} {y K v : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
-    (f : FootN st T Cs Sg Scs Z Es s s₁) (hy : y ∈ T) (hK : 192 ≤ K.val) (hK' : K.val < 4096)
-    (hK8 : K.val % 8 = 0) (hKd : K.val ≠ 3576 ∧ K.val ≠ 3584) :
-    FootN st T Cs Sg Scs Z Es s (L.wr s₁ (core.num.U64.wrapping_add y K) v) :=
-  f.trans (footN_field hT (fun c hc => (NP c hc).ksb f.1) hy hK hK' hK8 hKd)
+    (f : FootN st Kp Nd T Cs Sg Scs Z Es s s₁) (hy : y ∈ T) (hK : 192 ≤ K.val) (hK' : K.val < 4096)
+    (hK8 : K.val % 8 = 0) (hKd : K.val ≠ 3576 ∧ K.val ≠ 3584) (hx : PrF Kp Nd y K := by xf_auto) :
+    FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s₁ (core.num.U64.wrapping_add y K) v) :=
+  f.trans (footN_field hT (fun c hc => (NP c hc).ksb f.1) hy hK hK' hK8 hKd hx)
 
 /-- The debug-list words are no node identity words. -/
 theorem notIdW_dbg {s : S} {b : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
-    (h : DbgW st T Cs s b) : ¬ IdW st Cs s b := by
+    (h : DbgW st T Cs s b) : ¬ IdW st Kp Nd T Cs Scs s b := by
   rcases h with ⟨y, hy, e | e⟩ | ⟨c, hc, e⟩ <;> subst e
   · exact notIdW_field hT NP hy (by simp)
   · exact notIdW_field hT NP hy (by simp)
   · exact notIdW_node NP hc (by simp [debug_val]) (idOff_ge (by simp [debug_val]))
 
-/-- An endpoint's words are no node identity words. -/
+/-- The SC header words are in `Ω` (under `Nd`). -/
+def HdrΩ (Nd : Prop) (Ω Scs : Set U64) : Prop := Nd → ∀ c ∈ Scs, scReplyA c ∈ Ω ∧ scTcbA c ∈ Ω
+
+theorem hdrΩ_of {s : S} (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s) (hsub : ∀ b ∈ Sg, b ∈ Ω) : HdrΩ Nd Ω Scs :=
+  fun _ c hc => ⟨hsub _ (hX.1.repW c hc), hsub _ (hX.1.fixW c hc).1⟩
+
+/-- An endpoint's words are no node identity or protected words. -/
 theorem notIdW_ep {s : S} {e b : U64} (NP : ∀ c ∈ Cs, NodePlaced st T s c) (hE : EpPlaced T e)
-    (hEN : EpOutNodes st Cs s e) (hb : b = epHeadA e ∨ b = epTSA e) : ¬ IdW st Cs s b := by
-  intro h
-  obtain ⟨c, hc, o, -, ho, e'⟩ := h.lt
+    (hEN : EpOutNodes st Cs s e) (hEΩ : ∀ a ∈ Ω, a.val + 8 ≤ e.val ∨ e.val + 16 ≤ a.val) (hHΩ : HdrΩ Nd Ω Scs)
+    (hb : b = epHeadA e ∨ b = epTSA e) : ¬ IdW st Kp Nd T Cs Scs s b := by
   have hv : b.val = e.val ∨ b.val = e.val + 8 := by
     rcases hb with rfl | rfl
     · exact Or.inl epHeadA_val
     · exact Or.inr (epTSA_val hE)
-  rw [e', nodeAt_val (NP c hc) (by omega)] at hv
-  have := hEN.1 c hc
-  omega
+  rintro (h | h)
+  · obtain ⟨c, hc, o, -, ho, e'⟩ := h.lt
+    rw [e', nodeAt_val (NP c hc) (by omega)] at hv
+    have := hEN.1 c hc
+    omega
+  · rcases h with ⟨y', hy', hya', -, e'⟩ | ⟨hn, ⟨y', hy', hya', e'⟩ | ⟨c, hc, e' | e', -⟩⟩
+    · rw [e', stA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
+    · rw [e', scA_eq, field_val hya' (by decide)] at hv; have := hE.disj y' hy'; simp at hv; omega
+    · have := hEΩ _ (hHΩ hn c hc).1; rw [← e'] at this; omega
+    · have := hEΩ _ (hHΩ hn c hc).2; rw [← e'] at this; omega
 
 theorem EpFoot.kwN {s : S} {W : List U64} {e b : U64} (hT : TcbPlaced T) (NP : ∀ c ∈ Cs, NodePlaced st T s c)
-    (hW : ∀ w ∈ W, w ∈ T) (he : e ∈ Es) (hE : EpPlaced T e) (hEN : EpOutNodes st Cs s e) (h : EpFoot W e b) :
-    KWN st T Cs Sg Scs Z Es s b := by
+    (hW : ∀ w ∈ W, w ∈ T) (he : e ∈ Es) (hE : EpPlaced T e) (hEN : EpOutNodes st Cs s e)
+    (hEΩ : ∀ a ∈ Ω, a.val + 8 ≤ e.val ∨ e.val + 16 ≤ a.val) (hHΩ : HdrΩ Nd Ω Scs) (h : EpFoot W e b) :
+    KWN st Kp Nd T Cs Sg Scs Z Es s b := by
   refine ⟨h.kw hW he, ?_⟩
   rcases h with ⟨w, hw, e' | e'⟩ | e' | e' <;> subst e'
   · rw [nextA_eq']; exact notIdW_field hT NP (hW w hw) (by cases tcbqueue.Link.Ep <;> simp [nextOff])
   · rw [prevA_eq']; exact notIdW_field hT NP (hW w hw) (by cases tcbqueue.Link.Ep <;> simp [prevOff])
-  · exact notIdW_ep NP hE hEN (Or.inl rfl)
-  · exact notIdW_ep NP hE hEN (Or.inr rfl)
+  · exact notIdW_ep NP hE hEN hEΩ hHΩ (Or.inl rfl)
+  · exact notIdW_ep NP hE hEN hEΩ hHΩ (Or.inr rfl)
 
 section kw
 variable {X : Set U64} {Q : U64 → U64 → List U64} {R : U64 → List U64}
 
-theorem sched.set_blocked_on_reply.kwN (s : S) (t r : U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) :
-    sched.set_blocked_on_reply st s t r ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
+theorem sched.set_blocked_on_reply.kwN (s : S) (t r : U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
+    (hKt : t ∉ Kp) :
+    sched.set_blocked_on_reply st s t r ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hT := h.tcbs
   unfold sched.set_blocked_on_reply
   step with obj.Tcb.set_state.spec as ⟨s1, e1⟩
   step with obj.Tcb.set_reply_obj.wr as ⟨s2, e2⟩
   subst e1 e2
-  have f1 : FootN st T Cs Sg Scs Z Es s (L.wr s (stA t) sched.TS_BLOCKED_ON_REPLY) := by
-    rw [stA_eq]; exact footN_field hT h.nodes ht (by simp) (by simp) (by simp) (by simp)
-  have f2 : FootN st T Cs Sg Scs Z Es s (L.wr (L.wr s (stA t) sched.TS_BLOCKED_ON_REPLY) (replyA t) r) :=
+  have f1 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (stA t) sched.TS_BLOCKED_ON_REPLY) := by
+    rw [stA_eq]; exact footN_field hT h.nodes ht (by simp) (by simp) (by simp) (by simp) (PrF.of_nk hKt (by simp))
+  have f2 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr (L.wr s (stA t) sched.TS_BLOCKED_ON_REPLY) (replyA t) r) :=
     FootN.field (K := 3360#u64) hT h.nodes f1 ht (by simp) (by simp) (by simp) (by simp)
   exact WP.spec_mono (sched.schedule_tcb.kwN _ t (fun c hc => (h.nodes c hc).ksb f2.1)
     (by rw [f2.2.1]; exact h.cur)) fun s3 f3 => f2.trans f3
 
 theorem faults.set_fault.kwN (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPlaced T)
     (NP : ∀ c ∈ Cs, NodePlaced st T s c) (ht : t ∈ T) :
-    faults.set_fault st s t f ⦃ s' => FootN st T Cs Sg Scs Z Es s s' ⦄ := by
-  have W : ∀ {s₁ : S} (K v : U64), FootN st T Cs Sg Scs Z Es s s₁ → 3376 ≤ K.val → K.val < 3432 →
-      K.val % 8 = 0 → FootN st T Cs Sg Scs Z Es s (L.wr s₁ (core.num.U64.wrapping_add t K) v) :=
+    faults.set_fault st s t f ⦃ s' => FootN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
+  have W : ∀ {s₁ : S} (K v : U64), FootN st Kp Nd T Cs Sg Scs Z Es s s₁ → 3376 ≤ K.val → K.val < 3432 →
+      K.val % 8 = 0 → FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s₁ (core.num.U64.wrapping_add t K) v) :=
     fun K v e h1 h2 h3 => FootN.field hT NP e ht (by omega) (by omega) h3 (by omega)
   unfold faults.set_fault
-  refine WP.spec_bind (Pₘ := fun r : S × U64 × U64 × U64 × U64 => FootN st T Cs Sg Scs Z Es s r.1) ?_ ?_
+  refine WP.spec_bind (Pₘ := fun r : S × U64 × U64 × U64 × U64 => FootN st Kp Nd T Cs Sg Scs Z Es s r.1) ?_ ?_
   · split
     all_goals first | exact (WP.spec_ok _).2 (FootN.refl s) | skip
     · refine WP.spec_bind (P0.error.LookupFault.encode.p0 _) ?_
@@ -158,20 +179,21 @@ theorem faults.set_fault.kwN (s : S) (t : obj.Tcb) (f : error.Fault) (hT : TcbPl
       subst e5; exact W 3400#u64 w2 h4 (by simp) (by simp) (by simp)
 
 /-- A `BlkFoot` step from `s` (no reply object) inside `KWN`. -/
-theorem blkfoot_footN {s s' : S} {t : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T)
-    (w : WritesIn st s s' (BlkFoot st s t 0#u64)) : FootN st T Cs Sg Scs Z Es s s' :=
+theorem blkfoot_footN {s s' : S} {t : U64} (h : SchedQueuesInvX st T Cs Ω H X s Q R) (ht : t ∈ T) (hKt : t ∉ Kp)
+    (w : WritesIn st s s' (BlkFoot st s t 0#u64)) : FootN st Kp Nd T Cs Sg Scs Z Es s s' :=
   FootN.of' w fun b _ hb => by
     rcases hb with ⟨K, hK, rfl⟩ | rfl | ⟨h0, -⟩
-    · exact ⟨kw_field ht (by omega) (by omega) (by omega), notIdW_field h.tcbs h.nodes ht (by omega)⟩
+    · exact ⟨kw_field ht (by omega) (by omega) (by omega), notIdW_field h.tcbs h.nodes ht (by omega)
+        (PrF.of_nk hKt (by omega))⟩
     · exact ⟨kw_node h.cur (by rw [act_val]; omega) (by rw [act_val]; omega),
         notIdW_node h.nodes h.cur (by rw [act_val]; omega)
-          (idOff_cur (by rw [act_val]; omega) (by rw [act_val]; omega))⟩
+          (idOff_cur (by rw [act_val]; omega) (by rw [act_val]; omega) (fun _ => by rw [act_val]; omega))⟩
     · exact absurd rfl h0
 
 set_option maxHeartbeats 4000000 in
 /-- **The blocking send's footprint** in `KWN`. -/
 theorem send_block.footN {A : Type _} (s : S) (a : A) (t e badge : U64) (can_grant can_grant_reply do_call : Bool)
-    (h : SchedQueuesInv st T Cs Ω H s Q R) (hc : CanBlock st T Ac s t) (hH : H e = some .ep) :
+    (h : SchedQueuesInv st T Cs Ω H s Q R) (hc : CanBlock st T Ac s t) (hH : H e = some .ep) (hKt : t ∉ Kp) (hHΩ : HdrΩ Nd Ω Scs) :
     (do
       let s1 ← obj.Tcb.set_state st t s sched.TS_BLOCKED_ON_SEND
       let s2 ← obj.Tcb.set_block_obj st t s1 e
@@ -184,7 +206,7 @@ theorem send_block.footN {A : Type _} (s : S) (a : A) (t e badge : U64) (can_gra
       let s4 ← obj.Tcb.set_block_flags st t s3 f
       let s5 ← sched.schedule_tcb st s4 t
       let s6 ← endpoint.ep_append st s5 e t obj.EP_SEND
-      ok (s6, a)) ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      ok (s6, a)) ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
   have ht := hc.mem
   have hta := h.tcbs t ht
   have hN := h.nodes _ h.cur
@@ -206,7 +228,7 @@ theorem send_block.footN {A : Type _} (s : S) (a : A) (t e badge : U64) (can_gra
       let s4 ← obj.Tcb.set_block_flags st t s3 f
       let s5 ← sched.schedule_tcb st s4 t
       let s6 ← endpoint.ep_append st s5 e t obj.EP_SEND
-      ok (s6, a)) ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      ok (s6, a)) ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
     intro f
     step with obj.Tcb.set_block_flags.wr as ⟨s4, e4⟩
     have h4 : SchedQueuesInvX st T Cs Ω H {y | y ∈ (∅ : Set U64) ∨ y = t} s4 Q R := by
@@ -236,14 +258,14 @@ theorem send_block.footN {A : Type _} (s : S) (a : A) (t e badge : U64) (can_gra
          kf y (hq.mem y hy) (nextOff .Ep) (by simp [nextOff]) (by simp [nextOff]) (fun _ => by simp [nextOff])⟩⟩
     have hn : t ∉ EQ e := fun hm => hc.nb (hEW.2.2.2.1 e heE t hm).2.2
     refine WP.spec_bind (endpoint.ep_append.foot s5 e t obj.EP_SEND (EQ e) h.tcbs hE hq5 ht hn) fun s6 w6 => ?_
-    have F5 : FootN st T Cs Sg Scs Z (EH H) s s5 := blkfoot_footN h ht w5
+    have F5 : FootN st Kp Nd T Cs Sg Scs Z (EH H) s s5 := blkfoot_footN h ht hKt w5
     refine (WP.spec_ok _).2 (F5.trans (FootN.of' w6 fun b _ hb => ?_))
     have hW : ∀ w ∈ t :: EQ e, w ∈ T := by
       intro w hw
       rcases List.mem_cons.1 hw with rfl | hw
       · exact ht
       · exact hq.mem w hw
-    have k := EpFoot.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) h.tcbs h.nodes hW (Or.inl hH) hE hEN hb
+    have k := EpFoot.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) h.tcbs h.nodes hW (Or.inl hH) hE hEN (hEW.2.2.1 e heE) hHΩ hb
     exact ⟨KW.ksb F5.1.symm k.1, notIdW_ksb F5.1 F5.2.1 k.2⟩
   cases can_grant <;> cases can_grant_reply <;> cases do_call <;>
     simp only [Bool.false_eq_true, ↓reduceIte, Aeneas.Std.bind_ok, lift] <;> exact key _
@@ -252,18 +274,18 @@ theorem send_block.footN {A : Type _} (s : S) (a : A) (t e badge : U64) (can_gra
 theorem endpoint.send_ipc.blockFootN {A : Type _} (ar : machine.Arch A) (s : S) (a : A) (blocking do_call : Bool)
     (badge : U64) (can_grant can_grant_reply can_donate : Bool) (t e : U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hc : blocking = true → CanBlock st T Ac s t)
-    (hH : H e = some .ep) (hst0 : L.epState s e = 0#u64 ∨ L.epState s e = 1#u64) :
+    (hH : H e = some .ep) (hst0 : L.epState s e = 0#u64 ∨ L.epState s e = 1#u64) (hKt : t ∉ Kp) (hHΩ : HdrΩ Nd Ω Scs) :
     endpoint.send_ipc st ar s a blocking do_call badge can_grant can_grant_reply can_donate t e
-      ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
   unfold endpoint.send_ipc
   step with obj.Ep.state.spec as ⟨v, hv⟩
   split
   · split
-    · exact send_block.footN s a t e badge can_grant can_grant_reply do_call h (hc ‹_›) hH
+    · exact send_block.footN s a t e badge can_grant can_grant_reply do_call h (hc ‹_›) hH hKt hHΩ
     · simp only [WP.spec_ok, WP.uncurry'_pair]; exact FootN.refl _
   · split
     · split
-      · exact send_block.footN s a t e badge can_grant can_grant_reply do_call h (hc ‹_›) hH
+      · exact send_block.footN s a t e badge can_grant can_grant_reply do_call h (hc ‹_›) hH hKt hHΩ
       · simp only [WP.spec_ok, WP.uncurry'_pair]; exact FootN.refl _
     · exfalso
       rename_i h1 h2
@@ -275,18 +297,18 @@ set_option maxHeartbeats 1000000 in
 theorem schedcontext.donate.kwIN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal ar) (s : S) (a : A)
     (sc dst : U64) (h : SchedQueuesInvX st T Cs Ω H X s Q R) {s0 : S} (hO : ObjsOK st Ω Sg Rp Scs Nt Z s0)
     (hsub : ∀ b ∈ Sg, b ∈ Ω) (hD : DbgTz st T Cs s) (hcore : L.mem s (scCoreA sc) ∈ Cs)
-    (hsc : sc ∈ Scs) (hdst : dst ∈ T)
+    (hsc : sc ∈ Scs) (hdst : dst ∈ T) (hNd : ¬ Nd)
     (hi : L.mem s (scTcbA sc) ≠ 0#u64 → L.mem s (scTcbA sc) ∈ T ∧
       (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_QUEUED) = 0#u64 ∧
       (L.mem s (inqA (L.mem s (scTcbA sc))) &&& sched.Q_RELEASE) = 0#u64) :
-    schedcontext.donate st ar s a sc dst ⦃ s' _ => FootDN st T Cs Sg Scs Z Es s s' ⦄ := by
+    schedcontext.donate st ar s a sc dst ⦃ s' _ => FootDN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hT := h.tcbs
   have hN' := h.nodes _ h.cur
   have hcO : scCoreA sc ∈ Ω := ((objs_omega hO hsub).2 sc hsc).2.1
   unfold schedcontext.donate
   step with obj.Sc.tcb.spec as ⟨i, ei⟩
   step with obj.Tcb.is_null.spec as ⟨b, eb⟩
-  refine WP.spec_bind (Pₘ := fun r : S × A => FootN st T Cs ∅ ∅ Z ∅ s r.1 ∧
+  refine WP.spec_bind (Pₘ := fun r : S × A => FootN st Kp Nd T Cs ∅ ∅ Z ∅ s r.1 ∧
       ∃ Q1 R1, SchedQueuesInvX st T Cs Ω H X r.1 Q1 R1) ?_ ?_
   · split
     · exact (WP.spec_ok _).2 ⟨FootN.refl _, Q, R, h⟩
@@ -297,7 +319,7 @@ theorem schedcontext.donate.kwIN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     refine WP.spec_bind (smp.remote_tcb_stall.spec hA s a i) ?_
     rintro ⟨s2, a2⟩ hs2
     try simp only [WP.uncurry'_pair] at hs2 ⊢
-    have hst : SchedQueuesInvX st T Cs Ω H X s2 Q R ∧ FootN st T Cs ∅ ∅ Z ∅ s s2 ∧
+    have hst : SchedQueuesInvX st T Cs Ω H X s2 Q R ∧ FootN st Kp Nd T Cs ∅ ∅ Z ∅ s s2 ∧
         L.mem s2 (inqA i) = L.mem s (inqA i) := by
       rcases hs2 with rfl | ⟨v, rfl⟩
       · exact ⟨h, FootN.refl _, rfl⟩
@@ -313,15 +335,16 @@ theorem schedcontext.donate.kwIN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
     step with obj.Tcb.set_sc.wr as ⟨s5, e5⟩
     subst e5
     have q5 := inv_wr_field (K := 3464#u64) (v := 0#u64) q2 hiT (by simp) (by simp) (by simp)
-    have f05 : FootN st T Cs ∅ ∅ Z ∅ s (L.wr s2 (scA i) 0#u64) := by
+    have f05 : FootN st Kp Nd T Cs ∅ ∅ Z ∅ s (L.wr s2 (scA i) 0#u64) := by
       rw [scA_eq]; exact FootN.field hT h.nodes f2 hiT (by simp) (by simp) (by simp) (by simp)
+        ⟨fun _ => by simp, fun h => absurd h hNd⟩
     step with sched.cur_thread.spec as ⟨t1, et1⟩
     step with tcb_eq.blk as ⟨b1, eb1⟩
-    refine WP.spec_bind (Pₘ := fun s6 => FootN st T Cs ∅ ∅ Z ∅ (L.wr s2 (scA i) 0#u64) s6 ∧
+    refine WP.spec_bind (Pₘ := fun s6 => FootN st Kp Nd T Cs ∅ ∅ Z ∅ (L.wr s2 (scA i) 0#u64) s6 ∧
         ∃ Q1 R1, SchedQueuesInvX st T Cs Ω H X s6 Q1 R1) ?_
       fun s6 ⟨f6, q6⟩ => (WP.spec_ok _).2 ⟨f05.trans f6, q6⟩
     have RR : sched.reschedule_required st (L.wr s2 (scA i) 0#u64) ⦃ s6 =>
-        FootN st T Cs ∅ ∅ Z ∅ (L.wr s2 (scA i) 0#u64) s6 ∧ ∃ Q1 R1, SchedQueuesInvX st T Cs Ω H X s6 Q1 R1 ⦄ :=
+        FootN st Kp Nd T Cs ∅ ∅ Z ∅ (L.wr s2 (scA i) 0#u64) s6 ∧ ∃ Q1 R1, SchedQueuesInvX st T Cs Ω H X s6 Q1 R1 ⦄ :=
       WP.spec_mono (WP.spec_and (sched.reschedule_required.kwN _ q5) (sched.reschedule_required.inv _ _ _ q5))
         fun s6 ⟨f6, ⟨Q6, h6⟩, _, _⟩ => ⟨f6, _, _, h6⟩
     split
@@ -337,11 +360,12 @@ theorem schedcontext.donate.kwIN {A : Type _} {ar : machine.Arch A} (hA : P0.Arc
   refine WP.spec_mono (donate_tail.frame hA s1 a1 sc dst h1 D1 hO.ksb hsub hsc hdst (by rw [c1]; exact hcore)) ?_
   rintro ⟨s', a'⟩ ⟨w, -⟩
   try simp only [WP.uncurry'_pair] at w ⊢
-  refine (FootN.of0 (Sg := Sg) (Scs := Scs) (Es := Es) f1).d.trans (FootDN.of' w fun b hb' hb => ?_)
+  refine (FootN.of0 (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Es := Es) f1 hNd).d.trans (FootDN.of' w fun b hb' hb => ?_)
   rcases hb with rfl | rfl | rfl | hb
-  · exact ⟨Or.inl (kw_sg (hO.fixW sc hsc).1), notIdW_out h1.nodes (h1.omega _ (hsub _ (hO.fixW sc hsc).1))⟩
+  · exact ⟨Or.inl (kw_sg (hO.fixW sc hsc).1), notIdW_out h1.nodes (h1.omega _ (hsub _ (hO.fixW sc hsc).1))
+      (NoHdr.of_not hNd)⟩
   · exact ⟨Or.inl (by rw [scA_eq]; exact kw_field hdst (by simp) (by simp) (by simp)),
-      by rw [scA_eq]; exact notIdW_field h1.tcbs h1.nodes hdst (by simp)⟩
+      by rw [scA_eq]; exact notIdW_field h1.tcbs h1.nodes hdst (by simp) ⟨fun _ => by simp, fun h => absurd h hNd⟩⟩
   · exact ⟨Or.inl (by rw [affA_eq]; exact kw_field hdst (by simp) (by simp) (by simp)),
       by rw [affA_eq]; exact notIdW_field h1.tcbs h1.nodes hdst (by simp)⟩
   · exact ⟨Or.inr hb, notIdW_dbg h1.tcbs h1.nodes hb⟩
@@ -359,8 +383,9 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
     (hci : L.idleW s ≠ caller)
     (hcold : L.mem s (stA caller) ≠ sched.TS_BLOCKED_ON_REPLY ∧ L.mem s (stA caller) ≠ sched.TS_BLOCKED_ON_RECV)
     (hr : r ∈ Rp) (hr00 : r ≠ 0#u64) (hr0 : L.mem s (rTcbA r) = 0#u64) (hce : callee ∈ T)
-    (hcA : L.mem s (scA caller) ≠ 0#u64 → L.mem s (scA caller) ∈ Ac) :
-    ipc.reply_push st ar s a caller callee r can_donate ⦃ s' _ => FootDN st T Cs Sg Scs Z Es s s' ⦄ := by
+    (hcA : L.mem s (scA caller) ≠ 0#u64 → L.mem s (scA caller) ∈ Ac) (hKc : caller ∉ Kp)
+    (hdK : can_donate = true → ¬ Nd) :
+    ipc.reply_push st ar s a caller callee r can_donate ⦃ s' _ => FootDN st Kp Nd T Cs Sg Scs Z Es s s' ⦄ := by
   have hT := h.tcbs
   have hO := hX.1
   have hsub := hSg.sub
@@ -370,12 +395,13 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
   step with obj.Tcb.sc.spec as ⟨i, ei⟩
   step with obj.Reply.set_tcb.spec as ⟨s1, e1⟩
   subst e1
-  have f1 : FootN st T Cs Sg Scs Z Es s (L.wr s (rTcbA r) caller) :=
-    footN_wr (h.omega _ (hrΩ r hr).1).1 ⟨kw_sg (hO.tcbW hr), notIdW_out h.nodes (h.omega _ (hrΩ r hr).1)⟩
+  have f1 : FootN st Kp Nd T Cs Sg Scs Z Es s (L.wr s (rTcbA r) caller) :=
+    footN_wr (h.omega _ (hrΩ r hr).1).1 ⟨kw_sg (hO.tcbW hr), notIdW_out h.nodes (h.omega _ (hrΩ r hr).1)
+      (noHdr_rp hO hr (by rw [rt0]) (by rw [rt0]; omega))⟩
   have q1 := (omega_wr (v := caller) h (hrΩ r hr).1).1
   refine WP.spec_bind (WP.spec_and (sched.set_blocked_on_reply.ipc s caller r Q R h hXc hx hB hX hS hSg hcl hcq hcr
     hca hci hcold hr hr00 hr0 hcA)
-    (sched.set_blocked_on_reply.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) _ caller r q1 hcl)) ?_
+    (sched.set_blocked_on_reply.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) _ caller r q1 hcl hKc)) ?_
   rintro s2 ⟨⟨h2, hB2, hX2, hS2, hSg2, f2', o2, -, -, -, -⟩, f2⟩
   have f02 := f1.trans f2
   step with obj.Sc.is_null.spec as ⟨b, eb⟩
@@ -399,17 +425,17 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
   have cc2 : L.mem s2 (scCoreA i) = L.mem s (scCoreA i) :=
     o2 _ (hcΩ i hiS).2.1 (fun e => hci (congrArg UScalar.val e))
   -- what the reply and SC writes keep
-  let P : S → Prop := fun s' => SchedQueuesInvX st T Cs Ω H ∅ s' Q R ∧ FootN st T Cs Sg Scs Z Es s s' ∧
+  let P : S → Prop := fun s' => SchedQueuesInvX st T Cs Ω H ∅ s' Q R ∧ FootN st Kp Nd T Cs Sg Scs Z Es s s' ∧
     (∀ y ∈ T, ∀ K : U64, K.val < 4096 → K.val % 8 = 0 →
       L.mem s' (core.num.U64.wrapping_add y K) = L.mem s2 (core.num.U64.wrapping_add y K)) ∧
     L.mem s' (scTcbA i) = caller ∧ DbgTz st T Cs s' ∧ L.mem s' (scCoreA i) = L.mem s (scCoreA i)
-  have W : ∀ (s' : S) (b v : U64), P s' → b ∈ Sg → (scTcbA i).val ≠ b.val → (scCoreA i).val ≠ b.val →
+  have W : ¬ Nd → ∀ (s' : S) (b v : U64), P s' → b ∈ Sg → (scTcbA i).val ≠ b.val → (scCoreA i).val ≠ b.val →
       P (L.wr s' b v) := by
-    intro s' b v ⟨q, f, k, c, D, cc⟩ hb hne hne'
+    intro hnd s' b v ⟨q, f, k, c, D, cc⟩ hb hne hne'
     obtain ⟨q', -, k'⟩ := omega_wr (v := v) q (hsub b hb)
     have hbo := q.omega _ (hsub b hb)
     have hba := hbo.1
-    exact ⟨q', f.trans (footN_wr hba ⟨kw_sg hb, notIdW_out q.nodes hbo⟩), fun y hy K h1 h2 => (k' y hy K h1 h2).trans (k y hy K h1 h2),
+    exact ⟨q', f.trans (footN_wr hba ⟨kw_sg hb, notIdW_out q.nodes hbo (NoHdr.of_not hnd)⟩), fun y hy K h1 h2 => (k' y hy K h1 h2).trans (k y hy K h1 h2),
       by rw [L.mem_wr_ne hba hal (Ne.symm hne)]; exact c,
       DbgTz.wr_out q.tcbs q.nodes hba (notDbgW_out q.tcbs q.nodes hbo) D,
       by rw [L.mem_wr_ne hba hcal (Ne.symm hne')]; exact cc⟩
@@ -418,6 +444,7 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
   split
   · split
     · step with obj.Sc.reply.val as ⟨i2, ei2⟩
+      have hnd : ¬ Nd := hdK (by assumption)
       have hi2 : i2 ≠ 0#u64 → i2 ∈ Rp := fun h0 => by rw [ei2] at h0 ⊢; exact hX2.2.1.screp i hiS h0
       refine WP.spec_bind (Pₘ := P) ?_ fun s3 p3 => ?_
       · split
@@ -427,19 +454,19 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
           refine WP.spec_mono (obj.Reply.set_next.val0 s2 i2 r) fun s3 e3 => ?_
           subst e3
           obtain ⟨-, -, -, n16⟩ := rp_facts hO hp
-          exact W _ _ _ P2 (hO.nextW hp) (by rw [tv, n16]; have := hO.rpSc i2 hp i hiS; omega)
+          exact W hnd _ _ _ P2 (hO.nextW hp) (by rw [tv, n16]; have := hO.rpSc i2 hp i hiS; omega)
             (by rw [cv, n16]; have := hO.rpSc i2 hp i hiS; omega)
         · exact (WP.spec_ok _).2 P2
       refine WP.spec_bind (obj.Reply.set_prev.val s3 r i2) fun s4 e4 => ?_
       subst e4
-      have p4 := W _ _ (i2 &&& ~~~1#u64) p3 (hO.prevW hr) (by rw [tv, rp8]; have := hO.rpSc r hr i hiS; omega)
+      have p4 := W hnd _ _ (i2 &&& ~~~1#u64) p3 (hO.prevW hr) (by rw [tv, rp8]; have := hO.rpSc r hr i hiS; omega)
         (by rw [cv, rp8]; have := hO.rpSc r hr i hiS; omega)
       refine WP.spec_bind (obj.Sc.set_reply.spec _ i r) fun s5 e5 => ?_
       subst e5
-      have p5 := W _ _ r p4 (hO.repW i hiS) (by rw [tv, rv]; omega) (by rw [cv, rv]; omega)
+      have p5 := W hnd _ _ r p4 (hO.repW i hiS) (by rw [tv, rv]; omega) (by rw [cv, rv]; omega)
       refine WP.spec_bind (obj.Reply.set_next.val1 _ r i) fun s6 e6 => ?_
       subst e6
-      have p6 := W _ _ ((i &&& ~~~1#u64) ||| 1#u64) p5 (hO.nextW hr)
+      have p6 := W hnd _ _ ((i &&& ~~~1#u64) ||| 1#u64) p5 (hO.nextW hr)
         (by rw [tv, rn16]; have := hO.rpSc r hr i hiS; omega)
         (by rw [cv, rn16]; have := hO.rpSc r hr i hiS; omega)
       obtain ⟨q6, f6, k6, c6, D6, cc6⟩ := p6
@@ -449,7 +476,7 @@ theorem ipc.reply_push.kwN {A : Type _} {ar : machine.Arch A} (hA : P0.ArchTotal
         rw [inqA_eq, k caller hcl _ (by simp) (by simp)]
         exact f2' caller hcl _ (by simp) (by simp) (fun _ => ⟨by simp, by simp, by simp, by simp, by simp⟩)
       refine WP.spec_mono (schedcontext.donate.kwIN (Es := Es) hA _ a i callee q6 hO hsub D6
-        (by rw [cc6]; exact hX.2.2.core i hiS) hiS hce fun _ => ?_)
+        (by rw [cc6]; exact hX.2.2.core i hiS) hiS hce hnd fun _ => ?_)
         fun r' f' => f6.d.trans f'
       rw [c6]
       exact ⟨hcl, by rw [iq _ k6]; exact hcq, by rw [iq _ k6]; exact hcr⟩
@@ -463,23 +490,23 @@ theorem send_tail.footN {X : Set U64} (s4 : S) {A : Type _} (a1 : A) (hd : U64) 
     (R : U64 → List U64) (h4 : SchedQueuesInvX st T Cs Ω H X s4 Q R) (hB4 : BoundInv st T Ac s4)
     (hX4 : XInv st T Cs Ω Sg Rp Scs Nt Z s4) (hS4 : SCsOK st T Ω Sg Scs Z Ac s4) (hSg4 : SgOK st Ω Sg s4) (hdT : hd ∈ T)
     (hXc : ExcT X hd) (hx : hd ∈ X ∨ ¬ Blocked (L.mem s4 (stA hd))) (hnr : ∀ r ∈ Rp, L.mem s4 (rTcbA r) ≠ hd)
-    (hdA : L.mem s4 (scA hd) ≠ 0#u64 → L.mem s4 (scA hd) ∈ Ac) :
+    (hdA : L.mem s4 (scA hd) ≠ 0#u64 → L.mem s4 (scA hd) ∈ Ac) (hKd : hd ∉ Kp) :
     (do
       let s5 ← sched.set_thread_state st s4 hd sched.TS_RUNNING
       let s6 ← endpoint.unblock_sporadic st s5 hd
       let s7 ← sched.possible_switch_to st s6 hd
-      ok (s7, a1)) ⦃ s' _ => FootN st T Cs Sg Scs Z Es s4 s' ⦄ := by
+      ok (s7, a1)) ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z Es s4 s' ⦄ := by
   refine WP.spec_bind (WP.spec_and (sts_all s4 hd _ Q R h4 hB4 hX4 hS4 hSg4 hdT not_blocked_running running_ne hx hnr
     ⟨fun _ _ _ _ _ => runnable_running, fun _ _ _ => runnable_running, fun _ => runnable_running⟩)
-    (sched.set_thread_state.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s4 hd _ h4 hdT)) fun s5 hh' => ?_
+    (sched.set_thread_state.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s4 hd _ h4 hdT hKd)) fun s5 hh' => ?_
   obtain ⟨hh, f5⟩ := hh'
   obtain ⟨h5, hB5, hX5, hS5, hSg5, e5, k5⟩ := hh
   have h5' := h5.congrX (excT_congr hXc)
   refine WP.spec_bind (WP.spec_and (endpoint.unblock_sporadic.all s5 hd h5' hB5 hX5 hS5 hSg5 hdT)
-    (endpoint.unblock_sporadic.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s5 hd h5' hX5 hS5 hdT)) fun s6 hh' => ?_
+    (endpoint.unblock_sporadic.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s5 hd h5' hX5 hS5 hdT)) fun s6 hh' => ?_
   obtain ⟨hh, f6⟩ := hh'
   obtain ⟨h6, -⟩ := hh
-  refine WP.spec_bind (sched.possible_switch_to.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := Es) s6 hd h6 hdT)
+  refine WP.spec_bind (sched.possible_switch_to.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := Es) s6 hd h6 hdT)
     fun s7 f7 => (WP.spec_ok _).2 (f5.trans (f6.trans f7))
 
 

@@ -18,7 +18,7 @@ open fl4_core Fl4Proofs.P0.Consts
 
 section
 variable {S : Type _} {st : machine.Store S} [L : LawfulStore st] {T : Set U64} {Ω : Set U64} {H : Heap}
-variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A} {Ac : Set U64}
+variable {Cs Sg Rp Scs Nt : Set U64} {Z : U64 → Nat} {A : Type _} {ar : machine.Arch A} {Ac : Set U64} {Kp : Set U64} {Nd : Prop}
 
 /-- `end_suff`'s footprint in `KWN`: `append` or `postpone`. -/
 theorem end_suff.footN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
@@ -31,17 +31,17 @@ theorem end_suff.footN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 �
         if b1 = true then do let s1 ← sched.append st s (L.curW s); ok (s1, a)
         else do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a)
       else do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a))
-      ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ := by
+      ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ := by
   have hcT : L.curW s ∈ T := h.curT
   obtain ⟨hSc, htc, hcore⟩ := hX.2.2.bound (L.curW s) hcT hc.bnd
   rw [← hc.csc] at hSc htc hcore
   have hco : OutsideObjs st T Cs s (scCoreA (L.cscW s)) := h.omega _ ((objs_omega hX.1 hSg.sub).2 _ hSc).2.1
   have P : (do let s1 ← sched.postpone st s (L.cscW s); ok (s1, a))
-      ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ :=
+      ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ :=
     WP.spec_bind (sched.postpone.kwN s _ Q R h (by rw [htc]; exact hcT) (by rw [htc]; exact hc.rel) hco hcore)
       fun s1 f1 => by simp only [WP.spec_ok, WP.uncurry'_pair]; exact f1
   have Ap : (do let s1 ← sched.append st s (L.curW s); ok (s1, a))
-      ⦃ s' _ => FootN st T Cs Sg Scs Z (EH H) s s' ⦄ :=
+      ⦃ s' _ => FootN st Kp Nd T Cs Sg Scs Z (EH H) s s' ⦄ :=
     WP.spec_bind (sched.append.kwN s _ h hcT) fun s1 f1 => by simp only [WP.spec_ok, WP.uncurry'_pair]; exact f1
   step with sporadic.ready.spec as ⟨b⟩
   split
@@ -55,7 +55,7 @@ theorem end_suff.footN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 �
 theorem end_suffGN (hA : P0.ArchTotal ar) (s : S) (a : A) (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hc : CurOK st T s)
-    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s) :
+    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s) :
     (do
       let b ← sporadic.ready st s (L.cscW s)
       if b = true then do
@@ -75,7 +75,7 @@ theorem sched.end_timeslice.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (cto : 
     (Q : U64 → U64 → List U64) (R : U64 → List U64)
     (h : SchedQueuesInv st T Cs Ω H s Q R) (hB : BoundInv st T Ac s) (hX : XInv st T Cs Ω Sg Rp Scs Nt Z s)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s) (hc : CurOK st T s)
-    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
+    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
     (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
     sched.end_timeslice st ar s a cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄ := by
   have E := end_suffGN hA s a Q R h hB hX hSg hS hc hGF hG
@@ -108,7 +108,7 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
-    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
+    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
     (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
     sched.charge_budget st ar s a used cto ⦃ s' _ => BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s' ⦄ := by
   have hcS : L.cscW s ∈ Scs := hX.2.2.cur
@@ -187,23 +187,23 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
         out_ne_node (h2.omega _ c4) h2.cur hN2 (by rw [hco]; omega),
         out_ne_node (h2.omega _ c5) h2.cur hN2 (by rw [hco]; omega)⟩
   rw [← s3_post] at h3 hB3 hX3 hSg3 ea3 ec3 ecs3 f3 hS3
-  have W3 : WritesIn st s s3 (ChgW st Scs Z s) := by
+  have G3 : G s3 := by
     obtain ⟨hP, hz⟩ := hX.1.sc _ hcS
     obtain ⟨-, h128, -⟩ := sc_lo hP hz
     have hv := sc_word_val hP hz (o := layout.sc.CONSUMED) (by simp [layout.sc.CONSUMED])
     have hN2 := h2.nodes _ h2.cur
     have wn : WritesIn st s2 s3 (fun b => b = L.nodeAt s2 (L.cpu s2) layout.node.CONSUMED) := by
       rw [s3_post]; exact writesIn_wr (nodeAt_aligned hN2 (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]))
-    refine (w2.trans wn).mono fun b hb => ?_
-    rcases hb with (hh | rfl) | rfl
-    · exact Or.inl ⟨_, hcS, hh.inSC⟩
-    · exact Or.inl ⟨_, hcS, by rw [hv]; simp, by rw [hv]; simp [layout.sc.CONSUMED]; omega⟩
-    · exact Or.inr (by rw [nodeAt_of_ksb w2.1, w2.2.1])
-  have G3 : G s3 := hGF _ _ hG (FootN.of' W3 fun b hb hh => by
-    rcases hh with ⟨c, hc', hin⟩ | e
-    · exact ⟨kw_sc hc' hin, notIdW_out h.nodes (h.omega _ (hX.1.scW c hc' b hb hin))⟩
-    · rw [e]; exact ⟨kw_node h.cur (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]),
-        notIdW_node h.nodes h.cur (by simp [layout.node.CONSUMED]) (idOff_ge (by simp [layout.node.CONSUMED]))⟩)
+    refine hGF _ _ hG (FootN.of' (w2.trans wn) fun b hb hh => ?_)
+    rcases hh with (hh | rfl) | rfl
+    · exact ⟨kw_sc hcS hh.inSC, notIdW_out h.nodes (h.omega _ (hX.1.scW _ hcS b hb hh.inSC)) (noHdr_ring hX.1 hcS hh)⟩
+    · have hin : InSC (L.cscW s) (Z (L.cscW s)) (core.num.U64.wrapping_add (L.cscW s) layout.sc.CONSUMED) :=
+        ⟨by rw [hv]; simp, by rw [hv]; simp [layout.sc.CONSUMED]; omega⟩
+      exact ⟨kw_sc hcS hin, notIdW_out h.nodes (h.omega _ (hX.1.scW _ hcS _ hb hin))
+        (noHdr_sc hX.1 hcS hin (by rw [hv]; simp [layout.sc.CONSUMED]) (by rw [hv]; simp [layout.sc.CONSUMED]))⟩
+    · rw [nodeAt_of_ksb w2.1, w2.2.1]
+      exact ⟨kw_node h.cur (by simp [layout.node.CONSUMED]) (by simp [layout.node.CONSUMED]),
+        notIdW_node h.nodes h.cur (by simp [layout.node.CONSUMED]) (idOff_ge (by simp [layout.node.CONSUMED]))⟩
   step with sched.cur_thread.spec as ⟨ct, ct_post⟩
   have e2 : ct = L.curW s3 := ct_post
   subst e2
@@ -220,10 +220,10 @@ theorem sched.charge_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A) (used :
     rintro ⟨s4, a1⟩ ⟨⟨⟨Q4, R4, h4⟩, hB4, hX4, hSg4, hS4⟩, g4⟩
     try simp only [WP.uncurry'_pair]
     refine WP.spec_bind (WP.spec_and (sched.reschedule_required.sch s4 Q4 R4 h4 hB4 hSg4)
-      (sched.reschedule_required.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s4 h4)) ?_
+      (sched.reschedule_required.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s4 h4)) ?_
     rintro s5 ⟨⟨⟨⟨Q5, R5, h5⟩, hB5, f5⟩, ea5, ec5, -⟩, k5⟩
     refine WP.spec_bind (WP.spec_and (sched.set_reprogram.sch s5 Q5 R5 h5 hB5 (hSg4.fr f5))
-      (sched.set_reprogram.kwN (Sg := Sg) (Scs := Scs) (Z := Z) (Es := EH H) s5 h5.nodes h5.cur)) ?_
+      (sched.set_reprogram.kwN (Sg := Sg) (Kp := Kp) (Nd := Nd) (Scs := Scs) (Z := Z) (Es := EH H) s5 h5.nodes h5.cur)) ?_
     rintro s6 ⟨⟨⟨h6, hB6, f6⟩, ea6, ec6⟩, k6⟩
     simp only [WP.spec_ok, WP.uncurry'_pair]
     exact ⟨⟨⟨Q5, R5, h6⟩, hB6, (hX4.fr f5).fr f6, (hSg4.fr f5).fr f6, (hS4.fr f5).fr f6⟩,
@@ -238,7 +238,7 @@ theorem sched.check_budget.allGN (hA : P0.ArchTotal ar) (s : S) (a : A)
     (hSg : SgOK st Ω Sg s) (hS : SCsOK st T Ω Sg Scs Z Ac s)
     (hcsc : L.mem s (scA (L.curW s)) ≠ 0#u64 → L.cscW s = L.mem s (scA (L.curW s)))
     (hna : L.actionW s ≠ L.curW s) (hcA : L.cscW s ∈ Ac)
-    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
+    {G : S → Prop} (hGF : ∀ s1 s2 : S, G s1 → FootN st Kp Nd T Cs Sg Scs Z (EH H) s1 s2 → G s2) (hG : G s)
     (htmo : TmoKG st ar T Cs Ω H Sg Rp Scs Nt Z Ac G) :
     sched.check_budget st ar s a ⦃ r s' _ => (BXI st T Cs Ω H Sg Rp Scs Nt Z Ac s' ∧ G s') ∧ (r = true → s' = s) ⦄ := by
   unfold sched.check_budget
