@@ -7,7 +7,6 @@ E=[]
 # XTopJointVsFb.decode_invocation_pml4_fbJV; fb3k: decode + fb_loopJ proved, the one P3 chain stub is
 # XTopJointVsFb.fb_loopI (the loop entry by entry; same `fail` line)
 # fb3l: fb_entryJ split by op; the stubs are the three per-op lemmas
-E.append((P+'P3/XTopJointFbDelDefer.lean','  fail "FB3 OPEN: the deferred unmap at J (KENTRY-PLAN fb3l)"\n','  sorry -- FB3SCRATCH\n'))
 # fb3g: P1 QueueDecVs batch arm proved (vspace.decode_frame_batch.dec)
 # fb3e: UtP1 batch arm proved (SpecFbP3)
 # fb3e: SgD / SiD batch arms proved (SpecFbP3.fbq_run)

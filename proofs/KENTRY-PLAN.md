@@ -17272,7 +17272,7 @@ global ref).
   `FbMidJ` may be extended (e.g. `Entered τ`, slot facts) if the entry proofs need it; it is local to this module.
 - Commits: 6ceaac2c, this part (fb_loopI). Still open: `fb_entryJ`, MachKeepG4d's batch arm (fb3m To finish (1)-(3)),
   then full no-SCR build + `axfb3k.lean`.
-### fb3l (resume of fb3k, branch par/fb3 in FL4-fb3; coordinator + parallel forks par/fb3l-{a,b,c,d}) — `fb_entryJ` split by op and the three ops PROVED (DELETE's deferred-unmap step `JAtZ.fbDelDeferJ` last); fb3m "To finish" (1)-(3) DONE (MachKeepG4d stub gone); no premise on any top; no FINDING
+### fb3l (resume of fb3k, branch par/fb3 in FL4-fb3; coordinator + parallel forks par/fb3l-{a,b,c,d}) — `fb_entryJ` PROVED (split by op, all three ops proved, no stub left); fb3m "To finish" (1)-(3) DONE (MachKeepG4d stub gone); no premise on any top; no FINDING
 - **Interface (XTopJointFbDefs, new):** `FbKeep σ σ'` (spec: objects kept but CNodes of the same size, non-pool arch
   objects of the same type, TCBs' caps; scheduler fields, ASID table, global PML4; refl/trans, `FbKeep.tcb`,
   `FbKeep.findVs` with `findVs_pool`/`getAsidPool_none`), `FbFootK Z s s'` (FL4: TCB registers of `Z.T` and the buffer
@@ -17284,7 +17284,8 @@ global ref).
   `batch_map_{small,large,huge}_rel`/`batch_map_rel`, XTopJointFbMapJ `JAtZ.batchMapJ{,X}`, XTopJointFbMapJL
   `JAtZ.batchMapJL` with LiveDN/NoSwitch/SpecGlob/PPR0); XTopJointFbDel `fb_entry_delJ` (fork B; XTopJointFbDelFrame,
   XTopJointFbDelFrameN `JAtZ.fbDelFrameJN` = one finalise round + empty slot at WJL, NO `PPPlat` (false,
-  `PPPlat.false`); SpecFbKeepDel, SpecFbDelRun; XTopJointFbDelDefer `JAtZ.fbDelDeferJ` the deferred unmap);
+  `PPPlat.false`); SpecFbKeepDel, SpecFbDelRun; XTopJointFbDelDefer `JAtZ.fbDeferStepJ` (unflushed unmap + cleared set_cap at J) and
+  `JAtZ.fbDelDeferJ` (+ `hcn`: the slot's CNode), fork E; VsFbUnmapU `unmap_unflushed_rel` vs `unmapPageUnflushed`);
   XTopJointFbCopy `fb_entry_copyJ` (fork C; SpecFbCopyRun, XTopJointFbCopyIns `JAtZ.fbInsJ`, `fbc_ppk`); `fb_entryJ`
   (VsFb) = case split, post `FbEntryPost ∧ CnSlotsKept`, premise `hRt` (both root CNode caps held in slots, carried by
   fb_loopI via `CnSlotsKept.held`).
@@ -17297,3 +17298,7 @@ global ref).
   `fb_loopJ`, `decode_invocation_pml4_fbJV`, `decode_invocation_pml4JV` (+ `[PlainStore]`, `hbuf`, `hl`, `h20`, `hLv`,
   `hsg`, `hp0`, `hDP`, `hnd`, `hARI`; callers XTopJointEntry/KEntry13P/KEntry23P pass `hbuf hl (hok.2.2 h).2 hE.live
   hE.sg (J.ppr0_start …) hG.delParts hG.nd hG.ari`), `FbDelOK.cpy`, `MKD.vspace_decode`, `MKD.decode_quiet`.
+- **Forks / commits:** A (REMAP, batch_map) d3083948, a11268a7, a94dc59b; B (DELETE) eba1b0fa, a98442b9, adf38be3,
+  98a3ca72; C (COPY_MAP) b68a341f, 0903c831; D (MR) 84dd8fce, 9bb2d94f, ce84338a; E (deferred unmap) f49408f0,
+  17c5a497; coordinator e515713d, afee8672, 108560a7 and merges. All merged into par/fb3 (local only).
+- **Scratch:** proofs/scratch/fb3scratch.py's stub list is EMPTY (no FrameBatch stub left anywhere).
